@@ -151,11 +151,11 @@ void em_t::orch_execute(em_cmd_t *pcmd)
             em_printfout("%s(%s) state: %s radio mac:%s", em_cmd_t::get_orch_op_str(pcmd->get_orch_op()),
                     em_cmd_t::get_cmd_type_str(pcmd->m_type), em_t::state_2_str(get_state()),
                     util::mac_to_string(em_t::get_radio_interface_mac()).c_str());
-            if ((pcmd->get_orch_op() == dm_orch_type_ap_cap_query) && (m_sm.get_state() == em_state_ctrl_wsc_m2_sent)) {
-                m_sm.set_state(em_state_ctrl_ap_cap_query_pending);
-            } else if ((pcmd->get_orch_op() == dm_orch_type_topo_sync) && (m_sm.get_state() == em_state_ctrl_ap_cap_report_received)) {
+            if ((pcmd->get_orch_op() == dm_orch_type_topo_sync) && (m_sm.get_state() == em_state_ctrl_wsc_m2_sent)) {
                 m_sm.set_state(em_state_ctrl_topo_sync_pending);
-            } else if ((pcmd->get_orch_op() == dm_orch_type_channel_pref) && (m_sm.get_state() == em_state_ctrl_topo_synchronized)) {
+            } else if ((pcmd->get_orch_op() == dm_orch_type_ap_cap_query) && (m_sm.get_state() == em_state_ctrl_topo_synchronized)) {
+                m_sm.set_state(em_state_ctrl_ap_cap_query_pending);
+            } else if ((pcmd->get_orch_op() == dm_orch_type_channel_pref) && (m_sm.get_state() == em_state_ctrl_ap_cap_report_received)) {
                 m_sm.set_state(em_state_ctrl_channel_query_pending);
             } else if ((pcmd->get_orch_op() == dm_orch_type_channel_sel) && (m_sm.get_state() == em_state_ctrl_channel_queried)) {
                 m_sm.set_state(em_state_ctrl_channel_select_pending);
@@ -185,7 +185,7 @@ void em_t::orch_execute(em_cmd_t *pcmd)
             break;
 
         case em_cmd_type_channel_pref_query:
-	    if (m_sm.get_state() == em_state_agent_topo_synchronized) {
+	    if (m_sm.get_state() == em_state_agent_ap_cap_report) {
 		    m_sm.set_state(em_state_agent_channel_pref_query);
 	    }
             break;
@@ -1192,17 +1192,61 @@ short em_t::create_prof_2_tlv(unsigned char *buff)
 short em_t::create_device_inventory_tlv(unsigned char *buff)
 {
     short len = 0;
+    dm_easy_mesh_t* dm;
     dm_radio_t* radio = get_data_model()->get_radio(get_radio_interface_mac());
     em_radio_info_t* radio_info = radio->get_radio_info();
-    em_device_inventory_t *invent = reinterpret_cast<em_device_inventory_t *>(buff);
+    unsigned char *tmp = buff;
 
-    if ((invent == NULL) || (radio_info == NULL)) {
+    if ((radio_info == NULL)) {
         em_printfout("No data Found");
         return 0;
     }
 
-    memcpy(invent, &radio_info->inventory_info, sizeof(em_device_inventory_t));
-    len = sizeof(em_device_inventory_t);
+    memcpy(tmp, &radio_info->inventory_info.serial_len, sizeof(unsigned char));
+    tmp += sizeof(unsigned char);
+    if (radio_info->inventory_info.serial_len) {
+        memcpy(tmp, radio_info->inventory_info.serial, radio_info->inventory_info.serial_len);
+        tmp += radio_info->inventory_info.serial_len;
+    }
+    len += static_cast<short>(sizeof(unsigned char) + radio_info->inventory_info.serial_len);
+
+    memcpy(tmp, &radio_info->inventory_info.ver_len, sizeof(unsigned char));
+    tmp += sizeof(unsigned char);
+    if (radio_info->inventory_info.ver_len) {
+        memcpy(tmp, radio_info->inventory_info.version, radio_info->inventory_info.ver_len);
+        tmp += radio_info->inventory_info.ver_len;
+    }
+    len += static_cast<short>(sizeof(unsigned char) + radio_info->inventory_info.ver_len);
+
+    memcpy(tmp, &radio_info->inventory_info.envi_len, sizeof(unsigned char));
+    tmp += sizeof(unsigned char);
+    if (radio_info->inventory_info.envi_len) {
+        memcpy(tmp, radio_info->inventory_info.environment, radio_info->inventory_info.envi_len);
+        tmp += radio_info->inventory_info.envi_len;
+    }
+    len += static_cast<short>(sizeof(unsigned char) + radio_info->inventory_info.envi_len);
+
+    dm = get_data_model();
+
+    unsigned char num_radios = static_cast<unsigned char> (dm->get_num_radios());
+    memcpy(tmp, &num_radios, sizeof(unsigned char));
+    tmp += sizeof(unsigned char);
+    len += static_cast<short>(sizeof(unsigned char));
+
+    for (unsigned int i = 0; i < num_radios; i++) {
+        unsigned char* ruid = dm->get_radio_by_ref(i).get_radio_interface_mac();
+        memcpy(tmp, ruid, sizeof(mac_address_t));
+        tmp += sizeof(mac_address_t);
+        len += static_cast<short>(sizeof(mac_address_t));
+
+        memcpy(tmp, &radio_info->inventory_info.radios[i].vendor_len, sizeof(unsigned char));
+        tmp += sizeof(unsigned char);
+        if(radio_info->inventory_info.radios[i].vendor_len) {
+            memcpy(tmp, radio_info->inventory_info.radios[i].vendor, radio_info->inventory_info.radios[i].vendor_len);
+            tmp += radio_info->inventory_info.radios[i].vendor_len;
+        }
+        len += static_cast<short>(sizeof(unsigned char) + radio_info->inventory_info.radios[i].vendor_len);
+    }
     return len;
 }
 
@@ -1309,7 +1353,7 @@ unsigned short em_t::create_eht_operations_tlv(unsigned char *buff)
     len += sizeof(unsigned char);
 
     for (i = 0; i < num_radios; i++) {
-        uint8_t* ruid = dm->get_radio_info(i)->id.ruid;
+        unsigned char* ruid = dm->get_radio_by_ref(i).get_radio_interface_mac();
         memcpy(tmp, ruid, sizeof(mac_address_t));
         tmp += sizeof(mac_address_t);
         len += sizeof(mac_address_t);
@@ -1328,19 +1372,19 @@ unsigned short em_t::create_eht_operations_tlv(unsigned char *buff)
 
 
         for (j = 0; j < dm->get_num_bss(); j++) {
-        	if (memcmp(dm->m_bss[j].m_bss_info.ruid.mac, ruid, sizeof(mac_address_t)) != 0) {
-            	continue;
-        	}
-
-            memcpy(tmp, dm->m_bss[j].m_bss_info.bssid.mac, sizeof(mac_address_t));
-            tmp += sizeof(mac_address_t);
-            len += sizeof(mac_address_t);
-
-            eht_ops_bss = &dm->m_bss[j].m_bss_info.eht_ops;
-            memcpy(tmp, eht_ops_bss, sizeof(em_eht_operations_bss_t));
-            tmp += sizeof(em_eht_operations_bss_t);
-            len += sizeof(em_eht_operations_bss_t);
+            if (memcmp(dm->m_bss[j].m_bss_info.ruid.mac, ruid, sizeof(mac_address_t)) == 0) {
+                memcpy(dm->m_bss[j].m_bss_info.eht_ops.bssid, dm->m_bss[j].m_bss_info.bssid.mac, sizeof(mac_address_t));
+                eht_ops_bss = &dm->m_bss[j].m_bss_info.eht_ops;
+                memcpy(tmp, eht_ops_bss, sizeof(em_eht_operations_bss_t));
+                tmp += sizeof(em_eht_operations_bss_t);
+                len += sizeof(em_eht_operations_bss_t);
+            }
         }
+        // 25 octets are reserved for future use in radio, so skip 25 octets
+        unsigned int radio_reserved_octets = 25;
+        memset(tmp, 0, radio_reserved_octets);
+        tmp += radio_reserved_octets;
+        len += radio_reserved_octets;
     }
 
     return len;

@@ -115,6 +115,10 @@ extern "C"
 #define EM_AUTH_TYPES (EM_AUTH_OPEN | EM_AUTH_WPAPSK | EM_AUTH_SHARED | \
             EM_AUTH_WPA | EM_AUTH_WPA2 | EM_AUTH_WPA2PSK | EM_AUTH_SAE_AKM8 | \
             EM_AUTH_DPP_AKM | EM_AUTH_SAE_AKM24 )
+
+#define EM_AUTH_ENHANCED_OPEN 0x1000
+#define EM_AUTH_WPA3_PERSONAL EM_AUTH_SAE_AKM8
+#define EM_AUTH_WPA3_TRANSITION EM_AUTH_SAE_AKM8 | EM_AUTH_WPA2PSK
     
 /* Encryption Type Flags */
 #define EM_ENCR_NONE 0x0001
@@ -129,6 +133,11 @@ extern "C"
 #define EM_RF_50GHZ 0x02
 #define EM_RF_60GHZ 0x04
 #define EM_RF_6GHZ  0x08
+
+/*  Bands */
+#define EM_BAND_2_4_GHZ  0
+#define EM_BAND_5_GHZ    1
+#define EM_BAND_6_GHZ    2
 
 /* Config Methods */
 #define EM_CONFIG_USBA 0x0001
@@ -149,6 +158,9 @@ extern "C"
 /* Connection Type Flags */
 #define EM_CONN_ESS 0x01
 #define EM_CONN_IBSS 0x02
+
+/* Channel Preference Flags*/
+#define EM_CH_PREF_NON_OPERABLE 0x00
 
 #define EM_MAX_BANDS    3
 #define EM_MAX_BSSS     EM_MAX_BANDS*8  
@@ -616,6 +628,23 @@ typedef enum {
     em_tlv_vendor_plolicy_cfg = 0xf2,
     em_tlv_type_vendor_operational_bss = 0xf3,
 } em_tlv_type_t;
+
+typedef enum {
+    em_channel_pref_reason_unspecified = 0x00,
+    em_channel_pref_reason_proximate_non_80211_interferer = 0x01,
+    em_channel_pref_reason_intra_network_obss_interference_mgmt = 0x02,
+    em_channel_pref_reason_external_network_obss_interference_mgmt = 0x03,
+    em_channel_pref_reason_reduced_coverage = 0x04,
+    em_channel_pref_reason_reduced_throughput = 0x05,
+    em_channel_pref_reason_in_device_interferer = 0x06,
+    em_channel_pref_reason_operation_disallowed_dfs_radar_detection = 0x07,
+    em_channel_pref_reason_operation_prevent_backhaul_shared_radio = 0x08,
+    em_channel_pref_reason_immediate_operation_possible_dfs = 0x09,
+    em_channel_pref_reason_dfs_state_unknown_cac_not_run_or_expired = 0x0a,
+    em_channel_pref_reason_controller_dfs_clear_indication = 0x0b,
+    em_channel_pref_reason_operation_disallowed_regulatory_restriction = 0x0c,
+    em_channel_pref_reason_change_due_to_available_spectrum_inquiry = 0x0d
+} em_channel_pref_reason_t;
 
 typedef struct {
     unsigned short qmid;
@@ -1934,6 +1963,7 @@ typedef enum {
     em_state_agent_onewifi_bssconfig_ind,
 	em_state_agent_autoconfig_renew_pending,
     em_state_agent_topo_synchronized,
+    em_state_agent_ap_cap_report,
 	em_state_agent_channel_pref_query,
 	em_state_agent_channel_selection_pending,
 	em_state_agent_channel_select_configuration_pending,
@@ -1943,7 +1973,6 @@ typedef enum {
 	
 	// Transient agent stats
     em_state_agent_topology_notify,
-    em_state_agent_ap_cap_report,
     em_state_agent_client_cap_report,
     em_state_agent_sta_link_metrics_pending,
     em_state_agent_steer_btm_res_pending,
@@ -2191,6 +2220,7 @@ typedef struct {
     mac_address_t   mobility_domain;
     unsigned char   num_hauls;
     em_haul_type_t haul_type[EM_MAX_HAUL_TYPES];   
+    em_string_t auth_type;
 } em_network_ssid_info_t;
 
 typedef enum {
@@ -3280,6 +3310,19 @@ typedef struct{
         em_haul_type_t haul_type;
         em_freq_band_t freq_band;
 }em_dev_test_info;
+
+typedef struct {
+    const char *name;
+    uint32_t hex;
+} SecurityTypeMap;
+
+static const SecurityTypeMap securityTypeMap[] = {
+    { "Open",            EM_AUTH_OPEN },
+    { "WPA2 Personal",   EM_AUTH_WPA2 },
+    { "Enhanced Open",   EM_AUTH_ENHANCED_OPEN },
+    { "WPA3 Personal",   EM_AUTH_WPA3_PERSONAL },
+    { "WPA3 Transition", EM_AUTH_WPA3_TRANSITION }
+};
 
 #ifndef SSL_KEY
 #if OPENSSL_VERSION_NUMBER < 0x30000000L

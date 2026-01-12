@@ -1997,26 +1997,30 @@ int dm_easy_mesh_ctrl_t::update_tables(dm_easy_mesh_t *dm)
     return 0;
 }
 
-dm_easy_mesh_t* dm_easy_mesh_ctrl_t::get_dm_easy_mesh(char *instance, bool is_num)
+dm_easy_mesh_t *dm_easy_mesh_ctrl_t::get_dm_easy_mesh(char *instance, bool is_num)
 {
     dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
     dm_easy_mesh_t *dm = dm_ctrl->get_first_dm();
 
     if (is_num) {
-        if (dm == NULL || (dm->get_id() != atoi(instance))) {
-            dm = dm_ctrl->get_next_dm(dm);
-        }
+        do {
+            if (dm == NULL || (dm->get_id() != atoi(instance))) {
+                dm = dm_ctrl->get_next_dm(dm);
+            } else {
+                return dm;
+            }
+        } while (dm != NULL);
+
         return NULL;
     }
 
     do {
-        char mac_str[18];
-        dm_device_t *dev = dm->get_device();
-        if (dev == NULL) {
+        if (dm == NULL || dm->get_device() == NULL) {
             dm = dm_ctrl->get_next_dm(dm);
             continue;
         }
-        em_device_info_t *di = dev->get_device_info();
+        char mac_str[18];
+        em_device_info_t *di = dm->get_device()->get_device_info();
         dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *> (di->id.dev_mac), mac_str);
         if (strcmp(instance, mac_str) == 0) {
             return dm;
@@ -2240,6 +2244,26 @@ bus_error_t dm_easy_mesh_ctrl_t::rcaps_get(char *event_name, raw_data_t *p_data)
     return bus_get_cb_fwd(event_name, p_data, rcaps_get_inner);
 }
 
+bus_error_t dm_easy_mesh_ctrl_t::wf6ap_get(char *event_name, raw_data_t *p_data)
+{
+    return bus_get_cb_fwd(event_name, p_data, wf6ap_get_inner);
+}
+
+bus_error_t dm_easy_mesh_ctrl_t::wf6ap_tget(char *event_name, raw_data_t *p_data)
+{
+    return bus_get_cb_fwd(event_name, p_data, wf6ap_tget_inner);
+}
+
+bus_error_t dm_easy_mesh_ctrl_t::wf7ap_get(char *event_name, raw_data_t *p_data)
+{
+    return bus_get_cb_fwd(event_name, p_data, wf7ap_get_inner);
+}
+
+bus_error_t dm_easy_mesh_ctrl_t::wf7ap_tget(char *event_name, raw_data_t *p_data)
+{
+    return bus_get_cb_fwd(event_name, p_data, wf7ap_tget_inner);
+}
+
 bus_error_t dm_easy_mesh_ctrl_t::curops_get(char *event_name, raw_data_t *p_data)
 {
     return bus_get_cb_fwd(event_name, p_data, curops_get_inner);
@@ -2268,6 +2292,31 @@ bus_error_t dm_easy_mesh_ctrl_t::sta_get(char *event_name, raw_data_t *p_data)
 bus_error_t dm_easy_mesh_ctrl_t::sta_tget(char *event_name, raw_data_t *p_data)
 {
     return bus_get_cb_fwd(event_name, p_data, sta_tget_inner);
+}
+
+bus_error_t dm_easy_mesh_ctrl_t::apmld_get(char *event_name, raw_data_t *p_data)
+{
+    return bus_get_cb_fwd(event_name, p_data, apmld_get_inner);
+}
+
+bus_error_t dm_easy_mesh_ctrl_t::apmld_tget(char *event_name, raw_data_t *p_data)
+{
+    return bus_get_cb_fwd(event_name, p_data, apmld_tget_inner);
+}
+
+bus_error_t dm_easy_mesh_ctrl_t::apmldcfg_get(char *event_name, raw_data_t *p_data)
+{
+    return bus_get_cb_fwd(event_name, p_data, apmldcfg_get_inner);
+}
+
+bus_error_t dm_easy_mesh_ctrl_t::affap_get(char *event_name, raw_data_t *p_data)
+{
+    return bus_get_cb_fwd(event_name, p_data, affap_get_inner);
+}
+
+bus_error_t dm_easy_mesh_ctrl_t::affap_tget(char *event_name, raw_data_t *p_data)
+{
+    return bus_get_cb_fwd(event_name, p_data, affap_tget_inner);
 }
 
 const char* dm_easy_mesh_ctrl_t::get_table_instance(const char *src, char *instance, size_t max_len, bool *is_num)
@@ -2357,7 +2406,6 @@ bus_error_t dm_easy_mesh_ctrl_t::device_get_inner(char *event_name, raw_data_t *
     const char *param;
     char instance[MAX_INSTANCE_LEN] = { 0 };
     bool is_num;
-    int device_instance = 0;
     bus_error_t rc;
 
     if (!name || !p_data) {
@@ -2370,20 +2418,16 @@ bus_error_t dm_easy_mesh_ctrl_t::device_get_inner(char *event_name, raw_data_t *
     }
     ++param;
 
-
     dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
+
+    /* Extract device instance (numeric or alias) and find the dm object for
+     * that device instance */
     name += sizeof(DATAELEMS_NETWORK);
     name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
-    device_instance = is_num ? atoi(instance) : 0;
-
-    dm_easy_mesh_t *dm = dm_ctrl->get_first_dm();
-    if (dm == NULL || (dm->get_id() != device_instance)) {
-        dm = dm_ctrl->get_next_dm(dm);
-    }
-
-    if(dm == NULL) {
-        em_printfout("dm is NULL");
-        return bus_error_invalid_input;
+    dm_easy_mesh_t *dm = dm_ctrl->get_dm_easy_mesh(instance, is_num);
+    if (dm == NULL) {
+        printf("device not found\n");
+        return bus_error_invalid_namespace;
     }
 
     dm_device_t *dev = dm->get_device();
@@ -2521,11 +2565,11 @@ bus_error_t dm_easy_mesh_ctrl_t::device_get_inner(char *event_name, raw_data_t *
     } else if (strcmp(param, "BackhaulDownNumberOfEntries") == 0) {
         rc = dm_ctrl->raw_data_set(p_data, di->num_backhaul_down_mac);
     } else if (strcmp(param, "OnboardingProtocol") == 0) {
-        rc = dm_ctrl->raw_data_set(p_data, sec_cap->onboarding_proto);
+        rc = dm_ctrl->raw_data_set(p_data, sec_cap ? sec_cap->onboarding_proto : 0);
     } else if (strcmp(param, "IntegrityAlgorithm") == 0) {
-        rc = dm_ctrl->raw_data_set(p_data, sec_cap->integrity_algo);
+        rc = dm_ctrl->raw_data_set(p_data, sec_cap ? sec_cap->integrity_algo : 0);
     } else if (strcmp(param, "EncryptionAlgorithm") == 0) {
-        rc = dm_ctrl->raw_data_set(p_data, sec_cap->encryption_algo);
+        rc = dm_ctrl->raw_data_set(p_data, sec_cap ? sec_cap->encryption_algo : 0);
     } else {
         em_printfout("Invalid param: %s", param);
         rc = bus_error_invalid_input;
@@ -2545,6 +2589,10 @@ bus_error_t dm_easy_mesh_ctrl_t::device_tget_inner(char *event_name, raw_data_t 
     if (!event_name || !p_data) {
         return bus_error_invalid_input;
     }
+    if (*(event_name + (strlen(event_name) - 1)) != '.') {
+        /* Only partial paths are valid */
+        return bus_error_invalid_operation;
+    }
 
     dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
     dm_easy_mesh_t *dm = dm_ctrl->get_first_dm();
@@ -2553,8 +2601,13 @@ bus_error_t dm_easy_mesh_ctrl_t::device_tget_inner(char *event_name, raw_data_t 
         return bus_error_invalid_input;
     }
 
-    unsigned int idx = 0;
+    /* Calculate device count */
+    unsigned int device_cnt = 0;
     while (dm != NULL) {
+        if (dm->get_id() < 0) {
+            dm = dm_ctrl->get_next_dm(dm);
+            continue;
+        }
         dm_device_t *dev = dm->get_device();
         if (dev == NULL) {
             dm = dm_ctrl->get_next_dm(dm);
@@ -2565,12 +2618,32 @@ bus_error_t dm_easy_mesh_ctrl_t::device_tget_inner(char *event_name, raw_data_t 
             dm = dm_ctrl->get_next_dm(dm);
             continue;
         }
-        ++idx;
-        em_ieee_1905_security_cap_t *sec_cap = dm->get_ieee_1905_security_cap();
-        if (sec_cap == NULL) {
-            em_printfout("NULL sec_cap");
-            return bus_error_invalid_input;
+        ++device_cnt;
+        dm = dm_ctrl->get_next_dm(dm);
+    }
+
+    /* Iterate according to dm id */
+    for (unsigned int idx = 1, cnt = 0; cnt < device_cnt; idx++) {
+        dm = dm_ctrl->get_first_dm();
+        do {
+            if (dm && (dm->get_id() == static_cast<int>(idx))) {
+                break;
+            }
+            dm = dm_ctrl->get_next_dm(dm);
+        } while (dm != NULL);
+        if (dm == NULL) {
+            continue;
         }
+        ++cnt;
+        dm_device_t *dev = dm->get_device();
+        if (dev == NULL) {
+            continue;
+        }
+        em_device_info_t *di = dev->get_device_info();
+        if (memcmp(di->id.dev_mac, ZERO_MAC_ADDR, sizeof(di->id.dev_mac)) == 0) {
+            continue;
+        }
+        em_ieee_1905_security_cap_t *sec_cap = dm->get_ieee_1905_security_cap();
 
         dm_ctrl->property_append_tail(&property, root, idx, "ID", di->id.dev_mac);
         dm_ctrl->property_append_tail(&property, root, idx, "Manufacturer", di->manufacturer);
@@ -2603,14 +2676,15 @@ bus_error_t dm_easy_mesh_ctrl_t::device_tget_inner(char *event_name, raw_data_t 
         dm_ctrl->property_append_tail(&property, root, idx, "RadioNumberOfEntries", dm->get_num_radios());
         dm_ctrl->property_append_tail(&property, root, idx, "CACStatusNumberOfEntries", 0U);
         dm_ctrl->property_append_tail(&property, root, idx, "BackhaulDownNumberOfEntries", di->num_backhaul_down_mac);
-        dm_ctrl->property_append_tail(&property, root, idx, "OnboardingProtocol", sec_cap->onboarding_proto);
-        dm_ctrl->property_append_tail(&property, root, idx, "IntegrityAlgorithm", sec_cap->integrity_algo);
-        dm_ctrl->property_append_tail(&property, root, idx, "EncryptionAlgorithm", sec_cap->encryption_algo);
+        dm_ctrl->property_append_tail(&property, root, idx, "OnboardingProtocol", sec_cap ? sec_cap->onboarding_proto : 0);
+        dm_ctrl->property_append_tail(&property, root, idx, "IntegrityAlgorithm", sec_cap ? sec_cap->integrity_algo : 0);
+        dm_ctrl->property_append_tail(&property, root, idx, "EncryptionAlgorithm", sec_cap ? sec_cap->encryption_algo : 0);
 
         snprintf(path, sizeof(path) - 1, "%s%d.Radio.", root, idx);
         dm_ctrl->radio_tget_params(dm, path, &property);
 
-        dm = dm_ctrl->get_next_dm(dm);
+        snprintf(path, sizeof(path) - 1, "%s%d.APMLD.", root, idx);
+        dm_ctrl->apmld_tget_params(dm, path, &property);
     }
 
     if (property) {
@@ -2628,7 +2702,6 @@ bus_error_t dm_easy_mesh_ctrl_t::policy_get_inner(char *event_name, raw_data_t *
     unsigned int count = 0;
     char instance[MAX_INSTANCE_LEN] = { 0 };
     bool is_num;
-    int device_instance = 0;
     bus_error_t rc = bus_error_success;
 
     if (!name || !p_data) {
@@ -2642,25 +2715,15 @@ bus_error_t dm_easy_mesh_ctrl_t::policy_get_inner(char *event_name, raw_data_t *
     ++param;
 
     dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
+
+    /* Extract device instance (numeric or alias) and find the dm object for
+     * that device instance */
     name += sizeof(DATAELEMS_NETWORK);
     name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
-    device_instance = is_num ? atoi(instance) : 0;
-
-    dm_easy_mesh_t *dm = dm_ctrl->get_first_dm();
-    if (dm == NULL || (dm->get_id() != device_instance)) {
-        dm = dm_ctrl->get_next_dm(dm);
-    }
-
-    dm_device_t *dev = dm->get_device();
-    if (dev == NULL) {
-        em_printfout("NULL dev");
-        return bus_error_invalid_input;
-    }
-
-    em_device_info_t *di = dev->get_device_info();
-    if (memcmp(di->intf.mac, ZERO_MAC_ADDR, sizeof(di->intf.mac)) == 0) {
-        em_printfout("NULL dev_info");
-        return bus_error_invalid_input;
+    dm_easy_mesh_t *dm = dm_ctrl->get_dm_easy_mesh(instance, is_num);
+    if (dm == NULL) {
+        printf("device not found\n");
+        return bus_error_invalid_namespace;
     }
 
     dm_policy_t *pi = &dm->m_policy[count];
@@ -2751,6 +2814,8 @@ bus_error_t dm_easy_mesh_ctrl_t::ssid_get_inner(char *event_name, raw_data_t *p_
     } else if (strcmp(param, "HaulType") == 0) {
         dm_ctrl->fill_haul_type(si->haul_type, si->num_hauls, val_str);
         rc = dm_ctrl->raw_data_set(p_data, val_str);
+    } else if (strcmp(param, "AuthType") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, si->auth_type);
     } else {
         em_printfout("Invalid param: %s\n", param);
         rc = bus_error_invalid_input;
@@ -2764,6 +2829,11 @@ bus_error_t dm_easy_mesh_ctrl_t::ssid_tget_inner(char *event_name, raw_data_t *p
     const char *root = event_name;
     char val_str[1024] = { 0 };
     bus_data_prop_t *property = NULL;
+
+    if (*(event_name + (strlen(event_name) - 1)) != '.') {
+        /* Only partial paths are valid */
+        return bus_error_invalid_operation;
+    }
 
     dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
     dm_easy_mesh_t *dm = dm_ctrl->get_first_dm();
@@ -2794,6 +2864,7 @@ bus_error_t dm_easy_mesh_ctrl_t::ssid_tget_inner(char *event_name, raw_data_t *p
         memset(val_str, 0, sizeof(val_str));
         dm_ctrl->fill_haul_type(si->haul_type, si->num_hauls, val_str);
         dm_ctrl->property_append_tail(&property, root, idx, "HaulType", val_str);
+        dm_ctrl->property_append_tail(&property, root, idx, "AuthType", si->auth_type);
     }
 
     if (property) {
@@ -2859,7 +2930,7 @@ bus_error_t dm_easy_mesh_ctrl_t::radio_get_inner(char *event_name, raw_data_t *p
     const char *param;
     char instance[MAX_INSTANCE_LEN] = { 0 };
     bool is_num;
-    int device_instance = 0, radio_instance = 0;
+    int radio_instance = 0;
     bus_error_t rc;
 
     if (!name || !p_data) {
@@ -2873,18 +2944,15 @@ bus_error_t dm_easy_mesh_ctrl_t::radio_get_inner(char *event_name, raw_data_t *p
     ++param;
 
     dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
+
+    /* Extract device instance (numeric or alias) and find the dm object for
+     * that device instance */
     name += sizeof(DATAELEMS_NETWORK);
     name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
-    device_instance = is_num ? atoi(instance) : 0;
-
-    dm_easy_mesh_t *dm = dm_ctrl->get_first_dm();
-    if (dm == NULL || (dm->get_id() != device_instance)) {
-        dm = dm_ctrl->get_next_dm(dm);
-    }
-
-    if(dm == NULL) {
-        em_printfout("dm is NULL");
-        return bus_error_invalid_input;
+    dm_easy_mesh_t *dm = dm_ctrl->get_dm_easy_mesh(instance, is_num);
+    if (dm == NULL) {
+        printf("device not found\n");
+        return bus_error_invalid_namespace;
     }
 
     name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
@@ -2935,7 +3003,6 @@ bus_error_t dm_easy_mesh_ctrl_t::radio_tget_inner(char *event_name, raw_data_t *
     (void) user_data;
     const char *name = event_name;
     const char *root = name;
-    int device_instance = 0;
     char instance[MAX_INSTANCE_LEN] = { 0 };
     bool is_num;
     bus_data_prop_t *property = NULL;
@@ -2944,20 +3011,21 @@ bus_error_t dm_easy_mesh_ctrl_t::radio_tget_inner(char *event_name, raw_data_t *
     if (!name || !p_data) {
         return bus_error_invalid_input;
     }
-
-    dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
-    name += sizeof(DATAELEMS_NETWORK);
-    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
-    device_instance = is_num ? atoi(instance) : 0;
-
-    dm_easy_mesh_t *dm = dm_ctrl->get_first_dm();
-    if (dm == NULL || (dm->get_id() != device_instance)) {
-        dm = dm_ctrl->get_next_dm(dm);
+    if (*(name + (strlen(name) - 1)) != '.') {
+        /* Only partial paths are valid */
+        return bus_error_invalid_operation;
     }
 
-    if(dm == NULL) {
-        em_printfout("dm is NULL");
-        return bus_error_invalid_input;
+    dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
+
+    /* Extract device instance (numeric or alias) and find the dm object for
+     * that device instance */
+    name += sizeof(DATAELEMS_NETWORK);
+    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    dm_easy_mesh_t *dm = dm_ctrl->get_dm_easy_mesh(instance, is_num);
+    if (dm == NULL) {
+        printf("device not found\n");
+        return bus_error_invalid_namespace;
     }
 
     rc = dm_ctrl->radio_tget_params(dm, root, &property);
@@ -3028,6 +3096,12 @@ bus_error_t dm_easy_mesh_ctrl_t::radio_tget_params(dm_easy_mesh_t *dm, const cha
         snprintf(path, sizeof(path) - 1, "%s%d.CurrentOperatingClassProfile.", root, idx);
         dm_ctrl->curops_tget_params(dm, path, ri, property);
 
+        snprintf(path, sizeof(path) - 1, "%s%d.Capabilities.WiFi6APRole.", root, idx);
+        dm_ctrl->wf6ap_tget_params(dm, path, ri, property, idx);
+
+        snprintf(path, sizeof(path) - 1, "%s%d.Capabilities.WiFi7APRole.", root, idx);
+        dm_ctrl->wf7ap_tget_params(dm, path, ri, property, idx);
+
         snprintf(path, sizeof(path) - 1, "%s%d.BSS.", root, idx);
         dm_ctrl->bss_tget_params(dm, path, ri, property);
     }
@@ -3042,7 +3116,7 @@ bus_error_t dm_easy_mesh_ctrl_t::rbhsta_get_inner(char *event_name, raw_data_t *
     const char *param;
     char instance[MAX_INSTANCE_LEN] = { 0 };
     bool is_num;
-    int device_instance = 0, radio_instance = 0;
+    int radio_instance = 0;
     bus_error_t rc;
 
     if (!name || !p_data) {
@@ -3056,18 +3130,15 @@ bus_error_t dm_easy_mesh_ctrl_t::rbhsta_get_inner(char *event_name, raw_data_t *
     ++param;
 
     dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
+
+    /* Extract device instance (numeric or alias) and find the dm object for
+     * that device instance */
     name += sizeof(DATAELEMS_NETWORK);
     name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
-    device_instance = is_num ? atoi(instance) : 0;
-
-    dm_easy_mesh_t *dm = dm_ctrl->get_first_dm();
-    if (dm == NULL || (dm->get_id() != device_instance)) {
-        dm = dm_ctrl->get_next_dm(dm);
-    }
-
-    if(dm == NULL) {
-        em_printfout("dm is NULL");
-        return bus_error_invalid_input;
+    dm_easy_mesh_t *dm = dm_ctrl->get_dm_easy_mesh(instance, is_num);
+    if (dm == NULL) {
+        printf("device not found\n");
+        return bus_error_invalid_namespace;
     }
 
     name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
@@ -3101,6 +3172,70 @@ bus_error_t dm_easy_mesh_ctrl_t::rcaps_get_inner(char *event_name, raw_data_t *p
     const char *name = event_name;
     const char *param;
     char caps_str[MAX_CAPS_STR_LEN] = { 0 };
+    char instance[MAX_INSTANCE_LEN] = { 0 };
+    bool is_num;
+    int radio_instance = 0;
+    bus_error_t rc;
+
+    if (!name || !p_data) {
+        return bus_error_invalid_input;
+    }
+
+    param = strrchr(name, '.');
+    if (param == NULL) {
+        return bus_error_invalid_input;
+    }
+    ++param;
+
+    dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
+
+    /* Extract device instance (numeric or alias) and find the dm object for
+     * that device instance */
+    name += sizeof(DATAELEMS_NETWORK);
+    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    dm_easy_mesh_t *dm = dm_ctrl->get_dm_easy_mesh(instance, is_num);
+    if (dm == NULL) {
+        printf("device not found\n");
+        return bus_error_invalid_namespace;
+    }
+
+    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    radio_instance = is_num ? atoi(instance) : 0;
+    dm_radio_t *radio = &dm->m_radio[radio_instance - 1];
+    if (radio == NULL) {
+        em_printfout("radio is NULL\n");
+        return bus_error_invalid_input;
+    }
+    em_radio_info_t *ri = radio->get_radio_info();
+
+    dm_radio_cap_t *radio_cap = dm->get_radio_cap(ri->id.ruid);
+    if (radio_cap == NULL) {
+        em_printfout("radio_cap is NULL\n");
+        return bus_error_invalid_input;
+    }
+    em_radio_cap_info_t *rci = radio_cap->get_radio_cap_info();
+
+    if (strcmp(param, "HTCapabilities") == 0) {
+        dm_ctrl->get_ht_caps_str(&rci->ht_cap, caps_str, sizeof(caps_str));
+        rc = dm_ctrl->raw_data_set(p_data, caps_str);
+    } else if (strcmp(param, "VHTCapabilities") == 0) {
+        dm_ctrl->get_vht_caps_str(&rci->vht_cap, caps_str, sizeof(caps_str));
+        rc = dm_ctrl->raw_data_set(p_data, caps_str);
+    } else if (strcmp(param, "CapableOperatingClassProfileNumberOfEntries") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, 0U);
+    } else {
+        em_printfout("Invalid param: %s\n", param);
+        rc = bus_error_invalid_input;
+    }
+
+    return rc;
+}
+
+bus_error_t dm_easy_mesh_ctrl_t::wf6ap_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
+{
+    (void) user_data;
+    const char *name = event_name;
+    const char *param;
     char instance[MAX_INSTANCE_LEN] = { 0 };
     bool is_num;
     int device_instance = 0, radio_instance = 0;
@@ -3146,19 +3281,330 @@ bus_error_t dm_easy_mesh_ctrl_t::rcaps_get_inner(char *event_name, raw_data_t *p
         return bus_error_invalid_input;
     }
     em_radio_cap_info_t *rci = radio_cap->get_radio_cap_info();
+    em_radio_wifi6_cap_data_t *wifi6_cap = &rci->wifi6_cap;
+    char mcsnss_str[256] = { 0 };
+    unsigned int i;
 
-    if (strcmp(param, "HTCapabilities") == 0) {
-        dm_ctrl->get_ht_caps_str(&rci->ht_cap, caps_str, sizeof(caps_str));
-        rc = dm_ctrl->raw_data_set(p_data, caps_str);
-    } else if (strcmp(param, "VHTCapabilities") == 0) {
-        dm_ctrl->get_vht_caps_str(&rci->vht_cap, caps_str, sizeof(caps_str));
-        rc = dm_ctrl->raw_data_set(p_data, caps_str);
-    } else if (strcmp(param, "CapableOperatingClassProfileNumberOfEntries") == 0) {
-        rc = dm_ctrl->raw_data_set(p_data, 0U);
+    if (strcmp(param, "HE160") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, static_cast<bool>(wifi6_cap->he_160));
+    } else if (strcmp(param, "HE8080") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, static_cast<bool>(wifi6_cap->he_8080));
+    } else if (strcmp(param, "MCSNSS") == 0) {
+        snprintf(mcsnss_str, sizeof(mcsnss_str), "%hu", wifi6_cap->mcs_nss[0]);
+        for (i = 1; i < wifi6_cap->mcs_nss_num && i < MAX_MCS_NSS; i++) {
+            char temp[16];
+            snprintf(temp, sizeof(temp), ",%hu", wifi6_cap->mcs_nss[i]);
+            strncat(mcsnss_str, temp, sizeof(mcsnss_str) - strlen(mcsnss_str) - 1);
+        }
+        rc = dm_ctrl->raw_data_set(p_data, mcsnss_str);
+    } else if (strcmp(param, "SUBeamformer") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, static_cast<bool>(wifi6_cap->su_beam_former));
+    } else if (strcmp(param, "SUBeamformee") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, static_cast<bool>(wifi6_cap->su_beam_formee));
+    } else if (strcmp(param, "MUBeamformer") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, static_cast<bool>(wifi6_cap->mu_beam_former));
+    } else if (strcmp(param, "Beamformee80orLess") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, static_cast<bool>(wifi6_cap->beam_formee_sts_l80));
+    } else if (strcmp(param, "BeamformeeAbove80") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, static_cast<bool>(wifi6_cap->beam_formee_sts_g80));
+    } else if (strcmp(param, "ULMUMIMO") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, static_cast<bool>(wifi6_cap->ul_mumimo));
+    } else if (strcmp(param, "ULOFDMA") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, static_cast<bool>(wifi6_cap->ul_ofdma));
+    } else if (strcmp(param, "DLOFDMA") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, static_cast<bool>(wifi6_cap->dl_ofdma));
+    } else if (strcmp(param, "MaxDLMUMIMO") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, static_cast<unsigned int>(wifi6_cap->max_dl_mumimo_tx));
+    } else if (strcmp(param, "MaxULMUMIMO") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, static_cast<unsigned int>(wifi6_cap->max_ul_mumimo_rx));
+    } else if (strcmp(param, "MaxDLOFDMA") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, static_cast<unsigned int>(wifi6_cap->max_dl_ofdma_tx));
+    } else if (strcmp(param, "MaxULOFDMA") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, static_cast<unsigned int>(wifi6_cap->max_ul_ofdma_rx));
+    } else if (strcmp(param, "RTS") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, static_cast<bool>(wifi6_cap->rts));
+    } else if (strcmp(param, "MURTS") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, static_cast<bool>(wifi6_cap->mu_rts));
+    } else if (strcmp(param, "MultiBSSID") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, static_cast<bool>(wifi6_cap->multi_bssid));
+    } else if (strcmp(param, "MUEDCA") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, static_cast<bool>(wifi6_cap->mu_edca));
+    } else if (strcmp(param, "TWTRequestor") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, static_cast<bool>(wifi6_cap->twt_req));
+    } else if (strcmp(param, "TWTResponder") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, static_cast<bool>(wifi6_cap->twt_resp));
+    } else if (strcmp(param, "SpatialReuse") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, static_cast<bool>(wifi6_cap->spatial_reuse));
+    } else if (strcmp(param, "AnticipatedChannelUsage") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, static_cast<bool>(wifi6_cap->anticipated_channel_usage));
     } else {
-        em_printfout("Invalid param: %s\n", param);
+        em_printfout("Invalid WiFi6APRole param: %s\n", param);
         rc = bus_error_invalid_input;
     }
+
+    return rc;
+}
+
+bus_error_t dm_easy_mesh_ctrl_t::wf6ap_tget_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
+{
+    (void) user_data;
+    const char *name = event_name;
+    const char *root = name;
+    char path[512];
+    const char *param;
+    bus_data_prop_t *property = NULL;
+    char instance[MAX_INSTANCE_LEN] = { 0 };
+    bool is_num;
+    int device_instance = 0, radio_instance = 0;
+    bus_error_t rc;
+
+    if (!name || !p_data) {
+        return bus_error_invalid_input;
+    }
+
+    dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
+    name += sizeof(DATAELEMS_NETWORK);
+    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    device_instance = is_num ? atoi(instance) : 0;
+
+    dm_easy_mesh_t *dm = dm_ctrl->get_first_dm();
+    if (dm == NULL || (dm->get_id() != device_instance)) {
+        dm = dm_ctrl->get_next_dm(dm);
+    }
+
+    if(dm == NULL) {
+        em_printfout("dm is NULL");
+        return bus_error_invalid_input;
+    }
+
+    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    radio_instance = is_num ? atoi(instance) : 0;
+    dm_radio_t *radio = &dm->m_radio[radio_instance - 1];
+    if (radio == NULL) {
+        em_printfout("radio is NULL\n");
+        return bus_error_invalid_input;
+    }
+    em_radio_info_t *ri = radio->get_radio_info();
+
+    rc = dm_ctrl->wf6ap_tget_params(dm, root, ri, &property, radio_instance);
+    if (rc == bus_error_success && property) {
+        dm_ctrl->raw_data_set(p_data, property);
+    }
+
+    return rc;
+}
+
+bus_error_t dm_easy_mesh_ctrl_t::wf6ap_tget_params(dm_easy_mesh_t *dm, const char *root, em_radio_info_t *ri, bus_data_prop_t **property, int idx)
+{
+    char mcsnss_str[256] = { 0 };
+    bus_error_t rc = bus_error_success;
+    unsigned int i;
+
+    dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
+    dm_radio_cap_t *radio_cap = dm->get_radio_cap(ri->id.ruid);
+    if (radio_cap == NULL) {
+        return rc;
+    }
+    em_radio_cap_info_t *rci = radio_cap->get_radio_cap_info();
+    em_radio_wifi6_cap_data_t *wifi6_cap = &rci->wifi6_cap;
+
+    snprintf(mcsnss_str, sizeof(mcsnss_str), "%hu", wifi6_cap->mcs_nss[0]);
+    for (i = 1; i < wifi6_cap->mcs_nss_num && i < MAX_MCS_NSS; i++) {
+        char temp[16];
+        snprintf(temp, sizeof(temp), ",%hu", wifi6_cap->mcs_nss[i]);
+        strncat(mcsnss_str, temp, sizeof(mcsnss_str) - strlen(mcsnss_str) - 1);
+    }
+
+    dm_ctrl->property_append_tail(property, root, idx, "HE160", wifi6_cap->he_160);
+    dm_ctrl->property_append_tail(property, root, idx, "HE8080", wifi6_cap->he_8080);
+    dm_ctrl->property_append_tail(property, root, idx, "MCSNSS", mcsnss_str);
+    dm_ctrl->property_append_tail(property, root, idx, "SUBeamformer", wifi6_cap->su_beam_former);
+    dm_ctrl->property_append_tail(property, root, idx, "SUBeamformee", wifi6_cap->su_beam_formee);
+    dm_ctrl->property_append_tail(property, root, idx, "MUBeamformer", wifi6_cap->mu_beam_former);
+    dm_ctrl->property_append_tail(property, root, idx, "Beamformee80orLess", wifi6_cap->beam_formee_sts_l80);
+    dm_ctrl->property_append_tail(property, root, idx, "BeamformeeAbove80", wifi6_cap->beam_formee_sts_g80);
+    dm_ctrl->property_append_tail(property, root, idx, "ULMUMIMO", wifi6_cap->ul_mumimo);
+    dm_ctrl->property_append_tail(property, root, idx, "ULOFDMA", wifi6_cap->ul_ofdma);
+    dm_ctrl->property_append_tail(property, root, idx, "DLOFDMA", wifi6_cap->dl_ofdma);
+    dm_ctrl->property_append_tail(property, root, idx, "MaxDLMUMIMO", wifi6_cap->max_dl_mumimo_tx);
+    dm_ctrl->property_append_tail(property, root, idx, "MaxULMUMIMO", wifi6_cap->max_ul_mumimo_rx);
+    dm_ctrl->property_append_tail(property, root, idx, "MaxDLOFDMA", wifi6_cap->max_dl_ofdma_tx);
+    dm_ctrl->property_append_tail(property, root, idx, "MaxULOFDMA", wifi6_cap->max_ul_ofdma_rx);
+    dm_ctrl->property_append_tail(property, root, idx, "RTS", wifi6_cap->rts);
+    dm_ctrl->property_append_tail(property, root, idx, "MURTS", wifi6_cap->mu_rts);
+    dm_ctrl->property_append_tail(property, root, idx, "MultiBSSID", wifi6_cap->multi_bssid);
+    dm_ctrl->property_append_tail(property, root, idx, "MUEDCA", wifi6_cap->mu_edca);
+    dm_ctrl->property_append_tail(property, root, idx, "TWTRequestor", wifi6_cap->twt_req);
+    dm_ctrl->property_append_tail(property, root, idx, "TWTResponder", wifi6_cap->twt_resp);
+    dm_ctrl->property_append_tail(property, root, idx, "SpatialReuse", wifi6_cap->spatial_reuse);
+    dm_ctrl->property_append_tail(property, root, idx, "AnticipatedChannelUsage", wifi6_cap->anticipated_channel_usage);
+
+    return rc;
+}
+
+bus_error_t dm_easy_mesh_ctrl_t::wf7ap_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
+{
+    (void) user_data;
+    const char *name = event_name;
+    const char *param;
+    char instance[MAX_INSTANCE_LEN] = { 0 };
+    bool is_num;
+    int device_instance = 0, radio_instance = 0;
+    bus_error_t rc;
+
+    if (!name || !p_data) {
+        return bus_error_invalid_input;
+    }
+
+    param = strrchr(name, '.');
+    if (param == NULL) {
+        return bus_error_invalid_input;
+    }
+    ++param;
+
+    dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
+    name += sizeof(DATAELEMS_NETWORK);
+    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    device_instance = is_num ? atoi(instance) : 0;
+
+    dm_easy_mesh_t *dm = dm_ctrl->get_first_dm();
+    if (dm == NULL || (dm->get_id() != device_instance)) {
+        dm = dm_ctrl->get_next_dm(dm);
+    }
+
+    if(dm == NULL) {
+        em_printfout("dm is NULL");
+        return bus_error_invalid_input;
+    }
+
+    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    radio_instance = is_num ? atoi(instance) : 0;
+    dm_radio_t *radio = &dm->m_radio[radio_instance - 1];
+    if (radio == NULL) {
+        em_printfout("radio is NULL\n");
+        return bus_error_invalid_input;
+    }
+    em_radio_info_t *ri = radio->get_radio_info();
+
+    dm_radio_cap_t *radio_cap = dm->get_radio_cap(ri->id.ruid);
+    if (radio_cap == NULL) {
+        em_printfout("radio_cap is NULL\n");
+        return bus_error_invalid_input;
+    }
+    em_radio_cap_info_t *rci = radio_cap->get_radio_cap_info();
+    em_wifi7_agent_cap_t *wifi7_cap = &rci->wifi7_cap;
+    em_radio_wifi7_radio_t *wifi7_radio = NULL;
+    unsigned int i;
+
+    /* Find the radio in wifi7_cap.radios[] that matches the current radio's ruid */
+    for (i = 0; i < wifi7_cap->radios_num && i < EM_MAX_RADIO_PER_AGENT; i++) {
+        if (memcmp(wifi7_cap->radios[i].ruid, ri->id.ruid, sizeof(mac_address_t)) == 0) {
+            wifi7_radio = &wifi7_cap->radios[i];
+            break;
+        }
+    }
+
+    if (wifi7_radio == NULL) {
+        em_printfout("wifi7_radio not found for ruid\n");
+        return bus_error_invalid_input;
+    }
+
+    if (strcmp(param, "EMLMRSupport") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, static_cast<bool>(wifi7_radio->ap_emlmr_support));
+    } else if (strcmp(param, "EMLSRSupport") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, static_cast<bool>(wifi7_radio->ap_emlsr_support));
+    } else if (strcmp(param, "STRSupport") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, static_cast<bool>(wifi7_radio->ap_str_support));
+    } else if (strcmp(param, "NSTRSupport") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, static_cast<bool>(wifi7_radio->ap_nstr_support));
+    } else if (strcmp(param, "TIDLinkMapNegotiation") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, static_cast<bool>(wifi7_cap->cap_data.tid_link_mapping_cap));
+    } else {
+        em_printfout("Invalid WiFi7APRole param: %s\n", param);
+        rc = bus_error_invalid_input;
+    }
+
+    return rc;
+}
+
+bus_error_t dm_easy_mesh_ctrl_t::wf7ap_tget_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
+{
+    (void) user_data;
+    const char *name = event_name;
+    const char *root = name;
+    bus_data_prop_t *property = NULL;
+    char instance[MAX_INSTANCE_LEN] = { 0 };
+    bool is_num;
+    int device_instance = 0, radio_instance = 0;
+    bus_error_t rc;
+
+    if (!name || !p_data) {
+        return bus_error_invalid_input;
+    }
+
+    dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
+    name += sizeof(DATAELEMS_NETWORK);
+    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    device_instance = is_num ? atoi(instance) : 0;
+
+    dm_easy_mesh_t *dm = dm_ctrl->get_first_dm();
+    if (dm == NULL || (dm->get_id() != device_instance)) {
+        dm = dm_ctrl->get_next_dm(dm);
+    }
+
+    if(dm == NULL) {
+        em_printfout("dm is NULL");
+        return bus_error_invalid_input;
+    }
+
+    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    radio_instance = is_num ? atoi(instance) : 0;
+    dm_radio_t *radio = &dm->m_radio[radio_instance - 1];
+    if (radio == NULL) {
+        em_printfout("radio is NULL\n");
+        return bus_error_invalid_input;
+    }
+    em_radio_info_t *ri = radio->get_radio_info();
+
+    rc = dm_ctrl->wf7ap_tget_params(dm, root, ri, &property, radio_instance);
+    if (rc == bus_error_success && property) {
+        dm_ctrl->raw_data_set(p_data, property);
+    }
+
+    return rc;
+}
+
+bus_error_t dm_easy_mesh_ctrl_t::wf7ap_tget_params(dm_easy_mesh_t *dm, const char *root, em_radio_info_t *ri, bus_data_prop_t **property, int idx)
+{
+    bus_error_t rc = bus_error_success;
+    unsigned int i;
+
+    dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
+    dm_radio_cap_t *radio_cap = dm->get_radio_cap(ri->id.ruid);
+    if (radio_cap == NULL) {
+        return rc;
+    }
+    em_radio_cap_info_t *rci = radio_cap->get_radio_cap_info();
+    em_wifi7_agent_cap_t *wifi7_cap = &rci->wifi7_cap;
+    em_radio_wifi7_radio_t *wifi7_radio = NULL;
+
+    /* Find the radio in wifi7_cap.radios[] that matches the current radio's ruid */
+    for (i = 0; i < wifi7_cap->radios_num && i < EM_MAX_RADIO_PER_AGENT; i++) {
+        if (memcmp(wifi7_cap->radios[i].ruid, ri->id.ruid, sizeof(mac_address_t)) == 0) {
+            wifi7_radio = &wifi7_cap->radios[i];
+            break;
+        }
+    }
+
+    if (wifi7_radio == NULL) {
+        return rc;
+    }
+
+    dm_ctrl->property_append_tail(property, root, idx, "EMLMRSupport", wifi7_radio->ap_emlmr_support);
+    dm_ctrl->property_append_tail(property, root, idx, "EMLSRSupport", wifi7_radio->ap_emlsr_support);
+    dm_ctrl->property_append_tail(property, root, idx, "STRSupport", wifi7_radio->ap_str_support);
+    dm_ctrl->property_append_tail(property, root, idx, "NSTRSupport", wifi7_radio->ap_nstr_support);
+    dm_ctrl->property_append_tail(property, root, idx, "TIDLinkMapNegotiation", wifi7_cap->cap_data.tid_link_mapping_cap);
 
     return rc;
 }
@@ -3196,7 +3642,7 @@ bus_error_t dm_easy_mesh_ctrl_t::curops_get_inner(char *event_name, raw_data_t *
     const char *param;
     char instance[MAX_INSTANCE_LEN] = { 0 };
     bool is_num;
-    int device_instance = 0, radio_instance = 0, curop_class_instance = 0;
+    int radio_instance = 0, curop_class_instance = 0;
     bus_error_t rc;
 
     if (!name || !p_data) {
@@ -3210,18 +3656,15 @@ bus_error_t dm_easy_mesh_ctrl_t::curops_get_inner(char *event_name, raw_data_t *
     ++param;
 
     dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
+
+    /* Extract device instance (numeric or alias) and find the dm object for
+     * that device instance */
     name += sizeof(DATAELEMS_NETWORK);
     name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
-    device_instance = is_num ? atoi(instance) : 0;
-
-    dm_easy_mesh_t *dm = dm_ctrl->get_first_dm();
-    if (dm == NULL || (dm->get_id() != device_instance)) {
-        dm = dm_ctrl->get_next_dm(dm);
-    }
-
-    if(dm == NULL) {
-        em_printfout("dm is NULL");
-        return bus_error_invalid_input;
+    dm_easy_mesh_t *dm = dm_ctrl->get_dm_easy_mesh(instance, is_num);
+    if (dm == NULL) {
+        printf("device not found\n");
+        return bus_error_invalid_namespace;
     }
 
     name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
@@ -3263,26 +3706,27 @@ bus_error_t dm_easy_mesh_ctrl_t::curops_tget_inner(char *event_name, raw_data_t 
     bus_data_prop_t *property = NULL;
     char instance[MAX_INSTANCE_LEN] = { 0 };
     bool is_num;
-    int device_instance = 0, radio_instance = 0;
+    int radio_instance = 0;
     bus_error_t rc;
 
     if (!name || !p_data) {
         return bus_error_invalid_input;
     }
-
-    dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
-    name += sizeof(DATAELEMS_NETWORK);
-    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
-    device_instance = is_num ? atoi(instance) : 0;
-
-    dm_easy_mesh_t *dm = dm_ctrl->get_first_dm();
-    if (dm == NULL || (dm->get_id() != device_instance)) {
-        dm = dm_ctrl->get_next_dm(dm);
+    if (*(name + (strlen(name) - 1)) != '.') {
+        /* Only partial paths are valid */
+        return bus_error_invalid_operation;
     }
 
-    if(dm == NULL) {
-        em_printfout("dm is NULL");
-        return bus_error_invalid_input;
+    dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
+
+    /* Extract device instance (numeric or alias) and find the dm object for
+     * that device instance */
+    name += sizeof(DATAELEMS_NETWORK);
+    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    dm_easy_mesh_t *dm = dm_ctrl->get_dm_easy_mesh(instance, is_num);
+    if (dm == NULL) {
+        printf("device not found\n");
+        return bus_error_invalid_namespace;
     }
 
     name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
@@ -3366,7 +3810,7 @@ bus_error_t dm_easy_mesh_ctrl_t::bss_get_inner(char *event_name, raw_data_t *p_d
     int count = 0;
     char instance[MAX_INSTANCE_LEN] = { 0 };
     bool is_num;
-    int device_instance = 0, radio_instance = 0, bss_instance = 0;
+    int radio_instance = 0, bss_instance = 0;
     bus_error_t rc;
 
     if (!name || !p_data) {
@@ -3380,18 +3824,15 @@ bus_error_t dm_easy_mesh_ctrl_t::bss_get_inner(char *event_name, raw_data_t *p_d
     ++param;
 
     dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
+
+    /* Extract device instance (numeric or alias) and find the dm object for
+     * that device instance */
     name += sizeof(DATAELEMS_NETWORK);
     name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
-    device_instance = is_num ? atoi(instance) : 0;
-
-    dm_easy_mesh_t *dm = dm_ctrl->get_first_dm();
-    if (dm == NULL || (dm->get_id() != device_instance)) {
-        dm = dm_ctrl->get_next_dm(dm);
-    }
-
-    if(dm == NULL) {
-        em_printfout("dm is NULL");
-        return bus_error_invalid_input;
+    dm_easy_mesh_t *dm = dm_ctrl->get_dm_easy_mesh(instance, is_num);
+    if (dm == NULL) {
+        printf("device not found\n");
+        return bus_error_invalid_namespace;
     }
 
     name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
@@ -3501,26 +3942,27 @@ bus_error_t dm_easy_mesh_ctrl_t::bss_tget_inner(char *event_name, raw_data_t *p_
     bus_data_prop_t *property = NULL;
     char instance[MAX_INSTANCE_LEN] = { 0 };
     bool is_num;
-    int device_instance = 0, radio_instance = 0;
+    int radio_instance = 0;
     bus_error_t rc;
 
     if (!name || !p_data) {
         return bus_error_invalid_input;
     }
-
-    dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
-    name += sizeof(DATAELEMS_NETWORK);
-    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
-    device_instance = is_num ? atoi(instance) : 0;
-
-    dm_easy_mesh_t *dm = dm_ctrl->get_first_dm();
-    if (dm == NULL || (dm->get_id() != device_instance)) {
-        dm = dm_ctrl->get_next_dm(dm);
+    if (*(name + (strlen(name) - 1)) != '.') {
+        /* Only partial paths are valid */
+        return bus_error_invalid_operation;
     }
 
-    if(dm == NULL) {
-        em_printfout("dm is NULL");
-        return bus_error_invalid_input;
+     dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
+
+    /* Extract device instance (numeric or alias) and find the dm object for
+     * that device instance */
+    name += sizeof(DATAELEMS_NETWORK);
+    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    dm_easy_mesh_t *dm = dm_ctrl->get_dm_easy_mesh(instance, is_num);
+    if (dm == NULL) {
+        printf("device not found\n");
+        return bus_error_invalid_namespace;
     }
 
     name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
@@ -3592,7 +4034,7 @@ bus_error_t dm_easy_mesh_ctrl_t::sta_get_inner(char *event_name, raw_data_t *p_d
     int count = 0;
     char instance[MAX_INSTANCE_LEN] = { 0 };
     bool is_num;
-    int device_instance = 0, radio_instance = 0, bss_instance = 0, sta_instance = 0;
+    int radio_instance = 0, bss_instance = 0, sta_instance = 0;
     bus_error_t rc;
 
     param = strrchr(name, '.');
@@ -3602,18 +4044,15 @@ bus_error_t dm_easy_mesh_ctrl_t::sta_get_inner(char *event_name, raw_data_t *p_d
     ++param;
 
     dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
+
+    /* Extract device instance (numeric or alias) and find the dm object for
+     * that device instance */
     name += sizeof(DATAELEMS_NETWORK);
     name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
-    device_instance = is_num ? atoi(instance) : 0;
-
-    dm_easy_mesh_t *dm = dm_ctrl->get_first_dm();
-    if (dm == NULL || (dm->get_id() != device_instance)) {
-        dm = dm_ctrl->get_next_dm(dm);
-    }
-
-    if(dm == NULL) {
-        em_printfout("dm is NULL");
-        return bus_error_invalid_input;
+    dm_easy_mesh_t *dm = dm_ctrl->get_dm_easy_mesh(instance, is_num);
+    if (dm == NULL) {
+        printf("device not found\n");
+        return bus_error_invalid_namespace;
     }
 
     name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
@@ -3716,7 +4155,7 @@ bus_error_t dm_easy_mesh_ctrl_t::sta_tget_inner(char *event_name, raw_data_t *p_
     bus_data_prop_t *property = NULL;
     char instance[MAX_INSTANCE_LEN] = { 0 };
     bool is_num;
-    int device_instance = 0, radio_instance = 0, bss_instance = 0;
+    int radio_instance = 0, bss_instance = 0;
     unsigned int i = 0;
     int count = 0;
     bus_error_t rc;
@@ -3724,20 +4163,21 @@ bus_error_t dm_easy_mesh_ctrl_t::sta_tget_inner(char *event_name, raw_data_t *p_
     if (!name || !p_data) {
         return bus_error_invalid_input;
     }
-
-    dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
-    name += sizeof(DATAELEMS_NETWORK);
-    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
-    device_instance = is_num ? atoi(instance) : 0;
-
-    dm_easy_mesh_t *dm = dm_ctrl->get_first_dm();
-    if (dm == NULL || (dm->get_id() != device_instance)) {
-        dm = dm_ctrl->get_next_dm(dm);
+    if (*(name + (strlen(name) - 1)) != '.') {
+        /* Only partial paths are valid */
+        return bus_error_invalid_operation;
     }
 
-    if(dm == NULL) {
-        em_printfout("dm is NULL");
-        return bus_error_invalid_input;
+    dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
+
+    /* Extract device instance (numeric or alias) and find the dm object for
+     * that device instance */
+    name += sizeof(DATAELEMS_NETWORK);
+    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    dm_easy_mesh_t *dm = dm_ctrl->get_dm_easy_mesh(instance, is_num);
+    if (dm == NULL) {
+        printf("device not found\n");
+        return bus_error_invalid_namespace;
     }
 
     name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
@@ -3815,6 +4255,374 @@ bus_error_t dm_easy_mesh_ctrl_t::sta_tget_params(dm_easy_mesh_t *dm, const char 
         dm_ctrl->property_append_tail(property, root, idx, "PairwiseCipher", 0U);
         dm_ctrl->property_append_tail(property, root, idx, "RSNCapabilities", 0U);
         sta = static_cast<dm_sta_t *> (hash_map_get_next(dm->m_sta_map, sta));
+    }
+
+    return rc;
+}
+
+dm_ap_mld_t *dm_easy_mesh_ctrl_t::get_dm_ap_mld(dm_easy_mesh_t *dm, char *instance, bool is_num)
+{
+    dm_ap_mld_t *ap_mld = NULL;
+
+    if (is_num) {
+        unsigned int idx = static_cast<unsigned int>(atoi(instance) - 1);
+        if (idx >= dm->get_num_ap_mld()) {
+            return NULL;
+        }
+        ap_mld = dm->get_ap_mld(idx);
+        return ap_mld;
+    }
+
+    for (unsigned int i = 0; i < dm->get_num_ap_mld(); i++) {
+        char mac_str[18];
+        ap_mld = dm->get_ap_mld(i);
+        if (ap_mld == NULL) {
+            continue;
+        }
+        em_ap_mld_info_t *ami = ap_mld->get_ap_mld_info();
+        dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *> (ami->mac_addr), mac_str);
+        if (strcmp(instance, mac_str) == 0) {
+            return ap_mld;
+        }
+    }
+
+    return ap_mld;
+}
+
+bus_error_t dm_easy_mesh_ctrl_t::apmld_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
+{
+    (void) user_data;
+    const char *name = event_name;
+    const char *param;
+    char instance[MAX_INSTANCE_LEN] = { 0 };
+    bool is_num;
+    bus_error_t rc;
+
+    if (!name || !p_data) {
+        return bus_error_invalid_input;
+    }
+
+    param = strrchr(name, '.');
+    if (param == NULL) {
+        return bus_error_invalid_input;
+    }
+    ++param;
+
+    dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
+
+    /* Extract device instance (numeric or alias) and find the dm object for
+     * that device instance */
+    name += sizeof(DATAELEMS_NETWORK);
+    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    dm_easy_mesh_t *dm = dm_ctrl->get_dm_easy_mesh(instance, is_num);
+    if (dm == NULL) {
+        printf("device not found\n");
+        return bus_error_invalid_namespace;
+    }
+
+    /* Extract ap_mld instance (numeric or alias), find the ap_mld dm object
+     * for that instance, and finally get info struct for ap_mld dm object */
+    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    dm_ap_mld_t *ap_mld = dm_ctrl->get_dm_ap_mld(dm, instance, is_num);
+    if (ap_mld == NULL) {
+        printf("ap_mld not found\n");
+        return bus_error_invalid_namespace;
+    }
+    em_ap_mld_info_t *ami = ap_mld->get_ap_mld_info();
+
+    if (strcmp(param, "MLDMACAddress") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, ami->mac_addr);
+    } else if (strcmp(param, "AffiliatedAPNumberOfEntries") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, ami->num_affiliated_ap);
+    } else if (strcmp(param, "STAMLDNumberOfEntries") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, 0);
+    } else {
+        printf("Invalid param: %s\n", param);
+        rc = bus_error_destination_not_found;
+    }
+
+    return rc;
+}
+
+bus_error_t dm_easy_mesh_ctrl_t::apmld_tget_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
+{
+    (void) user_data;
+    const char *name = event_name;
+    const char *root = name;
+    char instance[MAX_INSTANCE_LEN] = { 0 };
+    bool is_num;
+    bus_data_prop_t *property = NULL;
+    bus_error_t rc;
+
+    if (!name || !p_data) {
+        return bus_error_invalid_input;
+    }
+    if (*(name + (strlen(name) - 1)) != '.') {
+        /* Only partial paths are valid */
+        return bus_error_invalid_operation;
+    }
+
+    dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
+
+    /* Extract device instance (numeric or alias) and find the dm object for
+     * that device instance */
+    name += sizeof(DATAELEMS_NETWORK);
+    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    dm_easy_mesh_t *dm = dm_ctrl->get_dm_easy_mesh(instance, is_num);
+    if (dm == NULL) {
+        printf("device not found\n");
+        return bus_error_invalid_namespace;
+    }
+
+    rc = dm_ctrl->apmld_tget_params(dm, root, &property);
+    if (rc == bus_error_success && property) {
+        dm_ctrl->raw_data_set(p_data, property);
+    }
+
+    return rc;
+}
+
+bus_error_t dm_easy_mesh_ctrl_t::apmld_tget_params(dm_easy_mesh_t *dm, const char *root, bus_data_prop_t **property)
+{
+    char path[512];
+    bus_error_t rc = bus_error_success;
+    dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
+
+    for (unsigned int idx = 1; idx <= dm->get_num_ap_mld(); idx++) {
+        /* Get ap_mld dm object for numeric instance */
+        dm_ap_mld_t *ap_mld = dm->get_ap_mld(idx - 1);
+        if (ap_mld == NULL) {
+            continue;
+        }
+        /* Get info structure for ap_mld object */
+        em_ap_mld_info_t *ami = ap_mld->get_ap_mld_info();
+
+        dm_ctrl->property_append_tail(property, root, idx, "MLDMACAddress", ami->mac_addr);
+        dm_ctrl->property_append_tail(property, root, idx, "AffiliatedAPNumberOfEntries", ami->num_affiliated_ap);
+        dm_ctrl->property_append_tail(property, root, idx, "STAMLDNumberOfEntries", 0);
+
+        dm_ctrl->property_append_tail(property, root, idx, "APMLDConfig.EMLMREnabled", ami->emlmr);
+        dm_ctrl->property_append_tail(property, root, idx, "APMLDConfig.EMLSREnabled", ami->emlsr);
+        dm_ctrl->property_append_tail(property, root, idx, "APMLDConfig.STREnabled", ami->str);
+        dm_ctrl->property_append_tail(property, root, idx, "APMLDConfig.NSTREnabled", ami->nstr);
+
+        snprintf(path, sizeof(path) - 1, "%s%d.AffiliatedAP.", root, idx);
+        dm_ctrl->affap_tget_params(dm, path, ami, property);
+
+        //snprintf(path, sizeof(path) - 1, "%s%d.STAMLD.", root, idx);
+        //dm_ctrl->stamld_tget_params(dm, path, property);
+    }
+
+    return rc;
+}
+
+bus_error_t dm_easy_mesh_ctrl_t::apmldcfg_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
+{
+    (void) user_data;
+    const char *name = event_name;
+    const char *param;
+    char instance[MAX_INSTANCE_LEN] = { 0 };
+    bool is_num;
+    bus_error_t rc;
+
+    if (!name || !p_data) {
+        return bus_error_invalid_input;
+    }
+
+    param = strrchr(name, '.');
+    if (param == NULL) {
+        return bus_error_invalid_input;
+    }
+    ++param;
+
+    dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
+
+    /* Extract device instance (numeric or alias) and find the dm object for
+     * that device instance */
+    name += sizeof(DATAELEMS_NETWORK);
+    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    dm_easy_mesh_t *dm = dm_ctrl->get_dm_easy_mesh(instance, is_num);
+    if (dm == NULL) {
+        printf("device not found\n");
+        return bus_error_invalid_namespace;
+    }
+
+    /* Extract ap_mld instance (numeric or alias), find the ap_mld dm object
+     * for that instance, and finally get info struct for ap_mld dm object */
+    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    dm_ap_mld_t *ap_mld = dm_ctrl->get_dm_ap_mld(dm, instance, is_num);
+    if (ap_mld == NULL) {
+        printf("ap_mld not found\n");
+        return bus_error_invalid_namespace;
+    }
+    em_ap_mld_info_t *ami = ap_mld->get_ap_mld_info();
+
+    if (strcmp(param, "EMLMREnabled") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, ami->emlmr);
+    } else if (strcmp(param, "EMLSREnabled") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, ami->emlsr);
+    } else if (strcmp(param, "STREnabled") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, ami->str);
+    } else if (strcmp(param, "NSTREnabled") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, ami->nstr);
+    } else {
+        printf("Invalid param: %s\n", param);
+        rc = bus_error_destination_not_found;
+    }
+
+    return rc;
+}
+
+bus_error_t dm_easy_mesh_ctrl_t::affap_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
+{
+    (void) user_data;
+    const char *name = event_name;
+    const char *param;
+    char instance[MAX_INSTANCE_LEN] = { 0 };
+    bool is_num;
+    bus_error_t rc;
+
+    if (!name || !p_data) {
+        return bus_error_invalid_input;
+    }
+
+    param = strrchr(name, '.');
+    if (param == NULL) {
+        return bus_error_invalid_input;
+    }
+    ++param;
+
+    dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
+
+    /* Extract device instance (numeric or alias) and find the dm object for
+     * that device instance */
+    name += sizeof(DATAELEMS_NETWORK);
+    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    dm_easy_mesh_t *dm = dm_ctrl->get_dm_easy_mesh(instance, is_num);
+    if (dm == NULL) {
+        printf("device not found\n");
+        return bus_error_invalid_namespace;
+    }
+
+    /* Extract ap_mld instance (numeric or alias), find the ap_mld dm object
+     * for that instance, and finally get info struct for ap_mld dm object */
+    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    dm_ap_mld_t *ap_mld = dm_ctrl->get_dm_ap_mld(dm, instance, is_num);
+    if (ap_mld == NULL) {
+        printf("ap_mld not found\n");
+        return bus_error_invalid_namespace;
+    }
+    em_ap_mld_info_t *ami = ap_mld->get_ap_mld_info();
+
+    /* Extract aff_ap instance and get info struct for that aff_ap */
+    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    int idx = atoi(instance);
+    if (!is_num || idx <= 0 || idx > ami->num_affiliated_ap) {
+        printf("aff_ap not found\n");
+        return bus_error_invalid_namespace;
+    }
+    em_affiliated_ap_info_t *aai = &ami->affiliated_ap[idx - 1];
+
+    if (strcmp(param, "BSSID") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, aai->mac_addr);
+    } else if (strcmp(param, "LinkID") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, aai->link_id);
+    } else if (strcmp(param, "RUID") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, aai->ruid.mac);
+    } else if (strcmp(param, "PacketsSent") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, 0);
+    } else if (strcmp(param, "PacketsReceived") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, 0);
+    } else if (strcmp(param, "ErrorsSent") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, 0);
+    } else if (strcmp(param, "UnicastBytesSent") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, 0);
+    } else if (strcmp(param, "UnicastBytesReceived") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, 0);
+    } else if (strcmp(param, "MulticastBytesSent") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, 0);
+    } else if (strcmp(param, "MulticastBytesReceived") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, 0);
+    } else if (strcmp(param, "BroadcastBytesSent") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, 0);
+    } else if (strcmp(param, "BroadcastBytesReceived") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, 0);
+    } else {
+        printf("Invalid param: %s\n", param);
+        rc = bus_error_destination_not_found;
+    }
+
+    return rc;
+}
+
+bus_error_t dm_easy_mesh_ctrl_t::affap_tget_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
+{
+    (void) user_data;
+    const char *name = event_name;
+    const char *root = name;
+    char instance[MAX_INSTANCE_LEN] = { 0 };
+    bool is_num;
+    bus_data_prop_t *property = NULL;
+    bus_error_t rc;
+
+    if (!name || !p_data) {
+        return bus_error_invalid_input;
+    }
+    if (*(name + (strlen(name) - 1)) != '.') {
+        /* Only partial paths are valid */
+        return bus_error_invalid_operation;
+    }
+
+    dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
+
+    /* Extract device instance (numeric or alias) and find the dm object for
+     * that device instance */
+    name += sizeof(DATAELEMS_NETWORK);
+    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    dm_easy_mesh_t *dm = dm_ctrl->get_dm_easy_mesh(instance, is_num);
+    if (dm == NULL) {
+        printf("device not found\n");
+        return bus_error_invalid_namespace;
+    }
+
+    /* Extract ap_mld instance (numeric or alias), find the ap_mld dm object
+     * for that instance, and finally get info struct for ap_mld dm object */
+    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    dm_ap_mld_t *ap_mld = dm_ctrl->get_dm_ap_mld(dm, instance, is_num);
+    if (ap_mld == NULL) {
+        printf("ap_mld not found\n");
+        return bus_error_invalid_namespace;
+    }
+    em_ap_mld_info_t *ami = ap_mld->get_ap_mld_info();
+
+    rc = dm_ctrl->affap_tget_params(dm, root, ami, &property);
+    if (rc == bus_error_success && property) {
+        dm_ctrl->raw_data_set(p_data, property);
+    }
+
+    return rc;
+}
+
+bus_error_t dm_easy_mesh_ctrl_t::affap_tget_params(dm_easy_mesh_t *dm, const char *root, em_ap_mld_info_t *ami, bus_data_prop_t **property)
+{
+    bus_error_t rc = bus_error_success;
+    dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
+
+    for (unsigned int idx = 1; idx <= ami->num_affiliated_ap; idx++) {
+        em_affiliated_ap_info_t *aai = &ami->affiliated_ap[idx - 1];
+
+        dm_ctrl->property_append_tail(property, root, idx, "BSSID", aai->mac_addr);
+        dm_ctrl->property_append_tail(property, root, idx, "LinkID", aai->link_id);
+        dm_ctrl->property_append_tail(property, root, idx, "RUID", aai->ruid.mac);
+        dm_ctrl->property_append_tail(property, root, idx, "PacketsSent", 0);
+        dm_ctrl->property_append_tail(property, root, idx, "PacketsReceived", 0);
+        dm_ctrl->property_append_tail(property, root, idx, "ErrorsSent", 0);
+        dm_ctrl->property_append_tail(property, root, idx, "UnicastBytesSent", 0);
+        dm_ctrl->property_append_tail(property, root, idx, "UnicastBytesReceived", 0);
+        dm_ctrl->property_append_tail(property, root, idx, "MulticastBytesSent", 0);
+        dm_ctrl->property_append_tail(property, root, idx, "MulticastBytesReceived", 0);
+        dm_ctrl->property_append_tail(property, root, idx, "BroadcastBytesSent", 0);
+        dm_ctrl->property_append_tail(property, root, idx, "BroadcastBytesReceived", 0);
     }
 
     return rc;
@@ -3912,7 +4720,6 @@ void dm_easy_mesh_ctrl_t::init_network_topology()
     em_printfout("Root topology dev_mac:%s, num_bss:%d", dev_mac_str, dm->get_num_bss());
 }
 
-
 int dm_easy_mesh_ctrl_t::init(const char *data_model_path, em_mgr_t *mgr)
 {
     int rc;
@@ -3924,17 +4731,15 @@ int dm_easy_mesh_ctrl_t::init(const char *data_model_path, em_mgr_t *mgr)
         printf("%s:%d db init failed\n", __func__, __LINE__);
         return -1;
     }
+
     int pipefd[2];
-	int rcp;
-
-
-	rcp = pipe2(pipefd, O_DIRECT);
-	if (rcp == -1) {
-		return -1;
-	}
+    int rcp;
+    rcp = pipe2(pipefd, O_DIRECT);
+    if (rcp == -1) {
+        return -1;
+    }
     m_nb_pipe_rd = pipefd[0];
-	m_nb_pipe_wr = pipefd[1];
-
+    m_nb_pipe_wr = pipefd[1];
 
     tr_181_t::init(this);
     rc = load_tables();
@@ -3961,7 +4766,7 @@ dm_easy_mesh_ctrl_t::dm_easy_mesh_ctrl_t()
 {
     m_initialized = false;
     m_nb_pipe_rd = 0;
-    m_nb_pipe_rd = 0;
+    m_nb_pipe_wr = 0;
     m_nb_evt_id = 0;
 }
 

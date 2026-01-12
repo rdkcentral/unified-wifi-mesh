@@ -39,7 +39,7 @@
                 <div class="logo">
                     <i class="fas fa-network-wired"></i>
                     <span class="logo-text">EasyMesh R6 Pro</span>
-                    <span class="version-badge">v1.0.0</span>
+                    <span class="version-badge">v2.0.0</span>
                 </div>
             </div>
             <div class="header-center">
@@ -761,6 +761,23 @@
                             <label class="form-label">VLAN ID</label>
                             <input type="number" id="profile-vlan" class="form-input" value="1" min="1" max="4094" disabled>
                         </div>
+                        <div class="form-group">
+                            <label class="form-label">Bands</label>
+                            <div class="bands-row" role="group" aria-labelledby="bands-label">
+                                <label class="checkbox-inline">
+                                    <input type="checkbox" id="band-24" name="bands" value="2.4GHz" disabled>
+                                    <span>2.4 GHz</span>
+                                </label>
+                                <label class="checkbox-inline">
+                                    <input type="checkbox" id="band-5" name="bands" value="5GHz" disabled>
+                                    <span>5 GHz</span>
+                                </label>
+                                <label class="checkbox-inline">
+                                    <input type="checkbox" id="band-6" name="bands" value="6GHz" disabled>
+                                    <span>6 GHz</span>
+                                </label>
+                            </div>
+                        </div>
                         <div class="form-group hidden-network">
                             <label class="form-label disabled-label">
                                 <input type="checkbox" id="profile-hidden" disabled>
@@ -1214,12 +1231,110 @@
         </div>
     </div>
 </section> 
-                <!-- Placeholder for other tabs -->
+                <!-- Client Performance Overview Tab -->
                 <section id="performance" class="tab-content">
                     <div class="page-header">
                         <h1><i class="fas fa-chart-line"></i> Performance Monitoring</h1>
+                        <p class="page-subtitle">Real-time device and client performance metrics with link quality analysis</p>
+                        <div class="page-actions">
+                            <button class="btn btn-primary" id="refresh-performance">
+                                <i class="fas fa-sync"></i> Refresh
+                            </button>
+                        </div>
                     </div>
-                    <div class="loading-message">Performance monitoring interface loading...</div>
+
+                    <!-- Statistics Cards (like P1) -->
+                    <div class="performance-stats-grid">
+                        <div class="perf-stat-card">
+                            <div class="perf-stat-icon" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                                <i class="fas fa-network-wired"></i>
+                            </div>
+                            <div class="perf-stat-content">
+                                <h4>ACTIVE DEVICES</h4>
+                                <div class="perf-stat-value" id="perf-active-devices">3/3</div>
+                            </div>
+                        </div>
+
+                        <div class="perf-stat-card">
+                            <div class="perf-stat-icon" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
+                                <i class="fas fa-users"></i>
+                            </div>
+                            <div class="perf-stat-content">
+                                <h4>CONNECTED CLIENTS</h4>
+                                <div class="perf-stat-value" id="perf-connected-clients">14</div>
+                            </div>
+                        </div>
+
+                        <div class="perf-stat-card">
+                            <div class="perf-stat-icon" style="background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);">
+                                <i class="fas fa-exclamation-triangle"></i>
+                            </div>
+                            <div class="perf-stat-content">
+                                <h4>ACTIVE ALARMS</h4>
+                                <div class="perf-stat-value" id="perf-active-alarms">0</div>
+                            </div>
+                        </div>
+
+                        <div class="perf-stat-card">
+                            <div class="perf-stat-icon" style="background: linear-gradient(135deg, #30cfd0 0%, #330867 100%);">
+                                <i class="fas fa-heart"></i>
+                            </div>
+                            <div class="perf-stat-content">
+                                <h4>NETWORK HEALTH</h4>
+                                <div class="perf-stat-value" id="perf-network-health">100%</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- All Agents Performance Overview -->
+                    <div class="performance-overview-section">
+                        <div class="overview-header">
+                            <div class="overview-title-section">
+                                <h2><i class="fas fa-chart-area"></i> All Agents Performance Overview</h2>
+                                
+                                <!-- Device Filter -->
+                                <div class="device-filter">
+                                    <i class="fas fa-filter"></i>
+                                    <label>Filter by Device:</label>
+                                    <select id="performance-device-filter">
+                                        <option value="all">All Devices</option>
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <!-- Metric Tabs (Right Side) -->
+                            <div class="performance-metric-tabs">
+                                <button class="performance-metric-tab active" data-metric="score">Score</button>
+                                <button class="performance-metric-tab" data-metric="snr">SNR</button>
+                                <button class="performance-metric-tab" data-metric="pr">PR</button>
+                                <button class="performance-metric-tab" data-metric="per">PER</button>
+                                <button class="performance-metric-tab" data-metric="psy">PSY</button>
+                            </div>
+                        </div>
+                        
+                        <!-- Chart Section -->
+                        <div class="performance-chart-container">
+                            <h3 class="performance-chart-title" id="performance-chart-title">Signal Strength (Score) Over Time</h3>
+                            <div class="performance-chart-wrapper">
+                                <canvas id="client-performance-chart"></canvas>
+                            </div>
+                            
+                            <!-- Device Legend -->
+                            <div class="performance-device-legend">
+                                <div class="performance-legend-items" id="performance-legend-items">
+                                    <!-- Legend items will be populated dynamically -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Device-Specific Client Performance (P2/P3 Design) -->
+                    <div class="performance-devices-section">
+                        <h2 class="section-title"><i class="fas fa-network-wired"></i> Device-Specific Client Performance</h2>
+                        <div class="devices-list" id="performance-devices-list">
+                            <div class="loading-message">Loading devices...</div>
+                        </div>
+                    </div>
                 </section>
 
                 <section id="interference" class="tab-content">
@@ -1303,7 +1418,115 @@
             </div>
         </div>
     </div>
+    <!-- Modal for Client Details -->
+    <div class="modal-overlay" id="client-details-modal">
+        <div class="modal-container large">
+            <div class="modal-header">
+                <h2 id="client-modal-title">Client Performance Details</h2>
+                <button class="modal-close" onclick="window.closeModal && window.closeModal('client-details-modal')">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-content" id="client-modal-content">
+                <!-- Client details header -->
+                <div class="client-detail-header">
+                    <div class="client-detail-info">
+                        <h3 id="client-detail-name">Client Name</h3>
+                        <div class="client-detail-meta">
+                            <span id="client-detail-mac">MAC Address</span>
+                            <span id="client-detail-ip">IP Address</span>
+                        </div>
+                    </div>
+                    <div class="client-detail-status">
+                        <span class="status-badge" id="client-detail-status">Connected</span>
+                    </div>
+                </div>
 
+                <!-- Performance Metrics Summary Cards -->
+                <div class="client-metrics-grid">
+                    <div class="client-metric-card">
+                        <div class="metric-label">Score</div>
+                        <div class="metric-value large" id="client-score-value">--</div>
+                        <div class="metric-trend" id="client-score-trend"></div>
+                    </div>
+                    <div class="client-metric-card">
+                        <div class="metric-label">SNR</div>
+                        <div class="metric-value large" id="client-snr-value">--</div>
+                        <div class="metric-unit">dB</div>
+                    </div>
+                    <div class="client-metric-card">
+                        <div class="metric-label">PR</div>
+                        <div class="metric-value large" id="client-pr-value">--</div>
+                        <div class="metric-unit">Mbps</div>
+                    </div>
+                    <div class="client-metric-card">
+                        <div class="metric-label">PER</div>
+                        <div class="metric-value large" id="client-per-value">--</div>
+                        <div class="metric-unit">%</div>
+                    </div>
+                    <div class="client-metric-card">
+                        <div class="metric-label">PSY</div>
+                        <div class="metric-value large" id="client-psy-value">--</div>
+                        <div class="metric-trend" id="client-psy-trend"></div>
+                    </div>
+                </div>
+
+                <!-- Combined Performance Chart -->
+                <div class="client-chart-section">
+                    <h3>All Performance Metrics Over Time</h3>
+                    <div class="client-chart-wrapper">
+                        <canvas id="client-detail-chart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Additional Client Info -->
+                <div class="client-additional-info">
+                    <div class="info-section">
+                        <h4>Connection Details</h4>
+                        <div class="info-grid">
+                            <div class="info-item">
+                                <span class="info-label">Connected AP:</span>
+                                <span class="info-value" id="client-ap"></span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">Band:</span>
+                                <span class="info-value" id="client-band"></span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">Channel:</span>
+                                <span class="info-value" id="client-channel"></span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">Connection Time:</span>
+                                <span class="info-value" id="client-connection-time"></span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="info-section">
+                        <h4>Capabilities</h4>
+                        <div class="info-grid">
+                            <div class="info-item">
+                                <span class="info-label">Wi-Fi Standard:</span>
+                                <span class="info-value" id="client-wifi-standard"></span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">Spatial Streams:</span>
+                                <span class="info-value" id="client-streams"></span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">Channel Width:</span>
+                                <span class="info-value" id="client-channel-width"></span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">Security:</span>
+                                <span class="info-value" id="client-security"></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
     <!-- Modal for Device Details -->
     <div class="modal-overlay" id="device-modal">
         <div class="modal-container">

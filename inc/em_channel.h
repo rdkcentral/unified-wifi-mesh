@@ -216,23 +216,6 @@ public:
 	short create_spatial_reuse_report_tlv(unsigned char *buff);
     
 	/**!
-	 * @brief Creates a radio operation restriction TLV.
-	 *
-	 * This function is responsible for creating a radio operation restriction
-	 * TLV (Type-Length-Value) and storing it in the provided buffer.
-	 *
-	 * @param[out] buff Pointer to the buffer where the TLV will be stored.
-	 * @param[in] index The index of the radio operation restriction to be created.
-	 *
-	 * @returns A short integer indicating the success or failure of the operation.
-	 * @retval 0 on success.
-	 * @retval -1 on failure.
-	 *
-	 * @note Ensure that the buffer is properly allocated before calling this function.
-	 */
-	short create_radio_op_restriction_tlv(unsigned char *buff, unsigned int index);
-    
-	/**!
 	 * @brief Creates a complete CAC report TLV.
 	 *
 	 * This function generates a complete CAC (Channel Access Control) report TLV (Type-Length-Value) and stores it in the provided buffer.
