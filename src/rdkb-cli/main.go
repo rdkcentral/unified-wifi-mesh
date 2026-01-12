@@ -165,6 +165,17 @@ type DeviceMetrics struct {
 	MemoryUsage      float64   `json:"memory_usage_percent"`
 	Temperature      float64   `json:"temperature_celsius"`
 	PowerConsumption float64   `json:"power_consumption_watts"`
+        TxBytes          uint64    `json:"tx_bytes"`
+        RxBytes          uint64    `json:"rx_bytes"`
+        TxRate           float64   `json:"tx_rate_mbps"`
+        RxRate           float64   `json:"rx_rate_mbps"`
+        TxPackets        uint64    `json:"tx_packets"`
+        RxPackets        uint64    `json:"rx_packets"`
+        ErrorRate        float64   `json:"error_rate_percent"`
+        Uptime           int64     `json:"uptime_seconds"`
+        ActiveClients    int       `json:"active_clients"`
+        ChannelUtil24    float64   `json:"channel_util_2_4ghz_percent"`
+        ChannelUtil5     float64   `json:"channel_util_5ghz_percent"`
 	LastUpdated      time.Time `json:"last_updated"`
 }
 
@@ -183,15 +194,80 @@ type Client struct {
 }
 
 type ClientMetrics struct {
-	RSSI        int       `json:"rssi_dbm"`
-	SNR         int       `json:"snr_db"`
-	TxRate      int       `json:"tx_rate_mbps"`
-	RxRate      int       `json:"rx_rate_mbps"`
-	Latency     float64   `json:"latency_ms"`
-	DataUsage   uint64    `json:"data_usage_bytes"`
-	LastUpdated time.Time `json:"last_updated"`
+        RSSI        int       `json:"rssi_dbm"`
+        SNR         int       `json:"snr_db"`
+        TxRate      int       `json:"tx_rate_mbps"`
+        RxRate      int       `json:"rx_rate_mbps"`
+        Latency     float64   `json:"latency_ms"`
+        DataUsage   uint64    `json:"data_usage_bytes"`
+        LastUpdated time.Time `json:"last_updated"`
+        PacketLoss  float64   `json:"packet_loss_percent"`
+        Retries     int       `json:"retries"`
+        LinkQuality int       `json:"link_quality_percent"`
 }
 
+// ===== PERFORMANCE TRACKING STRUCTURES =====
+        
+type DevicePerformanceHistory struct { 
+        DeviceMAC      string                   `json:"device_mac"`
+        DeviceName     string                   `json:"device_name"`
+        Clients        []ClientPerformanceData  `json:"clients"`
+        Metrics        []TimeSeriesMetric       `json:"metrics"`
+        Alarms         []PerformanceAlarm       `json:"alarms"`
+        LastUpdated    time.Time                `json:"last_updated"`
+}
+
+type ClientPerformanceData struct {
+        MAC              string                `json:"mac"`
+        Hostname         string                `json:"hostname"`
+        DeviceType       string                `json:"device_type"`
+        CurrentMetrics   ClientLinkMetrics     `json:"current_metrics"`
+        History          []TimeSeriesMetric    `json:"history"`
+        Alarms           []ClientAlarm         `json:"alarms"`
+        ConnectionHealth string                `json:"connection_health"`
+        LastUpdated      time.Time             `json:"last_updated"`
+}       
+type ClientLinkMetrics struct {
+        RSSI          int       `json:"rssi_dbm"`
+        SNR           int       `json:"snr_db"`
+        TxRate        int       `json:"tx_rate_mbps"`
+        RxRate        int       `json:"rx_rate_mbps"`
+        Latency       float64   `json:"latency_ms"`
+        PacketLoss    float64   `json:"packet_loss_percent"`
+        Retries       int       `json:"retries"`
+        LinkQuality   int       `json:"link_quality_percent"`
+        DataRate      float64   `json:"data_rate_mbps"`
+        SignalQuality string    `json:"signal_quality"`
+        Timestamp     time.Time `json:"timestamp"`
+}
+
+type TimeSeriesMetric struct {
+        Timestamp time.Time              `json:"timestamp"`
+        Values    map[string]interface{} `json:"values"`
+}
+
+type PerformanceAlarm struct {
+        ID          string    `json:"id"`
+        Severity    string    `json:"severity"`
+        Type        string    `json:"type"`
+        Message     string    `json:"message"`
+        Value       float64   `json:"value"`
+        Threshold   float64   `json:"threshold"`
+        Timestamp   time.Time `json:"timestamp"`
+        Acknowledged bool     `json:"acknowledged"`
+}
+
+type ClientAlarm struct {
+        ID          string    `json:"id"`
+        ClientMAC   string    `json:"client_mac"`
+        Severity    string    `json:"severity"`
+        Type        string    `json:"type"`
+        Message     string    `json:"message"`
+        Value       float64   `json:"value"`
+        Threshold   float64   `json:"threshold"`
+        Timestamp   time.Time `json:"timestamp"`
+        Acknowledged bool     `json:"acknowledged"`
+}
 type Location struct {
 	Building    string  `json:"building"`
 	Floor       string  `json:"floor"`
@@ -514,6 +590,12 @@ var (
 	coverageMutex    sync.RWMutex
 	analysisCache    map[string]*CoverageAnalysis // Cache for different analysis parameters
 	cacheExpiration  = 5 * time.Minute
+        
+          // Performance tracking
+        performanceHistory map[string]*DevicePerformanceHistory
+        performanceMutex   sync.RWMutex
+        metricsHistory     []TimeSeriesMetric
+        maxHistoryPoints   = 100    
 )
 
 // ===== INITIALIZATION =====
@@ -526,6 +608,7 @@ func init() {
         initWirelessSettings()
         initCoverageMap()
         initDefaultFloorPlans()
+        initPerformanceTracking()
 }
 
 
@@ -2611,6 +2694,14 @@ func main() {
 	api.HandleFunc("/metrics/performance", getPerformanceMetricsHandler).Methods("GET")
 	api.HandleFunc("/metrics/interference", getInterferenceAnalysisHandler).Methods("GET")
 
+               // Per-Device Performance Tracking
+        api.HandleFunc("/performance/devices", getAllDevicesPerformanceHandler).Methods("GET")
+        api.HandleFunc("/performance/devices/{mac}", getDevicePerformanceHandler).Methods("GET")
+        api.HandleFunc("/performance/devices/{mac}/clients", getDeviceClientsPerformanceHandler).Methods("GET")
+        api.HandleFunc("/performance/clients/{mac}", getClientPerformanceHandler).Methods("GET")
+        api.HandleFunc("/performance/alarms", getPerformanceAlarmsHandler).Methods("GET")
+        api.HandleFunc("/performance/alarms/{id}/acknowledge", acknowledgeAlarmHandler).Methods("POST")
+
 	// Configuration
 	api.HandleFunc("/config", getSystemConfigHandler).Methods("GET")
 	api.HandleFunc("/config", updateSystemConfigHandler).Methods("PUT")
@@ -4379,7 +4470,7 @@ func startMetricsUpdater() {
 	for range ticker.C {
 		updateDeviceMetrics()
 		updateClientMetrics()
-
+                updatePerformanceHistory()
 		broadcastMessage(map[string]interface{}{
 			"type":      "metrics_update",
 			"timestamp": time.Now(),
@@ -4594,13 +4685,7 @@ func getDefaultDevices() []Device {
 				SerialNumber:   "ESM001R6PRO",
 				SupportedBands: []string{"2.4GHz", "5GHz", "6GHz"},
 			},
-			Metrics: DeviceMetrics{
-				CPUUsage:         32.5,
-				MemoryUsage:      58.2,
-				Temperature:      45.8,
-				PowerConsumption: 25.4,
-				LastUpdated:      time.Now(),
-			},
+                        Metrics: generateEnhancedDeviceMetrics(30.0),
 			SecurityProfile: SecurityProfile{
 				ProfileName:    "Enterprise-Grade",
 				AuthMethod:     "WPA3-SAE",
@@ -4631,13 +4716,7 @@ func getDefaultDevices() []Device {
 				SerialNumber:   "PLM002SP6",
 				SupportedBands: []string{"5GHz", "6GHz"},
 			},
-			Metrics: DeviceMetrics{
-				CPUUsage:         28.3,
-				MemoryUsage:      42.8,
-				Temperature:      38.2,
-				PowerConsumption: 18.7,
-				LastUpdated:      time.Now(),
-			},
+                        Metrics: generateEnhancedDeviceMetrics(25.0),
 			SecurityProfile: SecurityProfile{
 				ProfileName:    "Consumer-Premium",
 				AuthMethod:     "WPA3-SAE",
@@ -4668,13 +4747,7 @@ func getDefaultDevices() []Device {
 				SerialNumber:   "NST003P6E",
 				SupportedBands: []string{"2.4GHz", "5GHz", "6GHz"},
 			},
-			Metrics: DeviceMetrics{
-				CPUUsage:         35.7,
-				MemoryUsage:      48.9,
-				Temperature:      42.1,
-				PowerConsumption: 22.3,
-				LastUpdated:      time.Now(),
-			},
+                        Metrics: generateEnhancedDeviceMetrics(33.0),
 			SecurityProfile: SecurityProfile{
 				ProfileName:    "Standard",
 				AuthMethod:     "WPA3-SAE",
@@ -4712,6 +4785,9 @@ func getSampleClients() []Client {
 				Latency:     2.1,
 				DataUsage:   10737418240,
 				LastUpdated: time.Now(),
+                                PacketLoss:  0.02,
+                                Retries:     5,
+                                LinkQuality: 98,
 			},
 			Location: ClientLocation{
 				EstimatedPosition: Point3D{X: 2.5, Y: -1.0, Z: 1.2},
@@ -4738,12 +4814,189 @@ func getSampleClients() []Client {
 				Latency:     8.2,
 				DataUsage:   2560000000,
 				LastUpdated: time.Now(),
+                                PacketLoss:  0.15,
+                                Retries:     12,
+                                LinkQuality: 85,
 			},
 			Location: ClientLocation{
 				EstimatedPosition: Point3D{X: 5.2, Y: 0.8, Z: 1.4},
 				ConnectedAP:       "AA:BB:CC:00:00:02",
 				LastUpdate:        time.Now(),
 				Accuracy:          2.8,
+			},
+		},
+		{
+			MAC:            "A4:83:E7:23:45:67",
+			Hostname:       "Samsung Galaxy S24",
+			IPAddress:      "192.168.1.103",
+			ConnectedAP:    "AA:BB:CC:00:00:01",
+			ConnectedBSSID: "AA:BB:CC:00:00:03",
+			ConnectionTime: time.Now().Add(-45 * time.Minute),
+			DeviceType:     "smartphone",
+			Manufacturer:   "Samsung",
+			LastActivity:   time.Now(),
+			ClientMetrics: ClientMetrics{
+				RSSI:        -65,
+				SNR:         38,
+				TxRate:      600,
+				RxRate:      650,
+				Latency:     12.5,
+				DataUsage:   1500000000,
+				LastUpdated: time.Now(),
+				PacketLoss:  0.45,
+				Retries:     18,
+				LinkQuality: 72,
+			},
+			Location: ClientLocation{
+				EstimatedPosition: Point3D{X: 3.8, Y: -0.5, Z: 1.3},
+				ConnectedAP:       "AA:BB:CC:00:00:01",
+				LastUpdate:        time.Now(),
+				Accuracy:          2.5,
+			},
+		},
+		{
+			MAC:            "DC:A6:32:67:89:AB",
+			Hostname:       "iPad Air",
+			IPAddress:      "192.168.1.104",
+			ConnectedAP:    "AA:BB:CC:00:00:03",
+			ConnectedBSSID: "AA:BB:CC:00:00:07",
+			ConnectionTime: time.Now().Add(-5 * time.Hour),
+			DeviceType:     "tablet",
+			Manufacturer:   "Apple Inc.",
+			LastActivity:   time.Now(),
+			ClientMetrics: ClientMetrics{
+				RSSI:        -52,
+				SNR:         48,
+				TxRate:      866,
+				RxRate:      866,
+				Latency:     5.3,
+				DataUsage:   5200000000,
+				LastUpdated: time.Now(),
+				PacketLoss:  0.08,
+				Retries:     7,
+				LinkQuality: 92,
+			},
+			Location: ClientLocation{
+				EstimatedPosition: Point3D{X: 8.1, Y: 4.2, Z: 4.3},
+				ConnectedAP:       "AA:BB:CC:00:00:03",
+				LastUpdate:        time.Now(),
+				Accuracy:          2.1,
+			},
+		},
+		{
+			MAC:            "B8:27:EB:CD:EF:12",
+			Hostname:       "Smart TV Living Room",
+			IPAddress:      "192.168.1.105",
+			ConnectedAP:    "AA:BB:CC:00:00:02",
+			ConnectedBSSID: "AA:BB:CC:00:00:05",
+			ConnectionTime: time.Now().Add(-24 * time.Hour),
+			DeviceType:     "tv",
+			Manufacturer:   "Sony",
+			LastActivity:   time.Now(),
+			ClientMetrics: ClientMetrics{
+				RSSI:        -73,
+				SNR:         32,
+				TxRate:      433,
+				RxRate:      433,
+				Latency:     22.8,
+				DataUsage:   8900000000,
+				LastUpdated: time.Now(),
+				PacketLoss:  1.25,
+				Retries:     35,
+				LinkQuality: 58,
+			},
+			Location: ClientLocation{
+				EstimatedPosition: Point3D{X: 5.5, Y: 0.0, Z: 1.2},
+				ConnectedAP:       "AA:BB:CC:00:00:02",
+				LastUpdate:        time.Now(),
+				Accuracy:          3.8,
+			},
+		},
+		{
+			MAC:            "E0:D5:5E:AB:CD:34",
+			Hostname:       "Dell XPS 15",
+			IPAddress:      "192.168.1.106",
+			ConnectedAP:    "AA:BB:CC:00:00:01",
+			ConnectedBSSID: "AA:BB:CC:00:00:03",
+			ConnectionTime: time.Now().Add(-6 * time.Hour),
+			DeviceType:     "laptop",
+			Manufacturer:   "Dell",
+			LastActivity:   time.Now(),
+			ClientMetrics: ClientMetrics{
+				RSSI:        -48,
+				SNR:         52,
+				TxRate:      1147,
+				RxRate:      1147,
+				Latency:     3.2,
+				DataUsage:   15600000000,
+				LastUpdated: time.Now(),
+				PacketLoss:  0.03,
+				Retries:     4,
+				LinkQuality: 96,
+			},
+			Location: ClientLocation{
+				EstimatedPosition: Point3D{X: 1.8, Y: -1.5, Z: 0.9},
+				ConnectedAP:       "AA:BB:CC:00:00:01",
+				LastUpdate:        time.Now(),
+				Accuracy:          2.9,
+			},
+		},
+		{
+			MAC:            "F4:F5:D8:12:34:56",
+			Hostname:       "Nest Camera Garage",
+			IPAddress:      "192.168.1.107",
+			ConnectedAP:    "AA:BB:CC:00:00:02",
+			ConnectedBSSID: "AA:BB:CC:00:00:05",
+			ConnectionTime: time.Now().Add(-48 * time.Hour),
+			DeviceType:     "camera",
+			Manufacturer:   "Google",
+			LastActivity:   time.Now(),
+			ClientMetrics: ClientMetrics{
+				RSSI:        -68,
+				SNR:         35,
+				TxRate:      200,
+				RxRate:      250,
+				Latency:     18.5,
+				DataUsage:   25000000000,
+				LastUpdated: time.Now(),
+				PacketLoss:  0.75,
+				Retries:     28,
+				LinkQuality: 65,
+			},
+			Location: ClientLocation{
+				EstimatedPosition: Point3D{X: 6.2, Y: 1.5, Z: 2.1},
+				ConnectedAP:       "AA:BB:CC:00:00:02",
+				LastUpdate:        time.Now(),
+				Accuracy:          4.2,
+			},
+		},
+		{
+			MAC:            "AC:BC:32:78:90:AB",
+			Hostname:       "Amazon Echo Studio",
+			IPAddress:      "192.168.1.108",
+			ConnectedAP:    "AA:BB:CC:00:00:03",
+			ConnectedBSSID: "AA:BB:CC:00:00:07",
+			ConnectionTime: time.Now().Add(-12 * time.Hour),
+			DeviceType:     "speaker",
+			Manufacturer:   "Amazon",
+			LastActivity:   time.Now(),
+			ClientMetrics: ClientMetrics{
+				RSSI:        -55,
+				SNR:         45,
+				TxRate:      520,
+				RxRate:      520,
+				Latency:     7.8,
+				DataUsage:   890000000,
+				LastUpdated: time.Now(),
+				PacketLoss:  0.12,
+				Retries:     9,
+				LinkQuality: 88,
+			},
+			Location: ClientLocation{
+				EstimatedPosition: Point3D{X: 8.5, Y: 4.5, Z: 4.1},
+				ConnectedAP:       "AA:BB:CC:00:00:03",
+				LastUpdate:        time.Now(),
+				Accuracy:          2.3,
 			},
 		},
 	}
@@ -4779,3 +5032,679 @@ func generateMeshTopology() {
 	}
 }
 
+// ===== PERFORMANCE TRACKING INITIALIZATION =====
+
+func initPerformanceTracking() {
+	performanceHistory = make(map[string]*DevicePerformanceHistory)
+	metricsHistory = make([]TimeSeriesMetric, 0, maxHistoryPoints)
+	
+	// Initialize history for each device with enhanced historical data
+	baseLoads := map[string]float64{
+		"AA:BB:CC:00:00:01": 30.0, // Controller
+		"AA:BB:CC:00:00:02": 25.0, // Agent 1
+		"AA:BB:CC:00:00:03": 33.0, // Agent 2
+	}
+	
+	for _, device := range devices {
+		baseLoad := baseLoads[device.MAC]
+		if baseLoad == 0 {
+			baseLoad = 30.0
+		}
+		
+		// Generate initial enhanced historical metrics (50 data points)
+		initialMetrics := generateEnhancedHistoricalMetrics(50, baseLoad)
+		
+		performanceHistory[device.MAC] = &DevicePerformanceHistory{
+			DeviceMAC:   device.MAC,
+			DeviceName:  device.Model,
+			Clients:     []ClientPerformanceData{},
+			Metrics:     initialMetrics,
+			Alarms:      []PerformanceAlarm{},
+			LastUpdated: time.Now(),
+		}
+	}
+	
+	log.Printf("Performance tracking initialized for %d devices with enhanced historical data", len(devices))
+}
+
+// ===== PERFORMANCE TRACKING HANDLERS =====
+
+func getAllDevicesPerformanceHandler(w http.ResponseWriter, r *http.Request) {
+	performanceMutex.RLock()
+	defer performanceMutex.RUnlock()
+	
+	result := make([]map[string]interface{}, 0)
+	
+	for _, device := range devices {
+		history, exists := performanceHistory[device.MAC]
+		if !exists {
+			continue
+		}
+		
+		// Get clients for this device
+		deviceClients := getClientsForDevice(device.MAC)
+		
+		result = append(result, map[string]interface{}{
+			"device_mac":    device.MAC,
+			"device_name":   device.Model,
+			"device_role":   device.Role,
+			"device_status": device.Status,
+			"client_count":  len(deviceClients),
+			"metrics":       device.Metrics,
+			"alarms":        history.Alarms,
+			"last_updated":  history.LastUpdated,
+		})
+	}
+	
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"devices":   result,
+		"timestamp": time.Now(),
+	})
+}
+
+func getDevicePerformanceHandler(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	mac := vars["mac"]
+	
+	performanceMutex.RLock()
+	history, exists := performanceHistory[mac]
+	performanceMutex.RUnlock()
+	
+	if !exists {
+		http.Error(w, "Device not found", http.StatusNotFound)
+		return
+	}
+	
+	// Find the device
+	var device *Device
+	for i := range devices {
+		if devices[i].MAC == mac {
+			device = &devices[i]
+			break
+		}
+	}
+	
+	if device == nil {
+		http.Error(w, "Device not found", http.StatusNotFound)
+		return
+	}
+	
+	// Get clients for this device
+	deviceClients := getClientsForDevice(mac)
+	clientsData := make([]ClientPerformanceData, 0)
+	
+	for _, client := range deviceClients {
+		clientsData = append(clientsData, ClientPerformanceData{
+			MAC:          client.MAC,
+			Hostname:     client.Hostname,
+			DeviceType:   client.DeviceType,
+			CurrentMetrics: ClientLinkMetrics{
+				RSSI:          client.ClientMetrics.RSSI,
+				SNR:           client.ClientMetrics.SNR,
+				TxRate:        client.ClientMetrics.TxRate,
+				RxRate:        client.ClientMetrics.RxRate,
+				Latency:       client.ClientMetrics.Latency,
+				PacketLoss:    client.ClientMetrics.PacketLoss,
+				Retries:       client.ClientMetrics.Retries,
+				LinkQuality:   client.ClientMetrics.LinkQuality,
+				DataRate:      float64(client.ClientMetrics.TxRate + client.ClientMetrics.RxRate) / 2.0,
+				SignalQuality: calculateSignalQuality(client.ClientMetrics.RSSI),
+				Timestamp:     time.Now(),
+			},
+			History:          generateClientHistoricalMetrics(client.MAC, 50),
+			Alarms:           getClientAlarms(client.MAC),
+			ConnectionHealth: calculateConnectionHealth(client.ClientMetrics),
+			LastUpdated:      time.Now(),
+		})
+	}
+	
+	// Generate historical metrics if not present
+	deviceHistoricalMetrics := history.Metrics
+	if len(deviceHistoricalMetrics) == 0 {
+		deviceHistoricalMetrics = generateHistoricalMetrics(50)
+	}
+	
+	response := map[string]interface{}{
+		"device": map[string]interface{}{
+			"mac":     device.MAC,
+			"name":    device.Model,
+			"role":    device.Role,
+			"status":  device.Status,
+			"metrics": device.Metrics,
+		},
+		"clients":      clientsData,
+		"metrics":      deviceHistoricalMetrics,
+		"alarms":       history.Alarms,
+		"last_updated": history.LastUpdated,
+		"timestamp":    time.Now(),
+	}
+	
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(response)
+}
+
+func getDeviceClientsPerformanceHandler(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	deviceMAC := vars["mac"]
+	
+	// Find the device
+	var device *Device
+	for i := range devices {
+		if devices[i].MAC == deviceMAC {
+			device = &devices[i]
+			break
+		}
+	}
+	
+	if device == nil {
+		http.Error(w, "Device not found", http.StatusNotFound)
+		return
+	}
+	
+	// Get clients for this device
+	deviceClients := getClientsForDevice(deviceMAC)
+	clientsData := make([]ClientPerformanceData, 0)
+	
+	for _, client := range deviceClients {
+		clientsData = append(clientsData, ClientPerformanceData{
+			MAC:          client.MAC,
+			Hostname:     client.Hostname,
+			DeviceType:   client.DeviceType,
+			CurrentMetrics: ClientLinkMetrics{
+				RSSI:          client.ClientMetrics.RSSI,
+				SNR:           client.ClientMetrics.SNR,
+				TxRate:        client.ClientMetrics.TxRate,
+				RxRate:        client.ClientMetrics.RxRate,
+				Latency:       client.ClientMetrics.Latency,
+				PacketLoss:    client.ClientMetrics.PacketLoss,
+				Retries:       client.ClientMetrics.Retries,
+				LinkQuality:   client.ClientMetrics.LinkQuality,
+				DataRate:      float64(client.ClientMetrics.TxRate + client.ClientMetrics.RxRate) / 2.0,
+				SignalQuality: calculateSignalQuality(client.ClientMetrics.RSSI),
+				Timestamp:     time.Now(),
+			},
+			History:          generateClientHistoricalMetrics(client.MAC, 50),
+			Alarms:           getClientAlarms(client.MAC),
+			ConnectionHealth: calculateConnectionHealth(client.ClientMetrics),
+			LastUpdated:      time.Now(),
+		})
+	}
+	
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"device_mac": deviceMAC,
+		"clients":    clientsData,
+		"timestamp":  time.Now(),
+	})
+}
+
+func getClientPerformanceHandler(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	clientMAC := vars["mac"]
+	
+	// Find the client
+	var client *Client
+	for i := range clients {
+		if clients[i].MAC == clientMAC {
+			client = &clients[i]
+			break
+		}
+	}
+	
+	if client == nil {
+		http.Error(w, "Client not found", http.StatusNotFound)
+		return
+	}
+	
+	response := ClientPerformanceData{
+		MAC:          client.MAC,
+		Hostname:     client.Hostname,
+		DeviceType:   client.DeviceType,
+		CurrentMetrics: ClientLinkMetrics{
+			RSSI:          client.ClientMetrics.RSSI,
+			SNR:           client.ClientMetrics.SNR,
+			TxRate:        client.ClientMetrics.TxRate,
+			RxRate:        client.ClientMetrics.RxRate,
+			Latency:       client.ClientMetrics.Latency,
+			PacketLoss:    client.ClientMetrics.PacketLoss,
+			Retries:       client.ClientMetrics.Retries,
+			LinkQuality:   client.ClientMetrics.LinkQuality,
+			DataRate:      float64(client.ClientMetrics.TxRate + client.ClientMetrics.RxRate) / 2.0,
+			SignalQuality: calculateSignalQuality(client.ClientMetrics.RSSI),
+			Timestamp:     time.Now(),
+		},
+		History:          generateClientHistoricalMetrics(client.MAC, 50),
+		Alarms:           getClientAlarms(client.MAC),
+		ConnectionHealth: calculateConnectionHealth(client.ClientMetrics),
+		LastUpdated:      time.Now(),
+	}
+	
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(response)
+}
+
+func getPerformanceAlarmsHandler(w http.ResponseWriter, r *http.Request) {
+	performanceMutex.RLock()
+	defer performanceMutex.RUnlock()
+	
+	allAlarms := make([]interface{}, 0)
+	
+	// Collect device alarms
+	for _, history := range performanceHistory {
+		for _, alarm := range history.Alarms {
+			allAlarms = append(allAlarms, map[string]interface{}{
+				"alarm_type": "device",
+				"device_mac": history.DeviceMAC,
+				"alarm":      alarm,
+			})
+		}
+	}
+	
+	// Collect client alarms
+	for _, client := range clients {
+		clientAlarms := getClientAlarms(client.MAC)
+		for _, alarm := range clientAlarms {
+			allAlarms = append(allAlarms, map[string]interface{}{
+				"alarm_type": "client",
+				"client_mac": client.MAC,
+				"device_mac": client.ConnectedAP,
+				"alarm":      alarm,
+			})
+		}
+	}
+	
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"alarms":    allAlarms,
+		"total":     len(allAlarms),
+		"timestamp": time.Now(),
+	})
+}
+
+func acknowledgeAlarmHandler(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	alarmID := vars["id"]
+	
+	performanceMutex.Lock()
+	defer performanceMutex.Unlock()
+	
+	// Find and acknowledge the alarm
+	acknowledged := false
+	for _, history := range performanceHistory {
+		for i := range history.Alarms {
+			if history.Alarms[i].ID == alarmID {
+				history.Alarms[i].Acknowledged = true
+				acknowledged = true
+				break
+			}
+		}
+	}
+	
+	if !acknowledged {
+		http.Error(w, "Alarm not found", http.StatusNotFound)
+		return
+	}
+	
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success":   true,
+		"message":   "Alarm acknowledged",
+		"alarm_id":  alarmID,
+		"timestamp": time.Now(),
+	})
+}
+
+// ===== HELPER FUNCTIONS FOR PERFORMANCE TRACKING =====
+
+func getClientsForDevice(deviceMAC string) []Client {
+	result := make([]Client, 0)
+	for _, client := range clients {
+		if client.ConnectedAP == deviceMAC {
+			result = append(result, client)
+		}
+	}
+	return result
+}
+
+func calculateSignalQuality(rssi int) string {
+	if rssi >= -50 {
+		return "excellent"
+	} else if rssi >= -60 {
+		return "good"
+	} else if rssi >= -70 {
+		return "fair"
+	}
+	return "poor"
+}
+
+func calculateConnectionHealth(metrics ClientMetrics) string {
+	score := 0
+	
+	// RSSI scoring
+	if metrics.RSSI >= -50 {
+		score += 40
+	} else if metrics.RSSI >= -60 {
+		score += 30
+	} else if metrics.RSSI >= -70 {
+		score += 20
+	} else {
+		score += 10
+	}
+	
+	// Latency scoring
+	if metrics.Latency < 10 {
+		score += 30
+	} else if metrics.Latency < 30 {
+		score += 20
+	} else if metrics.Latency < 50 {
+		score += 10
+	}
+	
+	// Packet loss scoring
+	if metrics.PacketLoss < 0.1 {
+		score += 30
+	} else if metrics.PacketLoss < 1.0 {
+		score += 20
+	} else if metrics.PacketLoss < 5.0 {
+		score += 10
+	}
+	
+	if score >= 80 {
+		return "excellent"
+	} else if score >= 60 {
+		return "good"
+	} else if score >= 40 {
+		return "fair"
+	}
+	return "poor"
+}
+
+func getClientAlarms(clientMAC string) []ClientAlarm {
+	alarms := make([]ClientAlarm, 0)
+	
+	// Find the client
+	var client *Client
+	for i := range clients {
+		if clients[i].MAC == clientMAC {
+			client = &clients[i]
+			break
+		}
+	}
+	
+	if client == nil {
+		return alarms
+	}
+	
+	// Check RSSI
+	if client.ClientMetrics.RSSI < -70 {
+		alarms = append(alarms, ClientAlarm{
+			ID:        fmt.Sprintf("rssi-%s-%d", clientMAC, time.Now().Unix()),
+			ClientMAC: clientMAC,
+			Severity:  "warning",
+			Type:      "rssi",
+			Message:   fmt.Sprintf("Weak signal detected: %d dBm", client.ClientMetrics.RSSI),
+			Value:     float64(client.ClientMetrics.RSSI),
+			Threshold: -70,
+			Timestamp: time.Now(),
+		})
+	}
+	
+	// Check latency
+	if client.ClientMetrics.Latency > 50 {
+		alarms = append(alarms, ClientAlarm{
+			ID:        fmt.Sprintf("latency-%s-%d", clientMAC, time.Now().Unix()),
+			ClientMAC: clientMAC,
+			Severity:  "warning",
+			Type:      "latency",
+			Message:   fmt.Sprintf("High latency detected: %.1f ms", client.ClientMetrics.Latency),
+			Value:     client.ClientMetrics.Latency,
+			Threshold: 50,
+			Timestamp: time.Now(),
+		})
+	}
+	
+	// Check packet loss
+	if client.ClientMetrics.PacketLoss > 1.0 {
+		alarms = append(alarms, ClientAlarm{
+			ID:        fmt.Sprintf("packetloss-%s-%d", clientMAC, time.Now().Unix()),
+			ClientMAC: clientMAC,
+			Severity:  "critical",
+			Type:      "packet_loss",
+			Message:   fmt.Sprintf("High packet loss: %.2f%%", client.ClientMetrics.PacketLoss),
+			Value:     client.ClientMetrics.PacketLoss,
+			Threshold: 1.0,
+			Timestamp: time.Now(),
+		})
+	}
+	
+	return alarms
+}
+
+func updatePerformanceHistory() {
+	performanceMutex.Lock()
+	defer performanceMutex.Unlock()
+	
+	// Update device metrics history
+	for _, device := range devices {
+		history, exists := performanceHistory[device.MAC]
+		if !exists {
+			continue
+		}
+		
+		// Add new metric point
+		metric := TimeSeriesMetric{
+			Timestamp: time.Now(),
+			Values: map[string]interface{}{
+				"cpu":         device.Metrics.CPUUsage,
+				"memory":      device.Metrics.MemoryUsage,
+				"temperature": device.Metrics.Temperature,
+				"power":       device.Metrics.PowerConsumption,
+			},
+		}
+		
+		history.Metrics = append(history.Metrics, metric)
+		
+		// Keep only last N points
+		if len(history.Metrics) > maxHistoryPoints {
+			history.Metrics = history.Metrics[len(history.Metrics)-maxHistoryPoints:]
+		}
+		
+		// Check for alarms
+		checkDeviceAlarms(device, history)
+		
+		history.LastUpdated = time.Now()
+	}
+}
+
+func checkDeviceAlarms(device Device, history *DevicePerformanceHistory) {
+	// Check CPU
+	if device.Metrics.CPUUsage > 80 {
+		alarm := PerformanceAlarm{
+			ID:        fmt.Sprintf("cpu-%s-%d", device.MAC, time.Now().Unix()),
+			Severity:  "warning",
+			Type:      "cpu",
+			Message:   fmt.Sprintf("High CPU usage: %.1f%%", device.Metrics.CPUUsage),
+			Value:     device.Metrics.CPUUsage,
+			Threshold: 80,
+			Timestamp: time.Now(),
+		}
+		history.Alarms = append(history.Alarms, alarm)
+	}
+	
+	// Check Memory
+	if device.Metrics.MemoryUsage > 85 {
+		alarm := PerformanceAlarm{
+			ID:        fmt.Sprintf("memory-%s-%d", device.MAC, time.Now().Unix()),
+			Severity:  "warning",
+			Type:      "memory",
+			Message:   fmt.Sprintf("High memory usage: %.1f%%", device.Metrics.MemoryUsage),
+			Value:     device.Metrics.MemoryUsage,
+			Threshold: 85,
+			Timestamp: time.Now(),
+		}
+		history.Alarms = append(history.Alarms, alarm)
+	}
+	
+	// Check Temperature
+	if device.Metrics.Temperature > 70 {
+		alarm := PerformanceAlarm{
+			ID:        fmt.Sprintf("temp-%s-%d", device.MAC, time.Now().Unix()),
+			Severity:  "critical",
+			Type:      "temperature",
+			Message:   fmt.Sprintf("High temperature: %.1f°C", device.Metrics.Temperature),
+			Value:     device.Metrics.Temperature,
+			Threshold: 70,
+			Timestamp: time.Now(),
+		}
+		history.Alarms = append(history.Alarms, alarm)
+	}
+	
+	// Keep only recent alarms (last hour)
+	recentAlarms := make([]PerformanceAlarm, 0)
+	cutoff := time.Now().Add(-1 * time.Hour)
+	for _, alarm := range history.Alarms {
+		if alarm.Timestamp.After(cutoff) {
+			recentAlarms = append(recentAlarms, alarm)
+		}
+	}
+	history.Alarms = recentAlarms
+}
+
+// ===== GENERATE HISTORICAL METRICS FOR DEMO =====
+
+func generateHistoricalMetrics(count int) []TimeSeriesMetric {
+	metrics := make([]TimeSeriesMetric, 0, count)
+	now := time.Now()
+	
+	// Generate metrics going back in time
+	for i := count - 1; i >= 0; i-- {
+		timestamp := now.Add(time.Duration(-i*10) * time.Second)
+		
+		// Generate varied but realistic data
+		cpuBase := 30.0 + float64(i%20) + rand.Float64()*10
+		memBase := 45.0 + float64(i%15) + rand.Float64()*8
+		tempBase := 40.0 + float64(i%10) + rand.Float64()*5
+		
+		metrics = append(metrics, TimeSeriesMetric{
+			Timestamp: timestamp,
+			Values: map[string]interface{}{
+				"cpu":         math.Min(cpuBase, 95.0),
+				"memory":      math.Min(memBase, 90.0),
+				"temperature": math.Min(tempBase, 75.0),
+				"power":       18.0 + rand.Float64()*8,
+			},
+		})
+	}
+	
+	return metrics
+}
+
+func generateClientHistoricalMetrics(clientMAC string, count int) []TimeSeriesMetric {
+	metrics := make([]TimeSeriesMetric, 0, count)
+	now := time.Now()
+	
+	// Find the client to get base values
+	var baseRSSI int = -55
+	var baseSNR int = 45
+	var baseTxRate int = 800
+	var baseLatency float64 = 8.0
+	var basePacketLoss float64 = 0.2
+	var baseLinkQuality int = 85
+	
+	for _, client := range clients {
+		if client.MAC == clientMAC {
+			baseRSSI = client.ClientMetrics.RSSI
+			baseSNR = client.ClientMetrics.SNR
+			baseTxRate = client.ClientMetrics.TxRate
+			baseLatency = client.ClientMetrics.Latency
+			basePacketLoss = client.ClientMetrics.PacketLoss
+			baseLinkQuality = client.ClientMetrics.LinkQuality
+			break
+		}
+	}
+	
+	// Generate metrics going back in time
+	for i := count - 1; i >= 0; i-- {
+		timestamp := now.Add(time.Duration(-i*10) * time.Second)
+		
+		// Add realistic variations
+		rssiVar := int(rand.Float64()*8 - 4)
+		snrVar := int(rand.Float64()*6 - 3)
+		txRateVar := int(rand.Float64()*200 - 100)
+		latencyVar := rand.Float64()*4 - 2
+		packetLossVar := rand.Float64()*0.3 - 0.15
+		linkQualityVar := int(rand.Float64()*10 - 5)
+		
+		metrics = append(metrics, TimeSeriesMetric{
+			Timestamp: timestamp,
+			Values: map[string]interface{}{
+				"rssi":         baseRSSI + rssiVar,
+				"snr":          baseSNR + snrVar,
+				"tx_rate":      math.Max(float64(baseTxRate+txRateVar), 100),
+				"rx_rate":      math.Max(float64(baseTxRate+txRateVar), 100),
+				"latency":      math.Max(baseLatency+latencyVar, 0.5),
+				"packet_loss":  math.Max(basePacketLoss+packetLossVar, 0),
+				"link_quality": math.Min(math.Max(float64(baseLinkQuality+linkQualityVar), 40), 100),
+			},
+		})
+	}
+	
+	return metrics
+}
+
+// ===== ENHANCED METRICS GENERATION =====
+
+func generateEnhancedDeviceMetrics(baseLoad float64) DeviceMetrics {
+	return DeviceMetrics{
+		CPUUsage:         baseLoad + rand.Float64()*15,
+		MemoryUsage:      45.0 + rand.Float64()*20,
+		Temperature:      40.0 + rand.Float64()*15,
+		PowerConsumption: 20.0 + rand.Float64()*8,
+		TxBytes:          uint64(rand.Int63n(1000000000000)),
+		RxBytes:          uint64(rand.Int63n(1000000000000)),
+		TxRate:           100.0 + rand.Float64()*500,
+		RxRate:           150.0 + rand.Float64()*600,
+		TxPackets:        uint64(rand.Int63n(10000000)),
+		RxPackets:        uint64(rand.Int63n(10000000)),
+		ErrorRate:        rand.Float64() * 0.5,
+		Uptime:           int64(7*24*3600 + rand.Int63n(86400)),
+		ActiveClients:    2 + rand.Intn(4),
+		ChannelUtil24:    30.0 + rand.Float64()*40,
+		ChannelUtil5:     20.0 + rand.Float64()*30,
+		LastUpdated:      time.Now(),
+	}
+}
+
+func generateEnhancedHistoricalMetrics(count int, baseLoad float64) []TimeSeriesMetric {
+	metrics := make([]TimeSeriesMetric, 0, count)
+	now := time.Now()
+	
+	for i := count - 1; i >= 0; i-- {
+		timestamp := now.Add(time.Duration(-i*10) * time.Second)
+		
+		cpuBase := baseLoad + float64(i%20) + rand.Float64()*10
+		memBase := 45.0 + float64(i%15) + rand.Float64()*8
+		tempBase := 40.0 + float64(i%10) + rand.Float64()*5
+		txRate := 100.0 + rand.Float64()*400
+		rxRate := 150.0 + rand.Float64()*500
+		
+		metrics = append(metrics, TimeSeriesMetric{
+			Timestamp: timestamp,
+			Values: map[string]interface{}{
+				"cpu":            math.Min(cpuBase, 95.0),
+				"memory":         math.Min(memBase, 90.0),
+				"temperature":    math.Min(tempBase, 75.0),
+				"power":          18.0 + rand.Float64()*8,
+				"tx_rate":        txRate,
+				"rx_rate":        rxRate,
+				"error_rate":     rand.Float64() * 0.5,
+				"channel_util_24": 30.0 + rand.Float64()*40,
+				"channel_util_5":  20.0 + rand.Float64()*30,
+				"active_clients":  2 + rand.Intn(4),
+			},
+		})
+	}
+	
+	return metrics
+}
