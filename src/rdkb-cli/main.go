@@ -73,7 +73,7 @@ type HaulConfig struct {
     SSID         string `json:"SSID"`
     PassPhrase   string `json:"PassPhrase"`
     Enabled      bool   `json:"Enable"`
-    Bands        string `json:"Band"`
+    Bands        []string `json:"Band"`
     SecurityType string `json:"Security"`
     VlanID       int    `json:"vlanId"`
 }
@@ -1814,7 +1814,7 @@ func getWirelessProfilesHandler(w http.ResponseWriter, r *http.Request) {
                     http.Error(w, fmt.Sprintf("Invalid PassPhrase for %s: %v", haul.HaulType, err), http.StatusBadRequest)
                     return
                 }
-                if err := updateNetworkSSIDList(ssidTree, haul.HaulType, haul.SSID, haul.PassPhrase, haul.SecurityType); err != nil {
+                if err := updateNetworkSSIDList(ssidTree, haul.HaulType, haul.SSID, haul.PassPhrase, haul.SecurityType, haul.Enabled); err != nil {
                     http.Error(w, fmt.Sprintf("Update failed for %s: %v", haul.HaulType, err), http.StatusInternalServerError)
                     return
                 }
@@ -3306,7 +3306,7 @@ func WifiResetHandler(w http.ResponseWriter, r *http.Request) {
                     http.Error(w, fmt.Sprintf("Invalid PassPhrase for %s: %v", haul.HaulType, err), http.StatusBadRequest)
                     return
                 }
-                if err := updateNetworkSSIDList(resetTree, haul.HaulType, haul.SSID, haul.PassPhrase, haul.SecurityType); err != nil {
+                if err := updateNetworkSSIDList(resetTree, haul.HaulType, haul.SSID, haul.PassPhrase, haul.SecurityType, haul.Enabled); err != nil {
                     http.Error(w, fmt.Sprintf("Update failed for %s: %v", haul.HaulType, err), http.StatusInternalServerError)
                     return
                 }
@@ -3383,7 +3383,6 @@ func getConfiguredHauls(tree *C.em_network_node_t) []HaulConfig {
             band := C.GoString(&BandObj.child[i].value_str[0])
             bandList = append(bandList, band+"GHz")
         }
-        bands := strings.Join(bandList, ", ")
 
         // Security mode
         securityMode = getTreeValue(node, "AuthType")
@@ -3407,7 +3406,7 @@ func getConfiguredHauls(tree *C.em_network_node_t) []HaulConfig {
             HaulType: haul,
             SSID: getTreeValue(node, "SSID"),
             PassPhrase: getTreeValue(node, "PassPhrase"),
-            Bands: bands,
+            Bands: bandList,
             SecurityType: securityMode,
             VlanID: vlanId,
         }
@@ -3454,7 +3453,7 @@ func updateCollocatedAgentID(resetTree *C.em_network_node_t, selectedMac string)
  * Searches the NetworkSSIDList for a matching HaulType and updates its SSID and PassPhrase fields.
  * returns: nil on successful update; otherwise an error if the list or matching HaulType is not found.
  */
-func updateNetworkSSIDList(networkSSIDTree *C.em_network_node_t, haulType, newSSID, newPass string, newAuthType string) error {
+func updateNetworkSSIDList(networkSSIDTree *C.em_network_node_t, haulType, newSSID, newPass string, newAuthType string, newEnable bool) error {
     networkKey := C.CString("NetworkSSIDList")
     defer C.free(unsafe.Pointer(networkKey))
 
@@ -3481,6 +3480,7 @@ func updateNetworkSSIDList(networkSSIDTree *C.em_network_node_t, haulType, newSS
             updateNodeValue(item, "SSID", newSSID)
             updateNodeValue(item, "PassPhrase", newPass)
             updateNodeValue(item, "AuthType", newAuthType)
+            updateNodeBool(item, "Enable", newEnable)
         }
     }
     return nil
@@ -3508,6 +3508,27 @@ func updateNodeValue(parent *C.em_network_node_t, key, newVal string) {
         buf[i] = 0
     }
     copy(buf[:], newVal)
+}
+
+/* func: updateNodeBool()
+ * Description: helper function to set the updated node value for bool
+ * Return: NA
+ */
+func updateNodeBool(parent *C.em_network_node_t, key string, enabled bool) {
+    cKey := C.CString(key)
+    defer C.free(unsafe.Pointer(cKey))
+
+    node := C.get_network_tree_by_key(parent, cKey)
+    if node == nil {
+        log.Printf("Key '%s' not found in tree", key)
+        return
+    }
+
+	if enabled {
+		C.set_node_type(node, C.em_network_node_data_type_true)
+	} else {
+		C.set_node_type(node, C.em_network_node_data_type_false)
+	}
 }
 
 /* func: applyResetConfig()

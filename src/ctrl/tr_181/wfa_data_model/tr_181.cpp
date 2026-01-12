@@ -77,9 +77,6 @@ int tr_181_t::wfa_set_bus_callbackfunc_pointers(const char *full_namespace, bus_
         ELEMENT(DE_SSID_MOBDOMAIN,        CALLBACK_GETTER(ssid_get)),
         ELEMENT(DE_SSID_HAULTYPE,         CALLBACK_GETTER(ssid_get)),
         ELEMENT(DE_DEVICE_TABLE,          CALLBACK_GETTER(device_tget)),
-        ELEMENT(DE_RADIO_TABLE,           CALLBACK_GETTER(radio_tget)),
-        ELEMENT(DE_BSS_TABLE,             CALLBACK_GETTER(bss_tget)),
-        ELEMENT(DE_STA_TABLE,             CALLBACK_GETTER(sta_tget)),
         ELEMENT(DE_DEVICE_ID,                     CALLBACK_GETTER(device_get)),
         ELEMENT(DE_DEVICE_MAPCAP,                 CALLBACK_GETTER(device_get)),
         ELEMENT(DE_DEVICE_NUMRADIO,               CALLBACK_GETTER(device_get)),
@@ -128,6 +125,7 @@ int tr_181_t::wfa_set_bus_callbackfunc_pointers(const char *full_namespace, bus_
         ELEMENT(DE_DEVICE_RADIONOE,               CALLBACK_GETTER(device_get)),
         ELEMENT(DE_DEVICE_CACSTATNOE,             CALLBACK_GETTER(device_get)),
         ELEMENT(DE_DEVICE_BHDOWNNOE,              CALLBACK_GETTER(device_get)),
+        ELEMENT(DE_RADIO_TABLE,            CALLBACK_GETTER(radio_tget)),
         ELEMENT(DE_RADIO_ID,               CALLBACK_GETTER(radio_get)),
         ELEMENT(DE_RADIO_ENABLED,          CALLBACK_GETTER(radio_get)),
         ELEMENT(DE_RADIO_NOISE,            CALLBACK_GETTER(radio_get)),
@@ -175,6 +173,7 @@ int tr_181_t::wfa_set_bus_callbackfunc_pointers(const char *full_namespace, bus_
         ELEMENT(DE_CUROP_CLASS,            CALLBACK_GETTER(curops_get)),
         ELEMENT(DE_CUROP_CHANNEL,          CALLBACK_GETTER(curops_get)),
         ELEMENT(DE_CUROP_TXPOWER,          CALLBACK_GETTER(curops_get)),
+        ELEMENT(DE_BSS_TABLE,              CALLBACK_GETTER(bss_tget)),
         ELEMENT(DE_BSS_BSSID,              CALLBACK_GETTER(bss_get)),
         ELEMENT(DE_BSS_SSID,               CALLBACK_GETTER(bss_get)),
         ELEMENT(DE_BSS_ENABLED,            CALLBACK_GETTER(bss_get)),
@@ -207,6 +206,7 @@ int tr_181_t::wfa_set_bus_callbackfunc_pointers(const char *full_namespace, bus_
         ELEMENT(DE_BSS_LINK_IMM,           CALLBACK_GETTER(bss_get)),
         ELEMENT(DE_BSS_FH_SUITE,           CALLBACK_GETTER(bss_get)),
         ELEMENT(DE_BSS_BH_SUITE,           CALLBACK_GETTER(bss_get)),
+        ELEMENT(DE_STA_TABLE,              CALLBACK_GETTER(sta_tget)),
         ELEMENT(DE_STA_MACADDR,            CALLBACK_GETTER(sta_get)),
         ELEMENT(DE_STA_HTCAPS,             CALLBACK_GETTER(sta_get)),
         ELEMENT(DE_STA_VHTCAPS,            CALLBACK_GETTER(sta_get)),
@@ -231,9 +231,29 @@ int tr_181_t::wfa_set_bus_callbackfunc_pointers(const char *full_namespace, bus_
         ELEMENT(DE_STA_HOSTNAME,           CALLBACK_GETTER(sta_get)),
         ELEMENT(DE_STA_PAIRWSAKM,          CALLBACK_GETTER(sta_get)),
         ELEMENT(DE_STA_PAIRWSCIPHER,       CALLBACK_GETTER(sta_get)),
-        ELEMENT(DE_STA_RSNCAPS,            CALLBACK_GETTER(sta_get))
+        ELEMENT(DE_STA_RSNCAPS,            CALLBACK_GETTER(sta_get)),
+        ELEMENT(DE_APMLD_TABLE,            CALLBACK_GETTER(apmld_tget)),
+        ELEMENT(DE_APMLD_MACADDRESS,       CALLBACK_GETTER(apmld_get)),
+        ELEMENT(DE_APMLD_AFFAPNOE,         CALLBACK_GETTER(apmld_get)),
+        ELEMENT(DE_APMLD_STAMLDNOE,        CALLBACK_GETTER(apmld_get)),
+        ELEMENT(DE_APMLDCFG_EMLMR,         CALLBACK_GETTER(apmldcfg_get)),
+        ELEMENT(DE_APMLDCFG_EMLSR,         CALLBACK_GETTER(apmldcfg_get)),
+        ELEMENT(DE_APMLDCFG_STR,           CALLBACK_GETTER(apmldcfg_get)),
+        ELEMENT(DE_APMLDCFG_NSTR,          CALLBACK_GETTER(apmldcfg_get)),
+        ELEMENT(DE_AFFAP_TABLE,            CALLBACK_GETTER(affap_tget)),
+        ELEMENT(DE_AFFAP_BSSID,            CALLBACK_GETTER(affap_get)),
+        ELEMENT(DE_AFFAP_LINKID,           CALLBACK_GETTER(affap_get)),
+        ELEMENT(DE_AFFAP_RUID,             CALLBACK_GETTER(affap_get)),
+        ELEMENT(DE_AFFAP_PCKTSSNT,         CALLBACK_GETTER(affap_get)),
+        ELEMENT(DE_AFFAP_PCKTSRCV,         CALLBACK_GETTER(affap_get)),
+        ELEMENT(DE_AFFAP_ERRSSNT,          CALLBACK_GETTER(affap_get)),
+        ELEMENT(DE_AFFAP_UCBYTESSNT,       CALLBACK_GETTER(affap_get)),
+        ELEMENT(DE_AFFAP_UCBYTESRCV,       CALLBACK_GETTER(affap_get)),
+        ELEMENT(DE_AFFAP_MCBYTESSNT,       CALLBACK_GETTER(affap_get)),
+        ELEMENT(DE_AFFAP_MCBYTESRCV,       CALLBACK_GETTER(affap_get)),
+        ELEMENT(DE_AFFAP_BCBYTESSNT,       CALLBACK_GETTER(affap_get)),
+        ELEMENT(DE_AFFAP_BCBYTESRCV,       CALLBACK_GETTER(affap_get))
     };
-
 
     bus_data_cb_func_t bus_default_data_cb = { const_cast<char*>(" "),
         { default_get_param_value, default_set_param_value, default_table_add_row_handler,
@@ -455,10 +475,8 @@ bus_error_t tr_181_t::network_get(char *event_name, raw_data_t *p_data, bus_user
 {
     em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
 
-    if (em_ctrl != NULL)
-    {
-        em_ctrl->get_dm_ctrl()->network_get(event_name, p_data);
-        return bus_error_success;
+    if (em_ctrl != NULL) {
+        return em_ctrl->get_dm_ctrl()->network_get(event_name, p_data);
     }
     
     return bus_error_general;
@@ -468,10 +486,8 @@ bus_error_t tr_181_t::ssid_tget(char *event_name, raw_data_t *p_data, bus_user_d
 {
     em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
 
-    if (em_ctrl != NULL)
-    {
-        em_ctrl->get_dm_ctrl()->ssid_tget(event_name, p_data);
-        return bus_error_success;
+    if (em_ctrl != NULL) {
+        return em_ctrl->get_dm_ctrl()->ssid_tget(event_name, p_data);
     }
     
     return bus_error_general;
@@ -481,10 +497,8 @@ bus_error_t tr_181_t::ssid_get(char *event_name, raw_data_t *p_data, bus_user_da
 {
     em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
 
-    if (em_ctrl != NULL)
-    {
-        em_ctrl->get_dm_ctrl()->ssid_get(event_name, p_data);
-        return bus_error_success;
+    if (em_ctrl != NULL) {
+        return em_ctrl->get_dm_ctrl()->ssid_get(event_name, p_data);
     }
     
     return bus_error_general;
@@ -494,10 +508,8 @@ bus_error_t tr_181_t::device_get(char *event_name, raw_data_t *p_data, bus_user_
 {
     em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
 
-    if (em_ctrl != NULL)
-    {
-        em_ctrl->get_dm_ctrl()->device_get(event_name, p_data);
-        return bus_error_success;
+    if (em_ctrl != NULL) {
+        return em_ctrl->get_dm_ctrl()->device_get(event_name, p_data);
     }
     
     return bus_error_general;
@@ -507,10 +519,8 @@ bus_error_t tr_181_t::device_tget(char *event_name, raw_data_t *p_data, bus_user
 {
     em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
 
-    if (em_ctrl != NULL)
-    {
-        em_ctrl->get_dm_ctrl()->device_tget(event_name, p_data);
-        return bus_error_success;
+    if (em_ctrl != NULL) {
+        return em_ctrl->get_dm_ctrl()->device_tget(event_name, p_data);
     }
     
     return bus_error_general;
@@ -521,10 +531,8 @@ bus_error_t tr_181_t::policy_get(char *event_name, raw_data_t *p_data, bus_user_
     em_printfout("Inside");
     em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
 
-    if (em_ctrl != NULL)
-    {
-        em_ctrl->get_dm_ctrl()->policy_get(event_name, p_data);
-        return bus_error_success;
+    if (em_ctrl != NULL) {
+        return em_ctrl->get_dm_ctrl()->policy_get(event_name, p_data);
     }
 
     return bus_error_general;
@@ -534,10 +542,8 @@ bus_error_t tr_181_t::radio_get(char *event_name, raw_data_t *p_data, bus_user_d
 {
     em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
 
-    if (em_ctrl != NULL)
-    {
-        em_ctrl->get_dm_ctrl()->radio_get(event_name, p_data);
-        return bus_error_success;
+    if (em_ctrl != NULL) {
+        return em_ctrl->get_dm_ctrl()->radio_get(event_name, p_data);
     }
     
     return bus_error_general;
@@ -547,10 +553,8 @@ bus_error_t tr_181_t::bss_get(char *event_name, raw_data_t *p_data, bus_user_dat
 {
     em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
 
-    if (em_ctrl != NULL)
-    {
-        em_ctrl->get_dm_ctrl()->bss_get(event_name, p_data);
-        return bus_error_success;
+    if (em_ctrl != NULL) {
+        return em_ctrl->get_dm_ctrl()->bss_get(event_name, p_data);
     }
     
     return bus_error_general;
@@ -560,10 +564,8 @@ bus_error_t tr_181_t::rcaps_get(char *event_name, raw_data_t *p_data, bus_user_d
 {
     em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
 
-    if (em_ctrl != NULL)
-    {
-        em_ctrl->get_dm_ctrl()->rcaps_get(event_name, p_data);
-        return bus_error_success;
+    if (em_ctrl != NULL) {
+        return em_ctrl->get_dm_ctrl()->rcaps_get(event_name, p_data);
     }
     
     return bus_error_general;
@@ -573,10 +575,8 @@ bus_error_t tr_181_t::wf6ap_get(char *event_name, raw_data_t *p_data, bus_user_d
 {
     em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
 
-    if (em_ctrl != NULL)
-    {
-        em_ctrl->get_dm_ctrl()->wf6ap_get(event_name, p_data);
-        return bus_error_success;
+    if (em_ctrl != NULL) {
+        return em_ctrl->get_dm_ctrl()->wf6ap_get(event_name, p_data);
     }
     
     return bus_error_general;
@@ -586,10 +586,8 @@ bus_error_t tr_181_t::wf6ap_tget(char *event_name, raw_data_t *p_data, bus_user_
 {
     em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
 
-    if (em_ctrl != NULL)
-    {
-        em_ctrl->get_dm_ctrl()->wf6ap_tget(event_name, p_data);
-        return bus_error_success;
+    if (em_ctrl != NULL) {
+        return em_ctrl->get_dm_ctrl()->wf6ap_tget(event_name, p_data);
     }
     
     return bus_error_general;
@@ -599,10 +597,8 @@ bus_error_t tr_181_t::wf7ap_get(char *event_name, raw_data_t *p_data, bus_user_d
 {
     em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
 
-    if (em_ctrl != NULL)
-    {
-        em_ctrl->get_dm_ctrl()->wf7ap_get(event_name, p_data);
-        return bus_error_success;
+    if (em_ctrl != NULL) {
+        return em_ctrl->get_dm_ctrl()->wf7ap_get(event_name, p_data);
     }
 
     return bus_error_general;
@@ -612,10 +608,8 @@ bus_error_t tr_181_t::wf7ap_tget(char *event_name, raw_data_t *p_data, bus_user_
 {
     em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
 
-    if (em_ctrl != NULL)
-    {
-        em_ctrl->get_dm_ctrl()->wf7ap_tget(event_name, p_data);
-        return bus_error_success;
+    if (em_ctrl != NULL) {
+        return em_ctrl->get_dm_ctrl()->wf7ap_tget(event_name, p_data);
     }
 
     return bus_error_general;
@@ -625,10 +619,8 @@ bus_error_t tr_181_t::curops_get(char *event_name, raw_data_t *p_data, bus_user_
 {
     em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
 
-    if (em_ctrl != NULL)
-    {
-        em_ctrl->get_dm_ctrl()->curops_get(event_name, p_data);
-        return bus_error_success;
+    if (em_ctrl != NULL) {
+        return em_ctrl->get_dm_ctrl()->curops_get(event_name, p_data);
     }
     
     return bus_error_general;
@@ -638,10 +630,8 @@ bus_error_t tr_181_t::curops_tget(char *event_name, raw_data_t *p_data, bus_user
 {
     em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
 
-    if (em_ctrl != NULL)
-    {
-        em_ctrl->get_dm_ctrl()->curops_tget(event_name, p_data);
-        return bus_error_success;
+    if (em_ctrl != NULL) {
+        return em_ctrl->get_dm_ctrl()->curops_tget(event_name, p_data);
     }
     
     return bus_error_general;
@@ -651,10 +641,8 @@ bus_error_t tr_181_t::sta_get(char *event_name, raw_data_t *p_data, bus_user_dat
 {
     em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
 
-    if (em_ctrl != NULL)
-    {
-        em_ctrl->get_dm_ctrl()->sta_get(event_name, p_data);
-        return bus_error_success;
+    if (em_ctrl != NULL) {
+        return em_ctrl->get_dm_ctrl()->sta_get(event_name, p_data);
     }
     
     return bus_error_general;
@@ -664,10 +652,8 @@ bus_error_t tr_181_t::radio_tget(char *event_name, raw_data_t *p_data, bus_user_
 {
     em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
 
-    if (em_ctrl != NULL)
-    {
-        em_ctrl->get_dm_ctrl()->radio_tget(event_name, p_data);
-        return bus_error_success;
+    if (em_ctrl != NULL) {
+        return em_ctrl->get_dm_ctrl()->radio_tget(event_name, p_data);
     }
     
     return bus_error_general;
@@ -677,10 +663,8 @@ bus_error_t tr_181_t::rbhsta_get(char *event_name, raw_data_t *p_data, bus_user_
 {
     em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
 
-    if (em_ctrl != NULL)
-    {
-        em_ctrl->get_dm_ctrl()->rbhsta_get(event_name, p_data);
-        return bus_error_success;
+    if (em_ctrl != NULL) {
+        return em_ctrl->get_dm_ctrl()->rbhsta_get(event_name, p_data);
     }
     
     return bus_error_general;
@@ -690,10 +674,8 @@ bus_error_t tr_181_t::bss_tget(char *event_name, raw_data_t *p_data, bus_user_da
 {
     em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
 
-    if (em_ctrl != NULL)
-    {
-        em_ctrl->get_dm_ctrl()->device_get(event_name, p_data);
-        return bus_error_success;
+    if (em_ctrl != NULL) {
+        return em_ctrl->get_dm_ctrl()->bss_tget(event_name, p_data);
     }
     
     return bus_error_general;
@@ -703,10 +685,63 @@ bus_error_t tr_181_t::sta_tget(char *event_name, raw_data_t *p_data, bus_user_da
 {
     em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
 
-    if (em_ctrl != NULL)
-    {
-        em_ctrl->get_dm_ctrl()->device_get(event_name, p_data);
-        return bus_error_success;
+    if (em_ctrl != NULL) {
+        return em_ctrl->get_dm_ctrl()->sta_tget(event_name, p_data);
+    }
+
+    return bus_error_general;
+}
+
+bus_error_t tr_181_t::apmld_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
+{
+    em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
+
+    if (em_ctrl != NULL) {
+        return em_ctrl->get_dm_ctrl()->apmld_get(event_name, p_data);
+    }
+
+    return bus_error_general;
+}
+
+bus_error_t tr_181_t::apmld_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
+{
+    em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
+
+    if (em_ctrl != NULL) {
+        return em_ctrl->get_dm_ctrl()->apmld_tget(event_name, p_data);
+    }
+
+    return bus_error_general;
+}
+
+bus_error_t tr_181_t::apmldcfg_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
+{
+    em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
+
+    if (em_ctrl != NULL) {
+        return em_ctrl->get_dm_ctrl()->apmldcfg_get(event_name, p_data);
+    }
+
+    return bus_error_general;
+}
+
+bus_error_t tr_181_t::affap_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
+{
+    em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
+
+    if (em_ctrl != NULL) {
+        return em_ctrl->get_dm_ctrl()->affap_get(event_name, p_data);
+    }
+
+    return bus_error_general;
+}
+
+bus_error_t tr_181_t::affap_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
+{
+    em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
+
+    if (em_ctrl != NULL) {
+        return em_ctrl->get_dm_ctrl()->affap_tget(event_name, p_data);
     }
 
     return bus_error_general;
@@ -897,18 +932,8 @@ void tr_181_t::handle_property_node(cJSON* root, const std::string& fullPath, cJ
         return;
     }
 
-    // 3) If type is array -> register TABLE and examine items
+    // 3) If type is array -> register TABLE, and examine items, only if array type is object
     if (schema_has_type(effective, "array")) {
-        std::string tableName = fullPath + ".{i}";
-
-        // reset and fill constraints for the array property itself
-        memset(&data_model_value, 0, sizeof(data_model_value));
-        parse_property_constraints(effective, data_model_value);
-        parse_readwrite(effective, data_model_value);
-        std::string tr181Path = yang_to_tr181_path(tableName);
-        wfa_set_bus_callbackfunc_pointers(tr181Path.c_str(), &cbTable);
-        wfa_bus_register_namespace(const_cast<char*>(tr181Path.c_str()), bus_element_type_table, cbTable, data_model_value, 1);
-
         // now inspect items
         cJSON* items = cJSON_GetObjectItem(effective, "items");
         if (!items) return;
@@ -918,6 +943,16 @@ void tr_181_t::handle_property_node(cJSON* root, const std::string& fullPath, cJ
 
         cJSON* itemProps = cJSON_GetObjectItem(itemsEff, "properties");
         if (itemProps && cJSON_IsObject(itemProps)) {
+            std::string tableName = fullPath + ".{i}";
+
+            // reset and fill constraints for the array property itself
+            memset(&data_model_value, 0, sizeof(data_model_value));
+            parse_property_constraints(effective, data_model_value);
+            parse_readwrite(effective, data_model_value);
+            std::string tr181Path = yang_to_tr181_path(tableName);
+            wfa_set_bus_callbackfunc_pointers(tr181Path.c_str(), &cbTable);
+            wfa_bus_register_namespace(const_cast<char*>(tr181Path.c_str()), bus_element_type_table, cbTable, data_model_value, 1);
+
             // expand row children under tableName
             traverse_schema(root, itemsEff, tableName);
         } else {
@@ -925,7 +960,7 @@ void tr_181_t::handle_property_node(cJSON* root, const std::string& fullPath, cJ
             memset(&data_model_value, 0, sizeof(data_model_value));
             parse_property_constraints(itemsEff, data_model_value);
             parse_readwrite(itemsEff, data_model_value);
-            std::string tr181Path = yang_to_tr181_path(tableName);
+            std::string tr181Path = yang_to_tr181_path(fullPath);
             wfa_set_bus_callbackfunc_pointers(tr181Path.c_str(), &cbTable);
             wfa_bus_register_namespace(const_cast<char*>(tr181Path.c_str()), bus_element_type_property, cbTable, data_model_value, 1);
         }

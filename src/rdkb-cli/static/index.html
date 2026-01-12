@@ -761,6 +761,23 @@
                             <label class="form-label">VLAN ID</label>
                             <input type="number" id="profile-vlan" class="form-input" value="1" min="1" max="4094" disabled>
                         </div>
+                        <div class="form-group">
+                            <label class="form-label">Bands</label>
+                            <div class="bands-row" role="group" aria-labelledby="bands-label">
+                                <label class="checkbox-inline">
+                                    <input type="checkbox" id="band-24" name="bands" value="2.4GHz" disabled>
+                                    <span>2.4 GHz</span>
+                                </label>
+                                <label class="checkbox-inline">
+                                    <input type="checkbox" id="band-5" name="bands" value="5GHz" disabled>
+                                    <span>5 GHz</span>
+                                </label>
+                                <label class="checkbox-inline">
+                                    <input type="checkbox" id="band-6" name="bands" value="6GHz" disabled>
+                                    <span>6 GHz</span>
+                                </label>
+                            </div>
+                        </div>
                         <div class="form-group hidden-network">
                             <label class="form-label disabled-label">
                                 <input type="checkbox" id="profile-hidden" disabled>

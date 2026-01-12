@@ -1792,6 +1792,11 @@ int em_configuration_t::handle_eht_operations_tlv(unsigned char *buff)
 
     dm = get_data_model();
 
+    // 32 octets are reserved for future use, so skip 32 octets
+    short reserved_octets = 32;
+    tmp += reserved_octets;
+    len += reserved_octets;
+
     memcpy(&num_radios, tmp, sizeof(unsigned char));
     
     if (num_radios > EM_MAX_RADIO_PER_AGENT) {
@@ -1824,6 +1829,10 @@ int em_configuration_t::handle_eht_operations_tlv(unsigned char *buff)
             tmp += sizeof(em_eht_operations_bss_t);
             len += static_cast<short> (sizeof(em_eht_operations_bss_t));
         }
+        // 25 octets are reserved for future use in radio, so skip 25 octets
+        short radio_reserved_octets = 25;
+        tmp += radio_reserved_octets;
+        len += radio_reserved_octets;
     }
 
     bool found_radio = false;
@@ -1856,7 +1865,6 @@ int em_configuration_t::handle_eht_operations_tlv(unsigned char *buff)
             memcpy(&dm->m_bss[l].get_bss_info()->eht_ops, &eht_ops.radios[i].bss[k], sizeof(em_eht_operations_bss_t));
         }
     }
-
     return 0;
 }
 
@@ -1952,8 +1960,19 @@ unsigned short em_configuration_t::create_m2_msg(unsigned char *buff, em_haul_ty
     unsigned char *tmp;
     tmp = buff;
     em_freq_band_t rf_band;
-	char *str;
+    char *str;
+    em_network_ssid_info_t *net_ssid_info;
  
+    if ((net_ssid_info = get_network_ssid_info_by_haul_type(haul_type)) == NULL) {
+        em_printfout("Could not find network ssid information for haul type %d", haul_type);
+        return 0;
+    }
+
+    // skipping the m2 msg if haultype if diabled
+    if(net_ssid_info->enable == false) {
+        return 0;
+    }
+
     // version
     attr = reinterpret_cast<data_elem_attr_t *> (tmp);
     attr->id = htons(attr_id_version);
@@ -3270,7 +3289,7 @@ int em_configuration_t::create_autoconfig_wsc_m2_msg(unsigned char *buff, unsign
         tlv->type = em_tlv_type_wsc;
         sz = create_m2_msg(tlv->value, static_cast<em_haul_type_t> (i));
         if (sz == 0) {
-            em_printfout("Not adding haul_type: %d as size returned is 0", i);
+            em_printfout("skipping M2 for haul_type: %d as it's disable, Return value: %d", i, sz);
             continue;
         }
         tlv->len = htons(sz);
@@ -3906,6 +3925,7 @@ int em_configuration_t::handle_encrypted_settings(unsigned int wsc_tlv_count)
                 memcpy(radioconfig.radio_mac[wsc_index], get_radio_interface_mac(), sizeof(mac_address_t));
             } else if (id == attr_id_auth_type) {
                 memcpy(reinterpret_cast<char *> (&auth_type), reinterpret_cast<unsigned char *> (attr->val), htons(attr->len));
+                auth_type = ntohs(auth_type);
                 radioconfig.authtype[wsc_index] = static_cast<unsigned int>(auth_type);
                 em_printfout("##authtype[%d]: %x", wsc_index, radioconfig.authtype[wsc_index]);
             } else if (id == attr_id_encryption_type) {
@@ -4662,7 +4682,7 @@ int em_configuration_t::create_encrypted_settings(unsigned char *buff, em_haul_t
     unsigned int size = 0, cipher_len, plain_len;
     unsigned char iv[AES_BLOCK_SIZE];
     unsigned char plain[MAX_EM_BUFF_SZ];
-    unsigned short auth_type = 0x0200; // WPA3-Personal
+    unsigned short auth_type, encr_type;
     unsigned char hash[SHA256_MAC_LEN];
     unsigned char *keywrap_data_addr[1];
     size_t keywrap_data_length[1];
@@ -4672,7 +4692,7 @@ int em_configuration_t::create_encrypted_settings(unsigned char *buff, em_haul_t
     len = 0;
 
     dm_easy_mesh_t *dm = get_data_model();
-    unsigned int no_of_haultype = 0, radio_exists, i;
+    unsigned int radio_exists, i;
     dm_radio_t * radio = NULL;
 
     for (i = 0; i < dm->get_num_radios(); i++) {
@@ -4705,6 +4725,14 @@ int em_configuration_t::create_encrypted_settings(unsigned char *buff, em_haul_t
         auth_type = EM_AUTH_WPA3_PERSONAL;
     }
 
+#if defined(_PLATFORM_RASPBERRYPI_)
+    // For Raspberry Pi, we need to use WPA3 Transition mode instead of WPA3 Personal
+    // as Raspberry Pi supplicant version does not have full support of WPA3 Personal.
+    if (auth_type == EM_AUTH_WPA3_PERSONAL) {
+        auth_type = EM_AUTH_WPA3_TRANSITION;
+    }
+#endif
+
     // Add vendor extension for haul type
     attr = reinterpret_cast<data_elem_attr_t *> (tmp);
     attr->id = htons(attr_id_vendor_ext);
@@ -4732,7 +4760,20 @@ int em_configuration_t::create_encrypted_settings(unsigned char *buff, em_haul_t
     attr->id = htons(attr_id_auth_type);
     size = sizeof(auth_type);
     attr->len = htons(static_cast<short unsigned int> (size));
+    auth_type = htons(auth_type);
     memcpy(reinterpret_cast<char *> (attr->val), reinterpret_cast<unsigned char *> (&auth_type), size);
+
+    len += static_cast<short> (sizeof(data_elem_attr_t) + size);
+    tmp += (sizeof(data_elem_attr_t) + size);
+
+    // encr type
+    encr_type = EM_ENCR_AES;
+    attr = reinterpret_cast<data_elem_attr_t *> (tmp);
+    attr->id = htons(attr_id_encryption_type);
+    size = sizeof(encr_type);
+    attr->len = htons(static_cast<short unsigned int> (size));
+    encr_type = htons(encr_type);
+    memcpy(reinterpret_cast<char *> (attr->val), reinterpret_cast<unsigned char *> (&encr_type), size);
 
     len += static_cast<short> (sizeof(data_elem_attr_t) + size);
     tmp += (sizeof(data_elem_attr_t) + size);
