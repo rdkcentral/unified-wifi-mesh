@@ -1031,6 +1031,11 @@ int em_capability_t::handle_eht_operations_tlv(unsigned char *buff)
 
     dm = get_data_model();
 
+    // 32 octets are reserved for future use, so skip 32 octets
+    short reserved_octets = 32;
+    tmp += reserved_octets;
+    len += reserved_octets;
+
     memcpy(&num_radios, tmp, sizeof(unsigned char));
     
     if (num_radios > EM_MAX_RADIO_PER_AGENT) {
@@ -1063,6 +1068,10 @@ int em_capability_t::handle_eht_operations_tlv(unsigned char *buff)
             tmp += sizeof(em_eht_operations_bss_t);
             len += static_cast<short> (sizeof(em_eht_operations_bss_t));
         }
+        // 25 octets are reserved for future use in radio, so skip 25 octets
+        short radio_reserved_octets = 25;
+        tmp += radio_reserved_octets;
+        len += radio_reserved_octets;
     }
 
     bool found_radio = false;
@@ -1245,22 +1254,8 @@ int em_capability_t::handle_ap_cap_report(unsigned char *buff, unsigned int len)
             }
         }
         else if (tlv->type == em_tlv_type_metric_cltn_interval){
-        } else if (tlv->type == em_tlv_type_device_inventory){
-            em_device_inventory_t *invent = reinterpret_cast<em_device_inventory_t *>(tlv->value);
-            if (invent != NULL){
-                for (unsigned int index = 0; index < dm->get_num_radios(); index++)
-                {
-                    dm_radio_t *radio = dm->get_radio(invent->radios[index].ruid);
-                    if (radio == NULL) {
-                        continue;
-                    }
-                    em_radio_info_t *radio_info = radio->get_radio_info();
-
-                    if ((radio_info != NULL)){
-                        memcpy(&radio_info->inventory_info, invent, sizeof(em_device_inventory_t));
-                    }
-                }
-            }
+        } else if (tlv->type == em_tlv_type_device_inventory) {
+            //TBD: Address handling of device inventory TLV appropriately
         } else if (tlv->type == em_tlv_type_ap_radio_advanced_cap){
             uint16_t value_len = ntohs(tlv->len);
 

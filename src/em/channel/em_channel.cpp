@@ -51,7 +51,7 @@ short em_channel_t::create_channel_pref_tlv_agent(unsigned char *buff, unsigned 
     dm_easy_mesh_t *dm;
     dm_op_class_t	*op_class;
     unsigned char *tmp;
-    unsigned char pref_bits = 0xee;
+    unsigned char pref_bits = EM_CH_PREF_NON_OPERABLE | em_channel_pref_reason_t::em_channel_pref_reason_operation_disallowed_regulatory_restriction;
     unsigned int num_of_channel = 0;
     em_channels_list_t *channel_list;
 
@@ -66,12 +66,12 @@ short em_channel_t::create_channel_pref_tlv_agent(unsigned char *buff, unsigned 
 
     for (i = 0; i < dm->m_num_opclass; i++) {
 	op_class = &dm->m_op_class[i];
-	if (((memcmp(op_class->m_op_class_info.id.ruid, pref->ruid, sizeof(mac_address_t)) == 0) &&
-                                        (op_class->m_op_class_info.id.type == em_op_class_type_capability)) == false) {
-	    continue;
-        }
-	
-	pref_op_class->op_class = static_cast<unsigned char> (op_class->m_op_class_info.op_class);
+    if (((memcmp(op_class->m_op_class_info.id.ruid, pref->ruid, sizeof(mac_address_t)) == 0) &&
+         (op_class->m_op_class_info.id.type == em_op_class_type_capability)) == false) {
+        continue;
+    }
+
+    pref_op_class->op_class = static_cast<unsigned char> (op_class->m_op_class_info.op_class);
 	num_of_channel = op_class->m_op_class_info.num_channels;
 	channel_list = &pref_op_class->channels;
 	len += static_cast<short unsigned int> (sizeof(em_channel_pref_op_class_t));
@@ -653,7 +653,6 @@ int em_channel_t::send_channel_sel_response_msg(em_chan_sel_resp_code_type_t cod
     em_cmdu_t *cmdu;
     em_tlv_t *tlv;
     em_channel_sel_rsp_t *resp;
-    em_prof2_error_t *prof2_error;
     unsigned char *tmp = buff;
     dm_easy_mesh_t *dm;
     unsigned short type = htons(ETH_P_1905);
@@ -705,16 +704,6 @@ int em_channel_t::send_channel_sel_response_msg(em_chan_sel_resp_code_type_t cod
 
     tmp += (sizeof(em_tlv_t) + sizeof(em_channel_sel_rsp_t));
     len += (sizeof(em_tlv_t) + sizeof(em_channel_sel_rsp_t));
-
-    //Zero or more Profile-2 Error Code TLV (see section 17.2.51)
-    tlv = reinterpret_cast<em_tlv_t *> (tmp);
-	tlv->type = em_tlv_type_profile_2_error_code;
-	tlv->len = htons(sizeof(em_prof2_error_t));
-	prof2_error = reinterpret_cast<em_prof2_error_t *> (tlv->value);
-    prof2_error->reason_code = em_prof2_error_code_reason_code_reserved;  // reason_code = 0x0
-
-    tmp += (sizeof(em_tlv_t) + sizeof(em_prof2_error_t));
-    len += (sizeof(em_tlv_t) + sizeof(em_prof2_error_t));
 
 	// End of message
     tlv = reinterpret_cast<em_tlv_t *> (tmp);
@@ -1101,51 +1090,6 @@ short em_channel_t::create_cac_complete_report_tlv(unsigned char *buff)
     return len;
 }
 
-short em_channel_t::create_radio_op_restriction_tlv(unsigned char *buff, unsigned int index)
-{
-	short len = 0;
-	short op_len = 0;
-	unsigned int i, j;
-	dm_easy_mesh_t *dm;
-	dm_op_class_t *op_class;
-	em_radio_op_restriction_t *op_rest;
-	em_radio_op_restrict_op_class_t *op_class_rest;
-	em_radio_op_restrict_channel_t *chan_rest;
-
-	dm = get_data_model();
-
-	op_rest = reinterpret_cast<em_radio_op_restriction_t *> (buff);
-
-    memcpy(op_rest->ruid, dm->get_radio_by_ref(index).get_radio_interface_mac(), sizeof(mac_address_t));
-	op_rest->op_classes_num = 0;
-	op_class_rest = op_rest->op_classes;
-	len += static_cast<short unsigned int> (sizeof(em_radio_op_restriction_t));
-
-	for (i = 0; i < dm->m_num_opclass; i++) {
-		op_class = &dm->m_op_class[i];
-		if ((memcmp(op_class->m_op_class_info.id.ruid, op_rest->ruid, sizeof(mac_address_t)) == 0)	&&
-			(op_class->m_op_class_info.id.type == em_op_class_type_capability)) {
-
-			op_class_rest->op_class = static_cast<unsigned char> (op_class->m_op_class_info.op_class);
-			op_class_rest->channels_num = static_cast<unsigned char> (op_class->m_op_class_info.num_channels);
-			op_len += static_cast<short unsigned int> (sizeof(em_radio_op_restrict_op_class_t));
-			chan_rest = op_class_rest->channels;
-			for (j = 0; j < op_class_rest->channels_num; j++) {
-				chan_rest->channel = static_cast<unsigned char> (op_class->m_op_class_info.channels[j]);
-				chan_rest = reinterpret_cast<em_radio_op_restrict_channel_t *> (reinterpret_cast<unsigned char *> (chan_rest) + sizeof(em_radio_op_restrict_channel_t));	
-				op_len += static_cast<short unsigned int> (sizeof(em_radio_op_restrict_channel_t));
-			}
-			len += op_len; 
-			op_class_rest = reinterpret_cast<em_radio_op_restrict_op_class_t *> (reinterpret_cast<unsigned char *> (op_class_rest) + op_len);
-			op_len = 0;
-			op_rest->op_classes_num++;
-		}
-
-	}	
-
-	return len;
-}
-
 int em_channel_t::send_channel_pref_report_msg()
 {
     unsigned char buff[MAX_EM_BUFF_SZ];
@@ -1192,17 +1136,6 @@ int em_channel_t::send_channel_pref_report_msg()
         tlv->len = htons(static_cast<uint16_t> (sz));
 
         tmp += sizeof(em_tlv_t) + static_cast<long unsigned int> (sz);
-        len += static_cast<unsigned int> (sizeof(em_tlv_t) + static_cast<long unsigned int> (sz));
-    }
-
-    // Zero or more Radio Operation Restriction TLVs (see section 17.2.14).
-    for(radio_index = 0; radio_index < dm->get_num_radios(); radio_index++) {
-        tlv = reinterpret_cast<em_tlv_t *> (tmp);
-        tlv->type = em_tlv_type_radio_op_restriction;
-        sz = create_radio_op_restriction_tlv(tlv->value, radio_index);
-        tlv->len = htons(static_cast<uint16_t> (sz));
-
-        tmp += (sizeof(em_tlv_t) + static_cast<long unsigned int> (sz));
         len += static_cast<unsigned int> (sizeof(em_tlv_t) + static_cast<long unsigned int> (sz));
     }
 
@@ -1519,9 +1452,11 @@ int em_channel_t::handle_eht_operations_tlv_ctrl(unsigned char *buff, unsigned i
             memcpy(eht_ops_bss, tmp, sizeof(em_eht_operations_bss_t));
             tmp += sizeof(em_eht_operations_bss_t);
             tmp_len += sizeof(em_eht_operations_bss_t);
-
         }
-        
+        // 25 octets are reserved for future use in radio, so skip 25 octets
+        unsigned int radio_reserved_octets = 25;
+        tmp += radio_reserved_octets;
+        tmp_len += radio_reserved_octets;
     }
     assert(tmp_len == len);
 
@@ -1598,6 +1533,11 @@ int em_channel_t::handle_eht_operations_tlv(unsigned char *buff, em_eht_operatio
 	unsigned char num_radios;
 	unsigned char num_bss;
 
+    // 32 octets are reserved for future use, so skip 32 octets
+    int reserved_octets = 32;
+    tmp += reserved_octets;
+    len += reserved_octets;
+
 	memcpy(&num_radios, tmp, sizeof(unsigned char));
 	eht_ops->radios_num = num_radios;
 	tmp += sizeof(unsigned char);
@@ -1628,6 +1568,10 @@ int em_channel_t::handle_eht_operations_tlv(unsigned char *buff, em_eht_operatio
 			tmp += sizeof(em_eht_operations_bss_t);
 			len += static_cast<int> (sizeof(em_eht_operations_bss_t));
 		}
+        // 25 octets are reserved for future use in radio, so skip 25 octets
+        int radio_reserved_octets = 25;
+        tmp += radio_reserved_octets;
+        len += radio_reserved_octets;
 	}
 
 	return 0;

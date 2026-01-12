@@ -159,6 +159,9 @@ extern "C"
 #define EM_CONN_ESS 0x01
 #define EM_CONN_IBSS 0x02
 
+/* Channel Preference Flags*/
+#define EM_CH_PREF_NON_OPERABLE 0x00
+
 #define EM_MAX_BANDS    3
 #define EM_MAX_BSSS     EM_MAX_BANDS*8  
 #define EM_MAX_AKMS     10
@@ -625,6 +628,23 @@ typedef enum {
     em_tlv_vendor_plolicy_cfg = 0xf2,
     em_tlv_type_vendor_operational_bss = 0xf3,
 } em_tlv_type_t;
+
+typedef enum {
+    em_channel_pref_reason_unspecified = 0x00,
+    em_channel_pref_reason_proximate_non_80211_interferer = 0x01,
+    em_channel_pref_reason_intra_network_obss_interference_mgmt = 0x02,
+    em_channel_pref_reason_external_network_obss_interference_mgmt = 0x03,
+    em_channel_pref_reason_reduced_coverage = 0x04,
+    em_channel_pref_reason_reduced_throughput = 0x05,
+    em_channel_pref_reason_in_device_interferer = 0x06,
+    em_channel_pref_reason_operation_disallowed_dfs_radar_detection = 0x07,
+    em_channel_pref_reason_operation_prevent_backhaul_shared_radio = 0x08,
+    em_channel_pref_reason_immediate_operation_possible_dfs = 0x09,
+    em_channel_pref_reason_dfs_state_unknown_cac_not_run_or_expired = 0x0a,
+    em_channel_pref_reason_controller_dfs_clear_indication = 0x0b,
+    em_channel_pref_reason_operation_disallowed_regulatory_restriction = 0x0c,
+    em_channel_pref_reason_change_due_to_available_spectrum_inquiry = 0x0d
+} em_channel_pref_reason_t;
 
 typedef struct {
     unsigned short qmid;

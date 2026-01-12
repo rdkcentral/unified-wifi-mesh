@@ -1792,6 +1792,11 @@ int em_configuration_t::handle_eht_operations_tlv(unsigned char *buff)
 
     dm = get_data_model();
 
+    // 32 octets are reserved for future use, so skip 32 octets
+    short reserved_octets = 32;
+    tmp += reserved_octets;
+    len += reserved_octets;
+
     memcpy(&num_radios, tmp, sizeof(unsigned char));
     
     if (num_radios > EM_MAX_RADIO_PER_AGENT) {
@@ -1824,6 +1829,10 @@ int em_configuration_t::handle_eht_operations_tlv(unsigned char *buff)
             tmp += sizeof(em_eht_operations_bss_t);
             len += static_cast<short> (sizeof(em_eht_operations_bss_t));
         }
+        // 25 octets are reserved for future use in radio, so skip 25 octets
+        short radio_reserved_octets = 25;
+        tmp += radio_reserved_octets;
+        len += radio_reserved_octets;
     }
 
     bool found_radio = false;
@@ -1856,7 +1865,6 @@ int em_configuration_t::handle_eht_operations_tlv(unsigned char *buff)
             memcpy(&dm->m_bss[l].get_bss_info()->eht_ops, &eht_ops.radios[i].bss[k], sizeof(em_eht_operations_bss_t));
         }
     }
-
     return 0;
 }
 
@@ -1952,8 +1960,19 @@ unsigned short em_configuration_t::create_m2_msg(unsigned char *buff, em_haul_ty
     unsigned char *tmp;
     tmp = buff;
     em_freq_band_t rf_band;
-	char *str;
+    char *str;
+    em_network_ssid_info_t *net_ssid_info;
  
+    if ((net_ssid_info = get_network_ssid_info_by_haul_type(haul_type)) == NULL) {
+        em_printfout("Could not find network ssid information for haul type %d", haul_type);
+        return 0;
+    }
+
+    // skipping the m2 msg if haultype if diabled
+    if(net_ssid_info->enable == false) {
+        return 0;
+    }
+
     // version
     attr = reinterpret_cast<data_elem_attr_t *> (tmp);
     attr->id = htons(attr_id_version);
@@ -3270,7 +3289,7 @@ int em_configuration_t::create_autoconfig_wsc_m2_msg(unsigned char *buff, unsign
         tlv->type = em_tlv_type_wsc;
         sz = create_m2_msg(tlv->value, static_cast<em_haul_type_t> (i));
         if (sz == 0) {
-            em_printfout("Not adding haul_type: %d as size returned is 0", i);
+            em_printfout("skipping M2 for haul_type: %d as it's disable, Return value: %d", i, sz);
             continue;
         }
         tlv->len = htons(sz);
@@ -4673,7 +4692,7 @@ int em_configuration_t::create_encrypted_settings(unsigned char *buff, em_haul_t
     len = 0;
 
     dm_easy_mesh_t *dm = get_data_model();
-    unsigned int no_of_haultype = 0, radio_exists, i;
+    unsigned int radio_exists, i;
     dm_radio_t * radio = NULL;
 
     for (i = 0; i < dm->get_num_radios(); i++) {
@@ -4705,6 +4724,14 @@ int em_configuration_t::create_encrypted_settings(unsigned char *buff, em_haul_t
         // support for 6Ghz, Hence settings default authentication type.
         auth_type = EM_AUTH_WPA3_PERSONAL;
     }
+
+#if defined(_PLATFORM_RASPBERRYPI_)
+    // For Raspberry Pi, we need to use WPA3 Transition mode instead of WPA3 Personal
+    // as Raspberry Pi supplicant version does not have full support of WPA3 Personal.
+    if (auth_type == EM_AUTH_WPA3_PERSONAL) {
+        auth_type = EM_AUTH_WPA3_TRANSITION;
+    }
+#endif
 
     // Add vendor extension for haul type
     attr = reinterpret_cast<data_elem_attr_t *> (tmp);
