@@ -3259,6 +3259,7 @@ int em_configuration_t::create_autoconfig_wsc_m2_msg(unsigned char *buff, unsign
 {
     unsigned short  msg_type = em_msg_type_autoconf_wsc;
     int len = 0;
+    bool is_m2_present = false;
     unsigned int i, num_hauls = em_haul_type_max;
     em_cmdu_t *cmdu;
     em_tlv_t *tlv;
@@ -3323,9 +3324,16 @@ int em_configuration_t::create_autoconfig_wsc_m2_msg(unsigned char *buff, unsign
             em_printfout("skipping M2 for haul_type: %d as it's disable, Return value: %d", i, sz);
             continue;
         }
+        // is_m2_present will be true only if atleast one M2 is created.
+        is_m2_present = true;
         tlv->len = htons(sz);
         tmp += (sizeof(em_tlv_t) + sz);
         len += static_cast<int> (sizeof(em_tlv_t) + sz);
+    }
+
+    if(is_m2_present == false) {
+        // M2 not present for crosponding M1, hence returning.
+        return -1;
     }
 
     // default 8022.1q settings tlv 17.2.49
@@ -5058,6 +5066,10 @@ int em_configuration_t::handle_autoconfig_wsc_m1(unsigned char *buff, unsigned i
     }
 
     sz = static_cast<unsigned int> (create_autoconfig_wsc_m2_msg(msg, ntohs(cmdu->id)));
+
+    if (static_cast<int>(sz) < 0) {
+        return -1;
+    }
 
     if (em_msg_t(em_msg_type_autoconf_wsc, em_profile_type_3, msg, sz).validate(errors) == 0) {
         printf("Autoconfig wsc m2 msg failed validation in tnx end\n");
