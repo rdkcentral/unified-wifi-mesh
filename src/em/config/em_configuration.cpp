@@ -443,6 +443,10 @@ int em_configuration_t::create_operational_bss_tlv_topology(unsigned char *buff)
         bss = radio->bss;
         all_bss_len = 0;
         for (bss_index = 0; bss_index < dm->get_num_bss(); bss_index++) {
+            if(dm->m_bss[bss_index].m_bss_info.enabled == false) {
+                //Skip SSIDs that are disabled for operational bss list
+                continue;
+            }
             if (memcmp(dm->m_bss[bss_index].m_bss_info.ruid.mac, radio->ruid, sizeof(mac_address_t)) != 0) {
                 continue;
             }
@@ -1961,6 +1965,8 @@ unsigned short em_configuration_t::create_m2_msg(unsigned char *buff, em_haul_ty
     tmp = buff;
     em_freq_band_t rf_band;
     char *str;
+    int current_band;
+    bool isBandEnabled;
     em_network_ssid_info_t *net_ssid_info;
  
     if ((net_ssid_info = get_network_ssid_info_by_haul_type(haul_type)) == NULL) {
@@ -1968,8 +1974,33 @@ unsigned short em_configuration_t::create_m2_msg(unsigned char *buff, em_haul_ty
         return 0;
     }
 
-    // skipping the m2 msg if haultype if diabled
-    if(net_ssid_info->enable == false) {
+    // get the current band for m2 messgae create
+    current_band = get_band();
+    isBandEnabled = false;
+    for (int index = 0; index < EM_MAX_BANDS; index++) {
+        const char *band_val = net_ssid_info->band[index];
+        if (!band_val) continue;
+
+        if (current_band == EM_BAND_2_4_GHZ) {
+            if (strncmp(band_val, EM_BAND_2_4GHZ_STR, strlen(EM_BAND_2_4GHZ_STR)) == 0) {
+                isBandEnabled = true;
+                break;
+            }
+        } else if (current_band == EM_BAND_5_GHZ) {
+            if (strncmp(band_val, EM_BAND_5GHZ_STR, strlen(EM_BAND_5GHZ_STR)) == 0) {
+                isBandEnabled = true;
+                break;
+            }
+        } else if (current_band == EM_BAND_6_GHZ) {
+            if (strncmp(band_val, EM_BAND_6GHZ_STR, strlen(EM_BAND_6GHZ_STR)) == 0) {
+                isBandEnabled = true;
+                break;
+            }
+        }
+    }
+
+    // skipping the m2 msg if haultype if diabled or band is not selected
+    if(net_ssid_info->enable == false || isBandEnabled == false) {
         return 0;
     }
 

@@ -138,6 +138,9 @@ extern "C"
 #define EM_BAND_2_4_GHZ  0
 #define EM_BAND_5_GHZ    1
 #define EM_BAND_6_GHZ    2
+#define EM_BAND_2_4GHZ_STR   "2.4"
+#define EM_BAND_5GHZ_STR     "5"
+#define EM_BAND_6GHZ_STR     "6"
 
 /* Config Methods */
 #define EM_CONFIG_USBA 0x0001

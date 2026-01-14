@@ -827,6 +827,13 @@ getRadioIndexFromBand(bandLabel) {
     const selectedBands = Array.from(
         form.querySelectorAll('input[name="bands"]:checked')).map(el => el.value);
 
+    if (selectedBands.length === 0) {
+      // Atleast one band should be selected
+      this.showNotification('Please select at least one band (2.4GHz, 5GHz, or 6GHz).', 'warning');
+      return;
+    }
+
+
     const profileData = {
       name: formData.get('profile-name') || document.getElementById('profile-name').value,
       ssid: formData.get('profile-ssid') || document.getElementById('profile-ssid').value,
@@ -844,7 +851,8 @@ getRadioIndexFromBand(bandLabel) {
         if (index !== -1) {
           if((profileData.ssid !== this.networkProfiles[index].SSID) || 
              (profileData.passphrase !== this.networkProfiles[index].PassPhrase) ||
-             (profileData.security_type!== this.networkProfiles[index].security_type)) {
+             (profileData.security_type !== this.networkProfiles[index].Security) ||
+             (this.isSelectedBandChanged(this.networkProfiles[index].Band, profileData.selectedBands))) {
               this.updatedProfileKeys.add(this.networkProfiles[index].HaulType);
           } else {
             if (this.updatedProfileKeys.has(this.networkProfiles[index].HaulType)) {
@@ -857,6 +865,7 @@ getRadioIndexFromBand(bandLabel) {
               this.updatedNetworkProfiles[updateIndex].PassPhrase = profileData.passphrase;
               this.updatedNetworkProfiles[updateIndex].Security = profileData.security_type;
               this.updatedNetworkProfiles[updateIndex].vlanId = profileData.vlan_id;
+              this.updatedNetworkProfiles[updateIndex].Band   = profileData.selectedBands;
             }
         }
     }
@@ -869,6 +878,19 @@ getRadioIndexFromBand(bandLabel) {
     this.updateProfileApplyButtonState();
     this.updateNetworkProfiles();
     this.closeModal('network-profile-modal');
+  }
+
+  /**
+   * isSelectedBandChanged
+   */
+  isSelectedBandChanged(orignalBandArray, selectedBandArray) {
+    const setA = new Set(orignalBandArray);
+    const setB = new Set(selectedBandArray);
+    if (setA.size !== setB.size) return true;
+    for (const val of setA) {
+      if (!setB.has(val)) return true;
+    }
+    return false;
   }
 
   /**
