@@ -1868,7 +1868,9 @@ typedef struct {
 } __attribute__((__packed__)) em_dpp_chirp_value_t;
 
 typedef struct {
-    unsigned char   value[EM_CTRL_CAP_SZ];
+    uint8_t reserved : 6;              // Bits 6-0: Reserved
+    uint8_t early_ap_capability : 1;   // Bit 6: Prefers to receive an Early AP Capability Report
+    uint8_t kibmib_counter : 1;        // Bit 7: Sender supports KiB / MiB byte counters
 } __attribute__((__packed__)) em_ctrl_cap_t;
 
 typedef struct {
