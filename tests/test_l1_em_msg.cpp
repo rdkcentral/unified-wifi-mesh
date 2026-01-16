@@ -156,8 +156,6 @@ em_tlv_type_t types[] = {
     em_tlv_type_vendor_operational_bss,
 };
 
-#define TLV_TYPE_COUNT 123
-
 inline void write_tlv(unsigned char *buf, unsigned char type, const unsigned char *value, unsigned short len)
 {
     buf[0] = type;
@@ -3173,7 +3171,7 @@ TEST(em_msg_t, get_first_tlv_eom_first) {
  */
 TEST(em_msg_t, get_first_tlv_LoopAllEnumTypes) {
     std::cout << "Entering get_first_tlv_LoopAllEnumTypes test" << std::endl;
-    for (size_t i = 1; i < TLV_TYPE_COUNT; ++i) {
+    for (size_t i = 1; i < std::size(types); ++i) {
         unsigned char value = static_cast<unsigned char>(i);
         unsigned char buffer[TLV_HEADER_SIZE + 1] = {};
         write_tlv(buffer, types[i], &value, 1);
@@ -4497,13 +4495,13 @@ TEST(em_msg_t, get_tlv_loop_all_enum_types_by_pointer)
     std::cout << "Entering get_tlv_loop_all_enum_types_by_pointer test" << std::endl;
     unsigned char buffer[1024];
     size_t offset = 0;
-    for (size_t i = 1; i < TLV_TYPE_COUNT; ++i) {
+    for (size_t i = 1; i < std::size(types); ++i) {
         unsigned char val[] = { static_cast<unsigned char>(i) };
         write_tlv(buffer + offset, types[i], val, sizeof(val));
         offset += sizeof(em_tlv_t) + sizeof(val);
     }
     em_msg_t msg(buffer, offset);
-    for (size_t i = 1; i < TLV_TYPE_COUNT; ++i) {
+    for (size_t i = 1; i < std::size(types); ++i) {
         size_t tlv_size = sizeof(em_tlv_t) + 1;
         em_tlv_t* itlv = reinterpret_cast<em_tlv_t*>(new unsigned char[tlv_size]);
         itlv->type = types[i];
@@ -4817,13 +4815,13 @@ TEST(em_msg_t, get_tlv_loop_all_enum_types)
     std::cout << "Entering get_tlv_loop_all_enum_types test" << std::endl;
     unsigned char buffer[1024];
     size_t offset = 0;
-    for (size_t i = 1; i < TLV_TYPE_COUNT; ++i) {
+    for (size_t i = 1; i < std::size(types); ++i) {
         unsigned char val[] = { static_cast<unsigned char>(i) };
         write_tlv(buffer + offset, types[i], val, sizeof(val));
         offset += sizeof(val) + sizeof(em_tlv_t);
     }
     em_msg_t msg(buffer, offset);
-    for (size_t i = 1; i < TLV_TYPE_COUNT; ++i) {
+    for (size_t i = 1; i < std::size(types); ++i) {
         em_tlv_t* tlv_ptr = msg.get_tlv(types[i]);
         ASSERT_NE(tlv_ptr, nullptr) << "get_tlv failed for type = 0x" 
                                     << std::hex << static_cast<int>(types[i]);
@@ -4995,12 +4993,12 @@ TEST(em_msg_t, get_tlv_loop_all_enum_types_with_buffer)
     std::cout << "Entering get_tlv_loop_all_enum_types_with_buffer test" << std::endl;
     unsigned char buffer[1024];
     size_t offset = 0;
-    for (size_t i = 1; i < TLV_TYPE_COUNT; ++i) {
+    for (size_t i = 1; i < std::size(types); ++i) {
         unsigned char val[] = { static_cast<unsigned char>(i) };
         write_tlv(buffer + offset, types[i], val, sizeof(val));
         offset += sizeof(em_tlv_t) + sizeof(val); // TLV header + value
     }
-    for (size_t i = 1; i < TLV_TYPE_COUNT; ++i) {
+    for (size_t i = 1; i < std::size(types); ++i) {
         em_tlv_t* found = em_msg_t::get_tlv(reinterpret_cast<em_tlv_t*>(buffer), static_cast<unsigned int>(offset), types[i]);
         ASSERT_NE(found, nullptr);
         EXPECT_EQ(found->value[0], static_cast<unsigned char>(i));
@@ -6387,7 +6385,7 @@ TEST(em_tlv_member_t, em_tlv_member_t_positive_valid_tlv_types) {
     std::cout << "Entering em_tlv_member_t_positive_valid_tlv_types test" << std::endl;
     const char* spec = "Valid Spec";
     int tlv_length = 10;
-    for (int i = 0; i < TLV_TYPE_COUNT; ++i) {
+	for (size_t i = 0; i < std::size(types); ++i) {
 	    EXPECT_NO_THROW({
             em_tlv_member_t obj(types[i], mandatory, spec, tlv_length);
         });
