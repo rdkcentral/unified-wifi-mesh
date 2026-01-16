@@ -134,6 +134,16 @@ extern "C"
 #define EM_RF_60GHZ 0x04
 #define EM_RF_6GHZ  0x08
 
+/* Multi-AP Extension Subelement constants */
+#define EM_MULTI_AP_EXT_SUBELEM_LEN         0x01
+#define EM_MULTI_AP_EXT_SUBELEM_ID          0x06
+#define EM_MULTI_AP_EXT_BSS_TEARDOWN        0x10
+#define EM_MULTI_AP_EXT_BSS_FRONTHAUL       0x20
+#define EM_MULTI_AP_EXT_BSS_BACKHAUL        0x40
+#define EM_MULTI_AP_EXT_BSS_BSTA            0x80
+#define EM_MULTI_AP_EXT_R1_BSTA_DISALLOW    0x08
+#define EM_MULTI_AP_EXT_R2_BSTA_DISALLOW    0x04
+
 /*  Bands */
 #define EM_BAND_2_4_GHZ  0
 #define EM_BAND_5_GHZ    1
