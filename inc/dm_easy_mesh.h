@@ -49,6 +49,7 @@ class dm_easy_mesh_t {
     static std::atomic<int> s_counter;
     int m_instance_num;
     bool m_topo_changed = false;
+    unsigned int m_topo_resp_rx_cnt = 0;
 
 public:
     webconfig_subdoc_data_t *m_wifi_data;
@@ -1128,6 +1129,50 @@ public:
 	 */
 	em_network_ssid_info_t *get_network_ssid_info_by_haul_type(em_haul_type_t haul_type);
 
+    /**!
+     * @brief Retrieves the topology response received count.
+     *
+     * This function returns the number of topology response received.
+     *
+     * @returns The number of topology response received as an integer.
+     */
+    int get_topo_resp_rx_count() { return static_cast<int>(m_topo_resp_rx_cnt); }
+
+    /**!
+     * @brief Sets the topology response received count.
+     *
+     * This function sets the provided count to the member variable
+     * responsible for tracking the number of topology response received.
+     *
+     * @param[in] cnt The count to set for topology response received.
+     *
+     * @note Ensure that the count is a valid unsigned integer.
+     */
+    void set_topo_resp_rx_count(unsigned int cnt) { m_topo_resp_rx_cnt = cnt; }
+
+    /**!
+     * @brief Increments the topology response received count.
+     *
+     * This function increments the provided count in the member variable
+     * responsible for tracking the number of topology responses received.
+     *
+     * @param[in] cnt The count by which to increase the topology responses received.
+     *
+     * @note Ensure that the count is a valid unsigned integer.
+     */
+    void inc_topo_resp_rx_count(unsigned int cnt) { m_topo_resp_rx_cnt += cnt; }
+
+    /**!
+     * @brief Checks whether the given SSID matches.
+     *
+     * This function determines whether the specified SSID matches
+     * the SSID associated with this instance.
+     *
+     * @param[in] ssid The SSID to compare against the stored SSID.
+     *
+     * @returns true if the SSIDs match; otherwise, false.
+     */
+    bool is_ssid_match(const ssid_t  &ssid);
 	
 	/**!
 	 * @brief Retrieves the operational class information for a given index.

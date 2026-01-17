@@ -37,7 +37,7 @@
 #include <unistd.h>
 #include <pthread.h>
 #include <openssl/rand.h>
-#include <assert.h>
+#include <ctime>
 #include <string>
 #include <vector>
 #include <algorithm>
@@ -58,6 +58,10 @@
 unsigned short em_configuration_t::msg_id = 0;
 // OUI value of Comcast
 static const unsigned char em_vendor_oui[EM_VENDOR_OUI_SIZE] = {0xd8, 0x9c, 0x8e};
+#define MAX_TOPO_RESP_MISCONF_RECEIVED 3
+#define INCREMENT_TOPO_RESP_COUNT 1
+#define TOPO_RETRY_MAX_TIME_SEC 120
+#define TOPO_RETRY_INTERVAL_SEC 10
 
 /* Extract N bytes (ignore endianess) */
 static inline void _EnB(uint8_t **packet_ppointer, void *memory_pointer, uint32_t n)
@@ -1435,26 +1439,40 @@ int em_configuration_t::handle_ap_operational_bss(unsigned char *buff, unsigned 
             dm_bss = dm->get_bss(radio->ruid, bss->bssid);
 		
 			if (dm_bss == NULL) {
-				dm_bss = &dm->m_bss[dm->m_num_bss];
+                dm_bss = &dm->m_bss[dm->m_num_bss];
 
-				// fill up id first
-				strncpy(dm_bss->m_bss_info.id.net_id, dm->m_device.m_device_info.id.net_id, sizeof(em_long_string_t));
-				memcpy(dm_bss->m_bss_info.id.dev_mac, dm->m_device.m_device_info.intf.mac, sizeof(mac_address_t));
-				memcpy(dm_bss->m_bss_info.id.ruid, radio->ruid, sizeof(mac_address_t));
-				memcpy(dm_bss->m_bss_info.id.bssid, bss->bssid, sizeof(mac_address_t));
-	
+                // fill up id first
+                strncpy(dm_bss->m_bss_info.id.net_id, dm->m_device.m_device_info.id.net_id, sizeof(em_long_string_t));
+                memcpy(dm_bss->m_bss_info.id.dev_mac, dm->m_device.m_device_info.intf.mac, sizeof(mac_address_t));
+                memcpy(dm_bss->m_bss_info.id.ruid, radio->ruid, sizeof(mac_address_t));
+                memcpy(dm_bss->m_bss_info.id.bssid, bss->bssid, sizeof(mac_address_t));
+
                 memcpy(dm_bss->m_bss_info.bssid.mac, bss->bssid, sizeof(mac_address_t));
                 memcpy(dm_bss->m_bss_info.ruid.mac, radio->ruid, sizeof(mac_address_t));
                 dm->set_num_bss(dm->get_num_bss() + 1);
-			}
-            strncpy(dm_bss->m_bss_info.ssid, bss->ssid, bss->ssid_len);
-			dm_bss->m_bss_info.enabled = true;
-			strncpy(dm_bss->m_bss_info.timestamp, time_date, sizeof(em_long_string_t));
+            }
+            ssid_t ssid_buf;
+            size_t ssid_len = bss->ssid_len;
+            if (ssid_len >= sizeof(ssid_buf)) {
+                ssid_len = sizeof(ssid_buf) - 1;
+            }
+            memcpy(ssid_buf, bss->ssid, ssid_len);
+            ssid_buf[ssid_len] = '\0';
+            if (dm->is_ssid_match(ssid_buf)) {
+                em_printfout("SSID matches. proceeding further");
+                strncpy(dm_bss->m_bss_info.ssid, ssid_buf, sizeof(dm_bss->m_bss_info.ssid) - 1);
+                dm_bss->m_bss_info.ssid[sizeof(dm_bss->m_bss_info.ssid) - 1] = '\0';
+            } else {
+                em_printfout("SSID mismatch. Stop proceeding. SSID=%s", bss->ssid);
+                return -2; //SSID mismatch specific error
+            }
+            dm_bss->m_bss_info.enabled = true;
+            strncpy(dm_bss->m_bss_info.timestamp, time_date, sizeof(em_long_string_t));
 
-			updated_at_least_one_bss = true;
-			
-			all_bss_len += static_cast<unsigned int> (sizeof(em_ap_operational_bss_t) + bss->ssid_len);
-			bss = reinterpret_cast<em_ap_operational_bss_t *> (reinterpret_cast<unsigned char *> (bss) + sizeof(em_ap_operational_bss_t) + bss->ssid_len);
+            updated_at_least_one_bss = true;
+
+            all_bss_len += static_cast<unsigned int>(sizeof(em_ap_operational_bss_t) + bss->ssid_len);
+            bss = reinterpret_cast<em_ap_operational_bss_t *>(reinterpret_cast<unsigned char *>(bss) + sizeof(em_ap_operational_bss_t) + bss->ssid_len);
         }
 
         radio = reinterpret_cast<em_ap_op_bss_radio_t *> (reinterpret_cast<unsigned char *> (radio) + sizeof(em_ap_op_bss_radio_t) + all_bss_len);
@@ -1628,10 +1646,11 @@ int em_configuration_t::handle_topology_response(unsigned char *buff, unsigned i
         return -1;
     }
 
-	if (handle_ap_operational_bss(tlv->value, tlv->len) != 0) {
-		printf("%s:%d: Operational BSS handling failed\n", __func__, __LINE__);
-		return -1;
-	}
+    int rc = handle_ap_operational_bss(tlv->value, tlv->len);
+    if (rc != 0) {
+        printf("%s:%d: Operational BSS handling failed rc=%d\n", __func__, __LINE__, rc);
+        return rc;
+    }
 
     while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
         if (tlv->type != em_tlv_type_bss_conf_rep) {
@@ -5271,14 +5290,18 @@ void em_configuration_t::process_msg(unsigned char *data, unsigned int len)
 
         case em_msg_type_topo_resp:
             if ((get_service_type() == em_service_type_ctrl) && (get_state() == em_state_ctrl_topo_sync_pending)){
-                if (handle_topology_response(data, len) == 0) {
+                int ret_val = handle_topology_response(data, len);
+                std::vector<em_t *> em_radios;
+                dm_easy_mesh_t *dm = get_data_model();
+                if (ret_val != 0) {
+                    dm->inc_topo_resp_rx_count(INCREMENT_TOPO_RESP_COUNT);
+                }
+                get_mgr()->get_all_em_for_al_mac(hdr->src, em_radios);
+                if (ret_val == 0) {
                     set_state(em_state_ctrl_topo_synchronized);
-                    std::vector<em_t *> em_radios;
-                    dm_easy_mesh_t *dm = get_data_model();
                     em_printfout("Topology response handled successfully by em radio:%s agent al_mac:%s src_mac:%s",
                         util::mac_to_string(get_radio_interface_mac()).c_str(), util::mac_to_string(dm->get_agent_al_interface_mac()).c_str(),
                         util::mac_to_string(hdr->src).c_str());
-                    get_mgr()->get_all_em_for_al_mac(hdr->src, em_radios);
                     for (auto &em : em_radios) {
                         em->set_state(em_state_ctrl_topo_synchronized);
                         printf("%s:%d em_msg_type_topo_resp handle success, state: %s\n", __func__, __LINE__, em_t::state_2_str(em->get_state()));
@@ -5288,11 +5311,49 @@ void em_configuration_t::process_msg(unsigned char *data, unsigned int len)
                     get_mgr()->update_network_topology();
                     dm->set_topo_state(true);
                     dm->set_db_cfg_param(db_cfg_type_device_list_update, "");
-                } else {
-                    printf("%s:%d em_msg_type_topo_resp handle failed \n", __func__, __LINE__);
+                }
+                else {
+                    if (ret_val == -2) {
+                        //If topology handling failed due to SSID mismatch, retry topology query to the agent
+                        em_printfout("SSID mismatch in topology response from %s, retrying topo query", util::mac_to_string(hdr->src).c_str());
+                        time_t start_time = time(NULL);
+                        while ((time(NULL) - start_time < TOPO_RETRY_MAX_TIME_SEC) && !dm->get_topo_state()) {
+                            send_topology_query_msg();
+                            sleep(TOPO_RETRY_INTERVAL_SEC);
+                        }
+                        if (dm->get_topo_state()) {
+                            em_printfout("Topology synchronized after retries for agent %s", util::mac_to_string(hdr->src).c_str());
+                            break;
+                        }
+                        else {
+                            em_printfout("Topology query retries exhausted for agent %s after %d seconds", util::mac_to_string(hdr->src).c_str(), TOPO_RETRY_MAX_TIME_SEC);
+                            //Mark controller and radios as misconfigured after retries fail
+                            dm->set_topo_resp_rx_count(0);
+                            set_state(em_state_ctrl_misconfigured);
+                            for (auto &em : em_radios) {
+                                em->set_state(em_state_ctrl_misconfigured);
+                                em_printfout("Setting radio %s to misconfigured state after SSID mismatch retries", util::mac_to_string(em->get_radio_interface_mac()).c_str());
+                            }
+                            em_radios.clear();
+                            break;
+                        }
+                    }
+                }
+                
+                if (dm->get_topo_resp_rx_count() >= MAX_TOPO_RESP_MISCONF_RECEIVED){
+                    dm->set_topo_resp_rx_count(0);
+                    set_state(em_state_ctrl_misconfigured);
+                    for (auto &em : em_radios) {
+                        em->set_state(em_state_ctrl_misconfigured);
+                        em_printfout("em_msg_type_topo_resp handle failed due to misconfigure, state: %s", em_t::state_2_str(em->get_state()));
+                    }
+                    break;
+                }
+                else {
+                    em_printfout("%s:%d em_msg_type_topo_resp handle failed", __func__, __LINE__);
                 }
             }
-            break;
+        break;
 
         case em_msg_type_topo_notif:
             if ((get_service_type() == em_service_type_ctrl) && (get_state() >= em_state_ctrl_topo_synchronized)) {

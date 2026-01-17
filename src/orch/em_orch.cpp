@@ -150,6 +150,51 @@ void em_orch_t::destroy_command(em_cmd_t *pcmd)
     delete pcmd;
 }
 
+void em_orch_t::cancel_command(em_cmd_type_t type, std::vector<em_t*> &em_radios)
+{
+    int i, j;
+    em_cmd_t *pcmd;
+    em_t *em;
+    mac_addr_str_t	mac_str;
+
+    for (i = static_cast<int>(queue_count(m_pending)) - 1; i >= 0; i--) {
+        pcmd = static_cast<em_cmd_t *>(queue_peek(m_pending, static_cast<unsigned int>(i))); 
+        if (pcmd->m_type == type) {
+            for (j = static_cast<int>(queue_count(pcmd->m_em_candidates)) - 1; j >= 0; j--) {
+                em = static_cast<em_t *>(queue_peek(pcmd->m_em_candidates, static_cast<unsigned int>(j)));
+                for (auto &cur_em : em_radios) {
+                    if (cur_em == em) {
+                        queue_remove(pcmd->m_em_candidates, static_cast<unsigned int>(j));
+                        break;
+                    }
+                }
+            }
+            if (queue_count(pcmd->m_em_candidates) == 0){
+                queue_remove(m_pending, static_cast<unsigned int>(i));
+                pop_stats(pcmd);
+                destroy_command(pcmd);
+            }
+        }   
+    } 
+    
+    for (i = static_cast<int>(queue_count(m_active)) - 1; i >= 0; i--) {
+        pcmd = static_cast<em_cmd_t *>(queue_peek(m_active, static_cast<unsigned int>(i)));
+        if (pcmd->m_type == type) {
+            for (j = static_cast<int>(queue_count(pcmd->m_em_candidates)) - 1; j >= 0; j--) {
+                em = static_cast<em_t *>(queue_peek(pcmd->m_em_candidates, static_cast<unsigned int>(j)));
+                for (auto &cur_em : em_radios){
+                    if (cur_em == em) {
+                        dm_easy_mesh_t::macbytes_to_string(em->get_radio_interface_mac(), mac_str);
+                        em_printfout("Setting em:%s State set to cancel", mac_str);
+                        pre_process_cancel(pcmd, em);
+                        em->set_orch_state(em_orch_state_cancel);
+                    }
+                }
+            }
+        }
+    }
+}
+
 void em_orch_t::cancel_command(em_cmd_type_t type) 
 {
     int i, j;

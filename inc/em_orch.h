@@ -206,6 +206,18 @@ public:
 	 * @note Ensure that the command type provided is valid and currently active.
 	 */
 	void cancel_command(em_cmd_type_t type);
+
+	/**!
+	 * @brief Cancels a command of the specified type if misconfiguration for specific EMs.
+	 *
+	 * This function is used to cancel a command that is currently being processed when misconfigure happens.
+	 *
+	 * @param[in] type The type of command to cancel. This parameter specifies which command
+	 * should be canceled based on the em_cmd_type_t enumeration.
+	 *
+	 * @note Ensure that the command type provided is valid and currently active.
+	 */
+	void cancel_command(em_cmd_type_t type, std::vector<em_t*> &em_radios);
     
 	/**!
 	 * @brief Pushes statistics to the specified command structure.
