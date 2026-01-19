@@ -3301,6 +3301,7 @@ int em_configuration_t::create_autoconfig_wsc_m2_msg(unsigned char *buff, unsign
     tlv = reinterpret_cast<em_tlv_t *> (tmp);
     tlv->type = em_tlv_type_dflt_8021q_settings;
     tlv->len = htons(sizeof(em_8021q_settings_t));
+    memset(tlv->value, 0, sizeof(tlv->len));
 
     tmp += (sizeof(em_tlv_t) + sizeof(em_8021q_settings_t));
     len += static_cast<int> (sizeof(em_tlv_t) + sizeof(em_8021q_settings_t));
@@ -4990,14 +4991,13 @@ int em_configuration_t::handle_ap_radio_basic_cap(unsigned char *buff, unsigned 
 
 int em_configuration_t::handle_autoconfig_wsc_m1(unsigned char *buff, unsigned int len)
 {
-    unsigned char msg[MAX_EM_BUFF_SZ*em_haul_type_max];
+    unsigned char msg[MAX_EM_BUFF_SZ*em_haul_type_max] = {0};
     unsigned int sz;
     char *errors[EM_MAX_TLV_MEMBERS] = {0};
     mac_addr_str_t  mac_str;
     em_tlv_t    *tlv;
     unsigned int tlv_len;
     em_bus_event_type_m2_tx_params_t   raw;
-
 
     dm_easy_mesh_t::macbytes_to_string(get_peer_mac(), mac_str);
     printf("%s:%d: Device AL MAC: %s\n", __func__, __LINE__, mac_str);
