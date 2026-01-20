@@ -530,6 +530,17 @@ unsigned int em_orch_ctrl_t::build_candidates(em_cmd_t *pcmd)
                 break;
 
 			case em_cmd_type_set_policy:
+                dm = pcmd->get_data_model();
+                //need a radio from a device to send, no need to push all ems
+                if (memcmp(em->get_radio_interface_mac(), dm->m_radio[0].m_radio_info.intf.mac, sizeof(mac_address_t)) == 0) {
+                    dm_easy_mesh_t::macbytes_to_string(em->get_radio_interface_mac(), mac_str);
+                    em_printfout("em: %s pushed for command: em_cmd_type_set_policy\n", mac_str);
+                    queue_push(pcmd->m_em_candidates, em);
+                    count++;
+                    break;
+                }
+                break;
+
 			case em_cmd_type_set_radio:
 				dm = pcmd->get_data_model();
 				for (i = 0; i < dm->get_num_radios(); i++) {

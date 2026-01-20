@@ -549,6 +549,7 @@ public:
 	 * This function processes the M2 transmission event and updates the command array accordingly.
 	 *
 	 * @param[in] evt Pointer to the event structure containing the M2 transmission details.
+	 * @param[in] evt_status Indicates if the same event for this command type is already executing.
 	 * @param[out] cmd Array of command pointers to be updated based on the event analysis.
 	 *
 	 * @returns int Status code indicating success or failure of the analysis.
@@ -557,7 +558,7 @@ public:
 	 *
 	 * @note Ensure that the event and command pointers are valid before calling this function.
 	 */
-	int analyze_m2_tx(em_bus_event_t *evt, em_cmd_t *cmd[]);
+	int analyze_m2_tx(em_bus_event_t *evt, em_cmd_t *cmd[], bool evt_status);
     
 	/**!
 	 * @brief Analyzes the station association event.
@@ -733,6 +734,8 @@ public:
 	 * @param[in] parent The JSON object containing the station configurations.
 	 * @param[in] key The key used to identify the specific station configuration.
 	 * @param[in] reason The reason for retrieving the station list, default is none.
+	 * @param[in] subdoc buffer pointer to the structure where the sub-document information
+	 * will be stored.
 	 *
 	 * @returns int Status code of the operation.
 	 * @retval 0 on success.
@@ -740,7 +743,7 @@ public:
 	 *
 	 * @note Ensure that the JSON object and key are valid before calling this function.
 	 */
-	int get_sta_config(cJSON *parent, char *key, em_get_sta_list_reason_t reason = em_get_sta_list_reason_none);
+	int get_sta_config(cJSON *parent, char *key, em_get_sta_list_reason_t reason = em_get_sta_list_reason_none, char *data = NULL);
     
 	/**!
 	 * @brief Retrieves the BSS configuration from a JSON object.

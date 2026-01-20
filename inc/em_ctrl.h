@@ -453,7 +453,9 @@ public:
 	 * @note Ensure that the event structure is properly initialized before calling this function.
 	 */
 	void handle_bsta_cap_req(em_bus_event_t *evt);
-    
+
+	void handle_link_stats_alarm_report(em_bus_event_t *evt);
+
 	/**!
 	 * @brief 
 	 * This function handles input/output operations.
