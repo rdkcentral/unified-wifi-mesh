@@ -464,7 +464,7 @@ int em_configuration_t::create_operational_bss_tlv_topology(unsigned char *buff)
 	ap = reinterpret_cast<em_ap_op_bss_t *> (tlv->value);
 	ap->radios_num = dm->get_num_radios();
 	radio = ap->radios;
-	for (radio_index = 0; radio_index < dm->get_num_radios(); radio_index++) {
+    for (radio_index = 0; radio_index < dm->get_num_radios(); radio_index++) {
         memcpy(radio->ruid, dm->get_radio_by_ref(radio_index).get_radio_interface_mac(), sizeof(mac_address_t));
         radio->bss_num = 0;
         bss = radio->bss;
@@ -663,7 +663,6 @@ int em_configuration_t::create_bsta_mld_config_tlv(unsigned char *buff)
     em_affiliated_bsta_mld_t *affiliated_bsta_mld;
     dm_easy_mesh_t  *dm;
     unsigned int i;
-    unsigned short bsta_mld_len = 0;
     unsigned short affiliated_bsta_len = 0;
     unsigned short tlv_len = 0;
 
@@ -1470,9 +1469,23 @@ int em_configuration_t::handle_ap_operational_bss(unsigned char *buff, unsigned 
                 memcpy(dm_bss->m_bss_info.ruid.mac, radio->ruid, sizeof(mac_address_t));
                 dm->set_num_bss(dm->get_num_bss() + 1);
 			}
-            strncpy(dm_bss->m_bss_info.ssid, bss->ssid, bss->ssid_len);
-			dm_bss->m_bss_info.enabled = true;
-			strncpy(dm_bss->m_bss_info.timestamp, time_date, sizeof(em_long_string_t));
+            ssid_t ssid_buf;
+            size_t ssid_len = bss->ssid_len;
+            if (ssid_len >= sizeof(ssid_buf)) {
+                ssid_len = sizeof(ssid_buf) - 1;
+            }
+            memcpy(ssid_buf, bss->ssid, ssid_len);
+            ssid_buf[ssid_len] = '\0';
+            if (dm->is_ssid_match(ssid_buf)) {
+                strncpy(dm_bss->m_bss_info.ssid, ssid_buf, sizeof(dm_bss->m_bss_info.ssid) - 1);
+                dm_bss->m_bss_info.ssid[sizeof(dm_bss->m_bss_info.ssid) - 1] = '\0';
+            } else {
+                // SSID mismatch, stop processing further.
+                em_printfout("%s:%d:SSID mismatch. Stop proceeding. SSID=%s", __func__, __LINE__, bss->ssid);
+                return -2;
+            }
+            dm_bss->m_bss_info.enabled = true;
+            strncpy(dm_bss->m_bss_info.timestamp, time_date, sizeof(em_long_string_t));
 
 			updated_at_least_one_bss = true;
 			
@@ -1651,10 +1664,18 @@ int em_configuration_t::handle_topology_response(unsigned char *buff, unsigned i
         return -1;
     }
 
-	if (handle_ap_operational_bss(tlv->value, tlv->len) != 0) {
-		printf("%s:%d: Operational BSS handling failed\n", __func__, __LINE__);
-		return -1;
-	}
+
+        int rc = handle_ap_operational_bss(tlv->value, tlv->len);
+        if (rc != 0) {
+            if (rc == -2) {
+                em_printfout("%s:%d: Failed to handle operational BSS due to SSID misconfiguration.", __func__, __LINE__);
+                static_cast<em_t*>(this)->set_ssid_mismatch(true);
+            } else {
+                em_printfout("%s:%d: Operational BSS handling failed rc=%d\n", __func__, __LINE__, rc);
+            }
+            return rc;
+        }
+
 
     while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
         if (tlv->type != em_tlv_type_bss_conf_rep) {
@@ -5351,6 +5372,7 @@ void em_configuration_t::process_msg(unsigned char *data, unsigned int len)
             if ((get_service_type() == em_service_type_ctrl) && (get_state() == em_state_ctrl_topo_sync_pending)){
                 if (handle_topology_response(data, len) == 0) {
                     set_state(em_state_ctrl_topo_synchronized);
+                    static_cast<em_t*>(this)->set_ssid_mismatch(false);
                     std::vector<em_t *> em_radios;
                     dm_easy_mesh_t *dm = get_data_model();
                     em_printfout("Topology response handled successfully by em radio:%s agent al_mac:%s src_mac:%s",
@@ -5359,9 +5381,13 @@ void em_configuration_t::process_msg(unsigned char *data, unsigned int len)
                     get_mgr()->get_all_em_for_al_mac(hdr->src, em_radios);
                     for (auto &em : em_radios) {
                         em->set_state(em_state_ctrl_topo_synchronized);
+                        em->set_ssid_mismatch(false);
                         printf("%s:%d em_msg_type_topo_resp handle success, state: %s\n", __func__, __LINE__, em_t::state_2_str(em->get_state()));
                     }
                     em_radios.clear();
+                    //Reset the mismatch and topo_query_last sent values
+                    dm->set_ssid_mismatch_check_time(0);
+                    dm->set_last_topo_query_sent_time(0);
                     // update network topology here
                     get_mgr()->update_network_topology();
                     dm->set_topo_state(true);
@@ -5588,18 +5614,29 @@ void em_configuration_t::process_ctrl_state()
             break;
 
         case em_state_ctrl_topo_sync_pending:
+        {
+            std::vector<em_t *> em_radios;
+            dm_easy_mesh_t *dm = get_data_model();
+            get_mgr()->get_all_em_for_al_mac(dm->get_agent_al_interface_mac(), em_radios);
+
+            // Evaluate SSID mismatch across this AL's radios only.
+            bool ssid_mismatch_present = std::any_of(em_radios.begin(), em_radios.end(), [](em_t *radio) {
+                return radio->get_ssid_mismatch();
+            });
+
+            if (ssid_mismatch_present == false)
             {
-                std::vector<em_t *> em_radios;
-                dm_easy_mesh_t *dm = get_data_model();
-                get_mgr()->get_all_em_for_al_mac(dm->get_agent_al_interface_mac(), em_radios);
                 for (auto &em : em_radios) {
                     if (em->get_state() != em_state_ctrl_topo_sync_pending) {
-                        em_printfout("radio %s is not in topo sync pending state, ignoring",
-                            util::mac_to_string(em->get_radio_interface_mac()).c_str());
+                        em_printfout("radio %s is in state:%d, not in topo sync pending state, ignoring",
+                            util::mac_to_string(em->get_radio_interface_mac()).c_str(), em->get_state());
                         em_radios.clear();
                         return;
                     }
                 }
+                // Reset the mismatch and topo_query_last sent values before sending topo query
+                dm->set_ssid_mismatch_check_time(0);
+                dm->set_last_topo_query_sent_time(0);
                 // If all radios are in topo sync pending state, send topo query on one of them, 
                 // ignore sending topo query on other radios
                 if (this == em_radios.front()){
@@ -5612,6 +5649,7 @@ void em_configuration_t::process_ctrl_state()
                 }
                 em_radios.clear();
             }
+        }
             break;
 
         case em_state_ctrl_ap_mld_config_pending:

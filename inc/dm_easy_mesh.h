@@ -49,6 +49,8 @@ class dm_easy_mesh_t {
     static std::atomic<int> s_counter;
     int m_instance_num;
     bool m_topo_changed = false;
+    unsigned int ssid_mismatch_check_time = 0;
+    unsigned int last_topo_query_sent_time = 0;
 
 public:
     webconfig_subdoc_data_t *m_wifi_data;
@@ -95,6 +97,10 @@ public:
 	void set_topo_state(bool state) { m_topo_changed = state; }
 	void set_id() { m_instance_num = ++s_counter; }
 	int get_id() const { return m_instance_num; }
+	void set_ssid_mismatch_check_time(unsigned int time) { ssid_mismatch_check_time = time; }
+	unsigned int get_ssid_mismatch_check_time() const { return ssid_mismatch_check_time; }
+	void set_last_topo_query_sent_time(unsigned int time) { last_topo_query_sent_time = time; }
+	unsigned int get_last_topo_query_sent_time() const { return last_topo_query_sent_time; }
 
 	static em_e4_table_t m_e4_table[];
 	
@@ -1128,7 +1134,18 @@ public:
 	 */
 	em_network_ssid_info_t *get_network_ssid_info_by_haul_type(em_haul_type_t haul_type);
 
-	
+	/**!
+     * @brief Checks whether the given SSID matches.
+     *
+     * This function determines whether the specified SSID matches
+     * the SSID associated with this instance.
+     *
+     * @param[in] ssid The SSID to compare against the stored SSID.
+     *
+     * @returns true if the SSIDs match; otherwise, false.
+     */
+    bool is_ssid_match(const ssid_t  &ssid);
+
 	/**!
 	 * @brief Retrieves the operational class information for a given index.
 	 *
