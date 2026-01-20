@@ -33,6 +33,7 @@
 #include <sys/uio.h>
 #include <unistd.h>
 #include <assert.h>
+#include <vector>
 #include "em_base.h"
 #include "em_cmd.h"
 #include "em_cmd_exec.h"
@@ -43,6 +44,7 @@ void em_orch_ctrl_t::orch_transient(em_cmd_t *pcmd, em_t *em)
 {
     em_cmd_stats_t *stats;
     em_short_string_t key;
+    em_ctrl_t *ctrl = static_cast<em_ctrl_t *>(m_mgr);
 
     snprintf(key, sizeof(em_short_string_t), "%d", pcmd->get_type());
 
@@ -54,21 +56,70 @@ void em_orch_ctrl_t::orch_transient(em_cmd_t *pcmd, em_t *em)
 		//em_t::state_2_str(em->get_state()), stats->time);
 	
 	switch (pcmd->m_type) {
-		case em_cmd_type_em_config:
-    		if (stats->time > (EM_MAX_CMD_GEN_TTL + EM_MAX_CMD_EXT_TTL)) {
-        		printf("%s:%d: Canceling cmd: %s because time limit exceeded\n", __func__, __LINE__, pcmd->get_cmd_name());
-        		cancel_command(pcmd->get_type());
-    		}
-			break;
 
-		default:
-    		if (stats->time > EM_MAX_CMD_GEN_TTL) {
-        		printf("%s:%d: Canceling cmd: %s because time limit exceeded\n", __func__, __LINE__, pcmd->get_cmd_name());
-        		cancel_command(pcmd->get_type());
-    		}
-			break;   
-	}
+        case em_cmd_type_em_config:
+        {
+            if ((pcmd->get_orch_op() == dm_orch_type_topo_sync) && (em->get_state() == em_state_ctrl_topo_sync_pending)) {
+                dm_easy_mesh_t *dm = em->get_data_model();
+                std::vector<em_t *> all_em_radios;
+                em->get_mgr()->get_all_em_for_al_mac(dm->get_agent_al_interface_mac(), all_em_radios);
 
+                if (all_em_radios.empty()) return;
+
+                // Check if any radio has SSID mismatch
+                bool global_ssid_mismatch = std::any_of(all_em_radios.begin(), all_em_radios.end(), [](em_t *radio) {
+                    return radio->get_ssid_mismatch();
+                });
+
+                int base_ttl = EM_MAX_CMD_GEN_TTL + EM_MAX_CMD_EXT_TTL;
+                bool do_extend = global_ssid_mismatch && stats->time >= base_ttl;
+                int ttl = base_ttl + (do_extend ? EM_SSID_MISMATCH_TTL : 0);
+
+                if (stats->time > base_ttl && !global_ssid_mismatch) {
+                    em_printfout("%s:%d: Canceling cmd: %s because time limit exceeded\n", __func__, __LINE__, pcmd->get_cmd_name());
+                    cancel_command(pcmd->get_type());
+                    return;
+                }
+
+                // If we've exceeded the extended TTL, transition to misconfigured state
+                if (stats->time > ttl) {
+                    em_printfout("%s:%d: Full TTL exceeded of %d - canceling (SSID mismatch recovery failed)\n", __func__, __LINE__, ttl);
+                    em->set_state(em_state_ctrl_misconfigured);
+                    em_printfout("%s:%d: SSID Mismatch recovery failed, transitioning to misconfigured state", __func__, __LINE__);
+                    cancel_command(pcmd->get_type(), all_em_radios);
+                    ctrl->start_complete();
+                    return;
+                }
+
+                // If SSID mismatch is detected, extend the TTL and resend Topology Query
+                if (do_extend) {
+                    static time_t last_trigger = 0;
+                    if ((stats->time % EM_MAX_CMD_GEN_TTL == 0) && ((stats->time - last_trigger) >= 10)) {
+                        for (em_t *radio : all_em_radios) {
+                            if (radio->get_state() != em_state_ctrl_topo_sync_pending) {
+                                radio->set_state(em_state_ctrl_topo_sync_pending);
+                            }
+                        }
+                        static_cast<em_configuration_t*>(all_em_radios.front())->send_topology_query_msg();
+                        em_printfout("%s:%d: Re-sent Topology Query due to SSID mismatch at time: %ds", __func__, __LINE__, stats->time);
+                        last_trigger = stats->time;
+                    }
+                }
+            } else if (stats->time > (EM_MAX_CMD_GEN_TTL + EM_MAX_CMD_EXT_TTL)) {
+                em_printfout("%s:%d: Canceling cmd: %s because time limit exceeded\n", __func__, __LINE__, pcmd->get_cmd_name());
+                cancel_command(pcmd->get_type());
+            }
+            break;
+        }
+
+        default:
+        if (stats->time > EM_MAX_CMD_GEN_TTL)
+        {
+            em_printfout("%s:%d: Canceling cmd: %s because time limit exceeded\n", __func__, __LINE__, pcmd->get_cmd_name());
+            cancel_command(pcmd->get_type());
+        }
+        break;
+    }
 }
 
 bool em_orch_ctrl_t::is_em_ready_for_orch_fini(em_cmd_t *pcmd, em_t *em)

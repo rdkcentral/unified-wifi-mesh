@@ -1128,7 +1128,18 @@ public:
 	 */
 	em_network_ssid_info_t *get_network_ssid_info_by_haul_type(em_haul_type_t haul_type);
 
-	
+	/**!
+     * @brief Checks whether the given SSID matches.
+     *
+     * This function determines whether the specified SSID matches
+     * the SSID associated with this instance.
+     *
+     * @param[in] ssid The SSID to compare against the stored SSID.
+     *
+     * @returns true if the SSIDs match; otherwise, false.
+     */
+    bool is_ssid_match(const ssid_t  &ssid);
+
 	/**!
 	 * @brief Retrieves the operational class information for a given index.
 	 *

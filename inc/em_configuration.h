@@ -2179,6 +2179,7 @@ public:
     unsigned char m_emsk[WPS_EMSK_LEN];
     unsigned int m_renew_tx_cnt;
     unsigned int m_topo_query_tx_cnt;
+	#define EM_MAX_TOPO_QUERY_TX_CNT 40
 
     
 	/**!
