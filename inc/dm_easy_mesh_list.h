@@ -394,6 +394,8 @@ public:
 	 * @note Ensure that the input BSS is valid and part of a list before calling this function.
 	 */
 	dm_bss_t *get_next_bss(dm_bss_t *bss);
+	dm_bss_t *get_first_bss(mac_addr_t al_mac);
+	dm_bss_t *get_next_bss(mac_addr_t al_mac, dm_bss_t *bss);
     
 	/**!
 	 * @brief Retrieves the BSS (Basic Service Set) associated with the given key.

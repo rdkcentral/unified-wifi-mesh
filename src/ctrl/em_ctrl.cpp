@@ -208,14 +208,9 @@ void em_ctrl_t::handle_set_policy(em_bus_event_t *evt)
 
     if (m_orch->is_cmd_type_in_progress(evt) == true) {
         m_ctrl_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
-    } else if ((num = m_data_model.analyze_set_policy(evt, pcmd)) == 0) {
-        m_ctrl_cmd->send_result(em_cmd_out_status_no_change);
-    } else if (m_orch->submit_commands(pcmd, static_cast<unsigned int> (num)) > 0) {
-        m_ctrl_cmd->send_result(em_cmd_out_status_success);
-    } else {
-        m_ctrl_cmd->send_result(em_cmd_out_status_not_ready);
-    } 
-
+    } else if ((num = m_data_model.analyze_set_policy(evt, pcmd)) > 0) {
+        m_orch->submit_commands(pcmd, static_cast<unsigned int> (num));
+    }
 }
 
 void em_ctrl_t::handle_config_renew(em_bus_event_t *evt)
@@ -233,7 +228,7 @@ void em_ctrl_t::handle_m2_tx(em_bus_event_t *evt)
     em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
     int num;
     
-    if ((num = m_data_model.analyze_m2_tx(evt, pcmd)) > 0) {
+    if ((num = m_data_model.analyze_m2_tx(evt, pcmd, m_orch->is_cmd_type_in_progress(evt))) > 0) {
         m_orch->submit_commands(pcmd, static_cast<unsigned int> (num));
     }
 }
@@ -419,6 +414,48 @@ void em_ctrl_t::handle_bsta_cap_req(em_bus_event_t *evt)
     }
 }
 
+void em_ctrl_t::handle_link_stats_alarm_report(em_bus_event_t *evt)
+{
+    em_subdoc_info_t *info = &evt->u.subdoc;
+    wifi_bus_desc_t *desc = NULL;
+    char *str = NULL;
+    raw_data_t raw;
+
+    snprintf(info->name, sizeof(info->name), "alarm_report");
+
+    //m_data_model.get_config(GLOBAL_NET_ID, info);
+    cJSON *parent = cJSON_CreateObject();
+    em_printfout("Getting STAList for alarm report\n");
+    m_data_model.get_sta_config(parent, GLOBAL_NET_ID, em_get_sta_list_reason_alarm_report, info->buff);
+
+    //publish to orch
+    if((desc = get_bus_descriptor()) == NULL) {
+        em_printfout("descriptor is null");
+        cJSON_Delete(parent);
+        return;
+    }
+
+    if (parent == NULL) {
+        em_printfout("Failed to create or populate JSON object");
+        return;
+    }
+
+    str = cJSON_Print(parent);
+    em_printfout("Publishing Link Report Json:\n%s",str);
+
+	raw.data_type    = bus_data_type_string;
+    raw.raw_data.bytes = reinterpret_cast<unsigned char *> (str);
+    raw.raw_data_len = static_cast<unsigned int> (strlen(str));
+
+    if (desc->bus_event_publish_fn(m_data_model.get_bus_hdl(), DEVICE_WIFI_DATAELEMENTS_NETWORK_NODE_LINKSTATS_ALARM, &raw)== 0) {
+        em_printfout("Link Stats Alarm published successfull");
+    } else {
+        em_printfout("%s:%d Link Stats Alarm publish fail");
+    }
+
+    cJSON_Delete(parent);
+}
+
 void em_ctrl_t::handle_dirty_dm()
 {
 	m_data_model.handle_dirty_dm();
@@ -578,6 +615,10 @@ void em_ctrl_t::handle_bus_event(em_bus_event_t *evt)
         case em_bus_event_type_bsta_cap_req:
             handle_bsta_cap_req(evt);
             break;
+
+        case em_bus_event_type_link_stats_alarm_report:
+           handle_link_stats_alarm_report(evt);
+           break;
 	
         default:
             break;
@@ -631,6 +672,61 @@ void em_ctrl_t::publish_network_topology()
     } else {
         printf("%s:%d Topology publish fail\n",__func__, __LINE__);
     }
+
+#if 1
+    //Test code here
+    // if (desc->bus_event_subs_fn(&m_bus_hdl, DEVICE_WIFI_DATAELEMENTS_NETWORK_NODE_CFG_POLICY, (void *)&em_agent_t::onewifi_cb, NULL, 0) != 0) {
+    //     printf("%s:%d bus get failed\n", __func__, __LINE__);
+    //     return;
+    // }
+    em_printfout("\n%s:%d TEST_POLICY_CFG start\n", __func__, __LINE__);
+
+    /* Read policy JSON from /nik/orch/policy.json and publish it */
+    const char *policy_path = "/nik/orch/policy.json";
+    FILE *fp = fopen(policy_path, "rb");
+    if (!fp) {
+        printf("%s:%d Failed to open %s: %s\n", __func__, __LINE__, policy_path, strerror(errno));
+    } else {
+        if (fseek(fp, 0, SEEK_END) != 0) {
+            printf("%s:%d fseek failed\n", __func__, __LINE__);
+            fclose(fp);
+        } else {
+            long fsize = ftell(fp);
+            rewind(fp);
+            if (fsize <= 0) {
+                printf("%s:%d Empty or invalid file size: %ld\n", __func__, __LINE__, fsize);
+                fclose(fp);
+            } else {
+                char *buf = (char*)malloc((size_t)fsize + 1);
+                if (!buf) {
+                    printf("%s:%d malloc failed\n", __func__, __LINE__);
+                    fclose(fp);
+                } else {
+                    size_t read = fread(buf, 1, (size_t)fsize, fp);
+                    buf[read] = '\0';
+                    fclose(fp);
+
+                    printf("%s:%d Read %zu bytes from %s:\n%s\n", __func__, __LINE__, read, policy_path, buf);
+
+                    raw_data_t raw;
+                    memset(&raw, 0, sizeof(raw));
+                    raw.data_type = bus_data_type_string;
+                    raw.raw_data.bytes = reinterpret_cast<unsigned char*>(buf);
+                    raw.raw_data_len = static_cast<unsigned int>(read);
+
+                    if (desc->bus_event_publish_fn(m_data_model.get_bus_hdl(), DEVICE_WIFI_DATAELEMENTS_NETWORK_NODE_CFG_POLICY, &raw) == 0) {
+                    //if (desc->bus_set_fn(m_data_model.get_bus_hdl(), DEVICE_WIFI_DATAELEMENTS_NETWORK_NODE_CFG_POLICY, &raw) == 0) {
+                        printf("%s:%d Policy published successfully\n", __func__, __LINE__);
+                    } else {
+                        printf("%s:%d Policy publish failed\n", __func__, __LINE__);
+                    }
+
+                    free(buf);
+                }
+            }
+        }
+    }
+#endif
 }
 
 int em_ctrl_t::data_model_init(const char *data_model_path)
@@ -958,10 +1054,28 @@ void em_ctrl_t::start_complete()
 	wifi_bus_desc_t *desc;
 	raw_data_t raw;
 	em_interface_t	*intf;
-	mac_addr_str_t	al_mac_str;
+	mac_addr_str_t  al_mac_str;
 	em_bus_event_type_cfg_renew_params_t ac_config_raw;
 	mac_address_t null_mac = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 	int i = 0;
+    bus_error_t bus_error_val;
+    int num_elements = 0;
+
+    //Todo: Revisit placement of data elements registration done for orch
+    bus_data_element_t dataElements[] = {
+        { DEVICE_WIFI_DATAELEMENTS_NETWORK_TOPOLOGY, bus_element_type_method,
+            { NULL, NULL , NULL, NULL, NULL, NULL }, slow_speed, ZERO_TABLE,
+            { bus_data_type_string, false, 0, 0, 0, NULL } },
+        { DEVICE_WIFI_DATAELEMENTS_NETWORK_NODE_SYNC, bus_element_type_method,
+            { tr_181_t::get_node_sync,  tr_181_t::set_node_sync , NULL, NULL, NULL, NULL }, slow_speed, ZERO_TABLE,
+            { bus_data_type_string, false, 0, 0, 0, NULL } },
+        { DEVICE_WIFI_DATAELEMENTS_NETWORK_NODE_CFG_POLICY, bus_element_type_method,
+            { NULL, tr_181_t::policy_config , NULL, NULL, NULL, NULL }, slow_speed, ZERO_TABLE,
+            { bus_data_type_string, false, 0, 0, 0, NULL } },
+         { DEVICE_WIFI_DATAELEMENTS_NETWORK_NODE_LINKSTATS_ALARM, bus_element_type_method,
+            { NULL, NULL , NULL, NULL, NULL, NULL }, slow_speed, ZERO_TABLE,
+            { bus_data_type_string, false, 0, 0, 0, NULL } },
+	};
 
 	if (m_data_model.is_initialized() == false) {
 		printf("%s:%d: Database not initialized ... needs reset\n", __func__, __LINE__);
@@ -970,6 +1084,23 @@ void em_ctrl_t::start_complete()
 
     if((desc = get_bus_descriptor()) == NULL) {
         printf("%s:%d descriptor is null\n", __func__, __LINE__);
+    }
+
+    num_elements = (sizeof(dataElements) / sizeof(bus_data_element_t));
+	bus_error_val = desc->bus_reg_data_element_fn(m_data_model.get_bus_hdl(), dataElements, num_elements);
+	if (bus_error_val != bus_error_success) {
+		printf("%s:%d bus: bus_regDataElements failed\n", __func__, __LINE__);
+	}
+
+    if (desc->bus_event_subs_fn(m_data_model.get_bus_hdl(), DEVICE_WIFI_DATAELEMENTS_NETWORK_NODE_CFG_POLICY, (void *)&tr_181_t::subs_policy_config, NULL, 0) != 0) {
+        printf("%s:%d bus get failed\n", __func__, __LINE__);
+        return;
+    }
+
+    //todo: test code, remove during integ with orchestrator
+    if (desc->bus_event_subs_fn(m_data_model.get_bus_hdl(), DEVICE_WIFI_DATAELEMENTS_NETWORK_NODE_LINKSTATS_ALARM, (void *)&tr_181_t::subs_policy_config, NULL, 0) != 0) {
+        printf("%s:%d bus get failed\n", __func__, __LINE__);
+        return;
     }
 
 	intf = m_data_model.get_ctrl_al_interface(const_cast<char*>(GLOBAL_NET_ID));

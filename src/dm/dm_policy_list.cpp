@@ -85,7 +85,10 @@ int dm_policy_list_t::get_config(cJSON *parent_obj, void *parent, bool summary)
 		} else if (policy->m_policy.id.type == em_policy_id_type_backhaul_bss_config) {
 			policy->encode(obj, em_policy_id_type_backhaul_bss_config);
 			cJSON_AddItemToObject(parent_obj, "Backhaul BSS Configuration Policy", obj);
-		}
+		} else if (policy->m_policy.id.type == em_policy_id_type_alarm_threshold) {
+            policy->encode(obj, em_policy_id_type_alarm_threshold);
+            cJSON_AddItemToObject(parent_obj, "Algorithm Run Policy", obj);
+        }
 
 		policy = get_next_policy(policy);
 
@@ -269,7 +272,7 @@ int dm_policy_list_t::update_db(db_client_t& db_client, dm_orch_type_t op, void 
 
     switch (op) {
         case dm_orch_type_db_insert:
-            ret = insert_row(db_client, key, sta_mac_list_str, policy->policy, policy->interval, policy->rcpi_threshold, 
+            ret = insert_row(db_client, key, policy->id.type, policy->interval, sta_mac_list_str, policy->policy, policy->interval, policy->rcpi_threshold,
 											policy->rcpi_hysteresis, policy->util_threshold, policy->sta_traffic_stats, 
 											policy->sta_link_metric, policy->sta_status, policy->managed_sta_marker,
 											policy->independent_scan_report, policy->profile_1_sta_disallowed, policy->profile_2_sta_disallowed,
@@ -282,7 +285,7 @@ int dm_policy_list_t::update_db(db_client_t& db_client, dm_orch_type_t op, void 
             break;
 
 	    case dm_orch_type_db_update:
-            ret = update_row(db_client, sta_mac_list_str, policy->policy, policy->interval, policy->rcpi_threshold, 
+            ret = update_row(db_client, policy->id.type, policy->interval, sta_mac_list_str, policy->policy, policy->interval, policy->rcpi_threshold,
                                             policy->rcpi_hysteresis, policy->util_threshold, policy->sta_traffic_stats, 
                                             policy->sta_link_metric, policy->sta_status, policy->managed_sta_marker,
                                             policy->independent_scan_report, policy->profile_1_sta_disallowed, 
@@ -338,9 +341,9 @@ int dm_policy_list_t::sync_db(db_client_t& db_client, void *ctx)
 		dm_policy_t::parse_dev_radio_mac_from_key(str, &id);
 		memcpy(policy.id.dev_mac, id.dev_mac, sizeof(mac_address_t));
 		memcpy(policy.id.radio_mac, id.radio_mac, sizeof(mac_address_t));
-		policy.id.type = id.type;
-
-		db_client.get_string(ctx, sta_mac_list_str, 2);
+        policy.id.type = static_cast<em_policy_id_type_t>(db_client.get_number(ctx, 2));
+        policy.interval = static_cast<unsigned short int>(db_client.get_number(ctx, 3));
+        db_client.get_string(ctx, sta_mac_list_str, 4);
 		for (i = 0; i < EM_MAX_STA_PER_STEER_POLICY; i++) {
             token_parts[i] = sta_mac_str[i];
         }
@@ -350,23 +353,23 @@ int dm_policy_list_t::sync_db(db_client_t& db_client, void *ctx)
 			dm_easy_mesh_t::string_to_macbytes(sta_mac_str[i], policy.sta_mac[i]);
 		}		
 
-		policy.policy = static_cast<em_steering_policy_type_t>(db_client.get_number(ctx, 3));
-		policy.interval = static_cast<short unsigned int>(db_client.get_number(ctx, 4));
-		policy.rcpi_threshold = static_cast<short unsigned int>(db_client.get_number(ctx, 5));
-		policy.rcpi_hysteresis = static_cast<short unsigned int>(db_client.get_number(ctx, 6));
-		policy.util_threshold = static_cast<short unsigned int>(db_client.get_number(ctx, 7));
-		policy.sta_traffic_stats = db_client.get_number(ctx, 8);
-		policy.sta_link_metric = db_client.get_number(ctx, 9);
-		policy.sta_status = db_client.get_number(ctx, 10);
-		db_client.get_string(ctx, policy.managed_sta_marker, 11);
-		policy.independent_scan_report = db_client.get_number(ctx, 12);
-		policy.profile_1_sta_disallowed = db_client.get_number(ctx, 13);
-		policy.profile_2_sta_disallowed = db_client.get_number(ctx, 14);
-        policy.def_8021q_settings.primary_vid = static_cast<unsigned short>(db_client.get_number(ctx, 15));
-        policy.def_8021q_settings.default_pcp = static_cast<unsigned char>(db_client.get_number(ctx, 16));
+		policy.policy = static_cast<em_steering_policy_type_t>(db_client.get_number(ctx, 5));
+		policy.interval = static_cast<short unsigned int>(db_client.get_number(ctx, 6));
+		policy.rcpi_threshold = static_cast<short unsigned int>(db_client.get_number(ctx, 7));
+		policy.rcpi_hysteresis = static_cast<short unsigned int>(db_client.get_number(ctx, 8));
+		policy.util_threshold = static_cast<short unsigned int>(db_client.get_number(ctx, 9));
+		policy.sta_traffic_stats = db_client.get_number(ctx, 10);
+		policy.sta_link_metric = db_client.get_number(ctx, 11);
+		policy.sta_status = db_client.get_number(ctx, 12);
+		db_client.get_string(ctx, policy.managed_sta_marker, 13);
+		policy.independent_scan_report = db_client.get_number(ctx, 14);
+		policy.profile_1_sta_disallowed = db_client.get_number(ctx, 15);
+		policy.profile_2_sta_disallowed = db_client.get_number(ctx, 16);
+        policy.def_8021q_settings.primary_vid = static_cast<unsigned short>(db_client.get_number(ctx, 17));
+        policy.def_8021q_settings.default_pcp = static_cast<unsigned char>(db_client.get_number(ctx, 18));
         for (i = 0; i < em_haul_type_max; i++) {
-            db_client.get_string(ctx, policy.traffic_separ.ssid_info[i].ssid, (17 + (2*i)));
-            policy.traffic_separ.ssid_info[i].vlan_id = static_cast<unsigned char>(db_client.get_number(ctx, (18 + (2*i))));
+            db_client.get_string(ctx, policy.traffic_separ.ssid_info[i].ssid, (19 + (2*i)));
+            policy.traffic_separ.ssid_info[i].vlan_id = static_cast<unsigned char>(db_client.get_number(ctx, (20 + (2*i))));
         }
         
 		update_list(dm_policy_t(&policy), dm_orch_type_db_insert);
@@ -387,6 +390,8 @@ void dm_policy_list_t::init_columns()
     m_num_cols = 0;
 
     m_columns[m_num_cols++] = db_column_t("ID", db_data_type_char, 64);
+    m_columns[m_num_cols++] = db_column_t("PolicyType", db_data_type_smallint, 0);
+    m_columns[m_num_cols++] = db_column_t("APMetricsInterval", db_data_type_smallint, 0);
     m_columns[m_num_cols++] = db_column_t("STAList", db_data_type_text, 512);
     m_columns[m_num_cols++] = db_column_t("SteeringPolicyType", db_data_type_smallint, 0);
     m_columns[m_num_cols++] = db_column_t("RepInterval", db_data_type_smallint, 0);

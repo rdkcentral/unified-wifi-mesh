@@ -457,6 +457,11 @@ void em_cmd_t::init()
             m_svc = em_service_type_ctrl;
             break;
 
+        case em_cmd_type_get_link_stats_alarm_report:
+            strncpy(m_name, "get_alarm_report", strlen("get_alarm_report") + 1);
+            m_svc = em_service_type_ctrl;
+            break;
+
         default:
             break;
 
@@ -489,6 +494,7 @@ const char *em_cmd_t::get_bus_event_type_str(em_bus_event_type_t type)
         BUS_EVENT_TYPE_2S(em_bus_event_type_start_dpp)
         BUS_EVENT_TYPE_2S(em_bus_event_type_dev_init)
         BUS_EVENT_TYPE_2S(em_bus_event_type_cfg_renew)
+        BUS_EVENT_TYPE_2S(em_bus_event_type_m2_tx)
         BUS_EVENT_TYPE_2S(em_bus_event_type_radio_config)
         BUS_EVENT_TYPE_2S(em_bus_event_type_vap_config)
         BUS_EVENT_TYPE_2S(em_bus_event_type_sta_list)
@@ -500,6 +506,7 @@ const char *em_cmd_t::get_bus_event_type_str(em_bus_event_type_t type)
         BUS_EVENT_TYPE_2S(em_bus_event_type_get_mld_config)
         BUS_EVENT_TYPE_2S(em_bus_event_type_mld_reconfig)
         BUS_EVENT_TYPE_2S(em_bus_event_type_get_reset)
+        BUS_EVENT_TYPE_2S(em_bus_event_type_link_stats_alarm_report)
        
         default:
            break;
@@ -631,6 +638,7 @@ const char *em_cmd_t::get_cmd_type_str(em_cmd_type_t type)
         CMD_TYPE_2S(em_cmd_type_beacon_report)
         CMD_TYPE_2S(em_cmd_type_ap_metrics_report)
         CMD_TYPE_2S(em_cmd_type_get_reset)
+        CMD_TYPE_2S(em_cmd_type_get_link_stats_alarm_report)
 
         default:
            break;
@@ -749,6 +757,7 @@ em_cmd_type_t em_cmd_t::bus_2_cmd_type(em_bus_event_type_t etype)
 	        break;
 
         case em_bus_event_type_topo_sync:
+        case em_bus_event_type_m2_tx:
             type = em_cmd_type_em_config;
             break;
 
@@ -770,6 +779,10 @@ em_cmd_type_t em_cmd_t::bus_2_cmd_type(em_bus_event_type_t etype)
 
         case em_bus_event_type_get_reset:
             type = em_cmd_type_get_reset;
+            break;
+
+        case em_bus_event_type_link_stats_alarm_report:
+            type = em_cmd_type_get_link_stats_alarm_report;
             break;
 
         default:
