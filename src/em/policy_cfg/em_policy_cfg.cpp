@@ -418,6 +418,52 @@ short em_policy_cfg_t::create_vendor_policy_cfg_alarm_tlv(unsigned char *buff)
 
     dm = get_current_cmd()->get_data_model();
 
+    /* Search for both AP Metrics and Alarm Threshold policies before deciding what to append */
+    int idx_ap = -1;
+    int idx_alarm = -1;
+
+    for (i = 0; i < dm->get_num_policy(); i++) {
+        if (dm->m_policy[i].m_policy.id.type == em_policy_id_type_ap_metrics_rep) {
+            idx_ap = static_cast<int>(i);
+        } else if (dm->m_policy[i].m_policy.id.type == em_policy_id_type_alarm_threshold) {
+            idx_alarm = static_cast<int>(i);
+        }
+        /* If both found, we can stop scanning early */
+        if ((idx_ap != -1) && (idx_alarm != -1)) {
+            break;
+        }
+    }
+
+    if ((idx_ap == -1) && (idx_alarm == -1)) {
+        return 0;
+    }
+
+    /* If AP metrics policy exists, append its vendor data */
+    if (idx_ap != -1) {
+        policy = &dm->m_policy[idx_ap];
+        em_printfout(" Vendor Policy cfg TLV for metrics report policy ");
+        strncpy(reinterpret_cast<char *> (tmp), policy->m_policy.managed_sta_marker, strlen(policy->m_policy.managed_sta_marker) + 1);
+
+        tmp += strlen(policy->m_policy.managed_sta_marker);
+        len += strlen(policy->m_policy.managed_sta_marker);
+    }
+
+    em_printfout(" Vendor Policy cfg TLV length: %zu ", len);
+
+    return static_cast<short> (len);
+}
+
+short em_policy_cfg_t::create_vendor_policy_cfg_alarm_tlv(unsigned char *buff)
+{
+    size_t len = 0;
+    dm_easy_mesh_t *dm;
+    dm_policy_t *policy;
+    bool found_match = false;
+    unsigned char *tmp = buff;
+    unsigned int i = 0;
+
+    dm = get_current_cmd()->get_data_model();
+
     for (i = 0; i < dm->get_num_policy(); i++) {
         policy = &dm->m_policy[i];
         if (policy->m_policy.id.type == em_policy_id_type_alarm_threshold) {
@@ -553,6 +599,15 @@ int em_policy_cfg_t::send_policy_cfg_request_msg()
     tlv = reinterpret_cast<em_tlv_t *> (tmp);
     tlv->type = em_tlv_type_vendor_specific;
     sz = create_vendor_policy_cfg_tlv(tlv->value);
+    tlv->len = htons(static_cast<short unsigned int> (sz));
+
+    tmp += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+    len += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+
+        //em_tlv_type_vendor_policy_cfg_alarm
+    tlv = reinterpret_cast<em_tlv_t *> (tmp);
+    tlv->type = em_tlv_type_vendor_policy_cfg_alarm;
+    sz = create_vendor_policy_cfg_alarm_tlv(tlv->value);
     tlv->len = htons(static_cast<short unsigned int> (sz));
 
     tmp += (sizeof(em_tlv_t) + static_cast<size_t> (sz));

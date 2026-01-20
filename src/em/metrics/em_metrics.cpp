@@ -538,6 +538,17 @@ int em_metrics_t::handle_ap_metrics_response(unsigned char *buff, unsigned int l
         tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
     }
 
+    tlv = tlv_start;
+    tmp_len = base_len;
+
+    while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
+        if (tlv->type == em_tlv_type_link_stats_alarm_rprt) {
+            handle_link_stats_alarm_rprt_tlv(tlv->value, ntohs(tlv->len));
+        }
+        tmp_len -= (sizeof(em_tlv_t) + static_cast<size_t> (htons(tlv->len)));
+        tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
+    }
+
     dm->set_db_cfg_param(db_cfg_type_sta_metrics_update, "");
     set_state(em_state_ctrl_configured);
 
