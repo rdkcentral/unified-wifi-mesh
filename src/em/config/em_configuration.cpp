@@ -66,6 +66,18 @@ static inline void _EnB(uint8_t **packet_ppointer, void *memory_pointer, uint32_
     (*packet_ppointer) += n;
 }
 
+/*
+ * Map an EasyMesh haul type to the corresponding MAP BSS type flag used
+ * in the Multi-AP vendor extension (MAP_BSS_TYPE_*).
+ *
+ * Backhaul is explicitly mapped to MAP_BSS_TYPE_BACKHAUL; all other haul
+ * types are treated as fronthaul per the specification.
+ */
+static inline unsigned char get_bss_type_for_haul(em_haul_type_t haul_type)
+{
+    return (haul_type == em_haul_type_backhaul) ? EM_MULTI_AP_EXT_BSS_BACKHAUL : EM_MULTI_AP_EXT_BSS_FRONTHAUL;
+}
+
 unsigned short em_configuration_t::create_client_assoc_event_tlv(unsigned char *buff, mac_address_t sta, bssid_t bssid, bool assoc)
 {
     unsigned short len = 0;
@@ -4727,6 +4739,7 @@ int em_configuration_t::create_encrypted_settings(unsigned char *buff, em_haul_t
     unsigned char hash[SHA256_MAC_LEN];
     unsigned char *keywrap_data_addr[1];
     size_t keywrap_data_length[1];
+    const unsigned char wfa_vendor_oui_local[EM_VENDOR_OUI_SIZE] = {0x00, 0x37, 0x2a};
     em_network_ssid_info_t *net_ssid_info;
     memset(plain, 0, MAX_EM_BUFF_SZ);
     tmp = plain;
@@ -4774,7 +4787,21 @@ int em_configuration_t::create_encrypted_settings(unsigned char *buff, em_haul_t
     }
 #endif
 
-    // Add vendor extension for haul type
+    // Add vendor extension for haul type with Multi-AP Extension subelement identifier
+    attr = reinterpret_cast<data_elem_attr_t *> (tmp);
+    attr->id = htons(attr_id_vendor_ext);
+    // WFA Vendor OUI + Multi-AP Extension subelement identifier + subelement length + bsstype
+    size = EM_VENDOR_OUI_SIZE + 3;
+    attr->len = htons(static_cast<short unsigned int> (size));
+    memcpy(reinterpret_cast<char *> (attr->val), wfa_vendor_oui_local, EM_VENDOR_OUI_SIZE);
+    attr->val[EM_VENDOR_OUI_SIZE] = static_cast<unsigned char> (EM_MULTI_AP_EXT_SUBELEM_ID); // Multi-AP subelement id
+    attr->val[EM_VENDOR_OUI_SIZE + 1] = static_cast<unsigned char> (EM_MULTI_AP_EXT_SUBELEM_LEN);
+    attr->val[EM_VENDOR_OUI_SIZE + 2] = static_cast<unsigned char> (get_bss_type_for_haul(haul_type));
+
+    len += static_cast<short> (sizeof(data_elem_attr_t) + size);
+    tmp += (sizeof(data_elem_attr_t) + size);
+
+    // Add vendor extension for comcast haul type
     attr = reinterpret_cast<data_elem_attr_t *> (tmp);
     attr->id = htons(attr_id_vendor_ext);
     size = EM_VENDOR_OUI_SIZE + sizeof(vendor_ext_attr_id_t) + sizeof(em_haul_type_t);
