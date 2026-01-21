@@ -294,6 +294,7 @@ class em_metrics_t {
 	 * @note Ensure that the buffer is properly allocated and the length is correctly specified.
 	 */
 	int handle_ap_metrics_response(unsigned char *buff, unsigned int len);
+	int handle_vendor_msg(unsigned char *buff, unsigned int len);
 
   	/**!
 	 * @brief Handles the AP metrics tlv.
@@ -436,6 +437,7 @@ class em_metrics_t {
 	 * @note Ensure that the network connection is established before calling this function.
 	 */
 	int send_ap_metrics_response();
+	int send_vendor_msg();
     
 	/**!
 	 * @brief Creates a beacon metrics response TLV.

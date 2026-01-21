@@ -45,6 +45,8 @@
 #include "em.h"
 #include "em_cmd_exec.h"
 
+static     const unsigned char em_vendor_oui[EM_VENDOR_OUI_SIZE] = {0xd8, 0x9c, 0x8e};
+
 int em_metrics_t::handle_assoc_sta_link_metrics_tlv(unsigned char *buff)
 {
     em_assoc_sta_link_metrics_t	*sta_metrics;
@@ -378,6 +380,16 @@ int em_metrics_t::handle_link_stats_alarm_rprt_tlv(unsigned char *buff, short le
 
     dm = get_data_model();
 
+    
+    em_vendor_specific_t *vendor_data = reinterpret_cast<em_vendor_specific_t *> (tmp);
+    em_printfout("  ===>> vendor oui [%x, %x, %x]", vendor_data->vendor_oui[0], vendor_data->vendor_oui[1], vendor_data->vendor_oui[2]);
+    //link_report = reinterpret_cast<em_link_stats_alarm_rprt_t *> (vendor_data->m);
+    memcpy(reinterpret_cast<char *> (vendor_data->vendor_oui), em_vendor_oui, EM_VENDOR_OUI_SIZE);
+    vendor_data->m_num = 1;
+    em_printfout("vendor_data->m_num [%d]", vendor_data->m_num);
+
+    tmp += sizeof(vendor_data->m_num) + EM_VENDOR_OUI_SIZE;
+
     while (link_report != NULL && len > 0) {
         em_printfout("  length : %d\n", len);
         link_report = reinterpret_cast<em_link_report_t *> (tmp);
@@ -543,7 +555,7 @@ int em_metrics_t::handle_ap_metrics_response(unsigned char *buff, unsigned int l
 
     while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
         if (tlv->type == em_tlv_type_link_stats_alarm_rprt) {
-            handle_link_stats_alarm_rprt_tlv(tlv->value, ntohs(tlv->len));
+            //handle_link_stats_alarm_rprt_tlv(tlv->value, ntohs(tlv->len));
         }
         tmp_len -= (sizeof(em_tlv_t) + static_cast<size_t> (htons(tlv->len)));
         tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
@@ -551,6 +563,41 @@ int em_metrics_t::handle_ap_metrics_response(unsigned char *buff, unsigned int l
 
     dm->set_db_cfg_param(db_cfg_type_sta_metrics_update, "");
     set_state(em_state_ctrl_configured);
+
+    return 0;
+}
+
+int em_metrics_t::handle_vendor_msg(unsigned char *buff, unsigned int len)
+{
+    em_tlv_t *tlv, *tlv_start;
+    size_t tmp_len, base_len;
+    dm_easy_mesh_t  *dm;
+    char *errors[EM_MAX_TLV_MEMBERS] = {0};
+    bssid_t bssid;
+
+    dm = get_data_model();
+
+    em_printfout("===>>> handle vendor msg rcvd");
+
+    if (em_msg_t(em_msg_type_topo_vendor, get_profile_type(), buff, len).validate(errors) == 0) {
+        printf("%s:%d: Vendor msg validation failed\n", __func__, __LINE__);
+        return -1;
+    }
+
+    tlv_start =  reinterpret_cast<em_tlv_t *> (buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+    base_len = static_cast<size_t> (len) - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+
+    tlv = tlv_start;
+    tmp_len = base_len;
+
+    while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
+        if (tlv->type == em_tlv_type_vendor_specific) {
+            handle_link_stats_alarm_rprt_tlv(tlv->value, ntohs(tlv->len));
+        }
+        tmp_len -= (sizeof(em_tlv_t) + static_cast<size_t> (htons(tlv->len)));
+        tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
+    }
+    //set_state(em_state_ctrl_configured);
 
     return 0;
 }
@@ -914,7 +961,79 @@ int em_metrics_t::send_beacon_metrics_response()
 
     return static_cast<int> (len);
 }
+int em_metrics_t::send_vendor_msg()
+{
+    unsigned char buff[MAX_EM_BUFF_SZ] = {0};
+    char *errors[EM_MAX_TLV_MEMBERS] = {0};
+    unsigned short  msg_type = em_msg_type_topo_vendor;
+    size_t len = 0;
+    em_cmdu_t *cmdu;
+    em_tlv_t *tlv;
+    unsigned char *tmp = buff;
+    short sz = 0;
+    unsigned short type = htons(ETH_P_1905);
+    dm_easy_mesh_t *dm = get_data_model();
+    mac_addr_str_t mac_str;
+    dm_sta_t *sta;
+    int bss_index = 0;
 
+    memcpy(tmp, dm->get_ctl_mac(), sizeof(mac_address_t));
+    tmp += sizeof(mac_address_t);
+    len += sizeof(mac_address_t);
+
+    memcpy(tmp, dm->get_agent_al_interface_mac(), sizeof(mac_address_t));
+    tmp += sizeof(mac_address_t);
+    len += sizeof(mac_address_t);
+
+    memcpy(tmp, reinterpret_cast<unsigned char *> (&type), sizeof(unsigned short));
+    tmp += sizeof(unsigned short);
+    len += sizeof(unsigned short);
+
+    cmdu = reinterpret_cast<em_cmdu_t *> (tmp);
+
+    memset(tmp, 0, sizeof(em_cmdu_t));
+    cmdu->type = htons(msg_type);
+    cmdu->id = htons(get_mgr()->get_next_msg_id());
+    cmdu->last_frag_ind = 1;
+
+    tmp += sizeof(em_cmdu_t);
+    len += sizeof(em_cmdu_t);
+
+
+
+    //Add Link Stats alarm tlv
+    tlv = reinterpret_cast<em_tlv_t *> (tmp);
+    tlv->type = em_tlv_type_vendor_specific;
+
+    sz = create_link_stats_alarm_tlv(tlv->value);
+    tlv->len = htons(static_cast<unsigned short> (sz));
+    tmp += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+    len += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+
+    // End of message
+    tlv = reinterpret_cast<em_tlv_t *> (tmp);
+    tlv->type = em_tlv_type_eom;
+    tlv->len = 0;
+
+    tmp += (sizeof(em_tlv_t));
+    len += (sizeof(em_tlv_t));
+
+    if (em_msg_t(em_msg_type_topo_vendor, em_profile_type_2, buff, static_cast<unsigned int> (len)).validate(errors) == 0) {
+        em_printfout("Vendor msg validation failed for %s", mac_str);
+        //return -1;
+    }
+
+    if (send_frame(buff, static_cast<unsigned int> (len))  < 0) {
+        em_printfout("Vendor msg Response send failed, error:%d", errno);
+        return -1;
+    }
+
+    em_printfout("Vendor msg send success");
+
+  //  set_state(em_state_agent_configured);
+
+    return static_cast<int> (len);
+}
 int em_metrics_t::send_ap_metrics_response()
 {
     unsigned char buff[MAX_EM_BUFF_SZ] = {0};
@@ -1467,6 +1586,21 @@ short em_metrics_t::create_link_stats_alarm_tlv(unsigned char *buff)
     dm_sta_t *sta;
     dm_easy_mesh_t  *dm = get_data_model();
 
+    em_vendor_specific_t *vendor_data = reinterpret_cast<em_vendor_specific_t *> (buff);
+    memcpy(reinterpret_cast<char *> (vendor_data->vendor_oui), em_vendor_oui, EM_VENDOR_OUI_SIZE);
+
+    em_printfout("vendor oui [%x, %x, %x]", vendor_data->vendor_oui[0], vendor_data->vendor_oui[1], vendor_data->vendor_oui[2]);
+    vendor_data->m_num = 1;
+    
+    tmp += sizeof(vendor_data->m_num) + EM_VENDOR_OUI_SIZE;
+    vendor_data->m = tmp;
+    
+    // vendor_data->m = reinterpret_cast<unsigned char  *> (link_stats);
+    link_stats = reinterpret_cast<em_link_stats_alarm_rprt_t *> (vendor_data->m);
+    
+
+
+
     //add logic to increment above mac value by 1
     sta = static_cast<dm_sta_t *> (hash_map_get_first(dm->m_sta_map));
     while (sta != NULL) {
@@ -1479,6 +1613,7 @@ short em_metrics_t::create_link_stats_alarm_tlv(unsigned char *buff)
         link_stats->sample_count = 2;
 
         em_printfout("   sta mac : %s", util::mac_to_string(link_stats->sta_mac).c_str());
+       // em_printfout("   bss mac : %s", util::mac_to_string(link_stats->sta_mac).c_str());
         em_printfout("   reporting_timestamp : %s", link_stats->reporting_timestamp);
         em_printfout("   link_quality_threshold : %.2f", link_stats->link_quality_threshold);
         em_printfout("   alarm_triggered : %d", link_stats->alarm_triggered);
@@ -1512,6 +1647,7 @@ short em_metrics_t::create_link_stats_alarm_tlv(unsigned char *buff)
 
     len = static_cast<size_t> (sizeof(em_link_report_t));
     em_printfout("create_link_stats_alarm_tlv done");
+
     return static_cast<short> (len);
 }
 
@@ -1561,6 +1697,9 @@ void em_metrics_t::process_msg(unsigned char *data, unsigned int len)
         case em_msg_type_ap_metrics_rsp:
             handle_ap_metrics_response(data, len);
             break;
+        case em_msg_type_topo_vendor:
+            handle_vendor_msg(data, len);
+            break;
 
         default:
             break;
@@ -1592,6 +1731,7 @@ void em_metrics_t::process_agent_state()
 
         case em_state_agent_ap_metrics_pending:
             send_ap_metrics_response();
+            send_vendor_msg();
             break;
 
         default:

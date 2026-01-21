@@ -1030,6 +1030,19 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
             }
             break;
 
+        case em_msg_type_topo_vendor:
+            em_printfout("  ===>>> Received em_tlv_type_vendor_specific");
+            em = static_cast<em_t *> (hash_map_get_first(m_em_map));
+            while(em != NULL) {
+                if ((em->is_al_interface_em() == false) && (em->has_at_least_one_associated_sta() == true)) {
+                    em_printfout("  ===>>> Received em_tlv_type_vendor_specific, found em:%s", mac_str1);
+                    break;
+                }
+                em = static_cast<em_t *> (hash_map_get_next(m_em_map, em));
+            }
+            break;
+
+
         default:
             printf("%s:%d: Frame: 0x%04x not handled in controller\n", __func__, __LINE__, htons(cmdu->type));
             em = NULL;
