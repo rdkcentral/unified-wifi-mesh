@@ -1814,7 +1814,7 @@ func getWirelessProfilesHandler(w http.ResponseWriter, r *http.Request) {
                     http.Error(w, fmt.Sprintf("Invalid PassPhrase for %s: %v", haul.HaulType, err), http.StatusBadRequest)
                     return
                 }
-                if err := updateNetworkSSIDList(ssidTree, haul.HaulType, haul.SSID, haul.PassPhrase, haul.SecurityType, haul.Enabled); err != nil {
+                if err := updateNetworkSSIDList(ssidTree, haul.HaulType, haul.SSID, haul.PassPhrase, haul.SecurityType, haul.Bands, haul.Enabled); err != nil {
                     http.Error(w, fmt.Sprintf("Update failed for %s: %v", haul.HaulType, err), http.StatusInternalServerError)
                     return
                 }
@@ -3306,7 +3306,7 @@ func WifiResetHandler(w http.ResponseWriter, r *http.Request) {
                     http.Error(w, fmt.Sprintf("Invalid PassPhrase for %s: %v", haul.HaulType, err), http.StatusBadRequest)
                     return
                 }
-                if err := updateNetworkSSIDList(resetTree, haul.HaulType, haul.SSID, haul.PassPhrase, haul.SecurityType, haul.Enabled); err != nil {
+                if err := updateNetworkSSIDList(resetTree, haul.HaulType, haul.SSID, haul.PassPhrase, haul.SecurityType, haul.Bands, haul.Enabled); err != nil {
                     http.Error(w, fmt.Sprintf("Update failed for %s: %v", haul.HaulType, err), http.StatusInternalServerError)
                     return
                 }
@@ -3453,7 +3453,7 @@ func updateCollocatedAgentID(resetTree *C.em_network_node_t, selectedMac string)
  * Searches the NetworkSSIDList for a matching HaulType and updates its SSID and PassPhrase fields.
  * returns: nil on successful update; otherwise an error if the list or matching HaulType is not found.
  */
-func updateNetworkSSIDList(networkSSIDTree *C.em_network_node_t, haulType, newSSID, newPass string, newAuthType string, newEnable bool) error {
+func updateNetworkSSIDList(networkSSIDTree *C.em_network_node_t, haulType, newSSID, newPass string, newAuthType string, selectedBands []string, newEnable bool) error {
     networkKey := C.CString("NetworkSSIDList")
     defer C.free(unsafe.Pointer(networkKey))
 
@@ -3481,9 +3481,42 @@ func updateNetworkSSIDList(networkSSIDTree *C.em_network_node_t, haulType, newSS
             updateNodeValue(item, "PassPhrase", newPass)
             updateNodeValue(item, "AuthType", newAuthType)
             updateNodeBool(item, "Enable", newEnable)
+            updateNodeArray(item, "Band", normalizeBandsArray(selectedBands))
         }
     }
     return nil
+}
+
+func normalizeBandsArray(band []string) string {
+    // Define sort order
+    bandOrder := map[string]int{"2.4": 0, "5": 1, "6": 2}
+
+    // Deduplicate normalized values
+    seen := make(map[string]struct{}, len(band))
+    for _, b := range band {
+        switch b {
+        case "2.4GHz":
+            seen["2.4"] = struct{}{}
+        case "5GHz":
+            seen["5"] = struct{}{}
+        case "6GHz":
+            seen["6"] = struct{}{}
+        }
+    }
+
+    // Convert map keys to slice
+    normalized := make([]string, 0, len(seen))
+    for k := range seen {
+        normalized = append(normalized, k)
+    }
+
+    // Sort by band order
+    sort.Slice(normalized, func(i, j int) bool {
+        return bandOrder[normalized[i]] < bandOrder[normalized[j]]
+    })
+
+    // Return comma-separated string
+	return "[" + strings.Join(normalized, ", ") + "]"
 }
 
 /* func: updateNodeValue()
@@ -3529,6 +3562,25 @@ func updateNodeBool(parent *C.em_network_node_t, key string, enabled bool) {
 	} else {
 		C.set_node_type(node, C.em_network_node_data_type_false)
 	}
+}
+
+/* func: updateNodeArray()
+ * Description: helper function to set the updated node value for bool
+ * Return: NA
+ */
+func updateNodeArray(parent *C.em_network_node_t, key string, band string) {
+    cKey := C.CString(key)
+    defer C.free(unsafe.Pointer(cKey))
+
+    node := C.get_network_tree_by_key(parent, cKey)
+    if node == nil {
+        log.Printf("Key '%s' not found in tree", key)
+        return
+    }
+
+	C.set_node_type(node, C.em_network_node_data_type_array_str)
+	node.num_children = 0
+	C.set_node_array_value(node, C.CString(band))
 }
 
 /* func: applyResetConfig()

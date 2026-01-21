@@ -88,8 +88,8 @@ class em_configuration_t {
 	 * @param[in] msg_id The message ID of the original request being responded to.
 	 *
 	 * @returns int Status code indicating success or failure of the message creation.
-	 * @retval 0 on success.
-	 * @retval Non-zero error code on failure.
+	 * @retval value greater than zero indicating the message length
+	 * @retval zero if message creation fails.
 	 *
 	 * @note Ensure that the buffer is adequately sized to hold the generated message.
 	 */

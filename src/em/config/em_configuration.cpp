@@ -443,6 +443,10 @@ int em_configuration_t::create_operational_bss_tlv_topology(unsigned char *buff)
         bss = radio->bss;
         all_bss_len = 0;
         for (bss_index = 0; bss_index < dm->get_num_bss(); bss_index++) {
+            if(dm->m_bss[bss_index].m_bss_info.enabled == false) {
+                //Skip SSIDs that are disabled for operational bss list
+                continue;
+            }
             if (memcmp(dm->m_bss[bss_index].m_bss_info.ruid.mac, radio->ruid, sizeof(mac_address_t)) != 0) {
                 continue;
             }
@@ -1961,6 +1965,8 @@ unsigned short em_configuration_t::create_m2_msg(unsigned char *buff, em_haul_ty
     tmp = buff;
     em_freq_band_t rf_band;
     char *str;
+    int current_band;
+    bool isBandEnabled;
     em_network_ssid_info_t *net_ssid_info;
  
     if ((net_ssid_info = get_network_ssid_info_by_haul_type(haul_type)) == NULL) {
@@ -1968,8 +1974,33 @@ unsigned short em_configuration_t::create_m2_msg(unsigned char *buff, em_haul_ty
         return 0;
     }
 
-    // skipping the m2 msg if haultype if diabled
-    if(net_ssid_info->enable == false) {
+    // get the current band for m2 messgae create
+    current_band = get_band();
+    isBandEnabled = false;
+    for (int index = 0; index < EM_MAX_BANDS; index++) {
+        const char *band_val = net_ssid_info->band[index];
+        if (!band_val) continue;
+
+        if (current_band == EM_BAND_2_4_GHZ) {
+            if (strncmp(band_val, EM_BAND_2_4GHZ_STR, strlen(EM_BAND_2_4GHZ_STR)) == 0) {
+                isBandEnabled = true;
+                break;
+            }
+        } else if (current_band == EM_BAND_5_GHZ) {
+            if (strncmp(band_val, EM_BAND_5GHZ_STR, strlen(EM_BAND_5GHZ_STR)) == 0) {
+                isBandEnabled = true;
+                break;
+            }
+        } else if (current_band == EM_BAND_6_GHZ) {
+            if (strncmp(band_val, EM_BAND_6GHZ_STR, strlen(EM_BAND_6GHZ_STR)) == 0) {
+                isBandEnabled = true;
+                break;
+            }
+        }
+    }
+
+    // skipping the m2 msg if haultype if diabled or band is not selected
+    if(net_ssid_info->enable == false || isBandEnabled == false) {
         return 0;
     }
 
@@ -3228,6 +3259,7 @@ int em_configuration_t::create_autoconfig_wsc_m2_msg(unsigned char *buff, unsign
 {
     unsigned short  msg_type = em_msg_type_autoconf_wsc;
     int len = 0;
+    bool is_m2_present = false;
     unsigned int i, num_hauls = em_haul_type_max;
     em_cmdu_t *cmdu;
     em_tlv_t *tlv;
@@ -3241,7 +3273,7 @@ int em_configuration_t::create_autoconfig_wsc_m2_msg(unsigned char *buff, unsign
     // first compute keys
     if (compute_keys(get_e_public(), static_cast<short unsigned int> (get_e_public_len()), get_r_private(), static_cast<short unsigned int> (get_r_private_len())) != 1) {
         printf("%s:%d: Keys computation failed\n", __func__, __LINE__);
-        return -1;
+        return 0;
     }
 
     memcpy(tmp, const_cast<unsigned char *> (get_peer_mac()), sizeof(mac_address_t));
@@ -3292,9 +3324,17 @@ int em_configuration_t::create_autoconfig_wsc_m2_msg(unsigned char *buff, unsign
             em_printfout("skipping M2 for haul_type: %d as it's disable, Return value: %d", i, sz);
             continue;
         }
+        // is_m2_present will be true only if atleast one M2 is created.
+        is_m2_present = true;
         tlv->len = htons(sz);
         tmp += (sizeof(em_tlv_t) + sz);
         len += static_cast<int> (sizeof(em_tlv_t) + sz);
+    }
+
+    if(is_m2_present == false) {
+        // M2 not present for corresponding M1, hence returning.
+        em_printfout("Autoconfiguration skipped because no M2 is present. Return value: %d", sz);
+        return 0;
     }
 
     // default 8022.1q settings tlv 17.2.49
@@ -4992,7 +5032,7 @@ int em_configuration_t::handle_ap_radio_basic_cap(unsigned char *buff, unsigned 
 int em_configuration_t::handle_autoconfig_wsc_m1(unsigned char *buff, unsigned int len)
 {
     unsigned char msg[MAX_EM_BUFF_SZ*em_haul_type_max] = {0};
-    unsigned int sz;
+    unsigned int sz = 0;
     char *errors[EM_MAX_TLV_MEMBERS] = {0};
     mac_addr_str_t  mac_str;
     em_tlv_t    *tlv;
@@ -5026,7 +5066,11 @@ int em_configuration_t::handle_autoconfig_wsc_m1(unsigned char *buff, unsigned i
         tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
     }
 
-    sz = static_cast<unsigned int> (create_autoconfig_wsc_m2_msg(msg, ntohs(cmdu->id)));
+    int ret = create_autoconfig_wsc_m2_msg(msg, ntohs(cmdu->id));
+    if (ret <= 0) {
+        return -1;
+    }
+    sz = static_cast<unsigned int> (ret);
 
     if (em_msg_t(em_msg_type_autoconf_wsc, em_profile_type_3, msg, sz).validate(errors) == 0) {
         printf("Autoconfig wsc m2 msg failed validation in tnx end\n");
