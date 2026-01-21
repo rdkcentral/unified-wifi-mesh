@@ -2501,6 +2501,7 @@ em_sta_info_t *dm_easy_mesh_t::get_sta_info(mac_address_t sta_mac, bssid_t bssid
 
 void dm_easy_mesh_t::put_sta_info(em_sta_info_t *sta_info, em_target_sta_map_t target)
 {
+    em_printfout("   ====>>><<<===");
     hash_map_t *map;
     const char	*map_str;
     mac_addr_str_t radio_str, bss_str, sta_str;

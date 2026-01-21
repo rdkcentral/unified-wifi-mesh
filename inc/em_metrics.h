@@ -437,7 +437,8 @@ class em_metrics_t {
 	 * @note Ensure that the network connection is established before calling this function.
 	 */
 	int send_ap_metrics_response();
-	int send_vendor_msg();
+	
+	int send_link_stats_report();
     
 	/**!
 	 * @brief Creates a beacon metrics response TLV.

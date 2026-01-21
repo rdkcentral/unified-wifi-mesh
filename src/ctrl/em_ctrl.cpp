@@ -1077,7 +1077,7 @@ void em_ctrl_t::start_complete()
     //Todo: Revisit placement of data elements registration done for orch
     bus_data_element_t dataElements[] = {
         { DEVICE_WIFI_DATAELEMENTS_NETWORK_TOPOLOGY, bus_element_type_method,
-            { NULL, NULL , NULL, NULL, NULL, NULL }, slow_speed, ZERO_TABLE,
+            { tr_181_t::get_network_topology, NULL , NULL, NULL, NULL, NULL }, slow_speed, ZERO_TABLE,
             { bus_data_type_string, false, 0, 0, 0, NULL } },
         { DEVICE_WIFI_DATAELEMENTS_NETWORK_NODE_SYNC, bus_element_type_method,
             { tr_181_t::get_node_sync,  tr_181_t::set_node_sync , NULL, NULL, NULL, NULL }, slow_speed, ZERO_TABLE,

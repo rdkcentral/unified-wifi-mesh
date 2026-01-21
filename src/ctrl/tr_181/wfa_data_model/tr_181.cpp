@@ -754,6 +754,34 @@ bus_error_t tr_181_t::affap_tget(char *event_name, raw_data_t *p_data, bus_user_
     return bus_error_general;
 }
 
+bus_error_t tr_181_t::get_network_topology(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
+{
+    p_data->data_type       = bus_data_type_string;
+    p_data->raw_data.bytes  = malloc(sizeof(mac_addr_str_t));
+    if (p_data->raw_data.bytes == NULL) {
+        em_printfout("Memory allocation is failed");
+        return bus_error_out_of_resources;
+    }
+
+    cJSON *parent = NULL;
+    char *str = NULL;
+    dm_easy_mesh_ctrl_t *dm_ctrl = NULL;
+
+    parent = cJSON_CreateObject();
+    
+    dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
+    dm_ctrl->get_network_config(parent, const_cast<char*>(GLOBAL_NET_ID));
+
+    str = cJSON_Print(parent);
+    em_printfout(" get_network_topology: node mac len: %d", sizeof(mac_addr_str_t));
+
+	//p_data.data_type    = bus_data_type_string;
+    p_data->raw_data.bytes = reinterpret_cast<unsigned char *> (str);
+    p_data->raw_data_len = static_cast<unsigned int> (strlen(str));
+
+    return bus_error_success;
+}
+
 bus_error_t tr_181_t::get_node_sync(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
 {
     p_data->data_type       = bus_data_type_string;

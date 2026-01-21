@@ -259,14 +259,14 @@ bool em_orch_t::orchestrate(em_cmd_t *pcmd, em_t *em)
     if (orch_state == em_orch_state_pending) {
         if (is_em_ready_for_orch_exec(pcmd, em) == true) {
             // ask em to execute the command
-            //printf("%s:%d: Start orchestartion:%s(%s), em state:%s\n", __func__, __LINE__, 
-					//em_cmd_t::get_orch_op_str(pcmd->get_orch_op()), em_cmd_t::get_cmd_type_str(pcmd->m_type), 
-					//em_t::state_2_str(em->get_state()));
+            printf("%s:%d: Start orchestartion:%s(%s), em state:%s\n", __func__, __LINE__, 
+					em_cmd_t::get_orch_op_str(pcmd->get_orch_op()), em_cmd_t::get_cmd_type_str(pcmd->m_type), 
+					em_t::state_2_str(em->get_state()));
             em->orch_execute(pcmd);
         } else {
-            //printf("%s:%d: skipping orchestration:%s(%s) because of incorrect state, state:%s\n", __func__, __LINE__, 
-					//em_cmd_t::get_orch_op_str(pcmd->get_orch_op()), em_cmd_t::get_cmd_type_str(pcmd->m_type), 
-					//em_t::state_2_str(em->get_state()));
+            printf("%s:%d: skipping orchestration:%s(%s) because of incorrect state, state:%s\n", __func__, __LINE__, 
+					em_cmd_t::get_orch_op_str(pcmd->get_orch_op()), em_cmd_t::get_cmd_type_str(pcmd->m_type), 
+					em_t::state_2_str(em->get_state()));
             update_stats(pcmd);
             orch_transient(pcmd, em);
         }

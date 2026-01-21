@@ -380,20 +380,25 @@ int em_metrics_t::handle_link_stats_alarm_rprt_tlv(unsigned char *buff, short le
 
     dm = get_data_model();
 
-    
     em_vendor_specific_t *vendor_data = reinterpret_cast<em_vendor_specific_t *> (tmp);
     em_printfout("  ===>> vendor oui [%x, %x, %x]", vendor_data->vendor_oui[0], vendor_data->vendor_oui[1], vendor_data->vendor_oui[2]);
-    //link_report = reinterpret_cast<em_link_stats_alarm_rprt_t *> (vendor_data->m);
-    memcpy(reinterpret_cast<char *> (vendor_data->vendor_oui), em_vendor_oui, EM_VENDOR_OUI_SIZE);
-    vendor_data->m_num = 1;
-    em_printfout("vendor_data->m_num [%d]", vendor_data->m_num);
+    em_printfout("vendor_data->id [%d]", vendor_data->id);
 
-    tmp += sizeof(vendor_data->m_num) + EM_VENDOR_OUI_SIZE;
+    tmp += sizeof(vendor_data->id) + EM_VENDOR_OUI_SIZE;
+    len -= static_cast<unsigned short>( sizeof(vendor_data->id) + EM_VENDOR_OUI_SIZE );
 
     while (link_report != NULL && len > 0) {
         em_printfout("  length : %d\n", len);
         link_report = reinterpret_cast<em_link_report_t *> (tmp);
 
+        int alarm_offset = offsetof(em_link_stats_alarm_rprt_t, alarm_sample);
+        
+        if (len < alarm_offset) {
+            em_printfout("Invalid alarm report length");
+            break;
+        }
+        em_printfout("  length : %d", len);
+        
         dm_easy_mesh_t::macbytes_to_string(link_report->sta_mac, sta_str);
         sta = dm->get_first_sta(link_report->sta_mac);
         while (sta != NULL) {
@@ -405,11 +410,12 @@ int em_metrics_t::handle_link_stats_alarm_rprt_tlv(unsigned char *buff, short le
 
         if(sta == NULL)
         {
-            em_printfout("sta[%s] not found\n", sta_str);
+            em_printfout("sta[%s] not found", sta_str);
+            //todo: handle this case, shouldnot return, should goto next after incrementing
             return -1;
         }
 
-        em_printfout("sta mac : %s\n", sta_str);
+        em_printfout("sta mac : %s", sta_str);
         memcpy(sta->m_sta_info.link_stats_report.reporting_timestamp, link_report->reporting_timestamp, 31);
         sta->m_sta_info.link_stats_report.reporting_timestamp[31] = '\0';
         sta->m_sta_info.link_stats_report.link_quality_threshold = link_report->link_quality_threshold;
@@ -422,18 +428,18 @@ int em_metrics_t::handle_link_stats_alarm_rprt_tlv(unsigned char *buff, short le
 
         sta->m_sta_info.link_stats_report.sample_count = link_report->sample_count;
         em_printfout("    Number of Samples: %d", sta->m_sta_info.link_stats_report.sample_count);
-        for (int i = 0; i < link_report->sample_count; i++) {
-            alarm_samples = &link_report->alarm_sample[i];
-            memcpy(&sta->m_sta_info.link_stats_report.alarm_sample[i], alarm_samples, sizeof(em_alarm_samples_t));
 
-            em_printfout("        Sample %d:", i + 1);
-            em_printfout("            reporting_time: %u", alarm_samples->reporting_time);
-            em_printfout("            Link Quality score: %.2f", alarm_samples->link_quality_score);
-            em_printfout("            SNR: %u dB", alarm_samples->snr);
-            em_printfout("            PER Rate: %u ", alarm_samples->per);
-            em_printfout("            PHY Rate: %u ", alarm_samples->phy);
+        for (int i = 0; i < link_report->sample_count; i++) {
+            memcpy(&sta->m_sta_info.link_stats_report.alarm_sample[i],
+                &link_report->alarm_sample[i],
+                sizeof(em_alarm_samples_t));
+        
+            em_printfout("            reporting_time: %s", sta->m_sta_info.link_stats_report.alarm_sample[i].reporting_time);
+            em_printfout("            Link Quality score: %.2f", sta->m_sta_info.link_stats_report.alarm_sample[i].link_quality_score);
+            em_printfout("            SNR: %f dB", sta->m_sta_info.link_stats_report.alarm_sample[i].snr);
+            em_printfout("            PER Rate: %f ", sta->m_sta_info.link_stats_report.alarm_sample[i].per);
+            em_printfout("            PHY Rate: %f ", sta->m_sta_info.link_stats_report.alarm_sample[i].phy);
         }
-        sample_sz += sizeof(em_alarm_samples_t) * 3;//todo: remove hard-coded during integ
 
         tmp += sizeof(em_link_report_t);
         len -= static_cast<unsigned short> (sizeof(em_link_report_t));
@@ -545,17 +551,6 @@ int em_metrics_t::handle_ap_metrics_response(unsigned char *buff, unsigned int l
     while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
         if (tlv->type == em_tlv_type_vendor_sta_metrics) {
             handle_assoc_sta_vendor_link_metrics_tlv(tlv->value, ntohs(tlv->len));
-        }
-        tmp_len -= (sizeof(em_tlv_t) + static_cast<size_t> (htons(tlv->len)));
-        tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
-    }
-
-    tlv = tlv_start;
-    tmp_len = base_len;
-
-    while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
-        if (tlv->type == em_tlv_type_link_stats_alarm_rprt) {
-            //handle_link_stats_alarm_rprt_tlv(tlv->value, ntohs(tlv->len));
         }
         tmp_len -= (sizeof(em_tlv_t) + static_cast<size_t> (htons(tlv->len)));
         tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
@@ -961,7 +956,8 @@ int em_metrics_t::send_beacon_metrics_response()
 
     return static_cast<int> (len);
 }
-int em_metrics_t::send_vendor_msg()
+
+int em_metrics_t::send_link_stats_report()
 {
     unsigned char buff[MAX_EM_BUFF_SZ] = {0};
     char *errors[EM_MAX_TLV_MEMBERS] = {0};
@@ -999,12 +995,11 @@ int em_metrics_t::send_vendor_msg()
     tmp += sizeof(em_cmdu_t);
     len += sizeof(em_cmdu_t);
 
-
-
     //Add Link Stats alarm tlv
     tlv = reinterpret_cast<em_tlv_t *> (tmp);
     tlv->type = em_tlv_type_vendor_specific;
 
+    //todo: add type id for future usage
     sz = create_link_stats_alarm_tlv(tlv->value);
     tlv->len = htons(static_cast<unsigned short> (sz));
     tmp += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
@@ -1019,21 +1014,22 @@ int em_metrics_t::send_vendor_msg()
     len += (sizeof(em_tlv_t));
 
     if (em_msg_t(em_msg_type_topo_vendor, em_profile_type_2, buff, static_cast<unsigned int> (len)).validate(errors) == 0) {
-        em_printfout("Vendor msg validation failed for %s", mac_str);
+        em_printfout("Link Stats msg validation failed for %s", mac_str);
         //return -1;
     }
 
     if (send_frame(buff, static_cast<unsigned int> (len))  < 0) {
-        em_printfout("Vendor msg Response send failed, error:%d", errno);
+        em_printfout("Link Stats msg send failed, error:%d", errno);
         return -1;
     }
 
-    em_printfout("Vendor msg send success");
+    em_printfout("Link Stats msg send success");
 
-  //  set_state(em_state_agent_configured);
+    set_state(em_state_agent_configured);
 
     return static_cast<int> (len);
 }
+
 int em_metrics_t::send_ap_metrics_response()
 {
     unsigned char buff[MAX_EM_BUFF_SZ] = {0};
@@ -1162,12 +1158,12 @@ int em_metrics_t::send_ap_metrics_response()
     }
 
     //Add Link Stats alarm tlv
-    tlv = reinterpret_cast<em_tlv_t *> (tmp);
-    tlv->type = em_tlv_type_link_stats_alarm_rprt;
-    sz = create_link_stats_alarm_tlv(tlv->value);
-    tlv->len = htons(static_cast<unsigned short> (sz));
-    tmp += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
-    len += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+    // tlv = reinterpret_cast<em_tlv_t *> (tmp);
+    // tlv->type = em_tlv_type_link_stats_alarm_rprt;
+    // sz = create_link_stats_alarm_tlv(tlv->value);
+    // tlv->len = htons(static_cast<unsigned short> (sz));
+    // tmp += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+    // len += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
 
     // End of message
     tlv = reinterpret_cast<em_tlv_t *> (tmp);
@@ -1584,33 +1580,30 @@ short em_metrics_t::create_link_stats_alarm_tlv(unsigned char *buff)
     char date_time[EM_DATE_TIME_BUFF_SZ];
     unsigned char *tmp = buff;
     dm_sta_t *sta;
-    dm_easy_mesh_t  *dm = get_data_model();
+    dm_easy_mesh_t  *dm = get_current_cmd()->get_data_model();
+    int alarm_offset = offsetof(em_link_stats_alarm_rprt_t, alarm_sample);
+    int temp_len = 0;
 
     em_vendor_specific_t *vendor_data = reinterpret_cast<em_vendor_specific_t *> (buff);
     memcpy(reinterpret_cast<char *> (vendor_data->vendor_oui), em_vendor_oui, EM_VENDOR_OUI_SIZE);
 
     em_printfout("vendor oui [%x, %x, %x]", vendor_data->vendor_oui[0], vendor_data->vendor_oui[1], vendor_data->vendor_oui[2]);
-    vendor_data->m_num = 1;
-    
-    tmp += sizeof(vendor_data->m_num) + EM_VENDOR_OUI_SIZE;
-    vendor_data->m = tmp;
-    
-    // vendor_data->m = reinterpret_cast<unsigned char  *> (link_stats);
-    link_stats = reinterpret_cast<em_link_stats_alarm_rprt_t *> (vendor_data->m);
-    
+    vendor_data->id = vendor_ext_attr_id_link_report;
 
+    tmp += sizeof(vendor_data->id) + EM_VENDOR_OUI_SIZE;
+    len += sizeof(vendor_data->id) + EM_VENDOR_OUI_SIZE;
 
-
-    //add logic to increment above mac value by 1
     sta = static_cast<dm_sta_t *> (hash_map_get_first(dm->m_sta_map));
     while (sta != NULL) {
+        link_stats = reinterpret_cast<em_link_stats_alarm_rprt_t *>(tmp);
         memcpy(link_stats->sta_mac, sta->m_sta_info.id, sizeof(mac_address_t));
         util::get_date_time_rfc3399(date_time, sizeof(date_time));
         strncpy(reinterpret_cast<char*>(link_stats->reporting_timestamp), date_time, 32);
 
-        link_stats->link_quality_threshold = 0.1;
-        link_stats->alarm_triggered = 1;
-        link_stats->sample_count = 2;
+        link_stats->link_quality_threshold = sta->m_sta_info.link_stats_report.link_quality_threshold;
+        link_stats->alarm_triggered = sta->m_sta_info.link_stats_report.alarm_triggered;
+        link_stats->sample_count = sta->m_sta_info.link_stats_report.sample_count;
+        
 
         em_printfout("   sta mac : %s", util::mac_to_string(link_stats->sta_mac).c_str());
        // em_printfout("   bss mac : %s", util::mac_to_string(link_stats->sta_mac).c_str());
@@ -1619,22 +1612,19 @@ short em_metrics_t::create_link_stats_alarm_tlv(unsigned char *buff)
         em_printfout("   alarm_triggered : %d", link_stats->alarm_triggered);
         em_printfout("create_link_stats_alarm_tlv: sample_count=%d", link_stats->sample_count);
 
-        size_t sample_sz = 0;
-        float score_inc = 0.1;
         for (int j = 0; j < link_stats->sample_count; j++) {
-            link_stats->alarm_sample[j].link_quality_score = 0.33 + score_inc;
-            strncpy(link_stats->alarm_sample[j].reporting_time, date_time, 32);
-            link_stats->alarm_sample[j].snr = 80 + j;
-            link_stats->alarm_sample[j].per = 70 + j;
-            link_stats->alarm_sample[j].phy = 100 + j;
+            link_stats->alarm_sample[j].link_quality_score = sta->m_sta_info.link_stats_report.alarm_sample[j].link_quality_score;
+            strncpy((char*)link_stats->alarm_sample[j].reporting_time, (const char*)sta->m_sta_info.link_stats_report.alarm_sample[j].reporting_time, 32);
+            link_stats->alarm_sample[j].snr = sta->m_sta_info.link_stats_report.alarm_sample[j].snr;
+            link_stats->alarm_sample[j].per = sta->m_sta_info.link_stats_report.alarm_sample[j].per;
+            link_stats->alarm_sample[j].phy = sta->m_sta_info.link_stats_report.alarm_sample[j].phy;
 
             em_printfout("   Sample %d:", j + 1);
             em_printfout("       link_quality_score : %.2f", link_stats->alarm_sample[j].link_quality_score);
             em_printfout("       reporting_time : %s", link_stats->alarm_sample[j].reporting_time);
-            em_printfout("       snr : %d", link_stats->alarm_sample[j].snr);
-            em_printfout("       per : %d", link_stats->alarm_sample[j].per);
-            em_printfout("       phy : %d", link_stats->alarm_sample[j].phy);
-            sample_sz += sizeof(em_alarm_samples_t);
+            em_printfout("       snr : %f", link_stats->alarm_sample[j].snr);
+            em_printfout("       per : %f", link_stats->alarm_sample[j].per);
+            em_printfout("       phy : %f", link_stats->alarm_sample[j].phy);
         }
 
         len = static_cast<size_t> (sizeof(em_link_report_t) + sample_sz);
@@ -1731,7 +1721,10 @@ void em_metrics_t::process_agent_state()
 
         case em_state_agent_ap_metrics_pending:
             send_ap_metrics_response();
-            send_vendor_msg();
+            break;
+
+        case em_state_agent_link_stats_report_pending:
+            send_link_stats_report();
             break;
 
         default:

@@ -32,6 +32,7 @@
 #include <sys/uio.h>
 #include <unistd.h>
 #include <pthread.h>
+#include <cjson/cJSON.h>
 #include "em_agent.h"
 #include "em_msg.h"
 #include "ieee80211.h"
@@ -39,7 +40,6 @@
 #include "em_orch_agent.h"
 #include "ec_util.h"
 #include "util.h"
-#include <cjson/cJSON.h>
 
 #include <string>
 #include <vector>
@@ -779,6 +779,20 @@ void em_agent_t::handle_ap_metrics_report(em_bus_event_t *evt)
     }
 }
 
+void em_agent_t::handle_link_stats_report(em_bus_event_t *evt)
+{
+    em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
+    unsigned int num;
+
+    if (m_orch->is_cmd_type_in_progress(evt) == true) {
+        em_printfout("analyze_link_stats_report in progress");
+    } else if ((num = m_data_model.analyze_link_stats_report(evt, pcmd)) == 0) {
+        em_printfout("analyze_link_stats_report failed");
+    } else if (m_orch->submit_commands(pcmd, num) > 0) {
+        em_printfout("Submitted Link Stats report cmd for orch");
+    }
+}
+
 void em_agent_t::handle_bus_event(em_bus_event_t *evt)
 {   
     
@@ -876,6 +890,10 @@ void em_agent_t::handle_bus_event(em_bus_event_t *evt)
 
         case em_bus_event_type_bss_info:
             handle_bss_info(evt);
+            break;
+
+        case em_bus_event_type_link_stats_alarm_report:
+            handle_link_stats_report(evt);
             break;
 
         default:
@@ -1145,6 +1163,11 @@ void em_agent_t::input_listener()
         return;
     }
 
+    if (desc->bus_event_subs_fn(&m_bus_hdl,  WIFI_QUALITY_LINKREPORT, (void *)&em_agent_t::ap_metrics_report_cb, NULL, 0) != 0) {
+        printf("%s:%d bus get failed\n", __func__, __LINE__);
+        return;
+    }
+
    if(desc->bus_event_subs_fn(&m_bus_hdl, "Device.WiFi.CSABeaconFrameRecieved", (void *)&em_agent_t::mgmt_csa_beacon_frame_cb, NULL, 0) != 0) {
         printf("%s:%d bus get failed\n",__func__,__LINE__);
         return;
@@ -1196,10 +1219,41 @@ int em_agent_t::channel_scan_cb(char *event_name, raw_data_t *data, void *userDa
 
 int em_agent_t::ap_metrics_report_cb(char *event_name, raw_data_t *data, void *userData)
 {
-    //printf("%s:%d Received Frame data for event [%s] and data :\n%s\n", __func__, __LINE__, event_name, data->raw_data.bytes);
+    //em_printfout("Received Frame data for event [%s] and data :\n%s", event_name, data->raw_data.bytes);
     (void)userData;
 
-    g_agent.io_process(em_bus_event_type_ap_metrics_report, (unsigned char *)data->raw_data.bytes, data->raw_data_len);
+    if (strncmp(event_name, "Device.WiFi.EM.APMetricsReport", sizeof("Device.WiFi.EM.APMetricsReport"))==0) {
+        g_agent.io_process(em_bus_event_type_ap_metrics_report, (unsigned char *)data->raw_data.bytes, data->raw_data_len);
+    } else if (strncmp(event_name, WIFI_QUALITY_LINKREPORT, sizeof(WIFI_QUALITY_LINKREPORT))==0) {
+        em_printfout("Received Frame data for event [%s] and data :\n%s", event_name, data->raw_data.bytes);
+       cJSON *json = cJSON_Parse((const char *)data->raw_data.bytes);
+        if (json != NULL) {
+            cJSON *assoc_stats_arr;
+            cJSON *subdoc_name = cJSON_GetObjectItemCaseSensitive(json, "SubDocName");
+            if ((strcmp(subdoc_name->valuestring, "LinkReport") == 0)) {
+                printf("%s:%d Found SubDocName: LinkReport\n", __func__, __LINE__);
+                assoc_stats_arr = cJSON_GetObjectItem(json, "LinkReport");
+                if ((assoc_stats_arr == NULL) && (cJSON_IsObject(assoc_stats_arr) == false)) {
+                    return 0;
+                }
+                if (cJSON_IsArray(assoc_stats_arr) && cJSON_GetArraySize(assoc_stats_arr) == 0) {
+                    printf("%s:%d LinkReport is NULL\n", __func__, __LINE__);
+                    return -1;
+                }
+            }
+        }
+        g_agent.io_process(em_bus_event_type_link_stats_alarm_report, (unsigned char *)data->raw_data.bytes, data->raw_data_len);
+    }
+    
+    return 0;
+}
+
+int em_agent_t::link_stats_report_cb(char *event_name, raw_data_t *data, void *userData)
+{
+    em_printfout("Received Frame data for event [%s] and data :\n%s\n", event_name, data->raw_data.bytes);
+    (void)userData;
+
+   // g_agent.io_process(em_bus_event_type_ap_metrics_report, (unsigned char *)data->raw_data.bytes, data->raw_data_len);
 
     return 0;
 }

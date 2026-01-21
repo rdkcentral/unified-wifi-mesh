@@ -2020,6 +2020,7 @@ typedef enum {
     em_state_agent_steer_btm_res_pending,
     em_state_agent_beacon_report_pending,
     em_state_agent_ap_metrics_pending,
+    em_state_agent_link_stats_report_pending,
 
     em_state_ctrl_unconfigured = 0x100,
     em_state_ctrl_wsc_m1_pending,
@@ -2866,7 +2867,8 @@ typedef enum {
     dm_orch_type_policy_cfg,
     dm_orch_type_mld_reconfig,
     dm_orch_type_beacon_report,
-    dm_orch_type_bsta_cap_query
+    dm_orch_type_bsta_cap_query,
+    dm_orch_type_link_stats_report
 } dm_orch_type_t;
 
 typedef struct {
