@@ -83,8 +83,8 @@ public:
     bool    m_colocated;
     unsigned int    m_num_ap_mld;
     dm_ap_mld_t     m_ap_mld[EM_MAX_AP_MLD];
-    unsigned int    m_num_bsta_mld;
-    dm_bsta_mld_t   m_bsta_mld[EM_MAX_BSTA_MLD];
+    bool    m_bsta_mld_present;
+    dm_bsta_mld_t   m_bsta_mld;
     unsigned int    m_num_assoc_sta_mld;
     dm_assoc_sta_mld_t m_assoc_sta_mld[EM_MAX_ASSOC_STA_MLD];
     dm_tid_to_link_t m_tid_to_link;
@@ -1579,28 +1579,47 @@ public:
 	 */
 	dm_ap_mld_t& get_ap_mld_by_ref(unsigned int index) { return m_ap_mld[index]; }
 
-    
 	/**!
-	 * @brief Retrieves the number of BSTA MLD.
+	 * @brief Checks if BSTA MLD is present.
 	 *
-	 * This function returns the current number of BSTA MLD.
+	 * This function returns a boolean indicating whether the BSTA MLD is currently present.
 	 *
-	 * @returns The number of BSTA MLD.
+	 * @returns True if BSTA MLD is present, false otherwise.
 	 */
-	unsigned int get_num_bsta_mld() { return m_num_bsta_mld; }
-    
+	bool is_bsta_mld_present() { return m_bsta_mld_present; }
+
 	/**!
-	 * @brief Retrieves the number of BSTA MLD.
+	 * @brief Checks if BSTA MLD is present.
 	 *
-	 * This function returns the number of BSTA MLD from the given dm_easy_mesh_t object.
+	 * This function returns a boolean indicating whether the BSTA MLD is present
+	 * from the given dm_easy_mesh_t object.
 	 *
 	 * @param[in] dm Pointer to the dm_easy_mesh_t object.
 	 *
-	 * @returns The number of BSTA MLD.
+	 * @returns True if BSTA MLD is present, false otherwise.
 	 */
-	static unsigned int get_num_bsta_mld(void *dm) { return (static_cast<dm_easy_mesh_t *>(dm))->get_num_bsta_mld(); }
+	static bool is_bsta_mld_present(void *dm) { return (static_cast<dm_easy_mesh_t *>(dm))->is_bsta_mld_present(); }
 
-    
+	/**!
+	 * @brief Retrieves the BSTA MLD information.
+	 *
+	 * This function returns a reference to the BSTA MLD information structure.
+	 *
+	 * @returns Reference to em_bsta_mld_info_t.
+	 */
+	em_bsta_mld_info_t& get_bsta_mld_info() { return m_bsta_mld.m_bsta_mld_info; }
+
+	/**!
+	 * @brief Retrieves the BSTA MLD information.
+	 *
+	 * This function returns the BSTA MLD information from the given dm_easy_mesh_t object.
+	 *
+	 * @param[in] dm Pointer to the dm_easy_mesh_t object.
+	 *
+	 * @returns Reference to em_bsta_mld_info_t.
+	 */
+	static em_bsta_mld_info_t& get_bsta_mld_info(void *dm) { return static_cast<dm_easy_mesh_t *>(dm)->get_bsta_mld_info(); }
+
 	/**!
 	 * @brief Retrieves the number of associated station MLDs.
 	 *

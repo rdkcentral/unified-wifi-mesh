@@ -181,7 +181,6 @@ extern "C"
 #define EM_MAX_HAUL_TYPES   8
 #define EM_MAX_OPCLASS  64
 #define EM_MAX_AP_MLD   64
-#define EM_MAX_BSTA_MLD   64
 #define EM_MAX_ASSOC_STA_MLD   64
 #define EM_MAX_PRE_SET_CHANNELS   6
 
@@ -2474,7 +2473,7 @@ typedef struct {
     bool  is_bsta_config;
     mac_address_t  mld_mac_addr;
     bool  tid_to_link_map_neg;
-    unsigned char  num_mapping;
+    unsigned short  num_mapping;
     em_tid_to_link_map_info_t  tid_to_link_mapping[EM_MAX_AP_MLD];
 } em_tid_to_link_info_t;
 
@@ -2623,11 +2622,6 @@ typedef struct {
 } __attribute__((__packed__)) em_bsta_mld_t;
 
 typedef struct {
-    unsigned char num_bsta_mld;
-    em_bsta_mld_t bsta_mld[0];
-} __attribute__((__packed__)) em_bsta_mld_config_t;
-
-typedef struct {
     bssid_t bssid;
     mac_addr_t affiliated_sta_mac_addr;
     unsigned char reserved1[19];
@@ -2645,11 +2639,6 @@ typedef struct {
     unsigned char num_affiliated_sta;
     em_affiliated_sta_mld_t affiliated_sta_mld[0];
 } __attribute__((__packed__)) em_assoc_sta_mld_t;
-
-typedef struct {
-    unsigned char num_assoc_sta_mld;
-    em_assoc_sta_mld_t assoc_sta_mld[0];
-} __attribute__((__packed__)) em_assoc_sta_mld_config_report_t;
 
 typedef struct {
     unsigned char reserved4 : 7;
@@ -2674,7 +2663,7 @@ typedef struct {
     unsigned char reserved2 : 7;
     unsigned char tid_to_link_map_negotiation : 1;
     unsigned char reserved3[22];
-    unsigned char num_mapping;
+    unsigned short num_mapping;
     em_tid_to_link_mapping_t tid_to_link_mapping[0];
 } __attribute__((__packed__)) em_tid_to_link_map_policy_t;
 
