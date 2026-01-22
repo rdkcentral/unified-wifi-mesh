@@ -78,6 +78,21 @@ static inline unsigned char get_bss_type_for_haul(em_haul_type_t haul_type)
     return (haul_type == em_haul_type_backhaul) ? EM_MULTI_AP_EXT_BSS_BACKHAUL : EM_MULTI_AP_EXT_BSS_FRONTHAUL;
 }
 
+/* Translate WPS RF Band to 1905 AutoFreq Band */
+static int translate_from_rfband_to_band(uint8_t rfband)
+{
+    switch (rfband) {
+	case EM_RF_24GHZ:
+	    return em_freq_band_24;
+	case EM_RF_50GHZ:
+	    return em_freq_band_5;
+	case EM_RF_6GHZ:
+	    return em_freq_band_6;
+	default:
+	    return em_freq_band_6;
+    }
+}
+
 unsigned short em_configuration_t::create_client_assoc_event_tlv(unsigned char *buff, mac_address_t sta, bssid_t bssid, bool assoc)
 {
     unsigned short len = 0;
@@ -1985,17 +2000,17 @@ unsigned short em_configuration_t::create_m2_msg(unsigned char *buff, em_haul_ty
         const char *band_val = net_ssid_info->band[index];
         if (!band_val) continue;
 
-        if (current_band == EM_BAND_2_4_GHZ) {
+        if (current_band == em_freq_band_24) {
             if (strncmp(band_val, EM_BAND_2_4GHZ_STR, strlen(EM_BAND_2_4GHZ_STR)) == 0) {
                 isBandEnabled = true;
                 break;
             }
-        } else if (current_band == EM_BAND_5_GHZ) {
+        } else if (current_band == em_freq_band_5) {
             if (strncmp(band_val, EM_BAND_5GHZ_STR, strlen(EM_BAND_5GHZ_STR)) == 0) {
                 isBandEnabled = true;
                 break;
             }
-        } else if (current_band == EM_BAND_6_GHZ) {
+        } else if (current_band == em_freq_band_6) {
             if (strncmp(band_val, EM_BAND_6GHZ_STR, strlen(EM_BAND_6GHZ_STR)) == 0) {
                 isBandEnabled = true;
                 break;
@@ -3814,7 +3829,7 @@ int em_configuration_t::handle_wsc_m1(unsigned char *buff, unsigned int len)
         } else if (id == attr_id_primary_device_type) {
         } else if (id == attr_id_device_name) {
         } else if (id == attr_id_rf_bands) {
-			band = static_cast<em_freq_band_t> (attr->val[0] >> 1);
+			band = static_cast<em_freq_band_t> (translate_from_rfband_to_band(attr->val[0]));
 			printf("%s:%d Freq band = %d \n", __func__, __LINE__,band);
 			set_band(band);
 			radio->get_radio_info()->band = band;
@@ -4763,7 +4778,7 @@ int em_configuration_t::create_encrypted_settings(unsigned char *buff, em_haul_t
 
     auth_type = get_Auth_type_hex(net_ssid_info->auth_type);
 
-    if((get_band() == EM_BAND_6_GHZ) && ((auth_type == EM_AUTH_WPA2) ||
+    if((get_band() == em_freq_band_6) && ((auth_type == EM_AUTH_WPA2) ||
                                          (auth_type == EM_AUTH_OPEN) ||
                                          (auth_type == EM_AUTH_WPA3_TRANSITION))) {
         // WPA2 Personal and open and WPA3 personal transition authentication type does not

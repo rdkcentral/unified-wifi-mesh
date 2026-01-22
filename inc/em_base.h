@@ -145,9 +145,6 @@ extern "C"
 #define EM_MULTI_AP_EXT_R2_BSTA_DISALLOW    0x04
 
 /*  Bands */
-#define EM_BAND_2_4_GHZ  0
-#define EM_BAND_5_GHZ    1
-#define EM_BAND_6_GHZ    2
 #define EM_BAND_2_4GHZ_STR   "2.4"
 #define EM_BAND_5GHZ_STR     "5"
 #define EM_BAND_6GHZ_STR     "6"
@@ -376,6 +373,7 @@ typedef enum {
     em_freq_band_24,    //IEEE-1905-1-2013 table 6-23
     em_freq_band_5,
     em_freq_band_60,
+    em_freq_band_6,     // Extended for 6GHz Band
     em_freq_band_unknown
 } em_freq_band_t;
 
