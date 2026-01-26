@@ -234,7 +234,9 @@ onewifi_em_ctrl_test_SOURCES = $(onewifi_em_ctrl_SOURCES) \
 	$(top_srcdir)/tests/test_l1_dm_neighbor.cpp \
 	$(top_srcdir)/tests/test_l1_ec_1905_encrypt_layer.cpp \
 	$(top_srcdir)/tests/test_l1_ec_enrollee.cpp \
-	$(top_srcdir)/tests/test_l1_ec_util.cpp
+	$(top_srcdir)/tests/test_l1_ec_util.cpp \
+	$(top_srcdir)/tests/test_l1_em_ctrl.cpp \
+	$(top_srcdir)/tests/test_l1_dm_easy_mesh.cpp
 onewifi_em_ctrl_test_CPPFLAGS = $(onewifi_em_ctrl_CPPFLAGS) \
                                 -I$(PKG_CONFIG_SYSROOT_DIR)$(includedir)/gtest \
                                 -DTESTING
