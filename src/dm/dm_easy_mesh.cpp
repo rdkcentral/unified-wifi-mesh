@@ -72,6 +72,10 @@ dm_easy_mesh_t& dm_easy_mesh_t::operator = (dm_easy_mesh_t const& obj)
         m_radio[i] = obj.m_radio[i];
     }
 
+    for(unsigned int i = 0; i < EM_MAX_BANDS; i++) {
+        m_radio_cap[i] = obj.m_radio_cap[i];
+    }
+
     this->m_num_bss = obj.m_num_bss;
     for (unsigned int i = 0; i < EM_MAX_BSSS; i++) {
         m_bss[i] = obj.m_bss[i];
@@ -120,6 +124,7 @@ int dm_easy_mesh_t::commit_config(dm_easy_mesh_t& dm, em_commit_target_t target)
 {
     unsigned int i, j = 0, found = 0;
     dm_radio_t *radio;
+    dm_radio_cap_t *radio_cap;
     mac_address_t mac;
     mac_addr_str_t mac_str;
 
@@ -140,6 +145,10 @@ int dm_easy_mesh_t::commit_config(dm_easy_mesh_t& dm, em_commit_target_t target)
             }
             if (i == m_num_radios) { //New Radio
                 m_radio[m_num_radios] = *(radio);
+
+		radio_cap = dm.get_radio_cap(m_num_radios);
+		m_radio_cap[m_num_radios] = *(radio_cap);
+
                 m_num_radios = m_num_radios + 1;
                 printf("%s:%d New Radio %s configuration created no of radios=%d\n", __func__, __LINE__,target.params,m_num_radios);
             }
@@ -1984,6 +1993,11 @@ dm_radio_cap_t *dm_easy_mesh_t::get_radio_cap(mac_address_t mac)
         }
     }
     return NULL;
+}
+
+dm_radio_cap_t *dm_easy_mesh_t::get_radio_cap(int index)
+{
+    return &m_radio_cap[index];
 }
 
 dm_radio_t *dm_easy_mesh_t::find_matching_radio(dm_radio_t *radio)
