@@ -21,7 +21,10 @@ AM_CFLAGS += -D_ANSC_LITTLE_ENDIAN_
  
 ACLOCAL_AMFLAGS = -I m4
 hardware_platform = i686-linux-gnu
-bin_PROGRAMS = onewifi_em_ctrl onewifi_em_ctrl_test
+bin_PROGRAMS = onewifi_em_ctrl
+if EM_UNITTEST
+bin_PROGRAMS += onewifi_em_ctrl_test
+endif
  
 onewifi_em_ctrl_CPPFLAGS = \
     -I$(top_srcdir)/inc \
@@ -150,6 +153,7 @@ onewifi_em_ctrl_SOURCES =  \
  
 onewifi_em_ctrl_LDFLAGS = -lm -lpthread -ldl -luuid -lcjson -lssl -lcrypto -lrbus -fsanitize=address -fsanitize=undefined -lmariadb
 onewifi_em_ctrl_LDADD = $(top_builddir)/src/al-sap/libalsap.la
+if EM_UNITTEST
 onewifi_em_ctrl_test_SOURCES = $(onewifi_em_ctrl_SOURCES) \
 	$(top_srcdir)/tests/main.cpp \
 	$(top_srcdir)/tests/test_l1_utils.cpp \
@@ -237,3 +241,4 @@ onewifi_em_ctrl_test_CPPFLAGS = $(onewifi_em_ctrl_CPPFLAGS) \
 onewifi_em_ctrl_test_CXXFLAGS = $(INCLUDEDIRS) -g -DUNIT_TEST
 onewifi_em_ctrl_test_LDFLAGS = -lcjson -lgtest -lgtest_main -lgmock -lpthread -lssl -lcrypto -lm -luuid -lssl -lrbus -lmariadb -fsanitize=address -fsanitize=undefined
 onewifi_em_ctrl_test_LDADD = $(top_builddir)/src/al-sap/libalsap.la $(onewifi_em_ctrl_LDADD)
+endif
