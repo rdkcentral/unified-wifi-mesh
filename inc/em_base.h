@@ -3166,6 +3166,7 @@ typedef enum {
     em_commit_target_agent,
     em_commit_target_sta_hash_map,
     em_commit_target_radio,
+    em_commit_target_radio_cap,
     em_commit_target_bss,
 } em_commit_target_type_t;
 
