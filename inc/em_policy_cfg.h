@@ -256,7 +256,9 @@ public:
 	 * calling this function.
 	 */
 	short create_vendor_policy_cfg_tlv(unsigned char *buff);
-    
+
+	short create_vendor_policy_cfg_alarm_tlv(unsigned char *buff);
+
 	/**!
 	 * @brief Sends a policy configuration request message.
 	 *

@@ -79,24 +79,24 @@ int dm_policy_t::decode(const cJSON *obj, void *parent_id, em_policy_id_type_t t
             snprintf(m_policy.managed_sta_marker, sizeof(em_long_string_t), "%s", cJSON_GetStringValue(tmp));
     	}
 	} else if (type == em_policy_id_type_radio_metrics_rep) {
-    	if ((tmp = cJSON_GetObjectItem(obj, "STA RCPI Threshold")) != NULL) {
-			m_policy.rcpi_threshold = static_cast<short unsigned int>(tmp->valuedouble);
-    	}
-    	if ((tmp = cJSON_GetObjectItem(obj, "STA RCPI Hysteresis")) != NULL) {
-			m_policy.rcpi_hysteresis = static_cast<short unsigned int>(tmp->valuedouble);
-    	}
-    	if ((tmp = cJSON_GetObjectItem(obj, "AP Utilization Thresold")) != NULL) {
-			m_policy.util_threshold = static_cast<short unsigned int>(tmp->valuedouble);
-    	}
-    	if ((tmp = cJSON_GetObjectItem(obj, "STA Traffic Stats")) != NULL) {
-       		m_policy.sta_traffic_stats = tmp->valuedouble;
-    	}
-    	if ((tmp = cJSON_GetObjectItem(obj, "STA Link Metrics")) != NULL) {
-       		m_policy.sta_link_metric = tmp->valuedouble;
-    	}
-    	if ((tmp = cJSON_GetObjectItem(obj, "STA Status")) != NULL) {
-			m_policy.sta_status = tmp->valuedouble;
-    	}
+        if ((tmp = cJSON_GetObjectItem(obj, "STA RCPI Threshold")) != NULL) {
+            m_policy.rcpi_threshold = static_cast<short unsigned int>(tmp->valuedouble);
+        }
+        if ((tmp = cJSON_GetObjectItem(obj, "STA RCPI Hysteresis")) != NULL) {
+            m_policy.rcpi_hysteresis = static_cast<short unsigned int>(tmp->valuedouble);
+        }
+        if ((tmp = cJSON_GetObjectItem(obj, "AP Utilization Thresold")) != NULL) {
+            m_policy.util_threshold = static_cast<short unsigned int>(tmp->valuedouble);
+        }
+        if ((tmp = cJSON_GetObjectItem(obj, "STA Traffic Stats")) != NULL) {
+            m_policy.sta_traffic_stats = tmp->valuedouble;
+        }
+        if ((tmp = cJSON_GetObjectItem(obj, "STA Link Metrics")) != NULL) {
+            m_policy.sta_link_metric = tmp->valuedouble;
+        }
+        if ((tmp = cJSON_GetObjectItem(obj, "STA Status")) != NULL) {
+            m_policy.sta_status = tmp->valuedouble;
+        }
 	} else if (type == em_policy_id_type_default_8021q_settings) {
 		if ((tmp = cJSON_GetObjectItem(obj, "Primay VLAN ID")) != NULL) {
 			m_policy.def_8021q_settings.primary_vid = static_cast<unsigned short>(tmp->valuedouble);
@@ -134,10 +134,19 @@ int dm_policy_t::decode(const cJSON *obj, void *parent_id, em_policy_id_type_t t
     	if ((tmp = cJSON_GetObjectItem(obj, "Report Independent Channel Scans")) != NULL) {
    			m_policy.independent_scan_report = tmp->valuedouble;
     	}
-	} 
+    } else if (type == em_policy_id_type_alarm_threshold) {
+        if ((tmp = cJSON_GetObjectItem(obj, "Collection Start Time")) != NULL) {
+            snprintf(m_policy.link_stats_alarm_cfg.collection_start_time, sizeof(em_long_string_t), "%s", cJSON_GetStringValue(tmp));
+        }
+        if ((tmp = cJSON_GetObjectItem(obj, "Reporting Interval")) != NULL) {
+            m_policy.link_stats_alarm_cfg.reporting_interval = tmp->valuedouble;
+        }
+        if ((tmp = cJSON_GetObjectItem(obj, "Link Quality Threshold")) != NULL) {
+            m_policy.link_stats_alarm_cfg.link_quality_threshold = static_cast<float>(tmp->valuedouble);
+        }
+	}
 	
 	return 0;
-
 }
 
 void dm_policy_t::encode(cJSON *obj, em_policy_id_type_t id)
@@ -202,9 +211,9 @@ void dm_policy_t::encode(cJSON *obj, em_policy_id_type_t id)
 bool dm_policy_t::operator == (const dm_policy_t& obj)
 {
     int ret = 0;
-    
-	ret += (memcmp(&this->m_policy.id.dev_mac, &obj.m_policy.id.dev_mac, sizeof(mac_address_t)) != 0);
-	ret += (memcmp(&this->m_policy.id.radio_mac, &obj.m_policy.id.radio_mac, sizeof(mac_address_t)) != 0);
+
+    ret += (memcmp(&this->m_policy.id.dev_mac, &obj.m_policy.id.dev_mac, sizeof(mac_address_t)) != 0);
+    ret += (memcmp(&this->m_policy.id.radio_mac, &obj.m_policy.id.radio_mac, sizeof(mac_address_t)) != 0);
     ret += !(this->m_policy.interval == obj.m_policy.interval);
     ret += !(this->m_policy.rcpi_threshold == obj.m_policy.rcpi_threshold);
     ret += !(this->m_policy.rcpi_hysteresis == obj.m_policy.rcpi_hysteresis);
@@ -212,19 +221,26 @@ bool dm_policy_t::operator == (const dm_policy_t& obj)
     ret += !(this->m_policy.sta_traffic_stats == obj.m_policy.sta_traffic_stats);
     ret += !(this->m_policy.sta_link_metric == obj.m_policy.sta_link_metric);
     ret += !(this->m_policy.sta_status == obj.m_policy.sta_status);
-	ret += (strncmp(this->m_policy.managed_sta_marker, obj.m_policy.managed_sta_marker, strlen(this->m_policy.managed_sta_marker)) != 0);
+    ret += (strncmp(this->m_policy.managed_sta_marker, obj.m_policy.managed_sta_marker, strlen(this->m_policy.managed_sta_marker)) != 0);
     ret += (memcmp(&this->m_policy.def_8021q_settings, &obj.m_policy.def_8021q_settings, sizeof(em_8021q_settings_policy_t)) != 0);
     ret += (memcmp(&this->m_policy.traffic_separ, &obj.m_policy.traffic_separ, sizeof(em_traffic_separation_policy_t)) != 0);
+    ret += (memcmp(&this->m_policy.link_stats_alarm_cfg, &obj.m_policy.link_stats_alarm_cfg, sizeof(em_link_stats_alarm_cfg_t)) != 0);
 
-	return (ret > 0) ? false:true;
+    return (ret > 0) ? false:true;
 }
 
 void dm_policy_t::operator = (const dm_policy_t& obj)
 {
     if (this == &obj) { return; }
+	memcpy(&this->m_policy.id.net_id, &obj.m_policy.id.net_id, sizeof(mac_address_t));
     memcpy(&this->m_policy.id.dev_mac, &obj.m_policy.id.dev_mac, sizeof(mac_address_t));
     memcpy(&this->m_policy.id.radio_mac, &obj.m_policy.id.radio_mac, sizeof(mac_address_t));
-    this->m_policy.id.type = obj.m_policy.id.type;
+    m_policy.id.type = obj.m_policy.id.type;
+    m_policy.num_sta = obj.m_policy.num_sta;
+    for(int i = 0; i < m_policy.num_sta; i++) {
+        memcpy(this->m_policy.sta_mac[i], obj.m_policy.sta_mac[i], sizeof(mac_address_t));
+    }
+    m_policy.policy = obj.m_policy.policy;
     this->m_policy.interval = obj.m_policy.interval;
     this->m_policy.rcpi_threshold = obj.m_policy.rcpi_threshold;
     this->m_policy.rcpi_hysteresis = obj.m_policy.rcpi_hysteresis;
@@ -240,6 +256,7 @@ void dm_policy_t::operator = (const dm_policy_t& obj)
         this->m_policy.traffic_separ.ssid_info[i].ssid_len = obj.m_policy.traffic_separ.ssid_info[i].ssid_len;
         strncpy(this->m_policy.traffic_separ.ssid_info[i].ssid, obj.m_policy.traffic_separ.ssid_info[i].ssid, MAX_WIFI_SSID_LEN);
     }
+    memcpy(&m_policy.link_stats_alarm_cfg, &obj.m_policy.link_stats_alarm_cfg, sizeof(em_link_stats_alarm_cfg_t));
 }
 
 int dm_policy_t::parse_dev_radio_mac_from_key(const char *key, em_policy_id_t *id)

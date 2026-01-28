@@ -209,13 +209,15 @@ int dm_easy_mesh_ctrl_t::analyze_sta_assoc_event(em_bus_event_t *evt, em_cmd_t *
     return num;
 }
 
-int dm_easy_mesh_ctrl_t::analyze_m2_tx(em_bus_event_t *evt, em_cmd_t *pcmd[])
+int dm_easy_mesh_ctrl_t::analyze_m2_tx(em_bus_event_t *evt, em_cmd_t *pcmd[], bool evt_status)
 {
     mac_addr_str_t  radio_str, al_str;
     em_bus_event_type_m2_tx_params_t *params;
     int num = 0;
     dm_easy_mesh_t  dm;
     em_cmd_t *tmp;
+    em_cmd_type_t      type;
+    em_orch_desc_t desc;
 
     if (evt == NULL) {
         printf("%s:%d: NULL event\n", __func__, __LINE__);
@@ -233,6 +235,23 @@ int dm_easy_mesh_ctrl_t::analyze_m2_tx(em_bus_event_t *evt, em_cmd_t *pcmd[])
     pcmd[num] = new em_cmd_em_config_t(evt->params, dm);
     tmp = pcmd[num];
     num++;
+
+    type = em_cmd_t::bus_2_cmd_type(evt->type);
+    em_printfout("type: %s, cmd ip: :%d", em_cmd_t::get_bus_event_type_str(evt->type), evt_status);
+    // If event_status is true, this command type is already in progress.
+    // This event is generated per radio on the device, but for orchestration
+    // types like policy, we should not re-create or re-send the command.
+    // Therefore, if event_status is true, skip policy orchestration and send
+    // the command only once, even if multiple M2 TX events are received.
+    if (evt_status == true) {
+        for (int i = 0; i < pcmd[num - 1]->m_num_orch_desc; i++) {
+            if (pcmd[num - 1]->m_orch_desc[i].op == dm_orch_type_policy_cfg) {
+                desc.submit = false;
+                pcmd[num - 1]->override_op(i, &desc);
+                break;
+            }
+        }
+    }
 
     while ((pcmd[num] = tmp->clone_for_next()) != NULL) {
         tmp = pcmd[num];
@@ -605,47 +624,79 @@ int dm_easy_mesh_ctrl_t::analyze_dpp_start(em_bus_event_t *evt, em_cmd_t *cmd[])
 
 int dm_easy_mesh_ctrl_t::analyze_set_policy(em_bus_event_t *evt, em_cmd_t *pcmd[])
 {
-	int ret;
-	unsigned int num = 0, num_devices = 0;
-	em_subdoc_info_t *subdoc;
-	dm_easy_mesh_t dm;
-	unsigned int i = 0;
+    int ret;
+    unsigned int num = 0, num_devices = 0;
+    em_subdoc_info_t *subdoc;
+    dm_easy_mesh_t dm, *dev_dm;
+    unsigned int i = 0;
     em_cmd_t *tmp;
-	dm_radio_t *radio;
-	mac_addr_str_t mac_str;
-	
-	subdoc = &evt->u.subdoc;
+    dm_radio_t *radio;
+    mac_addr_str_t mac_str;
+    int policy_changed = 0;
+    em_cmd_type_t      type;
 
-	do {
-		dm.reset();
+    subdoc = &evt->u.subdoc;
 
-		if ((ret = dm.decode_config(subdoc, "SetPolicy", i, &num_devices)) < 0) {
-        	return ret;
-    	}
-			
-		dm_easy_mesh_t::macbytes_to_string(dm.m_device.m_device_info.intf.mac, mac_str);
-		//printf("%s:%d: Network: %s\tDevice MAC: %s\n", __func__, __LINE__, dm.m_network.m_net_info.id, mac_str);
+    em_printfout("Received SetPolicy event: \n%s", subdoc->buff);
+    do {
+        dm.reset();
 
-		radio = m_data_model_list.get_first_radio(dm.m_network.m_net_info.id, dm.m_device.m_device_info.intf.mac);
-		while (radio != NULL) {
-			memcpy(dm.m_radio[dm.m_num_radios].m_radio_info.intf.mac, radio->m_radio_info.intf.mac, sizeof(mac_address_t));
-			dm.m_num_radios++;
-			radio = m_data_model_list.get_next_radio(dm.m_network.m_net_info.id, dm.m_device.m_device_info.intf.mac, radio);
-		}
-		dm.set_db_cfg_param(db_cfg_type_policy_list_update, "");
-   		pcmd[num] = new em_cmd_set_policy_t(evt->params, dm);
-   		tmp = pcmd[num];
-   		num++;
+        if ((ret = dm.decode_config(subdoc, "SetPolicy", i, &num_devices)) < 0) {
+            em_printfout("Failed to decode SetPolicy config: %d", ret);
+            return ret;
+        }
 
-   		while ((pcmd[num] = tmp->clone_for_next()) != NULL) {
-       		tmp = pcmd[num];
-       		num++;
-   		}
+        //em_printfout("Decoded SetPolicy for device number-%d", i);
+        dm_easy_mesh_t::macbytes_to_string(dm.m_device.m_device_info.intf.mac, mac_str);
+        em_printfout("Network: %s\tDevice MAC: %s", dm.m_network.m_net_info.id, mac_str);
 
-		i++;
-	} while (i < num_devices);
+        dev_dm = get_data_model(GLOBAL_NET_ID, dm.m_device.m_device_info.intf.mac);
+        if (dev_dm != NULL) {
+            //compare if policy has changed for this device, create cmd only if a policy chnage is detected
+            for (int j = 0; j < dev_dm->get_num_policy(); j++) {
+                if ((dev_dm->m_policy[j] == dm.m_policy[j]) == false) {
+                    policy_changed++;
+                    break;
+                }
+            }
+        } else {
+            em_printfout("Device with MAC: %s not found in data model, so considering as policy changed", mac_str);
+            return 0;
+        }
 
-	return static_cast<int> (num);
+        //TODO: once colocated agent fix is merged, remove this check
+        if(dev_dm->get_colocated() == true) {
+            //em_printfout("Colocated(%s), represent contoller device, so skipping....", mac_str);
+            i++;
+            continue;
+        }
+
+        if (policy_changed == 0) {
+            em_printfout("No Policy change detected for device with MAC: %s", mac_str);
+            i++;
+            continue;
+        } else {
+            em_printfout("Policy change detected for device with MAC: %s", mac_str);
+        }
+        radio = m_data_model_list.get_first_radio(dm.m_network.m_net_info.id, dm.m_device.m_device_info.intf.mac);
+        while (radio != NULL) {
+            memcpy(dm.m_radio[dm.m_num_radios].m_radio_info.intf.mac, radio->m_radio_info.intf.mac, sizeof(mac_address_t));
+            dm.m_num_radios++;
+            radio = m_data_model_list.get_next_radio(dm.m_network.m_net_info.id, dm.m_device.m_device_info.intf.mac, radio);
+        }
+        dm.set_db_cfg_param(db_cfg_type_policy_list_update, "");
+        pcmd[num] = new em_cmd_set_policy_t(evt->params, dm);
+        tmp = pcmd[num];
+        num++;
+
+        em_printfout("Setting policy for Device number-%d with MAC: %s", i, mac_str);
+
+        i++;
+    } while (i < num_devices);
+
+    //em_printfout("Total cmnds formed for policy change is : %d", num);
+
+    return static_cast<int> (num);
 }
 
 int dm_easy_mesh_ctrl_t::analyze_scan_channel(em_bus_event_t *evt, em_cmd_t *pcmd[])
@@ -1279,15 +1330,52 @@ int dm_easy_mesh_ctrl_t::get_policy_config(cJSON *parent, char *net_id)
 
 }
 
-int dm_easy_mesh_ctrl_t::get_sta_config(cJSON *parent, char *key, em_get_sta_list_reason_t reason)
+int dm_easy_mesh_ctrl_t::get_sta_config(cJSON *parent, char *key, em_get_sta_list_reason_t reason, char *data)
 {
     cJSON *net_obj, *dev_list_obj, *dev_obj, *radio_list_obj, *radio_obj, *bss_list_obj;
-    cJSON *bss_obj, *sta_list_obj;
+    cJSON *bss_obj, *sta_list_obj, *link_report_obj, *obj;
     int i, j, k;
     char *tmp;
+    dm_device_t *pdev;
+    mac_addr_str_t bss_str, mac_str;
+    dm_bss_t *bss;
+    em_device_info_t *info;
 
     net_obj = cJSON_AddObjectToObject(parent, "Network");
-    dm_network_list_t::get_config(net_obj, key, true);
+
+    if (reason == em_get_sta_list_reason_alarm_report) {
+        dm_network_list_t::get_config(net_obj, key, true);
+        dev_obj = cJSON_AddObjectToObject(net_obj, "Device");
+
+        dm_easy_mesh_t::macbytes_to_string((unsigned char *)data, mac_str);
+        em_printfout("Searching for Device with MAC: %s", mac_str);
+
+        pdev = get_first_device();
+        while (pdev != NULL) {
+            info = pdev->get_device_info();
+            if (memcmp(info->id.dev_mac, data, sizeof(mac_addr_t)) == 0) {
+                cJSON_AddStringToObject(dev_obj, "ID", mac_str);
+                break;
+            }
+            pdev = get_next_device(pdev);
+        }
+
+        link_report_obj = cJSON_AddArrayToObject(dev_obj, "LinkReport");
+
+        if (pdev == NULL) {
+            em_printfout("Device with MAC not found in device list");
+            return 0;
+        }
+
+        bss = m_data_model_list.get_first_bss(pdev->m_device_info.intf.mac);
+		while (bss != NULL) {
+			// go through all bss
+            em_printfout("Getting STA list for BSS: %s", dm_easy_mesh_t::macbytes_to_string(bss->m_bss_info.id.bssid, bss_str));
+            dm_sta_list_t::get_config(link_report_obj, bss_str, reason);
+			bss = m_data_model_list.get_next_bss(pdev->m_device_info.intf.mac, bss);
+		}
+        return 0;
+    }
 
     dev_list_obj = cJSON_AddArrayToObject(net_obj, "DeviceList");
     dm_device_list_t::get_config(dev_list_obj, key, true);
@@ -1550,6 +1638,8 @@ void dm_easy_mesh_ctrl_t::get_config(em_long_string_t net_id, em_subdoc_info_t *
         get_mld_config(parent, net_id);
     } else if (strncmp(subdoc->name, "WifiReset", strlen(subdoc->name)) == 0) {
         get_wifi_reset_config(parent, net_id);
+    } else {
+        em_printfout("Unknown Subdoc Name: %s\n", subdoc->name);
     }
 
     tmp = cJSON_Print(parent);
@@ -4765,9 +4855,11 @@ int dm_easy_mesh_ctrl_t::init(const char *data_model_path, em_mgr_t *mgr)
 dm_easy_mesh_ctrl_t::dm_easy_mesh_ctrl_t()
 {
     m_initialized = false;
+    m_network_initialized = false;
     m_nb_pipe_rd = 0;
     m_nb_pipe_wr = 0;
     m_nb_evt_id = 0;
+    m_topology = nullptr;
 }
 
 dm_easy_mesh_ctrl_t::~dm_easy_mesh_ctrl_t()

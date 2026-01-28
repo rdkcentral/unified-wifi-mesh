@@ -33,6 +33,9 @@
 #include "dm_easy_mesh_ctrl.h"
 #include "em_ctrl.h"
 
+//todo: test code remove after node sync is implemented
+mac_addr_str_t g_temp_node_mac = {0};
+
 void tr_181_t::init(void* ptr)
 {
     wifi_bus_desc_t *desc;
@@ -252,7 +255,11 @@ int tr_181_t::wfa_set_bus_callbackfunc_pointers(const char *full_namespace, bus_
         ELEMENT(DE_AFFAP_MCBYTESSNT,       CALLBACK_GETTER(affap_get)),
         ELEMENT(DE_AFFAP_MCBYTESRCV,       CALLBACK_GETTER(affap_get)),
         ELEMENT(DE_AFFAP_BCBYTESSNT,       CALLBACK_GETTER(affap_get)),
-        ELEMENT(DE_AFFAP_BCBYTESRCV,       CALLBACK_GETTER(affap_get))
+        ELEMENT(DE_AFFAP_BCBYTESRCV,       CALLBACK_GETTER(affap_get)),
+
+        ELEMENT(DEVICE_WIFI_DATAELEMENTS_NETWORK_TOPOLOGY,              CB(NULL, NULL, NULL, NULL, NULL, NULL)),
+        ELEMENT(DEVICE_WIFI_DATAELEMENTS_NETWORK_NODE_SYNC,             CB(.get_handler = get_node_sync, .set_handler = set_node_sync)),
+        //ELEMENT(DEVICE_WIFI_DATAELEMENTS_NETWORK_NODE_CFG_POLICY,       CB(.set_handler = policy_config))
     };
 
     bus_data_cb_func_t bus_default_data_cb = { const_cast<char*>(" "),
@@ -745,6 +752,85 @@ bus_error_t tr_181_t::affap_tget(char *event_name, raw_data_t *p_data, bus_user_
     }
 
     return bus_error_general;
+}
+
+bus_error_t tr_181_t::get_node_sync(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
+{
+    p_data->data_type       = bus_data_type_string;
+    p_data->raw_data.bytes  = malloc(sizeof(mac_addr_str_t));
+    if (p_data->raw_data.bytes == NULL) {
+        em_printfout("Memory allocation is failed");
+        return bus_error_out_of_resources;
+    }
+    em_printfout(" get_node_sync: node mac len: %d", sizeof(mac_addr_str_t));
+
+    strncpy((char *)p_data->raw_data.bytes, (const char *)g_temp_node_mac, sizeof(mac_addr_str_t));
+    p_data->raw_data_len    = sizeof(mac_addr_str_t);
+
+    em_printfout(" get_node_sync: node mac: %s", p_data->raw_data.bytes);
+
+    return bus_error_success;
+}
+
+bus_error_t tr_181_t::set_node_sync(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
+{
+    wifi_bus_desc_t *desc = NULL;
+    raw_data_t raw;
+
+    em_printfout(" Event rcvd: %s for node mac: %s", event_name, p_data->raw_data.bytes);
+
+    snprintf(g_temp_node_mac, sizeof(mac_addr_str_t), "%s", (char *)p_data->raw_data.bytes);
+
+    if((desc = get_bus_descriptor()) == NULL) {
+        em_printfout("descriptor is null");
+    }
+
+    //TODO: Temp code to publish node sync once received
+    raw.data_type    = bus_data_type_string;
+    raw.raw_data.bytes = reinterpret_cast<unsigned char *> (g_temp_node_mac);
+    raw.raw_data_len = static_cast<unsigned int> (strlen(g_temp_node_mac));
+
+    em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
+
+    if (em_ctrl != NULL)
+    {
+        if (desc->bus_event_publish_fn(&em_ctrl->get_dm_ctrl()->m_bus_handle, DEVICE_WIFI_DATAELEMENTS_NETWORK_NODE_SYNC, &raw)== 0) {
+            em_printfout("Node sync published successfull");
+        } else {
+            em_printfout("Node sync publish fail");
+        }
+
+        return bus_error_success;
+    }
+
+    return bus_error_invalid_input;
+}
+
+bus_error_t tr_181_t::subs_policy_config(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
+{
+    //todo: remove test code
+    if (strncmp(event_name,DEVICE_WIFI_DATAELEMENTS_NETWORK_NODE_LINKSTATS_ALARM, strlen(DEVICE_WIFI_DATAELEMENTS_NETWORK_NODE_LINKSTATS_ALARM)) == 0) {
+        em_printfout(" link stats alarm report Subs Event rcvd: %s", p_data->raw_data.bytes);
+        return bus_error_success;
+    }
+    em_printfout(" Subs Event rcvd: %s\n Policy cfg is of len: %d and : \n%s", event_name, p_data->raw_data_len, p_data->raw_data.bytes);
+
+    //send it to decode and apply policy
+    em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
+
+    em_ctrl->io_process(em_bus_event_type_set_policy,  reinterpret_cast<char*>(p_data->raw_data.bytes), p_data->raw_data_len);
+    return bus_error_success;
+}
+
+bus_error_t tr_181_t::policy_config(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
+{
+    em_printfout(" Event rcvd: %s\n Policy cfg is of len: %d and : \n%s", event_name, p_data->raw_data_len, p_data->raw_data.bytes);
+
+    //send it to decode and apply policy
+    em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
+
+    em_ctrl->io_process(em_bus_event_type_set_policy,  reinterpret_cast<char*>(p_data->raw_data.bytes), p_data->raw_data_len);
+    return bus_error_success;
 }
 
 bus_error_t tr_181_t::wifi_elem_num_of_table_row(char* event_name, uint32_t* table_row_size)

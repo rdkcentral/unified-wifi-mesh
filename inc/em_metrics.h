@@ -309,6 +309,8 @@ class em_metrics_t {
 	 */
 	int handle_ap_metrics_tlv(unsigned char *buff, bssid_t bssid);
 
+	int handle_link_stats_alarm_rprt_tlv(unsigned char *buff, unsigned short len);
+
 	/**!
 	 * @brief Creates an association station link metrics TLV.
 	 *
@@ -491,7 +493,7 @@ class em_metrics_t {
 	 *
 	 * @note Ensure that the buffer is large enough to hold the TLV.
 	 */
-	short create_radio_metrics_tlv(unsigned char *buff);
+	short create_radio_metrics_tlv(unsigned char *buff, int index);
     
 	/**!
 	 * @brief Creates an associated station traffic statistics TLV.
@@ -525,6 +527,8 @@ class em_metrics_t {
 	 * @note Ensure that the buffer is adequately sized to hold the TLV report.
 	 */
 	short create_assoc_wifi6_sta_sta_report_tlv(unsigned char *buff, const dm_sta_t *const sta);
+
+	short create_link_stats_alarm_tlv(unsigned char *buff);
 
 public:
 

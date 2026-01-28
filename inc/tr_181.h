@@ -34,6 +34,7 @@
 #define DEVICE_WIFI_DATAELEMENTS_NETWORK_TOPOLOGY           "Device.WiFi.DataElements.Network.Topology"
 #define DEVICE_WIFI_DATAELEMENTS_NETWORK_NODE_SYNC          "Device.WiFi.DataElements.Network.NodeSynchronize"
 #define DEVICE_WIFI_DATAELEMENTS_NETWORK_NODE_CFG_POLICY    "Device.WiFi.DataElements.Network.NodeConfigurePolicy"
+#define DEVICE_WIFI_DATAELEMENTS_NETWORK_NODE_LINKSTATS_ALARM    "Device.WiFi.DataElements.Network.NodeLinkStatsAlarm"
 
 #define LIST_OF_DEFINITION_NAME "List_Of_Def"
 #define MAX_NUM_OF_OBJECTS_NAME "Num_Of_Objects"
@@ -511,6 +512,7 @@ public:
 
     //Policy Callbacks
     static bus_error_t policy_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
+    static bus_error_t subs_policy_config(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
 
     //Radio
     static bus_error_t radio_get(char* event_name, raw_data_t* p_data, struct bus_user_data* user_data);
@@ -543,6 +545,11 @@ public:
     //AffiliatedAP
     static bus_error_t affap_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
     static bus_error_t affap_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
+
+    //Orchestrator
+    static bus_error_t get_node_sync(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
+    static bus_error_t set_node_sync(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
+    static bus_error_t policy_config(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
 
     virtual bus_error_t network_get(char *event_name, raw_data_t *p_data) = 0;
     virtual bus_error_t device_get(char *event_name, raw_data_t *p_data) = 0;
