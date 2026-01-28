@@ -71,6 +71,7 @@ class em_t :
     bool dev_test_enable;
 
 	bool m_is_dpp_onboarding = false;
+	bool m_ssid_mismatch = false;
 
 	std::map<std::string, peer_1905_security_status> m_1905_layer_peer_security_statuses;
 
@@ -718,6 +719,24 @@ public:
 	bool get_is_dpp_onboarding() override { return m_is_dpp_onboarding; }
 
 	void set_is_dpp_onboarding(bool is_onboarding) override { m_is_dpp_onboarding = is_onboarding; }
+
+	/**!
+	 *  @brief Retrieves the ssid missmatch bool value.
+	 *
+	 *  This function returns Ture or False based of ssid missmatch.
+	 *
+	 *  @returns This function returns Ture or False as bool.
+	 */
+	bool get_ssid_mismatch() { return m_ssid_mismatch; }
+
+	/**!
+         *  @brief Sets the ssid missmatch bool value.
+         *
+         *  This function sets Ture or False based of ssid missmatch.
+         *
+         * * @returns This function Sets Ture or False as bool.
+         */
+	void set_ssid_mismatch(bool mismatch) { m_ssid_mismatch = mismatch; }
 
     
 	/**!

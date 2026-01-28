@@ -1470,9 +1470,24 @@ int em_configuration_t::handle_ap_operational_bss(unsigned char *buff, unsigned 
                 memcpy(dm_bss->m_bss_info.ruid.mac, radio->ruid, sizeof(mac_address_t));
                 dm->set_num_bss(dm->get_num_bss() + 1);
 			}
-            strncpy(dm_bss->m_bss_info.ssid, bss->ssid, bss->ssid_len);
-			dm_bss->m_bss_info.enabled = true;
-			strncpy(dm_bss->m_bss_info.timestamp, time_date, sizeof(em_long_string_t));
+            ssid_t ssid_buf;
+            size_t ssid_len = bss->ssid_len;
+            if (ssid_len >= sizeof(ssid_buf)) {
+                ssid_len = sizeof(ssid_buf) - 1;
+            }
+            memcpy(ssid_buf, bss->ssid, ssid_len);
+            ssid_buf[ssid_len] = '\0';
+            if (dm->is_ssid_match(ssid_buf)) {
+                em_printfout("%s:%d:SSID matches. proceeding further", __func__, __LINE__);
+                strncpy(dm_bss->m_bss_info.ssid, ssid_buf, sizeof(dm_bss->m_bss_info.ssid) - 1);
+                dm_bss->m_bss_info.ssid[sizeof(dm_bss->m_bss_info.ssid) - 1] = '\0';
+            } else {
+                // SSID mismatch, stop processing further.
+                em_printfout("%s:%d:SSID mismatch. Stop proceeding. SSID=%s", __func__, __LINE__, bss->ssid);
+                return -2;
+            }
+            dm_bss->m_bss_info.enabled = true;
+            strncpy(dm_bss->m_bss_info.timestamp, time_date, sizeof(em_long_string_t));
 
 			updated_at_least_one_bss = true;
 			
@@ -1651,10 +1666,17 @@ int em_configuration_t::handle_topology_response(unsigned char *buff, unsigned i
         return -1;
     }
 
-	if (handle_ap_operational_bss(tlv->value, tlv->len) != 0) {
-		printf("%s:%d: Operational BSS handling failed\n", __func__, __LINE__);
-		return -1;
-	}
+
+        int rc = handle_ap_operational_bss(tlv->value, tlv->len);
+        if (rc != 0) {
+            if (rc == -2) {
+                em_printfout("%s:%d: Failed to handle operational BSS due to SSID misconfiguration.", __func__, __LINE__);
+                static_cast<em_t*>(this)->set_ssid_mismatch(true);
+            } else {
+                em_printfout("%s:%d: Operational BSS handling failed rc=%d\n", __func__, __LINE__, rc);
+            }
+            return rc;
+        }
 
     while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
         if (tlv->type != em_tlv_type_bss_conf_rep) {
@@ -5351,6 +5373,7 @@ void em_configuration_t::process_msg(unsigned char *data, unsigned int len)
             if ((get_service_type() == em_service_type_ctrl) && (get_state() == em_state_ctrl_topo_sync_pending)){
                 if (handle_topology_response(data, len) == 0) {
                     set_state(em_state_ctrl_topo_synchronized);
+                    static_cast<em_t*>(this)->set_ssid_mismatch(false);
                     std::vector<em_t *> em_radios;
                     dm_easy_mesh_t *dm = get_data_model();
                     em_printfout("Topology response handled successfully by em radio:%s agent al_mac:%s src_mac:%s",
@@ -5588,6 +5611,8 @@ void em_configuration_t::process_ctrl_state()
             break;
 
         case em_state_ctrl_topo_sync_pending:
+        {
+            if (m_topo_query_tx_cnt < EM_MAX_TOPO_QUERY_TX_CNT)
             {
                 std::vector<em_t *> em_radios;
                 dm_easy_mesh_t *dm = get_data_model();
@@ -5612,6 +5637,7 @@ void em_configuration_t::process_ctrl_state()
                 }
                 em_radios.clear();
             }
+        }
             break;
 
         case em_state_ctrl_ap_mld_config_pending:
