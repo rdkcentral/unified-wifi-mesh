@@ -185,6 +185,14 @@ bool em_orch_ctrl_t::is_em_ready_for_orch_fini(em_cmd_t *pcmd, em_t *em)
                 return true;
             } else if (em->get_state() == em_state_ctrl_configured) {
                 return true;
+            } else if (em->get_state() == em_state_ctrl_wsc_m2_sent) {
+                // A second M1/M2 exchange on 2.4GHz regresses the per band state machine back to em_state_ctrl_m2_sent,
+                // so the controller never reaches/maintains the topo_synch_pending.
+                // Because of thisTopology Query is never sent.
+                // Added changes to move state machine to topo_sync_pending if it brought
+                // back to m2_sent
+                em->set_state(em_state_ctrl_topo_sync_pending);
+                return false;
             }
 			//printf("%s:%d: em not ready orchestration:%s(%s) because of incorrect state, state:%s\n", __func__, __LINE__,
                     //em_cmd_t::get_orch_op_str(pcmd->get_orch_op()), em_cmd_t::get_cmd_type_str(pcmd->m_type), 
