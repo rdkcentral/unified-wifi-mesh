@@ -445,7 +445,8 @@ TEST(AlServiceRegistrationRequest, SerializeInvalidRegistrationRequest) {
  * | 01               | Invokes the deserializeRegistrationRequest API with a valid byte stream input              | validData = 0x00, 0x02, 0x01, 0x02 | API processes the valid registration request without errors and returns normally | Should Pass |
  */
  TEST(AlServiceRegistrationRequest, DeserializeValidRegistrationRequest) {
-    std::vector<unsigned char> validData = {0x00, 0x02, 0x01, 0x02};
+    //std::vector<unsigned char> validData = {0x00, 0x02, 0x01, 0x02};
+    std::vector<unsigned char> validData = {0x00, 0x02, 0x01, 0x02, 0xAA, 0xBB};
     std::cout << "Entering DeserializeValidRegistrationRequest" << std::endl;
     AlServiceRegistrationRequest instance;
     EXPECT_NO_THROW({

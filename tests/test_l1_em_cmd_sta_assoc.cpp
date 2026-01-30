@@ -59,9 +59,11 @@ TEST(em_cmd_sta_assoc_t, em_cmd_sta_assoc_t_valid_parameters) {
     EXPECT_STREQ(assoc.m_name, "sta_assoc");
     EXPECT_EQ(assoc.m_svc, em_service_type_ctrl);
     EXPECT_EQ(assoc.m_orch_op_idx, 0);
-    EXPECT_EQ(assoc.m_num_orch_desc, 1);
+    EXPECT_EQ(assoc.m_num_orch_desc, 2);
     EXPECT_EQ(assoc.m_orch_desc[0].op, dm_orch_type_sta_cap);
     EXPECT_TRUE(assoc.m_orch_desc[0].submit);
+    EXPECT_EQ(assoc.m_orch_desc[1].op, dm_orch_type_topo_publish);
+    EXPECT_TRUE(assoc.m_orch_desc[1].submit);
     EXPECT_EQ(assoc.m_data_model.m_cmd_ctx.type, dm_orch_type_sta_cap);
     assoc.deinit();
     std::cout << "Exiting em_cmd_sta_assoc_t_valid_parameters test" << std::endl;
@@ -103,7 +105,7 @@ TEST(em_cmd_sta_assoc_t, em_cmd_sta_assoc_t_valid_minimal_parameters) {
     EXPECT_STREQ(assoc.m_name, "sta_assoc");
     EXPECT_EQ(assoc.m_svc, em_service_type_ctrl);
     EXPECT_EQ(assoc.m_orch_op_idx, 0);
-    EXPECT_EQ(assoc.m_num_orch_desc, 1);
+    EXPECT_EQ(assoc.m_num_orch_desc, 2);
     EXPECT_EQ(assoc.m_orch_desc[0].op, dm_orch_type_sta_cap);
     EXPECT_TRUE(assoc.m_orch_desc[0].submit);
     EXPECT_EQ(assoc.m_data_model.m_cmd_ctx.type, dm_orch_type_sta_cap);
@@ -155,7 +157,7 @@ TEST(em_cmd_sta_assoc_t, em_cmd_sta_assoc_t_ctor_max_fixed_args) {
     EXPECT_STREQ(assoc.m_name, "sta_assoc");
     EXPECT_EQ(assoc.m_svc, em_service_type_ctrl);
     EXPECT_EQ(assoc.m_orch_op_idx, 0);
-    EXPECT_EQ(assoc.m_num_orch_desc, 1);
+    EXPECT_EQ(assoc.m_num_orch_desc, 2);
     EXPECT_EQ(assoc.m_orch_desc[0].op, dm_orch_type_sta_cap);
     EXPECT_TRUE(assoc.m_orch_desc[0].submit);
     EXPECT_EQ(assoc.m_data_model.m_cmd_ctx.type, dm_orch_type_sta_cap);

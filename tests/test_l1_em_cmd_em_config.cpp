@@ -65,7 +65,7 @@ TEST(em_cmd_em_config_t, em_cmd_em_config_t_full_valid) {
     EXPECT_EQ(configCmd.m_param.u.args.num_args, 2);
     EXPECT_STREQ(configCmd.m_param.u.args.args[0], arg0);
     EXPECT_STREQ(configCmd.m_param.u.args.args[1], arg1);
-    EXPECT_EQ(configCmd.m_num_orch_desc, 8);
+    EXPECT_EQ(configCmd.m_num_orch_desc, 10);
     EXPECT_EQ(configCmd.m_orch_desc[0].op, dm_orch_type_bss_delete);
     EXPECT_FALSE(configCmd.m_orch_desc[0].submit);
     EXPECT_EQ(configCmd.m_svc, em_service_type_ctrl);
@@ -101,7 +101,7 @@ TEST(em_cmd_em_config_t, em_cmd_em_config_t_empty) {
     EXPECT_STREQ(configCmd.m_name, "em_config");
     EXPECT_STREQ(configCmd.m_param.u.args.fixed_args, "");
     EXPECT_EQ(configCmd.m_param.u.args.num_args, 0);
-    EXPECT_EQ(configCmd.m_num_orch_desc, 8);
+    EXPECT_EQ(configCmd.m_num_orch_desc, 10);
     EXPECT_EQ(configCmd.m_orch_desc[0].op, dm_orch_type_bss_delete);
     EXPECT_FALSE(configCmd.m_orch_desc[0].submit);
     EXPECT_EQ(configCmd.m_svc, em_service_type_ctrl);
@@ -163,7 +163,7 @@ TEST(em_cmd_em_config_t, em_cmd_em_config_t_max_boundary) {
     EXPECT_EQ(configCmd.m_param.u.args.num_args, 2);
     EXPECT_STREQ(configCmd.m_param.u.args.args[0], maxArg);
     EXPECT_STREQ(configCmd.m_param.u.args.args[1], maxArg);
-    EXPECT_EQ(configCmd.m_num_orch_desc, 8);
+    EXPECT_EQ(configCmd.m_num_orch_desc, 10);
     EXPECT_EQ(configCmd.m_orch_desc[0].op, dm_orch_type_bss_delete);
     EXPECT_FALSE(configCmd.m_orch_desc[0].submit);
     EXPECT_EQ(configCmd.m_svc, em_service_type_ctrl);
