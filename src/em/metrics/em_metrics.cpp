@@ -343,19 +343,19 @@ int em_metrics_t::handle_assoc_sta_traffic_stats(unsigned char *buff, bssid_t bs
     em_assoc_sta_traffic_stats_t	*sta_metrics;
     dm_sta_t *sta;
     dm_easy_mesh_t  *dm;
-    mac_addr_str_t sta_str;
 
     dm = get_data_model();
     sta_metrics = reinterpret_cast<em_assoc_sta_traffic_stats_t *> (buff);
 
-    dm_easy_mesh_t::macbytes_to_string(sta_metrics->sta_mac, sta_str);
     sta = dm->find_sta(sta_metrics->sta_mac, bssid);
     if (sta == NULL) {
-        printf("%s:%d: sta not found: %s\n", __func__, __LINE__, sta_str);
+        em_printfout("sta not found: %s for bssid: %s", util::mac_to_string(sta_metrics->sta_mac).c_str(),
+            util::mac_to_string(bssid).c_str());
         return -1;
     }
 
     sta->m_sta_info.bytes_tx        = sta_metrics->tx_bytes;
+    em_printfout("  ===>>> bytes_tx: %d", sta->m_sta_info.bytes_tx);
     sta->m_sta_info.bytes_rx        = sta_metrics->rx_bytes;
     sta->m_sta_info.pkts_tx         = sta_metrics->tx_pkts;
     sta->m_sta_info.pkts_rx         = sta_metrics->rx_pkts;
@@ -366,6 +366,73 @@ int em_metrics_t::handle_assoc_sta_traffic_stats(unsigned char *buff, bssid_t bs
     return 0;
 }
 
+int em_metrics_t::handle_link_stats_alarm_rprt_tlv(unsigned char *buff, short len)
+{
+    em_link_report_t *link_report;
+    em_alarm_samples_t *alarm_samples;
+    dm_sta_t *sta;
+    dm_easy_mesh_t  *dm;
+    mac_addr_str_t sta_str;
+    unsigned char *tmp = buff;
+    size_t sample_sz = 0;
+
+    dm = get_data_model();
+
+    while (link_report != NULL && len > 0) {
+        em_printfout("  length : %d\n", len);
+        link_report = reinterpret_cast<em_link_report_t *> (tmp);
+
+        dm_easy_mesh_t::macbytes_to_string(link_report->sta_mac, sta_str);
+        sta = dm->get_first_sta(link_report->sta_mac);
+        while (sta != NULL) {
+            if (memcmp(sta->m_sta_info.id, link_report->sta_mac, sizeof(mac_address_t)) == 0) {
+                break;
+            }
+            sta = dm->get_next_sta(link_report->sta_mac, sta);
+        }
+
+        if(sta == NULL)
+        {
+            em_printfout("sta[%s] not found\n", sta_str);
+            return -1;
+        }
+
+        em_printfout("sta mac : %s\n", sta_str);
+        memcpy(sta->m_sta_info.link_stats_report.reporting_timestamp, link_report->reporting_timestamp, 31);
+        sta->m_sta_info.link_stats_report.reporting_timestamp[31] = '\0';
+        sta->m_sta_info.link_stats_report.link_quality_threshold = link_report->link_quality_threshold;
+        sta->m_sta_info.link_stats_report.alarm_triggered = link_report->alarm_triggered;
+
+        em_printfout("    ===>>> Link Stats Alarm Report rcvd for STA [%s] <<<===", sta_str);
+        em_printfout("    Reporting Timestamp: %s", sta->m_sta_info.link_stats_report.reporting_timestamp);
+        em_printfout("    Link Quality Threshold: %.2f", sta->m_sta_info.link_stats_report.link_quality_threshold);
+        em_printfout("    Alarm Triggered: %s", sta->m_sta_info.link_stats_report.alarm_triggered ? "True" : "False");
+
+        sta->m_sta_info.link_stats_report.sample_count = link_report->sample_count;
+        em_printfout("    Number of Samples: %d", sta->m_sta_info.link_stats_report.sample_count);
+        for (int i = 0; i < link_report->sample_count; i++) {
+            alarm_samples = &link_report->alarm_sample[i];
+            memcpy(&sta->m_sta_info.link_stats_report.alarm_sample[i], alarm_samples, sizeof(em_alarm_samples_t));
+
+            em_printfout("        Sample %d:", i + 1);
+            em_printfout("            reporting_time: %u", alarm_samples->reporting_time);
+            em_printfout("            Link Quality score: %.2f", alarm_samples->link_quality_score);
+            em_printfout("            SNR: %u dB", alarm_samples->snr);
+            em_printfout("            PER Rate: %u ", alarm_samples->per);
+            em_printfout("            PHY Rate: %u ", alarm_samples->phy);
+        }
+        sample_sz += sizeof(em_alarm_samples_t) * 3;//todo: remove hard-coded during integ
+
+        tmp += sizeof(em_link_report_t);
+        len -= static_cast<unsigned short> (sizeof(em_link_report_t));
+    }
+
+    //form json and send to cli/orchestrator
+    get_mgr()->io_process(em_bus_event_type_link_stats_alarm_report,reinterpret_cast<char*>(dm->get_device_info()->id.dev_mac),
+        sizeof(mac_address_t));
+
+    return 0;
+}
 
 int em_metrics_t::handle_ap_metrics_response(unsigned char *buff, unsigned int len)
 {
@@ -421,6 +488,7 @@ int em_metrics_t::handle_ap_metrics_response(unsigned char *buff, unsigned int l
 
     while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
         if (tlv->type == em_tlv_type_assoc_sta_traffic_sts) {
+            //todo: bug fix to find sta
             handle_assoc_sta_traffic_stats(tlv->value, bssid);
         }
         tmp_len -= (sizeof(em_tlv_t) + static_cast<size_t> (htons(tlv->len)));
@@ -877,10 +945,6 @@ int em_metrics_t::send_ap_metrics_response()
     //AP Metrics Response 17.1.17
     //AP Metrics TLV (17.2.22)
     for (bss_index = 0; bss_index < static_cast<int>(dm->m_num_bss); bss_index++) {
-        if (memcmp(dm->m_bss[bss_index].m_bss_info.ruid.mac,
-            get_current_cmd()->get_param()->u.ap_metrics_params.ruid, sizeof(mac_addr_t)) != 0) {
-            continue;
-        }
 
         tlv = reinterpret_cast<em_tlv_t *> (tmp);
         tlv->type = em_tlv_type_ap_metrics;
@@ -894,15 +958,6 @@ int em_metrics_t::send_ap_metrics_response()
         tlv = reinterpret_cast<em_tlv_t *> (tmp);
         tlv->type = em_tlv_type_ap_ext_metric;
         sz = create_ap_ext_metrics_tlv(tlv->value, dm->m_bss[bss_index]);
-        tlv->len =  htons(static_cast<unsigned short> (sz));
-
-        tmp += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
-        len += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
-
-        //Radio Metrics TLV (17.2.60)
-        tlv = reinterpret_cast<em_tlv_t *> (tmp);
-        tlv->type = em_tlv_type_radio_metric;
-        sz = create_radio_metrics_tlv(tlv->value);
         tlv->len =  htons(static_cast<unsigned short> (sz));
 
         tmp += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
@@ -964,6 +1019,25 @@ int em_metrics_t::send_ap_metrics_response()
             sta = reinterpret_cast<dm_sta_t *> (hash_map_get_next(dm->m_sta_map, sta));
         }
     }
+
+    for (int i = 0; i < get_current_cmd()->get_param()->u.ap_metrics_params.num_radios; i++) {
+        //Radio Metrics TLV (17.2.60)
+        tlv = reinterpret_cast<em_tlv_t *> (tmp);
+        tlv->type = em_tlv_type_radio_metric;
+        sz = create_radio_metrics_tlv(tlv->value, i);
+        tlv->len =  htons(static_cast<unsigned short> (sz));
+
+        tmp += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+        len += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+    }
+
+    //Add Link Stats alarm tlv
+    tlv = reinterpret_cast<em_tlv_t *> (tmp);
+    tlv->type = em_tlv_type_link_stats_alarm_rprt;
+    sz = create_link_stats_alarm_tlv(tlv->value);
+    tlv->len = htons(static_cast<unsigned short> (sz));
+    tmp += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+    len += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
 
     // End of message
     tlv = reinterpret_cast<em_tlv_t *> (tmp);
@@ -1251,14 +1325,20 @@ short em_metrics_t::create_beacon_metrics_response_tlv(unsigned char *buff)
 short em_metrics_t::create_ap_metrics_tlv(unsigned char *buff, dm_bss_t &dm_bss)
 {
     size_t len = 0;
-    mac_addr_str_t rad_str, bss_str;
     em_ap_metric_t *ap_metrics = reinterpret_cast<em_ap_metric_t *> (buff);
+    int i = 0;
 
-    dm_easy_mesh_t::macbytes_to_string(dm_bss.m_bss_info.ruid.mac, rad_str);
+ 
+    for(i = 0; i < get_current_cmd()->get_param()->u.ap_metrics_params.num_radios; i++) {
+        if (memcmp(dm_bss.m_bss_info.ruid.mac,
+            get_current_cmd()->get_param()->u.ap_metrics_params.ruid[i], sizeof(mac_addr_t)) == 0) {
+            em_printfout("Creating ap response for radio ruid: %s", util::mac_to_string(dm_bss.m_bss_info.ruid.mac).c_str());
+            break;
+        }
+    }
     if (memcmp(dm_bss.m_bss_info.ruid.mac, 
-        get_current_cmd()->get_param()->u.ap_metrics_params.ruid, sizeof(mac_addr_t)) == 0) {
-        dm_easy_mesh_t::macbytes_to_string(dm_bss.m_bss_info.bssid.mac, bss_str);
-        printf("%s:%d Creating ap response for bssid: %s\n", __func__, __LINE__, bss_str);
+        get_current_cmd()->get_param()->u.ap_metrics_params.ruid[i], sizeof(mac_addr_t)) == 0) {
+        em_printfout("Creating ap response for bssid: %s", util::mac_to_string(dm_bss.m_bss_info.bssid.mac).c_str());
 
         memcpy(ap_metrics->bssid, dm_bss.m_bss_info.bssid.mac, sizeof(mac_address_t));
         len += static_cast<size_t> (sizeof(mac_address_t));
@@ -1284,12 +1364,19 @@ short em_metrics_t::create_ap_metrics_tlv(unsigned char *buff, dm_bss_t &dm_bss)
 short em_metrics_t::create_ap_ext_metrics_tlv(unsigned char *buff, dm_bss_t &dm_bss)
 {
     size_t len = 0;
-    mac_addr_str_t rad_str;
     em_ap_ext_metric_t *ap_ext_metrics = reinterpret_cast<em_ap_ext_metric_t *> (buff);
+    int i = 0;
 
-    dm_easy_mesh_t::macbytes_to_string(dm_bss.m_bss_info.ruid.mac, rad_str);
+    for(i = 0; i < get_current_cmd()->get_param()->u.ap_metrics_params.num_radios; i++) {
+        if (memcmp(dm_bss.m_bss_info.ruid.mac,
+            get_current_cmd()->get_param()->u.ap_metrics_params.ruid[i], sizeof(mac_addr_t)) == 0) {
+            em_printfout("Creating ap response for radio ruid: %s", util::mac_to_string(dm_bss.m_bss_info.ruid.mac).c_str());
+            break;
+        }
+    }
+
     if (memcmp(dm_bss.m_bss_info.ruid.mac,
-        get_current_cmd()->get_param()->u.ap_metrics_params.ruid, sizeof(mac_addr_t)) == 0) {
+        get_current_cmd()->get_param()->u.ap_metrics_params.ruid[i], sizeof(mac_addr_t)) == 0) {
         memcpy(ap_ext_metrics->bssid, dm_bss.m_bss_info.bssid.mac, sizeof(mac_address_t));
     }
 
@@ -1298,14 +1385,14 @@ short em_metrics_t::create_ap_ext_metrics_tlv(unsigned char *buff, dm_bss_t &dm_
     return static_cast<short> (len);
 }
 
-short em_metrics_t::create_radio_metrics_tlv(unsigned char *buff)
+short em_metrics_t::create_radio_metrics_tlv(unsigned char *buff, int index)
 {
     size_t len = 0;
     dm_easy_mesh_t *dm = get_data_model();
     em_radio_metric_t *radio_metric = reinterpret_cast<em_radio_metric_t *> (buff);
     dm_radio_t *radio = NULL;
 
-    radio = dm->get_radio(get_current_cmd()->get_param()->u.ap_metrics_params.ruid);
+    radio = dm->get_radio(get_current_cmd()->get_param()->u.ap_metrics_params.ruid[index]);
     memcpy(radio_metric->ruid, radio->get_radio_info()->intf.mac, sizeof(mac_address_t));
 
     len = static_cast<size_t> (sizeof(em_radio_metric_t));
@@ -1323,6 +1410,10 @@ short em_metrics_t::create_assoc_sta_traffic_stats_tlv(unsigned char *buff, cons
         len += sizeof(response->sta_mac_addr);
 
         response->bytes_sent = sta->m_sta_info.bytes_tx;
+        em_printfout("   ===>>> em_sta_dev_info->bytes_tx %d",sta->m_sta_info.bytes_tx);
+        em_printfout("   ===>>> response->bytes_sent %d",response->bytes_sent);
+
+
         len += sizeof(response->bytes_sent);
 
         response->bytes_recv = sta->m_sta_info.bytes_rx;
@@ -1353,6 +1444,63 @@ short em_metrics_t::create_assoc_wifi6_sta_sta_report_tlv(unsigned char *buff, c
 
     len = static_cast<size_t> (sizeof(em_assoc_wifi6_sta_sts_t));
 
+    return static_cast<short> (len);
+}
+
+short em_metrics_t::create_link_stats_alarm_tlv(unsigned char *buff)
+{
+    size_t len = 0;
+    em_link_report_t *link_stats = reinterpret_cast<em_link_report_t *> (buff);
+    char date_time[EM_DATE_TIME_BUFF_SZ];
+    unsigned char *tmp = buff;
+    dm_sta_t *sta;
+    dm_easy_mesh_t  *dm = get_data_model();
+
+    //add logic to increment above mac value by 1
+    sta = static_cast<dm_sta_t *> (hash_map_get_first(dm->m_sta_map));
+    while (sta != NULL) {
+        memcpy(link_stats->sta_mac, sta->m_sta_info.id, sizeof(mac_address_t));
+        util::get_date_time_rfc3399(date_time, sizeof(date_time));
+        strncpy(reinterpret_cast<char*>(link_stats->reporting_timestamp), date_time, 32);
+
+        link_stats->link_quality_threshold = 0.1;
+        link_stats->alarm_triggered = 1;
+        link_stats->sample_count = 2;
+
+        em_printfout("   sta mac : %s", util::mac_to_string(link_stats->sta_mac).c_str());
+        em_printfout("   reporting_timestamp : %s", link_stats->reporting_timestamp);
+        em_printfout("   link_quality_threshold : %.2f", link_stats->link_quality_threshold);
+        em_printfout("   alarm_triggered : %d", link_stats->alarm_triggered);
+        em_printfout("create_link_stats_alarm_tlv: sample_count=%d", link_stats->sample_count);
+
+        size_t sample_sz = 0;
+        float score_inc = 0.1;
+        for (int j = 0; j < link_stats->sample_count; j++) {
+            link_stats->alarm_sample[j].link_quality_score = 0.33 + score_inc;
+            strncpy(link_stats->alarm_sample[j].reporting_time, date_time, 32);
+            link_stats->alarm_sample[j].snr = 80 + j;
+            link_stats->alarm_sample[j].per = 70 + j;
+            link_stats->alarm_sample[j].phy = 100 + j;
+
+            em_printfout("   Sample %d:", j + 1);
+            em_printfout("       link_quality_score : %.2f", link_stats->alarm_sample[j].link_quality_score);
+            em_printfout("       reporting_time : %s", link_stats->alarm_sample[j].reporting_time);
+            em_printfout("       snr : %d", link_stats->alarm_sample[j].snr);
+            em_printfout("       per : %d", link_stats->alarm_sample[j].per);
+            em_printfout("       phy : %d", link_stats->alarm_sample[j].phy);
+            sample_sz += sizeof(em_alarm_samples_t);
+        }
+
+        len = static_cast<size_t> (sizeof(em_link_report_t) + sample_sz);
+        tmp += len;
+
+        link_stats = reinterpret_cast<em_link_report_t *>(tmp);
+
+        sta = static_cast<dm_sta_t *> (hash_map_get_next(dm->m_sta_map, sta));
+    }
+
+    len = static_cast<size_t> (sizeof(em_link_report_t));
+    em_printfout("create_link_stats_alarm_tlv done");
     return static_cast<short> (len);
 }
 

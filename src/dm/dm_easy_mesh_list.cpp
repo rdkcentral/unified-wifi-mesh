@@ -490,6 +490,43 @@ dm_bss_t *dm_easy_mesh_list_t::get_bss(const char *key)
 	return dm->find_matching_bss(&id);
 }
 
+dm_bss_t *dm_easy_mesh_list_t::get_first_bss(mac_addr_t al_mac)
+{
+    dm_easy_mesh_t *dm;
+
+    dm = get_data_model(GLOBAL_NET_ID, al_mac);
+    if ((dm != NULL) && (dm->get_num_bss() > 0)) {
+        return &dm->m_bss[0];
+    }
+
+    return NULL;
+}
+
+dm_bss_t *dm_easy_mesh_list_t::get_next_bss(mac_addr_t al_mac, dm_bss_t *bss)
+{
+    dm_easy_mesh_t *dm;
+    unsigned int i;
+    bool found_match = false;
+
+    dm = get_data_model(GLOBAL_NET_ID, al_mac);
+    if ((dm == NULL) || (dm->get_num_bss() == 0)) {
+        return NULL;
+    }
+
+    for (i = 0; i < dm->get_num_bss(); i++) {
+        if (&dm->m_bss[i] == bss) {
+            found_match = true;
+            break;
+        }
+    }
+
+    if ((found_match == true) && (i < (dm->get_num_bss() - 1))) {
+        return &dm->m_bss[i + 1];
+    }
+
+    return NULL;
+}
+
 void dm_easy_mesh_list_t::remove_bss(const char *key)
 {
 	em_bss_id_t id;

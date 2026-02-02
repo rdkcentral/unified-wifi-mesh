@@ -151,6 +151,27 @@ void dm_sta_t::encode(cJSON *obj, em_get_sta_list_reason_t reason)
     mac_addr_str_t  mac_str;
     cJSON *reason_obj, *request_obj;
 
+    if (reason == em_get_sta_list_reason_alarm_report) {
+        dm_easy_mesh_t::macbytes_to_string(m_sta_info.id, mac_str);
+        cJSON_AddStringToObject(obj, "Mac", mac_str);
+        dm_easy_mesh_t::macbytes_to_string(m_sta_info.bssid, mac_str);
+        cJSON_AddStringToObject(obj, "BSSID", mac_str);
+        cJSON_AddStringToObject(obj, "ReportingTime", reinterpret_cast<const char*>(m_sta_info.link_stats_report.reporting_timestamp));
+        cJSON_AddNumberToObject(obj, "Threshold", m_sta_info.link_stats_report.link_quality_threshold);
+        cJSON_AddBoolToObject(obj, "Alarm", m_sta_info.link_stats_report.alarm_triggered);
+        cJSON *samples_obj = cJSON_AddArrayToObject(obj, "Samples");
+        for (unsigned int i = 0; i < m_sta_info.link_stats_report.sample_count; i++) {
+            cJSON *sample = cJSON_CreateObject();
+            cJSON_AddNumberToObject(sample, "Score", m_sta_info.link_stats_report.alarm_sample[i].link_quality_score);
+            cJSON_AddStringToObject(sample, "Time", m_sta_info.link_stats_report.alarm_sample[i].reporting_time);
+            cJSON_AddNumberToObject(sample, "SNR", m_sta_info.link_stats_report.alarm_sample[i].snr);
+            cJSON_AddNumberToObject(sample, "PER", m_sta_info.link_stats_report.alarm_sample[i].per);
+            cJSON_AddNumberToObject(sample, "PHY", m_sta_info.link_stats_report.alarm_sample[i].phy);
+            cJSON_AddItemToArray(samples_obj, sample);
+        }
+        return;
+    }
+
     dm_sta_t::decode_sta_capability(this);
     dm_sta_t::decode_beacon_report(this);
     dm_easy_mesh_t::macbytes_to_string(m_sta_info.id, mac_str);
