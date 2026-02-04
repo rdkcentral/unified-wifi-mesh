@@ -196,6 +196,18 @@ public:
 	void destroy_command(em_cmd_t *pcmd);
     
 	/**!
+	 * @brief Cancels a command of the specified type if misconfiguration for specific EMs.
+     *
+     * This function is used to cancel a command that is currently being processed when misconfigure happens.
+     *
+     * @param[in] type The type of command to cancel. This parameter specifies which command
+     * should be canceled based on the em_cmd_type_t enumeration.
+     *
+     * @note Ensure that the command type provided is valid and currently active.
+     */
+    void cancel_command(em_cmd_type_t type, std::vector<em_t*> &em_radios);
+
+	/**!
 	 * @brief Cancels a command of the specified type.
 	 *
 	 * This function is used to cancel a command that is currently being processed or queued.
@@ -206,6 +218,18 @@ public:
 	 * @note Ensure that the command type provided is valid and currently active.
 	 */
 	void cancel_command(em_cmd_type_t type);
+
+	/**!
+	 * @brief Resets the command time for a specific command type.
+	 *
+	 * This function is responsible for resetting the timer associated with a specific command type in the command map.
+	 *
+	 * @param[in] cmd_map Pointer to the command map where the command time should be reset.
+	 * @param[in] type The type of command for which the time should be reset, specified by the em_cmd_type_t enumeration.
+	 *
+	 * @note Ensure that the cmd_map is properly initialized and that the type provided is valid before calling this function.
+	 */
+	void reset_cmd_time(hash_map_t *cmd_map, em_cmd_type_t type);
     
 	/**!
 	 * @brief Pushes statistics to the specified command structure.

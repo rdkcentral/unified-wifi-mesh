@@ -2179,7 +2179,6 @@ public:
     unsigned char m_emsk[WPS_EMSK_LEN];
     unsigned int m_renew_tx_cnt;
     unsigned int m_topo_query_tx_cnt;
-
     
 	/**!
 	 * @brief Constructor for em_configuration_t.

@@ -2219,6 +2219,18 @@ void dm_easy_mesh_t::create_client_cap_query_json_cmd(char* src_mac_addr, char* 
     cJSON_Delete(root);
 }
 
+bool dm_easy_mesh_t::is_ssid_match(const ssid_t &ssid)
+{
+    em_network_ssid_info_t *info;
+    for (unsigned int i = 0; i < m_num_net_ssids; i++) {
+        info = &m_network_ssid[i].m_network_ssid_info;
+        if (strncmp(info->ssid, ssid, sizeof(info->ssid)) == 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
 em_network_ssid_info_t *dm_easy_mesh_t::get_network_ssid_info_by_haul_type(em_haul_type_t haul_type)
 {
     em_network_ssid_info_t *info;

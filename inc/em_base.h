@@ -92,6 +92,7 @@ extern "C"
 #define EM_MAX_CHANNELS_IN_LIST  64
 #define EM_MAX_CMD_GEN_TTL  10
 #define EM_MAX_CMD_EXT_TTL  30
+#define EM_SSID_MISMATCH_TTL  120
 #define EM_MAX_RENEW_TX_THRESH  5
 #define EM_MAX_CAP_QUERY_TX_THRESH  2
 #define EM_MAX_TOPO_QUERY_TX_THRESH  5
@@ -2023,10 +2024,10 @@ typedef enum {
     em_state_ctrl_unconfigured = 0x100,
     em_state_ctrl_wsc_m1_pending,
     em_state_ctrl_wsc_m2_sent,
-    em_state_ctrl_ap_cap_query_pending,
-    em_state_ctrl_ap_cap_report_received,
     em_state_ctrl_topo_sync_pending,
     em_state_ctrl_topo_synchronized,
+    em_state_ctrl_ap_cap_query_pending,
+    em_state_ctrl_ap_cap_report_received,
     em_state_ctrl_channel_query_pending,
 	em_state_ctrl_channel_pref_report_pending,
     em_state_ctrl_channel_queried,

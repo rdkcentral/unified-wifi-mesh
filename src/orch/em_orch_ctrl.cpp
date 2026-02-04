@@ -33,9 +33,11 @@
 #include <sys/uio.h>
 #include <unistd.h>
 #include <assert.h>
+#include <vector>
 #include "em_base.h"
 #include "em_cmd.h"
 #include "em_cmd_exec.h"
+#include "em_configuration.h"
 #include "em_orch_ctrl.h"
 #include "em_cmd_ctrl.h"
 
@@ -54,21 +56,101 @@ void em_orch_ctrl_t::orch_transient(em_cmd_t *pcmd, em_t *em)
 		//em_t::state_2_str(em->get_state()), stats->time);
 	
 	switch (pcmd->m_type) {
-		case em_cmd_type_em_config:
-    		if (stats->time > (EM_MAX_CMD_GEN_TTL + EM_MAX_CMD_EXT_TTL)) {
-        		printf("%s:%d: Canceling cmd: %s because time limit exceeded\n", __func__, __LINE__, pcmd->get_cmd_name());
-        		cancel_command(pcmd->get_type());
-    		}
-			break;
 
-		default:
-    		if (stats->time > EM_MAX_CMD_GEN_TTL) {
-        		printf("%s:%d: Canceling cmd: %s because time limit exceeded\n", __func__, __LINE__, pcmd->get_cmd_name());
-        		cancel_command(pcmd->get_type());
-    		}
-			break;   
-	}
+        case em_cmd_type_em_config:
+        {
+            dm_easy_mesh_t *dm = em->get_data_model();
+            std::vector<em_t *> all_em_radios;
+            em->get_mgr()->get_all_em_for_al_mac(dm->get_agent_al_interface_mac(), all_em_radios);
+            // Special handling for Topology Sync command.
+            if (pcmd->get_orch_op() == dm_orch_type_topo_sync && em->get_state() == em_state_ctrl_topo_sync_pending) {
+                if (all_em_radios.empty()) return;
+                unsigned int base_time = EM_MAX_CMD_GEN_TTL + EM_MAX_CMD_EXT_TTL;
 
+                // Check if any radio has SSID mismatch within this AL set.
+                bool ssid_mismatch_present = std::any_of(all_em_radios.begin(), all_em_radios.end(), [](em_t *radio) {
+                    return radio->get_ssid_mismatch();
+                });
+
+                // Cancel command if time exceeded and no ssid mismatch
+                if (stats->time > base_time && !ssid_mismatch_present) {
+                    em_printfout("Canceling cmd: %s because time limit exceeded with no SSID mismatch",pcmd->get_cmd_name());
+                    // Reset the mismatch and topo_query_last sent values before sending topo query
+                    dm->set_ssid_mismatch_check_time(0);
+                    dm->set_last_topo_query_sent_time(0);
+                    cancel_command(pcmd->get_type(), all_em_radios);
+                    return;
+                }
+
+                // Handle SSID mismatch scenario.
+                if (ssid_mismatch_present) {
+                    // Start timer on first detection
+                    if (!dm->get_ssid_mismatch_check_time()) {
+                        // ssid_mismatch_check_time records the time when the mismatch was first detected
+                        dm->set_ssid_mismatch_check_time(stats->time);
+                        em_printfout("SSID mismatch detected, starting %ds timer at time: %ds",EM_SSID_MISMATCH_TTL, stats->time);
+                    }
+
+                    // Transition to misconfigured if mismatch persists
+                    // EM_SSID_MISMATCH_TTL (120) is used as the timeout threshold
+                    if ((stats->time - (dm->get_ssid_mismatch_check_time())) > EM_SSID_MISMATCH_TTL) {
+                        //If 120s have passed since ssid mismatch detected, cancel the command and transition to misconfigured state
+                        em_printfout("%ds since SSID mismatch detected - canceling (SSID mismatch recovery failed)", EM_SSID_MISMATCH_TTL);
+                        for (em_t *radio : all_em_radios) {
+                            radio->set_ssid_mismatch(false);
+                        }
+                        //Reset the mismatch and topo_query_last sent values
+                        dm->set_ssid_mismatch_check_time(0);
+                        dm->set_last_topo_query_sent_time(0);
+                        cancel_command(pcmd->get_type(), all_em_radios);
+
+                        // Notify all radios by sending an Autoconfig Renew on each radio interface
+                        em_printfout("SSID Mismatch recovery failed, sending Autoconfig Renew on all radios and transitioning to misconfigured state");
+                        for (em_t *radio : all_em_radios) {
+                            em_configuration_t *cfg = static_cast<em_configuration_t *>(radio);
+                            // Move radio to misconfigured before issuing renew to resync config
+                            radio->set_state(em_state_ctrl_misconfigured);
+                            if (cfg->send_autoconfig_renew_msg() < 0) {
+                                em_printfout("Autoconfig Renew send failed for radio:%s", util::mac_to_string(radio->get_radio_interface_mac()).c_str());
+                            }
+                        }
+                        return;
+                    }
+
+                    // Send Topology Query every query_interval seconds
+                    //EM_MAX_CMD_GEN_TTL(10s) is used as the query interval
+                    if (!dm->get_last_topo_query_sent_time() ||
+                       (stats->time - (dm->get_last_topo_query_sent_time())) >= EM_MAX_CMD_GEN_TTL) {
+                        // Resend Topology Query every 10s if SSID mismatch is still present
+                        for (em_t *radio : all_em_radios) {
+                            if (radio->get_state() != em_state_ctrl_topo_sync_pending) {
+                                radio->set_state(em_state_ctrl_topo_sync_pending);
+                            }
+                        }
+                        em_printfout("Re-sent Topology Query due to SSID mismatch at time: %ds",stats->time);
+                        static_cast<em_configuration_t*>(all_em_radios.front())->send_topology_query_msg();
+                        // Update last query time
+                        dm->set_last_topo_query_sent_time(stats->time);
+                    }
+                }
+            } else if (stats->time > (EM_MAX_CMD_GEN_TTL + EM_MAX_CMD_EXT_TTL)) {
+                em_printfout("Canceling cmd: %s because time limit exceeded",pcmd->get_cmd_name());
+                // Reset the mismatch and topo_query_last sent values before canceling
+                dm->set_ssid_mismatch_check_time(0);
+                dm->set_last_topo_query_sent_time(0);
+                cancel_command(pcmd->get_type());
+            }
+            break;
+        }
+
+        default:
+        if (stats->time > EM_MAX_CMD_GEN_TTL)
+        {
+            em_printfout("Canceling cmd: %s because time limit exceeded",pcmd->get_cmd_name());
+            cancel_command(pcmd->get_type());
+        }
+        break;
+    }
 }
 
 bool em_orch_ctrl_t::is_em_ready_for_orch_fini(em_cmd_t *pcmd, em_t *em)
