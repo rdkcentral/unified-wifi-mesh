@@ -207,10 +207,15 @@ void em_ctrl_t::handle_set_policy(em_bus_event_t *evt)
     int num;
 
     if (m_orch->is_cmd_type_in_progress(evt) == true) {
-        m_ctrl_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
-    } else if ((num = m_data_model.analyze_set_policy(evt, pcmd)) > 0) {
-        m_orch->submit_commands(pcmd, static_cast<unsigned int> (num));
-    }
+        //m_ctrl_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
+    } else if ((num = m_data_model.analyze_set_policy(evt, pcmd)) == 0) {
+        //m_ctrl_cmd->send_result(em_cmd_out_status_no_change);
+    } else if (m_orch->submit_commands(pcmd, static_cast<unsigned int> (num)) > 0) {
+        m_ctrl_cmd->send_result(em_cmd_out_status_success);
+    } else {
+        //m_ctrl_cmd->send_result(em_cmd_out_status_not_ready);
+    } 
+
 }
 
 void em_ctrl_t::handle_config_renew(em_bus_event_t *evt)

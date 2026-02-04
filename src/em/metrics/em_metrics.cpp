@@ -376,22 +376,23 @@ int em_metrics_t::handle_link_stats_alarm_rprt_tlv(unsigned char *buff, short le
     dm_easy_mesh_t  *dm;
     mac_addr_str_t sta_str;
     unsigned char *tmp = buff;
-    size_t sample_sz = 0;
+    em_long_string_t key;
+    mac_addr_str_t bss_mac_str;
+    mac_addr_str_t radio_mac_str;
 
     dm = get_data_model();
 
     em_vendor_specific_t *vendor_data = reinterpret_cast<em_vendor_specific_t *> (tmp);
     em_printfout("  ===>> vendor oui [%x, %x, %x]", vendor_data->vendor_oui[0], vendor_data->vendor_oui[1], vendor_data->vendor_oui[2]);
-    em_printfout("vendor_data->id [%d]", vendor_data->id);
+    em_printfout("vendor_data->num count [%d]", vendor_data->num);
 
-    tmp += sizeof(vendor_data->id) + EM_VENDOR_OUI_SIZE;
-    len -= static_cast<unsigned short>( sizeof(vendor_data->id) + EM_VENDOR_OUI_SIZE );
+    tmp += sizeof(vendor_data->num) + EM_VENDOR_OUI_SIZE;
+    len -= static_cast<unsigned short>( sizeof(vendor_data->num) + EM_VENDOR_OUI_SIZE );
 
     while (link_report != NULL && len > 0) {
-        em_printfout("  length : %d\n", len);
         link_report = reinterpret_cast<em_link_report_t *> (tmp);
 
-        int alarm_offset = offsetof(em_link_stats_alarm_rprt_t, alarm_sample);
+        int alarm_offset = offsetof(em_link_report_t, alarm_sample);
         
         if (len < alarm_offset) {
             em_printfout("Invalid alarm report length");
@@ -441,13 +442,12 @@ int em_metrics_t::handle_link_stats_alarm_rprt_tlv(unsigned char *buff, short le
             em_printfout("            PHY Rate: %f ", sta->m_sta_info.link_stats_report.alarm_sample[i].phy);
         }
 
-        tmp += sizeof(em_link_report_t);
-        len -= static_cast<unsigned short> (sizeof(em_link_report_t));
+        tmp += alarm_offset + (link_report->sample_count * sizeof(em_alarm_samples_t));
+        len -= static_cast<unsigned short>( alarm_offset + (link_report->sample_count * sizeof(em_alarm_samples_t)) );
     }
 
     //form json and send to cli/orchestrator
-    get_mgr()->io_process(em_bus_event_type_link_stats_alarm_report,reinterpret_cast<char*>(dm->get_device_info()->id.dev_mac),
-        sizeof(mac_address_t));
+    get_mgr()->io_process(em_bus_event_type_link_stats_alarm_report, (char *)dm->get_device_info()->id.dev_mac, sizeof(mac_address_t));
 
     return 0;
 }
@@ -1576,29 +1576,27 @@ short em_metrics_t::create_assoc_wifi6_sta_sta_report_tlv(unsigned char *buff, c
 short em_metrics_t::create_link_stats_alarm_tlv(unsigned char *buff)
 {
     size_t len = 0;
-    em_link_report_t *link_stats = reinterpret_cast<em_link_report_t *> (buff);
-    char date_time[EM_DATE_TIME_BUFF_SZ];
+    em_link_report_t *link_stats;
     unsigned char *tmp = buff;
     dm_sta_t *sta;
     dm_easy_mesh_t  *dm = get_current_cmd()->get_data_model();
-    int alarm_offset = offsetof(em_link_stats_alarm_rprt_t, alarm_sample);
+    int alarm_offset = offsetof(em_link_report_t, alarm_sample);
     int temp_len = 0;
 
     em_vendor_specific_t *vendor_data = reinterpret_cast<em_vendor_specific_t *> (buff);
     memcpy(reinterpret_cast<char *> (vendor_data->vendor_oui), em_vendor_oui, EM_VENDOR_OUI_SIZE);
 
     em_printfout("vendor oui [%x, %x, %x]", vendor_data->vendor_oui[0], vendor_data->vendor_oui[1], vendor_data->vendor_oui[2]);
-    vendor_data->id = vendor_ext_attr_id_link_report;
+    vendor_data->num = 1;
 
-    tmp += sizeof(vendor_data->id) + EM_VENDOR_OUI_SIZE;
-    len += sizeof(vendor_data->id) + EM_VENDOR_OUI_SIZE;
+    tmp += sizeof(vendor_data->num) + EM_VENDOR_OUI_SIZE;
+    len += sizeof(vendor_data->num) + EM_VENDOR_OUI_SIZE;
 
     sta = static_cast<dm_sta_t *> (hash_map_get_first(dm->m_sta_map));
     while (sta != NULL) {
-        link_stats = reinterpret_cast<em_link_stats_alarm_rprt_t *>(tmp);
+        link_stats = reinterpret_cast<em_link_report_t *>(tmp);
         memcpy(link_stats->sta_mac, sta->m_sta_info.id, sizeof(mac_address_t));
-        util::get_date_time_rfc3399(date_time, sizeof(date_time));
-        strncpy(reinterpret_cast<char*>(link_stats->reporting_timestamp), date_time, 32);
+        strncpy((char*)link_stats->reporting_timestamp, (const char*)sta->m_sta_info.link_stats_report.reporting_timestamp, 32);
 
         link_stats->link_quality_threshold = sta->m_sta_info.link_stats_report.link_quality_threshold;
         link_stats->alarm_triggered = sta->m_sta_info.link_stats_report.alarm_triggered;
@@ -1627,16 +1625,14 @@ short em_metrics_t::create_link_stats_alarm_tlv(unsigned char *buff)
             em_printfout("       phy : %f", link_stats->alarm_sample[j].phy);
         }
 
-        len = static_cast<size_t> (sizeof(em_link_report_t) + sample_sz);
-        tmp += len;
-
-        link_stats = reinterpret_cast<em_link_report_t *>(tmp);
-
+        int record_len = alarm_offset + (link_stats->sample_count * sizeof(em_alarm_samples_t));
+        len += record_len;
+        tmp += record_len;
+        em_printfout("framed report len: %d", len);
         sta = static_cast<dm_sta_t *> (hash_map_get_next(dm->m_sta_map, sta));
     }
 
-    len = static_cast<size_t> (sizeof(em_link_report_t));
-    em_printfout("create_link_stats_alarm_tlv done");
+    em_printfout("create_link_stats_alarm_tlv done of len: %d", len);
 
     return static_cast<short> (len);
 }

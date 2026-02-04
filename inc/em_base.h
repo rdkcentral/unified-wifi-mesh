@@ -1504,9 +1504,14 @@ typedef struct {
 } __attribute__((__packed__)) em_1905_mac_addr_t;
 
 typedef struct {
+    unsigned char attr_id;
+    unsigned char  vendor_data[0];
+} __attribute__((__packed__)) em_vendor_data_t;
+
+typedef struct {
     unsigned char  vendor_oui[3];
-    unsigned char m_num;
-    unsigned char  *m;
+    unsigned char num;
+    unsigned char  data[0];
 } __attribute__((__packed__)) em_vendor_specific_t;
 
 typedef struct {
@@ -1834,11 +1839,17 @@ typedef struct {
     em_string_t collection_start_time;
     unsigned int reporting_interval;
     float link_quality_threshold;
-} __attribute__((__packed__)) em_link_report_alarm_policy_cfg_t;
+} em_link_stats_alarm_cfg_t;
 
 typedef struct {
+    mac_addr_t sta_mac;
+    unsigned int consec_alarm_thres_cnt;
+    em_small_string_t collect_duration;
+} em_client_filters_cfg_t;
+typedef struct {
     em_string_t managed_client_marker;
-    em_link_report_alarm_policy_cfg_t link_stats_alarm_policy_cfg;
+    em_link_stats_alarm_cfg_t link_stats_alarm_policy_cfg;
+    em_client_filters_cfg_t client_filters_policy_cfg;
 }__attribute__((__packed__)) em_vendor_policy_t;
 
 typedef struct {
@@ -1991,6 +2002,8 @@ typedef enum {
     vendor_ext_attr_id_haul_type = 0x01,
     vendor_ext_attr_id_policy_sta_marker,
     vendor_ext_attr_id_policy_alarm,
+    vendor_ext_attr_id_policy_cfg_client_filter,
+    vendor_ext_attr_id_link_report,
 
     vendor_ext_attr_id_max
 } vendor_ext_attr_id_t;
@@ -3253,6 +3266,7 @@ typedef enum {
 	em_policy_id_type_backhaul_bss_config,
 	em_policy_id_type_qos_mgt,
     em_policy_id_type_alarm_threshold,
+    em_policy_id_type_client_filters,
 
 	em_policy_id_type_unknown,
 } em_policy_id_type_t;
@@ -3288,12 +3302,6 @@ typedef struct {
 } em_traffic_separation_policy_t;
 
 typedef struct {
-    em_long_string_t collection_start_time;
-    unsigned int reporting_interval;
-    float link_quality_threshold;
-} em_link_stats_alarm_cfg_t;
-
-typedef struct {
 	em_policy_id_t	id;
 	unsigned int num_sta;
 	mac_address_t	sta_mac[EM_MAX_STA_PER_STEER_POLICY];
@@ -3312,6 +3320,7 @@ typedef struct {
 	em_8021q_settings_policy_t  def_8021q_settings;
 	em_traffic_separation_policy_t traffic_separ;
     em_link_stats_alarm_cfg_t link_stats_alarm_cfg;
+    em_client_filters_cfg_t client_filters;
 } em_policy_t;
 
 typedef em_network_node_t  *(* em_editor_callback_t)(em_network_node_t *, void *);

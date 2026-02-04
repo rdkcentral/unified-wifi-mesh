@@ -365,7 +365,7 @@ void dm_sta_t::operator = (const dm_sta_t& obj)
     for (unsigned int i = 0; i < this->m_sta_info.num_vendor_infos; i++) {
         memcpy(&this->m_sta_info.vendor_info, &obj.m_sta_info.vendor_info, sizeof(em_long_string_t));
     }
-    memcpy(&m_sta_info.link_stats_report, &obj.m_sta_info.link_stats_report, sizeof(em_link_stats_alarm_rprt_t));
+    memcpy(&m_sta_info.link_stats_report, &obj.m_sta_info.link_stats_report, sizeof(em_link_report_t));
 }
 
 void dm_sta_t::parse_sta_bss_radio_from_key(const char *key, mac_address_t sta, bssid_t bssid, mac_address_t ruid)
