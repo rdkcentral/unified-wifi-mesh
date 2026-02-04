@@ -91,6 +91,10 @@ public:
     static bus_error_t bss_tget_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
     static bus_error_t bss_tget_params(dm_easy_mesh_t *dm, const char *root, em_radio_info_t *ri, bus_data_prop_t **property);
 
+    bus_error_t ssid_set(char* event_name, raw_data_t* p_data);
+    static bus_error_t ssid_set_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
+
+
     bus_error_t ssid_get(char* event_name, raw_data_t* p_data);
     static bus_error_t ssid_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
     bus_error_t ssid_tget(char* event_name, raw_data_t* p_data);

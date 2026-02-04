@@ -70,11 +70,11 @@ int tr_181_t::wfa_set_bus_callbackfunc_pointers(const char *full_namespace, bus_
         ELEMENT(DE_NETWORK_COLAGTID,      CALLBACK_GETTER(network_get)),
         ELEMENT(DE_NETWORK_DEVNOE,        CALLBACK_GETTER(network_get)),
         ELEMENT(DE_SSID_TABLE,            CALLBACK_GETTER(ssid_tget)),
-        ELEMENT(DE_SSID_SSID,             CALLBACK_GETTER(ssid_get)),
+        ELEMENT(DE_SSID_SSID,             CALLBACK_GETTER_SETTER(ssid_get, ssid_set)),
         ELEMENT(DE_SSID_BAND,             CALLBACK_GETTER(ssid_get)),
         ELEMENT(DE_SSID_ENABLE,           CALLBACK_GETTER(ssid_get)),
-        ELEMENT(DE_SSID_AKMALLOWE,        CALLBACK_GETTER(ssid_get)),
-        ELEMENT(DE_SSID_SUITESEL,         CALLBACK_GETTER(ssid_get)),
+        ELEMENT(DE_SSID_AKMALLOWE,        CALLBACK_GETTER_SETTER(ssid_get, ssid_set)),
+        ELEMENT(DE_SSID_SUITESEL,         CALLBACK_GETTER_SETTER(ssid_get, ssid_set)),
         ELEMENT(DE_SSID_ADVENABLED,       CALLBACK_GETTER(ssid_get)),
         ELEMENT(DE_SSID_MFPCONFIG,        CALLBACK_GETTER(ssid_get)),
         ELEMENT(DE_SSID_MOBDOMAIN,        CALLBACK_GETTER(ssid_get)),
@@ -498,6 +498,18 @@ bus_error_t tr_181_t::ssid_tget(char *event_name, raw_data_t *p_data, bus_user_d
     }
     
     return bus_error_general;
+}
+
+bus_error_t tr_181_t::ssid_set(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
+{
+    em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
+    
+    if (em_ctrl != NULL)
+    {
+        em_ctrl->get_dm_ctrl()->ssid_set(event_name, p_data);
+        return bus_error_success;
+    }
+    return bus_error_success;
 }
 
 bus_error_t tr_181_t::ssid_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)

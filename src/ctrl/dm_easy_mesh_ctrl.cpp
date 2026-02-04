@@ -2283,6 +2283,12 @@ bus_error_t dm_easy_mesh_ctrl_t::network_get(char *event_name, raw_data_t *p_dat
     return bus_get_cb_fwd(event_name, p_data, network_get_inner);
 }
 
+bus_error_t dm_easy_mesh_ctrl_t::ssid_set(char *event_name, raw_data_t *p_data)
+{
+    return bus_get_cb_fwd(event_name, p_data, ssid_set_inner);
+}
+
+
 bus_error_t dm_easy_mesh_ctrl_t::ssid_get(char *event_name, raw_data_t *p_data)
 {
     return bus_get_cb_fwd(event_name, p_data, ssid_get_inner);
@@ -2834,6 +2840,99 @@ bus_error_t dm_easy_mesh_ctrl_t::policy_get_inner(char *event_name, raw_data_t *
         rc = bus_error_invalid_input;
     }
 
+    return rc;
+}
+
+bus_error_t dm_easy_mesh_ctrl_t::ssid_set_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
+{
+    (void) user_data;
+    const char *name = event_name;
+    const char *param;
+    unsigned int ssid_instance = 0;
+    bus_error_t rc = bus_error_success;
+
+    if (!name || !p_data) {
+        return bus_error_invalid_input;
+    }
+
+    if(sscanf(event_name, "Network.NetworkSSIDList.%d", &ssid_instance) == 1) {
+        em_printfout("Setting SSID parameter for index:%d", ssid_instance);
+    }
+    else {
+        em_printfout("Unable to extract the SSID index");
+        return bus_error_invalid_input;
+    }
+
+    param = strrchr(name, '.');
+    if (param == NULL) {
+        return bus_error_invalid_input;
+    }
+    ++param;
+
+    /* getting data model instance*/
+    dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
+    dm_easy_mesh_t *dm = dm_ctrl->get_first_dm();
+    if (dm == NULL) {
+        dm = dm_ctrl->get_next_dm(dm);
+    }
+    /*check the ssid intance validity*/
+    if (ssid_instance > dm->get_num_network_ssid()) {
+        return bus_error_invalid_input;
+    }
+
+    /* getting ssid object */
+    dm_network_ssid_t *ssid = dm->get_network_ssid(ssid_instance - 1);
+    if (ssid == NULL) {
+        return bus_error_invalid_input;
+    }
+
+    /* we will get SSID properties */
+    em_network_ssid_info_t *si = ssid->get_network_ssid_info();
+
+    if (strcmp(param, "SuiteSelector") == 0) {
+        // Handle SuiteSelector parameter set operation
+        if (p_data->data_type == bus_data_type_string && p_data->raw_data.bytes) {
+            const char *suite_value = (const char *)p_data->raw_data.bytes;
+            em_printfout("Setting SuiteSelector to: %s", suite_value);
+
+            // Update the data model
+            strncpy(si->suite_select, suite_value, sizeof(si->suite_select) - 1);
+            si->suite_select[sizeof(si->suite_select) - 1] = '\0';
+
+            // TODO: Add any additional logic needed to propagate this change to the hardware/driver
+            // This could involve calling other controller methods or sending updates to the mesh network
+
+            rc = bus_error_success;
+        } else {
+            em_printfout("Invalid data type for SuiteSelector: expected string");
+            rc = bus_error_invalid_input;
+        }
+    } else if (strcmp(param, "SSID") == 0) {
+        // Handle SSID parameter set operation
+        if (p_data->data_type == bus_data_type_string && p_data->raw_data.bytes) {
+            const char *ssid_value = (const char *)p_data->raw_data.bytes;
+            em_printfout("Setting SSID to: %s", ssid_value);
+            strncpy(si->ssid, ssid_value, sizeof(si->ssid) - 1);
+            si->ssid[sizeof(si->ssid) - 1] = '\0';
+            rc = bus_error_success;
+        } else {
+            em_printfout("Invalid data type for SSID: expected string");
+            rc = bus_error_invalid_input;
+        }
+    } else if (strcmp(param, "Enable") == 0) {
+        // Handle Enable parameter set operation
+        if (p_data->data_type == bus_data_type_boolean) {
+            em_printfout("Setting Enable to: %d", p_data->raw_data.b);
+            si->enable = p_data->raw_data.b;
+            rc = bus_error_success;
+        } else {
+            em_printfout("Invalid data type for Enable: expected boolean");
+            rc = bus_error_invalid_input;
+        }
+    } else {
+        em_printfout("Parameter '%s' is not writable or does not exist", param);
+        rc = bus_error_invalid_input;
+    }
     return rc;
 }
 

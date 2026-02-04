@@ -430,6 +430,7 @@ static const yang_to_tr181_map g_yang_map[] = {
 
 #define ELEMENT_DEFAULTS(t)         slow_speed, ZERO_TABLE, {t, false, 0L, 0L, 0U, NULL}
 #define CALLBACK_GETTER(f)          {f, NULL, NULL, NULL, NULL, NULL}
+#define CALLBACK_GETTER_SETTER(f,t) {f, t, NULL, NULL, NULL, NULL}
 #define CALLBACK_METHOD(f)          {NULL, NULL, NULL, NULL, NULL, f}
 #define ELEMENT_PROPERTY(n, f, t)   {const_cast<char*>(n), bus_element_type_property, CALLBACK_GETTER(f), ELEMENT_DEFAULTS(t)}
 #define ELEMENT_METHOD(n, f, t)     {const_cast<char*>(n), bus_element_type_method, CALLBACK_METHOD(f), ELEMENT_DEFAULTS(t)}
@@ -501,6 +502,8 @@ public:
     static bus_error_t network_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
     
     //SSID
+    static bus_error_t ssid_set(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
+    
     static bus_error_t ssid_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
     static bus_error_t ssid_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
     static bus_error_t ssid_table_add_row_handler(const char* table_name, const char* alias_name, uint32_t* instance_number);
