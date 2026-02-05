@@ -34,6 +34,8 @@ class EasyMeshController {
     this.topology = {};
     this.charts = {};
     this.refreshIntervals = {};
+    this.policyByDeviceId = {};
+    this.updatedPolicySettings = [];
     this.isConnected = false;
 
     // Chart.js configuration
@@ -263,6 +265,101 @@ class EasyMeshController {
       this.handleWifiResetApply();
     });
 
+    document.addEventListener("change", (e) => {
+      if (e.target && e.target.id === "device-selector") {
+        const deviceId = e.target.value;
+        const policy = this.policyByDeviceId[deviceId];
+        populatePolicyUI(policy);
+      }
+    });
+
+    document.addEventListener("click", (e) => {
+      const btn = e.target.closest(".apply-section");
+      if (!btn) return;
+
+      // Section key from the Save button
+      const sectionKey = btn.getAttribute("data-section");
+      if (!sectionKey) return;
+
+      // Resolve the radio name (scope group) for this section
+      const scopeName = sectionMap(sectionKey);
+      const scope = document.querySelector(`input[name="${scopeName}"]:checked`)?.value || "selected";
+
+      // Collect the section's values from the form/table
+      this.savePolicySettings(sectionKey, scope);
+
+    });
+
+    const applyPolicyBtn = document.getElementById('apply-policy-settings');
+    if (applyPolicyBtn) {
+      applyPolicyBtn.addEventListener('click', () => this.handlePolicySettingApply());
+    }
+
+    // Local Steering disallowed mac: + / - buttons
+    (() => {
+      const localBody = document.querySelector("#localMacBody");
+      const localAdd  = document.getElementById("add-mac-inline");
+      const localRem  = document.getElementById("remove-selected-inline");
+      const localAll  = document.getElementById("select-all-local");
+
+      // Select-all behavior
+      if (localAll && localBody) {
+        localAll.addEventListener("change", () => {
+          localBody.querySelectorAll('input.row-select').forEach(cb => cb.checked = localAll.checked);
+          this.updateSelectAllState(localBody, localAll);
+        });
+        localBody.addEventListener("change", (e) => {
+          if (e.target && e.target.matches('input.row-select')) {
+            this.updateSelectAllState(localBody, localAll);
+          }
+        });
+      }
+      // + button: Add inline row for user to type MAC
+      localAdd?.addEventListener("click", () =>
+        this.addDisallowedMacRow(localBody, localAll)
+      );
+
+      // - button: Remove selected rows
+      localRem?.addEventListener("click", () => {
+        const removed = this.removeSelectedRows(localBody, localAll);
+        if (removed > 0) this.showNotification?.(`${removed} MAC${removed > 1 ? "s" : ""} removed`, "success");
+      });
+
+      // Refresh select-all state afterward.
+      document.addEventListener("change", (e) => {
+        if (e.target && e.target.id === "device-selector") {
+          setTimeout(() => {
+            this.updateSelectAllState(localBody, localAll);
+          }, 0);
+        }
+      });
+    })();
+
+    // BTM Steering disallowed mac: + / - buttons
+    (() => {
+      const tbody = document.querySelector("#btmMacBody");
+      const addBtn = document.getElementById("add-btm-inline");
+      const remBtn = document.getElementById("remove-btm-inline");
+      const selectAll = document.getElementById("select-all-btm");
+
+      if (tbody && selectAll) {
+        selectAll.addEventListener("change", () => {
+          tbody.querySelectorAll('input.row-select').forEach(cb => cb.checked = selectAll.checked);
+          this.updateSelectAllState(tbody, selectAll);
+        });
+        tbody.addEventListener("change", (e) => {
+          if (e.target && e.target.matches('input.row-select')) {
+            this.updateSelectAllState(tbody, selectAll);
+          }
+        });
+      }
+      addBtn?.addEventListener("click", () => this.addDisallowedMacRow(tbody, selectAll));
+      remBtn?.addEventListener("click", () => {
+        const removed = this.removeSelectedRows(tbody, selectAll);
+        if (removed > 0) this.showNotification?.(`${removed} MAC${removed > 1 ? "s" : ""} removed`, "success");
+      });
+    })();
+
     // Window resize handler for charts
     window.addEventListener('resize', () => {
       this.resizeCharts();
@@ -375,6 +472,326 @@ async handleWifiResetApply() {
     this._blockShortcutsDuringReset?.(false);
     this._wifiResetInProgress = false;
   }
+}
+
+savePolicySettings(sectionKey, scope = "selected") {
+  if (!Array.isArray(this.updatedPolicySettings)) {
+    console.warn("updatedPolicySettings is not initialized or not an array.");
+    return;
+  }
+  const deviceSelect = document.querySelector("#device-selector");
+  const selectedDeviceId = deviceSelect?.value || null;
+
+  let indicesToUpdate = [];
+  if (scope === "all") {
+    indicesToUpdate = this.updatedPolicySettings.map((_, i) => i);
+  } else {
+    if (!selectedDeviceId) {
+      console.warn("No device selected in #device-selector.");
+      return;
+    }
+    const idx = this.updatedPolicySettings.findIndex(p => p.id === selectedDeviceId);
+    if (idx === -1) {
+      console.warn("Selected device not found in updatedPolicySettings:", selectedDeviceId);
+      return;
+    }
+    indicesToUpdate = [idx];
+  }
+
+  // Read DOM values per section
+  switch (sectionKey) {
+    case "ap-metrics": {
+      const intervalVal = document.querySelector("#ap-interval")?.value ?? "";
+      const managedClientMarker = document.querySelector("#managed-client-marker")?.value ?? "";
+
+      let interval = intervalVal;
+      if (intervalVal !== "" && !Number.isNaN(Number(intervalVal))) {
+        interval = Number(intervalVal);
+      }
+
+      // Apply to the chosen indices
+      indicesToUpdate.forEach(i => {
+        const policy = this.updatedPolicySettings[i];
+        policy.apMetricReportingPolicy ||= {};
+        policy.apMetricReportingPolicy.interval = interval;
+        policy.apMetricReportingPolicy.managedClientMarker = managedClientMarker;
+      });
+
+      this.showNotification('AP metrics policy saved successfully', 'success');
+      break;
+    }
+    case "local-disallowed": {
+      const list = getMacList("#localMacBody") || [];
+      indicesToUpdate.forEach(i => {
+        const d = this.updatedPolicySettings[i];
+        d.localSteeringDisallowed = Array.isArray(list) ? [...list] : [];
+      });
+      this.showNotification('Local Steering Disallowed Policy saved successfully', 'success');
+      break;
+    }
+    case "btm-disallowed": {
+      const list = getMacList("#btmMacBody") || [];
+      indicesToUpdate.forEach(i => {
+        const d = this.updatedPolicySettings[i];
+        d.btmSteeringDisallowed = Array.isArray(list) ? [...list] : [];
+      });
+      this.showNotification('BTM Steering Disallowed Policy saved successfully', 'success');
+      break;
+    }
+    case "channel-scan": {
+      const val = document.querySelector("#report-independent-scans")?.value ?? "0";
+      const num = Number(val);
+      indicesToUpdate.forEach(i => {
+        const d = this.updatedPolicySettings[i];
+        d.reportIndependentChannelScans = Number.isNaN(num) ? 0 : num;
+      });
+      this.showNotification('Channel Scan Reporting Policy saved successfully', 'success');
+      break;
+    }
+    case "dot1q-defaults": {
+      const vlan = document.querySelector("#primary-vlan-id")?.value ?? "";
+      const pcp  = document.querySelector("#default-pcp")?.value ?? "";
+
+      const vlanNum = Number(vlan);
+      const pcpNum  = Number(pcp);
+
+      indicesToUpdate.forEach(i => {
+        const d = this.updatedPolicySettings[i];
+        d.default802_1Q_SettingsPolicy ||= {};
+
+        if (!Number.isNaN(vlanNum)) d.default802_1Q_SettingsPolicy.primaryVLANID = vlanNum;
+        if (!Number.isNaN(pcpNum))  d.default802_1Q_SettingsPolicy.defaultPCP   = pcpNum;
+      });
+      this.showNotification('Default 802.1Q Settings Policy saved successfully', 'success');
+      break;
+    }
+    case "radio-metrics": {
+      const rows = RMP.getAll();
+      if (!Array.isArray(rows) || rows.length === 0) {
+        this.showNotification('At least one Radio specific Matrics row with a valid ID (Station MAC") is required.', 'error');
+        return;
+      }
+      indicesToUpdate.forEach(i => {
+        const d = this.updatedPolicySettings[i];
+        d.radioSpecificMetricsPolicy = rows;
+      });
+      this.showNotification('Radio Specific Metrics Policy saved successfully', 'success');
+      break;
+    }
+    case "radio-steering": {
+      const rows = RSP.getAll();
+
+      if (!Array.isArray(rows) || rows.length === 0) {
+        this.showNotification('At least one Radio Steering row with a valid ID (Station MAC") is required.', 'error');
+        return;
+      }
+      indicesToUpdate.forEach(i => {
+        const d = this.updatedPolicySettings[i];
+        d.radioSteeringParametersPolicy = rows;
+      });
+      this.showNotification('Radio Steering Parameters saved successfully', 'success');
+      break;
+    }
+
+    default:
+      console.warn("Unknown sectionKey:", sectionKey);
+  }
+}
+
+
+async handlePolicySettingApply() {
+  const saveBtn = document.getElementById('apply-policy-settings');
+
+  if (saveBtn) {
+    saveBtn.disabled = true;
+    saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+  }
+
+  try {
+    const settings = this.updatedPolicySettings;
+    console.log('updated policy on apply: ', settings);
+    const res = await fetch("api/v1/wifipolicy", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(settings)
+    });
+
+    if (res.ok) {
+      this.showNotification('Wireless Policy saved successfully', 'success');
+      await this.loadWifiPolicyConfig();
+      this.updateAllDisplays();
+    } else {
+      const errorText = await res.text();
+      throw new Error(errorText);
+    }
+
+  } catch (error) {
+    console.error('Failed to save network Policy settings:', error);
+    this.showNotification('Failed to save network Policy settings', 'error');
+  } finally {
+    if (saveBtn) {
+      saveBtn.disabled = false;
+      saveBtn.innerHTML = '<i class="fas fa-save"></i> Apply Policy Settings';
+    }
+  }
+}
+
+async addDisallowedMacRow(tbody, selectAll) {
+  if (!tbody) return;
+
+  const existing = tbody.querySelector("tr.inline-input-row");
+  if (existing) {
+    existing.querySelector('input[type="text"]')?.focus();
+    return;
+  }
+
+  const tr = document.createElement("tr");
+  tr.className = "inline-input-row";
+
+  const td1 = document.createElement("td");
+  td1.innerHTML = "&nbsp;";
+
+  const td2 = document.createElement("td");
+  const wrap = document.createElement("div");
+  wrap.className = "mac-input-wrapper";
+
+  const input = document.createElement("input");
+  input.type = "text";
+  input.placeholder = "xx:xx:xx:xx:xx:xx";
+  input.className = "mac-inline-input";
+  input.pattern = this.MAC_REGEX.source;
+  input.setAttribute("aria-label", "Enter MAC address");
+
+  const addBtn = document.createElement("button");
+  addBtn.type = "button";
+  addBtn.className = "mac-add-btn";
+  addBtn.textContent = "Add";
+
+  const cancelBtn = document.createElement("button");
+  cancelBtn.type = "button";
+  cancelBtn.className = "mac-cancel-btn";
+  cancelBtn.textContent = "Cancel";
+
+  const err = document.createElement("div");
+  err.className = "mac-inline-error";
+  err.role = "alert";
+  err.style.display = "none";
+
+  const showError = (msg) => {
+    err.textContent = msg;
+    err.style.display = "block";
+  };
+  const clearError = () => {
+    err.textContent = "";
+    err.style.display = "none";
+  };
+
+  const submit = () => {
+    clearError();
+    const mac = this.normalizeMac(input.value);
+
+    if (!this.isValidMac(mac)) {
+      showError("Invalid MAC address format");
+      input.focus();
+      return;
+    }
+    // Check for duplicate entries
+    const exists = !!tbody.querySelector(`tr[data-mac="${mac}"]`);
+    if (exists) {
+      showError("MAC address is already present.");
+      input.focus();
+      return;
+    }
+
+    // Create and replace inline row with a normal data row
+    const row = this.createMacRow(mac);
+    tbody.replaceChild(row, tr);
+    this.updateSelectAllState(tbody, selectAll);
+  };
+
+  addBtn.addEventListener("click", submit);
+  cancelBtn.addEventListener("click", () => {
+    tr.remove();
+    this.updateSelectAllState(tbody, selectAll);
+  });
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      submit();
+    } else if (e.key === "Escape") {
+      tr.remove();
+      this.updateSelectAllState(tbody, selectAll);
+    }
+  });
+
+  wrap.appendChild(input);
+  wrap.appendChild(addBtn);
+  wrap.appendChild(cancelBtn);
+  td2.appendChild(wrap);
+  td2.appendChild(err);
+
+  tr.appendChild(td1);
+  tr.appendChild(td2);
+  tbody.appendChild(tr);
+
+  setTimeout(() => input.focus(), 0);
+}
+
+updateSelectAllState(tbody, selectAll) {
+  if (!tbody || !selectAll) return;
+  const checks = tbody.querySelectorAll('input.row-select');
+  const total = checks.length;
+  const checked = [...checks].filter(cb => cb.checked).length;
+  selectAll.indeterminate = checked > 0 && checked < total;
+  selectAll.checked = total > 0 && checked === total;
+}
+
+createMacRow(mac) {
+  const tr = document.createElement("tr");
+  tr.dataset.mac = mac;
+
+  const tdCheckbox = document.createElement("td");
+  const cb = document.createElement("input");
+  cb.type = "checkbox";
+  cb.className = "row-select";
+  cb.setAttribute("aria-label", `Select ${mac}`);
+  tdCheckbox.appendChild(cb);
+
+  const tdMac = document.createElement("td");
+  tdMac.textContent = mac;
+
+  tr.appendChild(tdCheckbox);
+  tr.appendChild(tdMac);
+  return tr;
+}
+
+// Remove all selected rows from a table. Returns count removed.
+removeSelectedRows(tbody, selectAll) {
+  if (!tbody) return 0;
+  let removed = 0;
+  [...tbody.querySelectorAll("tr")].forEach(tr => {
+    const cb = tr.querySelector('input.row-select');
+    if (cb && cb.checked) {
+      tr.remove();
+      removed++;
+    }
+  });
+  // Remove any inline row, if present
+  tbody.querySelector("tr.inline-input-row")?.remove();
+  this.updateSelectAllState(tbody, selectAll);
+  return removed;
+}
+
+/** Minimal MAC helpers (as methods or move to module scope if you prefer) */
+MAC_REGEX = /^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$/;
+
+normalizeMac(v) {
+  return (v ?? "").trim().toLowerCase();
+}
+isValidMac(v) {
+  return this.MAC_REGEX.test(v);
 }
 
 async handleWebSocketMessage(data) {
@@ -2246,6 +2663,9 @@ async handleWebSocketMessage(data) {
           }
         }
         break;
+      case 'policy':
+        await this.loadPolicySettings();
+        break;
       case 'coverage':
   	if (!window.CoverageMapInstance) {
     	// First time: create the map
@@ -3037,6 +3457,41 @@ async handleWebSocketMessage(data) {
     }
   }
 
+  /**
+   * Load wifi policy config
+   */
+  async loadWifiPolicyConfig() {
+    try {
+      const res = await fetch("/api/v1/wifipolicy");
+      if (!res.ok) {
+        throw new Error(`HTTP error! Status: ${res.status}`);
+      }
+
+      const data = await res.json();
+      this.policyByDeviceId = {};
+      this.updatedPolicySettings = Array.isArray(data?.policyConfig) ? data.policyConfig : [];
+      this.updatedPolicySettings.forEach(d => {
+        if (d?.id) this.policyByDeviceId[d.id] = d;
+      });
+
+      // Populate selector UI
+      populateDeviceSelectorFromPolicy(data);
+
+      // Auto-select first device and populate
+      const sel = document.querySelector("#device-selector");
+      if (sel && sel.options.length > 0) {
+        sel.selectedIndex = 0;
+        const firstId = sel.value;
+        const policy = this.policyByDeviceId[firstId];
+        populatePolicyUI(policy);
+      }
+
+    } catch (err) {
+      console.error("Failed to load Wi-Fi policy settings:", err);
+      this.showNotification("Failed to load policy settings", "error");
+    }
+  }
+
   // ---- Tab-specific loaders (safe stubs) ----
   async loadPerformanceData() { 
     // Update statistics cards
@@ -3093,7 +3548,533 @@ async handleWebSocketMessage(data) {
         this.showNotification("Failed to load system settings", "error");
       }
   }
+  async loadPolicySettings() {
+    try {
+        // Fetch and update Policy settings here
+        console.log("🔧 Loading Policy settings...");
+
+        // Load Wi-Fi AL MAC interfaces when settings tab is opened
+        if (typeof this.loadWifiPolicyConfig === 'function') {
+          console.log("Loading Wi-Fi policy config");
+          await this.loadWifiPolicyConfig();
+        }
+      } catch (err) {
+        console.error("Failed to load system settings:", err);
+        this.showNotification("Failed to load system settings", "error");
+    }
+
+  }
 }
+
+/**
+  * show all the available device list for wifi policy config
+  */
+function populateDeviceSelectorFromPolicy(data) {
+  const sel = document.querySelector("#device-selector");
+  if (!sel) return;
+
+  // clear existing
+  sel.innerHTML = "";
+
+  const items = Array.isArray(data?.policyConfig) ? data.policyConfig : [];
+
+  if (items.length === 0) {
+    // Add a disabled placeholder when nothing returned
+    const opt = document.createElement("option");
+    opt.textContent = "No devices";
+    opt.disabled = true;
+    opt.selected = true;
+    sel.appendChild(opt);
+    return;
+  }
+
+  items.forEach(({ id, mediaType }) => {
+    if (!id) return;
+    const opt = document.createElement("option");
+    opt.value = id;
+    opt.textContent = mediaType ? `${id} (${mediaType})` : id;
+    sel.appendChild(opt);
+  });
+}
+
+/**
+ * Load wifi policy config for seected device
+ */
+function populatePolicyUI(policy) {
+  if (!policy) return;
+
+  // AP Metrics Reporting Policy
+  const ap = policy.apMetricReportingPolicy || {};
+  setInputValue("#ap-interval", ap.interval);
+  setInputValue("#managed-client-marker", ap.managedClientMarker);
+
+  // Local / BTM Disallowed
+  fillMacTable("#localMacBody", policy.localSteeringDisallowed);
+  fillMacTable("#btmMacBody",   policy.btmSteeringDisallowed);
+
+  // Channel Scan Reporting
+  setInputValue("#report-independent-scans", policy.reportIndependentChannelScans);
+
+  // Default 802.1Q Settings
+  const dot1q = policy.default802_1Q_SettingsPolicy || {};
+  setInputValue("#primary-vlan-id", dot1q.primaryVLANID);
+  setInputValue("#default-pcp", dot1q.defaultPCP);
+
+  // Radio Specific Metrics (table)
+  const rmpEntries = getRadioMetricsEntries(policy);
+  RMP.render(rmpEntries);
+  RMP.bind();
+
+  // Radio Steering Parameters (table)
+  const rspEntries = getRadioSteeringEntries(policy);
+  RSP.render(rspEntries);
+  RSP.bind();
+}
+
+// RMP entries (array or single legacy object)
+function getRadioMetricsEntries(policy) {
+  const radioMetricList = policy?.radioSpecificMetricsPolicy;
+  if (Array.isArray(radioMetricList) && radioMetricList.length) {
+    const norm = (RMP?.normalizeRow) || (x => x);
+    return radioMetricList.map(norm).filter(Boolean);
+  }
+  return [];
+}
+
+// RSP entries (existing logic kept)
+function getRadioSteeringEntries(policy) {
+  const radioSteeringlist = policy?.radioSteeringParametersPolicy;
+  if (Array.isArray(radioSteeringlist) && radioSteeringlist.length) {
+    const norm = (RSP?.normalizeRow) || (x => x);
+    return radioSteeringlist.map(norm).filter(Boolean);
+  }
+  return [];
+}
+
+// utilities for policy tables
+const PolicyUtil = (() => {
+  const MAC_ALL = "ff:ff:ff:ff:ff:ff";
+
+  const qs  = (s, r = document) => r.querySelector(s);
+  const qsa = (s, r = document) => Array.from(r.querySelectorAll(s));
+
+  // Validators
+  const hasText = v => typeof v === "string" && v.trim() !== "";
+  const hasNumber = v => Number.isFinite(Number(v));
+  const clamp = (n, min, max) => Math.max(min, Math.min(max, n));
+  const numOrNull = (v, min, max) => {
+    const n = Number(v);
+    return Number.isFinite(n) ? clamp(n, min, max) : null;
+  };
+
+  // MAC helpers
+  const normalizeId = (idLike) => {
+    const raw = String(idLike || "").trim().toLowerCase();
+    return raw === "all stations" ? MAC_ALL : raw;
+  };
+  const displayId = (id) => normalizeId(id) === MAC_ALL ? "All Stations" : String(id || "").trim().toLowerCase();
+
+  // Presence gate (for legacy single-object policy)
+  function hasAnyRadioMetrics(r) {
+    if (!r) return false;
+    return (
+      hasText(r.id) || hasNumber(r.starCPIThreshold) ||hasNumber(r.starCPIHysteresis) ||
+      hasNumber(r.apUtilizationThreshold) || hasNumber(r.apUtilization) ||
+      hasNumber(r.staTrafficStats) || hasNumber(r.staLinkMetrics) || hasNumber(r.staStatus)
+    );
+  }
+
+  // Binary toggle normalize
+  const toBin = (v) =>
+    (v === true || v === 1 || v === "1" || v === "enabled" || v === "Enabled") ? "1" : "0";
+
+  return {
+    MAC_ALL, qs, qsa, hasText, hasNumber, clamp, numOrNull,
+    normalizeId, displayId, hasAnyRadioMetrics, toBin
+  };
+})();
+
+// create Policy Table
+function createPolicyTable({
+  tbodySel,
+  addBtnSel,
+  maxRows = 15,
+  specialId = { enabled: false,
+                macAll: PolicyUtil.MAC_ALL },
+  columns,
+  normalizeRow,
+  readonlyExistingId = true
+}) {
+  const { qs, qsa, displayId, normalizeId } = PolicyUtil;
+
+  function getCurrentIds() {
+    return qsa(`${tbodySel} tr`).map(tr => {
+      const input = tr.querySelector('input[name="id"]');
+      if (!input) return "";
+      let v = (input.value || "").trim().toLowerCase();
+      if (v === "all stations") v = PolicyUtil.MAC_ALL;
+      return v;
+    }).filter(Boolean);
+  }
+
+  function hasAllRow() {
+    return specialId.enabled && getCurrentIds().includes(specialId.macAll);
+  }
+
+  function rowCount() {
+    return qsa(`${tbodySel} tr`).length;
+  }
+
+  function canAddRow() {
+    if (maxRows != null && rowCount() >= maxRows) return false;
+    if (specialId.enabled && hasAllRow()) return false;
+    return true;
+  }
+
+  function updateAddButtonState() {
+    const addBtn = qs(addBtnSel);
+    if (!addBtn) return;
+    const allowed = canAddRow();
+    addBtn.disabled = !allowed;
+    addBtn.title = allowed ? "" :
+      (hasAllRow()
+        ? 'Cannot add more rows while "All Stations" row exists. Delete it to add new rows.'
+        : `Maximum ${maxRows} rows allowed.`);
+  }
+
+  function createIdInput(value, editable) {
+    const raw = normalizeId(value);
+    const shown = displayId(raw);
+    const attrs = [
+      'type="text"',
+      'name="id"',
+      'inputmode="text"',
+      'placeholder="MAC or All Stations"',
+      // Keep pattern; since readonly for existing rows, it won't block submit
+      'pattern="^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$"',
+      'title="Format: 6 octets, colon-separated (e.g., AA:BB:CC:DD:EE:FF)"',
+      `value="${shown}"`,
+      `data-raw-id="${raw}"`,
+      editable ? '' : 'readonly'
+    ].filter(Boolean).join(' ');
+    return `<input ${attrs} />`;
+  }
+
+  function createRow(entry, { editableId = false } = {}) {
+    const e = normalizeRow(entry || {});
+    const idCell = createIdInput(e.id, editableId);
+    const tds = [`<td>${idCell}</td>`];
+
+    for (const col of columns) {
+      if (col.type === "number") {
+        const v = (e[col.field ?? col.key] == null ? "" : String(e[col.field ?? col.key]));
+        tds.push(
+          `<td><input type="number" name="${col.name}" min="${col.min}" max="${col.max}" step="${col.step || 1}" placeholder="${col.min}-${col.max}" value="${v}" /></td>`
+        );
+      } else if (col.type === "select") {
+        const v = String(e[col.field ?? col.key] ?? (col.default ?? "0"));
+        const opts = col.options.map(([val, label]) =>
+          `<option value="${val}" ${v === String(val) ? "selected" : ""}>${label}</option>`
+        ).join("");
+        tds.push(`<td><select name="${col.name}">${opts}</select></td>`);
+      }
+    }
+
+    tds.push(`<td style="text-align:right;"><button type="button" class="btn btn-outline btn-sm remove-row">Delete</button></td>`);
+    const tr = document.createElement("tr");
+    tr.innerHTML = tds.join("");
+    return tr;
+  }
+
+  // --- Ephemeral scope chooser shown only for newly added rows ---
+  function attachNewEntryScopeChooser(tr) {
+    const idCell = tr.querySelector('td');
+    const idInput = tr.querySelector('input[name="id"]');
+    if (!idCell || !idInput) return;
+
+    // Hide the ID input until user chooses scope
+    idInput.style.display = 'none';
+
+    // Build a one-time <select>
+    const sel = document.createElement('select');
+    sel.className = 'new-entry-scope';
+    sel.innerHTML = `
+      <option value="" selected disabled>Select scope…</option>
+      <option value="specific">Specific Station</option>
+      <option value="all">All Stations</option>
+    `;
+
+    // Insert before the input
+    idCell.insertBefore(sel, idInput);
+
+    const finalize = (scope) => {
+      if (scope === 'all') {
+        // Set ALL MAC and lock field
+        idInput.value = displayId(specialId.macAll);
+        idInput.setAttribute('data-raw-id', specialId.macAll);
+        idInput.readOnly = true;
+      } else {
+        // Allow editing specific MAC
+        idInput.readOnly = false;
+        idInput.value = '';
+        idInput.setAttribute('data-raw-id', '');
+        // Focus for convenience
+        queueMicrotask(() => { idInput.focus(); idInput.select?.(); });
+      }
+      // Remove chooser and show input
+      sel.remove();
+      idInput.style.display = '';
+      // Update add button state (ALL disables further adds)
+      updateAddButtonState();
+    };
+
+    sel.addEventListener('change', () => {
+      const v = sel.value;
+      if (v === 'all' || v === 'specific') {
+        finalize(v);
+      }
+    });
+  }
+  // --- End ephemeral chooser ---
+
+  function render(entries = []) {
+    const tbody = qs(tbodySel);
+    if (!tbody) return;
+
+    // Dedup special 'All Stations' (first wins)
+    let seenAll = false;
+    const safe = [];
+    for (const e of entries) {
+      const id = normalizeId(e?.ID ?? e?.id ?? "");
+      if (specialId.enabled && id === specialId.macAll) {
+        if (seenAll) continue;
+        seenAll = true;
+      }
+      safe.push(e);
+    }
+
+    const data = safe.length ? safe : [normalizeRow({ ID: "" })];
+
+    tbody.innerHTML = "";
+    for (const e of data) {
+      tbody.appendChild(createRow(e, { editableId: !readonlyExistingId }));
+    }
+    updateAddButtonState();
+  }
+
+  function addRow(prefill) {
+    if (!canAddRow()) {
+      updateAddButtonState();
+      return;
+    }
+    const tbody = qs(tbodySel);
+    if (!tbody) return;
+    const tr = createRow(prefill || {}, { editableId: true });
+    tbody.appendChild(tr);
+    //const idInput = tr.querySelector('input[name="id"]');
+    //if (idInput) { idInput.focus(); idInput.select?.(); }
+    // Show one-time scope chooser for this new row
+    attachNewEntryScopeChooser(tr);
+    updateAddButtonState();
+  }
+
+  function getAll() {
+    const rows = qsa(`${tbodySel} tr`);
+    return rows.map(tr => {
+      let id = tr.querySelector('input[name="id"]')?.value?.trim().toLowerCase() || "";
+      if (id === "all stations") id = PolicyUtil.MAC_ALL;
+
+      const out = { id };
+      for (const col of columns) {
+        if (col.type === "number") {
+          const v = tr.querySelector(`input[name="${col.name}"]`)?.value ?? "";
+          out[col.field || col.key] = v === "" ? null : Number(v);
+        } else if (col.type === "select") {
+          const v = tr.querySelector(`select[name="${col.name}"]`)?.value ?? (col.default ?? "0");
+          out[col.field || col.key] = v === "" ? null : Number(v);
+        }
+      }
+      return out;
+    });
+  }
+
+  function bind() {
+    const addBtn = qs(addBtnSel);
+    const tbody  = qs(tbodySel);
+
+    if (addBtn && !addBtn._boundPolicyTable) {
+      addBtn.addEventListener("click", () => addRow());
+      addBtn._boundPolicyTable = true;
+    }
+
+    if (tbody && !tbody._boundPolicyTable) {
+      tbody.addEventListener("click", (evt) => {
+        const btn = evt.target.closest(".remove-row");
+        if (btn) {
+          btn.closest("tr")?.remove();
+          updateAddButtonState();
+        }
+      });
+
+      // Keep constraints in sync when editing ID (for special "All Stations" rule)
+      tbody.addEventListener("input", (evt) => {
+        const input = evt.target;
+        if (!(input instanceof HTMLInputElement) || input.name !== "id") return;
+        let v = (input.value || "").trim().toLowerCase();
+        if (v === "all stations") v = PolicyUtil.MAC_ALL;
+        input.setAttribute("data-raw-id", v);
+        updateAddButtonState();
+      });
+
+      tbody._boundPolicyTable = true;
+    }
+
+    updateAddButtonState();
+  }
+
+  return { render, addRow, bind, getAll };
+}
+
+// ==============================
+// RSP (uses All Stations max-1 rule, max 3 rows)
+// ==============================
+const RSP = (() => {
+  const mod = createPolicyTable({
+    tbodySel: "#policy-rows",
+    addBtnSel: "#add-row-btn",
+    maxRows: 15,
+    specialId: { enabled: true, macAll: PolicyUtil.MAC_ALL },
+    readonlyExistingId: true,
+    columns: [
+      { type: "number", name: "steering", key: "Steering Policy", field: "steeringPolicy", min: 0, max: 2, step: 1 },
+      { type: "number", name: "util",     key: "Utilization Threshold", field: "utilizationThreshold", min: 0, max: 255, step: 1 },
+      { type: "number", name: "rcpi",     key: "RCPI Threshold", field: "rcpiThreshold", min: 0, max: 220, step: 1 }
+    ],
+    normalizeRow(e = {}) {
+      const id = (e.id ?? "").trim().toLowerCase();
+      return {
+        id,
+        steeringPolicy: e.steeringPolicy??null,
+        utilizationThreshold: e.utilizationThreshold??null,
+        rcpiThreshold: e.rcpiThreshold?? null
+
+      };
+    }
+  });
+  return mod;
+})();
+
+// ==============================
+// RMP (uses All Stations max-1 rule, max 3 rows)
+// ==============================
+const RMP = (() => {
+  const { numOrNull, toBin } = PolicyUtil;
+
+  const mod = createPolicyTable({
+    tbodySel: "#radio-metrics-rows",
+    addBtnSel: "#add-radio-metrics-row",
+    maxRows: 15,
+    specialId: { enabled: true, macAll: PolicyUtil.MAC_ALL },
+    readonlyExistingId: true,
+    columns: [
+      { type: "number", name: "rcpiThreshold",  key: "STA RCPI Threshold", field: "starCPIThreshold", min: 0, max: 220, step: 1 },
+      { type: "number", name: "rcpiHysteresis", key: "STA RCPI Hysteresis", field: "starCPIHysteresis", min: 0, max: 100, step: 1 },
+      { type: "number", name: "apUtilization", key: "AP Utilization Threshold", field: "apUtilizationThreshold", min: 0, max: 255, step: 1 },
+      { type: "select", name: "staTrafficStats", key: "STA Traffic Stats", field: "staTrafficStats", options: [["0","Disabled"],["1","Enabled"]], default: "0" },
+      { type: "select", name: "staLinkMetrics", key: "STA Link Metrics", field: "staLinkMetrics", options: [["0","Disabled"],["1","Enabled"]], default: "0" },
+      { type: "select", name: "staStatus", key: "STA Status", field: "staStatus", options: [["0","Disabled"],["1","Enabled"]], default: "0" }
+    ],
+    normalizeRow(e = {}) {
+      const id = PolicyUtil.normalizeId(e.ID ?? e.id ?? e.bssid ?? "");
+      const rcpiThr = (e["STA RCPI Threshold"] ?? e.staRCPIThreshold ?? e.starCPIThreshold ?? null);
+      const rcpiHys = (e["STA RCPI Hysteresis"] ?? e.staRCPIHysteresis ?? e.starCPIHysteresis ?? null);
+      const apUtil  = (e["AP Utilization Threshold"] ?? e.apUtilizationThreshold ?? e.apUtilization ?? null);
+      return {
+        id: id,
+        starCPIThreshold: numOrNull(rcpiThr, 0, 220),
+        starCPIHysteresis: numOrNull(rcpiHys, 0, 100),
+        apUtilizationThreshold: numOrNull(apUtil, 0, 255),
+        staTrafficStats: toBin(e["STA Traffic Stats"] ?? e.staTrafficStats),
+        staLinkMetrics: toBin(e["STA Link Metrics"] ?? e.staLinkMetrics),
+        staStatus: toBin(e["STA Status"] ?? e.staStatus)
+      };
+    }
+  });
+  return mod;
+})();
+
+function setInputValue(selector, value, fallback = "") {
+  const el = document.querySelector(selector);
+  if (!el) return;
+  const vs = String(value ?? fallback);
+  const SPECIAL_MAC = PolicyUtil.MAC_ALL;
+  const isBssid = el.id === "bssid" || el.name === "bssid";
+
+  if (el.tagName === "SELECT") {
+    const exists = Array.from(el.options).some(o => o.value == vs);
+    el.value = exists ? vs : String(fallback);
+  } else {
+    if (isBssid && vs.toLowerCase() === SPECIAL_MAC) {
+      el.value = "All Stations";
+      el.setAttribute("data-actual-value", SPECIAL_MAC);
+    } else {
+      el.value = vs;
+      el.removeAttribute("data-actual-value");
+    }
+  }
+}
+
+function fillMacTable(tbodySel, macArray) {
+  const tbody = document.querySelector(tbodySel);
+  if (!tbody) return;
+  tbody.innerHTML = "";
+
+  const arr = Array.isArray(macArray) && macArray.length ? macArray : [];
+  arr.forEach((m) => {
+    const mac = String(m || "").trim().toLowerCase();
+    if (!mac) return;
+
+    const tr = document.createElement("tr");
+    tr.dataset.mac = mac;
+
+    const tdCheckbox = document.createElement("td");
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.className = "row-select";
+    cb.setAttribute("aria-label", `Select ${mac}`);
+    tdCheckbox.appendChild(cb);
+
+    const tdMac = document.createElement("td");
+    tdMac.textContent = mac;
+
+    tr.appendChild(tdCheckbox);
+    tr.appendChild(tdMac);
+    tbody.appendChild(tr);
+  });
+}
+
+function sectionMap(sectionKey) {
+  // Maps data-section to the radio group's name attribute
+  switch (sectionKey) {
+    case "ap-metrics":        return "applyScope-ap";
+    case "local-disallowed":  return "applyScope-local";
+    case "btm-disallowed":    return "applyScope-btm";
+    case "channel-scan":      return "applyScope-scan";
+    case "dot1q-defaults":    return "applyScope-dot1q";
+    case "radio-metrics":     return "applyScope-radio";
+    case "radio-steering":    return "applyScope-steer";
+    default:                  return "";
+  }
+}
+
+function getMacList(tbodySelector) {
+  const tbody = document.querySelector(tbodySelector);
+  if (!tbody) return [];
+  return Array.from(tbody.querySelectorAll('tr[data-mac]'))
+    .map(tr => (tr.dataset.mac || "").trim().toLowerCase())
+    .filter(Boolean);
+}
+
 
   function collectResetPayload() {
     const select = document.getElementById("almac-select");

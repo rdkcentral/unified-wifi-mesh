@@ -754,6 +754,33 @@ bus_error_t tr_181_t::affap_tget(char *event_name, raw_data_t *p_data, bus_user_
     return bus_error_general;
 }
 
+bus_error_t tr_181_t::get_network_topology(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
+{
+    p_data->data_type       = bus_data_type_string;
+    p_data->raw_data.bytes  = malloc(sizeof(mac_addr_str_t));
+    if (p_data->raw_data.bytes == NULL) {
+        em_printfout("Memory allocation is failed");
+        return bus_error_out_of_resources;
+    }
+
+    cJSON *parent = NULL;
+    char *str = NULL;
+    dm_easy_mesh_ctrl_t *dm_ctrl = NULL;
+
+    parent = cJSON_CreateObject();
+
+    dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
+    dm_ctrl->get_network_config(parent, const_cast<char*>(GLOBAL_NET_ID));
+
+    str = cJSON_Print(parent);
+    em_printfout(" get_network_topology: node mac len: %d", sizeof(mac_addr_str_t));
+
+    p_data->raw_data.bytes = reinterpret_cast<unsigned char *> (str);
+    p_data->raw_data_len = static_cast<unsigned int> (strlen(str));
+
+    return bus_error_success;
+}
+
 bus_error_t tr_181_t::get_node_sync(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
 {
     p_data->data_type       = bus_data_type_string;
@@ -764,7 +791,7 @@ bus_error_t tr_181_t::get_node_sync(char *event_name, raw_data_t *p_data, bus_us
     }
     em_printfout(" get_node_sync: node mac len: %d", sizeof(mac_addr_str_t));
 
-    strncpy((char *)p_data->raw_data.bytes, (const char *)g_temp_node_mac, sizeof(mac_addr_str_t));
+    strncpy(reinterpret_cast<char *> (p_data->raw_data.bytes), reinterpret_cast<const char *> (g_temp_node_mac), sizeof(mac_addr_str_t));
     p_data->raw_data_len    = sizeof(mac_addr_str_t);
 
     em_printfout(" get_node_sync: node mac: %s", p_data->raw_data.bytes);
@@ -779,7 +806,7 @@ bus_error_t tr_181_t::set_node_sync(char *event_name, raw_data_t *p_data, bus_us
 
     em_printfout(" Event rcvd: %s for node mac: %s", event_name, p_data->raw_data.bytes);
 
-    snprintf(g_temp_node_mac, sizeof(mac_addr_str_t), "%s", (char *)p_data->raw_data.bytes);
+    snprintf(g_temp_node_mac, sizeof(mac_addr_str_t), "%s", reinterpret_cast<char *>(p_data->raw_data.bytes));
 
     if((desc = get_bus_descriptor()) == NULL) {
         em_printfout("descriptor is null");
@@ -808,11 +835,6 @@ bus_error_t tr_181_t::set_node_sync(char *event_name, raw_data_t *p_data, bus_us
 
 bus_error_t tr_181_t::subs_policy_config(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
 {
-    //todo: remove test code
-    if (strncmp(event_name,DEVICE_WIFI_DATAELEMENTS_NETWORK_NODE_LINKSTATS_ALARM, strlen(DEVICE_WIFI_DATAELEMENTS_NETWORK_NODE_LINKSTATS_ALARM)) == 0) {
-        em_printfout(" link stats alarm report Subs Event rcvd: %s", p_data->raw_data.bytes);
-        return bus_error_success;
-    }
     em_printfout(" Subs Event rcvd: %s\n Policy cfg is of len: %d and : \n%s", event_name, p_data->raw_data_len, p_data->raw_data.bytes);
 
     //send it to decode and apply policy
@@ -830,6 +852,7 @@ bus_error_t tr_181_t::policy_config(char *event_name, raw_data_t *p_data, bus_us
     em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
 
     em_ctrl->io_process(em_bus_event_type_set_policy,  reinterpret_cast<char*>(p_data->raw_data.bytes), p_data->raw_data_len);
+
     return bus_error_success;
 }
 

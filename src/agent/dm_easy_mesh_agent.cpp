@@ -51,6 +51,7 @@
 #include "em_cmd_beacon_report.h"
 #include "em_cmd_sta_link_metrics.h"
 #include "em_cmd_ap_metrics_report.h"
+#include "em_cmd_link_stats_report.h"
 
 #ifdef AL_SAP
 #include "al_service_access_point.h"
@@ -927,10 +928,66 @@ int dm_easy_mesh_agent_t::analyze_ap_metrics_report(em_bus_event_t *evt, em_cmd_
     return num;
 }
 
+int dm_easy_mesh_agent_t::analyze_link_report(em_bus_event_t *evt, em_cmd_t *pcmd[])
+{
+    dm_sta_t *sta = NULL;
+    em_cmd_t *tmp = NULL;
+    em_cmd_params_t *evt_param = NULL;
+    dm_easy_mesh_agent_t  dm;
+    unsigned int num = 0, num_radios = 0;
+    mac_addr_str_t macstr;
+    webconfig_subdoc_type_t type;
+
+    dm.init();
+
+    evt_param = &evt->params;
+
+    num_radios = m_num_radios;
+    for (unsigned int i = 0; i < m_num_radios; i++) {
+        memcpy(&dm.m_radio[i], &m_radio[i], sizeof(dm_radio_t));
+    }
+
+    dm.m_num_bss = m_num_bss;
+    for (unsigned int i = 0; i < EM_MAX_BSSS; i++) {
+        memcpy(&dm.m_bss[i], &m_bss[i], sizeof(dm_bss_t));
+    }
+
+    dm.translate_and_decode_onewifi_subdoc(reinterpret_cast<char *> (evt->u.raw_buff), type,
+        "Link Stats Report");
+
+    sta = NULL;
+    sta = static_cast<dm_sta_t *> (hash_map_get_first(dm.m_sta_map));
+    while(sta != NULL) {
+        em_printfout("After translate sta %s and sample cnt: %d", util::mac_to_string(sta->m_sta_info.id).c_str(), sta->m_sta_info.link_stats_report.sample_count);
+        sta = static_cast<dm_sta_t *> (hash_map_get_next(dm.m_sta_map, sta));
+    }
+
+    sta = (dm_sta_t *)hash_map_get_first((hash_map_t *)dm.m_sta_map);
+    if (sta != NULL) {
+        evt_param->u.args.num_args = 2;
+
+        dm_easy_mesh_t::macbytes_to_string(sta->m_sta_info.id, macstr);
+        strncpy(evt_param->u.args.args[0], macstr, strlen(macstr) + 1);
+
+        dm_easy_mesh_t::macbytes_to_string(sta->m_sta_info.bssid, macstr);
+        strncpy(evt_param->u.args.args[1], macstr, strlen(macstr) + 1);
+    }
+
+    pcmd[num] = new em_cmd_link_quality_report_t(evt->params, dm);
+
+    tmp = pcmd[num];
+    num++;
+
+    while ((pcmd[num] = tmp->clone_for_next()) != NULL) {
+        tmp = pcmd[num];
+        num++;
+    }
+
+    return num;
+}
+
 void dm_easy_mesh_agent_t::translate_and_decode_onewifi_subdoc(char *str, webconfig_subdoc_type_t type, const char* logname)
 {
-    printf("%s:%d: Enter\n", __func__, __LINE__);
-
     webconfig_t config;
     webconfig_external_easymesh_t extdata = {0};
 
@@ -944,14 +1001,14 @@ void dm_easy_mesh_agent_t::translate_and_decode_onewifi_subdoc(char *str, webcon
     config.apply_data =  webconfig_dummy_apply;
 
     if (webconfig_init(&config) != webconfig_error_none) {
-        printf( "[%s]:%d Init WiFi Web Config  fail\n",__func__,__LINE__);
+        em_printfout( "Init WiFi Web Config  fail");
         return;
     }
 
     if ((webconfig_easymesh_decode(&config, str, &extdata, &type)) == webconfig_error_none) {
-        printf("%s:%d %s decode success\n",__func__, __LINE__, logname);
+        em_printfout("%s decode success for type: %d\n", logname, (type));
     } else {
-        printf("%s:%d %s decode fail\n",__func__, __LINE__, logname);
+        em_printfout("%s decode fail for type: %d", logname, (type));
     }
 }
 

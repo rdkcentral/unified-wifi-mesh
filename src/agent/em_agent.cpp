@@ -32,6 +32,7 @@
 #include <sys/uio.h>
 #include <unistd.h>
 #include <pthread.h>
+#include <cjson/cJSON.h>
 #include "em_agent.h"
 #include "em_msg.h"
 #include "ieee80211.h"
@@ -39,7 +40,6 @@
 #include "em_orch_agent.h"
 #include "ec_util.h"
 #include "util.h"
-#include <cjson/cJSON.h>
 
 #include <string>
 #include <vector>
@@ -779,6 +779,20 @@ void em_agent_t::handle_ap_metrics_report(em_bus_event_t *evt)
     }
 }
 
+void em_agent_t::handle_link_stats_report(em_bus_event_t *evt)
+{
+    em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
+    unsigned int num;
+
+    if (m_orch->is_cmd_type_in_progress(evt) == true) {
+        em_printfout("analyze_link_report in progress");
+    } else if ((num = m_data_model.analyze_link_report(evt, pcmd)) == 0) {
+        em_printfout("analyze_link_report failed");
+    } else if (m_orch->submit_commands(pcmd, num) > 0) {
+        em_printfout("Submitted Link Stats report cmd for orch");
+    }
+}
+
 void em_agent_t::handle_bus_event(em_bus_event_t *evt)
 {   
     
@@ -876,6 +890,10 @@ void em_agent_t::handle_bus_event(em_bus_event_t *evt)
 
         case em_bus_event_type_bss_info:
             handle_bss_info(evt);
+            break;
+
+        case em_bus_event_type_link_quality_report:
+            handle_link_stats_report(evt);
             break;
 
         default:
@@ -1140,7 +1158,12 @@ void em_agent_t::input_listener()
         // This is fine, not a fatal error
     }
 
-    if (desc->bus_event_subs_fn(&m_bus_hdl, "Device.WiFi.EM.APMetricsReport", (void *)&em_agent_t::ap_metrics_report_cb, NULL, 0) != 0) {
+    if (desc->bus_event_subs_fn(&m_bus_hdl, "Device.WiFi.EM.APMetricsReport", (void *)&em_agent_t::report_cb, NULL, 0) != 0) {
+        printf("%s:%d bus get failed\n", __func__, __LINE__);
+        return;
+    }
+
+    if (desc->bus_event_subs_fn(&m_bus_hdl,  WIFI_QUALITY_LINKREPORT, (void *)&em_agent_t::report_cb, NULL, 0) != 0) {
         printf("%s:%d bus get failed\n", __func__, __LINE__);
         return;
     }
@@ -1194,12 +1217,33 @@ int em_agent_t::channel_scan_cb(char *event_name, raw_data_t *data, void *userDa
     return 1;
 }
 
-int em_agent_t::ap_metrics_report_cb(char *event_name, raw_data_t *data, void *userData)
+int em_agent_t::report_cb(char *event_name, raw_data_t *data, void *userData)
 {
-    //printf("%s:%d Received Frame data for event [%s] and data :\n%s\n", __func__, __LINE__, event_name, data->raw_data.bytes);
+    //em_printfout("Received Frame data for event [%s] and data :\n%s", event_name, data->raw_data.bytes);
     (void)userData;
 
-    g_agent.io_process(em_bus_event_type_ap_metrics_report, (unsigned char *)data->raw_data.bytes, data->raw_data_len);
+    if (strncmp(event_name, "Device.WiFi.EM.APMetricsReport", sizeof("Device.WiFi.EM.APMetricsReport"))==0) {
+        g_agent.io_process(em_bus_event_type_ap_metrics_report, (unsigned char *)data->raw_data.bytes, data->raw_data_len);
+    } else if (strncmp(event_name, WIFI_QUALITY_LINKREPORT, sizeof(WIFI_QUALITY_LINKREPORT))==0) {
+        em_printfout("Received Frame data for event [%s] and data :\n%s", event_name, data->raw_data.bytes);
+        cJSON *json = cJSON_Parse((const char *)data->raw_data.bytes);
+        if (json != NULL) {
+            cJSON *link_report_arr;
+            cJSON *subdoc_name = cJSON_GetObjectItemCaseSensitive(json, "SubDocName");
+            if ((strcmp(subdoc_name->valuestring, "LinkReport") == 0)) {
+                em_printfout("Found SubDocName: LinkReport");
+                link_report_arr = cJSON_GetObjectItem(json, "LinkReport");
+                if ((link_report_arr == NULL) && (cJSON_IsObject(link_report_arr) == false)) {
+                    return 0;
+                }
+                if (cJSON_IsArray(link_report_arr) && cJSON_GetArraySize(link_report_arr) == 0) {
+                    em_printfout("LinkReport is NULL");
+                    return -1;
+                }
+            }
+        }
+        g_agent.io_process(em_bus_event_type_link_quality_report, (unsigned char *)data->raw_data.bytes, data->raw_data_len);
+    }
 
     return 0;
 }

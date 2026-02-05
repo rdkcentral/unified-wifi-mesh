@@ -125,6 +125,10 @@
                                 <i class="fas fa-wifi"></i>
                                 <span>Wireless Settings</span>
                             </a></li>
+                            <li><a href="#" data-tab="policy" class="nav-link">
+                                <i class="fas fa-file-alt"></i>
+                                <span>Policy Settings</span>
+                            </a></li>
                         </ul>
                     </div>
 
@@ -757,7 +761,7 @@
                         </div>
                         <div class="form-group">
                             <label class="form-label">VLAN ID</label>
-                            <input type="number" id="profile-vlan" class="form-input" value="1" min="1" max="4094" disabled>
+                            <input type="number" id="profile-vlan" class="form-input" value="1" min="1" max="4094">
                         </div>
                         <div class="form-group">
                             <label class="form-label">Bands</label>
@@ -795,6 +799,323 @@
                 </form>
             </div>
         </div>
+    </div>
+</section>
+
+<!-- Policy Setting Tab -->
+<section id="policy" class="tab-content policy-ui">
+    <div class="page-header">
+        <h1><i class="fas fa-file-alt"></i> Policy Settings </h1>
+        <div class="page-actions">
+            <div class="filter-group">
+                <select id="device-selector" aria-label="Select device"></select>
+            </div>
+            <div class="actions-group">
+                <button id="apply-policy-settings" class="btn btn-primary" type="button">
+                    <i class="fas fa-save"></i> Apply Policy Settings
+                </button>
+            </div>
+        </div>
+    </div>
+    <div class="policy-container">
+        <!-- AP Metrics Reporting Policy -->
+        <section class="card policy-card" aria-labelledby="ap-metrics-title">
+            <div class="card-header header-with-actions">
+                <h2 id="ap-metrics-title">AP Metrics Reporting Policy</h2>
+                <div class="header-actions">
+                    <div class="apply-scope" role="group" aria-label="Apply scope">
+                        <label class="scope-option">
+                            <input type="radio" name="applyScope-ap" value="selected" checked />
+                            <span>Selected device</span>
+                        </label>
+                        <label class="scope-option">
+                            <input type="radio" name="applyScope-ap" value="all" />
+                            <span>All Devices</span>
+                        </label>
+                        <button type="button" class="btn btn-primary btn-sm apply-section" data-section="ap-metrics"> Save </button>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body">
+                <form id="ap-metrics-form">
+                    <div class="form-grid">
+                        <div class="form-field">
+                            <label for="ap-interval">Interval (seconds)</label>
+                            <input id="ap-interval" name="interval" type="number" min="0" max="255" step="1" required/>
+                        </div>
+                        <div class="form-field">
+                            <label for="managed-client-marker">Managed Client Marker</label>
+                            <input id="managed-client-marker" name="managedClientMarker" type="text" placeholder="Optional marker string" />
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </section>
+        <!-- Local Steering Disallowed Policy -->
+        <section class="card policy-card" aria-labelledby="local-steering-title">
+            <div class="card-header header-with-actions">
+                <h2 id="local-steering-title" class="card-title">Local Steering Disallowed Policy</h2>
+                <div class="header-actions">
+                    <div class="apply-scope" role="group" aria-label="Apply scope">
+                        <label class="scope-option">
+                            <input type="radio" name="applyScope-local" value="selected" checked />
+                            <span>Selected device</span>
+                        </label>
+                        <label class="scope-option">
+                            <input type="radio" name="applyScope-local" value="all" />
+                            <span>All Devices</span>
+                        </label>
+                        <button type="button" class="btn btn-primary btn-sm apply-section" data-section="local-disallowed"> Save </button>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="table-scroll">
+                    <table class="data-table" id="local-disallowed-table" aria-label="Local Steering Disallowed MACs">
+                        <thead>
+                            <tr>
+                                <th scope="col">
+                                    <input type="checkbox" id="select-all-local" class="table-checkbox" aria-label="Select all rows" />
+                                </th>
+                                <th scope="col">
+                                    <div class="th-with-actions">
+                                        <span>MAC Address</span>
+                                        <div class="th-actions">
+                                            <button type="button" class="icon-btn" id="add-mac-inline" aria-label="Add MAC">
+                                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                                    <path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                                                </svg>
+                                            </button>
+                                            <button type="button" class="icon-btn" id="remove-selected-inline" aria-label="Remove selected MACs" title="Remove selected">
+                                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                                    <path d="M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                                                </svg>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody id="localMacBody">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+        <!-- BTM Steering Disallowed Policy -->
+        <section class="card policy-card" aria-labelledby="btm-steering-title">
+            <div class="card-header header-with-actions">
+                <h2 id="btm-steering-title" class="card-title">BTM Steering Disallowed Policy</h2>
+                <div class="header-actions">
+                    <div class="apply-scope" role="group" aria-label="Apply scope">
+                        <label class="scope-option">
+                            <input type="radio" name="applyScope-btm" value="selected" checked />
+                            <span>Selected device</span>
+                        </label>
+                        <label class="scope-option">
+                            <input type="radio" name="applyScope-btm" value="all" />
+                            <span>All Devices</span>
+                        </label>
+                        <button type="button" class="btn btn-primary btn-sm apply-section" data-section="btm-disallowed"> Save </button>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="table-scroll">
+                    <table class="data-table" id="btm-disallowed-table" aria-label="BTM Steering Disallowed MACs">
+                        <thead>
+                            <tr>
+                                <th scope="col"><input type="checkbox" id="select-all-btm" aria-label="Select all rows" /></th>
+                                <th scope="col">
+                                    <div class="th-with-actions">
+                                        <span>MAC Address</span>
+                                        <div class="th-actions">
+                                            <button type="button"class="icon-btn" id="add-btm-inline" aria-label="Add MAC">
+                                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                                    <path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                                                </svg>
+                                            </button>
+                                            <button type="button" class="icon-btn" id="remove-btm-inline" aria-label="Remove selected MACs" title="Remove selected">
+                                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                                    <path d="M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                                                </svg>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody id="btmMacBody">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+        <!-- Channel Scan Reporting Policy -->
+        <section class="card policy-card" aria-labelledby="channel-scan-title">
+            <div class="card-header">
+                <h2 id="channel-scan-title">Channel Scan Reporting Policy</h2>
+                <div class="header-actions">
+                    <div class="apply-scope" role="group" aria-label="Apply scope">
+                        <label class="scope-option">
+                            <input type="radio" name="applyScope-scan" value="selected" checked />
+                            <span>Selected device</span>
+                        </label>
+                        <label class="scope-option">
+                            <input type="radio" name="applyScope-scan" value="all" />
+                            <span>All Devices</span>
+                        </label>
+                        <button type="button" class="btn btn-primary btn-sm apply-section" data-section="channel-scan"> Save </button>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body">
+                <form id="channel-scan-form">
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="report-independent-scans" class="form-label">Report Independent Channel Scans</label>
+                            <select id="report-independent-scans" name="reportIndependentScans" class="form-select form-select--enhanced">
+                                <option value="1">Enabled</option>
+                                <option value="0">Disabled</option>
+                            </select>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </section>
+        <!-- Default 802.1Q Settings Policy -->
+        <section class="card policy-card" aria-labelledby="dot1q-title">
+            <div class="card-header">
+                <h2 id="dot1q-title">Default 802.1Q Settings Policy</h2>
+                <div class="header-actions">
+                    <div class="apply-scope" role="group" aria-label="Apply scope">
+                        <label class="scope-option">
+                            <input type="radio" name="applyScope-dot1q" value="selected" checked />
+                            <span>Selected device</span>
+                        </label>
+                        <label class="scope-option">
+                            <input type="radio" name="applyScope-dot1q" value="all" />
+                            <span>All Devices</span>
+                        </label>
+                        <button type="button" class="btn btn-primary btn-sm apply-section" data-section="dot1q-defaults"> Save </button>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body">
+                <form id="dot1q-form">
+                    <div class="form-grid">
+                        <div class="form-field">
+                            <label for="primary-vlan-id">Primary VLAN ID</label>
+                            <input id="primary-vlan-id" name="primaryVlanId" type="number" min="1" max="4094" step="1" />
+                        </div>
+                        <div class="form-field">
+                            <label for="default-pcp">Default PCP</label>
+                            <input id="default-pcp" name="defaultPcp" type="number" min="0" max="7" step="1" />
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </section>
+        <!-- Radio Specific Metrics Policy -->
+        <section class="card policy-card" aria-labelledby="radio-metrics-title">
+            <div class="card-header">
+                <h2 id="radio-metrics-title">Radio Specific Metrics Policy</h2>
+                <div class="header-actions">
+                    <div class="apply-scope" role="group" aria-label="Apply scope">
+                        <label class="scope-option">
+                            <input type="radio" name="applyScope-radio" value="selected" checked />
+                            <span>Selected device</span>
+                        </label>
+                        <label class="scope-option">
+                            <input type="radio" name="applyScope-radio" value="all" />
+                            <span>All Devices</span>
+                        </label>
+                        <button type="button" class="btn btn-primary btn-sm apply-section" data-section="radio-metrics">Save</button>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="policy-table-wrapper">
+                    <table class="policy-table" aria-label="Radio metrics policies">
+                        <colgroup>
+                            <col style="width: 240px;">  <!-- ID -->
+                            <col style="width: 120px;">  <!-- STA RCPI Threshold -->
+                            <col style="width: 120px;">  <!-- STA RCPI Hysteresis -->
+                            <col style="width: 120px;">  <!-- AP Utilization Threshold -->
+                            <col style="width: 150px;">  <!-- STA Traffic Stats -->
+                            <col style="width: 150px;">  <!-- STA Link Metrics -->
+                            <col style="width: 150px;">  <!-- STA Status -->
+                            <col style="width: 120px;">  <!-- Actions -->
+                        </colgroup>
+                        <thead>
+                            <tr>
+                                <th scope="col">ID</th>
+                                <th scope="col">STA RCPI Threshold</th>
+                                <th scope="col">STA RCPI Hysteresis</th>
+                                <th scope="col">AP Utilization Threshold</th>
+                                <th scope="col">STA Traffic Stats</th>
+                                <th scope="col">STA Link Metrics</th>
+                                <th scope="col">STA Status</th>
+                                <th scope="col" class="actions-col">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="radio-metrics-rows">
+                            <!-- Rows injected by JS -->
+                        </tbody>
+                    </table>
+                </div>
+                <div class="toolbar">
+                    <button type="button" id="add-radio-metrics-row" class="btn btn-secondary btn-sm">+ Add Station Entry</button>
+                </div>
+            </div>
+        </section>
+        <!-- Radio Steering Parameters -->
+        <section class="card policy-card" aria-labelledby="radio-steering-title">
+            <div class="card-header">
+                <h2 id="radio-steering-title">Radio Steering Parameters</h2>
+                <div class="header-actions">
+                    <div class="apply-scope" role="group" aria-label="Apply scope">
+                        <label class="scope-option">
+                            <input type="radio" name="applyScope-steer" value="selected" checked />
+                            <span>Selected device</span>
+                        </label>
+                        <label class="scope-option">
+                            <input type="radio" name="applyScope-steer" value="all" />
+                            <span>All Devices</span>
+                        </label>
+                        <button type="button" class="btn btn-primary btn-sm apply-section" data-section="radio-steering">Save</button>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="policy-table-wrapper">
+                    <table class="policy-table" aria-label="Radio steering policies">
+                        <colgroup>
+                            <col style="width: 220px;">  <!-- ID -->
+                            <col style="width: 140px;">  <!-- Steering Policy -->
+                            <col style="width: 180px;">  <!-- Utilization Threshold -->
+                            <col style="width: 180px;">  <!-- RCPI Threshold -->
+                            <col style="width: 110px;">  <!-- Actions -->
+                        </colgroup>
+                        <thead>
+                            <tr>
+                                <th scope="col">ID</th>
+                                <th scope="col">Steering Policy</th>
+                                <th scope="col">Utilization Threshold</th>
+                                <th scope="col">RCPI Threshold</th>
+                                <th scope="col" class="actions-col">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="policy-rows">
+                            <!-- Rows injected by JS -->
+                        </tbody>
+                    </table>
+                </div>
+                <div class="toolbar">
+                    <button type="button" id="add-row-btn" class="btn btn-secondary btn-sm">+ Add Station Entry</button>
+                </div>
+            </div>
+        </section>
     </div>
 </section>
                 <!-- Other tabs would continue here but keeping response length manageable -->

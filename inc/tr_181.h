@@ -547,6 +547,7 @@ public:
     static bus_error_t affap_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
 
     //Orchestrator
+    static bus_error_t get_network_topology(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
     static bus_error_t get_node_sync(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
     static bus_error_t set_node_sync(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
     static bus_error_t policy_config(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
