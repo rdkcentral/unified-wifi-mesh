@@ -104,7 +104,7 @@ int dm_policy_t::decode(const cJSON *obj, void *parent_id, em_policy_id_type_t t
 		if ((tmp = cJSON_GetObjectItem(obj, "Default PCP")) != NULL) {
 			m_policy.def_8021q_settings.default_pcp = static_cast<unsigned char>(tmp->valuedouble);
 		}
-    } else if (type == em_policy_id_type_traffic_separation) {
+    } /*else if (type == em_policy_id_type_traffic_separation) {
         // Traffic Separation Policy SSIDS
         if ((traffic_sep_arr_obj = cJSON_GetObjectItem(obj, "Traffic Separation")) == NULL) {
             em_printfout("ERROR!! Traffic separation array is empty");
@@ -130,7 +130,7 @@ int dm_policy_t::decode(const cJSON *obj, void *parent_id, em_policy_id_type_t t
             em_printfout(" TRAFFIC SEPARATION SSID='%s', LEN=%d ,VLANID=%d ",entry->ssid, entry->ssid_len,entry->vlan_id);
             m_policy.traffic_separ.num_ssids++;
         }
-    } else if (type == em_policy_id_type_channel_scan) {
+    }*/ else if (type == em_policy_id_type_channel_scan) {
     	if ((tmp = cJSON_GetObjectItem(obj, "Report Independent Channel Scans")) != NULL) {
    			m_policy.independent_scan_report = tmp->valuedouble;
     	}
@@ -185,7 +185,7 @@ void dm_policy_t::encode(cJSON *obj, em_policy_id_type_t id)
 	} else if (id == em_policy_id_type_default_8021q_settings) {
 		cJSON_AddNumberToObject(obj, "Primary VLAN ID", m_policy.def_8021q_settings.primary_vid);
 		cJSON_AddNumberToObject(obj, "Default PCP", m_policy.def_8021q_settings.default_pcp);
-	} else if (id == em_policy_id_type_traffic_separation) {
+	} /*else if (id == em_policy_id_type_traffic_separation) {
         traffic_sep_arr_obj = cJSON_CreateArray();
         cJSON_AddItemToObject(obj, "Traffic Separation", traffic_sep_arr_obj);
 
@@ -195,7 +195,7 @@ void dm_policy_t::encode(cJSON *obj, em_policy_id_type_t id)
 			cJSON_AddStringToObject(traffic_sep_obj, "SSID Name", m_policy.traffic_separ.ssid_info[i].ssid);
 			cJSON_AddNumberToObject(traffic_sep_obj, "VLAN ID", m_policy.traffic_separ.ssid_info[i].vlan_id);
 		}
-	} else if (id == em_policy_id_type_channel_scan) {
+	}*/ else if (id == em_policy_id_type_channel_scan) {
 		cJSON_AddNumberToObject(obj, "Report Independent Channel Scans", m_policy.independent_scan_report);
 	} else if (id == em_policy_id_type_unsuccess_assoc) {
 
@@ -223,7 +223,7 @@ bool dm_policy_t::operator == (const dm_policy_t& obj)
     ret += !(this->m_policy.sta_status == obj.m_policy.sta_status);
     ret += (strncmp(this->m_policy.managed_sta_marker, obj.m_policy.managed_sta_marker, strlen(this->m_policy.managed_sta_marker)) != 0);
     ret += (memcmp(&this->m_policy.def_8021q_settings, &obj.m_policy.def_8021q_settings, sizeof(em_8021q_settings_policy_t)) != 0);
-    ret += (memcmp(&this->m_policy.traffic_separ, &obj.m_policy.traffic_separ, sizeof(em_traffic_separation_policy_t)) != 0);
+    //ret += (memcmp(&this->m_policy.traffic_separ, &obj.m_policy.traffic_separ, sizeof(em_traffic_separation_policy_t)) != 0);
     ret += (memcmp(&this->m_policy.link_stats_alarm_cfg, &obj.m_policy.link_stats_alarm_cfg, sizeof(em_link_stats_alarm_cfg_t)) != 0);
 
     return (ret > 0) ? false:true;
@@ -251,11 +251,11 @@ void dm_policy_t::operator = (const dm_policy_t& obj)
     strncpy(this->m_policy.managed_sta_marker, obj.m_policy.managed_sta_marker, sizeof(em_long_string_t));
     memcpy(&this->m_policy.def_8021q_settings, &obj.m_policy.def_8021q_settings, sizeof(em_8021q_settings_policy_t));
     this->m_policy.traffic_separ.num_ssids = obj.m_policy.traffic_separ.num_ssids;
-    for ( int i =0 ; i< em_haul_type_max; i++) {
+    /*for ( int i =0 ; i< em_haul_type_max; i++) {
         this->m_policy.traffic_separ.ssid_info[i].vlan_id = obj.m_policy.traffic_separ.ssid_info[i].vlan_id;
         this->m_policy.traffic_separ.ssid_info[i].ssid_len = obj.m_policy.traffic_separ.ssid_info[i].ssid_len;
         strncpy(this->m_policy.traffic_separ.ssid_info[i].ssid, obj.m_policy.traffic_separ.ssid_info[i].ssid, MAX_WIFI_SSID_LEN);
-    }
+    }*/
     memcpy(&m_policy.link_stats_alarm_cfg, &obj.m_policy.link_stats_alarm_cfg, sizeof(em_link_stats_alarm_cfg_t));
 }
 

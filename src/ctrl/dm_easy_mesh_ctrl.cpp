@@ -2901,6 +2901,8 @@ bus_error_t dm_easy_mesh_ctrl_t::ssid_get_inner(char *event_name, raw_data_t *p_
         rc = dm_ctrl->raw_data_set(p_data, val_str);
     } else if (strcmp(param, "AuthType") == 0) {
         rc = dm_ctrl->raw_data_set(p_data, si->auth_type);
+    } else if (strcmp(param, "VLANID") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, si->vlan_id);
     } else {
         em_printfout("Invalid param: %s\n", param);
         rc = bus_error_invalid_input;
@@ -2950,6 +2952,7 @@ bus_error_t dm_easy_mesh_ctrl_t::ssid_tget_inner(char *event_name, raw_data_t *p
         dm_ctrl->fill_haul_type(si->haul_type, si->num_hauls, val_str);
         dm_ctrl->property_append_tail(&property, root, idx, "HaulType", val_str);
         dm_ctrl->property_append_tail(&property, root, idx, "AuthType", si->auth_type);
+        dm_ctrl->property_append_tail(&property, root, idx, "VLANID", si->vlan_id);
     }
 
     if (property) {
