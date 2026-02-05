@@ -517,6 +517,7 @@ savePolicySettings(sectionKey, scope = "selected") {
         policy.apMetricReportingPolicy.managedClientMarker = managedClientMarker;
       });
 
+      this.showNotification('AP metrics policy saved successfully', 'success');
       break;
     }
     case "local-disallowed": {
@@ -524,8 +525,8 @@ savePolicySettings(sectionKey, scope = "selected") {
       indicesToUpdate.forEach(i => {
         const d = this.updatedPolicySettings[i];
         d.localSteeringDisallowed = Array.isArray(list) ? [...list] : [];
-        console.log(`Saved local-disallowed for device ${d.id} | count=${d.localSteeringDisallowed.length}`);
       });
+      this.showNotification('Local Steering Disallowed Policy saved successfully', 'success');
       break;
     }
     case "btm-disallowed": {
@@ -533,8 +534,8 @@ savePolicySettings(sectionKey, scope = "selected") {
       indicesToUpdate.forEach(i => {
         const d = this.updatedPolicySettings[i];
         d.btmSteeringDisallowed = Array.isArray(list) ? [...list] : [];
-        console.log(`Saved btm-disallowed for device ${d.id} | count=${d.btmSteeringDisallowed.length}`);
       });
+      this.showNotification('BTM Steering Disallowed Policy saved successfully', 'success');
       break;
     }
     case "channel-scan": {
@@ -543,8 +544,8 @@ savePolicySettings(sectionKey, scope = "selected") {
       indicesToUpdate.forEach(i => {
         const d = this.updatedPolicySettings[i];
         d.reportIndependentChannelScans = Number.isNaN(num) ? 0 : num;
-        console.log(`Saved channel-scan for device ${d.id} | reportIndependentChannelScans=${d.reportIndependentChannelScans}`);
       });
+      this.showNotification('Channel Scan Reporting Policy saved successfully', 'success');
       break;
     }
     case "dot1q-defaults": {
@@ -560,11 +561,8 @@ savePolicySettings(sectionKey, scope = "selected") {
 
         if (!Number.isNaN(vlanNum)) d.default802_1Q_SettingsPolicy.primaryVLANID = vlanNum;
         if (!Number.isNaN(pcpNum))  d.default802_1Q_SettingsPolicy.defaultPCP   = pcpNum;
-
-        console.log(
-          `Saved dot1q-defaults for device ${d.id} | VLAN=${d.default802_1Q_SettingsPolicy.primaryVLANID} | PCP=${d.default802_1Q_SettingsPolicy.defaultPCP}`
-        );
       });
+      this.showNotification('Default 802.1Q Settings Policy saved successfully', 'success');
       break;
     }
     case "radio-metrics": {
@@ -573,23 +571,23 @@ savePolicySettings(sectionKey, scope = "selected") {
         const d = this.updatedPolicySettings[i];
         d.radioSpecificMetricsPolicy = rows;
       });
+      this.showNotification('Radio Specific Metrics Policy saved successfully', 'success');
       break;
     }
     case "radio-steering": {
       const rows = RSP.getAll();
-      console.log("[RSP] UI rows:", rows);
 
       indicesToUpdate.forEach(i => {
         const d = this.updatedPolicySettings[i];
         d.radioSteeringParametersPolicy = rows;
       });
+      this.showNotification('Radio Steering Parameters saved successfully', 'success');
       break;
     }
 
     default:
       console.warn("Unknown sectionKey:", sectionKey);
   }
-  console.log('UPDATED updatedPolicySettings: ', this.updatedPolicySettings);
 }
 
 
@@ -603,7 +601,7 @@ async handlePolicySettingApply() {
 
   try {
     const settings = this.updatedPolicySettings;
-    console.log('settings: ', this.updatedPolicySettings);
+    console.log('updated policy on apply: ', settings);
     const res = await fetch("api/v1/wifipolicy", {
       method: "POST",
       headers: {
@@ -3464,7 +3462,6 @@ async handleWebSocketMessage(data) {
       const data = await res.json();
       this.policyByDeviceId = {};
       this.updatedPolicySettings = Array.isArray(data?.policyConfig) ? data.policyConfig : [];
-      console.log('updatedPolicySettings: ', this.updatedPolicySettings);
       this.updatedPolicySettings.forEach(d => {
         if (d?.id) this.policyByDeviceId[d.id] = d;
       });
@@ -3693,7 +3690,7 @@ const PolicyUtil = (() => {
 function createPolicyTable({
   tbodySel,
   addBtnSel,
-  maxRows = 3,
+  maxRows = 15,
   specialId = { enabled: false,
                 macAll: PolicyUtil.MAC_ALL },
   columns,
@@ -3781,6 +3778,57 @@ function createPolicyTable({
     return tr;
   }
 
+  // --- Ephemeral scope chooser shown only for newly added rows ---
+  function attachNewEntryScopeChooser(tr) {
+    const idCell = tr.querySelector('td');
+    const idInput = tr.querySelector('input[name="id"]');
+    if (!idCell || !idInput) return;
+
+    // Hide the ID input until user chooses scope
+    idInput.style.display = 'none';
+
+    // Build a one-time <select>
+    const sel = document.createElement('select');
+    sel.className = 'new-entry-scope';
+    sel.innerHTML = `
+      <option value="" selected disabled>Select scope…</option>
+      <option value="specific">Specific Station</option>
+      <option value="all">All Stations</option>
+    `;
+
+    // Insert before the input
+    idCell.insertBefore(sel, idInput);
+
+    const finalize = (scope) => {
+      if (scope === 'all') {
+        // Set ALL MAC and lock field
+        idInput.value = displayId(specialId.macAll);
+        idInput.setAttribute('data-raw-id', specialId.macAll);
+        idInput.readOnly = true;
+      } else {
+        // Allow editing specific MAC
+        idInput.readOnly = false;
+        idInput.value = '';
+        idInput.setAttribute('data-raw-id', '');
+        // Focus for convenience
+        queueMicrotask(() => { idInput.focus(); idInput.select?.(); });
+      }
+      // Remove chooser and show input
+      sel.remove();
+      idInput.style.display = '';
+      // Update add button state (ALL disables further adds)
+      updateAddButtonState();
+    };
+
+    sel.addEventListener('change', () => {
+      const v = sel.value;
+      if (v === 'all' || v === 'specific') {
+        finalize(v);
+      }
+    });
+  }
+  // --- End ephemeral chooser ---
+
   function render(entries = []) {
     const tbody = qs(tbodySel);
     if (!tbody) return;
@@ -3815,8 +3863,10 @@ function createPolicyTable({
     if (!tbody) return;
     const tr = createRow(prefill || {}, { editableId: true });
     tbody.appendChild(tr);
-    const idInput = tr.querySelector('input[name="id"]');
-    if (idInput) { idInput.focus(); idInput.select?.(); }
+    //const idInput = tr.querySelector('input[name="id"]');
+    //if (idInput) { idInput.focus(); idInput.select?.(); }
+    // Show one-time scope chooser for this new row
+    attachNewEntryScopeChooser(tr);
     updateAddButtonState();
   }
 
@@ -3884,7 +3934,7 @@ const RSP = (() => {
   const mod = createPolicyTable({
     tbodySel: "#policy-rows",
     addBtnSel: "#add-row-btn",
-    maxRows: 3,
+    maxRows: 15,
     specialId: { enabled: true, macAll: PolicyUtil.MAC_ALL },
     readonlyExistingId: true,
     columns: [
@@ -3915,7 +3965,7 @@ const RMP = (() => {
   const mod = createPolicyTable({
     tbodySel: "#radio-metrics-rows",
     addBtnSel: "#add-radio-metrics-row",
-    maxRows: 3,
+    maxRows: 15,
     specialId: { enabled: true, macAll: PolicyUtil.MAC_ALL },
     readonlyExistingId: true,
     columns: [
@@ -4017,13 +4067,6 @@ function getMacList(tbodySelector) {
     .filter(Boolean);
 }
 
-// If a field shows a friendly label but stores the real value in data-actual-value,
-// return that real value (e.g., BSSID "ff:ff:ff:ff:ff:ff")
-function getActualValue(selector) {
-  const el = document.querySelector(selector);
-  if (!el) return "";
-  return el.getAttribute("data-actual-value") || el.value || "";
-}
 
   function collectResetPayload() {
     const select = document.getElementById("almac-select");

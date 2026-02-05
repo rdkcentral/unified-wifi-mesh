@@ -1093,13 +1093,6 @@ int dm_easy_mesh_t::decode_config_set_policy(em_subdoc_info_t *subdoc, const cha
         }
     }
 
-    /*if ((traffic_sep_obj = cJSON_GetObjectItem(policy_obj, "Traffic Separation Policy")) != NULL) {
-        snprintf(parent, sizeof(em_long_string_t), "%s@%s@00:00:00:00:00:00@%d", net_id, dev_mac_str,
-                em_policy_id_type_traffic_separation);
-        m_policy[m_num_policy].decode(traffic_sep_obj, parent, em_policy_id_type_traffic_separation);
-        m_num_policy++;
-    }*/
-
     if ((radio_steer_arr_obj = cJSON_GetObjectItem(policy_obj, "Radio Steering Parameters")) != NULL) {
         for (i = 0; i < cJSON_GetArraySize(radio_steer_arr_obj); i++) {
             radio_steer_obj = cJSON_GetArrayItem(radio_steer_arr_obj, i);

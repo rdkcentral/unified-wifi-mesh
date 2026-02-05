@@ -2213,7 +2213,6 @@ func getWirelessPolicyHandler(w http.ResponseWriter, r *http.Request) {
                 }
             }
 
-            dumpNetNode(policyTree)
             if applyWifiPolicyConfig(policyTree) != true {
                 http.Error(w, fmt.Sprintf("Failed to update wifi policy"), http.StatusInternalServerError)
             }
