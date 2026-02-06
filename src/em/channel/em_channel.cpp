@@ -1998,9 +1998,13 @@ void em_channel_t::process_ctrl_state()
 			}
             break; 
         
-		case em_state_ctrl_channel_scan_pending:
+        case em_state_ctrl_channel_scan_pending:
 			send_channel_scan_request_msg();
-            break; 
+            break;
+
+        case em_state_ctrl_topo_sync_pending:
+            // No channel action required; topology sync handled in configuration state machine.
+            break;
         default:
             em_printfout("unhandled state:%s in channel state machine.", em_t::state_2_str(get_state()));
             break;

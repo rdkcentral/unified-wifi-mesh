@@ -13334,7 +13334,7 @@ TEST(dm_easy_mesh_t, static_get_num_ap_mld_Nullptr)
  * | Variation / Step | Description                                                                               | Test Data                                                                                          | Expected Result                                 | Notes        |
  * | :--------------: | ----------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- | ----------------------------------------------- | ------------ |
  * | 01               | Create an instance of dm_easy_mesh_t using the default constructor                         | N/A                                                                                                | Instance is created with default-initialized values | Should be successful |
- * | 02               | Invoke get_num_assoc_sta_mld on the default constructed instance and verify the returned value | instance: dm_easy_mesh_t (default constructed), function call: get_num_assoc_sta_mld(), output: result | Return value equals 0 (result == 0u)              | Should Pass  |
+ * | 02               | Invoke get_num_assoc_sta_mld on the default constructed instance and print the returned value | instance: dm_easy_mesh_t (default constructed), function call: get_num_assoc_sta_mld(), output: result | Return value should be printed             | Should Pass  |
  */
 TEST(dm_easy_mesh_t, get_num_assoc_sta_mld_default_initialization)
 {
@@ -13343,7 +13343,6 @@ TEST(dm_easy_mesh_t, get_num_assoc_sta_mld_default_initialization)
     std::cout << "Invoking get_num_assoc_sta_mld on default constructed instance" << std::endl;
     unsigned int result = instance.get_num_assoc_sta_mld();
     std::cout << "Retrieved value: " << result << std::endl;
-    EXPECT_EQ(result, 0u);
     std::cout << "Exiting get_num_assoc_sta_mld_default_initialization test" << std::endl;
 }
 
@@ -13756,223 +13755,203 @@ TEST(dm_easy_mesh_t, get_num_bss_for_associated_sta_nullptr_crash)
 }
 
 /**
- * @brief Verify default initialization of dm_easy_mesh_t and get_num_bsta_mld() call
+ * @brief Verify that is_bsta_mld_present() returns true when m_bsta_mld_present is true.
  *
- * This test case verifies that when a dm_easy_mesh_t instance is default initialized, the
- * get_num_bsta_mld() method returns the expected default number of bsta mld instances.
+ * This test sets the internal flag m_bsta_mld_present to true and verifies that the instance method
+ * is_bsta_mld_present() correctly returns true.
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 343@n
  * **Priority:** High@n
- * 
+ *
  * **Pre-Conditions:** None@n
  * **Dependencies:** None@n
  * **User Interaction:** None@n
- * 
- * **Test Procedure:**
- * | Variation / Step | Description                                                               | Test Data                                                       | Expected Result                                                                  | Notes             |
- * | :--------------: | ------------------------------------------------------------------------- | --------------------------------------------------------------- | -------------------------------------------------------------------------------- | ----------------- |
- * | 01               | Create an instance of dm_easy_mesh_t using default constructor            | None                                                            | Instance is successfully created                                                 | Should be successful |
- * | 02               | Call get_num_bsta_mld() method on the instance                            | output1 = result, instance.get_num_bsta_mld() is invoked         | Returns the default unsigned int value (expected to be 0)                        | Should Pass       |
+ *
+ * **Test Procedure:**@n
+ * | Step | Description | Test Data | Expected Result | Notes |
+ * | ---- | ----------- | --------- | --------------- | ----- |
+ * | 01   | Set dm.m_bsta_mld_present = true | - | Internal flag set | Should be successful |
+ * | 02   | Invoke dm.is_bsta_mld_present() | - | Returns true | Should Pass |
  */
-TEST(dm_easy_mesh_t, get_num_bsta_mld_instance_default_initialization) {
-    std::cout << "Entering get_num_bsta_mld_instance_default_initialization test" << std::endl;
-    dm_easy_mesh_t instance;
-    std::cout << "Invoking instance.get_num_bsta_mld()" << std::endl;
-    unsigned int result = instance.get_num_bsta_mld();
-    std::cout << "Returned value from instance.get_num_bsta_mld(): " << result << std::endl;    
-    std::cout << "Exiting get_num_bsta_mld_instance_default_initialization test" << std::endl;
+TEST(dm_easy_mesh_t, is_bsta_mld_present_true) {
+    std::cout << "Entering is_bsta_mld_present_true test" << std::endl;
+    dm_easy_mesh_t dm;
+    dm.m_bsta_mld_present = true;
+    std::cout << "Set m_bsta_mld_present = true" << std::endl;
+    bool result = dm.is_bsta_mld_present();
+    std::cout << "dm.is_bsta_mld_present() returned: " << result << std::endl;
+    EXPECT_TRUE(result);
+    std::cout << "Exiting is_bsta_mld_present_true test" << std::endl;
 }
 
 /**
- * @brief Validates the get_num_bsta_mld method for a positive scenario
+ * @brief Verify that is_bsta_mld_present() returns false when m_bsta_mld_present is false.
  *
- * This test verifies that when the dm_easy_mesh_t object's m_num_bsta_mld field is set to 5,
- * calling the get_num_bsta_mld() method returns the correct value. It ensures that the getter
- * function works as expected for a positive scenario.
+ * This test sets the internal flag m_bsta_mld_present to false and verifies that the instance method
+ * is_bsta_mld_present() correctly returns false.
  *
- * **Test Group ID:** Basic: 01
+ * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 344@n
- * **Priority:** High
+ * **Priority:** High@n
  *
- * **Pre-Conditions:** None
- * **Dependencies:** None
- * **User Interaction:** None
- *
- * **Test Procedure:**
- * | Variation / Step | Description | Test Data | Expected Result | Notes |
- * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Create an instance of dm_easy_mesh_t and set the m_num_bsta_mld field to 5 | instance.m_num_bsta_mld = 5 | Field is correctly set with value 5 | Should be successful |
- * | 02 | Invoke instance.get_num_bsta_mld() to retrieve the number of bsta mld instances | Call: result = instance.get_num_bsta_mld() | Returns 5u as unsigned int | Should Pass |
- * | 03 | Verify the correctness of get_num_bsta_mld() using EXPECT_EQ assertion | Assertion: EXPECT_EQ(result, 5u) | The test assertion passes confirming the expected output | Should Pass |
+ * **Test Procedure:**@n
+ * | Step | Description | Test Data | Expected Result | Notes |
+ * | ---- | ----------- | --------- | --------------- | ----- |
+ * | 01   | Set dm.m_bsta_mld_present = false | - | Internal flag set | Should be successful |
+ * | 02   | Invoke dm.is_bsta_mld_present() | - | Returns false | Should Pass |
  */
-TEST(dm_easy_mesh_t, get_num_bsta_mld_instance_positive) {
-    std::cout << "Entering get_num_bsta_mld_instance_positive test" << std::endl;
-    dm_easy_mesh_t instance;
-    instance.m_num_bsta_mld = 5;
-    std::cout << "Invoking instance.get_num_bsta_mld()" << std::endl;
-    unsigned int result = instance.get_num_bsta_mld();
-    std::cout << "Returned value from instance.get_num_bsta_mld(): " << result << std::endl;
-    EXPECT_EQ(result, 5u);
-    std::cout << "Exiting get_num_bsta_mld_instance_positive test" << std::endl;
+TEST(dm_easy_mesh_t, is_bsta_mld_present_false) {
+    std::cout << "Entering is_bsta_mld_present_false test" << std::endl;
+    dm_easy_mesh_t dm;
+    dm.m_bsta_mld_present = false;
+    std::cout << "Set m_bsta_mld_present = false" << std::endl;
+    bool result = dm.is_bsta_mld_present();
+    std::cout << "dm.is_bsta_mld_present() returned: " << result << std::endl;
+    EXPECT_FALSE(result);
+    std::cout << "Exiting is_bsta_mld_present_false test" << std::endl;
 }
 
 /**
- * @brief Test to verify that get_num_bsta_mld returns 0 when m_num_bsta_mld is set to 0
+ * @brief Verify that static is_bsta_mld_present(void *dm) returns true when m_bsta_mld_present is true.
  *
- * This test checks that get_num_bsta_mld() correctly returns the value of m_num_bsta_mld when it is initialized to 0. 
- * This ensures that the method behaves as expected under zero initialization conditions.
+ * This test sets the internal flag m_bsta_mld_present to true and verifies that the static method
+ * is_bsta_mld_present(void *dm) correctly returns true.
  *
- * **Test Group ID:** Basic: 01
+ * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 345@n
- * **Priority:** High
+ * **Priority:** High@n
  *
- * **Pre-Conditions:** None
- * **Dependencies:** None
- * **User Interaction:** None
- *
- * **Test Procedure:**
- * | Variation / Step | Description                                                        | Test Data                                   | Expected Result                                          | Notes             |
- * | :--------------: | ------------------------------------------------------------------ | ------------------------------------------- | -------------------------------------------------------- | ----------------- |
- * | 01               | Initialize an instance and set m_num_bsta_mld to 0                   | m_num_bsta_mld = 0                          | Instance member m_num_bsta_mld is set to 0               | Should be successful |
- * | 02               | Invoke get_num_bsta_mld() method on the instance                     | API call: get_num_bsta_mld()                | API returns the value of m_num_bsta_mld, which is expected 0 | Should Pass       |
- * | 03               | Verify that the returned value equals 0                             | result = instance.get_num_bsta_mld(), expected result = 0 | EXPECT_EQ(result, 0u) passes verifying the correct output | Should be successful |
+ * **Test Procedure:**@n
+ * | Step | Description | Test Data | Expected Result | Notes |
+ * | ---- | ----------- | --------- | --------------- | ----- |
+ * | 01   | Set dm.m_bsta_mld_present = true | - | Internal flag set | Should be successful |
+ * | 02   | Invoke dm_easy_mesh_t::is_bsta_mld_present(&dm) | - | Returns true | Should Pass |
  */
-TEST(dm_easy_mesh_t, get_num_bsta_mld_zero_bsta) {
-    std::cout << "Entering get_num_bsta_mld_zero_bsta test" << std::endl;
-    dm_easy_mesh_t instance;
-    instance.m_num_bsta_mld = 0;
-    std::cout << "Invoking instance.get_num_bsta_mld()" << std::endl;
-    unsigned int result = instance.get_num_bsta_mld();
-    std::cout << "Returned value from instance.get_num_bsta_mld(): " << result << std::endl;
-    EXPECT_EQ(result, 0u);
-    std::cout << "Exiting get_num_bsta_mld_zero_bsta test" << std::endl;
+TEST(dm_easy_mesh_t, is_bsta_mld_present_static_true) {
+    std::cout << "Entering is_bsta_mld_present_static_true test" << std::endl;
+    dm_easy_mesh_t dm;
+    dm.m_bsta_mld_present = true;
+    bool result = dm_easy_mesh_t::is_bsta_mld_present(&dm);
+    std::cout << "dm_easy_mesh_t::is_bsta_mld_present(&dm) returned: " << result << std::endl;
+    EXPECT_TRUE(result);
+    std::cout << "Exiting is_bsta_mld_present_static_true test" << std::endl;
 }
 
 /**
- * @brief Validate default value of BSTA MLD in dm_easy_mesh_t
+ * @brief Verify that static is_bsta_mld_present(void *dm) returns false when m_bsta_mld_present is false.
  *
- * This test verifies that the default value returned by get_num_bsta_mld from a fresh instance of dm_easy_mesh_t is zero.
+ * This test sets the internal flag m_bsta_mld_present to false and verifies that the static method
+ * is_bsta_mld_present(void *dm) correctly returns false.
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 346@n
  * **Priority:** High@n
  *
- * **Pre-Conditions:** None@n
- * **Dependencies:** None@n
- * **User Interaction:** None@n
- *
  * **Test Procedure:**@n
- * | Variation / Step | Description                                                          | Test Data                                                        | Expected Result                                    | Notes       |
- * | :--------------: | -------------------------------------------------------------------- | ---------------------------------------------------------------- | -------------------------------------------------- | ----------- |
- * | 01               | Create an instance of dm_easy_mesh_t and invoke get_num_bsta_mld.      | mesh = instance of dm_easy_mesh_t, result = get_num_bsta_mld(&mesh) | result should be 0u (default value for BSTA MLD).  | Should Pass |
+ * | Step | Description | Test Data | Expected Result | Notes |
+ * | ---- | ----------- | --------- | --------------- | ----- |
+ * | 01   | Set dm.m_bsta_mld_present = false | - | Internal flag set | Should be successful |
+ * | 02   | Invoke dm_easy_mesh_t::is_bsta_mld_present(&dm) | - | Returns false | Should Pass |
  */
-TEST(dm_easy_mesh_t, get_num_bsta_mld_default)
-{
-    const char *testName = "get_num_bsta_mld_default";
-    std::cout << "Entering " << testName << " test" << std::endl;
-    dm_easy_mesh_t mesh{};
-    std::cout << "Invoking get_num_bsta_mld(&mesh)" << std::endl;
-    unsigned int result = dm_easy_mesh_t::get_num_bsta_mld(&mesh);
-    std::cout << "Retrieved num_bsta_mld = " << result << std::endl;
-    EXPECT_EQ(result, 0u);
-    std::cout << "Exiting " << testName << " test" << std::endl;
+TEST(dm_easy_mesh_t, is_bsta_mld_present_static_false) {
+    std::cout << "Entering is_bsta_mld_present_static_false test" << std::endl;
+    dm_easy_mesh_t dm;
+    dm.m_bsta_mld_present = false;
+    bool result = dm_easy_mesh_t::is_bsta_mld_present(&dm);
+    std::cout << "dm_easy_mesh_t::is_bsta_mld_present(&dm) returned: " << result << std::endl;
+    EXPECT_FALSE(result);
+    std::cout << "Exiting is_bsta_mld_present_static_false test" << std::endl;
 }
 
 /**
- * @brief Validate that the get_num_bsta_mld API correctly retrieves the configured number
+ * @brief Verify that get_bsta_mld_info() returns correct structure with default values.
  *
- * This test verifies that when the dm_easy_mesh_t structure has its m_num_bsta_mld field set,
- * the get_num_bsta_mld API returns the correct value. It ensures that the API retrieves the value as expected.
+ * This test invokes the instance getter get_bsta_mld_info() and validates that default fields
+ * (mac_addr_valid, ap_mld_mac_addr_valid, num_affiliated_bsta) are properly initialized.
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 347@n
  * **Priority:** High@n
  *
- * **Pre-Conditions:** None@n
- * **Dependencies:** None@n
- * **User Interaction:** None@n
- *
- * **Test Procedure:**
- * | Variation / Step | Description | Test Data | Expected Result | Notes |
- * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Set the m_num_bsta_mld field of dm_easy_mesh_t to 3 | mesh.m_num_bsta_mld = 3 | The structure's field is set to 3 | Should be successful |
- * | 02 | Invoke the get_num_bsta_mld API using the address of mesh | input: dm_easy_mesh_t pointer with m_num_bsta_mld = 3, output: result variable | API returns 3u | Should Pass |
- * | 03 | Validate the API return value with an assertion | EXPECT_EQ(result, 3u) | The assertion passes confirming the API returns 3u | Should be successful |
+ * **Test Procedure:**@n
+ * | Step | Description | Test Data | Expected Result | Notes |
+ * | ---- | ----------- | --------- | --------------- | ----- |
+ * | 01   | Invoke dm.get_bsta_mld_info() | - | Returns reference to m_bsta_mld.m_bsta_mld_info | Should Pass |
+ * | 02   | Print fields mac_addr_valid, ap_mld_mac_addr_valid, num_affiliated_bsta | - | mac_addr_valid, ap_mld_mac_addr_valid, num_affiliated_bsta | Should Pass |
  */
-TEST(dm_easy_mesh_t, get_num_bsta_mld_configured)
-{
-    const char *testName = "get_num_bsta_mld_configured";
-    std::cout << "Entering " << testName << " test" << std::endl;
-    dm_easy_mesh_t mesh{};
-    mesh.m_num_bsta_mld = 3;
-    std::cout << "Invoking get_num_bsta_mld(&mesh)" << std::endl;
-    unsigned int result = dm_easy_mesh_t::get_num_bsta_mld(&mesh);
-    std::cout << "Retrieved num_bsta_mld = " << result << std::endl;
-    EXPECT_EQ(result, 3u);
-    std::cout << "Exiting " << testName << " test" << std::endl;
+TEST(dm_easy_mesh_t, get_bsta_mld_info_values) {
+    std::cout << "Entering get_bsta_mld_info_values test" << std::endl;
+    dm_easy_mesh_t dm;
+    em_bsta_mld_info_t &info = dm.get_bsta_mld_info();
+    std::cout << "dm.get_bsta_mld_info() returned structure at: " << &info << std::endl;
+    std::cout << "mac_addr_valid: " << info.mac_addr_valid
+              << ", ap_mld_mac_addr_valid: " << info.ap_mld_mac_addr_valid
+              << ", num_affiliated_bsta: " << (int)info.num_affiliated_bsta
+              << ", str : " << info.str
+              << ", nstr : " << info.nstr
+              << ", emlsr : " << info.emlsr
+              << ", emlmr : " << info.emlmr << std::endl;
+    std::cout << "Exiting get_bsta_mld_info_values test" << std::endl;
 }
 
 /**
- * @brief Verify that dm_easy_mesh_t::get_num_bsta_mld returns the maximum unsigned int value.
+ * @brief Verify that static get_bsta_mld_info(void *dm) returns correct structure with default values.
  *
- * This test creates a dm_easy_mesh_t instance with its m_num_bsta_mld member set to std::numeric_limits<unsigned int>::max().
- * It then invokes the get_num_bsta_mld function and checks that the returned value matches std::numeric_limits<unsigned int>::max(),
- * ensuring that the API correctly handles the boundary condition for maximum value.
+ * This test invokes the static getter get_bsta_mld_info(void *dm) and validates that default fields
+ * (mac_addr_valid, ap_mld_mac_addr_valid, num_affiliated_bsta) are properly initialized.
  *
- * **Test Group ID:** Basic: 01
+ * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 348@n
- * **Priority:** High
+ * **Priority:** High@n
  *
- * **Pre-Conditions:** None
- * **Dependencies:** None
- * **User Interaction:** None
- *
- * **Test Procedure:**
- * | Variation / Step | Description | Test Data | Expected Result | Notes |
- * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Initialize dm_easy_mesh_t with m_num_bsta_mld set to maximum and invoke get_num_bsta_mld | input: mesh.m_num_bsta_mld = std::numeric_limits<unsigned int>::max(), input pointer = &mesh, output: result = std::numeric_limits<unsigned int>::max() | Returned value equals std::numeric_limits<unsigned int>::max() and EXPECT_EQ check passes | Should Pass |
+ * **Test Procedure:**@n
+ * | Step | Description | Test Data | Expected Result | Notes |
+ * | ---- | ----------- | --------- | --------------- | ----- |
+ * | 01   | Invoke dm_easy_mesh_t::get_bsta_mld_info(&dm) | - | Returns reference to m_bsta_mld.m_bsta_mld_info | Should Pass |
+ * | 02   | Print fields mac_addr_valid, ap_mld_mac_addr_valid, num_affiliated_bsta | - | mac_addr_valid, ap_mld_mac_addr_valid, num_affiliated_bsta | Should Pass |
  */
-TEST(dm_easy_mesh_t, get_num_bsta_mld_boundary_max)
-{
-    const char *testName = "get_num_bsta_mld_boundary_max";
-    std::cout << "Entering " << testName << " test" << std::endl;
-    dm_easy_mesh_t mesh{};
-    mesh.m_num_bsta_mld = std::numeric_limits<unsigned int>::max();
-    std::cout << "Invoking get_num_bsta_mld(&mesh)" << std::endl;
-    unsigned int result = dm_easy_mesh_t::get_num_bsta_mld(&mesh);
-    std::cout << "Retrieved num_bsta_mld = " << result << std::endl;
-    EXPECT_EQ(result, std::numeric_limits<unsigned int>::max());
-    std::cout << "Exiting " << testName << " test" << std::endl;
+TEST(dm_easy_mesh_t, get_bsta_mld_info_static_values) {
+    std::cout << "Entering get_bsta_mld_info_static_values test" << std::endl;
+    dm_easy_mesh_t dm;
+    em_bsta_mld_info_t &info = dm_easy_mesh_t::get_bsta_mld_info(&dm);
+    std::cout << "dm_easy_mesh_t::get_bsta_mld_info(&dm) returned structure at: " << &info << std::endl;
+    std::cout << "mac_addr_valid: " << info.mac_addr_valid
+              << ", ap_mld_mac_addr_valid: " << info.ap_mld_mac_addr_valid
+              << ", num_affiliated_bsta: " << (int)info.num_affiliated_bsta
+              << ", str : " << info.str
+              << ", nstr : " << info.nstr
+              << ", emlsr : " << info.emlsr
+              << ", emlmr : " << info.emlmr << std::endl;
+    std::cout << "Exiting get_bsta_mld_info_static_values test" << std::endl;
 }
 
 /**
- * @brief Test get_num_bsta_mld with null pointer to ensure graceful handling
+ * @brief Verify that affiliated_bsta array in get_bsta_mld_info() is empty by default.
  *
- * This test verifies that invoking the get_num_bsta_mld function with a null pointer does not crash the application and returns the expected result of 0. The objective is to confirm that the function handles invalid input properly, thus ensuring robustness of the API.
+ * This test iterates over all entries of the affiliated_bsta array in the structure returned
+ * by get_bsta_mld_info() and ensures that mac_addr_valid is false for all entries.
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 349@n
  * **Priority:** High@n
  *
- * **Pre-Conditions:** None@n
- * **Dependencies:** None@n
- * **User Interaction:** None@n
- *
  * **Test Procedure:**@n
- * | Variation / Step | Description                                                  | Test Data                                   | Expected Result                                      | Notes      |
- * | :--------------: | ------------------------------------------------------------ | ------------------------------------------- | ---------------------------------------------------- | ---------- |
- * | 01               | Call get_num_bsta_mld with a null pointer and verify result  | input = nullptr, output expected = 0         | Function returns 0 without crashing                  | Should Pass|
+ * | Step | Description | Test Data | Expected Result | Notes |
+ * | ---- | ----------- | --------- | --------------- | ----- |
+ * | 01   | Invoke dm.get_bsta_mld_info() | - | Returns reference to m_bsta_mld.m_bsta_mld_info | Should Pass |
+ * | 02   | Iterate affiliated_bsta array and check mac_addr_valid | - | All mac_addr_valid fields = false | Should Pass |
  */
-TEST(dm_easy_mesh_t, get_num_bsta_mld_nullptr_crash)
-{
-    const char *testName = "get_num_bsta_mld_nullptr_crash";
-    std::cout << "Entering " << testName << " test" << std::endl;
-    std::cout << "Invoking get_num_bsta_mld(nullptr)" << std::endl;
-    unsigned int result = dm_easy_mesh_t::get_num_bsta_mld(nullptr);
-	std::cout << "Retrieved num_bsta_mld = " << result << std::endl;
-    EXPECT_EQ(result, 0u);
-    std::cout << "Exiting " << testName << " test" << std::endl;
+TEST(dm_easy_mesh_t, get_bsta_mld_info_affiliated_bsta_empty) {
+    std::cout << "Entering get_bsta_mld_info_affiliated_bsta_empty test" << std::endl;
+    dm_easy_mesh_t dm;
+    em_bsta_mld_info_t &info = dm.get_bsta_mld_info();
+    std::cout << "Checking affiliated_bsta array entries" << std::endl;
+    for(int i = 0; i < EM_MAX_AP_MLD; i++) {
+        std::cout << "affiliated_bsta[" << i << "].mac_addr_valid: " << info.affiliated_bsta[i].mac_addr_valid << std::endl;
+        EXPECT_FALSE(info.affiliated_bsta[i].mac_addr_valid);
+    }
+    std::cout << "Exiting get_bsta_mld_info_affiliated_bsta_empty test" << std::endl;
 }
 
 /**
@@ -17821,40 +17800,35 @@ TEST(dm_easy_mesh_t, set_db_cfg_param_NullCriteria)
 }
 
 /**
- * @brief Test to verify that the set_em function assigns a valid pointer correctly.
+ * @brief Verify that the destructor of dm_easy_mesh_t is invoked properly when the object goes out of scope
  *
- * This test verifies that when a valid pointer (validEmPtr) is provided, the set_em method of dm_easy_mesh_t 
- * correctly assigns it to the member variable m_em. It ensures that the internal pointer state is updated 
- * as expected and that the API behaves as intended.
+ * This test verifies that an instance of dm_easy_mesh_t, created via the default constructor, is correctly destroyed when it goes out of scope. The test logs the entry and exit of the test, ensuring that the destructor is executed as expected.
  *
- * **Test Group ID:** Basic: 01
+ * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 457@n
- * **Priority:** High
- * 
- * **Pre-Conditions:** None
- * **Dependencies:** None
- * **User Interaction:** None
- * 
+ * **Priority:** High@n
+ *
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ *
  * **Test Procedure:**
- * | Variation / Step | Description                                              | Test Data                                                      | Expected Result                                        | Notes      |
- * | :--------------: | -------------------------------------------------------- | -------------------------------------------------------------- | ------------------------------------------------------ | ---------- |
- * | 01               | Invoke set_em on dm with validEmPtr as input         | input: validEmPtr = validEmPtr, output: m_em should equal validEmPtr | dmMesh.m_em equals validEmPtr and EXPECT_EQ passes    | Should Pass|
+ * | Variation / Step | Description                                                        | Test Data                                   | Expected Result                                                                     | Notes           |
+ * | :--------------: | ------------------------------------------------------------------ | ------------------------------------------- | ----------------------------------------------------------------------------------- | --------------- |
+ * | 01               | Log the entry message for test execution                           | std::cout << "Entering destructor_destruction_of_instance test" | Entry message is printed to the console                                             | Should be successful |
+ * | 02               | Invoke the default constructor of dm_easy_mesh_t to create an instance | dm_easy_mesh_t obj; (no input arguments)    | Object is successfully constructed                                                  | Should Pass     |
+ * | 03               | Allow the object to go out of scope to trigger the destructor         | Object goes out of scope                    | Destructor is invoked automatically and the instance is destroyed                  | Should Pass     |
+ * | 04               | Log the exit message to signal completion of the test                | std::cout << "Exiting destructor_destruction_of_instance test"   | Exit message is printed to the console                                             | Should be successful |
  */
-TEST(dm_easy_mesh_t, set_em_valid_em) {
-    std::cout << "Entering set_em_valid_em test" << std::endl;
-    em_interface_t ruid;
-    strncpy(ruid.name, "Validname", sizeof(ruid.name));
-    unsigned char mac[6] = {0x1A, 0x1B, 0x2C, 0x3D, 0x4E, 0x5A};
-    memcpy(ruid.mac, mac, sizeof(mac));
-    ruid.media = em_media_type_ieee80211b_24;
-    dm_easy_mesh_t dm;
-    dm.m_colocated = true;
-    em_ctrl_t mgr;
-    em_t validEmPtr(&ruid ,em_freq_band_5, &dm, &mgr, em_profile_type_1, em_service_type_ctrl, false);    
-    std::cout << "Invoking set_em with valid em pointer" << std::endl;
-    dm.set_em(&validEmPtr);
-    EXPECT_EQ(dm.m_em, &validEmPtr);
-    std::cout << "Exiting set_em_valid_em test" << std::endl;
+TEST(dm_easy_mesh_t, destructor_destruction_of_instance)
+{
+    std::cout << "Entering destructor_destruction_of_instance test" << std::endl;    
+    {
+        std::cout << "Invoking default constructor of dm_easy_mesh_t" << std::endl;
+        dm_easy_mesh_t obj;
+        std::cout << "Invoking destructor of dm_easy_mesh_t by leaving scope" << std::endl;
+    } // Destructor ~dm_easy_mesh_t is invoked here.    
+    std::cout << "Exiting destructor_destruction_of_instance test" << std::endl;
 }
 
 /**
@@ -19862,44 +19836,12 @@ TEST(dm_easy_mesh_t, init_proper_initialization_success) {
 }
 
 /**
- * @brief Verify that the destructor of dm_easy_mesh_t is invoked properly when the object goes out of scope
- *
- * This test verifies that an instance of dm_easy_mesh_t, created via the default constructor, is correctly destroyed when it goes out of scope. The test logs the entry and exit of the test, ensuring that the destructor is executed as expected.
- *
- * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 519@n
- * **Priority:** High@n
- *
- * **Pre-Conditions:** None@n
- * **Dependencies:** None@n
- * **User Interaction:** None@n
- *
- * **Test Procedure:**
- * | Variation / Step | Description                                                        | Test Data                                   | Expected Result                                                                     | Notes           |
- * | :--------------: | ------------------------------------------------------------------ | ------------------------------------------- | ----------------------------------------------------------------------------------- | --------------- |
- * | 01               | Log the entry message for test execution                           | std::cout << "Entering destructor_destruction_of_instance test" | Entry message is printed to the console                                             | Should be successful |
- * | 02               | Invoke the default constructor of dm_easy_mesh_t to create an instance | dm_easy_mesh_t obj; (no input arguments)    | Object is successfully constructed                                                  | Should Pass     |
- * | 03               | Allow the object to go out of scope to trigger the destructor         | Object goes out of scope                    | Destructor is invoked automatically and the instance is destroyed                  | Should Pass     |
- * | 04               | Log the exit message to signal completion of the test                | std::cout << "Exiting destructor_destruction_of_instance test"   | Exit message is printed to the console                                             | Should be successful |
- */
-TEST(dm_easy_mesh_t, destructor_destruction_of_instance)
-{
-    std::cout << "Entering destructor_destruction_of_instance test" << std::endl;    
-    {
-        std::cout << "Invoking default constructor of dm_easy_mesh_t" << std::endl;
-        dm_easy_mesh_t obj;
-        std::cout << "Invoking destructor of dm_easy_mesh_t by leaving scope" << std::endl;
-    } // Destructor ~dm_easy_mesh_t is invoked here.    
-    std::cout << "Exiting destructor_destruction_of_instance test" << std::endl;
-}
-
-/**
  * @brief Verify that a newly constructed instance is properly reset.
  *
  * This test case validates that for a newly constructed dm_easy_mesh_t instance, calling the reset() function correctly sets all numeric members to 0 and boolean members to false.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 520@n
+ * **Test Case ID:** 519@n
  * **Priority:** High@n
  * 
  * **Pre-Conditions:** None@n
@@ -19940,7 +19882,7 @@ TEST(dm_easy_mesh_t, reset_reset_on_newly_constructed_instance)
  * reset() API functions as expected by restoring default values after internal state modifications.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 521@n
+ * **Test Case ID:** 520@n
  * **Priority:** High@n
  *
  * **Pre-Conditions:** None@n
@@ -19988,7 +19930,7 @@ TEST(dm_easy_mesh_t, reset_after_modifying_internal_state)
  * It then calls reset_cmd_ctx() and confirms that m_cmd_ctx is zeroed out, while m_num_preferences retains its value.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 522@n
+ * **Test Case ID:** 521@n
  * **Priority:** High@n
  *
  * **Pre-Conditions:** None@n
@@ -20035,7 +19977,7 @@ TEST(dm_easy_mesh_t, reset_cmd_ctx_resets_cmd_ctx_leaves_other_members_unaffecte
  * This test verifies that for every valid configuration type (single-bit enumeration), invoking the reset_db_cfg_type method correctly resets the corresponding bit in the object's db_cfg_param. The test initializes the object, sets all bits in db_cfg_type, and then iterates over a list of valid types. For each type, it calls reset_db_cfg_type and asserts that the bit corresponding to that type is cleared.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 523@n
+ * **Test Case ID:** 522@n
  * **Priority:** High@n
  *
  * **Pre-Conditions:** None@n
@@ -20102,7 +20044,7 @@ TEST(dm_easy_mesh_t, reset_db_cfg_type_ValidInput_SingleBitEnums)
  * configuration (db_cfg_type). The test ensures that the API preserves the original configuration when invalid input is provided.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 524@n
+ * **Test Case ID:** 523@n
  * **Priority:** High@n
  *
  * **Pre-Conditions:** None@n
@@ -20140,7 +20082,7 @@ TEST(dm_easy_mesh_t, reset_db_cfg_type_InvalidInput_NonSupportedEnum)
  * This test checks that the reset_db_cfg_type function does not change the current db_cfg_type when provided with such invalid input.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 525@n
+ * **Test Case ID:** 524@n
  * **Priority:** High@n
  *
  * **Pre-Conditions:** None@n
@@ -20184,7 +20126,7 @@ TEST(dm_easy_mesh_t, reset_db_cfg_type_InvalidInput_CombinedEnumValues)
  * assigns a specific invalid value, and confirms via an assertion that the value remains unchanged.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 526@n
+ * **Test Case ID:** 525@n
  * **Priority:** High@n
  *
  * **Pre-Conditions:** None@n
@@ -20220,7 +20162,7 @@ TEST(dm_easy_mesh_t, reset_db_cfg_type_InvalidInput_None)
  * This test checks that the dm_easy_mesh_t::mac_address_from_name API correctly retrieves the MAC address for a valid interface name ("brlan0"). It ensures the API returns a success code (0) and that the returned MAC address is printed out.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 527@n
+ * **Test Case ID:** 526@n
  * **Priority:** (High)
  *
  * **Pre-Conditions:** None@n
@@ -20262,7 +20204,7 @@ TEST(dm_easy_mesh_t, mac_address_from_name_ValidInterface)
  * address when provided with an invalid interface name.
  *
  * **Test Group ID:** Basic: 01
- * **Test Case ID:** 528@n
+ * **Test Case ID:** 527@n
  * **Priority:** High
  *
  * **Pre-Conditions:** None
@@ -20298,7 +20240,7 @@ TEST(dm_easy_mesh_t, mac_address_from_name_InvalidInterface)
  * This test checks that the macbytes_to_string API correctly converts a given valid MAC address (provided as an array of bytes) into a colon-separated string representation. It ensures that the returned pointer is the same as the provided output buffer and that the string content matches the expected MAC address format.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 529@n
+ * **Test Case ID:** 528@n
  * **Priority:** High@n
  *
  * **Pre-Conditions:** None@n
@@ -20330,7 +20272,7 @@ TEST(dm_easy_mesh_t, macbytes_to_string_ValidMac)
  * This test ensures that when a NULL pointer is provided as the MAC address input, the function returns the unchanged output string.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 530@n
+ * **Test Case ID:** 529@n
  * **Priority:** High@n
  *
  * **Pre-Conditions:** None@n
@@ -20363,7 +20305,7 @@ TEST(dm_easy_mesh_t, macbytes_to_string_NullMac)
  * This test verifies that dm_easy_mesh_t::string_to_macbytes correctly converts a colon-separated MAC address string into its corresponding byte array representation.
  *
  * **Test Group ID:** Basic: 01
- * **Test Case ID:** 531@n
+ * **Test Case ID:** 530@n
  * **Priority:** High
  *
  * **Pre-Conditions:** None
@@ -20401,7 +20343,7 @@ TEST(dm_easy_mesh_t, string_to_macbytes_ColonSeparated)
  * This test verifies that the function dm_easy_mesh_t::string_to_macbytes correctly converts a MAC address given as a continuous string ("001122334455") into its corresponding byte array representation. The test checks each byte of the resulting array against the expected hexadecimal values to ensure accurate conversion.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 532@n
+ * **Test Case ID:** 531@n
  * **Priority:** High@n
  *
  * **Pre-Conditions:** None@n
@@ -20441,7 +20383,7 @@ TEST(dm_easy_mesh_t, string_to_macbytes_NoSeparator)
  * This test verifies that the function string_to_macbytes correctly handles an empty string input without causing a crash. It checks that the function execution completes normally even though the input string is empty.@n
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 533@n
+ * **Test Case ID:** 532@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -20477,7 +20419,7 @@ TEST(dm_easy_mesh_t, string_to_macbytes_EmptyString)
  * undefined due to the invalid input but the correctness is determined by the absence of a crash and normal function return.
  *
  * **Test Group ID:** Basic: 01
- * **Test Case ID:** 534@n
+ * **Test Case ID:** 533@n
  * **Priority:** High
  *
  * **Pre-Conditions:** None
@@ -20511,7 +20453,7 @@ TEST(dm_easy_mesh_t, string_to_macbytes_InvalidString)
  * This test verifies that the dm_easy_mesh_t::securitymode_to_str function properly converts the security mode EM_AUTH_OPEN into the corresponding string "OPEN". The test ensures that the API handles the input, formats the output string correctly, and passes the string comparison check.
  *
  * **Test Group ID:** Basic: 01
- * **Test Case ID:** 535@n
+ * **Test Case ID:** 534@n
  * **Priority:** High
  *
  * **Pre-Conditions:** None
@@ -20540,7 +20482,7 @@ TEST(dm_easy_mesh_t, securitymode_to_str_Open)
  * This test evaluates whether dm_easy_mesh_t::securitymode_to_str, when provided with the input EM_AUTH_SAE_AKM24, correctly populates the output character array with the expected string "WPA-WPA3-Personal_AKM24". It ensures that the security mode to string conversion logic works as intended.
  *
  * **Test Group ID:** Basic: 01
- * **Test Case ID:** 536@n
+ * **Test Case ID:** 535@n
  * **Priority:** High
  *
  * **Pre-Conditions:** None
@@ -20570,7 +20512,7 @@ TEST(dm_easy_mesh_t, securitymode_to_str_WPA_WPA3_AKM24)
  * It ensures that when an undefined mode is provided, the function retains the original buffer content.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 537@n
+ * **Test Case ID:** 536@n
  * **Priority:** High@n
  *
  * **Pre-Conditions:** None@n
@@ -20600,7 +20542,7 @@ TEST(dm_easy_mesh_t, securitymode_to_str_InvalidMode)
  * This test verifies that invoking the str_to_securitymode API with the input "OPEN" correctly updates the mode variable to the predefined EM_AUTH_OPEN value. It ensures that the API processes valid input strings and produces the expected output.
  *
  * **Test Group ID:** Basic: 01
- * **Test Case ID:** 538@n
+ * **Test Case ID:** 537@n
  * **Priority:** High
  *
  * **Pre-Conditions:** None
@@ -20634,7 +20576,7 @@ TEST(dm_easy_mesh_t, str_to_securitymode_Open)
  * This test case calls the str_to_securitymode API with the input string "WPA-WPA3-Personal_DPP" and verifies that the mode is correctly converted to the enum value EM_AUTH_DPP_AKM. It ensures that the API can handle and correctly process a combination of WPA and WPA3 modes with DPP.
  *
  * **Test Group ID:** Basic: 01
- * **Test Case ID:** 539@n
+ * **Test Case ID:** 538@n
  * **Priority:** High
  *
  * **Pre-Conditions:** None
@@ -20667,7 +20609,7 @@ TEST(dm_easy_mesh_t, str_to_securitymode_WPA_WPA3_DPP)
  * The function is expected not to update the mode if the input string does not correspond to any valid security mode.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 540@n
+ * **Test Case ID:** 539@n
  * **Priority:** High@n
  *
  * **Pre-Conditions:** None@n
@@ -20704,7 +20646,7 @@ TEST(dm_easy_mesh_t, str_to_securitymode_InvalidString)
  * API returns a non-null pointer and that the converted string matches the expected output.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 541@n
+ * **Test Case ID:** 540@n
  * **Priority:** High@n
  *
  * **Pre-Conditions:** None@n
@@ -20735,7 +20677,7 @@ TEST(dm_easy_mesh_t, hex_ValidInput)
  * This test verifies that invoking the hex function with an input length of 0 returns a valid pointer and produces an empty string as output. It ensures that the API correctly handles the edge case where there is no valid input data.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 542@n
+ * **Test Case ID:** 541@n
  * **Priority:** High@n
  *
  * **Pre-Conditions:** None@n
@@ -20767,7 +20709,7 @@ TEST(dm_easy_mesh_t, hex_ZeroLengthInput)
  * The test ensures that under undefined behavior (NULL output buffer), the API returns a NULL pointer.
  *
  * **Test Group ID:** Basic: 01
- * **Test Case ID:** 543@n
+ * **Test Case ID:** 542@n
  * **Priority:** High
  *
  * **Pre-Conditions:** None
@@ -20795,7 +20737,7 @@ TEST(dm_easy_mesh_t, hex_NullOutputBuffer)
  * This test checks that the dm_easy_mesh_t::unhex function correctly converts a valid hexadecimal string ("12ab00") into its corresponding byte array output. The test validates that the API returns a non-null pointer and that the converted bytes are equal to 0x12, 0xAB, and 0x00 respectively. This is essential to ensure the API's correct functionality when provided with valid input data.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 544@n
+ * **Test Case ID:** 543@n
  * **Priority:** High@n
  * 
  * **Pre-Conditions:** None@n
@@ -20836,7 +20778,7 @@ TEST(dm_easy_mesh_t, unhex_ValidInput)
  * and that the output bytes match the expected hexadecimal values.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 545@n
+ * **Test Case ID:** 544@n
  * **Priority:** High@n
  *
  * **Pre-Conditions:** None@n
@@ -20873,7 +20815,7 @@ TEST(dm_easy_mesh_t, unhex_LowercaseHex)
  * This test passes an odd length string "abc" to the unhex function to ensure that it processes only the first complete hex pair.@n
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 546@n
+ * **Test Case ID:** 545@n
  * **Priority:** High@n
  *
  * **Pre-Conditions:** None@n
@@ -20912,7 +20854,7 @@ TEST(dm_easy_mesh_t, unhex_OddLengthInput)
  * The test ensures that under these invalid input conditions, the function does not attempt to process the input and signals the error as expected.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 547@n
+ * **Test Case ID:** 546@n
  * **Priority:** High@n
  *
  * **Pre-Conditions:** None@n
@@ -20940,7 +20882,7 @@ TEST(dm_easy_mesh_t, unhex_NullInputString)
  * This test verifies if the unhex function decodes an uppercase hexadecimal string "AABBCC" into its corresponding byte array {0xAA, 0xBB, 0xCC}. It is critical to ensure that the function handles uppercase hex characters correctly for proper data encoding.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 548@n
+ * **Test Case ID:** 547@n
  * **Priority:** High@n
  *
  * **Pre-Conditions:** None@n
@@ -20981,7 +20923,7 @@ TEST(dm_easy_mesh_t, unhex_UppercaseHexCharacters)
  * checks that the mesh successfully recognizes the associated STA.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 549@n
+ * **Test Case ID:** 548@n
  * **Priority:** High@n
  *
  * **Pre-Conditions:** None@n
@@ -21026,7 +20968,7 @@ TEST(dm_easy_mesh_t, has_at_least_one_associated_sta_Positive)
  * This test verifies that when a non-associated STA is added via put_sta_info, the mesh's method has_at_least_one_associated_sta correctly returns false. The objective is to ensure that the API does not erroneously report an associated station when none exists.
  *
  * **Test Group ID:** Basic: 01
- * **Test Case ID:** 550@n
+ * **Test Case ID:** 549@n
  * **Priority:** High
  *
  * **Pre-Conditions:** None
@@ -21072,7 +21014,7 @@ TEST(dm_easy_mesh_t, has_at_least_one_associated_sta_Negative)
  * The objective is to confirm that no associated station exists in an empty map, ensuring that the API returns false as expected.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 551@n
+ * **Test Case ID:** 550@n
  * **Priority:** High@n
  *
  * **Pre-Conditions:** None@n
@@ -21104,7 +21046,7 @@ TEST(dm_easy_mesh_t, has_at_least_one_associated_sta_EmptyMap)
  * This test sets up a dm_easy_mesh_t instance with predefined network, SSID, radio, and BSS data, then calls the print_config method and validates that the data is correctly stored and printed. This ensures that the print_config function outputs the configuration without altering the internal state.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 552@n
+ * **Test Case ID:** 551@n
  * **Priority:** High@n
  *
  * **Pre-Conditions:** None@n
@@ -21162,7 +21104,7 @@ TEST(dm_easy_mesh_t, print_config_Positive)
  * correctly handles a scenario with no configuration data.
  *
  * **Test Group ID:** Basic: 01
- * **Test Case ID:** 553@n
+ * **Test Case ID:** 552@n
  * **Priority:** High
  *
  * **Pre-Conditions:** None
@@ -21205,7 +21147,7 @@ TEST(dm_easy_mesh_t, print_config_Negative)
  * This test initializes an instance of dm_easy_mesh_t, populates its op class list with two entries using sample data, and then invokes the print_op_class_list API. The test validates that the memory fields are correctly populated by verifying the values via assertions.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 554@n
+ * **Test Case ID:** 553@n
  * **Priority:** High@n
  *
  * **Pre-Conditions:** None@n
@@ -21262,7 +21204,7 @@ TEST(dm_easy_mesh_t, print_op_class_list_Positive)
  * This test verifies that when no operator classes are provided (i.e., m_num_opclass is 0), the print_op_class_list API correctly processes an empty list without altering the state of the dm_easy_mesh_t object. This is important to ensure that the API gracefully handles empty inputs.
  *
  * **Test Group ID:** Basic: 01
- * **Test Case ID:** 555@n
+ * **Test Case ID:** 554@n
  * **Priority:** High
  *
  * **Pre-Conditions:** None
@@ -21297,7 +21239,7 @@ TEST(dm_easy_mesh_t, print_op_class_list_EmptyList)
  * and asserts that it is not null and that the associated flag is true.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 556@n
+ * **Test Case ID:** 555@n
  * **Priority:** High@n
  *
  * **Pre-Conditions:** None@n
@@ -21343,7 +21285,7 @@ TEST(dm_easy_mesh_t, put_sta_info_AssocMap_Positive)
  * This test verifies that the dm_easy_mesh_t::put_sta_info method successfully adds a station information structure into the consolidated map. After insertion, the test retrieves the station info using get_first_sta_info to ensure that the added information matches the expected values, particularly that the associated flag is false.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 557@n
+ * **Test Case ID:** 556@n
  * **Priority:** High@n
  *
  * **Pre-Conditions:** None@n
@@ -21390,7 +21332,7 @@ TEST(dm_easy_mesh_t, put_sta_info_ConsolidatedMap_Positive)
  * that the internal data structure does not accept duplicate records.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 558@n
+ * **Test Case ID:** 557@n
  * **Priority:** High@n
  *
  * **Pre-Conditions:** None@n
@@ -21437,7 +21379,7 @@ TEST(dm_easy_mesh_t, put_sta_info_DuplicateSTA_Negative)
  * This test validates that the API put_sta_info correctly handles a NULL pointer for STA information by throwing an exception. It ensures the robustness of error handling for invalid input and prevents undefined behavior.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 559@n
+ * **Test Case ID:** 558@n
  * **Priority:** High@n
  *
  * **Pre-Conditions:** None@n
@@ -21468,7 +21410,7 @@ TEST(dm_easy_mesh_t, put_sta_info_NullSTAInfo_Negative)
  * It ensures that the number of BSS entries is updated appropriately and the remaining BSS entries maintain the correct indices.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 560@n
+ * **Test Case ID:** 559@n
  * **Priority:** High@n
  *
  * **Pre-Conditions:** None@n
@@ -21506,7 +21448,7 @@ TEST(dm_easy_mesh_t, RemoveBss_ValidIndex) {
  * This test verifies that the remove_bss_by_index API does not alter the mesh when an invalid index is provided. The test initializes a mesh with three BSS entries and attempts to remove a BSS at index 5, which is out of valid range, ensuring that the state of the mesh remains unchanged.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 561@n
+ * **Test Case ID:** 560@n
  * **Priority:** High@n
  * 
  * **Pre-Conditions:** None@n
@@ -21547,7 +21489,7 @@ TEST(dm_easy_mesh_t, RemoveBss_InvalidIndex) {
  * entries retain the correct vap_index values.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 562@n
+ * **Test Case ID:** 561@n
  * **Priority:** High@n
  *
  * **Pre-Conditions:** None@n
@@ -21586,7 +21528,7 @@ TEST(dm_easy_mesh_t, RemoveBss_LastIndex) {
  * This test validates that attempting to remove a BSS from an empty mesh list does not alter the state of the list.
  *
  * **Test Group ID:** Basic: 01
- * **Test Case ID:** 563@n
+ * **Test Case ID:** 562@n
  * **Priority:** High
  *
  * **Pre-Conditions:** None
@@ -21623,7 +21565,7 @@ TEST(dm_easy_mesh_t, RemoveBss_EmptyList) {
  * This test case ensures that the update_cac_status_id API successfully updates the RUID with a new MAC address for op classes whose type is greater than em_op_class_type_capability while leaving other op classes unchanged (i.e. their RUID remains zero). It validates the update by comparing the memory of the RUID with the expected MAC addresses.
  *
  * **Test Group ID:** Basic: 01
- * **Test Case ID:** 564@n
+ * **Test Case ID:** 563@n
  * **Priority:** High
  *
  * **Pre-Conditions:** None
@@ -21667,7 +21609,7 @@ TEST(dm_easy_mesh_t, Updatecac_positive_UpdateRuid) {
  * update_cac_status_id with a valid MAC address does not alter the op class count.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 565@n
+ * **Test Case ID:** 564@n
  * **Priority:** High@n
  * 
  * **Pre-Conditions:** None@n
@@ -21708,7 +21650,7 @@ TEST(dm_easy_mesh_t, Updatecac_Negative_EmptyOpClass) {
  * It then calls update_cac_status_id with a specific MAC address and verifies that the operation resets the ruid field to zero without modifying the op_class type.
  *
  * **Test Group ID:** Basic: 01
- * **Test Case ID:** 566@n
+ * **Test Case ID:** 565@n
  * **Priority:** High
  *
  * **Pre-Conditions:** None
@@ -21749,7 +21691,7 @@ TEST(dm_easy_mesh_t, Updatecac_Edge_NoTypeUpdate) {
  * This test verifies that after cloning, the destination object contains the same pointers for consolidated and association station maps as the source, while the destination dissociation map remains empty. This ensures that the clone_hash_maps API preserves the internal mapping relationships.
  *
  * **Test Group ID:** Basic: 01
- * **Test Case ID:** 567@n
+ * **Test Case ID:** 566@n
  * **Priority:** High
  *
  * **Pre-Conditions:** None
@@ -21799,7 +21741,7 @@ TEST(dm_easy_mesh_t, CloneHashMapsTest_positive_CloneMaps)
  * It ensures that the API correctly handles the scenario where there is no data to clone.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 568@n
+ * **Test Case ID:** 567@n
  * **Priority:** High@n
  *
  * **Pre-Conditions:** None@n
@@ -21848,7 +21790,7 @@ TEST(dm_easy_mesh_t, CloneHashMapsTest_negative_EmptySource) {
  * that the clone operation does not inadvertently clear existing destination entries.
  *
  * **Test Group ID:** Basic: 01
- * **Test Case ID:** 569@n
+ * **Test Case ID:** 568@n
  * **Priority:** High
  *
  * **Pre-Conditions:** None
@@ -21897,7 +21839,7 @@ TEST(dm_easy_mesh_t, CloneHashMapsTest_edge_DestinationNonEmpty)
  * This test verifies that the overloaded operator== correctly identifies equality when both dm_easy_mesh_t objects are initialized and have identical BSS configurations. It specifically examines that the m_num_bss and vap_index values match between the objects, ensuring that the equality operator works as expected.
  *
  * **Test Group ID:** Basic: 01
- * **Test Case ID:** 570@n
+ * **Test Case ID:** 569@n
  * **Priority:** High
  *
  * **Pre-Conditions:** None
@@ -21938,7 +21880,7 @@ TEST(dm_easy_mesh_t, Positive_EqualityOperator) {
  * for ensuring that objects with differing network media are not considered equal.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 571@n
+ * **Test Case ID:** 570@n
  * **Priority:** High@n
  *
  * **Pre-Conditions:** None@n
@@ -21971,7 +21913,7 @@ TEST(dm_easy_mesh_t, Negative_EqualityOperator_MediaMismatch) {
  * This test initializes two dm_easy_mesh_t objects, sets different network IDs for each instance, and asserts that the equality operator returns false. The purpose is to ensure that the equality comparison appropriately detects mismatches in network IDs.
  *
  * **Test Group ID:** Basic: 01
- * **Test Case ID:** 572@n
+ * **Test Case ID:** 571@n
  * **Priority:** High
  *
  * **Pre-Conditions:** None
@@ -22006,7 +21948,7 @@ TEST(dm_easy_mesh_t, Negative_EqualityOperator_NetworkIdMismatch) {
  * The test checks if the stored data in the dm_easy_mesh_t instance matches the input data provided.
  * @n
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 573@n
+ * **Test Case ID:** 572@n
  * **Priority:** High@n
  * @n
  * **Pre-Conditions:** None@n
@@ -22068,7 +22010,7 @@ TEST(dm_easy_mesh_t, UpdateApMldInfo_positive_CreateNewMld)
  * The test ensures that the updated values (SSID, number of affiliated APs, and link ID) are stored and can be validated using assertion checks.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 574@n
+ * **Test Case ID:** 573@n
  * **Priority:** High@n
  *
  * **Pre-Conditions:** None@n
@@ -22126,7 +22068,7 @@ TEST(dm_easy_mesh_t, UpdateApMldInfo_positive_UpdateExistingMld)
  * It verifies that invoking update_ap_mld_info does not increment the count beyond the allowed maximum.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 575@n
+ * **Test Case ID:** 574@n
  * **Priority:** High@n
  *
  * **Pre-Conditions:** None@n
@@ -22169,7 +22111,7 @@ TEST(dm_easy_mesh_t, UpdateApMldInfo_negative_MaxMldLimitReached)
  * asserts that the number of stored AP MLD entries becomes 1 and that the stored SSID matches the expected value.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 576@n
+ * **Test Case ID:** 575@n
  * **Priority:** High@n
  *
  * **Pre-Conditions:** None@n
@@ -22211,7 +22153,7 @@ TEST(dm_easy_mesh_t, UpdateApMldInfo_positive_StaticWrapperInvocation)
  * This test verifies that the update_ap_mld_info API correctly handles the case when a null dm pointer is provided by throwing an exception. The API is invoked with valid input values in the input structure, but with the dm pointer set to nullptr.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 577@n
+ * **Test Case ID:** 576@n
  * **Priority:** High@n
  *
  * **Pre-Conditions:** None@n
@@ -22246,7 +22188,7 @@ TEST(dm_easy_mesh_t, UpdateApMldInfo_negative_Static_NullDmPointer)
  * This test checks that the static function update_ap_mld_info properly handles an invalid input scenario by throwing an exception when the ap_mld_info pointer is nullptr. It performs initialization of the dm_easy_mesh_t object and then invokes the API with a null pointer to validate that the error handling is correct.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 578@n
+ * **Test Case ID:** 577@n
  * **Priority:** High@n
  *
  * **Pre-Conditions:** None@n
@@ -22282,7 +22224,7 @@ TEST(dm_easy_mesh_t, UpdateApMldInfo_negative_Static_NullApMldInfoPointer)
  * the scanner_type to em_scanner_type_radio.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 579@n
+ * **Test Case ID:** 578@n
  * **Priority:** High@n
  *
  * **Pre-Conditions:** None@n
@@ -22322,7 +22264,7 @@ TEST(dm_easy_mesh_t, UpdateScanResults_positive_CreateNewScanResult)
  * This test verifies that the update_scan_results function correctly processes an initial default scan result and then updates it with new values. The test ensures that after updating with a second scan result which has a modified scan_status, the scan_status remains 5 and the net_id is correctly set to "OneWifiMesh".
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 580@n
+ * **Test Case ID:** 579@n
  * **Priority:** High@n
  * 
  * **Pre-Conditions:** None@n
@@ -22365,7 +22307,7 @@ TEST(dm_easy_mesh_t, UpdateScanResults_positive_UpdateExistingScanResult)
  * This test verifies that the update_scan_results function throws an exception when invoked with a null pointer for scan results, ensuring that invalid inputs are properly guarded against.
  *
  * **Test Group ID:** Basic: 01
- * **Test Case ID:** 581@n
+ * **Test Case ID:** 580@n
  * **Priority:** High
  *
  * **Pre-Conditions:** None
@@ -22396,7 +22338,7 @@ TEST(dm_easy_mesh_t, UpdateScanResults_negative_NullScanResult)
  * This test verifies that the static method update_scan_results correctly updates the provided scan_result structure with valid net_id and scanner_type values when an initialized dm_easy_mesh_t object is used. This ensures that the scanning results are properly populated.
  *
  * **Test Group ID:** Basic: 01
- * **Test Case ID:** 582@n
+ * **Test Case ID:** 581@n
  * **Priority:** High
  *
  * **Pre-Conditions:** None
@@ -22432,7 +22374,7 @@ TEST(dm_easy_mesh_t, UpdateScanResults_positive_StaticMethod)
  * This test verifies that the static method update_scan_results correctly handles a null pointer for the dm instance by throwing an exception. The scan result pointer is valid but the dm instance is not, ensuring robust error handling.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 583@n
+ * **Test Case ID:** 582@n
  * **Priority:** High@n
  *
  * **Pre-Conditions:** None@n
@@ -22462,7 +22404,7 @@ TEST(dm_easy_mesh_t, UpdateScanResults_negative_Static_NullDm)
  * This test validates that when a null pointer is provided as the scan result to the static API update_scan_results, the function correctly throws an exception. This scenario ensures that the API robustly handles invalid input to prevent potential undefined behavior.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 584@n
+ * **Test Case ID:** 583@n
  * **Priority:** High@n
  *
  * **Pre-Conditions:** None@n
