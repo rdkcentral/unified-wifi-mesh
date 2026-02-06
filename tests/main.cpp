@@ -690,6 +690,27 @@ int main(int argc, char **argv) {
     "dm_easy_mesh_t.get_interfaces_list_invalid_null_interfaces_pointer:"
     "dm_easy_mesh_t.get_interfaces_list_invalid_null_num_interfaces_pointer:"
     "dm_easy_mesh_t.get_scan_result_multiple_entries_valid_index:"
-    "dm_easy_mesh_t.encode_config_reset_validSubdoc_emptyKey";
+    "dm_easy_mesh_t.encode_config_reset_validSubdoc_emptyKey:"
+    "ec_pa_configurator_t.handle_presence_announcement_null_frame:"
+    "ec_pa_configurator_t.handle_presence_announcement_null_mac:"
+    "ec_pa_configurator_t.handle_recfg_announcement_null_frame:"
+    "ec_pa_configurator_t.handle_recfg_announcement_null_mac:"
+    "ec_pa_configurator_t.handle_auth_response_null_mac:"
+    "ec_pa_configurator_t.handle_auth_response_null_frame_zero_len:"
+    "ec_pa_configurator_t.handle_cfg_request_null_buffer:"
+    "ec_pa_configurator_t.handle_cfg_request_nullmac:"
+    "ec_pa_configurator_t.handle_cfg_result_null_frame:"
+    "ec_pa_configurator_t.handle_cfg_result_null_mac:"
+    "ec_pa_configurator_t.handle_connection_status_result_null_frame:"
+    "ec_pa_configurator_t.handle_connection_status_result_null_mac:"
+    "ec_pa_configurator_t.process_proxy_encap_dpp_msg_null_encap_tlv:"
+    "ec_pa_configurator_t.process_proxy_encap_dpp_msg_zero_encap_len:"
+    "ec_pa_configurator_t.handle_gas_comeback_request_null_mac:"
+    "ec_pa_configurator_t.process_proxy_encap_dpp_msg_no_gas_session:"
+    "ec_pa_configurator_t.process_proxy_encap_dpp_msg_no_enrollee_mac:"
+    "ec_manager_t.handle_recv_ec_action_frame_invalid_frame:"
+    "ec_manager_t.handle_recv_ec_action_frame_invalid_MAC:"
+    "ec_manager_t.handle_recv_gas_pub_action_frame_null_MAC:"
+    "ec_manager_t.process_direct_encap_dpp_msg_enrollee_null_src_mac";
     return RUN_ALL_TESTS();
 }
