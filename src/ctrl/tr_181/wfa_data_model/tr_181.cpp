@@ -64,7 +64,7 @@ void tr_181_t::init(void* ptr)
 
 int tr_181_t::wfa_set_bus_callbackfunc_pointers(const char *full_namespace, bus_callback_table_t *cb_table)
 {
-    bus_data_cb_func_t bus_data_cb[] = {
+    bus_data_cb_func_t bus_data_get_cb[] = {
         ELEMENT(DE_NETWORK_ID,            CALLBACK_GETTER(network_get)),
         ELEMENT(DE_NETWORK_CTRLID,        CALLBACK_GETTER(network_get)),
         ELEMENT(DE_NETWORK_COLAGTID,      CALLBACK_GETTER(network_get)),
@@ -257,8 +257,8 @@ int tr_181_t::wfa_set_bus_callbackfunc_pointers(const char *full_namespace, bus_
         ELEMENT(DE_AFFAP_BCBYTESSNT,       CALLBACK_GETTER(affap_get)),
         ELEMENT(DE_AFFAP_BCBYTESRCV,       CALLBACK_GETTER(affap_get)),
 
-        ELEMENT(DEVICE_WIFI_DATAELEMENTS_NETWORK_TOPOLOGY,              CB(NULL, NULL, NULL, NULL, NULL, NULL)),
-        ELEMENT(DEVICE_WIFI_DATAELEMENTS_NETWORK_NODE_SYNC,             CB(.get_handler = get_node_sync, .set_handler = set_node_sync)),
+        ELEMENT(DEVICE_WIFI_DATAELEMENTS_NETWORK_TOPOLOGY,              CALLBACK_GETTER(NULL)),
+        ELEMENT(DEVICE_WIFI_DATAELEMENTS_NETWORK_NODE_SYNC,             CALLBACK_GETTER(get_node_sync)),
         //ELEMENT(DEVICE_WIFI_DATAELEMENTS_NETWORK_NODE_CFG_POLICY,       CB(.set_handler = policy_config))
     };
 
@@ -269,18 +269,38 @@ int tr_181_t::wfa_set_bus_callbackfunc_pointers(const char *full_namespace, bus_
 
     uint32_t index = 0;
     bool     table_found = false;
+    bus_callback_table_t selected = {};
+    size_t set_count = 0;
+    const bus_data_cb_func_t *bus_data_set_cb = get_bus_data_set_cb(set_count);
 
-    for (index = 0; index < static_cast<uint32_t>(ARRAY_SIZE(bus_data_cb)); index++) {
-        if (strcmp(full_namespace, bus_data_cb[index].cb_table_name) == 0) {
-            memcpy(cb_table, &bus_data_cb[index].cb_func, sizeof(bus_callback_table_t));
+    for (index = 0; index < static_cast<uint32_t>(ARRAY_SIZE(bus_data_get_cb)); index++) {
+        if (strcmp(full_namespace, bus_data_get_cb[index].cb_table_name) == 0) {
+            memcpy(&selected, &bus_data_get_cb[index].cb_func, sizeof(bus_callback_table_t));
             table_found = true;
             break;
         }
     }
 
-    if (table_found == false) {
-        memcpy(cb_table, &bus_default_data_cb.cb_func, sizeof(bus_callback_table_t));
+    if (bus_data_set_cb != NULL) {
+        for (index = 0; index < static_cast<uint32_t>(set_count); index++) {
+            if (strcmp(full_namespace, bus_data_set_cb[index].cb_table_name) == 0) {
+                if (bus_data_set_cb[index].cb_func.set_handler != NULL) {
+                    selected.set_handler = bus_data_set_cb[index].cb_func.set_handler;
+                }
+                if (bus_data_set_cb[index].cb_func.method_handler != NULL) {
+                    selected.method_handler = bus_data_set_cb[index].cb_func.method_handler;
+                }
+                table_found = true;
+                break;
+            }
+        }
     }
+
+    if (table_found == false) {
+        memcpy(&selected, &bus_default_data_cb.cb_func, sizeof(bus_callback_table_t));
+    }
+
+    memcpy(cb_table, &selected, sizeof(bus_callback_table_t));
 
     return RETURN_OK;
 }

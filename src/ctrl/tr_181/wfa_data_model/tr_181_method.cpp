@@ -23,10 +23,23 @@ extern char *global_netid;
 
 #define MAX_PARAM_LEN 128
 
-#if 0
-//TODO: Rbus abstraction needed for this async method call, it will be enabled once its ready
-bus_error_t em_ctrl_t::cmd_setssid(const char *event_name, bus_data_prop_t const *input_data, bus_data_prop_t *output_data, void *user_data)
+const bus_data_cb_func_t* tr_181_t::get_bus_data_set_cb(size_t &count)
 {
+    static bus_data_cb_func_t bus_data_set_cb[] = {
+        ELEMENT(DEVICE_WIFI_DATAELEMENTS_NETWORK_NODE_SYNC,             CALLBACK_SETTER(set_node_sync)),
+        ELEMENT(DEVICE_WIFI_DATAELEMENTS_NETWORK_SETSSID_CMD,           CALLBACK_METHOD(tr_181_t::cmd_setssid)),
+        //ELEMENT(DEVICE_WIFI_DATAELEMENTS_NETWORK_NODE_CFG_POLICY,       CALLBACK_SETTER(policy_config))
+    };
+
+    count = ARRAY_SIZE(bus_data_set_cb);
+    return bus_data_set_cb;
+}
+
+//TODO: Rbus abstraction needed for this async method call, it will be enabled once its ready
+bus_error_t tr_181_t::cmd_setssid(const char *method_name, raw_data_t *in_params, raw_data_t *out_params, void *async_handle)
+{
+    (void)out_params;
+    em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
     em_subdoc_info_t *subdoc = NULL;
     unsigned char buff[EM_IO_BUFF_SZ];
     cJSON *json = NULL, *root = NULL, *new_json = NULL, *ssid_list = NULL, *target = NULL, *item = NULL, *ssid_item = NULL, *child = NULL, *next = NULL, *band_arr = NULL, *akm_arr = NULL, *json_obj = NULL;
@@ -39,6 +52,12 @@ bus_error_t em_ctrl_t::cmd_setssid(const char *event_name, bus_data_prop_t const
     char addremove[MAX_PARAM_LEN] = {0};
     int idx = 0;
     size_t json_len = 0;
+
+    if (in_params == NULL) {
+        return bus_error_invalid_input;
+    }
+    // he_bus provides he_bus_data_object_t*, which is ABI-compatible with bus_data_prop_t.
+    bus_data_prop_t const *input_data = reinterpret_cast<bus_data_prop_t const *>(in_params);
     
     em_printfout("Received parameters in cmd_setssid");
     
@@ -77,9 +96,13 @@ bus_error_t em_ctrl_t::cmd_setssid(const char *event_name, bus_data_prop_t const
         return bus_error_invalid_input;
     }
 
+    if (em_ctrl == NULL) {
+        return bus_error_general;
+    }
+
     subdoc = (em_subdoc_info_t *)buff;
     strncpy(subdoc->name, "NetworkSSIDList", strlen("NetworkSSIDList"));
-    g_ctrl.m_data_model.get_config("OneWifiMesh", subdoc);
+    em_ctrl->get_dm_ctrl()->get_config("OneWifiMesh", subdoc);
     em_printfout("%s:%d: buff=%s \n", __func__, __LINE__, subdoc->buff );
     json = cJSON_Parse(subdoc->buff);
     if (json == NULL) {
@@ -195,10 +218,11 @@ bus_error_t em_ctrl_t::cmd_setssid(const char *event_name, bus_data_prop_t const
         em_printfout("Invalid JSON in subdoc->buff");
     }
 
-    g_ctrl.io_process(em_bus_event_type_set_ssid, subdoc->buff, strlen(subdoc->buff));
+    em_ctrl->io_process(em_bus_event_type_set_ssid, subdoc->buff, strlen(subdoc->buff));
     free(updated_json);
     cJSON_Delete(json);
 
+    (void)method_name;
+    (void)async_handle;
     return bus_error_success;
 }
-#endif

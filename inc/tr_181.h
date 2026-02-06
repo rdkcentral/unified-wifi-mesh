@@ -438,6 +438,7 @@ static const yang_to_tr181_map g_yang_map[] = {
 #define CALLBACK_ADD_ROW(f)          {NULL, NULL, f, NULL, NULL, NULL}
 #define CB(...)                      (bus_callback_table_t){ __VA_ARGS__ }
 #define CALLBACK_GETTER(f)           {f, NULL, NULL, NULL, NULL, NULL}
+#define CALLBACK_SETTER(f)           {NULL, f, NULL, NULL, NULL, NULL}
 #define ELEMENT(n, f)                {const_cast<char*>(n), f}
 #define ELEMENT_TABLE_ROW(n, f)      {const_cast<char*>(n), f}
 
@@ -446,6 +447,7 @@ class dm_easy_mesh_ctrl_t;
 class tr_181_t {
 private:
     bus_handle_t m_bus_handle;
+    static const bus_data_cb_func_t* get_bus_data_set_cb(size_t &count);
 
 public:
 
@@ -550,6 +552,7 @@ public:
     static bus_error_t get_node_sync(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
     static bus_error_t set_node_sync(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
     static bus_error_t policy_config(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
+    static bus_error_t cmd_setssid(const char *method_name, raw_data_t *in_params, raw_data_t *out_params, void *async_handle);
 
     virtual bus_error_t network_get(char *event_name, raw_data_t *p_data) = 0;
     virtual bus_error_t device_get(char *event_name, raw_data_t *p_data) = 0;
