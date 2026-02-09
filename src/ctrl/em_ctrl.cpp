@@ -208,8 +208,12 @@ void em_ctrl_t::handle_set_policy(em_bus_event_t *evt)
 
     if (m_orch->is_cmd_type_in_progress(evt) == true) {
         m_ctrl_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
-    } else if ((num = m_data_model.analyze_set_policy(evt, pcmd)) > 0) {
-        m_orch->submit_commands(pcmd, static_cast<unsigned int> (num));
+    } else if ((num = m_data_model.analyze_set_policy(evt, pcmd)) == 0) {
+        m_ctrl_cmd->send_result(em_cmd_out_status_no_change);
+    } else if (m_orch->submit_commands(pcmd, static_cast<unsigned int> (num)) > 0) {
+        m_ctrl_cmd->send_result(em_cmd_out_status_success);
+    } else {
+        m_ctrl_cmd->send_result(em_cmd_out_status_not_ready);
     }
 }
 
@@ -1100,7 +1104,7 @@ void em_ctrl_t::start_complete()
     //todo: test code, remove during integ with orchestrator
     if (desc->bus_event_subs_fn(m_data_model.get_bus_hdl(), DEVICE_WIFI_DATAELEMENTS_NETWORK_NODE_LINKSTATS_ALARM, (void *)&tr_181_t::subs_policy_config, NULL, 0) != 0) {
         printf("%s:%d bus get failed\n", __func__, __LINE__);
-        //return;
+        return;
     }
 
 	intf = m_data_model.get_ctrl_al_interface(const_cast<char*>(GLOBAL_NET_ID));

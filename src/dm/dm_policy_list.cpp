@@ -280,7 +280,8 @@ int dm_policy_list_t::update_db(db_client_t& db_client, dm_orch_type_t op, void 
             ret = update_row(db_client, policy->id.type, policy->interval, sta_mac_list_str, policy->policy, policy->interval, policy->rcpi_threshold,
                                             policy->rcpi_hysteresis, policy->util_threshold, policy->sta_traffic_stats, 
                                             policy->sta_link_metric, policy->sta_status, policy->managed_sta_marker,
-                                            policy->independent_scan_report, policy->profile_1_sta_disallowed);
+                                            policy->independent_scan_report, policy->profile_1_sta_disallowed, policy->profile_2_sta_disallowed,
+                                            policy->def_8021q_settings.primary_vid, policy->def_8021q_settings.default_pcp, key);
             break;
 
 	    case dm_orch_type_db_delete:

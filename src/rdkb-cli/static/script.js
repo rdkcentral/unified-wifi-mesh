@@ -567,6 +567,10 @@ savePolicySettings(sectionKey, scope = "selected") {
     }
     case "radio-metrics": {
       const rows = RMP.getAll();
+      if (!Array.isArray(rows) || rows.length === 0) {
+        this.showNotification('At least one Radio specific Matrics row with a valid ID (Station MAC") is required.', 'error');
+        return;
+      }
       indicesToUpdate.forEach(i => {
         const d = this.updatedPolicySettings[i];
         d.radioSpecificMetricsPolicy = rows;
@@ -577,6 +581,10 @@ savePolicySettings(sectionKey, scope = "selected") {
     case "radio-steering": {
       const rows = RSP.getAll();
 
+      if (!Array.isArray(rows) || rows.length === 0) {
+        this.showNotification('At least one Radio Steering row with a valid ID (Station MAC") is required.', 'error');
+        return;
+      }
       indicesToUpdate.forEach(i => {
         const d = this.updatedPolicySettings[i];
         d.radioSteeringParametersPolicy = rows;

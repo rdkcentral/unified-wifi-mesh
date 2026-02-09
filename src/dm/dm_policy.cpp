@@ -40,7 +40,6 @@ int dm_policy_t::decode(const cJSON *obj, void *parent_id, em_policy_id_type_t t
     cJSON *tmp, *sta_arr_obj;
 	em_policy_id_t id;
 	int i;
-	unsigned char len = 0;
 
 	//printf("%s:%d: Key: %s\tType: %d\n", __func__, __LINE__, (char *)parent_id, type);
 
@@ -68,7 +67,7 @@ int dm_policy_t::decode(const cJSON *obj, void *parent_id, em_policy_id_type_t t
 		if ((tmp = cJSON_GetObjectItem(obj, "Utilization Threshold")) != NULL) {
 			m_policy.util_threshold = static_cast<short unsigned int>(tmp->valuedouble);
 		}	
-		if ((tmp = cJSON_GetObjectItem(obj, "RCPI Thresold")) != NULL) {
+		if ((tmp = cJSON_GetObjectItem(obj, "RCPI Threshold")) != NULL) {
 			m_policy.rcpi_threshold = static_cast<short unsigned int>(tmp->valuedouble);
 		}	
 	} else if (type == em_policy_id_type_ap_metrics_rep) {

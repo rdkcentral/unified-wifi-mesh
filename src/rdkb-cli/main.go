@@ -4262,11 +4262,17 @@ func getPolicyConfiguration(deviceListTree *C.em_network_node_t) []wifiPolicyCon
         cPolicy := C.CString("Policy")
         defer C.free(unsafe.Pointer(cPolicy))
         policyNode := C.get_network_tree_by_key(deviceNode, cPolicy)
+        if(policyNode == nil) {
+            return policyConfigs;
+        }
 
         // AP Metrics Reporting Policy
         cAPMetrics := C.CString("AP Metrics Reporting Policy")
         defer C.free(unsafe.Pointer(cAPMetrics))
         apMetric := C.get_network_tree_by_key(policyNode, cAPMetrics)
+        if(apMetric == nil) {
+            return policyConfigs;
+        }
 
         apMetricRep := APMetricReporting{
             Interval:            getKeyIntValue(apMetric, "Interval"),
@@ -4290,7 +4296,7 @@ func getPolicyConfiguration(deviceListTree *C.em_network_node_t) []wifiPolicyCon
         cBTMSteering := C.CString("BTM Steering Disallowed Policy")
         defer C.free(unsafe.Pointer(cBTMSteering))
         btmSteeringNode := C.get_network_tree_by_key(policyNode, cBTMSteering)
-        if localSteeringNode != nil {
+        if btmSteeringNode != nil {
             cDisallowed := C.CString("Disallowed STA")
             defer C.free(unsafe.Pointer(cDisallowed))
             disallowedNode := C.get_network_tree_by_key(btmSteeringNode, cDisallowed)
@@ -4301,11 +4307,17 @@ func getPolicyConfiguration(deviceListTree *C.em_network_node_t) []wifiPolicyCon
         cChannelScan := C.CString("Channel Scan Reporting Policy")
         defer C.free(unsafe.Pointer(cChannelScan))
         channelScanReportingNode := C.get_network_tree_by_key(policyNode, cChannelScan)
+        if(channelScanReportingNode == nil) {
+            return policyConfigs;
+        }
 
         // Default 802.1Q Settings Policy
         cdot1qSetting := C.CString("Default 802.1Q Settings Policy")
         defer C.free(unsafe.Pointer(cdot1qSetting))
         dot1qSettingNode := C.get_network_tree_by_key(policyNode, cdot1qSetting)
+        if(dot1qSettingNode == nil) {
+            return policyConfigs;
+        }
         dot1qSetting := Default802_1Q_Settings{
             PrimaryVLANID: getKeyIntValue(dot1qSettingNode, "Primary VLAN ID"),
             DefaultPCP:    getKeyIntValue(dot1qSettingNode, "Default PCP"),
@@ -4385,6 +4397,9 @@ func updatePolicySettings(deviceListTree *C.em_network_node_t, policyConfig wifi
         cPolicy := C.CString("Policy")
         defer C.free(unsafe.Pointer(cPolicy))
         policyNode := C.get_network_tree_by_key(deviceNode, cPolicy)
+        if(policyNode == nil) {
+            return fmt.Errorf("policy node not found for device\n", )
+        }
 
         // AP Metrics Reporting Policy
         cAPMetrics := C.CString("AP Metrics Reporting Policy")
