@@ -341,7 +341,7 @@ void em_t::proto_process(unsigned char *data, unsigned int len)
         case em_msg_type_1905_ack:
             if (m_sm.get_state() == em_state_ctrl_ap_mld_configured) {
                 em_configuration_t::process_msg(data, len);
-            } else {
+            } else if (m_sm.get_state() == em_state_ctrl_sta_steer_pending) {
                 em_steering_t::process_msg(data, len);
             }
             break;
