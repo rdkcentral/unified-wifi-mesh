@@ -728,6 +728,7 @@ public:
 
     unsigned int m_channel_pref_query_tx_cnt;
     unsigned int m_channel_sel_req_tx_cnt;
+    unsigned short m_chan_sel_req_msg_id;
 	
 	/**!
 	 * @brief Retrieves the frequency band.

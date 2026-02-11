@@ -639,6 +639,7 @@ int em_channel_t::send_channel_sel_request_msg()
         printf("%s:%d: Channel Selection Request msg failed, error:%d\n", __func__, __LINE__, errno);
         return -1;
     }
+    m_chan_sel_req_msg_id = ntohs(cmdu->id);
 
     return static_cast<int> (len);
 
@@ -1649,6 +1650,8 @@ int em_channel_t::handle_channel_sel_rsp(unsigned char *buff, unsigned int len)
 
     em_tlv_t    *tlv;
     int tlv_len;
+    em_cmdu_t *cmdu = reinterpret_cast<em_cmdu_t *> (buff + sizeof(em_raw_hdr_t));
+    unsigned short response_msg_id = ntohs(cmdu->id);
 
     tlv = reinterpret_cast<em_tlv_t *> (buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
     tlv_len = static_cast<int> (len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)));
@@ -1663,8 +1666,9 @@ int em_channel_t::handle_channel_sel_rsp(unsigned char *buff, unsigned int len)
             dm_easy_mesh_t::macbytes_to_string(ruid, mac_str);
             em_t *radio_em = reinterpret_cast<em_t *>(hash_map_get(get_mgr()->m_em_map, mac_str));
             if (radio_em) {
-                if(radio_em->get_state() == em_state_ctrl_channel_select_pending) {
+                if((radio_em->get_state() == em_state_ctrl_channel_select_pending) && (response_msg_id == radio_em->m_chan_sel_req_msg_id)) {
                     radio_em->set_state(em_state_ctrl_channel_selected);
+                    radio_em->m_chan_sel_req_msg_id = 0;
                     em_printfout("Set em_state_ctrl_channel_selected for radio %s", mac_str);
                 }
             } else {
