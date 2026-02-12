@@ -650,15 +650,23 @@ public:
 
 
 	/**!
-	*
-	* @brief Callback registered for command setSSID()
-	* He bus calls this API for Device.WiFi.DataElements.Network.SetSSID
-	* @param[in] name of the event
-	* @param[i] input_data pointer to get the data
-	* @param[i] output pointer to send dta
-	* @param[i] user_data get the bus handle
-	*/
-	//static bus_error_t cmd_setssid (const char *event_name, bus_data_prop_t const *input_data, bus_data_prop_t *output_data, void *user_data);
+	 * @brief Handles the bus SetSSID method request.
+	 *
+	 * Validates SetSSID input properties, dispatches the request to the EasyMesh
+	 * controller, and optionally populates response properties for the caller.
+	 *
+	 * @param[in] event_name Bus method name (Device.WiFi.DataElements.Network.SetSSID).
+	 * @param[in] input_params Linked list of input properties carrying the request payload.
+	 * @param[out] output_params Populated with response properties when provided.
+	 * @param[in] async_handle Async context handle when the bus call is asynchronous.
+	 *
+	 * @returns bus_error_t
+	 * @retval bus_error_none on successful SetSSID handling.
+	 * @retval bus_error_failed on validation or controller execution failure.
+	 *
+	 * @note Input property ownership remains with the caller; this function does not free them.
+	 */
+	static bus_error_t cmd_setssid (const char *event_name, const bus_data_prop_t *input_params, bus_data_prop_t **output_params, void *async_handle);
 
 	/**!
 	 *

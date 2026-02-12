@@ -2264,6 +2264,7 @@ typedef struct {
     unsigned char   num_hauls;
     em_haul_type_t haul_type[EM_MAX_HAUL_TYPES];   
     em_string_t auth_type;
+    unsigned short vlan_id;
 } em_network_ssid_info_t;
 
 typedef enum {

@@ -16,19 +16,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <stdio.h>
-#include <string.h>
-#include <stdlib.h>
-#include <errno.h>
-#include <assert.h>
-#include <signal.h>
-#include <unistd.h>
 #include <math.h>
+#include <assert.h>
 #include <arpa/inet.h>
 #include <net/if.h>
 #include <linux/filter.h>
 #include <netinet/ether.h>
 #include <netpacket/packet.h>
+#include <ctype.h>
 #include <linux/netlink.h>
 #include <linux/rtnetlink.h>
 #include <sys/ioctl.h>
@@ -36,10 +31,12 @@
 #include <sys/uio.h>
 #include <sys/time.h>
 #include <unistd.h>
-#include <unistd.h>
 #include <fcntl.h>
 #include "dm_easy_mesh_ctrl.h"
 #include "dm_easy_mesh.h"
+#include "em_ctrl.h"
+#include "tr_181.h"
+#include "tr_181_helper.h"
 #include <cjson/cJSON.h>
 #include "em_cmd_exec.h"
 #include "em_cmd_reset.h"
@@ -60,6 +57,300 @@
 #include "em_cmd_get_mld_config.h"
 #include "em_cmd_mld_reconfig.h"
 #include "em_cmd_bsta_cap.h"
+
+/* Build HaulType array from comma-separated list; accepts only Fronthaul/Backhaul. */
+static cJSON *create_haultype_array(const char *haul_csv)
+{
+    if ((haul_csv == NULL) || (*haul_csv == '\0')) {
+        return NULL;
+    }
+
+    cJSON *arr = cJSON_CreateArray();
+    char buf[TR181_SETSSID_MAX_PARAM_LEN] = {0};
+    strncpy(buf, haul_csv, sizeof(buf) - 1);
+
+    char *saveptr = NULL;
+    for (char *tok = strtok_r(buf, ",", &saveptr); tok != NULL; tok = strtok_r(NULL, ",", &saveptr)) {
+        while (isspace((unsigned char)*tok)) {
+            tok++;
+        }
+        char *end = tok + strlen(tok);
+        while ((end > tok) && isspace((unsigned char)*(end - 1))) {
+            end--;
+        }
+        *end = '\0';
+
+        if (*tok == '\0') {
+            continue;
+        }
+
+        if ((strcmp(tok, "Fronthaul") != 0) && (strcmp(tok, "Backhaul") != 0)) {
+            em_printfout("ERROR: Invalid HaulType value '%s' (expected Fronthaul/Backhaul)", tok);
+            cJSON_Delete(arr);
+            return NULL;
+        }
+
+        cJSON_AddItemToArray(arr, cJSON_CreateString(tok));
+    }
+
+    if (cJSON_GetArraySize(arr) == 0) {
+        em_printfout("ERROR: HaulType list empty after parsing");
+        cJSON_Delete(arr);
+        return NULL;
+    }
+
+    return arr;
+}
+
+bus_error_t em_ctrl_t::cmd_setssid(const char *event_name, const bus_data_prop_t *input_params, bus_data_prop_t **output_params, void *async_handle)
+{
+    em_subdoc_info_t *subdoc = NULL;
+    unsigned char buff[EM_IO_BUFF_SZ];
+    cJSON *json = NULL, *root = NULL, *new_json = NULL, *ssid_list = NULL, *target = NULL, *item = NULL, *ssid_item = NULL, *child = NULL, *next = NULL, *band_arr = NULL;
+    char *updated_json = NULL;
+    const bus_data_prop_t *prop = NULL;
+    char ssid[TR181_SETSSID_MAX_PARAM_LEN] = {0};
+    char passphrase[TR181_SETSSID_MAX_PARAM_LEN] = {0};
+    char band[TR181_SETSSID_MAX_PARAM_LEN] = {0};
+    char addremove[TR181_SETSSID_MAX_PARAM_LEN] = {0};
+    char HaulType[TR181_SETSSID_MAX_PARAM_LEN] = {0};
+
+    size_t json_len = 0;
+
+    (void)event_name;
+    (void)async_handle;
+
+    em_printfout("Received cmd_setssid with prop chain %p\n", input_params);
+
+    if (input_params == NULL) {
+        em_printfout("ERROR: Invalid input parameters in cmd_setssid");
+        if (output_params) {
+            *output_params = tr181_set_status_output_prop("Failure");
+        }
+        return bus_error_invalid_input;
+    }
+
+    prop = input_params;
+    while (prop) {
+        if (strcmp(prop->name, "SSID") == 0) {
+            tr181_copy_prop_string(prop, ssid, sizeof(ssid));
+        } else if (strcmp(prop->name, "AddRemoveChange") == 0) {
+            tr181_copy_prop_string(prop, addremove, sizeof(addremove));
+        } else if (strcmp(prop->name, "PassPhrase") == 0) {
+            tr181_copy_prop_string(prop, passphrase, sizeof(passphrase));
+        } else if (strcmp(prop->name, "Band") == 0) {
+            tr181_copy_prop_string(prop, band, sizeof(band));
+        } else if (strcmp(prop->name, "HaulType") == 0) {
+            tr181_copy_prop_string(prop, HaulType, sizeof(HaulType));
+        } else {
+            em_printfout("WARNING: Unrecognized parameter '%s' in cmd_setssid\n", prop->name);
+        }
+        prop = prop->next_data;
+    }
+
+    if ((ssid[0] == '\0') || (addremove[0] == '\0')) {
+        em_printfout("ERROR: Missing required parameters in cmd_setssid");
+        if (output_params) {
+            *output_params = tr181_set_status_output_prop("Failure");
+        }
+        return bus_error_invalid_input;
+    }
+
+    em_printfout("cmd_setssid params: SSID='%s' AddRemoveChange='%s' Band='%s' HaulType='%s' PassPhraseLen=%zu",
+                 ssid, addremove, band, HaulType, strlen(passphrase));
+
+    subdoc = reinterpret_cast<em_subdoc_info_t *>(buff);
+    memset(subdoc, 0, sizeof(em_subdoc_info_t));
+    strncpy(subdoc->name, "NetworkSSIDList", sizeof(subdoc->name) - 1);
+
+    em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
+    if (em_ctrl == NULL) {
+        em_printfout("ERROR: Controller instance not available");
+        if (output_params) {
+            *output_params = tr181_set_status_output_prop("Failure");
+        }
+        return bus_error_invalid_input;
+    }
+
+    em_ctrl->get_dm_ctrl()->get_config(const_cast<char *>(GLOBAL_NET_ID), subdoc);
+    em_printfout("%s:%d: buff=%s \n", __func__, __LINE__, subdoc->buff);
+    json = cJSON_Parse(subdoc->buff);
+    if (json == NULL) {
+        em_printfout("ERROR: Failed to parse JSON from subdoc");
+        if (output_params) {
+            *output_params = tr181_set_status_output_prop("Failure");
+        }
+        return bus_error_invalid_input;
+    }
+
+    root = cJSON_CreateObject();
+    new_json = cJSON_CreateObject();
+    cJSON_AddStringToObject(new_json, "ID", GLOBAL_NET_ID);
+
+    child = json->child;
+    while (child) {
+        next = child->next;
+        cJSON_DetachItemViaPointer(json, child);
+        cJSON_AddItemToObject(new_json, child->string, child);
+        child = next;
+    }
+    cJSON_Delete(json);
+    json = new_json;
+
+    cJSON_AddItemToObject(root, "wfa-dataelements:SetSSID", json);
+
+    ssid_list = cJSON_GetObjectItem(json, "NetworkSSIDList");
+    if ((ssid_list == NULL) || !cJSON_IsArray(ssid_list)) {
+        em_printfout("ERROR: NetworkSSIDList not found or is not an array");
+        cJSON_Delete(root);
+        if (output_params) {
+            *output_params = tr181_set_status_output_prop("Failure");
+        }
+        return bus_error_invalid_input;
+    }
+
+    int target_index = -1;
+    int ssid_idx = 0;
+    cJSON_ArrayForEach(item, ssid_list) {
+        ssid_item = cJSON_GetObjectItem(item, "SSID");
+        if (ssid_item && strcmp(ssid_item->valuestring, ssid) == 0) {
+            target = item;
+            target_index = ssid_idx;
+            break;
+        }
+        ssid_item = cJSON_GetObjectItem(item, "SSID");
+        if (ssid_item && strcmp(ssid_item->valuestring, "private_ssid") == 0) {
+            target = item;
+            target_index = ssid_idx;
+            break;
+        }
+        ssid_idx++;
+    }
+
+    if (target) {
+        em_printfout("cmd_setssid matched existing SSID entry '%s' at index %d", ssid, target_index);
+    } else {
+        em_printfout("cmd_setssid no existing SSID match found; requested operation '%s'", addremove);
+    }
+    const bool is_add = (strcmp(addremove, "Add") == 0);
+    const bool is_remove = (strcmp(addremove, "Remove") == 0);
+    const bool is_change = (strcmp(addremove, "Change") == 0);
+
+    if (!is_add && !is_remove && !is_change) {
+        em_printfout("ERROR: Unsupported AddRemoveChange value '%s'", addremove);
+        cJSON_Delete(root);
+        if (output_params) {
+            *output_params = tr181_set_status_output_prop("Failure");
+        }
+        return bus_error_invalid_input;
+    }
+
+    cJSON *haul_arr = NULL;
+    if ((is_add || is_change) && HaulType[0]) {
+        haul_arr = create_haultype_array(HaulType);
+        if (haul_arr == NULL) {
+            cJSON_Delete(root);
+            if (output_params) {
+                *output_params = tr181_set_status_output_prop("Failure");
+            }
+            return bus_error_invalid_input;
+        }
+        em_printfout("cmd_setssid parsed HaulType list '%s' entries=%d", HaulType, cJSON_GetArraySize(haul_arr));
+    }
+
+    if (target) {
+        if (is_remove) {
+            em_printfout("cmd_setssid removing SSID '%s' at index %d", ssid, target_index);
+            if (target_index >= 0) {
+                cJSON_DeleteItemFromArray(ssid_list, target_index);
+            }
+        } else { /* Change (or Add when already exists) */
+            em_printfout("cmd_setssid applying %s to SSID '%s' at index %d", is_change ? "Change" : "Add", ssid, target_index);
+            if (ssid[0]) {
+                cJSON_ReplaceItemInObject(target, "SSID", cJSON_CreateString(ssid));
+            }
+            if (passphrase[0]) {
+                cJSON_ReplaceItemInObject(target, "PassPhrase", cJSON_CreateString(passphrase));
+            }
+            /* Drop AKMsAllowed on updates per requirement to ignore AKMs input. */
+            cJSON_DeleteItemFromObject(target, "AKMsAllowed");
+            if (band[0]) {
+                em_printfout("cmd_setssid updating Band for SSID '%s' to '%s'", ssid, band);
+                band_arr = cJSON_CreateArray();
+                cJSON_AddItemToArray(band_arr, cJSON_CreateString(band));
+                cJSON_ReplaceItemInObject(target, "Band", band_arr);
+            } else {
+                em_printfout("cmd_setssid leaving Band unchanged for SSID '%s' (no Band provided)", ssid);
+            }
+            if (haul_arr) {
+                cJSON_ReplaceItemInObject(target, "HaulType", haul_arr);
+                haul_arr = NULL; /* ownership transferred */
+            }
+        }
+    } else if (is_add) {
+        em_printfout("cmd_setssid adding new SSID '%s' to NetworkSSIDList", ssid);
+        target = cJSON_CreateObject();
+        cJSON_AddItemToArray(ssid_list, target);
+        if (ssid[0]) {
+            cJSON_AddStringToObject(target, "SSID", ssid);
+        }
+        if (passphrase[0]) {
+            cJSON_AddStringToObject(target, "PassPhrase", passphrase);
+        }
+        const char *band_value = band[0] ? band : "All";
+        em_printfout("cmd_setssid setting Band for new SSID '%s' to '%s'", ssid, band_value);
+        band_arr = cJSON_CreateArray();
+        cJSON_AddItemToArray(band_arr, cJSON_CreateString(band_value));
+        cJSON_AddItemToObject(target, "Band", band_arr);
+        if (haul_arr) {
+            cJSON_AddItemToObject(target, "HaulType", haul_arr);
+            haul_arr = NULL; /* ownership transferred */
+        }
+    } else {
+        em_printfout("ERROR: SSID '%s' not found for operation '%s'", ssid, addremove);
+        if (haul_arr) {
+            cJSON_Delete(haul_arr);
+        }
+        cJSON_Delete(root);
+        if (output_params) {
+            *output_params = tr181_set_status_output_prop("Failure");
+        }
+        return bus_error_invalid_input;
+    }
+
+    updated_json = cJSON_PrintUnformatted(root);
+    if (updated_json == NULL) {
+        em_printfout("ERROR: Failed to serialize JSON");
+        cJSON_Delete(root);
+        if (output_params) {
+            *output_params = tr181_set_status_output_prop("Failure");
+        }
+        return bus_error_out_of_resources;
+    }
+
+    json_len = strlen(updated_json);
+    if (json_len >= EM_IO_BUFF_SZ) {
+        em_printfout("ERROR: JSON too large for buffer!");
+        free(updated_json);
+        cJSON_Delete(root);
+        if (output_params) {
+            *output_params = tr181_set_status_output_prop("Failure");
+        }
+        return bus_error_invalid_input;
+    }
+
+    memcpy(subdoc->buff, updated_json, json_len);
+    subdoc->buff[json_len] = '\0';
+
+    em_ctrl->io_process(em_bus_event_type_set_ssid, subdoc->buff, strlen(subdoc->buff));
+    free(updated_json);
+    cJSON_Delete(root);
+
+    if (output_params) {
+        *output_params = tr181_set_status_output_prop("Success");
+    }
+    return bus_error_success;
+}
 
 extern em_network_topo_t *g_network_topology;
 
@@ -852,12 +1143,12 @@ int dm_easy_mesh_ctrl_t::analyze_set_radio(em_bus_event_t *evt, em_cmd_t *pcmd[]
 				pradio = &pdm->m_radio[k];
 				if (memcmp(radio->m_radio_info.intf.mac, pradio->m_radio_info.intf.mac, sizeof(mac_address_t)) == 0) {
 					if (radio->m_radio_info.enabled != pradio->m_radio_info.enabled) {
-						printf("%s:%d: Radio: %s changed, adding to target\n", __func__, __LINE__, mac_str);
+						em_printfout("Radio: %s changed, adding to target\n", mac_str);
 						tgt.m_radio[tgt.m_num_radios] = dm.m_radio[j];
 						tgt.m_num_radios++;	
 					} else {
 						dm_easy_mesh_t::macbytes_to_string(radio->m_radio_info.intf.mac, mac_str);
-						printf("%s:%d: Radio: %s hasn't changed, not adding\n", __func__, __LINE__, mac_str);
+						em_printfout("Radio: %s hasn't changed, not adding\n", mac_str);
 					}
 				}
 			}
@@ -905,7 +1196,7 @@ int dm_easy_mesh_ctrl_t::analyze_set_ssid(em_bus_event_t *evt, em_cmd_t *pcmd[])
 		for (j = 0; j < EM_MAX_NET_SSIDS; j++) {	
 			src = &pdm->m_network_ssid[j];
 			if (*tgt == *src) {
-				printf("%s:%d: Target[%d] matched with Source[%d]\n", __func__, __LINE__, i, j);
+				em_printfout("Target[%d] matched with Source[%d]\n", i, j);
 				bit_mask |= (1 << i);
 				break;
 			}
@@ -913,11 +1204,11 @@ int dm_easy_mesh_ctrl_t::analyze_set_ssid(em_bus_event_t *evt, em_cmd_t *pcmd[])
 	}
 
 	if (bit_mask == (pow(2, EM_MAX_NET_SSIDS) - 1)) {
-		printf("%s:%d: No change detected\n", __func__, __LINE__);
+		em_printfout("No change detected\n");
 		return EM_PARSE_ERR_NO_CHANGE;
 	}
 
-	printf("%s:%d: Start taking action on SetSSID\n", __func__, __LINE__);	
+	em_printfout("Start taking action on SetSSID\n");
 	dm.set_db_cfg_param(db_cfg_type_network_ssid_list_update, "");
     pcmd[num] = new em_cmd_set_ssid_t(evt->params, dm);
     tmp = pcmd[num];
@@ -927,7 +1218,7 @@ int dm_easy_mesh_ctrl_t::analyze_set_ssid(em_bus_event_t *evt, em_cmd_t *pcmd[])
         tmp = pcmd[num];
         num++;
     }
-    printf("%s:%d: Number of commands:%d\n", __func__, __LINE__, num);
+    em_printfout("Number of commands:%d\n", num);
 
 
     return num;
@@ -1638,7 +1929,7 @@ void dm_easy_mesh_ctrl_t::get_config(em_long_string_t net_id, em_subdoc_info_t *
     }
 
     tmp = cJSON_Print(parent);
-    printf("%s:%d: Subdoc: %s\n", __func__, __LINE__, tmp);
+    em_printfout("Subdoc: %s", tmp);
     strncpy(subdoc->buff, tmp, strlen(tmp) + 1);
     cJSON_free(parent);
 }
@@ -2901,6 +3192,8 @@ bus_error_t dm_easy_mesh_ctrl_t::ssid_get_inner(char *event_name, raw_data_t *p_
         rc = dm_ctrl->raw_data_set(p_data, val_str);
     } else if (strcmp(param, "AuthType") == 0) {
         rc = dm_ctrl->raw_data_set(p_data, si->auth_type);
+    } else if (strcmp(param, "VLANID") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, si->vlan_id);
     } else {
         em_printfout("Invalid param: %s\n", param);
         rc = bus_error_invalid_input;
@@ -2950,6 +3243,7 @@ bus_error_t dm_easy_mesh_ctrl_t::ssid_tget_inner(char *event_name, raw_data_t *p
         dm_ctrl->fill_haul_type(si->haul_type, si->num_hauls, val_str);
         dm_ctrl->property_append_tail(&property, root, idx, "HaulType", val_str);
         dm_ctrl->property_append_tail(&property, root, idx, "AuthType", si->auth_type);
+        dm_ctrl->property_append_tail(&property, root, idx, "VLANID", si->vlan_id);
     }
 
     if (property) {

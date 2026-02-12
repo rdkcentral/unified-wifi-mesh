@@ -25,6 +25,7 @@
 #include <memory>
 #include <cjson/cJSON.h>
 #include <unistd.h>
+#include <rbus/rbus.h>
 
 #define DEVICE_WIFI_DATAELEMENTS_NETWORK_COLOCATEDAGENTID   "Device.WiFi.DataElements.Network.ColocatedAgentID"
 #define DEVICE_WIFI_DATAELEMENTS_NETWORK_CONTROLLERID       "Device.WiFi.DataElements.Network.ControllerID"
@@ -507,6 +508,26 @@ public:
     static bus_error_t ssid_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
     static bus_error_t ssid_table_add_row_handler(const char* table_name, const char* alias_name, uint32_t* instance_number);
 
+    /**!
+     * @brief Handles the RBUS SetSSID method invocation.
+     *
+     * This function extracts SetSSID properties from the raw input payload, forwards them
+     * to the EasyMesh controller, and optionally writes response properties to the output
+     * raw buffer for RBUS callers.
+     *
+     * @param method_name RBUS method name, expected to match SetSSID.
+     * @param input_data Raw input containing a chained list of bus_data_prop_t entries.
+     * @param output_data Raw output buffer populated with response properties when provided.
+     * @param async_handle RBUS async handle when the call is asynchronous (may be null).
+     *
+     * @returns bus_error_t
+     * @retval bus_error_none on successful SetSSID handling.
+     * @retval bus_error_failed on validation or controller execution failure.
+     *
+     * @note Ownership of input and output buffers remains with the caller.
+     */
+    static bus_error_t setssid_handler(const char *method_name, raw_data_t *input_data, raw_data_t *output_data, void *async_handle);
+    
     //Device Callbacks
     static bus_error_t device_get(char* event_name, raw_data_t* p_data, struct bus_user_data* user_data);
     static bus_error_t device_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);

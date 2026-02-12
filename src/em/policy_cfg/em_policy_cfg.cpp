@@ -255,40 +255,22 @@ short em_policy_cfg_t::create_def_8021q_settings_policy_tlv(unsigned char *buff)
 short em_policy_cfg_t::create_traffic_sep_policy_tlv(unsigned char *buff)
 {
     size_t len = 0;
-    dm_easy_mesh_t *dm = NULL;
-    dm_policy_t *policy;
-    bool found_match = false;
+    dm_easy_mesh_t *dm = get_data_model();
+    dm_network_ssid_t *net_ssid;
     unsigned char *tmp = buff;
     unsigned int i = 0;
 
-    if (get_current_cmd()->get_type() == em_cmd_type_em_config) {
-        dm = get_data_model();
-    } else if (get_current_cmd()->get_type() == em_cmd_type_set_policy) {
-        dm = get_current_cmd()->get_data_model();
-    }
-
-    for (i = 0; i < dm->get_num_policy(); i++) {
-        policy = &dm->m_policy[i];
-        if (policy->m_policy.id.type == em_policy_id_type_traffic_separation) {
-            found_match = true;
-            break;
-        }
-    }
-
-    if (found_match == false) {
-        em_printfout(" Found Match False ");
-        return 0;
-    }
-
-    unsigned char ssids_num = static_cast<unsigned char>(policy->m_policy.traffic_separ.num_ssids);
-    *tmp = ssids_num;
+    // get total ssid count
+    unsigned char ssids_num = dm->get_num_network_ssid();
+    *tmp = static_cast<unsigned char>(ssids_num);
     tmp += sizeof(unsigned char);
     len += sizeof(unsigned char);
 
-    for (unsigned int i = 0; i < policy->m_policy.traffic_separ.num_ssids; i++) {
-        auto &info = policy->m_policy.traffic_separ.ssid_info[i];
+    for (i = 0; i < ssids_num; i++) {
+        net_ssid = dm->get_network_ssid(i);
 
-        std::vector<unsigned char> ssid_bytes(info.ssid, info.ssid + strlen(info.ssid));
+        std::vector<unsigned char> ssid_bytes(net_ssid->m_network_ssid_info.ssid,
+                  net_ssid->m_network_ssid_info.ssid + strlen(net_ssid->m_network_ssid_info.ssid));
         unsigned char ssid_len = static_cast<unsigned char>(ssid_bytes.size());
 
         *tmp = ssid_len;
@@ -299,7 +281,7 @@ short em_policy_cfg_t::create_traffic_sep_policy_tlv(unsigned char *buff)
         tmp += ssid_len;
         len += ssid_len;
 
-        unsigned short vlan_n = htons(info.vlan_id);
+        unsigned short vlan_n = htons(net_ssid->m_network_ssid_info.vlan_id);
         memcpy(tmp, &vlan_n, sizeof(vlan_n));
         tmp += sizeof(unsigned short);
         len += sizeof(unsigned short);

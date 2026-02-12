@@ -208,8 +208,12 @@ void em_ctrl_t::handle_set_policy(em_bus_event_t *evt)
 
     if (m_orch->is_cmd_type_in_progress(evt) == true) {
         m_ctrl_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
-    } else if ((num = m_data_model.analyze_set_policy(evt, pcmd)) > 0) {
-        m_orch->submit_commands(pcmd, static_cast<unsigned int> (num));
+    } else if ((num = m_data_model.analyze_set_policy(evt, pcmd)) == 0) {
+        m_ctrl_cmd->send_result(em_cmd_out_status_no_change);
+    } else if (m_orch->submit_commands(pcmd, static_cast<unsigned int> (num)) > 0) {
+        m_ctrl_cmd->send_result(em_cmd_out_status_success);
+    } else {
+        m_ctrl_cmd->send_result(em_cmd_out_status_not_ready);
     }
 }
 
@@ -1076,49 +1080,14 @@ void em_ctrl_t::start_complete()
             { NULL, NULL , NULL, NULL, NULL, NULL }, slow_speed, ZERO_TABLE,
             { bus_data_type_string, false, 0, 0, 0, NULL } },
         { DEVICE_WIFI_DATAELEMENTS_NETWORK_SETSSID_CMD, bus_element_type_method,
-            { tr_181_t::ssid_get, NULL, NULL, NULL, NULL, tr_181_t::cmd_setssid }, slow_speed, ZERO_TABLE,
-            { bus_data_type_string, false, 0, 0, 0, NULL } },
+            { NULL, NULL, NULL, NULL, NULL, tr_181_t::setssid_handler}, slow_speed, ZERO_TABLE,
+            { bus_data_type_property, false, 0, 0, 0, NULL } },
 	};
 
 	if (m_data_model.is_initialized() == false) {
 		printf("%s:%d: Database not initialized ... needs reset\n", __func__, __LINE__);
 		return;
 	}
-
-    if((desc = get_bus_descriptor()) == NULL) {
-        printf("%s:%d descriptor is null\n", __func__, __LINE__);
-    }
-
-    num_elements = (sizeof(dataElements) / sizeof(bus_data_element_t));
-	bus_error_val = desc->bus_reg_data_element_fn(m_data_model.get_bus_hdl(), dataElements, num_elements);
-	if (bus_error_val != bus_error_success) {
-		printf("%s:%d bus: bus_regDataElements failed\n", __func__, __LINE__);
-	}
-
-    if (desc->bus_event_subs_fn(m_data_model.get_bus_hdl(), DEVICE_WIFI_DATAELEMENTS_NETWORK_NODE_CFG_POLICY, (void *)&tr_181_t::subs_policy_config, NULL, 0) != 0) {
-        printf("%s:%d bus get failed\n", __func__, __LINE__);
-        return;
-    }
-
-    //todo: test code, remove during integ with orchestrator
-    if (desc->bus_event_subs_fn(m_data_model.get_bus_hdl(), DEVICE_WIFI_DATAELEMENTS_NETWORK_NODE_LINKSTATS_ALARM, (void *)&tr_181_t::subs_policy_config, NULL, 0) != 0) {
-        printf("%s:%d bus get failed\n", __func__, __LINE__);
-        return;
-    }
-
-	intf = m_data_model.get_ctrl_al_interface(const_cast<char*>(GLOBAL_NET_ID));
-	assert(intf != NULL);
-
-	dm_easy_mesh_t::macbytes_to_string(intf->mac, al_mac_str);
-	raw.data_type    = bus_data_type_string;
-   	raw.raw_data.bytes   = al_mac_str;
-   	raw.raw_data_len = static_cast<unsigned int> (strlen(al_mac_str));
-
-   	if (desc->bus_set_fn(m_data_model.get_bus_hdl(), "Device.WiFi.Ctrl.CollocateAgentID", &raw)== 0) {
-       	printf("%s:%d Collocated Agent ID: %s publish successfull\n",__func__, __LINE__, al_mac_str);
-   	} else {
-       	printf("%s:%d Collocated agent ID: %s publish  fail\n",__func__, __LINE__, al_mac_str);
-   	}
 
 	// build initial network topology
 	init_network_topology();
@@ -1144,6 +1113,38 @@ void em_ctrl_t::start_complete()
 		dev_test.dev_test_info.haul_type = em_haul_type_iot;
 		dev_test.dev_test_info.freq_band = em_freq_band_24;
 	}
+
+    if((desc = get_bus_descriptor()) == NULL) {
+        printf("%s:%d descriptor is null\n", __func__, __LINE__);
+        return;
+    }
+
+    num_elements = (sizeof(dataElements) / sizeof(bus_data_element_t));
+    bus_error_val = desc->bus_reg_data_element_fn(m_data_model.get_bus_hdl(), dataElements, num_elements);
+    if (bus_error_val != bus_error_success) {
+        printf("%s:%d bus: bus_regDataElements failed\n", __func__, __LINE__);
+        return;
+    }
+    em_printfout("bus_regDataElements success (%u elements) including SetSSID handler", num_elements);
+
+    intf = m_data_model.get_ctrl_al_interface(const_cast<char*>(GLOBAL_NET_ID));
+    assert(intf != NULL);
+
+    dm_easy_mesh_t::macbytes_to_string(intf->mac, al_mac_str);
+    raw.data_type    = bus_data_type_string;
+    raw.raw_data.bytes   = al_mac_str;
+    raw.raw_data_len = static_cast<unsigned int> (strlen(al_mac_str));
+
+    if (desc->bus_set_fn(m_data_model.get_bus_hdl(), "Device.WiFi.Ctrl.CollocateAgentID", &raw)== 0) {
+        printf("%s:%d Collocated Agent ID: %s publish successfull\n",__func__, __LINE__, al_mac_str);
+    } else {
+        printf("%s:%d Collocated agent ID: %s publish  fail\n",__func__, __LINE__, al_mac_str);
+    }
+
+    if (desc->bus_event_subs_fn(m_data_model.get_bus_hdl(), DEVICE_WIFI_DATAELEMENTS_NETWORK_NODE_CFG_POLICY, reinterpret_cast<void *> (&tr_181_t::subs_policy_config), NULL, 0) != 0) {
+        em_printfout("bus subscribe failed");
+        return;
+    }
 }
 
 em_ctrl_t *em_ctrl_t::get_em_ctrl_instance()

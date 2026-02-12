@@ -852,6 +852,7 @@ getRadioIndexFromBand(bandLabel) {
           if((profileData.ssid !== this.networkProfiles[index].SSID) || 
              (profileData.passphrase !== this.networkProfiles[index].PassPhrase) ||
              (profileData.security_type !== this.networkProfiles[index].Security) ||
+             (profileData.vlan_id !== this.networkProfiles[index].vlanId) ||
              (this.isSelectedBandChanged(this.networkProfiles[index].Band, profileData.selectedBands))) {
               this.updatedProfileKeys.add(this.networkProfiles[index].HaulType);
           } else {

@@ -64,7 +64,7 @@ void tr_181_t::init(void* ptr)
 
 int tr_181_t::wfa_set_bus_callbackfunc_pointers(const char *full_namespace, bus_callback_table_t *cb_table)
 {
-    bus_data_cb_func_t bus_data_get_cb[] = {
+    bus_data_cb_func_t bus_data_cb[] = {
         ELEMENT(DE_NETWORK_ID,            CALLBACK_GETTER(network_get)),
         ELEMENT(DE_NETWORK_CTRLID,        CALLBACK_GETTER(network_get)),
         ELEMENT(DE_NETWORK_COLAGTID,      CALLBACK_GETTER(network_get)),
@@ -257,8 +257,8 @@ int tr_181_t::wfa_set_bus_callbackfunc_pointers(const char *full_namespace, bus_
         ELEMENT(DE_AFFAP_BCBYTESSNT,       CALLBACK_GETTER(affap_get)),
         ELEMENT(DE_AFFAP_BCBYTESRCV,       CALLBACK_GETTER(affap_get)),
 
-        ELEMENT(DEVICE_WIFI_DATAELEMENTS_NETWORK_TOPOLOGY,              CALLBACK_GETTER(NULL)),
-        ELEMENT(DEVICE_WIFI_DATAELEMENTS_NETWORK_NODE_SYNC,             CALLBACK_GETTER(get_node_sync)),
+        ELEMENT(DEVICE_WIFI_DATAELEMENTS_NETWORK_TOPOLOGY,              CB(NULL, NULL, NULL, NULL, NULL, NULL)),
+        ELEMENT(DEVICE_WIFI_DATAELEMENTS_NETWORK_NODE_SYNC,             CB(.get_handler = get_node_sync, .set_handler = set_node_sync, NULL, NULL, NULL, NULL)),
         //ELEMENT(DEVICE_WIFI_DATAELEMENTS_NETWORK_NODE_CFG_POLICY,       CB(.set_handler = policy_config))
     };
 
@@ -269,38 +269,18 @@ int tr_181_t::wfa_set_bus_callbackfunc_pointers(const char *full_namespace, bus_
 
     uint32_t index = 0;
     bool     table_found = false;
-    bus_callback_table_t selected = {};
-    size_t set_count = 0;
-    const bus_data_cb_func_t *bus_data_set_cb = get_bus_data_set_cb(set_count);
 
-    for (index = 0; index < static_cast<uint32_t>(ARRAY_SIZE(bus_data_get_cb)); index++) {
-        if (strcmp(full_namespace, bus_data_get_cb[index].cb_table_name) == 0) {
-            memcpy(&selected, &bus_data_get_cb[index].cb_func, sizeof(bus_callback_table_t));
+    for (index = 0; index < static_cast<uint32_t>(ARRAY_SIZE(bus_data_cb)); index++) {
+        if (strcmp(full_namespace, bus_data_cb[index].cb_table_name) == 0) {
+            memcpy(cb_table, &bus_data_cb[index].cb_func, sizeof(bus_callback_table_t));
             table_found = true;
             break;
         }
     }
 
-    if (bus_data_set_cb != NULL) {
-        for (index = 0; index < static_cast<uint32_t>(set_count); index++) {
-            if (strcmp(full_namespace, bus_data_set_cb[index].cb_table_name) == 0) {
-                if (bus_data_set_cb[index].cb_func.set_handler != NULL) {
-                    selected.set_handler = bus_data_set_cb[index].cb_func.set_handler;
-                }
-                if (bus_data_set_cb[index].cb_func.method_handler != NULL) {
-                    selected.method_handler = bus_data_set_cb[index].cb_func.method_handler;
-                }
-                table_found = true;
-                break;
-            }
-        }
-    }
-
     if (table_found == false) {
-        memcpy(&selected, &bus_default_data_cb.cb_func, sizeof(bus_callback_table_t));
+        memcpy(cb_table, &bus_default_data_cb.cb_func, sizeof(bus_callback_table_t));
     }
-
-    memcpy(cb_table, &selected, sizeof(bus_callback_table_t));
 
     return RETURN_OK;
 }
@@ -830,8 +810,8 @@ bus_error_t tr_181_t::subs_policy_config(char *event_name, raw_data_t *p_data, b
 {
     //todo: remove test code
     if (strncmp(event_name,DEVICE_WIFI_DATAELEMENTS_NETWORK_NODE_LINKSTATS_ALARM, strlen(DEVICE_WIFI_DATAELEMENTS_NETWORK_NODE_LINKSTATS_ALARM)) == 0) {
-        em_printfout(" link stats alarm report Subs Event rcvd: %s", p_data->raw_data.bytes);
-        return bus_error_success;
+	 em_printfout(" link stats alarm report Subs Event rcvd: %s", p_data->raw_data.bytes);
+	 return bus_error_success;
     }
     em_printfout(" Subs Event rcvd: %s\n Policy cfg is of len: %d and : \n%s", event_name, p_data->raw_data_len, p_data->raw_data.bytes);
 
@@ -850,6 +830,7 @@ bus_error_t tr_181_t::policy_config(char *event_name, raw_data_t *p_data, bus_us
     em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
 
     em_ctrl->io_process(em_bus_event_type_set_policy,  reinterpret_cast<char*>(p_data->raw_data.bytes), p_data->raw_data_len);
+
     return bus_error_success;
 }
 
