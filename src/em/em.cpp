@@ -1932,6 +1932,7 @@ const char *em_t::get_band_type_str(em_freq_band_t band)
         BAND_TYPE_2S(em_freq_band_24)
         BAND_TYPE_2S(em_freq_band_5)
         BAND_TYPE_2S(em_freq_band_60)
+        BAND_TYPE_2S(em_freq_band_6)
         BAND_TYPE_2S(em_freq_band_unknown)
     }
 

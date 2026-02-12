@@ -49,6 +49,8 @@ class dm_easy_mesh_t {
     static std::atomic<int> s_counter;
     int m_instance_num;
     bool m_topo_changed = false;
+    unsigned int ssid_mismatch_check_time = 0;
+    unsigned int last_topo_query_sent_time = 0;
 
 public:
     webconfig_subdoc_data_t *m_wifi_data;
@@ -83,8 +85,8 @@ public:
     bool    m_colocated;
     unsigned int    m_num_ap_mld;
     dm_ap_mld_t     m_ap_mld[EM_MAX_AP_MLD];
-    unsigned int    m_num_bsta_mld;
-    dm_bsta_mld_t   m_bsta_mld[EM_MAX_BSTA_MLD];
+    bool    m_bsta_mld_present;
+    dm_bsta_mld_t   m_bsta_mld;
     unsigned int    m_num_assoc_sta_mld;
     dm_assoc_sta_mld_t m_assoc_sta_mld[EM_MAX_ASSOC_STA_MLD];
     dm_tid_to_link_t m_tid_to_link;
@@ -95,6 +97,10 @@ public:
 	void set_topo_state(bool state) { m_topo_changed = state; }
 	void set_id() { m_instance_num = ++s_counter; }
 	int get_id() const { return m_instance_num; }
+	void set_ssid_mismatch_check_time(unsigned int time) { ssid_mismatch_check_time = time; }
+	unsigned int get_ssid_mismatch_check_time() const { return ssid_mismatch_check_time; }
+	void set_last_topo_query_sent_time(unsigned int time) { last_topo_query_sent_time = time; }
+	unsigned int get_last_topo_query_sent_time() const { return last_topo_query_sent_time; }
 
 	static em_e4_table_t m_e4_table[];
 	
@@ -1128,7 +1134,18 @@ public:
 	 */
 	em_network_ssid_info_t *get_network_ssid_info_by_haul_type(em_haul_type_t haul_type);
 
-	
+	/**!
+     * @brief Checks whether the given SSID matches.
+     *
+     * This function determines whether the specified SSID matches
+     * the SSID associated with this instance.
+     *
+     * @param[in] ssid The SSID to compare against the stored SSID.
+     *
+     * @returns true if the SSIDs match; otherwise, false.
+     */
+    bool is_ssid_match(const ssid_t  &ssid);
+
 	/**!
 	 * @brief Retrieves the operational class information for a given index.
 	 *
@@ -1579,28 +1596,47 @@ public:
 	 */
 	dm_ap_mld_t& get_ap_mld_by_ref(unsigned int index) { return m_ap_mld[index]; }
 
-    
 	/**!
-	 * @brief Retrieves the number of BSTA MLD.
+	 * @brief Checks if BSTA MLD is present.
 	 *
-	 * This function returns the current number of BSTA MLD.
+	 * This function returns a boolean indicating whether the BSTA MLD is currently present.
 	 *
-	 * @returns The number of BSTA MLD.
+	 * @returns True if BSTA MLD is present, false otherwise.
 	 */
-	unsigned int get_num_bsta_mld() { return m_num_bsta_mld; }
-    
+	bool is_bsta_mld_present() { return m_bsta_mld_present; }
+
 	/**!
-	 * @brief Retrieves the number of BSTA MLD.
+	 * @brief Checks if BSTA MLD is present.
 	 *
-	 * This function returns the number of BSTA MLD from the given dm_easy_mesh_t object.
+	 * This function returns a boolean indicating whether the BSTA MLD is present
+	 * from the given dm_easy_mesh_t object.
 	 *
 	 * @param[in] dm Pointer to the dm_easy_mesh_t object.
 	 *
-	 * @returns The number of BSTA MLD.
+	 * @returns True if BSTA MLD is present, false otherwise.
 	 */
-	static unsigned int get_num_bsta_mld(void *dm) { return (static_cast<dm_easy_mesh_t *>(dm))->get_num_bsta_mld(); }
+	static bool is_bsta_mld_present(void *dm) { return (static_cast<dm_easy_mesh_t *>(dm))->is_bsta_mld_present(); }
 
-    
+	/**!
+	 * @brief Retrieves the BSTA MLD information.
+	 *
+	 * This function returns a reference to the BSTA MLD information structure.
+	 *
+	 * @returns Reference to em_bsta_mld_info_t.
+	 */
+	em_bsta_mld_info_t& get_bsta_mld_info() { return m_bsta_mld.m_bsta_mld_info; }
+
+	/**!
+	 * @brief Retrieves the BSTA MLD information.
+	 *
+	 * This function returns the BSTA MLD information from the given dm_easy_mesh_t object.
+	 *
+	 * @param[in] dm Pointer to the dm_easy_mesh_t object.
+	 *
+	 * @returns Reference to em_bsta_mld_info_t.
+	 */
+	static em_bsta_mld_info_t& get_bsta_mld_info(void *dm) { return static_cast<dm_easy_mesh_t *>(dm)->get_bsta_mld_info(); }
+
 	/**!
 	 * @brief Retrieves the number of associated station MLDs.
 	 *

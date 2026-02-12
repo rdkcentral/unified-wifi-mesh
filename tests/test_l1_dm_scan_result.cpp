@@ -83,33 +83,57 @@ static void fill_common_scan_result_fields(dm_scan_result_t& obj)
  */
 TEST(dm_scan_result_t_Test, ValidJsonAndParentId) {
     std::cout << "Entering ValidJsonAndParentId test" << std::endl;
-    
-    // Creating dm_scan_result_t instance using default constructor
-    EXPECT_NO_THROW({
-        dm_scan_result_t scanResult{};
-        std::cout << "Created dm_scan_result_t instance using default constructor" << std::endl;
-        
-        // Create a valid parent ID variable
-        int parentID = 123;
-        std::cout << "Valid parent ID variable created with value: " << parentID << std::endl;
-        
-        // Simulate a properly constructed valid cJSON object
-        int dummyForJson = 1;
-        const cJSON* validJson = reinterpret_cast<const cJSON*>(&dummyForJson);
-        std::cout << "Constructed valid cJSON object pointer: " << validJson << std::endl;
-        
-        // Invocation of decode with valid parameters
-        std::cout << "Invoking decode(validJson, &parentID)" << std::endl;
-        int result = scanResult.decode(validJson, &parentID);
-        std::cout << "Returned value from decode: " << result << std::endl;
-        
-        // Validate expected output
-        EXPECT_EQ(result, 0);
-        std::cout << "Decoded result associated successfully with parent ID: " << parentID << std::endl;
-    });
-    
+
+    // ---------- Step 1: Create dm_scan_result_t ----------
+    dm_scan_result_t scanResult{};
+    std::cout << "Created dm_scan_result_t instance using default constructor" << std::endl;
+
+    // ---------- Step 2: Create parent ID ----------
+    int parentID = 123;
+    std::cout << "Valid parent ID variable created with value: " << parentID << std::endl;
+
+    // ---------- Step 3: Create real cJSON object ----------
+    cJSON *validJson = cJSON_CreateObject();
+    std::cout << "Constructed empty cJSON object pointer: " << validJson << std::endl;
+
+    cJSON_AddNumberToObject(validJson, "ScanStatus", 1);
+    cJSON_AddStringToObject(validJson, "TimeStamp", "2026-01-30T08:00:00Z");
+    cJSON_AddNumberToObject(validJson, "Utilization", 50);
+    cJSON_AddNumberToObject(validJson, "Noise", 10);
+
+    // Add Neighbors array
+    cJSON *neighbors = cJSON_AddArrayToObject(validJson, "Neighbors");
+    cJSON *neighbor = cJSON_CreateObject();
+    cJSON_AddStringToObject(neighbor, "BSSID", "11:22:33:44:55:66");
+    cJSON_AddStringToObject(neighbor, "SSID", "TestSSID");
+    cJSON_AddNumberToObject(neighbor, "SignalStrength", -42);
+    cJSON_AddNumberToObject(neighbor, "Bandwidth", 20);
+    cJSON_AddNumberToObject(neighbor, "BSSColor", 5);
+    cJSON_AddNumberToObject(neighbor, "ChannelUtil", 10);
+    cJSON_AddNumberToObject(neighbor, "STACount", 3);
+    cJSON_AddItemToArray(neighbors, neighbor);
+
+    cJSON_AddNumberToObject(validJson, "ScanDuration", 1234);
+    cJSON_AddNumberToObject(validJson, "ScanType", 2);
+
+    std::cout << "Populated cJSON object with scan result data" << std::endl;
+
+    // ---------- Step 4: Call decode ----------
+    std::cout << "Invoking decode(validJson, &parentID)" << std::endl;
+    int result = scanResult.decode(validJson, &parentID);
+    std::cout << "Returned value from decode: " << result << std::endl;
+
+    // ---------- Step 5: Validate ----------
+    EXPECT_EQ(result, 0);
+    std::cout << "Decoded result associated successfully with parent ID: " << parentID << std::endl;
+
+    // ---------- Step 6: Cleanup ----------
+    cJSON_Delete(validJson);
+    std::cout << "Deleted cJSON object, exiting test" << std::endl;
     std::cout << "Exiting ValidJsonAndParentId test" << std::endl;
 }
+
+
 /**
  * @brief Validate that decode() fails when invoked with a NULL JSON object.
  *
@@ -158,6 +182,7 @@ TEST(dm_scan_result_t_Test, NullJsonObject) {
     
     std::cout << "Exiting NullJsonObject test" << std::endl;
 }
+
 /**
  * @brief Verify that decode() returns failure when provided a valid JSON with a NULL parent ID pointer.
  *
@@ -204,6 +229,7 @@ TEST(dm_scan_result_t_Test, ValidJsonNullParentId) {
     
     std::cout << "Exiting ValidJsonNullParentId test" << std::endl;
 }
+
 /**
  * @brief Test for verifying the API behavior when provided with an invalid JSON structure
  *
@@ -254,6 +280,7 @@ TEST(dm_scan_result_t_Test, InvalidJsonStructure) {
     
     std::cout << "Exiting InvalidJsonStructure test" << std::endl;
 }
+
 /**
  * @brief Validate the default constructor of dm_scan_result_t creates distinct objects.
  *
@@ -290,6 +317,7 @@ TEST(dm_scan_result_t_Test, DefaultConstructor) {
 
     std::cout << "Exiting DefaultConstructor test" << std::endl;
 }
+
 /**
  * @brief Verify that copying a default constructed dm_scan_result_t object results in an identical memory state.
  *
@@ -639,6 +667,7 @@ TEST(dm_scan_result_t_Test, TypicalValidInput) {
     }
     std::cout << "Exiting TypicalValidInput test" << std::endl;
 }
+
 /**
  * @brief Validate dm_scan_result_t constructor with empty and zero values
  *
@@ -734,6 +763,7 @@ TEST(dm_scan_result_t_Test, EmptyValues) {
     }
     std::cout << "Exiting EmptyValues test" << std::endl;
 }
+
 /**
  * @brief Test maximum boundary values for dm_scan_result_t initialization.
  *
@@ -841,6 +871,7 @@ TEST(dm_scan_result_t_Test, MaximumBoundaryValues) {
     }
     std::cout << "Exiting MaximumBoundaryValues test" << std::endl;
 }
+
 /**
  * @brief Test the dm_scan_result_t construction with an invalid scanner type.
  *
@@ -914,6 +945,7 @@ TEST(dm_scan_result_t_Test, InvalidScannerType) {
     });
     std::cout << "Exiting InvalidScannerType test" << std::endl;
 }
+
 /**
  * @brief Test that dm_scan_result_t constructor correctly handles scan_result structures with num_neighbors exceeding the allowed maximum.
  *
@@ -991,6 +1023,7 @@ TEST(dm_scan_result_t_Test, ExceedNeighbors) {
     }
     std::cout << "Exiting ExceedNeighbors test" << std::endl;
 }
+
 /**
  * @brief Verify that dm_scan_result_t object is correctly constructed using a valid scan_result pointer.
  *
@@ -1100,6 +1133,7 @@ TEST(dm_scan_result_t_Test, ValidScanResult) {
 
     std::cout << "Exiting ValidScanResult test" << std::endl;
 }
+
 /**
  * @brief Verify that the dm_scan_result_t constructor handles a NULL scan_result pointer correctly.
  *
@@ -1129,6 +1163,7 @@ TEST(dm_scan_result_t_Test, NullScanResult) {
 
     std::cout << "Exiting NullScanResult test" << std::endl;
 }
+
 /**
  * @brief Validate dm_scan_result_t construction with boundary long string values.
  *
@@ -1205,6 +1240,7 @@ TEST(dm_scan_result_t_Test, BoundaryLongStrings) {
 
     std::cout << "Exiting BoundaryLongStrings test" << std::endl;
 }
+
 /**
  * @brief Validate dm_scan_result_t object construction with em_scanner_type_radio
  *
@@ -1265,6 +1301,7 @@ TEST(dm_scan_result_t_Test, ScannerTypeEnumRadio) {
 
     std::cout << "Exiting ScannerTypeEnumRadio test" << std::endl;
 }
+
 /**
  * @brief Test for verifying that a dm_scan_result_t object constructed with a Station scanner type initializes the scanner type correctly.
  *
@@ -1325,6 +1362,7 @@ TEST(dm_scan_result_t_Test, ScannerTypeEnumSta) {
 
     std::cout << "Exiting ScannerTypeEnumSta test" << std::endl;
 }
+
 /**
  * @brief Verify proper CJSON encoding in dm_scan_result_t::encode
  *
@@ -1407,6 +1445,7 @@ TEST(dm_scan_result_t_Test, NullCJSONPointerEncoding) {
     
     std::cout << "Exiting NullCJSONPointerEncoding test" << std::endl;
 }
+
 /**
  * @brief Verify that dm_scan_result_t::encode correctly handles an empty cJSON object.
  *
@@ -1556,6 +1595,7 @@ TEST(dm_scan_result_t_Test, Retrieve_Scan_Result_Pointer_Successfully) {
     
     std::cout << "Exiting Retrieve_Scan_Result_Pointer_Successfully test" << std::endl;
 }
+
 /**
  * @brief Verify that modifying the scan result via the retrieved pointer reflects correctly in the object's state
  *
@@ -1604,6 +1644,7 @@ TEST(dm_scan_result_t_Test, Modify_Scan_Result_Through_Retrieved_Pointer) {
     
     std::cout << "Exiting Modify_Scan_Result_Through_Retrieved_Pointer test" << std::endl;
 }
+
 /**
  * @brief Validate the deep copy behavior in dm_scan_result_t constructor
  *
@@ -1664,42 +1705,7 @@ TEST(dm_scan_result_t_Test, Validate_Internal_Member_Usage_On_Constructor_With_E
     
     std::cout << "Exiting Validate_Internal_Member_Usage_On_Constructor_With_External_Pointer test" << std::endl;
 }
-/**
- * @brief Verify that invoking get_scan_result() on a null dm_scan_result_t instance causes a crash.
- *
- * This test ensures that calling the get_scan_result() method on a null pointer instance of dm_scan_result_t
- * leads to a crash as expected. It uses EXPECT_DEATH to validate that the application terminates (undefined behavior)
- * when the method is invoked on a null object, which is vital for detecting incorrect object instance handling.
- *
- * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 026@n
- * **Priority:** High@n
- *
- * **Pre-Conditions:** None@n
- * **Dependencies:** None@n
- * **User Interaction:** None@n
- *
- * **Test Procedure:**
- * | Variation / Step | Description                                                           | Test Data                                                          | Expected Result                                                              | Notes        |
- * | :--------------: | --------------------------------------------------------------------- | ------------------------------------------------------------------ | ---------------------------------------------------------------------------- | ------------ |
- * | 01               | Create a null dm_scan_result_t pointer and invoke get_scan_result() on it | nullObj = nullptr, invocation of get_scan_result()                   | Program crashes as expected as validated by EXPECT_DEATH with regex ".*"       | Should Pass  |
- */
-TEST(dm_scan_result_t_Test, Null_Object_Instance_Invocation) {
-    std::cout << "Entering Null_Object_Instance_Invocation test" << std::endl;
-    
-    // Create a null pointer for dm_scan_result_t
-    dm_scan_result_t* nullObj = nullptr;
-    std::cout << "Created a null dm_scan_result_t pointer." << std::endl;
-    
-    // Expect the invocation to result in a crash (undefined behavior) using EXPECT_DEATH
-    EXPECT_DEATH({
-        // Attempt to call get_scan_result() on the null object
-        std::cout << "Invoking get_scan_result() on a null dm_scan_result_t instance." << std::endl;
-        nullObj->get_scan_result();
-    }, ".*");
-    
-    std::cout << "Exiting Null_Object_Instance_Invocation test" << std::endl;
-}
+
 /**
  * @brief Verify that has_same_id returns true when all fields are identical.
  *
@@ -1709,7 +1715,7 @@ TEST(dm_scan_result_t_Test, Null_Object_Instance_Invocation) {
  * confirming the correct behavior of the comparison logic.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 027@n
+ * **Test Case ID:** 026@n
  * **Priority:** High@n
  *
  * **Pre-Conditions:** None@n
@@ -1765,6 +1771,7 @@ TEST(dm_scan_result_t_Test, PositiveMatch_AllFieldsIdentical)
     EXPECT_TRUE(ret);
     std::cout << "Exiting PositiveMatch_AllFieldsIdentical test" << std::endl;
 }
+
 /**
  * @brief Verify that passing a NULL pointer to has_same_id returns false.
  *
@@ -1772,7 +1779,7 @@ TEST(dm_scan_result_t_Test, PositiveMatch_AllFieldsIdentical)
  * The function is expected to handle the NULL input gracefully and return false to indicate that no match was found.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 028@n
+ * **Test Case ID:** 027@n
  * **Priority:** High@n
  * 
  * **Pre-Conditions:** None@n
@@ -1798,13 +1805,14 @@ TEST(dm_scan_result_t_Test, NegativeMatch_NullPointer)
     EXPECT_FALSE(ret);
     std::cout << "Exiting NegativeMatch_NullPointer test" << std::endl;
 }
+
 /**
  * @brief To verify that has_same_id() returns false when a mismatch in net_id is provided.
  *
  * This test validates that the dm_scan_result_t object's has_same_id() method correctly identifies a mismatch in the net_id field. The test creates a dm_scan_result_t instance and an em_scan_result_id_t structure with a net_id value that does not match the expected one and valid values for the other fields. The objective is to ensure the API returns false when there is a mismatch in the net_id, validating proper comparison logic.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 029@n
+ * **Test Case ID:** 028@n
  * **Priority:** High@n
  *
  * **Pre-Conditions:** None@n
@@ -1855,6 +1863,7 @@ TEST(dm_scan_result_t_Test, NegativeMatch_Mismatch_net_id)
     EXPECT_FALSE(ret);
     std::cout << "Exiting NegativeMatch_Mismatch_net_id test" << std::endl;
 }
+
 /**
  * @brief Verify the behavior of dm_scan_result_t::has_same_id when provided with a mismatched device MAC address.
  *
@@ -1863,7 +1872,7 @@ TEST(dm_scan_result_t_Test, NegativeMatch_Mismatch_net_id)
  * and ensures that has_same_id returns false indicating a mismatch.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 030@n
+ * **Test Case ID:** 029@n
  * **Priority:** High@n
  *
  * **Pre-Conditions:** None@n
@@ -1920,6 +1929,7 @@ TEST(dm_scan_result_t_Test, NegativeMatch_Mismatch_dev_mac)
     EXPECT_FALSE(ret);
     std::cout << "Exiting NegativeMatch_Mismatch_dev_mac test" << std::endl;
 }
+
 /**
  * @brief Test that dm_scan_result_t::has_same_id returns false when scanner_mac mismatches
  *
@@ -1929,7 +1939,7 @@ TEST(dm_scan_result_t_Test, NegativeMatch_Mismatch_dev_mac)
  * the function returns false as expected.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 031@n
+ * **Test Case ID:** 030@n
  * **Priority:** High@n
  *
  * **Pre-Conditions:** None@n
@@ -1984,13 +1994,14 @@ TEST(dm_scan_result_t_Test, NegativeMatch_Mismatch_scanner_mac)
     EXPECT_FALSE(ret);
     std::cout << "Exiting NegativeMatch_Mismatch_scanner_mac test" << std::endl;
 }
+
 /**
  * @brief Test for negative match when op_class mismatches
  *
  * This test verifies that the function has_same_id returns false when the op_class in the provided identifier mismatches the expected value. The objective is to ensure that the API properly detects a mismatch in the operation class, which is critical for identifying scan results.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 032@n
+ * **Test Case ID:** 031@n
  * **Priority:** High@n
  * 
  * **Pre-Conditions:** None@n
@@ -2048,13 +2059,14 @@ TEST(dm_scan_result_t_Test, NegativeMatch_Mismatch_op_class)
     EXPECT_FALSE(ret);
     std::cout << "Exiting NegativeMatch_Mismatch_op_class test" << std::endl;
 }
+
 /**
  * @brief Test dm_scan_result_t::has_same_id with mismatched channel
  *
  * This test validates that the dm_scan_result_t::has_same_id function correctly fails when the channel value in the em_scan_result_id_t structure does not match the expected value. The test sets up the id structure with the expected network and MAC addresses, but deliberately assigns a mismatched channel (40 instead of the expected 36) to verify that the function returns false.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 033@n
+ * **Test Case ID:** 032@n
  * **Priority:** High@n
  *
  * **Pre-Conditions:** None@n
@@ -2107,6 +2119,7 @@ TEST(dm_scan_result_t_Test, NegativeMatch_Mismatch_channel)
     EXPECT_FALSE(ret);
     std::cout << "Exiting NegativeMatch_Mismatch_channel test" << std::endl;
 }
+
 /**
  * @brief Test to verify the behavior of has_same_id for different scanner types
  *
@@ -2116,7 +2129,7 @@ TEST(dm_scan_result_t_Test, NegativeMatch_Mismatch_channel)
  * the matching scan result IDs based on scanner type.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 034@n
+ * **Test Case ID:** 033@n
  * **Priority:** High@n
  *
  * **Pre-Conditions:** None@n
@@ -2201,13 +2214,14 @@ TEST(dm_scan_result_t_Test, ScannerTypeVariation)
     
     std::cout << "Exiting ScannerTypeVariation test" << std::endl;
 }
+
 /**
  * @brief Test initialization of dm_scan_result_t for a newly constructed object
  *
  * This test verifies that a newly constructed dm_scan_result_t object can be correctly initialized using its init() method. It checks that the init() method returns 0 and that the memory for m_scan_result is properly set to zero.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 035@n
+ * **Test Case ID:** 034@n
  * **Priority:** High@n
  *
  * **Pre-Conditions:** None@n
@@ -2252,7 +2266,7 @@ TEST(dm_scan_result_t_Test, Initialize_scan_result_for_a_newly_constructed_objec
  * This test verifies that the assignment operator of dm_scan_result_t performs a deep copy of all member fields from the source object to the target object. It ensures that after the assignment, every field in the target object mirrors the corresponding field in the source object, even if the target was initially populated with different values.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 036@n
+ * **Test Case ID:** 035@n
  * **Priority:** High@n
  *
  * **Pre-Conditions:** None@n
@@ -2333,7 +2347,7 @@ TEST(dm_scan_result_t_Test, AssignmentOperatorDeepCopy) {
  * the assignment operator correctly transfers these zero values to the target object, overwriting any pre-existing non-default values.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 037@n
+ * **Test Case ID:** 036@n
  * **Priority:** High@n
  *
  * **Pre-Conditions:** None@n
@@ -2406,7 +2420,7 @@ TEST(dm_scan_result_t_Test, AssignmentOperatorSourceZeroFields) {
  * This test iterates over the scanner type enum values and assigns the value from the source object to the target object using the assignment operator. The test validates that after the assignment, the target object's scanner type matches the source object's scanner type. This ensures that the enum values are properly handled during assignment.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 038@n
+ * **Test Case ID:** 037@n
  * **Priority:** (High)@n
  * 
  * **Pre-Conditions:** None@n
@@ -2450,6 +2464,7 @@ TEST(dm_scan_result_t_Test, AssignmentOperatorEnumValues) {
     
     std::cout << "Exiting AssignmentOperatorEnumValues test" << std::endl;
 }
+
 /**
  * @brief Verify the assignment operator correctly copies boundary string values between objects
  *
@@ -2460,7 +2475,7 @@ TEST(dm_scan_result_t_Test, AssignmentOperatorEnumValues) {
  * object's fields match those of the source.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 039@n
+ * **Test Case ID:** 038@n
  * **Priority:** High@n
  *
  * **Pre-Conditions:** None@n
@@ -2523,7 +2538,7 @@ TEST(dm_scan_result_t_Test, AssignmentOperatorBoundaryStringValues) {
  * This test creates two dm_scan_result_t objects, source and target. The source object numerical fields are set to distinct non-default values, while the target object's fields are initialized to different arbitrary values. After invoking the assignment operator (target = source), the test validates that each numerical field in the target is correctly updated to the source’s corresponding value.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 040@n
+ * **Test Case ID:** 039@n
  * **Priority:** High@n
  *
  * **Pre-Conditions:** None@n
@@ -2600,13 +2615,14 @@ TEST(dm_scan_result_t_Test, AssignmentOperatorNumericalFields) {
     
     std::cout << "Exiting AssignmentOperatorNumericalFields test" << std::endl;
 }
+
 /**
  * @brief Verify equality operator for identical objects across scanner types
  *
  * This test verifies that when two dm_scan_result_t objects, initialized with identical common fields and assigned the same scanner type (iterated over valid scanner types), are compared using operator==, the result is true. This ensures that the equality operator correctly handles comparisons when the scanner type is varied.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 041@n
+ * **Test Case ID:** 040@n
  * **Priority:** High@n
  *
  * **Pre-Conditions:** None@n
@@ -2660,7 +2676,7 @@ TEST(dm_scan_result_t_Test, IdenticalObjectsWithLoopedScannerType)
  * This test initializes two dm_scan_result_t objects, fills them with common scan result fields, and then explicitly sets different net_id values ("Net123" for the first object and "Net456" for the second). It subsequently invokes the operator== to compare the two objects and asserts that the operator returns false because the net_id fields differ.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 042@n
+ * **Test Case ID:** 041@n
  * **Priority:** High@n
  * 
  * **Pre-Conditions:** None@n
@@ -2701,13 +2717,14 @@ TEST(dm_scan_result_t_Test, DifferentNetId)
     EXPECT_FALSE(result);
     std::cout << "Exiting DifferentNetId test" << std::endl;
 }
+
 /**
  * @brief Validate that two dm_scan_result_t objects with different dev_mac addresses are not considered equal
  *
  * This test initializes two dm_scan_result_t objects, populates them with common fields, and then assigns different MAC addresses (MAC_A vs MAC_B) to their dev_mac fields. The test then invokes the operator== to verify that the two objects with differing dev_mac values are not equal.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 043@n
+ * **Test Case ID:** 042@n
  * **Priority:** High@n
  *
  * **Pre-Conditions:** None@n
@@ -2750,13 +2767,14 @@ TEST(dm_scan_result_t_Test, DifferentDevMac)
     EXPECT_FALSE(result);
     std::cout << "Exiting DifferentDevMac test" << std::endl;
 }
+
 /**
  * @brief Verify equality operator fails for dm_scan_result_t objects with different scanner MAC addresses.
  *
  * This test verifies that when two dm_scan_result_t objects are initialized, their common scan result fields are filled, and their scanner MAC addresses are set to distinct values, the equality operator (operator==) correctly identifies them as not equal. The objective is to ensure that the operator== method in dm_scan_result_t accurately compares the scanner_mac fields.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 044@n
+ * **Test Case ID:** 043@n
  * **Priority:** High@n
  *
  * **Pre-Conditions:** None@n
@@ -2798,18 +2816,19 @@ TEST(dm_scan_result_t_Test, DifferentScannerMac)
     EXPECT_FALSE(result);
     std::cout << "Exiting DifferentScannerMac test" << std::endl;
 }
+
 /**
  * @brief Test the equality operator for dm_scan_result_t objects with different op_class values.
  *
  * This test verifies that two dm_scan_result_t objects with identical common fields but different op_class values in their id substructure are not considered equal. The aim is to ensure that the operator== method correctly differentiates objects based solely on the op_class field.
  *
- * **Test Group ID:** Basic: 01
- * **Test Case ID:** 045
- * **Priority:** High
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 044@n
+ * **Priority:** High@n
  *
- * **Pre-Conditions:** None
- * **Dependencies:** None
- * **User Interaction:** None
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
  *
  * **Test Procedure:**
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
@@ -2843,13 +2862,14 @@ TEST(dm_scan_result_t_Test, DifferentOpClass)
     EXPECT_FALSE(result);
     std::cout << "Exiting DifferentOpClass test" << std::endl;
 }
+
 /**
  * @brief Validate dm_scan_result_t inequality when channel values differ
  *
  * This test verifies that two dm_scan_result_t objects with different 'channel' values are not considered equal. It initializes both objects, populates common fields, assigns distinct channel values, and checks that the operator== correctly identifies them as unequal.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 046@n
+ * **Test Case ID:** 045@n
  * **Priority:** High@n
  *
  * **Pre-Conditions:** None@n
@@ -2889,6 +2909,7 @@ TEST(dm_scan_result_t_Test, DifferentChannel)
     EXPECT_FALSE(result);
     std::cout << "Exiting DifferentChannel test" << std::endl;
 }
+
 /**
  * @brief Validate dm_scan_result_t equality operator for different scanner types
  *
@@ -2896,7 +2917,7 @@ TEST(dm_scan_result_t_Test, DifferentChannel)
  * the equality operator (operator==) correctly identifies them as not equal.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 047@n
+ * **Test Case ID:** 046@n
  * **Priority:** High@n
  *
  * **Pre-Conditions:** None@n
@@ -2939,6 +2960,7 @@ TEST(dm_scan_result_t_Test, DifferentScannerType)
     EXPECT_FALSE(result);
     std::cout << "Exiting DifferentScannerType test" << std::endl;
 }
+
 /**
  * @brief Test to verify that dm_scan_result_t objects with different scan_status values are not equal
  *
@@ -2947,7 +2969,7 @@ TEST(dm_scan_result_t_Test, DifferentScannerType)
  * objects are considered unequal, thus validating the comparison functionality when scan_status differs.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 048@n
+ * **Test Case ID:** 047@n
  * **Priority:** High@n
  *
  * **Pre-Conditions:** None@n
@@ -2989,13 +3011,14 @@ TEST(dm_scan_result_t_Test, DifferentScanStatus)
     EXPECT_FALSE(result);
     std::cout << "Exiting DifferentScanStatus test" << std::endl;
 }
+
 /**
  * @brief Test comparison for dm_scan_result_t objects with different timestamps
  *
  * This test verifies that the operator== for dm_scan_result_t correctly distinguishes objects with different timestamps by setting different timestamp values.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 049@n
+ * **Test Case ID:** 048@n
  * **Priority:** High@n
  * 
  * **Pre-Conditions:** None@n
@@ -3036,6 +3059,7 @@ TEST(dm_scan_result_t_Test, DifferentTimestamp)
     EXPECT_FALSE(result);
     std::cout << "Exiting DifferentTimestamp test" << std::endl;
 }
+
 /**
  * @brief Validates that dm_scan_result_t objects with different util values are not considered equal.
  *
@@ -3045,7 +3069,7 @@ TEST(dm_scan_result_t_Test, DifferentTimestamp)
  * lead to inequality.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 050@n
+ * **Test Case ID:** 049@n
  * **Priority:** High@n
  *
  * **Pre-Conditions:** None@n
@@ -3086,13 +3110,14 @@ TEST(dm_scan_result_t_Test, DifferentUtil)
     EXPECT_FALSE(result);
     std::cout << "Exiting DifferentUtil test" << std::endl;
 }
+
 /**
  * @brief Verify that the equality operator returns false when dm_scan_result_t objects have different noise levels.
  *
  * This test initializes two dm_scan_result_t objects, fills them with common scan result fields, and then assigns different noise values (30 for obj1 and 40 for obj2). It invokes the operator== to ensure that the objects are considered unequal due to the differing noise levels.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 051@n
+ * **Test Case ID:** 050@n
  * **Priority:** High@n
  *
  * **Pre-Conditions:** None@n
@@ -3133,13 +3158,14 @@ TEST(dm_scan_result_t_Test, DifferentNoise)
     EXPECT_FALSE(result);
     std::cout << "Exiting DifferentNoise test" << std::endl;
 }
+
 /**
  * @brief Tests the dm_scan_result_t equality operator when objects have different num_neighbors values
  *
  * This test case verifies that the equality operator (operator==) for dm_scan_result_t objects returns false when the objects' num_neighbors field is different.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 052@n
+ * **Test Case ID:** 051@n
  * **Priority:** High@n
  *
  * **Pre-Conditions:** None@n
@@ -3179,13 +3205,14 @@ TEST(dm_scan_result_t_Test, DifferentNumNeighbors)
     EXPECT_FALSE(result);
     std::cout << "Exiting DifferentNumNeighbors test" << std::endl;
 }
+
 /**
  * @brief Validate that dm_scan_result_t equality operator returns false when aggr_scan_duration fields differ
  *
  * This test verifies that two dm_scan_result_t objects with different aggr_scan_duration values are not considered equal. It initializes two objects, fills their common fields, assigns different values to the aggr_scan_duration field, and then uses the equality operator to confirm they are not equal.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 053@n
+ * **Test Case ID:** 052@n
  * **Priority:** High@n
  *
  * **Pre-Conditions:** None@n
@@ -3227,6 +3254,7 @@ TEST(dm_scan_result_t_Test, DifferentAggrScanDuration)
     EXPECT_FALSE(result);
     std::cout << "Exiting DifferentAggrScanDuration test" << std::endl;
 }
+
 /**
  * @brief Verify that two dm_scan_result_t objects with different scan_type values are not considered equal.
  *
@@ -3234,7 +3262,7 @@ TEST(dm_scan_result_t_Test, DifferentAggrScanDuration)
  * It then compares the two objects using the overloaded operator== to ensure that they are not equal since the scan_type fields differ.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 054@n
+ * **Test Case ID:** 053@n
  * **Priority:** High@n
  *
  * **Pre-Conditions:** None@n
@@ -3275,13 +3303,14 @@ TEST(dm_scan_result_t_Test, DifferentScanType)
     EXPECT_FALSE(result);
     std::cout << "Exiting DifferentScanType test" << std::endl;
 }
+
 /**
  * @brief Validate that parse_scan_result_id_from_key successfully extracts scan result information from a valid key string when BSSID is not provided.
  *
  * This test verifies that the API parse_scan_result_id_from_key correctly parses the key string containing network identifier, device MAC, scanner MAC, operational class, channel, and scanner type, when BSSID is passed as NULL. The test ensures that the returned value is 0 and that the parsed fields in the structure match the expected values.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 055@n
+ * **Test Case ID:** 054@n
  * **Priority:** High@n
  *
  * **Pre-Conditions:** None@n
@@ -3349,13 +3378,13 @@ TEST(dm_scan_result_t_Test, ValidKeyWithoutBSSID) {
  *
  * This test verifies that the dm_scan_result_t object correctly parses a valid key string containing network ID, device MAC, scanner MAC, operating class, channel, and scanner type. It ensures that the method returns 0 and parses the fields into the id struct and BSSID buffer as expected.
  *
- * **Test Group ID:** Basic: 01
- * **Test Case ID:** 056
- * **Priority:** High
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 055@n
+ * **Priority:** High@n
  *
- * **Pre-Conditions:** None
- * **Dependencies:** None
- * **User Interaction:** None
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
  *
  * **Test Procedure:**
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
@@ -3429,13 +3458,13 @@ TEST(dm_scan_result_t_Test, ValidKeyWithBSSID) {
  * This test verifies that providing a NULL key pointer to the parse_scan_result_id_from_key API 
  * results in a negative error code return and that the id structure remains unchanged after the call.
  *
- * **Test Group ID:** Basic: 01
- * **Test Case ID:** 057
- * **Priority:** High
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 056@n
+ * **Priority:** High@n
  *
- * **Pre-Conditions:** None
- * **Dependencies:** None
- * **User Interaction:** None
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
  *
  * **Test Procedure:**
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
@@ -3489,7 +3518,7 @@ TEST(dm_scan_result_t_Test, NullKeyPointer) {
  * This test verifies that when a NULL pointer is passed for the id parameter to the parse_scan_result_id_from_key method, the function returns a negative error code. This is important for validating proper error handling and ensuring robustness against invalid inputs.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 058@n
+ * **Test Case ID:** 057@n
  * **Priority:** High@n
  * 
  * **Pre-Conditions:** None@n
@@ -3507,7 +3536,8 @@ TEST(dm_scan_result_t_Test, NullIDPointer) {
     // Prepare test data
     const char key[] = "NETID:network789;DEV_MAC:12-34-56-78-9A-BC;SCANNER_MAC:DE-AD-BE-EF-00-01;OP_CLASS:25;CHANNEL:36;SCANNER_TYPE:1";
     em_scan_result_id_t* id = NULL;
-    
+    unsigned char bssid_val = 0xAA;
+    unsigned char* bssid_ptr = &bssid_val;
     // Create object using default constructor
     EXPECT_NO_THROW({
         dm_scan_result_t obj{};
@@ -3516,7 +3546,7 @@ TEST(dm_scan_result_t_Test, NullIDPointer) {
         std::cout << "Invoking parse_scan_result_id_from_key with key: " << key 
                   << ", NULL id pointer, and BSSID: NULL" << std::endl;
                   
-        int ret = obj.parse_scan_result_id_from_key(key, id, NULL);
+        int ret = obj.parse_scan_result_id_from_key(key, id, bssid_ptr);
         std::cout << "Method returned: " << ret << std::endl;
         
         // Expected to return negative error code since id pointer is NULL
@@ -3525,13 +3555,14 @@ TEST(dm_scan_result_t_Test, NullIDPointer) {
     
     std::cout << "Exiting NullIDPointer test" << std::endl;
 }
+
 /**
  * @brief Test the parse_scan_result_id_from_key API with an invalid key format to ensure it returns a negative error code and does not modify output parameters.
  *
  * This test creates an instance of dm_scan_result_t and calls parse_scan_result_id_from_key with a deliberately invalid key string ("INVALID_KEY_FORMAT"). The ID and BSSID buffer are pre-initialized with "unchanged" values. The test verifies that the function returns a negative error code, indicating failure due to the invalid key, and confirms that both the id and bssid_buffer remain unmodified.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 059@n
+ * **Test Case ID:** 058@n
  * **Priority:** High@n
  * 
  * **Pre-Conditions:** None@n
@@ -3601,7 +3632,7 @@ TEST(dm_scan_result_t_Test, InvalidKeyFormat) {
  * This test verifies that when an empty key string is provided, the parse_scan_result_id_from_key API returns a negative error code, and the provided id and bssid buffers remain unchanged. This ensures that the function does not alter output buffers when essential input data is missing.
  *
  * **Test Group ID:** Basic: 01  
- * **Test Case ID:** 060  
+ * **Test Case ID:** 059@n
  * **Priority:** High  
  * 
  * **Pre-Conditions:** None  
@@ -3660,7 +3691,7 @@ TEST(dm_scan_result_t_Test, EmptyKeyString) {
  * This test constructs an instance of dm_scan_result_t with a valid em_scan_result_t pointer initialized with sample data ("ValidScanResult") and ensures that the object is constructed and destructed properly without any exceptions. The internal member (m_scan_result.info) is printed for verification.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 061@n
+ * **Test Case ID:** 060@n
  * **Priority:** High@n
  * 
  * **Pre-Conditions:** None@n
@@ -3708,7 +3739,7 @@ TEST(dm_scan_result_t_Test, Destruction_WithValidScanPointer) {
  * This test verifies that instantiating a dm_scan_result_t object using the default constructor does not throw an exception, and that its destructor correctly cleans up the object even when the internal m_scan_result pointer is null. This is essential to ensure that resources are managed properly and no runtime errors occur during object destruction.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 062@n
+ * **Test Case ID:** 061@n
  * **Priority:** High@n
  * 
  * **Pre-Conditions:** None@n
@@ -3734,6 +3765,7 @@ TEST(dm_scan_result_t_Test, Destruction_WithNullScanPointer_DefaultConstructor) 
 
     std::cout << "Exiting Destruction_WithNullScanPointer_DefaultConstructor test" << std::endl;
 }
+
 /**
  * @brief Test to validate destruction behavior of dm_scan_result_t via copy constructor when the internal scan pointer is null.
  *
@@ -3741,7 +3773,7 @@ TEST(dm_scan_result_t_Test, Destruction_WithNullScanPointer_DefaultConstructor) 
  * using the copy constructor does not throw any exceptions during its lifetime and destruction.
  *
  * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 063@n
+ * **Test Case ID:** 062@n
  * **Priority:** High@n
  *
  * **Pre-Conditions:** None@n
@@ -3786,4 +3818,3 @@ TEST(dm_scan_result_t_Test, Destruction_WithNullScanPointer_CopyConstructor) {
 
     std::cout << "Exiting Destruction_WithNullScanPointer_CopyConstructor test" << std::endl;
 }
-

@@ -22,7 +22,10 @@ AM_CFLAGS += -D_ANSC_LITTLE_ENDIAN_
 
 ACLOCAL_AMFLAGS = -I m4
 hardware_platform = i686-linux-gnu
-bin_PROGRAMS = onewifi_em_agent onewifi_em_agent_test
+bin_PROGRAMS = onewifi_em_agent
+if EM_UNITTEST
+bin_PROGRAMS += onewifi_em_agent_test
+endif
 
 onewifi_em_agent_CPPFLAGS = \
     -I$(top_srcdir)/inc \
@@ -130,6 +133,7 @@ onewifi_em_agent_SOURCES =  \
 
 onewifi_em_agent_LDFLAGS = -lm -lpthread -ldl -lcjson -luuid -lssl -lcrypto -lwifi_webconfig -lrbus
 onewifi_em_agent_LDADD = $(top_builddir)/src/al-sap/libalsap.la
+if EM_UNITTEST
 onewifi_em_agent_test_SOURCES = \
 	$(onewifi_em_agent_SOURCES) \
 	$(top_srcdir)/tests/main.cpp \
@@ -175,10 +179,14 @@ onewifi_em_agent_test_SOURCES = \
 	$(top_srcdir)/tests/test_l1_util.cpp \
 	$(top_srcdir)/tests/test_l1_ec_1905_encrypt_layer.cpp \
 	$(top_srcdir)/tests/test_l1_ec_enrollee.cpp \
-        $(top_srcdir)/tests/test_l1_ec_util.cpp
+        $(top_srcdir)/tests/test_l1_ec_util.cpp \
+	$(top_srcdir)/tests/test_l1_dm_easy_mesh.cpp \
+	$(top_srcdir)/tests/test_l1_ec_pa_configurator.cpp \
+	$(top_srcdir)/tests/test_l1_ec_manager.cpp
 onewifi_em_agent_test_CPPFLAGS = $(onewifi_em_agent_CPPFLAGS) \
 	-I$(PKG_CONFIG_SYSROOT_DIR)$(includedir)/gtest \
 	-DTESTING
 onewifi_em_agent_test_CXXFLAGS = $(INCLUDEDIRS) -g -DUNIT_TEST
 onewifi_em_agent_test_LDFLAGS = -lcjson -lgtest -lgtest_main -lgmock -lpthread -lssl -lcrypto -lm -luuid -ldl -lwifi_webconfig -lrbus
 onewifi_em_agent_test_LDADD = $(onewifi_em_agent_LDADD)
+endif

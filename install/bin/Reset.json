@@ -25,7 +25,8 @@
                 "MFPConfig": "Optional",
                 "MobilityDomain":"00:01:02:03:04:05",
                 "HaulType": ["Fronthaul"],
-                "AuthType": "WPA3 Personal"
+                "AuthType": "WPA3 Personal",
+                "VLANID": 12
             }, {
                 "SSID": "iot_ssid",
                 "Passphrase": "test-backhaul",
@@ -37,7 +38,8 @@
                 "MFPConfig": "Required",
                 "MobilityDomain":"00:01:02:03:04:05",
                 "HaulType": ["IoT"],
-                "AuthType": "WPA3 Personal"
+                "AuthType": "WPA3 Personal",
+                "VLANID": 14
             }, {
                 "SSID": "lnf_radius",
                 "Passphrase": "test-backhaul",
@@ -49,7 +51,8 @@
                 "MFPConfig": "Required",
                 "MobilityDomain":"00:01:02:03:04:05",
                 "HaulType": ["Configurator"],
-                "AuthType": "WPA3 Personal"
+                "AuthType": "WPA3 Personal",
+                "VLANID": 15
             }, {
                 "SSID": "mesh_backhaul",
                 "Passphrase": "test-backhaul",
@@ -61,7 +64,8 @@
                 "MFPConfig": "Required",
                 "MobilityDomain":"00:01:02:03:04:05",
                 "HaulType": ["Backhaul"],
-                "AuthType": "WPA3 Personal"
+                "AuthType": "WPA3 Personal",
+                "VLANID": 13
             },{
                 "SSID":	"hotspot",
                 "PassPhrase":	"test-hotspot",
@@ -73,7 +77,8 @@
                 "MFPConfig":	"Required",
                 "MobilityDomain":	"00:01:02:03:04:05",
                 "HaulType":	["Hotspot"],
-                "AuthType": "WPA3 Personal"
+                "AuthType": "WPA3 Personal",
+                "VLANID": 16
             }
         ]
     }

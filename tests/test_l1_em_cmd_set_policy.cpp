@@ -67,10 +67,12 @@ TEST(em_cmd_set_policy_t, em_cmd_set_policy_t_valid_complete_parameters)
     EXPECT_STREQ(cmd.m_name, "set_policy");
     EXPECT_EQ(cmd.m_svc, em_service_type_ctrl);
     EXPECT_EQ(cmd.m_orch_op_idx, 0);
-    EXPECT_EQ(cmd.m_num_orch_desc, 1);
-    EXPECT_EQ(cmd.m_orch_desc[0].op, dm_orch_type_policy_cfg);
+    EXPECT_EQ(cmd.m_num_orch_desc, 2);
+    EXPECT_EQ(cmd.m_orch_desc[0].op, dm_orch_type_db_cfg);    
     EXPECT_TRUE(cmd.m_orch_desc[0].submit);
-    EXPECT_EQ(cmd.m_data_model.m_cmd_ctx.type, dm_orch_type_policy_cfg);
+    EXPECT_EQ(cmd.m_orch_desc[1].op, dm_orch_type_policy_cfg);
+    EXPECT_TRUE(cmd.m_orch_desc[1].submit);
+    EXPECT_EQ(cmd.m_data_model.m_cmd_ctx.type, dm_orch_type_db_cfg);
     cmd.deinit();
     std::cout << "Exiting em_cmd_set_policy_t_valid_complete_parameters test" << std::endl;
 }
@@ -113,10 +115,10 @@ TEST(em_cmd_set_policy_t, em_cmd_set_policy_t_valid_minimal_parameters)
     EXPECT_STREQ(cmd.m_name, "set_policy");
     EXPECT_EQ(cmd.m_svc, em_service_type_ctrl);
     EXPECT_EQ(cmd.m_orch_op_idx, 0);
-    EXPECT_EQ(cmd.m_num_orch_desc, 1);
-    EXPECT_EQ(cmd.m_orch_desc[0].op, dm_orch_type_policy_cfg);
+    EXPECT_EQ(cmd.m_num_orch_desc, 2);
+    EXPECT_EQ(cmd.m_orch_desc[0].op, dm_orch_type_db_cfg);
     EXPECT_TRUE(cmd.m_orch_desc[0].submit);
-    EXPECT_EQ(cmd.m_data_model.m_cmd_ctx.type, dm_orch_type_policy_cfg);
+    EXPECT_EQ(cmd.m_data_model.m_cmd_ctx.type, dm_orch_type_db_cfg);
     cmd.deinit();
     std::cout << "Exiting em_cmd_set_policy_t_valid_minimal_parameters test" << std::endl;
 }
@@ -162,10 +164,10 @@ TEST(em_cmd_set_policy_t, em_cmd_set_policy_t_ctor_max_fixed_args)
     EXPECT_STREQ(cmd.m_name, "set_policy");
     EXPECT_EQ(cmd.m_svc, em_service_type_ctrl);
     EXPECT_EQ(cmd.m_orch_op_idx, 0);
-    EXPECT_EQ(cmd.m_num_orch_desc, 1);
-    EXPECT_EQ(cmd.m_orch_desc[0].op, dm_orch_type_policy_cfg);
+    EXPECT_EQ(cmd.m_num_orch_desc, 2);
+    EXPECT_EQ(cmd.m_orch_desc[0].op, dm_orch_type_db_cfg);
     EXPECT_TRUE(cmd.m_orch_desc[0].submit);
-    EXPECT_EQ(cmd.m_data_model.m_cmd_ctx.type, dm_orch_type_policy_cfg);
+    EXPECT_EQ(cmd.m_data_model.m_cmd_ctx.type, dm_orch_type_db_cfg);
     cmd.deinit();
     std::cout << "Exiting em_cmd_set_policy_t_ctor_max_fixed_args test" << std::endl;
 }

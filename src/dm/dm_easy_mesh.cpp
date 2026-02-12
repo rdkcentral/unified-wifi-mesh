@@ -926,152 +926,185 @@ int dm_easy_mesh_t::decode_config_set_policy(em_subdoc_info_t *subdoc, const cha
 {
 	cJSON *parent_obj, *net_obj, *net_obj_id, *dev_arr_obj, *dev_obj, *dev_obj_id, *policy_obj; 
 	cJSON *ap_metrics_obj, *scan_obj, *radio_metrics_arr_obj, *radio_steer_arr_obj, *local_steer_obj, *btm_steer_obj;
-	cJSON *backhaul_obj, *radio_id_obj, *radio_metrics_obj, *radio_steer_obj, *traffic_sep_obj;
+	cJSON *backhaul_obj, *radio_id_obj, *radio_metrics_obj, *radio_steer_obj;
 	unsigned int num_devices = 0;
 	int i;
 	char *dev_mac_str, *net_id;
 	em_long_string_t parent;
+    cJSON *alarm_obj;
 
     parent_obj = cJSON_Parse(subdoc->buff);
     if (parent_obj == NULL) {
-        printf("%s:%d: Failed to parse: %s\n", __func__, __LINE__, subdoc->buff);
+        em_printfout("Failed to parse: %s",subdoc->buff);
         return EM_PARSE_ERR_GEN;
     }
 
-    if ((net_obj = cJSON_GetObjectItem(parent_obj, key)) == NULL) {
-        printf("%s:%d: Failed to parse: %s\n", __func__, __LINE__, subdoc->buff);
-        cJSON_Delete(parent_obj);
-        return EM_PARSE_ERR_GEN;
-    }
-
-    if ((net_obj = cJSON_GetObjectItem(net_obj, "Network")) == NULL) {
-        printf("%s:%d: Failed to parse: %s\n", __func__, __LINE__, subdoc->buff);
+    /* Look for 'Network' either under provided wrapper key or at top-level */
+    cJSON *wrapper_obj = NULL;
+    if (key != NULL && (wrapper_obj = cJSON_GetObjectItem(parent_obj, key)) != NULL) {
+        char *tmp = cJSON_PrintUnformatted(wrapper_obj);
+        //em_printfout("Found wrapper key '%s'. Wrapper: %s",key, tmp ? tmp : "<null>");
+        if (tmp) free(tmp);
+        net_obj = cJSON_GetObjectItem(wrapper_obj, "Network");
+        if (net_obj == NULL) {
+            char *tmp2 = cJSON_PrintUnformatted(wrapper_obj);
+            em_printfout("Wrapper '%s' present but no 'Network' child. Wrapper JSON: %s",key, tmp2 ? tmp2 : "<null>");
+            if (tmp2) free(tmp2);
+            cJSON_Delete(parent_obj);
+            return EM_PARSE_ERR_GEN;
+        }
+    } else if ((net_obj = cJSON_GetObjectItem(parent_obj, "Network")) != NULL) {
+        char *tmp = cJSON_PrintUnformatted(net_obj);
+        //em_printfout("Found top-level 'Network'. Network: %s",tmp ? tmp : "<null>");
+        if (tmp) free(tmp);
+    } else {
+        char *tmp = cJSON_PrintUnformatted(parent_obj);
+        em_printfout("Neither wrapper key '%s' nor top-level 'Network' found. Payload: %s",key ? key : "<null>", tmp ? tmp : "<null>");
+        if (tmp) free(tmp);
         cJSON_Delete(parent_obj);
         return EM_PARSE_ERR_GEN;
     }
 
     if ((net_obj_id = cJSON_GetObjectItem(net_obj, "ID")) == NULL) {
-        printf("%s:%d: Network ID not present\n", __func__, __LINE__);
+        em_printfout("Network ID not present", __func__, __LINE__);
         cJSON_Delete(parent_obj);
         return EM_PARSE_ERR_NET_ID;
     }
 
-	if ((net_id = cJSON_GetStringValue(net_obj_id)) == NULL) {
-        printf("%s:%d: Network ID not present\n", __func__, __LINE__);
+    if ((net_id = cJSON_GetStringValue(net_obj_id)) == NULL) {
+        em_printfout("Network ID not present", __func__, __LINE__);
         cJSON_Delete(parent_obj);
         return EM_PARSE_ERR_NET_ID;
-	}
+    }
 
     snprintf(m_network.m_net_info.id, sizeof(em_long_string_t), "%s", net_id);
 
-    if ((dev_arr_obj = cJSON_GetObjectItem(net_obj, "DeviceList")) == NULL) {
-        printf("%s:%d: Failed to parse: %s\n", __func__, __LINE__, subdoc->buff);
+    /* Accept either an array 'DeviceList' or a single object 'Device' for backward compatibility */
+    if ((dev_arr_obj = cJSON_GetObjectItem(net_obj, "DeviceList")) != NULL) {
+
+        num_devices = static_cast<unsigned int> (cJSON_GetArraySize(dev_arr_obj));
+        *num = num_devices;
+
+        // check if the index passed is within range
+        if (index >= num_devices) {
+            em_printfout("Invalid input index: %d",index);
+            cJSON_Delete(parent_obj);
+            return EM_PARSE_ERR_GEN;
+        }
+
+        if ((dev_obj = cJSON_GetArrayItem(dev_arr_obj, static_cast<int> (index))) == NULL) {
+            em_printfout("Invalid input index: %d",index);
+            cJSON_Delete(parent_obj);
+            return EM_PARSE_ERR_GEN;
+        }
+    } else if ((dev_obj = cJSON_GetObjectItem(net_obj, "Device")) != NULL) {
+        /* single Device object provided; only valid for index == 0 */
+        num_devices = 1;
+        *num = num_devices;
+        if (index != 0) {
+            em_printfout("Invalid input index for single 'Device' object: %d",index);
+            cJSON_Delete(parent_obj);
+            return EM_PARSE_ERR_GEN;
+        }
+        /* dev_obj is already set */
+    } else {
+        char *tmp = cJSON_PrintUnformatted(net_obj);
+        em_printfout("Failed to parse: no 'DeviceList' or 'Device' found. Network JSON: %s",tmp ? tmp : "<null>");
+        if (tmp) free(tmp);
         cJSON_Delete(parent_obj);
         return EM_PARSE_ERR_GEN;
     }
 
-	num_devices = static_cast<unsigned int> (cJSON_GetArraySize(dev_arr_obj));
-	*num = num_devices;
-
-	// check if the index passed is within range
-	if (index >= num_devices) {
-        printf("%s:%d: Invalid input index: %d\n", __func__, __LINE__, index);
-        cJSON_Delete(parent_obj);
-        return EM_PARSE_ERR_GEN;
-	}
-
-	if ((dev_obj = cJSON_GetArrayItem(dev_arr_obj, static_cast<int> (index))) == NULL) {
-        printf("%s:%d: Invalid input index: %d\n", __func__, __LINE__, index);
-        cJSON_Delete(parent_obj);
-        return EM_PARSE_ERR_GEN;
-	}
-
-	if ((dev_obj_id = cJSON_GetObjectItem(dev_obj, "ID")) == NULL) {
-        printf("%s:%d: Failed to parse: %s\n", __func__, __LINE__, subdoc->buff);
+    if ((dev_obj_id = cJSON_GetObjectItem(dev_obj, "ID")) == NULL) {
+        em_printfout("Failed to parse: %s",subdoc->buff);
         cJSON_Delete(parent_obj);
         return EM_PARSE_ERR_GEN;
     }
 
-	if ((dev_mac_str = cJSON_GetStringValue(dev_obj_id)) == NULL) {
-        printf("%s:%d: Dev Obj ID not present\n", __func__, __LINE__);
+    if ((dev_mac_str = cJSON_GetStringValue(dev_obj_id)) == NULL) {
+        em_printfout("Dev Obj ID not present", __func__, __LINE__);
         cJSON_Delete(parent_obj);
         return EM_PARSE_ERR_NET_ID;
-	}
+    }
 
-	dm_easy_mesh_t::string_to_macbytes(dev_mac_str, m_device.m_device_info.intf.mac);
+    dm_easy_mesh_t::string_to_macbytes(dev_mac_str, m_device.m_device_info.intf.mac);
 
-	if ((policy_obj = cJSON_GetObjectItem(dev_obj, "Policy")) == NULL) {
-        printf("%s:%d: Failed to parse: %s\n", __func__, __LINE__, subdoc->buff);
+    if ((policy_obj = cJSON_GetObjectItem(dev_obj, "Policy")) == NULL) {
+        em_printfout("Failed to parse: %s", subdoc->buff);
         cJSON_Delete(parent_obj);
         return EM_PARSE_ERR_GEN;
     }
 
-	if ((ap_metrics_obj = cJSON_GetObjectItem(policy_obj, "AP Metrics Reporting Policy")) != NULL) {
-		snprintf(parent, sizeof(em_long_string_t), "%s@%s@00:00:00:00:00:00@%d", net_id, dev_mac_str,
-					em_policy_id_type_ap_metrics_rep);
-		m_policy[m_num_policy].decode(ap_metrics_obj, parent, em_policy_id_type_ap_metrics_rep);
-		m_num_policy++;
-    }
-
-	if ((local_steer_obj = cJSON_GetObjectItem(policy_obj, "Local Steering Disallowed Policy")) != NULL) {
-		snprintf(parent, sizeof(em_long_string_t), "%s@%s@00:00:00:00:00:00@%d", net_id, dev_mac_str,
-					em_policy_id_type_steering_local);
-		m_policy[m_num_policy].decode(local_steer_obj, parent, em_policy_id_type_steering_local);
-		m_num_policy++;
-    }
-
-	if ((btm_steer_obj = cJSON_GetObjectItem(policy_obj, "BTM Steering Disallowed Policy")) != NULL) {
-		snprintf(parent, sizeof(em_long_string_t), "%s@%s@00:00:00:00:00:00@%d", net_id, dev_mac_str,
-					em_policy_id_type_steering_btm);
-		m_policy[m_num_policy].decode(btm_steer_obj, parent, em_policy_id_type_steering_btm);
-		m_num_policy++;
-    }
-
-	if ((backhaul_obj = cJSON_GetObjectItem(policy_obj, "Backhaul BSS Configuration Policy")) != NULL) {
-		snprintf(parent, sizeof(em_long_string_t), "%s@%s@00:00:00:00:00:00@%d", net_id, dev_mac_str,
-					em_policy_id_type_backhaul_bss_config);
-		m_policy[m_num_policy].decode(backhaul_obj, parent, em_policy_id_type_backhaul_bss_config);
-		m_num_policy++;
-    }
-
-	if ((scan_obj = cJSON_GetObjectItem(policy_obj, "Channel Scan Reporting Policy")) != NULL) {
-		snprintf(parent, sizeof(em_long_string_t), "%s@%s@00:00:00:00:00:00@%d", net_id, dev_mac_str,
-					em_policy_id_type_channel_scan);
-		m_policy[m_num_policy].decode(scan_obj, parent, em_policy_id_type_channel_scan);
-		m_num_policy++;
-    }
-
-	if ((radio_metrics_arr_obj = cJSON_GetObjectItem(policy_obj, "Radio Specific Metrics Policy")) != NULL) {
-		for (i = 0; i < cJSON_GetArraySize(radio_metrics_arr_obj); i++) {
-			radio_metrics_obj = cJSON_GetArrayItem(radio_metrics_arr_obj, i);
-			radio_id_obj = cJSON_GetObjectItem(radio_metrics_obj, "ID");
-			snprintf(parent, sizeof(em_long_string_t), "%s@%s@%s@%d", net_id, dev_mac_str, cJSON_GetStringValue(radio_id_obj),
-						em_policy_id_type_radio_metrics_rep);
-			m_policy[m_num_policy].decode(radio_metrics_obj, parent, em_policy_id_type_radio_metrics_rep);
-			m_num_policy++;
-		}
-    }
-
-    if ((traffic_sep_obj = cJSON_GetObjectItem(policy_obj, "Traffic Separation Policy")) != NULL) {
+    if ((alarm_obj = cJSON_GetObjectItem(policy_obj, "Algorithm Run Policy")) != NULL) {
         snprintf(parent, sizeof(em_long_string_t), "%s@%s@00:00:00:00:00:00@%d", net_id, dev_mac_str,
-                em_policy_id_type_traffic_separation);
-        m_policy[m_num_policy].decode(traffic_sep_obj, parent, em_policy_id_type_traffic_separation);
+                    em_policy_id_type_alarm_threshold);
+        m_policy[m_num_policy].decode(alarm_obj, parent, em_policy_id_type_alarm_threshold);
         m_num_policy++;
     }
 
-	if ((radio_steer_arr_obj = cJSON_GetObjectItem(policy_obj, "Radio Steering Parameters")) != NULL) {
-		for (i = 0; i < cJSON_GetArraySize(radio_steer_arr_obj); i++) {
-			radio_steer_obj = cJSON_GetArrayItem(radio_steer_arr_obj, i);
-			radio_id_obj = cJSON_GetObjectItem(radio_steer_obj, "ID");
-			snprintf(parent, sizeof(em_long_string_t), "%s@%s@%s@%d", net_id, dev_mac_str, cJSON_GetStringValue(radio_id_obj),
-						em_policy_id_type_steering_param);
-			m_policy[m_num_policy].decode(radio_steer_obj, parent, em_policy_id_type_steering_param);
-			m_num_policy++;
-		}
+    if ((ap_metrics_obj = cJSON_GetObjectItem(policy_obj, "AP Metrics Reporting Policy")) != NULL) {
+        snprintf(parent, sizeof(em_long_string_t), "%s@%s@00:00:00:00:00:00@%d", net_id, dev_mac_str,
+                    em_policy_id_type_ap_metrics_rep);
+        m_policy[m_num_policy].decode(ap_metrics_obj, parent, em_policy_id_type_ap_metrics_rep);
+        m_num_policy++;
     }
 
+    if ((local_steer_obj = cJSON_GetObjectItem(policy_obj, "Local Steering Disallowed Policy")) != NULL) {
+        snprintf(parent, sizeof(em_long_string_t), "%s@%s@00:00:00:00:00:00@%d", net_id, dev_mac_str,
+                    em_policy_id_type_steering_local);
+        m_policy[m_num_policy].decode(local_steer_obj, parent, em_policy_id_type_steering_local);
+        m_num_policy++;
+    }
 
-	return 0;
+    if ((btm_steer_obj = cJSON_GetObjectItem(policy_obj, "BTM Steering Disallowed Policy")) != NULL) {
+        snprintf(parent, sizeof(em_long_string_t), "%s@%s@00:00:00:00:00:00@%d", net_id, dev_mac_str,
+                    em_policy_id_type_steering_btm);
+        m_policy[m_num_policy].decode(btm_steer_obj, parent, em_policy_id_type_steering_btm);
+        m_num_policy++;
+    }
+
+    if ((backhaul_obj = cJSON_GetObjectItem(policy_obj, "Backhaul BSS Configuration Policy")) != NULL) {
+        snprintf(parent, sizeof(em_long_string_t), "%s@%s@00:00:00:00:00:00@%d", net_id, dev_mac_str,
+                    em_policy_id_type_backhaul_bss_config);
+        m_policy[m_num_policy].decode(backhaul_obj, parent, em_policy_id_type_backhaul_bss_config);
+        m_num_policy++;
+    }
+
+    if ((scan_obj = cJSON_GetObjectItem(policy_obj, "Channel Scan Reporting Policy")) != NULL) {
+        snprintf(parent, sizeof(em_long_string_t), "%s@%s@00:00:00:00:00:00@%d", net_id, dev_mac_str,
+                    em_policy_id_type_channel_scan);
+        m_policy[m_num_policy].decode(scan_obj, parent, em_policy_id_type_channel_scan);
+        m_num_policy++;
+    }
+
+    if ((radio_metrics_arr_obj = cJSON_GetObjectItem(policy_obj, "Radio Specific Metrics Policy")) != NULL) {
+        for (i = 0; i < cJSON_GetArraySize(radio_metrics_arr_obj); i++) {
+            radio_metrics_obj = cJSON_GetArrayItem(radio_metrics_arr_obj, i);
+            radio_id_obj = cJSON_GetObjectItem(radio_metrics_obj, "ID");
+            if (radio_id_obj != NULL) {
+                mac_addr_t mac;
+                dm_easy_mesh_t::string_to_macbytes(cJSON_GetStringValue(radio_id_obj), mac);
+                memcpy(m_policy[m_num_policy].m_policy.id.radio_mac, mac, sizeof(mac_addr_t));
+            }
+            snprintf(parent, sizeof(em_long_string_t), "%s@%s@%s@%d", net_id, dev_mac_str, cJSON_GetStringValue(radio_id_obj),
+                        em_policy_id_type_radio_metrics_rep);
+            m_policy[m_num_policy].decode(radio_metrics_obj, parent, em_policy_id_type_radio_metrics_rep);
+            m_num_policy++;
+        }
+    }
+
+    if ((radio_steer_arr_obj = cJSON_GetObjectItem(policy_obj, "Radio Steering Parameters")) != NULL) {
+        for (i = 0; i < cJSON_GetArraySize(radio_steer_arr_obj); i++) {
+            radio_steer_obj = cJSON_GetArrayItem(radio_steer_arr_obj, i);
+            radio_id_obj = cJSON_GetObjectItem(radio_steer_obj, "ID");
+            snprintf(parent, sizeof(em_long_string_t), "%s@%s@%s@%d", net_id, dev_mac_str, cJSON_GetStringValue(radio_id_obj),
+                        em_policy_id_type_steering_param);
+            m_policy[m_num_policy].decode(radio_steer_obj, parent, em_policy_id_type_steering_param);
+            m_num_policy++;
+        }
+    }
+
+    return 0;
 }
 
 int dm_easy_mesh_t::decode_config_set_channel(em_subdoc_info_t *subdoc, const char *key, unsigned int index, unsigned int *num)
@@ -2177,6 +2210,18 @@ void dm_easy_mesh_t::create_client_cap_query_json_cmd(char* src_mac_addr, char* 
     size_t tmp_length = strlen(tmp) + 1;
     snprintf(ap_query_json, tmp_length, "%s", tmp);
     cJSON_Delete(root);
+}
+
+bool dm_easy_mesh_t::is_ssid_match(const ssid_t &ssid)
+{
+    em_network_ssid_info_t *info;
+    for (unsigned int i = 0; i < m_num_net_ssids; i++) {
+        info = &m_network_ssid[i].m_network_ssid_info;
+        if (strncmp(info->ssid, ssid, sizeof(info->ssid)) == 0) {
+            return true;
+        }
+    }
+    return false;
 }
 
 em_network_ssid_info_t *dm_easy_mesh_t::get_network_ssid_info_by_haul_type(em_haul_type_t haul_type)

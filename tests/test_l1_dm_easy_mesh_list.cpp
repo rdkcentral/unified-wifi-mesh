@@ -19,13 +19,14 @@
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>
 #include <stdio.h>
+#include <sanitizer/lsan_interface.h>
 #include "em_ctrl.h"
 #include "dm_easy_mesh_list.h"
 
 
-extern "C" const char* __asan_default_options() {
-    return "detect_leaks=0";
-}
+//extern "C" const char* __asan_default_options() {
+//    return "detect_leaks=0";
+//}
 
 class dm_easy_mesh_list_tTEST : public ::testing::Test {
 protected:
@@ -45,10 +46,10 @@ protected:
     }
 
     // Helper to build device key
-    void build_device_key(const char *net_id, unsigned char *dev_mac, char *key) {
+    void build_device_key(const char *net_id, unsigned char *dev_mac, em_media_type_t media, char *key) {
         char mac_str[18];
         mac_to_string(dev_mac, mac_str);
-        sprintf(key, "%s:%s", net_id, mac_str);
+        sprintf(key, "%s@%s@%d", net_id, mac_str, media);
     }
 
     // Helper to build BSS key
@@ -104,6 +105,7 @@ protected:
 
 
     void SetUp() override {
+	__lsan_disable();
         list.init((em_mgr_t*)&mgr);
         
         // Add data models for Network1
@@ -154,6 +156,7 @@ protected:
             free(dm4->m_wifi_data);
             dm4->m_wifi_data = nullptr;
         }
+	__lsan_enable();
     }
 };
 
@@ -209,6 +212,7 @@ TEST_F(dm_easy_mesh_list_tTEST, create_data_model_valid_data_model_creation) {
     EXPECT_EQ(dm->m_colocated, false);
     std::cout << "Exiting " << testName << " test" << std::endl;
 }
+
 /**
  * @brief Verify that create_data_model returns a null pointer when net_id is NULL
  *
@@ -248,6 +252,7 @@ TEST_F(dm_easy_mesh_list_tTEST, create_data_model_negative_null_net_id) {
     EXPECT_EQ(dm, nullptr);
     std::cout << "Exiting " << testName << " test" << std::endl;
 }
+
 /**
  * @brief Verify handling of null interface pointer in create_data_model API
  *
@@ -282,6 +287,7 @@ TEST_F(dm_easy_mesh_list_tTEST, create_data_model_negative_null_al_intf) {
     EXPECT_EQ(dm, nullptr);
     std::cout << "Exiting " << testName << " test" << std::endl;
 }
+
 /**
  * @brief Test the create_data_model API for multiple loop profile types
  *
@@ -331,6 +337,7 @@ TEST_F(dm_easy_mesh_list_tTEST, create_data_model_loop_profile_types) {
     }
     std::cout << "Exiting " << testName << " test" << std::endl;
 }
+
 /**
  * @brief Test debug_probe() API for valid invocation.
  *
@@ -356,6 +363,7 @@ TEST_F(dm_easy_mesh_list_tTEST, debug_probe_valid_invocation) {
     std::cout << "debug_probe() executed successfully" << std::endl;
     std::cout << "Exiting debug_probe_valid_invocation test" << std::endl;
 }
+
 /**
  * @brief Validate that an existing data model is correctly deleted.
  *
@@ -395,6 +403,7 @@ TEST_F(dm_easy_mesh_list_tTEST, delete_data_model_existent) {
     std::cout << "delete_data_model invoked; matching data model found, deletion performed." << std::endl;
     std::cout << "Exiting delete_data_model_existent test" << std::endl;
 }
+
 /**
  * @brief Verify that delete_data_model correctly handles deletion requests for non-existent data models.
  *
@@ -430,6 +439,7 @@ TEST_F(dm_easy_mesh_list_tTEST, delete_data_model_non_existent) {
     std::cout << "delete_data_model invoked; no matching data model found, no deletion performed." << std::endl;
     std::cout << "Exiting delete_data_model_non_existent test" << std::endl;
 }
+
 /**
  * @brief Test delete_data_model API with NULL network ID
  *
@@ -464,6 +474,7 @@ TEST_F(dm_easy_mesh_list_tTEST, delete_data_model_null_netid) {
     std::cout << "delete_data_model invoked; handled NULL network ID gracefully with no deletion." << std::endl;
     std::cout << "Exiting delete_data_model_null_netid test" << std::endl;
 }
+
 /**
  * @brief Test to verify that delete_data_model handles a NULL AL MAC input correctly
  *
@@ -493,6 +504,7 @@ TEST_F(dm_easy_mesh_list_tTEST, delete_data_model_null_al_mac) {
     std::cout << "delete_data_model invoked; handled NULL AL MAC gracefully with no deletion." << std::endl;
     std::cout << "Exiting delete_data_model_null_al_mac test" << std::endl;
 }
+
 /**
  * @brief Test deletion attempt with an empty network ID
  *
@@ -524,6 +536,7 @@ TEST_F(dm_easy_mesh_list_tTEST, delete_data_model_empty_netid) {
     std::cout << "delete_data_model invoked; no data model found for empty network ID, no deletion performed." << std::endl;
     std::cout << "Exiting delete_data_model_empty_netid test" << std::endl;
 }
+
 /**
  * @brief Validate that the default constructor of dm_easy_mesh_list_t creates a single instance without throwing exceptions
  *
@@ -549,6 +562,7 @@ TEST_F(dm_easy_mesh_list_tTEST, dm_easy_mesh_list_t_defaultConstructor_singleIns
     EXPECT_NO_THROW(dm_easy_mesh_list_t instance);
     std::cout << "Exiting dm_easy_mesh_list_t_defaultConstructor_singleInstance test" << std::endl;
 }
+
 /**
  * @brief Test the retrieval of a non-existent BSS key
  *
@@ -580,6 +594,7 @@ TEST_F(dm_easy_mesh_list_tTEST, get_bss_key_not_exists) {
     EXPECT_EQ(result, nullptr);
     std::cout << "Exiting get_bss_key_not_exists test" << std::endl;
 }
+
 /**
  * @brief Verify that get_bss API returns a null pointer when provided with a null key.
  *
@@ -607,6 +622,7 @@ TEST_F(dm_easy_mesh_list_tTEST, get_bss_null_key) {
     EXPECT_EQ(result, nullptr);
     std::cout << "Exiting get_bss_null_key test" << std::endl;
 }
+
 /**
  * @brief Validate that get_bss returns nullptr when provided with an empty network identifier.
  *
@@ -639,6 +655,7 @@ TEST_F(dm_easy_mesh_list_tTEST, get_bss_empty_key) {
     EXPECT_EQ(result, nullptr);
     std::cout << "Exiting get_bss_empty_key test" << std::endl;
 }
+
 /**
  * @brief Validate retrieval of an existing data model using a valid Network ID and MAC address
  *
@@ -689,6 +706,7 @@ TEST_F(dm_easy_mesh_list_tTEST, get_data_model_ExistentNetworkID) {
     ASSERT_EQ(memcmp(dm2->m_device.m_device_info.intf.mac, mac, 6), 0);
     std::cout << "Exiting get_data_model_ExistentNetworkID test" << std::endl;
 }
+
 /**
  * @brief Test the retrieval of a data model for a non-existent network ID
  *
@@ -726,6 +744,7 @@ TEST_F(dm_easy_mesh_list_tTEST, get_data_model_NonExistentNetworkID) {
     EXPECT_EQ(dataModel, nullptr);
     std::cout << "Exiting get_data_model_NonExistentNetworkID test" << std::endl;
 }
+
 /**
  * @brief Verifies that get_data_model returns nullptr when provided with a null network ID.
  *
@@ -755,6 +774,7 @@ TEST_F(dm_easy_mesh_list_tTEST, get_data_model_NullNetworkID) {
     ASSERT_EQ(dataModel, nullptr);
     std::cout << "Exiting get_data_model_NullNetworkID test" << std::endl;
 }
+
 /**
  * @brief Verify that get_data_model returns nullptr when provided with a NULL AL MAC parameter.
  *
@@ -782,6 +802,7 @@ TEST_F(dm_easy_mesh_list_tTEST, get_data_model_NullALMAC) {
     ASSERT_EQ(dataModel, nullptr);
     std::cout << "Exiting get_data_model_NullALMAC test" << std::endl;
 }
+
 /**
  * @brief Validate retrieval of an existing device from the mesh list
  *
@@ -816,6 +837,7 @@ TEST_F(dm_easy_mesh_list_tTEST, get_device_valid_existing_device)
     ASSERT_EQ(device->m_device_info.profile, em_profile_type_2);
     std::cout << "Exiting get_device_valid_existing_device test" << std::endl;
 }
+
 /**
  * @brief Verify that get_device with a non-existing key returns nullptr.
  *
@@ -845,6 +867,7 @@ TEST_F(dm_easy_mesh_list_tTEST, get_device_valid_non_existing_device)
     EXPECT_EQ(device, nullptr);
     std::cout << "Exiting get_device_valid_non_existing_device test" << std::endl;
 }
+
 /**
  * @brief Test get_device API for null key input, ensuring proper null return on invalid input.
  *
@@ -874,6 +897,7 @@ TEST_F(dm_easy_mesh_list_tTEST, get_device_null_key)
     EXPECT_EQ(device, nullptr);
     std::cout << "Exiting get_device_null_key test" << std::endl;
 }
+
 /**
  * @brief Test for get_device function with an empty key.
  *
@@ -902,6 +926,7 @@ TEST_F(dm_easy_mesh_list_tTEST, get_device_empty_key)
     EXPECT_EQ(device, nullptr);
     std::cout << "Exiting get_device_empty_key test" << std::endl;
 }
+
 /**
  * @brief Validate get_device returns nullptr for an improperly formatted key
  *
@@ -930,6 +955,7 @@ TEST_F(dm_easy_mesh_list_tTEST, get_device_improper_formatted_key)
     EXPECT_EQ(device, nullptr);
     std::cout << "Exiting get_device_improper_formatted_key test" << std::endl;
 }
+
 /**
  * @brief Test to verify get_device handles keys with extra whitespace.
  *
@@ -961,6 +987,7 @@ TEST_F(dm_easy_mesh_list_tTEST, get_device_extra_whitespace)
     EXPECT_EQ(device, nullptr);
     std::cout << "Exiting get_device_extra_whitespace test" << std::endl;
 }
+
 /**
  * @brief Verify that get_first_bss() returns NULL when the network list has no BSS entries.
  *
@@ -992,6 +1019,7 @@ TEST_F(dm_easy_mesh_list_tTEST, get_first_bss_returns_NULL_when_empty)
     EXPECT_EQ(firstBss, nullptr);
     std::cout << "Exiting " << testName << " test" << std::endl;
 }
+
 /**
  * @brief Verify that get_first_device returns a valid pointer and expected network configuration
  *
@@ -1027,6 +1055,7 @@ TEST_F(dm_easy_mesh_list_tTEST, get_first_device_returns_valid_pointer)
 	EXPECT_EQ(device->m_device_info.profile, em_profile_type_3);
 	std::cout << "Exiting get_first_device_returns_valid_pointer test" << std::endl;
 }
+
 /**
  * @brief Verify that the get_first_dm API returns the first valid data model element from the list.
  *
@@ -1062,6 +1091,7 @@ TEST_F(dm_easy_mesh_list_tTEST, get_first_dm_valid)
 	EXPECT_EQ(firstElement->m_num_policy, 8);
     std::cout << "Exiting get_first_dm_valid test" << std::endl;
 }
+
 /**
  * @brief Verify that get_first_network() returns nullptr when no networks are present
  *
@@ -1089,6 +1119,7 @@ TEST_F(dm_easy_mesh_list_tTEST, get_first_network_returns_NULL_when_no_networks_
     ASSERT_EQ(result, nullptr);
     std::cout << "Exiting get_first_network_returns_NULL_when_no_networks_present test" << std::endl;
 }
+
 /**
  * @brief Verify that get_first_network_ssid returns null when no network SSID is available.
  *
@@ -1117,6 +1148,7 @@ TEST_F(dm_easy_mesh_list_tTEST, get_first_network_ssid_returns_null)
     ASSERT_EQ(first_network, nullptr);
     std::cout << "Exiting get_first_network_ssid_returns_null test" << std::endl;
 }
+
 /**
  * @brief Verify correct retrieval of the first operation class from the mesh list
  *
@@ -1150,6 +1182,7 @@ TEST_F(dm_easy_mesh_list_tTEST, get_first_op_class_valid)
     std::cout << "Returned op_class = " << opClass->m_op_class_info.op_class << std::endl;			
     std::cout << "Exiting get_first_op_class_valid test" << std::endl;
 }
+
 /**
  * @brief Verify behavior of get_first_policy() when the policy list is empty
  *
@@ -1186,6 +1219,7 @@ TEST_F(dm_easy_mesh_list_tTEST, get_first_policy_empty_policy_list)
     //EXPECT_EQ(memcmp(pol->m_policy.id.originator, zeroMac, 6), 0);
     std::cout << "Exiting " << testName << " test" << std::endl;
 }
+
 /**
  * @brief Test get_first_pre_set_op_class_by_type API for negative scenario where no pre-configured operation class exists.
  *
@@ -1212,6 +1246,7 @@ TEST_F(dm_easy_mesh_list_tTEST, get_first_pre_set_op_class_by_type_NoPreConfigur
     ASSERT_EQ(opClass, nullptr);
     std::cout << "Exiting get_first_pre_set_op_class_by_type_NoPreConfiguredOperationClassPresent test" << std::endl;
 }
+
 /**
  * @brief Verify get_first_radio() behavior when multiple radios exist
  *
@@ -1238,6 +1273,7 @@ TEST_F(dm_easy_mesh_list_tTEST, get_first_radio_returns_valid_pointer_when_multi
     ASSERT_EQ(radio, nullptr);
     std::cout << "Exiting get_first_radio_returns_valid_pointer_when_one_radio_exist test" << std::endl;
 }
+
 /**
  * @brief Verify that get_first_radio returns NULL for an unmatched network ID.
  *
@@ -1267,6 +1303,7 @@ TEST_F(dm_easy_mesh_list_tTEST, get_first_radio_returns_NULL_when_net_id_does_no
     ASSERT_EQ(radio, nullptr);
     std::cout << "Exiting get_first_radio_returns_NULL_when_net_id_does_not_match test" << std::endl;
 }
+
 /**
  * @brief Verify that get_first_radio returns nullptr when provided with a null MAC address.
  *
@@ -1294,6 +1331,7 @@ TEST_F(dm_easy_mesh_list_tTEST, get_first_radio_handles_null_mac) {
     EXPECT_EQ(radio, nullptr);
     std::cout << "Exiting get_first_radio_handles_null_mac test" << std::endl;
 }
+
 /**
  * @brief Test that verifies get_first_radio returns NULL when provided with a NULL net_id
  *
@@ -1324,6 +1362,7 @@ TEST_F(dm_easy_mesh_list_tTEST, get_first_radio_NULL_netid_returns_NULL)
     ASSERT_EQ(nullptr, radio);
     std::cout << "Exiting get_first_radio_NULL_netid_returns_NULL test" << std::endl;
 }
+
 /**
  * @brief Test that get_first_radio returns nullptr when provided with an empty network ID.
  *
@@ -1359,6 +1398,7 @@ TEST_F(dm_easy_mesh_list_tTEST, get_first_radio_empty_netid_returns_NULL)
     ASSERT_EQ(nullptr, radio);
     std::cout << "Exiting get_first_radio_empty_netid_returns_NULL test" << std::endl;
 }
+
 /**
  * @brief Validate that get_first_scan_result() returns nullptr when no scan results exist
  *
@@ -1390,6 +1430,7 @@ TEST_F(dm_easy_mesh_list_tTEST, get_first_scan_result_ReturnNullWhenNoScanResult
     ASSERT_EQ(result, nullptr);
     std::cout << "Exiting get_first_scan_result_ReturnNullWhenNoScanResultsExist test" << std::endl;
 }
+
 /**
  * @brief Verify that get_first_sta() returns nullptr when the network list contains no STA entries.
  *
@@ -1417,6 +1458,7 @@ TEST_F(dm_easy_mesh_list_tTEST, get_first_sta_empty_network_list)
     EXPECT_EQ(firstSta, nullptr);
     std::cout << "Exiting " << testName << " test" << std::endl;
 }
+
 /**
  * @brief Test to verify that get_network returns null when a non-existent key is provided.
  *
@@ -1444,6 +1486,7 @@ TEST_F(dm_easy_mesh_list_tTEST, get_network_nonExistentKey)
     ASSERT_EQ(retNetwork, nullptr);
     std::cout << "Exiting get_network_nonExistentKey test" << std::endl;
 }
+
 /**
  * @brief Test for retrieving a network using an empty key
  *
@@ -1471,6 +1514,7 @@ TEST_F(dm_easy_mesh_list_tTEST, get_network_emptyKey)
     ASSERT_NE(retNetwork, nullptr);
     std::cout << "Exiting get_network_emptyKey test" << std::endl;
 }
+
 /**
  * @brief Verify that get_network returns nullptr when provided a null key
  *
@@ -1499,6 +1543,7 @@ TEST_F(dm_easy_mesh_list_tTEST, get_network_NULLKey)
     ASSERT_EQ(retNetwork, nullptr);
     std::cout << "Exiting get_network_NULLKey test" << std::endl;
 }
+
 /**
  * @brief Test negative scenario for get_network_ssid function.
  *
@@ -1527,6 +1572,7 @@ TEST_F(dm_easy_mesh_list_tTEST, get_network_ssid_Negative_nonexistent_key) {
     ASSERT_EQ(result, nullptr);
     std::cout << "Exiting get_network_ssid_Negative_nonexistent_key test" << std::endl;
 }
+
 /**
  * @brief Validates the get_network_ssid API with a null key.
  *
@@ -1555,6 +1601,7 @@ TEST_F(dm_easy_mesh_list_tTEST, get_network_ssid_Negative_null_key) {
     ASSERT_EQ(result, nullptr);
     std::cout << "Exiting get_network_ssid_Negative_null_key test" << std::endl;
 }
+
 /**
  * @brief Verify that get_network_ssid returns nullptr when provided with an empty string key
  *
@@ -1584,6 +1631,7 @@ TEST_F(dm_easy_mesh_list_tTEST, get_network_ssid_Negative_empty_string_key) {
     EXPECT_EQ(result, nullptr);
     std::cout << "Exiting get_network_ssid_Negative_empty_string_key test" << std::endl;
 }
+
 /**
  * @brief Verify that get_network_ssid returns nullptr when provided with a key containing special characters that does not exist in the network SSID list
  *
@@ -1614,6 +1662,7 @@ TEST_F(dm_easy_mesh_list_tTEST, get_network_ssid_Positive_special_character_key_
     ASSERT_EQ(result, nullptr);
     std::cout << "Exiting get_network_ssid_Positive_special_character_key_notexists test" << std::endl;
 }
+
 /**
  * @brief Verify that get_next_bss returns the correct subsequent BSS when provided a valid BSS.
  *
@@ -1659,6 +1708,7 @@ TEST_F(dm_easy_mesh_list_tTEST, get_next_bss_valid)
     ASSERT_NE(result, nullptr);
     std::cout << "Exiting get_next_bss_valid test" << std::endl;
 }
+
 /**
  * @brief Verify that get_next_bss returns nullptr when provided a NULL current BSS.
  *
@@ -1685,6 +1735,7 @@ TEST_F(dm_easy_mesh_list_tTEST, get_next_bss_returnNull_when_currentBSSNULL)
     ASSERT_EQ(result, nullptr);
     std::cout << "Exiting get_next_bss_returnNull_when_currentBSSNULL test" << std::endl;
 }
+
 /**
  * @brief Validate that get_next_device returns the valid subsequent device in the list.
  *
@@ -1719,6 +1770,7 @@ TEST_F(dm_easy_mesh_list_tTEST, GetNextDevice_Positive)
     ASSERT_NE(next, nullptr);
     std::cout << "Exiting GetNextDevice_Positive test" << std::endl;
 }
+
 /**
  * @brief Verify get_next_device returns nullptr when invoked with a NULL device pointer
  *
@@ -1746,6 +1798,7 @@ TEST_F(dm_easy_mesh_list_tTEST, get_next_device_EmptyDeviceListWithNULLInput)
     ASSERT_EQ(retDev, nullptr);
     std::cout << "Exiting get_next_device_EmptyDeviceListWithNULLInput test" << std::endl;
 }
+
 /**
  * @brief Validate the retrieval of the next data model in the list
  *
@@ -1775,6 +1828,7 @@ TEST_F(dm_easy_mesh_list_tTEST, get_next_dm_Positive) {
     ASSERT_NE(next, nullptr);
     std::cout << "Exiting get_next_dm_Positive test" << std::endl;
 }
+
 /**
  * @brief Verify get_next_dm returns nullptr for a nullptr input.
  *
@@ -1804,6 +1858,7 @@ TEST_F(dm_easy_mesh_list_tTEST, get_next_dm_NullptrInput) {
     ASSERT_EQ(next, nullptr);
     std::cout << "Exiting get_next_dm_NullptrInput test" << std::endl;
 }
+
 /**
  * @brief Verify get_next_network handles NULL current network pointer correctly
  *
@@ -1829,6 +1884,7 @@ TEST_F(dm_easy_mesh_list_tTEST, get_next_network_null_current_network) {
     ASSERT_EQ(nextNet, nullptr);
     std::cout << "Exiting get_next_network_null_current_network test" << std::endl;
 }
+
 /**
  * @brief Verify get_next_network_ssid returns nullptr for NULL network_ssid input
  *
@@ -1857,6 +1913,7 @@ TEST_F(dm_easy_mesh_list_tTEST, get_next_network_ssid_null_input)
     ASSERT_EQ(result, nullptr);
     std::cout << "Exiting get_next_network_ssid_null_input test" << std::endl;
 }
+
 /**
  * @brief Tests the valid functionality of get_next_op_class after obtaining the first op class.
  *
@@ -1885,6 +1942,7 @@ TEST_F(dm_easy_mesh_list_tTEST, get_next_op_class_valid) {
     ASSERT_NE(next, nullptr);
     std::cout << "Exiting get_next_op_class_valid test" << std::endl;
 }
+
 /**
  * @brief Verify that get_next_op_class gracefully handles a null pointer on an empty list.
  *
@@ -1912,6 +1970,7 @@ TEST_F(dm_easy_mesh_list_tTEST, get_next_op_class_Retrieve_next_operating_class_
     ASSERT_EQ(result, nullptr);
     std::cout << "Exiting get_next_op_class_Retrieve_next_operating_class_from_empty_list_using_NULL_pointer test" << std::endl;
 }
+
 /**
  * @brief Validates retrieval of the next policy using valid inputs.
  *
@@ -1941,6 +2000,7 @@ TEST_F(dm_easy_mesh_list_tTEST, get_next_policy_positive)
 	ASSERT_NE(result, nullptr);
 	std::cout << "Exiting get_next_policy_positive test" << std::endl;
 }
+
 /**
  * @brief Verify that get_next_policy returns nullptr when passed a NULL pointer.
  *
@@ -1970,6 +2030,7 @@ TEST_F(dm_easy_mesh_list_tTEST, get_next_policy_passing_null_current_policy)
     ASSERT_EQ(result, nullptr);
     std::cout << "Exiting get_next_policy_passing_null_current_policy test" << std::endl;
 }
+
 /**
  * @brief Verifies that get_next_pre_set_op_class_by_type returns nullptr when invoked with a NULL op_class pointer.
  *
@@ -1999,6 +2060,7 @@ TEST_F(dm_easy_mesh_list_tTEST, get_next_pre_set_op_class_by_type_null_op_class_
     ASSERT_EQ(ret, nullptr);
     std::cout << "Exiting get_next_pre_set_op_class_by_type_null_op_class_exists test" << std::endl;
 }
+
 /**
  * @brief Test get_next_pre_set_op_class_by_type with an invalid op_class type.
  *
@@ -2027,6 +2089,7 @@ TEST_F(dm_easy_mesh_list_tTEST, get_next_pre_set_op_class_by_type_invalid_opclas
     ASSERT_EQ(ret, nullptr);
     std::cout << "Exiting get_next_pre_set_op_class_by_type_invalid_opclasstype test" << std::endl;
 }
+
 /**
  * @brief Validate that get_next_radio returns a valid next radio when available
  *
@@ -2067,6 +2130,7 @@ TEST_F(dm_easy_mesh_list_tTEST, get_next_radio_valid_next_radio_available)
     }
     std::cout << "Exiting get_next_radio_valid_next_radio_available test" << std::endl;
 }
+
 /**
  * @brief Validate that get_next_radio returns a null pointer when no subsequent radio is available
  *
@@ -2104,6 +2168,7 @@ TEST_F(dm_easy_mesh_list_tTEST, get_next_radio_no_next_radio_available)
     ASSERT_EQ(nextRadio, nullptr);
     std::cout << "Exiting get_next_radio_no_next_radio_available test" << std::endl;
 }
+
 /**
  * @brief Verify that get_next_radio returns a nullptr when a null network identifier is provided.
  *
@@ -2146,6 +2211,7 @@ TEST_F(dm_easy_mesh_list_tTEST, get_next_radio_null_net_id_provided)
     }    
     std::cout << "Exiting get_next_radio_null_net_id_provided test" << std::endl;
 }
+
 /**
  * @brief Verify that get_next_radio returns a null pointer when a null radio pointer is provided
  *
@@ -2175,6 +2241,7 @@ TEST_F(dm_easy_mesh_list_tTEST, get_next_radio_null_radio_pointer_provided)
     ASSERT_EQ(nextRadio, nullptr);
     std::cout << "Exiting get_next_radio_null_radio_pointer_provided test" << std::endl;
 }
+
 /**
  * @brief Verifies that get_next_radio returns NULL when provided with a NULL radio pointer.
  *
@@ -2202,6 +2269,7 @@ TEST_F(dm_easy_mesh_list_tTEST, get_next_radio_null_input)
     EXPECT_EQ(returnedRadio, nullptr);
     std::cout << "Exiting get_next_radio_null_input test" << std::endl;
 }
+
 /**
  * @brief Validate successful retrieval of the next scan result in a positive scenario
  *
@@ -2259,6 +2327,7 @@ TEST_F(dm_easy_mesh_list_tTEST, get_next_scan_result_positive)
     delete scan2;
     std::cout << "Exiting get_next_scan_result_positive test" << std::endl;
 }
+
 /**
  * @brief Test get_next_scan_result with a NULL scan_result parameter
  *
@@ -2285,6 +2354,7 @@ TEST_F(dm_easy_mesh_list_tTEST, get_next_scan_result_NULL_input)
     EXPECT_EQ(nextResult, nullptr);
     std::cout << "Exiting get_next_scan_result_NULL_input test" << std::endl;
 }
+
 /**
  * @brief Verify that get_next_sta returns nullptr when a NULL pointer is passed.
  *
@@ -2310,6 +2380,7 @@ TEST_F(dm_easy_mesh_list_tTEST, get_next_sta_NULL_pointer_returns_NULL) {
     EXPECT_EQ(result, nullptr);
     std::cout << "Exiting get_next_sta_NULL_pointer_returns_NULL test" << std::endl;
 }
+
 /**
  * @brief Verify that get_op_class returns nullptr for a non-existent key
  *
@@ -2342,6 +2413,7 @@ TEST_F(dm_easy_mesh_list_tTEST, get_op_class_non_existent_key)
     EXPECT_EQ(opClassObj, nullptr);
     std::cout << "Exiting get_op_class_non_existent_key test" << std::endl;
 }
+
 /**
  * @brief Validate get_op_class returns null when given a null key.
  *
@@ -2371,6 +2443,7 @@ TEST_F(dm_easy_mesh_list_tTEST, get_op_class_null_key)
     ASSERT_EQ(opClassObj, nullptr);
     std::cout << "Exiting get_op_class_null_key test" << std::endl;
 }
+
 /**
  * @brief Test for retrieving a non-existent policy key
  *
@@ -2400,6 +2473,7 @@ TEST_F(dm_easy_mesh_list_tTEST, get_policy_non_existent_key)
     ASSERT_EQ(policyObj, nullptr);    
     std::cout << "Exiting get_policy_non_existent_key test" << std::endl;
 }
+
 /**
  * @brief Verify that get_policy returns a null pointer when invoked with a NULL key
  *
@@ -2427,6 +2501,7 @@ TEST_F(dm_easy_mesh_list_tTEST, get_policy_null_key)
     EXPECT_EQ(policyObj, nullptr);
     std::cout << "Exiting get_policy_null_key test" << std::endl;
 }
+
 /**
  * @brief Checks that get_radio returns nullptr when provided with a non-existent radio key.
  *
@@ -2457,6 +2532,7 @@ TEST_F(dm_easy_mesh_list_tTEST, get_radio_non_existent_radio_key_returns_null) {
     ASSERT_EQ(radio, nullptr);
     std::cout << "Exiting get_radio_non_existent_radio_key_returns_null test" << std::endl;
 }
+
 /**
  * @brief Verify that get_radio returns nullptr when invoked with a null key
  *
@@ -2489,6 +2565,7 @@ TEST_F(dm_easy_mesh_list_tTEST, get_radio_null_radio_key_returns_null) {
     ASSERT_EQ(radio, nullptr);
     std::cout << "Exiting get_radio_null_radio_key_returns_null test" << std::endl;
 }
+
 /**
  * @brief Verify that a valid scan result key returns the corresponding scan result record.
  *
@@ -2531,6 +2608,7 @@ TEST_F(dm_easy_mesh_list_tTEST, get_scan_result_validKey_returnsCorrespondingSca
     list.remove_scan_result(key);
     std::cout << "Exiting get_scan_result_validKey_returnsCorrespondingScanResult test" << std::endl;
 }
+
 /**
  * @brief Verify that get_scan_result returns nullptr for a non-existent key.
  *
@@ -2562,6 +2640,7 @@ TEST_F(dm_easy_mesh_list_tTEST, get_scan_result_nonexistentKey_returnsNull) {
     ASSERT_EQ(result, nullptr);
     std::cout << "Exiting get_scan_result_nonexistentKey_returnsNull test" << std::endl;
 }
+
 /**
  * @brief Test to verify that get_scan_result() returns a null pointer when provided with a NULL key.
  *
@@ -2588,6 +2667,7 @@ TEST_F(dm_easy_mesh_list_tTEST, get_scan_result_nullKey_returnsNull) {
     EXPECT_EQ(result, nullptr);
     std::cout << "Exiting get_scan_result_nullKey_returnsNull test" << std::endl;
 }
+
 /**
  * @brief Verify get_sta API returns nullptr when querying a non-existing station
  *
@@ -2617,6 +2697,7 @@ TEST_F(dm_easy_mesh_list_tTEST, get_sta_valid_non_existing_sta) {
     EXPECT_EQ(staPtr, nullptr);    
     std::cout << "Exiting " << testName << " test" << std::endl;
 }
+
 /**
  * @brief Validate that get_sta returns a null pointer when passed a null key.
  *
@@ -2649,6 +2730,7 @@ TEST_F(dm_easy_mesh_list_tTEST, get_sta_null_key) {
     EXPECT_EQ(staPtr, nullptr);
     std::cout << "Exiting " << testName << " test" << std::endl;
 }
+
 /**
  * @brief Test the init method with a valid non-null manager
  *
@@ -2676,6 +2758,7 @@ TEST_F(dm_easy_mesh_list_tTEST, init_valid_non_null_mgr)
     EXPECT_NO_THROW(list.init(&mgr));
     std::cout << "Exiting init_valid_non_null_mgr test" << std::endl;
 }
+
 /**
  * @brief Test to validate that the initialization function handles a null manager pointer.
  *
@@ -2704,6 +2787,7 @@ TEST_F(dm_easy_mesh_list_tTEST, init_null_mgr)
     EXPECT_ANY_THROW(list.init(nullptr));
     std::cout << "Exiting init_null_mgr test" << std::endl;
 }
+
 /**
  * @brief Validate that the put_bss API successfully inserts a valid BSS entry.
  *
@@ -2734,6 +2818,7 @@ TEST_F(dm_easy_mesh_list_tTEST, put_bss_valid_insertion)
     EXPECT_NO_THROW(list.put_bss(key, &bss));
     std::cout << "Exiting put_bss_valid_insertion test" << std::endl;
 }
+
 /**
  * @brief Verify that put_bss API throws an exception when provided with a NULL key.
  *
@@ -2764,6 +2849,7 @@ TEST_F(dm_easy_mesh_list_tTEST, put_bss_null_key)
     EXPECT_ANY_THROW(list.put_bss(key, &bss));
     std::cout << "Exiting put_bss_null_key test" << std::endl;
 }
+
 /**
  * @brief Test put_bss API with an empty key to verify error handling.
  *
@@ -2791,6 +2877,7 @@ TEST_F(dm_easy_mesh_list_tTEST, put_bss_empty_key)
     EXPECT_ANY_THROW(list.put_bss(key, &bss));
     std::cout << "Exiting put_bss_empty_key test" << std::endl;
 }
+
 /**
  * @brief Verify that put_bss throws an exception when a NULL dm_bss pointer is provided.
  *
@@ -2820,6 +2907,7 @@ TEST_F(dm_easy_mesh_list_tTEST, put_bss_null_dm_bss)
     EXPECT_ANY_THROW(list.put_bss(key, NULL));
     std::cout << "Exiting put_bss_null_dm_bss test" << std::endl;
 }
+
 /**
  * @brief Test to verify that put_bss fails when using a special character key
  *
@@ -2849,6 +2937,7 @@ TEST_F(dm_easy_mesh_list_tTEST, put_bss_special_char_key)
     EXPECT_ANY_THROW(list.put_bss(key, &bss));
     std::cout << "Exiting put_bss_special_char_key test" << std::endl;
 }
+
 /**
  * @brief Validate the put_device API for valid device insertion.
  *
@@ -2875,11 +2964,13 @@ TEST_F(dm_easy_mesh_list_tTEST, put_device_valid_insertion) {
 	char key[256];
     strcpy(device.m_device_info.id.net_id, "Network1");
     memcpy(device.m_device_info.id.dev_mac, mac1, sizeof(mac_address_t));
-    build_device_key("Network1", mac1, key);
+    memcpy(device.m_device_info.intf.mac, mac1, sizeof(mac1));
+    build_device_key("Network1", mac1, em_media_type_ieee80211b_24, key);
 	std::cout << "Invoking put_device with key: " << key << std::endl;
     EXPECT_NO_THROW(list.put_device(key, &device));
     std::cout << "Exiting put_device_valid_insertion test" << std::endl;
 }
+
 /**
  * @brief Test the behavior of put_device when provided with a NULL key
  *
@@ -2907,6 +2998,7 @@ TEST_F(dm_easy_mesh_list_tTEST, put_device_null_key) {
     std::cout << "put_device invoked with NULL key" << std::endl;
     std::cout << "Exiting put_device_null_key test" << std::endl;
 }
+
 /**
  * @brief Verifies that put_device API throws an exception when invoked with a null device pointer.
  *
@@ -2931,12 +3023,13 @@ TEST_F(dm_easy_mesh_list_tTEST, put_device_null_key) {
 TEST_F(dm_easy_mesh_list_tTEST, put_device_null_device) {
     std::cout << "Entering put_device_null_device test" << std::endl;
 	char key[256];
-    build_device_key("Network1", mac1, key);
+    build_device_key("Network1", mac1, em_media_type_ieee80211b_24, key);
     std::cout << "Invoking put_device with key: " << key << " and NULL device pointer" << std::endl;
     EXPECT_ANY_THROW(list.put_device(key, NULL));
     std::cout << "put_device invoked with key: " << key << " and NULL device pointer" << std::endl;
     std::cout << "Exiting put_device_null_device test" << std::endl;
 }
+
 /**
  * @brief Test the insertion of a valid network into the mesh list.
  *
@@ -2963,6 +3056,7 @@ TEST_F(dm_easy_mesh_list_tTEST, put_network_valid_network_insertion)
     EXPECT_NO_THROW(list.put_network("Network1", &network));
     std::cout << "Exiting put_network_valid_network_insertion test" << std::endl;
 }
+
 /**
  * @brief Validate that the put_network API throws an exception when invoked with a null key.
  *
@@ -2994,6 +3088,7 @@ TEST_F(dm_easy_mesh_list_tTEST, put_network_null_key)
     EXPECT_ANY_THROW(list.put_network(nullptr, &network));
     std::cout << "Exiting put_network_null_key test" << std::endl;
 }
+
 /**
  * @brief Test that put_network throws an exception when provided with a null network pointer
  *
@@ -3022,6 +3117,7 @@ TEST_F(dm_easy_mesh_list_tTEST, put_network_null_network)
     EXPECT_ANY_THROW(list.put_network(key, nullptr));
     std::cout << "Exiting put_network_null_network test" << std::endl;
 }
+
 /**
  * @brief Verifies the successful insertion of a new SSID into the network SSID table.
  *
@@ -3049,6 +3145,7 @@ TEST_F(dm_easy_mesh_list_tTEST, put_network_ssid_valid_new_ssid_insertion) {
     std::cout << "Invocation of put_network_ssid completed" << std::endl;
     std::cout << "Exiting put_network_ssid_valid_new_ssid_insertion test" << std::endl;
 }
+
 /**
  * @brief Validate that put_network_ssid API handles a NULL key gracefully
  *
@@ -3079,6 +3176,7 @@ TEST_F(dm_easy_mesh_list_tTEST, put_network_ssid_negative_null_key) {
     std::cout << "Invocation with NULL key completed" << std::endl;
     std::cout << "Exiting put_network_ssid_negative_null_key test" << std::endl;
 }
+
 /**
  * @brief Verifies that put_network_ssid API correctly throws an exception when provided with a NULL network_ssid pointer.
  *
@@ -3105,6 +3203,7 @@ TEST_F(dm_easy_mesh_list_tTEST, put_network_ssid_negative_null_network_ssid) {
     std::cout << "Invocation with NULL network_ssid completed" << std::endl;
     std::cout << "Exiting put_network_ssid_negative_null_network_ssid test" << std::endl;
 }
+
 /**
  * @brief Verify that calling put_network_ssid with an empty key raises an exception.
  *
@@ -3134,6 +3233,7 @@ TEST_F(dm_easy_mesh_list_tTEST, put_network_ssid_negative_empty_key) {
     std::cout << "Invocation with empty key completed" << std::endl;
     std::cout << "Exiting put_network_ssid_negative_empty_key test" << std::endl;
 }
+
 /**
  * @brief Verify that put_op_class function correctly processes valid input without throwing exceptions.
  *
@@ -3174,6 +3274,7 @@ TEST_F(dm_easy_mesh_list_tTEST, put_op_class_valid_input)
     EXPECT_NO_THROW(list.put_op_class(key, &op));
     std::cout << "Exiting put_op_class_valid_input test" << std::endl;
 }
+
 /**
  * @brief Tests that put_op_class() throws an exception when provided with a NULL key.
  *
@@ -3214,6 +3315,7 @@ TEST_F(dm_easy_mesh_list_tTEST, put_op_class_null_key)
     EXPECT_ANY_THROW(list.put_op_class(NULL, &op));    
     std::cout << "Exiting put_op_class_null_key test" << std::endl;
 }
+
 /**
  * @brief Verify that put_op_class throws an exception when invoked with a NULL dm_op_class_t pointer
  *
@@ -3243,6 +3345,7 @@ TEST_F(dm_easy_mesh_list_tTEST, put_op_class_null_op_class)
     EXPECT_ANY_THROW(list.put_op_class(key, NULL));
     std::cout << "Exiting put_op_class_null_op_class test" << std::endl;
 }
+
 /**
  * @brief Verify that the put_op_class API throws an exception for an empty net_id.
  *
@@ -3281,6 +3384,7 @@ TEST_F(dm_easy_mesh_list_tTEST, put_op_class_empty_key)
     EXPECT_ANY_THROW(list.put_op_class("", &op));
     std::cout << "Exiting put_op_class_empty_key test" << std::endl;
 }
+
 /**
  * @brief Verify valid insertion of a policy via put_policy
  *
@@ -3313,6 +3417,7 @@ TEST_F(dm_easy_mesh_list_tTEST, put_policy_valid_policy_insertion)
     std::cout << "put_policy method invoked successfully for valid insertion." << std::endl;
     std::cout << "Exiting put_policy_valid_policy_insertion test" << std::endl;
 }
+
 /**
  * @brief Test put_policy API function with a NULL key.
  *
@@ -3345,6 +3450,7 @@ TEST_F(dm_easy_mesh_list_tTEST, put_policy_null_key)
     std::cout << "put_policy invoked with NULL key; error handling should be triggered internally." << std::endl;
     std::cout << "Exiting put_policy_null_key test" << std::endl;
 }
+
 /**
  * @brief Validate error handling in put_policy when provided a NULL policy pointer
  *
@@ -3374,6 +3480,7 @@ TEST_F(dm_easy_mesh_list_tTEST, put_policy_null_policy)
     std::cout << "put_policy invoked with NULL policy pointer; error handling should be triggered internally." << std::endl;
     std::cout << "Exiting put_policy_null_policy test" << std::endl;
 }
+
 /**
  * @brief Test for put_policy API with an empty network identifier in the key
  *
@@ -3404,6 +3511,7 @@ TEST_F(dm_easy_mesh_list_tTEST, put_policy_empty_key)
     std::cout << "put_policy invoked with empty string key; policy stored if empty key is allowed." << std::endl;
     std::cout << "Exiting put_policy_empty_key test" << std::endl;
 }
+
 /**
  * @brief Verify that dm_easy_mesh_list_t::put_radio successfully stores a radio when provided with a valid key and radio pointer.
  *
@@ -3433,6 +3541,7 @@ TEST_F(dm_easy_mesh_list_tTEST, put_radio_valid_radio_valid_key)
     std::cout << "dm_easy_mesh_list_t::put_radio invoked successfully with valid parameters" << std::endl;
     std::cout << "Exiting put_radio_valid_radio_valid_key test" << std::endl;
 }
+
 /**
  * @brief Validate the behavior of put_radio when passed a NULL key
  *
@@ -3466,6 +3575,7 @@ TEST_F(dm_easy_mesh_list_tTEST, put_radio_NULL_key_valid_radio)
     std::cout << "dm_easy_mesh_list_t::put_radio handled NULL key parameter" << std::endl;
     std::cout << "Exiting put_radio_NULL_key_valid_radio test" << std::endl;
 }
+
 /**
  * @brief Test dm_easy_mesh_list_t::put_radio with a valid key and NULL radio pointer to verify exception handling
  *
@@ -3495,6 +3605,7 @@ TEST_F(dm_easy_mesh_list_tTEST, put_radio_valid_key_NULL_radio)
     std::cout << "dm_easy_mesh_list_t::put_radio handled NULL radio pointer" << std::endl;
     std::cout << "Exiting put_radio_valid_key_NULL_radio test" << std::endl;
 }
+
 /**
  * @brief Verify that the put_radio API throws an exception when provided with an empty key and a valid radio pointer.
  *
@@ -3526,6 +3637,7 @@ TEST_F(dm_easy_mesh_list_tTEST, put_radio_empty_key_valid_radio)
     EXPECT_ANY_THROW(list.put_radio(key, &radio));
     std::cout << "Exiting put_radio_empty_key_valid_radio test" << std::endl;
 }
+
 /**
  * @brief Validate standard insertion of a scan result into the list.
  *
@@ -3559,6 +3671,7 @@ TEST_F(dm_easy_mesh_list_tTEST, put_scan_result_valid_insertion_standard)
     std::cout << "put_scan_result invoked successfully for key: " << key << " and index: " << index << std::endl;
     std::cout << "Exiting put_scan_result_valid_insertion_standard test" << std::endl;
 }
+
 /**
  * @brief Verifies that put_scan_result inserts a scan result at a valid non-zero index without throwing exceptions
  *
@@ -3591,6 +3704,7 @@ TEST_F(dm_easy_mesh_list_tTEST, put_scan_result_valid_insertion_non_zero_index)
     std::cout << "put_scan_result invoked successfully for key: " << key << " and index: " << index << std::endl;    
     std::cout << "Exiting put_scan_result_valid_insertion_non_zero_index test" << std::endl;
 }
+
 /**
  * @brief Test to verify that put_scan_result throws an exception when invoked with a NULL key.
  *
@@ -3622,6 +3736,7 @@ TEST_F(dm_easy_mesh_list_tTEST, put_scan_result_null_key)
     std::cout << "put_scan_result invoked with NULL key, index: " << index << std::endl;
     std::cout << "Exiting put_scan_result_null_key test" << std::endl;
 }
+
 /**
  * @brief Verify that put_scan_result method throws an exception when provided with a NULL scan_result pointer.
  *
@@ -3655,6 +3770,7 @@ TEST_F(dm_easy_mesh_list_tTEST, put_scan_result_null_scan_result)
     std::cout << "put_scan_result invoked with key: " << key << " and NULL scan_result, index: " << index << std::endl;    
     std::cout << "Exiting put_scan_result_null_scan_result test" << std::endl;
 }
+
 /**
  * @brief Verify that put_scan_result correctly handles a key with an empty net_id.
  *
@@ -3689,6 +3805,7 @@ TEST_F(dm_easy_mesh_list_tTEST, put_scan_result_empty_key)
     std::cout << "put_scan_result invoked with empty key, index: " << index << std::endl;    
     std::cout << "Exiting put_scan_result_empty_key test" << std::endl;
 }
+
 /**
  * @brief Verify that put_sta correctly adds a station entry for a valid key and valid dm_sta_t pointer.
  *
@@ -3714,12 +3831,15 @@ TEST_F(dm_easy_mesh_list_tTEST, put_sta_validKey_added) {
     std::cout << "Entering put_sta_validKey_added test" << std::endl;
     dm_sta_t sta;
     char key[256];
+    dm_easy_mesh_t dm;
+    memcpy(dm.m_radio[0].m_radio_info.intf.mac, mac3, sizeof(mac_address_t));
     build_sta_key(mac1, mac2, mac3, key);
     std::cout << "Invoking put_sta with key: " << key << " and valid dm_sta_t pointer" << std::endl;
     EXPECT_NO_THROW(list.put_sta(key, &sta));
     std::cout << "Successfully invoked put_sta with key: " << key << std::endl;
     std::cout << "Exiting put_sta_validKey_added test" << std::endl;
 }
+
 /**
  * @brief Test put_sta function handling of a NULL key.
  *
@@ -3749,6 +3869,7 @@ TEST_F(dm_easy_mesh_list_tTEST, put_sta_nullKey) {
     std::cout << "Invocation of put_sta with NULL key completed (handled gracefully)" << std::endl;
     std::cout << "Exiting put_sta_nullKey test" << std::endl;
 }
+
 /**
  * @brief Verify that the put_sta API properly handles a NULL dm_sta_t pointer.
  *
@@ -3776,6 +3897,7 @@ TEST_F(dm_easy_mesh_list_tTEST, put_sta_nullSta) {
     std::cout << "Invocation of put_sta with NULL dm_sta_t pointer completed (handled gracefully)" << std::endl;
     std::cout << "Exiting put_sta_nullSta test" << std::endl;
 }
+
 /**
  * @brief Validate removal of a BSS entry with a valid, existing key.
  *
@@ -3808,6 +3930,7 @@ TEST_F(dm_easy_mesh_list_tTEST, remove_bss_valid_key_existing)
     std::cout << "remove_bss method invoked successfully for key: " << key << std::endl;
     std::cout << "Exiting remove_bss_valid_key_existing test" << std::endl;
 }
+
 /**
  * @brief Verify that remove_bss() handles a null key input gracefully
  *
@@ -3837,6 +3960,7 @@ TEST_F(dm_easy_mesh_list_tTEST, remove_bss_null_key_handles_gracefully)
     std::cout << "remove_bss method handled nullptr without crashing." << std::endl;
     std::cout << "Exiting remove_bss_null_key_handles_gracefully test" << std::endl;
 }
+
 /**
  * @brief Test the removal of a BSS using a non-existent key to ensure proper exception handling.
  *
@@ -3866,6 +3990,7 @@ TEST_F(dm_easy_mesh_list_tTEST, remove_bss_non_existent_key_no_change)
     std::cout << "remove_bss method invoked successfully with key: " << nonExistentKey << std::endl;
     std::cout << "Exiting remove_bss_non_existent_key_no_change test" << std::endl;
 }
+
 /**
  * @brief Verify that remove_device successfully removes an existing device using a valid key.
  *
@@ -3894,15 +4019,17 @@ TEST_F(dm_easy_mesh_list_tTEST, remove_device_existing_valid_key)
     std::cout << "Entering remove_device_existing_valid_key test" << std::endl;
 	dm_device_t device = {};
 	char key[256];
-    build_device_key("Network1", mac1, key);
+    build_device_key("Network1", mac1, em_media_type_ieee80211b_24, key);
     strcpy(device.m_device_info.id.net_id, "Network1");
     memcpy(device.m_device_info.id.dev_mac, mac1, sizeof(mac_address_t));
+    memcpy(device.m_device_info.intf.mac, mac1, sizeof(mac1));
 	list.put_device(key, &device);
     std::cout << "Invoking remove_device with key: " << key << std::endl;
     EXPECT_NO_THROW(list.remove_device(key));
     std::cout << "remove_device returned. Expected device with key " << key << " to be removed from m_list." << std::endl;
     std::cout << "Exiting remove_device_existing_valid_key test" << std::endl;
 }
+
 /**
  * @brief Validate remove_device API with a non-existent device key.
  *
@@ -3927,12 +4054,13 @@ TEST_F(dm_easy_mesh_list_tTEST, remove_device_non_existent_key)
 {
     std::cout << "Entering remove_device_non_existent_key test" << std::endl;
 	char key[256];
-    build_device_key("", mac1, key);
+    build_device_key("", mac1, em_media_type_ieee80211b_24, key);
     std::cout << "Invoking remove_device with key: non_existent_device" << std::endl;
     EXPECT_NO_THROW(list.remove_device(key));    
     std::cout << "remove_device returned. Expected no change in m_list and m_num_networks for non-existent key." << std::endl;    
     std::cout << "Exiting remove_device_non_existent_key test" << std::endl;
 }
+
 /**
  * @brief Test remove_device API with a NULL key
  *
@@ -3959,6 +4087,7 @@ TEST_F(dm_easy_mesh_list_tTEST, remove_device_null_key)
     std::cout << "remove_device returned. Expected graceful handling of NULL key; m_list and m_num_networks remain unchanged." << std::endl;
     std::cout << "Exiting remove_device_null_key test" << std::endl;
 }
+
 /**
  * @brief Verify that remove_network successfully removes an existing network when provided with a valid key.
  *
@@ -3988,6 +4117,7 @@ TEST_F(dm_easy_mesh_list_tTEST, remove_network_existing_valid_key)
     EXPECT_NO_THROW(list.remove_network("Network1"));    
     std::cout << "Exiting remove_network_existing_valid_key test" << std::endl;
 }
+
 /**
  * @brief Tests removal of a non-existent network key from the network list.
  *
@@ -4019,6 +4149,7 @@ TEST_F(dm_easy_mesh_list_tTEST, remove_network_non_existent_key)
     std::cout << "remove_network called with key: " << key << ". Expected no changes in the network list." << std::endl;
     std::cout << "Exiting remove_network_non_existent_key test" << std::endl;
 }
+
 /**
  * @brief Verify remove_network behaves gracefully when a nullptr key is provided.
  *
@@ -4050,6 +4181,7 @@ TEST_F(dm_easy_mesh_list_tTEST, remove_network_null_key)
     std::cout << "remove_network called with nullptr. Expected graceful handling without altering internal state." << std::endl;
     std::cout << "Exiting remove_network_null_key test" << std::endl;
 }
+
 /**
  * @brief Verify removal of an existing network SSID record using a valid key.
  *
@@ -4084,6 +4216,7 @@ TEST_F(dm_easy_mesh_list_tTEST, remove_network_ssid_valid_existing_key)
     });
     std::cout << "Exiting " << testName << " test" << std::endl;
 }
+
 /**
  * @brief Remove network SSID with a non-existent key test
  *
@@ -4113,6 +4246,7 @@ TEST_F(dm_easy_mesh_list_tTEST, remove_network_ssid_nonexistent_key)
     });
     std::cout << "Exiting " << testName << " test" << std::endl;
 }
+
 /**
  * @brief Test remove_network_ssid function for handling NULL key input
  *
@@ -4140,6 +4274,7 @@ TEST_F(dm_easy_mesh_list_tTEST, remove_network_ssid_null_key)
     std::cout << "Method remove_network_ssid invoked with key: NULL" << std::endl;
     std::cout << "Exiting " << testName << " test" << std::endl;
 }
+
 /**
  * @brief Test removal of an operation class when a valid key is present.
  *
@@ -4170,6 +4305,7 @@ TEST_F(dm_easy_mesh_list_tTEST, remove_op_class_valid_key_present) {
     EXPECT_NO_THROW(list.remove_op_class(key));
     std::cout << "Exiting remove_op_class_valid_key_present test" << std::endl;
 }
+
 /**
  * @brief Test removal of an op class entry using a valid key that is not present in the list.
  *
@@ -4196,6 +4332,7 @@ TEST_F(dm_easy_mesh_list_tTEST, remove_op_class_valid_key_not_present) {
     EXPECT_ANY_THROW(list.remove_op_class("NonExistentOpClassKey"));
     std::cout << "Exiting remove_op_class_valid_key_not_present test" << std::endl;
 }
+
 /**
  * @brief Validate error handling of remove_op_class function with a NULL key
  *
@@ -4220,6 +4357,7 @@ TEST_F(dm_easy_mesh_list_tTEST, remove_op_class_null_key) {
     EXPECT_ANY_THROW(list.remove_op_class(NULL));
     std::cout << "Exiting remove_op_class_null_key test" << std::endl;
 }
+
 /**
  * @brief Verify that removing an existing policy using a valid policy key succeeds without exceptions
  *
@@ -4253,6 +4391,7 @@ TEST_F(dm_easy_mesh_list_tTEST, remove_policy_existing_policy_key)
     EXPECT_NO_THROW(list.remove_policy(key));
     std::cout << "Exiting remove_policy_existing_policy_key test" << std::endl;
 }
+
 /**
  * @brief Verify that removing a policy with a non-existent key results in an exception.
  *
@@ -4281,6 +4420,7 @@ TEST_F(dm_easy_mesh_list_tTEST, remove_policy_non_existent_policy_key)
     EXPECT_ANY_THROW(list.remove_policy(key));
     std::cout << "Exiting remove_policy_non_existent_policy_key test" << std::endl;
 }
+
 /**
  * @brief Test removal of policy with a null key
  *
@@ -4307,6 +4447,7 @@ TEST_F(dm_easy_mesh_list_tTEST, remove_policy_null_key)
     EXPECT_ANY_THROW(list.remove_policy(key));
     std::cout << "Exiting remove_policy_null_key test" << std::endl;
 }
+
 /**
  * @brief Test removal of an existing radio entry using a valid key.
  *
@@ -4336,6 +4477,7 @@ TEST_F(dm_easy_mesh_list_tTEST, remove_radio_existingRadio_validKey) {
     EXPECT_NO_THROW(list.remove_radio(key));
     std::cout << "Exiting remove_radio_existingRadio_validKey test" << std::endl;
 }
+
 /**
  * @brief Verify that remove_radio API throws an exception for a non-existent radio key.
  *
@@ -4364,6 +4506,7 @@ TEST_F(dm_easy_mesh_list_tTEST, remove_radio_nonExistentKey) {
     EXPECT_ANY_THROW(list.remove_radio(key));
     std::cout << "Exiting remove_radio_nonExistentKey test" << std::endl;
 }
+
 /**
  * @brief Validate that remove_radio API correctly handles a NULL pointer key.
  *
@@ -4390,6 +4533,7 @@ TEST_F(dm_easy_mesh_list_tTEST, remove_radio_nullPointerKey) {
     std::cout << "Method remove_radio invoked with NULL pointer key." << std::endl;
     std::cout << "Exiting remove_radio_nullPointerKey test" << std::endl;
 }
+
 /**
  * @brief Validate the removal of an existing valid scan result key
  *
@@ -4422,6 +4566,7 @@ TEST_F(dm_easy_mesh_list_tTEST, remove_scan_result_existing_valid_key)
     EXPECT_NO_THROW(list.remove_scan_result(key));
     std::cout << "Exiting remove_scan_result_existing_valid_key test" << std::endl;
 }
+
 /**
  * @brief Validate behavior of remove_scan_result for a non-existent key
  *
@@ -4457,6 +4602,7 @@ TEST_F(dm_easy_mesh_list_tTEST, remove_scan_result_non_existent_key)
     EXPECT_NO_THROW(list.remove_scan_result(key));
     std::cout << "Exiting remove_scan_result_non_existent_key test" << std::endl;
 }
+
 /**
  * @brief Verify that remove_scan_result handles a NULL key gracefully.
  *
@@ -4489,6 +4635,7 @@ TEST_F(dm_easy_mesh_list_tTEST, remove_scan_result_null_key)
     std::cout << "NULL key handled gracefully" << std::endl;    
     std::cout << "Exiting remove_scan_result_null_key test" << std::endl;
 }
+
 /**
  * @brief Validate removal of an existing STA with valid parameters
  *
@@ -4515,6 +4662,8 @@ TEST_F(dm_easy_mesh_list_tTEST, remove_sta_existing_sta_valid) {
     std::cout << "Entering remove_sta_existing_sta_valid test" << std::endl;
     dm_sta_t sta = {};
     char key[256];
+    dm_easy_mesh_t dm;
+    memcpy(dm.m_radio[0].m_radio_info.intf.mac, mac3, sizeof(mac_address_t));
     build_sta_key(mac1, mac2, mac3, key);
 	list.put_sta(key, &sta);
     std::cout << "Invoking remove_sta with key: " << key << std::endl;
@@ -4524,6 +4673,7 @@ TEST_F(dm_easy_mesh_list_tTEST, remove_sta_existing_sta_valid) {
     });
     std::cout << "Exiting remove_sta_existing_sta_valid test" << std::endl;
 }
+
 /**
  * @brief Test to verify removal of non-existing STA entry.
  *
@@ -4557,6 +4707,7 @@ TEST_F(dm_easy_mesh_list_tTEST, remove_sta_non_existing_sta) {
     });
     std::cout << "Exiting remove_sta_non_existing_sta test" << std::endl;
 }
+
 /**
  * @brief Verify that remove_sta function handles NULL key input by throwing an exception
  *
@@ -4586,6 +4737,7 @@ TEST_F(dm_easy_mesh_list_tTEST, remove_sta_null_key) {
     std::cout << "remove_sta invoked with key NULL" << std::endl;
     std::cout << "Exiting remove_sta_null_key test" << std::endl;
 }
+
 /**
  * @brief Validate the construction and destruction of dm_easy_mesh_list_t object
  *
@@ -4620,6 +4772,7 @@ TEST_F(dm_easy_mesh_list_tTEST, dm_easy_mesh_list_t_valid_destruction) {
     });
     std::cout << "Exiting dm_easy_mesh_list_t_valid_destruction test" << std::endl;
 }
+
 /**
  * @brief Validate that delete_all_data_models() correctly deletes non-empty data models without throwing exceptions.
  *
@@ -4665,6 +4818,7 @@ TEST_F(dm_easy_mesh_list_tTEST, delete_all_data_models_DeleteNonEmptyDataModels)
     dm4 = list.create_data_model("Network2", &intf4, em_profile_type_3, false);
     std::cout << "Exiting delete_all_data_models_DeleteNonEmptyDataModels test" << std::endl;
 }
+
 /**
  * @brief Validate that the get_next_pre_set_op_class_by_type API returns the correct next operation class from the preset list.
  *
@@ -4694,6 +4848,7 @@ TEST_F(dm_easy_mesh_list_tTEST, get_next_pre_set_op_class_by_type_positive)
     ASSERT_NE(ret, nullptr);
     std::cout << "Exiting get_next_pre_set_op_class_by_type_positive test" << std::endl;
 }
+
 /**
  * @brief Verifies that the get_bss method returns a valid BSS object.
  *
@@ -4791,4 +4946,153 @@ TEST_F(dm_easy_mesh_list_tTEST, get_next_network_ssid_positive)
     ASSERT_NE(next, nullptr);
     EXPECT_STRNE((char*)first->m_network_ssid_info.ssid, (char*)next->m_network_ssid_info.ssid);
     std::cout << "Exiting get_next_network_ssid_positive test" << std::endl;
+}
+
+/**
+ * @brief Validate that an existing device in the list gets updated correctly.
+ *
+ * This test verifies that when a device with a given key already exists in the device list,
+ * calling update_device with new device information correctly updates the stored device's fields.
+ * It confirms that fields like is_controller are updated and the device remains in the list.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 149@n
+ * **Priority:** High@n
+ *
+ * **Pre-Conditions:** 
+ *  - A device with the given key is already inserted into the device list.
+ * **Dependencies:** 
+ *  - list.put_device to insert the original device.
+ * **User Interaction:** None@n
+ *
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |
+ * | :----: | --------- | ---------- | -------------- | ----- |
+ * | 01 | Insert original device into list | net_id = "Network1", dev_mac = 11:22:33:44:55:66, is_controller=false | Device inserted successfully | Should Pass |
+ * | 02 | Prepare updated device info with changed field(s) | is_controller=true | Device info prepared | Should Pass |
+ * | 03 | Invoke update_device with existing device key and updated device pointer | key = "Network1:11:22:33:44:55:66", updated device pointer | No exception thrown, device is updated | Should Pass |
+ * | 04 | Retrieve device using get_device and verify updated fields | key = "Network1:11:22:33:44:55:66" | Updated fields reflect changes (is_controller = true) | Should Pass |
+ */
+TEST_F(dm_easy_mesh_list_tTEST, update_device_existing_device_updated)
+{
+    std::cout << "Entering update_device_existing_device_updated test" << std::endl;
+    unsigned char mac1[6] = {0x11,0x22,0x33,0x44,0x55,0x66};
+    // ---------- Step 1: Original device ----------
+    dm_device_t original_device{};
+    strcpy(original_device.m_device_info.id.net_id, "Network1");
+    memcpy(original_device.m_device_info.id.dev_mac, mac1, sizeof(mac1));
+    memcpy(original_device.m_device_info.intf.mac, mac1, sizeof(mac1));
+    original_device.m_device_info.profile = em_profile_type_1;
+    char key[256];
+    build_device_key("Network1", mac1, em_media_type_ieee80211b_24, key);
+    std::cout << "Adding initial device with key: " << key << std::endl;
+    list.put_device(key, &original_device);
+    // ---------- Step 2: Updated device ----------
+    dm_device_t updated_device{};
+    strcpy(updated_device.m_device_info.id.net_id, "Network1");
+    memcpy(updated_device.m_device_info.id.dev_mac, mac1, sizeof(mac1));
+    memcpy(updated_device.m_device_info.intf.mac, mac1, sizeof(mac1));
+    updated_device.m_device_info.profile = em_profile_type_1;
+    updated_device.m_device_info.dfs_enable = true;
+    std::cout << "Invoking update_device for existing device" << std::endl;
+    EXPECT_NO_THROW(list.update_device(key, &updated_device));
+    // ---------- Step 3: Verify ----------
+    dm_device_t *pdev = list.get_device(key);
+    ASSERT_NE(pdev, nullptr);
+    EXPECT_TRUE(pdev->m_device_info.dfs_enable);
+    std::cout << "Exiting update_device_existing_device_updated test" << std::endl;
+}
+
+
+/**
+ * @brief Verify that update_device fails when the device key does not exist.
+ *
+ * This test demonstrates a bug in the current implementation: when update_device is called
+ * with a key that does not exist in the device list, the method silently returns instead of
+ * throwing an exception. This test uses EXPECT_ANY_THROW to highlight the silent failure.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 150@n
+ * **Priority:** High@n
+ *
+ * **Pre-Conditions:** 
+ *  - No device exists in the list with the specified key.
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ *
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |
+ * | :----: | --------- | ---------- | -------------- | ----- |
+ * | 01 | Build a device key for a non-existent device | net_id = "Network1", dev_mac = 11:22:33:44:55:66 | Key is correctly constructed | Should Pass |
+ * | 02 | Invoke update_device with the non-existing key and a valid device pointer | key = "Network1:11:22:33:44:55:66", device pointer = valid device | EXPECT_ANY_THROW should catch exception | Fails currently, exposes silent failure bug |
+ */
+TEST_F(dm_easy_mesh_list_tTEST, update_device_non_existing_device_should_throw) {
+    std::cout << "Entering update_device_non_existing_device_should_throw test" << std::endl;
+    dm_device_t device;
+    char key[256];
+    strcpy(device.m_device_info.id.net_id, "Network1");
+    memcpy(device.m_device_info.id.dev_mac, mac1, sizeof(mac_address_t));
+    build_device_key("Network1", mac1, em_media_type_ieee80211b_24, key);
+    std::cout << "Invoking update_device with non-existing key: " << key << std::endl;
+    EXPECT_ANY_THROW(list.update_device(key, &device));
+    std::cout << "Exiting update_device_non_existing_device_should_throw test" << std::endl;
+}
+
+/**
+ * @brief Test the behavior of update_device when provided with a NULL key
+ *
+ * This test verifies that the update_device function throws an exception when called with a NULL key while a valid device pointer is provided. This ensures that the API correctly handles invalid input and maintains error safety.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 151@n
+ * **Priority:** High@n
+ *
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ *
+ * **Test Procedure:**
+ * | Variation / Step | Description                                                       | Test Data                                  | Expected Result                                                       | Notes      |
+ * | :--------------: | ----------------------------------------------------------------- | ------------------------------------------ | --------------------------------------------------------------------- | ---------- |
+ * | 01               | Invoke list.update_device with a NULL key and a valid device pointer   | key = NULL, device pointer = address of device | API throws an exception as verified by EXPECT_ANY_THROW check         | Should Fail|
+ */
+TEST_F(dm_easy_mesh_list_tTEST, update_device_null_key) {
+    std::cout << "Entering update_device_null_key test" << std::endl;
+    dm_device_t device;
+    const char* key = NULL;
+    std::cout << "Invoking update_device with NULL key and device pointer: " << &device << std::endl;
+    EXPECT_ANY_THROW(list.update_device(key, &device));
+    std::cout << "update_device invoked with NULL key" << std::endl;
+    std::cout << "Exiting update_device_null_key test" << std::endl;
+}
+
+/**
+ * @brief Verifies that update_device API throws an exception when invoked with a null device pointer.
+ *
+ * This test validates the error handling of the update_device API by passing a valid device key along with a NULL device pointer.
+ * It uses the build_device_key helper to create a device key for "Network1" and then calls update_device with NULL to ensure that
+ * an exception is thrown as expected.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 152@n
+ * **Priority:** High@n
+ *
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ *
+ * **Test Procedure:**@n
+ * | Variation / Step | Description                                                                 | Test Data                                                            | Expected Result                                                          | Notes               |
+ * | :----:           | :---------------------------------------------------------------------------| :------------------------------------------------------------------- | :----------------------------------------------------------------------- | :------------------ |
+ * | 01               | Generate a device key using build_device_key with valid parameters           | net_id = "Network1", mac1 = 11:22:33:44:55:66, key = uninitialized      | Device key is generated successfully and stored in key                   | Should be successful  |
+ * | 02               | Invoke update_device API with the generated key and a NULL device pointer         | key = <generated device key>, device pointer = NULL                  | An exception is thrown by the API indicating error due to null device pointer   | Should Fail         |
+ */
+TEST_F(dm_easy_mesh_list_tTEST, update_device_null_device) {
+    std::cout << "Entering update_device_null_device test" << std::endl;
+	char key[256];
+    build_device_key("Network1", mac1, em_media_type_ieee80211b_24, key);
+    std::cout << "Invoking update_device with key: " << key << " and NULL device pointer" << std::endl;
+    EXPECT_ANY_THROW(list.update_device(key, NULL));
+    std::cout << "update_device invoked with key: " << key << " and NULL device pointer" << std::endl;
+    std::cout << "Exiting update_device_null_device test" << std::endl;
 }

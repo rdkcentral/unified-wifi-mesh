@@ -490,6 +490,43 @@ dm_bss_t *dm_easy_mesh_list_t::get_bss(const char *key)
 	return dm->find_matching_bss(&id);
 }
 
+dm_bss_t *dm_easy_mesh_list_t::get_first_bss(mac_addr_t al_mac)
+{
+    dm_easy_mesh_t *dm;
+
+    dm = get_data_model(GLOBAL_NET_ID, al_mac);
+    if ((dm != NULL) && (dm->get_num_bss() > 0)) {
+        return &dm->m_bss[0];
+    }
+
+    return NULL;
+}
+
+dm_bss_t *dm_easy_mesh_list_t::get_next_bss(mac_addr_t al_mac, dm_bss_t *bss)
+{
+    dm_easy_mesh_t *dm;
+    unsigned int i;
+    bool found_match = false;
+
+    dm = get_data_model(GLOBAL_NET_ID, al_mac);
+    if ((dm == NULL) || (dm->get_num_bss() == 0)) {
+        return NULL;
+    }
+
+    for (i = 0; i < dm->get_num_bss(); i++) {
+        if (&dm->m_bss[i] == bss) {
+            found_match = true;
+            break;
+        }
+    }
+
+    if ((found_match == true) && (i < (dm->get_num_bss() - 1))) {
+        return &dm->m_bss[i + 1];
+    }
+
+    return NULL;
+}
+
 void dm_easy_mesh_list_t::remove_bss(const char *key)
 {
 	em_bss_id_t id;
@@ -1507,14 +1544,6 @@ dm_easy_mesh_t *dm_easy_mesh_list_t::create_data_model(const char *net_id, const
 							em_policy_id_type_default_8021q_settings}, 0, {}, em_steering_policy_type_unknown,
 							0, 0, 0, 0, false, false, false, "", false, false, false, {1, 2},
 							{0, {{0, "", 0}, {0, "", 0}, {0, "", 0}, {0, "", 0}, {0, "", 0}}}},
-						{{"OneWifiMesh", {0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, {0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
-							em_policy_id_type_traffic_separation}, 0, {}, em_steering_policy_type_unknown,
-							0, 0, 0, 0, false, false, false, "", false, false, false, {41, 3},
-							{5, {{12, "private_ssid", 12},
-								{13, "mesh_backhaul", 13},
-								{8, "iot_ssid", 14},
-								{10, "lnf_radius", 15},
-								{7, "hotspot", 16}}}}
 					};
     unsigned int i;
 	dm_op_class_t	op_class[EM_MAX_PRE_SET_CHANNELS] 	= 	{
@@ -1529,7 +1558,7 @@ dm_easy_mesh_t *dm_easy_mesh_list_t::create_data_model(const char *net_id, const
 								dm_policy_t(em_policy[0]), dm_policy_t(em_policy[1]), 
 								dm_policy_t(em_policy[2]), dm_policy_t(em_policy[3]), 
 								dm_policy_t(em_policy[4]), dm_policy_t(em_policy[5]),
-								dm_policy_t(em_policy[6]), dm_policy_t(em_policy[7])
+								dm_policy_t(em_policy[6])
 						};
 	
     dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *> (al_intf->mac), mac_str);

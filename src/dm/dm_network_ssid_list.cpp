@@ -94,6 +94,8 @@ int dm_network_ssid_list_t::get_config(cJSON *obj_arr, void *parent_id, bool sum
 
 		cJSON_AddStringToObject(obj, "AuthType", pnet_ssid->m_network_ssid_info.auth_type);
 
+		cJSON_AddNumberToObject(obj, "VLANID", pnet_ssid->m_network_ssid_info.vlan_id);
+
 		cJSON_AddItemToArray(obj_arr, obj);		
 		pnet_ssid = get_next_network_ssid(pnet_ssid);
 	}
@@ -311,6 +313,11 @@ bool dm_network_ssid_list_t::operator == (const db_easy_mesh_t& obj)
 		return false;
 	}
 
+	if (m_network_ssid_info.vlan_id != pnet_ssid->m_network_ssid_info.vlan_id) {
+		printf("%s:%d: vlan id is different\n", __func__, __LINE__);
+		return false;
+	}
+
 	return true;
 }
 
@@ -352,11 +359,11 @@ int dm_network_ssid_list_t::update_db(db_client_t& db_client, dm_orch_type_t op,
 	switch (op) {
 		case dm_orch_type_db_insert:
 			ret = insert_row(db_client, info->id, info->ssid, info->pass_phrase, bands, info->enable, akms, info->suite_select,
-						info->advertisement, info->mfp, dm_easy_mesh_t::macbytes_to_string(info->mobility_domain, mac_str), hauls, info->auth_type);
+						info->advertisement, info->mfp, dm_easy_mesh_t::macbytes_to_string(info->mobility_domain, mac_str), hauls, info->auth_type, info->vlan_id);
 			break;
 
 		case dm_orch_type_db_update:
-			ret = update_row(db_client, info->ssid, info->pass_phrase, bands, info->enable, akms, info->suite_select, info->advertisement, info->mfp, dm_easy_mesh_t::macbytes_to_string(info->mobility_domain, mac_str), hauls, info->auth_type, info->id);
+			ret = update_row(db_client, info->ssid, info->pass_phrase, bands, info->enable, akms, info->suite_select, info->advertisement, info->mfp, dm_easy_mesh_t::macbytes_to_string(info->mobility_domain, mac_str), hauls, info->auth_type, info->vlan_id, info->id);
 			break;
 
 		case dm_orch_type_db_delete:
@@ -440,6 +447,8 @@ int dm_network_ssid_list_t::sync_db(db_client_t& db_client, void *ctx)
 		}
 
 		db_client.get_string(ctx, info.auth_type, 12);
+
+		info.vlan_id = db_client.get_number(ctx, 13);
         
 		update_list(dm_network_ssid_t(&info), dm_orch_type_db_insert);
     }
@@ -467,6 +476,7 @@ void dm_network_ssid_list_t::init_columns()
     m_columns[m_num_cols++] = db_column_t("MobilityDomain", db_data_type_char, 17);
     m_columns[m_num_cols++] = db_column_t("HaulType", db_data_type_char, 64);
     m_columns[m_num_cols++] = db_column_t("AuthType", db_data_type_char, 16);
+    m_columns[m_num_cols++] = db_column_t("VLANID", db_data_type_smallint, 0);
 }
 
 int dm_network_ssid_list_t::init()

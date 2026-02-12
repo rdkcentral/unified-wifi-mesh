@@ -34,7 +34,8 @@ AC_CONFIG_MACRO_DIR([m4])
  
 # Check for em agent
 AM_CONDITIONAL([EM_EXTENDER], [test x$EM_EXTENDER = xtrue])
-
+# Check for em unittest
+AM_CONDITIONAL([EM_UNITTEST], [test "x$EM_UNITTEST" = "xtrue"])
 # Checks for programs.
 AC_PROG_CC
 AC_PROG_CXX

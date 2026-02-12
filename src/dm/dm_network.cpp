@@ -129,7 +129,11 @@ void dm_network_t::encode(cJSON *obj, bool summary)
 
     dm_easy_mesh_t::macbytes_to_string(m_net_info.colocated_agent_id.mac, mac_str);
     cJSON_AddStringToObject(obj, "CollocatedAgentID", mac_str);
-	
+
+    if (summary == true) {
+        return;
+    }
+
 	if (m_net_info.media == em_media_type_ieee8023ab) {
 		strncpy(str, "Ethernet", strlen("Ethernet") + 1);
 	} else if (m_net_info.media == em_media_type_ieee80211b_24) {

@@ -117,6 +117,19 @@ void em_orch_t::push_stats(em_cmd_t *pcmd)
     stats->count++;
 }
 
+// Helper to reset elapsed time for a specific command type
+void em_orch_t::reset_cmd_time(hash_map_t *cmd_map, em_cmd_type_t type)
+{
+    em_short_string_t key;
+    em_cmd_stats_t *stats;
+
+    snprintf(key, sizeof(em_short_string_t), "%d", type);
+    stats = static_cast<em_cmd_stats_t *>(hash_map_get(cmd_map, key));
+    if (stats != NULL) {
+        stats->time = 0;
+    }
+}
+
 bool em_orch_t::submit_command(em_cmd_t *pcmd)
 {
     bool submitted = false;
@@ -148,6 +161,54 @@ void em_orch_t::destroy_command(em_cmd_t *pcmd)
     pcmd->deinit();
 
     delete pcmd;
+}
+
+void em_orch_t::cancel_command(em_cmd_type_t type, std::vector<em_t*> &em_radios)
+{
+    int i, j;
+    em_cmd_t *pcmd;
+    em_t *em;
+    mac_addr_str_t      mac_str;
+
+    for (i = static_cast<int>(queue_count(m_pending)) - 1; i >= 0; i--) {
+        pcmd = static_cast<em_cmd_t *>(queue_peek(m_pending, static_cast<unsigned int>(i)));
+        if (pcmd->m_type == type) {
+            for (j = static_cast<int>(queue_count(pcmd->m_em_candidates)) - 1; j >= 0; j--) {
+                em = static_cast<em_t *>(queue_peek(pcmd->m_em_candidates, static_cast<unsigned int>(j)));
+                for (auto &cur_em : em_radios) {
+                    if (cur_em == em) {
+                        queue_remove(pcmd->m_em_candidates, static_cast<unsigned int>(j));
+                        break;
+                    }
+                }
+            }
+            if (queue_count(pcmd->m_em_candidates) == 0){
+                queue_remove(m_pending, static_cast<unsigned int>(i));
+                pop_stats(pcmd);
+                destroy_command(pcmd);
+            }
+        }
+    }
+
+    for (i = static_cast<int>(queue_count(m_active)) - 1; i >= 0; i--) {
+        pcmd = static_cast<em_cmd_t *>(queue_peek(m_active, static_cast<unsigned int>(i)));
+        if (pcmd->m_type == type) {
+            for (j = static_cast<int>(queue_count(pcmd->m_em_candidates)) - 1; j >= 0; j--) {
+                em = static_cast<em_t *>(queue_peek(pcmd->m_em_candidates, static_cast<unsigned int>(j)));
+                for (auto &cur_em : em_radios){
+                    if (cur_em == em) {
+                        dm_easy_mesh_t::macbytes_to_string(em->get_radio_interface_mac(), mac_str);
+                        em_printfout("Setting em:%s State set to cancel", mac_str);
+                        pre_process_cancel(pcmd, em);
+                        em->set_orch_state(em_orch_state_cancel);
+                    }
+                }
+            }
+        }
+    }
+
+    // reset the elapsed time for the command type to avoid triggering timeouts for cancelled commands.
+    reset_cmd_time(m_cmd_map, type);
 }
 
 void em_orch_t::cancel_command(em_cmd_type_t type) 
@@ -245,7 +306,7 @@ bool em_orch_t::eligible_for_active(em_cmd_t *pcmd)
     return eligible;
 }
 
-bool em_orch_t::is_cmd_type_renew_in_progress(em_bus_event_t *evt)
+bool em_orch_t::is_cmd_in_progress_by_radio(em_bus_event_t *evt)
 {
 	em_cmd_stats_t *stats;
 	em_short_string_t key;
@@ -265,7 +326,7 @@ bool em_orch_t::is_cmd_type_renew_in_progress(em_bus_event_t *evt)
 	memcpy(mac, raw->radio, sizeof(mac_address_t));
 	dm_easy_mesh_t::macbytes_to_string(mac, radio_mac);
 	if ((stats = static_cast<em_cmd_stats_t *>(hash_map_get(m_cmd_map, key))) != NULL) {
-	   printf("%s:%d: Command of type: %d actively executing\n", __func__, __LINE__, type);
+	   em_printfout("Command of type: %s and cmd: %s actively executing", em_cmd_t::get_bus_event_type_str(evt->type), em_cmd_t::get_cmd_type_str(type));
 		// Go through the pending queue and check if radio mac match
 		for (i = static_cast<int>(queue_count(m_pending)) - 1; i >= 0; i--) {
 			pcmd = static_cast<em_cmd_t *>(queue_peek(m_pending, static_cast<unsigned int>(i)));
@@ -275,7 +336,8 @@ bool em_orch_t::is_cmd_type_renew_in_progress(em_bus_event_t *evt)
 					dm_easy_mesh_t::macbytes_to_string(em->get_radio_interface_mac(), mac_str);
 					if (memcmp(mac, em->get_radio_interface_mac(), sizeof(mac_address_t)) == 0) {
 						dm_easy_mesh_t::macbytes_to_string(em->get_radio_interface_mac(), mac_str);
-						printf("%s:%d: Command of type: %d actively executing for %s\n", __func__, __LINE__, type, mac_str);
+                        em_printfout("Command of type: %s and cmd: %s actively executing for %s",
+                            em_cmd_t::get_bus_event_type_str(evt->type), em_cmd_t::get_cmd_type_str(type), mac_str);
 						return true;
 					}
 				}
@@ -290,7 +352,8 @@ bool em_orch_t::is_cmd_type_renew_in_progress(em_bus_event_t *evt)
 					dm_easy_mesh_t::macbytes_to_string(em->get_radio_interface_mac(), mac_str);
 					if (memcmp(mac, em->get_radio_interface_mac(), sizeof(mac_addr_t)) == 0) {
 						dm_easy_mesh_t::macbytes_to_string(em->get_radio_interface_mac(), mac_str);
-						printf("%s:%d: Command of type: %d actively executing for %s\n", __func__, __LINE__, type, mac_str);
+                        em_printfout("Command of type: %d and cmd : %s, actively executing for %s",
+                            em_cmd_t::get_bus_event_type_str(evt->type), em_cmd_t::get_cmd_type_str(type), mac_str);
 						return true;
 					}
 				}
@@ -299,6 +362,44 @@ bool em_orch_t::is_cmd_type_renew_in_progress(em_bus_event_t *evt)
 	}
 
 	return false;
+}
+
+bool em_orch_t::is_cmd_in_progress_by_type(em_bus_event_t *evt)
+{
+    em_cmd_stats_t *stats;
+    em_short_string_t key;
+    em_cmd_type_t		type;
+    em_cmd_t *pcmd;
+    signed int i = 0;
+
+    type = em_cmd_t::bus_2_cmd_type(evt->type);
+    snprintf(key, sizeof(em_short_string_t), "%d", type);
+
+    em_printfout("is_cmd_in_progress_by_type: Checking for command type: %s", em_cmd_t::get_cmd_type_str(type));
+    stats = static_cast<em_cmd_stats_t *>(hash_map_get(m_cmd_map, key));
+    if (stats != NULL) {
+        em_printfout("Command of type: %s and cmd: %s actively executing", em_cmd_t::get_bus_event_type_str(evt->type), em_cmd_t::get_cmd_type_str(type));
+        // Go through the pending queue and check if radio mac match
+        for (i = static_cast<int>(queue_count(m_pending)) - 1; i >= 0; i--) {
+            pcmd = static_cast<em_cmd_t *>(queue_peek(m_pending, static_cast<unsigned int>(i)));
+            if (pcmd->m_type == type) {
+                em_printfout("Command of type: %s and cmd: %s actively executing", em_cmd_t::get_bus_event_type_str(evt->type),
+                    em_cmd_t::get_cmd_type_str(type));
+                return true;
+            }
+        }
+        // go though active queue and check if radio mac match
+        for (i = static_cast<int>(queue_count(m_active)) - 1; i >= 0; i--) {
+            pcmd = static_cast<em_cmd_t *>(queue_peek(m_active, static_cast<unsigned int>(i)));
+            if (pcmd->m_type == type) {
+                em_printfout("Command of type: %d and cmd : %s, actively executing",
+                    em_cmd_t::get_bus_event_type_str(evt->type), em_cmd_t::get_cmd_type_str(type));
+                return true;
+            }
+        }
+    }
+
+    return false;
 }
 
 bool em_orch_t::get_dev_test_status()
@@ -334,10 +435,13 @@ bool em_orch_t::is_cmd_type_in_progress(em_bus_event_t *evt)
 
     if ((type == em_cmd_type_cfg_renew ) ||
         (type == em_cmd_type_ap_metrics_report)) {
-        return is_cmd_type_renew_in_progress(evt);
+        return is_cmd_in_progress_by_radio(evt);
+    } else if ((type == em_cmd_type_em_config) ||
+               (type == em_cmd_type_set_policy)) {
+        return is_cmd_in_progress_by_type(evt);
     }
     if ((stats = static_cast<em_cmd_stats_t *>(hash_map_get(m_cmd_map, key))) != NULL) {
-        //printf("%s:%d: Command of type: %d actively executing\n", __func__, __LINE__, type);
+        //em_printfout("Command of type: %d actively executing", type);
         return true;
     }
 
