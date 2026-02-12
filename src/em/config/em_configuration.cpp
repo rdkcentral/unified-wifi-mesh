@@ -1579,7 +1579,6 @@ int em_configuration_t::handle_topology_notification(unsigned char *buff, unsign
 		tmp_len -= static_cast<unsigned int> (sizeof(em_tlv_t) + htons(tlv->len));
 		tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
     }
-    set_state(em_state_ctrl_configured);
 
 	return 0;
 }

@@ -138,9 +138,8 @@ int dm_policy_t::decode(const cJSON *obj, void *parent_id, em_policy_id_type_t t
             }
         }
 
-        em_printfout(" CLIENT FILTERS STA MAC='%02X:%02X:%02X:%02X:%02X:%02X', CONSEC ALARM THRESHOLD=%d ,DURATION=%s ",
-            m_policy.client_filters.sta_mac[0], m_policy.client_filters.sta_mac[1], m_policy.client_filters.sta_mac[2],
-            m_policy.client_filters.sta_mac[3], m_policy.client_filters.sta_mac[4], m_policy.client_filters.sta_mac[5],
+        em_printfout(" CLIENT FILTERS STA MAC='%s', CONSEC ALARM THRESHOLD=%d ,DURATION=%s ",
+            util::mac_to_string(m_policy.client_filters.sta_mac).c_str(),
             m_policy.client_filters.consec_alarm_thres_cnt,
             m_policy.client_filters.collect_duration);
     }
