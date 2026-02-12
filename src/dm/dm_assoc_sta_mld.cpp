@@ -30,6 +30,7 @@
 #include <sys/uio.h>
 #include <sys/time.h>
 #include <unistd.h>
+#include <stdexcept>
 #include "dm_assoc_sta_mld.h"
 #include "dm_easy_mesh.h"
 #include "dm_easy_mesh_ctrl.h"
@@ -80,6 +81,10 @@ bool dm_assoc_sta_mld_t::operator == (const dm_assoc_sta_mld_t& obj)
 
 dm_assoc_sta_mld_t::dm_assoc_sta_mld_t(em_assoc_sta_mld_info_t *assoc_sta_mld_info)
 {
+    if (assoc_sta_mld_info == nullptr) {
+    throw std::invalid_argument("assoc_sta_mld_info is null");
+    }
+
     memcpy(&m_assoc_sta_mld_info, assoc_sta_mld_info, sizeof(em_assoc_sta_mld_info_t));
 }
 
