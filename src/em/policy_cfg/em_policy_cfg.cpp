@@ -352,7 +352,7 @@ short em_policy_cfg_t::create_vendor_policy_cfg_tlv(unsigned char *buff)
     }
 
     if ((idx_ap == -1) && (idx_alarm == -1) && (idx_filter == -1)) {
-        return 0;
+        return static_cast<short> (len);
     }
 
     /* If AP metrics policy exists, append its vendor data */
@@ -561,6 +561,7 @@ int em_policy_cfg_t::handle_policy_cfg_req(unsigned char *buff, unsigned int len
 
     tlv = reinterpret_cast<em_tlv_t *> (buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
     tlv_len = len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+    em_printfout("Handling Policy Cfg Request Msg len=%d, tlv_len=%d", len, tlv_len);
 
     while ((tlv->type != em_tlv_type_eom) && (tlv_len > 0)) {
         if (tlv->type == em_tlv_type_steering_policy) {

@@ -144,7 +144,7 @@ public:
 	 *
 	 * @note Ensure that the returned pointer is not null before using it.
 	 */
-	em_interface_t *get_al_interface() { return &m_device_info.backhaul_alid; }
+	em_interface_t *get_backhaul_al_interface() { return &m_device_info.backhaul_alid; }
     
 	/**!
 	 * @brief Retrieves the MAC address of the AL interface.
@@ -153,7 +153,7 @@ public:
 	 *
 	 * @note The returned pointer points to the internal MAC address storage and should not be freed by the caller.
 	 */
-	unsigned char *get_al_interface_mac() { return m_device_info.backhaul_alid.mac; }
+	unsigned char *get_backhaul_al_interface_mac() { return m_device_info.backhaul_alid.mac; }
     
 	/**!
 	 * @brief Retrieves the AL interface name.
@@ -164,7 +164,7 @@ public:
 	 *
 	 * @note Ensure that the returned pointer is not null before using it.
 	 */
-	char *get_al_interface_name() { return m_device_info.backhaul_alid.name; }
+	char *get_backhaul_al_interface_name() { return m_device_info.backhaul_alid.name; }
 
     
 	/**!

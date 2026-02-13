@@ -2184,7 +2184,7 @@ typedef struct {
     em_string_t     mscs_disallowed_sta[EM_MSCS_DISALLOWED_STA];
     unsigned char    num_scs_disallowed_sta;
     em_string_t     scs_disallowed_sta[EM_SCS_DISALLOWED_STA];
-    em_interface_t    colocated_agent_id; // Controller and Colocated Agent AL MAC
+    em_interface_t    colocated_agent_id; // Colocated Agent AL MAC
 	em_media_type_t	media;
 } em_network_info_t;
 

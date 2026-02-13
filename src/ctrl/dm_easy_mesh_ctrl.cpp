@@ -660,9 +660,8 @@ int dm_easy_mesh_ctrl_t::analyze_set_policy(em_bus_event_t *evt, em_cmd_t *pcmd[
             return 0;
         }
 
-        //TODO: once colocated agent fix is merged, remove this check
-        if(dev_dm->get_colocated() == true) {
-            //em_printfout("Colocated(%s), represent contoller device, so skipping....", mac_str);
+        if(dev_dm->is_controller() == true) {
+            em_printfout("Controller dm(%s), skipping....", mac_str);
             i++;
             continue;
         }
@@ -1536,12 +1535,12 @@ int dm_easy_mesh_ctrl_t::get_wifi_reset_config(cJSON *parent, char *key)
 
     // Prioritize the interface list depending on platform
     if ((intf = dm.get_prioritized_interface(platform)) == NULL) {
-        intf = dm.get_interface_by_index(0);
+        intf = dm.get_interface_by_index(0);//Todo: check why index 0 as it is taking brlan0
     }
 
     dm.set_ctrl_al_interface_mac(intf->mac);
     dm.set_ctrl_al_interface_name(intf->name);
-    dm.set_controller_id(intf->mac);
+    dm.set_controller_id(intf->mac);//Should be set to eth0-virt-peer mac
     dm.set_controller_intf_media(intf->media);
 
     //dm.print_config();
@@ -1665,8 +1664,7 @@ int dm_easy_mesh_ctrl_t::set_config(dm_easy_mesh_t *dm)
 
 dm_easy_mesh_t *dm_easy_mesh_ctrl_t::create_data_model(const char *net_id, const em_interface_t *al_intf, em_profile_type_t profile)
 {
-    
-    return m_data_model_list.create_data_model(net_id, al_intf, profile);
+    return m_data_model_list.create_data_model(net_id, al_intf, profile, true);
 }
 
 void dm_easy_mesh_ctrl_t::handle_dirty_dm()
@@ -2459,7 +2457,9 @@ bus_error_t dm_easy_mesh_ctrl_t::network_get_inner(char *event_name, raw_data_t 
         rc = dm_ctrl->raw_data_set(p_data, str_val);
     } else if (strcmp(param, "ColocatedAgentID") == 0) {
         dm_easy_mesh_t *dm = dm_ctrl->get_first_dm();
-        dm_easy_mesh_t::macbytes_to_string(dm->get_ctrl_al_interface_mac(), str_val);
+        //get colocated agent mac address from m_network
+        dm_network_t *net = dm->get_network();
+        dm_easy_mesh_t::macbytes_to_string(net->get_colocated_agent_interface_mac(), str_val);
         rc = dm_ctrl->raw_data_set(p_data, str_val);
     } else if (strcmp(param, "NumberOfDevices") == 0) {
         unsigned int dev_cnt = 0;
@@ -3438,8 +3438,6 @@ bus_error_t dm_easy_mesh_ctrl_t::wf6ap_tget_inner(char *event_name, raw_data_t *
     (void) user_data;
     const char *name = event_name;
     const char *root = name;
-    char path[512];
-    const char *param;
     bus_data_prop_t *property = NULL;
     char instance[MAX_INSTANCE_LEN] = { 0 };
     bool is_num;
@@ -3474,7 +3472,7 @@ bus_error_t dm_easy_mesh_ctrl_t::wf6ap_tget_inner(char *event_name, raw_data_t *
     }
     em_radio_info_t *ri = radio->get_radio_info();
 
-    rc = dm_ctrl->wf6ap_tget_params(dm, root, ri, &property, radio_instance);
+    rc = dm_ctrl->wf6ap_tget_params(dm, root, ri, &property, static_cast<unsigned int>(radio_instance));
     if (rc == bus_error_success && property) {
         dm_ctrl->raw_data_set(p_data, property);
     }
@@ -3482,7 +3480,7 @@ bus_error_t dm_easy_mesh_ctrl_t::wf6ap_tget_inner(char *event_name, raw_data_t *
     return rc;
 }
 
-bus_error_t dm_easy_mesh_ctrl_t::wf6ap_tget_params(dm_easy_mesh_t *dm, const char *root, em_radio_info_t *ri, bus_data_prop_t **property, int idx)
+bus_error_t dm_easy_mesh_ctrl_t::wf6ap_tget_params(dm_easy_mesh_t *dm, const char *root, em_radio_info_t *ri, bus_data_prop_t **property, unsigned int idx)
 {
     char mcsnss_str[256] = { 0 };
     bus_error_t rc = bus_error_success;
@@ -3654,7 +3652,7 @@ bus_error_t dm_easy_mesh_ctrl_t::wf7ap_tget_inner(char *event_name, raw_data_t *
     }
     em_radio_info_t *ri = radio->get_radio_info();
 
-    rc = dm_ctrl->wf7ap_tget_params(dm, root, ri, &property, radio_instance);
+    rc = dm_ctrl->wf7ap_tget_params(dm, root, ri, &property, static_cast<unsigned int>(radio_instance));
     if (rc == bus_error_success && property) {
         dm_ctrl->raw_data_set(p_data, property);
     }
@@ -3662,7 +3660,7 @@ bus_error_t dm_easy_mesh_ctrl_t::wf7ap_tget_inner(char *event_name, raw_data_t *
     return rc;
 }
 
-bus_error_t dm_easy_mesh_ctrl_t::wf7ap_tget_params(dm_easy_mesh_t *dm, const char *root, em_radio_info_t *ri, bus_data_prop_t **property, int idx)
+bus_error_t dm_easy_mesh_ctrl_t::wf7ap_tget_params(dm_easy_mesh_t *dm, const char *root, em_radio_info_t *ri, bus_data_prop_t **property, unsigned int idx)
 {
     bus_error_t rc = bus_error_success;
     unsigned int i;
@@ -4764,7 +4762,7 @@ void dm_easy_mesh_ctrl_t::update_network_topology()
     em_printfout("-----Updating network topology <start>-------");
     dm = get_first_dm();
     while (dm != NULL) {
-        if (dm->get_colocated() == false) {
+        if (dm->is_controller() == false) {
             std::string dev_mac_str = util::mac_to_string(dm->m_device.m_device_info.intf.mac);
             if (g_network_topology->find_topology(dm) == NULL) {
                 em_printfout("New dev_mac:%s num_bss:%d added in topology.",
@@ -4794,7 +4792,7 @@ void dm_easy_mesh_ctrl_t::init_network_topology()
 
     dm = get_first_dm();
     while (dm != NULL) {
-        if (dm->get_colocated() == true) {
+        if (dm->is_controller() == true) {
             m_topology = new em_network_topo_t(dm);
             set_network_initialized();
             dm_easy_mesh_t::macbytes_to_string(dm->m_device.m_device_info.intf.mac, dev_mac_str);

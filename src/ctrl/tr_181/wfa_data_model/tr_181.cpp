@@ -258,7 +258,7 @@ int tr_181_t::wfa_set_bus_callbackfunc_pointers(const char *full_namespace, bus_
         ELEMENT(DE_AFFAP_BCBYTESRCV,       CALLBACK_GETTER(affap_get)),
 
         ELEMENT(DEVICE_WIFI_DATAELEMENTS_NETWORK_TOPOLOGY,              CB(NULL, NULL, NULL, NULL, NULL, NULL)),
-        ELEMENT(DEVICE_WIFI_DATAELEMENTS_NETWORK_NODE_SYNC,             CB(.get_handler = get_node_sync, .set_handler = set_node_sync)),
+        ELEMENT(DEVICE_WIFI_DATAELEMENTS_NETWORK_NODE_SYNC,             CB(.get_handler = get_node_sync, .set_handler = set_node_sync, NULL, NULL, NULL, NULL)),
         //ELEMENT(DEVICE_WIFI_DATAELEMENTS_NETWORK_NODE_CFG_POLICY,       CB(.set_handler = policy_config))
     };
 

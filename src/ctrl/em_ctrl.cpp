@@ -86,7 +86,7 @@ void em_ctrl_t::handle_dm_commit(em_bus_event_t *evt)
             pnet = new_dm.get_network();
             *pnet = *net;
 
-            ref_dm = get_data_model(net->m_net_info.id, net->m_net_info.colocated_agent_id.mac);
+            ref_dm = get_data_model(net->m_net_info.id, net->m_net_info.ctrl_id.mac);
             assert(ref_dm != NULL);
             new_dm.set_num_network_ssid(ref_dm->get_num_network_ssid());
             for (unsigned int i = 0; i < ref_dm->get_num_network_ssid(); i++) {
@@ -670,7 +670,7 @@ void em_ctrl_t::publish_network_topology()
     raw.raw_data.bytes = reinterpret_cast<unsigned char *> (str);
     raw.raw_data_len = static_cast<unsigned int> (strlen(str));
 
-    if (desc->bus_event_publish_fn(m_data_model.get_bus_hdl(), DEVICE_WIFI_DATAELEMENTS_NETWORK_TOPOLOGY, &raw)== 0) {
+    if (desc->bus_event_publish_fn(m_data_model.get_bus_hdl(), const_cast<char*>(DEVICE_WIFI_DATAELEMENTS_NETWORK_TOPOLOGY), &raw)== 0) {
         printf("%s:%d Topology published successfull\n",__func__, __LINE__);
     } else {
         printf("%s:%d Topology publish fail\n",__func__, __LINE__);
@@ -1077,16 +1077,16 @@ void em_ctrl_t::start_complete()
 
     //Todo: Revisit placement of data elements registration done for orch
     bus_data_element_t dataElements[] = {
-        { DEVICE_WIFI_DATAELEMENTS_NETWORK_TOPOLOGY, bus_element_type_method,
+        { const_cast<char*>(DEVICE_WIFI_DATAELEMENTS_NETWORK_TOPOLOGY), bus_element_type_method,
             { tr_181_t::get_network_topology, NULL , NULL, NULL, NULL, NULL }, slow_speed, ZERO_TABLE,
             { bus_data_type_string, false, 0, 0, 0, NULL } },
-        { DEVICE_WIFI_DATAELEMENTS_NETWORK_NODE_SYNC, bus_element_type_method,
+        { const_cast<char*>(DEVICE_WIFI_DATAELEMENTS_NETWORK_NODE_SYNC), bus_element_type_method,
             { tr_181_t::get_node_sync,  tr_181_t::set_node_sync , NULL, NULL, NULL, NULL }, slow_speed, ZERO_TABLE,
             { bus_data_type_string, false, 0, 0, 0, NULL } },
-        { DEVICE_WIFI_DATAELEMENTS_NETWORK_NODE_CFG_POLICY, bus_element_type_method,
+        { const_cast<char*>(DEVICE_WIFI_DATAELEMENTS_NETWORK_NODE_CFG_POLICY), bus_element_type_method,
             { NULL, tr_181_t::policy_config , NULL, NULL, NULL, NULL }, slow_speed, ZERO_TABLE,
             { bus_data_type_string, false, 0, 0, 0, NULL } },
-         { DEVICE_WIFI_DATAELEMENTS_NETWORK_NODE_LINKSTATS_ALARM, bus_element_type_method,
+         { const_cast<char*>(DEVICE_WIFI_DATAELEMENTS_NETWORK_NODE_LINKSTATS_ALARM), bus_element_type_method,
             { NULL, NULL , NULL, NULL, NULL, NULL }, slow_speed, ZERO_TABLE,
             { bus_data_type_string, false, 0, 0, 0, NULL } },
 	};
@@ -1133,18 +1133,28 @@ void em_ctrl_t::start_complete()
         return;
     }
 
-    intf = m_data_model.get_ctrl_al_interface(const_cast<char*>(GLOBAL_NET_ID));
-    assert(intf != NULL);
+    dm = m_data_model.get_first_dm();
+    while (dm != NULL && dm->is_controller() == false) {
+        dm = m_data_model.get_next_dm(dm);
+    }
 
-    dm_easy_mesh_t::macbytes_to_string(intf->mac, al_mac_str);
-    raw.data_type    = bus_data_type_string;
-    raw.raw_data.bytes   = al_mac_str;
-    raw.raw_data_len = static_cast<unsigned int> (strlen(al_mac_str));
+    if (dm) {
+        intf = dm->get_ctrl_al_interface();
+        assert(intf != NULL);
 
-    if (desc->bus_set_fn(m_data_model.get_bus_hdl(), "Device.WiFi.Ctrl.CollocateAgentID", &raw)== 0) {
-        printf("%s:%d Collocated Agent ID: %s publish successfull\n",__func__, __LINE__, al_mac_str);
+        dm_easy_mesh_t::macbytes_to_string(intf->mac, al_mac_str);
+        raw.data_type    = bus_data_type_string;
+        raw.raw_data.bytes   = al_mac_str;
+        raw.raw_data_len = static_cast<unsigned int> (strlen(al_mac_str));
+
+        if (desc->bus_set_fn(m_data_model.get_bus_hdl(), "Device.WiFi.DataElements.Network.ControllerID", &raw) == 0) {
+            em_printfout("Controller ID: %s publish successful.", al_mac_str);
+        }
+        else {
+            em_printfout("Controller ID: %s publish failed.", al_mac_str);
+        }
     } else {
-        printf("%s:%d Collocated agent ID: %s publish  fail\n",__func__, __LINE__, al_mac_str);
+            em_printfout("Could not find data model with controller role");
     }
 
     if (desc->bus_event_subs_fn(m_data_model.get_bus_hdl(), DEVICE_WIFI_DATAELEMENTS_NETWORK_NODE_CFG_POLICY, reinterpret_cast<void *> (&tr_181_t::subs_policy_config), NULL, 0) != 0) {
@@ -1185,7 +1195,6 @@ AlServiceAccessPoint* em_ctrl_t::al_sap_register(const std::string& data_socket_
         uint8_t* al_mac_bytes = g_al_mac_sap.data();
         em_printfout("AL SAP registration successful, AL MAC: %s", util::mac_to_string(al_mac_bytes).c_str());
 
-        m_data_model.set_colocated_agent_interface_mac(al_mac_bytes);
         m_data_model.set_dev_interface_mac(al_mac_bytes);
     } else {
         std::cout << "Registration failed with error: " << static_cast<int>(result) << std::endl;
