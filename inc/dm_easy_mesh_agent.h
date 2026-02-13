@@ -325,6 +325,7 @@ public:
 	 * @note Ensure that the event and command structures are properly initialized before calling this function.
 	 */
 	int analyze_ap_metrics_report(em_bus_event_t *evt, em_cmd_t *pcmd[]);
+	int analyze_link_report(em_bus_event_t *evt, em_cmd_t *pcmd[]);
 
 	/**!
 	 * @brief Refreshes the OneWiFi subdocument.

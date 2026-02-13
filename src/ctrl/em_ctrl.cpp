@@ -427,10 +427,9 @@ void em_ctrl_t::handle_link_stats_alarm_report(em_bus_event_t *evt)
 
     snprintf(info->name, sizeof(info->name), "alarm_report");
 
-    //m_data_model.get_config(GLOBAL_NET_ID, info);
     cJSON *parent = cJSON_CreateObject();
     em_printfout("Getting STAList for alarm report\n");
-    m_data_model.get_sta_config(parent, GLOBAL_NET_ID, em_get_sta_list_reason_alarm_report, info->buff);
+    m_data_model.get_sta_config(parent, const_cast<char*>(GLOBAL_NET_ID), em_get_sta_list_reason_alarm_report, info->buff);
 
     //publish to orch
     if((desc = get_bus_descriptor()) == NULL) {
@@ -454,7 +453,7 @@ void em_ctrl_t::handle_link_stats_alarm_report(em_bus_event_t *evt)
     if (desc->bus_event_publish_fn(m_data_model.get_bus_hdl(), DEVICE_WIFI_DATAELEMENTS_NETWORK_NODE_LINKSTATS_ALARM, &raw)== 0) {
         em_printfout("Link Stats Alarm published successfull");
     } else {
-        em_printfout("%s:%d Link Stats Alarm publish fail");
+        em_printfout("Link Stats Alarm publish fail");
     }
 
     cJSON_Delete(parent);
@@ -620,7 +619,7 @@ void em_ctrl_t::handle_bus_event(em_bus_event_t *evt)
             handle_bsta_cap_req(evt);
             break;
 
-        case em_bus_event_type_link_stats_alarm_report:
+        case em_bus_event_type_link_quality_report:
            handle_link_stats_alarm_report(evt);
            break;
 	
@@ -677,7 +676,7 @@ void em_ctrl_t::publish_network_topology()
         printf("%s:%d Topology publish fail\n",__func__, __LINE__);
     }
 
-#if 1
+#if 0
     //Test code here
     // if (desc->bus_event_subs_fn(&m_bus_hdl, DEVICE_WIFI_DATAELEMENTS_NETWORK_NODE_CFG_POLICY, (void *)&em_agent_t::onewifi_cb, NULL, 0) != 0) {
     //     printf("%s:%d bus get failed\n", __func__, __LINE__);
@@ -1034,6 +1033,17 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
             }
             break;
 
+        case em_msg_type_topo_vendor:
+            em = static_cast<em_t *> (hash_map_get_first(m_em_map));
+            while(em != NULL) {
+                if (em->is_al_interface_em() == false) {
+                    break;
+                }
+                em = static_cast<em_t *> (hash_map_get_next(m_em_map, em));
+            }
+            break;
+
+
         default:
             printf("%s:%d: Frame: 0x%04x not handled in controller\n", __func__, __LINE__, htons(cmdu->type));
             em = NULL;
@@ -1063,12 +1073,12 @@ void em_ctrl_t::start_complete()
 	mac_address_t null_mac = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 	int i = 0;
     bus_error_t bus_error_val;
-    int num_elements = 0;
+    unsigned int num_elements = 0;
 
     //Todo: Revisit placement of data elements registration done for orch
     bus_data_element_t dataElements[] = {
         { DEVICE_WIFI_DATAELEMENTS_NETWORK_TOPOLOGY, bus_element_type_method,
-            { NULL, NULL , NULL, NULL, NULL, NULL }, slow_speed, ZERO_TABLE,
+            { tr_181_t::get_network_topology, NULL , NULL, NULL, NULL, NULL }, slow_speed, ZERO_TABLE,
             { bus_data_type_string, false, 0, 0, 0, NULL } },
         { DEVICE_WIFI_DATAELEMENTS_NETWORK_NODE_SYNC, bus_element_type_method,
             { tr_181_t::get_node_sync,  tr_181_t::set_node_sync , NULL, NULL, NULL, NULL }, slow_speed, ZERO_TABLE,

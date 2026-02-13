@@ -226,6 +226,9 @@ extern "C"
 #define AUTHENTICATOR_LEN   8
 
 #define WIFI_EASYMESH_NOTIFICATION "Device.WiFi.Easymesh.Notification"
+#ifndef WIFI_QUALITY_LINKREPORT
+#define WIFI_QUALITY_LINKREPORT      "Device.WiFi.LinkReport"
+#endif
 
 #define EM_MEDIA_ETH    0x0000
 #define EM_MEDIA_WIFI   0x0100
@@ -636,9 +639,9 @@ typedef enum {
     em_tlv_eht_operations = 0xe7,
     em_tlv_type_avail_spectrum_inquiry_reg = 0xe8,
     em_tlv_type_avail_spectrum_inquiry_rsp = 0xe9,
-    em_tlv_type_vendor_sta_metrics = 0xf1,
     em_tlv_type_vendor_operational_bss = 0xf2,
-    em_tlv_type_link_stats_alarm_rprt = 0xf3,
+
+    em_tlv_type_max
 } em_tlv_type_t;
 
 typedef enum {
@@ -1504,9 +1507,15 @@ typedef struct {
 } __attribute__((__packed__)) em_1905_mac_addr_t;
 
 typedef struct {
+    // this is of type vendor_ext_attr_id_t for vendor specific attributes
+    unsigned char attr_id;
+    unsigned char  vendor_data[0];
+} __attribute__((__packed__)) em_vendor_data_t;
+
+typedef struct {
     unsigned char  vendor_oui[3];
-    unsigned char m_num;
-    unsigned char  *m;
+    unsigned char num;
+    em_vendor_data_t  data[0];
 } __attribute__((__packed__)) em_vendor_specific_t;
 
 typedef struct {
@@ -1834,11 +1843,17 @@ typedef struct {
     em_string_t collection_start_time;
     unsigned int reporting_interval;
     float link_quality_threshold;
-} __attribute__((__packed__)) em_link_report_alarm_policy_cfg_t;
+} __attribute__((__packed__)) em_link_stats_alarm_cfg_t;
 
 typedef struct {
+    mac_addr_t sta_mac;
+    unsigned int consec_alarm_thres_cnt;
+    em_small_string_t collect_duration;
+} __attribute__((__packed__)) em_client_filters_cfg_t;
+typedef struct {
     em_string_t managed_client_marker;
-    em_link_report_alarm_policy_cfg_t link_stats_alarm_policy_cfg;
+    em_link_stats_alarm_cfg_t link_stats_alarm_policy_cfg;
+    em_client_filters_cfg_t client_filters_policy_cfg;
 }__attribute__((__packed__)) em_vendor_policy_t;
 
 typedef struct {
@@ -1987,10 +2002,12 @@ typedef enum {
 
 typedef enum {
     // Vendor Extension Attribute for Haul Type with data
-    // of 1 byte having value corresponding to em_haul_type_t
-    vendor_ext_attr_id_haul_type = 0x01,
-    vendor_ext_attr_id_policy_sta_marker,
-    vendor_ext_attr_id_policy_alarm,
+    vendor_ext_attr_id_haul_type = 0x01,    // of 1 byte having value corresponding to em_haul_type_t
+    vendor_ext_attr_id_policy_sta_marker,   // string value with variable length
+    vendor_ext_attr_id_client_type,      // data of type em_assoc_sta_vendor_link_metrics_t
+    vendor_ext_attr_id_policy_alarm,    // data of type em_link_stats_alarm_cfg_t
+    vendor_ext_attr_id_policy_cfg_client_filter,    // data of type em_client_filters_cfg_t
+    vendor_ext_attr_id_link_report,     // data of type em_link_report_t
 
     vendor_ext_attr_id_max
 } vendor_ext_attr_id_t;
@@ -2020,6 +2037,7 @@ typedef enum {
     em_state_agent_steer_btm_res_pending,
     em_state_agent_beacon_report_pending,
     em_state_agent_ap_metrics_pending,
+    em_state_agent_link_quality_report_pending,
 
     em_state_ctrl_unconfigured = 0x100,
     em_state_ctrl_wsc_m1_pending,
@@ -2103,7 +2121,7 @@ typedef enum {
     em_cmd_type_ap_metrics_report,
     em_cmd_type_get_reset,
     em_cmd_type_bsta_cap,
-    em_cmd_type_get_link_stats_alarm_report,
+    em_cmd_type_get_link_quality_report,
 
     em_cmd_type_max,
 } em_cmd_type_t;
@@ -2778,7 +2796,7 @@ typedef enum {
     em_bus_event_type_get_reset,
     em_bus_event_type_recv_csa_beacon_frame,
     em_bus_event_type_bsta_cap_req,
-    em_bus_event_type_link_stats_alarm_report,
+    em_bus_event_type_link_quality_report,
 
     em_bus_event_type_max
 } em_bus_event_type_t;
@@ -2867,7 +2885,8 @@ typedef enum {
     dm_orch_type_policy_cfg,
     dm_orch_type_mld_reconfig,
     dm_orch_type_beacon_report,
-    dm_orch_type_bsta_cap_query
+    dm_orch_type_bsta_cap_query,
+    dm_orch_type_link_quality_report
 } dm_orch_type_t;
 
 typedef struct {
@@ -3252,6 +3271,7 @@ typedef enum {
 	em_policy_id_type_backhaul_bss_config,
 	em_policy_id_type_qos_mgt,
     em_policy_id_type_alarm_threshold,
+    em_policy_id_type_client_filters,
 
 	em_policy_id_type_unknown,
 } em_policy_id_type_t;
@@ -3287,12 +3307,6 @@ typedef struct {
 } em_traffic_separation_policy_t;
 
 typedef struct {
-    em_long_string_t collection_start_time;
-    unsigned int reporting_interval;
-    float link_quality_threshold;
-} em_link_stats_alarm_cfg_t;
-
-typedef struct {
 	em_policy_id_t	id;
 	unsigned int num_sta;
 	mac_address_t	sta_mac[EM_MAX_STA_PER_STEER_POLICY];
@@ -3311,6 +3325,7 @@ typedef struct {
 	em_8021q_settings_policy_t  def_8021q_settings;
 	em_traffic_separation_policy_t traffic_separ;
     em_link_stats_alarm_cfg_t link_stats_alarm_cfg;
+    em_client_filters_cfg_t client_filters;
 } em_policy_t;
 
 typedef em_network_node_t  *(* em_editor_callback_t)(em_network_node_t *, void *);

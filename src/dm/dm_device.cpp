@@ -30,11 +30,10 @@
 #include <sys/uio.h>
 #include <sys/time.h>
 #include <unistd.h>
-#include <stdexcept>
 #include "dm_device.h"
 #include "dm_easy_mesh.h"
 #include "dm_easy_mesh_ctrl.h"
-//#include "util.h"
+#include "util.h"
 
 int dm_device_t::decode(const cJSON *obj, void *parent_id)
 {
@@ -403,8 +402,10 @@ int dm_device_t::update_easymesh_json_cfg(bool colocated_mode)
 
 dm_device_t::dm_device_t(em_device_info_t *dev)
 {
-    if ( dev == nullptr ){
-        throw std::invalid_argument("device_info is null");
+    memset(&m_device_info, 0, sizeof(em_device_info_t));
+    if ( dev == nullptr ) {
+        em_printfout("Error: device_info is null");
+        return;
     }
     memcpy(&m_device_info, dev, sizeof(em_device_info_t));
 }

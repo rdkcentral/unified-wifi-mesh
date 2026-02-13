@@ -290,6 +290,8 @@ class em_agent_t : public em_mgr_t {
 	 */
 	void handle_ap_metrics_report(em_bus_event_t *evt);
 
+	void handle_link_stats_report(em_bus_event_t *evt);
+
 	/**
 	 * @brief Send an action frame
 	 *
@@ -1001,8 +1003,8 @@ public:
 	 *
 	 * @note Ensure that the data pointer is valid before accessing its contents.
 	 */
-	static int ap_metrics_report_cb(char *event_name, raw_data_t *data, void *userData);
-    
+	static int report_cb(char *event_name, raw_data_t *data, void *userData);
+
 	/**!
 	 * @brief Retrieves the associated data for the given input.
 	 *

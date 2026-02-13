@@ -117,7 +117,32 @@ int dm_policy_t::decode(const cJSON *obj, void *parent_id, em_policy_id_type_t t
         if ((tmp = cJSON_GetObjectItem(obj, "Link Quality Threshold")) != NULL) {
             m_policy.link_stats_alarm_cfg.link_quality_threshold = static_cast<float>(tmp->valuedouble);
         }
-	}
+	} else if (type == em_policy_id_type_client_filters) {
+        cJSON *client_filter_obj = NULL;
+        cJSON *filter_config = NULL;
+        // Iterate over object members (MAC addresses as keys)
+        cJSON_ArrayForEach(client_filter_obj, obj) {
+            if (client_filter_obj->string != NULL) {
+                em_printfout("Decoding Client Filter Policy for %s", client_filter_obj->string);
+                dm_easy_mesh_t::string_to_macbytes(client_filter_obj->string, m_policy.client_filters.sta_mac);
+
+                filter_config = client_filter_obj;
+                if ((tmp = cJSON_GetObjectItem(filter_config, "Consecutive Alarm Threshold")) != NULL)
+                {
+                    m_policy.client_filters.consec_alarm_thres_cnt = static_cast<unsigned int>(tmp->valuedouble);
+                }
+                if ((tmp = cJSON_GetObjectItem(filter_config, "Debug Duration")) != NULL)
+                {
+                    snprintf(m_policy.client_filters.collect_duration, sizeof(em_small_string_t), "%s", cJSON_GetStringValue(tmp));
+                }
+            }
+        }
+
+        em_printfout(" CLIENT FILTERS STA MAC='%s', CONSEC ALARM THRESHOLD=%d ,DURATION=%s ",
+            util::mac_to_string(m_policy.client_filters.sta_mac).c_str(),
+            m_policy.client_filters.consec_alarm_thres_cnt,
+            m_policy.client_filters.collect_duration);
+    }
 	
 	return 0;
 }
@@ -186,7 +211,9 @@ bool dm_policy_t::operator == (const dm_policy_t& obj)
     ret += !(this->m_policy.sta_status == obj.m_policy.sta_status);
     ret += (strncmp(this->m_policy.managed_sta_marker, obj.m_policy.managed_sta_marker, strlen(this->m_policy.managed_sta_marker)) != 0);
     ret += (memcmp(&this->m_policy.def_8021q_settings, &obj.m_policy.def_8021q_settings, sizeof(em_8021q_settings_policy_t)) != 0);
-    ret += (memcmp(&this->m_policy.link_stats_alarm_cfg, &obj.m_policy.link_stats_alarm_cfg, sizeof(em_link_stats_alarm_cfg_t)) != 0);
+    ret += (memcmp(&this->m_policy.traffic_separ, &obj.m_policy.traffic_separ, sizeof(em_traffic_separation_policy_t)) != 0);
+    ret += (memcmp(&m_policy.link_stats_alarm_cfg, &obj.m_policy.link_stats_alarm_cfg, sizeof(em_link_stats_alarm_cfg_t)) != 0);
+    ret += (memcmp(&m_policy.client_filters, &obj.m_policy.client_filters, sizeof(em_client_filters_cfg_t)) != 0);
 
     return (ret > 0) ? false:true;
 }
@@ -199,7 +226,7 @@ void dm_policy_t::operator = (const dm_policy_t& obj)
     memcpy(&this->m_policy.id.radio_mac, &obj.m_policy.id.radio_mac, sizeof(mac_address_t));
     m_policy.id.type = obj.m_policy.id.type;
     m_policy.num_sta = obj.m_policy.num_sta;
-    for(int i = 0; i < m_policy.num_sta; i++) {
+    for(unsigned int i = 0; i < m_policy.num_sta; i++) {
         memcpy(this->m_policy.sta_mac[i], obj.m_policy.sta_mac[i], sizeof(mac_address_t));
     }
     m_policy.policy = obj.m_policy.policy;
@@ -214,6 +241,7 @@ void dm_policy_t::operator = (const dm_policy_t& obj)
     strncpy(this->m_policy.managed_sta_marker, obj.m_policy.managed_sta_marker, sizeof(em_long_string_t));
     memcpy(&this->m_policy.def_8021q_settings, &obj.m_policy.def_8021q_settings, sizeof(em_8021q_settings_policy_t));
     memcpy(&m_policy.link_stats_alarm_cfg, &obj.m_policy.link_stats_alarm_cfg, sizeof(em_link_stats_alarm_cfg_t));
+    memcpy(&m_policy.client_filters, &obj.m_policy.client_filters, sizeof(em_client_filters_cfg_t));
 }
 
 int dm_policy_t::parse_dev_radio_mac_from_key(const char *key, em_policy_id_t *id)

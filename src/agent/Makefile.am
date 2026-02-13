@@ -98,6 +98,7 @@ onewifi_em_agent_SOURCES =  \
      $(top_srcdir)/src/cmd/em_cmd_get_mld_config.cpp \
      $(top_srcdir)/src/cmd/em_cmd_beacon_report.cpp \
      $(top_srcdir)/src/cmd/em_cmd_ap_metrics_report.cpp \
+     $(top_srcdir)/src/cmd/em_cmd_link_stats_report.cpp \
      $(top_srcdir)/src/agent/dm_easy_mesh_agent.cpp \
      $(top_srcdir)/src/agent/em_agent.cpp \
      $(top_srcdir)/src/agent/em_cmd_agent.cpp \

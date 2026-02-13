@@ -322,33 +322,36 @@ short em_policy_cfg_t::create_vendor_policy_cfg_tlv(unsigned char *buff)
     size_t len = 0;
     dm_easy_mesh_t *dm;
     dm_policy_t *policy;
-    unsigned char *tmp = buff;
     unsigned int i = 0;
-    em_vendor_specific_t *vendor_tlv = reinterpret_cast<em_vendor_specific_t *> (tmp);
-    dm = get_current_cmd()->get_data_model();
-
-    /* Search for both AP Metrics and Alarm Threshold policies before deciding what to append */
     int idx_ap = -1;
     int idx_alarm = -1;
+    int idx_filter = -1;
 
-    memcpy(reinterpret_cast<char *> (vendor_tlv->vendor_oui), em_vendor_oui, EM_VENDOR_OUI_SIZE);
-    vendor_tlv->m_num = 0;
-    tmp += sizeof(unsigned char) + EM_VENDOR_OUI_SIZE;
+    em_vendor_specific_t *vendor_data = reinterpret_cast<em_vendor_specific_t *> (buff);
+    memcpy(reinterpret_cast<char *> (vendor_data->vendor_oui), em_vendor_oui, EM_VENDOR_OUI_SIZE);
     len += sizeof(unsigned char) + EM_VENDOR_OUI_SIZE;
+
+    unsigned char *cursor = reinterpret_cast<unsigned char *> (vendor_data->data);
+    unsigned char *payload_start = reinterpret_cast<unsigned char *> (vendor_data->data);
+    em_vendor_data_t *data = NULL;
+
+    dm = get_current_cmd()->get_data_model();
 
     for (i = 0; i < dm->get_num_policy(); i++) {
         if (dm->m_policy[i].m_policy.id.type == em_policy_id_type_ap_metrics_rep) {
             idx_ap = static_cast<int>(i);
         } else if (dm->m_policy[i].m_policy.id.type == em_policy_id_type_alarm_threshold) {
             idx_alarm = static_cast<int>(i);
+        } else if (dm->m_policy[i].m_policy.id.type == em_policy_id_type_client_filters) {
+            idx_filter = static_cast<int>(i);
         }
         /* If both found, we can stop scanning early */
-        if ((idx_ap != -1) && (idx_alarm != -1)) {
+        if ((idx_ap != -1) && (idx_alarm != -1) && (idx_filter != -1)) {
             break;
         }
     }
 
-    if ((idx_ap == -1) && (idx_alarm == -1)) {
+    if ((idx_ap == -1) && (idx_alarm == -1) && (idx_filter == -1)) {
         return 0;
     }
 
@@ -357,73 +360,54 @@ short em_policy_cfg_t::create_vendor_policy_cfg_tlv(unsigned char *buff)
         policy = &dm->m_policy[idx_ap];
         em_printfout(" Vendor Policy cfg TLV for metrics report policy ");
 
-        *tmp = static_cast<unsigned char>(vendor_ext_attr_id_policy_sta_marker);
-        tmp += sizeof(unsigned char);
-        len += sizeof(unsigned char);
+        data = reinterpret_cast<em_vendor_data_t *> (cursor);
+        data->attr_id = vendor_ext_attr_id_policy_sta_marker;
+        strncpy(reinterpret_cast<char *> (data->vendor_data), policy->m_policy.managed_sta_marker, strlen(policy->m_policy.managed_sta_marker) + 1);
 
-        strncpy(reinterpret_cast<char *> (tmp), policy->m_policy.managed_sta_marker, strlen(policy->m_policy.managed_sta_marker) + 1);
-        tmp += strlen(policy->m_policy.managed_sta_marker) + 1;
-        len += strlen(policy->m_policy.managed_sta_marker) + 1;
+        len += sizeof(data->attr_id) + strlen(policy->m_policy.managed_sta_marker) + 1;
+        cursor += sizeof(data->attr_id) + strlen(policy->m_policy.managed_sta_marker) + 1;
 
-        vendor_tlv->m_num++;
+        vendor_data->num++;
     }
 
     if (idx_alarm != -1) {
         policy = &dm->m_policy[idx_alarm];
         em_printfout(" Vendor Policy cfg TLV for link stats alarm policy ");
 
-        *tmp = static_cast<unsigned char>(vendor_ext_attr_id_policy_alarm);
-        tmp += sizeof(unsigned char);
-        len += sizeof(unsigned char);
+        data = reinterpret_cast<em_vendor_data_t *> (cursor);
+        data->attr_id = vendor_ext_attr_id_policy_alarm;
+        memcpy(data->vendor_data,
+            &policy->m_policy.link_stats_alarm_cfg,
+            sizeof(em_link_stats_alarm_cfg_t));
 
-        memcpy(tmp, reinterpret_cast<unsigned char *> (&policy->m_policy.link_stats_alarm_cfg), sizeof(em_link_stats_alarm_cfg_t));
-        tmp += sizeof(em_link_stats_alarm_cfg_t);
-        len += sizeof(em_link_stats_alarm_cfg_t);
+        len += sizeof(data->attr_id) + sizeof(em_link_stats_alarm_cfg_t);
+        cursor += sizeof(data->attr_id) + sizeof(em_link_stats_alarm_cfg_t);
 
-        vendor_tlv->m_num++;
+        vendor_data->num++;
     }
 
-    em_printfout(" Vendor Policy cfg total numbers: %zu ", vendor_tlv->m_num);
-    em_printfout(" Vendor Policy cfg TLV length: %zu ", len);
+    if (idx_filter != -1) {
+        policy = &dm->m_policy[idx_filter];
+        em_printfout(" Vendor Policy cfg TLV for client filters policy ");
 
-    return static_cast<short> (len);
-}
+        data = reinterpret_cast<em_vendor_data_t *> (cursor);
+        data->attr_id = vendor_ext_attr_id_policy_cfg_client_filter;
+        memcpy(data->vendor_data, reinterpret_cast<unsigned char *> (&policy->m_policy.client_filters), sizeof(em_client_filters_cfg_t));
+        
+        len += sizeof(data->attr_id) + sizeof(em_client_filters_cfg_t);
+        cursor += sizeof(data->attr_id) + sizeof(em_client_filters_cfg_t);
 
-short em_policy_cfg_t::create_vendor_policy_cfg_alarm_tlv(unsigned char *buff)
-{
-    size_t len = 0;
-    dm_easy_mesh_t *dm;
-    dm_policy_t *policy;
-    bool found_match = false;
-    unsigned char *tmp = buff;
-    unsigned int i = 0;
-
-    dm = get_current_cmd()->get_data_model();
-
-    for (i = 0; i < dm->get_num_policy(); i++) {
-        policy = &dm->m_policy[i];
-        if (policy->m_policy.id.type == em_policy_id_type_alarm_threshold) {
-            found_match = true;
-            break;
-        }
+        vendor_data->num++;
     }
-    if (found_match == false) {
-        return 0;
-    }
-
-    em_printfout(" Vendor Policy cfg TLV for link stats alarm policy ");
-    memcpy(tmp, reinterpret_cast<unsigned char *> (&policy->m_policy.link_stats_alarm_cfg), sizeof(em_link_stats_alarm_cfg_t));
-    tmp += sizeof(em_link_stats_alarm_cfg_t);
-    len += sizeof(em_link_stats_alarm_cfg_t);
-
-    em_printfout(" Vendor Policy cfg TLV length: %zu ", len);
+    em_printfout("vendor data attr cnt: %zu", vendor_data->num);
+    em_printfout("client filter Policy cfg TLV length: %zu and total payload: %zu", len, (cursor - payload_start));
 
     return static_cast<short> (len);
 }
 
 int em_policy_cfg_t::send_policy_cfg_request_msg()
 {
-    unsigned char buff[MAX_EM_BUFF_SZ];
+    unsigned char buff[MAX_EM_BUFF_SZ] = {0};
     char *errors[EM_MAX_TLV_MEMBERS] = {0};
     unsigned short  msg_type = em_msg_type_map_policy_config_req;
     size_t len = 0;
@@ -570,7 +554,8 @@ int em_policy_cfg_t::handle_policy_cfg_req(unsigned char *buff, unsigned int len
     unsigned int tlv_len;
     size_t data_len = 0;
     unsigned int i = 0;
-    mac_addr_str_t mac_str;
+    unsigned char *cursor = NULL;
+    em_vendor_data_t *data = NULL;
 
     memset(&policy, 0, sizeof(em_policy_cfg_t));
 
@@ -611,9 +596,7 @@ int em_policy_cfg_t::handle_policy_cfg_req(unsigned char *buff, unsigned int len
             for(i = 0; i < metrics->radios_num; i++) {
                 em_metric_rprt_policy_radio_t *radio = &metrics->radios[i];
                 memcpy(&policy.metrics_policy.radios[i], radio, sizeof(em_metric_rprt_policy_radio_t));
-
-                dm_easy_mesh_t::macbytes_to_string(policy.metrics_policy.radios[i].ruid, mac_str);
-                printf("%s:%d Recvd policy for radio %s\n", __func__, __LINE__, mac_str);
+                em_printfout("Recvd policy for radio %s", util::mac_to_string(policy.metrics_policy.radios[i].ruid).c_str());
             }
             data_len += (metrics->radios_num * sizeof(em_metric_rprt_policy_radio_t));
         } else if (tlv->type == em_tlv_type_dflt_8021q_settings) {
@@ -642,7 +625,7 @@ int em_policy_cfg_t::handle_policy_cfg_req(unsigned char *buff, unsigned int len
                         tmp += sizeof(unsigned short);
                         data_len += sizeof(unsigned short);
 		            }
-                    em_printfout(" Recvd Traffic Separation policy SSID='%s' Len=%u, VLAN=%u ",policy.traffic_separation_policy.ssids[i].ssid , ssid_len ,policy.traffic_separation_policy.ssids[i].vlan_id);
+                    em_printfout("Recvd Traffic Separation policy SSID='%s' Len=%u, VLAN=%u ",policy.traffic_separation_policy.ssids[i].ssid , ssid_len ,policy.traffic_separation_policy.ssids[i].vlan_id);
                 }
 	        }
         } else if (tlv->type == em_tlv_type_channel_scan_rprt_policy) {
@@ -651,32 +634,42 @@ int em_policy_cfg_t::handle_policy_cfg_req(unsigned char *buff, unsigned int len
         } else if (tlv->type == em_tlv_type_qos_mgmt_policy){
         } else if (tlv->type == em_tlv_type_vendor_specific) {
             em_vendor_specific_t *vendor_tlv = reinterpret_cast<em_vendor_specific_t *> (tlv->value);
-            em_printfout("Recvd vendor tlv, m_num: %d and tlv->len:%d", vendor_tlv->m_num, htons(tlv->len));
-            if ((vendor_tlv->m_num <= 0) || (htons(tlv->len) == 0)) {
+            em_printfout("Recvd vendor tlv, num: %d and tlv->len:%d", vendor_tlv->num, htons(tlv->len));
+            if ((vendor_tlv->num <= 0) || (htons(tlv->len) == 0)) {
                 break;
             }
 
-            unsigned char *tmp = tlv->value;
-            tmp += sizeof(vendor_tlv->m_num) + EM_VENDOR_OUI_SIZE;
-
-            for(int i = 0; i < vendor_tlv->m_num; i++)
+            cursor = reinterpret_cast<unsigned char *> (vendor_tlv->data);
+            for(int i = 0; i < vendor_tlv->num; i++)
             {
-                em_printfout("vendor attr id is: %d", *tmp);
-                if (*tmp == vendor_ext_attr_id_policy_sta_marker) {
-                    em_vendor_policy_t *vendor = reinterpret_cast<em_vendor_policy_t *> (tmp);
-                    strncpy(policy.vendor_policy.managed_client_marker, vendor->managed_client_marker, strlen(vendor->managed_client_marker) + 1);
-                    tmp += strlen(vendor->managed_client_marker) + sizeof(unsigned char);
-
+                data = reinterpret_cast<em_vendor_data_t *> (cursor);
+                em_printfout("vendor attr id is: %d", data->attr_id);
+                if (data->attr_id == vendor_ext_attr_id_policy_sta_marker) {
+                    strncpy(policy.vendor_policy.managed_client_marker, reinterpret_cast<const char *>(data->vendor_data), strlen(reinterpret_cast<char *> (data->vendor_data)) + 1);
                     em_printfout(" Recvd sta marker: %s", policy.vendor_policy.managed_client_marker);
-                } else if (*tmp == vendor_ext_attr_id_policy_alarm) {
-                    em_link_report_alarm_policy_cfg_t *vendor = reinterpret_cast<em_link_report_alarm_policy_cfg_t *> (tmp);
-                    memcpy(&policy.vendor_policy.link_stats_alarm_policy_cfg, vendor, sizeof(em_link_report_alarm_policy_cfg_t));
+                    cursor += sizeof(data->attr_id) + strlen(reinterpret_cast<char *> (data->vendor_data)) + 1;
+                } else if (data->attr_id == vendor_ext_attr_id_policy_alarm) {
+                    em_link_stats_alarm_cfg_t *vendor = reinterpret_cast<em_link_stats_alarm_cfg_t *> (data->vendor_data);
+                    memcpy(&policy.vendor_policy.link_stats_alarm_policy_cfg, vendor, sizeof(em_link_stats_alarm_cfg_t));
 
                     em_printfout(" Recvd link stats alarm cfg, collection_start_time : %s ", policy.vendor_policy.link_stats_alarm_policy_cfg.collection_start_time);
                     em_printfout(" Recvd link stats alarm cfg, reporting_interval : %d ", policy.vendor_policy.link_stats_alarm_policy_cfg.reporting_interval);
                     em_printfout(" Recvd link stats alarm cfg, link_quality_threshold : %f ", policy.vendor_policy.link_stats_alarm_policy_cfg.link_quality_threshold);
 
-                    tmp += sizeof(unsigned char) + sizeof(em_link_report_alarm_policy_cfg_t);
+                    cursor += sizeof(data->attr_id) + sizeof(em_link_stats_alarm_cfg_t);
+                } else if (data->attr_id == vendor_ext_attr_id_policy_cfg_client_filter) {
+                    em_client_filters_cfg_t *vendor = reinterpret_cast<em_client_filters_cfg_t *> (data->vendor_data);
+                    memcpy(&policy.vendor_policy.client_filters_policy_cfg, vendor, sizeof(em_client_filters_cfg_t));
+
+                    em_printfout(" Recvd client filters cfg, sta_mac : %s ", util::mac_to_string(
+                        policy.vendor_policy.client_filters_policy_cfg.sta_mac).c_str());
+                    em_printfout(" Recvd client filters cfg, consec_alarm_thres_cnt : %d ", policy.vendor_policy.client_filters_policy_cfg.consec_alarm_thres_cnt);
+                    em_printfout(" Recvd client filters cfg, collect_duration : %s ", policy.vendor_policy.client_filters_policy_cfg.collect_duration);
+
+                    cursor += sizeof(data->attr_id) + sizeof(em_client_filters_cfg_t);
+                } else {
+                    em_printfout(" Unknown vendor attr id: %d ", data->attr_id);
+                    break;
                 }
             }
         }

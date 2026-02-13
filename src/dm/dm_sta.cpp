@@ -160,10 +160,10 @@ void dm_sta_t::encode(cJSON *obj, em_get_sta_list_reason_t reason)
         cJSON_AddNumberToObject(obj, "Threshold", m_sta_info.link_stats_report.link_quality_threshold);
         cJSON_AddBoolToObject(obj, "Alarm", m_sta_info.link_stats_report.alarm_triggered);
         cJSON *samples_obj = cJSON_AddArrayToObject(obj, "Samples");
-        for (unsigned int i = 0; i < m_sta_info.link_stats_report.sample_count; i++) {
+        for (int i = 0; i < m_sta_info.link_stats_report.sample_count; i++) {
             cJSON *sample = cJSON_CreateObject();
             cJSON_AddNumberToObject(sample, "Score", m_sta_info.link_stats_report.alarm_sample[i].link_quality_score);
-            cJSON_AddStringToObject(sample, "Time", m_sta_info.link_stats_report.alarm_sample[i].reporting_time);
+            cJSON_AddStringToObject(sample, "Time", reinterpret_cast<const char*>(m_sta_info.link_stats_report.alarm_sample[i].reporting_time));
             cJSON_AddNumberToObject(sample, "SNR", m_sta_info.link_stats_report.alarm_sample[i].snr);
             cJSON_AddNumberToObject(sample, "PER", m_sta_info.link_stats_report.alarm_sample[i].per);
             cJSON_AddNumberToObject(sample, "PHY", m_sta_info.link_stats_report.alarm_sample[i].phy);
@@ -365,6 +365,7 @@ void dm_sta_t::operator = (const dm_sta_t& obj)
     for (unsigned int i = 0; i < this->m_sta_info.num_vendor_infos; i++) {
         memcpy(&this->m_sta_info.vendor_info, &obj.m_sta_info.vendor_info, sizeof(em_long_string_t));
     }
+    memcpy(&m_sta_info.link_stats_report, &obj.m_sta_info.link_stats_report, sizeof(em_link_report_t));
 }
 
 void dm_sta_t::parse_sta_bss_radio_from_key(const char *key, mac_address_t sta, bssid_t bssid, mac_address_t ruid)
