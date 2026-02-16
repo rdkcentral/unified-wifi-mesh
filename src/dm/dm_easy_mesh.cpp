@@ -1690,6 +1690,26 @@ void dm_easy_mesh_t::string_to_macbytes(char *key, mac_address_t bmac)
 
 }
 
+void dm_easy_mesh_t::maclist_to_string(mac_address_t mac_list[], size_t mac_count, char *string, uint16_t str_len)
+{
+    uint8_t idx = 0;
+
+    if (mac_list == NULL) {
+        return;
+    }
+
+    while (str_len >= sizeof(mac_addr_str_t) && idx < mac_count) {
+        dm_easy_mesh_t::macbytes_to_string(mac_list[idx], string);
+        string += (sizeof(mac_addr_str_t) - 1);
+        str_len -= sizeof(mac_addr_str_t);
+        if (++idx >= mac_count || str_len == 0) {
+            break;
+        }
+        *string = ',';
+        ++string;
+    }
+}
+
 void dm_easy_mesh_t::securitymode_to_str(unsigned short mode, char *sec_mode_str, size_t len)
 {
     if (mode == EM_AUTH_OPEN)
