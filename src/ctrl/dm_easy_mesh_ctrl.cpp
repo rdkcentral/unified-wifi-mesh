@@ -2402,6 +2402,46 @@ bus_error_t dm_easy_mesh_ctrl_t::affap_tget(char *event_name, raw_data_t *p_data
     return bus_get_cb_fwd(event_name, p_data, affap_tget_inner);
 }
 
+bus_error_t dm_easy_mesh_ctrl_t::stamld_get(char *event_name, raw_data_t *p_data)
+{
+    return bus_get_cb_fwd(event_name, p_data, stamld_get_inner);
+}
+
+bus_error_t dm_easy_mesh_ctrl_t::stamld_tget(char *event_name, raw_data_t *p_data)
+{
+    return bus_get_cb_fwd(event_name, p_data, stamld_tget_inner);
+}
+
+bus_error_t dm_easy_mesh_ctrl_t::wifi7caps_get(char *event_name, raw_data_t *p_data)
+{
+    return bus_get_cb_fwd(event_name, p_data, wifi7caps_get_inner);
+}
+
+bus_error_t dm_easy_mesh_ctrl_t::stamldcfg_get(char *event_name, raw_data_t *p_data)
+{
+    return bus_get_cb_fwd(event_name, p_data, stamldcfg_get_inner);
+}
+
+bus_error_t dm_easy_mesh_ctrl_t::affsta_get(char *event_name, raw_data_t *p_data)
+{
+    return bus_get_cb_fwd(event_name, p_data, affsta_get_inner);
+}
+
+bus_error_t dm_easy_mesh_ctrl_t::affsta_tget(char *event_name, raw_data_t *p_data)
+{
+    return bus_get_cb_fwd(event_name, p_data, affsta_tget_inner);
+}
+
+bus_error_t dm_easy_mesh_ctrl_t::bstamld_get(char *event_name, raw_data_t *p_data)
+{
+    return bus_get_cb_fwd(event_name, p_data, bstamld_get_inner);
+}
+
+bus_error_t dm_easy_mesh_ctrl_t::bstacfg_get(char *event_name, raw_data_t *p_data)
+{
+    return bus_get_cb_fwd(event_name, p_data, bstacfg_get_inner);
+}
+
 const char* dm_easy_mesh_ctrl_t::get_table_instance(const char *src, char *instance, size_t max_len, bool *is_num)
 {
 	char *dst = instance;
@@ -2461,7 +2501,12 @@ bus_error_t dm_easy_mesh_ctrl_t::network_get_inner(char *event_name, raw_data_t 
         dm_network_t *net = dm->get_network();
         dm_easy_mesh_t::macbytes_to_string(net->get_colocated_agent_interface_mac(), str_val);
         rc = dm_ctrl->raw_data_set(p_data, str_val);
-    } else if (strcmp(param, "NumberOfDevices") == 0) {
+    } else if (strcmp(param, "TimeStamp") == 0) {
+        dm_easy_mesh_t *dm = dm_ctrl->get_first_dm();
+        dm_network_t *dm_network = dm->get_network();
+        em_network_info_t *ni = dm_network->get_network_info();
+        rc = dm_ctrl->raw_data_set(p_data, ni->timestamp);
+    } else if (strcmp(param, "DeviceNumberOfEntries") == 0) {
         unsigned int dev_cnt = 0;
         dm_easy_mesh_t *dm = dm_ctrl->get_first_dm();
         while (dm != NULL) {
@@ -2535,16 +2580,12 @@ bus_error_t dm_easy_mesh_ctrl_t::device_get_inner(char *event_name, raw_data_t *
         rc = dm_ctrl->raw_data_set(p_data, di->intf.mac);
     } else if (strcmp(param, "MultiAPCapabilities") == 0) {
         rc = dm_ctrl->raw_data_set(p_data, di->multi_ap_cap);
-    } else if (strcmp(param, "NumberOfRadios") == 0) {
-        rc = dm_ctrl->raw_data_set(p_data, dm->m_num_radios);
     } else if (strcmp(param, "CollectionInterval") == 0) {
         rc = dm_ctrl->raw_data_set(p_data, di->coll_interval);
     } else if (strcmp(param, "ReportUnsuccessfulAssociations") == 0) {
         rc = dm_ctrl->raw_data_set(p_data, di->report_unsuccess_assocs);
     } else if (strcmp(param, "MaxReportingRate") == 0) {
         rc = dm_ctrl->raw_data_set(p_data, di->max_reporting_rate);
-    } else if (strcmp(param, "MultiAPProfile") == 0) {
-        rc = dm_ctrl->raw_data_set(p_data, static_cast<int32_t>(di->profile));
     } else if (strcmp(param, "APMetricsReportingInterval") == 0) {
         rc = dm_ctrl->raw_data_set(p_data, di->ap_metrics_reporting_interval);
     } else if (strcmp(param, "Manufacturer") == 0) {
@@ -2563,10 +2604,6 @@ bus_error_t dm_easy_mesh_ctrl_t::device_get_inner(char *event_name, raw_data_t *
         //rc = dm_ctrl->raw_data_set(p_data, );
     } else if (strcmp(param, "MaxVIDs") == 0) {
         rc = dm_ctrl->raw_data_set(p_data, di->max_vids);
-    } else if (strcmp(param, "BasicPrioritization") == 0) {
-        //rc = dm_ctrl->raw_data_set(p_data, );
-    } else if (strcmp(param, "EnhancedPrioritization") == 0) {
-        //rc = dm_ctrl->raw_data_set(p_data, );
     } else if (strcmp(param, "TrafficSeparationPolicy") == 0) {
         //rc = dm_ctrl->raw_data_set(p_data, );
     } else if (strcmp(param, "SSIDtoVIDMapping") == 0) {
@@ -2585,8 +2622,6 @@ bus_error_t dm_easy_mesh_ctrl_t::device_get_inner(char *event_name, raw_data_t *
         rc = dm_ctrl->raw_data_set(p_data, di->traffic_sep_allowed);
     } else if (strcmp(param, "ServicePrioritizationAllowed") == 0) {
         rc = dm_ctrl->raw_data_set(p_data, di->svc_prio_allowed);
-    } else if (strcmp(param, "STASteeringDisallowed") == 0) {
-        //rc = dm_ctrl->raw_data_set(p_data, );
     } else if (strcmp(param, "DFSEnable") == 0) {
         rc = dm_ctrl->raw_data_set(p_data, di->dfs_enable);
     } else if (strcmp(param, "MaxUnsuccessfulAssociationReportingRate") == 0) {
@@ -2770,6 +2805,25 @@ bus_error_t dm_easy_mesh_ctrl_t::device_tget_inner(char *event_name, raw_data_t 
 
         snprintf(path, sizeof(path) - 1, "%s%d.APMLD.", root, idx);
         dm_ctrl->apmld_tget_params(dm, path, &property);
+
+        if (dm->is_bsta_mld_present()) {
+            char maclist_str[256] = { 0 };
+            mac_address_t maclist[16];
+            em_bsta_mld_info_t &bsmi = dm->get_bsta_mld_info();
+            dm_ctrl->property_append_tail(&property, root, idx, "bSTAMLD.MLDMACAddress", bsmi.mac_addr_valid ? bsmi.mac_addr : ZERO_MAC_ADDR);
+            dm_ctrl->property_append_tail(&property, root, idx, "bSTAMLD.BSSID", bsmi.ap_mld_mac_addr_valid ? bsmi.ap_mld_mac_addr : ZERO_MAC_ADDR);
+            if (bsmi.num_affiliated_bsta) {
+                for (unsigned int i = 0; i < bsmi.num_affiliated_bsta && i < 16; i++) {
+                    memcpy(maclist[i], bsmi.affiliated_bsta[i].mac_addr, sizeof(mac_address_t));
+                }
+                dm_easy_mesh_t::maclist_to_string(maclist, bsmi.num_affiliated_bsta, maclist_str, sizeof(maclist_str));
+            }
+            dm_ctrl->property_append_tail(&property, root, idx, "bSTAMLD.AffiliatedbSTAList", maclist_str);
+            dm_ctrl->property_append_tail(&property, root, idx, "bSTAMLD.bSTAMLDConfig.EMLMREnabled", bsmi.emlmr);
+            dm_ctrl->property_append_tail(&property, root, idx, "bSTAMLD.bSTAMLDConfig.EMLSREnabled", bsmi.emlsr);
+            dm_ctrl->property_append_tail(&property, root, idx, "bSTAMLD.bSTAMLDConfig.STREnabled", bsmi.str);
+            dm_ctrl->property_append_tail(&property, root, idx, "bSTAMLD.bSTAMLDConfig.NSTREnabled", bsmi.nstr);
+        }
     }
 
     if (property) {
@@ -3770,7 +3824,17 @@ bus_error_t dm_easy_mesh_ctrl_t::curops_get_inner(char *event_name, raw_data_t *
     }
     em_op_class_info_t *oci = op_class->get_op_class_info();
 
-    if (strcmp(param, "Class") == 0) {
+    if (strcmp(param, "TimeStamp") == 0) {
+        char time[24];
+        char zone[8];
+        char buffer[64];
+        struct timespec ts;
+        clock_gettime(CLOCK_REALTIME, &ts);
+        strftime(time, sizeof(time), "%FT%T", localtime(&ts.tv_sec));
+        strftime(zone, sizeof(zone), "%z", localtime(&ts.tv_sec));
+        snprintf(buffer, sizeof(buffer) - 1, "%s.%06ld%s", time, ts.tv_nsec / 1000, zone);
+        rc = dm_ctrl->raw_data_set(p_data, buffer);
+    } else if (strcmp(param, "Class") == 0) {
         rc = dm_ctrl->raw_data_set(p_data, oci->op_class);
     } else if (strcmp(param, "Channel") == 0) {
         rc = dm_ctrl->raw_data_set(p_data, oci->channel);
@@ -4004,7 +4068,7 @@ bus_error_t dm_easy_mesh_ctrl_t::bss_get_inner(char *event_name, raw_data_t *p_d
         rc = dm_ctrl->raw_data_set(p_data, val_str);
     } else if (strcmp(param, "QMDescriptor") == 0) {
         //rc = dm_ctrl->raw_data_set(p_data, bi->);
-    } else if (strcmp(param, "NumberOfSTA") == 0) {
+    } else if (strcmp(param, "STANumberOfEntries") == 0) {
         rc = dm_ctrl->raw_data_set(p_data, bi->numberofsta);
     } else if (strcmp(param, "LinkRemovalImminent") == 0) {
         //rc = dm_ctrl->raw_data_set(p_data, bi->);
@@ -4177,6 +4241,8 @@ bus_error_t dm_easy_mesh_ctrl_t::sta_get_inner(char *event_name, raw_data_t *p_d
 
     if (strcmp(param, "MACAddress") == 0) {
         rc = dm_ctrl->raw_data_set(p_data, si->id);
+    } else if (strcmp(param, "TimeStamp") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, si->timestamp);
     } else if (strcmp(param, "HTCapabilities") == 0) {
         rc = dm_ctrl->raw_data_set(p_data, si->ht_cap);
     } else if (strcmp(param, "VHTCapabilities") == 0) {
@@ -4495,8 +4561,8 @@ bus_error_t dm_easy_mesh_ctrl_t::apmld_tget_params(dm_easy_mesh_t *dm, const cha
         snprintf(path, sizeof(path) - 1, "%s%d.AffiliatedAP.", root, idx);
         dm_ctrl->affap_tget_params(dm, path, ami, property);
 
-        //snprintf(path, sizeof(path) - 1, "%s%d.STAMLD.", root, idx);
-        //dm_ctrl->stamld_tget_params(dm, path, property);
+        snprintf(path, sizeof(path) - 1, "%s%d.STAMLD.", root, idx);
+        dm_ctrl->stamld_tget_params(dm, path, ami, property);
     }
 
     return rc;
@@ -4709,6 +4775,673 @@ bus_error_t dm_easy_mesh_ctrl_t::affap_tget_params(dm_easy_mesh_t *dm, const cha
         dm_ctrl->property_append_tail(property, root, idx, "MulticastBytesReceived", 0);
         dm_ctrl->property_append_tail(property, root, idx, "BroadcastBytesSent", 0);
         dm_ctrl->property_append_tail(property, root, idx, "BroadcastBytesReceived", 0);
+    }
+
+    return rc;
+}
+
+dm_assoc_sta_mld_t *dm_easy_mesh_ctrl_t::get_dm_sta_mld(dm_easy_mesh_t *dm, em_ap_mld_info_t *ami, char *instance, bool is_num)
+{
+    dm_assoc_sta_mld_t *sta_mld = NULL;
+
+    if (is_num) {
+        unsigned int cnt = 0;
+        unsigned int idx = static_cast<unsigned int>(atoi(instance) - 1);
+        for (unsigned int i = 0; i < dm->get_num_assoc_sta_mld(); i++) {
+            dm_assoc_sta_mld_t *sta_mld = &dm->m_assoc_sta_mld[i]; /* no getter? */
+            em_assoc_sta_mld_info_t *smi = sta_mld->get_assoc_sta_mld_info();
+            if (memcmp(ami->mac_addr, smi->ap_mld_mac_addr, sizeof(mac_address_t)) != 0) {
+                /* sta_mld does belong to ap_mld */
+                ++cnt;
+                if (cnt == idx) {
+                    return sta_mld;
+                }
+            }
+        }
+    }
+
+    for (unsigned int i = 0; i < dm->get_num_assoc_sta_mld(); i++) {
+        char mac_str[18];
+        dm_assoc_sta_mld_t *sta_mld = &dm->m_assoc_sta_mld[i]; /* no getter? */
+        em_assoc_sta_mld_info_t *smi = sta_mld->get_assoc_sta_mld_info();
+        dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *> (smi->mac_addr), mac_str);
+        if (strcmp(instance, mac_str) == 0) {
+            return sta_mld;
+        }
+    }
+
+    return sta_mld;
+}
+
+bus_error_t dm_easy_mesh_ctrl_t::stamld_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
+{
+    (void) user_data;
+    const char *name = event_name;
+    const char *param;
+    char instance[MAX_INSTANCE_LEN] = { 0 };
+    bool is_num;
+    bus_error_t rc;
+
+    if (!name || !p_data) {
+        return bus_error_invalid_input;
+    }
+
+    param = strrchr(name, '.');
+    if (param == NULL) {
+        return bus_error_invalid_input;
+    }
+    ++param;
+
+    dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
+
+    /* Extract device instance (numeric or alias) and find the dm object for
+     * that device instance */
+    name += sizeof(DATAELEMS_NETWORK);
+    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    dm_easy_mesh_t *dm = dm_ctrl->get_dm_easy_mesh(instance, is_num);
+    if (dm == NULL) {
+        printf("device not found\n");
+        return bus_error_invalid_namespace;
+    }
+
+    /* Extract ap_mld instance (numeric or alias), find the ap_mld dm object
+     * for that instance, and finally get info struct for ap_mld dm object */
+    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    dm_ap_mld_t *ap_mld = dm_ctrl->get_dm_ap_mld(dm, instance, is_num);
+    if (ap_mld == NULL) {
+        printf("ap_mld not found\n");
+        return bus_error_invalid_namespace;
+    }
+    em_ap_mld_info_t *ami = ap_mld->get_ap_mld_info();
+
+    /* Extract assoc_sta_mld instance (numeric or alias), find the
+     * assoc_sta_mld dm object for that instance, and finally get info struct
+     * for assoc_sta_mld dm object */
+    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    dm_assoc_sta_mld_t *sta_mld = dm_ctrl->get_dm_sta_mld(dm, ami, instance, is_num);
+    if (sta_mld == NULL) {
+        printf("assoc_sta_mld not found\n");
+        return bus_error_invalid_namespace;
+    }
+    em_assoc_sta_mld_info_t *smi = sta_mld->get_assoc_sta_mld_info();
+
+    dm_sta_t *sta = static_cast<dm_sta_t *> (hash_map_get_first(dm->m_sta_map));
+    em_sta_info_t *si = NULL;
+    while (sta != NULL) {
+        si = sta->get_sta_info();
+        if (si->associated && memcmp(smi->mac_addr, si->id, sizeof(mac_addr_t)) != 0) {
+            break;
+        }
+        sta = static_cast<dm_sta_t *> (hash_map_get_next(dm->m_sta_map, sta));
+        si = NULL;
+    }
+
+    if (strcmp(param, "MLDMACAddress") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, smi->mac_addr);
+    } else if (strcmp(param, "IsbSTA") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, 0);
+    } else if (strcmp(param, "LastConnectTime") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, si ? si->last_conn_time : 0);
+    } else if (strcmp(param, "BytesSent") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, si ? si->bytes_tx : 0);
+    } else if (strcmp(param, "BytesReceived") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, si ? si->bytes_rx : 0);
+    } else if (strcmp(param, "PacketsSent") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, si ? si->pkts_tx : 0);
+    } else if (strcmp(param, "PacketsReceived") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, si ? si->pkts_rx : 0);
+    } else if (strcmp(param, "ErrorsSent") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, si ? si->errors_tx : 0);
+    } else if (strcmp(param, "ErrorsReceived") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, si ? si->errors_rx : 0);
+    } else if (strcmp(param, "RetransCount") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, si ? si->retrans_count : 0);
+    } else if (strcmp(param, "AffiliatedSTANumberOfEntries") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, smi->num_affiliated_sta);
+    } else {
+        printf("Invalid param: %s\n", param);
+        rc = bus_error_destination_not_found;
+    }
+
+    return rc;
+}
+
+bus_error_t dm_easy_mesh_ctrl_t::stamld_tget_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
+{
+    (void) user_data;
+    const char *name = event_name;
+    const char *root = name;
+    char instance[MAX_INSTANCE_LEN] = { 0 };
+    bool is_num;
+    bus_data_prop_t *property = NULL;
+    bus_error_t rc;
+
+    if (!name || !p_data) {
+        return bus_error_invalid_input;
+    }
+    if (*(name + (strlen(name) - 1)) != '.') {
+        /* Only partial paths are valid */
+        return bus_error_invalid_operation;
+    }
+
+    dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
+
+    /* Extract device instance (numeric or alias) and find the dm object for
+     * that device instance */
+    name += sizeof(DATAELEMS_NETWORK);
+    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    dm_easy_mesh_t *dm = dm_ctrl->get_dm_easy_mesh(instance, is_num);
+    if (dm == NULL) {
+        printf("device not found\n");
+        return bus_error_invalid_namespace;
+    }
+
+    /* Extract ap_mld instance (numeric or alias), find the ap_mld dm object
+     * for that instance, and finally get info struct for ap_mld dm object */
+    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    dm_ap_mld_t *ap_mld = dm_ctrl->get_dm_ap_mld(dm, instance, is_num);
+    if (ap_mld == NULL) {
+        printf("ap_mld not found\n");
+        return bus_error_invalid_namespace;
+    }
+    em_ap_mld_info_t *ami = ap_mld->get_ap_mld_info();
+
+    rc = dm_ctrl->stamld_tget_params(dm, root, ami, &property);
+    if (rc == bus_error_success && property) {
+        dm_ctrl->raw_data_set(p_data, property);
+    }
+
+    return rc;
+}
+
+bus_error_t dm_easy_mesh_ctrl_t::stamld_tget_params(dm_easy_mesh_t *dm, const char *root, em_ap_mld_info_t *ami, bus_data_prop_t **property)
+{
+    char path[512];
+    bus_error_t rc = bus_error_success;
+    dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
+
+    unsigned int idx = 0;
+    for (unsigned int cnt = 0; cnt < dm->get_num_assoc_sta_mld(); cnt++) {
+        /* First find assoc_sta_mld for this ap_mld */
+        dm_assoc_sta_mld_t *sta_mld = &dm->m_assoc_sta_mld[cnt]; /* no getter? */
+        em_assoc_sta_mld_info_t *smi = sta_mld->get_assoc_sta_mld_info();
+        if (memcmp(ami->mac_addr, smi->ap_mld_mac_addr, sizeof(mac_address_t)) != 0) {
+            /* sta_mld does not belong to this ap_mld, skip */
+            continue;
+        }
+        /* Now find sta for this assoc_sta_mld */
+        dm_sta_t *sta = static_cast<dm_sta_t *> (hash_map_get_first(dm->m_sta_map));
+        em_sta_info_t *si = NULL;
+        while (sta != NULL) {
+            si = sta->get_sta_info();
+            if (si->associated && memcmp(smi->mac_addr, si->id, sizeof(mac_addr_t)) != 0) {
+                break;
+            }
+            sta = static_cast<dm_sta_t *> (hash_map_get_next(dm->m_sta_map, sta));
+            si = NULL;
+        }
+        ++idx;
+
+        dm_ctrl->property_append_tail(property, root, idx, "MLDMACAddress", smi->mac_addr);
+        dm_ctrl->property_append_tail(property, root, idx, "IsbSTA", 0);
+        dm_ctrl->property_append_tail(property, root, idx, "LastConnectTime", si ? si->last_conn_time : 0);
+        dm_ctrl->property_append_tail(property, root, idx, "BytesReceived", si ? si->bytes_rx : 0);
+        dm_ctrl->property_append_tail(property, root, idx, "BytesSent", si ? si->bytes_tx : 0);
+        dm_ctrl->property_append_tail(property, root, idx, "PacketsReceived", si ? si->pkts_rx : 0);
+        dm_ctrl->property_append_tail(property, root, idx, "PacketsSent", si ? si->pkts_tx : 0);
+        dm_ctrl->property_append_tail(property, root, idx, "ErrorsReceived", si ? si->errors_rx : 0);
+        dm_ctrl->property_append_tail(property, root, idx, "ErrorsSent", si ? si->errors_tx : 0);
+        dm_ctrl->property_append_tail(property, root, idx, "RetransCount", si ? si->retrans_count : 0);
+        dm_ctrl->property_append_tail(property, root, idx, "AffiliatedSTANumberOfEntries", smi->num_affiliated_sta);
+
+        dm_ctrl->property_append_tail(property, root, idx, "STAMLDConfig.EMLMRSupport", smi->emlmr);
+        dm_ctrl->property_append_tail(property, root, idx, "STAMLDConfig.EMLSRSupport", smi->emlsr);
+        dm_ctrl->property_append_tail(property, root, idx, "STAMLDConfig.STRSupport", smi->str);
+        dm_ctrl->property_append_tail(property, root, idx, "STAMLDConfig.NSTRSupport", smi->nstr);
+
+        dm_ctrl->property_append_tail(property, root, idx, "WiFi7Capabilities.EMLMRSupport", smi->emlmr);
+        dm_ctrl->property_append_tail(property, root, idx, "WiFi7Capabilities.EMLSRSupport", smi->emlsr);
+        dm_ctrl->property_append_tail(property, root, idx, "WiFi7Capabilities.STRSupport", smi->str);
+        dm_ctrl->property_append_tail(property, root, idx, "WiFi7Capabilities.NSTRSupport", smi->nstr);
+
+        snprintf(path, sizeof(path) - 1, "%s%d.AffiliatedSTA.", root, idx);
+        dm_ctrl->affsta_tget_params(dm, path, smi, property);
+    }
+
+    return rc;
+}
+
+bus_error_t dm_easy_mesh_ctrl_t::wifi7caps_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
+{
+    (void) user_data;
+    const char *name = event_name;
+    const char *param;
+    char instance[MAX_INSTANCE_LEN] = { 0 };
+    bool is_num;
+    bus_error_t rc;
+
+    if (!name || !p_data) {
+        return bus_error_invalid_input;
+    }
+
+    param = strrchr(name, '.');
+    if (param == NULL) {
+        return bus_error_invalid_input;
+    }
+    ++param;
+
+    dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
+
+    /* Extract device instance (numeric or alias) and find the dm object for
+     * that device instance */
+    name += sizeof(DATAELEMS_NETWORK);
+    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    dm_easy_mesh_t *dm = dm_ctrl->get_dm_easy_mesh(instance, is_num);
+    if (dm == NULL) {
+        printf("device not found\n");
+        return bus_error_invalid_namespace;
+    }
+
+    /* Extract ap_mld instance (numeric or alias), find the ap_mld dm object
+     * for that instance, and finally get info struct for ap_mld dm object */
+    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    dm_ap_mld_t *ap_mld = dm_ctrl->get_dm_ap_mld(dm, instance, is_num);
+    if (ap_mld == NULL) {
+        printf("ap_mld not found\n");
+        return bus_error_invalid_namespace;
+    }
+    em_ap_mld_info_t *ami = ap_mld->get_ap_mld_info();
+
+    /* Extract assoc_sta_mld instance (numeric or alias), find the
+     * assoc_sta_mld dm object for that instance, and finally get info struct
+     * for assoc_sta_mld dm object */
+    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    dm_assoc_sta_mld_t *sta_mld = dm_ctrl->get_dm_sta_mld(dm, ami, instance, is_num);
+    if (sta_mld == NULL) {
+        printf("assoc_sta_mld not found\n");
+        return bus_error_invalid_namespace;
+    }
+    em_assoc_sta_mld_info_t *smi = sta_mld->get_assoc_sta_mld_info();
+
+    if (strcmp(param, "EMLMRSupport") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, smi->emlmr);
+    } else if (strcmp(param, "EMLSRSupport") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, smi->emlsr);
+    } else if (strcmp(param, "STRSupport") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, smi->str);
+    } else if (strcmp(param, "NSTRSupport") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, smi->nstr);
+    } else {
+        printf("Invalid param: %s\n", param);
+        rc = bus_error_destination_not_found;
+    }
+
+    return rc;
+}
+
+bus_error_t dm_easy_mesh_ctrl_t::stamldcfg_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
+{
+    (void) user_data;
+    const char *name = event_name;
+    const char *param;
+    char instance[MAX_INSTANCE_LEN] = { 0 };
+    bool is_num;
+    bus_error_t rc;
+
+    if (!name || !p_data) {
+        return bus_error_invalid_input;
+    }
+
+    param = strrchr(name, '.');
+    if (param == NULL) {
+        return bus_error_invalid_input;
+    }
+    ++param;
+
+    dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
+
+    /* Extract device instance (numeric or alias) and find the dm object for
+     * that device instance */
+    name += sizeof(DATAELEMS_NETWORK);
+    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    dm_easy_mesh_t *dm = dm_ctrl->get_dm_easy_mesh(instance, is_num);
+    if (dm == NULL) {
+        printf("device not found\n");
+        return bus_error_invalid_namespace;
+    }
+
+    /* Extract ap_mld instance (numeric or alias), find the ap_mld dm object
+     * for that instance, and finally get info struct for ap_mld dm object */
+    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    dm_ap_mld_t *ap_mld = dm_ctrl->get_dm_ap_mld(dm, instance, is_num);
+    if (ap_mld == NULL) {
+        printf("ap_mld not found\n");
+        return bus_error_invalid_namespace;
+    }
+    em_ap_mld_info_t *ami = ap_mld->get_ap_mld_info();
+
+    /* Extract assoc_sta_mld instance (numeric or alias), find the
+     * assoc_sta_mld dm object for that instance, and finally get info struct
+     * for assoc_sta_mld dm object */
+    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    dm_assoc_sta_mld_t *sta_mld = dm_ctrl->get_dm_sta_mld(dm, ami, instance, is_num);
+    if (sta_mld == NULL) {
+        printf("assoc_sta_mld not found\n");
+        return bus_error_invalid_namespace;
+    }
+    em_assoc_sta_mld_info_t *smi = sta_mld->get_assoc_sta_mld_info();
+
+    if (strcmp(param, "EMLMREnabled") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, smi->emlmr);
+    } else if (strcmp(param, "EMLSREnabled") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, smi->emlsr);
+    } else if (strcmp(param, "STREnabled") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, smi->str);
+    } else if (strcmp(param, "NSTREnabled") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, smi->nstr);
+    } else {
+        printf("Invalid param: %s\n", param);
+        rc = bus_error_destination_not_found;
+    }
+
+    return rc;
+}
+
+bus_error_t dm_easy_mesh_ctrl_t::affsta_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
+{
+    (void) user_data;
+    const char *name = event_name;
+    const char *param;
+    char instance[MAX_INSTANCE_LEN] = { 0 };
+    bool is_num;
+    bus_error_t rc;
+
+    if (!name || !p_data) {
+        return bus_error_invalid_input;
+    }
+
+    param = strrchr(name, '.');
+    if (param == NULL) {
+        return bus_error_invalid_input;
+    }
+    ++param;
+
+    dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
+
+    /* Extract device instance (numeric or alias) and find the dm object for
+     * that device instance */
+    name += sizeof(DATAELEMS_NETWORK);
+    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    dm_easy_mesh_t *dm = dm_ctrl->get_dm_easy_mesh(instance, is_num);
+    if (dm == NULL) {
+        printf("device not found\n");
+        return bus_error_invalid_namespace;
+    }
+
+    /* Extract ap_mld instance (numeric or alias), find the ap_mld dm object
+     * for that instance, and finally get info struct for ap_mld dm object */
+    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    dm_ap_mld_t *ap_mld = dm_ctrl->get_dm_ap_mld(dm, instance, is_num);
+    if (ap_mld == NULL) {
+        printf("ap_mld not found\n");
+        return bus_error_invalid_namespace;
+    }
+    em_ap_mld_info_t *ami = ap_mld->get_ap_mld_info();
+
+    /* Extract assoc_sta_mld instance (numeric or alias), find the
+     * assoc_sta_mld dm object for that instance, and finally get info struct
+     * for assoc_sta_mld dm object */
+    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    dm_assoc_sta_mld_t *sta_mld = dm_ctrl->get_dm_sta_mld(dm, ami, instance, is_num);
+    if (sta_mld == NULL) {
+        printf("assoc_sta_mld not found\n");
+        return bus_error_invalid_namespace;
+    }
+    em_assoc_sta_mld_info_t *smi = sta_mld->get_assoc_sta_mld_info();
+
+    /* Extract aff_sta instance and get info struct for that aff_sta */
+    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    int idx = atoi(instance);
+    if (!is_num || idx <= 0 || idx > smi->num_affiliated_sta) {
+        printf("aff_sta not found\n");
+        return bus_error_invalid_namespace;
+    }
+    em_affiliated_sta_info_t *asi = &smi->affiliated_sta[idx - 1];
+
+    dm_sta_t *sta = static_cast<dm_sta_t *> (hash_map_get_first(dm->m_sta_map));
+    em_sta_info_t *si = NULL;
+    while (sta != NULL) {
+        si = sta->get_sta_info();
+        if (si->associated && memcmp(asi->mac_addr, si->id, sizeof(mac_addr_t)) != 0) {
+            break;
+        }
+        sta = static_cast<dm_sta_t *> (hash_map_get_next(dm->m_sta_map, sta));
+        si = NULL;
+    }
+
+    if (strcmp(param, "MACAddress") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, asi->mac_addr);
+    } else if (strcmp(param, "BSSID") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, asi->bssid);
+    } else if (strcmp(param, "BytesSent") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, si ? si->bytes_tx : 0);
+    } else if (strcmp(param, "BytesReceived") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, si ? si->bytes_rx : 0);
+    } else if (strcmp(param, "PacketsSent") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, si ? si->pkts_tx : 0);
+    } else if (strcmp(param, "PacketsReceived") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, si ? si->pkts_rx : 0);
+    } else if (strcmp(param, "ErrorsSent") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, si ? si->errors_tx : 0);
+    } else if (strcmp(param, "SignalStrength") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, si ? si->rcpi : 0);
+    } else if (strcmp(param, "EstMACDataRateDownlink") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, si ? si->est_dl_rate : 0);
+    } else if (strcmp(param, "EstMACDataRateUplink") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, si ? si->est_ul_rate : 0);
+    } else {
+        printf("Invalid param: %s\n", param);
+        rc = bus_error_destination_not_found;
+    }
+
+    return rc;
+}
+
+bus_error_t dm_easy_mesh_ctrl_t::affsta_tget_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
+{
+    (void) user_data;
+    const char *name = event_name;
+    const char *root = name;
+    char instance[MAX_INSTANCE_LEN] = { 0 };
+    bool is_num;
+    bus_data_prop_t *property = NULL;
+    bus_error_t rc;
+
+    if (!name || !p_data) {
+        return bus_error_invalid_input;
+    }
+    if (*(name + (strlen(name) - 1)) != '.') {
+        /* Only partial paths are valid */
+        return bus_error_invalid_operation;
+    }
+
+    dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
+
+    /* Extract device instance (numeric or alias) and find the dm object for
+     * that device instance */
+    name += sizeof(DATAELEMS_NETWORK);
+    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    dm_easy_mesh_t *dm = dm_ctrl->get_dm_easy_mesh(instance, is_num);
+    if (dm == NULL) {
+        printf("device not found\n");
+        return bus_error_invalid_namespace;
+    }
+
+    /* Extract ap_mld instance (numeric or alias), find the ap_mld dm object
+     * for that instance, and finally get info struct for ap_mld dm object */
+    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    dm_ap_mld_t *ap_mld = dm_ctrl->get_dm_ap_mld(dm, instance, is_num);
+    if (ap_mld == NULL) {
+        printf("ap_mld not found\n");
+        return bus_error_invalid_namespace;
+    }
+    em_ap_mld_info_t *ami = ap_mld->get_ap_mld_info();
+
+    /* Extract assoc_sta_mld instance (numeric or alias), find the
+     * assoc_sta_mld dm object for that instance, and finally get info struct
+     * for assoc_sta_mld dm object */
+    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    dm_assoc_sta_mld_t *sta_mld = dm_ctrl->get_dm_sta_mld(dm, ami, instance, is_num);
+    if (sta_mld == NULL) {
+        printf("assoc_sta_mld not found\n");
+        return bus_error_invalid_namespace;
+    }
+    em_assoc_sta_mld_info_t *smi = sta_mld->get_assoc_sta_mld_info();
+
+    rc = dm_ctrl->affsta_tget_params(dm, root, smi, &property);
+    if (rc == bus_error_success && property) {
+        dm_ctrl->raw_data_set(p_data, property);
+    }
+
+    return rc;
+}
+
+bus_error_t dm_easy_mesh_ctrl_t::affsta_tget_params(dm_easy_mesh_t *dm, const char *root, em_assoc_sta_mld_info_t *smi, bus_data_prop_t **property)
+{
+    bus_error_t rc = bus_error_success;
+    dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
+
+    for (unsigned int idx = 1; idx <= smi->num_affiliated_sta; idx++) {
+        em_affiliated_sta_info_t *asi = &smi->affiliated_sta[idx - 1];
+        dm_sta_t *sta = static_cast<dm_sta_t *> (hash_map_get_first(dm->m_sta_map));
+        em_sta_info_t *si = NULL;
+        while (sta != NULL) {
+            si = sta->get_sta_info();
+            if (si->associated && memcmp(asi->mac_addr, si->id, sizeof(mac_addr_t)) != 0) {
+                break;
+            }
+            sta = static_cast<dm_sta_t *> (hash_map_get_next(dm->m_sta_map, sta));
+            si = NULL;
+        }
+
+        dm_ctrl->property_append_tail(property, root, idx, "MACAddress", asi->mac_addr);
+        dm_ctrl->property_append_tail(property, root, idx, "BSSID", asi->bssid);
+        dm_ctrl->property_append_tail(property, root, idx, "BytesSent", si ? si->bytes_tx : 0);
+        dm_ctrl->property_append_tail(property, root, idx, "BytesReceived", si ? si->bytes_rx : 0);
+        dm_ctrl->property_append_tail(property, root, idx, "PacketsSent", si ? si->pkts_tx : 0);
+        dm_ctrl->property_append_tail(property, root, idx, "PacketsReceived", si ? si->pkts_rx : 0);
+        dm_ctrl->property_append_tail(property, root, idx, "ErrorsSent", si ? si->errors_tx : 0);
+        dm_ctrl->property_append_tail(property, root, idx, "SignalStrength", si ? si->rcpi : 0);
+        dm_ctrl->property_append_tail(property, root, idx, "EstMACDataRateDownlink", si ? si->est_dl_rate : 0);
+        dm_ctrl->property_append_tail(property, root, idx, "EstMACDataRateUplink", si ? si->est_ul_rate : 0);
+    }
+
+    return rc;
+}
+
+bus_error_t dm_easy_mesh_ctrl_t::bstamld_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
+{
+    (void) user_data;
+    const char *name = event_name;
+    const char *param;
+    char instance[MAX_INSTANCE_LEN] = { 0 };
+    bool is_num;
+    bus_error_t rc;
+
+    if (!name || !p_data) {
+        return bus_error_invalid_input;
+    }
+
+    param = strrchr(name, '.');
+    if (param == NULL) {
+        return bus_error_invalid_input;
+    }
+    ++param;
+
+    dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
+
+    /* Extract device instance (numeric or alias) and find the dm object for
+     * that device instance */
+    name += sizeof(DATAELEMS_NETWORK);
+    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    dm_easy_mesh_t *dm = dm_ctrl->get_dm_easy_mesh(instance, is_num);
+    if (dm == NULL) {
+        printf("device not found\n");
+        return bus_error_invalid_namespace;
+    }
+    if (!dm->is_bsta_mld_present()) {
+        return bus_error_destination_not_found;
+    }
+    em_bsta_mld_info_t &bsmi = dm->get_bsta_mld_info();
+
+    if (strcmp(param, "MLDMACAddress") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, bsmi.mac_addr_valid ? bsmi.mac_addr : ZERO_MAC_ADDR);
+    } else if (strcmp(param, "BSSID") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, bsmi.ap_mld_mac_addr_valid ? bsmi.ap_mld_mac_addr : ZERO_MAC_ADDR);
+    } else if (strcmp(param, "AffiliatedbSTAList") == 0) {
+        char maclist_str[256] = { 0 };
+        mac_address_t maclist[16];
+        if (bsmi.num_affiliated_bsta) {
+            for (unsigned int i = 0; i < bsmi.num_affiliated_bsta && i < 16; i++) {
+                memcpy(maclist[i], bsmi.affiliated_bsta[i].mac_addr, sizeof(mac_address_t));
+            }
+            dm_easy_mesh_t::maclist_to_string(maclist, bsmi.num_affiliated_bsta, maclist_str, sizeof(maclist_str));
+        }
+        rc = dm_ctrl->raw_data_set(p_data, maclist_str);
+    } else {
+        printf("Invalid param: %s\n", param);
+        rc = bus_error_destination_not_found;
+    }
+
+    return rc;
+}
+
+bus_error_t dm_easy_mesh_ctrl_t::bstacfg_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
+{
+    (void) user_data;
+    const char *name = event_name;
+    const char *param;
+    char instance[MAX_INSTANCE_LEN] = { 0 };
+    bool is_num;
+    bus_error_t rc;
+
+    if (!name || !p_data) {
+        return bus_error_invalid_input;
+    }
+
+    param = strrchr(name, '.');
+    if (param == NULL) {
+        return bus_error_invalid_input;
+    }
+    ++param;
+
+    dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
+
+    /* Extract device instance (numeric or alias) and find the dm object for
+     * that device instance */
+    name += sizeof(DATAELEMS_NETWORK);
+    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    dm_easy_mesh_t *dm = dm_ctrl->get_dm_easy_mesh(instance, is_num);
+    if (dm == NULL) {
+        printf("device not found\n");
+        return bus_error_invalid_namespace;
+    }
+    if (!dm->is_bsta_mld_present()) {
+        return bus_error_destination_not_found;
+    }
+    em_bsta_mld_info_t &bsmi = dm->get_bsta_mld_info();
+
+    if (strcmp(param, "EMLMREnabled") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, bsmi.emlmr);
+    } else if (strcmp(param, "EMLSREnabled") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, bsmi.emlsr);
+    } else if (strcmp(param, "STREnabled") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, bsmi.str);
+    } else if (strcmp(param, "NSTREnabled") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, bsmi.nstr);
+    } else {
+        printf("Invalid param: %s\n", param);
+        rc = bus_error_destination_not_found;
     }
 
     return rc;
