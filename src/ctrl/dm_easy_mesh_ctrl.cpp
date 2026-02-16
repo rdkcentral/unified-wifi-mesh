@@ -209,14 +209,13 @@ int dm_easy_mesh_ctrl_t::analyze_sta_assoc_event(em_bus_event_t *evt, em_cmd_t *
     return num;
 }
 
-int dm_easy_mesh_ctrl_t::analyze_m2_tx(em_bus_event_t *evt, em_cmd_t *pcmd[], bool evt_status)
+int dm_easy_mesh_ctrl_t::analyze_m2_tx(em_bus_event_t *evt, em_cmd_t *pcmd[])
 {
     mac_addr_str_t  radio_str, al_str;
     em_bus_event_type_m2_tx_params_t *params;
     int num = 0;
     dm_easy_mesh_t  dm;
     em_cmd_t *tmp;
-    em_orch_desc_t desc;
 
     if (evt == NULL) {
         printf("%s:%d: NULL event\n", __func__, __LINE__);
@@ -234,22 +233,6 @@ int dm_easy_mesh_ctrl_t::analyze_m2_tx(em_bus_event_t *evt, em_cmd_t *pcmd[], bo
     pcmd[num] = new em_cmd_em_config_t(evt->params, dm);
     tmp = pcmd[num];
     num++;
-
-    em_printfout("type: %s, cmd ip: :%d", em_cmd_t::get_bus_event_type_str(evt->type), evt_status);
-    // If event_status is true, this command type is already in progress.
-    // This event is generated per radio on the device, but for orchestration
-    // types like policy, we should not re-create or re-send the command.
-    // Therefore, if event_status is true, skip policy orchestration and send
-    // the command only once, even if multiple M2 TX events are received.
-    if (evt_status == true) {
-        for (unsigned int i = 0; i < pcmd[num - 1]->m_num_orch_desc; i++) {
-            if (pcmd[num - 1]->m_orch_desc[i].op == dm_orch_type_policy_cfg) {
-                desc.submit = false;
-                pcmd[num - 1]->override_op(i, &desc);
-                break;
-            }
-        }
-    }
 
     while ((pcmd[num] = tmp->clone_for_next()) != NULL) {
         tmp = pcmd[num];

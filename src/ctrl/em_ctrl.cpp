@@ -232,7 +232,7 @@ void em_ctrl_t::handle_m2_tx(em_bus_event_t *evt)
     em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
     int num;
     
-    if ((num = m_data_model.analyze_m2_tx(evt, pcmd, m_orch->is_cmd_type_in_progress(evt))) > 0) {
+    if ((num = m_data_model.analyze_m2_tx(evt, pcmd)) > 0) {
         m_orch->submit_commands(pcmd, static_cast<unsigned int> (num));
     }
 }

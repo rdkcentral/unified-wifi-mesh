@@ -721,8 +721,61 @@ void em_policy_cfg_t::process_ctrl_state()
 {
     switch (get_state()) {
 		case em_state_ctrl_set_policy_pending:
-        	send_policy_cfg_request_msg();
-			set_state(em_state_ctrl_configured);
+            {
+                em_printfout("Processing set policy pending state for radio %s", util::mac_to_string(get_radio_interface_mac()).c_str());
+                std::vector<em_t *> em_radios;
+                dm_easy_mesh_t *dm = get_data_model();
+
+                get_mgr()->get_all_em_for_al_mac(dm->get_agent_al_interface_mac(), em_radios);
+                for (auto &em : em_radios)
+                {
+                    // Check for null em pointer in vector
+                    if (em == NULL) {
+                        em_printfout("Warning: Null em pointer in vector, skipping");
+                        continue;
+                    }
+                    if (em->get_state() != em_state_ctrl_set_policy_pending)
+                    {
+                        em_printfout("radio %s is in state:%s, not in em_state_ctrl_set_policy_pending",
+                                     util::mac_to_string(em->get_radio_interface_mac()).c_str(),  em_t::state_2_str(em->get_state()));
+                        em_radios.clear();
+                        return;
+                    }
+                }
+                // If all radios are in set policy pending state, send policy config request on one of them,
+                // ignore sending policy config request on other radios
+                if (!em_radios.empty() && this == em_radios.front())
+                {
+                    em_printfout("Sending the Policy config request message to agent al_mac:%s on radio: %s",
+                                 util::mac_to_string(dm->get_agent_al_interface_mac()).c_str(),
+                                 util::mac_to_string(get_radio_interface_mac()).c_str());
+                    em_t *al_em = get_mgr()->get_al_node();
+
+                    // Send policy config request and check for errors
+                    int send_result = send_policy_cfg_request_msg();
+                    if (send_result < 0) {
+                        em_printfout("Error: Failed to send policy config request message");
+                        return;
+                    } else {
+                        em_printfout("Policy config request sent successfully, bytes: %d", send_result);
+                    }
+
+                    // Set state for AL node to configured
+                    al_em->set_state(em_state_ctrl_configured);
+                    em_printfout("Set AL node state to configured");
+                    // Set state for all radios to Configured state
+                    for (auto &em : em_radios)
+                    {
+                        if (em != NULL)
+                        {
+                            em->set_state(em_state_ctrl_configured);
+                            em_printfout("Set radio %s state to configured",
+                                        util::mac_to_string(em->get_radio_interface_mac()).c_str());
+                        }
+                    }
+                }
+                em_radios.clear();
+            }
             break;
 
         default:
