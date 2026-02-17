@@ -1304,7 +1304,7 @@ int em_channel_t::handle_op_channel_report(unsigned char *buff, unsigned int len
     dm_easy_mesh_t::macbytes_to_string(ruid, ruid_str);
     em_t *radio_em = reinterpret_cast<em_t *>(hash_map_get(get_mgr()->m_em_map, ruid_str));
     if (radio_em) {
-        if(radio_em->get_state() == em_state_ctrl_channel_cnf_pending){
+        if(radio_em->get_state() == em_state_ctrl_channel_selected){
             radio_em->set_state(em_state_ctrl_configured);
             em_printfout("Set em_state_ctrl_configured for radio %s", ruid_str);
         }
