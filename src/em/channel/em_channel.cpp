@@ -639,6 +639,7 @@ int em_channel_t::send_channel_sel_request_msg()
         printf("%s:%d: Channel Selection Request msg failed, error:%d\n", __func__, __LINE__, errno);
         return -1;
     }
+    m_chan_sel_req_msg_id = ntohs(cmdu->id);
 
     return static_cast<int> (len);
 
@@ -1273,6 +1274,8 @@ int em_channel_t::handle_op_channel_report(unsigned char *buff, unsigned int len
     unsigned int i = 0, found = 0;
     em_op_class_info_t  *op_class_info;
     em_op_channel_rprt_t *rpt = reinterpret_cast<em_op_channel_rprt_t *> (buff);
+    mac_address_t ruid;
+    mac_addr_str_t ruid_str;
     dm = get_data_model();
 
     for (i = 0; i < dm->m_num_opclass; i++) {
@@ -1295,6 +1298,20 @@ int em_channel_t::handle_op_channel_report(unsigned char *buff, unsigned int len
         dm->set_db_cfg_param(db_cfg_type_op_class_list_update, "");
         dm->set_db_cfg_param(db_cfg_type_radio_list_update, "");
     }
+
+    // Find the per-radio EM instance by RUID and set its state
+    memcpy(ruid, rpt->ruid, sizeof(mac_address_t));
+    dm_easy_mesh_t::macbytes_to_string(ruid, ruid_str);
+    em_t *radio_em = reinterpret_cast<em_t *>(hash_map_get(get_mgr()->m_em_map, ruid_str));
+    if (radio_em) {
+        if(radio_em->get_state() == em_state_ctrl_channel_selected){
+            radio_em->set_state(em_state_ctrl_configured);
+            em_printfout("Set em_state_ctrl_configured for radio %s", ruid_str);
+        }
+    } else {
+        em_printfout("No EM instance found for radio %s", ruid_str);
+    }
+
     return 0;
 }
 
@@ -1629,8 +1646,40 @@ int em_channel_t::handle_channel_sel_req(unsigned char *buff, unsigned int len)
 
 int em_channel_t::handle_channel_sel_rsp(unsigned char *buff, unsigned int len)
 {
-	printf("%s:%d Received channel selection response \n",__func__, __LINE__);
-    set_state(em_state_ctrl_channel_selected);
+    em_printfout("Received channel selection response");
+
+    em_tlv_t    *tlv;
+    int tlv_len;
+    em_cmdu_t *cmdu = reinterpret_cast<em_cmdu_t *> (buff + sizeof(em_raw_hdr_t));
+    unsigned short response_msg_id = ntohs(cmdu->id);
+
+    tlv = reinterpret_cast<em_tlv_t *> (buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+    tlv_len = static_cast<int> (len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)));
+
+    while ((tlv->type != em_tlv_type_eom) && (len > 0)) {
+        if (tlv->type == em_tlv_type_channel_sel_resp) {
+            em_channel_sel_rsp_t *rsp = reinterpret_cast<em_channel_sel_rsp_t *> (tlv->value);
+            mac_address_t ruid;
+            mac_addr_str_t mac_str;
+
+            memcpy(ruid, rsp->ruid, sizeof(mac_address_t));
+            dm_easy_mesh_t::macbytes_to_string(ruid, mac_str);
+            em_t *radio_em = reinterpret_cast<em_t *>(hash_map_get(get_mgr()->m_em_map, mac_str));
+            if (radio_em) {
+                if((radio_em->get_state() == em_state_ctrl_channel_select_pending) && (response_msg_id == radio_em->m_chan_sel_req_msg_id)) {
+                    radio_em->set_state(em_state_ctrl_channel_selected);
+                    radio_em->m_chan_sel_req_msg_id = 0;
+                    em_printfout("Set em_state_ctrl_channel_selected for radio %s", mac_str);
+                }
+            } else {
+                em_printfout("No EM instance found for radio %s", mac_str);
+            }
+        }
+
+        tlv_len -= static_cast<int> (sizeof(em_tlv_t) + htons(tlv->len));
+        tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
+    }
+
     return 0;
 }
 
@@ -1658,7 +1707,6 @@ int em_channel_t::handle_operating_channel_rprt(unsigned char *buff, unsigned in
         tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
     }
 	printf("%s:%d Operating channel report recv\n", __func__, __LINE__);
-    set_state(em_state_ctrl_configured);
 
 	return 0;
 }

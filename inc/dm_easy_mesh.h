@@ -51,6 +51,7 @@ class dm_easy_mesh_t {
     bool m_topo_changed = false;
     unsigned int ssid_mismatch_check_time = 0;
     unsigned int last_topo_query_sent_time = 0;
+    bool m_is_ctlr = false;
 
 public:
     webconfig_subdoc_data_t *m_wifi_data;
@@ -696,24 +697,23 @@ public:
 	/**!
 	 * @brief Retrieves the control AL interface.
 	 *
-	 * This function returns the control AL interface from the network's colocated agent interface.
+	 * This function returns the control AL interface from the dm_network object.
 	 *
 	 * @returns A pointer to the control AL interface.
 	 *
 	 * @note Ensure that the network is properly initialized before calling this function.
 	 */
-	em_interface_t *get_ctrl_al_interface() { return m_network.get_colocated_agent_interface(); }
-    
+	em_interface_t *get_ctrl_al_interface() { return m_network.get_controller_interface(); }
+
 	/**!
 	 * @brief Retrieves the MAC address of the control interface.
 	 *
 	 * This function returns the MAC address associated with the control interface
-	 * of the network's colocated agent.
 	 *
 	 * @returns A pointer to an unsigned char array representing the MAC address.
 	 * @note Ensure that the returned MAC address is valid and properly formatted.
 	 */
-	unsigned char *get_ctrl_al_interface_mac() { return m_network.get_colocated_agent_interface_mac(); }
+	unsigned char *get_ctrl_al_interface_mac() { return m_network.get_controller_interface_mac(); }
     
 	/**!
 	 * @brief Retrieves the control AL interface name.
@@ -724,7 +724,7 @@ public:
 	 *
 	 * @note The returned string is managed internally and should not be freed by the caller.
 	 */
-	char *get_ctrl_al_interface_name() { return m_network.get_colocated_agent_interface_name(); }
+	char *get_ctrl_al_interface_name() { return m_network.get_controller_interface()->name; }
     
 	/**!
 	 * @brief Sets the control AL interface MAC address.
@@ -735,7 +735,7 @@ public:
 	 *
 	 * @note Ensure that the MAC address is valid and properly formatted before calling this function.
 	 */
-	void set_ctrl_al_interface_mac(unsigned char *mac) { m_network.set_colocated_agent_interface_mac(mac); }
+	void set_ctrl_al_interface_mac(unsigned char *mac) { m_network.set_controller_id(mac); }
     
 	/**!
 	 * @brief Sets the control AL interface name.
@@ -746,7 +746,7 @@ public:
 	 *
 	 * @note This function modifies the interface name used by the network control agent.
 	 */
-	void set_ctrl_al_interface_name(char *name) { m_network.set_colocated_agent_interface_name(name); }
+	void set_ctrl_al_interface_name(char *name) { m_network.set_controller_id(reinterpret_cast<unsigned char*>(name)); }
 	
 	/**!
 	 * @brief Sets the controller ID for the network.
@@ -2496,7 +2496,9 @@ public:
 	 * @retval true if colocated, false otherwise.
 	 */
 	bool get_colocated() { return m_colocated; }
-	
+
+	void set_controller(bool controller) { m_is_ctlr = controller; }
+	bool is_controller() { return m_is_ctlr; }
 	/**!
 	 * @brief Sets the list of channels for the specified operating class.
 	 *

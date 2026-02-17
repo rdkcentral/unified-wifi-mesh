@@ -931,7 +931,7 @@ int dm_easy_mesh_t::decode_config_set_policy(em_subdoc_info_t *subdoc, const cha
 	int i;
 	char *dev_mac_str, *net_id;
 	em_long_string_t parent;
-    cJSON *alarm_obj;
+    cJSON *alarm_obj, *client_obj;
 
     parent_obj = cJSON_Parse(subdoc->buff);
     if (parent_obj == NULL) {
@@ -1039,6 +1039,13 @@ int dm_easy_mesh_t::decode_config_set_policy(em_subdoc_info_t *subdoc, const cha
         snprintf(parent, sizeof(em_long_string_t), "%s@%s@00:00:00:00:00:00@%d", net_id, dev_mac_str,
                     em_policy_id_type_alarm_threshold);
         m_policy[m_num_policy].decode(alarm_obj, parent, em_policy_id_type_alarm_threshold);
+        m_num_policy++;
+    }
+
+    if ((client_obj = cJSON_GetObjectItem(policy_obj, "Client Filters")) != NULL) {
+        snprintf(parent, sizeof(em_long_string_t), "%s@%s@00:00:00:00:00:00@%d", net_id, dev_mac_str,
+            em_policy_id_type_client_filters);
+        m_policy[m_num_policy].decode(client_obj, parent, em_policy_id_type_client_filters);
         m_num_policy++;
     }
 
@@ -3037,6 +3044,7 @@ void dm_easy_mesh_t::reset()
     m_num_ap_mld = 0;
 	m_db_cfg_param.db_cfg_type = db_cfg_type_none;
     m_colocated = false;
+    m_is_ctlr = false;
 
 	memset(&m_network.m_net_info, 0, sizeof(em_network_info_t));
 	memset(&m_device.m_device_info, 0, sizeof(em_device_info_t));
@@ -3066,6 +3074,7 @@ dm_easy_mesh_t::dm_easy_mesh_t()
     m_num_net_ssids = 0;
 	m_db_cfg_param.db_cfg_type = db_cfg_type_none;
     m_colocated = false;
+    m_is_ctlr = false;
 }
 
 dm_easy_mesh_t::~dm_easy_mesh_t()

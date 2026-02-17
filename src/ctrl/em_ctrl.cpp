@@ -86,7 +86,7 @@ void em_ctrl_t::handle_dm_commit(em_bus_event_t *evt)
             pnet = new_dm.get_network();
             *pnet = *net;
 
-            ref_dm = get_data_model(net->m_net_info.id, net->m_net_info.colocated_agent_id.mac);
+            ref_dm = get_data_model(net->m_net_info.id, net->m_net_info.ctrl_id.mac);
             assert(ref_dm != NULL);
             new_dm.set_num_network_ssid(ref_dm->get_num_network_ssid());
             for (unsigned int i = 0; i < ref_dm->get_num_network_ssid(); i++) {
@@ -427,10 +427,9 @@ void em_ctrl_t::handle_link_stats_alarm_report(em_bus_event_t *evt)
 
     snprintf(info->name, sizeof(info->name), "alarm_report");
 
-    //m_data_model.get_config(GLOBAL_NET_ID, info);
     cJSON *parent = cJSON_CreateObject();
     em_printfout("Getting STAList for alarm report\n");
-    m_data_model.get_sta_config(parent, GLOBAL_NET_ID, em_get_sta_list_reason_alarm_report, info->buff);
+    m_data_model.get_sta_config(parent, const_cast<char*>(GLOBAL_NET_ID), em_get_sta_list_reason_alarm_report, info->buff);
 
     //publish to orch
     if((desc = get_bus_descriptor()) == NULL) {
@@ -454,7 +453,7 @@ void em_ctrl_t::handle_link_stats_alarm_report(em_bus_event_t *evt)
     if (desc->bus_event_publish_fn(m_data_model.get_bus_hdl(), DEVICE_WIFI_DATAELEMENTS_NETWORK_NODE_LINKSTATS_ALARM, &raw)== 0) {
         em_printfout("Link Stats Alarm published successfull");
     } else {
-        em_printfout("%s:%d Link Stats Alarm publish fail");
+        em_printfout("Link Stats Alarm publish fail");
     }
 
     cJSON_Delete(parent);
@@ -620,7 +619,7 @@ void em_ctrl_t::handle_bus_event(em_bus_event_t *evt)
             handle_bsta_cap_req(evt);
             break;
 
-        case em_bus_event_type_link_stats_alarm_report:
+        case em_bus_event_type_link_quality_report:
            handle_link_stats_alarm_report(evt);
            break;
 	
@@ -671,13 +670,13 @@ void em_ctrl_t::publish_network_topology()
     raw.raw_data.bytes = reinterpret_cast<unsigned char *> (str);
     raw.raw_data_len = static_cast<unsigned int> (strlen(str));
 
-    if (desc->bus_event_publish_fn(m_data_model.get_bus_hdl(), DEVICE_WIFI_DATAELEMENTS_NETWORK_TOPOLOGY, &raw)== 0) {
+    if (desc->bus_event_publish_fn(m_data_model.get_bus_hdl(), const_cast<char*>(DEVICE_WIFI_DATAELEMENTS_NETWORK_TOPOLOGY), &raw)== 0) {
         printf("%s:%d Topology published successfull\n",__func__, __LINE__);
     } else {
         printf("%s:%d Topology publish fail\n",__func__, __LINE__);
     }
 
-#if 1
+#if 0
     //Test code here
     // if (desc->bus_event_subs_fn(&m_bus_hdl, DEVICE_WIFI_DATAELEMENTS_NETWORK_NODE_CFG_POLICY, (void *)&em_agent_t::onewifi_cb, NULL, 0) != 0) {
     //     printf("%s:%d bus get failed\n", __func__, __LINE__);
@@ -1034,6 +1033,17 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
             }
             break;
 
+        case em_msg_type_topo_vendor:
+            em = static_cast<em_t *> (hash_map_get_first(m_em_map));
+            while(em != NULL) {
+                if (em->is_al_interface_em() == false) {
+                    break;
+                }
+                em = static_cast<em_t *> (hash_map_get_next(m_em_map, em));
+            }
+            break;
+
+
         default:
             printf("%s:%d: Frame: 0x%04x not handled in controller\n", __func__, __LINE__, htons(cmdu->type));
             em = NULL;
@@ -1063,20 +1073,20 @@ void em_ctrl_t::start_complete()
 	mac_address_t null_mac = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 	int i = 0;
     bus_error_t bus_error_val;
-    int num_elements = 0;
+    unsigned int num_elements = 0;
 
     //Todo: Revisit placement of data elements registration done for orch
     bus_data_element_t dataElements[] = {
-        { DEVICE_WIFI_DATAELEMENTS_NETWORK_TOPOLOGY, bus_element_type_method,
-            { NULL, NULL , NULL, NULL, NULL, NULL }, slow_speed, ZERO_TABLE,
+        { const_cast<char*>(DEVICE_WIFI_DATAELEMENTS_NETWORK_TOPOLOGY), bus_element_type_method,
+            { tr_181_t::get_network_topology, NULL , NULL, NULL, NULL, NULL }, slow_speed, ZERO_TABLE,
             { bus_data_type_string, false, 0, 0, 0, NULL } },
-        { DEVICE_WIFI_DATAELEMENTS_NETWORK_NODE_SYNC, bus_element_type_method,
+        { const_cast<char*>(DEVICE_WIFI_DATAELEMENTS_NETWORK_NODE_SYNC), bus_element_type_method,
             { tr_181_t::get_node_sync,  tr_181_t::set_node_sync , NULL, NULL, NULL, NULL }, slow_speed, ZERO_TABLE,
             { bus_data_type_string, false, 0, 0, 0, NULL } },
-        { DEVICE_WIFI_DATAELEMENTS_NETWORK_NODE_CFG_POLICY, bus_element_type_method,
+        { const_cast<char*>(DEVICE_WIFI_DATAELEMENTS_NETWORK_NODE_CFG_POLICY), bus_element_type_method,
             { NULL, tr_181_t::policy_config , NULL, NULL, NULL, NULL }, slow_speed, ZERO_TABLE,
             { bus_data_type_string, false, 0, 0, 0, NULL } },
-        { DEVICE_WIFI_DATAELEMENTS_NETWORK_NODE_LINKSTATS_ALARM, bus_element_type_method,
+         { const_cast<char*>(DEVICE_WIFI_DATAELEMENTS_NETWORK_NODE_LINKSTATS_ALARM), bus_element_type_method,
             { NULL, NULL , NULL, NULL, NULL, NULL }, slow_speed, ZERO_TABLE,
             { bus_data_type_string, false, 0, 0, 0, NULL } },
         { DEVICE_WIFI_DATAELEMENTS_NETWORK_SETSSID_CMD, bus_element_type_method,
@@ -1127,18 +1137,28 @@ void em_ctrl_t::start_complete()
     }
     em_printfout("bus_regDataElements success (%u elements) including SetSSID handler", num_elements);
 
-    intf = m_data_model.get_ctrl_al_interface(const_cast<char*>(GLOBAL_NET_ID));
-    assert(intf != NULL);
+    dm = m_data_model.get_first_dm();
+    while (dm != NULL && dm->is_controller() == false) {
+        dm = m_data_model.get_next_dm(dm);
+    }
 
-    dm_easy_mesh_t::macbytes_to_string(intf->mac, al_mac_str);
-    raw.data_type    = bus_data_type_string;
-    raw.raw_data.bytes   = al_mac_str;
-    raw.raw_data_len = static_cast<unsigned int> (strlen(al_mac_str));
+    if (dm) {
+        intf = dm->get_ctrl_al_interface();
+        assert(intf != NULL);
 
-    if (desc->bus_set_fn(m_data_model.get_bus_hdl(), "Device.WiFi.Ctrl.CollocateAgentID", &raw)== 0) {
-        printf("%s:%d Collocated Agent ID: %s publish successfull\n",__func__, __LINE__, al_mac_str);
+        dm_easy_mesh_t::macbytes_to_string(intf->mac, al_mac_str);
+        raw.data_type    = bus_data_type_string;
+        raw.raw_data.bytes   = al_mac_str;
+        raw.raw_data_len = static_cast<unsigned int> (strlen(al_mac_str));
+
+        if (desc->bus_set_fn(m_data_model.get_bus_hdl(), "Device.WiFi.DataElements.Network.ControllerID", &raw) == 0) {
+            em_printfout("Controller ID: %s publish successful.", al_mac_str);
+        }
+        else {
+            em_printfout("Controller ID: %s publish failed.", al_mac_str);
+        }
     } else {
-        printf("%s:%d Collocated agent ID: %s publish  fail\n",__func__, __LINE__, al_mac_str);
+            em_printfout("Could not find data model with controller role");
     }
 
     if (desc->bus_event_subs_fn(m_data_model.get_bus_hdl(), DEVICE_WIFI_DATAELEMENTS_NETWORK_NODE_CFG_POLICY, reinterpret_cast<void *> (&tr_181_t::subs_policy_config), NULL, 0) != 0) {
@@ -1179,7 +1199,6 @@ AlServiceAccessPoint* em_ctrl_t::al_sap_register(const std::string& data_socket_
         uint8_t* al_mac_bytes = g_al_mac_sap.data();
         em_printfout("AL SAP registration successful, AL MAC: %s", util::mac_to_string(al_mac_bytes).c_str());
 
-        m_data_model.set_colocated_agent_interface_mac(al_mac_bytes);
         m_data_model.set_dev_interface_mac(al_mac_bytes);
     } else {
         std::cout << "Registration failed with error: " << static_cast<int>(result) << std::endl;

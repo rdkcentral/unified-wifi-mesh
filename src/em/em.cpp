@@ -159,8 +159,6 @@ void em_t::orch_execute(em_cmd_t *pcmd)
                 m_sm.set_state(em_state_ctrl_channel_query_pending);
             } else if ((pcmd->get_orch_op() == dm_orch_type_channel_sel) && (m_sm.get_state() == em_state_ctrl_channel_queried)) {
                 m_sm.set_state(em_state_ctrl_channel_select_pending);
-            } else if ((pcmd->get_orch_op() == dm_orch_type_channel_cnf) && (m_sm.get_state() == em_state_ctrl_channel_selected)) {
-                m_sm.set_state(em_state_ctrl_channel_cnf_pending);
             } else if ((pcmd->get_orch_op() == dm_orch_type_policy_cfg) && (m_sm.get_state() == em_state_ctrl_configured)) {
                 m_sm.set_state(em_state_ctrl_set_policy_pending);
             } else if ((pcmd->get_orch_op() == dm_orch_type_channel_scan_req) && (m_sm.get_state() == em_state_ctrl_configured)) {
@@ -251,6 +249,10 @@ void em_t::orch_execute(em_cmd_t *pcmd)
             m_sm.set_state(em_state_ctrl_bsta_cap_pending);
             break;
 
+        case em_cmd_type_get_link_quality_report:
+            m_sm.set_state(em_state_agent_link_quality_report_pending);
+            break;
+
         default:
             break;
 
@@ -323,6 +325,7 @@ void em_t::proto_process(unsigned char *data, unsigned int len)
         case em_msg_type_beacon_metrics_query:
         case em_msg_type_beacon_metrics_rsp:
         case em_msg_type_ap_metrics_rsp:
+        case em_msg_type_topo_vendor:
             em_metrics_t::process_msg(data, len);
             break;
 
@@ -341,7 +344,7 @@ void em_t::proto_process(unsigned char *data, unsigned int len)
         case em_msg_type_1905_ack:
             if (m_sm.get_state() == em_state_ctrl_ap_mld_configured) {
                 em_configuration_t::process_msg(data, len);
-            } else {
+            } else if (m_sm.get_state() == em_state_ctrl_sta_steer_pending) {
                 em_steering_t::process_msg(data, len);
             }
             break;
@@ -430,6 +433,12 @@ void em_t::handle_agent_state()
 
         case em_cmd_type_ap_metrics_report:
             if (m_sm.get_state() == em_state_agent_ap_metrics_pending) {
+                em_metrics_t::process_agent_state();
+            }
+            break;
+
+        case em_cmd_type_get_link_quality_report:
+            if (m_sm.get_state() == em_state_agent_link_quality_report_pending) {
                 em_metrics_t::process_agent_state();
             }
             break;

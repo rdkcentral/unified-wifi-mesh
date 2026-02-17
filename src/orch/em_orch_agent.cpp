@@ -134,6 +134,7 @@ bool em_orch_agent_t::is_em_ready_for_orch_fini(em_cmd_t *pcmd, em_t *em)
             break;
 
         case em_cmd_type_ap_metrics_report:
+        case em_cmd_type_get_link_quality_report:
             if (em->get_state() == em_state_agent_configured) {
                 return true;
             }
@@ -190,6 +191,11 @@ bool em_orch_agent_t::is_em_ready_for_orch_exec(em_cmd_t *pcmd, em_t *em)
     } else if (pcmd->m_type == em_cmd_type_ap_metrics_report) {
         if ((em->get_state() == em_state_agent_configured) ||
             ((em->get_state() == em_state_agent_ap_metrics_pending))) {
+            return true;
+        }
+    } else if (pcmd->m_type == em_cmd_type_get_link_quality_report) {
+        if ((em->get_state() >= em_state_agent_topo_synchronized) ||
+            ((em->get_state() == em_state_agent_link_quality_report_pending))) {
             return true;
         }
     }
@@ -485,6 +491,13 @@ unsigned int em_orch_agent_t::build_candidates(em_cmd_t *pcmd)
             case em_cmd_type_ap_metrics_report:
                 if (memcmp(pcmd->m_param.u.ap_metrics_params.ruid,
                     em->get_radio_interface_mac(), sizeof(mac_address_t)) == 0) {
+                    queue_push(pcmd->m_em_candidates, em);
+                    count++;
+                }
+                break;
+
+            case em_cmd_type_get_link_quality_report:
+                if ((em->is_al_interface_em() == true)) {
                     queue_push(pcmd->m_em_candidates, em);
                     count++;
                 }

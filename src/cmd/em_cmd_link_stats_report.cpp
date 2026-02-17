@@ -33,40 +33,24 @@
 #include <unistd.h>
 #include <pthread.h>
 #include <cjson/cJSON.h>
-#include "em_cmd_em_config.h"
+#include "em_cmd_link_stats_report.h"
 
-em_cmd_em_config_t::em_cmd_em_config_t(em_cmd_params_t param, dm_easy_mesh_t& dm)
+em_cmd_link_quality_report_t::em_cmd_link_quality_report_t(em_cmd_params_t param, dm_easy_mesh_t& dm)
 {
-    em_cmd_ctx_t ctx;;
+    em_cmd_ctx_t ctx;
 
-    m_type = em_cmd_type_em_config;
+    m_type = em_cmd_type_get_link_quality_report;
     memcpy(&m_param, &param, sizeof(em_cmd_params_t));
-
+    
     memset(reinterpret_cast<unsigned char *> (&m_orch_desc[0]), 0, EM_MAX_CMD*sizeof(em_orch_desc_t));
 
     m_orch_op_idx = 0;
-    m_num_orch_desc = 9;
-    m_orch_desc[0].op = dm_orch_type_bss_delete;
-    m_orch_desc[0].submit = false;
-    m_orch_desc[1].op = dm_orch_type_topo_sync;
-    m_orch_desc[1].submit = true;
-    m_orch_desc[2].op = dm_orch_type_ap_cap_query;
-    m_orch_desc[2].submit = true;
-    m_orch_desc[3].op = dm_orch_type_channel_pref;
-    m_orch_desc[3].submit = true;
-    m_orch_desc[4].op = dm_orch_type_channel_sel;
-    m_orch_desc[4].submit = true;
-    m_orch_desc[5].op = dm_orch_type_policy_cfg;
-    m_orch_desc[5].submit = true;
-    m_orch_desc[6].op = dm_orch_type_channel_scan_req;
-    m_orch_desc[6].submit = true;
-    m_orch_desc[7].op = dm_orch_type_topo_update;
-    m_orch_desc[7].submit = false;
-    m_orch_desc[8].op =dm_orch_type_topo_publish;
-    m_orch_desc[8].submit = true;
+    m_num_orch_desc = 1;
+    m_orch_desc[0].op = dm_orch_type_link_quality_report;
+    m_orch_desc[0].submit = true;
 
-    strncpy(m_name, "em_config", strlen("em_config") + 1);
-    m_svc = em_service_type_ctrl;
+    strncpy(m_name, "alarm_report", strlen("alarm_report") + 1);
+    m_svc = em_service_type_agent;
     init(dm);
 
     memset(&ctx, 0, sizeof(em_cmd_ctx_t));
