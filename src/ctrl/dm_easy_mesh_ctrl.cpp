@@ -2807,13 +2807,13 @@ bus_error_t dm_easy_mesh_ctrl_t::device_tget_inner(char *event_name, raw_data_t 
         dm_ctrl->apmld_tget_params(dm, path, &property);
 
         if (dm->is_bsta_mld_present()) {
-            char maclist_str[256] = { 0 };
-            mac_address_t maclist[16];
+            char maclist_str[MAX_MACLIST_STRLEN] = { 0 };
+            mac_address_t maclist[MAX_MACLIST_ITEMS];
             em_bsta_mld_info_t &bsmi = dm->get_bsta_mld_info();
             dm_ctrl->property_append_tail(&property, root, idx, "bSTAMLD.MLDMACAddress", bsmi.mac_addr_valid ? bsmi.mac_addr : ZERO_MAC_ADDR);
             dm_ctrl->property_append_tail(&property, root, idx, "bSTAMLD.BSSID", bsmi.ap_mld_mac_addr_valid ? bsmi.ap_mld_mac_addr : ZERO_MAC_ADDR);
             if (bsmi.num_affiliated_bsta) {
-                for (unsigned int i = 0; i < bsmi.num_affiliated_bsta && i < 16; i++) {
+                for (unsigned int i = 0; i < bsmi.num_affiliated_bsta && i < MAX_MACLIST_ITEMS; i++) {
                     memcpy(maclist[i], bsmi.affiliated_bsta[i].mac_addr, sizeof(mac_address_t));
                 }
                 dm_easy_mesh_t::maclist_to_string(maclist, bsmi.num_affiliated_bsta, maclist_str, sizeof(maclist_str));
@@ -3825,9 +3825,9 @@ bus_error_t dm_easy_mesh_ctrl_t::curops_get_inner(char *event_name, raw_data_t *
     em_op_class_info_t *oci = op_class->get_op_class_info();
 
     if (strcmp(param, "TimeStamp") == 0) {
-        char time[24];
-        char zone[8];
-        char buffer[64];
+        char time[MAX_TIME_STRLEN];
+        char zone[MAX_ZONE_STRLEN];
+        char buffer[MAX_TIMESTAMP_STRLEN];
         struct timespec ts;
         clock_gettime(CLOCK_REALTIME, &ts);
         strftime(time, sizeof(time), "%FT%T", localtime(&ts.tv_sec));
@@ -5379,10 +5379,10 @@ bus_error_t dm_easy_mesh_ctrl_t::bstamld_get_inner(char *event_name, raw_data_t 
     } else if (strcmp(param, "BSSID") == 0) {
         rc = dm_ctrl->raw_data_set(p_data, bsmi.ap_mld_mac_addr_valid ? bsmi.ap_mld_mac_addr : ZERO_MAC_ADDR);
     } else if (strcmp(param, "AffiliatedbSTAList") == 0) {
-        char maclist_str[256] = { 0 };
-        mac_address_t maclist[16];
+        char maclist_str[MAX_MACLIST_STRLEN] = { 0 };
+        mac_address_t maclist[MAX_MACLIST_ITEMS];
         if (bsmi.num_affiliated_bsta) {
-            for (unsigned int i = 0; i < bsmi.num_affiliated_bsta && i < 16; i++) {
+            for (unsigned int i = 0; i < bsmi.num_affiliated_bsta && i < MAX_MACLIST_ITEMS; i++) {
                 memcpy(maclist[i], bsmi.affiliated_bsta[i].mac_addr, sizeof(mac_address_t));
             }
             dm_easy_mesh_t::maclist_to_string(maclist, bsmi.num_affiliated_bsta, maclist_str, sizeof(maclist_str));

@@ -1166,7 +1166,10 @@ void tr_181_t::handle_property_node(cJSON* root, const std::string& fullPath, cJ
 
     // 0) If property is deprecated, do not bother
     bool deprecated = schema_is_deprecated(propertySchema);
-    if (deprecated) return;
+    if (deprecated) {
+        em_printfout("Deprecated parameter, skip");
+        return;
+    }
 
     // 1) follow top-level $ref / combiners if present
     cJSON* effective = follow_ref_if_any(root, propertySchema);

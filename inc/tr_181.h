@@ -85,6 +85,11 @@ static const yang_to_tr181_map g_yang_map[] = {
 
 #define MAX_INSTANCE_LEN        32
 #define MAX_CAPS_STR_LEN        32
+#define MAX_MACLIST_ITEMS       14
+#define MAX_MACLIST_STRLEN      256
+#define MAX_TIME_STRLEN         24
+#define MAX_ZONE_STRLEN         8
+#define MAX_TIMESTAMP_STRLEN    64
 #define ARRAY_SIZE(a)           (sizeof(a) / sizeof(a[0]))
 
 /* Device.WiFi.DataElements.Network */
