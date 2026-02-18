@@ -55,6 +55,11 @@ dm_easy_mesh_t& dm_easy_mesh_t::operator = (dm_easy_mesh_t const& obj)
     em_long_string_t key;
     mac_addr_str_t radio_mac_str, bss_mac_str, sta_mac_str;
 
+    // Self-assignment check
+    if (this == &obj) {
+        return *this;
+    }
+
     m_device = obj.m_device;
     m_network = obj.m_network;
     m_ieee_1905_security = obj.m_ieee_1905_security;

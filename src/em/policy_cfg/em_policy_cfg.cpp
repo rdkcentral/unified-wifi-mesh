@@ -61,6 +61,19 @@ short em_policy_cfg_t::create_metrics_rep_policy_tlv(unsigned char *buff)
         dm = get_current_cmd()->get_data_model();
 	}
 
+    /*Validate policy count */
+    unsigned int num_policies = dm->get_num_policy();
+    if ((num_policies == 0) || (num_policies > EM_MAX_POLICIES)) {
+        em_printfout("Invalid policy count %u\n", num_policies);
+        return 0;
+    }
+
+    /* Validate bounds for broadcast radio fill */
+    if (get_data_model()->get_num_radios() > EM_MAX_RADIO_PER_AGENT) {
+        em_printfout("Radio count %u exceeds maximum %u\n", get_data_model()->get_num_radios(), EM_MAX_RADIO_PER_AGENT);
+        return 0;
+    }
+
 	metric = reinterpret_cast<em_metric_rprt_policy_t *> (tmp);
 	for (i = 0; i < dm->get_num_policy(); i++) {
         policy = &dm->m_policy[i];
