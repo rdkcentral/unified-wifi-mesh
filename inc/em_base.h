@@ -77,9 +77,9 @@ extern "C"
 #define EM_MAX_TRAFFIC_SEP_SSID        8
 #define EM_MAX_FREQ_RECORDS_PER_RADIO  8
 #define MAP_INVENTORY_ITEM_LEN  64
-#define MAX_MCS  6
+#define MAX_MCS  3
 #define MAP_AP_ROLE_MAX 2
-#define MAX_MCS_NSS 6
+// #define MAX_MCS_NSS 6
 #define EM_MAX_CAC_METHODS 4
 #define EM_MAX_STA_PER_BSS         64
 #define EM_MAX_STA_PER_STEER_POLICY        16 
@@ -1614,9 +1614,14 @@ typedef struct {
 } __attribute__((__packed__)) em_ap_vht_cap_t;
 
 typedef struct {
+    unsigned short tx_he_mcs;
+    unsigned short rx_he_mcs;
+} __attribute__((__packed__)) em_ap_he_mcs_maps_t;
+
+typedef struct {
     mac_address_t  ruid;
     unsigned char  sprt_mcs_len;
-    unsigned short sprt_tx_rx_mcs[MAX_MCS];
+    em_ap_he_mcs_maps_t sprt_tx_rx_mcs[MAX_MCS];
     unsigned char  sprt_160mhz : 1;
     unsigned char  sprt_80_80_mhz : 1;
     unsigned char  max_sprt_rx_streams : 3;
@@ -1663,7 +1668,7 @@ typedef struct {
 
 typedef struct {
     em_wifi6_cap_role_head_tlv_t role_head;
-    unsigned short mcs_nss[MAX_MCS_NSS]; //this is flexible and expandable to 12 bytes
+    em_ap_he_mcs_maps_t sprt_tx_rx_mcs[MAX_MCS];
     em_wifi6_cap_role_tail_tlv_t role_tail;
 } __attribute__((__packed__)) em_wifi6_role_wire_t;
 

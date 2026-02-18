@@ -1121,6 +1121,16 @@ short em_t::create_ht_tlv(unsigned char *buff)
         len = sizeof(em_ap_ht_cap_t);
         em_printfout("MAC:%s, ht_cap.ruid: %s", util::mac_to_string(cap_info->ruid.mac).c_str(),
             util::mac_to_string(ht_cap->ruid).c_str());
+        em_printfout("HT Capabilities MCS Set for RUID %s",
+            util::mac_to_string(ht_cap->ruid).c_str());
+        em_printfout("\t\tHT 40MHz Support: %d",
+            ht_cap->ht_sprt_40mhz);
+        em_printfout("\t\tGI 40MHz Support: %d",
+            ht_cap->gi_sprt_40mhz);
+        em_printfout("\t\tGI 20MHz Support: %d",
+            ht_cap->gi_sprt_20mhz);
+        em_printfout("\t\tmax_sprt_rx_streams:%d", ht_cap->max_sprt_rx_streams);
+        em_printfout("\t\tmax_sprt_tx_streams:%d", ht_cap->max_sprt_tx_streams);
     }
 
     return len;
@@ -1152,16 +1162,20 @@ short em_t::create_vht_tlv(unsigned char *buff)
 
 short em_t::create_he_tlv(unsigned char *buff)
 {
-    short len = 0;
     dm_easy_mesh_t  *dm;
+    short offset = 0;
     dm = get_data_model();
     dm_radio_cap_t *radio_cap = dm->get_radio_cap(get_radio_interface_mac());
+
+    em_printfout("create_he_tlv: radio MAC %s",
+                     util::mac_to_string(get_radio_interface_mac()).c_str());
 
     if (radio_cap == NULL) {
         em_printfout("create_he_tlv: radio_cap NULL for MAC %s",
                      util::mac_to_string(get_radio_interface_mac()).c_str());
         return 0;
     }
+
     em_radio_cap_info_t* cap_info = radio_cap->get_radio_cap_info();
     em_ap_he_cap_t *he_cap = reinterpret_cast<em_ap_he_cap_t *>(buff);
 
@@ -1169,9 +1183,46 @@ short em_t::create_he_tlv(unsigned char *buff)
         em_printfout("No data Found");
         return 0;
     }
-    memcpy(he_cap, &cap_info->he_cap, sizeof(em_ap_he_cap_t));
-    len = sizeof(em_ap_he_cap_t);
-    return len;
+
+    memcpy(he_cap->ruid, &cap_info->he_cap.ruid, sizeof(mac_addr_t));
+    he_cap->sprt_mcs_len = cap_info->he_cap.sprt_mcs_len;
+    offset += static_cast<short>(sizeof(mac_address_t) + sizeof(unsigned char));
+
+    uint8_t mcs_count = he_cap->sprt_mcs_len / EM_MIN_HE_MCS_LEN;
+    // Clamp to max supported
+    if (mcs_count > MAX_MCS) {
+        em_printfout("Clamping MCS count from %u to %u", mcs_count, MAX_MCS);
+        mcs_count = MAX_MCS;
+    }
+    for (int i = 0; i < mcs_count; i++) {
+        // TX
+        memcpy((buff + offset), &cap_info->he_cap.sprt_tx_rx_mcs[i].tx_he_mcs, sizeof(unsigned short));
+        offset += static_cast<short>(sizeof(unsigned short));
+        // RX
+        memcpy((buff + offset), &cap_info->he_cap.sprt_tx_rx_mcs[i].rx_he_mcs, sizeof(unsigned short));
+        offset += static_cast<short>(sizeof(unsigned short));
+    }
+
+    uint8_t b1 = 0;
+    b1 |= (cap_info->he_cap.sprt_160mhz & 0x1);
+    b1 |= (cap_info->he_cap.sprt_80_80_mhz & 0x1) << 1;
+    b1 |= (cap_info->he_cap.max_sprt_rx_streams & 0x7) << 2;
+    b1 |= (cap_info->he_cap.max_sprt_tx_streams & 0x7) << 5;
+    buff[offset++] = b1;
+
+    uint8_t b2 = 0;
+    b2 |= (cap_info->he_cap.dl_ofdma_cap & 0x1);
+    b2 |= (cap_info->he_cap.ul_ofdma_cap & 0x1) << 1;
+    b2 |= (cap_info->he_cap.dl_mimo_ofdma_cap & 0x1) << 2;
+    b2 |= (cap_info->he_cap.ul_mimo_ofdma_cap & 0x1) << 3;
+    b2 |= (cap_info->he_cap.ul_mimo_cap & 0x1) << 4;
+    b2 |= (cap_info->he_cap.mu_beamformer_cap & 0x1) << 5;
+    b2 |= (cap_info->he_cap.su_beamformer_cap & 0x1) << 6;
+    buff[offset++] = b2;
+    
+    em_printfout("Total TLV length: %d", offset);
+
+    return offset;
 }
 
 short em_t::create_wifi6_tlv(unsigned char *buff)
@@ -1218,24 +1269,26 @@ short em_t::create_wifi6_tlv(unsigned char *buff)
         
         role_head->mcs_nss_num         = cap_info->wifi6_cap.roles[i].role_head.mcs_nss_num;
         em_printfout("\t\tmcs_nss_num: %d", role_head->mcs_nss_num);
-        for(int j = 0; j < role_head->mcs_nss_num; j++) {
-            em_printfout("\t\tmac_nss[%d] = %hu",     j, cap_info->wifi6_cap.roles[i].mcs_nss[j]);
-        }
+
         role_head->he_8080             = cap_info->wifi6_cap.roles[i].role_head.he_8080;
         role_head->he_160              = cap_info->wifi6_cap.roles[i].role_head.he_160;
         role_head->agent_role          = cap_info->wifi6_cap.roles[i].role_head.agent_role;
 
         offset += static_cast<short>(sizeof(em_wifi6_cap_role_head_tlv_t));
 
-        for (int j = 0; j < role_head->mcs_nss_num; j++){
-            memcpy(buff + offset, &cap_info->wifi6_cap.roles[i].mcs_nss[j], sizeof(unsigned short));
-            em_printfout("\t\tmcs_nss[%d]: %hu", j, cap_info->wifi6_cap.roles[i].mcs_nss[j]);
+        uint8_t mcs_count = role_head->mcs_nss_num / EM_MIN_HE_MCS_LEN;
+        if (mcs_count > MAX_MCS) {
+            em_printfout("Clamping role MCS count from %u to %u", mcs_count, MAX_MCS);
+            mcs_count = MAX_MCS;
         }
-        if (role_head->he_160 == true) {
-            offset += EM_MIN_HE_MCS_LEN;
-        } 
-
-        offset += EM_MIN_HE_MCS_LEN;
+        for (int j = 0; j < mcs_count; j++){
+            memcpy(buff + offset, &cap_info->wifi6_cap.roles[i].sprt_tx_rx_mcs[j].tx_he_mcs, sizeof(unsigned short));
+            offset += static_cast<short>(sizeof(unsigned short));
+            memcpy(buff + offset, &cap_info->wifi6_cap.roles[i].sprt_tx_rx_mcs[j].rx_he_mcs, sizeof(unsigned short));
+            offset += static_cast<short>(sizeof(unsigned short));
+            em_printfout("\t\tmac_nss Tx[%d] = 0x%x, Rx[%d] = 0x%x", j, cap_info->wifi6_cap.roles[i].sprt_tx_rx_mcs[j].tx_he_mcs,
+                cap_info->wifi6_cap.roles[i].sprt_tx_rx_mcs[j].rx_he_mcs);   
+        }
 
         em_wifi6_cap_role_tail_tlv_t *role_tail =
             reinterpret_cast<em_wifi6_cap_role_tail_tlv_t *>(buff + offset);
@@ -2089,14 +2142,17 @@ int em_t::handle_wifi6_cap_tlv(unsigned char *buff)
 
         offset += static_cast<short>(sizeof(em_wifi6_cap_role_head_tlv_t));
 
-        for (int j = 0; j < role_head->mcs_nss_num; j++){
-            memcpy(&em_wifi6_cap->roles[i].mcs_nss[j], buff + offset, sizeof(unsigned short));
+        uint8_t mcs_count = role_head->mcs_nss_num / EM_MIN_HE_MCS_LEN;
+        if (mcs_count > MAX_MCS) {
+            em_printfout("Clamping role MCS count from %u to %u", mcs_count, MAX_MCS);
+            mcs_count = MAX_MCS;
         }
-        if (role_head->he_160 == true) {
-            offset += EM_MIN_HE_MCS_LEN;
-        } 
-
-        offset += EM_MIN_HE_MCS_LEN;
+        for (int j = 0; j < mcs_count; j++){
+            memcpy(&em_wifi6_cap->roles[i].sprt_tx_rx_mcs[j].tx_he_mcs, (buff + offset), sizeof(unsigned short));
+            offset += static_cast<short>(sizeof(unsigned short));
+            memcpy(&em_wifi6_cap->roles[i].sprt_tx_rx_mcs[j].rx_he_mcs, (buff + offset), sizeof(unsigned short));
+            offset += static_cast<short>(sizeof(unsigned short));
+        }
 
         em_wifi6_cap_role_tail_tlv_t *role_tail =
             reinterpret_cast<em_wifi6_cap_role_tail_tlv_t *>(buff + offset);
@@ -2136,8 +2192,9 @@ int em_t::handle_wifi6_cap_tlv(unsigned char *buff)
         em_printfout("\t\twt_req:%d twt_resp:%d",
             em_wifi6_cap->roles[i].role_tail.twt_req, em_wifi6_cap->roles[i].role_tail.twt_resp);
         em_printfout("\t\tmcs_nss_num: %d", em_wifi6_cap->roles[i].role_head.mcs_nss_num);
-        for(int j = 0; j < em_wifi6_cap->roles[i].role_head.mcs_nss_num; j++) {
-            em_printfout("\t\tmac_nss[%d] = %hu",     j, em_wifi6_cap->roles[i].mcs_nss[j]);
+        for(int j = 0; j < em_wifi6_cap->roles[i].role_head.mcs_nss_num/EM_MIN_HE_MCS_LEN; j++) {
+            em_printfout("\t\tmac_nss Tx[%d] = %hu, Rx[%d] = %hu", j, em_wifi6_cap->roles[i].sprt_tx_rx_mcs[j].tx_he_mcs,
+                em_wifi6_cap->roles[i].sprt_tx_rx_mcs[j].rx_he_mcs);
         }
     }
     return 0;
@@ -2181,7 +2238,7 @@ int em_t::handle_wifi7_agent_cap_tlv(unsigned char *buff)
 
     for (int idx = 0; idx < num_radios; idx++) {
         em_wifi7_cap = &dm->get_radio_cap_info(idx)->wifi7_cap;
-        em_printfout("Updating wifi7 cap for radio[%d]:%s", idx, util::mac_to_string(em_wifi7_cap->mlo_cap_support.ruid).c_str());
+        em_printfout("Updating wifi7 cap for radio[%d]:%s", idx, util::mac_to_string(dm->get_radio_cap_info(idx)->ruid.mac).c_str());
 
         // Extract MLO support info
         mlo_support = reinterpret_cast<em_wifi7_mlo_cap_support_tlv_t *>(buff + offset);
