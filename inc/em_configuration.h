@@ -328,6 +328,14 @@ class em_configuration_t {
 	 */
 	virtual short create_ap_cap_tlv(unsigned char *buff) = 0;
 
+	/**
+	 * @brief Creates an AKM Suite Capabilities TLV (17.2.78)
+	 * 
+	 * @param buff The buffer to write the TLV to.
+	 * @return int The length of the TLV created, or -1 on failure.
+	 */
+	virtual int create_akm_suite_cap_tlv(uint8_t *buff) = 0;
+
 	/**!
 	 * @brief Creates a basic capability for the AP radio.
 	 *
@@ -1048,14 +1056,6 @@ class em_configuration_t {
 	 * @return int The length of the TLV created, or -1 on failure.
 	 */
 	int create_bsta_radio_cap_tlv(uint8_t *buff);
-
-	/**
-	 * @brief Creates an AKM Suite Capabilities TLV (17.2.78)
-	 * 
-	 * @param buff The buffer to write the TLV to.
-	 * @return int The length of the TLV created, or -1 on failure.
-	 */
-	int create_akm_suite_cap_tlv(uint8_t *buff);
 
 	/**
 	 * @brief Creates a BSS Configuration Response TLV (17.2.85)

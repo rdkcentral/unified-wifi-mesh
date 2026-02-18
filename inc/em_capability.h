@@ -261,6 +261,8 @@ class em_capability_t {
 	 * @note This is a pure virtual function and must be implemented by derived classes.
 	 */
 	virtual short create_ap_cap_tlv(unsigned char *buff) = 0;
+
+	virtual int create_akm_suite_cap_tlv(uint8_t *buff) = 0;
     
 	/**!
 	 * @brief Creates an HT TLV.
@@ -319,6 +321,9 @@ class em_capability_t {
 	 * @note This is a pure virtual function and must be implemented by derived classes.
 	 */
 	virtual short create_wifi6_tlv(unsigned char *buff) = 0;
+
+	virtual int handle_wifi6_cap_tlv(unsigned char *buff) = 0;
+	virtual int handle_wifi7_agent_cap_tlv(unsigned char *buff) = 0;
     
 	/**!
 	 * @brief Creates a WiFi 7 TLV (Type-Length-Value) structure.

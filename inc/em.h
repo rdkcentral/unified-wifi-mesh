@@ -817,6 +817,7 @@ public:
 	 * calling this function.
 	 */
 	short create_ap_cap_tlv(unsigned char *buff);
+	int create_akm_suite_cap_tlv(uint8_t *buff);
 
 	/**
 	 * @brief Create an AP Radio Advanced Capabilities TLV (EM 17.2.52)
@@ -1072,7 +1073,9 @@ public:
 
 	// END: DPP Callbacks for BSS information
 
-    
+	int handle_wifi6_cap_tlv(unsigned char *buff);
+	int handle_wifi7_agent_cap_tlv(unsigned char *buff);
+
 	/**!
 	 * @brief Retrieves the manufacturer information.
 	 *

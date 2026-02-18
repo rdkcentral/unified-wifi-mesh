@@ -1670,10 +1670,8 @@ public:
 	void update_assoc_sta_mld_info(em_assoc_sta_mld_info_t *assoc_sta_mld_info);
 	static void update_assoc_sta_mld_info(void *dm, em_assoc_sta_mld_info_t *assoc_sta_mld_info) { (static_cast<dm_easy_mesh_t *>(dm))->update_assoc_sta_mld_info(assoc_sta_mld_info); }
 
-	static void *get_radio_cap(void *dm, int index) { 
-	    dm_radio_cap_t *cap = (static_cast<dm_easy_mesh_t *>(dm))->get_radio_cap(index);
-            return cap ? cap->get_radio_cap_info() : nullptr;
-	}
+	em_radio_cap_info_t *get_radio_cap_info(int index);
+	static void *get_radio_cap_info(void *dm, int index) { return (static_cast<dm_easy_mesh_t *>(dm))->get_radio_cap_info(index); }
 
 	/**!
 	 * @brief Retrieves the Data Model DPP object.

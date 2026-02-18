@@ -3669,7 +3669,7 @@ bus_error_t dm_easy_mesh_ctrl_t::rcaps_get_inner(char *event_name, raw_data_t *p
     } else if (strcmp(param, "CapableOperatingClassProfileNumberOfEntries") == 0) {
         rc = dm_ctrl->raw_data_set(p_data, 0U);
     } else {
-        em_printfout("Invalid param: %s\n", param);
+        em_printfout("Invalid param: %s", param);
         rc = bus_error_invalid_input;
     }
 
@@ -3685,6 +3685,8 @@ bus_error_t dm_easy_mesh_ctrl_t::wf6ap_get_inner(char *event_name, raw_data_t *p
     bool is_num;
     int device_instance = 0, radio_instance = 0;
     bus_error_t rc;
+    em_wifi6_role_wire_t role_temp;
+    em_wifi6_role_wire_t *role = &role_temp;
 
     if (!name || !p_data) {
         return bus_error_invalid_input;
@@ -3720,73 +3722,76 @@ bus_error_t dm_easy_mesh_ctrl_t::wf6ap_get_inner(char *event_name, raw_data_t *p
     }
     em_radio_info_t *ri = radio->get_radio_info();
 
+    em_printfout("device_instance:%d, radio_instance:%d, ruid:%s", device_instance, radio_instance, util::mac_to_string(ri->id.ruid).c_str());
     dm_radio_cap_t *radio_cap = dm->get_radio_cap(ri->id.ruid);
     if (radio_cap == NULL) {
-        em_printfout("radio_cap is NULL\n");
+        em_printfout("radio_cap is NULL for %s\n", util::mac_to_string(ri->id.ruid).c_str());
         return bus_error_invalid_input;
     }
     em_radio_cap_info_t *rci = radio_cap->get_radio_cap_info();
-    em_radio_wifi6_cap_data_t *wifi6_cap = &rci->wifi6_cap;
     char mcsnss_str[256] = { 0 };
     unsigned int i;
 
-    if (strcmp(param, "HE160") == 0) {
-        rc = dm_ctrl->raw_data_set(p_data, static_cast<bool>(wifi6_cap->he_160));
-    } else if (strcmp(param, "HE8080") == 0) {
-        rc = dm_ctrl->raw_data_set(p_data, static_cast<bool>(wifi6_cap->he_8080));
-    } else if (strcmp(param, "MCSNSS") == 0) {
-        snprintf(mcsnss_str, sizeof(mcsnss_str), "%hu", wifi6_cap->mcs_nss[0]);
-        for (i = 1; i < wifi6_cap->mcs_nss_num && i < MAX_MCS_NSS; i++) {
-            char temp[16];
-            snprintf(temp, sizeof(temp), ",%hu", wifi6_cap->mcs_nss[i]);
-            strncat(mcsnss_str, temp, sizeof(mcsnss_str) - strlen(mcsnss_str) - 1);
-        }
-        rc = dm_ctrl->raw_data_set(p_data, mcsnss_str);
-    } else if (strcmp(param, "SUBeamformer") == 0) {
-        rc = dm_ctrl->raw_data_set(p_data, static_cast<bool>(wifi6_cap->su_beam_former));
-    } else if (strcmp(param, "SUBeamformee") == 0) {
-        rc = dm_ctrl->raw_data_set(p_data, static_cast<bool>(wifi6_cap->su_beam_formee));
-    } else if (strcmp(param, "MUBeamformer") == 0) {
-        rc = dm_ctrl->raw_data_set(p_data, static_cast<bool>(wifi6_cap->mu_beam_former));
-    } else if (strcmp(param, "Beamformee80orLess") == 0) {
-        rc = dm_ctrl->raw_data_set(p_data, static_cast<bool>(wifi6_cap->beam_formee_sts_l80));
-    } else if (strcmp(param, "BeamformeeAbove80") == 0) {
-        rc = dm_ctrl->raw_data_set(p_data, static_cast<bool>(wifi6_cap->beam_formee_sts_g80));
-    } else if (strcmp(param, "ULMUMIMO") == 0) {
-        rc = dm_ctrl->raw_data_set(p_data, static_cast<bool>(wifi6_cap->ul_mumimo));
-    } else if (strcmp(param, "ULOFDMA") == 0) {
-        rc = dm_ctrl->raw_data_set(p_data, static_cast<bool>(wifi6_cap->ul_ofdma));
-    } else if (strcmp(param, "DLOFDMA") == 0) {
-        rc = dm_ctrl->raw_data_set(p_data, static_cast<bool>(wifi6_cap->dl_ofdma));
-    } else if (strcmp(param, "MaxDLMUMIMO") == 0) {
-        rc = dm_ctrl->raw_data_set(p_data, static_cast<unsigned int>(wifi6_cap->max_dl_mumimo_tx));
-    } else if (strcmp(param, "MaxULMUMIMO") == 0) {
-        rc = dm_ctrl->raw_data_set(p_data, static_cast<unsigned int>(wifi6_cap->max_ul_mumimo_rx));
-    } else if (strcmp(param, "MaxDLOFDMA") == 0) {
-        rc = dm_ctrl->raw_data_set(p_data, static_cast<unsigned int>(wifi6_cap->max_dl_ofdma_tx));
-    } else if (strcmp(param, "MaxULOFDMA") == 0) {
-        rc = dm_ctrl->raw_data_set(p_data, static_cast<unsigned int>(wifi6_cap->max_ul_ofdma_rx));
-    } else if (strcmp(param, "RTS") == 0) {
-        rc = dm_ctrl->raw_data_set(p_data, static_cast<bool>(wifi6_cap->rts));
-    } else if (strcmp(param, "MURTS") == 0) {
-        rc = dm_ctrl->raw_data_set(p_data, static_cast<bool>(wifi6_cap->mu_rts));
-    } else if (strcmp(param, "MultiBSSID") == 0) {
-        rc = dm_ctrl->raw_data_set(p_data, static_cast<bool>(wifi6_cap->multi_bssid));
-    } else if (strcmp(param, "MUEDCA") == 0) {
-        rc = dm_ctrl->raw_data_set(p_data, static_cast<bool>(wifi6_cap->mu_edca));
-    } else if (strcmp(param, "TWTRequestor") == 0) {
-        rc = dm_ctrl->raw_data_set(p_data, static_cast<bool>(wifi6_cap->twt_req));
-    } else if (strcmp(param, "TWTResponder") == 0) {
-        rc = dm_ctrl->raw_data_set(p_data, static_cast<bool>(wifi6_cap->twt_resp));
-    } else if (strcmp(param, "SpatialReuse") == 0) {
-        rc = dm_ctrl->raw_data_set(p_data, static_cast<bool>(wifi6_cap->spatial_reuse));
-    } else if (strcmp(param, "AnticipatedChannelUsage") == 0) {
-        rc = dm_ctrl->raw_data_set(p_data, static_cast<bool>(wifi6_cap->anticipated_channel_usage));
-    } else {
-        em_printfout("Invalid WiFi6APRole param: %s\n", param);
-        rc = bus_error_invalid_input;
-    }
+    for (i = 0; i < rci->wifi6_cap.num_role; i++) {
+        memcpy(&role_temp, &rci->wifi6_cap.roles[i], sizeof(em_wifi6_role_wire_t));
 
+        if (strcmp(param, "HE160") == 0) {
+            rc = dm_ctrl->raw_data_set(p_data, static_cast<bool>(role->role_head.he_160));
+        } else if (strcmp(param, "HE8080") == 0) {
+            rc = dm_ctrl->raw_data_set(p_data, static_cast<bool>(role->role_head.he_8080));
+        } else if (strcmp(param, "MCSNSS") == 0) {
+            snprintf(mcsnss_str, sizeof(mcsnss_str), "%hu", role->mcs_nss[0]);
+            for (i = 1; i < role->role_head.mcs_nss_num && i < MAX_MCS_NSS; i++) {
+                char temp[16];
+                snprintf(temp, sizeof(temp), ",%hu", role->mcs_nss[i]);
+                strncat(mcsnss_str, temp, sizeof(mcsnss_str) - strlen(mcsnss_str) - 1);
+            }
+            rc = dm_ctrl->raw_data_set(p_data, mcsnss_str);
+        } else if (strcmp(param, "SUBeamformer") == 0) {
+            rc = dm_ctrl->raw_data_set(p_data, static_cast<bool>(role->role_tail.su_beam_former));
+        } else if (strcmp(param, "SUBeamformee") == 0) {
+            rc = dm_ctrl->raw_data_set(p_data, static_cast<bool>(role->role_tail.su_beam_formee));
+        } else if (strcmp(param, "MUBeamformer") == 0) {
+            rc = dm_ctrl->raw_data_set(p_data, static_cast<bool>(role->role_tail.mu_beam_former));
+        } else if (strcmp(param, "Beamformee80orLess") == 0) {
+            rc = dm_ctrl->raw_data_set(p_data, static_cast<bool>(role->role_tail.beam_formee_sts_l80));
+        } else if (strcmp(param, "BeamformeeAbove80") == 0) {
+            rc = dm_ctrl->raw_data_set(p_data, static_cast<bool>(role->role_tail.beam_formee_sts_g80));
+        } else if (strcmp(param, "ULMUMIMO") == 0) {
+            rc = dm_ctrl->raw_data_set(p_data, static_cast<bool>(role->role_tail.ul_mumimo));
+        } else if (strcmp(param, "ULOFDMA") == 0) {
+            rc = dm_ctrl->raw_data_set(p_data, static_cast<bool>(role->role_tail.ul_ofdma));
+        } else if (strcmp(param, "DLOFDMA") == 0) {
+            rc = dm_ctrl->raw_data_set(p_data, static_cast<bool>(role->role_tail.dl_ofdma));
+        } else if (strcmp(param, "MaxDLMUMIMO") == 0) {
+            rc = dm_ctrl->raw_data_set(p_data, static_cast<unsigned int>(role->role_tail.max_dl_mumimo_tx));
+        } else if (strcmp(param, "MaxULMUMIMO") == 0) {
+            rc = dm_ctrl->raw_data_set(p_data, static_cast<unsigned int>(role->role_tail.max_ul_mumimo_rx));
+        } else if (strcmp(param, "MaxDLOFDMA") == 0) {
+            rc = dm_ctrl->raw_data_set(p_data, static_cast<unsigned int>(role->role_tail.max_dl_ofdma_tx));
+        } else if (strcmp(param, "MaxULOFDMA") == 0) {
+            rc = dm_ctrl->raw_data_set(p_data, static_cast<unsigned int>(role->role_tail.max_ul_ofdma_rx));
+        } else if (strcmp(param, "RTS") == 0) {
+            rc = dm_ctrl->raw_data_set(p_data, static_cast<bool>(role->role_tail.rts));
+        } else if (strcmp(param, "MURTS") == 0) {
+            rc = dm_ctrl->raw_data_set(p_data, static_cast<bool>(role->role_tail.mu_rts));
+        } else if (strcmp(param, "MultiBSSID") == 0) {
+            rc = dm_ctrl->raw_data_set(p_data, static_cast<bool>(role->role_tail.multi_bssid));
+        } else if (strcmp(param, "MUEDCA") == 0) {
+            rc = dm_ctrl->raw_data_set(p_data, static_cast<bool>(role->role_tail.mu_edca));
+        } else if (strcmp(param, "TWTRequestor") == 0) {
+            rc = dm_ctrl->raw_data_set(p_data, static_cast<bool>(role->role_tail.twt_req));
+        } else if (strcmp(param, "TWTResponder") == 0) {
+            rc = dm_ctrl->raw_data_set(p_data, static_cast<bool>(role->role_tail.twt_resp));
+        } else if (strcmp(param, "SpatialReuse") == 0) {
+            rc = dm_ctrl->raw_data_set(p_data, static_cast<bool>(role->role_tail.spatial_reuse));
+        } else if (strcmp(param, "AnticipatedChannelUsage") == 0) {
+            rc = dm_ctrl->raw_data_set(p_data, static_cast<bool>(role->role_tail.anticipated_channel_usage));
+        } else {
+            em_printfout("Invalid WiFi6APRole param: %s", param);
+            rc = bus_error_invalid_input;
+        }
+    }
     return rc;
 }
 
@@ -3842,6 +3847,8 @@ bus_error_t dm_easy_mesh_ctrl_t::wf6ap_tget_params(dm_easy_mesh_t *dm, const cha
     char mcsnss_str[256] = { 0 };
     bus_error_t rc = bus_error_success;
     unsigned int i;
+    em_wifi6_role_wire_t role_temp;
+    em_wifi6_role_wire_t *role = &role_temp;
 
     dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
     dm_radio_cap_t *radio_cap = dm->get_radio_cap(ri->id.ruid);
@@ -3849,38 +3856,41 @@ bus_error_t dm_easy_mesh_ctrl_t::wf6ap_tget_params(dm_easy_mesh_t *dm, const cha
         return rc;
     }
     em_radio_cap_info_t *rci = radio_cap->get_radio_cap_info();
-    em_radio_wifi6_cap_data_t *wifi6_cap = &rci->wifi6_cap;
 
-    snprintf(mcsnss_str, sizeof(mcsnss_str), "%hu", wifi6_cap->mcs_nss[0]);
-    for (i = 1; i < wifi6_cap->mcs_nss_num && i < MAX_MCS_NSS; i++) {
-        char temp[16];
-        snprintf(temp, sizeof(temp), ",%hu", wifi6_cap->mcs_nss[i]);
-        strncat(mcsnss_str, temp, sizeof(mcsnss_str) - strlen(mcsnss_str) - 1);
+    for (i = 0; i < rci->wifi6_cap.num_role; i++) {
+        memcpy(&role_temp, &rci->wifi6_cap.roles[i], sizeof(em_wifi6_role_wire_t));
+
+        snprintf(mcsnss_str, sizeof(mcsnss_str), "%hu", role->mcs_nss[0]);
+        for (i = 1; i < role->role_head.mcs_nss_num && i < MAX_MCS_NSS; i++) {
+            char temp[16];
+            snprintf(temp, sizeof(temp), ",%hu", role->mcs_nss[i]);
+            strncat(mcsnss_str, temp, sizeof(mcsnss_str) - strlen(mcsnss_str) - 1);
+        }
+
+        dm_ctrl->property_append_tail(property, root, idx, "HE160", role->role_head.he_160);
+        dm_ctrl->property_append_tail(property, root, idx, "HE8080", role->role_head.he_8080);
+        dm_ctrl->property_append_tail(property, root, idx, "MCSNSS", mcsnss_str);
+        dm_ctrl->property_append_tail(property, root, idx, "SUBeamformer", role->role_tail.su_beam_former);
+        dm_ctrl->property_append_tail(property, root, idx, "SUBeamformee", role->role_tail.su_beam_formee);
+        dm_ctrl->property_append_tail(property, root, idx, "MUBeamformer", role->role_tail.mu_beam_former);
+        dm_ctrl->property_append_tail(property, root, idx, "Beamformee80orLess", role->role_tail.beam_formee_sts_l80);
+        dm_ctrl->property_append_tail(property, root, idx, "BeamformeeAbove80", role->role_tail.beam_formee_sts_g80);
+        dm_ctrl->property_append_tail(property, root, idx, "ULMUMIMO", role->role_tail.ul_mumimo);
+        dm_ctrl->property_append_tail(property, root, idx, "ULOFDMA", role->role_tail.ul_ofdma);
+        dm_ctrl->property_append_tail(property, root, idx, "DLOFDMA", role->role_tail.dl_ofdma);
+        dm_ctrl->property_append_tail(property, root, idx, "MaxDLMUMIMO", role->role_tail.max_dl_mumimo_tx);
+        dm_ctrl->property_append_tail(property, root, idx, "MaxULMUMIMO", role->role_tail.max_ul_mumimo_rx);
+        dm_ctrl->property_append_tail(property, root, idx, "MaxDLOFDMA", role->role_tail.max_dl_ofdma_tx);
+        dm_ctrl->property_append_tail(property, root, idx, "MaxULOFDMA", role->role_tail.max_ul_ofdma_rx);
+        dm_ctrl->property_append_tail(property, root, idx, "RTS", role->role_tail.rts);
+        dm_ctrl->property_append_tail(property, root, idx, "MURTS", role->role_tail.mu_rts);
+        dm_ctrl->property_append_tail(property, root, idx, "MultiBSSID", role->role_tail.multi_bssid);
+        dm_ctrl->property_append_tail(property, root, idx, "MUEDCA", role->role_tail.mu_edca);
+        dm_ctrl->property_append_tail(property, root, idx, "TWTRequestor", role->role_tail.twt_req);
+        dm_ctrl->property_append_tail(property, root, idx, "TWTResponder", role->role_tail.twt_resp);
+        dm_ctrl->property_append_tail(property, root, idx, "SpatialReuse", role->role_tail.spatial_reuse);
+        dm_ctrl->property_append_tail(property, root, idx, "AnticipatedChannelUsage", role->role_tail.anticipated_channel_usage);
     }
-
-    dm_ctrl->property_append_tail(property, root, idx, "HE160", wifi6_cap->he_160);
-    dm_ctrl->property_append_tail(property, root, idx, "HE8080", wifi6_cap->he_8080);
-    dm_ctrl->property_append_tail(property, root, idx, "MCSNSS", mcsnss_str);
-    dm_ctrl->property_append_tail(property, root, idx, "SUBeamformer", wifi6_cap->su_beam_former);
-    dm_ctrl->property_append_tail(property, root, idx, "SUBeamformee", wifi6_cap->su_beam_formee);
-    dm_ctrl->property_append_tail(property, root, idx, "MUBeamformer", wifi6_cap->mu_beam_former);
-    dm_ctrl->property_append_tail(property, root, idx, "Beamformee80orLess", wifi6_cap->beam_formee_sts_l80);
-    dm_ctrl->property_append_tail(property, root, idx, "BeamformeeAbove80", wifi6_cap->beam_formee_sts_g80);
-    dm_ctrl->property_append_tail(property, root, idx, "ULMUMIMO", wifi6_cap->ul_mumimo);
-    dm_ctrl->property_append_tail(property, root, idx, "ULOFDMA", wifi6_cap->ul_ofdma);
-    dm_ctrl->property_append_tail(property, root, idx, "DLOFDMA", wifi6_cap->dl_ofdma);
-    dm_ctrl->property_append_tail(property, root, idx, "MaxDLMUMIMO", wifi6_cap->max_dl_mumimo_tx);
-    dm_ctrl->property_append_tail(property, root, idx, "MaxULMUMIMO", wifi6_cap->max_ul_mumimo_rx);
-    dm_ctrl->property_append_tail(property, root, idx, "MaxDLOFDMA", wifi6_cap->max_dl_ofdma_tx);
-    dm_ctrl->property_append_tail(property, root, idx, "MaxULOFDMA", wifi6_cap->max_ul_ofdma_rx);
-    dm_ctrl->property_append_tail(property, root, idx, "RTS", wifi6_cap->rts);
-    dm_ctrl->property_append_tail(property, root, idx, "MURTS", wifi6_cap->mu_rts);
-    dm_ctrl->property_append_tail(property, root, idx, "MultiBSSID", wifi6_cap->multi_bssid);
-    dm_ctrl->property_append_tail(property, root, idx, "MUEDCA", wifi6_cap->mu_edca);
-    dm_ctrl->property_append_tail(property, root, idx, "TWTRequestor", wifi6_cap->twt_req);
-    dm_ctrl->property_append_tail(property, root, idx, "TWTResponder", wifi6_cap->twt_resp);
-    dm_ctrl->property_append_tail(property, root, idx, "SpatialReuse", wifi6_cap->spatial_reuse);
-    dm_ctrl->property_append_tail(property, root, idx, "AnticipatedChannelUsage", wifi6_cap->anticipated_channel_usage);
 
     return rc;
 }
@@ -3894,6 +3904,8 @@ bus_error_t dm_easy_mesh_ctrl_t::wf7ap_get_inner(char *event_name, raw_data_t *p
     bool is_num;
     int device_instance = 0, radio_instance = 0;
     bus_error_t rc;
+    em_wifi7_mlo_cap_support_tlv_t *wifi7_radio = NULL;
+    unsigned int i;
 
     if (!name || !p_data) {
         return bus_error_invalid_input;
@@ -3924,29 +3936,31 @@ bus_error_t dm_easy_mesh_ctrl_t::wf7ap_get_inner(char *event_name, raw_data_t *p
     radio_instance = is_num ? atoi(instance) : 0;
     dm_radio_t *radio = &dm->m_radio[radio_instance - 1];
     if (radio == NULL) {
-        em_printfout("radio is NULL\n");
+        em_printfout("radio is NULL");
         return bus_error_invalid_input;
     }
     em_radio_info_t *ri = radio->get_radio_info();
-
+    if (ri == NULL) {
+        em_printfout("radio is NULL");
+        return bus_error_invalid_input;
+    }
     dm_radio_cap_t *radio_cap = dm->get_radio_cap(ri->id.ruid);
     if (radio_cap == NULL) {
-        em_printfout("radio_cap is NULL\n");
+        em_printfout("radio_cap is NULL");
         return bus_error_invalid_input;
     }
     em_radio_cap_info_t *rci = radio_cap->get_radio_cap_info();
+    if (rci == NULL) {
+        em_printfout("radio cap info is NULL");
+        return bus_error_invalid_input;
+    }
     em_wifi7_agent_cap_t *wifi7_cap = &rci->wifi7_cap;
-    em_radio_wifi7_radio_t *wifi7_radio = NULL;
-    unsigned int i;
-
-    /* Find the radio in wifi7_cap.radios[] that matches the current radio's ruid */
-    for (i = 0; i < wifi7_cap->radios_num && i < EM_MAX_RADIO_PER_AGENT; i++) {
-        if (memcmp(wifi7_cap->radios[i].ruid, ri->id.ruid, sizeof(mac_address_t)) == 0) {
-            wifi7_radio = &wifi7_cap->radios[i];
-            break;
-        }
+    if (wifi7_cap == NULL) {
+        em_printfout("wifi 7 cap info is NULL");
+        return bus_error_invalid_input;
     }
 
+    wifi7_radio = &wifi7_cap->mlo_cap_support;
     if (wifi7_radio == NULL) {
         em_printfout("wifi7_radio not found for ruid\n");
         return bus_error_invalid_input;
@@ -3961,9 +3975,9 @@ bus_error_t dm_easy_mesh_ctrl_t::wf7ap_get_inner(char *event_name, raw_data_t *p
     } else if (strcmp(param, "NSTRSupport") == 0) {
         rc = dm_ctrl->raw_data_set(p_data, static_cast<bool>(wifi7_radio->ap_nstr_support));
     } else if (strcmp(param, "TIDLinkMapNegotiation") == 0) {
-        rc = dm_ctrl->raw_data_set(p_data, static_cast<bool>(wifi7_cap->cap_data.tid_link_mapping_cap));
+        rc = dm_ctrl->raw_data_set(p_data, static_cast<char>(dm->m_device.m_device_info.tidlink_map[0]));
     } else {
-        em_printfout("Invalid WiFi7APRole param: %s\n", param);
+        em_printfout("Invalid WiFi7APRole param: %s", param);
         rc = bus_error_invalid_input;
     }
 
@@ -4021,6 +4035,7 @@ bus_error_t dm_easy_mesh_ctrl_t::wf7ap_tget_params(dm_easy_mesh_t *dm, const cha
 {
     bus_error_t rc = bus_error_success;
     unsigned int i;
+    em_wifi7_mlo_cap_support_tlv_t *wifi7_radio = NULL;
 
     dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
     dm_radio_cap_t *radio_cap = dm->get_radio_cap(ri->id.ruid);
@@ -4029,16 +4044,9 @@ bus_error_t dm_easy_mesh_ctrl_t::wf7ap_tget_params(dm_easy_mesh_t *dm, const cha
     }
     em_radio_cap_info_t *rci = radio_cap->get_radio_cap_info();
     em_wifi7_agent_cap_t *wifi7_cap = &rci->wifi7_cap;
-    em_radio_wifi7_radio_t *wifi7_radio = NULL;
 
     /* Find the radio in wifi7_cap.radios[] that matches the current radio's ruid */
-    for (i = 0; i < wifi7_cap->radios_num && i < EM_MAX_RADIO_PER_AGENT; i++) {
-        if (memcmp(wifi7_cap->radios[i].ruid, ri->id.ruid, sizeof(mac_address_t)) == 0) {
-            wifi7_radio = &wifi7_cap->radios[i];
-            break;
-        }
-    }
-
+    wifi7_radio = &wifi7_cap->mlo_cap_support;
     if (wifi7_radio == NULL) {
         return rc;
     }
@@ -4047,7 +4055,7 @@ bus_error_t dm_easy_mesh_ctrl_t::wf7ap_tget_params(dm_easy_mesh_t *dm, const cha
     dm_ctrl->property_append_tail(property, root, idx, "EMLSRSupport", wifi7_radio->ap_emlsr_support);
     dm_ctrl->property_append_tail(property, root, idx, "STRSupport", wifi7_radio->ap_str_support);
     dm_ctrl->property_append_tail(property, root, idx, "NSTRSupport", wifi7_radio->ap_nstr_support);
-    dm_ctrl->property_append_tail(property, root, idx, "TIDLinkMapNegotiation", wifi7_cap->cap_data.tid_link_mapping_cap);
+    dm_ctrl->property_append_tail(property, root, idx, "TIDLinkMapNegotiation", dm->m_device.m_device_info.tidlink_map[0]);
 
     return rc;
 }

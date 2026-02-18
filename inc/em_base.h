@@ -295,6 +295,9 @@ static const mac_address_t EM_GLOBAL_MAC_ADDRESS = {0xff, 0xff, 0xff, 0xff, 0xff
 #define CSA_NEW_CHANNEL_OFFSET       1
 #define CSA_SWITCH_COUNT_OFFSET      2
 
+/* Min supported HE-MCS and NSS Set field's length */
+#define EM_MIN_HE_MCS_LEN            4
+
 typedef char em_interface_name_t[32];
 typedef unsigned char em_nonce_t[16];
 typedef unsigned char em_dh5_key_t[192];    // because this is DH group 5 (1536 bits)
@@ -1628,15 +1631,14 @@ typedef struct {
     unsigned char  su_beamformer_cap : 1;
 } __attribute__((__packed__))em_ap_he_cap_t;
 
-
 typedef struct {
-    mac_address_t  ruid;
-    unsigned char  num_role;
     unsigned char  mcs_nss_num : 4;
     unsigned char  he_8080 : 1;
     unsigned char  he_160 : 1;
     unsigned char  agent_role : 2;
-    unsigned short mcs_nss[MAX_MCS_NSS];
+} __attribute__((__packed__)) em_wifi6_cap_role_head_tlv_t;
+
+typedef struct {
     unsigned char  dl_ofdma : 1;
     unsigned char  ul_ofdma : 1;
     unsigned char  ul_mumimo : 1;
@@ -1657,33 +1659,38 @@ typedef struct {
     unsigned char  multi_bssid : 1;
     unsigned char  mu_rts : 1;
     unsigned char  rts : 1;
-} __attribute__((__packed__)) em_radio_wifi6_cap_data_t;
+} __attribute__((__packed__)) em_wifi6_cap_role_tail_tlv_t;
 
 typedef struct {
-    mac_address_t  ruid;
-    unsigned char  roles_num;
-    em_radio_wifi6_cap_data_t  cap_data[MAP_AP_ROLE_MAX];
-} __attribute__((__packed__))em_ap_wifi6_cap_t;
+    em_wifi6_cap_role_head_tlv_t role_head;
+    unsigned short mcs_nss[MAX_MCS_NSS]; //this is flexible and expandable to 12 bytes
+    em_wifi6_cap_role_tail_tlv_t role_tail;
+} em_wifi6_role_wire_t;
+
+typedef struct {
+    unsigned char  num_role;
+    em_wifi6_role_wire_t roles[MAP_AP_ROLE_MAX];
+} __attribute__((__packed__))em_radio_wifi6_cap_data_t;
 
 typedef struct {
     mac_address_t ruid;
     unsigned char reserved : 3;
     unsigned char freq_sep : 5;
-} __attribute__((__packed__)) em_radio_wifi7_freq_record_t;
+} __attribute__((__packed__)) em_wifi7_freq_record_tlv_t;
 
 typedef struct {
     unsigned char num_records;
-    em_radio_wifi7_freq_record_t records[EM_MAX_FREQ_RECORDS_PER_RADIO];
-} __attribute__((__packed__)) em_radio_wifi7_freq_records_t;
+    em_wifi7_freq_record_tlv_t records[EM_MAX_FREQ_RECORDS_PER_RADIO];
+} __attribute__((__packed__)) em_wifi7_freq_records_t;
 
 typedef struct {
     unsigned char max_num_mlds;
-    unsigned char reserved1 : 6;
-    unsigned char tid_link_mapping_cap : 2;
     unsigned char bsta_max_links : 4;
     unsigned char ap_max_links : 4;
+    unsigned char reserved1 : 6;
+    unsigned char tid_link_mapping_cap : 2;
     unsigned char reserved2[13];
-} __attribute__((__packed__)) em_radio_wifi7_cap_data_t;
+} __attribute__((__packed__)) em_wifi7_cap_link_info_tlv_t;
 
 typedef struct {
     mac_address_t ruid;
@@ -1698,21 +1705,29 @@ typedef struct {
     unsigned char bsta_emlsr_support : 1;
     unsigned char bsta_nstr_support : 1;
     unsigned char bsta_str_support : 1;
-    em_radio_wifi7_freq_records_t ap_str;
-    em_radio_wifi7_freq_records_t ap_nstr;
-    em_radio_wifi7_freq_records_t ap_emlsr;
-    em_radio_wifi7_freq_records_t ap_emlmr;
-    em_radio_wifi7_freq_records_t bsta_str;
-    em_radio_wifi7_freq_records_t bsta_nstr;
-    em_radio_wifi7_freq_records_t bsta_emlsr;
-    em_radio_wifi7_freq_records_t bsta_emlmr;
-} __attribute__((__packed__)) em_radio_wifi7_radio_t;
+} __attribute__((__packed__)) em_wifi7_mlo_cap_support_tlv_t;
 
 typedef struct {
-    em_radio_wifi7_cap_data_t cap_data;
-    unsigned char radios_num;
-    em_radio_wifi7_radio_t radios[EM_MAX_RADIO_PER_AGENT];
+    em_wifi7_freq_records_t ap_str;
+    em_wifi7_freq_records_t ap_nstr;
+    em_wifi7_freq_records_t ap_emlsr;
+    em_wifi7_freq_records_t ap_emlmr;
+    em_wifi7_freq_records_t bsta_str;
+    em_wifi7_freq_records_t bsta_nstr;
+    em_wifi7_freq_records_t bsta_emlsr;
+    em_wifi7_freq_records_t bsta_emlmr;
+} __attribute__((__packed__)) em_wifi7_mlo_cap_records_t;
+
+typedef struct {
+    em_wifi7_mlo_cap_support_tlv_t mlo_cap_support;
+    em_wifi7_mlo_cap_records_t mlo_cap_records;
 } __attribute__((__packed__)) em_wifi7_agent_cap_t;
+
+typedef struct {
+    em_wifi7_cap_link_info_tlv_t link_info;
+    unsigned char radios_num;
+    unsigned char mlo_data[0];
+} __attribute__((__packed__)) em_wifi7_cap_tlv_t;
 
 typedef struct {
     mac_address_t bssid;
@@ -2590,7 +2605,6 @@ typedef struct {
     em_ap_ht_cap_t  ht_cap;
     em_ap_vht_cap_t vht_cap;
     em_ap_he_cap_t  he_cap;
-    em_long_string_t    eht_cap;
     em_radio_wifi6_cap_data_t wifi6_cap;
     em_wifi7_agent_cap_t wifi7_cap;
     em_eht_operations_t eht_ops;
