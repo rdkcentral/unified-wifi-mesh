@@ -4468,7 +4468,7 @@ bus_error_t dm_easy_mesh_ctrl_t::apmld_get_inner(char *event_name, raw_data_t *p
     name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
     dm_easy_mesh_t *dm = dm_ctrl->get_dm_easy_mesh(instance, is_num);
     if (dm == NULL) {
-        printf("device not found\n");
+        em_printfout("Device not found");
         return bus_error_invalid_namespace;
     }
 
@@ -4477,7 +4477,7 @@ bus_error_t dm_easy_mesh_ctrl_t::apmld_get_inner(char *event_name, raw_data_t *p
     name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
     dm_ap_mld_t *ap_mld = dm_ctrl->get_dm_ap_mld(dm, instance, is_num);
     if (ap_mld == NULL) {
-        printf("ap_mld not found\n");
+        em_printfout("APMLD not found");
         return bus_error_invalid_namespace;
     }
     em_ap_mld_info_t *ami = ap_mld->get_ap_mld_info();
@@ -4489,7 +4489,7 @@ bus_error_t dm_easy_mesh_ctrl_t::apmld_get_inner(char *event_name, raw_data_t *p
     } else if (strcmp(param, "STAMLDNumberOfEntries") == 0) {
         rc = dm_ctrl->raw_data_set(p_data, 0);
     } else {
-        printf("Invalid param: %s\n", param);
+        em_printfout("Invalid param: %s", param);
         rc = bus_error_destination_not_found;
     }
 
@@ -4522,7 +4522,7 @@ bus_error_t dm_easy_mesh_ctrl_t::apmld_tget_inner(char *event_name, raw_data_t *
     name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
     dm_easy_mesh_t *dm = dm_ctrl->get_dm_easy_mesh(instance, is_num);
     if (dm == NULL) {
-        printf("device not found\n");
+        em_printfout("Device not found");
         return bus_error_invalid_namespace;
     }
 
@@ -4595,7 +4595,7 @@ bus_error_t dm_easy_mesh_ctrl_t::apmldcfg_get_inner(char *event_name, raw_data_t
     name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
     dm_easy_mesh_t *dm = dm_ctrl->get_dm_easy_mesh(instance, is_num);
     if (dm == NULL) {
-        printf("device not found\n");
+        em_printfout("Device not found");
         return bus_error_invalid_namespace;
     }
 
@@ -4604,7 +4604,7 @@ bus_error_t dm_easy_mesh_ctrl_t::apmldcfg_get_inner(char *event_name, raw_data_t
     name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
     dm_ap_mld_t *ap_mld = dm_ctrl->get_dm_ap_mld(dm, instance, is_num);
     if (ap_mld == NULL) {
-        printf("ap_mld not found\n");
+        em_printfout("APMLD not found");
         return bus_error_invalid_namespace;
     }
     em_ap_mld_info_t *ami = ap_mld->get_ap_mld_info();
@@ -4618,7 +4618,7 @@ bus_error_t dm_easy_mesh_ctrl_t::apmldcfg_get_inner(char *event_name, raw_data_t
     } else if (strcmp(param, "NSTREnabled") == 0) {
         rc = dm_ctrl->raw_data_set(p_data, ami->nstr);
     } else {
-        printf("Invalid param: %s\n", param);
+        em_printfout("Invalid param: %s", param);
         rc = bus_error_destination_not_found;
     }
 
@@ -4652,7 +4652,7 @@ bus_error_t dm_easy_mesh_ctrl_t::affap_get_inner(char *event_name, raw_data_t *p
     name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
     dm_easy_mesh_t *dm = dm_ctrl->get_dm_easy_mesh(instance, is_num);
     if (dm == NULL) {
-        printf("device not found\n");
+        em_printfout("Device not found");
         return bus_error_invalid_namespace;
     }
 
@@ -4661,7 +4661,7 @@ bus_error_t dm_easy_mesh_ctrl_t::affap_get_inner(char *event_name, raw_data_t *p
     name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
     dm_ap_mld_t *ap_mld = dm_ctrl->get_dm_ap_mld(dm, instance, is_num);
     if (ap_mld == NULL) {
-        printf("ap_mld not found\n");
+        em_printfout("APMLD not found");
         return bus_error_invalid_namespace;
     }
     em_ap_mld_info_t *ami = ap_mld->get_ap_mld_info();
@@ -4670,7 +4670,7 @@ bus_error_t dm_easy_mesh_ctrl_t::affap_get_inner(char *event_name, raw_data_t *p
     name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
     int idx = atoi(instance);
     if (!is_num || idx <= 0 || idx > ami->num_affiliated_ap) {
-        printf("aff_ap not found\n");
+        em_printfout("AffiliatedAP not found");
         return bus_error_invalid_namespace;
     }
     em_affiliated_ap_info_t *aai = &ami->affiliated_ap[idx - 1];
@@ -4700,7 +4700,7 @@ bus_error_t dm_easy_mesh_ctrl_t::affap_get_inner(char *event_name, raw_data_t *p
     } else if (strcmp(param, "BroadcastBytesReceived") == 0) {
         rc = dm_ctrl->raw_data_set(p_data, 0);
     } else {
-        printf("Invalid param: %s\n", param);
+        em_printfout("Invalid param: %s", param);
         rc = bus_error_destination_not_found;
     }
 
@@ -4733,7 +4733,7 @@ bus_error_t dm_easy_mesh_ctrl_t::affap_tget_inner(char *event_name, raw_data_t *
     name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
     dm_easy_mesh_t *dm = dm_ctrl->get_dm_easy_mesh(instance, is_num);
     if (dm == NULL) {
-        printf("device not found\n");
+        em_printfout("Device not found");
         return bus_error_invalid_namespace;
     }
 
@@ -4742,7 +4742,7 @@ bus_error_t dm_easy_mesh_ctrl_t::affap_tget_inner(char *event_name, raw_data_t *
     name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
     dm_ap_mld_t *ap_mld = dm_ctrl->get_dm_ap_mld(dm, instance, is_num);
     if (ap_mld == NULL) {
-        printf("ap_mld not found\n");
+        em_printfout("APMLD not found");
         return bus_error_invalid_namespace;
     }
     em_ap_mld_info_t *ami = ap_mld->get_ap_mld_info();
@@ -4840,7 +4840,7 @@ bus_error_t dm_easy_mesh_ctrl_t::stamld_get_inner(char *event_name, raw_data_t *
     name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
     dm_easy_mesh_t *dm = dm_ctrl->get_dm_easy_mesh(instance, is_num);
     if (dm == NULL) {
-        printf("device not found\n");
+        em_printfout("Device not found");
         return bus_error_invalid_namespace;
     }
 
@@ -4849,7 +4849,7 @@ bus_error_t dm_easy_mesh_ctrl_t::stamld_get_inner(char *event_name, raw_data_t *
     name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
     dm_ap_mld_t *ap_mld = dm_ctrl->get_dm_ap_mld(dm, instance, is_num);
     if (ap_mld == NULL) {
-        printf("ap_mld not found\n");
+        em_printfout("APMLD not found");
         return bus_error_invalid_namespace;
     }
     em_ap_mld_info_t *ami = ap_mld->get_ap_mld_info();
@@ -4860,7 +4860,7 @@ bus_error_t dm_easy_mesh_ctrl_t::stamld_get_inner(char *event_name, raw_data_t *
     name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
     dm_assoc_sta_mld_t *sta_mld = dm_ctrl->get_dm_sta_mld(dm, ami, instance, is_num);
     if (sta_mld == NULL) {
-        printf("assoc_sta_mld not found\n");
+        em_printfout("STAMLD not found");
         return bus_error_invalid_namespace;
     }
     em_assoc_sta_mld_info_t *smi = sta_mld->get_assoc_sta_mld_info();
@@ -4899,7 +4899,7 @@ bus_error_t dm_easy_mesh_ctrl_t::stamld_get_inner(char *event_name, raw_data_t *
     } else if (strcmp(param, "AffiliatedSTANumberOfEntries") == 0) {
         rc = dm_ctrl->raw_data_set(p_data, smi->num_affiliated_sta);
     } else {
-        printf("Invalid param: %s\n", param);
+        em_printfout("Invalid param: %s", param);
         rc = bus_error_destination_not_found;
     }
 
@@ -4932,7 +4932,7 @@ bus_error_t dm_easy_mesh_ctrl_t::stamld_tget_inner(char *event_name, raw_data_t 
     name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
     dm_easy_mesh_t *dm = dm_ctrl->get_dm_easy_mesh(instance, is_num);
     if (dm == NULL) {
-        printf("device not found\n");
+        em_printfout("Device not found");
         return bus_error_invalid_namespace;
     }
 
@@ -4941,7 +4941,7 @@ bus_error_t dm_easy_mesh_ctrl_t::stamld_tget_inner(char *event_name, raw_data_t 
     name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
     dm_ap_mld_t *ap_mld = dm_ctrl->get_dm_ap_mld(dm, instance, is_num);
     if (ap_mld == NULL) {
-        printf("ap_mld not found\n");
+        em_printfout("APMLD not found");
         return bus_error_invalid_namespace;
     }
     em_ap_mld_info_t *ami = ap_mld->get_ap_mld_info();
@@ -5038,7 +5038,7 @@ bus_error_t dm_easy_mesh_ctrl_t::wifi7caps_get_inner(char *event_name, raw_data_
     name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
     dm_easy_mesh_t *dm = dm_ctrl->get_dm_easy_mesh(instance, is_num);
     if (dm == NULL) {
-        printf("device not found\n");
+        em_printfout("Device not found");
         return bus_error_invalid_namespace;
     }
 
@@ -5047,7 +5047,7 @@ bus_error_t dm_easy_mesh_ctrl_t::wifi7caps_get_inner(char *event_name, raw_data_
     name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
     dm_ap_mld_t *ap_mld = dm_ctrl->get_dm_ap_mld(dm, instance, is_num);
     if (ap_mld == NULL) {
-        printf("ap_mld not found\n");
+        em_printfout("APMLD not found");
         return bus_error_invalid_namespace;
     }
     em_ap_mld_info_t *ami = ap_mld->get_ap_mld_info();
@@ -5058,7 +5058,7 @@ bus_error_t dm_easy_mesh_ctrl_t::wifi7caps_get_inner(char *event_name, raw_data_
     name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
     dm_assoc_sta_mld_t *sta_mld = dm_ctrl->get_dm_sta_mld(dm, ami, instance, is_num);
     if (sta_mld == NULL) {
-        printf("assoc_sta_mld not found\n");
+        em_printfout("STAMLD not found");
         return bus_error_invalid_namespace;
     }
     em_assoc_sta_mld_info_t *smi = sta_mld->get_assoc_sta_mld_info();
@@ -5072,7 +5072,7 @@ bus_error_t dm_easy_mesh_ctrl_t::wifi7caps_get_inner(char *event_name, raw_data_
     } else if (strcmp(param, "NSTRSupport") == 0) {
         rc = dm_ctrl->raw_data_set(p_data, smi->nstr);
     } else {
-        printf("Invalid param: %s\n", param);
+        em_printfout("Invalid param: %s\n", param);
         rc = bus_error_destination_not_found;
     }
 
@@ -5106,7 +5106,7 @@ bus_error_t dm_easy_mesh_ctrl_t::stamldcfg_get_inner(char *event_name, raw_data_
     name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
     dm_easy_mesh_t *dm = dm_ctrl->get_dm_easy_mesh(instance, is_num);
     if (dm == NULL) {
-        printf("device not found\n");
+        em_printfout("Device not found");
         return bus_error_invalid_namespace;
     }
 
@@ -5115,7 +5115,7 @@ bus_error_t dm_easy_mesh_ctrl_t::stamldcfg_get_inner(char *event_name, raw_data_
     name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
     dm_ap_mld_t *ap_mld = dm_ctrl->get_dm_ap_mld(dm, instance, is_num);
     if (ap_mld == NULL) {
-        printf("ap_mld not found\n");
+        em_printfout("APMLD not found");
         return bus_error_invalid_namespace;
     }
     em_ap_mld_info_t *ami = ap_mld->get_ap_mld_info();
@@ -5126,7 +5126,7 @@ bus_error_t dm_easy_mesh_ctrl_t::stamldcfg_get_inner(char *event_name, raw_data_
     name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
     dm_assoc_sta_mld_t *sta_mld = dm_ctrl->get_dm_sta_mld(dm, ami, instance, is_num);
     if (sta_mld == NULL) {
-        printf("assoc_sta_mld not found\n");
+        em_printfout("STAMLD not found");
         return bus_error_invalid_namespace;
     }
     em_assoc_sta_mld_info_t *smi = sta_mld->get_assoc_sta_mld_info();
@@ -5140,7 +5140,7 @@ bus_error_t dm_easy_mesh_ctrl_t::stamldcfg_get_inner(char *event_name, raw_data_
     } else if (strcmp(param, "NSTREnabled") == 0) {
         rc = dm_ctrl->raw_data_set(p_data, smi->nstr);
     } else {
-        printf("Invalid param: %s\n", param);
+        em_printfout("Invalid param: %s", param);
         rc = bus_error_destination_not_found;
     }
 
@@ -5174,7 +5174,7 @@ bus_error_t dm_easy_mesh_ctrl_t::affsta_get_inner(char *event_name, raw_data_t *
     name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
     dm_easy_mesh_t *dm = dm_ctrl->get_dm_easy_mesh(instance, is_num);
     if (dm == NULL) {
-        printf("device not found\n");
+        em_printfout("Device not found");
         return bus_error_invalid_namespace;
     }
 
@@ -5183,7 +5183,7 @@ bus_error_t dm_easy_mesh_ctrl_t::affsta_get_inner(char *event_name, raw_data_t *
     name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
     dm_ap_mld_t *ap_mld = dm_ctrl->get_dm_ap_mld(dm, instance, is_num);
     if (ap_mld == NULL) {
-        printf("ap_mld not found\n");
+        em_printfout("APMLD not found");
         return bus_error_invalid_namespace;
     }
     em_ap_mld_info_t *ami = ap_mld->get_ap_mld_info();
@@ -5194,7 +5194,7 @@ bus_error_t dm_easy_mesh_ctrl_t::affsta_get_inner(char *event_name, raw_data_t *
     name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
     dm_assoc_sta_mld_t *sta_mld = dm_ctrl->get_dm_sta_mld(dm, ami, instance, is_num);
     if (sta_mld == NULL) {
-        printf("assoc_sta_mld not found\n");
+        em_printfout("STAMLD not found");
         return bus_error_invalid_namespace;
     }
     em_assoc_sta_mld_info_t *smi = sta_mld->get_assoc_sta_mld_info();
@@ -5203,7 +5203,7 @@ bus_error_t dm_easy_mesh_ctrl_t::affsta_get_inner(char *event_name, raw_data_t *
     name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
     int idx = atoi(instance);
     if (!is_num || idx <= 0 || idx > smi->num_affiliated_sta) {
-        printf("aff_sta not found\n");
+        em_printfout("AffiliatedSTA not found");
         return bus_error_invalid_namespace;
     }
     em_affiliated_sta_info_t *asi = &smi->affiliated_sta[idx - 1];
@@ -5240,7 +5240,7 @@ bus_error_t dm_easy_mesh_ctrl_t::affsta_get_inner(char *event_name, raw_data_t *
     } else if (strcmp(param, "EstMACDataRateUplink") == 0) {
         rc = dm_ctrl->raw_data_set(p_data, si ? si->est_ul_rate : 0);
     } else {
-        printf("Invalid param: %s\n", param);
+        em_printfout("Invalid param: %s", param);
         rc = bus_error_destination_not_found;
     }
 
@@ -5273,7 +5273,7 @@ bus_error_t dm_easy_mesh_ctrl_t::affsta_tget_inner(char *event_name, raw_data_t 
     name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
     dm_easy_mesh_t *dm = dm_ctrl->get_dm_easy_mesh(instance, is_num);
     if (dm == NULL) {
-        printf("device not found\n");
+        em_printfout("Device not found");
         return bus_error_invalid_namespace;
     }
 
@@ -5282,7 +5282,7 @@ bus_error_t dm_easy_mesh_ctrl_t::affsta_tget_inner(char *event_name, raw_data_t 
     name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
     dm_ap_mld_t *ap_mld = dm_ctrl->get_dm_ap_mld(dm, instance, is_num);
     if (ap_mld == NULL) {
-        printf("ap_mld not found\n");
+        em_printfout("APMLD not found");
         return bus_error_invalid_namespace;
     }
     em_ap_mld_info_t *ami = ap_mld->get_ap_mld_info();
@@ -5293,7 +5293,7 @@ bus_error_t dm_easy_mesh_ctrl_t::affsta_tget_inner(char *event_name, raw_data_t 
     name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
     dm_assoc_sta_mld_t *sta_mld = dm_ctrl->get_dm_sta_mld(dm, ami, instance, is_num);
     if (sta_mld == NULL) {
-        printf("assoc_sta_mld not found\n");
+        em_printfout("STAMLD not found");
         return bus_error_invalid_namespace;
     }
     em_assoc_sta_mld_info_t *smi = sta_mld->get_assoc_sta_mld_info();
@@ -5366,7 +5366,7 @@ bus_error_t dm_easy_mesh_ctrl_t::bstamld_get_inner(char *event_name, raw_data_t 
     name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
     dm_easy_mesh_t *dm = dm_ctrl->get_dm_easy_mesh(instance, is_num);
     if (dm == NULL) {
-        printf("device not found\n");
+        em_printfout("Device not found");
         return bus_error_invalid_namespace;
     }
     if (!dm->is_bsta_mld_present()) {
@@ -5389,7 +5389,7 @@ bus_error_t dm_easy_mesh_ctrl_t::bstamld_get_inner(char *event_name, raw_data_t 
         }
         rc = dm_ctrl->raw_data_set(p_data, maclist_str);
     } else {
-        printf("Invalid param: %s\n", param);
+        em_printfout("Invalid param: %s", param);
         rc = bus_error_destination_not_found;
     }
 
@@ -5423,7 +5423,7 @@ bus_error_t dm_easy_mesh_ctrl_t::bstacfg_get_inner(char *event_name, raw_data_t 
     name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
     dm_easy_mesh_t *dm = dm_ctrl->get_dm_easy_mesh(instance, is_num);
     if (dm == NULL) {
-        printf("device not found\n");
+        em_printfout("Device not found");
         return bus_error_invalid_namespace;
     }
     if (!dm->is_bsta_mld_present()) {
@@ -5440,7 +5440,7 @@ bus_error_t dm_easy_mesh_ctrl_t::bstacfg_get_inner(char *event_name, raw_data_t 
     } else if (strcmp(param, "NSTREnabled") == 0) {
         rc = dm_ctrl->raw_data_set(p_data, bsmi.nstr);
     } else {
-        printf("Invalid param: %s\n", param);
+        em_printfout("Invalid param: %s", param);
         rc = bus_error_destination_not_found;
     }
 
