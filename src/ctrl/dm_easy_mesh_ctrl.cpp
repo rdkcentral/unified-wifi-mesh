@@ -2534,6 +2534,7 @@ bus_error_t dm_easy_mesh_ctrl_t::device_get_inner(char *event_name, raw_data_t *
     (void) user_data;
     const char *name = event_name;
     const char *param;
+    char val_str[1024] = { 0 };
     char instance[MAX_INSTANCE_LEN] = { 0 };
     bool is_num;
     bus_error_t rc;
@@ -2601,7 +2602,22 @@ bus_error_t dm_easy_mesh_ctrl_t::device_get_inner(char *event_name, raw_data_t *
     } else if (strcmp(param, "LocalSteeringDisallowedSTAList") == 0) {
         //rc = dm_ctrl->raw_data_set(p_data, );
     } else if (strcmp(param, "BTMSteeringDisallowedSTAList") == 0) {
-        //rc = dm_ctrl->raw_data_set(p_data, );
+        unsigned int count = 0;
+        dm_policy_t *pi = &dm->m_policy[count];
+        while (pi != NULL && count < dm->m_num_policy) {
+            if(pi->m_policy.id.type == em_policy_id_type_steering_btm) {
+                const int n = pi->m_policy.num_sta;
+                std::vector<em_short_string_t> BTMSteeringDisallowed(n);
+                for (int index = 0; index < pi->m_policy.num_sta; index++) {
+                    dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *>(pi->m_policy.sta_mac[index]), BTMSteeringDisallowed[index]);
+                }
+                dm_ctrl->fill_comma_sep(BTMSteeringDisallowed.data(), static_cast<size_t>(n), val_str);
+                rc = dm_ctrl->raw_data_set(p_data, val_str);
+                break;
+            }
+            count++;
+            pi = &dm->m_policy[count];
+        }
     } else if (strcmp(param, "MaxVIDs") == 0) {
         rc = dm_ctrl->raw_data_set(p_data, di->max_vids);
     } else if (strcmp(param, "TrafficSeparationPolicy") == 0) {
