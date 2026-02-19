@@ -118,9 +118,6 @@ dm_orch_type_t dm_network_list_t::get_dm_orch_type(db_client_t& db_client, const
 void dm_network_list_t::update_list(const dm_network_t& net, dm_orch_type_t op)
 {
     dm_network_t *pnet;
-    mac_addr_str_t  mac_str;
-
-    dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *> (net.m_net_info.colocated_agent_id.mac), mac_str);
 
     switch (op) {
         case dm_orch_type_db_insert:
@@ -267,5 +264,5 @@ em_interface_t *dm_network_list_t::get_ctrl_al_interface(em_long_string_t net_id
 	return NULL;
     }
 	
-    return net->get_colocated_agent_interface();	
+    return net->get_controller_interface();
 }

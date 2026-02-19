@@ -134,11 +134,11 @@ void dm_easy_mesh_list_t::put_network(const char *key, const dm_network_t *net)
     em_network_info_t *net_info;
 
     net_info = &(const_cast<dm_network_t *> (net))->m_net_info;
-    dm_easy_mesh_t::macbytes_to_string(net_info->colocated_agent_id.mac, mac_str);
+    dm_easy_mesh_t::macbytes_to_string(net_info->ctrl_id.mac, mac_str);
 			
     /* try to find any data model with this network, if exists, the colocated dm must be there, otherwise create one */
-    if ((dm = get_data_model(key, net_info->colocated_agent_id.mac)) == NULL) {
-		dm = create_data_model(key, &net_info->colocated_agent_id, em_profile_type_3, true);
+    if ((dm = get_data_model(key, net_info->ctrl_id.mac)) == NULL) {
+		dm = create_data_model(key, &net_info->ctrl_id, em_profile_type_3, true);
 		pnet = dm->get_network();
 		*pnet = *net;	
 		strncpy(m_network_list[m_num_networks], key, strlen(key));
@@ -1473,8 +1473,8 @@ void dm_easy_mesh_list_t::delete_all_data_models()
 		tmp = dm;
         dm = static_cast<dm_easy_mesh_t *> (hash_map_get_next(m_list, dm)); 
 
-        if (tmp->get_colocated() == true) {
-            //printf("%s:%d: Skipping delete as colocated\n", __func__, __LINE__);
+        if (tmp->is_controller() == true) {
+            //printf("%s:%d: Skipping delete of controller data model\n", __func__, __LINE__);
             continue;
         }
 		dev = tmp->get_device();	
@@ -1504,9 +1504,9 @@ void dm_easy_mesh_list_t::delete_data_model(const char *net_id, const unsigned c
     delete dm;
 }
 
-dm_easy_mesh_t *dm_easy_mesh_list_t::create_data_model(const char *net_id, const em_interface_t *al_intf, em_profile_type_t profile, bool colocated)
+dm_easy_mesh_t *dm_easy_mesh_list_t::create_data_model(const char *net_id, const em_interface_t *al_intf, em_profile_type_t profile, bool controller)
 {
-    dm_easy_mesh_t *dm = NULL, *ref_dm;
+    dm_easy_mesh_t *dm = NULL, *ref_dm, *ctrl_dm;
     mac_addr_str_t mac_str;
     em_short_string_t	key;
     dm_network_t *net, *pnet;
@@ -1546,6 +1546,7 @@ dm_easy_mesh_t *dm_easy_mesh_list_t::create_data_model(const char *net_id, const
 							{0, {{0, "", 0}, {0, "", 0}, {0, "", 0}, {0, "", 0}, {0, "", 0}}}, {}, {}},
 					};
     unsigned int i;
+    bool colocated = false;
 	dm_op_class_t	op_class[EM_MAX_PRE_SET_CHANNELS] 	= 	{
 		dm_op_class_t({{{0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, em_op_class_type_anticipated, 81}, 81, 0, 0, 0, 1, {6}, 0, 0, 0}), 
 		dm_op_class_t({{{0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, em_op_class_type_anticipated, 115}, 115, 0, 0, 0, 1, {36}, 0, 0, 0}), 
@@ -1566,14 +1567,39 @@ dm_easy_mesh_t *dm_easy_mesh_list_t::create_data_model(const char *net_id, const
 
     dm = new dm_easy_mesh_t();
     dm->init();
-    em_printfout("Created data model for net_id: %s mac: %s, coloc:%d", net_id, mac_str, colocated);
-    dm->set_colocated(colocated);
 
+    if (controller == true) {
+        em_printfout("Creating data model as controller ...");
+        dm->set_controller(controller);
+    } else {
+        em_printfout("Creating data model as agent...");
+        //Identify colocated and set colocated here
+        em_interface_name_t name;
+        if (dm_easy_mesh_t::name_from_mac_address(&al_intf->mac, name) == 0) {
+            em_printfout("MAC %s address exists on this device. DM is colocated.", mac_str);
+            colocated = true;
+            dm->set_colocated(colocated);
+
+            if ((net = get_network(net_id)) != NULL) {
+                ctrl_dm = get_data_model(GLOBAL_NET_ID, net->m_net_info.ctrl_id.mac);
+                assert(ctrl_dm != NULL);
+                pnet = ctrl_dm->get_network();
+                *pnet = *net;
+                //if colocated, set the agent interface mac address in controller's dm
+                ctrl_dm->m_network.set_colocated_agent_interface_mac(const_cast<unsigned char *>(al_intf->mac));
+                em_printfout("Set colocated agent interface mac %s in controller dm",
+                    util::mac_to_string(ctrl_dm->m_network.get_colocated_agent_interface_mac()).c_str());
+                //also trigger db update of networklist for colocated agent id
+                ctrl_dm->set_db_cfg_param(db_cfg_type_network_list_update, "");
+            }
+        }
+    }
+    em_printfout("Created data model for net_id: %s mac: %s, is_colocated:%d is_controller:%d", net_id, mac_str, colocated, controller);
 
     dev = dm->get_device();
     memcpy(dev->m_device_info.intf.mac, al_intf->mac, sizeof(mac_address_t));
     strncpy(dev->m_device_info.id.net_id, net_id, strlen(net_id) + 1);
-	if (colocated == true) {
+	if (controller == true) {
 		dev->m_device_info.id.media = dm->m_network.m_net_info.media;
 		//TODO: Monitor Checks
 		//memcpy(dev->m_device_info.backhaul_mac.mac, al_intf->mac, sizeof(mac_address_t));
@@ -1581,8 +1607,8 @@ dm_easy_mesh_t *dm_easy_mesh_list_t::create_data_model(const char *net_id, const
 		em_printfout("Backhaul mac updated to :%s device media:%d backhaul media:%d",
 			util::mac_to_string(dev->m_device_info.backhaul_mac.mac).c_str(),
 			dev->m_device_info.id.media, dev->m_device_info.backhaul_mac.media);
-		//Update the easymesh configuration file
-		dev->update_easymesh_json_cfg(colocated);
+		//Update the easymesh configuration file to specify colocated agent as true.
+		dev->update_easymesh_json_cfg(true);
 	} else {
         dm->set_id();
         em_printfout("dm->get_id():%d", dm->get_id());
@@ -1601,14 +1627,18 @@ dm_easy_mesh_t *dm_easy_mesh_list_t::create_data_model(const char *net_id, const
         pnet = dm->get_network();
         *pnet = *net;
 
-        ref_dm = get_data_model(net->m_net_info.id, net->m_net_info.colocated_agent_id.mac);
-        assert(ref_dm != NULL);
-        dm->set_num_network_ssid(ref_dm->get_num_network_ssid());
-        //printf("%s:%d: Number of network ssid in reference data model: %d\n", __func__, __LINE__, ref_dm->get_num_network_ssid());
-        for (i = 0; i < ref_dm->get_num_network_ssid(); i++) {
-            pnet_ssid = dm->get_network_ssid(i);
-            net_ssid = ref_dm->get_network_ssid(i);
-            *pnet_ssid = *net_ssid;
+        ref_dm = get_data_model(net->m_net_info.id, net->m_net_info.ctrl_id.mac);
+        if(ref_dm != NULL) {
+            dm->set_num_network_ssid(ref_dm->get_num_network_ssid());
+            //printf("%s:%d: Number of network ssid in reference data model: %d\n", __func__, __LINE__, ref_dm->get_num_network_ssid());
+            for (i = 0; i < ref_dm->get_num_network_ssid(); i++) {
+                pnet_ssid = dm->get_network_ssid(i);
+                net_ssid = ref_dm->get_network_ssid(i);
+                *pnet_ssid = *net_ssid;
+            }
+        } else {
+            em_printfout("Reference data model not found for network: %s and ctrl AL mac: %s",
+                net->m_net_info.id, util::mac_to_string(net->m_net_info.ctrl_id.mac).c_str());
         }
     }
     em_printfout("Putting data model at key: %s", key);

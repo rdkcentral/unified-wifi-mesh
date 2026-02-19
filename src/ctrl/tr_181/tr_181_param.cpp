@@ -654,7 +654,7 @@ bus_error_t network_get_inner(char *event_name, raw_data_t *p_data, bus_user_dat
         rc = raw_data_set(p_data, str_val);
     } else if (strcmp(param, "ColocatedAgentID") == 0) {
         dm_easy_mesh_t *dm = g_ctrl.get_first_dm();
-        dm_easy_mesh_t::macbytes_to_string(dm->get_ctrl_al_interface_mac(), str_val);
+        dm_easy_mesh_t::macbytes_to_string(dm->get_controller_interface_mac(), str_val);
         //dm_easy_mesh_t::macbytes_to_string(dm->get_network_info()->ctrl_id.mac, str_val);
         rc = raw_data_set(p_data, str_val);
     } else if (strcmp(param, "DeviceNumberOfEntries") == 0) {

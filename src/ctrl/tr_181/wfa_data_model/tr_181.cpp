@@ -69,6 +69,7 @@ int tr_181_t::wfa_set_bus_callbackfunc_pointers(const char *full_namespace, bus_
         ELEMENT(DE_NETWORK_CTRLID,        CALLBACK_GETTER(network_get)),
         ELEMENT(DE_NETWORK_COLAGTID,      CALLBACK_GETTER(network_get)),
         ELEMENT(DE_NETWORK_DEVNOE,        CALLBACK_GETTER(network_get)),
+        ELEMENT(DE_NETWORK_TIMESTAMP,     CALLBACK_GETTER(network_get)),
         ELEMENT(DE_SSID_TABLE,            CALLBACK_GETTER(ssid_tget)),
         ELEMENT(DE_SSID_SSID,             CALLBACK_GETTER(ssid_get)),
         ELEMENT(DE_SSID_BAND,             CALLBACK_GETTER(ssid_get)),
@@ -82,11 +83,9 @@ int tr_181_t::wfa_set_bus_callbackfunc_pointers(const char *full_namespace, bus_
         ELEMENT(DE_DEVICE_TABLE,          CALLBACK_GETTER(device_tget)),
         ELEMENT(DE_DEVICE_ID,                     CALLBACK_GETTER(device_get)),
         ELEMENT(DE_DEVICE_MAPCAP,                 CALLBACK_GETTER(device_get)),
-        ELEMENT(DE_DEVICE_NUMRADIO,               CALLBACK_GETTER(device_get)),
         ELEMENT(DE_DEVICE_COLLINT,                CALLBACK_GETTER(device_get)),
         ELEMENT(DE_DEVICE_RUASSOC,                CALLBACK_GETTER(device_get)),
         ELEMENT(DE_DEVICE_MAXRRATE,               CALLBACK_GETTER(device_get)),
-        ELEMENT(DE_DEVICE_MAPPROF,                CALLBACK_GETTER(device_get)),
         ELEMENT(DE_DEVICE_APMERINT,               CALLBACK_GETTER(device_get)),
         ELEMENT(DE_DEVICE_MANUFACT,               CALLBACK_GETTER(device_get)),
         ELEMENT(DE_DEVICE_SERIALNO,               CALLBACK_GETTER(device_get)),
@@ -96,8 +95,6 @@ int tr_181_t::wfa_set_bus_callbackfunc_pointers(const char *full_namespace, bus_
         ELEMENT(DE_DEVICE_LSDSTALIST,             CALLBACK_GETTER(device_get)),
         ELEMENT(DE_DEVICE_BTMSDSTALIST,           CALLBACK_GETTER(device_get)),
         ELEMENT(DE_DEVICE_MAXVIDS,                CALLBACK_GETTER(device_get)),
-        ELEMENT(DE_DEVICE_BPRIO,                  CALLBACK_GETTER(device_get)),
-        ELEMENT(DE_DEVICE_EPRIO,                  CALLBACK_GETTER(device_get)),
         ELEMENT(DE_DEVICE_TSEPPOLI,               CALLBACK_GETTER(device_get)),
         ELEMENT(DE_DEVICE_STVMAP,                 CALLBACK_GETTER(device_get)),
         ELEMENT(DE_DEVICE_DSCPM,                  CALLBACK_GETTER(device_get)),
@@ -107,9 +104,8 @@ int tr_181_t::wfa_set_bus_callbackfunc_pointers(const char *full_namespace, bus_
         ELEMENT(DE_DEVICE_REPINDSCAN,             CALLBACK_GETTER(device_get)),
         ELEMENT(DE_DEVICE_TRASEPALW,              CALLBACK_GETTER(device_get)),
         ELEMENT(DE_DEVICE_SERPRIOALW,             CALLBACK_GETTER(device_get)),
-        ELEMENT(DE_DEVICE_STASDISALW,             CALLBACK_GETTER(device_get)),
         ELEMENT(DE_DEVICE_DFSENABLE,              CALLBACK_GETTER(device_get)),
-        ELEMENT(DE_DEVICE_MAXUSASSOCREPRATE,      CALLBACK_GETTER(device_get)),
+        ELEMENT(DE_DEVICE_MAXUSASSOCREP,          CALLBACK_GETTER(device_get)),
         ELEMENT(DE_DEVICE_STASSTATE,              CALLBACK_GETTER(device_get)),
         ELEMENT(DE_DEVICE_COORCACALW,             CALLBACK_GETTER(device_get)),
         ELEMENT(DE_DEVICE_CONOPMODE,              CALLBACK_GETTER(device_get)),
@@ -119,11 +115,11 @@ int tr_181_t::wfa_set_bus_callbackfunc_pointers(const char *full_namespace, bus_
         ELEMENT(DE_DEVICE_TRSEPCAP,               CALLBACK_GETTER(device_get)),
         ELEMENT(DE_DEVICE_EASYCCAP,               CALLBACK_GETTER(device_get)),
         ELEMENT(DE_DEVICE_TESTCAP,                CALLBACK_GETTER(device_get)),
-        ELEMENT(DE_DEVICE_BSTAMLDMACLINK,         CALLBACK_GETTER(device_get)),
+        ELEMENT(DE_DEVICE_BSTAMLDMACLNK,          CALLBACK_GETTER(device_get)),
         ELEMENT(DE_DEVICE_MACNUMMLDS,             CALLBACK_GETTER(device_get)),
         ELEMENT(DE_DEVICE_BHALID,                 CALLBACK_GETTER(device_get)),
         ELEMENT(DE_DEVICE_TIDLMAP,                CALLBACK_GETTER(device_get)),
-        ELEMENT(DE_DEVICE_ASSOCSTAREPINT,         CALLBACK_GETTER(device_get)),
+        ELEMENT(DE_DEVICE_ASSOCSTAREP,            CALLBACK_GETTER(device_get)),
         ELEMENT(DE_DEVICE_BHMEDIATYPE,            CALLBACK_GETTER(device_get)),
         ELEMENT(DE_DEVICE_RADIONOE,               CALLBACK_GETTER(device_get)),
         ELEMENT(DE_DEVICE_CACSTATNOE,             CALLBACK_GETTER(device_get)),
@@ -173,6 +169,7 @@ int tr_181_t::wfa_set_bus_callbackfunc_pointers(const char *full_namespace, bus_
         ELEMENT(DE_WF7AP_NSTR,             CALLBACK_GETTER(wf7ap_get)),
         ELEMENT(DE_WF7AP_TID_MAP,          CALLBACK_GETTER(wf7ap_get)),
         ELEMENT(DE_CUROP_TABLE,            CALLBACK_GETTER(curops_tget)),
+        ELEMENT(DE_CUROP_TIMESTAMP,        CALLBACK_GETTER(curops_get)),
         ELEMENT(DE_CUROP_CLASS,            CALLBACK_GETTER(curops_get)),
         ELEMENT(DE_CUROP_CHANNEL,          CALLBACK_GETTER(curops_get)),
         ELEMENT(DE_CUROP_TXPOWER,          CALLBACK_GETTER(curops_get)),
@@ -181,7 +178,7 @@ int tr_181_t::wfa_set_bus_callbackfunc_pointers(const char *full_namespace, bus_
         ELEMENT(DE_BSS_SSID,               CALLBACK_GETTER(bss_get)),
         ELEMENT(DE_BSS_ENABLED,            CALLBACK_GETTER(bss_get)),
         ELEMENT(DE_BSS_LASTCHG,            CALLBACK_GETTER(bss_get)),
-        ELEMENT(DE_BSS_TS,                 CALLBACK_GETTER(bss_get)),
+        ELEMENT(DE_BSS_TIMESTAMP,          CALLBACK_GETTER(bss_get)),
         ELEMENT(DE_BSS_UCAST_TX,           CALLBACK_GETTER(bss_get)),
         ELEMENT(DE_BSS_UCAST_RX,           CALLBACK_GETTER(bss_get)),
         ELEMENT(DE_BSS_MCAST_TX,           CALLBACK_GETTER(bss_get)),
@@ -205,12 +202,13 @@ int tr_181_t::wfa_set_bus_callbackfunc_pointers(const char *full_namespace, bus_
         ELEMENT(DE_BSS_FHAULAKMS,          CALLBACK_GETTER(bss_get)),
         ELEMENT(DE_BSS_BHAULAKMS,          CALLBACK_GETTER(bss_get)),
         ELEMENT(DE_BSS_QM_DESC,            CALLBACK_GETTER(bss_get)),
-        ELEMENT(DE_BSS_NUM_STA,            CALLBACK_GETTER(bss_get)),
         ELEMENT(DE_BSS_LINK_IMM,           CALLBACK_GETTER(bss_get)),
         ELEMENT(DE_BSS_FH_SUITE,           CALLBACK_GETTER(bss_get)),
         ELEMENT(DE_BSS_BH_SUITE,           CALLBACK_GETTER(bss_get)),
+        ELEMENT(DE_BSS_STANOE  ,           CALLBACK_GETTER(bss_get)),
         ELEMENT(DE_STA_TABLE,              CALLBACK_GETTER(sta_tget)),
         ELEMENT(DE_STA_MACADDR,            CALLBACK_GETTER(sta_get)),
+        ELEMENT(DE_STA_TIMESTAMP,          CALLBACK_GETTER(sta_get)),
         ELEMENT(DE_STA_HTCAPS,             CALLBACK_GETTER(sta_get)),
         ELEMENT(DE_STA_VHTCAPS,            CALLBACK_GETTER(sta_get)),
         ELEMENT(DE_STA_CLIENTCAPS,         CALLBACK_GETTER(sta_get)),
@@ -256,9 +254,48 @@ int tr_181_t::wfa_set_bus_callbackfunc_pointers(const char *full_namespace, bus_
         ELEMENT(DE_AFFAP_MCBYTESRCV,       CALLBACK_GETTER(affap_get)),
         ELEMENT(DE_AFFAP_BCBYTESSNT,       CALLBACK_GETTER(affap_get)),
         ELEMENT(DE_AFFAP_BCBYTESRCV,       CALLBACK_GETTER(affap_get)),
+        ELEMENT(DE_STAMLD_TABLE,           CALLBACK_GETTER(stamld_tget)),
+        ELEMENT(DE_STAMLD_MLDMACADDR,      CALLBACK_GETTER(stamld_get)),
+        ELEMENT(DE_STAMLD_ISBSTA,          CALLBACK_GETTER(stamld_get)),
+        ELEMENT(DE_STAMLD_LASTCONTME,      CALLBACK_GETTER(stamld_get)),
+        ELEMENT(DE_STAMLD_BYTESSNT,        CALLBACK_GETTER(stamld_get)),
+        ELEMENT(DE_STAMLD_BYTESRCV,        CALLBACK_GETTER(stamld_get)),
+        ELEMENT(DE_STAMLD_PCKTSSNT,        CALLBACK_GETTER(stamld_get)),
+        ELEMENT(DE_STAMLD_PCKTSRCV,        CALLBACK_GETTER(stamld_get)),
+        ELEMENT(DE_STAMLD_ERRSSNT,         CALLBACK_GETTER(stamld_get)),
+        ELEMENT(DE_STAMLD_ERRSRCVD,        CALLBACK_GETTER(stamld_get)),
+        ELEMENT(DE_STAMLD_RETRANSCNT,      CALLBACK_GETTER(stamld_get)),
+        ELEMENT(DE_STAMLD_AFFSTANOE,       CALLBACK_GETTER(stamld_get)),
+        ELEMENT(DE_WIFI7CAPS_EMLMR,        CALLBACK_GETTER(wifi7caps_get)),
+        ELEMENT(DE_WIFI7CAPS_EMLSR,        CALLBACK_GETTER(wifi7caps_get)),
+        ELEMENT(DE_WIFI7CAPS_STR,          CALLBACK_GETTER(wifi7caps_get)),
+        ELEMENT(DE_WIFI7CAPS_NSTR,         CALLBACK_GETTER(wifi7caps_get)),
+        ELEMENT(DE_STAMLDCFG_EMLMR,        CALLBACK_GETTER(stamldcfg_get)),
+        ELEMENT(DE_STAMLDCFG_EMLSR,        CALLBACK_GETTER(stamldcfg_get)),
+        ELEMENT(DE_STAMLDCFG_STR,          CALLBACK_GETTER(stamldcfg_get)),
+        ELEMENT(DE_STAMLDCFG_NSTR,         CALLBACK_GETTER(stamldcfg_get)),
+        ELEMENT(DE_AFFSTA_TABLE,           CALLBACK_GETTER(affsta_tget)),
+        ELEMENT(DE_AFFSTA_MACADDR,         CALLBACK_GETTER(affsta_get)),
+        ELEMENT(DE_AFFSTA_BSSID,           CALLBACK_GETTER(affsta_get)),
+        ELEMENT(DE_AFFSTA_BYTESSNT,        CALLBACK_GETTER(affsta_get)),
+        ELEMENT(DE_AFFSTA_BYTESRCV,        CALLBACK_GETTER(affsta_get)),
+        ELEMENT(DE_AFFSTA_PCKTSSNT,        CALLBACK_GETTER(affsta_get)),
+        ELEMENT(DE_AFFSTA_PCKTSRCV,        CALLBACK_GETTER(affsta_get)),
+        ELEMENT(DE_AFFSTA_ERRSSNT,         CALLBACK_GETTER(affsta_get)),
+        ELEMENT(DE_AFFSTA_SIGNALSTR,       CALLBACK_GETTER(affsta_get)),
+        ELEMENT(DE_AFFSTA_ESTMACDRDL,      CALLBACK_GETTER(affsta_get)),
+        ELEMENT(DE_AFFSTA_ESTMACDRUL,      CALLBACK_GETTER(affsta_get)),
+        ELEMENT(DE_STAMLD_AFFSTANOE,       CALLBACK_GETTER(affsta_get)),
+        ELEMENT(DE_BSTAMLD_MACADDR,        CALLBACK_GETTER(bstamld_get)),
+        ELEMENT(DE_BSTAMLD_BSSID,          CALLBACK_GETTER(bstamld_get)),
+        ELEMENT(DE_BSTAMLD_AFFBSTAS,       CALLBACK_GETTER(bstamld_get)),
+        ELEMENT(DE_BSTACFG_EMLMR,          CALLBACK_GETTER(bstacfg_get)),
+        ELEMENT(DE_BSTACFG_EMLSR,          CALLBACK_GETTER(bstacfg_get)),
+        ELEMENT(DE_BSTACFG_STR,            CALLBACK_GETTER(bstacfg_get)),
+        ELEMENT(DE_BSTACFG_NSTR,           CALLBACK_GETTER(bstacfg_get)),
 
         ELEMENT(DEVICE_WIFI_DATAELEMENTS_NETWORK_TOPOLOGY,              CB(NULL, NULL, NULL, NULL, NULL, NULL)),
-        ELEMENT(DEVICE_WIFI_DATAELEMENTS_NETWORK_NODE_SYNC,             CB(.get_handler = get_node_sync, .set_handler = set_node_sync)),
+        ELEMENT(DEVICE_WIFI_DATAELEMENTS_NETWORK_NODE_SYNC,             CB(.get_handler = get_node_sync, .set_handler = set_node_sync, NULL, NULL, NULL, NULL)),
         //ELEMENT(DEVICE_WIFI_DATAELEMENTS_NETWORK_NODE_CFG_POLICY,       CB(.set_handler = policy_config))
     };
 
@@ -280,6 +317,7 @@ int tr_181_t::wfa_set_bus_callbackfunc_pointers(const char *full_namespace, bus_
 
     if (table_found == false) {
         memcpy(cb_table, &bus_default_data_cb.cb_func, sizeof(bus_callback_table_t));
+        return RETURN_ERR;
     }
 
     return RETURN_OK;
@@ -309,6 +347,7 @@ int tr_181_t::wfa_bus_register_namespace(char *full_namespace, bus_element_type_
     bus_error_t rc = get_bus_descriptor()->bus_reg_data_element_fn(&m_bus_handle, &dataElements, num_elements);
     if (rc != bus_error_success) {
         em_printfout("bus: bus_regDataElements failed:%s\n", full_namespace);
+        return RETURN_ERR;
     }
     em_printfout("bus: bus_regDataElements success:%s", full_namespace);
 
@@ -754,6 +793,94 @@ bus_error_t tr_181_t::affap_tget(char *event_name, raw_data_t *p_data, bus_user_
     return bus_error_general;
 }
 
+bus_error_t tr_181_t::stamld_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
+{
+    em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
+
+    if (em_ctrl != NULL) {
+        return em_ctrl->get_dm_ctrl()->stamld_get(event_name, p_data);
+    }
+
+    return bus_error_general;
+}
+
+bus_error_t tr_181_t::stamld_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
+{
+    em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
+
+    if (em_ctrl != NULL) {
+        return em_ctrl->get_dm_ctrl()->stamld_tget(event_name, p_data);
+    }
+
+    return bus_error_general;
+}
+
+bus_error_t tr_181_t::wifi7caps_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
+{
+    em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
+
+    if (em_ctrl != NULL) {
+        return em_ctrl->get_dm_ctrl()->wifi7caps_get(event_name, p_data);
+    }
+
+    return bus_error_general;
+}
+
+bus_error_t tr_181_t::stamldcfg_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
+{
+    em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
+
+    if (em_ctrl != NULL) {
+        return em_ctrl->get_dm_ctrl()->stamldcfg_get(event_name, p_data);
+    }
+
+    return bus_error_general;
+}
+
+bus_error_t tr_181_t::affsta_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
+{
+    em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
+
+    if (em_ctrl != NULL) {
+        return em_ctrl->get_dm_ctrl()->affsta_get(event_name, p_data);
+    }
+
+    return bus_error_general;
+}
+
+bus_error_t tr_181_t::affsta_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
+{
+    em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
+
+    if (em_ctrl != NULL) {
+        return em_ctrl->get_dm_ctrl()->affsta_tget(event_name, p_data);
+    }
+
+    return bus_error_general;
+}
+
+bus_error_t tr_181_t::bstamld_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
+{
+    em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
+
+    if (em_ctrl != NULL) {
+        return em_ctrl->get_dm_ctrl()->bstamld_get(event_name, p_data);
+    }
+
+    return bus_error_general;
+}
+
+bus_error_t tr_181_t::bstacfg_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
+{
+    em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
+
+    if (em_ctrl != NULL) {
+        return em_ctrl->get_dm_ctrl()->bstacfg_get(event_name, p_data);
+    }
+
+    return bus_error_general;
+}
+
 bus_error_t tr_181_t::get_network_topology(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
 {
     p_data->data_type       = bus_data_type_string;
@@ -1019,6 +1146,13 @@ bool tr_181_t::schema_has_type(cJSON* schema, const char* want)
     return false;
 }
 
+bool tr_181_t::schema_is_deprecated(cJSON* schema)
+{
+    if (!schema) return false;
+
+    return cJSON_IsTrue(cJSON_GetObjectItem(schema, "deprecated"));
+}
+
 // ------------------------------------------------------------
 // Handle ANY property under an object: decide if TABLE or PROPERTY
 // ------------------------------------------------------------
@@ -1029,6 +1163,13 @@ void tr_181_t::handle_property_node(cJSON* root, const std::string& fullPath, cJ
     bus_callback_table_t cbTable = {};
     data_model_properties_t data_model_value;
     memset(&data_model_value, 0, sizeof(data_model_value));
+
+    // 0) If property is deprecated, do not bother
+    bool deprecated = schema_is_deprecated(propertySchema);
+    if (deprecated) {
+        em_printfout("Deprecated parameter, skip");
+        return;
+    }
 
     // 1) follow top-level $ref / combiners if present
     cJSON* effective = follow_ref_if_any(root, propertySchema);

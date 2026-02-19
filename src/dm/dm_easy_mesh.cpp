@@ -1690,6 +1690,26 @@ void dm_easy_mesh_t::string_to_macbytes(char *key, mac_address_t bmac)
 
 }
 
+void dm_easy_mesh_t::maclist_to_string(mac_address_t mac_list[], size_t mac_count, char *string, uint16_t str_len)
+{
+    uint8_t idx = 0;
+
+    if (mac_list == NULL) {
+        return;
+    }
+
+    while (str_len >= sizeof(mac_addr_str_t) && idx < mac_count) {
+        dm_easy_mesh_t::macbytes_to_string(mac_list[idx], string);
+        string += (sizeof(mac_addr_str_t) - 1);
+        str_len -= sizeof(mac_addr_str_t);
+        if (++idx >= mac_count || str_len == 0) {
+            break;
+        }
+        *string = ',';
+        ++string;
+    }
+}
+
 void dm_easy_mesh_t::securitymode_to_str(unsigned short mode, char *sec_mode_str, size_t len)
 {
     if (mode == EM_AUTH_OPEN)
@@ -3044,6 +3064,7 @@ void dm_easy_mesh_t::reset()
     m_num_ap_mld = 0;
 	m_db_cfg_param.db_cfg_type = db_cfg_type_none;
     m_colocated = false;
+    m_is_ctlr = false;
 
 	memset(&m_network.m_net_info, 0, sizeof(em_network_info_t));
 	memset(&m_device.m_device_info, 0, sizeof(em_device_info_t));
@@ -3073,6 +3094,7 @@ dm_easy_mesh_t::dm_easy_mesh_t()
     m_num_net_ssids = 0;
 	m_db_cfg_param.db_cfg_type = db_cfg_type_none;
     m_colocated = false;
+    m_is_ctlr = false;
 }
 
 dm_easy_mesh_t::~dm_easy_mesh_t()

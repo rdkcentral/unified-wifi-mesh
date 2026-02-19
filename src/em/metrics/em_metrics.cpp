@@ -1024,7 +1024,6 @@ int em_metrics_t::send_ap_metrics_response()
     short sz = 0;
     unsigned short type = htons(ETH_P_1905);
     dm_easy_mesh_t *dm = get_data_model();
-    mac_addr_str_t mac_str;
     dm_sta_t *sta;
     int bss_index = 0;
 
@@ -1148,16 +1147,15 @@ int em_metrics_t::send_ap_metrics_response()
     len += (sizeof(em_tlv_t));
 
     if (em_msg_t(em_msg_type_ap_metrics_rsp, em_profile_type_2, buff, static_cast<unsigned int> (len)).validate(errors) == 0) {
-        printf("%s:%d: AP Metrics Response validation failed for %s\n", __func__, __LINE__, mac_str);
+        em_printfout("AP Metrics Response validation failed for agent:%s, still sending",
+            util::mac_to_string(dm->get_agent_al_interface_mac()).c_str());
         //return -1;
     }
 
     if (send_frame(buff, static_cast<unsigned int> (len))  < 0) {
-        printf("%s:%d: AP Metrics Response send failed, error:%d\n", __func__, __LINE__, errno);
+        em_printfout("AP Metrics Response send failed, error:%d\n", errno);
         return -1;
     }
-
-    printf("%s:%d: AP Metrics Response send success\n", __func__, __LINE__);
 
     set_state(em_state_agent_configured);
 

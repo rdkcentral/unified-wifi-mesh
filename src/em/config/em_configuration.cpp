@@ -1410,8 +1410,8 @@ int em_configuration_t::handle_bsta_radio_cap(unsigned char *buff, unsigned int 
         }
     }
 
-    em_printfout("is_colocated val: %d for device id: %s, ctrl al_interface mac: %s \
-        , ctrl interface mac: %s", is_colocated, util::mac_to_string(dev->id.dev_mac).c_str(),
+    em_printfout("is_colocated val: %d for device id: %s, ctrl al_interface mac: %s, ctrl interface mac: %s",
+        is_colocated, util::mac_to_string(dev->id.dev_mac).c_str(),
         util::mac_to_string(dm->get_ctrl_al_interface_mac()).c_str(),
         util::mac_to_string(dm->get_controller_interface_mac()).c_str());
 
@@ -1419,14 +1419,15 @@ int em_configuration_t::handle_bsta_radio_cap(unsigned char *buff, unsigned int 
     dm_easy_mesh_t::macbytes_to_string(bsta_radio_cap->ruid, rad_mac_str);
 
     get_mgr()->io_process(em_bus_event_type_bsta_cap_req, reinterpret_cast<unsigned char *> (&rad_mac_str), sizeof(mac_addr_str_t));
-    em_printfout("IO process for bcap query submitted with rad mac: %s", rad_mac_str);
+    em_printfout("IO process for bcap query submitted with radio mac: %s", rad_mac_str);
 
     em_printfout("Update BSTA Cap for Device id: %s",
         util::mac_to_string(dev->id.dev_mac).c_str());
 
-    memcpy(dm->m_device.m_device_info.backhaul_sta, bsta_radio_cap->bsta_addr, sizeof(mac_address_t));
-    dm->set_db_cfg_param(db_cfg_type_device_list_update, "");
-
+    if (is_colocated != true) {
+        memcpy(dm->m_device.m_device_info.backhaul_sta, bsta_radio_cap->bsta_addr, sizeof(mac_address_t));
+        dm->set_db_cfg_param(db_cfg_type_device_list_update, "");
+    }
     return 0;
 }
 
@@ -1596,7 +1597,6 @@ int em_configuration_t::handle_topology_response(unsigned char *buff, unsigned i
 	dm_easy_mesh_t *dm;
     em_raw_hdr_t *hdr = reinterpret_cast<em_raw_hdr_t *>(buff);
     uint8_t *src_al_mac = hdr->src;
-    em_interface_name_t name;
     
 	dm = get_data_model();
 
@@ -1733,12 +1733,36 @@ int em_configuration_t::handle_topology_response(unsigned char *buff, unsigned i
 
     em_printfout("Src al mac: " MACSTRFMT, MAC2STR(src_al_mac));
 
-    if (dm_easy_mesh_t::name_from_mac_address(reinterpret_cast<const mac_address_t*>(src_al_mac), name) == 0) {
-        em_printfout("MAC address exists on this device.");
+    if (dm->get_colocated() == true) {
         memset(dm->m_device.m_device_info.backhaul_alid.mac, 0, sizeof(mac_address_t));
     } else {
-        em_printfout("MAC address not found on any interface.");
-        memcpy(dm->m_device.m_device_info.backhaul_alid.mac, dm->get_ctrl_al_interface_mac(), sizeof(mac_address_t));
+        //backhaul_alid is the alid of the Agent on the network that is providing the backhaul for this EasyMesh Agent.
+        //This would be the colocated AL interface mac for extenders connected in star topology.
+        //For daisy chain topology, this would be the AL interface mac of the agent that is providing backhaul connectivity.
+        // Obtain the mesh_sta information of this dm.
+	    em_bss_info_t *bss = dm->get_bsta_bss_info();
+        dm_device_t *backhaul_dev = NULL;
+        if (bss != NULL) {
+            //TODO: Get backhaul_dev matching bss->id.bssid and al_mac not matching src_al_mac
+            //from the list of dm.
+            /*
+            backhaul_dev = em_mgr()->get_dm_dev(src_al_mac, bss->id.bssid);
+            dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
+            if (dm_ctrl) {
+                backhaul_dev = dm_ctrl->get_dm_dev(src_al_mac, bss->id.bssid);
+            }*/
+        } else {
+            em_printfout("Backhaul STA not found in any bss for this device:%s",
+                util::mac_to_string(src_al_mac).c_str());
+        }
+        if (backhaul_dev != NULL) {
+            em_device_info_t *bhdi = backhaul_dev->get_device_info();
+            memcpy(dm->m_device.m_device_info.backhaul_alid.mac, bhdi->id.dev_mac, sizeof(mac_address_t));
+            em_printfout("Backhaul ALID mac address:%s updated from agent dm: %s",
+                    util::mac_to_string(bhdi->id.dev_mac).c_str(), util::mac_to_string(src_al_mac).c_str());
+        } else {
+            memset(dm->m_device.m_device_info.backhaul_alid.mac, 0, sizeof(mac_address_t));
+        }
     }
 
     em_printfout("updated dm dev_info's colocated: %d backhaul_mac: %s and backhaul_alid: %s", dm->get_colocated(),
@@ -3825,11 +3849,6 @@ int em_configuration_t::handle_wsc_m1(unsigned char *buff, unsigned int len)
             memcpy(dev_info.serial_number, attr->val, htons(attr->len));
             set_serial_number(dev_info.serial_number);
             //printf("%s:%d: Manufacturer:%s\n", __func__, __LINE__, dev_info.serial_number);
-            if( dm->get_colocated() == false )
-            {
-                memcpy(dm->m_device.m_device_info.backhaul_alid.mac, dm->get_ctrl_al_interface_mac(), sizeof(mac_address_t));
-            }
-
             em_printfout("Updated dm dev_info's backhaul_mac: %s and backhaul_alid: %s",
                 util::mac_to_string(dm->m_device.m_device_info.backhaul_mac.mac).c_str(),
                 util::mac_to_string(dm->m_device.m_device_info.backhaul_alid.mac).c_str());
