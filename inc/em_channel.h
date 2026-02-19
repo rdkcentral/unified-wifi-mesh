@@ -43,6 +43,19 @@ class em_channel_t {
 	virtual int send_frame(unsigned char *buff, unsigned int len, bool multicast = false) = 0;
 	
 	/**!
+	 * @brief Sends a 1905 acknowledgment message.
+	 *
+	 * This function is responsible for sending an acknowledgment message
+	 *
+	 * @param[in] msg_id The message ID of the original message being acknowledged.
+	 *
+	 * @returns int
+	 * @retval length of buffer on success
+	 * @retval 0 on failure
+	 *
+	 */
+	int send_1905_ack_message(unsigned short msg_id);
+	/**!
 	 * @brief Pushes an event to the event manager.
 	 *
 	 * This function is responsible for adding an event to the event manager's queue.

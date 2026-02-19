@@ -93,6 +93,60 @@ short em_channel_t::create_channel_pref_tlv_agent(unsigned char *buff, unsigned 
     return len;
 }
 
+int em_channel_t::send_1905_ack_message(unsigned short msg_id)
+{
+    unsigned char buff[MAX_EM_BUFF_SZ];
+    char *errors[EM_MAX_TLV_MEMBERS] = {0};
+    unsigned short  msg_type = em_msg_type_1905_ack;
+    size_t len = 0;
+    em_cmdu_t *cmdu;
+    em_tlv_t *tlv;
+    unsigned char *tmp = buff;
+    unsigned short type = htons(ETH_P_1905);
+    dm_easy_mesh_t *dm = get_data_model();
+
+    memcpy(tmp, dm->get_agent_al_interface_mac(), sizeof(mac_address_t));
+    tmp += sizeof(mac_address_t);
+    len += sizeof(mac_address_t);
+
+    memcpy(tmp, dm->get_ctrl_al_interface_mac(), sizeof(mac_address_t));
+    tmp += sizeof(mac_address_t);
+    len += sizeof(mac_address_t);
+
+    memcpy(tmp, reinterpret_cast<unsigned char *> (&type), sizeof(unsigned short));
+    tmp += sizeof(unsigned short);
+    len += sizeof(unsigned short);
+
+    cmdu = reinterpret_cast<em_cmdu_t *> (tmp);
+    memset(tmp, 0, sizeof(em_cmdu_t));
+    cmdu->type = htons(msg_type);
+    cmdu->id = htons(msg_id);
+    cmdu->last_frag_ind = 1;
+
+    tmp += sizeof(em_cmdu_t);
+    len += sizeof(em_cmdu_t);
+
+    // End of message
+    tlv = reinterpret_cast<em_tlv_t *> (tmp);
+    tlv->type = em_tlv_type_eom;
+    tlv->len = 0;
+
+    tmp += (sizeof(em_tlv_t));
+    len += (sizeof(em_tlv_t));
+
+    if (em_msg_t(em_msg_type_1905_ack, em_profile_type_3, buff, static_cast<unsigned int> (len)).validate(errors) == 0) {
+        em_printfout("1905 ACK validation failed\n");
+        return 0;
+    }
+
+    if (send_frame(buff, static_cast<unsigned int> (len))  < 0) {
+        em_printfout("1905 ACK send failed, error:%d\n", errno);
+        return 0;
+    }
+    em_printfout("1905 ACK send success\n");
+    return static_cast<int> (len);
+}
+
 short em_channel_t::create_channel_scan_req_tlv(unsigned char *buff)
 {
     short len = 0;
@@ -1688,6 +1742,8 @@ int em_channel_t::handle_operating_channel_rprt(unsigned char *buff, unsigned in
     em_tlv_t    *tlv;
     int tlv_len;
 
+    em_cmdu_t *cmdu = reinterpret_cast<em_cmdu_t *> (buff + sizeof(em_raw_hdr_t));
+
     tlv = reinterpret_cast<em_tlv_t *> (buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
     tlv_len = static_cast<int> (len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)));
 
@@ -1706,9 +1762,9 @@ int em_channel_t::handle_operating_channel_rprt(unsigned char *buff, unsigned in
         tlv_len -= static_cast<int> (sizeof(em_tlv_t) + htons(tlv->len));
         tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
     }
-	printf("%s:%d Operating channel report recv\n", __func__, __LINE__);
-
-	return 0;
+    em_printfout("Operating channel report recv\n");
+    send_1905_ack_message(ntohs(cmdu->id));
+    return 0;
 }
 
 int em_channel_t::handle_channel_scan_req(unsigned char *buff, unsigned int len)
