@@ -923,7 +923,7 @@ int em_configuration_t::create_tid_to_link_map_policy_tlv(unsigned char *buff)
 
 int em_configuration_t::send_topology_response_msg(unsigned char *dst, unsigned short msg_id)
 {
-    unsigned char buff[MAX_EM_BUFF_SZ];
+    unsigned char buff[MAX_EM_BUFF_SZ + MAX_EM_BUFF_SZ];
     char *errors[EM_MAX_TLV_MEMBERS] = {0};
     unsigned short  msg_type = em_msg_type_topo_resp;
     unsigned int len = 0;
