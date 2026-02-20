@@ -67,7 +67,7 @@ short em_channel_t::create_channel_pref_tlv_agent(unsigned char *buff, unsigned 
     for (i = 0; i < dm->m_num_opclass; i++) {
 	op_class = &dm->m_op_class[i];
     if (((memcmp(op_class->m_op_class_info.id.ruid, pref->ruid, sizeof(mac_address_t)) == 0) &&
-         (op_class->m_op_class_info.id.type == em_op_class_type_capability)) == false) {
+         (op_class->m_op_class_info.id.type == em_op_class_type_preference)) == false) {
         continue;
     }
 
@@ -219,7 +219,7 @@ short em_channel_t::create_channel_pref_tlv(unsigned char *buff)
                     (op_class->m_op_class_info.id.type == em_op_class_type_anticipated)) == false) {
             continue;
         }
-        
+
         pref_op_class->op_class = static_cast<unsigned char> (op_class->m_op_class_info.op_class);
         num_of_channel = op_class->m_op_class_info.num_channels;
         channel_list = &pref_op_class->channels;
@@ -1394,64 +1394,102 @@ int em_channel_t::handle_spatial_reuse_report(unsigned char *buff, unsigned int 
     return 0;
 }
 
-
 int em_channel_t::handle_channel_pref_tlv_ctrl(unsigned char *buff, unsigned int len)
 {
-    em_channel_pref_t   *pref = reinterpret_cast<em_channel_pref_t *> (buff);
-    em_channel_pref_op_class_t *channel_pref;
+    em_channel_pref_t *pref = reinterpret_cast<em_channel_pref_t *>(buff);
     unsigned int i = 0, j = 0;
-	bool match_found = false;
-    em_op_class_info_t      op_class_info[EM_MAX_OP_CLASS];
+    bool match_found = false;
+    em_op_class_info_t op_class_info[EM_MAX_OP_CLASS];
     em_op_class_info_t *pop_class_info;
     dm_easy_mesh_t *dm;
 
     dm = get_data_model();
-    em_device_info_t    *device = dm->get_device_info();
 
-	channel_pref = pref->op_classes;
-	memcpy(op_class_info[i].id.ruid, pref->ruid, sizeof(mac_address_t));
-	for (i = 0; i < pref->op_classes_num; i++) {
-		memset(&op_class_info[i], 0, sizeof(em_op_class_info_t));
-		memcpy(op_class_info[i].id.ruid, device->intf.mac, sizeof(mac_address_t));
-		op_class_info[i].id.type = em_op_class_type_preference;
-		op_class_info[i].op_class = static_cast<unsigned int> (channel_pref->op_class);
-		op_class_info[i].id.op_class = op_class_info[i].op_class;
-		op_class_info[i].num_channels = static_cast<unsigned int> (channel_pref->num);
-		for (j = 0; j < op_class_info[i].num_channels; j++) {
-			op_class_info[i].channels[j] = static_cast<unsigned int > (channel_pref->channels.channel[j]);
-		}
-		channel_pref = reinterpret_cast<em_channel_pref_op_class_t *> (reinterpret_cast<unsigned char *> (channel_pref) + sizeof(em_channel_pref_op_class_t) +
-				op_class_info[i].num_channels + sizeof(unsigned char));
-		//printf("%s:%d op class: %d\tAnticipated Channels: %d\n", __func__, __LINE__, 
-				//op_class_info[i].op_class, op_class_info[i].num_anticipated_channels);
-	}
-	
-	for (i = 0; i < pref->op_classes_num; i++) {
-		for (j = 0; j < dm->get_num_op_class(); j++) {
-			pop_class_info = &dm->m_op_class[j].m_op_class_info;
+    // Parse the received TLV
+    unsigned char *ptr = reinterpret_cast<unsigned char *>(pref->op_classes);
+    for (i = 0; i < pref->op_classes_num && (i < EM_MAX_OP_CLASS); i++) {
+        em_channel_pref_op_class_t *op_class_hdr = reinterpret_cast<em_channel_pref_op_class_t *>(ptr);
+        memset(&op_class_info[i], 0, sizeof(em_op_class_info_t));
+        memcpy(op_class_info[i].id.ruid, pref->ruid, sizeof(mac_address_t));
+        op_class_info[i].id.type = em_op_class_type_preference;
+        op_class_info[i].op_class = static_cast<unsigned int>(op_class_hdr->op_class);
+        op_class_info[i].id.op_class = op_class_info[i].op_class;
+        op_class_info[i].num_channels = static_cast<unsigned int>(op_class_hdr->num);
 
-			if ((memcmp(pop_class_info->id.ruid, op_class_info[i].id.ruid, sizeof(mac_address_t)) == 0) &&
-						(pop_class_info->id.type == op_class_info[i].id.type) &&
-						(pop_class_info->id.op_class == op_class_info[i].id.op_class)) {
-				match_found = true;
-				break;
-			}
-		}
+        unsigned char *chan_ptr = ptr + sizeof(em_channel_pref_op_class_t);
+        unsigned char *pref_bits_ptr = ptr + sizeof(em_channel_pref_op_class_t) + op_class_info[i].num_channels;
 
-		if (match_found == true) {
-			match_found = false;
-			continue;
-		}
-		
-		pop_class_info = &dm->m_op_class[dm->get_num_op_class()].m_op_class_info;
-		memcpy(pop_class_info, &op_class_info[i], sizeof(em_op_class_info_t));
-		dm->set_num_op_class(dm->get_num_op_class() + 1);
-		dm->set_db_cfg_param(db_cfg_type_op_class_list_update, "");
-		dm->set_db_cfg_param(db_cfg_type_radio_list_update, "");
-	}
+        for (j = 0; j < op_class_info[i].num_channels; j++) {
+            op_class_info[i].channels[j] = *chan_ptr;
+            op_class_info[i].channel_pref[j] = *pref_bits_ptr;
+            chan_ptr++;
+        }
+
+        op_class_info[i].pref_valid = EM_CH_PREF_ENTRY_VALID;
+        // Advance pointer: header + channels + preference bits
+        ptr = pref_bits_ptr + 1;
+    }
+
+    //Update the parsed data to datamodel
+    for (i = 0; i < pref->op_classes_num; i++) {
+        match_found = false; //Flag if a valid preference entry for the RUID@OPCLASS is found
+        int first_invalid_idx = -1; //Stores the index of the first invalid entry in the datamodel
+
+        //Find the data model entry to update
+        for (j = 0; j < dm->get_num_op_class(); j++) {
+            pop_class_info = &dm->m_op_class[j].m_op_class_info;
+
+            // Check for existing valid entry with same RUID, preference and op class value
+            // then append the channel and preference information parsed.
+            if (pop_class_info->pref_valid == EM_CH_PREF_ENTRY_VALID &&
+                pop_class_info->id.type == op_class_info[i].id.type &&
+                pop_class_info->id.op_class == op_class_info[i].id.op_class &&
+                memcmp(pop_class_info->id.ruid, op_class_info[i].id.ruid, sizeof(mac_address_t)) == 0) {
+
+                unsigned int added_channels_count = 0;
+                for (added_channels_count = 0; (added_channels_count < op_class_info[i].num_channels) &&
+                            ((pop_class_info->num_channels + added_channels_count) < EM_MAX_CHANNELS_IN_LIST); added_channels_count++) {
+                    pop_class_info->channels[pop_class_info->num_channels + added_channels_count] = op_class_info[i].channels[added_channels_count];
+                    pop_class_info->channel_pref[pop_class_info->num_channels + added_channels_count] = op_class_info[i].channel_pref[added_channels_count];
+                }
+
+                // only increment by appended count, if exceeds max channels in list then remaining channels are dropped.
+                pop_class_info->num_channels += added_channels_count;
+                match_found = true;
+
+                break;
+            }
+            else if (first_invalid_idx == -1 && pop_class_info->pref_valid == EM_CH_PREF_ENTRY_INVALID && pop_class_info->id.type == em_op_class_type_preference) {
+                // Store the index of first invalid preference entry in the datamodel
+                first_invalid_idx = j;
+            }
+        }
+        if (!match_found && first_invalid_idx != -1)
+        {
+            // Existing valid entry for the RUID@OPCLASS not found.
+            // Update the first invalid index with new valid data.
+            memcpy(&dm->m_op_class[first_invalid_idx].m_op_class_info, &op_class_info[i], sizeof(em_op_class_info_t));
+            continue;
+        }
+        else if (!match_found)
+        {
+            // Existing valid entry for the RUID@OPCLASS not found. No invalid preference row present
+            // Add new entry to the datamodel
+            if (dm->get_num_op_class() >= EM_MAX_OPCLASS) {
+                em_printfout("Max limit reached for op class entries in datamodel, cannot add more entries\n");
+                break;
+            }
+            pop_class_info = &dm->m_op_class[dm->get_num_op_class()].m_op_class_info;
+            memcpy(pop_class_info, &op_class_info[i], sizeof(em_op_class_info_t));
+            dm->set_num_op_class(dm->get_num_op_class() + 1);
+        }
+    }
+
+    //Update the database with the latest datamodel
+    dm->set_db_cfg_param(db_cfg_type_op_class_list_update, "");
+    dm->set_db_cfg_param(db_cfg_type_radio_list_update, "");
 
     return 0;
-
 }
 
 int em_channel_t::handle_eht_operations_tlv_ctrl(unsigned char *buff, unsigned int len)
@@ -1540,6 +1578,27 @@ int em_channel_t::handle_channel_pref_rprt(unsigned char *buff, unsigned int len
 {
     em_tlv_t    *tlv;
     int tlv_len;
+    em_op_class_info_t *pop_class_info;
+    std::vector<em_t*> em_radios;
+
+    dm_easy_mesh_t *dm = get_data_model();
+
+    //Invalidate all exisiting preference entries
+    get_mgr()->get_all_em_for_al_mac(dm->get_agent_al_interface_mac(), em_radios);
+    for (auto &em : em_radios)
+    {
+        for (unsigned int i = 0; i < dm->get_num_op_class(); i++)
+        {
+            pop_class_info = &dm->m_op_class[i].m_op_class_info;
+            // Check if entry belongs to this ruid and is a preference type
+            if ((memcmp(pop_class_info->id.ruid, em->get_radio_interface_mac(), sizeof(mac_address_t)) == 0) &&
+                (pop_class_info->id.type == em_op_class_type_preference))
+            {
+                // Mark as invalid by setting pref_valid to 0 for all radios
+                pop_class_info->pref_valid = EM_CH_PREF_ENTRY_INVALID;
+            }
+        }
+    }
 
     tlv = reinterpret_cast<em_tlv_t *> (buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
     tlv_len = static_cast<int> (len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)));
