@@ -256,6 +256,10 @@ void em_network_topo_t::add_network_topo(dm_easy_mesh_t *dm, em_network_topo_t *
 void em_network_topo_t::add(dm_easy_mesh_t *dm, em_network_topo_t **child_topos, unsigned int num_child_topos)
 {
 	em_network_topo_t *topo;
+	if (dm == NULL) {
+		em_printfout("dm is NULL, cannot add topology");
+		return;
+	}
 
 	// find the BH bss where al_mac of this device of data model is attached to.
 	if ((topo = find_topology_by_bh_associated(dm)) != NULL) {

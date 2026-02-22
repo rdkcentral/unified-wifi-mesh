@@ -55,6 +55,11 @@ dm_easy_mesh_t& dm_easy_mesh_t::operator = (dm_easy_mesh_t const& obj)
     em_long_string_t key;
     mac_addr_str_t radio_mac_str, bss_mac_str, sta_mac_str;
 
+    // Self-assignment check
+    if (this == &obj) {
+        return *this;
+    }
+
     m_device = obj.m_device;
     m_network = obj.m_network;
     m_ieee_1905_security = obj.m_ieee_1905_security;
@@ -1688,6 +1693,26 @@ void dm_easy_mesh_t::string_to_macbytes(char *key, mac_address_t bmac)
     bmac[0] = mac[0]; bmac[1] = mac[1]; bmac[2] = mac[2];
     bmac[3] = mac[3]; bmac[4] = mac[4]; bmac[5] = mac[5];
 
+}
+
+void dm_easy_mesh_t::maclist_to_string(mac_address_t mac_list[], size_t mac_count, char *string, uint16_t str_len)
+{
+    uint8_t idx = 0;
+
+    if (mac_list == NULL) {
+        return;
+    }
+
+    while (str_len >= sizeof(mac_addr_str_t) && idx < mac_count) {
+        dm_easy_mesh_t::macbytes_to_string(mac_list[idx], string);
+        string += (sizeof(mac_addr_str_t) - 1);
+        str_len -= sizeof(mac_addr_str_t);
+        if (++idx >= mac_count || str_len == 0) {
+            break;
+        }
+        *string = ',';
+        ++string;
+    }
 }
 
 void dm_easy_mesh_t::securitymode_to_str(unsigned short mode, char *sec_mode_str, size_t len)

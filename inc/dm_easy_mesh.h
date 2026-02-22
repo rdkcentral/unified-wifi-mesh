@@ -2260,7 +2260,22 @@ public:
 	 * @note The input string must be properly formatted and null-terminated.
 	 */
 	static void string_to_macbytes (char *key, mac_address_t bmac);
-    
+
+	/**!
+	 * @brief Converts a list of MAC addresses to a comma seperated string representation.
+	 *
+	 * This function takes a list of MAC addresses in the form of a `mac_address_t` and converts
+	 * it into a comma seperated, human-readable string format.
+	 *
+	 * @param[in] mac_list The list of MAC addresses to be converted.
+	 * @param[in] mac_count The number of MAC addresses in the list `mac_list`.
+	 * @param[out] string The buffer where the resulting string representation will be stored.
+	 * @param[in] str_len The length of the buffer `string`.
+	 *
+	 * @note Ensure that the `string` buffer is large enough to hold the MAC address string.
+	 */
+	static void maclist_to_string(mac_address_t mac_list[], size_t mac_count, char *string, uint16_t str_len);
+
 	/**!
 	 * @brief Retrieves the MAC address associated with a given interface name.
 	 *

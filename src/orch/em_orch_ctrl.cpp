@@ -74,7 +74,7 @@ void em_orch_ctrl_t::orch_transient(em_cmd_t *pcmd, em_t *em)
 
                 // Cancel command if time exceeded and no ssid mismatch
                 if (stats->time > base_time && !ssid_mismatch_present) {
-                    em_printfout("Canceling cmd: %s because time limit exceeded with no SSID mismatch",pcmd->get_cmd_name());
+                    em_printfout("Canceling cmd: %s because time limit exceeded.",pcmd->get_cmd_name());
                     // Reset the mismatch and topo_query_last sent values before sending topo query
                     dm->set_ssid_mismatch_check_time(0);
                     dm->set_last_topo_query_sent_time(0);

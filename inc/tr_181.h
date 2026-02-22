@@ -25,7 +25,6 @@
 #include <memory>
 #include <cjson/cJSON.h>
 #include <unistd.h>
-#include <rbus/rbus.h>
 
 #define DEVICE_WIFI_DATAELEMENTS_NETWORK_COLOCATEDAGENTID   "Device.WiFi.DataElements.Network.ColocatedAgentID"
 #define DEVICE_WIFI_DATAELEMENTS_NETWORK_CONTROLLERID       "Device.WiFi.DataElements.Network.ControllerID"
@@ -55,10 +54,28 @@ struct yang_to_tr181_map {
 };
 
 static const yang_to_tr181_map g_yang_map[] = {
+    { "NumberOfDevices", "DeviceNumberOfEntries" },
     { "DeviceList", "Device" },
+    { "NumberOfRadios", "RadioNumberOfEntries" },
+    { "AvailableChannelList", "CACAvailableChannel" },
+    { "NonOccupancyChannelList", "CACNonOccupancyChannel" },
+    { "ActiveChannelList", "CACActiveChannel" },
     { "RadioList", "Radio" },
+    { "NumberOfCurrOpClass", "CurrentOperatingClassProfileNumberOfEntries" },
+    { "NumberOfBSS", "BSSNumberOfEntries" },
+    { "NumberOfUnassocSta", "UnassociatedSTANumberOfEntries" },
+    { "NumberOfOpClass", "CapableOperatingClassProfileNumberOfEntries" },
+    { "OperatingClasses", "CapableOperatingClassProfile" },
+    { "CurrentOperatingClasses", "CurrentOperatingClassProfile" },
     { "BSSList", "BSS" },
+    { "NumberOfSTA", "STANumberOfEntries" },
     { "STAList", "STA" },
+    { "UnassociatedStaList", "UnassociatedSTA" },
+    { "OpClassList", "OpClassChannels" },
+    { "ScanResultList", "ScanResult" },
+    { "OpClassScanList", "OpClassScan" },
+    { "ChannelScanList", "ChannelScan" },
+    { "NeighborList", "NeighborBSS" },
     { "NetworkSSIDList", "SSID" },
 
     { nullptr, nullptr } // Default case
@@ -66,16 +83,28 @@ static const yang_to_tr181_map g_yang_map[] = {
 
 #define DATAELEMS_NETWORK       "Device.WiFi.DataElements.Network."
 
+// pre-defined lengths for TR-181 method parameters and properties.
+#define TR181_SSID_MAX_LEN         32
+#define TR181_PASSPHRASE_MAX_LEN   63
+#define TR181_BAND_MAX_LEN         16
+#define TR181_ADDREMOVE_MAX_LEN    16
+#define TR181_HAULTYPE_MAX_LEN     32
+
 #define MAX_INSTANCE_LEN        32
 #define MAX_CAPS_STR_LEN        32
+#define MAX_MACLIST_ITEMS       14
+#define MAX_MACLIST_STRLEN      256
+#define MAX_TIME_STRLEN         24
+#define MAX_ZONE_STRLEN         8
+#define MAX_TIMESTAMP_STRLEN    64
 #define ARRAY_SIZE(a)           (sizeof(a) / sizeof(a[0]))
 
 /* Device.WiFi.DataElements.Network */
 #define DE_NETWORK_ID           DATAELEMS_NETWORK       "ID"
 #define DE_NETWORK_CTRLID       DATAELEMS_NETWORK       "ControllerID"
 #define DE_NETWORK_COLAGTID     DATAELEMS_NETWORK       "ColocatedAgentID"
-// #define DE_NETWORK_DEVNOE       DATAELEMS_NETWORK       "DeviceNumberOfEntries"NumberOfDevices
-#define DE_NETWORK_DEVNOE       DATAELEMS_NETWORK       "NumberOfDevices"
+#define DE_NETWORK_DEVNOE       DATAELEMS_NETWORK       "DeviceNumberOfEntries"
+#define DE_NETWORK_TIMESTAMP    DATAELEMS_NETWORK       "TimeStamp"
 #define DE_NETWORK_SETSSID      DATAELEMS_NETWORK       "SetSSID()"
 /* Device.WiFi.DataElements.Network.SSID */
 #define DE_NETWORK_SSID         DATAELEMS_NETWORK       "SSID.{i}."
@@ -94,11 +123,9 @@ static const yang_to_tr181_map g_yang_map[] = {
 #define DE_DEVICE_TABLE         DATAELEMS_NETWORK       "Device.{i}"
 #define DE_DEVICE_ID            DE_NETWORK_DEVICE       "ID"
 #define DE_DEVICE_MAPCAP        DE_NETWORK_DEVICE       "MultiAPCapabilities"
-#define DE_DEVICE_NUMRADIO      DE_NETWORK_DEVICE       "NumberOfRadios"
 #define DE_DEVICE_COLLINT       DE_NETWORK_DEVICE       "CollectionInterval"
 #define DE_DEVICE_RUASSOC       DE_NETWORK_DEVICE       "ReportUnsuccessfulAssociations"
 #define DE_DEVICE_MAXRRATE      DE_NETWORK_DEVICE       "MaxReportingRate"
-#define DE_DEVICE_MAPPROF       DE_NETWORK_DEVICE       "MultiAPProfile"
 #define DE_DEVICE_APMERINT      DE_NETWORK_DEVICE       "APMetricsReportingInterval"
 #define DE_DEVICE_MANUFACT      DE_NETWORK_DEVICE       "Manufacturer"
 #define DE_DEVICE_SERIALNO      DE_NETWORK_DEVICE       "SerialNumber"
@@ -108,8 +135,6 @@ static const yang_to_tr181_map g_yang_map[] = {
 #define DE_DEVICE_LSDSTALIST    DE_NETWORK_DEVICE       "LocalSteeringDisallowedSTAList"
 #define DE_DEVICE_BTMSDSTALIST  DE_NETWORK_DEVICE       "BTMSteeringDisallowedSTAList"
 #define DE_DEVICE_MAXVIDS       DE_NETWORK_DEVICE       "MaxVIDs"
-#define DE_DEVICE_BPRIO         DE_NETWORK_DEVICE       "BasicPrioritization"
-#define DE_DEVICE_EPRIO         DE_NETWORK_DEVICE       "EnhancedPrioritization"
 #define DE_DEVICE_DE8021QPVID   DE_NETWORK_DEVICE       "Default8021Q.PrimaryVID"
 #define DE_DEVICE_DE8021QDPCP   DE_NETWORK_DEVICE       "Default8021Q.DefaultPCP"
 #define DE_DEVICE_TSEPPOLI      DE_NETWORK_DEVICE       "TrafficSeparationPolicy"
@@ -121,9 +146,8 @@ static const yang_to_tr181_map g_yang_map[] = {
 #define DE_DEVICE_REPINDSCAN    DE_NETWORK_DEVICE       "ReportIndependentScans"
 #define DE_DEVICE_TRASEPALW     DE_NETWORK_DEVICE       "TrafficSeparationAllowed"
 #define DE_DEVICE_SERPRIOALW    DE_NETWORK_DEVICE       "ServicePrioritizationAllowed"
-#define DE_DEVICE_STASDISALW    DE_NETWORK_DEVICE       "STASteeringDisallowed"
 #define DE_DEVICE_DFSENABLE     DE_NETWORK_DEVICE       "DFSEnable"
-#define DE_DEVICE_MAXUSASSOCREPRATE DE_NETWORK_DEVICE   "MaxUnsuccessfulAssociationReportingRate"
+#define DE_DEVICE_MAXUSASSOCREP DE_NETWORK_DEVICE       "MaxUnsuccessfulAssociationReportingRate"
 #define DE_DEVICE_STASSTATE     DE_NETWORK_DEVICE       "STASteeringState"
 #define DE_DEVICE_COORCACALW    DE_NETWORK_DEVICE       "CoordinatedCACAllowed"
 #define DE_DEVICE_CONOPMODE     DE_NETWORK_DEVICE       "ControllerOperationMode"
@@ -133,11 +157,11 @@ static const yang_to_tr181_map g_yang_map[] = {
 #define DE_DEVICE_TRSEPCAP      DE_NETWORK_DEVICE       "TrafficSeparationCapability"
 #define DE_DEVICE_EASYCCAP      DE_NETWORK_DEVICE       "EasyConnectCapability"
 #define DE_DEVICE_TESTCAP       DE_NETWORK_DEVICE       "TestCapabilities"
-#define DE_DEVICE_BSTAMLDMACLINK    DE_NETWORK_DEVICE   "bSTAMLDMaxLinks"
+#define DE_DEVICE_BSTAMLDMACLNK DE_NETWORK_DEVICE       "bSTAMLDMaxLinks"
 #define DE_DEVICE_MACNUMMLDS    DE_NETWORK_DEVICE       "MaxNumMLDs"
 #define DE_DEVICE_BHALID        DE_NETWORK_DEVICE       "BackhaulALID"
 #define DE_DEVICE_TIDLMAP       DE_NETWORK_DEVICE       "TIDLinkMapping"
-#define DE_DEVICE_ASSOCSTAREPINT    DE_NETWORK_DEVICE   "AssociatedSTAReportingInterval"
+#define DE_DEVICE_ASSOCSTAREP   DE_NETWORK_DEVICE       "AssociatedSTAReportingInterval"
 #define DE_DEVICE_BHMEDIATYPE   DE_NETWORK_DEVICE       "BackhaulMediaType"
 #define DE_DEVICE_RADIONOE      DE_NETWORK_DEVICE       "RadioNumberOfEntries"
 #define DE_DEVICE_CACSTATNOE    DE_NETWORK_DEVICE       "CACStatusNumberOfEntries"
@@ -178,7 +202,6 @@ static const yang_to_tr181_map g_yang_map[] = {
 #define DE_RADIO_TABLE          DE_NETWORK_DEVICE       "Radio.{i}"
 #define DE_RADIO_ID             DE_DEVICE_RADIO         "ID"
 #define DE_RADIO_ENABLED        DE_DEVICE_RADIO         "Enabled"
-#define DE_RADIO_NUMCUROPCLASS  DE_DEVICE_RADIO         "NumberOfCurrOpClass"
 #define DE_RADIO_NOISE          DE_DEVICE_RADIO         "Noise"
 #define DE_RADIO_UTILIZATION    DE_DEVICE_RADIO         "Utilization"
 #define DE_RADIO_TRANSMIT       DE_DEVICE_RADIO         "Transmit"
@@ -186,9 +209,8 @@ static const yang_to_tr181_map g_yang_map[] = {
 #define DE_RADIO_RECEIVEOTHER   DE_DEVICE_RADIO         "ReceiveOther"
 #define DE_RADIO_CHIPVENDOR     DE_DEVICE_RADIO         "ChipsetVendor"
 #define DE_RADIO_CURROPNOE      DE_DEVICE_RADIO         "CurrentOperatingClassProfileNumberOfEntries"
-#define DE_RADIO_BSSNOE         DE_DEVICE_RADIO         "NumberOfBSS"
-#define DE_RADIO_UNASSCSTALIST  DE_DEVICE_RADIO         "UnassociatedStaList"
-#define DE_RADIO_NOUNASSCSTA    DE_DEVICE_RADIO         "NumberOfUnassocSta"
+#define DE_RADIO_BSSNOE         DE_DEVICE_RADIO         "BSSNumberOfEntries"
+#define DE_RADIO_NOUNASSCSTA    DE_DEVICE_RADIO         "UnassociatedSTANumberOfEntries"
 /* Device.WiFi.DataElements.Network.Device.Radio.BackhaulSta */
 #define DE_RADIO_BHSTA          DE_DEVICE_RADIO         "BackhaulSta."
 #define DE_BHSTA_MACADDR        DE_RADIO_BHSTA          "MACAddress"
@@ -203,7 +225,7 @@ static const yang_to_tr181_map g_yang_map[] = {
 #define DE_RCAPS_SCSTRAFDESC    DE_RADIO_CAPS           "SCSTrafficDescriptionCapability"
 #define DE_RCAPS_CAPOPNOE       DE_RADIO_CAPS           "CapableOperatingClassProfileNumberOfEntries"
 #define DE_RCAPS_AKMFHNOE       DE_RADIO_CAPS           "AKMFrontHaulNumberOfEntries"
-#define DE_RCAPS_AKMBHNOE       DE_RADIO_CAPS           "AKMBackHaulNumberOfEntries"
+#define DE_RCAPS_AKMBHNOE       DE_RADIO_CAPS           "AKMBackhaulNumberOfEntries"
 /* Device.WiFi.DataElements.Network.Device.Radio.Capabilities.WiFi6APRole */
 #define DE_CAPS_WF6AP           DE_RADIO_CAPS           "WiFi6APRole."
 #define DE_WF6AP_HE160          DE_CAPS_WF6AP           "HE160"
@@ -241,8 +263,8 @@ static const yang_to_tr181_map g_yang_map[] = {
 #define DE_WF6BSTA_UL_MUMIMO    DE_CAPS_WF6BSTA         "ULMUMIMO"
 #define DE_WF6BSTA_UL_OFDMA     DE_CAPS_WF6BSTA         "ULOFDMA"
 #define DE_WF6BSTA_DL_OFDMA     DE_CAPS_WF6BSTA         "DLOFDMA"
-#define DE_WF6BSTA_MAX_DL_MUMIMO    DE_CAPS_WF6BSTA     "MaxDLMUMIMO"
-#define DE_WF6BSTA_MAX_UL_MUMIMO    DE_CAPS_WF6BSTA     "MaxULMUMIMO"
+#define DE_WF6BSTA_MAX_DLMUMIMO DE_CAPS_WF6BSTA         "MaxDLMUMIMO"
+#define DE_WF6BSTA_MAX_ULMUMIMO DE_CAPS_WF6BSTA         "MaxULMUMIMO"
 #define DE_WF6BSTA_MAX_DL_OFDMA DE_CAPS_WF6BSTA         "MaxDLOFDMA"
 #define DE_WF6BSTA_MAX_UL_OFDMA DE_CAPS_WF6BSTA         "MaxULOFDMA"
 #define DE_WF6BSTA_RTS          DE_CAPS_WF6BSTA         "RTS"
@@ -251,11 +273,11 @@ static const yang_to_tr181_map g_yang_map[] = {
 #define DE_WF6BSTA_MUEDCA       DE_CAPS_WF6BSTA         "MUEDCA"
 #define DE_WF6BSTA_TWT_REQ      DE_CAPS_WF6BSTA         "TWTRequestor"
 #define DE_WF6BSTA_TWT_RSP      DE_CAPS_WF6BSTA         "TWTResponder"
-#define DE_WF6BSTA_SPATIAL_REUSE    DE_CAPS_WF6BSTA     "SpatialReuse"
-#define DE_WF6BSTA_ANT_CH_USAGE DE_CAPS_WF6BSTA         "AnticipatedChannelUsage"
+#define DE_WF6BSTA_SPAT_REUSE   DE_CAPS_WF6BSTA         "SpatialReuse"
+#define DE_WF6BSTA_ANT_CH_USE   DE_CAPS_WF6BSTA         "AnticipatedChannelUsage"
 /* Device.WiFi.DataElements.Network.Device.Radio.Capabilities.CapableOperatingClassProfile */
-#define DE_CAPS_CAPOP           DE_DEVICE_RADIO         "CapableOperatingClassProfile.{i}."
-#define DE_CAPOP_TABLE          DE_DEVICE_RADIO         "CapableOperatingClassProfile.{i}"
+#define DE_CAPS_CAPOP           DE_RADIO_CAPS           "CapableOperatingClassProfile.{i}."
+#define DE_CAPOP_TABLE          DE_RADIO_CAPS           "CapableOperatingClassProfile.{i}"
 #define DE_CAPOP_CLASS          DE_CAPS_CAPOP           "Class"
 #define DE_CAPOP_MAXTXPOWER     DE_CAPS_CAPOP           "MaxTxPower"
 #define DE_CAPOP_NONOPERABLE    DE_CAPS_CAPOP           "NonOperable"
@@ -263,6 +285,7 @@ static const yang_to_tr181_map g_yang_map[] = {
 /* Device.WiFi.DataElements.Network.Device.Radio.CurrentOperatingClassProfile */
 #define DE_RADIO_CUROP          DE_DEVICE_RADIO         "CurrentOperatingClassProfile.{i}."
 #define DE_CUROP_TABLE          DE_DEVICE_RADIO         "CurrentOperatingClassProfile.{i}"
+#define DE_CUROP_TIMESTAMP      DE_RADIO_CUROP          "TimeStamp"
 #define DE_CUROP_CLASS          DE_RADIO_CUROP          "Class"
 #define DE_CUROP_CHANNEL        DE_RADIO_CUROP          "Channel"
 #define DE_CUROP_TXPOWER        DE_RADIO_CUROP          "TxPower"
@@ -274,16 +297,16 @@ static const yang_to_tr181_map g_yang_map[] = {
 #define DE_WF7AP_NSTR           DE_CAPS_WF7AP           "NSTRSupport"
 #define DE_WF7AP_TID_MAP        DE_CAPS_WF7AP           "TIDLinkMapNegotiation"
 /* Device.WiFi.DataElements.Network.Device.Radio.Capabilities.WiFi7bSTARole */
-#define DE_CAPS_WF7BSTA         DE_DEVICE_RADIO         "WiFi7bSTARole."
+#define DE_CAPS_WF7BSTA         DE_RADIO_CAPS           "WiFi7bSTARole."
 #define DE_WF7BSTA_EMLMR        DE_CAPS_WF7BSTA         "EMLMRSupport"
 #define DE_WF7BSTA_EMLSR        DE_CAPS_WF7BSTA         "EMLSRSupport"
 #define DE_WF7BSTA_STR          DE_CAPS_WF7BSTA         "STRSupport"
 #define DE_WF7BSTA_NSTR         DE_CAPS_WF7BSTA         "NSTRSupport"
 #define DE_WF7BSTA_TID_MAP      DE_CAPS_WF7BSTA         "TIDLinkMapNegotiation"
 /* Device.WiFi.DataElements.Network.Device.Radio.Capabilities.ScanCapability */
-#define DE_CAPS_SCANCAP         DE_DEVICE_RADIO         "ScanCapability."
+#define DE_CAPS_SCANCAP         DE_RADIO_CAPS           "ScanCapability."
 #define DE_SCANCAP_TIMESTAMP    DE_CAPS_SCANCAP         "TimeStamp"
-#define DE_SCANCAP_OPCLSCANSNOE DE_CAPS_SCANCAP         "NumberOfOpClassScans"
+#define DE_SCANCAP_OPCLSCANSNOE DE_CAPS_SCANCAP         "OpClassChannelsNumberOfEntries"
 /* Device.WiFi.DataElements.Network.Device.Radio.BSS */
 #define DE_RADIO_BSS            DE_DEVICE_RADIO         "BSS.{i}."
 #define DE_BSS_TABLE            DE_DEVICE_RADIO         "BSS.{i}"
@@ -291,7 +314,7 @@ static const yang_to_tr181_map g_yang_map[] = {
 #define DE_BSS_SSID             DE_RADIO_BSS            "SSID"
 #define DE_BSS_ENABLED          DE_RADIO_BSS            "Enabled"
 #define DE_BSS_LASTCHG          DE_RADIO_BSS            "LastChange"
-#define DE_BSS_TS               DE_RADIO_BSS            "TimeStamp"
+#define DE_BSS_TIMESTAMP        DE_RADIO_BSS            "TimeStamp"
 #define DE_BSS_UCAST_TX         DE_RADIO_BSS            "UnicastBytesSent"
 #define DE_BSS_UCAST_RX         DE_RADIO_BSS            "UnicastBytesReceived"
 #define DE_BSS_MCAST_TX         DE_RADIO_BSS            "MulticastBytesSent"
@@ -315,14 +338,15 @@ static const yang_to_tr181_map g_yang_map[] = {
 #define DE_BSS_FHAULAKMS        DE_RADIO_BSS            "FronthaulAKMsAllowed"
 #define DE_BSS_BHAULAKMS        DE_RADIO_BSS            "BackhaulAKMsAllowed"
 #define DE_BSS_QM_DESC          DE_RADIO_BSS            "QMDescriptor"
-#define DE_BSS_NUM_STA          DE_RADIO_BSS            "NumberOfSTA"
 #define DE_BSS_LINK_IMM         DE_RADIO_BSS            "LinkRemovalImminent"
 #define DE_BSS_FH_SUITE         DE_RADIO_BSS            "FronthaulSuiteSelector"
 #define DE_BSS_BH_SUITE         DE_RADIO_BSS            "BackhaulSuiteSelector"
+#define DE_BSS_STANOE           DE_RADIO_BSS            "STANumberOfEntries"
 /* Device.WiFi.DataElements.Network.Device.Radio.BSS.STA */
 #define DE_BSS_STA              DE_RADIO_BSS            "STA.{i}."
 #define DE_STA_TABLE            DE_RADIO_BSS            "STA.{i}"
 #define DE_STA_MACADDR          DE_BSS_STA              "MACAddress"
+#define DE_STA_TIMESTAMP        DE_BSS_STA              "TimeStamp"
 #define DE_STA_HTCAPS           DE_BSS_STA              "HTCapabilities"
 #define DE_STA_VHTCAPS          DE_BSS_STA              "VHTCapabilities"
 #define DE_STA_CLIENTCAPS       DE_BSS_STA              "ClientCapabilities"
@@ -351,6 +375,13 @@ static const yang_to_tr181_map g_yang_map[] = {
 #define DE_STA_WIFI6CAPS        DE_BSS_STA              "WiFi6Capabilities."
 #define DE_STAWF6CAPS_HE160     DE_STA_WIFI6CAPS        "HE160"
 #define DE_STAWF6CAPS_MCSNSS    DE_STA_WIFI6CAPS        "MCSNSS"
+/* Device.WiFi.DataElements.Network.Device.Radio.UnassociatedSTA */
+#define DE_RADIO_UNASSOCSTA     DE_DEVICE_RADIO         "UnassociatedSTA.{i}."
+#define DE_UNASSOCSTA_TABLE     DE_DEVICE_RADIO         "UnassociatedSTA.{i}"
+#define DE_UNASSOCSTA_MACADDR   DE_RADIO_UNASSOCSTA     "MACAddress"
+#define DE_UNASSOCSTA_SGNLSTR   DE_RADIO_UNASSOCSTA     "SignalStrength"
+#define DE_UNASSOCSTA_OPCLASS   DE_RADIO_UNASSOCSTA     "OperatingClass"
+#define DE_UNASSOCSTA_CHANNEL   DE_RADIO_UNASSOCSTA     "Channel"
 /* Device.WiFi.DataElements.Network.Device.APMLD */
 #define DE_DEVICE_APMLD         DE_NETWORK_DEVICE       "APMLD.{i}."
 #define DE_APMLD_TABLE          DE_NETWORK_DEVICE       "APMLD.{i}"
@@ -439,7 +470,6 @@ static const yang_to_tr181_map g_yang_map[] = {
 #define CALLBACK_ADD_ROW(f)          {NULL, NULL, f, NULL, NULL, NULL}
 #define CB(...)                      (bus_callback_table_t){ __VA_ARGS__ }
 #define CALLBACK_GETTER(f)           {f, NULL, NULL, NULL, NULL, NULL}
-#define CALLBACK_SETTER(f)           {NULL, f, NULL, NULL, NULL, NULL}
 #define ELEMENT(n, f)                {const_cast<char*>(n), f}
 #define ELEMENT_TABLE_ROW(n, f)      {const_cast<char*>(n), f}
 
@@ -448,7 +478,6 @@ class dm_easy_mesh_ctrl_t;
 class tr_181_t {
 private:
     bus_handle_t m_bus_handle;
-    static const bus_data_cb_func_t* get_bus_data_set_cb(size_t &count);
 
 public:
 
@@ -527,7 +556,106 @@ public:
      * @note Ownership of input and output buffers remains with the caller.
      */
     static bus_error_t setssid_handler(const char *method_name, raw_data_t *input_data, raw_data_t *output_data, void *async_handle);
-    
+
+    //Methods helper utilities
+
+    /**!
+     * @brief Trim leading and trailing whitespace in-place.
+     *
+     * @param str Mutable C-string to trim.
+     *
+     * @note The input buffer is modified in-place.
+     */
+    static void tr181_trim_whitespace(char *str);
+
+    /**!
+     * @brief Create a HaulType JSON array from a single value.
+     *
+     * Valid values are "Fronthaul" or "Backhaul".
+     *
+     * @param haul_val Input HaulType string.
+     *
+     * @returns cJSON*
+     * @retval non-null Newly allocated cJSON array on success.
+     * @retval null on validation or allocation failure.
+     */
+    static cJSON *create_haultype_array(const char *haul_val);
+
+     /**!
+     * @brief Check whether a JSON item contains the requested HaulType.
+     *
+     * @param item JSON object expected to contain a "HaulType" array.
+     * @param haul_val HaulType string to match.
+     *
+     * @returns bool
+     * @retval true if the HaulType matches.
+     * @retval false otherwise.
+     */
+    static bool item_matches_haultype(const cJSON *item, const char *haul_val);
+
+    /**!
+     * @brief Format the HaulType array as a comma-separated string.
+     *
+     * @param item JSON object expected to contain a "HaulType" array.
+     * @param out Output buffer for the formatted list.
+     * @param out_len Maximum length of the output buffer.
+     *
+     *  @returns size_t Number of characters written to the output buffer, excluding the null terminator.
+     *
+     *  @note Returns 0 on invalid input or when no HaulType value is formatted.
+     */
+    static size_t format_haultype_list(const cJSON *item, char *out, size_t out_len);
+
+     /**!
+     * @brief Allocate a bus_data_prop_t with a string value.
+     *
+     * @param name Property name.
+     * @param value String value to store.
+     *
+     * @returns bus_data_prop_t*
+     * @retval non-null Allocated property on success.
+     * @retval null on allocation failure or invalid input.
+     *
+     * @note Caller owns the returned property and must free it.
+     */
+    static bus_data_prop_t *tr181_alloc_string_prop(const char *name, const char *value);
+
+    /**!
+     * @brief Build a "Status" output property.
+     *
+     * @param status Status string (e.g., "Success", "Failure: reason").
+     *
+     * @returns bus_data_prop_t*
+     * @retval non-null Allocated property on success.
+     * @retval null on allocation failure or invalid input.
+     *
+     * @note Caller owns the returned property and must free it.
+     */
+    static bus_data_prop_t *tr181_set_status_output_prop(const char *status);
+
+    /**!
+     * @brief Populate output_data with a "Status" property.
+     *
+     * @param output_data Raw output buffer to populate.
+     * @param status Status string (e.g., "Success", "Failure: reason").
+     *
+     * @note On success, output_data takes ownership of the allocated property.
+     */
+    static void tr181_set_status_output(raw_data_t *output_data, const char *status);
+
+    /**!
+     * @brief Copy a string property value into a destination buffer.
+     *
+     * @param prop Property expected to contain a string value.
+     * @param dst Destination buffer.
+     * @param dst_len Length of the destination buffer.
+     *
+     * @returns bool
+     * @retval true if the copy succeeded.
+     * @retval false on invalid input or type mismatch.
+     */
+    static bool tr181_copy_prop_string(const bus_data_prop_t *prop, char *dst, size_t dst_len);
+
     //Device Callbacks
     static bus_error_t device_get(char* event_name, raw_data_t* p_data, struct bus_user_data* user_data);
     static bus_error_t device_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
@@ -569,12 +697,25 @@ public:
     static bus_error_t affap_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
     static bus_error_t affap_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
 
+    //STAMLD
+    static bus_error_t stamld_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
+    static bus_error_t stamld_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
+    static bus_error_t wifi7caps_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
+    static bus_error_t stamldcfg_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
+
+    //AffiliatedSTA
+    static bus_error_t affsta_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
+    static bus_error_t affsta_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
+
+    //bSTAMLD
+    static bus_error_t bstamld_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
+    static bus_error_t bstacfg_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
+
     //Orchestrator
     static bus_error_t get_network_topology(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
     static bus_error_t get_node_sync(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
     static bus_error_t set_node_sync(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
     static bus_error_t policy_config(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
-    static bus_error_t cmd_setssid(const char *method_name, raw_data_t *in_params, raw_data_t *out_params, void *async_handle);
 
     virtual bus_error_t network_get(char *event_name, raw_data_t *p_data) = 0;
     virtual bus_error_t device_get(char *event_name, raw_data_t *p_data) = 0;
@@ -596,6 +737,7 @@ public:
     void parse_property_constraints(cJSON* schemaNode, data_model_properties_t& props);
     void parse_readwrite(cJSON* schemaNode, data_model_properties_t& props);
     bool schema_has_type(cJSON* schema, const char* want);
+    bool schema_is_deprecated(cJSON* schema);
     void handle_property_node(cJSON* root, const std::string& fullPath, cJSON* propertySchema);
     void traverse_schema(cJSON* root, cJSON* schemaNode, const std::string& basePath);
     bool parse_and_register_schema(const char *filename);

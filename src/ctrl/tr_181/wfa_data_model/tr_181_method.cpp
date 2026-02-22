@@ -17,37 +17,35 @@
  */
 #include "em_ctrl.h"
 #include "tr_181.h"
-#include "tr_181_helper.h"
 
 bus_error_t tr_181_t::setssid_handler(const char *method_name, raw_data_t *input_data, raw_data_t *output_data, void *async_handle)
 {
+    // Suppress unused parameter warning if async_handle is not used
     (void)async_handle;
 
-    bus_data_prop_t *input_props = (input_data != NULL)
-        ? static_cast<bus_data_prop_t *>(input_data->raw_data.bytes)
-        : NULL;
-    bus_data_prop_t *output_props = NULL;
-
-    em_printfout("setssid_handler: method=%s len=%u", method_name ? method_name : "(null)",
-        input_data ? input_data->raw_data_len : 0U);
-
-    if (input_props == NULL) {
-        em_printfout("setssid_handler: invalid input_props");
+    // Standardize input pointer checks
+    if (!input_data || input_data->raw_data_len == 0) {
+        em_printfout("Invalid input_data or missing input_props");
         if (output_data) {
-            tr181_set_status_output(output_data, "Failure: missing input_props");
+            tr_181_t::tr181_set_status_output(output_data, "Failure: missing input_props");
         }
         return bus_error_invalid_input;
     }
 
-    for (bus_data_prop_t *p = input_props; p != NULL; p = p->next_data) {
-        em_printfout("setssid_handler: chained prop '%s' type=%d len=%u", p->name,
-            p->value.data_type, p->value.raw_data_len);
+    bus_data_prop_t *input_props = static_cast<bus_data_prop_t *>(input_data->raw_data.bytes);
+    bus_data_prop_t *output_props = NULL;
+
+    em_printfout("Method='%s' input_len=%u", method_name ? method_name : "(null)", input_data->raw_data_len);
+    // Log all chained input properties
+    for (bus_data_prop_t *p = input_props; p; p = p->next_data) {
+        em_printfout("Prop='%s' type=%d len=%u", p->name, p->value.data_type, p->value.raw_data_len);
     }
 
     em_ctrl_t *ctrl = em_ctrl_t::get_em_ctrl_instance();
-    if (ctrl == NULL) {
+    if (!ctrl) {
+        em_printfout("Controller unavailable");
         if (output_data) {
-            tr181_set_status_output(output_data, "Failure: controller unavailable");
+            tr_181_t::tr181_set_status_output(output_data, "Failure: controller unavailable");
         }
         return bus_error_invalid_input;
     }
@@ -55,7 +53,7 @@ bus_error_t tr_181_t::setssid_handler(const char *method_name, raw_data_t *input
     const char *event = method_name ? method_name : DEVICE_WIFI_DATAELEMENTS_NETWORK_SETSSID_CMD;
     bus_error_t rc = ctrl->cmd_setssid(event, input_props, output_data ? &output_props : NULL, async_handle);
 
-    if ((output_data != NULL) && (output_props != NULL)) {
+    if (output_data && output_props) {
         output_data->data_type = bus_data_type_property;
         output_data->raw_data.bytes = output_props;
         output_data->raw_data_len = sizeof(bus_data_prop_t);
