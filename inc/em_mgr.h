@@ -541,13 +541,13 @@ public:
 	virtual void handle_1s_tick() = 0;
     
 	/**!
-	 * @brief Handles the 500ms tick event.
+	 * @brief Handles the 250ms tick event.
 	 *
-	 * This function is called every 500 milliseconds to perform periodic tasks.
+	 * This function is called every 250 milliseconds to perform periodic tasks.
 	 *
 	 * @note This is a pure virtual function and must be implemented by derived classes.
 	 */
-	virtual void handle_500ms_tick() = 0;
+	virtual void handle_250ms_tick() = 0;
 
     
 	/**!

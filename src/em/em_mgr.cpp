@@ -493,7 +493,7 @@ void em_mgr_t::handle_timeout()
 {
 	m_tick_demultiplex++;
 
-	handle_500ms_tick();
+	handle_250ms_tick();
 
 	if ((m_tick_demultiplex % EM_1_TOUT_MULT) == 0) {
 		handle_1s_tick();

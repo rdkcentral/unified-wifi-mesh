@@ -318,7 +318,6 @@ int em_metrics_t::handle_ap_metrics_tlv(unsigned char *buff, bssid_t get_bssid)
     if (bss != NULL) {
         bss->numberofsta = htons(ap_metrics->num_sta);
         dm_easy_mesh_t::macbytes_to_string(ap_metrics->bssid, bss_str);
-        printf("%s:%d Num of stas associated to BSS[%s] is: %d\n", __func__, __LINE__, bss_str, bss->numberofsta);
     } else {
         dm_easy_mesh_t::macbytes_to_string(ap_metrics->bssid, bss_str);
         printf("%s:%d BSS not found: %s\n", __func__, __LINE__, bss_str);
@@ -1158,6 +1157,7 @@ int em_metrics_t::send_ap_metrics_response()
     }
 
     set_state(em_state_agent_configured);
+    em_printfout("AP Metrics Response sent for %u BSSs, %d Radios", dm->m_num_bss, get_current_cmd()->get_param()->u.ap_metrics_params.num_radios);
 
     return static_cast<int> (len);
 }
@@ -1423,13 +1423,11 @@ short em_metrics_t::create_ap_metrics_tlv(unsigned char *buff, dm_bss_t &dm_bss)
     for(i = 0; i < get_current_cmd()->get_param()->u.ap_metrics_params.num_radios; i++) {
         if (memcmp(dm_bss.m_bss_info.ruid.mac,
             get_current_cmd()->get_param()->u.ap_metrics_params.ruid[i], sizeof(mac_addr_t)) == 0) {
-            em_printfout("Creating ap response for radio ruid: %s", util::mac_to_string(dm_bss.m_bss_info.ruid.mac).c_str());
             break;
         }
     }
     if (memcmp(dm_bss.m_bss_info.ruid.mac, 
         get_current_cmd()->get_param()->u.ap_metrics_params.ruid[i], sizeof(mac_addr_t)) == 0) {
-        em_printfout("Creating ap response for bssid: %s", util::mac_to_string(dm_bss.m_bss_info.bssid.mac).c_str());
 
         memcpy(ap_metrics->bssid, dm_bss.m_bss_info.bssid.mac, sizeof(mac_address_t));
         len += static_cast<size_t> (sizeof(mac_address_t));
@@ -1461,7 +1459,6 @@ short em_metrics_t::create_ap_ext_metrics_tlv(unsigned char *buff, dm_bss_t &dm_
     for(i = 0; i < get_current_cmd()->get_param()->u.ap_metrics_params.num_radios; i++) {
         if (memcmp(dm_bss.m_bss_info.ruid.mac,
             get_current_cmd()->get_param()->u.ap_metrics_params.ruid[i], sizeof(mac_addr_t)) == 0) {
-            em_printfout("Creating ap response for radio ruid: %s", util::mac_to_string(dm_bss.m_bss_info.ruid.mac).c_str());
             break;
         }
     }

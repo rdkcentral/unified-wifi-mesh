@@ -166,13 +166,13 @@ public:
 	void handle_1s_tick();
     
 	/**!
-	 * @brief Handles the 500ms tick event.
+	 * @brief Handles the 250ms tick event.
 	 *
-	 * This function is called every 500 milliseconds to perform periodic tasks.
+	 * This function is called every 250 milliseconds to perform periodic tasks.
 	 *
 	 * @note Ensure that this function executes quickly to avoid delays in the tick handling.
 	 */
-	void handle_500ms_tick();
+	void handle_250ms_tick();
 
     
 	/**!
