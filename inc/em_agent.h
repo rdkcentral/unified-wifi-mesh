@@ -114,13 +114,13 @@ class em_agent_t : public em_mgr_t {
 	void handle_1s_tick();
     
 	/**!
-	 * @brief Handles the 500ms tick event.
+	 * @brief Handles the 250ms tick event.
 	 *
-	 * This function is called every 500 milliseconds to perform periodic tasks.
+	 * This function is called every 250 milliseconds to perform periodic tasks.
 	 *
 	 * @note Ensure that this function is called at the correct interval to maintain system timing.
 	 */
-	void handle_500ms_tick();
+	void handle_250ms_tick();
 
     
 	/**!

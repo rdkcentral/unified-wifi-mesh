@@ -479,7 +479,7 @@ void em_ctrl_t::handle_1s_tick()
 
 }
 
-void em_ctrl_t::handle_500ms_tick()
+void em_ctrl_t::handle_250ms_tick()
 {
     handle_dirty_dm();
     m_orch->handle_timeout();
