@@ -341,10 +341,13 @@ void em_t::proto_process(unsigned char *data, unsigned int len)
             break;
         case em_msg_type_client_steering_req:
         case em_msg_type_client_steering_btm_rprt:
+        case em_msg_type_client_assoc_ctrl_req:
         case em_msg_type_1905_ack:
             if (m_sm.get_state() == em_state_ctrl_ap_mld_configured) {
                 em_configuration_t::process_msg(data, len);
             } else if (m_sm.get_state() == em_state_ctrl_sta_steer_pending) {
+                em_steering_t::process_msg(data, len);
+            } else if (m_sm.get_state() == em_state_ctrl_sta_disassoc_pending) {
                 em_steering_t::process_msg(data, len);
             }
             break;
@@ -474,8 +477,9 @@ void em_t::handle_ctrl_state()
         case em_cmd_type_set_channel:
             em_capability_t::process_ctrl_state();
             em_configuration_t::process_ctrl_state();
+	    em_steering_t::process_ctrl_state();
             em_channel_t::process_ctrl_state();
-			em_policy_cfg_t::process_ctrl_state();
+	    em_policy_cfg_t::process_ctrl_state();
             break;
 
 		case em_cmd_type_scan_channel:

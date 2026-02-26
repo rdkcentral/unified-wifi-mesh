@@ -102,7 +102,7 @@ class em_steering_t {
 	 * @note Ensure that the MAC address is valid and the station is reachable
 	 * before calling this function.
 	 */
-	int send_1905_ack_message(mac_addr_t sta_mac, unsigned short msg_id);
+        int send_1905_ack_message(mac_addr_t sta_mac, unsigned short msg_id, unsigned char reason = 0, unsigned char *dst = nullptr);
     
 	/**!
 	 * @brief Handles the client steering request.
@@ -120,6 +120,8 @@ class em_steering_t {
 	 */
 	int handle_client_steering_req(unsigned char *buff, unsigned int len);
     
+        int handle_client_assoc_ctrl_req(unsigned char *buff, unsigned int len);
+
 	/**!
 	 * @brief Handles the client steering report.
 	 *
