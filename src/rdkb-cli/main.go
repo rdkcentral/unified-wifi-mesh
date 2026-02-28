@@ -1855,7 +1855,7 @@ func getWirelessProfilesHandler(w http.ResponseWriter, r *http.Request) {
                     http.Error(w, fmt.Sprintf("Invalid PassPhrase for %s: %v", haul.HaulType, err), http.StatusBadRequest)
                     return
                 }
-                if err := updateNetworkSSIDList(ssidTree, haul); err != nil {
+                if err := updateNetworkSSIDList(ssidTree, haul, true); err != nil {
                     http.Error(w, fmt.Sprintf("Update failed for %s: %v", haul.HaulType, err), http.StatusInternalServerError)
                     return
                 }
@@ -3429,12 +3429,13 @@ func WifiResetHandler(w http.ResponseWriter, r *http.Request) {
                     http.Error(w, fmt.Sprintf("Invalid PassPhrase for %s: %v", haul.HaulType, err), http.StatusBadRequest)
                     return
                 }
-                if err := updateNetworkSSIDList(resetTree, haul); err != nil {
+                if err := updateNetworkSSIDList(resetTree, haul, false); err != nil {
                     http.Error(w, fmt.Sprintf("Update failed for %s: %v", haul.HaulType, err), http.StatusInternalServerError)
                     return
                 }
             }
 
+			dumpNetNode(resetTree);
             if applyResetConfig(resetTree) != true {
                 msg := fmt.Sprintf("Failed to apply wifi reset config")
                 errorsList = append(errorsList, msg)
@@ -3565,7 +3566,7 @@ func updateControllerID(resetTree *C.em_network_node_t, selectedMac string) erro
  * Searches the NetworkSSIDList for a matching HaulType and updates its SSID and PassPhrase fields.
  * returns: nil on successful update; otherwise an error if the list or matching HaulType is not found.
  */
-func updateNetworkSSIDList(networkSSIDTree *C.em_network_node_t, haul HaulConfig ) error {
+func updateNetworkSSIDList(networkSSIDTree *C.em_network_node_t, haul HaulConfig,  isWirelessProfileUpdate bool) error {
     networkKey := C.CString("NetworkSSIDList")
     defer C.free(unsafe.Pointer(networkKey))
 
@@ -3591,10 +3592,12 @@ func updateNetworkSSIDList(networkSSIDTree *C.em_network_node_t, haul HaulConfig
         if strings.Contains(haulTypeStr,  haul.HaulType) {
             updateNodeValue(item, "SSID",  haul.SSID)
             updateNodeValue(item, "PassPhrase", haul.PassPhrase)
-            updateNodeValue(item, "AuthType", haul.SecurityType)
-            updateNodeBool(item, "Enable", haul.Enabled)
-            updateNodeInt(item, "VLANID", haul.VlanID)
-            updateNodeArray(item, "Band", normalizeBandsArray(haul.Bands))
+            if (isWirelessProfileUpdate) {
+                updateNodeValue(item, "AuthType", haul.SecurityType)
+                updateNodeBool(item, "Enable", haul.Enabled)
+                updateNodeInt(item, "VLANID", haul.VlanID)
+                updateNodeArray(item, "Band", normalizeBandsArray(haul.Bands))
+            }
         }
     }
     return nil

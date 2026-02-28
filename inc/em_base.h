@@ -51,10 +51,10 @@ extern "C"
 #define EM_DATE_TIME_BUFF_SZ	64
 #define EM_PROTO_TOUT   1
 #define EM_METRICS_REQ_MULT 5
-#define EM_MGR_TOUT     500 // in milliseconds
-#define EM_1_TOUT_MULT 	2
-#define EM_2_TOUT_MULT 	4	
-#define EM_5_TOUT_MULT 	10	
+#define EM_MGR_TOUT     250 // in milliseconds
+#define EM_1_TOUT_MULT 	(1000 / EM_MGR_TOUT)
+#define EM_2_TOUT_MULT 	(2000 / EM_MGR_TOUT)
+#define EM_5_TOUT_MULT 	(5000 / EM_MGR_TOUT)
 #define EM_CTRL_CAP_SZ  8
 #define MIN_MAC_LEN 12
 #define MAX_EM_BUFF_SZ  1024
@@ -120,7 +120,7 @@ extern "C"
 
 #define EM_AUTH_ENHANCED_OPEN 0x1000
 #define EM_AUTH_WPA3_PERSONAL EM_AUTH_SAE_AKM8
-#define EM_AUTH_WPA3_TRANSITION EM_AUTH_SAE_AKM8 | EM_AUTH_WPA2PSK
+#define EM_AUTH_WPA3_TRANSITION (EM_AUTH_SAE_AKM8 | EM_AUTH_WPA2PSK)
     
 /* Encryption Type Flags */
 #define EM_ENCR_NONE 0x0001

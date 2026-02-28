@@ -1332,9 +1332,10 @@ int em_channel_t::handle_op_channel_report(unsigned char *buff, unsigned int len
     mac_addr_str_t ruid_str;
     dm = get_data_model();
 
+    //Update current Operating Channel for RUID
     for (i = 0; i < dm->m_num_opclass; i++) {
         op_class_info = &dm->m_op_class[i].m_op_class_info;
-        if (((memcmp(op_class_info->id.ruid, get_radio_interface_mac(), sizeof(mac_address_t)) == 0) &&
+        if (((memcmp(op_class_info->id.ruid, rpt->ruid, sizeof(mac_address_t)) == 0) &&
                     (op_class_info->id.type == em_op_class_type_current)) == true) {
             op_class_info->op_class = static_cast<unsigned int> (rpt->op_classes[0].op_class);
             op_class_info->channel = static_cast<unsigned int> (rpt->op_classes[0].channel);
@@ -1344,7 +1345,7 @@ int em_channel_t::handle_op_channel_report(unsigned char *buff, unsigned int len
     if (found == 0) {
         op_class_info = &dm->m_op_class[dm->get_num_op_class()].m_op_class_info;
         op_class_info->id.type = em_op_class_type_current;
-        memcpy(op_class_info->id.ruid, get_radio_interface_mac(), sizeof(mac_address_t));
+        memcpy(op_class_info->id.ruid, rpt->ruid, sizeof(mac_address_t));
         op_class_info->op_class = static_cast<unsigned int> (rpt->op_classes[0].op_class);
         op_class_info->id.op_class = op_class_info->op_class;
         op_class_info->channel = static_cast<unsigned int> (rpt->op_classes[0].channel);

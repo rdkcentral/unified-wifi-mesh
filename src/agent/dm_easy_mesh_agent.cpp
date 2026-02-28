@@ -886,33 +886,24 @@ int dm_easy_mesh_agent_t::analyze_ap_metrics_report(em_bus_event_t *evt, em_cmd_
         radio_index = param_obj->valueint;
         evt_param = &evt->params;
         memcpy(evt_param->u.ap_metrics_params.ruid[i], get_radio_by_ref(radio_index).get_radio_interface_mac(), sizeof(mac_addr_t));
-        em_printfout("%s:%d: Radio Index: %d and mac: %s\n", __func__, __LINE__, radio_index, util::mac_to_string(get_radio_by_ref(radio_index).get_radio_interface_mac()).c_str());
     }
     evt_param->u.ap_metrics_params.num_radios = cJSON_GetArraySize(emap_metrics_report);
 
-    em_printfout("Num of Radios in AP Metrics Report: %d", evt_param->u.ap_metrics_params.num_radios);
-
     if (strstr((const char *)evt->u.raw_buff, "Associated STA Traffic Stats") != NULL) {
-        //em_printfout("Associated STA Traffic Stats found in JSON.\n");
         evt_param->u.ap_metrics_params.sta_traffic_stats_include = true;
     } else {
-        //em_printfout("Associated STA Traffic Stats not found in JSON.\n");
         evt_param->u.ap_metrics_params.sta_traffic_stats_include = false;
     }
 
     if (strstr((const char *)evt->u.raw_buff, "Associated STA Link Metrics Report") != NULL) {
-        //em_printfout("Associated STA Link Metrics Report found in JSON.\n");
         evt_param->u.ap_metrics_params.sta_link_metrics_include = true;
     } else {
-        //em_printfout("Associated STA Link Metrics Report not found in JSON.\n");
         evt_param->u.ap_metrics_params.sta_link_metrics_include = false;
     }
 
     if (strstr((const char *)evt->u.raw_buff, "Associated Wi-Fi 6 STA Status Report") != NULL) {
-        //em_printfout("Associated Wi-Fi 6 STA Status Report found in JSON.\n");
         evt_param->u.ap_metrics_params.wifi6_status_report_include = true;
     } else {
-        //em_printfout("Associated Wi-Fi 6 STA Status Report not found in JSON.\n");
         evt_param->u.ap_metrics_params.wifi6_status_report_include = false;
     }
 
@@ -1005,9 +996,7 @@ void dm_easy_mesh_agent_t::translate_and_decode_onewifi_subdoc(char *str, webcon
         return;
     }
 
-    if ((webconfig_easymesh_decode(&config, str, &extdata, &type)) == webconfig_error_none) {
-        em_printfout("%s decode success for type: %d\n", logname, (type));
-    } else {
+    if ((webconfig_easymesh_decode(&config, str, &extdata, &type)) != webconfig_error_none) {
         em_printfout("%s decode fail for type: %d", logname, (type));
     }
 }
