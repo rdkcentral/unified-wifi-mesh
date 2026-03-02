@@ -309,7 +309,7 @@ int dm_easy_mesh_agent_t::analyze_onewifi_vap_cb(em_bus_event_t *evt, em_cmd_t *
 				freq_band = em_freq_band_24;
 			} else if (strcmp(subdoc_name->valuestring, "Vap_6G") == 0) {
 				em_printfout("Found SubDocName:Vap 6G recv");
-				freq_band = em_freq_band_60;
+				freq_band = em_freq_band_6;
 			}
 		}
 		for (j = 0; j < get_num_radios(); j++) {
