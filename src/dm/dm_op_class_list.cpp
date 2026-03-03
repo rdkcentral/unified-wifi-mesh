@@ -255,12 +255,12 @@ int dm_op_class_list_t::update_db(db_client_t& db_client, dm_orch_type_t op, voi
 	for (i = 0; i < info->num_channels; i++) {
 		snprintf(tmp, sizeof(tmp), "%d,", info->channels[i]);
 		snprintf(channels_str + strlen(channels_str), sizeof(channels_str) - strlen(channels_str), "%s", tmp);
-        if (info->id.type == em_op_class_type_preference) {
+        if (info->id.type == em_op_class_type_preference || info->id.type == em_op_class_type_anticipated) {
         	snprintf(tmp, sizeof(tmp), "%d,", info->channel_pref[i]);
         	snprintf(pref_str + strlen(pref_str), sizeof(pref_str) - strlen(pref_str), "%s", tmp);
         }
 	}
-    if (info->id.type != em_op_class_type_preference) {
+    if (info->id.type != em_op_class_type_preference && info->id.type != em_op_class_type_anticipated) {
         info->pref_valid = EM_CH_PREF_ENTRY_VALID;
     }
 	if (strlen(channels_str) > 0) {
@@ -339,9 +339,9 @@ int dm_op_class_list_t::sync_db(db_client_t& db_client, void *ctx)
         }
 
         // Sync DB for preference of each channel in op classs.
-        // This is only applicable for preference type of op class.
+        // This is only applicable for preference and anticipated type of op class.
         // For other types, set preference as valid but with 0 preference value.
-        if (info.id.type == em_op_class_type_preference)
+        if (info.id.type == em_op_class_type_preference || info.id.type == em_op_class_type_anticipated)
         {
             db_client.get_string(ctx, str, 5);
             for (i = 0; i < EM_MAX_CHANNELS_IN_LIST; i++) {

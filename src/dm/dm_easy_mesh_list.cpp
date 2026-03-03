@@ -962,7 +962,7 @@ dm_op_class_t *dm_easy_mesh_list_t::get_op_class(const char *key)
 	
     dm = static_cast<dm_easy_mesh_t *> (hash_map_get_first(m_list));
     while (dm != NULL) {
-        if (id.type <= em_op_class_type_capability || id.type == em_op_class_type_preference) {
+        if (id.type <= em_op_class_type_capability || id.type == em_op_class_type_preference || id.type == em_op_class_type_anticipated ) {
 		    for (i = 0; i < dm->get_num_radios(); i++) {
 			    radio = dm->get_radio(i);
 			    if (memcmp(radio->m_radio_info.intf.mac, id.ruid, sizeof(mac_address_t)) == 0) {
@@ -974,11 +974,19 @@ dm_op_class_t *dm_easy_mesh_list_t::get_op_class(const char *key)
 			if (memcmp(dm->m_device.m_device_info.intf.mac, id.ruid, sizeof(mac_address_t)) == 0) {
             	found_dm = true;
            	}
-		}	
-
-		if (found_dm == true) {
-			break;
 		}
+
+        if (found_dm == true) {
+            break;
+        } else {
+            if (((memcmp(dm->m_device.m_device_info.intf.mac, id.ruid, sizeof(mac_address_t)) == 0) ||
+                (memcmp(EM_GLOBAL_MAC_ADDRESS, id.ruid, sizeof(mac_address_t)) == 0)) &&
+                (id.type == em_op_class_type_anticipated))
+            {
+                found_dm = true;
+                break;
+            }
+        }
         dm = static_cast<dm_easy_mesh_t *> (hash_map_get_next(m_list, dm));
 	}
 
@@ -1078,7 +1086,7 @@ void dm_easy_mesh_list_t::put_op_class(const char *key, const dm_op_class_t *op_
 	// find the dm that has this radio
     dm = static_cast<dm_easy_mesh_t *> (hash_map_get_first(m_list));
     while (dm != NULL) {
-        if (id.type <= em_op_class_type_capability || id.type == em_op_class_type_preference) {
+        if (id.type <= em_op_class_type_capability || id.type == em_op_class_type_preference || id.type == em_op_class_type_anticipated) {
             for (i = 0; i < dm->get_num_radios(); i++) {
                 radio = dm->get_radio(i);
                 dm_easy_mesh_t::macbytes_to_string(radio->m_radio_info.intf.mac, mac_str);
@@ -1097,6 +1105,9 @@ void dm_easy_mesh_list_t::put_op_class(const char *key, const dm_op_class_t *op_
             break;
         } else {
             if ((memcmp(dm->m_device.m_device_info.intf.mac, id.ruid, sizeof(mac_address_t)) == 0) && (id.type >= em_op_class_type_cac_available)) {
+                found_dm = true;
+                break;
+            } else if ((memcmp(EM_GLOBAL_MAC_ADDRESS, id.ruid, sizeof(mac_address_t)) == 0) && (id.type == em_op_class_type_anticipated)) {
                 found_dm = true;
                 break;
             }
@@ -1548,9 +1559,9 @@ dm_easy_mesh_t *dm_easy_mesh_list_t::create_data_model(const char *net_id, const
     unsigned int i;
     bool colocated = false;
 	dm_op_class_t	op_class[EM_MAX_PRE_SET_CHANNELS] 	= 	{
-		dm_op_class_t({{{0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, em_op_class_type_anticipated, 81}, 81, 0, 0, 0, 1, {6}, {0}, EM_CH_PREF_ENTRY_VALID, 0, 0, 0}),
-		dm_op_class_t({{{0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, em_op_class_type_anticipated, 115}, 115, 0, 0, 0, 1, {36},{0}, EM_CH_PREF_ENTRY_VALID, 0, 0, 0}),
-		dm_op_class_t({{{0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, em_op_class_type_anticipated, 135}, 135, 0, 0, 0, 1, {1}, {0}, EM_CH_PREF_ENTRY_VALID, 0, 0, 0}),
+		dm_op_class_t({{{0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, em_op_class_type_anticipated, 81}, 81, 0, 0, 0, 1, {6}, {0xe0}, EM_CH_PREF_ENTRY_VALID, 0, 0, 0}),
+		dm_op_class_t({{{0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, em_op_class_type_anticipated, 115}, 115, 0, 0, 0, 1, {36},{0xe0}, EM_CH_PREF_ENTRY_VALID, 0, 0, 0}),
+		dm_op_class_t({{{0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, em_op_class_type_anticipated, 135}, 135, 0, 0, 0, 1, {1}, {0xe0}, EM_CH_PREF_ENTRY_VALID, 0, 0, 0}),
 		dm_op_class_t({{{0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, em_op_class_type_scan_param, 81}, 81, 0, 0, 0, 3, {3, 6, 9},{0}, EM_CH_PREF_ENTRY_VALID, 0, 0, 0}),
 		dm_op_class_t({{{0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, em_op_class_type_scan_param, 115}, 115, 0, 0, 0, 9, {36, 40, 44, 48, 149, 153, 157, 161, 165}, {0}, EM_CH_PREF_ENTRY_VALID, 0, 0, 0}),
 		dm_op_class_t({{{0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, em_op_class_type_scan_param, 135}, 135, 0, 0, 0, 1, {1}, {0}, EM_CH_PREF_ENTRY_VALID, 0, 0, 0})

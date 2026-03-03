@@ -173,11 +173,15 @@ extern "C"
 
 /* Channel Preference Flags*/
 #define EM_CH_PREF_NON_OPERABLE 0x00
+#define EM_CH_PREF_MAX          0x0F
 
 /* Flags indicating whether a channel preference entry
    is considered valid or invalid */
 #define EM_CH_PREF_ENTRY_VALID      0x01
 #define EM_CH_PREF_ENTRY_INVALID    0x00
+
+/* Global MAC Address */
+static const mac_address_t EM_GLOBAL_MAC_ADDRESS = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
 
 #define EM_MAX_BANDS    3
 #define EM_MAX_BSSS     EM_MAX_BANDS*8  
