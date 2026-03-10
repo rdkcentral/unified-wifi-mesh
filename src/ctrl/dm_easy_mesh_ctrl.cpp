@@ -2800,6 +2800,7 @@ bus_error_t dm_easy_mesh_ctrl_t::device_get_inner(char *event_name, raw_data_t *
     (void) user_data;
     const char *name = event_name;
     const char *param;
+    char val_str[MAX_EM_BUFF_SZ] = { 0 };
     char instance[MAX_INSTANCE_LEN] = { 0 };
     bool is_num;
     bus_error_t rc;
@@ -2867,7 +2868,23 @@ bus_error_t dm_easy_mesh_ctrl_t::device_get_inner(char *event_name, raw_data_t *
     } else if (strcmp(param, "LocalSteeringDisallowedSTAList") == 0) {
         //rc = dm_ctrl->raw_data_set(p_data, );
     } else if (strcmp(param, "BTMSteeringDisallowedSTAList") == 0) {
-        //rc = dm_ctrl->raw_data_set(p_data, );
+        unsigned int count = 0;
+        dm_policy_t *pi = &dm->m_policy[count];
+        while (pi != NULL && count < dm->m_num_policy) {
+            if(pi->m_policy.id.type == em_policy_id_type_steering_btm) {
+                const size_t n = static_cast<size_t>(pi->m_policy.num_sta);
+                std::vector<em_short_string_t> BTMSteeringDisallowed(n);
+                for (size_t index = 0; index < n; index++) {
+			const std::string mac = util::mac_to_string(pi->m_policy.sta_mac[index]);
+			std::snprintf(BTMSteeringDisallowed[index], sizeof(em_short_string_t), "%s", mac.c_str());
+                }
+                dm_ctrl->fill_comma_sep(BTMSteeringDisallowed.data(), static_cast<size_t>(n), val_str);
+                rc = dm_ctrl->raw_data_set(p_data, val_str);
+                break;
+            }
+            count++;
+            pi = &dm->m_policy[count];
+        }
     } else if (strcmp(param, "MaxVIDs") == 0) {
         rc = dm_ctrl->raw_data_set(p_data, di->max_vids);
     } else if (strcmp(param, "TrafficSeparationPolicy") == 0) {
@@ -2905,11 +2922,15 @@ bus_error_t dm_easy_mesh_ctrl_t::device_get_inner(char *event_name, raw_data_t *
             rc = dm_ctrl->raw_data_set(p_data, di->backhaul_mac.mac);
         }
     } else if (strcmp(param, "BackhaulDownMACAddress") == 0) {
-        //if (memcmp(di->backhaul_mac.mac, ZERO_MAC_ADDR, sizeof(ZERO_MAC_ADDR)) == 0) {
-            //rc = dm_ctrl->raw_data_set(p_data, "");
-        //} else {
-            //rc = dm_ctrl->raw_data_set(p_data, di->backhaul_mac.mac);
-        //}
+        const size_t n = static_cast<size_t>(di->num_backhaul_down_mac);
+        std::vector<em_short_string_t> tmp(n);
+
+        for (size_t i = 0; i < n; i++) {
+            std::strncpy(tmp[i], di->backhaul_down_mac[i], sizeof(tmp[i]) - 1);
+            tmp[i][sizeof(tmp[i]) - 1] = '\0';
+        }
+        dm_ctrl->fill_comma_sep(tmp.data(), n, val_str);
+        rc = dm_ctrl->raw_data_set(p_data, val_str);
     } else if (strcmp(param, "BackhaulPHYRate") == 0) {
         rc = dm_ctrl->raw_data_set(p_data, di->backhaul_phyrate);
     } else if (strcmp(param, "TrafficSeparationCapability") == 0) {
@@ -2969,6 +2990,7 @@ bus_error_t dm_easy_mesh_ctrl_t::device_tget_inner(char *event_name, raw_data_t 
     (void) user_data;
     const char *root = event_name;
     char path[512] = { 0 };
+    char val_str[MAX_EM_BUFF_SZ] = { 0 };
     bus_data_prop_t *property = NULL;
     bus_error_t rc = bus_error_success;
 
@@ -3043,6 +3065,15 @@ bus_error_t dm_easy_mesh_ctrl_t::device_tget_inner(char *event_name, raw_data_t 
         } else {
             dm_ctrl->property_append_tail(&property, root, idx, "BackhaulMACAddress", di->backhaul_mac.mac);
         }
+        const size_t n = static_cast<size_t>(di->num_backhaul_down_mac);
+        std::vector<em_short_string_t> tmp(n);
+
+        for (size_t i = 0; i < n; i++) {
+            std::strncpy(tmp[i], di->backhaul_down_mac[i], sizeof(tmp[i]) - 1);
+            tmp[i][sizeof(tmp[i]) - 1] = '\0';
+        }
+        dm_ctrl->fill_comma_sep(tmp.data(), n, val_str);
+        dm_ctrl->property_append_tail(&property, root, idx, "BackhaulDownMACAddress", val_str);
         if (memcmp(di->backhaul_mac.mac, ZERO_MAC_ADDR, sizeof(ZERO_MAC_ADDR)) == 0) {
             dm_ctrl->property_append_tail(&property, root, idx, "BackhaulALID", "");
         } else {
@@ -3164,7 +3195,7 @@ bus_error_t dm_easy_mesh_ctrl_t::ssid_get_inner(char *event_name, raw_data_t *p_
     const char *param;
     char instance[MAX_INSTANCE_LEN] = { 0 };
     bool is_num;
-    char val_str[1024] = { 0 };
+    char val_str[MAX_EM_BUFF_SZ] = { 0 };
     unsigned int ssid_instance = 0;
     bus_error_t rc;
 
@@ -3234,7 +3265,7 @@ bus_error_t dm_easy_mesh_ctrl_t::ssid_get_inner(char *event_name, raw_data_t *p_
 bus_error_t dm_easy_mesh_ctrl_t::ssid_tget_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
 {
     const char *root = event_name;
-    char val_str[1024] = { 0 };
+    char val_str[MAX_EM_BUFF_SZ] = { 0 };
     bus_data_prop_t *property = NULL;
 
     if (*(event_name + (strlen(event_name) - 1)) != '.') {
@@ -4221,7 +4252,7 @@ bus_error_t dm_easy_mesh_ctrl_t::bss_get_inner(char *event_name, raw_data_t *p_d
     (void) user_data;
     const char *name = event_name;
     const char *param;
-    char val_str[1024] = { 0 };
+    char val_str[MAX_EM_BUFF_SZ] = { 0 };
     unsigned int i = 0;
     int count = 0;
     char instance[MAX_INSTANCE_LEN] = { 0 };
@@ -4401,7 +4432,7 @@ bus_error_t dm_easy_mesh_ctrl_t::bss_tget_inner(char *event_name, raw_data_t *p_
 bus_error_t dm_easy_mesh_ctrl_t::bss_tget_params(dm_easy_mesh_t *dm, const char *root, em_radio_info_t *ri, bus_data_prop_t **property)
 {
     char path[512];
-    char val_str[1024];
+    char val_str[MAX_EM_BUFF_SZ] = { 0 };
     bus_error_t rc = bus_error_success;
 
     dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
