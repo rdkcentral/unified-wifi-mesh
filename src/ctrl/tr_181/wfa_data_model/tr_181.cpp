@@ -1320,7 +1320,7 @@ bool tr_181_t::parse_and_register_schema(const char *filename)
 
 int tr_181_t::register_wfa_dml()
 {
-    const char *filename = "Data_Elements_JSON_Schema_v3.0.json";
+    const char *filename = "/nvram/Data_Elements_JSON_Schema_v3.0.json";
     parse_and_register_schema(filename);
 
     return RETURN_OK;

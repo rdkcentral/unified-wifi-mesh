@@ -923,7 +923,7 @@ int em_configuration_t::create_tid_to_link_map_policy_tlv(unsigned char *buff)
 
 int em_configuration_t::send_topology_response_msg(unsigned char *dst, unsigned short msg_id)
 {
-    unsigned char buff[MAX_EM_BUFF_SZ];
+    unsigned char buff[MAX_EM_BUFF_SZ + MAX_EM_BUFF_SZ];
     char *errors[EM_MAX_TLV_MEMBERS] = {0};
     unsigned short  msg_type = em_msg_type_topo_resp;
     unsigned int len = 0;
@@ -5570,7 +5570,7 @@ void em_configuration_t::fill_media_data(em_media_spec_data_t *spec, dm_bss_t *b
             spec->band = 0x03;
             break;
 
-        case em_freq_band_60:
+        case em_freq_band_6:
             spec->band = 0x04;
             break;
 

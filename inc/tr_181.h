@@ -83,6 +83,13 @@ static const yang_to_tr181_map g_yang_map[] = {
 
 #define DATAELEMS_NETWORK       "Device.WiFi.DataElements.Network."
 
+// pre-defined lengths for TR-181 method parameters and properties.
+#define TR181_SSID_MAX_LEN         32
+#define TR181_PASSPHRASE_MAX_LEN   63
+#define TR181_BAND_MAX_LEN         16
+#define TR181_ADDREMOVE_MAX_LEN    16
+#define TR181_HAULTYPE_MAX_LEN     32
+
 #define MAX_INSTANCE_LEN        32
 #define MAX_CAPS_STR_LEN        32
 #define MAX_MACLIST_ITEMS       14
@@ -529,6 +536,125 @@ public:
     static bus_error_t ssid_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
     static bus_error_t ssid_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
     static bus_error_t ssid_table_add_row_handler(const char* table_name, const char* alias_name, uint32_t* instance_number);
+
+    /**!
+     * @brief Handles the RBUS SetSSID method invocation.
+     *
+     * This function extracts SetSSID properties from the raw input payload, forwards them
+     * to the EasyMesh controller, and optionally writes response properties to the output
+     * raw buffer for RBUS callers.
+     *
+     * @param method_name RBUS method name, expected to match SetSSID.
+     * @param input_data Raw input containing a chained list of bus_data_prop_t entries.
+     * @param output_data Raw output buffer populated with response properties when provided.
+     * @param async_handle RBUS async handle when the call is asynchronous (may be null).
+     *
+     * @returns bus_error_t
+     * @retval bus_error_none on successful SetSSID handling.
+     * @retval bus_error_failed on validation or controller execution failure.
+     *
+     * @note Ownership of input and output buffers remains with the caller.
+     */
+    static bus_error_t setssid_handler(const char *method_name, raw_data_t *input_data, raw_data_t *output_data, void *async_handle);
+
+    //Methods helper utilities
+
+    /**!
+     * @brief Trim leading and trailing whitespace in-place.
+     *
+     * @param str Mutable C-string to trim.
+     *
+     * @note The input buffer is modified in-place.
+     */
+    static void tr181_trim_whitespace(char *str);
+
+    /**!
+     * @brief Create a HaulType JSON array from a single value.
+     *
+     * Valid values are "Fronthaul" or "Backhaul".
+     *
+     * @param haul_val Input HaulType string.
+     *
+     * @returns cJSON*
+     * @retval non-null Newly allocated cJSON array on success.
+     * @retval null on validation or allocation failure.
+     */
+    static cJSON *create_haultype_array(const char *haul_val);
+
+     /**!
+     * @brief Check whether a JSON item contains the requested HaulType.
+     *
+     * @param item JSON object expected to contain a "HaulType" array.
+     * @param haul_val HaulType string to match.
+     *
+     * @returns bool
+     * @retval true if the HaulType matches.
+     * @retval false otherwise.
+     */
+    static bool item_matches_haultype(const cJSON *item, const char *haul_val);
+
+    /**!
+     * @brief Format the HaulType array as a comma-separated string.
+     *
+     * @param item JSON object expected to contain a "HaulType" array.
+     * @param out Output buffer for the formatted list.
+     * @param out_len Maximum length of the output buffer.
+     *
+     *  @returns size_t Number of characters written to the output buffer, excluding the null terminator.
+     *
+     *  @note Returns 0 on invalid input or when no HaulType value is formatted.
+     */
+    static size_t format_haultype_list(const cJSON *item, char *out, size_t out_len);
+
+     /**!
+     * @brief Allocate a bus_data_prop_t with a string value.
+     *
+     * @param name Property name.
+     * @param value String value to store.
+     *
+     * @returns bus_data_prop_t*
+     * @retval non-null Allocated property on success.
+     * @retval null on allocation failure or invalid input.
+     *
+     * @note Caller owns the returned property and must free it.
+     */
+    static bus_data_prop_t *tr181_alloc_string_prop(const char *name, const char *value);
+
+    /**!
+     * @brief Build a "Status" output property.
+     *
+     * @param status Status string (e.g., "Success", "Failure: reason").
+     *
+     * @returns bus_data_prop_t*
+     * @retval non-null Allocated property on success.
+     * @retval null on allocation failure or invalid input.
+     *
+     * @note Caller owns the returned property and must free it.
+     */
+    static bus_data_prop_t *tr181_set_status_output_prop(const char *status);
+
+    /**!
+     * @brief Populate output_data with a "Status" property.
+     *
+     * @param output_data Raw output buffer to populate.
+     * @param status Status string (e.g., "Success", "Failure: reason").
+     *
+     * @note On success, output_data takes ownership of the allocated property.
+     */
+    static void tr181_set_status_output(raw_data_t *output_data, const char *status);
+
+    /**!
+     * @brief Copy a string property value into a destination buffer.
+     *
+     * @param prop Property expected to contain a string value.
+     * @param dst Destination buffer.
+     * @param dst_len Length of the destination buffer.
+     *
+     * @returns bool
+     * @retval true if the copy succeeded.
+     * @retval false on invalid input or type mismatch.
+     */
+    static bool tr181_copy_prop_string(const bus_data_prop_t *prop, char *dst, size_t dst_len);
 
     //Device Callbacks
     static bus_error_t device_get(char* event_name, raw_data_t* p_data, struct bus_user_data* user_data);

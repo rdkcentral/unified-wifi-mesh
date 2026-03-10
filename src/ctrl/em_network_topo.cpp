@@ -66,6 +66,10 @@ void em_network_topo_t::encode(cJSON *parent)
 							m_data_model->m_radio[i].m_radio_info.id.ruid, sizeof(mac_address_t)) == 0) {
 				bss_obj = cJSON_CreateObject();
 				m_data_model->m_bss[j].encode(bss_obj, true);
+				const em_network_ssid_info_t* network_ssid_info = m_data_model->get_network_ssid_info_by_haul_type(m_data_model->m_bss[j].m_bss_info.id.haul_type);
+				if (network_ssid_info != NULL) {
+				    cJSON_AddNumberToObject(bss_obj, "VlanID", network_ssid_info->vlan_id);
+				}
 				sta_list_obj = cJSON_AddArrayToObject(bss_obj, "STAList");
 				dm_easy_mesh_ctrl_t *dm_ctrl = reinterpret_cast<dm_easy_mesh_ctrl_t *>(em_ctrl_t::get_em_ctrl_instance()->get_data_model(GLOBAL_NET_ID));
 				if (dm_ctrl != NULL) {
@@ -256,6 +260,10 @@ void em_network_topo_t::add_network_topo(dm_easy_mesh_t *dm, em_network_topo_t *
 void em_network_topo_t::add(dm_easy_mesh_t *dm, em_network_topo_t **child_topos, unsigned int num_child_topos)
 {
 	em_network_topo_t *topo;
+	if (dm == NULL) {
+		em_printfout("dm is NULL, cannot add topology");
+		return;
+	}
 
 	// find the BH bss where al_mac of this device of data model is attached to.
 	if ((topo = find_topology_by_bh_associated(dm)) != NULL) {

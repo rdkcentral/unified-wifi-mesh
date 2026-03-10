@@ -33,6 +33,7 @@
 #include "dm_ap_mld.h"
 #include "dm_easy_mesh.h"
 #include "dm_easy_mesh_ctrl.h"
+#include "util.h"
 
 int dm_ap_mld_t::decode(const cJSON *obj, void *parent_id)
 {
@@ -89,6 +90,11 @@ bool dm_ap_mld_t::operator == (const dm_ap_mld_t& obj)
 
 dm_ap_mld_t::dm_ap_mld_t(em_ap_mld_info_t *ap_mld_info)
 {
+    memset(&m_ap_mld_info, 0, sizeof(em_ap_mld_info_t));
+    if (ap_mld_info == nullptr) {
+        em_printfout("Error: ap_mld_info is null");
+        return;
+    }
     memcpy(&m_ap_mld_info, ap_mld_info, sizeof(em_ap_mld_info_t));
 }
 

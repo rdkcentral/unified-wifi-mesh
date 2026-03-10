@@ -571,7 +571,6 @@ public:
 	 * This function processes the M2 transmission event and updates the command array accordingly.
 	 *
 	 * @param[in] evt Pointer to the event structure containing the M2 transmission details.
-	 * @param[in] evt_status Indicates if the same event for this command type is already executing.
 	 * @param[out] cmd Array of command pointers to be updated based on the event analysis.
 	 *
 	 * @returns int Status code indicating success or failure of the analysis.
@@ -580,7 +579,7 @@ public:
 	 *
 	 * @note Ensure that the event and command pointers are valid before calling this function.
 	 */
-	int analyze_m2_tx(em_bus_event_t *evt, em_cmd_t *cmd[], bool evt_status);
+	int analyze_m2_tx(em_bus_event_t *evt, em_cmd_t *cmd[]);
     
 	/**!
 	 * @brief Analyzes the station association event.

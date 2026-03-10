@@ -1712,7 +1712,7 @@ existing functionality of DPP as defined in this specification.
 
     if (bss_akms_vec.size() == 0) {
         em_printfout("No AKMs found for BSS, adding default AKM:");
-        if (band >= em_freq_band_60) {
+        if (band == em_freq_band_6) {
             em_printfout("6GHz band detected, adding default AKM: sae");
             bss_akms_vec.push_back("sae");
         } else {

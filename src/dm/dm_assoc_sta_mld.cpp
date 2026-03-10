@@ -33,6 +33,7 @@
 #include "dm_assoc_sta_mld.h"
 #include "dm_easy_mesh.h"
 #include "dm_easy_mesh_ctrl.h"
+#include "util.h"
 
 int dm_assoc_sta_mld_t::decode(const cJSON *obj, void *parent_id)
 {
@@ -80,6 +81,11 @@ bool dm_assoc_sta_mld_t::operator == (const dm_assoc_sta_mld_t& obj)
 
 dm_assoc_sta_mld_t::dm_assoc_sta_mld_t(em_assoc_sta_mld_info_t *assoc_sta_mld_info)
 {
+    memset(&m_assoc_sta_mld_info, 0, sizeof(em_assoc_sta_mld_info_t));
+    if (assoc_sta_mld_info == nullptr) {
+        em_printfout("Error: assoc_sta_mld_info is null");
+        return;
+    }
     memcpy(&m_assoc_sta_mld_info, assoc_sta_mld_info, sizeof(em_assoc_sta_mld_info_t));
 }
 

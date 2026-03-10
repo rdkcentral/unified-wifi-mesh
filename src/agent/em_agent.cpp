@@ -774,8 +774,8 @@ void em_agent_t::handle_ap_metrics_report(em_bus_event_t *evt)
         printf("analyze_ap_metrics_report in progress\n");
     } else if ((num = m_data_model.analyze_ap_metrics_report(evt, pcmd)) == 0) {
         printf("analyze_ap_metrics_report failed\n");
-    } else if (m_orch->submit_commands(pcmd, num) > 0) {
-        printf("Submitted AP Metrics report cmd for orch\n");
+    } else {
+        m_orch->submit_commands(pcmd, num);
     }
 }
 
@@ -940,7 +940,7 @@ void em_agent_t::handle_1s_tick()
 
 }
 
-void em_agent_t::handle_500ms_tick()
+void em_agent_t::handle_250ms_tick()
 {
     m_orch->handle_timeout();
 }

@@ -232,7 +232,7 @@ void em_ctrl_t::handle_m2_tx(em_bus_event_t *evt)
     em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
     int num;
     
-    if ((num = m_data_model.analyze_m2_tx(evt, pcmd, m_orch->is_cmd_type_in_progress(evt))) > 0) {
+    if ((num = m_data_model.analyze_m2_tx(evt, pcmd)) > 0) {
         m_orch->submit_commands(pcmd, static_cast<unsigned int> (num));
     }
 }
@@ -479,7 +479,7 @@ void em_ctrl_t::handle_1s_tick()
 
 }
 
-void em_ctrl_t::handle_500ms_tick()
+void em_ctrl_t::handle_250ms_tick()
 {
     handle_dirty_dm();
     m_orch->handle_timeout();
@@ -1089,7 +1089,10 @@ void em_ctrl_t::start_complete()
          { const_cast<char*>(DEVICE_WIFI_DATAELEMENTS_NETWORK_NODE_LINKSTATS_ALARM), bus_element_type_method,
             { NULL, NULL , NULL, NULL, NULL, NULL }, slow_speed, ZERO_TABLE,
             { bus_data_type_string, false, 0, 0, 0, NULL } },
-	};
+        { const_cast<char*>(DEVICE_WIFI_DATAELEMENTS_NETWORK_SETSSID_CMD), bus_element_type_method,
+            { NULL, NULL , NULL, NULL, NULL, tr_181_t::setssid_handler}, slow_speed, ZERO_TABLE,
+            { bus_data_type_property, false, 0, 0, 0, NULL } }
+        };
 
 	if (m_data_model.is_initialized() == false) {
 		printf("%s:%d: Database not initialized ... needs reset\n", __func__, __LINE__);

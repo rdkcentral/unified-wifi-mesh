@@ -33,6 +33,7 @@
 #include "dm_scan_result.h"
 #include "dm_easy_mesh.h"
 #include "dm_easy_mesh_ctrl.h"
+#include "util.h"
 
 int dm_scan_result_t::decode(const cJSON *obj, void *parent_id)
 {
@@ -40,6 +41,10 @@ int dm_scan_result_t::decode(const cJSON *obj, void *parent_id)
 	char *str;
 	int i;
 
+	if (obj == NULL || parent_id == NULL) {
+		em_printfout("Error: obj/parent_id is null");
+		return -1;
+	}
 	memset(&m_scan_result, 0, sizeof(em_scan_result_t));
 	
 	if ((tmp = cJSON_GetObjectItem(obj, "ScanStatus")) != NULL) {
@@ -163,7 +168,12 @@ int dm_scan_result_t::parse_scan_result_id_from_key(const char *key, em_scan_res
     em_long_string_t   str;
     char *tmp, *remain;
     unsigned int i = 0;
-    
+	
+    if (key == nullptr || id == nullptr) {
+	    em_printfout("Error: key/id is null");
+	    return -1;
+    }
+
     strncpy(str, key, strlen(key) + 1);
     remain = str;
     while ((tmp = strchr(remain, '@')) != NULL) {
@@ -209,6 +219,11 @@ int dm_scan_result_t::parse_scan_result_id_from_key(const char *key, em_scan_res
 
 bool dm_scan_result_t::has_same_id(em_scan_result_id_t *id)
 {
+	if (id == nullptr) {
+		em_printfout("Error: id is null");
+        return false;
+    }
+
 	if (strncmp(m_scan_result.id.net_id, id->net_id, strlen(id->net_id)) != 0) {
 		return false;
 	}	
@@ -238,7 +253,12 @@ bool dm_scan_result_t::has_same_id(em_scan_result_id_t *id)
 
 dm_scan_result_t::dm_scan_result_t(em_scan_result_t *scan_result)
 {
-    memcpy(&m_scan_result, scan_result, sizeof(em_scan_result_t));
+	memset(&m_scan_result, 0, sizeof(em_scan_result_t));
+	if (scan_result == nullptr) {
+		em_printfout("Error: scan_result is null");
+		return;
+	}
+	memcpy(&m_scan_result, scan_result, sizeof(em_scan_result_t));
 }
 
 dm_scan_result_t::dm_scan_result_t(const dm_scan_result_t& scan_result)
