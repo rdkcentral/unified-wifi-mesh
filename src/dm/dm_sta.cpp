@@ -512,7 +512,7 @@ void dm_sta_t::decode_sta_capability(dm_sta_t *sta)
                 printf("%s:%d: Unknown Tag ID: %d\n", __func__, __LINE__, tag->tag_id);
                 break;
         }
-    offset += 2 + tag->length;
+    offset += static_cast<unsigned int>(2 + tag->length);
     free(tag);
     }
 

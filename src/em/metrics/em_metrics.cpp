@@ -271,7 +271,7 @@ int em_metrics_t::handle_beacon_metrics_response(unsigned char *buff, unsigned i
     tmp_len = len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
     while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
         if (tlv->type == em_tlv_type_bcon_metric_rsp) {
-            report_len = ntohs(tlv->len) - 8;
+            report_len = static_cast<unsigned int>(ntohs(tlv->len) - 8);
             response = reinterpret_cast<em_beacon_metrics_resp_t *> (tlv->value);
             break;
         }

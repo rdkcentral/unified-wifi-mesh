@@ -779,8 +779,8 @@ int em_capability_t::handle_client_cap_report(unsigned char *buff, unsigned int 
                 return -1;
             }
             sta_info.associated = true;
-            sta_info.frame_body_len = htons(tlv->len) - 1;
-            memcpy(sta_info.frame_body, &tlv->value[1], htons(tlv->len) - 1);
+            sta_info.frame_body_len = static_cast<unsigned int>(htons(tlv->len) - 1);
+            memcpy(sta_info.frame_body, &tlv->value[1], static_cast<size_t>(sta_info.frame_body_len));
 
             found_cap_report = true;
             break;

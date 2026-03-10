@@ -1461,7 +1461,7 @@ int em_channel_t::handle_channel_pref_tlv_ctrl(unsigned char *buff, unsigned int
             }
             else if (first_invalid_idx == -1 && pop_class_info->pref_valid == EM_CH_PREF_ENTRY_INVALID && pop_class_info->id.type == em_op_class_type_preference) {
                 // Store the index of first invalid preference entry in the datamodel
-                first_invalid_idx = j;
+                first_invalid_idx = static_cast<int>(j);
             }
         }
         if (!match_found && first_invalid_idx != -1)
@@ -1880,7 +1880,7 @@ void em_channel_t::fill_scan_result(dm_scan_result_t *scan_res, em_channel_scan_
 	mac_addr_str_t bssid_str;
 
 	scan_res->m_scan_result.scan_status = res->scan_status;
-	strncpy(scan_res->m_scan_result.timestamp, res->timestamp, res->timestamp_len + 1);
+	strncpy(scan_res->m_scan_result.timestamp, res->timestamp, static_cast<size_t>(res->timestamp_len + 1));
 
 	tmp = reinterpret_cast<unsigned char *> (res) + sizeof(em_channel_scan_result_t) + res->timestamp_len;
 	
@@ -1907,7 +1907,7 @@ void em_channel_t::fill_scan_result(dm_scan_result_t *scan_res, em_channel_scan_
         memcpy(&ssid_len, tmp, sizeof(unsigned char));
         tmp += sizeof(unsigned char);
 
-        strncpy(nbr->ssid, reinterpret_cast<char *> (tmp), ssid_len + 1);
+        strncpy(nbr->ssid, reinterpret_cast<char *> (tmp), static_cast<size_t>(ssid_len + 1));
         nbr->ssid[ssid_len] = '\0';
         tmp += ssid_len;
 

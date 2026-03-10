@@ -81,7 +81,7 @@ extern "C"
 #define MAP_AP_ROLE_MAX 2
 #define MAX_MCS_NSS 6
 #define EM_MAX_CAC_METHODS 4
-#define EM_MAX_STA_PER_BSS         128
+#define EM_MAX_STA_PER_BSS         64
 #define EM_MAX_STA_PER_STEER_POLICY        16 
 #define EM_MAX_STA_PER_AGENT       (EM_MAX_RADIO_PER_AGENT * EM_MAX_STA_PER_BSS)
 #define EM_MAX_NEIGHBORS	16

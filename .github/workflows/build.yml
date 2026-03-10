@@ -83,7 +83,19 @@ jobs:
                                 libmariadb3 \
                                 libmariadb-dev \
                                 gnupg \
-                                file 
+                                file \
+                                pkg-config \
+                                libperl-dev \
+                                libjson-c-dev
+
+        # Steps for ucode installation required for hostapd compilation
+        git clone https://github.com/jow-/ucode.git ucode
+        cd ucode
+        mkdir build && cd build
+        cmake -DUBUS_SUPPORT=OFF -DUCI_SUPPORT=OFF -DULOOP_SUPPORT=OFF ..
+        make -j$(nproc)
+        sudo make install
+        sudo ldconfig
 
     # Install specific version of Go for the CLI
     - name: Install Go
