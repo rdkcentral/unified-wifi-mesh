@@ -175,8 +175,8 @@ short em_channel_t::create_channel_scan_req_tlv(unsigned char *buff)
 
 		req_op_class->op_class = static_cast<unsigned char> (opclass->m_op_class_info.op_class);
 		req_op_class->num_channels = static_cast<unsigned char> (opclass->m_op_class_info.num_channels);
-		unsigned int band = dm_easy_mesh_t::get_freq_band_by_op_class(opclass->m_op_class_info.op_class);
-		unsigned int cur_band = get_band();
+		em_freq_band_t band = dm_easy_mesh_t::get_freq_band_by_op_class(static_cast<int>(opclass->m_op_class_info.op_class));
+		em_freq_band_t cur_band = get_band();
 
 		if (cur_band == band) {
 		    req_op_class->op_class = static_cast<unsigned char> (opclass->m_op_class_info.op_class);
@@ -500,7 +500,7 @@ int em_channel_t::send_channel_scan_report_msg(unsigned int *last_index)
     unsigned int len = 0;
     em_cmdu_t *cmdu;
     em_tlv_t *tlv;
-    unsigned short sz = 0;
+    short sz = 0;
     unsigned char *tmp = buff;
     unsigned short type = htons(ETH_P_1905);
     char date_time[EM_DATE_TIME_BUFF_SZ];
@@ -538,7 +538,7 @@ int em_channel_t::send_channel_scan_report_msg(unsigned int *last_index)
     tlv = reinterpret_cast<em_tlv_t *> (tmp);
     tlv->type = em_tlv_type_timestamp;
 	util::get_date_time_rfc3399(date_time, sizeof(date_time));
-	sz = static_cast<short int> (strlen(date_time) + 1);
+	sz = static_cast<short> (strlen(date_time) + 1);
 	time_len = static_cast<unsigned char> (strlen(date_time));
 	memcpy(tlv->value, &time_len, sizeof(unsigned char));
 	memcpy(tlv->value + 1, date_time, static_cast<size_t> (sz));
