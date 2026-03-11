@@ -1419,6 +1419,175 @@ body {
     pointer-events: none;
 }
 
+/* Radio configuration */
+.radio-config-panel .channels-card {
+    border: 1px solid var(--border-light);
+    border-radius: 12px;
+    background: rgba(255,255,255,0.02);
+    backdrop-filter: blur(6px);
+    overflow: hidden;
+    transition: 0.25s ease;
+}
+
+.radio-config-panel .channels-card:hover {
+    border-color: var(--border-medium);
+    background: rgba(255,255,255,0.04);
+}
+
+.radio-config-panel .channels-card .channels-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 14px;
+    padding: 10px 14px;
+    background: rgba(255,255,255,0.04);
+    border-bottom: 1px solid var(--border-light);
+}
+
+.radio-config-panel .channels-card .channels-head .note {
+    flex: 1;
+    color: var(--text-secondary);
+    font-size: 13px;
+    line-height: 1.4;
+}
+
+/* channel table, [checkbox | channel | preference] */
+.radio-config-panel .channels-card .list { width: 100%; }
+.radio-config-panel .channels-card .list-head,
+.radio-config-panel .channels-card .list-row {
+    display: grid;
+    grid-template-columns: 30px 1fr 380px;
+    align-items: center;
+    gap: 10px;
+}
+
+.radio-config-panel .channels-card .list-head {
+    padding: 8px 14px;
+    font-size: 12.5px;
+    color: var(--text-tertiary);
+    background: rgba(255,255,255,0.03);
+    border-bottom: 1px solid var(--border-light);
+}
+
+
+.radio-config-panel .channels-card .list-body {
+    max-height: 260px;
+    overflow-y: auto;
+    scrollbar-width: thin;
+}
+
+.radio-config-panel .channels-card .list-body::-webkit-scrollbar {
+    width: 6px;
+}
+
+.radio-config-panel .channels-card .list-body::-webkit-scrollbar-thumb {
+    background: var(--border-medium);
+    border-radius: 4px;
+}
+
+.radio-config-panel .channels-card .list-row {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border-light);
+    transition: background 0.2s;
+}
+
+.radio-config-panel .channels-card .list-row:hover {
+    background: rgba(255,255,255,0.05);
+}
+
+.radio-config-panel .channels-card .ch-label {
+    font-weight: 600;
+    font-size: 13px;
+    color: var(--text-primary);
+}
+
+/* ---------- Preference Controls ---------- */
+.radio-config-panel .channels-card .pref-wrap {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+/* Badge */
+.radio-config-panel .channels-card .pref-badge {
+    padding: 3px 12px;
+    border-radius: 100px;
+    font-size: 12px;
+    font-weight: 600;
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    min-width: 36px;
+    text-align: center;
+    transition: 0.2s ease;
+}
+
+.radio-config-panel .channels-card .pref-badge.muted {
+    opacity: 0.7;
+}
+
+/* “Set preference” button */
+.radio-config-panel .channels-card .pref-choose {
+    padding: 6px 12px;
+    border-radius: 8px;
+    border: 1px solid var(--border-medium);
+    font-size: 12.5px;
+    font-weight: 600;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: 0.2s ease;
+}
+
+.radio-config-panel .channels-card .pref-choose:hover:not(:disabled) {
+    background: var(--bg-secondary);
+    border-color: var(--primary-color);
+}
+
+.radio-config-panel .channels-card .pref-choose:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+/* Dropdown */
+.radio-config-panel .channels-card .pref-inline-dd {
+    min-width: 160px;
+    max-width: 220px;
+    padding: 6px 8px;
+    border-radius: 8px;
+    border: 1px solid var(--border-light);
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    font-size: 13px;
+}
+
+.radio-config-panel .channels-card .pref-inline-dd[hidden] {
+    display: none !important;
+}
+
+/* ---------- Checkboxes ---------- */
+.radio-config-panel .channels-card input[type="checkbox"] {
+    width: 17px;
+    height: 17px;
+    accent-color: var(--primary-color);
+    cursor: pointer;
+}
+
+/* ---------- Responsive Tweaks ---------- */
+@media (max-width: 960px) {
+  .radio-config-panel .channels-card .list-head,
+  .radio-config-panel .channels-card .list-row {
+    grid-template-columns: 30px 1fr 320px;
+  }
+}
+
+@media (max-width: 780px) {
+  .radio-config-panel .channels-card .list-head,
+  .radio-config-panel .channels-card .list-row {
+    grid-template-columns: 30px 1fr 1fr;
+  }
+}
+
 /* Toggle Switches */
 .toggle-switch {
     position: relative;
@@ -1491,7 +1660,6 @@ body {
 .class-select:hover {
     color: var(--text-primary);
 }
-
 
 /* Radio Button Labels */
 .radio-label {

@@ -438,246 +438,445 @@ class WirelessSettings {
    * Update radio configurations
    */
   updateRadioConfigurations() {
-    // Validate for empty radioConfigs
-    if (!Array.isArray(this.radioConfigs)) {
-      console.warn('radioConfigs is not an array:', this.radioConfigs);
-      this.updateChannelConfig = {};
-      // Toggle enable button to disable
-      this.setAllRadioPanelsDisabled(true);
+    const ctx = this;
+    if (!Array.isArray(ctx.radioConfigs)) {
+      console.warn('radioConfigs is not an array:', ctx.radioConfigs);
       return;
     }
 
-    if (!this.updateChannelConfig) this.updateChannelConfig = {};
+    // Ensure DOM is ready
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', () => updateRadioConfigurations.call(ctx), { once: true });
+      return;
+    }
 
-    this.radioConfigs.forEach((config) => {
-      const bandLabel = String(config?.band ?? '').trim();
-      if (!bandLabel) {
-        console.warn('Missing band label in config:', config);
+    // ---------- Constants ----------
+    const PREF_MIN = 0, PREF_MAX = 14;
+    const UNSET_PREF = 15;
+
+    // ---------- Small helpers ----------
+    const getEl = (id) => document.getElementById(id);
+
+    const normalizeBandKey = (bandLabel) =>
+      String(bandLabel ?? '').trim().replace('.', '_').replace(/ghz/i, 'g');
+
+    const getBandIndex = (bandKey) =>
+      (typeof ctx.getRadioIndexFromBand === 'function')
+        ? ctx.getRadioIndexFromBand(bandKey)
+        : ({ '2_4g': 0, '5g': 1, '6g': 2 }[bandKey] ?? -1);
+
+    const prefColor = (val) => {
+      if (val === UNSET_PREF || !Number.isFinite(val)) return '#2a3344';
+      const t = val / PREF_MAX;
+      const hue = Math.round(140 * (1 - t));
+      return `hsl(${hue} 75% 70%)`;
+    };
+    const prefText = (val) =>
+      val === UNSET_PREF ? '—' : (val === 0 ? '0 (Non operable)' : (val === 14 ? '14 (Most preferable)' : String(val)));
+    const prefTitle = (val) =>
+      val === UNSET_PREF ? 'Not set (defaults to 15)' : (val === 0 ? '0 — Non operable' : (val === 14 ? '14 — Most preferable' : String(val)));
+
+    const getChannelsFromClassObj = (clsObj) => {
+      if (!clsObj) return [];
+      const keys = ['supported_channels', 'channels', 'channel', 'Channel', 'supportedChannels', 'supported_channel_list'];
+      for (const k of keys) if (Array.isArray(clsObj[k])) return clsObj[k];
+      return [];
+    };
+
+    const normalizeSupportedClassArray = (arr) =>
+      Array.isArray(arr)
+        ? arr.map(x => ({
+            class: (x && (x.class ?? x.Class ?? x.operating_class ?? x.OperatingClass)) ?? '',
+            supported_channels: getChannelsFromClassObj(x),
+          })).filter(x => String(x.class).trim() !== '')
+        : [];
+
+    const getDevicesForBand = (bandConfig) => {
+      const deviceArr = Array.isArray(bandConfig?.device_list) ? bandConfig.device_list
+                    : Array.isArray(bandConfig?.deviceList)  ? bandConfig.deviceList
+                    : null;
+
+      const bandSupported = normalizeSupportedClassArray(bandConfig?.supported_class ?? bandConfig?.supportedClass);
+      const bandSelected  = bandConfig?.selected_config ?? bandConfig?.selected_wifi_config?.selected_config;
+
+      if (deviceArr && deviceArr.length) {
+        return deviceArr.map(d => {
+          const devSupported = normalizeSupportedClassArray(d?.supported_class ?? d?.supportedClass);
+          const selected = d?.selected_config ?? d?.selected_wifi_config?.selected_config ?? bandSelected;
+          return {
+            device_id: String(d?.device_id ?? d?.deviceId ?? '').trim(),
+            supported_class: devSupported.length ? devSupported : bandSupported,
+            selected_config: selected,
+          };
+        }).filter(d => d.device_id);
       }
 
-      // Normalize band key to match with html IDs
-      const bandKey = bandLabel.replace('.', '_').replace(/ghz/i, 'g');
-      const bandIndex = this.getRadioIndexFromBand(bandKey);
+      const implicit = String(bandConfig?.selected_wifi_config?.device_id ?? bandConfig?.device_id ?? bandConfig?.deviceId ?? '').trim();
+      return implicit ? [{ device_id: implicit, supported_class: bandSupported, selected_config: bandSelected }] : [];
+    };
 
-      // ---- DOM elements ----
-      const radioEnabledToggle = document.getElementById(`radio-${bandKey}-enabled`);
-      const operatingClassSelect = document.getElementById(`radio-${bandKey}-class`);
-      const manualChannel = document.getElementById(`channel-${bandKey}-manual`);
-      const panel = document.getElementById(`radio-${bandKey}hz`);
+    const coerceSelected = (selected_config) => {
+      if (!selected_config) return { cls: '', channels: [] };
+      const one = (o) => ({ cls: String(o?.class ?? o?.Class ?? '').trim(), channels: Array.isArray(o?.channels) ? o.channels : [] });
+      return Array.isArray(selected_config) ? one(selected_config[0] || {}) : one(selected_config);
+    };
 
-      if (!radioEnabledToggle) {
-        console.warn(`Missing #radio-${bandKey}-enabled element`);
+    const ensureBucket = (bandIndex) => {
+      if (!ctx.updateChannelConfig) ctx.updateChannelConfig = {};
+      const b = (ctx.updateChannelConfig[bandIndex] ||= {
+        device_id: '',
+        radio_index: bandIndex,
+        class: 0,
+        channels: [],
+        preferences: {},
+        perClass: {}
+      });
+      if (!Array.isArray(b.channels)) b.channels = [];
+      if (!b.preferences || typeof b.preferences !== 'object') b.preferences = {};
+      if (typeof b.radio_index !== 'number') b.radio_index = bandIndex;
+      if (!b.perClass || typeof b.perClass !== 'object') b.perClass = {};
+      return b;
+    };
+
+    const getClassObj = (device, classValue) =>
+      (Array.isArray(device?.supported_class) ? device.supported_class : [])
+        .find(sc => String(sc?.class) === String(classValue));
+
+    const debounce = (fn, ms = 120) => { let t; return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); }; };
+
+    // ---------- Rendering: channels (with badge + inline preference dropdown) ----------
+    const renderChannels = (bandKey, bandIndex, device, classValue, carryPrevChannels = []) => {
+      const listBody = getEl(`list-${bandKey}`);
+      const chkAll   = getEl(`checkAll-${bandKey}`);
+      const searchEl = getEl(`search-${bandKey}`);
+      if (!listBody) {
+        console.warn(`[${bandKey}] Missing #list-${bandKey}`);
         return;
-      } else {
-          // Initialize toggle from config.enabled (default false)
-          const isEnabled = Boolean(config?.enabled);
-          radioEnabledToggle.checked = isEnabled;
+      }
 
-          if (panel) {
-            operatingClassSelect.disabled = !isEnabled;
-            panel.classList.toggle('disabled', !isEnabled);
+      const clsObj = getClassObj(device, classValue);
+      let allChannels = getChannelsFromClassObj(clsObj).slice().sort((a,b)=>a-b);
+
+      const q = String(searchEl?.value || '').trim();
+      const channels = q ? allChannels.filter(ch => String(ch).includes(q)) : allChannels;
+
+      const bucket = ensureBucket(bandIndex);
+      bucket.device_id   = String(device.device_id);
+      bucket.radio_index = bandIndex;
+      bucket.class       = parseInt(classValue, 10) || 0;
+
+      // Seed previous selection only once
+      if (Array.isArray(carryPrevChannels) && carryPrevChannels.length && bucket.channels.length === 0) {
+        bucket.channels = [...new Set(carryPrevChannels.map(Number))];
+        for (const c of bucket.channels) if (bucket.preferences[String(c)] == null) bucket.preferences[String(c)] = UNSET_PREF;
+      }
+
+      listBody.dataset.bandKey = bandKey;
+      listBody.dataset.bandIndex = String(bandIndex);
+
+      // Empty / no-class
+      if (!clsObj || allChannels.length === 0) {
+        listBody.innerHTML = `<div class="empty">${!clsObj ? 'No operating class selected' : 'No channels available for selected class'}</div>`;
+        if (chkAll) { chkAll.indeterminate = false; chkAll.checked = false; }
+        return;
+      }
+
+      // Build rows HTML
+      const selSet = new Set((bucket.channels || []).map(Number));
+      listBody.innerHTML = channels.map(ch => {
+        const chNum = Number(ch);
+        const isSelected = selSet.has(chNum);
+        const prefVal = (bucket.preferences[String(chNum)] != null) ? bucket.preferences[String(chNum)] : UNSET_PREF;
+        return `
+          <div class="list-row" data-channel="${chNum}">
+            <div><input type="checkbox" class="ch-check" ${isSelected ? 'checked' : ''} aria-label="Select channel ${chNum}"></div>
+            <div class="ch-label">Channel ${chNum}</div>
+            <div class="pref-wrap">
+              <span class="pref-badge ${prefVal===UNSET_PREF ? 'muted':''}"
+                title="${prefTitle(prefVal)}"
+                style="background:${prefColor(prefVal)}">${prefText(prefVal)}
+              </span>
+              <button class="pref-choose" ${isSelected ? '' : 'disabled' }
+                aria-expanded="false"
+                aria-controls="dd-${bandKey}-${classValue}-${chNum}">Set preference
+              </button>
+              <select class="pref-inline-dd"
+                id="dd-${bandKey}-${classValue}-${chNum}"
+                ${isSelected ? '' : 'disabled'}
+                hidden
+                aria-label="Preference for channel ${chNum}">
+                ${Array.from({length: PREF_MAX - PREF_MIN + 1}, (_,i) => i + PREF_MIN).map(v => `
+                  <option value="${v}" ${(bucket.preferences[String(chNum)] !== undefined && v === Number(bucket.preferences[String(chNum)])) ? 'selected' : ''}>
+                    ${v===0 ? '0 (Non operable)' : (v===14 ? '14 (Most preferable)' : v)}
+                  </option>
+                `).join('')}
+              </select>
+            </div>
+          </div>`;
+      }).join('');
+
+      // Header checkbox state (visible rows)
+      if (chkAll) {
+        const all = channels.length > 0 && channels.every(c => bucket.channels.includes(Number(c)));
+        const none = channels.every(c => !bucket.channels.includes(Number(c)));
+        chkAll.indeterminate = !(all || none);
+        chkAll.checked = all && !none;
+
+        if (!chkAll.__wired) {
+          chkAll.addEventListener('change', () => {
+            if (chkAll.checked) {
+              for (const c of channels.map(Number)) {
+                if (!bucket.channels.includes(c)) bucket.channels.push(c);
+                if (bucket.preferences[String(c)] == null) bucket.preferences[String(c)] = UNSET_PREF;
+              }
+            } else {
+              const rm = new Set(channels.map(Number));
+              bucket.channels = bucket.channels.filter(c => !rm.has(Number(c)));
+              Object.keys(bucket.preferences).forEach(k => { if (rm.has(Number(k))) delete bucket.preferences[k]; });
+            }
+            renderChannels(bandKey, bandIndex, device, classValue, []);
+          });
+          chkAll.__wired = true;
+        }
+      }
+
+      // Event delegation (wire once)
+      if (!listBody.__wired) {
+        listBody.addEventListener('click', (e) => {
+          const row = e.target.closest('.list-row');
+          if (!row) return;
+          if (e.target.classList.contains('pref-choose')) {
+            const btn = e.target;
+            const dd = row.querySelector('.pref-inline-dd');
+            const expanded = btn.getAttribute('aria-expanded') === 'true';
+            dd.hidden = expanded;
+            btn.setAttribute('aria-expanded', String(!expanded));
+            if (!expanded) dd.focus();
+          }
+        });
+
+        listBody.addEventListener('change', (e) => {
+          const row = e.target.closest('.list-row');
+          if (!row) return;
+
+          const chNum = Number(row.dataset.channel);
+          const bucket = ensureBucket(Number(listBody.dataset.bandIndex));
+          const chk   = row.querySelector('.ch-check');
+          const badge = row.querySelector('.pref-badge');
+          const btn   = row.querySelector('.pref-choose');
+          const dd    = row.querySelector('.pref-inline-dd');
+
+          // Checkbox toggle
+          if (e.target.classList.contains('ch-check')) {
+            if (chk.checked) {
+              if (!bucket.channels.includes(chNum)) bucket.channels.push(chNum);
+              if (bucket.preferences[String(chNum)] == null) bucket.preferences[String(chNum)] = UNSET_PREF;
+
+              const v = bucket.preferences[String(chNum)];
+              btn.disabled = false; dd.disabled = false;
+              badge.textContent = prefText(v);
+              badge.title = prefTitle(v);
+              badge.style.background = prefColor(v);
+              badge.classList.toggle('muted', v === UNSET_PREF);
+            } else {
+              const i = bucket.channels.findIndex(x => Number(x) === chNum);
+              if (i >= 0) bucket.channels.splice(i, 1);
+              delete bucket.preferences[String(chNum)];
+
+              btn.disabled = true; btn.setAttribute('aria-expanded','false');
+              dd.disabled = true;  dd.hidden = true;
+
+              badge.textContent = '—';
+              badge.title = 'Not set (defaults to 15)';
+              badge.style.background = prefColor(UNSET_PREF);
+              badge.classList.add('muted');
+            }
+
+            // Update header state for filtered rows
+            const q = String(getEl(`search-${bandKey}`)?.value || '').trim();
+            const visible = q ? allChannels.filter(c => String(c).includes(q)) : allChannels;
+            const all = visible.length > 0 && visible.every(c => bucket.channels.includes(Number(c)));
+            const none = visible.every(c => !bucket.channels.includes(Number(c)));
+            if (chkAll) { chkAll.indeterminate = !(all || none); chkAll.checked = all && !none; }
           }
 
-          // Avoid duplicate listeners if function runs multiple times
-          radioEnabledToggle.onchange = null;
-          radioEnabledToggle.addEventListener('change', (e) => {
-          const checked = Boolean(e.target.checked);
-          config.enabled = checked;
+          // Preference change
+          if (e.target.classList.contains('pref-inline-dd')) {
+            const val = Math.max(PREF_MIN, Math.min(PREF_MAX, Math.round(Number(e.target.value))));
+            bucket.preferences[String(chNum)] = val;
+            if (!bucket.channels.includes(chNum)) bucket.channels.push(chNum);
+            chk.checked = true; btn.disabled = false; dd.disabled = false;
 
-          // Disable class/channel controls when radio is off
-          if (operatingClassSelect) operatingClassSelect.disabled = !checked;
-          if (manualChannel) manualChannel.disabled = !checked || Boolean(config?.auto_channel);
+            badge.textContent = prefText(val);
+            badge.title = prefTitle(val);
+            badge.style.background = prefColor(val);
+            badge.classList.toggle('muted', val === UNSET_PREF);
 
-          if (panel) panel.classList.toggle('disabled', !checked);
-        }, { once: false });
-      }
-
-      if (!operatingClassSelect) {
-        console.warn(`Missing #radio-${bandKey}-class element`);
-        return;
-      }
-      if (!manualChannel) {
-        console.warn(`Missing #channel-${bandKey}-manual element`);
-        return;
-      }
-
-      // Supported operating classes
-      const supportedClass = Array.isArray(config.supported_class) ? config.supported_class : [];
-
-      // Previously selected class and channel
-      const prevSelectedClass    = String(config?.selected_config?.class ?? '').trim();
-      const PrevSelectedChannel = Array.isArray(config.selected_config.channels)
-        ? String(config.selected_config.channels[0] ?? '') : '';
-
-      // Clear the previous options fo operating class.
-      operatingClassSelect.innerHTML = '';
-
-      if (supportedClass.length === 0) {
-        const opt = document.createElement('option');
-        opt.value = '';
-        opt.textContent = 'No classes available';
-        opt.disabled = true;
-        opt.selected = true;
-        operatingClassSelect.appendChild(opt);
-
-        // Also clear channels
-        manualChannel.innerHTML = '';
-        manualChannel.disabled = true;
-        console.warn(`No supported_class for ${bandLabel}`);
-        return;
-      }
-
-      // Build class options,
-      const classFrag = document.createDocumentFragment();
-      supportedClass.forEach((clsObj, idx) => {
-        const clsValue = String(clsObj?.class ?? '').trim();
-        if (!clsValue) {
-          console.warn(`Missing "class" in supported_class[${idx}] for ${bandLabel}`, clsObj);
-          return;
-        }
-        const opt = document.createElement('option');
-        opt.value = clsValue;
-        opt.textContent = clsValue;
-        classFrag.appendChild(opt);
-      });
-      operatingClassSelect.appendChild(classFrag);
-
-      // Respect auto_channel
-      manualChannel.disabled = Boolean(config?.auto_channel);
-
-      const populateChannelsForClass = (classValue) => {
-        const classValueStr = String(classValue).trim();
-
-        if (!this.updateChannelConfig[bandIndex]) {
-          this.updateChannelConfig[bandIndex] = {channels: [], class: '', radio_index: -1 };
-        }
-        this.updateChannelConfig[bandIndex].class = parseInt(classValueStr, 10) || 0;
-        this.updateChannelConfig[bandIndex].radio_index = bandIndex;
-
-        // Clear channel options
-        while (manualChannel.firstChild) manualChannel.removeChild(manualChannel.firstChild);
-
-        const clsObj = supportedClass.find(sc => String(sc?.class) === classValueStr);
-
-        if (!clsObj) {
-          const opt = document.createElement('option');
-          opt.value = '';
-          opt.textContent = 'No channels available for selected class';
-          opt.disabled = true;
-          opt.selected = true;
-          manualChannel.appendChild(opt);
-          this.updateChannelConfig[bandIndex].channels = [];
-          console.warn(`[${bandKey}] Class not found:`, classValueStr, supportedClass);
-          return;
-        }
-
-        const channels = Array.isArray(clsObj.supported_channels) ? clsObj.supported_channels : [];
-
-        if (channels.length === 0) {
-          const opt = document.createElement('option');
-          opt.value = '';
-          opt.textContent = 'No channels available';
-          opt.disabled = true;
-          opt.selected = true;
-          manualChannel.appendChild(opt);
-          console.warn(`[${bandKey}] No supported_channels for class ${classValueStr}`);
-          return;
-        }
-
-        // Build options efficiently
-        const chanFrag = document.createDocumentFragment();
-        channels.forEach((ch) => {
-          const s = String(ch);
-          const opt = document.createElement('option');
-          opt.value = s;
-          opt.textContent = s;
-          chanFrag.appendChild(opt);
+            dd.hidden = true;
+            btn.setAttribute('aria-expanded','false');
+          }
         });
-        manualChannel.appendChild(chanFrag);
 
-        const channelStrings = new Set(channels.map(String));
-        const currentValue = manualChannel.value;
+        listBody.__wired = true;
+      }
 
-        let initialChannelValue = '';
-       if (PrevSelectedChannel && channelStrings.has(String(PrevSelectedChannel))) {
-          initialChannelValue = String(PrevSelectedChannel);
-        } else if (currentValue && channelStrings.has(String(currentValue))) {
-          initialChannelValue = String(currentValue);
-        } else {
-          initialChannelValue = String(channels[0]);
-        }
+      // Search (debounced)
+      if (searchEl && !searchEl.__wired) {
+        searchEl.addEventListener('input', debounce(() => {
+          renderChannels(bandKey, bandIndex, device, classValue, []);
+        }));
+        searchEl.__wired = true;
+      }
+    };
 
-        manualChannel.value = initialChannelValue;
-        this.updateChannelConfig[bandIndex].channels = initialChannelValue
-                    ? [Number.parseInt(initialChannelValue, 10)]: [];
-
-
-        // Attach listener on channel change
-        if (!manualChannel.__channelListenerAttached) {
-          manualChannel.addEventListener('change', (e) => {
-            const raw = e.target?.value ?? '';
-            const newChannel = raw.trim();
-            const nextChannels = newChannel ? [Number.parseInt(newChannel, 10)] : [];
-            this.updateChannelConfig[bandIndex] = {...this.updateChannelConfig[bandIndex], channels: nextChannels};
-            console.log(`[${bandKey}] channel changed ->`, nextChannels);
-
-          });
-          manualChannel.__channelListenerAttached = true;
-        }
-      };
-
-      // ----- Initial selection & population -----
-      const prevStr = String(prevSelectedClass).trim();
-      const selectStr = String(operatingClassSelect.value).trim();
-
-      const initialClassValue = (prevStr === "0") ? selectStr : prevStr;
-
-      operatingClassSelect.value = initialClassValue;
-      populateChannelsForClass(initialClassValue);
-
-      // ----- Class change listener
-      operatingClassSelect.onchange = null;
-
-      operatingClassSelect.addEventListener('change', (e) => {
-        const newVal = String(e.target.value);
-        console.log(`[${bandKey}] class changed:`, newVal);
-
-        if (!this.updateChannelConfig[bandIndex]) {
-          this.updateChannelConfig[bandIndex] = {class: parseInt(newVal, 10), channels: [] , radio_index: bandIndex};
-        } else {
-          this.updateChannelConfig[bandIndex].class = parseInt(newVal, 10);
-        }
-
-        populateChannelsForClass(newVal);
-      }, { once: false });
-    });
-  }
-
-  setAllRadioPanelsDisabled(disabled = true) {
-    const panelIds = ['2_4g', '5g', '6g'];
-    panelIds.forEach((pid) => {
-      const panel = document.getElementById(`radio-${pid}hz`);
-      if (!panel) {
-        console.warn(`Panel #${pid} not found`);
+    // ---------- Rendering: classes ----------
+    const renderClasses = (bandKey, bandIndex, device, carryPrev = true) => {
+      const classSel = getEl(`radio-${bandKey}-class`);
+      if (!classSel) {
+        console.warn(`[${bandKey}] Missing #radio-${bandKey}-class`);
         return;
       }
-      const radioEnabledToggle = document.getElementById(`radio-${pid}-enabled`);
-      const operatingClassSelect = document.getElementById(`radio-${pid}-class`);
-      const manualChannel = document.getElementById(`channel-${pid}-manual`);
-      radioEnabledToggle.checked = false;
-      operatingClassSelect.disabled = disabled;
-      manualChannel.disabled = disabled;
-    });
+
+      const supported = Array.isArray(device?.supported_class) ? device.supported_class : [];
+      const { cls, channels } = coerceSelected(device?.selected_config);
+
+      if (!supported.length) {
+        classSel.innerHTML = `<option value="" disabled selected>No classes available</option>`;
+        renderChannels(bandKey, bandIndex, device, '', []);
+        return;
+      }
+
+      classSel.innerHTML = supported
+        .map(sc => {
+          const v = String(sc?.class ?? '').trim();
+          return v ? `<option value="${v}">${v}</option>` : '';
+        })
+        .join('');
+
+      const initial = (cls || classSel.options[0]?.value || '').trim();
+      classSel.value = initial;
+
+      const b = ensureBucket(bandIndex);
+      b.device_id = device.device_id;
+      b.class = parseInt(initial, 10) || 0;
+
+      renderChannels(bandKey, bandIndex, device, initial, carryPrev ? channels : []);
+
+      if (!classSel.__wired) {
+        classSel.addEventListener('change', () => {
+          const b = ensureBucket(bandIndex);
+          // Save current state for the previous class
+          const prevClass = String(b.class ?? '').trim();
+          if (prevClass) {
+            b.perClass[prevClass] = {
+              channels: Array.isArray(b.channels) ? b.channels.slice() : [],
+              preferences: { ...(b.preferences || {}) }
+            };
+          }
+
+          const newClass = String(classSel.value).trim();
+          b.class = parseInt(newClass, 10) || Number.isFinite(Number(newClass)) ? Number(newClass) : newClass;
+          const saved = b.perClass[String(newClass)];
+          if (saved && Array.isArray(saved.channels)) {
+            b.channels = saved.channels.slice();
+            b.preferences = { ...(saved.preferences || {}) };
+          } else {
+            b.channels = [];
+            b.preferences = {};
+          }
+          renderChannels(bandKey, bandIndex, device, classSel.value, saved?.channels || []);
+        });
+        classSel.__wired = true;
+      }
+    };
+
+    // ---------- Wire a band panel ----------
+    const wireBand = (bandConfig) => {
+      const bandLabel = String(bandConfig?.band ?? '').trim();
+      if (!bandLabel) {
+        console.warn('Missing band label', bandConfig);
+        return;
+      }
+      const bandKey = normalizeBandKey(bandLabel);
+      const bandIndex = getBandIndex(bandKey);
+
+      const deviceSel = getEl(`device-${bandKey}`);
+      const classSel  = getEl(`radio-${bandKey}-class`);
+      const listBody  = getEl(`list-${bandKey}`);
+
+      if (!deviceSel || !classSel || !listBody) {
+        console.warn(`[${bandLabel}] Missing one of: #device-${bandKey} / #radio-${bandKey}-class / #list-${bandKey}`);
+        return;
+      }
+
+      const devices = getDevicesForBand(bandConfig).filter(d => d.device_id);
+
+      //TODO: For now fixing the device list to ALL Station, later it will be modified based on RUID
+      deviceSel.innerHTML = `<option value="all" selected>ALL station</option>`;
+      deviceSel.disabled = true;
+
+      //TODO enable later to Populate device select
+      /*deviceSel.innerHTML = devices.length
+        ? devices.map((d,i) => `<option value="${d.device_id}" ${i===0?'selected':''}>${d.device_id}</option>`).join('')
+        : `<option value="" disabled selected>No devices</option>`;
+      */
+      if (!devices.length) {
+        classSel.innerHTML = `<option value="" disabled selected>No classes available</option>`;
+        listBody.innerHTML = '<div class="empty">No devices for this band.</div>';
+        return;
+      }
+
+      //TODO: For now fixing the device list to ALL Station, later it will be modified based on RUID
+      //--------------------------------------
+      // Use the first real device only for UI rendering
+      const firstDevice = devices[0];
+
+      const bucket = ensureBucket(bandIndex);
+      bucket.device_id = "all";  // Important! For future apply logic.
+
+      // Render using the first device's classes/channels
+      renderClasses(bandKey, bandIndex, firstDevice, true);
+      //--------------------------------------
+
+      //TODO To be enabled later for device selection from GUI
+      // Prefer device that has previous selection
+      /*const idxWithSel = devices.findIndex(d => {
+        const sc = d.selected_config;
+        if (!sc) return false;
+        if (Array.isArray(sc)) return sc.length > 0;
+        return Boolean(sc?.class || (Array.isArray(sc?.channels) && sc.channels.length > 0));
+      });
+      deviceSel.value = (idxWithSel >= 0 ? devices[idxWithSel] : devices[0]).device_id;
+
+      const currentDevice = () => devices.find(d => d.device_id === deviceSel.value) || devices[0];
+
+      ensureBucket(bandIndex).device_id = deviceSel.value;
+      renderClasses(bandKey, bandIndex, currentDevice(), true);
+
+      if (!deviceSel.__wired) {
+        deviceSel.addEventListener('change', () => {
+          const b = ensureBucket(bandIndex);
+          b.device_id = deviceSel.value;
+          b.channels = [];
+          b.preferences = {};
+          renderClasses(bandKey, bandIndex, currentDevice(), true);
+        });
+        deviceSel.__wired = true;
+      }*/
+    };
+
+    // ---------- Initialize all bands ----------
+    ctx.radioConfigs.forEach(wireBand);
   }
 
-getRadioIndexFromBand(bandLabel) {
-  const s = String(bandLabel || '').toLowerCase().trim();
-  if (s.includes('2_4g')) return 0;
-  if (s.includes('5g'))   return 1;
-  if (s.includes('6g'))   return 2;
-  // Fallback (if band not recognized)
-  return -1;
-}
+  getRadioIndexFromBand(bandLabel) {
+    const s = String(bandLabel || '').toLowerCase().trim();
+    if (s.includes('2_4g')) return 0;
+    if (s.includes('5g'))   return 1;
+    if (s.includes('6g'))   return 2;
+    // Fallback (if band not recognized)
+    return -1;
+  }
 
   /**
    * Update advanced settings
@@ -1074,8 +1273,15 @@ getRadioIndexFromBand(bandLabel) {
           ? parseInt(cfg.class, 10) : cfg.class;
 
         // Ensure channels is an array of integers
-        const channels = Array.isArray(cfg.channels)
-          ? cfg.channels.map(ch => (typeof ch === 'string' ? parseInt(ch, 10) : ch)) : [];
+        const channels = Array.isArray(cfg.channels) ? (
+          Array.from(
+            new Set(
+              cfg.channels
+                .map(ch => (typeof ch === 'string' ? parseInt(ch, 10) : ch))
+                .filter(n => Number.isInteger(n))
+            )
+          ).sort((a, b) => a - b)
+        ) : [];
 
         return {
           radio_index: Number.isInteger(radioIndex) ? radioIndex : 0,
@@ -1103,7 +1309,7 @@ getRadioIndexFromBand(bandLabel) {
     } finally {
       if (saveBtn) {
         saveBtn.disabled = false;
-        saveBtn.innerHTML = '<i class="fas fa-save"></i> Apply Settings';
+        saveBtn.innerHTML = '<i class="fas fa-save"></i> Apply Radio Settings';
       }
     }
   }
