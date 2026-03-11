@@ -859,6 +859,7 @@ int em_channel_t::send_channel_sel_response_msg(em_chan_sel_resp_code_type_t cod
     em_cmdu_t *cmdu;
     em_tlv_t *tlv;
     em_channel_sel_rsp_t *resp;
+    em_spatial_reuse_cfg_rsp_t *spatial_resp;
     unsigned char *tmp = buff;
     dm_easy_mesh_t *dm;
     unsigned short type = htons(ETH_P_1905);
@@ -899,17 +900,17 @@ int em_channel_t::send_channel_sel_response_msg(em_chan_sel_resp_code_type_t cod
     tmp += (sizeof(em_tlv_t) + sizeof(em_channel_sel_rsp_t));
     len += (sizeof(em_tlv_t) + sizeof(em_channel_sel_rsp_t));
     
-	// Zero or more Spatial Reuse Config Response TLVs (see section 17.2.91)
-	tlv = reinterpret_cast<em_tlv_t *> (tmp);
-	tlv->type = em_tlv_type_spatial_reuse_cfg_rsp;
-	tlv->len = htons(sizeof(em_spatial_reuse_cfg_rsp_t));
-	resp = reinterpret_cast<em_channel_sel_rsp_t *> (tlv->value);
-	memcpy(resp->ruid, get_radio_interface_mac(), sizeof(mac_address_t));
-    memcpy(&resp->response_code, reinterpret_cast<unsigned char *> (&code), sizeof(unsigned char));
+    // Zero or more Spatial Reuse Config Response TLVs (see section 17.2.91)
+    tlv = reinterpret_cast<em_tlv_t *> (tmp);
+    tlv->type = em_tlv_type_spatial_reuse_cfg_rsp;
+    tlv->len = htons(sizeof(em_spatial_reuse_cfg_rsp_t));
+    spatial_resp = reinterpret_cast<em_spatial_reuse_cfg_rsp_t *> (tlv->value);
+    memcpy(spatial_resp->config_resp.ruid, get_radio_interface_mac(), sizeof(mac_address_t));
+    memcpy(&spatial_resp->config_resp.response_code, reinterpret_cast<unsigned char *> (&code), sizeof(unsigned char));
 
 
-    tmp += (sizeof(em_tlv_t) + sizeof(em_channel_sel_rsp_t));
-    len += (sizeof(em_tlv_t) + sizeof(em_channel_sel_rsp_t));
+    tmp += (sizeof(em_tlv_t) + sizeof(em_spatial_reuse_cfg_rsp_t));
+    len += (sizeof(em_tlv_t) + sizeof(em_spatial_reuse_cfg_rsp_t));
 
 	// End of message
     tlv = reinterpret_cast<em_tlv_t *> (tmp);
@@ -1774,35 +1775,84 @@ int em_channel_t::handle_channel_pref_tlv(unsigned char *buff, op_class_channel_
 {
     em_channel_pref_t *pref = reinterpret_cast<em_channel_pref_t *> (buff);
     em_channel_pref_op_class_t *channel_pref;
-    unsigned int i = 0, j = 0;
-	em_op_class_info_t op_class_info[EM_MAX_OP_CLASS];
+    unsigned int i = 0, j = 0, k = 0;
+    em_op_class_info_t curr_op_class_info;
+    unsigned char pref_bits;
+    bool entry_found = false;
 
-    channel_pref = pref->op_classes;
     if (pref != NULL) {
-		channel_pref = pref->op_classes;
-		memcpy(op_class_info[i].id.ruid, pref->ruid, sizeof(mac_address_t));
-		for (i = 0; i < pref->op_classes_num; i++) {
-			memcpy(op_class_info[i].id.ruid, pref->ruid, sizeof(mac_address_t));
-			op_class_info[i].id.type = em_op_class_type_current;
-			op_class_info[i].op_class = static_cast<unsigned int> (channel_pref->op_class);
-			op_class_info[i].id.op_class = op_class_info[i].op_class;
-			op_class_info[i].num_channels = static_cast<unsigned int> (channel_pref->num);
-			for (j = 0; j < op_class_info[i].num_channels; j++) {
-					op_class_info[i].channels[j] = static_cast<unsigned int > (channel_pref->channels.channel[j]);
-			}
-			channel_pref = reinterpret_cast<em_channel_pref_op_class_t *> (reinterpret_cast<unsigned char *> (channel_pref) + sizeof(em_op_class_t) + op_class_info[i].num_channels);
-		}
+        channel_pref = pref->op_classes;
+        for (i = 0; i < pref->op_classes_num; i++) {
 
-		op_class->num = 1;
-		for (i = 0; i < pref->op_classes_num; i++) {
-			if (get_band() == (dm_easy_mesh_t::get_freq_band_by_op_class(static_cast<int> (op_class_info[i].op_class)))) {
-				memcpy(&op_class->op_class_info[0], &op_class_info[i], sizeof(em_op_class_info_t));
-				//printf("%s:%d Received channel selection request op_class=%d \n",__func__, __LINE__,op_class_info[i].op_class);
-				break;
-			}
-		}
+            // Extract preference bits that follow channel list
+            unsigned char *pref_bits_ptr;
+            pref_bits_ptr = reinterpret_cast<unsigned char *> (channel_pref) + sizeof(em_channel_pref_op_class_t) + channel_pref->num;
+            memcpy(&pref_bits, pref_bits_ptr, sizeof(unsigned char));
+
+            // Skip entries not applicable for the current radio band
+            if (get_band() != (dm_easy_mesh_t::get_freq_band_by_op_class(static_cast<int> (channel_pref->op_class)))) {
+                channel_pref = reinterpret_cast<em_channel_pref_op_class_t *> (pref_bits_ptr + sizeof(unsigned char));
+                continue;
+            }
+
+            // Check for any earlier entries with same OPCLASS
+            for (j = 0; j < op_class->num; j++) {
+                if (op_class->op_class_info[j].op_class == static_cast<unsigned int> (channel_pref->op_class)) {
+
+                    // Append the channels and preferences to the existing entry.
+                    unsigned int added_channels_count = 0;
+                    unsigned int existing_channels_count = op_class->op_class_info[j].num_channels;
+                    for (added_channels_count = 0; (added_channels_count < static_cast<unsigned int> (channel_pref->num)) &&
+          ((existing_channels_count + added_channels_count) < EM_MAX_CHANNELS_IN_LIST); added_channels_count++) {
+
+                        op_class->op_class_info[j].channels[existing_channels_count + added_channels_count] =
+              static_cast<unsigned int > (channel_pref->channels.channel[added_channels_count]);
+
+                        op_class->op_class_info[j].channel_pref[existing_channels_count + added_channels_count] = pref_bits;
+                    }
+
+                    // Only increment by appended count
+                    // If count exceeds max channels then remaining channels are dropped.
+                    op_class->op_class_info[j].num_channels += added_channels_count;
+                    entry_found = true;
+                    break;
+                }
+            }
+
+            //Existing row is updated, move to next opclass in the list
+            if (entry_found) {
+                channel_pref = reinterpret_cast<em_channel_pref_op_class_t *> (pref_bits_ptr + sizeof(unsigned char));
+                continue;
+            }
+
+            // Existing row is not found. Add new entry
+            memset(&curr_op_class_info, 0, sizeof(em_op_class_info_t));
+            memcpy(curr_op_class_info.id.ruid, pref->ruid, sizeof(mac_address_t));
+
+            // This function is only called by handle_channel_sel_req. Hence store preferences received from controller as type anticipated
+            curr_op_class_info.id.type = em_op_class_type_anticipated;
+            curr_op_class_info.op_class = static_cast<unsigned int> (channel_pref->op_class);
+            curr_op_class_info.id.op_class = curr_op_class_info.op_class;
+            curr_op_class_info.num_channels = static_cast<unsigned int> (channel_pref->num);
+
+            for (k = 0; k < curr_op_class_info.num_channels; k++) {
+                curr_op_class_info.channels[k] = static_cast<unsigned int > (channel_pref->channels.channel[k]);
+                curr_op_class_info.channel_pref[k] = pref_bits;
+            }
+            curr_op_class_info.pref_valid = EM_CH_PREF_ENTRY_VALID;
+
+            //Add the current opclass entry to the list
+            memcpy(&op_class->op_class_info[op_class->num], &curr_op_class_info, sizeof(em_op_class_info_t));
+            op_class->num++;
+
+            //If MAX entries are added, skip further processing
+            if (op_class->num >= EM_MAX_OP_CLASS)
+                break;
+
+            // Move to next opclass
+            channel_pref = reinterpret_cast<em_channel_pref_op_class_t *> (pref_bits_ptr + sizeof(unsigned char));
+        }
     }
-
     return 0;
 }
 
