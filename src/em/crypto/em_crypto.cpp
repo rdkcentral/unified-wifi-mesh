@@ -83,11 +83,13 @@ uint8_t em_crypto_t::g_dh1536_p[] =  {
 };
 uint8_t em_crypto_t::g_dh1536_g[] = { 0x02 };
 
+#if OPENSSL_VERSION_NUMBER >= 0x30000000L
 static pthread_once_t init_once = PTHREAD_ONCE_INIT;
+#endif
 
 em_crypto_t::em_crypto_t() {
 
-    #if OPENSSL_VERSION_NUMBER >= 0x30000000L
+#if OPENSSL_VERSION_NUMBER >= 0x30000000L
     memset(&m_crypto_info, 0, sizeof(em_crypto_info_t));
     pthread_once(&init_once, []() {
         if (OPENSSL_init_crypto(OPENSSL_INIT_LOAD_CONFIG, NULL) == 0) {
@@ -102,7 +104,7 @@ em_crypto_t::em_crypto_t() {
         }
 #endif
     });
-    #endif
+#endif
 }
 
 int em_crypto_t::init()

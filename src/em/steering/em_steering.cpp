@@ -518,6 +518,8 @@ int em_steering_t::handle_ack_msg(unsigned char *buff, unsigned int len)
 
 int em_steering_t::handle_client_assoc_ctrl_req(unsigned char *buff, unsigned int len)
 {
+    printf("%s:%d: Recived Client Assoc Control Request from Controller\n", __func__, __LINE__);
+	
     em_tlv_t *tlv;
     char *errors[EM_MAX_TLV_MEMBERS] = {0};
     em_client_assoc_ctrl_req_t *assoc_ctrl_req;
@@ -544,6 +546,7 @@ int em_steering_t::handle_client_assoc_ctrl_req(unsigned char *buff, unsigned in
             // Assume a function to check association; placeholder
             if (dm->is_sta_associated(assoc_ctrl_req->bssid, sta_mac)) {
                 // Send Ack with error
+                printf("%s:%d: Sending ack without Error Code TLV\n", __func__, __LINE__);
                 send_1905_ack_message(sta_mac, msg_id, 0x01, hdr->src);
                 has_errors = true;
             }

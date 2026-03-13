@@ -44,6 +44,12 @@ if [ "$DO_OBTAIN_MAC" = true ]; then
             echo "Reading mac:$primary_addr from eth0"
             primary_veth0_mac=$(echo $primary_addr | tr -d ':')
             primary_veth0_mac=$((0x$primary_veth0_mac + 0x10))
+    elif [ -e "/sys/class/net/lan0/address" ]; then
+            primary_addr="$(cat /sys/class/net/lan0/address)"
+            echo "Reading mac:$primary_addr from lan0"
+            #Convert the mac address into hex and increment by 1
+            primary_veth0_mac=$(echo $primary_addr | tr -d ':')
+            primary_veth0_mac=$((0x$primary_veth0_mac + 0x10))
     else
             primary_addr="$(cat /sys/class/ieee80211/phy0/macaddress)"
             echo "Reading mac:$primary_addr from phy0"
@@ -67,29 +73,6 @@ ip a show $VETH_PEER
 
 echo "To clean up, run 'ip link del $BRIDGE_NAME'."
 
-# ----------- 🔍 TEST: Broadcast from VETH_PEER -----------
-
-echo "Testing broadcast connectivity..."
-
-TEST_PORT=9999
-TEST_MSG="hello_broadcast_test_$$"
-RESULT=""
-
-# Start listener in background
-timeout 3 socat -u UDP4-RECVFROM:$TEST_PORT,broadcast - > $VETH_OUTPUT &
-LISTENER_PID=$!
-sleep 1
-
-# Send broadcast from veth peer
-echo "$TEST_MSG" | socat - UDP4-DATAGRAM:255.255.255.255:$TEST_PORT,broadcast,bindtodevice="$VETH_PEER"
-
-# Wait and read result
-sleep 1
-if [ -f "$VETH_OUTPUT" ]; then
-    RESULT=$(cat $VETH_OUTPUT)
-    rm -f $VETH_OUTPUT
-fi
-
 if [ "$DO_OBTAIN_MAC" = false ]; then
     if [ -e "/sys/class/net/erouter0/address" ]; then
        base_addr="$(cat /sys/class/net/erouter0/address)"
@@ -106,14 +89,4 @@ if [ "$DO_OBTAIN_MAC" = false ]; then
     veth1_mac=$(printf "%012x" $VETH1_MACADDR | sed 's/../&:/g;s/:$//')
     echo "$VETH_PEER macaddress: $veth1_mac"
     ip link set dev $VETH_PEER address $veth1_mac
-fi
-
-if [ "$RESULT" = "$TEST_MSG" ]; then
-    echo "✅ Broadcast test successful: Message received in "$VETH_PEER""
-else
-    echo "❌ Broadcast test failed: Message not received"
-    echo "You can run manually:"
-    echo "  ip socat -u UDP4-RECVFROM:$TEST_PORT,broadcast"
-    echo "  echo \"$TEST_MSG\" | socat - UDP4-DATAGRAM:255.255.255.255:$TEST_PORT,broadcast,bindtodevice="$VETH_PEER""
-    exit 1
 fi

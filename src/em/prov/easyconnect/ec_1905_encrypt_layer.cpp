@@ -766,7 +766,7 @@ std::pair<uint8_t*, size_t> ec_1905_encrypt_layer_t::append_key_data_buff(uint8_
     if (perform_inital_expand) {
         // If we are expanding for MIC, we need to add the MIC length to the frame size
         // This will ensure that the EAPOL frame can accommodate the MIC field when added
-        new_frame_size += (mic_kck_bits / 8) + sizeof(uint16_t); // + MIC length (bytes) + Key Data Length field
+        new_frame_size += static_cast<size_t>((mic_kck_bits / 8)) + sizeof(uint16_t); // + MIC length (bytes) + Key Data Length field
     }
     uint8_t* new_frame = reinterpret_cast<uint8_t*>(realloc(eapol_frame, new_frame_size));
     EM_ASSERT_NOT_NULL(new_frame, {}, "Failed to allocate memory for EAPOL frame with KDE");
@@ -849,7 +849,8 @@ std::pair<uint8_t *, size_t> ec_1905_encrypt_layer_t::encrypt_key_data(ec_1905_k
     uint32_t wrapped_key_data_len = 0;
 
     em_printfout("DEBUG: Calling aes_key_wrap with plain_len=%zu", new_key_data_len);
-    if (!em_crypto_t::aes_key_wrap(ctx.ptk_kek, kek_bits / 8, key_data_plain_copy, static_cast<uint32_t>(new_key_data_len), wrapped_key_data, &wrapped_key_data_len)){
+    if (!em_crypto_t::aes_key_wrap(ctx.ptk_kek, static_cast<size_t>(kek_bits / 8), key_data_plain_copy,
+        static_cast<uint32_t>(new_key_data_len), wrapped_key_data, &wrapped_key_data_len)){
         em_printfout("Failed to encrypt Key Data using AES Key Wrap");
         free(wrapped_key_data);
         free(key_data_plain_copy);
@@ -876,7 +877,8 @@ std::pair<uint8_t *, size_t> ec_1905_encrypt_layer_t::decrypt_key_data(ec_1905_k
     uint8_t* unwrapped_key_data = reinterpret_cast<uint8_t*>(calloc(key_data_len, 1));
     uint32_t unwrapped_len = 0;
 
-    if (!em_crypto_t::aes_key_unwrap(ctx.ptk_kek, kek_bits / 8, wrapped_key_data, static_cast<uint32_t>(key_data_len), unwrapped_key_data, &unwrapped_len)){
+    if (!em_crypto_t::aes_key_unwrap(ctx.ptk_kek, static_cast<size_t>(kek_bits / 8), wrapped_key_data,
+        static_cast<uint32_t>(key_data_len), unwrapped_key_data, &unwrapped_len)){
         em_printfout("Failed to decrypt Key Data using AES Key Wrap");
         free(unwrapped_key_data);
         return {};
@@ -946,7 +948,7 @@ std::vector<uint8_t> ec_1905_encrypt_layer_t::calculate_mic(ec_1905_key_ctx &ctx
 
     // While they are the same value, they are used for different purposes 
     // so we keep them separate
-    size_t mic_len_bytes = mic_kck_bits / 8; // MIC length in bytes
+    size_t mic_len_bytes = static_cast<size_t>(mic_kck_bits / 8); // MIC length in bytes
 
     // Set Key MIC field to 0 before calculating MIC
     // MIC is at the end of the EAPOL packet, before Key Len and Key Data
@@ -961,7 +963,7 @@ std::vector<uint8_t> ec_1905_encrypt_layer_t::calculate_mic(ec_1905_key_ctx &ctx
     uint8_t *addr[1] = { reinterpret_cast<uint8_t*>(eapol_frame_copy) };
     size_t len[1] = { eapol_frame_size };
 
-    if (!em_crypto_t::platform_hmac_hash(m_hash_fn, ctx.ptk_kck, (mic_kck_bits / 8), 1, addr, len, temp_mic)) {
+    if (!em_crypto_t::platform_hmac_hash(m_hash_fn, ctx.ptk_kck, static_cast<size_t>(mic_kck_bits / 8), 1, addr, len, temp_mic)) {
         free(eapol_frame_copy);
         em_printfout("Failed to calculate MIC for EAPOL frame");
         return {};
@@ -1446,7 +1448,7 @@ bool ec_1905_encrypt_layer_t::handle_pw_eapol_frame_1(ec_1905_key_ctx &ctx, uint
         PTK-KEK = ExtractBits(PTK, KCK_bits, KEK_bits)
     The PTK-KEK is used by the EAPOL-Key frames to provide data confidentiality in the 4-way handshake and group key handshake messages.
     */
-    memcpy(ctx.ptk_kek, ctx.ptk + kck_bytes, kek_bits / 8); 
+    memcpy(ctx.ptk_kek, ctx.ptk + kck_bytes, static_cast<size_t>(kek_bits / 8));
 
     // Build the second frame of the 4-way handshake
     em_printfout("Building EAPOL frame 2 for 4-way handshake with '" MACSTRFMT "'", MAC2STR(src_mac));
@@ -1519,7 +1521,7 @@ bool ec_1905_encrypt_layer_t::handle_pw_eapol_frame_2(ec_1905_key_ctx &ctx, uint
         PTK-KEK = ExtractBits(PTK, KCK_bits, KEK_bits)
     The PTK-KEK is used by the EAPOL-Key frames to provide data confidentiality in the 4-way handshake and group key handshake messages.
     */
-    memcpy(ctx.ptk_kek, ctx.ptk + kck_bytes, kek_bits / 8); 
+    memcpy(ctx.ptk_kek, ctx.ptk + kck_bytes, static_cast<size_t>(kek_bits / 8));
 
     // Verify the MIC
     if (!verify_mic(ctx, frame, len)) {

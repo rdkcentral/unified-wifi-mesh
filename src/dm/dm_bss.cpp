@@ -222,7 +222,6 @@ void dm_bss_t::encode(cJSON *obj, bool summary)
     cJSON_AddBoolToObject(obj, "Enabled", m_bss_info.enabled);
     cJSON_AddStringToObject(obj, "TimeStamp", m_bss_info.timestamp);
     cJSON_AddNumberToObject(obj, "VapMode", m_bss_info.vap_mode);
-    cJSON_AddNumberToObject(obj, "VlanID", m_bss_info.vlan_id);
     
 	if (summary == true) {
         return;

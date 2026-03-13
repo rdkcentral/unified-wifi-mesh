@@ -380,9 +380,15 @@ type RadioConfig struct {
 	DFSEnabled      bool              `json:"dfs_enabled,omitempty"`
 	PSCOnly         bool              `json:"psc_only,omitempty"`
 	WiFi7Features   *WiFi7Features    `json:"wifi7_features,omitempty"`
-	SupportedClass  []ClassInfo       `json:"supported_class"`
-	SelectedConfig  channelConfig     `json:"selected_config,omitempty"`
+	DeviceList      []WifiChannelConfig      `json:"device_list"`
 }
+
+type WifiChannelConfig struct {
+    DeviceID       string           `json:"device_id"`
+    SupportedClass []ClassInfo      `json:"supported_class"`
+    SelectedConfig []channelConfig  `json:"selected_config,omitempty"`
+}
+
 type WiFi7Features struct {
 	MLOEnabled          bool `json:"mlo_enabled"`
 	MultiRUEnabled      bool `json:"multi_ru_enabled"`
@@ -407,9 +413,11 @@ type ClassInfo struct {
 
 // channelConfig struct to store previous configuration
 type channelConfig struct {
+	RadioID    string  `json:"radio_id"`
 	RadioIndex int     `json:"radio_index"`
 	Class      int     `json:"class"`
 	Channels   []int   `json:"channels"`
+	Preference []int   `json:"preference"`
 }
 
 type AdvancedWirelessSettings struct {
@@ -1878,7 +1886,6 @@ func getWirelessProfilesHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 // ===== RADIO CONFIGURATION HANDLERS =====
-
 func getRadioConfigsHandler(w http.ResponseWriter, r *http.Request) {
     wirelessMutex.RLock()
     defer wirelessMutex.RUnlock()
@@ -1908,19 +1915,30 @@ func getRadioConfigsHandler(w http.ResponseWriter, r *http.Request) {
             deviceListTree := C.get_network_tree_by_key(wifiChannelTree, C.CString("DeviceList"))
             capabilityMap := getChannelCapabilityFromTree(deviceListTree)
 
-            bandLabelMap := map[int]string{0: "2.4GHz", 1: "5GHz", 2: "6GHz"}
+            bandLabelMap := map[int]string{0: "2.4GHz", 1: "5GHz", 3: "6GHz"}
 
             prevConfigMap := getConfiguredChannels(wifiChannelUpdateTree)
+
             for band, classMap := range capabilityMap {
-                prev, _ := findPrevSelection(prevConfigMap, band)
-                rc := RadioConfig{Band: bandLabelMap[band], Enabled: true, SelectedConfig: prev}
+                var supportedClasses []ClassInfo
                 for _, item := range classMap {
-                    rc.SupportedClass = append(rc.SupportedClass, ClassInfo{
+                    supportedClasses = append(supportedClasses, ClassInfo{
                         Class:   item.class,
                         Channel: item.channelList,
                     })
                 }
-                configs = append(configs, rc)
+                bandEntry := RadioConfig{
+                    Band:       bandLabelMap[band],
+                    DeviceList: make([]WifiChannelConfig, 0, len(prevConfigMap)),
+                }
+                for _, devPrev := range prevConfigMap {
+                    bandEntry.DeviceList = append(bandEntry.DeviceList, WifiChannelConfig{
+                        DeviceID:       devPrev.DeviceID,
+                        SupportedClass: supportedClasses,
+                        SelectedConfig: filterDeviceSelectionByBand(devPrev, band),
+                    })
+                }
+                configs =  append(configs, bandEntry)
             }
 
             response := map[string]interface{}{
@@ -4811,35 +4829,79 @@ func getChannelCapabilityFromTree(tree *C.em_network_node_t) map[int][]classChan
  * channels with respect to class and band
  * returns: array of channelConfig
  */
-func getConfiguredChannels(tree *C.em_network_node_t) []channelConfig {
-    var result []channelConfig
+func getConfiguredChannels(tree *C.em_network_node_t) []WifiChannelConfig {
+    var result []WifiChannelConfig
 
     // Get the AnticipatedChannelPreference
     keyACP := C.CString("AnticipatedChannelPreference")
     defer C.free(unsafe.Pointer(keyACP))
-
-    configuredChannelPrefNode := C.get_network_tree_by_key(tree, keyACP)
+	configuredChannelPrefNode := C.get_network_tree_by_key(tree, keyACP)
     if configuredChannelPrefNode == nil {
+		log.Printf("Failed to get previous channel configuration")
+        return result
+	}
+
+    // Get the DeviceList
+    keyDeviceList := C.CString("DeviceList")
+    defer C.free(unsafe.Pointer(keyDeviceList))
+    deviceListNode := C.get_network_tree_by_key(tree, keyDeviceList)
+    if deviceListNode == nil {
         log.Printf("Failed to get previous channel configuration")
         return result
     }
 
-    // Get the list of configured class with respect to class and band
-    for i := 0; i < int(configuredChannelPrefNode.num_children); i++ {
-        configuredChannel := configuredChannelPrefNode.child[i]
-        ConfigClass := getKeyIntValue(configuredChannel, "Class")
-        configChannelList := C.get_network_tree_by_key(configuredChannel, C.CString("ChannelList"))
+    for i := 0; i < int(deviceListNode.num_children); i++ {
+        deviceNode := deviceListNode.child[i]
+        deviceID := getTreeValue(deviceNode, "ID")
 
-        var configChannels []int
-        if configChannelList != nil {
-            for j := 0; j < int(configChannelList.num_children); j++ {
-                configChannels = append(configChannels, int(configChannelList.child[j].value_int))
-            }
+        keyRadioList := C.CString("RadioList")
+        defer C.free(unsafe.Pointer(keyRadioList))
+        RadioListNode := C.get_network_tree_by_key(tree, keyRadioList)
+        if RadioListNode == nil {
+            log.Printf("Failed to get previous channel configuration")
+            result = append(result, WifiChannelConfig{
+                DeviceID:       deviceID,
+                SupportedClass: nil,
+                SelectedConfig: nil,
+            })
+            continue
         }
-        result = append(result, channelConfig{
-            RadioIndex: i,
-            Class:      ConfigClass,
-            Channels:   configChannels,
+
+        // Build per-device selected configs
+        var cfgs []channelConfig
+        for j := 0; j < int(RadioListNode.num_children); j++ {
+            radioNode := RadioListNode.child[j]
+            radioID := getTreeValue(radioNode, "ID")
+            bandIndex := getKeyIntValue(radioNode, "Band")
+            //TODO: remote or modify later after supporting per radio channel update.
+            anticipatedChannelIndex := bandIndex
+            if bandIndex == 0 ||  bandIndex == 1 {
+                anticipatedChannelIndex = bandIndex
+            } else if bandIndex == 3 {
+                anticipatedChannelIndex = 2
+            }
+            configuredChannel := configuredChannelPrefNode.child[anticipatedChannelIndex]
+            ConfigClass := getKeyIntValue(configuredChannel, "Class")
+            configChannelList := C.get_network_tree_by_key(configuredChannel, C.CString("ChannelList"))
+            var configChannels []int
+            if configChannelList != nil {
+                for j := 0; j < int(configChannelList.num_children); j++ {
+                    configChannels = append(configChannels, int(configChannelList.child[j].value_int))
+                }
+            }
+
+            cfgs  = append(cfgs , channelConfig{
+                RadioID: radioID,
+                RadioIndex: bandIndex,
+                Class:      ConfigClass,
+                Channels:   configChannels,
+            })
+        }
+
+        result = append(result, WifiChannelConfig{
+            DeviceID:       deviceID,
+            SupportedClass: nil, //will be filled from channel capbility later
+            SelectedConfig: cfgs,
         })
     }
 
@@ -4906,19 +4968,19 @@ func applyChannelConfig(ssidTree *C.em_network_node_t) bool {
     return true
 }
 
-/* func: findPrevSelection()
+/* func: filterDeviceSelectionByBand()
  * Description:
  * get the previously selected channel config
  * returns: array of selected channels with respect to class.
  */
-func findPrevSelection(prevList []channelConfig, band int) (channelConfig, bool) {
-    for _, cfg := range prevList {
+func filterDeviceSelectionByBand(dev WifiChannelConfig, band int) []channelConfig {
+    out := make([]channelConfig, 0, len(dev.SelectedConfig))
+    for _, cfg := range dev.SelectedConfig {
         if cfg.RadioIndex == band {
-            return cfg, true
+            out = append(out, cfg)
         }
     }
-    var empty channelConfig
-    return empty, false
+    return out
 }
 
 /* func: mapchannelsToSlice()

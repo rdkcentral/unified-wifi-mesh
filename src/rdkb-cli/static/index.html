@@ -486,11 +486,8 @@
                     <div class="radio-config-panel active" id="radio-2_4ghz">
                         <div class="config-grid">
                             <div class="config-group">
-                                <label class="config-label">Radio Status</label>
-                                <label class="toggle-switch">
-                                    <input type="checkbox" id="radio-2_4g-enabled" checked>
-                                    <span class="toggle-slider"></span>
-                                </label>
+                                <label class="config-label">Select Device</label>
+                                <select id="device-2_4g" class="form-select"></select>
                             </div>
                             <!-- Class -->
                             <div class="config-group">
@@ -500,12 +497,28 @@
                                </select>
                             </div>
                             <div class="config-group">
-                                <label class="config-label">Channel</label>
-                                <select id="channel-2_4g-manual" class="form-select">
-                                    <!-- Options will be populated dynamically -->
-                                </select>
+                                <label class="config-label">Filter Channels</label>
+                                <input id="search-2_4g" class="form-input" placeholder="e.g., 6"/>
                             </div>
                         </div>
+
+                        <div class="channels-card">
+                            <div class="channels-head">
+                                <div class="note">
+                                    Select channels and set preference <strong>(0-14)</strong>.
+                                    <span style="opacity:.8">0 = Non operable, 14 = Most preferable.</span>
+                                </div>
+                            </div>
+                            <div class="list">
+                                <div class="list-head">
+                                    <div><input type="checkbox" id="checkAll-2_4g"/></div>
+                                    <div>Channel</div>
+                                    <div>Preference (0-14)</div>
+                                </div>
+                                <div class="list-body" id="list-2_4g"></div>
+                            </div>
+                        </div>
+                    </div>
                         
                         <!--
                         <div class="advanced-settings">
@@ -531,17 +544,14 @@
                             </div>
                         </div>
                         -->
-                    </div>
+                    <!--/div-->
 
                     <!-- 5GHz Radio Settings -->
                     <div class="radio-config-panel" id="radio-5ghz">
                         <div class="config-grid">
                             <div class="config-group">
-                                <label class="config-label">Radio Status</label>
-                                <label class="toggle-switch">
-                                    <input type="checkbox" id="radio-5g-enabled" checked>
-                                    <span class="toggle-slider"></span>
-                                </label>
+                                <label class="config-label">Select Device</label>
+                                <select id="device-5g" class="form-select"></select>
                             </div>
                             <!-- Class -->
                             <div class="config-group">
@@ -551,10 +561,24 @@
                                </select>
                             </div>
                             <div class="config-group">
-                                <label class="config-label">Channel</label>
-                                <select id="channel-5g-manual" class="form-select">
-                                    <!-- Options will be populated dynamically -->
-                                </select>
+                                <label class="config-label">Filter Channels</label>
+                                <input id="search-5g" class="form-input" placeholder="e.g., 149"/>
+                            </div>
+                        </div>
+                        <div class="channels-card">
+                            <div class="channels-head">
+                                <div class="note">
+                                    Select channels and set preference <strong>(0–14)</strong>.
+                                    <span style="opacity:.8">0 = Non operable, 14 = Most preferable.</span>
+                                </div>
+                            </div>
+                            <div class="list">
+                                <div class="list-head">
+                                    <div><input type="checkbox" id="checkAll-5g"/></div>
+                                    <div>Channel</div>
+                                    <div>Preference (0-14)</div>
+                                </div>
+                                <div class="list-body" id="list-5g"></div>
                             </div>
                         </div>
                     </div>
@@ -563,11 +587,8 @@
                     <div class="radio-config-panel" id="radio-6ghz">
                         <div class="config-grid">
                             <div class="config-group">
-                                <label class="config-label">Radio Status</label>
-                                <label class="toggle-switch">
-                                    <input type="checkbox" id="radio-6g-enabled" checked>
-                                    <span class="toggle-slider"></span>
-                                </label>
+                                <label class="config-label">Select Device</label>
+                                <select id="device-6g" class="form-select"></select>
                             </div>
                             <!-- Class -->
                             <div class="config-group">
@@ -577,10 +598,24 @@
                                </select>
                             </div>
                             <div class="config-group">
-                                <label class="config-label">Channel</label>
-                                <select id="channel-6g-manual" class="form-select">
-                                    <!-- Options will be populated dynamically -->
-                                </select>
+                                <label class="config-label">Filter Channels</label>
+                                <input id="search-6g" class="form-input" placeholder="e.g., 21"/>
+                            </div>
+                        </div>
+                        <div class="channels-card">
+                            <div class="channels-head">
+                                <div class="note">
+                                    Select channels and set preference <strong>(0-14)</strong>.
+                                    <span style="opacity:.9">0 = Non operable, 14 = Most preferable.</span>
+                                </div>
+                            </div>
+                            <div class="list">
+                                <div class="list-head">
+                                    <div><input type="checkbox" id="checkAll-6g"/></div>
+                                    <div>Channel</div>
+                                    <div>Preference (0-14)</div>
+                                </div>
+                                <div class="list-body" id="list-6g"></div>
                             </div>
                         </div>
                         <!--

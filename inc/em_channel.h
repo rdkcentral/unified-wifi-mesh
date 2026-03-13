@@ -200,7 +200,7 @@ public:
 	 * @note Ensure that the buffer is allocated with sufficient size before calling this function.
 	 */
 	short create_channel_pref_tlv(unsigned char *buff);
-    
+
 	/**!
 	 * @brief Creates an operating channel report TLV.
 	 *
@@ -343,7 +343,8 @@ public:
 	/**!
 	 * @brief Sends a channel selection request message.
 	 *
-	 * This function is responsible for initiating a request to select a specific channel.
+	 * This function is responsible for initiating a request to select a specific or from a list of channels.
+	 * The anticipated list is validated against agent's capability and preference.
 	 *
 	 * @returns int
 	 * @retval 0 on success
@@ -750,6 +751,15 @@ public:
 	 */
 	virtual em_freq_band_t get_band() = 0;
 
+	/**!
+	 * @brief Prepares a list of non-operable channels for the opclass,
+	 * reported by agent in capability and channel preference report.
+	 *
+	 * @param[in] op_class Operational class identifier.
+	 * @param[in] ruid Radio unique identifier (MAC address).
+	 * @returns std::vector<unsigned char> list of non-operable channels. Can be empty.
+	 */
+	std::vector<unsigned char> get_non_operable_channels(unsigned char op_class, const unsigned char *ruid);
     
 	/**!
 	 * @brief Constructor for em_channel_t.

@@ -734,17 +734,20 @@ void em_policy_cfg_t::process_ctrl_state()
                         em_printfout("Warning: Null em pointer in vector, skipping");
                         continue;
                     }
-                    if (em->get_state() != em_state_ctrl_set_policy_pending)
+                    // Check if radio is in set policy pending, if not log and return without sending policy config request 
+                    // check state of em is configured, to handle the case where radio exchange autoconfiguration messages multiple times
+                    // resulting the queue of multiple em_cmd_type_em_config.
+                    if (em->get_state() != em_state_ctrl_set_policy_pending && em->get_state() != em_state_ctrl_configured)
                     {
-                        em_printfout("radio %s is in state:%s, not in em_state_ctrl_set_policy_pending",
+                        em_printfout("radio %s is in state:%s, not in em_state_ctrl_set_policy_pending or not in em_state_ctrl_configured",
                                      util::mac_to_string(em->get_radio_interface_mac()).c_str(),  em_t::state_2_str(em->get_state()));
                         em_radios.clear();
                         return;
                     }
                 }
-                // If all radios are in set policy pending state, send policy config request on one of them,
+                // If all radios or some radios in set policy pending state, send policy config request on one of them,
                 // ignore sending policy config request on other radios
-                if (!em_radios.empty() && this == em_radios.front())
+                if (!em_radios.empty())
                 {
                     em_printfout("Sending the Policy config request message to agent al_mac:%s on radio: %s",
                                  util::mac_to_string(dm->get_agent_al_interface_mac()).c_str(),

@@ -16,19 +16,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <stdio.h>
-#include <string.h>
-#include <stdlib.h>
-#include <errno.h>
-#include <assert.h>
-#include <signal.h>
-#include <unistd.h>
 #include <math.h>
+#include <assert.h>
 #include <arpa/inet.h>
 #include <net/if.h>
 #include <linux/filter.h>
 #include <netinet/ether.h>
 #include <netpacket/packet.h>
+#include <ctype.h>
 #include <linux/netlink.h>
 #include <linux/rtnetlink.h>
 #include <sys/ioctl.h>
@@ -36,10 +31,12 @@
 #include <sys/uio.h>
 #include <sys/time.h>
 #include <unistd.h>
-#include <unistd.h>
 #include <fcntl.h>
+#include <string.h>
 #include "dm_easy_mesh_ctrl.h"
 #include "dm_easy_mesh.h"
+#include "em_ctrl.h"
+#include "tr_181.h"
 #include <cjson/cJSON.h>
 #include "em_cmd_exec.h"
 #include "em_cmd_reset.h"
@@ -62,6 +59,292 @@
 #include "em_cmd_bsta_cap.h"
 
 extern em_network_topo_t *g_network_topology;
+
+bus_error_t em_ctrl_t::cmd_setssid(const char *event_name, const bus_data_prop_t *input_params, bus_data_prop_t **output_params, void *async_handle)
+{
+    em_subdoc_info_t *subdoc = NULL;
+    unsigned char buff[sizeof(em_subdoc_info_t) + EM_IO_BUFF_SZ];
+    cJSON *json = NULL, *root = NULL, *new_json = NULL, *ssid_list = NULL, *target = NULL, *item = NULL, *ssid_item = NULL, *child = NULL, *next = NULL, *band_arr = NULL;
+    char *updated_json = NULL;
+    const bus_data_prop_t *prop = NULL;
+    char ssid[TR181_SSID_MAX_LEN + 1] = {0};
+    char passphrase[TR181_PASSPHRASE_MAX_LEN + 1] = {0};
+    char band[TR181_BAND_MAX_LEN + 1] = {0};
+    char addremove[TR181_ADDREMOVE_MAX_LEN + 1] = {0};
+    char HaulType[TR181_HAULTYPE_MAX_LEN + 1] = {0};
+    size_t json_len = 0;
+
+    (void)event_name;
+    (void)async_handle;
+
+    if (!input_params) {
+        if (output_params) *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
+        return bus_error_invalid_input;
+    }
+
+    // Parse input parameters
+    for (prop = input_params; prop; prop = prop->next_data) {
+        if (strcmp(prop->name, "SSID") == 0) {
+            tr_181_t::tr181_copy_prop_string(prop, ssid, sizeof(ssid));
+        } else if (strcmp(prop->name, "AddRemoveChange") == 0) {
+            tr_181_t::tr181_copy_prop_string(prop, addremove, sizeof(addremove));
+        } else if (strcmp(prop->name, "PassPhrase") == 0) {
+            tr_181_t::tr181_copy_prop_string(prop, passphrase, sizeof(passphrase));
+        } else if (strcmp(prop->name, "Band") == 0) {
+            tr_181_t::tr181_copy_prop_string(prop, band, sizeof(band));
+        } else if (strcmp(prop->name, "HaulType") == 0) {
+            tr_181_t::tr181_copy_prop_string(prop, HaulType, sizeof(HaulType));
+        }
+    }
+
+    //Mandatory parameters: SSID and AddRemoveChange.
+    if (!ssid[0] || !addremove[0]) {
+        if (output_params) *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
+        return bus_error_invalid_input;
+    }
+
+    // Initialize subdoc with NetworkSSIDList template.
+    subdoc = reinterpret_cast<em_subdoc_info_t *>(buff);
+    memset(subdoc, 0, sizeof(em_subdoc_info_t));
+    strncpy(subdoc->name, "NetworkSSIDList", sizeof(subdoc->name) - 1);
+
+    // get current config for NetworkSSIDList and parse as JSON.
+    em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
+    if (!em_ctrl) {
+        if (output_params) *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
+        return bus_error_invalid_input;
+    }
+    em_ctrl->get_dm_ctrl()->get_config(const_cast<char *>(GLOBAL_NET_ID), subdoc);
+    json = cJSON_Parse(subdoc->buff);
+    if (!json) {
+        if (output_params) *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
+        return bus_error_invalid_input;
+    }
+
+    // Create new JSON with root "wfa-dataelements:SetSSID" and move existing items under it.
+    root = cJSON_CreateObject();
+    new_json = cJSON_CreateObject();
+    if (!root || !new_json) {
+        cJSON_Delete(root);
+        cJSON_Delete(new_json);
+        cJSON_Delete(json);
+        if (output_params) *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
+        return bus_error_out_of_resources;
+    }
+    if (!cJSON_AddStringToObject(new_json, "ID", GLOBAL_NET_ID)) {
+        cJSON_Delete(root);
+        cJSON_Delete(new_json);
+        cJSON_Delete(json);
+        if (output_params) *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
+        return bus_error_out_of_resources;
+    }
+
+    // Move all items from original JSON to new JSON under "wfa-dataelements:SetSSID".
+    child = json->child;
+    while (child) {
+        next = child->next;
+        cJSON_DetachItemViaPointer(json, child);
+        cJSON_AddItemToObject(new_json, child->string, child);
+        child = next;
+    }
+    cJSON_Delete(json);
+
+    // Add new JSON as child of root and update subdoc buffer.
+    json = new_json;
+    new_json = NULL;
+    cJSON_AddItemToObject(root, "wfa-dataelements:SetSSID", json);
+
+    ssid_list = cJSON_GetObjectItem(json, "NetworkSSIDList");
+    if (!ssid_list || !cJSON_IsArray(ssid_list)) {
+        cJSON_Delete(root);
+        if (output_params) *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
+        return bus_error_invalid_input;
+    }
+
+    // Validate AddRemoveChange value and determine operation type.
+    bool is_add = (strcmp(addremove, "Add") == 0);
+    bool is_remove = (strcmp(addremove, "Remove") == 0);
+    bool is_change = (strcmp(addremove, "Change") == 0);
+    if (!is_add && !is_remove && !is_change) {
+        cJSON_Delete(root);
+        if (output_params) *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
+        return bus_error_invalid_input;
+    }
+
+    // If HaulType provided, create array for comparison/assignment (only for Add or Change).
+    cJSON *haul_arr = NULL;
+    if ((is_add || is_change) && HaulType[0]) {
+    haul_arr = tr_181_t::create_haultype_array(HaulType);
+        if (!haul_arr) {
+            cJSON_Delete(root);
+            if (output_params) *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
+            return bus_error_invalid_input;
+        }
+    }
+
+    // Search for existing item to change/remove (match by HaulType if provided, otherwise by SSID).
+    int target_index = -1, ssid_idx = 0;
+    bool match_by_haul = (is_change && HaulType[0]);
+    cJSON_ArrayForEach(item, ssid_list) {
+        if (match_by_haul) {
+            if (tr_181_t::item_matches_haultype(item, HaulType)) {
+                target = item;
+                target_index = ssid_idx;
+                break;
+            }
+        } else {
+            ssid_item = cJSON_GetObjectItem(item, "SSID");
+            if (cJSON_IsString(ssid_item) && ssid_item->valuestring && strcmp(ssid_item->valuestring, ssid) == 0) {
+                target = item;
+                target_index = ssid_idx;
+                break;
+            }
+        }
+        ssid_idx++;
+    }
+
+    // Perform requested operation on target item.
+    // For Add, create new item. For Change/Remove, modify/delete existing item.
+    if (target) {
+        if (is_remove) {
+            if (target_index >= 0) cJSON_DeleteItemFromArray(ssid_list, target_index);
+        } else {
+            if (ssid[0]) {
+                cJSON *ssid_item_new = cJSON_CreateString(ssid);
+                if (!ssid_item_new) {
+                    if (haul_arr) cJSON_Delete(haul_arr);
+                    cJSON_Delete(root);
+                    if (output_params) *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
+                    return bus_error_out_of_resources;
+                }
+                cJSON_ReplaceItemInObject(target, "SSID", ssid_item_new);
+            }
+            if (passphrase[0]) {
+                cJSON *passphrase_item = cJSON_CreateString(passphrase);
+                if (!passphrase_item) {
+                    if (haul_arr) cJSON_Delete(haul_arr);
+                    cJSON_Delete(root);
+                    if (output_params) *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
+                    return bus_error_out_of_resources;
+                }
+                cJSON_ReplaceItemInObject(target, "PassPhrase", passphrase_item);
+            }
+            if (band[0]) {
+                band_arr = cJSON_CreateArray();
+                if (!band_arr) {
+                    if (haul_arr) cJSON_Delete(haul_arr);
+                    cJSON_Delete(root);
+                    if (output_params) *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
+                    return bus_error_out_of_resources;
+                }
+                cJSON *band_item = cJSON_CreateString(band);
+                if (!band_item) {
+                    cJSON_Delete(band_arr);
+                    if (haul_arr) cJSON_Delete(haul_arr);
+                    cJSON_Delete(root);
+                    if (output_params) *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
+                    return bus_error_out_of_resources;
+                }
+                cJSON_AddItemToArray(band_arr, band_item);
+                cJSON_ReplaceItemInObject(target, "Band", band_arr);
+            }
+            if (haul_arr) {
+                cJSON_ReplaceItemInObject(target, "HaulType", haul_arr);
+                haul_arr = NULL;
+            }
+        }
+    } else if (is_add) {
+        target = cJSON_CreateObject();
+        if (!target) {
+            if (haul_arr) cJSON_Delete(haul_arr);
+            cJSON_Delete(root);
+            if (output_params) *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
+            return bus_error_out_of_resources;
+        }
+        cJSON_AddItemToArray(ssid_list, target);
+        if (ssid[0] && !cJSON_AddStringToObject(target, "SSID", ssid)) {
+            if (haul_arr) cJSON_Delete(haul_arr);
+            cJSON_Delete(root);
+            if (output_params) *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
+            return bus_error_out_of_resources;
+        }
+        if (passphrase[0] && !cJSON_AddStringToObject(target, "PassPhrase", passphrase)) {
+            if (haul_arr) cJSON_Delete(haul_arr);
+            cJSON_Delete(root);
+            if (output_params) *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
+            return bus_error_out_of_resources;
+        }
+        if (band[0]) {
+            band_arr = cJSON_CreateArray();
+            if (!band_arr) {
+                if (haul_arr) cJSON_Delete(haul_arr);
+                cJSON_Delete(root);
+                if (output_params) *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
+                return bus_error_out_of_resources;
+            }
+            cJSON *band_item = cJSON_CreateString(band);
+            if (!band_item) {
+                cJSON_Delete(band_arr);
+                if (haul_arr) cJSON_Delete(haul_arr);
+                cJSON_Delete(root);
+                if (output_params) *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
+                return bus_error_out_of_resources;
+            }
+            cJSON_AddItemToArray(band_arr, band_item);
+            cJSON_AddItemToObject(target, "Band", band_arr);
+        }
+        if (haul_arr) {
+            cJSON_AddItemToObject(target, "HaulType", haul_arr);
+            haul_arr = NULL;
+        }
+    } else {
+        if (haul_arr) cJSON_Delete(haul_arr);
+        cJSON_Delete(root);
+        if (output_params) *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
+        return bus_error_invalid_input;
+    }
+
+    // Convert updated JSON back to string and store in subdoc buffer.
+    updated_json = cJSON_PrintUnformatted(root);
+    if (!updated_json) {
+        cJSON_Delete(root);
+        if (output_params) *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
+        return bus_error_out_of_resources;
+    }
+
+    // Ensure updated JSON fits in buffer.
+    json_len = strlen(updated_json);
+    if (json_len >= EM_IO_BUFF_SZ) {
+        free(updated_json);
+        cJSON_Delete(root);
+        if (output_params) *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
+        return bus_error_invalid_input;
+    }
+
+    memcpy(subdoc->buff, updated_json, json_len);
+    subdoc->buff[json_len] = '\0';
+
+    // uncomment below line to log the updated JSON before sending to DM; can be helpful for debugging.
+    /*
+    cJSON *json_obj;
+    json_obj = cJSON_Parse(subdoc->buff);
+    if (json_obj) {
+        char *new_json = cJSON_Print(json_obj);
+        em_printfout("Updated and formatted JSON:\n%s", new_json);
+        free(new_json);
+        cJSON_Delete(json_obj);
+    } else {
+        em_printfout("Invalid JSON in subdoc->buff");
+    }
+    */
+
+    em_ctrl->io_process(em_bus_event_type_set_ssid, subdoc->buff, json_len);
+    free(updated_json);
+    cJSON_Delete(root);
+
+    if (output_params) *output_params = tr_181_t::tr181_set_status_output_prop("Success");
+    return bus_error_success;
+}
 
 int dm_easy_mesh_ctrl_t::analyze_sta_link_metrics(em_cmd_t *pcmd[])
 {
@@ -834,12 +1117,12 @@ int dm_easy_mesh_ctrl_t::analyze_set_radio(em_bus_event_t *evt, em_cmd_t *pcmd[]
 				pradio = &pdm->m_radio[k];
 				if (memcmp(radio->m_radio_info.intf.mac, pradio->m_radio_info.intf.mac, sizeof(mac_address_t)) == 0) {
 					if (radio->m_radio_info.enabled != pradio->m_radio_info.enabled) {
-						printf("%s:%d: Radio: %s changed, adding to target\n", __func__, __LINE__, mac_str);
+						em_printfout("Radio: %s changed, adding to target", mac_str);
 						tgt.m_radio[tgt.m_num_radios] = dm.m_radio[j];
 						tgt.m_num_radios++;	
 					} else {
 						dm_easy_mesh_t::macbytes_to_string(radio->m_radio_info.intf.mac, mac_str);
-						printf("%s:%d: Radio: %s hasn't changed, not adding\n", __func__, __LINE__, mac_str);
+						em_printfout("Radio: %s hasn't changed, not adding", mac_str);
 					}
 				}
 			}
@@ -887,7 +1170,7 @@ int dm_easy_mesh_ctrl_t::analyze_set_ssid(em_bus_event_t *evt, em_cmd_t *pcmd[])
 		for (j = 0; j < EM_MAX_NET_SSIDS; j++) {	
 			src = &pdm->m_network_ssid[j];
 			if (*tgt == *src) {
-				printf("%s:%d: Target[%d] matched with Source[%d]\n", __func__, __LINE__, i, j);
+				em_printfout("Target[%d] matched with Source[%d]", i, j);
 				bit_mask |= (1 << i);
 				break;
 			}
@@ -895,11 +1178,11 @@ int dm_easy_mesh_ctrl_t::analyze_set_ssid(em_bus_event_t *evt, em_cmd_t *pcmd[])
 	}
 
 	if (bit_mask == (pow(2, EM_MAX_NET_SSIDS) - 1)) {
-		printf("%s:%d: No change detected\n", __func__, __LINE__);
+		em_printfout("No change detected");
 		return EM_PARSE_ERR_NO_CHANGE;
 	}
 
-	printf("%s:%d: Start taking action on SetSSID\n", __func__, __LINE__);	
+	em_printfout("Start taking action on SetSSID");
 	dm.set_db_cfg_param(db_cfg_type_network_ssid_list_update, "");
     pcmd[num] = new em_cmd_set_ssid_t(evt->params, dm);
     tmp = pcmd[num];
@@ -909,7 +1192,7 @@ int dm_easy_mesh_ctrl_t::analyze_set_ssid(em_bus_event_t *evt, em_cmd_t *pcmd[])
         tmp = pcmd[num];
         num++;
     }
-    printf("%s:%d: Number of commands:%d\n", __func__, __LINE__, num);
+    em_printfout("Number of commands:%d", num);
 
 
     return num;
@@ -1620,7 +1903,7 @@ void dm_easy_mesh_ctrl_t::get_config(em_long_string_t net_id, em_subdoc_info_t *
     }
 
     tmp = cJSON_Print(parent);
-    printf("%s:%d: Subdoc: %s\n", __func__, __LINE__, tmp);
+    em_printfout("Subdoc: %s", tmp);
     strncpy(subdoc->buff, tmp, strlen(tmp) + 1);
     cJSON_free(parent);
 }
@@ -5583,4 +5866,3 @@ dm_easy_mesh_ctrl_t::~dm_easy_mesh_ctrl_t()
         close(m_nb_pipe_wr);
     }
 }
-

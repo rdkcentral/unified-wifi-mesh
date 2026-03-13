@@ -5570,7 +5570,7 @@ void em_configuration_t::fill_media_data(em_media_spec_data_t *spec, dm_bss_t *b
             spec->band = 0x03;
             break;
 
-        case em_freq_band_60:
+        case em_freq_band_6:
             spec->band = 0x04;
             break;
 

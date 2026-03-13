@@ -2215,7 +2215,7 @@ async handleWebSocketMessage(data) {
         .map(bss => {
           const bandLabel = bss.Band === 0 ? '2.4GHz' :
             bss.Band === 1 ? '5GHz' :
-            bss.Band === 2 ? '6GHz' : 'Unknown';
+            bss.Band === 3 ? '6GHz' : 'Unknown';
 
             if (bss.MLDAddr && bss.MLDAddr !== "") {
               if (!mldMap.has(bss.MLDAddr)) {

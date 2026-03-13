@@ -81,7 +81,7 @@ extern "C"
 #define MAP_AP_ROLE_MAX 2
 #define MAX_MCS_NSS 6
 #define EM_MAX_CAC_METHODS 4
-#define EM_MAX_STA_PER_BSS         128
+#define EM_MAX_STA_PER_BSS         64
 #define EM_MAX_STA_PER_STEER_POLICY        16 
 #define EM_MAX_STA_PER_AGENT       (EM_MAX_RADIO_PER_AGENT * EM_MAX_STA_PER_BSS)
 #define EM_MAX_NEIGHBORS	16
@@ -120,7 +120,7 @@ extern "C"
 
 #define EM_AUTH_ENHANCED_OPEN 0x1000
 #define EM_AUTH_WPA3_PERSONAL EM_AUTH_SAE_AKM8
-#define EM_AUTH_WPA3_TRANSITION EM_AUTH_SAE_AKM8 | EM_AUTH_WPA2PSK
+#define EM_AUTH_WPA3_TRANSITION (EM_AUTH_SAE_AKM8 | EM_AUTH_WPA2PSK)
     
 /* Encryption Type Flags */
 #define EM_ENCR_NONE 0x0001
@@ -173,6 +173,15 @@ extern "C"
 
 /* Channel Preference Flags*/
 #define EM_CH_PREF_NON_OPERABLE 0x00
+#define EM_CH_PREF_MAX          0x0F
+
+/* Flags indicating whether a channel preference entry
+   is considered valid or invalid */
+#define EM_CH_PREF_ENTRY_VALID      0x01
+#define EM_CH_PREF_ENTRY_INVALID    0x00
+
+/* Global MAC Address */
+static const mac_address_t EM_GLOBAL_MAC_ADDRESS = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
 
 #define EM_MAX_BANDS    3
 #define EM_MAX_BSSS     EM_MAX_BANDS*8  
@@ -2315,6 +2324,8 @@ typedef struct {
     int max_tx_power;
     unsigned int    num_channels;
     unsigned int    channels[EM_MAX_CHANNELS_IN_LIST];
+    unsigned char   channel_pref[EM_MAX_CHANNELS_IN_LIST];
+    bool            pref_valid;
     unsigned short	mins_since_cac_comp;
 	unsigned short	sec_remain_non_occ_dur;
 	unsigned int	countdown_cac_comp;
