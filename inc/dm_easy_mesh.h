@@ -2064,7 +2064,7 @@ public:
 	 * @note Ensure that the `info` pointer is valid and points to a properly initialized `em_sta_info_t` structure.
 	 */
 	void put_sta_info(em_sta_info_t *info, em_target_sta_map_t target);
-    
+
 	/**!
 	 * @brief Retrieves the first station information.
 	 *
@@ -2126,7 +2126,8 @@ public:
 	 */
 	static void put_sta_info(void *dm, em_sta_info_t *info, em_target_sta_map_t target) { (static_cast<dm_easy_mesh_t *>(dm))->put_sta_info(info, target); }
 
-    
+        bool is_sta_associated(bssid_t bssid, mac_address_t sta_mac);
+
 	/**!
 	 * @brief Finds a station (STA) based on its MAC address and BSSID.
 	 *
