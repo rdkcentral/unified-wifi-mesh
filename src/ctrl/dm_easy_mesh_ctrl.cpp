@@ -3368,6 +3368,65 @@ char* dm_easy_mesh_ctrl_t::get_vht_caps_str(em_ap_vht_cap_t *vht, char *buf, siz
     return buf;
 }
 
+char* dm_easy_mesh_ctrl_t::get_he_caps_str(em_ap_he_cap_t *he, char *buf, size_t buf_len)
+{
+    const size_t capped_mcs_len = static_cast<size_t>(he->sprt_mcs_len);
+
+    const size_t payload_len = 1                       // mcs_len
+                             + 2 * capped_mcs_len     // each MCS is uint16_t -> 2 bytes
+                             + 2;                     // two flag bytes
+
+    std::vector<uint8_t> data;
+    data.reserve(payload_len);
+
+    data.push_back(static_cast<uint8_t>(capped_mcs_len));
+
+    for (size_t i = 0; i < capped_mcs_len; ++i) {
+        const unsigned short mcs = he->sprt_tx_rx_mcs[i];
+        const uint8_t hi = static_cast<uint8_t>((mcs >> 8) & 0xFF);
+        const uint8_t lo = static_cast<uint8_t>(mcs & 0xFF);
+        data.push_back(hi);
+        data.push_back(lo);
+    }
+
+    auto clamp_streams_3bit = [](unsigned char v) -> uint8_t {
+        if (v == 0) return 0;
+        if (v > 8) v = 8;
+        return static_cast<uint8_t>(v - 1);
+    };
+
+    uint8_t flags0 = 0;
+    flags0 |= static_cast<uint8_t>(clamp_streams_3bit(he->max_sprt_tx_streams) << 5);
+    flags0 |= static_cast<uint8_t>(clamp_streams_3bit(he->max_sprt_rx_streams) << 2);
+    flags0 |= static_cast<uint8_t>((he->sprt_80_80_mhz & 0x1) << 1);
+    flags0 |= static_cast<uint8_t>(he->sprt_160mhz & 0x1);
+    data.push_back(flags0);
+
+    uint8_t flags1 = 0;
+    flags1 |= static_cast<uint8_t>((he->su_beamformer_cap  & 0x1) << 7);
+    flags1 |= static_cast<uint8_t>((he->mu_beamformer_cap  & 0x1) << 6);
+    flags1 |= static_cast<uint8_t>((he->ul_mimo_cap        & 0x1) << 5);
+    flags1 |= static_cast<uint8_t>((he->ul_mimo_ofdma_cap  & 0x1) << 4);
+    flags1 |= static_cast<uint8_t>((he->dl_mimo_ofdma_cap  & 0x1) << 3);
+    flags1 |= static_cast<uint8_t>((he->ul_ofdma_cap       & 0x1) << 2);
+    flags1 |= static_cast<uint8_t>((he->dl_ofdma_cap       & 0x1) << 1);
+    flags1 |= static_cast<uint8_t>(he->reserved & 0x1);
+    data.push_back(flags1);
+
+#if 0 // enable when libubox is added
+    // Encode as base64 into buf
+    if (b64_encode(data.data(), data.size(), buf, buf_len) < 0) {
+        em_printfout("b64_encode failed\n");
+    }
+#else
+    if (buf_len > 0) {
+        buf[0] = '\0';
+    }
+#endif
+
+    return buf;
+}
+
 bus_error_t dm_easy_mesh_ctrl_t::radio_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
 {
     (void) user_data;
@@ -3531,10 +3590,13 @@ bus_error_t dm_easy_mesh_ctrl_t::radio_tget_params(dm_easy_mesh_t *dm, const cha
             dm_ctrl->property_append_tail(property, root, idx, "Capabilities.HTCapabilities", caps_str);
             dm_ctrl->get_vht_caps_str(&rci->vht_cap, caps_str, sizeof(caps_str));
             dm_ctrl->property_append_tail(property, root, idx, "Capabilities.VHTCapabilities", caps_str);
+            dm_ctrl->get_he_caps_str(&rci->he_cap, caps_str, sizeof(caps_str));
+            dm_ctrl->property_append_tail(property, root, idx, "Capabilities.HECapabilities", caps_str);
             dm_ctrl->property_append_tail(property, root, idx, "Capabilities.CapableOperatingClassProfileNumberOfEntries", 0U);
         } else {
             dm_ctrl->property_append_tail(property, root, idx, "Capabilities.HTCapabilities", "");
             dm_ctrl->property_append_tail(property, root, idx, "Capabilities.VHTCapabilities", "");
+            dm_ctrl->property_append_tail(property, root, idx, "Capabilities.HECapabilities", "");
             dm_ctrl->property_append_tail(property, root, idx, "Capabilities.CapableOperatingClassProfileNumberOfEntries", 0U);
         }
 
@@ -3665,6 +3727,9 @@ bus_error_t dm_easy_mesh_ctrl_t::rcaps_get_inner(char *event_name, raw_data_t *p
         rc = dm_ctrl->raw_data_set(p_data, caps_str);
     } else if (strcmp(param, "VHTCapabilities") == 0) {
         dm_ctrl->get_vht_caps_str(&rci->vht_cap, caps_str, sizeof(caps_str));
+        rc = dm_ctrl->raw_data_set(p_data, caps_str);
+    } else if (strcmp(param, "HECapabilities") == 0) {
+        dm_ctrl->get_he_caps_str(&rci->he_cap, caps_str, sizeof(caps_str));
         rc = dm_ctrl->raw_data_set(p_data, caps_str);
     } else if (strcmp(param, "CapableOperatingClassProfileNumberOfEntries") == 0) {
         rc = dm_ctrl->raw_data_set(p_data, 0U);

@@ -218,6 +218,7 @@ static const yang_to_tr181_map g_yang_map[] = {
 #define DE_RADIO_CAPS           DE_DEVICE_RADIO         "Capabilities."
 #define DE_RCAPS_HTCAPS         DE_RADIO_CAPS           "HTCapabilities"
 #define DE_RCAPS_VHTCAPS        DE_RADIO_CAPS           "VHTCapabilities"
+#define DE_RCAPS_HECAPS         DE_RADIO_CAPS           "HECapabilities"
 #define DE_RCAPS_MSCS_CAP       DE_RADIO_CAPS           "MSCSCapability"
 #define DE_RCAPS_SCS_CAP        DE_RADIO_CAPS           "SCSCapability"
 #define DE_RCAPS_QOSMAP_CAP     DE_RADIO_CAPS           "QoSMapCapability"
