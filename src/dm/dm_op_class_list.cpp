@@ -99,7 +99,7 @@ int dm_op_class_list_t::get_config(cJSON *obj_arr, void *parent, bool summary)
 void dm_op_class_list_t::get_config(cJSON *obj_arr, em_op_class_type_t type)
 {
 	dm_op_class_t *op_class;
-	cJSON *obj, *channel_arr;
+	cJSON *obj, *channel_arr, *channel_pref_arr;
 	unsigned int i;
 
 	// only anticipated is implemented now
@@ -115,8 +115,10 @@ void dm_op_class_list_t::get_config(cJSON *obj_arr, em_op_class_type_t type)
 
 		cJSON_AddNumberToObject(obj, "Class", op_class->m_op_class_info.op_class);
 		channel_arr = cJSON_AddArrayToObject(obj, "ChannelList");
+		channel_pref_arr = cJSON_AddArrayToObject(obj, "ChannelPrefList");
 		for (i = 0; i < op_class->m_op_class_info.num_channels; i++) {
            	cJSON_AddItemToArray(channel_arr, cJSON_CreateNumber(op_class->m_op_class_info.channels[i]));
+           	cJSON_AddItemToArray(channel_pref_arr, cJSON_CreateNumber(op_class->m_op_class_info.channel_pref[i]));
        	}
 
 		cJSON_AddItemToArray(obj_arr, obj);

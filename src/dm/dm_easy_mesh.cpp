@@ -1122,7 +1122,7 @@ int dm_easy_mesh_t::decode_config_set_policy(em_subdoc_info_t *subdoc, const cha
 int dm_easy_mesh_t::decode_config_set_channel(em_subdoc_info_t *subdoc, const char *key, unsigned int index, unsigned int *num)
 {
     cJSON *parent_obj, *net_obj, *net_obj_id; 
-	cJSON *target_arr_obj, *target_obj, *channel_arr_obj;
+    cJSON *target_arr_obj, *target_obj, *channel_arr_obj, *channel_pref_arry_obj;
     int i, j, arr_size;
     char *net_id;
 	em_long_string_t	target_key;	
@@ -1194,13 +1194,19 @@ int dm_easy_mesh_t::decode_config_set_channel(em_subdoc_info_t *subdoc, const ch
         	return -1;
 		}
 
+		if ((channel_pref_arry_obj = cJSON_GetObjectItem(target_obj, "ChannelPrefList")) == NULL) {
+			cJSON_Delete(parent_obj);
+			em_printfout("Error: %s not present\n", target_key);
+			return -1;
+		}
+
 		m_op_class[m_num_opclass].m_op_class_info.num_channels = 0;
 
 		for (j = 0; j < cJSON_GetArraySize(channel_arr_obj); j++) {
 			m_op_class[m_num_opclass].m_op_class_info.channels[m_op_class[m_num_opclass].m_op_class_info.num_channels] = static_cast<unsigned int> (cJSON_GetNumberValue(cJSON_GetArrayItem(channel_arr_obj, j)));
+			m_op_class[m_num_opclass].m_op_class_info.channel_pref[m_op_class[m_num_opclass].m_op_class_info.num_channels] = static_cast<unsigned int> (cJSON_GetNumberValue(cJSON_GetArrayItem(channel_pref_arry_obj, j)));
 			m_op_class[m_num_opclass].m_op_class_info.num_channels++;
-		}	
-
+		}
 		m_num_opclass++;
 	}	
 	

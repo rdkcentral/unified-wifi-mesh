@@ -1703,6 +1703,12 @@ int dm_easy_mesh_ctrl_t::get_channel_config(cJSON *parent, char *key, em_get_cha
         for (j = 0; j < cJSON_GetArraySize(radio_list_obj); j++) {
             radio_obj = cJSON_GetArrayItem(radio_list_obj, j);
             tmp = cJSON_GetStringValue(cJSON_GetObjectItem(radio_obj, "ID"));
+            // Radio specific AnticipatedChannelPreference
+            if (reason == em_get_channel_list_reason_set_anticipated) {
+                channel_list_obj = cJSON_AddArrayToObject(radio_obj, "AnticipatedChannelPreference");
+                snprintf(op_key, sizeof(op_key), "%s@%d@%d", tmp, em_op_class_type_anticipated, 0);
+                dm_op_class_list_t::get_config(op_class_list_obj, op_key);
+            }
             op_class_list_obj = cJSON_AddArrayToObject(radio_obj, "CurrentOperatingClasses");
             snprintf(op_key, sizeof(op_key), "%s@%d@%d", tmp, em_op_class_type_current, 0);
             dm_op_class_list_t::get_config(op_class_list_obj, op_key);

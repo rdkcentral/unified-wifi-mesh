@@ -455,6 +455,13 @@ class WirelessSettings {
     const UNSET_PREF = 15;
 
     // ---------- Small helpers ----------
+    const isAllFF = (mac) => {
+      const hex = String(mac || '').replace(/[^a-fA-F0-9]/g, '');
+      return hex.length === 10 || hex.length === 12
+        ? /^[Ff]+$/.test(hex)
+        : false;
+    };
+
     const getEl = (id) => document.getElementById(id);
 
     const normalizeBandKey = (bandLabel) =>
@@ -475,6 +482,17 @@ class WirelessSettings {
       val === UNSET_PREF ? '—' : (val === 0 ? '0 (Non operable)' : (val === 14 ? '14 (Most preferable)' : String(val)));
     const prefTitle = (val) =>
       val === UNSET_PREF ? 'Not set (defaults to 15)' : (val === 0 ? '0 — Non operable' : (val === 14 ? '14 — Most preferable' : String(val)));
+
+    const encodePref = (guiVal) => (Number.isFinite(guiVal) ? (Number(guiVal) << 4) : (UNSET_PREF << 4));
+    const decodePref = (storedVal) => {
+      return (storedVal == null) ? UNSET_PREF : (Number(storedVal) >> 4);
+    };
+
+    const importIncomingPref = (n) => {
+      const num = Number(n);
+      if (!Number.isFinite(num)) return encodePref(UNSET_PREF);
+      return (num >= 16) ? num : encodePref(num);
+    };
 
     const getChannelsFromClassObj = (clsObj) => {
       if (!clsObj) return [];
@@ -512,14 +530,35 @@ class WirelessSettings {
       }
 
       const implicit = String(bandConfig?.selected_wifi_config?.device_id ?? bandConfig?.device_id ?? bandConfig?.deviceId ?? '').trim();
-      return implicit ? [{ device_id: implicit, supported_class: bandSupported, selected_config: bandSelected }] : [];
+      if (implicit) {
+        return [{ device_id: implicit, supported_class: bandSupported, selected_config: bandSelected }];
+      }
+      if (bandSupported.length) {
+        return [{
+          device_id: 'all',
+          supported_class: bandSupported,
+          selected_config: bandSelected
+        }];
+      }
+      return [];
     };
 
     const coerceSelected = (selected_config) => {
-      if (!selected_config) return { cls: '', channels: [] };
-      const one = (o) => ({ cls: String(o?.class ?? o?.Class ?? '').trim(), channels: Array.isArray(o?.channels) ? o.channels : [] });
+      if (!selected_config) {
+        return { cls: '', channels: [], prefsArr: [], radio_id: '', radio_index: undefined };
+      }
+
+      const one = (o) => ({
+        cls: String(o?.class ?? o?.Class ?? '').trim(),
+        channels: Array.isArray(o?.channels) ? o.channels : [],
+        //preferences will be an array aligned by index to `channels`
+        prefsArr: Array.isArray(o?.preferences) ? o.preferences : [],
+        radio_id: String(o?.radio_id ?? o?.radioId ?? '').trim(),
+        radio_index: Number.isFinite(Number(o?.radio_index)) ? Number(o.radio_index) : undefined,
+      });
       return Array.isArray(selected_config) ? one(selected_config[0] || {}) : one(selected_config);
     };
+
 
     const ensureBucket = (bandIndex) => {
       if (!ctx.updateChannelConfig) ctx.updateChannelConfig = {};
@@ -545,7 +584,7 @@ class WirelessSettings {
     const debounce = (fn, ms = 120) => { let t; return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); }; };
 
     // ---------- Rendering: channels (with badge + inline preference dropdown) ----------
-    const renderChannels = (bandKey, bandIndex, device, classValue, carryPrevChannels = []) => {
+    const renderChannels = (bandKey, bandIndex, device, classValue, carryPrevChannels = [], carryPrevPrefsArr = []) => {
       const listBody = getEl(`list-${bandKey}`);
       const chkAll   = getEl(`checkAll-${bandKey}`);
       const searchEl = getEl(`search-${bandKey}`);
@@ -561,14 +600,43 @@ class WirelessSettings {
       const channels = q ? allChannels.filter(ch => String(ch).includes(q)) : allChannels;
 
       const bucket = ensureBucket(bandIndex);
-      bucket.device_id   = String(device.device_id);
+      // Preserve a virtual "all" device_id if that's the current selection.
+      // Otherwise, track the concrete device ID we are rendering for.
+      {
+        const incomingDeviceId = String(device.device_id);
+        bucket.device_id = (bucket.device_id === 'all') ? 'all' : incomingDeviceId;
+      }
+      if (!bucket.radio_id && bucket.device_id !== 'all') {
+        const { radio_id: rid, radio_index: rix } = coerceSelected(device?.selected_config);
+        if (rid) bucket.radio_id = rid;
+        if (Number.isFinite(rix)) bucket.radio_index = rix;
+      }
+
       bucket.radio_index = bandIndex;
       bucket.class       = parseInt(classValue, 10) || 0;
 
       // Seed previous selection only once
       if (Array.isArray(carryPrevChannels) && carryPrevChannels.length && bucket.channels.length === 0) {
-        bucket.channels = [...new Set(carryPrevChannels.map(Number))];
-        for (const c of bucket.channels) if (bucket.preferences[String(c)] == null) bucket.preferences[String(c)] = UNSET_PREF;
+        // Keep original order so index mapping to prefsArr stays correct
+        const uniq = [];
+        const seen = new Set();
+        for (const ch of carryPrevChannels) {
+          const n = Number(ch);
+          if (!seen.has(n)) { seen.add(n); uniq.push(n); }
+        }
+        bucket.channels = uniq;
+        // Map channel[i] => prefsArr[i] if available; else set UNSET (shifted)
+        for (let i = 0; i < uniq.length; i++) {
+          const ch = uniq[i];
+          const key = String(ch);
+          if (bucket.preferences[key] == null) {
+            if (Array.isArray(carryPrevPrefsArr) && i < carryPrevPrefsArr.length) {
+              bucket.preferences[key] = importIncomingPref(carryPrevPrefsArr[i]);
+            } else {
+              bucket.preferences[key] = encodePref(UNSET_PREF);
+            }
+          }
+        }
       }
 
       listBody.dataset.bandKey = bandKey;
@@ -586,7 +654,8 @@ class WirelessSettings {
       listBody.innerHTML = channels.map(ch => {
         const chNum = Number(ch);
         const isSelected = selSet.has(chNum);
-        const prefVal = (bucket.preferences[String(chNum)] != null) ? bucket.preferences[String(chNum)] : UNSET_PREF;
+        const stored = bucket.preferences[String(chNum)];
+        const prefVal = decodePref(stored);
         return `
           <div class="list-row" data-channel="${chNum}">
             <div><input type="checkbox" class="ch-check" ${isSelected ? 'checked' : ''} aria-label="Select channel ${chNum}"></div>
@@ -605,11 +674,24 @@ class WirelessSettings {
                 ${isSelected ? '' : 'disabled'}
                 hidden
                 aria-label="Preference for channel ${chNum}">
-                ${Array.from({length: PREF_MAX - PREF_MIN + 1}, (_,i) => i + PREF_MIN).map(v => `
-                  <option value="${v}" ${(bucket.preferences[String(chNum)] !== undefined && v === Number(bucket.preferences[String(chNum)])) ? 'selected' : ''}>
-                    ${v===0 ? '0 (Non operable)' : (v===14 ? '14 (Most preferable)' : v)}
-                  </option>
-                `).join('')}
+                ${(() => {
+                  const cur = decodePref(bucket.preferences[String(chNum)]);
+                  const items = [];
+                  // Placeholder: "Select preference" - represents UNSET (15)
+                  items.push(`
+                    <option value="${UNSET_PREF}" ${cur == null || Number(cur) === UNSET_PREF ? 'selected' : ''}>
+                      Select preference
+                    </option>
+                  `);
+                  for (let v = PREF_MIN; v <= PREF_MAX; v++) {
+                    items.push(`
+                      <option value="${v}" ${(cur != null && Number(cur) === v) ? 'selected' : ''}>
+                        ${v === 0 ? '0 (Non operable)' : (v === 14 ? '14 (Most preferable)' : v)}
+                      </option>
+                    `);
+                  }
+                  return items.join('');
+                })()}
               </select>
             </div>
           </div>`;
@@ -627,7 +709,7 @@ class WirelessSettings {
             if (chkAll.checked) {
               for (const c of channels.map(Number)) {
                 if (!bucket.channels.includes(c)) bucket.channels.push(c);
-                if (bucket.preferences[String(c)] == null) bucket.preferences[String(c)] = UNSET_PREF;
+                if (bucket.preferences[String(c)] == null) bucket.preferences[String(c)] = encodePref(UNSET_PREF);
               }
             } else {
               const rm = new Set(channels.map(Number));
@@ -670,9 +752,9 @@ class WirelessSettings {
           if (e.target.classList.contains('ch-check')) {
             if (chk.checked) {
               if (!bucket.channels.includes(chNum)) bucket.channels.push(chNum);
-              if (bucket.preferences[String(chNum)] == null) bucket.preferences[String(chNum)] = UNSET_PREF;
+              if (bucket.preferences[String(chNum)] == null) bucket.preferences[String(chNum)] = encodePref(UNSET_PREF);
 
-              const v = bucket.preferences[String(chNum)];
+              const v = decodePref(bucket.preferences[String(chNum)]);
               btn.disabled = false; dd.disabled = false;
               badge.textContent = prefText(v);
               badge.title = prefTitle(v);
@@ -702,15 +784,16 @@ class WirelessSettings {
 
           // Preference change
           if (e.target.classList.contains('pref-inline-dd')) {
-            const val = Math.max(PREF_MIN, Math.min(PREF_MAX, Math.round(Number(e.target.value))));
-            bucket.preferences[String(chNum)] = val;
+            const guiVal = Math.max(PREF_MIN, Math.min(PREF_MAX, Math.round(Number(e.target.value))));
+            bucket.preferences[String(chNum)] = encodePref(guiVal);
+
             if (!bucket.channels.includes(chNum)) bucket.channels.push(chNum);
             chk.checked = true; btn.disabled = false; dd.disabled = false;
 
-            badge.textContent = prefText(val);
-            badge.title = prefTitle(val);
-            badge.style.background = prefColor(val);
-            badge.classList.toggle('muted', val === UNSET_PREF);
+            badge.textContent = prefText(guiVal);
+            badge.title = prefTitle(guiVal);
+            badge.style.background = prefColor(guiVal);
+            badge.classList.toggle('muted', guiVal === UNSET_PREF);
 
             dd.hidden = true;
             btn.setAttribute('aria-expanded','false');
@@ -738,11 +821,11 @@ class WirelessSettings {
       }
 
       const supported = Array.isArray(device?.supported_class) ? device.supported_class : [];
-      const { cls, channels } = coerceSelected(device?.selected_config);
+      const { cls, channels, prefsArr, radio_id, radio_index } = coerceSelected(device?.selected_config);
 
       if (!supported.length) {
         classSel.innerHTML = `<option value="" disabled selected>No classes available</option>`;
-        renderChannels(bandKey, bandIndex, device, '', []);
+        renderChannels(bandKey, bandIndex, device, '', [], []);
         return;
       }
 
@@ -753,14 +836,47 @@ class WirelessSettings {
         })
         .join('');
 
-      const initial = (cls || classSel.options[0]?.value || '').trim();
-      classSel.value = initial;
+      // ---- Determine if selected_config is actually present for this device ----
+      const hasSelectedConfig = (() => {
+        const sc = device?.selected_config;
+        if (sc == null) return false;
+        if (Array.isArray(sc)) return sc.length > 0;
+        if (typeof sc === 'object') return Object.keys(sc).length > 0;
+        return false;
+      })();
+
+      let initial = '';
+      if (!hasSelectedConfig) {
+        // Requirement: If selected_config is NOT present, select the FIRST class.
+        if (classSel.options.length) classSel.selectedIndex = 0;
+        initial = classSel.value;
+      } else {
+        // selected_config exists: honor it if valid; otherwise fallback to first.
+        const supportedValues = supported
+          .map(sc => String(sc?.class ?? '').trim())
+          .filter(Boolean);
+        const clsStr = String(cls ?? '').trim();
+        if (clsStr && supportedValues.includes(clsStr)) {
+          initial = clsStr;
+          classSel.value = initial;
+        } else {
+          if (clsStr && !supportedValues.includes(clsStr)) {
+            console.warn(
+              `[${bandKey}] Selected class (${clsStr}) not in supported: ${supportedValues.join(', ')}`
+            );
+          }
+          if (classSel.options.length) classSel.selectedIndex = 0;
+          initial = classSel.value;
+        }
+      }
 
       const b = ensureBucket(bandIndex);
       b.device_id = device.device_id;
-      b.class = parseInt(initial, 10) || 0;
+      b.radio_id = (b.device_id === 'all') ? '' : (radio_id || '');
+      b.radio_index = Number.isFinite(radio_index) ? radio_index : bandIndex;
+      b.class = Number.isFinite(Number(initial)) ? Number(initial) : initial;
 
-      renderChannels(bandKey, bandIndex, device, initial, carryPrev ? channels : []);
+      renderChannels(bandKey, bandIndex, device, initial, carryPrev ? channels : [], carryPrev ? (prefsArr || []) : []);
 
       if (!classSel.__wired) {
         classSel.addEventListener('change', () => {
@@ -775,7 +891,7 @@ class WirelessSettings {
           }
 
           const newClass = String(classSel.value).trim();
-          b.class = parseInt(newClass, 10) || Number.isFinite(Number(newClass)) ? Number(newClass) : newClass;
+          b.class = Number.isFinite(Number(newClass)) ? Number(newClass) : newClass;
           const saved = b.perClass[String(newClass)];
           if (saved && Array.isArray(saved.channels)) {
             b.channels = saved.channels.slice();
@@ -784,7 +900,7 @@ class WirelessSettings {
             b.channels = [];
             b.preferences = {};
           }
-          renderChannels(bandKey, bandIndex, device, classSel.value, saved?.channels || []);
+          renderChannels(bandKey, bandIndex, device, classSel.value, saved?.channels || [], []);
         });
         classSel.__wired = true;
       }
@@ -811,46 +927,38 @@ class WirelessSettings {
 
       const devices = getDevicesForBand(bandConfig).filter(d => d.device_id);
 
-      //TODO: For now fixing the device list to ALL Station, later it will be modified based on RUID
-      deviceSel.innerHTML = `<option value="all" selected>ALL station</option>`;
-      deviceSel.disabled = true;
-
-      //TODO enable later to Populate device select
-      /*deviceSel.innerHTML = devices.length
-        ? devices.map((d,i) => `<option value="${d.device_id}" ${i===0?'selected':''}>${d.device_id}</option>`).join('')
-        : `<option value="" disabled selected>No devices</option>`;
-      */
-      if (!devices.length) {
+      // Populate device dropdown: "ALL station" for global config, or all device IDs/ruid specific.
+      if (devices.length) {
+        const options = devices.map(d => {
+          const { radio_id } = coerceSelected(d.selected_config);
+          const label = (d.device_id === 'all')? 'ALL station': (isAllFF(d.device_id) ? 'ALL station' : d.device_id);
+          return `<option value="${d.device_id}">${label}</option>`;
+        }).join('');
+        deviceSel.innerHTML = options;
+        deviceSel.disabled = false;
+      } else {
+        deviceSel.innerHTML = `<option value="" disabled selected>No devices</option>`;
         classSel.innerHTML = `<option value="" disabled selected>No classes available</option>`;
         listBody.innerHTML = '<div class="empty">No devices for this band.</div>';
         return;
       }
 
-      //TODO: For now fixing the device list to ALL Station, later it will be modified based on RUID
-      //--------------------------------------
-      // Use the first real device only for UI rendering
+      // Initial selection:
+      // - If bucket already has device_id and it's still valid, honor it.
+      // - Otherwise default to "all".
       const firstDevice = devices[0];
+      const b = ensureBucket(bandIndex);
+      const knownIds = new Set(devices.map(d => String(d.device_id)));
+      if (!b.device_id || !knownIds.has(String(b.device_id))) {
+        b.device_id = String(firstDevice.device_id);
+      }
+      deviceSel.value = String(b.device_id);
 
-      const bucket = ensureBucket(bandIndex);
-      bucket.device_id = "all";  // Important! For future apply logic.
+      const currentDevice = () => {
+        return devices.find(d => String(d.device_id) === deviceSel.value) || firstDevice;
+      };
 
-      // Render using the first device's classes/channels
-      renderClasses(bandKey, bandIndex, firstDevice, true);
-      //--------------------------------------
-
-      //TODO To be enabled later for device selection from GUI
-      // Prefer device that has previous selection
-      /*const idxWithSel = devices.findIndex(d => {
-        const sc = d.selected_config;
-        if (!sc) return false;
-        if (Array.isArray(sc)) return sc.length > 0;
-        return Boolean(sc?.class || (Array.isArray(sc?.channels) && sc.channels.length > 0));
-      });
-      deviceSel.value = (idxWithSel >= 0 ? devices[idxWithSel] : devices[0]).device_id;
-
-      const currentDevice = () => devices.find(d => d.device_id === deviceSel.value) || devices[0];
-
-      ensureBucket(bandIndex).device_id = deviceSel.value;
+      // Render with the chosen (or representative) device
       renderClasses(bandKey, bandIndex, currentDevice(), true);
 
       if (!deviceSel.__wired) {
@@ -862,7 +970,7 @@ class WirelessSettings {
           renderClasses(bandKey, bandIndex, currentDevice(), true);
         });
         deviceSel.__wired = true;
-      }*/
+      }
     };
 
     // ---------- Initialize all bands ----------
@@ -1263,6 +1371,9 @@ class WirelessSettings {
       saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
     }
 
+    // Keep this in sync with your UI constant
+    const UNSET_PREF = 15;
+
     try {
       const settings = this.updateChannelConfig;
       const channelConfigs = Object.values(settings).map(cfg => {
@@ -1271,6 +1382,10 @@ class WirelessSettings {
 
         const classVal = typeof cfg.class === 'string'
           ? parseInt(cfg.class, 10) : cfg.class;
+
+        // --- radio_id as MAC string
+        const rawRadioId = (cfg && typeof cfg.radio_id === 'string') ? cfg.radio_id.trim() : '';
+        const deviceId   = (typeof cfg.device_id === 'string') ? cfg.device_id.trim() : '';
 
         // Ensure channels is an array of integers
         const channels = Array.isArray(cfg.channels) ? (
@@ -1283,10 +1398,24 @@ class WirelessSettings {
           ).sort((a, b) => a - b)
         ) : [];
 
+        const prefsMap = (cfg.preferences && typeof cfg.preferences === 'object') ? cfg.preferences : {};
+
+        const preferences = channels.map(ch => {
+          const key = String(ch);
+          const raw = prefsMap[key];
+          const prefInt = (typeof raw === 'string') ? parseInt(raw, 10) : raw;
+
+           // If pref is a valid integer, use it; otherwise default UNSET_PREF
+           return Number.isInteger(prefInt) ? prefInt : UNSET_PREF;
+        });
+
         return {
+          device_id: deviceId,
+          radio_id: rawRadioId,
           radio_index: Number.isInteger(radioIndex) ? radioIndex : 0,
           class: Number.isInteger(classVal) ? classVal : 0,
           channels,
+          preferences,
         };
       });
 
