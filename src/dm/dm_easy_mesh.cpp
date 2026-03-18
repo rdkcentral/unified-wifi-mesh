@@ -2593,6 +2593,12 @@ bool dm_easy_mesh_t::has_at_least_one_associated_sta()
     return false;
 }
 
+bool dm_easy_mesh_t::is_sta_associated(bssid_t bssid, mac_address_t sta_mac)
+{
+    dm_sta_t *sta = find_sta(sta_mac, bssid);
+    return (sta != NULL) && sta->m_sta_info.associated;
+}
+
 dm_sta_t *dm_easy_mesh_t::find_sta(mac_address_t sta_mac, bssid_t bssid)
 {
     dm_sta_t *sta;

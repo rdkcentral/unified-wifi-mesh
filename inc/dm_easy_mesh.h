@@ -2136,7 +2136,7 @@ public:
 	 * @note Ensure that the `info` pointer is valid and points to a properly initialized `em_sta_info_t` structure.
 	 */
 	void put_sta_info(em_sta_info_t *info, em_target_sta_map_t target);
-    
+
 	/**!
 	 * @brief Retrieves the first station information.
 	 *
@@ -2198,7 +2198,28 @@ public:
 	 */
 	static void put_sta_info(void *dm, em_sta_info_t *info, em_target_sta_map_t target) { (static_cast<dm_easy_mesh_t *>(dm))->put_sta_info(info, target); }
 
-    
+	/**!
+	 * @brief Checks whether a station (STA) is currently associated with a given BSSID.
+	 *
+	 * This function determines if the station identified by @p sta_mac is
+	 * presently associated with the basic service set identified by @p bssid
+	 * in the EasyMesh data model.
+	 *
+	 * @param[in] bssid    The BSSID of the access point/BSS to check against.
+	 *                     The association check is performed specifically for
+	 *                     this BSSID and does not search across other BSSIDs.
+	 * @param[in] sta_mac  The MAC address of the station whose association
+	 *                     state is being queried.
+	 *
+	 * @returns true if the station is recorded as associated with the given
+	 *          BSSID, false otherwise.
+	 *
+	 * @note Callers are expected to provide valid, normalized MAC addresses
+	 *       for both @p bssid and @p sta_mac that correspond to entities
+	 *       known to the EasyMesh instance.
+	 */
+	bool is_sta_associated(bssid_t bssid, mac_address_t sta_mac);
+
 	/**!
 	 * @brief Finds a station (STA) based on its MAC address and BSSID.
 	 *

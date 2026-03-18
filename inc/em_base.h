@@ -279,6 +279,10 @@ static const mac_address_t EM_GLOBAL_MAC_ADDRESS = {0xff, 0xff, 0xff, 0xff, 0xff
 #define WIFI_EM_CHANNEL_SCAN_REQUEST          "Device.WiFi.EM.ChannelScanRequest"
 #endif
 
+#ifndef WIFI_EM_CLIENT_ASSOC_CTRL_REQ
+#define WIFI_EM_CLIENT_ASSOC_CTRL_REQ        "Device.WiFi.EM.ClientAssocCtrlRequest"
+#endif
+
 #ifndef WIFI_EC_SEND_TRIG_STA_SCAN
 #define WIFI_EC_SEND_TRIG_STA_SCAN          "Device.WiFi.EC.TriggerStaScan"
 #endif
@@ -2850,6 +2854,7 @@ typedef enum {
     em_bus_event_type_recv_csa_beacon_frame,
     em_bus_event_type_bsta_cap_req,
     em_bus_event_type_link_quality_report,
+    em_bus_event_type_client_assoc_ctrl_req,
 
     em_bus_event_type_max
 } em_bus_event_type_t;
