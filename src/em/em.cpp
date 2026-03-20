@@ -1292,7 +1292,7 @@ short em_t::create_wifi7_tlv(unsigned char *buff)
     link_info->max_num_mlds = dm->get_device_info()->max_nummlds;
     link_info->bsta_max_links = dm->get_device_info()->bstamld_maxlinks;
     link_info->ap_max_links = dm->get_device_info()->apmld_maxlinks;
-    link_info->tid_link_mapping_cap = static_cast<unsigned char>(dm->get_device_info()->tidlink_map[0]);
+    link_info->tid_link_mapping_cap = dm->get_device_info()->tidlink_map;
 
     offset += static_cast<short>(sizeof(em_wifi7_cap_link_info_tlv_t));
 
@@ -1346,7 +1346,7 @@ short em_t::create_wifi7_tlv(unsigned char *buff)
         offset += static_cast<short>(sizeof(unsigned char));
         for (int j = 0; j < *num_records; j++){
             record = reinterpret_cast<em_wifi7_freq_record_tlv_t *>(buff + offset);
-            memcpy(record, &em_wifi7_cap->mlo_cap_records.bsta_emlmr.records[j], sizeof(em_wifi7_freq_record_tlv_t));
+            memcpy(record, &em_wifi7_cap->mlo_cap_records.ap_emlmr.records[j], sizeof(em_wifi7_freq_record_tlv_t));
             offset += static_cast<short>(sizeof(em_wifi7_freq_record_tlv_t));
         }
         // bSTA STR Records
@@ -2058,7 +2058,6 @@ int em_t::handle_wifi6_cap_tlv(unsigned char *buff)
 {
     mac_address_t ruid;
     dm_easy_mesh_t *dm = get_data_model();
-    dm_radio_cap_t *radio_cap = NULL;
     short offset = 0;
     em_radio_wifi6_cap_data_t *em_wifi6_cap = NULL;
 
@@ -2263,7 +2262,7 @@ int em_t::handle_wifi7_agent_cap_tlv(unsigned char *buff)
     dm->m_device.m_device_info.max_nummlds = link_info->max_num_mlds ;
     dm->m_device.m_device_info.bstamld_maxlinks = link_info->bsta_max_links;
     dm->m_device.m_device_info.apmld_maxlinks = link_info->ap_max_links;
-    dm->m_device.m_device_info.tidlink_map[0] = link_info->tid_link_mapping_cap;
+    dm->m_device.m_device_info.tidlink_map = link_info->tid_link_mapping_cap;
 
     return 0;
 }

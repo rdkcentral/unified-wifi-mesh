@@ -160,7 +160,7 @@ int dm_device_t::decode(const cJSON *obj, void *parent_id)
     }
 	
     if ((tmp = cJSON_GetObjectItem(obj, "TIDLinkMapping")) != NULL) {
-        snprintf(m_device_info.tidlink_map, sizeof(m_device_info.tidlink_map), "%s", cJSON_GetStringValue(tmp));
+        m_device_info.tidlink_map = static_cast<unsigned char> (tmp->valuedouble);
     }
 	
     if ((tmp = cJSON_GetObjectItem(obj, "AssociatedSTAReportingInterval")) != NULL) {
@@ -243,7 +243,7 @@ void dm_device_t::encode(cJSON *obj, bool summary)
     cJSON_AddBoolToObject(obj, "EasyConnectCapability", m_device_info.easy_conn_cap);
     cJSON_AddNumberToObject(obj, "TestCapabilities", m_device_info.test_cap);
     cJSON_AddNumberToObject(obj, "APMLDMaxLinks", m_device_info.apmld_maxlinks);
-    cJSON_AddStringToObject(obj, "TIDLinkMapping", m_device_info.tidlink_map);
+    cJSON_AddNumberToObject(obj, "TIDLinkMapping", m_device_info.tidlink_map);
     cJSON_AddNumberToObject(obj, "AssociatedSTAReportingInterval", m_device_info.assoc_sta_reporting_int);
     cJSON_AddNumberToObject(obj, "MaxNumMLDs", m_device_info.max_nummlds);
     cJSON_AddNumberToObject(obj, "bSTAMLDMaxLinks", m_device_info.bstamld_maxlinks);

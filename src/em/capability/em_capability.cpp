@@ -1124,10 +1124,10 @@ int em_capability_t::handle_ap_cap_report(unsigned char *buff, unsigned int len)
         em_printfout("handle_wifi6_cap_tlv: radio_cap NULL for MAC %s",
             util::mac_to_string(get_radio_interface_mac()).c_str());
         //check if DM radio cap's radio macs are 0, if not available update only the rmacs
-        if (dm->get_num_radios() >= 0) {
-            em_printfout("handle_wifi6_cap_tlv: No radios in data model, update dm_radio_cap's radio mac");
-            for (int i = 0; i < dm->get_num_radios(); i++) {
-                dm_radio_cap = dm->get_radio_cap(i);
+        if (dm->get_num_radios() > 0) {
+            em_printfout("handle_wifi6_cap_tlv: update dm_radio_cap's radio mac");
+            for (unsigned int i = 0; i < dm->get_num_radios(); i++) {
+                dm_radio_cap = dm->get_radio_cap(static_cast<int>(i));
                 if (dm_radio_cap != NULL) {
                     memcpy(dm_radio_cap->m_radio_cap_info.ruid.mac, dm->m_radio[i].m_radio_info.id.ruid, sizeof(mac_address_t));
                     em_printfout("handle_wifi6_cap_tlv: dm_radio_cap updated for MAC %s",

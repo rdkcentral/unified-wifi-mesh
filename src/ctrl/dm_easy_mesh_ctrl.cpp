@@ -3858,12 +3858,12 @@ bus_error_t dm_easy_mesh_ctrl_t::wf6ap_tget_params(dm_easy_mesh_t *dm, const cha
     em_radio_cap_info_t *rci = radio_cap->get_radio_cap_info();
 
     for (i = 0; i < rci->wifi6_cap.num_role; i++) {
-        memcpy(&role_temp, &rci->wifi6_cap.roles[i], sizeof(em_wifi6_role_wire_t));
+        memcpy(role, &rci->wifi6_cap.roles[i], sizeof(em_wifi6_role_wire_t));
 
         snprintf(mcsnss_str, sizeof(mcsnss_str), "%hu", role->mcs_nss[0]);
-        for (i = 1; i < role->role_head.mcs_nss_num && i < MAX_MCS_NSS; i++) {
+        for (int j = 1; j < role->role_head.mcs_nss_num && j < MAX_MCS_NSS; j++) {
             char temp[16];
-            snprintf(temp, sizeof(temp), ",%hu", role->mcs_nss[i]);
+            snprintf(temp, sizeof(temp), ",%hu", role->mcs_nss[j]);
             strncat(mcsnss_str, temp, sizeof(mcsnss_str) - strlen(mcsnss_str) - 1);
         }
 
@@ -3905,7 +3905,6 @@ bus_error_t dm_easy_mesh_ctrl_t::wf7ap_get_inner(char *event_name, raw_data_t *p
     int device_instance = 0, radio_instance = 0;
     bus_error_t rc;
     em_wifi7_mlo_cap_support_tlv_t *wifi7_radio = NULL;
-    unsigned int i;
 
     if (!name || !p_data) {
         return bus_error_invalid_input;
@@ -3975,7 +3974,7 @@ bus_error_t dm_easy_mesh_ctrl_t::wf7ap_get_inner(char *event_name, raw_data_t *p
     } else if (strcmp(param, "NSTRSupport") == 0) {
         rc = dm_ctrl->raw_data_set(p_data, static_cast<bool>(wifi7_radio->ap_nstr_support));
     } else if (strcmp(param, "TIDLinkMapNegotiation") == 0) {
-        rc = dm_ctrl->raw_data_set(p_data, static_cast<char>(dm->m_device.m_device_info.tidlink_map[0]));
+        rc = dm_ctrl->raw_data_set(p_data, static_cast<uint8_t>(dm->m_device.m_device_info.tidlink_map));
     } else {
         em_printfout("Invalid WiFi7APRole param: %s", param);
         rc = bus_error_invalid_input;
@@ -4034,7 +4033,6 @@ bus_error_t dm_easy_mesh_ctrl_t::wf7ap_tget_inner(char *event_name, raw_data_t *
 bus_error_t dm_easy_mesh_ctrl_t::wf7ap_tget_params(dm_easy_mesh_t *dm, const char *root, em_radio_info_t *ri, bus_data_prop_t **property, unsigned int idx)
 {
     bus_error_t rc = bus_error_success;
-    unsigned int i;
     em_wifi7_mlo_cap_support_tlv_t *wifi7_radio = NULL;
 
     dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
@@ -4055,7 +4053,7 @@ bus_error_t dm_easy_mesh_ctrl_t::wf7ap_tget_params(dm_easy_mesh_t *dm, const cha
     dm_ctrl->property_append_tail(property, root, idx, "EMLSRSupport", wifi7_radio->ap_emlsr_support);
     dm_ctrl->property_append_tail(property, root, idx, "STRSupport", wifi7_radio->ap_str_support);
     dm_ctrl->property_append_tail(property, root, idx, "NSTRSupport", wifi7_radio->ap_nstr_support);
-    dm_ctrl->property_append_tail(property, root, idx, "TIDLinkMapNegotiation", dm->m_device.m_device_info.tidlink_map[0]);
+    dm_ctrl->property_append_tail(property, root, idx, "TIDLinkMapNegotiation", dm->m_device.m_device_info.tidlink_map);
 
     return rc;
 }

@@ -162,16 +162,34 @@ int dm_radio_cap_list_t::update_db(db_client_t& db_client, dm_orch_type_t op, vo
     em_radio_cap_info_t *info = static_cast<em_radio_cap_info_t *>(data);
     int ret = 0;
 
+    char wifi7_str[256] = {0};
+    size_t offset = 0;
+
+    uint8_t *ptr = reinterpret_cast<uint8_t *> (&info->wifi7_cap);
+    size_t len = sizeof(info->wifi7_cap);
+
+    for (size_t i = 0; i < len; i++) {
+        int ret = snprintf(wifi7_str + offset,
+                   sizeof(wifi7_str) - offset,
+                   "%02X", ptr[i]);
+        if (ret < 0) {
+            // encoding error
+            return -1;
+        }
+
+        offset += static_cast<size_t> (ret);
+    }
+
     printf("%s:%d: Opeartion:%d\n", __func__, __LINE__, op);
 
 	switch (op) {
 		case dm_orch_type_db_insert:
 			ret = insert_row(db_client, dm_easy_mesh_t::macbytes_to_string(info->ruid.mac, mac_str), 
-						info->ht_cap, info->vht_cap, info->he_cap, info->wifi7_cap, info->num_op_classes);
+						info->ht_cap, info->vht_cap, info->he_cap, wifi7_str, info->num_op_classes);
 			break;
 
 		case dm_orch_type_db_update:
-			ret = update_row(db_client, info->ht_cap, info->vht_cap, info->he_cap, info->wifi7_cap, info->num_op_classes,
+			ret = update_row(db_client, info->ht_cap, info->vht_cap, info->he_cap, wifi7_str, info->num_op_classes,
 						dm_easy_mesh_t::macbytes_to_string(info->ruid.mac, mac_str));
 			break;
 

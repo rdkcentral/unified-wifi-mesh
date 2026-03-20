@@ -1665,7 +1665,7 @@ typedef struct {
     em_wifi6_cap_role_head_tlv_t role_head;
     unsigned short mcs_nss[MAX_MCS_NSS]; //this is flexible and expandable to 12 bytes
     em_wifi6_cap_role_tail_tlv_t role_tail;
-} em_wifi6_role_wire_t;
+} __attribute__((__packed__)) em_wifi6_role_wire_t;
 
 typedef struct {
     unsigned char  num_role;
@@ -2263,7 +2263,7 @@ typedef struct {
     bool    easy_conn_cap;
     unsigned char test_cap;
     unsigned char apmld_maxlinks;
-    em_string_t   tidlink_map;
+    unsigned char   tidlink_map;
     unsigned char assoc_sta_reporting_int;
     unsigned char max_nummlds;
     unsigned char bstamld_maxlinks;
@@ -2608,7 +2608,7 @@ typedef struct {
     em_radio_wifi6_cap_data_t wifi6_cap;
     em_wifi7_agent_cap_t wifi7_cap;
     em_eht_operations_t eht_ops;
-    em_radio_info_t ch_scan;
+    em_channel_scan_cap_radio_t ch_scan;
     em_ap_radio_advanced_cap_t radio_ad_cap;
     em_profile_2_ap_cap_t   prof_2_ap_cap;
     em_cac_cap_radio_t cac_cap;
