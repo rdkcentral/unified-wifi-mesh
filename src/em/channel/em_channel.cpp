@@ -806,24 +806,6 @@ int em_channel_t::send_channel_sel_request_msg()
     tmp += (sizeof(em_tlv_t) + static_cast<short unsigned int> (sz));
     len += static_cast<unsigned int> (sizeof(em_tlv_t) + static_cast<short unsigned int> (sz));
 
-    // Zero or more Spatial Reuse Request TLVs (see section 17.2.89).
-    tlv = reinterpret_cast<em_tlv_t *> (tmp);
-    tlv->type = em_tlv_type_spatial_reuse_req;
-    sz = create_spatial_reuse_req_tlv(tlv->value);
-    tlv->len = htons(static_cast<short unsigned int> (sz));
-
-    tmp += (sizeof(em_tlv_t) + static_cast<short unsigned int> (sz));
-    len += static_cast<unsigned int> (sizeof(em_tlv_t) + static_cast<short unsigned int> (sz));
-
-    // Zero or one EHT Operations TLV (see section 17.2.103)
-    tlv = reinterpret_cast<em_tlv_t *> (tmp);
-    tlv->type = em_tlv_eht_operations;
-    sz = static_cast<short> (create_eht_operations_tlv(tlv->value));
-    tlv->len = htons(static_cast<short unsigned int> (sz));
-
-    tmp += (sizeof(em_tlv_t) + static_cast<short unsigned int> (sz));
-    len += static_cast<unsigned int> (sizeof(em_tlv_t) + static_cast<short unsigned int> (sz));
-
     // End of message
     tlv = reinterpret_cast<em_tlv_t *> (tmp);
     tlv->type = em_tlv_type_eom;
@@ -859,7 +841,6 @@ int em_channel_t::send_channel_sel_response_msg(em_chan_sel_resp_code_type_t cod
     em_cmdu_t *cmdu;
     em_tlv_t *tlv;
     em_channel_sel_rsp_t *resp;
-    em_spatial_reuse_cfg_rsp_t *spatial_resp;
     unsigned char *tmp = buff;
     dm_easy_mesh_t *dm;
     unsigned short type = htons(ETH_P_1905);
@@ -899,20 +880,8 @@ int em_channel_t::send_channel_sel_response_msg(em_chan_sel_resp_code_type_t cod
 
     tmp += (sizeof(em_tlv_t) + sizeof(em_channel_sel_rsp_t));
     len += (sizeof(em_tlv_t) + sizeof(em_channel_sel_rsp_t));
-    
-    // Zero or more Spatial Reuse Config Response TLVs (see section 17.2.91)
-    tlv = reinterpret_cast<em_tlv_t *> (tmp);
-    tlv->type = em_tlv_type_spatial_reuse_cfg_rsp;
-    tlv->len = htons(sizeof(em_spatial_reuse_cfg_rsp_t));
-    spatial_resp = reinterpret_cast<em_spatial_reuse_cfg_rsp_t *> (tlv->value);
-    memcpy(spatial_resp->config_resp.ruid, get_radio_interface_mac(), sizeof(mac_address_t));
-    memcpy(&spatial_resp->config_resp.response_code, reinterpret_cast<unsigned char *> (&code), sizeof(unsigned char));
 
-
-    tmp += (sizeof(em_tlv_t) + sizeof(em_spatial_reuse_cfg_rsp_t));
-    len += (sizeof(em_tlv_t) + sizeof(em_spatial_reuse_cfg_rsp_t));
-
-	// End of message
+    // End of message
     tlv = reinterpret_cast<em_tlv_t *> (tmp);
     tlv->type = em_tlv_type_eom;
     tlv->len = 0;
@@ -1049,24 +1018,6 @@ int em_channel_t::send_operating_channel_report_msg()
     tlv = reinterpret_cast<em_tlv_t *> (tmp);
     tlv->type = em_tlv_type_op_channel_report;
     sz = create_operating_channel_report_tlv(tlv->value);
-    tlv->len = htons(static_cast<short unsigned int> (sz));
-
-    tmp += sizeof(em_tlv_t) + static_cast<short unsigned int> (sz);
-    len += static_cast<unsigned int> (sizeof(em_tlv_t) + static_cast<short unsigned int> (sz));
-
-    // Zero or more Spatial Reuse Report TLVs (see section 17.2.90)
-    tlv = reinterpret_cast<em_tlv_t *> (tmp);
-    tlv->type = em_tlv_type_spatial_reuse_rep;
-    sz = create_spatial_reuse_report_tlv(tlv->value);
-    tlv->len = htons(static_cast<short unsigned int> (sz));
-
-    tmp += sizeof(em_tlv_t) + static_cast<short unsigned int> (sz);
-    len += static_cast<unsigned int> (sizeof(em_tlv_t) + static_cast<short unsigned int> (sz));
-
-    // Zero or more EHT Operations TLV (see section 17.2.103)
-    tlv = reinterpret_cast<em_tlv_t *> (tmp);
-    tlv->type = em_tlv_eht_operations;
-    sz = static_cast<short> (create_eht_operations_tlv(tlv->value));
     tlv->len = htons(static_cast<short unsigned int> (sz));
 
     tmp += sizeof(em_tlv_t) + static_cast<short unsigned int> (sz);
@@ -1932,23 +1883,16 @@ int em_channel_t::handle_channel_sel_req(unsigned char *buff, unsigned int len)
     tlv = reinterpret_cast<em_tlv_t *> (buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
     tlv_len = static_cast<int> (len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)));
 
-    while ((tlv->type != em_tlv_type_eom) && (len > 0)) {
+    while ((tlv->type != em_tlv_type_eom) && (tlv_len > 0)) {
         if (tlv->type == em_tlv_type_channel_pref) {
             handle_channel_pref_tlv(tlv->value, &op_class);
         }
         if (tlv->type == em_tlv_type_tx_power) {
-			memcpy(&op_class.tx_power, tlv->value, sizeof(em_tx_power_limit_t));
-        }
-        if (tlv->type == em_tlv_type_spatial_reuse_req) {
-            memcpy(&op_class.spatial_reuse_req, tlv->value, sizeof(em_spatial_reuse_req_t));
-        }
-        if (tlv->type == em_tlv_eht_operations) {
-            handle_eht_operations_tlv(tlv->value, &op_class.eht_ops);
-            break;
+            memcpy(&op_class.tx_power, tlv->value, sizeof(em_tx_power_limit_t));
         }
 
-        tlv_len -= static_cast<int> (sizeof(em_tlv_t) + htons(tlv->len));
-        tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
+        tlv_len -= static_cast<int> (sizeof(em_tlv_t) + ntohs(tlv->len));
+        tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + ntohs(tlv->len));
     }
 
 	op_class.freq_band = get_band();
@@ -2009,20 +1953,23 @@ int em_channel_t::handle_operating_channel_rprt(unsigned char *buff, unsigned in
     tlv = reinterpret_cast<em_tlv_t *> (buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
     tlv_len = static_cast<int> (len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)));
 
-    while ((tlv->type != em_tlv_type_eom) && (len > 0)) {
-        if (tlv->type == em_tlv_type_op_channel_report) {
-            handle_op_channel_report(tlv->value, htons(tlv->len));
-        }
-        if (tlv->type == em_tlv_type_spatial_reuse_rep) {
-            handle_spatial_reuse_report(tlv->value, htons(tlv->len));
-        }
-        if (tlv->type == em_tlv_eht_operations) {
-            handle_eht_operations_tlv_ctrl(tlv->value, htons(tlv->len));
+    while ((tlv_len > 0) && (tlv_len >= static_cast<int>(sizeof(em_tlv_t)))) {
+        if (tlv->type == em_tlv_type_eom) {
             break;
         }
 
-        tlv_len -= static_cast<int> (sizeof(em_tlv_t) + htons(tlv->len));
-        tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
+        if (tlv->type == em_tlv_type_op_channel_report) {
+            handle_op_channel_report(tlv->value, ntohs(tlv->len));
+        }
+
+        // Ensure we have enough buffer for the complete TLV before advancing
+        int current_tlv_size = sizeof(em_tlv_t) + htons(tlv->len);
+        if (tlv_len < current_tlv_size) {
+            break;
+        }
+
+        tlv_len -= current_tlv_size;
+        tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + current_tlv_size);
     }
     em_printfout("Operating channel report recv\n");
     send_1905_ack_message(ntohs(cmdu->id));

@@ -412,13 +412,20 @@ int dm_easy_mesh_agent_t::analyze_channel_sel_req(em_bus_event_t *evt, wifi_bus_
     em_eht_operations_t *eht_ops;
     bool found_mesh_sta = false;
     em_bss_info_t *bss_info;
-
+    dm_radio_t* radio = NULL;
+    em_radio_info_t *radio_info = NULL;
 
     channel_sel = reinterpret_cast<op_class_channel_sel*> (evt->u.raw_buff);
     em_printfout("No of opclass=%d tx=%d", channel_sel->num, channel_sel->tx_power.tx_power_eirp);
     tx_power_limit =  const_cast<em_tx_power_limit_t*> (&channel_sel->tx_power);
     spatial_reuse_req =  const_cast<em_spatial_reuse_req_t*> (&channel_sel->spatial_reuse_req);
     eht_ops =  const_cast<em_eht_operations_t*> (&channel_sel->eht_ops);
+
+    if (channel_sel->num == 0) {
+        // UNEXPECTED: Channel Selection Request will have atleast one OPCLASS in Channel Preference TLV
+        em_printfout("Channel Preference TLV contains no op_class entries");
+        return -1;
+    }
 
     // Process data from Channel Preference TLVs
     // Invalidate all old anticipated entries for current RUID in data model
@@ -431,12 +438,6 @@ int dm_easy_mesh_agent_t::analyze_channel_sel_req(em_bus_event_t *evt, wifi_bus_
             memcmp(&dm_op_class->id.ruid, &channel_sel->op_class_info[0].id.ruid, sizeof(mac_address_t)) == 0) {
             dm_op_class->pref_valid = false;
         }
-    }
-
-    if (channel_sel->num == 0) {
-        // UNEXPECTED: Channel Selection Request will have atleast one OPCLASS in Channel Preference TLV
-        em_printfout("Channel Preference TLV contains no op_class entries");
-        return -1;
     }
 
     // To store the channel with best preference
@@ -516,24 +517,44 @@ int dm_easy_mesh_agent_t::analyze_channel_sel_req(em_bus_event_t *evt, wifi_bus_
         this->set_num_op_class(noofopclass);
     }
 
-    if(tx_power_limit->tx_power_eirp != 0) {
-        dm_radio_t* radio = this->get_radio(tx_power_limit->ruid);
-        em_radio_info_t* radio_info = radio->get_radio_info();
-        radio_info->transmit_power_limit = tx_power_limit->tx_power_eirp;
+    // Fetch radio and radio_info using RUID in Channel Preference TLV
+    // Assumption: One RUID data per Channel Selection Request message
+    radio = this->get_radio(channel_sel->op_class_info[0].id.ruid);
+    if (radio == NULL) {
+        em_printfout("Radio not found for channel_sel op_class_info[0] RUID");
+        return -1;
     }
 
-    dm_radio_t* radio = this->get_radio(spatial_reuse_req->ruid);
-    em_radio_info_t* radio_info = radio->get_radio_info();
-    radio_info->bss_color = spatial_reuse_req->bss_color;
-    radio_info->hesiga_spatial_reuse_value15_allowed = spatial_reuse_req->hesiga_spatial_reuse_value15_allowed;
-    radio_info->srg_information_valid = spatial_reuse_req->srg_info_valid;
-    radio_info->non_srg_offset_valid = spatial_reuse_req->non_srg_offset_valid;
-    radio_info->psr_disallowed = spatial_reuse_req->psr_disallowed;
-    radio_info->non_srg_obsspd_max_offset = spatial_reuse_req->non_srg_obsspd_max_offset;
-    radio_info->srg_obsspd_min_offset = spatial_reuse_req->srg_obsspd_min_offset;
-    radio_info->srg_obsspd_max_offset = spatial_reuse_req->srg_obsspd_max_offset;
-    memcpy(radio_info->srg_bss_color_bitmap, spatial_reuse_req->srg_bss_color_bitmap, sizeof(radio_info->srg_bss_color_bitmap));
-    memcpy(radio_info->srg_partial_bssid_bitmap, spatial_reuse_req->srg_partial_bssid_bitmap, sizeof(radio_info->srg_partial_bssid_bitmap));
+    radio_info = radio->get_radio_info();
+    if (radio_info == NULL) {
+        em_printfout("radio_info is null for channel_sel op_class_info[0]");
+        return -1;
+    }
+
+    // Update tx_power_limit from channel_sel (if present) for the RUID
+    if (tx_power_limit->tx_power_eirp != 0) {
+        if (memcmp(tx_power_limit->ruid, channel_sel->op_class_info[0].id.ruid, sizeof(mac_address_t)) == 0) {
+            radio_info->transmit_power_limit = tx_power_limit->tx_power_eirp;
+        } else {
+            em_printfout("Tx power RUID does not match channel_sel RUID, skipping tx_power update");
+        }
+    }
+
+    // Apply spatial_reuse_req fields using the same radio_info
+    if (memcmp(spatial_reuse_req->ruid, channel_sel->op_class_info[0].id.ruid, sizeof(mac_address_t)) == 0) {
+        radio_info->bss_color = spatial_reuse_req->bss_color;
+        radio_info->hesiga_spatial_reuse_value15_allowed = spatial_reuse_req->hesiga_spatial_reuse_value15_allowed;
+        radio_info->srg_information_valid = spatial_reuse_req->srg_info_valid;
+        radio_info->non_srg_offset_valid = spatial_reuse_req->non_srg_offset_valid;
+        radio_info->psr_disallowed = spatial_reuse_req->psr_disallowed;
+        radio_info->non_srg_obsspd_max_offset = spatial_reuse_req->non_srg_obsspd_max_offset;
+        radio_info->srg_obsspd_min_offset = spatial_reuse_req->srg_obsspd_min_offset;
+        radio_info->srg_obsspd_max_offset = spatial_reuse_req->srg_obsspd_max_offset;
+        memcpy(radio_info->srg_bss_color_bitmap, spatial_reuse_req->srg_bss_color_bitmap, sizeof(radio_info->srg_bss_color_bitmap));
+        memcpy(radio_info->srg_partial_bssid_bitmap, spatial_reuse_req->srg_partial_bssid_bitmap, sizeof(radio_info->srg_partial_bssid_bitmap));
+    } else {
+        em_printfout("Spatial reuse RUID does not match channel_sel RUID, skipping spatial_reuse update");
+    }
 
 #ifdef REL_6_FEATURE
     bool found_radio = false;
