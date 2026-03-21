@@ -187,6 +187,11 @@ extern "C"
 #define EM_CH_PREF_ENTRY_VALID      0x01
 #define EM_CH_PREF_ENTRY_INVALID    0x00
 
+#define EM_SCAN_TYPE_PASSIVE 0U
+#define EM_SCAN_TYPE_ACTIVE  1U
+
+#define EM_SCAN_TYPE_BIT     (1U << 7)  // bit 7 in TLV
+
 /* Global MAC Address */
 static const mac_address_t EM_GLOBAL_MAC_ADDRESS = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
 
@@ -809,6 +814,7 @@ typedef struct {
     unsigned char bss_color;
     unsigned char channel_util;
     unsigned short sta_count;
+    unsigned char bss_load_element_present;
 } em_neighbor_t;
 
 typedef struct {
