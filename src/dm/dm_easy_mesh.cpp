@@ -146,7 +146,13 @@ int dm_easy_mesh_t::commit_config(dm_easy_mesh_t& dm, em_commit_target_t target)
             if (i == m_num_radios) { //New Radio
                 m_radio[m_num_radios] = *(radio);
                 radio_cap = dm.get_radio_cap(mac);
-                m_radio_cap[m_num_radios] = *(radio_cap);
+                if (radio_cap != NULL) {
+                    m_radio_cap[m_num_radios] = *(radio_cap);
+                } else {
+                    /* Capabilities not yet available for this radio; use default/empty caps */
+                    memset(&m_radio_cap[m_num_radios], 0, sizeof(m_radio_cap[m_num_radios]));
+                    em_printfout("Radio capabilities for %s not available; using default capabilities", target.params);
+                }
 
                 m_num_radios = m_num_radios + 1;
                 em_printfout("New Radio %s configuration created no of radios=%d", target.params, m_num_radios);
