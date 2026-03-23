@@ -1997,7 +1997,17 @@ dm_radio_cap_t *dm_easy_mesh_t::get_radio_cap(mac_address_t mac)
 
 dm_radio_cap_t *dm_easy_mesh_t::get_radio_cap(int index)
 {
-    return &m_radio_cap[index];
+    if (index < 0) {
+        return nullptr;
+    }
+
+    unsigned int uindex = static_cast<unsigned int>(index);
+
+    if (uindex >= static_cast<unsigned int>(m_num_radios) || uindex >= static_cast<unsigned int>(EM_MAX_BANDS)) {
+        return nullptr;
+    }
+
+    return &m_radio_cap[uindex];
 }
 
 em_radio_cap_info_t *dm_easy_mesh_t::get_radio_cap_info(int index)
