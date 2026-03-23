@@ -150,7 +150,7 @@ int dm_easy_mesh_t::commit_config(dm_easy_mesh_t& dm, em_commit_target_t target)
                     m_radio_cap[m_num_radios] = *(radio_cap);
                 } else {
                     /* Capabilities not yet available for this radio; use default/empty caps */
-                    memset(&m_radio_cap[m_num_radios], 0, sizeof(m_radio_cap[m_num_radios]));
+                    m_radio_cap[m_num_radios].init();
                     em_printfout("Radio capabilities for %s not available; using default capabilities", target.params);
                 }
 

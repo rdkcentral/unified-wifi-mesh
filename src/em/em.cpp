@@ -2162,18 +2162,31 @@ int em_t::handle_wifi7_agent_cap_tlv(unsigned char *buff)
     }
 
     offset += static_cast<short>(sizeof(em_wifi7_cap_link_info_tlv_t));
-    tmp = buff + offset;
 
-    int num_radios = static_cast<int> (*tmp);
+    // Number of radios
+    unsigned char *num_radios_ptr = reinterpret_cast<unsigned char *>(buff + offset);
+    int num_radios = static_cast<int>(*num_radios_ptr);
     em_printfout("Number of radios in wifi7 agent cap: %d", num_radios);
     offset += static_cast<short>(sizeof(unsigned char));
+
+    if (dm != NULL) {
+        int dm_num_radios = static_cast<int>(dm->get_num_radios());
+        if (num_radios > EM_MAX_RADIO_PER_AGENT) {
+            em_printfout("Clamping num_radios from %d to EM_MAX_RADIO_PER_AGENT (%d)", num_radios, EM_MAX_RADIO_PER_AGENT);
+            num_radios = EM_MAX_RADIO_PER_AGENT;
+        }
+        if (num_radios > dm_num_radios) {
+            em_printfout("Clamping num_radios from %d to dm->get_num_radios() (%d)", num_radios, dm_num_radios);
+            num_radios = dm_num_radios;
+        }
+    }
 
     for (int idx = 0; idx < num_radios; idx++) {
         em_wifi7_cap = &dm->get_radio_cap_info(idx)->wifi7_cap;
         em_printfout("Updating wifi7 cap for radio[%d]:%s", idx, util::mac_to_string(em_wifi7_cap->mlo_cap_support.ruid).c_str());
 
-        //Extract MLO support info
-        mlo_support = reinterpret_cast<em_wifi7_mlo_cap_support_tlv_t *>(tmp);
+        // Extract MLO support info
+        mlo_support = reinterpret_cast<em_wifi7_mlo_cap_support_tlv_t *>(buff + offset);
         memcpy(&em_wifi7_cap->mlo_cap_support, mlo_support, sizeof(em_wifi7_mlo_cap_support_tlv_t));
         offset += static_cast<short>(sizeof(em_wifi7_mlo_cap_support_tlv_t));
 
