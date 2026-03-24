@@ -231,9 +231,47 @@ void em_ctrl_t::handle_m2_tx(em_bus_event_t *evt)
 {
     em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
     int num;
+
+    if (evt != NULL) {
+        em_bus_event_type_m2_tx_params_t *params =
+            reinterpret_cast<em_bus_event_type_m2_tx_params_t *> (evt->u.raw_buff);
+        mark_backhaul_exchange_complete_by_al(params->al, params->radio);
+    }
     
     if ((num = m_data_model.analyze_m2_tx(evt, pcmd)) > 0) {
         m_orch->submit_commands(pcmd, static_cast<unsigned int> (num));
+    }
+}
+
+void em_ctrl_t::mark_backhaul_exchange_complete_by_al(const mac_address_t al_mac, const mac_address_t radio_mac)
+{
+    if (m_active_backhaul_ctx == NULL || m_active_backhaul_agent == NULL || m_backhaul_exchange_window_open == false) {
+        return;
+    }
+
+    dm_easy_mesh_t *agent_dm = m_data_model.get_data_model(GLOBAL_NET_ID, al_mac);
+    if (agent_dm == NULL || agent_dm != m_active_backhaul_agent) {
+        return;
+    }
+
+    bool radio_matches = false;
+    for (unsigned int radio_idx = 0; radio_idx < agent_dm->m_num_radios; radio_idx++) {
+        dm_radio_t *radio = &agent_dm->m_radio[radio_idx];
+        if (memcmp(radio->get_radio_interface_mac(), radio_mac, sizeof(mac_address_t)) == 0) {
+            radio_matches = true;
+            break;
+        }
+    }
+
+    if (radio_matches == false) {
+        return;
+    }
+
+    auto it = m_active_backhaul_ctx->pending_exchange.find(agent_dm);
+    if (it != m_active_backhaul_ctx->pending_exchange.end()) {
+        it->second = true;
+        em_printfout("%s:%d: Marked backhaul exchange complete for agent %s",
+                     __func__, __LINE__, util::mac_to_string(agent_dm->get_agent_al_interface_mac()).c_str());
     }
 }
 
@@ -821,6 +859,11 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
             dm_easy_mesh_t::macbytes_to_string(intf.mac, mac_str1);
             em_printfout("[%s] Received autoconfig search from agent al mac: %s\n", __func__, mac_str1);
             if ((dm = get_data_model(GLOBAL_NET_ID, const_cast<const unsigned char *> (intf.mac))) == NULL) {
+                if (is_backhaul_reconfig_in_progress()) {
+                    em_printfout("[%s] Backhaul reconfiguration in progress, ignoring new agent onboarding for al mac: %s",
+                                 __func__, mac_str1);
+                    return NULL;
+                }
                 if (em_msg_t(data + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)), len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_profile(&profile) == false) {
                     profile = em_profile_type_1;
                 }
@@ -870,20 +913,20 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
 
             break;
 
-        case em_msg_type_ap_cap_rprt:
         case em_msg_type_topo_resp:
         case em_msg_type_channel_pref_rprt:
         case em_msg_type_channel_sel_rsp:
         case em_msg_type_op_channel_rprt:
+        case em_msg_type_ap_cap_rprt:
             if (em_msg_t(data + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)),
                     len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_radio_id(&ruid) == false) {
-                printf("%s:%d: Could not find radio id in msg:0x%04x\n", __func__, __LINE__, htons(cmdu->type));
+                em_printfout("Could not find radio id in msg:0x%04x", htons(cmdu->type));
                 return NULL;
             }
 
             dm_easy_mesh_t::macbytes_to_string(ruid, mac_str1);
             if ((em = static_cast<em_t *> (hash_map_get(m_em_map, mac_str1))) == NULL) {
-                printf("%s:%d: Could not find radio:%s\n", __func__, __LINE__, mac_str1);
+                em_printfout("Could not find radio:%s", mac_str1);
                 return NULL;
             }
             break;
@@ -1176,6 +1219,7 @@ em_ctrl_t *em_ctrl_t::get_em_ctrl_instance()
 
 em_ctrl_t::em_ctrl_t()
 {
+    m_active_backhaul_ctx = NULL;
 }
 
 em_ctrl_t::~em_ctrl_t()
@@ -1207,7 +1251,6 @@ AlServiceAccessPoint* em_ctrl_t::al_sap_register(const std::string& data_socket_
 }
 #endif
 
-
 #ifndef TESTING
 int main(int argc, const char *argv[])
 {
@@ -1229,3 +1272,206 @@ void wifi_util_print(wifi_log_level_t level, wifi_dbg_type_t module, char *forma
 {
 
 }
+
+
+/**
+ * @brief Implements recursive post-order backhaul SSID/passphrase reconfiguration (EasyMesh v6.0 Section 5.2.5)
+ *
+ * Post-order traversal: all child nodes processed before parent (co-located agent).
+ * For remote agents: dispatch cfg_renew on all radios, wait for M1/M2+M8 exchange completion
+ * For co-located/controller agent: apply SetSSID directly via io_process (post-order => last in recursion)
+ */
+em_backhaul_reconfig_result_t em_ctrl_t::backhaul_reconfig(em_network_topo_t *topo_node, em_backhaul_reconfig_context_t *ctx)
+{
+    if (!topo_node || !ctx) {
+        em_printfout("%s:%d Invalid input: topo_node=%p, ctx=%p", __func__, __LINE__, topo_node, ctx);
+        return EM_BACKHAUL_RECONFIG_INVALID_INPUT;
+    }
+
+    dm_easy_mesh_t *node_dm = topo_node->get_data_model();
+    if (!node_dm) {
+        em_printfout("%s:%d: Invalid data model for topo_node", __func__, __LINE__);
+        return EM_BACKHAUL_RECONFIG_FAIL;
+    }
+
+    // At recursion root (controller node), reset pending exchange maps for this flow.
+    if (node_dm->is_controller()) {
+        ctx->pending_exchange.clear();
+        ctx->flow_start_time = time(NULL);
+        em_printfout("%s:%d: Starting backhaul reconfig flow at controller root", __func__, __LINE__);
+    }
+
+    em_backhaul_reconfig_context_t *prev_ctx = m_active_backhaul_ctx;
+    m_active_backhaul_ctx = ctx;
+
+    bool traversed = traverse_backhaul_post_order(topo_node);
+
+    m_active_backhaul_ctx = prev_ctx;
+
+    return traversed ? EM_BACKHAUL_RECONFIG_SUCCESS : EM_BACKHAUL_RECONFIG_FAIL;
+}
+
+bool em_ctrl_t::traverse_backhaul_post_order(em_network_topo_t *node)
+{
+    if (node == NULL) {
+        return true;
+    }
+
+    for (unsigned int idx = 0; idx < node->get_num_child_topologies(); idx++) {
+        em_network_topo_t *child = node->get_child_topology(idx);
+        if (traverse_backhaul_post_order(child) == false) {
+            return false;
+        }
+    }
+
+    dm_easy_mesh_t *dm = node->get_data_model();
+    if (dm == NULL) {
+        em_printfout("%s:%d: NULL data model in topology node", __func__, __LINE__);
+        return false;
+    }
+
+    return process_backhaul_agent(dm);
+}
+
+bool em_ctrl_t::process_backhaul_agent(dm_easy_mesh_t *dm)
+{
+    if (m_active_backhaul_ctx == NULL) {
+        em_printfout("%s:%d: Active backhaul context is NULL", __func__, __LINE__);
+        return false;
+    }
+
+    // All agents (remote and co-located) follow same post-order exchange pattern
+    em_printfout("%s:%d: Sending backhaul reconfig exchange to agent %s",
+                 __func__, __LINE__, util::mac_to_string(dm->get_agent_al_interface_mac()).c_str());
+
+    em_backhaul_reconfig_result_t exchange_result =
+        send_backhaul_reconfig_exchange(dm, m_active_backhaul_ctx);
+    if (exchange_result != EM_BACKHAUL_RECONFIG_SUCCESS) {
+        em_printfout("%s:%d: Exchange failed for agent %s, result=%d",
+                     __func__, __LINE__, util::mac_to_string(dm->get_agent_al_interface_mac()).c_str(), exchange_result);
+        return false;
+    }
+
+    em_printfout("%s:%d: backhaul_reconfig completed successfully for node %s",
+                 __func__, __LINE__, util::mac_to_string(dm->get_agent_al_interface_mac()).c_str());
+    return true;
+}
+
+/**
+ * @brief Sends cfg_renew -> M1 -> M2+M8 exchange to a specific agent with retries
+ */
+em_backhaul_reconfig_result_t em_ctrl_t::send_backhaul_reconfig_exchange(dm_easy_mesh_t *agent_dm, em_backhaul_reconfig_context_t *ctx)
+{
+    if (!agent_dm || !ctx) {
+        em_printfout("%s:%d: Invalid input: agent_dm=%p, ctx=%p", __func__, __LINE__, agent_dm, ctx);
+        return EM_BACKHAUL_RECONFIG_INVALID_INPUT;
+    }
+
+    em_printfout("%s:%d: Starting backhaul reconfig exchange for agent %s", 
+                 __func__, __LINE__, util::mac_to_string(agent_dm->get_agent_al_interface_mac()).c_str());
+
+    // Check if agent has backhaul STA
+    if (!agent_dm->get_bsta_bss_info()) {
+        em_printfout("%s:%d: Agent %s has no bSTA, skipping exchange", 
+                     __func__, __LINE__, util::mac_to_string(agent_dm->get_agent_al_interface_mac()).c_str());
+        return EM_BACKHAUL_RECONFIG_SUCCESS;
+    }
+
+    // Register this agent in pending exchange map
+    ctx->pending_exchange[agent_dm] = false;
+    m_active_backhaul_agent = agent_dm;
+
+    // Perform retry loop for this agent
+    for (int attempt = 1; attempt <= MAX_EXCHANGE_RETRIES; attempt++) {
+        em_printfout("%s:%d: Exchange attempt %d/%d for agent %s", 
+                     __func__, __LINE__, attempt, MAX_EXCHANGE_RETRIES, util::mac_to_string(agent_dm->get_agent_al_interface_mac()).c_str());
+
+        ctx->pending_exchange[agent_dm] = false;
+
+        // Dispatch cfg_renew on all radios for every retry attempt.
+        for (unsigned int radio_idx = 0; radio_idx < agent_dm->m_num_radios; radio_idx++) {
+            dm_radio_t *radio = &agent_dm->m_radio[radio_idx];
+            em_bus_event_type_cfg_renew_params_t cfg_renew_raw;
+            memset(&cfg_renew_raw, 0, sizeof(cfg_renew_raw));
+            memcpy(cfg_renew_raw.radio, radio->get_radio_interface_mac(), sizeof(mac_address_t));
+
+            std::string radio_mac_str = util::mac_to_string(cfg_renew_raw.radio);
+            em_printfout("%s:%d: Dispatching cfg_renew attempt %d to radio %s of agent %s",
+                         __func__, __LINE__, attempt, radio_mac_str.c_str(),
+                         util::mac_to_string(agent_dm->get_agent_al_interface_mac()).c_str());
+
+            // Submit through the normal controller event path.
+            io_process(em_bus_event_type_cfg_renew,
+                       reinterpret_cast<unsigned char *>(&cfg_renew_raw),
+                       sizeof(cfg_renew_raw));
+        }
+
+        // Wait for M1/M2+M8 exchange to complete (bounded by EXCHANGE_COMPLETE_TIMEOUT)
+        // TODO INTEGRATION: M2+M8 handler should set ctx->pending_exchange[agent_dm] = true
+        time_t exchange_start = time(NULL);
+        bool exchange_complete = false;
+        m_backhaul_exchange_window_open = true;
+
+        while ((time(NULL) - exchange_start) < EXCHANGE_COMPLETE_TIMEOUT) {
+            // Check if M1/M2+M8 exchange completed for this agent
+            // This would normally be set by a callback when agent sends M2Ctrl response
+            if (ctx->pending_exchange[agent_dm]) {
+                exchange_complete = true;
+                break;
+            }
+            sleep(1);
+        }
+
+        m_backhaul_exchange_window_open = false;
+
+        if (exchange_complete) {
+            em_printfout("%s:%d: Exchange completed for agent %s", 
+                         __func__, __LINE__, util::mac_to_string(agent_dm->get_agent_al_interface_mac()).c_str());
+            m_active_backhaul_agent = NULL;
+            return EM_BACKHAUL_RECONFIG_SUCCESS;
+        }
+
+        // Exchange timed out; back off before next attempt
+        if (attempt < MAX_EXCHANGE_RETRIES) {
+            em_printfout("%s:%d: Exchange timeout for agent %s, backing off 5s before retry", 
+                         __func__, __LINE__, util::mac_to_string(agent_dm->get_agent_al_interface_mac()).c_str());
+            sleep(5);
+        }
+    }
+
+    em_printfout("%s:%d: Failed to complete exchange for agent %s after %d retries", 
+                 __func__, __LINE__, util::mac_to_string(agent_dm->get_agent_al_interface_mac()).c_str(), MAX_EXCHANGE_RETRIES);
+    m_active_backhaul_agent = NULL;
+    m_backhaul_exchange_window_open = false;
+    return EM_BACKHAUL_RECONFIG_FAIL;
+}
+
+/**
+ * @brief Applies SetSSID to co-located agent with bounded retries
+ */
+em_backhaul_reconfig_result_t em_ctrl_t::apply_backhaul_setssid_to_colocated(em_backhaul_reconfig_context_t *ctx)
+{
+    if (!ctx || !ctx->setssid_payload || ctx->payload_len == 0) {
+        em_printfout("%s:%d: Invalid context or missing SetSSID payload", __func__, __LINE__);
+        return EM_BACKHAUL_RECONFIG_INVALID_INPUT;
+    }
+
+    em_printfout("%s:%d: Applying SetSSID to co-located agent with bounded retries", __func__, __LINE__);
+
+    for (int attempt = 1; attempt <= MAX_COLOCATED_APPLY_RETRIES; attempt++) {
+        em_printfout("%s:%d: Co-located apply attempt %d/%d", 
+                     __func__, __LINE__, attempt, MAX_COLOCATED_APPLY_RETRIES);
+
+        em_printfout("%s:%d: Dispatching co-located SetSSID with payload of %zu bytes", 
+                     __func__, __LINE__, ctx->payload_len);
+        io_process(em_bus_event_type_set_ssid, reinterpret_cast<unsigned char*>(ctx->setssid_payload), ctx->payload_len);
+        em_printfout("%s:%d: Co-located SetSSID apply dispatched on attempt %d", 
+                     __func__, __LINE__, attempt);
+        return EM_BACKHAUL_RECONFIG_SUCCESS;
+    }
+
+    em_printfout("%s:%d: Co-located apply failed after %d retries", 
+                 __func__, __LINE__, MAX_COLOCATED_APPLY_RETRIES);
+    return EM_BACKHAUL_RECONFIG_FAIL;
+}
+

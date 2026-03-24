@@ -53,6 +53,7 @@ import (
 )
 
 const remoteCtrl_Addr_path = "/nvram/remoteCtrl.json"
+var nonHex = regexp.MustCompile(`[^a-fA-F0-9]`)
 var timerCount = 0
 
 // ===== SIMPLIFIED DATA MODELS =====
@@ -413,11 +414,12 @@ type ClassInfo struct {
 
 // channelConfig struct to store previous configuration
 type channelConfig struct {
+	DeviceID    string `json:"device_id,omitempty"`
 	RadioID    string  `json:"radio_id"`
 	RadioIndex int     `json:"radio_index"`
 	Class      int     `json:"class"`
 	Channels   []int   `json:"channels"`
-	Preference []int   `json:"preference"`
+	Preferences []int  `json:"preferences"`
 }
 
 type AdvancedWirelessSettings struct {
@@ -1964,7 +1966,7 @@ func getRadioConfigsHandler(w http.ResponseWriter, r *http.Request) {
                 return
             }
 
-           applyChannelConfig(wifiChannelUpdateTree)
+            applyChannelConfig(wifiChannelUpdateTree)
 
            // Return success response
             w.Header().Set("Content-Type", "application/json")
@@ -3453,7 +3455,6 @@ func WifiResetHandler(w http.ResponseWriter, r *http.Request) {
                 }
             }
 
-			dumpNetNode(resetTree);
             if applyResetConfig(resetTree) != true {
                 msg := fmt.Sprintf("Failed to apply wifi reset config")
                 errorsList = append(errorsList, msg)
@@ -4850,20 +4851,82 @@ func getConfiguredChannels(tree *C.em_network_node_t) []WifiChannelConfig {
         return result
     }
 
+    // ---------- Build GLOBAL entry ----------
+    {
+        var globalCfgs []channelConfig
+        // Iterate through the global AnticipatedChannelPreference
+        for idx := 0; idx < int(configuredChannelPrefNode.num_children); idx++ {
+            var bandIndex int
+            cfgNode := configuredChannelPrefNode.child[idx]
+            if cfgNode == nil {
+               continue
+            }
+
+            if idx == 2 {
+                // bandIndex of 6Ghz is 3
+                bandIndex = idx + 1
+            } else {
+                bandIndex = idx
+            }
+
+            // Read Class
+            ConfigClass := getKeyIntValue(cfgNode, "Class")
+
+            // Read ChannelList
+            chListKey := C.CString("ChannelList")
+            chListNode := C.get_network_tree_by_key(cfgNode, chListKey)
+            C.free(unsafe.Pointer(chListKey))
+
+            var configChannels []int
+            if chListNode != nil {
+                for k := 0; k < int(chListNode.num_children); k++ {
+                    configChannels = append(configChannels, int(chListNode.child[k].value_int))
+                }
+            }
+
+            // Read ChannelPrefList
+            prefListKey := C.CString("ChannelPrefList")
+            prefListNode := C.get_network_tree_by_key(cfgNode, prefListKey)
+            C.free(unsafe.Pointer(prefListKey))
+
+            var configChannelsPref []int
+            if prefListNode != nil {
+                for k := 0; k < int(prefListNode.num_children); k++ {
+                    configChannelsPref = append(configChannelsPref, int(prefListNode.child[k].value_int))
+                }
+            }
+
+            // RadioID left empty for global.
+            globalCfgs = append(globalCfgs, channelConfig{
+                RadioID:     "",
+                RadioIndex:  bandIndex,
+                Class:       ConfigClass,
+                Channels:    configChannels,
+                Preferences: configChannelsPref,
+            })
+        }
+
+        result = append(result, WifiChannelConfig{
+            DeviceID:       "FF:FF:FF:FF:FF:FF", // GLOBAL sentinel
+            SupportedClass: nil,                 // can be filled from capability later
+            SelectedConfig: globalCfgs,
+        })
+    }
+
+    // ---------- Build per-device entries ----------
     for i := 0; i < int(deviceListNode.num_children); i++ {
         deviceNode := deviceListNode.child[i]
+        if deviceNode == nil {
+            continue
+        }
+
         deviceID := getTreeValue(deviceNode, "ID")
 
         keyRadioList := C.CString("RadioList")
         defer C.free(unsafe.Pointer(keyRadioList))
-        RadioListNode := C.get_network_tree_by_key(tree, keyRadioList)
-        if RadioListNode == nil {
-            log.Printf("Failed to get previous channel configuration")
-            result = append(result, WifiChannelConfig{
-                DeviceID:       deviceID,
-                SupportedClass: nil,
-                SelectedConfig: nil,
-            })
+        RadioListNode := C.get_network_tree_by_key(deviceNode, keyRadioList)
+        if RadioListNode == nil || int(RadioListNode.num_children) == 0 {
+            log.Printf("Radio List is empty for device %s. moving to next device\n", deviceID)
             continue
         }
 
@@ -4871,32 +4934,70 @@ func getConfiguredChannels(tree *C.em_network_node_t) []WifiChannelConfig {
         var cfgs []channelConfig
         for j := 0; j < int(RadioListNode.num_children); j++ {
             radioNode := RadioListNode.child[j]
+            if radioNode == nil {
+                continue
+            }
+
             radioID := getTreeValue(radioNode, "ID")
             bandIndex := getKeyIntValue(radioNode, "Band")
-            //TODO: remote or modify later after supporting per radio channel update.
-            anticipatedChannelIndex := bandIndex
-            if bandIndex == 0 ||  bandIndex == 1 {
-                anticipatedChannelIndex = bandIndex
-            } else if bandIndex == 3 {
-                anticipatedChannelIndex = 2
+
+            // Keep empty config item to reflect that radio exists
+            cfgs = append(cfgs, channelConfig{
+                RadioID:     radioID,
+                RadioIndex:  bandIndex,
+                Class:       0,
+                Channels:    nil,
+                Preferences: nil,
+            })
+
+            //configuredChannel := configuredChannelPrefNode.child[anticipatedChannelIndex]
+            radioChannelNode := C.get_network_tree_by_key(radioNode, keyACP)
+            if radioChannelNode == nil {
+                continue
             }
-            configuredChannel := configuredChannelPrefNode.child[anticipatedChannelIndex]
-            ConfigClass := getKeyIntValue(configuredChannel, "Class")
-            configChannelList := C.get_network_tree_by_key(configuredChannel, C.CString("ChannelList"))
-            var configChannels []int
-            if configChannelList != nil {
-                for j := 0; j < int(configChannelList.num_children); j++ {
-                    configChannels = append(configChannels, int(configChannelList.child[j].value_int))
+
+            for idx := 0; idx < int(radioChannelNode.num_children); idx++ {
+                cfgNode := radioChannelNode.child[idx]
+                if cfgNode == nil {
+                    continue
                 }
-            }
+
+                // Read Class
+                ConfigClass := getKeyIntValue(cfgNode, "Class")
+
+                // Read ChannelList
+                chListKey := C.CString("ChannelList")
+                chListNode := C.get_network_tree_by_key(cfgNode, chListKey)
+                C.free(unsafe.Pointer(chListKey))
+
+                var configChannels []int
+                if chListNode != nil {
+                    for k := 0; k < int(chListNode.num_children); k++ {
+                        configChannels = append(configChannels, int(chListNode.child[k].value_int))
+                    }
+                }
+
+                // Read ChannelPrefList
+                prefListKey := C.CString("ChannelPrefList")
+                prefListNode := C.get_network_tree_by_key(cfgNode, prefListKey)
+                C.free(unsafe.Pointer(prefListKey))
+
+                var configChannelsPref []int
+                if prefListNode != nil {
+                    for k := 0; k < int(prefListNode.num_children); k++ {
+                        configChannelsPref = append(configChannelsPref, int(prefListNode.child[k].value_int))
+                    }
+                }
 
             cfgs  = append(cfgs , channelConfig{
                 RadioID: radioID,
                 RadioIndex: bandIndex,
                 Class:      ConfigClass,
                 Channels:   configChannels,
+                Preferences: configChannelsPref,
             })
         }
+    }
 
         result = append(result, WifiChannelConfig{
             DeviceID:       deviceID,
@@ -4922,25 +5023,120 @@ func updateAnticipatedChannelPreference(tree *C.em_network_node_t, updatedChanne
         return fmt.Errorf("updateAnticipatedChannelPreference: updated channel array is nil")
     }
 
-    channelPrefTree_cmd := C.CString("AnticipatedChannelPreference")
-    classNode_cmd := C.CString("Class")
-    defer C.free(unsafe.Pointer(channelPrefTree_cmd))
-    defer C.free(unsafe.Pointer(classNode_cmd))
-    channelPrefTree := C.get_network_tree_by_key(tree, channelPrefTree_cmd)
+    // --------- C keys ----------
+    keyACP              := C.CString("AnticipatedChannelPreference")
+    keyClass            := C.CString("Class")
+    keyChannelList      := C.CString("ChannelList")
+    keyChannelPrefList  := C.CString("ChannelPrefList")
+    keyDeviceList       := C.CString("DeviceList")
+    keyRadioList        := C.CString("RadioList")
+
+    // Free at the end of the function
+    defer func() {
+        C.free(unsafe.Pointer(keyACP))
+        C.free(unsafe.Pointer(keyClass))
+        C.free(unsafe.Pointer(keyChannelList))
+        C.free(unsafe.Pointer(keyChannelPrefList))
+        C.free(unsafe.Pointer(keyDeviceList))
+        C.free(unsafe.Pointer(keyRadioList))
+    }()
+
+    channelPrefTree := C.get_network_tree_by_key(tree, keyACP)
     if channelPrefTree == nil {
         return fmt.Errorf("updateAnticipatedChannelPreference: missing 'AnticipatedChannelPreference' node")
     }
 
     for _, cfg := range updatedChannelArray {
-        channelPrefNode := channelPrefTree.child[cfg.RadioIndex]
-        classNode := C.get_network_tree_by_key(channelPrefNode, classNode_cmd)
-        if classNode != nil {
-            classNode.value_int = C.uint(cfg.Class)
+        if IsAllFF(cfg.DeviceID) {
+            // update global config
+            channelPrefNode := channelPrefTree.child[cfg.RadioIndex]
+            classNode := C.get_network_tree_by_key(channelPrefNode, keyClass)
+            if classNode != nil {
+                classNode.value_int = C.uint(cfg.Class)
+            }
+            channelListNode := C.get_network_tree_by_key(channelPrefNode, keyChannelList)
+            C.set_node_type(channelListNode, C.em_network_node_data_type_array_num)
+            channelListNode.num_children = 0
+            C.set_node_array_value(channelListNode, C.CString(mapchannelsToSlice(cfg.Channels)))
+
+            //update channel preference list
+            channelPrefListNode := C.get_network_tree_by_key(channelPrefNode, keyChannelPrefList)
+            if channelPrefListNode != nil {
+               C.set_node_type(channelPrefListNode, C.em_network_node_data_type_array_num)
+               channelPrefListNode.num_children = 0
+               C.set_node_array_value(channelPrefListNode, C.CString(mapchannelsToSlice(cfg.Preferences)))
+           }
+        } else {
+            // update for specific radio
+            isRadioIdFound := false
+            deviceListNode := C.get_network_tree_by_key(tree, keyDeviceList)
+            if deviceListNode == nil {
+                return fmt.Errorf("updateAnticipatedChannelPreference: Failed to get the device list\n")
+            }
+
+            for i := 0; i < int(deviceListNode.num_children); i++ {
+                deviceNode := deviceListNode.child[i]
+                if deviceNode == nil {
+                    return fmt.Errorf("updateAnticipatedChannelPreference: Failed to parse device list\n")
+                }
+
+                deviceID := getTreeValue(deviceNode, "ID")
+
+                if deviceID == cfg.DeviceID {
+                    RadioListNode := C.get_network_tree_by_key(deviceNode, keyRadioList)
+                    if RadioListNode == nil || int(RadioListNode.num_children) == 0 {
+                        log.Printf("Radio List is empty for device %s\n", deviceID)
+                        return fmt.Errorf("updateAnticipatedChannelPreference: Failed to parse Radio list\n")
+                    }
+                    for j := 0; j < int(RadioListNode.num_children); j++ {
+                        radioNode := RadioListNode.child[j]
+                        if radioNode == nil {
+                            return fmt.Errorf("updateAnticipatedChannelPreference: Failed to parse Radio ID\n")
+                        }
+                        radioID := getTreeValue(radioNode, "ID")
+                        if radioID == cfg.RadioID {
+                            isRadioIdFound = true
+                            log.Printf("Updating the channel config for RUID %s\n", cfg.RadioID)
+                            radioChannelNode := C.get_network_tree_by_key(radioNode, keyACP)
+                            if radioChannelNode == nil {
+                                return fmt.Errorf("updateAnticipatedChannelPreference: Failed to parse updateAnticipatedChannelPreference for Radio ID %s\n", cfg.RadioID)
+                            }
+                            if (radioChannelNode.num_children < 1) {
+                                cloneTree := C.clone_network_tree_for_display(channelPrefTree, nil, 0xffff, false)
+                                if cloneTree == nil || cloneTree.num_children == 0 || cloneTree.child[0] == nil {
+                                    log.Printf("clone failed at i=%d; aborting grow..!", i)
+                                    return fmt.Errorf("updateAnticipatedChannelPreference: clone failed for Radio ID %s\n", cfg.RadioID)
+                                }
+                                radioChannelNode.child[0] = cloneTree.child[cfg.RadioIndex]
+                                radioChannelNode.num_children = 1
+							}
+							channelPrefNode := radioChannelNode.child[0]
+							classNode := C.get_network_tree_by_key(channelPrefNode, keyClass)
+							if classNode != nil {
+							    classNode.value_int = C.uint(cfg.Class)
+                            }
+                            channelListNode := C.get_network_tree_by_key(channelPrefNode, keyChannelList)
+                            C.set_node_type(channelListNode, C.em_network_node_data_type_array_num)
+                            channelListNode.num_children = 0
+                            C.set_node_array_value(channelListNode, C.CString(mapchannelsToSlice(cfg.Channels)))
+
+                            //update channel preference list
+                            channelPrefListNode := C.get_network_tree_by_key(channelPrefNode, keyChannelPrefList)
+                            if channelPrefListNode != nil {
+                                C.set_node_type(channelPrefListNode, C.em_network_node_data_type_array_num)
+                                channelPrefListNode.num_children = 0
+                                C.set_node_array_value(channelPrefListNode, C.CString(mapchannelsToSlice(cfg.Preferences)))
+                            }
+                            break
+                        }
+                    }
+                }
+                if isRadioIdFound == true {
+                    //Radio id is found hence breaking the loop for devic id.
+                    break
+                }
+            }
         }
-        channelListNode := C.get_network_tree_by_key(channelPrefNode, C.CString("ChannelList"))
-        C.set_node_type(channelListNode, C.em_network_node_data_type_array_num)
-        channelListNode.num_children = 0
-        C.set_node_array_value(channelListNode, C.CString(mapchannelsToSlice(cfg.Channels)))
     }
     return nil
 }
@@ -4999,6 +5195,23 @@ func mapchannelsToSlice(channels []int) string {
     return "[" + strings.Join(strKeys, ", ") + "]"
 }
 
+/* func: IsAllFF()
+ * Description:
+ * check if mac address is FF:FF:FF:FF:FF:FF
+ * returns: true if mac is all ff else flase
+ */
+func IsAllFF(mac string) bool {
+    hex := nonHex.ReplaceAllString(strings.TrimSpace(mac), "")
+    if len(hex) != 10 && len(hex) != 12 {
+        return false
+    }
+    for _, ch := range hex {
+        if ch != 'F' && ch != 'f' {
+            return false
+        }
+    }
+    return true
+}
 /* func: dumpNetNode()
  * Description:
  * Print the tree for debug purpose

@@ -2009,7 +2009,7 @@ unsigned short em_configuration_t::create_traffic_separation_policy(unsigned cha
     return len;
 }
 
-unsigned short em_configuration_t::create_m2_msg(unsigned char *buff, em_haul_type_t haul_type)
+unsigned short em_configuration_t::create_m2_msg(unsigned char *buff, em_haul_type_t haul_type, em_wsc_msg_type_t wsc_msg_type)
 {
     data_elem_attr_t *attr;
     unsigned short size, len = 0;
@@ -2069,7 +2069,7 @@ unsigned short em_configuration_t::create_m2_msg(unsigned char *buff, em_haul_ty
     attr->id = htons(attr_id_msg_type);
     size = 1;
     attr->len = htons(size);
-    attr->val[0] = em_wsc_msg_type_m2;
+    attr->val[0] = static_cast<unsigned char>(wsc_msg_type);
     
     len += static_cast<unsigned short int> (sizeof(data_elem_attr_t) + size);
     tmp += (sizeof(data_elem_attr_t) + size);
@@ -3012,76 +3012,6 @@ int em_configuration_t::create_bsta_radio_cap_tlv(uint8_t *buff)
     return len;
 }
 
-int em_configuration_t::create_akm_suite_cap_tlv(uint8_t *buff)
-{
-    ASSERT_NOT_NULL(buff, -1, "%s:%d: Buffer is null\n", __func__, __LINE__);
-    dm_easy_mesh_t *dm = get_data_model();
-    ASSERT_NOT_NULL(dm, -1, "%s:%d: Data model is null\n", __func__, __LINE__);
-
-    em_akm_suite_info_t *akm_suite_info = reinterpret_cast<em_akm_suite_info_t *>(buff);
-
-    std::set<std::string> fh_akms;
-    std::set<std::string> bh_akms;
-
-    for (unsigned int i = 0; i < dm->get_num_bss(); i++) {
-        em_bss_info_t *bss_info = dm->get_bss_info(i);
-        if (bss_info == NULL) continue;
-
-        for (int i = 0; i < bss_info->num_fronthaul_akms; i++) {
-            fh_akms.insert(bss_info->fronthaul_akm[i]);
-        }
-        for (int i = 0; i < bss_info->num_backhaul_akms; i++) {
-            bh_akms.insert(bss_info->backhaul_akm[i]);
-        }
-    }
-
-    std::vector<std::string> fh_akms_vec(fh_akms.begin(), fh_akms.end());
-    std::vector<std::string> bh_akms_vec(bh_akms.begin(), bh_akms.end());
-
-    size_t tlv_size = sizeof(uint8_t) + sizeof(uint8_t); // Size of the `Num_BackAKM` and `Num_FrontAKM` fields
-    tlv_size += (sizeof(em_fh_akm_suite_t) * fh_akms_vec.size()); // Size of fronthaul AKM suites
-    tlv_size += (sizeof(em_bh_akm_suite_t) * bh_akms_vec.size()); // Size of backhaul AKM suites
-
-    memset(buff, 0, tlv_size);
-
-    em_bh_akm_suite_info_t *bh_akm_suite_info = &akm_suite_info->bh_akm_suites;
-    em_fh_akm_suite_info_t *fh_akm_suite_info = &akm_suite_info->fh_akm_suites;
-    
-    bh_akm_suite_info->count = static_cast<uint8_t>(bh_akms_vec.size());
-    fh_akm_suite_info->count = static_cast<uint8_t>(fh_akms_vec.size());
-
-    em_bh_akm_suite_t *bh_akm_suite = bh_akm_suite_info->suites;
-    // Copy backhaul AKMs
-    for (size_t i = 0; i < bh_akms_vec.size(); i++) {
-        if (bh_akms_vec[i].empty()) continue;
-        std::vector<uint8_t> bh_akm_bytes = util::akm_to_bytes(bh_akms_vec[i]);
-        if (bh_akm_bytes.size() != 4) {
-            em_printfout("Warning: Could not map backhaul AKM string '%s' to AKM suite bytes, skipping", bh_akms_vec[i].c_str());
-            continue;
-        }
-        // OUI is first 3 bytes, suite type is last byte
-        memcpy(bh_akm_suite[i].oui, bh_akm_bytes.data(), 3);
-        bh_akm_suite[i].akm_suite_type = bh_akm_bytes[3];
-    }
-
-    em_fh_akm_suite_t *fh_akm_suite = fh_akm_suite_info->suites;
-
-    // Copy fronthaul AKMs
-    for (size_t i = 0; i < fh_akms_vec.size(); i++) {
-        if (fh_akms_vec[i].empty()) continue;
-        std::vector<uint8_t> fh_akm_bytes = util::akm_to_bytes(fh_akms_vec[i]);
-        if (fh_akm_bytes.size() != 4) {
-            em_printfout("Warning: Could not map fronthaul AKM string '%s' to AKM suite bytes, skipping", fh_akms_vec[i].c_str());
-            continue;
-        }
-        // OUI is first 3 bytes, suite type is last byte
-        memcpy(fh_akm_suite[i].oui, fh_akm_bytes.data(), 3);
-        fh_akm_suite[i].akm_suite_type = fh_akm_bytes[3];
-    }
-
-    return static_cast<int>(tlv_size);
-}
-
 int em_configuration_t::create_bss_conf_req_tlv(uint8_t *buff)
 {
     ASSERT_NOT_NULL(buff, -1, "%s:%d: Buffer is null\n", __func__, __LINE__);
@@ -3368,19 +3298,43 @@ int em_configuration_t::create_autoconfig_wsc_m2_msg(unsigned char *buff, unsign
         num_hauls = 0;
     }
 
+    // Helper to append one WSC TLV and advance output pointers.
+    auto append_wsc_tlv = [&](em_haul_type_t haul_type, em_wsc_msg_type_t wsc_msg_type, const char *skip_log) -> bool {
+        em_tlv_t *wsc_tlv = reinterpret_cast<em_tlv_t *> (tmp);
+        wsc_tlv->type = em_tlv_type_wsc;
+        unsigned short wsc_len = create_m2_msg(wsc_tlv->value, haul_type, wsc_msg_type);
+        if (wsc_len == 0) {
+            if (skip_log != NULL) {
+                em_printfout("%s", skip_log);
+            }
+            return false;
+        }
+
+        wsc_tlv->len = htons(wsc_len);
+        tmp += (sizeof(em_tlv_t) + wsc_len);
+        len += static_cast<int> (sizeof(em_tlv_t) + wsc_len);
+        return true;
+    };
+
     for (i = 0; i < num_hauls; i++) {
-        tlv = reinterpret_cast<em_tlv_t *> (tmp);
-        tlv->type = em_tlv_type_wsc;
-        sz = create_m2_msg(tlv->value, static_cast<em_haul_type_t> (i));
-        if (sz == 0) {
-            em_printfout("skipping M2 for haul_type: %d as it's disable, Return value: %d", i, sz);
+        em_haul_type_t haul_type = static_cast<em_haul_type_t> (i);
+        if (!append_wsc_tlv(haul_type, em_wsc_msg_type_m2,
+                "Skipping M2 WSC TLV because haul is disabled or band not selected")) {
             continue;
         }
-        // is_m2_present will be true only if atleast one M2 is created.
+
+        // Keep baseline behavior: at least one M2 must be present.
         is_m2_present = true;
-        tlv->len = htons(sz);
-        tmp += (sizeof(em_tlv_t) + sz);
-        len += static_cast<int> (sizeof(em_tlv_t) + sz);
+
+        // For backhaul SSID reconfiguration, include M8 in addition to M2 only when
+        // AP Capability advertised M8 bSTA reconfiguration support.
+        bool m8_bsta_reconfig_supported = (radio != NULL) &&
+                                          (radio->m_radio_info.support_m8_bsta_reconfiguration == true);
+        if (haul_type == em_haul_type_backhaul && m8_bsta_reconfig_supported) {
+            if (append_wsc_tlv(haul_type, em_wsc_msg_type_m8, NULL)) {
+                em_printfout("Added backhaul M8 WSC TLV along with M2 for M8-bSTA-reconfig capable agent");
+            }
+        }
     }
 
     if(is_m2_present == false) {
@@ -3727,7 +3681,7 @@ int em_configuration_t::handle_wsc_m2(unsigned char *buff, unsigned int len, uns
 
         if (id == attr_id_version) {
         } else if (id == attr_id_msg_type) {
-            if (attr->val[0] != em_wsc_msg_type_m2) {
+            if ((attr->val[0] != em_wsc_msg_type_m2) && (attr->val[0] != em_wsc_msg_type_m8)) {
                 return -1;
             }
         } else if (id == attr_id_registrar_nonce) {
@@ -5099,7 +5053,6 @@ int em_configuration_t::handle_autoconfig_wsc_m1(unsigned char *buff, unsigned i
     mac_addr_str_t  mac_str;
     em_tlv_t    *tlv;
     unsigned int tlv_len;
-    em_bus_event_type_m2_tx_params_t   raw;
 
     dm_easy_mesh_t::macbytes_to_string(get_peer_mac(), mac_str);
     printf("%s:%d: Device AL MAC: %s\n", __func__, __LINE__, mac_str);
@@ -5146,11 +5099,20 @@ int em_configuration_t::handle_autoconfig_wsc_m1(unsigned char *buff, unsigned i
     }
 	set_state(em_state_ctrl_wsc_m2_sent);
 	printf("%s:%d: autoconfig wsc m2 send, len:%d\n", __func__, __LINE__, sz);
-    memcpy(raw.al, const_cast<unsigned char *> (get_peer_mac()), sizeof(mac_address_t));
-    memcpy(raw.radio, get_radio_interface_mac(), sizeof(mac_address_t));
 
-	get_mgr()->io_process(em_bus_event_type_m2_tx, reinterpret_cast<unsigned char *> (&raw), sizeof(em_bus_event_type_m2_tx_params_t));
-
+    // Fire M2_TX event for two purposes:
+    // 1. Normal flow: triggers analyze_m2_tx -> em_cmd_em_config_t (post-config orchestration: channel pref, topo sync)
+    // 2. Backhaul reconfig: mark_backhaul_exchange_complete_by_al uses this to mark exchange done.
+    //    Guards in mark_backhaul_exchange_complete_by_al (active ctx / agent / window checks) prevent
+    //    this from falsely completing a non-active backhaul exchange.
+    {
+        em_bus_event_type_m2_tx_params_t raw;
+        memcpy(raw.al, const_cast<unsigned char *>(get_peer_mac()), sizeof(mac_address_t));
+        memcpy(raw.radio, get_radio_interface_mac(), sizeof(mac_address_t));
+        get_mgr()->io_process(em_bus_event_type_m2_tx,
+                              reinterpret_cast<unsigned char *>(&raw),
+                              sizeof(em_bus_event_type_m2_tx_params_t));
+    }
 
     return 0;
 }
@@ -5333,17 +5295,20 @@ void em_configuration_t::process_msg(unsigned char *data, unsigned int len)
             break;
 
         case em_msg_type_autoconf_wsc:
-            if ((get_wsc_msg_type(tlvs, tlvs_len) == em_wsc_msg_type_m2) &&
+        {
+            em_wsc_msg_type_t wsc_msg_type = get_wsc_msg_type(tlvs, tlvs_len);
+            if (((wsc_msg_type == em_wsc_msg_type_m2) || (wsc_msg_type == em_wsc_msg_type_m8)) &&
                     (get_service_type() == em_service_type_agent) && (get_state() == em_state_agent_wsc_m2_pending)) {
-                        printf("%s:%d: received wsc_m2 len:%d\n", __func__, __LINE__, len);
+                        printf("%s:%d: received wsc_m2/m8 len:%d\n", __func__, __LINE__, len);
                         handle_autoconfig_wsc_m2(data, len);
-            } else if ((get_wsc_msg_type(tlvs, tlvs_len) == em_wsc_msg_type_m1) &&
+            } else if ((wsc_msg_type == em_wsc_msg_type_m1) &&
                     (get_service_type() == em_service_type_ctrl) && (get_state() == em_state_ctrl_wsc_m1_pending))  {
                         printf("%s:%d: received wsc_m1 len:%d\n", __func__, __LINE__, len);
                         handle_autoconfig_wsc_m1(data, len);
             }
 
             break;
+        }
 
         case em_msg_type_autoconf_renew:
             if (get_service_type() == em_service_type_agent) {

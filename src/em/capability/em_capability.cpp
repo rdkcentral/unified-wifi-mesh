@@ -47,7 +47,7 @@
 
 int em_capability_t::send_ap_cap_report_msg(unsigned char *dst, unsigned short msg_id)
 {
-    unsigned char buff[MAX_EM_BUFF_SZ + MAX_EM_BUFF_SZ];
+    unsigned char buff[MAX_EM_BUFF_SZ * EM_MAX_RADIO_PER_AGENT] = {0};
     //char *errors[EM_MAX_TLV_MEMBERS] = {0};
     unsigned short  msg_type = em_msg_type_ap_cap_rprt;
     unsigned int len = 0;
@@ -57,13 +57,16 @@ int em_capability_t::send_ap_cap_report_msg(unsigned char *dst, unsigned short m
     unsigned short type = htons(ETH_P_1905);
     dm_easy_mesh_t  *dm;
     unsigned short sz = 0;
+    int i = 0;
 
     em_raw_hdr_t *hdr = reinterpret_cast<em_raw_hdr_t *> (dst);
 
     dm = get_data_model();
-    em_printfout("Number of radios: %d, bss: %d\n",
-                dm->get_num_radios(), dm->get_num_bss());
 
+    em_printfout("Sending AP CAP REPORT with dest mac: %s and src[%s] with %d radios and %d bss",
+        util::mac_to_string(hdr->src).c_str(),
+        util::mac_to_string(dm->get_agent_al_interface_mac()).c_str(),
+        dm->get_num_radios(), dm->get_num_bss());
 
     memcpy(tmp, reinterpret_cast<unsigned char *> (hdr->src), sizeof(mac_address_t));
     tmp += sizeof(mac_address_t);
@@ -78,55 +81,68 @@ int em_capability_t::send_ap_cap_report_msg(unsigned char *dst, unsigned short m
     len += static_cast<unsigned int>(sizeof(unsigned short));
 
     cmdu = reinterpret_cast<em_cmdu_t *> (tmp);
-
     memset(tmp, 0, sizeof(em_cmdu_t));
     cmdu->type = htons(msg_type);
-    //TBD: The msg_id should match with that received in AP Capability Query
     cmdu->id = htons(msg_id);
     cmdu->last_frag_ind = 1;
-
     tmp += sizeof(em_cmdu_t);
     len += static_cast<unsigned int>(sizeof(em_cmdu_t));
 
+    // AP Capability TLV 17.2.6
+    tlv = reinterpret_cast<em_tlv_t *>(tmp);
+    tlv->type = em_tlv_type_ap_cap;
+    sz = static_cast<unsigned short>(create_ap_cap_tlv(tlv->value));
+    tlv->len = htons(static_cast<uint16_t>(sz));
+    tmp += (sizeof(em_tlv_t) + static_cast<short unsigned int>(sz));
+    len += static_cast<unsigned int>(sizeof(em_tlv_t) + static_cast<short unsigned int>(sz));
+
+    //AKM Suite
+    tlv = reinterpret_cast<em_tlv_t *>(tmp);//
+    tlv->type = em_tlv_type_akm_suite;
+    sz = static_cast<unsigned short>(create_akm_suite_cap_tlv(tlv->value));
+    tlv->len = htons(static_cast<uint16_t>(sz));
+    tmp += (sizeof(em_tlv_t) + static_cast<short unsigned int>(sz));
+    len += static_cast<unsigned int>(sizeof(em_tlv_t) + static_cast<short unsigned int>(sz));
+
+    //AP WiFi7 capabilities 17.2.95
+    tlv = reinterpret_cast<em_tlv_t *>(tmp);
+    tlv->type = em_tlv_type_wifi7_agent_cap;
+    sz = static_cast<unsigned short>(create_wifi7_tlv(tlv->value));
+    tlv->len = htons(static_cast<uint16_t>(sz));
+    tmp += (sizeof(em_tlv_t) + static_cast<size_t>(sz));
+    len += static_cast<unsigned int>(sizeof(em_tlv_t) + static_cast<size_t>(sz));
+
     std::vector<em_t *> em_radios;
     get_mgr()->get_all_em_for_al_mac(dm->get_agent_al_interface_mac(), em_radios);
+    em_printfout("dm->get_agent_al_interface_mac(): %s, num of em_radios: %d", util::mac_to_string(dm->get_agent_al_interface_mac()).c_str(), em_radios.size());
     for (auto &em : em_radios)
     {
-        // AP Capability TLV 17.2.6
-        tlv = reinterpret_cast<em_tlv_t *>(tmp);
-        tlv->type = em_tlv_type_ap_cap;
-        sz = static_cast<unsigned short>(em->create_ap_cap_tlv(tlv->value));
-        tlv->len = htons(static_cast<uint16_t>(sz));
-
-        tmp += (sizeof(em_tlv_t) + static_cast<size_t>(sz));
-        len += static_cast<unsigned short>(sizeof(em_tlv_t) + static_cast<size_t>(sz));
+        em_printfout("Radio[%d] : %s",
+            i++, util::mac_to_string(em->get_radio_interface_mac()).c_str());
 
         // AP radio basic capabilities 17.2.7
         tlv = reinterpret_cast<em_tlv_t *>(tmp);
         tlv->type = em_tlv_type_ap_radio_basic_cap;
         sz = static_cast<unsigned short>(em->create_ap_radio_basic_cap(tlv->value));
         tlv->len = htons(static_cast<uint16_t>(sz));
-
-        tmp += (sizeof(em_tlv_t) + static_cast<size_t>(sz));
-        len += static_cast<unsigned int>(sizeof(em_tlv_t) + static_cast<size_t>(sz));
-
+        tmp += (sizeof(em_tlv_t) + static_cast<short unsigned int>(sz));
+        len += static_cast<unsigned int>(sizeof(em_tlv_t) + static_cast<short unsigned int>(sz));
+#if 0
         // AP HT capabilities 17.2.8
         tlv = reinterpret_cast<em_tlv_t *>(tmp);
         tlv->type = em_tlv_type_ht_cap;
         sz = static_cast<unsigned short>(em->create_ht_tlv(tlv->value));
         tlv->len = htons(static_cast<uint16_t>(sz));
-
-        tmp += (sizeof(em_tlv_t) + static_cast<size_t>(sz));
-        len += (sizeof(em_tlv_t) + static_cast<size_t>(sz));
+        tmp += (sizeof(em_tlv_t) + static_cast<short unsigned int>(sz));
+        len += (sizeof(em_tlv_t) + static_cast<short unsigned int>(sz));
 
         // AP VHT capabilities 17.2.9
         tlv = reinterpret_cast<em_tlv_t *>(tmp);
         tlv->type = em_tlv_type_vht_cap;
         sz = static_cast<unsigned short>(em->create_vht_tlv(tlv->value));
         tlv->len = htons(static_cast<uint16_t>(sz));
-
-        tmp += (sizeof(em_tlv_t) + static_cast<size_t>(sz));
-        len += (sizeof(em_tlv_t) + static_cast<size_t>(sz));
+        tmp += (sizeof(em_tlv_t) + static_cast<short unsigned int>(sz));
+        len += (sizeof(em_tlv_t) + static_cast<short unsigned int>(sz));
 
         // AP HE capabilities 17.2.10
         tlv = reinterpret_cast<em_tlv_t *>(tmp);
@@ -134,102 +150,87 @@ int em_capability_t::send_ap_cap_report_msg(unsigned char *dst, unsigned short m
         sz = static_cast<unsigned short>(em->create_he_tlv(tlv->value));
         tlv->len = htons(static_cast<uint16_t>(sz));
 
-        tmp += (sizeof(em_tlv_t) + static_cast<size_t>(sz));
-        len += (sizeof(em_tlv_t) + static_cast<size_t>(sz));
-
+        tmp += (sizeof(em_tlv_t) + static_cast<short unsigned int>(sz));
+        len += (sizeof(em_tlv_t) + static_cast<short unsigned int>(sz));
+#endif
         // AP WiFi6 capabilities 17.2.72
         tlv = reinterpret_cast<em_tlv_t *>(tmp);
         tlv->type = em_tlv_type_ap_wifi6_cap;
         sz = static_cast<unsigned short>(em->create_wifi6_tlv(tlv->value));
         tlv->len = htons(static_cast<uint16_t>(sz));
-
-        tmp += (sizeof(em_tlv_t) + static_cast<size_t>(sz));
-        len += (sizeof(em_tlv_t) + static_cast<size_t>(sz));
-
-        // AP WiFi7 capabilities 17.2.95
-        tlv = reinterpret_cast<em_tlv_t *>(tmp);
-        tlv->type = em_tlv_type_wifi7_agent_cap;
-        sz = static_cast<unsigned short>(em->create_wifi7_tlv(tlv->value));
-        tlv->len = htons(static_cast<uint16_t>(sz));
-
-        tmp += (sizeof(em_tlv_t) + static_cast<size_t>(sz));
-        len += (sizeof(em_tlv_t) + static_cast<size_t>(sz));
-
-        // AP EHT Operations 17.2.103
-        tlv = reinterpret_cast<em_tlv_t *>(tmp);
-        tlv->type = em_tlv_eht_operations;
-        sz = static_cast<unsigned short>(em->create_eht_operations_tlv(tlv->value));
-        tlv->len = htons(static_cast<uint16_t>(sz));
-
-        tmp += (sizeof(em_tlv_t) + static_cast<size_t>(sz));
-        len += (sizeof(em_tlv_t) + static_cast<size_t>(sz));
-
-        // AP Channel Scan capabilities 17.2.38
-        tlv = reinterpret_cast<em_tlv_t *>(tmp);
-        tlv->type = em_tlv_type_channel_scan_cap;
-        sz = static_cast<unsigned short>(em->create_channelscan_tlv(tlv->value));
-        tlv->len = htons(static_cast<uint16_t>(sz));
-
-        tmp += (sizeof(em_tlv_t) + static_cast<size_t>(sz));
-        len += (sizeof(em_tlv_t) + static_cast<size_t>(sz));
-
-        // 1905 layer security capability tlv 17.2.67
-        tlv = reinterpret_cast<em_tlv_t *>(tmp);
-        tlv->type = em_tlv_type_1905_layer_security_cap;
-        tlv->len = htons(sizeof(em_ieee_1905_security_cap_t));
-        memcpy(tlv->value, em->get_ieee_1905_security_cap(), sizeof(em_ieee_1905_security_cap_t));
-
-        tmp += (sizeof(em_tlv_t) + sizeof(em_ieee_1905_security_cap_t));
-        len += (sizeof(em_tlv_t) + sizeof(em_ieee_1905_security_cap_t));
-
-        // CAC capabilities 17.2.46
-        tlv = reinterpret_cast<em_tlv_t *>(tmp);
-        tlv->type = em_tlv_type_cac_cap;
-        sz = static_cast<unsigned short>(em->create_cac_cap_tlv(tlv->value));
-        tlv->len = htons(static_cast<uint16_t>(sz));
-
-        tmp += (sizeof(em_tlv_t) + static_cast<size_t>(sz));
-        len += (sizeof(em_tlv_t) + static_cast<size_t>(sz));
-
-        // AP profile 2 capabilities 17.2.48
-        tlv = reinterpret_cast<em_tlv_t *>(tmp);
-        tlv->type = em_tlv_type_profile_2_ap_cap;
-        sz = static_cast<unsigned short>(em->create_prof_2_tlv(tlv->value));
-        tlv->len = htons(static_cast<uint16_t>(sz));
-
-        tmp += (sizeof(em_tlv_t) + static_cast<size_t>(sz));
-        len += (sizeof(em_tlv_t) + static_cast<size_t>(sz));
-
-        // Metric collection Interval capability tlv 17.2.59
-        tlv = reinterpret_cast<em_tlv_t *>(tmp);
-        tlv->type = em_tlv_type_metric_cltn_interval;
-        sz = static_cast<unsigned short>(em->create_metric_col_int_tlv(tlv->value));
-        tlv->len = htons(static_cast<uint16_t>(sz));
-
-        tmp += (sizeof(em_tlv_t) + static_cast<size_t>(sz));
-        len += (sizeof(em_tlv_t) + static_cast<size_t>(sz));
-
-        // Device Inventory tlv 17.2.76
-        tlv = reinterpret_cast<em_tlv_t *>(tmp);
-        tlv->type = em_tlv_type_device_inventory;
-        sz = static_cast<unsigned short>(em->create_device_inventory_tlv(tlv->value));
-        tlv->len = htons(static_cast<uint16_t>(sz));
-
-        tmp += (sizeof(em_tlv_t) + static_cast<size_t>(sz));
-        len += (sizeof(em_tlv_t) + static_cast<size_t>(sz));
-
-        // One AP radio advanced capability tlv 17.2.52
-        tlv = reinterpret_cast<em_tlv_t *>(tmp);
-        tlv->type = em_tlv_type_ap_radio_advanced_cap;
-        sz = static_cast<unsigned short>(em->create_radioad_tlv(tlv->value));
-        tlv->len = htons(static_cast<uint16_t>(sz));
-
-        tmp += (sizeof(em_tlv_t) + static_cast<size_t>(sz));
-        len += (sizeof(em_tlv_t) + static_cast<size_t>(sz));
+        tmp += (sizeof(em_tlv_t) + sz);
+        len += static_cast<unsigned int>(sizeof(em_tlv_t) + sz);
 
         em->set_state(em_state_agent_ap_cap_report);
     }
     em_radios.clear();
+
+#if 0
+    // AP Channel Scan capabilities 17.2.38
+    tlv = reinterpret_cast<em_tlv_t *>(tmp);
+    tlv->type = em_tlv_type_channel_scan_cap;
+    sz = static_cast<unsigned short>(create_channelscan_tlv(tlv->value));
+    tlv->len = htons(static_cast<uint16_t>(sz));
+    tmp += (sizeof(em_tlv_t) + static_cast<size_t>(sz));
+    len += (sizeof(em_tlv_t) + static_cast<size_t>(sz));
+
+    // 1905 layer security capability tlv 17.2.67
+    tlv = reinterpret_cast<em_tlv_t *>(tmp);
+    tlv->type = em_tlv_type_1905_layer_security_cap;
+    tlv->len = htons(sizeof(em_ieee_1905_security_cap_t));
+    memcpy(tlv->value, get_ieee_1905_security_cap(), sizeof(em_ieee_1905_security_cap_t));
+    tmp += (sizeof(em_tlv_t) + sizeof(em_ieee_1905_security_cap_t));
+    len += (sizeof(em_tlv_t) + sizeof(em_ieee_1905_security_cap_t));
+
+    // CAC capabilities 17.2.46
+    tlv = reinterpret_cast<em_tlv_t *>(tmp);
+    tlv->type = em_tlv_type_cac_cap;
+    sz = static_cast<unsigned short>(create_cac_cap_tlv(tlv->value));
+    tlv->len = htons(static_cast<uint16_t>(sz));
+    tmp += (sizeof(em_tlv_t) + static_cast<size_t>(sz));
+    len += (sizeof(em_tlv_t) + static_cast<size_t>(sz));
+
+    // AP profile 2 capabilities 17.2.48
+    tlv = reinterpret_cast<em_tlv_t *>(tmp);
+    tlv->type = em_tlv_type_profile_2_ap_cap;
+    sz = static_cast<unsigned short>(create_prof_2_tlv(tlv->value));
+    tlv->len = htons(static_cast<uint16_t>(sz));
+    tmp += (sizeof(em_tlv_t) + static_cast<size_t>(sz));
+    len += (sizeof(em_tlv_t) + static_cast<size_t>(sz));
+
+    // Metric collection Interval capability tlv 17.2.59
+    tlv = reinterpret_cast<em_tlv_t *>(tmp);
+    tlv->type = em_tlv_type_metric_cltn_interval;
+    sz = static_cast<unsigned short>(create_metric_col_int_tlv(tlv->value));
+    tlv->len = htons(static_cast<uint16_t>(sz));
+    tmp += (sizeof(em_tlv_t) + static_cast<size_t>(sz));
+    len += (sizeof(em_tlv_t) + static_cast<size_t>(sz));
+
+    // Device Inventory tlv 17.2.76
+    tlv = reinterpret_cast<em_tlv_t *>(tmp);
+    tlv->type = em_tlv_type_device_inventory;
+    sz = static_cast<unsigned short>(create_device_inventory_tlv(tlv->value));
+    tlv->len = htons(static_cast<uint16_t>(sz));
+    tmp += (sizeof(em_tlv_t) + static_cast<size_t>(sz));
+    len += (sizeof(em_tlv_t) + static_cast<size_t>(sz));
+
+    // AP EHT Operations 17.2.103
+    tlv = reinterpret_cast<em_tlv_t *>(tmp);
+    tlv->type = em_tlv_eht_operations;
+    sz = static_cast<unsigned short>(em->create_eht_operations_tlv(tlv->value));
+    tlv->len = htons(static_cast<uint16_t>(sz));
+    tmp += (sizeof(em_tlv_t) + static_cast<short unsigned int>(sz));
+    len += (sizeof(em_tlv_t) + static_cast<short unsigned int>(sz));
+
+    // One AP radio advanced capability tlv 17.2.52
+    tlv = reinterpret_cast<em_tlv_t *>(tmp);
+    tlv->type = em_tlv_type_ap_radio_advanced_cap;
+    sz = static_cast<unsigned short>(em->create_radioad_tlv(tlv->value));
+    tlv->len = htons(static_cast<uint16_t>(sz));
+    tmp += (sizeof(em_tlv_t) + static_cast<size_t>(sz));
+    len += (sizeof(em_tlv_t) + static_cast<size_t>(sz));
+#endif
+
     // End of message
     tlv = reinterpret_cast<em_tlv_t *> (tmp);
     tlv->type = em_tlv_type_eom;
@@ -239,18 +240,17 @@ int em_capability_t::send_ap_cap_report_msg(unsigned char *dst, unsigned short m
     len += static_cast<unsigned int>((sizeof(em_tlv_t)));
 
     /*if (em_msg_t(em_msg_type_ap_cap_rprt, em_profile_type_3, buff, len).validate(errors) == 0) {
-        printf("Topology Response msg failed validation in tnx end\n");
+        printf("Topology Response msg failed validation in tnx end");
 
         return -1;
     }*/
 
-    em_printfout("frame length: %d", len);
     if (send_frame(buff, len)  < 0) {
         em_printfout("AP capability report send failed, error:%d", errno);
         return -1;
     }
-    em_printfout("setting state to em_state_agent_ap_cap_report");
     set_state(em_state_agent_ap_cap_report);
+    em_printfout("AP Cap report sent successfully, len[%d]", len);
     return static_cast<int> (len);
 }
 
@@ -312,17 +312,17 @@ int em_capability_t::send_client_cap_query()
     tmp += (sizeof (em_tlv_t));
     len += (sizeof (em_tlv_t));
     if (em_msg_t(em_msg_type_client_cap_query, em_profile_type_3, buff, static_cast<unsigned int> (len)).validate(errors) == 0) {
-        printf("Capability Query msg failed validation in tnx end\n");
+        em_printfout("Capability Query msg failed validation in tnx end");
         return -1;
     }
 
     if (send_frame(buff, static_cast<unsigned int> (len))  < 0) {
-        printf("%s:%d: Capability Query msg failed, error:%d\n", __func__, __LINE__, errno);
+        em_printfout("Capability Query msg failed, error:%d", errno);
         return -1;
     }
 
     m_cap_query_tx_cnt++;
-    printf("%s:%d: Capability Query (%d) Send Successful for sta:%s\n", __func__, __LINE__, m_cap_query_tx_cnt, evt_param->u.args.args[2]);
+    em_printfout("Capability Query (%d) Send Successful for sta:%s", m_cap_query_tx_cnt, evt_param->u.args.args[2]);
 
     return static_cast<int> (len);
 }
@@ -818,7 +818,7 @@ void em_capability_t::handle_client_cap_query(unsigned char *buff, unsigned int 
     char *errors[EM_MAX_TLV_MEMBERS] = {0};
 
     if (em_msg_t(em_msg_type_client_cap_query, em_profile_type_3, buff, len).validate(errors) == 0) {
-        printf("%s:%d:Client Capability query message validation failed\n",__func__,__LINE__);
+        em_printfout("Client Capability query message validation failed");
         return;
     }
 
@@ -1119,9 +1119,34 @@ int em_capability_t::handle_ap_cap_report(unsigned char *buff, unsigned int len)
 
     em_printfout("AP Capability report message rcvd");
 
+    dm_radio_cap_t *dm_radio_cap = dm->get_radio_cap(get_radio_interface_mac());
+    if (dm_radio_cap == NULL) {
+        em_printfout("handle_wifi6_cap_tlv: radio_cap NULL for MAC %s",
+            util::mac_to_string(get_radio_interface_mac()).c_str());
+        //check if DM radio cap's radio macs are 0, if not available update only the rmacs
+        if (dm->get_num_radios() > 0) {
+            em_printfout("handle_wifi6_cap_tlv: update dm_radio_cap's radio mac");
+            for (unsigned int i = 0; i < dm->get_num_radios(); i++) {
+                dm_radio_cap = dm->get_radio_cap(static_cast<int>(i));
+                if (dm_radio_cap != NULL) {
+                    memcpy(dm_radio_cap->m_radio_cap_info.ruid.mac, dm->m_radio[i].m_radio_info.id.ruid, sizeof(mac_address_t));
+                    em_printfout("handle_wifi6_cap_tlv: dm_radio_cap updated for MAC %s",
+                        util::mac_to_string(dm_radio_cap->m_radio_cap_info.ruid.mac).c_str());
+                }
+            }
+        } else {
+            em_printfout("handle_wifi6_cap_tlv: No radios in data model, cannot update dm_radio_cap");
+            return 0;
+        }
+    }
+
     while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
         if (tlv->type == em_tlv_type_ap_cap) {
             dm_radio_t *radio = dm->get_radio(get_radio_interface_mac());
+            if (radio == NULL) {
+                em_printfout("Radio[%s] not found", util::mac_to_string(get_radio_interface_mac()).c_str());
+                return -1;
+            }
             em_radio_info_t *radio_info = radio->get_radio_info();
             em_ap_capability_t *ap_cap = reinterpret_cast<em_ap_capability_t *>(tlv->value);
 
@@ -1132,9 +1157,12 @@ int em_capability_t::handle_ap_cap_report(unsigned char *buff, unsigned int len)
             radio_info->unassociated_sta_link_mterics_nonopclass_inclusion_policy = ap_cap->unassociated_client_link_metrics_non_op_channels;
             radio_info->unassociated_sta_link_mterics_opclass_inclusion_policy = ap_cap->unassociated_client_link_metrics_op_channels;
             radio_info->support_rcpi_steering = ap_cap->rcpi_steering;
+            radio_info->support_m8_bsta_reconfiguration = ap_cap->m8_bsta_reconfiguration;
         } else if (tlv->type == em_tlv_type_ap_radio_basic_cap){
+            em_printfout("Received AP Radio Basic Capability TLV");
             handle_ap_radio_basic_cap(tlv->value, htons(tlv->len));
         } else if (tlv->type == em_tlv_type_ht_cap){
+            em_printfout("Received HT Capability TLV");
             em_ap_ht_cap_t *ht_cap = reinterpret_cast<em_ap_ht_cap_t *>(tlv->value);
             dm_radio_cap_t *radio_cap = dm->get_radio_cap(ht_cap->ruid);
 
@@ -1147,6 +1175,7 @@ int em_capability_t::handle_ap_cap_report(unsigned char *buff, unsigned int len)
             }
         }
         else if (tlv->type == em_tlv_type_vht_cap){
+            em_printfout("Received VHT Capability TLV");
             em_ap_vht_cap_t *vht_cap = reinterpret_cast<em_ap_vht_cap_t *>(tlv->value);
             dm_radio_cap_t *radio_cap = dm->get_radio_cap(vht_cap->ruid);
             if ((vht_cap != NULL) && (radio_cap != NULL)){
@@ -1159,6 +1188,7 @@ int em_capability_t::handle_ap_cap_report(unsigned char *buff, unsigned int len)
             }
         }
         else if (tlv->type == em_tlv_type_he_cap){
+            em_printfout("Received HE Capability TLV");
             em_ap_he_cap_t *he_cap = reinterpret_cast<em_ap_he_cap_t *>(tlv->value);
             dm_radio_cap_t *radio_cap = dm->get_radio_cap(he_cap->ruid);
 
@@ -1173,33 +1203,12 @@ int em_capability_t::handle_ap_cap_report(unsigned char *buff, unsigned int len)
             }
         }
         else if (tlv->type == em_tlv_type_ap_wifi6_cap){
-            em_radio_wifi6_cap_data_t *wifi6_cap = reinterpret_cast<em_radio_wifi6_cap_data_t *>(tlv->value);
-            dm_radio_cap_t *radio_cap = dm->get_radio_cap(wifi6_cap->ruid);
-
-            if ((wifi6_cap != NULL) && radio_cap != NULL){
-                em_radio_cap_info_t *cap_info = radio_cap->get_radio_cap_info();
-
-                if ((cap_info == NULL)){
-                    em_printfout("No data Found");
-                    return 0;
-                }
-                memcpy(&cap_info->wifi6_cap, wifi6_cap, sizeof(em_radio_wifi6_cap_data_t));
-            }
+            em_printfout("Received wifi6 Capability TLV");
+            handle_wifi6_cap_tlv(tlv->value);
         }
         else if (tlv->type == em_tlv_type_wifi7_agent_cap){
-            em_wifi7_agent_cap_t *wifi7_cap = reinterpret_cast<em_wifi7_agent_cap_t *>(tlv->value);
-            for (int idx = 0; idx < wifi7_cap->radios_num; idx++)
-            {
-                dm_radio_cap_t *radio_cap = dm->get_radio_cap(wifi7_cap->radios[idx].ruid);
-                if ((wifi7_cap != NULL) && (radio_cap != NULL)){
-                    em_radio_cap_info_t *cap_info = radio_cap->get_radio_cap_info();
-                    if ((cap_info == NULL)){
-                        em_printfout("No data Found");
-                        return 0;
-                    }
-                    memcpy(&cap_info->wifi7_cap, wifi7_cap, sizeof(em_wifi7_agent_cap_t));
-                }
-            }
+            em_printfout("Received wifi7 Capability TLV");
+            handle_wifi7_agent_cap_tlv(tlv->value);
         }
         else if (tlv->type == em_tlv_eht_operations){
             handle_eht_operations_tlv(tlv->value);
@@ -1305,7 +1314,7 @@ void em_capability_t::process_msg(unsigned char *data, unsigned int len)
                 std::vector<em_t *> em_radios;
                 get_mgr()->get_all_em_for_al_mac(hdr->dst, em_radios);
                 for (auto &em : em_radios){
-                    em_printfout(" em_msg_type_ap_cap_query received, state: %s\n", em_t::state_2_str(em->get_state()));
+                    em_printfout("em_msg_type_ap_cap_query received, state: %s", em_t::state_2_str(em->get_state()));
                     if ((em->get_service_type() == em_service_type_agent) && (em->get_state() < em_state_agent_topo_synchronized)){
                         em_printfout("radio %s is not configured, ignoring", util::mac_to_string(em->get_radio_interface_mac()).c_str());
                         em_radios.clear();
@@ -1333,11 +1342,11 @@ void em_capability_t::process_msg(unsigned char *data, unsigned int len)
                         for (auto &em : em_radios)
                         {
                             em->set_state(em_state_ctrl_ap_cap_report_received);
-                            printf("%s:%d em_msg_type_ap_cap_rprt handle success, state: %s\n", __func__, __LINE__, em_t::state_2_str(em->get_state()));
+                            em_printfout("em_msg_type_ap_cap_rprt handle success, state: %s", em_t::state_2_str(em->get_state()));
                         }
                         em_radios.clear();
                     } else {
-                        printf("%s:%d em_msg_type_ap_cap_rprt handle failed \n", __func__, __LINE__);
+                        em_printfout("em_msg_type_ap_cap_rprt handle failed");
                     }
                 }
                 break;

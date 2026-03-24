@@ -31,6 +31,42 @@ class em_network_topo_t {
 public:
 	
 	/**!
+	 * @brief Traverses topology recursively in post-order and invokes visitor on each node.
+	 *
+	 * Children are visited before their parent. Visitor should return true to continue,
+	 * false to stop traversal (fail-fast behavior).
+	 *
+	 * @tparam Visitor Callable type: bool(em_network_topo_t *)
+	 * @param[in] visitor Visitor callable invoked for each node
+	 *
+	 * @returns true when traversal completes for all nodes
+	 * @retval false when visitor requests early stop
+	 */
+	template <typename Visitor>
+	bool traverse_post_order(Visitor visitor)
+	{
+		return traverse_post_order_impl(this, visitor);
+	}
+
+	/**!
+	 * @brief Traverses topology recursively across leaf nodes only.
+	 *
+	 * Visitor is invoked only for leaf nodes (nodes with no children).
+	 * Visitor should return true to continue, false to stop traversal.
+	 *
+	 * @tparam Visitor Callable type: bool(em_network_topo_t *)
+	 * @param[in] visitor Visitor callable invoked for each leaf node
+	 *
+	 * @returns true when traversal completes for all leaf nodes
+	 * @retval false when visitor requests early stop
+	 */
+	template <typename Visitor>
+	bool traverse_leaf_nodes(Visitor visitor)
+	{
+		return traverse_leaf_nodes_impl(this, visitor);
+	}
+	
+	/**!
 	 * @brief Finds the network topology associated with a given MAC address.
 	 *
 	 * This function searches for and returns the network topology that is associated
@@ -112,6 +148,29 @@ public:
 	 * @note Ensure that the returned pointer is not null before using it.
 	 */
 	dm_easy_mesh_t *get_data_model() { return m_data_model; }
+
+	/**!
+	 * @brief Returns the number of child topologies for this node.
+	 *
+	 * @returns Number of direct child topology nodes.
+	 */
+	unsigned int get_num_child_topologies() const { return m_num_topologies; }
+
+	/**!
+	 * @brief Returns a child topology by index.
+	 *
+	 * @param[in] idx Child index in the direct-children array.
+	 *
+	 * @returns Pointer to child topology when index is valid.
+	 * @retval NULL when index is out of bounds.
+	 */
+	em_network_topo_t *get_child_topology(unsigned int idx) const
+	{
+		if (idx >= m_num_topologies) {
+			return NULL;
+		}
+		return m_topology[idx];
+	}
 	
 	
 	/**!
@@ -202,6 +261,53 @@ public:
 	 * @note Ensure that all dynamically allocated resources are properly released.
 	 */
 	~em_network_topo_t();
+
+private:
+	template <typename Visitor>
+	static bool traverse_post_order_impl(em_network_topo_t *node, Visitor &visitor)
+	{
+		if (node == NULL) {
+			return true;
+		}
+
+		unsigned int num_children = node->m_num_topologies;
+		for (unsigned int i = 0; i < num_children; i++) {
+			em_network_topo_t *child = node->m_topology[i];
+			if (child == NULL) {
+				continue;
+			}
+			if (traverse_post_order_impl(child, visitor) == false) {
+				return false;
+			}
+		}
+
+		return visitor(node);
+	}
+
+	template <typename Visitor>
+	static bool traverse_leaf_nodes_impl(em_network_topo_t *node, Visitor &visitor)
+	{
+		if (node == NULL) {
+			return true;
+		}
+
+		unsigned int num_children = node->m_num_topologies;
+		if (num_children == 0) {
+			return visitor(node);
+		}
+
+		for (unsigned int i = 0; i < num_children; i++) {
+			em_network_topo_t *child = node->m_topology[i];
+			if (child == NULL) {
+				continue;
+			}
+			if (traverse_leaf_nodes_impl(child, visitor) == false) {
+				return false;
+			}
+		}
+
+		return true;
+	}
 };
 
 #endif

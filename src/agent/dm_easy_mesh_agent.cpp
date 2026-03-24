@@ -87,6 +87,14 @@ int dm_easy_mesh_agent_t::analyze_dev_init(em_bus_event_t *evt, em_cmd_t *pcmd[]
     //TODO: Check for multiple radios
     pcmd[num] = new em_cmd_dev_init_t(evt->params, dm);
     tmp = pcmd[num];
+
+    for (int i = 0; i < pcmd[num]->m_data_model.m_num_radios; i++) {
+        em_printfout("dm num_role:%d for radio[%d]:%s\n", dm.get_radio_cap_info(i)->wifi6_cap.num_role,
+                i, util::mac_to_string(dm.get_radio_cap_info(i)->ruid.mac).c_str());
+        em_printfout("num_role:%d\n", pcmd[num]->m_data_model.get_radio_cap_info(i)->wifi6_cap.num_role);
+        // em_printfout("su_beam:%d\n", pcmd[num]->m_data_model.get_radio_cap_info(i)->wifi6_cap.su_beam_former);
+        em_printfout("wifi 7 rad mac:%s\n", util::mac_to_string(pcmd[num]->m_data_model.get_radio_cap_info(i)->wifi7_cap.mlo_cap_support.ruid).c_str());
+    }
     num++;
 
     while ((pcmd[num] = tmp->clone_for_next()) != NULL) {
@@ -211,7 +219,7 @@ void dm_easy_mesh_agent_t::translate_onewifi_dml_data (char *str)
             get_num_op_class, set_num_op_class, get_num_bss, set_num_bss,
             get_device_info, get_network_info, get_radio_info, get_ieee_1905_security_info, get_bss_info, get_op_class_info, 
             get_first_sta_info, get_next_sta_info, get_sta_info, put_sta_info, get_bss_info_with_mac, update_scan_results,
-            update_ap_mld_info, update_bsta_mld_info, update_assoc_sta_mld_info, get_ap_mld_frm_bssid);
+            update_ap_mld_info, update_bsta_mld_info, update_assoc_sta_mld_info, get_ap_mld_frm_bssid, get_radio_cap_info);
     
     config.initializer = webconfig_initializer_onewifi;
     config.apply_data =  webconfig_dummy_apply;
@@ -273,7 +281,7 @@ int dm_easy_mesh_agent_t::analyze_onewifi_vap_cb(em_bus_event_t *evt, em_cmd_t *
             get_num_op_class, set_num_op_class, get_num_bss, set_num_bss,
             get_device_info, get_network_info, get_radio_info, get_ieee_1905_security_info, get_bss_info, 
             get_op_class_info, get_first_sta_info, get_next_sta_info, get_sta_info, put_sta_info, get_bss_info_with_mac,
-            update_scan_results, update_ap_mld_info, update_bsta_mld_info, update_assoc_sta_mld_info, get_ap_mld_frm_bssid);
+            update_scan_results, update_ap_mld_info, update_bsta_mld_info, update_assoc_sta_mld_info, get_ap_mld_frm_bssid, get_radio_cap_info);
     config.initializer = webconfig_initializer_onewifi;
     config.apply_data =  webconfig_dummy_apply;
     if (webconfig_init(&config) != webconfig_error_none) {
@@ -348,7 +356,7 @@ int dm_easy_mesh_agent_t::analyze_onewifi_radio_cb(em_bus_event_t *evt, em_cmd_t
             get_num_op_class, set_num_op_class, get_num_bss, set_num_bss,
             get_device_info, get_network_info, get_radio_info, get_ieee_1905_security_info, get_bss_info, get_op_class_info, 
             get_first_sta_info, get_next_sta_info, get_sta_info, put_sta_info, get_bss_info_with_mac, update_scan_results,
-            update_ap_mld_info, update_bsta_mld_info, update_assoc_sta_mld_info, get_ap_mld_frm_bssid);
+            update_ap_mld_info, update_bsta_mld_info, update_assoc_sta_mld_info, get_ap_mld_frm_bssid, get_radio_cap_info);
 
     config.initializer = webconfig_initializer_onewifi;
     config.apply_data =  webconfig_dummy_apply;
@@ -396,49 +404,123 @@ int dm_easy_mesh_agent_t::analyze_channel_pref_query(em_bus_event_t *evt, em_cmd
 
 int dm_easy_mesh_agent_t::analyze_channel_sel_req(em_bus_event_t *evt, wifi_bus_desc_t *desc,bus_handle_t *bus_hdl)
 {
-	unsigned int i = 0, noofopclass = 0;
-	op_class_channel_sel *channel_sel;
-	em_op_class_info_t *dm_op_class;
-	em_tx_power_limit_t	*tx_power_limit;
-	em_spatial_reuse_req_t *spatial_reuse_req;
-	em_eht_operations_t *eht_ops;
-	bool found_mesh_sta = false;
-	em_bss_info_t *bss_info;
+    unsigned int i = 0, j = 0, noofopclass = 0;
+    op_class_channel_sel *channel_sel;
+    em_op_class_info_t *dm_op_class;
+    em_tx_power_limit_t *tx_power_limit;
+    em_spatial_reuse_req_t *spatial_reuse_req;
+    em_eht_operations_t *eht_ops;
+    bool found_mesh_sta = false;
+    em_bss_info_t *bss_info;
 
 
-	channel_sel = reinterpret_cast<op_class_channel_sel*> (evt->u.raw_buff);
-	printf("%s:%d No of opclass=%d tx=%d\n", __func__, __LINE__,
-        channel_sel->num, channel_sel->tx_power.tx_power_eirp);
-	tx_power_limit =  const_cast<em_tx_power_limit_t*> (&channel_sel->tx_power);
-	spatial_reuse_req =  const_cast<em_spatial_reuse_req_t*> (&channel_sel->spatial_reuse_req);
+    channel_sel = reinterpret_cast<op_class_channel_sel*> (evt->u.raw_buff);
+    em_printfout("No of opclass=%d tx=%d", channel_sel->num, channel_sel->tx_power.tx_power_eirp);
+    tx_power_limit =  const_cast<em_tx_power_limit_t*> (&channel_sel->tx_power);
+    spatial_reuse_req =  const_cast<em_spatial_reuse_req_t*> (&channel_sel->spatial_reuse_req);
     eht_ops =  const_cast<em_eht_operations_t*> (&channel_sel->eht_ops);
 
-	noofopclass = this->get_num_op_class();
+    // Process data from Channel Preference TLVs
+    // Invalidate all old anticipated entries for current RUID in data model
+    noofopclass = this->get_num_op_class();
+    for (i = 0; i < noofopclass; i++) {
+        dm_op_class = this->get_op_class_info(i);
 
-	//TODO Select the right op class and number and configure
-	for (i = 0; i < noofopclass; i++) {
-		dm_op_class = this->get_op_class_info(i);
-		if ((memcmp(&dm_op_class->id.ruid, &channel_sel->op_class_info[0].id.ruid, sizeof(mac_address_t)) == 0) && 
-			(dm_op_class->id.type == channel_sel->op_class_info[0].id.type)) {
-			dm_op_class->channel =  channel_sel->op_class_info[0].channels[0];
-			dm_op_class->op_class = channel_sel->op_class_info[0].op_class;
-		break;
-		}
-	}
-	if (i == noofopclass) {
-		dm_op_class = this->get_op_class_info(i);
-		memcpy(dm_op_class, &channel_sel->op_class_info[i], sizeof(em_op_class_info_t));
-		dm_op_class->channel = channel_sel->op_class_info[0].channels[0];
-		dm_op_class->op_class = channel_sel->op_class_info[0].op_class;
-		noofopclass++;
-	}
-	this->set_num_op_class(noofopclass);
-    
-	if(tx_power_limit->tx_power_eirp != 0) {
-		dm_radio_t* radio = this->get_radio(tx_power_limit->ruid);
-		em_radio_info_t* radio_info = radio->get_radio_info();
-		radio_info->transmit_power_limit = tx_power_limit->tx_power_eirp;
-	}
+        // Assumption: recevied channel_sel contains entries for one RUID only
+        if ((dm_op_class->id.type == em_op_class_type_anticipated) &&
+            memcmp(&dm_op_class->id.ruid, &channel_sel->op_class_info[0].id.ruid, sizeof(mac_address_t)) == 0) {
+            dm_op_class->pref_valid = false;
+        }
+    }
+
+    if (channel_sel->num == 0) {
+        // UNEXPECTED: Channel Selection Request will have atleast one OPCLASS in Channel Preference TLV
+        em_printfout("Channel Preference TLV contains no op_class entries");
+        return -1;
+    }
+
+    // To store the channel with best preference
+    unsigned char highest_anticipated_preference = 0;
+    unsigned int most_preferred_channel = 0;
+    unsigned int most_preferred_opclass = 0;
+
+    // Process new preferences from channel_sel
+    bool is_anticipated_invalid_entry_present = true;
+    for (i = 0;i < channel_sel->num; i++) {
+
+        // Check for an existing invalid entry with anticipated type
+        if(is_anticipated_invalid_entry_present) {
+            for (j = 0; j < noofopclass; j++) {
+                dm_op_class = this->get_op_class_info(j);
+
+                // Found an entry of anticipated type in DM with invalid flag,
+                // Update DM entry with new entry received in channel selection request
+                if (dm_op_class->id.type == em_op_class_type_anticipated && !dm_op_class->pref_valid) {
+                    // Update existing entry with new preferences
+                    memcpy(dm_op_class, &channel_sel->op_class_info[i], sizeof(em_op_class_info_t));
+                    dm_op_class->pref_valid = true;
+                    break;
+                }
+            }
+
+            // Don't check further for invalid entries of anticipated type
+            if (j == noofopclass)
+                is_anticipated_invalid_entry_present = false;
+        }
+
+        //Add new entry in DM for the opclass/channel received in channel selection request
+        if (!is_anticipated_invalid_entry_present && (noofopclass < EM_MAX_OPCLASS)) {
+            dm_op_class = &this->m_op_class[noofopclass].m_op_class_info;
+            memcpy(dm_op_class, &channel_sel->op_class_info[i], sizeof(em_op_class_info_t));
+            dm_op_class->id.type = em_op_class_type_anticipated;
+            dm_op_class->pref_valid = true;
+            noofopclass++;
+        }
+
+        // Check for all channels in the entry to maintian most preferred channel and opclass
+        for (unsigned int ch_idx = 0;
+             ch_idx < dm_op_class->num_channels && ch_idx < EM_MAX_CHANNELS_IN_LIST;
+             ch_idx++) {
+            if ((dm_op_class->channel_pref[ch_idx] & 0xF0) > (highest_anticipated_preference & 0xF0)) {
+                highest_anticipated_preference = dm_op_class->channel_pref[ch_idx];
+                most_preferred_channel = dm_op_class->channels[ch_idx];
+                most_preferred_opclass = dm_op_class->op_class;
+            }
+        }
+    }
+
+    // Ensure highest preference is non-zero to update current channel
+    if (highest_anticipated_preference > 0) {
+        // Update the most preferred channel/opclass in the datamodel
+        for (i = 0; i < noofopclass; i++) {
+            dm_op_class = this->get_op_class_info(i);
+            if ((memcmp(&dm_op_class->id.ruid, &channel_sel->op_class_info[0].id.ruid, sizeof(mac_address_t)) == 0) &&
+                (dm_op_class->id.type == em_op_class_type_current)) {
+                dm_op_class->op_class = most_preferred_opclass;
+                dm_op_class->id.op_class = most_preferred_opclass;
+                dm_op_class->channel = most_preferred_channel;
+                break;
+            }
+        }
+        if (i == noofopclass) {
+            dm_op_class = this->get_op_class_info(i);
+            em_op_class_info_t tmp_op_class_info;
+            memcpy(tmp_op_class_info.id.ruid, channel_sel->op_class_info[0].id.ruid, sizeof(mac_address_t));
+            tmp_op_class_info.id.type = em_op_class_type_current;
+            tmp_op_class_info.id.op_class = most_preferred_opclass;
+            tmp_op_class_info.op_class = most_preferred_opclass;
+            tmp_op_class_info.channel = most_preferred_channel;
+            memcpy(dm_op_class, &tmp_op_class_info, sizeof(em_op_class_info_t));
+            noofopclass++;
+        }
+        this->set_num_op_class(noofopclass);
+    }
+
+    if(tx_power_limit->tx_power_eirp != 0) {
+        dm_radio_t* radio = this->get_radio(tx_power_limit->ruid);
+        em_radio_info_t* radio_info = radio->get_radio_info();
+        radio_info->transmit_power_limit = tx_power_limit->tx_power_eirp;
+    }
 
     dm_radio_t* radio = this->get_radio(spatial_reuse_req->ruid);
     em_radio_info_t* radio_info = radio->get_radio_info();
@@ -451,7 +533,7 @@ int dm_easy_mesh_agent_t::analyze_channel_sel_req(em_bus_event_t *evt, wifi_bus_
     radio_info->srg_obsspd_min_offset = spatial_reuse_req->srg_obsspd_min_offset;
     radio_info->srg_obsspd_max_offset = spatial_reuse_req->srg_obsspd_max_offset;
     memcpy(radio_info->srg_bss_color_bitmap, spatial_reuse_req->srg_bss_color_bitmap, sizeof(radio_info->srg_bss_color_bitmap));
-    memcpy(radio_info->srg_partial_bssid_bitmap, spatial_reuse_req->srg_partial_bssid_bitmap, sizeof(radio_info->srg_partial_bssid_bitmap));   
+    memcpy(radio_info->srg_partial_bssid_bitmap, spatial_reuse_req->srg_partial_bssid_bitmap, sizeof(radio_info->srg_partial_bssid_bitmap));
 
 #ifdef REL_6_FEATURE
     bool found_radio = false;
@@ -757,7 +839,7 @@ int dm_easy_mesh_agent_t::analyze_scan_result(em_bus_event_t *evt, em_cmd_t *pcm
             get_num_op_class, set_num_op_class, get_num_bss, set_num_bss,
             get_device_info, get_network_info, get_radio_info, get_ieee_1905_security_info, get_bss_info, get_op_class_info,
             get_first_sta_info, get_next_sta_info, get_sta_info, put_sta_info, get_bss_info_with_mac, update_scan_results,
-            update_ap_mld_info, update_bsta_mld_info, update_assoc_sta_mld_info, get_ap_mld_frm_bssid);
+            update_ap_mld_info, update_bsta_mld_info, update_assoc_sta_mld_info, get_ap_mld_frm_bssid, get_radio_cap_info);
 
     config.initializer = webconfig_initializer_onewifi;
     config.apply_data =  webconfig_dummy_apply;
@@ -986,7 +1068,7 @@ void dm_easy_mesh_agent_t::translate_and_decode_onewifi_subdoc(char *str, webcon
         get_num_op_class, set_num_op_class, get_num_bss, set_num_bss,
         get_device_info, get_network_info, get_radio_info, get_ieee_1905_security_info, get_bss_info, get_op_class_info,
         get_first_sta_info, get_next_sta_info, get_sta_info, put_sta_info, get_bss_info_with_mac, update_scan_results,
-        update_ap_mld_info, update_bsta_mld_info, update_assoc_sta_mld_info, get_ap_mld_frm_bssid);
+        update_ap_mld_info, update_bsta_mld_info, update_assoc_sta_mld_info, get_ap_mld_frm_bssid, get_radio_cap_info);
 
     config.initializer = webconfig_initializer_onewifi;
     config.apply_data =  webconfig_dummy_apply;
@@ -1009,7 +1091,7 @@ int dm_easy_mesh_agent_t::refresh_onewifi_subdoc(wifi_bus_desc_t *desc, bus_hand
         get_num_op_class, set_num_op_class, get_num_bss, set_num_bss,
         get_device_info, get_network_info, get_radio_info, get_ieee_1905_security_info, get_bss_info, get_op_class_info,
         get_first_sta_info, get_next_sta_info, get_sta_info, put_sta_info, get_bss_info_with_mac, update_scan_results,
-        update_ap_mld_info, update_bsta_mld_info, update_assoc_sta_mld_info, get_ap_mld_frm_bssid);
+        update_ap_mld_info, update_bsta_mld_info, update_assoc_sta_mld_info, get_ap_mld_frm_bssid, get_radio_cap_info);
 
     webconfig_t config;
     config.initializer = webconfig_initializer_onewifi;

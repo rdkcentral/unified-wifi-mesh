@@ -72,6 +72,10 @@ dm_easy_mesh_t& dm_easy_mesh_t::operator = (dm_easy_mesh_t const& obj)
         m_radio[i] = obj.m_radio[i];
     }
 
+    for(unsigned int i = 0; i < EM_MAX_BANDS; i++) {
+        m_radio_cap[i] = obj.m_radio_cap[i];
+    }
+
     this->m_num_bss = obj.m_num_bss;
     for (unsigned int i = 0; i < EM_MAX_BSSS; i++) {
         m_bss[i] = obj.m_bss[i];
@@ -120,6 +124,7 @@ int dm_easy_mesh_t::commit_config(dm_easy_mesh_t& dm, em_commit_target_t target)
 {
     unsigned int i, j = 0, found = 0;
     dm_radio_t *radio;
+    dm_radio_cap_t *radio_cap;
     mac_address_t mac;
     mac_addr_str_t mac_str;
 
@@ -140,8 +145,17 @@ int dm_easy_mesh_t::commit_config(dm_easy_mesh_t& dm, em_commit_target_t target)
             }
             if (i == m_num_radios) { //New Radio
                 m_radio[m_num_radios] = *(radio);
+                radio_cap = dm.get_radio_cap(mac);
+                if (radio_cap != NULL) {
+                    m_radio_cap[m_num_radios] = *(radio_cap);
+                } else {
+                    /* Capabilities not yet available for this radio; use default/empty caps */
+                    m_radio_cap[m_num_radios].init();
+                    em_printfout("Radio capabilities for %s not available; using default capabilities", target.params);
+                }
+
                 m_num_radios = m_num_radios + 1;
-                printf("%s:%d New Radio %s configuration created no of radios=%d\n", __func__, __LINE__,target.params,m_num_radios);
+                em_printfout("New Radio %s configuration created no of radios=%d", target.params, m_num_radios);
             }
 			//Commit op class
 			for (i = 0; i<dm.m_num_opclass; i++) {
@@ -173,7 +187,7 @@ int dm_easy_mesh_t::commit_config(dm_easy_mesh_t& dm, em_commit_target_t target)
 					}
 				}
         	}
-		}	
+		}
     } else if (target.type == em_commit_target_bss) {
         printf("%s:%d Commit radio=%s\n", __func__, __LINE__,target.params);
         string_to_macbytes(reinterpret_cast<char *> (target.params),mac);
@@ -1122,7 +1136,7 @@ int dm_easy_mesh_t::decode_config_set_policy(em_subdoc_info_t *subdoc, const cha
 int dm_easy_mesh_t::decode_config_set_channel(em_subdoc_info_t *subdoc, const char *key, unsigned int index, unsigned int *num)
 {
     cJSON *parent_obj, *net_obj, *net_obj_id; 
-	cJSON *target_arr_obj, *target_obj, *channel_arr_obj;
+    cJSON *target_arr_obj, *target_obj, *channel_arr_obj, *channel_pref_arry_obj;
     int i, j, arr_size;
     char *net_id;
 	em_long_string_t	target_key;	
@@ -1194,13 +1208,19 @@ int dm_easy_mesh_t::decode_config_set_channel(em_subdoc_info_t *subdoc, const ch
         	return -1;
 		}
 
+		if ((channel_pref_arry_obj = cJSON_GetObjectItem(target_obj, "ChannelPrefList")) == NULL) {
+			cJSON_Delete(parent_obj);
+			em_printfout("Error: %s not present\n", target_key);
+			return -1;
+		}
+
 		m_op_class[m_num_opclass].m_op_class_info.num_channels = 0;
 
 		for (j = 0; j < cJSON_GetArraySize(channel_arr_obj); j++) {
 			m_op_class[m_num_opclass].m_op_class_info.channels[m_op_class[m_num_opclass].m_op_class_info.num_channels] = static_cast<unsigned int> (cJSON_GetNumberValue(cJSON_GetArrayItem(channel_arr_obj, j)));
+			m_op_class[m_num_opclass].m_op_class_info.channel_pref[m_op_class[m_num_opclass].m_op_class_info.num_channels] = static_cast<unsigned int> (cJSON_GetNumberValue(cJSON_GetArrayItem(channel_pref_arry_obj, j)));
 			m_op_class[m_num_opclass].m_op_class_info.num_channels++;
-		}	
-
+		}
 		m_num_opclass++;
 	}	
 	
@@ -1972,12 +1992,28 @@ dm_radio_t *dm_easy_mesh_t::get_radio(const mac_address_t mac)
 dm_radio_cap_t *dm_easy_mesh_t::get_radio_cap(mac_address_t mac)
 {
     unsigned int i = 0;
+
     for (i = 0; i < m_num_radios; i++) {
         if (memcmp(m_radio_cap[i].m_radio_cap_info.ruid.mac, mac, sizeof(mac_address_t)) == 0) {
             return &m_radio_cap[i];
         }
     }
     return NULL;
+}
+
+dm_radio_cap_t *dm_easy_mesh_t::get_radio_cap(int index)
+{
+    if ((index < 0) || (index >= EM_MAX_BANDS)) {
+        return nullptr;
+    }
+
+    return &m_radio_cap[index];
+}
+
+em_radio_cap_info_t *dm_easy_mesh_t::get_radio_cap_info(int index)
+{
+    dm_radio_cap_t *cap = get_radio_cap(index);
+    return cap ? cap->get_radio_cap_info() : nullptr;
 }
 
 dm_radio_t *dm_easy_mesh_t::find_matching_radio(dm_radio_t *radio)
@@ -2008,44 +2044,43 @@ dm_device_t *dm_easy_mesh_t::find_matching_device(dm_device_t *dev)
 void dm_easy_mesh_t::print_config()
 {
     unsigned int i;
-    mac_addr_str_t  ctrl_mac, ctrl_al_mac, agent_al_mac, radio_mac, mac_str;
     int transmit_power_limit;
 
-    dm_easy_mesh_t::macbytes_to_string(get_controller_interface_mac(), ctrl_mac);
-    dm_easy_mesh_t::macbytes_to_string(get_ctrl_al_interface_mac(), ctrl_al_mac);
-    dm_easy_mesh_t::macbytes_to_string(get_agent_al_interface_mac(), agent_al_mac);
-	printf("%s:%d:Network:%s\n", __func__, __LINE__, m_network.m_net_info.id);
-    printf("%s:%d:Controller MAC:%s\tController AL MAC:%s\tAgent AL MAC:%s\n", __func__, __LINE__,
-            ctrl_mac, ctrl_al_mac, agent_al_mac);
-    printf("%s:%d:Manufacturer:%s\tManufacturere Model:%s\tSoftwareVersion:%s\n", __func__, __LINE__,
+	em_printfout("Network:%s", m_network.m_net_info.id);
+    em_printfout("Controller MAC:%s\tController AL MAC:%s\tAgent AL MAC:%s\n",
+            util::mac_to_string(get_controller_interface_mac()).c_str(),
+            util::mac_to_string(get_ctrl_al_interface_mac()).c_str(),
+            util::mac_to_string(get_agent_al_interface_mac()).c_str());
+    em_printfout("Manufacturer:%s\tManufacturere Model:%s\tSoftwareVersion:%s\n",
             get_manufacturer(), get_manufacturer_model(), get_software_version());
 
     for (i = 0; i < m_num_net_ssids; i++) {
-        printf("%s:%d:Data Model SSID[%d]: %s\n", __func__, __LINE__, i, m_network_ssid[i].m_network_ssid_info.ssid);
+        em_printfout("Data Model SSID[%d]: %s\n", m_network_ssid[i].m_network_ssid_info.ssid);
     }
 
     for (i = 0; i < m_num_opclass; i++) {
-        dm_easy_mesh_t::macbytes_to_string(m_op_class[i].m_op_class_info.id.ruid, radio_mac);
-        //printf("%s:%d: OpClass[%d] id.ruid: %s id.type: %d id.index: %d Channel : %d Op_class : %d num_channel : %d Max tx_p : %d\n\n", 
-		//		__func__, __LINE__, i, radio_mac, m_op_class[i].m_op_class_info.id.type, 
+        //em_printfout("OpClass[%d] id.ruid: %s id.type: %d id.index: %d Channel : %d Op_class : %d num_channel : %d Max tx_p : %d\n\n", 
+		//		i, util::mac_to_string(m_op_class[i].m_op_class_info.id.ruid).c_str(), m_op_class[i].m_op_class_info.id.type, 
 		//		m_op_class[i].m_op_class_info.id.op_class, m_op_class[i].m_op_class_info.channel, 
 		//		m_op_class[i].m_op_class_info.op_class, m_op_class[i].m_op_class_info.num_channels, m_op_class[i].m_op_class_info.max_tx_power);
     }
 
-    printf("%s:%d:No of BSS=%d No of Radios=%d \n", __func__, __LINE__, m_num_bss, m_num_radios);
+    em_printfout("No of BSS=%d No of Radios=%d", m_num_bss, m_num_radios);
     for (i = 0; i < m_num_bss; i++) {
-        dm_easy_mesh_t::macbytes_to_string(get_bss(i)->get_bss_info()->ruid.mac, mac_str);
-        printf("%s:%d:Radio Mac : %s ", __func__, __LINE__, mac_str);
-        dm_easy_mesh_t::macbytes_to_string(get_bss(i)->get_bss_info()->bssid.mac, mac_str);
-        printf("BSSID : %s\n", mac_str);
+        em_printfout("Radio Mac : %s and BSSID : %s", util::mac_to_string(get_bss(i)->get_bss_info()->ruid.mac).c_str(),
+            util::mac_to_string(get_bss(i)->get_bss_info()->bssid.mac).c_str());
     }
 
     for (i = 0;i < m_num_radios; i++) {
-        dm_easy_mesh_t::macbytes_to_string(m_radio[i].get_radio_info()->intf.mac, mac_str);
         transmit_power_limit = m_radio[i].get_radio_info()->transmit_power_limit;
-        printf("%s:%d:Radio Mac: %s \n", __func__, __LINE__, mac_str);
-        printf("%s:%d:Radio Band: %d \n", __func__, __LINE__, m_radio[i].get_radio_info()->band);
-        printf("%s:%d:TransmitPowerLimit: %d \n", __func__, __LINE__, transmit_power_limit);
+        em_printfout("Radio Mac: %s, Band: %d, TransmitPowerLimit: %d", util::mac_to_string(m_radio[i].get_radio_info()->intf.mac).c_str(),
+            m_radio[i].get_radio_info()->band, transmit_power_limit);
+    }
+
+    for(i = 0; i < m_num_radios; i++) {
+        em_printfout("Cap Radio[%d]: %s, num_role:%d and su_beam:%d",  i, util::mac_to_string(m_radio_cap[i].get_radio_cap_info()->ruid.mac).c_str(),
+            m_radio_cap[i].get_radio_cap_info()->wifi6_cap.num_role,
+            m_radio_cap[i].get_radio_cap_info()->wifi6_cap.roles[0].role_tail.su_beam_former);
     }
 }
 

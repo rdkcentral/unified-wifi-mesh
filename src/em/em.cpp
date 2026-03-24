@@ -990,7 +990,7 @@ short em_t::create_ap_radio_basic_cap(unsigned char *buff) {
 short em_t::create_ap_cap_tlv(unsigned char *buff)
 {
     short len = 0;
-    dm_radio_t* radio = get_data_model()->get_radio(get_radio_interface_mac());
+    dm_radio_t* radio = get_data_model()->get_radio(static_cast<unsigned int>(0));
     em_radio_info_t* radio_info = radio->get_radio_info();
     em_ap_capability_t *ap_cap = reinterpret_cast<em_ap_capability_t *>(buff);
 
@@ -1002,9 +1002,83 @@ short em_t::create_ap_cap_tlv(unsigned char *buff)
     ap_cap->unassociated_client_link_metrics_non_op_channels = radio_info->unassociated_sta_link_mterics_nonopclass_inclusion_policy;
     ap_cap->unassociated_client_link_metrics_op_channels =  radio_info->unassociated_sta_link_mterics_opclass_inclusion_policy;
     ap_cap->rcpi_steering = radio_info->support_rcpi_steering;
+    ap_cap->m8_bsta_reconfiguration = 1;
     // ap_cap->reserved - Future implementation
     len = sizeof(em_ap_capability_t);
     return len;
+}
+
+int em_t::create_akm_suite_cap_tlv(uint8_t *buff)
+{
+    return 0;
+#if 0
+    ASSERT_NOT_NULL(buff, -1, "%s:%d: Buffer is null\n", __func__, __LINE__);
+    dm_easy_mesh_t *dm = get_data_model();
+    ASSERT_NOT_NULL(dm, -1, "%s:%d: Data model is null\n", __func__, __LINE__);
+
+    em_akm_suite_info_t *akm_suite_info = reinterpret_cast<em_akm_suite_info_t *>(buff);
+
+    std::set<std::string> fh_akms;
+    std::set<std::string> bh_akms;
+
+    for (unsigned int i = 0; i < dm->get_num_bss(); i++) {
+        em_bss_info_t *bss_info = dm->get_bss_info(i);
+        if (bss_info == NULL) continue;
+
+        for (int i = 0; i < bss_info->num_fronthaul_akms; i++) {
+            fh_akms.insert(bss_info->fronthaul_akm[i]);
+        }
+        for (int i = 0; i < bss_info->num_backhaul_akms; i++) {
+            bh_akms.insert(bss_info->backhaul_akm[i]);
+        }
+    }
+
+    std::vector<std::string> fh_akms_vec(fh_akms.begin(), fh_akms.end());
+    std::vector<std::string> bh_akms_vec(bh_akms.begin(), bh_akms.end());
+
+    size_t tlv_size = sizeof(uint8_t) + sizeof(uint8_t); // Size of the `Num_BackAKM` and `Num_FrontAKM` fields
+    tlv_size += (sizeof(em_fh_akm_suite_t) * fh_akms_vec.size()); // Size of fronthaul AKM suites
+    tlv_size += (sizeof(em_bh_akm_suite_t) * bh_akms_vec.size()); // Size of backhaul AKM suites
+
+    memset(buff, 0, tlv_size);
+
+    em_bh_akm_suite_info_t *bh_akm_suite_info = &akm_suite_info->bh_akm_suites;
+    em_fh_akm_suite_info_t *fh_akm_suite_info = &akm_suite_info->fh_akm_suites;
+    
+    bh_akm_suite_info->count = static_cast<uint8_t>(bh_akms_vec.size());
+    fh_akm_suite_info->count = static_cast<uint8_t>(fh_akms_vec.size());
+
+    em_bh_akm_suite_t *bh_akm_suite = bh_akm_suite_info->suites;
+    // Copy backhaul AKMs
+    for (size_t i = 0; i < bh_akms_vec.size(); i++) {
+        if (bh_akms_vec[i].empty()) continue;
+        std::vector<uint8_t> bh_akm_bytes = util::akm_to_bytes(bh_akms_vec[i]);
+        if (bh_akm_bytes.size() != 4) {
+            em_printfout("Warning: Could not map backhaul AKM string '%s' to AKM suite bytes, skipping", bh_akms_vec[i].c_str());
+            continue;
+        }
+        // OUI is first 3 bytes, suite type is last byte
+        memcpy(bh_akm_suite[i].oui, bh_akm_bytes.data(), 3);
+        bh_akm_suite[i].akm_suite_type = bh_akm_bytes[3];
+    }
+
+    em_fh_akm_suite_t *fh_akm_suite = fh_akm_suite_info->suites;
+
+    // Copy fronthaul AKMs
+    for (size_t i = 0; i < fh_akms_vec.size(); i++) {
+        if (fh_akms_vec[i].empty()) continue;
+        std::vector<uint8_t> fh_akm_bytes = util::akm_to_bytes(fh_akms_vec[i]);
+        if (fh_akm_bytes.size() != 4) {
+            em_printfout("Warning: Could not map fronthaul AKM string '%s' to AKM suite bytes, skipping", fh_akms_vec[i].c_str());
+            continue;
+        }
+        // OUI is first 3 bytes, suite type is last byte
+        memcpy(fh_akm_suite[i].oui, fh_akm_bytes.data(), 3);
+        fh_akm_suite[i].akm_suite_type = fh_akm_bytes[3];
+    }
+
+    return static_cast<int>(tlv_size);
+#endif
 }
 
 short em_t::create_ap_radio_advanced_cap_tlv(unsigned char *buff)
@@ -1035,20 +1109,23 @@ short em_t::create_ht_tlv(unsigned char *buff)
     dm_radio_cap_t *radio_cap = dm->get_radio_cap(get_radio_interface_mac());
 
     if (radio_cap == NULL) {
-        em_printfout("create_ht_tlv: radio_cap NULL for MAC %s\n",
+        em_printfout("radio_cap NULL for MAC %s",
                      util::mac_to_string(get_radio_interface_mac()).c_str());
         return 0;
     } else {
         em_radio_cap_info_t* cap_info = radio_cap->get_radio_cap_info();
         em_ap_ht_cap_t *ht_cap = reinterpret_cast<em_ap_ht_cap_t *>(buff);
-
         if ((ht_cap == NULL) || (cap_info == NULL)) {
             em_printfout("No data Found");
             return 0;
         }
+
         memcpy(ht_cap, &cap_info->ht_cap, sizeof(em_ap_ht_cap_t));
         len = sizeof(em_ap_ht_cap_t);
+        em_printfout("MAC:%s, ht_cap.ruid: %s", util::mac_to_string(cap_info->ruid.mac).c_str(),
+            util::mac_to_string(ht_cap->ruid).c_str());
     }
+
     return len;
 }
 
@@ -1060,7 +1137,7 @@ short em_t::create_vht_tlv(unsigned char *buff)
     dm_radio_cap_t *radio_cap = dm->get_radio_cap(get_radio_interface_mac());
 
     if (radio_cap == NULL) {
-        em_printfout("create_vht_tlv: radio_cap NULL for MAC %s\n",
+        em_printfout("create_vht_tlv: radio_cap NULL for MAC %s",
                      util::mac_to_string(get_radio_interface_mac()).c_str());
         return 0;
     }
@@ -1084,7 +1161,7 @@ short em_t::create_he_tlv(unsigned char *buff)
     dm_radio_cap_t *radio_cap = dm->get_radio_cap(get_radio_interface_mac());
 
     if (radio_cap == NULL) {
-        em_printfout("create_he_tlv: radio_cap NULL for MAC %s\n",
+        em_printfout("create_he_tlv: radio_cap NULL for MAC %s",
                      util::mac_to_string(get_radio_interface_mac()).c_str());
         return 0;
     }
@@ -1100,53 +1177,224 @@ short em_t::create_he_tlv(unsigned char *buff)
     return len;
 }
 
-
 short em_t::create_wifi6_tlv(unsigned char *buff)
 {
-    short len = 0;
+    unsigned char *tmp = buff;
     dm_easy_mesh_t  *dm;
     dm = get_data_model();
     dm_radio_cap_t *radio_cap = dm->get_radio_cap(get_radio_interface_mac());
+    short offset = 0;
 
     if (radio_cap == NULL) {
-        em_printfout("create_wifi6_tlv: radio_cap NULL for MAC %s\n",
+        em_printfout("radio_cap NULL for MAC %s",
                      util::mac_to_string(get_radio_interface_mac()).c_str());
         return 0;
     }
     em_radio_cap_info_t* cap_info = radio_cap->get_radio_cap_info();
-    em_radio_wifi6_cap_data_t *wifi6_cap = reinterpret_cast<em_radio_wifi6_cap_data_t *>(buff);
+    memcpy(tmp, cap_info->ruid.mac, sizeof(mac_address_t));
+    offset += static_cast<short>(sizeof(mac_address_t));
 
+    em_radio_wifi6_cap_data_t *wifi6_cap = reinterpret_cast<em_radio_wifi6_cap_data_t *>(buff + offset);
     if ((wifi6_cap == NULL) || (cap_info == NULL)) {
         em_printfout("No data Found");
         return 0;
     }
-    memcpy(wifi6_cap, &cap_info->wifi6_cap, sizeof(em_radio_wifi6_cap_data_t));
-    len = sizeof(em_radio_wifi6_cap_data_t);
-    return len;
+
+    wifi6_cap->num_role = cap_info->wifi6_cap.num_role;
+    offset += static_cast<short>(sizeof(wifi6_cap->num_role));
+
+    for (int i = 0; i < wifi6_cap->num_role; i++)
+    {
+        em_printfout("\t\the_160:%d he_8080:%d",     cap_info->wifi6_cap.roles[i].role_head.he_160, cap_info->wifi6_cap.roles[i].role_head.he_8080);
+        em_printfout("\t\tsu_bf:%d su_bfe:%d mu_bf:%d l80:%d g80:%d",
+            cap_info->wifi6_cap.roles[i].role_tail.su_beam_former, cap_info->wifi6_cap.roles[i].role_tail.su_beam_formee, cap_info->wifi6_cap.roles[i].role_tail.mu_beam_former,
+            cap_info->wifi6_cap.roles[i].role_tail.beam_formee_sts_l80, cap_info->wifi6_cap.roles[i].role_tail.beam_formee_sts_g80);
+        em_printfout("\t\tmax_ul:%d max_dl:%d",
+            cap_info->wifi6_cap.roles[i].role_tail.max_ul_mumimo_rx, cap_info->wifi6_cap.roles[i].role_tail.max_dl_mumimo_tx);
+        em_printfout("\t\tdl_of:%d ul_of:%d ul_mu:%d", cap_info->wifi6_cap.roles[i].role_tail.dl_ofdma,
+            cap_info->wifi6_cap.roles[i].role_tail.ul_ofdma, cap_info->wifi6_cap.roles[i].role_tail.ul_mumimo);
+        em_printfout("\t\twt_req:%d twt_resp:%d",
+            cap_info->wifi6_cap.roles[i].role_tail.twt_req, cap_info->wifi6_cap.roles[i].role_tail.twt_resp);
+
+        em_wifi6_cap_role_head_tlv_t *role_head =
+            reinterpret_cast<em_wifi6_cap_role_head_tlv_t *>(buff + offset);
+        
+        role_head->mcs_nss_num         = cap_info->wifi6_cap.roles[i].role_head.mcs_nss_num;
+        em_printfout("\t\tmcs_nss_num: %d", role_head->mcs_nss_num);
+        for(int j = 0; j < role_head->mcs_nss_num; j++) {
+            em_printfout("\t\tmac_nss[%d] = %hu",     j, cap_info->wifi6_cap.roles[i].mcs_nss[j]);
+        }
+        role_head->he_8080             = cap_info->wifi6_cap.roles[i].role_head.he_8080;
+        role_head->he_160              = cap_info->wifi6_cap.roles[i].role_head.he_160;
+        role_head->agent_role          = cap_info->wifi6_cap.roles[i].role_head.agent_role;
+
+        offset += static_cast<short>(sizeof(em_wifi6_cap_role_head_tlv_t));
+
+        for (int j = 0; j < role_head->mcs_nss_num; j++){
+            memcpy(buff + offset, &cap_info->wifi6_cap.roles[i].mcs_nss[j], sizeof(unsigned short));
+            em_printfout("\t\tmcs_nss[%d]: %hu", j, cap_info->wifi6_cap.roles[i].mcs_nss[j]);
+        }
+        if (role_head->he_160 == true) {
+            offset += EM_MIN_HE_MCS_LEN;
+        } 
+
+        offset += EM_MIN_HE_MCS_LEN;
+
+        em_wifi6_cap_role_tail_tlv_t *role_tail =
+            reinterpret_cast<em_wifi6_cap_role_tail_tlv_t *>(buff + offset);
+            
+        role_tail->dl_ofdma                     = cap_info->wifi6_cap.roles[i].role_tail.dl_ofdma;
+        role_tail->ul_ofdma                     = cap_info->wifi6_cap.roles[i].role_tail.ul_ofdma;
+        role_tail->ul_mumimo                    = cap_info->wifi6_cap.roles[i].role_tail.ul_mumimo;
+        role_tail->beam_formee_sts_g80          = cap_info->wifi6_cap.roles[i].role_tail.beam_formee_sts_g80;
+        role_tail->beam_formee_sts_l80          = cap_info->wifi6_cap.roles[i].role_tail.beam_formee_sts_l80;
+        role_tail->mu_beam_former               = cap_info->wifi6_cap.roles[i].role_tail.mu_beam_former;
+        role_tail->su_beam_formee               = cap_info->wifi6_cap.roles[i].role_tail.su_beam_formee;
+        role_tail->su_beam_former               = cap_info->wifi6_cap.roles[i].role_tail.su_beam_former;
+        role_tail->max_ul_mumimo_rx             = cap_info->wifi6_cap.roles[i].role_tail.max_ul_mumimo_rx;
+        role_tail->max_dl_mumimo_tx             = cap_info->wifi6_cap.roles[i].role_tail.max_dl_mumimo_tx;
+        role_tail->max_dl_ofdma_tx              = cap_info->wifi6_cap.roles[i].role_tail.max_dl_ofdma_tx;
+        role_tail->max_ul_ofdma_rx              = cap_info->wifi6_cap.roles[i].role_tail.max_ul_ofdma_rx;
+        role_tail->anticipated_channel_usage    = cap_info->wifi6_cap.roles[i].role_tail.anticipated_channel_usage;
+        role_tail->spatial_reuse                = cap_info->wifi6_cap.roles[i].role_tail.spatial_reuse;
+        role_tail->twt_resp                     = cap_info->wifi6_cap.roles[i].role_tail.twt_resp;
+        role_tail->twt_req                      = cap_info->wifi6_cap.roles[i].role_tail.twt_req;
+        role_tail->mu_edca                      = cap_info->wifi6_cap.roles[i].role_tail.mu_edca;
+        role_tail->multi_bssid                  = cap_info->wifi6_cap.roles[i].role_tail.multi_bssid;
+        role_tail->mu_rts                       = cap_info->wifi6_cap.roles[i].role_tail.mu_rts;
+        role_tail->rts                          = cap_info->wifi6_cap.roles[i].role_tail.rts;
+
+        offset += static_cast<short>(sizeof(em_wifi6_cap_role_tail_tlv_t));
+        em_printfout("MAC:%s and wifi6 rad mac:%s", util::mac_to_string(cap_info->ruid.mac).c_str(),
+                 util::mac_to_string(cap_info->ruid.mac).c_str());
+    }
+    em_printfout("success, total data len:%d", offset);
+
+    return offset;
 }
 
 short em_t::create_wifi7_tlv(unsigned char *buff)
 {
-    short len = 0;
     dm_easy_mesh_t  *dm;
     dm = get_data_model();
-    dm_radio_cap_t *radio_cap = dm->get_radio_cap(get_radio_interface_mac());
+    short offset = 0;
+    em_wifi7_mlo_cap_support_tlv_t *mlo_mand = NULL;
+    unsigned char *num_records = NULL;
+    em_wifi7_freq_record_tlv_t *record = NULL;
+    em_wifi7_agent_cap_t *em_wifi7_cap = NULL;
+    unsigned char *tmp = buff;
 
-    if (radio_cap == NULL) {
-        em_printfout("create_wifi7_tlv: radio_cap NULL for MAC %s\n",
-                     util::mac_to_string(get_radio_interface_mac()).c_str());
-        return 0;
-    }
-    em_radio_cap_info_t* cap_info = radio_cap->get_radio_cap_info();
-    em_wifi7_agent_cap_t *wifi7_cap = reinterpret_cast<em_wifi7_agent_cap_t *>(buff);
-
-    if ((wifi7_cap == NULL) || (cap_info == NULL)) {
+    em_wifi7_cap_link_info_tlv_t *link_info = reinterpret_cast<em_wifi7_cap_link_info_tlv_t *>(tmp);
+    if ((link_info == NULL)) {
         em_printfout("No data Found");
         return 0;
     }
-    memcpy(wifi7_cap, &cap_info->wifi7_cap, sizeof(em_wifi7_agent_cap_t));
-    len = sizeof(em_wifi7_agent_cap_t);
-    return len;
+
+    link_info->max_num_mlds = dm->get_device_info()->max_nummlds;
+    link_info->bsta_max_links = dm->get_device_info()->bstamld_maxlinks;
+    link_info->ap_max_links = dm->get_device_info()->apmld_maxlinks;
+    link_info->tid_link_mapping_cap = dm->get_device_info()->tidlink_map;
+
+    offset += static_cast<short>(sizeof(em_wifi7_cap_link_info_tlv_t));
+
+    tmp = buff + offset;
+    *tmp = dm->get_num_radios();
+    offset += static_cast<short>(sizeof(unsigned char));
+    em_printfout("  offset:%d", offset);
+    for (unsigned int i = 0; i < dm->get_num_radios(); i++) {
+        em_wifi7_cap = &dm->get_radio_cap_info(static_cast<int>(i))->wifi7_cap;
+        em_printfout("Radio[%d]: %s", i, util::mac_to_string(dm->get_radio_cap_info(static_cast<int>(i))->ruid.mac).c_str());
+
+        // MLO Support Capabilities
+        mlo_mand = reinterpret_cast<em_wifi7_mlo_cap_support_tlv_t *>(buff + offset);
+        memcpy(mlo_mand, &em_wifi7_cap->mlo_cap_support, sizeof(em_wifi7_mlo_cap_support_tlv_t));
+        offset += static_cast<short>(sizeof(em_wifi7_mlo_cap_support_tlv_t));
+
+        // AP STR Records
+        num_records = reinterpret_cast<unsigned char *>(buff + offset);
+        *num_records = em_wifi7_cap->mlo_cap_records.ap_str.num_records;
+        em_printfout("num of ap_str records:%d", *num_records);
+        offset += static_cast<short>(sizeof(unsigned char));
+        for (int j = 0; j < *num_records; j++) {
+            record = reinterpret_cast<em_wifi7_freq_record_tlv_t *>(buff + offset);
+            memcpy(record, &em_wifi7_cap->mlo_cap_records.ap_str.records[j], sizeof(em_wifi7_freq_record_tlv_t));
+            offset += static_cast<short>(sizeof(em_wifi7_freq_record_tlv_t));
+        }
+        // AP NSTR Records
+        num_records = reinterpret_cast<unsigned char *>(buff + offset);
+        *num_records = em_wifi7_cap->mlo_cap_records.ap_nstr.num_records;
+        em_printfout("num of ap_nstr records:%d", *num_records);
+        offset += static_cast<short>(sizeof(unsigned char));
+        for (int j = 0; j < *num_records; j++){
+            record = reinterpret_cast<em_wifi7_freq_record_tlv_t *>(buff + offset);
+            memcpy(record, &em_wifi7_cap->mlo_cap_records.ap_nstr.records[j], sizeof(em_wifi7_freq_record_tlv_t));
+            offset += static_cast<short>(sizeof(em_wifi7_freq_record_tlv_t));
+        }
+        // AP EMLSR Records
+        num_records = reinterpret_cast<unsigned char *>(buff + offset);
+        *num_records = em_wifi7_cap->mlo_cap_records.ap_emlsr.num_records;
+        em_printfout("num of ap_emlsr records:%d", *num_records);
+        offset += static_cast<short>(sizeof(unsigned char));
+        for (int j = 0; j < *num_records; j++){
+            record = reinterpret_cast<em_wifi7_freq_record_tlv_t *>(buff + offset);
+            memcpy(record, &em_wifi7_cap->mlo_cap_records.ap_emlsr.records[j], sizeof(em_wifi7_freq_record_tlv_t));
+            offset += static_cast<short>(sizeof(em_wifi7_freq_record_tlv_t));
+        }
+        // AP EMLMR Records
+        num_records = reinterpret_cast<unsigned char *>(buff + offset);
+        *num_records = em_wifi7_cap->mlo_cap_records.ap_emlmr.num_records;
+        em_printfout("num of ap_emlmr records:%d", *num_records);
+        offset += static_cast<short>(sizeof(unsigned char));
+        for (int j = 0; j < *num_records; j++){
+            record = reinterpret_cast<em_wifi7_freq_record_tlv_t *>(buff + offset);
+            memcpy(record, &em_wifi7_cap->mlo_cap_records.ap_emlmr.records[j], sizeof(em_wifi7_freq_record_tlv_t));
+            offset += static_cast<short>(sizeof(em_wifi7_freq_record_tlv_t));
+        }
+        // bSTA STR Records
+        num_records = reinterpret_cast<unsigned char *>(buff + offset);
+        *num_records = em_wifi7_cap->mlo_cap_records.bsta_str.num_records;
+        em_printfout("num of bsta_str records:%d", *num_records);
+        offset += static_cast<short>(sizeof(unsigned char));
+        for (int j = 0; j < *num_records; j++){
+            record = reinterpret_cast<em_wifi7_freq_record_tlv_t *>(buff + offset);
+            memcpy(record, &em_wifi7_cap->mlo_cap_records.bsta_str.records[j], sizeof(em_wifi7_freq_record_tlv_t));
+            offset += static_cast<short>(sizeof(em_wifi7_freq_record_tlv_t));
+        }
+        // bSTA NSTR Records
+        num_records = reinterpret_cast<unsigned char *>(buff + offset);
+        *num_records = em_wifi7_cap->mlo_cap_records.bsta_nstr.num_records;
+        em_printfout("num of bsta_nstr records:%d", *num_records);
+        offset += static_cast<short>(sizeof(unsigned char));
+        for (int j = 0; j < *num_records; j++){
+            record = reinterpret_cast<em_wifi7_freq_record_tlv_t *>(buff + offset);
+            memcpy(record, &em_wifi7_cap->mlo_cap_records.bsta_nstr.records[j], sizeof(em_wifi7_freq_record_tlv_t));
+            offset += static_cast<short>(sizeof(em_wifi7_freq_record_tlv_t));
+        }
+        // bSTA EMLSR Records
+        num_records = reinterpret_cast<unsigned char *>(buff + offset);
+        *num_records = em_wifi7_cap->mlo_cap_records.bsta_emlsr.num_records;
+        em_printfout("num of bsta_emlsr records:%d", *num_records);
+        offset += static_cast<short>(sizeof(unsigned char));
+        for (int j = 0; j < *num_records; j++){
+            record = reinterpret_cast<em_wifi7_freq_record_tlv_t *>(buff + offset);
+            memcpy(record, &em_wifi7_cap->mlo_cap_records.bsta_emlsr.records[j], sizeof(em_wifi7_freq_record_tlv_t));
+            offset += static_cast<short>(sizeof(em_wifi7_freq_record_tlv_t));
+        }
+        // bSTA EMLMR Records
+        num_records = reinterpret_cast<unsigned char *>(buff + offset);
+        *num_records = em_wifi7_cap->mlo_cap_records.bsta_emlmr.num_records;
+        em_printfout("num of bsta_emlmr records:%d", *num_records);
+        offset += static_cast<short>(sizeof(unsigned char));
+        for (int j = 0; j < *num_records; j++){
+            record = reinterpret_cast<em_wifi7_freq_record_tlv_t *>(buff + offset);
+            memcpy(record, &em_wifi7_cap->mlo_cap_records.bsta_emlmr.records[j], sizeof(em_wifi7_freq_record_tlv_t));
+            offset += static_cast<short>(sizeof(em_wifi7_freq_record_tlv_t));
+        }
+    }
+
+    em_printfout("success, tlv value len: %d", offset);
+
+    return offset;
 }
 
 short em_t::create_channelscan_tlv(unsigned char *buff)
@@ -1154,10 +1402,10 @@ short em_t::create_channelscan_tlv(unsigned char *buff)
     short len = 0;
     dm_easy_mesh_t  *dm;
     dm = get_data_model();
-    dm_radio_cap_t *radio_cap = dm->get_radio_cap(get_radio_interface_mac());
+    dm_radio_cap_t *radio_cap = dm->get_radio_cap(0);// todo: it is dev specific, will be addressed in next phase
 
     if (radio_cap == NULL) {
-        em_printfout("create_channelscan_tlv: radio_cap NULL for MAC %s\n",
+        em_printfout("create_channelscan_tlv: radio_cap NULL for MAC %s",
                      util::mac_to_string(get_radio_interface_mac()).c_str());
         return 0;
     }
@@ -1168,6 +1416,7 @@ short em_t::create_channelscan_tlv(unsigned char *buff)
         em_printfout("No data Found");
         return 0;
     }
+
     memcpy(scan, &cap_info->ch_scan, sizeof(em_channel_scan_cap_radio_t));
     len = sizeof(em_channel_scan_cap_radio_t);
     return len;
@@ -1178,10 +1427,10 @@ short em_t::create_prof_2_tlv(unsigned char *buff)
     short len = 0;
     dm_easy_mesh_t  *dm;
     dm = get_data_model();
-    dm_radio_cap_t *radio_cap = dm->get_radio_cap(get_radio_interface_mac());
+    dm_radio_cap_t *radio_cap = dm->get_radio_cap(0);//todo: it is dev specific
 
     if (radio_cap == NULL) {
-        em_printfout("create_prof_2_tlv: radio_cap NULL for MAC %s\n",
+        em_printfout("create_prof_2_tlv: radio_cap NULL for MAC %s",
                      util::mac_to_string(get_radio_interface_mac()).c_str());
         return 0;
     }
@@ -1202,7 +1451,7 @@ short em_t::create_device_inventory_tlv(unsigned char *buff)
 {
     short len = 0;
     dm_easy_mesh_t* dm;
-    dm_radio_t* radio = get_data_model()->get_radio(get_radio_interface_mac());
+    dm_radio_t* radio = get_data_model()->get_radio(static_cast<unsigned int>(0));//todo: it is dev specific
     em_radio_info_t* radio_info = radio->get_radio_info();
     unsigned char *tmp = buff;
 
@@ -1267,7 +1516,7 @@ short em_t::create_radioad_tlv(unsigned char *buff)
     dm_radio_cap_t *radio_cap = dm->get_radio_cap(get_radio_interface_mac());
 
     if (radio_cap == NULL) {
-        em_printfout("create_radioad_tlv: radio_cap NULL for MAC %s\n",
+        em_printfout("create_radioad_tlv: radio_cap NULL for MAC %s",
                      util::mac_to_string(get_radio_interface_mac()).c_str());
         return 0;
     }
@@ -1289,10 +1538,10 @@ short em_t::create_metric_col_int_tlv(unsigned char *buff)
     short len = 0;
     dm_easy_mesh_t  *dm;
     dm = get_data_model();
-    dm_radio_cap_t *radio_cap = dm->get_radio_cap(get_radio_interface_mac());
+    dm_radio_cap_t *radio_cap = dm->get_radio_cap(0);//todo: it is dev specific
 
     if (radio_cap == NULL) {
-        em_printfout("create_metric_col_int_tlv: radio_cap NULL for MAC %s\n",
+        em_printfout("create_metric_col_int_tlv: radio_cap NULL for MAC %s",
                      util::mac_to_string(get_radio_interface_mac()).c_str());
         return 0;
     }
@@ -1319,7 +1568,7 @@ short em_t::create_cac_cap_tlv(unsigned char *buff)
         dm_radio_cap_t *radio_cap = dm->get_radio_cap(radio.m_radio_info.intf.mac);
 
         if (radio_cap == NULL) {
-            em_printfout("create_cac_cap_tlv: radio_cap NULL for MAC %s\n",
+            em_printfout("create_cac_cap_tlv: radio_cap NULL for MAC %s",
                          util::mac_to_string(get_radio_interface_mac()).c_str());
             return 0;
         }
@@ -1804,6 +2053,232 @@ cJSON *em_t::create_ieee1905_response_obj()
     credential_object.release();
 
     return dpp_configuration_object.release();
+}
+
+int em_t::handle_wifi6_cap_tlv(unsigned char *buff)
+{
+    mac_address_t ruid;
+    dm_easy_mesh_t *dm = get_data_model();
+    short offset = 0;
+    em_radio_wifi6_cap_data_t *em_wifi6_cap = NULL;
+
+    memcpy(ruid, buff, sizeof(mac_address_t));
+    offset += static_cast<short>(sizeof(mac_address_t));
+
+
+    dm_radio_cap_t *dm_radio_cap = dm->get_radio_cap(ruid);
+    if (dm_radio_cap == NULL) {
+        em_printfout("handle_wifi6_cap_tlv: radio_cap NULL for MAC %s",
+            util::mac_to_string(ruid).c_str());
+        return 0;
+    }
+
+    em_wifi6_cap = &dm_radio_cap->get_radio_cap_info()->wifi6_cap;
+    
+    em_wifi6_cap->num_role = *(buff + offset);
+    offset += static_cast<short>(sizeof(em_wifi6_cap->num_role));
+    em_printfout("Received wifi6 cap for radio: %s and num_role:%d", util::mac_to_string(ruid).c_str(), em_wifi6_cap->num_role);
+
+    for (int i = 0; i < em_wifi6_cap->num_role; i++)
+    {
+        em_wifi6_cap_role_head_tlv_t *role_head =
+            reinterpret_cast<em_wifi6_cap_role_head_tlv_t *>(buff + offset);
+
+
+        em_wifi6_cap->roles[i].role_head.mcs_nss_num = role_head->mcs_nss_num;
+        em_wifi6_cap->roles[i].role_head.he_8080 = role_head->he_8080;
+        em_wifi6_cap->roles[i].role_head.he_160 = role_head->he_160;
+        em_wifi6_cap->roles[i].role_head.agent_role = role_head->agent_role;
+
+        offset += static_cast<short>(sizeof(em_wifi6_cap_role_head_tlv_t));
+
+        for (int j = 0; j < role_head->mcs_nss_num; j++){
+            memcpy(&em_wifi6_cap->roles[i].mcs_nss[j], buff + offset, sizeof(unsigned short));
+        }
+        if (role_head->he_160 == true) {
+            offset += EM_MIN_HE_MCS_LEN;
+        } 
+
+        offset += EM_MIN_HE_MCS_LEN;
+
+        em_wifi6_cap_role_tail_tlv_t *role_tail =
+            reinterpret_cast<em_wifi6_cap_role_tail_tlv_t *>(buff + offset);
+           
+        em_wifi6_cap->roles[i].role_tail.dl_ofdma                     = role_tail->dl_ofdma;
+        em_wifi6_cap->roles[i].role_tail.ul_ofdma                     = role_tail->ul_ofdma;
+        em_wifi6_cap->roles[i].role_tail.ul_mumimo                    = role_tail->ul_mumimo;
+        em_wifi6_cap->roles[i].role_tail.beam_formee_sts_g80          = role_tail->beam_formee_sts_g80;
+        em_wifi6_cap->roles[i].role_tail.beam_formee_sts_l80          = role_tail->beam_formee_sts_l80;
+        em_wifi6_cap->roles[i].role_tail.mu_beam_former               = role_tail->mu_beam_former;
+        em_wifi6_cap->roles[i].role_tail.su_beam_formee               = role_tail->su_beam_formee;
+        em_wifi6_cap->roles[i].role_tail.su_beam_former               = role_tail->su_beam_former;
+        em_wifi6_cap->roles[i].role_tail.max_ul_mumimo_rx             = role_tail->max_ul_mumimo_rx;
+        em_wifi6_cap->roles[i].role_tail.max_dl_mumimo_tx             = role_tail->max_dl_mumimo_tx;
+        em_wifi6_cap->roles[i].role_tail.max_dl_ofdma_tx              = role_tail->max_dl_ofdma_tx;
+        em_wifi6_cap->roles[i].role_tail.max_ul_ofdma_rx              = role_tail->max_ul_ofdma_rx;
+        em_wifi6_cap->roles[i].role_tail.anticipated_channel_usage    = role_tail->anticipated_channel_usage;
+        em_wifi6_cap->roles[i].role_tail.spatial_reuse                = role_tail->spatial_reuse;
+        em_wifi6_cap->roles[i].role_tail.twt_resp                     = role_tail->twt_resp;
+        em_wifi6_cap->roles[i].role_tail.twt_req                      = role_tail->twt_req;
+        em_wifi6_cap->roles[i].role_tail.mu_edca                      = role_tail->mu_edca;
+        em_wifi6_cap->roles[i].role_tail.multi_bssid                  = role_tail->multi_bssid;
+        em_wifi6_cap->roles[i].role_tail.mu_rts                       = role_tail->mu_rts;
+        em_wifi6_cap->roles[i].role_tail.rts                          = role_tail->rts;
+
+        offset += static_cast<short>(sizeof(em_wifi6_cap_role_tail_tlv_t));
+
+
+        em_printfout("\t\the_160:%d he_8080:%d",     em_wifi6_cap->roles[i].role_head.he_160, em_wifi6_cap->roles[i].role_head.he_8080);
+        em_printfout("\t\tsu_bf:%d su_bfe:%d mu_bf:%d l80:%d g80:%d",
+            em_wifi6_cap->roles[i].role_tail.su_beam_former, em_wifi6_cap->roles[i].role_tail.su_beam_formee, em_wifi6_cap->roles[i].role_tail.mu_beam_former,
+            em_wifi6_cap->roles[i].role_tail.beam_formee_sts_l80, em_wifi6_cap->roles[i].role_tail.beam_formee_sts_g80);
+        em_printfout("\t\tmax_ul:%d max_dl:%d",
+            em_wifi6_cap->roles[i].role_tail.max_ul_mumimo_rx, em_wifi6_cap->roles[i].role_tail.max_dl_mumimo_tx);
+        em_printfout("\t\tdl_of:%d ul_of:%d ul_mu:%d", em_wifi6_cap->roles[i].role_tail.dl_ofdma,
+            em_wifi6_cap->roles[i].role_tail.ul_ofdma, em_wifi6_cap->roles[i].role_tail.ul_mumimo);
+        em_printfout("\t\twt_req:%d twt_resp:%d",
+            em_wifi6_cap->roles[i].role_tail.twt_req, em_wifi6_cap->roles[i].role_tail.twt_resp);
+        em_printfout("\t\tmcs_nss_num: %d", em_wifi6_cap->roles[i].role_head.mcs_nss_num);
+        for(int j = 0; j < em_wifi6_cap->roles[i].role_head.mcs_nss_num; j++) {
+            em_printfout("\t\tmac_nss[%d] = %hu",     j, em_wifi6_cap->roles[i].mcs_nss[j]);
+        }
+    }
+    return 0;
+}
+
+int em_t::handle_wifi7_agent_cap_tlv(unsigned char *buff)
+{
+    unsigned char *tmp = buff;
+    short offset = 0;
+    dm_easy_mesh_t *dm = get_data_model();
+    em_wifi7_mlo_cap_support_tlv_t *mlo_support = NULL;
+    unsigned char *num_records = NULL;
+    em_wifi7_freq_record_tlv_t *record = NULL;
+    em_wifi7_agent_cap_t *em_wifi7_cap = NULL;
+
+    em_wifi7_cap_link_info_tlv_t *link_info = reinterpret_cast<em_wifi7_cap_link_info_tlv_t *>(tmp);
+    if ((link_info == NULL)) {
+        em_printfout("No data Found");
+        return 0;
+    }
+
+    offset += static_cast<short>(sizeof(em_wifi7_cap_link_info_tlv_t));
+
+    // Number of radios
+    unsigned char *num_radios_ptr = reinterpret_cast<unsigned char *>(buff + offset);
+    int num_radios = static_cast<int>(*num_radios_ptr);
+    em_printfout("Number of radios in wifi7 agent cap: %d", num_radios);
+    offset += static_cast<short>(sizeof(unsigned char));
+
+    if (dm != NULL) {
+        int dm_num_radios = static_cast<int>(dm->get_num_radios());
+        if (num_radios > EM_MAX_RADIO_PER_AGENT) {
+            em_printfout("Clamping num_radios from %d to EM_MAX_RADIO_PER_AGENT (%d)", num_radios, EM_MAX_RADIO_PER_AGENT);
+            num_radios = EM_MAX_RADIO_PER_AGENT;
+        }
+        if (num_radios > dm_num_radios) {
+            em_printfout("Clamping num_radios from %d to dm->get_num_radios() (%d)", num_radios, dm_num_radios);
+            num_radios = dm_num_radios;
+        }
+    }
+
+    for (int idx = 0; idx < num_radios; idx++) {
+        em_wifi7_cap = &dm->get_radio_cap_info(idx)->wifi7_cap;
+        em_printfout("Updating wifi7 cap for radio[%d]:%s", idx, util::mac_to_string(em_wifi7_cap->mlo_cap_support.ruid).c_str());
+
+        // Extract MLO support info
+        mlo_support = reinterpret_cast<em_wifi7_mlo_cap_support_tlv_t *>(buff + offset);
+        memcpy(&em_wifi7_cap->mlo_cap_support, mlo_support, sizeof(em_wifi7_mlo_cap_support_tlv_t));
+        offset += static_cast<short>(sizeof(em_wifi7_mlo_cap_support_tlv_t));
+
+        // AP STR Records
+        num_records = reinterpret_cast<unsigned char *>(buff + offset);
+        em_wifi7_cap->mlo_cap_records.ap_str.num_records = *num_records;
+        em_printfout("num of ap_str records:%d", *num_records);
+        offset += static_cast<short>(sizeof(unsigned char)) ;
+        for (int j = 0; j < *num_records && j < EM_MAX_FREQ_RECORDS_PER_RADIO; j++){
+            record = reinterpret_cast<em_wifi7_freq_record_tlv_t *>(buff + offset);
+            memcpy(&em_wifi7_cap->mlo_cap_records.ap_str.records[j], record, sizeof(em_wifi7_freq_record_tlv_t));
+            offset += static_cast<short>(sizeof(em_wifi7_freq_record_tlv_t));
+        }
+        // AP NSTR Records
+        num_records = reinterpret_cast<unsigned char *>(buff + offset);
+        em_wifi7_cap->mlo_cap_records.ap_nstr.num_records = *num_records;
+        em_printfout("num of ap_nstr records:%d", *num_records);
+        offset += static_cast<short>(sizeof(unsigned char));
+        for (int j = 0; j < *num_records && j < EM_MAX_FREQ_RECORDS_PER_RADIO; j++){
+            record = reinterpret_cast<em_wifi7_freq_record_tlv_t *>(buff + offset);
+            memcpy(&em_wifi7_cap->mlo_cap_records.ap_nstr.records[j], record, sizeof(em_wifi7_freq_record_tlv_t));
+            offset += static_cast<short>(sizeof(em_wifi7_freq_record_tlv_t));
+        }
+        // AP EMLSR Records
+        num_records = reinterpret_cast<unsigned char *>(buff + offset);
+        em_wifi7_cap->mlo_cap_records.ap_emlsr.num_records = *num_records;
+        em_printfout("num of ap_emlsr records:%d", *num_records);
+        offset += static_cast<short>(sizeof(unsigned char));
+        for (int j = 0; j < *num_records && j < EM_MAX_FREQ_RECORDS_PER_RADIO; j++){
+            record = reinterpret_cast<em_wifi7_freq_record_tlv_t *>(buff + offset);
+            memcpy(&em_wifi7_cap->mlo_cap_records.ap_emlsr.records[j], record, sizeof(em_wifi7_freq_record_tlv_t));
+            offset += static_cast<short>(sizeof(em_wifi7_freq_record_tlv_t));
+        }
+        // AP EMLMR Records
+        num_records = reinterpret_cast<unsigned char *>(buff + offset);
+        em_wifi7_cap->mlo_cap_records.ap_emlmr.num_records = *num_records;
+        em_printfout("num of ap_emlmr records:%d", *num_records);
+        offset += static_cast<short>(sizeof(unsigned char));
+        for (int j = 0; j < *num_records && j < EM_MAX_FREQ_RECORDS_PER_RADIO; j++){
+            record = reinterpret_cast<em_wifi7_freq_record_tlv_t *>(buff + offset);
+            memcpy(&em_wifi7_cap->mlo_cap_records.ap_emlmr.records[j], record, sizeof(em_wifi7_freq_record_tlv_t));
+            offset += static_cast<short>(sizeof(em_wifi7_freq_record_tlv_t));
+        }
+        // bSTA STR Records
+        num_records = reinterpret_cast<unsigned char *>(buff + offset);
+        em_wifi7_cap->mlo_cap_records.bsta_str.num_records = *num_records;
+        em_printfout("num of bsta_str records:%d", *num_records);
+        offset += static_cast<short>(sizeof(unsigned char));
+        for (int j = 0; j < *num_records && j < EM_MAX_FREQ_RECORDS_PER_RADIO; j++){
+            record = reinterpret_cast<em_wifi7_freq_record_tlv_t *>(buff + offset);
+            memcpy(&em_wifi7_cap->mlo_cap_records.bsta_str.records[j], record, sizeof(em_wifi7_freq_record_tlv_t));
+            offset += static_cast<short>(sizeof(em_wifi7_freq_record_tlv_t));
+        }
+        // bSTA NSTR Records
+        num_records = reinterpret_cast<unsigned char *>(buff + offset);
+        em_wifi7_cap->mlo_cap_records.bsta_nstr.num_records = *num_records;
+        em_printfout("num of bsta_nstr records:%d", *num_records);
+        offset += static_cast<short>(sizeof(unsigned char));
+        for (int j = 0; j < *num_records && j < EM_MAX_FREQ_RECORDS_PER_RADIO; j++){
+            record = reinterpret_cast<em_wifi7_freq_record_tlv_t *>(buff + offset);
+            memcpy(&em_wifi7_cap->mlo_cap_records.bsta_nstr.records[j], record, sizeof(em_wifi7_freq_record_tlv_t));
+            offset += static_cast<short>(sizeof(em_wifi7_freq_record_tlv_t));
+        }
+        // bSTA EMLSR Records
+        num_records = reinterpret_cast<unsigned char *>(buff + offset);
+        em_wifi7_cap->mlo_cap_records.bsta_emlsr.num_records = *num_records;
+        em_printfout("num of bsta_emlsr records:%d", *num_records);
+        offset += static_cast<short>(sizeof(unsigned char));
+        for (int j = 0; j < *num_records && j < EM_MAX_FREQ_RECORDS_PER_RADIO; j++){
+            record = reinterpret_cast<em_wifi7_freq_record_tlv_t *>(buff + offset);
+            memcpy(&em_wifi7_cap->mlo_cap_records.bsta_emlsr.records[j], record, sizeof(em_wifi7_freq_record_tlv_t));
+            offset += static_cast<short>(sizeof(em_wifi7_freq_record_tlv_t));
+        }
+        // bSTA EMLMR Records
+        num_records = reinterpret_cast<unsigned char *>(buff + offset);
+        em_wifi7_cap->mlo_cap_records.bsta_emlmr.num_records = *num_records;
+        em_printfout("num of bsta_emlmr records:%d", *num_records);
+        offset += static_cast<short>(sizeof(unsigned char));
+        for (int j = 0; j < *num_records && j < EM_MAX_FREQ_RECORDS_PER_RADIO; j++){
+            record = reinterpret_cast<em_wifi7_freq_record_tlv_t *>(buff + offset);
+            memcpy(&em_wifi7_cap->mlo_cap_records.bsta_emlmr.records[j], record, sizeof(em_wifi7_freq_record_tlv_t));
+            offset += static_cast<short>(sizeof(em_wifi7_freq_record_tlv_t));
+        }
+    }
+
+    dm->m_device.m_device_info.max_nummlds = link_info->max_num_mlds ;
+    dm->m_device.m_device_info.bstamld_maxlinks = link_info->bsta_max_links;
+    dm->m_device.m_device_info.apmld_maxlinks = link_info->ap_max_links;
+    dm->m_device.m_device_info.tidlink_map = link_info->tid_link_mapping_cap;
+
+    return 0;
 }
 
 int em_t::push_event(em_event_t *evt)

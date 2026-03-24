@@ -87,11 +87,17 @@ bool dm_radio_cap_t::operator == (const dm_radio_cap_t& obj)
     int ret = 0;
     ret += (memcmp(&this->m_radio_cap_info.ruid.mac ,&obj.m_radio_cap_info.ruid.mac,sizeof(mac_address_t)) != 0);
     ret += (memcmp(&this->m_radio_cap_info.ruid.name,&obj.m_radio_cap_info.ruid.name,sizeof(em_interface_name_t)) != 0);
-     ret += (memcmp(&this->m_radio_cap_info.ht_cap,&obj.m_radio_cap_info.ht_cap,sizeof(m_radio_cap_info.ht_cap)) != 0);
-     ret += (memcmp(&this->m_radio_cap_info.vht_cap,&obj.m_radio_cap_info.vht_cap,sizeof(m_radio_cap_info.vht_cap)) != 0);
-     ret += (memcmp(&this->m_radio_cap_info.he_cap,&obj.m_radio_cap_info.he_cap,sizeof(m_radio_cap_info.he_cap)) != 0);
-     ret += (memcmp(&this->m_radio_cap_info.eht_cap,&obj.m_radio_cap_info.eht_cap,sizeof(em_long_string_t)) != 0);
-     ret += !(this->m_radio_cap_info.num_op_classes == obj.m_radio_cap_info.num_op_classes);
+    ret += (memcmp(&this->m_radio_cap_info.ht_cap,&obj.m_radio_cap_info.ht_cap,sizeof(m_radio_cap_info.ht_cap)) != 0);
+    ret += (memcmp(&this->m_radio_cap_info.vht_cap,&obj.m_radio_cap_info.vht_cap,sizeof(m_radio_cap_info.vht_cap)) != 0);
+    ret += (memcmp(&this->m_radio_cap_info.he_cap,&obj.m_radio_cap_info.he_cap,sizeof(m_radio_cap_info.he_cap)) != 0);
+    ret += !(this->m_radio_cap_info.num_op_classes == obj.m_radio_cap_info.num_op_classes);
+    ret += (memcmp(&this->m_radio_cap_info.wifi6_cap,&obj.m_radio_cap_info.wifi6_cap,sizeof(em_radio_wifi6_cap_data_t)) != 0);
+    ret += (memcmp(&this->m_radio_cap_info.wifi7_cap,&obj.m_radio_cap_info.wifi7_cap,sizeof(em_wifi7_agent_cap_t)) != 0);
+    ret += (memcmp(&this->m_radio_cap_info.ch_scan,&obj.m_radio_cap_info.ch_scan,sizeof(em_channel_scan_cap_radio_t)) != 0);
+    ret += (memcmp(&this->m_radio_cap_info.radio_ad_cap,&obj.m_radio_cap_info.radio_ad_cap,sizeof(em_ap_radio_advanced_cap_t)) != 0);
+    ret += (memcmp(&this->m_radio_cap_info.prof_2_ap_cap,&obj.m_radio_cap_info.prof_2_ap_cap,sizeof(em_profile_2_ap_cap_t)) != 0);
+    ret += (memcmp(&this->m_radio_cap_info.cac_cap,&obj.m_radio_cap_info.cac_cap,sizeof(em_cac_cap_radio_t)) != 0);
+    ret += (memcmp(&this->m_radio_cap_info.metric_interval,&obj.m_radio_cap_info.metric_interval,sizeof(em_metric_cltn_interval_t)) != 0);
    
      //em_util_info_print(EM_MGR, "%s:%d: MUH ret=%d\n", __func__, __LINE__,ret);
 
@@ -110,7 +116,13 @@ void dm_radio_cap_t::operator = (const dm_radio_cap_t& obj)
     memcpy(&this->m_radio_cap_info.ht_cap,&obj.m_radio_cap_info.ht_cap,sizeof(m_radio_cap_info.ht_cap));
     memcpy(&this->m_radio_cap_info.vht_cap,&obj.m_radio_cap_info.vht_cap,sizeof(m_radio_cap_info.vht_cap));
     memcpy(&this->m_radio_cap_info.he_cap,&obj.m_radio_cap_info.he_cap,sizeof(m_radio_cap_info.he_cap));
-    memcpy(&this->m_radio_cap_info.eht_cap,&obj.m_radio_cap_info.eht_cap,sizeof(em_long_string_t));
+    memcpy(&this->m_radio_cap_info.wifi6_cap,&obj.m_radio_cap_info.wifi6_cap,sizeof(em_radio_wifi6_cap_data_t));
+    memcpy(&this->m_radio_cap_info.wifi7_cap,&obj.m_radio_cap_info.wifi7_cap,sizeof(em_wifi7_agent_cap_t));
+    memcpy(&this->m_radio_cap_info.ch_scan,&obj.m_radio_cap_info.ch_scan,sizeof(em_channel_scan_cap_radio_t));
+    memcpy(&this->m_radio_cap_info.radio_ad_cap,&obj.m_radio_cap_info.radio_ad_cap,sizeof(em_ap_radio_advanced_cap_t));
+    memcpy(&this->m_radio_cap_info.prof_2_ap_cap,&obj.m_radio_cap_info.prof_2_ap_cap,sizeof(em_profile_2_ap_cap_t));
+    memcpy(&this->m_radio_cap_info.cac_cap,&obj.m_radio_cap_info.cac_cap,sizeof(em_cac_cap_radio_t));
+    memcpy(&this->m_radio_cap_info.metric_interval,&obj.m_radio_cap_info.metric_interval,sizeof(em_metric_cltn_interval_t));
     this->m_radio_cap_info.num_op_classes = obj.m_radio_cap_info.num_op_classes;
 
 }
@@ -127,7 +139,7 @@ dm_radio_cap_t::dm_radio_cap_t(const dm_radio_cap_t& radio_cap)
 
 dm_radio_cap_t::dm_radio_cap_t()
 {
-
+    memset(&m_radio_cap_info, 0, sizeof(m_radio_cap_info));
 }
 
 dm_radio_cap_t::~dm_radio_cap_t()

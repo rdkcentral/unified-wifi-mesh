@@ -255,10 +255,9 @@ bool em_orch_agent_t::pre_process_orch_op(em_cmd_t *pcmd)
                 config.type = em_commit_target_bss;
                 dm->commit_config(pcmd->m_data_model, config);
                 band =  pcmd->get_radio(i)->get_radio_info()->band;
-                printf("%s:%d: calling create_node band=%d\n", __func__, __LINE__, band);
+                em_printfout("calling create_node band=%d", band);
                 if ((em = m_mgr->create_node(intf, band, dm, 0, em_profile_type_3, em_service_type_agent)) == NULL) {
-                    printf("%s:%d: Failed to create node\n", __func__, __LINE__);
-            
+                    em_printfout("Failed to create node");
                 }
             }
             break;

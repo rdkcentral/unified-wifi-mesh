@@ -916,7 +916,8 @@ em_msg_t::em_msg_t(em_msg_type_t type, em_profile_type_t profile, unsigned char 
             len = static_cast<unsigned int>(len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)));
             if(em_configuration_t::get_wsc_msg_type(tlvs,len) == em_wsc_msg_type_m1) {
                 autoconfig_wsc_m1();
-            } else if (em_configuration_t::get_wsc_msg_type(tlvs, len) == em_wsc_msg_type_m2) {
+            } else if ((em_configuration_t::get_wsc_msg_type(tlvs, len) == em_wsc_msg_type_m2) ||
+                       (em_configuration_t::get_wsc_msg_type(tlvs, len) == em_wsc_msg_type_m8)) {
                 autoconfig_wsc_m2();
             }
 

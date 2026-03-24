@@ -25,6 +25,7 @@
 #include "em_orch_ctrl.h"
 #include "bus.h"
 #include "em_dev_test_ctrl.h"
+#include "em_backhaul_reconfig.h"
 
 #ifdef AL_SAP
 #define DATA_SOCKET_PATH "/tmp/al_data_socket"
@@ -65,12 +66,59 @@ class em_ctrl_t : public em_mgr_t {
 	 */
 	void handle_nb_event(em_nb_event_t *evt);
 
+	/**!
+	 * @brief Marks pending backhaul exchange complete for the agent identified by AL-MAC/radio.
+	 *
+	 * This is used by async event handlers (e.g. M2 TX path) to notify the
+	 * currently running backhaul reconfiguration flow.
+	 *
+	 * @param[in] al_mac Agent AL-MAC address associated with the exchange.
+	 * @param[in] radio_mac Radio MAC associated with the transmitted M2.
+	 */
+	void mark_backhaul_exchange_complete_by_al(const mac_address_t al_mac, const mac_address_t radio_mac);
+
+	/** Active backhaul reconfiguration context while recursive flow is running. */
+	em_backhaul_reconfig_context_t *m_active_backhaul_ctx = NULL;
+
+	/** Agent currently being processed in send_backhaul_reconfig_exchange(). */
+	dm_easy_mesh_t *m_active_backhaul_agent = NULL;
+
+	/** True only while waiting for current agent exchange completion. */
+	bool m_backhaul_exchange_window_open = false;
+
+	/** True for entire backhaul reconfiguration transaction. */
+	bool m_backhaul_reconfig_in_progress = false;
+
+	/**
+	 * @brief Backhaul-specific per-agent handler invoked during post-order traversal.
+	 */
+	bool process_backhaul_agent(dm_easy_mesh_t *dm);
+
+	/**
+	 * @brief Internal explicit post-order traversal for backhaul flow.
+	 */
+	bool traverse_backhaul_post_order(em_network_topo_t *node);
+
 public:
 
     static em_ctrl_t *get_em_ctrl_instance();
 
 	dm_easy_mesh_ctrl_t *get_dm_ctrl() { return &m_data_model; }
     
+	/**!
+	 * @brief Marks backhaul reconfiguration transaction state.
+	 *
+	 * @param[in] in_progress true while backhaul reconfiguration is active.
+	 */
+	void set_backhaul_reconfig_in_progress(bool in_progress) { m_backhaul_reconfig_in_progress = in_progress; }
+
+	/**!
+	 * @brief Returns whether backhaul reconfiguration transaction is active.
+	 *
+	 * @returns true if backhaul reconfiguration is in progress.
+	 */
+	bool is_backhaul_reconfig_in_progress() const { return m_backhaul_reconfig_in_progress; }
+
 	/**!
 	 * @brief Listens for input events and processes them accordingly.
 	 *
@@ -655,7 +703,7 @@ public:
 	 * Validates SetSSID input properties, dispatches the request to the EasyMesh
 	 * controller, and optionally populates response properties for the caller.
 	 *
-	 * @param[in] event_name Bus method name (Device.WiFi.DataElements.Network.SetSSID).
+	 * @param[in] method_name Bus method name (Device.WiFi.DataElements.Network.SetSSID).
 	 * @param[in] input_params Linked list of input properties carrying the request payload.
 	 * @param[out] output_params Populated with response properties when provided.
 	 * @param[in] async_handle Async context handle when the bus call is asynchronous.
@@ -666,7 +714,62 @@ public:
 	 *
 	 * @note Input property ownership remains with the caller; this function does not free them.
 	 */
-	static bus_error_t cmd_setssid (const char *event_name, const bus_data_prop_t *input_params, bus_data_prop_t **output_params, void *async_handle);
+	static bus_error_t cmd_setssid (const char *method_name, const bus_data_prop_t *input_params, bus_data_prop_t **output_params, void *async_handle);
+
+	/**!
+	 * @brief Initiates recursive post-order backhaul SSID/passphrase reconfiguration.
+	 *
+	 * Implements EasyMesh v6.0 Section 5.2.5 backhaul reconfiguration flow:
+	 * - Traverses topology in post-order (children before parent)
+	 * - Dispatches cfg_renew -> M1 -> M2+M8 exchange to all remote nodes
+	 * - Defers co-located agent apply until all remote exchanges succeed
+	 *
+	 * @param[in] topo_node Root network topology node to start recursion
+	 * @param[in] ctx Backhaul reconfiguration context with SetSSID payload and state
+	 *
+	 * @returns em_backhaul_reconfig_result_t
+	 * @retval EM_BACKHAUL_RECONFIG_SUCCESS on successful completion
+	 * @retval EM_BACKHAUL_RECONFIG_FAIL on exchange failure
+	 *
+	 * @note This is the core post-order traversal function; co-located apply is gated outside
+	 */
+	em_backhaul_reconfig_result_t backhaul_reconfig(em_network_topo_t *topo_node, em_backhaul_reconfig_context_t *ctx);
+
+	/**!
+	 * @brief Sends cfg_renew -> M1 -> M2+M8 exchange to a specific agent with retries.
+	 *
+	 * Implements per-node exchange for backhaul reconfiguration:
+	 * - Sends AP-Autoconfig Renew on all radios of the target agent
+	 * - Waits for M1 response and M2+M8 completion
+	 * - Retries up to MAX_EXCHANGE_RETRIES times if exchange times out
+	 *
+	 * @param[in] agent_dm Data model of the target agent
+	 * @param[in] ctx Backhaul reconfiguration context with payload and pending state
+	 *
+	 * @returns em_backhaul_reconfig_result_t
+	 * @retval EM_BACKHAUL_RECONFIG_SUCCESS on exchange completion
+	 * @retval EM_BACKHAUL_RECONFIG_FAIL on exhausted retries or exchange error
+	 * @retval EM_BACKHAUL_RECONFIG_TIMEOUT on M1/M2+M8 timeout
+	 */
+	em_backhaul_reconfig_result_t send_backhaul_reconfig_exchange(dm_easy_mesh_t *agent_dm, em_backhaul_reconfig_context_t *ctx);
+
+	/**!
+	 * @brief Applies SetSSID to co-located agent with bounded retries.
+	 *
+	 * Implements co-located agent backhaul SSID/passphrase apply:
+	 * - Called only after all remote recursive exchanges succeed
+	 * - Retries up to MAX_COLOCATED_APPLY_RETRIES times
+	 * - Updates active credentials on success
+	 *
+	 * @param[in] ctx Backhaul reconfiguration context with SetSSID payload
+	 *
+	 * @returns em_backhaul_reconfig_result_t
+	 * @retval EM_BACKHAUL_RECONFIG_SUCCESS on apply success
+	 * @retval EM_BACKHAUL_RECONFIG_FAIL on exhausted retries
+	 *
+	 * @note Called as the final global step after remote agents complete
+	 */
+	em_backhaul_reconfig_result_t apply_backhaul_setssid_to_colocated(em_backhaul_reconfig_context_t *ctx);
 
 	/**!
 	 *
