@@ -1176,32 +1176,32 @@ void em_agent_t::input_listener()
     io(NULL);
 }
 
-int em_agent_t::bss_info_cb(char *event_name, bus_data_prop_t *data, void *userData)
+int em_agent_t::bss_info_cb(char *event_name, raw_data_t *data, void *userData)
 {
     if (data == nullptr) {
         em_printfout("NULL data from OneWifi callback!");
         return -1;
     }
-    g_agent.io_process(em_bus_event_type_bss_info, reinterpret_cast<unsigned char *>(data->value.raw_data.bytes), data->value.raw_data_len);
+    g_agent.io_process(em_bus_event_type_bss_info, reinterpret_cast<unsigned char *>(data->raw_data.bytes), data->raw_data_len);
     return 1;
 }
 
-int em_agent_t::association_status_cb(char *event_name, bus_data_prop_t *data, void *userData)
+int em_agent_t::association_status_cb(char *event_name, raw_data_t *data, void *userData)
 {
     if (data == nullptr) {
         em_printfout("NULL data from OneWiFi callback!");
         return -1;
     }
-    g_agent.io_process(em_bus_event_type_assoc_status, reinterpret_cast<unsigned char *>(data->value.raw_data.bytes), data->value.raw_data_len);
+    g_agent.io_process(em_bus_event_type_assoc_status, reinterpret_cast<unsigned char *>(data->raw_data.bytes), data->raw_data_len);
     return 1;
 }
 
-int em_agent_t::channel_scan_cb(char *event_name, bus_data_prop_t *data, void *userData)
+int em_agent_t::channel_scan_cb(char *event_name, raw_data_t *data, void *userData)
 {
     (void)userData;
     cJSON *json, *channel_stats_arr;
 
-    json = cJSON_Parse((const char *)data->value.raw_data.bytes);
+    json = cJSON_Parse((const char *)data->raw_data.bytes);
     if (json != NULL) {
         channel_stats_arr = cJSON_GetObjectItem(json, "ChannelScanResponse");
         if ((channel_stats_arr == NULL) && (cJSON_IsObject(channel_stats_arr) == false)) {
@@ -1212,21 +1212,21 @@ int em_agent_t::channel_scan_cb(char *event_name, bus_data_prop_t *data, void *u
         }
     }
 
-    g_agent.io_process(em_bus_event_type_scan_result, (unsigned char *)data->value.raw_data.bytes, data->value.raw_data_len);
+    g_agent.io_process(em_bus_event_type_scan_result, (unsigned char *)data->raw_data.bytes, data->raw_data_len);
 
     return 1;
 }
 
-int em_agent_t::report_cb(char *event_name, bus_data_prop_t *data, void *userData)
+int em_agent_t::report_cb(char *event_name, raw_data_t *data, void *userData)
 {
-    //em_printfout("Received Frame data for event [%s] and data :\n%s", event_name, data->value.raw_data.bytes);
+    //em_printfout("Received Frame data for event [%s] and data :\n%s", event_name, data->raw_data.bytes);
     (void)userData;
 
     if (strncmp(event_name, "Device.WiFi.EM.APMetricsReport", sizeof("Device.WiFi.EM.APMetricsReport"))==0) {
-        g_agent.io_process(em_bus_event_type_ap_metrics_report, (unsigned char *)data->value.raw_data.bytes, data->value.raw_data_len);
+        g_agent.io_process(em_bus_event_type_ap_metrics_report, (unsigned char *)data->raw_data.bytes, data->raw_data_len);
     } else if (strncmp(event_name, WIFI_QUALITY_LINKREPORT, sizeof(WIFI_QUALITY_LINKREPORT))==0) {
-        em_printfout("Received Frame data for event [%s] and data :\n%s", event_name, data->value.raw_data.bytes);
-        cJSON *json = cJSON_Parse((const char *)data->value.raw_data.bytes);
+        em_printfout("Received Frame data for event [%s] and data :\n%s", event_name, data->raw_data.bytes);
+        cJSON *json = cJSON_Parse((const char *)data->raw_data.bytes);
         if (json != NULL) {
             cJSON *link_report_arr;
             cJSON *subdoc_name = cJSON_GetObjectItemCaseSensitive(json, "SubDocName");
@@ -1242,32 +1242,32 @@ int em_agent_t::report_cb(char *event_name, bus_data_prop_t *data, void *userDat
                 }
             }
         }
-        g_agent.io_process(em_bus_event_type_link_quality_report, (unsigned char *)data->value.raw_data.bytes, data->value.raw_data_len);
+        g_agent.io_process(em_bus_event_type_link_quality_report, (unsigned char *)data->raw_data.bytes, data->raw_data_len);
     }
 
     return 0;
 }
 
-int em_agent_t::beacon_report_cb(char *event_name, bus_data_prop_t *data, void *userData)
+int em_agent_t::beacon_report_cb(char *event_name, raw_data_t *data, void *userData)
 {
-    //printf("%s:%d Received Frame data for event [%s] and data :\n%s\n", __func__, __LINE__, event_name, data->value.raw_data.bytes);
+    //printf("%s:%d Received Frame data for event [%s] and data :\n%s\n", __func__, __LINE__, event_name, data->raw_data.bytes);
     (void)userData;
 
-    g_agent.io_process(em_bus_event_type_beacon_report, (unsigned char *)data->value.raw_data.bytes, data->value.raw_data_len);
+    g_agent.io_process(em_bus_event_type_beacon_report, (unsigned char *)data->raw_data.bytes, data->raw_data_len);
 
     return 0;
 }
 
-int em_agent_t::mgmt_action_frame_cb(char *event_name, bus_data_prop_t *data, void *userData)
+int em_agent_t::mgmt_action_frame_cb(char *event_name, raw_data_t *data, void *userData)
 {
     (void)userData;
-    em_printfout("Received Frame data for event [%s] and data of len: %d",event_name, data->value.raw_data_len);
+    em_printfout("Received Frame data for event [%s] and data of len: %d",event_name, data->raw_data_len);
 
-    EM_ASSERT_MSG_TRUE(data != NULL && data->value.raw_data.bytes != NULL && data->value.raw_data_len > 0, -1,
+    EM_ASSERT_MSG_TRUE(data != NULL && data->raw_data.bytes != NULL && data->raw_data_len > 0, -1,
                    "Invalid data in mgmt_action_frame_cb");
 
-    uint8_t* mgmt_frame_data = (uint8_t*)data->value.raw_data.bytes;
-    unsigned int mgmt_hdr_len = data->value.raw_data_len;
+    uint8_t* mgmt_frame_data = (uint8_t*)data->raw_data.bytes;
+    unsigned int mgmt_hdr_len = data->raw_data_len;
 
     // The frequency (and other wifi data) is prepended to the action frame data
     mgmt_frame_data += sizeof(wifi_frame_t);
@@ -1277,7 +1277,7 @@ int em_agent_t::mgmt_action_frame_cb(char *event_name, bus_data_prop_t *data, vo
     
     
 
-    //util::print_hex_dump(data->value.raw_data_len, (uint8_t*)data->value.raw_data.bytes);
+    //util::print_hex_dump(data->raw_data_len, (uint8_t*)data->raw_data.bytes);
 
     //printf("Received Frame data for event %s \n", event_name);
     if (mgmt_frame->u.action.u.bss_tm_resp.action == WLAN_WNM_BTM_RESPONSE) {
@@ -1292,7 +1292,7 @@ int em_agent_t::mgmt_action_frame_cb(char *event_name, bus_data_prop_t *data, vo
         if (!memcmp(mgmt_frame->u.action.u.vs_public_action.oui, wfa_oui, sizeof(wfa_oui))){
             // Push WFA action frame back to main thread
             // Push all data to pass frequency as well
-            g_agent.io_process(em_bus_event_type_recv_wfa_action_frame, reinterpret_cast<uint8_t*>(data->value.raw_data.bytes), data->value.raw_data_len);
+            g_agent.io_process(em_bus_event_type_recv_wfa_action_frame, reinterpret_cast<uint8_t*>(data->raw_data.bytes), data->raw_data_len);
         }
     }
 
@@ -1305,13 +1305,13 @@ int em_agent_t::mgmt_action_frame_cb(char *event_name, bus_data_prop_t *data, vo
     return 0;
 }
 
-int em_agent_t::assoc_stats_cb(char *event_name, bus_data_prop_t *data, void *userData)
+int em_agent_t::assoc_stats_cb(char *event_name, raw_data_t *data, void *userData)
 {
     (void)userData;
-    //printf("%s:%d recv data:\r\n%s\r\n", __func__, __LINE__, (char *)data->value.raw_data.bytes);
+    //printf("%s:%d recv data:\r\n%s\r\n", __func__, __LINE__, (char *)data->raw_data.bytes);
     cJSON *json, *assoc_stats_arr;
 
-    json = cJSON_Parse((const char *)data->value.raw_data.bytes);
+    json = cJSON_Parse((const char *)data->raw_data.bytes);
     if (json != NULL) {
         cJSON *subdoc_name = cJSON_GetObjectItemCaseSensitive(json, "SubDocName");
         if ((strcmp(subdoc_name->valuestring, "Easymesh STA link metrics") == 0)) {
@@ -1329,27 +1329,27 @@ int em_agent_t::assoc_stats_cb(char *event_name, bus_data_prop_t *data, void *us
         }
     }
 
-    g_agent.io_process(em_bus_event_type_sta_link_metrics, (unsigned char *)data->value.raw_data.bytes, data->value.raw_data_len);
+    g_agent.io_process(em_bus_event_type_sta_link_metrics, (unsigned char *)data->raw_data.bytes, data->raw_data_len);
     cJSON_Delete(json);
 
     return 1;
 }
 
-void em_agent_t::sta_cb(char *event_name, bus_data_prop_t *data, void *userData)
+void em_agent_t::sta_cb(char *event_name, raw_data_t *data, void *userData)
 {
     (void)userData;
-    //printf("%s:%d Recv data from onewifi:\r\n%s\r\n", __func__, __LINE__, (char *)data->value.raw_data.bytes);
-    g_agent.io_process(em_bus_event_type_sta_list, (unsigned char *)data->value.raw_data.bytes, data->value.raw_data_len);
+    //printf("%s:%d Recv data from onewifi:\r\n%s\r\n", __func__, __LINE__, (char *)data->raw_data.bytes);
+    g_agent.io_process(em_bus_event_type_sta_list, (unsigned char *)data->raw_data.bytes, data->raw_data_len);
 
 }
 
-void em_agent_t::onewifi_cb(char *event_name, bus_data_prop_t *data, void *userData)
+void em_agent_t::onewifi_cb(char *event_name, raw_data_t *data, void *userData)
 {
         (void)userData;
-	const char *json_data = (char *)data->value.raw_data.bytes;
+	const char *json_data = (char *)data->raw_data.bytes;
 	cJSON *json = cJSON_Parse(json_data);
 
-	//printf("%s:%dRecv data from onewifi:\r\n%s\r\n", __func__, __LINE__, (char *)data->value.raw_data.bytes);
+	//printf("%s:%dRecv data from onewifi:\r\n%s\r\n", __func__, __LINE__, (char *)data->raw_data.bytes);
 
 	if (json == NULL) {
 		printf("%s:%d Error parsing JSON\n", __func__, __LINE__);
@@ -1364,17 +1364,17 @@ void em_agent_t::onewifi_cb(char *event_name, bus_data_prop_t *data, void *userD
     if ((strcmp(subdoc_name->valuestring, "private") == 0) || (strcmp(subdoc_name->valuestring, "Vap_6G") == 0) ||
         (strcmp(subdoc_name->valuestring, "Vap_5G") == 0) || (strcmp(subdoc_name->valuestring, "Vap_2.4G") == 0)) {
         printf("%s:%d Found SubDocName: private\n", __func__, __LINE__);
-        g_agent.io_process(em_bus_event_type_onewifi_private_cb, (unsigned char *)data->value.raw_data.bytes, data->value.raw_data_len);
+        g_agent.io_process(em_bus_event_type_onewifi_private_cb, (unsigned char *)data->raw_data.bytes, data->raw_data_len);
 
     } else if ((strcmp(subdoc_name->valuestring, "radio") == 0) || (strcmp(subdoc_name->valuestring, "radio_6G") == 0) ||
         (strcmp(subdoc_name->valuestring, "radio_5G") == 0) || (strcmp(subdoc_name->valuestring, "radio_2.4G") == 0)) {
         printf("%s:%d Found SubDocName: radio\n", __func__, __LINE__);
-        g_agent.io_process(em_bus_event_type_onewifi_radio_cb, (unsigned char *)data->value.raw_data.bytes, data->value.raw_data_len);
+        g_agent.io_process(em_bus_event_type_onewifi_radio_cb, (unsigned char *)data->raw_data.bytes, data->raw_data_len);
 
     } else if ((strcmp(subdoc_name->valuestring, "mesh_sta") == 0) || 
                (strcmp(subdoc_name->valuestring, "mesh backhaul sta") == 0)) {
         printf("%s:%d Found SubDocName: mesh_sta\n", __func__, __LINE__);
-        g_agent.io_process(em_bus_event_type_onewifi_mesh_sta_cb, (unsigned char *)data->value.raw_data.bytes, data->value.raw_data_len);
+        g_agent.io_process(em_bus_event_type_onewifi_mesh_sta_cb, (unsigned char *)data->raw_data.bytes, data->raw_data_len);
 
     } else {
         em_printfout("SubDocName (%s) not matching private, mesh_sta, or radio", subdoc_name->valuestring);
@@ -1384,11 +1384,11 @@ void em_agent_t::onewifi_cb(char *event_name, bus_data_prop_t *data, void *userD
 
 }
 
-int em_agent_t::mgmt_csa_beacon_frame_cb(char *event_name, bus_data_prop_t *data, void *userData)
+int em_agent_t::mgmt_csa_beacon_frame_cb(char *event_name, raw_data_t *data, void *userData)
 {
-    printf("%s:%d Received Frame data for event [%s] and data of len:\n%d\n", __func__, __LINE__, event_name, data->value.raw_data_len);
+    printf("%s:%d Received Frame data for event [%s] and data of len:\n%d\n", __func__, __LINE__, event_name, data->raw_data_len);
 
-    g_agent.io_process(em_bus_event_type_recv_csa_beacon_frame, (unsigned char *)data->value.raw_data.bytes, data->value.raw_data_len);
+    g_agent.io_process(em_bus_event_type_recv_csa_beacon_frame, (unsigned char *)data->raw_data.bytes, data->raw_data_len);
     return 1;
 }
 
