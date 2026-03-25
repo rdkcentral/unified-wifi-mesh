@@ -1928,6 +1928,7 @@ int em_channel_t::handle_channel_sel_req(unsigned char *buff, unsigned int len)
 
     op_class_channel_sel op_class;
 
+    memset(&op_class, 0, sizeof(op_class_channel_sel));
     tlv = reinterpret_cast<em_tlv_t *> (buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
     tlv_len = static_cast<int> (len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)));
 
