@@ -198,10 +198,8 @@ bool em_orch_ctrl_t::is_em_ready_for_orch_fini(em_cmd_t *pcmd, em_t *em)
             break;
         
         case em_cmd_type_set_channel:
-	    if (em->get_state() == em_state_ctrl_channel_selected) {
+            if (em->get_state() == em_state_ctrl_configured) {
                 return true;
-            } else if (em->get_state() == em_state_ctrl_configured) {
-		return true;
             }
 	    break;
         case em_cmd_type_scan_channel:
@@ -370,6 +368,15 @@ void em_orch_ctrl_t::pre_process_cancel(em_cmd_t *pcmd, em_t *em)
            	em->set_state(em_state_ctrl_misconfigured);
             em->set_renew_tx_count(0);
 			break;
+
+        case em_cmd_type_set_channel:
+            em_printfout("Cancel received for Set Channel command, transitioning to configured state radio: %s",
+                util::mac_to_string(em->get_radio_interface_mac()).c_str());
+            em->set_state(em_state_ctrl_configured);
+            // Reset the count of active channel selection requests
+            // Currently this counter is not used, reset for future use of this counter
+            em->set_channel_sel_req_tx_count(0);
+            break;
 
         default:
             break;
