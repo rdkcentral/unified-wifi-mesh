@@ -1006,6 +1006,7 @@ int dm_easy_mesh_ctrl_t::analyze_set_channel(em_bus_event_t *evt, em_cmd_t *pcmd
 	unsigned int num = 0, num_devices = 0, i = 0, j = 0, k = 0;
 	dm_op_class_t *updated_oclass, *current_oclass;
 	unsigned int band, already_added;
+	bool channel_or_pref_modified = false;
     
 	subdoc = &evt->u.subdoc;
 
@@ -1024,13 +1025,41 @@ int dm_easy_mesh_ctrl_t::analyze_set_channel(em_bus_event_t *evt, em_cmd_t *pcmd
 
 			for (j = 0; j < pdm->get_num_op_class(); j++) {
 				current_oclass = &pdm->m_op_class[j];
+				channel_or_pref_modified = false;
 
 				if ((memcmp(updated_oclass->m_op_class_info.id.ruid, current_oclass->m_op_class_info.id.ruid, sizeof(mac_address_t)) == 0) &&
 					(updated_oclass->m_op_class_info.id.type == current_oclass->m_op_class_info.id.type) &&
 					(updated_oclass->m_op_class_info.id.op_class == current_oclass->m_op_class_info.id.op_class)) {
 
-					// Check if the channel has changed or not
-					if (updated_oclass->m_op_class_info.channels[0] != current_oclass->m_op_class_info.channels[0]) {
+					// clamp channel counts to prevent out-of-bounds access
+					const unsigned int updated_channel_count = std::min(updated_oclass->m_op_class_info.num_channels,
+                                                            static_cast<unsigned int>(EM_MAX_CHANNELS_IN_LIST));
+					const unsigned int current_channel_count = std::min(current_oclass->m_op_class_info.num_channels,
+                                                            static_cast<unsigned int>(EM_MAX_CHANNELS_IN_LIST));
+
+					// Check if the channel or pref has changed or not
+					if (updated_channel_count != current_channel_count){
+						channel_or_pref_modified = true;
+						// Since this update applies only to channel and preference changes within the
+						// current operating class, the preference state remains valid.
+						// TODO: In case of an operating class change, pref_valid must be reset to false
+						//       for older operating classes.
+						updated_oclass->m_op_class_info.pref_valid = EM_CH_PREF_ENTRY_VALID;
+					} else {
+						for (unsigned int index = 0; index < updated_channel_count; ++index) {
+							if ((updated_oclass->m_op_class_info.channels[index] != current_oclass->m_op_class_info.channels[index]) || 
+								updated_oclass->m_op_class_info.channel_pref[index] != current_oclass->m_op_class_info.channel_pref[index]) {
+								channel_or_pref_modified = true;
+								// Since this update applies only to channel and preference changes within the
+								// current operating class, the preference state remains valid.
+								// TODO: In case of an operating class change, pref_valid must be reset to false
+								//       for older operating classes..
+								updated_oclass->m_op_class_info.pref_valid = EM_CH_PREF_ENTRY_VALID;
+								break;
+							}
+						}
+					}
+					if (channel_or_pref_modified) {
 						already_added = 0;
 						band = dm_easy_mesh_t::get_freq_band_by_op_class(static_cast<int>(updated_oclass->m_op_class_info.id.op_class));
 
