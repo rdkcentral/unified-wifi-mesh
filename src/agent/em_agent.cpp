@@ -264,15 +264,15 @@ void em_agent_t::handle_onewifi_private_cb(em_bus_event_t *evt)
     wifi_bus_desc_t *desc;
 
     if ((desc = get_bus_descriptor()) == NULL) {
-        printf("descriptor is null");
+        em_printfout("descriptor is null");
     }
 
     if (m_orch->is_cmd_type_in_progress(evt) == true) {
         m_agent_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
     } else if ((num = m_data_model.analyze_onewifi_vap_cb(evt, pcmd)) == 0) {
-        printf("analyze_onewifi_vap_cb completed\n");
+        em_printfout("analyze_onewifi_vap_cb completed\n");
     } else if (m_orch->submit_commands(pcmd, num) > 0) {
-        printf("submitted command for orchestration\n");
+        em_printfout("submitted command for orchestration");
     }
 }
 
@@ -283,15 +283,15 @@ void em_agent_t::handle_onewifi_mesh_sta_cb(em_bus_event_t *evt)
     wifi_bus_desc_t *desc;
 
     if ((desc = get_bus_descriptor()) == NULL) {
-        printf("descriptor is null");
+        em_printfout("descriptor is null");
     }
 
     if (m_orch->is_cmd_type_in_progress(evt) == true) {
         m_agent_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
     } else if ((num = m_data_model.analyze_onewifi_vap_cb(evt, pcmd)) == 0) {
-        printf("analyze_onewifi_vap_cb completed\n");
+        em_printfout("analyze_onewifi_vap_cb completed");
     } else if (m_orch->submit_commands(pcmd, num) > 0) {
-        printf("submitted command for orchestration\n");
+        em_printfout("submitted command for orchestration");
     }
 }
 
@@ -302,18 +302,17 @@ void em_agent_t::handle_onewifi_radio_cb(em_bus_event_t *evt)
     wifi_bus_desc_t *desc;
 
     if ((desc = get_bus_descriptor()) == NULL) {
-        printf("descriptor is null");
+        em_printfout("descriptor is null");
     }
 
     if (m_orch->is_cmd_type_in_progress(evt) == true) {
         m_agent_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
     } else if ((num = m_data_model.analyze_onewifi_radio_cb(evt, pcmd)) == 0) {
-        printf("analyze_onewifi_radio_cb completed\n");
+        em_printfout("analyze_onewifi_radio_cb completed");
     } else if (m_orch->submit_commands(pcmd, num) > 0) {
-        printf("submitted command for orchestration\n");
+        em_printfout("submitted command for orchestration");
     }
 }
-
 
 void em_agent_t::handle_vendor_public_action_frame(struct ieee80211_mgmt *frame)
 {
@@ -770,12 +769,45 @@ void em_agent_t::handle_ap_metrics_report(em_bus_event_t *evt)
     em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
     unsigned int num;
 
-    if (m_orch->is_cmd_type_in_progress(evt) == true) {
-        printf("analyze_ap_metrics_report in progress\n");
-    } else if ((num = m_data_model.analyze_ap_metrics_report(evt, pcmd)) == 0) {
-        printf("analyze_ap_metrics_report failed\n");
-    } else {
-        m_orch->submit_commands(pcmd, num);
+    // populate data model first
+    if ((num = m_data_model.analyze_ap_metrics_report(evt, pcmd)) == 0) {
+        em_printfout("analyze_ap_metrics_report failed");
+        return;
+    }
+
+    // push directly to the matching em thread — same ruid selection as build_candidates
+    for (unsigned int i = 0; i < num; i++) {
+        if (pcmd[i] == NULL) continue;
+
+        em_t *em = static_cast<em_t *>(hash_map_get_first(m_em_map));
+        while (em != NULL) {
+            if (!em->is_al_interface_em() &&
+                memcmp(pcmd[i]->m_param.u.ap_metrics_params.ruid,
+                       em->get_radio_interface_mac(), sizeof(mac_address_t)) == 0) {
+
+                em_event_t *qevt = static_cast<em_event_t *>(malloc(sizeof(em_event_t)));
+                if (qevt != NULL) {
+                    memset(qevt, 0, sizeof(em_event_t));
+                    qevt->type = em_event_type_cmd;
+                    qevt->u.cevt.type = em_cmd_event_type_ap_metrics_report;
+                    qevt->u.cevt.cmd_ptr = pcmd[i]; // store pointer directly
+                    em->push_to_queue(qevt);
+                    pcmd[i] = NULL;
+                } else {
+                    em_printfout("failed to allocate event for ap_metrics_report, dropping for radio %s",
+                        util::mac_to_string(em->get_radio_interface_mac()).c_str());
+                    delete pcmd[i];
+                    pcmd[i] = NULL;
+                }
+                break; // found the matching em, no need to continue
+            }
+            em = static_cast<em_t *>(hash_map_get_next(m_em_map, em));
+        }
+        // if no matching em was found, pcmd[i] still non-null here, clean it up
+        if (pcmd[i] != NULL) {
+            delete pcmd[i];
+            pcmd[i] = NULL;
+        }
     }
 }
 
@@ -1352,7 +1384,7 @@ void em_agent_t::onewifi_cb(char *event_name, bus_data_prop_t *data, void *userD
 	//printf("%s:%dRecv data from onewifi:\r\n%s\r\n", __func__, __LINE__, (char *)data->value.raw_data.bytes);
 
 	if (json == NULL) {
-		printf("%s:%d Error parsing JSON\n", __func__, __LINE__);
+		em_printfout("Error parsing JSON");
         return;
 	}
     cJSON *subdoc_name = cJSON_GetObjectItemCaseSensitive(json, "SubDocName");
@@ -1361,19 +1393,17 @@ void em_agent_t::onewifi_cb(char *event_name, bus_data_prop_t *data, void *userD
         return;
     }
 
+    em_printfout("Found SubDocName: %s", subdoc_name->valuestring);
     if ((strcmp(subdoc_name->valuestring, "private") == 0) || (strcmp(subdoc_name->valuestring, "Vap_6G") == 0) ||
         (strcmp(subdoc_name->valuestring, "Vap_5G") == 0) || (strcmp(subdoc_name->valuestring, "Vap_2.4G") == 0)) {
-        printf("%s:%d Found SubDocName: private\n", __func__, __LINE__);
         g_agent.io_process(em_bus_event_type_onewifi_private_cb, (unsigned char *)data->value.raw_data.bytes, data->value.raw_data_len);
 
     } else if ((strcmp(subdoc_name->valuestring, "radio") == 0) || (strcmp(subdoc_name->valuestring, "radio_6G") == 0) ||
         (strcmp(subdoc_name->valuestring, "radio_5G") == 0) || (strcmp(subdoc_name->valuestring, "radio_2.4G") == 0)) {
-        printf("%s:%d Found SubDocName: radio\n", __func__, __LINE__);
         g_agent.io_process(em_bus_event_type_onewifi_radio_cb, (unsigned char *)data->value.raw_data.bytes, data->value.raw_data_len);
 
     } else if ((strcmp(subdoc_name->valuestring, "mesh_sta") == 0) || 
                (strcmp(subdoc_name->valuestring, "mesh backhaul sta") == 0)) {
-        printf("%s:%d Found SubDocName: mesh_sta\n", __func__, __LINE__);
         g_agent.io_process(em_bus_event_type_onewifi_mesh_sta_cb, (unsigned char *)data->value.raw_data.bytes, data->value.raw_data_len);
 
     } else {
