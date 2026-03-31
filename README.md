@@ -482,7 +482,6 @@ sequenceDiagram
 - **DPP Bootstrapping**: On non-colocated startup, `try_start_dpp_onboarding()` reads `EasymeshCfg.json`, derives the enrollee MAC from the backhaul BSS, generates or reuses DPP bootstrapping key material (`ec_util::get_dpp_boot_data()`), and starts the enrollee state machine. DPP key files (`DPPURI.pem`, `C-sign-key.pem`, `net-access-key.pem`, `ppk.pem`, `connector.txt`) are stored under `/nvram/` as defined in `inc/ec_base.h`.
 - **AL MAC Resolution**: When `AL_SAP=1`, the AL MAC address (`g_al_mac_sap`) returned by the `ieee1905` daemon at connection time overrides the AL MAC decoded from the OneWifi DML data. This is applied in `dm_easy_mesh_agent_t::analyze_dev_init()`.
 - **MariaDB Persistence**: The controller uses `db_client_t` to persist all topology data. On RDK-B, the controller automatically seeds an empty database by invoking `/usr/ccsp/EasyMesh/setup_mysql_db_post.sh` at runtime when `load_tables()` detects no existing tables. No PSM or syscfg persistence is used by this component.
->>>>>>> 9b39857 (RDKBDEV-3409:Addressed review comments)
 
 ### Key Configuration Files
 
