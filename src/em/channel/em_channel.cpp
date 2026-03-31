@@ -307,10 +307,8 @@ short em_channel_t::create_channel_pref_tlv(unsigned char *buff)
                              merged_op.channels[j], merged_op.op_class);
                 continue; // Skip channels non-operable for agent
             }
-            // Note: Temporary hardcoding of preference bits to 0xe0.
-            // Remove hardcoding once Preference value is added to the configuration
-            // pref_bits = merged_op.channel_pref[j];
-            pref_bits = 0xe0;
+            // Assign the preference value for channels
+            pref_bits = merged_op.channel_pref[j];
             channels_per_pref[pref_bits].push_back(merged_op.channels[j]);;
         }
 
