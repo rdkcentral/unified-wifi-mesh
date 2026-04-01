@@ -2081,6 +2081,37 @@ void dm_easy_mesh_t::print_config()
         em_printfout("Cap Radio[%d]: %s, num_role:%d and su_beam:%d",  i, util::mac_to_string(m_radio_cap[i].get_radio_cap_info()->ruid.mac).c_str(),
             m_radio_cap[i].get_radio_cap_info()->wifi6_cap.num_role,
             m_radio_cap[i].get_radio_cap_info()->wifi6_cap.roles[0].role_tail.su_beam_former);
+        em_printfout(
+            "HE Cap: RUID:%s MCS_LEN:%u "
+            "TXRX_MCS:[TX:0x%04x RX:0x%04x | TX:0x%04x RX:0x%04x | TX:0x%04x RX:0x%04x] "
+            "80+80:%u 160:%u RX_SS:%u TX_SS:%u "
+            "DL_OFDMA:%u UL_OFDMA:%u DL_MIMO_OFDMA:%u UL_MIMO_OFDMA:%u "
+            "UL_MIMO:%u MU_BF:%u SU_BF:%u",
+            
+            util::mac_to_string(m_radio_cap[i].get_radio_cap_info()->ruid.mac).c_str(),
+            m_radio_cap[i].get_radio_cap_info()->he_cap.sprt_mcs_len,
+
+            m_radio_cap[i].get_radio_cap_info()->he_cap.sprt_tx_rx_mcs[0].tx_he_mcs,
+            m_radio_cap[i].get_radio_cap_info()->he_cap.sprt_tx_rx_mcs[0].rx_he_mcs,
+            m_radio_cap[i].get_radio_cap_info()->he_cap.sprt_tx_rx_mcs[1].tx_he_mcs,
+            m_radio_cap[i].get_radio_cap_info()->he_cap.sprt_tx_rx_mcs[1].rx_he_mcs,
+            m_radio_cap[i].get_radio_cap_info()->he_cap.sprt_tx_rx_mcs[2].tx_he_mcs,
+            m_radio_cap[i].get_radio_cap_info()->he_cap.sprt_tx_rx_mcs[2].rx_he_mcs,
+
+            m_radio_cap[i].get_radio_cap_info()->he_cap.sprt_80_80_mhz,
+            m_radio_cap[i].get_radio_cap_info()->he_cap.sprt_160mhz,
+            m_radio_cap[i].get_radio_cap_info()->he_cap.max_sprt_rx_streams,
+            m_radio_cap[i].get_radio_cap_info()->he_cap.max_sprt_tx_streams,
+
+            m_radio_cap[i].get_radio_cap_info()->he_cap.dl_ofdma_cap,
+            m_radio_cap[i].get_radio_cap_info()->he_cap.ul_ofdma_cap,
+            m_radio_cap[i].get_radio_cap_info()->he_cap.dl_mimo_ofdma_cap,
+            m_radio_cap[i].get_radio_cap_info()->he_cap.ul_mimo_ofdma_cap,
+
+            m_radio_cap[i].get_radio_cap_info()->he_cap.ul_mimo_cap,
+            m_radio_cap[i].get_radio_cap_info()->he_cap.mu_beamformer_cap,
+            m_radio_cap[i].get_radio_cap_info()->he_cap.su_beamformer_cap
+        );
     }
 }
 

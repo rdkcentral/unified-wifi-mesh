@@ -3323,9 +3323,12 @@ char* dm_easy_mesh_ctrl_t::get_ht_caps_str(em_ap_ht_cap_t *ht, char *buf, size_t
 {
     uint8_t data;
 
+    uint8_t tx_streams = ht->max_sprt_tx_streams ? ht->max_sprt_tx_streams - 1 : 0;
+    uint8_t rx_streams = ht->max_sprt_rx_streams ? ht->max_sprt_rx_streams - 1 : 0;
+
     /* Prepare data */
-    data  = static_cast<uint8_t>((ht->max_sprt_tx_streams - 1) << 6);
-    data |= static_cast<uint8_t>((ht->max_sprt_rx_streams - 1) << 4);
+    data  = static_cast<uint8_t>((tx_streams) << 6);
+    data |= static_cast<uint8_t>((rx_streams) << 4);
     data |= static_cast<uint8_t>(ht->gi_sprt_20mhz << 3);
     data |= static_cast<uint8_t>(ht->gi_sprt_40mhz << 2);
     data |= static_cast<uint8_t>(ht->ht_sprt_40mhz << 1);
@@ -3335,8 +3338,12 @@ char* dm_easy_mesh_ctrl_t::get_ht_caps_str(em_ap_ht_cap_t *ht, char *buf, size_t
     if (b64_encode(&data, sizeof(data), buf, buf_len) < 0) {
         em_printfout("b64_encode failed\n");
     }
+#else
+    // Encode as hex string
+    if (buf_len >= 3) { // 2 chars + null terminator
+        snprintf(buf, buf_len, "%02X", data);
+    }
 #endif
-
     return buf;
 }
 
@@ -3344,16 +3351,19 @@ char* dm_easy_mesh_ctrl_t::get_vht_caps_str(em_ap_vht_cap_t *vht, char *buf, siz
 {
     uint8_t data[6] = {0};
 
+    uint8_t tx_streams = vht->max_sprt_tx_streams ? vht->max_sprt_tx_streams - 1 : 0;
+    uint8_t rx_streams = vht->max_sprt_rx_streams ? vht->max_sprt_rx_streams - 1 : 0;
+
     /* Prepare data */
-    data[0]  = static_cast<uint8_t>(vht->sprt_tx_mcs >> 8);
-    data[1]  = static_cast<uint8_t>(vht->sprt_tx_mcs &  0xff);
-    data[2]  = static_cast<uint8_t>(vht->sprt_rx_mcs >> 8);
-    data[3]  = static_cast<uint8_t>(vht->sprt_rx_mcs &  0xff);
-    data[4]  = static_cast<uint8_t>((vht->max_sprt_tx_streams - 1) << 5);
-    data[4] |= static_cast<uint8_t>((vht->max_sprt_rx_streams - 1) << 2);
+    data[0] = static_cast<uint8_t>(vht->sprt_tx_mcs >> 8);
+    data[1] = static_cast<uint8_t>(vht->sprt_tx_mcs & 0xff);
+    data[2] = static_cast<uint8_t>(vht->sprt_rx_mcs >> 8);
+    data[3] = static_cast<uint8_t>(vht->sprt_rx_mcs & 0xff);
+    data[4] = static_cast<uint8_t>(tx_streams << 5);
+    data[4] |= static_cast<uint8_t>(rx_streams << 2);
     data[4] |= static_cast<uint8_t>(vht->gi_sprt_80mhz << 1);
     data[4] |= static_cast<uint8_t>(vht->gi_sprt_160mhz);
-    data[5]  = static_cast<uint8_t>(vht->sprt_80_80_mhz << 7);
+    data[5] = static_cast<uint8_t>(vht->sprt_80_80_mhz << 7);
     data[5] |= static_cast<uint8_t>(vht->sprt_160mhz << 6);
     data[5] |= static_cast<uint8_t>(vht->su_beamformer_cap << 5);
     data[5] |= static_cast<uint8_t>(vht->mu_beamformer_cap << 4);
@@ -3362,6 +3372,13 @@ char* dm_easy_mesh_ctrl_t::get_vht_caps_str(em_ap_vht_cap_t *vht, char *buf, siz
     /* Now encode as base64 */
     if (b64_encode(&data, sizeof(data), buf, buf_len) < 0) {
         em_printfout("b64_encode failed\n");
+    }
+#else
+    // Encode as hex string
+    if (buf_len >= sizeof(data) * 2 + 1) {
+        for (size_t i = 0; i < sizeof(data); i++) {
+            snprintf(buf + i*2, buf_len - i*2, "%02X", data[i]);
+        }
     }
 #endif
 
@@ -3740,11 +3757,15 @@ bus_error_t dm_easy_mesh_ctrl_t::wf6ap_get_inner(char *event_name, raw_data_t *p
         } else if (strcmp(param, "HE8080") == 0) {
             rc = dm_ctrl->raw_data_set(p_data, static_cast<bool>(role->role_head.he_8080));
         } else if (strcmp(param, "MCSNSS") == 0) {
-            snprintf(mcsnss_str, sizeof(mcsnss_str), "%hu", role->mcs_nss[0]);
-            for (i = 1; i < role->role_head.mcs_nss_num && i < MAX_MCS_NSS; i++) {
-                char temp[16];
-                snprintf(temp, sizeof(temp), ",%hu", role->mcs_nss[i]);
-                strncat(mcsnss_str, temp, sizeof(mcsnss_str) - strlen(mcsnss_str) - 1);
+            int num_maps = role->role_head.mcs_nss_num / EM_MIN_HE_MCS_LEN;
+            for (int j = 0; j < num_maps && i < MAX_MCS; j++) {
+                char temp[32];
+                snprintf(temp, sizeof(temp),
+                        "%x%x",
+                        role->sprt_tx_rx_mcs[j].tx_he_mcs,
+                        role->sprt_tx_rx_mcs[j].rx_he_mcs);
+                strncat(mcsnss_str, temp,
+                        sizeof(mcsnss_str) - strlen(mcsnss_str) - 1);
             }
             rc = dm_ctrl->raw_data_set(p_data, mcsnss_str);
         } else if (strcmp(param, "SUBeamformer") == 0) {
@@ -3860,13 +3881,16 @@ bus_error_t dm_easy_mesh_ctrl_t::wf6ap_tget_params(dm_easy_mesh_t *dm, const cha
     for (i = 0; i < rci->wifi6_cap.num_role; i++) {
         memcpy(role, &rci->wifi6_cap.roles[i], sizeof(em_wifi6_role_wire_t));
 
-        snprintf(mcsnss_str, sizeof(mcsnss_str), "%hu", role->mcs_nss[0]);
-        for (int j = 1; j < role->role_head.mcs_nss_num && j < MAX_MCS_NSS; j++) {
-            char temp[16];
-            snprintf(temp, sizeof(temp), ",%hu", role->mcs_nss[j]);
-            strncat(mcsnss_str, temp, sizeof(mcsnss_str) - strlen(mcsnss_str) - 1);
+        int num_maps = role->role_head.mcs_nss_num / EM_MIN_HE_MCS_LEN;
+        for (int j = 1; j < num_maps && i < MAX_MCS; j++) {
+            char temp[32];
+            snprintf(temp, sizeof(temp),
+                    "%x%x",
+                    role->sprt_tx_rx_mcs[j].tx_he_mcs,
+                    role->sprt_tx_rx_mcs[j].rx_he_mcs);
+            strncat(mcsnss_str, temp,
+                    sizeof(mcsnss_str) - strlen(mcsnss_str) - 1);
         }
-
         dm_ctrl->property_append_tail(property, root, idx, "HE160", role->role_head.he_160);
         dm_ctrl->property_append_tail(property, root, idx, "HE8080", role->role_head.he_8080);
         dm_ctrl->property_append_tail(property, root, idx, "MCSNSS", mcsnss_str);

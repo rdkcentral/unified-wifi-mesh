@@ -94,6 +94,7 @@ int dm_easy_mesh_agent_t::analyze_dev_init(em_bus_event_t *evt, em_cmd_t *pcmd[]
         em_printfout("num_role:%d\n", pcmd[num]->m_data_model.get_radio_cap_info(i)->wifi6_cap.num_role);
         // em_printfout("su_beam:%d\n", pcmd[num]->m_data_model.get_radio_cap_info(i)->wifi6_cap.su_beam_former);
         em_printfout("wifi 7 rad mac:%s\n", util::mac_to_string(pcmd[num]->m_data_model.get_radio_cap_info(i)->wifi7_cap.mlo_cap_support.ruid).c_str());
+        em_printfout("he cap rad mac:%s\n", util::mac_to_string(pcmd[num]->m_data_model.get_radio_cap_info(i)->he_cap.ruid).c_str());
     }
     num++;
 

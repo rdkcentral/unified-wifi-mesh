@@ -127,7 +127,7 @@ int em_capability_t::send_ap_cap_report_msg(unsigned char *dst, unsigned short m
         tlv->len = htons(static_cast<uint16_t>(sz));
         tmp += (sizeof(em_tlv_t) + static_cast<short unsigned int>(sz));
         len += static_cast<unsigned int>(sizeof(em_tlv_t) + static_cast<short unsigned int>(sz));
-#if 0
+
         // AP HT capabilities 17.2.8
         tlv = reinterpret_cast<em_tlv_t *>(tmp);
         tlv->type = em_tlv_type_ht_cap;
@@ -143,7 +143,7 @@ int em_capability_t::send_ap_cap_report_msg(unsigned char *dst, unsigned short m
         tlv->len = htons(static_cast<uint16_t>(sz));
         tmp += (sizeof(em_tlv_t) + static_cast<short unsigned int>(sz));
         len += (sizeof(em_tlv_t) + static_cast<short unsigned int>(sz));
-
+#if 1
         // AP HE capabilities 17.2.10
         tlv = reinterpret_cast<em_tlv_t *>(tmp);
         tlv->type = em_tlv_type_he_cap;
@@ -1171,6 +1171,18 @@ int em_capability_t::handle_ap_cap_report(unsigned char *buff, unsigned int len)
                     em_printfout("No data Found");
                 }
                 memcpy(&cap_info->ht_cap, ht_cap, sizeof(em_ap_ht_cap_t));
+
+                em_printfout("HT Capabilities MCS Set for RUID %s",
+                    util::mac_to_string(ht_cap->ruid).c_str());
+                em_printfout("\t\tHT 40MHz Support: %d",
+                    cap_info->ht_cap.ht_sprt_40mhz);
+                em_printfout("\t\tGI 40MHz Support: %d",
+                    cap_info->ht_cap.gi_sprt_40mhz);
+                em_printfout("\t\tGI 20MHz Support: %d",
+                    cap_info->ht_cap.gi_sprt_20mhz);
+                em_printfout("\t\tmax_sprt_rx_streams:%d", cap_info->ht_cap.max_sprt_rx_streams);
+                em_printfout("\t\tmax_sprt_tx_streams:%d", cap_info->ht_cap.max_sprt_tx_streams);
+                em_printfout("HT Capabilities updated for radio %s", util::mac_to_string(ht_cap->ruid).c_str());
             }
         }
         else if (tlv->type == em_tlv_type_vht_cap){
