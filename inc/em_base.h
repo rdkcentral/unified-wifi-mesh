@@ -224,6 +224,10 @@ static const mac_address_t EM_GLOBAL_MAC_ADDRESS = {0xff, 0xff, 0xff, 0xff, 0xff
 #define EM_OS_VERSION_LEN              0x04
 #define EM_KEY_WRAP_TLV_LEN            0x08
 
+/* Length in bytes of the Estimated Service Parameters (ESP) AC field
+ * as defined in IEEE 1905.1 / EasyMesh spec (Table 44) */
+#define EM_ESP_AC_PARAMS_LEN    3
+
 /* Disallowed STAList */
 #define EM_MSCS_DISALLOWED_STA      10
 #define EM_SCS_DISALLOWED_STA       10
@@ -1052,9 +1056,6 @@ typedef struct {
     unsigned char est_service_params_BK_bit : 1;
     unsigned char est_service_params_BE_bit : 1;
     unsigned char est_service_params_BE[3];
-    unsigned char est_service_params_BK[3];
-    unsigned char est_service_params_VO[3];
-    unsigned char est_service_params_VI[3];
 } __attribute__((__packed__)) em_ap_metric_t;
 
 
@@ -2394,6 +2395,7 @@ typedef struct {
     unsigned int    num_beacon_meas_report;
     unsigned int    beacon_report_len;
     unsigned char   beacon_report_elem[EM_MAX_BEACON_MEASUREMENT_LEN];
+    unsigned int    delta_ms;
 
     em_long_string_t    cap;
     em_long_string_t    ht_cap;
@@ -2445,9 +2447,19 @@ typedef struct {
     bool    enabled;
     unsigned int last_change;
     em_long_string_t     timestamp;
-    unsigned int unicast_bytes_sent;
-    unsigned int    unicast_bytes_rcvd;
     unsigned int    numberofsta;
+    unsigned int    channel_util;
+    // Extended report
+    unsigned int unicast_bytes_sent;
+    unsigned int unicast_bytes_rcvd;
+    unsigned int multicast_bytes_sent;
+    unsigned int multicast_bytes_rcvd;
+    unsigned int broadcast_bytes_sent;
+    unsigned int broadcast_bytes_rcvd;
+    bool inc_esp_ac_be;
+    bool inc_esp_ac_bk;
+    bool inc_esp_ac_vo;
+    bool inc_esp_ac_vi;
     em_string_t     est_svc_params_be;
     em_string_t     est_svc_params_bk;
     em_string_t     est_svc_params_vi;
@@ -2580,6 +2592,9 @@ typedef struct {
     unsigned  int   number_of_bss;
     unsigned  int   number_of_unassoc_sta;
     int     noise;
+    unsigned char transmit;
+    unsigned char receive_self;
+    unsigned char receive_other;
     unsigned short utilization;
     bool    traffic_sep_combined_fronthaul;
     bool    traffic_sep_combined_backhaul;

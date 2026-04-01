@@ -1051,6 +1051,11 @@ int em_metrics_t::send_ap_metrics_response()
     //AP Metrics TLV (17.2.22)
     for (bss_index = 0; bss_index < static_cast<int>(dm->m_num_bss); bss_index++) {
 
+        if(dm->m_bss[bss_index].get_bss_info()->vap_mode != em_vap_mode_ap) {
+            em_printfout("Vap mode is not ap, skipping");
+            continue;
+        }
+
         tlv = reinterpret_cast<em_tlv_t *> (tmp);
         tlv->type = em_tlv_type_ap_metrics;
         sz = create_ap_metrics_tlv(tlv->value, dm->m_bss[bss_index]);
@@ -1130,6 +1135,10 @@ int em_metrics_t::send_ap_metrics_response()
         tlv = reinterpret_cast<em_tlv_t *> (tmp);
         tlv->type = em_tlv_type_radio_metric;
         sz = create_radio_metrics_tlv(tlv->value, i);
+        if (sz == 0) {
+            em_printfout("create_radio_metrics_tlv size equals to zero\n");
+            continue;
+        }
         tlv->len =  htons(static_cast<unsigned short> (sz));
 
         tmp += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
@@ -1191,13 +1200,13 @@ short em_metrics_t::create_assoc_sta_link_metrics_tlv(unsigned char *buff, mac_a
             memcpy(&metrics->bssid, &sta->m_sta_info.bssid, sizeof(metrics->bssid));
             len += sizeof(metrics->bssid);
 
-            metrics->time_delta_ms = 10;//TODO: Pending proper update
+            metrics->time_delta_ms = htonl(sta->m_sta_info.delta_ms);
             len += sizeof(metrics->time_delta_ms);
 
-            metrics->est_mac_data_rate_dl = sta->m_sta_info.est_dl_rate;
+            metrics->est_mac_data_rate_dl = htonl(sta->m_sta_info.est_dl_rate);
             len += sizeof(metrics->est_mac_data_rate_dl);
 
-            metrics->est_mac_data_rate_ul = sta->m_sta_info.est_ul_rate;
+            metrics->est_mac_data_rate_ul = htonl(sta->m_sta_info.est_ul_rate);
             len += sizeof(metrics->est_mac_data_rate_ul);
 
             metrics->rcpi = sta->m_sta_info.rcpi;
@@ -1236,16 +1245,16 @@ short em_metrics_t::create_assoc_ext_sta_link_metrics_tlv(unsigned char *buff, m
             memcpy(metrics->bssid, sta->m_sta_info.bssid, sizeof(metrics->bssid));
             len += sizeof(metrics->bssid);
 
-            metrics->last_data_dl_rate = sta->m_sta_info.last_dl_rate;
+            metrics->last_data_dl_rate = htonl(sta->m_sta_info.last_dl_rate);
             len += sizeof(metrics->last_data_dl_rate);
 
-            metrics->last_data_ul_rate = sta->m_sta_info.last_ul_rate;
+            metrics->last_data_ul_rate = htonl(sta->m_sta_info.last_ul_rate);
             len += sizeof(metrics->last_data_ul_rate);
 
-            metrics->util_receive = sta->m_sta_info.util_rx;
+            metrics->util_receive = htonl(sta->m_sta_info.util_rx);
             len += sizeof(metrics->util_receive);
 
-            metrics->util_transmit = sta->m_sta_info.util_tx;
+            metrics->util_transmit = htonl(sta->m_sta_info.util_tx);
             len += sizeof(metrics->util_transmit);
         }
     }
@@ -1424,27 +1433,50 @@ short em_metrics_t::create_ap_metrics_tlv(unsigned char *buff, dm_bss_t &dm_bss)
             break;
         }
     }
-    if (memcmp(dm_bss.m_bss_info.ruid.mac, 
-        get_current_cmd()->get_param()->u.ap_metrics_params.ruid[i], sizeof(mac_addr_t)) == 0) {
+    if (i < get_current_cmd()->get_param()->u.ap_metrics_params.num_radios) {
 
         memcpy(ap_metrics->bssid, dm_bss.m_bss_info.bssid.mac, sizeof(mac_address_t));
         len += static_cast<size_t> (sizeof(mac_address_t));
 
-        ap_metrics->channel_util = static_cast<unsigned char>(dm_bss.m_bss_info.numberofsta);
+        ap_metrics->channel_util = static_cast<unsigned char>(dm_bss.m_bss_info.channel_util);
         len += static_cast<size_t> (sizeof(unsigned char));
 
         ap_metrics->num_sta = htons(static_cast<uint16_t>(dm_bss.m_bss_info.numberofsta));
         len += static_cast<size_t> (sizeof(unsigned short));
 
         ap_metrics->est_service_params_BE_bit = 1;
+        ap_metrics->est_service_params_BK_bit = (dm_bss.m_bss_info.inc_esp_ac_bk) ? 1 : 0;
+        ap_metrics->est_service_params_VO_bit = (dm_bss.m_bss_info.inc_esp_ac_vo) ? 1 : 0;
+        ap_metrics->est_service_params_VI_bit = (dm_bss.m_bss_info.inc_esp_ac_vi) ? 1 : 0;
         len += static_cast<size_t> (sizeof(unsigned char));
 
-        for(int i = 0; i < static_cast<int>(sizeof(ap_metrics->est_service_params_BE)); i++) {
-            ap_metrics->est_service_params_BE[i] = 0;
-            len += static_cast<size_t> (sizeof(unsigned char));
+        if (dm_bss.m_bss_info.inc_esp_ac_be) {
+            memcpy(ap_metrics->est_service_params_BE, dm_bss.m_bss_info.est_svc_params_be, sizeof(ap_metrics->est_service_params_BE));
+        }
+        len += static_cast<size_t> (sizeof(ap_metrics->est_service_params_BE));
+
+        uint8_t *p = buff + len;
+        if(dm_bss.m_bss_info.inc_esp_ac_bk)
+        {
+            memcpy(p, dm_bss.m_bss_info.est_svc_params_bk, EM_ESP_AC_PARAMS_LEN);
+            p += EM_ESP_AC_PARAMS_LEN;
+            len += EM_ESP_AC_PARAMS_LEN;
+        }
+
+        if(dm_bss.m_bss_info.inc_esp_ac_vo)
+        {
+            memcpy(p, dm_bss.m_bss_info.est_svc_params_vo, EM_ESP_AC_PARAMS_LEN);
+            p += EM_ESP_AC_PARAMS_LEN;
+            len += EM_ESP_AC_PARAMS_LEN;
+        }
+
+        if(dm_bss.m_bss_info.inc_esp_ac_vi)
+        {
+            memcpy(p, dm_bss.m_bss_info.est_svc_params_vi, EM_ESP_AC_PARAMS_LEN);
+            p += EM_ESP_AC_PARAMS_LEN;
+            len += EM_ESP_AC_PARAMS_LEN;
         }
     }
-
     return static_cast<short> (len);
 }
 
@@ -1453,6 +1485,7 @@ short em_metrics_t::create_ap_ext_metrics_tlv(unsigned char *buff, dm_bss_t &dm_
     size_t len = 0;
     em_ap_ext_metric_t *ap_ext_metrics = reinterpret_cast<em_ap_ext_metric_t *> (buff);
     int i = 0;
+    uint32_t bytes;
 
     for(i = 0; i < get_current_cmd()->get_param()->u.ap_metrics_params.num_radios; i++) {
         if (memcmp(dm_bss.m_bss_info.ruid.mac,
@@ -1461,9 +1494,26 @@ short em_metrics_t::create_ap_ext_metrics_tlv(unsigned char *buff, dm_bss_t &dm_
         }
     }
 
-    if (memcmp(dm_bss.m_bss_info.ruid.mac,
-        get_current_cmd()->get_param()->u.ap_metrics_params.ruid[i], sizeof(mac_addr_t)) == 0) {
+    if (i < get_current_cmd()->get_param()->u.ap_metrics_params.num_radios) {
         memcpy(ap_ext_metrics->bssid, dm_bss.m_bss_info.bssid.mac, sizeof(mac_address_t));
+
+        bytes = htonl(dm_bss.m_bss_info.unicast_bytes_sent);
+        memcpy(ap_ext_metrics->uni_bytes_sent, &bytes, sizeof(bytes));
+
+        bytes = htonl(dm_bss.m_bss_info.unicast_bytes_rcvd);
+        memcpy(ap_ext_metrics->uni_bytes_recv, &bytes, sizeof(bytes));
+
+        bytes = htonl(dm_bss.m_bss_info.multicast_bytes_sent);
+        memcpy(ap_ext_metrics->multi_bytes_sent, &bytes, sizeof(bytes));
+
+        bytes = htonl(dm_bss.m_bss_info.multicast_bytes_rcvd);
+        memcpy(ap_ext_metrics->multi_bytes_recv, &bytes, sizeof(bytes));
+
+        bytes = htonl(dm_bss.m_bss_info.broadcast_bytes_sent);
+        memcpy(ap_ext_metrics->bcast_bytes_sent, &bytes, sizeof(bytes));
+
+        bytes = htonl(dm_bss.m_bss_info.broadcast_bytes_rcvd);
+        memcpy(ap_ext_metrics->bcast_bytes_recv, &bytes, sizeof(bytes));
     }
 
     len = static_cast<size_t> (sizeof(em_ap_ext_metric_t));
@@ -1477,11 +1527,20 @@ short em_metrics_t::create_radio_metrics_tlv(unsigned char *buff, int index)
     dm_easy_mesh_t *dm = get_data_model();
     em_radio_metric_t *radio_metric = reinterpret_cast<em_radio_metric_t *> (buff);
     dm_radio_t *radio = NULL;
-
+    em_radio_info_t *em_radio_info = NULL;
     radio = dm->get_radio(get_current_cmd()->get_param()->u.ap_metrics_params.ruid[index]);
-    memcpy(radio_metric->ruid, radio->get_radio_info()->intf.mac, sizeof(mac_address_t));
 
-    len = static_cast<size_t> (sizeof(em_radio_metric_t));
+    if (radio != NULL) {
+        em_radio_info = radio->get_radio_info();
+        if (em_radio_info != NULL) {
+            memcpy(radio_metric->ruid, em_radio_info->intf.mac, sizeof(mac_address_t));
+            radio_metric->noise = static_cast<unsigned char>(em_radio_info->noise);
+            radio_metric->transmit = static_cast<unsigned char>(em_radio_info->transmit);
+            radio_metric->rece_self = static_cast<unsigned char>(em_radio_info->receive_self);
+            radio_metric->rece_other = static_cast<unsigned char>(em_radio_info->receive_other);
+            len = static_cast<size_t> (sizeof(em_radio_metric_t));
+        }
+    }
 
     return static_cast<short> (len);
 }
@@ -1495,25 +1554,25 @@ short em_metrics_t::create_assoc_sta_traffic_stats_tlv(unsigned char *buff, cons
         memcpy(response->sta_mac_addr, sta->m_sta_info.id, sizeof(mac_addr_t));
         len += sizeof(response->sta_mac_addr);
 
-        response->bytes_sent = sta->m_sta_info.bytes_tx;
+        response->bytes_sent = htonl(sta->m_sta_info.bytes_tx);
         len += sizeof(response->bytes_sent);
 
-        response->bytes_recv = sta->m_sta_info.bytes_rx;
+        response->bytes_recv = htonl(sta->m_sta_info.bytes_rx);
         len += sizeof(response->bytes_recv);
 
-        response->packets_sent = sta->m_sta_info.pkts_tx;
+        response->packets_sent = htonl(sta->m_sta_info.pkts_tx);
         len += sizeof(response->packets_sent);
 
-        response->packets_recv = sta->m_sta_info.pkts_rx;
+        response->packets_recv = htonl(sta->m_sta_info.pkts_rx);
         len += sizeof(response->packets_recv);
 
-        response->tx_packets_errors = sta->m_sta_info.errors_tx;
+        response->tx_packets_errors = htonl(sta->m_sta_info.errors_tx);
         len += sizeof(response->tx_packets_errors);
 
-        response->rx_packets_errors = sta->m_sta_info.errors_rx;
+        response->rx_packets_errors = htonl(sta->m_sta_info.errors_rx);
         len += sizeof(response->rx_packets_errors);
 
-        response->retrans_count = sta->m_sta_info.retrans_count;
+        response->retrans_count = htonl(sta->m_sta_info.retrans_count);
         len += sizeof(response->retrans_count);
     }
 
