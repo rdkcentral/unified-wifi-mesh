@@ -498,6 +498,22 @@ void em_ctrl_t::handle_link_stats_alarm_report(em_bus_event_t *evt)
     cJSON_Delete(parent);
 }
 
+void em_ctrl_t::handle_backhaul_steer(em_bus_event_t *evt)
+{
+    em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
+    int num;
+
+    if (m_orch->is_cmd_type_in_progress(evt) == true) {
+        m_ctrl_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
+    } else if ((num = m_data_model.analyze_backhaul_steer(evt, pcmd)) == 0) {
+        m_ctrl_cmd->send_result(em_cmd_out_status_no_change);
+    } else if (m_orch->submit_commands(pcmd, static_cast<unsigned int>(num)) > 0) {
+        m_ctrl_cmd->send_result(em_cmd_out_status_success);
+    } else {
+        m_ctrl_cmd->send_result(em_cmd_out_status_not_ready);
+    }
+}
+
 void em_ctrl_t::handle_dirty_dm()
 {
 	m_data_model.handle_dirty_dm();
@@ -669,6 +685,10 @@ void em_ctrl_t::handle_bus_event(em_bus_event_t *evt)
 	case em_bus_event_type_unassoc_sta_query:
            handle_unassoc_sta_metrics_query(evt);
            break;
+
+        case em_bus_event_type_backhaul_steer:
+            handle_backhaul_steer(evt);
+            break;
 
         default:
             break;
@@ -1108,8 +1128,23 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
 	case em_msg_type_unassoc_sta_link_metrics_rsp:
             em = static_cast<em_t *>(hash_map_get_first(m_em_map));
             while (em != NULL) {
-                if ((em->is_al_interface_em() == false) && 
+                if ((em->is_al_interface_em() == false) &&
 	          (memcmp(em->get_data_model()->get_agent_al_interface_mac(), hdr->src, sizeof(mac_address_t)) == 0)) {
+                    break;
+                }
+                em = static_cast<em_t *>(hash_map_get_next(m_em_map, em));
+            }
+            break;
+
+        case em_msg_type_bh_steering_req:
+            break; // outgoing from ctrl, not received
+
+        case em_msg_type_bh_steering_rsp:
+            em = static_cast<em_t *>(hash_map_get_first(m_em_map));
+            while (em != NULL) {
+                if (em->is_al_interface_em() == false &&
+                    memcmp(em->get_data_model()->get_agent_al_interface_mac(),
+                           hdr->src, sizeof(mac_address_t)) == 0) {
                     break;
                 }
                 em = static_cast<em_t *>(hash_map_get_next(m_em_map, em));

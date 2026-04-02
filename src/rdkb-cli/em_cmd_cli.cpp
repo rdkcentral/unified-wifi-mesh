@@ -70,6 +70,7 @@ em_cmd_params_t spec_params[] = {
     {.u = {.args = {2, {"", "", "", "", ""}, "MLDReconfig"}}},
     {.u = {.args = {2, {"", "", "", "", ""}, "WifiReset"}}},
     {.u = {.args = {2, {"", "", "", "", ""}, "UnassocSTAQuery.json"}}},
+    {.u = {.args = {2, {"", "", "", "", ""}, "BackhaulSteer.json"}}},
 	{.u = {.args = {0, {"", "", "", "", ""}, "max"}}},
 };
 
@@ -105,7 +106,8 @@ em_cmd_t em_cmd_cli_t::m_client_cmd_spec[] = {
     em_cmd_t(em_cmd_type_mld_reconfig, spec_params[27]),
     em_cmd_t(em_cmd_type_get_reset, spec_params[28]),
     em_cmd_t(em_cmd_type_unassoc_sta_query, spec_params[29]),
-    em_cmd_t(em_cmd_type_max, spec_params[30]),
+    em_cmd_t(em_cmd_type_backhaul_steer, spec_params[30]),
+    em_cmd_t(em_cmd_type_max, spec_params[31]),
 };
 
 int em_cmd_cli_t::get_edited_node(em_network_node_t *node, const char *header, char *buff)
@@ -469,7 +471,19 @@ int em_cmd_cli_t::execute(char *result)
                return -1;
            }
            break;
-	   
+
+        case em_cmd_type_backhaul_steer:
+            bevt->type = em_bus_event_type_backhaul_steer;
+            info = &bevt->u.subdoc;
+            strncpy(info->name, param->u.args.fixed_args, sizeof(info->name) - 1);
+            info->name[sizeof(info->name) - 1] = '\0';
+            if ((bevt->data_len = get_edited_node(m_cmd.m_param.net_node, "BackhaulSteering", info->buff)) < 0) {
+                printf("%s:%d: failed to get backhaul steer node\n", __func__, __LINE__);
+                return -1;
+            }
+            break;
+
+
         default:
             break;
     }

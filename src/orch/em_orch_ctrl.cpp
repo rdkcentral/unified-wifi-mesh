@@ -241,6 +241,12 @@ bool em_orch_ctrl_t::is_em_ready_for_orch_fini(em_cmd_t *pcmd, em_t *em)
             }
             break;
 
+        case em_cmd_type_backhaul_steer:
+            if (em->get_state() == em_state_ctrl_configured) {
+                return true;
+            }
+            break;
+
         case em_cmd_type_sta_disassoc:
             if (em->get_client_assoc_ctrl_req_tx_count() >= EM_MAX_CLIENT_ASSOC_CTRL_REQ_TX_THRESH) {
                 em->set_client_assoc_ctrl_req_tx_count(0);
@@ -306,6 +312,7 @@ bool em_orch_ctrl_t::is_em_ready_for_orch_exec(em_cmd_t *pcmd, em_t *em)
         case em_cmd_type_set_radio:
         case em_cmd_type_mld_reconfig:
         case em_cmd_type_start_dpp:
+        case em_cmd_type_backhaul_steer:
             return true;
 
         case em_cmd_type_em_config:
@@ -401,6 +408,12 @@ void em_orch_ctrl_t::pre_process_cancel(em_cmd_t *pcmd, em_t *em)
         case em_cmd_type_set_policy:
             em_printfout("Cancel received for Set Policy command, transitioning to configured state radio: %s",
                 util::mac_to_string(em->get_radio_interface_mac()).c_str());
+            em->set_state(em_state_ctrl_configured);
+            break;
+
+        case em_cmd_type_backhaul_steer:
+            // Timed out waiting for the agent's response; reset so the EM is not stuck.
+            em_printfout("Cancel received for Backhaul Steering command, transitioning to configured state");
             em->set_state(em_state_ctrl_configured);
             break;
 
@@ -696,6 +709,23 @@ unsigned int em_orch_ctrl_t::build_candidates(em_cmd_t *pcmd)
 
             case em_cmd_type_sta_steer:
                 if (em->find_sta(pcmd->m_param.u.steer_params.sta_mac, pcmd->m_param.u.steer_params.source) != NULL) {
+                    queue_push(pcmd->m_em_candidates, em);
+                    count++;
+                }
+                break;
+
+            case em_cmd_type_backhaul_steer:
+                /**
+                 * Send to the first radio level em_t that belongs to the target agent.
+                 * AL interface em_t instances are skipped because remote agents are only
+                 * represented in the em_map via their radio em_t instances.
+                 * count == 0 ensures we enqueue exactly one candidate (all radios share
+                 * the same AL MAC and in AL-SAP mode routing is by AL MAC anyway).
+                 */
+                if (count == 0 &&
+                    em->is_al_interface_em() == false &&
+                    memcmp(em->get_data_model()->get_agent_al_interface_mac(),
+                           pcmd->m_param.u.backhaul_steer_params.al_mac, sizeof(mac_address_t)) == 0) {
                     queue_push(pcmd->m_em_candidates, em);
                     count++;
                 }

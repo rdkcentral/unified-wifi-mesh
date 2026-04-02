@@ -323,6 +323,10 @@ static const mac_address_t EM_GLOBAL_MAC_ADDRESS = {0xff, 0xff, 0xff, 0xff, 0xff
 #define WIFI_SET_DISCONN_SCAN_NONE_STATE      "Device.WiFi.EM.SetDisconnScanNoneState"
 #endif
 
+#ifndef WIFI_EM_BACKHAUL_STEER
+#define WIFI_EM_BACKHAUL_STEER                "Device.WiFi.EM.BackhaulSteer"
+#endif
+
 // Beacon CSA parsing
 #define CSA_TAG_ID                   37
 #define CSA_IE_MIN_LENGTH            3
@@ -846,6 +850,16 @@ typedef enum {
 
     em_tlv_type_max
 } em_tlv_type_t;
+
+// Error Code TLV Reason_Code values
+typedef enum {
+    em_error_code_sta_associated_with_bss           = 0x01,
+    em_error_code_sta_not_associated_with_bss       = 0x02,
+    em_error_code_client_cap_report_failure         = 0x03,
+    em_error_code_bh_steer_rejected_channel         = 0x04,
+    em_error_code_bh_steer_signal_weak_or_not_found = 0x05,
+    em_error_code_bh_steer_rejected_by_target_bss   = 0x06,
+} em_error_code_reason_t;
 
 typedef enum {
     em_tlv_type_radio_capability = 0x0013,
@@ -2273,6 +2287,7 @@ typedef enum {
     em_state_agent_client_cap_report,
     em_state_agent_sta_link_metrics_pending,
     em_state_agent_steer_btm_res_pending,
+    em_state_agent_bh_steer_pending,
     em_state_agent_beacon_report_pending,
     em_state_agent_link_quality_report_pending,
 
@@ -2307,7 +2322,9 @@ typedef enum {
     em_state_ctrl_avail_spectrum_inquiry_pending,
     em_state_ctrl_bsta_cap_pending,
     em_state_ctrl_topo_publish_pending,
-    em_state_ctrl_unassoc_sta_link_metrics_pending, 
+    em_state_ctrl_unassoc_sta_link_metrics_pending,
+    em_state_ctrl_bh_steer_pending,
+    em_state_ctrl_bh_steer_req_ack_rcvd,
 
     em_state_max,
 } em_state_t;
@@ -2362,6 +2379,7 @@ typedef enum {
     em_cmd_type_get_link_quality_report,
     em_cmd_type_unassoc_sta_query,
     em_cmd_type_unassoc_sta_result,
+    em_cmd_type_backhaul_steer,
 
     em_cmd_type_max,
 } em_cmd_type_t;
@@ -3063,6 +3081,7 @@ typedef enum {
     em_bus_event_type_unassoc_sta_query,
     em_bus_event_type_unassoc_sta_link_metrics_query,
     em_bus_event_type_unassoc_sta_result,
+    em_bus_event_type_backhaul_steer,
 
     em_bus_event_type_max
 } em_bus_event_type_t;
@@ -3155,7 +3174,7 @@ typedef enum {
     dm_orch_type_link_quality_report,
     dm_orch_type_unassoc_sta_link_req_query,
     dm_orch_type_unassoc_sta_result,
-    
+    dm_orch_type_backhaul_steer
 } dm_orch_type_t;
 
 typedef struct {
@@ -3273,6 +3292,14 @@ typedef struct {
 } em_cmd_steer_params_t;
 
 typedef struct {
+    mac_address_t al_mac;
+    mac_address_t sta_mac;
+    bssid_t       target_bssid;
+    unsigned int  op_class;
+    unsigned int  channel;
+} em_cmd_backhaul_steer_params_t;
+
+typedef struct {
     bssid_t	source;
     mac_address_t	sta_mac;
     unsigned char status_code;
@@ -3340,6 +3367,7 @@ typedef struct {
     union {
         em_cmd_args_t	args;
         em_cmd_steer_params_t	steer_params;
+        em_cmd_backhaul_steer_params_t backhaul_steer_params;
         em_cmd_btm_report_params_t  btm_report_params;
         em_cmd_disassoc_params_t	disassoc_params;
 		em_cmd_scan_params_t	scan_params;

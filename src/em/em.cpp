@@ -215,6 +215,14 @@ void em_t::orch_execute(em_cmd_t *pcmd)
             m_sm.set_state(em_state_ctrl_sta_steer_pending);
             break;
 
+        case em_cmd_type_backhaul_steer:
+            if (m_service_type == em_service_type_agent) {
+                m_sm.set_state(em_state_agent_bh_steer_pending);
+            } else {
+                m_sm.set_state(em_state_ctrl_bh_steer_pending);
+            }
+            break;
+
         case em_cmd_type_btm_report:
             m_sm.set_state(em_state_agent_steer_btm_res_pending);
             break;
@@ -357,7 +365,8 @@ void em_t::proto_process(unsigned char *data, unsigned int len)
         case em_msg_type_1905_ack:
             if (m_sm.get_state() == em_state_ctrl_ap_mld_configured) {
                 em_configuration_t::process_msg(data, len);
-            } else if (m_sm.get_state() == em_state_ctrl_sta_steer_pending) {
+            } else if (m_sm.get_state() == em_state_ctrl_sta_steer_pending ||
+                       m_sm.get_state() == em_state_ctrl_bh_steer_pending) {
                 em_steering_t::process_msg(data, len);
             } else if (m_sm.get_state() == em_state_ctrl_unassoc_sta_link_metrics_pending) {
                 em_metrics_t::process_msg(data, len);		    
@@ -375,6 +384,11 @@ void em_t::proto_process(unsigned char *data, unsigned int len)
         case em_msg_type_bh_sta_cap_rprt:
             em_printfout("  proto_process, type rcvd: %d", htons(cmdu->type));
             em_capability_t::process_msg(data, len);
+            break;
+
+        case em_msg_type_bh_steering_req:
+        case em_msg_type_bh_steering_rsp:
+            em_steering_t::process_msg(data, len);
             break;
 
         default:
@@ -474,6 +488,12 @@ void em_t::handle_agent_state()
             }
             break;
 
+        case em_cmd_type_backhaul_steer:
+            if (m_sm.get_state() == em_state_agent_bh_steer_pending) {
+                em_steering_t::process_agent_state();
+            }
+            break;
+
 		case em_cmd_type_scan_result:
 			if (m_sm.get_state() == em_state_agent_channel_scan_result_pending) {
 				em_channel_t::process_state();
@@ -556,6 +576,10 @@ void em_t::handle_ctrl_state()
             break;
 
         case em_cmd_type_sta_disassoc:
+            em_steering_t::process_ctrl_state();
+            break;
+
+        case em_cmd_type_backhaul_steer:
             em_steering_t::process_ctrl_state();
             break;
 
@@ -2875,6 +2899,8 @@ const char *em_t::state_2_str(em_state_t state)
         EM_STATE_2S(em_state_ctrl_bsta_cap_pending)
         EM_STATE_2S(em_state_ctrl_topo_publish_pending)
 	EM_STATE_2S(em_state_ctrl_unassoc_sta_link_metrics_pending)
+        EM_STATE_2S(em_state_ctrl_bh_steer_pending)
+        EM_STATE_2S(em_state_ctrl_bh_steer_req_ack_rcvd)
         EM_STATE_2S(em_state_agent_unconfigured)
         EM_STATE_2S(em_state_agent_autoconfig_rsp_pending)
         EM_STATE_2S(em_state_agent_wsc_m2_pending)
@@ -2895,6 +2921,7 @@ const char *em_t::state_2_str(em_state_t state)
         EM_STATE_2S(em_state_agent_beacon_report_pending)
         EM_STATE_2S(em_state_agent_channel_select_configuration_pending)
 	EM_STATE_2S(em_state_agent_unassoc_sta_metrics_report_pending)
+        EM_STATE_2S(em_state_agent_bh_steer_pending)
         EM_STATE_2S(em_state_max)
         default: break;
     }

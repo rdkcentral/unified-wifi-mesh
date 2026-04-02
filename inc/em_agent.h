@@ -181,7 +181,7 @@ class em_agent_t : public em_mgr_t {
 	 * @note Ensure that the event structure is properly initialized before calling this function.
 	 */
 	void handle_btm_request_action_frame(em_bus_event_t *evt);
-    
+
 	/**!
 	 * @brief Handles the reception of WFA action frames.
 	 *
@@ -359,6 +359,16 @@ class em_agent_t : public em_mgr_t {
         * @retval Non-zero error code on failure.
         */
        static int unassoc_sta_link_metrics_cb(char *event_name, bus_data_prop_t  *data, void *userData);
+
+	/**!
+	 * @brief Handles a backhaul steering request from the controller.
+	 *
+	 * Forwards the steering parameters to OneWifi so the backhaul
+	 * STA can connect to the target BSSID.
+	 *
+	 * @param[in] evt Pointer to the bus event carrying em_bh_steering_req_t data.
+	 */
+	void handle_backhaul_steer(em_bus_event_t *evt);
 
 	/**
 	 * @brief Send an action frame

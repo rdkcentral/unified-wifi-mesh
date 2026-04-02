@@ -94,6 +94,7 @@ onewifi_em_agent_SOURCES =  \
      $(top_srcdir)/src/cmd/em_cmd_topo_sync.cpp \
      $(top_srcdir)/src/cmd/em_cmd_scan_result.cpp \
      $(top_srcdir)/src/cmd/em_cmd_btm_report.cpp \
+     $(top_srcdir)/src/cmd/em_cmd_backhaul_steer.cpp \
      $(top_srcdir)/src/cmd/em_cmd_mld_reconfig.cpp \
      $(top_srcdir)/src/cmd/em_cmd_get_mld_config.cpp \
      $(top_srcdir)/src/cmd/em_cmd_beacon_report.cpp \
