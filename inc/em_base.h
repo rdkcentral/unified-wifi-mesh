@@ -1100,8 +1100,8 @@ typedef struct {
 } __attribute__((__packed__)) em_assoc_wifi6_sta_sts_t;
 
 typedef struct {
-    mac_address_t client_mac_addr;
     unsigned char bssid[6];
+    mac_address_t client_mac_addr;
 } __attribute__((__packed__)) em_client_info_t;
 
 typedef struct {
