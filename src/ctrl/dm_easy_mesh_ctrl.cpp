@@ -43,6 +43,7 @@
 #include "em_cmd_dev_test.h"
 #include "em_cmd_remove_device.h"
 #include "em_cmd_set_ssid.h"
+#include "em_cmd_set_bh_cfg.h"
 #include "em_cmd_set_channel.h"
 #include "em_cmd_scan_channel.h"
 #include "em_cmd_set_radio.h"
@@ -152,7 +153,11 @@ bus_error_t em_ctrl_t::cmd_setssid(const char *event_name, const bus_data_prop_t
     // Add new JSON as child of root and update subdoc buffer.
     json = new_json;
     new_json = NULL;
-    cJSON_AddItemToObject(root, "wfa-dataelements:SetSSID", json);
+
+    // Determine if this is a backhaul SSID/passphrase change
+    bool is_backhaul_change = (HaulType[0] && strcmp(HaulType, "Backhaul") == 0);
+    const char *json_key = is_backhaul_change ? "wfa-dataelements:SetBhCfg" : "wfa-dataelements:SetSSID";
+    cJSON_AddItemToObject(root, json_key, json);
 
     ssid_list = cJSON_GetObjectItem(json, "NetworkSSIDList");
     if (!ssid_list || !cJSON_IsArray(ssid_list)) {
@@ -217,6 +222,7 @@ bus_error_t em_ctrl_t::cmd_setssid(const char *event_name, const bus_data_prop_t
                     if (output_params) *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
                     return bus_error_out_of_resources;
                 }
+
                 cJSON_ReplaceItemInObject(target, "SSID", ssid_item_new);
             }
             if (passphrase[0]) {
@@ -338,7 +344,8 @@ bus_error_t em_ctrl_t::cmd_setssid(const char *event_name, const bus_data_prop_t
     }
     */
 
-    em_ctrl->io_process(em_bus_event_type_set_ssid, subdoc->buff, json_len);
+    em_ctrl->io_process(is_backhaul_change ? em_bus_event_type_set_bh_cfg : em_bus_event_type_set_ssid,
+                         subdoc->buff, json_len);
     free(updated_json);
     cJSON_Delete(root);
 
@@ -1196,6 +1203,52 @@ int dm_easy_mesh_ctrl_t::analyze_set_ssid(em_bus_event_t *evt, em_cmd_t *pcmd[])
 
 
     return num;
+}
+
+// This function decodes the SetBhCfg subdoc and checks for changes.
+// The parsed data model is returned via dm_out for use by the caller.
+// Returns > 0 if a change is detected, EM_PARSE_ERR_NO_CHANGE if no change,
+// or a negative error code on failure.
+int dm_easy_mesh_ctrl_t::analyze_set_bh_cfg(em_bus_event_t *evt, dm_easy_mesh_t *dm_out)
+{
+    int ret;
+    em_subdoc_info_t *subdoc;
+	dm_easy_mesh_t *pdm;
+	dm_network_ssid_t *tgt, *src;
+	int i, j;
+	int bit_mask = 0;
+
+    subdoc = &evt->u.subdoc;
+	if ((ret = dm_out->decode_config(subdoc, "SetBhCfg")) < 0) {
+		return ret;
+	}
+
+	pdm = m_data_model_list.get_first_dm();
+	if (pdm == NULL) {
+		assert(pdm != NULL);
+		return EM_PARSE_ERR_CONFIG;
+	}
+
+	for (i = 0; i < EM_MAX_NET_SSIDS; i++) {
+		tgt = &dm_out->m_network_ssid[i];
+		for (j = 0; j < EM_MAX_NET_SSIDS; j++) {
+			src = &pdm->m_network_ssid[j];
+			if (*tgt == *src) {
+				em_printfout("Target[%d] matched with Source[%d]", i, j);
+				bit_mask |= (1 << i);
+				break;
+			}
+		}
+	}
+
+	if (bit_mask == (pow(2, EM_MAX_NET_SSIDS) - 1)) {
+		em_printfout("No change detected");
+		return EM_PARSE_ERR_NO_CHANGE;
+	}
+
+	em_printfout("Change detected in SetBhCfg");
+
+    return 1;
 }
 
 int dm_easy_mesh_ctrl_t::analyze_remove_device(em_bus_event_t *evt, em_cmd_t *pcmd[])

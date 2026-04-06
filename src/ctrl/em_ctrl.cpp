@@ -44,6 +44,8 @@
 #include "em_cmd_ctrl.h"
 #include "dm_easy_mesh.h"
 #include "em_orch_ctrl.h"
+#include "em_cmd_set_bh_cfg.h"
+#include "em_network_topo.h"
 #include "util.h"
 #include "wifi_util.h"
 
@@ -282,6 +284,85 @@ void em_ctrl_t::handle_set_ssid_list(em_bus_event_t *evt)
         m_ctrl_cmd->send_result(em_cmd_out_status_not_ready);
     } 
 
+}
+
+/**
+ * @brief Handles the em_bus_event_type_set_bh_cfg bus event.
+ *
+ * This function is called in two contexts:
+ *   1. Initial call from ioprocess: validates the backhaul SSID change,
+ *      checks all agents support M8 bSTA reconfiguration, then submits
+ *      the first command (leaf-layer candidates are built by backhaul_reconfig).
+ *   2. Re-trigger from send_bh_reconfig_event: multi-phase reconfig is active,
+ *      so validation is skipped and the next leaf layer is submitted directly.
+ *
+ * After each layer's command reaches fini (all radios configured), the
+ * orchestrator's handle_timeout sends a bus event for the next layer.
+ * This continues until the root (co-located agent) is processed.
+ */
+void em_ctrl_t::handle_set_bh_cfg(em_bus_event_t *evt)
+{
+    int ret;
+    dm_easy_mesh_t dm;
+
+    if (m_orch->is_cmd_type_in_progress(evt) == true) {
+        m_ctrl_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
+        return;
+    }
+
+    // Re-trigger from orchestrator (submit_command or handle_timeout): reconfig is
+    // already active, skip validation and just submit command for the next leaf layer.
+    // build_candidates + mark_bh_leaves_processed handle layer selection.
+    if (g_network_topology != NULL && g_network_topology->is_bh_reconfig_active()) {
+        em_printfout("SetBhCfg: re-trigger for next leaf layer");
+        em_cmd_t *cmd = new em_cmd_set_bh_cfg_t(evt->params, m_data_model);
+        m_orch->submit_command(cmd);
+        return;
+    }
+
+    // Bsta reconfiguration is supported only if all agents in the network have the M8_bSTA_Reconfiguration bit set in their AP Capability TLV.
+    // Check that all agents support bSTA reconfiguration before proceeding. If any agent does not support it, abort and return not_ready.
+    {
+        dm_easy_mesh_t *agent_dm = m_data_model.get_first_dm();
+        while (agent_dm != NULL) {
+            if (agent_dm->is_controller() == false &&
+                agent_dm->m_device.m_device_info.m8_bsta_reconfiguration == false) {
+                mac_addr_str_t agent_mac_str;
+                dm_easy_mesh_t::macbytes_to_string(agent_dm->m_device.m_device_info.intf.mac, agent_mac_str);
+                em_printfout("SetBhCfg: agent %s does not support M8 bSTA reconfiguration, aborting", agent_mac_str);
+                m_ctrl_cmd->send_result(em_cmd_out_status_not_ready);
+                return;
+            }
+            agent_dm = m_data_model.get_next_dm(agent_dm);
+        }
+    }
+
+    if ((ret = m_data_model.analyze_set_bh_cfg(evt, &dm)) <= 0) {
+        if (ret == EM_PARSE_ERR_NO_CHANGE) {
+        	m_ctrl_cmd->send_result(em_cmd_out_status_no_change);
+		} else {
+        	m_ctrl_cmd->send_result(em_cmd_out_status_invalid_input);
+		}
+        return;
+    }
+
+    // Activate multi-phase reconfig before first submit so that
+    // build_candidates uses is_bh_reconfig_leaf() and handle_timeout/submit_command
+    // can trigger subsequent layers via send_bh_reconfig_event.
+    if (g_network_topology != NULL) {
+        g_network_topology->reset_bh_reconfig();
+        g_network_topology->set_bh_reconfig_active(true);
+    }
+
+    em_cmd_t *cmd = new em_cmd_set_bh_cfg_t(evt->params, dm);
+    if (m_orch->submit_command(cmd)) {
+        m_ctrl_cmd->send_result(em_cmd_out_status_success);
+    } else {
+        if (g_network_topology != NULL) {
+            g_network_topology->set_bh_reconfig_active(false);
+        }
+        m_ctrl_cmd->send_result(em_cmd_out_status_not_ready);
+    }
 }
 
 void em_ctrl_t::handle_remove_device(em_bus_event_t *evt)
@@ -561,6 +642,10 @@ void em_ctrl_t::handle_bus_event(em_bus_event_t *evt)
 
         case em_bus_event_type_set_ssid:
             handle_set_ssid_list(evt);  
+            break;
+
+        case em_bus_event_type_set_bh_cfg:
+            handle_set_bh_cfg(evt);
             break;
 
         case em_bus_event_type_remove_device:

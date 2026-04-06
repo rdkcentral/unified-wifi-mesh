@@ -24,10 +24,12 @@
 #include <pthread.h>
 #include <cjson/cJSON.h>
 #include "em_network_topo.h"
+#include "em.h"
 #include "util.h"
 #include "dm_sta_list.h"
 #include "dm_easy_mesh_ctrl.h"
 #include "em_ctrl.h"
+#include "em_cmd_ctrl.h"
 
 extern em_network_topo_t *g_network_topology;
 
@@ -319,10 +321,170 @@ bool em_network_topo_t::remove(dm_easy_mesh_t *dm, em_network_topo_t **child_top
 	return false;
 }
 
+/**
+ * @brief Builds candidates for the next unprocessed leaf layer.
+ *
+ * Walks the topology tree recursively. A node becomes a candidate when:
+ *   1. It has not yet been processed (m_bh_processed == false)
+ *   2. All of its children are already processed (leaf nodes qualify immediately)
+ *
+ * Radios of eligible nodes are pushed into pcmd->m_em_candidates and the
+ * node is marked processed so the next call skips it.
+ */
+int em_network_topo_t::backhaul_reconfig(hash_map_t *em_map, em_cmd_t *pcmd)
+{
+	int count = 0;
+	mac_addr_str_t mac_str;
+
+	// Already processed — skip this subtree
+	if (m_bh_processed) {
+		return count;
+	}
+
+	// Recurse into children first
+	for (unsigned int i = 0; i < m_num_topologies; i++) {
+		count += m_topology[i]->backhaul_reconfig(em_map, pcmd);
+	}
+
+	// Check if all children are processed (leaves have 0 children, so this is true)
+	bool all_children_done = true;
+	for (unsigned int i = 0; i < m_num_topologies; i++) {
+		if (!m_topology[i]->m_bh_processed) {
+			all_children_done = false;
+			break;
+		}
+	}
+
+	// If children are not all done, they were just submitted — don't process this node yet
+	if (!all_children_done) {
+		return count;
+	}
+
+	if (m_data_model == NULL) {
+		m_bh_processed = true;
+		return count;
+	}
+
+	// This node is a current leaf (no unprocessed children) — build candidates
+	dm_easy_mesh_t::macbytes_to_string(m_data_model->get_device()->get_dev_interface_mac(), mac_str);
+	em_printfout("backhaul_reconfig: building candidates for device %s (children: %d)", mac_str, m_num_topologies);
+
+	for (unsigned int i = 0; i < m_data_model->get_num_radios(); i++) {
+		dm_easy_mesh_t::macbytes_to_string(
+			const_cast<unsigned char *>(m_data_model->get_radio_info(i)->id.ruid), mac_str);
+		em_t *em = static_cast<em_t *>(hash_map_get(em_map, mac_str));
+		if (em != NULL && em->is_al_interface_em() == false) {
+			queue_push(pcmd->m_em_candidates, em);
+			count++;
+			em_printfout("backhaul_reconfig: added radio %s as candidate", mac_str);
+		}
+	}
+
+	m_bh_processed = true;
+	return count;
+}
+
+/**
+ * @brief Checks whether the entire topology has been processed.
+ *
+ * Returns the processed state of the root node. Since processing propagates
+ * from leaves to root, a true return means every node has been handled.
+ */
+bool em_network_topo_t::is_bh_reconfig_complete()
+{
+	return m_bh_processed;
+}
+
+/**
+ * @brief Recursively resets m_bh_processed to false on this node and all children.
+ */
+void em_network_topo_t::reset_bh_reconfig()
+{
+	m_bh_processed = false;
+	for (unsigned int i = 0; i < m_num_topologies; i++) {
+		m_topology[i]->reset_bh_reconfig();
+	}
+}
+
+/**
+ * @brief Checks if this node is a current-layer leaf for backhaul reconfig.
+ *
+ * Returns true when the node is not yet processed and all children are
+ * already processed (leaf nodes with zero children always qualify).
+ */
+bool em_network_topo_t::is_bh_reconfig_leaf()
+{
+	// If this node is already configured, then it's not a leaf for the current reconfig phase
+	if (m_bh_processed) {
+		return false;
+	}
+	
+	// Check if all children are configured. If any child is not processed, then this node is not a leaf for the current reconfig phase.
+	for (unsigned int i = 0; i < m_num_topologies; i++) {
+		if (!m_topology[i]->m_bh_processed) {
+			return false;
+		}
+	}
+	return true;
+}
+
+/**
+ * @brief Marks all current-layer leaf nodes as processed.
+ *
+ * Recurses depth-first so that child leaves are checked before parents.
+ * A node is marked processed if it was not already processed and all of
+ * its children are now processed.
+ */
+void em_network_topo_t::mark_bh_leaves_processed()
+{
+	if (m_bh_processed) {
+		return;
+	}
+	for (unsigned int i = 0; i < m_num_topologies; i++) {
+		m_topology[i]->mark_bh_leaves_processed();
+	}
+	// After recursing, check if all children are now processed
+	bool all_children_done = true;
+	for (unsigned int i = 0; i < m_num_topologies; i++) {
+		if (!m_topology[i]->m_bh_processed) {
+			all_children_done = false;
+			break;
+		}
+	}
+	if (all_children_done) {
+		m_bh_processed = true;
+	}
+}
+
+/**
+ * @brief Sends an internal em_bus_event_type_set_bh_cfg bus event.
+ *
+ * This re-triggers handle_set_bh_cfg in em_ctrl, which detects
+ * m_bh_reconfig_active and submits a command for the next leaf layer.
+ */
+void em_network_topo_t::send_bh_reconfig_event()
+{
+	em_printfout("backhaul_reconfig: triggering next phase for remaining nodes");
+
+	// Send an internal bus event to re-trigger handle_set_bh_cfg
+	em_ctrl_t *ctrl = em_ctrl_t::get_em_ctrl_instance();
+	em_cmd_ctrl_t *cmd_ctrl = ctrl->get_ctrl_cmd();
+
+	em_event_t ev;
+	memset(&ev, 0, sizeof(em_event_t));
+	ev.type = em_event_type_bus;
+	em_bus_event_t *bev = &ev.u.bevt;
+	bev->type = em_bus_event_type_set_bh_cfg;
+
+	cmd_ctrl->send_cmd(em_service_type_ctrl, reinterpret_cast<unsigned char *>(&ev), sizeof(em_event_t));
+}
+
 em_network_topo_t::em_network_topo_t(dm_easy_mesh_t *dm)
 {
 	m_num_topologies  = 0;
 	m_data_model = dm;
+	m_bh_processed = false;
+	m_bh_reconfig_active = false;
 	memset(m_topology, 0, sizeof(m_topology));
 }
 
@@ -330,6 +492,8 @@ em_network_topo_t::em_network_topo_t()
 {
 	m_data_model = NULL;
 	m_num_topologies  = 0;
+	m_bh_processed = false;
+	m_bh_reconfig_active = false;
 	memset(m_topology, 0, sizeof(m_topology));
 }
 

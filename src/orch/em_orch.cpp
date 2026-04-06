@@ -36,8 +36,11 @@
 #include "em_base.h"
 #include "em_cmd.h"
 #include "em_orch.h"
+#include "em_network_topo.h"
 #include "util.h"
 #define MAX_CMD_DEV_TEST 2
+
+extern em_network_topo_t *g_network_topology;
 
 unsigned int em_orch_t::submit_commands(em_cmd_t *pcmd[], unsigned int num)
 {
@@ -136,6 +139,21 @@ bool em_orch_t::submit_command(em_cmd_t *pcmd)
 
     // build em candidates in cmd;
     if (build_candidates(pcmd) == 0) {
+        // For set_bh_cfg: mark_bh_leaves_processed (called by build_candidates)
+        // already advanced the tree past nodes with no radios. If reconfig is
+        // active and not yet complete, send a bus event to pick the next layer.
+        if (pcmd->m_type == em_cmd_type_set_bh_cfg
+                && g_network_topology != NULL
+                && g_network_topology->is_bh_reconfig_active()) {
+            if (!g_network_topology->is_bh_reconfig_complete()) {
+                em_printfout("set_bh_cfg: no candidates at this layer, triggering next");
+                g_network_topology->send_bh_reconfig_event();
+            } else {
+                em_printfout("set_bh_cfg: all layers complete, deactivating reconfig");
+                g_network_topology->set_bh_reconfig_active(false);
+                g_network_topology->reset_bh_reconfig();
+            }
+        }
         // if there are no candidates, complete the command
         destroy_command(pcmd);
     } else {
@@ -497,9 +515,21 @@ void em_orch_t::handle_timeout()
         }
 
         if (ret == true) {
-            // means the command is in fini sate 
-            //printf("%s:%d: Removing and destroying Command type: %s Orchestration: %s because command is in fini state\n", 
-                   // __func__, __LINE__, pcmd->get_cmd_name(), em_cmd_t::get_orch_op_str(pcmd->get_orch_op()));
+            // means the command is in fini state
+
+            // For set_bh_cfg: after this layer's radios all reach configured,
+            // trigger the next layer via bus event, or finalize if all done.
+            bool bh_reconfig_next = false;
+            if (pcmd->m_type == em_cmd_type_set_bh_cfg && g_network_topology != NULL
+                    && g_network_topology->is_bh_reconfig_active()) {
+                if (!g_network_topology->is_bh_reconfig_complete()) {
+                    bh_reconfig_next = true;
+                } else {
+                    g_network_topology->set_bh_reconfig_active(false);
+                    g_network_topology->reset_bh_reconfig();
+                }
+            }
+
             queue_remove(m_active, static_cast<unsigned int>(i));
             pop_stats(pcmd);
             for (j = static_cast<int>(queue_count(pcmd->m_em_candidates)) - 1; j >= 0; j--) {
@@ -507,7 +537,12 @@ void em_orch_t::handle_timeout()
                 em->set_orch_state(em_orch_state_idle);
             }
             destroy_command(pcmd);
-            //em->set_state(em_state_agent_config_complete);
+
+            // Trigger next leaf agents after command is fully cleaned up
+            if (bh_reconfig_next) {
+                g_network_topology->send_bh_reconfig_event();
+            }
+
             break;
         }
 

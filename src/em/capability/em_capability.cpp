@@ -1157,6 +1157,9 @@ int em_capability_t::handle_ap_cap_report(unsigned char *buff, unsigned int len)
             radio_info->unassociated_sta_link_mterics_nonopclass_inclusion_policy = ap_cap->unassociated_client_link_metrics_non_op_channels;
             radio_info->unassociated_sta_link_mterics_opclass_inclusion_policy = ap_cap->unassociated_client_link_metrics_op_channels;
             radio_info->support_rcpi_steering = ap_cap->rcpi_steering;
+
+            // Store M8_bSTA_Reconfiguration capability at device level (Section 5.2.5)
+            dm->m_device.m_device_info.m8_bsta_reconfiguration = ap_cap->m8_bsta_reconfiguration ? true : false;
         } else if (tlv->type == em_tlv_type_ap_radio_basic_cap){
             em_printfout("Received AP Radio Basic Capability TLV");
             handle_ap_radio_basic_cap(tlv->value, htons(tlv->len));
