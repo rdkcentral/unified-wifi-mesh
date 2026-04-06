@@ -37,8 +37,7 @@
 | 13 | ensure agents gets connected with new backhaul ssid | After backhaul reconfiguration, ensure that agents are able to connect to the new backhaul SSID successfully using topology tree. | High | Implement testing and validation to confirm that agents can connect to the new backhaul SSID after reconfiguration. | Not implemented | Not Tested |
 | 14 | Topology tree update after backhaul reconfiguration | Ensure that the topology tree is updated correctly after backhaul reconfiguration to reflect the new network structure. | Medium | Implement logic to update the topology tree accurately in interval of time | Not implemented | Not Tested |
 | 15 | What if any agent doesn't connect with new backhaul SSID after reconfiguration | Implement a mechanism to handle cases where agents fail to connect to the new backhaul SSID after reconfiguration, including potential retries or fallback options. | High | Develop a system to detect failed connections to the new backhaul SSID and implement retry logic or fallback mechanisms to ensure network stability. | Not implemented | Not Tested |
-
-
+| 16 | ACL update after backhaul reconfiguration | Ensure that ACL APIs are called correctly after backhaul reconfiguration so that leaf agent connects back to parent. | HIGH | Implement logic to update ACLs after backhaul reconfiguration to ensure proper connectivity. | Not implemented | Not Tested |
 
 
 # Mixed Topology nodes diagram.

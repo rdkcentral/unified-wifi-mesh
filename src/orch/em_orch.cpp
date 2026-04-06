@@ -139,24 +139,18 @@ bool em_orch_t::submit_command(em_cmd_t *pcmd)
 
     // build em candidates in cmd;
     if (build_candidates(pcmd) == 0) {
-        // For set_bh_cfg: mark_bh_leaves_processed (called by build_candidates)
-        // already advanced the tree past nodes with no radios. If reconfig is
-        // active and not yet complete, send a bus event to pick the next layer.
-        if (pcmd->m_type == em_cmd_type_set_bh_cfg
-                && g_network_topology != NULL
-                && g_network_topology->is_bh_reconfig_active()) {
-            if (!g_network_topology->is_bh_reconfig_complete()) {
-                em_printfout("set_bh_cfg: no candidates at this layer, triggering next");
-                g_network_topology->send_bh_reconfig_event();
-            } else {
-                em_printfout("set_bh_cfg: all layers complete, deactivating reconfig");
-                g_network_topology->set_bh_reconfig_active(false);
-                g_network_topology->reset_bh_reconfig();
-            }
-        }
+        if(pcmd->get_type() == em_cmd_type_set_bh_cfg)
+        {
+            em_printfout("All candidates for set_bh_cfg command have been processed, completing command and resetting backhaul reconfig state.");
+            //No EM candidates for set_bh_cfg command, which means all candidate EMs have been reconfigured. 
+            //Reset backhaul reconfig flags for the entire topology.
+            g_network_topology->set_bh_reconfig_active(false);
+            g_network_topology->reset_bh_reconfig();
+        }   
         // if there are no candidates, complete the command
         destroy_command(pcmd);
     } else {
+        em_printfout("Submitting command %s with %d candidates\n", pcmd->get_cmd_name(), queue_count(pcmd->m_em_candidates));
         queue_push(m_pending, pcmd);
         push_stats(pcmd);
         submitted = true;
@@ -516,19 +510,15 @@ void em_orch_t::handle_timeout()
 
         if (ret == true) {
             // means the command is in fini state
-
-            // For set_bh_cfg: after this layer's radios all reach configured,
-            // trigger the next layer via bus event, or finalize if all done.
+            
             bool bh_reconfig_next = false;
-            if (pcmd->m_type == em_cmd_type_set_bh_cfg && g_network_topology != NULL
-                    && g_network_topology->is_bh_reconfig_active()) {
-                if (!g_network_topology->is_bh_reconfig_complete()) {
-                    bh_reconfig_next = true;
-                } else {
-                    g_network_topology->set_bh_reconfig_active(false);
-                    g_network_topology->reset_bh_reconfig();
-                }
-            }
+        
+        // If this is a set_bh_cfg command and backhaul reconfig is active, 
+        // check if we need to trigger the next layer of candidate agents or finalize the reconfig.
+        if (pcmd->m_type == em_cmd_type_set_bh_cfg) {
+            // For backhaul reconfig, always trigger the bus event to initiate reconfiguration of the EMs in next phase .
+            bh_reconfig_next = true;
+        }
 
             queue_remove(m_active, static_cast<unsigned int>(i));
             pop_stats(pcmd);
@@ -538,7 +528,7 @@ void em_orch_t::handle_timeout()
             }
             destroy_command(pcmd);
 
-            // Trigger next leaf agents after command is fully cleaned up
+            // For set_bh_cfg: trigger the next phase of agents by sending a bus event.
             if (bh_reconfig_next) {
                 g_network_topology->send_bh_reconfig_event();
             }

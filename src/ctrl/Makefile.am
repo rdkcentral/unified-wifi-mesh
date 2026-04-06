@@ -212,6 +212,7 @@ onewifi_em_ctrl_test_SOURCES = $(onewifi_em_ctrl_SOURCES) \
 	$(top_srcdir)/tests/test_l1_em_cmd_start_dpp.cpp \
 	$(top_srcdir)/tests/test_l1_em_cmd_topo_sync.cpp \
 	$(top_srcdir)/tests/test_l1_em_network_topo.cpp \
+	$(top_srcdir)/tests/test_l1_bh_reconfig.cpp \
 	$(top_srcdir)/tests/test_l1_em_cmd_bsta_cap.cpp \
 	$(top_srcdir)/tests/test_l1_em_cmd_onewifi_cb.cpp \
 	$(top_srcdir)/tests/test_l1_em_cmd_ap_cap.cpp \

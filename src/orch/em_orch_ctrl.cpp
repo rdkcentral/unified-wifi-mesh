@@ -158,8 +158,9 @@ void em_orch_ctrl_t::orch_transient(em_cmd_t *pcmd, em_t *em)
 
 bool em_orch_ctrl_t::is_em_ready_for_orch_fini(em_cmd_t *pcmd, em_t *em)
 {
-    // if the command is SetSSID and 5 renews have been sent transition to fini
+    
     switch (pcmd->m_type) {
+        // if the command is SetSSID and 5 renews have been sent transition to fini
         case em_cmd_type_set_ssid:
         case em_cmd_type_cfg_renew:
 		case em_cmd_type_set_radio:
@@ -171,7 +172,7 @@ bool em_orch_ctrl_t::is_em_ready_for_orch_fini(em_cmd_t *pcmd, em_t *em)
                 return true;
 			}
             break;
-
+   
         case em_cmd_type_set_bh_cfg:
             // For backhaul reconfig, leaf nodes must reach configured state
             // before proceeding to parent nodes, so wait beyond M2 sent.
@@ -551,14 +552,17 @@ unsigned int em_orch_ctrl_t::build_candidates(em_cmd_t *pcmd)
                 break;
 
             case em_cmd_type_set_bh_cfg:
-            //if it is a leaf / a branch all chidren has been configured   
+            em_printfout("Evaluating candidate for set_bh_cfg, em radio: %s, state: %s", util::mac_to_string(em->get_radio_interface_mac()).c_str(),
+                em_t::state_2_str(em->get_state()));
+            //if it is yet to be reconfigured and a leaf or a branch with all children already reconfigured.
                 if (em->is_al_interface_em() == false && g_network_topology != NULL) {
                     em_network_topo_t *topo = g_network_topology->find_topology(em->get_data_model());
-                    if (topo != NULL && topo->is_bh_reconfig_leaf()) {
+                    if (topo != NULL && topo->is_bh_reconfig_candidate()) {
                         dm_easy_mesh_t::macbytes_to_string(em->get_radio_interface_mac(), mac_str);
-                        em_printfout("set_bh_cfg: leaf radio %s pushed as candidate", mac_str);
+                        em_printfout("set_bh_cfg: radio %s pushed as candidate", mac_str);
                         queue_push(pcmd->m_em_candidates, em);
                         count++;
+                        topo->m_bh_processed = true;
                     }
                 }
                 break;
@@ -710,12 +714,6 @@ unsigned int em_orch_ctrl_t::build_candidates(em_cmd_t *pcmd)
                 break;
         }			
         em = static_cast<em_t *>(hash_map_get_next(m_mgr->m_em_map, em));
-    }
-
-    // After pushing all radios of current leaf agents, mark those agents as processed
-    // so the next phase skips them and picks the next set of leaf agents.
-    if (pcmd->m_type == em_cmd_type_set_bh_cfg && g_network_topology != NULL) {
-        g_network_topology->mark_bh_leaves_processed();
     }
 
 	pthread_mutex_unlock(&m_mgr->m_mutex);

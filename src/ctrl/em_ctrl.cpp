@@ -296,25 +296,24 @@ void em_ctrl_t::handle_set_ssid_list(em_bus_event_t *evt)
  *   2. Re-trigger from send_bh_reconfig_event: multi-phase reconfig is active,
  *      so validation is skipped and the next leaf layer is submitted directly.
  *
- * After each layer's command reaches fini (all radios configured), the
- * orchestrator's handle_timeout sends a bus event for the next layer.
- * This continues until the root (co-located agent) is processed.
+ * @param evt Pointer to the em_bus_event_t containing the event parameters.
  */
 void em_ctrl_t::handle_set_bh_cfg(em_bus_event_t *evt)
 {
+    em_printfout("Inside handle_set_bh_cfg Function");
     int ret;
     dm_easy_mesh_t dm;
 
     if (m_orch->is_cmd_type_in_progress(evt) == true) {
+        em_printfout("SetBhCfg: prev_cmd_in_progress");
         m_ctrl_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
         return;
     }
 
-    // Re-trigger from orchestrator (submit_command or handle_timeout): reconfig is
-    // already active, skip validation and just submit command for the next leaf layer.
-    // build_candidates + mark_bh_leaves_processed handle layer selection.
+    // Re-trigger from orchestrator handle_timeout: reconfig is
+    // already active, just submit command for the next phase EMs..
     if (g_network_topology != NULL && g_network_topology->is_bh_reconfig_active()) {
-        em_printfout("SetBhCfg: re-trigger for next leaf layer");
+        em_printfout("SetBhCfg: re-trigger for next phase of reconfiguration.");
         em_cmd_t *cmd = new em_cmd_set_bh_cfg_t(evt->params, m_data_model);
         m_orch->submit_command(cmd);
         return;
@@ -323,6 +322,7 @@ void em_ctrl_t::handle_set_bh_cfg(em_bus_event_t *evt)
     // Bsta reconfiguration is supported only if all agents in the network have the M8_bSTA_Reconfiguration bit set in their AP Capability TLV.
     // Check that all agents support bSTA reconfiguration before proceeding. If any agent does not support it, abort and return not_ready.
     {
+        em_printfout("SetBhCfg: checking all agents support bSTA reconfiguration");
         dm_easy_mesh_t *agent_dm = m_data_model.get_first_dm();
         while (agent_dm != NULL) {
             if (agent_dm->is_controller() == false &&
@@ -335,6 +335,7 @@ void em_ctrl_t::handle_set_bh_cfg(em_bus_event_t *evt)
             }
             agent_dm = m_data_model.get_next_dm(agent_dm);
         }
+        em_printfout("SetBhCfg: all agents support bSTA reconfiguration");
     }
 
     if ((ret = m_data_model.analyze_set_bh_cfg(evt, &dm)) <= 0) {
@@ -347,20 +348,18 @@ void em_ctrl_t::handle_set_bh_cfg(em_bus_event_t *evt)
     }
 
     // Activate multi-phase reconfig before first submit so that
-    // build_candidates uses is_bh_reconfig_leaf() and handle_timeout/submit_command
-    // can trigger subsequent layers via send_bh_reconfig_event.
+    // build_candidates uses is_bh_reconfig_candidates() and handle_timeout
+    // can trigger subsequent parent candidates via send_bh_reconfig_event.
     if (g_network_topology != NULL) {
         g_network_topology->reset_bh_reconfig();
         g_network_topology->set_bh_reconfig_active(true);
     }
 
     em_cmd_t *cmd = new em_cmd_set_bh_cfg_t(evt->params, dm);
+    em_printfout("SetBhCfg: submitting first command for backhaul reconfig");
     if (m_orch->submit_command(cmd)) {
         m_ctrl_cmd->send_result(em_cmd_out_status_success);
     } else {
-        if (g_network_topology != NULL) {
-            g_network_topology->set_bh_reconfig_active(false);
-        }
         m_ctrl_cmd->send_result(em_cmd_out_status_not_ready);
     }
 }
@@ -645,6 +644,7 @@ void em_ctrl_t::handle_bus_event(em_bus_event_t *evt)
             break;
 
         case em_bus_event_type_set_bh_cfg:
+        em_printfout("Received SetBhCfg event, calling handle_set_bh_cfg function");
             handle_set_bh_cfg(evt);
             break;
 
