@@ -88,7 +88,7 @@ void em_t::orch_execute(em_cmd_t *pcmd)
     m_orch_state = em_orch_state_progress;
 
     dm_easy_mesh_t::macbytes_to_string(get_radio_interface_mac(), mac_str);
-	//printf("%s:%d: Radio: %s State: 0x%04x\n", __func__, __LINE__, mac_str, get_state());
+	em_printfout("%s:%d: Radio: %s State: %s\n", __func__, __LINE__, mac_str, em_t::state_2_str(get_state()));
 
     // now set the em state to start message exchages with peer
     cmd_type = pcmd->m_type;
@@ -239,10 +239,6 @@ void em_t::orch_execute(em_cmd_t *pcmd)
             m_sm.set_state(em_state_agent_beacon_report_pending);
             break;
 
-        case em_cmd_type_ap_metrics_report:
-            m_sm.set_state(em_state_agent_ap_metrics_pending);
-            break;
-
         case em_cmd_type_bsta_cap:
             m_sm.set_state(em_state_ctrl_bsta_cap_pending);
             break;
@@ -364,6 +360,25 @@ void em_t::proto_process(unsigned char *data, unsigned int len)
     free(data);
 }
 
+void em_t::proto_process(em_cmd_event_t *cevt)
+{
+    switch (cevt->type) {
+        case em_cmd_event_type_ap_metrics_report:
+        {
+            em_cmd_t *saved_cmd = m_cmd;
+            em_cmd_t *ap_cmd = static_cast<em_cmd_t*>(cevt->cmd_ptr);
+            m_cmd = ap_cmd;
+            em_metrics_t::process_agent_state(em_cmd_event_type_ap_metrics_report);
+            delete ap_cmd;
+            m_cmd = saved_cmd;
+            break;
+        }
+        default:
+            em_printfout("unhandled cmd type %d", cevt->type);
+            break;
+    }
+}
+
 void em_t::handle_agent_state()
 {
     em_cmd_type_t cmd_type;
@@ -425,12 +440,6 @@ void em_t::handle_agent_state()
 
         case em_cmd_type_beacon_report:
             if (m_sm.get_state() == em_state_agent_beacon_report_pending) {
-                em_metrics_t::process_agent_state();
-            }
-            break;
-
-        case em_cmd_type_ap_metrics_report:
-            if (m_sm.get_state() == em_state_agent_ap_metrics_pending) {
                 em_metrics_t::process_agent_state();
             }
             break;
@@ -561,8 +570,16 @@ void em_t::proto_run()
                     continue;
                 }
                 pthread_mutex_unlock(&m_iq.lock);
-                assert(evt->type == em_event_type_frame);
-                proto_process(evt->u.fevt.frame, evt->u.fevt.frame_len);
+                if (evt->type == em_event_type_frame) {
+                    proto_process(evt->u.fevt.frame, evt->u.fevt.frame_len);
+                } else if (evt->type == em_event_type_cmd){
+                    // em_cmd_event_t cevnt;
+                    // memcpy(&cevnt, &evt->u.cevt, sizeof(em_cmd_event_t));
+                    // proto_process(&cevnt);
+                    em_cmd_event_t cevnt;
+                    memcpy(&cevnt, &evt->u.cevt, sizeof(cevnt)); // safe copy
+                    proto_process(&cevnt); // pass pointer
+                }
                 free(evt);
                 pthread_mutex_lock(&m_iq.lock);
             }

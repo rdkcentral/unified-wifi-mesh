@@ -2065,7 +2065,6 @@ typedef enum {
     em_state_agent_sta_link_metrics_pending,
     em_state_agent_steer_btm_res_pending,
     em_state_agent_beacon_report_pending,
-    em_state_agent_ap_metrics_pending,
     em_state_agent_link_quality_report_pending,
 
     em_state_ctrl_unconfigured = 0x100,
@@ -2169,6 +2168,8 @@ typedef enum {
     em_event_type_node,
     em_event_type_bus,
     em_event_type_nb,
+    em_event_type_cmd,
+
     em_event_type_max
 } em_event_type_t;
 
@@ -3158,12 +3159,29 @@ typedef struct {
     } u;
 } __attribute__((__packed__)) em_nb_event_t;
 
+/*
+ * @brief Internal cmd event types dispatched directly to the EM thread, bypassing orchestration.
+ * Use this for periodic or one-shot events that require no state machine involvement.
+ */
+typedef enum {
+    em_cmd_event_type_ap_metrics_report,
+
+    em_cmd_event_type_max
+} em_cmd_event_type_t;
+
+typedef struct {
+    em_cmd_event_type_t type;
+    void *cmd_ptr; 
+} em_cmd_event_t;
+
 typedef struct {
     em_event_type_t     type;
     union {
         em_frame_event_t    fevt;
         em_bus_event_t      bevt;
         em_nb_event_t       nevt;
+        // internal cmd events
+        em_cmd_event_t      cevt;
     } u;    
 } __attribute__((__packed__)) em_event_t;
 

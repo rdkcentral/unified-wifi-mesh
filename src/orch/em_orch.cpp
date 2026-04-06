@@ -238,7 +238,7 @@ void em_orch_t::cancel_command(em_cmd_type_t type)
             for (j = static_cast<int>(queue_count(pcmd->m_em_candidates)) - 1; j >= 0; j--) {
                 em = static_cast<em_t *>(queue_peek(pcmd->m_em_candidates, static_cast<unsigned int>(j)));
                 dm_easy_mesh_t::macbytes_to_string(em->get_radio_interface_mac(), mac_str);
-                printf("%s:%d: Setting em:%s State set to cancel\n", __func__, __LINE__, mac_str);
+                em_printfout("Setting em:%s State set to cancel", mac_str);
                 pre_process_cancel(pcmd, em);
                 em->set_orch_state(em_orch_state_cancel);
             }
@@ -259,14 +259,14 @@ bool em_orch_t::orchestrate(em_cmd_t *pcmd, em_t *em)
     if (orch_state == em_orch_state_pending) {
         if (is_em_ready_for_orch_exec(pcmd, em) == true) {
             // ask em to execute the command
-            //printf("%s:%d: Start orchestartion:%s(%s), em state:%s\n", __func__, __LINE__, 
-					//em_cmd_t::get_orch_op_str(pcmd->get_orch_op()), em_cmd_t::get_cmd_type_str(pcmd->m_type), 
-					//em_t::state_2_str(em->get_state()));
+            // em_printfout("%s:%d: Start orchestartion:%s(%s), em state:%s\n", __func__, __LINE__, 
+			// 		em_cmd_t::get_orch_op_str(pcmd->get_orch_op()), em_cmd_t::get_cmd_type_str(pcmd->m_type), 
+			// 		em_t::state_2_str(em->get_state()));
             em->orch_execute(pcmd);
         } else {
-            //printf("%s:%d: skipping orchestration:%s(%s) because of incorrect state, state:%s\n", __func__, __LINE__, 
-					//em_cmd_t::get_orch_op_str(pcmd->get_orch_op()), em_cmd_t::get_cmd_type_str(pcmd->m_type), 
-					//em_t::state_2_str(em->get_state()));
+            // em_printfout("%s:%d: skipping orchestration:%s(%s) because of incorrect state, state:%s\n", __func__, __LINE__, 
+			// 		em_cmd_t::get_orch_op_str(pcmd->get_orch_op()), em_cmd_t::get_cmd_type_str(pcmd->m_type), 
+			// 		em_t::state_2_str(em->get_state()));
             update_stats(pcmd);
             orch_transient(pcmd, em);
         }
@@ -280,7 +280,7 @@ bool em_orch_t::orchestrate(em_cmd_t *pcmd, em_t *em)
         }
 
     } else if (orch_state == em_orch_state_fini) {
-        //printf("%s:%d: em:%s Detected in fini state\n", __func__, __LINE__, mac_str);
+        // em_printfout("em:%s Detected in fini state", mac_str);
         done = true;
     }
 
@@ -433,8 +433,7 @@ bool em_orch_t::is_cmd_type_in_progress(em_bus_event_t *evt)
 
     snprintf(key, sizeof(em_short_string_t), "%d", type);
 
-    if ((type == em_cmd_type_cfg_renew ) ||
-        (type == em_cmd_type_ap_metrics_report)) {
+    if ((type == em_cmd_type_cfg_renew )) {
         return is_cmd_in_progress_by_radio(evt);
     } else if ((type == em_cmd_type_em_config) ||
                (type == em_cmd_type_set_policy)) {

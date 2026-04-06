@@ -62,7 +62,7 @@ void em_orch_agent_t::orch_transient(em_cmd_t *pcmd, em_t *em)
     }
 
     if (stats->time > EM_MAX_CMD_GEN_TTL) {
-        printf("%s:%d: Canceling comd: %s because time limit exceeded\n", __func__, __LINE__, pcmd->get_cmd_name());
+        em_printfout("Canceling cmd: %s because time limit exceeded\n", pcmd->get_cmd_name());
         cancel_command(pcmd->get_type());
     	if (em->get_state() < em_state_agent_topo_synchronized) {
 	    	em->set_state(em_state_agent_unconfigured);
@@ -133,7 +133,6 @@ bool em_orch_agent_t::is_em_ready_for_orch_fini(em_cmd_t *pcmd, em_t *em)
             }
             break;
 
-        case em_cmd_type_ap_metrics_report:
         case em_cmd_type_get_link_quality_report:
             if (em->get_state() == em_state_agent_configured) {
                 return true;
@@ -186,11 +185,6 @@ bool em_orch_agent_t::is_em_ready_for_orch_exec(em_cmd_t *pcmd, em_t *em)
 	} else if (pcmd->m_type == em_cmd_type_beacon_report) {
         if ((em->get_state() == em_state_agent_configured) ||
             ((em->get_state() == em_state_agent_beacon_report_pending))) {
-            return true;
-        }
-    } else if (pcmd->m_type == em_cmd_type_ap_metrics_report) {
-        if ((em->get_state() == em_state_agent_configured) ||
-            ((em->get_state() == em_state_agent_ap_metrics_pending))) {
             return true;
         }
     } else if (pcmd->m_type == em_cmd_type_get_link_quality_report) {
@@ -420,7 +414,7 @@ unsigned int em_orch_agent_t::build_candidates(em_cmd_t *pcmd)
 				if (!(em->is_al_interface_em())) {
                     if (memcmp(pcmd->get_data_model()->get_bss(0)->get_bss_info()->ruid.mac, em->get_radio_interface_mac(), sizeof(mac_address_t)) == 0) {
                         if (em->get_state() == em_state_agent_owconfig_pending) {
-                        	printf("em candidates created for em_cmd_type_onewifi_cb\n");
+                            em_printfout("em candidates created for em_cmd_type_onewifi_cb");
                         	queue_push(pcmd->m_em_candidates, em);
                         	count++;
 						}
@@ -483,14 +477,6 @@ unsigned int em_orch_agent_t::build_candidates(em_cmd_t *pcmd)
                 if (sta != NULL) {
                     queue_push(pcmd->m_em_candidates, em);
                     printf("%s:%d Beacon report build candidate pushed\n", __func__, __LINE__);
-                    count++;
-                }
-                break;
-
-            case em_cmd_type_ap_metrics_report:
-                if (memcmp(pcmd->m_param.u.ap_metrics_params.ruid,
-                    em->get_radio_interface_mac(), sizeof(mac_address_t)) == 0) {
-                    queue_push(pcmd->m_em_candidates, em);
                     count++;
                 }
                 break;
