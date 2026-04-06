@@ -295,6 +295,11 @@ em_tlv_t *em_msg_t::get_first_tlv(em_tlv_t* tlvs_buff, unsigned int buff_len)
         return NULL;
     }
 
+    if (buff_len < sizeof(em_tlv_t)) {
+        em_printfout("Truncated packet: TLV header requires 3 bytes, received buff_len=%u", buff_len);
+        return NULL;
+    }
+
     em_tlv_t *tlv = tlvs_buff;
     uint16_t tlv_len = ntohs(tlv->len);
 
