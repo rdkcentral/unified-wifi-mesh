@@ -5074,6 +5074,12 @@ int em_configuration_t::handle_autoconfig_wsc_m1(unsigned char *buff, unsigned i
         printf("%s:%d: autoconfig wsc m2 send failed, error:%d\n", __func__, __LINE__, errno);
         return -1;
     }
+
+    em_printfout("%s:%d: Removing previous em_config command for radio " MACSTRFMT "\n", __func__, __LINE__, MAC2STR(get_radio_interface_mac()));
+    if (em_orch_t *orch = get_mgr()->get_orch()) {
+	 orch->remove_em_config_cmd_for_em(get_radio_interface_mac());
+    }
+
 	set_state(em_state_ctrl_wsc_m2_sent);
 	printf("%s:%d: autoconfig wsc m2 send, len:%d\n", __func__, __LINE__, sz);
     memcpy(raw.al, const_cast<unsigned char *> (get_peer_mac()), sizeof(mac_address_t));
