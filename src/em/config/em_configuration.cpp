@@ -3907,12 +3907,72 @@ int em_configuration_t::handle_wsc_m1(unsigned char *buff, unsigned int len)
 
 }
 
+int em_configuration_t::handle_autoconfig_wsc_m8(unsigned char *buff, unsigned int len)
+{
+    em_tlv_t *tlv;
+    int tmp_len;
+    unsigned int wsc_tlv_count = 0;
+    char *errors[EM_MAX_TLV_MEMBERS] = {0};
+    dm_easy_mesh_t *dm;
+    dm_network_t network;
+    em_raw_hdr_t *hdr = reinterpret_cast<em_raw_hdr_t *>(buff);
+
+    if (em_msg_t(em_msg_type_autoconf_wsc, m_peer_profile, buff, len).validate(errors) == 0) {
+        em_printfout("received wsc m8 msg failed validation");
+        return -1;
+    }
+
+    tlv = reinterpret_cast<em_tlv_t *>(buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+    tmp_len = static_cast<int>(len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)));
+
+    while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
+        if (tlv->type == em_tlv_type_wsc) {
+            em_wsc_msg_type_t wsc_type = get_wsc_blob_msg_type(tlv->value, htons(tlv->len));
+
+            if (wsc_type == em_wsc_msg_type_m8) {
+                em_printfout("Found M8 WSC TLV for backhaul SSID reconfiguration");
+
+                set_e_mac(get_radio_interface_mac());
+                handle_wsc_m2(tlv->value, htons(tlv->len), wsc_tlv_count);
+
+                if (compute_keys(get_r_public(), static_cast<unsigned short>(get_r_public_len()),
+                        get_e_private(), static_cast<unsigned short>(get_e_private_len())) != 1) {
+                    em_printfout("M8: Keys computation failed");
+                    return -1;
+                }
+                wsc_tlv_count++;
+            }
+        }
+        tmp_len -= static_cast<int>(sizeof(em_tlv_t) + htons(tlv->len));
+        tlv = reinterpret_cast<em_tlv_t *>(reinterpret_cast<unsigned char *>(tlv) + sizeof(em_tlv_t) + htons(tlv->len));
+    }
+
+    if (wsc_tlv_count == 0) {
+        em_printfout("No M8 WSC TLVs found");
+        return -1;
+    }
+
+    em_printfout("M8 backhaul SSID reconfiguration: processing %d WSC TLV(s)", wsc_tlv_count);
+
+    if (handle_encrypted_settings(wsc_tlv_count) == -1) {
+        em_printfout("M8: Error decrypting settings, wsc_tlv_count:%d", wsc_tlv_count);
+        return -1;
+    }
+
+    dm = get_data_model();
+    if ((dm != NULL) && (hdr != NULL)) {
+        memcpy(&network.m_net_info.ctrl_id.mac, &hdr->src, sizeof(mac_address_t));
+        dm->set_network(network);
+    }
+
+    return 0;
+}
+
 int em_configuration_t::handle_autoconfig_wsc_m2(unsigned char *buff, unsigned int len)
 {
     em_tlv_t *tlv;
     int tmp_len;
     unsigned int wsc_tlv_count = 0;
-    bool m8_present = false;
     char *errors[EM_MAX_TLV_MEMBERS] = {0};
     unsigned char hash[SHA256_MAC_LEN];
     dm_easy_mesh_t *dm;
@@ -3921,10 +3981,26 @@ int em_configuration_t::handle_autoconfig_wsc_m2(unsigned char *buff, unsigned i
 
     if (em_msg_t(em_msg_type_autoconf_wsc, m_peer_profile, buff, len).validate(errors) == 0) {
         printf("%s:%d: received wsc m2 msg failed validation\n", __func__, __LINE__);
-
         return -1;
     }
-   
+
+    // Check if any WSC TLV contains an M8 message; if so, delegate to the M8 handler
+    tlv = reinterpret_cast<em_tlv_t *>(buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+    tmp_len = static_cast<int>(len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)));
+
+    while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
+        if (tlv->type == em_tlv_type_wsc) {
+            em_wsc_msg_type_t wsc_type = get_wsc_blob_msg_type(tlv->value, htons(tlv->len));
+            if (wsc_type == em_wsc_msg_type_m8) {
+                em_printfout("M8 WSC TLV detected, delegating to handle_autoconfig_wsc_m8");
+                return handle_autoconfig_wsc_m8(buff, len);
+            }
+        }
+        tmp_len -= static_cast<int>(sizeof(em_tlv_t) + htons(tlv->len));
+        tlv = reinterpret_cast<em_tlv_t *>(reinterpret_cast<unsigned char *>(tlv) + sizeof(em_tlv_t) + htons(tlv->len));
+    }
+
+    // M2-only path
     tlv =  reinterpret_cast<em_tlv_t *> (buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
     tmp_len = static_cast<int> (len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)));
 
@@ -3933,49 +4009,28 @@ int em_configuration_t::handle_autoconfig_wsc_m2(unsigned char *buff, unsigned i
             em_printfout("Found AP MLD details in message");
             handle_ap_mld_config_tlv(tlv->value, htons(tlv->len));
         } else if (tlv->type == em_tlv_type_wsc) {
-            // Determine if this WSC TLV is M2 or M8
-            em_wsc_msg_type_t wsc_type = get_wsc_blob_msg_type(tlv->value, htons(tlv->len));
+            em_printfout("Handle wsc M2 TLV, count: %d", wsc_tlv_count);
+            set_e_mac(get_radio_interface_mac());
+            handle_wsc_m2(tlv->value, htons(tlv->len), wsc_tlv_count);
 
-            if (wsc_type == em_wsc_msg_type_m8) {
-                // M8 WSC TLV — backhaul SSID reconfiguration
-                em_printfout("Found M8 WSC TLV for backhaul SSID reconfiguration");
-                m8_present = true;
-
-                // Parse M8 the same way as M2 to extract encrypted settings
-                set_e_mac(get_radio_interface_mac());
-                handle_wsc_m2(tlv->value, htons(tlv->len), wsc_tlv_count);
-
-                if (compute_keys(get_r_public(), static_cast<short unsigned int>(get_r_public_len()),
-                        get_e_private(), static_cast<short unsigned int>(get_e_private_len())) != 1) {
-                    em_printfout("M8: Keys computation failed");
-                    return -1;
-                }
-                wsc_tlv_count++;
-            } else {
-                // M2 WSC TLV — normal configuration
-                em_printfout("Handle wsc M2 TLV, count: %d", wsc_tlv_count);
-                set_e_mac(get_radio_interface_mac());
-                handle_wsc_m2(tlv->value, htons(tlv->len), wsc_tlv_count);
-
-                // first compute keys
-                if (compute_keys(get_r_public(), static_cast<short unsigned int> (get_r_public_len()), get_e_private(), static_cast<short unsigned int> (get_e_private_len())) != 1) {
-                    printf("%s:%d: Keys computation failed\n", __func__, __LINE__);
-                    return -1;
-                }
-
-                if (create_authenticator(hash) == -1) {
-                    printf("%s:%d: Authenticator create failed\n", __func__, __LINE__);
-                    return -1;
-                } else {
-                    printf("%s:%d: Authenticator verification succeeded\n", __func__, __LINE__);
-                }
-
-                if (memcmp(m_m2_authenticator[wsc_tlv_count], hash, AUTHENTICATOR_LEN) != 0) {
-                    printf("%s:%d: Authenticator validation failed\n", __func__, __LINE__);
-                    //return -1;
-                }
-                wsc_tlv_count++;
+            // first compute keys
+            if (compute_keys(get_r_public(), static_cast<short unsigned int> (get_r_public_len()), get_e_private(), static_cast<short unsigned int> (get_e_private_len())) != 1) {
+                printf("%s:%d: Keys computation failed\n", __func__, __LINE__);
+                return -1;
             }
+
+            if (create_authenticator(hash) == -1) {
+                printf("%s:%d: Authenticator create failed\n", __func__, __LINE__);
+                return -1;
+            } else {
+                printf("%s:%d: Authenticator verification succeeded\n", __func__, __LINE__);
+            }
+
+            if (memcmp(m_m2_authenticator[wsc_tlv_count], hash, AUTHENTICATOR_LEN) != 0) {
+                printf("%s:%d: Authenticator validation failed\n", __func__, __LINE__);
+                //return -1;
+            }
+            wsc_tlv_count++;
         }
         tmp_len -= static_cast<int> (sizeof(em_tlv_t) + htons(tlv->len));
         tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
@@ -3984,10 +4039,6 @@ int em_configuration_t::handle_autoconfig_wsc_m2(unsigned char *buff, unsigned i
     if (wsc_tlv_count == 0) {
         em_printfout("Could not find wsc, failing message");
         return -1;
-    }
-
-    if (m8_present) {
-        em_printfout("M8 detected: backhaul SSID reconfiguration in progress, wsc_tlv_count: %d", wsc_tlv_count);
     }
 
     if (handle_encrypted_settings(wsc_tlv_count) == -1) {

@@ -689,7 +689,16 @@ class em_configuration_t {
 	 * @note Ensure the buffer is properly allocated and the length is correct before calling this function.
 	 */
 	int handle_autoconfig_wsc_m2(unsigned char *buff, unsigned int len);
-    
+
+	/**!
+	 * @brief Handles M8 WSC TLVs for backhaul SSID reconfiguration.
+	 *
+	 * @param[in] buff Pointer to the buffer containing the autoconfig WSC message.
+	 * @param[in] len Length of the buffer.
+	 * @returns 0 on success, -1 on failure.
+	 */
+	int handle_autoconfig_wsc_m8(unsigned char *buff, unsigned int len);
+
 	/**!
 	 * @brief Handles the WSC M1 message.
 	 *

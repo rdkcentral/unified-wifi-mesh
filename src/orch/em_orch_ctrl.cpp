@@ -562,7 +562,6 @@ unsigned int em_orch_ctrl_t::build_candidates(em_cmd_t *pcmd)
                         em_printfout("set_bh_cfg: radio %s pushed as candidate", mac_str);
                         queue_push(pcmd->m_em_candidates, em);
                         count++;
-                        topo->m_bh_processed = true;
                     }
                 }
                 break;

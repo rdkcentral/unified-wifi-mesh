@@ -168,6 +168,13 @@ public:
 	void set_bh_reconfig_active(bool active) { m_bh_reconfig_active = active; }
 
 	/**!
+	 * @brief Marks this node as processed for backhaul reconfig.
+	 *
+	 * @param[in] processed true to mark as processed, false to clear.
+	 */
+	void set_bh_processed(bool processed) { m_bh_processed = processed; }
+
+	/**!
 	 * @brief Sends an internal em_bus_event_type_set_bh_cfg bus event.
 	 *
 	 * Used after a leaf layer completes to re-trigger handle_set_bh_cfg so
@@ -191,7 +198,7 @@ public:
 	 *
 	 * @returns true if this node should contribute candidates in the current phase.
 	 */
-	bool is_bh_reconfig_leaf();
+	bool is_bh_reconfig_candidate();
 
 	/**!
 	 * @brief Marks all current-layer leaf nodes as processed.

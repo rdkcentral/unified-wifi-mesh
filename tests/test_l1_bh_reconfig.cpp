@@ -30,7 +30,7 @@
  *                   +-- DA4 (depth 1) -> DA5 (depth 2) -> DA6 (depth 3, leaf)
  *
  * Tests verify:
- *   - is_bh_reconfig_leaf() identifies correct nodes per phase
+ *   - is_bh_reconfig_candidate() identifies correct nodes per phase
  *   - mark_bh_leaves_processed() advances the tree phase by phase
  *   - is_bh_reconfig_complete() detects when all nodes are processed
  *   - reset_bh_reconfig() clears all processed flags
@@ -142,7 +142,7 @@ protected:
         };
         for (auto *dm : all_dms) {
             em_network_topo_t *node = find(dm);
-            if (node != NULL && node->is_bh_reconfig_leaf()) {
+            if (node != NULL && node->is_bh_reconfig_candidate()) {
                 leaves.push_back(dm);
             }
         }
@@ -189,11 +189,11 @@ TEST_F(BhReconfigMixedTopoTest, initial_leaves_are_correct)
     EXPECT_TRUE(leaves_contain(leaves, dm_da3))  << "DA3 should be a leaf";
     EXPECT_TRUE(leaves_contain(leaves, dm_da6))  << "DA6 should be a leaf";
 
-    EXPECT_FALSE(find(dm_root)->is_bh_reconfig_leaf()) << "Root should NOT be a leaf";
-    EXPECT_FALSE(find(dm_da1)->is_bh_reconfig_leaf())  << "DA1 should NOT be a leaf";
-    EXPECT_FALSE(find(dm_da2)->is_bh_reconfig_leaf())  << "DA2 should NOT be a leaf";
-    EXPECT_FALSE(find(dm_da4)->is_bh_reconfig_leaf())  << "DA4 should NOT be a leaf";
-    EXPECT_FALSE(find(dm_da5)->is_bh_reconfig_leaf())  << "DA5 should NOT be a leaf";
+    EXPECT_FALSE(find(dm_root)->is_bh_reconfig_candidate()) << "Root should NOT be a leaf";
+    EXPECT_FALSE(find(dm_da1)->is_bh_reconfig_candidate())  << "DA1 should NOT be a leaf";
+    EXPECT_FALSE(find(dm_da2)->is_bh_reconfig_candidate())  << "DA2 should NOT be a leaf";
+    EXPECT_FALSE(find(dm_da4)->is_bh_reconfig_candidate())  << "DA4 should NOT be a leaf";
+    EXPECT_FALSE(find(dm_da5)->is_bh_reconfig_candidate())  << "DA5 should NOT be a leaf";
 }
 
 /**
@@ -208,10 +208,10 @@ TEST_F(BhReconfigMixedTopoTest, phase1_mark_advances_to_depth2)
     EXPECT_TRUE(leaves_contain(leaves, dm_da2)) << "DA2 should now be a leaf";
     EXPECT_TRUE(leaves_contain(leaves, dm_da5)) << "DA5 should now be a leaf";
 
-    EXPECT_FALSE(find(dm_sa1)->is_bh_reconfig_leaf());
-    EXPECT_FALSE(find(dm_sa2)->is_bh_reconfig_leaf());
-    EXPECT_FALSE(find(dm_da3)->is_bh_reconfig_leaf());
-    EXPECT_FALSE(find(dm_da6)->is_bh_reconfig_leaf());
+    EXPECT_FALSE(find(dm_sa1)->is_bh_reconfig_candidate());
+    EXPECT_FALSE(find(dm_sa2)->is_bh_reconfig_candidate());
+    EXPECT_FALSE(find(dm_da3)->is_bh_reconfig_candidate());
+    EXPECT_FALSE(find(dm_da6)->is_bh_reconfig_candidate());
     EXPECT_FALSE(topo_root->is_bh_reconfig_complete());
 }
 
@@ -228,7 +228,7 @@ TEST_F(BhReconfigMixedTopoTest, phase2_mark_advances_to_depth1)
     EXPECT_TRUE(leaves_contain(leaves, dm_da1)) << "DA1 should now be a leaf";
     EXPECT_TRUE(leaves_contain(leaves, dm_da4)) << "DA4 should now be a leaf";
 
-    EXPECT_FALSE(find(dm_root)->is_bh_reconfig_leaf());
+    EXPECT_FALSE(find(dm_root)->is_bh_reconfig_candidate());
     EXPECT_FALSE(topo_root->is_bh_reconfig_complete());
 }
 

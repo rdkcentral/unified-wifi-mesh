@@ -369,38 +369,6 @@ bool em_network_topo_t::is_bh_reconfig_candidate()
 }
 
 /**
- * @brief Marks all current-phase candidate nodes as processed.
- *
- * Recurses depth-first so that child candidates are checked before parents.
- * A node is marked processed if it was not already processed and all of
- * its children are now processed.
- */
-void em_network_topo_t::mark_bh_candidates_processed()
-{
-	// If this node is already configured, then it's not a candidate for the current reconfig phase
-	if (m_bh_processed) {
-		return;
-	}
-
-	// Recurse first to mark children processed, which may make this node a candidate if all children are now done
-	for (unsigned int i = 0; i < m_num_topologies; i++) {
-		m_topology[i]->mark_bh_candidates_processed();
-	}
-	
-	// After recursing, check if all children are now processed
-	bool all_children_done = true;
-	for (unsigned int i = 0; i < m_num_topologies; i++) {
-		if (!m_topology[i]->m_bh_processed) {
-			all_children_done = false;
-			break;
-		}
-	}
-	if (all_children_done) {
-		m_bh_processed = true;
-	}
-}
-
-/**
  * @brief Sends an internal em_bus_event_type_set_bh_cfg bus event.
  *
  * This re-triggers handle_set_bh_cfg in em_ctrl, which detects

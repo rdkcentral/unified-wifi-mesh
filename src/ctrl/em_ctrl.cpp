@@ -314,7 +314,7 @@ void em_ctrl_t::handle_set_bh_cfg(em_bus_event_t *evt)
     // already active, just submit command for the next phase EMs..
     if (g_network_topology != NULL && g_network_topology->is_bh_reconfig_active()) {
         em_printfout("SetBhCfg: re-trigger for next phase of reconfiguration.");
-        em_cmd_t *cmd = new em_cmd_set_bh_cfg_t(evt->params, m_data_model);
+        em_cmd_t *cmd = new em_cmd_set_bh_cfg_t(evt->params, dm);
         m_orch->submit_command(cmd);
         return;
     }
@@ -348,7 +348,7 @@ void em_ctrl_t::handle_set_bh_cfg(em_bus_event_t *evt)
     }
 
     // Activate multi-phase reconfig before first submit so that
-    // build_candidates uses is_bh_reconfig_candidates() and handle_timeout
+    // build_candidates uses is_bh_reconfig_candidate() and handle_timeout
     // can trigger subsequent parent candidates via send_bh_reconfig_event.
     if (g_network_topology != NULL) {
         g_network_topology->reset_bh_reconfig();
@@ -356,8 +356,13 @@ void em_ctrl_t::handle_set_bh_cfg(em_bus_event_t *evt)
     }
 
     em_cmd_t *cmd = new em_cmd_set_bh_cfg_t(evt->params, dm);
+    em_cmd_t *cmd_arr[1] = { cmd };
     em_printfout("SetBhCfg: submitting first command for backhaul reconfig");
-    if (m_orch->submit_command(cmd)) {
+    // submit_commands calls pre_process_orch_op which writes new config to DB
+    // (dm_orch_type_db_cfg). Reload net SSID table so M2/M8 use updated credentials.
+    unsigned int submitted = m_orch->submit_commands(cmd_arr, 1);
+    m_data_model.load_net_ssid_table();
+    if (submitted > 0) {
         m_ctrl_cmd->send_result(em_cmd_out_status_success);
     } else {
         m_ctrl_cmd->send_result(em_cmd_out_status_not_ready);
