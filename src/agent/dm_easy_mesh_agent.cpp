@@ -368,9 +368,9 @@ int dm_easy_mesh_agent_t::analyze_onewifi_radio_cb(em_bus_event_t *evt, em_cmd_t
 
     if ((webconfig_easymesh_decode(&config, reinterpret_cast<char *> (evt->u.raw_buff),
             &ext, &type)) == webconfig_error_none) {
-        printf("%s:%d Radio subdoc decode success\n",__func__, __LINE__);
+        em_printfout("Radio subdoc decode success");
     } else {
-        printf("%s:%d Radio subdoc decode fail\n",__func__, __LINE__);
+        em_printfout("Radio subdoc decode fail");
     }
 
 	dm_easy_mesh_t::macbytes_to_string(dm.get_radio(index)->get_radio_info()->intf.mac, mac_str);

@@ -106,6 +106,8 @@ class em_t :
 	 * @note Ensure that the data pointer is valid and the length is correct.
 	 */
 	void proto_process(unsigned char *data, unsigned int len);
+
+	void proto_process(em_cmd_event_t *cevt);
     
 	/**!
 	 * @brief Handles the protocol timeout event.

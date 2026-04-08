@@ -575,6 +575,7 @@ public:
 	 * @note This function does not take any parameters and does not return any value.
 	 */
 	void process_agent_state();
+	void process_agent_state(em_cmd_event_type_t type);
 
     
 	/**!

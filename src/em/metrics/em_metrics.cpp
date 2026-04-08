@@ -547,7 +547,6 @@ int em_metrics_t::handle_ap_metrics_response(unsigned char *buff, unsigned int l
     }
 
     dm->set_db_cfg_param(db_cfg_type_sta_metrics_update, "");
-    set_state(em_state_ctrl_configured);
 
     return 0;
 }
@@ -1156,7 +1155,6 @@ int em_metrics_t::send_ap_metrics_response()
         return -1;
     }
 
-    set_state(em_state_agent_configured);
     em_printfout("AP Metrics Response sent for %u BSSs, %d Radios", dm->m_num_bss, get_current_cmd()->get_param()->u.ap_metrics_params.num_radios);
 
     return static_cast<int> (len);
@@ -1678,12 +1676,20 @@ void em_metrics_t::process_agent_state()
             send_beacon_metrics_response();
             break;
 
-        case em_state_agent_ap_metrics_pending:
-            send_ap_metrics_response();
-            break;
-
         case em_state_agent_link_quality_report_pending:
             send_link_quality_report();
+            break;
+
+        default:
+            break;
+    }
+}
+
+void em_metrics_t::process_agent_state(em_cmd_event_type_t type)
+{
+    switch (type) {
+        case em_cmd_event_type_ap_metrics_report:
+            send_ap_metrics_response();
             break;
 
         default:
