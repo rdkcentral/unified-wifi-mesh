@@ -1,6 +1,6 @@
 # unified-wifi-mesh
 
-unified-wifi-mesh is the RDK-B component that implements the Wi-Fi EasyMesh (Multi-AP) specification, providing centralized management of a Wi-Fi mesh network across multiple access points. The component delivers two co-deployable daemons — `onewifi_em_ctrl` (the EasyMesh controller) and `onewifi_em_agent` (the EasyMesh agent) — that together orchestrate topology discovery, radio configuration, channel management, client steering, and secure device onboarding across all nodes in a mesh network. Communication between the controller and agent nodes is carried over IEEE 1905.1 CMDU frames, with the optional AL-SAP (`libalsap`) library bridging to a separate `ieee1905` daemon for frame relay on non-RDK platforms. On RDK platforms the component integrates with OneWifi via HE-BUS and exposes a TR-181-compliant northbound interface over R-BUS.
+unified-wifi-mesh is the RDK-B component that implements the Wi-Fi EasyMesh (Multi-AP) specification, providing centralized management of a Wi-Fi mesh network across multiple access points. The component delivers two co-deployable daemons — `onewifi_em_ctrl` (the EasyMesh controller) and `onewifi_em_agent` (the EasyMesh agent) — that together orchestrate topology discovery, radio configuration, channel management, client steering, and secure device onboarding across all nodes in a mesh network. Communication between the controller and agent nodes is carried over IEEE 1905.1 CMDU frames, with the AL-SAP (`libalsap`) library bridging to a separate `ieee1905` daemon for frame relay. The component integrates with OneWifi via R-BUS and exposes a TR-181-compliant northbound interface over R-BUS.
 
 At the device level, unified-wifi-mesh drives the automated provisioning of backhaul and fronthaul SSIDs across EasyMesh agents, reports network topology and radio metrics to higher-layer management systems, and executes policy-controlled client steering. At the module level, the component decomposes into a shared EM engine (`src/em`), platform-specific agent and controller adaptors, an EasyConnect (DPP) provisioning sub-library, a command orchestration framework, a data model manager, and a MariaDB persistence layer.
 
@@ -17,12 +17,12 @@ graph LR
         CTRL["EM Controller\nonewifi_em_ctrl"]
         AGENT["EM Agent\nonewifi_em_agent"]
         ALSAP["AL-SAP Library\nlibalsap"]
-        NETOPT["Network Optimiser\nonewifi_em_network_optimser"]
-    end
 
-    subgraph RDKB ["RDK-B / OneWifi Layer"]
+    end
+    
+     subgraph RDKB ["RDK-B / OneWifi Layer"]
         direction TB
-        ONEWIFI["OneWifi\n(webconfig / HE-BUS)"]
+        ONEWIFI["OneWifi\n(webconfig / HE-BUS / R-BUS)"]
         RBUS["R-BUS\n(TR-181 Northbound)"]
     end
 
@@ -38,8 +38,7 @@ graph LR
     CLI_USER -->|"Unix socket / SSL/TLS"| CTRL
     CLI_USER -->|"Unix socket"| AGENT
 
-    CTRL   <-->|"HE-BUS (webconfig subdoc)"| ONEWIFI
-    AGENT  <-->|"HE-BUS (webconfig subdoc)"| ONEWIFI
+    AGENT  <-->|"HE-BUS / R-BUS (webconfig subdoc)"| ONEWIFI
     CTRL   <-->|"R-BUS (TR-181 get/set)"| RBUS
     CTRL   <-->|"Unix socket (AL-SAP)"| ALSAP
     AGENT  <-->|"Unix socket (AL-SAP)"| ALSAP
@@ -48,14 +47,12 @@ graph LR
     ONEWIFI <-->|"HAL API"| WIFI_HAL
     AGENT  -->|"OpenSSL EVP / AES-SIV"| OPENSSL
     CTRL   -->|"OpenSSL EVP / AES-SIV"| OPENSSL
-    NETOPT -->|"R-BUS / HE-BUS"| RBUS
-
     classDef ext fill:#fff3e0,stroke:#ef6c00,stroke-width:2px;
     classDef mw fill:#e1f5fe,stroke:#0277bd,stroke-width:2px;
     classDef rdkb fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px;
     classDef sys fill:#e8f5e8,stroke:#2e7d32,stroke-width:2px;
     class RMGMT,CLI_USER ext;
-    class CTRL,AGENT,ALSAP,NETOPT mw;
+    class CTRL,AGENT,ALSAP mw;
     class ONEWIFI,RBUS rdkb;
     class IEEE1905,DB,WIFI_HAL,OPENSSL sys;
 ```
@@ -65,19 +62,19 @@ graph LR
 - **EasyMesh Controller (`onewifi_em_ctrl`)**: Manages the full Multi-AP network: drives topology discovery via IEEE 1905.1 CMDU messages, distributes radio and BSS configuration to agents, executes channel selection, collects AP and STA link metrics, and implements MAP policy configuration
 - **EasyMesh Agent (`onewifi_em_agent`)**: Runs on each access point node; handles all agent-side IEEE 1905.1 flows including autoconfiguration, capability reporting, channel preference/selection, client association tracking, BTM-based steering, and beacon/scan reports
 - **DPP / EasyConnect Onboarding**: Implements Wi-Fi EasyMesh DPP bootstrapping and provisioning flows (`ec_configurator`, `ec_enrollee`, `ec_manager`), including GAS and WFA action-frame exchange, AES-SIV encryption, and 1905-layer securing under the `ENABLE_COLOCATED_1905_SECURE` path
-- **AL-SAP Integration (`libalsap`)**: Optional IEEE 1905.1 Abstract Layer Service Access Point library that offloads raw CMDU frame relay to a co-running `ieee1905` daemon over Unix domain sockets; primary transport in non-RDK deployments
-- **TR-181 Data Model Interface**: Controller exposes a TR-181 Wi-Fi EasyMesh data model (`src/ctrl/tr_181`) over R-BUS, enabling data-model-driven configuration and topology queries via `Device.WiFi.*` objects
+- **AL-SAP Integration (`libalsap`)**: IEEE 1905.1 Abstract Layer Service Access Point library that offloads raw CMDU frame relay to a co-running `ieee1905` daemon over Unix domain sockets
+- **TR-181 Data Model Interface**: Controller exposes a TR-181 Wi-Fi EasyMesh data model (`src/ctrl/tr_181`) over R-BUS, enabling data-model-driven configuration and topology queries via `Network.Device.*` objects
 - **Network Optimiser (`onewifi_em_network_optimser`)**: Standalone optimisation process that consumes topology and metrics data to drive channel, band, and steering decisions via R-BUS/HE-BUS
 - **Data Model & Persistence**: Shared `dm_easy_mesh_t` hierarchy covering network, device, radio, BSS, STA, op-class, policy, scan result, CAC, AP-MLD, BSTA-MLD, and TID-to-link objects; controller-side state is persisted to MariaDB for recovery across restarts
 - **Command Orchestration Framework**: Type-safe command objects (`em_cmd_*`) submitted to an orchestrator (`em_orch_t`) that serialises and tracks multi-step protocol exchanges across concurrent EM radio threads
 
 ## Design
 
-unified-wifi-mesh is structured around a shared codebase that is compiled into both the controller and agent binaries. The shared modules include the EM engine (`src/em`), command orchestration framework (`src/cmd`), data model layer (`src/dm`), base orchestrator (`src/orch/em_orch.cpp`), utility and crypto libraries (`src/utils`, `src/util_crypto`), and the optional AL-SAP integration (`src/al-sap`). Each binary then registers only its role-specific handlers, command implementations, and orchestration logic through thin adaptor layers (`src/ctrl`, `src/agent`). This split ensures that common IEEE 1905.1 state-machine logic, CMDU message construction/parsing, and DPP cryptography are not duplicated while still permitting the two processes to run with entirely independent lifecycles and address spaces.
 
-The EM engine runs a select-based event loop over raw Ethernet sockets (one per AL or radio interface) alongside a dedicated input-listener thread that subscribes to HE-BUS events from OneWifi. Incoming IEEE 1905.1 frames are demultiplexed by message type in `em_mgr_t::find_em_for_msg_type()` and dispatched to the correct per-radio `em_t` instance. Bus events arriving from OneWifi are translated into typed `em_bus_event_t` structures and pushed into a shared queue processed by the main event loop. This two-thread model (network-listener + input-listener) decouples protocol frame handling from OneWifi configuration updates.
+unified-wifi-mesh is structured around a shared codebase that is compiled into both the controller and agent binaries. The shared modules include the EM engine (`src/em`), command orchestration framework (`src/cmd`), data model layer (`src/dm`), base orchestrator (`src/orch/em_orch.cpp`), utility and crypto libraries (`src/utils`, `src/util_crypto`), and the AL-SAP integration (`src/al-sap`). Each binary then registers only its role-specific handlers, command implementations, and orchestration logic through thin adaptor layers (`src/ctrl`, `src/agent`). This split ensures that common IEEE 1905.1 state-machine logic, CMDU message construction/parsing, and DPP cryptography are not duplicated while still permitting the two processes to run with entirely independent lifecycles and address spaces.
+The EM engine runs a select-based event loop over raw Ethernet sockets (one per AL or radio interface) alongside a dedicated input-listener thread that subscribes to HE-BUS and R-BUS events from OneWifi. Incoming IEEE 1905.1 frames are demultiplexed by message type in `em_mgr_t::find_em_for_msg_type()` and dispatched to the correct per-radio `em_t` instance. Bus events arriving from OneWifi are translated into typed `em_bus_event_t` structures and pushed into a shared queue processed by the main event loop. This two-thread model (network-listener + input-listener) decouples protocol frame handling from OneWifi configuration updates.
 
-The northbound interface is served over two transports depending on deployment: on RDK-B the controller registers TR-181 objects and responds to `bus_get_fn` / `bus_set_fn` calls over R-BUS; on non-RDK builds a CLI process connects over a TCP/SSL socket for interactive management. The southbound interface toward radio hardware is fully abstracted through OneWifi's HE-BUS webconfig protocol — the EM agent does not call Wi-Fi HAL APIs directly; instead it reads and writes webconfig subdocs (`private`, `radio`, `mesh_sta`, etc.) that OneWifi translates into HAL calls.
+The northbound interface is served over two transports depending on deployment: on RDK-B the controller registers TR-181 objects and responds to `bus_get_fn` / `bus_set_fn` calls over R-BUS; on non-RDK builds a CLI process connects over a TCP/SSL socket for interactive management. The southbound interface toward radio hardware is fully abstracted through OneWifi's HE-BUS and R-BUS webconfig protocol — the EM agent does not call Wi-Fi HAL APIs directly; instead it reads and writes webconfig subdocs (`private`, `radio`, `mesh_sta`, etc.) that OneWifi translates into HAL calls.
 
 The AL-SAP transport layer is conditionally compiled under `AL_SAP`. When enabled, the controller and agent obtain their AL-layer MAC address from the `ieee1905` daemon rather than from the webconfig DML data, and all IEEE 1905.1 CMDU frames are sent and received through the AL-SAP Unix-socket pair (`/tmp/al_em_ctrl_data_socket`, `/tmp/al_em_ctrl_control_socket` for the controller; `/tmp/al_data_socket`, `/tmp/al_control_socket` for the agent). When AL-SAP is not compiled in, the component sends frames directly over raw Ethernet sockets.
 
@@ -89,7 +86,7 @@ A Component diagram showing the component's internal structure and dependencies 
 graph LR
     subgraph EXT ["External Systems"]
         direction TB
-        ONEWIFI_EXT["OneWifi\n(HE-BUS / webconfig)"]
+        ONEWIFI_EXT["OneWifi\n(HE-BUS / R-BUS / webconfig)"]
         IEEE1905_EXT["ieee1905 daemon\n(IEEE 1905.1 frames)"]
         RBUS_EXT["R-BUS\n(TR-181)"]
         CLI_EXT["CLI / TUI\n(TCP/SSL)"]
@@ -113,8 +110,8 @@ graph LR
         OPENSSL_S["OpenSSL\n(AES-SIV / ECDH / DPP crypto)"]
     end
 
-    ONEWIFI_EXT  <-->|"HE-BUS bus_event_subs_fn / bus_set_fn"| AGENT_MOD
-    ONEWIFI_EXT  <-->|"HE-BUS bus_event_subs_fn / bus_set_fn"| CONTROLLER
+    ONEWIFI_EXT  <-->|"HE-BUS / R-BUS bus_event_subs_fn / bus_set_fn"| AGENT_MOD
+    ONEWIFI_EXT  <-->|"HE-BUS / R-BUS bus_event_subs_fn / bus_set_fn"| CONTROLLER
     IEEE1905_EXT <-->|"Unix socket (AL-SAP)"| ALSAP_MOD
     RBUS_EXT     <-->|"bus_open / get / set"| CONTROLLER
     CLI_EXT      <-->|"TCP/SSL em_cmd_exec"| CONTROLLER
@@ -139,35 +136,13 @@ graph LR
 
 ### Prerequisites and Dependencies
 
-**Build-Time Flags and Configuration:**
-
-The table below lists every compile-time flag found in the makefiles and source headers. No Yocto recipe or separate `.bbappend` exists within this repository; all flags are controlled through make variables passed at build time or are set unconditionally by the respective makefile.
-
-| Configure Option / Make Variable                                 | Distro Feature | Build Flag (macro)                                  | Purpose                                                                                                                                                                                                                                                                                                                                | Default                                                                                                                      |
-| ---------------------------------------------------------------- | -------------- | --------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| `EM_EXTENDER=true` (passed to `./configure`)                     | N/A            | `EM_EXTENDER` (autoconf conditional)                | Restricts the build to the agent-only (extender) mode: only `al-sap` and `agent` sub-directories are compiled; `ctrl`, `rdkb-cli`, and `network_optimiser` are excluded (`src/Makefile.am` `if EM_EXTENDER`)                                                                                                                           | `false` — full build (ctrl + agent + rdkb-cli + network_optimiser)                                                           |
-| `EM_UNITTEST=true` (passed to `./configure`)                     | N/A            | `EM_UNITTEST` (autoconf conditional)                | Adds `onewifi_em_agent_test`, `onewifi_em_ctrl_test`, and `onewifi_em_network_optimser` (test binary) to `bin_PROGRAMS` in the respective `Makefile.am`                                                                                                                                                                                | `false` — test binaries not built                                                                                            |
-| `WITH_SAP=1` (make variable)                                     | N/A            | `AL_SAP`                                            | Enables AL-SAP (Abstract Layer Service Access Point) integration: compiles `libalsap` (shared library), links it into the agent and controller, and routes all IEEE 1905.1 CMDU frames through the `ieee1905` daemon over Unix sockets. When enabled, the AL MAC address is obtained from the ieee1905 daemon rather than from the webconfig DML data | `0` in RDK builds; `1` in non-RDK builds                |
-| `ENABLE_DEBUG_MODE=ON` (make variable)                           | N/A            | `DEBUG_MODE`                                        | Enables verbose logging in the AL-SAP library (`al_service_access_point.cpp`, `al_service_data_unit.cpp`, `al_service_utils.cpp`) and AL-SAP unit test utilities                                                                                                                                                                       | `OFF`                                                                                                                        |
-| N/A — hardcoded `#define` in `inc/ec_base.h`                     | N/A            | `ENABLE_COLOCATED_1905_SECURE`                      | Enables 1905-layer securing (`ec_1905_encrypt_layer_t`) for DPP onboarding in a colocated agent/controller scenario (WSC-based onboarding channel). Commented in `ec_base.h` as "enabled right now since the layer is not yet encrypted"                                                                                               | Always enabled — defined unconditionally in `inc/ec_base.h`                                                                  |
-| N/A — set unconditionally in agent/network_optimiser makefiles   | N/A            | `EASY_MESH_NODE`                                    | Identifies the binary as an EasyMesh node; controls EasyMesh-specific code paths in the shared EM engine                                                                                                                                                                                                                               | Always set in agent and network_optimiser builds                                                                             |
-| N/A — set unconditionally in agent/network_optimiser makefiles   | N/A            | `EM_APP`                                            | Identifies the process as the EasyMesh application entry point                                                                                                                                                                                                                                                                         | Always set in agent and network_optimiser builds                                                                             |
-| N/A — set in autoconf `Makefile.am` for ctrl / network_optimiser | N/A            | `UNIT_TEST`                                         | Disables production startup paths in the controller and network optimiser when building test binaries                                                                                                                                                                       | Set only in test binary targets (`onewifi_em_ctrl_test`, `onewifi_em_network_optimser`)                                      |
-| N/A — passed as `TESTING=1` to make                              | N/A            | `TESTING`                                           | Guards test-specific code blocks in the controller (e.g., in `em_ctrl.cpp` `#ifndef TESTING` skip production main)                                                                                                                                                                                                                     | Not set by default; set when invoking `make test` target                          |
-| N/A                                                              | N/A            | `SCAN_RESULT_TEST`                                  | Enables channel scan result simulation via `em_simulator_t` in the agent (`em_agent.cpp`); the simulator drives artificial scan results through the bus event queue for testing without real radio hardware                                                                                                                            | Not set by default                                                                                                           |
-| N/A                                                              | N/A            | `REL_6_FEATURE`                                     | Guards Wi-Fi EasyMesh Release 6 feature code in `dm_easy_mesh_agent.cpp`                                                                                                                                                                                                                                                               | Not set by default                                                                                                           |
-| N/A — always enabled                                             | N/A            | `_FORTIFY_SOURCE=2`                                 | glibc runtime buffer-overflow protection; included in `CXX_COMMON_FLAGS` in all makefiles                                                                                                                                                                                                                                              | Always enabled in all builds                                                                                                 |
-| N/A — set via `AM_CFLAGS` in autoconf `Makefile.am`              | N/A            | `_ANSC_LINUX`, `_ANSC_USER`, `_ANSC_LITTLE_ENDIAN_` | RDK-B / CCSP platform flags marking the build as a little-endian Linux userspace component; required by RDK-B common library headers                                                                                                                                                                                                   | Always set in autoconf (RDK-B) builds via `AM_CFLAGS`                                                                        |
-
-<br>
-
 **RDK-B Platform and Integration Requirements:**
 
-- **Build Dependencies**: C++17 compiler, `libcjson`, `libuuid`, `libssl`, `libcrypto` (OpenSSL), `libmariadb` / MariaDB C client, `libpthread`, `libdl`, `libwebconfig`, `libhebus` (HE-BUS), `libalsap` (when `WITH_SAP=1`); on non-RDK platforms additionally `libstdc++fs` when building with older GCC/libstdc++ toolchains that require explicit linking for `std::filesystem` (for example, GCC < 9)
-- **Companion Repositories**: `OneWifi` (webconfig subdoc protocol, HE-BUS, platform bus abstraction at `OneWifi/source/platform/`), `halinterface` (Wi-Fi HAL headers at `halinterface/include`)
+- **Build Dependencies**: C++17 compiler, `libcjson`, `libuuid`, `libssl`, `libcrypto` (OpenSSL), `libmariadb` / MariaDB C client, `libpthread`, `libdl`, `libwebconfig`, `libalsap` (when `WITH_SAP=1`); on non-RDK platforms additionally `libstdc++fs` when building with older GCC/libstdc++ toolchains that require explicit linking for `std::filesystem` (for example, GCC < 9)
+- **Companion Repositories**: `OneWifi` (webconfig subdoc protocol, HE-BUS and R-BUS, platform bus abstraction at `OneWifi/source/platform/`), `halinterface` (Wi-Fi HAL headers at `halinterface/include`)
 - **Systemd / Init Services**: `em_ctrl` (non-RDK init, START=95), `em_agent` (non-RDK init, started manually after 30 s delay), `ieee1905_agent` (prerequisite when AL-SAP is enabled)
 - **Hardware Requirements**: At least one Wi-Fi radio capable of IEEE 802.11 management frame injection and reception for DPP/EasyConnect action-frame exchange
-- **Message Bus**: The agent opens HE-BUS under service name `EasyMesh_service_agent` and subscribes to OneWifi events (`WIFI_WEBCONFIG_DOC_DATA_NORTH` for configuration updates, `WIFI_WEBCONFIG_GET_ASSOC` for station association, `Device.WiFi.EM.STALinkMetricsReport` for link metrics, `WIFI_EM_CHANNEL_SCAN_REPORT` for scan results, `Device.WiFi.EM.BeaconReport`, `Device.WiFi.EM.AssociationStatus`, `Device.WiFi.EC.BSSInfo` for DPP channel list, `Device.WiFi.EM.APMetricsReport`, `WIFI_QUALITY_LINKREPORT`, and `Device.WiFi.CSABeaconFrameRecieved` for channel switch announcements). The controller opens R-BUS under service name `tr_181_service`, registers TR-181 data model getters/setters under `Device.WiFi.DataElements.Network.*` namespace, and subscribes to `DEVICE_WIFI_DATAELEMENTS_NETWORK_NODE_CFG_POLICY` for policy configuration updates. Both components use HE-BUS for OneWifi integration; the controller additionally uses R-BUS for TR-181 northbound interface on RDK platforms
+- **R-Bus**: The agent opens HE-BUS and R-BUS under service name `EasyMesh_service_agent` and subscribes to OneWifi events (`WIFI_WEBCONFIG_DOC_DATA_NORTH` for configuration updates, `WIFI_WEBCONFIG_GET_ASSOC` for station association, `Device.WiFi.EM.STALinkMetricsReport` for link metrics, `WIFI_EM_CHANNEL_SCAN_REPORT` for scan results, `Device.WiFi.EM.BeaconReport`, `Device.WiFi.EM.AssociationStatus`, `Device.WiFi.EC.BSSInfo` for DPP channel list, `Device.WiFi.EM.APMetricsReport`, `WIFI_QUALITY_LINKREPORT`, and `Device.WiFi.CSABeaconFrameRecieved` for channel switch announcements). The controller opens R-BUS under service name `tr_181_service`, registers TR-181 data model getters/setters under `Device.WiFi.DataElements.Network.*` namespace, and subscribes to `DEVICE_WIFI_DATAELEMENTS_NETWORK_NODE_CFG_POLICY` for policy configuration updates. Both components use HE-BUS and R-BUS for OneWifi integration; the controller additionally uses R-BUS for TR-181 northbound interface on RDK platforms
 - **Configuration Files**: `/nvram/EasymeshCfg.json` (agent AL-MAC address and colocated-mode flag); `/nvram/Reset.json` (controller factory reset configuration); `/nvram/test_cert.crt` and `/nvram/test_cert.key` (TLS certificate and key for CLI-to-controller SSL socket communication on non-RDK builds); DPP bootstrapping key material stored under `/nvram/` (`DPPURI.pem` for bootstrap URI, `DPPURI.txt` for bootstrap URI text, `C-sign-key.pem` for C-sign key, `net-access-key.pem` for network access key, `ppk.pem` for pre-shared key, `connector.txt` for DPP connector)
 - **Startup Order**: `ieee1905` daemon must be running before agent/controller start when `WITH_SAP=1`; MariaDB must be initialised before the controller starts (on OpenWRT via `setup_mysql_db.sh` called by init script; on RDK-B the controller automatically invokes `/usr/ccsp/EasyMesh/setup_mysql_db_post.sh` when it detects an empty database at runtime); network interfaces must be up before the agent binds raw Ethernet sockets
 
@@ -175,11 +150,11 @@ The table below lists every compile-time flag found in the makefiles and source 
 
 **Threading Model:**
 
-unified-wifi-mesh uses a multi-threaded architecture separating the IEEE 1905.1 frame I/O loop from the HE-BUS input listener and the per-radio state machines.
+unified-wifi-mesh uses a multi-threaded architecture separating the IEEE 1905.1 frame I/O loop from the HE-BUS and R-BUS input listener and the per-radio state machines.
 
 - **Threading Architecture**: Multi-threaded — one main manager thread, one dedicated input-listener thread, and one thread per `em_t` radio/AL node
 - **Main Manager Thread** (`em_mgr_t::nodes_listener`): Runs a `select()` loop over raw Ethernet sockets (one per AL-interface `em_t`). Receives and demultiplexes IEEE 1905.1 CMDU frames, dispatches them to the correct `em_t` queue via `proto_process()`, and drives the 250 ms orchestration timeout tick
-- **Input Listener Thread** (`em_mgr_t::mgr_input_listen` → `input_listener()`): Opened with an explicit 8 MB stack (`pthread_attr_setstacksize`). Opens the HE-BUS handle, fetches the initial webconfig DML data, subscribes to OneWifi bus events (`WIFI_WEBCONFIG_DOC_DATA_NORTH`, `WIFI_WEBCONFIG_GET_ASSOC`, `Device.WiFi.EM.STALinkMetricsReport`, channel scan, beacon report, etc.) and pushes incoming events into the shared `em_event_t` queue via `io_process()`
+- **Input Listener Thread** (`em_mgr_t::mgr_input_listen` → `input_listener()`): Opened with an explicit 8 MB stack (`pthread_attr_setstacksize`). Opens the HE-BUS and R-BUS handles, fetches the initial webconfig DML data, subscribes to OneWifi bus events (`WIFI_WEBCONFIG_DOC_DATA_NORTH`, `WIFI_WEBCONFIG_GET_ASSOC`, `Device.WiFi.EM.STALinkMetricsReport`, channel scan, beacon report, etc.) and pushes incoming events into the shared `em_event_t` queue via `io_process()`
 - **Per-radio / AL-node Threads** (`em_t`): One thread per radio interface or AL interface. Each thread processes its own `em_event_t` queue, runs the per-node IEEE 1905.1 state machine (`em_sm_t`), and calls the appropriate message-construction functions
 - **Synchronization**: `pthread_mutex_t m_mutex` in `em_mgr_t` guards the `m_em_map` hash map during node creation and deletion; condition variables and mutexes in `em_cmd_exec_t` synchronise command completion; atomic operations are not used explicitly — all shared state passes through the event queues
 
@@ -192,7 +167,7 @@ sequenceDiagram
     autonumber
     participant Sys as System / Init
     participant Agent as onewifi_em_agent
-    participant OW as OneWifi (HE-BUS)
+    participant OW as OneWifi (HE-BUS / R-BUS)
     participant ALSAP as ieee1905 daemon (AL-SAP)
     participant Ctrl as onewifi_em_ctrl
 
@@ -219,9 +194,13 @@ sequenceDiagram
     Agent->>OW: bus_event_subs_fn(Device.WiFi.EM.BeaconReport)
     Agent->>Agent: nodes_listener() — select() loop active
     Agent->>Ctrl: IEEE 1905.1 Topology Discovery CMDU (ETH_P_1905)
-    Ctrl-->>Agent: Topology Response + AP Autoconfig Search
-    Agent-->>Ctrl: Autoconfig Response + M1 (capability)
-    Ctrl-->>Agent: M2 (BSS/SSID configuration)
+    Ctrl-->>Agent: Topology Response CMDU
+    Agent->>Ctrl: Autoconfig Search CMDU (multicast)
+    Ctrl-->>Agent: Autoconfig Response CMDU (unicast)
+    Agent->>Ctrl: AP Autoconfig WSC M1 (capabilities, band)
+    Ctrl->>Ctrl: Build M2 (SSID, passphrase, auth type, haul type)
+    Ctrl-->>Agent: AP Autoconfig WSC M2
+    Agent->>Agent: translate M2 → m2ctrl_radioconfig
     Agent->>OW: bus_set_fn(webconfig private subdoc — new SSIDs)
     Agent->>Ctrl: Operating Channel Report
     Note over Agent,Ctrl: Mesh active — ongoing metrics, steering, DPP flows
@@ -229,7 +208,7 @@ sequenceDiagram
 
 **Runtime State Changes and Context Switching**
 
-During normal operation the component processes HE-BUS events from OneWifi and CMDU frames from the ieee1905 network concurrently.
+During normal operation the component processes HE-BUS and R-BUS events from OneWifi and CMDU frames from the ieee1905 network concurrently.
 
 **State Change Triggers:**
 
@@ -289,21 +268,19 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     participant Ctrl as onewifi_em_ctrl
-    participant NET as IEEE 1905.1 Network
     participant Agent as onewifi_em_agent
     participant OW as OneWifi
 
-    Ctrl->>NET: Autoconfig Search CMDU (multicast)
-    Agent->>NET: Autoconfig Response CMDU (unicast → Ctrl)
-    Ctrl->>NET: AP Autoconfig WSC (M1 request)
-    Agent->>NET: AP Autoconfig WSC (M1 — capabilities, band)
+    Agent->>Ctrl: Autoconfig Search CMDU (multicast)
+    Ctrl->>Agent: Autoconfig Response CMDU (unicast)
+    Agent->>Ctrl: AP Autoconfig WSC M1 (capabilities, band)
     Ctrl->>Ctrl: Build M2 (SSID, passphrase, auth type, haul type)
-    Ctrl->>NET: AP Autoconfig WSC (M2)
+    Ctrl->>Agent: AP Autoconfig WSC M2
     Agent->>Agent: translate M2 → m2ctrl_radioconfig
     Agent->>OW: bus_set_fn(webconfig private subdoc — new SSIDs)
     OW-->>Agent: VAP config applied (webconfig callback)
-    Agent->>NET: Operating Channel Report CMDU
-    Ctrl->>NET: 1905 ACK
+    Agent->>Ctrl: Operating Channel Report CMDU
+    Ctrl->>Agent: 1905 ACK
 ```
 
 **DPP / EasyConnect Onboarding Call Flow:**
@@ -362,7 +339,7 @@ The controller implements the WFA Data Elements specification (schema `src/ctrl/
 | `Device.WiFi.DataElements.Network.NodeConfigurePolicy` | Event / Method | Pub + Subscribe | MAP policy distribution to agent nodes            | `inc/tr_181.h`, `em_ctrl.cpp`       |
 | `Device.WiFi.DataElements.Network.NodeLinkStatsAlarm`  | Event          | Publish         | Link quality alarm notification                   | `inc/tr_181.h`, `em_ctrl.cpp`       |
 
-### Agent-Side Bus Subscriptions (OneWifi / HE-BUS)
+### Agent-Side Bus Subscriptions (OneWifi / HE-BUS / R-BUS)
 
 | Bus Path                                              | Direction  | Purpose                                                      | Source         |
 | ----------------------------------------------------- | ---------- | ------------------------------------------------------------ | -------------- |
@@ -477,7 +454,7 @@ sequenceDiagram
 ### Key Implementation Logic
 
 - **CMDU Frame Handling**: Raw Ethernet socket (ETH_P_1905, `0x893a`) per radio/AL interface. `em_mgr_t::find_em_for_msg_type()` dispatches each inbound CMDU to the correct `em_t` instance by message type, destination MAC, radio ID, BSS ID, or frequency band. Unrecognised message types are logged and discarded.
-- **HE-BUS / webconfig Integration**: The agent decodes OneWifi webconfig subdocs using `webconfig_easymesh_decode()` from the `libwebconfig` library. Subdoc types `private`, `radio`, `mesh_sta`, `Vap_5G`, `Vap_2.4G`, `Vap_6G`, `radio_5G`, `radio_6G`, `radio_2.4G`, and `mesh backhaul sta` are handled in `onewifi_cb()` in `em_agent.cpp`.
+- **Bus / webconfig Integration**: The agent decodes OneWifi webconfig subdocs using `webconfig_easymesh_decode()` from the `libwebconfig` library. Subdoc types `private`, `radio`, `mesh_sta`, `Vap_5G`, `Vap_2.4G`, `Vap_6G`, `radio_5G`, `radio_6G`, `radio_2.4G`, and `mesh backhaul sta` are handled in `onewifi_cb()` in `em_agent.cpp`. The component uses both HE-BUS and R-BUS for communication with OneWifi.
 - **Command Orchestration**: Commands (`em_cmd_t` subclasses) are cloned across all matching radio nodes via `clone_for_next()` and tracked in `em_orch_t`. The orchestrator retries timed-out commands at the 250 ms tick. In-progress check (`is_cmd_type_in_progress()`) prevents duplicate submissions.
 - **DPP Bootstrapping**: On non-colocated startup, `try_start_dpp_onboarding()` reads `EasymeshCfg.json`, derives the enrollee MAC from the backhaul BSS, generates or reuses DPP bootstrapping key material (`ec_util::get_dpp_boot_data()`), and starts the enrollee state machine. DPP key files (`DPPURI.pem`, `C-sign-key.pem`, `net-access-key.pem`, `ppk.pem`, `connector.txt`) are stored under `/nvram/` as defined in `inc/ec_base.h`.
 - **AL MAC Resolution**: When `AL_SAP=1`, the AL MAC address (`g_al_mac_sap`) returned by the `ieee1905` daemon at connection time overrides the AL MAC decoded from the OneWifi DML data. This is applied in `dm_easy_mesh_agent_t::analyze_dev_init()`.
