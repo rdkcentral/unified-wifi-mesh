@@ -136,6 +136,13 @@ extern "C"
 #define EM_RF_60GHZ 0x04
 #define EM_RF_6GHZ  0x08
 
+/* Bandwidth Constants */
+#define BANDWIDTH_20MHZ 20
+#define BANDWIDTH_40MHZ 40
+#define BANDWIDTH_80MHZ 80
+#define BANDWIDTH_160MHZ 160
+#define BANDWIDTH_320MHZ 320
+
 /* Multi-AP Extension Subelement constants */
 #define EM_MULTI_AP_EXT_SUBELEM_LEN         0x01
 #define EM_MULTI_AP_EXT_SUBELEM_ID          0x06
@@ -2975,6 +2982,7 @@ typedef struct{
 	int op_class;
 	em_freq_band_t band;
 	int channel_spacing;
+	bool has_beaconchannel;
 	int num_channels;
 	int channels[EM_MAX_E4_TABLE_CHANNEL];
 } em_e4_table_t;

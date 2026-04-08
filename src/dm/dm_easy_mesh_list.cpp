@@ -1559,9 +1559,9 @@ dm_easy_mesh_t *dm_easy_mesh_list_t::create_data_model(const char *net_id, const
     unsigned int i;
     bool colocated = false;
 	dm_op_class_t	op_class[EM_MAX_PRE_SET_CHANNELS] 	= 	{
-		dm_op_class_t({{{0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, em_op_class_type_anticipated, 81}, 81, 0, 0, 0, 1, {6}, {0xe0}, EM_CH_PREF_ENTRY_VALID, 0, 0, 0}),
-		dm_op_class_t({{{0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, em_op_class_type_anticipated, 115}, 115, 0, 0, 0, 1, {36},{0xe0}, EM_CH_PREF_ENTRY_VALID, 0, 0, 0}),
-		dm_op_class_t({{{0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, em_op_class_type_anticipated, 135}, 135, 0, 0, 0, 1, {1}, {0xe0}, EM_CH_PREF_ENTRY_VALID, 0, 0, 0}),
+		dm_op_class_t({{{0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, em_op_class_type_anticipated, 83}, 83, 0, 0, 0, 1, {6}, {0xe0}, EM_CH_PREF_ENTRY_VALID, 0, 0, 0}),
+		dm_op_class_t({{{0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, em_op_class_type_anticipated, 128}, 128, 0, 0, 0, 1, {42},{0xe0}, EM_CH_PREF_ENTRY_VALID, 0, 0, 0}),
+		dm_op_class_t({{{0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, em_op_class_type_anticipated, 135}, 135, 0, 0, 0, 1, {7}, {0xe0}, EM_CH_PREF_ENTRY_VALID, 0, 0, 0}),
 		dm_op_class_t({{{0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, em_op_class_type_scan_param, 81}, 81, 0, 0, 0, 3, {3, 6, 9},{0}, EM_CH_PREF_ENTRY_VALID, 0, 0, 0}),
 		dm_op_class_t({{{0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, em_op_class_type_scan_param, 115}, 115, 0, 0, 0, 9, {36, 40, 44, 48, 149, 153, 157, 161, 165}, {0}, EM_CH_PREF_ENTRY_VALID, 0, 0, 0}),
 		dm_op_class_t({{{0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, em_op_class_type_scan_param, 135}, 135, 0, 0, 0, 1, {1}, {0}, EM_CH_PREF_ENTRY_VALID, 0, 0, 0})

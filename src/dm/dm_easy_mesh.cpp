@@ -2145,41 +2145,129 @@ bool dm_easy_mesh_t::operator==(dm_easy_mesh_t const& obj)
 }
 
 em_e4_table_t dm_easy_mesh_t::m_e4_table[] = {
-	{ 81, em_freq_band_24, 25, 11, {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11} },
-	{ 83, em_freq_band_24, 40, 9, {1, 2, 3, 4, 5, 6, 7, 8, 9} },
-	{ 84, em_freq_band_24, 40, 7, {5, 6, 7, 8, 9, 10, 11} },
-	{ 115, em_freq_band_5, 20, 4, {36, 40, 44, 48} },
-	{ 116, em_freq_band_5, 40, 2, {36, 44} },
-	{ 117, em_freq_band_5, 40, 2, {40, 48} },
-	{ 118, em_freq_band_5, 20, 4, {52, 56, 60, 64} },
-	{ 119, em_freq_band_5, 40, 2, {52, 60} },
-	{ 120, em_freq_band_5, 40, 2, {56, 64} },
-	{ 121, em_freq_band_5, 20, 12, {100, 104, 108, 112, 116, 120, 124, 128, 132, 136, 140, 144} },
-	{ 122, em_freq_band_5, 40, 6, {100, 108, 116, 124, 132, 140} },
-	{ 123, em_freq_band_5, 40, 6, {104, 112, 120, 128, 136, 144} },
-	{ 124, em_freq_band_5, 20, 4, {149, 153, 157, 161} },
-	{ 125, em_freq_band_5, 20, 6, {149, 153, 157, 161, 165, 169} },
-	{ 126, em_freq_band_5, 40, 2, {149, 157} },
-	{ 127, em_freq_band_5, 40, 2, {153, 161} },
-	{ 128, em_freq_band_5, 80, 6, {36, 52, 100, 116, 132, 149} },
-	{ 129, em_freq_band_5, 160, 2, {36, 100} },
-	{ 130, em_freq_band_5, 80, 6, {36, 52, 100, 116, 132, 149} },
-	{ 131, em_freq_band_6, 20, 59, {1, 5, 9, 13, 17, 21, 25, 29, 33, 37,
+	{ 81, em_freq_band_24, 25, true, 13, {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13} },
+	{ 82, em_freq_band_24, 25, true, 1, {14} },
+	{ 83, em_freq_band_24, 40, true, 9, {1, 2, 3, 4, 5, 6, 7, 8, 9} },
+	{ 84, em_freq_band_24, 40, true, 9, {5, 6, 7, 8, 9, 10, 11, 12, 13} },
+	{ 115, em_freq_band_5, 20, true, 4, {36, 40, 44, 48} },
+	{ 116, em_freq_band_5, 40, true, 2, {36, 44} },
+	{ 117, em_freq_band_5, 40, true, 2, {40, 48} },
+	{ 118, em_freq_band_5, 20, true, 4, {52, 56, 60, 64} },
+	{ 119, em_freq_band_5, 40, true, 2, {52, 60} },
+	{ 120, em_freq_band_5, 40, true, 2, {56, 64} },
+	{ 121, em_freq_band_5, 20, true, 12, {100, 104, 108, 112, 116, 120, 124, 128, 132, 136, 140, 144} },
+	{ 122, em_freq_band_5, 40, true, 6, {100, 108, 116, 124, 132, 140} },
+	{ 123, em_freq_band_5, 40, true, 6, {104, 112, 120, 128, 136, 144} },
+	{ 124, em_freq_band_5, 20, true, 4, {149, 153, 157, 161} },
+	{ 125, em_freq_band_5, 20, true, 8, {149, 153, 157, 161, 165, 169, 173, 177} },
+	{ 126, em_freq_band_5, 40, true, 4, {149, 157, 165, 173} },
+	{ 127, em_freq_band_5, 40, true, 4, {153, 161, 169, 177} },
+	//Row with center channels
+	{ 128, em_freq_band_5, 80, false, 7, {42, 58, 106, 122, 138, 155, 171} },
+	//Row with center channels
+	{ 129, em_freq_band_5, 160, false, 3, {50, 114, 163} },
+	//Row with center channels
+	{ 130, em_freq_band_5, 80, false , 7, {42, 58, 106, 122, 138, 155, 171} },
+	{ 131, em_freq_band_6, 20, true, 59, {1, 5, 9, 13, 17, 21, 25, 29, 33, 37,
 				41, 45, 49, 53, 57, 61, 65, 69, 73, 77,
 				81, 85, 89, 93, 97, 101, 105, 109, 113, 117,
 				121, 125, 129, 133, 137, 141, 145, 149, 153, 157,
 				161, 165, 169, 173, 177, 181, 185, 189, 193, 197,
 				201, 205, 209, 213, 217, 221, 225, 229, 233} },
-	{ 132, em_freq_band_6, 40, 29, {1, 9, 17, 25, 33, 41, 49, 57, 65, 73,
-				81, 89, 95, 105, 113, 121, 129, 137, 145, 153,
-				161, 169, 177, 185, 193, 201, 209, 217, 225} },
-	{ 133, em_freq_band_6, 80, 14, {1, 17, 33, 49, 65, 81, 97, 113, 129, 145,
-				161, 177, 193, 209} },
-	{ 134, em_freq_band_6, 160, 7, {1, 33, 65, 97, 129, 161, 193} },
-	{ 135, em_freq_band_6, 80, 14, {1, 17, 33, 49, 65, 81, 97, 113, 129, 145,
-				161, 177, 193, 209} },
-	{ 136, em_freq_band_6, 20, 1, {2} }
+	//Row with center channels
+	{ 132, em_freq_band_6, 40, false, 29, {3, 11, 19, 27, 35, 43, 51, 59, 67, 75,
+				83, 91, 99, 107, 115, 123, 131, 139, 147, 155,
+				163, 171, 179, 187, 195, 203, 211, 219, 227} },
+	//Row with center channels
+	{ 133, em_freq_band_6, 80, false, 14, {7, 23, 39, 55, 71, 87, 103, 119, 135, 151,
+				167, 183, 199, 215} },
+	//Row with center channels
+	{ 134, em_freq_band_6, 160, false, 7, {15, 47, 79, 111, 143, 175, 207} },
+	//Row with center channels
+	{ 135, em_freq_band_6, 80, false, 14, {7, 23, 39, 55, 71, 87, 103, 119, 135, 151,
+				167, 183, 199, 215} },
+	//Row with center channels
+	{ 136, em_freq_band_6, 20, false, 1, {2} },
+	//Row with center channels
+	{ 137, em_freq_band_6, 320, false, 6, {31, 63, 95, 127, 159, 191} }
 };
+
+int dm_easy_mesh_t::get_beaconchannel_by_bandwidth(int center_channel, int bandwidth)
+{
+    switch(bandwidth) {
+        case BANDWIDTH_20MHZ:
+            return center_channel;
+        case BANDWIDTH_40MHZ:
+            return center_channel - 2;
+        case BANDWIDTH_80MHZ:
+            return center_channel - 6;
+        case BANDWIDTH_160MHZ:
+            return center_channel - 14;
+        case BANDWIDTH_320MHZ:
+            return center_channel - 30;
+        default:
+            return center_channel; // Return as is for unsupported bandwidth
+    }
+}
+
+int dm_easy_mesh_t::get_centerchannel_by_bandwidth(int beacon_channel, int bandwidth)
+{
+    switch (bandwidth) {
+        case BANDWIDTH_20MHZ:
+            return beacon_channel;
+        case BANDWIDTH_40MHZ:
+            return beacon_channel + 2;
+        case BANDWIDTH_80MHZ:
+            return beacon_channel + 6;
+        case BANDWIDTH_160MHZ:
+            return beacon_channel + 14;
+        case BANDWIDTH_320MHZ:
+            return beacon_channel + 30;
+        default:
+            return beacon_channel; // Return as is for unsupported bandwidth
+    }
+}
+
+int dm_easy_mesh_t::get_centerchannel_by_opclass(int op_class, int channel)
+{
+    em_printfout("Get centerchannel for opclass:%d,channel:%d\n", op_class, channel);
+
+    // Check if opclass has beacon channel or center channel in e4 table
+    // Need to get center channel for opclass rows
+    size_t table_size = sizeof(m_e4_table) / sizeof(em_e4_table_t);
+    for (size_t i = 0; i < table_size; i++) {
+        if (m_e4_table[i].op_class == op_class) {
+            if(m_e4_table[i].has_beaconchannel == false)
+                return dm_easy_mesh_t::get_centerchannel_by_bandwidth(channel, m_e4_table[i].channel_spacing);
+            else
+                return channel;//For this OPCLASS, channel is the beacon channel
+        }
+    }
+
+    em_printfout("No matching op class found for channel %d, returning channel as center channel\n", channel);
+    return channel;
+}
+
+int dm_easy_mesh_t::get_beaconchannel_by_opclass(int op_class, int channel)
+{
+    em_printfout("Get beacon channel for opclass:%d,channel:%d\n", op_class, channel);
+
+    // Check if opclass row has beacon channel or center channel in e4 table
+    // Get beacon channel for opclass rows with center channel
+    size_t table_size = sizeof(m_e4_table) / sizeof(em_e4_table_t);
+    for (size_t i = 0; i < table_size; i++) {
+        if (m_e4_table[i].op_class == op_class) {
+            if (m_e4_table[i].has_beaconchannel == false)
+                return dm_easy_mesh_t::get_beaconchannel_by_bandwidth(channel, m_e4_table[i].channel_spacing);
+            else
+                return channel; //For this OPCLASS, channel is the beacon channel
+        }
+    }
+
+    em_printfout("No matching op class/channel found for OPCLASS: %d channel: %d\n", op_class, channel);
+    // Op class not found, return channel
+    return channel;
+}
 
 // Function to get frequency band by operating class
 em_freq_band_t  dm_easy_mesh_t::get_freq_band_by_op_class(int op_class)

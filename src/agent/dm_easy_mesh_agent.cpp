@@ -493,6 +493,8 @@ int dm_easy_mesh_agent_t::analyze_channel_sel_req(em_bus_event_t *evt, wifi_bus_
 
     // Ensure highest preference is non-zero to update current channel
     if (highest_anticipated_preference > 0) {
+	//Get beacon channel for the preferred opclass/channel
+        most_preferred_channel = dm_easy_mesh_t::get_beaconchannel_by_opclass(most_preferred_opclass, most_preferred_channel);
         // Update the most preferred channel/opclass in the datamodel
         for (i = 0; i < noofopclass; i++) {
             dm_op_class = this->get_op_class_info(i);
