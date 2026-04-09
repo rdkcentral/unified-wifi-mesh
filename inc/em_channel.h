@@ -21,6 +21,9 @@
 
 #include "em_base.h"
 
+#define ACK_FROM_AGENT 0
+#define ACK_FROM_CTRL  1
+
 class em_cmd_t;
 class em_channel_t {
 
@@ -54,7 +57,7 @@ class em_channel_t {
 	 * @retval 0 on failure
 	 *
 	 */
-	int send_1905_ack_message(unsigned short msg_id);
+	int send_1905_ack_message(unsigned short msg_id, bool ack_from);
 	/**!
 	 * @brief Pushes an event to the event manager.
 	 *
@@ -442,6 +445,22 @@ public:
 	 * @note Ensure the buffer is properly initialized before calling this function.
 	 */
 	int handle_channel_scan_req(unsigned char *buff, unsigned int len);
+
+	/**!
+	 * @brief Handles a 1905 acknowledgment message for channel operations.
+	 *
+	 * This function processes 1905 ack message received in response to channel scan requests.
+	 *
+	 * @param[in] buff Pointer to the buffer containing the 1905 ACK message data.
+	 * @param[in] len Length of the message data in the buffer.
+	 *
+	 * @returns int Status code indicating success or failure.
+	 * @retval 0 on success.
+	 * @retval -1 on failure.
+	 *
+	 * @note This function is called when a 1905 ACK message is received
+	 */
+	int handle_1905_ack(unsigned char *buff, unsigned int len);
     
 	/**!
 	 * @brief Handles the channel scan report.
@@ -742,7 +761,8 @@ public:
 
     unsigned int m_channel_pref_query_tx_cnt;
     unsigned int m_channel_sel_req_tx_cnt;
-    unsigned short m_chan_sel_req_msg_id;
+    //stores Channel request msg_id
+    unsigned short m_chan_req_msg_id = 0;
 	
 	/**!
 	 * @brief Retrieves the frequency band.
