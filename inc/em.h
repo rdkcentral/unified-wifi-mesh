@@ -973,7 +973,7 @@ public:
 	 *
 	 * @note Ensure that the buffer is properly allocated before calling this function.
 	 */
-	short create_radioad_tlv(unsigned char *buff);
+	// short create_radioad_tlv(unsigned char *buff);
     
 	/**!
 	 * @brief Creates a metric collection integer TLV.

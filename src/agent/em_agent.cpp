@@ -1257,7 +1257,7 @@ int em_agent_t::report_cb(char *event_name, bus_data_prop_t *data, void *userDat
     if (strncmp(event_name, "Device.WiFi.EM.APMetricsReport", sizeof("Device.WiFi.EM.APMetricsReport"))==0) {
         g_agent.io_process(em_bus_event_type_ap_metrics_report, (unsigned char *)data->value.raw_data.bytes, data->value.raw_data_len);
     } else if (strncmp(event_name, WIFI_QUALITY_LINKREPORT, sizeof(WIFI_QUALITY_LINKREPORT))==0) {
-        em_printfout("Received Frame data for event [%s] and data :\n%s", event_name, data->value.raw_data.bytes);
+        // em_printfout("Received Frame data for event [%s] and data :\n%s", event_name, data->value.raw_data.bytes);
         cJSON *json = cJSON_Parse((const char *)data->value.raw_data.bytes);
         if (json != NULL) {
             cJSON *link_report_arr;
