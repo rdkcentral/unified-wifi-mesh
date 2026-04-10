@@ -408,16 +408,29 @@ unsigned int em_msg_t::validate(char *errors[])
         tlv =  reinterpret_cast<em_tlv_t *> (m_buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
         len = m_len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
 
-        while ((tlv->type != em_tlv_type_eom) && (len > 0)) {
+        while (((len > 0) && (len >= sizeof(em_tlv_t)) && tlv && (tlv->type != em_tlv_type_eom))) {
+
+            if ((sizeof(em_tlv_t) + ntohs(tlv->len)) > len) {
+                validation = false;
+                break;
+            }
+
             if (tlv->type == m_tlv_member[i].m_type) {
                 m_tlv_member[i].m_present = true;
                 break;
             }
-            len -= static_cast<unsigned int> (sizeof(em_tlv_t) + htons(tlv->len));
-            tlv = reinterpret_cast<em_tlv_t *> ((reinterpret_cast<unsigned char *>(tlv) + sizeof(em_tlv_t) + htons(tlv->len)));
+
+            len -= static_cast<unsigned int> (sizeof(em_tlv_t) + ntohs(tlv->len));
+            tlv = reinterpret_cast<em_tlv_t *> ((reinterpret_cast<unsigned char *>(tlv) + sizeof(em_tlv_t) + ntohs(tlv->len)));
         }
 
-        if ((m_tlv_member[i].m_requirement == mandatory) &&((m_tlv_member[i].m_present == false)||((sizeof(em_tlv_t) + htons(tlv->len)) < static_cast<size_t> (m_tlv_member[i].m_tlv_length)))) {
+        unsigned int safe_len = 0;
+
+        if (len >= sizeof(em_tlv_t)) {
+            safe_len = ntohs(tlv->len);
+        }
+
+        if ((m_tlv_member[i].m_requirement == mandatory) &&((m_tlv_member[i].m_present == false)||((sizeof(em_tlv_t) + safe_len) < static_cast<size_t> (m_tlv_member[i].m_tlv_length)))) {
             strncpy(m_errors[m_num_errors], m_tlv_member[i].m_spec, sizeof(m_errors[m_num_errors]));
             m_num_errors++;
             errors[m_num_errors - 1] = m_errors[m_num_errors - 1];
@@ -426,8 +439,8 @@ unsigned int em_msg_t::validate(char *errors[])
                 //printf("%s:%d; TLV not present\n", __func__, __LINE__);
             }   
 
-            if (((sizeof(em_tlv_t) + htons(tlv->len)) < static_cast<size_t> (m_tlv_member[i].m_tlv_length))) {
-                //printf("%s:%d; TLV type: 0x%04x Length: %d, length validation error\n", __func__, __LINE__, tlv->type, htons(tlv->len));
+            if (((sizeof(em_tlv_t) + safe_len) < static_cast<size_t> (m_tlv_member[i].m_tlv_length))) {
+                //printf("%s:%d; TLV type: 0x%04x Length: %d, length validation error\n", __func__, __LINE__, tlv->type, ntohs(tlv->len));
             }
         }
 
@@ -436,7 +449,7 @@ unsigned int em_msg_t::validate(char *errors[])
             m_num_errors++;
             errors[m_num_errors - 1] = m_errors[m_num_errors - 1];
             //printf("%s:%d; TLV type: 0x%04x Length: %d, presence validation error, profile: %d\n", __func__, __LINE__, 
-            //tlv->type, htons(tlv->len), m_profile);
+            //tlv->type, ntohs(tlv->len), m_profile);
             validation = false;
         }
     }
