@@ -2882,6 +2882,7 @@ void dm_easy_mesh_t::set_channels_list(dm_op_class_t op_class[], unsigned int nu
 			memcpy(oclass->m_op_class_info.id.ruid, m_device.m_device_info.intf.mac, sizeof(mac_address_t));
 		}
 
+		dm_op_class_t *first_invalid = nullptr;
 		for (j = 0; j < m_num_opclass; j++) {
 			poclass = &m_op_class[j];
 
@@ -2891,16 +2892,33 @@ void dm_easy_mesh_t::set_channels_list(dm_op_class_t op_class[], unsigned int nu
 				match_found = true;
 				break;
 			}
+
+			/* Track first reusable invalid slot */
+			if (!poclass->m_op_class_info.pref_valid && !first_invalid &&
+					(oclass->m_op_class_info.id.type == poclass->m_op_class_info.id.type) &&
+					(memcmp(oclass->m_op_class_info.id.ruid, poclass->m_op_class_info.id.ruid, sizeof(mac_address_t)) == 0)) {
+				first_invalid = poclass;
+			}
 		}
 
 		if (match_found == true) {
 			match_found = false;
+			oclass->m_op_class_info.pref_valid = true;
+			memcpy(&poclass->m_op_class_info, &oclass->m_op_class_info, sizeof(em_op_class_info_t));
+		} else if (first_invalid) {
+			oclass->m_op_class_info.pref_valid = true;
+			memcpy(&first_invalid->m_op_class_info, &oclass->m_op_class_info, sizeof(em_op_class_info_t));
 		} else {
+			if (m_num_opclass >= EM_MAX_OPCLASS) {
+				em_printfout("Max limit reached for op class entries in datamodel, cannot add more entries\n");
+				continue;
+			}
+
+			/* Append new entry */
 			poclass = &m_op_class[m_num_opclass];
 			m_num_opclass++;
+			memcpy(&poclass->m_op_class_info, &oclass->m_op_class_info, sizeof(em_op_class_info_t));
 		}
-			
-		memcpy(&poclass->m_op_class_info, &oclass->m_op_class_info, sizeof(em_op_class_info_t));
 	}
 }
 
