@@ -506,7 +506,6 @@ unsigned int em_orch_ctrl_t::build_candidates(em_cmd_t *pcmd)
     dm_easy_mesh_t *dm;
     mac_address_t	bss_mac, rad_mac;
     unsigned int count = 0, i;
-    mac_addr_str_t mac_str;
     em_disassoc_params_t *disassoc_param;
     dm_sta_t *sta;
     mac_address_t null_mac = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
@@ -526,6 +525,7 @@ unsigned int em_orch_ctrl_t::build_candidates(em_cmd_t *pcmd)
         switch (pcmd->m_type) {
             case em_cmd_type_set_ssid:
                 if (em->is_al_interface_em() == false) {
+                    //mac_addr_str_t mac_str;
                     //dm_easy_mesh_t::macbytes_to_string(em->get_radio_interface_mac(), mac_str);
                     //em_printfout("Set SSID: %s push to queue", mac_str);
                     queue_push(pcmd->m_em_candidates, em);
@@ -558,6 +558,7 @@ unsigned int em_orch_ctrl_t::build_candidates(em_cmd_t *pcmd)
                     count++;
                 } else if ((memcmp(em->get_radio_interface_mac(), dm->m_radio[0].m_radio_info.intf.mac, sizeof(mac_address_t)) == 0) &&
                     (em->is_al_interface_em() == false)) {
+                    //mac_addr_str_t mac_str;
                     //dm_easy_mesh_t::macbytes_to_string(em->get_radio_interface_mac(), mac_str);
                     //em_printfout("Auto config renew %s push to queue since mac matches", mac_str);
                     queue_push(pcmd->m_em_candidates, em);
@@ -592,6 +593,7 @@ unsigned int em_orch_ctrl_t::build_candidates(em_cmd_t *pcmd)
                 if (em->is_al_interface_em() == false) {
                     for (i = 0; i < pcmd->m_param.u.args.num_args; i++) {
                         if (atoi(pcmd->m_param.u.args.args[i]) == em->get_band()) {
+                            //mac_addr_str_t mac_str;
                             //dm_easy_mesh_t::macbytes_to_string(em->get_radio_interface_mac(), mac_str);
                             //em_printfout("Set Channel: %s push to queue", mac_str);
                             queue_push(pcmd->m_em_candidates, em);
@@ -606,6 +608,7 @@ unsigned int em_orch_ctrl_t::build_candidates(em_cmd_t *pcmd)
                 dm = pcmd->get_data_model();
                 if (em->is_al_interface_em() == false) {
                     if (memcmp(em->get_radio_interface_mac(), dm->m_radio[0].m_radio_info.intf.mac, sizeof(mac_address_t)) == 0) {
+                        //mac_addr_str_t mac_str;
                         //dm_easy_mesh_t::macbytes_to_string(em->get_radio_interface_mac(), mac_str);
                         //em_printfout("Channel Scan: %s pushed to queue", mac_str);
                         queue_push(pcmd->m_em_candidates, em);
@@ -636,6 +639,7 @@ unsigned int em_orch_ctrl_t::build_candidates(em_cmd_t *pcmd)
                 dm = pcmd->get_data_model();
                 //need a radio from a device to send, no need to push all ems
                 if (memcmp(em->get_radio_interface_mac(), dm->m_radio[0].m_radio_info.intf.mac, sizeof(mac_address_t)) == 0) {
+                    //mac_addr_str_t mac_str;
                     //dm_easy_mesh_t::macbytes_to_string(em->get_radio_interface_mac(), mac_str);
                     //em_printfout("Set Policy: %s pushed to queue", mac_str);
                     queue_push(pcmd->m_em_candidates, em);
@@ -648,6 +652,7 @@ unsigned int em_orch_ctrl_t::build_candidates(em_cmd_t *pcmd)
                 dm = pcmd->get_data_model();
                 for (i = 0; i < dm->get_num_radios(); i++) {
                     if (memcmp(em->get_radio_interface_mac(), dm->m_radio[i].m_radio_info.intf.mac, sizeof(mac_address_t)) == 0) {
+                        //mac_addr_str_t mac_str;
                         //dm_easy_mesh_t::macbytes_to_string(em->get_radio_interface_mac(), mac_str);
                         //em_printfout("Set Radio: %s pushed to queue", mac_str);
                         queue_push(pcmd->m_em_candidates, em);

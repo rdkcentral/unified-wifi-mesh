@@ -225,17 +225,17 @@ bool tr_181_t::tr181_get_prop_int(const bus_data_prop_t *prop, int *value)
     }
 
     if (prop->value.data_type == bus_data_type_int8) {
-        *value = prop->value.raw_data.i8;
+        *value = static_cast<int>(prop->value.raw_data.i8);
     } else if (prop->value.data_type == bus_data_type_uint8) {
-        *value = prop->value.raw_data.u8;
+        *value = static_cast<int>(prop->value.raw_data.u8);
     } else if (prop->value.data_type == bus_data_type_int16) {
-        *value = prop->value.raw_data.i16;
+        *value = static_cast<int>(prop->value.raw_data.i16);
     } else if (prop->value.data_type == bus_data_type_uint16) {
-        *value = prop->value.raw_data.u16;
+        *value = static_cast<int>(prop->value.raw_data.u16);
     } else if (prop->value.data_type == bus_data_type_int32) {
         *value = prop->value.raw_data.i32;
     } else if (prop->value.data_type == bus_data_type_uint32) {
-        *value = prop->value.raw_data.u32;
+        *value = static_cast<int>(prop->value.raw_data.u32);
     } else {
         return false;
     }
