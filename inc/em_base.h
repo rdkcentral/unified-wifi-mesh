@@ -182,6 +182,16 @@ extern "C"
 #define EM_CH_PREF_NON_OPERABLE 0x00
 #define EM_CH_PREF_MAX          0x0F
 
+#define CTRL_DEFAULT_CH_PREF    0x01 // Least preferred
+#define AGENT_DEFAULT_CH_PREF   0x0F // Most preferred
+
+/**
+ * Bit shift for preference value (high nibble of preference byte).
+ * Preference bytes store the preference value in bits 7-4.
+ * Use this macro when shifting preference values to/from the high nibble.
+ */
+#define EM_CH_PREF_SHIFT 4
+
 /* Flags indicating whether a channel preference entry
    is considered valid or invalid */
 #define EM_CH_PREF_ENTRY_VALID      0x01
