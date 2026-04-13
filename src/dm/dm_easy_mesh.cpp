@@ -1205,7 +1205,7 @@ int dm_easy_mesh_t::decode_config_set_channel(em_subdoc_info_t *subdoc, const ch
 
     /* Get 'Network' under provided wrapper and extract Network ID */
     if ((wrapper_obj = cJSON_GetObjectItem(parent_obj, key)) == NULL) {
-        em_printfout("Key '%s' not found in buffer: %s", subdoc->buff);
+        em_printfout("Key '%s' not found in buffer: %s", key, subdoc->buff);
         cJSON_Delete(parent_obj);
         return EM_PARSE_ERR_GEN;
     }
@@ -1283,13 +1283,13 @@ int dm_easy_mesh_t::decode_config_set_channel(em_subdoc_info_t *subdoc, const ch
         dm_easy_mesh_t::string_to_macbytes(radio_id, m_radio[0].m_radio_info.intf.mac);
 
         if ((target_arr_obj = cJSON_GetObjectItem(radio_obj, target_key)) == NULL) {
-            em_printfout("'%s' not found in Network", target_key);
+            em_printfout("'%s' not found in Radio", target_key);
             cJSON_Delete(parent_obj);
             return EM_PARSE_ERR_GEN;
         }
     } else {
         if ((target_arr_obj = cJSON_GetObjectItem(dev_obj, target_key)) == NULL) {
-            em_printfout("'%s' not found in Network", target_key);
+            em_printfout("'%s' not found in Device", target_key);
             cJSON_Delete(parent_obj);
             return EM_PARSE_ERR_GEN;
         }
@@ -1316,19 +1316,28 @@ int dm_easy_mesh_t::decode_config_set_channel(em_subdoc_info_t *subdoc, const ch
             return EM_PARSE_ERR_GEN;
         }
 
-        if (type == em_op_class_type_scan_param) {
+        m_op_class[m_num_opclass].m_op_class_info.num_channels = 0;
+        if (type != em_op_class_type_scan_param) {
             if ((channel_pref_arry_obj = cJSON_GetObjectItem(target_obj, "ChannelPrefList")) == NULL) {
                 em_printfout("ChannelPrefList not present");
                 cJSON_Delete(parent_obj);
                 return EM_PARSE_ERR_GEN;
             }
-        }
-
-        m_op_class[m_num_opclass].m_op_class_info.num_channels = 0;
-        for (j = 0; j < cJSON_GetArraySize(channel_arr_obj); j++) {
-            m_op_class[m_num_opclass].m_op_class_info.channels[m_op_class[m_num_opclass].m_op_class_info.num_channels] = static_cast<unsigned int> (cJSON_GetNumberValue(cJSON_GetArrayItem(channel_arr_obj, j)));
-            m_op_class[m_num_opclass].m_op_class_info.channel_pref[m_op_class[m_num_opclass].m_op_class_info.num_channels] = static_cast<unsigned int> (cJSON_GetNumberValue(cJSON_GetArrayItem(channel_pref_arry_obj, j)));
-            m_op_class[m_num_opclass].m_op_class_info.num_channels++;
+            if (cJSON_GetArraySize(channel_pref_arry_obj) != cJSON_GetArraySize(channel_arr_obj)) {
+                em_printfout("ChannelPrefList size is not equal to ChannelList");
+                cJSON_Delete(parent_obj);
+                return EM_PARSE_ERR_GEN;
+            }
+            for (j = 0; j < cJSON_GetArraySize(channel_arr_obj); j++) {
+                m_op_class[m_num_opclass].m_op_class_info.channels[m_op_class[m_num_opclass].m_op_class_info.num_channels] = static_cast<unsigned int> (cJSON_GetNumberValue(cJSON_GetArrayItem(channel_arr_obj, j)));
+                m_op_class[m_num_opclass].m_op_class_info.channel_pref[m_op_class[m_num_opclass].m_op_class_info.num_channels] = static_cast<unsigned int> (cJSON_GetNumberValue(cJSON_GetArrayItem(channel_pref_arry_obj, j)));
+                m_op_class[m_num_opclass].m_op_class_info.num_channels++;
+            }
+        } else {
+            for (j = 0; j < cJSON_GetArraySize(channel_arr_obj); j++) {
+                m_op_class[m_num_opclass].m_op_class_info.channels[m_op_class[m_num_opclass].m_op_class_info.num_channels] = static_cast<unsigned int> (cJSON_GetNumberValue(cJSON_GetArrayItem(channel_arr_obj, j)));
+                m_op_class[m_num_opclass].m_op_class_info.num_channels++;
+            }
         }
 
         m_num_opclass++;
