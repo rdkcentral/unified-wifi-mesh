@@ -1007,7 +1007,12 @@ int dm_easy_mesh_ctrl_t::analyze_set_channel(em_bus_event_t *evt, em_cmd_t *pcmd
 	dm_op_class_t *updated_oclass, *current_oclass;
 	unsigned int band, already_added;
 	bool channel_or_pref_modified = false;
+	bool opclass_modified, opclass_found;
+	em_long_string_t id;
+	mac_addr_str_t mac_str;
     
+	std::vector<std::string> delete_invalid_opclass_ids;
+
 	subdoc = &evt->u.subdoc;
 
    	if ((ret = dm.decode_config(subdoc, "SetAnticipatedChannelPreference", i, &num_devices)) < 0) {
@@ -1017,12 +1022,29 @@ int dm_easy_mesh_ctrl_t::analyze_set_channel(em_bus_event_t *evt, em_cmd_t *pcmd
 	assert(dm.get_num_op_class() == EM_MAX_BANDS);
 
 	evt->params.u.args.num_args = 0;
+
+	// Reset pref_valid for all anticipated operating classes before update
 	pdm = m_data_model_list.get_first_dm();
+	while (pdm != NULL) {
+        for (j = 0; j < pdm->get_num_op_class(); j++) {
+           current_oclass = &pdm->m_op_class[j];
+            if(current_oclass->m_op_class_info.id.type == em_op_class_type_anticipated) {
+                current_oclass->m_op_class_info.pref_valid = EM_CH_PREF_ENTRY_INVALID;
+            }
+        }
+        pdm = m_data_model_list.get_next_dm(pdm);
+	}
+
+	// Reset the data model list pointer to the first device
+	pdm = m_data_model_list.get_first_dm();
+
 	while (pdm != NULL) {
         for (i = 0; i < dm.get_num_op_class(); i++) {
 			updated_oclass = &dm.m_op_class[i];
 			memcpy(updated_oclass->m_op_class_info.id.ruid, pdm->get_device_info()->intf.mac, sizeof(mac_addr_t));
 
+			opclass_found = false;
+			opclass_modified = false;
 			for (j = 0; j < pdm->get_num_op_class(); j++) {
 				current_oclass = &pdm->m_op_class[j];
 				channel_or_pref_modified = false;
@@ -1030,6 +1052,10 @@ int dm_easy_mesh_ctrl_t::analyze_set_channel(em_bus_event_t *evt, em_cmd_t *pcmd
 				if ((memcmp(updated_oclass->m_op_class_info.id.ruid, current_oclass->m_op_class_info.id.ruid, sizeof(mac_address_t)) == 0) &&
 					(updated_oclass->m_op_class_info.id.type == current_oclass->m_op_class_info.id.type) &&
 					(updated_oclass->m_op_class_info.id.op_class == current_oclass->m_op_class_info.id.op_class)) {
+
+					// set pref_valid to valid if match found.
+					current_oclass->m_op_class_info.pref_valid = EM_CH_PREF_ENTRY_VALID;
+					opclass_found = true;
 
 					// clamp channel counts to prevent out-of-bounds access
 					const unsigned int updated_channel_count = std::min(updated_oclass->m_op_class_info.num_channels,
@@ -1040,48 +1066,66 @@ int dm_easy_mesh_ctrl_t::analyze_set_channel(em_bus_event_t *evt, em_cmd_t *pcmd
 					// Check if the channel or pref has changed or not
 					if (updated_channel_count != current_channel_count){
 						channel_or_pref_modified = true;
-						// Since this update applies only to channel and preference changes within the
-						// current operating class, the preference state remains valid.
-						// TODO: In case of an operating class change, pref_valid must be reset to false
-						//       for older operating classes.
-						updated_oclass->m_op_class_info.pref_valid = EM_CH_PREF_ENTRY_VALID;
 					} else {
 						for (unsigned int index = 0; index < updated_channel_count; ++index) {
 							if ((updated_oclass->m_op_class_info.channels[index] != current_oclass->m_op_class_info.channels[index]) || 
 								updated_oclass->m_op_class_info.channel_pref[index] != current_oclass->m_op_class_info.channel_pref[index]) {
 								channel_or_pref_modified = true;
-								// Since this update applies only to channel and preference changes within the
-								// current operating class, the preference state remains valid.
-								// TODO: In case of an operating class change, pref_valid must be reset to false
-								//       for older operating classes..
-								updated_oclass->m_op_class_info.pref_valid = EM_CH_PREF_ENTRY_VALID;
 								break;
 							}
-						}
-					}
-					if (channel_or_pref_modified) {
-						already_added = 0;
-						band = dm_easy_mesh_t::get_freq_band_by_op_class(static_cast<int>(updated_oclass->m_op_class_info.id.op_class));
-
-						// Check if the band is already added to event parameters
-						for (k = 0; k < evt->params.u.args.num_args; k++) {
-							if (static_cast<unsigned int>(atoi(evt->params.u.args.args[k])) == band) {
-								already_added = 1;
-								break;
-							}
-						}
-
-						// If the band is not already added, add it to the event parameters
-						if (!already_added) {
-							snprintf(evt->params.u.args.args[evt->params.u.args.num_args], sizeof(em_long_string_t), "%u", band);
-							evt->params.u.args.num_args++;
 						}
 					}
 					break;
 				}
 			}
-        }
+
+			if (!opclass_found) {
+				opclass_modified = true;
+			}
+
+			if (channel_or_pref_modified || opclass_modified) {
+				already_added = 0;
+				band = dm_easy_mesh_t::get_freq_band_by_op_class(static_cast<int>(updated_oclass->m_op_class_info.id.op_class));
+
+				// Check if the band is already added to event parameters
+				for (k = 0; k < evt->params.u.args.num_args; k++) {
+					if (static_cast<unsigned int>(atoi(evt->params.u.args.args[k])) == band) {
+						already_added = 1;
+						break;
+					}
+				}
+
+				// If the band is not already added, add it to the event parameters
+				if (!already_added) {
+					snprintf(evt->params.u.args.args[evt->params.u.args.num_args], sizeof(em_long_string_t), "%u", band);
+					evt->params.u.args.num_args++;
+				}
+			}
+		}
+
+		// Collect all the invalid rows for tye anticipated
+		delete_invalid_opclass_ids.clear();
+		for (j = 0; j < pdm->get_num_op_class(); j++) {
+			current_oclass = &pdm->m_op_class[j];
+
+			if (current_oclass->m_op_class_info.id.type == em_op_class_type_anticipated &&
+				current_oclass->m_op_class_info.pref_valid == EM_CH_PREF_ENTRY_INVALID) {
+				dm_easy_mesh_t::macbytes_to_string(current_oclass->m_op_class_info.id.ruid, mac_str);
+
+				snprintf(id, sizeof(id), "%s@%d@%d",mac_str,
+								current_oclass->m_op_class_info.id.type,
+								current_oclass->m_op_class_info.id.op_class);
+				delete_invalid_opclass_ids.emplace_back(id);
+			}
+		}
+
 		pdm->set_channels_list(dm.m_op_class, dm.get_num_op_class());
+
+		// Delete invalid row of anticipated type from db
+		for (const auto &del_id : delete_invalid_opclass_ids) {
+			em_printfout("Deleting obsolete op-class from DB: %s\n", del_id.c_str());
+			dm_op_class_list_t::delete_row(m_db_client, del_id.c_str());
+		}
 
 		pdm->set_db_cfg_param(db_cfg_type_op_class_list_update, "");
 		pdm = m_data_model_list.get_next_dm(pdm);
