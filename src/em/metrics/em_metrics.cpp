@@ -204,7 +204,7 @@ int em_metrics_t::handle_associated_sta_link_metrics_resp(unsigned char *buff, u
     tlv = tlv_start;
     tmp_len = base_len;
 
-    while (((tmp_len > 0) && (tmp_len >= sizeof(em_tlv_t)) && (tlv->type != em_tlv_type_eom))) {
+    while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
         if (tlv->type == em_tlv_type_assoc_sta_ext_link_metric) {
             handle_assoc_sta_ext_link_metrics_tlv(tlv->value, ntohs(tlv->len));
         }
@@ -529,7 +529,7 @@ int em_metrics_t::handle_ap_metrics_response(unsigned char *buff, unsigned int l
     tlv = tlv_start;
     tmp_len = base_len;
 
-    while (((tmp_len > 0) && (tmp_len >= sizeof(em_tlv_t)) && (tlv->type != em_tlv_type_eom))) {
+    while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
         if (tlv->type == em_tlv_type_assoc_sta_ext_link_metric) {
             handle_assoc_sta_ext_link_metrics_tlv(tlv->value, ntohs(tlv->len));
         }
