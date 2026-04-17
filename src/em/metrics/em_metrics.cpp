@@ -82,21 +82,21 @@ int em_metrics_t::handle_assoc_sta_ext_link_metrics_tlv(unsigned char *buff, uns
     unsigned int i;
     dm_easy_mesh_t  *dm;
 
-	if (buff == NULL || tlv_len == 0 || tlv_len < 7) {
-            printf("Invalid input: buff=%p tlv_len=%u\n", buff, tlv_len);
+    if (buff == NULL || tlv_len == 0 || tlv_len < 7) {
+            printf("Invalid input: null buffer or invalid tlv_len=%u\n", tlv_len);
             return -1;
-	}
+    }
 
     dm = get_data_model();
 
     sta_metrics = reinterpret_cast<em_assoc_sta_ext_link_metrics_t *> (buff);
 
-	unsigned int k = sta_metrics->num_bssids;
-	unsigned int expected_len = 7 + (k * sizeof(em_assoc_ext_link_metrics_t));
+    unsigned int k = sta_metrics->num_bssids;
+    unsigned int expected_len = offsetof(em_assoc_sta_ext_link_metrics_t, assoc_ext_link_metrics) + (k * sizeof(em_assoc_ext_link_metrics_t));
 
-	if (tlv_len != expected_len) {
+    if (tlv_len != expected_len) {
             return -1;
-	}
+    }
 
     for (i = 0; i < sta_metrics->num_bssids; i++) {
         metrics	= &sta_metrics->assoc_ext_link_metrics[i];
