@@ -215,9 +215,9 @@ class em_metrics_t {
 	 *
 	 * @note Ensure that the buffer is properly allocated and contains valid TLV data.
          * - Minimum required length is 7 bytes (STA MAC + k).
-         * - Each BSSID entry contains a fixed 22-byte extended metrics block.
-         * - Total TLV length must strictly follow: 
-	 *   tlv_len = 7 + (k * 22)
+         * - Each BSSID entry contains one `em_assoc_ext_link_metrics_t` block
+         * - Total TLV length must strictly follow:
+	 *   tlv_len = 7 + (k * sizeof(em_assoc_ext_link_metrics_t))
          * - Any deviation from expected length results in rejection to prevent
          *   out-of-bounds memory access
 	 */
