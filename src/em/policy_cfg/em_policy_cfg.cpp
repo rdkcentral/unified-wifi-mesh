@@ -556,6 +556,8 @@ int em_policy_cfg_t::send_policy_cfg_request_msg()
 
 	printf("%s:%d: Policy Cfg Request Msg Send Success\n", __func__, __LINE__);
 
+    m_policy_req_msg_id = ntohs(cmdu->id);
+
     return static_cast<int> (len);
 
 }
@@ -570,7 +572,8 @@ int em_policy_cfg_t::handle_policy_cfg_req(unsigned char *buff, unsigned int len
     unsigned char *cursor = NULL;
     em_vendor_data_t *data = NULL;
 
-    memset(&policy, 0, sizeof(em_policy_cfg_t));
+    memset(&policy, 0, sizeof(policy));
+    em_cmdu_t *cmdu = reinterpret_cast<em_cmdu_t *> (buff + sizeof(em_raw_hdr_t));
 
     tlv = reinterpret_cast<em_tlv_t *> (buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
     tlv_len = len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
@@ -693,7 +696,103 @@ int em_policy_cfg_t::handle_policy_cfg_req(unsigned char *buff, unsigned int len
     }
 
     get_mgr()->io_process(em_bus_event_type_set_policy, reinterpret_cast<unsigned char *> (&policy), sizeof(policy));
+    send_1905_ack_message(ntohs(cmdu->id));
 
+    return 0;
+}
+
+int em_policy_cfg_t::send_1905_ack_message(unsigned short msg_id)
+{
+    unsigned char buff[MAX_EM_BUFF_SZ] = {0};
+    char *errors[EM_MAX_TLV_MEMBERS] = {0};
+    unsigned short  msg_type = em_msg_type_1905_ack;
+    unsigned int len = 0;
+    em_cmdu_t *cmdu;
+    em_tlv_t *tlv;
+    unsigned char *tmp = buff;
+    unsigned short type = htons(ETH_P_1905);
+    dm_easy_mesh_t *dm = get_data_model();
+
+    memcpy(tmp, dm->get_ctrl_al_interface_mac(), sizeof(mac_address_t));
+    mac_addr_str_t ctrl_mac_str;
+    dm_easy_mesh_t::macbytes_to_string(dm->get_ctrl_al_interface_mac(), ctrl_mac_str);
+
+    tmp += sizeof(mac_address_t);
+    len += static_cast<unsigned int> (sizeof(mac_address_t));
+
+    memcpy(tmp, dm->get_agent_al_interface_mac(), sizeof(mac_address_t));
+    mac_addr_str_t agent_mac_str;
+    dm_easy_mesh_t::macbytes_to_string(dm->get_agent_al_interface_mac(), agent_mac_str);
+
+    tmp += sizeof(mac_address_t);
+    len += static_cast<unsigned int> (sizeof(mac_address_t));
+
+    memcpy(tmp, reinterpret_cast<unsigned char *> (&type), sizeof(unsigned short));
+    tmp += sizeof(unsigned short);
+    len += sizeof(unsigned short);
+
+    cmdu = reinterpret_cast<em_cmdu_t *> (tmp);
+
+    memset(tmp, 0, sizeof(em_cmdu_t));
+    cmdu->type = htons(msg_type);
+    cmdu->id = htons(msg_id);
+    cmdu->last_frag_ind = 1;
+
+    tmp += sizeof(em_cmdu_t);
+    len += sizeof(em_cmdu_t);
+
+    // End of message
+    tlv = reinterpret_cast<em_tlv_t *> (tmp);
+    tlv->type = em_tlv_type_eom;
+    tlv->len = 0;
+
+    tmp += (sizeof (em_tlv_t));
+    len += static_cast<unsigned int> (sizeof (em_tlv_t));
+
+    if (em_msg_t(em_msg_type_1905_ack, em_profile_type_3, buff, len).validate(errors) == 0) {
+        em_printfout("1905 ACK validation failed\n");
+        return 0;
+    }
+
+    if (send_frame(buff, len)  < 0) {
+        em_printfout("1905 ACK send failed, error:%d\n", errno);
+        return 0;
+    }
+    em_printfout("1905 ACK send success\n");
+
+    return static_cast<int> (len);
+}
+
+int em_policy_cfg_t::handle_1905_ack(unsigned char *buff, unsigned int len)
+{
+    std::vector<em_t *> em_radios;
+    bool match_found = false;
+
+    em_cmdu_t *cmdu = reinterpret_cast<em_cmdu_t *> (buff + sizeof(em_raw_hdr_t));
+    unsigned short response_msg_id = ntohs(cmdu->id);
+    em_raw_hdr_t *hdr = reinterpret_cast<em_raw_hdr_t *>(buff);
+    // Access the source MAC address (as a byte array)
+    mac_address_t src_mac;
+    memcpy(src_mac, hdr->src, sizeof(mac_address_t));
+    get_mgr()->get_all_em_for_al_mac(src_mac, em_radios);
+
+    for (auto &em : em_radios)
+    {
+	    if (em->get_state() == em_state_ctrl_set_policy_pending && response_msg_id == em->m_policy_req_msg_id) {
+		    match_found = true;
+		    em->m_policy_req_msg_id = 0;
+		    break;
+	    }
+    }
+    
+    if (match_found) {
+	    for (auto &em : em_radios) {
+		    em->set_state(em_state_ctrl_configured);
+	    }
+    } else {
+	    em_printfout("No radio waiting for policy config ack for given msg_id\n");
+    }
+    em_radios.clear();
     return 0;
 }
 
@@ -704,6 +803,9 @@ void em_policy_cfg_t::process_msg(unsigned char *data, unsigned int len)
     switch (htons(cmdu->type)) {
 		case em_msg_type_map_policy_config_req:
 			handle_policy_cfg_req(data, len);
+			break;
+		case em_msg_type_1905_ack:
+			handle_1905_ack(data, len);
 			break;
         default:
             break;
@@ -725,6 +827,8 @@ void em_policy_cfg_t::process_ctrl_state()
                 em_printfout("Processing set policy pending state for radio %s", util::mac_to_string(get_radio_interface_mac()).c_str());
                 std::vector<em_t *> em_radios;
                 dm_easy_mesh_t *dm = get_data_model();
+                mac_address_t current_ruid;
+                memcpy(current_ruid, get_radio_interface_mac(), sizeof(mac_address_t));
 
                 get_mgr()->get_all_em_for_al_mac(dm->get_agent_al_interface_mac(), em_radios);
                 for (auto &em : em_radios)
@@ -747,35 +851,26 @@ void em_policy_cfg_t::process_ctrl_state()
                 }
                 // If all radios or some radios in set policy pending state, send policy config request on one of them,
                 // ignore sending policy config request on other radios
-                if (!em_radios.empty())
+                if (!em_radios.empty() && em_radios.front() == this)
                 {
-                    em_printfout("Sending the Policy config request message to agent al_mac:%s on radio: %s",
+                    // Check if current radio's RUID matches the first radio's RUID in the vector
+                    if (memcmp(current_ruid, em_radios.front()->get_radio_interface_mac(), sizeof(mac_address_t)) == 0) {
+                         em_printfout("Sending the Policy config request message to agent al_mac:%s on radio: %s",
                                  util::mac_to_string(dm->get_agent_al_interface_mac()).c_str(),
                                  util::mac_to_string(get_radio_interface_mac()).c_str());
-                    em_t *al_em = get_mgr()->get_al_node();
-
-                    // Send policy config request and check for errors
-                    int send_result = send_policy_cfg_request_msg();
-                    if (send_result < 0) {
-                        em_printfout("Error: Failed to send policy config request message");
-                        return;
-                    } else {
-                        em_printfout("Policy config request sent successfully, bytes: %d", send_result);
+                         // Send policy config request and check for errors
+                         int send_result = send_policy_cfg_request_msg();
+                         if (send_result < 0) {
+                             em_printfout("Error: Failed to send policy config request message");
+                             return;
+                         } else {
+                             em_printfout("Policy config request sent successfully, bytes: %d", send_result);
+                         }
                     }
-
-                    // Set state for AL node to configured
-                    al_em->set_state(em_state_ctrl_configured);
-                    em_printfout("Set AL node state to configured");
-                    // Set state for all radios to Configured state
-                    for (auto &em : em_radios)
-                    {
-                        if (em != NULL)
-                        {
-                            em->set_state(em_state_ctrl_configured);
-                            em_printfout("Set radio %s state to configured",
-                                        util::mac_to_string(em->get_radio_interface_mac()).c_str());
-                        }
-                    }
+                } else if (!em_radios.empty() && em_radios.front() != this) {
+                    em_printfout("Policy config request message already sent by radio %s, not sending again from radio %s",
+                              util::mac_to_string(em_radios.front()->get_radio_interface_mac()).c_str(),
+                              util::mac_to_string(get_radio_interface_mac()).c_str());
                 }
                 em_radios.clear();
             }

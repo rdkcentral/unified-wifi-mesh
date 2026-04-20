@@ -220,6 +220,16 @@ public:
 	void cancel_command(em_cmd_type_t type);
 
 	/**!
+	 * @brief Removes em_config command for the EM with radio mac.
+	 *
+	 * This function is used to remove cmd_type_em_config currently active and queued for the EM with the radio mac.
+	 *
+	 * @param[in] radio_mac Radio MAC of the EM for which the command should be removed.
+	 *
+	 */
+	void remove_em_config_cmd_for_em(unsigned char *radio_mac);
+
+	/**!
 	 * @brief Resets the command time for a specific command type.
 	 *
 	 * This function is responsible for resetting the timer associated with a specific command type in the command map.

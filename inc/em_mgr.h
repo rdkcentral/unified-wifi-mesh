@@ -82,6 +82,13 @@ public:
 	 */
 	virtual bool    is_data_model_initialized() = 0;
 
+	/**!
+	 * @brief Get the orchestration engine for this manager.
+	 *
+	 * @returns Pointer to the orchestration object(controller or agent), or nullptr if not available.
+	 */
+	virtual em_orch_t *get_orch() { return nullptr; }
+
     
 	/**!
 	 * @brief Pushes an event to the queue.

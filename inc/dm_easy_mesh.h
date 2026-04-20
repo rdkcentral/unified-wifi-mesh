@@ -104,7 +104,75 @@ public:
 	unsigned int get_last_topo_query_sent_time() const { return last_topo_query_sent_time; }
 
 	static em_e4_table_t m_e4_table[];
-	
+
+       /**!
+        * @brief Retrieves the beacon channel based on center channel and bandwidth.
+        *
+        * This function calculates the beacon channel corresponding to a given
+        * center channel and operating bandwidth.
+        *
+        * @param[in] center_channel  The center channel from which the beacon channel is derived.
+        * @param[in] bandwidth       The channel bandwidth (e.g., 20, 40, 80, 160, 320 MHz).
+        *
+        * @return The calculated beacon channel associated with the provided center
+        *         channel and bandwidth.
+        *
+        * @note Ensure that the center_channel is valid.
+        */
+        static int get_beaconchannel_by_bandwidth(int center_channel, int bandwidth);
+ 
+       /**!
+        * @brief Retrieves the center channel from a given beacon channel and bandwidth.
+        *
+        * This function determines the center channel corresponding to a beacon (primary)
+        * channel and the operating bandwidth.
+        *
+        * @param[in] beacon_channel  The primary/beacon channel.
+        * @param[in] bandwidth       The operating channel bandwidth (20/40/80/160/320 MHz).
+        *
+        * @return The calculated center channel for the provided beacon channel and
+        *         bandwidth.
+        *
+        * @note The function assumes a valid beacon channel for the given bandwidth.
+        */
+        static int get_centerchannel_by_bandwidth(int beacon_channel, int bandwidth);
+
+       /**!
+        * @brief Retrieves the beacon channel based on operating class and channel
+        *        as per the m_e4_table.
+	*
+        * This function maps an operating class and channel number to the appropriate
+        * beacon (primary) channel as per the m_e4_table. Operating classes define
+        * regulatory behavior such as bandwidth, channel spacing, and allowed channels.
+        *
+        * @param[in] op_class The operating class that defines channel behavior.
+        * @param[in] channel  The channel for which the beacon channel is required.
+        *
+        * @return The corresponding beacon channel for the given operating class
+        *         and channel.
+        *
+        * @note Ensure that the operating class is valid and corresponds to the region’s
+        *       regulatory domain to avoid incorrect mapping results.
+        */
+        static int get_beaconchannel_by_opclass(int op_class, int channel);
+
+       /**!
+        * @brief Retrieves the center channel for a given operating class and channel
+        *        as per the m_e4_table.
+	*
+        * This function computes the center channel associated with a specific operating
+        * class and channel number as per the m_e4_table.
+        *
+        * @param[in] op_class The operating class.
+        * @param[in] channel  The channel from which the center channel needs to be derived.
+        *
+        * @return The center channel corresponding to the provided operating class and channel.
+        *
+        * @note This mapping is dependent on regulatory domain definitions. Ensure the
+        *       operating class and channel values are valid and supported.
+        */
+        static int get_centerchannel_by_opclass(int op_class, int channel);
+
 	/**!
 	 * @brief Retrieves the frequency band associated with a given operating class.
 	 *
