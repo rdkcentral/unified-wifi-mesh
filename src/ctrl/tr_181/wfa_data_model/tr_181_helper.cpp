@@ -163,33 +163,14 @@ bus_data_prop_t *tr_181_t::tr181_set_status_output_prop(const char *status)
 }
 
 // Populate output_data with a "Status" property containing the given status string.
-void tr_181_t::tr181_set_status_output(bus_data_prop_t *output_data, const char *status)
+void tr_181_t::tr181_set_status_output(raw_data_t *output_data, const char *status)
 {
-    if (!output_data || !status) {
-        return;
-    }
-
-    bus_data_prop_t *prop = output_data;
-    memset(prop, 0, sizeof(*prop));
-
-    size_t name_len = strnlen("Status", sizeof(prop->name) - 1U);
-    memcpy(prop->name, "Status", name_len);
-    prop->name[name_len] = '\0';
-    prop->name_len = static_cast<uint32_t>(name_len);
-    prop->is_data_set = true;
-    prop->status = bus_error_success;
-    prop->ref_count = 1;
-
-    size_t value_len = strlen(status);
-    prop->value.data_type = bus_data_type_string;
-    prop->value.raw_data.bytes = malloc(value_len + 1U);
-    if (!prop->value.raw_data.bytes) {
-        prop->is_data_set = false;
-        prop->ref_count = 0;
-        return;
-    }
-    memcpy(prop->value.raw_data.bytes, status, value_len + 1U);
-    prop->value.raw_data_len = static_cast<unsigned int>(value_len + 1U);
+    if (!output_data) return;
+    bus_data_prop_t *prop = tr181_set_status_output_prop(status);
+    if (!prop) return;
+    output_data->data_type = bus_data_type_property;
+    output_data->raw_data.bytes = prop;
+    output_data->raw_data_len = sizeof(bus_data_prop_t);
 }
 
 // Copy a string property value into a destination buffer, ensuring proper type and null-termination.

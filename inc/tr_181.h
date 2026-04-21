@@ -555,8 +555,7 @@ public:
      *
      * @note Ownership of input and output buffers remains with the caller.
      */
-    static bus_error_t setssid_handler(const char *method_name, bus_data_prop_t *input_data,
-        bus_data_prop_t *output_data, void *async_handle);
+    static bus_error_t setssid_handler(const char *method_name, raw_data_t *input_data, raw_data_t *output_data, void *async_handle);
 
     //Methods helper utilities
 
@@ -642,7 +641,7 @@ public:
      *
      * @note On success, output_data takes ownership of the allocated property.
      */
-    static void tr181_set_status_output(bus_data_prop_t *output_data, const char *status);
+    static void tr181_set_status_output(raw_data_t *output_data, const char *status);
 
     /**!
      * @brief Copy a string property value into a destination buffer.
