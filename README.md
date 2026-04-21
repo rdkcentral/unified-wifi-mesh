@@ -160,7 +160,7 @@ unified-wifi-mesh uses a multi-threaded architecture separating the IEEE 1905.1 
 
 ### Component State Flow
 
-**Initialization to Active State**
+**Initialization to Active State (Gateway with Colocated Agent and Controller)**
 
 ```mermaid
 sequenceDiagram
@@ -206,6 +206,299 @@ sequenceDiagram
     Note over Agent,Ctrl: Mesh active — ongoing metrics, steering, DPP flows
 ```
 
+**Remote Agent State Machine (Extender)**
+
+**Phase 1: Agent Initialization and Configuration**
+
+```mermaid
+stateDiagram-v2
+    [*] --> em_state_agent_unconfigured: Agent startup
+    
+    em_state_agent_unconfigured --> em_state_agent_autoconfig_rsp_pending: Send Autoconfig Search
+    note right of em_state_agent_unconfigured
+        Read /nvram/EasymeshCfg.json
+        Colocated=false for remote agents
+        Try DPP onboarding if enabled
+    end note
+    
+    em_state_agent_autoconfig_rsp_pending --> em_state_agent_wsc_m2_pending: Receive Autoconfig Response<br/>Send WSC M1
+    note right of em_state_agent_autoconfig_rsp_pending
+        Retry Autoconfig Search if timeout
+        Process DPP Chirp if present
+    end note
+    
+    em_state_agent_wsc_m2_pending --> em_state_agent_owconfig_pending: Receive WSC M2<br/>Parse credentials
+    note right of em_state_agent_wsc_m2_pending
+        Extract SSID, passphrase, auth type
+        Translate M2 to m2ctrl_radioconfig
+    end note
+    
+    em_state_agent_owconfig_pending --> em_state_agent_onewifi_bssconfig_ind: Push webconfig to OneWifi
+    note right of em_state_agent_owconfig_pending
+        bus_set_fn(private subdoc)
+        Configure backhaul and fronthaul VAPs
+    end note
+    
+    em_state_agent_onewifi_bssconfig_ind --> em_state_agent_topo_synchronized: Send Topology Response
+    note right of em_state_agent_onewifi_bssconfig_ind
+        BSS configuration confirmed
+        Create device info, operational BSS TLVs
+    end note
+```
+
+**Phase 2: Capability Exchange and Channel Configuration**
+
+```mermaid
+stateDiagram-v2
+    [*] --> em_state_agent_topo_synchronized
+    
+    em_state_agent_topo_synchronized --> em_state_agent_ap_cap_report: Receive AP Capability Query
+    note right of em_state_agent_topo_synchronized
+        Topology synchronized
+        Backhaul STA associated
+    end note
+    
+    em_state_agent_ap_cap_report --> em_state_agent_channel_pref_query: Send AP Capability Report
+    note right of em_state_agent_ap_cap_report
+        Report radio capabilities
+        (HT/VHT/HE/WiFi6/WiFi7)
+    end note
+    
+    em_state_agent_channel_pref_query --> em_state_agent_channel_selection_pending: Receive Channel Pref Query<br/>Send Channel Pref Report
+    note right of em_state_agent_channel_pref_query
+        Report preferred channels
+        per op class
+    end note
+    
+    em_state_agent_channel_selection_pending --> em_state_agent_channel_select_configuration_pending: Receive Channel Selection Request
+    note right of em_state_agent_channel_selection_pending
+        Wait for controller channel selection
+    end note
+    
+    em_state_agent_channel_select_configuration_pending --> em_state_agent_channel_report_pending: Apply channel change via OneWifi
+    note right of em_state_agent_channel_select_configuration_pending
+        Agent applies channel via bus_set_fn
+        May cause backhaul disruption
+    end note
+    
+    em_state_agent_channel_report_pending --> em_state_agent_configured: Send Operating Channel Report
+    note right of em_state_agent_channel_report_pending
+        Confirm new op class and channel
+    end note
+```
+
+**Phase 3: Runtime Operations**
+
+```mermaid
+stateDiagram-v2
+    [*] --> em_state_agent_configured
+    
+    em_state_agent_configured --> em_state_agent_sta_link_metrics_pending: STA Link Metrics Query
+    em_state_agent_sta_link_metrics_pending --> em_state_agent_configured: Send Metrics Response
+    
+    em_state_agent_configured --> em_state_agent_steer_btm_res_pending: Steering Request
+    em_state_agent_steer_btm_res_pending --> em_state_agent_configured: Send BTM Report
+    
+    em_state_agent_configured --> em_state_agent_beacon_report_pending: Beacon Metrics Query
+    em_state_agent_beacon_report_pending --> em_state_agent_configured: Send Beacon Report
+    
+    em_state_agent_configured --> em_state_agent_channel_scan_result_pending: Channel Scan Request
+    em_state_agent_channel_scan_result_pending --> em_state_agent_configured: Send Scan Report
+    
+    em_state_agent_configured --> em_state_agent_autoconfig_renew_pending: Autoconfig Renew
+    em_state_agent_autoconfig_renew_pending --> em_state_agent_wsc_m2_pending: Restart M1/M2 exchange
+    
+    note right of em_state_agent_configured
+        Fully operational state
+        Process steering, metrics, scans
+        DPP onboard new clients
+    end note
+```
+
+**Extender Onboarding Flow (Star and Daisy Topologies)**
+
+**Phase 1: Gateway and Extender Bootstrap**
+
+```mermaid
+stateDiagram-v2
+    [*] --> GatewayInit: Gateway powers on
+    
+    GatewayInit --> CtrlStart: Controller starts
+    CtrlStart --> CtrlReady: Register TR-181<br/>Open IEEE 1905.1 sockets
+    CtrlReady --> ColocAgent: Colocated agent starts
+    ColocAgent --> GatewayActive: M1/M2 exchange<br/>Topology synchronized
+    
+    GatewayActive --> ExtBoot: Extender powers on
+    ExtBoot --> ExtAgentInit: Read EasymeshCfg.json<br/>Colocated=false
+    ExtAgentInit --> ExtConnect: Connect to OneWifi
+    ExtConnect --> OnboardDecision: DPP enabled?
+```
+
+**Phase 2a: DPP Onboarding Path**
+
+```mermaid
+stateDiagram-v2
+    [*] --> GenURI: Generate DPP bootstrap URI
+    GenURI --> SendChirp: Send Autoconfig Search (extended)<br/>with DPP Chirp hash
+    SendChirp --> WaitCCE: Wait for DPP CCE Indication
+    WaitCCE --> DPPAuth: Receive CCE Indication<br/>Start DPP authentication
+    DPPAuth --> DPPConfig: Auth Request/Response/Confirm
+    DPPConfig --> DPPProvision: Config Request (GAS)<br/>Receive connector + C-sign-key
+    DPPProvision --> DPPDone: Store to /nvram/
+    DPPDone --> [*]
+```
+
+**Phase 2b: WSC Onboarding Path**
+
+```mermaid
+stateDiagram-v2
+    [*] --> SendSearch: Send Autoconfig Search (multicast)
+    SendSearch --> WaitResp: Wait for Autoconfig Response
+    WaitResp --> SendM1: Receive Response<br/>Send WSC M1
+    SendM1 --> WaitM2: Wait for WSC M2
+    WaitM2 --> ParseM2: Receive M2<br/>Extract credentials
+    ParseM2 --> WSCDone: Translate to m2ctrl_radioconfig
+    WSCDone --> [*]
+```
+
+**Phase 3: Backhaul Association and Topology Sync**
+
+```mermaid
+stateDiagram-v2
+    [*] --> PushConfig: Push webconfig to OneWifi
+    PushConfig --> CreateBSTA: Create backhaul STA VAP
+    CreateBSTA --> ScanParent: Scan for parent AP
+    ScanParent --> AssocParent: Associate to parent BSSID
+    AssocParent --> Handshake: WPA2/WPA3 4-way handshake
+    Handshake --> BSTAUp: Backhaul STA connected
+    
+    BSTAUp --> TopoDisc: Send Topology Discovery
+    TopoDisc --> TopoNotif: Send Topology Notification
+    TopoNotif --> TopoQuery: Receive Topology Query
+    TopoQuery --> TopoResp: Send Topology Response
+    TopoResp --> TopoSynced: Topology synchronized
+    TopoSynced --> [*]
+```
+
+**Phase 4: Capability Exchange and Activation**
+
+```mermaid
+stateDiagram-v2
+    [*] --> APCapQuery: Receive AP Capability Query
+    APCapQuery --> APCapRpt: Send AP Capability Report
+    APCapRpt --> ChanPrefQuery: Receive Channel Pref Query
+    ChanPrefQuery --> ChanPrefRpt: Send Channel Pref Report
+    ChanPrefRpt --> ChanSelReq: Receive Channel Selection
+    ChanSelReq --> ApplyChan: Apply operating channel
+    ApplyChan --> ChanRpt: Send Operating Channel Report
+    ChanRpt --> ExtActive: Extender fully onboarded
+    
+    ExtActive --> [*]: Serve clients,<br/>report metrics,<br/>execute steering
+```
+
+**Phase 5: Multi-Hop Mesh (Daisy Topology)**
+
+```mermaid
+stateDiagram-v2
+    [*] --> Ext1Active: First extender active
+    
+    Ext1Active --> Ext2Boot: Additional extender powers on
+    Ext2Boot --> Ext2Scan: Scan for parent
+    Ext2Scan --> ParentSelect: Select parent
+    
+    note right of ParentSelect
+        Star: Associate to Gateway
+        Daisy: Associate to Extender1
+        Based on RSSI, throughput, hop count
+    end note
+    
+    ParentSelect --> Ext2Onboard: Repeat onboarding flow
+    Ext2Onboard --> Ext2Active: Second extender active
+    
+    Ext2Active --> MeshActive: Multi-hop mesh active
+    MeshActive --> ForwardCMDU: Controller uses 1905.1 relay
+    ForwardCMDU --> MeshActive
+    
+    MeshActive --> HandleFailure: Backhaul link failure
+    HandleFailure --> Reassoc: Re-associate to alternate parent
+    Reassoc --> MeshActive
+```
+
+**Network Topologies: Star vs. Daisy**
+
+The EasyMesh network supports two primary multi-hop topologies:
+
+- **Star Topology**: All extenders (remote agents) associate their backhaul STAs directly to the gateway (controller + colocated agent). Single-hop backhaul provides maximum throughput and lowest latency but limits coverage range.
+
+  ```
+  Gateway (Controller + Colocated Agent)
+       |
+       +--- Extender 1 (backhaul STA → gateway backhaul BSS)
+       |
+       +--- Extender 2 (backhaul STA → gateway backhaul BSS)
+       |
+       +--- Extender 3 (backhaul STA → gateway backhaul BSS)
+  ```
+
+- **Daisy Topology** (Multi-Hop): Extenders can associate their backhaul STAs to either the gateway or to another extender's backhaul BSS, creating a chain (daisy) of wireless hops. Extends coverage beyond gateway range with reduced backhaul throughput and increased latency. Controller coordinates all agents via IEEE 1905.1 CMDU relay.
+
+  ```
+  Gateway (Controller + Colocated Agent)
+       |
+       +--- Extender 1 (backhaul STA → gateway backhaul BSS)
+                |
+                +--- Extender 2 (backhaul STA → Ext1 backhaul BSS)
+                         |
+                         +--- Extender 3 (backhaul STA → Ext2 backhaul BSS)
+  ```
+
+**Topology Selection and Parent Choice:**
+
+Remote agent scans for available backhaul BSSs advertised by the gateway and existing extenders. Parent selection algorithm (vendor-specific) considers:
+
+1. **Signal Strength (RSSI)**: Prefer parent with strongest signal
+2. **Backhaul Throughput**: Estimate available bandwidth based on parent's backhaul link quality and hop count
+3. **Hop Count**: Prefer parents with fewer hops to controller
+4. **Load Balancing**: Distribute extenders across multiple parent candidates
+5. **Steering History**: Apply hysteresis to prevent re-association loops
+
+The agent reports its selected parent in the Backhaul STA Radio Capabilities TLV (containing `bsta_addr` and `ruid`) and updates the topology via Topology Notification CMDU whenever the backhaul STA re-associates to a different parent.
+
+**Agent State Machine Processing**
+
+The agent state machine is implemented in `em_configuration_t::process_agent_state()` and processes states through distinct handlers:
+
+| Agent State | Handler Function | Trigger Condition | Next State Transition |
+|-------------|-----------------|-------------------|----------------------|
+| `em_state_agent_unconfigured` | `handle_state_config_none()` | Device initialization complete | → `em_state_agent_autoconfig_rsp_pending` after sending Autoconfig Search |
+| `em_state_agent_autoconfig_rsp_pending` | `handle_state_autoconfig_rsp_pending()` | Waiting for controller discovery | → `em_state_agent_wsc_m2_pending` upon receiving Autoconfig Response |
+| `em_state_agent_wsc_m2_pending` | `handle_state_wsc_m2_pending()` | WSC M1 sent, waiting for credentials | → `em_state_agent_owconfig_pending` upon receiving M2 |
+| `em_state_agent_owconfig_pending` | `handle_state_owconfig_pending()` | M2 credentials parsed, pushing to OneWifi | → `em_state_agent_onewifi_bssconfig_ind` when OneWifi callback received |
+| `em_state_agent_onewifi_bssconfig_ind` | `handle_state_onewifi_bssconfig_ind()` | BSS configuration applied by OneWifi | → `em_state_agent_topo_synchronized` after sending Topology Response |
+| `em_state_agent_topo_synchronized` | — | Topology synchronized with controller | Remains in state until capability query received |
+| `em_state_agent_ap_cap_report` | `em_capability_t::process_agent_state()` | AP capability query received | → `em_state_agent_channel_pref_query` after sending capability report |
+| `em_state_agent_channel_pref_query` | `em_channel_t::process_agent_state()` | Channel preference query received | → `em_state_agent_channel_selection_pending` after sending preference report |
+| `em_state_agent_channel_selection_pending` | `em_channel_t::process_agent_state()` | Waiting for channel selection request | → `em_state_agent_channel_select_configuration_pending` upon receiving Channel Selection Request |
+| `em_state_agent_channel_select_configuration_pending` | `em_channel_t::process_agent_state()` | Applying channel change via OneWifi | → `em_state_agent_channel_report_pending` after channel change applied |
+| `em_state_agent_channel_report_pending` | `em_channel_t::process_agent_state()` | Sending operating channel report | → `em_state_agent_configured` after sending operating channel report |
+| `em_state_agent_configured` | — | Fully configured and operational | Transitions to transient states for specific operations |
+| `em_state_agent_autoconfig_renew_pending` | `handle_state_autoconfig_renew()` | Autoconfig Renew received from controller | → `em_state_agent_wsc_m2_pending` to restart M1/M2 exchange |
+| `em_state_agent_sta_link_metrics_pending` | `em_metrics_t::process_agent_state()` | STA link metrics query received | → `em_state_agent_configured` after sending metrics response |
+| `em_state_agent_steer_btm_res_pending` | `em_steering_t::process_agent_state()` | Client steering request received | → `em_state_agent_configured` after BTM response sent |
+| `em_state_agent_beacon_report_pending` | — | Beacon metrics query received | → `em_state_agent_configured` after beacon report sent |
+| `em_state_agent_channel_scan_result_pending` | `em_channel_t::process_agent_state()` | Channel scan request received | → `em_state_agent_configured` after scan report sent |
+
+The state machine enforces strict ordering: an agent must complete the configuration sequence (`unconfigured` → `autoconfig_rsp_pending` → `wsc_m2_pending` → `owconfig_pending` → `onewifi_bssconfig_ind` → `topo_synchronized` → `ap_cap_report` → `channel_pref_query` → `channel_selection_pending` → `channel_report_pending` → `configured`) before it can handle runtime requests (metrics, steering, scans). Transient states (e.g., `sta_link_metrics_pending`) are entered from `configured` and always return to `configured` upon completion.
+
+**Key State Machine Behaviors:**
+
+- **Autoconfig Search Retry**: If `em_state_agent_autoconfig_rsp_pending` times out without receiving Autoconfig Response, agent re-sends Autoconfig Search CMDU (multicast) at regular intervals.
+- **M2 Translation**: In `em_state_agent_wsc_m2_pending`, agent parses WSC M2 message and extracts `noofbssconfig` BSS entries (SSID, passphrase, auth type, haul type), translates into `m2ctrl_radioconfig`, and pushes to OneWifi via `refresh_onewifi_subdoc()`.
+- **Topology Synchronization**: Upon entering `em_state_agent_topo_synchronized`, the agent constructs a Topology Response CMDU containing Device Info TLV, Supported Service TLV, Operational BSS TLV, Profile TLV (Profile 3), BSS Configuration Report TLV, Backhaul STA Radio Capabilities TLV (if present), AP MLD Configuration TLV, Backhaul STA MLD Configuration TLV (if present), Associated STA MLD Configuration Report TLVs, TID-to-Link Mapping Policy TLV, and Vendor Operational BSS TLV.
+- **DPP Bootstrapping Integration**: If the agent is remote (`Colocated_mode = false` in `/nvram/EasymeshCfg.json`) and DPP is enabled, `try_start_dpp_onboarding()` is called after device initialization. The agent generates DPP bootstrapping URI (`ec_util::get_dpp_boot_data()`), includes the hash in the DPP Chirp TLV of the Autoconfig Search (extended) CMDU, and transitions to DPP authentication upon receiving a DPP CCE Indication from the controller.
+- **Backhaul STA Association**: For remote agents (extenders), backhaul STA VAP is created after applying M2 configuration. STA scans for parent BSSID (gateway or upstream extender), performs WPA2/WPA3 4-way handshake, establishes backhaul link, then sends Topology Response.
+- **Channel Change Handling**: When the controller sends a Channel Selection Request, the agent transitions to `em_state_agent_channel_select_configuration_pending`, applies the new operating channel via OneWifi (`bus_set_fn` with radio subdoc), waits for channel change completion, then sends Operating Channel Report CMDU with new op class and channel. If backhaul STA is on the same radio, channel change may cause temporary backhaul disruption and re-association.
+
 **Runtime State Changes and Context Switching**
 
 During normal operation the component processes HE-BUS and R-BUS events from OneWifi and CMDU frames from the ieee1905 network concurrently.
@@ -221,9 +514,9 @@ During normal operation the component processes HE-BUS and R-BUS events from One
 
 **Context Switching Scenarios:**
 
-- **AL MAC change (AL-SAP enabled)**: When `AL_SAP` is defined the agent overwrites the AL MAC address obtained from the DML webconfig with the MAC reported by the `ieee1905` daemon (`g_al_mac_sap`). This happens in `dm_easy_mesh_agent_t::analyze_dev_init()` and is transparent to the rest of the state machine
-- **Colocated vs. non-colocated mode**: Read from `EasymeshCfg.json` at agent startup. In colocated mode DPP onboarding is suppressed; in non-colocated mode `try_start_dpp_onboarding()` is called after successful `dev_init`
-- **ieee1905 daemon restart**: The AL-SAP Unix socket connection is re-established on the next frame-send attempt; the agent and controller reconnect automatically through the AL-SAP library's error handling
+- **AL MAC change (AL-SAP enabled)**: When `AL_SAP` is defined the agent overwrites the AL MAC address obtained from the DML webconfig with the MAC reported by the `ieee1905` daemon (`g_al_mac_sap`) in `dm_easy_mesh_agent_t::analyze_dev_init()`
+- **Colocated vs. remote mode**: Read from `EasymeshCfg.json` at agent startup. In colocated mode DPP onboarding is suppressed; in remote mode (`Colocated_mode = false`) `try_start_dpp_onboarding()` is called after successful `dev_init`
+- **ieee1905 daemon restart**: AL-SAP Unix socket connection re-establishes on the next frame-send attempt via AL-SAP library error handling
 
 ### Call Flow
 
@@ -456,7 +749,7 @@ sequenceDiagram
 - **CMDU Frame Handling**: Raw Ethernet socket (ETH_P_1905, `0x893a`) per radio/AL interface. `em_mgr_t::find_em_for_msg_type()` dispatches each inbound CMDU to the correct `em_t` instance by message type, destination MAC, radio ID, BSS ID, or frequency band. Unrecognised message types are logged and discarded.
 - **Bus / webconfig Integration**: The agent decodes OneWifi webconfig subdocs using `webconfig_easymesh_decode()` from the `libwebconfig` library. Subdoc types `private`, `radio`, `mesh_sta`, `Vap_5G`, `Vap_2.4G`, `Vap_6G`, `radio_5G`, `radio_6G`, `radio_2.4G`, and `mesh backhaul sta` are handled in `onewifi_cb()` in `em_agent.cpp`. The component uses both HE-BUS and R-BUS for communication with OneWifi.
 - **Command Orchestration**: Commands (`em_cmd_t` subclasses) are cloned across all matching radio nodes via `clone_for_next()` and tracked in `em_orch_t`. The orchestrator retries timed-out commands at the 250 ms tick. In-progress check (`is_cmd_type_in_progress()`) prevents duplicate submissions.
-- **DPP Bootstrapping**: On non-colocated startup, `try_start_dpp_onboarding()` reads `EasymeshCfg.json`, derives the enrollee MAC from the backhaul BSS, generates or reuses DPP bootstrapping key material (`ec_util::get_dpp_boot_data()`), and starts the enrollee state machine. DPP key files (`DPPURI.pem`, `C-sign-key.pem`, `net-access-key.pem`, `ppk.pem`, `connector.txt`) are stored under `/nvram/` as defined in `inc/ec_base.h`.
+- **DPP Bootstrapping**: On remote agent startup (`Colocated_mode = false`), `try_start_dpp_onboarding()` reads `EasymeshCfg.json`, derives the enrollee MAC from the backhaul BSS, generates or reuses DPP bootstrapping key material (`ec_util::get_dpp_boot_data()`), and starts the enrollee state machine. DPP key files (`DPPURI.pem`, `C-sign-key.pem`, `net-access-key.pem`, `ppk.pem`, `connector.txt`) are stored under `/nvram/` as defined in `inc/ec_base.h`.
 - **AL MAC Resolution**: When `AL_SAP=1`, the AL MAC address (`g_al_mac_sap`) returned by the `ieee1905` daemon at connection time overrides the AL MAC decoded from the OneWifi DML data. This is applied in `dm_easy_mesh_agent_t::analyze_dev_init()`.
 - **MariaDB Persistence**: The controller uses `db_client_t` to persist all topology data. On RDK-B, the controller automatically seeds an empty database by invoking `/usr/ccsp/EasyMesh/setup_mysql_db_post.sh` at runtime when `load_tables()` detects no existing tables. No PSM or syscfg persistence is used by this component.
 
