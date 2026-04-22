@@ -31,12 +31,7 @@ onewifi_em_agent_CPPFLAGS = \
     -I$(top_srcdir)/inc \
     -I$(top_srcdir)/src/utils \
     -I$(top_srcdir)/src/util \
-    -I$(top_srcdir)/src/util_crypto \
-    -I$(top_srcdir)/OneWifi/lib/log \
-    -I$(top_srcdir)/OneWifi/source/platform/common \
-    -I$(top_srcdir)/OneWifi/source/platform/rdkb \
-    -I$(top_srcdir)/OneWifi/source/ccsp \
-    -I$(top_srcdir)/OneWifi/lib/ds
+    -I$(top_srcdir)/src/util_crypto
 
 onewifi_em_agent_SOURCES =  \
      $(top_srcdir)/src/em/em.cpp \
@@ -123,10 +118,6 @@ onewifi_em_agent_SOURCES =  \
      $(top_srcdir)/src/dm/dm_assoc_sta_mld.cpp \
      $(top_srcdir)/src/orch/em_orch.cpp  \
      $(top_srcdir)/src/orch/em_orch_agent.cpp \
-     $(top_srcdir)/OneWifi/source/platform/rdkb/bus.c \
-     $(top_srcdir)/OneWifi/source/platform/common/bus_common.c \
-     $(top_srcdir)/OneWifi/lib/common/util.c \
-     $(top_srcdir)/OneWifi/source/utils/collection.c \
      $(top_srcdir)/src/utils/util.cpp \
      $(top_srcdir)/src/utils/timer.cpp \
      $(top_srcdir)/src/util_crypto/aes_siv.c
