@@ -649,6 +649,42 @@ void em_agent_t::handle_btm_response_action_frame(em_bus_event_t *evt)
     }
 }
 
+void em_agent_t::handle_client_assoc_ctrl_req(em_bus_event_t *evt)
+{
+    wifi_bus_desc_t *desc;
+    raw_data_t raw;
+    client_assoc_ctrl_req_t req_data;
+
+    em_client_assoc_ctrl_req_t *steer_req = reinterpret_cast<em_client_assoc_ctrl_req_t*> (&evt->u.raw_buff);
+
+    if ((desc = get_bus_descriptor()) == NULL) {
+        em_printfout("bus descriptor is null");
+        return;
+    }
+
+    if (steer_req->count != 1) {
+        em_printfout("station count:%d is more than one", steer_req->count);
+        return;
+    }
+    memset(&req_data, 0, sizeof(client_assoc_ctrl_req_t));
+
+    memcpy(req_data.bssid, steer_req->bssid, sizeof(bssid_t));
+    req_data.assoc_control = steer_req->assoc_control;
+    req_data.validity_period = ntohs(steer_req->validity_period);
+    req_data.count = steer_req->count;
+    memcpy(req_data.sta_mac, steer_req->sta_mac, sizeof(mac_address_t));
+
+    memset(&raw, 0, sizeof(raw_data_t));
+    raw.data_type = bus_data_type_bytes;
+    raw.raw_data.bytes = (void *)&req_data;
+    raw.raw_data_len = sizeof(client_assoc_ctrl_req_t);
+
+    if (desc->bus_set_fn(&m_bus_hdl,WIFI_EM_CLIENT_ASSOC_CTRL_REQ, &raw) != 0) {
+        em_printfout("%s:%d Failed to send client assoc ctrl request to bus",__func__, __LINE__);
+    }
+    em_printfout("%s:%d Sent client assoc ctrl request to bus, OneWifi will process the bus event",__func__, __LINE__);
+}
+
 void em_agent_t::handle_channel_scan_result(em_bus_event_t *evt)
 {
     em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
@@ -827,7 +863,7 @@ void em_agent_t::handle_link_stats_report(em_bus_event_t *evt)
 
 void em_agent_t::handle_bus_event(em_bus_event_t *evt)
 {   
-    
+
     switch (evt->type) {
         case em_bus_event_type_dev_init:
             handle_dev_init(evt);
@@ -887,6 +923,10 @@ void em_agent_t::handle_bus_event(em_bus_event_t *evt)
 
         case em_bus_event_type_btm_response:
             handle_btm_response_action_frame(evt);
+            break;
+
+        case em_bus_event_type_client_assoc_ctrl_req:
+            handle_client_assoc_ctrl_req(evt);
             break;
 
 		case em_bus_event_type_channel_scan_params:
@@ -1745,6 +1785,17 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
 
         case em_msg_type_bh_sta_cap_rprt:
             break;
+
+        case em_msg_type_client_assoc_ctrl_req:
+            em = (em_t *)hash_map_get_first(m_em_map);
+            while (em != NULL) {
+	        if ((em->is_al_interface_em() == true)) {
+	            em_printfout("Rceived client assoc ctrl request from controller");
+	            break;
+	        }
+	        em = (em_t *)hash_map_get_next(m_em_map, em);
+           }
+           break;
 
         default:
             printf("%s:%d: Frame: %d not handled in agent\n", __func__, __LINE__, htons(cmdu->type));

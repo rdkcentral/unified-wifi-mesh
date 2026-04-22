@@ -640,6 +640,20 @@ public:
 	void handle_onewifi_radio_cb(em_bus_event_t *evt);
     
 	/**!
+	 * @brief Handles the client association control request event.
+	 *
+	 * This function processes the client association control request event received
+	 * through the event bus and applies the necessary blocking/unblocking actions.
+	 *
+	 * @param[in] evt Pointer to the event structure containing the client association
+	 * control request details.
+	 *
+	 * @note Ensure that the event structure is properly initialized before
+	 * calling this function.
+	 */
+	void handle_client_assoc_ctrl_req(em_bus_event_t *evt);
+
+	/**!
 	 * @brief Handles the M2 control configuration event.
 	 *
 	 * This function processes the M2 control configuration event received
