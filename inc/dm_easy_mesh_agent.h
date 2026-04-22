@@ -154,7 +154,17 @@ public:
 	 * @note Ensure that the event and descriptor are properly initialized before calling this function.
 	 */
 	int analyze_m2ctrl_configuration(em_bus_event_t *evt, wifi_bus_desc_t *desc,bus_handle_t *bus_hdl);
-    
+
+	/**!
+	 * @brief Updates EasymeshCfg.json with new backhaul SSID and passphrase.
+	 *
+	 * Called after M8 decryption provides new backhaul credentials.
+	 *
+	 * @param[in] ssid The new backhaul SSID.
+	 * @param[in] passphrase The new backhaul passphrase.
+	 */
+	void update_easymesh_cfg_backhaul(const char *ssid, const char *passphrase);
+
 	/**!
 	 * @brief Analyzes the channel preference query.
 	 *
@@ -382,7 +392,8 @@ public:
 	 *
 	 * @note Ensure that all dynamically allocated resources are properly released.
 	 */
-	~dm_easy_mesh_agent_t();  
+	~dm_easy_mesh_agent_t();
+
 };
 
 #endif

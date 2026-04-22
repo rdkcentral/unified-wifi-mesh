@@ -22,24 +22,13 @@
 #include "em_base.h"
 #include "dm_easy_mesh.h"
 
-class em_orch_t;
-class em_cmd_t;
-
 class em_network_topo_t {
 
 	dm_easy_mesh_t	*m_data_model;
 	unsigned int m_num_topologies;	
 	em_network_topo_t	*m_topology[EM_MAX_NETWORKS];
 
-	// Backhaul reconfig state (per-node):
-	// Tracks whether this node's radios have been submitted as candidates
-	// during the current multi-phase backhaul reconfiguration.
 	bool m_bh_processed;
-
-	// Backhaul reconfig state (root-only):
-	// Set to true when a multi-phase backhaul reconfiguration is in progress.
-	// Used by handle_set_bh_cfg to distinguish re-triggered bus events from
-	// the initial ioprocess call.
 	bool m_bh_reconfig_active;
 
 public:
@@ -127,85 +116,25 @@ public:
 	 */
 	dm_easy_mesh_t *get_data_model() { return m_data_model; }
 
-	/**!
-	 * @brief Builds candidates for the next unprocessed leaf layer during backhaul reconfig.
-	 *
-	 * Recursively walks the topology tree. A node is eligible when it has not
-	 * yet been processed and all of its children are already processed (leaf
-	 * nodes have zero children, so they always qualify first). Eligible nodes
-	 * get their radios pushed into the command's candidate queue and are
-	 * marked processed so subsequent calls skip them.
-	 *
-	 * @param[in] em_map Hash map of em_t nodes keyed by radio MAC string.
-	 * @param[in] pcmd   Command whose m_em_candidates queue will be populated.
-	 *
-	 * @returns Number of radios added as candidates in this call.
-	 */
-	int backhaul_reconfig(hash_map_t *em_map, em_cmd_t *pcmd);
+	unsigned int get_num_topologies() { return m_num_topologies; }
+
+
 
 	/**!
-	 * @brief Checks whether the entire topology tree has been processed.
+	 * @brief Returns true when all topology nodes have been processed (root included).
 	 *
 	 * @returns true if the root node (this) is marked processed, meaning all
 	 *          layers including the co-located agent have been handled.
 	 */
 	bool is_bh_reconfig_complete();
 
-	/**!
-	 * @brief Returns whether a multi-phase backhaul reconfig is currently active.
-	 *
-	 * Only meaningful on the root topology node (g_network_topology).
-	 *
-	 * @returns true if set_bh_cfg multi-phase reconfig is in progress.
-	 */
 	bool is_bh_reconfig_active() { return m_bh_reconfig_active; }
-
-	/**!
-	 * @brief Sets the multi-phase backhaul reconfig active flag.
-	 *
-	 * @param[in] active true to mark reconfig as active, false to deactivate.
-	 */
 	void set_bh_reconfig_active(bool active) { m_bh_reconfig_active = active; }
-
-	/**!
-	 * @brief Marks this node as processed for backhaul reconfig.
-	 *
-	 * @param[in] processed true to mark as processed, false to clear.
-	 */
 	void set_bh_processed(bool processed) { m_bh_processed = processed; }
 
-	/**!
-	 * @brief Sends an internal em_bus_event_type_set_bh_cfg bus event.
-	 *
-	 * Used after a leaf layer completes to re-trigger handle_set_bh_cfg so
-	 * the next unprocessed layer gets submitted.
-	 */
 	void send_bh_reconfig_event();
-
-	/**!
-	 * @brief Resets m_bh_processed to false on all nodes in the topology tree.
-	 *
-	 * Called before starting a new backhaul reconfig cycle and after the
-	 * final layer completes.
-	 */
 	void reset_bh_reconfig();
-
-	/**!
-	 * @brief Checks if this topology node is a current-layer leaf for backhaul reconfig.
-	 *
-	 * A node is a current-layer leaf when it has not yet been processed and
-	 * all of its children are already processed (true leaves have zero children).
-	 *
-	 * @returns true if this node should contribute candidates in the current phase.
-	 */
 	bool is_bh_reconfig_candidate();
-
-	/**!
-	 * @brief Marks all current-layer leaf nodes as processed.
-	 *
-	 * Walks the tree and marks nodes whose children are all processed.
-	 * Called after build_candidates has pushed all leaf-layer radios.
-	 */
 	void mark_bh_leaves_processed();
 	
 	
@@ -289,6 +218,20 @@ public:
 	 */
 	em_network_topo_t();
     
+	/**!
+	 * @brief Checks if the given data model is a direct child of this topology node.
+	 *
+	 * Used to distinguish gateway/co-located agents (direct children of root)
+	 * from remote extenders deeper in the tree. Direct children of the root
+	 * communicate with the controller without traversing a WiFi backhaul link
+	 * and will not disconnect during backhaul reconfiguration.
+	 *
+	 * @param[in] dm Pointer to the data model to check.
+	 *
+	 * @returns true if dm is a direct child of this node, false otherwise.
+	 */
+	bool is_direct_child(dm_easy_mesh_t *dm);
+
 	/**!
 	 * @brief Destructor for the em_network_topo_t class.
 	 *

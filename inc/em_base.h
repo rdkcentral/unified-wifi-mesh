@@ -2994,6 +2994,7 @@ typedef struct{
 	em_haul_type_t haultype[EM_MAX_BSS_PER_RADIO];
 	mac_address_t radio_mac[EM_MAX_BSS_PER_RADIO];
     em_4xlong_string_t dpp_connector[EM_MAX_BSS_PER_RADIO];
+	bool is_bh_reconfig;
 } m2ctrl_radioconfig;
 
 typedef struct{

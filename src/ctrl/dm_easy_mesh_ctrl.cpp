@@ -345,7 +345,6 @@ bus_error_t em_ctrl_t::cmd_setssid(const char *method_name, const bus_data_prop_
     }
     */
 
-    em_printfout("Sending io_process request for %s configuration with em_bus_event_type_set_%s", is_backhaul_change ? "Backhaul" : "SSID", is_backhaul_change ? "bh_cfg" : "ssid");
     em_ctrl->io_process(is_backhaul_change ? em_bus_event_type_set_bh_cfg : em_bus_event_type_set_ssid,
                          subdoc->buff, json_len);
     free(updated_json);
@@ -1280,13 +1279,8 @@ int dm_easy_mesh_ctrl_t::analyze_set_ssid(em_bus_event_t *evt, em_cmd_t *pcmd[])
     return num;
 }
 
-// This function decodes the SetBhCfg subdoc and checks for changes.
-// The parsed data model is returned via dm_out for use by the caller.
-// Returns > 0 if a change is detected, EM_PARSE_ERR_NO_CHANGE if no change,
-// or a negative error code on failure.
 int dm_easy_mesh_ctrl_t::analyze_set_bh_cfg(em_bus_event_t *evt, dm_easy_mesh_t *dm_out)
 {
-    em_printfout("Received SetBhCfg event, now in analyze_set_bh_cfg Function");
     int ret;
     em_subdoc_info_t *subdoc;
 	dm_easy_mesh_t *pdm;
@@ -1310,7 +1304,6 @@ int dm_easy_mesh_ctrl_t::analyze_set_bh_cfg(em_bus_event_t *evt, dm_easy_mesh_t 
 		for (j = 0; j < EM_MAX_NET_SSIDS; j++) {
 			src = &pdm->m_network_ssid[j];
 			if (*tgt == *src) {
-				em_printfout("Target[%d] matched with Source[%d]", i, j);
 				bit_mask |= (1 << i);
 				break;
 			}
@@ -1318,11 +1311,21 @@ int dm_easy_mesh_ctrl_t::analyze_set_bh_cfg(em_bus_event_t *evt, dm_easy_mesh_t 
 	}
 
 	if (bit_mask == (pow(2, EM_MAX_NET_SSIDS) - 1)) {
-		em_printfout("No change detected");
 		return EM_PARSE_ERR_NO_CHANGE;
 	}
 
-	em_printfout("Change detected in SetBhCfg");
+	// Update in-memory network SSIDs in ALL data models so that
+	// subsequent M2 creation uses the new SSID/passphrase.
+	dm_easy_mesh_t *iter_dm = m_data_model_list.get_first_dm();
+	while (iter_dm != NULL) {
+		iter_dm->m_num_net_ssids = dm_out->m_num_net_ssids;
+		for (i = 0; i < EM_MAX_NET_SSIDS; i++) {
+			iter_dm->m_network_ssid[i] = dm_out->m_network_ssid[i];
+		}
+		iter_dm = m_data_model_list.get_next_dm(iter_dm);
+	}
+
+	dm_out->set_db_cfg_param(db_cfg_type_network_ssid_list_update, "");
 
     return 1;
 }
@@ -2107,7 +2110,28 @@ void dm_easy_mesh_ctrl_t::init_tables()
 
 int dm_easy_mesh_ctrl_t::load_net_ssid_table()
 {
-	return dm_network_ssid_list_t::load_table(m_db_client);
+	int ret = dm_network_ssid_list_t::load_table(m_db_client);
+
+	// After reloading the global SSID hash map from DB, propagate the updated
+	// network SSIDs to all per-device data models so that create_encrypted_settings
+	// (which reads from em_t::m_data_model) picks up the new SSID/passphrase.
+	dm_network_ssid_t *net_ssid;
+	unsigned int idx;
+	dm_easy_mesh_t *dm;
+
+	for (dm = get_first_dm(); dm != NULL; dm = get_next_dm(dm)) {
+		idx = 0;
+		for (net_ssid = get_first_network_ssid(); net_ssid != NULL;
+				net_ssid = get_next_network_ssid(net_ssid)) {
+			if (idx < EM_MAX_NET_SSIDS) {
+				*(dm->get_network_ssid(idx)) = *net_ssid;
+				idx++;
+			}
+		}
+		dm->set_num_network_ssid(idx);
+	}
+
+	return ret;
 }
 
 int dm_easy_mesh_ctrl_t::load_tables()

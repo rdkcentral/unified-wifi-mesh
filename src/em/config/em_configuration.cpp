@@ -2334,12 +2334,21 @@ unsigned short em_configuration_t::create_m8_msg(unsigned char *buff)
     len += static_cast<unsigned short>(sizeof(data_elem_attr_t) + size);
     tmp += (sizeof(data_elem_attr_t) + size);
 
-    // enrollee nonce
+    // registrar nonce (EasyMesh Section 5.2.5)
     attr = reinterpret_cast<data_elem_attr_t *>(tmp);
-    attr->id = htons(attr_id_enrollee_nonce);
+    attr->id = htons(attr_id_registrar_nonce);
     size = sizeof(em_nonce_t);
     attr->len = htons(size);
-    get_e_nonce(attr->val);
+    get_r_nonce(attr->val);
+    len += static_cast<unsigned short>(sizeof(data_elem_attr_t) + size);
+    tmp += (sizeof(data_elem_attr_t) + size);
+
+    // public key — Diffie-Hellman key of Registrar (EasyMesh Section 5.2.5)
+    attr = reinterpret_cast<data_elem_attr_t *>(tmp);
+    attr->id = htons(attr_id_public_key);
+    size = static_cast<unsigned short>(get_r_public_len());
+    attr->len = htons(size);
+    memcpy(attr->val, get_r_public(), size);
     len += static_cast<unsigned short>(sizeof(data_elem_attr_t) + size);
     tmp += (sizeof(data_elem_attr_t) + size);
 
@@ -3405,15 +3414,13 @@ int em_configuration_t::create_autoconfig_wsc_m2_msg(unsigned char *buff, unsign
         return 0;
     }
 
-    // Append M8 WSC TLV only when this is a backhaul SSID reconfiguration command.
-    // M8 carries the new backhaul SSID and passphrase for bSTA reconfiguration.
+    // Append M8 WSC TLV for backhaul SSID reconfiguration (bSTA reconfig).
     em_cmd_t *cur_cmd = get_current_cmd();
     if (cur_cmd != NULL && cur_cmd->m_type == em_cmd_type_set_bh_cfg) {
         tlv = reinterpret_cast<em_tlv_t *>(tmp);
         tlv->type = em_tlv_type_wsc;
         sz = create_m8_msg(tlv->value);
         if (sz > 0) {
-            em_printfout("Appending M8 WSC TLV for backhaul reconfig, size: %d", sz);
             tlv->len = htons(sz);
             tmp += (sizeof(em_tlv_t) + sz);
             len += static_cast<int>(sizeof(em_tlv_t) + sz);
@@ -3954,7 +3961,7 @@ int em_configuration_t::handle_autoconfig_wsc_m8(unsigned char *buff, unsigned i
 
     em_printfout("M8 backhaul SSID reconfiguration: processing %d WSC TLV(s)", wsc_tlv_count);
 
-    if (handle_encrypted_settings(wsc_tlv_count) == -1) {
+    if (handle_encrypted_settings(wsc_tlv_count, true) == -1) {
         em_printfout("M8: Error decrypting settings, wsc_tlv_count:%d", wsc_tlv_count);
         return -1;
     }
@@ -3963,6 +3970,28 @@ int em_configuration_t::handle_autoconfig_wsc_m8(unsigned char *buff, unsigned i
     if ((dm != NULL) && (hdr != NULL)) {
         memcpy(&network.m_net_info.ctrl_id.mac, &hdr->src, sizeof(mac_address_t));
         dm->set_network(network);
+    }
+
+    // handle_encrypted_settings() already set the state to owconfig_pending
+    // and queued the m2ctrl_configuration bus event, which will push the new
+    // backhaul credentials to OneWifi (Private subdoc + mesh_backhaul_sta
+    // subdoc for bSTA reconnection).
+    //
+    // For co-located agents the controller is reachable over Ethernet, so
+    // advance to topo_synchronized to answer topology queries immediately.
+    //
+    // For extenders, set to unconfigured so the agent sends autoconfig_search
+    // to re-onboard after bSTA reconnects with new credentials.
+    // The cfg_renew fini check also accepts unconfigured state.
+    em_interface_name_t if_name;
+    bool is_colocated = (hdr != NULL &&
+        dm_easy_mesh_t::name_from_mac_address(&hdr->src, if_name) == 0);
+    if (!is_colocated) {
+        em_printfout("M8: Extender radio set to unconfigured; will send autoconfig_search to re-onboard");
+        set_state(em_state_agent_unconfigured);
+    } else {
+        em_printfout("M8: Collocated radio, setting topo_synchronized");
+        set_state(em_state_agent_topo_synchronized);
     }
 
     return 0;
@@ -3978,29 +4007,15 @@ int em_configuration_t::handle_autoconfig_wsc_m2(unsigned char *buff, unsigned i
     dm_easy_mesh_t *dm;
     dm_network_t network;
     em_raw_hdr_t *hdr = reinterpret_cast<em_raw_hdr_t *> (buff);
+    bool has_m8 = false;
 
     if (em_msg_t(em_msg_type_autoconf_wsc, m_peer_profile, buff, len).validate(errors) == 0) {
         printf("%s:%d: received wsc m2 msg failed validation\n", __func__, __LINE__);
         return -1;
     }
 
-    // Check if any WSC TLV contains an M8 message; if so, delegate to the M8 handler
-    tlv = reinterpret_cast<em_tlv_t *>(buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
-    tmp_len = static_cast<int>(len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)));
-
-    while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
-        if (tlv->type == em_tlv_type_wsc) {
-            em_wsc_msg_type_t wsc_type = get_wsc_blob_msg_type(tlv->value, htons(tlv->len));
-            if (wsc_type == em_wsc_msg_type_m8) {
-                em_printfout("M8 WSC TLV detected, delegating to handle_autoconfig_wsc_m8");
-                return handle_autoconfig_wsc_m8(buff, len);
-            }
-        }
-        tmp_len -= static_cast<int>(sizeof(em_tlv_t) + htons(tlv->len));
-        tlv = reinterpret_cast<em_tlv_t *>(reinterpret_cast<unsigned char *>(tlv) + sizeof(em_tlv_t) + htons(tlv->len));
-    }
-
-    // M2-only path
+    // Process all WSC TLVs: M2 TLVs configure AP-side BSSes,
+    // M8 TLVs configure the bSTA (backhaul reconfiguration).
     tlv =  reinterpret_cast<em_tlv_t *> (buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
     tmp_len = static_cast<int> (len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)));
 
@@ -4009,7 +4024,11 @@ int em_configuration_t::handle_autoconfig_wsc_m2(unsigned char *buff, unsigned i
             em_printfout("Found AP MLD details in message");
             handle_ap_mld_config_tlv(tlv->value, htons(tlv->len));
         } else if (tlv->type == em_tlv_type_wsc) {
-            em_printfout("Handle wsc M2 TLV, count: %d", wsc_tlv_count);
+            em_wsc_msg_type_t wsc_type = get_wsc_blob_msg_type(tlv->value, htons(tlv->len));
+            em_printfout("Handle wsc %s TLV, count: %d", (wsc_type == em_wsc_msg_type_m8) ? "M8" : "M2", wsc_tlv_count);
+            if (wsc_type == em_wsc_msg_type_m8) {
+                has_m8 = true;
+            }
             set_e_mac(get_radio_interface_mac());
             handle_wsc_m2(tlv->value, htons(tlv->len), wsc_tlv_count);
 
@@ -4041,7 +4060,7 @@ int em_configuration_t::handle_autoconfig_wsc_m2(unsigned char *buff, unsigned i
         return -1;
     }
 
-    if (handle_encrypted_settings(wsc_tlv_count) == -1) {
+    if (handle_encrypted_settings(wsc_tlv_count, has_m8) == -1) {
         em_printfout("Error in decrypting settings wsc_tlv_count:%d", wsc_tlv_count);
         return -1;
     }
@@ -4062,10 +4081,11 @@ int em_configuration_t::handle_autoconfig_wsc_m2(unsigned char *buff, unsigned i
 #endif
         }
     }
+
     return 0;
 }
 
-int em_configuration_t::handle_encrypted_settings(unsigned int wsc_tlv_count)
+int em_configuration_t::handle_encrypted_settings(unsigned int wsc_tlv_count, bool is_bh_reconfig)
 {
     data_elem_attr_t    *attr;
     int tmp_len, ret = 0;
@@ -4146,6 +4166,7 @@ int em_configuration_t::handle_encrypted_settings(unsigned int wsc_tlv_count)
     for (unsigned int i = 0; i < radioconfig.noofbssconfig; i++){
         radioconfig.freq[i] = get_band();
     }
+    radioconfig.is_bh_reconfig = is_bh_reconfig;
     get_mgr()->io_process(em_bus_event_type_m2ctrl_configuration, reinterpret_cast<unsigned char *> (&radioconfig), sizeof(radioconfig));
     set_state(em_state_agent_owconfig_pending);
     return ret;
@@ -5336,24 +5357,24 @@ int em_configuration_t::handle_autoconfig_search(unsigned char *buff, unsigned i
     mac_address_t al_mac;
 
     if (em_msg_t(em_msg_type_autoconf_search, em_profile_type_3, buff, len).validate(errors) == 0) {
-        printf("received autoconfig search msg failed validation\n");
+        em_printfout("Received autoconfig search message failed validation\n");
     
         return -1;
     }
     if (em_msg_t(buff + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)),
                len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_profile_type(&m_peer_profile) == false) { 
-        printf("%s:%d: Could not get peer profile type\n", __func__, __LINE__);
+        em_printfout("Could not get peer profile type\n");
     } else {
         m_peer_profile = em_profile_type_1;
     }
 
     if (em_msg_t(buff + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)), len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_freq_band(&band) == false) {
-        printf("%s:%d: Could not get freq band\n", __func__, __LINE__);
+        em_printfout("Could not get freq band\n");
         return -1;
     }
 
     if (em_msg_t(buff + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)), len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_al_mac_address(al_mac) == false) {
-        printf("%s:%d: Could not get al mac address\n", __func__, __LINE__);
+        em_printfout("Could not get al mac address\n");
         return -1;
     }
 
@@ -5380,7 +5401,7 @@ int em_configuration_t::handle_autoconfig_search(unsigned char *buff, unsigned i
 
         return -1;
     }
-    printf("%s:%d: autoconfig rsp send success\n", __func__, __LINE__);
+    em_printfout("autoconfig rsp send success, len:%d", sz);
 
     if (!get_is_dpp_onboarding()) {
         set_state(em_state_ctrl_wsc_m1_pending);
@@ -5448,11 +5469,15 @@ void em_configuration_t::process_msg(unsigned char *data, unsigned int len)
         case em_msg_type_autoconf_wsc:
             if ((get_wsc_msg_type(tlvs, tlvs_len) == em_wsc_msg_type_m2) &&
                     (get_service_type() == em_service_type_agent) && (get_state() == em_state_agent_wsc_m2_pending)) {
-                        printf("%s:%d: received wsc_m2 len:%d\n", __func__, __LINE__, len);
+                        em_printfout("Received wsc_m2 len:%d\n", len);
                         handle_autoconfig_wsc_m2(data, len);
+            } else if ((get_wsc_msg_type(tlvs, tlvs_len) == em_wsc_msg_type_m8) &&
+                    (get_service_type() == em_service_type_agent) && (get_state() == em_state_agent_owconfig_pending)) {
+                        em_printfout("Received wsc_m8 len:%d\n", len);
+                        handle_autoconfig_wsc_m8(data, len);
             } else if ((get_wsc_msg_type(tlvs, tlvs_len) == em_wsc_msg_type_m1) &&
                     (get_service_type() == em_service_type_ctrl) && (get_state() == em_state_ctrl_wsc_m1_pending))  {
-                        printf("%s:%d: received wsc_m1 len:%d\n", __func__, __LINE__, len);
+                        em_printfout("Received wsc_m1 len:%d\n", len);
                         handle_autoconfig_wsc_m1(data, len);
             }
 
@@ -5460,6 +5485,7 @@ void em_configuration_t::process_msg(unsigned char *data, unsigned int len)
 
         case em_msg_type_autoconf_renew:
             if (get_service_type() == em_service_type_agent) {
+                em_printfout("Received autoconf renew message, len:%d\n", len);
                 handle_autoconfig_renew(data, len);
             }
             break;
@@ -5470,8 +5496,8 @@ void em_configuration_t::process_msg(unsigned char *data, unsigned int len)
                 std::vector<em_t*> em_radios;
                 get_mgr()->get_all_em_for_al_mac(hdr->dst, em_radios);
                 for (auto &em : em_radios) {
-                    if ((em->get_service_type() == em_service_type_agent) && (em->get_state() < em_state_agent_onewifi_bssconfig_ind)) {
-                        em_printfout("radio %s is not configured, ignoring", util::mac_to_string(em->get_radio_interface_mac()).c_str());
+                    if ((em->get_service_type() == em_service_type_agent) && (em->get_state() < em_state_agent_owconfig_pending)) {
+                        em_printfout("radio %s is not configured (state %d), ignoring", util::mac_to_string(em->get_radio_interface_mac()).c_str(), em->get_state());
                         em_radios.clear();
                         return;
                     }
@@ -5500,9 +5526,14 @@ void em_configuration_t::process_msg(unsigned char *data, unsigned int len)
                         util::mac_to_string(hdr->src).c_str());
                     get_mgr()->get_all_em_for_al_mac(hdr->src, em_radios);
                     for (auto &em : em_radios) {
-                        em->set_state(em_state_ctrl_topo_synchronized);
-                        em->set_ssid_mismatch(false);
-                        printf("%s:%d em_msg_type_topo_resp handle success, state: %s\n", __func__, __LINE__, em_t::state_2_str(em->get_state()));
+                        // Only advance radios that are actually in topo_sync_pending;
+                        // radios in other states (misconfigured, configured) should
+                        // not be blindly transitioned.
+                        if (em->get_state() == em_state_ctrl_topo_sync_pending) {
+                            em->set_state(em_state_ctrl_topo_synchronized);
+                            em->set_ssid_mismatch(false);
+                            printf("%s:%d em_msg_type_topo_resp handle success, state: %s\n", __func__, __LINE__, em_t::state_2_str(em->get_state()));
+                        }
                     }
                     em_radios.clear();
                     //Reset the mismatch and topo_query_last sent values
@@ -5651,6 +5682,9 @@ void em_configuration_t::handle_state_wsc_m1_pending()
 void em_configuration_t::handle_state_wsc_m2_pending()
 {
     assert(get_service_type() == em_service_type_agent);
+    // M1 may have been lost in transit. Retry by re-sending autoconfig_search
+    // which restarts the autoconfig_resp → M1 → M2 sequence.
+    handle_state_config_none();
 }
 
 void em_configuration_t::fill_media_data(em_media_spec_data_t *spec, dm_bss_t *bss)
@@ -5746,10 +5780,14 @@ void em_configuration_t::process_ctrl_state()
 
             if (ssid_mismatch_present == false)
             {
+                // Only wait for radios still transitioning (wsc_m2_sent means
+                // M2 was sent but orch hasn't moved it to topo_sync_pending yet).
+                // Radios in stable states (misconfigured, configured, etc.)
+                // should not block topology query for the other radios.
                 for (auto &em : em_radios) {
-                    if (em->get_state() != em_state_ctrl_topo_sync_pending) {
-                        em_printfout("radio %s is in state:%d, not in topo sync pending state, ignoring",
-                            util::mac_to_string(em->get_radio_interface_mac()).c_str(), em->get_state());
+                    if (em->get_state() == em_state_ctrl_wsc_m2_sent) {
+                        em_printfout("radio %s is in state wsc_m2_sent, waiting for topo_sync_pending",
+                            util::mac_to_string(em->get_radio_interface_mac()).c_str());
                         em_radios.clear();
                         return;
                     }
@@ -5757,9 +5795,12 @@ void em_configuration_t::process_ctrl_state()
                 // Reset the mismatch and topo_query_last sent values before sending topo query
                 dm->set_ssid_mismatch_check_time(0);
                 dm->set_last_topo_query_sent_time(0);
-                // If all radios are in topo sync pending state, send topo query on one of them, 
-                // ignore sending topo query on other radios
-                if (this == em_radios.front()){
+                // Send topo query on the first radio in topo_sync_pending state;
+                // ignore radios in other states (misconfigured, configured, etc.)
+                auto topo_it = std::find_if(em_radios.begin(), em_radios.end(), [](em_t *em) {
+                    return em->get_state() == em_state_ctrl_topo_sync_pending;
+                });
+                if (topo_it != em_radios.end() && this == *topo_it){
                     em_printfout("Sending the Topology query message to agent al_mac:%s on radio: %s",
                         util::mac_to_string(dm->get_agent_al_interface_mac()).c_str(),
                         util::mac_to_string(get_radio_interface_mac()).c_str());

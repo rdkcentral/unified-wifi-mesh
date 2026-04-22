@@ -2472,7 +2472,7 @@ em_bss_info_t* dm_easy_mesh_t::get_bsta_bss_info()
         if (!radio) continue;
         em_printfout("radio_mac:%s backhaul bss_mac:%s radio enabled:%d sta_info enabled:%d",
             util::mac_to_string(bsta_info->ruid.mac).c_str(),
-            util::mac_to_string(bsta_info->id.bssid).c_str(),
+            util::mac_to_string(bsta_info->bssid.mac).c_str(),
             radio->m_radio_info.enabled, bsta_info->enabled);
         if (!radio->m_radio_info.enabled || !bsta_info->enabled) {
             continue;

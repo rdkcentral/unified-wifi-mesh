@@ -148,6 +148,13 @@ em_network_topo_t *em_network_topo_t::find_topology_by_bh_associated(dm_easy_mes
 	// and return that topology object.
 	mac_address_t bss_mac;
 	memcpy(bss_mac, bss->id.bssid, sizeof(mac_address_t));
+	// If bSTA BSS bssid is zero (e.g. after M1 BSS rebuild during bhreconfig),
+	// fall back to the device's backhaul_mac which was set during M1 processing.
+	if (memcmp(bss_mac, ZERO_MAC_ADDR, sizeof(mac_address_t)) == 0 &&
+		memcmp(dm->m_device.m_device_info.backhaul_mac.mac, ZERO_MAC_ADDR, sizeof(mac_address_t)) != 0) {
+		memcpy(bss_mac, dm->m_device.m_device_info.backhaul_mac.mac, sizeof(mac_address_t));
+		em_printfout("bSTA BSS bssid is zero, using device backhaul_mac: %s", util::mac_to_string(bss_mac).c_str());
+	}
 	if (dm->is_controller() == false) {
 		// Update the backhaul of the dm object with the bss mac address
 		memcpy(dm->m_device.m_device_info.backhaul_mac.mac, bss_mac, sizeof(mac_address_t));
@@ -208,14 +215,8 @@ em_network_topo_t *em_network_topo_t::find_topology(dm_easy_mesh_t *dm)
 {
 	unsigned int i;
 	em_network_topo_t *topo;
-	mac_addr_str_t tgt_dev_mac_str, src_dev_mac_str;
-
-	dm_easy_mesh_t::macbytes_to_string(dm->m_device.m_device_info.intf.mac, tgt_dev_mac_str);
-	dm_easy_mesh_t::macbytes_to_string(m_data_model->m_device.m_device_info.intf.mac, src_dev_mac_str);
-	printf("%s:%d: Trying to find topology: %s in branch: %s\n", __func__, __LINE__, tgt_dev_mac_str, src_dev_mac_str);
 
 	if (m_data_model == dm) {
-		printf("%s:%d: Found topology: %s in branch: %s\n", __func__, __LINE__, tgt_dev_mac_str, src_dev_mac_str);
 		return this;
 	}
 
@@ -321,20 +322,11 @@ bool em_network_topo_t::remove(dm_easy_mesh_t *dm, em_network_topo_t **child_top
 	return false;
 }
 
-/**
- * @brief Checks whether the entire topology has been processed.
- *
- * Returns the processed state of the root node. Since processing propagates
- * from leaves to root, a true return means every node has been handled.
- */
 bool em_network_topo_t::is_bh_reconfig_complete()
 {
 	return m_bh_processed;
 }
 
-/**
- * @brief Recursively resets m_bh_processed to false on this node and all children.
- */
 void em_network_topo_t::reset_bh_reconfig()
 {
 	m_bh_processed = false;
@@ -343,52 +335,37 @@ void em_network_topo_t::reset_bh_reconfig()
 	}
 }
 
-/**
- * @brief Checks if this node is a candidate for backhaul reconfig. 
- *
- * Returns true when the node is not yet processed and all children are
- * already processed (leaf nodes with zero children always qualify).
- */
 bool em_network_topo_t::is_bh_reconfig_candidate()
 {
-	// If this node is already configured, then it's not a candidate for the current reconfig phase
-	if (m_bh_processed == true) {
+	if (m_bh_processed) {
 		return false;
 	}
-	
-	// Check if all children are configured. If any child is not processed, then this node is not a candidate for the current reconfig phase.
+
 	for (unsigned int i = 0; i < m_num_topologies; i++) {
 		if (!m_topology[i]->m_bh_processed) {
 			return false;
 		}
 	}
-	
-	// This node is not reconfigured yet, and all children are already reconfigured, 
-	// so this node is a candidate for the current reconfig phase
+
 	return true;
 }
 
-/**
- * @brief Sends an internal em_bus_event_type_set_bh_cfg bus event.
- *
- * This re-triggers handle_set_bh_cfg in em_ctrl, which detects
- * m_bh_reconfig_active and submits a command for the next layer of multi-phase reconfig.
- */
+void em_network_topo_t::mark_bh_leaves_processed()
+{
+	for (unsigned int i = 0; i < m_num_topologies; i++) {
+		m_topology[i]->mark_bh_leaves_processed();
+	}
+	if (is_bh_reconfig_candidate()) {
+		m_bh_processed = true;
+	}
+}
+
 void em_network_topo_t::send_bh_reconfig_event()
 {
-	em_printfout("backhaul_reconfig: triggering next layer for remaining nodes");
-
-	// Send an internal bus event to re-trigger handle_set_bh_cfg
 	em_ctrl_t *ctrl = em_ctrl_t::get_em_ctrl_instance();
-	em_cmd_ctrl_t *cmd_ctrl = ctrl->get_ctrl_cmd();
-
-	em_event_t ev;
-	memset(&ev, 0, sizeof(em_event_t));
-	ev.type = em_event_type_bus;
-	em_bus_event_t *bev = &ev.u.bevt;
-	bev->type = em_bus_event_type_set_bh_cfg;
-
-	cmd_ctrl->send_cmd(em_service_type_ctrl, reinterpret_cast<unsigned char *>(&ev), sizeof(em_event_t));
+	em_cmd_params_t params;
+	memset(&params, 0, sizeof(em_cmd_params_t));
+	ctrl->io_process(em_bus_event_type_set_bh_cfg, static_cast<char *>(NULL), 0, &params);
 }
 
 em_network_topo_t::em_network_topo_t(dm_easy_mesh_t *dm)
@@ -407,6 +384,16 @@ em_network_topo_t::em_network_topo_t()
 	m_bh_processed = false;
 	m_bh_reconfig_active = false;
 	memset(m_topology, 0, sizeof(m_topology));
+}
+
+bool em_network_topo_t::is_direct_child(dm_easy_mesh_t *dm)
+{
+	for (unsigned int i = 0; i < m_num_topologies; i++) {
+		if (m_topology[i]->get_data_model() == dm) {
+			return true;
+		}
+	}
+	return false;
 }
 
 em_network_topo_t::~em_network_topo_t()

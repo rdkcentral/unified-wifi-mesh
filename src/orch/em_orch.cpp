@@ -36,13 +36,25 @@
 #include "em_base.h"
 #include "em_cmd.h"
 #include "em_orch.h"
+#include "em_mgr.h"
+#include "em_network_topo.h"
 #include "util.h"
 #define MAX_CMD_DEV_TEST 2
 
-#ifndef EASY_MESH_NODE
-#include "em_network_topo.h"
-extern em_network_topo_t *g_network_topology;
-#endif
+// Weak definition: overridden by the strong definition in em_ctrl.cpp when
+// linking the ctrl binary. For the agent binary (which doesn't link
+// em_network_topo.o or em_ctrl.o), this provides a NULL pointer so that all
+// the runtime g_network_topology != NULL checks safely skip topology code.
+__attribute__((weak)) em_network_topo_t *g_network_topology = nullptr;
+
+// Weak stubs for em_network_topo_t member functions referenced below.
+// In the ctrl binary, the real implementations from em_network_topo.cpp
+// (strong symbols) override these. In the agent binary these satisfy the
+// linker; they are never called because g_network_topology stays NULL.
+__attribute__((weak)) void em_network_topo_t::reset_bh_reconfig() {}
+__attribute__((weak)) void em_network_topo_t::send_bh_reconfig_event() {}
+__attribute__((weak)) void em_network_topo_t::mark_bh_leaves_processed() {}
+__attribute__((weak)) em_network_topo_t *em_network_topo_t::find_topology(dm_easy_mesh_t *) { return nullptr; }
 
 unsigned int em_orch_t::submit_commands(em_cmd_t *pcmd[], unsigned int num)
 {
@@ -139,24 +151,35 @@ bool em_orch_t::submit_command(em_cmd_t *pcmd)
 {
     bool submitted = false;
 
+    // Pre-process the submit orch op (e.g. update DB with new SSIDs)
+    // before building candidates, so the data model is up-to-date when
+    // create_encrypted_settings reads network SSID info for M8.
+    if (pre_process_orch_op(pcmd) == false) {
+        destroy_command(pcmd);
+        return false;
+    }
+
+    // Also process any remaining non-submit orch ops (e.g. net_ssid_update)
+    // that would otherwise never execute in the single-command path.
+    {
+        unsigned int saved_idx = pcmd->get_orch_op_index();
+        for (unsigned int i = saved_idx + 1; i < pcmd->m_num_orch_desc; i++) {
+            pcmd->m_orch_op_idx = i;
+            if (pcmd->get_orch_submit() == false) {
+                pre_process_orch_op(pcmd);
+            }
+        }
+        pcmd->m_orch_op_idx = saved_idx;
+    }
+
     // build em candidates in cmd;
     if (build_candidates(pcmd) == 0) {
-        if(pcmd->get_type() == em_cmd_type_set_bh_cfg)
-        {
-            em_printfout("All candidates for set_bh_cfg command have been processed, completing command and resetting backhaul reconfig state.");
-            //No EM candidates for set_bh_cfg command, which means all candidate EMs have been reconfigured. 
-            //Reset backhaul reconfig flags for the entire topology.
-#ifndef EASY_MESH_NODE
-            if (g_network_topology != NULL) {
-                g_network_topology->set_bh_reconfig_active(false);
-                g_network_topology->reset_bh_reconfig();
-            }
-#endif
-        }   
-        // if there are no candidates, complete the command
+        if (pcmd->get_type() == em_cmd_type_set_bh_cfg && g_network_topology != NULL) {
+            g_network_topology->set_bh_reconfig_active(false);
+            g_network_topology->reset_bh_reconfig();
+        }
         destroy_command(pcmd);
     } else {
-        em_printfout("Submitting command %s with %d candidates\n", pcmd->get_cmd_name(), queue_count(pcmd->m_em_candidates));
         queue_push(m_pending, pcmd);
         push_stats(pcmd);
         submitted = true;
@@ -557,45 +580,56 @@ void em_orch_t::handle_timeout()
         pcmd = static_cast<em_cmd_t *>(queue_peek(m_active, static_cast<unsigned int>(i)));
 		//printf("%s:%d: Cmd: %s, em candidates: %d\n", __func__, __LINE__, 
 					//em_cmd_t::get_cmd_type_str(pcmd->m_type), queue_count(pcmd->m_em_candidates));
+        ret = true;
         for (j = static_cast<int>(queue_count(pcmd->m_em_candidates)) - 1; j >= 0; j--) {
             em = static_cast<em_t *>(queue_peek(pcmd->m_em_candidates, static_cast<unsigned int>(j)));
             ret &= orchestrate(pcmd, em);
         }
 
         if (ret == true) {
-            // means the command is in fini state
-            
-            bool bh_reconfig_next = false;
-        
-        // If this is a set_bh_cfg command and backhaul reconfig is active, 
-        // check if we need to trigger the next layer of candidate agents or finalize the reconfig.
-        if (pcmd->m_type == em_cmd_type_set_bh_cfg) {
-            // For backhaul reconfig, always trigger the bus event to initiate reconfiguration of the EMs in next phase .
-            bh_reconfig_next = true;
-        }
+            bool bh_reconfig_next = (pcmd->m_type == em_cmd_type_set_bh_cfg);
 
             queue_remove(m_active, static_cast<unsigned int>(i));
             pop_stats(pcmd);
             for (j = static_cast<int>(queue_count(pcmd->m_em_candidates)) - 1; j >= 0; j--) {
                 em = static_cast<em_t *>(queue_peek(pcmd->m_em_candidates, static_cast<unsigned int>(j)));
                 em->set_orch_state(em_orch_state_idle);
-#ifndef EASY_MESH_NODE
                 if (bh_reconfig_next && g_network_topology != NULL) {
                     em_network_topo_t *topo = g_network_topology->find_topology(em->get_data_model());
                     if (topo != NULL) {
                         topo->set_bh_processed(true);
                     }
                 }
-#endif
             }
+
+            // When cfg_renew completes on agent, handle bSTA reconnect if pending.
+            if (pcmd->m_type == em_cmd_type_cfg_renew) {
+                em_t *first_em = static_cast<em_t *>(queue_peek(pcmd->m_em_candidates, 0));
+                if (first_em != NULL && first_em->get_data_model() != NULL) {
+                    first_em->get_data_model()->m_cfg_renew_in_progress = false;
+
+                    if (first_em->get_data_model()->m_bsta_reconnect_pending) {
+                        first_em->get_data_model()->m_bsta_reconnect_pending = false;
+                        if (first_em->get_mgr() != NULL) {
+                            first_em->get_mgr()->refresh_onewifi_subdoc(
+                                "MESH STA CONFIG", webconfig_subdoc_type_mesh_backhaul_sta);
+                        }
+                        for (int k = static_cast<int>(queue_count(pcmd->m_em_candidates)) - 1; k >= 0; k--) {
+                            em_t *radio_em = static_cast<em_t *>(queue_peek(pcmd->m_em_candidates, static_cast<unsigned int>(k)));
+                            if (radio_em != NULL) {
+                                radio_em->set_state(em_state_agent_unconfigured);
+                                radio_em->em_configuration_t::process_agent_state();
+                            }
+                        }
+                    }
+                }
+            }
+
             destroy_command(pcmd);
 
-            // For set_bh_cfg: trigger the next phase of agents by sending a bus event.
-#ifndef EASY_MESH_NODE
             if (bh_reconfig_next && g_network_topology != NULL) {
                 g_network_topology->send_bh_reconfig_event();
             }
-#endif
 
             break;
         }
