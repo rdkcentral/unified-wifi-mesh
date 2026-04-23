@@ -360,6 +360,8 @@ public:
 	 * @note Ensure that the buffer is allocated with sufficient size before calling this function.
 	 */
 	virtual unsigned short create_eht_operations_tlv(unsigned char *buff) = 0;
+
+	virtual int handle_eht_operations_tlv(unsigned char *buff, unsigned short len) = 0;
     
 	/**!
 	 * @brief Sends a channel scan request message.
@@ -684,40 +686,6 @@ public:
 	 * @note Ensure that the buffer is properly allocated and the length is correctly specified.
 	 */
 	int handle_spatial_reuse_report(unsigned char *buff, unsigned int len);
-    
-	/**!
-	 * @brief Handles EHT operations TLV.
-	 *
-	 * This function processes the EHT operations TLV from the provided buffer and populates the
-	 * eht_ops structure with the relevant data.
-	 *
-	 * @param[in] buff Pointer to the buffer containing the EHT operations TLV data.
-	 * @param[out] eht_ops Pointer to the em_eht_operations_t structure to be populated.
-	 *
-	 * @returns int
-	 * @retval 0 on success
-	 * @retval -1 on failure
-	 *
-	 * @note Ensure that the buffer is properly initialized and contains valid TLV data before calling this function.
-	 */
-	int handle_eht_operations_tlv(unsigned char *buff, em_eht_operations_t *eht_ops);
-    
-	/**!
-	 * @brief Handles EHT operations for TLV control.
-	 *
-	 * This function processes the EHT operations based on the provided TLV control buffer.
-	 *
-	 * @param[in] buff Pointer to the buffer containing TLV data.
-	 * @param[in] len Length of the buffer.
-	 *
-	 * @returns int
-	 * @retval 0 on success
-	 * @retval -1 on failure
-	 *
-	 * @note Ensure that the buffer is properly initialized before calling this function.
-	 */
-	int handle_eht_operations_tlv_ctrl(unsigned char *buff, unsigned int len);
-
     
 	/**!
 	 * @brief Retrieves the channel preference query transmission count.
