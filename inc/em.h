@@ -912,6 +912,17 @@ public:
 	 * @note Ensure that the buffer provided is large enough to hold the TLV structure.
 	 */
 	unsigned short create_eht_operations_tlv(unsigned char *buff);
+
+	/**!
+	 * @brief Handles the EHT operations TLV.
+	 *
+	 * @param[in] buff Pointer to the buffer containing the TLV data.
+	 *
+	 * @returns int
+	 * @retval 0 on success
+	 * @retval -1 on failure
+	 */
+	int handle_eht_operations_tlv(unsigned char *buff, unsigned short len);
     
 	/**!
 	 * @brief Creates a channel scan TLV.
@@ -958,22 +969,6 @@ public:
 	 * @note Ensure that the buffer is allocated with sufficient size before calling this function.
 	 */
 	short create_device_inventory_tlv(unsigned char *buff);
-    
-	/**!
-	 * @brief Creates a radio advertisement TLV.
-	 *
-	 * This function is responsible for creating a radio advertisement TLV (Type-Length-Value) structure
-	 * and storing it in the provided buffer.
-	 *
-	 * @param[out] buff Pointer to the buffer where the TLV will be stored.
-	 *
-	 * @returns A short integer indicating the success or failure of the operation.
-	 * @retval 0 on success.
-	 * @retval -1 on failure.
-	 *
-	 * @note Ensure that the buffer is properly allocated before calling this function.
-	 */
-	short create_radioad_tlv(unsigned char *buff);
     
 	/**!
 	 * @brief Creates a metric collection integer TLV.

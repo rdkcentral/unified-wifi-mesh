@@ -1202,17 +1202,23 @@ AlServiceAccessPoint* em_ctrl_t::al_sap_register(const std::string& data_socket_
     AlServiceRegistrationRequest registrationRequest(SAPActivation::SAP_ENABLE, ServiceType::EmController);
     sap->serviceAccessPointRegistrationRequest(registrationRequest);
 
-    AlServiceRegistrationResponse registrationResponse = sap->serviceAccessPointRegistrationResponse();
+    try {
+        AlServiceRegistrationResponse registrationResponse = sap->serviceAccessPointRegistrationResponse();
 
-    RegistrationResult result = registrationResponse.getResult();
-    if (result == RegistrationResult::SUCCESS) {
-        g_al_mac_sap = registrationResponse.getAlMacAddressLocal();
-        uint8_t* al_mac_bytes = g_al_mac_sap.data();
-        em_printfout("AL SAP registration successful, AL MAC: %s", util::mac_to_string(al_mac_bytes).c_str());
+        RegistrationResult result = registrationResponse.getResult();
+        if (result == RegistrationResult::SUCCESS) {
+            g_al_mac_sap = registrationResponse.getAlMacAddressLocal();
+            uint8_t* al_mac_bytes = g_al_mac_sap.data();
+            em_printfout("AL SAP registration successful, AL MAC: %s", util::mac_to_string(al_mac_bytes).c_str());
 
-        m_data_model.set_dev_interface_mac(al_mac_bytes);
-    } else {
-        std::cout << "Registration failed with error: " << static_cast<int>(result) << std::endl;
+            m_data_model.set_dev_interface_mac(al_mac_bytes);
+        } else {
+            std::cout << "Registration failed with error: " << static_cast<int>(result) << std::endl;
+        }
+    } catch (const std::exception& e) {
+        std::cerr << "al_sap_register: registration response error: " << e.what() << std::endl;
+        delete sap;
+        return nullptr;
     }
 
     return sap;
