@@ -949,9 +949,10 @@ short em_channel_t::create_operating_channel_report_tlv(unsigned char *buff)
 			rprt_channel = reinterpret_cast<em_op_class_ch_rprt_t *> (tmp);
 
 			rprt_op_class->op_classes_num++;
+
+			curr_txpwr_dbm = static_cast<int8_t>(op_class->m_op_class_info.tx_power);
 		}
-	}	
-	curr_txpwr_dbm = static_cast<int8_t>(op_class->m_op_class_info.tx_power);
+	}
 	memcpy(buff + len, &curr_txpwr_dbm, sizeof(curr_txpwr_dbm));
 	len += static_cast<short>(sizeof(curr_txpwr_dbm));
 
