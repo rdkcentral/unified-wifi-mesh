@@ -1225,7 +1225,7 @@ int main(int argc, const char *argv[])
 
 #endif // TESTING
 
-void wifi_util_print(wifi_log_level_t level, wifi_dbg_type_t module, char *format, ...)
+extern "C" void wifi_util_print(wifi_log_level_t level, wifi_dbg_type_t module, const char *format, ...)
 {
 
 }
