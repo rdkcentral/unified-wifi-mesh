@@ -87,7 +87,9 @@ uint8_t em_crypto_t::g_dh1536_g[] = { 0x02 };
 static pthread_once_t init_once = PTHREAD_ONCE_INIT;
 #endif
 
-em_crypto_t::em_crypto_t() {
+em_crypto_t::em_crypto_t()
+    : m_crypto_info{}
+{
 
 #if OPENSSL_VERSION_NUMBER >= 0x30000000L
     memset(&m_crypto_info, 0, sizeof(em_crypto_info_t));
@@ -280,14 +282,20 @@ uint8_t em_crypto_t::platform_hmac_hash(const EVP_MD * hashing_algo, uint8_t *ke
         return 0;
     }
 
+    int mdlen_int = EVP_MD_size(hashing_algo);
+    if (mdlen_int < 0) {
+        return 0;
+    }
+
 #if OPENSSL_VERSION_NUMBER >= 0x30000000L
     EVP_MD_CTX   *ctx;
     EVP_PKEY     *pkey;
+    size_t mdlen = static_cast<size_t> (mdlen_int);
 #else
     HMAC_CTX     *ctx;
+    unsigned int mdlen = static_cast<unsigned int> (mdlen_int);
 #endif
     size_t        i;
-    unsigned int mdlen = static_cast<unsigned int> (EVP_MD_size(hashing_algo));
 
 #if OPENSSL_VERSION_NUMBER >= 0x30000000L
     ctx = EVP_MD_CTX_new();
@@ -318,7 +326,7 @@ uint8_t em_crypto_t::platform_hmac_hash(const EVP_MD * hashing_algo, uint8_t *ke
         }
     }
 
-    if (EVP_DigestSignFinal(ctx, hmac, reinterpret_cast<size_t*>(&mdlen)) != 1) {
+    if (EVP_DigestSignFinal(ctx, hmac, &mdlen) != 1) {
         goto bail;
     }
 #else

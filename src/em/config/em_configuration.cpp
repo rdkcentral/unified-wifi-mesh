@@ -3192,7 +3192,7 @@ int em_configuration_t::compute_keys(unsigned char *remote_pub, unsigned short p
     length[0] = static_cast<size_t> (secret_len);
 
     if (compute_digest(1, addr, length, dhkey) != 1) {
-        free(secret);
+        OPENSSL_free(secret);
         printf("%s:%d: Hash key computation failed\n", __func__, __LINE__);
         return -1;
     }
@@ -3214,7 +3214,7 @@ int em_configuration_t::compute_keys(unsigned char *remote_pub, unsigned short p
     //util::print_hex_dump(length[2], addr[2]);
     
     if (compute_kdk(dhkey, SHA256_MAC_LEN, 3, addr, length, kdk) != 1) {
-        free(secret);
+        OPENSSL_free(secret);
         printf("%s:%d: kdk computation failed\n", __func__, __LINE__);
         return -1;
     }
@@ -3222,7 +3222,7 @@ int em_configuration_t::compute_keys(unsigned char *remote_pub, unsigned short p
     //printf("%s:%d: kdk:\n", __func__, __LINE__);
     //util::print_hex_dump(SHA256_MAC_LEN, kdk);
     if (derive_key(kdk, NULL, 0, str, keys, sizeof(keys)) != 1) {
-        free(secret);
+        OPENSSL_free(secret);
         printf("%s:%d: key derivation failed\n", __func__, __LINE__);
         return -1;
     }
@@ -3234,6 +3234,7 @@ int em_configuration_t::compute_keys(unsigned char *remote_pub, unsigned short p
     //printf("%s:%d: Encrypt/Decrypt Key:\n", __func__, __LINE__);
     //util::print_hex_dump(WPS_EMSK_LEN, m_emsk);
 
+    OPENSSL_free(secret);
     return 1;
 }
 
