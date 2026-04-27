@@ -2765,6 +2765,44 @@ em_op_class_info_t* dm_easy_mesh_t::get_opclass_info_for_bss(mac_address_t bssid
     return NULL;
 }
 
+unsigned char dm_easy_mesh_t::get_phy_type_for_bss(mac_address_t target_bssid)
+{
+    dm_radio_t *radio;
+    dm_radio_cap_t *cap;
+    em_bss_info_t *bss = get_bss_info_with_mac(target_bssid);
+    if (bss == NULL) {
+        return 0;
+    }
+
+    cap = get_radio_cap(bss->ruid.mac);
+    if (cap != NULL) {
+        em_radio_cap_info_t *cap_info = cap->get_radio_cap_info();
+        if (cap_info != NULL) {
+            if (cap_info->eht_ops.radios_num > 0)  return 15; // EHT (802.11be)
+            if (cap_info->he_cap.sprt_mcs_len) return 14; // HE  (802.11ax)
+            if (cap_info->vht_cap.sprt_tx_mcs) return 9;  // VHT (802.11ac)
+            if (cap_info->ht_cap.max_sprt_tx_streams ||
+                cap_info->ht_cap.max_sprt_rx_streams) return 7;  // HT (802.11n)
+        }
+    }
+
+    radio = get_radio(bss->ruid.mac);
+    if (radio != NULL) {
+        em_radio_info_t *radio_info = radio->get_radio_info();
+        if (radio_info != NULL) {
+            switch (radio_info->band) {
+                case em_freq_band_24: return 6;  // ERP (802.11g)
+                case em_freq_band_5:  return 4;  // OFDM (802.11a)
+                case em_freq_band_60: return 8;  // DMG (802.11ad)
+                case em_freq_band_6:  return 14; // HE (802.11ax)
+                default:              return 0;
+            }
+        }
+    }
+
+    return 0;
+}
+
 em_sta_info_t *dm_easy_mesh_t::get_first_sta_info(em_target_sta_map_t target)
 {
     hash_map_t *map;
@@ -2848,7 +2886,8 @@ dm_sta_t *dm_easy_mesh_t::find_sta(mac_address_t sta_mac, bssid_t bssid)
     sta = static_cast<dm_sta_t *> (hash_map_get_first(m_sta_map));
     while (sta != NULL) {
         if ((memcmp(sta->m_sta_info.id, sta_mac, sizeof(mac_address_t)) == 0) &&
-                        (memcmp(sta->m_sta_info.bssid, bssid, sizeof(mac_address_t)) == 0)) {
+            ((memcmp(sta->m_sta_info.bssid, bssid, sizeof(mac_address_t)) == 0) ||
+            (memcmp(sta->m_sta_info.multi_link, bssid, sizeof(mac_address_t)) == 0))) {
             return sta;
         }
         sta = static_cast<dm_sta_t *> (hash_map_get_next(m_sta_map, sta));
@@ -3633,6 +3672,9 @@ dm_easy_mesh_t::dm_easy_mesh_t()
 	m_db_cfg_param.db_cfg_type = db_cfg_type_none;
     m_colocated = false;
     m_is_ctlr = false;
+    m_sta_timers = NULL;
+    m_sta_timer_count = 0;
+    dialog_token = 0;
 }
 
 dm_easy_mesh_t::~dm_easy_mesh_t()

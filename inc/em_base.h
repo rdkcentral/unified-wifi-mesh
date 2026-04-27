@@ -35,6 +35,7 @@ extern "C"
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include "ec_base.h"
+#include <time.h>
 
 #define EM_MAX_NETWORKS	5
 #define EM_MAX_NET_SSIDS 5
@@ -107,6 +108,8 @@ extern "C"
 #define EM_MAX_DB_CFG_CRITERIA	32
 
 #define EM_CLI_MAX_ARGS 5
+
+#define EM_MAX_BTM_REQ_COUNT  5
 
 /* Authentication Type Flags */
 #define EM_AUTH_OPEN 0x0001
@@ -255,6 +258,22 @@ static const mac_address_t EM_GLOBAL_MAC_ADDRESS = {0xff, 0xff, 0xff, 0xff, 0xff
 #define EM_MSCS_DISALLOWED_STA      10
 #define EM_SCS_DISALLOWED_STA       10
 
+#define EM_BSS_TRANSITION_TERMINATION_INC 0
+#define EM_BSS_TRANSITION_VALIDITY_INTERVAL 10
+#define EM_BSS_TRANS_PREFER_CAND_LIST_INC  1
+#define EM_BSS_TRANS_CAND_PREF_SUBELEM_ID   3
+#define EM_BSS_TRANS_CAND_PREF_SUBELEM_LEN  1
+#define EM_BSS_TRANS_CAND_PREF_VALUE        255
+#define EM_BSS_TRANS_CAND_PREF_SIZE         3
+#define EM_BSS_TRANS_ESS_DISASSOC_IMMINENT  0
+#define EM_BSS_TRANS_ABRIDGED  0
+#define EM_BSS_TRANS_DISASSOC_TIMER  0
+#define EM_BSS_TRANS_CAND_PREF_ELEM_ID  52
+
+#define EM_BSS_TRANS_BSSID_INFO  0x1c03
+
+#define EM_CAC_REQ_VALIDITY_PERIOD 300
+
 #define EM_MIN_OP_CLASS_24 81
 #define EM_MAX_OP_CLASS_24 84
 #define EM_MIN_OP_CLASS_5 112
@@ -306,6 +325,10 @@ static const mac_address_t EM_GLOBAL_MAC_ADDRESS = {0xff, 0xff, 0xff, 0xff, 0xff
 #define WIFI_EM_CLIENT_ASSOC_CTRL_REQ        "Device.WiFi.EM.ClientAssocCtrlRequest"
 #endif
 
+#ifndef WIFI_EM_DISASSOC_CLIENT
+#define WIFI_EM_DISASSOC_CLIENT              "Device.WiFi.EM.DisassocClient"
+#endif
+
 #ifndef WIFI_EC_SEND_TRIG_STA_SCAN
 #define WIFI_EC_SEND_TRIG_STA_SCAN          "Device.WiFi.EC.TriggerStaScan"
 #endif
@@ -322,6 +345,18 @@ static const mac_address_t EM_GLOBAL_MAC_ADDRESS = {0xff, 0xff, 0xff, 0xff, 0xff
 #ifndef WIFI_SET_DISCONN_SCAN_NONE_STATE
 #define WIFI_SET_DISCONN_SCAN_NONE_STATE      "Device.WiFi.EM.SetDisconnScanNoneState"
 #endif
+
+#define WLAN_REASON_BSS_TRANSITION_DISASSOC 12
+
+// 802.11v BTM Response status codes (IEEE 802.11-2020, Table 9-428)
+#define BTM_STATUS_ACCEPT               0
+#define BTM_STATUS_REJECT_UNSPECIFIED    1
+#define BTM_STATUS_REJECT_INSUFF_BEACON 2
+#define BTM_STATUS_REJECT_INSUFF_CAP    3
+#define BTM_STATUS_REJECT_BSS_TERM_UNDESIRED 4
+#define BTM_STATUS_REJECT_BSS_TERM_DELAY 5
+#define BTM_STATUS_REJECT_STA_LIST      6
+#define BTM_STATUS_REJECT_NO_SUITABLE   7
 
 // Beacon CSA parsing
 #define CSA_TAG_ID                   37
@@ -1121,8 +1156,24 @@ typedef struct {
 }__attribute__((__packed__)) em_80211_btm_req_var_t;
 
 typedef struct {
-    em_steering_req_t agile_multiband;
-    unsigned char reason_code;
+    bssid_t target_bssid;
+    unsigned char target_bss_op_class;
+    unsigned char target_bss_channel_num;
+    unsigned char target_bss_reason_code;
+}__attribute__((__packed__)) em_profile2_target_bss_info_t;
+
+typedef struct {
+    bssid_t bssid;
+    unsigned char reserved : 5;
+    unsigned char btm_abridged : 1;
+    unsigned char btm_dissoc_imminent : 1;
+    unsigned char req_mode : 1;
+    unsigned short steering_opportunity_window;
+    unsigned short btm_dissoc_timer;
+    unsigned char sta_list_count;
+    mac_address_t sta_mac_addr;
+    unsigned char target_bssid_list_count;
+    em_profile2_target_bss_info_t target_bss_info;
 }__attribute__((__packed__)) em_profile2_steering_req_t;
 
 typedef struct {
@@ -2272,7 +2323,8 @@ typedef enum {
     em_state_agent_topology_notify,
     em_state_agent_client_cap_report,
     em_state_agent_sta_link_metrics_pending,
-    em_state_agent_steer_btm_res_pending,
+    em_state_agent_steer_btm_rpt_pending,
+    em_state_agent_steer_complete,
     em_state_agent_beacon_report_pending,
     em_state_agent_link_quality_report_pending,
 
@@ -2297,7 +2349,7 @@ typedef enum {
     em_state_ctrl_sta_cap_confirmed,
     em_state_ctrl_sta_link_metrics_pending,
     em_state_ctrl_sta_steer_pending,
-    em_state_ctrl_steer_btm_req_ack_rcvd,
+    em_state_ctrl_steer_req_ack_rcvd,
     em_state_ctrl_sta_disassoc_pending,
     em_state_ctrl_set_policy_pending,
     em_state_ctrl_ap_mld_config_pending,
@@ -2362,6 +2414,7 @@ typedef enum {
     em_cmd_type_get_link_quality_report,
     em_cmd_type_unassoc_sta_query,
     em_cmd_type_unassoc_sta_result,
+    em_cmd_type_steer_opp_complete,
 
     em_cmd_type_max,
 } em_cmd_type_t;
@@ -2570,6 +2623,12 @@ typedef struct {
 	em_cac_comp_rprt_pair_t	detected_pairs[EM_MAX_CAC_METHODS];
 } em_cac_comp_info_t;
 
+typedef enum {
+    em_sta_timer_type_none,
+    em_sta_timer_type_disassoc,
+    em_sta_timer_type_steer_opp,
+} em_sta_timer_type_t;
+
 typedef struct {
     mac_address_t   id;
     mac_address_t   bssid;
@@ -2625,7 +2684,16 @@ typedef struct {
     wifi_BeaconReport_t beacon_reports[EM_MAX_BEACON_REPORTS_PER_SCAN];
     em_link_report_t link_stats_report;
     unsigned short  reason_code;
+    em_sta_timer_type_t sta_timer_active;
 } em_sta_info_t;
+
+typedef struct {
+    em_sta_timer_type_t type;
+    mac_address_t       sta_mac;
+    bssid_t             source_bssid;
+    unsigned int        duration_ms;
+    struct timespec     expire_time;
+} em_sta_timer_t;
 
 typedef enum {
     em_target_sta_map_assoc,
@@ -3041,6 +3109,7 @@ typedef enum {
     em_bus_event_type_sta_link_metrics,
     em_bus_event_type_set_radio,
     em_bus_event_type_bss_tm_req,
+    em_bus_event_type_bss_tm_req_profile_2,
     em_bus_event_type_btm_response,
 	em_bus_event_type_channel_scan_params,
     em_bus_event_type_get_mld_config,
@@ -3061,6 +3130,10 @@ typedef enum {
     em_bus_event_type_unassoc_sta_query,
     em_bus_event_type_unassoc_sta_link_metrics_query,
     em_bus_event_type_unassoc_sta_result,
+    em_bus_event_type_start_sta_timer,
+    em_bus_event_type_disassoc_timer_expired,
+    em_bus_event_type_btm_query,
+    em_bus_event_type_steering_window_expired,
 
     em_bus_event_type_max
 } em_bus_event_type_t;
@@ -3153,7 +3226,7 @@ typedef enum {
     dm_orch_type_link_quality_report,
     dm_orch_type_unassoc_sta_link_req_query,
     dm_orch_type_unassoc_sta_result,
-    
+    dm_orch_type_sta_steer_opp_complete,
 } dm_orch_type_t;
 
 typedef struct {
@@ -3278,12 +3351,12 @@ typedef struct {
 } em_cmd_btm_report_params_t;
 
 typedef struct {
-    mac_address_t	sta_mac;
-    bssid_t	bssid;
-    unsigned int disassoc_time;
-    unsigned int reason;
-    bool	silent;
-} em_disassoc_params_t;
+    mac_address_t   sta_mac;
+    bssid_t         bssid;
+    uint32_t        disassoc_time;
+    uint32_t        reason;
+    uint8_t         silent;
+} __attribute__((__packed__)) em_disassoc_params_t;
 
 typedef struct {
     unsigned int num;

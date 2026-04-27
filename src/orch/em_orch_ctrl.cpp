@@ -231,7 +231,7 @@ bool em_orch_ctrl_t::is_em_ready_for_orch_fini(em_cmd_t *pcmd, em_t *em)
             break;
         case em_cmd_type_sta_steer:
             if (em->get_client_steering_req_tx_count() >= EM_MAX_CLIENT_STEER_REQ_TX_THRESH
-                || (em->get_state() == em_state_ctrl_steer_btm_req_ack_rcvd)) {
+                || (em->get_state() == em_state_ctrl_steer_req_ack_rcvd)) {
                 em->set_client_steering_req_tx_count(0);
                 em->set_state(em_state_ctrl_configured);
                 printf("%s:%d: Maximum client steering req threshold crossed, transitioning to fini\n", __func__, __LINE__);
@@ -691,6 +691,7 @@ unsigned int em_orch_ctrl_t::build_candidates(em_cmd_t *pcmd)
 
             case em_cmd_type_sta_steer:
                 if (em->find_sta(pcmd->m_param.u.steer_params.sta_mac, pcmd->m_param.u.steer_params.source) != NULL) {
+                    em_printfout("Sta Steer: %s found", util::mac_to_string(pcmd->m_param.u.steer_params.sta_mac).c_str());
                     queue_push(pcmd->m_em_candidates, em);
                     count++;
                 }

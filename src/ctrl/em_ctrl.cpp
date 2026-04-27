@@ -523,16 +523,16 @@ void em_ctrl_t::handle_nb_event(em_nb_event_t *evt)
             /* TODO: sending property only for now */
             resp->rc = cb(name, property, NULL);
         } break;
-#if 0
+
         case NB_REQTYPE_METHOD: {
             const char *method = evt->u.method.method;
-            rbusObject_t in = static_cast<rbusObject_t> (evt->u.method.in);
-            rbusObject_t out = static_cast<rbusObject_t> (evt->u.method.out);
-            rbusMethodAsyncHandle_t async = static_cast<rbusMethodAsyncHandle_t> (evt->u.method.async);
-            rbusMethodHandler_t cb = (rbusMethodHandler_t) evt->cb;
-            resp->rc = cb(NULL, method, in, out, async);
+            bus_data_prop_t *in = static_cast<bus_data_prop_t *>(evt->u.method.in);
+            bus_data_prop_t *out = static_cast<bus_data_prop_t *>(evt->u.method.out);
+            void *async = evt->u.method.async;
+            bus_method_handler_t cb = reinterpret_cast<bus_method_handler_t>(evt->cb);
+            resp->rc = cb(method, in, out, async);
         } break;
-#endif
+
         default:
             break;
     }
@@ -1017,8 +1017,17 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
             }
             break;
 
+        case em_msg_type_steering_complete:
+            em = static_cast<em_t *> (hash_map_get_first(m_em_map));
+            while(em != NULL) {
+                if ((em->is_al_interface_em() == false) && (em->has_at_least_one_associated_sta() == true)) {
+                    break;
+                }
+                em = static_cast<em_t *> (hash_map_get_next(m_em_map, em));
+            }
+            break;
+
         case em_msg_type_ap_mld_config_resp:
-        case em_msg_type_1905_ack:
             em = static_cast<em_t *> (hash_map_get_first(m_em_map));
             while(em != NULL) {
                 if ((em->is_al_interface_em() == false)) {
@@ -1027,6 +1036,29 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
                 em = static_cast<em_t *> (hash_map_get_next(m_em_map, em));
             }
             break;
+
+        case em_msg_type_1905_ack:
+        em = static_cast<em_t *> (hash_map_get_first(m_em_map));
+        while(em != NULL) {
+            if ((em->is_al_interface_em() == false) &&
+                (em->get_state() == em_state_ctrl_sta_steer_pending ||
+                 em->get_state() == em_state_ctrl_sta_disassoc_pending ||
+                 em->get_state() == em_state_ctrl_ap_mld_config_pending)) {
+                break;
+            }
+            em = static_cast<em_t *> (hash_map_get_next(m_em_map, em));
+        }
+
+        if (em == NULL) {
+            em = static_cast<em_t *> (hash_map_get_first(m_em_map));
+            while(em != NULL) {
+                if ((em->is_al_interface_em() == false)) {
+                    break;
+                }
+                em = static_cast<em_t *> (hash_map_get_next(m_em_map, em));
+            }
+        }
+        break;
 
         case em_msg_type_beacon_metrics_rsp:
             em = static_cast<em_t *> (hash_map_get_first(m_em_map));
@@ -1147,7 +1179,10 @@ void em_ctrl_t::start_complete()
             { bus_data_type_property, false, 0, 0, 0, NULL } },
         { const_cast<char*>(DE_STAMAP_DISASSOC), bus_element_type_method,
             { NULL, NULL , NULL, NULL, NULL, tr_181_t::disassociate_handler}, slow_speed, ZERO_TABLE,
-            { bus_data_type_property, false, 0, 0, 0, NULL } }
+            { bus_data_type_property, false, 0, 0, 0, NULL } },
+        { const_cast<char*>(DEVICE_WIFI_DATAELEMENTS_NETWORK_STA_CLIENT_STEER_CMD), bus_element_type_method,
+            { NULL, NULL, NULL, NULL, NULL, tr_181_t::ctrl_cmd_client_steer_method}, high_speed, ZERO_TABLE,
+            { bus_data_type_string, true, 0, 0, 0, NULL } },
         };
 
 	if (m_data_model.is_initialized() == false) {

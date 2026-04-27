@@ -16,8 +16,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#ifndef EM_CMD_BTM_REPORT_H
-#define EM_CMD_BTM_REPORT_H
+#ifndef EM_CMD_BEACON_REPORT_H
+#define EM_CMD_BEACON_REPORT_H
 
 #include "em_cmd.h"
 

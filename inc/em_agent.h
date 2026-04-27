@@ -231,6 +231,18 @@ class em_agent_t : public em_mgr_t {
 	void handle_btm_response_action_frame(em_bus_event_t *evt);
     
 	/**!
+	 * @brief Handles the BTM query action frame.
+	 *
+	 * This function processes the BTM (BSS Transition Management) query action frame
+	 * received in the event.
+	 *
+	 * @param[in] evt Pointer to the em_bus_event_t structure containing the event data.
+	 *
+	 * @note Ensure that the evt parameter is not null before calling this function.
+	 */
+	void handle_btm_query_action_frame(em_bus_event_t *evt);
+
+	/**!
 	 * @brief Handles the result of a channel scan.
 	 *
 	 * This function processes the event data received from a channel scan.
@@ -706,7 +718,7 @@ public:
 	 * @note Ensure that the event structure is properly initialized before passing it to this function.
 	 */
 	void handle_onewifi_radio_cb(em_bus_event_t *evt);
-    
+
 	/**!
 	 * @brief Handles the client association control request event.
 	 *
@@ -796,6 +808,25 @@ public:
 	 */
 	void handle_steer_sta(em_bus_event_t *evt);
 
+	/**!
+	 * @brief Handles the disassociation timer expired event.
+	 *
+	 * Called from handle_bus_event when em_bus_event_type_disassoc_timer_expired
+	 * is received. Constructs a disassoc command and submits it to the orchestrator.
+	 *
+	 * @param[in] evt Bus event carrying em_disassoc_timer_t in raw_buff.
+	 */
+	void handle_disassoc_timer_expired(em_bus_event_t *evt);
+
+	/**!
+	 * @brief Handles disassociation of a client from a BSS.
+	 *
+	 * Sends em_disassoc_params_t to OneWifi via bus so that OneWifi
+	 * can issue a disassociation frame (wifi_steering_clientDisconnect).
+	 *
+	 * @param[in] evt Bus event carrying em_disassoc_params_t in raw_buff.
+	 */
+	void handle_disassoc_client(em_bus_event_t *evt);
     
 	/**!
 	 * @brief Retrieves the command associated with the given input.
@@ -1108,6 +1139,68 @@ public:
 	 */
 	void *get_assoc(void*);
     
+	/**!
+	* @brief Arms the station timer from a bus event.
+	*
+	* Called when em_bus_event_type_start_sta_timer is received.
+	* Copies parameters from the event into m_sta_timers and sets
+	* the m_sta_timer_pending flag so handle_1s_tick will begin counting.
+	*
+	* @param[in] evt Bus event carrying em_sta_timer_t in raw_buff.
+	*/
+	void add_sta_timer(em_sta_timer_t *sta_timer_params);
+
+	/**!
+	 * @brief Removes the station timer from the list.
+	 *
+	 * Called when the station timer expires.
+	 * Removes the station timer from the list and frees the memory.
+	 *
+	 * @param[in] idx Index of the station timer to remove.
+	 */
+	void remove_sta_timer(unsigned int idx);
+
+ 	/**!
+	 * @brief Cancels the station timer from the list.
+	 *
+	 * Called when the station timer is cancelled.
+	 * Removes the station timer from the list and frees the memory.
+	 *
+	 * @param[in] type Type of the station timer to cancel.
+	 * @param[in] sta_mac MAC address of the station.
+	 */
+	void cancel_sta_timer(em_sta_timer_type_t type, mac_address_t sta_mac);
+
+ 	/**!
+	 * @brief Arms the station timer from a bus event.
+	 *
+	 * Called when em_bus_event_type_start_sta_timer is received.
+	 * Copies parameters from the event into m_sta_timers and sets
+	 * the m_disassoc_timer_pending flag so handle_1s_tick will begin counting.
+	 *
+	 * @param[in] evt Bus event carrying em_disassoc_timer_t in raw_buff.
+	 */
+	void start_sta_timer(em_bus_event_t *evt);
+
+ 	/**!
+	 * @brief Processes the running station timer.
+	 *
+	 * Called from handle_1s_tick when m_disassoc_timer_pending is true.
+	 * Decrements remaining_ticks each second. When it reaches zero, pushes
+	 * an em_bus_event_type_disassoc_timer_expired event to the main queue
+	 * and clears the pending flag.
+	 */
+	void process_sta_timer();
+
+ 	/**!
+	 * @brief Handles Steering Expired bus event (triggered after successful BTM steering).
+	 *
+	 * set_state(em_state_agent_configured) on all em_t instances.
+	 *
+	 * @param[in] evt Bus event.
+	 */
+	void handle_steering_window_expired(em_bus_event_t *evt);
+
 	/**!
 	 * @brief 
 	 *

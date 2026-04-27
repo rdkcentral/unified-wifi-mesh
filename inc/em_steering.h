@@ -74,16 +74,13 @@ class em_steering_t {
 	 *
 	 * This function is responsible for sending a BTM (BSS Transition Management) report message to a specified station.
 	 *
-	 * @param[in] sta The MAC address of the station to which the report is sent.
-	 * @param[in] bss The BSSID of the BSS involved in the report.
-	 *
 	 * @returns int Status code indicating success or failure of the operation.
 	 * @retval 0 on success.
 	 * @retval -1 on failure.
 	 *
 	 * @note Ensure that the station and BSS are valid and reachable before calling this function.
 	 */
-	int send_btm_report_msg(mac_address_t sta, bssid_t bss);
+	int send_btm_report_msg();
     
 	/**!
 	 * @brief Sends a 1905 acknowledgment message to a specified station.
@@ -97,15 +94,13 @@ class em_steering_t {
 	 * @param[in] reason The reason code used in Error Code TLV.
 	 * @param[in] dst Destination AL MAC to use when controller AL MAC is unknown).
 	 *
-	 * @returns int
-	 * @retval 0 on success
-	 * @retval -1 on failure
-	 *
+	 * @returns len of the 1905 ACK frame in int
+   *
 	 * @note Ensure that the MAC address is valid and the station is reachable
 	 * before calling this function.
 	 */
-	int send_1905_ack_message(mac_addr_t sta_mac, unsigned short msg_id, unsigned char reason = 0, unsigned char *dst = nullptr);
-    
+	int send_1905_ack_message(mac_addr_t sta_mac, unsigned short msg_id, unsigned char reason = 0, unsigned char *src = nullptr, unsigned char *dst = nullptr);
+
 	/**!
 	 * @brief Handles the client steering request.
 	 *
@@ -169,7 +164,40 @@ class em_steering_t {
 	 * @note Ensure the buffer is properly allocated and the length is correct before calling this function.
 	 */
 	int handle_ack_msg(unsigned char *buff, unsigned int len);
-    
+
+	/**!
+	 * @brief Handles Steering Completed message on controller side.
+	 *
+	 * @param[in] buff Pointer to the buffer containing the message.
+	 * @param[in] len Length of the data in the buffer.
+	 *
+	 * @returns int Status code.
+	 */
+  int handle_steering_complete(unsigned char *buff, unsigned int len);
+
+  /**
+   * @brief Disassociates a non-11v client.
+   *
+   * This function is responsible for steering a non-11v client.
+   *
+   * @param[in] sta Pointer to the station to be steered.
+   *
+   * @returns int Status code indicating success or failure of the operation.
+   */
+  int disassoc_non_11v_client(em_sta_info_t *sta_info, bssid_t bssid);
+
+  /**!
+   * @brief Enforces a client association control request.
+   *
+   * This function is responsible for enforcing a client association control request.
+   *
+   * @param[in] sta_info Pointer to the station.
+   * @param[in] bssid Pointer to the BSSID.
+   *
+   * @returns int Status code indicating success or failure of the operation.
+   */
+  int enforce_client_assoc_ctrl(em_sta_info_t *sta_info, bssid_t bssid);
+
 	/**!
 	 * @brief Creates an error code TLV (Type-Length-Value) structure.
 	 *
@@ -215,8 +243,35 @@ class em_steering_t {
 	 */
 	short create_btm_request_tlv(unsigned char *buff);
 
+	/**!
+	 * @brief Creates a Profile-2 BTM (BSS Transition Management) request TLV (Type-Length-Value).
+	 *
+	 * This function constructs a Profile-2 Steering Request TLV (17.2.57) and stores it in the provided buffer.
+	 * The Profile-2 TLV includes a per-target-BSS reason code field.
+	 *
+	 * @param[out] buff Pointer to the buffer where the TLV will be stored.
+	 *
+	 * @returns The size of the TLV created.
+	 * @retval -1 if the buffer is null or if an error occurs during creation.
+	 *
+	 * @note Ensure the buffer is sufficiently large to hold the TLV.
+	 */
+	short create_profile2_btm_request_tlv(unsigned char *buff);
+
 public:
-	
+
+	/**!
+	 * @brief Sends a Steering Completed message (Agent → Controller).
+	 *
+	 * Per EasyMesh §11.3.1, sent after all STAs in the STA list have been
+	 * successfully steered or when the steering opportunity window expires.
+	 *
+	 * @returns int
+	 * @retval >0 on success (bytes sent)
+	 * @retval -1 on failure
+	 */
+  int send_steering_complete_msg();
+
 	/**!
 	 * @brief Retrieves the manager instance.
 	 *

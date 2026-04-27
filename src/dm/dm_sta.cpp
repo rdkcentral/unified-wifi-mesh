@@ -132,6 +132,9 @@ int dm_sta_t::decode(const cJSON *obj, void *parent_id)
 
     if ((tmp = cJSON_GetObjectItem(obj, "HECapabilities")) != NULL) {
         snprintf(m_sta_info.he_cap, sizeof(m_sta_info.he_cap), "%s", cJSON_GetStringValue(tmp));
+    } else {
+        memset(m_sta_info.he_cap, 0, sizeof(m_sta_info.he_cap));
+        m_sta_info.he_cap[0] = '\0';
     }
 
     if ((tmp = cJSON_GetObjectItem(obj, "MLDAddr")) != NULL) {
@@ -238,8 +241,8 @@ void dm_sta_t::encode(cJSON *obj, em_get_sta_list_reason_t reason)
         cJSON_AddFalseToObject(reason_obj, "LinkRemovalImminent");
         cJSON_AddNumberToObject(reason_obj, "SteeringOpportunityWindow", 1);
         cJSON_AddNumberToObject(reason_obj, "BTMDisassociationTimer", 5);
-        cJSON_AddNumberToObject(reason_obj, "TargetBSSOperatingClass", 81);
-        cJSON_AddNumberToObject(reason_obj, "TargetBSSChannel", 6);
+        cJSON_AddNumberToObject(reason_obj, "TargetBSSOperatingClass", 0);
+        cJSON_AddNumberToObject(reason_obj, "TargetBSSChannel", 0);
     } else if (reason == em_get_sta_list_reason_disassoc) {
         reason_obj = cJSON_CreateObject();
         cJSON_AddItemToObject(obj, "Disassociate", reason_obj);
@@ -552,6 +555,9 @@ void dm_sta_t::decode_beacon_report(dm_sta_t *sta)
 dm_sta_t::dm_sta_t(em_sta_info_t *sta)
 {
     memcpy(&m_sta_info, sta, sizeof(em_sta_info_t));
+    if (m_sta_info.frame_body_len > 0) {
+        decode_sta_capability(this);
+    }
 }
 
 dm_sta_t::dm_sta_t(const dm_sta_t& sta)

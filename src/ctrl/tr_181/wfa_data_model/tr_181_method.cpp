@@ -17,6 +17,7 @@
  */
 #include "em_ctrl.h"
 #include "tr_181.h"
+#include <assert.h>
 
 bus_error_t tr_181_t::setssid_handler(const char *method_name, bus_data_prop_t *input_data,
     bus_data_prop_t *output_data, void *async_handle)
@@ -277,4 +278,14 @@ bus_error_t tr_181_t::disassociate_handler(const char *method_name, bus_data_pro
     }
 
     return rc;
+}
+
+bus_error_t tr_181_t::ctrl_cmd_client_steer_method(const char *method_name, bus_data_prop_t *input_data, bus_data_prop_t *output_data, void *async_handle) {
+    em_ctrl_t *ctrl = em_ctrl_t::get_em_ctrl_instance();
+
+    if(ctrl != NULL && ctrl->get_dm_ctrl() != NULL) {
+        return ctrl->get_dm_ctrl()->bus_method_cb_fwd(method_name, input_data, output_data, async_handle, ctrl->get_dm_ctrl()->ctrl_cmd_client_steer_inner);
+    }
+
+    return bus_error_general;
 }
