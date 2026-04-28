@@ -814,7 +814,7 @@ public:
 	 *
 	 * @note This function modifies the interface name used by the network control agent.
 	 */
-	void set_ctrl_al_interface_name(char *name) { m_network.set_controller_id(reinterpret_cast<unsigned char*>(name)); }
+	void set_ctrl_al_interface_name(char *name) { snprintf(m_network.m_net_info.ctrl_id.name, sizeof(m_network.m_net_info.ctrl_id.name), "%s", name); }
 	
 	/**!
 	 * @brief Sets the controller ID for the network.
@@ -1350,7 +1350,7 @@ public:
 	 *
 	 * @note Ensure that the index is within the valid range of BSS entries.
 	 */
-	static em_bss_info_t *get_bss_info(void *dm, unsigned int index) { return (static_cast<dm_easy_mesh_t *>(dm))->get_bss_info(index); }
+	static em_bss_info_t *get_bss_info(void *dm, unsigned int index) { if (dm == nullptr) return NULL; return (static_cast<dm_easy_mesh_t *>(dm))->get_bss_info(index); }
 
 	/**!
 	 * @brief Retrieves the `em_bss_info_t` for the bSTA.
