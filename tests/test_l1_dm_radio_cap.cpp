@@ -361,11 +361,11 @@ TEST(dm_radio_cap_t_Test, JSONObjectWithNumericValues) {
 TEST(dm_radio_cap_t_Test, CopyConstructorWithValidInput) {
     std::cout << "Entering CopyConstructorWithValidInput" << std::endl;
     dm_radio_cap_t original{};
-    original.m_radio_cap_info.wifi7_cap.radios_num = 5;
-    original.m_radio_cap_info.ch_scan.enabled = true;
+    original.m_radio_cap_info.wifi7_cap.mlo_cap_support.ruid[0] = 5;
+    original.m_radio_cap_info.ch_scan.boot_only = 1;
     dm_radio_cap_t copy(original);
-    EXPECT_EQ(copy.m_radio_cap_info.wifi7_cap.radios_num, original.m_radio_cap_info.wifi7_cap.radios_num);
-    EXPECT_EQ(copy.m_radio_cap_info.ch_scan.enabled, original.m_radio_cap_info.ch_scan.enabled);
+    EXPECT_EQ(copy.m_radio_cap_info.wifi7_cap.mlo_cap_support.ruid[0], original.m_radio_cap_info.wifi7_cap.mlo_cap_support.ruid[0]);
+    EXPECT_EQ(copy.m_radio_cap_info.ch_scan.boot_only, original.m_radio_cap_info.ch_scan.boot_only);
     std::cout << "Exiting CopyConstructorWithValidInput" << std::endl;
 }
 
@@ -427,10 +427,10 @@ TEST(dm_radio_cap_t_Test, CopyConstructorWithNullInput) {
 TEST(dm_radio_cap_t_Test, ValidInitializedRadioCapStructure) {
     std::cout << "Entering ValidInitializedRadioCapStructure test";
     em_radio_cap_info_t radio_cap{};
-    radio_cap.wifi7_cap.radios_num = static_cast<uint8_t>(2);
-    radio_cap.ch_scan.enabled = true;
-    radio_cap.ch_scan.number_of_bss = 1;
-    radio_cap.ch_scan.noise = static_cast<int16_t>(-90);
+    radio_cap.wifi7_cap.mlo_cap_support.ruid[0] = static_cast<uint8_t>(2);
+    radio_cap.ch_scan.boot_only = 1;
+    radio_cap.ch_scan.op_classes_num = 1;
+    radio_cap.ch_scan.min_scan_interval = 90;
     dm_radio_cap_t radio_cap_obj(&radio_cap);
     std::cout << "Exiting ValidInitializedRadioCapStructure test";
 }
@@ -489,8 +489,8 @@ TEST(dm_radio_cap_t_Test, NullRadioCapPointer) {
 TEST(dm_radio_cap_t_Test, InvalidRadioCapStructure) {
     std::cout << "Entering InvalidRadioCapStructure test";
     em_radio_cap_info_t radio_cap{};
-    radio_cap.ch_scan.intf.media = static_cast<em_media_type_t>(9999);
-    radio_cap.ch_scan.band = static_cast<em_freq_band_t>(9999);
+    radio_cap.ch_scan.scan_impact = static_cast<unsigned char>(3);
+    radio_cap.ch_scan.op_classes_num = static_cast<unsigned char>(255);
     dm_radio_cap_t radio_cap_obj(&radio_cap);
     std::cout << "Exiting InvalidRadioCapStructure test";
 }
@@ -766,29 +766,29 @@ TEST(dm_radio_cap_t_Test, EncodeNullPointer) {
 TEST(dm_radio_cap_t_Test, RetrieveRadioCapInfoWithMaxMinValues) {
     std::cout << "Entering RetrieveRadioCapInfoWithMaxMinValues" << std::endl;
     dm_radio_cap_t radio_cap{};
-    radio_cap.m_radio_cap_info.wifi7_cap.radios_num = 255;
+    radio_cap.m_radio_cap_info.wifi7_cap.mlo_cap_support.ruid[0] = 255;
     radio_cap.m_radio_cap_info.ht_cap.max_sprt_tx_streams = 3;
     radio_cap.m_radio_cap_info.ht_cap.max_sprt_rx_streams = 3;
     radio_cap.m_radio_cap_info.vht_cap.max_sprt_tx_streams = 7;
     radio_cap.m_radio_cap_info.vht_cap.max_sprt_rx_streams = 7;
     radio_cap.m_radio_cap_info.he_cap.max_sprt_tx_streams = 7;
     radio_cap.m_radio_cap_info.he_cap.max_sprt_rx_streams = 7;
-    radio_cap.m_radio_cap_info.wifi6_cap.max_dl_mumimo_tx = 15;
-    radio_cap.m_radio_cap_info.wifi6_cap.max_ul_mumimo_rx = 15;
-    radio_cap.m_radio_cap_info.wifi6_cap.max_dl_ofdma_tx = 255;
-    radio_cap.m_radio_cap_info.wifi6_cap.max_ul_ofdma_rx = 255;
+    radio_cap.m_radio_cap_info.wifi6_cap.roles[0].role_tail.max_dl_mumimo_tx = 15;
+    radio_cap.m_radio_cap_info.wifi6_cap.roles[0].role_tail.max_ul_mumimo_rx = 15;
+    radio_cap.m_radio_cap_info.wifi6_cap.roles[0].role_tail.max_dl_ofdma_tx = 255;
+    radio_cap.m_radio_cap_info.wifi6_cap.roles[0].role_tail.max_ul_ofdma_rx = 255;
     em_radio_cap_info_t* result = radio_cap.get_radio_cap_info();
-    EXPECT_EQ(result->wifi7_cap.radios_num, 255);
+    EXPECT_EQ(result->wifi7_cap.mlo_cap_support.ruid[0], 255);
     EXPECT_EQ(result->ht_cap.max_sprt_tx_streams, 3);
     EXPECT_EQ(result->ht_cap.max_sprt_rx_streams, 3);
     EXPECT_EQ(result->vht_cap.max_sprt_tx_streams, 7);
     EXPECT_EQ(result->vht_cap.max_sprt_rx_streams, 7);
     EXPECT_EQ(result->he_cap.max_sprt_tx_streams, 7);
     EXPECT_EQ(result->he_cap.max_sprt_rx_streams, 7);
-    EXPECT_EQ(result->wifi6_cap.max_dl_mumimo_tx, 15);
-    EXPECT_EQ(result->wifi6_cap.max_ul_mumimo_rx, 15);
-    EXPECT_EQ(result->wifi6_cap.max_dl_ofdma_tx, 255);
-    EXPECT_EQ(result->wifi6_cap.max_ul_ofdma_rx, 255);
+    EXPECT_EQ(result->wifi6_cap.roles[0].role_tail.max_dl_mumimo_tx, 15);
+    EXPECT_EQ(result->wifi6_cap.roles[0].role_tail.max_ul_mumimo_rx, 15);
+    EXPECT_EQ(result->wifi6_cap.roles[0].role_tail.max_dl_ofdma_tx, 255);
+    EXPECT_EQ(result->wifi6_cap.roles[0].role_tail.max_ul_ofdma_rx, 255);
     std::cout << "Exiting RetrieveRadioCapInfoWithMaxMinValues" << std::endl;
 }
 
@@ -849,11 +849,11 @@ TEST(dm_radio_cap_t_Test, AssigningMixedValues) {
     std::cout << "Entering AssigningMixedValues test";
     dm_radio_cap_t obj1{};
     dm_radio_cap_t obj2{};
-    obj2.m_radio_cap_info.wifi7_cap.radios_num = 3;
-    obj2.m_radio_cap_info.ch_scan.noise = -100;
+    obj2.m_radio_cap_info.wifi7_cap.mlo_cap_support.ruid[0] = 3;
+    obj2.m_radio_cap_info.ch_scan.min_scan_interval = 100;
     obj1 = obj2;
-    EXPECT_EQ(obj1.m_radio_cap_info.wifi7_cap.radios_num, 3);
-    EXPECT_EQ(obj1.m_radio_cap_info.ch_scan.noise, -100);
+    EXPECT_EQ(obj1.m_radio_cap_info.wifi7_cap.mlo_cap_support.ruid[0], 3);
+    EXPECT_EQ(obj1.m_radio_cap_info.ch_scan.min_scan_interval, 100u);
     std::cout << "Exiting AssigningMixedValues test";
 }
 
@@ -884,7 +884,7 @@ TEST(dm_radio_cap_t_Test, AssigningInvalidValue) {
     std::cout << "Entering AssigningInvalidValue test";
     dm_radio_cap_t obj1{};
     dm_radio_cap_t obj2{}; 
-    obj2.m_radio_cap_info.ruid.media = static_cast<em_media_type_t>(0x9999);
+    obj2.m_radio_cap_info.ruid.media = em_media_type_max;
     obj1 = obj2;
     EXPECT_NE(obj2.m_radio_cap_info.ruid.media, obj1.m_radio_cap_info.ruid.media);
     std::cout << "Exiting AssigningInvalidValue test";
@@ -916,12 +916,12 @@ TEST(dm_radio_cap_t_Test, CompareIdenticalObjects) {
     std::cout << "Entering CompareIdenticalObjects" << std::endl;
     dm_radio_cap_t obj1{};
     dm_radio_cap_t obj2{};
-    obj1.m_radio_cap_info.wifi7_cap.radios_num = 2;
-    obj1.m_radio_cap_info.ch_scan.noise = static_cast<int16_t>(-80);
-    obj2.m_radio_cap_info.wifi7_cap.radios_num = 2;
-    obj2.m_radio_cap_info.ch_scan.noise = static_cast<int16_t>(-80);
-    EXPECT_EQ(obj1.m_radio_cap_info.wifi7_cap.radios_num, obj2.m_radio_cap_info.wifi7_cap.radios_num);
-    EXPECT_EQ(obj1.m_radio_cap_info.ch_scan.noise, obj2.m_radio_cap_info.ch_scan.noise);
+    obj1.m_radio_cap_info.wifi7_cap.mlo_cap_support.ruid[0] = 2;
+    obj1.m_radio_cap_info.ch_scan.min_scan_interval = 80;
+    obj2.m_radio_cap_info.wifi7_cap.mlo_cap_support.ruid[0] = 2;
+    obj2.m_radio_cap_info.ch_scan.min_scan_interval = 80;
+    EXPECT_EQ(obj1.m_radio_cap_info.wifi7_cap.mlo_cap_support.ruid[0], obj2.m_radio_cap_info.wifi7_cap.mlo_cap_support.ruid[0]);
+    EXPECT_EQ(obj1.m_radio_cap_info.ch_scan.min_scan_interval, obj2.m_radio_cap_info.ch_scan.min_scan_interval);
     std::cout << "Exiting CompareIdenticalObjects" << std::endl;
 }
 
@@ -951,9 +951,9 @@ TEST(dm_radio_cap_t_Test, CompareDifferentNumberOfBSS) {
     std::cout << "Entering CompareDifferentNumberOfBSS" << std::endl;
     dm_radio_cap_t obj1{};
     dm_radio_cap_t obj2{};
-    obj1.m_radio_cap_info.ch_scan.number_of_bss = 2;
-    obj2.m_radio_cap_info.ch_scan.number_of_bss = 5;
-    EXPECT_NE(obj1.m_radio_cap_info.ch_scan.number_of_bss, obj2.m_radio_cap_info.ch_scan.number_of_bss);
+    obj1.m_radio_cap_info.ch_scan.op_classes_num = 2;
+    obj2.m_radio_cap_info.ch_scan.op_classes_num = 5;
+    EXPECT_NE(obj1.m_radio_cap_info.ch_scan.op_classes_num, obj2.m_radio_cap_info.ch_scan.op_classes_num);
     std::cout << "Exiting CompareDifferentNumberOfBSS" << std::endl;
 }
 
@@ -1015,8 +1015,8 @@ TEST(dm_radio_cap_t_Test, CompareDifferentEnabledValue) {
     std::cout << "Entering CompareDifferentEnabledValue" << std::endl;
     dm_radio_cap_t obj1{};
     dm_radio_cap_t obj2{};
-    obj1.m_radio_cap_info.ch_scan.enabled = false;
-    obj2.m_radio_cap_info.ch_scan.enabled = true;
+    obj1.m_radio_cap_info.ch_scan.boot_only = 0;
+    obj2.m_radio_cap_info.ch_scan.boot_only = 1;
     EXPECT_FALSE(obj1 == obj2);
     std::cout << "Exiting CompareDifferentEnabledValue" << std::endl;
 }
@@ -1046,8 +1046,8 @@ TEST(dm_radio_cap_t_Test, CompareDifferentEnabledValue) {
 TEST(dm_radio_cap_t_Test, CompareDifferentChipVendor) {
     std::cout << "Entering CompareDifferentChipVendor" << std::endl;
     dm_radio_cap_t obj1{}, obj2{};
-    std::memcpy(obj1.m_radio_cap_info.ch_scan.chip_vendor, "vendorA", sizeof("vendorA"));
-    std::memcpy(obj2.m_radio_cap_info.ch_scan.chip_vendor, "VendorX", sizeof("VendorX"));
+    std::memcpy(obj1.m_radio_cap_info.ch_scan.ruid, "vndA\0\0", 6);
+    std::memcpy(obj2.m_radio_cap_info.ch_scan.ruid, "vndX\0\0", 6);
     EXPECT_FALSE(obj1 == obj2);
     std::cout << "Exiting CompareDifferentChipVendor" << std::endl;
 }
@@ -1079,8 +1079,8 @@ TEST(dm_radio_cap_t_Test, CompareDifferentBSSColorBitmap) {
     std::cout << "Entering CompareDifferentBSSColorBitmap" << std::endl;
     dm_radio_cap_t obj1{};
     dm_radio_cap_t obj2{};
-    obj1.m_radio_cap_info.ch_scan.srg_bss_color_bitmap[0] = 0;
-    obj2.m_radio_cap_info.ch_scan.srg_bss_color_bitmap[0] = 1;
+    obj1.m_radio_cap_info.ch_scan.ruid[0] = 0;
+    obj2.m_radio_cap_info.ch_scan.ruid[0] = 1;
     EXPECT_FALSE(obj1 == obj2);
     std::cout << "Exiting CompareDifferentBSSColorBitmap" << std::endl;
 }
@@ -1206,8 +1206,8 @@ TEST(dm_radio_cap_t_Test, CompareDifferentEHTCap) {
     std::cout << "Entering CompareDifferentEHTCap" << std::endl;
     dm_radio_cap_t obj1{};
     dm_radio_cap_t obj2{};
-    strcpy(obj1.m_radio_cap_info.eht_cap, "EHT1 Capability");
-    strcpy(obj2.m_radio_cap_info.eht_cap, "EHT Capability");
+    obj1.m_radio_cap_info.eht_ops.radios_num = 1;
+    obj2.m_radio_cap_info.eht_ops.radios_num = 2;
     EXPECT_FALSE(obj1 == obj2);
     std::cout << "Exiting CompareDifferentEHTCap" << std::endl;
 }

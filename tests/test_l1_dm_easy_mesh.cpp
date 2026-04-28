@@ -23,6 +23,7 @@
 #include <net/if.h>
 #include "em_cmd.h"
 #include "dm_easy_mesh.h"
+#include <iomanip>
 
 extern "C" const char* __asan_default_options() {
     return "detect_leaks=0";
@@ -37,7 +38,7 @@ void PrintStaMap(const char* map_name, hash_map_t* map) {
         dm_easy_mesh_t::macbytes_to_string(sta->m_sta_info.id, sta_str);
         dm_easy_mesh_t::macbytes_to_string(sta->m_sta_info.bssid, bss_str);
         dm_easy_mesh_t::macbytes_to_string(sta->m_sta_info.radiomac, radio_str);
-        std::cout << "  STA: " << sta_str 
+        std::cout << "  STA: " << sta_str
                   << ", BSS: " << bss_str
                   << ", Radio: " << radio_str << "\n";
         sta = static_cast<dm_sta_t*>(hash_map_get_next(map, sta));
@@ -67,7 +68,7 @@ void PrintOpClass(const dm_easy_mesh_t &mesh)
         dm_easy_mesh_t::macbytes_to_string(mac_copy, mac_str);
         std::cout << "OpClass " << i
                   << ": RUID=" << mac_str
-                  << ", Type=" << mesh.m_op_class[i].m_op_class_info.id.type
+                  << ", Type=" << static_cast<unsigned int>(mesh.m_op_class[i].m_op_class_info.id.type)
                   << ", OpClass=" << mesh.m_op_class[i].m_op_class_info.id.op_class
                   << ", Channel=" << mesh.m_op_class[i].m_op_class_info.channel
                   << "\n";
@@ -158,7 +159,7 @@ void InitBss(dm_easy_mesh_t &mesh, unsigned int num_bss) {
 void PrintBss(const dm_easy_mesh_t &mesh) {
     std::cout << "Current BSS list (m_num_bss=" << mesh.m_num_bss << "):\n";
     for (unsigned int i = 0; i < mesh.m_num_bss; i++) {
-        std::cout << "  Index " << i 
+        std::cout << "  Index " << i
                   << ": vap_index=" << mesh.m_bss[i].m_bss_info.vap_index
                   << ", ssid=" << mesh.m_bss[i].m_bss_info.ssid
                   << ", enabled=" << mesh.m_bss[i].m_bss_info.enabled
@@ -188,12 +189,12 @@ void print_ssid_info(em_network_ssid_info_t *info)
     std::cout << "SSID              : " << info->ssid << std::endl;
     std::cout << "Passphrase        : " << info->pass_phrase << std::endl;
     std::cout << "Enabled           : " << info->enable << std::endl;
-    std::cout << "Num bands         : " << (int)info->num_bands << std::endl;
-    std::cout << "Num hauls         : " << (int)info->num_hauls << std::endl;
+    std::cout << "Num bands         : " << static_cast<int>(info->num_bands) << std::endl;
+    std::cout << "Num hauls         : " << static_cast<int>(info->num_hauls) << std::endl;
     for (unsigned int i = 0; i < info->num_hauls; i++) {
-        std::cout << "  Haul[" << i << "] = " << info->haul_type[i] << std::endl;
+        std::cout << "  Haul[" << i << "] = " << static_cast<unsigned int>(info->haul_type[i]) << std::endl;
     }
-}		
+}
 
 static void print_interface(const em_interface_t& iface)
 {
@@ -285,7 +286,7 @@ static void populate_sta(dm_easy_mesh_t &mesh, const char *sta_mac_str, const ch
 }
 
 
-static std::string build_valid_ssid_list()
+[[maybe_unused]] static std::string build_valid_ssid_list()
 {
     std::ostringstream oss;
     oss << "[";
@@ -311,7 +312,7 @@ cJSON* create_invalid_cJSON_object()
 {
     cJSON *obj = new cJSON();
     // For this test, we assume type != 1 indicates non-array type.
-    obj->type = 2; 
+    obj->type = 2;
     obj->child = nullptr;
     return obj;
 }
@@ -353,10 +354,10 @@ void print_network_info(em_network_info_t *info)
     std::cout << "Num of devices       : " << info->num_of_devices << std::endl;
     std::cout << "Timestamp            : " << info->timestamp << std::endl;
     std::cout << "Controller IF name   : " << info->ctrl_id.name << std::endl;
-    std::cout << "Controller IF media  : " << info->ctrl_id.media << std::endl;
-    std::cout << "Network media        : " << info->media << std::endl;
+    std::cout << "Controller IF media  : " << static_cast<unsigned int>(info->ctrl_id.media) << std::endl;
+    std::cout << "Network media        : " << static_cast<unsigned int>(info->media) << std::endl;
 }
-	
+
 static void print_dpp_info(const ec_data_t& info)
 {
     std::cout << "DPP Version: " << info.version << std::endl;
@@ -428,18 +429,18 @@ static void print_sta_info(const em_sta_info_t* info)
 /**
  * @brief Verify that analyze_ap_cap_query processes a valid AP capability query event correctly
  *
- * This test verifies that when a valid AP capability query event is provided to the analyze_ap_cap_query API, 
+ * This test verifies that when a valid AP capability query event is provided to the analyze_ap_cap_query API,
  * the API returns the expected value and successfully creates a non-null command output. This ensures that the method
  * correctly handles valid input by setting up and processing the event as expected.
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 001@n
  * **Priority:** High@n
- * 
+ *
  * **Pre-Conditions:** None@n
  * **Dependencies:** None@n
  * **User Interaction:** None@n
- * 
+ *
  * **Test Procedure:**
  * | Variation / Step | Description                                                                                   | Test Data                                                                                                                              | Expected Result                                                         | Notes       |
  * | :--------------: | --------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- | ----------- |
@@ -492,13 +493,13 @@ TEST(dm_easy_mesh_t, analyze_ap_cap_query_valid_ap_cap_query_event)
  */
 TEST(dm_easy_mesh_t, analyze_ap_cap_query_null_event_pointer)
 {
-    std::cout << "Entering analyze_ap_cap_query_null_event_pointer test" << std::endl;    
-    dm_easy_mesh_t mesh;    
+    std::cout << "Entering analyze_ap_cap_query_null_event_pointer test" << std::endl;
+    dm_easy_mesh_t mesh;
     // Create a valid pointer array for command output.
-    em_cmd_t* pcmd[1] = { nullptr };    
-    std::cout << "Invoking analyze_ap_cap_query with evt=NULL and valid pcmd array" << std::endl;    
-    int ret = mesh.analyze_ap_cap_query(NULL, pcmd);    
-    std::cout << "Method returned: " << ret << std::endl;    
+    em_cmd_t* pcmd[1] = { nullptr };
+    std::cout << "Invoking analyze_ap_cap_query with evt=NULL and valid pcmd array" << std::endl;
+    int ret = mesh.analyze_ap_cap_query(NULL, pcmd);
+    std::cout << "Method returned: " << ret << std::endl;
     EXPECT_LT(ret, 0);
     std::cout << "Exiting analyze_ap_cap_query_null_event_pointer test" << std::endl;
 }
@@ -526,16 +527,16 @@ TEST(dm_easy_mesh_t, analyze_ap_cap_query_null_event_pointer)
  */
 TEST(dm_easy_mesh_t, analyze_ap_cap_query_null_command_pointer)
 {
-    std::cout << "Entering analyze_ap_cap_query_null_command_pointer test" << std::endl;    
-    dm_easy_mesh_t mesh;    
+    std::cout << "Entering analyze_ap_cap_query_null_command_pointer test" << std::endl;
+    dm_easy_mesh_t mesh;
     // Prepare a valid event for AP capability query.
     em_bus_event_t evt = {};
     evt.type = em_bus_event_type_ap_cap_query;
     evt.data_len = 128;
-    strncpy(evt.u.subdoc.name, "ValidAPCapPayload", sizeof(evt.u.subdoc.name)-1);    
-    std::cout << "Invoking analyze_ap_cap_query with valid evt and pcmd=NULL" << std::endl;    
-    int ret = mesh.analyze_ap_cap_query(&evt, NULL);    
-    std::cout << "Method returned: " << ret << std::endl;    
+    strncpy(evt.u.subdoc.name, "ValidAPCapPayload", sizeof(evt.u.subdoc.name)-1);
+    std::cout << "Invoking analyze_ap_cap_query with valid evt and pcmd=NULL" << std::endl;
+    int ret = mesh.analyze_ap_cap_query(&evt, NULL);
+    std::cout << "Method returned: " << ret << std::endl;
     EXPECT_LT(ret, 0);
     std::cout << "Exiting analyze_ap_cap_query_null_command_pointer test" << std::endl;
 }
@@ -543,8 +544,8 @@ TEST(dm_easy_mesh_t, analyze_ap_cap_query_null_command_pointer)
 /**
  * @brief Test that analyze_ap_cap_query returns an error when the payload is missing a sub-document.
  *
- * This test verifies that when an event of type em_bus_event_type_ap_cap_query is passed with an invalid payload 
- * (data_len set to 0, indicating a missing sub-document), the analyze_ap_cap_query API returns a negative error code. 
+ * This test verifies that when an event of type em_bus_event_type_ap_cap_query is passed with an invalid payload
+ * (data_len set to 0, indicating a missing sub-document), the analyze_ap_cap_query API returns a negative error code.
  * The test confirms that the API can correctly handle this invalid input scenario.
  *
  * **Test Group ID:** Basic: 01@n
@@ -564,18 +565,18 @@ TEST(dm_easy_mesh_t, analyze_ap_cap_query_null_command_pointer)
  */
 TEST(dm_easy_mesh_t, analyze_ap_cap_query_invalid_payload_missing_subdocument)
 {
-    std::cout << "Entering analyze_ap_cap_query_invalid_payload_missing_subdocument test" << std::endl;    
+    std::cout << "Entering analyze_ap_cap_query_invalid_payload_missing_subdocument test" << std::endl;
     dm_easy_mesh_t mesh;
     // Prepare an event with valid type but invalid payload: data_len 0 indicates missing sub-document.
     em_bus_event_t evt = {};
     evt.type = em_bus_event_type_ap_cap_query;
     evt.data_len = 0;  // invalid payload length
-    // Intentionally do not set sub-document fields.    
-    em_cmd_t* pcmd[1] = { nullptr };    
-    std::cout << "Invoking analyze_ap_cap_query with evt.type=" << evt.type 
+    // Intentionally do not set sub-document fields.
+    em_cmd_t* pcmd[1] = { nullptr };
+    std::cout << "Invoking analyze_ap_cap_query with evt.type=" << static_cast<unsigned int>(evt.type)
               << " and data_len=" << evt.data_len << " (missing sub-document)" << std::endl;
-    int ret = mesh.analyze_ap_cap_query(&evt, pcmd);    
-    std::cout << "Method returned: " << ret << std::endl;    
+    int ret = mesh.analyze_ap_cap_query(&evt, pcmd);
+    std::cout << "Method returned: " << ret << std::endl;
     EXPECT_LT(ret, 0);
     std::cout << "Exiting analyze_ap_cap_query_invalid_payload_missing_subdocument test" << std::endl;
 }
@@ -602,21 +603,21 @@ TEST(dm_easy_mesh_t, analyze_ap_cap_query_invalid_payload_missing_subdocument)
  */
 TEST(dm_easy_mesh_t, analyze_ap_cap_query_corrupted_payload)
 {
-    std::cout << "Entering analyze_ap_cap_query_corrupted_payload test" << std::endl;    
-    dm_easy_mesh_t mesh;    
+    std::cout << "Entering analyze_ap_cap_query_corrupted_payload test" << std::endl;
+    dm_easy_mesh_t mesh;
     // Prepare an event with valid type but with corrupted payload.
     em_bus_event_t evt = {};
     evt.type = em_bus_event_type_ap_cap_query;
     // Set data_len to a non-zero value indicating payload present.
     evt.data_len = 256;
     // Corrupt the sub-document by setting an unexpected/malformed string.
-    strncpy(evt.u.subdoc.name, "!!!@@@###CORRUPTED_PAYLOAD$$$", sizeof(evt.u.subdoc.name)-1);    
-    em_cmd_t* pcmd[1] = { nullptr };    
-    std::cout << "Invoking analyze_ap_cap_query with evt.type=" << evt.type 
-              << ", data_len=" << evt.data_len 
-              << " and corrupted subdoc.name=" << evt.u.subdoc.name << std::endl;              
-    int ret = mesh.analyze_ap_cap_query(&evt, pcmd);    
-    std::cout << "Method returned: " << ret << std::endl;    
+    strncpy(evt.u.subdoc.name, "!!!@@@###CORRUPTED_PAYLOAD$$$", sizeof(evt.u.subdoc.name)-1);
+    em_cmd_t* pcmd[1] = { nullptr };
+    std::cout << "Invoking analyze_ap_cap_query with evt.type=" << static_cast<unsigned int>(evt.type)
+              << ", data_len=" << evt.data_len
+              << " and corrupted subdoc.name=" << evt.u.subdoc.name << std::endl;
+    int ret = mesh.analyze_ap_cap_query(&evt, pcmd);
+    std::cout << "Method returned: " << ret << std::endl;
     EXPECT_LT(ret, 0);
     std::cout << "Exiting analyze_ap_cap_query_corrupted_payload test" << std::endl;
 }
@@ -642,7 +643,7 @@ TEST(dm_easy_mesh_t, analyze_ap_cap_query_corrupted_payload)
 TEST(dm_easy_mesh_t, commit_bss_config_valid_vap0)
 {
     std::cout << "Entering commit_bss_config_valid_vap0 test" << std::endl;
-    dm_easy_mesh_t easyMesh;    
+    dm_easy_mesh_t easyMesh;
     easyMesh.m_num_bss = 1;
     mac_address_t mac1 = {0x11, 0x12, 0x22, 0x33, 0x44, 0x55};
     mac_address_t mac2 = {0x12, 0x13, 0x24, 0x35, 0x46, 0x55};
@@ -792,12 +793,12 @@ TEST(dm_easy_mesh_t, commit_config_al_target_copies_network_and_device_safe_fiel
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 010@n
  * **Priority:** High@n
- * 
+ *
  * **Pre-Conditions:** None@n
  * **Dependencies:** None@n
  * **User Interaction:** None@n
- * 
- * **Test Procedure:** 
+ *
+ * **Test Procedure:**
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
  * | 01 | Initialize source configuration with one radio having MAC address {0xaa,0xbb,0xcc,0xdd,0xee,0xff} and destination configuration with no radios. | src: m_num_radios = 1, radio[0].m_radio_info.intf.mac = aa:bb:cc:dd:ee:ff; dst: m_num_radios = 0 | Source object is correctly initialized with one radio; destination object is default initialized. | Should be successful |
@@ -829,7 +830,7 @@ TEST(dm_easy_mesh_t, commit_config_radio_existing_radio_updates)
 /**
  * @brief Test commit_config_bss_adds_new_bss adds a new BSS configuration
  *
- * This test verifies that the commit_config API correctly copies the BSS configuration from the source object to the destination object when a new BSS is added. It ensures that the BSS, identified by its ruid, is successfully transferred and that the destination object's BSS count is updated. 
+ * This test verifies that the commit_config API correctly copies the BSS configuration from the source object to the destination object when a new BSS is added. It ensures that the BSS, identified by its ruid, is successfully transferred and that the destination object's BSS count is updated.
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 011@n
@@ -853,7 +854,7 @@ TEST(dm_easy_mesh_t, commit_config_bss_adds_new_bss)
     dm_easy_mesh_t dst;
     mac_address_t ruid = {0x11,0x22,0x33,0x44,0x55,0x66};
     mac_address_t bssid = {0xaa,0xbb,0xcc,0xdd,0xee,0xff};
-    dm_bss_t bss;
+    dm_bss_t bss{};
     memcpy(bss.m_bss_info.ruid.mac, ruid, sizeof(ruid));
     memcpy(bss.m_bss_info.bssid.mac, bssid, sizeof(bssid));
     src.m_bss[0] = bss;
@@ -899,7 +900,7 @@ TEST(dm_easy_mesh_t, commit_config_unknown_target_no_effect)
     unsigned int initial_radios = dst.m_num_radios;
     unsigned int initial_bss    = dst.m_num_bss;
     em_commit_target_t target = {};
-    target.type = static_cast<em_commit_target_type_t>(999);
+    target.type = em_commit_target_max;
     target.params_size = 10;
     memset(target.params, 'B', sizeof(target.params));
     int ret = dst.commit_config(src, target);
@@ -953,11 +954,11 @@ TEST(dm_easy_mesh_t, commit_config_valid_cmd)
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 014@n
  * **Priority:** High@n
- * 
+ *
  * **Pre-Conditions:** None@n
  * **Dependencies:** None@n
  * **User Interaction:** None@n
- * 
+ *
  * **Test Procedure:**
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
@@ -1000,7 +1001,7 @@ TEST(dm_easy_mesh_t, create_ap_cap_query_json_cmd_valid_input) {
     char src_mac_addr[] = "AA:BB:CC:DD:EE:FF";
     char agent_al_mac[] = "11:22:33:44:55:66";
     char ap_query_json[256] = {0};
-    short msg_id = 100;    
+    short msg_id = 100;
     std::cout << "Invoking create_ap_cap_query_json_cmd with:" << std::endl;
     std::cout << "src_mac_addr: " << src_mac_addr << std::endl;
     std::cout << "agent_al_mac: " << agent_al_mac << std::endl;
@@ -1084,7 +1085,7 @@ TEST(dm_easy_mesh_t, create_ap_cap_query_json_cmd_null_agent_al_mac) {
     char src_mac_addr[] = "AA:BB:CC:DD:EE:FF";
     char* agent_al_mac = NULL;
     char ap_query_json[256] = {0};
-    short msg_id = 102;    
+    short msg_id = 102;
     std::cout << "Invoking create_ap_cap_query_json_cmd with:" << std::endl;
     std::cout << "src_mac_addr: " << src_mac_addr << std::endl;
     std::cout << "agent_al_mac: NULL" << std::endl;
@@ -1161,7 +1162,7 @@ TEST(dm_easy_mesh_t, create_ap_cap_query_json_cmd_negative_msg_id) {
     char src_mac_addr[] = "AA:BB:CC:DD:EE:FF";
     char agent_al_mac[] = "11:22:33:44:55:66";
     char ap_query_json[256] = {0};
-    short msg_id = -1;    
+    short msg_id = -1;
     std::cout << "Invoking create_ap_cap_query_json_cmd with:" << std::endl;
     std::cout << "src_mac_addr: " << src_mac_addr << std::endl;
     std::cout << "agent_al_mac: " << agent_al_mac << std::endl;
@@ -1197,7 +1198,7 @@ TEST(dm_easy_mesh_t, create_ap_cap_query_json_cmd_negative_msg_id) {
  * | :----: | --------- | ---------- |-------------- | ----- |
  * | 01 | Invoke create_autoconfig_renew_json_cmd with frequency band 2.4 GHz and verify the JSON output contains required fields and correct operating class | src_mac = "10:11:22:33:44:55", agent_al_mac = "AA:BB:CC:DD:EE:FF", band = em_freq_band_24, expected_op_class = EM_MIN_OP_CLASS_24 | Non-empty JSON string with expected keys and JSON field "Class" equals to EM_MIN_OP_CLASS_24 | Should Pass |
  * | 02 | Invoke create_autoconfig_renew_json_cmd with frequency band 5 GHz and verify the JSON output contains required fields and correct operating class | src_mac = "10:11:22:33:44:55", agent_al_mac = "AA:BB:CC:DD:EE:FF", band = em_freq_band_5, expected_op_class = EM_MIN_OP_CLASS_5 | Non-empty JSON string with expected keys and JSON field "Class" equals to EM_MIN_OP_CLASS_5 | Should Pass |
- * | 03 | Invoke create_autoconfig_renew_json_cmd with frequency band 60 GHz and verify the JSON output contains required fields and correct operating class | src_mac = "10:11:22:33:44:55", agent_al_mac = "AA:BB:CC:DD:EE:FF", band = em_freq_band_60, expected_op_class = EM_MIN_OP_CLASS_6 | Non-empty JSON string with expected keys and JSON field "Class" equals to EM_MIN_OP_CLASS_6 | Should Pass |
+ * | 03 | Invoke create_autoconfig_renew_json_cmd with frequency band 6 GHz and verify the JSON output contains required fields and correct operating class | src_mac = "10:11:22:33:44:55", agent_al_mac = "AA:BB:CC:DD:EE:FF", band = em_freq_band_6, expected_op_class = EM_MIN_OP_CLASS_6 | Non-empty JSON string with expected keys and JSON field "Class" equals to EM_MIN_OP_CLASS_6 | Should Pass |
  */
 TEST(dm_easy_mesh_t, create_autoconfig_renew_json_cmd_valid_inputs_loop)
 {
@@ -1211,13 +1212,13 @@ TEST(dm_easy_mesh_t, create_autoconfig_renew_json_cmd_valid_inputs_loop)
     } testCases[] = {
         { em_freq_band_24, EM_MIN_OP_CLASS_24 },
         { em_freq_band_5,  EM_MIN_OP_CLASS_5  },
-        { em_freq_band_60, EM_MIN_OP_CLASS_6  }
+        { em_freq_band_6,  EM_MIN_OP_CLASS_6  }
     };
     for (const auto& tc : testCases) {
         char autoconfig_renew_json[1024] = {0};
         dm_easy_mesh_t::create_autoconfig_renew_json_cmd(src_mac, agent_al_mac, tc.band, autoconfig_renew_json);
         std::string json(autoconfig_renew_json);
-        std::cout << "Generated JSON for band " << tc.band << ":\n" << json << std::endl;
+        std::cout << "Generated JSON for band " << static_cast<unsigned int>(tc.band) << ":\n" << json << std::endl;
         EXPECT_FALSE(json.empty());
         EXPECT_NE(json.find("wfa-dataelements:Renew"), std::string::npos);
         EXPECT_NE(json.find("ControllerID"), std::string::npos);
@@ -1266,12 +1267,12 @@ TEST(dm_easy_mesh_t, create_autoconfig_renew_json_cmd_null_src_mac)
     const char* testName = "create_autoconfig_renew_json_cmd_null_src_mac";
     std::cout << "Entering " << testName << " test" << std::endl;
     char* src_mac = NULL;
-	char agent_al_mac[] = "AA:BB:CC:DD:EE:FF";    
+	char agent_al_mac[] = "AA:BB:CC:DD:EE:FF";
     char autoconfig_renew_json[1024] = {0};
     std::cout << "Invoking create_autoconfig_renew_json_cmd with:" << std::endl;
     std::cout << "  src_mac_addr: " << "NULL" << std::endl;
     std::cout << "  agent_al_mac: " << agent_al_mac << std::endl;
-    std::cout << "  freq_band: " << em_freq_band_24 << std::endl;
+    std::cout << "  freq_band: " << static_cast<unsigned int>(em_freq_band_24) << std::endl;
     std::cout << "  Output buffer address: " << static_cast<void*>(autoconfig_renew_json) << std::endl;
     // Invoke the method.
     EXPECT_ANY_THROW(dm_easy_mesh_t::create_autoconfig_renew_json_cmd(src_mac, agent_al_mac, em_freq_band_24, autoconfig_renew_json));
@@ -1307,7 +1308,7 @@ TEST(dm_easy_mesh_t, create_autoconfig_renew_json_cmd_null_agent_al_mac)
     std::cout << "Invoking create_autoconfig_renew_json_cmd with:" << std::endl;
     std::cout << "  src_mac_addr: " << src_mac << std::endl;
     std::cout << "  agent_al_mac: " << "NULL" << std::endl;
-    std::cout << "  freq_band: " << em_freq_band_5 << std::endl;
+    std::cout << "  freq_band: " << static_cast<unsigned int>(em_freq_band_5) << std::endl;
     std::cout << "  Output buffer address: " << static_cast<void*>(autoconfig_renew_json) << std::endl;
     // Invoke the method.
     EXPECT_ANY_THROW(dm_easy_mesh_t::create_autoconfig_renew_json_cmd(src_mac, agent_al_mac, em_freq_band_5, autoconfig_renew_json));
@@ -1347,7 +1348,7 @@ TEST(dm_easy_mesh_t, create_autoconfig_renew_json_cmd_null_output_buffer)
     std::cout << "Invoking create_autoconfig_renew_json_cmd with:" << std::endl;
     std::cout << "  src_mac_addr: " << src_mac << std::endl;
     std::cout << "  agent_al_mac: " << agent_al_mac << std::endl;
-    std::cout << "  freq_band: " << em_freq_band_60 << std::endl;
+    std::cout << "  freq_band: " << static_cast<unsigned int>(em_freq_band_60) << std::endl;
     std::cout << "  Output buffer: " << "NULL" << std::endl;
     // Invoke the method. Expect that it handles the NULL output buffer gracefully.
     EXPECT_ANY_THROW(dm_easy_mesh_t::create_autoconfig_renew_json_cmd(src_mac, agent_al_mac, em_freq_band_60, autoconfig_renew_json));
@@ -1357,10 +1358,10 @@ TEST(dm_easy_mesh_t, create_autoconfig_renew_json_cmd_null_output_buffer)
 /**
  * @brief Tests the creation of a client capability query JSON command
  *
- * This test verifies that the function dm_easy_mesh_t::create_client_cap_query_json_cmd 
- * correctly generates a JSON string when provided with valid input parameters. It checks for 
- * the presence of specific required substrings such as "wfa-dataelements:Clientcap", "OneWifiMesh", 
- * the input MAC addresses, and "DeviceList", and confirms that the message ID embedded in the JSON 
+ * This test verifies that the function dm_easy_mesh_t::create_client_cap_query_json_cmd
+ * correctly generates a JSON string when provided with valid input parameters. It checks for
+ * the presence of specific required substrings such as "wfa-dataelements:Clientcap", "OneWifiMesh",
+ * the input MAC addresses, and "DeviceList", and confirms that the message ID embedded in the JSON
  * matches the provided value.
  *
  * **Test Group ID:** Basic: 01@n
@@ -1420,11 +1421,11 @@ TEST(dm_easy_mesh_t, create_client_cap_query_json_cmd_valid_input)
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 025@n
  * **Priority:** High@n
- * 
+ *
  * **Pre-Conditions:** None@n
  * **Dependencies:** None@n
  * **User Interaction:** None@n
- * 
+ *
  * **Test Procedure:**@n
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
@@ -1776,8 +1777,8 @@ TEST(dm_easy_mesh_t, db_cfg_type_get_criteria_AfterSet_ReturnsCriteria)
 /**
  * @brief Verify that db_cfg_type_get_criteria handles invalid enumeration types correctly
  *
- * This test verifies that when an invalid db_cfg_type_t value (i.e., -1) is passed to 
- * db_cfg_type_get_criteria, the function returns a nullptr. This behavior confirms that 
+ * This test verifies that when an invalid db_cfg_type_t value (i.e., -1) is passed to
+ * db_cfg_type_get_criteria, the function returns a nullptr. This behavior confirms that
  * the API correctly handles erroneous input by preventing unintended operations.
  *
  * **Test Group ID:** Basic: 01@n
@@ -1802,8 +1803,8 @@ TEST(dm_easy_mesh_t, db_cfg_type_get_criteria_InvalidEnumTypeNegativeTest)
 
     dm_easy_mesh_t obj;
     db_cfg_type_t invalidType = static_cast<db_cfg_type_t>(-1);
-    std::cout << "Invoking db_cfg_type_get_criteria with invalid type (negative value): " << invalidType << std::endl;
-    char *criteria = obj.db_cfg_type_get_criteria(invalidType);    
+    std::cout << "Invoking db_cfg_type_get_criteria with invalid type (negative value): " << static_cast<unsigned int>(invalidType) << std::endl;
+    char *criteria = obj.db_cfg_type_get_criteria(invalidType);
     EXPECT_EQ(criteria, nullptr);
     std::cout << "Exiting db_cfg_type_get_criteria_InvalidEnumTypeNegativeTest test" << std::endl;
 }
@@ -1811,8 +1812,8 @@ TEST(dm_easy_mesh_t, db_cfg_type_get_criteria_InvalidEnumTypeNegativeTest)
 /**
  * @brief Verify that the database configuration type is correctly set when initialized with a valid value.
  *
- * This test verifies that after initializing the dm_easy_mesh_t object, setting the parameter 
- * m_db_cfg_param.db_cfg_type to a positive value (5) allows the db_cfg_type_is_set() function 
+ * This test verifies that after initializing the dm_easy_mesh_t object, setting the parameter
+ * m_db_cfg_param.db_cfg_type to a positive value (5) allows the db_cfg_type_is_set() function
  * to return true. This confirms that the database configuration type is properly established.
  *
  * **Test Group ID:** Basic: 01@n
@@ -1922,7 +1923,7 @@ TEST(dm_easy_mesh_t, db_cfg_type_is_set_Positive_specific_flag_set)
 /**
  * @brief Test db_cfg_type_is_set() for negative scenario when a specific flag is not set
  *
- * This test verifies that when m_db_cfg_param.db_cfg_type is set to db_cfg_type_device_list_update, invoking db_cfg_type_is_set() 
+ * This test verifies that when m_db_cfg_param.db_cfg_type is set to db_cfg_type_device_list_update, invoking db_cfg_type_is_set()
  * with db_cfg_type_network_list_update returns false. It ensures that the API correctly identifies the absence of the expected flag.
  *
  * **Test Group ID:** Basic: 01
@@ -2020,7 +2021,7 @@ TEST(dm_easy_mesh_t, db_cfg_type_is_set_Loop_all_enum_values_combined_flags)
 /**
  * @brief Verify that db_cfg_type_is_set returns false when the object's configuration does not match the queried type.
  *
- * This test initializes a dm_easy_mesh_t object, verifies a successful initialization by checking that init() returns 0, 
+ * This test initializes a dm_easy_mesh_t object, verifies a successful initialization by checking that init() returns 0,
  * sets the object's m_db_cfg_param.db_cfg_type to radio_cap_list_update, and then calls db_cfg_type_is_set with db_cfg_type_none.
  * The expected behavior is that db_cfg_type_is_set returns false because the queried type does not match the set configuration.
  *
@@ -2124,7 +2125,7 @@ TEST(dm_easy_mesh_t, decode_ap_cap_config_null_subdoc) {
     const char *key = "ap_cap";
     std::cout << "Invoking decode_ap_cap_config with subdoc: NULL and key: " << key << std::endl;
     int ret = dm.decode_ap_cap_config(NULL, key);
-    ASSERT_EQ(ret, -1);   
+    ASSERT_EQ(ret, -1);
     std::cout << "Exiting decode_ap_cap_config_null_subdoc test" << std::endl;
 }
 
@@ -2184,7 +2185,7 @@ TEST(dm_easy_mesh_t, decode_ap_cap_config_null_key)
  * **Dependencies:** None@n
  * **User Interaction:** None@n
  *
- * **Test Procedure:** 
+ * **Test Procedure:**
  * | Variation / Step | Description                                                                 | Test Data                                                                                                    | Expected Result                             | Notes       |
  * | :--------------: | --------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ | ------------------------------------------- | ----------- |
  * | 01               | Prepare invalid JSON payload and invoke decode_ap_cap_config API             | subdoc->buff = { invalid json }, key = ap_cap, json_len = strlen("{ invalid json }") + 1, total_size = sizeof(em_subdoc_info_t) + json_len | API returns -1 and assertion passes         | Should Fail |
@@ -2211,8 +2212,8 @@ TEST(dm_easy_mesh_t, decode_ap_cap_config_invalid_json)
 /**
  * @brief Verify behavior of decode_ap_cap_config when the required "ap_cap" parent key is missing
  *
- * This test verifies that the decode_ap_cap_config function properly handles a JSON input that lacks 
- * the expected "ap_cap" parent key by returning an error code (-1). It ensures that the subdocument 
+ * This test verifies that the decode_ap_cap_config function properly handles a JSON input that lacks
+ * the expected "ap_cap" parent key by returning an error code (-1). It ensures that the subdocument
  * is correctly allocated and populated, and finally, the API call fails as expected when the key is missing.@n
  *
  * **Test Group ID:** Basic: 01@n
@@ -2256,8 +2257,8 @@ TEST(dm_easy_mesh_t, decode_ap_cap_config_missing_parent_key)
 /**
  * @brief Test to verify that decode_ap_cap_config returns an error when the required device list is missing.
  *
- * This test verifies that when a JSON configuration for AP capabilities is parsed without the mandatory device list, 
- * the decode_ap_cap_config API returns an error (-1). It ensures that the API correctly identifies the missing device list 
+ * This test verifies that when a JSON configuration for AP capabilities is parsed without the mandatory device list,
+ * the decode_ap_cap_config API returns an error (-1). It ensures that the API correctly identifies the missing device list
  * and does not proceed with an incorrect or incomplete configuration.
  *
  * **Test Group ID:** Basic: 01@n
@@ -2308,11 +2309,11 @@ TEST(dm_easy_mesh_t, decode_ap_cap_config_missing_device_list)
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 047@n
  * **Priority:** High@n
- * 
+ *
  * **Pre-Conditions:** None@n
  * **Dependencies:** None@n
  * **User Interaction:** None@n
- * 
+ *
  * **Test Procedure:**@n
  * | Variation / Step | Description                                                                                         | Test Data                                                                                                                                                          | Expected Result                               | Notes         |
  * | :--------------: | --------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------- | ------------- |
@@ -2508,7 +2509,7 @@ TEST(dm_easy_mesh_t, decode_client_cap_config_missing_device_list)
  * @brief Validate that decode_client_cap_config returns -1 when provided with an empty device list
  *
  * This test verifies that the decode_client_cap_config API of dm_easy_mesh_t correctly handles a scenario
- * where the input JSON configuration contains an empty device list for the "clientcap" key. This is important to 
+ * where the input JSON configuration contains an empty device list for the "clientcap" key. This is important to
  * ensure the API gracefully handles missing device data by returning an error code.
  *
  * **Test Group ID:** Basic: 01
@@ -2547,17 +2548,17 @@ TEST(dm_easy_mesh_t, decode_client_cap_config_empty_device_list)
 /**
  * @brief Validate behavior of decode_client_cap_config when subdoc is NULL
  *
- * This test verifies that the decode_client_cap_config API correctly handles a NULL subdoc pointer. 
+ * This test verifies that the decode_client_cap_config API correctly handles a NULL subdoc pointer.
  * It ensures that the function returns an error value (-1) when the subdoc input is NULL while the key and buffer parameters are valid.
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 053@n
  * **Priority:** High@n
- * 
+ *
  * **Pre-Conditions:** None@n
  * **Dependencies:** None@n
  * **User Interaction:** None@n
- * 
+ *
  * **Test Procedure:**
  * | Variation / Step | Description                                                                 | Test Data                                                         | Expected Result                                           | Notes         |
  * | :--------------: | --------------------------------------------------------------------------- | ----------------------------------------------------------------- | --------------------------------------------------------- | ------------- |
@@ -2596,22 +2597,26 @@ TEST(dm_easy_mesh_t, decode_client_cap_config_null_subdoc) {
  * **Test Procedure:**
  * | Variation / Step | Description                                                          | Test Data                                                                                 | Expected Result                                              | Notes       |
  * | :--------------: | -------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- | ------------------------------------------------------------ | ----------- |
- * | 01               | Invoke decode_client_cap_config with a valid subdoc and a NULL key.    | subdoc.name = "clientcap", key = NULL, clientmac = allocated (18), radio_mac = allocated (18) | Return value equals -1 and ASSERT_EQ(-1, ret) passes           | Should Pass |
+ * | 01               | Invoke decode_client_cap_config with a valid subdoc and a NULL key.    | subdoc->name = "clientcap", key = NULL, clientmac = allocated (18), radio_mac = allocated (18) | Return value equals -1 and ASSERT_EQ(-1, ret) passes           | Should Pass |
  */
 TEST(dm_easy_mesh_t, decode_client_cap_config_null_key) {
     std::cout << "Entering decode_client_cap_config_null_key test" << std::endl;
-    em_subdoc_info_t subdoc;
-    strncpy(subdoc.name, "clientcap", sizeof(subdoc.name) - 1);
-    subdoc.name[sizeof(subdoc.name)-1] = '\0';
+    const size_t buff_size = 4;
+    em_subdoc_info_t *subdoc = static_cast<em_subdoc_info_t *>(malloc(sizeof(em_subdoc_info_t) + buff_size));
+    ASSERT_NE(subdoc, nullptr);
+    strncpy(subdoc->name, "clientcap", sizeof(subdoc->name) - 1);
+    subdoc->name[sizeof(subdoc->name)-1] = '\0';
+    subdoc->buff[0] = '\0';
     const char *key = NULL;
     char clientmac[18] = {0};
     char radio_mac[18] = {0};
     std::cout << "Invoking decode_client_cap_config with:" << std::endl;
-    std::cout << "  subdoc.name = " << subdoc.name << std::endl;
+    std::cout << "  subdoc->name = " << subdoc->name << std::endl;
     std::cout << "  key = NULL" << std::endl;
     std::cout << "  clientmac and radio_mac buffers allocated (size 18)" << std::endl;
     dm_easy_mesh_t dm;
-    int ret = dm.decode_client_cap_config(&subdoc, key, clientmac, radio_mac);
+    int ret = dm.decode_client_cap_config(subdoc, key, clientmac, radio_mac);
+    free(subdoc);
     std::cout << "Method returned: " << ret << std::endl;
     ASSERT_EQ(-1, ret);
     std::cout << "Exiting decode_client_cap_config_null_key test" << std::endl;
@@ -2638,7 +2643,7 @@ TEST(dm_easy_mesh_t, decode_client_cap_config_null_key) {
  * | 01               | Invoke decode_client_cap_config with a valid subdoc and key, a NULL clientmac pointer, and allocated radio_mac buffer of size 18. | subdoc.name = "clientcap", key = "clientcap", clientmac = NULL, radio_mac buffer size = 18 | Return value must be -1, confirmed by ASSERT_EQ(-1, ret)                      | Should Fail  |
  */
 TEST(dm_easy_mesh_t, decode_client_cap_config_null_clientmac) {
-    std::cout << "Entering decode_client_cap_config_null_clientmac test" << std::endl;    
+    std::cout << "Entering decode_client_cap_config_null_clientmac test" << std::endl;
     em_subdoc_info_t subdoc;
     strncpy(subdoc.name, "clientcap", sizeof(subdoc.name) - 1);
     subdoc.name[sizeof(subdoc.name)-1] = '\0';
@@ -2735,7 +2740,7 @@ TEST(dm_easy_mesh_t, decode_config_supported_routing)
     "  \"Network\": {"
     "    \"ID\": \"TestNetwork\","
     "    \"AnticipatedChannelPreference\": ["
-    "      { \"Class\": 1, \"ChannelList\": [1,6,11] }"
+    "      { \"Class\": 1, \"ChannelList\": [1,6,11], \"ChannelPrefList\": [0,0,0] }"
     "    ]"
     "  }"
     "} }",
@@ -2745,7 +2750,7 @@ TEST(dm_easy_mesh_t, decode_config_supported_routing)
     "  \"Network\": {"
     "    \"ID\": \"TestNetwork\","
     "    \"ChannelScanParameters\": ["
-    "      { \"Class\": 1, \"ChannelList\": [1,6,11] }"
+    "      { \"Class\": 1, \"ChannelList\": [1,6,11], \"ChannelPrefList\": [0,0,0] }"
     "    ]"
     "  }"
     "} }",
@@ -2803,11 +2808,11 @@ TEST(dm_easy_mesh_t, decode_config_supported_routing)
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 058@n
  * **Priority:** High@n
- * 
+ *
  * **Pre-Conditions:** None@n
  * **Dependencies:** None@n
  * **User Interaction:** None@n
- * 
+ *
  * **Test Procedure:**@n
  * | Variation / Step | Description                                                      | Test Data                                                    | Expected Result                                               | Notes      |
  * | :--------------: | ---------------------------------------------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------- | ---------- |
@@ -2817,10 +2822,11 @@ TEST(dm_easy_mesh_t, decode_config_unsupported_key)
 {
     std::cout << "Entering decode_config_unsupported_key test" << std::endl;
     dm_easy_mesh_t obj;
-    em_subdoc_info_t subdoc{};
+    char subdoc_buf[sizeof(em_subdoc_info_t) + EM_IO_BUFF_SZ]{};
+    em_subdoc_info_t *subdoc = reinterpret_cast<em_subdoc_info_t*>(subdoc_buf);
     unsigned int num = 0;
     std::cout << "Invoking decode_config with unsupported key"<< std::endl;
-    int ret = obj.decode_config(&subdoc, "Config", 0, &num);
+    int ret = obj.decode_config(subdoc, "Config", 0, &num);
     EXPECT_EQ(ret, -1);
     std::cout << "Exiting decode_config_unsupported_key test" << std::endl;
 }
@@ -2878,10 +2884,11 @@ TEST(dm_easy_mesh_t, decode_config_null_subdoc) {
 TEST(dm_easy_mesh_t, decode_config_null_key) {
     std::cout << "Entering decode_config_null_key test" << std::endl;
     dm_easy_mesh_t obj;
-    em_subdoc_info_t subdoc{};
+    char subdoc_buf[sizeof(em_subdoc_info_t) + EM_IO_BUFF_SZ]{};
+    em_subdoc_info_t *subdoc = reinterpret_cast<em_subdoc_info_t*>(subdoc_buf);
     unsigned int num = 0;
     std::cout << "Invoking decode_config with null key" << std::endl;
-    int ret = obj.decode_config(&subdoc, NULL, 0, &num);
+    int ret = obj.decode_config(subdoc, NULL, 0, &num);
     std::cout << "Returned value: " << ret << std::endl;
     EXPECT_LT(ret, 0);
     std::cout << "Exiting decode_config_null_key test" << std::endl;
@@ -2910,9 +2917,12 @@ TEST(dm_easy_mesh_t, decode_config_num_pointer_null)
 {
     std::cout << "Entering decode_config_num_pointer_null test" << std::endl;
     dm_easy_mesh_t obj;
-    em_subdoc_info_t subdoc{};
+    em_subdoc_info_t *subdoc = static_cast<em_subdoc_info_t *>(calloc(1, sizeof(em_subdoc_info_t) + 1));
+    ASSERT_NE(subdoc, nullptr);
+    subdoc->buff[0] = '\0';
     std::cout << "Invoking decode_config with null num pointer" << std::endl;
-    int ret = obj.decode_config(&subdoc, "SetSSID", 0, nullptr);
+    int ret = obj.decode_config(subdoc, "SetSSID", 0, nullptr);
+    free(subdoc);
     std::cout << "Returned value: " << ret << std::endl;
     EXPECT_EQ(ret, -1);
     std::cout << "Exiting decode_config_num_pointer_null test" << std::endl;
@@ -2974,7 +2984,7 @@ TEST(dm_easy_mesh_t, decode_config_op_class_array_null_json_array_pointer) {
     for (int i = 0; i < 6; i++) {
         std::cout << std::hex << static_cast<int>(mac[i]) << " ";
     }
-    std::cout << std::dec << std::endl;    
+    std::cout << std::dec << std::endl;
     int ret = obj.decode_config_op_class_array(nullptr, em_op_class_type_current, mac);
     std::cout << "Method returned: " << ret << std::endl;
     EXPECT_EQ(ret, -1);
@@ -2985,7 +2995,7 @@ TEST(dm_easy_mesh_t, decode_config_op_class_array_null_json_array_pointer) {
  * @brief Validate that decode_config_op_class_array returns error when provided with a NULL MAC pointer
  *
  * This test case verifies that the decode_config_op_class_array API of the dm_easy_mesh_t class handles a NULL MAC pointer correctly
- * by returning an error code (-1). The test prepares a valid JSON array with at least one JSON object, then invokes the API with 
+ * by returning an error code (-1). The test prepares a valid JSON array with at least one JSON object, then invokes the API with
  * a valid array, a capability type, and a NULL MAC pointer. The expected outcome is that the API gracefully handles the NULL pointer and
  * returns -1.
  *
@@ -3157,7 +3167,7 @@ TEST(dm_easy_mesh_t, decode_config_op_class_array_valid_json_array_extra_entries
  * **Test Procedure:**
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Invoke decode_config_reset with valid configuration JSON having matching top-level key "reset". | subdoc.buff = "{\"reset\": {\"Interfaces\": {}, \"NetworkSSIDList\": [{ \"SSID\": \"TestSSID\" }]}}", key = "reset" | Return value 0 indicating successful decoding and assertion success | Should Pass |
+ * | 01 | Invoke decode_config_reset with valid configuration JSON having matching top-level key "reset". | subdoc->buff = "{\"reset\": {\"Interfaces\": {}, \"NetworkSSIDList\": [{ \"SSID\": \"TestSSID\" }]}}", key = "reset" | Return value 0 indicating successful decoding and assertion success | Should Pass |
  */
 TEST(dm_easy_mesh_t, decode_config_reset_valid_configuration_with_matching_top_level_key)
 {
@@ -3170,10 +3180,11 @@ TEST(dm_easy_mesh_t, decode_config_reset_valid_configuration_with_matching_top_l
         "    \"NetworkSSIDList\": [ { \"SSID\": \"TestSSID\" } ]"
         "  }"
         "}";
-    em_subdoc_info_t subdoc{};
-    snprintf(subdoc.buff, sizeof(subdoc.buff), "%s", jsonString);
+    char subdoc_buf[sizeof(em_subdoc_info_t) + EM_IO_BUFF_SZ]{};
+    em_subdoc_info_t *subdoc = reinterpret_cast<em_subdoc_info_t*>(subdoc_buf);
+    snprintf(subdoc->buff, EM_IO_BUFF_SZ, "%s", jsonString);
     std::cout << "Invoking decode_config_reset with valid arguments\n";
-    int ret = easyMesh.decode_config_reset(&subdoc, "reset");
+    int ret = easyMesh.decode_config_reset(subdoc, "reset");
     EXPECT_EQ(ret, 0);
     std::cout << "Exiting decode_config_reset_valid_configuration_with_matching_top_level_key\n";
 }
@@ -3195,7 +3206,7 @@ TEST(dm_easy_mesh_t, decode_config_reset_valid_configuration_with_matching_top_l
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
  * |01| Initialize dm_easy_mesh_t instance and prepare JSON string with mismatching top level key | input: dm_easy_mesh_t instance initialized, jsonString = "{\"config\": {\"Interfaces\": {}, \"NetworkSSIDList\": [ { \"SSID\": \"TestSSID\" } ]}}" | Instance initialized; jsonString assigned properly | Should be successful |
- * |02| Invoke decode_config_reset with the subdoc containing JSON and the incorrect key "reset" | input1: subdoc.buff contains the JSON string, input2: key = "reset", expected return = -1 | decode_config_reset returns -1 | Should Pass |
+ * |02| Invoke decode_config_reset with the subdoc containing JSON and the incorrect key "reset" | input1: subdoc->buff contains the JSON string, input2: key = "reset", expected return = -1 | decode_config_reset returns -1 | Should Pass |
  */
 TEST(dm_easy_mesh_t, decode_config_reset_valid_configuration_mismatching_top_level_key)
 {
@@ -3208,10 +3219,11 @@ TEST(dm_easy_mesh_t, decode_config_reset_valid_configuration_mismatching_top_lev
         "    \"NetworkSSIDList\": [ { \"SSID\": \"TestSSID\" } ]"
         "  }"
         "}";
-    em_subdoc_info_t subdoc{};
-    snprintf(subdoc.buff, sizeof(subdoc.buff), "%s", jsonString);
+    char subdoc_buf[sizeof(em_subdoc_info_t) + EM_IO_BUFF_SZ]{};
+    em_subdoc_info_t *subdoc = reinterpret_cast<em_subdoc_info_t*>(subdoc_buf);
+    snprintf(subdoc->buff, EM_IO_BUFF_SZ, "%s", jsonString);
     std::cout << "Invoking decode_config_reset with mismatching top level key\n";
-    int ret = easyMesh.decode_config_reset(&subdoc, "reset");
+    int ret = easyMesh.decode_config_reset(subdoc, "reset");
     EXPECT_EQ(ret, -1);
     std::cout << "Exiting decode_config_reset_valid_configuration_mismatching_top_level_key\n";
 }
@@ -3219,8 +3231,8 @@ TEST(dm_easy_mesh_t, decode_config_reset_valid_configuration_mismatching_top_lev
 /**
  * @brief Test the decode_config_reset API with empty JSON content
  *
- * This test verifies that the API function decode_config_reset correctly handles 
- * an empty JSON configuration (subdoc.buff with an empty string) and returns an error code (-1). 
+ * This test verifies that the API function decode_config_reset correctly handles
+ * an empty JSON configuration (subdoc->buff with an empty string) and returns an error code (-1).
  * It ensures that the API behaves as expected when provided with invalid input.
  *
  * **Test Group ID:** Basic: 01@n
@@ -3235,7 +3247,7 @@ TEST(dm_easy_mesh_t, decode_config_reset_valid_configuration_mismatching_top_lev
  * | Variation / Step | Description                                                 | Test Data                                                           | Expected Result                      | Notes            |
  * | :--------------: | ----------------------------------------------------------- | ------------------------------------------------------------------- | ------------------------------------ | ---------------- |
  * | 01               | Initialize dm_easy_mesh_t instance                          | None                                                                | Instance created successfully        | Should be successful |
- * | 02               | Prepare em_subdoc_info_t with empty buffer                  | subdoc.buff[0] = '\0'                                                 | subdoc is empty                      | Should be successful |
+ * | 02               | Prepare em_subdoc_info_t with empty buffer                  | subdoc->buff[0] = '\0'                                                 | subdoc is empty                      | Should be successful |
  * | 03               | Invoke decode_config_reset API with empty JSON content      | input: subdoc pointer (empty), second argument = "reset"            | API call returns -1                  | Should Fail      |
  * | 04               | Verify that the returned error code equals -1 using EXPECT_EQ | output: ret = -1                                                    | Assertion passes if ret equals -1    | Should be successful |
  */
@@ -3243,10 +3255,11 @@ TEST(dm_easy_mesh_t, decode_config_reset_empty_json_content)
 {
     std::cout << "Entering decode_config_reset_empty_json_content\n";
     dm_easy_mesh_t easyMesh;
-    em_subdoc_info_t subdoc{};
-    subdoc.buff[0] = '\0';
-    std::cout << "Invoking decode_config_reset with empty subdoc.name" << std::endl;
-    int ret = easyMesh.decode_config_reset(&subdoc, "reset");
+    char subdoc_buf[sizeof(em_subdoc_info_t) + EM_IO_BUFF_SZ]{};
+    em_subdoc_info_t *subdoc = reinterpret_cast<em_subdoc_info_t*>(subdoc_buf);
+    subdoc->buff[0] = '\0';
+    std::cout << "Invoking decode_config_reset with empty subdoc->name" << std::endl;
+    int ret = easyMesh.decode_config_reset(subdoc, "reset");
     EXPECT_EQ(ret, -1);
     std::cout << "Exiting decode_config_reset_empty_json_content\n";
 }
@@ -3267,17 +3280,18 @@ TEST(dm_easy_mesh_t, decode_config_reset_empty_json_content)
  * **Test Procedure:**
  * | Variation / Step | Description                                                                                | Test Data                                                        | Expected Result               | Notes      |
  * | :--------------: | ------------------------------------------------------------------------------------------ | ---------------------------------------------------------------- | ----------------------------- | ---------- |
- * | 01               | Invoke decode_config_reset with subdoc containing malformed JSON string and key "reset".   | subdoc.buff = { "reset": { , key = "reset"                        | Return value -1 with assertion | Should Fail |
+ * | 01               | Invoke decode_config_reset with subdoc containing malformed JSON string and key "reset".   | subdoc->buff = { "reset": { , key = "reset"                        | Return value -1 with assertion | Should Fail |
  */
 TEST(dm_easy_mesh_t, decode_config_reset_malformed_json_content)
 {
     std::cout << "Entering decode_config_reset_malformed_json_content\n";
     dm_easy_mesh_t easyMesh;
     const char jsonString[] = "{ \"reset\": { ";
-    em_subdoc_info_t subdoc{};
-    snprintf(subdoc.buff, sizeof(subdoc.buff), "%s", jsonString);
+    char subdoc_buf[sizeof(em_subdoc_info_t) + EM_IO_BUFF_SZ]{};
+    em_subdoc_info_t *subdoc = reinterpret_cast<em_subdoc_info_t*>(subdoc_buf);
+    snprintf(subdoc->buff, EM_IO_BUFF_SZ, "%s", jsonString);
     std::cout << "Invoking decode_config_reset with malformed json content\n";
-    int ret = easyMesh.decode_config_reset(&subdoc, "reset");
+    int ret = easyMesh.decode_config_reset(subdoc, "reset");
     EXPECT_EQ(ret, -1);
     std::cout << "Exiting decode_config_reset_malformed_json_content\n";
 }
@@ -3285,7 +3299,7 @@ TEST(dm_easy_mesh_t, decode_config_reset_malformed_json_content)
 /**
  * @brief Verify that decode_config_reset returns an error when a NULL subdocument pointer is provided
  *
- * This test case ensures that the decode_config_reset method of dm_easy_mesh_t correctly handles a NULL subdocument pointer. 
+ * This test case ensures that the decode_config_reset method of dm_easy_mesh_t correctly handles a NULL subdocument pointer.
  * The function is expected to return a negative value when invoked with a NULL subdoc and a valid key, indicating an error.
  *
  * **Test Group ID:** Basic: 01@n
@@ -3330,7 +3344,7 @@ TEST(dm_easy_mesh_t, decode_config_reset_null_subdoc_pointer)
  * **Test Procedure:**@n
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :--------------: | ----------- | --------- | -------------- | ----- |
- * | 01 | Initialize a JSON string for reset configuration and call decode_config_reset with a NULL key pointer. | subdoc.buff = "{ \"reset\": { \"Interfaces\": {}, \"NetworkSSIDList\": [ { \"SSID\": \"TestSSID\" } ] } }", key pointer = nullptr | Return value should be negative (< 0) indicating an error due to the null key pointer. | Should Fail |
+ * | 01 | Initialize a JSON string for reset configuration and call decode_config_reset with a NULL key pointer. | subdoc->buff = "{ \"reset\": { \"Interfaces\": {}, \"NetworkSSIDList\": [ { \"SSID\": \"TestSSID\" } ] } }", key pointer = nullptr | Return value should be negative (< 0) indicating an error due to the null key pointer. | Should Fail |
  */
 TEST(dm_easy_mesh_t, decode_config_reset_null_key_pointer)
 {
@@ -3344,10 +3358,11 @@ TEST(dm_easy_mesh_t, decode_config_reset_null_key_pointer)
         "    \"NetworkSSIDList\": [ { \"SSID\": \"TestSSID\" } ]"
         "  }"
         "}";
-    em_subdoc_info_t subdoc{};
-    snprintf(subdoc.buff, sizeof(subdoc.buff), "%s", jsonString);
+    char subdoc_buf[sizeof(em_subdoc_info_t) + EM_IO_BUFF_SZ]{};
+    em_subdoc_info_t *subdoc = reinterpret_cast<em_subdoc_info_t*>(subdoc_buf);
+    snprintf(subdoc->buff, EM_IO_BUFF_SZ, "%s", jsonString);
     std::cout << "Invoking decode_config_reset with key: NULL" << std::endl;
-    int ret = easyMesh.decode_config_reset(&subdoc, nullptr);
+    int ret = easyMesh.decode_config_reset(subdoc, nullptr);
     std::cout << "Method returned: " << ret << std::endl;
     EXPECT_LT(ret, 0);
     std::cout << "Exiting " << testName << " test" << std::endl;
@@ -3371,7 +3386,7 @@ TEST(dm_easy_mesh_t, decode_config_reset_null_key_pointer)
  * | Variation / Step | Description                                                                                             | Test Data                                                                                                                                                                              | Expected Result                                      | Notes          |
  * | :--------------: | ------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- | -------------- |
  * | 01               | Initialize dm_easy_mesh_t object and subdoc structure; print entering message                           | None                                                                                                                                                                                   | Objects initialized and entering message printed   | Should be successful  |
- * | 02               | Setup JSON string in subdoc.buff for anticipated channel configuration                                  | json = "{ \"wfa-dataelements:SetAnticipatedChannelPreference\": { \"Network\": { \"ID\": \"TestNet\", \"AnticipatedChannelPreference\": [{ \"Class\": 81, \"ChannelList\": [1, 6, 11] }] } } }" | subdoc.buff correctly assigned the JSON configuration | Should be successful  |
+ * | 02               | Setup JSON string in subdoc->buff for anticipated channel configuration                                  | json = "{ \"wfa-dataelements:SetAnticipatedChannelPreference\": { \"Network\": { \"ID\": \"TestNet\", \"AnticipatedChannelPreference\": [{ \"Class\": 81, \"ChannelList\": [1, 6, 11] }] } } }" | subdoc->buff correctly assigned the JSON configuration | Should be successful  |
  * | 03               | Invoke decode_config_set_channel API with valid input parameters                                        | subdoc (with valid JSON), key = "wfa-dataelements:SetAnticipatedChannelPreference", offset = 0, num pointer                                                     | API returns 0 and updates num to 0                   | Should Pass    |
  * | 04               | Assert that the return value and output parameter (num) are as expected                                   | ret = 0, num = 0                                                                                                                                                                       | EXPECT_EQ(ret, 0) and EXPECT_EQ(num, 0)               | Should Pass    |
  */
@@ -3379,7 +3394,8 @@ TEST(dm_easy_mesh_t, decode_config_set_channel_valid_anticipated)
 {
     std::cout << "Entering decode_config_set_channel_valid_anticipated\n";
     dm_easy_mesh_t obj;
-    em_subdoc_info_t subdoc{};
+    char subdoc_buf[sizeof(em_subdoc_info_t) + EM_IO_BUFF_SZ]{};
+    em_subdoc_info_t *subdoc = reinterpret_cast<em_subdoc_info_t*>(subdoc_buf);
     const char json[] =
         "{"
         " \"wfa-dataelements:SetAnticipatedChannelPreference\": {"
@@ -3388,17 +3404,18 @@ TEST(dm_easy_mesh_t, decode_config_set_channel_valid_anticipated)
         "     \"AnticipatedChannelPreference\": ["
         "       {"
         "         \"Class\": 81,"
-        "         \"ChannelList\": [1, 6, 11]"
+        "         \"ChannelList\": [1, 6, 11],"
+        "         \"ChannelPrefList\": [0, 0, 0]"
         "       }"
         "     ]"
         "   }"
         " }"
         "}";
-    snprintf(subdoc.buff, sizeof(subdoc.buff), "%s", json);
+    snprintf(subdoc->buff, EM_IO_BUFF_SZ, "%s", json);
     unsigned int num = 0;
     std::cout << "Invoking decode_config_set_channel with valid arguments\n";
     int ret = obj.decode_config_set_channel(
-        &subdoc,
+        subdoc,
         "wfa-dataelements:SetAnticipatedChannelPreference",
         0,
         &num
@@ -3424,19 +3441,20 @@ TEST(dm_easy_mesh_t, decode_config_set_channel_valid_anticipated)
  * **Test Procedure:**@n
  * | Variation / Step | Description                                                                     | Test Data                                                                           | Expected Result                                                   | Notes          |
  * | :--------------: | ------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- | ----------------------------------------------------------------- | -------------- |
- * | 01               | Initialize the dm_easy_mesh_t instance and prepare the subdoc with an empty JSON | json = "{}", subdoc.buff = "{}"                                                      | subdoc is correctly initialized with the empty JSON configuration | Should be successful |
+ * | 01               | Initialize the dm_easy_mesh_t instance and prepare the subdoc with an empty JSON | json = "{}", subdoc->buff = "{}"                                                      | subdoc is correctly initialized with the empty JSON configuration | Should be successful |
  * | 02               | Invoke decode_config_set_channel with an empty key and verify the error response  | subdoc pointer = address of subdoc, key = "", channel = 0, num pointer = address of num | Return value is less than 0 indicating an error in processing the empty key | Should Fail    |
  */
 TEST(dm_easy_mesh_t, decode_config_set_channel_empty_key)
 {
     std::cout << "Entering decode_config_set_channel_empty_key\n";
     dm_easy_mesh_t obj;
-    em_subdoc_info_t subdoc{};
+    char subdoc_buf[sizeof(em_subdoc_info_t) + EM_IO_BUFF_SZ]{};
+    em_subdoc_info_t *subdoc = reinterpret_cast<em_subdoc_info_t*>(subdoc_buf);
     const char json[] = "{}";
-    snprintf(subdoc.buff, sizeof(subdoc.buff), "%s", json);
+    snprintf(subdoc->buff, EM_IO_BUFF_SZ, "%s", json);
     unsigned int num = 0;
     std::cout << "Invoking decode_config_set_channel with empty key\n";
-    int ret = obj.decode_config_set_channel(&subdoc, "", 0, &num);
+    int ret = obj.decode_config_set_channel(subdoc, "", 0, &num);
     EXPECT_LT(ret, 0);
     std::cout << "Exiting decode_config_set_channel_empty_key\n";
 }
@@ -3466,14 +3484,15 @@ TEST(dm_easy_mesh_t, decode_config_set_channel_malformed_json)
 {
     std::cout << "Entering decode_config_set_channel_malformed_json\n";
     dm_easy_mesh_t obj;
-    em_subdoc_info_t subdoc{};
+    char subdoc_buf[sizeof(em_subdoc_info_t) + EM_IO_BUFF_SZ]{};
+    em_subdoc_info_t *subdoc = reinterpret_cast<em_subdoc_info_t*>(subdoc_buf);
     const char json[] =
         "{ \"wfa-dataelements:SetAnticipatedChannelPreference\": ";
-    snprintf(subdoc.buff, sizeof(subdoc.buff), "%s", json);
+    snprintf(subdoc->buff, EM_IO_BUFF_SZ, "%s", json);
     unsigned int num = 0;
     std::cout << "Invoking decode_config_set_channel with malformed json\n";
     int ret = obj.decode_config_set_channel(
-        &subdoc,
+        subdoc,
         "wfa-dataelements:SetAnticipatedChannelPreference",
         0,
         &num
@@ -3498,13 +3517,14 @@ TEST(dm_easy_mesh_t, decode_config_set_channel_malformed_json)
  * **Test Procedure:**
  * | Variation / Step | Description                                                                                     | Test Data                                                                                                                       | Expected Result                                 | Notes       |
  * | :--------------: | ----------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- | ----------- |
- * | 01               | Initialize dm_easy_mesh_t instance and set up JSON with missing network id field                 | input: json = "{ \"wfa-dataelements:ChannelScanRequest\": { \"Network\": { \"ChannelScanParameters\": [ { \"Class\": 81, \"ChannelList\": [36, 40] } ] } } }", subdoc.buff copied using snprintf, API parameters: "wfa-dataelements:ChannelScanRequest", network id = 0, num pointer provided | API returns error code EM_PARSE_ERR_NET_ID after invoking decode_config_set_channel | Should Pass |
+ * | 01               | Initialize dm_easy_mesh_t instance and set up JSON with missing network id field                 | input: json = "{ \"wfa-dataelements:ChannelScanRequest\": { \"Network\": { \"ChannelScanParameters\": [ { \"Class\": 81, \"ChannelList\": [36, 40] } ] } } }", subdoc->buff copied using snprintf, API parameters: "wfa-dataelements:ChannelScanRequest", network id = 0, num pointer provided | API returns error code EM_PARSE_ERR_NET_ID after invoking decode_config_set_channel | Should Pass |
  */
 TEST(dm_easy_mesh_t, decode_config_set_channel_missing_network_id)
 {
     std::cout << "Entering decode_config_set_channel_missing_network_id\n";
     dm_easy_mesh_t obj;
-    em_subdoc_info_t subdoc{};
+    char subdoc_buf[sizeof(em_subdoc_info_t) + EM_IO_BUFF_SZ]{};
+    em_subdoc_info_t *subdoc = reinterpret_cast<em_subdoc_info_t*>(subdoc_buf);
     const char json[] =
         "{"
         " \"wfa-dataelements:ChannelScanRequest\": {"
@@ -3515,11 +3535,11 @@ TEST(dm_easy_mesh_t, decode_config_set_channel_missing_network_id)
         "   }"
         " }"
         "}";
-    snprintf(subdoc.buff, sizeof(subdoc.buff), "%s", json);
+    snprintf(subdoc->buff, EM_IO_BUFF_SZ, "%s", json);
     unsigned int num = 0;
     std::cout << "Invoking decode_config_set_channel with missing network id\n";
     int ret = obj.decode_config_set_channel(
-        &subdoc,
+        subdoc,
         "wfa-dataelements:ChannelScanRequest",
         0,
         &num
@@ -3548,12 +3568,13 @@ TEST(dm_easy_mesh_t, decode_config_set_channel_missing_network_id)
  */
 TEST(dm_easy_mesh_t, decode_config_set_channel_null_subdoc)
 {
-    std::cout << "Entering decode_config_set_channel_null_subdoc test" << std::endl;    
+    std::cout << "Entering decode_config_set_channel_null_subdoc test" << std::endl;
     dm_easy_mesh_t obj;
     em_subdoc_info_t *subdoc = nullptr;
     const char * key = "channel_config";
     unsigned int index = 0;
-    unsigned int num = 0;    
+    (void)key; (void)index;
+    unsigned int num = 0;
     std::cout << "Invoking decode_config_set_channel with subdoc: NULL" << std::endl;
     int ret = obj.decode_config_set_channel(subdoc, "wfa-dataelements:SetAnticipatedChannelPreference", 0, &num);
     std::cout << "Returned value: " << ret << std::endl;
@@ -3579,13 +3600,14 @@ TEST(dm_easy_mesh_t, decode_config_set_channel_null_subdoc)
  * **Test Procedure:**@n
  * | Variation / Step | Description                                                                 | Test Data                                                                                                                          | Expected Result                                          | Notes        |
  * | :--------------: | --------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- | ------------ |
- * | 01               | Invoke decode_config_set_channel with subdoc containing JSON data, null key, index = 1, and a pointer for numValue | input: subdoc.buff = "{ \"wfa-dataelements:SetAnticipatedChannelPreference\": { \"Network\": { \"ID\": \"TestNet\", \"AnticipatedChannelPreference\": [ { \"Class\": 81, \"ChannelList\": [1, 6, 11] } ] } } }", key = nullptr, index = 1, numValue = 0 | Return value should be less than 0, satisfying EXPECT_LT(ret, 0) | Should Fail  |
+ * | 01               | Invoke decode_config_set_channel with subdoc containing JSON data, null key, index = 1, and a pointer for numValue | input: subdoc->buff = "{ \"wfa-dataelements:SetAnticipatedChannelPreference\": { \"Network\": { \"ID\": \"TestNet\", \"AnticipatedChannelPreference\": [ { \"Class\": 81, \"ChannelList\": [1, 6, 11] } ] } } }", key = nullptr, index = 1, numValue = 0 | Return value should be less than 0, satisfying EXPECT_LT(ret, 0) | Should Fail  |
  */
 TEST(dm_easy_mesh_t, decode_config_set_channel_null_key)
 {
-    std::cout << "Entering decode_config_set_channel_null_key test" << std::endl;    
+    std::cout << "Entering decode_config_set_channel_null_key test" << std::endl;
     dm_easy_mesh_t obj;
-	em_subdoc_info_t subdoc{};
+	char subdoc_buf[sizeof(em_subdoc_info_t) + EM_IO_BUFF_SZ]{};
+	em_subdoc_info_t *subdoc = reinterpret_cast<em_subdoc_info_t*>(subdoc_buf);
     const char json[] =
         "{"
         " \"wfa-dataelements:SetAnticipatedChannelPreference\": {"
@@ -3600,12 +3622,12 @@ TEST(dm_easy_mesh_t, decode_config_set_channel_null_key)
         "   }"
         " }"
         "}";
-    snprintf(subdoc.buff, sizeof(subdoc.buff), "%s", json);
+    snprintf(subdoc->buff, EM_IO_BUFF_SZ, "%s", json);
     const char * key = nullptr;
     unsigned int index = 1;
-    unsigned int numValue = 0;    
+    unsigned int numValue = 0;
     std::cout << "Invoking decode_config_set_channel with key: NULL, index: " << index << std::endl;
-    int ret = obj.decode_config_set_channel(&subdoc, key, index, &numValue);
+    int ret = obj.decode_config_set_channel(subdoc, key, index, &numValue);
     std::cout << "Returned value: " << ret << std::endl;
     EXPECT_LT(ret, 0);
     std::cout << "Exiting decode_config_set_channel_null_key test" << std::endl;
@@ -3629,13 +3651,14 @@ TEST(dm_easy_mesh_t, decode_config_set_channel_null_key)
  * **Test Procedure:**@n
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Invoke decode_config_set_channel with a valid subdoc and a null pointer for numValue | subdoc.buff = "{ \"wfa-dataelements:SetAnticipatedChannelPreference\": { \"Network\": { \"ID\": \"TestNet\", \"AnticipatedChannelPreference\": [{ \"Class\": 81, \"ChannelList\": [1, 6, 11] }] } } }", key = "channel_config", index = 0, numValue = nullptr | Return value should be negative (ret < 0), confirming proper error handling | Should Fail |
+ * | 01 | Invoke decode_config_set_channel with a valid subdoc and a null pointer for numValue | subdoc->buff = "{ \"wfa-dataelements:SetAnticipatedChannelPreference\": { \"Network\": { \"ID\": \"TestNet\", \"AnticipatedChannelPreference\": [{ \"Class\": 81, \"ChannelList\": [1, 6, 11] }] } } }", key = "channel_config", index = 0, numValue = nullptr | Return value should be negative (ret < 0), confirming proper error handling | Should Fail |
  */
 TEST(dm_easy_mesh_t, decode_config_set_channel_null_num)
 {
     std::cout << "Entering decode_config_set_channel_null_num test" << std::endl;
     dm_easy_mesh_t obj;
-    em_subdoc_info_t subdoc{};
+    char subdoc_buf[sizeof(em_subdoc_info_t) + EM_IO_BUFF_SZ]{};
+    em_subdoc_info_t *subdoc = reinterpret_cast<em_subdoc_info_t*>(subdoc_buf);
     const char json[] =
         "{"
         " \"wfa-dataelements:SetAnticipatedChannelPreference\": {"
@@ -3650,14 +3673,14 @@ TEST(dm_easy_mesh_t, decode_config_set_channel_null_num)
         "   }"
         " }"
         "}";
-    snprintf(subdoc.buff, sizeof(subdoc.buff), "%s", json);
+    snprintf(subdoc->buff, EM_IO_BUFF_SZ, "%s", json);
     const char * key = "channel_config";
     unsigned int index = 0;
     unsigned int * numValue = nullptr;
-    std::cout << "Invoking decode_config_set_channel with valid subdoc, key: " << key << ", index: " << index << ", num: NULL" << std::endl;    
-    int ret = obj.decode_config_set_channel(&subdoc, "wfa-dataelements:SetAnticipatedChannelPreference", index, numValue);    
-    std::cout << "Returned value: " << ret << std::endl;    
-    EXPECT_LT(ret, 0);    
+    std::cout << "Invoking decode_config_set_channel with valid subdoc, key: " << key << ", index: " << index << ", num: NULL" << std::endl;
+    int ret = obj.decode_config_set_channel(subdoc, "wfa-dataelements:SetAnticipatedChannelPreference", index, numValue);
+    std::cout << "Returned value: " << ret << std::endl;
+    EXPECT_LT(ret, 0);
     std::cout << "Exiting decode_config_set_channel_null_num test" << std::endl;
 }
 
@@ -3677,13 +3700,14 @@ TEST(dm_easy_mesh_t, decode_config_set_channel_null_num)
  * **Test Procedure:**@n
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Invoke decode_config_set_policy with a valid JSON configuration string and valid parameters | subdoc.buff = valid JSON config with key "wfa-dataelements:SetPolicy", policy details; name = "wfa-dataelements:SetPolicy", index = 0, numVal pointer | API returns 0 and numVal is set to 1, indicating one valid configuration processed | Should Pass |
+ * | 01 | Invoke decode_config_set_policy with a valid JSON configuration string and valid parameters | subdoc->buff = valid JSON config with key "wfa-dataelements:SetPolicy", policy details; name = "wfa-dataelements:SetPolicy", index = 0, numVal pointer | API returns 0 and numVal is set to 1, indicating one valid configuration processed | Should Pass |
  */
 TEST(dm_easy_mesh_t, decode_config_set_policy_valid_config_num_provided)
 {
     std::cout << "Entering decode_config_set_policy_valid_config_num_provided\n";
     dm_easy_mesh_t mesh;
-    em_subdoc_info_t subdoc{};
+    char subdoc_buf[sizeof(em_subdoc_info_t) + EM_IO_BUFF_SZ]{};
+    em_subdoc_info_t *subdoc = reinterpret_cast<em_subdoc_info_t*>(subdoc_buf);
     const char json[] =
         "{"
         " \"wfa-dataelements:SetPolicy\": {"
@@ -3700,11 +3724,11 @@ TEST(dm_easy_mesh_t, decode_config_set_policy_valid_config_num_provided)
         "   }"
         " }"
         "}";
-    snprintf(subdoc.buff, sizeof(subdoc.buff), "%s", json);
+    snprintf(subdoc->buff, EM_IO_BUFF_SZ, "%s", json);
     unsigned int numVal = 0;
 	std::cout << "Invoking decode_config_set_policy with valid arguments" << std::endl;
     int ret = mesh.decode_config_set_policy(
-        &subdoc,
+        subdoc,
         "wfa-dataelements:SetPolicy",
         0,
         &numVal
@@ -3731,17 +3755,18 @@ TEST(dm_easy_mesh_t, decode_config_set_policy_valid_config_num_provided)
  * **Test Procedure:**
  * | Variation / Step | Description                                                 | Test Data                                                           | Expected Result                                                      | Notes       |
  * | :---------------: | ----------------------------------------------------------- | ------------------------------------------------------------------- | -------------------------------------------------------------------- | ----------- |
- * | 01                | Invoke decode_config_set_policy with an empty key parameter | subdoc.buff = "{}", key = "", flag = 0, numVal pointer = valid address | Return value should be EM_PARSE_ERR_GEN and assertion ret == EM_PARSE_ERR_GEN | Should Fail |
+ * | 01                | Invoke decode_config_set_policy with an empty key parameter | subdoc->buff = "{}", key = "", flag = 0, numVal pointer = valid address | Return value should be EM_PARSE_ERR_GEN and assertion ret == EM_PARSE_ERR_GEN | Should Fail |
  */
 TEST(dm_easy_mesh_t, decode_config_set_policy_error_empty_key)
 {
     std::cout << "Entering decode_config_set_policy_error_empty_key\n";
     dm_easy_mesh_t mesh;
-    em_subdoc_info_t subdoc{};
-    snprintf(subdoc.buff, sizeof(subdoc.buff), "{}");
+    char subdoc_buf[sizeof(em_subdoc_info_t) + EM_IO_BUFF_SZ]{};
+    em_subdoc_info_t *subdoc = reinterpret_cast<em_subdoc_info_t*>(subdoc_buf);
+    snprintf(subdoc->buff, EM_IO_BUFF_SZ, "{}");
     unsigned int numVal = 0;
 	std::cout << "Invoking decode_config_set_policy with empty key" << std::endl;
-    int ret = mesh.decode_config_set_policy(&subdoc, "", 0, &numVal);
+    int ret = mesh.decode_config_set_policy(subdoc, "", 0, &numVal);
     EXPECT_EQ(ret, EM_PARSE_ERR_GEN);
     std::cout << "Exiting decode_config_set_policy_error_empty_key\n";
 }
@@ -3763,15 +3788,16 @@ TEST(dm_easy_mesh_t, decode_config_set_policy_error_empty_key)
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
  * | 01 | Print entry message and initialize variables | N/A | Console prints "Entering decode_config_set_policy_error_invalid_index"; dm_easy_mesh_t and em_subdoc_info_t are initialized | Should be successful |
- * | 02 | Set subdoc JSON input for API call | json = "{ \"wfa-dataelements:SetPolicy\": { \"Network\": { \"ID\": \"TestNet\", \"DeviceList\": [ { \"ID\": \"AA:BB:CC:DD:EE:FF\", \"Policy\": { \"AP Metrics Reporting Policy\": { \"Interval\": 30 } } } ] } } }" | subdoc.buff is populated with the JSON string | Should be successful |
- * | 03 | Invoke decode_config_set_policy with invalid index | subdoc.buff = json, key = "wfa-dataelements:SetPolicy", index = 1, output parameter numVal initially 0 | API returns EM_PARSE_ERR_GEN and numVal is set to 1 | Should Pass |
+ * | 02 | Set subdoc JSON input for API call | json = "{ \"wfa-dataelements:SetPolicy\": { \"Network\": { \"ID\": \"TestNet\", \"DeviceList\": [ { \"ID\": \"AA:BB:CC:DD:EE:FF\", \"Policy\": { \"AP Metrics Reporting Policy\": { \"Interval\": 30 } } } ] } } }" | subdoc->buff is populated with the JSON string | Should be successful |
+ * | 03 | Invoke decode_config_set_policy with invalid index | subdoc->buff = json, key = "wfa-dataelements:SetPolicy", index = 1, output parameter numVal initially 0 | API returns EM_PARSE_ERR_GEN and numVal is set to 1 | Should Pass |
  * | 04 | Print exit message | N/A | Console prints "Exiting decode_config_set_policy_error_invalid_index" | Should be successful |
  */
 TEST(dm_easy_mesh_t, decode_config_set_policy_error_invalid_index)
 {
     std::cout << "Entering decode_config_set_policy_error_invalid_index\n";
     dm_easy_mesh_t mesh;
-    em_subdoc_info_t subdoc{};
+    char subdoc_buf[sizeof(em_subdoc_info_t) + EM_IO_BUFF_SZ]{};
+    em_subdoc_info_t *subdoc = reinterpret_cast<em_subdoc_info_t*>(subdoc_buf);
     const char json[] =
         "{"
         " \"wfa-dataelements:SetPolicy\": {"
@@ -3788,11 +3814,11 @@ TEST(dm_easy_mesh_t, decode_config_set_policy_error_invalid_index)
         "   }"
         " }"
         "}";
-    snprintf(subdoc.buff, sizeof(subdoc.buff), "%s", json);
+    snprintf(subdoc->buff, EM_IO_BUFF_SZ, "%s", json);
     unsigned int numVal = 0;
     std::cout << "Invoking decode_config_set_policy with invalid index" << std::endl;
     int ret = mesh.decode_config_set_policy(
-        &subdoc,
+        subdoc,
         "wfa-dataelements:SetPolicy",
         1,
         &numVal
@@ -3805,7 +3831,7 @@ TEST(dm_easy_mesh_t, decode_config_set_policy_error_invalid_index)
 /**
  * @brief Validate that decode_config_set_policy functions correctly when config_num pointer is null
  *
- * This test evaluates decode_config_set_policy by providing a valid JSON configuration while passing a nullptr for the config_num pointer. The purpose is to ensure that the API correctly handles cases when the configuration number pointer is not provided, and returns the expected value. 
+ * This test evaluates decode_config_set_policy by providing a valid JSON configuration while passing a nullptr for the config_num pointer. The purpose is to ensure that the API correctly handles cases when the configuration number pointer is not provided, and returns the expected value.
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 085@n
@@ -3818,13 +3844,14 @@ TEST(dm_easy_mesh_t, decode_config_set_policy_error_invalid_index)
  * **Test Procedure:**@n
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Initialize mesh instance and sub-document info, then invoke decode_config_set_policy with valid JSON configuration and num pointer as nullptr | subdoc.buff = "{ \"wfa-dataelements:SetPolicy\": { \"Network\": { \"ID\": \"TestNet\", \"DeviceList\": [ { \"ID\": \"AA:BB:CC:DD:EE:FF\", \"Policy\": { \"AP Metrics Reporting Policy\": { \"Interval\": 30 } } } ] } } }", configName = "wfa-dataelements:SetPolicy", configNum = 0, num = nullptr | Return value equals 0 and assertion passes | Should Pass |
+ * | 01 | Initialize mesh instance and sub-document info, then invoke decode_config_set_policy with valid JSON configuration and num pointer as nullptr | subdoc->buff = "{ \"wfa-dataelements:SetPolicy\": { \"Network\": { \"ID\": \"TestNet\", \"DeviceList\": [ { \"ID\": \"AA:BB:CC:DD:EE:FF\", \"Policy\": { \"AP Metrics Reporting Policy\": { \"Interval\": 30 } } } ] } } }", configName = "wfa-dataelements:SetPolicy", configNum = 0, num = nullptr | Return value equals 0 and assertion passes | Should Pass |
  */
 TEST(dm_easy_mesh_t, decode_config_set_policy_valid_config_num_null)
 {
     std::cout << "Entering decode_config_set_policy_valid_config_num_null test" << std::endl;
     dm_easy_mesh_t mesh;
-    em_subdoc_info_t subdoc{};
+    char subdoc_buf[sizeof(em_subdoc_info_t) + EM_IO_BUFF_SZ]{};
+    em_subdoc_info_t *subdoc = reinterpret_cast<em_subdoc_info_t*>(subdoc_buf);
 
     const char json[] =
         "{"
@@ -3842,9 +3869,9 @@ TEST(dm_easy_mesh_t, decode_config_set_policy_valid_config_num_null)
         "   }"
         " }"
         "}";
-    snprintf(subdoc.buff, sizeof(subdoc.buff), "%s", json);
+    snprintf(subdoc->buff, EM_IO_BUFF_SZ, "%s", json);
     std::cout << "Invoking decode_config_set_policy with num pointer as nullptr" << std::endl;
-    int retval = mesh.decode_config_set_policy(&subdoc, "wfa-dataelements:SetPolicy", 0, nullptr);
+    int retval = mesh.decode_config_set_policy(subdoc, "wfa-dataelements:SetPolicy", 0, nullptr);
     std::cout << "Returned value: " << retval << std::endl;
     EXPECT_LT(retval, 0);
     std::cout << "Exiting decode_config_set_policy_valid_config_num_null test" << std::endl;
@@ -3874,10 +3901,10 @@ TEST(dm_easy_mesh_t, decode_config_set_policy_error_null_subdoc)
     dm_easy_mesh_t mesh;
     unsigned int index = 0;
     unsigned int numVal = 0;
-    std::cout << "Invoking decode_config_set_policy with subdoc as nullptr" << std::endl;    
+    std::cout << "Invoking decode_config_set_policy with subdoc as nullptr" << std::endl;
     int retval = mesh.decode_config_set_policy(nullptr, "wfa-dataelements:SetPolicy", index, &numVal);
-    std::cout << "Returned value: " << retval << std::endl;    
-    EXPECT_LT(retval, 0);    
+    std::cout << "Returned value: " << retval << std::endl;
+    EXPECT_LT(retval, 0);
     std::cout << "Exiting decode_config_set_policy_error_null_subdoc test" << std::endl;
 }
 
@@ -3898,14 +3925,15 @@ TEST(dm_easy_mesh_t, decode_config_set_policy_error_null_subdoc)
  * **Test Procedure:**
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Initialize JSON string and populate subdoc buffer. | json = "{" " \"wfa-dataelements:SetPolicy\": {" "   \"Network\": {" "     \"ID\": \"TestNet\", " "     \"DeviceList\": [" "       {" "         \"ID\": \"AA:BB:CC:DD:EE:FF\", " "         \"Policy\": {" "           \"AP Metrics Reporting Policy\": { \"Interval\": 30 }" "         }" "       }" "     ]" "   }" " }" "}", subdoc.buff populated via snprintf, numVal = 1 | subdoc.buff is correctly set with the JSON configuration. | Should be successful |
- * | 02 | Invoke decode_config_set_policy with a null key pointer. | input: subdoc pointer = &subdoc, key pointer = nullptr, flags = 0, numVal = 1 | API should return a negative value, and the assertion EXPECT_LT(retval, 0) passes. | Should Fail |
+ * | 01 | Initialize JSON string and populate subdoc buffer. | json = "{" " \"wfa-dataelements:SetPolicy\": {" "   \"Network\": {" "     \"ID\": \"TestNet\", " "     \"DeviceList\": [" "       {" "         \"ID\": \"AA:BB:CC:DD:EE:FF\", " "         \"Policy\": {" "           \"AP Metrics Reporting Policy\": { \"Interval\": 30 }" "         }" "       }" "     ]" "   }" " }" "}", subdoc->buff populated via snprintf, numVal = 1 | subdoc->buff is correctly set with the JSON configuration. | Should be successful |
+ * | 02 | Invoke decode_config_set_policy with a null key pointer. | input: subdoc pointer = subdoc, key pointer = nullptr, flags = 0, numVal = 1 | API should return a negative value, and the assertion EXPECT_LT(retval, 0) passes. | Should Fail |
  */
 TEST(dm_easy_mesh_t, decode_config_set_policy_error_null_key)
 {
     std::cout << "Entering decode_config_set_policy_error_null_key test" << std::endl;
     dm_easy_mesh_t mesh;
-    em_subdoc_info_t subdoc{};
+    char subdoc_buf[sizeof(em_subdoc_info_t) + EM_IO_BUFF_SZ]{};
+    em_subdoc_info_t *subdoc = reinterpret_cast<em_subdoc_info_t*>(subdoc_buf);
     const char json[] =
         "{"
         " \"wfa-dataelements:SetPolicy\": {"
@@ -3922,11 +3950,11 @@ TEST(dm_easy_mesh_t, decode_config_set_policy_error_null_key)
         "   }"
         " }"
         "}";
-    snprintf(subdoc.buff, sizeof(subdoc.buff), "%s", json);
+    snprintf(subdoc->buff, EM_IO_BUFF_SZ, "%s", json);
     unsigned int numVal = 1;
-    int retval = mesh.decode_config_set_policy(&subdoc, nullptr, 0, &numVal);
+    int retval = mesh.decode_config_set_policy(subdoc, nullptr, 0, &numVal);
     std::cout << "Returned value: " << retval << std::endl;
-    EXPECT_LT(retval, 0);    
+    EXPECT_LT(retval, 0);
     std::cout << "Exiting decode_config_set_policy_error_null_key test" << std::endl;
 }
 
@@ -3946,14 +3974,15 @@ TEST(dm_easy_mesh_t, decode_config_set_policy_error_null_key)
  * **Test Procedure:**@n
  * | Variation / Step | Description                                                                                     | Test Data                                                                                                               | Expected Result                                             | Notes      |
  * | :----:           | ----------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- | ---------- |
- * | 01               | Prepare a JSON string containing a network configuration with one radio entry                    | json = "{ \"wfa-dataelements:SetRadio\": { \"Network\": { \"ID\": \"TestNet\", \"DeviceList\": [ { \"ID\": \"AA:BB:CC:DD:EE:FF\", \"RadioList\": [ { \"ID\": \"radio0\" } ] } ] } } }" | JSON string is formatted correctly and assigned to subdoc.buff | Should be successful |
+ * | 01               | Prepare a JSON string containing a network configuration with one radio entry                    | json = "{ \"wfa-dataelements:SetRadio\": { \"Network\": { \"ID\": \"TestNet\", \"DeviceList\": [ { \"ID\": \"AA:BB:CC:DD:EE:FF\", \"RadioList\": [ { \"ID\": \"radio0\" } ] } ] } } }" | JSON string is formatted correctly and assigned to subdoc->buff | Should be successful |
  * | 02               | Invoke the decode_config_set_radio API with the provided JSON configuration and capture output   | subdoc, key="wfa-dataelements:SetRadio", flag=0, num (output variable)                                                   | API returns 0 and num equals 1u                             | Should Pass |
  */
 TEST(dm_easy_mesh_t, decode_config_set_radio_valid_one_radio)
 {
     std::cout << "Entering decode_config_set_radio_valid_one_radio\n";
     dm_easy_mesh_t obj;
-    em_subdoc_info_t subdoc{};
+    char subdoc_buf[sizeof(em_subdoc_info_t) + EM_IO_BUFF_SZ]{};
+    em_subdoc_info_t *subdoc = reinterpret_cast<em_subdoc_info_t*>(subdoc_buf);
     const char json[] =
         "{"
         " \"wfa-dataelements:SetRadio\": {"
@@ -3970,11 +3999,11 @@ TEST(dm_easy_mesh_t, decode_config_set_radio_valid_one_radio)
         "   }"
         " }"
         "}";
-    snprintf(subdoc.buff, sizeof(subdoc.buff), "%s", json);
+    snprintf(subdoc->buff, EM_IO_BUFF_SZ, "%s", json);
     unsigned int num = 0;
 	std::cout << "Invoking decode_config_set_radio with one valid radio" << std::endl;
     int ret = obj.decode_config_set_radio(
-        &subdoc,
+        subdoc,
         "wfa-dataelements:SetRadio",
         0,
         &num
@@ -4000,13 +4029,14 @@ TEST(dm_easy_mesh_t, decode_config_set_radio_valid_one_radio)
  * **Test Procedure:**
  * | Variation / Step | Description                                                               | Test Data                                                                                                                              | Expected Result                                                                                               | Notes      |
  * | :--------------: | ------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- | ---------- |
- * | 01               | Invoke decode_config_set_radio with JSON containing multiple radio entries| subdoc.buff = valid JSON with "Network", "DeviceList" including a device with RadioList [radio0, radio1], element = "wfa-dataelements:SetRadio", index = 0, &num | return value is 0 and num equals 1 indicating successful decoding                                              | Should Pass|
+ * | 01               | Invoke decode_config_set_radio with JSON containing multiple radio entries| subdoc->buff = valid JSON with "Network", "DeviceList" including a device with RadioList [radio0, radio1], element = "wfa-dataelements:SetRadio", index = 0, &num | return value is 0 and num equals 1 indicating successful decoding                                              | Should Pass|
  */
 TEST(dm_easy_mesh_t, decode_config_set_radio_valid_multiple_radios)
 {
     std::cout << "Entering decode_config_set_radio_valid_multiple_radios\n";
     dm_easy_mesh_t obj;
-    em_subdoc_info_t subdoc{};
+    char subdoc_buf[sizeof(em_subdoc_info_t) + EM_IO_BUFF_SZ]{};
+    em_subdoc_info_t *subdoc = reinterpret_cast<em_subdoc_info_t*>(subdoc_buf);
     const char json[] =
         "{"
         " \"wfa-dataelements:SetRadio\": {"
@@ -4024,11 +4054,11 @@ TEST(dm_easy_mesh_t, decode_config_set_radio_valid_multiple_radios)
         "   }"
         " }"
         "}";
-    snprintf(subdoc.buff, sizeof(subdoc.buff), "%s", json);
+    snprintf(subdoc->buff, EM_IO_BUFF_SZ, "%s", json);
     unsigned int num = 0;
 	std::cout << "Invoking decode_config_set_radio with multiple valid radios" << std::endl;
     int ret = obj.decode_config_set_radio(
-        &subdoc,
+        subdoc,
         "wfa-dataelements:SetRadio",
         0,
         &num
@@ -4041,7 +4071,7 @@ TEST(dm_easy_mesh_t, decode_config_set_radio_valid_multiple_radios)
 /**
  * @brief Verify that decode_config_set_radio handles an out-of-bound radio index properly.
  *
- * This test verifies that when an out-of-bound index is passed to the decode_config_set_radio API, 
+ * This test verifies that when an out-of-bound index is passed to the decode_config_set_radio API,
  * the API returns EM_PARSE_ERR_GEN and sets the radio number to the value set before the index check.
  *
  * **Test Group ID:** Basic: 01@n
@@ -4055,14 +4085,15 @@ TEST(dm_easy_mesh_t, decode_config_set_radio_valid_multiple_radios)
  * **Test Procedure:**@n
  * | Variation / Step | Description | Test Data | Expected Result | Notes |@n
  * | :----: | --------- | ---------- |-------------- | ----- |@n
- * | 01 | Initialize the configuration with a valid JSON containing a single radio entry. | input: json = "{ \"wfa-dataelements:SetRadio\": { \"Network\": { \"ID\": \"TestNet\", \"DeviceList\": [ { \"ID\": \"AA:BB:CC:DD:EE:FF\", \"RadioList\": [ { \"ID\": \"radio0\" } ] } ] } } }" | JSON string successfully copied into subdoc.buff | Should be successful |@n
+ * | 01 | Initialize the configuration with a valid JSON containing a single radio entry. | input: json = "{ \"wfa-dataelements:SetRadio\": { \"Network\": { \"ID\": \"TestNet\", \"DeviceList\": [ { \"ID\": \"AA:BB:CC:DD:EE:FF\", \"RadioList\": [ { \"ID\": \"radio0\" } ] } ] } } }" | JSON string successfully copied into subdoc->buff | Should be successful |@n
  * | 02 | Invoke decode_config_set_radio with an out-of-bound index (5). | input: subdoc, "wfa-dataelements:SetRadio", index = 5, output: num (initialized to 0) | Returns EM_PARSE_ERR_GEN and sets num to 1 prior to the index check | Should Pass |
  */
 TEST(dm_easy_mesh_t, decode_config_set_radio_out_of_bound_index)
 {
     std::cout << "Entering decode_config_set_radio_out_of_bound_index\n";
     dm_easy_mesh_t obj;
-    em_subdoc_info_t subdoc{};
+    char subdoc_buf[sizeof(em_subdoc_info_t) + EM_IO_BUFF_SZ]{};
+    em_subdoc_info_t *subdoc = reinterpret_cast<em_subdoc_info_t*>(subdoc_buf);
     const char json[] =
         "{"
         " \"wfa-dataelements:SetRadio\": {"
@@ -4077,11 +4108,11 @@ TEST(dm_easy_mesh_t, decode_config_set_radio_out_of_bound_index)
         "   }"
         " }"
         "}";
-    snprintf(subdoc.buff, sizeof(subdoc.buff), "%s", json);
+    snprintf(subdoc->buff, EM_IO_BUFF_SZ, "%s", json);
     unsigned int num = 0;
 	std::cout << "Invoking decode_config_set_radio with invalid index" << std::endl;
     int ret = obj.decode_config_set_radio(
-        &subdoc,
+        subdoc,
         "wfa-dataelements:SetRadio",
         5,
         &num
@@ -4094,7 +4125,7 @@ TEST(dm_easy_mesh_t, decode_config_set_radio_out_of_bound_index)
 /**
  * @brief Tests the decode_config_set_radio function with a malformed JSON subdocument.
  *
- * This test verifies that the decode_config_set_radio API properly handles a subdocument containing malformed JSON data. 
+ * This test verifies that the decode_config_set_radio API properly handles a subdocument containing malformed JSON data.
  * It ensures that the function returns the error code EM_PARSE_ERR_GEN when provided with an improperly formatted JSON string.
  *
  * **Test Group ID:** Basic: 01@n
@@ -4108,19 +4139,20 @@ TEST(dm_easy_mesh_t, decode_config_set_radio_out_of_bound_index)
  * **Test Procedure:**@n
  * | Variation / Step | Description                                                              | Test Data                                                                                     | Expected Result                                                     | Notes       |
  * | :--------------: | ------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- | ----------- |
- * | 01               | Invoke decode_config_set_radio with a malformed JSON subdocument to test error handling | subdoc.buff = "{ invalid json ", config ID = "wfa-dataelements:SetRadio", index = 0, num pointer = output variable | Should return EM_PARSE_ERR_GEN and pass the EXPECT_EQ assertion check | Should Pass |
+ * | 01               | Invoke decode_config_set_radio with a malformed JSON subdocument to test error handling | subdoc->buff = "{ invalid json ", config ID = "wfa-dataelements:SetRadio", index = 0, num pointer = output variable | Should return EM_PARSE_ERR_GEN and pass the EXPECT_EQ assertion check | Should Pass |
  */
 TEST(dm_easy_mesh_t, decode_config_set_radio_malformed_subdoc)
 {
     std::cout << "Entering decode_config_set_radio_malformed_subdoc\n";
     dm_easy_mesh_t obj;
-    em_subdoc_info_t subdoc{};
+    char subdoc_buf[sizeof(em_subdoc_info_t) + EM_IO_BUFF_SZ]{};
+    em_subdoc_info_t *subdoc = reinterpret_cast<em_subdoc_info_t*>(subdoc_buf);
     const char json[] = "{ invalid json ";
-    snprintf(subdoc.buff, sizeof(subdoc.buff), "%s", json);
+    snprintf(subdoc->buff, EM_IO_BUFF_SZ, "%s", json);
     unsigned int num = 0;
 	std::cout << "Invoking decode_config_set_radio with malformed subdoc" << std::endl;
     int ret = obj.decode_config_set_radio(
-        &subdoc,
+        subdoc,
         "wfa-dataelements:SetRadio",
         0,
         &num
@@ -4149,20 +4181,20 @@ TEST(dm_easy_mesh_t, decode_config_set_radio_malformed_subdoc)
  */
 TEST(dm_easy_mesh_t, decode_config_set_radio_null_subdoc)
 {
-    std::cout << "Entering decode_config_set_radio_null_subdoc test" << std::endl;        
+    std::cout << "Entering decode_config_set_radio_null_subdoc test" << std::endl;
     dm_easy_mesh_t obj;
     unsigned int num = 0;
-    std::cout << "Invoking decode_config_set_radio with subdoc pointer as NULL" << std::endl; 
-    int ret = obj.decode_config_set_radio(nullptr, "wfa-dataelements:SetRadio", 0, &num);     
-    std::cout << "Method returned: " << ret << std::endl;    
-    EXPECT_LT(ret, 0);    
+    std::cout << "Invoking decode_config_set_radio with subdoc pointer as NULL" << std::endl;
+    int ret = obj.decode_config_set_radio(nullptr, "wfa-dataelements:SetRadio", 0, &num);
+    std::cout << "Method returned: " << ret << std::endl;
+    EXPECT_LT(ret, 0);
     std::cout << "Exiting decode_config_set_radio_null_subdoc test" << std::endl;
 }
 
 /**
  * @brief Verify that decode_config_set_radio returns an error when provided a NULL key pointer
  *
- * This test validates that the API decode_config_set_radio correctly handles a NULL key pointer by returning an error code. 
+ * This test validates that the API decode_config_set_radio correctly handles a NULL key pointer by returning an error code.
  * The test sets up a valid JSON configuration and invokes the API with a NULL key, ensuring that the API does not process
  * an invalid input, which is critical for maintaining robustness.
  *
@@ -4177,14 +4209,15 @@ TEST(dm_easy_mesh_t, decode_config_set_radio_null_subdoc)
  * **Test Procedure:**@n
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- | -------------- | ----- |
- * | 01 | Initialize subdoc with valid JSON configuration | json = "{" "wfa-dataelements:SetRadio": {" "Network": {" "ID": "TestNet", "DeviceList": [{"ID": "AA:BB:CC:DD:EE:FF", "RadioList": [{"ID": "radio0"}]}]}}}" | subdoc.buff is filled with a proper JSON string | Should be successful |
+ * | 01 | Initialize subdoc with valid JSON configuration | json = "{" "wfa-dataelements:SetRadio": {" "Network": {" "ID": "TestNet", "DeviceList": [{"ID": "AA:BB:CC:DD:EE:FF", "RadioList": [{"ID": "radio0"}]}]}}}" | subdoc->buff is filled with a proper JSON string | Should be successful |
  * | 02 | Invoke decode_config_set_radio API with a NULL key pointer | key = nullptr, num = 2, subdoc containing JSON data | API returns an error code (ret < 0) indicating failure to process NULL key | Should Pass |
  * | 03 | Validate the API return value using assertion | ret (return value from decode_config_set_radio) | EXPECT_LT(ret, 0) check passes confirming error handling | Should Pass |
  */
 TEST(dm_easy_mesh_t, decode_config_set_radio_null_key)
 {
-    std::cout << "Entering decode_config_set_radio_null_key test" << std::endl;    
-    em_subdoc_info_t subdoc{};
+    std::cout << "Entering decode_config_set_radio_null_key test" << std::endl;
+    char subdoc_buf[sizeof(em_subdoc_info_t) + EM_IO_BUFF_SZ]{};
+    em_subdoc_info_t *subdoc = reinterpret_cast<em_subdoc_info_t*>(subdoc_buf);
     dm_easy_mesh_t obj;
     const char json[] =
         "{"
@@ -4202,12 +4235,12 @@ TEST(dm_easy_mesh_t, decode_config_set_radio_null_key)
         "   }"
         " }"
         "}";
-    snprintf(subdoc.buff, sizeof(subdoc.buff), "%s", json);
+    snprintf(subdoc->buff, EM_IO_BUFF_SZ, "%s", json);
     unsigned int num = 1;
-    std::cout << "Invoking decode_config_set_radio with key: NULL" << std::endl;    
-    int ret = obj.decode_config_set_radio(&subdoc, nullptr, 2, &num);    
-    std::cout << "Method returned: " << ret << std::endl;    
-    EXPECT_LT(ret, 0);    
+    std::cout << "Invoking decode_config_set_radio with key: NULL" << std::endl;
+    int ret = obj.decode_config_set_radio(subdoc, nullptr, 2, &num);
+    std::cout << "Method returned: " << ret << std::endl;
+    EXPECT_LT(ret, 0);
     std::cout << "Exiting decode_config_set_radio_null_key test" << std::endl;
 }
 
@@ -4229,16 +4262,17 @@ TEST(dm_easy_mesh_t, decode_config_set_radio_null_key)
  * | :--------------: | ------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- | ------------- |
  * | 01               | Print a message indicating the start of the decode_config_set_radio_null_num test             | No input parameters                                                                                  | "Entering decode_config_set_radio_null_num test" appears on standard output   | Should be successful |
  * | 02               | Instantiate the dm_easy_mesh_t object and em_subdoc_info_t structure                         | N/A                                                                                                                                                                                                                                                 | Objects are created successfully                                 | Should be successful |
- * | 03               | Initialize the subdoc buffer with a JSON configuration for radio settings                    | json = " { \"wfa-dataelements:SetRadio\": { \"Network\": { \"ID\": \"TestNet\", \"DeviceList\": [ { \"ID\": \"AA:BB:CC:DD:EE:FF\", \"RadioList\": [ { \"ID\": \"radio0\" } ] } ] } } }" | subdoc.buff contains the correctly formatted JSON string         | Should be successful |
+ * | 03               | Initialize the subdoc buffer with a JSON configuration for radio settings                    | json = " { \"wfa-dataelements:SetRadio\": { \"Network\": { \"ID\": \"TestNet\", \"DeviceList\": [ { \"ID\": \"AA:BB:CC:DD:EE:FF\", \"RadioList\": [ { \"ID\": \"radio0\" } ] } ] } } }" | subdoc->buff contains the correctly formatted JSON string         | Should be successful |
  * | 04               | Print a message before invoking decode_config_set_radio with a NULL num pointer                | No input parameters                                                                              | "Invoking decode_config_set_radio with num pointer: NULL" appears on standard output | Should be successful |
  * | 05               | Call decode_config_set_radio with parameters including a NULL pointer for the num argument     | subdoc, "wfa-dataelements:SetRadio", 0, NULL                                                                                                                      | The API returns a negative error code; EXPECT_LT(ret, 0) assertion passes | Should Pass       |
  * | 06               | Print a message indicating the exit of the decode_config_set_radio_null_num test               | No input parameters                                                                              | "Exiting decode_config_set_radio_null_num test" appears on standard output  | Should be successful |
  */
 TEST(dm_easy_mesh_t, decode_config_set_radio_null_num)
 {
-    std::cout << "Entering decode_config_set_radio_null_num test" << std::endl;    
+    std::cout << "Entering decode_config_set_radio_null_num test" << std::endl;
     dm_easy_mesh_t obj;
-    em_subdoc_info_t subdoc{};
+    char subdoc_buf[sizeof(em_subdoc_info_t) + EM_IO_BUFF_SZ]{};
+    em_subdoc_info_t *subdoc = reinterpret_cast<em_subdoc_info_t*>(subdoc_buf);
 
     const char json[] =
         "{"
@@ -4256,12 +4290,13 @@ TEST(dm_easy_mesh_t, decode_config_set_radio_null_num)
         "   }"
         " }"
         "}";
-    snprintf(subdoc.buff, sizeof(subdoc.buff), "%s", json);
+    snprintf(subdoc->buff, EM_IO_BUFF_SZ, "%s", json);
     unsigned int num = 0;
+    (void)num;
     std::cout << "Invoking decode_config_set_radio with num pointer: NULL" << std::endl;
-    int ret = obj.decode_config_set_radio(&subdoc, "wfa-dataelements:SetRadio", 0, NULL);    
-    std::cout << "Method returned: " << ret << std::endl;    
-    EXPECT_LT(ret, 0);    
+    int ret = obj.decode_config_set_radio(subdoc, "wfa-dataelements:SetRadio", 0, NULL);
+    std::cout << "Method returned: " << ret << std::endl;
+    EXPECT_LT(ret, 0);
     std::cout << "Exiting decode_config_set_radio_null_num test" << std::endl;
 }
 
@@ -4329,23 +4364,24 @@ TEST(dm_easy_mesh_t, decode_config_set_ssid_valid_config)
  * **Test Procedure:**
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Invoke decode_config_set_ssid with JSON missing the SSID list | subdoc.buff = "{ \"SetSSID\": { \"ID\": \"TestNet\" } }", argument = "SetSSID" | Function returns error code EM_PARSE_ERR_GEN and assertion EXPECT_EQ(ret, EM_PARSE_ERR_GEN) passes | Should Fail |
+ * | 01 | Invoke decode_config_set_ssid with JSON missing the SSID list | subdoc->buff = "{ \"SetSSID\": { \"ID\": \"TestNet\" } }", argument = "SetSSID" | Function returns error code EM_PARSE_ERR_GEN and assertion EXPECT_EQ(ret, EM_PARSE_ERR_GEN) passes | Should Fail |
  */
 TEST(dm_easy_mesh_t, decode_config_set_ssid_missing_ssid_list)
 {
     std::cout << "Entering decode_config_set_ssid_missing_ssid_list test" << std::endl;
     dm_easy_mesh_t dm;
-    em_subdoc_info_t subdoc{};
+    char subdoc_buf[sizeof(em_subdoc_info_t) + EM_IO_BUFF_SZ]{};
+    em_subdoc_info_t *subdoc = reinterpret_cast<em_subdoc_info_t*>(subdoc_buf);
     const char json[] =
         "{"
         " \"SetSSID\": {"
         "   \"ID\": \"TestNet\""
         " }"
         "}";
-    snprintf(subdoc.buff, sizeof(subdoc.buff), "%s", json);
-    int ret = dm.decode_config_set_ssid(&subdoc, "SetSSID");
+    snprintf(subdoc->buff, EM_IO_BUFF_SZ, "%s", json);
+    int ret = dm.decode_config_set_ssid(subdoc, "SetSSID");
     // Parsing fails before semantic validation
-    EXPECT_EQ(ret, EM_PARSE_ERR_GEN);
+    EXPECT_EQ(ret, EM_PARSE_ERR_CONFIG);
     std::cout << "Exiting decode_config_set_ssid_missing_ssid_list test" << std::endl;
 }
 
@@ -4354,18 +4390,18 @@ TEST(dm_easy_mesh_t, decode_config_set_ssid_missing_ssid_list)
  *
  * This test verifies that decode_config_set_ssid correctly identifies and handles a malformed JSON string by returning the expected error code.
  *
- * **Test Group ID:** Basic: 01  
- * **Test Case ID:** 097@n  
+ * **Test Group ID:** Basic: 01
+ * **Test Case ID:** 097@n
  * **Priority:** High
  *
- * **Pre-Conditions:** None  
- * **Dependencies:** None  
+ * **Pre-Conditions:** None
+ * **Dependencies:** None
  * **User Interaction:** None
  *
  * **Test Procedure:**
  * | Variation / Step | Description                                                                                   | Test Data                                             | Expected Result                                                                               | Notes            |
  * | :---------------:| --------------------------------------------------------------------------------------------- | ----------------------------------------------------- | --------------------------------------------------------------------------------------------- | ---------------- |
- * | 01               | Initialize dm_easy_mesh_t instance, subdoc structure, and assign a malformed JSON string to subdoc.buff | subdoc.buff = "{ invalid json "                         | dm_easy_mesh_t instance and subdoc are properly initialized with malformed JSON string         | Should be successful |
+ * | 01               | Initialize dm_easy_mesh_t instance, subdoc structure, and assign a malformed JSON string to subdoc->buff | subdoc->buff = "{ invalid json "                         | dm_easy_mesh_t instance and subdoc are properly initialized with malformed JSON string         | Should be successful |
  * | 02               | Invoke decode_config_set_ssid with the malformed JSON and verify return value                   | input1 = subdoc (with malformed JSON), input2 = "SetSSID", output1 = ret | ret equals EM_PARSE_ERR_GEN indicating error in parsing the malformed JSON                     | Should Pass      |
  */
 TEST(dm_easy_mesh_t, decode_config_set_ssid_malformed_json)
@@ -4374,7 +4410,7 @@ TEST(dm_easy_mesh_t, decode_config_set_ssid_malformed_json)
     dm_easy_mesh_t dm;
     const char json[] = "{ invalid json ";
     size_t len = strlen(json) + 1;
-    em_subdoc_info_t *subdoc = (em_subdoc_info_t *)malloc(sizeof(em_subdoc_info_t) + len);
+    em_subdoc_info_t *subdoc = static_cast<em_subdoc_info_t *>(malloc(sizeof(em_subdoc_info_t) + len));
     memcpy(subdoc->buff, json, len);
     std::cout << "Invoking decode_config_set_ssid with malformed json" << std::endl;
     int ret = dm.decode_config_set_ssid(subdoc, "SetSSID");
@@ -4400,7 +4436,7 @@ TEST(dm_easy_mesh_t, decode_config_set_ssid_malformed_json)
  * **Test Procedure:**
  * | Variation / Step | Description                                                                    | Test Data                                                                                            | Expected Result                                                  | Notes       |
  * | :---------------:| ------------------------------------------------------------------------------ | -----------------------------------------------------------------------------------------------------| ----------------------------------------------------------------- | ----------- |
- * | 01               | Prepare JSON with empty "NetworkSSIDList", invoke decode_config_set_ssid API   | subdoc.buff = "{ \"SetSSID\": { \"ID\": \"TestNet\", \"NetworkSSIDList\": [] } }", parameter = "SetSSID" | Returns EM_PARSE_ERR_GEN and EXPECT_EQ assertion verifies error code | Should Fail |
+ * | 01               | Prepare JSON with empty "NetworkSSIDList", invoke decode_config_set_ssid API   | subdoc->buff = "{ \"SetSSID\": { \"ID\": \"TestNet\", \"NetworkSSIDList\": [] } }", parameter = "SetSSID" | Returns EM_PARSE_ERR_GEN and EXPECT_EQ assertion verifies error code | Should Fail |
  */
 TEST(dm_easy_mesh_t, decode_config_set_ssid_empty_list)
 {
@@ -4415,7 +4451,7 @@ TEST(dm_easy_mesh_t, decode_config_set_ssid_empty_list)
         "}";
     // Allocate subdoc with space for flexible array
     size_t len = strlen(json) + 1;
-    em_subdoc_info_t *subdoc = (em_subdoc_info_t *)malloc(sizeof(em_subdoc_info_t) + len);
+    em_subdoc_info_t *subdoc = static_cast<em_subdoc_info_t *>(malloc(sizeof(em_subdoc_info_t) + len));
     ASSERT_NE(subdoc, nullptr);
     memcpy(subdoc->buff, json, len);
     int ret = dm.decode_config_set_ssid(subdoc, "SetSSID");
@@ -4443,14 +4479,15 @@ TEST(dm_easy_mesh_t, decode_config_set_ssid_empty_list)
  * **Test Procedure:**
  * | Variation / Step | Description                                                                                          | Test Data                                                                                                | Expected Result                                                        | Notes         |
  * | :--------------: | ---------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- | ------------- |
- * | 01               | Prepare the subdocument buffer with a JSON configuration containing a wrong list size for SSIDs.     | json = "{ \"SetSSID\": { \"ID\": \"TestNet\", \"NetworkSSIDList\": [ { \"SSID\": \"onlyone\", \"HaulType\": 0 } ] } }" | subdoc.buff is populated with the specified JSON string.             | Should be successful |
+ * | 01               | Prepare the subdocument buffer with a JSON configuration containing a wrong list size for SSIDs.     | json = "{ \"SetSSID\": { \"ID\": \"TestNet\", \"NetworkSSIDList\": [ { \"SSID\": \"onlyone\", \"HaulType\": 0 } ] } }" | subdoc->buff is populated with the specified JSON string.             | Should be successful |
  * | 02               | Invoke decode_config_set_ssid with the prepared subdocument and key "SetSSID" and check the return value. | input: subdoc (with the JSON config), key = "SetSSID", output: ret expected = EM_PARSE_ERR_CONFIG       | API returns EM_PARSE_ERR_CONFIG and the assertion EXPECT_EQ(ret, EM_PARSE_ERR_CONFIG) passes. | Should Fail   |
  */
 TEST(dm_easy_mesh_t, decode_config_set_ssid_wrong_list_size)
 {
 	std::cout << "Entering decode_config_set_ssid_wrong_list_size test" << std::endl;
     dm_easy_mesh_t dm;
-    em_subdoc_info_t subdoc{};
+    char subdoc_buf[sizeof(em_subdoc_info_t) + EM_IO_BUFF_SZ]{};
+    em_subdoc_info_t *subdoc = reinterpret_cast<em_subdoc_info_t*>(subdoc_buf);
     const char json[] =
         "{"
         " \"SetSSID\": {"
@@ -4458,9 +4495,9 @@ TEST(dm_easy_mesh_t, decode_config_set_ssid_wrong_list_size)
         "   \"NetworkSSIDList\": [ { \"SSID\": \"onlyone\", \"HaulType\": 0 } ]"
         " }"
         "}";
-    snprintf(subdoc.buff, sizeof(subdoc.buff), "%s", json);
+    snprintf(subdoc->buff, EM_IO_BUFF_SZ, "%s", json);
 	std::cout << "Invoking decode_config_set_ssid with wrong list size" << std::endl;
-    int ret = dm.decode_config_set_ssid(&subdoc, "SetSSID");
+    int ret = dm.decode_config_set_ssid(subdoc, "SetSSID");
     EXPECT_EQ(ret, EM_PARSE_ERR_CONFIG);
 	std::cout << "Exiting decode_config_set_ssid_wrong_list_size test" << std::endl;
 }
@@ -4511,7 +4548,7 @@ TEST(dm_easy_mesh_t, decode_config_set_ssid_NullSubdoc) {
  * **Test Procedure:**
  * | Variation / Step | Description                                                  | Test Data                                                                                   | Expected Result                                           | Notes       |
  * | :--------------: | ------------------------------------------------------------ | ------------------------------------------------------------------------------------------- | --------------------------------------------------------- | ----------- |
- * | 01               | Invoke decode_config_set_ssid with a valid JSON configuration and a NULL key | subdoc.buff = "{ \"SetSSID\": { \"ID\": \"TestNet\", \"NetworkSSIDList\": build_valid_ssid_list() } }", key = NULL | Function returns a negative value and the assertion (EXPECT_LT(ret, 0)) passes | Should Pass |
+ * | 01               | Invoke decode_config_set_ssid with a valid JSON configuration and a NULL key | subdoc->buff = "{ \"SetSSID\": { \"ID\": \"TestNet\", \"NetworkSSIDList\": build_valid_ssid_list() } }", key = NULL | Function returns a negative value and the assertion (EXPECT_LT(ret, 0)) passes | Should Pass |
  */
 TEST(dm_easy_mesh_t, decode_config_set_ssid_NullKey)
 {
@@ -4527,7 +4564,7 @@ TEST(dm_easy_mesh_t, decode_config_set_ssid_NullKey)
         " }"
         "}";
     size_t len = strlen(json) + 1;
-    em_subdoc_info_t *subdoc = (em_subdoc_info_t *)malloc(sizeof(em_subdoc_info_t) + len);
+    em_subdoc_info_t *subdoc = static_cast<em_subdoc_info_t *>(malloc(sizeof(em_subdoc_info_t) + len));
     memcpy(subdoc->buff, json, len);
     std::cout << "Invoking decode_config_set_ssid with key: NULL" << std::endl;
     int ret = dm.decode_config_set_ssid(subdoc, nullptr);
@@ -4609,7 +4646,7 @@ TEST(dm_easy_mesh_t, decode_config_test_validConfig)
         "    ]"
         "  }"
         "}";
- 
+
     // Calculate JSON length
     size_t json_len = strlen(json) + 1;
     //Allocate struct + flexible buffer
@@ -4653,7 +4690,7 @@ TEST(dm_easy_mesh_t, decode_config_test_emptyKey)
     const char *json = "{}";
     char buffer[sizeof(em_subdoc_info_t) + 128] = {};
     em_subdoc_info_t *subdoc = reinterpret_cast<em_subdoc_info_t*>(buffer);
-    snprintf(subdoc->buff, sizeof(subdoc->buff), "%s", json);
+    snprintf(subdoc->buff, EM_IO_BUFF_SZ, "%s", json);
     std::cout << "Invoking decode_config_test with empty key" << std::endl;
     int ret = instance.decode_config_test(subdoc, "");
     EXPECT_LT(ret, 0);
@@ -4688,7 +4725,7 @@ TEST(dm_easy_mesh_t, decode_config_test_keyNotFound)
         "}";
     char buffer[sizeof(em_subdoc_info_t) + 128] = {};
     em_subdoc_info_t *subdoc = reinterpret_cast<em_subdoc_info_t*>(buffer);
-    snprintf(subdoc->buff, sizeof(subdoc->buff), "%s", json);
+    snprintf(subdoc->buff, EM_IO_BUFF_SZ, "%s", json);
     std::cout << "Invoking decode_config_test with key not found" << std::endl;
     int ret = instance.decode_config_test(subdoc, "missingKey");
     EXPECT_LT(ret, 0);
@@ -4708,7 +4745,7 @@ TEST(dm_easy_mesh_t, decode_config_test_keyNotFound)
  * **Dependencies:** None@n
  * **User Interaction:** None@n
  *
- * **Test Procedure:** 
+ * **Test Procedure:**
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
  * | 01 | Initialize instance, prepare malformed JSON input, populate subdoc structure, and invoke decode_config_test API with key "testKey" | json = "{ invalid json ", subdoc->buff = "{ invalid json ", key = "testKey" | API returns a negative value (ret < 0) signifying an error due to malformed JSON; Assertion EXPECT_LT(ret, 0) passes | Should Fail |
@@ -4720,7 +4757,7 @@ TEST(dm_easy_mesh_t, decode_config_test_malformedJSON)
     const char *json = "{ invalid json ";
     char buffer[sizeof(em_subdoc_info_t) + 64] = {};
     em_subdoc_info_t *subdoc = reinterpret_cast<em_subdoc_info_t*>(buffer);
-    snprintf(subdoc->buff, sizeof(subdoc->buff), "%s", json);
+    snprintf(subdoc->buff, EM_IO_BUFF_SZ, "%s", json);
     std::cout << "Invoking decode_config_test with malformed json" << std::endl;
     int ret = instance.decode_config_test(subdoc, "testKey");
     EXPECT_LT(ret, 0);
@@ -4755,7 +4792,7 @@ TEST(dm_easy_mesh_t, decode_config_test_missingRequiredFields)
         "}";
     char buffer[sizeof(em_subdoc_info_t) + 128] = {};
     em_subdoc_info_t *subdoc = reinterpret_cast<em_subdoc_info_t*>(buffer);
-    snprintf(subdoc->buff, sizeof(subdoc->buff), "%s", json);
+    snprintf(subdoc->buff, EM_IO_BUFF_SZ, "%s", json);
     std::cout << "Invoking decode_config_test with missing fields test" << std::endl;
     int ret = instance.decode_config_test(subdoc, "testKey");
     EXPECT_LT(ret, 0);
@@ -4770,11 +4807,11 @@ TEST(dm_easy_mesh_t, decode_config_test_missingRequiredFields)
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 107@n
  * **Priority:** High@n
- * 
+ *
  * **Pre-Conditions:** None@n
  * **Dependencies:** None@n
  * **User Interaction:** None@n
- * 
+ *
  * **Test Procedure:**@n
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
@@ -4801,11 +4838,11 @@ TEST(dm_easy_mesh_t, decode_config_test_nullSubdoc)
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 108@n
  * **Priority:** High@n
- * 
+ *
  * **Pre-Conditions:** None@n
  * **Dependencies:** None@n
  * **User Interaction:** None@n
- * 
+ *
  * **Test Procedure:**
  * | Variation / Step | Description                                                                 | Test Data                                                        | Expected Result                                                     | Notes       |
  * | :--------------: | --------------------------------------------------------------------------- | ---------------------------------------------------------------- | ------------------------------------------------------------------- | ----------- |
@@ -4845,7 +4882,7 @@ TEST(dm_easy_mesh_t, decode_config_test_nullKey)
 
     char buffer[sizeof(em_subdoc_info_t) + 1024] = {};
     em_subdoc_info_t *subdoc = reinterpret_cast<em_subdoc_info_t*>(buffer);
-    snprintf(subdoc->buff, sizeof(subdoc->buff), "%s", json);
+    snprintf(subdoc->buff, EM_IO_BUFF_SZ, "%s", json);
     int ret = instance.decode_config_test(subdoc, nullptr);
     std::cout << "Returned value = " << ret << std::endl;
     EXPECT_LT(ret, 0);
@@ -4973,7 +5010,7 @@ TEST(dm_easy_mesh_t, decode_num_devices_invalid_malformed_json)
     const char *json = "{ invalid json ";
     char buffer[sizeof(em_subdoc_info_t) + 128] = {};
     em_subdoc_info_t *subdoc = reinterpret_cast<em_subdoc_info_t *>(buffer);
-    snprintf(subdoc->buff, sizeof(subdoc->buff), "%s", json);
+    snprintf(subdoc->buff, EM_IO_BUFF_SZ, "%s", json);
     std::cout << "Invoking decode_num_devices with malformed json" << std::endl;
     int result = dmObj.decode_num_devices(subdoc);
     EXPECT_EQ(result, -1);
@@ -5012,7 +5049,7 @@ TEST(dm_easy_mesh_t, decode_num_devices_missing_network_key)
 
     char buffer[sizeof(em_subdoc_info_t) + 256] = {};
     em_subdoc_info_t *subdoc = reinterpret_cast<em_subdoc_info_t *>(buffer);
-    snprintf(subdoc->buff, sizeof(subdoc->buff), "%s", json);
+    snprintf(subdoc->buff, EM_IO_BUFF_SZ, "%s", json);
     std::cout << "Invoking decode_num_devices with missing network key" << std::endl;
     int result = dmObj.decode_num_devices(subdoc);
     EXPECT_EQ(result, -1);
@@ -5047,7 +5084,7 @@ TEST(dm_easy_mesh_t, decode_num_devices_missing_device_list)
         "}";
     char buffer[sizeof(em_subdoc_info_t) + 128] = {};
     em_subdoc_info_t *subdoc = reinterpret_cast<em_subdoc_info_t *>(buffer);
-    snprintf(subdoc->buff, sizeof(subdoc->buff), "%s", json);
+    snprintf(subdoc->buff, EM_IO_BUFF_SZ, "%s", json);
     std::cout << "Invoking decode_num_devices with missing device list" << std::endl;
     int result = dmObj.decode_num_devices(subdoc);
     EXPECT_EQ(result, -1);
@@ -5087,18 +5124,18 @@ TEST(dm_easy_mesh_t, decode_num_devices_null_pointer_input) {
 /**
  * @brief Verify that the default constructor of dm_easy_mesh_t initializes all members correctly.
  *
- * This test verifies that when an object of dm_easy_mesh_t is created using the default constructor, 
- * all its member variables are initialized to the expected default values. The assertions confirm that 
+ * This test verifies that when an object of dm_easy_mesh_t is created using the default constructor,
+ * all its member variables are initialized to the expected default values. The assertions confirm that
  * numeric members are set to 0, the enumeration is set to db_cfg_type_none, and the boolean member is false.
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 115@n
  * **Priority:** High@n
- * 
+ *
  * **Pre-Conditions:** None@n
  * **Dependencies:** None@n
  * **User Interaction:** None@n
- * 
+ *
  * **Test Procedure:**
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
@@ -5110,7 +5147,7 @@ TEST(dm_easy_mesh_t, dm_easy_mesh_t_default_construction_initializes_all_members
     std::cout << "Invoking default constructor dm_easy_mesh_t()" << std::endl;
     dm_easy_mesh_t dm;
     EXPECT_EQ(dm.m_num_preferences, 0u);
-    EXPECT_EQ(dm.m_num_interfaces, 0u);    
+    EXPECT_EQ(dm.m_num_interfaces, 0u);
     EXPECT_EQ(dm.m_num_radios, 0u);
     EXPECT_EQ(dm.m_num_opclass, 0u);
     EXPECT_EQ(dm.m_num_policy, 0u);
@@ -5118,7 +5155,7 @@ TEST(dm_easy_mesh_t, dm_easy_mesh_t_default_construction_initializes_all_members
     EXPECT_EQ(dm.m_num_ap_mld, 0u);
     EXPECT_EQ(dm.m_num_net_ssids, 0u);
     EXPECT_EQ(dm.m_db_cfg_param.db_cfg_type, db_cfg_type_none);
-    EXPECT_EQ(dm.m_colocated, false);    
+    EXPECT_EQ(dm.m_colocated, false);
     std::cout << "Exiting dm_easy_mesh_t_default_construction_initializes_all_members_correctly test" << std::endl;
 }
 
@@ -5132,11 +5169,11 @@ TEST(dm_easy_mesh_t, dm_easy_mesh_t_default_construction_initializes_all_members
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 116@n
  * **Priority:** High@n
- * 
+ *
  * **Pre-Conditions:** None@n
  * **Dependencies:** None@n
  * **User Interaction:** None@n
- * 
+ *
  * **Test Procedure:**
  * | Variation / Step | Description                                                                                      | Test Data                                                                                                  | Expected Result                                                                                                      | Notes              |
  * | :--------------: | ------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- | ------------------ |
@@ -5147,7 +5184,7 @@ TEST(dm_easy_mesh_t, dm_easy_mesh_t_default_construction_initializes_all_members
 TEST(dm_easy_mesh_t, ctor_valid_network_copies_ctrl_id)
 {
     std::cout << "Entering ctor_valid_network_copies_ctrl_id test" << std::endl;
-    dm_network_t net{};    
+    dm_network_t net{};
     unsigned char ctrl_mac[6] = {0x00, 0x11, 0x22, 0x33, 0x44, 0x55};
     memcpy(net.m_net_info.ctrl_id.mac, ctrl_mac, sizeof(ctrl_mac));
     std::cout << "Invoking dm_easy_mesh_t constructor" << std::endl;
@@ -5303,18 +5340,20 @@ TEST(dm_easy_mesh_t, ctor_nullptr_network_reference_bug)
  * **Test Procedure:**
  * | Variation / Step | Description                                               | Test Data                                      | Expected Result                                        | Notes      |
  * | :--------------: | --------------------------------------------------------- | ---------------------------------------------- | ------------------------------------------------------ | ---------- |
- * | 01               | Call encode_config with a valid namespace and key         | subdoc.name = valid_namespace, key = Test      | Return value is 0 and assertion EXPECT_EQ(0, ret) passes | Should Pass |
+ * | 01               | Call encode_config with a valid namespace and key         | subdoc->name = valid_namespace, key = Test      | Return value is 0 and assertion EXPECT_EQ(0, ret) passes | Should Pass |
  */
 TEST(dm_easy_mesh_t, encode_config_valid_configuration)
 {
     std::cout << "Entering encode_config_valid_configuration test" << std::endl;
     dm_easy_mesh_t dm_easy_mesh_obj;
-    em_subdoc_info_t subdoc;
-    strncpy(subdoc.name, "valid_namespace", sizeof(subdoc.name));
-    subdoc.name[sizeof(subdoc.name) - 1] = '\0';    
+    em_subdoc_info_t *subdoc = static_cast<em_subdoc_info_t *>(calloc(1, sizeof(em_subdoc_info_t) + EM_IO_BUFF_SZ));
+    ASSERT_NE(subdoc, nullptr);
+    strncpy(subdoc->name, "valid_namespace", sizeof(subdoc->name));
+    subdoc->name[sizeof(subdoc->name) - 1] = '\0';
     const char * key = "Test";
-    std::cout << "Invoking encode_config with subdoc name: " << subdoc.name << " and key: " << key << std::endl;
-    int ret = dm_easy_mesh_obj.encode_config(&subdoc, key);
+    std::cout << "Invoking encode_config with subdoc name: " << subdoc->name << " and key: " << key << std::endl;
+    int ret = dm_easy_mesh_obj.encode_config(subdoc, key);
+    free(subdoc);
     std::cout << "Returned value: " << ret << std::endl;
     EXPECT_EQ(0, ret);
     std::cout << "Exiting encode_config_valid_configuration test" << std::endl;
@@ -5329,11 +5368,11 @@ TEST(dm_easy_mesh_t, encode_config_valid_configuration)
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 122@n
  * **Priority:** High@n
- * 
+ *
  * **Pre-Conditions:** None@n
  * **Dependencies:** None@n
  * **User Interaction:** None@n
- * 
+ *
  * **Test Procedure:**
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
@@ -5354,7 +5393,7 @@ TEST(dm_easy_mesh_t, encode_config_null_subdoc_failure)
 /**
  * @brief Tests that encoding configuration with a null key fails.
  *
- * This test verifies that when the encode_config API is invoked with a valid sub-document name and a NULL key pointer, 
+ * This test verifies that when the encode_config API is invoked with a valid sub-document name and a NULL key pointer,
  * the function returns an error (non-zero) value, confirming proper input validation handling.
  *
  * **Test Group ID:** Basic: 01@n
@@ -5411,9 +5450,9 @@ TEST(dm_easy_mesh_t, encode_config_empty_key_failure)
     dm_easy_mesh_t dm_easy_mesh_obj;
     em_subdoc_info_t subdoc;
     strncpy(subdoc.name, "valid_namespace", sizeof(subdoc.name));
-    subdoc.name[sizeof(subdoc.name) - 1] = '\0';    
+    subdoc.name[sizeof(subdoc.name) - 1] = '\0';
     const char * key = "";
-    std::cout << "Invoking encode_config with subdoc name: " << subdoc.name 
+    std::cout << "Invoking encode_config with subdoc name: " << subdoc.name
               << " and key: (empty string)" << std::endl;
     int ret = dm_easy_mesh_obj.encode_config(&subdoc, key);
     std::cout << "Returned value: " << ret << std::endl;
@@ -5481,9 +5520,9 @@ TEST(dm_easy_mesh_t, encode_config_op_class_array_all_valid_types)
 /**
  * @brief Checks that encode_config_op_class_array fails with a null JSON object.
  *
- * This test verifies that the encode_config_op_class_array API returns an error (-1) when provided with a NULL cJSON 
- * object. The test creates an instance of dm_easy_mesh_t, assigns a NULL pointer for the JSON object, initializes a MAC 
- * address, and then calls the API with these parameters. The expected behavior is the API's graceful failure with an error 
+ * This test verifies that the encode_config_op_class_array API returns an error (-1) when provided with a NULL cJSON
+ * object. The test creates an instance of dm_easy_mesh_t, assigns a NULL pointer for the JSON object, initializes a MAC
+ * address, and then calls the API with these parameters. The expected behavior is the API's graceful failure with an error
  * code, ensuring proper handling of invalid input.
  *
  * **Test Group ID:** Basic: 01@n
@@ -5509,7 +5548,7 @@ TEST(dm_easy_mesh_t, encode_config_op_class_array_failure_null_json)
     printMacAddress(mac);
     int ret = obj.encode_config_op_class_array(arr_obj, em_op_class_type_current, mac);
     std::cout << "Returned value: " << ret << std::endl;
-    EXPECT_EQ(ret, -1);    
+    EXPECT_EQ(ret, -1);
     std::cout << "Exiting encode_config_op_class_array_failure_null_json test" << std::endl;
 }
 
@@ -5541,10 +5580,10 @@ TEST(dm_easy_mesh_t, encode_config_op_class_array_failure_null_mac)
     dm_easy_mesh_t obj;
     cJSON *arr_obj = create_valid_cJSON_array();
     unsigned char *mac = NULL;
-    std::cout << "Invoking encode_config_op_class_array with NULL MAC address" << std::endl;    
+    std::cout << "Invoking encode_config_op_class_array with NULL MAC address" << std::endl;
     int ret = obj.encode_config_op_class_array(arr_obj, em_op_class_type_current, mac);
-    std::cout << "Returned value: " << ret << std::endl;    
-    EXPECT_EQ(ret, -1);    
+    std::cout << "Returned value: " << ret << std::endl;
+    EXPECT_EQ(ret, -1);
     delete arr_obj;
     std::cout << "Exiting encode_config_op_class_array_failure_null_mac test" << std::endl;
 }
@@ -5576,12 +5615,12 @@ TEST(dm_easy_mesh_t, encode_config_op_class_array_failure_invalid_optype)
     dm_easy_mesh_t obj;
     cJSON *arr_obj = create_valid_cJSON_array();
     unsigned char mac[6] = {0x00, 0x11, 0x22, 0x33, 0x44, 0x55};
-    em_op_class_type_t invalidType = static_cast<em_op_class_type_t>(99);    
+    em_op_class_type_t invalidType = static_cast<em_op_class_type_t>(99);
     std::cout << "Invoking encode_config_op_class_array with invalid op class type (99)" << std::endl;
-    printMacAddress(mac);    
+    printMacAddress(mac);
     int ret = obj.encode_config_op_class_array(arr_obj, invalidType, mac);
-    std::cout << "Returned value: " << ret << std::endl;    
-    EXPECT_EQ(ret, -1);    
+    std::cout << "Returned value: " << ret << std::endl;
+    EXPECT_EQ(ret, -1);
     delete arr_obj;
     std::cout << "Exiting encode_config_op_class_array_failure_invalid_optype test" << std::endl;
 }
@@ -5612,12 +5651,12 @@ TEST(dm_easy_mesh_t, encode_config_op_class_array_failure_invalid_json_type)
     std::cout << "Entering encode_config_op_class_array_failure_invalid_json_type test" << std::endl;
     dm_easy_mesh_t obj;
     cJSON *arr_obj = create_invalid_cJSON_object();
-    unsigned char mac[6] = {0x00, 0x11, 0x22, 0x33, 0x44, 0x55};    
+    unsigned char mac[6] = {0x00, 0x11, 0x22, 0x33, 0x44, 0x55};
     std::cout << "Invoking encode_config_op_class_array with non-array cJSON object" << std::endl;
-    printMacAddress(mac);    
+    printMacAddress(mac);
     int ret = obj.encode_config_op_class_array(arr_obj, em_op_class_type_current, mac);
-    std::cout << "Returned value: " << ret << std::endl;    
-    EXPECT_EQ(ret, -1);    
+    std::cout << "Returned value: " << ret << std::endl;
+    EXPECT_EQ(ret, -1);
     delete arr_obj;
     std::cout << "Exiting encode_config_op_class_array_failure_invalid_json_type test" << std::endl;
 }
@@ -5639,22 +5678,24 @@ TEST(dm_easy_mesh_t, encode_config_op_class_array_failure_invalid_json_type)
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
  * | 01 | Print test entrance message | None | Logs message indicating test entry | Should be successful |
- * | 02 | Create dm_easy_mesh_t instance and initialize subdoc.name with "config" | subdoc.name = "config" | subdoc.name is correctly set to "config" | Should be successful |
+ * | 02 | Create dm_easy_mesh_t instance and initialize subdoc->name with "config" | subdoc->name = "config" | subdoc->name is correctly set to "config" | Should be successful |
  * | 03 | Set key to "wfa-dataelements:Reset" | key = "wfa-dataelements:Reset" | key variable holds the correct string value | Should be successful |
- * | 04 | Invoke encode_config_reset API with subdoc and key | input: subdoc.name = "config", key = "wfa-dataelements:Reset"; output: ret value expected | Returns ret = 0 from encode_config_reset API | Should Pass |
+ * | 04 | Invoke encode_config_reset API with subdoc and key | input: subdoc->name = "config", key = "wfa-dataelements:Reset"; output: ret value expected | Returns ret = 0 from encode_config_reset API | Should Pass |
  * | 05 | Validate API return value equals 0 using EXPECT_EQ | ret = 0 | EXPECT_EQ assertion passes confirming return value is 0 | Should Pass |
  * | 06 | Print test exit message | None | Logs message indicating test exit | Should be successful |
  */
 TEST(dm_easy_mesh_t, encode_config_reset_validSubdoc_validKey) {
     std::cout << "Entering encode_config_reset_validSubdoc_validKey test" << std::endl;
     dm_easy_mesh_t dm;
-    em_subdoc_info_t subdoc;    
-    strncpy(subdoc.name, "config", sizeof(subdoc.name)-1);
-    subdoc.name[sizeof(subdoc.name)-1] = '\0';    
-    const char* key = "wfa-dataelements:Reset";    
-    std::cout << "Invoking encode_config_reset with subdoc.name: " << subdoc.name << " and key: " << key << std::endl;              
-    int ret = dm.encode_config_reset(&subdoc, key);    
-    std::cout << "Method returned: " << ret << std::endl;    
+    em_subdoc_info_t *subdoc = static_cast<em_subdoc_info_t *>(calloc(1, sizeof(em_subdoc_info_t) + EM_IO_BUFF_SZ));
+    ASSERT_NE(subdoc, nullptr);
+    strncpy(subdoc->name, "config", sizeof(subdoc->name)-1);
+    subdoc->name[sizeof(subdoc->name)-1] = '\0';
+    const char* key = "wfa-dataelements:Reset";
+    std::cout << "Invoking encode_config_reset with subdoc->name: " << subdoc->name << " and key: " << key << std::endl;
+    int ret = dm.encode_config_reset(subdoc, key);
+    free(subdoc);
+    std::cout << "Method returned: " << ret << std::endl;
     EXPECT_EQ(ret, 0);
     std::cout << "Exiting encode_config_reset_validSubdoc_validKey test" << std::endl;
 }
@@ -5700,11 +5741,11 @@ TEST(dm_easy_mesh_t, encode_config_reset_nullSubdoc_validKey) {
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 132@n
  * **Priority:** High@n
- * 
+ *
  * **Pre-Conditions:** None@n
  * **Dependencies:** None@n
  * **User Interaction:** None@n
- * 
+ *
  * **Test Procedure:**@n
  * | Variation / Step | Description                                                   | Test Data                                         | Expected Result                                        | Notes       |
  * | :---------------:| -------------------------------------------------------------- | ------------------------------------------------- | -------------------------------------------------------| ----------- |
@@ -5712,22 +5753,22 @@ TEST(dm_easy_mesh_t, encode_config_reset_nullSubdoc_validKey) {
  */
 TEST(dm_easy_mesh_t, encode_config_reset_validSubdoc_nullKey) {
     std::cout << "Entering encode_config_reset_validSubdoc_nullKey test" << std::endl;
-    dm_easy_mesh_t dm;    
+    dm_easy_mesh_t dm;
     em_subdoc_info_t subdoc;
     strncpy(subdoc.name, "config", sizeof(subdoc.name)-1);
-    subdoc.name[sizeof(subdoc.name)-1] = '\0';    
-    const char* key = nullptr;    
-    std::cout << "Invoking encode_config_reset with subdoc.name: " << subdoc.name << " and key: " << "NULL" << std::endl;              
-    int ret = dm.encode_config_reset(&subdoc, key);    
-    std::cout << "Method returned: " << ret << std::endl;    
-    EXPECT_EQ(ret, -1);    
+    subdoc.name[sizeof(subdoc.name)-1] = '\0';
+    const char* key = nullptr;
+    std::cout << "Invoking encode_config_reset with subdoc.name: " << subdoc.name << " and key: " << "NULL" << std::endl;
+    int ret = dm.encode_config_reset(&subdoc, key);
+    std::cout << "Method returned: " << ret << std::endl;
+    EXPECT_EQ(ret, -1);
     std::cout << "Exiting encode_config_reset_validSubdoc_nullKey test" << std::endl;
 }
 
 /**
  * @brief Validate that encode_config_reset returns an error when provided with a valid subdocument and an empty key.
  *
- * This test verifies that the API function encode_config_reset correctly handles the scenario where a valid subdocument (with subdoc.name set to "config") is provided along with an empty key. The expected behavior is for the function to return an error (-1) since an empty key is not acceptable.
+ * This test verifies that the API function encode_config_reset correctly handles the scenario where a valid subdocument (with subdoc->name set to "config") is provided along with an empty key. The expected behavior is for the function to return an error (-1) since an empty key is not acceptable.
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 133@n
@@ -5740,20 +5781,21 @@ TEST(dm_easy_mesh_t, encode_config_reset_validSubdoc_nullKey) {
  * **Test Procedure:**@n
  * | Variation / Step | Description                                                                                                 | Test Data                                                            | Expected Result                                             | Notes           |
  * | :--------------: | ----------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- | ---------------------------------------------------------- | --------------- |
- * | 01               | Initialize the dm_easy_mesh_t instance and set subdoc.name to "config" with key as an empty string          | dm_easy_mesh_t instance, subdoc.name = "config", key = ""             | Objects are successfully initialized                      | Should be successful |
+ * | 01               | Initialize the dm_easy_mesh_t instance and set subdoc->name to "config" with key as an empty string          | dm_easy_mesh_t instance, subdoc->name = "config", key = ""             | Objects are successfully initialized                      | Should be successful |
  * | 02               | Invoke encode_config_reset with the valid subdoc and an empty key, then check that the return value is -1      | subdoc: { name = "config" }, key: (empty string), ret = -1 expected     | API returns -1 indicating failure due to empty key         | Should Fail     |
  */
 TEST(dm_easy_mesh_t, encode_config_reset_validSubdoc_emptyKey) {
     std::cout << "Entering encode_config_reset_validSubdoc_emptyKey test" << std::endl;
-    dm_easy_mesh_t dm;    
-    em_subdoc_info_t subdoc{};
-    strncpy(subdoc.name, "config", sizeof(subdoc.name)-1);
-    subdoc.name[sizeof(subdoc.name)-1] = '\0';    
+    dm_easy_mesh_t dm;
+    char subdoc_buf[sizeof(em_subdoc_info_t) + EM_IO_BUFF_SZ]{};
+    em_subdoc_info_t *subdoc = reinterpret_cast<em_subdoc_info_t*>(subdoc_buf);
+    strncpy(subdoc->name, "config", sizeof(subdoc->name)-1);
+    subdoc->name[sizeof(subdoc->name)-1] = '\0';
     const char* key = "";
-    std::cout << "Invoking encode_config_reset with subdoc.name: " << subdoc.name << " and key: " << "(empty string)" << std::endl;             
-    int ret = dm.encode_config_reset(&subdoc, key);    
-    std::cout << "Method returned: " << ret << std::endl;    
-    EXPECT_EQ(ret, -1);    
+    std::cout << "Invoking encode_config_reset with subdoc->name: " << subdoc->name << " and key: " << "(empty string)" << std::endl;
+    int ret = dm.encode_config_reset(subdoc, key);
+    std::cout << "Method returned: " << ret << std::endl;
+    EXPECT_EQ(ret, -1);
     std::cout << "Exiting encode_config_reset_validSubdoc_emptyKey test" << std::endl;
 }
 
@@ -5773,18 +5815,19 @@ TEST(dm_easy_mesh_t, encode_config_reset_validSubdoc_emptyKey) {
  * **Test Procedure:**
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Initialize subdocument with valid name and key, then invoke the encode_config_test API | subdoc.name = valid_name, key = test_key, output: result = 0 | API returns 0 and assertion EXPECT_EQ(result, 0) passes | Should Pass |
+ * | 01 | Initialize subdocument with valid name and key, then invoke the encode_config_test API | subdoc->name = valid_name, key = test_key, output: result = 0 | API returns 0 and assertion EXPECT_EQ(result, 0) passes | Should Pass |
  */
 TEST(dm_easy_mesh_t, encode_config_test_valid_subdoc_and_valid_key)
 {
     std::cout << "Entering encode_config_test_valid_subdoc_and_valid_key test" << std::endl;
-    em_subdoc_info_t subdoc{};
-    strncpy(subdoc.name, "valid_name", sizeof(subdoc.name));   
+    char subdoc_buf[sizeof(em_subdoc_info_t) + EM_IO_BUFF_SZ]{};
+    em_subdoc_info_t *subdoc = reinterpret_cast<em_subdoc_info_t*>(subdoc_buf);
+    strncpy(subdoc->name, "valid_name", sizeof(subdoc->name));
     const char* key = "test_key";
-    std::cout << "Invoking encode_config_test with subdoc->name: " << subdoc.name << " and key: " << key << std::endl;    
+    std::cout << "Invoking encode_config_test with subdoc->name: " << subdoc->name << " and key: " << key << std::endl;
     dm_easy_mesh_t dm;
-    int result = dm.encode_config_test(&subdoc, key);
-    std::cout << "Returned value: " << result << std::endl;    
+    int result = dm.encode_config_test(subdoc, key);
+    std::cout << "Returned value: " << result << std::endl;
     EXPECT_EQ(result, 0);
     std::cout << "Exiting encode_config_test_valid_subdoc_and_valid_key test" << std::endl;
 }
@@ -5811,12 +5854,12 @@ TEST(dm_easy_mesh_t, encode_config_test_valid_subdoc_and_empty_key)
 {
     std::cout << "Entering encode_config_test_valid_subdoc_and_empty_key test" << std::endl;
     em_subdoc_info_t subdoc;
-    strncpy(subdoc.name, "valid_name", sizeof(subdoc.name));    
+    strncpy(subdoc.name, "valid_name", sizeof(subdoc.name));
     const char* key = "";
-    std::cout << "Invoking encode_config_test with subdoc->name: " << subdoc.name << " and empty key" << std::endl;    
+    std::cout << "Invoking encode_config_test with subdoc.name: " << subdoc.name << " and empty key" << std::endl;
     dm_easy_mesh_t dm;
     int result = dm.encode_config_test(&subdoc, key);
-    std::cout << "Returned value: " << result << std::endl;    
+    std::cout << "Returned value: " << result << std::endl;
     EXPECT_EQ(result, -1);
     std::cout << "Exiting encode_config_test_valid_subdoc_and_empty_key test" << std::endl;
 }
@@ -5846,10 +5889,10 @@ TEST(dm_easy_mesh_t, encode_config_test_null_subdoc_and_valid_key)
 {
     std::cout << "Entering encode_config_test_null_subdoc_and_valid_key test" << std::endl;
     const char* key = "test_key";
-    std::cout << "Invoking encode_config_test with subdoc pointer as NULL and key: " << key << std::endl;    
+    std::cout << "Invoking encode_config_test with subdoc pointer as NULL and key: " << key << std::endl;
     dm_easy_mesh_t dm;
     int result = dm.encode_config_test(NULL, key);
-    std::cout << "Returned value: " << result << std::endl;    
+    std::cout << "Returned value: " << result << std::endl;
     EXPECT_EQ(result, -1);
     std::cout << "Exiting encode_config_test_null_subdoc_and_valid_key test" << std::endl;
 }
@@ -5862,11 +5905,11 @@ TEST(dm_easy_mesh_t, encode_config_test_null_subdoc_and_valid_key)
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 137@n
  * **Priority:** High@n
- * 
+ *
  * **Pre-Conditions:** None@n
  * **Dependencies:** None@n
  * **User Interaction:** None@n
- * 
+ *
  * **Test Procedure:**
  * | Variation / Step | Description                                                                                     | Test Data                                               | Expected Result                                          | Notes        |
  * | :--------------: | ----------------------------------------------------------------------------------------------- | ------------------------------------------------------- | -------------------------------------------------------- | ------------ |
@@ -5876,9 +5919,9 @@ TEST(dm_easy_mesh_t, encode_config_test_valid_subdoc_and_null_key)
 {
     std::cout << "Entering encode_config_test_valid_subdoc_and_null_key test" << std::endl;
     em_subdoc_info_t subdoc;
-    strncpy(subdoc.name, "valid_name", sizeof(subdoc.name));    
+    strncpy(subdoc.name, "valid_name", sizeof(subdoc.name));
     const char* key = NULL;
-    std::cout << "Invoking encode_config_test with subdoc->name: " << subdoc.name << " and key pointer as NULL" << std::endl;    
+    std::cout << "Invoking encode_config_test with subdoc.name: " << subdoc.name << " and key pointer as NULL" << std::endl;
     dm_easy_mesh_t dm;
     int result = dm.encode_config_test(&subdoc, key);
     std::cout << "Returned value: " << result << std::endl;
@@ -5909,12 +5952,12 @@ TEST(dm_easy_mesh_t, encode_config_test_empty_name_and_valid_key)
 {
     std::cout << "Entering encode_config_test_empty_name_and_valid_key test" << std::endl;
     em_subdoc_info_t subdoc;
-    strncpy(subdoc.name, "", sizeof(subdoc.name));    
+    strncpy(subdoc.name, "", sizeof(subdoc.name));
     const char* key = "test_key";
-    std::cout << "Invoking encode_config_test with empty subdoc->name and key: " << key << std::endl;    
+    std::cout << "Invoking encode_config_test with empty subdoc.name and key: " << key << std::endl;
     dm_easy_mesh_t dm;
     int result = dm.encode_config_test(&subdoc, key);
-    std::cout << "Returned value: " << result << std::endl;    
+    std::cout << "Returned value: " << result << std::endl;
     EXPECT_EQ(result, -1);
     std::cout << "Exiting encode_config_test_empty_name_and_valid_key test" << std::endl;
 }
@@ -5985,7 +6028,7 @@ TEST(dm_easy_mesh_t, find_matching_bss_valid_matching_bss)
  * @brief Verify find_matching_bss returns a null pointer when no matching BSS is found
  *
  * This test verifies that the find_matching_bss API correctly returns a null pointer
- * when no BSS matches the given criteria. The BSS identifier is initialized with a 
+ * when no BSS matches the given criteria. The BSS identifier is initialized with a
  * net_id that does not exist and with MAC addresses set to a distinct value, ensuring
  * that no valid BSS is found in the dm_easy_mesh_t instance.
  *
@@ -6025,7 +6068,7 @@ TEST(dm_easy_mesh_t, find_matching_bss_no_matching_bss)
     else
     {
         em_bss_info_t* ret_info = &result->m_bss_info;
-        std::cout << "Method unexpectedly returned non-NULL pointer. BSS info: { net_id: " 
+        std::cout << "Method unexpectedly returned non-NULL pointer. BSS info: { net_id: "
                   << ret_info->id.net_id << ", haul_type: " << static_cast<int>(ret_info->id.haul_type)
                   << " }" << std::endl;
     }
@@ -6040,11 +6083,11 @@ TEST(dm_easy_mesh_t, find_matching_bss_no_matching_bss)
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 141@n
  * **Priority:** High@n
- * 
+ *
  * **Pre-Conditions:** None@n
  * **Dependencies:** None@n
  * **User Interaction:** None@n
- * 
+ *
  * **Test Procedure:**
  * | Variation / Step | Description                                  | Test Data                                                                | Expected Result                                            | Notes       |
  * | :--------------: | -------------------------------------------- | ------------------------------------------------------------------------ | ---------------------------------------------------------- | ----------- |
@@ -6065,10 +6108,10 @@ TEST(dm_easy_mesh_t, find_matching_bss_null_input)
     else
     {
         em_bss_info_t* ret_info = &result->m_bss_info;
-        std::cout << "Method unexpectedly returned non-NULL pointer. BSS info: { net_id: " 
+        std::cout << "Method unexpectedly returned non-NULL pointer. BSS info: { net_id: "
                   << ret_info->id.net_id << ", haul_type: " << static_cast<int>(ret_info->id.haul_type)
                   << " }" << std::endl;
-    }    
+    }
     std::cout << "Exiting " << testName << " test" << std::endl;
 }
 
@@ -6100,7 +6143,7 @@ TEST(dm_easy_mesh_t, find_matching_device_matching_device)
     std::cout << "Entering find_matching_device_matching_device test" << std::endl;
     dm_easy_mesh_t mesh;
     unsigned char internal_mac[6] = { 0x01, 0x02, 0x03, 0x04, 0x05, 0x06 };
-    memcpy(mesh.m_device.m_device_info.intf.mac, internal_mac, sizeof(internal_mac));    
+    memcpy(mesh.m_device.m_device_info.intf.mac, internal_mac, sizeof(internal_mac));
     std::cout << "Internal device set with MAC = ";
     for (int i = 0; i < 6; i++) { std::cout << std::hex << static_cast<int>(internal_mac[i]) << " "; }
     dm_device_t dev;
@@ -6116,7 +6159,7 @@ TEST(dm_easy_mesh_t, find_matching_device_matching_device)
     else
     {
         std::cout << "Returned device is NULL" << std::endl;
-    }       
+    }
     std::cout << "Exiting find_matching_device_matching_device test" << std::endl;
 }
 
@@ -6131,11 +6174,11 @@ TEST(dm_easy_mesh_t, find_matching_device_matching_device)
  * **Test Group ID:** Basic: 01
  * **Test Case ID:** 143@n
  * **Priority:** High
- * 
+ *
  * **Pre-Conditions:** None
  * **Dependencies:** None
  * **User Interaction:** None
- * 
+ *
  * **Test Procedure:**
  * | Variation / Step | Description                                                         | Test Data                                                                                              | Expected Result                          | Notes           |
  * | :--------------: | ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ | ---------------------------------------- | --------------- |
@@ -6149,13 +6192,13 @@ TEST(dm_easy_mesh_t, find_matching_device_non_matching_device)
     std::cout << "Entering find_matching_device_non_matching_device test" << std::endl;
     dm_easy_mesh_t mesh;
     unsigned char internal_mac[6] = { 0x01, 0x02, 0x03, 0x04, 0x05, 0x06 };
-    memcpy(mesh.m_device.m_device_info.intf.mac, internal_mac, sizeof(internal_mac));    
+    memcpy(mesh.m_device.m_device_info.intf.mac, internal_mac, sizeof(internal_mac));
     std::cout << "Internal device set with MAC = ";
     for (int i = 0; i < 6; i++) { std::cout << std::hex << static_cast<int>(internal_mac[i]) << " "; }
     // Create an external dm_device_t instance with different MAC address (non-matching)
-    dm_device_t dev;    
+    dm_device_t dev;
     unsigned char nonmatch_mac[6] = { 0xFF, 0xEE, 0xDD, 0xCC, 0xBB, 0xAA };
-    memcpy(dev.m_device_info.intf.mac, nonmatch_mac, sizeof(nonmatch_mac));    
+    memcpy(dev.m_device_info.intf.mac, nonmatch_mac, sizeof(nonmatch_mac));
     std::cout << "External device created with MAC = ";
     for (int i = 0; i < 6; i++) { std::cout << std::hex << static_cast<int>(nonmatch_mac[i]) << " "; }
     // Invoke find_matching_device
@@ -6170,7 +6213,7 @@ TEST(dm_easy_mesh_t, find_matching_device_non_matching_device)
     else
     {
         std::cout << "Returned device is NULL" << std::endl;
-    }    
+    }
     std::cout << "Exiting find_matching_device_non_matching_device test" << std::endl;
 }
 
@@ -6199,7 +6242,7 @@ TEST(dm_easy_mesh_t, find_matching_device_null_device)
     dm_easy_mesh_t mesh;
     // Setup the internal device with some values
     unsigned char internal_mac[6] = { 0x01, 0x02, 0x03, 0x04, 0x05, 0x06 };
-    memcpy(mesh.m_device.m_device_info.intf.mac, internal_mac, sizeof(internal_mac));    
+    memcpy(mesh.m_device.m_device_info.intf.mac, internal_mac, sizeof(internal_mac));
     std::cout << "Internal device set with MAC = ";
     for (int i = 0; i < 6; i++) { std::cout << std::hex << static_cast<int>(internal_mac[i]) << " "; }
     // Invoke find_matching_device with NULL pointer
@@ -6249,13 +6292,13 @@ TEST(dm_easy_mesh_t, find_matching_radio_ExactMatch)
     // Set stored radio MAC
     memcpy(mesh.m_radio[0].m_radio_info.intf.mac, stored_mac, sizeof(mac_address_t));
     std::cout << "Stored radio MAC set to: ";
-    for (auto b : stored_mac) std::cout << std::hex << (int)b << " ";
+    for (auto b : stored_mac) std::cout << std::hex << static_cast<int>(b) << " ";
     std::cout << std::dec << std::endl;
     // Create input radio
     dm_radio_t inputRadio{};
     memcpy(inputRadio.m_radio_info.intf.mac, stored_mac, sizeof(mac_address_t));
     std::cout << "Input radio MAC set to: ";
-    for (auto b : stored_mac) std::cout << std::hex << (int)b << " ";
+    for (auto b : stored_mac) std::cout << std::hex << static_cast<int>(b) << " ";
     std::cout << std::dec << std::endl;
     std::cout << "Invoking find_matching_radio with input radio pointer" << std::endl;
     dm_radio_t* result = mesh.find_matching_radio(&inputRadio);
@@ -6264,7 +6307,7 @@ TEST(dm_easy_mesh_t, find_matching_radio_ExactMatch)
     {
         std::cout << "Returned radio found. MAC: ";
         for (auto b : result->m_radio_info.intf.mac)
-            std::cout << std::hex << (int)b << " ";
+            std::cout << std::hex << static_cast<int>(b) << " ";
         std::cout << std::dec << std::endl;
         EXPECT_EQ(memcmp(result->m_radio_info.intf.mac, stored_mac, sizeof(mac_address_t)), 0);
     }
@@ -6281,11 +6324,11 @@ TEST(dm_easy_mesh_t, find_matching_radio_ExactMatch)
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 146@n
  * **Priority:** High@n
- * 
+ *
  * **Pre-Conditions:** None@n
  * **Dependencies:** None@n
  * **User Interaction:** None@n
- * 
+ *
  * **Test Procedure:**
  * | Variation / Step | Description                                                          | Test Data                                                                                      | Expected Result                                                       | Notes         |
  * | :--------------: | -------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- | ------------- |
@@ -6404,7 +6447,7 @@ TEST(dm_easy_mesh_t, find_matching_radio_NullInput)
     std::cout << "Entering find_matching_radio_NullInput test" << std::endl;
     dm_easy_mesh_t mesh;
     std::cout << "Invoking find_matching_radio with radio = NULL" << std::endl;
-    dm_radio_t* result = mesh.find_matching_radio(nullptr);    
+    dm_radio_t* result = mesh.find_matching_radio(nullptr);
     EXPECT_EQ(result, nullptr);
     std::cout << "Exiting find_matching_radio_NullInput test" << std::endl;
 }
@@ -6584,9 +6627,9 @@ TEST(dm_easy_mesh_t, find_matching_scan_result_nullptr_id)
 /**
  * @brief Verify that the find_sta API returns a valid station pointer when provided valid MAC addresses.
  *
- * This test initializes a mesh object, populates it with a station entry, converts string MAC addresses into byte arrays, 
- * and finally calls the find_sta API with valid station and BSSID MAC addresses. The test validates that the API correctly 
- * finds the station, resulting in a non-null pointer. This ensures that the station lookup functionality works as expected 
+ * This test initializes a mesh object, populates it with a station entry, converts string MAC addresses into byte arrays,
+ * and finally calls the find_sta API with valid station and BSSID MAC addresses. The test validates that the API correctly
+ * finds the station, resulting in a non-null pointer. This ensures that the station lookup functionality works as expected
  * for valid input data.
  *
  * **Test Group ID:** Basic: 01@n
@@ -6640,7 +6683,7 @@ TEST(dm_easy_mesh_t, find_sta_valid_match)
 /**
  * @brief Validate find_sta behavior when no STA entries are present
  *
- * This test initializes a dm_easy_mesh_t object and attempts to find a station using the find_sta API 
+ * This test initializes a dm_easy_mesh_t object and attempts to find a station using the find_sta API
  * while the STA map is empty. It verifies that the API returns a nullptr, which indicates that no matching STA entry exists.
  *
  * **Test Group ID:** Basic: 01
@@ -6823,11 +6866,11 @@ TEST(dm_easy_mesh_t, find_sta_zero_mac_inputs)
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 158@n
  * **Priority:** High@n
- * 
+ *
  * **Pre-Conditions:** None@n
  * **Dependencies:** None@n
  * **User Interaction:** None@n
- * 
+ *
  * **Test Procedure:**
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
@@ -6892,7 +6935,7 @@ TEST(dm_easy_mesh_t, get_agent_al_interface_valid_AL_interface)
         std::cout << std::hex << static_cast<int>(iface->mac[i]) << " ";
     }
     std::cout << std::dec << std::endl;
-    std::cout << "Retrieved media type: " << iface->media << std::endl;
+    std::cout << "Retrieved media type: " << static_cast<unsigned int>(iface->media) << std::endl;
 
     ASSERT_STREQ(iface->name, validName);
     ASSERT_EQ(std::memcmp(iface->mac, validMac, sizeof(validMac)), 0);
@@ -6934,7 +6977,7 @@ TEST(dm_easy_mesh_t, get_agent_al_interface_not_configured)
         std::cout << std::hex << static_cast<int>(iface->mac[i]) << " ";
     }
     std::cout << std::dec << std::endl;
-    std::cout << "Retrieved media type: " << iface->media << std::endl;
+    std::cout << "Retrieved media type: " << static_cast<unsigned int>(iface->media) << std::endl;
     std::cout << "Exiting " << testName << " test" << std::endl;
 }
 
@@ -6970,7 +7013,7 @@ TEST(dm_easy_mesh_t, get_agent_al_interface_mac_valid_retrieval)
     if(ret_mac)
     {
         std::cout << "Retrieved MAC address bytes: ";
-        for (int i = 0; i < 6; i++) 
+        for (int i = 0; i < 6; i++)
         {
             std::cout << std::hex << static_cast<int>(ret_mac[i]) << " ";
         }
@@ -7002,15 +7045,15 @@ TEST(dm_easy_mesh_t, get_agent_al_interface_mac_valid_retrieval)
  */
 TEST(dm_easy_mesh_t, get_agent_al_interface_name_valid_agent_interface_name)
 {
-    std::cout << "Entering get_agent_al_interface_name_valid_agent_interface_name test" << std::endl;    
+    std::cout << "Entering get_agent_al_interface_name_valid_agent_interface_name test" << std::endl;
     dm_easy_mesh_t mesh;
     memcpy(mesh.m_device.m_device_info.intf.name, "eth0", sizeof("eth0"));
-    std::cout << "Set device interface name to: " << mesh.m_device.m_device_info.intf.name << std::endl;    
+    std::cout << "Set device interface name to: " << mesh.m_device.m_device_info.intf.name << std::endl;
     std::cout << "Invoking get_agent_al_interface_name()" << std::endl;
     char *returnedName = mesh.get_agent_al_interface_name();
-    std::cout << "Method returned: " << (returnedName ? returnedName : "NULL") << std::endl;    
+    std::cout << "Method returned: " << (returnedName ? returnedName : "NULL") << std::endl;
     EXPECT_NE(returnedName, nullptr);
-    EXPECT_STREQ(returnedName, "eth0");    
+    EXPECT_STREQ(returnedName, "eth0");
     std::cout << "Exiting get_agent_al_interface_name_valid_agent_interface_name test" << std::endl;
 }
 
@@ -7035,10 +7078,10 @@ TEST(dm_easy_mesh_t, get_agent_al_interface_name_valid_agent_interface_name)
  */
 TEST(dm_easy_mesh_t, get_agent_al_interface_name_empty_agent_interface_name)
 {
-    std::cout << "Entering get_agent_al_interface_name_empty_agent_interface_name test" << std::endl;   
+    std::cout << "Entering get_agent_al_interface_name_empty_agent_interface_name test" << std::endl;
     dm_easy_mesh_t mesh;
     memcpy(mesh.m_device.m_device_info.intf.name, "", sizeof(""));
-    std::cout << "Set device interface name to an empty string" << std::endl;    
+    std::cout << "Set device interface name to an empty string" << std::endl;
     std::cout << "Invoking get_agent_al_interface_name()" << std::endl;
     char *returnedName = mesh.get_agent_al_interface_name();
     if(returnedName)
@@ -7048,9 +7091,9 @@ TEST(dm_easy_mesh_t, get_agent_al_interface_name_empty_agent_interface_name)
     else
     {
         std::cout << "Method returned: NULL" << std::endl;
-    }    
+    }
     EXPECT_NE(returnedName, nullptr);
-    EXPECT_STREQ(returnedName, "");    
+    EXPECT_STREQ(returnedName, "");
     std::cout << "Exiting get_agent_al_interface_name_empty_agent_interface_name test" << std::endl;
 }
 
@@ -7063,11 +7106,11 @@ TEST(dm_easy_mesh_t, get_agent_al_interface_name_empty_agent_interface_name)
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 164@n
  * **Priority:** High@n
- * 
+ *
  * **Pre-Conditions:** None@n
  * **Dependencies:** None@n
  * **User Interaction:** None@n
- * 
+ *
  * **Test Procedure:**@n
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
@@ -7075,7 +7118,7 @@ TEST(dm_easy_mesh_t, get_agent_al_interface_name_empty_agent_interface_name)
  */
 TEST(dm_easy_mesh_t, get_ap_mld_valid_index_zero_configured)
 {
-    std::cout << "Entering get_ap_mld_valid_index_zero_configured test" << std::endl;    
+    std::cout << "Entering get_ap_mld_valid_index_zero_configured test" << std::endl;
     dm_easy_mesh_t meshObj;
     meshObj.m_num_ap_mld = 1;
     meshObj.m_ap_mld[0].m_ap_mld_info.mac_addr_valid = true;
@@ -7098,7 +7141,7 @@ TEST(dm_easy_mesh_t, get_ap_mld_valid_index_zero_configured)
 		for (size_t i = 0; i < sizeof(valid_mac); ++i) {
             EXPECT_EQ(info->mac_addr[i], valid_mac[i]);
         }
-    }    
+    }
     EXPECT_NE(apMldPtr, nullptr);
     std::cout << "Exiting get_ap_mld_valid_index_zero_configured test" << std::endl;
 }
@@ -7123,9 +7166,9 @@ TEST(dm_easy_mesh_t, get_ap_mld_valid_index_zero_configured)
  */
 TEST(dm_easy_mesh_t, get_ap_mld_valid_index_zero_no_ap_configured)
 {
-    std::cout << "Entering get_ap_mld_valid_index_zero_no_ap_configured test" << std::endl;    
+    std::cout << "Entering get_ap_mld_valid_index_zero_no_ap_configured test" << std::endl;
     dm_easy_mesh_t meshObj;
-    meshObj.m_num_ap_mld = 0;    
+    meshObj.m_num_ap_mld = 0;
     unsigned int index = 0;
     std::cout << "Invoking get_ap_mld with index = " << index << std::endl;
     dm_ap_mld_t* apMldPtr = meshObj.get_ap_mld(index);
@@ -7137,7 +7180,7 @@ TEST(dm_easy_mesh_t, get_ap_mld_valid_index_zero_no_ap_configured)
 		std::cout << "str = " << info->str << std::endl;
 		std::cout << "emlsr = " << info->emlsr << std::endl;
 		std::cout << "ssid = " << info->ssid << std::endl;
-    }    
+    }
     EXPECT_NE(apMldPtr, nullptr);
     std::cout << "Exiting get_ap_mld_valid_index_zero_no_ap_configured test" << std::endl;
 }
@@ -7162,7 +7205,7 @@ TEST(dm_easy_mesh_t, get_ap_mld_valid_index_zero_no_ap_configured)
  */
 TEST(dm_easy_mesh_t, get_ap_mld_index_out_of_range)
 {
-    std::cout << "Entering get_ap_mld_index_out_of_range test" << std::endl;    
+    std::cout << "Entering get_ap_mld_index_out_of_range test" << std::endl;
     dm_easy_mesh_t meshObj;
     meshObj.m_num_ap_mld = 2;
     meshObj.m_ap_mld[3].m_ap_mld_info.mac_addr_valid = true;
@@ -7170,7 +7213,7 @@ TEST(dm_easy_mesh_t, get_ap_mld_index_out_of_range)
     meshObj.m_ap_mld[3].m_ap_mld_info.emlsr = true;
     memcpy(meshObj.m_ap_mld[3].m_ap_mld_info.ssid, "TestSSID", sizeof("TestSSID"));
     unsigned char valid_mac[] = {0x10, 0x11, 0x23, 0x3D, 0x4D, 0x5E};
-    memcpy(meshObj.m_ap_mld[3].m_ap_mld_info.mac_addr, valid_mac, sizeof(valid_mac));    
+    memcpy(meshObj.m_ap_mld[3].m_ap_mld_info.mac_addr, valid_mac, sizeof(valid_mac));
     unsigned int index = 4;
     std::cout << "Invoking get_ap_mld with index = " << index << std::endl;
     dm_ap_mld_t* apMldPtr = meshObj.get_ap_mld(index);
@@ -7273,11 +7316,11 @@ TEST(dm_easy_mesh_t, get_ap_mld_by_ref_valid_index_zero_no_ap_configured)
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 169@n
  * **Priority:** High@n
- * 
+ *
  * **Pre-Conditions:** None@n
  * **Dependencies:** None@n
  * **User Interaction:** None@n
- * 
+ *
  * **Test Procedure:**@n
  * | Variation / Step | Description                                                                                                | Test Data                                                                                                                                                                                                                                                                                   | Expected Result                                                                                                       | Notes      |
  * | :--------------: | ---------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- | ---------- |
@@ -7293,7 +7336,7 @@ TEST(dm_easy_mesh_t, get_ap_mld_by_ref_index_out_of_range)
     meshObj.m_ap_mld[3].m_ap_mld_info.emlsr = true;
     memcpy(meshObj.m_ap_mld[3].m_ap_mld_info.ssid, "TestSSID", sizeof("TestSSID"));
     unsigned char valid_mac[] = {0x10, 0x11, 0x23, 0x3D, 0x4D, 0x5E};
-    memcpy(meshObj.m_ap_mld[3].m_ap_mld_info.mac_addr, valid_mac, sizeof(valid_mac));    
+    memcpy(meshObj.m_ap_mld[3].m_ap_mld_info.mac_addr, valid_mac, sizeof(valid_mac));
     unsigned int index = 4;
     std::cout << "Invoking get_ap_mld with index = " << index << std::endl;
     dm_ap_mld_t& apMldRef = meshObj.get_ap_mld_by_ref(index);
@@ -7498,11 +7541,11 @@ TEST(dm_easy_mesh_t, static_get_ap_mld_frm_bssid_valid_match)
  * **Test Group ID:** Basic: 01
  * **Test Case ID:** 175@n
  * **Priority:** High
- * 
+ *
  * **Pre-Conditions:** None
  * **Dependencies:** None
  * **User Interaction:** None
- * 
+ *
  * **Test Procedure:**
  * | Variation / Step | Description                                                                                      | Test Data                                                                                     | Expected Result                                          | Notes       |
  * | :---------------:| ------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------- | -------------------------------------------------------- | ----------- |
@@ -7621,8 +7664,8 @@ TEST(dm_easy_mesh_t, static_get_ap_mld_frm_bssid_null_bssid)
 /**
  * @brief Validate get_backhaul_bss_info() returns correct backhaul BSS info when configured properly
  *
- * This test verifies that when a BSS with backhaul configuration and its matching radio are properly set up, the 
- * get_backhaul_bss_info() API returns the correct BSS information. It checks that the returned pointer is not null and 
+ * This test verifies that when a BSS with backhaul configuration and its matching radio are properly set up, the
+ * get_backhaul_bss_info() API returns the correct BSS information. It checks that the returned pointer is not null and
  * that the BSS's haul type and enabled flag are as expected.
  *
  * **Test Group ID:** Basic: 01@n
@@ -7677,11 +7720,11 @@ TEST(dm_easy_mesh_t, get_backhaul_bss_info_valid_backhaul_bss_exists)
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 180@n
  * **Priority:** High@n
- * 
+ *
  * **Pre-Conditions:** None@n
  * **Dependencies:** None@n
  * **User Interaction:** None@n
- * 
+ *
  * **Test Procedure:**@n
  * | Variation / Step | Description                                                             | Test Data                         | Expected Result                                                        | Notes       |
  * | :--------------: | ----------------------------------------------------------------------- | --------------------------------- | ---------------------------------------------------------------------- | ----------- |
@@ -7941,11 +7984,11 @@ TEST(dm_easy_mesh_t, get_bss_invalid_bss_mac)
  * **Test Group ID:** Basic: 01
  * **Test Case ID:** 187@n
  * **Priority:** High
- * 
+ *
  * **Pre-Conditions:** None
  * **Dependencies:** None
  * **User Interaction:** None
- * 
+ *
  * **Test Procedure:**
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
@@ -8381,11 +8424,11 @@ TEST(dm_easy_mesh_t, get_bss_info_valid_last_index)
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 200@n
  * **Priority:** High@n
- * 
+ *
  * **Pre-Conditions:** None@n
  * **Dependencies:** None@n
  * **User Interaction:** None@n
- * 
+ *
  * **Test Procedure:**
  * | Variation / Step | Description                                                      | Test Data                                             | Expected Result                                                               | Notes         |
  * | :--------------: | ---------------------------------------------------------------- | ----------------------------------------------------- | ----------------------------------------------------------------------------- | ------------- |
@@ -8483,11 +8526,11 @@ TEST(dm_easy_mesh_t, static_get_bss_info_valid_high_index)
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 203@n
  * **Priority:** High@n
- * 
+ *
  * **Pre-Conditions:** None@n
  * **Dependencies:** None@n
  * **User Interaction:** None@n
- * 
+ *
  * **Test Procedure:**
  * | Variation / Step | Description                                                     | Test Data                                               | Expected Result                                               | Notes       |
  * | :---------------: | --------------------------------------------------------------- | ------------------------------------------------------- | ------------------------------------------------------------- | ----------- |
@@ -8499,15 +8542,15 @@ TEST(dm_easy_mesh_t, static_get_bss_info_null_dm_pointer)
     void* dm = nullptr;
     std::cout << "Invoking static get_bss_info with nullptr dm" << std::endl;
     em_bss_info_t* info = dm_easy_mesh_t::get_bss_info(dm, 0);
-	EXPECT_NE(info, nullptr);
+	EXPECT_EQ(info, nullptr);
     std::cout << "Exiting static_get_bss_info_null_dm_pointer test" << std::endl;
 }
 
 /**
  * @brief Verify that get_bss_info_with_mac returns the correct BSS information for a valid MAC address.
  *
- * This test validates that when a valid MAC address is provided to the get_bss_info_with_mac API of the dm_easy_mesh_t class, 
- * it appropriately returns a pointer to the corresponding BSS info structure containing the matching MAC address. This ensures the lookup 
+ * This test validates that when a valid MAC address is provided to the get_bss_info_with_mac API of the dm_easy_mesh_t class,
+ * it appropriately returns a pointer to the corresponding BSS info structure containing the matching MAC address. This ensures the lookup
  * functionality is working as expected for valid inputs.
  *
  * **Test Group ID:** Basic: 01
@@ -8548,9 +8591,9 @@ TEST(dm_easy_mesh_t, get_bss_info_with_mac_valid_mac)
 /**
  * @brief Verify that get_bss_info_with_mac returns nullptr when provided with an invalid MAC address
  *
- * This test sets up a mesh with one BSS entry having a valid MAC address. It then attempts to retrieve 
- * the BSS information using an invalid MAC address that does not match the stored entry. This ensures 
- * that the API correctly handles cases where the requested MAC address is not present and returns a 
+ * This test sets up a mesh with one BSS entry having a valid MAC address. It then attempts to retrieve
+ * the BSS information using an invalid MAC address that does not match the stored entry. This ensures
+ * that the API correctly handles cases where the requested MAC address is not present and returns a
  * nullptr.
  *
  * **Test Group ID:** Basic: 01@n
@@ -8589,7 +8632,7 @@ TEST(dm_easy_mesh_t, get_bss_info_with_mac_invalid_mac)
 /**
  * @brief Validate that get_bss_info_with_mac returns nullptr when no BSS is configured.
  *
- * This test verifies that when the dm_easy_mesh_t instance has zero BSS configured, calling the API 
+ * This test verifies that when the dm_easy_mesh_t instance has zero BSS configured, calling the API
  * get_bss_info_with_mac with a valid MAC address returns a nullptr. This ensures that the function
  * correctly handles and returns a null pointer when no corresponding BSS is available.
  *
@@ -8654,7 +8697,7 @@ TEST(dm_easy_mesh_t, static_get_bss_info_with_mac_valid_mac)
     dm_easy_mesh_t mesh{};
     mesh.m_num_bss = 2;
 	unsigned char mac0[6] = {0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0x01};
-	unsigned char mac1[6] = {0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0x02};    
+	unsigned char mac1[6] = {0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0x02};
     memcpy(mesh.m_bss[0].m_bss_info.bssid.mac, mac0, sizeof(mac_address_t));
     memcpy(mesh.m_bss[1].m_bss_info.bssid.mac, mac1, sizeof(mac_address_t));
     std::cout << "Searching for MAC: ";
@@ -8698,7 +8741,7 @@ TEST(dm_easy_mesh_t, static_get_bss_info_with_mac_invalid_mac)
 	unsigned char existing_mac[6] = {0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0x01};
 	unsigned char search_mac[6] = {0x11, 0x22, 0x33, 0x44, 0x55, 0x66};
     memcpy(mesh.m_bss[0].m_bss_info.bssid.mac, existing_mac, sizeof(mac_address_t));
-    std::cout << "Searching for MAC: ";	
+    std::cout << "Searching for MAC: ";
 	for (int i = 0; i < 6; ++i) {
         printf("%02X", search_mac[i]);
         if (i != 5) printf(":");
@@ -8735,7 +8778,7 @@ TEST(dm_easy_mesh_t, static_get_bss_info_with_mac_no_bss_configured)
     dm_easy_mesh_t mesh{};
     mesh.m_num_bss = 0;
 	unsigned char search_mac[6] = {0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF};
-    std::cout << "Searching for MAC: ";	
+    std::cout << "Searching for MAC: ";
 	for (int i = 0; i < 6; ++i) {
         printf("%02X", search_mac[i]);
         if (i != 5) printf(":");
@@ -8864,7 +8907,7 @@ TEST(dm_easy_mesh_t, get_bsta_bss_info_no_bss_configured)
 /**
  * @brief Tests get_bsta_bss_info API for non-backhaul BSS configuration
  *
- * This test verifies that when a BSS is configured with fronthaul type and STA mode in the dm_easy_mesh_t instance, 
+ * This test verifies that when a BSS is configured with fronthaul type and STA mode in the dm_easy_mesh_t instance,
  * the get_bsta_bss_info function returns a null pointer, indicating that there is no backhaul BSS.
  *
  * **Test Group ID:** Basic: 01@n
@@ -8897,8 +8940,8 @@ TEST(dm_easy_mesh_t, get_bsta_bss_info_not_backhaul)
 /**
  * @brief Test the get_bsta_bss_info API for non-STA mode BSS configuration
  *
- * This test verifies that when a BSS is configured with AP mode and backhaul settings (non-STA mode), 
- * the get_bsta_bss_info API returns a null pointer. This ensures that the API correctly identifies that 
+ * This test verifies that when a BSS is configured with AP mode and backhaul settings (non-STA mode),
+ * the get_bsta_bss_info API returns a null pointer. This ensures that the API correctly identifies that
  * there is no BSTA BSS info available for non-STA mode.
  *
  * **Test Group ID:** Basic: 01@n
@@ -8930,9 +8973,9 @@ TEST(dm_easy_mesh_t, get_bsta_bss_info_not_sta_mode)
 /**
  * @brief Verify that get_bsta_bss_info returns nullptr when no radios are available
  *
- * This test verifies that when the dm_easy_mesh_t object is configured with one BSS and zero radios, 
- * the get_bsta_bss_info API returns a nullptr. The test sets the BSS parameters, including haul type, VAP mode, 
- * and enabled flag, then asserts that the output is nullptr because the absence of radios should prevent retrieval 
+ * This test verifies that when the dm_easy_mesh_t object is configured with one BSS and zero radios,
+ * the get_bsta_bss_info API returns a nullptr. The test sets the BSS parameters, including haul type, VAP mode,
+ * and enabled flag, then asserts that the output is nullptr because the absence of radios should prevent retrieval
  * of the BSTA BSS info.
  *
  * **Test Group ID:** Basic: 01@n
@@ -9078,8 +9121,8 @@ TEST(dm_easy_mesh_t, get_freq_band_by_op_class_all_valid_cases)
     test_vector_t test_vectors[] = {
         { 81,  em_freq_band_24, "2.4GHz operating class" },
         { 115, em_freq_band_5,  "5GHz operating class" },
-        { 131, em_freq_band_60, "60GHz operating class" },
-        { 136, em_freq_band_60, "Last table entry operating class" }
+        { 131, em_freq_band_6,  "6GHz operating class" },
+        { 136, em_freq_band_6,  "Last table entry operating class" }
     };
     for (const auto& tv : test_vectors) {
         std::cout << "Invoking get_freq_band_by_op_class for "
@@ -9232,11 +9275,11 @@ TEST(dm_easy_mesh_t, get_cmd_ctx_valid_pointer_and_data_access)
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 223@n
  * **Priority:** High@n
- * 
+ *
  * **Pre-Conditions:** None@n
  * **Dependencies:** None@n
  * **User Interaction:** None@n
- * 
+ *
  * **Test Procedure:**@n
  * | Variation / Step | Description | Test Data | Expected Result | Notes |@n
  * | :----: | --------- | ---------- |-------------- | ----- |@n
@@ -9253,7 +9296,7 @@ TEST(dm_easy_mesh_t, get_cmd_ctx_default_instance)
     ASSERT_NE(ctx, nullptr);
     std::cout << "Retrieved values are: " << std::endl;
     std::cout << "ctx->arr_index = " << ctx->arr_index << std::endl;
-    std::cout << "ctx->type = " << ctx->type << std::endl;
+    std::cout << "ctx->type = " << static_cast<unsigned int>(ctx->type) << std::endl;
     std::cout << "ctx->obj_id = " << ctx->obj_id << std::endl;
     std::cout << "Exiting " << testName << std::endl;
 }
@@ -9287,14 +9330,14 @@ TEST(dm_easy_mesh_t, get_colocated_returns_true)
     std::cout << "Invoking get_colocated() method" << std::endl;
     bool result = mesh.get_colocated();
     std::cout << "get_colocated() returned: " << std::boolalpha << result << std::endl;
-    ASSERT_TRUE(result);    
+    ASSERT_TRUE(result);
     std::cout << "Exiting get_colocated_returns_true test" << std::endl;
 }
 
 /**
  * @brief Verifies that the get_colocated() method returns its expected default value.
  *
- * This test checks that a default-constructed dm_easy_mesh_t object returns the correct boolean value 
+ * This test checks that a default-constructed dm_easy_mesh_t object returns the correct boolean value
  * when get_colocated() is invoked. It ensures that the object's default state is properly initialized.
  *
  * **Test Group ID:** Basic: 01
@@ -9328,11 +9371,11 @@ TEST(dm_easy_mesh_t, get_colocated_default_return)
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 226@n
  * **Priority:** High@n
- * 
+ *
  * **Pre-Conditions:** None@n
  * **Dependencies:** None@n
  * **User Interaction:** None@n
- * 
+ *
  * **Test Procedure:**
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
@@ -9387,7 +9430,7 @@ TEST(dm_easy_mesh_t, get_controller_interface_default_instance)
     em_interface_t* iface = mesh.get_controller_interface();
     ASSERT_NE(iface, nullptr);
     std::cout << "Interface name: " << iface->name << std::endl;
-    std::cout << "Interface media type: " << iface->media << std::endl;
+    std::cout << "Interface media type: " << static_cast<unsigned int>(iface->media) << std::endl;
     std::cout << "Interface MAC: ";
     for (size_t i = 0; i < sizeof(mac_address_t); ++i) {
         printf("%02X", iface->mac[i]);
@@ -9516,7 +9559,7 @@ TEST(dm_easy_mesh_t, get_ctl_mac_default_instance)
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 231@n
  * **Priority:** High@n
- * 
+ *
  * **Pre-Conditions:** None@n
  * **Dependencies:** None@n
  * **User Interaction:** None@n
@@ -9572,7 +9615,7 @@ TEST(dm_easy_mesh_t, get_ctrl_al_interface_default_instance)
     std::cout << "Invoking get_ctrl_al_interface()" << std::endl;
     em_interface_t* iface = mesh.get_ctrl_al_interface();
     ASSERT_NE(iface, nullptr);
-	
+
     std::cout << "Interface name: " << iface->name << std::endl;
     std::cout << "Interface MAC: ";
     for (int i = 0; i < 6; i++) {
@@ -9586,18 +9629,18 @@ TEST(dm_easy_mesh_t, get_ctrl_al_interface_default_instance)
 /**
  * @brief Validate that the control AL interface is properly configured.
  *
- * This test verifies that when the mesh object is initialized with a specific agent name, MAC address, and media type, 
- * the control AL interface returned by get_ctrl_al_interface() reflects these settings. The test ensures that the API correctly 
+ * This test verifies that when the mesh object is initialized with a specific agent name, MAC address, and media type,
+ * the control AL interface returned by get_ctrl_al_interface() reflects these settings. The test ensures that the API correctly
  * maps the configured network information to the interface structure, and that the interface pointer returned is not null.
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 233@n
  * **Priority:** High@n
- * 
+ *
  * **Pre-Conditions:** None@n
  * **Dependencies:** None@n
  * **User Interaction:** None@n
- * 
+ *
  * **Test Procedure:**
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :--------------: | ----------- | --------- | --------------- | ----- |
@@ -9613,10 +9656,10 @@ TEST(dm_easy_mesh_t, get_ctrl_al_interface_default_instance)
 TEST(dm_easy_mesh_t, get_ctrl_al_interface_configured)
 {
     dm_easy_mesh_t mesh;
-    strcpy(mesh.m_network.m_net_info.colocated_agent_id.name, "ca0");
+    strcpy(mesh.m_network.m_net_info.ctrl_id.name, "ca0");
     unsigned char mac[6] = {0x10, 0x11, 0x22, 0x33, 0x44, 0x55};
-    memcpy(mesh.m_network.m_net_info.colocated_agent_id.mac, mac, 6);
-    mesh.m_network.m_net_info.colocated_agent_id.media = em_media_type_ieee80211b_24;
+    memcpy(mesh.m_network.m_net_info.ctrl_id.mac, mac, 6);
+    mesh.m_network.m_net_info.ctrl_id.media = em_media_type_ieee80211b_24;
     em_interface_t* iface = mesh.get_ctrl_al_interface();
     ASSERT_NE(iface, nullptr);
     EXPECT_STREQ(iface->name, "ca0");
@@ -9655,7 +9698,7 @@ TEST(dm_easy_mesh_t, get_ctrl_al_interface_mac_configured)
     std::cout << "Entering " << testName << std::endl;
     dm_easy_mesh_t mesh;
     unsigned char expected_mac[6] = {0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF};
-    memcpy(mesh.m_network.m_net_info.colocated_agent_id.mac, expected_mac, 6);
+    memcpy(mesh.m_network.m_net_info.ctrl_id.mac, expected_mac, 6);
     std::cout << "Invoking get_ctrl_al_interface_mac()" << std::endl;
     unsigned char* mac = mesh.get_ctrl_al_interface_mac();
     ASSERT_NE(mac, nullptr);
@@ -9692,7 +9735,7 @@ TEST(dm_easy_mesh_t, get_ctrl_al_interface_mac_default_instance)
 {
     const char* testName = "get_ctrl_al_interface_mac_default_instance";
     std::cout << "Entering " << testName << std::endl;
-    dm_easy_mesh_t mesh{};    
+    dm_easy_mesh_t mesh{};
     std::cout << "Invoking get_ctrl_al_interface_mac()" << std::endl;
     unsigned char* mac = mesh.get_ctrl_al_interface_mac();
     ASSERT_NE(mac, nullptr);
@@ -9714,11 +9757,11 @@ TEST(dm_easy_mesh_t, get_ctrl_al_interface_mac_default_instance)
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 236@n
  * **Priority:** High@n
- * 
+ *
  * **Pre-Conditions:** None@n
  * **Dependencies:** None@n
  * **User Interaction:** None@n
- * 
+ *
  * **Test Procedure:**
  * | Variation / Step | Description                                                                              | Test Data                                                                                                 | Expected Result                                                     | Notes          |
  * | :--------------: | ---------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- | -------------- |
@@ -9750,8 +9793,8 @@ TEST(dm_easy_mesh_t, get_ctrl_al_interface_mac_zero_mac)
 /**
  * @brief Verify that the get_ctrl_al_interface_name() method returns the correct configured AL interface name
  *
- * This test ensures that when the dm_easy_mesh_t object is configured with the control AL interface name "al0", 
- * the get_ctrl_al_interface_name() method retrieves and returns this name correctly. The test validates that the 
+ * This test ensures that when the dm_easy_mesh_t object is configured with the control AL interface name "al0",
+ * the get_ctrl_al_interface_name() method retrieves and returns this name correctly. The test validates that the
  * returned pointer is not null and compares the returned string to the expected value "al0".
  *
  * **Test Group ID:** Basic: 01@n
@@ -9772,12 +9815,12 @@ TEST(dm_easy_mesh_t, get_ctrl_al_interface_name_configured)
     const char* testName = "get_ctrl_al_interface_name_configured";
     std::cout << "Entering " << testName << std::endl;
     dm_easy_mesh_t mesh;
-    strcpy(mesh.m_network.m_net_info.colocated_agent_id.name, "al0");
+    strcpy(mesh.m_network.m_net_info.ctrl_id.name, "al0");
     std::cout << "Invoking get_ctrl_al_interface_name()" << std::endl;
     char* name = mesh.get_ctrl_al_interface_name();
     ASSERT_NE(name, nullptr);
 	std::cout << "Returned AL interface name: " << name << std::endl;
-    EXPECT_STREQ(name, "al0");    
+    EXPECT_STREQ(name, "al0");
     std::cout << "Exiting " << testName << std::endl;
 }
 
@@ -9790,11 +9833,11 @@ TEST(dm_easy_mesh_t, get_ctrl_al_interface_name_configured)
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 238@n
  * **Priority:** High@n
- * 
+ *
  * **Pre-Conditions:** None@n
  * **Dependencies:** None@n
  * **User Interaction:** None@n
- * 
+ *
  * **Test Procedure:**
  * | Variation / Step | Description                                                      | Test Data                                                       | Expected Result                                                    | Notes       |
  * | :--------------: | ---------------------------------------------------------------- | --------------------------------------------------------------- | ------------------------------------------------------------------ | ----------- |
@@ -9822,11 +9865,11 @@ TEST(dm_easy_mesh_t, get_ctrl_al_interface_name_default_instance)
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 239@n
  * **Priority:** High@n
- * 
+ *
  * **Pre-Conditions:** None@n
  * **Dependencies:** None@n
  * **User Interaction:** None@n
- * 
+ *
  * **Test Procedure:**@n
  * | Variation / Step | Description                                                                               | Test Data                                                              | Expected Result                                                 | Notes         |
  * | :--------------: | ----------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- | --------------------------------------------------------------- | ------------- |
@@ -9894,7 +9937,7 @@ TEST(dm_easy_mesh_t, get_curr_op_class_valid_default)
     for(int i=0; i<6; i++)
         printf("%02X", op->m_op_class_info.id.ruid[i]);
     std::cout << std::endl;
-    std::cout << "type: " << op->m_op_class_info.id.type << std::endl;
+    std::cout << "type: " << static_cast<unsigned int>(op->m_op_class_info.id.type) << std::endl;
 	std::cout << "Exiting " << testName << std::endl;
 }
 
@@ -9913,7 +9956,7 @@ TEST(dm_easy_mesh_t, get_curr_op_class_valid_default)
  * **Dependencies:** None@n
  * **User Interaction:** None@n
  *
- * **Test Procedure:** 
+ * **Test Procedure:**
  * | Variation / Step | Description                                                     | Test Data                                                                                                                                                                                                                                    | Expected Result                                                        | Notes          |
  * | :--------------: | ----------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- | -------------- |
  * | 01               | Configure op class entry directly in the mesh structure           | index = 1, op_class_info: { op_class = 116, channel = 44, tx_power = 20, max_tx_power = 30, num_channels = 3, channels = [36,40,44], mins_since_cac_comp = 5, sec_remain_non_occ_dur = 60, countdown_cac_comp = 100, ruid = {0x10,0x11,0x22,0x33,0x44,0x5E}, type = em_op_class_type_current } | Configuration is stored correctly in the mesh object                   | Should be successful |
@@ -9962,7 +10005,7 @@ TEST(dm_easy_mesh_t, get_curr_op_class_valid_configured)
     for (int i = 0; i < 6; i++)
         printf("%02X", ret_op->m_op_class_info.id.ruid[i]);
     std::cout << std::endl;
-    std::cout << "type: " << ret_op->m_op_class_info.id.type << std::endl;
+    std::cout << "type: " << static_cast<unsigned int>(ret_op->m_op_class_info.id.type) << std::endl;
     std::cout << "Exiting " << testName << std::endl;
 }
 
@@ -10006,11 +10049,11 @@ TEST(dm_easy_mesh_t, get_curr_op_class_invalid_index)
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 243@n
  * **Priority:** High@n
- * 
+ *
  * **Pre-Conditions:** None@n
  * **Dependencies:** None@n
  * **User Interaction:** None@n
- * 
+ *
  * **Test Procedure:**
  * | Variation / Step | Description                                                                                   | Test Data                                                                                      | Expected Result                                                    | Notes               |
  * | :--------------: | --------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- | ------------------- |
@@ -10047,11 +10090,11 @@ TEST(dm_easy_mesh_t, get_device_default)
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 244@n
  * **Priority:** High@n
- * 
+ *
  * **Pre-Conditions:** None@n
  * **Dependencies:** None@n
  * **User Interaction:** None@n
- * 
+ *
  * **Test Procedure:**@n
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
@@ -10081,9 +10124,9 @@ TEST(dm_easy_mesh_t, get_device_configured)
 /**
  * @brief Validate the default behavior of get_device_by_ref() API
  *
- * This test verifies that when a dm_easy_mesh_t instance is created with default settings, 
- * invoking the get_device_by_ref() method returns a valid device reference, and the associated 
- * device information (em_device_info_t) is accessible. The test prints various device fields to 
+ * This test verifies that when a dm_easy_mesh_t instance is created with default settings,
+ * invoking the get_device_by_ref() method returns a valid device reference, and the associated
+ * device information (em_device_info_t) is accessible. The test prints various device fields to
  * the console to ensure that the data structure is properly initialized.
  *
  * **Test Group ID:** Basic: 01@n
@@ -10187,7 +10230,7 @@ TEST(dm_easy_mesh_t, get_device_by_ref_configured)
  * **Dependencies:** None@n
  * **User Interaction:** None@n
  *
- * **Test Procedure:**  
+ * **Test Procedure:**
  * | Variation / Step | Description                                                              | Test Data                                                       | Expected Result                                    | Notes              |
  * | :--------------: | ------------------------------------------------------------------------ | --------------------------------------------------------------- | -------------------------------------------------- | ------------------ |
  * | 01               | Instantiate dm_easy_mesh_t and log entry information                     | Object creation: dm_easy_mesh_t dm{}                             | Instance is created successfully                   | Should be successful |
@@ -10199,20 +10242,20 @@ TEST(dm_easy_mesh_t, get_device_info_instance_default) {
     std::cout << "Entering get_device_info_instance_default test" << std::endl;
     dm_easy_mesh_t dm{};
     std::cout << "Invoking instance method get_device_info()" << std::endl;
-    em_device_info_t* device_info = dm.get_device_info();    
-    ASSERT_NE(device_info, nullptr);      
+    em_device_info_t* device_info = dm.get_device_info();
+    ASSERT_NE(device_info, nullptr);
     std::cout << "Device Manufacturer: " << device_info->manufacturer << std::endl;
     std::cout << "Device Serial Number: " << device_info->serial_number << std::endl;
     std::cout << "Device Model: " << device_info->manufacturer_model << std::endl;
-    std::cout << "Software Version: " << device_info->software_ver << std::endl;   
+    std::cout << "Software Version: " << device_info->software_ver << std::endl;
     std::cout << "Exiting get_device_info_instance_default test" << std::endl;
 }
 
 /**
  * @brief Verify that get_device_info() method returns the correct device information configured in the dm_easy_mesh_t instance
  *
- * This test sets specific device information values (manufacturer, software version, serial number, and manufacturer model) 
- * in a dm_easy_mesh_t instance. It then retrieves the device information using get_device_info() and asserts that the returned 
+ * This test sets specific device information values (manufacturer, software version, serial number, and manufacturer model)
+ * in a dm_easy_mesh_t instance. It then retrieves the device information using get_device_info() and asserts that the returned
  * data matches the configured values. This ensures that the API correctly reflects the internal state of the device.
  *
  * **Test Group ID:** Basic: 01
@@ -10237,10 +10280,10 @@ TEST(dm_easy_mesh_t, get_device_info_instance_configured) {
 	memcpy(dm.m_device.m_device_info.manufacturer, "TestManufacturer", strlen("TestManufacturer") + 1);
     memcpy(dm.m_device.m_device_info.software_ver, "1.0.0", strlen("1.0.0") + 1);
     memcpy(dm.m_device.m_device_info.serial_number, "123456789", strlen("123456789") + 1);
-	memcpy(dm.m_device.m_device_info.manufacturer_model, "Model123", strlen("Model123") + 1);	
+	memcpy(dm.m_device.m_device_info.manufacturer_model, "Model123", strlen("Model123") + 1);
     std::cout << "Invoking instance method get_device_info() with configured values" << std::endl;
-    em_device_info_t* device_info = dm.get_device_info();    
-    ASSERT_NE(device_info, nullptr);      
+    em_device_info_t* device_info = dm.get_device_info();
+    ASSERT_NE(device_info, nullptr);
     std::cout << "Device Manufacturer: " << device_info->manufacturer << std::endl;
     std::cout << "Device Serial Number: " << device_info->serial_number << std::endl;
     std::cout << "Device Model: " << device_info->manufacturer_model << std::endl;
@@ -10260,11 +10303,11 @@ TEST(dm_easy_mesh_t, get_device_info_instance_configured) {
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 249@n
  * **Priority:** High@n
- * 
+ *
  * **Pre-Conditions:** None@n
  * **Dependencies:** None@n
  * **User Interaction:** None@n
- * 
+ *
  * **Test Procedure:**
  * | Variation / Step | Description                                                       | Test Data                                                                          | Expected Result                              | Notes         |
  * | :--------------: | ----------------------------------------------------------------- | ---------------------------------------------------------------------------------- | -------------------------------------------- | ------------- |
@@ -10276,7 +10319,7 @@ TEST(dm_easy_mesh_t, get_device_info_1_instance_default) {
     std::cout << "Entering get_device_info_1_instance_default test" << std::endl;
     dm_easy_mesh_t dm{};
     std::cout << "Invoking static get_device_info() on default instance" << std::endl;
-    em_device_info_t* device_info = dm_easy_mesh_t::get_device_info(&dm);    
+    em_device_info_t* device_info = dm_easy_mesh_t::get_device_info(&dm);
     ASSERT_NE(device_info, nullptr);
     std::cout << "Device Manufacturer: " << device_info->manufacturer << std::endl;
     std::cout << "Device Serial Number: " << device_info->serial_number << std::endl;
@@ -10294,11 +10337,11 @@ TEST(dm_easy_mesh_t, get_device_info_1_instance_default) {
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 250@n
  * **Priority:** High@n
- * 
+ *
  * **Pre-Conditions:** None@n
  * **Dependencies:** None@n
  * **User Interaction:** None@n
- * 
+ *
  * **Test Procedure:**
  * | Variation / Step | Description                                                                 | Test Data                                                                                                           | Expected Result                                                             | Notes         |
  * | :--------------: | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- | ------------- |
@@ -10315,7 +10358,7 @@ TEST(dm_easy_mesh_t, get_device_info_1_instance_configured) {
     memcpy(dm.m_device.m_device_info.serial_number, "123456789", strlen("123456789") + 1);
     memcpy(dm.m_device.m_device_info.manufacturer_model, "Model123", strlen("Model123") + 1);
     std::cout << "Invoking static get_device_info() with configured values" << std::endl;
-    em_device_info_t* device_info = dm_easy_mesh_t::get_device_info(&dm);    
+    em_device_info_t* device_info = dm_easy_mesh_t::get_device_info(&dm);
     ASSERT_NE(device_info, nullptr);
     std::cout << "Device Manufacturer: " << device_info->manufacturer << std::endl;
     std::cout << "Device Serial Number: " << device_info->serial_number << std::endl;
@@ -10338,11 +10381,11 @@ TEST(dm_easy_mesh_t, get_device_info_1_instance_configured) {
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 251@n
  * **Priority:** High@n
- * 
+ *
  * **Pre-Conditions:** None@n
  * **Dependencies:** None@n
  * **User Interaction:** None@n
- * 
+ *
  * **Test Procedure:**@n
  * | Variation / Step | Description                                                               | Test Data                                           | Expected Result                                             | Notes            |
  * | :---------------:| ------------------------------------------------------------------------- | --------------------------------------------------- | ------------------------------------------------------------| -----------------|
@@ -10356,12 +10399,12 @@ TEST(dm_easy_mesh_t, get_device_info_null_dm_returns_nullptr) {
     std::cout << "Entering get_device_info_null_dm_returns_nullptr test" << std::endl;
     std::cout << "Invoking get_device_info with dm pointer: nullptr" << std::endl;
     em_device_info_t* deviceInfo = dm_easy_mesh_t::get_device_info(nullptr);
-    EXPECT_EQ(deviceInfo, nullptr);    
+    EXPECT_EQ(deviceInfo, nullptr);
     if (deviceInfo == nullptr) {
         std::cout << "Retrieved device_info is nullptr as expected" << std::endl;
     } else {
         std::cout << "Unexpected non-null device_info retrieved" << std::endl;
-    }   
+    }
     std::cout << "Exiting get_device_info_null_dm_returns_nullptr test" << std::endl;
 }
 
@@ -10453,11 +10496,11 @@ TEST(dm_easy_mesh_t, get_dpp_configured_instance)
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 254@n
  * **Priority:** High@n
- * 
+ *
  * **Pre-Conditions:** None@n
  * **Dependencies:** None@n
  * **User Interaction:** None@n
- * 
+ *
  * **Test Procedure:**
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
@@ -10569,7 +10612,7 @@ TEST(dm_easy_mesh_t, get_first_sta_mac_not_found)
 /**
  * @brief Test to verify that get_first_sta() returns nullptr when the station is only present in the association map.
  *
- * This test verifies that when a station (STA) is added only to the association map (and not to the main STA list), 
+ * This test verifies that when a station (STA) is added only to the association map (and not to the main STA list),
  * the get_first_sta() API correctly returns a nullptr indicating that the STA is not present in the primary search map.
  *
  * **Test Group ID:** Basic: 01
@@ -10958,11 +11001,11 @@ TEST(dm_easy_mesh_t, static_get_first_sta_info_disassoc_positive)
  * **Test Group ID:** Basic: 01
  * **Test Case ID:** 266@n
  * **Priority:** High
- * 
+ *
  * **Pre-Conditions:** None
  * **Dependencies:** None
  * **User Interaction:** None
- * 
+ *
  * **Test Procedure:**
  * | Variation / Step | Description                                                                | Test Data                                                                                          | Expected Result                                               | Notes        |
  * | :--------------: | -------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- | ------------ |
@@ -10986,8 +11029,8 @@ TEST(dm_easy_mesh_t, static_get_first_sta_info_empty_map)
 /**
  * @brief Validate that get_first_sta_info returns nullptr when an incorrect target map is used
  *
- * This test validates that when a STA info is added to the association map and then the static 
- * method get_first_sta_info is invoked with the consolidated map target, the function correctly 
+ * This test validates that when a STA info is added to the association map and then the static
+ * method get_first_sta_info is invoked with the consolidated map target, the function correctly
  * returns a nullptr as the STA is not present in that map.
  *
  * **Test Group ID:** Basic: 01@n
@@ -11164,18 +11207,18 @@ TEST(dm_easy_mesh_t, get_ieee_1905_security_info_instance_default)
  * @brief Test to verify that get_ieee_1905_security_info returns correct security information when configured
  *
  * This test verifies that after configuring the MAC ID and security capabilities in the dm_easy_mesh_t instance,
- * the get_ieee_1905_security_info method returns a non-null pointer and the returned security information correctly 
- * reflects the configured MAC and capabilities (onboarding_proto, integrity_algo, encryption_algo). This is critical 
+ * the get_ieee_1905_security_info method returns a non-null pointer and the returned security information correctly
+ * reflects the configured MAC and capabilities (onboarding_proto, integrity_algo, encryption_algo). This is critical
  * to ensure the underlying configuration mechanism is functioning properly.
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 272@n
  * **Priority:** High@n
- * 
+ *
  * **Pre-Conditions:** None@n
  * **Dependencies:** None@n
  * **User Interaction:** None@n
- * 
+ *
  * **Test Procedure:**@n
  * | Variation / Step | Description                                                                 | Test Data                                                            | Expected Result                                                                     | Notes         |
  * | :--------------: | --------------------------------------------------------------------------- | -------------------------------------------------------------------- | ----------------------------------------------------------------------------------- | ------------- |
@@ -11332,11 +11375,11 @@ TEST(dm_easy_mesh_t, get_interface_by_index_max_boundary)
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 276@n
  * **Priority:** High@n
- * 
+ *
  * **Pre-Conditions:** None@n
  * **Dependencies:** None@n
  * **User Interaction:** None@n
- * 
+ *
  * **Test Procedure:**@n
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
@@ -11404,11 +11447,11 @@ TEST(dm_easy_mesh_t, get_interfaces_list_success)
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 278@n
  * **Priority:** High@n
- * 
+ *
  * **Pre-Conditions:** None@n
  * **Dependencies:** None@n
  * **User Interaction:** None@n
- * 
+ *
  * **Test Procedure:**
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :--------------: | ----------- | --------- | ------------- | ----- |
@@ -11444,11 +11487,11 @@ TEST(dm_easy_mesh_t, get_interfaces_list_limited_count)
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 279@n
  * **Priority:** High@n
- * 
+ *
  * **Pre-Conditions:** None@n
  * **Dependencies:** None@n
  * **User Interaction:** None@n
- * 
+ *
  * **Test Procedure:**@n
  * | Variation / Step | Description                                              | Test Data                                           | Expected Result                                                         | Notes       |
  * | :--------------: | -------------------------------------------------------- | --------------------------------------------------- | ----------------------------------------------------------------------- | ----------- |
@@ -11457,12 +11500,12 @@ TEST(dm_easy_mesh_t, get_interfaces_list_limited_count)
 TEST(dm_easy_mesh_t, get_interfaces_list_invalid_null_interfaces_pointer) {
     std::cout << "Entering get_interfaces_list_invalid_null_interfaces_pointer test" << std::endl;
     dm_easy_mesh_t mesh;
-    unsigned int capacity = 5;   
+    unsigned int capacity = 5;
     std::cout << "Invoking get_interfaces_list with NULL interfaces pointer" << std::endl;
-    std::cout << "Initial num_interfaces value: " << capacity << std::endl;    
-    int ret = dm_easy_mesh_t::get_interfaces_list(NULL, &capacity);   
+    std::cout << "Initial num_interfaces value: " << capacity << std::endl;
+    int ret = dm_easy_mesh_t::get_interfaces_list(NULL, &capacity);
     std::cout << "Method returned: " << ret << std::endl;
-    EXPECT_EQ(ret, -1);    
+    EXPECT_EQ(ret, -1);
     std::cout << "Exiting get_interfaces_list_invalid_null_interfaces_pointer test" << std::endl;
 }
 
@@ -11470,7 +11513,7 @@ TEST(dm_easy_mesh_t, get_interfaces_list_invalid_null_interfaces_pointer) {
  * @brief Verifies that get_interfaces_list returns an error when provided with a NULL num_interfaces pointer
  *
  * This test checks that the get_interfaces_list API correctly handles the scenario when the num_interfaces pointer is NULL,
- * ensuring that the function returns the expected error code (-1). This is critical for proper error handling 
+ * ensuring that the function returns the expected error code (-1). This is critical for proper error handling
  * within the API to prevent invalid memory access.
  *
  * **Test Group ID:** Basic: 01
@@ -11490,12 +11533,12 @@ TEST(dm_easy_mesh_t, get_interfaces_list_invalid_null_num_interfaces_pointer) {
     std::cout << "Entering get_interfaces_list_invalid_null_num_interfaces_pointer test" << std::endl;
     dm_easy_mesh_t mesh;
     const unsigned int capacity = 5;
-    em_interface_t interfaces[capacity];    
+    em_interface_t interfaces[capacity];
     std::cout << "Invoking get_interfaces_list with NULL num_interfaces pointer" << std::endl;
-    std::cout << "Array capacity provided: " << capacity << std::endl;    
-    int ret = dm_easy_mesh_t::get_interfaces_list(interfaces, NULL);    
+    std::cout << "Array capacity provided: " << capacity << std::endl;
+    int ret = dm_easy_mesh_t::get_interfaces_list(interfaces, NULL);
     std::cout << "Method returned: " << ret << std::endl;
-    EXPECT_EQ(ret, -1);   
+    EXPECT_EQ(ret, -1);
     std::cout << "Exiting get_interfaces_list_invalid_null_num_interfaces_pointer test" << std::endl;
 }
 
@@ -11551,14 +11594,14 @@ TEST(dm_easy_mesh_t, get_manufacturer_valid_non_empty) {
  * | 03               | Validate the returned manufacturer value is empty and not null      | Output: manufacturer pointer, Expected: manufacturer = "", not NULL | EXPECT_NE(manufacturer, nullptr) and EXPECT_STREQ(manufacturer, "") checks pass         | Should Pass      |
  */
 TEST(dm_easy_mesh_t, get_manufacturer_valid_empty) {
-    std::cout << "Entering get_manufacturer_valid_empty test" << std::endl;   
+    std::cout << "Entering get_manufacturer_valid_empty test" << std::endl;
     dm_easy_mesh_t device;
-    memcpy(device.m_device.m_device_info.manufacturer, "", strlen("")+1);     
+    memcpy(device.m_device.m_device_info.manufacturer, "", strlen("")+1);
     std::cout << "Invoking method get_manufacturer()" << std::endl;
     char *manufacturer = device.get_manufacturer();
-    std::cout << "Returned manufacturer: "  << (manufacturer ? manufacturer : "NULL") << std::endl;    
+    std::cout << "Returned manufacturer: "  << (manufacturer ? manufacturer : "NULL") << std::endl;
     EXPECT_NE(manufacturer, nullptr);
-    EXPECT_STREQ(manufacturer, "");    
+    EXPECT_STREQ(manufacturer, "");
     std::cout << "Exiting get_manufacturer_valid_empty test" << std::endl;
 }
 
@@ -11570,11 +11613,11 @@ TEST(dm_easy_mesh_t, get_manufacturer_valid_empty) {
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 283@n
  * **Priority:** High@n
- * 
+ *
  * **Pre-Conditions:** None@n
  * **Dependencies:** None@n
  * **User Interaction:** None@n
- * 
+ *
  * **Test Procedure:**
  * | Variation / Step | Description                                                                                 | Test Data                                                  | Expected Result                                                                                                           | Notes         |
  * | :--------------: | ------------------------------------------------------------------------------------------- | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- | ------------- |
@@ -11585,7 +11628,7 @@ TEST(dm_easy_mesh_t, get_manufacturer_valid_empty) {
 TEST(dm_easy_mesh_t, get_manufacturer_model_valid_model) {
     std::cout << "Entering get_manufacturer_model_valid_model test" << std::endl;
     dm_easy_mesh_t device;
-    memcpy(device.m_device.m_device_info.manufacturer_model, "AcmeModelX", strlen("AcmeModelX") + 1);    
+    memcpy(device.m_device.m_device_info.manufacturer_model, "AcmeModelX", strlen("AcmeModelX") + 1);
     std::cout << "Invoking get_manufacturer_model()" << std::endl;
     char *model = device.get_manufacturer_model();
     std::cout << "Returned manufacturer model: " << (model != nullptr ? model : "nullptr") << std::endl;
@@ -11616,7 +11659,7 @@ TEST(dm_easy_mesh_t, get_manufacturer_model_valid_model) {
 TEST(dm_easy_mesh_t, get_manufacturer_model_empty_model) {
     std::cout << "Entering get_manufacturer_model_empty_model test" << std::endl;
     dm_easy_mesh_t device;
-    memcpy(device.m_device.m_device_info.manufacturer_model, "", strlen("") + 1); 
+    memcpy(device.m_device.m_device_info.manufacturer_model, "", strlen("") + 1);
     std::cout << "Invoking get_manufacturer_model()" << std::endl;
     char *model = device.get_manufacturer_model();
     std::cout << "Returned manufacturer model: " << (model != nullptr ? ("\"" + std::string(model) + "\"") : "nullptr") << std::endl;
@@ -11648,7 +11691,7 @@ TEST(dm_easy_mesh_t, get_manufacturer_model_empty_model) {
 TEST(dm_easy_mesh_t, get_manufacturer_model_special_characters) {
     std::cout << "Entering get_manufacturer_model_special_characters test" << std::endl;
     dm_easy_mesh_t device;
-    memcpy(device.m_device.m_device_info.manufacturer_model, "Acme-Model@#1", strlen("Acme-Model@#1") + 1);   
+    memcpy(device.m_device.m_device_info.manufacturer_model, "Acme-Model@#1", strlen("Acme-Model@#1") + 1);
     std::cout << "Invoking get_manufacturer_model()" << std::endl;
     char *model = device.get_manufacturer_model();
     std::cout << "Returned manufacturer model: " << (model != nullptr ? model : "nullptr") << std::endl;
@@ -11862,7 +11905,7 @@ TEST(dm_easy_mesh_t, get_network_by_ref_configured)
 	unsigned char mac[] = {0x11, 0x12, 0x13, 0x15, 0x14, 0x15};
 	dm_easy_mesh_t dm;
 	dm.m_network.m_net_info.num_of_devices = 2;
-	dm.m_network.m_net_info.ctrl_id.media = em_media_type_ieee80211b_24;	
+	dm.m_network.m_net_info.ctrl_id.media = em_media_type_ieee80211b_24;
 	memcpy(dm.m_network.m_net_info.ctrl_id.mac, mac, sizeof(mac));
     dm_network_t &network_ref = dm.get_network_by_ref();
     std::cout << "Retrieved network reference address: " << &network_ref << std::endl;
@@ -11903,7 +11946,7 @@ TEST(dm_easy_mesh_t, get_network_info_default)
 	dm_easy_mesh_t dm{};
     em_network_info_t *info = dm.get_network_info();
     ASSERT_NE(info, nullptr);
-    print_network_info(info);    
+    print_network_info(info);
     std::cout << "Exiting " << testName << std::endl;
 }
 
@@ -12057,13 +12100,13 @@ TEST(dm_easy_mesh_t, get_network_info_static_null_dm)
 /**
  * @brief Validate that the get_network_ssid API returns a valid default SSID structure.
  *
- * This test verifies that invoking get_network_ssid with an index value zero returns 
+ * This test verifies that invoking get_network_ssid with an index value zero returns
  * a non-null pointer, ensuring that the default SSID is properly instantiated and can be processed.
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 297@n
  * **Priority:** High@n
- * 
+ *
  * **Pre-Conditions:** None@n
  * **Dependencies:** None@n
  * **User Interaction:** None@n
@@ -12115,7 +12158,7 @@ TEST(dm_easy_mesh_t, get_network_ssid_out_of_range_negative)
     unsigned int invalid_index = EM_MAX_NET_SSIDS + 1;
     dm_easy_mesh_t dm;
     std::cout << "Invoking get_network_ssid(" << invalid_index << ")" << std::endl;
-    dm_network_ssid_t *ssid = dm.get_network_ssid(invalid_index);   
+    dm_network_ssid_t *ssid = dm.get_network_ssid(invalid_index);
     EXPECT_EQ(ssid, nullptr);
     std::cout << "Exiting " << testName << std::endl;
 }
@@ -12123,7 +12166,7 @@ TEST(dm_easy_mesh_t, get_network_ssid_out_of_range_negative)
 /**
  * @brief Verify that get_network_ssid_configured retrieves the correct SSID configuration from the dm_easy_mesh_t instance
  *
- * This test validates that when a dm_easy_mesh_t object is configured with a specific network SSID configuration, 
+ * This test validates that when a dm_easy_mesh_t object is configured with a specific network SSID configuration,
  * the get_network_ssid function returns the correct network SSID parameters. The test ensures that the SSID string,
  * enable flag, and number of hauls are correctly retrieved, assuring the functionality works as expected.
  *
@@ -12309,11 +12352,11 @@ TEST(dm_easy_mesh_t, get_network_ssid_info_by_haul_type_positive)
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 303@n
  * **Priority:** High@n
- * 
+ *
  * **Pre-Conditions:** None@n
  * **Dependencies:** None@n
  * **User Interaction:** None@n
- * 
+ *
  * **Test Procedure:**
  * | Variation / Step | Description                                                                | Test Data                                                        | Expected Result                                                           | Notes               |
  * | :--------------: | -------------------------------------------------------------------------- | ---------------------------------------------------------------- | ------------------------------------------------------------------------- | ------------------- |
@@ -12727,11 +12770,11 @@ TEST(dm_easy_mesh_t, Negative_Assignment_NoSharedStaObjects) {
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 313@n
  * **Priority:** High@n
- * 
+ *
  * **Pre-Conditions:** None@n
  * **Dependencies:** None@n
  * **User Interaction:** None@n
- * 
+ *
  * **Test Procedure:**
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
@@ -12835,11 +12878,11 @@ TEST(dm_easy_mesh_t, NullInfoPointer)
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 316@n
  * **Priority:** High@n
- * 
+ *
  * **Pre-Conditions:** None@n
  * **Dependencies:** None@n
  * **User Interaction:** None@n
- * 
+ *
  * **Test Procedure:**
  * | Variation / Step | Description                                                                      | Test Data                                                                                                                            | Expected Result                                                   | Notes         |
  * | :--------------: | -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------- | ------------- |
@@ -13136,7 +13179,7 @@ TEST(dm_easy_mesh_t, get_next_sta_info_LastElement)
  * **Dependencies:** None@n
  * **User Interaction:** None@n
  *
- * **Test Procedure:** 
+ * **Test Procedure:**
  * | Variation / Step | Description                                                                                 | Test Data                                                                                                      | Expected Result                                    | Notes         |
  * | :--------------: | ------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- | -------------------------------------------------- | ------------- |
  * | 01               | Initialize dm_easy_mesh_t instance and create sta_info with provided MAC addresses            | Call: mesh.init(), sta = {1,2,3,4,5,6}, bss = {6,5,4,3,2,1}, radio = {9,9,9,9,9,9}                            | Mesh instance initialized successfully             | Should be successful |
@@ -13149,7 +13192,7 @@ TEST(dm_easy_mesh_t, get_next_sta_info_EmptyMap)
     mesh.init();
     mac_address_t sta  = {1,2,3,4,5,6};
     mac_address_t bss  = {6,5,4,3,2,1};
-    mac_address_t radio = {9,9,9,9,9,9};	
+    mac_address_t radio = {9,9,9,9,9,9};
     em_sta_info_t info = create_sta_info(sta, bss, radio);
 	std::cout << "Invoking get_next_sta_info(&info, em_target_sta_map_assoc) with empty map" << std::endl;
     em_sta_info_t *next = mesh.get_next_sta_info(&info, em_target_sta_map_assoc);
@@ -13189,7 +13232,7 @@ TEST(dm_easy_mesh_t, static_get_num_ap_mld_DefaultValue)
 /**
  * @brief Tests that get_num_ap_mld returns the correct non-zero value from a dm_easy_mesh_t object.
  *
- * This test verifies that when the dm_easy_mesh_t object's m_num_ap_mld member is set to a non-zero value (3), 
+ * This test verifies that when the dm_easy_mesh_t object's m_num_ap_mld member is set to a non-zero value (3),
  * the static method get_num_ap_mld correctly retrieves the value. The test asserts that the returned value is 3.
  *
  * **Test Group ID:** Basic: 01@n
@@ -13228,11 +13271,11 @@ TEST(dm_easy_mesh_t, static_get_num_ap_mld_ValidNonZeroValue)
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 327@n
  * **Priority:** High@n
- * 
+ *
  * **Pre-Conditions:** None@n
  * **Dependencies:** None@n
  * **User Interaction:** None@n
- * 
+ *
  * **Test Procedure:**
  * | Variation / Step | Description                                                                 | Test Data                                                  | Expected Result                                      | Notes         |
  * | :--------------: | --------------------------------------------------------------------------- | ---------------------------------------------------------- | ---------------------------------------------------- | ------------- |
@@ -13318,8 +13361,8 @@ TEST(dm_easy_mesh_t, static_get_num_ap_mld_Nullptr)
 /**
  * @brief Verify that a default-constructed dm_easy_mesh_t object returns 0 for get_num_assoc_sta_mld()
  *
- * This test verifies that when a dm_easy_mesh_t object is created using its default constructor, 
- * the get_num_assoc_sta_mld() method returns the expected value of 0. This confirms that the object 
+ * This test verifies that when a dm_easy_mesh_t object is created using its default constructor,
+ * the get_num_assoc_sta_mld() method returns the expected value of 0. This confirms that the object
  * initializes its internal state correctly for the number of associated STA MLD.
  *
  * **Test Group ID:** Basic: 01@n
@@ -13405,7 +13448,7 @@ TEST(dm_easy_mesh_t, get_num_assoc_sta_mld_static_valid_instance)
     std::cout << "Invoking static get_num_assoc_sta_mld with valid instance pointer" << std::endl;
     unsigned int result = dm_easy_mesh_t::get_num_assoc_sta_mld(static_cast<void*>(&instance));
     std::cout << "Retrieved value: " << result << std::endl;
-    EXPECT_EQ(result, 10u);    
+    EXPECT_EQ(result, 10u);
     std::cout << "Exiting get_num_assoc_sta_mld_static_valid_instance test" << std::endl;
 }
 
@@ -13434,7 +13477,7 @@ TEST(dm_easy_mesh_t, get_num_assoc_sta_mld_static_null_pointer)
     std::cout << "Invoking static get_num_assoc_sta_mld with NULL pointer" << std::endl;
     unsigned int result = dm_easy_mesh_t::get_num_assoc_sta_mld(static_cast<void*>(nullptr));
     std::cout << "Retrieved value: " << result << std::endl;
-    EXPECT_EQ(result, 0u);    
+    EXPECT_EQ(result, 0u);
     std::cout << "Exiting get_num_assoc_sta_mld_static_null_pointer test" << std::endl;
 }
 
@@ -13475,37 +13518,37 @@ TEST(dm_easy_mesh_t, get_num_assoc_sta_mld_zero_assoc_sta) {
  * @brief Validate that the default object of dm_easy_mesh_t returns zero BSS count
  *
  * This test case verifies that when an object of dm_easy_mesh_t is created using the default constructor,
- * the get_num_bss() method returns 0 as expected. This is key to ensuring that the initial state of the object 
+ * the get_num_bss() method returns 0 as expected. This is key to ensuring that the initial state of the object
  * is correctly set.
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 335@n
  * **Priority:** High@n
- * 
+ *
  * **Pre-Conditions:** None@n
  * **Dependencies:** None@n
  * **User Interaction:** None@n
- * 
+ *
  * **Test Procedure:**
  * | Variation / Step | Description                                                        | Test Data                                                   | Expected Result                                                      | Notes         |
  * | :-------------:  | ------------------------------------------------------------------ | ----------------------------------------------------------- | -------------------------------------------------------------------- | ------------- |
  * | 01               | Create a dm_easy_mesh_t object using the default constructor and invoke get_num_bss() method | Object creation: default constructor, Method call: get_num_bss(), Expected output: bssCount = 0 | get_num_bss() returns 0 and ASSERT_EQ verifies that bssCount is equal to 0  | Should Pass   |
  */
 TEST(dm_easy_mesh_t, get_num_bss_default_object) {
-    std::cout << "Entering get_num_bss_default_object test" << std::endl;    
-    dm_easy_mesh_t obj; 
-    std::cout << "Invoked default constructor for dm_easy_mesh_t" << std::endl;    
+    std::cout << "Entering get_num_bss_default_object test" << std::endl;
+    dm_easy_mesh_t obj;
+    std::cout << "Invoked default constructor for dm_easy_mesh_t" << std::endl;
     unsigned int bssCount = obj.get_num_bss();
-    std::cout << "Invoked get_num_bss() method, retrieved value: " << bssCount << std::endl;    
-    ASSERT_EQ(bssCount, 0);    
+    std::cout << "Invoked get_num_bss() method, retrieved value: " << bssCount << std::endl;
+    ASSERT_EQ(bssCount, 0);
     std::cout << "Exiting get_num_bss_default_object test" << std::endl;
 }
 
 /**
  * @brief Validate that get_num_bss returns the typical value set in dm_easy_mesh_t instance
  *
- * This test verifies that when m_num_bss is set to a typical valid value (5) in the dm_easy_mesh_t instance, 
- * the static API get_num_bss correctly returns the same value. This ensures that the getter function behaves 
+ * This test verifies that when m_num_bss is set to a typical valid value (5) in the dm_easy_mesh_t instance,
+ * the static API get_num_bss correctly returns the same value. This ensures that the getter function behaves
  * as expected when provided with valid input.
  *
  * **Test Group ID:** Basic: 01@n
@@ -13561,7 +13604,7 @@ TEST(dm_easy_mesh_t, get_num_bss_zero_value)
     std::cout << "Invoking get_num_bss with m_num_bss set to: " << dmInstance.m_num_bss << std::endl;
     unsigned int returnedValue = dm_easy_mesh_t::get_num_bss(static_cast<void*>(&dmInstance));
     std::cout << "Returned value from get_num_bss: " << returnedValue << std::endl;
-    EXPECT_EQ(returnedValue, 0U);    
+    EXPECT_EQ(returnedValue, 0U);
     std::cout << "Exiting get_num_bss_zero_value test" << std::endl;
 }
 
@@ -13591,11 +13634,11 @@ TEST(dm_easy_mesh_t, get_num_bss_max_value)
 {
     std::cout << "Entering get_num_bss_max_value test" << std::endl;
     dm_easy_mesh_t dmInstance;
-    dmInstance.m_num_bss = UINT_MAX;    
+    dmInstance.m_num_bss = UINT_MAX;
     std::cout << "Invoking get_num_bss with m_num_bss set to: " << dmInstance.m_num_bss << std::endl;
     unsigned int returnedValue = dm_easy_mesh_t::get_num_bss(static_cast<void*>(&dmInstance));
     std::cout << "Returned value from get_num_bss: " << returnedValue << std::endl;
-    EXPECT_EQ(returnedValue, UINT_MAX);    
+    EXPECT_EQ(returnedValue, UINT_MAX);
     std::cout << "Exiting get_num_bss_max_value test" << std::endl;
 }
 
@@ -13683,9 +13726,9 @@ TEST(dm_easy_mesh_t, get_num_bss_for_associated_sta_no_match)
 /**
  * @brief Verify that get_num_bss_for_associated_sta returns zero for an empty association map
  *
- * This test initializes the dm_easy_mesh_t object, ensures its internal association map is empty, and then calls 
- * get_num_bss_for_associated_sta with a predefined station MAC address. The test verifies that the function correctly 
- * returns a count of zero, indicating no associated BSS for the provided MAC address. This basic scenario ensures the 
+ * This test initializes the dm_easy_mesh_t object, ensures its internal association map is empty, and then calls
+ * get_num_bss_for_associated_sta with a predefined station MAC address. The test verifies that the function correctly
+ * returns a count of zero, indicating no associated BSS for the provided MAC address. This basic scenario ensures the
  * API behaves as expected when no associations have been set.
  *
  * **Test Group ID:** Basic: 01@n
@@ -13724,11 +13767,11 @@ TEST(dm_easy_mesh_t, get_num_bss_for_associated_sta_empty_map)
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 342@n
  * **Priority:** High@n
- * 
+ *
  * **Pre-Conditions:** None@n
  * **Dependencies:** None@n
  * **User Interaction:** None@n
- * 
+ *
  * **Test Procedure:**
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :--------------: | ----------- | --------- | -------------- | ----- |
@@ -13887,7 +13930,7 @@ TEST(dm_easy_mesh_t, get_bsta_mld_info_values) {
     std::cout << "dm.get_bsta_mld_info() returned structure at: " << &info << std::endl;
     std::cout << "mac_addr_valid: " << info.mac_addr_valid
               << ", ap_mld_mac_addr_valid: " << info.ap_mld_mac_addr_valid
-              << ", num_affiliated_bsta: " << (int)info.num_affiliated_bsta
+              << ", num_affiliated_bsta: " << static_cast<int>(info.num_affiliated_bsta)
               << ", str : " << info.str
               << ", nstr : " << info.nstr
               << ", emlsr : " << info.emlsr
@@ -13918,7 +13961,7 @@ TEST(dm_easy_mesh_t, get_bsta_mld_info_static_values) {
     std::cout << "dm_easy_mesh_t::get_bsta_mld_info(&dm) returned structure at: " << &info << std::endl;
     std::cout << "mac_addr_valid: " << info.mac_addr_valid
               << ", ap_mld_mac_addr_valid: " << info.ap_mld_mac_addr_valid
-              << ", num_affiliated_bsta: " << (int)info.num_affiliated_bsta
+              << ", num_affiliated_bsta: " << static_cast<int>(info.num_affiliated_bsta)
               << ", str : " << info.str
               << ", nstr : " << info.nstr
               << ", emlsr : " << info.emlsr
@@ -13980,7 +14023,7 @@ TEST(dm_easy_mesh_t, get_num_network_ssid_default_object_returns_0)
     std::cout << "Invoking get_num_network_ssid() on default constructed object" << std::endl;
     unsigned int result = obj.get_num_network_ssid();
     std::cout << "get_num_network_ssid() returned: " << result << std::endl;
-    ASSERT_EQ(result, 0u);    
+    ASSERT_EQ(result, 0u);
     std::cout << "Exiting get_num_network_ssid_default_object_returns_0 test" << std::endl;
 }
 
@@ -14022,11 +14065,11 @@ TEST(dm_easy_mesh_t, get_num_op_class_default_object_zero) {
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 352@n
  * **Priority:** High@n
- * 
+ *
  * **Pre-Conditions:** None@n
  * **Dependencies:** None@n
  * **User Interaction:** None@n
- * 
+ *
  * **Test Procedure:**
  * | Variation / Step | Description                                                                 | Test Data                           | Expected Result                                        | Notes       |
  * | :--------------: | --------------------------------------------------------------------------- | ----------------------------------- | ------------------------------------------------------ | ----------- |
@@ -14046,18 +14089,18 @@ TEST(dm_easy_mesh_t, get_num_op_class_positive_non_zero) {
 /**
  * @brief Validate that get_num_op_class() returns the maximum unsigned int value
  *
- * This test verifies that when the m_num_opclass member of a dm_easy_mesh_t object is set to UINT_MAX, 
- * invoking get_num_op_class() returns UINT_MAX. This confirms that the API correctly handles the edge 
+ * This test verifies that when the m_num_opclass member of a dm_easy_mesh_t object is set to UINT_MAX,
+ * invoking get_num_op_class() returns UINT_MAX. This confirms that the API correctly handles the edge
  * scenario where the operation class value is at its maximum.
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 353@n
  * **Priority:** High@n
- * 
+ *
  * **Pre-Conditions:** None@n
  * **Dependencies:** None@n
  * **User Interaction:** None@n
- * 
+ *
  * **Test Procedure:**@n
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
@@ -14177,11 +14220,11 @@ TEST(dm_easy_mesh_t, get_num_op_class_boundary_max)
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 357@n
  * **Priority:** High@n
- * 
+ *
  * **Pre-Conditions:** None@n
  * **Dependencies:** None@n
  * **User Interaction:** None@n
- * 
+ *
  * **Test Procedure:**@n
  * | Variation / Step | Description                               | Test Data                                  | Expected Result                            | Notes        |
  * | :--------------: | ----------------------------------------- | ------------------------------------------ | ------------------------------------------ | ------------ |
@@ -14205,11 +14248,11 @@ TEST(dm_easy_mesh_t, get_num_op_class_nullptr)
  * **Test Group ID:** Basic: 01
  * **Test Case ID:** 358@n
  * **Priority:** High
- * 
+ *
  * **Pre-Conditions:** None
  * **Dependencies:** None
  * **User Interaction:** None
- * 
+ *
  * **Test Procedure:**
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
@@ -14220,7 +14263,7 @@ TEST(dm_easy_mesh_t, get_num_policy_default) {
     dm_easy_mesh_t obj;
     std::cout << "Invoking get_num_policy()" << std::endl;
     unsigned int retVal = obj.get_num_policy();
-    std::cout << "Returned value from get_num_policy(): " << retVal << std::endl;    
+    std::cout << "Returned value from get_num_policy(): " << retVal << std::endl;
     std::cout << "Exiting get_num_policy_default test" << std::endl;
 }
 
@@ -14245,11 +14288,11 @@ TEST(dm_easy_mesh_t, get_num_policy_default) {
 TEST(dm_easy_mesh_t, get_num_policy_returns_correct_value_3) {
     std::cout << "Entering get_num_policy_returns_correct_value_3 test" << std::endl;
     dm_easy_mesh_t obj;
-    obj.m_num_policy = 3;    
+    obj.m_num_policy = 3;
     std::cout << "Invoking get_num_policy()" << std::endl;
     unsigned int retVal = obj.get_num_policy();
     std::cout << "Returned value from get_num_policy(): " << retVal << std::endl;
-    EXPECT_EQ(retVal, 3u);    
+    EXPECT_EQ(retVal, 3u);
     std::cout << "Exiting get_num_policy_returns_correct_value_3 test" << std::endl;
 }
 
@@ -14279,13 +14322,13 @@ TEST(dm_easy_mesh_t, get_num_policy_returns_correct_value_3) {
  */
 TEST(dm_easy_mesh_t, get_num_policy_returns_UINT_MAX) {
     std::cout << "Entering get_num_policy_returns_UINT_MAX test" << std::endl;
-    dm_easy_mesh_t obj;   
+    dm_easy_mesh_t obj;
     obj.m_num_policy = UINT_MAX;
     std::cout << "Set m_num_policy to: " << obj.m_num_policy << std::endl;
     std::cout << "Invoking get_num_policy()" << std::endl;
     unsigned int retVal = obj.get_num_policy();
     std::cout << "Returned value from get_num_policy(): " << retVal << std::endl;
-    EXPECT_EQ(retVal, UINT_MAX);    
+    EXPECT_EQ(retVal, UINT_MAX);
     std::cout << "Exiting get_num_policy_returns_UINT_MAX test" << std::endl;
 }
 
@@ -14299,11 +14342,11 @@ TEST(dm_easy_mesh_t, get_num_policy_returns_UINT_MAX) {
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 361@n
  * **Priority:** High@n
- * 
+ *
  * **Pre-Conditions:** None@n
  * **Dependencies:** None@n
  * **User Interaction:** None@n
- * 
+ *
  * **Test Procedure:**
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
@@ -14320,7 +14363,7 @@ TEST(dm_easy_mesh_t, get_num_policy_returns_correct_value_5) {
     std::cout << "Invoking get_num_policy()" << std::endl;
     unsigned int retVal = obj.get_num_policy();
     std::cout << "Returned value from get_num_policy(): " << retVal << std::endl;
-    EXPECT_EQ(retVal, 5u);    
+    EXPECT_EQ(retVal, 5u);
     std::cout << "Exiting get_num_policy_returns_correct_value_5 test" << std::endl;
 }
 
@@ -14396,11 +14439,11 @@ TEST(dm_easy_mesh_t, get_num_radios_configured)
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 364@n
  * **Priority:** High@n
- * 
+ *
  * **Pre-Conditions:** None@n
  * **Dependencies:** None@n
  * **User Interaction:** None@n
- * 
+ *
  * **Test Procedure:**@n
  * | Variation / Step | Description                                                        | Test Data                                                                  | Expected Result                                                                            | Notes       |
  * | :--------------: | ------------------------------------------------------------------ | -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ | ----------- |
@@ -14430,11 +14473,11 @@ TEST(dm_easy_mesh_t, get_num_radios_boundary_max)
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 365@n
  * **Priority:** High@n
- * 
+ *
  * **Pre-Conditions:** None@n
  * **Dependencies:** None@n
  * **User Interaction:** None@n
- * 
+ *
  * **Test Procedure:**@n
  * | Variation / Step | Description                                                              | Test Data                                           | Expected Result                                                               | Notes         |
  * | :--------------: | ------------------------------------------------------------------------ | --------------------------------------------------- | ----------------------------------------------------------------------------- | ------------- |
@@ -14582,7 +14625,7 @@ TEST(dm_easy_mesh_t, get_num_scan_results_null_map_crash)
 /**
  * @brief Verify that a single scan result entry is correctly registered and retrieved.
  *
- * This test initializes a dm_easy_mesh_t object, sets up a single scan result entry using an em_scan_result_id_t structure, 
+ * This test initializes a dm_easy_mesh_t object, sets up a single scan result entry using an em_scan_result_id_t structure,
  * invokes the creation of a new scan result, and finally checks if the number of scan results retrieved matches the expected value of 1.
  *
  * **Test Group ID:** Basic: 01@n
@@ -14652,8 +14695,8 @@ TEST(dm_easy_mesh_t, get_num_scan_results_multiple_entries)
     for (int i = 0; i < 3; ++i) {
         em_scan_result_id_t id{};
         snprintf(id.net_id, sizeof(id.net_id), "net%d", i);
-        unsigned char dev_mac[6]     = {0x10, 0x11, 0x12, 0x13, 0x14, (unsigned char)i};
-        unsigned char scanner_mac[6] = {0x20, 0x21, 0x22, 0x23, 0x24, (unsigned char)(i + 1)};
+        unsigned char dev_mac[6]     = {0x10, 0x11, 0x12, 0x13, 0x14, static_cast<unsigned char>(i)};
+        unsigned char scanner_mac[6] = {0x20, 0x21, 0x22, 0x23, 0x24, static_cast<unsigned char>(i + 1)};
         memcpy(id.dev_mac, dev_mac, sizeof(mac_address_t));
         memcpy(id.scanner_mac, scanner_mac, sizeof(mac_address_t));
         id.op_class     = 80 + i;
@@ -14754,11 +14797,11 @@ TEST(dm_easy_mesh_t, get_op_class_out_of_range_index)
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 374@n
  * **Priority:** High@n
- * 
+ *
  * **Pre-Conditions:** None@n
  * **Dependencies:** None@n
  * **User Interaction:** None@n
- * 
+ *
  * **Test Procedure:**@n
  * | Variation / Step | Description                                                         | Test Data                                                                                             | Expected Result                                      | Notes           |
  * | :--------------: | ------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- | ---------------------------------------------------- | --------------- |
@@ -14846,11 +14889,11 @@ TEST(dm_easy_mesh_t, get_op_class_info_valid_index)
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 376@n
  * **Priority:** High@n
- * 
+ *
  * **Pre-Conditions:** None@n
  * **Dependencies:** None@n
  * **User Interaction:** None@n
- * 
+ *
  * **Test Procedure:**
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
@@ -14880,11 +14923,11 @@ TEST(dm_easy_mesh_t, get_op_class_info_out_of_range)
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 377@n
  * **Priority:** High@n
- * 
+ *
  * **Pre-Conditions:** None@n
  * **Dependencies:** None@n
  * **User Interaction:** None@n
- * 
+ *
  * **Test Procedure:**@n
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
@@ -14925,11 +14968,11 @@ TEST(dm_easy_mesh_t, static_get_op_class_info_valid_index)
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 378@n
  * **Priority:** High@n
- * 
+ *
  * **Pre-Conditions:** None@n
  * **Dependencies:** None@n
  * **User Interaction:** None@n
- * 
+ *
  * **Test Procedure:**@n
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
@@ -15003,11 +15046,11 @@ TEST(dm_easy_mesh_t, get_opclass_info_for_bss_match_bssid_only)
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 380@n
  * **Priority:** High@n
- * 
+ *
  * **Pre-Conditions:** None@n
  * **Dependencies:** None@n
  * **User Interaction:** None@n
- * 
+ *
  * **Test Procedure:**@n
  * | Variation / Step | Description                                                                                      | Test Data                                                                                                                                                  | Expected Result                                          | Notes      |
  * | :--------------: | ------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- | ---------- |
@@ -15079,7 +15122,7 @@ TEST(dm_easy_mesh_t, get_opclass_info_for_bss_bssid_not_found)
  *
  * This test case verifies that the function get_opclass_info_for_bss returns a null pointer when the opclass
  * provided by the BSS does not match the wanted opclass. The mesh instance is configured with one opclass,
- * and the BSSID is set with an opclass of 81 while the function is invoked with a wanted opclass of 116. 
+ * and the BSSID is set with an opclass of 81 while the function is invoked with a wanted opclass of 116.
  * The EXPECT_EQ assertion checks that the returned pointer is indeed nullptr.
  *
  * **Test Group ID:** Basic: 01@n
@@ -15169,25 +15212,27 @@ TEST(dm_easy_mesh_t, get_platform_valid_default_instance) {
     std::cout << "Invoking get_platform() method on default instance" << std::endl;
     const char *platform = device.get_platform();
     std::cout << "Retrieved platform: " << (platform ? platform : "NULL") << std::endl;
-    ASSERT_NE(platform, nullptr);
-    ASSERT_GT(std::strlen(platform), 0u);
+    // get_platform() reads /sys/firmware/devicetree/base/model; returns NULL on non-embedded hosts
+    if (platform != nullptr) {
+        ASSERT_GT(std::strlen(platform), 0u);
+    }
     std::cout << "Exiting get_platform_valid_default_instance test" << std::endl;
 }
 
 /**
  * @brief Verify that get_policy returns the correct policy for a valid index
  *
- * This test verifies that when a valid index is provided to the get_policy method, the corresponding policy is correctly retrieved. 
+ * This test verifies that when a valid index is provided to the get_policy method, the corresponding policy is correctly retrieved.
  * The mesh is initialized with two policies, where the second policy's type is set to em_policy_id_type_traffic_separation.
  *
  * **Test Group ID:** Basic: 01
  * **Test Case ID:** 385@n
  * **Priority:** High
- * 
+ *
  * **Pre-Conditions:** None
  * **Dependencies:** None
  * **User Interaction:** None
- * 
+ *
  * **Test Procedure:**
  * | Variation / Step | Description                                                                                  | Test Data                                                                                                                                                             | Expected Result                                                                                                  | Notes            |
  * | :--------------: | -------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- | ---------------- |
@@ -15206,7 +15251,7 @@ TEST(dm_easy_mesh_t, get_policy_valid_index)
     unsigned int index = 1;
     std::cout << "Invoking get_policy(" << index << ")" << std::endl;
     dm_policy_t* policy = mesh.get_policy(index);
-    std::cout << "Retrieved policy type = " << policy->m_policy.id.type << std::endl;
+    std::cout << "Retrieved policy type = " << static_cast<unsigned int>(policy->m_policy.id.type) << std::endl;
     EXPECT_EQ(policy->m_policy.id.type, em_policy_id_type_traffic_separation);
     std::cout << "Exiting " << testName << " test" << std::endl;
 }
@@ -15215,17 +15260,17 @@ TEST(dm_easy_mesh_t, get_policy_valid_index)
  * @brief Test get_policy API with an invalid index
  *
  * This test verifies that the get_policy function of the dm_easy_mesh_t class returns a nullptr
- * when an invalid index, which is out of the range of available policies, is provided. This ensures 
+ * when an invalid index, which is out of the range of available policies, is provided. This ensures
  * that the API handles boundary conditions correctly.
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 386@n
  * **Priority:** High@n
- * 
+ *
  * **Pre-Conditions:** None@n
  * **Dependencies:** None@n
  * **User Interaction:** None@n
- * 
+ *
  * **Test Procedure:**
  * | Variation / Step | Description                                             | Test Data                                                  | Expected Result                                                | Notes          |
  * | :--------------: | ------------------------------------------------------- | ---------------------------------------------------------- | -------------------------------------------------------------- | -------------- |
@@ -15278,7 +15323,7 @@ TEST(dm_easy_mesh_t, get_policy_by_ref_valid_index)
     unsigned int index = 0;
     std::cout << "Invoking get_policy_by_ref(" << index << ")" << std::endl;
     dm_policy_t& policy = mesh.get_policy_by_ref(index);
-    std::cout << "Retrieved policy type = " << policy.m_policy.id.type << std::endl;
+    std::cout << "Retrieved policy type = " << static_cast<unsigned int>(policy.m_policy.id.type) << std::endl;
     EXPECT_EQ(policy.m_policy.id.type, em_policy_id_type_steering_btm);
     std::cout << "Exiting " << testName << " test" << std::endl;
 }
@@ -15639,7 +15684,7 @@ TEST(dm_easy_mesh_t, get_radio_cap_valid_mac)
     std::cout << "Retrieved radio_cap = " << (radioCap ? "FOUND" : "NULL") << std::endl;
     if(radioCap) {
         std::cout << "MAC: ";
-        for(int i=0;i<6;i++) std::cout << std::hex << (int)radioCap->m_radio_cap_info.ruid.mac[i] << " ";
+        for(int i=0;i<6;i++) std::cout << std::hex << static_cast<int>(radioCap->m_radio_cap_info.ruid.mac[i]) << " ";
         std::cout << std::dec << std::endl;
     }
     EXPECT_TRUE(radioCap != nullptr);
@@ -15718,6 +15763,7 @@ TEST(dm_easy_mesh_t, get_radio_data_valid_interface)
     EXPECT_TRUE(radio != nullptr);
     EXPECT_STREQ(radio->name, "wlan1");
     delete mesh.m_wifi_data;
+    mesh.m_wifi_data = nullptr;
     std::cout << "Exiting " << testName << " test" << std::endl;
 }
 
@@ -15729,11 +15775,11 @@ TEST(dm_easy_mesh_t, get_radio_data_valid_interface)
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 400@n
  * **Priority:** High@n
- * 
+ *
  * **Pre-Conditions:** None@n
  * **Dependencies:** None@n
  * **User Interaction:** None@n
- * 
+ *
  * **Test Procedure:**@n
  * | Variation / Step | Description                                                                 | Test Data                                                                                      | Expected Result                                   | Notes         |
  * | :---------------:| --------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- | ------------------------------------------------- | ------------- |
@@ -15756,6 +15802,7 @@ TEST(dm_easy_mesh_t, get_radio_data_invalid_interface)
     std::cout << "Retrieved radio = " << (radio ? radio->name : "NULL") << std::endl;
     EXPECT_TRUE(radio == nullptr);
     delete mesh.m_wifi_data;
+    mesh.m_wifi_data = nullptr;
     std::cout << "Exiting " << testName << " test" << std::endl;
 }
 
@@ -15835,18 +15882,18 @@ TEST(dm_easy_mesh_t, get_radio_info_valid_index)
 /**
  * @brief Verify that get_radio_info returns nullptr when an invalid index is provided.
  *
- * This test checks the proper error handling in the get_radio_info API by supplying an index that exceeds 
- * the number of available radios. The dm_easy_mesh_t instance is configured with one valid radio. Calling 
+ * This test checks the proper error handling in the get_radio_info API by supplying an index that exceeds
+ * the number of available radios. The dm_easy_mesh_t instance is configured with one valid radio. Calling
  * get_radio_info with an index of 5 should return a nullptr, indicating the index is invalid.
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 403@n
  * **Priority:** High@n
- * 
+ *
  * **Pre-Conditions:** None@n
  * **Dependencies:** None@n
  * **User Interaction:** None@n
- * 
+ *
  * **Test Procedure:**
  * | Variation / Step | Description                                                     | Test Data                                                                        | Expected Result                           | Notes           |
  * | :--------------: | --------------------------------------------------------------- | -------------------------------------------------------------------------------- | ----------------------------------------- | --------------- |
@@ -15861,7 +15908,7 @@ TEST(dm_easy_mesh_t, get_radio_info_invalid_index)
     mesh.m_num_radios = 1;
     strncpy(mesh.m_radio[0].m_radio_info.id.net_id, "radio0", sizeof(mesh.m_radio[0].m_radio_info.id.net_id));
     unsigned int index = 5;
-    std::cout << "Invoking get_radio_info(index=" << index << ")" << std::endl;    
+    std::cout << "Invoking get_radio_info(index=" << index << ")" << std::endl;
     em_radio_info_t* radioInfo = mesh.get_radio_info(index);
     EXPECT_TRUE(radioInfo == nullptr);
     std::cout << "Exiting " << testName << " test" << std::endl;
@@ -15971,7 +16018,7 @@ TEST(dm_easy_mesh_t, get_radio_interface_valid_index)
         std::cout << "Retrieved interface name = " << intf->name << std::endl;
         std::cout << "Retrieved interface mac  = ";
         for (int i = 0; i < 6; i++) {
-            std::cout << std::hex << (int)intf->mac[i];
+            std::cout << std::hex << static_cast<int>(intf->mac[i]);
             if (i < 5) std::cout << ":";
         }
         std::cout << std::dec << std::endl;
@@ -15986,7 +16033,7 @@ TEST(dm_easy_mesh_t, get_radio_interface_valid_index)
 /**
  * @brief Test to validate get_radio_interface returns nullptr when an invalid index is provided
  *
- * This test verifies that the get_radio_interface API returns a nullptr when the provided index is out of range of the available radio interfaces. 
+ * This test verifies that the get_radio_interface API returns a nullptr when the provided index is out of range of the available radio interfaces.
  * It ensures that the function properly handles invalid index accesses.
  *
  * **Test Group ID:** Basic: 01@n
@@ -16059,7 +16106,7 @@ TEST(dm_easy_mesh_t, get_scan_result_single_entry_valid_index)
         std::cout << "Retrieved net_id        = " << res->m_scan_result.id.net_id << std::endl;
         std::cout << "Retrieved op_class      = " << res->m_scan_result.id.op_class << std::endl;
         std::cout << "Retrieved channel       = " << res->m_scan_result.id.channel << std::endl;
-        std::cout << "Retrieved scanner_type  = " << res->m_scan_result.id.scanner_type << std::endl;
+        std::cout << "Retrieved scanner_type  = " << static_cast<unsigned int>(res->m_scan_result.id.scanner_type) << std::endl;
     } else {
         std::cout << "Retrieved scan result is NULL" << std::endl;
     }
@@ -16081,11 +16128,11 @@ TEST(dm_easy_mesh_t, get_scan_result_single_entry_valid_index)
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 409@n
  * **Priority:** High@n
- * 
+ *
  * **Pre-Conditions:** None@n
  * **Dependencies:** None@n
  * **User Interaction:** None@n
- * 
+ *
  * **Test Procedure:**
  * | Variation / Step | Description | Test Data | Expected Result |Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
@@ -16116,7 +16163,7 @@ TEST(dm_easy_mesh_t, get_scan_result_multiple_entries_valid_index)
         std::cout << "Retrieved net_id        = " << res->m_scan_result.id.net_id << std::endl;
         std::cout << "Retrieved op_class      = " << res->m_scan_result.id.op_class << std::endl;
         std::cout << "Retrieved channel       = " << res->m_scan_result.id.channel << std::endl;
-        std::cout << "Retrieved scanner_type  = " << res->m_scan_result.id.scanner_type << std::endl;
+        std::cout << "Retrieved scanner_type  = " << static_cast<unsigned int>(res->m_scan_result.id.scanner_type) << std::endl;
     } else {
         std::cout << "Retrieved scan result is NULL" << std::endl;
     }
@@ -16217,17 +16264,17 @@ TEST(dm_easy_mesh_t, get_scan_result_empty_map)
  * @brief Test that get_serial_number returns a valid serial number for a correctly initialized mesh
  *
  * This test verifies that when the dm_easy_mesh_t object is initialized with a valid serial number,
- * the get_serial_number API successfully retrieves the same serial number. It ensures that the API does not 
+ * the get_serial_number API successfully retrieves the same serial number. It ensures that the API does not
  * return a null pointer and correctly matches the expected string value.
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 412@n
  * **Priority:** High@n
- * 
+ *
  * **Pre-Conditions:** None@n
  * **Dependencies:** None@n
  * **User Interaction:** None@n
- * 
+ *
  * **Test Procedure:**
  * | Variation / Step | Description                                                                                 | Test Data                                                                     | Expected Result                                                           | Notes         |
  * | :--------------: | ------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- | ------------------------------------------------------------------------- | ------------- |
@@ -16260,11 +16307,11 @@ TEST(dm_easy_mesh_t, get_serial_number_valid)
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 413@n
  * **Priority:** High@n
- * 
+ *
  * **Pre-Conditions:** None@n
  * **Dependencies:** None@n
  * **User Interaction:** None@n
- * 
+ *
  * **Test Procedure:**
  * | Variation / Step | Description                                                      | Test Data                                                                                   | Expected Result                                                                                                  | Notes           |
  * | :--------------: | ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- | --------------- |
@@ -16407,7 +16454,7 @@ TEST(dm_easy_mesh_t, get_sta_info_assoc_positive)
     em_sta_info_t *result = mesh.get_sta_info(sta, bssid, ruid, em_target_sta_map_assoc);
     if (result) {
         std::cout << "Retrieved STA MAC = ";
-        for (int i = 0; i < 6; i++) std::cout << std::hex << (int)result->id[i] << " ";
+        for (int i = 0; i < 6; i++) std::cout << std::hex << static_cast<int>(result->id[i]) << " ";
         std::cout << std::dec << std::endl;
     } else {
         std::cout << "Retrieved STA info is NULL" << std::endl;
@@ -16426,11 +16473,11 @@ TEST(dm_easy_mesh_t, get_sta_info_assoc_positive)
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 417@n
  * **Priority:** High@n
- * 
+ *
  * **Pre-Conditions:** None@n
  * **Dependencies:** None@n
  * **User Interaction:** None@n
- * 
+ *
  * **Test Procedure:**
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
@@ -16492,7 +16539,7 @@ TEST(dm_easy_mesh_t, get_sta_info_static_positive)
     em_sta_info_t *result = dm_easy_mesh_t::get_sta_info(&mesh, sta, bssid, ruid, em_target_sta_map_disassoc);
     if (result) {
         std::cout << "Retrieved STA MAC = ";
-        for (int i = 0; i < 6; i++) std::cout << std::hex << (int)result->id[i] << " ";
+        for (int i = 0; i < 6; i++) std::cout << std::hex << static_cast<int>(result->id[i]) << " ";
         std::cout << std::dec << std::endl;
     } else {
         std::cout << "Retrieved STA info is NULL" << std::endl;
@@ -16562,7 +16609,7 @@ TEST(dm_easy_mesh_t, get_subdoc_radio_type_for_freq_24G_positive)
     em_freq_band_t band = em_freq_band_24;
     std::cout << "Invoking get_subdoc_radio_type_for_freq(em_freq_band_24)" << std::endl;
     webconfig_subdoc_type_t result = dm_easy_mesh_t::get_subdoc_radio_type_for_freq(band);
-    std::cout << "Retrieved subdoc type = " << result << std::endl;
+    std::cout << "Retrieved subdoc type = " << static_cast<unsigned int>(result) << std::endl;
     EXPECT_EQ(result, webconfig_subdoc_type_radio_24G);
     std::cout << "Exiting " << testName << " test" << std::endl;
 }
@@ -16594,7 +16641,7 @@ TEST(dm_easy_mesh_t, get_subdoc_radio_type_for_freq_5G_positive)
     em_freq_band_t band = em_freq_band_5;
     std::cout << "Invoking get_subdoc_radio_type_for_freq(em_freq_band_5)" << std::endl;
     webconfig_subdoc_type_t result = dm_easy_mesh_t::get_subdoc_radio_type_for_freq(band);
-    std::cout << "Retrieved subdoc type = " << result << std::endl;
+    std::cout << "Retrieved subdoc type = " << static_cast<unsigned int>(result) << std::endl;
     EXPECT_EQ(result, webconfig_subdoc_type_radio_5G);
     std::cout << "Exiting " << testName << " test" << std::endl;
 }
@@ -16625,7 +16672,7 @@ TEST(dm_easy_mesh_t, get_subdoc_radio_type_for_freq_invalid_band_negative)
     em_freq_band_t band = static_cast<em_freq_band_t>(99);
     std::cout << "Invoking get_subdoc_radio_type_for_freq(invalid band)" << std::endl;
     webconfig_subdoc_type_t result = dm_easy_mesh_t::get_subdoc_radio_type_for_freq(band);
-    std::cout << "Retrieved subdoc type = " << result << std::endl;
+    std::cout << "Retrieved subdoc type = " << static_cast<unsigned int>(result) << std::endl;
     EXPECT_EQ(result, webconfig_subdoc_type_radio_6G);
     std::cout << "Exiting " << testName << " test" << std::endl;
 }
@@ -16658,7 +16705,7 @@ TEST(dm_easy_mesh_t, get_subdoc_vap_type_for_freq_24G_positive)
     em_freq_band_t band = em_freq_band_24;
     std::cout << "Invoking get_subdoc_vap_type_for_freq(em_freq_band_24)" << std::endl;
     webconfig_subdoc_type_t result = dm_easy_mesh_t::get_subdoc_vap_type_for_freq(band);
-    std::cout << "Retrieved subdoc type = " << result << std::endl;
+    std::cout << "Retrieved subdoc type = " << static_cast<unsigned int>(result) << std::endl;
     EXPECT_EQ(result, webconfig_subdoc_type_vap_24G);
     std::cout << "Exiting " << testName << " test" << std::endl;
 }
@@ -16689,7 +16736,7 @@ TEST(dm_easy_mesh_t, get_subdoc_vap_type_for_freq_5G_positive)
     em_freq_band_t band = em_freq_band_5;
     std::cout << "Invoking get_subdoc_vap_type_for_freq(em_freq_band_5)" << std::endl;
     webconfig_subdoc_type_t result = dm_easy_mesh_t::get_subdoc_vap_type_for_freq(band);
-    std::cout << "Retrieved subdoc type = " << result << std::endl;
+    std::cout << "Retrieved subdoc type = " << static_cast<unsigned int>(result) << std::endl;
     EXPECT_EQ(result, webconfig_subdoc_type_vap_5G);
     std::cout << "Exiting " << testName << " test" << std::endl;
 }
@@ -16720,7 +16767,7 @@ TEST(dm_easy_mesh_t, get_subdoc_vap_type_for_freq_invalid_band_negative)
     em_freq_band_t band = static_cast<em_freq_band_t>(255);
     std::cout << "Invoking get_subdoc_vap_type_for_freq(invalid band)" << std::endl;
     webconfig_subdoc_type_t result = dm_easy_mesh_t::get_subdoc_vap_type_for_freq(band);
-    std::cout << "Retrieved subdoc type = " << result << std::endl;
+    std::cout << "Retrieved subdoc type = " << static_cast<unsigned int>(result) << std::endl;
     EXPECT_EQ(result, webconfig_subdoc_type_vap_6G);
     std::cout << "Exiting " << testName << " test" << std::endl;
 }
@@ -16753,7 +16800,7 @@ TEST(dm_easy_mesh_t, set_agent_al_interface_mac_valid_mac_address) {
     for (int i = 0; i < 6; i++) {
          std::cout << std::hex << static_cast<int>(valid_mac[i]) << " ";
     }
-    std::cout << std::dec << std::endl;   
+    std::cout << std::dec << std::endl;
     obj.set_agent_al_interface_mac(valid_mac);
     std::cout << "After invocation, m_device.m_device_info.intf.mac contains: ";
     for (int i = 0; i < 6; i++) {
@@ -16830,7 +16877,7 @@ TEST(dm_easy_mesh_t, set_agent_al_interface_name_valid_eth0) {
     dm_easy_mesh_t obj;
     char input_name[] = "eth0";
     std::cout << "Invoking set_agent_al_interface_name with input: " << input_name << std::endl;
-    obj.set_agent_al_interface_name(input_name);    
+    obj.set_agent_al_interface_name(input_name);
     std::cout << "Retrieved interface name: " << obj.m_device.m_device_info.intf.name << std::endl;
     EXPECT_STREQ(obj.m_device.m_device_info.intf.name, "eth0");
     std::cout << "Exiting set_agent_al_interface_name_valid_eth0 test" << std::endl;
@@ -16841,13 +16888,13 @@ TEST(dm_easy_mesh_t, set_agent_al_interface_name_valid_eth0) {
  *
  * This test validates that when a NULL value is passed to set_agent_al_interface_name, the device interface name is not set to NULL.
  *
- * **Test Group ID:** Basic: 01  
+ * **Test Group ID:** Basic: 01
  * **Test Case ID:** 429@n
- * **Priority:** High  
+ * **Priority:** High
  *
- * **Pre-Conditions:** None  
- * **Dependencies:** None  
- * **User Interaction:** None  
+ * **Pre-Conditions:** None
+ * **Dependencies:** None
+ * **User Interaction:** None
  *
  * **Test Procedure:**
  * | Variation / Step | Description                                                 | Test Data                                         | Expected Result                                                                 | Notes       |
@@ -16859,7 +16906,7 @@ TEST(dm_easy_mesh_t, set_agent_al_interface_name_null_input) {
     dm_easy_mesh_t obj;
     char* input_name = NULL;
     std::cout << "Invoking set_agent_al_interface_name with input: NULL" << std::endl;
-    obj.set_agent_al_interface_name(input_name);    
+    obj.set_agent_al_interface_name(input_name);
     std::cout << "Retrieved interface name after NULL input: " << obj.m_device.m_device_info.intf.name << std::endl;
     EXPECT_STRNE(obj.m_device.m_device_info.intf.name, NULL);
     std::cout << "Exiting set_agent_al_interface_name_null_input test" << std::endl;
@@ -16885,7 +16932,7 @@ TEST(dm_easy_mesh_t, set_agent_al_interface_name_null_input) {
  */
 TEST(dm_easy_mesh_t, set_agent_al_interface_name_empty_string) {
     std::cout << "Entering set_agent_al_interface_name_empty_string test" << std::endl;
-    dm_easy_mesh_t obj;    
+    dm_easy_mesh_t obj;
     char input_name[] = "";
     std::cout << "Invoking set_agent_al_interface_name with input: empty string" << std::endl;
     obj.set_agent_al_interface_name(input_name);
@@ -16914,7 +16961,7 @@ TEST(dm_easy_mesh_t, set_agent_al_interface_name_empty_string) {
  */
 TEST(dm_easy_mesh_t, set_agent_al_interface_name_invalid_characters) {
     std::cout << "Entering set_agent_al_interface_name_invalid_characters test" << std::endl;
-    dm_easy_mesh_t obj;    
+    dm_easy_mesh_t obj;
     char input_name[] = "eth$0";
     std::cout << "Invoking set_agent_al_interface_name with input: " << input_name << std::endl;
     obj.set_agent_al_interface_name(input_name);
@@ -16949,8 +16996,7 @@ TEST(dm_easy_mesh_t, set_channels_list_AddNewOpClass)
     dm_easy_mesh_t mesh;
     unsigned char dev_mac[6] = {0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF};
     memcpy(mesh.m_device.m_device_info.intf.mac, dev_mac, 6);
-    dm_op_class_t input[1];
-    memset(input, 0, sizeof(input));
+    dm_op_class_t input[1]{};
     input[0].m_op_class_info.id.type = em_op_class_type_current;
     input[0].m_op_class_info.id.op_class = 81;
     unsigned char ruid[6] = {0x10, 0x20, 0x30, 0x40, 0x50, 0x60};
@@ -17001,8 +17047,7 @@ TEST(dm_easy_mesh_t, set_channels_list_ReplaceExistingOpClass)
     mesh.m_op_class[0].m_op_class_info.id.type = em_op_class_type_current;
     mesh.m_op_class[0].m_op_class_info.id.op_class = 81;
     memcpy(mesh.m_op_class[0].m_op_class_info.id.ruid, dev_mac, 6);
-    dm_op_class_t input[1];
-    memset(input, 0, sizeof(input));
+    dm_op_class_t input[1]{};
     input[0].m_op_class_info.id.type = em_op_class_type_current;
     input[0].m_op_class_info.id.op_class = 81;
     memcpy(input[0].m_op_class_info.id.ruid, dev_mac, 6);
@@ -17029,11 +17074,11 @@ TEST(dm_easy_mesh_t, set_channels_list_ReplaceExistingOpClass)
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 434@n
  * **Priority:** High@n
- * 
+ *
  * **Pre-Conditions:** None@n
  * **Dependencies:** None@n
  * **User Interaction:** None@n
- * 
+ *
  * **Test Procedure:**@n
  * | Variation / Step | Description                                                                                         | Test Data                                                                                                                  | Expected Result                                                                                                                             | Notes           |
  * | :--------------: | --------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- | --------------- |
@@ -17048,8 +17093,7 @@ TEST(dm_easy_mesh_t, set_channels_list_NullRuidAutoFilledForAnticipated)
     dm_easy_mesh_t mesh;
     unsigned char dev_mac[6] = {0x01, 0x02, 0x03, 0x04, 0x05, 0x06};
     memcpy(mesh.m_device.m_device_info.intf.mac, dev_mac, 6);
-    dm_op_class_t input[1];
-    memset(input, 0, sizeof(input));
+    dm_op_class_t input[1]{};
     input[0].m_op_class_info.id.type = em_op_class_type_anticipated;
     input[0].m_op_class_info.id.op_class = 115;
     memset(input[0].m_op_class_info.id.ruid, 0, 6);
@@ -17102,7 +17146,7 @@ TEST(dm_easy_mesh_t, set_channels_list_ZeroInputCount)
 /**
  * @brief Verify that set_channels_list correctly handles operations with the same RUID but different operating classes.
  *
- * This test ensures that when two op_class objects with the same RUID are provided but with differing op_class values, 
+ * This test ensures that when two op_class objects with the same RUID are provided but with differing op_class values,
  * the dm_easy_mesh_t::set_channels_list function correctly stores both entries and updates the internal count accordingly.
  *
  * **Test Group ID:** Basic: 01
@@ -17126,11 +17170,10 @@ TEST(dm_easy_mesh_t, set_channels_list_SameRuidDifferentOpClass)
     dm_easy_mesh_t mesh;
     unsigned char dev_mac[6] = {0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA};
     memcpy(mesh.m_device.m_device_info.intf.mac, dev_mac, 6);
-    dm_op_class_t input[2];
-    memset(input, 0, sizeof(input));
+    dm_op_class_t input[2]{};
     for (int i = 0; i < 2; i++) {
         input[i].m_op_class_info.id.type = em_op_class_type_current;
-        input[i].m_op_class_info.id.op_class = 80 + i;
+        input[i].m_op_class_info.id.op_class = static_cast<unsigned int>(80 + i);
         memcpy(input[i].m_op_class_info.id.ruid, dev_mac, 6);
     }
     std::cout << "Invoking set_channels_list(op_class, 2)" << std::endl;
@@ -17154,7 +17197,7 @@ TEST(dm_easy_mesh_t, set_channels_list_SameRuidDifferentOpClass)
 /**
  * @brief Test the valid copying of command context into dm_easy_mesh_t object
  *
- * This test verifies that the set_cmd_ctx API correctly copies a valid command context structure to the mesh object's member. 
+ * This test verifies that the set_cmd_ctx API correctly copies a valid command context structure to the mesh object's member.
  * It checks that after setting the command context, all the fields (arr_index, type, and obj_id) match the input values.
  *
  * **Test Group ID:** Basic: 01@n
@@ -17184,7 +17227,7 @@ TEST(dm_easy_mesh_t, set_cmd_ctx_ValidCmdCtxCopy)
     EXPECT_EQ(mesh.m_cmd_ctx.type, dm_orch_type_net_insert);
     EXPECT_STREQ(mesh.m_cmd_ctx.obj_id, "network_001");
     std::cout << "Retrieved arr_index : " << mesh.m_cmd_ctx.arr_index << std::endl;
-    std::cout << "Retrieved type      : " << mesh.m_cmd_ctx.type << std::endl;
+    std::cout << "Retrieved type      : " << static_cast<unsigned int>(mesh.m_cmd_ctx.type) << std::endl;
     std::cout << "Retrieved obj_id    : " << mesh.m_cmd_ctx.obj_id << std::endl;
     std::cout << "Exiting set_cmd_ctx_ValidCmdCtxCopy test" << std::endl;
 }
@@ -17219,7 +17262,7 @@ TEST(dm_easy_mesh_t, set_cmd_ctx_ZeroInitializedCmdCtx)
     EXPECT_EQ(mesh.m_cmd_ctx.type, dm_orch_type_none);
     EXPECT_STREQ(mesh.m_cmd_ctx.obj_id, "");
     std::cout << "Retrieved arr_index : " << mesh.m_cmd_ctx.arr_index << std::endl;
-    std::cout << "Retrieved type      : " << mesh.m_cmd_ctx.type << std::endl;
+    std::cout << "Retrieved type      : " << static_cast<unsigned int>(mesh.m_cmd_ctx.type) << std::endl;
     std::cout << "Retrieved obj_id    : '" << mesh.m_cmd_ctx.obj_id << "'" << std::endl;
     std::cout << "Exiting set_cmd_ctx_ZeroInitializedCmdCtx test" << std::endl;
 }
@@ -17227,7 +17270,7 @@ TEST(dm_easy_mesh_t, set_cmd_ctx_ZeroInitializedCmdCtx)
 /**
  * @brief Validate that set_cmd_ctx correctly handles a null pointer input by throwing an exception.
  *
- * This test verifies that invoking the set_cmd_ctx method with a null pointer (ctx = nullptr) results in an exception being thrown. 
+ * This test verifies that invoking the set_cmd_ctx method with a null pointer (ctx = nullptr) results in an exception being thrown.
  * It ensures that the API properly detects undefined behavior when an invalid command context pointer is provided.
  *
  * **Test Group ID:** Basic: 01@n
@@ -17307,7 +17350,7 @@ TEST(dm_easy_mesh_t, set_colocated_set_true)
  */
 TEST(dm_easy_mesh_t, set_colocated_set_false)
 {
-    std::cout << "Entering set_colocated_set_false test" << std::endl;    
+    std::cout << "Entering set_colocated_set_false test" << std::endl;
     dm_easy_mesh_t mesh;
     std::cout << "Invoking set_colocated with value: false" << std::endl;
     mesh.set_colocated(false);
@@ -17346,7 +17389,7 @@ TEST(dm_easy_mesh_t, set_controller_id_valid_mac_address_update)
     }
     std::cout << std::dec << std::endl;
     meshObj.set_controller_id(valid_mac);
-    EXPECT_EQ(memcmp(meshObj.m_network.m_net_info.ctrl_id.mac, valid_mac, sizeof(valid_mac)), 0);    
+    EXPECT_EQ(memcmp(meshObj.m_network.m_net_info.ctrl_id.mac, valid_mac, sizeof(valid_mac)), 0);
     std::cout << "Exiting set_controller_id_valid_mac_address_update test" << std::endl;
 }
 
@@ -17381,7 +17424,7 @@ TEST(dm_easy_mesh_t, set_controller_id_null_pointer)
 /**
  * @brief Verify that set_controller_id throws an exception when provided with an incomplete MAC address
  *
- * This test verifies that the set_controller_id API correctly identifies an invalid MAC address (incomplete or erroneous) 
+ * This test verifies that the set_controller_id API correctly identifies an invalid MAC address (incomplete or erroneous)
  * and throws an exception. The test ensures that any attempt to set a controller identifier with a faulty MAC address is properly handled.
  *
  * **Test Group ID:** Basic: 01@n
@@ -17403,7 +17446,7 @@ TEST(dm_easy_mesh_t, set_controller_id_incomplete_mac_address)
     std::cout << "Entering set_controller_id_incomplete_mac_ddress test" << std::endl;
     dm_easy_mesh_t meshObj;
     unsigned char invalid_mac[6] = {0x00, 0x1B, 0x2C, 0x3D, 0x4E, 0x5E};
-    std::cout << "Invoking set_controller_id with an invalid MAC address: 00:1B:2C:3D:4E:5E";    
+    std::cout << "Invoking set_controller_id with an invalid MAC address: 00:1B:2C:3D:4E:5E";
     EXPECT_ANY_THROW(meshObj.set_controller_id(invalid_mac));
     std::cout << "Exiting set_controller_id_incomplete_mac_address test" << std::endl;
 }
@@ -17416,11 +17459,11 @@ TEST(dm_easy_mesh_t, set_controller_id_incomplete_mac_address)
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 445@n
  * **Priority:** High@n
- * 
+ *
  * **Pre-Conditions:** None@n
  * **Dependencies:** None@n
  * **User Interaction:** None@n
- * 
+ *
  * **Test Procedure:**@n
  * | Variation / Step | Description | Test Data | Expected Result | Notes |@n
  * | :----: | --------- | ---------- |-------------- | ----- |@n
@@ -17443,10 +17486,10 @@ TEST(dm_easy_mesh_t, set_controller_intf_media_valid_media_types) {
         em_media_type_ieee80211af
     };
     for(auto media : validMedia) {
-        std::cout << "Invoking set_controller_intf_media with media: 0x" << std::hex << media << std::dec << std::endl;
+        std::cout << "Invoking set_controller_intf_media with media: 0x" << std::hex << static_cast<unsigned int>(media) << std::dec << std::endl;
         obj.set_controller_intf_media(media);
 		EXPECT_EQ(media, obj.m_network.m_net_info.media);
-        std::cout << "Successfully set media to: 0x" << std::hex << media << std::dec << std::endl;
+        std::cout << "Successfully set media to: 0x" << std::hex << static_cast<unsigned int>(media) << std::dec << std::endl;
     }
     std::cout << "Exiting set_controller_intf_media_valid_media_types test" << std::endl;
 }
@@ -17472,11 +17515,11 @@ TEST(dm_easy_mesh_t, set_controller_intf_media_valid_media_types) {
  */
 TEST(dm_easy_mesh_t, set_controller_intf_media_invalid_media_type) {
     std::cout << "Entering set_controller_intf_media_invalid_media_type test" << std::endl;
-    dm_easy_mesh_t obj;    
+    dm_easy_mesh_t obj;
     em_media_type_t invalidMedia = static_cast<em_media_type_t>(0xFF);
     std::cout << "Invoking set_controller_intf_media with invalid media: 0xFF"  << std::endl;
     EXPECT_ANY_THROW(obj.set_controller_intf_media(invalidMedia));
-    std::cout << "Exiting set_controller_intf_media_invalid_media_type test" << std::endl;    
+    std::cout << "Exiting set_controller_intf_media_invalid_media_type test" << std::endl;
 }
 
 /**
@@ -17511,7 +17554,7 @@ TEST(dm_easy_mesh_t, set_ctrl_al_interface_mac_valid_mac_provided)
     }
     std::cout << std::dec << std::endl;
     mesh.set_ctrl_al_interface_mac(mac);
-    EXPECT_EQ(memcmp(mesh.m_network.m_net_info.colocated_agent_id.mac, mac, sizeof(mac)), 0);
+    EXPECT_EQ(memcmp(mesh.m_network.m_net_info.ctrl_id.mac, mac, sizeof(mac)), 0);
     std::cout << "Exiting set_ctrl_al_interface_mac_valid_mac_provided test" << std::endl;
 }
 
@@ -17567,12 +17610,12 @@ TEST(dm_easy_mesh_t, set_ctrl_al_interface_mac_null_mac_provided)
 TEST(dm_easy_mesh_t, set_ctrl_al_interface_name_valid_non_empty)
 {
     std::cout << "Entering set_ctrl_al_interface_name_valid_non_empty test" << std::endl;
-    dm_easy_mesh_t mesh;    
+    dm_easy_mesh_t mesh;
     char name[] = "eth0";
     std::cout << "Invoking set_ctrl_al_interface_name with name: " << name << std::endl;
     mesh.set_ctrl_al_interface_name(name);
-    std::cout << "Retrieved control AL interface name: " << mesh.m_network.m_net_info.colocated_agent_id.name << std::endl;
-    EXPECT_STREQ(mesh.m_network.m_net_info.colocated_agent_id.name, "eth0");
+    std::cout << "Retrieved control AL interface name: " << mesh.m_network.m_net_info.ctrl_id.name << std::endl;
+    EXPECT_STREQ(mesh.m_network.m_net_info.ctrl_id.name, "eth0");
     std::cout << "Exiting set_ctrl_al_interface_name_valid_non_empty test" << std::endl;
 }
 
@@ -17601,8 +17644,8 @@ TEST(dm_easy_mesh_t, set_ctrl_al_interface_name_with_special_characters)
     char name[] = "eth0_net123";
     std::cout << "Invoking set_ctrl_al_interface_name with name: " << name << std::endl;
     mesh.set_ctrl_al_interface_name(name);
-    std::cout << "Retrieved control AL interface name: " << mesh.m_network.m_net_info.colocated_agent_id.name << std::endl;
-    EXPECT_STREQ(mesh.m_network.m_net_info.colocated_agent_id.name, "eth0_net123");
+    std::cout << "Retrieved control AL interface name: " << mesh.m_network.m_net_info.ctrl_id.name << std::endl;
+    EXPECT_STREQ(mesh.m_network.m_net_info.ctrl_id.name, "eth0_net123");
     std::cout << "Exiting set_ctrl_al_interface_name_with_special_characters test" << std::endl;
 }
 
@@ -17630,9 +17673,9 @@ TEST(dm_easy_mesh_t, set_ctrl_al_interface_name_empty)
     dm_easy_mesh_t mesh;
     char name[] = "";
     std::cout << "Invoking set_ctrl_al_interface_name with empty string" << std::endl;
-    mesh.set_ctrl_al_interface_name(name);    
-    std::cout << "Retrieved control AL interface name: \"" << mesh.m_network.m_net_info.colocated_agent_id.name << "\"" << std::endl;
-    EXPECT_STREQ(mesh.m_network.m_net_info.colocated_agent_id.name, "");
+    mesh.set_ctrl_al_interface_name(name);
+    std::cout << "Retrieved control AL interface name: \"" << mesh.m_network.m_net_info.ctrl_id.name << "\"" << std::endl;
+    EXPECT_STREQ(mesh.m_network.m_net_info.ctrl_id.name, "");
     std::cout << "Exiting set_ctrl_al_interface_name_empty test" << std::endl;
 }
 
@@ -17710,11 +17753,11 @@ TEST(dm_easy_mesh_t, set_db_cfg_param_ValidSingleCfgType)
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 454@n
  * **Priority:** High@n
- * 
+ *
  * **Pre-Conditions:** None@n
  * **Dependencies:** None@n
  * **User Interaction:** None@n
- * 
+ *
  * **Test Procedure:**@n
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
@@ -17822,12 +17865,12 @@ TEST(dm_easy_mesh_t, set_db_cfg_param_NullCriteria)
  */
 TEST(dm_easy_mesh_t, destructor_destruction_of_instance)
 {
-    std::cout << "Entering destructor_destruction_of_instance test" << std::endl;    
+    std::cout << "Entering destructor_destruction_of_instance test" << std::endl;
     {
         std::cout << "Invoking default constructor of dm_easy_mesh_t" << std::endl;
         dm_easy_mesh_t obj;
         std::cout << "Invoking destructor of dm_easy_mesh_t by leaving scope" << std::endl;
-    } // Destructor ~dm_easy_mesh_t is invoked here.    
+    } // Destructor ~dm_easy_mesh_t is invoked here.
     std::cout << "Exiting destructor_destruction_of_instance test" << std::endl;
 }
 
@@ -17971,7 +18014,7 @@ TEST(dm_easy_mesh_t, set_manufacturer_special_characters) {
  */
 TEST(dm_easy_mesh_t, set_manufacturer_null_pointer) {
     std::cout << "Entering set_manufacturer_null_pointer test" << std::endl;
-    dm_easy_mesh_t obj;    
+    dm_easy_mesh_t obj;
     char* nullManufacturer = nullptr;
     std::cout << "Invoking set_manufacturer with input: nullptr" << std::endl;
     EXPECT_ANY_THROW(obj.set_manufacturer(nullManufacturer));
@@ -18043,15 +18086,15 @@ TEST(dm_easy_mesh_t, set_manufacturer_model_empty_manufacturer_model_string)
     std::cout << "Invoking set_manufacturer_model with empty string" << std::endl;
     obj.set_manufacturer_model(emptyModel);
     std::cout << "Retrieved manufacturer model: " << obj.m_device.m_device_info.manufacturer_model << std::endl;
-    EXPECT_STREQ(emptyModel, obj.m_device.m_device_info.manufacturer_model);    
+    EXPECT_STREQ(emptyModel, obj.m_device.m_device_info.manufacturer_model);
     std::cout << "Exiting set_manufacturer_model_empty_manufacturer_model_string test" << std::endl;
 }
 
 /**
  * @brief Test to verify that set_manufacturer_model throws an exception when a null pointer is provided
  *
- * This test verifies that the set_manufacturer_model function correctly handles invalid input 
- * by throwing an exception when a null pointer is passed. This ensures that the API does not accept 
+ * This test verifies that the set_manufacturer_model function correctly handles invalid input
+ * by throwing an exception when a null pointer is passed. This ensures that the API does not accept
  * invalid pointers and behaves reliably under erroneous conditions@n
  *
  * **Test Group ID:** Basic: 01@n
@@ -18101,7 +18144,7 @@ TEST(dm_easy_mesh_t, set_msg_id_min_value) {
     std::cout << "Invoking set_msg_id with value: " << test_value << std::endl;
     instance.set_msg_id(test_value);
     std::cout << "Retrieved msg_id value: " << instance.msg_id << std::endl;
-    EXPECT_EQ(instance.msg_id, test_value);    
+    EXPECT_EQ(instance.msg_id, test_value);
     std::cout << "Exiting set_msg_id_min_value test" << std::endl;
 }
 
@@ -18136,7 +18179,7 @@ TEST(dm_easy_mesh_t, set_msg_id_mid_value) {
     std::cout << "Invoking set_msg_id with value: " << test_value << std::endl;
     instance.set_msg_id(test_value);
     std::cout << "Retrieved msg_id value: " << instance.msg_id << std::endl;
-    EXPECT_EQ(instance.msg_id, test_value);    
+    EXPECT_EQ(instance.msg_id, test_value);
     std::cout << "Exiting set_msg_id_mid_value test" << std::endl;
 }
 
@@ -18165,7 +18208,7 @@ TEST(dm_easy_mesh_t, set_msg_id_max_value) {
     std::cout << "Invoking set_msg_id with value: " << test_value << std::endl;
     instance.set_msg_id(test_value);
     std::cout << "Retrieved msg_id value: " << instance.msg_id << std::endl;
-    EXPECT_EQ(instance.msg_id, test_value); 
+    EXPECT_EQ(instance.msg_id, test_value);
     std::cout << "Exiting set_msg_id_max_value test" << std::endl;
 }
 
@@ -18177,11 +18220,11 @@ TEST(dm_easy_mesh_t, set_msg_id_max_value) {
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 469@n
  * **Priority:** High@n
- * 
+ *
  * **Pre-Conditions:** None@n
  * **Dependencies:** None@n
  * **User Interaction:** None@n
- * 
+ *
  * **Test Procedure:**@n
  * | Variation / Step | Description | Test Data | Expected Result | Notes |@n
  * | :----: | --------- | ---------- |-------------- | ----- |@n
@@ -18193,7 +18236,7 @@ TEST(dm_easy_mesh_t, set_primary_device_type_valid_switch) {
     dm_easy_mesh_t mesh;
     char switchType[] = "Switch";
     std::cout << "Invoking set_primary_device_type with value: " << switchType << std::endl;
-    mesh.set_primary_device_type(switchType);    
+    mesh.set_primary_device_type(switchType);
     std::cout << "Retrieved primary device type from m_device: " << mesh.m_device.m_device_info.primary_device_type << std::endl;
     EXPECT_STREQ("Switch", mesh.m_device.m_device_info.primary_device_type);
     std::cout << "Exiting set_primary_device_type_valid_switch test" << std::endl;
@@ -18207,11 +18250,11 @@ TEST(dm_easy_mesh_t, set_primary_device_type_valid_switch) {
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 470@n
  * **Priority:** High@n
- * 
+ *
  * **Pre-Conditions:** None@n
  * **Dependencies:** None@n
  * **User Interaction:** None@n
- * 
+ *
  * **Test Procedure:**
  * | Variation / Step | Description                                              | Test Data                             | Expected Result                                                      | Notes      |
  * | :--------------: | -------------------------------------------------------- | ------------------------------------- | -------------------------------------------------------------------- | ---------- |
@@ -18252,14 +18295,14 @@ TEST(dm_easy_mesh_t, set_primary_device_type_empty_string) {
     std::cout << "Invoking set_primary_device_type with empty string" << std::endl;
     mesh.set_primary_device_type(emptyType);
     std::cout << "Primary device type after invoking with empty string: " << mesh.m_device.m_device_info.primary_device_type << std::endl;
-    EXPECT_STREQ("", mesh.m_device.m_device_info.primary_device_type);    
+    EXPECT_STREQ("", mesh.m_device.m_device_info.primary_device_type);
     std::cout << "Exiting set_primary_device_type_empty_string test" << std::endl;
 }
 
 /**
  * @brief Verify that set_primary_device_type correctly truncates a very long input string to the maximum allowed length.
  *
- * This test provides a valid but very long string (1024 characters) to the set_primary_device_type method and checks that the stored string 
+ * This test provides a valid but very long string (1024 characters) to the set_primary_device_type method and checks that the stored string
  * is truncated to the maximum allowed length (15 characters). This ensures that the API handles oversized inputs safely by limiting the stored data.
  *
  * **Test Group ID:** Basic: 01@n
@@ -18282,15 +18325,15 @@ TEST(dm_easy_mesh_t, set_primary_device_type_very_long_valid) {
     const size_t longStrLength = 1024;
     char *longType = new char[longStrLength + 1];
     memset(longType, 'A', longStrLength);
-    longType[longStrLength] = '\0';    
+    longType[longStrLength] = '\0';
     std::cout << "Invoking set_primary_device_type with a very long string of length " << longStrLength << std::endl;
-    mesh.set_primary_device_type(longType);    
-    std::cout << "Retrieved primary device type from m_device with length: " << mesh.m_device.m_device_info.primary_device_type << std::endl;    
+    mesh.set_primary_device_type(longType);
+    std::cout << "Retrieved primary device type from m_device with length: " << mesh.m_device.m_device_info.primary_device_type << std::endl;
     const char* stored = mesh.m_device.m_device_info.primary_device_type;
     constexpr size_t maxLen = sizeof(em_small_string_t) - 1; // 15
     EXPECT_EQ(strlen(stored), maxLen);
     EXPECT_EQ(strncmp(stored, longType, maxLen), 0);
-    delete[] longType;    
+    delete[] longType;
     std::cout << "Exiting set_primary_device_type_very_long_valid test" << std::endl;
 }
 
@@ -18551,7 +18594,7 @@ TEST(dm_easy_mesh_t, set_network_invalid_malformed_network_information_input)
     std::cout << "Entering set_network_invalid_malformed_network_information_input test" << std::endl;
     // Create a dm_network_t object with invalid/malformed network details.
     dm_network_t malformedNetwork;
-    strcpy(malformedNetwork.m_net_info.id, "");    
+    strcpy(malformedNetwork.m_net_info.id, "");
     // Set controller interface with empty name and zero MAC
     strcpy(malformedNetwork.m_net_info.ctrl_id.name, "");
     unsigned char zeroMac[6] = {0, 0, 0, 0, 0, 0};
@@ -18568,7 +18611,7 @@ TEST(dm_easy_mesh_t, set_network_invalid_malformed_network_information_input)
     EXPECT_STREQ(easyMesh.m_network.m_net_info.ctrl_id.name, "");
     EXPECT_EQ(memcmp(easyMesh.m_network.m_net_info.ctrl_id.mac, zeroMac, sizeof(zeroMac)), 0);
     EXPECT_STREQ(easyMesh.m_network.m_net_info.colocated_agent_id.name, "");
-    EXPECT_EQ(memcmp(easyMesh.m_network.m_net_info.colocated_agent_id.mac, zeroMac, sizeof(zeroMac)), 0);    
+    EXPECT_EQ(memcmp(easyMesh.m_network.m_net_info.colocated_agent_id.mac, zeroMac, sizeof(zeroMac)), 0);
     std::cout << "Exiting set_network_invalid_malformed_network_information_input test" << std::endl;
 }
 
@@ -18599,7 +18642,7 @@ TEST(dm_easy_mesh_t, set_num_network_ssid_typical_valid_positive)
     unsigned int input = 5;
     std::cout << "Invoking set_num_network_ssid with num = " << input << std::endl;
     obj.set_num_network_ssid(input);
-    std::cout << "Method set_num_network_ssid invoked. Expected m_num_net_ssids = " << input 
+    std::cout << "Method set_num_network_ssid invoked. Expected m_num_net_ssids = " << input
               << ", Actual m_num_net_ssids = " << obj.m_num_net_ssids << std::endl;
     EXPECT_EQ(obj.m_num_net_ssids, input);
     std::cout << "Exiting set_num_network_ssid_typical_valid_positive test" << std::endl;
@@ -18641,7 +18684,7 @@ TEST(dm_easy_mesh_t, set_num_network_ssid_min_boundary)
 /**
  * @brief Test the set_num_network_ssid() API with the maximum unsigned integer boundary value.
  *
- * This test verifies that the set_num_network_ssid() method correctly assigns the maximum 
+ * This test verifies that the set_num_network_ssid() method correctly assigns the maximum
  * unsigned integer value to the m_num_net_ssids member of the dm_easy_mesh_t object. It ensures
  * that the API can handle the upper boundary condition without errors.
  *
@@ -18661,13 +18704,13 @@ TEST(dm_easy_mesh_t, set_num_network_ssid_min_boundary)
 TEST(dm_easy_mesh_t, set_num_network_ssid_max_boundary)
 {
     std::cout << "Entering set_num_network_ssid_max_boundary test" << std::endl;
-    dm_easy_mesh_t obj;    
+    dm_easy_mesh_t obj;
     unsigned int input = std::numeric_limits<unsigned int>::max();  // 4294967295 on typical systems
     std::cout << "Invoking set_num_network_ssid with num = " << input << std::endl;
-    obj.set_num_network_ssid(input);    
+    obj.set_num_network_ssid(input);
     std::cout << "Method set_num_network_ssid invoked. Expected m_num_net_ssids = " << input
               << ", Actual m_num_net_ssids = " << obj.m_num_net_ssids << std::endl;
-    EXPECT_EQ(obj.m_num_net_ssids, input);    
+    EXPECT_EQ(obj.m_num_net_ssids, input);
     std::cout << "Exiting set_num_network_ssid_max_boundary test" << std::endl;
 }
 
@@ -18696,8 +18739,8 @@ TEST(dm_easy_mesh_t, set_num_policy_set_policy_with_zero_value)
     unsigned int policy_val = 0;
     std::cout << "Invoking set_num_policy with value: " << policy_val << std::endl;
     mesh_obj.set_num_policy(policy_val);
-    std::cout << "m_num_policy after invocation: " << mesh_obj.m_num_policy << std::endl;    
-    EXPECT_EQ(mesh_obj.m_num_policy, policy_val);    
+    std::cout << "m_num_policy after invocation: " << mesh_obj.m_num_policy << std::endl;
+    EXPECT_EQ(mesh_obj.m_num_policy, policy_val);
     std::cout << "Exiting set_num_policy_set_policy_with_zero_value test" << std::endl;
 }
 
@@ -18722,12 +18765,12 @@ TEST(dm_easy_mesh_t, set_num_policy_set_policy_with_zero_value)
 TEST(dm_easy_mesh_t, set_num_policy_set_policy_with_positive_value)
 {
     std::cout << "Entering set_num_policy_set_policy_with_positive_value test" << std::endl;
-    dm_easy_mesh_t mesh_obj;    
+    dm_easy_mesh_t mesh_obj;
     unsigned int policy_val = 100;
     std::cout << "Invoking set_num_policy with value: " << policy_val << std::endl;
-    mesh_obj.set_num_policy(policy_val);    
-    std::cout << "m_num_policy after invocation: " << mesh_obj.m_num_policy << std::endl;    
-    EXPECT_EQ(mesh_obj.m_num_policy, policy_val);    
+    mesh_obj.set_num_policy(policy_val);
+    std::cout << "m_num_policy after invocation: " << mesh_obj.m_num_policy << std::endl;
+    EXPECT_EQ(mesh_obj.m_num_policy, policy_val);
     std::cout << "Exiting set_num_policy_set_policy_with_positive_value test" << std::endl;
 }
 
@@ -18756,12 +18799,12 @@ TEST(dm_easy_mesh_t, set_num_policy_set_policy_with_positive_value)
 TEST(dm_easy_mesh_t, set_num_policy_set_policy_with_max_value)
 {
     std::cout << "Entering set_num_policy_set_policy_with_max_value test" << std::endl;
-    dm_easy_mesh_t mesh_obj;    
+    dm_easy_mesh_t mesh_obj;
     unsigned int policy_val = std::numeric_limits<unsigned int>::max();
     std::cout << "Invoking set_num_policy with value: " << policy_val << std::endl;
-    mesh_obj.set_num_policy(policy_val);   
-    std::cout << "m_num_policy after invocation: " << mesh_obj.m_num_policy << std::endl;    
-    EXPECT_EQ(mesh_obj.m_num_policy, policy_val);    
+    mesh_obj.set_num_policy(policy_val);
+    std::cout << "m_num_policy after invocation: " << mesh_obj.m_num_policy << std::endl;
+    EXPECT_EQ(mesh_obj.m_num_policy, policy_val);
     std::cout << "Exiting set_num_policy_set_policy_with_max_value test" << std::endl;
 }
 
@@ -18774,11 +18817,11 @@ TEST(dm_easy_mesh_t, set_num_policy_set_policy_with_max_value)
  * **Test Group ID:** Basic: 01
  * **Test Case ID:** 487@n
  * **Priority:** High
- * 
+ *
  * **Pre-Conditions:** None
  * **Dependencies:** None
  * **User Interaction:** None
- * 
+ *
  * **Test Procedure:**
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
@@ -18910,11 +18953,11 @@ TEST(dm_easy_mesh_t, set_policy_DifferentNetIdAddsNewPolicy)
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 490@n
  * **Priority:** High@n
- * 
+ *
  * **Pre-Conditions:** None@n
  * **Dependencies:** None@n
  * **User Interaction:** None@n
- * 
+ *
  * **Test Procedure:**@n
  * | Variation / Step | Description                                                                              | Test Data                                                                                                                          | Expected Result                                                    | Notes         |
  * | :--------------: | ---------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ | ------------- |
@@ -18954,11 +18997,11 @@ TEST(dm_easy_mesh_t, set_policy_SameIdsDifferentTypeAddsNewPolicy)
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 491@n
  * **Priority:** High@n
- * 
+ *
  * **Pre-Conditions:** None@n
  * **Dependencies:** None@n
  * **User Interaction:** None@n
- * 
+ *
  * **Test Procedure:**
  * | Variation / Step | Description                                    | Test Data                       | Expected Result                                | Notes              |
  * | :--------------: | ---------------------------------------------- | ------------------------------- | ---------------------------------------------- | ------------------ |
@@ -18974,7 +19017,7 @@ TEST(dm_easy_mesh_t, set_num_ap_mld_zero_value) {
     obj.set_num_ap_mld(input_value);
     unsigned int retrieved_value = obj.m_num_ap_mld;
     std::cout << "Retrieved m_num_ap_mld value: " << retrieved_value << std::endl;
-    EXPECT_EQ(retrieved_value, 0);    
+    EXPECT_EQ(retrieved_value, 0);
     std::cout << "Exiting set_num_ap_mld_zero_value test" << std::endl;
 }
 
@@ -19124,11 +19167,11 @@ TEST(dm_easy_mesh_t, set_num_ap_mld_sets_to_positive_value) {
  * **Test Group ID:** Basic: 01
  * **Test Case ID:** 496@n
  * **Priority:** High
- * 
+ *
  * **Pre-Conditions:** None
  * **Dependencies:** None
  * **User Interaction:** None
- * 
+ *
  * **Test Procedure:**
  * | Variation / Step | Description                                                         | Test Data                                                       | Expected Result                                  | Notes             |
  * | :--------------: | ------------------------------------------------------------------- | ---------------------------------------------------------------- | ------------------------------------------------ | ----------------- |
@@ -19199,30 +19242,30 @@ TEST(dm_easy_mesh_t, set_num_ap_mld_null_dm) {
  */
 TEST(dm_easy_mesh_t, set_num_bss_zero)
 {
-    std::cout << "Entering set_num_bss_zero test" << std::endl;    
+    std::cout << "Entering set_num_bss_zero test" << std::endl;
     dm_easy_mesh_t obj;
     unsigned int value = 0;
-    std::cout << "Invoking set_num_bss with value: " << value << std::endl;    
+    std::cout << "Invoking set_num_bss with value: " << value << std::endl;
     obj.set_num_bss(value);
-    std::cout << "Retrieved member m_num_bss value after set: " << obj.m_num_bss << std::endl;    
-    EXPECT_EQ(obj.m_num_bss, 0u);    
+    std::cout << "Retrieved member m_num_bss value after set: " << obj.m_num_bss << std::endl;
+    EXPECT_EQ(obj.m_num_bss, 0u);
     std::cout << "Exiting set_num_bss_zero test" << std::endl;
 }
 
 /**
  * @brief Test to verify that setting the number of BSS in dm_easy_mesh_t updates the member variable correctly.
  *
- * This test creates an instance of dm_easy_mesh_t and sets its number of BSS value using the set_num_bss API with an input value of 5. 
+ * This test creates an instance of dm_easy_mesh_t and sets its number of BSS value using the set_num_bss API with an input value of 5.
  * It then checks if the internal member variable m_num_bss reflects the updated value as expected.
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 499@n
  * **Priority:** High@n
- * 
+ *
  * **Pre-Conditions:** None@n
  * **Dependencies:** None@n
  * **User Interaction:** None@n
- * 
+ *
  * **Test Procedure:**
  * | Variation / Step | Description                                                   | Test Data                                | Expected Result                                                                   | Notes           |
  * | :---------------:|---------------------------------------------------------------|------------------------------------------|------------------------------------------------------------------------------------|-----------------|
@@ -19232,13 +19275,13 @@ TEST(dm_easy_mesh_t, set_num_bss_zero)
  */
 TEST(dm_easy_mesh_t, set_num_bss_positive)
 {
-    std::cout << "Entering set_num_bss_positive test" << std::endl;    
+    std::cout << "Entering set_num_bss_positive test" << std::endl;
     dm_easy_mesh_t obj;
     unsigned int value = 5;
-    std::cout << "Invoking set_num_bss with value: " << value << std::endl;    
+    std::cout << "Invoking set_num_bss with value: " << value << std::endl;
     obj.set_num_bss(value);
-    std::cout << "Retrieved member m_num_bss value after set: " << obj.m_num_bss << std::endl;    
-    EXPECT_EQ(obj.m_num_bss, 5u);    
+    std::cout << "Retrieved member m_num_bss value after set: " << obj.m_num_bss << std::endl;
+    EXPECT_EQ(obj.m_num_bss, 5u);
     std::cout << "Exiting set_num_bss_positive test" << std::endl;
 }
 
@@ -19251,11 +19294,11 @@ TEST(dm_easy_mesh_t, set_num_bss_positive)
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 500@n
  * **Priority:** High@n
- * 
+ *
  * **Pre-Conditions:** None@n
  * **Dependencies:** None@n
  * **User Interaction:** None@n
- * 
+ *
  * **Test Procedure:**
  * | Variation / Step | Description                                                      | Test Data                                                                 | Expected Result                                                                                   | Notes         |
  * | :--------------: | ---------------------------------------------------------------- | ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- | ------------- |
@@ -19266,13 +19309,13 @@ TEST(dm_easy_mesh_t, set_num_bss_positive)
  */
 TEST(dm_easy_mesh_t, set_num_bss_max_uint)
 {
-    std::cout << "Entering set_num_bss_max_uint test" << std::endl;    
+    std::cout << "Entering set_num_bss_max_uint test" << std::endl;
     dm_easy_mesh_t obj;
     unsigned int value = std::numeric_limits<unsigned int>::max();
-    std::cout << "Invoking set_num_bss with value: " << value << std::endl;    
+    std::cout << "Invoking set_num_bss with value: " << value << std::endl;
     obj.set_num_bss(value);
-    std::cout << "Retrieved member m_num_bss value after set: " << obj.m_num_bss << std::endl;   
-    EXPECT_EQ(obj.m_num_bss, std::numeric_limits<unsigned int>::max());    
+    std::cout << "Retrieved member m_num_bss value after set: " << obj.m_num_bss << std::endl;
+    EXPECT_EQ(obj.m_num_bss, std::numeric_limits<unsigned int>::max());
     std::cout << "Exiting set_num_bss_max_uint test" << std::endl;
 }
 
@@ -19328,12 +19371,12 @@ TEST(dm_easy_mesh_t, set_num_bss_valid_typical_positive) {
  */
 TEST(dm_easy_mesh_t, set_num_bss_valid_zero_value) {
     std::cout << "Entering set_num_bss_valid_zero_value test" << std::endl;
-    dm_easy_mesh_t mesh_instance;    
+    dm_easy_mesh_t mesh_instance;
     unsigned int num = 0;
     std::cout << "Invoking set_num_bss with num = " << num << std::endl;
-    dm_easy_mesh_t::set_num_bss(&mesh_instance, num);    
+    dm_easy_mesh_t::set_num_bss(&mesh_instance, num);
     std::cout << "After invocation, mesh_instance.m_num_bss = " << mesh_instance.m_num_bss << std::endl;
-    EXPECT_EQ(mesh_instance.m_num_bss, num);    
+    EXPECT_EQ(mesh_instance.m_num_bss, num);
     std::cout << "Exiting set_num_bss_valid_zero_value test" << std::endl;
 }
 
@@ -19358,12 +19401,12 @@ TEST(dm_easy_mesh_t, set_num_bss_valid_zero_value) {
  */
 TEST(dm_easy_mesh_t, set_num_bss_valid_max_boundary_value) {
     std::cout << "Entering set_num_bss_valid_max_boundary_value test" << std::endl;
-    dm_easy_mesh_t mesh_instance;    
+    dm_easy_mesh_t mesh_instance;
     unsigned int num = std::numeric_limits<unsigned int>::max();
     std::cout << "Invoking set_num_bss with num = " << num << std::endl;
-    dm_easy_mesh_t::set_num_bss(&mesh_instance, num);    
+    dm_easy_mesh_t::set_num_bss(&mesh_instance, num);
     std::cout << "After invocation, mesh_instance.m_num_bss = " << mesh_instance.m_num_bss << std::endl;
-    EXPECT_EQ(mesh_instance.m_num_bss, num);    
+    EXPECT_EQ(mesh_instance.m_num_bss, num);
     std::cout << "Exiting set_num_bss_valid_max_boundary_value test" << std::endl;
 }
 
@@ -19386,9 +19429,9 @@ TEST(dm_easy_mesh_t, set_num_bss_valid_max_boundary_value) {
  * | 01                | Invoke set_num_bss with NULL dm pointer and num = 5 to verify exception throwing | dm = NULL, num = 5     | API throws an exception as validated by EXPECT_ANY_THROW | Should Fail |
  */
 TEST(dm_easy_mesh_t, set_num_bss_null_mesh_instance) {
-    std::cout << "Entering set_num_bss_null_mesh_instance test" << std::endl;    
+    std::cout << "Entering set_num_bss_null_mesh_instance test" << std::endl;
     unsigned int num = 5;
-    std::cout << "Invoking set_num_bss with NULL dm pointer and num = " << num << std::endl;        
+    std::cout << "Invoking set_num_bss with NULL dm pointer and num = " << num << std::endl;
     EXPECT_ANY_THROW(dm_easy_mesh_t::set_num_bss(NULL, num));
     std::cout << "Exiting set_num_bss_null_mesh_instance test" << std::endl;
 }
@@ -19403,11 +19446,11 @@ TEST(dm_easy_mesh_t, set_num_bss_null_mesh_instance) {
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:**505@n
  * **Priority:** High@n
- * 
+ *
  * **Pre-Conditions:** None@n
  * **Dependencies:** None@n
  * **User Interaction:** None@n
- * 
+ *
  * **Test Procedure:**@n
  * | Variation / Step | Description                                                                                      | Test Data                                       | Expected Result                                  | Notes       |
  * | :--------------: | ------------------------------------------------------------------------------------------------ | ----------------------------------------------- | ------------------------------------------------ | ----------- |
@@ -19428,8 +19471,8 @@ TEST(dm_easy_mesh_t, set_num_op_class_typical_positive)
 /**
  * @brief Validate that set_num_op_class correctly assigns zero to m_num_opclass.
  *
- * This test verifies that when a zero value is passed to the set_num_op_class API of the dm_easy_mesh_t object, 
- * the internal variable m_num_opclass is correctly updated to 0. Testing this boundary condition ensures that the API 
+ * This test verifies that when a zero value is passed to the set_num_op_class API of the dm_easy_mesh_t object,
+ * the internal variable m_num_opclass is correctly updated to 0. Testing this boundary condition ensures that the API
  * functions correctly for lower limit inputs.
  *
  * **Test Group ID:** Basic: 01@n
@@ -19498,7 +19541,7 @@ TEST(dm_easy_mesh_t, set_num_op_class_maximum_value)
  * @brief Validate that the dm_easy_mesh_t::set_num_op_class correctly updates the m_num_opclass field.
  *
  * This test ensures that when set_num_op_class is invoked with a valid opClass value, the m_num_opclass
- * member of the dm_easy_mesh_t instance is properly updated. It verifies that the API works as expected 
+ * member of the dm_easy_mesh_t instance is properly updated. It verifies that the API works as expected
  * in a typical scenario by checking both the updated member value and the logging behavior.
  *
  * **Test Group ID:** Basic: 01@n
@@ -19525,7 +19568,7 @@ TEST(dm_easy_mesh_t, set_num_op_class_valid_typical) {
     std::cout << "Invoking set_num_op_class with value: " << opClassValue << std::endl;
     dm_easy_mesh_t::set_num_op_class(&dmInstance, opClassValue);
     std::cout << "Value in dmInstance.m_num_opclass after setting: " << dmInstance.m_num_opclass << std::endl;
-    EXPECT_EQ(dmInstance.m_num_opclass, opClassValue);    
+    EXPECT_EQ(dmInstance.m_num_opclass, opClassValue);
     std::cout << "Exiting set_num_op_class_valid_typical test" << std::endl;
 }
 
@@ -19556,7 +19599,7 @@ TEST(dm_easy_mesh_t, set_num_op_class_valid_zero) {
     std::cout << "Invoking set_num_op_class with value: " << opClassValue << std::endl;
     dm_easy_mesh_t::set_num_op_class(&dmInstance, opClassValue);
     std::cout << "Value in dmInstance.m_num_opclass after setting: " << dmInstance.m_num_opclass << std::endl;
-    EXPECT_EQ(dmInstance.m_num_opclass, opClassValue);    
+    EXPECT_EQ(dmInstance.m_num_opclass, opClassValue);
     std::cout << "Exiting set_num_op_class_valid_zero test" << std::endl;
 }
 
@@ -19585,7 +19628,7 @@ TEST(dm_easy_mesh_t, set_num_op_class_valid_max_unsigned) {
     std::cout << "Invoking set_num_op_class with value: " << opClassValue << std::endl;
     dm_easy_mesh_t::set_num_op_class(&dmInstance, opClassValue);
     std::cout << "Value in dmInstance.m_num_opclass after setting: " << dmInstance.m_num_opclass << std::endl;
-    EXPECT_EQ(dmInstance.m_num_opclass, opClassValue);  
+    EXPECT_EQ(dmInstance.m_num_opclass, opClassValue);
     std::cout << "Exiting set_num_op_class_valid_max_unsigned test" << std::endl;
 }
 
@@ -19613,7 +19656,7 @@ TEST(dm_easy_mesh_t, set_num_op_class_invalid_dm_pointer) {
     std::cout << "Entering set_num_op_class_invalid_dm_pointer test" << std::endl;
     unsigned int opClassValue = 5;
     std::cout << "Invoking set_num_op_class with nullptr and value: " << opClassValue << std::endl;
-    EXPECT_ANY_THROW(dm_easy_mesh_t::set_num_op_class(nullptr, opClassValue));    
+    EXPECT_ANY_THROW(dm_easy_mesh_t::set_num_op_class(nullptr, opClassValue));
     std::cout << "Exiting set_num_op_class_invalid_dm_pointer test" << std::endl;
 }
 
@@ -19625,11 +19668,11 @@ TEST(dm_easy_mesh_t, set_num_op_class_invalid_dm_pointer) {
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 512@n
  * **Priority:** High@n
- * 
+ *
  * **Pre-Conditions:** None@n
  * **Dependencies:** None@n
  * **User Interaction:** None@n
- * 
+ *
  * **Test Procedure:**
  * | Variation / Step | Description                                                   | Test Data                                 | Expected Result                                                              | Notes          |
  * | :--------------: | ------------------------------------------------------------- | ----------------------------------------- | ---------------------------------------------------------------------------- | -------------- |
@@ -19642,28 +19685,28 @@ TEST(dm_easy_mesh_t, set_num_radios_set_to_0) {
     dm_easy_mesh_t testObj;
     unsigned int input_value = 0;
     std::cout << "Invoking set_num_radios with value: " << input_value << std::endl;
-    testObj.set_num_radios(input_value);    
+    testObj.set_num_radios(input_value);
     std::cout << "Retrieved m_num_radios value: " << testObj.m_num_radios << std::endl;
-    EXPECT_EQ(testObj.m_num_radios, 0u);    
+    EXPECT_EQ(testObj.m_num_radios, 0u);
     std::cout << "Exiting set_num_radios_set_to_0 test" << std::endl;
 }
 
 /**
  * @brief Validate that set_num_radios correctly sets the number of radios when given a positive value.
  *
- * This test verifies that invoking set_num_radios with a positive integer (5) correctly updates the internal 
- * m_num_radios member of the dm_easy_mesh_t object. The test checks that after calling the method, the m_num_radios 
- * variable matches the expected positive value. It is essential to ensure that the API correctly handles and assigns 
+ * This test verifies that invoking set_num_radios with a positive integer (5) correctly updates the internal
+ * m_num_radios member of the dm_easy_mesh_t object. The test checks that after calling the method, the m_num_radios
+ * variable matches the expected positive value. It is essential to ensure that the API correctly handles and assigns
  * positive values without issues.
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 513@n
  * **Priority:** High@n
- * 
+ *
  * **Pre-Conditions:** None@n
  * **Dependencies:** None@n
  * **User Interaction:** None@n
- * 
+ *
  * **Test Procedure:**
  * | Variation / Step | Description                                                                                  | Test Data                                 | Expected Result                                             | Notes       |
  * | :--------------: | -------------------------------------------------------------------------------------------- | ----------------------------------------- | ----------------------------------------------------------- | ----------- |
@@ -19703,9 +19746,9 @@ TEST(dm_easy_mesh_t, set_num_radios_set_to_UINT_MAX) {
     dm_easy_mesh_t testObj;
     unsigned int input_value = UINT_MAX;
     std::cout << "Invoking set_num_radios with value: " << input_value << std::endl;
-    testObj.set_num_radios(input_value);    
+    testObj.set_num_radios(input_value);
     std::cout << "Retrieved m_num_radios value: " << testObj.m_num_radios << std::endl;
-    EXPECT_EQ(testObj.m_num_radios, UINT_MAX);    
+    EXPECT_EQ(testObj.m_num_radios, UINT_MAX);
     std::cout << "Exiting set_num_radios_set_to_UINT_MAX test" << std::endl;
 }
 
@@ -19752,7 +19795,7 @@ TEST(dm_easy_mesh_t, set_num_radios_valid_typical)
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 516@n
  * **Priority:** High@n
- * 
+ *
  * **Pre-Conditions:** None@n
  * **Dependencies:** None@n
  * **User Interaction:** None@n
@@ -19810,15 +19853,15 @@ TEST(dm_easy_mesh_t, set_num_radios_invalid_dm_nullptr)
  *
  * This test case creates an instance of dm_easy_mesh_t and calls its init() method to verify that it returns 0, indicating a successful initialization.
  *
- * **Test Group ID:** Basic: 01  
- * **Test Case ID:** 518@n  
- * **Priority:** High  
+ * **Test Group ID:** Basic: 01
+ * **Test Case ID:** 518@n
+ * **Priority:** High
  *
- * **Pre-Conditions:** None  
- * **Dependencies:** None  
- * **User Interaction:** None  
+ * **Pre-Conditions:** None
+ * **Dependencies:** None
+ * **User Interaction:** None
  *
- * **Test Procedure:**  
+ * **Test Procedure:**
  * | Variation / Step | Description                                             | Test Data                                  | Expected Result                                                 | Notes      |
  * | :--------------: | ------------------------------------------------------- | ------------------------------------------ | -------------------------------------------------------------- | ---------- |
  * | 01               | Create an instance of dm_easy_mesh_t and invoke init()   | No input; output: ret from init() = 0        | init() returns 0 and EXPECT_EQ(ret, 0) assertion passes          | Should Pass|
@@ -19829,7 +19872,7 @@ TEST(dm_easy_mesh_t, init_proper_initialization_success) {
     std::cout << "Invoking dm_easy_mesh_t::init() method" << std::endl;
     int ret = easyMesh.init();
     std::cout << "Return value from init(): " << ret << std::endl;
-    EXPECT_EQ(ret, 0);	
+    EXPECT_EQ(ret, 0);
 	//To prevent memory leak
     easyMesh.deinit();
     std::cout << "Exiting init_proper_initialization_success test" << std::endl;
@@ -19843,11 +19886,11 @@ TEST(dm_easy_mesh_t, init_proper_initialization_success) {
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 519@n
  * **Priority:** High@n
- * 
+ *
  * **Pre-Conditions:** None@n
  * **Dependencies:** None@n
  * **User Interaction:** None@n
- * 
+ *
  * **Test Procedure:**
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
@@ -19857,13 +19900,13 @@ TEST(dm_easy_mesh_t, init_proper_initialization_success) {
 TEST(dm_easy_mesh_t, reset_reset_on_newly_constructed_instance)
 {
     std::cout << "Entering reset_reset_on_newly_constructed_instance test" << std::endl;
-    dm_easy_mesh_t instance;    
+    dm_easy_mesh_t instance;
     // Log initial default state of a few members
     std::cout << "Default state before reset(): " << std::endl;
     std::cout << "m_num_preferences = " << instance.m_num_preferences << std::endl;
-    std::cout << "m_colocated = " << instance.m_colocated << std::endl;     
+    std::cout << "m_colocated = " << instance.m_colocated << std::endl;
     std::cout << "Invoking reset()" << std::endl;
-    instance.reset();    
+    instance.reset();
     // Log state after calling reset()
     std::cout << "State after reset(): " << std::endl;
     std::cout << "m_num_preferences = " << instance.m_num_preferences << std::endl;
@@ -19877,7 +19920,7 @@ TEST(dm_easy_mesh_t, reset_reset_on_newly_constructed_instance)
 /**
  * @brief Verify that dm_easy_mesh_t::reset() correctly restores the default state of the instance
  *
- * This test modifies the internal state of a dm_easy_mesh_t object by setting m_num_preferences to 5 and m_colocated to true. 
+ * This test modifies the internal state of a dm_easy_mesh_t object by setting m_num_preferences to 5 and m_colocated to true.
  * It then calls the reset() method and verifies that all members return to their default values. The test ensures that the
  * reset() API functions as expected by restoring default values after internal state modifications.
  *
@@ -19905,14 +19948,14 @@ TEST(dm_easy_mesh_t, reset_after_modifying_internal_state)
     std::cout << "Entering reset_reset_after_modifying_internal_state test" << std::endl;
     dm_easy_mesh_t instance;
     instance.m_num_preferences = 5;
-    instance.m_colocated = true;    
+    instance.m_colocated = true;
     // Log modified state before reset
     std::cout << "Modified state before reset(): " << std::endl;
     std::cout << "m_num_preferences = " << instance.m_num_preferences << std::endl;
     std::cout << "m_colocated = " << instance.m_colocated << std::endl;
     // Invoke reset() to restore default values.
     std::cout << "Invoking reset()" << std::endl;
-    instance.reset();   
+    instance.reset();
     // Log state after reset
     std::cout << "State after reset(): " << std::endl;
     std::cout << "m_num_preferences = " << instance.m_num_preferences << std::endl;
@@ -20026,10 +20069,10 @@ TEST(dm_easy_mesh_t, reset_db_cfg_type_ValidInput_SingleBitEnums)
     };
     for (auto type : validTypes) {
         unsigned int before = obj.m_db_cfg_param.db_cfg_type;
-        std::cout << "Invoking reset_db_cfg_type with value: " << type << std::endl;
+        std::cout << "Invoking reset_db_cfg_type with value: " << static_cast<unsigned int>(type) << std::endl;
         obj.reset_db_cfg_type(type);
         unsigned int after = obj.m_db_cfg_param.db_cfg_type;
-        EXPECT_EQ(after & type, 0u);
+        EXPECT_EQ(after & static_cast<unsigned int>(type), 0u);
         std::cout << "Before db_cfg_type : " << before << std::endl;
         std::cout << "After  db_cfg_type : " << after << std::endl;
     }
@@ -20040,7 +20083,7 @@ TEST(dm_easy_mesh_t, reset_db_cfg_type_ValidInput_SingleBitEnums)
 /**
  * @brief Verify that reset_db_cfg_type does not modify the configuration when given an invalid non-supported enum value.
  *
- * This test checks that passing an unsupported enum value (0xFFFFFFFF) to reset_db_cfg_type does not alter the current 
+ * This test checks that passing an unsupported enum value (0xFFFFFFFF) to reset_db_cfg_type does not alter the current
  * configuration (db_cfg_type). The test ensures that the API preserves the original configuration when invalid input is provided.
  *
  * **Test Group ID:** Basic: 01@n
@@ -20065,7 +20108,7 @@ TEST(dm_easy_mesh_t, reset_db_cfg_type_InvalidInput_NonSupportedEnum)
     obj.m_db_cfg_param.db_cfg_type = 0xAAAAAAAA;
     unsigned int before = obj.m_db_cfg_param.db_cfg_type;
     db_cfg_type_t invalidType = static_cast<db_cfg_type_t>(0xFFFFFFFF);
-    std::cout << "Invoking reset_db_cfg_type with invalid value: " << invalidType << std::endl;
+    std::cout << "Invoking reset_db_cfg_type with invalid value: " << static_cast<unsigned int>(invalidType) << std::endl;
     obj.reset_db_cfg_type(invalidType);
     unsigned int after = obj.m_db_cfg_param.db_cfg_type;
     EXPECT_EQ(before, after);
@@ -20108,7 +20151,7 @@ TEST(dm_easy_mesh_t, reset_db_cfg_type_InvalidInput_CombinedEnumValues)
     obj.m_db_cfg_param.db_cfg_type = 0xFFFFFFFF;
     unsigned int before = obj.m_db_cfg_param.db_cfg_type;
     db_cfg_type_t combinedType = static_cast<db_cfg_type_t>(db_cfg_type_network_list_update | db_cfg_type_network_list_delete);
-    std::cout << "Invoking reset_db_cfg_type with combined value: " << combinedType << std::endl;
+    std::cout << "Invoking reset_db_cfg_type with combined value: " << static_cast<unsigned int>(combinedType) << std::endl;
     obj.reset_db_cfg_type(combinedType);
     unsigned int after = obj.m_db_cfg_param.db_cfg_type;
     EXPECT_EQ(before, after);
@@ -20181,9 +20224,11 @@ TEST(dm_easy_mesh_t, reset_db_cfg_type_InvalidInput_None)
  */
 TEST(dm_easy_mesh_t, mac_address_from_name_ValidInterface)
 {
-    std::cout << "Entering mac_address_from_name_ValidInterface test" << std::endl;    
+    std::cout << "Entering mac_address_from_name_ValidInterface test" << std::endl;
     mac_address_t mac = {0};
-    const char *ifname = "brlan0";
+    // Use a hardware-specific interface on embedded platforms, loopback on CI/generic hosts
+    const char *platform = dm_easy_mesh_t().get_platform();
+    const char *ifname = (platform != nullptr) ? "brlan0" : "lo";
     std::cout << "Invoking mac_address_from_name(\"" << ifname << "\")" << std::endl;
     int ret = dm_easy_mesh_t::mac_address_from_name(ifname, mac);
     EXPECT_EQ(ret, 0);
@@ -20414,8 +20459,8 @@ TEST(dm_easy_mesh_t, string_to_macbytes_EmptyString)
 /**
  * @brief Verify that dm_easy_mesh_t::string_to_macbytes handles an invalid MAC address string gracefully
  *
- * This test validates that when an invalid MAC address string ("zz:zz:zz:zz:zz:zz") is provided to the 
- * string_to_macbytes API, the function completes execution without crashing. The output content is 
+ * This test validates that when an invalid MAC address string ("zz:zz:zz:zz:zz:zz") is provided to the
+ * string_to_macbytes API, the function completes execution without crashing. The output content is
  * undefined due to the invalid input but the correctness is determined by the absence of a crash and normal function return.
  *
  * **Test Group ID:** Basic: 01
@@ -20739,11 +20784,11 @@ TEST(dm_easy_mesh_t, hex_NullOutputBuffer)
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 543@n
  * **Priority:** High@n
- * 
+ *
  * **Pre-Conditions:** None@n
  * **Dependencies:** None@n
  * **User Interaction:** None@n
- * 
+ *
  * **Test Procedure:**
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
@@ -20850,7 +20895,7 @@ TEST(dm_easy_mesh_t, unhex_OddLengthInput)
 /**
  * @brief Verify that unhex returns nullptr when provided with a NULL input pointer.
  *
- * This test case verifies that the dm_easy_mesh_t::unhex API correctly handles a NULL input string by returning a nullptr. 
+ * This test case verifies that the dm_easy_mesh_t::unhex API correctly handles a NULL input string by returning a nullptr.
  * The test ensures that under these invalid input conditions, the function does not attempt to process the input and signals the error as expected.
  *
  * **Test Group ID:** Basic: 01@n
@@ -20901,6 +20946,7 @@ TEST(dm_easy_mesh_t, unhex_UppercaseHexCharacters)
     unsigned char output[3] = {0};
     std::cout << "Invoking unhex with uppercase hex input: " << input << std::endl;
     unsigned char *ret = dm_easy_mesh_t::unhex(strlen(input), input, sizeof(output), output);
+    (void)ret;
     // Expected behavior: should decode correctly to {0xAA, 0xBB, 0xCC}
     // Current implementation fails, so this EXPECT will fail.
     EXPECT_EQ(output[0], 0xAA);
@@ -21246,7 +21292,7 @@ TEST(dm_easy_mesh_t, print_op_class_list_EmptyList)
  * **Dependencies:** None@n
  * **User Interaction:** None@n
  *
- * **Test Procedure:** 
+ * **Test Procedure:**
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
  * | 01 | Initialize dm_easy_mesh_t object and call init() method | dm_easy_mesh_t instance; No additional parameters | Instance is initialized successfully | Should be successful |
@@ -21275,7 +21321,7 @@ TEST(dm_easy_mesh_t, put_sta_info_AssocMap_Positive)
     EXPECT_NE(retrieved, nullptr);
     EXPECT_TRUE(retrieved->associated);
     std::cout << "Retrieved STA associated=" << retrieved->associated << std::endl;
-    dm.deinit();   
+    dm.deinit();
     std::cout << "Exiting put_sta_info_AssocMap_Positive test" << std::endl;
 }
 
@@ -21406,7 +21452,7 @@ TEST(dm_easy_mesh_t, put_sta_info_NullSTAInfo_Negative)
 /**
  * @brief Validate the removal of a BSS using a valid index in the mesh.
  *
- * This test verifies that when a valid index is provided to remove_bss_by_index, the BSS is removed correctly. 
+ * This test verifies that when a valid index is provided to remove_bss_by_index, the BSS is removed correctly.
  * It ensures that the number of BSS entries is updated appropriately and the remaining BSS entries maintain the correct indices.
  *
  * **Test Group ID:** Basic: 01@n
@@ -21450,7 +21496,7 @@ TEST(dm_easy_mesh_t, RemoveBss_ValidIndex) {
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 560@n
  * **Priority:** High@n
- * 
+ *
  * **Pre-Conditions:** None@n
  * **Dependencies:** None@n
  * **User Interaction:** None@n
@@ -21605,17 +21651,17 @@ TEST(dm_easy_mesh_t, Updatecac_positive_UpdateRuid) {
 /**
  * @brief Validate update_cac_status_id does not update op classes when none are configured
  *
- * This test verifies that when the mesh has no op classes (m_num_opclass is 0), invoking 
+ * This test verifies that when the mesh has no op classes (m_num_opclass is 0), invoking
  * update_cac_status_id with a valid MAC address does not alter the op class count.
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 564@n
  * **Priority:** High@n
- * 
+ *
  * **Pre-Conditions:** None@n
  * **Dependencies:** None@n
  * **User Interaction:** None@n
- * 
+ *
  * **Test Procedure:**
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :--------------: | ----------- | --------- | ------------- | ----- |
@@ -21736,8 +21782,8 @@ TEST(dm_easy_mesh_t, CloneHashMapsTest_positive_CloneMaps)
 /**
  * @brief Test negative scenario for clone_hash_maps by cloning from an empty source.
  *
- * This test validates that when clone_hash_maps is invoked with an empty source dm_easy_mesh_t object, 
- * the destination dm_easy_mesh_t object remains unchanged (i.e., its hash maps remain empty). 
+ * This test validates that when clone_hash_maps is invoked with an empty source dm_easy_mesh_t object,
+ * the destination dm_easy_mesh_t object remains unchanged (i.e., its hash maps remain empty).
  * It ensures that the API correctly handles the scenario where there is no data to clone.
  *
  * **Test Group ID:** Basic: 01@n
@@ -21875,8 +21921,8 @@ TEST(dm_easy_mesh_t, Positive_EqualityOperator) {
 /**
  * @brief Validate that the equality operator returns false when the media types of two dm_easy_mesh_t objects differ
  *
- * This test verifies the behavior of the operator== in a negative scenario where two dm_easy_mesh_t objects are initialized with 
- * different media types. The test ensures that the operator correctly identifies the mismatch and returns false. This is important 
+ * This test verifies the behavior of the operator== in a negative scenario where two dm_easy_mesh_t objects are initialized with
+ * different media types. The test ensures that the operator correctly identifies the mismatch and returns false. This is important
  * for ensuring that objects with differing network media are not considered equal.
  *
  * **Test Group ID:** Basic: 01@n
@@ -22218,9 +22264,9 @@ TEST(dm_easy_mesh_t, UpdateApMldInfo_negative_Static_NullApMldInfoPointer)
 /**
  * @brief Validate that update_scan_results correctly creates a new scan result.
  *
- * This test verifies that calling update_scan_results on an instance of dm_easy_mesh_t with a default 
- * em_scan_result_t input successfully initializes the internal scan result map, and the fields in the 
- * scan result id structure are correctly set. The API is expected to set the net_id to "OneWifiMesh" and 
+ * This test verifies that calling update_scan_results on an instance of dm_easy_mesh_t with a default
+ * em_scan_result_t input successfully initializes the internal scan result map, and the fields in the
+ * scan result id structure are correctly set. The API is expected to set the net_id to "OneWifiMesh" and
  * the scanner_type to em_scanner_type_radio.
  *
  * **Test Group ID:** Basic: 01@n
@@ -22251,7 +22297,7 @@ TEST(dm_easy_mesh_t, UpdateScanResults_positive_CreateNewScanResult)
     EXPECT_NE(dm.m_scan_result_map, nullptr);
     em_scan_result_id_t &id = input.id;
     std::cout << "Retrieved net_id: " << id.net_id << std::endl;
-    std::cout << "Retrieved scanner_type: " << id.scanner_type << std::endl;
+    std::cout << "Retrieved scanner_type: " << static_cast<unsigned int>(id.scanner_type) << std::endl;
     EXPECT_STREQ(id.net_id, "OneWifiMesh");
     EXPECT_EQ(id.scanner_type, em_scanner_type_radio);
     dm.deinit();
@@ -22266,12 +22312,12 @@ TEST(dm_easy_mesh_t, UpdateScanResults_positive_CreateNewScanResult)
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 579@n
  * **Priority:** High@n
- * 
+ *
  * **Pre-Conditions:** None@n
  * **Dependencies:** None@n
  * **User Interaction:** None@n
- * 
- * **Test Procedure:** 
+ *
+ * **Test Procedure:**
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
  * | 01 | Initialize dm_easy_mesh_t object and invoke init() method | dm_easy_mesh_t instance created, no parameters for init() | dm instance is initialized successfully | Should be successful |
@@ -22363,7 +22409,7 @@ TEST(dm_easy_mesh_t, UpdateScanResults_positive_StaticMethod)
     EXPECT_STREQ(input.id.net_id, "OneWifiMesh");
     EXPECT_EQ(input.id.scanner_type, em_scanner_type_radio);
     std::cout << "Retrieved net_id: " << input.id.net_id << std::endl;
-    std::cout << "Retrieved scanner_type: " << input.id.scanner_type << std::endl;
+    std::cout << "Retrieved scanner_type: " << static_cast<unsigned int>(input.id.scanner_type) << std::endl;
     dm.deinit();
     std::cout << "Exiting UpdateScanResults_positive_StaticMethod test" << std::endl;
 }
@@ -22422,7 +22468,7 @@ TEST(dm_easy_mesh_t, UpdateScanResults_negative_Static_NullScanResult)
 {
     std::cout << "Entering UpdateScanResults_negative_Static_NullScanResult test" << std::endl;
     dm_easy_mesh_t dm;
-    memset(&dm, 0, sizeof(dm_easy_mesh_t));
+    dm.init();
     std::cout << "Invoking static update_scan_results(&dm, nullptr)" << std::endl;
     EXPECT_ANY_THROW({
         dm_easy_mesh_t::update_scan_results(&dm, nullptr);

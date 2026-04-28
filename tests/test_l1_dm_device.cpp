@@ -272,7 +272,7 @@ TEST(dm_device_t_Test, RetrieveALInterfaceWithValidDeviceInfo) {
     // Instantiate device with populated info
     dm_device_t* device = new dm_device_t(&device_info);
     // Retrieve and check AL interface
-    em_interface_t* al_interface = device->get_al_interface();
+    em_interface_t* al_interface = device->get_backhaul_al_interface();
     ASSERT_NE(al_interface, nullptr);
     EXPECT_STREQ(al_interface->name, "eth0");
     EXPECT_EQ(al_interface->media, em_media_type_ieee8023ab);
@@ -309,7 +309,7 @@ TEST(dm_device_t_Test, RetrieveALInterfaceWithEmptyMACAddress) {
     em_device_info_t device_info = {};
     memset(device_info.backhaul_alid.mac, 0, sizeof(device_info.backhaul_alid.mac));
     dm_device_t* device = new dm_device_t(&device_info);
-    em_interface_t* al_interface = device->get_al_interface();
+    em_interface_t* al_interface = device->get_backhaul_al_interface();
     ASSERT_NE(al_interface, nullptr);
     for (size_t i = 0; i < sizeof(mac_address_t); ++i) {
         EXPECT_EQ(al_interface->mac[i], 0);
@@ -345,7 +345,7 @@ TEST(dm_device_t_Test, RetrieveALInterfaceWithEmptyInterfaceName) {
     memset(device_info.backhaul_alid.name, 0, sizeof(device_info.backhaul_alid.name));
     // Instantiate device with populated info
     dm_device_t* device = new dm_device_t(&device_info);
-    em_interface_t* al_interface = device->get_al_interface();
+    em_interface_t* al_interface = device->get_backhaul_al_interface();
     ASSERT_NE(al_interface, nullptr);
     EXPECT_STREQ(al_interface->name, "");
     delete device;
@@ -381,7 +381,7 @@ TEST(dm_device_t_Test, RetrieveALInterfaceMACAddressWithValidMACAddress) {
     memcpy(device_info.backhaul_alid.mac, expected_mac, sizeof(expected_mac));
     // Instantiate device with populated info
     dm_device_t* device = new dm_device_t(&device_info);
-    unsigned char* mac = device->get_al_interface_mac();
+    unsigned char* mac = device->get_backhaul_al_interface_mac();
     ASSERT_NE(mac, nullptr);
     for (size_t i = 0; i < sizeof(expected_mac); ++i) {
         EXPECT_EQ(mac[i], expected_mac[i]);
@@ -419,7 +419,7 @@ TEST(dm_device_t_Test, RetrieveALInterfaceMACAddressWithAllZeroMACAddress) {
     memcpy(device_info.backhaul_alid.mac, expected_mac, sizeof(expected_mac));
     // Instantiate device with populated info
     dm_device_t* device = new dm_device_t(&device_info);
-    unsigned char* mac = device->get_al_interface_mac();
+    unsigned char* mac = device->get_backhaul_al_interface_mac();
     ASSERT_NE(mac, nullptr);
     for (size_t i = 0; i < sizeof(expected_mac); ++i) {
         EXPECT_EQ(mac[i], expected_mac[i]);
@@ -457,7 +457,7 @@ TEST(dm_device_t_Test, RetrieveALInterfaceMACAddressWithAllFFMACAddress) {
     memcpy(device_info.backhaul_alid.mac, expected_mac, sizeof(expected_mac));
     // Instantiate device with populated info
     dm_device_t* device = new dm_device_t(&device_info);
-    unsigned char* mac = device->get_al_interface_mac();
+    unsigned char* mac = device->get_backhaul_al_interface_mac();
     ASSERT_NE(mac, nullptr);
     for (size_t i = 0; i < sizeof(expected_mac); ++i) {
         EXPECT_EQ(mac[i], expected_mac[i]);
@@ -495,7 +495,7 @@ TEST(dm_device_t_Test, RetrieveALInterfaceMACAddressWithAllFFMACAddress) {
     memcpy(device_info.backhaul_alid.name, expected_name, strlen(expected_name)+1);
     // Instantiate device with populated info
     dm_device_t* device = new dm_device_t(&device_info);
-    char* result = device->get_al_interface_name();
+    char* result = device->get_backhaul_al_interface_name();
     EXPECT_STREQ(result, expected_name);
     delete device;
     std::cout << "Exiting RetrieveALInterfaceNameWithValidALInterfaceName" << std::endl;
@@ -531,7 +531,7 @@ TEST(dm_device_t_Test, RetrieveALInterfaceNameWithEmptyALInterfaceName) {
     memcpy(device_info.backhaul_alid.name, expected_name, strlen(expected_name)+1);
     // Instantiate device with populated info
     dm_device_t* device = new dm_device_t(&device_info);
-    char* result = device->get_al_interface_name();
+    char* result = device->get_backhaul_al_interface_name();
     EXPECT_STREQ(result, expected_name);
     delete device;
     std::cout << "Exiting RetrieveALInterfaceNameWithEmptyALInterfaceName";
@@ -566,7 +566,7 @@ TEST(dm_device_t_Test, RetrieveALInterfaceNameWithSpecialCharactersInALInterface
     memcpy(device_info.backhaul_alid.name, expected_name, strlen(expected_name)+1);
     // Instantiate device with populated info
     dm_device_t* device = new dm_device_t(&device_info);
-    char* result = device->get_al_interface_name();
+    char* result = device->get_backhaul_al_interface_name();
     EXPECT_STREQ(result, expected_name);
     delete device;
     std::cout << "Exiting RetrieveALInterfaceNameWithSpecialCharactersInALInterfaceName";

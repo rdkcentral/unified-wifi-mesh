@@ -460,9 +460,9 @@ TEST_F(em_orch_ctrl_t_TEST, CommandEventTypesInProgress) {
 }
 
 /**
- * @brief Verify that is_cmd_type_renew_in_progress returns false when invoked with a nullptr.
+ * @brief Verify that is_cmd_type_in_progress returns false when invoked with a nullptr.
  *
- * This test verifies that the function is_cmd_type_renew_in_progress of the em_orch_ctrl_t class correctly handles a nullptr parameter by returning false. This ensures that the API behaves as expected in edge cases where a null command is provided.
+ * This test verifies that the function is_cmd_type_in_progress of the em_orch_ctrl_t class correctly handles a nullptr parameter by returning false. This ensures that the API behaves as expected in edge cases where a null command is provided.
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 013@n
@@ -475,22 +475,22 @@ TEST_F(em_orch_ctrl_t_TEST, CommandEventTypesInProgress) {
  * **Test Procedure:**@n
  * | Variation / Step | Description                                                              | Test Data                          | Expected Result                                               | Notes       |
  * | :--------------: | ------------------------------------------------------------------------ | ---------------------------------- | ------------------------------------------------------------- | ----------- |
- * | 01               | Invoke is_cmd_type_renew_in_progress with a nullptr parameter             | input: cmd = nullptr               | The function returns false                                  | Should Pass |
+ * | 01               | Invoke is_cmd_type_in_progress with a nullptr parameter             | input: cmd = nullptr               | The function returns false                                  | Should Pass |
  */
-TEST_F(em_orch_ctrl_t_TEST, is_cmd_type_renew_in_progress_null) {
-    std::cout << "Entering is_cmd_type_renew_in_progress_null test" << std::endl;
-    std::cout << "Invoking is_cmd_type_renew_in_progress with nullptr as parameter" << std::endl;
-    bool result = orch->is_cmd_type_renew_in_progress(nullptr);
+TEST_F(em_orch_ctrl_t_TEST, is_cmd_type_in_progress_null) {
+    std::cout << "Entering is_cmd_type_in_progress_null test" << std::endl;
+    std::cout << "Invoking is_cmd_type_in_progress with nullptr as parameter" << std::endl;
+    bool result = orch->is_cmd_type_in_progress(nullptr);
     std::cout << "Method returned: " << result << " for input: nullptr" << std::endl;
     EXPECT_FALSE(result);
-    std::cout << "Exiting is_cmd_type_renew_in_progress_null test" << std::endl;
+    std::cout << "Exiting is_cmd_type_in_progress_null test" << std::endl;
 }
 
 /**
- * @brief Verify that is_cmd_type_renew_in_progress correctly identifies a renew command event.
+ * @brief Verify that is_cmd_type_in_progress correctly identifies a renew command event.
  *
  * This test initializes an event with type em_bus_event_type_cfg_renew and invokes 
- * the is_cmd_type_renew_in_progress API to validate that it correctly processes the event.
+ * the is_cmd_type_in_progress API to validate that it correctly processes the event.
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 014@n
@@ -503,24 +503,24 @@ TEST_F(em_orch_ctrl_t_TEST, is_cmd_type_renew_in_progress_null) {
  * **Test Procedure:**
  * | Variation / Step | Description                                                                            | Test Data                                                        | Expected Result                                                                                        | Notes       |
  * | :--------------: | -------------------------------------------------------------------------------------- | ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ | ----------- |
- * | 01               | Initialize evt with type em_bus_event_type_cfg_renew, invoke is_cmd_type_renew_in_progress | evt.type = em_bus_event_type_cfg_renew, output result = bool value | API returns a boolean indicating that the renew command is in progress; assertion check should pass | Should Pass |
+ * | 01               | Initialize evt with type em_bus_event_type_cfg_renew, invoke is_cmd_type_in_progress | evt.type = em_bus_event_type_cfg_renew, output result = bool value | API returns a boolean indicating that the renew command is in progress; assertion check should pass | Should Pass |
  */
-TEST_F(em_orch_ctrl_t_TEST, is_cmd_type_renew_in_progress_renew) {
-    std::cout << "Entering is_cmd_type_renew_in_progress_renew test" << std::endl;
+TEST_F(em_orch_ctrl_t_TEST, is_cmd_type_in_progress_renew) {
+    std::cout << "Entering is_cmd_type_in_progress_renew test" << std::endl;
     em_bus_event_t evt;
     evt.type = em_bus_event_type_cfg_renew;
     std::cout << "Set evt.type to em_bus_event_type_cfg_renew" << std::endl;
-    std::cout << "Invoking is_cmd_type_renew_in_progress with evt->type: " << static_cast<unsigned int>(evt.type) << std::endl;
-    bool result = orch->is_cmd_type_renew_in_progress(&evt);
+    std::cout << "Invoking is_cmd_type_in_progress with evt->type: " << static_cast<unsigned int>(evt.type) << std::endl;
+    bool result = orch->is_cmd_type_in_progress(&evt);
     std::cout << "Method returned: " << result << std::endl;
-    std::cout << "Exiting is_cmd_type_renew_in_progress_renew test" << std::endl;
+    std::cout << "Exiting is_cmd_type_in_progress_renew test" << std::endl;
 }
 
 /**
- * @brief Verify that is_cmd_type_renew_in_progress correctly identifies non-renew events.
+ * @brief Verify that is_cmd_type_in_progress correctly identifies non-renew events.
  *
  * This test iterates over an array of non-renew event types and invokes the
- * is_cmd_type_renew_in_progress API. It validates that for each event type that is not
+ * is_cmd_type_in_progress API. It validates that for each event type that is not
  * related to renew operations, the method returns false, ensuring that non-renew
  * commands are not mistakenly flagged as renew in progress.
  *
@@ -535,10 +535,10 @@ TEST_F(em_orch_ctrl_t_TEST, is_cmd_type_renew_in_progress_renew) {
  * **Test Procedure:**@n
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :--------------: | ----------- | --------- | --------------- | ----- |
- * | 01 | Iterate over each non-renew event type and invoke is_cmd_type_renew_in_progress | evt.type = nonRenewTypes[i] (e.g., em_bus_event_type_none, em_bus_event_type_chirp, em_bus_event_type_reset, etc.) | The API should return false for each non-renew event type | Should Pass |
+ * | 01 | Iterate over each non-renew event type and invoke is_cmd_type_in_progress | evt.type = nonRenewTypes[i] (e.g., em_bus_event_type_none, em_bus_event_type_chirp, em_bus_event_type_reset, etc.) | The API should return false for each non-renew event type | Should Pass |
  */
-TEST_F(em_orch_ctrl_t_TEST, is_cmd_type_renew_in_progress_non_renew) {
-    std::cout << "Entering is_cmd_type_renew_in_progress_non_renew test" << std::endl;
+TEST_F(em_orch_ctrl_t_TEST, is_cmd_type_in_progress_non_renew) {
+    std::cout << "Entering is_cmd_type_in_progress_non_renew test" << std::endl;
     em_bus_event_type_t nonRenewTypes[] = {
         em_bus_event_type_none, em_bus_event_type_chirp, em_bus_event_type_reset,
         em_bus_event_type_dev_test, em_bus_event_type_set_dev_test, em_bus_event_type_get_network,
@@ -567,11 +567,11 @@ TEST_F(em_orch_ctrl_t_TEST, is_cmd_type_renew_in_progress_non_renew) {
         em_bus_event_t evt;
         evt.type = nonRenewTypes[i];
         std::cout << "Iteration " << i+1 << ": Set evt.type to " << static_cast<unsigned int>(evt.type) << std::endl;
-        std::cout << "Invoking is_cmd_type_renew_in_progress with evt->type: " << static_cast<unsigned int>(evt.type) << std::endl;
-        bool result = orch->is_cmd_type_renew_in_progress(&evt);
+        std::cout << "Invoking is_cmd_type_in_progress with evt->type: " << static_cast<unsigned int>(evt.type) << std::endl;
+        bool result = orch->is_cmd_type_in_progress(&evt);
         std::cout << "Method returned: " << result << std::endl;
     }
-    std::cout << "Exiting is_cmd_type_renew_in_progress_non_renew test" << std::endl;
+    std::cout << "Exiting is_cmd_type_in_progress_non_renew test" << std::endl;
 }
 
 /**
@@ -926,7 +926,7 @@ TEST_F(em_orch_ctrl_t_TEST, build_candidates_UnsupportedCommandType)
     std::cout << "Entering build_candidates_UnsupportedCommandType test" << std::endl;
     em_cmd_t cmd;
     cmd.m_type = static_cast<em_cmd_type_t>(em_cmd_type_max + 1);
-    std::cout << "Setting command type to unsupported value: " << static_cast<em_cmd_type_t>(em_cmd_type_max + 1) << std::endl;
+    std::cout << "Setting command type to unsupported value: " << static_cast<int>(static_cast<em_cmd_type_t>(em_cmd_type_max + 1)) << std::endl;
     unsigned int candidateCount = orch->build_candidates(&cmd);
     std::cout << "build_candidates returned candidateCount: " << candidateCount << std::endl;
     EXPECT_EQ(0u, candidateCount);
@@ -971,7 +971,7 @@ TEST_F(em_orch_ctrl_t_TEST, build_candidates_valid_cmdTypes)
     for (size_t i = 0; i < totalTypes; i++) {
 	    em_cmd_t cmd;
         cmd.m_type = cmdTypes[i];
-        std::cout << "Testing cmdType=" << cmd.m_type << std::endl;
+        std::cout << "Testing cmdType=" << static_cast<int>(cmd.m_type) << std::endl;
         unsigned int candidateCount = orch->build_candidates(&cmd);
         EXPECT_EQ(candidateCount, 0u);
     }
@@ -1075,7 +1075,7 @@ TEST_F(em_orch_ctrl_t_TEST, is_em_ready_for_orch_exec_valid_inputs_return_true)
         em_ctrl_t mgr;
         em_t em(&ruid ,em_freq_band_5, &dm, &mgr, em_profile_type_1, em_service_type_ctrl, false);
         cmd.m_type = cmdTypes[i];
-        std::cout << "Invoking is_em_ready_for_orch_exec with valid em_cmd_t object with m_type " << cmd.m_type << "and em object pointers" << std::endl;
+        std::cout << "Invoking is_em_ready_for_orch_exec with valid em_cmd_t object with m_type " << static_cast<int>(cmd.m_type) << "and em object pointers" << std::endl;
         bool result = orch->is_em_ready_for_orch_exec(&cmd, &em);
         std::cout << "Method returned: " << result << std::endl;
         EXPECT_TRUE(result);
@@ -1121,7 +1121,7 @@ TEST_F(em_orch_ctrl_t_TEST, is_em_ready_for_orch_exec_valid_mtype_state)
     em_t em(&ruid ,em_freq_band_5, &dm, &mgr, em_profile_type_1, em_service_type_ctrl, false);
     em.set_state(em_state_ctrl_wsc_m1_pending);        
     cmd.m_type = em_cmd_type_cfg_renew;
-    std::cout << "Invoking is_em_ready_for_orch_exec with valid em_cmd_t object with m_type " << cmd.m_type << "and em object pointers" << std::endl;
+    std::cout << "Invoking is_em_ready_for_orch_exec with valid em_cmd_t object with m_type " << static_cast<int>(cmd.m_type) << "and em object pointers" << std::endl;
     bool result = orch->is_em_ready_for_orch_exec(&cmd, &em);
     std::cout << "Method returned: " << result << std::endl;
     EXPECT_FALSE(result);
@@ -1162,7 +1162,7 @@ TEST_F(em_orch_ctrl_t_TEST, is_em_ready_for_orch_exec_mtype_none)
     em_t em(&ruid ,em_freq_band_5, &dm, &mgr, em_profile_type_1, em_service_type_ctrl, false);
     em.set_state(em_state_ctrl_configured);        
     cmd.m_type = em_cmd_type_none;
-    std::cout << "Invoking is_em_ready_for_orch_exec with valid em_cmd_t object with m_type " << cmd.m_type << "and em object pointers" << std::endl;
+    std::cout << "Invoking is_em_ready_for_orch_exec with valid em_cmd_t object with m_type " << static_cast<int>(cmd.m_type) << "and em object pointers" << std::endl;
     bool result = orch->is_em_ready_for_orch_exec(&cmd, &em);
     std::cout << "Method returned: " << result << std::endl;
 	EXPECT_FALSE(result);

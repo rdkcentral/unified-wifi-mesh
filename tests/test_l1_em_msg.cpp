@@ -22,8 +22,8 @@
 #include "em_msg.h"
 #include <cstring>
 
-#define TLV_HEADER_SIZE 3  // type (1) + len (2)
-#define MAC_LEN 6
+#define TLV_HEADER_SIZE 3u  // type (1) + len (2)
+#define MAC_LEN 6u
 
 em_profile_type_t profiles[] = {
     em_profile_type_reserved,
@@ -151,8 +151,6 @@ em_tlv_type_t types[] = {
     em_tlv_eht_operations,
     em_tlv_type_avail_spectrum_inquiry_reg,
     em_tlv_type_avail_spectrum_inquiry_rsp,
-    em_tlv_type_vendor_sta_metrics,
-    em_tlv_vendor_plolicy_cfg,
     em_tlv_type_vendor_operational_bss,
 };
 
@@ -2951,7 +2949,13 @@ TEST(em_msg_t, get_bss_id_valid_ap_metrics_offset0) {
  */
 TEST(em_msg_t, get_bss_id_no_valid_tlv_found) {
     std::cout << "Entering get_bss_id_no_valid_tlv_found test" << std::endl;
-    unsigned char tlv_buf[TLV_HEADER_SIZE + 6] = {0xFF, 0x06, 0x00, 0,0,0,0,0,0}; // invalid type
+    // Buffer: invalid TLV (type=0xFF, len=6) + EOM TLV (type=0, len=0)
+    // EOM is required so the loop reads tlv->type == 0 and exits cleanly,
+    // avoiding a 1-byte OOB read when len hits 0 before the condition is re-checked.
+    unsigned char data[6] = {0};
+    unsigned char tlv_buf[TLV_HEADER_SIZE + 6 + TLV_HEADER_SIZE] = {};
+    write_tlv(tlv_buf, 0xFF, data, sizeof(data));                       // invalid TLV
+    write_tlv(tlv_buf + TLV_HEADER_SIZE + 6, em_tlv_type_eom, nullptr, 0); // EOM
     em_msg_t message(tlv_buf, sizeof(tlv_buf));
     unsigned char mac[6] = {0x00,0x00,0x00,0x00,0x00,0x00};
     unsigned char original_mac[6]; 
@@ -4925,9 +4929,10 @@ TEST(em_msg_t, get_tlv_found_case)
 TEST(em_msg_t, get_tlv_not_found_case) 
 {
     std::cout << "Entering get_tlv_not_found_case test" << std::endl;
-    unsigned char buffer[16];
+    unsigned char buffer[TLV_HEADER_SIZE + 2 + TLV_HEADER_SIZE] = {}; // zero-init: device_info TLV + EOM
     unsigned char value[2] = {0x01, 0x02};
     write_tlv(buffer, em_tlv_type_device_info, value, sizeof(value));
+    write_tlv(buffer + TLV_HEADER_SIZE + 2, em_tlv_type_eom, nullptr, 0);
     em_tlv_t* ret = em_msg_t::get_tlv(reinterpret_cast<em_tlv_t*>(buffer),sizeof(buffer),em_tlv_type_mac_address);
     ASSERT_EQ(ret, nullptr);
     std::cout << "Exiting get_tlv_not_found_case test" << std::endl;

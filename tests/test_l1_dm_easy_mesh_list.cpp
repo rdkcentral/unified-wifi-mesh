@@ -22,6 +22,7 @@
 #include <sanitizer/lsan_interface.h>
 #include "em_ctrl.h"
 #include "dm_easy_mesh_list.h"
+#include <iomanip>
 
 
 //extern "C" const char* __asan_default_options() {
@@ -106,7 +107,7 @@ protected:
 
     void SetUp() override {
 	__lsan_disable();
-        list.init((em_mgr_t*)&mgr);
+        list.init(static_cast<em_mgr_t*>(&mgr));
         
         // Add data models for Network1
         em_interface_t intf1, intf2, intf3, intf4;        
@@ -197,12 +198,12 @@ TEST_F(dm_easy_mesh_list_tTEST, create_data_model_valid_data_model_creation) {
     bool colocated_dm = false;
     std::cout << "Invoking create_data_model with net_id = " << net_id
               << ", al_intf.name = " << al_intf.name
-              << ", profile = " << profile
+              << ", profile = " << static_cast<int>(profile)
               << ", colocated_dm = " << (colocated_dm ? "true" : "false") << std::endl;
     dm_easy_mesh_t* dm = list.create_data_model(net_id, &al_intf, profile, colocated_dm);
     ASSERT_NE(dm, nullptr);
     std::cout << "Retrieved device ID: " << dm->m_device.m_device_info.id.net_id << std::endl;
-    std::cout << "Retrieved device profile: " << dm->m_device.m_device_info.profile << std::endl;
+    std::cout << "Retrieved device profile: " << static_cast<int>(dm->m_device.m_device_info.profile) << std::endl;
     std::cout << "Retrieved collocated value: " << dm->m_colocated << std::endl;
     EXPECT_STREQ(dm->m_device.m_device_info.id.net_id, net_id);
     EXPECT_EQ(dm->m_device.m_device_info.profile, em_profile_type_1);
@@ -246,7 +247,7 @@ TEST_F(dm_easy_mesh_list_tTEST, create_data_model_negative_null_net_id) {
     bool colocated_dm = false;
     std::cout << "Invoking create_data_model with net_id = NULL"
               << ", al_intf.name = " << al_intf.name
-              << ", profile = " << profile
+              << ", profile = " << static_cast<int>(profile)
               << ", colocated_dm = " << (colocated_dm ? "true" : "false") << std::endl;
     dm_easy_mesh_t* dm = list.create_data_model(net_id, &al_intf, profile, colocated_dm);
     EXPECT_EQ(dm, nullptr);
@@ -281,7 +282,7 @@ TEST_F(dm_easy_mesh_list_tTEST, create_data_model_negative_null_al_intf) {
     em_profile_type_t profile = em_profile_type_1;
     bool colocated_dm = false;
     std::cout << "Invoking create_data_model with net_id = " << net_id
-              << " and al_intf = NULL, profile = " << profile
+              << " and al_intf = NULL, profile = " << static_cast<int>(profile)
               << ", colocated_dm = " << (colocated_dm ? "true" : "false") << std::endl;
     dm_easy_mesh_t* dm = list.create_data_model(net_id, al_intf, profile, colocated_dm);
     EXPECT_EQ(dm, nullptr);
@@ -321,12 +322,12 @@ TEST_F(dm_easy_mesh_list_tTEST, create_data_model_loop_profile_types) {
     
     for (int i = em_profile_type_reserved; i <= em_profile_type_3; i++) {
         em_profile_type_t profile = static_cast<em_profile_type_t>(i);
-        std::cout << "Invoking create_data_model with profile = " << profile << std::endl;
+        std::cout << "Invoking create_data_model with profile = " << static_cast<int>(profile) << std::endl;
         dm_easy_mesh_t* dm = list.create_data_model(net_id, &al_intf, profile, colocated_dm);
-        std::cout << "Expected: Non-NULL dm_easy_mesh_t pointer for profile " << profile << std::endl;
+        std::cout << "Expected: Non-NULL dm_easy_mesh_t pointer for profile " << static_cast<int>(profile) << std::endl;
         ASSERT_NE(dm, nullptr);
         std::cout << "Retrieved device ID: " << dm->m_device.m_device_info.id.net_id << std::endl;
-        std::cout << "Retrieved device profile: " << dm->m_device.m_device_info.profile << std::endl;
+        std::cout << "Retrieved device profile: " << static_cast<int>(dm->m_device.m_device_info.profile) << std::endl;
         std::cout << "Retrieved collocated value: " << dm->m_colocated << std::endl;
         EXPECT_STREQ(dm->m_device.m_device_info.id.net_id, net_id);
         EXPECT_EQ(dm->m_device.m_device_info.profile, i);
@@ -397,7 +398,8 @@ TEST_F(dm_easy_mesh_list_tTEST, delete_data_model_existent) {
     }
     std::cout << std::dec << std::endl;
     //Invoke create_data_model to prevent double free issue in the test fixture
-    dm_easy_mesh_t *dm1 = list.create_data_model("Network1", &intf, em_profile_type_1, true);    
+    dm_easy_mesh_t *dm1 = list.create_data_model("Network1", &intf, em_profile_type_1, true);
+    (void)dm1;
     std::cout << "Invoking delete_data_model with net_id: Network1 and same mac" << std::endl;
     EXPECT_NO_THROW(list.delete_data_model("Network1", mac));
     std::cout << "delete_data_model invoked; matching data model found, deletion performed." << std::endl;
@@ -693,12 +695,12 @@ TEST_F(dm_easy_mesh_list_tTEST, get_data_model_ExistentNetworkID) {
     std::cout << "Stored net_id: " << dm2->m_device.m_device_info.id.net_id << std::endl;
     std::cout << "Stored mac: "
               << std::hex
-              << std::setw(2) << std::setfill('0') << (int)dm2->m_device.m_device_info.intf.mac[0] << ":"
-              << std::setw(2) << std::setfill('0') << (int)dm2->m_device.m_device_info.intf.mac[1] << ":"
-              << std::setw(2) << std::setfill('0') << (int)dm2->m_device.m_device_info.intf.mac[2] << ":"
-              << std::setw(2) << std::setfill('0') << (int)dm2->m_device.m_device_info.intf.mac[3] << ":"
-              << std::setw(2) << std::setfill('0') << (int)dm2->m_device.m_device_info.intf.mac[4] << ":"
-              << std::setw(2) << std::setfill('0') << (int)dm2->m_device.m_device_info.intf.mac[5]
+              << std::setw(2) << std::setfill('0') << static_cast<int>(dm2->m_device.m_device_info.intf.mac[0]) << ":"
+              << std::setw(2) << std::setfill('0') << static_cast<int>(dm2->m_device.m_device_info.intf.mac[1]) << ":"
+              << std::setw(2) << std::setfill('0') << static_cast<int>(dm2->m_device.m_device_info.intf.mac[2]) << ":"
+              << std::setw(2) << std::setfill('0') << static_cast<int>(dm2->m_device.m_device_info.intf.mac[3]) << ":"
+              << std::setw(2) << std::setfill('0') << static_cast<int>(dm2->m_device.m_device_info.intf.mac[4]) << ":"
+              << std::setw(2) << std::setfill('0') << static_cast<int>(dm2->m_device.m_device_info.intf.mac[5])
               << std::dec << std::endl;
     std::cout << "Num policies: " << dm2->m_num_policy << std::endl;
     std::cout << "Num op classes: " << dm2->m_num_opclass << std::endl;
@@ -1077,7 +1079,7 @@ TEST_F(dm_easy_mesh_list_tTEST, get_first_device_returns_valid_pointer)
  * | 03               | Assert that the returned firstElement is not null                          | firstElement, expected value: non-null                                                             | Assertion passes when firstElement != nullptr                           | Should Pass     |
  * | 04               | Validate that the network id of firstElement is "Network2"                  | firstElement->m_device.m_device_info.id.net_id = "Network2"                                          | The network id string is equal to "Network2"                           | Should Pass     |
  * | 05               | Validate that the profile type of firstElement is em_profile_type_3         | firstElement->m_device.m_device_info.profile, expected: em_profile_type_3                             | Profile type matches em_profile_type_3                                 | Should Pass     |
- * | 06               | Validate that the number of policies for firstElement is 8                  | firstElement->m_num_policy, expected: 8                                                              | Policy count equals 8                                                   | Should Pass     |
+ * | 06               | Validate that the number of policies for firstElement is 7                  | firstElement->m_num_policy, expected: 7                                                              | Policy count equals 7                                                   | Should Pass     |
  * | 07               | Log the exit message "Exiting get_first_dm_valid test"                    | No input arguments                                                                                 | "Exiting get_first_dm_valid test" printed to stdout                     | Should be successful |
  */
 TEST_F(dm_easy_mesh_list_tTEST, get_first_dm_valid)
@@ -1085,10 +1087,9 @@ TEST_F(dm_easy_mesh_list_tTEST, get_first_dm_valid)
     std::cout << "Entering get_first_dm_valid" << std::endl;
     dm_easy_mesh_t* firstElement = list.get_first_dm();
     ASSERT_NE(firstElement, nullptr);
-	unsigned char expected_mac[6] = {0x10, 0x11, 0x12, 0x13, 0x12, 0x15};
 	EXPECT_STREQ(firstElement->m_device.m_device_info.id.net_id, "Network2");
 	EXPECT_EQ(firstElement->m_device.m_device_info.profile, em_profile_type_3);
-	EXPECT_EQ(firstElement->m_num_policy, 8);
+	EXPECT_EQ(firstElement->m_num_policy, 7);
     std::cout << "Exiting get_first_dm_valid test" << std::endl;
 }
 
@@ -1155,7 +1156,7 @@ TEST_F(dm_easy_mesh_list_tTEST, get_first_network_ssid_returns_null)
  * This test verifies that the get_first_op_class() API returns a valid op class object when invoked.
  * It sets up a mesh context with an initialized dm_easy_mesh_t object having m_num_opclass set to 0,
  * and then calls the API to retrieve the first op class. The test asserts that the returned pointer is not null
- * and that the op_class field within the op_class info is one of the expected values (81, 115, or 135).
+ * and that the op_class field within the op_class info is one of the expected values (83, 128, or 135).
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 030@n
@@ -1168,7 +1169,7 @@ TEST_F(dm_easy_mesh_list_tTEST, get_first_network_ssid_returns_null)
  * **Test Procedure:**
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Initialize dm_easy_mesh_t instance, set m_num_opclass to 0, and invoke get_first_op_class() API. | dm.m_num_opclass = 0, opClass = list.get_first_op_class() | opClass is not nullptr and opClass->m_op_class_info.op_class is 81, 115, or 135 | Should Pass |
+ * | 01 | Initialize dm_easy_mesh_t instance, set m_num_opclass to 0, and invoke get_first_op_class() API. | dm.m_num_opclass = 0, opClass = list.get_first_op_class() | opClass is not nullptr and opClass->m_op_class_info.op_class is 83, 128, or 135 | Should Pass |
  */
 TEST_F(dm_easy_mesh_list_tTEST, get_first_op_class_valid)
 {
@@ -1178,7 +1179,7 @@ TEST_F(dm_easy_mesh_list_tTEST, get_first_op_class_valid)
     std::cout << "Invoking get_first_op_class()" << std::endl;
     dm_op_class_t* opClass = list.get_first_op_class();
     ASSERT_NE(opClass, nullptr);
-    EXPECT_TRUE(opClass->m_op_class_info.op_class == 81 || opClass->m_op_class_info.op_class == 115 || opClass->m_op_class_info.op_class == 135);
+    EXPECT_TRUE(opClass->m_op_class_info.op_class == 83 || opClass->m_op_class_info.op_class == 128 || opClass->m_op_class_info.op_class == 135);
     std::cout << "Returned op_class = " << opClass->m_op_class_info.op_class << std::endl;			
     std::cout << "Exiting get_first_op_class_valid test" << std::endl;
 }
@@ -2204,7 +2205,6 @@ TEST_F(dm_easy_mesh_list_tTEST, get_next_radio_null_net_id_provided)
     list.put_radio(key2, &radio2);    
     dm_radio_t *first = list.get_first_radio("Network1", mac1);
 	if (first != nullptr) {
-		const char* net_id = nullptr;
         std::cout << "Invoking get_next_radio with net_id as NULL" << std::endl; 
         dm_radio_t *next = list.get_next_radio("Network1", mac1, first);
 		ASSERT_EQ(next, nullptr);
@@ -4929,14 +4929,14 @@ TEST_F(dm_easy_mesh_list_tTEST, get_next_network_ssid_positive)
     dm_network_ssid_t ssid1{};
     ssid1.init();
     strcpy(ssid1.m_network_ssid_info.id, "Network1");
-    strcpy((char*)ssid1.m_network_ssid_info.ssid, "TestSSID1");
+    strcpy(const_cast<char*>(reinterpret_cast<const char*>(ssid1.m_network_ssid_info.ssid)), "TestSSID1");
     char key1[256];
     build_network_ssid_key("Network1", "TestSSID1", key1);
     list.put_network_ssid(key1, &ssid1);
     dm_network_ssid_t ssid2{};
     ssid2.init();
     strcpy(ssid2.m_network_ssid_info.id, "Network1");
-    strcpy((char*)ssid2.m_network_ssid_info.ssid, "TestSSID2");
+    strcpy(const_cast<char*>(reinterpret_cast<const char*>(ssid2.m_network_ssid_info.ssid)), "TestSSID2");
     char key2[256];
     build_network_ssid_key("Network1", "TestSSID2", key2);
     list.put_network_ssid(key2, &ssid2);
@@ -4944,7 +4944,7 @@ TEST_F(dm_easy_mesh_list_tTEST, get_next_network_ssid_positive)
     ASSERT_NE(first, nullptr);
     dm_network_ssid_t* next = list.get_next_network_ssid(first);
     ASSERT_NE(next, nullptr);
-    EXPECT_STRNE((char*)first->m_network_ssid_info.ssid, (char*)next->m_network_ssid_info.ssid);
+    EXPECT_STRNE(reinterpret_cast<const char*>(first->m_network_ssid_info.ssid), reinterpret_cast<const char*>(next->m_network_ssid_info.ssid));
     std::cout << "Exiting get_next_network_ssid_positive test" << std::endl;
 }
 
