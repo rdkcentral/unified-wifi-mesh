@@ -46,7 +46,6 @@ TEST(AlServiceRegistrationResponseTest, DeserializeWithValidData) {
     std::vector<unsigned char> validData = {
         0xAA, 0xBB, 0xCC, 0xDD,
         0x00, 0x1A, 0x2B, 0x3C, 0x4D, 0x5E,
-        0x12, 0x34, 0x56, 0x78,
         0x01
     };
     std::cout << "Entering DeserializeWithValidData test" << std::endl;
@@ -106,8 +105,7 @@ TEST(AlServiceRegistrationResponseTest, DeserializeWithNullData) {
  */
 TEST(AlServiceRegistrationResponseTest, RetrieveAlMacAddressLocalWithValidInput) {
     std::cout << "Entering RetrieveAlMacAddressLocalWithValidInput test" << std::endl;
-	MessageIdRange range(0, 255);
-	AlServiceRegistrationResponse instance(parseMacAddress("00:1A:2B:3C:4D:5E"), range, RegistrationResult::SUCCESS);
+	AlServiceRegistrationResponse instance(parseMacAddress("00:1A:2B:3C:4D:5E"), RegistrationResult::SUCCESS);
     MacAddress result = instance.getAlMacAddressLocal();
 	std::cout << "The result is " << result << std::endl;
     std::cout << "Exiting RetrieveAlMacAddressLocalWithValidInput test" << std::endl;
@@ -136,97 +134,10 @@ TEST(AlServiceRegistrationResponseTest, RetrieveAlMacAddressLocalWithValidInput)
 
 TEST(AlServiceRegistrationResponseTest, RetrieveAlMacAddressLocalWithEmptyInput) {
     std::cout << "Entering RetrieveAlMacAddressLocalWithEmptyInput test" << std::endl;	 
-	MessageIdRange range(0, 255);
-	AlServiceRegistrationResponse instance(parseMacAddress("00:00:00:00:00:00"), range, RegistrationResult::SUCCESS);
+	AlServiceRegistrationResponse instance(parseMacAddress("00:00:00:00:00:00"), RegistrationResult::SUCCESS);
     const MacAddress result = instance.getAlMacAddressLocal();
     std::cout << "The result is " << result << std::endl;
     std::cout << "Exiting RetrieveAlMacAddressLocalWithEmptyInput test" << std::endl;
-}
-
-/**
- * @brief Test the retrieval of message ID range with valid input
- *
- * This test verifies that the getMessageIdRange function of the AlServiceRegistrationResponse class
- * correctly returns the expected result when provided with valid input.
- *
- * **Test Group ID:** Basic: 01
- * **Test Case ID:** 006@n
- * **Priority:** High
- * @n
- * **Pre-Conditions:** None
- * **Dependencies:** None
- * **User Interaction:** None
- * @n
- * **Test Procedure:**@n
- * | Variation / Step | Description | Test Data | Expected Result | Notes |
- * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Call the getMessageIdRange function with valid input | validInput = <valid_value> | RETURN_OK | Should Pass |
- * | 02 | Verify the result using ASSERT_EQ | result = RETURN_OK | Assertion should pass | Should be successful |
- */
-TEST(AlServiceRegistrationResponseTest, RetrieveMessageIdRangeWithValidInput) {
-    std::cout << "Entering RetrieveMessageIdRangeWithValidInput test" << std::endl;	
-	MessageIdRange range(0, 255);
-	AlServiceRegistrationResponse instance(parseMacAddress("00:1A:2B:3C:4D:5E"), range, RegistrationResult::SUCCESS);
-    MessageIdRange result = instance.getMessageIdRange();
-    std::cout << "The result is " << result << std::endl;
-    std::cout << "Exiting RetrieveMessageIdRangeWithValidInput test" << std::endl;
-}
-
-/**
- * @brief Test to verify the behavior of getMessageIdRange with null input
- *
- * This test checks the behavior of the getMessageIdRange method when a null input is provided. It ensures that the method returns the expected error code when given invalid input.
- *
- * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 007@n
- * **Priority:** High@n
- * @n
- * **Pre-Conditions:** None@n
- * **Dependencies:** None@n
- * **User Interaction:** None@n
- * @n
- * **Test Procedure:**@n
- * | Variation / Step | Description | Test Data |Expected Result |Notes |
- * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01| Call getMessageIdRange with null message range input | range(0,0) | result = RETURN_ERR | Should Pass |
- * | 02| Verify the result using ASSERT_EQ | result = RETURN_ERR | None | Should be successful |
- */
-TEST(AlServiceRegistrationResponseTest, RetrieveMessageIdRangeWithNullInput) {
-    std::cout << "Entering RetrieveMessageIdRangeWithNullInput test" << std::endl;
-    MessageIdRange range(0, 0);
-	AlServiceRegistrationResponse instance(parseMacAddress("00:1A:2B:3C:4D:5E"), range, RegistrationResult::SUCCESS);
-    MessageIdRange result = instance.getMessageIdRange();
-    std::cout << "The result is " << result << std::endl;
-    std::cout << "Exiting RetrieveMessageIdRangeWithNullInput test" << std::endl;
-}
-
-/**
- * @brief Test the retrieval of message ID range with maximum length input
- *
- * This test verifies that the `getMessageIdRange` function of the `AlServiceRegistrationResponse` class
- * correctly handles the maximum length input and returns the expected result.
- *
- * **Test Group ID:** Basic: 01
- * **Test Case ID:** 009@n
- * **Priority:** High
- * @n
- * **Pre-Conditions:** None
- * **Dependencies:** None
- * **User Interaction:** None
- * @n
- * **Test Procedure:**@n
- * | Variation / Step | Description | Test Data | Expected Result | Notes |
- * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Call the getMessageIdRange function with maximum length input | maximumLengthInput = <value> | RETURN_OK | Should Pass |
- * | 02 | Verify the result using ASSERT_EQ | result = RETURN_OK | Assertion should pass | Should be successful |
- */
-TEST(AlServiceRegistrationResponseTest, RetrieveMessageIdRangeWithMaximumLengthInput) {
-    std::cout << "Entering RetrieveMessageIdRangeWithMaximumLengthInput test" << std::endl;
-	MessageIdRange range(0, 65535);
-	AlServiceRegistrationResponse instance(parseMacAddress("00:1A:2B:3C:4D:5E"), range, RegistrationResult::SUCCESS);
-    MessageIdRange result = instance.getMessageIdRange();
-	std::cout << "The result is " << result << std::endl;
-    std::cout << "Exiting RetrieveMessageIdRangeWithMaximumLengthInput test" << std::endl;
 }
 
 /**
@@ -250,8 +161,7 @@ TEST(AlServiceRegistrationResponseTest, RetrieveMessageIdRangeWithMaximumLengthI
  */
 TEST(AlServiceRegistrationResponseTest, RetrieveResultWhenUnknown) {
     std::cout << "Entering RetrieveResultWhenUnknown test" << std::endl;
-	MessageIdRange range(0, 65535);
-	AlServiceRegistrationResponse instance(parseMacAddress("00:1A:2B:3C:4D:5E"), range, RegistrationResult::UNKNOWN);
+	AlServiceRegistrationResponse instance(parseMacAddress("00:1A:2B:3C:4D:5E"), RegistrationResult::UNKNOWN);
     ASSERT_EQ(instance.getResult(), RegistrationResult::UNKNOWN);
     std::cout << "Exiting RetrieveResultWhenUnknown test" << std::endl;
 }
@@ -277,37 +187,9 @@ TEST(AlServiceRegistrationResponseTest, RetrieveResultWhenUnknown) {
  */
 TEST(AlServiceRegistrationResponseTest, RetrieveResultWhenSuccess) {
     std::cout << "Entering RetrieveResultWhenSuccess test" << std::endl;
-	MessageIdRange range(0, 65535);
-	AlServiceRegistrationResponse instance(parseMacAddress("00:1A:2B:3C:4D:5E"), range, RegistrationResult::SUCCESS);
+	AlServiceRegistrationResponse instance(parseMacAddress("00:1A:2B:3C:4D:5E"), RegistrationResult::SUCCESS);
     ASSERT_EQ(instance.getResult(), RegistrationResult::SUCCESS);
     std::cout << "Exiting RetrieveResultWhenSuccess test" << std::endl;
-}
-
-/**
- * @brief Test to verify the result retrieval when no ranges are available
- *
- * This test checks the functionality of the AlServiceRegistrationResponse class to ensure that it correctly retrieves the result when no ranges are available.
- *
- * **Test Group ID:** Basic: 01
- * **Test Case ID:** 012@n
- * **Priority:** High
- * @n
- * **Pre-Conditions:** None
- * **Dependencies:** None
- * **User Interaction:** None
- * @n
- * **Test Procedure:**@n
- * | Variation / Step | Description | Test Data | Expected Result | Notes |
- * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Set the result to NO_RANGES_AVAILABLE | instance->setResult(RegistrationResult::NO_RANGES_AVAILABLE) | None | Should be successful |
- * | 02 | Retrieve the result and check if it matches NO_RANGES_AVAILABLE | instance->getResult() | RegistrationResult::NO_RANGES_AVAILABLE | Should Pass |
- */
-TEST(AlServiceRegistrationResponseTest, RetrieveResultWhenNoRangesAvailable) {
-    std::cout << "Entering RetrieveResultWhenNoRangesAvailable test" << std::endl;
-    MessageIdRange range(0, 65535);
-	AlServiceRegistrationResponse instance(parseMacAddress("00:1A:2B:3C:4D:5E"), range, RegistrationResult::NO_RANGES_AVAILABLE);
-    ASSERT_EQ(instance.getResult(), RegistrationResult::NO_RANGES_AVAILABLE);
-    std::cout << "Exiting RetrieveResultWhenNoRangesAvailable test" << std::endl;
 }
 
 /**
@@ -333,8 +215,7 @@ TEST(AlServiceRegistrationResponseTest, RetrieveResultWhenNoRangesAvailable) {
  */
 TEST(AlServiceRegistrationResponseTest, RetrieveResultWhenServiceNotSupported) {
     std::cout << "Entering RetrieveResultWhenServiceNotSupported test" << std::endl;
-	MessageIdRange range(0, 65535);
-	AlServiceRegistrationResponse instance(parseMacAddress("00:1A:2B:3C:4D:5E"), range, RegistrationResult::SERVICE_NOT_SUPPORTED);
+	AlServiceRegistrationResponse instance(parseMacAddress("00:1A:2B:3C:4D:5E"), RegistrationResult::SERVICE_NOT_SUPPORTED);
     ASSERT_EQ(instance.getResult(), RegistrationResult::SERVICE_NOT_SUPPORTED);
     std::cout << "Exiting RetrieveResultWhenServiceNotSupported test" << std::endl;
 }
@@ -355,13 +236,12 @@ TEST(AlServiceRegistrationResponseTest, RetrieveResultWhenServiceNotSupported) {
  * **Test Procedure:**@n
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Set valid parameters using constructor | "00:1A:2B:3C:4D:5E", range(0, 65535), RegistrationResult::NO_RANGES_AVAILABLE | None | Should be successful |
+ * | 01 | Set valid parameters using constructor | "00:1A:2B:3C:4D:5E", RegistrationResult::SUCCESS | None | Should be successful |
  * | 02 | Serialize the registration response | None | serializedData should not be empty | Should Pass |
  */
 TEST(AlServiceRegistrationResponseTest, SerializeValidRegistrationResponse) {
     std::cout << "Entering SerializeValidRegistrationResponse test" << std::endl;
-    MessageIdRange range(0, 65535);
-	AlServiceRegistrationResponse instance(parseMacAddress("00:1A:2B:3C:4D:5E"), range, RegistrationResult::NO_RANGES_AVAILABLE);
+	AlServiceRegistrationResponse instance(parseMacAddress("00:1A:2B:3C:4D:5E"), RegistrationResult::SUCCESS);
     std::vector<unsigned char> serializedData = instance.serializeRegistrationResponse();    
     ASSERT_FALSE(serializedData.empty());
     std::cout << "Exiting SerializeValidRegistrationResponse test" << std::endl;
@@ -390,40 +270,10 @@ TEST(AlServiceRegistrationResponseTest, SerializeValidRegistrationResponse) {
  */
 TEST(AlServiceRegistrationResponseTest, SerializeRegistrationResponseWithInvalidMacAddress) {
     std::cout << "Entering SerializeRegistrationResponseWithInvalidMac test" << std::endl;
-	MessageIdRange range(0, 65535);
-	AlServiceRegistrationResponse instance(parseMacAddress("00:00:22:33:34:44"), range, RegistrationResult::SUCCESS);
+	AlServiceRegistrationResponse instance(parseMacAddress("00:00:22:33:34:44"), RegistrationResult::SUCCESS);
     std::vector<unsigned char> serializedData = instance.serializeRegistrationResponse();    
     ASSERT_TRUE(serializedData.empty());
     std::cout << "Exiting SerializeRegistrationResponseWithInvalidMac test" << std::endl;
-}
-
-/**
- * @brief Test the serialization of a registration response with an empty message ID range.
- *
- * This test verifies that the serialization of a registration response with an empty message ID range results in an empty serialized data vector. This is important to ensure that the system correctly handles cases where no message IDs are provided.
- *
- * **Test Group ID:** Basic: 01
- * **Test Case ID:** 016@n
- * **Priority:** High
- * @n
- * **Pre-Conditions:** None
- * **Dependencies:** None
- * **User Interaction:** None
- * @n
- * **Test Procedure:**@n
- * | Variation / Step | Description | Test Data | Expected Result | Notes |
- * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Set a valid MAC address | validMacAddress = "00:11:22:33:44:55", range = (0,0), RegistrationResult::SUCCESS | None | Should be successful |
- * | 02 | Set a successful registration result | valid vector | None | Should be successful |
- * | 03 | Serialize the registration response | None | serializedData.empty() = true | Should Pass |
- */
-TEST(AlServiceRegistrationResponseTest, SerializeRegistrationResponseWithEmptyMessageIdRange) {
-    std::cout << "Entering SerializeRegistrationResponseWithEmptyMessageIdRange test" << std::endl;
-	MessageIdRange range(0, 0);
-	AlServiceRegistrationResponse instance(parseMacAddress("00:11:22:33:44:55"), range, RegistrationResult::SUCCESS);   
-    std::vector<unsigned char> serializedData = instance.serializeRegistrationResponse();    
-    ASSERT_TRUE(serializedData.empty());
-    std::cout << "Exiting SerializeRegistrationResponseWithEmptyMessageIdRange test" << std::endl;
 }
 
 /**
@@ -447,8 +297,7 @@ TEST(AlServiceRegistrationResponseTest, SerializeRegistrationResponseWithEmptyMe
  */
 TEST(AlServiceRegistrationResponseTest, SerializeRegistrationResponseWithFailedResult) {
     std::cout << "Entering SerializeRegistrationResponseWithFailedResult test" << std::endl;
-    MessageIdRange range(0, 65535);
-	AlServiceRegistrationResponse instance(parseMacAddress("00:11:22:33:44:55"), range, RegistrationResult::UNKNOWN);
+	AlServiceRegistrationResponse instance(parseMacAddress("00:11:22:33:44:55"), RegistrationResult::UNKNOWN);
     std::vector<unsigned char> serializedData = instance.serializeRegistrationResponse();    
     ASSERT_FALSE(serializedData.empty());
     std::cout << "Exiting SerializeRegistrationResponseWithFailedResult test" << std::endl;
@@ -477,8 +326,7 @@ TEST(AlServiceRegistrationResponseTest, SerializeRegistrationResponseWithFailedR
 TEST(AlServiceRegistrationResponseTest, SerializeRegistrationResponseWithAllNullMacAddress) {
     std::cout << "Entering SerializeRegistrationResponseWithAllNullMacAddress test" << std::endl;
 	MacAddress nullMacAddress = {0, 0, 0, 0, 0, 0};
-    MessageIdRange range(0, 65535);
-	AlServiceRegistrationResponse instance(nullMacAddress, range, RegistrationResult::SUCCESS);
+	AlServiceRegistrationResponse instance(nullMacAddress, RegistrationResult::SUCCESS);
     std::vector<unsigned char> serializedData = instance.serializeRegistrationResponse();    
     ASSERT_TRUE(serializedData.empty());
     std::cout << "Exiting SerializeRegistrationResponseWithAllNullMacAddress test" << std::endl;
@@ -611,271 +459,6 @@ TEST(AlServiceRegistrationResponseTest, SetAlMacAddressLocal_InvalidMacAddress_N
 }
 
 /**
- * @brief Test the setMessageIdRange function with a valid range
- *
- * This test verifies that the setMessageIdRange function correctly handles a valid range of message IDs.
- *
- * **Test Group ID:** Basic: 01
- * **Test Case ID:** 024@n
- * **Priority:** High
- * @n
- * **Pre-Conditions:** None
- * **Dependencies:** None
- * **User Interaction:** None
- * @n
- * **Test Procedure:**@n
- * | Variation / Step | Description | Test Data | Expected Result | Notes |
- * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Call setMessageIdRange with valid range | start = 1, end = 100 | None | Should Pass |
- */
-TEST(AlServiceRegistrationResponseTest, SetMessageIdRange_ValidRange) {
-    std::cout << "Entering SetMessageIdRange_ValidRange test" << std::endl;
-    MessageIdRange inputRange = {1, 100};
-    AlServiceRegistrationResponse instance;
-    instance.setMessageIdRange(inputRange);
-    std::cout << "Exiting SetMessageIdRange_ValidRange test" << std::endl;
-}
-
-/**
- * @brief Test the setMessageIdRange function with start greater than end
- *
- * This test verifies the behavior of the setMessageIdRange function when the start value is greater than the end value.
- *
- * **Test Group ID:** Basic: 01
- * **Test Case ID:** 025@n
- * **Priority:** High
- * @n
- * **Pre-Conditions:** None
- * **Dependencies:** None
- * **User Interaction:** None
- * @n
- * **Test Procedure:**@n
- * | Variation / Step | Description | Test Data | Expected Result | Notes |
- * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Call setMessageIdRange with start greater than end | start = 100, end = 1 | None | Should Pass |
- */
-TEST(AlServiceRegistrationResponseTest, SetMessageIdRange_StartGreaterThanEnd) {
-    std::cout << "Entering SetMessageIdRange_StartGreaterThanEnd test" << std::endl;
-    MessageIdRange inputRange = {100, 1};
-    AlServiceRegistrationResponse instance;
-    instance.setMessageIdRange(inputRange);
-    std::cout << "Exiting SetMessageIdRange_StartGreaterThanEnd test" << std::endl;
-}
-
-/**
- * @brief Test the setMessageIdRange function when start is equal to end
- *
- * This test verifies the behavior of the setMessageIdRange function when the start and end values are equal. 
- * It ensures that the function can handle this edge case without errors.
- *
- * **Test Group ID:** Basic: 01
- * **Test Case ID:** 026@n
- * **Priority:** High
- * @n
- * **Pre-Conditions:** None
- * **Dependencies:** None
- * **User Interaction:** None
- * @n
- * **Test Procedure:**
- * | Variation / Step | Description | Test Data | Expected Result | Notes |
- * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Call setMessageIdRange with start and end equal | start = 50, end = 50 | None | Should Pass |
- */
-TEST(AlServiceRegistrationResponseTest, SetMessageIdRange_StartEqualToEnd) {
-    std::cout << "Entering SetMessageIdRange_StartEqualToEnd test" << std::endl;
-    MessageIdRange inputRange = {50, 50};
-    AlServiceRegistrationResponse instance;
-    instance.setMessageIdRange(inputRange);
-    std::cout << "Exiting SetMessageIdRange_StartEqualToEnd test" << std::endl;
-}
-
-/**
- * @brief Test the setMessageIdRange function with a start value of zero.
- *
- * This test verifies that the setMessageIdRange function can handle a start value of zero and a valid end value.
- *
- * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 027@n
- * **Priority:** High@n
- * @n
- * **Pre-Conditions:** None@n
- * **Dependencies:** None@n
- * **User Interaction:** None@n
- * @n
- * **Test Procedure:**@n
- * | Variation / Step | Description | Test Data | Expected Result | Notes |
- * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Call the SetUp function to initialize the test environment | None | None | Done by Pre-requisite SetUp function |
- * | 02 | Call the setMessageIdRange function with start = 0 and end = 100 | start = 0, end = 100 | None | Should Pass |
- * | 03 | Call the TearDown function to clean up the test environment | None | None | Done by Pre-requisite TearDown function |
- */
-TEST(AlServiceRegistrationResponseTest, SetMessageIdRange_StartZero) {
-    std::cout << "Entering SetMessageIdRange_StartZero test" << std::endl;
-    MessageIdRange inputRange = {0, 100};
-    AlServiceRegistrationResponse instance;
-    instance.setMessageIdRange(inputRange);
-    std::cout << "Exiting SetMessageIdRange_StartZero test" << std::endl;
-}
-
-/**
- * @brief Test the setMessageIdRange function with end value as zero
- *
- * This test verifies the behavior of the setMessageIdRange function when the end value is set to zero. 
- * It ensures that the function handles this edge case correctly without any errors.
- *
- * **Test Group ID:** Basic: 01
- * **Test Case ID:** 028@n
- * **Priority:** High
- * @n
- * **Pre-Conditions:** None
- * **Dependencies:** None
- * **User Interaction:** None
- * @n
- * **Test Procedure:**@n
- * | Variation / Step | Description | Test Data | Expected Result | Notes |
- * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Call the setMessageIdRange function with start value 1 and end value 0 | start = 1, end = 0 | Function should handle the input without errors | Should Pass |
- */
-TEST(AlServiceRegistrationResponseTest, SetMessageIdRange_EndZero) {
-    std::cout << "Entering SetMessageIdRange_EndZero test" << std::endl;
-    MessageIdRange inputRange = {1, 0};
-    AlServiceRegistrationResponse instance;
-    instance.setMessageIdRange(inputRange);
-    std::cout << "Exiting SetMessageIdRange_EndZero test" << std::endl;
-}
-
-/**
- * @brief Test the setMessageIdRange function with both parameters set to zero.
- *
- * This test verifies the behavior of the setMessageIdRange function when both the start and end message IDs are set to zero. This is a boundary test case to ensure that the function can handle the minimum input values correctly.
- *
- * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 029@n
- * **Priority:** High@n
- * @n
- * **Pre-Conditions:** None@n
- * **Dependencies:** None@n
- * **User Interaction:** None@n
- * @n
- * **Test Procedure:**@n
- * | Variation / Step | Description | Test Data | Expected Result | Notes |
- * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Call the setMessageIdRange function with both parameters set to zero. | start = 0, end = 0 | Function should execute without errors | Should Pass |
- */
-TEST(AlServiceRegistrationResponseTest, SetMessageIdRange_BothZero) {
-    std::cout << "Entering SetMessageIdRange_BothZero test" << std::endl;
-    MessageIdRange inputRange = {0, 0};
-    AlServiceRegistrationResponse instance;
-    instance.setMessageIdRange(inputRange);
-    std::cout << "Exiting SetMessageIdRange_BothZero test" << std::endl;
-}
-
-/**
- * @brief Test the setMessageIdRange function with a negative start value
- *
- * This test verifies that the setMessageIdRange function can handle a negative start value correctly.
- *
- * **Test Group ID:** Basic: 01
- * **Test Case ID:** 030@n
- * **Priority:** High
- * @n
- * **Pre-Conditions:** None
- * **Dependencies:** None
- * **User Interaction:** None
- * @n
- * **Test Procedure:**@n
- * | Variation / Step | Description | Test Data | Expected Result | Notes |
- * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Call setMessageIdRange with start = -1 and end = 100 | start = -1, end = 100 | None | Should Pass |
- */
-TEST(AlServiceRegistrationResponseTest, SetMessageIdRange_NegativeStart) {
-    std::cout << "Entering SetMessageIdRange_NegativeStart test" << std::endl;
-    MessageIdRange inputRange = {-1, 100};
-    AlServiceRegistrationResponse instance;
-    instance.setMessageIdRange(inputRange);
-    std::cout << "Exiting SetMessageIdRange_NegativeStart test" << std::endl;
-}
-
-/**
- * @brief Test the setMessageIdRange function with a negative end value
- *
- * This test verifies the behavior of the setMessageIdRange function when provided with a negative end value. 
- * It ensures that the function handles this edge case appropriately.
- *
- * **Test Group ID:** Basic: 01
- * **Test Case ID:** 031@n
- * **Priority:** High
- * 
- * **Pre-Conditions:** None
- * **Dependencies:** None
- * **User Interaction:** None
- * 
- * **Test Procedure:**
- * | Variation / Step | Description | Test Data | Expected Result | Notes |
- * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Call the setMessageIdRange function with start = 1 and end = -100 | start = 1, end = -100 | Function should handle the negative end value appropriately | Should Pass |
- */
-TEST(AlServiceRegistrationResponseTest, SetMessageIdRange_NegativeEnd) {
-    std::cout << "Entering SetMessageIdRange_NegativeEnd test" << std::endl;
-    MessageIdRange inputRange = {1, -100};
-    AlServiceRegistrationResponse instance;
-    instance.setMessageIdRange(inputRange);
-    std::cout << "Exiting SetMessageIdRange_NegativeEnd test" << std::endl;
-}
-
-/**
- * @brief Test the setMessageIdRange function with both negative values
- *
- * This test verifies the behavior of the setMessageIdRange function when both input values are negative.
- *
- * **Test Group ID:** Basic: 01
- * **Test Case ID:** 032@n
- * **Priority:** High
- * @n
- * **Pre-Conditions:** None
- * **Dependencies:** None
- * **User Interaction:** None
- * @n
- * **Test Procedure:**@n
- * | Variation / Step | Description | Test Data | Expected Result | Notes |
- * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Call setMessageIdRange with both negative values | startId = -1, endId = -100 | None | Should Pass |
- */
-TEST(AlServiceRegistrationResponseTest, SetMessageIdRange_BothNegative) {
-    std::cout << "Entering SetMessageIdRange_BothNegative test" << std::endl;
-    MessageIdRange inputRange = {-1, -100};
-    AlServiceRegistrationResponse instance;
-    instance.setMessageIdRange(inputRange);
-    std::cout << "Exiting SetMessageIdRange_BothNegative test" << std::endl;
-}
-
-/**
- * @brief Test the setMessageIdRange function with large values
- *
- * This test verifies that the setMessageIdRange function can handle large values for the message ID range without any issues.
- *
- * **Test Group ID:** Basic: 01
- * **Test Case ID:** 033@n
- * **Priority:** High
- * @n
- * **Pre-Conditions:** None
- * **Dependencies:** None
- * **User Interaction:** None
- * @n
- * **Test Procedure:**@n
- * | Variation / Step | Description | Test Data | Expected Result | Notes |
- * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Call setMessageIdRange with large values | input1 = 1000000, input2 = 2000000 | None | Should Pass |
- */
-TEST(AlServiceRegistrationResponseTest, SetMessageIdRange_LargeValues) {
-    std::cout << "Entering SetMessageIdRange_LargeValues test" << std::endl;
-    MessageIdRange inputRange = {1000000, 2000000};
-    AlServiceRegistrationResponse instance;
-    instance.setMessageIdRange(inputRange);
-    std::cout << "Exiting SetMessageIdRange_LargeValues test" << std::endl;
-}
-
-/**
  * @brief Test the setResult method of AlServiceRegistrationResponse class to set the result to all possible valid values.
  *
  * This test verifies that the setResult method correctly sets the result to each valid RegistrationResult enum value.
@@ -891,16 +474,15 @@ TEST(AlServiceRegistrationResponseTest, SetMessageIdRange_LargeValues) {
  * **Test Procedure:**@n
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Call the setResult method with each value of RegistrationResult enum | RegistrationResult::UNKNOWN, SUCCESS, NO_RANGES_AVAILABLE, SERVICE_NOT_SUPPORTED | Should set the result to each corresponding value | Iterates through all enum values |
+ * | 01 | Call the setResult method with each value of RegistrationResult enum | RegistrationResult::UNKNOWN, SUCCESS, SERVICE_NOT_SUPPORTED | Should set the result to each corresponding value | Iterates through all enum values |
  */
 TEST(AlServiceRegistrationResponseTest, SetAllRegistrationResults) {
     std::cout << "Entering SetAllRegistrationResults test" << std::endl;
     AlServiceRegistrationResponse instance;
     // Define all enum values in an array
-    const std::array<RegistrationResult, 4> allResults = {
+    const std::array<RegistrationResult, 3> allResults = {
         RegistrationResult::UNKNOWN,
         RegistrationResult::SUCCESS,
-        RegistrationResult::NO_RANGES_AVAILABLE,
         RegistrationResult::SERVICE_NOT_SUPPORTED
     };
 
@@ -955,23 +537,20 @@ TEST(AlServiceRegistrationResponseTest, SetAllRegistrationResults) {
  * | Variation / Step | Description | Test Data |Expected Result |Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
  * | 01| Initialize with SUCCESS result | macAddress = {0x00, 0x1A, 0x2B, 0x3C, 0x4D, 0x5E}, range = {1000, 2000}, result = SUCCESS | Object should be created with the values | Should Pass |
- * | 02| Initialize with NO_RANGES_AVAILABLE result | macAddress = {0x00, 0x1A, 0x2B, 0x3C, 0x4D, 0x5E}, range = {1000, 2000}, result = NO_RANGES_AVAILABLE | Object should be created with the values | Should Pass |
- * | 03| Initialize with SERVICE_NOT_SUPPORTED result | macAddress = {0x00, 0x1A, 0x2B, 0x3C, 0x4D, 0x5E}, range = {1000, 2000}, result = SERVICE_NOT_SUPPORTED | Object should be created with the values | Should Pass |
- * | 04| Initialize with UNKNOWN result | macAddress = {0x00, 0x1A, 0x2B, 0x3C, 0x4D, 0x5E}, range = {1000, 2000}, result = UNKNOWN | Object should be created with the values | Should Pass |
+ * | 02| Initialize with SERVICE_NOT_SUPPORTED result | macAddress = {0x00, 0x1A, 0x2B, 0x3C, 0x4D, 0x5E}, result = SERVICE_NOT_SUPPORTED | Object should be created with the values | Should Pass |
+ * | 03| Initialize with UNKNOWN result | macAddress = {0x00, 0x1A, 0x2B, 0x3C, 0x4D, 0x5E}, result = UNKNOWN | Object should be created with the values | Should Pass |
  */
 TEST(AlServiceRegistrationResponseTest, ValidMACAddressValidRangeAllResults) {
     std::cout << "Entering ValidMACAddressValidRangeAllResults" << std::endl;
     MacAddress macAddress = {0x00, 0x1A, 0x2B, 0x3C, 0x4D, 0x5E};
-    MessageIdRange range = {1000, 2000};
     RegistrationResult results[] = {
         RegistrationResult::SUCCESS,
-        RegistrationResult::NO_RANGES_AVAILABLE,
         RegistrationResult::SERVICE_NOT_SUPPORTED,
         RegistrationResult::UNKNOWN
     };
     for (const auto& result : results) {
         std::cout << "Testing with result: " << static_cast<uint8_t>(result) << std::endl;
-        AlServiceRegistrationResponse response(macAddress, range, result);
+        AlServiceRegistrationResponse response(macAddress, result);
     }
     std::cout << "Exiting ValidMACAddressValidRangeAllResults" << std::endl;
 }
@@ -997,9 +576,8 @@ TEST(AlServiceRegistrationResponseTest, ValidMACAddressValidRangeAllResults) {
 TEST(AlServiceRegistrationResponseTest, ValidMACAddressInvalidRangeSuccessResult) {
     std::cout << "Entering ValidMACAddressInvalidRangeSuccessResult" << std::endl;
     MacAddress macAddress = {0x00, 0x1A, 0x2B, 0x3C, 0x4D, 0x5E};
-    MessageIdRange range = {2000, 1000};
     RegistrationResult result = RegistrationResult::SUCCESS;
-    AlServiceRegistrationResponse response(macAddress, range, result);
+    AlServiceRegistrationResponse response(macAddress, result);
     std::cout << "Exiting ValidMACAddressInvalidRangeSuccessResult" << std::endl;
 }
 
@@ -1025,9 +603,8 @@ TEST(AlServiceRegistrationResponseTest, ValidMACAddressInvalidRangeSuccessResult
 TEST(AlServiceRegistrationResponseTest, ValidMACAddressZeroRangeSuccessResult) {
     std::cout << "Entering ValidMACAddressZeroRangeSuccessResult" << std::endl;
     MacAddress macAddress = {0x00, 0x1A, 0x2B, 0x3C, 0x4D, 0x5E};
-    MessageIdRange range = {0, 0};
     RegistrationResult result = RegistrationResult::SUCCESS;
-    AlServiceRegistrationResponse response(macAddress, range, result);
+    AlServiceRegistrationResponse response(macAddress, result);
     std::cout << "Exiting ValidMACAddressZeroRangeSuccessResult" << std::endl;
 }
 
@@ -1053,9 +630,8 @@ TEST(AlServiceRegistrationResponseTest, ValidMACAddressZeroRangeSuccessResult) {
 TEST(AlServiceRegistrationResponseTest, AllZeroMACAddressValidRangeSuccessResult) {
     std::cout << "Entering AllZeroMACAddressValidRangeSuccessResult" << std::endl;
     MacAddress macAddress = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
-    MessageIdRange range = {1000, 2000};
     RegistrationResult result = RegistrationResult::SUCCESS;
-    AlServiceRegistrationResponse response(macAddress, range, result);
+    AlServiceRegistrationResponse response(macAddress, result);
     std::cout << "Exiting AllZeroMACAddressValidRangeSuccessResult" << std::endl;
 }
 
@@ -1081,9 +657,8 @@ TEST(AlServiceRegistrationResponseTest, AllZeroMACAddressValidRangeSuccessResult
 TEST(AlServiceRegistrationResponseTest, AllFFMACAddressValidRangeSuccessResult) {
     std::cout << "Entering AllFFMACAddressValidRangeSuccessResult" << std::endl;
     MacAddress macAddress = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
-    MessageIdRange range = {1000, 2000};
     RegistrationResult result = RegistrationResult::SUCCESS;
-    AlServiceRegistrationResponse response(macAddress, range, result);
+    AlServiceRegistrationResponse response(macAddress, result);
     std::cout << "Exiting AllFFMACAddressValidRangeSuccessResult" << std::endl;
 }
 
@@ -1108,9 +683,8 @@ TEST(AlServiceRegistrationResponseTest, AllFFMACAddressValidRangeSuccessResult) 
 TEST(AlServiceRegistrationResponseTest, ValidMACAddressValidRangeInvalidResult) {
     std::cout << "Entering ValidMACAddressValidRangeInvalidResult" << std::endl;
     MacAddress macAddress = {0x00, 0x1A, 0x2B, 0x3C, 0x4D, 0x5E};
-    MessageIdRange range = {1000, 2000};
     RegistrationResult result = static_cast<RegistrationResult>(0xFF);
-    AlServiceRegistrationResponse response(macAddress, range, result);
+    AlServiceRegistrationResponse response(macAddress, result);
     std::cout << "Exiting ValidMACAddressValidRangeInvalidResult" << std::endl;
 }
 

@@ -165,7 +165,6 @@ int main(int argc, char **argv) {
     "AlServiceRegistrationRequest.getSAPActivationStatus_invalidSAPActivation:"
     "AlServiceRegistrationRequest.SetServiceType_Invalid:"
     "AlServiceRegistrationResponseTest.SerializeRegistrationResponseWithInvalidMacAddress:"
-    "AlServiceRegistrationResponseTest.SerializeRegistrationResponseWithEmptyMessageIdRange:"
     "AlServiceRegistrationResponseTest.SerializeRegistrationResponseWithAllNullMacAddress:"
     "dm_radio_t_Test.NullJsonObject:"
     "dm_radio_t_Test.NullParentID:"
