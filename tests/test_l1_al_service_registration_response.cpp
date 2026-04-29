@@ -128,7 +128,7 @@ TEST(AlServiceRegistrationResponseTest, RetrieveAlMacAddressLocalWithValidInput)
  * **Test Procedure:**@n
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Call the constructor with macaddress as empty | "00:00:00:00:00:00", range, result | None | Should be initialized |
+ * | 01 | Call the constructor with macaddress as empty | "00:00:00:00:00:00", RegistrationResult::SUCCESS | None | Should be initialized |
  * | 02 | Call the getAlMacAddressLocal function with an empty string as input | input = "" | RETURN_ERR | Should Pass |
  */
 
@@ -264,7 +264,7 @@ TEST(AlServiceRegistrationResponseTest, SerializeValidRegistrationResponse) {
  * **Test Procedure:**@n
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Initialize the invalid MAC address, valid message range and registration response | invalidMacAddress = "00:00:22:33:34:44", range(0, 65535), RegistrationResult::SUCCESS | None | Should be successful |
+ * | 01 | Initialize the invalid MAC address and registration response result | invalidMacAddress = "00:00:22:33:34:44", RegistrationResult::SUCCESS | None | Should be successful |
  * | 02 | Serialize the registration response | None | serializedData = instance->serializeRegistrationResponse() | Should Pass |
  * | 03 | Verify the serialized data is empty | serializedData.empty() | True | Should Pass |
  */
@@ -292,7 +292,7 @@ TEST(AlServiceRegistrationResponseTest, SerializeRegistrationResponseWithInvalid
  * **Test Procedure:**@n
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Set a valid MAC address, message ID range and failed registration result | "00:11:22:33:44:55", range, RegistrationResult::UNKNOWN | None | Should be successful |
+ * | 01 | Set a valid MAC address and failed registration result | "00:11:22:33:44:55", RegistrationResult::UNKNOWN | None | Should be successful |
  * | 02 | Serialize the registration response | None | serializedData should not be empty | Should Pass |
  */
 TEST(AlServiceRegistrationResponseTest, SerializeRegistrationResponseWithFailedResult) {
@@ -320,7 +320,7 @@ TEST(AlServiceRegistrationResponseTest, SerializeRegistrationResponseWithFailedR
  * **Test Procedure:**@n
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Set null MAC address, valid message id range and registration result | "{0, 0, 0, 0, 0, 0}", range(0, 65535), RegistrationResult::SUCCESS |  | Should be successful |
+ * | 01 | Set null MAC address and registration result | "{0, 0, 0, 0, 0, 0}", RegistrationResult::SUCCESS |  | Should be successful |
  * | 02 | Serialize the registration response | instance->serializeRegistrationResponse() | serializedData = empty vector | Should Pass |
  */
 TEST(AlServiceRegistrationResponseTest, SerializeRegistrationResponseWithAllNullMacAddress) {
@@ -523,7 +523,7 @@ TEST(AlServiceRegistrationResponseTest, SetAllRegistrationResults) {
 /**
  * @brief Test the AlServiceRegistrationResponse constructor with valid argument values
  *
- * This test verifies that the AlServiceRegistrationResponse constructor correctly initializes the object with a valid MAC address, a valid message ID range, and all possible registration results.
+ * This test verifies that the AlServiceRegistrationResponse constructor correctly initializes the object with a valid MAC address and all possible registration results.
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 036@n
@@ -536,12 +536,12 @@ TEST(AlServiceRegistrationResponseTest, SetAllRegistrationResults) {
  * **Test Procedure:**@n
  * | Variation / Step | Description | Test Data |Expected Result |Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01| Initialize with SUCCESS result | macAddress = {0x00, 0x1A, 0x2B, 0x3C, 0x4D, 0x5E}, range = {1000, 2000}, result = SUCCESS | Object should be created with the values | Should Pass |
+ * | 01| Initialize with SUCCESS result | macAddress = {0x00, 0x1A, 0x2B, 0x3C, 0x4D, 0x5E}, result = SUCCESS | Object should be created with the values | Should Pass |
  * | 02| Initialize with SERVICE_NOT_SUPPORTED result | macAddress = {0x00, 0x1A, 0x2B, 0x3C, 0x4D, 0x5E}, result = SERVICE_NOT_SUPPORTED | Object should be created with the values | Should Pass |
  * | 03| Initialize with UNKNOWN result | macAddress = {0x00, 0x1A, 0x2B, 0x3C, 0x4D, 0x5E}, result = UNKNOWN | Object should be created with the values | Should Pass |
  */
-TEST(AlServiceRegistrationResponseTest, ValidMACAddressValidRangeAllResults) {
-    std::cout << "Entering ValidMACAddressValidRangeAllResults" << std::endl;
+TEST(AlServiceRegistrationResponseTest, ValidMACAddressAllResults) {
+    std::cout << "Entering ValidMACAddressAllResults" << std::endl;
     MacAddress macAddress = {0x00, 0x1A, 0x2B, 0x3C, 0x4D, 0x5E};
     RegistrationResult results[] = {
         RegistrationResult::SUCCESS,
@@ -552,66 +552,13 @@ TEST(AlServiceRegistrationResponseTest, ValidMACAddressValidRangeAllResults) {
         std::cout << "Testing with result: " << static_cast<uint8_t>(result) << std::endl;
         AlServiceRegistrationResponse response(macAddress, result);
     }
-    std::cout << "Exiting ValidMACAddressValidRangeAllResults" << std::endl;
+    std::cout << "Exiting ValidMACAddressAllResults" << std::endl;
 }
 
 /**
- * @brief Test the AlServiceRegistrationResponse constructor with valid argument values
+ * @brief Test the AlServiceRegistrationResponse constructor with all zero MAC address and success result.
  *
- * This test verifies that the AlServiceRegistrationResponse constructor initializes the object with invalid message ID range
- *
- * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 037@n
- * **Priority:** High@n
- * @n
- * **Dependencies:** None@n
- * **User Interaction:** None@n
- * @n
- * **Test Procedure:**@n
- * | Variation / Step | Description | Test Data |Expected Result |Notes |
- * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01| Initialize MAC address, message ID range, and result | macAddress = {0x00, 0x1A, 0x2B, 0x3C, 0x4D, 0x5E}, range = {2000, 1000}, result = RegistrationResult::SUCCESS | Object should be created successfully | Should Pass |
- *
- */
-TEST(AlServiceRegistrationResponseTest, ValidMACAddressInvalidRangeSuccessResult) {
-    std::cout << "Entering ValidMACAddressInvalidRangeSuccessResult" << std::endl;
-    MacAddress macAddress = {0x00, 0x1A, 0x2B, 0x3C, 0x4D, 0x5E};
-    RegistrationResult result = RegistrationResult::SUCCESS;
-    AlServiceRegistrationResponse response(macAddress, result);
-    std::cout << "Exiting ValidMACAddressInvalidRangeSuccessResult" << std::endl;
-}
-
-/**
- * @brief Test the AlServiceRegistrationResponse constructor with zero range.
- *
- * This test verifies that the AlServiceRegistrationResponse object is correctly initialized with a valid MAC address, a zero message ID range, and a success result.
- *
- * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 038@n
- * **Priority:** High@n
- * @n
- * **Pre-Conditions:** None@n
- * **Dependencies:** None@n
- * **User Interaction:** None@n
- * @n
- * **Test Procedure:**@n
- * | Variation / Step | Description | Test Data | Expected Result | Notes |
- * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Initialize AlServiceRegistrationResponse with valid MAC address, zero range, and success result | macAddress = {0x00, 0x1A, 0x2B, 0x3C, 0x4D, 0x5E}, range = {0, 0}, result = RegistrationResult::SUCCESS | Object should be initialized successfully | Should Pass |
- *
- */
-TEST(AlServiceRegistrationResponseTest, ValidMACAddressZeroRangeSuccessResult) {
-    std::cout << "Entering ValidMACAddressZeroRangeSuccessResult" << std::endl;
-    MacAddress macAddress = {0x00, 0x1A, 0x2B, 0x3C, 0x4D, 0x5E};
-    RegistrationResult result = RegistrationResult::SUCCESS;
-    AlServiceRegistrationResponse response(macAddress, result);
-    std::cout << "Exiting ValidMACAddressZeroRangeSuccessResult" << std::endl;
-}
-
-/**
- * @brief Test the AlServiceRegistrationResponse constructor with all zero MAC address, valid message ID range, and success result.
- *
- * This test verifies that the AlServiceRegistrationResponse object is correctly initialized when provided with an all-zero MAC address, a valid message ID range, and a success result.@n
+ * This test verifies that the AlServiceRegistrationResponse object is correctly initialized when provided with an all-zero MAC address and a success result.@n
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 039@n
@@ -624,22 +571,22 @@ TEST(AlServiceRegistrationResponseTest, ValidMACAddressZeroRangeSuccessResult) {
  * **Test Procedure:**@n
  * | Variation / Step | Description | Test Data |Expected Result |Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01| Initialize AlServiceRegistrationResponse with all-zero MAC address, valid message ID range, and success result | macAddress = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, range = {1000, 2000}, result = RegistrationResult::SUCCESS | Object should be initialized successfully | Should Pass |
+ * | 01| Initialize AlServiceRegistrationResponse with all-zero MAC address and success result | macAddress = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, result = RegistrationResult::SUCCESS | Object should be initialized successfully | Should Pass |
  *
  */
-TEST(AlServiceRegistrationResponseTest, AllZeroMACAddressValidRangeSuccessResult) {
-    std::cout << "Entering AllZeroMACAddressValidRangeSuccessResult" << std::endl;
+TEST(AlServiceRegistrationResponseTest, AllZeroMACAddressSuccessResult) {
+    std::cout << "Entering AllZeroMACAddressSuccessResult" << std::endl;
     MacAddress macAddress = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
     RegistrationResult result = RegistrationResult::SUCCESS;
     AlServiceRegistrationResponse response(macAddress, result);
-    std::cout << "Exiting AllZeroMACAddressValidRangeSuccessResult" << std::endl;
+    std::cout << "Exiting AllZeroMACAddressSuccessResult" << std::endl;
 }
 
 
 /**
- * @brief Test the AlServiceRegistrationResponse constructor with valid MAC address, message ID range, and success result.
+ * @brief Test the AlServiceRegistrationResponse constructor with all FF MAC address and success result.
  *
- * This test verifies that the AlServiceRegistrationResponse object is correctly initialized with a MAC address of all 0xFF, a valid message ID range, and a success result.
+ * This test verifies that the AlServiceRegistrationResponse object is correctly initialized with a MAC address of all 0xFF and a success result.
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 040@n
@@ -652,20 +599,20 @@ TEST(AlServiceRegistrationResponseTest, AllZeroMACAddressValidRangeSuccessResult
  * **Test Procedure:**@n
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Initialize MAC address, message ID range, and result | macAddress = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}, range = {1000, 2000}, result = RegistrationResult::SUCCESS | Object should be initialized successfully | Should be successful |
+ * | 01 | Initialize MAC address and result | macAddress = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}, result = RegistrationResult::SUCCESS | Object should be initialized successfully | Should be successful |
  */
-TEST(AlServiceRegistrationResponseTest, AllFFMACAddressValidRangeSuccessResult) {
-    std::cout << "Entering AllFFMACAddressValidRangeSuccessResult" << std::endl;
+TEST(AlServiceRegistrationResponseTest, AllFFMACAddressSuccessResult) {
+    std::cout << "Entering AllFFMACAddressSuccessResult" << std::endl;
     MacAddress macAddress = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
     RegistrationResult result = RegistrationResult::SUCCESS;
     AlServiceRegistrationResponse response(macAddress, result);
-    std::cout << "Exiting AllFFMACAddressValidRangeSuccessResult" << std::endl;
+    std::cout << "Exiting AllFFMACAddressSuccessResult" << std::endl;
 }
 
 /**
- * @brief Test the AlServiceRegistrationResponse constructor and getters with valid MAC address, valid range, and invalid result.
+ * @brief Test the AlServiceRegistrationResponse constructor and getters with valid MAC address and invalid result.
  *
- * This test verifies that the AlServiceRegistrationResponse object is correctly constructed when provided with a valid MAC address, a valid message ID range, and an invalid registration result.@n
+ * This test verifies that the AlServiceRegistrationResponse object is correctly constructed when provided with a valid MAC address and an invalid registration result.@n
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 041@n
@@ -678,14 +625,14 @@ TEST(AlServiceRegistrationResponseTest, AllFFMACAddressValidRangeSuccessResult) 
  * **Test Procedure:**@n
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Construct AlServiceRegistrationResponse object and verify MAC address | macAddress = {0x00, 0x1A, 0x2B, 0x3C, 0x4D, 0x5E}, range = {1000, 2000}, result = 0xFF | response.getAlMacAddressLocal() == macAddress | Should Pass |
+ * | 01 | Construct AlServiceRegistrationResponse object and verify MAC address | macAddress = {0x00, 0x1A, 0x2B, 0x3C, 0x4D, 0x5E}, result = 0xFF | response.getAlMacAddressLocal() == macAddress | Should Pass |
  */
-TEST(AlServiceRegistrationResponseTest, ValidMACAddressValidRangeInvalidResult) {
-    std::cout << "Entering ValidMACAddressValidRangeInvalidResult" << std::endl;
+TEST(AlServiceRegistrationResponseTest, ValidMACAddressInvalidResult) {
+    std::cout << "Entering ValidMACAddressInvalidResult" << std::endl;
     MacAddress macAddress = {0x00, 0x1A, 0x2B, 0x3C, 0x4D, 0x5E};
     RegistrationResult result = static_cast<RegistrationResult>(0xFF);
     AlServiceRegistrationResponse response(macAddress, result);
-    std::cout << "Exiting ValidMACAddressValidRangeInvalidResult" << std::endl;
+    std::cout << "Exiting ValidMACAddressInvalidResult" << std::endl;
 }
 
 /**
