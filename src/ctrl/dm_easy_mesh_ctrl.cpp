@@ -60,7 +60,7 @@
 
 extern em_network_topo_t *g_network_topology;
 
-bus_error_t em_ctrl_t::cmd_setssid(const char *event_name, const bus_data_prop_t *input_params, bus_data_prop_t **output_params, void *async_handle)
+bus_error_t em_ctrl_t::cmd_setssid(const char *method_name, const bus_data_prop_t *input_params, bus_data_prop_t **output_params, void *async_handle)
 {
     em_subdoc_info_t *subdoc = NULL;
     unsigned char buff[sizeof(em_subdoc_info_t) + EM_IO_BUFF_SZ];
@@ -74,7 +74,7 @@ bus_error_t em_ctrl_t::cmd_setssid(const char *event_name, const bus_data_prop_t
     char HaulType[TR181_HAULTYPE_MAX_LEN + 1] = {0};
     size_t json_len = 0;
 
-    (void)event_name;
+    (void)method_name;
     (void)async_handle;
 
     if (!input_params) {
