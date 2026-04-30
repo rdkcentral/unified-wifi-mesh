@@ -354,9 +354,9 @@ TEST(dm_radio_cap_t_Test, JSONObjectWithNumericValues) {
 * **Test Procedure:**@n
 * | Variation / Step | Description | Test Data |Expected Result |Notes |
 * | :----: | --------- | ---------- |-------------- | ----- |
-* | 01| Create original dm_radio_cap_t object and set values | original.m_radio_cap_info.wifi7_cap.radios_num = 5, original.m_radio_cap_info.ch_scan.enabled = true | Values set successfully | Should be successful |
+* | 01| Create original dm_radio_cap_t object and set values | original.m_radio_cap_info.wifi7_cap.mlo_cap_support.ruid[0] = 5, original.m_radio_cap_info.ch_scan.boot_only = 1 | Values set successfully | Should be successful |
 * | 02| Invoke copy constructor to create a new object | dm_radio_cap_t copy(original) | Copy constructor invoked successfully | Should be successful |
-* | 03| Verify copied values | copy.m_radio_cap_info.radios_num, copy.m_radio_cap_info.ch_scan.enabled | copy.m_radio_cap_info.wifi7_cap.radios_num == 5, copy.m_radio_cap_info.ch_scan.enabled == true | Should Pass |
+* | 03| Verify copied values | copy.m_radio_cap_info.wifi7_cap.mlo_cap_support.ruid[0], copy.m_radio_cap_info.ch_scan.boot_only | copy.m_radio_cap_info.wifi7_cap.mlo_cap_support.ruid[0] == 5, copy.m_radio_cap_info.ch_scan.boot_only == 1 | Should Pass |
 */
 TEST(dm_radio_cap_t_Test, CopyConstructorWithValidInput) {
     std::cout << "Entering CopyConstructorWithValidInput" << std::endl;
@@ -760,8 +760,8 @@ TEST(dm_radio_cap_t_Test, EncodeNullPointer) {
 * **Test Procedure:**@n
 * | Variation / Step | Description | Test Data | Expected Result | Notes |
 * | :----: | --------- | ---------- |-------------- | ----- |
-* | 01 | Set maximum and minimum values for radio capability fields | radios_num = 255, ht_cap.max_sprt_tx_streams = 3, ht_cap.max_sprt_rx_streams = 3, vht_cap.max_sprt_tx_streams = 7, vht_cap.max_sprt_rx_streams = 7, he_cap.max_sprt_tx_streams = 7, he_cap.max_sprt_rx_streams = 7, wifi6_cap.max_dl_mumimo_tx = 15, wifi6_cap.max_ul_mumimo_rx = 15, wifi6_cap.max_dl_ofdma_tx = 255, wifi6_cap.max_ul_ofdma_rx = 255 | Values should be set correctly | Should be successful |
-* | 02 | Retrieve radio capability information | None | radios_num = 255, ht_cap.max_sprt_tx_streams = 3, ht_cap.max_sprt_rx_streams = 3, vht_cap.max_sprt_tx_streams = 7, vht_cap.max_sprt_rx_streams = 7, he_cap.max_sprt_tx_streams = 7, he_cap.max_sprt_rx_streams = 7, wifi6_cap.max_dl_mumimo_tx = 15, wifi6_cap.max_ul_mumimo_rx = 15, wifi6_cap.max_dl_ofdma_tx = 255, wifi6_cap.max_ul_ofdma_rx = 255 | Should Pass |
+* | 01 | Set maximum and minimum values for radio capability fields | wifi7_cap.mlo_cap_support.ruid[0] = 255, ht_cap.max_sprt_tx_streams = 3, ht_cap.max_sprt_rx_streams = 3, vht_cap.max_sprt_tx_streams = 7, vht_cap.max_sprt_rx_streams = 7, he_cap.max_sprt_tx_streams = 7, he_cap.max_sprt_rx_streams = 7, wifi6_cap.roles[0].role_tail.max_dl_mumimo_tx = 15, wifi6_cap.roles[0].role_tail.max_ul_mumimo_rx = 15, wifi6_cap.roles[0].role_tail.max_dl_ofdma_tx = 255, wifi6_cap.roles[0].role_tail.max_ul_ofdma_rx = 255 | Values should be set correctly | Should be successful |
+* | 02 | Retrieve radio capability information | None | wifi7_cap.mlo_cap_support.ruid[0] = 255, ht_cap.max_sprt_tx_streams = 3, ht_cap.max_sprt_rx_streams = 3, vht_cap.max_sprt_tx_streams = 7, vht_cap.max_sprt_rx_streams = 7, he_cap.max_sprt_tx_streams = 7, he_cap.max_sprt_rx_streams = 7, wifi6_cap.roles[0].role_tail.max_dl_mumimo_tx = 15, wifi6_cap.roles[0].role_tail.max_ul_mumimo_rx = 15, wifi6_cap.roles[0].role_tail.max_dl_ofdma_tx = 255, wifi6_cap.roles[0].role_tail.max_ul_ofdma_rx = 255 | Should Pass |
 */
 TEST(dm_radio_cap_t_Test, RetrieveRadioCapInfoWithMaxMinValues) {
     std::cout << "Entering RetrieveRadioCapInfoWithMaxMinValues" << std::endl;
@@ -826,7 +826,7 @@ TEST(dm_radio_cap_test, SuccessfulInitialization) {
 /**
 * @brief Test the assignment operator for dm_radio_cap_t class with mixed values.
 *
-* This test verifies that the assignment operator correctly assigns the values from one instance of dm_radio_cap_t to another instance. Specifically, it checks that the radios_num and noise values are properly copied.
+* This test verifies that the assignment operator correctly assigns the values from one instance of dm_radio_cap_t to another instance. Specifically, it checks that the wifi7_cap.mlo_cap_support.ruid[0] and min_scan_interval values are properly copied.
 *
 * **Test Group ID:** Basic: 01@n
 * **Test Case ID:** 027@n
@@ -840,10 +840,10 @@ TEST(dm_radio_cap_test, SuccessfulInitialization) {
 * | Variation / Step | Description | Test Data | Expected Result | Notes |
 * | :----: | --------- | ---------- |-------------- | ----- |
 * | 01 | Create two instances of dm_radio_cap_t | instance1, instance2 | Instances created successfully | Should be successful |
-* | 02 | Assign values to instance2 | obj2.m_radio_cap_info.wifi7_cap.radios_num = 3, obj2.m_radio_cap_info.ch_scan.noise = -100 | Values assigned successfully | Should be successful |
+* | 02 | Assign values to instance2 | obj2.m_radio_cap_info.wifi7_cap.mlo_cap_support.ruid[0] = 3, obj2.m_radio_cap_info.ch_scan.min_scan_interval = 100 | Values assigned successfully | Should be successful |
 * | 03 | Assign instance2 to instance1 using assignment operator | instance1 = instance2 | Assignment successful | Should be successful |
-* | 04 | Verify radios_num value in instance1 | instance1.m_radio_cap_info.radios_num | Expected: 3 | Should Pass |
-* | 05 | Verify noise value in instance1 | instance1.m_radio_cap_info.noise | Expected: -100 | Should Pass |
+* | 04 | Verify mlo_cap_support.ruid[0] value in instance1 | instance1.m_radio_cap_info.wifi7_cap.mlo_cap_support.ruid[0] | Expected: 3 | Should Pass |
+* | 05 | Verify min_scan_interval value in instance1 | instance1.m_radio_cap_info.ch_scan.min_scan_interval | Expected: 100 | Should Pass |
 */
 TEST(dm_radio_cap_t_Test, AssigningMixedValues) {
     std::cout << "Entering AssigningMixedValues test";
