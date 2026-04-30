@@ -1,7 +1,9 @@
 #include <gtest/gtest.h>
+#include <cstdio>
 #include <iomanip>
 #include <memory>
 #include <string>
+#include <unistd.h>
 
 #include <cjson/cJSON.h>
 #include <openssl/bn.h>
@@ -446,13 +448,25 @@ TEST_F(EmCryptoTests, KeySerialization)
 // Test case for key components consistency
 TEST_F(EmCryptoTests, TestKeyReading)
 {
+    // Generate a unique temporary file path using mkstemp
+    char key_tmp_path[] = "/tmp/testing_key.pemXXXXXX";
+    int tmp_fd = mkstemp(key_tmp_path);
+    ASSERT_NE(tmp_fd, -1) << "Could not create temporary file";
+    close(tmp_fd);
+
+    // Ensure the file is removed at the end of the test, even if an ASSERT fires
+    struct PemFileGuard {
+        const char *path;
+        ~PemFileGuard() { std::remove(path); }
+    } guard{key_tmp_path};
+
     // Generate a key and write it to a PEM file for reading back
     scoped_ssl_key generated(em_crypto_t::generate_ec_key(NID_secp256k1));
     ASSERT_NE(generated.get(), nullptr) << "Could not generate key";
-    ASSERT_TRUE(em_crypto_t::write_keypair_to_pem(generated.get(), "./testing_key.pem"))
+    ASSERT_TRUE(em_crypto_t::write_keypair_to_pem(generated.get(), key_tmp_path))
         << "Could not write key to PEM file";
 
-    scoped_ssl_key key(em_crypto_t::read_keypair_from_pem("./testing_key.pem"));
+    scoped_ssl_key key(em_crypto_t::read_keypair_from_pem(key_tmp_path));
     ASSERT_NE(key.get(), nullptr) << "Could not read key from PEM";
     // Get components
     scoped_ec_group group(em_crypto_t::get_key_group(key.get()));
