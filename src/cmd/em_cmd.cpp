@@ -464,6 +464,8 @@ void em_cmd_t::init()
             break;
 
         default:
+            snprintf(m_name, sizeof(m_name), "%s", "unknown");
+            m_svc = em_service_type_none;
             break;
 
     }
