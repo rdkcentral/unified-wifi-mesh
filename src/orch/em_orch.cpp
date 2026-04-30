@@ -477,6 +477,10 @@ bool em_orch_t::is_cmd_type_in_progress(em_bus_event_t *evt)
     em_short_string_t key;
     em_cmd_type_t	type;
 
+    if (evt == nullptr) {
+        return false;
+    }
+
     type = em_cmd_t::bus_2_cmd_type(evt->type);
 
     snprintf(key, sizeof(em_short_string_t), "%d", type);
