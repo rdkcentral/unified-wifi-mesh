@@ -71,6 +71,13 @@ public:
 
 	dm_easy_mesh_ctrl_t *get_dm_ctrl() { return &m_data_model; }
 
+    /**!
+     * @brief Get the orchestration instance.
+     *
+     * This function returns a pointer to the orchestration instance.
+     *
+     * @return em_orch_t* Pointer to the orchestration instance.
+     */
 	em_orch_t *get_orch() override { return m_orch; }
     
 	/**!
