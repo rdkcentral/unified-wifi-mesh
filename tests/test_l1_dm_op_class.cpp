@@ -1110,15 +1110,15 @@ TEST(dm_op_class_t_Test, AssignmentOperatorWithDifferentObjects) {
 * **Test Procedure:**@n
 * | Variation / Step | Description | Test Data |Expected Result |Notes |
 * | :----: | --------- | ---------- |-------------- | ----- |
-* | 01| Create two identical objects of dm_op_class_t | obj1.m_op_class_info = { { {0x00, 0x01, 0x02, 0x03, 0x04, 0x05}, em_op_class_type_current, 1 }, 1, 1, 10, 20, 1, {1}, 0, 0, 0 }, obj2.m_op_class_info = { { {0x00, 0x01, 0x02, 0x03, 0x04, 0x05}, em_op_class_type_current, 1 }, 1, 1, 10, 20, 1, {1}, 0, 0, 0 } | Objects should be identical | Should Pass |
+* | 01| Create two identical objects of dm_op_class_t | obj1.m_op_class_info = { { {0x00, 0x01, 0x02, 0x03, 0x04, 0x05}, em_op_class_type_current, 1 }, 1, 1, 10, 20, 1, {1}, {}, false, 0, 0, 0 }, obj2.m_op_class_info = { { {0x00, 0x01, 0x02, 0x03, 0x04, 0x05}, em_op_class_type_current, 1 }, 1, 1, 10, 20, 1, {1}, {}, false, 0, 0, 0 } | Objects should be identical | Should Pass |
 * | 02| Check equality of the two objects | obj1 == obj2 | EXPECT_TRUE(obj1 == obj2) | Should Pass |
 */
 TEST(dm_op_class_t_Test, BothObjectsAreIdentical) {
     std::cout << "Entering BothObjectsAreIdentical" << std::endl;
     dm_op_class_t obj1{};
     dm_op_class_t obj2{};
-    obj1.m_op_class_info = { { {0x00, 0x01, 0x02, 0x03, 0x04, 0x05}, em_op_class_type_current, 1 }, 1, 1, 10, 20, 1, {1}, 0, 0, 0 };
-    obj2.m_op_class_info = { { {0x00, 0x01, 0x02, 0x03, 0x04, 0x05}, em_op_class_type_current, 1 }, 1, 1, 10, 20, 1, {1}, 0, 0, 0 };
+    obj1.m_op_class_info = { { {0x00, 0x01, 0x02, 0x03, 0x04, 0x05}, em_op_class_type_current, 1 }, 1, 1, 10, 20, 1, {1}, {}, false, 0, 0, 0 };
+    obj2.m_op_class_info = { { {0x00, 0x01, 0x02, 0x03, 0x04, 0x05}, em_op_class_type_current, 1 }, 1, 1, 10, 20, 1, {1}, {}, false, 0, 0, 0 };
     EXPECT_TRUE(obj1 == obj2);
     std::cout << "Exiting BothObjectsAreIdentical" << std::endl;
 }
@@ -1139,15 +1139,15 @@ TEST(dm_op_class_t_Test, BothObjectsAreIdentical) {
 * **Test Procedure:**@n
 * | Variation / Step | Description | Test Data |Expected Result |Notes |
 * | :----: | --------- | ---------- |-------------- | ----- |
-* | 01| Create two instances of dm_op_class_t with different RUIDs | obj1.m_op_class_info = { { {0x00, 0x01, 0x02, 0x03, 0x04, 0x05}, em_op_class_type_current, 1 }, 1, 1, 10, 20, 1, {1}, 0, 0, 0 }, obj2.m_op_class_info = { { {0x00, 0x01, 0x02, 0x03, 0x04, 0x06}, em_op_class_type_current, 1 }, 1, 1, 10, 20, 1, {1}, 0, 0, 0 } | Instances should have different RUIDs | Should Pass |
+* | 01| Create two instances of dm_op_class_t with different RUIDs | obj1.m_op_class_info = { { {0x00, 0x01, 0x02, 0x03, 0x04, 0x05}, em_op_class_type_current, 1 }, 1, 1, 10, 20, 1, {1}, {}, false, 0, 0, 0 }, obj2.m_op_class_info = { { {0x00, 0x01, 0x02, 0x03, 0x04, 0x06}, em_op_class_type_current, 1 }, 1, 1, 10, 20, 1, {1}, {}, false, 0, 0, 0 } | Instances should have different RUIDs | Should Pass |
 * | 02| Check if the two instances are not equal using EXPECT_FALSE | EXPECT_FALSE(obj1 == obj2) | The objects should not be equal | Should Pass |
 */
 TEST(dm_op_class_t_Test, ObjectsHaveDifferentRuid) {
     std::cout << "Entering ObjectsHaveDifferentRuid" << std::endl;
     dm_op_class_t obj1{};
     dm_op_class_t obj2{};
-    obj1.m_op_class_info = { { {0x00, 0x01, 0x02, 0x03, 0x04, 0x05}, em_op_class_type_current, 1 }, 1, 1, 10, 20, 1, {1}, 0, 0, 0 };
-    obj2.m_op_class_info = { { {0x00, 0x01, 0x02, 0x03, 0x04, 0x06}, em_op_class_type_current, 1 }, 1, 1, 10, 20, 1, {1}, 0, 0, 0 };
+    obj1.m_op_class_info = { { {0x00, 0x01, 0x02, 0x03, 0x04, 0x05}, em_op_class_type_current, 1 }, 1, 1, 10, 20, 1, {1}, {}, false, 0, 0, 0 };
+    obj2.m_op_class_info = { { {0x00, 0x01, 0x02, 0x03, 0x04, 0x06}, em_op_class_type_current, 1 }, 1, 1, 10, 20, 1, {1}, {}, false, 0, 0, 0 };
     EXPECT_FALSE(obj1 == obj2);
     std::cout << "Exiting ObjectsHaveDifferentRuid" << std::endl;
 }
@@ -1168,15 +1168,15 @@ TEST(dm_op_class_t_Test, ObjectsHaveDifferentRuid) {
 * **Test Procedure:**@n
 * | Variation / Step | Description | Test Data |Expected Result |Notes |
 * | :----: | --------- | ---------- |-------------- | ----- |
-* | 01| Create two objects of dm_op_class_t with different operation class types | obj1.m_op_class_info = { { {0x00, 0x01, 0x02, 0x03, 0x04, 0x05}, em_op_class_type_current, 1 }, 1, 1, 10, 20, 1, {1}, 0, 0, 0 }, obj2.m_op_class_info = { { {0x00, 0x01, 0x02, 0x03, 0x04, 0x05}, em_op_class_type_capability, 1 }, 1, 1, 10, 20, 1, {1}, 0, 0, 0 } | Objects should not be equal | Should Pass |
+* | 01| Create two objects of dm_op_class_t with different operation class types | obj1.m_op_class_info = { { {0x00, 0x01, 0x02, 0x03, 0x04, 0x05}, em_op_class_type_current, 1 }, 1, 1, 10, 20, 1, {1}, {}, false, 0, 0, 0 }, obj2.m_op_class_info = { { {0x00, 0x01, 0x02, 0x03, 0x04, 0x05}, em_op_class_type_capability, 1 }, 1, 1, 10, 20, 1, {1}, {}, false, 0, 0, 0 } | Objects should not be equal | Should Pass |
 * | 02| Check equality using EXPECT_FALSE | EXPECT_FALSE(obj1 == obj2) | EXPECT_FALSE assertion should pass | Should Pass |
 */
 TEST(dm_op_class_t_Test, ObjectsHaveDifferentType) {
     std::cout << "Entering ObjectsHaveDifferentType" << std::endl;
     dm_op_class_t obj1{};
     dm_op_class_t obj2{};
-    obj1.m_op_class_info = { { {0x00, 0x01, 0x02, 0x03, 0x04, 0x05}, em_op_class_type_current, 1 }, 1, 1, 10, 20, 1, {1}, 0, 0, 0 };
-    obj2.m_op_class_info = { { {0x00, 0x01, 0x02, 0x03, 0x04, 0x05}, em_op_class_type_capability, 1 }, 1, 1, 10, 20, 1, {1}, 0, 0, 0 };
+    obj1.m_op_class_info = { { {0x00, 0x01, 0x02, 0x03, 0x04, 0x05}, em_op_class_type_current, 1 }, 1, 1, 10, 20, 1, {1}, {}, false, 0, 0, 0 };
+    obj2.m_op_class_info = { { {0x00, 0x01, 0x02, 0x03, 0x04, 0x05}, em_op_class_type_capability, 1 }, 1, 1, 10, 20, 1, {1}, {}, false, 0, 0, 0 };
     EXPECT_FALSE(obj1 == obj2);
     std::cout << "Exiting ObjectsHaveDifferentType" << std::endl;
 }
@@ -1197,15 +1197,15 @@ TEST(dm_op_class_t_Test, ObjectsHaveDifferentType) {
 * **Test Procedure:**@n
 * | Variation / Step | Description | Test Data | Expected Result | Notes |
 * | :----: | --------- | ---------- |-------------- | ----- |
-* | 01 | Create two instances of dm_op_class_t with different operation class information | obj1.m_op_class_info = { { {0x00, 0x01, 0x02, 0x03, 0x04, 0x05}, em_op_class_type_current, 1 }, 1, 1, 10, 20, 1, {1}, 0, 0, 0 }, obj2.m_op_class_info = { { {0x00, 0x01, 0x02, 0x03, 0x04, 0x05}, em_op_class_type_current, 2 }, 2, 1, 10, 20, 1, {1}, 0, 0, 0 } | Two objects should not be equal | Should Pass |
+* | 01 | Create two instances of dm_op_class_t with different operation class information | obj1.m_op_class_info = { { {0x00, 0x01, 0x02, 0x03, 0x04, 0x05}, em_op_class_type_current, 1 }, 1, 1, 10, 20, 1, {1}, {}, false, 0, 0, 0 }, obj2.m_op_class_info = { { {0x00, 0x01, 0x02, 0x03, 0x04, 0x05}, em_op_class_type_current, 2 }, 2, 1, 10, 20, 1, {1}, {}, false, 0, 0, 0 } | Two objects should not be equal | Should Pass |
 * | 02 | Check if the two objects are not equal using EXPECT_FALSE | EXPECT_FALSE(obj1 == obj2) | The objects should not be equal | Should Pass |
 */
 TEST(dm_op_class_t_Test, ObjectsHaveDifferentOpClass) {
     std::cout << "Entering ObjectsHaveDifferentOpClass" << std::endl;
     dm_op_class_t obj1{};
     dm_op_class_t obj2{};
-    obj1.m_op_class_info = { { {0x00, 0x01, 0x02, 0x03, 0x04, 0x05}, em_op_class_type_current, 1 }, 1, 1, 10, 20, 1, {1}, 0, 0, 0 };
-    obj2.m_op_class_info = { { {0x00, 0x01, 0x02, 0x03, 0x04, 0x05}, em_op_class_type_current, 2 }, 2, 1, 10, 20, 1, {1}, 0, 0, 0 };
+    obj1.m_op_class_info = { { {0x00, 0x01, 0x02, 0x03, 0x04, 0x05}, em_op_class_type_current, 1 }, 1, 1, 10, 20, 1, {1}, {}, false, 0, 0, 0 };
+    obj2.m_op_class_info = { { {0x00, 0x01, 0x02, 0x03, 0x04, 0x05}, em_op_class_type_current, 2 }, 2, 1, 10, 20, 1, {1}, {}, false, 0, 0, 0 };
     EXPECT_FALSE(obj1 == obj2);
     std::cout << "Exiting ObjectsHaveDifferentOpClass" << std::endl;
 }
@@ -1232,8 +1232,8 @@ TEST(dm_op_class_t_Test, ObjectsHaveDifferentChannel) {
     std::cout << "Entering ObjectsHaveDifferentChannel" << std::endl;
     dm_op_class_t obj1{};
     dm_op_class_t obj2{};
-    obj1.m_op_class_info = { { {0x00, 0x01, 0x02, 0x03, 0x04, 0x05}, em_op_class_type_current, 1 }, 1, 1, 10, 20, 1, {1}, 0, 0, 0 };
-    obj2.m_op_class_info = { { {0x00, 0x01, 0x02, 0x03, 0x04, 0x05}, em_op_class_type_current, 1 }, 1, 2, 10, 20, 1, {1}, 0, 0, 0 };
+    obj1.m_op_class_info = { { {0x00, 0x01, 0x02, 0x03, 0x04, 0x05}, em_op_class_type_current, 1 }, 1, 1, 10, 20, 1, {1}, {}, false, 0, 0, 0 };
+    obj2.m_op_class_info = { { {0x00, 0x01, 0x02, 0x03, 0x04, 0x05}, em_op_class_type_current, 1 }, 1, 2, 10, 20, 1, {1}, {}, false, 0, 0, 0 };
     EXPECT_FALSE(obj1 == obj2);
     std::cout << "Exiting ObjectsHaveDifferentChannel" << std::endl;
 }
@@ -1260,8 +1260,8 @@ TEST(dm_op_class_t_Test, ObjectsHaveDifferentTxPower) {
     std::cout << "Entering ObjectsHaveDifferentTxPower" << std::endl;
     dm_op_class_t obj1{};
     dm_op_class_t obj2{};
-    obj1.m_op_class_info = { { {0x00, 0x01, 0x02, 0x03, 0x04, 0x05}, em_op_class_type_current, 1 }, 1, 1, 10, 20, 1, {1}, 0, 0, 0 };
-    obj2.m_op_class_info = { { {0x00, 0x01, 0x02, 0x03, 0x04, 0x05}, em_op_class_type_current, 1 }, 1, 1, 20, 20, 1, {1}, 0, 0, 0 };
+    obj1.m_op_class_info = { { {0x00, 0x01, 0x02, 0x03, 0x04, 0x05}, em_op_class_type_current, 1 }, 1, 1, 10, 20, 1, {1}, {}, false, 0, 0, 0 };
+    obj2.m_op_class_info = { { {0x00, 0x01, 0x02, 0x03, 0x04, 0x05}, em_op_class_type_current, 1 }, 1, 1, 20, 20, 1, {1}, {}, false, 0, 0, 0 };
     EXPECT_FALSE(obj1 == obj2);
     std::cout << "Exiting ObjectsHaveDifferentTxPower" << std::endl;
 }
@@ -1289,8 +1289,8 @@ TEST(dm_op_class_t_Test, ObjectsHaveDifferentMaxTxPower) {
     std::cout << "Entering ObjectsHaveDifferentMaxTxPower" << std::endl;
     dm_op_class_t obj1{};
     dm_op_class_t obj2{};
-    obj1.m_op_class_info = { { {0x00, 0x01, 0x02, 0x03, 0x04, 0x05}, em_op_class_type_current, 1 }, 1, 1, 10, 20, 1, {1}, 0, 0, 0 };
-    obj2.m_op_class_info = { { {0x00, 0x01, 0x02, 0x03, 0x04, 0x05}, em_op_class_type_current, 1 }, 1, 1, 10, 30, 1, {1}, 0, 0, 0 };
+    obj1.m_op_class_info = { { {0x00, 0x01, 0x02, 0x03, 0x04, 0x05}, em_op_class_type_current, 1 }, 1, 1, 10, 20, 1, {1}, {}, false, 0, 0, 0 };
+    obj2.m_op_class_info = { { {0x00, 0x01, 0x02, 0x03, 0x04, 0x05}, em_op_class_type_current, 1 }, 1, 1, 10, 30, 1, {1}, {}, false, 0, 0, 0 };
     EXPECT_FALSE(obj1 == obj2);
     std::cout << "Exiting ObjectsHaveDifferentMaxTxPower" << std::endl;
 }
@@ -1318,8 +1318,8 @@ TEST(dm_op_class_t_Test, ObjectsHaveDifferentNumChannels) {
     std::cout << "Entering ObjectsHaveDifferentNumChannels" << std::endl;
     dm_op_class_t obj1{};
     dm_op_class_t obj2{};
-    obj1.m_op_class_info = { { {0x00, 0x01, 0x02, 0x03, 0x04, 0x05}, em_op_class_type_current, 1 }, 1, 1, 10, 20, 1, {1}, 0, 0, 0 };
-    obj2.m_op_class_info = { { {0x00, 0x01, 0x02, 0x03, 0x04, 0x05}, em_op_class_type_current, 1 }, 1, 1, 10, 20, 2, {1, 2}, 0, 0, 0 };
+    obj1.m_op_class_info = { { {0x00, 0x01, 0x02, 0x03, 0x04, 0x05}, em_op_class_type_current, 1 }, 1, 1, 10, 20, 1, {1}, {}, false, 0, 0, 0 };
+    obj2.m_op_class_info = { { {0x00, 0x01, 0x02, 0x03, 0x04, 0x05}, em_op_class_type_current, 1 }, 1, 1, 10, 20, 2, {1, 2}, {}, false, 0, 0, 0 };
     EXPECT_FALSE(obj1 == obj2);
     std::cout << "Exiting ObjectsHaveDifferentNumChannels" << std::endl;
 }
@@ -1340,15 +1340,15 @@ TEST(dm_op_class_t_Test, ObjectsHaveDifferentNumChannels) {
 * **Test Procedure:**@n
 * | Variation / Step | Description | Test Data | Expected Result | Notes |
 * | :----: | --------- | ---------- |-------------- | ----- |
-* | 01 | Create two objects of dm_op_class_t with different channel values | obj1.m_op_class_info = { { {0x00, 0x01, 0x02, 0x03, 0x04, 0x05}, em_op_class_type_current, 1 }, 1, 1, 10, 20, 1, {1}, 0, 0, 0 }, obj2.m_op_class_info = { { {0x00, 0x01, 0x02, 0x03, 0x04, 0x05}, em_op_class_type_current, 1 }, 1, 1, 10, 20, 1, {2}, 0, 0, 0 } | Objects should have different channels | Should be successful |
+* | 01 | Create two objects of dm_op_class_t with different channel values | obj1.m_op_class_info = { { {0x00, 0x01, 0x02, 0x03, 0x04, 0x05}, em_op_class_type_current, 1 }, 1, 1, 10, 20, 1, {1}, {}, false, 0, 0, 0 }, obj2.m_op_class_info = { { {0x00, 0x01, 0x02, 0x03, 0x04, 0x05}, em_op_class_type_current, 1 }, 1, 1, 10, 20, 1, {2}, {}, false, 0, 0, 0 } | Objects should have different channels | Should be successful |
 * | 02 | Check if the objects are not equal | obj1 == obj2 | EXPECT_FALSE(obj1 == obj2) | Should Pass |
 */
 TEST(dm_op_class_t_Test, ObjectsHaveDifferentChannels) {
     std::cout << "Entering ObjectsHaveDifferentChannels" << std::endl;
     dm_op_class_t obj1{};
     dm_op_class_t obj2{};
-    obj1.m_op_class_info = { { {0x00, 0x01, 0x02, 0x03, 0x04, 0x05}, em_op_class_type_current, 1 }, 1, 1, 10, 20, 1, {1}, 0, 0, 0 };
-    obj2.m_op_class_info = { { {0x00, 0x01, 0x02, 0x03, 0x04, 0x05}, em_op_class_type_current, 1 }, 1, 1, 10, 20, 1, {2}, 0, 0, 0 };
+    obj1.m_op_class_info = { { {0x00, 0x01, 0x02, 0x03, 0x04, 0x05}, em_op_class_type_current, 1 }, 1, 1, 10, 20, 1, {1}, {}, false, 0, 0, 0 };
+    obj2.m_op_class_info = { { {0x00, 0x01, 0x02, 0x03, 0x04, 0x05}, em_op_class_type_current, 1 }, 1, 1, 10, 20, 1, {2}, {}, false, 0, 0, 0 };
     EXPECT_FALSE(obj1 == obj2);
     std::cout << "Exiting ObjectsHaveDifferentChannels" << std::endl;
 }
@@ -1376,8 +1376,8 @@ TEST(dm_op_class_t_Test, ObjectsHaveDifferentMinsSinceCacComp) {
     std::cout << "Entering ObjectsHaveDifferentMinsSinceCacComp" << std::endl;
     dm_op_class_t obj1{};
     dm_op_class_t obj2{};
-    obj1.m_op_class_info = { { {0x00, 0x01, 0x02, 0x03, 0x04, 0x05}, em_op_class_type_current, 1 }, 1, 1, 10, 20, 1, {1}, 0, 0, 0 };
-    obj2.m_op_class_info = { { {0x00, 0x01, 0x02, 0x03, 0x04, 0x05}, em_op_class_type_current, 1 }, 1, 1, 10, 20, 1, {1}, 10, 0, 0 };
+    obj1.m_op_class_info = { { {0x00, 0x01, 0x02, 0x03, 0x04, 0x05}, em_op_class_type_current, 1 }, 1, 1, 10, 20, 1, {1}, {}, false, 0, 0, 0 };
+    obj2.m_op_class_info = { { {0x00, 0x01, 0x02, 0x03, 0x04, 0x05}, em_op_class_type_current, 1 }, 1, 1, 10, 20, 1, {1}, {}, false, 10, 0, 0 };
     EXPECT_FALSE(obj1 == obj2);
     std::cout << "Exiting ObjectsHaveDifferentMinsSinceCacComp" << std::endl;
 }
@@ -1398,15 +1398,15 @@ TEST(dm_op_class_t_Test, ObjectsHaveDifferentMinsSinceCacComp) {
 * **Test Procedure:**@n
 * | Variation / Step | Description | Test Data |Expected Result |Notes |
 * | :----: | --------- | ---------- |-------------- | ----- |
-* | 01| Create two dm_op_class_t objects with different SecRemainNonOccDur values | obj1.m_op_class_info = { { {0x00, 0x01, 0x02, 0x03, 0x04, 0x05}, em_op_class_type_current, 1 }, 1, 1, 10, 20, 1, {1}, 0, 0, 0 }, obj2.m_op_class_info = { { {0x00, 0x01, 0x02, 0x03, 0x04, 0x05}, em_op_class_type_current, 1 }, 1, 1, 10, 20, 1, {1}, 0, 10, 0 } | Objects should not be equal | Should Pass |
+* | 01| Create two dm_op_class_t objects with different SecRemainNonOccDur values | obj1.m_op_class_info = { { {0x00, 0x01, 0x02, 0x03, 0x04, 0x05}, em_op_class_type_current, 1 }, 1, 1, 10, 20, 1, {1}, {}, false, 0, 0, 0 }, obj2.m_op_class_info = { { {0x00, 0x01, 0x02, 0x03, 0x04, 0x05}, em_op_class_type_current, 1 }, 1, 1, 10, 20, 1, {1}, {}, false, 0, 10, 0 } | Objects should not be equal | Should Pass |
 * | 02| Check equality using EXPECT_FALSE | EXPECT_FALSE(obj1 == obj2) | Should return false | Should Pass |
 */
 TEST(dm_op_class_t_Test, ObjectsHaveDifferentSecRemainNonOccDur) {
     std::cout << "Entering ObjectsHaveDifferentSecRemainNonOccDur" << std::endl;
     dm_op_class_t obj1{};
     dm_op_class_t obj2{};
-    obj1.m_op_class_info = { { {0x00, 0x01, 0x02, 0x03, 0x04, 0x05}, em_op_class_type_current, 1 }, 1, 1, 10, 20, 1, {1}, 0, 0, 0 };
-    obj2.m_op_class_info = { { {0x00, 0x01, 0x02, 0x03, 0x04, 0x05}, em_op_class_type_current, 1 }, 1, 1, 10, 20, 1, {1}, 0, 10, 0 };
+    obj1.m_op_class_info = { { {0x00, 0x01, 0x02, 0x03, 0x04, 0x05}, em_op_class_type_current, 1 }, 1, 1, 10, 20, 1, {1}, {}, false, 0, 0, 0 };
+    obj2.m_op_class_info = { { {0x00, 0x01, 0x02, 0x03, 0x04, 0x05}, em_op_class_type_current, 1 }, 1, 1, 10, 20, 1, {1}, {}, false, 0, 10, 0 };
     EXPECT_FALSE(obj1 == obj2);
     std::cout << "Exiting ObjectsHaveDifferentSecRemainNonOccDur" << std::endl;
 }
@@ -1434,8 +1434,8 @@ TEST(dm_op_class_t_Test, ObjectsHaveDifferentCountdownCacComp) {
     std::cout << "Entering ObjectsHaveDifferentCountdownCacComp" << std::endl;
     dm_op_class_t obj1{};
     dm_op_class_t obj2{};
-    obj1.m_op_class_info = { { {0x00, 0x01, 0x02, 0x03, 0x04, 0x05}, em_op_class_type_current, 1 }, 1, 1, 10, 20, 1, {1}, 0, 0, 0 };
-    obj2.m_op_class_info = { { {0x00, 0x01, 0x02, 0x03, 0x04, 0x05}, em_op_class_type_current, 1 }, 1, 1, 10, 20, 1, {1}, 0, 0, 10 };
+    obj1.m_op_class_info = { { {0x00, 0x01, 0x02, 0x03, 0x04, 0x05}, em_op_class_type_current, 1 }, 1, 1, 10, 20, 1, {1}, {}, false, 0, 0, 0 };
+    obj2.m_op_class_info = { { {0x00, 0x01, 0x02, 0x03, 0x04, 0x05}, em_op_class_type_current, 1 }, 1, 1, 10, 20, 1, {1}, {}, false, 0, 0, 10 };
     EXPECT_FALSE(obj1 == obj2);
     std::cout << "Exiting ObjectsHaveDifferentCountdownCacComp" << std::endl;
 }

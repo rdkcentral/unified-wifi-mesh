@@ -1,7 +1,9 @@
 #include <gtest/gtest.h>
+#include <cstdio>
 #include <iomanip>
 #include <memory>
 #include <string>
+#include <unistd.h>
 
 #include <cjson/cJSON.h>
 #include <openssl/bn.h>
@@ -446,8 +448,25 @@ TEST_F(EmCryptoTests, KeySerialization)
 // Test case for key components consistency
 TEST_F(EmCryptoTests, TestKeyReading)
 {
-    // Generate a key for testing
-    scoped_ssl_key key(em_crypto_t::read_keypair_from_pem("./testing_key.pem"));
+    // Generate a unique temporary file path using mkstemp
+    char key_tmp_path[] = "/tmp/testing_key.pemXXXXXX";
+    int tmp_fd = mkstemp(key_tmp_path);
+    ASSERT_NE(tmp_fd, -1) << "Could not create temporary file";
+    close(tmp_fd);
+
+    // Ensure the file is removed at the end of the test, even if an ASSERT fires
+    struct PemFileGuard {
+        const char *path;
+        ~PemFileGuard() { std::remove(path); }
+    } guard{key_tmp_path};
+
+    // Generate a key and write it to a PEM file for reading back
+    scoped_ssl_key generated(em_crypto_t::generate_ec_key(NID_secp256k1));
+    ASSERT_NE(generated.get(), nullptr) << "Could not generate key";
+    ASSERT_TRUE(em_crypto_t::write_keypair_to_pem(generated.get(), key_tmp_path))
+        << "Could not write key to PEM file";
+
+    scoped_ssl_key key(em_crypto_t::read_keypair_from_pem(key_tmp_path));
     ASSERT_NE(key.get(), nullptr) << "Could not read key from PEM";
     // Get components
     scoped_ec_group group(em_crypto_t::get_key_group(key.get()));
@@ -771,10 +790,10 @@ TEST_F(EmCryptoTests, PlatformHmacHashRFC4231TestCase1) {
     memset(key, 0x0b, 20);
     
     // Data = "Hi There"
-    const char* data = "Hi There";
+    char data[] = "Hi There";
     uint8_t hmac_result[32]; // SHA-256 output size
     
-    uint8_t* addr[1] = { (uint8_t*)data };
+    uint8_t* addr[1] = { reinterpret_cast<uint8_t*>(data) };
     size_t len[1] = { strlen(data) };
     
     // Expected result from RFC 4231
@@ -799,16 +818,16 @@ TEST_F(EmCryptoTests, PlatformHmacHashRFC4231TestCase1) {
 TEST_F(EmCryptoTests, PlatformHmacHashRFC4231TestCase2) {
     // RFC 4231 Test Case 2 (https://datatracker.ietf.org/doc/html/rfc4231#section-4.3)
     // Key = "Jefe"
-    const char* key = "Jefe";
+    char key[] = "Jefe";
     
     // Data has two elements:
     // Element 1: "what do ya want " 
     // Element 2: "for nothing?"
-    const char* data1 = "what do ya want ";
-    const char* data2 = "for nothing?";
+    char data1[] = "what do ya want ";
+    char data2[] = "for nothing?";
     uint8_t hmac_result[32];
     
-    uint8_t* addr[2] = { (uint8_t*)data1, (uint8_t*)data2 };
+    uint8_t* addr[2] = { reinterpret_cast<uint8_t*>(data1), reinterpret_cast<uint8_t*>(data2) };
     size_t len[2] = { strlen(data1), strlen(data2) };
     
     // Expected result from RFC 4231
@@ -821,7 +840,7 @@ TEST_F(EmCryptoTests, PlatformHmacHashRFC4231TestCase2) {
     
     uint8_t result = em_crypto_t::platform_hmac_hash(
         EVP_sha256(),
-        (uint8_t*)key, strlen(key),
+        reinterpret_cast<uint8_t*>(key), strlen(key),
         2, addr, len,  // Note: num_elem = 2
         hmac_result
     );

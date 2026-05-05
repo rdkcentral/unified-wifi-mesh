@@ -121,7 +121,7 @@ const char* em_event_type_to_string(em_event_type_t type) {
         case em_event_type_frame:  return "em_event_type_frame";
         case em_event_type_device: return "em_event_type_device";
         case em_event_type_node:   return "em_event_type_node";
-        case em_event_type_bus:    return "em_event_type_bus";        
+        case em_event_type_bus:    return "em_event_type_bus";
         case em_event_type_max:    return "em_event_type_max";
         default:                   return "unknown_em_event_type";
     }
@@ -218,7 +218,7 @@ TEST(em_cmd_t, bus_2_cmd_type_ValidConversion)
               << " (" << static_cast<int>(testCase.expectedCmd) << ")" << std::endl;
         EXPECT_EQ(retVal, testCase.expectedCmd);
     }
-    
+
     std::cout << "Exiting bus_2_cmd_type_ValidConversion test" << std::endl;
 }
 /**
@@ -302,13 +302,13 @@ TEST(em_cmd_t, NegativeConversionAboveRange)
  * | 02               | Invoke the clone() method on the original object                                                    | Input: orig, Invocation of clone(); Output: clone pointer                                                                                                                                                                         | clone pointer should not be nullptr                                                                               | Should Pass   |
  * | 03               | Verify that the cloned object's fields match the original object's values                           | Compare clone->m_type with orig.m_type, clone->m_orch_op_idx with orig.m_orch_op_idx, clone->m_num_orch_desc with orig.m_num_orch_desc, clone->m_orch_desc[0].op with orig.m_orch_desc[0].op, clone->m_orch_desc[0].submit with orig.m_orch_desc[0].submit, clone->m_param.u.args.num_args with orig.m_param.u.args.num_args | All corresponding fields should match and assert conditions must be true as per the test case expectations                          | Should Pass   |
  */
-TEST(em_cmd_t, CloneFull) 
+TEST(em_cmd_t, CloneFull)
 {
     std::cout << "Entering CloneFull test" << std::endl;
     em_cmd_t orig;
     orig.m_type = em_cmd_type_set_policy;
     orig.m_param.u.args.num_args = 1;
-    strncpy(orig.m_param.u.args.fixed_args, "FixedArgs", 
+    strncpy(orig.m_param.u.args.fixed_args, "FixedArgs",
             sizeof(orig.m_param.u.args.fixed_args)-1);
     orig.m_orch_op_idx = 0;
     orig.m_num_orch_desc = 1;
@@ -348,7 +348,7 @@ TEST(em_cmd_t, CloneFull)
  * | 03 | Validate that the clone object's fields match those of the original | cloneObj->m_type, cloneObj->m_param.u.args.num_args, cloneObj->m_param.u.args.fixed_args; expected values: em_cmd_type_get_network, 0, "OriginalFixed" | Cloned object's m_type, num_args, and fixed_args are identical to the original | Should Pass |
  * | 04 | Log the exit from the test | Console output message | "Exiting CloneDeepCopy test" is printed | Should be successful |
  */
-TEST(em_cmd_t, CloneDeepCopy) 
+TEST(em_cmd_t, CloneDeepCopy)
 {
     std::cout << "Entering CloneDeepCopy test" << std::endl;
     em_cmd_t original;
@@ -380,11 +380,11 @@ TEST(em_cmd_t, CloneDeepCopy)
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 006@n
  * **Priority:** High@n
- * 
+ *
  * **Pre-Conditions:** None@n
  * **Dependencies:** None@n
  * **User Interaction:** None@n
- * 
+ *
  * **Test Procedure:**
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
@@ -392,7 +392,7 @@ TEST(em_cmd_t, CloneDeepCopy)
  * | 02 | Invoke clone_for_next API on original object | Input: original object 'orig' with initialized fields; Output: pointer 'clone' returned from orig.clone_for_next() | Returned clone pointer is not nullptr | Should Pass |
  * | 03 | Validate cloned object fields | Compare clone->m_type with orig.m_type, clone->m_orch_op_idx with (orig.m_orch_op_idx + 1), clone->m_orch_desc[0].op with orig.m_orch_desc[0].op | Clone object's m_type equals original's; m_orch_op_idx is incremented by one; m_orch_desc elements are correctly cloned | Should Pass |
  */
-TEST(em_cmd_t, CloneFullFields) 
+TEST(em_cmd_t, CloneFullFields)
 {
     std::cout << "Entering CloneFullFields test" << std::endl;
     em_cmd_t orig;
@@ -437,7 +437,7 @@ TEST(em_cmd_t, CloneFullFields)
  * |      03        | Modify the clone's fields including num_args, fixed_args, and orch_desc[0] parameters.                                             | clone->m_param.u.args.num_args = 42, clone->m_param.u.args.fixed_args = Changed, clone->m_orch_desc[0].op = dm_orch_type_net_delete, clone->m_orch_desc[0].submit = false                                                                                                                                                                          | Clone is updated with new values and changes are isolated from the original.                                             | Should Pass     |
  * |      04        | Assert that the original instance retains its initial values, confirming the clone is independent.                               | orig.m_param.u.args.num_args = 1, orig.m_param.u.args.fixed_args = OriginalFixed, orig.m_orch_desc[0].op = dm_orch_type_net_insert, orig.m_orch_desc[0].submit = true, orig.m_orch_op_idx = 0                                                                                                                                              | Original remains unchanged as per the expected default values.                                                           | Should Pass     |
  */
-TEST(em_cmd_t, CloneIndependence) 
+TEST(em_cmd_t, CloneIndependence)
 {
     std::cout << "Entering CloneIndependence test" << std::endl;
     em_cmd_t orig;
@@ -491,7 +491,7 @@ TEST(em_cmd_t, CloneIndependence)
  * | 03 | Verify the fixed_args member of the cloned object | cloned object's fixed_args, expected value "FixedArgs" | fixed_args in clone is equal to "FixedArgs" | Should Pass |
  * | 04 | Modify the clone's fixed_args and check original remains unchanged | Modify clone->m_param.u.args.fixed_args[0] = 'X'; original fixed_args expected "FixedArgs" | Original object's fixed_args remains "FixedArgs" | Should Pass |
  */
-TEST(em_cmd_t, CloneStringIntegrity) 
+TEST(em_cmd_t, CloneStringIntegrity)
 {
     std::cout << "Entering CloneStringIntegrity test" << std::endl;
     em_cmd_t orig;
@@ -551,7 +551,7 @@ TEST(em_cmd_t, CloneForNextAtLastIndexReturnsNull)
 /**
  * @brief Verify that clone_for_next returns nullptr when there are no orchestrator descriptions available.
  *
- * This test verifies that when an em_cmd_t object's m_num_orch_desc is set to 0 and m_orch_op_idx is set to 0, 
+ * This test verifies that when an em_cmd_t object's m_num_orch_desc is set to 0 and m_orch_op_idx is set to 0,
  * the clone_for_next method correctly returns a nullptr. The verification is performed by asserting that clone is equal to nullptr.
  *
  * **Test Group ID:** Basic: 01@n
@@ -587,9 +587,9 @@ TEST(em_cmd_t, CloneForNextEmptyOrchDescReturnsNull)
 /**
  * @brief Verify that clone_for_next returns nullptr when invoked on a single element at the last index
  *
- * This test verifies that when an em_cmd_t object, representing a command with only one element (m_num_orch_desc = 1) 
- * and at the starting index (m_orch_op_idx = 0), is processed through the clone_for_next method, the function correctly 
- * returns a nullptr indicating no further commands exist. This scenario is critical to ensure that the method behaves 
+ * This test verifies that when an em_cmd_t object, representing a command with only one element (m_num_orch_desc = 1)
+ * and at the starting index (m_orch_op_idx = 0), is processed through the clone_for_next method, the function correctly
+ * returns a nullptr indicating no further commands exist. This scenario is critical to ensure that the method behaves
  * as expected when there are no additional commands to clone.
  *
  * **Test Group ID:** Basic: 01@n
@@ -659,7 +659,7 @@ TEST(em_cmd_t, cmd_2_bus_event_type_ValidConversion) {
 		{ em_cmd_type_mld_reconfig,        em_bus_event_type_mld_reconfig },
 		{ em_cmd_type_get_reset,           em_bus_event_type_get_reset}
     };
-		
+
     // Loop through each mapping and invoke the method, then validate the result.
     for (const auto &testCase : testCases) {
         std::cout << "\nInvoking cmd_2_bus_event_type with command type: "
@@ -715,8 +715,8 @@ TEST(em_cmd_t, NegativeConversion_NegativeValue) {
 /**
  * @brief Test negative conversion for command value exceeding allowed range
  *
- * This test verifies that when an invalid command value (em_cmd_type_max + 1) is passed to the 
- * cmd_2_bus_event_type function, it returns the expected bus event type "em_bus_event_type_none". 
+ * This test verifies that when an invalid command value (em_cmd_type_max + 1) is passed to the
+ * cmd_2_bus_event_type function, it returns the expected bus event type "em_bus_event_type_none".
  * The test ensures that the API correctly handles inputs that exceed the predefined range.
  *
  * **Test Group ID:** Basic: 01
@@ -746,7 +746,7 @@ TEST(em_cmd_t, NegativeConversion_ExceedRange) {
 /**
  * @brief Validate that copy_bus_event correctly copies a minimal bus event.
  *
- * This test verifies that the em_cmd_t::copy_bus_event method correctly handles a bus event structure that is minimally initialized. It ensures that no exceptions are thrown during the copy operation, that the internal event pointer (m_evt) is valid, and that the event properties (type and data_len) are correctly copied. 
+ * This test verifies that the em_cmd_t::copy_bus_event method correctly handles a bus event structure that is minimally initialized. It ensures that no exceptions are thrown during the copy operation, that the internal event pointer (m_evt) is valid, and that the event properties (type and data_len) are correctly copied.
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 015@n
@@ -852,7 +852,7 @@ TEST(em_cmd_t, PositiveCopyEnumLoop) {
         const char* loopArg = "LoopArg";
         strncpy(evt.params.u.args.args[0], loopArg, sizeof(evt.params.u.args.args[0]) - 1);
         evt.params.u.args.args[0][sizeof(evt.params.u.args.args[0]) - 1] = '\0';
-        std::cout << "[Loop " << i << "] Assigned evt.params.u.args.args[0] = " 
+        std::cout << "[Loop " << i << "] Assigned evt.params.u.args.args[0] = "
                   << evt.params.u.args.args[0] << std::endl;
 
         em_cmd_t cmd;
@@ -865,7 +865,7 @@ TEST(em_cmd_t, PositiveCopyEnumLoop) {
 
         const em_bus_event_t &copied = cmd.m_evt->u.bevt;
 
-        std::cout << "[Loop " << i << "] Copied bus event type: " 
+        std::cout << "[Loop " << i << "] Copied bus event type: "
                   << bus_event_type_to_str(copied.type) << std::endl;
         std::cout << "[Loop " << i << "] Copied data_len: " << copied.data_len << std::endl;
         EXPECT_EQ(copied.type, evt.type);
@@ -1075,7 +1075,7 @@ TEST(em_cmd_t, DumpBusEvent_ValidPointerLoop) {
     strncpy(evt_obj.params.u.args.args[1], arg1, sizeof(evt_obj.params.u.args.args[1]) - 1);
     evt_obj.params.u.args.args[1][sizeof(evt_obj.params.u.args.args[1]) - 1] = '\0';
     for (int type = em_bus_event_type_none; type < em_bus_event_type_max; ++type) {
-        em_bus_event_t *evt = &evt_obj;      
+        em_bus_event_t *evt = &evt_obj;
         evt->type = static_cast<em_bus_event_type_t>(type);
         std::cout << "Invoking dump_bus_event with event type: " << type << std::endl;
         int ret = em_cmd_t::dump_bus_event(evt);
@@ -1104,9 +1104,9 @@ TEST(em_cmd_t, DumpBusEvent_ValidPointerLoop) {
  * | 01               | Create an instance of em_cmd_t and invoke dump_bus_event with nullptr      | input: event pointer = nullptr, output: ret = -1        | dump_bus_event returns -1 and EXPECT_EQ assertion passes           | Should Pass   |
  */
 TEST(em_cmd_t, DumpBusEvent_NullPointer) {
-    std::cout << "Entering DumpBusEvent_NullPointer test" << std::endl;    
+    std::cout << "Entering DumpBusEvent_NullPointer test" << std::endl;
     // Create an instance of em_cmd_t using the default constructor.
-    EXPECT_NO_THROW({ em_cmd_t obj; });    
+    EXPECT_NO_THROW({ em_cmd_t obj; });
     std::cout << "Invoking dump_bus_event with null event pointer" << std::endl;
     int ret = 0;
     EXPECT_NO_THROW({
@@ -1114,7 +1114,7 @@ TEST(em_cmd_t, DumpBusEvent_NullPointer) {
         std::cout << "dump_bus_event invoked with nullptr." << std::endl;
     });
     std::cout << "Returned status: " << ret << " for null event pointer" << std::endl;
-    EXPECT_EQ(ret, -1);    
+    EXPECT_EQ(ret, -1);
     std::cout << "Exiting DumpBusEvent_NullPointer test" << std::endl;
 }
 /**
@@ -1141,7 +1141,7 @@ TEST(em_cmd_t, DumpBusEvent_InvalidEvent) {
     std::cout << "Entering DumpBusEvent_InvalidEvent test" << std::endl;
     em_cmd_t obj;
     em_bus_event_t evt;
-    evt.type = em_bus_event_type_max;    
+    evt.type = em_bus_event_type_max;
     std::cout << "Invoking dump_bus_event with invalid event type em_bus_event_type_max" << std::endl;
     int ret = 0;
     EXPECT_NO_THROW({
@@ -1149,7 +1149,7 @@ TEST(em_cmd_t, DumpBusEvent_InvalidEvent) {
         std::cout << "dump_bus_event invoked. Event details dumped with invalid event type value em_bus_event_type_max" << std::endl;
     });
     std::cout << "Returned status: " << ret << " for invalid event type em_bus_event_type_max" << std::endl;
-    EXPECT_EQ(-1, ret);    
+    EXPECT_EQ(-1, ret);
     std::cout << "Exiting DumpBusEvent_InvalidEvent test" << std::endl;
 }
 /**
@@ -1178,13 +1178,13 @@ TEST(em_cmd_t, DefaultConstruction_Success) {
     std::cout << "Entering DefaultConstruction_Success test" << std::endl;
     EXPECT_NO_THROW({
         em_cmd_t obj;
-        std::cout << "Invoked em_cmd_t() default constructor." << std::endl;        
+        std::cout << "Invoked em_cmd_t() default constructor." << std::endl;
         std::cout << "Object state after construction:" << std::endl;
         std::cout << "  m_evt: " << obj.m_evt << " (expected: nullptr)" << std::endl;
         std::cout << "  m_em_candidates: " << obj.m_em_candidates << " (expected: nullptr)" << std::endl;
         std::cout << "  m_type: " << static_cast<int>(obj.m_type) << " (expected: default value)" << std::endl;
         std::cout << "  m_orch_op_idx: " << obj.m_orch_op_idx << " (expected: 0 or initialized default)" << std::endl;
-    });    
+    });
     std::cout << "Exiting DefaultConstruction_Success test" << std::endl;
 }
 /**
@@ -1324,8 +1324,8 @@ TEST(em_cmd_t, ValidConstructionAllTypes)
     dm_easy_mesh_t dm;
     dm.init();
     em_cmd_type_t types[] = {
-        em_cmd_type_none, 
-        em_cmd_type_reset, 
+        em_cmd_type_none,
+        em_cmd_type_reset,
         em_cmd_type_get_network,
         em_cmd_type_get_device,
         em_cmd_type_remove_device,
@@ -1416,7 +1416,7 @@ TEST(em_cmd_t, ValidConstructionNonEmptyCommandParameters)
     dm_easy_mesh_t dm{};
     dm.m_num_radios = 2;
     dm.m_num_bss = 3;
-    dm.m_num_opclass = 4; 
+    dm.m_num_opclass = 4;
     dm.m_colocated = true;
     // Construct em_cmd_t with type em_cmd_type_get_device.
     em_cmd_t cmd(em_cmd_type_get_device, param, dm);
@@ -1593,36 +1593,36 @@ TEST(em_cmd_t, RetrieveALInterfaceMACAddress_WithValidConfiguration) {
  */
 TEST(em_cmd_t, Retrieve_non_empty_fixed_args_string) {
     std::cout << "Entering Retrieve_non_empty_fixed_args_string test" << std::endl;
-    
+
     // Create object using default constructor and log the creation
     EXPECT_NO_THROW({
         em_cmd_t cmd;
         std::cout << "Created em_cmd_t object using default constructor." << std::endl;
-        
+
         // Allocate and assign non-empty fixed args using strncpy
         char *argBuffer = new char[50];
         std::cout << "Allocating buffer for fixed_args and copying 'command_arg'." << std::endl;
         strncpy(argBuffer, "command_arg", 50);
         argBuffer[49] = '\0';  // ensure null termination
-        
+
         // Set the fixed_args pointer
         strncpy(cmd.m_param.u.args.fixed_args, argBuffer, sizeof(cmd.m_param.u.args.fixed_args));
         cmd.m_param.u.args.fixed_args[sizeof(cmd.m_param.u.args.fixed_args)-1] = '\0'; // ensure null-termination
 	    std::cout << "Assigned fixed_args with value: " << argBuffer << std::endl;
-        
+
         // Invoke get_arg() method and log the invocation and returned value
         std::cout << "Invoking get_arg() method." << std::endl;
         const char *retVal = cmd.get_arg();
         std::cout << "get_arg() returned: " << (retVal ? retVal : "NULL") << std::endl;
-        
+
         // Validate that the returned value is "command_arg"
         EXPECT_STREQ(retVal, "command_arg");
-        
+
         // Free dynamically allocated memory
         delete[] argBuffer;
         std::cout << "Deallocated the fixed_args buffer." << std::endl;
     });
-    
+
     std::cout << "Exiting Retrieve_non_empty_fixed_args_string test" << std::endl;
 }
 /**
@@ -1651,25 +1651,25 @@ TEST(em_cmd_t, Retrieve_non_empty_fixed_args_string) {
 TEST(em_cmd_t, Retrieve_empty_fixed_args_string) {
     std::cout << "Entering Retrieve_empty_fixed_args_string test" << std::endl;
     em_cmd_t cmd;
-    std::cout << "Created em_cmd_t object using default constructor." << std::endl;        
+    std::cout << "Created em_cmd_t object using default constructor." << std::endl;
     // Allocate and assign empty fixed args using strncpy
     char *argBuffer = new char[50];
     std::cout << "Allocating buffer for fixed_args and copying empty string." << std::endl;
     strncpy(argBuffer, "", 50);
-    argBuffer[49] = '\0';        
+    argBuffer[49] = '\0';
     // Set the fixed_args pointer
     strncpy(cmd.m_param.u.args.fixed_args, argBuffer, sizeof(cmd.m_param.u.args.fixed_args));
     cmd.m_param.u.args.fixed_args[sizeof(cmd.m_param.u.args.fixed_args)-1] = '\0'; // ensure null-termination
-    std::cout << "Assigned fixed_args with empty string." << std::endl;        
+    std::cout << "Assigned fixed_args with empty string." << std::endl;
     // Invoke get_arg() method and log the invocation and returned value
     std::cout << "Invoking get_arg() method." << std::endl;
     const char *retVal = cmd.get_arg();
-    std::cout << "get_arg() returned: " << (retVal ? retVal : "NULL") << std::endl;       
+    std::cout << "get_arg() returned: " << (retVal ? retVal : "NULL") << std::endl;
     // Validate that the returned value is an empty string
-    EXPECT_STREQ(retVal, "");        
+    EXPECT_STREQ(retVal, "");
     // Free dynamically allocated memory
     delete[] argBuffer;
-    std::cout << "Deallocated the fixed_args buffer." << std::endl;    
+    std::cout << "Deallocated the fixed_args buffer." << std::endl;
     std::cout << "Exiting Retrieve_empty_fixed_args_string test" << std::endl;
 }
 /**
@@ -1715,11 +1715,11 @@ TEST(em_cmd_t, RetrieveBusEventPointer) {
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 035@n
  * **Priority:** High@n
- * 
+ *
  * **Pre-Conditions:** None@n
  * **Dependencies:** None@n
  * **User Interaction:** None@n
- * 
+ *
  * **Test Procedure:**@n
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
@@ -1880,11 +1880,11 @@ TEST(em_cmd_t, DefaultConstructorCmdName)
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 039@n
  * **Priority:** High@n
- * 
+ *
  * **Pre-Conditions:** None@n
  * **Dependencies:** None@n
  * **User Interaction:** None@n
- * 
+ *
  * **Test Procedure:**
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :--------------: | ----------- | --------- | --------------- | ----- |
@@ -1974,8 +1974,8 @@ TEST(em_cmd_t, ExceedingCommandType) {
     em_cmd_type_t invalidType = static_cast<em_cmd_type_t>(em_cmd_type_max + 1);
     std::cout << "[ExceedingCommandType] Invoking get_cmd_type_str with type = em_cmd_type_max + 1" << std::endl;
     const char * ret = em_cmd_t::get_cmd_type_str(invalidType);
-    std::cout << "Returned string: " << ret << std::endl;    
-    EXPECT_STREQ(ret, "em_cmd_type_unknown");  
+    std::cout << "Returned string: " << ret << std::endl;
+    EXPECT_STREQ(ret, "em_cmd_type_unknown");
     std::cout << "Exiting ExceedingCommandType test" << std::endl;
 }
 /**
@@ -2010,7 +2010,7 @@ TEST(em_cmd_t, ControlALInterfaceValid) {
     em_interface_t *ctrlInterface = cmd.get_ctrl_al_interface();
     ASSERT_NE(ctrlInterface, nullptr);
     std::cout << "Retrieved Control AL Interface details:" << std::endl;
-    std::cout << "Name: " << ctrlInterface->name << std::endl;    
+    std::cout << "Name: " << ctrlInterface->name << std::endl;
     std::cout << "Media: " << static_cast<unsigned int>(ctrlInterface->media) << std::endl;
     std::cout << "MAC: ";
     for (int i = 0; i < 6; i++) {
@@ -2023,9 +2023,9 @@ TEST(em_cmd_t, ControlALInterfaceValid) {
 /**
  * @brief Verify that get_curr_op_class returns a valid pointer for the lower boundary index.
  *
- * This test verifies that when the lower boundary index (0) is used to access the op class data model, 
- * the get_curr_op_class API correctly returns a non-null pointer. The test initializes an instance of 
- * em_cmd_t, populates the op_class_info at index 0 with predetermined values, invokes the API, and then 
+ * This test verifies that when the lower boundary index (0) is used to access the op class data model,
+ * the get_curr_op_class API correctly returns a non-null pointer. The test initializes an instance of
+ * em_cmd_t, populates the op_class_info at index 0 with predetermined values, invokes the API, and then
  * asserts that the resulting pointer is not null.
  *
  * **Test Group ID:** Basic: 01@n
@@ -2248,7 +2248,7 @@ TEST(em_cmd_t, MaxIndexValue) {
     std::cout << "mins_since_cac_comp: " << info.mins_since_cac_comp << std::endl;
     std::cout << "sec_remain_non_occ_dur: " << info.sec_remain_non_occ_dur << std::endl;
     std::cout << "countdown_cac_comp: " << info.countdown_cac_comp << std::endl;
-    std::cout << "--------------------------------------------" << std::endl;    
+    std::cout << "--------------------------------------------" << std::endl;
     std::cout << "Exiting MaxIndexValue test" << std::endl;
 }
 /**
@@ -2312,7 +2312,7 @@ TEST(em_cmd_t, GetDataModelReturnsNonNull)
     cmd.m_data_model.m_num_net_ssids = 8;
     cmd.m_data_model.m_num_radios = 2;
     cmd.m_data_model.m_num_bss = 2;
-    cmd.m_data_model.m_num_opclass = 3; 
+    cmd.m_data_model.m_num_opclass = 3;
     cmd.m_data_model.m_colocated = false;
     cmd.m_data_model.m_device.m_device_info.dfs_enable = true;
     std::cout << "Invoking get_data_model() method on initialized em_cmd_t object." << std::endl;
@@ -2465,22 +2465,22 @@ TEST(em_cmd_t, RetrieveValidEventFrame) {
  * | 04 | Clean up allocated memory by deleting m_evt and resetting the pointer | Deletion of m_evt | Memory is freed without exception | Should be successful |
  */
 TEST(em_cmd_t, RetrieveValidEventBus) {
-    std::cout << "Entering RetrieveValidEventBus test" << std::endl;    
+    std::cout << "Entering RetrieveValidEventBus test" << std::endl;
     EXPECT_NO_THROW({
         em_cmd_t obj;
-        obj.m_evt = new em_event_t;       
+        obj.m_evt = new em_event_t;
         obj.m_evt->type = em_event_type_bus;
-        std::cout << "Assigned event type: " << static_cast<unsigned int>(obj.m_evt->type) << std::endl;        
+        std::cout << "Assigned event type: " << static_cast<unsigned int>(obj.m_evt->type) << std::endl;
         obj.m_evt->u.bevt.type = em_bus_event_type_chirp;
         std::cout << "Assigned bus event internal type: " << static_cast<unsigned int>(obj.m_evt->u.bevt.type) << std::endl;
         obj.m_evt->u.fevt.frame_len = 6;
-		obj.m_evt->u.bevt.data_len = 5;       
+		obj.m_evt->u.bevt.data_len = 5;
         std::cout << "Invoking get_event()" << std::endl;
         em_event_t* ret_evt = obj.get_event();
         if(ret_evt) {
             std::cout << "Retrieved event type: " << static_cast<unsigned int>(ret_evt->type) << std::endl;
             std::cout << "Retrieved bus event internal type: " << static_cast<unsigned int>(ret_evt->u.bevt.type) << std::endl;
-        }       
+        }
         EXPECT_NE(ret_evt, nullptr);
         EXPECT_EQ(ret_evt->type, em_event_type_bus);
         EXPECT_EQ(ret_evt->u.bevt.type, em_bus_event_type_chirp);
@@ -2519,20 +2519,20 @@ TEST(em_cmd_t, Retrieve_correct_event_data_length_when_valid_non_empty_event_dat
     EXPECT_NO_THROW({
         // Create an instance of em_cmd_t using the default constructor.
         em_cmd_t cmd;
-        std::cout << "Constructed em_cmd_t object using default constructor" << std::endl;		
+        std::cout << "Constructed em_cmd_t object using default constructor" << std::endl;
         cmd.m_evt->type = em_event_type_bus;
         // Allocate a valid em_event_t structure and assign to m_evt.
         // Set the event data length to 100 bytes.
         cmd.m_evt = new em_event_t;
         std::cout << "Allocated em_event_t object and assigned to m_evt" << std::endl;
         cmd.m_evt->u.bevt.data_len = 100;
-        std::cout << "Set m_evt->data_length to 100" << std::endl;        
+        std::cout << "Set m_evt->data_length to 100" << std::endl;
         // Invoke the get_event_data_length() method.
         std::cout << "Invoking get_event_data_length() method" << std::endl;
         unsigned int length = cmd.get_event_data_length();
-        std::cout << "get_event_data_length() returned: " << length << std::endl;        
+        std::cout << "get_event_data_length() returned: " << length << std::endl;
         // Validate that the returned length is 100.
-        EXPECT_EQ(length, 100u);        
+        EXPECT_EQ(length, 100u);
         // Clean up allocated memory.
         delete cmd.m_evt;
         cmd.m_evt = nullptr;
@@ -2548,11 +2548,11 @@ TEST(em_cmd_t, Retrieve_correct_event_data_length_when_valid_non_empty_event_dat
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 053@n
  * **Priority:** High@n
- * 
+ *
  * **Pre-Conditions:** None@n
  * **Dependencies:** None@n
  * **User Interaction:** None@n
- * 
+ *
  * **Test Procedure:**@n
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :--------------: | ----------- | --------- | --------------- | ----- |
@@ -2563,20 +2563,20 @@ TEST(em_cmd_t, Retrieve_correct_frame_data_length_when_valid_non_empty_frame_dat
     EXPECT_NO_THROW({
         // Create an instance of em_cmd_t using the default constructor.
         em_cmd_t cmd;
-        std::cout << "Constructed em_cmd_t object using default constructor" << std::endl;		
+        std::cout << "Constructed em_cmd_t object using default constructor" << std::endl;
         cmd.m_evt->type = em_event_type_frame;
         // Allocate a valid em_event_t structure and assign to m_evt.
         // Set the event data length to 100 bytes.
         cmd.m_evt = new em_event_t;
         std::cout << "Allocated em_event_t object and assigned to m_evt" << std::endl;
         cmd.m_evt->u.fevt.frame_len = 10;
-        std::cout << "Set m_evt->data_length to 100" << std::endl;    
+        std::cout << "Set m_evt->data_length to 100" << std::endl;
         // Invoke the get_event_data_length() method.
         std::cout << "Invoking get_event_data_length() method" << std::endl;
         unsigned int length = cmd.get_event_data_length();
-        std::cout << "get_event_data_length() returned: " << length << std::endl;        
+        std::cout << "get_event_data_length() returned: " << length << std::endl;
         // Validate that the returned length is 10.
-        EXPECT_EQ(length, 10u);        
+        EXPECT_EQ(length, 10u);
         // Clean up allocated memory.
         delete cmd.m_evt;
         cmd.m_evt = nullptr;
@@ -2612,14 +2612,14 @@ TEST(em_cmd_t, Retrieve_event_data_length_as_zero_when_m_evt_pointer_is_null) {
     EXPECT_NO_THROW({
         // Create an instance of em_cmd_t using the default constructor.
         em_cmd_t cmd;
-        std::cout << "Constructed em_cmd_t object using default constructor" << std::endl;        
+        std::cout << "Constructed em_cmd_t object using default constructor" << std::endl;
         // Set the m_evt pointer to NULL.
         cmd.m_evt = nullptr;
-        std::cout << "Set m_evt to nullptr" << std::endl;        
+        std::cout << "Set m_evt to nullptr" << std::endl;
         // Invoke the get_event_data_length() method.
         std::cout << "Invoking get_event_data_length() method" << std::endl;
         unsigned int length = cmd.get_event_data_length();
-        std::cout << "get_event_data_length() returned: " << length << std::endl;        
+        std::cout << "get_event_data_length() returned: " << length << std::endl;
         // Validate that the returned length is 0.
         EXPECT_NE(length, 0);
     });
@@ -2711,9 +2711,9 @@ TEST(em_cmd_t, ValidateEventLengthTypical) {
     unsigned int ret_val = cmd_obj.get_event_length();
     std::cout << "get_event_length() returned = " << ret_val << std::endl;
     unsigned int expected_value = sizeof(em_event_t) + evt->u.fevt.frame_len;
-    std::cout << "Expected = sizeof(em_event_t) (" 
-              << sizeof(em_event_t) 
-              << ") + frame_len (100) = " 
+    std::cout << "Expected = sizeof(em_event_t) ("
+              << sizeof(em_event_t)
+              << ") + frame_len (100) = "
               << expected_value << std::endl;
     EXPECT_EQ(ret_val, expected_value);
     std::cout << "Exiting ValidateEventLengthTypical test" << std::endl;
@@ -2739,7 +2739,7 @@ TEST(em_cmd_t, ValidateEventLengthTypical) {
  * | 01               | Set security capability values in the command object and invoke get_ieee_1905_security_cap method | onboarding_proto = 1, integrity_algo = 2, encryption_algo = 3, expected_onboarding_proto = 1, expected_integrity_algo = 2, expected_encryption_algo = 3 | API returns a valid pointer with security capability values matching the expected values and assertions pass | Should Pass |
  */
 TEST(em_cmd_t, get_ieee_1905_security_cap_Successful) {
-    std::cout << "Entering get_ieee_1905_security_cap_Successful test" << std::endl;   
+    std::cout << "Entering get_ieee_1905_security_cap_Successful test" << std::endl;
     em_cmd_t cmd_obj;
     cmd_obj.m_data_model.m_ieee_1905_security.m_ieee_1905_security_info.sec_cap.onboarding_proto = 1;
     cmd_obj.m_data_model.m_ieee_1905_security.m_ieee_1905_security_info.sec_cap.integrity_algo   = 2;
@@ -2747,23 +2747,23 @@ TEST(em_cmd_t, get_ieee_1905_security_cap_Successful) {
     std::cout << "Invoking get_ieee_1905_security_cap method" << std::endl;
     em_ieee_1905_security_cap_t *cap_ptr = nullptr;
     EXPECT_NO_THROW(cap_ptr = cmd_obj.get_ieee_1905_security_cap());
-    EXPECT_NE(cap_ptr, nullptr);    
+    EXPECT_NE(cap_ptr, nullptr);
     if (cap_ptr) {
         std::cout << "Retrieved security cap values:" << std::endl;
         std::cout << "  onboarding_proto = " << static_cast<int>(cap_ptr->onboarding_proto) << std::endl;
         std::cout << "  integrity_algo   = " << static_cast<int>(cap_ptr->integrity_algo) << std::endl;
-        std::cout << "  encryption_algo  = " << static_cast<int>(cap_ptr->encryption_algo) << std::endl;        
+        std::cout << "  encryption_algo  = " << static_cast<int>(cap_ptr->encryption_algo) << std::endl;
         EXPECT_EQ(cap_ptr->onboarding_proto, 1);
         EXPECT_EQ(cap_ptr->integrity_algo,   2);
         EXPECT_EQ(cap_ptr->encryption_algo,  3);
-    }    
+    }
     std::cout << "Exiting get_ieee_1905_security_cap_Successful test" << std::endl;
 }
 /**
  * @brief Validate that an em_cmd_t instance with type set to em_cmd_type_none fails validation.
  *
- * This test verifies that when an em_cmd_t object is instantiated with its m_type set to em_cmd_type_none, 
- * the validate() method returns false. This behavior confirms that the validate() function correctly identifies 
+ * This test verifies that when an em_cmd_t object is instantiated with its m_type set to em_cmd_type_none,
+ * the validate() method returns false. This behavior confirms that the validate() function correctly identifies
  * an invalid command type.
  *
  * **Test Group ID:** Basic: 01@n
@@ -2898,10 +2898,10 @@ TEST(em_cmd_t, status_to_string_convert_all_valid_status) {
         { em_cmd_out_status_prev_cmd_in_progress,   "Error_Prev_Cmd_In_Progress" },
         { em_cmd_out_status_no_change,              "Error_No_Config_Change_Detected" }
     };
-    const size_t num_tests = sizeof(mappings) / sizeof(mappings[0]);    
+    const size_t num_tests = sizeof(mappings) / sizeof(mappings[0]);
     for (size_t i = 0; i < num_tests; ++i) {
         char buffer[50] = {0};
-        std::cout << "Invoking status_to_string with status value: " << static_cast<unsigned int>(mappings[i].status) 
+        std::cout << "Invoking status_to_string with status value: " << static_cast<unsigned int>(mappings[i].status)
                   << " and buffer address: " << static_cast<void*>(buffer) << std::endl;
         char* result = cmd.status_to_string(mappings[i].status, buffer);
 
@@ -2937,7 +2937,7 @@ TEST(em_cmd_t, status_to_string_handle_null_buffer) {
     std::cout << "Entering status_to_string_handle_null_buffer test" << std::endl;
     em_cmd_t cmd;
     em_cmd_out_status_t testStatus = em_cmd_out_status_success;
-    std::cout << "Invoking status_to_string with status value: " << static_cast<unsigned int>(testStatus) 
+    std::cout << "Invoking status_to_string with status value: " << static_cast<unsigned int>(testStatus)
               << " and buffer pointer as NULL" << std::endl;
     char* retVal = cmd.status_to_string(testStatus, nullptr);
     EXPECT_EQ(retVal, nullptr);
@@ -2951,11 +2951,11 @@ TEST(em_cmd_t, status_to_string_handle_null_buffer) {
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 063@n
  * **Priority:** High@n
- * 
+ *
  * **Pre-Conditions:** None@n
  * **Dependencies:** None@n
  * **User Interaction:** None@n
- * 
+ *
  * **Test Procedure:**
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
@@ -3011,11 +3011,11 @@ TEST(em_cmd_t, get_svc_valid_agent) {
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 065@n
  * **Priority:** High@n
- * 
+ *
  * **Pre-Conditions:** None@n
  * **Dependencies:** None@n
  * **User Interaction:** None@n
- * 
+ *
  * **Test Procedure:**@n
  * | Variation / Step | Description | Test Data | Expected Result |Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
@@ -3092,16 +3092,16 @@ TEST(em_cmd_t, get_svc_invalid_value_check) {
 /**
  * @brief Test the set_event_data_length function using a zero length value
  *
- * This test verifies that the API function set_event_data_length successfully accepts a zero value without throwing any exception. It ensures that when the event data length is set to zero, the function executes correctly. 
+ * This test verifies that the API function set_event_data_length successfully accepts a zero value without throwing any exception. It ensures that when the event data length is set to zero, the function executes correctly.
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 068@n
  * **Priority:** High@n
- * 
+ *
  * **Pre-Conditions:** None@n
  * **Dependencies:** None@n
  * **User Interaction:** None@n
- * 
+ *
  * **Test Procedure:**@n
  * | Variation / Step | Description                                                            | Test Data                                              | Expected Result                                           | Notes       |
  * | :--------------: | ---------------------------------------------------------------------- | ------------------------------------------------------ | --------------------------------------------------------- | ----------- |
@@ -3231,11 +3231,11 @@ TEST(em_cmd_t, get_param_invocation) {
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 072@n
  * **Priority:** High@n
- * 
+ *
  * **Pre-Conditions:** None@n
  * **Dependencies:** None@n
  * **User Interaction:** None@n
- * 
+ *
  * **Test Procedure:**
  * | Variation / Step | Description                                                                                   | Test Data                                                                                                                     | Expected Result                                                                                                                                         | Notes         |
  * | :--------------: | --------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------- |
@@ -3278,7 +3278,7 @@ TEST(em_cmd_t, get_radio_interface_valid_index0) {
  *
  * This test verifies that the get_radio_interface method of em_cmd_t correctly retrieves the radio interface
  * configuration when a valid last index is provided. The test sets the MAC address, media type, and interface name
- * for radio[2] and confirms that the retrieved interface contains the expected details. This ensures proper mapping 
+ * for radio[2] and confirms that the retrieved interface contains the expected details. This ensures proper mapping
  * and retrieval of radio configuration information.
  *
  * **Test Group ID:** Basic: 01
@@ -3312,7 +3312,7 @@ TEST(em_cmd_t, get_radio_interface_valid_lastindex) {
     em_interface_t* retrievedIface = cmd.get_radio_interface(index);
     ASSERT_NE(nullptr, retrievedIface);
     if (retrievedIface) {
-        std::cout << "Retrieved interface at index " << index 
+        std::cout << "Retrieved interface at index " << index
                   << " has name: " << retrievedIface->name << std::endl;
         std::cout << "Media type: " << static_cast<unsigned int>(retrievedIface->media) << std::endl;
         std::cout << "Retrieved MAC address: ";
@@ -3382,7 +3382,7 @@ TEST(em_cmd_t, get_radio_interface_index_out_of_range) {
  */
 TEST(em_cmd_t, get_manufacturer_valid_retrieve_valid_manufacturer_name)
 {
-    std::cout << "Entering get_manufacturer_valid_retrieve_valid_manufacturer_name test" << std::endl;       
+    std::cout << "Entering get_manufacturer_valid_retrieve_valid_manufacturer_name test" << std::endl;
     em_cmd_t cmd{};
     strncpy(cmd.m_data_model.m_device.m_device_info.manufacturer, "Acme Corp", sizeof(cmd.m_data_model.m_device.m_device_info.manufacturer) - 1);
     std::cout << "Invoking get_manufacturer()" << std::endl;
@@ -3428,17 +3428,17 @@ TEST(em_cmd_t, get_manufacturer_empty_retrieve_manufacturer_name_empty)
 /**
  * @brief Tests get_manufacturer() function for retrieving a manufacturer with special characters.
  *
- * This test verifies that the get_manufacturer() API correctly retrieves a manufacturer string 
+ * This test verifies that the get_manufacturer() API correctly retrieves a manufacturer string
  * containing special characters, ensuring that the API can handle non-alphanumeric characters without error.
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 077@n
  * **Priority:** High@n
- * 
+ *
  * **Pre-Conditions:** None@n
  * **Dependencies:** None@n
  * **User Interaction:** None@n
- * 
+ *
  * **Test Procedure:**@n
  * | Variation / Step | Description                                                                                      | Test Data                                                                                      | Expected Result                                                                                   | Notes        |
  * | :--------------: | ------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- | ------------ |
@@ -3453,7 +3453,7 @@ TEST(em_cmd_t, get_manufacturer_RetrieveManufacturerWithSpecialCharacters)
     std::cout << "Invoking get_manufacturer()" << std::endl;
     char *result = cmd.get_manufacturer();
     ASSERT_NE(result, nullptr);
-    std::cout << "Retrieved manufacturer: " << result << std::endl;    
+    std::cout << "Retrieved manufacturer: " << result << std::endl;
     EXPECT_STREQ(result, "!@#$%^&*()_+");
     std::cout << "Exiting get_manufacturer_RetrieveManufacturerWithSpecialCharacters test" << std::endl;
 }
@@ -3465,11 +3465,11 @@ TEST(em_cmd_t, get_manufacturer_RetrieveManufacturerWithSpecialCharacters)
  * **Test Group ID:** Basic: 01
  * **Test Case ID:** 078@n
  * **Priority:** High
- * 
+ *
  * **Pre-Conditions:** None
  * **Dependencies:** None
  * **User Interaction:** None
- * 
+ *
  * **Test Procedure:**
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
@@ -3532,11 +3532,11 @@ TEST(em_cmd_t, get_manufacturer_model_EmptyModel)
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 080@n
  * **Priority:** High@n
- * 
+ *
  * **Pre-Conditions:** None@n
  * **Dependencies:** None@n
  * **User Interaction:** None@n
- * 
+ *
  * **Test Procedure:**@n
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
@@ -3614,7 +3614,7 @@ TEST(em_cmd_t, get_serial_number_empty_serial) {
     std::cout << "Entering get_serial_number_empty_serial test" << std::endl;
     const char* expectedSerial = "";
     em_cmd_t cmd;
-    strncpy(cmd.m_data_model.m_device.m_device_info.serial_number, expectedSerial, sizeof(cmd.m_data_model.m_device.m_device_info.serial_number) - 1); 
+    strncpy(cmd.m_data_model.m_device.m_device_info.serial_number, expectedSerial, sizeof(cmd.m_data_model.m_device.m_device_info.serial_number) - 1);
     std::cout << "Invoking get_serial_number() on em_cmd_t object" << std::endl;
     char* retSerial = cmd.get_serial_number();
     ASSERT_NE(retSerial, nullptr);
@@ -3631,11 +3631,11 @@ TEST(em_cmd_t, get_serial_number_empty_serial) {
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 083@n
  * **Priority:** High@n
- * 
+ *
  * **Pre-Conditions:** None@n
  * **Dependencies:** None@n
  * **User Interaction:** None@n
- * 
+ *
  * **Test Procedure:**@n
  * | Variation / Step | Description | Test Data | Expected Result |Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
@@ -3648,7 +3648,7 @@ TEST(em_cmd_t, get_serial_number_empty_serial) {
 TEST(em_cmd_t, get_serial_number_serial_WithSpecialCharacters) {
     std::cout << "Entering get_serial_number_serial_WithSpecialCharacters test" << std::endl;
     em_cmd_t cmd;
-    memcpy(cmd.m_data_model.m_device.m_device_info.serial_number, u8"SN@#123!$%\n\t\u00A9", strlen(u8"SN@#123!$%\n\t\u00A9") + 1);  
+    memcpy(cmd.m_data_model.m_device.m_device_info.serial_number, u8"SN@#123!$%\n\t\u00A9", strlen(u8"SN@#123!$%\n\t\u00A9") + 1);
     std::cout << "Invoking get_serial_number() on em_cmd_t object" << std::endl;
     char* retSerial = cmd.get_serial_number();
     ASSERT_NE(retSerial, nullptr);
@@ -3691,7 +3691,7 @@ TEST(em_cmd_t, get_primary_device_type_valid) {
  * @brief Verify that get_primary_device_type returns an empty string when primary device type is not set
  *
  * This test verifies that when primary_device_type is set to an empty string in the em_cmd_t object's device info,
- * the get_primary_device_type() method returns a non-null pointer to an empty string. This ensures proper handling 
+ * the get_primary_device_type() method returns a non-null pointer to an empty string. This ensures proper handling
  * of unset or empty device type values.
  *
  * **Test Group ID:** Basic: 01
@@ -3785,23 +3785,23 @@ TEST(em_cmd_t, get_num_network_ssid_verify_returns_0_when_no_network_ssids_avail
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 088@n
  * **Priority:** High@n
- * 
+ *
  * **Pre-Conditions:** None@n
  * **Dependencies:** None@n
  * **User Interaction:** None@n
- * 
+ *
  * **Test Procedure:**
  * | Variation / Step | Description                                             | Test Data                                                    | Expected Result                                                      | Notes       |
  * | :--------------: | ------------------------------------------------------- | ------------------------------------------------------------ | -------------------------------------------------------------------- | ----------- |
  * | 01               | Set m_num_net_ssids to 3 and invoke get_num_network_ssid()| cmd.m_data_model.m_num_net_ssids = 3, expected output: ssidCount = 3 | get_num_network_ssid() returns 3 which is confirmed by EXPECT_EQ(3, ssidCount) | Should Pass |
  */
 TEST(em_cmd_t, get_num_network_ssid_verify_returns_valid_count_for_configured_ssids) {
-    std::cout << "Entering get_num_network_ssid_verify_returns_valid_count_for_configured_ssids test" << std::endl;   
+    std::cout << "Entering get_num_network_ssid_verify_returns_valid_count_for_configured_ssids test" << std::endl;
     em_cmd_t cmd;
     cmd.m_data_model.m_num_net_ssids = 3;
     std::cout << "Invoking get_num_network_ssid() method." << std::endl;
     unsigned int ssidCount = cmd.get_num_network_ssid();
-    std::cout << "get_num_network_ssid() returned: " << ssidCount << std::endl;   
+    std::cout << "get_num_network_ssid() returned: " << ssidCount << std::endl;
     EXPECT_EQ(ssidCount, 3u);
     std::cout << "Exiting get_num_network_ssid_verify_returns_valid_count_for_configured_ssids test" << std::endl;
 }
@@ -3831,7 +3831,7 @@ TEST(em_cmd_t, get_num_network_ssid_verify_returns_maximum_ssid_count_boundary_c
 	cmd.m_data_model.m_num_net_ssids = maxSSIDCount;
     std::cout << "Invoking get_num_network_ssid() method." << std::endl;
     unsigned int ssidCount = cmd.get_num_network_ssid();
-    std::cout << "get_num_network_ssid() returned: " << ssidCount << std::endl;   
+    std::cout << "get_num_network_ssid() returned: " << ssidCount << std::endl;
     EXPECT_EQ(ssidCount, maxSSIDCount);
     std::cout << "Exiting get_num_network_ssid_verify_returns_maximum_ssid_count_boundary_condition test" << std::endl;
 }
@@ -4031,7 +4031,7 @@ TEST(em_cmd_t, get_radio_valid_index_returns_valid_radio_pointer)
 	cmd.m_data_model.m_radio[index].m_radio_info.noise = 4;
     std::cout << "Invoking get_radio with index 1" << std::endl;
     dm_radio_t* radio = cmd.get_radio(index);
-    ASSERT_NE(radio, nullptr);   
+    ASSERT_NE(radio, nullptr);
     if (radio != nullptr) {
         std::cout << "Retrieved radio info from get_radio(1):" << std::endl;
         std::cout << "  Enabled: " << radio->m_radio_info.enabled << std::endl;
@@ -4088,7 +4088,7 @@ TEST(em_cmd_t, get_radio_edge_index_zero_returns_valid_radio_pointer)
         EXPECT_EQ(radio->m_radio_info.number_of_bss, 2);
         EXPECT_EQ(radio->m_radio_info.number_of_unassoc_sta, 1);
         EXPECT_EQ(radio->m_radio_info.noise, 4);
-    }    
+    }
     std::cout << "Exiting get_radio_edge_index_zero_returns_valid_radio_pointer test" << std::endl;
 }
 /**
@@ -4099,11 +4099,11 @@ TEST(em_cmd_t, get_radio_edge_index_zero_returns_valid_radio_pointer)
  * **Test Group ID:** Basic: 01
  * **Test Case ID:** 096@n
  * **Priority:** High
- * 
+ *
  * **Pre-Conditions:** None
  * **Dependencies:** None
  * **User Interaction:** None
- * 
+ *
  * **Test Procedure:**
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
@@ -4114,7 +4114,7 @@ TEST(em_cmd_t, get_radio_edge_index_zero_returns_valid_radio_pointer)
 TEST(em_cmd_t, get_radio_out_of_range_index_returns_nullptr)
 {
     std::cout << "Entering get_radio_out_of_range_index_returns_nullptr test" << std::endl;
-    em_cmd_t cmd;        
+    em_cmd_t cmd;
     unsigned int outOfRangeIndex = 100;
     cmd.m_data_model.m_radio[outOfRangeIndex].m_radio_info.enabled = true;
     cmd.m_data_model.m_radio[outOfRangeIndex].m_radio_info.number_of_bss = 2;
@@ -4122,8 +4122,8 @@ TEST(em_cmd_t, get_radio_out_of_range_index_returns_nullptr)
     cmd.m_data_model.m_radio[outOfRangeIndex].m_radio_info.noise = 4;
     std::cout << "Invoking get_radio with out-of-range index " << outOfRangeIndex << std::endl;
     dm_radio_t* radio = cmd.get_radio(outOfRangeIndex);
-    std::cout << "Returned pointer from get_radio(" << outOfRangeIndex << "): " << radio << std::endl;    
-    EXPECT_EQ(radio, nullptr);    
+    std::cout << "Returned pointer from get_radio(" << outOfRangeIndex << "): " << radio << std::endl;
+    EXPECT_EQ(radio, nullptr);
     std::cout << "Exiting get_radio_out_of_range_index_returns_nullptr test" << std::endl;
 }
 /**
@@ -4155,7 +4155,7 @@ TEST(em_cmd_t, get_radio_data_valid_match)
     cmd.m_data_model.m_wifi_data->u.decoded.num_radios = 1;
     strncpy(cmd.m_data_model.m_wifi_data->u.decoded.radios[0].name,
             "Interface1", sizeof(cmd.m_data_model.m_wifi_data->u.decoded.radios[0].name) - 1);
-    em_interface_t iface{};	
+    em_interface_t iface{};
     strncpy(iface.name, "Interface1", sizeof(iface.name) - 1);
     uint8_t sample_mac[6] = {0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0x1A};
     memcpy(iface.mac, sample_mac, sizeof(sample_mac));
@@ -4165,6 +4165,7 @@ TEST(em_cmd_t, get_radio_data_valid_match)
     EXPECT_NE(radio, nullptr);
     std::cout << "Returned radio pointer: " << radio << std::endl;
     free(cmd.m_data_model.m_wifi_data);
+    cmd.m_data_model.m_wifi_data = nullptr;
     std::cout << "Exiting get_radio_data_valid_match test" << std::endl;
 }
 /**
@@ -4193,6 +4194,7 @@ TEST(em_cmd_t, get_radio_data_null_interface_crashes)
     rdk_wifi_radio_t *ptr = cmd.m_data_model.get_radio_data(nullptr);
 	EXPECT_EQ(ptr, nullptr);
     free(cmd.m_data_model.m_wifi_data);
+    cmd.m_data_model.m_wifi_data = nullptr;
     std::cout << "Exiting get_radio_data_null_interface_crashes test" << std::endl;
 }
 /**
@@ -4205,12 +4207,12 @@ TEST(em_cmd_t, get_radio_data_null_interface_crashes)
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 099@n
  * **Priority:** High@n
- * 
+ *
  * **Pre-Conditions:** None@n
  * **Dependencies:** None@n
  * **User Interaction:** None@n
- * 
- * **Test Procedure:** 
+ *
+ * **Test Procedure:**
  * | Variation / Step | Description                                                                 | Test Data                                                                                                                           | Expected Result                                     | Notes           |
  * | :--------------: | --------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------- | --------------- |
  * | 01               | Initialize command object and allocate wifi_data structure                  | cmd.m_data_model.m_wifi_data = calloc(1, sizeof(webconfig_subdoc_data_t))                                                             | Memory allocation successful (not nullptr)          | Should be successful |
@@ -4234,6 +4236,7 @@ TEST(em_cmd_t, get_radio_data_no_radios_returns_null)
     rdk_wifi_radio_t *radio = cmd.m_data_model.get_radio_data(&iface);
     EXPECT_EQ(radio, nullptr);
     free(cmd.m_data_model.m_wifi_data);
+    cmd.m_data_model.m_wifi_data = nullptr;
     std::cout << "Exiting get_radio_data_no_radios_returns_null test" << std::endl;
 }
 /**
@@ -4269,7 +4272,7 @@ TEST(em_cmd_t, get_rd_op_class_set_positive_value)
         unsigned int rdOpClass = obj.get_rd_op_class();
         std::cout << "Returned read op class value: " << rdOpClass << std::endl;
         EXPECT_EQ(rdOpClass, 5u);
-    });   
+    });
     std::cout << "Exiting get_rd_op_class_set_positive_value test" << std::endl;
 }
 /**
@@ -4305,7 +4308,7 @@ TEST(em_cmd_t, get_rd_op_class_set_boundary_value)
         unsigned int rdOpClass = obj.get_rd_op_class();
         std::cout << "Returned read op class value: " << rdOpClass << std::endl;
         EXPECT_EQ(rdOpClass, UINT_MAX);
-    });    
+    });
     std::cout << "Exiting get_rd_op_class_set_boundary_value test" << std::endl;
 }
 /**
@@ -4316,11 +4319,11 @@ TEST(em_cmd_t, get_rd_op_class_set_boundary_value)
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 102@n
  * **Priority:** High@n
- * 
+ *
  * **Pre-Conditions:** None@n
  * **Dependencies:** None@n
  * **User Interaction:** None@n
- * 
+ *
  * **Test Procedure:**@n
  * | Variation / Step | Description                                                         | Test Data                                    | Expected Result                                             | Notes      |
  * | :--------------: | ------------------------------------------------------------------- | -------------------------------------------- | ----------------------------------------------------------- | ---------- |
@@ -4333,8 +4336,8 @@ TEST(em_cmd_t, get_rd_channel_explicit_set_value_42)
     cmd.m_rd_channel = 42;
     std::cout << "Invoking get_rd_channel()" << std::endl;
     unsigned int rd_channel = cmd.get_rd_channel();
-    std::cout << "Retrieved read channel value: " << rd_channel << std::endl;   
-    EXPECT_EQ(rd_channel, 42u);  
+    std::cout << "Retrieved read channel value: " << rd_channel << std::endl;
+    EXPECT_EQ(rd_channel, 42u);
     std::cout << "Exiting get_rd_channel_explicit_set_value_42 test" << std::endl;
 }
 /**
@@ -4364,8 +4367,8 @@ TEST(em_cmd_t, get_rd_channel_max_unsigned_int_value)
     cmd.m_rd_channel = UINT_MAX;
     std::cout << "Invoking get_rd_channel()" << std::endl;
     unsigned int rd_channel = cmd.get_rd_channel();
-    std::cout << "Retrieved read channel value: " << rd_channel << std::endl;    
-    EXPECT_EQ(rd_channel, UINT_MAX);    
+    std::cout << "Retrieved read channel value: " << rd_channel << std::endl;
+    EXPECT_EQ(rd_channel, UINT_MAX);
     std::cout << "Exiting get_rd_channel_max_unsigned_int_value test" << std::endl;
 }
 /**
@@ -4392,21 +4395,21 @@ TEST(em_cmd_t, get_rd_channel_max_unsigned_int_value)
 TEST(em_cmd_t, set_start_time_VerifyTimestampUpdated)
 {
     std::cout << "Entering set_start_time_VerifyTimestampUpdated test" << std::endl;
-    em_cmd_t cmd_obj;    
+    em_cmd_t cmd_obj;
     // Capture system time before invoking set_start_time()
     struct timeval system_time_before {0, 0};
     gettimeofday(&system_time_before, nullptr);
     std::cout << "Before invocation, system time (tv_sec): " << system_time_before.tv_sec << ", (tv_usec): " << system_time_before.tv_usec << std::endl;
     std::cout << "Invoking set_start_time()" << std::endl;
-    EXPECT_NO_THROW(cmd_obj.set_start_time());    
+    EXPECT_NO_THROW(cmd_obj.set_start_time());
     // Capture system time after the call
     struct timeval system_time_after {0, 0};
     gettimeofday(&system_time_after, nullptr);
-    std::cout << "After invocation, system time (tv_sec): " << system_time_after.tv_sec << ", (tv_usec): " << system_time_after.tv_usec << std::endl;    
+    std::cout << "After invocation, system time (tv_sec): " << system_time_after.tv_sec << ", (tv_usec): " << system_time_after.tv_usec << std::endl;
     // Retrieve the object's m_start_time
     struct timeval obj_time = cmd_obj.m_start_time;
-    std::cout << "Command object start time (tv_sec): " << obj_time.tv_sec << ", (tv_usec): " << obj_time.tv_usec << std::endl;   
-    // Check that the object's start time is within the system times captured 
+    std::cout << "Command object start time (tv_sec): " << obj_time.tv_sec << ", (tv_usec): " << obj_time.tv_usec << std::endl;
+    // Check that the object's start time is within the system times captured
     // Allow a tolerance of 1 second
     bool time_within_range = false;
     if ((obj_time.tv_sec >= system_time_before.tv_sec) && (obj_time.tv_sec <= system_time_after.tv_sec + 1)) {
@@ -4426,11 +4429,11 @@ TEST(em_cmd_t, set_start_time_VerifyTimestampUpdated)
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 105@n
  * **Priority:** High@n
- * 
+ *
  * **Pre-Conditions:** None@n
  * **Dependencies:** None@n
  * **User Interaction:** None@n
- * 
+ *
  * **Test Procedure:**
  * | Variation / Step | Description                                                            | Test Data                                           | Expected Result                                                       | Notes         |
  * | :--------------: | ---------------------------------------------------------------------- | --------------------------------------------------- | --------------------------------------------------------------------- | ------------- |
@@ -4440,30 +4443,30 @@ TEST(em_cmd_t, set_start_time_VerifyTimestampUpdated)
  */
 TEST(em_cmd_t, set_start_time_NotLeftAtDefaultZero)
 {
-    std::cout << "Entering set_start_time_NotLeftAtDefaultZero test" << std::endl;    
+    std::cout << "Entering set_start_time_NotLeftAtDefaultZero test" << std::endl;
     // Create an object using default constructor
-    em_cmd_t cmd_obj;    
+    em_cmd_t cmd_obj;
     // Set m_start_time to a known default zero value
     memset(&cmd_obj.m_start_time, 0, sizeof(cmd_obj.m_start_time));
-    std::cout << "Initialized m_start_time to zero (tv_sec: " << cmd_obj.m_start_time.tv_sec 
-              << ", tv_usec: " << cmd_obj.m_start_time.tv_usec << ")" << std::endl;    
+    std::cout << "Initialized m_start_time to zero (tv_sec: " << cmd_obj.m_start_time.tv_sec
+              << ", tv_usec: " << cmd_obj.m_start_time.tv_usec << ")" << std::endl;
     // Invoke the method
     std::cout << "Invoking set_start_time()" << std::endl;
-    EXPECT_NO_THROW(cmd_obj.set_start_time());    
+    EXPECT_NO_THROW(cmd_obj.set_start_time());
     // Retrieve the object's m_start_time after invocation
     struct timeval obj_time = cmd_obj.m_start_time;
-    std::cout << "After invocation, m_start_time (tv_sec): " << obj_time.tv_sec 
-              << ", (tv_usec): " << obj_time.tv_usec << std::endl;    
+    std::cout << "After invocation, m_start_time (tv_sec): " << obj_time.tv_sec
+              << ", (tv_usec): " << obj_time.tv_usec << std::endl;
     // Check that m_start_time is not left at zero value
     bool not_zero = ( (obj_time.tv_sec != 0) || (obj_time.tv_usec != 0) );
-    EXPECT_TRUE(not_zero);    
+    EXPECT_TRUE(not_zero);
     std::cout << "Exiting set_start_time_NotLeftAtDefaultZero test" << std::endl;
 }
 /**
  * @brief Validate that reset() method correctly resets non-zero event and command parameters
  *
- * This test ensures that the reset() method of the em_cmd_t object correctly zeros out the memory areas of both 
- * the event (m_evt) and command parameters (m_param) that have been prefilled with non-zero values. It verifies that 
+ * This test ensures that the reset() method of the em_cmd_t object correctly zeros out the memory areas of both
+ * the event (m_evt) and command parameters (m_param) that have been prefilled with non-zero values. It verifies that
  * after invoking reset(), these areas are cleared to all zeros, ensuring correct reset functionality.
  *
  * **Test Group ID:** Basic: 01
@@ -4509,7 +4512,7 @@ TEST(em_cmd_t, reset_non_zero_event_and_command_params)
     std::cout << "Filled m_param structure with non-zero data" << std::endl;
 
     std::cout << "Before reset: m_evt first byte = "
-              << std::hex << static_cast<int>(reinterpret_cast<unsigned char*>(cmd.m_evt)[0]) 
+              << std::hex << static_cast<int>(reinterpret_cast<unsigned char*>(cmd.m_evt)[0])
               << std::dec << std::endl;
 
     std::cout << "Before reset: m_param first byte = "
@@ -4538,7 +4541,7 @@ TEST(em_cmd_t, reset_non_zero_event_and_command_params)
 /**
  * @brief Unit test for verifying that set_db_cfg_type correctly handles a zero value.
  *
- * This test ensures that when the set_db_cfg_type method is invoked with the value zero, 
+ * This test ensures that when the set_db_cfg_type method is invoked with the value zero,
  * it does not throw any exception and correctly updates the m_db_cfg_type member variable of the object.
  *
  * **Test Group ID:** Basic: 01
@@ -4561,9 +4564,9 @@ TEST(em_cmd_t, set_db_cfg_type_ZeroValue) {
     em_cmd_t obj;
     unsigned int test_type = 0;
     std::cout << "Invoking set_db_cfg_type with type: " << test_type << std::endl;
-    EXPECT_NO_THROW(obj.set_db_cfg_type(test_type));   
+    EXPECT_NO_THROW(obj.set_db_cfg_type(test_type));
     std::cout << "Method set_db_cfg_type invoked successfully." << std::endl;
-    std::cout << "After invocation, m_db_cfg_type = " << obj.m_db_cfg_type << std::endl;   
+    std::cout << "After invocation, m_db_cfg_type = " << obj.m_db_cfg_type << std::endl;
     EXPECT_EQ(obj.m_db_cfg_type, test_type);
     std::cout << "Exiting set_db_cfg_type_ZeroValue test" << std::endl;
 }
@@ -4590,9 +4593,9 @@ TEST(em_cmd_t, set_db_cfg_type_TypicalPositiveValue) {
     em_cmd_t obj;
     unsigned int test_type = 42;
     std::cout << "Invoking set_db_cfg_type with type: " << test_type << std::endl;
-    EXPECT_NO_THROW(obj.set_db_cfg_type(test_type));    
+    EXPECT_NO_THROW(obj.set_db_cfg_type(test_type));
     std::cout << "Method set_db_cfg_type invoked successfully." << std::endl;
-    std::cout << "After invocation, m_db_cfg_type = " << obj.m_db_cfg_type << std::endl;    
+    std::cout << "After invocation, m_db_cfg_type = " << obj.m_db_cfg_type << std::endl;
     EXPECT_EQ(obj.m_db_cfg_type, test_type);
     std::cout << "Exiting set_db_cfg_type_TypicalPositiveValue test" << std::endl;
 }
@@ -4604,11 +4607,11 @@ TEST(em_cmd_t, set_db_cfg_type_TypicalPositiveValue) {
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 109@n
  * **Priority:** High@n
- * 
+ *
  * **Pre-Conditions:** None@n
  * **Dependencies:** None@n
  * **User Interaction:** None@n
- * 
+ *
  * **Test Procedure:**@n
  * | Variation / Step | Description                                                                                 | Test Data                                                | Expected Result                                                    | Notes       |
  * | :--------------: | ------------------------------------------------------------------------------------------- | -------------------------------------------------------- | ------------------------------------------------------------------ | ----------- |
@@ -4618,10 +4621,10 @@ TEST(em_cmd_t, set_db_cfg_type_MaximumUnsignedIntValue) {
     std::cout << "Entering set_db_cfg_type_MaximumUnsignedIntValue test" << std::endl;
     em_cmd_t obj;
     unsigned int test_type = UINT_MAX;
-    std::cout << "Invoking set_db_cfg_type with type: " << test_type << std::endl;    
-    EXPECT_NO_THROW(obj.set_db_cfg_type(test_type));    
+    std::cout << "Invoking set_db_cfg_type with type: " << test_type << std::endl;
+    EXPECT_NO_THROW(obj.set_db_cfg_type(test_type));
     std::cout << "Method set_db_cfg_type invoked successfully." << std::endl;
-    std::cout << "After invocation, m_db_cfg_type = " << obj.m_db_cfg_type << std::endl;    
+    std::cout << "After invocation, m_db_cfg_type = " << obj.m_db_cfg_type << std::endl;
     EXPECT_EQ(obj.m_db_cfg_type, test_type);
     std::cout << "Exiting set_db_cfg_type_MaximumUnsignedIntValue test" << std::endl;
 }
@@ -4647,7 +4650,7 @@ TEST(em_cmd_t, set_db_cfg_type_MaximumUnsignedIntValue) {
 TEST(em_cmd_t, get_orch_op_str_valid_orch_types) {
     const char* testName = "get_orch_op_str_valid_orch_types";
     std::cout << "Entering " << testName << " test" << std::endl;
-    em_cmd_t obj{};    
+    em_cmd_t obj{};
     std::vector<dm_orch_type_t> validTypes = {
         dm_orch_type_none,
         dm_orch_type_net_insert,
@@ -4779,7 +4782,7 @@ TEST(em_cmd_t, get_orch_submit_returns_true_when_submission_flag_is_true)
     memset(cmd.m_orch_desc, 0, sizeof(cmd.m_orch_desc));
     cmd.m_num_orch_desc = 1;
     cmd.m_orch_op_idx = 0;
-    cmd.m_orch_desc[0].submit = true;  
+    cmd.m_orch_desc[0].submit = true;
     std::cout << "Invoking get_orch_submit() method." << std::endl;
     bool submitStatus = cmd.get_orch_submit();
     std::cout << "get_orch_submit() returned: " << submitStatus << std::endl;
@@ -4789,18 +4792,18 @@ TEST(em_cmd_t, get_orch_submit_returns_true_when_submission_flag_is_true)
 /**
  * @brief Verify that get_orch_submit returns false when the submission flag is false
  *
- * This test verifies that the get_orch_submit() method correctly returns false when the submission flag 
- * (submit member of m_orch_desc) is set to false. It ensures that the API properly detects the disabled 
+ * This test verifies that the get_orch_submit() method correctly returns false when the submission flag
+ * (submit member of m_orch_desc) is set to false. It ensures that the API properly detects the disabled
  * submission state, which is critical for correct operation flow in command processing.
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 113@n
  * **Priority:** High@n
- * 
+ *
  * **Pre-Conditions:** None@n
  * **Dependencies:** None@n
  * **User Interaction:** None@n
- * 
+ *
  * **Test Procedure:**@n
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
@@ -4897,18 +4900,18 @@ TEST(em_cmd_t, get_orch_desc_maxindex_retrieval)
 /**
  * @brief Validate retrieval of valid orchestration operation from the command object.
  *
- * This test verifies that when a valid orchestration operation is set in the command object, 
- * calling the get_orch_op() method returns the correct operation value. This ensures that both 
+ * This test verifies that when a valid orchestration operation is set in the command object,
+ * calling the get_orch_op() method returns the correct operation value. This ensures that both
  * the initialization and the retrieval mechanism of the command object work as expected.
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 116@n
  * **Priority:** High@n
- * 
+ *
  * **Pre-Conditions:** None@n
  * **Dependencies:** None@n
  * **User Interaction:** None@n
- * 
+ *
  * **Test Procedure:**@n
  * | Variation / Step | Description                                                         | Test Data                                                        | Expected Result                                         | Notes         |
  * | :--------------: | ------------------------------------------------------------------- | ---------------------------------------------------------------- | ------------------------------------------------------- | ------------- |
@@ -4930,8 +4933,8 @@ TEST(em_cmd_t, get_orch_op_valid_orch_op_retrieval)
 /**
  * @brief Verify get_orch_op returns the expected error value when provided an invalid orch op value.
  *
- * This test assesses that the get_orch_op method in the em_cmd_t class correctly handles an invalid 
- * orch operation type by returning an error code (-1). This ensures that the API validates the operation type 
+ * This test assesses that the get_orch_op method in the em_cmd_t class correctly handles an invalid
+ * orch operation type by returning an error code (-1). This ensures that the API validates the operation type
  * appropriately to maintain integrity of the command processing.
  *
  * **Test Group ID:** Basic: 01@n
@@ -4997,11 +5000,11 @@ TEST(em_cmd_t, set_orch_op_index_typical_valid)
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 119@n
  * **Priority:** High@n
- * 
+ *
  * **Pre-Conditions:** None@n
  * **Dependencies:** None@n
  * **User Interaction:** None@n
- * 
+ *
  * **Test Procedure:**@n
  * | Variation / Step | Description                                                      | Test Data                                 | Expected Result                                                   | Notes       |
  * | :--------------: | ---------------------------------------------------------------- | ----------------------------------------- | ----------------------------------------------------------------- | ----------- |
@@ -5177,11 +5180,11 @@ TEST(em_cmd_t, override_op_invalid_index_out_of_range)
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 125@n
  * **Priority:** High@n
- * 
+ *
  * **Pre-Conditions:** None@n
  * **Dependencies:** None@n
  * **User Interaction:** None@n
- * 
+ *
  * **Test Procedure:**
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |

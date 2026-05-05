@@ -1950,6 +1950,7 @@ typedef enum {
     em_media_type_ieee80211ac_5,
     em_media_type_ieee80211ad_60,
     em_media_type_ieee80211af,
+    em_media_type_max,
 } em_media_type_t;
 
 typedef struct {
@@ -3264,6 +3265,7 @@ typedef enum {
     em_commit_target_radio,
     em_commit_target_radio_cap,
     em_commit_target_bss,
+    em_commit_target_max
 } em_commit_target_type_t;
 
 typedef struct {

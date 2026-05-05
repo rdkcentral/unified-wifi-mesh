@@ -33,6 +33,7 @@
 #include <unistd.h>
 #include <pthread.h>
 #include <cjson/cJSON.h>
+#include <type_traits>
 #include "em_cmd.h"
 
 bool em_cmd_t::validate()
@@ -463,6 +464,8 @@ void em_cmd_t::init()
             break;
 
         default:
+            snprintf(m_name, sizeof(m_name), "%s", "unknown");
+            m_svc = em_service_type_none;
             break;
 
     }
@@ -882,24 +885,31 @@ int em_cmd_t::dump_bus_event(em_bus_event_t *evt)
 	return 0;
 }   
 
-em_cmd_t::em_cmd_t(em_cmd_type_t type, em_cmd_params_t param, dm_easy_mesh_t& dm) : m_evt(NULL)
+em_cmd_t::em_cmd_t(em_cmd_type_t type, em_cmd_params_t param, dm_easy_mesh_t& dm)
+    : m_type(em_cmd_type_none), m_svc(em_service_type_none), m_param{}, m_evt(NULL), m_db_cfg_type(db_cfg_type_none)
 {
-    m_type = type;
+    auto raw = static_cast<std::underlying_type_t<em_cmd_type_t>>(type);
+    m_type = (raw >= static_cast<decltype(raw)>(em_cmd_type_max))
+             ? em_cmd_type_max : type;
     m_db_cfg_type = db_cfg_type_none;
     memcpy(&m_param, &param, sizeof(em_cmd_params_t));
     init(dm);
     init();
 }
 
-em_cmd_t::em_cmd_t(em_cmd_type_t type, em_cmd_params_t param) : m_evt(NULL)
+em_cmd_t::em_cmd_t(em_cmd_type_t type, em_cmd_params_t param)
+    : m_type(em_cmd_type_none), m_svc(em_service_type_none), m_param{}, m_evt(NULL), m_db_cfg_type(db_cfg_type_none)
 {
-    m_type = type;
+    auto raw = static_cast<std::underlying_type_t<em_cmd_type_t>>(type);
+    m_type = (raw >= static_cast<decltype(raw)>(em_cmd_type_max))
+             ? em_cmd_type_max : type;
     m_db_cfg_type = db_cfg_type_none;
     memcpy(&m_param, &param, sizeof(em_cmd_params_t));
     init();
 }
 
-em_cmd_t::em_cmd_t() : m_evt(NULL)
+em_cmd_t::em_cmd_t()
+    : m_type(em_cmd_type_none), m_svc(em_service_type_none), m_param{}, m_evt(NULL), m_db_cfg_type(db_cfg_type_none)
 {
 	m_evt = static_cast<em_event_t *> (malloc(sizeof(em_event_t) + EM_MAX_EVENT_DATA_LEN));
 }

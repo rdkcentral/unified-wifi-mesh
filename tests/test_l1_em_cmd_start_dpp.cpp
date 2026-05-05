@@ -363,7 +363,7 @@ TEST(em_cmd_start_dpp_t, em_cmd_start_dpp_t_ap_metrics_valid)
     size_t macLen = std::min(strlen(mac), maxLen);
     std::cout << "Copying RUID: " << mac << " (max allowed = " << maxLen << ")" << std::endl;
     memcpy(param.u.ap_metrics_params.ruid, mac, macLen);
-    param.u.ap_metrics_params.ruid[macLen] = '\0';
+    reinterpret_cast<uint8_t*>(param.u.ap_metrics_params.ruid)[macLen] = '\0';
     param.u.ap_metrics_params.sta_link_metrics_include = true;
     param.u.ap_metrics_params.sta_traffic_stats_include = true;
     param.u.ap_metrics_params.wifi6_status_report_include = false;

@@ -111,6 +111,8 @@ TEST(em_sm_t_Test, SetStateToValidStates) {
     std::cout << "Entering SetStateToValidStates test";
     em_state_t valid_states[] = {
         em_state_agent_unconfigured,
+        em_state_agent_1905_unconfigured,
+        em_state_agent_1905_securing,
         em_state_agent_autoconfig_rsp_pending,
         em_state_agent_wsc_m2_pending,
         em_state_agent_owconfig_pending,
@@ -129,12 +131,14 @@ TEST(em_sm_t_Test, SetStateToValidStates) {
         em_state_agent_sta_link_metrics_pending,
         em_state_agent_steer_btm_res_pending,
         em_state_agent_beacon_report_pending,
-        em_state_agent_ap_metrics_pending,
+        em_state_agent_link_quality_report_pending,
         em_state_ctrl_unconfigured,
         em_state_ctrl_wsc_m1_pending,
         em_state_ctrl_wsc_m2_sent,
         em_state_ctrl_topo_sync_pending,
         em_state_ctrl_topo_synchronized,
+        em_state_ctrl_ap_cap_query_pending,
+        em_state_ctrl_ap_cap_report_received,
         em_state_ctrl_channel_query_pending,
         em_state_ctrl_channel_pref_report_pending,
         em_state_ctrl_channel_queried,
@@ -156,7 +160,9 @@ TEST(em_sm_t_Test, SetStateToValidStates) {
         em_state_ctrl_ap_mld_configured,
         em_state_ctrl_bsta_mld_config_pending,
         em_state_ctrl_ap_mld_req_ack_rcvd,
-        em_state_ctrl_avail_spectrum_inquiry_pending
+        em_state_ctrl_avail_spectrum_inquiry_pending,
+        em_state_ctrl_bsta_cap_pending,
+        em_state_ctrl_topo_publish_pending
     };
     for (em_state_t state : valid_states) {
         em_sm_t obj;
@@ -214,6 +220,8 @@ TEST(em_sm_t_Test, ValidateValidStates) {
     std::cout << "Entering ValidateValidStates test" << std::endl;
     em_state_t valid_states[] = {
         em_state_agent_unconfigured,
+        em_state_agent_1905_unconfigured,
+        em_state_agent_1905_securing,
         em_state_agent_autoconfig_rsp_pending,
         em_state_agent_wsc_m2_pending,
         em_state_agent_owconfig_pending,
@@ -232,12 +240,14 @@ TEST(em_sm_t_Test, ValidateValidStates) {
         em_state_agent_sta_link_metrics_pending,
         em_state_agent_steer_btm_res_pending,
         em_state_agent_beacon_report_pending,
-        em_state_agent_ap_metrics_pending,
+        em_state_agent_link_quality_report_pending,
         em_state_ctrl_unconfigured,
         em_state_ctrl_wsc_m1_pending,
         em_state_ctrl_wsc_m2_sent,
         em_state_ctrl_topo_sync_pending,
         em_state_ctrl_topo_synchronized,
+        em_state_ctrl_ap_cap_query_pending,
+        em_state_ctrl_ap_cap_report_received,
         em_state_ctrl_channel_query_pending,
         em_state_ctrl_channel_pref_report_pending,
         em_state_ctrl_channel_queried,
@@ -259,7 +269,9 @@ TEST(em_sm_t_Test, ValidateValidStates) {
         em_state_ctrl_ap_mld_configured,
         em_state_ctrl_bsta_mld_config_pending,
         em_state_ctrl_ap_mld_req_ack_rcvd,
-        em_state_ctrl_avail_spectrum_inquiry_pending
+        em_state_ctrl_avail_spectrum_inquiry_pending,
+        em_state_ctrl_bsta_cap_pending,
+        em_state_ctrl_topo_publish_pending
     };
 
     for (em_state_t state : valid_states) {

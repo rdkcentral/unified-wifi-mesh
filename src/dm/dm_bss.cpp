@@ -494,6 +494,7 @@ dm_bss_t::dm_bss_t(const dm_bss_t& bss)
 }
 
 dm_bss_t::dm_bss_t()
+    : m_bss_info{}
 {
 
 }

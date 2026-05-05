@@ -94,6 +94,7 @@ dm_bsta_mld_t::dm_bsta_mld_t(const dm_bsta_mld_t& bsta_mld)
 }
 
 dm_bsta_mld_t::dm_bsta_mld_t()
+    : m_bsta_mld_info{}
 {
 
 }

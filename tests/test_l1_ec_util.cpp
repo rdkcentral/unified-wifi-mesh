@@ -1272,7 +1272,13 @@ TEST(EcUtilTest, UnwrapWrappedAttrib_Positive)
     memcpy(attr->data, ctr, AES_BLOCK_SIZE);
     memcpy(attr->data + AES_BLOCK_SIZE, cipher, wrapped_len);
     uint8_t frame_attribs[1] = {0x00};
-    auto result = ec_util::unwrap_wrapped_attrib(*reinterpret_cast<ec_attribute_t*>(attr), frame_attribs, false, key);
+    ec_attribute_t host_attr = {
+        .attr_id = SWAP_LITTLE_ENDIAN(attr->attr_id),
+        .length  = SWAP_LITTLE_ENDIAN(attr->length),
+        .original = attr,
+        .data = attr->data
+    };
+    auto result = ec_util::unwrap_wrapped_attrib(host_attr, frame_attribs, false, key);
     EXPECT_NE(result.first, nullptr);
     EXPECT_EQ(result.second, wrapped_len);
     EXPECT_EQ(memcmp(result.first, plain, plain_len), 0);
@@ -1328,7 +1334,13 @@ TEST(EcUtilTest, UnwrapWrappedAttrib_WrongKey_Negative)
     memcpy(net_attr->data + AES_BLOCK_SIZE, cipher, wrapped_len);
     uint8_t dummy_frame[1] = {0};
     uint8_t dummy_frame_attribs[1] = {0};
-    auto result = ec_util::unwrap_wrapped_attrib(*reinterpret_cast<ec_attribute_t*>(net_attr), dummy_frame, sizeof(dummy_frame), dummy_frame_attribs, false, bad_key);
+    ec_attribute_t host_net_attr = {
+        .attr_id = SWAP_LITTLE_ENDIAN(net_attr->attr_id),
+        .length  = SWAP_LITTLE_ENDIAN(net_attr->length),
+        .original = net_attr,
+        .data = net_attr->data
+    };
+    auto result = ec_util::unwrap_wrapped_attrib(host_net_attr, dummy_frame, sizeof(dummy_frame), dummy_frame_attribs, false, bad_key);
     EXPECT_TRUE(result.first == nullptr || result.second == 0u);
     if (result.first) {
         free(result.first);
