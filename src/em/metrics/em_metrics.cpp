@@ -1091,13 +1091,15 @@ int em_metrics_t::send_ap_metrics_response()
         len += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
 
         //AP Extended Metrics TLV (17.2.61)
-        tlv = reinterpret_cast<em_tlv_t *> (tmp);
-        tlv->type = em_tlv_type_ap_ext_metric;
-        sz = create_ap_ext_metrics_tlv(tlv->value, dm->m_bss[bss_index]);
-        tlv->len =  htons(static_cast<unsigned short> (sz));
+        if (get_profile_type() > em_profile_type_1) {
+            tlv = reinterpret_cast<em_tlv_t *> (tmp);
+            tlv->type = em_tlv_type_ap_ext_metric;
+            sz = create_ap_ext_metrics_tlv(tlv->value, dm->m_bss[bss_index]);
+            tlv->len =  htons(static_cast<unsigned short> (sz));
 
-        tmp += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
-        len += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+            tmp += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+            len += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+        }
 
         //now search if this sta is associated to this
         sta = reinterpret_cast<dm_sta_t *> (hash_map_get_first(dm->m_sta_map));
@@ -1125,23 +1127,27 @@ int em_metrics_t::send_ap_metrics_response()
             len += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
 
             //Associated STA Extended Link Metrics TLV (17.2.62)
-            tlv = reinterpret_cast<em_tlv_t *> (tmp);
-            tlv->type = em_tlv_type_assoc_sta_ext_link_metric;
-            sz = create_assoc_ext_sta_link_metrics_tlv(tlv->value, sta->m_sta_info.id, sta);
-            tlv->len =  htons(static_cast<unsigned short> (sz));
+            if (get_profile_type() > em_profile_type_1) {
+                tlv = reinterpret_cast<em_tlv_t *> (tmp);
+                tlv->type = em_tlv_type_assoc_sta_ext_link_metric;
+                sz = create_assoc_ext_sta_link_metrics_tlv(tlv->value, sta->m_sta_info.id, sta);
+                tlv->len =  htons(static_cast<unsigned short> (sz));
 
-            tmp += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
-            len += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+                tmp += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+                len += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+            }
 
             //Associated Wi-Fi 6 STA Status Report TLV (17.2.73)
             //Profile-3 msg, hence failing even though optional
-            tlv = reinterpret_cast<em_tlv_t *> (tmp);
-            tlv->type = em_tlv_type_assoc_wifi6_sta_rprt;
-            sz = create_assoc_wifi6_sta_sta_report_tlv(tlv->value, sta);
-            tlv->len =  htons(static_cast<unsigned short> (sz));
+            if (get_profile_type() > em_profile_type_2) {
+                tlv = reinterpret_cast<em_tlv_t *> (tmp);
+                tlv->type = em_tlv_type_assoc_wifi6_sta_rprt;
+                sz = create_assoc_wifi6_sta_sta_report_tlv(tlv->value, sta);
+                tlv->len =  htons(static_cast<unsigned short> (sz));
 
-            tmp += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
-            len += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+                tmp += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+                len += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+            }
 
             //assoc vendor link metrics
             tlv = reinterpret_cast<em_tlv_t *> (tmp);
@@ -1158,17 +1164,19 @@ int em_metrics_t::send_ap_metrics_response()
 
     for (int i = 0; i < get_current_cmd()->get_param()->u.ap_metrics_params.num_radios; i++) {
         //Radio Metrics TLV (17.2.60)
-        tlv = reinterpret_cast<em_tlv_t *> (tmp);
-        tlv->type = em_tlv_type_radio_metric;
-        sz = create_radio_metrics_tlv(tlv->value, i);
-        if (sz == 0) {
-            em_printfout("create_radio_metrics_tlv size equals to zero\n");
-            continue;
-        }
-        tlv->len =  htons(static_cast<unsigned short> (sz));
+        if (get_profile_type() > em_profile_type_1) {
+            tlv = reinterpret_cast<em_tlv_t *> (tmp);
+            tlv->type = em_tlv_type_radio_metric;
+            sz = create_radio_metrics_tlv(tlv->value, i);
+            if (sz == 0) {
+                em_printfout("create_radio_metrics_tlv size equals to zero\n");
+                continue;
+            }
+            tlv->len =  htons(static_cast<unsigned short> (sz));
 
-        tmp += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
-        len += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+            tmp += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+            len += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+        }
     }
 
     // End of message
@@ -1179,7 +1187,7 @@ int em_metrics_t::send_ap_metrics_response()
     tmp += (sizeof(em_tlv_t));
     len += (sizeof(em_tlv_t));
 
-    if (em_msg_t(em_msg_type_ap_metrics_rsp, em_profile_type_2, buff, static_cast<unsigned int> (len)).validate(errors) == 0) {
+    if (em_msg_t(em_msg_type_ap_metrics_rsp, get_profile_type(), buff, static_cast<unsigned int> (len)).validate(errors) == 0) {
         em_printfout("AP Metrics Response validation failed for agent:%s, still sending",
             util::mac_to_string(dm->get_agent_al_interface_mac()).c_str());
         //return -1;
