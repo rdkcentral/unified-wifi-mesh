@@ -161,6 +161,14 @@ int em_capability_t::send_ap_cap_report_msg(unsigned char *dst, unsigned short m
         tmp += (sizeof(em_tlv_t) + sz);
         len += static_cast<unsigned int>(sizeof(em_tlv_t) + sz);
 
+        // Airties Radio Capability TLV
+        tlv = reinterpret_cast<em_tlv_t *>(tmp);
+        tlv->type = em_tlv_type_vendor_specific;
+        sz = static_cast<unsigned short>(em->create_airties_radio_capability_tlv(tlv->value));
+        tlv->len = htons(static_cast<uint16_t>(sz));
+        tmp += (sizeof(em_tlv_t) + static_cast<short unsigned int>(sz));
+        len += (sizeof(em_tlv_t) + static_cast<short unsigned int>(sz));
+
         em->set_state(em_state_agent_ap_cap_report);
     }
     em_radios.clear();
@@ -1181,6 +1189,21 @@ int em_capability_t::handle_eht_operations_tlv(unsigned char *buff)
     return 0;
 }
 
+
+static wifi_ieee80211Variant_t airties_standards_to_variant(uint16_t std) {
+
+    wifi_ieee80211Variant_t variant = static_cast<wifi_ieee80211Variant_t>(0);
+    if (std & (1 << 15)) variant = static_cast<wifi_ieee80211Variant_t>(variant | WIFI_80211_VARIANT_A);
+    if (std & (1 << 14)) variant = static_cast<wifi_ieee80211Variant_t>(variant | WIFI_80211_VARIANT_B);
+    if (std & (1 << 13)) variant = static_cast<wifi_ieee80211Variant_t>(variant | WIFI_80211_VARIANT_G);
+    if (std & (1 << 12)) variant = static_cast<wifi_ieee80211Variant_t>(variant | WIFI_80211_VARIANT_N);
+    if (std & (1 << 11)) variant = static_cast<wifi_ieee80211Variant_t>(variant | WIFI_80211_VARIANT_AC);
+    if (std & (1 << 10)) variant = static_cast<wifi_ieee80211Variant_t>(variant | WIFI_80211_VARIANT_AX);
+    if (std & (1 <<  9)) variant = static_cast<wifi_ieee80211Variant_t>(variant | WIFI_80211_VARIANT_BE);
+    if (std & (1 <<  8)) variant = static_cast<wifi_ieee80211Variant_t>(variant | WIFI_80211_VARIANT_BN);
+    return variant;
+}
+
 int em_capability_t::handle_ap_cap_report(unsigned char *buff, unsigned int len)
 {
     em_cmdu_t *cmdu = reinterpret_cast<em_cmdu_t *> (buff + sizeof(em_raw_hdr_t));
@@ -1375,8 +1398,45 @@ int em_capability_t::handle_ap_cap_report(unsigned char *buff, unsigned int len)
 
                 adv += sizeof(em_ap_radio_advanced_cap_t);
             }
-        }
+        } else if (tlv->type == em_tlv_type_vendor_specific) {
+            em_vendor_specific_v_t *vendor_tlv = reinterpret_cast<em_vendor_specific_v_t *> (tlv->value);
+            uint16_t value_len = ntohs(tlv->len);
+            dm_easy_mesh_t  *dm;
+            dm = get_data_model();
 
+            if (memcmp(vendor_tlv->vendor_oui, airties_vendor_oui, sizeof(airties_vendor_oui)) == 0) {
+                uint16_t tlv_id;
+                memcpy(&tlv_id, vendor_tlv->data, sizeof(tlv_id));
+                tlv_id = ntohs(tlv_id);
+                if (tlv_id == em_tlv_type_radio_capability) {
+                    if (value_len < sizeof(em_radio_capability_vendor_t) + sizeof(tlv_id) + sizeof(em_vendor_specific_v_t)) {
+                        em_printfout("Invalid TLV length for em_radio_capability_vendor_t");
+                        return -1;
+                    }
+                    em_printfout("Received Radio Capability TLV");
+                    em_radio_capability_vendor_t radio_capability;
+                    memcpy(&radio_capability, vendor_tlv->data + sizeof(tlv_id), sizeof(em_radio_capability_vendor_t));
+                    mac_address_t mac;
+                    memcpy(mac, radio_capability.interface_mac, sizeof(mac_address_t));
+                    uint16_t supported_standards;
+                    memcpy(&supported_standards,
+                           radio_capability.supported_standards,
+                           sizeof(supported_standards));
+                    supported_standards = ntohs(supported_standards);
+
+                    dm_radio_cap_t *radio_cap = dm->get_radio_cap(mac);
+                    if (radio_cap) {
+                        em_radio_cap_info_t *cap_info = radio_cap->get_radio_cap_info();
+                        if (cap_info) {
+                            cap_info->mode = airties_standards_to_variant(supported_standards);
+                        }
+                    }
+                    em_printfout("Parsed Radio Capability TLV - MAC:%s standards:0x%04x",
+                                 util::mac_to_string(mac).c_str(),
+                                 supported_standards);
+                }
+            }
+        }
         tmp_len -= static_cast<unsigned int> (sizeof(em_tlv_t) + htons(tlv->len));
         tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
     }
