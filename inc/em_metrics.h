@@ -190,6 +190,7 @@ class em_metrics_t {
 	 * of an associated station.
 	 *
 	 * @param[in] buff Pointer to the buffer containing the TLV data.
+	 * @param[in] tlv_len Length of the TLV value field.
 	 *
 	 * @returns int Status code indicating success or failure of the operation.
 	 * @retval 0 on success.
@@ -197,8 +198,12 @@ class em_metrics_t {
 	 *
 	 * @note Ensure that the buffer is properly allocated and contains valid TLV data
 	 * before calling this function.
+	 * @note The TLV length must strictly follow: (7 + k × 19), where
+	 * 7 bytes = STA MAC (6) + number of BSSIDs (1),
+	 * and 19 bytes per BSSID metrics entry.
+	 * Invalid or partial TLVs are rejected to prevent out-of-bounds access.
 	 */
-	int handle_assoc_sta_link_metrics_tlv(unsigned char *buff);
+	int handle_assoc_sta_link_metrics_tlv(unsigned char *buff, unsigned int tlv_len);
     
 	/**!
 	 * @brief Handles the association of station external link metrics TLV.
