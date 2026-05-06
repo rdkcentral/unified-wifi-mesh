@@ -1844,97 +1844,6 @@ int em_configuration_t::handle_ap_mld_config_tlv(unsigned char *buff, unsigned i
     return 0;
 }
 
-int em_configuration_t::handle_eht_operations_tlv(unsigned char *buff)
-{
-    short len = 0;
-    unsigned int i = 0, j = 0, k = 0, l = 0;
-    unsigned char *tmp = buff;
-
-    unsigned char num_radios;
-    unsigned char num_bss = 0;
-
-    em_eht_operations_t eht_ops;
-
-    dm_easy_mesh_t *dm;
-
-    dm = get_data_model();
-
-    // 32 octets are reserved for future use, so skip 32 octets
-    short reserved_octets = 32;
-    tmp += reserved_octets;
-    len += reserved_octets;
-
-    memcpy(&num_radios, tmp, sizeof(unsigned char));
-    
-    if (num_radios > EM_MAX_RADIO_PER_AGENT) {
-        em_printfout("Invalid num_radios=%d, max allowed=%d", num_radios, EM_MAX_RADIO_PER_AGENT);
-        return -1;
-    }
-    
-    eht_ops.radios_num = num_radios;
-    tmp += sizeof(unsigned char);
-    len += static_cast<short> (sizeof(unsigned char));
-
-    for (i = 0; i < num_radios; i++) {
-        memcpy(&eht_ops.radios[i].ruid, tmp, sizeof(mac_address_t));
-        tmp += sizeof(mac_address_t);
-        len += static_cast<short> (sizeof(mac_address_t));
-
-        memcpy(&num_bss, tmp, sizeof(unsigned char));
-        
-        if (num_bss > EM_MAX_BSS_PER_RADIO) {
-            em_printfout("Invalid num_bss=%d for radio %d, max allowed=%d", num_bss, i, EM_MAX_BSS_PER_RADIO);
-            return -1;
-        }
-        
-        eht_ops.radios[i].bss_num = num_bss;
-        tmp += sizeof(unsigned char);
-        len += static_cast<short> (sizeof(unsigned char));
-
-        for(j = 0; j < num_bss; j++) {
-            memcpy(&eht_ops.radios[i].bss[j], tmp, sizeof(em_eht_operations_bss_t));
-            tmp += sizeof(em_eht_operations_bss_t);
-            len += static_cast<short> (sizeof(em_eht_operations_bss_t));
-        }
-        // 25 octets are reserved for future use in radio, so skip 25 octets
-        short radio_reserved_octets = 25;
-        tmp += radio_reserved_octets;
-        len += radio_reserved_octets;
-    }
-
-    bool found_radio = false;
-    bool found_bss = false;
-    for (i = 0; i < eht_ops.radios_num; i++) {
-        for (j = 0; j < dm->get_num_radios(); j++) {
-            if (memcmp(eht_ops.radios[i].ruid, dm->m_radio[j].m_radio_info.id.dev_mac, sizeof(mac_address_t)) == 0) {
-                found_radio = true;
-                break;
-            }
-            if (found_radio == false) {
-                // do not update anything and retrun error
-                return -1;
-            }
-        }
-        found_radio = false;
-
-        for(k = 0; k < eht_ops.radios[i].bss_num; k++) {
-            for(l = 0; l < dm->get_num_bss(); l++) {
-                if (memcmp(eht_ops.radios[i].bss[k].bssid, dm->m_bss[l].m_bss_info.bssid.mac, sizeof(mac_address_t)) == 0) {
-                    found_bss = true;
-                    break;
-                }
-                if (found_bss == false) {
-                    // do not update anything and retrun error
-                    return -1;
-                }
-            }
-            found_bss = false;
-            memcpy(&dm->m_bss[l].get_bss_info()->eht_ops, &eht_ops.radios[i].bss[k], sizeof(em_eht_operations_bss_t));
-        }
-    }
-    return 0;
-}
-
 int em_configuration_t::handle_ap_mld_config_req(unsigned char *buff, unsigned int len)
 {
     em_tlv_t    *tlv;
@@ -1949,7 +1858,7 @@ int em_configuration_t::handle_ap_mld_config_req(unsigned char *buff, unsigned i
             handle_ap_mld_config_tlv(tlv->value, sizeof(em_ap_mld_config_t));
         }
         if (tlv->type == em_tlv_eht_operations) {
-            handle_eht_operations_tlv(tlv->value);
+            handle_eht_operations_tlv(tlv->value, htons(tlv->len));
             break;
         }
 
@@ -2773,8 +2682,16 @@ int em_configuration_t::create_bss_config_req_msg(uint8_t *buff, uint8_t dest_al
     // tmp = em_msg_t::add_tlv(tmp, &len, em_tlv_type_ap_wifi6_cap, tlv_buff, static_cast<unsigned int> (tlv_size));
 
     //  One AP Radio Advanced Capabilities TLV for each of the supported radios of the Multi-AP Agent
-    tlv_size = create_ap_radio_advanced_cap_tlv(tlv_buff); // Data
-    tmp = em_msg_t::add_tlv(tmp, &len, em_tlv_type_ap_radio_advanced_cap, tlv_buff, static_cast<unsigned int> (tlv_size));
+    std::vector<em_t *> em_radios;
+    get_mgr()->get_all_em_for_al_mac(get_al_interface_mac(), em_radios);
+    for (auto &em_radio : em_radios) {
+        memset(tlv_buff, 0, sizeof(tlv_buff));
+        tlv_size = em_radio->create_ap_radio_advanced_cap_tlv(tlv_buff);
+        if (tlv_size > 0) {
+            tmp = em_msg_t::add_tlv(tmp, &len, em_tlv_type_ap_radio_advanced_cap, tlv_buff, static_cast<unsigned int>(tlv_size));
+        }
+    }
+    em_radios.clear();
 
     //  If the Agent supports EHT (Wi-Fi 7) operation, one Wi-Fi 7 Agent Capabilities TLV.
     // tlv_size = create_wifi7_tlv(tlv_buff); // Data
@@ -4089,7 +4006,7 @@ int em_configuration_t::handle_bss_config_req_msg(uint8_t *buff, unsigned int le
                 break;
             case em_tlv_eht_operations:
                 em_printfout("Processing EHT Operations TLV");
-                handle_eht_operations_tlv(tlv->value);
+                handle_eht_operations_tlv(tlv->value, htons(tlv->len));
                 break;
             default:
                 em_printfout("Unknown TLV type %d in BSS Configuration Request message", tlv->type);
@@ -4459,7 +4376,7 @@ int em_configuration_t::handle_bss_config_rsp_msg(uint8_t *buff, unsigned int le
                 handle_bsta_mld_config_req(tlv->value, htons(tlv->len));
                 break;
             case em_tlv_eht_operations:
-                handle_eht_operations_tlv(tlv->value);
+                handle_eht_operations_tlv(tlv->value, htons(tlv->len));
                 break;
             default:
                 em_printfout("Unknown TLV type %d in BSS Configuration Response message", tlv->type);
@@ -4620,7 +4537,7 @@ int em_configuration_t::handle_bss_config_res_msg(uint8_t *buff, unsigned int le
                 // Not handled by UWM right now?
                 break;
             case em_tlv_eht_operations:
-                handle_eht_operations_tlv(tlv->value);
+                handle_eht_operations_tlv(tlv->value, htons(tlv->len));
                 break;
             default:
                 em_printfout("Unknown TLV type %d in BSS Configuration Result message", tlv->type);

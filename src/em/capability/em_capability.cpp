@@ -143,7 +143,7 @@ int em_capability_t::send_ap_cap_report_msg(unsigned char *dst, unsigned short m
         tlv->len = htons(static_cast<uint16_t>(sz));
         tmp += (sizeof(em_tlv_t) + static_cast<short unsigned int>(sz));
         len += (sizeof(em_tlv_t) + static_cast<short unsigned int>(sz));
-#if 1
+
         // AP HE capabilities 17.2.10
         tlv = reinterpret_cast<em_tlv_t *>(tmp);
         tlv->type = em_tlv_type_he_cap;
@@ -152,20 +152,29 @@ int em_capability_t::send_ap_cap_report_msg(unsigned char *dst, unsigned short m
 
         tmp += (sizeof(em_tlv_t) + static_cast<short unsigned int>(sz));
         len += (sizeof(em_tlv_t) + static_cast<short unsigned int>(sz));
-#endif
+
         // AP WiFi6 capabilities 17.2.72
         tlv = reinterpret_cast<em_tlv_t *>(tmp);
         tlv->type = em_tlv_type_ap_wifi6_cap;
         sz = static_cast<unsigned short>(em->create_wifi6_tlv(tlv->value));
         tlv->len = htons(static_cast<uint16_t>(sz));
-        tmp += (sizeof(em_tlv_t) + sz);
-        len += static_cast<unsigned int>(sizeof(em_tlv_t) + sz);
+        tmp += (sizeof(em_tlv_t) + static_cast<size_t>(sz));
+        len += static_cast<unsigned int>(sizeof(em_tlv_t) + static_cast<size_t>(sz));
+
+        // AP radio advanced capability tlv 17.2.52
+        sz = static_cast<unsigned short>(em->create_ap_radio_advanced_cap_tlv(tmp + sizeof(em_tlv_t)));
+        if (sz > 0) {
+            tlv = reinterpret_cast<em_tlv_t *>(tmp);
+            tlv->type = em_tlv_type_ap_radio_advanced_cap;
+            tlv->len = htons(static_cast<uint16_t>(sz));
+            tmp += (sizeof(em_tlv_t) + static_cast<size_t>(sz));
+            len += (sizeof(em_tlv_t) + static_cast<size_t>(sz));
+        }
 
         em->set_state(em_state_agent_ap_cap_report);
     }
     em_radios.clear();
 
-#if 0
     // AP Channel Scan capabilities 17.2.38
     tlv = reinterpret_cast<em_tlv_t *>(tmp);
     tlv->type = em_tlv_type_channel_scan_cap;
@@ -217,19 +226,10 @@ int em_capability_t::send_ap_cap_report_msg(unsigned char *dst, unsigned short m
     // AP EHT Operations 17.2.103
     tlv = reinterpret_cast<em_tlv_t *>(tmp);
     tlv->type = em_tlv_eht_operations;
-    sz = static_cast<unsigned short>(em->create_eht_operations_tlv(tlv->value));
+    sz = static_cast<unsigned short>(create_eht_operations_tlv(tlv->value));
     tlv->len = htons(static_cast<uint16_t>(sz));
     tmp += (sizeof(em_tlv_t) + static_cast<short unsigned int>(sz));
     len += (sizeof(em_tlv_t) + static_cast<short unsigned int>(sz));
-
-    // One AP radio advanced capability tlv 17.2.52
-    tlv = reinterpret_cast<em_tlv_t *>(tmp);
-    tlv->type = em_tlv_type_ap_radio_advanced_cap;
-    sz = static_cast<unsigned short>(em->create_radioad_tlv(tlv->value));
-    tlv->len = htons(static_cast<uint16_t>(sz));
-    tmp += (sizeof(em_tlv_t) + static_cast<size_t>(sz));
-    len += (sizeof(em_tlv_t) + static_cast<size_t>(sz));
-#endif
 
     // End of message
     tlv = reinterpret_cast<em_tlv_t *> (tmp);
@@ -1090,94 +1090,115 @@ int em_capability_t::handle_ap_radio_basic_cap(unsigned char *buff, unsigned int
 	return 0;
 }
 
-int em_capability_t::handle_eht_operations_tlv(unsigned char *buff)
+int em_capability_t::handle_channel_scan_cap_tlv(unsigned char *buff, unsigned int len)
 {
-    short len = 0;
-    unsigned int i = 0, j = 0, k = 0, l = 0;
-    unsigned char *tmp = buff;
-    unsigned char num_radios;
-    unsigned char num_bss = 0;
-    em_eht_operations_t eht_ops;
-    dm_easy_mesh_t *dm;
+    dm_easy_mesh_t *dm = get_data_model();
+    const unsigned char *tmp = buff;
+    unsigned int sz = 0;
 
-    dm = get_data_model();
-
-    // 32 octets are reserved for future use, so skip 32 octets
-    short reserved_octets = 32;
-    tmp += reserved_octets;
-    len += reserved_octets;
-
-    memcpy(&num_radios, tmp, sizeof(unsigned char));
-    
-    if (num_radios > EM_MAX_RADIO_PER_AGENT) {
-        em_printfout("Invalid num_radios=%d, max allowed=%d", num_radios, EM_MAX_RADIO_PER_AGENT);
+    if (len < 1) {
+        em_printfout("Channel scan cap TLV too short");
         return -1;
     }
-    
-    eht_ops.radios_num = num_radios;
-    tmp += sizeof(unsigned char);
-    len += static_cast<short> (sizeof(unsigned char));
 
-    for (i = 0; i < num_radios; i++) {
-        memcpy(&eht_ops.radios[i].ruid, tmp, sizeof(mac_address_t));
-        tmp += sizeof(mac_address_t);
-        len += static_cast<short> (sizeof(mac_address_t));
+    unsigned char num_radios_in_tlv = *tmp++;
+    sz++;
+    em_printfout("Channel scan cap TLV: num_radios=%d", num_radios_in_tlv);
 
-        memcpy(&num_bss, tmp, sizeof(unsigned char));
-        
-        if (num_bss > EM_MAX_BSS_PER_RADIO) {
-            em_printfout("Invalid num_bss=%d for radio %d, max allowed=%d", num_bss, i, EM_MAX_BSS_PER_RADIO);
+    // Fixed part of em_channel_scan_cap_radio_t that create_channelscan_tlv advances over.
+    static const size_t radio_hdr_sz = sizeof(em_channel_scan_cap_radio_t)
+                                       - sizeof(static_cast<em_channel_scan_cap_radio_t *>(nullptr)->op_classes);
+
+    for (unsigned char i = 0; i < num_radios_in_tlv; i++) {
+        if (sz + radio_hdr_sz > len) {
+            em_printfout("Channel scan cap TLV truncated at radio[%d] header (sz=%u, len=%u)", i, sz, len);
             return -1;
         }
-        
-        eht_ops.radios[i].bss_num = num_bss;
-        tmp += sizeof(unsigned char);
-        len += static_cast<short> (sizeof(unsigned char));
 
-        for(j = 0; j < num_bss; j++) {
-            memcpy(&eht_ops.radios[i].bss[j], tmp, sizeof(em_eht_operations_bss_t));
-            tmp += sizeof(em_eht_operations_bss_t);
-            len += static_cast<short> (sizeof(em_eht_operations_bss_t));
-        }
-        // 25 octets are reserved for future use in radio, so skip 25 octets
-        short radio_reserved_octets = 25;
-        tmp += radio_reserved_octets;
-        len += radio_reserved_octets;
-    }
+        const em_channel_scan_cap_radio_t *src =
+            reinterpret_cast<const em_channel_scan_cap_radio_t *>(tmp);
 
-    bool found_radio = false;
-    bool found_bss = false;
-    for (i = 0; i < eht_ops.radios_num; i++) {
-        for (j = 0; j < dm->get_num_radios(); j++) {
-            if (memcmp(eht_ops.radios[i].ruid, dm->m_radio[j].m_radio_info.id.dev_mac, sizeof(mac_address_t)) == 0) {
-                found_radio = true;
-                break;
-            }
-        }
-        if (found_radio == false) {
-            em_printfout("Radio with RUID %s not found in data model",
-                util::mac_to_string(eht_ops.radios[i].ruid).c_str());
-            return -1;
-        }
-        found_radio = false;
+        unsigned char num_op_classes = src->op_classes_num;
 
-        for(k = 0; k < eht_ops.radios[i].bss_num; k++) {
-            for(l = 0; l < dm->get_num_bss(); l++) {
-                if (memcmp(eht_ops.radios[i].bss[k].bssid, dm->m_bss[l].m_bss_info.bssid.mac, sizeof(mac_address_t)) == 0) {
-                    found_bss = true;
-                    break;
+        em_printfout("  Radio[%d] RUID=%s boot_only=%d scan_impact=%d "
+                     "min_scan_interval=%u num_op_classes=%d",
+            i, util::mac_to_string(src->ruid).c_str(),
+            src->boot_only, src->scan_impact, ntohl(src->min_scan_interval), num_op_classes);
+
+        tmp += radio_hdr_sz;
+        sz += static_cast<unsigned int>(radio_hdr_sz);
+
+        mac_address_t ruid;
+        memcpy(ruid, src->ruid, sizeof(mac_address_t));
+
+        dm_radio_cap_t *radio_cap = dm->get_radio_cap(ruid);
+        if (radio_cap == NULL) {
+            em_printfout("  Radio[%d]: no DM radio_cap for RUID %s, skipping",
+                i, util::mac_to_string(src->ruid).c_str());
+            // Skip all op class entries for this radio
+            for (unsigned char oi = 0; oi < num_op_classes; oi++) {
+                if (sz + 2 > len) {
+                    em_printfout("Channel scan cap TLV truncated skipping op_class");
+                    return -1;
                 }
+                tmp++;                   // op_class
+                unsigned char nc = *tmp++;
+                sz += 2;
+                if (sz + nc > len) {
+                    em_printfout("Channel scan cap TLV truncated at channel list");
+                    return -1;
+                }
+                tmp += nc;               // channel list
+                sz += nc;
             }
-            if (found_bss == false) {
-                em_printfout("BSS with BSSID %s not found in data model",
-                    util::mac_to_string(eht_ops.radios[i].bss[k].bssid).c_str());
+            continue;
+        }
+
+        em_radio_cap_info_t *cap_info = radio_cap->get_radio_cap_info();
+        if (cap_info == NULL) {
+            em_printfout("  Radio[%d]: cap_info NULL", i);
+            continue;
+        }
+
+        // Populate ch_scan to match the fields create_channelscan_tlv reads back out
+        memcpy(cap_info->ch_scan.ruid, ruid, sizeof(mac_address_t));
+        cap_info->ch_scan.boot_only         = src->boot_only;
+        cap_info->ch_scan.scan_impact       = src->scan_impact;
+        cap_info->ch_scan.reserved          = 0;
+        cap_info->ch_scan.min_scan_interval = ntohl(src->min_scan_interval);
+        cap_info->ch_scan.op_classes_num    = 0;
+
+        for (unsigned char oi = 0; oi < num_op_classes; oi++) {
+            if (sz + 2 > len) {
+                em_printfout("Channel scan cap TLV truncated at op_class[%d]", oi);
                 return -1;
             }
-            found_bss = false;
-            memcpy(&dm->m_bss[l].get_bss_info()->eht_ops, &eht_ops.radios[i].bss[k], sizeof(em_eht_operations_bss_t));
-        }
-    }
+            unsigned char op_class = *tmp++;
+            unsigned char num_chan  = *tmp++;
+            sz += 2;
 
+            em_printfout("    op_class[%d]: op_class=%d num_chan=%d", oi, op_class, num_chan);
+
+            if (sz + num_chan > len) {
+                em_printfout("Channel scan cap TLV truncated at channel list");
+                return -1;
+            }
+
+            if (oi < EM_MAX_OPCLASS) {
+                em_scan_cap_op_class_info_t *entry = &cap_info->ch_scan.op_classes[oi];
+                entry->op_class = op_class;
+                memset(entry->channels.channel, 0, EM_MAX_CHANNELS_IN_LIST);
+                unsigned char copy_n = (num_chan <= EM_MAX_CHANNELS_IN_LIST)
+                                       ? num_chan : EM_MAX_CHANNELS_IN_LIST;
+                entry->num      = copy_n;
+                memcpy(entry->channels.channel, tmp, copy_n);
+                cap_info->ch_scan.op_classes_num++;
+            }
+            tmp += num_chan;
+            sz += num_chan;
+        }
+        em_printfout("  Radio[%d]: stored %d op classes", i, cap_info->ch_scan.op_classes_num);
+    }
     return 0;
 }
 
@@ -1299,19 +1320,11 @@ int em_capability_t::handle_ap_cap_report(unsigned char *buff, unsigned int len)
             handle_wifi7_agent_cap_tlv(tlv->value);
         }
         else if (tlv->type == em_tlv_eht_operations){
-            handle_eht_operations_tlv(tlv->value);
+            handle_eht_operations_tlv(tlv->value, ntohs(tlv->len));
         }
         else if (tlv->type == em_tlv_type_channel_scan_cap){
-            em_channel_scan_cap_radio_t *scan = reinterpret_cast<em_channel_scan_cap_radio_t *>(tlv->value);
-            dm_radio_cap_t *radio_cap = dm->get_radio_cap(scan->ruid);
-            if (radio_cap != NULL){
-                em_radio_cap_info_t *cap_info = radio_cap->get_radio_cap_info();
-                if ((scan == NULL) && (cap_info == NULL)){
-                    em_printfout("No data Found");
-                    return 0;
-                }
-                memcpy(&cap_info->ch_scan, scan, sizeof(em_channel_scan_cap_radio_t));
-            }
+            em_printfout("Received Channel Scan Capabilities TLV (0xA5)");
+            handle_channel_scan_cap_tlv(tlv->value, ntohs(tlv->len));
         }
         else if (tlv->type == em_tlv_type_1905_layer_security_cap){
         }
