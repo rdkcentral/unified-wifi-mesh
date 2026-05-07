@@ -210,7 +210,14 @@ class em_agent_t : public em_mgr_t {
 	 * @param event The event containing the `rdk_sta_data_t` info which includes the association status along with other information
 	 */
 	void handle_recv_assoc_status(em_bus_event_t *event);
-    
+
+	/**
+	 * @brief Handles the reception of connection status event of a STA
+	 *
+	 * @param event The event containing the `em_connection_status_evt_data_t` payload
+	 */
+	void handle_recv_connection_status(em_bus_event_t *event);
+
 	/**!
 	 * @brief Handles the BTM response action frame.
 	 *
@@ -292,6 +299,67 @@ class em_agent_t : public em_mgr_t {
 
 	void handle_link_stats_report(em_bus_event_t *evt);
 
+       /**!
+        * @brief Handles an Unassociated STA Link Metrics Query event.
+        *
+        * This function processes the Unassociated STA Link Metrics Query
+        * received from the controller, parses the requested operating
+        * classes, channels and STA MAC addresses, and triggers the
+        * agent-side measurement workflow.
+        *
+        * @param[in] evt Pointer to the event structure containing the
+        *                Unassociated STA Query payload.
+        */
+       void handle_unassoc_sta_link_metrics_qry(em_bus_event_t *evt);
+
+       /**!
+        * @brief Handles the Unassociated STA Link Metrics Result event.
+        *
+        * This function processes the collected Unassociated STA RCPI
+        * measurements and prepares them for transmission back to the
+        * controller in one or more Unassociated STA Link Metrics
+        * Response messages.
+        *
+        * @param[in] evt Pointer to the event structure containing the
+        *                Unassociated STA Metrics result payload.
+        */
+       void handle_unassoc_sta_result(em_bus_event_t *evt);
+
+       /**!
+        * @brief Sends the Unassociated STA Query subdocument.
+        *
+        * This function constructs and publishes the Unassociated STA
+        * Query subdocument to the OneWiFi subsystem for RCPI measurement
+        * collection on the requested operating classes and channels.
+        *
+        * @param[in] desc Pointer to the WiFi bus descriptor.
+        * @param[in] bus_hdl Pointer to the bus handle used for communication.
+        * @param[in] work Pointer to the internal work list containing
+        *                 opclass, channel and STA information.
+        *
+        * @returns int Status code indicating success or failure.
+        * @retval 0 on success.
+        * @retval Non-zero error code on failure.
+        */
+       int send_unassoc_sta_query_subdoc(wifi_bus_desc_t *desc, bus_handle_t *bus_hdl, em_unassoc_work_list_t *work);
+
+       /**!
+        * @brief Callback invoked on receiving Unassociated STA Link Metrics results.
+        *
+        * This callback processes asynchronous Unassociated STA RCPI
+        * measurement results received from the OneWiFi subsystem and
+        * forwards them into the EasyMesh agent processing pipeline.
+        *
+        * @param[in] event_name Name of the event triggering the callback.
+        * @param[in] data Pointer to the raw event payload.
+        * @param[in] userData Pointer to user-specific callback context.
+        *
+        * @returns int Status code indicating success or failure.
+        * @retval 0 on success.
+        * @retval Non-zero error code on failure.
+        */
+       static int unassoc_sta_link_metrics_cb(char *event_name, bus_data_prop_t  *data, void *userData);
+
 	/**
 	 * @brief Send an action frame
 	 *
@@ -308,6 +376,7 @@ class em_agent_t : public em_mgr_t {
 	 */
 	bool send_action_frame(uint8_t dest_mac[ETH_ALEN], uint8_t *action_frame, size_t action_frame_len, uint8_t vap_idx, unsigned int frequency=0, unsigned int wait_time_ms=0);
 
+	void send_beacon_query(em_bus_event_t *evt);
 public:
 
     bus_handle_t m_bus_hdl;
@@ -880,7 +949,7 @@ public:
 	 *
 	 * @note Ensure that the `event_name` and `data` are valid before processing.
 	 */
-	static void sta_cb(char *event_name, raw_data_t *data, void *userData);
+	static void sta_cb(char *event_name, bus_data_prop_t *data, void *userData);
     
 	/**!
 	 * @brief Callback function for handling WiFi events.
@@ -895,7 +964,7 @@ public:
 	 * @note Ensure that the data pointer is valid and properly initialized before
 	 * passing it to this function.
 	 */
-	static void onewifi_cb(char *event_name, raw_data_t *data, void *userData);
+	static void onewifi_cb(char *event_name, bus_data_prop_t *data, void *userData);
     
 	/**!
 	 * @brief Callback function for association statistics.
@@ -912,7 +981,7 @@ public:
 	 *
 	 * @note Ensure that the data pointer is valid before calling this function.
 	 */
-	static int assoc_stats_cb(char *event_name, raw_data_t *data, void *userData);
+	static int assoc_stats_cb(char *event_name, bus_data_prop_t *data, void *userData);
     
 	/**!
 	 * @brief Callback function for management action frames.
@@ -929,7 +998,7 @@ public:
 	 *
 	 * @note Ensure that the data pointer is valid and points to the correct data structure.
 	 */
-	static int mgmt_action_frame_cb(char *event_name, raw_data_t *data, void *userData);
+	static int mgmt_action_frame_cb(char *event_name, bus_data_prop_t *data, void *userData);
 
 	/**!
 	 * @brief Callback function for management csa beacon frames.
@@ -946,7 +1015,7 @@ public:
 	 *
 	 * @note Ensure that the data pointer is valid and points to the correct data structure.
 	 */
-	static int mgmt_csa_beacon_frame_cb(char *event_name, raw_data_t *data, void *userData);
+	static int mgmt_csa_beacon_frame_cb(char *event_name, bus_data_prop_t *data, void *userData);
 
 	/**!
 	 * @brief Callback function for channel scanning.
@@ -963,7 +1032,7 @@ public:
 	 *
 	 * @note Ensure that the event_name and data are valid before processing.
 	 */
-	static int channel_scan_cb(char *event_name, raw_data_t *data, void *userData);
+	static int channel_scan_cb(char *event_name, bus_data_prop_t *data, void *userData);
     
 	/**!
 	 * @brief Callback function for handling beacon reports.
@@ -980,7 +1049,7 @@ public:
 	 *
 	 * @note Ensure that the data pointer is valid before accessing its contents.
 	 */
-	static int beacon_report_cb(char *event_name, raw_data_t *data, void *userData);
+	static int beacon_report_cb(char *event_name, bus_data_prop_t *data, void *userData);
 
 	/**
 	 * @brief Callback for association status event
@@ -990,7 +1059,17 @@ public:
 	 * @param userData Optional user-provided callback data
 	 * @return int 1 on success, otherwise -1
 	 */
-	static int association_status_cb(char *event_name, raw_data_t *data, void *userData);
+	static int association_status_cb(char *event_name, bus_data_prop_t *data, void *userData);
+
+	/**
+	 * @brief Callback for connection-status event
+	 *
+	 * @param event_name The name of the event
+	 * @param data The raw event data
+	 * @param userData Optional user-provided callback data
+	 * @return int 1 on success, otherwise -1
+	 */
+	static int connection_status_cb(char *event_name, bus_data_prop_t *data, void *userData);
 
 	/**
 	 * @brief Callback for BSS scan events
@@ -1000,7 +1079,7 @@ public:
 	 * @param userData Optional user-provided callback data
 	 * @return int 1 on success, otherwise -1
 	 */
-	static int bss_info_cb(char *event_name, raw_data_t *data, void *userData);
+	static int bss_info_cb(char *event_name, bus_data_prop_t *data, void *userData);
 
 	/**!
 	 * @brief Callback function for handling AP Metrics reports.
@@ -1017,7 +1096,7 @@ public:
 	 *
 	 * @note Ensure that the data pointer is valid before accessing its contents.
 	 */
-	static int report_cb(char *event_name, raw_data_t *data, void *userData);
+	static int report_cb(char *event_name, bus_data_prop_t *data, void *userData);
 
 	/**!
 	 * @brief Retrieves the associated data for the given input.

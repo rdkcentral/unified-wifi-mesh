@@ -46,11 +46,20 @@ int dm_device_list_t::get_config(cJSON *obj_arr, void *parent, bool summary)
     em_device_info_t *info;
     char *net_id = static_cast<char *> (parent);
     cJSON *obj;
-	
+    em_interface_t *ctrl_intf = nullptr;
+    dm_easy_mesh_ctrl_t *ctrl_dm = dynamic_cast<dm_easy_mesh_ctrl_t *>(this);
+    if (ctrl_dm != nullptr) {
+        ctrl_intf = ctrl_dm->get_ctrl_al_interface(net_id);
+    }
+
     pdev = get_first_device();
     while (pdev != NULL) {
         info = pdev->get_device_info();
         if (strncmp(info->id.net_id, net_id, strlen(net_id)) == 0) {
+            if (ctrl_intf != nullptr && memcmp(info->id.dev_mac, ctrl_intf->mac, sizeof(mac_address_t)) == 0) {
+                pdev = get_next_device(pdev);
+                continue;
+            }
             obj = cJSON_CreateObject();
 
             pdev->encode(obj, summary);
@@ -245,7 +254,7 @@ bool dm_device_list_t::search_db(db_client_t& db_client, void *ctx, void *key)
 
 int dm_device_list_t::sync_db(db_client_t& db_client, void *ctx)
 {
-    em_device_info_t info;
+    em_device_info_t info = {};
     mac_addr_str_t	mac;
     em_long_string_t   str;
     int rc = 0;
@@ -302,7 +311,7 @@ int dm_device_list_t::sync_db(db_client_t& db_client, void *ctx)
 
 bool dm_device_list_t::compare_db(db_client_t& db_client, const dm_device_t& sta)
 {
-    em_device_info_t info;
+    em_device_info_t info = {};
     mac_addr_str_t mac;
     em_long_string_t   str;
     db_query_t    query;

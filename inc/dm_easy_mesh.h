@@ -91,6 +91,11 @@ public:
     unsigned int    m_num_assoc_sta_mld;
     dm_assoc_sta_mld_t m_assoc_sta_mld[EM_MAX_ASSOC_STA_MLD];
     dm_tid_to_link_t m_tid_to_link;
+    em_unassoc_sta_metrics_rsp_t    m_unassoc_sta_metrics_rsp;
+    em_unassoc_query_list_t m_unassoc_query_list;
+
+    unsigned int m_num_unassoc_sta_metrics;
+    em_unassoc_sta_metric_entry_t  m_unassoc_sta_metrics[EM_MAX_UNASSOC_STA];
 
 public:
 
@@ -102,8 +107,8 @@ public:
 	unsigned int get_ssid_mismatch_check_time() const { return ssid_mismatch_check_time; }
 	void set_last_topo_query_sent_time(unsigned int time) { last_topo_query_sent_time = time; }
 	unsigned int get_last_topo_query_sent_time() const { return last_topo_query_sent_time; }
-
-	static em_e4_table_t m_e4_table[];
+        static em_e4_table_t m_e4_table[];
+        static const size_t m_e4_table_size;
 
        /**!
         * @brief Retrieves the beacon channel based on center channel and bandwidth.
@@ -204,6 +209,18 @@ public:
 	 * EasyMesh framework to avoid unexpected results.
 	 */
 	static std::vector<int> get_channel_list_by_op_class(int op_class);
+
+	/**!
+	 * @brief Maps an operating class to its 20 MHz primary-channel equivalent.
+	 *
+	 * If op_class already has primary (beacon) channels with 20 MHz spacing it is
+	 * returned unchanged. Otherwise the table is searched for the first entry with
+	 * the same frequency band that does have primary channels at 20 MHz spacing.
+	 *
+	 * @param[in] op_class The operating class to map.
+	 * @returns The 20 MHz primary-channel op_class, or op_class itself if not found.
+	 */
+	static int get_primary_channel_op_class(int op_class);
 
 	/**!
 	 * @brief Retrieves the operating class information for a given BSS with an optional check for integer operating class.
@@ -1520,7 +1537,19 @@ public:
 	 */
 	dm_policy_t& get_policy_by_ref(unsigned int index) { return m_policy[index]; }
 
-	
+	/**!
+	 * @brief Checks whether this data model contains a policy of the given type.
+	 *
+	 * @param[in] type The policy ID type to search for.
+	 * @returns true if at least one policy with the given type exists, false otherwise.
+	 */
+	bool has_policy_type(em_policy_id_type_t type) const {
+		for (unsigned int i = 0; i < m_num_policy; i++) {
+			if (m_policy[i].m_policy.id.type == type) return true;
+		}
+		return false;
+	}
+
 	/**!
 	 * @brief Finds a matching scan result based on the provided scan result ID.
 	 *
@@ -1738,8 +1767,12 @@ public:
 	void update_assoc_sta_mld_info(em_assoc_sta_mld_info_t *assoc_sta_mld_info);
 	static void update_assoc_sta_mld_info(void *dm, em_assoc_sta_mld_info_t *assoc_sta_mld_info) { (static_cast<dm_easy_mesh_t *>(dm))->update_assoc_sta_mld_info(assoc_sta_mld_info); }
 
-	em_radio_cap_info_t *get_radio_cap_info(int index);
-	static em_radio_cap_info_t *get_radio_cap_info(void *dm, int index) { return (static_cast<dm_easy_mesh_t *>(dm))->get_radio_cap_info(index); }
+	void remove_assoc_sta_mld_info(mac_address_t sta_mld_mac);
+	bool is_ap_mld_mac(const mac_address_t mac);
+	bool resolve_ap_mld_to_fallback_ruid(const mac_address_t ap_mld_mac, mac_address_t fallback_ruid);
+
+	em_radio_cap_info_t *get_radio_cap_info(unsigned int index);
+	static em_radio_cap_info_t *get_radio_cap_info(void *dm, unsigned int index) { return (static_cast<dm_easy_mesh_t *>(dm))->get_radio_cap_info(index); }
 
 	/**!
 	 * @brief Retrieves the Data Model DPP object.
@@ -1916,7 +1949,7 @@ public:
 	 * @note Ensure that the MAC address provided is valid and registered in the system.
 	 */
 	dm_radio_cap_t *get_radio_cap(mac_address_t mac);
-	dm_radio_cap_t *get_radio_cap(int index);
+	dm_radio_cap_t *get_radio_cap(unsigned int index);
 
     
 	/**!
@@ -2237,6 +2270,8 @@ public:
 	 *       the network's configuration.
 	 */
 	dm_sta_t *find_sta(mac_address_t sta_mac, bssid_t bssid);
+
+	dm_sta_t *find_sta(mac_address_t sta_mac);
     
 	/**!
 	 * @brief Retrieves the first station associated with the given MAC address.
@@ -2290,7 +2325,8 @@ public:
 	 */
 	int get_num_bss_for_associated_sta(mac_address_t sta_mac);
     
-    
+    bool is_sta_mld(mac_address_t sta_mac);
+
 	/**!
 	 * @brief Converts a byte array to a hexadecimal string representation.
 	 *

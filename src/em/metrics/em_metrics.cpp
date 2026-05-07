@@ -37,6 +37,7 @@
 #include <unistd.h>
 #include <pthread.h>
 #include <openssl/rand.h>
+#include <algorithm>
 #include "em_metrics.h"
 #include "em_msg.h"
 #include "dm_easy_mesh.h"
@@ -44,23 +45,37 @@
 #include "util.h"
 #include "em.h"
 #include "em_cmd_exec.h"
+#include "dm_easy_mesh_agent.h"
+#include "em_cmd_unassoc_sta_query.h"
 
 static     const unsigned char em_vendor_oui[EM_VENDOR_OUI_SIZE] = {0xd8, 0x9c, 0x8e};
 
-int em_metrics_t::handle_assoc_sta_link_metrics_tlv(unsigned char *buff)
+int em_metrics_t::handle_assoc_sta_link_metrics_tlv(unsigned char *buff,
+                                                    unsigned int tlv_len)
 {
-    em_assoc_sta_link_metrics_t	*sta_metrics;
+    em_assoc_sta_link_metrics_t *sta_metrics;
     em_assoc_link_metrics_t *metrics;
     dm_sta_t *sta;
     unsigned int i;
-    dm_easy_mesh_t  *dm;
+    dm_easy_mesh_t *dm;
+
+    if (buff == NULL || tlv_len == 0 || tlv_len < 7) {
+        return -1;
+    }
 
     dm = get_data_model();
 
-    sta_metrics = reinterpret_cast<em_assoc_sta_link_metrics_t *> (buff);
+    sta_metrics = reinterpret_cast<em_assoc_sta_link_metrics_t *>(buff);
+
+    unsigned int k = sta_metrics->num_bssids;
+    unsigned int expected_len = 7 + (k * sizeof(em_assoc_link_metrics_t));
+
+    if (tlv_len != expected_len) {
+        return -1;
+    }
 
     for (i = 0; i < sta_metrics->num_bssids; i++) {
-        metrics	= &sta_metrics->assoc_link_metrics[i];
+        metrics = &sta_metrics->assoc_link_metrics[i];
         sta = dm->find_sta(sta_metrics->sta_mac, metrics->bssid);
         if (sta == NULL) {
             continue;
@@ -69,12 +84,40 @@ int em_metrics_t::handle_assoc_sta_link_metrics_tlv(unsigned char *buff)
         sta->m_sta_info.est_dl_rate = metrics->est_mac_data_rate_dl;
         sta->m_sta_info.est_ul_rate = metrics->est_mac_data_rate_ul;
         sta->m_sta_info.rcpi = metrics->rcpi;
+
+        // RCPI-based beacon query trigger: if STA supports 802.11k beacon measurement
+        // and its RCPI is below the configured steering threshold, request a beacon report.
+        if (sta->m_sta_info.rcpi == 0 || !sta->m_sta_info.associated) {
+            continue;
+        }
+
+        if (sta->supports_beacon_measurement() == false) {
+            continue;
+        }
+        // Find the radio this BSS belongs to and check its RCPI threshold
+        dm_radio_t *radio = NULL;
+        for (unsigned int b = 0; b < dm->get_num_bss(); b++) {
+            if (memcmp(dm->m_bss[b].m_bss_info.bssid.mac, metrics->bssid, sizeof(mac_address_t)) == 0) {
+                radio = dm->get_radio(dm->m_bss[b].m_bss_info.id.ruid);
+                break;
+            }
+        }
+        if (radio != NULL) {
+            em_radio_info_t *radio_info = radio->get_radio_info();
+            unsigned int threshold = (radio_info != NULL) ? radio_info->rcpi_steering_threshold : 0;
+            if (threshold > 0 && sta->m_sta_info.rcpi < static_cast<unsigned char>(threshold)) {
+                em_printfout("STA %s RCPI=%u below threshold=%u, triggering beacon query",
+                    util::mac_to_string(sta->m_sta_info.id).c_str(),
+                    sta->m_sta_info.rcpi, threshold);
+                send_beacon_metrics_query(sta->m_sta_info.id, sta->m_sta_info.bssid);
+            }
+        }
     }
 
     return 0;
 }
 
-int em_metrics_t::handle_assoc_sta_ext_link_metrics_tlv(unsigned char *buff)
+int em_metrics_t::handle_assoc_sta_ext_link_metrics_tlv(unsigned char *buff, unsigned int tlv_len)
 {
     em_assoc_sta_ext_link_metrics_t	*sta_metrics;
     em_assoc_ext_link_metrics_t *metrics;
@@ -82,9 +125,21 @@ int em_metrics_t::handle_assoc_sta_ext_link_metrics_tlv(unsigned char *buff)
     unsigned int i;
     dm_easy_mesh_t  *dm;
 
+    if (buff == NULL || tlv_len == 0 || tlv_len < 7) {
+            printf("Invalid input: null buffer or invalid tlv_len=%u\n", tlv_len);
+            return -1;
+    }
+
     dm = get_data_model();
 
     sta_metrics = reinterpret_cast<em_assoc_sta_ext_link_metrics_t *> (buff);
+
+    unsigned int k = sta_metrics->num_bssids;
+    unsigned int expected_len = offsetof(em_assoc_sta_ext_link_metrics_t, assoc_ext_link_metrics) + (k * sizeof(em_assoc_ext_link_metrics_t));
+
+    if (tlv_len != expected_len) {
+            return -1;
+    }
 
     for (i = 0; i < sta_metrics->num_bssids; i++) {
         metrics	= &sta_metrics->assoc_ext_link_metrics[i];
@@ -166,10 +221,11 @@ int em_metrics_t::handle_associated_sta_link_metrics_resp(unsigned char *buff, u
 
     while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
         if (tlv->type == em_tlv_type_assoc_sta_link_metric) {
-            handle_assoc_sta_link_metrics_tlv(tlv->value);
+            uint16_t tlv_len = ntohs(tlv->len);
+            handle_assoc_sta_link_metrics_tlv(tlv->value, tlv_len);
         }
-        tmp_len -= (sizeof(em_tlv_t) + static_cast<size_t> (htons(tlv->len)));
-        tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
+        tmp_len -= (sizeof(em_tlv_t) + static_cast<size_t> (ntohs(tlv->len)));
+        tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + ntohs(tlv->len));
     }
 
     tlv = tlv_start;
@@ -194,11 +250,11 @@ int em_metrics_t::handle_associated_sta_link_metrics_resp(unsigned char *buff, u
 
     while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
         if (tlv->type == em_tlv_type_assoc_sta_ext_link_metric) {
-            handle_assoc_sta_ext_link_metrics_tlv(tlv->value);
+            handle_assoc_sta_ext_link_metrics_tlv(tlv->value, ntohs(tlv->len));
         }
 
-        tmp_len -= (sizeof(em_tlv_t) + static_cast<size_t> (htons(tlv->len)));
-        tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
+        tmp_len -= (sizeof(em_tlv_t) + static_cast<size_t> (ntohs(tlv->len)));
+        tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + ntohs(tlv->len));
     }
 
     tlv = tlv_start;
@@ -220,33 +276,259 @@ int em_metrics_t::handle_associated_sta_link_metrics_resp(unsigned char *buff, u
 
 int em_metrics_t::handle_beacon_metrics_query(unsigned char *buff, unsigned int len)
 {
-    mac_address_t sta;
     em_tlv_t *tlv;
     char *errors[EM_MAX_TLV_MEMBERS] = {0};
+    size_t sz = 0;
 
     if (em_msg_t(em_msg_type_beacon_metrics_query, em_profile_type_2, buff, len).validate(errors) == 0) {
-        printf("%s:%d:Beacon Metrics query message validation failed\n",__func__,__LINE__);
+        em_printfout("Beacon Metrics query message validation failed");
         return -1;
     }
 
     tlv = reinterpret_cast<em_tlv_t *> (buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
 
-    em_beacon_metrics_query_t *beacon_metrics = reinterpret_cast<em_beacon_metrics_query_t*> (tlv->value);
-    printf("\n\n    STA MAC Address: %02x:%02x:%02x:%02x:%02x:%02x\n",
-        beacon_metrics->sta_mac_addr[0], beacon_metrics->sta_mac_addr[1], beacon_metrics->sta_mac_addr[2],
-        beacon_metrics->sta_mac_addr[3], beacon_metrics->sta_mac_addr[4], beacon_metrics->sta_mac_addr[5]);
-    printf("   Operating Class: %u\n", beacon_metrics->op_class);
-    printf("   Channel Number: %u\n", beacon_metrics->channel_num);
-    printf("   BSSID: %02x:%02x:%02x:%02x:%02x:%02x\n",
-        beacon_metrics->bssid[0], beacon_metrics->bssid[1], beacon_metrics->bssid[2],
-        beacon_metrics->bssid[3], beacon_metrics->bssid[4], beacon_metrics->bssid[5]);
-    printf("   Reporting Detail: %u\n", beacon_metrics->rprt_detail);
-    printf("   SSID Length: %u\n", beacon_metrics->ssid_len);
-    printf("\n\n");
+    unsigned char *tmp = reinterpret_cast<unsigned char*> (&tlv->value);
 
+    const unsigned int tlv_payload_len = ntohs(tlv->len);
+    const unsigned int max_ssid_len = sizeof(em_beacon_metrics_query_t{}.ssid);
+    const unsigned int max_ap_channel_rprt = sizeof(em_beacon_metrics_query_t{}.ap_channel_rprt) /
+        sizeof(em_beacon_metrics_query_t{}.ap_channel_rprt[0]);
+    const unsigned int max_channels_in_list = sizeof(em_beacon_metrics_query_t{}.ap_channel_rprt[0].ap_channel_list) /
+        sizeof(em_beacon_metrics_query_t{}.ap_channel_rprt[0].ap_channel_list[0]);
+    const unsigned int max_element_ids = sizeof(em_beacon_metrics_query_t{}.element_list.element_list) /
+        sizeof(em_beacon_metrics_query_t{}.element_list.element_list[0]);
+    const unsigned int min_fixed_len = sizeof(mac_address_t) + sizeof(unsigned char) + sizeof(unsigned char) +
+        sizeof(mac_address_t) + sizeof(unsigned char) + sizeof(unsigned char);
 
-    memcpy(sta, tlv->value, sizeof(mac_address_t));
+    if (tlv_payload_len < min_fixed_len) {
+        em_printfout("Malformed Beacon Metrics Query TLV: payload too short (%u)", tlv_payload_len);
+        return -1;
+    }
 
+    em_beacon_metrics_query_t query_params = {};
+    memcpy(query_params.sta_mac_addr, tmp + sz, sizeof(mac_address_t));
+    sz += sizeof(mac_address_t);
+
+    query_params.op_class = *(tmp + sz);
+    sz += sizeof(unsigned char);
+    query_params.channel_num = *(tmp + sz);
+    sz += sizeof(unsigned char);
+    memcpy(query_params.bssid, tmp + sz, sizeof(mac_address_t));
+    sz += sizeof(mac_address_t);
+
+    query_params.rprt_detail = *(tmp + sz);
+    sz += sizeof(unsigned char);
+
+    {
+        unsigned int ssid_len = *(tmp + sz);
+        sz += sizeof(unsigned char);
+        if (sz + ssid_len > tlv_payload_len) {
+            em_printfout("Malformed Beacon Metrics Query TLV: ssid_len %u exceeds payload %u",
+                ssid_len, tlv_payload_len);
+            return -1;
+        }
+        query_params.ssid_len = (ssid_len > max_ssid_len) ? max_ssid_len : ssid_len;
+        if (query_params.ssid_len > 0) {
+            memcpy(query_params.ssid, tmp + sz, query_params.ssid_len);
+        }
+        sz += ssid_len;
+    }
+
+    if (sz + sizeof(unsigned char) > tlv_payload_len) {
+        em_printfout("Malformed Beacon Metrics Query TLV: missing AP Channel Report count");
+        return -1;
+    }
+
+    {
+        unsigned int num_ap_channel_rprt = *(tmp + sz);
+        sz += sizeof(unsigned char);
+        query_params.num_ap_channel_rprt = (num_ap_channel_rprt > max_ap_channel_rprt) ?
+            max_ap_channel_rprt : num_ap_channel_rprt;
+
+        for (unsigned int i = 0; i < num_ap_channel_rprt; i++) {
+            unsigned int ap_channel_rprt_len;
+            unsigned int num_channels;
+
+            if (sz + sizeof(unsigned char) > tlv_payload_len) {
+                em_printfout("Malformed Beacon Metrics Query TLV: missing AP Channel Report length");
+                return -1;
+            }
+
+            ap_channel_rprt_len = *(tmp + sz);
+            sz += sizeof(unsigned char);
+            if (ap_channel_rprt_len < 1) {
+                em_printfout("Malformed Beacon Metrics Query TLV: invalid AP Channel Report length %u",
+                    ap_channel_rprt_len);
+                return -1;
+            }
+            if (sz + ap_channel_rprt_len > tlv_payload_len) {
+                em_printfout("Malformed Beacon Metrics Query TLV: AP Channel Report overruns payload");
+                return -1;
+            }
+
+            num_channels = ap_channel_rprt_len - 1;
+            if (i < query_params.num_ap_channel_rprt) {
+                query_params.ap_channel_rprt[i].ap_channel_rprt_len =
+                    (ap_channel_rprt_len > (max_channels_in_list + 1)) ?
+                    (max_channels_in_list + 1) : ap_channel_rprt_len;
+                query_params.ap_channel_rprt[i].ap_channel_op_class = *(tmp + sz);
+            }
+            sz += sizeof(unsigned char);
+
+            for (unsigned int j = 0; j < num_channels; j++) {
+                if (i < query_params.num_ap_channel_rprt && j < max_channels_in_list) {
+                    query_params.ap_channel_rprt[i].ap_channel_list[j] = *(tmp + sz);
+                }
+                sz += sizeof(unsigned char);
+            }
+        }
+    }
+
+    if (sz < tlv_payload_len) {
+        unsigned int num_element_id = *(tmp + sz);
+        sz += sizeof(unsigned char);
+        if (sz + num_element_id > tlv_payload_len) {
+            em_printfout("Malformed Beacon Metrics Query TLV: element list overruns payload");
+            return -1;
+        }
+        query_params.element_list.num_element_id = (num_element_id > max_element_ids) ?
+            max_element_ids : num_element_id;
+        for (unsigned int i = 0; i < num_element_id; i++) {
+            if (i < query_params.element_list.num_element_id) {
+                query_params.element_list.element_list[i] = *(tmp + sz);
+            }
+            sz += sizeof(unsigned char);
+        }
+    }
+
+    em_printfout("    STA MAC Address: %s", util::mac_to_string(query_params.sta_mac_addr).c_str());
+    em_printfout("   Operating Class: %u", query_params.op_class);
+    em_printfout("   Channel Number: %u", query_params.channel_num);
+    em_printfout("   BSSID: %s", util::mac_to_string(query_params.bssid).c_str());
+    em_printfout("   Reporting Detail: %u", query_params.rprt_detail);
+    em_printfout("   SSID Length: %u", query_params.ssid_len);
+    em_printfout("   SSID: %.*s", query_params.ssid_len, query_params.ssid);
+    em_printfout("\n\n");
+
+    // Extract message ID for the ACK
+    em_cmdu_t *cmdu = reinterpret_cast<em_cmdu_t *>(buff + sizeof(em_raw_hdr_t));
+    unsigned short msg_id = ntohs(cmdu->id);
+
+    // Check if the STA is associated with any BSS on this agent
+    dm_easy_mesh_t *dm = get_data_model();
+    dm_sta_t *sta = dm->get_first_sta(query_params.sta_mac_addr);
+    if (sta == NULL) {
+        em_printfout("STA %s not associated, sending error ACK (reason 0x02)",
+            util::mac_to_string(query_params.sta_mac_addr).c_str());
+        send_beacon_metrics_query_ack(query_params.sta_mac_addr, msg_id, 0x02);
+        return -1;
+    }
+
+    // STA is associated — send ACK before forwarding the request to OneWifi
+    send_beacon_metrics_query_ack(query_params.sta_mac_addr, msg_id, 0);
+
+    get_mgr()->io_process(em_bus_event_type_beacon_query, reinterpret_cast<unsigned char *>(&query_params), sizeof(em_beacon_metrics_query_t));
+
+    return 0;
+}
+
+int em_metrics_t::handle_unassoc_sta_link_metrics_tlv(unsigned char *buff, unsigned int tlv_len)
+{
+    dm_easy_mesh_t *dm = get_data_model();
+
+    unsigned short pos = 0;
+    mac_addr_str_t mac_str;
+
+    if (tlv_len < 2) {
+        em_printfout("%s:%d Invalid TLV length=%u\n", __func__, __LINE__, tlv_len);
+        return -1;
+    }
+
+    unsigned char op_class = buff[pos++];
+    unsigned char num_sta  = buff[pos++];
+
+    for (unsigned int i = 0; i < num_sta; i++)
+    {
+        if (pos + sizeof(em_unassoc_sta_metric_t) > tlv_len) {
+            em_printfout("%s:%d Malformed Unassoc STA Link Metrics TLV: num_sta=%u parsed=%u tlv_len=%u\n", __func__, __LINE__, num_sta, i,tlv_len);
+            return -1;
+        }
+        em_unassoc_sta_metric_t *metric = reinterpret_cast<em_unassoc_sta_metric_t *>(buff + pos);
+
+        unsigned int idx = dm->m_num_unassoc_sta_metrics;
+
+        if (idx >= EM_MAX_UNASSOC_STA)
+        {
+            em_printfout("%s:%d Max STA limit reached",__func__, __LINE__);
+            break;
+        }
+
+        memcpy(dm->m_unassoc_sta_metrics[idx].sta_mac, metric->sta_mac,sizeof(mac_address_t));
+        dm->m_unassoc_sta_metrics[idx].channel = metric->channel;
+        dm->m_unassoc_sta_metrics[idx].op_class = op_class;
+        dm->m_unassoc_sta_metrics[idx].rcpi = metric->rcpi;
+        dm->m_unassoc_sta_metrics[idx].time_delta = ntohl(metric->time_delta);
+        dm_easy_mesh_t::macbytes_to_string(metric->sta_mac, mac_str);
+
+        dm->m_num_unassoc_sta_metrics++;
+
+        pos += sizeof(em_unassoc_sta_metric_t);
+    }
+    return 0;
+}
+
+int em_metrics_t::handle_unassoc_sta_link_metrics_rsp(unsigned char *buff, unsigned int len)
+{
+    em_tlv_t *tlv;
+    unsigned int tmp_len = 0;
+    unsigned int tlv_len = 0;
+    char *errors[EM_MAX_TLV_MEMBERS] = {0};
+
+    if (m_unassoc_in_progress) {
+        return -1;
+    }
+
+    m_unassoc_in_progress = true;
+
+    if (em_msg_t(em_msg_type_unassoc_sta_link_metrics_rsp, get_profile_type(), buff, len).validate(errors) == 0) {
+        em_printfout("Unassoc STA Link Metrics Response validation failed");
+        m_unassoc_in_progress = false;
+        return -1;
+    }
+
+    dm_easy_mesh_t *dm = get_data_model();
+
+    memset(dm->m_unassoc_sta_metrics, 0, sizeof(dm->m_unassoc_sta_metrics));
+    dm->m_num_unassoc_sta_metrics = 0;
+
+    tlv = reinterpret_cast<em_tlv_t *>(buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+
+    tmp_len = len - static_cast<unsigned int>(sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+
+    while (tmp_len >= sizeof(em_tlv_t)) {
+        if (tlv->type == em_tlv_type_eom) {
+            break;
+        }
+
+        tlv_len = static_cast<unsigned int>(ntohs(tlv->len));
+
+        if ((sizeof(em_tlv_t) + tlv_len) > tmp_len) {
+            em_printfout("Malformed TLV detected in Unassoc STA Link Metrics Response");
+            break;
+        }
+    
+        if (tlv->type == em_tlv_type_unassoc_sta_link_metric_rsp) {
+            if (handle_unassoc_sta_link_metrics_tlv(tlv->value, tlv_len) < 0) {
+                em_printfout("%s:%d Failed to parse Unassoc STA Link Metrics TLV\n", __func__, __LINE__);
+                m_unassoc_in_progress = false;
+                return -1;
+            }
+        }
+        tmp_len -= static_cast<unsigned int>(sizeof(em_tlv_t)) + tlv_len;
+        tlv = reinterpret_cast<em_tlv_t *>(reinterpret_cast<unsigned char *>(tlv) + sizeof(em_tlv_t) + tlv_len);
+    }
+
+    m_unassoc_in_progress = false;
     return 0;
 }
 
@@ -263,7 +545,7 @@ int em_metrics_t::handle_beacon_metrics_response(unsigned char *buff, unsigned i
     dm = get_data_model();
 
     if (em_msg_t(em_msg_type_beacon_metrics_rsp, em_profile_type_2, buff, len).validate(errors) == 0) {
-        printf("%s:%d: Beacon Metrics Response message validation failed\n",__func__,__LINE__);
+        em_printfout("Beacon Metrics Response message validation failed on controller");
         return -1;
     }
 
@@ -279,6 +561,33 @@ int em_metrics_t::handle_beacon_metrics_response(unsigned char *buff, unsigned i
         tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
     }
 
+    if (response == NULL) {
+        em_printfout("Beacon Metrics Response: no beacon metrics response TLV found");
+        return -1;
+    }
+
+    // Discard null/stub reports where the first measurement report element
+    // contains a null BSSID (00:00:00:00:00:00).  This happens with MLO clients
+    // that return a zeroed report body instead of setting the Incapable bit
+    // in Measurement Report Mode (firmware non-compliance with 802.11-2020 9.4.2.22.2).
+    //
+    // Raw 802.11 Measurement Report IE layout (beacon type):
+    //   [0]=elem-id [1]=length [2]=token [3]=report-mode [4]=report-type
+    //   [5]=op-class [6]=channel [7..14]=start-time [15..16]=duration
+    //   [17]=frame-info [18]=RCPI [19]=RSNI [20..25]=BSSID
+    static constexpr unsigned int BSSID_OFFSET_IN_BEACON_RPT_IE = 20;
+    static constexpr unsigned int MIN_BEACON_RPT_IE_LEN = 26; // through BSSID
+    if (response->meas_rprt_count > 0 &&
+            report_len >= MIN_BEACON_RPT_IE_LEN) {
+        const unsigned char *first_ie = response->meas_reports;
+        mac_address_t null_bssid = {};
+        if (memcmp(first_ie + BSSID_OFFSET_IN_BEACON_RPT_IE, null_bssid, sizeof(mac_address_t)) == 0) {
+            em_printfout("Beacon Metrics Response: null BSSID in report, discarding stub measurement for sta:%s",
+                util::mac_to_string(response->sta_mac_addr).c_str());
+            return 0;
+        }
+    }
+
     sta = dm->get_first_sta(response->sta_mac_addr);
     while (sta != NULL) {
         if (memcmp(sta->m_sta_info.id, response->sta_mac_addr, sizeof(mac_address_t)) == 0) {
@@ -289,7 +598,7 @@ int em_metrics_t::handle_beacon_metrics_response(unsigned char *buff, unsigned i
 
     if(sta == NULL)
     {
-        printf("%s:%d: sta not found\n", __func__, __LINE__);
+        em_printfout("Beacon Metrics Response: sta not found in controller data model");
         return -1;
     }
 
@@ -297,15 +606,72 @@ int em_metrics_t::handle_beacon_metrics_response(unsigned char *buff, unsigned i
     sta->m_sta_info.beacon_report_len = report_len;
     memcpy(sta->m_sta_info.beacon_report_elem, response->meas_reports, static_cast<size_t> (report_len));
 
-    printf("%s:%d Beacon Metrics Response rcvd\n", __func__, __LINE__);
-    printf("%s:%d No of reports %d\n", __func__, __LINE__, sta->m_sta_info.num_beacon_meas_report);
-    printf("%s:%d Report len %d\n", __func__, __LINE__, sta->m_sta_info.beacon_report_len);
+    // Clear the timestamp so new queries can be sent immediately after a response
+    sta->m_sta_info.beacon_query_sent_time = 0;
+
+    em_printfout("Beacon Metrics Response rcvd for sta:%s reports:%u len:%u",
+        util::mac_to_string(sta->m_sta_info.id).c_str(),
+        sta->m_sta_info.num_beacon_meas_report, sta->m_sta_info.beacon_report_len);
+
+    // Send 1905 ACK back to the agent
+    em_cmdu_t *cmdu = reinterpret_cast<em_cmdu_t *>(buff + sizeof(em_raw_hdr_t));
+    send_beacon_metrics_ack(ntohs(cmdu->id));
 
     //get_data_model()->set_db_cfg_param(db_cfg_type_sta_list_update, "");
 
-    //send_ack(sta);
-
     return 0;
+}
+
+int em_metrics_t::send_beacon_metrics_ack(unsigned short msg_id)
+{
+    unsigned char buff[MAX_EM_BUFF_SZ] = {0};
+    char *errors[EM_MAX_TLV_MEMBERS] = {0};
+    unsigned int len = 0;
+    em_cmdu_t *cmdu;
+    em_tlv_t *tlv;
+    unsigned char *tmp = buff;
+    unsigned short type = htons(ETH_P_1905);
+    dm_easy_mesh_t *dm = get_data_model();
+
+    // dst = agent, src = controller
+    memcpy(tmp, dm->get_agent_al_interface_mac(), sizeof(mac_address_t));
+    tmp += sizeof(mac_address_t);
+    len += sizeof(mac_address_t);
+
+    memcpy(tmp, dm->get_ctrl_al_interface_mac(), sizeof(mac_address_t));
+    tmp += sizeof(mac_address_t);
+    len += sizeof(mac_address_t);
+
+    memcpy(tmp, reinterpret_cast<unsigned char *>(&type), sizeof(unsigned short));
+    tmp += sizeof(unsigned short);
+    len += sizeof(unsigned short);
+
+    cmdu = reinterpret_cast<em_cmdu_t *>(tmp);
+    memset(tmp, 0, sizeof(em_cmdu_t));
+    cmdu->type = htons(em_msg_type_1905_ack);
+    cmdu->id   = htons(msg_id);
+    cmdu->last_frag_ind = 1;
+    tmp += sizeof(em_cmdu_t);
+    len += sizeof(em_cmdu_t);
+
+    tlv = reinterpret_cast<em_tlv_t *>(tmp);
+    tlv->type = em_tlv_type_eom;
+    tlv->len  = 0;
+    tmp += sizeof(em_tlv_t);
+    len += sizeof(em_tlv_t);
+
+    if (em_msg_t(em_msg_type_1905_ack, em_profile_type_2, buff, len).validate(errors) == 0) {
+        em_printfout("Beacon Metrics ACK validation failed");
+        return -1;
+    }
+
+    if (send_frame(buff, len) < 0) {
+        em_printfout("Beacon Metrics ACK send failed, error:%d", errno);
+        return -1;
+    }
+
+    em_printfout("Beacon Metrics ACK sent for msg_id=%u", msg_id);
+    return static_cast<int>(len);
 }
 
 int em_metrics_t::handle_ap_metrics_tlv(unsigned char *buff, bssid_t get_bssid)
@@ -320,7 +686,7 @@ int em_metrics_t::handle_ap_metrics_tlv(unsigned char *buff, bssid_t get_bssid)
         dm_easy_mesh_t::macbytes_to_string(ap_metrics->bssid, bss_str);
     } else {
         dm_easy_mesh_t::macbytes_to_string(ap_metrics->bssid, bss_str);
-        printf("%s:%d BSS not found: %s\n", __func__, __LINE__, bss_str);
+        em_printfout("Error: BSS not found: %s", bss_str);
     }
 
     return 0;
@@ -337,18 +703,18 @@ int em_metrics_t::handle_assoc_sta_traffic_stats(unsigned char *buff, bssid_t bs
 
     sta = dm->find_sta(sta_metrics->sta_mac, bssid);
     if (sta == NULL) {
-        em_printfout("sta not found: %s for bssid: %s", util::mac_to_string(sta_metrics->sta_mac).c_str(),
+        em_printfout("Error: sta not found: %s for bssid: %s", util::mac_to_string(sta_metrics->sta_mac).c_str(),
             util::mac_to_string(bssid).c_str());
         return -1;
     }
 
-    sta->m_sta_info.bytes_tx        = sta_metrics->tx_bytes;
-    sta->m_sta_info.bytes_rx        = sta_metrics->rx_bytes;
-    sta->m_sta_info.pkts_tx         = sta_metrics->tx_pkts;
-    sta->m_sta_info.pkts_rx         = sta_metrics->rx_pkts;
-    sta->m_sta_info.errors_tx       = sta_metrics->tx_pkt_errors;
-    sta->m_sta_info.errors_rx       = sta_metrics->rx_pkt_errors;
-    sta->m_sta_info.retrans_count   = sta_metrics->retx_cnt;
+    sta->m_sta_info.bytes_tx        = ntohl(sta_metrics->tx_bytes);
+    sta->m_sta_info.bytes_rx        = ntohl(sta_metrics->rx_bytes);
+    sta->m_sta_info.pkts_tx         = ntohl(sta_metrics->tx_pkts);
+    sta->m_sta_info.pkts_rx         = ntohl(sta_metrics->rx_pkts);
+    sta->m_sta_info.errors_tx       = ntohl(sta_metrics->tx_pkt_errors);
+    sta->m_sta_info.errors_rx       = ntohl(sta_metrics->rx_pkt_errors);
+    sta->m_sta_info.retrans_count   = ntohl(sta_metrics->retx_cnt);
 
     return 0;
 }
@@ -448,7 +814,7 @@ int em_metrics_t::handle_ap_metrics_response(unsigned char *buff, unsigned int l
     size_t tmp_len, base_len;
     dm_easy_mesh_t  *dm;
     char *errors[EM_MAX_TLV_MEMBERS] = {0};
-    bssid_t bssid;
+    bssid_t bssid = {};
 
     dm = get_data_model();
 
@@ -460,90 +826,50 @@ int em_metrics_t::handle_ap_metrics_response(unsigned char *buff, unsigned int l
     tlv_start =  reinterpret_cast<em_tlv_t *> (buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
     base_len = static_cast<size_t> (len) - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
 
+    // Single-pass loop: maintain running BSSID context so per-STA TLVs can be associated with the correct BSS
     tlv = tlv_start;
     tmp_len = base_len;
 
     while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
-        if (tlv->type == em_tlv_type_ap_metrics) {
-            handle_ap_metrics_tlv(tlv->value, bssid);
+        switch (tlv->type) {
+            case em_tlv_type_ap_metrics:
+                // Update current BSSID context; subsequent per-STA TLVs use this value.
+                handle_ap_metrics_tlv(tlv->value, bssid);
+                break;
+            case em_tlv_type_ap_ext_metric:
+                /* future implementation */
+                break;
+            case em_tlv_type_radio_metric:
+                /* future implementation */
+                break;
+            case em_tlv_type_assoc_sta_traffic_sts:
+                if (handle_assoc_sta_traffic_stats(tlv->value, bssid) != 0) {
+                    em_printfout("assoc_sta_traffic_stats failed, skipping TLV");
+                }
+                break;
+            case em_tlv_type_assoc_sta_link_metric:
+                if (handle_assoc_sta_link_metrics_tlv(tlv->value, ntohs(tlv->len)) != 0) {
+                    em_printfout("assoc_sta_link_metrics_tlv failed, skipping TLV");
+                }
+                break;
+            case em_tlv_type_assoc_sta_ext_link_metric:
+                if (handle_assoc_sta_ext_link_metrics_tlv(tlv->value, ntohs(tlv->len)) != 0) {
+                    em_printfout("assoc_sta_ext_link_metrics_tlv failed, skipping TLV");
+                }
+                break;
+            case em_tlv_type_assoc_wifi6_sta_rprt:
+                /* future implementation */
+                break;
+            case em_tlv_type_vendor_specific:
+                if (handle_assoc_sta_vendor_link_metrics_tlv(tlv->value, ntohs(tlv->len)) != 0) {
+                    em_printfout("assoc_sta_vendor_link_metrics_tlv failed, skipping TLV");
+                }
+                break;
+            default:
+                break;
         }
-        tmp_len -= static_cast<unsigned int> (sizeof(em_tlv_t) + static_cast<size_t> (htons(tlv->len)));
-        tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
-    }
-
-    tlv = tlv_start;
-    tmp_len = base_len;
-
-    while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
-        if (tlv->type == em_tlv_type_ap_ext_metric) {
-        }
-        tmp_len -= (sizeof(em_tlv_t) + static_cast<size_t> (htons(tlv->len)));
-        tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
-    }
-
-    tlv = tlv_start;
-    tmp_len = base_len;
-
-    while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
-        if (tlv->type == em_tlv_type_radio_metric) {
-        }
-        tmp_len -= (sizeof(em_tlv_t) + static_cast<size_t> (htons(tlv->len)));
-        tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
-    }
-
-    tlv = tlv_start;
-    tmp_len = base_len;
-
-    while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
-        if (tlv->type == em_tlv_type_assoc_sta_traffic_sts) {
-            //todo: bug fix to find sta
-            handle_assoc_sta_traffic_stats(tlv->value, bssid);
-        }
-        tmp_len -= (sizeof(em_tlv_t) + static_cast<size_t> (htons(tlv->len)));
-        tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
-    }
-
-    tlv = tlv_start;
-    tmp_len = base_len;
-
-    while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
-        if (tlv->type == em_tlv_type_assoc_sta_link_metric) {
-            handle_assoc_sta_link_metrics_tlv(tlv->value);
-        }
-        tmp_len -= (sizeof(em_tlv_t) + static_cast<size_t> (htons(tlv->len)));
-        tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
-    }
-
-    tlv = tlv_start;
-    tmp_len = base_len;
-
-    while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
-        if (tlv->type == em_tlv_type_assoc_sta_ext_link_metric) {
-            handle_assoc_sta_ext_link_metrics_tlv(tlv->value);
-        }
-        tmp_len -= (sizeof(em_tlv_t) + static_cast<size_t> (htons(tlv->len)));
-        tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
-    }
-
-    tlv = tlv_start;
-    tmp_len = base_len;
-
-    while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
-        if (tlv->type == em_tlv_type_assoc_wifi6_sta_rprt) {
-        }
-        tmp_len -= (sizeof(em_tlv_t) + static_cast<size_t> (htons(tlv->len)));
-        tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
-    }
-
-    tlv = tlv_start;
-    tmp_len = base_len;
-
-    while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
-        if (tlv->type == em_tlv_type_vendor_specific) {
-            handle_assoc_sta_vendor_link_metrics_tlv(tlv->value, ntohs(tlv->len));
-        }
-        tmp_len -= (sizeof(em_tlv_t) + static_cast<size_t> (htons(tlv->len)));
-        tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
+        tmp_len -= (sizeof(em_tlv_t) + static_cast<size_t> (ntohs(tlv->len)));
+        tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + ntohs(tlv->len));
     }
 
     dm->set_db_cfg_param(db_cfg_type_sta_metrics_update, "");
@@ -742,7 +1068,7 @@ int em_metrics_t::send_associated_link_metrics_response(mac_address_t sta_mac, u
     //Error code  TLV 17.2.36
     tlv = reinterpret_cast<em_tlv_t *> (tmp);
     tlv->type = em_tlv_type_error_code;
-    sz = create_error_code_tlv(tlv->value, sta_mac, sta_found);
+    sz = create_error_code_tlv(tlv->value, sta_mac, sta_found, false);
     tlv->len = htons(static_cast<short unsigned int> (sz));
 
     tmp += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
@@ -803,6 +1129,20 @@ short em_metrics_t::send_beacon_metrics_query(mac_address_t sta_mac, bssid_t bss
 
     dm = get_data_model();
 
+    // Dedup: skip if a query was sent recently for this STA.
+    // Using a timestamp avoids a stuck boolean — the guard self-heals after the timeout.
+    static constexpr time_t BEACON_QUERY_TIMEOUT_SECS = 10;
+    dm_sta_t *sta_chk = dm->find_sta(sta_mac, bssid);
+    if (sta_chk != NULL && sta_chk->m_sta_info.beacon_query_sent_time != 0 &&
+            (time(NULL) - sta_chk->m_sta_info.beacon_query_sent_time) < BEACON_QUERY_TIMEOUT_SECS) {
+        em_printfout("Beacon Metrics Query already in flight for sta:%s (sent %lds ago), skipping",
+            util::mac_to_string(sta_mac).c_str(),
+            static_cast<long>(time(NULL) - sta_chk->m_sta_info.beacon_query_sent_time));
+        return 0;
+    }
+
+    dm = get_data_model();
+
     memcpy(tmp, dm->get_agent_al_interface_mac(), sizeof(mac_address_t));
     tmp += sizeof(mac_address_t);
     len += sizeof(mac_address_t);
@@ -830,6 +1170,10 @@ short em_metrics_t::send_beacon_metrics_query(mac_address_t sta_mac, bssid_t bss
     tlv = reinterpret_cast<em_tlv_t *> (tmp);
     tlv->type = em_tlv_type_bcon_metric_query;
     sz = create_beacon_metrics_query_tlv(tlv->value, sta_mac, bssid);
+    if (sz < 0) {
+        em_printfout("Failed to create beacon metrics query tlv for sta:%s and bssid:%s", util::mac_to_string(sta_mac).c_str(), util::mac_to_string(bssid).c_str());
+        return -1;
+    }
     tlv->len = htons(static_cast<short unsigned int> (sz));
 
     tmp += (sizeof (em_tlv_t) + static_cast<size_t> (sz));
@@ -844,16 +1188,23 @@ short em_metrics_t::send_beacon_metrics_query(mac_address_t sta_mac, bssid_t bss
     len += (sizeof (em_tlv_t));
 
     if (em_msg_t(em_msg_type_beacon_metrics_query, em_profile_type_2, buff, static_cast<unsigned int> (len)).validate(errors) == 0) {
-        printf("Beacon Metrics Query msg validation failed\n");
+        em_printfout("Beacon Metrics Query msg validation failed");
         return -1;
     }
 
     if (send_frame(buff, static_cast<unsigned int> (len))  < 0) {
-        printf("%s:%d: Beacon Metrics Query send failed, error:%d\n", __func__, __LINE__, errno);
+        em_printfout("Beacon Metrics Query send failed, error:%d", errno);
         return -1;
     }
 
-    printf("%s:%d: Beacon Metrics Query send success\n", __func__, __LINE__);
+    em_printfout("Beacon Metrics Query send success for sta:%s", util::mac_to_string(sta_mac).c_str());
+
+    // Record send time — used by the dedup guard to suppress duplicate triggers
+    dm_sta_t *sta_sent = dm->find_sta(sta_mac, bssid);
+    if (sta_sent != NULL) {
+        sta_sent->m_sta_info.beacon_query_sent_time = time(NULL);
+    }
+
     return static_cast<short> (len);
 }
 
@@ -869,11 +1220,15 @@ int em_metrics_t::send_beacon_metrics_response()
     short sz = 0;
     unsigned short type = htons(ETH_P_1905);
     dm_easy_mesh_t *dm = get_data_model();
-    mac_addr_str_t mac_str;
     bool sta_found = false;
     dm_sta_t *sta;
 
     sta = reinterpret_cast<dm_sta_t *> (hash_map_get_first(get_current_cmd()->get_data_model()->m_sta_map));
+    if (sta == NULL) {
+        em_printfout("No STA in beacon report data model, cannot send response");
+        set_state(em_state_agent_configured);
+        return -1;
+    }
 
     memcpy(tmp, dm->get_ctl_mac(), sizeof(mac_address_t));
     tmp += sizeof(mac_address_t);
@@ -910,7 +1265,7 @@ int em_metrics_t::send_beacon_metrics_response()
     //Error code  TLV 17.2.36
     tlv = reinterpret_cast<em_tlv_t *> (tmp);
     tlv->type = em_tlv_type_error_code;
-    sz = create_error_code_tlv(tlv->value, sta->m_sta_info.id, sta_found);
+    sz = create_error_code_tlv(tlv->value, sta->m_sta_info.id, sta_found, false);
     tlv->len = htons(static_cast<short unsigned int> (sz));
 
     tmp += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
@@ -925,16 +1280,20 @@ int em_metrics_t::send_beacon_metrics_response()
     len += (sizeof(em_tlv_t));
 
     if (em_msg_t(em_msg_type_beacon_metrics_rsp, em_profile_type_2, buff, static_cast<unsigned int> (len)).validate(errors) == 0) {
-        printf("%s:%d: Beacon Metrics Response validation failed for %s\n", __func__, __LINE__, mac_str);
+        em_printfout("Beacon Metrics Response validation failed");
+        set_state(em_state_agent_configured);
         return -1;
     }
 
     if (send_frame(buff, static_cast<unsigned int> (len))  < 0) {
-        printf("%s:%d: Beacon Metrics Response send failed, error:%d\n", __func__, __LINE__, errno);
+        em_printfout("Beacon Metrics Response send failed, error:%d", errno);
+        set_state(em_state_agent_configured);
         return -1;
     }
 
-    printf("%s:%d: Beacon Metrics Response send success\n", __func__, __LINE__);
+    em_printfout("Beacon Metrics Response send success for sta:%s reports:%u",
+        util::mac_to_string(sta->m_sta_info.id).c_str(), sta->m_sta_info.num_beacon_meas_report);
+    set_state(em_state_agent_configured);
 
     return static_cast<int> (len);
 }
@@ -1065,13 +1424,15 @@ int em_metrics_t::send_ap_metrics_response()
         len += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
 
         //AP Extended Metrics TLV (17.2.61)
-        tlv = reinterpret_cast<em_tlv_t *> (tmp);
-        tlv->type = em_tlv_type_ap_ext_metric;
-        sz = create_ap_ext_metrics_tlv(tlv->value, dm->m_bss[bss_index]);
-        tlv->len =  htons(static_cast<unsigned short> (sz));
+        if (get_profile_type() > em_profile_type_1) {
+            tlv = reinterpret_cast<em_tlv_t *> (tmp);
+            tlv->type = em_tlv_type_ap_ext_metric;
+            sz = create_ap_ext_metrics_tlv(tlv->value, dm->m_bss[bss_index]);
+            tlv->len =  htons(static_cast<unsigned short> (sz));
 
-        tmp += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
-        len += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+            tmp += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+            len += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+        }
 
         //now search if this sta is associated to this
         sta = reinterpret_cast<dm_sta_t *> (hash_map_get_first(dm->m_sta_map));
@@ -1099,23 +1460,27 @@ int em_metrics_t::send_ap_metrics_response()
             len += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
 
             //Associated STA Extended Link Metrics TLV (17.2.62)
-            tlv = reinterpret_cast<em_tlv_t *> (tmp);
-            tlv->type = em_tlv_type_assoc_sta_ext_link_metric;
-            sz = create_assoc_ext_sta_link_metrics_tlv(tlv->value, sta->m_sta_info.id, sta);
-            tlv->len =  htons(static_cast<unsigned short> (sz));
+            if (get_profile_type() > em_profile_type_1) {
+                tlv = reinterpret_cast<em_tlv_t *> (tmp);
+                tlv->type = em_tlv_type_assoc_sta_ext_link_metric;
+                sz = create_assoc_ext_sta_link_metrics_tlv(tlv->value, sta->m_sta_info.id, sta);
+                tlv->len =  htons(static_cast<unsigned short> (sz));
 
-            tmp += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
-            len += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+                tmp += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+                len += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+            }
 
             //Associated Wi-Fi 6 STA Status Report TLV (17.2.73)
             //Profile-3 msg, hence failing even though optional
-            tlv = reinterpret_cast<em_tlv_t *> (tmp);
-            tlv->type = em_tlv_type_assoc_wifi6_sta_rprt;
-            sz = create_assoc_wifi6_sta_sta_report_tlv(tlv->value, sta);
-            tlv->len =  htons(static_cast<unsigned short> (sz));
+            if (get_profile_type() > em_profile_type_2) {
+                tlv = reinterpret_cast<em_tlv_t *> (tmp);
+                tlv->type = em_tlv_type_assoc_wifi6_sta_rprt;
+                sz = create_assoc_wifi6_sta_sta_report_tlv(tlv->value, sta);
+                tlv->len =  htons(static_cast<unsigned short> (sz));
 
-            tmp += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
-            len += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+                tmp += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+                len += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+            }
 
             //assoc vendor link metrics
             tlv = reinterpret_cast<em_tlv_t *> (tmp);
@@ -1132,17 +1497,19 @@ int em_metrics_t::send_ap_metrics_response()
 
     for (int i = 0; i < get_current_cmd()->get_param()->u.ap_metrics_params.num_radios; i++) {
         //Radio Metrics TLV (17.2.60)
-        tlv = reinterpret_cast<em_tlv_t *> (tmp);
-        tlv->type = em_tlv_type_radio_metric;
-        sz = create_radio_metrics_tlv(tlv->value, i);
-        if (sz == 0) {
-            em_printfout("create_radio_metrics_tlv size equals to zero\n");
-            continue;
-        }
-        tlv->len =  htons(static_cast<unsigned short> (sz));
+        if (get_profile_type() > em_profile_type_1) {
+            tlv = reinterpret_cast<em_tlv_t *> (tmp);
+            tlv->type = em_tlv_type_radio_metric;
+            sz = create_radio_metrics_tlv(tlv->value, i);
+            if (sz == 0) {
+                em_printfout("create_radio_metrics_tlv size equals to zero\n");
+                continue;
+            }
+            tlv->len =  htons(static_cast<unsigned short> (sz));
 
-        tmp += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
-        len += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+            tmp += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+            len += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+        }
     }
 
     // End of message
@@ -1153,7 +1520,7 @@ int em_metrics_t::send_ap_metrics_response()
     tmp += (sizeof(em_tlv_t));
     len += (sizeof(em_tlv_t));
 
-    if (em_msg_t(em_msg_type_ap_metrics_rsp, em_profile_type_2, buff, static_cast<unsigned int> (len)).validate(errors) == 0) {
+    if (em_msg_t(em_msg_type_ap_metrics_rsp, get_profile_type(), buff, static_cast<unsigned int> (len)).validate(errors) == 0) {
         em_printfout("AP Metrics Response validation failed for agent:%s, still sending",
             util::mac_to_string(dm->get_agent_al_interface_mac()).c_str());
         //return -1;
@@ -1306,10 +1673,11 @@ short em_metrics_t::create_beacon_metrics_query_tlv(unsigned char *buff, mac_add
 {
     size_t len = 0;
     dm_easy_mesh_t *dm;
-    ssid_t ssid;
+    ssid_t ssid = {0};
     dm_sta_t *sta;
     unsigned int j;
-    unsigned char ap_channel_list[] = {1, 6, 11};
+    bool ssid_found = false;
+    unsigned int radio_op_class = 128; // default fallback: 5GHz VHT80
     
 	dm = get_data_model();
 
@@ -1321,75 +1689,131 @@ short em_metrics_t::create_beacon_metrics_query_tlv(unsigned char *buff, mac_add
         sta = reinterpret_cast<dm_sta_t *> (hash_map_get_next(dm->m_sta_map, sta));
     }
 
+    if (sta == NULL) {
+        em_printfout("STA not found for mac:%s", util::mac_to_string(sta_mac).c_str());
+        return -1;
+    }
+
+    em_printfout("BSS lookup: sta_mac:%s sta->bssid:%s bssid_param:%s num_bss:%u",
+        util::mac_to_string(sta_mac).c_str(),
+        util::mac_to_string(sta->m_sta_info.bssid).c_str(),
+        util::mac_to_string(bssid).c_str(),
+        dm->get_num_bss());
+
+    // Try bssid parameter first (from em_sta->bssid), then fall back to sta->m_sta_info.bssid
     for (j = 0; j < dm->get_num_bss(); j++) {
-        if (memcmp(&dm->m_bss[j].m_bss_info.bssid, sta->m_sta_info.bssid, sizeof(bssid_t)) != 0) {
+        em_printfout("  BSS[%u] bssid:%s ssid:%s", j,
+            util::mac_to_string(dm->m_bss[j].m_bss_info.bssid.mac).c_str(),
+            dm->m_bss[j].m_bss_info.ssid);
+        if (memcmp(dm->m_bss[j].m_bss_info.bssid.mac, bssid, sizeof(bssid_t)) == 0) {
             snprintf(ssid, sizeof(ssid_t), "%s", dm->m_bss[j].m_bss_info.ssid);
+            ssid_found = true;
+            em_printfout("BSS found via bssid param: ssid:%s", ssid);
             break;
         }
     }
 
-
-    em_beacon_metrics_query_t *beacon_metrics = reinterpret_cast<em_beacon_metrics_query_t*> (buff);
-
-    if (sta == NULL) {
-
-    }
-    else {
-
-        memcpy(beacon_metrics->sta_mac_addr, sta_mac, sizeof(mac_addr_t));
-        len += sizeof(beacon_metrics->sta_mac_addr);
-
-        beacon_metrics->op_class = 10;
-        len += sizeof(beacon_metrics->op_class);
-
-        beacon_metrics->channel_num = 6;
-        len += sizeof(beacon_metrics->channel_num);
-
-        memcpy(beacon_metrics->bssid, bssid, sizeof(bssid_t));
-        len += sizeof(beacon_metrics->bssid);
-
-        beacon_metrics-> rprt_detail = 1;
-        len += sizeof(beacon_metrics-> rprt_detail);
-
-        beacon_metrics->ssid_len = sizeof(ssid);
-        len += sizeof(beacon_metrics->ssid_len);
-
-        memcpy(beacon_metrics->ssid, ssid, sizeof(ssid));
-        len += sizeof(ssid);
-
-        beacon_metrics->num_ap_channel_rprt = 2;
-        len += sizeof(beacon_metrics->num_ap_channel_rprt);
-
-        em_beacon_ap_channel_rprt_t *ap_chann_rprt;// = buff + len;
-
-        for (int i = 0; i < beacon_metrics->num_ap_channel_rprt; i++) {
-            ap_chann_rprt = reinterpret_cast<em_beacon_ap_channel_rprt_t *> (buff + len);
-            ap_chann_rprt->ap_channel_rprt_len = 4;
-            len += sizeof(ap_chann_rprt->ap_channel_rprt_len);
-
-            ap_chann_rprt->ap_channel_op_class = 10;
-            len += sizeof(ap_chann_rprt->ap_channel_op_class);
-
-            for(int j = 0; j < ap_chann_rprt->ap_channel_rprt_len - 1; j++) {
-                ap_chann_rprt->ap_channel_list[j] = ap_channel_list[j];
-                len += sizeof(unsigned char);
+    if (!ssid_found) {
+        // Fallback: try sta->m_sta_info.bssid
+        for (j = 0; j < dm->get_num_bss(); j++) {
+            if (memcmp(dm->m_bss[j].m_bss_info.bssid.mac, sta->m_sta_info.bssid, sizeof(bssid_t)) == 0) {
+                snprintf(ssid, sizeof(ssid_t), "%s", dm->m_bss[j].m_bss_info.ssid);
+                ssid_found = true;
+                em_printfout("BSS found via sta->bssid fallback: ssid:%s", ssid);
+                break;
             }
         }
     }
 
+    if (!ssid_found) {
+        em_printfout("BSS not found for bssid_param:%s sta->bssid:%s, cannot populate SSID",
+            util::mac_to_string(bssid).c_str(),
+            util::mac_to_string(sta->m_sta_info.bssid).c_str());
+        return -1;
+    }
+
+    // Derive op_class and channel from the operating channel report data
+    // (em_op_class_type_current entries populated by handle_op_channel_report)
+    unsigned int ap_channel = 0;
+    {
+        em_op_class_info_t *oci = nullptr;
+        for (unsigned int oc_idx = 0; oc_idx < dm->m_num_opclass; oc_idx++) {
+            em_op_class_info_t *candidate = &dm->m_op_class[oc_idx].m_op_class_info;
+            if ((memcmp(candidate->id.ruid, dm->m_bss[j].m_bss_info.id.ruid, sizeof(mac_address_t)) == 0) &&
+                    (candidate->id.type == em_op_class_type_current)) {
+                oci = candidate;
+                break;
+            }
+        }
+        if (oci != nullptr) {
+            radio_op_class = oci->op_class;
+            ap_channel = oci->channel;
+            em_printfout("Derived radio op_class %u channel %u from operating channel report for ruid:%s",
+                radio_op_class, ap_channel, util::mac_to_string(dm->m_bss[j].m_bss_info.id.ruid).c_str());
+        } else {
+            em_printfout("Could not get current op_class from operating channel report for ruid, using default %u",
+                radio_op_class);
+        }
+    }
+
+    em_beacon_metrics_query_t *beacon_metrics = reinterpret_cast<em_beacon_metrics_query_t*> (buff);
+
+    memcpy(beacon_metrics->sta_mac_addr, sta_mac, sizeof(mac_addr_t));
+    len += sizeof(beacon_metrics->sta_mac_addr);
+
+    beacon_metrics->op_class = radio_op_class;//static_cast<unsigned char>(scan_op_class);
+    len += sizeof(beacon_metrics->op_class);
+
+    // Use the AP's actual operating channel from the operating channel report.
+    if (ap_channel == 0) {
+        em_printfout("Operating channel report had channel 0, falling back to channel 255 (wildcard)");
+        ap_channel = 255;
+    } else {
+        em_printfout("Using AP operating channel %u from operating channel report for beacon request", ap_channel);
+    }
+    beacon_metrics->channel_num = 255;//ap_channel//todo: test and see with only correct op class, static_cast<unsigned char>(ap_channel);
+    len += sizeof(beacon_metrics->channel_num);
+
+    // Keep real BSSID so agent can resolve ap_index; OW will override to wildcard after lookup
+    memcpy(beacon_metrics->bssid, bssid, sizeof(bssid_t));
+    len += sizeof(beacon_metrics->bssid);
+
+    beacon_metrics->rprt_detail = 1;
+    len += sizeof(beacon_metrics->rprt_detail);
+
+    beacon_metrics->ssid_len = strlen(ssid);
+    len += sizeof(beacon_metrics->ssid_len);
+
+    memcpy(beacon_metrics->ssid, ssid, beacon_metrics->ssid_len);
+    len += beacon_metrics->ssid_len;
+
+    // Single AP Channel Report with only the current operating channel
+    uint8_t num_rprts = 1;
+    *(buff + len) = num_rprts;
+    len += sizeof(uint8_t);
+
+    // AP Channel Report: length = 2 (1 byte op_class + 1 byte channel)
+    uint8_t rprt_len = 2;
+    *(buff + len) = rprt_len;
+    len += sizeof(uint8_t);
+
+    *(buff + len) = static_cast<uint8_t>(radio_op_class);
+    len += sizeof(uint8_t);
+
+    *(buff + len) = static_cast<uint8_t>(ap_channel);
+    len += sizeof(uint8_t);
+
+    em_printfout("AP Channel Report: op_class=%u channel=%u", radio_op_class, ap_channel);
+
     // Print the filled data
-    printf("STA MAC Address: %02x:%02x:%02x:%02x:%02x:%02x\n",
-           beacon_metrics->sta_mac_addr[0], beacon_metrics->sta_mac_addr[1], beacon_metrics->sta_mac_addr[2],
-           beacon_metrics->sta_mac_addr[3], beacon_metrics->sta_mac_addr[4], beacon_metrics->sta_mac_addr[5]);
-    printf("Operating Class: %u\n", beacon_metrics->op_class);
-    printf("Channel Number: %u\n", beacon_metrics->channel_num);
-    mac_addr_str_t mac_str;
-    dm_easy_mesh_t::macbytes_to_string(beacon_metrics->bssid, mac_str);
-    printf("BSSID: %s\n", mac_str);
-    printf("Reporting Detail: %u\n", beacon_metrics->rprt_detail);
-    printf("SSID Length: %u\n", beacon_metrics->ssid_len);
-    printf("SSID: %s\n", beacon_metrics->ssid);
-    printf("Number of AP Channel Reports: %u\n", beacon_metrics->num_ap_channel_rprt);
+    em_printfout("STA MAC Address: %s", util::mac_to_string(beacon_metrics->sta_mac_addr).c_str());
+    em_printfout("Operating Class: %u", beacon_metrics->op_class);
+    em_printfout("Channel Number: %u", beacon_metrics->channel_num);
+    em_printfout("BSSID: %s", util::mac_to_string(beacon_metrics->bssid).c_str());
+    em_printfout("Reporting Detail: %u", beacon_metrics->rprt_detail);
+    em_printfout("SSID Length: %u", beacon_metrics->ssid_len);
+    em_printfout("SSID: %.*s", beacon_metrics->ssid_len, beacon_metrics->ssid);
+    em_printfout("Number of AP Channel Reports: %u", num_rprts);
 
     return static_cast<short> (len);
 }
@@ -1657,7 +2081,7 @@ short em_metrics_t::create_link_stats_alarm_tlv(unsigned char *buff)
     return static_cast<short> (len);
 }
 
-short em_metrics_t::create_error_code_tlv(unsigned char *buff, mac_address_t sta, bool sta_found)
+short em_metrics_t::create_error_code_tlv(unsigned char *buff, mac_address_t sta, bool sta_found, bool is_associated)
 {
     short len = 0;
     unsigned char *tmp = buff;
@@ -1668,6 +2092,13 @@ short em_metrics_t::create_error_code_tlv(unsigned char *buff, mac_address_t sta
         reason = 0x02;
     } */
 
+    (void)sta_found;
+    if (is_associated) {
+        reason = 0x01;   // STA is associated (Unassoc Query error)
+    } else {
+        reason = 0x00;   // default / no error / legacy behavior
+    }
+
     memcpy(tmp, &reason, sizeof(unsigned char));
     tmp += sizeof(unsigned char);
     len += static_cast<short> (sizeof(unsigned char));
@@ -1677,6 +2108,615 @@ short em_metrics_t::create_error_code_tlv(unsigned char *buff, mac_address_t sta
     len += static_cast<short> (sizeof(mac_address_t));
 
     return len;
+}
+
+int em_metrics_t::handle_1905_ack(unsigned char *buff, unsigned int len)
+{
+    std::vector<em_t *> em_radios;
+    em_t *matched_em = nullptr;
+    mac_address_t src_mac;
+
+    em_cmdu_t *cmdu = reinterpret_cast<em_cmdu_t *>(buff + sizeof(em_raw_hdr_t));
+
+    unsigned short response_msg_id = ntohs(cmdu->id);
+
+    em_raw_hdr_t *hdr = reinterpret_cast<em_raw_hdr_t *>(buff);
+
+    memcpy(src_mac, hdr->src, sizeof(mac_address_t));
+
+    get_mgr()->get_all_em_for_al_mac(src_mac, em_radios);
+
+    for (auto &em : em_radios)
+    {
+        if ((em->get_state() == em_state_ctrl_unassoc_sta_link_metrics_pending) &&
+            (response_msg_id == em->get_unassoc_sta_query_msg_id()))
+        {
+            matched_em = em;
+	    em->clear_unassoc_sta_query_msg_id();
+            break;
+        }
+    }
+
+    if (matched_em != nullptr) {
+        matched_em->set_state(em_state_ctrl_configured);
+    }
+
+    em_radios.clear();
+    em_printfout("Unassociated STA Link Metrics Query Ack handled successfully");
+    return 0;
+}
+
+int em_metrics_t::send_1905_ack_unassoc_sta_query(mac_address_t *sta_list, 
+		                        int sta_count, unsigned short msg_id)
+{
+    unsigned char buff[MAX_EM_BUFF_SZ];
+    char *errors[EM_MAX_TLV_MEMBERS] = {0};
+
+    unsigned int len = 0;
+    unsigned char *tmp = buff;
+    unsigned short type = htons(ETH_P_1905);
+
+    em_cmdu_t *cmdu;
+    em_tlv_t *tlv;
+
+    dm_easy_mesh_t *dm = get_data_model();
+
+    // --------------------------------------
+    // Ethernet Header and CMDU
+    // --------------------------------------
+    memcpy(tmp, dm->get_ctrl_al_interface_mac(), sizeof(mac_address_t));
+    tmp += sizeof(mac_address_t);
+    len +=  static_cast<short> (sizeof(mac_address_t));
+
+    memcpy(tmp, dm->get_agent_al_interface_mac(), sizeof(mac_address_t));
+    tmp += sizeof(mac_address_t);
+    len +=  static_cast<short> (sizeof(mac_address_t));
+
+    memcpy(tmp, &type, sizeof(unsigned short));
+    tmp += sizeof(unsigned short);
+    len += static_cast<unsigned int>(sizeof(unsigned short));;
+
+    cmdu = reinterpret_cast<em_cmdu_t *>(tmp);
+    memset(tmp, 0, sizeof(em_cmdu_t));
+
+    cmdu->type = htons(em_msg_type_1905_ack);
+    cmdu->id = htons(msg_id);
+    cmdu->last_frag_ind = 1;
+    tmp += sizeof(em_cmdu_t);
+    len += static_cast<unsigned int>(sizeof(em_cmdu_t));
+
+    // Error Code TLVs (if any)
+    for (int i = 0; i < sta_count; i++) {
+
+        tlv = reinterpret_cast<em_tlv_t *>(tmp);
+        tlv->type = em_tlv_type_error_code;
+
+        short sz =  create_error_code_tlv(tlv->value, sta_list[i], true, true);
+
+	tlv->len = htons(static_cast<short unsigned int> (sz));
+
+        tmp += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+        len += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+
+    }
+
+    tlv = reinterpret_cast<em_tlv_t *>(tmp);
+    tlv->type = em_tlv_type_eom;
+    tlv->len = 0;
+
+    tmp += sizeof(em_tlv_t);
+    len += sizeof(em_tlv_t);
+
+    if (em_msg_t(em_msg_type_1905_ack, em_profile_type_3, buff, len).validate(errors) == 0) {
+        printf("%s:%d: ACK validation failed\n", __func__, __LINE__);
+        return -1;
+    }
+
+    if (send_frame(buff, len) < 0) {
+        printf("%s:%d: ACK send failed, error:%d\n", __func__, __LINE__, errno);
+        return -1;
+    }
+    printf("%s:%d: ACK sent (Unassoc STA Query)\n", __func__, __LINE__);
+
+    return static_cast<int> (len);
+}
+
+int em_metrics_t::handle_unassoc_sta_link_metrics_query(unsigned char *buff, unsigned int len)
+{
+    char *errors[EM_MAX_TLV_MEMBERS] = {0};
+
+    if (em_msg_t(em_msg_type_unassoc_sta_link_metrics_query, em_profile_type_3, buff, len).validate(errors) == 0) {
+        em_printfout("%s:%d validation failed", __func__,__LINE__);
+        return -1;
+    }
+
+    em_cmdu_t *cmdu = reinterpret_cast<em_cmdu_t *>(buff + sizeof(em_raw_hdr_t));
+
+    uint16_t msg_id = ntohs(cmdu->id);
+
+    dm_easy_mesh_t *dm = get_data_model();
+    dm->set_msg_id(msg_id);
+
+    mac_address_t error_sta_list[EM_MAX_STA_PER_AGENT];
+    int error_sta_count = 0;
+
+    unsigned char work_buff[MAX_EM_BUFF_SZ] = {0};
+    unsigned char *work_ptr = work_buff;
+
+    auto remaining_work_buf = [&](unsigned char *ptr) -> size_t {
+	    return MAX_EM_BUFF_SZ - static_cast<size_t>(ptr - work_buff);
+        };
+
+    unsigned char *tlv_ptr = buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t);
+
+    unsigned char *cmdu_end = buff + len;
+
+    while (tlv_ptr + sizeof(em_tlv_t) <= cmdu_end) {
+
+        em_tlv_t *tlv = reinterpret_cast<em_tlv_t *>(tlv_ptr);
+
+        if (tlv->type == em_tlv_type_eom) {
+            break;
+        }
+
+        uint16_t tlv_len = ntohs(tlv->len);
+
+        if ((tlv_ptr + sizeof(em_tlv_t) + tlv_len) > cmdu_end) {
+            em_printfout("%s:%d TLV overflow", __func__,__LINE__);
+            return -1;
+        }
+
+        if (tlv->type == em_tlv_type_unassoc_sta_link_metric_query) {
+
+            unsigned char *query_ptr = tlv->value;
+            unsigned char *query_end = query_ptr + tlv_len;
+
+            while (query_ptr + 2 <= query_end) {
+
+                uint8_t op_class = *query_ptr++;
+                uint8_t num_channels = *query_ptr++;
+
+                if (num_channels > EM_MAX_CHANNELS_PER_OPCLASS) {
+                    em_printfout("%s:%d Invalid num_channels=%u (max=%u)", __func__, __LINE__, num_channels, EM_MAX_CHANNELS_PER_OPCLASS);
+                    return -1;
+                }
+
+                if (remaining_work_buf(work_ptr) < 2) {
+                    em_printfout("%s:%d work buffer exhausted", __func__, __LINE__);
+                    return -1;
+                }
+
+                unsigned char *opclass_start = work_ptr;
+
+                *work_ptr++ = op_class;
+
+                uint8_t *num_channels_field = work_ptr++;
+                uint8_t valid_channel_count = 0;
+
+                for (uint8_t channel_idx = 0; channel_idx < num_channels; channel_idx++) {
+
+                    if (query_ptr + 2 > query_end) {
+                        break;
+                    }
+
+                    uint8_t channel = *query_ptr++;
+                    uint8_t num_sta = *query_ptr++;
+
+		    if (num_sta > EM_MAX_STA_PER_CHANNEL) {
+                        em_printfout("%s:%d Invalid num_sta=%u (max=%u)",__func__, __LINE__, num_sta, EM_MAX_STA_PER_CHANNEL);
+                        return -1;
+                    }
+
+                    constexpr size_t CHANNEL_BUF_SIZE = 2 + (EM_MAX_STA_PER_CHANNEL * sizeof(mac_address_t));
+
+                    unsigned char channel_buf[CHANNEL_BUF_SIZE];
+                    unsigned char *channel_ptr = channel_buf;
+
+                    *channel_ptr++ = channel;
+
+                    uint8_t *num_sta_field = channel_ptr++;
+                    uint8_t valid_sta_count = 0;
+
+                    for (uint8_t sta_idx = 0; sta_idx < num_sta; sta_idx++) {
+
+                        if (query_ptr + sizeof(mac_address_t) > query_end) {
+                            break;
+                        }
+
+                        mac_address_t sta;
+                        memcpy(sta, query_ptr, sizeof(mac_address_t));
+
+                        query_ptr += sizeof(mac_address_t);
+
+			// Check if the STA is associated with any BSS on this agent
+                        dm_sta_t *assoc_sta = dm->get_first_sta(sta);
+		        bool sta_is_associated = (assoc_sta != NULL);
+                        
+		        if (sta_is_associated) {
+                            bool already_added = false;
+
+                            for (int err_idx = 0; err_idx < error_sta_count; err_idx++) {
+                                if (memcmp(error_sta_list[err_idx], sta, sizeof(mac_address_t)) == 0) {
+                                    already_added = true;
+                                    break;
+                                }
+                            }
+
+                            if (!already_added && error_sta_count < EM_MAX_STA_PER_AGENT) {
+                                memcpy(error_sta_list[error_sta_count], sta, sizeof(mac_address_t));
+                                error_sta_count++;
+                            }
+                        } else {
+                            size_t required = sizeof(mac_address_t);
+
+                            if (static_cast<size_t>(channel_ptr - channel_buf) + required > CHANNEL_BUF_SIZE) {
+
+                                em_printfout("%s:%d channel buffer overflow",__func__, __LINE__);
+                                return -1;
+                            }
+
+                            memcpy(channel_ptr, sta, sizeof(mac_address_t));
+                            channel_ptr += sizeof(mac_address_t);
+                            valid_sta_count++;
+                        }
+                    }
+
+                    if (valid_sta_count > 0) {
+                        *num_sta_field = valid_sta_count;
+
+                        uint16_t channel_len = static_cast<uint16_t>(2 + (valid_sta_count * sizeof(mac_address_t)));
+
+                        if (remaining_work_buf(work_ptr) < channel_len) {
+                            em_printfout("%s:%d work buffer overflow", __func__,  __LINE__);
+                            return -1;
+                        }
+
+                        memcpy(work_ptr, channel_buf, channel_len);
+                        work_ptr += channel_len;
+                        valid_channel_count++;
+                    }
+                }
+
+                if (valid_channel_count == 0) {
+                    /* rollback empty opclass */
+                    work_ptr = opclass_start;
+                } else {
+                    *num_channels_field = valid_channel_count;
+                }
+            }
+        }
+        tlv_ptr += sizeof(em_tlv_t) + tlv_len;
+    }
+    send_1905_ack_unassoc_sta_query(error_sta_list, error_sta_count, msg_id);
+
+    if (work_ptr > work_buff) {
+        uint16_t work_len = static_cast<uint16_t>(work_ptr - work_buff);
+        get_mgr()->io_process(em_bus_event_type_unassoc_sta_link_metrics_query, work_buff, work_len);
+        em_printfout("%s:%d Sent Unassoc STA Query to Agent len=%u", __func__, __LINE__, work_len);
+    }
+    return 0;
+}
+
+unsigned short em_metrics_t::create_unassoc_sta_link_metrics_query_tlv(unsigned char *buff, em_unassoc_query_opclass_t *op)
+{
+    unsigned char *ptr = buff;
+    unsigned short len = 0;
+
+    if (op == NULL) {
+        em_printfout("op is NULL");
+        return 0;
+    }
+
+    *ptr++ = op->op_class;
+    len++;
+
+    *ptr++ = op->num_channels;
+    len++;
+
+    for (int j = 0; j < op->num_channels; j++) {
+        auto &ch = op->channel_list[j];
+
+	*ptr++ = ch.channel;
+        len++;
+
+        *ptr++ = ch.num_sta;
+        len++;
+        for (int k = 0; k < ch.num_sta; k++) {
+            //Adding STA
+            memcpy(ptr, ch.sta_list[k], sizeof(mac_address_t));
+            ptr += sizeof(mac_address_t);
+            len += static_cast<short>(sizeof(mac_address_t));	    
+        }
+    }
+    return len;
+}
+
+int em_metrics_t::send_unassoc_sta_link_metrics_query_msg()
+{
+    unsigned char buff[MAX_EM_BUFF_SZ];
+    unsigned char *tmp = buff;
+    unsigned int len = 0;
+    char *errors[EM_MAX_TLV_MEMBERS] = {0};
+
+    dm_easy_mesh_t *dm = get_data_model();
+
+    if (dm == NULL) {
+        return -1;
+    }
+
+    em_cmd_unassoc_sta_query_t *cmd = static_cast<em_cmd_unassoc_sta_query_t *>(get_current_cmd());
+    if (cmd == NULL) {
+        return -1;
+    }
+
+    em_unassoc_query_list_t *query = cmd->get_query();
+
+    if (query == NULL) {
+        return -1;
+    }
+
+    memset(buff, 0, sizeof(buff));
+
+    memcpy(tmp, dm->get_agent_al_interface_mac(), sizeof(mac_address_t));
+    tmp += sizeof(mac_address_t);
+    len += sizeof(mac_address_t);
+
+    memcpy(tmp, dm->get_ctrl_al_interface_mac(),  sizeof(mac_address_t));
+    tmp += sizeof(mac_address_t);
+    len += sizeof(mac_address_t);
+
+    unsigned short type = htons(ETH_P_1905);
+    memcpy(tmp, &type, sizeof(type));
+    tmp += sizeof(type);
+    len += sizeof(type);
+
+    em_cmdu_t *cmdu = reinterpret_cast<em_cmdu_t *>(tmp);
+    memset(cmdu, 0, sizeof(em_cmdu_t));
+    cmdu->type = htons(em_msg_type_unassoc_sta_link_metrics_query);
+
+    cmdu->id = htons(get_mgr()->get_next_msg_id());
+    cmdu->last_frag_ind = 1;
+    cmdu->relay_ind = 0;
+
+    tmp += sizeof(em_cmdu_t);
+    len += sizeof(em_cmdu_t);
+
+    // TLVs
+    for (int i = 0; i < query->num_opclass; i++) {
+        auto &op = query->opclass_list[i];
+        unsigned int required_payload = 2;   // op_class + num_channels
+
+        for (int j = 0; j < op.num_channels; j++) {
+            required_payload += 2;     // channel + num_sta
+            required_payload += static_cast<unsigned int>(op.channel_list[j].num_sta) * sizeof(mac_address_t);
+        }
+
+        unsigned int remaining = MAX_EM_BUFF_SZ - static_cast<unsigned int>(tmp - buff);
+
+        if (remaining < (sizeof(em_tlv_t) + required_payload)) {
+            em_printfout("%s:%d insufficient buffer space (remaining=%u required=%u)", __func__, __LINE__, remaining, sizeof(em_tlv_t) + required_payload);
+            return -1;
+        }
+
+        em_tlv_t *tlv = reinterpret_cast<em_tlv_t *>(tmp);
+        tlv->type = em_tlv_type_unassoc_sta_link_metric_query;
+       
+        unsigned int sz = static_cast<unsigned int>(create_unassoc_sta_link_metrics_query_tlv(tlv->value, &op));
+       tlv->len = htons(static_cast<uint16_t>(sz));
+
+       tmp += sizeof(em_tlv_t) + static_cast<size_t>(sz);
+   
+       len += static_cast<unsigned int>(sizeof(em_tlv_t) + static_cast<size_t>(sz));
+    }
+   
+    unsigned int remaining = MAX_EM_BUFF_SZ - static_cast<unsigned int>(tmp - buff);
+
+    if (remaining < sizeof(em_tlv_t)) {
+        em_printfout("%s:%d insufficient buffer space for EOM TLV", __func__, __LINE__);
+        return -1;
+    } 
+
+    em_tlv_t *eom = reinterpret_cast<em_tlv_t *>(tmp);
+    eom->type = em_tlv_type_eom;
+    eom->len = 0;
+
+    tmp += sizeof(em_tlv_t);
+    len += static_cast<unsigned int>(sizeof(em_tlv_t));;
+
+    if (em_msg_t(em_msg_type_unassoc_sta_link_metrics_query, em_profile_type_3, buff, len).validate(errors) == 0) {
+        em_printfout("Unassociated STA Link Metrics Query validation failed");
+        return -1;
+    }
+
+   if (send_frame(buff, len) < 0) {
+        em_printfout("%s:%d: Unassoc Query send failed errno=%d",__func__, __LINE__, errno);
+        return -1;
+    }
+
+    em_printfout("%s:%d: Unassoc Query sent to Agent successfully", __func__, __LINE__);
+
+    em_t *em = static_cast<em_t *>(this);
+    em->m_unassoc_sta_query_msg_id = ntohs(cmdu->id);
+    em_printfout("%s:%d Stored query msg_id=%u", 
+             __func__, __LINE__, em->m_unassoc_sta_query_msg_id);
+
+    m_unassoc_sta_query_msg_id  =  ntohs(cmdu->id);
+    
+    return static_cast<int>(len);
+}
+
+//Unassociated STA Link Metrics Response Part
+/*
+ * create_unassoc_sta_link_metrics_tlv()
+ *
+ * Purpose:
+ * --------
+ * Creates ONE TLV for ONE operating class.
+ *
+ * Output:
+ * -------
+ * TLV contains:
+ * - op_class
+ * - num_sta
+ * - all STA metrics for that op_class
+ */
+
+unsigned short em_metrics_t::create_unassoc_sta_link_metrics_resp_tlv(unsigned char *buff, unsigned char op_class, em_unassoc_sta_metrics_rsp_t *rsp)
+{
+    em_unassoc_sta_link_metrics_rsp_t *tlv = reinterpret_cast<em_unassoc_sta_link_metrics_rsp_t *>(buff);
+
+    unsigned short len = 0;
+    unsigned char count = 0;
+
+    tlv->op_class = op_class;
+
+
+    /*
+     * Advance length for op_class field
+     */
+    len += 1;
+
+    /*
+     * Reserve space for num_sta field.
+     *
+     * We do not yet know how many STA entries
+     * belong to this op_class.
+     *
+     * We'll fill tlv->num_sta later.
+     */
+    len += 1;
+
+    /*
+     * TLV buffer layout:
+     *
+     * --------------------------------------------------
+     * | op_class | num_sta | STA metric entries ... |
+     * --------------------------------------------------
+     *
+     * Each STA metric entry contains:
+     *   - STA MAC
+     *   - channel
+     *   - time_delta
+     *   - rcpi
+     */
+    for (unsigned int i = 0; i < rsp->num_entries; i++) {
+        /*
+         * Skip entries belonging to
+         * different operating classes.
+         */
+        if (rsp->entry[i].op_class != op_class) {
+            continue;
+        }
+        
+        em_unassoc_sta_metric_t *sta_metric = reinterpret_cast<em_unassoc_sta_metric_t *>(buff + len);
+
+        memcpy(sta_metric->sta_mac, rsp->entry[i].sta_mac, sizeof(mac_address_t));
+        sta_metric->channel = rsp->entry[i].channel;
+        sta_metric->time_delta = htonl(rsp->entry[i].time_delta);
+        sta_metric->rcpi = rsp->entry[i].rcpi;
+        len += sizeof(em_unassoc_sta_metric_t);
+        count++;
+    }
+
+    tlv->num_sta = count;
+
+    return len;
+}
+
+/*
+ * send_unassoc_sta_link_metrics_response()
+ *
+ * Builds and sends ONE response message
+ * containing ONE Unassoc STA Link Metrics TLV
+ * for ONE operating class.
+ */
+void em_metrics_t::send_unassoc_sta_link_metrics_resp_msg()	
+{
+    unsigned char buff[MAX_EM_BUFF_SZ];
+    unsigned char *tmp = buff;
+
+    em_cmdu_t *cmdu;
+    em_tlv_t *tlv;
+
+    size_t len = 0;
+
+    bool sent_opclass[256] = {false};
+    unsigned short type = htons(ETH_P_1905);
+    unsigned short msg_type = em_msg_type_unassoc_sta_link_metrics_rsp;
+
+    dm_easy_mesh_t *dm = get_data_model();
+    unsigned short msg_id = dm->get_msg_id();
+    em_unassoc_sta_metrics_rsp_t *rsp = &dm->m_unassoc_sta_metrics_rsp;
+
+    memcpy(tmp, dm->get_ctl_mac(), sizeof(mac_address_t));
+    tmp += sizeof(mac_address_t);
+    len += sizeof(mac_address_t);
+
+    memcpy(tmp, dm->get_agent_al_interface_mac(), sizeof(mac_address_t));
+    tmp += sizeof(mac_address_t);
+    len += sizeof(mac_address_t);
+
+    memcpy(tmp, &type, sizeof(unsigned short));
+    tmp += sizeof(unsigned short);
+    len += sizeof(unsigned short);
+
+    cmdu = reinterpret_cast<em_cmdu_t *>(tmp);
+    memset(cmdu, 0, sizeof(em_cmdu_t));
+    cmdu->type = htons(msg_type);
+    cmdu->id = htons(msg_id);
+    cmdu->last_frag_ind = 1;
+    tmp += sizeof(em_cmdu_t);
+    len +=  static_cast<unsigned int>(sizeof(em_cmdu_t)); 
+
+    for (unsigned int i = 0; i < rsp->num_entries; i++) {
+
+        unsigned char op_class = rsp->entry[i].op_class;
+
+        if (sent_opclass[op_class]) {
+            continue;
+        }
+
+        em_tlv_t *tlv = reinterpret_cast<em_tlv_t *>(tmp);
+        memset(tlv, 0, sizeof(em_tlv_t));
+
+        tlv->type = em_tlv_type_unassoc_sta_link_metric_rsp;
+
+        unsigned short sz = create_unassoc_sta_link_metrics_resp_tlv(tlv->value, op_class, rsp);
+
+        unsigned int required = sizeof(em_tlv_t) + sz;
+
+        if ((len + required) > MAX_EM_BUFF_SZ) {
+            em_printfout("%s:%d insufficient buffer space for Unassoc STA Metrics TLV (len=%u required=%u max=%u)",__func__, __LINE__,
+                                       static_cast<unsigned int>(len), required, MAX_EM_BUFF_SZ);
+            return;
+        }
+
+        tlv->len = htons(sz);
+
+        tmp += required;
+        len += required;
+        sent_opclass[op_class] = true;
+    }
+
+    tlv = reinterpret_cast<em_tlv_t *>(tmp);
+    tlv->type = em_tlv_type_eom;
+    tlv->len = 0;
+    tmp += sizeof(em_tlv_t);
+    len += sizeof(em_tlv_t);
+
+    if (send_frame(buff, static_cast<unsigned int>(len)) < 0) {
+        em_printfout("%s:%d: UnAssociated STA Link Metrics Response send failed, error:%d\n", __func__, __LINE__, errno);
+	return;
+    }
+    /*
+     * Clear the processed entries after successfully sending the response.
+     * This prevents the same Unassociated STA metrics data from being
+     * retransmitted if the command is executed again or the state handler 
+     * is invoked multiple times for the same response object.
+     */
+    em_printfout("%s:%d Clearing num_entries after successful response send\n",__func__, __LINE__);
+    rsp->num_entries = 0;
+    set_state(em_state_agent_configured);
 }
 
 void em_metrics_t::process_msg(unsigned char *data, unsigned int len)
@@ -1706,6 +2746,77 @@ void em_metrics_t::process_msg(unsigned char *data, unsigned int len)
         case em_msg_type_topo_vendor:
             handle_vendor_msg(data, len);
             break;
+        case em_msg_type_unassoc_sta_link_metrics_query:
+            handle_unassoc_sta_link_metrics_query(data, len);
+            break;
+        case em_msg_type_unassoc_sta_link_metrics_rsp:
+            handle_unassoc_sta_link_metrics_rsp(data, len);
+            break;
+        case em_msg_type_1905_ack:
+            handle_1905_ack(data, len);
+            break;
+
+        case em_msg_type_client_cap_rprt:
+        {
+            // Extract the specific STA from the Client Info TLV so we only
+            // send one beacon query for the STA that just joined.
+            em_tlv_t *cap_tlv = reinterpret_cast<em_tlv_t *>(data + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+            unsigned int cap_len = len - static_cast<unsigned int>(sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+            mac_address_t join_sta_mac = {0};
+            bssid_t       join_bssid   = {0};
+            bool found_sta = false;
+            while (cap_len >= sizeof(em_tlv_t)) {
+                unsigned int tlv_len = static_cast<unsigned int>(ntohs(cap_tlv->len));
+                unsigned int tlv_total_len = static_cast<unsigned int>(sizeof(em_tlv_t)) + tlv_len;
+
+                if (tlv_total_len > cap_len) {
+                    em_printfout("cap report: malformed TLV walk, tlv_len=%u cap_len=%u", tlv_len, cap_len);
+                    break;
+                }
+
+                if (cap_tlv->type == em_tlv_type_eom) {
+                    break;
+                }
+
+                if (cap_tlv->type == em_tlv_type_client_info) {
+                    if (tlv_len >= (sizeof(bssid_t) + sizeof(mac_address_t))) {
+                        // em_client_info_t layout: bssid[6] then client_mac[6]
+                        memcpy(join_bssid, cap_tlv->value, sizeof(bssid_t));
+                        memcpy(join_sta_mac, cap_tlv->value + sizeof(bssid_t), sizeof(mac_address_t));
+                        found_sta = true;
+                    } else {
+                        em_printfout("cap report: malformed Client Info TLV len=%u", tlv_len);
+                    }
+                    break;
+                }
+                cap_len -= tlv_total_len;
+                cap_tlv = reinterpret_cast<em_tlv_t *>(reinterpret_cast<unsigned char *>(cap_tlv) + tlv_total_len);
+            }
+            if (found_sta) {
+                em_printfout("cap report: beacon query will be triggered after topo publish for sta:%s bssid:%s",
+                    util::mac_to_string(join_sta_mac).c_str(),
+                    util::mac_to_string(join_bssid).c_str());
+            } else {
+                em_printfout("cap report: could not find Client Info TLV");
+            }
+
+            // Previous implementation: send beacon query for all associated STAs.
+            // Kept for reference.
+            // em_sta_info_t *em_sta = get_data_model()->get_first_sta_info(em_target_sta_map_assoc);
+            // while (em_sta != NULL) {
+            //     if (!sta_supports_beacon_measurement(em_sta->rm_cap)) {
+            //         em_printfout("cap report: STA %s has no 802.11k beacon meas capability, skipping query",
+            //             util::mac_to_string(em_sta->id).c_str());
+            //     } else {
+            //         em_printfout("cap report: sending beacon query for sta:%s bssid:%s",
+            //             util::mac_to_string(em_sta->id).c_str(),
+            //             util::mac_to_string(em_sta->bssid).c_str());
+            //         send_beacon_metrics_query(em_sta->id, em_sta->bssid);
+            //     }
+            //     em_sta = get_data_model()->get_next_sta_info(em_sta, em_target_sta_map_assoc);
+            // }
+            break;
+        }
 
         default:
             break;
@@ -1718,6 +2829,10 @@ void em_metrics_t::process_ctrl_state()
         case em_state_ctrl_sta_link_metrics_pending:
             send_all_associated_sta_link_metrics_msg();
             break;
+        case em_state_ctrl_unassoc_sta_link_metrics_pending:
+            send_unassoc_sta_link_metrics_query_msg();
+            break;
+	    
         default:
             printf("%s:%d: unhandled case %s\n", __func__, __LINE__, em_t::state_2_str(get_state()));
             break;
@@ -1739,6 +2854,10 @@ void em_metrics_t::process_agent_state()
             send_link_quality_report();
             break;
 
+        case em_state_agent_unassoc_sta_metrics_report_pending:
+            send_unassoc_sta_link_metrics_resp_msg();
+            break;
+
         default:
             break;
     }
@@ -1754,6 +2873,72 @@ void em_metrics_t::process_agent_state(em_cmd_event_type_t type)
         default:
             break;
     }
+}
+
+int em_metrics_t::send_beacon_metrics_query_ack(mac_address_t sta_mac, unsigned short msg_id, unsigned char reason)
+{
+    unsigned char buff[MAX_EM_BUFF_SZ] = {0};
+    char *errors[EM_MAX_TLV_MEMBERS] = {0};
+    unsigned int len = 0;
+    em_cmdu_t *cmdu;
+    em_tlv_t *tlv;
+    unsigned char *tmp = buff;
+    unsigned short type = htons(ETH_P_1905);
+    dm_easy_mesh_t *dm = get_data_model();
+
+    // dst = controller, src = agent
+    memcpy(tmp, dm->get_ctrl_al_interface_mac(), sizeof(mac_address_t));
+    tmp += sizeof(mac_address_t);
+    len += sizeof(mac_address_t);
+
+    memcpy(tmp, dm->get_agent_al_interface_mac(), sizeof(mac_address_t));
+    tmp += sizeof(mac_address_t);
+    len += sizeof(mac_address_t);
+
+    memcpy(tmp, reinterpret_cast<unsigned char *>(&type), sizeof(unsigned short));
+    tmp += sizeof(unsigned short);
+    len += sizeof(unsigned short);
+
+    cmdu = reinterpret_cast<em_cmdu_t *>(tmp);
+    memset(tmp, 0, sizeof(em_cmdu_t));
+    cmdu->type = htons(em_msg_type_1905_ack);
+    cmdu->id   = htons(msg_id);
+    cmdu->last_frag_ind = 1;
+    tmp += sizeof(em_cmdu_t);
+    len += sizeof(em_cmdu_t);
+
+    if (reason != 0) {
+        // 17.2.36 Error Code TLV
+        tlv = reinterpret_cast<em_tlv_t *>(tmp);
+        tlv->type = em_tlv_type_error_code;
+        unsigned char *ec = tlv->value;
+        *ec = reason;
+        ec += sizeof(unsigned char);
+        memcpy(ec, sta_mac, sizeof(mac_address_t));
+        ec += sizeof(mac_address_t);
+        tlv->len = htons(static_cast<unsigned short>(sizeof(unsigned char) + sizeof(mac_address_t)));
+        tmp += sizeof(em_tlv_t) + sizeof(unsigned char) + sizeof(mac_address_t);
+        len += sizeof(em_tlv_t) + sizeof(unsigned char) + sizeof(mac_address_t);
+    }
+
+    tlv = reinterpret_cast<em_tlv_t *>(tmp);
+    tlv->type = em_tlv_type_eom;
+    tlv->len  = 0;
+    tmp += sizeof(em_tlv_t);
+    len += sizeof(em_tlv_t);
+
+    if (em_msg_t(em_msg_type_1905_ack, em_profile_type_2, buff, len).validate(errors) == 0) {
+        em_printfout("Beacon Metrics Query ACK validation failed");
+        return -1;
+    }
+
+    if (send_frame(buff, len) < 0) {
+        em_printfout("Beacon Metrics Query ACK send failed, error:%d", errno);
+        return -1;
+    }
+
+    em_printfout("Beacon Metrics Query ACK sent for msg_id=%u reason=%u", msg_id, reason);
+    return static_cast<int>(len);
 }
 
 em_metrics_t::em_metrics_t()

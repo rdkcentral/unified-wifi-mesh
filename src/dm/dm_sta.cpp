@@ -142,6 +142,10 @@ int dm_sta_t::decode(const cJSON *obj, void *parent_id)
         snprintf(m_sta_info.cellular_data_pref, sizeof(m_sta_info.cellular_data_pref), "%s", cJSON_GetStringValue(tmp));
     }
 
+    if ((tmp = cJSON_GetObjectItem(obj, "RMEnabledCapabilities")) != NULL) {
+        snprintf(m_sta_info.rm_cap, sizeof(m_sta_info.rm_cap), "%s", cJSON_GetStringValue(tmp));
+    }
+
     return 0;
 
 }
@@ -403,6 +407,13 @@ void dm_sta_t::decode_sta_capability(dm_sta_t *sta)
 
     sta->m_sta_info.num_vendor_infos = 0;
 
+    /* The frame_body stores the full 802.11 (Re)Association Request frame body:
+     * capab_info (2B) + listen_interval (2B) + IEs. Skip the fixed fields. */
+    if (sta->m_sta_info.frame_body_len < 4) {
+        return;
+    }
+    offset = 4;
+
     while (offset < sta->m_sta_info.frame_body_len) {
         if (offset + 2 > sta->m_sta_info.frame_body_len) {
             printf("%s:%d: Insufficient data for tag header\n", __func__, __LINE__);
@@ -540,6 +551,24 @@ void dm_sta_t::decode_beacon_report(dm_sta_t *sta)
 
        ie += current_pkt_len;
    }
+}
+
+bool dm_sta_t::supports_beacon_measurement() const
+{
+    // IEEE 802.11 (RM Enabled Capabilities, Octet 1):
+    //   bit 4 = Beacon Passive measurement
+    //   bit 5 = Beacon Active measurement
+    //   bit 6 = Beacon Table measurement
+    // Mask 0x70 covers all three.
+    if (m_sta_info.rm_cap == nullptr || m_sta_info.rm_cap[0] == '\0') {
+        return false;
+    }
+    unsigned int byte0 = 0;
+    if (sscanf(m_sta_info.rm_cap, "%02x", &byte0) != 1) {
+        return false;
+    }
+    //return true if any of the three beacon measurement bits are set
+    return (byte0 & 0x70) != 0;
 }
 
 dm_sta_t::dm_sta_t(em_sta_info_t *sta)

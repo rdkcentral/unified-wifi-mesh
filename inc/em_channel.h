@@ -205,6 +205,52 @@ public:
 	short create_channel_pref_tlv(unsigned char *buff);
 
 	/**!
+	 * @brief Updates map with non-operable and unsupported channels as per
+	 * Agent's Capability and Channel Preference Report
+	 *
+	 * Marks non-op channels for the operating classes from AP Capability Report with preference 0
+	 * Updates non-operable/operable preference from Preference Report. Preference report
+	 * overrides operable/non-operable preference from AP Capability Report
+	 * Removes unsupported opclasses as per AP Capability Report from the map
+	 *
+	 * @param[in] ruid Radio unique identifier (MAC address)
+	 * @param[in,out] opclass_channel_prefs Map keyed by op-class (outer key = opclass ID).
+	 * Each entry in outer map has an inner map keyed by channel number with preference byte as value
+	 */
+	void update_map_with_agent_capability_preference(const unsigned char *ruid, std::map<unsigned char, std::map<unsigned char, unsigned char>> &opclass_channel_prefs);
+
+	/**!
+	 * @brief This function updates the map with ctrl anticipated preferences
+	 *
+	 * Create a merged list of anticipated entries for Global, Device and RUID from datamodel
+	 * Assumes, only one entry for an OPCLASS for Global, Device or RUID in the datamodel
+	 * For an OPCLASS, RUID entry overrides the Global/Device ID entry
+	 * Updates the preferences for operable channels in the map with anticipated preferences
+	 *
+	 * @param[in] ruid Radio unique identifier (MAC address)
+	 * @param[in,out] opclass_channel_prefs Map keyed by op-class (outer key = opclass ID).
+	 * Each entry in outer map has an inner map keyed by channel number with preference byte as value
+	 *
+	 * @returns bool
+	 * @retval true if at least one entry was updated with anticipated preference for the RUID
+	 * @retval false otherwise
+	 *
+	 */
+	bool update_map_with_ctrl_anticipated(const unsigned char *ruid, std::map<unsigned char, std::map<unsigned char, unsigned char>> &opclass_channel_prefs);
+
+	/**!
+	 * @brief This function fills the map with opclass->channel entries from m_e4_table
+	 * with default preference for controller/agent
+	 *
+	 * This function is responsible for filling the map which is keyed by op-class (outer key = opclass ID).
+	 * Each entry in outer map has an inner map keyed by channel number with preference byte as value
+	 * Default preference is CTRL_DEFAULT_CH_PREF / AGENT_DEFAULT_CH_PREF
+	 *
+	 * @param[in,out] opclass_channel_prefs Map to fill with opclass and channel entries
+	 */
+	void fill_map_with_opclass_channel_prefs(std::map<unsigned char, std::map<unsigned char, unsigned char>> &opclass_channel_prefs);
+
+	/**!
 	 * @brief Creates an operating channel report TLV.
 	 *
 	 * This function generates a TLV (Type-Length-Value) report for the operating channel
@@ -314,6 +360,8 @@ public:
 	 * @note Ensure that the buffer is allocated with sufficient size before calling this function.
 	 */
 	virtual unsigned short create_eht_operations_tlv(unsigned char *buff) = 0;
+
+	virtual int handle_eht_operations_tlv(unsigned char *buff, unsigned short len) = 0;
     
 	/**!
 	 * @brief Sends a channel scan request message.
@@ -638,40 +686,6 @@ public:
 	 * @note Ensure that the buffer is properly allocated and the length is correctly specified.
 	 */
 	int handle_spatial_reuse_report(unsigned char *buff, unsigned int len);
-    
-	/**!
-	 * @brief Handles EHT operations TLV.
-	 *
-	 * This function processes the EHT operations TLV from the provided buffer and populates the
-	 * eht_ops structure with the relevant data.
-	 *
-	 * @param[in] buff Pointer to the buffer containing the EHT operations TLV data.
-	 * @param[out] eht_ops Pointer to the em_eht_operations_t structure to be populated.
-	 *
-	 * @returns int
-	 * @retval 0 on success
-	 * @retval -1 on failure
-	 *
-	 * @note Ensure that the buffer is properly initialized and contains valid TLV data before calling this function.
-	 */
-	int handle_eht_operations_tlv(unsigned char *buff, em_eht_operations_t *eht_ops);
-    
-	/**!
-	 * @brief Handles EHT operations for TLV control.
-	 *
-	 * This function processes the EHT operations based on the provided TLV control buffer.
-	 *
-	 * @param[in] buff Pointer to the buffer containing TLV data.
-	 * @param[in] len Length of the buffer.
-	 *
-	 * @returns int
-	 * @retval 0 on success
-	 * @retval -1 on failure
-	 *
-	 * @note Ensure that the buffer is properly initialized before calling this function.
-	 */
-	int handle_eht_operations_tlv_ctrl(unsigned char *buff, unsigned int len);
-
     
 	/**!
 	 * @brief Retrieves the channel preference query transmission count.

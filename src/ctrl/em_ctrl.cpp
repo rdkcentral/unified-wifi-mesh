@@ -102,6 +102,13 @@ void em_ctrl_t::handle_dm_commit(em_bus_event_t *evt)
     }
 }
 
+// Non-positive analyze_*() result: 0/NO_CHANGE is a no-op, any other negative is an error.
+static em_cmd_out_status_t status_for_noncmd(int num)
+{
+    return (num == 0 || num == EM_PARSE_ERR_NO_CHANGE) ?
+        em_cmd_out_status_no_change : em_cmd_out_status_invalid_input;
+}
+
 void em_ctrl_t::handle_client_steer(em_bus_event_t *evt)
 {
     em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
@@ -109,8 +116,8 @@ void em_ctrl_t::handle_client_steer(em_bus_event_t *evt)
 
     if (m_orch->is_cmd_type_in_progress(evt) == true) {
         m_ctrl_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
-    } else if ((num = m_data_model.analyze_command_steer(evt, pcmd)) == 0) {
-        m_ctrl_cmd->send_result(em_cmd_out_status_no_change);
+    } else if ((num = m_data_model.analyze_command_steer(evt, pcmd)) <= 0) {
+        m_ctrl_cmd->send_result(status_for_noncmd(num));
     } else if (m_orch->submit_commands(pcmd, static_cast<unsigned int> (num)) > 0) {
         m_ctrl_cmd->send_result(em_cmd_out_status_success);
     } else {
@@ -125,8 +132,8 @@ void em_ctrl_t::handle_client_disassoc(em_bus_event_t *evt)
 
     if (m_orch->is_cmd_type_in_progress(evt) == true) {
         m_ctrl_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
-    } else if ((num = m_data_model.analyze_command_disassoc(evt, pcmd)) == 0) {
-        m_ctrl_cmd->send_result(em_cmd_out_status_no_change);
+    } else if ((num = m_data_model.analyze_command_disassoc(evt, pcmd)) <= 0) {
+        m_ctrl_cmd->send_result(status_for_noncmd(num));
     } else if (m_orch->submit_commands(pcmd, static_cast<unsigned int> (num)) > 0) {
         m_ctrl_cmd->send_result(em_cmd_out_status_success);
     } else {
@@ -141,8 +148,8 @@ void em_ctrl_t::handle_client_btm(em_bus_event_t *evt)
 
     if (m_orch->is_cmd_type_in_progress(evt) == true) {
         m_ctrl_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
-    } else if ((num = m_data_model.analyze_command_btm(evt, pcmd)) == 0) {
-        m_ctrl_cmd->send_result(em_cmd_out_status_no_change);
+    } else if ((num = m_data_model.analyze_command_btm(evt, pcmd)) <= 0) {
+        m_ctrl_cmd->send_result(status_for_noncmd(num));
     } else if (m_orch->submit_commands(pcmd, static_cast<unsigned int> (num)) > 0) {
         m_ctrl_cmd->send_result(em_cmd_out_status_success);
     } else {
@@ -157,14 +164,30 @@ void em_ctrl_t::handle_start_dpp(em_bus_event_t *evt)
 
     if (m_orch->is_cmd_type_in_progress(evt) == true) {
         m_ctrl_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
-    } else if ((num = m_data_model.analyze_dpp_start(evt, pcmd)) == 0) {
-        m_ctrl_cmd->send_result(em_cmd_out_status_no_change);
+    } else if ((num = m_data_model.analyze_dpp_start(evt, pcmd)) <= 0) {
+        m_ctrl_cmd->send_result(status_for_noncmd(num));
     } else if (m_orch->submit_commands(pcmd, static_cast<unsigned int> (num)) > 0) {
         m_ctrl_cmd->send_result(em_cmd_out_status_success);
     } else {
         m_ctrl_cmd->send_result(em_cmd_out_status_not_ready);
     } 
 
+}
+
+void em_ctrl_t::handle_channel_select(em_bus_event_t *evt)
+{
+    em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
+    int num;
+
+    if (m_orch->is_cmd_type_in_progress(evt) == true) {
+        m_ctrl_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
+    } else if ((num = m_data_model.analyze_channel_select(evt, pcmd)) <= 0) {
+        m_ctrl_cmd->send_result(status_for_noncmd(num));
+    } else if (m_orch->submit_commands(pcmd, static_cast<unsigned int> (num)) > 0) {
+        m_ctrl_cmd->send_result(em_cmd_out_status_success);
+    } else {
+        m_ctrl_cmd->send_result(em_cmd_out_status_not_ready);
+    }
 }
 
 void em_ctrl_t::handle_set_channel_list(em_bus_event_t *evt)
@@ -174,8 +197,8 @@ void em_ctrl_t::handle_set_channel_list(em_bus_event_t *evt)
 
     if (m_orch->is_cmd_type_in_progress(evt) == true) {
         m_ctrl_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
-    } else if ((num = m_data_model.analyze_set_channel(evt, pcmd)) == 0) {
-        m_ctrl_cmd->send_result(em_cmd_out_status_no_change);
+    } else if ((num = m_data_model.analyze_set_channel(evt, pcmd)) <= 0) {
+        m_ctrl_cmd->send_result(status_for_noncmd(num));
     } else if (m_orch->submit_commands(pcmd, static_cast<unsigned int> (num)) > 0) {
         m_ctrl_cmd->send_result(em_cmd_out_status_success);
     } else {
@@ -191,8 +214,8 @@ void em_ctrl_t::handle_scan_channel_list(em_bus_event_t *evt)
 
     if (m_orch->is_cmd_type_in_progress(evt) == true) {
         m_ctrl_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
-    } else if ((num = m_data_model.analyze_scan_channel(evt, pcmd)) == 0) {
-        m_ctrl_cmd->send_result(em_cmd_out_status_no_change);
+    } else if ((num = m_data_model.analyze_scan_channel(evt, pcmd)) <= 0) {
+        m_ctrl_cmd->send_result(status_for_noncmd(num));
     } else if (m_orch->submit_commands(pcmd, static_cast<unsigned int> (num)) > 0) {
         m_ctrl_cmd->send_result(em_cmd_out_status_success);
     } else {
@@ -208,8 +231,8 @@ void em_ctrl_t::handle_set_policy(em_bus_event_t *evt)
 
     if (m_orch->is_cmd_type_in_progress(evt) == true) {
         m_ctrl_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
-    } else if ((num = m_data_model.analyze_set_policy(evt, pcmd)) == 0) {
-        m_ctrl_cmd->send_result(em_cmd_out_status_no_change);
+    } else if ((num = m_data_model.analyze_set_policy(evt, pcmd)) <= 0) {
+        m_ctrl_cmd->send_result(status_for_noncmd(num));
     } else if (m_orch->submit_commands(pcmd, static_cast<unsigned int> (num)) > 0) {
         m_ctrl_cmd->send_result(em_cmd_out_status_success);
     } else {
@@ -254,8 +277,8 @@ void em_ctrl_t::handle_set_radio(em_bus_event_t *evt)
 
     if (m_orch->is_cmd_type_in_progress(evt) == true) {
         m_ctrl_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
-    } else if ((num = m_data_model.analyze_set_radio(evt, pcmd)) == 0) {
-        m_ctrl_cmd->send_result(em_cmd_out_status_no_change);
+    } else if ((num = m_data_model.analyze_set_radio(evt, pcmd)) <= 0) {
+        m_ctrl_cmd->send_result(status_for_noncmd(num));
     } else if (m_orch->submit_commands(pcmd, static_cast<unsigned int> (num)) > 0) {
         m_ctrl_cmd->send_result(em_cmd_out_status_success);
     } else {
@@ -291,8 +314,8 @@ void em_ctrl_t::handle_remove_device(em_bus_event_t *evt)
 
     if (m_orch->is_cmd_type_in_progress(evt) == true) {
         m_ctrl_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
-    } else if ((num = m_data_model.analyze_remove_device(evt, pcmd)) == 0) {
-        m_ctrl_cmd->send_result(em_cmd_out_status_no_change);
+    } else if ((num = m_data_model.analyze_remove_device(evt, pcmd)) <= 0) {
+        m_ctrl_cmd->send_result(status_for_noncmd(num));
     } else if (m_orch->submit_commands(pcmd, static_cast<unsigned int> (num)) > 0) {
         m_ctrl_cmd->send_result(em_cmd_out_status_success);
     } else {
@@ -362,8 +385,8 @@ void em_ctrl_t::handle_reset(em_bus_event_t *evt)
 	
     if (m_orch->is_cmd_type_in_progress(evt) == true) {
         m_ctrl_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
-    } else if ((num = m_data_model.analyze_reset(evt, pcmd)) == 0) {
-        m_ctrl_cmd->send_result(em_cmd_out_status_no_change);
+    } else if ((num = m_data_model.analyze_reset(evt, pcmd)) <= 0) {
+        m_ctrl_cmd->send_result(status_for_noncmd(num));
     } else if (m_orch->submit_commands(pcmd, static_cast<unsigned int> (num)) > 0) {
         m_ctrl_cmd->send_result(em_cmd_out_status_success);
     } else {
@@ -379,8 +402,8 @@ void em_ctrl_t::handle_mld_reconfig(em_bus_event_t *evt)
 
     if (m_orch->is_cmd_type_in_progress(evt) == true) {
         m_ctrl_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
-    } else if ((num = m_data_model.analyze_mld_reconfig(pcmd)) == 0) {
-        m_ctrl_cmd->send_result(em_cmd_out_status_no_change);
+    } else if ((num = m_data_model.analyze_mld_reconfig(pcmd)) <= 0) {
+        m_ctrl_cmd->send_result(status_for_noncmd(num));
     } else if (m_orch->submit_commands(pcmd, static_cast<unsigned int> (num)) > 0) {
         m_ctrl_cmd->send_result(em_cmd_out_status_success);
     } else {
@@ -396,6 +419,22 @@ void em_ctrl_t::handle_radio_metrics_req()
 void em_ctrl_t::handle_ap_metrics_req()
 {
 
+}
+
+void em_ctrl_t::handle_unassoc_sta_metrics_query(em_bus_event_t *evt)
+{
+    em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
+    int num;
+
+    if (m_orch->is_cmd_type_in_progress(evt) == true) {
+        m_ctrl_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
+    } else if ((num = m_data_model.analyze_unassoc_sta_metrics_query(evt, pcmd)) <= 0) {
+        m_ctrl_cmd->send_result(status_for_noncmd(num));
+    } else if (m_orch->submit_commands(pcmd, static_cast<unsigned int> (num)) > 0) {
+        m_ctrl_cmd->send_result(em_cmd_out_status_success);
+    } else {
+        m_ctrl_cmd->send_result(em_cmd_out_status_not_ready);
+    }
 }
 
 void em_ctrl_t::handle_client_metrics_req()
@@ -571,6 +610,10 @@ void em_ctrl_t::handle_bus_event(em_bus_event_t *evt)
             handle_set_channel_list(evt);
             break;
 
+        case em_bus_event_type_channel_select:
+            handle_channel_select(evt);
+            break;
+
         case em_bus_event_type_scan_channel:
             handle_scan_channel_list(evt);
             break;
@@ -622,7 +665,11 @@ void em_ctrl_t::handle_bus_event(em_bus_event_t *evt)
         case em_bus_event_type_link_quality_report:
            handle_link_stats_alarm_report(evt);
            break;
-	
+
+	case em_bus_event_type_unassoc_sta_query:
+           handle_unassoc_sta_metrics_query(evt);
+           break;
+
         default:
             break;
     }
@@ -789,11 +836,10 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
     bssid_t	bssid;
     dm_bss_t *bss;
     em_profile_type_t profile;
-    em_2xlong_string_t key;
     unsigned int i;
-    bool found;
-    mac_addr_str_t mac_str1, mac_str2, dev_mac_str, radio_mac_str;
+    mac_addr_str_t mac_str1 = {0}, mac_str2 = {0};
     em_commit_info_t dm_commit;
+    mac_address_t fallback_ruid = {0};
 
     assert(len > ((sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))));
     if (len < ((sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)))) {
@@ -886,52 +932,38 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
                 em_printfout("Could not find radio:%s", mac_str1);
                 return NULL;
             }
+            em_printfout("topo_resp: routed to radio %s state:%s", mac_str1, em_t::state_2_str(em->get_state()));
+            // For topo_resp: the radio ID in the message may not be the radio
+            // that sent the query (e.g. sta_assoc dispatches only one radio to
+            // topo_sync_pending). Fall back to whichever radio in the same AL
+            // is in topo_sync_pending so process_msg() state guard passes.
+            // if (htons(cmdu->type) == em_msg_type_topo_resp &&
+            //     em->get_state() != em_state_ctrl_topo_sync_pending) {
+            //     std::vector<em_t *> al_radios;
+            //     get_all_em_for_al_mac(em->get_data_model()->get_agent_al_interface_mac(), al_radios);
+            //     for (auto *r : al_radios) {
+            //         if (r->get_state() == em_state_ctrl_topo_sync_pending) {
+            //             em_printfout("topo_resp: rerouting from radio %s (state:%s) to radio %s (topo_sync_pending)",
+            //                 mac_str1,
+            //                 em_t::state_2_str(em->get_state()),
+            //                 util::mac_to_string(r->get_radio_interface_mac()).c_str());
+            //             em = r;
+            //             break;
+            //         }
+            //     }
+            // }
             break;
 
         case em_msg_type_topo_notif:
         case em_msg_type_client_cap_rprt:
         case em_msg_type_ap_metrics_rsp:
-           if (em_msg_t(data + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)),
+        case em_msg_type_failed_conn:
+            if (em_msg_t(data + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)),
                     len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_bss_id(&bssid) == false) {
                 printf("%s:%d: Could not find bss id in msg:0x%04x\n", __func__, __LINE__, htons(cmdu->type));
                 return NULL;
             }
-
-            if ((dm = get_data_model(GLOBAL_NET_ID, const_cast<const unsigned char *> (hdr->src))) == NULL) {
-                printf("%s:%d: Can not find data model\n", __func__, __LINE__);
-            }
-
-            for (i = 0; i < dm->get_num_radios(); i++) {
-                found = true;
-                dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *> (dm->get_radio_info(i)->id.dev_mac), dev_mac_str);
-                dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *> (dm->get_radio_info(i)->id.ruid), radio_mac_str);
-                dm_easy_mesh_t::macbytes_to_string(bssid, mac_str1);
-                snprintf(key, sizeof (em_2xlong_string_t), "%s@%s@%s@%s@", dm->get_radio_info(i)->id.net_id, dev_mac_str, radio_mac_str, mac_str1);
-
-                if ((bss = dm->get_bss(dm->get_radio_info(i)->id.ruid, bssid)) == NULL) {
-                    found = false;
-                    continue;
-                }
-                break;
-            }
-
-            if (found == false) {
-                printf("%s:%d: Could not find bss:%s from data model, for radio: %s\n", __func__, __LINE__, mac_str1, radio_mac_str);
-                return NULL;
-            }
-              
-            dm_easy_mesh_t::macbytes_to_string(bss->m_bss_info.ruid.mac, mac_str1);
-            if ((em = static_cast<em_t *> (hash_map_get(m_em_map, mac_str1))) == NULL) {
-                printf("%s:%d: Could not find radio:%s\n", __func__, __LINE__, mac_str1);
-                return NULL;
-            } else {
-                dm_easy_mesh_t::macbytes_to_string(bssid, mac_str1);
-                mac_addr_str_t mac;
-                dm_easy_mesh_t::macbytes_to_string(em->get_radio_interface_mac(), mac);
-                //printf("%s:%d: Em radio id: %s\n", __func__, __LINE__, mac);
-                //printf("%s:%d: Found em for msg type: %d, key for bss[%s]: %s\n", __func__, __LINE__, htons(cmdu->type), mac_str1, key);
-            }
-
+            em = al_em;
             break;
 
         case em_msg_type_autoconf_resp:
@@ -941,6 +973,7 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
         case em_msg_type_channel_sel_req:
         case em_msg_type_client_cap_query:
         case em_msg_type_assoc_sta_link_metrics_query:
+        case em_msg_type_unassoc_sta_link_metrics_query:	    
         case em_msg_type_beacon_metrics_query:
         case em_msg_type_client_steering_req:
         case em_msg_type_client_assoc_ctrl_req:
@@ -1043,6 +1076,16 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
             }
             break;
 
+	case em_msg_type_unassoc_sta_link_metrics_rsp:
+            em = static_cast<em_t *>(hash_map_get_first(m_em_map));
+            while (em != NULL) {
+                if ((em->is_al_interface_em() == false) && 
+	          (memcmp(em->get_data_model()->get_agent_al_interface_mac(), hdr->src, sizeof(mac_address_t)) == 0)) {
+                    break;
+                }
+                em = static_cast<em_t *>(hash_map_get_next(m_em_map, em));
+            }
+            break;
 
         default:
             printf("%s:%d: Frame: 0x%04x not handled in controller\n", __func__, __LINE__, htons(cmdu->type));
@@ -1091,6 +1134,21 @@ void em_ctrl_t::start_complete()
             { bus_data_type_string, false, 0, 0, 0, NULL } },
         { const_cast<char*>(DEVICE_WIFI_DATAELEMENTS_NETWORK_SETSSID_CMD), bus_element_type_method,
             { NULL, NULL , NULL, NULL, NULL, tr_181_t::setssid_handler}, slow_speed, ZERO_TABLE,
+            { bus_data_type_property, false, 0, 0, 0, NULL } },
+        { const_cast<char*>(DE_MAPDEVBH_STEERWIFIBH), bus_element_type_method,
+            { NULL, NULL , NULL, NULL, NULL, tr_181_t::steerwifibh_handler}, slow_speed, ZERO_TABLE,
+            { bus_data_type_property, false, 0, 0, 0, NULL } },
+        { const_cast<char*>(DE_RADIO_CHSCANREQ), bus_element_type_method,
+            { NULL, NULL , NULL, NULL, NULL, tr_181_t::channelscan_handler}, slow_speed, ZERO_TABLE,
+            { bus_data_type_property, false, 0, 0, 0, NULL } },
+        { const_cast<char*>(DE_RADIO_CHSELREQ), bus_element_type_method,
+            { NULL, NULL , NULL, NULL, NULL, tr_181_t::channelselect_handler}, slow_speed, ZERO_TABLE,
+            { bus_data_type_property, false, 0, 0, 0, NULL } },
+        { const_cast<char*>(DE_STA_CLIENTSTEER), bus_element_type_method,
+            { NULL, NULL , NULL, NULL, NULL, tr_181_t::clientsteer_handler}, slow_speed, ZERO_TABLE,
+            { bus_data_type_property, false, 0, 0, 0, NULL } },
+        { const_cast<char*>(DE_STAMAP_DISASSOC), bus_element_type_method,
+            { NULL, NULL , NULL, NULL, NULL, tr_181_t::disassociate_handler}, slow_speed, ZERO_TABLE,
             { bus_data_type_property, false, 0, 0, 0, NULL } }
         };
 

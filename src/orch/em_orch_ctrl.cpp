@@ -217,6 +217,8 @@ bool em_orch_ctrl_t::is_em_ready_for_orch_fini(em_cmd_t *pcmd, em_t *em)
             } else if (em->get_state() == em_state_ctrl_sta_cap_confirmed) {
                 em->set_state(em_state_ctrl_configured);
                 return true;
+            } else if (em->get_state() == em_state_ctrl_topo_synchronized) {
+                return true;
             } else if (em->get_state() == em_state_ctrl_configured) {
                 return true;
             }
@@ -253,6 +255,17 @@ bool em_orch_ctrl_t::is_em_ready_for_orch_fini(em_cmd_t *pcmd, em_t *em)
 
 		case em_cmd_type_set_policy:
             if (em->get_state() == em_state_ctrl_configured) {
+                // Commit policies from the command DM to the live data model and DB
+                dm_easy_mesh_t *cmd_dm = pcmd->get_data_model();
+                dm_easy_mesh_t *live_dm = em->get_data_model();
+                if (cmd_dm != NULL && live_dm != NULL) {
+                    for (unsigned int p = 0; p < cmd_dm->get_num_policy(); p++) {
+                        live_dm->set_policy(cmd_dm->m_policy[p]);
+                    }
+                    // Trigger DB write
+                    cmd_dm->set_db_cfg_param(db_cfg_type_policy_list_update, "");
+                    m_mgr->update_tables(cmd_dm);
+                }
                 return true;
             }
 			break;
@@ -268,6 +281,12 @@ bool em_orch_ctrl_t::is_em_ready_for_orch_fini(em_cmd_t *pcmd, em_t *em)
             return true;
 
         case em_cmd_type_bsta_cap:
+            if (em->get_state() == em_state_ctrl_configured) {
+                return true;
+            }
+            break;
+
+	case em_cmd_type_unassoc_sta_query:
             if (em->get_state() == em_state_ctrl_configured) {
                 return true;
             }
@@ -331,7 +350,8 @@ bool em_orch_ctrl_t::is_em_ready_for_orch_exec(em_cmd_t *pcmd, em_t *em)
         case em_cmd_type_scan_channel:
         case em_cmd_type_set_policy:
         case em_cmd_type_bsta_cap:
-            if (em->get_state() == em_state_ctrl_configured) {
+	    case em_cmd_type_unassoc_sta_query:
+            if (em->get_state() >= em_state_ctrl_topo_synchronized) {
                 return true;
             }
             break;
@@ -376,6 +396,12 @@ void em_orch_ctrl_t::pre_process_cancel(em_cmd_t *pcmd, em_t *em)
             // Reset the count of active channel selection requests
             // Currently this counter is not used, reset for future use of this counter
             em->set_channel_sel_req_tx_count(0);
+            break;
+
+        case em_cmd_type_set_policy:
+            em_printfout("Cancel received for Set Policy command, transitioning to configured state radio: %s",
+                util::mac_to_string(em->get_radio_interface_mac()).c_str());
+            em->set_state(em_state_ctrl_configured);
             break;
 
         default:
@@ -489,6 +515,33 @@ bool em_orch_ctrl_t::pre_process_orch_op(em_cmd_t *pcmd)
             m_mgr->update_network_topology();
             break;
 
+        case dm_orch_type_policy_cfg:
+        {
+            // Update dev_dm flat array so the next SET comparison sees the updated
+            // baseline and doesn't re-detect the same change as new.
+            dm_easy_mesh_t *dev_dm = m_mgr->get_data_model(GLOBAL_NET_ID, dm->m_device.m_device_info.intf.mac);
+            if (dev_dm != nullptr) {
+                for (unsigned int p = 0; p < dm->get_num_policy(); p++) {
+                    dm_policy_t &pol = dm->get_policy_by_ref(p);
+                    bool found = false;
+                    for (unsigned int j = 0; j < dev_dm->get_num_policy(); j++) {
+                        if (dev_dm->m_policy[j].m_policy.id.type == pol.m_policy.id.type &&
+                            memcmp(dev_dm->m_policy[j].m_policy.id.radio_mac,
+                                   pol.m_policy.id.radio_mac, sizeof(mac_address_t)) == 0) {
+                            dev_dm->m_policy[j] = pol;
+                            found = true;
+                            break;
+                        }
+                    }
+                    if (!found && dev_dm->get_num_policy() < EM_MAX_POLICIES) {
+                        dev_dm->m_policy[dev_dm->get_num_policy()] = pol;
+                        dev_dm->set_num_policy(dev_dm->get_num_policy() + 1);
+                    }
+                }
+            }
+            break;
+        }
+
         case dm_orch_type_topo_publish:
         case dm_orch_type_bsta_cap_query:
 			break;
@@ -504,12 +557,11 @@ unsigned int em_orch_ctrl_t::build_candidates(em_cmd_t *pcmd)
 {
     em_t *em;
     dm_easy_mesh_t *dm;
-    mac_address_t	bss_mac, rad_mac;
+    mac_address_t   rad_mac, dev_mac;
     unsigned int count = 0, i;
-    mac_addr_str_t mac_str;
     em_disassoc_params_t *disassoc_param;
     dm_sta_t *sta;
-	mac_address_t null_mac = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+    mac_address_t null_mac = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 
     if (pcmd->m_type == em_cmd_type_em_config) {
         em = static_cast<em_t *>(hash_map_get(m_mgr->m_em_map, pcmd->m_param.u.args.args[0]));
@@ -520,16 +572,29 @@ unsigned int em_orch_ctrl_t::build_candidates(em_cmd_t *pcmd)
         return count;
     }
 
-	pthread_mutex_lock(&m_mgr->m_mutex);
+    if (pcmd->m_type == em_cmd_type_set_policy) {
+        dm = pcmd->get_data_model();
+        std::vector<em_t *> em_radios;
+        m_mgr->get_all_em_for_al_mac(dm->get_agent_al_interface_mac(), em_radios);
+        if (!em_radios.empty()) {
+            em_printfout("Set Policy: %s pushed to queue", util::mac_to_string(em_radios.front()->get_radio_interface_mac()).c_str());
+            queue_push(pcmd->m_em_candidates, em_radios.front());
+            count++;
+        }
+        return count;
+    }
+
+    pthread_mutex_lock(&m_mgr->m_mutex);
     em = static_cast<em_t *>(hash_map_get_first(m_mgr->m_em_map));
     while (em != NULL) {
         switch (pcmd->m_type) {
             case em_cmd_type_set_ssid:
-		if (em->is_al_interface_em() == false) {
-			dm_easy_mesh_t::macbytes_to_string(em->get_radio_interface_mac(), mac_str);
-			printf("%s:%d Set SSID : %s push to queue \n", __func__, __LINE__,mac_str);
-			queue_push(pcmd->m_em_candidates, em);
-			count++;
+                if (em->is_al_interface_em() == false) {
+                    //mac_addr_str_t mac_str;
+                    //dm_easy_mesh_t::macbytes_to_string(em->get_radio_interface_mac(), mac_str);
+                    //em_printfout("Set SSID: %s push to queue", mac_str);
+                    queue_push(pcmd->m_em_candidates, em);
+                    count++;
                 }
                 break;
 
@@ -548,61 +613,77 @@ unsigned int em_orch_ctrl_t::build_candidates(em_cmd_t *pcmd)
                 break;
 
             case em_cmd_type_cfg_renew:
-		dm = pcmd->get_data_model();
-		dm_easy_mesh_t::string_to_macbytes(pcmd->m_param.u.args.args[0], dm->m_radio[0].m_radio_info.intf.mac);
-		// check if the radio is null mac
-		if ((memcmp(null_mac, dm->m_radio[0].m_radio_info.intf.mac, sizeof(mac_address_t)) == 0) &&  (em->is_al_interface_em() == false)) {
-			printf("%s:%d push to queue since null mac \n", __func__, __LINE__);	
-			queue_push(pcmd->m_em_candidates, em);
-                	count++;
-		} else if ((memcmp(em->get_radio_interface_mac(), dm->m_radio[0].m_radio_info.intf.mac, sizeof(mac_address_t)) == 0) && (em->is_al_interface_em() == false)) {
-			dm_easy_mesh_t::macbytes_to_string(em->get_radio_interface_mac(), mac_str);
-			printf("%s:%d Auto config renew %s push to queue since mac matches\n", __func__, __LINE__,mac_str);
-			queue_push(pcmd->m_em_candidates, em);
-			count++;
+                dm = pcmd->get_data_model();
+                dm_easy_mesh_t::string_to_macbytes(pcmd->m_param.u.args.args[0], dm->m_radio[0].m_radio_info.intf.mac);
+                // check if the radio is null mac
+                if ((memcmp(null_mac, dm->m_radio[0].m_radio_info.intf.mac, sizeof(mac_address_t)) == 0) &&
+                    (em->is_al_interface_em() == false)) {
+                    //em_printfout("Push to queue since null mac");	
+                    queue_push(pcmd->m_em_candidates, em);
+                    count++;
+                } else if ((memcmp(em->get_radio_interface_mac(), dm->m_radio[0].m_radio_info.intf.mac, sizeof(mac_address_t)) == 0) &&
+                    (em->is_al_interface_em() == false)) {
+                    //mac_addr_str_t mac_str;
+                    //dm_easy_mesh_t::macbytes_to_string(em->get_radio_interface_mac(), mac_str);
+                    //em_printfout("Auto config renew %s push to queue since mac matches", mac_str);
+                    queue_push(pcmd->m_em_candidates, em);
+                    count++;
                 }
                 break;
 
             case em_cmd_type_sta_assoc:
                 dm = em->get_data_model();
-                dm_easy_mesh_t::string_to_macbytes(pcmd->m_param.u.args.args[1], bss_mac);
-                //printf("%s:%d:BSS for this STA %s is %s\n", __func__, __LINE__, pcmd->m_param.u.args.args[2], pcmd->m_param.u.args.args[1]);
-                for (i = 0; i < dm->m_num_bss; i++) {
-                    if ((memcmp(dm->m_bss[i].m_bss_info.bssid.mac, bss_mac, sizeof(mac_address_t)) == 0) &&
-                        (em->is_al_interface_em() == false)) {
-                        queue_push(pcmd->m_em_candidates, em);
-                        count++;
-                        //printf("%s:%d:Found em this STA, candidate count: %d\n", __func__, __LINE__, count);
-                        break;
-                    }
+                dm_easy_mesh_t::string_to_macbytes(pcmd->m_param.u.args.args[0], dev_mac);
+                if ((em->is_al_interface_em() == false) &&
+                    (memcmp(dm->get_agent_al_interface_mac(), dev_mac, sizeof(mac_address_t)) == 0) &&
+                    (count == 0)) {
+                    em_printfout("sta_assoc: using radio %s for dev %s orch_op: %s",
+                        util::mac_to_string(em->get_radio_interface_mac()).c_str(),
+                        pcmd->m_param.u.args.args[0],
+                        em_cmd_t::get_orch_op_str(pcmd->get_orch_op()));
+                    queue_push(pcmd->m_em_candidates, em);
+                    count++;
                 }
                 break;
 
             case em_cmd_type_sta_link_metrics:
                 if ((em->is_al_interface_em() == false) && (em->get_state() == em_state_ctrl_configured)  && 
-                        (em->has_at_least_one_associated_sta() == true)) {
+                    (em->has_at_least_one_associated_sta() == true)) {
                     queue_push(pcmd->m_em_candidates, em);
                     count++;
                 }
                 break;
-            
             case em_cmd_type_set_channel:
-				if (em->is_al_interface_em() == false) {
-					for(i = 0; i < pcmd->m_param.u.args.num_args; i++) {
-						if(atoi(pcmd->m_param.u.args.args[i]) == em->get_band()) {
-							dm_easy_mesh_t::macbytes_to_string(em->get_radio_interface_mac(), mac_str);
-							printf("%s:%d Set Channel : %s push to queue \n", __func__, __LINE__,mac_str);
-							queue_push(pcmd->m_em_candidates, em);
-							count++;
-							break;
-						}
-					}
+                if ((em->is_al_interface_em() == false) && (!pcmd->m_param.u.args.num_args)) {
+                    dm = pcmd->get_data_model();
+                    if (memcmp(em->get_radio_interface_mac(), dm->m_radio[0].m_radio_info.intf.mac, sizeof(mac_address_t)) == 0) {
+                        queue_push(pcmd->m_em_candidates, em);
+                        count++;
+                    }
+                } else if (em->is_al_interface_em() == false) {
+                    for (i = 0; i < pcmd->m_param.u.args.num_args; i++) {
+                        if (atoi(pcmd->m_param.u.args.args[i]) == em->get_band()) {
+                            //mac_addr_str_t mac_str;
+                            //dm_easy_mesh_t::macbytes_to_string(em->get_radio_interface_mac(), mac_str);
+                            //em_printfout("Set Channel: %s push to queue", mac_str);
+                            queue_push(pcmd->m_em_candidates, em);
+                            count++;
+                            break;
+                        }
+                    }
                 }
                 break;
+
             case em_cmd_type_scan_channel:
+                dm = pcmd->get_data_model();
                 if (em->is_al_interface_em() == false) {
-                    queue_push(pcmd->m_em_candidates, em);
-                    count++;
+                    if (memcmp(em->get_radio_interface_mac(), dm->m_radio[0].m_radio_info.intf.mac, sizeof(mac_address_t)) == 0) {
+                        //mac_addr_str_t mac_str;
+                        //dm_easy_mesh_t::macbytes_to_string(em->get_radio_interface_mac(), mac_str);
+                        //em_printfout("Channel Scan: %s pushed to queue", mac_str);
+                        queue_push(pcmd->m_em_candidates, em);
+                        count++;
+                    }
                 }
                 break;
 
@@ -624,30 +705,23 @@ unsigned int em_orch_ctrl_t::build_candidates(em_cmd_t *pcmd)
                 }
                 break;
 
-			case em_cmd_type_set_policy:
-                dm = pcmd->get_data_model();
-                //need a radio from a device to send, no need to push all ems
-                if (memcmp(em->get_radio_interface_mac(), dm->m_radio[0].m_radio_info.intf.mac, sizeof(mac_address_t)) == 0) {
-                    dm_easy_mesh_t::macbytes_to_string(em->get_radio_interface_mac(), mac_str);
-                    em_printfout("em: %s pushed for command: em_cmd_type_set_policy\n", mac_str);
-                    queue_push(pcmd->m_em_candidates, em);
-                    count++;
-                    break;
-                }
+            case em_cmd_type_set_policy:
+                // handled before the loop
                 break;
 
-			case em_cmd_type_set_radio:
-				dm = pcmd->get_data_model();
-				for (i = 0; i < dm->get_num_radios(); i++) {
-					if (memcmp(em->get_radio_interface_mac(), dm->m_radio[i].m_radio_info.intf.mac, sizeof(mac_address_t)) == 0) {
-						dm_easy_mesh_t::macbytes_to_string(em->get_radio_interface_mac(), mac_str);
-						//printf("%s:%d: em: %s pushed for command: em_cmd_type_set_policy\n", __func__, __LINE__, mac_str);
+            case em_cmd_type_set_radio:
+                dm = pcmd->get_data_model();
+                for (i = 0; i < dm->get_num_radios(); i++) {
+                    if (memcmp(em->get_radio_interface_mac(), dm->m_radio[i].m_radio_info.intf.mac, sizeof(mac_address_t)) == 0) {
+                        //mac_addr_str_t mac_str;
+                        //dm_easy_mesh_t::macbytes_to_string(em->get_radio_interface_mac(), mac_str);
+                        //em_printfout("Set Radio: %s pushed to queue", mac_str);
                         queue_push(pcmd->m_em_candidates, em);
                         count++;
-						break;
-					}
-				}
-				break;
+                        break;
+                    }
+                }
+                break;
 
             case em_cmd_type_mld_reconfig:
                 if (em->is_al_interface_em()) {
@@ -667,21 +741,27 @@ unsigned int em_orch_ctrl_t::build_candidates(em_cmd_t *pcmd)
                 dm_easy_mesh_t::string_to_macbytes(pcmd->m_param.u.args.args[0], rad_mac);
                 //search this radio em of for this agent al device to filter the em
                 dm = em->get_data_model();
-                if ((memcmp(em->get_radio_interface_mac(), rad_mac, sizeof(mac_address_t)) == 0))
-                {
+                if ((memcmp(em->get_radio_interface_mac(), rad_mac, sizeof(mac_address_t)) == 0)) {
                     queue_push(pcmd->m_em_candidates, em);
                     count++;
-                    em_printfout("BSTA CAP count: %d; push to queue for em radio: %s\n", count, util::mac_to_string(em->get_radio_interface_mac()).c_str());
+                    em_printfout("BSTA CAP count: %d; push to queue for em radio: %s", count, util::mac_to_string(em->get_radio_interface_mac()).c_str());
                     break;
                 }
                 break;
-
-            default:
-                break;
-        }			
+            case em_cmd_type_unassoc_sta_query:
+		if (count == 0 && memcmp(em->get_data_model()->get_agent_al_interface_mac(),
+					pcmd->m_param.u.unassoc_sta_query_params.al_mac, sizeof(mac_address_t)) == 0) {
+		    queue_push(pcmd->m_em_candidates, em);
+		    count++;
+		}		
+		break;
+	    default:
+		break;
+	}
         em = static_cast<em_t *>(hash_map_get_next(m_mgr->m_em_map, em));
     }
-	pthread_mutex_unlock(&m_mgr->m_mutex);
+
+    pthread_mutex_unlock(&m_mgr->m_mutex);
 
     return count;
 }

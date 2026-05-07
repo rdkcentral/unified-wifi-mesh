@@ -2716,8 +2716,8 @@ TEST(dm_easy_mesh_t, decode_client_cap_config_null_radio_mac) {
  * **Test Procedure:**
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Invoke decode_config with JSON template for "SetAnticipatedChannelPreference" | input: subdoc->buff = "{ \"wfa-dataelements:SetAnticipatedChannelPreference\": {\"Network\": {\"ID\": \"TestNetwork\", \"AnticipatedChannelPreference\": [{ \"Class\": 1, \"ChannelList\": [1,6,11] }]}} } }", key = "SetAnticipatedChannelPreference", num pointer = valid address | API return value is 0 and ASSERT_NE(subdoc, nullptr) passes | Should Pass |
- * | 02 | Invoke decode_config with JSON template for "ChannelScanRequest" | input: subdoc->buff = "{ \"wfa-dataelements:ChannelScanRequest\": {\"Network\": {\"ID\": \"TestNetwork\", \"ChannelScanParameters\": [{ \"Class\": 1, \"ChannelList\": [1,6,11] }]}} } }", key = "ChannelScanRequest", num pointer = valid address | API return value is 0 and EXPECT_EQ(ret, 0) passes | Should Pass |
+ * | 01 | Invoke decode_config with JSON template for "SetAnticipatedChannelPreference" | input: subdoc->buff = "{ \"wfa-dataelements:SetAnticipatedChannelPreference\": {\"Network\": {\"ID\": \"TestNetwork\", \"AnticipatedChannelPreference\": [{ \"Class\": 1, \"ChannelList\": [1,6,11], \"ChannelPrefList\": [0,0,0] }], \"DeviceList\": [{ \"ID\": \"AA:BB:CC:DD:EE:FF\" }]}} } }", key = "SetAnticipatedChannelPreference", num pointer = valid address | API return value is 0 and ASSERT_NE(subdoc, nullptr) passes | Should Pass |
+ * | 02 | Invoke decode_config with JSON template for "ChannelScanRequest" | input: subdoc->buff = "{ \"wfa-dataelements:ChannelScanRequest\": {\"Network\": {\"ID\": \"TestNetwork\", \"DeviceList\": [{ \"ID\": \"AA:BB:CC:DD:EE:FF\", \"RadioList\": [{ \"ID\": \"AA:BB:CC:DD:EE:FF\", \"ChannelScanParameters\": [{ \"Class\": 1, \"ChannelList\": [1,6,11] }] }] }]}} } }", key = "ChannelScanRequest", num pointer = valid address | API return value is 0 and EXPECT_EQ(ret, 0) passes | Should Pass |
  * | 03 | Invoke decode_config with JSON template for "SetPolicy" | input: subdoc->buff = "{ \"wfa-dataelements:SetPolicy\": {\"Network\": {\"ID\": \"TestNetwork\", \"DeviceList\": [{ \"ID\": \"AA:BB:CC:DD:EE:FF\", \"Policy\": { \"AP Metrics Reporting Policy\": {} }}]}} } }", key = "SetPolicy", num pointer = valid address | API return value is 0 and EXPECT_EQ(ret, 0) passes | Should Pass |
  * | 04 | Invoke decode_config with JSON template for "RadioEnable" | input: subdoc->buff = "{ \"wfa-dataelements:RadioEnable\": {\"Network\": {\"ID\": \"TestNetwork\", \"DeviceList\": [{ \"ID\": \"AA:BB:CC:DD:EE:FF\", \"RadioList\": [{ \"ID\": \"Radio1\", \"Enable\": true }]}]}} } }", key = "RadioEnable", num pointer = valid address | API return value is 0 and EXPECT_EQ(ret, 0) passes | Should Pass |
  */
@@ -2741,6 +2741,9 @@ TEST(dm_easy_mesh_t, decode_config_supported_routing)
     "    \"ID\": \"TestNetwork\","
     "    \"AnticipatedChannelPreference\": ["
     "      { \"Class\": 1, \"ChannelList\": [1,6,11], \"ChannelPrefList\": [0,0,0] }"
+    "    ],"
+    "    \"DeviceList\": ["
+    "      { \"ID\": \"AA:BB:CC:DD:EE:FF\" }"
     "    ]"
     "  }"
     "} }",
@@ -2749,8 +2752,16 @@ TEST(dm_easy_mesh_t, decode_config_supported_routing)
     "{ \"wfa-dataelements:ChannelScanRequest\": {"
     "  \"Network\": {"
     "    \"ID\": \"TestNetwork\","
-    "    \"ChannelScanParameters\": ["
-    "      { \"Class\": 1, \"ChannelList\": [1,6,11], \"ChannelPrefList\": [0,0,0] }"
+    "    \"DeviceList\": ["
+    "      { \"ID\": \"AA:BB:CC:DD:EE:FF\","
+    "        \"RadioList\": ["
+    "          { \"ID\": \"AA:BB:CC:DD:EE:FF\","
+    "            \"ChannelScanParameters\": ["
+    "              { \"Class\": 1, \"ChannelList\": [1,6,11] }"
+    "            ]"
+    "          }"
+    "        ]"
+    "      }"
     "    ]"
     "  }"
     "} }",
@@ -3372,7 +3383,7 @@ TEST(dm_easy_mesh_t, decode_config_reset_null_key_pointer)
  * @brief Verify that decode_config_set_channel correctly decodes anticipated channel configuration with valid input.
  *
  * This test validates that the decode_config_set_channel API correctly processes a valid JSON configuration containing anticipated channel preferences.
- * It ensures that the function returns a status of 0 and that the output parameter (num) is set to 0 when provided with a valid anticipated channel configuration.
+ * It ensures that the function returns a status of 0 and that the output parameter (num) is set to 1 when provided with a valid anticipated channel configuration.
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 075@n
@@ -3386,9 +3397,9 @@ TEST(dm_easy_mesh_t, decode_config_reset_null_key_pointer)
  * | Variation / Step | Description                                                                                             | Test Data                                                                                                                                                                              | Expected Result                                      | Notes          |
  * | :--------------: | ------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- | -------------- |
  * | 01               | Initialize dm_easy_mesh_t object and subdoc structure; print entering message                           | None                                                                                                                                                                                   | Objects initialized and entering message printed   | Should be successful  |
- * | 02               | Setup JSON string in subdoc->buff for anticipated channel configuration                                  | json = "{ \"wfa-dataelements:SetAnticipatedChannelPreference\": { \"Network\": { \"ID\": \"TestNet\", \"AnticipatedChannelPreference\": [{ \"Class\": 81, \"ChannelList\": [1, 6, 11] }] } } }" | subdoc->buff correctly assigned the JSON configuration | Should be successful  |
- * | 03               | Invoke decode_config_set_channel API with valid input parameters                                        | subdoc (with valid JSON), key = "wfa-dataelements:SetAnticipatedChannelPreference", offset = 0, num pointer                                                     | API returns 0 and updates num to 0                   | Should Pass    |
- * | 04               | Assert that the return value and output parameter (num) are as expected                                   | ret = 0, num = 0                                                                                                                                                                       | EXPECT_EQ(ret, 0) and EXPECT_EQ(num, 0)               | Should Pass    |
+ * | 02               | Setup JSON string in subdoc->buff for anticipated channel configuration                                  | json = "{ \"wfa-dataelements:SetAnticipatedChannelPreference\": { \"Network\": { \"ID\": \"TestNet\", \"AnticipatedChannelPreference\": [{ \"Class\": 81, \"ChannelList\": [1, 6, 11], \"ChannelPrefList\": [0, 0, 0] }], \"DeviceList\": [{ \"ID\": \"AA:BB:CC:DD:EE:FF\" }] } } }" | subdoc->buff correctly assigned the JSON configuration | Should be successful  |
+ * | 03               | Invoke decode_config_set_channel API with valid input parameters                                        | subdoc (with valid JSON), key = "wfa-dataelements:SetAnticipatedChannelPreference", offset = 0, num pointer                                                     | API returns 0 and updates num to 1                   | Should Pass    |
+ * | 04               | Assert that the return value and output parameter (num) are as expected                                   | ret = 0, num = 1                                                                                                                                                                       | EXPECT_EQ(ret, 0) and EXPECT_EQ(num, 1)               | Should Pass    |
  */
 TEST(dm_easy_mesh_t, decode_config_set_channel_valid_anticipated)
 {
@@ -3407,6 +3418,11 @@ TEST(dm_easy_mesh_t, decode_config_set_channel_valid_anticipated)
         "         \"ChannelList\": [1, 6, 11],"
         "         \"ChannelPrefList\": [0, 0, 0]"
         "       }"
+        "     ],"
+        "     \"DeviceList\": ["
+        "       {"
+        "         \"ID\": \"AA:BB:CC:DD:EE:FF\""
+        "       }"
         "     ]"
         "   }"
         " }"
@@ -3421,8 +3437,121 @@ TEST(dm_easy_mesh_t, decode_config_set_channel_valid_anticipated)
         &num
     );
     EXPECT_EQ(ret, 0);
-    EXPECT_EQ(num, 0);
+    EXPECT_EQ(num, 1);
     std::cout << "Exiting decode_config_set_channel_valid_anticipated\n";
+}
+
+TEST(dm_easy_mesh_t, decode_config_set_channel_valid_selection_request)
+{
+    std::cout << "Entering decode_config_set_channel_valid_selection_request\n";
+    dm_easy_mesh_t obj;
+    char subdoc_buf[sizeof(em_subdoc_info_t) + EM_IO_BUFF_SZ]{};
+    em_subdoc_info_t *subdoc = reinterpret_cast<em_subdoc_info_t*>(subdoc_buf);
+    const char json[] =
+        "{"
+        "  \"wfa-dataelements:ChannelSelectionRequest\": {"
+        "    \"Network\": {"
+        "      \"ID\": \"TestNet\","
+        "      \"DeviceList\": [{"
+        "        \"ID\": \"AA:BB:CC:DD:EE:FF\","
+        "        \"RadioList\": [{"
+        "          \"ID\": \"AA:BB:CC:DD:EE:FF\","
+        "          \"ChannelSelectionRequest\": [{"
+        "            \"Class\": 81,"
+        "            \"ChannelList\": [1, 6, 11],"
+        "            \"ChannelPrefList\": [0, 0, 0]"
+        "          }]"
+        "        }]"
+        "      }]"
+        "    }"
+        "  }"
+        "}";
+    snprintf(subdoc->buff, EM_IO_BUFF_SZ, "%s", json);
+    unsigned int num = 0;
+    std::cout << "Invoking decode_config_set_channel with valid ChannelSelectionRequest\n";
+    int ret = obj.decode_config_set_channel(
+        subdoc,
+        "wfa-dataelements:ChannelSelectionRequest",
+        0,
+        &num
+    );
+    EXPECT_EQ(ret, 0);
+    EXPECT_EQ(num, 1);
+    std::cout << "Exiting decode_config_set_channel_valid_selection_request\n";
+}
+
+TEST(dm_easy_mesh_t, decode_config_set_channel_missing_class_in_selection_request)
+{
+    std::cout << "Entering decode_config_set_channel_missing_class_in_selection_request\n";
+    dm_easy_mesh_t obj;
+    char subdoc_buf[sizeof(em_subdoc_info_t) + EM_IO_BUFF_SZ]{};
+    em_subdoc_info_t *subdoc = reinterpret_cast<em_subdoc_info_t*>(subdoc_buf);
+    const char json[] =
+        "{"
+        "  \"wfa-dataelements:ChannelSelectionRequest\": {"
+        "    \"Network\": {"
+        "      \"ID\": \"TestNet\","
+        "      \"DeviceList\": [{"
+        "        \"ID\": \"AA:BB:CC:DD:EE:FF\","
+        "        \"RadioList\": [{"
+        "          \"ID\": \"AA:BB:CC:DD:EE:FF\","
+        "          \"ChannelSelectionRequest\": [{"
+        "            \"ChannelList\": [1, 6, 11],"
+        "            \"ChannelPrefList\": [0, 0, 0]"
+        "          }]"
+        "        }]"
+        "      }]"
+        "    }"
+        "  }"
+        "}";
+    snprintf(subdoc->buff, EM_IO_BUFF_SZ, "%s", json);
+    unsigned int num = 0;
+    std::cout << "Invoking decode_config_set_channel with missing Class\n";
+    int ret = obj.decode_config_set_channel(
+        subdoc,
+        "wfa-dataelements:ChannelSelectionRequest",
+        0,
+        &num
+    );
+    EXPECT_EQ(ret, EM_PARSE_ERR_GEN);
+    std::cout << "Exiting decode_config_set_channel_missing_class_in_selection_request\n";
+}
+
+TEST(dm_easy_mesh_t, decode_config_set_channel_missing_channel_pref_list_in_selection_request)
+{
+    std::cout << "Entering decode_config_set_channel_missing_channel_pref_list_in_selection_request\n";
+    dm_easy_mesh_t obj;
+    char subdoc_buf[sizeof(em_subdoc_info_t) + EM_IO_BUFF_SZ]{};
+    em_subdoc_info_t *subdoc = reinterpret_cast<em_subdoc_info_t*>(subdoc_buf);
+    const char json[] =
+        "{"
+        "  \"wfa-dataelements:ChannelSelectionRequest\": {"
+        "    \"Network\": {"
+        "      \"ID\": \"TestNet\","
+        "      \"DeviceList\": [{"
+        "        \"ID\": \"AA:BB:CC:DD:EE:FF\","
+        "        \"RadioList\": [{"
+        "          \"ID\": \"AA:BB:CC:DD:EE:FF\","
+        "          \"ChannelSelectionRequest\": [{"
+        "            \"Class\": 81,"
+        "            \"ChannelList\": [1, 6, 11]"
+        "          }]"
+        "        }]"
+        "      }]"
+        "    }"
+        "  }"
+        "}";
+    snprintf(subdoc->buff, EM_IO_BUFF_SZ, "%s", json);
+    unsigned int num = 0;
+    std::cout << "Invoking decode_config_set_channel with missing ChannelPrefList\n";
+    int ret = obj.decode_config_set_channel(
+        subdoc,
+        "wfa-dataelements:ChannelSelectionRequest",
+        0,
+        &num
+    );
+    EXPECT_EQ(ret, EM_PARSE_ERR_GEN);
+    std::cout << "Exiting decode_config_set_channel_missing_channel_pref_list_in_selection_request\n";
 }
 
 /**
