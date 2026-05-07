@@ -301,6 +301,7 @@ void em_t::proto_process(unsigned char *data, unsigned int len)
         case em_msg_type_client_cap_query:
         case em_msg_type_client_cap_rprt:
             em_capability_t::process_msg(data, len);
+            em_metrics_t::process_msg(data, len);
             break;
 
         case em_msg_type_channel_pref_query:

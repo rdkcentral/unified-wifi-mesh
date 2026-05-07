@@ -93,7 +93,7 @@ class em_configuration_t {
 	 *
 	 * @note Ensure that the buffer is adequately sized to hold the generated message.
 	 */
-	int create_autoconfig_wsc_m2_msg(unsigned char *buff, unsigned short msg_id);
+	int create_autoconfig_wsc_m2_msg(unsigned char *buff, unsigned short msg_id, unsigned char *peer_al_mac);
     
 	/**!
 	 * @brief Creates a BSS configuration request message.

@@ -206,6 +206,18 @@ public:
 	static std::vector<int> get_channel_list_by_op_class(int op_class);
 
 	/**!
+	 * @brief Maps an operating class to its 20 MHz primary-channel equivalent.
+	 *
+	 * If op_class already has primary (beacon) channels with 20 MHz spacing it is
+	 * returned unchanged. Otherwise the table is searched for the first entry with
+	 * the same frequency band that does have primary channels at 20 MHz spacing.
+	 *
+	 * @param[in] op_class The operating class to map.
+	 * @returns The 20 MHz primary-channel op_class, or op_class itself if not found.
+	 */
+	static int get_primary_channel_op_class(int op_class);
+
+	/**!
 	 * @brief Retrieves the operating class information for a given BSS with an optional check for integer operating class.
 	 *
 	 * This function searches for the operating class information associated with the

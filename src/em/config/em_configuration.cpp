@@ -3238,7 +3238,7 @@ int em_configuration_t::compute_keys(unsigned char *remote_pub, unsigned short p
     return 1;
 }
 
-int em_configuration_t::create_autoconfig_wsc_m2_msg(unsigned char *buff, unsigned short msg_id)
+int em_configuration_t::create_autoconfig_wsc_m2_msg(unsigned char *buff, unsigned short msg_id, unsigned char *peer_al_mac)
 {
     unsigned short  msg_type = em_msg_type_autoconf_wsc;
     int len = 0;
@@ -3255,11 +3255,11 @@ int em_configuration_t::create_autoconfig_wsc_m2_msg(unsigned char *buff, unsign
 
     // first compute keys
     if (compute_keys(get_e_public(), static_cast<short unsigned int> (get_e_public_len()), get_r_private(), static_cast<short unsigned int> (get_r_private_len())) != 1) {
-        printf("%s:%d: Keys computation failed\n", __func__, __LINE__);
+        em_printfout("%s:%d: Keys computation failed\n", __func__, __LINE__);
         return 0;
     }
 
-    memcpy(tmp, const_cast<unsigned char *> (get_peer_mac()), sizeof(mac_address_t));
+    memcpy(tmp, (peer_al_mac != nullptr) ? peer_al_mac : const_cast<unsigned char *>(get_peer_mac()), sizeof(mac_address_t));
     tmp += sizeof(mac_address_t);
     len += static_cast<int> (sizeof(mac_address_t));
     
@@ -3330,13 +3330,13 @@ int em_configuration_t::create_autoconfig_wsc_m2_msg(unsigned char *buff, unsign
     len += static_cast<int> (sizeof(em_tlv_t) + sizeof(em_8021q_settings_t));
 
     // traffic separation policy tlv 17.2.50 
-    tlv = reinterpret_cast<em_tlv_t *> (tmp);
-    tlv->type = em_tlv_type_traffic_separation_policy;
-    sz = static_cast<short unsigned int> (create_traffic_separation_policy(tlv->value));
-    tlv->len = htons(sz);
+    // tlv = reinterpret_cast<em_tlv_t *> (tmp);
+    // tlv->type = em_tlv_type_traffic_separation_policy;
+    // sz = static_cast<short unsigned int> (create_traffic_separation_policy(tlv->value));
+    // tlv->len = htons(sz);
 
-    tmp += (sizeof(em_tlv_t) + sz);
-    len += static_cast<int> (sizeof(em_tlv_t) + sz);
+    // tmp += (sizeof(em_tlv_t) + sz);
+    // len += static_cast<int> (sizeof(em_tlv_t) + sz);
 
     // ap mld tlv 17.2.96
     tlv =reinterpret_cast<em_tlv_t *> (tmp);
@@ -3818,6 +3818,7 @@ int em_configuration_t::handle_autoconfig_wsc_m2(unsigned char *buff, unsigned i
     dm_network_t network;
     em_raw_hdr_t *hdr = reinterpret_cast<em_raw_hdr_t *> (buff);
 
+    printf("%s:%d: handle_autoconfig_wsc_m2 enter len:%d peer_profile:%d\n", __func__, __LINE__, len, m_peer_profile);
     if (em_msg_t(em_msg_type_autoconf_wsc, m_peer_profile, buff, len).validate(errors) == 0) {
         printf("%s:%d: received wsc m2 msg failed validation\n", __func__, __LINE__);
 
@@ -5033,7 +5034,9 @@ int em_configuration_t::handle_autoconfig_wsc_m1(unsigned char *buff, unsigned i
     em_bus_event_type_m2_tx_params_t   raw;
 
     dm_easy_mesh_t::macbytes_to_string(get_peer_mac(), mac_str);
-    printf("%s:%d: Device AL MAC: %s\n", __func__, __LINE__, mac_str);
+    em_raw_hdr_t *m1_hdr = reinterpret_cast<em_raw_hdr_t *>(buff);
+    printf("%s:%d: Device AL MAC: %s, peer src: %02x:%02x:%02x:%02x:%02x:%02x\n", __func__, __LINE__, mac_str,
+        m1_hdr->src[0], m1_hdr->src[1], m1_hdr->src[2], m1_hdr->src[3], m1_hdr->src[4], m1_hdr->src[5]);
 
     if (em_msg_t(em_msg_type_autoconf_wsc, em_profile_type_3, buff, len).validate(errors) == 0) {
         printf("%s:%d: received autoconfig wsc m1 msg failed validation\n", __func__, __LINE__);
@@ -5059,20 +5062,21 @@ int em_configuration_t::handle_autoconfig_wsc_m1(unsigned char *buff, unsigned i
         tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
     }
 
-    int ret = create_autoconfig_wsc_m2_msg(msg, ntohs(cmdu->id));
+    int ret = create_autoconfig_wsc_m2_msg(msg, ntohs(cmdu->id), m1_hdr->src);
     if (ret <= 0) {
+        printf("%s:%d: create_autoconfig_wsc_m2_msg failed, ret=%d\n", __func__, __LINE__, ret);
         return -1;
     }
     sz = static_cast<unsigned int> (ret);
 
     if (em_msg_t(em_msg_type_autoconf_wsc, em_profile_type_3, msg, sz).validate(errors) == 0) {
-        printf("Autoconfig wsc m2 msg failed validation in tnx end\n");
+        em_printfout("Autoconfig wsc m2 msg failed validation in tnx end\n");
 
         return -1;
     }
 
     if (send_frame(msg, sz)  < 0) {
-        printf("%s:%d: autoconfig wsc m2 send failed, error:%d\n", __func__, __LINE__, errno);
+        em_printfout("%s:%d: autoconfig wsc m2 send failed, error:%d\n", __func__, __LINE__, errno);
         return -1;
     }
 
@@ -5082,7 +5086,7 @@ int em_configuration_t::handle_autoconfig_wsc_m1(unsigned char *buff, unsigned i
     }
 
 	set_state(em_state_ctrl_wsc_m2_sent);
-	printf("%s:%d: autoconfig wsc m2 send, len:%d\n", __func__, __LINE__, sz);
+	em_printfout("%s:%d: autoconfig wsc m2 send, len:%d\n", __func__, __LINE__, sz);
     memcpy(raw.al, const_cast<unsigned char *> (get_peer_mac()), sizeof(mac_address_t));
     memcpy(raw.radio, get_radio_interface_mac(), sizeof(mac_address_t));
 
@@ -5245,7 +5249,7 @@ void em_configuration_t::process_msg(unsigned char *data, unsigned int len)
     em_cmdu_t *cmdu = reinterpret_cast<em_cmdu_t *>(data + sizeof(em_raw_hdr_t));
             
     tlvs = data + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t);
-    tlvs_len = len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) - sizeof(em_cmdu_t));
+    tlvs_len = len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
 
     em_raw_hdr_t *hdr = reinterpret_cast<em_raw_hdr_t *>(data);
     uint8_t *src_al_mac = hdr->src;
@@ -5256,7 +5260,7 @@ void em_configuration_t::process_msg(unsigned char *data, unsigned int len)
                 handle_autoconfig_search(data, len);
 
             } else if (get_service_type() == em_service_type_agent) {
-                printf("%s:%d: received em_msg_type_autoconf_search message in agent ... dropping\n", __func__, __LINE__);
+                em_printfout("%s:%d: received em_msg_type_autoconf_search message in agent ... dropping\n", __func__, __LINE__);
             }
 
             break;
@@ -5270,14 +5274,21 @@ void em_configuration_t::process_msg(unsigned char *data, unsigned int len)
             break;
 
         case em_msg_type_autoconf_wsc:
+            em_printfout("%s:%d: autoconf_wsc received: wsc_type=%d svc=%d state=%d\n", __func__, __LINE__,
+                get_wsc_msg_type(tlvs, tlvs_len), get_service_type(), get_state());
             if ((get_wsc_msg_type(tlvs, tlvs_len) == em_wsc_msg_type_m2) &&
                     (get_service_type() == em_service_type_agent) && (get_state() == em_state_agent_wsc_m2_pending)) {
-                        printf("%s:%d: received wsc_m2 len:%d\n", __func__, __LINE__, len);
+                        em_printfout("%s:%d: received wsc_m2 len:%d\n", __func__, __LINE__, len);
                         handle_autoconfig_wsc_m2(data, len);
             } else if ((get_wsc_msg_type(tlvs, tlvs_len) == em_wsc_msg_type_m1) &&
                     (get_service_type() == em_service_type_ctrl) && (get_state() == em_state_ctrl_wsc_m1_pending))  {
                         printf("%s:%d: received wsc_m1 len:%d\n", __func__, __LINE__, len);
                         handle_autoconfig_wsc_m1(data, len);
+            } else {
+                em_printfout("%s:%d: autoconf_wsc DROPPED: wsc_type=%d svc_ctrl=%d state_ok=%d\n", __func__, __LINE__,
+                    get_wsc_msg_type(tlvs, tlvs_len),
+                    (get_service_type() == em_service_type_ctrl),
+                    (get_state() == em_state_ctrl_wsc_m1_pending));
             }
 
             break;
