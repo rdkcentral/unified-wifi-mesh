@@ -44,6 +44,13 @@
 #include "em_cmd_exec.h"
 #include "util.h"
 
+/*
+ * Bit mask for BSS Color + BSS Load Present field in Channel Scan Report Message.
+ * Defined as constexpr for type safety and limited to this file as it is an
+ * internal implementation detail.
+ */
+constexpr unsigned char BSS_COLOR_BSS_LOAD_PRESENT = 0x80;
+
 short em_channel_t::create_channel_pref_tlv_agent(unsigned char *buff, unsigned int index)
 {
     short len = 0;
@@ -614,32 +621,48 @@ short em_channel_t::create_channel_scan_res_tlv(unsigned char *buff, unsigned in
             default:
                 break;
 
-		}	
+		}
 		
-		memcpy(tmp, &nbr->bss_color, sizeof(unsigned char));
-		len += static_cast<short unsigned int> (sizeof(unsigned char));
-		tmp += sizeof(unsigned char);
-	
-		memcpy(tmp, &nbr->channel_util, sizeof(unsigned char));
-		len += static_cast<short unsigned int> (sizeof(unsigned char));
-		tmp += sizeof(unsigned char);
+            unsigned char bss_color_byte = 0;
+            /* bits 0-5: actual BSS color */
+            bss_color_byte = (nbr->bss_color & 0x3F);
 
-		param = htons(nbr->sta_count);	
-		memcpy(tmp, &param, sizeof(unsigned short));
-		len += static_cast<short unsigned int> (sizeof(unsigned short));
-		tmp += sizeof(unsigned short);
-	
-	}			
+            /* bit 7: BSS Load presence */
+            if (nbr->bss_load_element_present) {
+                bss_color_byte |= BSS_COLOR_BSS_LOAD_PRESENT;
+            }
+		
+            memcpy(tmp, &bss_color_byte, sizeof(unsigned char));
+            len += static_cast<short unsigned int> (sizeof(unsigned char));
+            tmp += sizeof(unsigned char);
+	    
+            if (nbr->bss_load_element_present) {
+                memcpy(tmp, &nbr->channel_util, sizeof(unsigned char));
+                len += static_cast<short unsigned int> (sizeof(unsigned char));
+                tmp += sizeof(unsigned char);
 
-	memcpy(tmp, &scan_res->m_scan_result.aggr_scan_duration, sizeof(unsigned int));
-	len += static_cast<short unsigned int> (sizeof(unsigned int));
-	tmp += sizeof(unsigned int);
-	
-	memcpy(tmp, &scan_res->m_scan_result.scan_type, sizeof(unsigned char));
+                param = htons(nbr->sta_count);
+                memcpy(tmp, &param, sizeof(unsigned short));
+                len += static_cast<short unsigned int> (sizeof(unsigned short));
+                tmp += sizeof(unsigned short);
+            }
+	}
+   
+        unsigned int duration = htonl(scan_res->m_scan_result.aggr_scan_duration);
+        memcpy(tmp, &duration, sizeof(duration));
+        len += static_cast<short unsigned int> (sizeof(unsigned int));
+        tmp += sizeof(unsigned int);
+
+
+        unsigned char encoded_scan_type = 0;
+        if (scan_res->m_scan_result.scan_type == EM_SCAN_TYPE_ACTIVE) {
+            encoded_scan_type |= EM_SCAN_TYPE_BIT;
+        }
+        memcpy(tmp, &encoded_scan_type, sizeof(unsigned char));
 	len += static_cast<short unsigned int> (sizeof(unsigned char));
 	tmp += sizeof(unsigned char);
 
-    return len;
+        return len;
 }
 
 
@@ -2124,25 +2147,38 @@ void em_channel_t::fill_scan_result(dm_scan_result_t *scan_res, em_channel_scan_
             nbr->bandwidth = WIFI_CHANNELBANDWIDTH_320MHZ;
         }
 
-        memcpy(&nbr->bss_color, tmp, sizeof(unsigned char));
+        unsigned char bss_color_byte;
+        memcpy(&bss_color_byte, tmp, sizeof(unsigned char));
         tmp += sizeof(unsigned char);
+     
+        /* Extract only actual BSS color (bits 0-5) */
+        nbr->bss_color = bss_color_byte & 0x3F;
 
-        memcpy(&nbr->channel_util, tmp, sizeof(unsigned char));
-        tmp += sizeof(unsigned char);
+	if (bss_color_byte & BSS_COLOR_BSS_LOAD_PRESENT) {
+            nbr->bss_load_element_present = true;
+            memcpy(&nbr->channel_util, tmp, sizeof(unsigned char));
+            tmp += sizeof(unsigned char);
+	    
+	    memcpy(&nbr->sta_count, tmp, sizeof(unsigned short));
+            nbr->sta_count = ntohs(nbr->sta_count);
+	    tmp += sizeof(unsigned short);
+	} else {
+            nbr->bss_load_element_present = false;
+            nbr->channel_util = 0;
+            nbr->sta_count = 0;
+        }
 
-        memcpy(&nbr->sta_count, tmp, sizeof(unsigned short));
-		nbr->sta_count = htons(nbr->sta_count);
-        tmp += sizeof(unsigned short);
-
-		dm_easy_mesh_t::macbytes_to_string(nbr->bssid, bssid_str);
-		//printf("%s:%d: bssid: %s\tssid: %s\trssi: %d\tbandwidth: %s\tutil: %d\tcount: %d\n", __func__, __LINE__,
-		//			bssid_str, nbr->ssid, nbr->signal_strength, bandwidth, nbr->channel_util, nbr->sta_count);	
+	dm_easy_mesh_t::macbytes_to_string(nbr->bssid, bssid_str);
     }
 
-    memcpy(&scan_res->m_scan_result.aggr_scan_duration, tmp, sizeof(unsigned int));
+    unsigned int val;
+    memcpy(&val, tmp, sizeof(unsigned int));
+    scan_res->m_scan_result.aggr_scan_duration = ntohl(val);
     tmp += sizeof(unsigned int);
 
-    memcpy(&scan_res->m_scan_result.scan_type, tmp, sizeof(unsigned char));
+    unsigned char encoded_scan_type;
+    memcpy(&encoded_scan_type, tmp, sizeof(unsigned char));
+    scan_res->m_scan_result.scan_type = (encoded_scan_type & EM_SCAN_TYPE_BIT) ? EM_SCAN_TYPE_ACTIVE : EM_SCAN_TYPE_PASSIVE;
     tmp += sizeof(unsigned char);
 
 }
@@ -2161,36 +2197,40 @@ int em_channel_t::handle_channel_scan_rprt(unsigned char *buff, unsigned int len
     tlv = reinterpret_cast<em_tlv_t *> (buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
     tlv_len = static_cast<int> (len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)));
 
-    while ((tlv->type != em_tlv_type_eom) && (len > 0)) {
-		if (tlv->type == em_tlv_type_channel_scan_rslt) {
-			res = reinterpret_cast<em_channel_scan_result_t *> (tlv->value);
-			
-			strncpy(id.net_id, dm->m_network.m_net_info.id, sizeof(em_long_string_t));	
-			memcpy(id.dev_mac, dm->m_device.m_device_info.intf.mac, sizeof(mac_address_t));
+    while ((tlv->type != em_tlv_type_eom) && (tlv_len > 0)) {
+        uint16_t value_len = ntohs(tlv->len);
+
+        if (tlv_len < static_cast<int>(sizeof(em_tlv_t) + value_len)) {
+            break; // malformed TLV, stop parsing
+        }
+	    
+        if (tlv->type == em_tlv_type_channel_scan_rslt) {
+            res = reinterpret_cast<em_channel_scan_result_t *> (tlv->value);
+
+            strncpy(id.net_id, dm->m_network.m_net_info.id, sizeof(em_long_string_t));	
+            memcpy(id.dev_mac, dm->m_device.m_device_info.intf.mac, sizeof(mac_address_t));
             memcpy(id.scanner_mac, res->ruid, sizeof(mac_address_t));
             id.op_class = res->op_class;
             id.channel = res->channel;
-			id.scanner_type = em_scanner_type_radio;
+            id.scanner_type = em_scanner_type_radio;
 
-			if ((scan_res = dm->find_matching_scan_result(&id)) == NULL) {
-				scan_res = dm->create_new_scan_result(&id);
-			}
+            if ((scan_res = dm->find_matching_scan_result(&id)) == NULL) {
+                scan_res = dm->create_new_scan_result(&id);
+            }
+            fill_scan_result(scan_res, res);
+        }
 
-			fill_scan_result(scan_res, res);
-		}
+	if (tlv->type == em_tlv_type_timestamp) {
+            ; 
+        }
 
-        if (tlv->type == em_tlv_type_timestamp) {
-       		; 
-		}
-
-        tlv_len -= static_cast<int> (sizeof(em_tlv_t) + htons(tlv->len));
-        tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
+        tlv_len -= static_cast<int> (sizeof(em_tlv_t) + value_len);
+        tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + value_len);
     }
         
-	dm->set_db_cfg_param(db_cfg_type_scan_result_list_update, "");
-
-
-	return 0;
+    dm->set_db_cfg_param(db_cfg_type_scan_result_list_update, "");
+  
+    return 0;
 }
 
 void em_channel_t::process_msg(unsigned char *data, unsigned int len)
