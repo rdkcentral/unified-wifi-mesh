@@ -853,6 +853,15 @@ public:
 	em_service_type_t get_service_type() { return em_service_type_agent; }
     
 	/**!
+	 * @brief Get the orchestration instance.
+	 *
+	 * This function returns a pointer to the orchestration instance.
+	 *
+	 * @return em_orch_t* Pointer to the orchestration instance.
+	 */
+	em_orch_t *get_orch() override { return m_orch; }
+
+	/**!
 	 * @brief Finds the EM for a given message type.
 	 *
 	 * This function searches for the EM (Event Manager) associated with a specific message type
