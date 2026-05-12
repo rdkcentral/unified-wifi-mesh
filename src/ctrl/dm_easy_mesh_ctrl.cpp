@@ -346,6 +346,1249 @@ bus_error_t em_ctrl_t::cmd_setssid(const char *method_name, const bus_data_prop_
     return bus_error_success;
 }
 
+bus_error_t em_ctrl_t::cmd_steerwifibh(const char *method_name, const bus_data_prop_t *input_params, bus_data_prop_t **output_params, void *async_handle)
+{
+    (void)async_handle;
+    const char *name = method_name;
+    const char *param;
+    char instance[MAX_INSTANCE_LEN] = { 0 };
+    bool is_num;
+    const bus_data_prop_t *prop = NULL;
+    char target[TR181_BSSID_MAX_LEN + 1] = { 0 };
+    int channel = -1;
+    int timeout = -1;
+    em_subdoc_info_t *subdoc = NULL;
+    unsigned char buff[sizeof(em_subdoc_info_t) + EM_IO_BUFF_SZ];
+    cJSON *root = NULL, *json = NULL, *net_obj = NULL;
+    cJSON *dev_list = NULL, *dev_obj = NULL;
+    cJSON *steer_obj = NULL;
+    mac_addr_str_t mac_str;
+    char *json_buff = NULL;
+    size_t json_len = 0;
+    bus_error_t rc;
+
+    param = strrchr(name, '.');
+    if (param == NULL) {
+        em_printfout("Invalid method name");
+        if (output_params) {
+            *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
+        }
+        return bus_error_invalid_input;
+    }
+    ++param;
+    if (strcmp("SteerWiFiBackhaul()", param) != 0) {
+        em_printfout("Invalid method");
+        if (output_params) {
+            *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
+        }
+        return bus_error_invalid_method;
+    }
+
+    em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
+    if (!em_ctrl) {
+        em_printfout("Controller not found");
+        if (output_params) {
+            *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
+        }
+        return bus_error_general;
+    }
+    dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl->get_dm_ctrl();
+
+    /* Extract device instance (numeric or alias) and find the dm object for
+     * that device instance */
+    name += sizeof(DATAELEMS_NETWORK);
+    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    dm_easy_mesh_t *dm = dm_ctrl->get_dm_easy_mesh(instance, is_num);
+    if (dm == NULL) {
+        em_printfout("Device not found");
+        if (output_params) {
+            *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
+        }
+        return bus_error_invalid_namespace;
+    }
+    em_device_info_t *di = dm->get_device()->get_device_info();
+
+    /* Most of the parameters are mandatory, parse them */
+    for (prop = input_params; prop; prop = prop->next_data) {
+        if (strcmp(prop->name, "TargetBSS") == 0) {
+            if (!tr_181_t::tr181_copy_prop_string(prop, target, sizeof(target))) {
+                goto invalid;
+            }
+        } else if (strcmp(prop->name, "Channel") == 0) {
+            if (!tr_181_t::tr181_get_prop_int(prop, &channel)) {
+                goto invalid;
+            }
+        } else if (strcmp(prop->name, "TimeOut") == 0) {
+            if (!tr_181_t::tr181_get_prop_int(prop, &timeout)) {
+                goto invalid;
+            }
+        } else {
+invalid:
+            em_printfout("Invalid parameter: %s", prop->name);
+            if (output_params) {
+                *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
+            }
+            return bus_error_invalid_input;
+        }
+    }
+    /* Mandatory parameters: TargetBSS and TimeOut */
+    if (!target[0] || timeout < 0) {
+        em_printfout("Mandatory parameters missing");
+        if (output_params) {
+            *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
+        }
+        return bus_error_invalid_input;
+    }
+
+    /* Prepare subdoc to be processed with command */
+    subdoc = reinterpret_cast<em_subdoc_info_t *>(buff);
+    memset(subdoc, 0, sizeof(em_subdoc_info_t));
+    strncpy(subdoc->name, "SteerWiFiBackhaul", sizeof(subdoc->name) - 1);
+
+    /* Create json with root "wfa-dataelements:SteerWiFiBackhaul" and fill
+     * with necessary parameters we extract from path */
+    rc = bus_error_out_of_resources;
+    root = cJSON_CreateObject();
+    json = cJSON_CreateObject();
+    if (!root || !json) {
+        em_printfout("Create object failed");
+        goto cleanup;
+    }
+    if (!cJSON_AddItemToObject(root, "wfa-dataelements:SteerWiFiBackhaul", json)) {
+        em_printfout("Add item failed");
+        cJSON_Delete(json);
+        goto cleanup;
+    }
+    /* Add Network parameters */
+    net_obj = cJSON_AddObjectToObject(json, "Network");
+    if (!net_obj) {
+        em_printfout("Add Network failed");
+        goto cleanup;
+    }
+    if (!cJSON_AddStringToObject(net_obj, "ID", GLOBAL_NET_ID)) {
+        em_printfout("Add Network ID failed");
+        goto cleanup;
+    }
+    /* Add Device parameters */
+    dev_list = cJSON_AddArrayToObject(net_obj, "DeviceList");
+    if (!dev_list) {
+        em_printfout("Add DeviceList failed");
+        goto cleanup;
+    }
+    dev_obj = cJSON_CreateObject();
+    if (!dev_obj) {
+        em_printfout("Create object failed");
+        goto cleanup;
+    }
+    if (!cJSON_AddItemToArray(dev_list, dev_obj)) {
+        em_printfout("Add Device failed");
+        cJSON_Delete(dev_obj);
+        goto cleanup;
+    }
+    dm_easy_mesh_t::macbytes_to_string(di->intf.mac, mac_str);
+    if (!cJSON_AddStringToObject(dev_obj, "ID", mac_str)) {
+        em_printfout("Add Device ID failed");
+        goto cleanup;
+    }
+    /* Add method parameters */
+    steer_obj = cJSON_CreateObject();
+    if (!steer_obj) {
+        em_printfout("Create object failed");
+        goto cleanup;
+    }
+    if (!cJSON_AddItemToObject(dev_obj, "SteerWiFiBackhaul", steer_obj)) {
+        em_printfout("Add SteerWiFiBackhaul failed");
+        cJSON_Delete(steer_obj);
+        goto cleanup;
+    }
+    /* TODO: Validity check of parameters? */
+    if (!cJSON_AddStringToObject(steer_obj, "TargetBSS", target)) {
+        em_printfout("Add TargetBSS failed");
+        goto cleanup;
+    }
+    if (channel > 0) {
+        if (!cJSON_AddNumberToObject(steer_obj, "Channel", channel)) {
+            em_printfout("Add Channel failed");
+            goto cleanup;
+        }
+    }
+    if (!cJSON_AddNumberToObject(steer_obj, "TimeOut", timeout)) {
+        em_printfout("Add TimeOut failed");
+        goto cleanup;
+    }
+
+    /* Convert JSON back to string and store in subdoc buffer. */
+    json_buff = cJSON_PrintUnformatted(root);
+    if (!json_buff) {
+        em_printfout("Create output buffer failed");
+        rc = bus_error_out_of_resources;
+        goto cleanup;
+    }
+    /* Ensure updated JSON fits in buffer. */
+    json_len = strlen(json_buff);
+    if (json_len >= EM_IO_BUFF_SZ) {
+        em_printfout("Buffer too big for subdoc");
+        free(json_buff);
+        rc = bus_error_invalid_input;
+        goto cleanup;
+    }
+    memcpy(subdoc->buff, json_buff, json_len);
+    subdoc->buff[json_len] = '\0';
+
+    // uncomment below line to log the updated JSON before sending to DM; can be helpful for debugging.
+    /*
+    cJSON *json_obj;
+    json_obj = cJSON_Parse(subdoc->buff);
+    if (json_obj) {
+        char *new_json = cJSON_Print(json_obj);
+        em_printfout("Updated and formatted JSON:\n%s", new_json);
+        free(new_json);
+        cJSON_Delete(json_obj);
+    } else {
+        em_printfout("Invalid JSON in subdoc->buff");
+    }
+    */
+
+    //em_ctrl->io_process(em_bus_event_type_steer_wifi_backhaul, subdoc->buff, json_len);
+    free(json_buff);
+    cJSON_Delete(root);
+
+    if (output_params) {
+        *output_params = tr_181_t::tr181_set_status_output_prop("Success");
+    }
+
+    return bus_error_success;
+
+cleanup:
+    cJSON_Delete(root);
+    if (output_params) {
+        *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
+    }
+    return rc;
+}
+
+bus_error_t em_ctrl_t::cmd_channelscan(const char *method_name, const bus_data_prop_t *input_params, bus_data_prop_t **output_params, void *async_handle)
+{
+    (void)async_handle;
+    const char *name = method_name;
+    const char *param;
+    char instance[MAX_INSTANCE_LEN] = { 0 };
+    bool is_num;
+    const bus_data_prop_t *prop = NULL;
+    char ch_list[TR181_CHLIST_MAX_LEN + 1] = { 0 };
+    int op_class = -1;
+    em_subdoc_info_t *subdoc = NULL;
+    unsigned char buff[sizeof(em_subdoc_info_t) + EM_IO_BUFF_SZ];
+    cJSON *root = NULL, *json = NULL, *net_obj = NULL;
+    cJSON *dev_list = NULL, *dev_obj = NULL;
+    cJSON *radio_list = NULL, *radio_obj = NULL;
+    cJSON *chscan_arr = NULL, *chscan_obj = NULL;
+    cJSON *chlist_arr = NULL, *chlist_obj = NULL;
+    mac_addr_str_t mac_str;
+    char *json_buff = NULL;
+    size_t json_len = 0;
+    bus_error_t rc;
+
+    param = strrchr(name, '.');
+    if (param == NULL) {
+        em_printfout("Invalid method name");
+        if (output_params) {
+            *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
+        }
+        return bus_error_invalid_input;
+    }
+    ++param;
+    if (strcmp("ChannelScanRequest()", param) != 0) {
+        em_printfout("Invalid method");
+        if (output_params) {
+            *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
+        }
+        return bus_error_invalid_method;
+    }
+
+    em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
+    if (!em_ctrl) {
+        em_printfout("Controller not found");
+        if (output_params) {
+            *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
+        }
+        return bus_error_general;
+    }
+    dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl->get_dm_ctrl();
+
+    /* Extract device instance (numeric or alias) and find the dm object for
+     * that device instance */
+    name += sizeof(DATAELEMS_NETWORK);
+    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    dm_easy_mesh_t *dm = dm_ctrl->get_dm_easy_mesh(instance, is_num);
+    if (dm == NULL) {
+        em_printfout("Device not found");
+        if (output_params) {
+            *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
+        }
+        return bus_error_invalid_namespace;
+    }
+    em_device_info_t *di = dm->get_device()->get_device_info();
+
+    /* Extract radio instance (numeric or alias), find the radio dm object
+     * for that instance, and finally get info struct for radio dm object */
+    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    dm_radio_t *radio = dm_ctrl->get_dm_radio(dm, instance, is_num);
+    if (radio == NULL) {
+        em_printfout("Radio not found");
+        if (output_params) {
+            *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
+        }
+        return bus_error_invalid_namespace;
+    }
+    em_radio_info_t *ri = radio->get_radio_info();
+
+    /* Input parameters are optional, parse if any */
+    for (prop = input_params; prop; prop = prop->next_data) {
+        if (strcmp(prop->name, "OpClass") == 0) {
+            if (!tr_181_t::tr181_get_prop_int(prop, &op_class)) {
+                goto invalid;
+            }
+        } else if (strcmp(prop->name, "ChannelList") == 0) {
+            if (!tr_181_t::tr181_copy_prop_string(prop, ch_list, sizeof(ch_list))) {
+                goto invalid;
+            }
+        } else if ((strcmp(prop->name, "ScanType") == 0) ||
+                   (strcmp(prop->name, "DwellTime") == 0) ||
+                   (strcmp(prop->name, "DFSDwellTime") == 0) ||
+                   (strcmp(prop->name, "HomeTime") == 0)) {
+            continue;
+        } else {
+invalid:
+            em_printfout("Invalid parameter: %s", prop->name);
+            if (output_params) {
+                *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
+            }
+            return bus_error_invalid_input;
+        }
+    }
+    /* Mandatory parameters: OpClass and ChannelList is any one of them is provided */
+    if ((op_class > 0 && !ch_list[0]) || (ch_list[0] && op_class < 0)) {
+        em_printfout("Mandatory parameters missing");
+        if (output_params) {
+            *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
+        }
+        return bus_error_invalid_input;
+    }
+
+    /* Prepare subdoc to be processed with command */
+    subdoc = reinterpret_cast<em_subdoc_info_t *>(buff);
+    memset(subdoc, 0, sizeof(em_subdoc_info_t));
+    strncpy(subdoc->name, "ChannelScanRequest", sizeof(subdoc->name) - 1);
+
+    /* Create json with root "wfa-dataelements:ChannelScanRequest" and fill
+     * with necessary parameters we extract from path */
+    rc = bus_error_out_of_resources;
+    root = cJSON_CreateObject();
+    json = cJSON_CreateObject();
+    if (!root || !json) {
+        em_printfout("Create object failed");
+        goto cleanup;
+    }
+    if (!cJSON_AddItemToObject(root, "wfa-dataelements:ChannelScanRequest", json)) {
+        em_printfout("Add item failed");
+        cJSON_Delete(json);
+        goto cleanup;
+    }
+    /* Add Network parameters */
+    net_obj = cJSON_AddObjectToObject(json, "Network");
+    if (!net_obj) {
+        em_printfout("Add Network failed");
+        goto cleanup;
+    }
+    if (!cJSON_AddStringToObject(net_obj, "ID", GLOBAL_NET_ID)) {
+        em_printfout("Add Network ID failed");
+        goto cleanup;
+    }
+    /* Add Device parameters */
+    dev_list = cJSON_AddArrayToObject(net_obj, "DeviceList");
+    if (!dev_list) {
+        em_printfout("Add DeviceList failed");
+        goto cleanup;
+    }
+    dev_obj = cJSON_CreateObject();
+    if (!dev_obj) {
+        em_printfout("Create object failed");
+        goto cleanup;
+    }
+    if (!cJSON_AddItemToArray(dev_list, dev_obj)) {
+        em_printfout("Add Device failed");
+        cJSON_Delete(dev_obj);
+        goto cleanup;
+    }
+    dm_easy_mesh_t::macbytes_to_string(di->intf.mac, mac_str);
+    if (!cJSON_AddStringToObject(dev_obj, "ID", mac_str)) {
+        em_printfout("Add Device ID failed");
+        goto cleanup;
+    }
+    /* Add Radio parameters */
+    radio_list = cJSON_AddArrayToObject(dev_obj, "RadioList");
+    if (!radio_list) {
+        em_printfout("Add RadioList failed");
+        goto cleanup;
+    }
+    radio_obj = cJSON_CreateObject();
+    if (!radio_obj) {
+        em_printfout("Create object failed");
+        goto cleanup;
+    }
+    if (!cJSON_AddItemToArray(radio_list, radio_obj)) {
+        em_printfout("Add Radio failed");
+        cJSON_Delete(radio_obj);
+        goto cleanup;
+    }
+    dm_easy_mesh_t::macbytes_to_string(ri->id.ruid, mac_str);
+    if (!cJSON_AddStringToObject(radio_obj, "ID", mac_str)) {
+        em_printfout("Add Radio ID failed");
+        goto cleanup;
+    }
+    /* Add method parameters */
+    chscan_arr = cJSON_AddArrayToObject(radio_obj, "ChannelScanParameters");
+    if (!chscan_arr) {
+        em_printfout("Add ChannelScanParameters failed");
+        goto cleanup;
+    }
+    chscan_obj = cJSON_CreateObject();
+    if (!chscan_obj) {
+        em_printfout("Create object failed");
+        goto cleanup;
+    }
+    if (!cJSON_AddItemToArray(chscan_arr, chscan_obj)) {
+        em_printfout("Add item failed");
+        cJSON_Delete(chscan_obj);
+        goto cleanup;
+    }
+    if (op_class > 0) {
+        /* TODO: Validity check of parameters? */
+        if (!cJSON_AddNumberToObject(chscan_obj, "Class", op_class)) {
+            em_printfout("Add OpClass failed");
+            goto cleanup;
+        }
+        chlist_arr = cJSON_AddArrayToObject(chscan_obj, "ChannelList");
+        if (!chlist_arr) {
+            em_printfout("Add ChannelList failed");
+            goto cleanup;
+        }
+        std::string chlist_str = ch_list;
+        std::vector<std::string> channels = util::split_by_delim(chlist_str, ',');
+        for (unsigned int i = 0; i < channels.size(); i++) {
+            char *ep = NULL;
+            int channel = static_cast<int> (std::strtol(channels[i].c_str(), &ep, 10));
+            if (ep == channels[i].c_str() || *ep != '\0') {
+                em_printfout("Invalid channel");
+                goto cleanup;
+            }
+            chlist_obj = cJSON_CreateNumber(channel);
+            if (!chlist_obj) {
+                em_printfout("Create number failed");
+                goto cleanup;
+            }
+            if (!cJSON_AddItemToArray(chlist_arr, chlist_obj)) {
+                em_printfout("Add item failed");
+                cJSON_Delete(chlist_obj);
+                goto cleanup;
+            }
+        }
+    }
+
+    /* Convert JSON back to string and store in subdoc buffer. */
+    json_buff = cJSON_PrintUnformatted(root);
+    if (!json_buff) {
+        em_printfout("Create output buffer failed");
+        rc = bus_error_out_of_resources;
+        goto cleanup;
+    }
+    /* Ensure updated JSON fits in buffer. */
+    json_len = strlen(json_buff);
+    if (json_len >= EM_IO_BUFF_SZ) {
+        em_printfout("Buffer too big for subdoc");
+        free(json_buff);
+        rc = bus_error_invalid_input;
+        goto cleanup;
+    }
+    memcpy(subdoc->buff, json_buff, json_len);
+    subdoc->buff[json_len] = '\0';
+
+    // uncomment below line to log the updated JSON before sending to DM; can be helpful for debugging.
+    /*
+    cJSON *json_obj;
+    json_obj = cJSON_Parse(subdoc->buff);
+    if (json_obj) {
+        char *new_json = cJSON_Print(json_obj);
+        em_printfout("Updated and formatted JSON:\n%s", new_json);
+        free(new_json);
+        cJSON_Delete(json_obj);
+    } else {
+        em_printfout("Invalid JSON in subdoc->buff");
+    }
+    */
+
+    em_ctrl->io_process(em_bus_event_type_scan_channel, subdoc->buff, json_len);
+    free(json_buff);
+    cJSON_Delete(root);
+
+    if (output_params) {
+        *output_params = tr_181_t::tr181_set_status_output_prop("Success");
+    }
+
+    return bus_error_success;
+
+cleanup:
+    cJSON_Delete(root);
+    if (output_params) {
+        *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
+    }
+    return rc;
+}
+
+bus_error_t em_ctrl_t::cmd_clientsteer(const char *method_name, const bus_data_prop_t *input_params, bus_data_prop_t **output_params, void *async_handle)
+{
+    (void)async_handle;
+    const char *name = method_name;
+    const char *param;
+    char instance[MAX_INSTANCE_LEN] = { 0 };
+    bool is_num;
+    const bus_data_prop_t *prop = NULL;
+    char target[TR181_BSSID_MAX_LEN + 1] = { 0 };
+    char requestmode[TR181_REQMODE_MAX_LEN + 1] = { 0 };
+    bool imminent = false, imminent_set = false;
+    bool bridged = false, bridged_set = false;
+    bool link = false, link_set = false;
+    int opportunity = -1;
+    int timer = -1;
+    int op_class = -1;
+    int channel = -1;
+    em_subdoc_info_t *subdoc = NULL;
+    unsigned char buff[sizeof(em_subdoc_info_t) + EM_IO_BUFF_SZ];
+    cJSON *root = NULL, *json = NULL, *net_obj = NULL;
+    cJSON *dev_list = NULL, *dev_obj = NULL;
+    cJSON *radio_list = NULL, *radio_obj = NULL;
+    cJSON *bss_list = NULL, *bss_obj = NULL;
+    cJSON *sta_list = NULL, *sta_obj = NULL;
+    cJSON *steer_obj = NULL, *request_obj = NULL;
+    mac_addr_str_t mac_str;
+    char *json_buff = NULL;
+    size_t json_len = 0;
+    bus_error_t rc;
+
+    param = strrchr(name, '.');
+    if (param == NULL) {
+        em_printfout("Invalid method name");
+        if (output_params) {
+            *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
+        }
+        return bus_error_invalid_input;
+    }
+    ++param;
+    if (strcmp("ClientSteer()", param) != 0) {
+        em_printfout("Invalid method");
+        if (output_params) {
+            *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
+        }
+        return bus_error_invalid_method;
+    }
+
+    em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
+    if (!em_ctrl) {
+        em_printfout("Controller not found");
+        if (output_params) {
+            *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
+        }
+        return bus_error_general;
+    }
+    dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl->get_dm_ctrl();
+
+    /* Extract device instance (numeric or alias) and find the dm object for
+     * that device instance */
+    name += sizeof(DATAELEMS_NETWORK);
+    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    dm_easy_mesh_t *dm = dm_ctrl->get_dm_easy_mesh(instance, is_num);
+    if (dm == NULL) {
+        em_printfout("Device not found");
+        if (output_params) {
+            *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
+        }
+        return bus_error_invalid_namespace;
+    }
+    em_device_info_t *di = dm->get_device()->get_device_info();
+
+    /* Extract radio instance (numeric or alias), find the radio dm object
+     * for that instance, and finally get info struct for radio dm object */
+    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    dm_radio_t *radio = dm_ctrl->get_dm_radio(dm, instance, is_num);
+    if (radio == NULL) {
+        em_printfout("Radio not found");
+        if (output_params) {
+            *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
+        }
+        return bus_error_invalid_namespace;
+    }
+    em_radio_info_t *ri = radio->get_radio_info();
+
+    /* Extract bss instance (numeric or alias), find the bss dm object
+     * for that instance, and finally get info struct for bss dm object */
+    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    dm_bss_t *bss = dm_ctrl->get_dm_bss(dm, ri, instance, is_num);
+    if (bss == NULL) {
+        em_printfout("BSS not found");
+        if (output_params) {
+            *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
+        }
+        return bus_error_invalid_namespace;
+    }
+    em_bss_info_t *bi = bss->get_bss_info();
+
+    /* Extract sta instance (numeric or alias), find the sta dm object
+     * for that instance, and finally get info struct for sta dm object */
+    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    dm_sta_t *sta = dm_ctrl->get_dm_sta(dm, bi, instance, is_num);
+    if (sta == NULL) {
+        em_printfout("STA not found");
+        if (output_params) {
+            *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
+        }
+        return bus_error_invalid_namespace;
+    }
+    em_sta_info_t *si = sta->get_sta_info();
+
+    /* Most of the parameters are mandatory, parse them */
+    for (prop = input_params; prop; prop = prop->next_data) {
+        if (strcmp(prop->name, "TargetBSSID") == 0) {
+            if (!tr_181_t::tr181_copy_prop_string(prop, target, sizeof(target))) {
+                goto invalid;
+            }
+        } else if (strcmp(prop->name, "RequestMode") == 0) {
+            if (!tr_181_t::tr181_copy_prop_string(prop, requestmode, sizeof(requestmode))) {
+                goto invalid;
+            }
+        } else if (strcmp(prop->name, "BTMDisassociationImminent") == 0) {
+            if (!tr_181_t::tr181_get_prop_bool(prop, &imminent)) {
+                goto invalid;
+            }
+            imminent_set = true;
+        } else if (strcmp(prop->name, "BTMAbridged") == 0) {
+            if (!tr_181_t::tr181_get_prop_bool(prop, &bridged)) {
+                goto invalid;
+            }
+            bridged_set = true;
+        } else if (strcmp(prop->name, "LinkRemovalImminent") == 0) {
+            if (!tr_181_t::tr181_get_prop_bool(prop, &link)) {
+                goto invalid;
+            }
+            link_set = true;
+        } else if (strcmp(prop->name, "SteeringOpportunityWindow") == 0) {
+            if (!tr_181_t::tr181_get_prop_int(prop, &opportunity)) {
+                goto invalid;
+            }
+        } else if (strcmp(prop->name, "BTMDisassociationTimer") == 0) {
+            if (!tr_181_t::tr181_get_prop_int(prop, &timer)) {
+                goto invalid;
+            }
+        } else if (strcmp(prop->name, "TargetBSSOperatingClass") == 0) {
+            if (!tr_181_t::tr181_get_prop_int(prop, &op_class)) {
+                goto invalid;
+            }
+        } else if (strcmp(prop->name, "TargetBSSChannel") == 0) {
+            if (!tr_181_t::tr181_get_prop_int(prop, &channel)) {
+                goto invalid;
+            }
+        } else {
+invalid:
+            em_printfout("Invalid parameter: %s", prop->name);
+            if (output_params) {
+                *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
+            }
+            return bus_error_invalid_input;
+        }
+    }
+    /* Mandatory parameters: TargetBSSID, RequestMode, BTMDisassociationImminent, BTMAbridged,
+     *   BTMDisassociationTimer, TargetBSSOperatingClass, TargetBSSChannel and
+     *   SteeringOpportunityWindow if RequestMode is Steering_Opportunity */
+    if (!target[0] || !requestmode[0] || !imminent_set || !bridged_set ||
+        timer < 0  || op_class < 0    || channel < 0   ||
+        (strcasecmp(requestmode, "Steering_Opportunity") == 0 && opportunity < 0)) {
+        em_printfout("Mandatory parameters missing");
+        if (output_params) {
+            *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
+        }
+        return bus_error_invalid_input;
+    }
+
+    /* Prepare subdoc to be processed with command */
+    subdoc = reinterpret_cast<em_subdoc_info_t *>(buff);
+    memset(subdoc, 0, sizeof(em_subdoc_info_t));
+    strncpy(subdoc->name, "ClientSteer", sizeof(subdoc->name) - 1);
+
+    /* Create json with root "wfa-dataelements:ClientSteer" and fill
+     * with necessary parameters we extract from path */
+    rc = bus_error_out_of_resources;
+    root = cJSON_CreateObject();
+    json = cJSON_CreateObject();
+    if (!root || !json) {
+        em_printfout("Create object failed");
+        goto cleanup;
+    }
+    if (!cJSON_AddItemToObject(root, "wfa-dataelements:ClientSteer", json)) {
+        em_printfout("Add item failed");
+        cJSON_Delete(json);
+        goto cleanup;
+    }
+    /* Add Network parameters */
+    net_obj = cJSON_AddObjectToObject(json, "Network");
+    if (!net_obj) {
+        em_printfout("Add Network failed");
+        goto cleanup;
+    }
+    if (!cJSON_AddStringToObject(net_obj, "ID", GLOBAL_NET_ID)) {
+        em_printfout("Add Network ID failed");
+        goto cleanup;
+    }
+    /* Add Device parameters */
+    dev_list = cJSON_AddArrayToObject(net_obj, "DeviceList");
+    if (!dev_list) {
+        em_printfout("Add DeviceList failed");
+        goto cleanup;
+    }
+    dev_obj = cJSON_CreateObject();
+    if (!dev_obj) {
+        em_printfout("Create object failed");
+        goto cleanup;
+    }
+    if (!cJSON_AddItemToArray(dev_list, dev_obj)) {
+        em_printfout("Add Device failed");
+        cJSON_Delete(dev_obj);
+        goto cleanup;
+    }
+    dm_easy_mesh_t::macbytes_to_string(di->intf.mac, mac_str);
+    if (!cJSON_AddStringToObject(dev_obj, "ID", mac_str)) {
+        em_printfout("Add Device ID failed");
+        goto cleanup;
+    }
+    /* Add Radio parameters */
+    radio_list = cJSON_AddArrayToObject(dev_obj, "RadioList");
+    if (!radio_list) {
+        em_printfout("Add RadioList failed");
+        goto cleanup;
+    }
+    radio_obj = cJSON_CreateObject();
+    if (!radio_obj) {
+        em_printfout("Create object failed");
+        goto cleanup;
+    }
+    if (!cJSON_AddItemToArray(radio_list, radio_obj)) {
+        em_printfout("Add Radio failed");
+        cJSON_Delete(radio_obj);
+        goto cleanup;
+    }
+    dm_easy_mesh_t::macbytes_to_string(ri->id.ruid, mac_str);
+    if (!cJSON_AddStringToObject(radio_obj, "ID", mac_str)) {
+        em_printfout("Add Radio ID failed");
+        goto cleanup;
+    }
+    /* Add BSS parameters */
+    bss_list = cJSON_AddArrayToObject(radio_obj, "BSSList");
+    if (!bss_list) {
+        em_printfout("Add BSSList failed");
+        goto cleanup;
+    }
+    bss_obj = cJSON_CreateObject();
+    if (!bss_obj) {
+        em_printfout("Create object failed");
+        goto cleanup;
+    }
+    if (!cJSON_AddItemToArray(bss_list, bss_obj)) {
+        em_printfout("Add BSS failed");
+        cJSON_Delete(bss_obj);
+        goto cleanup;
+    }
+    dm_easy_mesh_t::macbytes_to_string(bi->bssid.mac, mac_str);
+    if (!cJSON_AddStringToObject(bss_obj, "BSSID", mac_str)) {
+        em_printfout("Add BSSID failed");
+        goto cleanup;
+    }
+    /* Add STA parameters */
+    sta_list = cJSON_AddArrayToObject(bss_obj, "STAList");
+    if (!sta_list) {
+        em_printfout("Add STAList failed");
+        goto cleanup;
+    }
+    sta_obj = cJSON_CreateObject();
+    if (!sta_obj) {
+        em_printfout("Create object failed");
+        goto cleanup;
+    }
+    if (!cJSON_AddItemToArray(sta_list, sta_obj)) {
+        em_printfout("Add STA failed");
+        cJSON_Delete(sta_obj);
+        goto cleanup;
+    }
+    dm_easy_mesh_t::macbytes_to_string(si->id, mac_str);
+    if (!cJSON_AddStringToObject(sta_obj, "MACAddress", mac_str)) {
+        em_printfout("Add MACAddress failed");
+        goto cleanup;
+    }
+    /* Currently not used, but let's add it anyway */
+    if (!cJSON_AddBoolToObject(sta_obj, "Associated", si->associated)) {
+        em_printfout("Add Associated failed");
+        goto cleanup;
+    }
+    /* Add method parameters */
+    steer_obj = cJSON_CreateObject();
+    if (!steer_obj) {
+        em_printfout("Create object failed");
+        goto cleanup;
+    }
+    if (!cJSON_AddItemToObject(sta_obj, "ClientSteer", steer_obj)) {
+        em_printfout("Add ClientSteer failed");
+        cJSON_Delete(steer_obj);
+        goto cleanup;
+    }
+    /* TODO: Validity check of parameters? */
+    if (!cJSON_AddStringToObject(steer_obj, "TargetBSSID", target)) {
+        em_printfout("Add TargetBSSID failed");
+        goto cleanup;
+    }
+    request_obj = cJSON_AddObjectToObject(steer_obj, "RequestMode");
+    if (!request_obj) {
+        em_printfout("Add RequestMode failed");
+        goto cleanup;
+    }
+    /* Analyze command steer, later, checks for extra object in RequestMode,
+       request_mode of em_cmd_steer_params_t expects 0 or 1. So why using
+       an extra object, instead of adding the number value? */
+    em_steering_req_mode_t mode;
+    if (strcasecmp(requestmode, "Steering_Opportunity") == 0) {
+        mode = em_steering_req_mode_opportunity;
+    } else if (strcasecmp(requestmode, "Steering_Mandate") == 0) {
+        mode = em_steering_req_mode_mandate;
+    } else {
+        em_printfout("Invalid request mode");
+        goto cleanup;
+    }
+    if (!cJSON_AddNumberToObject(request_obj, requestmode, mode)) {
+        em_printfout("Add number failed");
+        goto cleanup;
+    }
+    if (!cJSON_AddBoolToObject(steer_obj, "BTMDisassociationImminent", imminent)) {
+        em_printfout("Add BTMDisassociationImminent failed");
+        goto cleanup;
+    }
+    if (!cJSON_AddBoolToObject(steer_obj, "BTMAbridged", bridged)) {
+        em_printfout("Add BTMAbridged failed");
+        goto cleanup;
+    }
+    if (link_set) {
+        if (!cJSON_AddBoolToObject(steer_obj, "LinkRemovalImminent", link)) {
+            em_printfout("Add LinkRemovalImminent failed");
+            goto cleanup;
+        }
+    }
+    if (opportunity > 0) {
+        if (!cJSON_AddNumberToObject(steer_obj, "SteeringOpportunityWindow", opportunity)) {
+            em_printfout("Add SteeringOpportunityWindow failed");
+            goto cleanup;
+        }
+    }
+    if (!cJSON_AddNumberToObject(steer_obj, "BTMDisassociationTimer", timer)) {
+        em_printfout("Add BTMDisassociationTimer failed");
+        goto cleanup;
+    }
+    if (!cJSON_AddNumberToObject(steer_obj, "TargetBSSOperatingClass", op_class)) {
+        em_printfout("Add TargetBSSOperatingClass failed");
+        goto cleanup;
+    }
+    if (!cJSON_AddNumberToObject(steer_obj, "TargetBSSChannel", channel)) {
+        em_printfout("Add TargetBSSChannel failed");
+        goto cleanup;
+    }
+
+    /* Convert JSON back to string and store in subdoc buffer. */
+    json_buff = cJSON_PrintUnformatted(root);
+    if (!json_buff) {
+        em_printfout("Create output buffer failed");
+        rc = bus_error_out_of_resources;
+        goto cleanup;
+    }
+    /* Ensure updated JSON fits in buffer. */
+    json_len = strlen(json_buff);
+    if (json_len >= EM_IO_BUFF_SZ) {
+        em_printfout("Buffer too big for subdoc");
+        free(json_buff);
+        rc = bus_error_invalid_input;
+        goto cleanup;
+    }
+    memcpy(subdoc->buff, json_buff, json_len);
+    subdoc->buff[json_len] = '\0';
+
+    // uncomment below line to log the updated JSON before sending to DM; can be helpful for debugging.
+    /*
+    cJSON *json_obj;
+    json_obj = cJSON_Parse(subdoc->buff);
+    if (json_obj) {
+        char *new_json = cJSON_Print(json_obj);
+        em_printfout("Updated and formatted JSON:\n%s", new_json);
+        free(new_json);
+        cJSON_Delete(json_obj);
+    } else {
+        em_printfout("Invalid JSON in subdoc->buff");
+    }
+    */
+
+    em_ctrl->io_process(em_bus_event_type_steer_sta, subdoc->buff, json_len);
+    free(json_buff);
+    cJSON_Delete(root);
+
+    if (output_params) {
+        *output_params = tr_181_t::tr181_set_status_output_prop("Success");
+    }
+
+    return bus_error_success;
+
+cleanup:
+    cJSON_Delete(root);
+    if (output_params) {
+        *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
+    }
+    return rc;
+}
+
+bus_error_t em_ctrl_t::cmd_disassociate(const char *method_name, const bus_data_prop_t *input_params, bus_data_prop_t **output_params, void *async_handle)
+{
+    (void)async_handle;
+    const char *name = method_name;
+    const char *param;
+    char instance[MAX_INSTANCE_LEN] = { 0 };
+    bool is_num;
+    em_subdoc_info_t *subdoc = NULL;
+    unsigned char buff[sizeof(em_subdoc_info_t) + EM_IO_BUFF_SZ];
+    cJSON *root = NULL, *json = NULL, *net_obj = NULL;
+    cJSON *dev_list = NULL, *dev_obj = NULL;
+    cJSON *radio_list = NULL, *radio_obj = NULL;
+    cJSON *bss_list = NULL, *bss_obj = NULL;
+    cJSON *sta_list = NULL, *sta_obj = NULL;
+    cJSON *disassoc_obj = NULL;
+    mac_addr_str_t mac_str;
+    char *json_buff = NULL;
+    size_t json_len = 0;
+    const bus_data_prop_t *prop = NULL;
+    int timer = -1;
+    int reason = -1;
+    bool silent = false, silent_set = false;
+    bus_error_t rc;
+
+    param = strrchr(name, '.');
+    if (param == NULL) {
+        em_printfout("Invalid method name");
+        if (output_params) {
+            *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
+        }
+        return bus_error_invalid_input;
+    }
+    ++param;
+    if (strcmp("Disassociate()", param) != 0) {
+        em_printfout("Invalid method");
+        if (output_params) {
+            *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
+        }
+        return bus_error_invalid_method;
+    }
+
+    em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
+    if (!em_ctrl) {
+        em_printfout("Controller not found");
+        if (output_params) {
+            *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
+        }
+        return bus_error_general;
+    }
+    dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl->get_dm_ctrl();
+
+    /* Extract device instance (numeric or alias) and find the dm object for
+     * that device instance */
+    name += sizeof(DATAELEMS_NETWORK);
+    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    dm_easy_mesh_t *dm = dm_ctrl->get_dm_easy_mesh(instance, is_num);
+    if (dm == NULL) {
+        em_printfout("Device not found");
+        if (output_params) {
+            *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
+        }
+        return bus_error_invalid_namespace;
+    }
+    em_device_info_t *di = dm->get_device()->get_device_info();
+
+    /* Extract radio instance (numeric or alias), find the radio dm object
+     * for that instance, and finally get info struct for radio dm object */
+    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    dm_radio_t *radio = dm_ctrl->get_dm_radio(dm, instance, is_num);
+    if (radio == NULL) {
+        em_printfout("Radio not found");
+        if (output_params) {
+            *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
+        }
+        return bus_error_invalid_namespace;
+    }
+    em_radio_info_t *ri = radio->get_radio_info();
+
+    /* Extract bss instance (numeric or alias), find the bss dm object
+     * for that instance, and finally get info struct for bss dm object */
+    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    dm_bss_t *bss = dm_ctrl->get_dm_bss(dm, ri, instance, is_num);
+    if (bss == NULL) {
+        em_printfout("BSS not found");
+        if (output_params) {
+            *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
+        }
+        return bus_error_invalid_namespace;
+    }
+    em_bss_info_t *bi = bss->get_bss_info();
+
+    /* Extract sta instance (numeric or alias), find the sta dm object
+     * for that instance, and finally get info struct for sta dm object */
+    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    dm_sta_t *sta = dm_ctrl->get_dm_sta(dm, bi, instance, is_num);
+    if (sta == NULL) {
+        em_printfout("STA not found");
+        if (output_params) {
+            *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
+        }
+        return bus_error_invalid_namespace;
+    }
+    em_sta_info_t *si = sta->get_sta_info();
+
+    /* Most of the parameters are mandatory, parse them */
+    for (prop = input_params; prop; prop = prop->next_data) {
+        if (strcmp(prop->name, "DisassociationTimer") == 0) {
+            if (!tr_181_t::tr181_get_prop_int(prop, &timer)) {
+                goto invalid;
+            }
+        } else if (strcmp(prop->name, "ReasonCode") == 0) {
+            if (!tr_181_t::tr181_get_prop_int(prop, &reason)) {
+                goto invalid;
+            }
+        } else if (strcmp(prop->name, "Silent") == 0) {
+            if (!tr_181_t::tr181_get_prop_bool(prop, &silent)) {
+                goto invalid;
+            }
+            silent_set = true;
+        } else {
+invalid:
+            em_printfout("Invalid parameter: %s", prop->name);
+            if (output_params) {
+                *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
+            }
+            return bus_error_invalid_input;
+        }
+    }
+    /* Mandatory parameters: DisassociationTimer and ReasonCode. */
+    if (timer < 0 || reason < 0) {
+        em_printfout("Mandatory parameters missing");
+        if (output_params) {
+            *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
+        }
+        return bus_error_invalid_input;
+    }
+
+    /* Prepare subdoc to be processed with command */
+    subdoc = reinterpret_cast<em_subdoc_info_t *>(buff);
+    memset(subdoc, 0, sizeof(em_subdoc_info_t));
+    strncpy(subdoc->name, "Disassociate", sizeof(subdoc->name) - 1);
+
+    /* Create json with root "wfa-dataelements:Disassociate" and fill
+     * with necessary parameters we extract from path */
+    rc = bus_error_out_of_resources;
+    root = cJSON_CreateObject();
+    json = cJSON_CreateObject();
+    if (!root || !json) {
+        em_printfout("Create object failed");
+        goto cleanup;
+    }
+    if (!cJSON_AddItemToObject(root, "wfa-dataelements:Disassociate", json)) {
+        em_printfout("Add item failed");
+        cJSON_Delete(json);
+        goto cleanup;
+    }
+    /* Add Network parameters */
+    net_obj = cJSON_AddObjectToObject(json, "Network");
+    if (!net_obj) {
+        em_printfout("Add Network failed");
+        goto cleanup;
+    }
+    if (!cJSON_AddStringToObject(net_obj, "ID", GLOBAL_NET_ID)) {
+        em_printfout("Add Network ID failed");
+        goto cleanup;
+    }
+    /* Add Device parameters */
+    dev_list = cJSON_AddArrayToObject(net_obj, "DeviceList");
+    if (!dev_list) {
+        em_printfout("Add DeviceList failed");
+        goto cleanup;
+    }
+    dev_obj = cJSON_CreateObject();
+    if (!dev_obj) {
+        em_printfout("Create object failed");
+        goto cleanup;
+    }
+    if (!cJSON_AddItemToArray(dev_list, dev_obj)) {
+        em_printfout("Add Device failed");
+        cJSON_Delete(dev_obj);
+        goto cleanup;
+    }
+    dm_easy_mesh_t::macbytes_to_string(di->intf.mac, mac_str);
+    if (!cJSON_AddStringToObject(dev_obj, "ID", mac_str)) {
+        em_printfout("Add Device ID failed");
+        goto cleanup;
+    }
+    /* Add Radio parameters */
+    radio_list = cJSON_AddArrayToObject(dev_obj, "RadioList");
+    if (!radio_list) {
+        em_printfout("Add RadioList failed");
+        goto cleanup;
+    }
+    radio_obj = cJSON_CreateObject();
+    if (!radio_obj) {
+        em_printfout("Create object failed");
+        goto cleanup;
+    }
+    if (!cJSON_AddItemToArray(radio_list, radio_obj)) {
+        em_printfout("Add Radio failed");
+        cJSON_Delete(radio_obj);
+        goto cleanup;
+    }
+    dm_easy_mesh_t::macbytes_to_string(ri->id.ruid, mac_str);
+    if (!cJSON_AddStringToObject(radio_obj, "ID", mac_str)) {
+        em_printfout("Add Radio ID failed");
+        goto cleanup;
+    }
+    /* Add BSS parameters */
+    bss_list = cJSON_AddArrayToObject(radio_obj, "BSSList");
+    if (!bss_list) {
+        em_printfout("Add BSSList failed");
+        goto cleanup;
+    }
+    bss_obj = cJSON_CreateObject();
+    if (!bss_obj) {
+        em_printfout("Create object failed");
+        goto cleanup;
+    }
+    if (!cJSON_AddItemToArray(bss_list, bss_obj)) {
+        em_printfout("Add BSS failed");
+        cJSON_Delete(bss_obj);
+        goto cleanup;
+    }
+    dm_easy_mesh_t::macbytes_to_string(bi->bssid.mac, mac_str);
+    if (!cJSON_AddStringToObject(bss_obj, "BSSID", mac_str)) {
+        em_printfout("Add BSSID failed");
+        goto cleanup;
+    }
+    /* Add STA parameters */
+    sta_list = cJSON_AddArrayToObject(bss_obj, "STAList");
+    if (!sta_list) {
+        em_printfout("Add STAList failed");
+        goto cleanup;
+    }
+    sta_obj = cJSON_CreateObject();
+    if (!sta_obj) {
+        em_printfout("Create object failed");
+        goto cleanup;
+    }
+    if (!cJSON_AddItemToArray(sta_list, sta_obj)) {
+        em_printfout("Add STA failed");
+        cJSON_Delete(sta_obj);
+        goto cleanup;
+    }
+    dm_easy_mesh_t::macbytes_to_string(si->id, mac_str);
+    if (!cJSON_AddStringToObject(sta_obj, "MACAddress", mac_str)) {
+        em_printfout("Add MACAddress failed");
+        goto cleanup;
+    }
+    /* Currently not used, but let's add it anyway */
+    if (!cJSON_AddBoolToObject(sta_obj, "Associated", si->associated)) {
+        em_printfout("Add Associated failed");
+        goto cleanup;
+    }
+    /* Add method parameters */
+    disassoc_obj = cJSON_CreateObject();
+    if (!disassoc_obj) {
+        em_printfout("Create object failed");
+        goto cleanup;
+    }
+    if (!cJSON_AddItemToObject(sta_obj, "Disassociate", disassoc_obj)) {
+        em_printfout("Add Disassociate failed");
+        cJSON_Delete(disassoc_obj);
+        goto cleanup;
+    }
+    /* TODO: Validity check of parameters? */
+    if (!cJSON_AddNumberToObject(disassoc_obj, "DisassociationTimer", timer)) {
+        em_printfout("Add DisassociationTimer failed");
+        goto cleanup;
+    }
+    if (!cJSON_AddNumberToObject(disassoc_obj, "ReasonCode", reason)) {
+        em_printfout("Add ReasonCode failed");
+        goto cleanup;
+    }
+    if (silent_set) {
+        if (!cJSON_AddBoolToObject(disassoc_obj, "Silent", silent)) {
+            em_printfout("Add Silent failed");
+            goto cleanup;
+        }
+    }
+
+    /* Convert JSON back to string and store in subdoc buffer. */
+    json_buff = cJSON_PrintUnformatted(root);
+    if (!json_buff) {
+        em_printfout("Create output buffer failed");
+        rc = bus_error_out_of_resources;
+        goto cleanup;
+    }
+    /* Ensure updated JSON fits in buffer. */
+    json_len = strlen(json_buff);
+    if (json_len >= EM_IO_BUFF_SZ) {
+        em_printfout("Buffer too big for subdoc");
+        free(json_buff);
+        rc = bus_error_invalid_input;
+        goto cleanup;
+    }
+    memcpy(subdoc->buff, json_buff, json_len);
+    subdoc->buff[json_len] = '\0';
+
+    // uncomment below line to log the updated JSON before sending to DM; can be helpful for debugging.
+    /*
+    cJSON *json_obj;
+    json_obj = cJSON_Parse(subdoc->buff);
+    if (json_obj) {
+        char *new_json = cJSON_Print(json_obj);
+        em_printfout("Updated and formatted JSON:\n%s", new_json);
+        free(new_json);
+        cJSON_Delete(json_obj);
+    } else {
+        em_printfout("Invalid JSON in subdoc->buff");
+    }
+    */
+
+    em_ctrl->io_process(em_bus_event_type_disassoc_sta, subdoc->buff, json_len);
+    free(json_buff);
+    cJSON_Delete(root);
+
+    if (output_params) {
+        *output_params = tr_181_t::tr181_set_status_output_prop("Success");
+    }
+
+    return bus_error_success;
+
+cleanup:
+    cJSON_Delete(root);
+    if (output_params) {
+        *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
+    }
+    return rc;
+}
+
 int dm_easy_mesh_ctrl_t::analyze_sta_link_metrics(em_cmd_t *pcmd[])
 {
     int num = 0;
@@ -966,23 +2209,24 @@ int dm_easy_mesh_ctrl_t::analyze_scan_channel(em_bus_event_t *evt, em_cmd_t *pcm
     dm_easy_mesh_t dm, *pdm;
     em_cmd_t *tmp;
     unsigned int num = 0, num_devices = 0, i = 0;
-        
+
     subdoc = &evt->u.subdoc;
-        
+
     if ((ret = dm.decode_config(subdoc, "ChannelScanRequest", i, &num_devices)) < 0) {
+        em_printfout("Decode config for channel scan failed");
         return ret;
     } 
-        
-    assert(dm.get_num_op_class() == EM_MAX_BANDS);
-        
+
+    //methods don't have multiple op_classes (yet)
+    //assert(dm.get_num_op_class() == EM_MAX_BANDS);
+
     pdm = m_data_model_list.get_first_dm();
     while (pdm != NULL) {
         pdm->set_channels_list(dm.m_op_class, dm.get_num_op_class());
-    
         pdm->set_db_cfg_param(db_cfg_type_op_class_list_update, "");
+
         pdm = m_data_model_list.get_next_dm(pdm);
     }
-
 
     pcmd[num] = new em_cmd_scan_channel_t(evt->params, dm);
     tmp = pcmd[num];
@@ -994,7 +2238,6 @@ int dm_easy_mesh_ctrl_t::analyze_scan_channel(em_bus_event_t *evt, em_cmd_t *pcm
     }
 
     return static_cast<int> (num);
-
 }
 
 int dm_easy_mesh_ctrl_t::analyze_set_channel(em_bus_event_t *evt, em_cmd_t *pcmd[])
@@ -2492,7 +3735,7 @@ dm_device_t *dm_easy_mesh_ctrl_t::get_dm_dev(mac_address_t dev_mac, mac_address_
     return NULL;
 }
 
-dm_radio_t* dm_easy_mesh_ctrl_t::get_dm_radio(dm_easy_mesh_t *dm, char *instance, bool is_num)
+dm_radio_t *dm_easy_mesh_ctrl_t::get_dm_radio(dm_easy_mesh_t *dm, char *instance, bool is_num)
 {
     dm_radio_t *radio = NULL;
 
@@ -4330,6 +5573,38 @@ bus_error_t dm_easy_mesh_ctrl_t::curops_tget_params(dm_easy_mesh_t *dm, const ch
     return rc;
 }
 
+dm_bss_t *dm_easy_mesh_ctrl_t::get_dm_bss(dm_easy_mesh_t *dm, em_radio_info_t *ri, char *instance, bool is_num)
+{
+    unsigned int bcnt = 0;
+    unsigned int idx = 0;
+    mac_address_t mac = { 0 };
+
+    if (is_num) {
+        idx = static_cast<unsigned int>(atoi(instance));
+    } else {
+        dm_easy_mesh_t::string_to_macbytes(instance, mac);
+    }
+
+    for (unsigned int i = 0; i < dm->get_num_bss(); i++) {
+        dm_bss_t *bss = dm->get_bss(i);
+        em_bss_info_t *bi = bss->get_bss_info();
+        if (memcmp(ri->id.ruid, bi->ruid.mac, sizeof(mac_address_t)) == 0) {
+            ++bcnt;
+        }
+        if (is_num) {
+            if (bcnt == idx) {
+                return bss;
+            }
+        } else {
+            if (memcmp(mac, bi->bssid.mac, sizeof(mac_address_t)) == 0) {
+                return bss;
+            }
+        }
+    }
+
+    return NULL;
+}
+
 dm_sta_t* dm_easy_mesh_ctrl_t::get_dm_sta(dm_easy_mesh_t *dm, em_bss_info_t *bi, int instance)
 {
     int scnt = 0;
@@ -4579,6 +5854,42 @@ bus_error_t dm_easy_mesh_ctrl_t::bss_tget_params(dm_easy_mesh_t *dm, const char 
     }
 
     return rc;
+}
+
+dm_sta_t *dm_easy_mesh_ctrl_t::get_dm_sta(dm_easy_mesh_t *dm, em_bss_info_t *bi, char *instance, bool is_num)
+{
+    unsigned int scnt = 0;
+    unsigned int idx = 0;
+    mac_address_t mac = { 0 };
+
+    if (is_num) {
+        idx = static_cast<unsigned int>(atoi(instance));
+    } else {
+        dm_easy_mesh_t::string_to_macbytes(instance, mac);
+    }
+
+    dm_sta_t *sta = static_cast<dm_sta_t *> (hash_map_get_first(dm->m_sta_map));
+    while (sta != NULL) {
+        em_sta_info_t *si = sta->get_sta_info();
+        if (si->associated == 0 ||
+            memcmp(bi->bssid.mac, si->bssid, sizeof(mac_address_t)) != 0) {
+            sta = static_cast<dm_sta_t *> (hash_map_get_next(dm->m_sta_map, sta));
+            continue;
+        }
+        ++scnt;
+        if (is_num) {
+            if (scnt == idx) {
+                return sta;
+            }
+        } else {
+            if (memcmp(mac, si->id, sizeof(mac_address_t)) == 0) {
+                return sta;
+            }
+        }
+        sta = static_cast<dm_sta_t *> (hash_map_get_next(dm->m_sta_map, sta));
+    }
+
+    return NULL;
 }
 
 bus_error_t dm_easy_mesh_ctrl_t::sta_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)

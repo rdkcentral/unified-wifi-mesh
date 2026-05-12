@@ -595,12 +595,23 @@ bus_error_t tr_181_t::radio_get(char *event_name, raw_data_t *p_data, bus_user_d
     return bus_error_general;
 }
 
-bus_error_t tr_181_t::bss_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
+bus_error_t tr_181_t::radio_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
 {
     em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
 
     if (em_ctrl != NULL) {
-        return em_ctrl->get_dm_ctrl()->bss_get(event_name, p_data);
+        return em_ctrl->get_dm_ctrl()->radio_tget(event_name, p_data);
+    }
+    
+    return bus_error_general;
+}
+
+bus_error_t tr_181_t::rbhsta_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
+{
+    em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
+
+    if (em_ctrl != NULL) {
+        return em_ctrl->get_dm_ctrl()->rbhsta_get(event_name, p_data);
     }
     
     return bus_error_general;
@@ -683,34 +694,12 @@ bus_error_t tr_181_t::curops_tget(char *event_name, raw_data_t *p_data, bus_user
     return bus_error_general;
 }
 
-bus_error_t tr_181_t::sta_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
+bus_error_t tr_181_t::bss_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
 {
     em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
 
     if (em_ctrl != NULL) {
-        return em_ctrl->get_dm_ctrl()->sta_get(event_name, p_data);
-    }
-    
-    return bus_error_general;
-}
-
-bus_error_t tr_181_t::radio_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
-{
-    em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
-
-    if (em_ctrl != NULL) {
-        return em_ctrl->get_dm_ctrl()->radio_tget(event_name, p_data);
-    }
-    
-    return bus_error_general;
-}
-
-bus_error_t tr_181_t::rbhsta_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
-{
-    em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
-
-    if (em_ctrl != NULL) {
-        return em_ctrl->get_dm_ctrl()->rbhsta_get(event_name, p_data);
+        return em_ctrl->get_dm_ctrl()->bss_get(event_name, p_data);
     }
     
     return bus_error_general;
@@ -722,6 +711,17 @@ bus_error_t tr_181_t::bss_tget(char *event_name, raw_data_t *p_data, bus_user_da
 
     if (em_ctrl != NULL) {
         return em_ctrl->get_dm_ctrl()->bss_tget(event_name, p_data);
+    }
+    
+    return bus_error_general;
+}
+
+bus_error_t tr_181_t::sta_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
+{
+    em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
+
+    if (em_ctrl != NULL) {
+        return em_ctrl->get_dm_ctrl()->sta_get(event_name, p_data);
     }
     
     return bus_error_general;

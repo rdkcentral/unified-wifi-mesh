@@ -3051,17 +3051,9 @@ typedef struct {
 } em_cmd_args_t;
 
 typedef enum {
-    em_steering_opportunity_none,
-} em_steering_opportunity_t;
-
-typedef enum {
-    em_steering_mandate_none,
-} em_steering_mandate_t;
-
-typedef struct {
-    em_steering_opportunity_t	opportunity;
-    em_steering_mandate_t	mandate;
-} em_steer_req_mode_t;
+    em_steering_req_mode_opportunity,
+    em_steering_req_mode_mandate
+} em_steering_req_mode_t;
 
 typedef struct {
     mac_address_t	sta_mac;

@@ -678,6 +678,82 @@ public:
 	static bus_error_t cmd_setssid (const char *method_name, const bus_data_prop_t *input_params, bus_data_prop_t **output_params, void *async_handle);
 
 	/**!
+	 * @brief Handles the bus SteerWiFiBackhaul method request.
+	 *
+	 * Validates SteerWiFiBackhaul input properties, dispatches the request to the EasyMesh
+	 * controller, and optionally populates response properties for the caller.
+	 *
+	 * @param[in] method_name Bus method name (...Device.{i}.MultiAPDevice.Backhaul.SteerWiFiBackhaul).
+	 * @param[in] input_params Linked list of input properties carrying the request payload.
+	 * @param[out] output_params Populated with response properties when provided.
+	 * @param[in] async_handle Async context handle when the bus call is asynchronous.
+	 *
+	 * @returns bus_error_t
+	 * @retval bus_error_none on successful SteerWiFiBackhaul handling.
+	 * @retval bus_error_failed on validation or controller execution failure.
+	 *
+	 * @note Input property ownership remains with the caller; this function does not free them.
+	 */
+	static bus_error_t cmd_steerwifibh (const char *method_name, const bus_data_prop_t *input_params, bus_data_prop_t **output_params, void *async_handle);
+
+	/**!
+	 * @brief Handles the bus ChannelScanRequest method request.
+	 *
+	 * Validates ChannelScanRequest input properties, dispatches the request to the EasyMesh
+	 * controller, and optionally populates response properties for the caller.
+	 *
+	 * @param[in] method_name Bus method name (...Network.Device.{i}.Radio.{i}.ChannelScanRequest).
+	 * @param[in] input_params Linked list of input properties carrying the request payload.
+	 * @param[out] output_params Populated with response properties when provided.
+	 * @param[in] async_handle Async context handle when the bus call is asynchronous.
+	 *
+	 * @returns bus_error_t
+	 * @retval bus_error_none on successful ChannelScanRequest handling.
+	 * @retval bus_error_failed on validation or controller execution failure.
+	 *
+	 * @note Input property ownership remains with the caller; this function does not free them.
+	 */
+	static bus_error_t cmd_channelscan (const char *method_name, const bus_data_prop_t *input_params, bus_data_prop_t **output_params, void *async_handle);
+
+	/**!
+	 * @brief Handles the bus ClientSteer method request.
+	 *
+	 * Validates ClientSteer input properties, dispatches the request to the EasyMesh
+	 * controller, and optionally populates response properties for the caller.
+	 *
+	 * @param[in] method_name Bus method name (...Device.{i}.Radio.{i}.BSS.{i}.STA.{i}.ClientSteer).
+	 * @param[in] input_params Linked list of input properties carrying the request payload.
+	 * @param[out] output_params Populated with response properties when provided.
+	 * @param[in] async_handle Async context handle when the bus call is asynchronous.
+	 *
+	 * @returns bus_error_t
+	 * @retval bus_error_none on successful ClientSteer handling.
+	 * @retval bus_error_failed on validation or controller execution failure.
+	 *
+	 * @note Input property ownership remains with the caller; this function does not free them.
+	 */
+	static bus_error_t cmd_clientsteer (const char *method_name, const bus_data_prop_t *input_params, bus_data_prop_t **output_params, void *async_handle);
+
+	/**!
+	 * @brief Handles the bus Disassociate method request.
+	 *
+	 * Validates Disassociate input properties, dispatches the request to the EasyMesh
+	 * controller, and optionally populates response properties for the caller.
+	 *
+	 * @param[in] method_name Bus method name (....Radio.{i}.BSS.{i}.STA.{i}.MultiAPSTA.Disassociate).
+	 * @param[in] input_params Linked list of input properties carrying the request payload.
+	 * @param[out] output_params Populated with response properties when provided.
+	 * @param[in] async_handle Async context handle when the bus call is asynchronous.
+	 *
+	 * @returns bus_error_t
+	 * @retval bus_error_none on successful Disassociate handling.
+	 * @retval bus_error_failed on validation or controller execution failure.
+	 *
+	 * @note Input property ownership remains with the caller; this function does not free them.
+	 */
+	static bus_error_t cmd_disassociate (const char *method_name, const bus_data_prop_t *input_params, bus_data_prop_t **output_params, void *async_handle);
+
+	/**!
 	 *
 	 * @brief Register all data elements.
 	 *
