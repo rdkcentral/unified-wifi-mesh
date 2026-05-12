@@ -47,6 +47,7 @@
 #include <sys/types.h>
 #include <ifaddrs.h>
 #include "em.h"
+#include "em_mgr.h"
 #include "em_cmd.h"
 #include "em_cmd_exec.h"
 #include "util.h"
@@ -77,6 +78,30 @@ ec_manager_t &em_t::get_ec_mgr()
         throw std::runtime_error("ec_manager_t is not initialized");
     }
     return *m_ec_manager;
+}
+
+void em_t::set_state(em_state_t state)
+{
+    if(m_sm.get_state() != state) {
+        m_sm.set_state(state);
+        // signal protocol handler to run after state change
+        em_event_t *evt = static_cast<em_event_t *>(malloc(sizeof(em_event_t)));
+        if (evt != NULL) {
+            evt->type = em_event_type_orch;
+            push_to_queue(evt);
+        } else {
+            em_printfout("Failed to allocate protocol handler event");
+        }
+
+        // signal orchestration handler to check if any orchestration changes needed after state change
+        evt = static_cast<em_event_t *>(malloc(sizeof(em_event_t)));
+        if (evt != NULL) {
+            evt->type = em_event_type_orch;
+            m_mgr->push_to_queue(evt);
+        } else {
+            em_printfout("Failed to allocate orchestration handler event");
+        }
+    }
 }
 
 void em_t::orch_execute(em_cmd_t *pcmd)
@@ -587,6 +612,12 @@ void em_t::proto_run()
                     em_cmd_event_t cevnt;
                     memcpy(&cevnt, &evt->u.cevt, sizeof(cevnt)); // safe copy
                     proto_process(&cevnt); // pass pointer
+                } else if (evt->type == em_event_type_orch) {
+                    if (m_service_type == em_service_type_agent) {
+                        handle_agent_state();
+                    } else if (m_service_type == em_service_type_ctrl) {
+                        handle_ctrl_state();
+                    }
                 }
                 free(evt);
                 pthread_mutex_lock(&m_iq.lock);
