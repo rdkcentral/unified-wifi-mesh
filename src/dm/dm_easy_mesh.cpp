@@ -1162,97 +1162,195 @@ int dm_easy_mesh_t::decode_config_set_policy(em_subdoc_info_t *subdoc, const cha
 
 int dm_easy_mesh_t::decode_config_set_channel(em_subdoc_info_t *subdoc, const char *key, unsigned int index, unsigned int *num)
 {
-    cJSON *parent_obj, *net_obj, *net_obj_id; 
-    cJSON *target_arr_obj, *target_obj, *channel_arr_obj, *channel_pref_arry_obj;
+#define KEY_CHANNEL_ANTICIPATED "wfa-dataelements:SetAnticipatedChannelPreference"
+#define KEY_CHANNEL_SCANREQUEST "wfa-dataelements:ChannelScanRequest"
+    cJSON *parent_obj = NULL;
+    cJSON *wrapper_obj, *net_obj, *net_id_obj;
+    cJSON *dev_arr_obj, *dev_obj, *dev_id_obj;
+    cJSON *radio_arr_obj, *radio_obj, *radio_id_obj;
+    cJSON *target_arr_obj, *target_obj;
+    cJSON *channel_arr_obj, *channel_pref_arry_obj;
     int i, j, arr_size;
-    char *net_id;
-	em_long_string_t	target_key;	
-	em_op_class_type_t	type = em_op_class_type_none;
+    char *net_id, *dev_id, *radio_id;
+    em_long_string_t target_key;
+    em_op_class_type_t type = em_op_class_type_none;
+
+    if (key == NULL) {
+        em_printfout("Wrapper key is missing");
+        return EM_PARSE_ERR_GEN;
+    }
+    /* This function aims to collect op_classes and channel list for those op_classes for
+     * different type of requests. That data will be used later to fill TLV values for those
+     * requests. In addition to "Channel Scan" and "Anticipated Channel Preference", "Set
+     * Channel" is also handled here. But there is no em_op_class_type to represent "Set
+     * Channel", and this causes an error while parsing "ChanPrefList" later. Furthermore,
+     * "Anticipated Channel Preference" request is not handled later in the code, only "Set
+     * Channel" and "Channel Scan" are handled. */
+    if (strncmp(key, KEY_CHANNEL_ANTICIPATED, strlen(KEY_CHANNEL_ANTICIPATED)) == 0) {
+        snprintf(target_key, sizeof(em_long_string_t), "AnticipatedChannelPreference");
+        type = em_op_class_type_anticipated;
+    } else if (strncmp(key, KEY_CHANNEL_SCANREQUEST, strlen(KEY_CHANNEL_SCANREQUEST)) == 0) {
+        snprintf(target_key, sizeof(em_long_string_t), "ChannelScanParameters");
+        type = em_op_class_type_scan_param;
+    } else {
+        em_printfout("Invalid wrapper key: '%s'", key);
+        return EM_PARSE_ERR_GEN;
+    }
 
     parent_obj = cJSON_Parse(subdoc->buff);
     if (parent_obj == NULL) {
-        printf("%s:%d: Failed to parse: %s\n", __func__, __LINE__, subdoc->buff);
+        em_printfout("Failed to parse: %s", subdoc->buff);
         return EM_PARSE_ERR_GEN;
     }
 
-    if ((net_obj = cJSON_GetObjectItem(parent_obj, key)) == NULL) {
-        printf("%s:%d: Failed to parse: %s\n", __func__, __LINE__, subdoc->buff);
+    /* Get 'Network' under provided wrapper and extract Network ID */
+    if ((wrapper_obj = cJSON_GetObjectItem(parent_obj, key)) == NULL) {
+        em_printfout("Key '%s' not found in buffer: %s", key, subdoc->buff);
         cJSON_Delete(parent_obj);
         return EM_PARSE_ERR_GEN;
     }
-
-    if ((net_obj = cJSON_GetObjectItem(net_obj, "Network")) == NULL) {
-        printf("%s:%d: Failed to parse: %s\n", __func__, __LINE__, subdoc->buff);
+    if ((net_obj = cJSON_GetObjectItem(wrapper_obj, "Network")) == NULL) {
+        em_printfout("'Network' not found in wrapper: %s", subdoc->buff);
         cJSON_Delete(parent_obj);
         return EM_PARSE_ERR_GEN;
     }
-
-    if ((net_obj_id = cJSON_GetObjectItem(net_obj, "ID")) == NULL) {
-        printf("%s:%d: Network ID not present\n", __func__, __LINE__);
+    if ((net_id_obj = cJSON_GetObjectItem(net_obj, "ID")) == NULL) {
+        em_printfout("'ID' not found in Network: %s", subdoc->buff);
         cJSON_Delete(parent_obj);
         return EM_PARSE_ERR_NET_ID;
     }
-
-    if ((net_id = cJSON_GetStringValue(net_obj_id)) == NULL) {
-        printf("%s:%d: Network ID not present\n", __func__, __LINE__);
+    if ((net_id = cJSON_GetStringValue(net_id_obj)) == NULL) {
+        em_printfout("Network ID is invalid: %s", subdoc->buff);
         cJSON_Delete(parent_obj);
         return EM_PARSE_ERR_NET_ID;
     }
+    snprintf(m_network.m_net_info.id, sizeof(em_long_string_t), "%s", net_id);
 
-	if (strncmp(key, "wfa-dataelements:SetAnticipatedChannelPreference", strlen("wfa-dataelements:SetAnticipatedChannelPreference")) == 0) {
-		snprintf(target_key, sizeof(em_long_string_t), "AnticipatedChannelPreference");
-		type = em_op_class_type_anticipated;
-	} else if (strncmp(key, "wfa-dataelements:ChannelScanRequest", strlen("wfa-dataelements:ChannelScanRequest")) == 0) {
-		snprintf(target_key, sizeof(em_long_string_t), "ChannelScanParameters");
-		type = em_op_class_type_scan_param;
-	}
+    /* Get 'DeviceList' under 'Network' and extract Device ID (MAC) */
+    if ((dev_arr_obj = cJSON_GetObjectItem(net_obj, "DeviceList")) == NULL) {
+        em_printfout("'DeviceList' not found in Network: %s", subdoc->buff);
+        cJSON_Delete(parent_obj);
+        return EM_PARSE_ERR_GEN;
+    }
+    *num = static_cast<unsigned int> (cJSON_GetArraySize(dev_arr_obj));
+    if (index >= *num) {
+        em_printfout("Invalid input index: %d, number of devices: %d", index, *num);
+        cJSON_Delete(parent_obj);
+        return EM_PARSE_ERR_GEN;
+    }
+    if ((dev_obj = cJSON_GetArrayItem(dev_arr_obj, static_cast<int> (index))) == NULL) {
+        em_printfout("Invalid input index: %d", index);
+        cJSON_Delete(parent_obj);
+        return EM_PARSE_ERR_GEN;
+    }
+    if ((dev_id_obj = cJSON_GetObjectItem(dev_obj, "ID")) == NULL) {
+        em_printfout("'ID' not found in Device: %s", subdoc->buff);
+        cJSON_Delete(parent_obj);
+        return EM_PARSE_ERR_GEN;
+    }
+    if ((dev_id = cJSON_GetStringValue(dev_id_obj)) == NULL) {
+        em_printfout("Device ID is invalid: %s", subdoc->buff);
+        cJSON_Delete(parent_obj);
+        return EM_PARSE_ERR_GEN;
+    }
+    dm_easy_mesh_t::string_to_macbytes(dev_id, m_device.m_device_info.intf.mac);
 
-	if ((target_arr_obj = cJSON_GetObjectItem(net_obj, target_key)) == NULL) {
-		cJSON_Delete(parent_obj);
-        printf("%s:%d: %s not present\n", __func__, __LINE__, target_key);
-        return -1;
+    /* "Channel Scan" is for radio, so is "Set Channel". "Set Anticipated Channel Preference"
+     * is for device. There is also a clash here. */
+    if (type == em_op_class_type_scan_param) {
+        /* Get 'RadioList' under 'Device' and extract Radio ID (MAC) */
+        if ((radio_arr_obj = cJSON_GetObjectItem(dev_obj, "RadioList")) == NULL) {
+            em_printfout("'RadioList' not found in Device: %s", subdoc->buff);
+            cJSON_Delete(parent_obj);
+            return EM_PARSE_ERR_GEN;
+        }
+        if ((radio_obj = cJSON_GetArrayItem(radio_arr_obj, 0)) == NULL) {
+            em_printfout("Invalid input index: %d", index);
+            cJSON_Delete(parent_obj);
+            return EM_PARSE_ERR_GEN;
+        }
+        if ((radio_id_obj = cJSON_GetObjectItem(radio_obj, "ID")) == NULL) {
+            em_printfout("'ID' not found in Radio: %s", subdoc->buff);
+            cJSON_Delete(parent_obj);
+            return EM_PARSE_ERR_GEN;
+        }
+        if ((radio_id = cJSON_GetStringValue(radio_id_obj)) == NULL) {
+            em_printfout("Radio ID is invalid: %s", subdoc->buff);
+            cJSON_Delete(parent_obj);
+            return EM_PARSE_ERR_GEN;
+        }
+        m_num_radios = 1;
+        dm_easy_mesh_t::string_to_macbytes(radio_id, m_radio[0].m_radio_info.intf.mac);
 
-	}	
+        if ((target_arr_obj = cJSON_GetObjectItem(radio_obj, target_key)) == NULL) {
+            em_printfout("'%s' not found in Radio", target_key);
+            cJSON_Delete(parent_obj);
+            return EM_PARSE_ERR_GEN;
+        }
+    } else {
+        if ((target_arr_obj = cJSON_GetObjectItem(dev_obj, target_key)) == NULL) {
+            em_printfout("'%s' not found in Device", target_key);
+            cJSON_Delete(parent_obj);
+            return EM_PARSE_ERR_GEN;
+        }
+    }
 
-	m_num_opclass = 0;
-	arr_size = cJSON_GetArraySize(target_arr_obj);
-	for (i = 0; i < arr_size; i++) {
-		if ((target_obj = cJSON_GetArrayItem(target_arr_obj, i)) == NULL) {
-			cJSON_Delete(parent_obj);
-        	printf("%s:%d: %s not present\n", __func__, __LINE__, target_key);
-        	return -1;
-    	}
+    m_num_opclass = 0;
+    arr_size = cJSON_GetArraySize(target_arr_obj); // may be 0 for scan
+    for (i = 0; i < arr_size; i++) {
+        if ((target_obj = cJSON_GetArrayItem(target_arr_obj, i)) == NULL) {
+            em_printfout("Invalid input index: %d", i);
+            cJSON_Delete(parent_obj);
+            return EM_PARSE_ERR_GEN;
+        }
 
-		memset(&m_op_class[m_num_opclass].m_op_class_info, 0, sizeof(em_op_class_info_t));   
+        memset(&m_op_class[m_num_opclass].m_op_class_info, 0, sizeof(em_op_class_info_t));
 
-		m_op_class[m_num_opclass].m_op_class_info.id.type = type;
-		m_op_class[m_num_opclass].m_op_class_info.op_class = static_cast<unsigned int> (cJSON_GetNumberValue(cJSON_GetObjectItem(target_obj, "Class")));
-		m_op_class[m_num_opclass].m_op_class_info.id.op_class = m_op_class[m_num_opclass].m_op_class_info.op_class;
+        m_op_class[m_num_opclass].m_op_class_info.id.type = type;
+        m_op_class[m_num_opclass].m_op_class_info.op_class = static_cast<unsigned int> (cJSON_GetNumberValue(cJSON_GetObjectItem(target_obj, "Class")));
+        m_op_class[m_num_opclass].m_op_class_info.id.op_class = m_op_class[m_num_opclass].m_op_class_info.op_class;
 
-		if ((channel_arr_obj = cJSON_GetObjectItem(target_obj, "ChannelList")) == NULL) {
-			cJSON_Delete(parent_obj);
-        	printf("%s:%d: %s not present\n", __func__, __LINE__, target_key);
-        	return -1;
-		}
+        if ((channel_arr_obj = cJSON_GetObjectItem(target_obj, "ChannelList")) == NULL) {
+            em_printfout("ChannelList not present");
+            cJSON_Delete(parent_obj);
+            return EM_PARSE_ERR_GEN;
+        }
 
-		if ((channel_pref_arry_obj = cJSON_GetObjectItem(target_obj, "ChannelPrefList")) == NULL) {
-			cJSON_Delete(parent_obj);
-			em_printfout("Error: %s not present\n", target_key);
-			return -1;
-		}
+        m_op_class[m_num_opclass].m_op_class_info.num_channels = 0;
+        if (type != em_op_class_type_scan_param) {
+            if ((channel_pref_arry_obj = cJSON_GetObjectItem(target_obj, "ChannelPrefList")) == NULL) {
+                em_printfout("ChannelPrefList not present");
+                cJSON_Delete(parent_obj);
+                return EM_PARSE_ERR_GEN;
+            }
+            if (cJSON_GetArraySize(channel_pref_arry_obj) != cJSON_GetArraySize(channel_arr_obj)) {
+                em_printfout("ChannelPrefList size is not equal to ChannelList");
+                cJSON_Delete(parent_obj);
+                return EM_PARSE_ERR_GEN;
+            }
+            for (j = 0; j < cJSON_GetArraySize(channel_arr_obj); j++) {
+                m_op_class[m_num_opclass].m_op_class_info.channels[m_op_class[m_num_opclass].m_op_class_info.num_channels] = static_cast<unsigned int> (cJSON_GetNumberValue(cJSON_GetArrayItem(channel_arr_obj, j)));
+                m_op_class[m_num_opclass].m_op_class_info.channel_pref[m_op_class[m_num_opclass].m_op_class_info.num_channels] = static_cast<unsigned int> (cJSON_GetNumberValue(cJSON_GetArrayItem(channel_pref_arry_obj, j)));
+                m_op_class[m_num_opclass].m_op_class_info.num_channels++;
+            }
+        } else {
+            for (j = 0; j < cJSON_GetArraySize(channel_arr_obj); j++) {
+                m_op_class[m_num_opclass].m_op_class_info.channels[m_op_class[m_num_opclass].m_op_class_info.num_channels] = static_cast<unsigned int> (cJSON_GetNumberValue(cJSON_GetArrayItem(channel_arr_obj, j)));
+                m_op_class[m_num_opclass].m_op_class_info.num_channels++;
+            }
+        }
 
-		m_op_class[m_num_opclass].m_op_class_info.num_channels = 0;
+        m_num_opclass++;
+    }
 
-		for (j = 0; j < cJSON_GetArraySize(channel_arr_obj); j++) {
-			m_op_class[m_num_opclass].m_op_class_info.channels[m_op_class[m_num_opclass].m_op_class_info.num_channels] = static_cast<unsigned int> (cJSON_GetNumberValue(cJSON_GetArrayItem(channel_arr_obj, j)));
-			m_op_class[m_num_opclass].m_op_class_info.channel_pref[m_op_class[m_num_opclass].m_op_class_info.num_channels] = static_cast<unsigned int> (cJSON_GetNumberValue(cJSON_GetArrayItem(channel_pref_arry_obj, j)));
-			m_op_class[m_num_opclass].m_op_class_info.num_channels++;
-		}
-		m_num_opclass++;
-	}	
-	
+    if (type == em_op_class_type_anticipated && m_num_opclass == 0) {
+        em_printfout("OpClass list is empty");
+        cJSON_Delete(parent_obj);
+        return EM_PARSE_ERR_GEN;
+    }
+
     cJSON_Delete(parent_obj);
-    //printf("%s:%d: End\n", __func__, __LINE__);
+
     return 0;
 }
 

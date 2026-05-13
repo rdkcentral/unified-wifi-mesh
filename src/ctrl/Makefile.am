@@ -30,10 +30,12 @@ onewifi_em_ctrl_CPPFLAGS = \
     -I$(top_srcdir)/inc \
     -I$(top_srcdir)/src/utils \
     -I$(top_srcdir)/src/util \
-    -I$(top_srcdir)/src/util_crypto \
-    -DUNIT_TEST
+    -I$(top_srcdir)/src/util_crypto
 
-onewifi_em_ctrl_CXXFLAGS = $(INCLUDEDIRS) -g -DUNIT_TEST -Wall -Wextra -pedantic -Wpedantic -Wpointer-arith -Wcast-qual -Wcast-align -Wstrict-aliasing -fno-common -Wctor-dtor-privacy -Wold-style-cast -Woverloaded-virtual -Wsign-promo -Wstrict-null-sentinel -fstack-protector-strong -D_FORTIFY_SOURCE=2 -fPIE -pie -ftrapv -Wformat=2 -Wformat-security -Wuninitialized -Winit-self -Wsign-conversion -Weffc++ -Wno-unused-parameter -std=c++17 -fsanitize=address -fsanitize=undefined #-Wconversion -Werror -O2
+onewifi_em_ctrl_CXXFLAGS = $(INCLUDEDIRS) -g -Wall -Wextra -pedantic -Wpedantic -Wpointer-arith -Wcast-qual -Wcast-align -Wstrict-aliasing -fno-common -Wctor-dtor-privacy -Wold-style-cast -Woverloaded-virtual -Wsign-promo -Wstrict-null-sentinel -fstack-protector-strong -D_FORTIFY_SOURCE=2 -fPIE -pie -ftrapv -Wformat=2 -Wformat-security -Wuninitialized -Winit-self -Wsign-conversion -Weffc++ -Wno-unused-parameter -std=c++17 -fno-omit-frame-pointer #-Wconversion -Werror -O2
+if EM_ASAN_CTRL
+onewifi_em_ctrl_CXXFLAGS += -fsanitize=address -fsanitize=undefined
+endif
 
 onewifi_em_ctrl_SOURCES =  \
      $(top_srcdir)/src/em/em.cpp \
@@ -142,7 +144,11 @@ onewifi_em_ctrl_SOURCES =  \
      $(top_srcdir)/src/utils/timer.cpp
  
  
-onewifi_em_ctrl_LDFLAGS = -lm -lpthread -ldl -luuid -lcjson -lssl -lcrypto -lrbus -fsanitize=address -fsanitize=undefined -lmariadb
+onewifi_em_ctrl_LDFLAGS = -lm -lpthread -ldl -luuid -lcjson -lssl -lcrypto -lrbus -lmariadb
+if EM_ASAN_CTRL
+onewifi_em_ctrl_LDFLAGS += -fsanitize=address -fsanitize=undefined
+endif
+
 onewifi_em_ctrl_LDADD = $(top_builddir)/src/al-sap/libalsap.la
 if EM_UNITTEST
 onewifi_em_ctrl_test_SOURCES = $(onewifi_em_ctrl_SOURCES) \
@@ -230,10 +236,13 @@ onewifi_em_ctrl_test_SOURCES = $(onewifi_em_ctrl_SOURCES) \
 	$(top_srcdir)/tests/test_l1_dm_easy_mesh.cpp \
 	$(top_srcdir)/tests/test_l1_ec_pa_configurator.cpp \
 	$(top_srcdir)/tests/test_l1_ec_manager.cpp
+
 onewifi_em_ctrl_test_CPPFLAGS = $(onewifi_em_ctrl_CPPFLAGS) \
                                 -I$(PKG_CONFIG_SYSROOT_DIR)$(includedir)/gtest \
                                 -DTESTING
-onewifi_em_ctrl_test_CXXFLAGS = $(INCLUDEDIRS) -g -DUNIT_TEST
-onewifi_em_ctrl_test_LDFLAGS = -lcjson -lgtest -lgtest_main -lgmock -lpthread -lssl -lcrypto -lm -luuid -lssl -lrbus -lmariadb -fsanitize=address -fsanitize=undefined
+onewifi_em_ctrl_test_CXXFLAGS = $(INCLUDEDIRS) -g -DUNIT_TEST -fno-omit-frame-pointer
+onewifi_em_ctrl_test_CXXFLAGS += -fsanitize=address -fsanitize=undefined
+onewifi_em_ctrl_test_LDFLAGS = -lcjson -lgtest -lgtest_main -lgmock -lpthread -lssl -lcrypto -lm -luuid -lssl -lrbus -lmariadb
+onewifi_em_ctrl_test_LDFLAGS += -fsanitize=address -fsanitize=undefined
 onewifi_em_ctrl_test_LDADD = $(top_builddir)/src/al-sap/libalsap.la $(onewifi_em_ctrl_LDADD)
-endif
+endif  # EM_UNITTEST

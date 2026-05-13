@@ -187,6 +187,11 @@ extern "C"
 #define EM_CH_PREF_ENTRY_VALID      0x01
 #define EM_CH_PREF_ENTRY_INVALID    0x00
 
+#define EM_SCAN_TYPE_PASSIVE 0U
+#define EM_SCAN_TYPE_ACTIVE  1U
+
+#define EM_SCAN_TYPE_BIT     (1U << 7)  // bit 7 in TLV
+
 /* Global MAC Address */
 static const mac_address_t EM_GLOBAL_MAC_ADDRESS = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
 
@@ -809,6 +814,7 @@ typedef struct {
     unsigned char bss_color;
     unsigned char channel_util;
     unsigned short sta_count;
+    unsigned char bss_load_element_present;
 } em_neighbor_t;
 
 typedef struct {
@@ -1103,8 +1109,8 @@ typedef struct {
 } __attribute__((__packed__)) em_assoc_wifi6_sta_sts_t;
 
 typedef struct {
-    mac_address_t client_mac_addr;
     unsigned char bssid[6];
+    mac_address_t client_mac_addr;
 } __attribute__((__packed__)) em_client_info_t;
 
 typedef struct {
@@ -2185,6 +2191,7 @@ typedef enum {
     em_event_type_bus,
     em_event_type_nb,
     em_event_type_cmd,
+    em_event_type_orch,
 
     em_event_type_max
 } em_event_type_t;
@@ -3048,17 +3055,9 @@ typedef struct {
 } em_cmd_args_t;
 
 typedef enum {
-    em_steering_opportunity_none,
-} em_steering_opportunity_t;
-
-typedef enum {
-    em_steering_mandate_none,
-} em_steering_mandate_t;
-
-typedef struct {
-    em_steering_opportunity_t	opportunity;
-    em_steering_mandate_t	mandate;
-} em_steer_req_mode_t;
+    em_steering_req_mode_opportunity,
+    em_steering_req_mode_mandate
+} em_steering_req_mode_t;
 
 typedef struct {
     mac_address_t	sta_mac;

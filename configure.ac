@@ -36,6 +36,11 @@ AC_CONFIG_MACRO_DIR([m4])
 AM_CONDITIONAL([EM_EXTENDER], [test x$EM_EXTENDER = xtrue])
 # Check for em unittest
 AM_CONDITIONAL([EM_UNITTEST], [test "x$EM_UNITTEST" = "xtrue"])
+# Check for ASAN in em_ctrl
+AM_CONDITIONAL([EM_ASAN_CTRL], [test "x$EM_ASAN_CTRL" = "xtrue"])
+# Check for ASAN in em_agent
+AM_CONDITIONAL([EM_ASAN_AGENT], [test "x$EM_ASAN_AGENT" = "xtrue"])
+
 # Checks for programs.
 AC_PROG_CC
 AC_PROG_CXX

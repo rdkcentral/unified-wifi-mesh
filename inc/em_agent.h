@@ -854,6 +854,15 @@ public:
 	em_service_type_t get_service_type() { return em_service_type_agent; }
     
 	/**!
+	 * @brief Get the orchestration instance.
+	 *
+	 * This function returns a pointer to the orchestration instance.
+	 *
+	 * @return em_orch_t* Pointer to the orchestration instance.
+	 */
+	em_orch_t *get_orch() override { return m_orch; }
+
+	/**!
 	 * @brief Finds the EM for a given message type.
 	 *
 	 * This function searches for the EM (Event Manager) associated with a specific message type
@@ -881,7 +890,7 @@ public:
 	 *
 	 * @note Ensure that the `event_name` and `data` are valid before processing.
 	 */
-	static void sta_cb(char *event_name, raw_data_t *data, void *userData);
+	static void sta_cb(char *event_name, bus_data_prop_t *data, void *userData);
     
 	/**!
 	 * @brief Callback function for handling WiFi events.
@@ -896,7 +905,7 @@ public:
 	 * @note Ensure that the data pointer is valid and properly initialized before
 	 * passing it to this function.
 	 */
-	static void onewifi_cb(char *event_name, raw_data_t *data, void *userData);
+	static void onewifi_cb(char *event_name, bus_data_prop_t *data, void *userData);
     
 	/**!
 	 * @brief Callback function for association statistics.
@@ -913,7 +922,7 @@ public:
 	 *
 	 * @note Ensure that the data pointer is valid before calling this function.
 	 */
-	static int assoc_stats_cb(char *event_name, raw_data_t *data, void *userData);
+	static int assoc_stats_cb(char *event_name, bus_data_prop_t *data, void *userData);
     
 	/**!
 	 * @brief Callback function for management action frames.
@@ -930,7 +939,7 @@ public:
 	 *
 	 * @note Ensure that the data pointer is valid and points to the correct data structure.
 	 */
-	static int mgmt_action_frame_cb(char *event_name, raw_data_t *data, void *userData);
+	static int mgmt_action_frame_cb(char *event_name, bus_data_prop_t *data, void *userData);
 
 	/**!
 	 * @brief Callback function for management csa beacon frames.
@@ -947,7 +956,7 @@ public:
 	 *
 	 * @note Ensure that the data pointer is valid and points to the correct data structure.
 	 */
-	static int mgmt_csa_beacon_frame_cb(char *event_name, raw_data_t *data, void *userData);
+	static int mgmt_csa_beacon_frame_cb(char *event_name, bus_data_prop_t *data, void *userData);
 
 	/**!
 	 * @brief Callback function for channel scanning.
@@ -964,7 +973,7 @@ public:
 	 *
 	 * @note Ensure that the event_name and data are valid before processing.
 	 */
-	static int channel_scan_cb(char *event_name, raw_data_t *data, void *userData);
+	static int channel_scan_cb(char *event_name, bus_data_prop_t *data, void *userData);
     
 	/**!
 	 * @brief Callback function for handling beacon reports.
@@ -981,7 +990,7 @@ public:
 	 *
 	 * @note Ensure that the data pointer is valid before accessing its contents.
 	 */
-	static int beacon_report_cb(char *event_name, raw_data_t *data, void *userData);
+	static int beacon_report_cb(char *event_name, bus_data_prop_t *data, void *userData);
 
 	/**
 	 * @brief Callback for association status event
@@ -991,7 +1000,7 @@ public:
 	 * @param userData Optional user-provided callback data
 	 * @return int 1 on success, otherwise -1
 	 */
-	static int association_status_cb(char *event_name, raw_data_t *data, void *userData);
+	static int association_status_cb(char *event_name, bus_data_prop_t *data, void *userData);
 
 	/**
 	 * @brief Callback for BSS scan events
@@ -1001,7 +1010,7 @@ public:
 	 * @param userData Optional user-provided callback data
 	 * @return int 1 on success, otherwise -1
 	 */
-	static int bss_info_cb(char *event_name, raw_data_t *data, void *userData);
+	static int bss_info_cb(char *event_name, bus_data_prop_t *data, void *userData);
 
 	/**!
 	 * @brief Callback function for handling AP Metrics reports.
@@ -1018,7 +1027,7 @@ public:
 	 *
 	 * @note Ensure that the data pointer is valid before accessing its contents.
 	 */
-	static int report_cb(char *event_name, raw_data_t *data, void *userData);
+	static int report_cb(char *event_name, bus_data_prop_t *data, void *userData);
 
 	/**!
 	 * @brief Retrieves the associated data for the given input.
