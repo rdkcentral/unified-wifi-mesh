@@ -1785,6 +1785,7 @@ int em_channel_t::handle_channel_pref_tlv(unsigned char *buff, op_class_channel_
             }
 
             // Check for any earlier entries with same OPCLASS
+            entry_found = false;
             for (j = 0; j < op_class->num; j++) {
                 if (op_class->op_class_info[j].op_class == static_cast<unsigned int> (channel_pref->op_class)) {
 
