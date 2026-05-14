@@ -30,6 +30,7 @@ extern "C"
 #endif
 
 #include "wifi_webconfig.h"
+#include <time.h>
 #include <openssl/evp.h>
 #include <uuid/uuid.h>
 #include <sys/socket.h>
@@ -2407,6 +2408,7 @@ typedef struct {
     unsigned char	frame_body[EM_MAX_FRAME_BODY_LEN];
     unsigned int    num_vendor_infos;
     bool            multi_band_cap;
+    time_t          beacon_query_sent_time; /* 0 = none in flight; epoch of last query sent (self-heals after timeout) */
     unsigned int    num_beacon_meas_report;
     unsigned int    beacon_report_len;
     unsigned char   beacon_report_elem[EM_MAX_BEACON_MEASUREMENT_LEN];

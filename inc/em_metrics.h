@@ -408,22 +408,6 @@ class em_metrics_t {
 	 */
 	short create_beacon_metrics_query_tlv(unsigned char *buff, mac_address_t sta_mac, bssid_t bssid);
     
-	/**!
-	 * @brief Sends a beacon metrics query to a specified station.
-	 *
-	 * This function initiates a query to gather beacon metrics from a station identified by its MAC address.
-	 *
-	 * @param[in] sta_mac The MAC address of the station to which the beacon metrics query is sent.
-	 * @param[in] bssid The BSSID of the network to which the station is connected.
-	 *
-	 * @returns A short integer indicating the success or failure of the operation.
-	 * @retval 0 on success.
-	 * @retval -1 on failure.
-	 *
-	 * @note Ensure that the station is within range and the MAC address is correct before sending the query.
-	 */
-	short send_beacon_metrics_query(mac_address_t sta_mac, bssid_t bssid);
-
         /**!
          * @brief Sends a 1905 ACK for a received Beacon Metrics Response.
          * @param[in] msg_id The message ID from the CMDU being acknowledged.
@@ -567,6 +551,8 @@ class em_metrics_t {
 	short create_link_stats_alarm_tlv(unsigned char *buff);
 
 public:
+
+	short send_beacon_metrics_query(mac_address_t sta_mac, bssid_t bssid);
 
 	/**!
 	 * @brief Retrieves the manager instance.

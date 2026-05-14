@@ -191,20 +191,19 @@ int em_configuration_t::send_topology_notification_by_client(mac_address_t sta, 
     tmp += (sizeof (em_tlv_t));
     len += static_cast<unsigned int> (sizeof (em_tlv_t));
 
-    printf("%s:%d Create topology notification msg successful, len:%d\n", __func__, __LINE__, len);
+    em_printfout("Create topology notification msg successful, len:%d", len);
 
     if (em_msg_t(em_msg_type_topo_notif, em_profile_type_3, buff, len).validate(errors) == 0) {
-        printf("Topology notification msg validation failed\n");
-
+        em_printfout("Topology notification msg validation failed");
         return -1;
     }
 
     if (send_frame(buff, len)  < 0) {
-        printf("%s:%d: Topology notification send failed, error:%d\n", __func__, __LINE__, errno);
+        em_printfout("Topology notification send failed for sta %s, error:%d", util::mac_to_string(sta).c_str(), errno);
         return -1;
     }
 
-    printf("%s:%d: Topology notification Send Successful\n", __func__, __LINE__);
+    em_printfout("Topology notification Send Successful for sta %s", util::mac_to_string(sta).c_str());
 
     return static_cast<int> (len);
 }
@@ -218,12 +217,14 @@ void em_configuration_t::handle_state_topology_notify()
 
     sta = static_cast<dm_sta_t *>(hash_map_get_first(dm->m_sta_assoc_map));
     while (sta != NULL) {
+        em_printfout("Sending topology notification for associated sta %s", util::mac_to_string(sta->m_sta_info.id).c_str());
         send_topology_notification_by_client(sta->m_sta_info.id, sta->m_sta_info.bssid, true);
         sta = static_cast<dm_sta_t *> (hash_map_get_next(dm->m_sta_assoc_map, sta));
     }
 
     sta = static_cast<dm_sta_t *> (hash_map_get_first(dm->m_sta_dassoc_map));
     while (sta != NULL) {
+        em_printfout("Sending topology notification for disassociated sta %s", util::mac_to_string(sta->m_sta_info.id).c_str());
         send_topology_notification_by_client(sta->m_sta_info.id, sta->m_sta_info.bssid, false);
         sta = static_cast<dm_sta_t *> (hash_map_get_next(dm->m_sta_dassoc_map, sta));
     }
@@ -3818,9 +3819,9 @@ int em_configuration_t::handle_autoconfig_wsc_m2(unsigned char *buff, unsigned i
     dm_network_t network;
     em_raw_hdr_t *hdr = reinterpret_cast<em_raw_hdr_t *> (buff);
 
-    printf("%s:%d: handle_autoconfig_wsc_m2 enter len:%d peer_profile:%d\n", __func__, __LINE__, len, m_peer_profile);
+    em_printfout("%s:%d: handle_autoconfig_wsc_m2 enter len:%d peer_profile:%d", __func__, __LINE__, len, m_peer_profile);
     if (em_msg_t(em_msg_type_autoconf_wsc, m_peer_profile, buff, len).validate(errors) == 0) {
-        printf("%s:%d: received wsc m2 msg failed validation\n", __func__, __LINE__);
+        em_printfout("%s:%d: received wsc m2 msg failed validation", __func__, __LINE__);
 
         return -1;
     }
@@ -5583,8 +5584,8 @@ void em_configuration_t::process_ctrl_state()
             {
                 for (auto &em : em_radios) {
                     if (em->get_state() != em_state_ctrl_topo_sync_pending) {
-                        em_printfout("radio %s is in state:%d, not in topo sync pending state, ignoring",
-                            util::mac_to_string(em->get_radio_interface_mac()).c_str(), em->get_state());
+                        em_printfout("radio %s is in state:%s, not in topo sync pending state, ignoring",
+                            util::mac_to_string(em->get_radio_interface_mac()).c_str(), em_t::state_2_str(em->get_state()));
                         em_radios.clear();
                         return;
                     }
@@ -5616,6 +5617,15 @@ void em_configuration_t::process_ctrl_state()
                 em_printfout("Topology has changed for device: %s", util::mac_to_string(dm->get_agent_al_interface_mac()).c_str());
                 dm->set_topo_state(false);
                 get_mgr()->publish_network_topology();
+            }
+            if (get_current_cmd() != NULL && get_current_cmd()->m_type == em_cmd_type_sta_assoc) {
+                em_cmd_params_t *evt_param = &get_current_cmd()->m_param;
+                mac_address_t sta_mac, bssid;
+                dm_easy_mesh_t::string_to_macbytes(evt_param->u.args.args[2], sta_mac);
+                dm_easy_mesh_t::string_to_macbytes(evt_param->u.args.args[1], bssid);
+                em_printfout("topo publish: sending beacon query for sta:%s bssid:%s",
+                    evt_param->u.args.args[2], evt_param->u.args.args[1]);
+                static_cast<em_t*>(this)->send_beacon_metrics_query(sta_mac, bssid);
             }
             set_state(em_state_ctrl_configured);
             break;

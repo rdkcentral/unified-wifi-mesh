@@ -805,11 +805,18 @@ void em_agent_t::send_beacon_query(em_bus_event_t *evt)
     em_printfout("Beacon Query forwarding to OW for sta: %s", util::mac_to_string(query_params->sta_mac_addr).c_str());
     beacon_req->opClass = query_params->op_class;
     beacon_req->channel = query_params->channel_num;
-    beacon_req->mode = 2; // Beacon Table: report from STA's existing scan cache
+    beacon_req->mode = 1; // Active: STA actively probes and reports neighboring BSSes
     memcpy(beacon_req->bssid, query_params->bssid, sizeof(mac_address_t));
-    beacon_req->ssidPresent = true;
-    memcpy(beacon_req->ssid, query_params->ssid, query_params->ssid_len);
-        em_printfout("SSID Name: %s[%s]", beacon_req->ssid, util::mac_to_string(beacon_req->bssid).c_str());
+    beacon_req->ssidPresent = (query_params->ssid_len > 0);
+    if (beacon_req->ssidPresent) {
+        size_t ssid_copy_len = query_params->ssid_len;
+        if (ssid_copy_len >= sizeof(beacon_req->ssid)) {
+            ssid_copy_len = sizeof(beacon_req->ssid) - 1;
+        }
+        memcpy(beacon_req->ssid, query_params->ssid, ssid_copy_len);
+        beacon_req->ssid[ssid_copy_len] = '\0';
+    }
+    em_printfout("SSID Name: %s[%s]", beacon_req->ssid, util::mac_to_string(beacon_req->bssid).c_str());
     beacon_req->reportingDetail = query_params->rprt_detail;
     {
         int total_ch = 0;
@@ -862,11 +869,11 @@ void em_agent_t::handle_beacon_report(em_bus_event_t *evt)
     unsigned int num = 0;
 
     if (m_orch->is_cmd_type_in_progress(evt) == true) {
-        printf("analyze_beacon_report in progress\n");
+        em_printfout("analyze_beacon_report in progress");
     } else if ((num = m_data_model.analyze_beacon_report(evt, pcmd)) == 0) {
-        printf("analyze_beacon_report failed\n");
+        em_printfout("analyze_beacon_report failed");
     } else if (m_orch->submit_commands(pcmd, num) > 0) {
-        printf("submitted beacon report cmd for orch\n");
+        em_printfout("submitted beacon report cmd for orchestration");
     }
 }
 
@@ -1372,7 +1379,7 @@ int em_agent_t::report_cb(char *event_name, bus_data_prop_t *data, void *userDat
         g_agent.io_process(em_bus_event_type_ap_metrics_report, (unsigned char *)data->value.raw_data.bytes, data->value.raw_data_len);
     } else if (strncmp(event_name, WIFI_QUALITY_LINKREPORT, sizeof(WIFI_QUALITY_LINKREPORT))==0) {
         //em_printfout("Received Frame data for event [%s] and data :\n%s", event_name, data->raw_data.bytes);
-        cJSON *json = cJSON_Parse((const char *)data->raw_data.bytes);
+        cJSON *json = cJSON_Parse((const char *)data->value.raw_data.bytes);
         if (json != NULL) {
             cJSON *link_report_arr;
             cJSON *subdoc_name = cJSON_GetObjectItemCaseSensitive(json, "SubDocName");
@@ -1388,7 +1395,7 @@ int em_agent_t::report_cb(char *event_name, bus_data_prop_t *data, void *userDat
                 }
             }
         }
-       // g_agent.io_process(em_bus_event_type_link_quality_report, (unsigned char *)data->raw_data.bytes, data->raw_data_len);
+       // g_agent.io_process(em_bus_event_type_link_quality_report, (unsigned char *)data->value.raw_data.bytes, data->value.raw_data_len);
     }
 
     return 0;

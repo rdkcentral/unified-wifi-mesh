@@ -290,52 +290,126 @@ int em_metrics_t::handle_beacon_metrics_query(unsigned char *buff, unsigned int 
 
     unsigned char *tmp = reinterpret_cast<unsigned char*> (&tlv->value);
 
-    em_beacon_metrics_query_t *beacon_metrics = reinterpret_cast<em_beacon_metrics_query_t*> (tlv->value);
-    em_printfout("    STA MAC Address: %s", util::mac_to_string(beacon_metrics->sta_mac_addr).c_str());
-    em_printfout("   Operating Class: %u", beacon_metrics->op_class);
-    em_printfout("   Channel Number: %u", beacon_metrics->channel_num);
-    em_printfout("   BSSID: %s", util::mac_to_string(beacon_metrics->bssid).c_str());
-    em_printfout("   Reporting Detail: %u", beacon_metrics->rprt_detail);
-    em_printfout("   SSID Length: %u", beacon_metrics->ssid_len);
-    em_printfout("   SSID: %.*s", beacon_metrics->ssid_len, beacon_metrics->ssid);
-    em_printfout("\n\n");
+    const unsigned int tlv_payload_len = ntohs(tlv->len);
+    const unsigned int max_ssid_len = sizeof(em_beacon_metrics_query_t{}.ssid);
+    const unsigned int max_ap_channel_rprt = sizeof(em_beacon_metrics_query_t{}.ap_channel_rprt) /
+        sizeof(em_beacon_metrics_query_t{}.ap_channel_rprt[0]);
+    const unsigned int max_channels_in_list = sizeof(em_beacon_metrics_query_t{}.ap_channel_rprt[0].ap_channel_list) /
+        sizeof(em_beacon_metrics_query_t{}.ap_channel_rprt[0].ap_channel_list[0]);
+    const unsigned int max_element_ids = sizeof(em_beacon_metrics_query_t{}.element_list.element_list) /
+        sizeof(em_beacon_metrics_query_t{}.element_list.element_list[0]);
+    const unsigned int min_fixed_len = sizeof(mac_address_t) + sizeof(unsigned char) + sizeof(unsigned char) +
+        sizeof(mac_address_t) + sizeof(unsigned char) + sizeof(unsigned char);
 
-    //todo: need to copy after parsing len,
-    em_beacon_metrics_query_t query_params;
-    memcpy(query_params.sta_mac_addr, beacon_metrics->sta_mac_addr, sizeof(mac_address_t));
+    if (tlv_payload_len < min_fixed_len) {
+        em_printfout("Malformed Beacon Metrics Query TLV: payload too short (%u)", tlv_payload_len);
+        return -1;
+    }
+
+    em_beacon_metrics_query_t query_params = {};
+    memcpy(query_params.sta_mac_addr, tmp + sz, sizeof(mac_address_t));
     sz += sizeof(mac_address_t);
 
-    query_params.op_class = beacon_metrics->op_class;
+    query_params.op_class = *(tmp + sz);
     sz += sizeof(unsigned char);
-    query_params.channel_num = beacon_metrics->channel_num;
+    query_params.channel_num = *(tmp + sz);
     sz += sizeof(unsigned char);
-    memcpy(query_params.bssid, beacon_metrics->bssid, sizeof(mac_address_t));
+    memcpy(query_params.bssid, tmp + sz, sizeof(mac_address_t));
     sz += sizeof(mac_address_t);
 
-    query_params.rprt_detail = beacon_metrics->rprt_detail;
+    query_params.rprt_detail = *(tmp + sz);
     sz += sizeof(unsigned char);
-    query_params.ssid_len = beacon_metrics->ssid_len;
-    sz += sizeof(unsigned char);
-    memcpy(query_params.ssid, beacon_metrics->ssid, beacon_metrics->ssid_len);
-    sz += beacon_metrics->ssid_len;
-    query_params.num_ap_channel_rprt = *(tmp + sz);
-    sz += sizeof(unsigned char);
-    for (unsigned int i = 0; i < query_params.num_ap_channel_rprt; i++) {
-        query_params.ap_channel_rprt[i].ap_channel_rprt_len = *(tmp + sz);
-        sz += sizeof(unsigned char);
-        query_params.ap_channel_rprt[i].ap_channel_op_class = *(tmp + sz);
-        sz += sizeof(unsigned char);
 
-        for(int j = 0; j < query_params.ap_channel_rprt[i].ap_channel_rprt_len - 1; j++) {
-            query_params.ap_channel_rprt[i].ap_channel_list[j] = *(tmp + sz);
+    {
+        unsigned int ssid_len = *(tmp + sz);
+        sz += sizeof(unsigned char);
+        if (sz + ssid_len > tlv_payload_len) {
+            em_printfout("Malformed Beacon Metrics Query TLV: ssid_len %u exceeds payload %u",
+                ssid_len, tlv_payload_len);
+            return -1;
+        }
+        query_params.ssid_len = (ssid_len > max_ssid_len) ? max_ssid_len : ssid_len;
+        if (query_params.ssid_len > 0) {
+            memcpy(query_params.ssid, tmp + sz, query_params.ssid_len);
+        }
+        sz += ssid_len;
+    }
+
+    if (sz + sizeof(unsigned char) > tlv_payload_len) {
+        em_printfout("Malformed Beacon Metrics Query TLV: missing AP Channel Report count");
+        return -1;
+    }
+
+    {
+        unsigned int num_ap_channel_rprt = *(tmp + sz);
+        sz += sizeof(unsigned char);
+        query_params.num_ap_channel_rprt = (num_ap_channel_rprt > max_ap_channel_rprt) ?
+            max_ap_channel_rprt : num_ap_channel_rprt;
+
+        for (unsigned int i = 0; i < num_ap_channel_rprt; i++) {
+            unsigned int ap_channel_rprt_len;
+            unsigned int num_channels;
+
+            if (sz + sizeof(unsigned char) > tlv_payload_len) {
+                em_printfout("Malformed Beacon Metrics Query TLV: missing AP Channel Report length");
+                return -1;
+            }
+
+            ap_channel_rprt_len = *(tmp + sz);
+            sz += sizeof(unsigned char);
+            if (ap_channel_rprt_len < 1) {
+                em_printfout("Malformed Beacon Metrics Query TLV: invalid AP Channel Report length %u",
+                    ap_channel_rprt_len);
+                return -1;
+            }
+            if (sz + ap_channel_rprt_len > tlv_payload_len) {
+                em_printfout("Malformed Beacon Metrics Query TLV: AP Channel Report overruns payload");
+                return -1;
+            }
+
+            num_channels = ap_channel_rprt_len - 1;
+            if (i < query_params.num_ap_channel_rprt) {
+                query_params.ap_channel_rprt[i].ap_channel_rprt_len =
+                    (ap_channel_rprt_len > (max_channels_in_list + 1)) ?
+                    (max_channels_in_list + 1) : ap_channel_rprt_len;
+                query_params.ap_channel_rprt[i].ap_channel_op_class = *(tmp + sz);
+            }
+            sz += sizeof(unsigned char);
+
+            for (unsigned int j = 0; j < num_channels; j++) {
+                if (i < query_params.num_ap_channel_rprt && j < max_channels_in_list) {
+                    query_params.ap_channel_rprt[i].ap_channel_list[j] = *(tmp + sz);
+                }
+                sz += sizeof(unsigned char);
+            }
+        }
+    }
+
+    if (sz < tlv_payload_len) {
+        unsigned int num_element_id = *(tmp + sz);
+        sz += sizeof(unsigned char);
+        if (sz + num_element_id > tlv_payload_len) {
+            em_printfout("Malformed Beacon Metrics Query TLV: element list overruns payload");
+            return -1;
+        }
+        query_params.element_list.num_element_id = (num_element_id > max_element_ids) ?
+            max_element_ids : num_element_id;
+        for (unsigned int i = 0; i < num_element_id; i++) {
+            if (i < query_params.element_list.num_element_id) {
+                query_params.element_list.element_list[i] = *(tmp + sz);
+            }
             sz += sizeof(unsigned char);
         }
     }
-    em_beacon_element_list_t *element_list = reinterpret_cast<em_beacon_element_list_t*> (tmp + sz);
-    query_params.element_list.num_element_id = element_list->num_element_id;
-    for (int i = 0; i < element_list->num_element_id; i++) {
-        query_params.element_list.element_list[i] = element_list->element_list[i];
-    }
+
+    em_printfout("    STA MAC Address: %s", util::mac_to_string(query_params.sta_mac_addr).c_str());
+    em_printfout("   Operating Class: %u", query_params.op_class);
+    em_printfout("   Channel Number: %u", query_params.channel_num);
+    em_printfout("   BSSID: %s", util::mac_to_string(query_params.bssid).c_str());
+    em_printfout("   Reporting Detail: %u", query_params.rprt_detail);
+    em_printfout("   SSID Length: %u", query_params.ssid_len);
+    em_printfout("   SSID: %.*s", query_params.ssid_len, query_params.ssid);
+    em_printfout("\n\n");
 
     // Extract message ID for the ACK
     em_cmdu_t *cmdu = reinterpret_cast<em_cmdu_t *>(buff + sizeof(em_raw_hdr_t));
@@ -343,16 +417,16 @@ int em_metrics_t::handle_beacon_metrics_query(unsigned char *buff, unsigned int 
 
     // Check if the STA is associated with any BSS on this agent
     dm_easy_mesh_t *dm = get_data_model();
-    dm_sta_t *sta = dm->get_first_sta(beacon_metrics->sta_mac_addr);
+    dm_sta_t *sta = dm->get_first_sta(query_params.sta_mac_addr);
     if (sta == NULL) {
         em_printfout("STA %s not associated, sending error ACK (reason 0x02)",
-            util::mac_to_string(beacon_metrics->sta_mac_addr).c_str());
-        send_beacon_metrics_query_ack(beacon_metrics->sta_mac_addr, msg_id, 0x02);
+            util::mac_to_string(query_params.sta_mac_addr).c_str());
+        send_beacon_metrics_query_ack(query_params.sta_mac_addr, msg_id, 0x02);
         return -1;
     }
 
     // STA is associated — send ACK before forwarding the request to OneWifi
-    send_beacon_metrics_query_ack(beacon_metrics->sta_mac_addr, msg_id, 0);
+    send_beacon_metrics_query_ack(query_params.sta_mac_addr, msg_id, 0);
 
     get_mgr()->io_process(em_bus_event_type_beacon_query, reinterpret_cast<unsigned char *>(&query_params), sizeof(em_beacon_metrics_query_t));
 
@@ -372,7 +446,7 @@ int em_metrics_t::handle_beacon_metrics_response(unsigned char *buff, unsigned i
     dm = get_data_model();
 
     if (em_msg_t(em_msg_type_beacon_metrics_rsp, em_profile_type_2, buff, len).validate(errors) == 0) {
-        printf("%s:%d: Beacon Metrics Response message validation failed\n",__func__,__LINE__);
+        em_printfout("Beacon Metrics Response message validation failed on controller");
         return -1;
     }
 
@@ -398,7 +472,7 @@ int em_metrics_t::handle_beacon_metrics_response(unsigned char *buff, unsigned i
 
     if(sta == NULL)
     {
-        printf("%s:%d: sta not found\n", __func__, __LINE__);
+        em_printfout("Beacon Metrics Response: sta not found in controller data model");
         return -1;
     }
 
@@ -406,9 +480,12 @@ int em_metrics_t::handle_beacon_metrics_response(unsigned char *buff, unsigned i
     sta->m_sta_info.beacon_report_len = report_len;
     memcpy(sta->m_sta_info.beacon_report_elem, response->meas_reports, static_cast<size_t> (report_len));
 
-    printf("%s:%d Beacon Metrics Response rcvd\n", __func__, __LINE__);
-    printf("%s:%d No of reports %d\n", __func__, __LINE__, sta->m_sta_info.num_beacon_meas_report);
-    printf("%s:%d Report len %d\n", __func__, __LINE__, sta->m_sta_info.beacon_report_len);
+    // Clear the timestamp so new queries can be sent immediately after a response
+    sta->m_sta_info.beacon_query_sent_time = 0;
+
+    em_printfout("Beacon Metrics Response rcvd for sta:%s reports:%u len:%u",
+        util::mac_to_string(sta->m_sta_info.id).c_str(),
+        sta->m_sta_info.num_beacon_meas_report, sta->m_sta_info.beacon_report_len);
 
     // Send 1905 ACK back to the agent
     em_cmdu_t *cmdu = reinterpret_cast<em_cmdu_t *>(buff + sizeof(em_raw_hdr_t));
@@ -967,6 +1044,20 @@ short em_metrics_t::send_beacon_metrics_query(mac_address_t sta_mac, bssid_t bss
 
     dm = get_data_model();
 
+    // Dedup: skip if a query was sent recently for this STA.
+    // Using a timestamp avoids a stuck boolean — the guard self-heals after the timeout.
+    static constexpr time_t BEACON_QUERY_TIMEOUT_SECS = 10;
+    dm_sta_t *sta_chk = dm->find_sta(sta_mac, bssid);
+    if (sta_chk != NULL && sta_chk->m_sta_info.beacon_query_sent_time != 0 &&
+            (time(NULL) - sta_chk->m_sta_info.beacon_query_sent_time) < BEACON_QUERY_TIMEOUT_SECS) {
+        em_printfout("Beacon Metrics Query already in flight for sta:%s (sent %lds ago), skipping",
+            util::mac_to_string(sta_mac).c_str(),
+            static_cast<long>(time(NULL) - sta_chk->m_sta_info.beacon_query_sent_time));
+        return 0;
+    }
+
+    dm = get_data_model();
+
     memcpy(tmp, dm->get_agent_al_interface_mac(), sizeof(mac_address_t));
     tmp += sizeof(mac_address_t);
     len += sizeof(mac_address_t);
@@ -1022,6 +1113,13 @@ short em_metrics_t::send_beacon_metrics_query(mac_address_t sta_mac, bssid_t bss
     }
 
     em_printfout("Beacon Metrics Query send success for sta:%s", util::mac_to_string(sta_mac).c_str());
+
+    // Record send time — used by the dedup guard to suppress duplicate triggers
+    dm_sta_t *sta_sent = dm->find_sta(sta_mac, bssid);
+    if (sta_sent != NULL) {
+        sta_sent->m_sta_info.beacon_query_sent_time = time(NULL);
+    }
+
     return static_cast<short> (len);
 }
 
@@ -1037,13 +1135,12 @@ int em_metrics_t::send_beacon_metrics_response()
     short sz = 0;
     unsigned short type = htons(ETH_P_1905);
     dm_easy_mesh_t *dm = get_data_model();
-    mac_addr_str_t mac_str;
     bool sta_found = false;
     dm_sta_t *sta;
 
     sta = reinterpret_cast<dm_sta_t *> (hash_map_get_first(get_current_cmd()->get_data_model()->m_sta_map));
     if (sta == NULL) {
-        printf("%s:%d: No STA in beacon report data model, cannot send response\n", __func__, __LINE__);
+        em_printfout("No STA in beacon report data model, cannot send response");
         set_state(em_state_agent_configured);
         return -1;
     }
@@ -1098,16 +1195,20 @@ int em_metrics_t::send_beacon_metrics_response()
     len += (sizeof(em_tlv_t));
 
     if (em_msg_t(em_msg_type_beacon_metrics_rsp, em_profile_type_2, buff, static_cast<unsigned int> (len)).validate(errors) == 0) {
-        printf("%s:%d: Beacon Metrics Response validation failed for %s\n", __func__, __LINE__, mac_str);
+        em_printfout("Beacon Metrics Response validation failed");
+        set_state(em_state_agent_configured);
         return -1;
     }
 
     if (send_frame(buff, static_cast<unsigned int> (len))  < 0) {
-        printf("%s:%d: Beacon Metrics Response send failed, error:%d\n", __func__, __LINE__, errno);
+        em_printfout("Beacon Metrics Response send failed, error:%d", errno);
+        set_state(em_state_agent_configured);
         return -1;
     }
 
-    printf("%s:%d: Beacon Metrics Response send success\n", __func__, __LINE__);
+    em_printfout("Beacon Metrics Response send success for sta:%s reports:%u",
+        util::mac_to_string(sta->m_sta_info.id).c_str(), sta->m_sta_info.num_beacon_meas_report);
+    set_state(em_state_agent_configured);
 
     return static_cast<int> (len);
 }
@@ -1981,24 +2082,39 @@ void em_metrics_t::process_msg(unsigned char *data, unsigned int len)
             mac_address_t join_sta_mac = {0};
             bssid_t       join_bssid   = {0};
             bool found_sta = false;
-            while ((cap_tlv->type != em_tlv_type_eom) && (cap_len > 0)) {
-                if (cap_tlv->type == em_tlv_type_client_info) {
-                    // em_client_info_t layout: bssid[6] then client_mac[6]
-                    memcpy(join_bssid,   cap_tlv->value,                    sizeof(bssid_t));
-                    memcpy(join_sta_mac, cap_tlv->value + sizeof(bssid_t),  sizeof(mac_address_t));
-                    found_sta = true;
+            while (cap_len >= sizeof(em_tlv_t)) {
+                unsigned int tlv_len = static_cast<unsigned int>(ntohs(cap_tlv->len));
+                unsigned int tlv_total_len = static_cast<unsigned int>(sizeof(em_tlv_t)) + tlv_len;
+
+                if (tlv_total_len > cap_len) {
+                    em_printfout("cap report: malformed TLV walk, tlv_len=%u cap_len=%u", tlv_len, cap_len);
                     break;
                 }
-                cap_len -= static_cast<unsigned int>(sizeof(em_tlv_t) + htons(cap_tlv->len));
-                cap_tlv  = reinterpret_cast<em_tlv_t *>(reinterpret_cast<unsigned char *>(cap_tlv) + sizeof(em_tlv_t) + htons(cap_tlv->len));
+
+                if (cap_tlv->type == em_tlv_type_eom) {
+                    break;
+                }
+
+                if (cap_tlv->type == em_tlv_type_client_info) {
+                    if (tlv_len >= (sizeof(bssid_t) + sizeof(mac_address_t))) {
+                        // em_client_info_t layout: bssid[6] then client_mac[6]
+                        memcpy(join_bssid, cap_tlv->value, sizeof(bssid_t));
+                        memcpy(join_sta_mac, cap_tlv->value + sizeof(bssid_t), sizeof(mac_address_t));
+                        found_sta = true;
+                    } else {
+                        em_printfout("cap report: malformed Client Info TLV len=%u", tlv_len);
+                    }
+                    break;
+                }
+                cap_len -= tlv_total_len;
+                cap_tlv = reinterpret_cast<em_tlv_t *>(reinterpret_cast<unsigned char *>(cap_tlv) + tlv_total_len);
             }
             if (found_sta) {
-                em_printfout("cap report: sending beacon query for sta:%s bssid:%s",
+                em_printfout("cap report: beacon query will be triggered after topo publish for sta:%s bssid:%s",
                     util::mac_to_string(join_sta_mac).c_str(),
                     util::mac_to_string(join_bssid).c_str());
-                send_beacon_metrics_query(join_sta_mac, join_bssid);
             } else {
-                em_printfout("cap report: could not find Client Info TLV, skipping beacon query");
+                em_printfout("cap report: could not find Client Info TLV");
             }
 
             // Previous implementation: send beacon query for all associated STAs.
