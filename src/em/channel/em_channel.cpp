@@ -491,7 +491,7 @@ int em_channel_t::send_channel_scan_request_msg()
 
     m_chan_req_msg_id = ntohs(cmdu->id);
     em_printfout("Channel Scan Request message sent (msg_id: 0x%04x)\n", m_chan_req_msg_id);
-
+    m_channel_scan_req_tx_cnt++;
     return  static_cast<int> (len);
 
 }
@@ -864,7 +864,7 @@ int em_channel_t::send_channel_sel_request_msg()
     }
     m_chan_req_msg_id = ntohs(cmdu->id);
     em_printfout("Channel Selection Request message sent (msg_id: 0x%04x)\n", m_chan_req_msg_id);
-
+    m_channel_sel_req_tx_cnt++;
     return static_cast<int> (len);
 
 }
@@ -1675,6 +1675,7 @@ int em_channel_t::handle_channel_pref_rprt(unsigned char *buff, unsigned int len
         tlv_len -= static_cast<int> (sizeof(em_tlv_t) + htons(tlv->len));
         tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
     }
+	set_channel_pref_query_tx_count(0);
 	set_state(em_state_ctrl_channel_queried);
 	return 0;
 }
@@ -1832,6 +1833,7 @@ int em_channel_t::handle_channel_sel_rsp(unsigned char *buff, unsigned int len)
             em_t *radio_em = reinterpret_cast<em_t *>(hash_map_get(get_mgr()->m_em_map, mac_str));
             if (radio_em) {
                 if((radio_em->get_state() == em_state_ctrl_channel_select_pending) && (response_msg_id == radio_em->m_chan_req_msg_id)) {
+                    radio_em->set_channel_sel_req_tx_count(0);
                     radio_em->set_state(em_state_ctrl_channel_selected);
                     radio_em->m_chan_req_msg_id = 0;
                     em_printfout("Set em_state_ctrl_channel_selected for radio %s", mac_str);
@@ -1898,6 +1900,7 @@ int em_channel_t::handle_1905_ack(unsigned char *buff, unsigned int len)
         }
 
         if((em->get_state() == em_state_ctrl_channel_scan_pending) && (response_msg_id == em->m_chan_req_msg_id)) {
+            em->set_channel_scan_req_tx_count(0);
             em->set_state(em_state_ctrl_configured);
             em->m_chan_req_msg_id = 0;
             em_printfout("Channel scan ACK handled for radio %s", util::mac_to_string(em->get_radio_interface_mac()).c_str());
@@ -2111,6 +2114,7 @@ void em_channel_t::process_msg(unsigned char *data, unsigned int len)
             break; 
     
         case em_msg_type_channel_pref_rprt:
+        em_printfout("----->>> em_msg_type_channel_pref_rprt received");
 		if (get_service_type() == em_service_type_ctrl) {
 			handle_channel_pref_rprt(data, len);
             std::vector<em_t*> em_radios;
@@ -2118,7 +2122,7 @@ void em_channel_t::process_msg(unsigned char *data, unsigned int len)
             get_mgr()->get_all_em_for_al_mac(hdr->src, em_radios);
             for (auto &em : em_radios) {
                 em->set_state(em_state_ctrl_channel_queried);
-                printf("%s:%d em_msg_type_channel_pref_rprt handle success, state: %s\n", __func__, __LINE__, em_t::state_2_str(em->get_state()));
+                em_printfout("em_msg_type_channel_pref_rprt handle success, state: %s\n", em_t::state_2_str(em->get_state()));
             }
             em_radios.clear();
 		}
@@ -2249,10 +2253,20 @@ void em_channel_t::process_ctrl_state()
                 // If all radios are in Channel pref query pending state, send channel pref query on one of them, 
                 // ignore sending channel query query on other radios
                 if (this == em_radios.front()){
-                    em_printfout("Sending the Channel pref query message to agent al_mac:%s on radio: %s",
-                        util::mac_to_string(dm->get_agent_al_interface_mac()).c_str(),
-                        util::mac_to_string(get_radio_interface_mac()).c_str());
-				    send_channel_pref_query_msg();
+                    if (get_channel_pref_query_tx_count() >= EM_MAX_CHANNEL_PREF_QUERY_TX_THRESH) {
+                        em_printfout("Channel pref query timed out (retries:%d) for agent al_mac:%s, proceeding",
+                            get_channel_pref_query_tx_count(),
+                            util::mac_to_string(dm->get_agent_al_interface_mac()).c_str());
+                        set_channel_pref_query_tx_count(0);
+                        for (auto &em : em_radios) {
+                            em->set_state(em_state_ctrl_channel_queried);
+                        }
+                    } else {
+                        em_printfout("Sending the Channel pref query message to agent al_mac:%s on radio: %s",
+                            util::mac_to_string(dm->get_agent_al_interface_mac()).c_str(),
+                            util::mac_to_string(get_radio_interface_mac()).c_str());
+                        send_channel_pref_query_msg();
+                    }
                 }
                 em_radios.clear();
             }
@@ -2261,12 +2275,38 @@ void em_channel_t::process_ctrl_state()
         case em_state_ctrl_channel_select_pending:
         case em_state_ctrl_avail_spectrum_inquiry_pending:
 			if(get_service_type() == em_service_type_ctrl) {
-				send_channel_sel_request_msg();
+                if (get_channel_sel_req_tx_count() >= EM_MAX_CHANNEL_SEL_REQ_TX_THRESH) {
+                    dm_easy_mesh_t *dm = get_data_model();
+                    std::vector<em_t *> em_radios;
+                    get_mgr()->get_all_em_for_al_mac(dm->get_agent_al_interface_mac(), em_radios);
+                    em_printfout("Channel sel request timed out (retries:%d) for agent al_mac:%s, proceeding",
+                        get_channel_sel_req_tx_count(),
+                        util::mac_to_string(dm->get_agent_al_interface_mac()).c_str());
+                    for (auto &em : em_radios) {
+                        em->set_channel_sel_req_tx_count(0);
+                        em->set_state(em_state_ctrl_channel_selected);
+                    }
+                } else {
+					send_channel_sel_request_msg();
+                }
 			}
             break; 
         
         case em_state_ctrl_channel_scan_pending:
-			send_channel_scan_request_msg();
+            if (get_channel_scan_req_tx_count() >= EM_MAX_CHANNEL_SCAN_REQ_TX_THRESH) {
+                dm_easy_mesh_t *dm = get_data_model();
+                std::vector<em_t *> em_radios;
+                get_mgr()->get_all_em_for_al_mac(dm->get_agent_al_interface_mac(), em_radios);
+                em_printfout("Channel scan request timed out (retries:%d) for agent al_mac:%s, proceeding",
+                    get_channel_scan_req_tx_count(),
+                    util::mac_to_string(dm->get_agent_al_interface_mac()).c_str());
+                for (auto &em : em_radios) {
+                    em->set_channel_scan_req_tx_count(0);
+                    em->set_state(em_state_ctrl_configured);
+                }
+            } else {
+				send_channel_scan_request_msg();
+            }
             break;
 
         case em_state_ctrl_topo_sync_pending:
@@ -2282,6 +2322,7 @@ em_channel_t::em_channel_t()
 {
     m_channel_pref_query_tx_cnt = 0;
     m_channel_sel_req_tx_cnt = 0;
+    m_channel_scan_req_tx_cnt = 0;
 }
 
 em_channel_t::~em_channel_t()

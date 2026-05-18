@@ -1650,6 +1650,7 @@ public:
 	 * @note Ensure that the network interface is up before calling this function.
 	 */
 	int send_autoconfig_renew_msg();
+	int send_autoconfig_renew_msg(em_freq_band_t band);
     
 	/**!
 	 * @brief Handles encrypted settings.
@@ -2167,9 +2168,16 @@ public:
 	 */
 	void set_topo_query_tx_count(unsigned int cnt) { m_topo_query_tx_cnt = cnt; }
 
+	unsigned int get_autoconfig_search_cnt() { return m_autoconfig_search_cnt; }
+	void set_autoconfig_search_cnt(unsigned int cnt) { m_autoconfig_search_cnt = cnt; }
+
 	virtual bool get_is_dpp_onboarding() = 0;
 
 	virtual void set_is_dpp_onboarding(bool is_onboarding) = 0;
+
+	virtual bool get_m1_received() = 0;
+
+	virtual void set_m1_received(bool val) = 0;
 
     static unsigned short msg_id;
 
@@ -2179,6 +2187,7 @@ public:
     unsigned char m_emsk[WPS_EMSK_LEN];
     unsigned int m_renew_tx_cnt;
     unsigned int m_topo_query_tx_cnt;
+    unsigned int m_autoconfig_search_cnt = 0;
     
 	/**!
 	 * @brief Constructor for em_configuration_t.

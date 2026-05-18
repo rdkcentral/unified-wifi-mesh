@@ -682,6 +682,20 @@ public:
 	*/
 	void set_channel_sel_req_tx_count(unsigned int cnt) { m_channel_sel_req_tx_cnt = cnt; }
 
+	/**!
+	 * @brief Gets the channel scan request transmission count.
+	 *
+	 * @returns The transmission count for channel scan requests as an integer.
+	 */
+	int get_channel_scan_req_tx_count() { return static_cast<int>(m_channel_scan_req_tx_cnt); }
+
+	/**!
+	 * @brief Sets the channel scan request transmission count.
+	 *
+	 * @param[in] cnt The count to set for channel scan request transmissions.
+	 */
+	void set_channel_scan_req_tx_count(unsigned int cnt) { m_channel_scan_req_tx_cnt = cnt; }
+
 	
 	/**!
 	 * @brief Fills the scan result structure with data from the channel scan result.
@@ -729,6 +743,7 @@ public:
 
     unsigned int m_channel_pref_query_tx_cnt;
     unsigned int m_channel_sel_req_tx_cnt;
+    unsigned int m_channel_scan_req_tx_cnt;
     //stores Channel request msg_id
     unsigned short m_chan_req_msg_id = 0;
 	

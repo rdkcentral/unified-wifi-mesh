@@ -845,21 +845,21 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
             dm_easy_mesh_t::macbytes_to_string(ruid, mac_str1);
         
             if ((em = static_cast<em_t *> (hash_map_get(m_em_map, mac_str1))) != NULL) {
-                printf("%s:%d: Found existing radio:%s\n", __func__, __LINE__, mac_str1);
+                em_printfout("  WSC: Found existing radio:%s", mac_str1);
                 if(em->get_state() != em_state_ctrl_wsc_m2_sent)
                     em->set_state(em_state_ctrl_wsc_m1_pending);
                 else
-                    printf("%s:%d: Autoconf wsc msg sent already. Incorrect state = (%d)\n", __func__, __LINE__, em->get_state());
+                    em_printfout("  WSC: Autoconf wsc msg sent already. Incorrect state = (%d)", em->get_state());
             } else {
                 if ((dm = get_data_model(GLOBAL_NET_ID, const_cast<const unsigned char *> (hdr->src))) == NULL) {
-                    printf("%s:%d: Can not find data model\n", __func__, __LINE__);
+                    em_printfout("  WSC: Can not find data model");
                     break;
                 }
 
                 dm_easy_mesh_t::macbytes_to_string(hdr->src, mac_str1);
                 dm_easy_mesh_t::macbytes_to_string(ruid, mac_str2);
 
-                printf("%s:%d: Found data model for mac: %s, creating node for ruid: %s\n", __func__, __LINE__, mac_str1, mac_str2);
+                em_printfout("  WSC: Found data model for mac: %s, creating node for ruid: %s", mac_str1, mac_str2);
 
                 memcpy(intf.mac, ruid, sizeof(mac_address_t));
                 if ((em = create_node(&intf, em_freq_band_unknown, dm, false,  dm->get_device()->m_device_info.profile,

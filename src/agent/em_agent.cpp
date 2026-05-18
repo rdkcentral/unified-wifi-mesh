@@ -1537,6 +1537,17 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
                         (em->get_state() != em_state_agent_owconfig_pending) && (em->get_state() != em_state_agent_1905_securing)) {
 						found = true;
 						break;
+					} else if (em->get_state() == em_state_agent_wsc_m2_pending) {
+						// M1 was already sent for this band but M2 was never received
+						// (e.g. wifi stack re-initialised after a restore_defaults or BSS
+						// down/up cycle). The agent re-sent Autoconfig Search so the
+						// controller has issued a fresh Autoconfig Response — reset the
+						// stale state so handle_autoconfig_resp re-sends M1.
+						printf("%s:%d: band%d em_t stuck in wsc_m2_pending (stale M1) - resetting for re-onboarding\n",
+							__func__, __LINE__, band);
+						em->set_state(em_state_agent_autoconfig_rsp_pending);
+						found = true;
+						break;
 					} else {
 						printf("%s:%d: Found matching band%d but incorrect em state %d\n", __func__, __LINE__, band, em->get_state());
 					}
@@ -1575,6 +1586,12 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
 			if (!(em->is_al_interface_em())) {
 				if (em->is_matching_freq_band(&band) == true) {
 					if ((em->get_state() != em_state_agent_autoconfig_renew_pending) && (em->get_state() !=em_state_agent_wsc_m2_pending) && (em->get_state() != em_state_agent_owconfig_pending) ) {
+						found = true;
+						break;
+					} else if (em->get_state() == em_state_agent_wsc_m2_pending) {
+						printf("%s:%d: band%d em_t stuck in wsc_m2_pending on Autoconfig Renew - resetting for re-onboarding\n",
+							__func__, __LINE__, band);
+						em->set_state(em_state_agent_autoconfig_renew_pending);
 						found = true;
 						break;
 					} else {

@@ -155,7 +155,9 @@ void em_t::orch_execute(em_cmd_t *pcmd)
                 m_sm.set_state(em_state_ctrl_topo_sync_pending);
             } else if ((pcmd->get_orch_op() == dm_orch_type_ap_cap_query) && (m_sm.get_state() == em_state_ctrl_topo_synchronized)) {
                 m_sm.set_state(em_state_ctrl_ap_cap_query_pending);
-            } else if ((pcmd->get_orch_op() == dm_orch_type_channel_pref) && (m_sm.get_state() == em_state_ctrl_ap_cap_report_received)) {
+            // } else if ((pcmd->get_orch_op() == dm_orch_type_channel_pref) && (m_sm.get_state() == em_state_ctrl_ap_cap_report_received || m_sm.get_state() == em_state_ctrl_ap_cap_skipped)) {
+            // } else if ((pcmd->get_orch_op() == dm_orch_type_channel_pref) && (m_sm.get_state() == em_state_ctrl_bss_config_report_received)) {
+            } else if ((pcmd->get_orch_op() == dm_orch_type_channel_pref) && (m_sm.get_state() == em_state_ctrl_topo_synchronized)) {
                 m_sm.set_state(em_state_ctrl_channel_query_pending);
             } else if ((pcmd->get_orch_op() == dm_orch_type_policy_cfg) && (m_sm.get_state() == em_state_ctrl_channel_queried)) {
                 m_sm.set_state(em_state_ctrl_set_policy_pending);
@@ -2681,7 +2683,10 @@ const char *em_t::state_2_str(em_state_t state)
         EM_STATE_2S(em_state_ctrl_wsc_m1_pending)
         EM_STATE_2S(em_state_ctrl_wsc_m2_sent)
         EM_STATE_2S(em_state_ctrl_ap_cap_query_pending)
+        EM_STATE_2S(em_state_ctrl_bss_config_pending)
         EM_STATE_2S(em_state_ctrl_ap_cap_report_received)
+        EM_STATE_2S(em_state_ctrl_ap_cap_skipped)
+        EM_STATE_2S(em_state_ctrl_bss_config_report_received)
         EM_STATE_2S(em_state_ctrl_topo_sync_pending)
         EM_STATE_2S(em_state_ctrl_topo_synchronized)
         EM_STATE_2S(em_state_ctrl_channel_query_pending)

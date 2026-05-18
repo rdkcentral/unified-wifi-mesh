@@ -97,7 +97,12 @@ extern "C"
 #define EM_SSID_MISMATCH_TTL  120
 #define EM_MAX_RENEW_TX_THRESH  5
 #define EM_MAX_CAP_QUERY_TX_THRESH  2
+#define EM_MAX_AP_CAP_QUERY_TX_THRESH  5
 #define EM_MAX_TOPO_QUERY_TX_THRESH  5
+#define EM_MAX_CHANNEL_PREF_QUERY_TX_THRESH  5
+#define EM_MAX_CHANNEL_SEL_REQ_TX_THRESH  5
+#define EM_MAX_CHANNEL_SCAN_REQ_TX_THRESH  5
+#define EM_MAX_POLICY_CFG_REQ_TX_THRESH  5
 #define EM_MAX_CLIENT_STEER_REQ_TX_THRESH  5
 #define EM_MAX_CLIENT_ASSOC_CTRL_REQ_TX_THRESH  5
 #define MAX_STA_TO_DISASSOC		32
@@ -2113,8 +2118,11 @@ typedef enum {
     em_state_ctrl_wsc_m2_sent,
     em_state_ctrl_topo_sync_pending,
     em_state_ctrl_topo_synchronized,
+    em_state_ctrl_bss_config_pending,
     em_state_ctrl_ap_cap_query_pending,
     em_state_ctrl_ap_cap_report_received,
+    em_state_ctrl_ap_cap_skipped,
+    em_state_ctrl_bss_config_report_received,
     em_state_ctrl_channel_query_pending,
 	em_state_ctrl_channel_pref_report_pending,
     em_state_ctrl_channel_queried,
@@ -2951,6 +2959,7 @@ typedef enum {
     dm_orch_type_ctrl_notify,
     dm_orch_type_ap_cap_query,
     dm_orch_type_ap_cap_report,
+    dm_orch_type_bss_config,
     dm_orch_type_client_cap_report,
     dm_orch_type_1905_security_update,
     dm_orch_type_topology_response,

@@ -323,6 +323,98 @@ int em_configuration_t::send_autoconfig_renew_msg()
     return static_cast<int> (len);
 }
 
+int em_configuration_t::send_autoconfig_renew_msg(em_freq_band_t band)
+{
+    unsigned char buff[MAX_EM_BUFF_SZ];
+    char *errors[EM_MAX_TLV_MEMBERS] = {0};
+    unsigned short  msg_type = em_msg_type_autoconf_renew;
+    unsigned int len = 0;
+    em_cmdu_t *cmdu;
+    em_tlv_t *tlv;
+    unsigned char *tmp = buff;
+    unsigned short type = htons(ETH_P_1905);
+    dm_easy_mesh_t *dm;
+    unsigned char registrar = 0;
+    em_freq_band_t freq_band;
+    mac_addr_str_t mac_str;
+    dm = get_data_model();
+
+    memcpy(tmp, dm->get_agent_al_interface_mac(), sizeof(mac_address_t));
+    tmp += sizeof(mac_address_t);
+    len += static_cast<unsigned int> (sizeof(mac_address_t));
+
+    memcpy(tmp, dm->get_ctrl_al_interface_mac(), sizeof(mac_address_t));
+    tmp += sizeof(mac_address_t);
+    len += static_cast<unsigned int> (sizeof(mac_address_t));
+
+    memcpy(tmp, reinterpret_cast<unsigned char *> (&type), sizeof(unsigned short));
+    tmp += sizeof(unsigned short);
+    len += static_cast<unsigned int> (sizeof(unsigned short));
+
+    cmdu = reinterpret_cast<em_cmdu_t *> (tmp);
+
+    memset(tmp, 0, sizeof(em_cmdu_t));
+    cmdu->type = htons(msg_type);
+    cmdu->id = htons(get_mgr()->get_next_msg_id());
+    cmdu->last_frag_ind = 1;
+    cmdu->relay_ind = 1;
+
+    tmp += sizeof(em_cmdu_t);
+    len += static_cast<unsigned int> (sizeof(em_cmdu_t));
+
+    // AL MAC Address type TLV
+    tlv = reinterpret_cast<em_tlv_t *> (tmp);
+    tlv->type = em_tlv_type_al_mac_address;
+    tlv->len = htons(sizeof(mac_address_t));
+    memcpy(tlv->value, dm->get_agent_al_interface_mac(), sizeof(mac_address_t));
+
+    tmp += (sizeof (em_tlv_t) + sizeof(mac_address_t));
+    len += static_cast<unsigned int> (sizeof (em_tlv_t) + sizeof(mac_address_t));
+
+    //6-24—SupportedRole TLV
+    tlv = reinterpret_cast<em_tlv_t *> (tmp);
+    tlv->type = em_tlv_type_supported_role;
+    tlv->len = htons(sizeof(unsigned char));
+    memcpy(&tlv->value, &registrar, sizeof(unsigned char));
+
+    tmp += (sizeof (em_tlv_t) + 1);
+    len += static_cast<unsigned int> (sizeof (em_tlv_t) + 1);
+
+    //6-25—supported freq_band TLV
+    tlv = reinterpret_cast<em_tlv_t *> (tmp);
+    tlv->type = em_tlv_type_supported_freq_band;
+    tlv->len = htons(sizeof(unsigned char));
+    freq_band = band;
+    memcpy(&tlv->value, &freq_band, sizeof(unsigned char));
+
+    tmp += (sizeof (em_tlv_t) + 1);
+    len += static_cast<unsigned int> (sizeof (em_tlv_t) + 1);
+
+    // End of message
+    tlv = reinterpret_cast<em_tlv_t *> (tmp);
+    tlv->type = em_tlv_type_eom;
+    tlv->len = 0;
+
+    tmp += (sizeof (em_tlv_t));
+    len += static_cast<unsigned int> (sizeof (em_tlv_t));
+
+    if (em_msg_t(em_msg_type_autoconf_renew, em_profile_type_3, buff, len).validate(errors) == 0) {
+        printf("Autoconfig Renew msg validation failed\n");
+        return -1;
+    }
+
+    dm_easy_mesh_t::macbytes_to_string(get_radio_interface_mac(), mac_str);
+    if (send_frame(buff, len) < 0) {
+        printf("%s:%d: Autoconfig Renew send failed, error:%d for %s\n", __func__, __LINE__, errno, mac_str);
+        return -1;
+    }
+
+    m_renew_tx_cnt++;
+    printf("%s:%d: AutoConfig Renew (%d) Send Successful for %s freq band=%d\n", __func__, __LINE__, m_renew_tx_cnt, mac_str, static_cast<int>(band));
+
+    return static_cast<int> (len);
+}
+
 int em_configuration_t::send_topology_query_msg()
 {
     unsigned char buff[MAX_EM_BUFF_SZ];
@@ -1418,7 +1510,7 @@ int em_configuration_t::handle_bsta_radio_cap(unsigned char *buff, unsigned int 
     mac_addr_str_t rad_mac_str;
     dm_easy_mesh_t::macbytes_to_string(bsta_radio_cap->ruid, rad_mac_str);
 
-    get_mgr()->io_process(em_bus_event_type_bsta_cap_req, reinterpret_cast<unsigned char *> (&rad_mac_str), sizeof(mac_addr_str_t));
+   // get_mgr()->io_process(em_bus_event_type_bsta_cap_req, reinterpret_cast<unsigned char *> (&rad_mac_str), sizeof(mac_addr_str_t));
     em_printfout("IO process for bcap query submitted with radio mac: %s", rad_mac_str);
 
     em_printfout("Update BSTA Cap for Device id: %s",
@@ -1482,7 +1574,7 @@ int em_configuration_t::handle_ap_operational_bss(unsigned char *buff, unsigned 
                 dm_bss->m_bss_info.ssid[sizeof(dm_bss->m_bss_info.ssid) - 1] = '\0';
             } else {
                 // SSID mismatch, stop processing further.
-                em_printfout("%s:%d:SSID mismatch. Stop proceeding. SSID=%s", __func__, __LINE__, bss->ssid);
+                em_printfout("%s:%d:SSID mismatch. Stop proceeding. SSID=%s", __func__, __LINE__, ssid_buf);
                 return -2;
             }
             dm_bss->m_bss_info.enabled = true;
@@ -1618,14 +1710,14 @@ int em_configuration_t::handle_topology_response(unsigned char *buff, unsigned i
     }
 
 	if (found_profile == false) {
-		printf("%s:%d: Could not find profile in topo reponse message, dropping\n", __func__, __LINE__);
+		em_printfout("Could not find profile in topo response message, dropping");
 		return -1;
 	}
 
 	m_peer_profile = profile;
     
 	if (em_msg_t(em_msg_type_topo_resp, m_peer_profile, buff, len).validate(errors) == 0) {
-        printf("%s:%d: topology response msg validation failed\n", __func__, __LINE__);
+        em_printfout(" topology response msg validation failed");
             
         //return -1;
     }       
@@ -2663,10 +2755,14 @@ int em_configuration_t::create_bss_config_req_msg(uint8_t *buff, uint8_t dest_al
     // tlv_size = create_prof_2_tlv(tlv_buff); // Data
     // tmp = em_msg_t::add_tlv(tmp, &len, em_tlv_type_profile_2_ap_cap, tlv_buff, static_cast<unsigned int> (tlv_size));
 
-    //  One BSS Configuration Request TLV with DPP attribute(s) for all supported radios of the Multi-AP Agent.
+    // BSS Configuration Request TLV with DPP attributes. If EC context is not ready,
+    // skip this TLV and continue with the rest of the request.
     tlv_size = create_bss_conf_req_tlv(tlv_buff); // Data
-    EM_ASSERT_MSG_TRUE(tlv_size > 0, -1, "Failed to create BSS Configuration Request TLV");
-    tmp = em_msg_t::add_tlv(tmp, &len, em_tlv_type_bss_conf_req, tlv_buff, static_cast<unsigned int> (tlv_size));
+    if (tlv_size > 0) {
+        tmp = em_msg_t::add_tlv(tmp, &len, em_tlv_type_bss_conf_req, tlv_buff, static_cast<unsigned int> (tlv_size));
+    } else {
+        em_printfout("Skipping BSS Configuration Request TLV as DPP context is unavailable");
+    }
 
     //  One AP HT Capabilities TLV for each radio that is capable of HT (Wi-Fi 4) operation.
     // tlv_size = create_ht_tlv(tlv_buff); // Data
@@ -2774,14 +2870,16 @@ int em_configuration_t::create_bss_config_rsp_msg(uint8_t *buff, uint8_t dest_al
         dm = em_mgr->get_next_dm(dm);
     }
 
-    // Zero or One default 802.1Q settings tlv 17.2.49
-    // Default 802.1Q settings TLV as used in Auto-Configuration right now
-    memset(tlv_buff, 0, sizeof(em_8021q_settings_t));
-    tmp = em_msg_t::add_tlv(tmp, &len, em_tlv_type_dflt_8021q_settings, tlv_buff, sizeof(em_8021q_settings_t));
-
-    // Zero or One traffic separation policy tlv 17.2.50
+    // Zero or One default 802.1Q settings tlv 17.2.49 + traffic separation policy tlv 17.2.50
+    // Only include when traffic separation is configured (Zero or One per spec)
+    // Including an empty/zeroed 802.1Q Settings TLV causes some agents (e.g. Sercomm)
+    // to reject with Error Response reason code 3 (Default PCP or VLAN ID not provided)
     tlv_size = create_traffic_separation_policy(tlv_buff); // Data
-    tmp = em_msg_t::add_tlv(tmp, &len, em_tlv_type_traffic_separation_policy, tlv_buff, static_cast<unsigned int> (tlv_size));
+    if (tlv_size > 0) {
+        uint8_t q_settings[sizeof(em_8021q_settings_t)] = {0};
+        tmp = em_msg_t::add_tlv(tmp, &len, em_tlv_type_dflt_8021q_settings, q_settings, sizeof(em_8021q_settings_t));
+        tmp = em_msg_t::add_tlv(tmp, &len, em_tlv_type_traffic_separation_policy, tlv_buff, static_cast<unsigned int> (tlv_size));
+    }
 
     // Zero or one Agent AP MLD Configuration TLV (see section 17.2.96)
     tlv_size = create_ap_mld_config_tlv(tlv_buff); // TLV
@@ -3237,23 +3335,31 @@ int em_configuration_t::create_autoconfig_wsc_m2_msg(unsigned char *buff, unsign
         return 0;
     }
 
-    // default 8022.1q settings tlv 17.2.49
-    tlv = reinterpret_cast<em_tlv_t *> (tmp);
-    tlv->type = em_tlv_type_dflt_8021q_settings;
-    tlv->len = htons(sizeof(em_8021q_settings_t));
-    memset(tlv->value, 0, sizeof(tlv->len));
+    // Zero or One default 802.1Q Settings TLV (17.2.49) + Traffic Separation Policy TLV (17.2.50).
+    // Only include when traffic separation is configured (zero or one per spec).
+    // Including an empty/zeroed 802.1Q Settings TLV causes some agents (e.g. Sercomm)
+    // to reject with Error Response reason code 3 (Default PCP or VLAN ID not provided).
+    {
+        uint8_t ts_buff[MAX_EM_BUFF_SZ];
+        int ts_sz = create_traffic_separation_policy(ts_buff);
+        if (ts_sz > 0) {
+            // Default 802.1Q Settings TLV (17.2.49)
+            // tlv = reinterpret_cast<em_tlv_t *>(tmp);
+            // tlv->type = em_tlv_type_dflt_8021q_settings;
+            // tlv->len = htons(sizeof(em_8021q_settings_t));
+            // memset(tlv->value, 0, sizeof(em_8021q_settings_t));
+            // tmp += sizeof(em_tlv_t) + sizeof(em_8021q_settings_t);
+            // len += static_cast<int>(sizeof(em_tlv_t) + sizeof(em_8021q_settings_t));
 
-    tmp += (sizeof(em_tlv_t) + sizeof(em_8021q_settings_t));
-    len += static_cast<int> (sizeof(em_tlv_t) + sizeof(em_8021q_settings_t));
-
-    // traffic separation policy tlv 17.2.50 
-    tlv = reinterpret_cast<em_tlv_t *> (tmp);
-    tlv->type = em_tlv_type_traffic_separation_policy;
-    sz = static_cast<short unsigned int> (create_traffic_separation_policy(tlv->value));
-    tlv->len = htons(sz);
-
-    tmp += (sizeof(em_tlv_t) + sz);
-    len += static_cast<int> (sizeof(em_tlv_t) + sz);
+            // Traffic Separation Policy TLV (17.2.50)
+            // tlv = reinterpret_cast<em_tlv_t *>(tmp);
+            // tlv->type = em_tlv_type_traffic_separation_policy;
+            // memcpy(tlv->value, ts_buff, static_cast<unsigned int>(ts_sz));
+            // tlv->len = htons(static_cast<unsigned short>(ts_sz));
+            // tmp += sizeof(em_tlv_t) + static_cast<unsigned int>(ts_sz);
+            // len += static_cast<int>(sizeof(em_tlv_t)) + ts_sz;
+        }
+    }
 
     // ap mld tlv 17.2.96
     tlv =reinterpret_cast<em_tlv_t *> (tmp);
@@ -4560,11 +4666,12 @@ int em_configuration_t::handle_bss_config_res_msg(uint8_t *buff, unsigned int le
     // Set to WSC M2 Sent state, which can be used to kick off the rest
     em_bus_event_type_m2_tx_params_t   raw;
 
-    set_state(em_state_ctrl_wsc_m2_sent);
+    // set_state(em_state_ctrl_wsc_m2_sent);
+    // set_state(em_state_ctrl_bss_config_pending);
     memcpy(raw.al, src_al_mac, sizeof(mac_address_t));
     memcpy(raw.radio, get_radio_interface_mac(), sizeof(mac_address_t));
 
-	get_mgr()->io_process(em_bus_event_type_m2_tx, reinterpret_cast<unsigned char *> (&raw), sizeof(em_bus_event_type_m2_tx_params_t));
+	// get_mgr()->io_process(em_bus_event_type_m2_tx, reinterpret_cast<unsigned char *> (&raw), sizeof(em_bus_event_type_m2_tx_params_t));
 
     return 0;
 }
@@ -4950,10 +5057,10 @@ int em_configuration_t::handle_autoconfig_wsc_m1(unsigned char *buff, unsigned i
     em_bus_event_type_m2_tx_params_t   raw;
 
     dm_easy_mesh_t::macbytes_to_string(get_peer_mac(), mac_str);
-    printf("%s:%d: Device AL MAC: %s\n", __func__, __LINE__, mac_str);
+    em_printfout("Device AL MAC: %s", mac_str);
 
     if (em_msg_t(em_msg_type_autoconf_wsc, em_profile_type_3, buff, len).validate(errors) == 0) {
-        printf("%s:%d: received autoconfig wsc m1 msg failed validation\n", __func__, __LINE__);
+        em_printfout("received autoconfig wsc m1 msg failed validation");
 
         //return -1;
     }
@@ -4999,7 +5106,9 @@ int em_configuration_t::handle_autoconfig_wsc_m1(unsigned char *buff, unsigned i
     }
 
 	set_state(em_state_ctrl_wsc_m2_sent);
-	printf("%s:%d: autoconfig wsc m2 send, len:%d\n", __func__, __LINE__, sz);
+	set_m1_received(true);
+	set_autoconfig_search_cnt(0);
+	em_printfout("autoconfig wsc m2 send, len:%d", sz);
     memcpy(raw.al, const_cast<unsigned char *> (get_peer_mac()), sizeof(mac_address_t));
     memcpy(raw.radio, get_radio_interface_mac(), sizeof(mac_address_t));
 
@@ -5108,7 +5217,80 @@ int em_configuration_t::handle_autoconfig_search(unsigned char *buff, unsigned i
         em_printfout("Found DPP Chirp in Autoconfig Search (extended), forwarding to EC");
         return ec_mgr.handle_autoconf_chirp(reinterpret_cast<em_dpp_chirp_value_t*>(dpp_chirp_tlv->value), SWAP_LITTLE_ENDIAN(dpp_chirp_tlv->len), al_mac, ntohs(cmdu->id));
     }
-    
+
+    // Cancel any in-flight em_config or cfg_renew commands for this agent and
+    // reset all its radios so the fresh exchange can start from a clean state.
+    // If em_t nodes already exist for this agent it means M1/M2 already happened
+    // at least once and the agent has its config.  Some agents (e.g. Sercomm)
+    // never re-send M1 after the initial exchange — they only send periodic
+    // Autoconfig Searches.  For those radios skip the M1-wait and restart
+    // directly from Topology Query (set state = wsc_m2_sent, fire m2_tx so the
+    // topo_sync sub-command runs and sends Topology Query immediately).
+    //
+    // If ALL radios are already configured (m_m1_received == true) and
+    // actively processing (state > wsc_m2_sent), this is a periodic keepalive
+    // autoconfig search — just respond and leave the in-flight state machine
+    // undisturbed.
+    {
+        std::vector<em_t *> all_em_radios;
+        get_mgr()->get_all_em_for_al_mac(al_mac, all_em_radios);
+
+        bool all_active = !all_em_radios.empty() &&
+            std::all_of(all_em_radios.begin(), all_em_radios.end(), [](em_t *r) {
+                return r->get_m1_received() &&
+                       r->get_state() > em_state_ctrl_wsc_m2_sent &&
+                       r->get_state() < em_state_ctrl_configured;
+            });
+
+        if (all_active) {
+            em_printfout("Autoconfig Search from " MACSTRFMT ": all radios active (mid-flow), responding without reset",
+                MAC2STR(al_mac));
+            // Fall through to send autoconfig response below without resetting.
+        } else if (!all_em_radios.empty()) {
+            em_printfout("Autoconfig Search from " MACSTRFMT ": cancelling %zu in-flight command(s) and resetting radios",
+                MAC2STR(al_mac), all_em_radios.size());
+            if (em_orch_t *orch = get_mgr()->get_orch()) {
+                for (auto *radio : all_em_radios) {
+                    orch->remove_em_config_cmd_for_em(radio->get_radio_interface_mac());
+                }
+                orch->cancel_command(em_cmd_type_cfg_renew, all_em_radios);
+            }
+            for (auto *radio : all_em_radios) {
+                radio->set_topo_query_tx_count(0);
+                radio->set_channel_pref_query_tx_count(0);
+                radio->set_cap_query_tx_count(0);
+                // If M1 was never received but we have already waited once (controller
+                // restarted and agent is already configured — it won't send M1 again),
+                // promote to the skip-topo path so topo query can proceed.
+                if (!radio->get_m1_received() && radio->get_autoconfig_search_cnt() > 0) {
+                    em_printfout("Radio %s: no M1 after previous wait (controller restart?), proceeding to topo_sync",
+                        util::mac_to_string(radio->get_radio_interface_mac()).c_str());
+                    radio->set_m1_received(true);
+                }
+
+                if (radio->get_m1_received()) {
+                    // M1 was received before (or promoted above) → skip straight to topo_sync.
+                    radio->set_autoconfig_search_cnt(0);
+                    radio->set_state(em_state_ctrl_wsc_m2_sent);
+                    em_bus_event_type_m2_tx_params_t m2_raw;
+                    memcpy(m2_raw.al, al_mac, sizeof(mac_address_t));
+                    memcpy(m2_raw.radio, radio->get_radio_interface_mac(), sizeof(mac_address_t));
+                    em_printfout("Radio %s skipping M1-wait, restarting em_config from topo_sync",
+                        util::mac_to_string(radio->get_radio_interface_mac()).c_str());
+                    get_mgr()->io_process(em_bus_event_type_m2_tx,
+                        reinterpret_cast<unsigned char *>(&m2_raw),
+                        sizeof(em_bus_event_type_m2_tx_params_t));
+                } else {
+                    // First time — M1 not yet received; wait for it, record that we waited.
+                    radio->set_autoconfig_search_cnt(radio->get_autoconfig_search_cnt() + 1);
+                    radio->set_state(em_state_ctrl_wsc_m1_pending);
+                    em_printfout("Radio %s has not received M1 yet, waiting for M1",
+                        util::mac_to_string(radio->get_radio_interface_mac()).c_str());
+                }
+            }
+        }
+    }
+
     sz = static_cast<unsigned int> (create_autoconfig_resp_msg(msg, band, al_mac, ntohs(cmdu->id)));
     if (em_msg_t(em_msg_type_autoconf_resp, em_profile_type_3, msg, sz).validate(errors) == 0) {
         printf("%s:%d: autoconfig rsp validation failed\n", __func__, __LINE__);
@@ -5124,7 +5306,18 @@ int em_configuration_t::handle_autoconfig_search(unsigned char *buff, unsigned i
     printf("%s:%d: autoconfig rsp send success\n", __func__, __LINE__);
 
     if (!get_is_dpp_onboarding()) {
-        set_state(em_state_ctrl_wsc_m1_pending);
+        // Don't regress state if radios are already mid-flow.
+        std::vector<em_t *> check_radios;
+        get_mgr()->get_all_em_for_al_mac(al_mac, check_radios);
+        bool mid_flow = !check_radios.empty() &&
+            std::all_of(check_radios.begin(), check_radios.end(), [](em_t *r) {
+                return r->get_m1_received() &&
+                       r->get_state() > em_state_ctrl_wsc_m2_sent &&
+                       r->get_state() < em_state_ctrl_configured;
+            });
+        if (!mid_flow) {
+            set_state(em_state_ctrl_wsc_m1_pending);
+        }
     }
 
     return 0;
@@ -5189,11 +5382,15 @@ void em_configuration_t::process_msg(unsigned char *data, unsigned int len)
         case em_msg_type_autoconf_wsc:
             if ((get_wsc_msg_type(tlvs, tlvs_len) == em_wsc_msg_type_m2) &&
                     (get_service_type() == em_service_type_agent) && (get_state() == em_state_agent_wsc_m2_pending)) {
-                        printf("%s:%d: received wsc_m2 len:%d\n", __func__, __LINE__, len);
+                        em_printfout("  ****************** received wsc_m2 len:%d", len);
                         handle_autoconfig_wsc_m2(data, len);
             } else if ((get_wsc_msg_type(tlvs, tlvs_len) == em_wsc_msg_type_m1) &&
-                    (get_service_type() == em_service_type_ctrl) && (get_state() == em_state_ctrl_wsc_m1_pending))  {
-                        printf("%s:%d: received wsc_m1 len:%d\n", __func__, __LINE__, len);
+                    (get_service_type() == em_service_type_ctrl) &&
+                    (get_state() == em_state_ctrl_wsc_m1_pending || get_m1_received()))  {
+                        // Accept M1 either when waiting for it (normal first-time flow) or
+                        // when it was previously received (agent restarted and is re-sending M1;
+                        // controller was in skip-path state but must reprocess from M1/M2).
+                        em_printfout("  ****************** received wsc_m1 len:%d", len);
                         handle_autoconfig_wsc_m1(data, len);
             }
 
@@ -5264,7 +5461,7 @@ void em_configuration_t::process_msg(unsigned char *data, unsigned int len)
                 handle_topology_notification(data, len);
             }
             break;
-        
+
         case em_msg_type_ap_mld_config_req:
             if ((get_service_type() == em_service_type_agent)) {
                 handle_ap_mld_config_req(data, len);
@@ -5289,16 +5486,20 @@ void em_configuration_t::process_msg(unsigned char *data, unsigned int len)
             handle_ack_msg(data, len);
             break;
         case em_msg_type_bss_config_req:
+            em_printfout("Received bss config requestttttt, src:" MACSTRFMT, MAC2STR(hdr->src));
+
             if ((get_service_type() == em_service_type_ctrl)) {
                 handle_bss_config_req_msg(data, len, src_al_mac);
             }
             break;
         case em_msg_type_bss_config_rsp:
+            em_printfout("Received bss config response, src:" MACSTRFMT, MAC2STR(hdr->src));
             if ((get_service_type() == em_service_type_agent)){
                 handle_bss_config_rsp_msg(data, len, src_al_mac);
             }
             break;
         case em_msg_type_bss_config_res:
+            em_printfout("Received bss config result, src:" MACSTRFMT, MAC2STR(hdr->src));
             if ((get_service_type() == em_service_type_ctrl)) {
                 handle_bss_config_res_msg(data, len, src_al_mac);
             }
@@ -5511,6 +5712,30 @@ void em_configuration_t::process_ctrl_state()
                 em_radios.clear();
             }
         }
+        break;
+
+        case em_state_ctrl_bss_config_pending:
+            {
+                std::vector<em_t *> em_radios;
+                dm_easy_mesh_t *dm = get_data_model();
+                get_mgr()->get_all_em_for_al_mac(dm->get_agent_al_interface_mac(), em_radios);
+                for (auto &em : em_radios)
+                {
+                    if (em->get_state() != em_state_ctrl_bss_config_pending){
+                        em_printfout("radio %s is not in BSS Config pending state, ignoring",
+                                     util::mac_to_string(em->get_radio_interface_mac()).c_str());
+                        em_radios.clear();
+                        return;
+                    }
+                }
+                if (this == em_radios.front()){
+                    em_printfout("Sending the BSS Config request message to agent al_mac:%s on radio: %s",
+                        util::mac_to_string(dm->get_agent_al_interface_mac()).c_str(),
+                        util::mac_to_string(get_radio_interface_mac()).c_str());
+                    send_bss_config_req_msg(dm->get_agent_al_interface_mac());
+                }
+                em_radios.clear();
+            }
             break;
 
         case em_state_ctrl_ap_mld_config_pending:

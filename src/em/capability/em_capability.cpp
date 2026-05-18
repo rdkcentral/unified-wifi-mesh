@@ -1433,6 +1433,7 @@ void em_capability_t::process_msg(unsigned char *data, unsigned int len)
                 if (get_service_type() == em_service_type_ctrl)
                 {
                     if (handle_ap_cap_report(data, len) == 0){
+                        set_ap_cap_query_tx_count(0);
                         set_state(em_state_ctrl_ap_cap_report_received);
                         std::vector<em_t *> em_radios;
                         dm_easy_mesh_t *dm = get_data_model();
@@ -1493,11 +1494,23 @@ void em_capability_t::process_ctrl_state()
                         return;
                     }
                 }
-                if (this == em_radios.front()){
-                    em_printfout("Sending the AP query message to agent al_mac:%s on radio: %s",
-                        util::mac_to_string(dm->get_agent_al_interface_mac()).c_str(),
-                        util::mac_to_string(get_radio_interface_mac()).c_str());
-                    send_ap_cap_query_msg();
+                if (this == em_radios.front()) {
+                    if (get_ap_cap_query_tx_count() >= EM_MAX_AP_CAP_QUERY_TX_THRESH) {
+                        // Agent never replied to AP cap query — proceed to next step.
+                        em_printfout("AP cap query timed out (retries:%d) for agent al_mac:%s, proceeding",
+                            get_ap_cap_query_tx_count(),
+                            util::mac_to_string(dm->get_agent_al_interface_mac()).c_str());
+                        set_ap_cap_query_tx_count(0);
+                        for (auto &em : em_radios) {
+                            em->set_state(em_state_ctrl_ap_cap_skipped);
+                        }
+                    } else {
+                        em_printfout("Sending the AP query message to agent al_mac:%s on radio: %s",
+                            util::mac_to_string(dm->get_agent_al_interface_mac()).c_str(),
+                            util::mac_to_string(get_radio_interface_mac()).c_str());
+                        send_ap_cap_query_msg();
+                        set_ap_cap_query_tx_count(get_ap_cap_query_tx_count() + 1);
+                    }
                 }
                 em_radios.clear();
             }

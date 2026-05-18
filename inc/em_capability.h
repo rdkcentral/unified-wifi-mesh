@@ -836,6 +836,11 @@ public:
 
     unsigned int m_cap_query_tx_cnt;
 
+	int get_ap_cap_query_tx_count() { return static_cast<int>(m_ap_cap_query_tx_cnt); }
+	void set_ap_cap_query_tx_count(unsigned int cnt) { m_ap_cap_query_tx_cnt = cnt; }
+
+    unsigned int m_ap_cap_query_tx_cnt = 0;
+
     
 	/**!
 	 * @brief Default constructor for the em_capability_t class.

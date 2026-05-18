@@ -475,22 +475,29 @@ int em_policy_cfg_t::send_policy_cfg_request_msg()
     len += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
 
     // Zero or one Default 802.1Q Settings TLV (see section 17.2.49).
+    // Only include when there is actual data to send.
+    // Including an empty TLV causes some agents (e.g. Sercomm) to reject with
+    // Error Response reason code 3 (Default PCP or VLAN ID not provided).
     tlv = reinterpret_cast<em_tlv_t *> (tmp);
-    tlv->type = em_tlv_type_dflt_8021q_settings;
     sz = create_def_8021q_settings_policy_tlv(tlv->value);
-    tlv->len = htons(static_cast<short unsigned int> (sz));
+    if (sz > 0) {
+        tlv->type = em_tlv_type_dflt_8021q_settings;
+        tlv->len = htons(static_cast<short unsigned int> (sz));
 
-    tmp += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
-    len += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+        tmp += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+        len += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+    }
 
     // Zero or one Traffic Separation Policy TLV (see section 17.2.50).
     tlv = reinterpret_cast<em_tlv_t *> (tmp);
-    tlv->type = em_tlv_type_traffic_separation_policy;
     sz = create_traffic_sep_policy_tlv(tlv->value);
-    tlv->len = htons(static_cast<short unsigned int> (sz));
+    if (sz > 0) {
+        tlv->type = em_tlv_type_traffic_separation_policy;
+        tlv->len = htons(static_cast<short unsigned int> (sz));
 
-    tmp += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
-    len += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+        tmp += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+        len += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+    }
 
     // Zero or one Channel Scan Reporting Policy TLV (see section 17.2.37).
     tlv = reinterpret_cast<em_tlv_t *> (tmp);
@@ -557,6 +564,7 @@ int em_policy_cfg_t::send_policy_cfg_request_msg()
 	printf("%s:%d: Policy Cfg Request Msg Send Success\n", __func__, __LINE__);
 
     m_policy_req_msg_id = ntohs(cmdu->id);
+    m_policy_cfg_req_tx_cnt++;
 
     return static_cast<int> (len);
 
@@ -787,6 +795,7 @@ int em_policy_cfg_t::handle_1905_ack(unsigned char *buff, unsigned int len)
     
     if (match_found) {
 	    for (auto &em : em_radios) {
+		    em->set_policy_cfg_req_tx_count(0);
 		    em->set_state(em_state_ctrl_configured);
 	    }
     } else {
@@ -855,17 +864,27 @@ void em_policy_cfg_t::process_ctrl_state()
                 {
                     // Check if current radio's RUID matches the first radio's RUID in the vector
                     if (memcmp(current_ruid, em_radios.front()->get_radio_interface_mac(), sizeof(mac_address_t)) == 0) {
-                         em_printfout("Sending the Policy config request message to agent al_mac:%s on radio: %s",
-                                 util::mac_to_string(dm->get_agent_al_interface_mac()).c_str(),
-                                 util::mac_to_string(get_radio_interface_mac()).c_str());
-                         // Send policy config request and check for errors
-                         int send_result = send_policy_cfg_request_msg();
-                         if (send_result < 0) {
-                             em_printfout("Error: Failed to send policy config request message");
-                             return;
-                         } else {
-                             em_printfout("Policy config request sent successfully, bytes: %d", send_result);
-                         }
+                        if (get_policy_cfg_req_tx_count() >= EM_MAX_POLICY_CFG_REQ_TX_THRESH) {
+                            em_printfout("Policy config request timed out (retries:%d) for agent al_mac:%s, proceeding",
+                                get_policy_cfg_req_tx_count(),
+                                util::mac_to_string(dm->get_agent_al_interface_mac()).c_str());
+                            for (auto &em : em_radios) {
+                                em->set_policy_cfg_req_tx_count(0);
+                                em->set_state(em_state_ctrl_configured);
+                            }
+                        } else {
+                             em_printfout("Sending the Policy config request message to agent al_mac:%s on radio: %s",
+                                     util::mac_to_string(dm->get_agent_al_interface_mac()).c_str(),
+                                     util::mac_to_string(get_radio_interface_mac()).c_str());
+                             // Send policy config request and check for errors
+                             int send_result = send_policy_cfg_request_msg();
+                             if (send_result < 0) {
+                                 em_printfout("Error: Failed to send policy config request message");
+                                 return;
+                             } else {
+                                 em_printfout("Policy config request sent successfully, bytes: %d", send_result);
+                             }
+                        }
                     }
                 } else if (!em_radios.empty() && em_radios.front() != this) {
                     em_printfout("Policy config request message already sent by radio %s, not sending again from radio %s",

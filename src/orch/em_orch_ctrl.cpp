@@ -84,53 +84,51 @@ void em_orch_ctrl_t::orch_transient(em_cmd_t *pcmd, em_t *em)
 
                 // Handle SSID mismatch scenario.
                 if (ssid_mismatch_present) {
-                    // Start timer on first detection
+                    // On first detection of an SSID mismatch, immediately trigger Autoconfig
+                    // Renew so the agent re-runs M1/M2 for the misconfigured band(s).
+                    // Re-sending Topology Queries cannot fix the SSIDs — only a new M2 can.
                     if (!dm->get_ssid_mismatch_check_time()) {
-                        // ssid_mismatch_check_time records the time when the mismatch was first detected
+                        em_printfout("SSID mismatch detected - sending Autoconfig Renew immediately on all radios");
                         dm->set_ssid_mismatch_check_time(stats->time);
-                        em_printfout("SSID mismatch detected, starting %ds timer at time: %ds",EM_SSID_MISMATCH_TTL, stats->time);
-                    }
-
-                    // Transition to misconfigured if mismatch persists
-                    // EM_SSID_MISMATCH_TTL (120) is used as the timeout threshold
-                    if ((stats->time - (dm->get_ssid_mismatch_check_time())) > EM_SSID_MISMATCH_TTL) {
-                        //If 120s have passed since ssid mismatch detected, cancel the command and transition to misconfigured state
-                        em_printfout("%ds since SSID mismatch detected - canceling (SSID mismatch recovery failed)", EM_SSID_MISMATCH_TTL);
                         for (em_t *radio : all_em_radios) {
                             radio->set_ssid_mismatch(false);
                         }
-                        //Reset the mismatch and topo_query_last sent values
                         dm->set_ssid_mismatch_check_time(0);
                         dm->set_last_topo_query_sent_time(0);
                         cancel_command(pcmd->get_type(), all_em_radios);
-
-                        // Notify all radios by sending an Autoconfig Renew on each radio interface
-                        em_printfout("SSID Mismatch recovery failed, sending Autoconfig Renew on all radios and transitioning to misconfigured state");
                         for (em_t *radio : all_em_radios) {
                             em_configuration_t *cfg = static_cast<em_configuration_t *>(radio);
-                            // Move radio to misconfigured before issuing renew to resync config
                             radio->set_state(em_state_ctrl_misconfigured);
                             if (cfg->send_autoconfig_renew_msg() < 0) {
                                 em_printfout("Autoconfig Renew send failed for radio:%s", util::mac_to_string(radio->get_radio_interface_mac()).c_str());
                             }
                         }
-                        return;
-                    }
-
-                    // Send Topology Query every query_interval seconds
-                    //EM_MAX_CMD_GEN_TTL(10s) is used as the query interval
-                    if (!dm->get_last_topo_query_sent_time() ||
-                       (stats->time - (dm->get_last_topo_query_sent_time())) >= EM_MAX_CMD_GEN_TTL) {
-                        // Resend Topology Query every 10s if SSID mismatch is still present
-                        for (em_t *radio : all_em_radios) {
-                            if (radio->get_state() != em_state_ctrl_topo_sync_pending) {
-                                radio->set_state(em_state_ctrl_topo_sync_pending);
+                        // Also send Autoconfig Renew for the other standard bands (2.4GHz,
+                        // 5GHz) in case the agent has radios that never sent M1 (so the
+                        // controller has no em_t for those bands).  Use the first known
+                        // radio as the data-model source; the per-band TLV is overridden.
+                        if (!all_em_radios.empty()) {
+                            em_configuration_t *cfg = static_cast<em_configuration_t *>(all_em_radios[0]);
+                            static const em_freq_band_t extra_bands[] = {
+                                em_freq_band_24, em_freq_band_5, em_freq_band_6
+                            };
+                            for (em_freq_band_t xband : extra_bands) {
+                                // Skip the band that all_em_radios already covered
+                                bool already_sent = false;
+                                for (em_t *radio : all_em_radios) {
+                                    if (static_cast<em_freq_band_t>(radio->get_band()) == xband) {
+                                        already_sent = true;
+                                        break;
+                                    }
+                                }
+                                if (!already_sent) {
+                                    if (cfg->send_autoconfig_renew_msg(xband) < 0) {
+                                        em_printfout("Autoconfig Renew send failed for extra band=%d", static_cast<int>(xband));
+                                    }
+                                }
                             }
                         }
-                        em_printfout("Re-sent Topology Query due to SSID mismatch at time: %ds",stats->time);
-                        static_cast<em_configuration_t*>(all_em_radios.front())->send_topology_query_msg();
-                        // Update last query time
-                        dm->set_last_topo_query_sent_time(stats->time);
+                        return;
                     }
                 }
             } else if (stats->time > (EM_MAX_CMD_GEN_TTL + EM_MAX_CMD_EXT_TTL)) {
@@ -175,7 +173,9 @@ bool em_orch_ctrl_t::is_em_ready_for_orch_fini(em_cmd_t *pcmd, em_t *em)
                 em->set_channel_pref_query_tx_count(0);
 				em->set_channel_sel_req_tx_count(0);
                 return true;
-            } else if (em->get_state() == em_state_ctrl_ap_cap_report_received) {
+            } else if (em->get_state() == em_state_ctrl_bss_config_report_received) {
+                return true;
+            } else if (em->get_state() == em_state_ctrl_ap_cap_report_received || em->get_state() == em_state_ctrl_ap_cap_skipped) {
                 return true;
             } else if (em->get_state() == em_state_ctrl_topo_synchronized) {
                 return true;
@@ -294,8 +294,24 @@ bool em_orch_ctrl_t::is_em_ready_for_orch_exec(em_cmd_t *pcmd, em_t *em)
             if (em->get_state() == em_state_ctrl_unconfigured) {
 				return true;
             } else if (em->get_state() == em_state_ctrl_wsc_m2_sent) {
+                // For the topo_sync step, defer until all sibling radios for this agent have
+                // received M1. This ensures the topo query captures complete BSS topology.
+                // Fall through immediately if the orch op is not topo_sync (e.g. bss_delete).
+                // if (pcmd->get_orch_op() == dm_orch_type_topo_sync) {
+                //     mac_address_t *al_mac = em->get_data_model()->get_agent_al_interface_mac();
+                //     std::vector<em_t *> siblings;
+                //     em->get_mgr()->get_all_em_for_al_mac(al_mac, siblings);
+                //     bool all_m1_received = !siblings.empty() &&
+                //         std::all_of(siblings.begin(), siblings.end(),
+                //             [](em_t *r) { return r->get_m1_received(); });
+                //     if (!all_m1_received) {
+                //         return false; // Defer: wait for sibling radios to send M1
+                //     }
+                // }
                 return true;
-            } else if (em->get_state() == em_state_ctrl_ap_cap_report_received){
+            } else if (em->get_state() == em_state_ctrl_bss_config_report_received) {
+                return true;
+            } else if (em->get_state() == em_state_ctrl_ap_cap_report_received || em->get_state() == em_state_ctrl_ap_cap_skipped){
                 return true;
             } else if (em->get_state() == em_state_ctrl_topo_synchronized) {
                 return true;

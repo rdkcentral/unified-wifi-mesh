@@ -370,6 +370,11 @@ public:
 
 	//stores MultiAP Policy config req msg_id
 	unsigned short m_policy_req_msg_id = 0;
+	//tracks policy config request retry count
+	unsigned int m_policy_cfg_req_tx_cnt = 0;
+
+	int get_policy_cfg_req_tx_count() { return static_cast<int>(m_policy_cfg_req_tx_cnt); }
+	void set_policy_cfg_req_tx_count(unsigned int cnt) { m_policy_cfg_req_tx_cnt = cnt; }
 };
 
 #endif

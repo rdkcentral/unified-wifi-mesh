@@ -72,6 +72,7 @@ class em_t :
 
 	bool m_is_dpp_onboarding = false;
 	bool m_ssid_mismatch = false;
+	bool m_m1_received = false;
 
 	std::map<std::string, peer_1905_security_status> m_1905_layer_peer_security_statuses;
 
@@ -721,6 +722,9 @@ public:
 	bool get_is_dpp_onboarding() override { return m_is_dpp_onboarding; }
 
 	void set_is_dpp_onboarding(bool is_onboarding) override { m_is_dpp_onboarding = is_onboarding; }
+
+	bool get_m1_received() override { return m_m1_received; }
+	void set_m1_received(bool val) override { m_m1_received = val; }
 
 	/**!
 	 *  @brief Retrieves the ssid mismatch bool value.
