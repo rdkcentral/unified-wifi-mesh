@@ -2329,6 +2329,8 @@ em_e4_table_t dm_easy_mesh_t::m_e4_table[] = {
 	{ 137, em_freq_band_6, 320, false, 6, {31, 63, 95, 127, 159, 191} }
 };
 
+const size_t dm_easy_mesh_t::m_e4_table_size = sizeof(dm_easy_mesh_t::m_e4_table) / sizeof(dm_easy_mesh_t::m_e4_table[0]);
+
 int dm_easy_mesh_t::get_beaconchannel_by_bandwidth(int center_channel, int bandwidth)
 {
     switch(bandwidth) {

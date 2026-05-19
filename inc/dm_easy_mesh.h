@@ -102,8 +102,8 @@ public:
 	unsigned int get_ssid_mismatch_check_time() const { return ssid_mismatch_check_time; }
 	void set_last_topo_query_sent_time(unsigned int time) { last_topo_query_sent_time = time; }
 	unsigned int get_last_topo_query_sent_time() const { return last_topo_query_sent_time; }
-
-	static em_e4_table_t m_e4_table[];
+        static em_e4_table_t m_e4_table[];
+        static const size_t m_e4_table_size;
 
        /**!
         * @brief Retrieves the beacon channel based on center channel and bandwidth.
