@@ -142,6 +142,10 @@ int dm_sta_t::decode(const cJSON *obj, void *parent_id)
         snprintf(m_sta_info.cellular_data_pref, sizeof(m_sta_info.cellular_data_pref), "%s", cJSON_GetStringValue(tmp));
     }
 
+    if ((tmp = cJSON_GetObjectItem(obj, "RMEnabledCapabilities")) != NULL) {
+        snprintf(m_sta_info.rm_cap, sizeof(m_sta_info.rm_cap), "%s", cJSON_GetStringValue(tmp));
+    }
+
     return 0;
 
 }

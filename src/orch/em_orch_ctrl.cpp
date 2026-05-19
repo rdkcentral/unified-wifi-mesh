@@ -572,10 +572,13 @@ unsigned int em_orch_ctrl_t::build_candidates(em_cmd_t *pcmd)
                 //em_printfout("BSS for this STA %s is %s", pcmd->m_param.u.args.args[2], pcmd->m_param.u.args.args[1]);
                 for (i = 0; i < dm->m_num_bss; i++) {
                     if ((memcmp(dm->m_bss[i].m_bss_info.bssid.mac, bss_mac, sizeof(mac_address_t)) == 0) &&
+                        (memcmp(dm->m_bss[i].m_bss_info.ruid.mac, em->get_radio_interface_mac(), sizeof(mac_address_t)) == 0) &&
                         (em->is_al_interface_em() == false)) {
                         queue_push(pcmd->m_em_candidates, em);
                         count++;
-                        //em_printfout("Found em this STA, candidate count: %d", count);
+                        em_printfout("Found em[%s] for BSS %s, candidate count: %d",
+                            util::mac_to_string(em->get_radio_interface_mac()).c_str(),
+                            pcmd->m_param.u.args.args[1], count);
                         break;
                     }
                 }

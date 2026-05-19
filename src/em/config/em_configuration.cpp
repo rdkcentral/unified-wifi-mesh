@@ -191,20 +191,19 @@ int em_configuration_t::send_topology_notification_by_client(mac_address_t sta, 
     tmp += (sizeof (em_tlv_t));
     len += static_cast<unsigned int> (sizeof (em_tlv_t));
 
-    printf("%s:%d Create topology notification msg successful, len:%d\n", __func__, __LINE__, len);
+    em_printfout("Create topology notification msg successful, len:%d", len);
 
     if (em_msg_t(em_msg_type_topo_notif, em_profile_type_3, buff, len).validate(errors) == 0) {
-        printf("Topology notification msg validation failed\n");
-
+        em_printfout("Topology notification msg validation failed");
         return -1;
     }
 
     if (send_frame(buff, len)  < 0) {
-        printf("%s:%d: Topology notification send failed, error:%d\n", __func__, __LINE__, errno);
+        em_printfout("Topology notification send failed for sta %s, error:%d", util::mac_to_string(sta).c_str(), errno);
         return -1;
     }
 
-    printf("%s:%d: Topology notification Send Successful\n", __func__, __LINE__);
+    em_printfout("Topology notification Send Successful for sta %s", util::mac_to_string(sta).c_str());
 
     return static_cast<int> (len);
 }
@@ -218,12 +217,14 @@ void em_configuration_t::handle_state_topology_notify()
 
     sta = static_cast<dm_sta_t *>(hash_map_get_first(dm->m_sta_assoc_map));
     while (sta != NULL) {
+        em_printfout("Sending topology notification for associated sta %s", util::mac_to_string(sta->m_sta_info.id).c_str());
         send_topology_notification_by_client(sta->m_sta_info.id, sta->m_sta_info.bssid, true);
         sta = static_cast<dm_sta_t *> (hash_map_get_next(dm->m_sta_assoc_map, sta));
     }
 
     sta = static_cast<dm_sta_t *> (hash_map_get_first(dm->m_sta_dassoc_map));
     while (sta != NULL) {
+        em_printfout("Sending topology notification for disassociated sta %s", util::mac_to_string(sta->m_sta_info.id).c_str());
         send_topology_notification_by_client(sta->m_sta_info.id, sta->m_sta_info.bssid, false);
         sta = static_cast<dm_sta_t *> (hash_map_get_next(dm->m_sta_dassoc_map, sta));
     }
@@ -3155,7 +3156,7 @@ int em_configuration_t::compute_keys(unsigned char *remote_pub, unsigned short p
     return 1;
 }
 
-int em_configuration_t::create_autoconfig_wsc_m2_msg(unsigned char *buff, unsigned short msg_id)
+int em_configuration_t::create_autoconfig_wsc_m2_msg(unsigned char *buff, unsigned short msg_id, unsigned char *peer_al_mac)
 {
     unsigned short  msg_type = em_msg_type_autoconf_wsc;
     int len = 0;
@@ -3172,11 +3173,11 @@ int em_configuration_t::create_autoconfig_wsc_m2_msg(unsigned char *buff, unsign
 
     // first compute keys
     if (compute_keys(get_e_public(), static_cast<short unsigned int> (get_e_public_len()), get_r_private(), static_cast<short unsigned int> (get_r_private_len())) != 1) {
-        printf("%s:%d: Keys computation failed\n", __func__, __LINE__);
+        em_printfout("%s:%d: Keys computation failed\n", __func__, __LINE__);
         return 0;
     }
 
-    memcpy(tmp, const_cast<unsigned char *> (get_peer_mac()), sizeof(mac_address_t));
+    memcpy(tmp, (peer_al_mac != nullptr) ? peer_al_mac : const_cast<unsigned char *>(get_peer_mac()), sizeof(mac_address_t));
     tmp += sizeof(mac_address_t);
     len += static_cast<int> (sizeof(mac_address_t));
     
@@ -3247,13 +3248,13 @@ int em_configuration_t::create_autoconfig_wsc_m2_msg(unsigned char *buff, unsign
     len += static_cast<int> (sizeof(em_tlv_t) + sizeof(em_8021q_settings_t));
 
     // traffic separation policy tlv 17.2.50 
-    tlv = reinterpret_cast<em_tlv_t *> (tmp);
-    tlv->type = em_tlv_type_traffic_separation_policy;
-    sz = static_cast<short unsigned int> (create_traffic_separation_policy(tlv->value));
-    tlv->len = htons(sz);
+    // tlv = reinterpret_cast<em_tlv_t *> (tmp);
+    // tlv->type = em_tlv_type_traffic_separation_policy;
+    // sz = static_cast<short unsigned int> (create_traffic_separation_policy(tlv->value));
+    // tlv->len = htons(sz);
 
-    tmp += (sizeof(em_tlv_t) + sz);
-    len += static_cast<int> (sizeof(em_tlv_t) + sz);
+    // tmp += (sizeof(em_tlv_t) + sz);
+    // len += static_cast<int> (sizeof(em_tlv_t) + sz);
 
     // ap mld tlv 17.2.96
     tlv =reinterpret_cast<em_tlv_t *> (tmp);
@@ -3735,8 +3736,9 @@ int em_configuration_t::handle_autoconfig_wsc_m2(unsigned char *buff, unsigned i
     dm_network_t network;
     em_raw_hdr_t *hdr = reinterpret_cast<em_raw_hdr_t *> (buff);
 
+    em_printfout("%s:%d: handle_autoconfig_wsc_m2 enter len:%d peer_profile:%d", __func__, __LINE__, len, m_peer_profile);
     if (em_msg_t(em_msg_type_autoconf_wsc, m_peer_profile, buff, len).validate(errors) == 0) {
-        printf("%s:%d: received wsc m2 msg failed validation\n", __func__, __LINE__);
+        em_printfout("%s:%d: received wsc m2 msg failed validation", __func__, __LINE__);
 
         return -1;
     }
@@ -4950,7 +4952,9 @@ int em_configuration_t::handle_autoconfig_wsc_m1(unsigned char *buff, unsigned i
     em_bus_event_type_m2_tx_params_t   raw;
 
     dm_easy_mesh_t::macbytes_to_string(get_peer_mac(), mac_str);
-    printf("%s:%d: Device AL MAC: %s\n", __func__, __LINE__, mac_str);
+    em_raw_hdr_t *m1_hdr = reinterpret_cast<em_raw_hdr_t *>(buff);
+    printf("%s:%d: Device AL MAC: %s, peer src: %02x:%02x:%02x:%02x:%02x:%02x\n", __func__, __LINE__, mac_str,
+        m1_hdr->src[0], m1_hdr->src[1], m1_hdr->src[2], m1_hdr->src[3], m1_hdr->src[4], m1_hdr->src[5]);
 
     if (em_msg_t(em_msg_type_autoconf_wsc, em_profile_type_3, buff, len).validate(errors) == 0) {
         printf("%s:%d: received autoconfig wsc m1 msg failed validation\n", __func__, __LINE__);
@@ -4976,20 +4980,21 @@ int em_configuration_t::handle_autoconfig_wsc_m1(unsigned char *buff, unsigned i
         tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
     }
 
-    int ret = create_autoconfig_wsc_m2_msg(msg, ntohs(cmdu->id));
+    int ret = create_autoconfig_wsc_m2_msg(msg, ntohs(cmdu->id), m1_hdr->src);
     if (ret <= 0) {
+        printf("%s:%d: create_autoconfig_wsc_m2_msg failed, ret=%d\n", __func__, __LINE__, ret);
         return -1;
     }
     sz = static_cast<unsigned int> (ret);
 
     if (em_msg_t(em_msg_type_autoconf_wsc, em_profile_type_3, msg, sz).validate(errors) == 0) {
-        printf("Autoconfig wsc m2 msg failed validation in tnx end\n");
+        em_printfout("Autoconfig wsc m2 msg failed validation in tnx end\n");
 
         return -1;
     }
 
     if (send_frame(msg, sz)  < 0) {
-        printf("%s:%d: autoconfig wsc m2 send failed, error:%d\n", __func__, __LINE__, errno);
+        em_printfout("%s:%d: autoconfig wsc m2 send failed, error:%d\n", __func__, __LINE__, errno);
         return -1;
     }
 
@@ -4999,7 +5004,7 @@ int em_configuration_t::handle_autoconfig_wsc_m1(unsigned char *buff, unsigned i
     }
 
 	set_state(em_state_ctrl_wsc_m2_sent);
-	printf("%s:%d: autoconfig wsc m2 send, len:%d\n", __func__, __LINE__, sz);
+	em_printfout("%s:%d: autoconfig wsc m2 send, len:%d\n", __func__, __LINE__, sz);
     memcpy(raw.al, const_cast<unsigned char *> (get_peer_mac()), sizeof(mac_address_t));
     memcpy(raw.radio, get_radio_interface_mac(), sizeof(mac_address_t));
 
@@ -5162,7 +5167,7 @@ void em_configuration_t::process_msg(unsigned char *data, unsigned int len)
     em_cmdu_t *cmdu = reinterpret_cast<em_cmdu_t *>(data + sizeof(em_raw_hdr_t));
             
     tlvs = data + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t);
-    tlvs_len = len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) - sizeof(em_cmdu_t));
+    tlvs_len = len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
 
     em_raw_hdr_t *hdr = reinterpret_cast<em_raw_hdr_t *>(data);
     uint8_t *src_al_mac = hdr->src;
@@ -5173,7 +5178,7 @@ void em_configuration_t::process_msg(unsigned char *data, unsigned int len)
                 handle_autoconfig_search(data, len);
 
             } else if (get_service_type() == em_service_type_agent) {
-                printf("%s:%d: received em_msg_type_autoconf_search message in agent ... dropping\n", __func__, __LINE__);
+                em_printfout("%s:%d: received em_msg_type_autoconf_search message in agent ... dropping\n", __func__, __LINE__);
             }
 
             break;
@@ -5187,14 +5192,21 @@ void em_configuration_t::process_msg(unsigned char *data, unsigned int len)
             break;
 
         case em_msg_type_autoconf_wsc:
+            em_printfout("%s:%d: autoconf_wsc received: wsc_type=%d svc=%d state=%d\n", __func__, __LINE__,
+                get_wsc_msg_type(tlvs, tlvs_len), get_service_type(), get_state());
             if ((get_wsc_msg_type(tlvs, tlvs_len) == em_wsc_msg_type_m2) &&
                     (get_service_type() == em_service_type_agent) && (get_state() == em_state_agent_wsc_m2_pending)) {
-                        printf("%s:%d: received wsc_m2 len:%d\n", __func__, __LINE__, len);
+                        em_printfout("%s:%d: received wsc_m2 len:%d\n", __func__, __LINE__, len);
                         handle_autoconfig_wsc_m2(data, len);
             } else if ((get_wsc_msg_type(tlvs, tlvs_len) == em_wsc_msg_type_m1) &&
                     (get_service_type() == em_service_type_ctrl) && (get_state() == em_state_ctrl_wsc_m1_pending))  {
                         printf("%s:%d: received wsc_m1 len:%d\n", __func__, __LINE__, len);
                         handle_autoconfig_wsc_m1(data, len);
+            } else {
+                em_printfout("%s:%d: autoconf_wsc DROPPED: wsc_type=%d svc_ctrl=%d state_ok=%d\n", __func__, __LINE__,
+                    get_wsc_msg_type(tlvs, tlvs_len),
+                    (get_service_type() == em_service_type_ctrl),
+                    (get_state() == em_state_ctrl_wsc_m1_pending));
             }
 
             break;
@@ -5489,8 +5501,8 @@ void em_configuration_t::process_ctrl_state()
             {
                 for (auto &em : em_radios) {
                     if (em->get_state() != em_state_ctrl_topo_sync_pending) {
-                        em_printfout("radio %s is in state:%d, not in topo sync pending state, ignoring",
-                            util::mac_to_string(em->get_radio_interface_mac()).c_str(), em->get_state());
+                        em_printfout("radio %s is in state:%s, not in topo sync pending state, ignoring",
+                            util::mac_to_string(em->get_radio_interface_mac()).c_str(), em_t::state_2_str(em->get_state()));
                         em_radios.clear();
                         return;
                     }
@@ -5522,6 +5534,15 @@ void em_configuration_t::process_ctrl_state()
                 em_printfout("Topology has changed for device: %s", util::mac_to_string(dm->get_agent_al_interface_mac()).c_str());
                 dm->set_topo_state(false);
                 get_mgr()->publish_network_topology();
+            }
+            if (get_current_cmd() != NULL && get_current_cmd()->m_type == em_cmd_type_sta_assoc) {
+                em_cmd_params_t *evt_param = &get_current_cmd()->m_param;
+                mac_address_t sta_mac, bssid;
+                dm_easy_mesh_t::string_to_macbytes(evt_param->u.args.args[2], sta_mac);
+                dm_easy_mesh_t::string_to_macbytes(evt_param->u.args.args[1], bssid);
+                em_printfout("topo publish: sending beacon query for sta:%s bssid:%s",
+                    evt_param->u.args.args[2], evt_param->u.args.args[1]);
+                static_cast<em_t*>(this)->send_beacon_metrics_query(sta_mac, bssid);
             }
             set_state(em_state_ctrl_configured);
             break;

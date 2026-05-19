@@ -445,7 +445,7 @@ int dm_easy_mesh_t::encode_config_reset(em_subdoc_info_t *subdoc, const char *ke
 	formatted_json = cJSON_Print(parent_obj);
 
     //printf("%s:%d: %s\n", __func__, __LINE__, formatted_json);
-    snprintf(subdoc->buff, EM_IO_BUFF_SZ, "%s", formatted_json);
+    snprintf(subdoc->buff, EM_MAX_EVENT_DATA_LEN, "%s", formatted_json);
     cJSON_free(formatted_json);
     cJSON_Delete(parent_obj);
 
@@ -2474,6 +2474,30 @@ std::vector<int>  dm_easy_mesh_t::get_channel_list_by_op_class(int op_class)
         }
     }
     return channels;
+}
+
+int dm_easy_mesh_t::get_primary_channel_op_class(int op_class)
+{
+    size_t n = sizeof(m_e4_table) / sizeof(m_e4_table[0]);
+    // Find this op_class in the table
+    for (size_t i = 0; i < n; ++i) {
+        if (m_e4_table[i].op_class != op_class) continue;
+        // Already a 20 MHz primary-channel op_class?
+        if (m_e4_table[i].has_beaconchannel && m_e4_table[i].channel_spacing == 20) {
+            return op_class;
+        }
+        // Find first 20 MHz primary-channel op_class for the same band
+        em_freq_band_t band = m_e4_table[i].band;
+        for (size_t j = 0; j < n; ++j) {
+            if (m_e4_table[j].band == band &&
+                m_e4_table[j].has_beaconchannel &&
+                m_e4_table[j].channel_spacing == 20) {
+                return m_e4_table[j].op_class;
+            }
+        }
+        break;
+    }
+    return op_class; // not found – return as-is
 }
 
 em_bss_info_t *dm_easy_mesh_t::get_bss_info_with_mac(mac_address_t mac)

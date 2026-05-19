@@ -30,6 +30,7 @@ extern "C"
 #endif
 
 #include "wifi_webconfig.h"
+#include <time.h>
 #include <openssl/evp.h>
 #include <uuid/uuid.h>
 #include <sys/socket.h>
@@ -992,7 +993,7 @@ typedef struct {
 typedef struct {
     unsigned char ap_channel_rprt_len;
     unsigned char ap_channel_op_class;
-    unsigned char ap_channel_list[6];
+    unsigned char ap_channel_list[EM_MAX_CHANNELS_IN_LIST]; /* up to EM_MAX_CHANNELS_IN_LIST primary channels per report entry */
 }__attribute__((__packed__)) em_beacon_ap_channel_rprt_t;
 
 typedef struct {
@@ -1009,10 +1010,13 @@ typedef struct {
     unsigned char ssid_len;
     ssid_t ssid;
     unsigned char num_ap_channel_rprt;
-    em_beacon_ap_channel_rprt_t ap_channel_rprt[6];
-    unsigned char num_element_id;
+    // up to EM_MAX_NEIGHBORS (16) AP Channel Report entries in a Beacon Metrics Query
+    em_beacon_ap_channel_rprt_t ap_channel_rprt[EM_MAX_NEIGHBORS];
+    // unsigned char num_element_id;
     em_beacon_element_list_t element_list;
 }__attribute__((__packed__)) em_beacon_metrics_query_t;
+
+// typedef em_beacon_metrics_query_t em_beacon_query_params_t;
 
 typedef struct {
     unsigned char op_class;
@@ -2437,6 +2441,7 @@ typedef struct {
     unsigned char	frame_body[EM_MAX_FRAME_BODY_LEN];
     unsigned int    num_vendor_infos;
     bool            multi_band_cap;
+    time_t          beacon_query_sent_time; /* 0 = none in flight; epoch of last query sent (self-heals after timeout) */
     unsigned int    num_beacon_meas_report;
     unsigned int    beacon_report_len;
     unsigned char   beacon_report_elem[EM_MAX_BEACON_MEASUREMENT_LEN];
@@ -2883,6 +2888,7 @@ typedef enum {
 	em_bus_event_type_channel_scan_params,
     em_bus_event_type_get_mld_config,
     em_bus_event_type_mld_reconfig,
+    em_bus_event_type_beacon_query,
     em_bus_event_type_beacon_report,
     em_bus_event_type_recv_wfa_action_frame,
     em_bus_event_type_recv_gas_frame,

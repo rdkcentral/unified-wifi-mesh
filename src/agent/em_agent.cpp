@@ -785,6 +785,83 @@ void em_agent_t::handle_set_policy(em_bus_event_t *evt)
         printf("set policy failed\n");
     }
 }
+void em_agent_t::send_beacon_query(em_bus_event_t *evt)
+{
+    raw_data_t l_bus_data;
+    beacon_query_params_t beacon_query = {0};
+    wifi_BeaconRequest_t *beacon_req = &beacon_query.data;
+    em_beacon_metrics_query_t *query_params = reinterpret_cast<em_beacon_metrics_query_t *>(evt->u.raw_buff);
+
+    if ((evt->data_len >= sizeof(em_beacon_metrics_query_t)) &&
+        (memcmp(query_params->sta_mac_addr, ZERO_MAC_ADDR, sizeof(mac_address_t)) == 0)) {
+        em_beacon_metrics_query_t *subdoc_query = reinterpret_cast<em_beacon_metrics_query_t *>(evt->u.subdoc.buff);
+
+        if (memcmp(subdoc_query->sta_mac_addr, ZERO_MAC_ADDR, sizeof(mac_address_t)) != 0) {
+            em_printfout("Beacon Query payload found in subdoc buffer, using fallback decode path");
+            query_params = subdoc_query;
+        }
+    }
+
+    em_printfout("Beacon Query forwarding to OW for sta: %s", util::mac_to_string(query_params->sta_mac_addr).c_str());
+    beacon_req->opClass = query_params->op_class;
+    beacon_req->channel = query_params->channel_num;
+    beacon_req->mode = 1; // Active: STA actively probes and reports neighboring BSSes
+    memcpy(beacon_req->bssid, query_params->bssid, sizeof(mac_address_t));
+    beacon_req->ssidPresent = (query_params->ssid_len > 0);
+    if (beacon_req->ssidPresent) {
+        size_t ssid_copy_len = query_params->ssid_len;
+        if (ssid_copy_len >= sizeof(beacon_req->ssid)) {
+            ssid_copy_len = sizeof(beacon_req->ssid) - 1;
+        }
+        memcpy(beacon_req->ssid, query_params->ssid, ssid_copy_len);
+        beacon_req->ssid[ssid_copy_len] = '\0';
+    }
+    em_printfout("SSID Name: %s[%s]", beacon_req->ssid, util::mac_to_string(beacon_req->bssid).c_str());
+    beacon_req->reportingDetail = query_params->rprt_detail;
+    {
+        int total_ch = 0;
+        const int max_hal_ch = MAX_CHANNELS_REPORT; // channels[] size in wifi_ChannelReport_t
+        for (int i = 0; i < query_params->num_ap_channel_rprt && total_ch < max_hal_ch; i++) {
+            // All entries share the same op_class (single-band query); use the first.
+            if (i == 0) {
+                beacon_req->channelReport.opClass = query_params->ap_channel_rprt[i].ap_channel_op_class;
+            }
+            int num_ch = query_params->ap_channel_rprt[i].ap_channel_rprt_len - 1;
+            for (int j = 0; j < num_ch && total_ch < max_hal_ch; j++, total_ch++) {
+                em_printfout("Ap Channel Report[%d] - OpClass: %d Channel: %d", i,
+                    beacon_req->channelReport.opClass,
+                    query_params->ap_channel_rprt[i].ap_channel_list[j]);
+                beacon_req->channelReport.channels[total_ch] = query_params->ap_channel_rprt[i].ap_channel_list[j];
+            }
+        }
+        em_printfout("Total channels accumulated into HAL channelReport: %d", total_ch);
+    }
+    beacon_req->channelReportPresent = (query_params->num_ap_channel_rprt > 0);
+    for (int i = 0; i < query_params->element_list.num_element_id; i++) {
+        beacon_req->requestedElementIDS.ids[i] = query_params->element_list.element_list[i];
+        em_printfout("Requested Element ID: %d", beacon_req->requestedElementIDS.ids[i]);
+    }
+
+    memcpy(beacon_query.sta_mac, query_params->sta_mac_addr, sizeof(mac_address_t));
+
+    l_bus_data.data_type = bus_data_type_bytes;
+    l_bus_data.raw_data.bytes = (void *)&beacon_query;
+    l_bus_data.raw_data_len = sizeof(beacon_query_params_t);
+
+    wifi_bus_desc_t *desc;
+
+    if((desc = get_bus_descriptor()) == NULL) {
+       printf("descriptor is null");
+       return;
+    }
+
+    bus_error_t rc;
+    if ((rc = desc->bus_set_fn(&m_bus_hdl, "Device.WiFi.EM.BeaconQuery", &l_bus_data)) != 0) {
+        em_printfout("Failed to send Beacon Query to bus rc=%d len=%u", rc, l_bus_data.raw_data_len);
+        return;
+    }
+    em_printfout("Successfully sent Beacon Query to bus");
+}
 
 void em_agent_t::handle_beacon_report(em_bus_event_t *evt)
 {
@@ -792,11 +869,11 @@ void em_agent_t::handle_beacon_report(em_bus_event_t *evt)
     unsigned int num = 0;
 
     if (m_orch->is_cmd_type_in_progress(evt) == true) {
-        printf("analyze_beacon_report in progress\n");
+        em_printfout("analyze_beacon_report in progress");
     } else if ((num = m_data_model.analyze_beacon_report(evt, pcmd)) == 0) {
-        printf("analyze_beacon_report failed\n");
+        em_printfout("analyze_beacon_report failed");
     } else if (m_orch->submit_commands(pcmd, num) > 0) {
-        printf("submitted beacon report cmd for orch\n");
+        em_printfout("submitted beacon report cmd for orchestration");
     }
 }
 
@@ -939,6 +1016,10 @@ void em_agent_t::handle_bus_event(em_bus_event_t *evt)
 
         case em_bus_event_type_set_policy:
             handle_set_policy(evt);
+            break;
+
+        case em_bus_event_type_beacon_query:
+            send_beacon_query(evt);
             break;
 
         case em_bus_event_type_beacon_report:
@@ -1297,7 +1378,7 @@ int em_agent_t::report_cb(char *event_name, bus_data_prop_t *data, void *userDat
     if (strncmp(event_name, "Device.WiFi.EM.APMetricsReport", sizeof("Device.WiFi.EM.APMetricsReport"))==0) {
         g_agent.io_process(em_bus_event_type_ap_metrics_report, (unsigned char *)data->value.raw_data.bytes, data->value.raw_data_len);
     } else if (strncmp(event_name, WIFI_QUALITY_LINKREPORT, sizeof(WIFI_QUALITY_LINKREPORT))==0) {
-        em_printfout("Received Frame data for event [%s] and data :\n%s", event_name, data->value.raw_data.bytes);
+        //em_printfout("Received Frame data for event [%s] and data :\n%s", event_name, data->raw_data.bytes);
         cJSON *json = cJSON_Parse((const char *)data->value.raw_data.bytes);
         if (json != NULL) {
             cJSON *link_report_arr;
@@ -1310,11 +1391,11 @@ int em_agent_t::report_cb(char *event_name, bus_data_prop_t *data, void *userDat
                 }
                 if (cJSON_IsArray(link_report_arr) && cJSON_GetArraySize(link_report_arr) == 0) {
                     em_printfout("LinkReport is NULL");
-                    return -1;
+                    //return -1;
                 }
             }
         }
-        g_agent.io_process(em_bus_event_type_link_quality_report, (unsigned char *)data->value.raw_data.bytes, data->value.raw_data_len);
+       // g_agent.io_process(em_bus_event_type_link_quality_report, (unsigned char *)data->value.raw_data.bytes, data->value.raw_data_len);
     }
 
     return 0;
@@ -1754,10 +1835,36 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
 		case em_msg_type_channel_scan_rprt:
         case em_msg_type_beacon_metrics_rsp:
         case em_msg_type_ap_mld_config_resp:
-        case em_msg_type_beacon_metrics_query:
         case em_msg_type_ap_metrics_rsp:
             break;
 
+        case em_msg_type_beacon_metrics_query:
+            em_printfout(" Rcvd Beacon Metrics Query");
+            {
+                em_tlv_t *bmq_tlv = reinterpret_cast<em_tlv_t *>(data + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+                em_beacon_metrics_query_t *bmq = reinterpret_cast<em_beacon_metrics_query_t *>(bmq_tlv->value);
+                memcpy(client_mac, bmq->sta_mac_addr, sizeof(mac_address_t));
+                em_printfout("Beacon Metrics Query for STA: %s", util::mac_to_string(client_mac).c_str());
+
+                em = (em_t *)hash_map_get_first(m_em_map);
+                while (em != NULL) {
+                    if (!em->is_al_interface_em()) {
+                        dm = em->get_data_model();
+                        if (dm->get_first_sta(client_mac) != NULL) {
+                            em_printfout("Found em with STA %s associated", util::mac_to_string(client_mac).c_str());
+                            break;
+                        }
+                    }
+                    em = (em_t *)hash_map_get_next(m_em_map, em);
+                }
+            }
+            // If no em has the STA, fall back to al_em so handle_beacon_metrics_query
+            // can send a 1905 ACK with Error Code TLV (Reason 0x02) per spec 10.3.3.
+            if (em == NULL) {
+                em_printfout("STA not found for Beacon Metrics Query, falling back to al_em for error ACK");
+                em = al_em;
+            }
+            break;
         case em_msg_type_proxied_encap_dpp:
         case em_msg_type_direct_encap_dpp:
         case em_msg_type_chirp_notif:

@@ -928,7 +928,10 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
                 dm_easy_mesh_t::macbytes_to_string(bssid, mac_str1);
                 mac_addr_str_t mac;
                 dm_easy_mesh_t::macbytes_to_string(em->get_radio_interface_mac(), mac);
-                //printf("%s:%d: Em radio id: %s\n", __func__, __LINE__, mac);
+                // printf("%s:%d: Em radio id: %s\n", __func__, __LINE__, mac);
+                if (htons(cmdu->type) == em_msg_type_client_cap_rprt) {
+                    em_printfout(" ------------>>>> cap report rcvd ");
+                }
                 //printf("%s:%d: Found em for msg type: %d, key for bss[%s]: %s\n", __func__, __LINE__, htons(cmdu->type), mac_str1, key);
             }
 

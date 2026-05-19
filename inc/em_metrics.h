@@ -408,22 +408,27 @@ class em_metrics_t {
 	 */
 	short create_beacon_metrics_query_tlv(unsigned char *buff, mac_address_t sta_mac, bssid_t bssid);
     
-	/**!
-	 * @brief Sends a beacon metrics query to a specified station.
-	 *
-	 * This function initiates a query to gather beacon metrics from a station identified by its MAC address.
-	 *
-	 * @param[in] sta_mac The MAC address of the station to which the beacon metrics query is sent.
-	 * @param[in] bssid The BSSID of the network to which the station is connected.
-	 *
-	 * @returns A short integer indicating the success or failure of the operation.
-	 * @retval 0 on success.
-	 * @retval -1 on failure.
-	 *
-	 * @note Ensure that the station is within range and the MAC address is correct before sending the query.
-	 */
-	short send_beacon_metrics_query(mac_address_t sta_mac, bssid_t bssid);
-    
+        /**!
+         * @brief Sends a 1905 ACK for a received Beacon Metrics Response.
+         * @param[in] msg_id The message ID from the CMDU being acknowledged.
+         */
+        int send_beacon_metrics_ack(unsigned short msg_id);
+
+        /**!
+         * @brief Sends a 1905 ACK to the controller after receiving a Beacon Metrics Query.
+         *        Includes an Error Code TLV (Reason 0x02) if the STA is not associated.
+         * @param[in] sta_mac STA MAC address from the query.
+         * @param[in] msg_id  Message ID from the CMDU being acknowledged.
+         * @param[in] reason  0 = success; 0x02 = STA not associated with any BSS.
+         */
+        int send_beacon_metrics_query_ack(mac_address_t sta_mac, unsigned short msg_id, unsigned char reason);
+
+        /**!
+         * @brief Returns true if the STA's RM Enabled Capabilities indicate support
+         *        for at least one 802.11k beacon measurement mode (Passive, Active, or Table).
+         * @param[in] rm_cap  Compact hex string as stored in em_sta_info_t::rm_cap.
+         */
+        static bool sta_supports_beacon_measurement(const char *rm_cap);
 	/**!
 	 * @brief Sends a beacon metrics response.
 	 *
@@ -546,6 +551,8 @@ class em_metrics_t {
 	short create_link_stats_alarm_tlv(unsigned char *buff);
 
 public:
+
+	short send_beacon_metrics_query(mac_address_t sta_mac, bssid_t bssid);
 
 	/**!
 	 * @brief Retrieves the manager instance.
