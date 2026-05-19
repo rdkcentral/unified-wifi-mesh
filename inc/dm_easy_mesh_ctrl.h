@@ -85,6 +85,7 @@ public:
     static bus_error_t curops_tget_params(dm_easy_mesh_t *dm, const char *root, em_radio_info_t *ri, bus_data_prop_t **property);
 
     void fill_comma_sep(em_short_string_t str[], size_t max, char *buf);
+    dm_bss_t *get_dm_bss(dm_easy_mesh_t *dm, em_radio_info_t *ri, char *instance, bool is_num);
     bus_error_t bss_get(char* event_name, raw_data_t* p_data);
     static bus_error_t bss_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
     bus_error_t bss_tget(char* event_name, raw_data_t* p_data);
@@ -119,6 +120,7 @@ public:
     static bus_error_t curops_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
 
     dm_sta_t* get_dm_sta(dm_easy_mesh_t *dm, em_bss_info_t *bi, int instance);
+    dm_sta_t *get_dm_sta(dm_easy_mesh_t *dm, em_bss_info_t *bi, char *instance, bool is_num);
     void fill_haul_type(em_haul_type_t hauls[], size_t max, char *buf);
     bus_error_t sta_get(char* event_name, raw_data_t* p_data);
     bus_error_t sta_tget(char *event_name, raw_data_t *p_data);

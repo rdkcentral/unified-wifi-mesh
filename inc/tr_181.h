@@ -89,6 +89,9 @@ static const yang_to_tr181_map g_yang_map[] = {
 #define TR181_BAND_MAX_LEN         16
 #define TR181_ADDREMOVE_MAX_LEN    16
 #define TR181_HAULTYPE_MAX_LEN     32
+#define TR181_CHLIST_MAX_LEN       128
+#define TR181_BSSID_MAX_LEN        32
+#define TR181_REQMODE_MAX_LEN      24
 
 #define MAX_INSTANCE_LEN        32
 #define MAX_CAPS_STR_LEN        32
@@ -185,6 +188,7 @@ static const yang_to_tr181_map g_yang_map[] = {
 #define DE_DEVICE_MAPDEV        DE_NETWORK_DEVICE       "MultiAPDevice."
 /* Device.WiFi.DataElements.Network.Device.MultiAPDevice.Backhaul */
 #define DE_MAPDEV_BACKHAUL      DE_DEVICE_MAPDEV        "Backhaul."
+#define DE_MAPDEVBH_STEERWIFIBH DE_MAPDEV_BACKHAUL      "SteerWiFiBackhaul()"
 /* Device.WiFi.DataElements.Network.Device.MultiAPDevice.Backhaul.Stats */
 #define DE_MAPDEVBH_STATS       DE_MAPDEV_BACKHAUL      "Stats."
 #define DE_MDBHSTATS_BYTESSNT   DE_MAPDEVBH_STATS       "BytesSent"
@@ -211,6 +215,7 @@ static const yang_to_tr181_map g_yang_map[] = {
 #define DE_RADIO_CURROPNOE      DE_DEVICE_RADIO         "CurrentOperatingClassProfileNumberOfEntries"
 #define DE_RADIO_BSSNOE         DE_DEVICE_RADIO         "BSSNumberOfEntries"
 #define DE_RADIO_NOUNASSCSTA    DE_DEVICE_RADIO         "UnassociatedSTANumberOfEntries"
+#define DE_RADIO_CHSCANREQ      DE_DEVICE_RADIO         "ChannelScanRequest()"
 /* Device.WiFi.DataElements.Network.Device.Radio.BackhaulSta */
 #define DE_RADIO_BHSTA          DE_DEVICE_RADIO         "BackhaulSta."
 #define DE_BHSTA_MACADDR        DE_RADIO_BHSTA          "MACAddress"
@@ -275,20 +280,6 @@ static const yang_to_tr181_map g_yang_map[] = {
 #define DE_WF6BSTA_TWT_RSP      DE_CAPS_WF6BSTA         "TWTResponder"
 #define DE_WF6BSTA_SPAT_REUSE   DE_CAPS_WF6BSTA         "SpatialReuse"
 #define DE_WF6BSTA_ANT_CH_USE   DE_CAPS_WF6BSTA         "AnticipatedChannelUsage"
-/* Device.WiFi.DataElements.Network.Device.Radio.Capabilities.CapableOperatingClassProfile */
-#define DE_CAPS_CAPOP           DE_RADIO_CAPS           "CapableOperatingClassProfile.{i}."
-#define DE_CAPOP_TABLE          DE_RADIO_CAPS           "CapableOperatingClassProfile.{i}"
-#define DE_CAPOP_CLASS          DE_CAPS_CAPOP           "Class"
-#define DE_CAPOP_MAXTXPOWER     DE_CAPS_CAPOP           "MaxTxPower"
-#define DE_CAPOP_NONOPERABLE    DE_CAPS_CAPOP           "NonOperable"
-#define DE_CAPOP_NONOPCNT       DE_CAPS_CAPOP           "NumberOfNonOperChan"
-/* Device.WiFi.DataElements.Network.Device.Radio.CurrentOperatingClassProfile */
-#define DE_RADIO_CUROP          DE_DEVICE_RADIO         "CurrentOperatingClassProfile.{i}."
-#define DE_CUROP_TABLE          DE_DEVICE_RADIO         "CurrentOperatingClassProfile.{i}"
-#define DE_CUROP_TIMESTAMP      DE_RADIO_CUROP          "TimeStamp"
-#define DE_CUROP_CLASS          DE_RADIO_CUROP          "Class"
-#define DE_CUROP_CHANNEL        DE_RADIO_CUROP          "Channel"
-#define DE_CUROP_TXPOWER        DE_RADIO_CUROP          "TxPower"
 /* Device.WiFi.DataElements.Network.Device.Radio.Capabilities.WiFi7APRole */
 #define DE_CAPS_WF7AP           DE_RADIO_CAPS           "WiFi7APRole."
 #define DE_WF7AP_EMLMR          DE_CAPS_WF7AP           "EMLMRSupport"
@@ -307,6 +298,24 @@ static const yang_to_tr181_map g_yang_map[] = {
 #define DE_CAPS_SCANCAP         DE_RADIO_CAPS           "ScanCapability."
 #define DE_SCANCAP_TIMESTAMP    DE_CAPS_SCANCAP         "TimeStamp"
 #define DE_SCANCAP_OPCLSCANSNOE DE_CAPS_SCANCAP         "OpClassChannelsNumberOfEntries"
+/* Device.WiFi.DataElements.Network.Device.Radio.Capabilities.CapableOperatingClassProfile */
+#define DE_CAPS_CAPOP           DE_RADIO_CAPS           "CapableOperatingClassProfile.{i}."
+#define DE_CAPOP_TABLE          DE_RADIO_CAPS           "CapableOperatingClassProfile.{i}"
+#define DE_CAPOP_CLASS          DE_CAPS_CAPOP           "Class"
+#define DE_CAPOP_MAXTXPOWER     DE_CAPS_CAPOP           "MaxTxPower"
+#define DE_CAPOP_NONOPERABLE    DE_CAPS_CAPOP           "NonOperable"
+#define DE_CAPOP_NONOPCNT       DE_CAPS_CAPOP           "NumberOfNonOperChan"
+/* Device.WiFi.DataElements.Network.Device.Radio.CurrentOperatingClassProfile */
+#define DE_RADIO_CUROP          DE_DEVICE_RADIO         "CurrentOperatingClassProfile.{i}."
+#define DE_CUROP_TABLE          DE_DEVICE_RADIO         "CurrentOperatingClassProfile.{i}"
+#define DE_CUROP_TIMESTAMP      DE_RADIO_CUROP          "TimeStamp"
+#define DE_CUROP_CLASS          DE_RADIO_CUROP          "Class"
+#define DE_CUROP_CHANNEL        DE_RADIO_CUROP          "Channel"
+#define DE_CUROP_TXPOWER        DE_RADIO_CUROP          "TxPower"
+/* Device.WiFi.DataElements.Network.Device.Radio.ScanResult */
+#define DE_RADIO_SCANRES        DE_DEVICE_RADIO         "ScanResult.{i}."
+#define DE_SCANRES_TABLE        DE_DEVICE_RADIO         "ScanResult.{i}"
+#define DE_SCANRES_TIMESTAMP    DE_RADIO_SCANRES        "TimeStamp"
 /* Device.WiFi.DataElements.Network.Device.Radio.BSS */
 #define DE_RADIO_BSS            DE_DEVICE_RADIO         "BSS.{i}."
 #define DE_BSS_TABLE            DE_DEVICE_RADIO         "BSS.{i}"
@@ -371,10 +380,14 @@ static const yang_to_tr181_map g_yang_map[] = {
 #define DE_STA_PAIRWSAKM        DE_BSS_STA              "PairwiseAKM"
 #define DE_STA_PAIRWSCIPHER     DE_BSS_STA              "PairwiseCipher"
 #define DE_STA_RSNCAPS          DE_BSS_STA              "RSNCapabilities"
+#define DE_STA_CLIENTSTEER      DE_BSS_STA              "ClientSteer()"
 /* Device.WiFi.DataElements.Network.Device.Radio.BSS.STA.WiFi6Capabilities */
 #define DE_STA_WIFI6CAPS        DE_BSS_STA              "WiFi6Capabilities."
 #define DE_STAWF6CAPS_HE160     DE_STA_WIFI6CAPS        "HE160"
 #define DE_STAWF6CAPS_MCSNSS    DE_STA_WIFI6CAPS        "MCSNSS"
+/* Device.WiFi.DataElements.Network.Device.Radio.BSS.STA.MultiAPSTA */
+#define DE_STA_MULTIAP          DE_BSS_STA              "MultiAPSTA."
+#define DE_STAMAP_DISASSOC      DE_STA_MULTIAP          "Disassociate()"
 /* Device.WiFi.DataElements.Network.Device.Radio.UnassociatedSTA */
 #define DE_RADIO_UNASSOCSTA     DE_DEVICE_RADIO         "UnassociatedSTA.{i}."
 #define DE_UNASSOCSTA_TABLE     DE_DEVICE_RADIO         "UnassociatedSTA.{i}"
@@ -545,8 +558,8 @@ public:
      * raw buffer for RBUS callers.
      *
      * @param method_name RBUS method name, expected to match SetSSID.
-     * @param input_data Raw input containing a chained list of bus_data_prop_t entries.
-     * @param output_data Raw output buffer populated with response properties when provided.
+     * @param input_data Input containing a chained list of bus_data_prop_t entries.
+     * @param output_data Output populated with response properties when provided.
      * @param async_handle RBUS async handle when the call is asynchronous (may be null).
      *
      * @returns bus_error_t
@@ -556,6 +569,90 @@ public:
      * @note Ownership of input and output buffers remains with the caller.
      */
     static bus_error_t setssid_handler(const char *method_name, bus_data_prop_t *input_data,
+        bus_data_prop_t *output_data, void *async_handle);
+
+    /**!
+     * @brief Handles the RBUS SteerWiFiBackhaul method invocation.
+     *
+     * This function extracts SteerWiFiBackhaul properties from the raw input payload, forwards
+     * them to the EasyMesh controller, and optionally writes response properties to the output
+     * raw buffer for RBUS callers.
+     *
+     * @param method_name RBUS method name, expected to match SteerWiFiBackhaul.
+     * @param input_data Input containing a chained list of bus_data_prop_t entries.
+     * @param output_data Output populated with response properties when provided.
+     * @param async_handle RBUS async handle when the call is asynchronous (may be null).
+     *
+     * @returns bus_error_t
+     * @retval bus_error_none on successful SteerWiFiBackhaul handling.
+     * @retval bus_error_failed on validation or controller execution failure.
+     *
+     * @note Ownership of input and output buffers remains with the caller.
+     */
+    static bus_error_t steerwifibh_handler(const char *method_name, bus_data_prop_t *input_data,
+        bus_data_prop_t *output_data, void *async_handle);
+
+    /**!
+     * @brief Handles the RBUS ChannelScanRequest method invocation.
+     *
+     * This function extracts ChannelScanRequest properties from the raw input payload, forwards
+     * them to the EasyMesh controller, and optionally writes response properties to the output
+     * raw buffer for RBUS callers.
+     *
+     * @param method_name RBUS method name, expected to match ChannelScanRequest.
+     * @param input_data Input containing a chained list of bus_data_prop_t entries.
+     * @param output_data Output populated with response properties when provided.
+     * @param async_handle RBUS async handle when the call is asynchronous (may be null).
+     *
+     * @returns bus_error_t
+     * @retval bus_error_none on successful ChannelScanRequest handling.
+     * @retval bus_error_failed on validation or controller execution failure.
+     *
+     * @note Ownership of input and output buffers remains with the caller.
+     */
+    static bus_error_t channelscan_handler(const char *method_name, bus_data_prop_t *input_data,
+        bus_data_prop_t *output_data, void *async_handle);
+
+    /**!
+     * @brief Handles the RBUS ClientSteer method invocation.
+     *
+     * This function extracts ClientSteer properties from the raw input payload, forwards them
+     * to the EasyMesh controller, and optionally writes response properties to the output
+     * raw buffer for RBUS callers.
+     *
+     * @param method_name RBUS method name, expected to match ClientSteer.
+     * @param input_data Input containing a chained list of bus_data_prop_t entries.
+     * @param output_data Output populated with response properties when provided.
+     * @param async_handle RBUS async handle when the call is asynchronous (may be null).
+     *
+     * @returns bus_error_t
+     * @retval bus_error_none on successful ClientSteer handling.
+     * @retval bus_error_failed on validation or controller execution failure.
+     *
+     * @note Ownership of input and output buffers remains with the caller.
+     */
+    static bus_error_t clientsteer_handler(const char *method_name, bus_data_prop_t *input_data,
+        bus_data_prop_t *output_data, void *async_handle);
+
+    /**!
+     * @brief Handles the RBUS Disassociate method invocation.
+     *
+     * This function extracts Disassociate properties from the raw input payload, forwards them
+     * to the EasyMesh controller, and optionally writes response properties to the output
+     * raw buffer for RBUS callers.
+     *
+     * @param method_name RBUS method name, expected to match Disassociate.
+     * @param input_data Input containing a chained list of bus_data_prop_t entries.
+     * @param output_data Output populated with response properties when provided.
+     * @param async_handle RBUS async handle when the call is asynchronous (may be null).
+     *
+     * @returns bus_error_t
+     * @retval bus_error_none on successful Disassociate handling.
+     * @retval bus_error_failed on validation or controller execution failure.
+     *
+     * @note Ownership of input and output buffers remains with the caller.
+     */
+    static bus_error_t disassociate_handler(const char *method_name, bus_data_prop_t *input_data,
         bus_data_prop_t *output_data, void *async_handle);
 
     //Methods helper utilities
@@ -656,6 +753,30 @@ public:
      * @retval false on invalid input or type mismatch.
      */
     static bool tr181_copy_prop_string(const bus_data_prop_t *prop, char *dst, size_t dst_len);
+
+    /**!
+     * @brief Get integer value of property into provided variable.
+     *
+     * @param prop Property expected to contain an integer value.
+     * @param value Destination variable.
+     *
+     * @returns bool
+     * @retval true if the copy succeeded.
+     * @retval false on invalid input or type mismatch.
+     */
+    static bool tr181_get_prop_int(const bus_data_prop_t *prop, int *value);
+
+    /**!
+     * @brief Get boolean value of property into provided variable.
+     *
+     * @param prop Property expected to contain a boolean value.
+     * @param value Destination variable.
+     *
+     * @returns bool
+     * @retval true if the copy succeeded.
+     * @retval false on invalid input or type mismatch.
+     */
+    static bool tr181_get_prop_bool(const bus_data_prop_t *prop, bool *value);
 
     //Device Callbacks
     static bus_error_t device_get(char* event_name, raw_data_t* p_data, struct bus_user_data* user_data);

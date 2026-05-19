@@ -182,6 +182,15 @@ bool em_orch_t::submit_command(em_cmd_t *pcmd)
     } else {
         queue_push(m_pending, pcmd);
         push_stats(pcmd);
+        // trigger orchestration event to process the command
+        em_event_t *evt = static_cast<em_event_t *>(malloc(sizeof(em_event_t)));
+        if (evt == nullptr) {
+            em_printfout("Failed to allocate memory for orchestration event");
+            // Command is queued for processing, count not submit event
+        } else {
+            evt->type = em_event_type_orch;
+            m_mgr->push_to_queue(evt);
+        }
         submitted = true;
     }
 
@@ -518,6 +527,10 @@ bool em_orch_t::is_cmd_type_in_progress(em_bus_event_t *evt)
     em_cmd_stats_t *stats;
     em_short_string_t key;
     em_cmd_type_t	type;
+
+    if (evt == nullptr) {
+        return false;
+    }
 
     type = em_cmd_t::bus_2_cmd_type(evt->type);
 

@@ -94,6 +94,8 @@ class em_steering_t {
 	 * @param[in] sta_mac The MAC address of the station to which the acknowledgment
 	 * message will be sent.
 	 * @param[in] msg_id The message ID of the original message being acknowledged.
+	 * @param[in] reason The reason code used in Error Code TLV.
+	 * @param[in] dst Destination AL MAC to use when controller AL MAC is unknown).
 	 *
 	 * @returns int
 	 * @retval 0 on success
@@ -102,7 +104,7 @@ class em_steering_t {
 	 * @note Ensure that the MAC address is valid and the station is reachable
 	 * before calling this function.
 	 */
-	int send_1905_ack_message(mac_addr_t sta_mac, unsigned short msg_id);
+	int send_1905_ack_message(mac_addr_t sta_mac, unsigned short msg_id, unsigned char reason = 0, unsigned char *dst = nullptr);
     
 	/**!
 	 * @brief Handles the client steering request.
@@ -119,7 +121,23 @@ class em_steering_t {
 	 * @note Ensure that the buffer is properly allocated and the length is correctly specified.
 	 */
 	int handle_client_steering_req(unsigned char *buff, unsigned int len);
-    
+
+	/**!
+	 * @brief Handles the client assoc ctrl request.
+	 *
+	 * This function processes the client assoc ctrl request received from controller.
+	 *
+	 * @param[in] buff Pointer to the buffer containing the request data.
+	 * @param[in] len Length of the data in the buffer.
+	 *
+	 * @returns int Status code indicating success or failure of the operation.
+	 * @retval 0 Success.
+	 * @retval -1 Failure.
+	 *
+	 * @note Ensure that the buffer is properly allocated and the length is correctly specified.
+	 */
+	int handle_client_assoc_ctrl_req(unsigned char *buff, unsigned int len);
+
 	/**!
 	 * @brief Handles the client steering report.
 	 *

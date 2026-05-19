@@ -640,6 +640,20 @@ public:
 	void handle_onewifi_radio_cb(em_bus_event_t *evt);
     
 	/**!
+	 * @brief Handles the client association control request event.
+	 *
+	 * This function processes the client association control request event received
+	 * through the event bus and applies the necessary blocking/unblocking actions.
+	 *
+	 * @param[in] evt Pointer to the event structure containing the client association
+	 * control request details.
+	 *
+	 * @note Ensure that the event structure is properly initialized before
+	 * calling this function.
+	 */
+	void handle_client_assoc_ctrl_req(em_bus_event_t *evt);
+
+	/**!
 	 * @brief Handles the M2 control configuration event.
 	 *
 	 * This function processes the M2 control configuration event received
@@ -838,6 +852,15 @@ public:
 	 */
 	em_service_type_t get_service_type() { return em_service_type_agent; }
     
+	/**!
+	 * @brief Get the orchestration instance.
+	 *
+	 * This function returns a pointer to the orchestration instance.
+	 *
+	 * @return em_orch_t* Pointer to the orchestration instance.
+	 */
+	em_orch_t *get_orch() override { return m_orch; }
+
 	/**!
 	 * @brief Finds the EM for a given message type.
 	 *

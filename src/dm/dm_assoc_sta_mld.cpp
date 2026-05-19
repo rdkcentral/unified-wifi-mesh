@@ -95,6 +95,7 @@ dm_assoc_sta_mld_t::dm_assoc_sta_mld_t(const dm_assoc_sta_mld_t& assoc_sta_mld)
 }
 
 dm_assoc_sta_mld_t::dm_assoc_sta_mld_t()
+    : m_assoc_sta_mld_info{}
 {
 
 }

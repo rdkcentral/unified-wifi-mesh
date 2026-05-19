@@ -47,20 +47,32 @@
 
 static     const unsigned char em_vendor_oui[EM_VENDOR_OUI_SIZE] = {0xd8, 0x9c, 0x8e};
 
-int em_metrics_t::handle_assoc_sta_link_metrics_tlv(unsigned char *buff)
+int em_metrics_t::handle_assoc_sta_link_metrics_tlv(unsigned char *buff,
+                                                    unsigned int tlv_len)
 {
-    em_assoc_sta_link_metrics_t	*sta_metrics;
+    em_assoc_sta_link_metrics_t *sta_metrics;
     em_assoc_link_metrics_t *metrics;
     dm_sta_t *sta;
     unsigned int i;
-    dm_easy_mesh_t  *dm;
+    dm_easy_mesh_t *dm;
+
+    if (buff == NULL || tlv_len == 0 || tlv_len < 7) {
+        return -1;
+    }
 
     dm = get_data_model();
 
-    sta_metrics = reinterpret_cast<em_assoc_sta_link_metrics_t *> (buff);
+    sta_metrics = reinterpret_cast<em_assoc_sta_link_metrics_t *>(buff);
+
+    unsigned int k = sta_metrics->num_bssids;
+    unsigned int expected_len = 7 + (k * sizeof(em_assoc_link_metrics_t));
+
+    if (tlv_len != expected_len) {
+        return -1;
+    }
 
     for (i = 0; i < sta_metrics->num_bssids; i++) {
-        metrics	= &sta_metrics->assoc_link_metrics[i];
+        metrics = &sta_metrics->assoc_link_metrics[i];
         sta = dm->find_sta(sta_metrics->sta_mac, metrics->bssid);
         if (sta == NULL) {
             continue;
@@ -74,7 +86,7 @@ int em_metrics_t::handle_assoc_sta_link_metrics_tlv(unsigned char *buff)
     return 0;
 }
 
-int em_metrics_t::handle_assoc_sta_ext_link_metrics_tlv(unsigned char *buff)
+int em_metrics_t::handle_assoc_sta_ext_link_metrics_tlv(unsigned char *buff, unsigned int tlv_len)
 {
     em_assoc_sta_ext_link_metrics_t	*sta_metrics;
     em_assoc_ext_link_metrics_t *metrics;
@@ -82,9 +94,21 @@ int em_metrics_t::handle_assoc_sta_ext_link_metrics_tlv(unsigned char *buff)
     unsigned int i;
     dm_easy_mesh_t  *dm;
 
+    if (buff == NULL || tlv_len == 0 || tlv_len < 7) {
+            printf("Invalid input: null buffer or invalid tlv_len=%u\n", tlv_len);
+            return -1;
+    }
+
     dm = get_data_model();
 
     sta_metrics = reinterpret_cast<em_assoc_sta_ext_link_metrics_t *> (buff);
+
+    unsigned int k = sta_metrics->num_bssids;
+    unsigned int expected_len = offsetof(em_assoc_sta_ext_link_metrics_t, assoc_ext_link_metrics) + (k * sizeof(em_assoc_ext_link_metrics_t));
+
+    if (tlv_len != expected_len) {
+            return -1;
+    }
 
     for (i = 0; i < sta_metrics->num_bssids; i++) {
         metrics	= &sta_metrics->assoc_ext_link_metrics[i];
@@ -166,10 +190,11 @@ int em_metrics_t::handle_associated_sta_link_metrics_resp(unsigned char *buff, u
 
     while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
         if (tlv->type == em_tlv_type_assoc_sta_link_metric) {
-            handle_assoc_sta_link_metrics_tlv(tlv->value);
+            uint16_t tlv_len = ntohs(tlv->len);
+            handle_assoc_sta_link_metrics_tlv(tlv->value, tlv_len);
         }
-        tmp_len -= (sizeof(em_tlv_t) + static_cast<size_t> (htons(tlv->len)));
-        tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
+        tmp_len -= (sizeof(em_tlv_t) + static_cast<size_t> (ntohs(tlv->len)));
+        tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + ntohs(tlv->len));
     }
 
     tlv = tlv_start;
@@ -194,11 +219,11 @@ int em_metrics_t::handle_associated_sta_link_metrics_resp(unsigned char *buff, u
 
     while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
         if (tlv->type == em_tlv_type_assoc_sta_ext_link_metric) {
-            handle_assoc_sta_ext_link_metrics_tlv(tlv->value);
+            handle_assoc_sta_ext_link_metrics_tlv(tlv->value, ntohs(tlv->len));
         }
 
-        tmp_len -= (sizeof(em_tlv_t) + static_cast<size_t> (htons(tlv->len)));
-        tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
+        tmp_len -= (sizeof(em_tlv_t) + static_cast<size_t> (ntohs(tlv->len)));
+        tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + ntohs(tlv->len));
     }
 
     tlv = tlv_start;
@@ -508,10 +533,11 @@ int em_metrics_t::handle_ap_metrics_response(unsigned char *buff, unsigned int l
 
     while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
         if (tlv->type == em_tlv_type_assoc_sta_link_metric) {
-            handle_assoc_sta_link_metrics_tlv(tlv->value);
+            uint16_t tlv_len = ntohs(tlv->len);
+            handle_assoc_sta_link_metrics_tlv(tlv->value, tlv_len);
         }
-        tmp_len -= (sizeof(em_tlv_t) + static_cast<size_t> (htons(tlv->len)));
-        tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
+        tmp_len -= (sizeof(em_tlv_t) + static_cast<size_t> (ntohs(tlv->len)));
+        tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + ntohs(tlv->len));
     }
 
     tlv = tlv_start;
@@ -519,10 +545,10 @@ int em_metrics_t::handle_ap_metrics_response(unsigned char *buff, unsigned int l
 
     while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
         if (tlv->type == em_tlv_type_assoc_sta_ext_link_metric) {
-            handle_assoc_sta_ext_link_metrics_tlv(tlv->value);
+            handle_assoc_sta_ext_link_metrics_tlv(tlv->value, ntohs(tlv->len));
         }
-        tmp_len -= (sizeof(em_tlv_t) + static_cast<size_t> (htons(tlv->len)));
-        tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
+        tmp_len -= (sizeof(em_tlv_t) + static_cast<size_t> (ntohs(tlv->len)));
+        tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + ntohs(tlv->len));
     }
 
     tlv = tlv_start;
@@ -1065,13 +1091,15 @@ int em_metrics_t::send_ap_metrics_response()
         len += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
 
         //AP Extended Metrics TLV (17.2.61)
-        tlv = reinterpret_cast<em_tlv_t *> (tmp);
-        tlv->type = em_tlv_type_ap_ext_metric;
-        sz = create_ap_ext_metrics_tlv(tlv->value, dm->m_bss[bss_index]);
-        tlv->len =  htons(static_cast<unsigned short> (sz));
+        if (get_profile_type() > em_profile_type_1) {
+            tlv = reinterpret_cast<em_tlv_t *> (tmp);
+            tlv->type = em_tlv_type_ap_ext_metric;
+            sz = create_ap_ext_metrics_tlv(tlv->value, dm->m_bss[bss_index]);
+            tlv->len =  htons(static_cast<unsigned short> (sz));
 
-        tmp += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
-        len += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+            tmp += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+            len += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+        }
 
         //now search if this sta is associated to this
         sta = reinterpret_cast<dm_sta_t *> (hash_map_get_first(dm->m_sta_map));
@@ -1099,23 +1127,27 @@ int em_metrics_t::send_ap_metrics_response()
             len += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
 
             //Associated STA Extended Link Metrics TLV (17.2.62)
-            tlv = reinterpret_cast<em_tlv_t *> (tmp);
-            tlv->type = em_tlv_type_assoc_sta_ext_link_metric;
-            sz = create_assoc_ext_sta_link_metrics_tlv(tlv->value, sta->m_sta_info.id, sta);
-            tlv->len =  htons(static_cast<unsigned short> (sz));
+            if (get_profile_type() > em_profile_type_1) {
+                tlv = reinterpret_cast<em_tlv_t *> (tmp);
+                tlv->type = em_tlv_type_assoc_sta_ext_link_metric;
+                sz = create_assoc_ext_sta_link_metrics_tlv(tlv->value, sta->m_sta_info.id, sta);
+                tlv->len =  htons(static_cast<unsigned short> (sz));
 
-            tmp += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
-            len += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+                tmp += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+                len += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+            }
 
             //Associated Wi-Fi 6 STA Status Report TLV (17.2.73)
             //Profile-3 msg, hence failing even though optional
-            tlv = reinterpret_cast<em_tlv_t *> (tmp);
-            tlv->type = em_tlv_type_assoc_wifi6_sta_rprt;
-            sz = create_assoc_wifi6_sta_sta_report_tlv(tlv->value, sta);
-            tlv->len =  htons(static_cast<unsigned short> (sz));
+            if (get_profile_type() > em_profile_type_2) {
+                tlv = reinterpret_cast<em_tlv_t *> (tmp);
+                tlv->type = em_tlv_type_assoc_wifi6_sta_rprt;
+                sz = create_assoc_wifi6_sta_sta_report_tlv(tlv->value, sta);
+                tlv->len =  htons(static_cast<unsigned short> (sz));
 
-            tmp += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
-            len += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+                tmp += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+                len += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+            }
 
             //assoc vendor link metrics
             tlv = reinterpret_cast<em_tlv_t *> (tmp);
@@ -1132,17 +1164,19 @@ int em_metrics_t::send_ap_metrics_response()
 
     for (int i = 0; i < get_current_cmd()->get_param()->u.ap_metrics_params.num_radios; i++) {
         //Radio Metrics TLV (17.2.60)
-        tlv = reinterpret_cast<em_tlv_t *> (tmp);
-        tlv->type = em_tlv_type_radio_metric;
-        sz = create_radio_metrics_tlv(tlv->value, i);
-        if (sz == 0) {
-            em_printfout("create_radio_metrics_tlv size equals to zero\n");
-            continue;
-        }
-        tlv->len =  htons(static_cast<unsigned short> (sz));
+        if (get_profile_type() > em_profile_type_1) {
+            tlv = reinterpret_cast<em_tlv_t *> (tmp);
+            tlv->type = em_tlv_type_radio_metric;
+            sz = create_radio_metrics_tlv(tlv->value, i);
+            if (sz == 0) {
+                em_printfout("create_radio_metrics_tlv size equals to zero\n");
+                continue;
+            }
+            tlv->len =  htons(static_cast<unsigned short> (sz));
 
-        tmp += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
-        len += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+            tmp += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+            len += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+        }
     }
 
     // End of message
@@ -1153,7 +1187,7 @@ int em_metrics_t::send_ap_metrics_response()
     tmp += (sizeof(em_tlv_t));
     len += (sizeof(em_tlv_t));
 
-    if (em_msg_t(em_msg_type_ap_metrics_rsp, em_profile_type_2, buff, static_cast<unsigned int> (len)).validate(errors) == 0) {
+    if (em_msg_t(em_msg_type_ap_metrics_rsp, get_profile_type(), buff, static_cast<unsigned int> (len)).validate(errors) == 0) {
         em_printfout("AP Metrics Response validation failed for agent:%s, still sending",
             util::mac_to_string(dm->get_agent_al_interface_mac()).c_str());
         //return -1;

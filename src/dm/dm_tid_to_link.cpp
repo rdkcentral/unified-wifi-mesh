@@ -83,6 +83,7 @@ dm_tid_to_link_t::dm_tid_to_link_t(const dm_tid_to_link_t& tid_to_link)
 }
 
 dm_tid_to_link_t::dm_tid_to_link_t()
+    : m_tid_to_link_info{}
 {
 
 }

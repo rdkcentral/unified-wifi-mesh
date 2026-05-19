@@ -182,10 +182,25 @@ extern "C"
 #define EM_CH_PREF_NON_OPERABLE 0x00
 #define EM_CH_PREF_MAX          0x0F
 
+#define CTRL_DEFAULT_CH_PREF    0x01 // Least preferred
+#define AGENT_DEFAULT_CH_PREF   0x0F // Most preferred
+
+/**
+ * Bit shift for preference value (high nibble of preference byte).
+ * Preference bytes store the preference value in bits 7-4.
+ * Use this macro when shifting preference values to/from the high nibble.
+ */
+#define EM_CH_PREF_SHIFT 4
+
 /* Flags indicating whether a channel preference entry
    is considered valid or invalid */
 #define EM_CH_PREF_ENTRY_VALID      0x01
 #define EM_CH_PREF_ENTRY_INVALID    0x00
+
+#define EM_SCAN_TYPE_PASSIVE 0U
+#define EM_SCAN_TYPE_ACTIVE  1U
+
+#define EM_SCAN_TYPE_BIT     (1U << 7)  // bit 7 in TLV
 
 /* Global MAC Address */
 static const mac_address_t EM_GLOBAL_MAC_ADDRESS = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
@@ -277,6 +292,10 @@ static const mac_address_t EM_GLOBAL_MAC_ADDRESS = {0xff, 0xff, 0xff, 0xff, 0xff
 
 #ifndef WIFI_EM_CHANNEL_SCAN_REQUEST
 #define WIFI_EM_CHANNEL_SCAN_REQUEST          "Device.WiFi.EM.ChannelScanRequest"
+#endif
+
+#ifndef WIFI_EM_CLIENT_ASSOC_CTRL_REQ
+#define WIFI_EM_CLIENT_ASSOC_CTRL_REQ        "Device.WiFi.EM.ClientAssocCtrlRequest"
 #endif
 
 #ifndef WIFI_EC_SEND_TRIG_STA_SCAN
@@ -805,6 +824,7 @@ typedef struct {
     unsigned char bss_color;
     unsigned char channel_util;
     unsigned short sta_count;
+    unsigned char bss_load_element_present;
 } em_neighbor_t;
 
 typedef struct {
@@ -1096,8 +1116,8 @@ typedef struct {
 } __attribute__((__packed__)) em_assoc_wifi6_sta_sts_t;
 
 typedef struct {
-    mac_address_t client_mac_addr;
     unsigned char bssid[6];
+    mac_address_t client_mac_addr;
 } __attribute__((__packed__)) em_client_info_t;
 
 typedef struct {
@@ -1946,6 +1966,7 @@ typedef enum {
     em_media_type_ieee80211ac_5,
     em_media_type_ieee80211ad_60,
     em_media_type_ieee80211af,
+    em_media_type_max,
 } em_media_type_t;
 
 typedef struct {
@@ -2178,6 +2199,7 @@ typedef enum {
     em_event_type_bus,
     em_event_type_nb,
     em_event_type_cmd,
+    em_event_type_orch,
 
     em_event_type_max
 } em_event_type_t;
@@ -2853,6 +2875,7 @@ typedef enum {
     em_bus_event_type_bsta_cap_req,
     em_bus_event_type_link_quality_report,
     em_bus_event_type_set_bh_cfg,
+    em_bus_event_type_client_assoc_ctrl_req,
 
     em_bus_event_type_max
 } em_bus_event_type_t;
@@ -3042,17 +3065,9 @@ typedef struct {
 } em_cmd_args_t;
 
 typedef enum {
-    em_steering_opportunity_none,
-} em_steering_opportunity_t;
-
-typedef enum {
-    em_steering_mandate_none,
-} em_steering_mandate_t;
-
-typedef struct {
-    em_steering_opportunity_t	opportunity;
-    em_steering_mandate_t	mandate;
-} em_steer_req_mode_t;
+    em_steering_req_mode_opportunity,
+    em_steering_req_mode_mandate
+} em_steering_req_mode_t;
 
 typedef struct {
     mac_address_t	sta_mac;
@@ -3263,6 +3278,7 @@ typedef enum {
     em_commit_target_radio,
     em_commit_target_radio_cap,
     em_commit_target_bss,
+    em_commit_target_max
 } em_commit_target_type_t;
 
 typedef struct {

@@ -44,32 +44,38 @@
 
 int em_steering_t::send_client_assoc_ctrl_req_msg()
 {
-    em_cmd_t *pcmd;
-    em_disassoc_params_t *disassoc_param;
-    unsigned int i, j;
-    unsigned int num = 0;
-    dm_easy_mesh_t *dm;
-    em_client_assoc_ctrl_req_t assoc_ctrl[MAX_EM_BUFF_SZ];
+    em_cmd_t *pcmd = get_current_cmd();
+    dm_easy_mesh_t *dm = get_data_model();
 
-    dm = get_data_model();
+    if (!pcmd || !dm)
+        return -1;
 
-    pcmd = get_current_cmd();
-    for (i = 0; i < pcmd->m_param.u.disassoc_params.num; i++) {
-        disassoc_param = &pcmd->m_param.u.disassoc_params.params[i];
-        for (j = 0; j < dm->m_num_bss; j++) {
+    for (unsigned int i = 0; i < pcmd->m_param.u.disassoc_params.num; i++) {
+        em_disassoc_params_t *disassoc_param = &pcmd->m_param.u.disassoc_params.params[i];
+
+        for (unsigned int j = 0; j < dm->m_num_bss; j++) {
             if ((memcmp(disassoc_param->bssid, dm->m_bss[j].m_bss_info.bssid.mac, sizeof(bssid_t)) == 0) &&
                 (memcmp(dm->m_bss[j].m_bss_info.ruid.mac, get_radio_interface_mac(), sizeof(mac_address_t)) == 0)) {
-                memcpy(assoc_ctrl[num].bssid, disassoc_param->bssid, sizeof(mac_address_t));
-                if (disassoc_param->disassoc_time == 0) {
-                    assoc_ctrl[num].assoc_control = 0x03;
+
+                em_client_assoc_ctrl_req_t assoc_ctrl;
+                memset(&assoc_ctrl, 0, sizeof(assoc_ctrl));
+
+                memcpy(&assoc_ctrl.bssid, &disassoc_param->bssid, sizeof(bssid_t));
+                //Current Implementation for One Sta Per Message
+                assoc_ctrl.count = 1;
+                memcpy(&assoc_ctrl.sta_mac, &disassoc_param->sta_mac, sizeof(mac_address_t));
+
+                if (disassoc_param->disassoc_time > 0) {
+                    // BLOCK
+                    assoc_ctrl.assoc_control  = 0x00;
+                    assoc_ctrl.validity_period = htons(static_cast<uint16_t>(disassoc_param->disassoc_time));
                 } else {
-                    assoc_ctrl[num].assoc_control = 0x02;
-                    assoc_ctrl[num].validity_period = static_cast<short unsigned int> (disassoc_param->disassoc_time);
+                    // UNBLOCK
+                    assoc_ctrl.assoc_control  = 0x01;
+                    assoc_ctrl.validity_period = 0;
                 }
-                assoc_ctrl[num].count = 1;
-                memcpy(assoc_ctrl[num].sta_mac, disassoc_param->sta_mac, sizeof(mac_address_t));
-                send_client_assoc_ctrl_req_msg(&assoc_ctrl[num]);
-                num++;
+
+                send_client_assoc_ctrl_req_msg(&assoc_ctrl);
             }
         }
     }
@@ -117,11 +123,18 @@ int em_steering_t::send_client_assoc_ctrl_req_msg(em_client_assoc_ctrl_req_t *as
 
     tlv = reinterpret_cast<em_tlv_t *> (tmp);
     tlv->type = em_tlv_type_client_assoc_ctrl_req;
-    memcpy(tlv->value, assoc_ctrl, sizeof(em_client_assoc_ctrl_req_t));
-    tlv->len = htons(sizeof(em_client_assoc_ctrl_req_t));
 
-    tmp += (sizeof (em_tlv_t) + sizeof(em_client_assoc_ctrl_req_t));
-    len += (sizeof (em_tlv_t) + sizeof(em_client_assoc_ctrl_req_t));
+    if (assoc_ctrl->count != 1) {
+        em_printfout("assoc_ctrl count=%d unsupported", assoc_ctrl->count);
+        return -1;
+    }
+
+    size_t tlv_value_len = sizeof(em_client_assoc_ctrl_req_t);
+    memcpy(tlv->value, assoc_ctrl, tlv_value_len);
+    tlv->len = htons(tlv_value_len);
+
+    tmp += (sizeof (em_tlv_t) + tlv_value_len);
+    len += (sizeof (em_tlv_t) + tlv_value_len);
 
     // End of message
     tlv = reinterpret_cast<em_tlv_t *> (tmp);
@@ -285,7 +298,7 @@ int em_steering_t::send_btm_report_msg(mac_address_t sta, bssid_t bss)
     return static_cast<int> (len);
 }
 
-int em_steering_t::send_1905_ack_message(mac_addr_t sta_mac, unsigned short msg_id)
+int em_steering_t::send_1905_ack_message(mac_addr_t sta_mac, unsigned short msg_id, unsigned char reason, unsigned char *dst)
 {
     unsigned char buff[MAX_EM_BUFF_SZ];
     char *errors[EM_MAX_TLV_MEMBERS] = {0};
@@ -297,9 +310,16 @@ int em_steering_t::send_1905_ack_message(mac_addr_t sta_mac, unsigned short msg_
     short sz = 0;
     unsigned short type = htons(ETH_P_1905);
     dm_easy_mesh_t *dm = get_data_model();
+    mac_address_t zero_mac = {0};
 
-
-    memcpy(tmp, dm->get_ctrl_al_interface_mac(), sizeof(mac_address_t));
+    if (memcmp(dm->get_ctrl_al_interface_mac(), zero_mac, sizeof(mac_address_t)) != 0) {
+        memcpy(tmp, dm->get_ctrl_al_interface_mac(), sizeof(mac_address_t));
+    } else if (dst != nullptr) {
+        memcpy(tmp, const_cast<unsigned char *> (dst), sizeof(mac_address_t));
+    } else {
+        printf("%s:%d: no valid destination MAC address available\n", __func__, __LINE__);
+        return 0;
+    }
     tmp += sizeof(mac_address_t);
     len += sizeof(mac_address_t);
 
@@ -321,14 +341,16 @@ int em_steering_t::send_1905_ack_message(mac_addr_t sta_mac, unsigned short msg_
     tmp += sizeof(em_cmdu_t);
     len += sizeof(em_cmdu_t);
 
-    //17.2.36 Error Code TLV format
-    tlv = reinterpret_cast<em_tlv_t *> (tmp);
-    tlv->type = em_tlv_type_error_code;
-    sz = create_error_code_tlv(tlv->value, 0, sta_mac);
-    tlv->len = htons(static_cast<short unsigned int> (sz));
+    if (reason != 0) {
+        //17.2.36 Error Code TLV format
+        tlv = reinterpret_cast<em_tlv_t *> (tmp);
+        tlv->type = em_tlv_type_error_code;
+        sz = create_error_code_tlv(tlv->value, reason, sta_mac);
+        tlv->len = htons(static_cast<short unsigned int> (sz));
 
-    tmp += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
-    len += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+        tmp += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+        len += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+    }
 
     // End of message
     tlv = reinterpret_cast<em_tlv_t *> (tmp);
@@ -485,6 +507,49 @@ int em_steering_t::handle_ack_msg(unsigned char *buff, unsigned int len)
     return 0;
 }
 
+int em_steering_t::handle_client_assoc_ctrl_req(unsigned char *buff, unsigned int len)
+{
+    em_printfout("%s:%d: Received Client Assoc Control Request from Controller", __func__, __LINE__);
+
+    em_tlv_t *tlv;
+    char *errors[EM_MAX_TLV_MEMBERS] = {0};
+    em_client_assoc_ctrl_req_t *assoc_ctrl_req;
+
+    em_raw_hdr_t *hdr = reinterpret_cast<em_raw_hdr_t *> (buff);
+    em_cmdu_t *cmdu = reinterpret_cast<em_cmdu_t *> (buff + sizeof(em_raw_hdr_t));
+    unsigned short msg_id = ntohs(cmdu->id);
+    dm_easy_mesh_t *dm = get_data_model();
+
+    if (em_msg_t(em_msg_type_client_assoc_ctrl_req, em_profile_type_3, buff, len).validate(errors) == 0) {
+        em_printfout("%s:%d: Client Association Control Request message validation failed", __func__, __LINE__);
+        return -1;
+    }
+
+    tlv = reinterpret_cast<em_tlv_t *> (buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+    assoc_ctrl_req = reinterpret_cast<em_client_assoc_ctrl_req_t *> (&tlv->value);
+
+    if (assoc_ctrl_req->assoc_control == 0x00) {  // Block
+        mac_address_t sta_mac;
+        memcpy(sta_mac, assoc_ctrl_req->sta_mac, sizeof(mac_address_t));
+        // Check for associated STAs if blocking
+        if (dm->is_sta_associated(assoc_ctrl_req->bssid, sta_mac)) {
+            // Send Ack with error
+            em_printfout("%s:%d: Sending ack with Error Code TLV", __func__, __LINE__);
+            send_1905_ack_message(sta_mac, msg_id, 1, hdr->src);
+            return 0;
+        }
+    }
+
+    send_1905_ack_message(assoc_ctrl_req->sta_mac, msg_id, 0, hdr->src);
+
+    // Send the association control request to OneWifi for HAL enforcement
+    uint16_t tlv_len = ntohs(tlv->len);
+    get_mgr()->io_process(em_bus_event_type_client_assoc_ctrl_req,
+        reinterpret_cast<unsigned char *> (assoc_ctrl_req), tlv_len);
+
+    return 0;
+}
+
 void em_steering_t::process_ctrl_state()
 {
     switch (get_state()) {
@@ -524,6 +589,10 @@ void em_steering_t::process_msg(unsigned char *data, unsigned int len)
 
         case em_msg_type_client_steering_btm_rprt:
             handle_client_steering_report(data, len);
+            break;
+
+        case em_msg_type_client_assoc_ctrl_req:
+            handle_client_assoc_ctrl_req(data, len);
             break;
 
         case em_msg_type_1905_ack:

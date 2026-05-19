@@ -63,7 +63,7 @@ em_cmd_em_config_t::em_cmd_em_config_t(em_cmd_params_t param, dm_easy_mesh_t& dm
     m_orch_desc[6].submit = true;
     m_orch_desc[7].op = dm_orch_type_topo_update;
     m_orch_desc[7].submit = false;
-    m_orch_desc[8].op =dm_orch_type_topo_publish;
+    m_orch_desc[8].op = dm_orch_type_topo_publish;
     m_orch_desc[8].submit = true;
 
     strncpy(m_name, "em_config", strlen("em_config") + 1);

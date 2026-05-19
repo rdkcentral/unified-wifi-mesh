@@ -360,7 +360,7 @@ TEST(dm_network_ssid_t_Test, CopyConstructorWithSpecialCharactersInFields) {
  */
 TEST(dm_network_ssid_t_Test, ValidNetworkSSIDInformation) {
     std::cout << "Entering ValidNetworkSSIDInformation" << std::endl;
-    em_network_ssid_info_t net_ssid = { "id123", "ssid123", "pass123", 2, {"band1", "band2"}, true, 1, {"akm1"}, "suite1", true, "mfp1", {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, 1, em_haul_type_fronthaul};
+    em_network_ssid_info_t net_ssid = { "id123", "ssid123", "pass123", 2, {"band1", "band2"}, true, 1, {"akm1"}, "suite1", true, "mfp1", {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}, 1, {em_haul_type_fronthaul}, "", 0};
     dm_network_ssid_t obj(&net_ssid);
     EXPECT_STREQ(obj.m_network_ssid_info.id, "id123");
     EXPECT_STREQ(obj.m_network_ssid_info.ssid, "ssid123");
@@ -435,7 +435,7 @@ TEST(dm_network_ssid_t_Test, NullPointerAsInput) {
  */
 TEST(dm_network_ssid_t_Test, EmptySSIDInformation) {
     std::cout << "Entering EmptySSIDInformation" << std::endl;
-    em_network_ssid_info_t net_ssid = { "", "", "", 0, {}, false, 0, {}, "", false, "", {0}, 0, {} };
+    em_network_ssid_info_t net_ssid = { "", "", "", 0, {}, false, 0, {}, "", false, "", {0}, 0, {}, "", 0 };
     dm_network_ssid_t obj(&net_ssid);
     EXPECT_EQ(obj.m_network_ssid_info.id[0], '\0');
     EXPECT_EQ(obj.m_network_ssid_info.ssid[0], '\0');
@@ -1125,9 +1125,9 @@ TEST(dm_network_ssid_t_Test, AssigningMixedValues) {
     dm_network_ssid_t obj2{};
     memset(&obj1.m_network_ssid_info, 0, sizeof(obj1.m_network_ssid_info));
     memset(&obj2.m_network_ssid_info, 0, sizeof(obj2.m_network_ssid_info));
-    obj1.m_network_ssid_info.num_bands = 5;
+    obj1.m_network_ssid_info.num_bands = 2;
     obj1.m_network_ssid_info.enable = true;
-    obj1.m_network_ssid_info.num_akms = 3;    
+    obj1.m_network_ssid_info.num_akms = 2;
     obj2 = obj1;
     EXPECT_EQ(obj2.m_network_ssid_info.num_bands, obj1.m_network_ssid_info.num_bands);
     EXPECT_EQ(obj2.m_network_ssid_info.enable, obj1.m_network_ssid_info.enable);
