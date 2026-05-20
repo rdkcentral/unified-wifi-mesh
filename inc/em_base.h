@@ -80,7 +80,9 @@ extern "C"
 #define MAX_MCS  3
 #define MAP_AP_ROLE_MAX 2
 // #define MAX_MCS_NSS 6
-#define EM_MAX_CAC_METHODS 4
+#define EM_MAX_CAC_METHODS             4
+#define EM_MAX_CAC_OP_CLASS_PER_METHOD 8
+#define EM_MAX_CAC_CHANS_PER_CLASS     16
 #define EM_MAX_STA_PER_BSS         64
 #define EM_MAX_STA_PER_STEER_POLICY        16 
 #define EM_MAX_STA_PER_AGENT       (EM_MAX_RADIO_PER_AGENT * EM_MAX_STA_PER_BSS)
@@ -429,11 +431,31 @@ typedef struct {
 } __attribute__((__packed__)) em_channels_list_t;
 
 typedef struct {
+    unsigned char   channel[EM_MAX_CHANNELS_IN_LIST];
+} __attribute__((__packed__)) em_per_op_class_channels_list_t;
+
+typedef struct {
     unsigned char   op_class;
     unsigned char   max_tx_eirp;
 	unsigned char   num;
     em_channels_list_t  channels;
 } __attribute__((__packed__)) em_op_class_t;
+
+typedef struct {
+    unsigned char op_class;
+       unsigned char   num;
+    em_per_op_class_channels_list_t channels;
+} __attribute__((__packed__)) em_scan_cap_op_class_info_t;
+
+/* Per-op-class entry inside em_cac_cap_method_t.
+ * EM_MAX_CAC_CHANS_PER_CLASS channels (class 121 has 12 - largest DFS class).
+ * EM_MAX_CAC_OP_CLASS_PER_METHOD x sizeof == 144 bytes, preserving
+ * sizeof(em_cac_cap_method_t) == 150 and sizeof(em_cac_cap_radio_t) == 607. */
+typedef struct {
+    unsigned char   op_class;
+    unsigned char   num;      /* channels listed; 0 = all channels in op class */
+    unsigned char   channels[EM_MAX_CAC_CHANS_PER_CLASS];
+} __attribute__((__packed__)) em_cac_op_class_t;
 
 typedef struct {
     mac_address_t   ruid;
@@ -1606,13 +1628,6 @@ typedef struct {
 } __attribute__((__packed__)) em_radio_vendor_t;
 
 typedef struct {
-    unsigned char   serial_len;
-    unsigned char   serial[MAP_INVENTORY_ITEM_LEN];
-    unsigned char   ver_len;
-    unsigned char   version[MAP_INVENTORY_ITEM_LEN];
-    unsigned char   envi_len;
-    unsigned char   environment[MAP_INVENTORY_ITEM_LEN];
-    unsigned char   radios_num;
     em_radio_vendor_t radios[EM_MAX_RADIO_PER_AGENT];
 } __attribute__((__packed__)) em_device_inventory_t;
 
@@ -1786,7 +1801,6 @@ typedef struct {
 } __attribute__((__packed__)) em_eht_operations_radio_t;
 
 typedef struct {
-    unsigned char reserved[32];
     unsigned char radios_num;
     em_eht_operations_radio_t radios[EM_MAX_RADIO_PER_AGENT];
 } __attribute__((__packed__)) em_eht_operations_t;
@@ -1806,7 +1820,7 @@ typedef struct {
     unsigned char  boot_only : 1;
     unsigned int   min_scan_interval;
     unsigned char  op_classes_num;
-    em_op_class_t  op_classes[EM_MAX_OP_CLASS];
+    em_scan_cap_op_class_info_t  op_classes[EM_MAX_OPCLASS];
 } __attribute__((__packed__))em_channel_scan_cap_radio_t;
 
 typedef struct {
@@ -1814,11 +1828,19 @@ typedef struct {
     em_channel_scan_cap_radio_t  radios[EM_MAX_RADIO_PER_AGENT];
 } __attribute__((__packed__))em_channel_scan_cap_t;
 
+/* CAC Method types — Wi-Fi Easy Mesh spec - 17.2.46 Table 16 */
+typedef enum {
+    em_cac_method_continuous              = 0, /* Continuous CAC */
+    em_cac_method_continuous_dedicated    = 1, /* Continuous with dedicated radio */
+    em_cac_method_mimo_reduced            = 2, /* MIMO dimension reduced */
+    em_cac_method_time_sliced             = 3, /* Time-sliced CAC */
+} em_cac_method_type_t;
+
 typedef struct {
     unsigned char   cac_method;
-    unsigned int    cac_duration;
+    unsigned int    cac_duration : 24;
     unsigned char   op_classes_num;
-    em_op_class_t   op_classes[EM_MAX_OP_CLASS];
+    em_cac_op_class_t   op_classes[EM_MAX_OP_CLASS];
 } __attribute__((__packed__)) em_cac_cap_method_t;
 
 typedef struct {
@@ -2303,6 +2325,7 @@ typedef struct {
     unsigned char assoc_sta_reporting_int;
     unsigned char max_nummlds;
     unsigned char bstamld_maxlinks;
+    em_string_t   environment;
 
     em_small_string_t    primary_device_type;
     em_small_string_t    secondary_device_type;
@@ -2633,7 +2656,6 @@ typedef struct {
     bool    support_rcpi_steering;
     em_long_string_t    chip_vendor;
     bool    ap_metrics_wifi6;
-    em_device_inventory_t inventory_info;
     int     transmit_power_limit;
     unsigned char partial_bss_color;
     unsigned char bss_color;

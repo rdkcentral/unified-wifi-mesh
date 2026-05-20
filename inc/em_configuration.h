@@ -928,7 +928,7 @@ class em_configuration_t {
 	 *
 	 * @note Ensure the buffer is properly allocated and contains valid TLV data before calling this function.
 	 */
-	int handle_eht_operations_tlv(unsigned char *buff);
+	virtual int handle_eht_operations_tlv(unsigned char *buff, unsigned short len) = 0;
     
 	/**!
 	 * @brief Handles the Access Point MLD (Multi-Link Device) configuration request.
