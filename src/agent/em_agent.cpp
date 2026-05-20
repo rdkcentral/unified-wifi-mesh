@@ -1230,6 +1230,7 @@ void em_agent_t::input_listener()
         // This is fine, not a fatal error
     }
 
+    /*
     if (desc->bus_event_subs_fn(&m_bus_hdl, "Device.WiFi.EM.APMetricsReport", (void *)&em_agent_t::report_cb, NULL, 0) != 0) {
         printf("%s:%d bus get failed\n", __func__, __LINE__);
         return;
@@ -1239,6 +1240,7 @@ void em_agent_t::input_listener()
         printf("%s:%d bus get failed\n", __func__, __LINE__);
         return;
     }
+        */
 
    if(desc->bus_event_subs_fn(&m_bus_hdl, "Device.WiFi.CSABeaconFrameRecieved", (void *)&em_agent_t::mgmt_csa_beacon_frame_cb, NULL, 0) != 0) {
         printf("%s:%d bus get failed\n",__func__,__LINE__);
@@ -1297,7 +1299,7 @@ int em_agent_t::report_cb(char *event_name, bus_data_prop_t *data, void *userDat
     if (strncmp(event_name, "Device.WiFi.EM.APMetricsReport", sizeof("Device.WiFi.EM.APMetricsReport"))==0) {
         g_agent.io_process(em_bus_event_type_ap_metrics_report, (unsigned char *)data->value.raw_data.bytes, data->value.raw_data_len);
     } else if (strncmp(event_name, WIFI_QUALITY_LINKREPORT, sizeof(WIFI_QUALITY_LINKREPORT))==0) {
-        em_printfout("Received Frame data for event [%s] and data :\n%s", event_name, data->value.raw_data.bytes);
+        //em_printfout("Received Frame data for event [%s] and data :\n%s", event_name, data->value.raw_data.bytes);
         cJSON *json = cJSON_Parse((const char *)data->value.raw_data.bytes);
         if (json != NULL) {
             cJSON *link_report_arr;
@@ -1310,11 +1312,12 @@ int em_agent_t::report_cb(char *event_name, bus_data_prop_t *data, void *userDat
                 }
                 if (cJSON_IsArray(link_report_arr) && cJSON_GetArraySize(link_report_arr) == 0) {
                     em_printfout("LinkReport is NULL");
+                    cJSON_Delete(json);
                     return -1;
                 }
             }
         }
-        g_agent.io_process(em_bus_event_type_link_quality_report, (unsigned char *)data->value.raw_data.bytes, data->value.raw_data_len);
+        //g_agent.io_process(em_bus_event_type_link_quality_report, (unsigned char *)data->value.raw_data.bytes, data->value.raw_data_len);
     }
 
     return 0;
@@ -1446,8 +1449,11 @@ void em_agent_t::onewifi_cb(char *event_name, bus_data_prop_t *data, void *userD
                (strcmp(subdoc_name->valuestring, "mesh backhaul sta") == 0)) {
         g_agent.io_process(em_bus_event_type_onewifi_mesh_sta_cb, (unsigned char *)data->value.raw_data.bytes, data->value.raw_data_len);
 
+    } else if (strcmp(subdoc_name->valuestring, "dml") == 0) {
+        g_agent.io_process(em_bus_event_type_dev_init, (unsigned char *)data->value.raw_data.bytes, data->value.raw_data_len);
+
     } else {
-        em_printfout("SubDocName (%s) not matching private, mesh_sta, or radio", subdoc_name->valuestring);
+        em_printfout("SubDocName (%s) not matching private, mesh_sta, radio, or dml", subdoc_name->valuestring);
     }
 
     cJSON_Delete(json);

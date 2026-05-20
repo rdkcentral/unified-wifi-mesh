@@ -44,6 +44,8 @@
 #include "em_cmd_ctrl.h"
 #include "dm_easy_mesh.h"
 #include "em_orch_ctrl.h"
+#include "em_cmd_set_bh_cfg.h"
+#include "em_network_topo.h"
 #include "util.h"
 #include "wifi_util.h"
 
@@ -229,9 +231,24 @@ void em_ctrl_t::handle_config_renew(em_bus_event_t *evt)
 
 void em_ctrl_t::handle_m2_tx(em_bus_event_t *evt)
 {
+    // During backhaul reconfig, non-colocated agents (WiFi extenders) will
+    // disconnect after receiving new credentials via M2+M8 and automatically
+    // re-onboard.  Skip the em_config command (topology query) only for those
+    // agents.  The colocated agent stays connected and needs em_config.
+    if (g_network_topology != NULL && g_network_topology->is_bh_reconfig_active()) {
+        em_bus_event_type_m2_tx_params_t *params =
+            reinterpret_cast<em_bus_event_type_m2_tx_params_t *>(evt->u.raw_buff);
+        dm_network_t *net = m_data_model.get_network(GLOBAL_NET_ID);
+        unsigned char *colocated_mac = (net != NULL) ? net->get_colocated_agent_interface_mac() : NULL;
+        if (colocated_mac == NULL || memcmp(params->al, colocated_mac, sizeof(mac_address_t)) != 0) {
+            em_printfout("handle_m2_tx: skipping em_config for non-colocated agent during backhaul reconfig");
+            return;
+        }
+    }
+
     em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
     int num;
-    
+
     if ((num = m_data_model.analyze_m2_tx(evt, pcmd)) > 0) {
         m_orch->submit_commands(pcmd, static_cast<unsigned int> (num));
     }
@@ -282,6 +299,65 @@ void em_ctrl_t::handle_set_ssid_list(em_bus_event_t *evt)
         m_ctrl_cmd->send_result(em_cmd_out_status_not_ready);
     } 
 
+}
+
+/**
+ * @brief Handles the em_bus_event_type_set_bh_cfg bus event.
+ *
+ * Two execution paths:
+ *   1. Initial: validates config, checks M8 bSTA capability, submits first command.
+ *   2. Re-trigger: multi-phase reconfig active, submits next leaf layer directly.
+ */
+void em_ctrl_t::handle_set_bh_cfg(em_bus_event_t *evt)
+{
+    int ret;
+    dm_easy_mesh_t dm;
+
+    if (m_orch->is_cmd_type_in_progress(evt) == true) {
+        m_ctrl_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
+        return;
+    }
+
+    // Re-trigger path: reconfig already active, submit for next phase.
+    if (g_network_topology != NULL && g_network_topology->is_bh_reconfig_active()) {
+        em_cmd_t *cmd = new em_cmd_set_bh_cfg_t(evt->params, dm);
+        m_orch->submit_command(cmd);
+        return;
+    }
+
+    // Validate all agents support M8 bSTA reconfiguration.
+    dm_easy_mesh_t *agent_dm = m_data_model.get_first_dm();
+    while (agent_dm != NULL) {
+        if (agent_dm->is_controller() == false &&
+            agent_dm->m_device.m_device_info.m8_bsta_reconfiguration == false) {
+            em_printfout("SetBhCfg: agent %s lacks M8 bSTA reconfiguration support",
+                util::mac_to_string(agent_dm->m_device.m_device_info.intf.mac).c_str());
+            m_ctrl_cmd->send_result(em_cmd_out_status_not_ready);
+            return;
+        }
+        agent_dm = m_data_model.get_next_dm(agent_dm);
+    }
+
+    if ((ret = m_data_model.analyze_set_bh_cfg(evt, &dm)) <= 0) {
+        if (ret == EM_PARSE_ERR_NO_CHANGE) {
+            m_ctrl_cmd->send_result(em_cmd_out_status_no_change);
+        } else {
+            m_ctrl_cmd->send_result(em_cmd_out_status_invalid_input);
+        }
+        return;
+    }
+
+    if (g_network_topology != NULL) {
+        g_network_topology->reset_bh_reconfig();
+        g_network_topology->set_bh_reconfig_active(true);
+    }
+
+    em_cmd_t *cmd = new em_cmd_set_bh_cfg_t(evt->params, dm);
+    if (m_orch->submit_command(cmd)) {
+        m_ctrl_cmd->send_result(em_cmd_out_status_success);
+    } else {
+        m_ctrl_cmd->send_result(em_cmd_out_status_not_ready);
+    }
 }
 
 void em_ctrl_t::handle_remove_device(em_bus_event_t *evt)
@@ -561,6 +637,10 @@ void em_ctrl_t::handle_bus_event(em_bus_event_t *evt)
 
         case em_bus_event_type_set_ssid:
             handle_set_ssid_list(evt);  
+            break;
+
+        case em_bus_event_type_set_bh_cfg:
+            handle_set_bh_cfg(evt);
             break;
 
         case em_bus_event_type_remove_device:
@@ -845,11 +925,8 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
             dm_easy_mesh_t::macbytes_to_string(ruid, mac_str1);
         
             if ((em = static_cast<em_t *> (hash_map_get(m_em_map, mac_str1))) != NULL) {
-                printf("%s:%d: Found existing radio:%s\n", __func__, __LINE__, mac_str1);
-                if(em->get_state() != em_state_ctrl_wsc_m2_sent)
-                    em->set_state(em_state_ctrl_wsc_m1_pending);
-                else
-                    printf("%s:%d: Autoconf wsc msg sent already. Incorrect state = (%d)\n", __func__, __LINE__, em->get_state());
+                printf("%s:%d: Found existing radio:%s (state=%d)\n", __func__, __LINE__, mac_str1, em->get_state());
+                em->set_state(em_state_ctrl_wsc_m1_pending);
             } else {
                 if ((dm = get_data_model(GLOBAL_NET_ID, const_cast<const unsigned char *> (hdr->src))) == NULL) {
                     printf("%s:%d: Can not find data model\n", __func__, __LINE__);
@@ -899,6 +976,7 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
 
             if ((dm = get_data_model(GLOBAL_NET_ID, const_cast<const unsigned char *> (hdr->src))) == NULL) {
                 printf("%s:%d: Can not find data model\n", __func__, __LINE__);
+                return NULL;
             }
 
             for (i = 0; i < dm->get_num_radios(); i++) {

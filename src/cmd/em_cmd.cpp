@@ -511,6 +511,7 @@ const char *em_cmd_t::get_bus_event_type_str(em_bus_event_type_t type)
         BUS_EVENT_TYPE_2S(em_bus_event_type_mld_reconfig)
         BUS_EVENT_TYPE_2S(em_bus_event_type_get_reset)
         BUS_EVENT_TYPE_2S(em_bus_event_type_link_quality_report)
+        BUS_EVENT_TYPE_2S(em_bus_event_type_set_bh_cfg)
        
         default:
            break;
@@ -644,6 +645,7 @@ const char *em_cmd_t::get_cmd_type_str(em_cmd_type_t type)
         CMD_TYPE_2S(em_cmd_type_ap_metrics_report)
         CMD_TYPE_2S(em_cmd_type_get_reset)
         CMD_TYPE_2S(em_cmd_type_get_link_quality_report)
+        CMD_TYPE_2S(em_cmd_type_set_bh_cfg)
 
         default:
            break;
@@ -790,6 +792,10 @@ em_cmd_type_t em_cmd_t::bus_2_cmd_type(em_bus_event_type_t etype)
             type = em_cmd_type_get_link_quality_report;
             break;
 
+        case em_bus_event_type_set_bh_cfg:
+            type = em_cmd_type_set_bh_cfg;
+            break;
+
         default:
             break;
     }
@@ -812,6 +818,10 @@ em_bus_event_type_t em_cmd_t::cmd_2_bus_event_type(em_cmd_type_t ctype)
 
         case em_cmd_type_set_ssid:
             type = em_bus_event_type_set_ssid;;
+            break;
+
+        case em_cmd_type_set_bh_cfg:
+            type = em_bus_event_type_set_bh_cfg;
             break;
 
         case em_cmd_type_em_config:

@@ -689,7 +689,16 @@ class em_configuration_t {
 	 * @note Ensure the buffer is properly allocated and the length is correct before calling this function.
 	 */
 	int handle_autoconfig_wsc_m2(unsigned char *buff, unsigned int len);
-    
+
+	/**!
+	 * @brief Handles M8 WSC TLVs for backhaul SSID reconfiguration.
+	 *
+	 * @param[in] buff Pointer to the buffer containing the autoconfig WSC message.
+	 * @param[in] len Length of the buffer.
+	 * @returns 0 on success, -1 on failure.
+	 */
+	int handle_autoconfig_wsc_m8(unsigned char *buff, unsigned int len);
+
 	/**!
 	 * @brief Handles the WSC M1 message.
 	 *
@@ -999,7 +1008,28 @@ class em_configuration_t {
 	 * @note Ensure that the buffer is properly allocated and the haul type is valid before calling this function.
 	 */
 	unsigned short create_m2_msg(unsigned char *buff, em_haul_type_t haul_type);
-    
+
+	/**!
+	 * @brief Creates an M8 WSC message for backhaul SSID reconfiguration.
+	 *
+	 * Builds a WSC attribute blob with msg_type=M8 containing encrypted
+	 * backhaul SSID and passphrase. Appended as an additional WSC TLV
+	 * in the autoconfig WSC CMDU only during set_bh_cfg commands.
+	 *
+	 * @param[out] buff Buffer where the M8 message will be written.
+	 * @returns Length of the created M8 message, or 0 if backhaul SSID not found.
+	 */
+	unsigned short create_m8_msg(unsigned char *buff);
+
+	/**!
+	 * @brief Returns the WSC message type from a raw WSC attribute blob.
+	 *
+	 * @param[in] buff Pointer to WSC attribute data (inside a WSC TLV value).
+	 * @param[in] len Length of the WSC attribute data.
+	 * @returns The em_wsc_msg_type_t found, or em_wsc_msg_type_none.
+	 */
+	static em_wsc_msg_type_t get_wsc_blob_msg_type(unsigned char *buff, unsigned int len);
+
 	/**!
 	 * @brief Creates a traffic separation policy.
 	 *
@@ -1665,7 +1695,7 @@ public:
 	 * @note Ensure that the encryption keys are properly initialized
 	 * before calling this function.
 	 */
-	int handle_encrypted_settings(unsigned int wsc_tlv_count);
+	int handle_encrypted_settings(unsigned int wsc_tlv_count, bool is_bh_reconfig = false);
     
 	/**!
 	 * @brief Creates encrypted settings based on the provided buffer and haul type.

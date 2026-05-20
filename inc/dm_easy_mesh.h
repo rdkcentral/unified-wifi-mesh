@@ -2752,7 +2752,10 @@ public:
 	 *
 	 * @note Ensure that all resources are properly released before the object is destroyed.
 	 */
-	virtual ~dm_easy_mesh_t();  
+	virtual ~dm_easy_mesh_t();
+
+	bool m_cfg_renew_in_progress = false;
+	bool m_bsta_reconnect_pending = false;
 };
 
 #endif
