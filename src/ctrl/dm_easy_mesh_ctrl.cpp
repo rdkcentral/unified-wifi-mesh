@@ -43,6 +43,7 @@
 #include "em_cmd_dev_test.h"
 #include "em_cmd_remove_device.h"
 #include "em_cmd_set_ssid.h"
+#include "em_cmd_set_bh_cfg.h"
 #include "em_cmd_set_channel.h"
 #include "em_cmd_scan_channel.h"
 #include "em_cmd_set_radio.h"
@@ -152,7 +153,12 @@ bus_error_t em_ctrl_t::cmd_setssid(const char *method_name, const bus_data_prop_
     // Add new JSON as child of root and update subdoc buffer.
     json = new_json;
     new_json = NULL;
-    cJSON_AddItemToObject(root, "wfa-dataelements:SetSSID", json);
+
+    // Determine if this is a backhaul SSID/passphrase change
+    bool is_backhaul_change = (HaulType[0] && strcmp(HaulType, "Backhaul") == 0);
+    em_printfout("Received set_ssid request: SSID=%s AddRemoveChange=%s PassPhrase=%s Band=%s HaulType=%s\n", ssid, addremove, passphrase, band, HaulType);
+    const char *json_key = is_backhaul_change ? "wfa-dataelements:SetBhCfg" : "wfa-dataelements:SetSSID";
+    cJSON_AddItemToObject(root, json_key, json);
 
     ssid_list = cJSON_GetObjectItem(json, "NetworkSSIDList");
     if (!ssid_list || !cJSON_IsArray(ssid_list)) {
@@ -217,6 +223,7 @@ bus_error_t em_ctrl_t::cmd_setssid(const char *method_name, const bus_data_prop_
                     if (output_params) *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
                     return bus_error_out_of_resources;
                 }
+
                 cJSON_ReplaceItemInObject(target, "SSID", ssid_item_new);
             }
             if (passphrase[0]) {
@@ -338,7 +345,8 @@ bus_error_t em_ctrl_t::cmd_setssid(const char *method_name, const bus_data_prop_
     }
     */
 
-    em_ctrl->io_process(em_bus_event_type_set_ssid, subdoc->buff, json_len);
+    em_ctrl->io_process(is_backhaul_change ? em_bus_event_type_set_bh_cfg : em_bus_event_type_set_ssid,
+                         subdoc->buff, json_len);
     free(updated_json);
     cJSON_Delete(root);
 
@@ -2514,6 +2522,57 @@ int dm_easy_mesh_ctrl_t::analyze_set_ssid(em_bus_event_t *evt, em_cmd_t *pcmd[])
     return num;
 }
 
+int dm_easy_mesh_ctrl_t::analyze_set_bh_cfg(em_bus_event_t *evt, dm_easy_mesh_t *dm_out)
+{
+    int ret;
+    em_subdoc_info_t *subdoc;
+	dm_easy_mesh_t *pdm;
+	dm_network_ssid_t *tgt, *src;
+	int i, j;
+	int bit_mask = 0;
+
+    subdoc = &evt->u.subdoc;
+	if ((ret = dm_out->decode_config(subdoc, "SetBhCfg")) < 0) {
+		return ret;
+	}
+
+	pdm = m_data_model_list.get_first_dm();
+	if (pdm == NULL) {
+		assert(pdm != NULL);
+		return EM_PARSE_ERR_CONFIG;
+	}
+
+	for (i = 0; i < EM_MAX_NET_SSIDS; i++) {
+		tgt = &dm_out->m_network_ssid[i];
+		for (j = 0; j < EM_MAX_NET_SSIDS; j++) {
+			src = &pdm->m_network_ssid[j];
+			if (*tgt == *src) {
+				bit_mask |= (1 << i);
+				break;
+			}
+		}
+	}
+
+	if (bit_mask == (pow(2, EM_MAX_NET_SSIDS) - 1)) {
+		return EM_PARSE_ERR_NO_CHANGE;
+	}
+
+	// Update in-memory network SSIDs in ALL data models so that
+	// subsequent M2 creation uses the new SSID/passphrase.
+	dm_easy_mesh_t *iter_dm = m_data_model_list.get_first_dm();
+	while (iter_dm != NULL) {
+		iter_dm->m_num_net_ssids = dm_out->m_num_net_ssids;
+		for (i = 0; i < EM_MAX_NET_SSIDS; i++) {
+			iter_dm->m_network_ssid[i] = dm_out->m_network_ssid[i];
+		}
+		iter_dm = m_data_model_list.get_next_dm(iter_dm);
+	}
+
+	dm_out->set_db_cfg_param(db_cfg_type_network_ssid_list_update, "");
+
+    return 1;
+}
+
 int dm_easy_mesh_ctrl_t::analyze_remove_device(em_bus_event_t *evt, em_cmd_t *pcmd[])
 {
     cJSON *obj, *wfa_obj, *net_obj, *dev_list_obj, *id_obj;
@@ -3294,7 +3353,28 @@ void dm_easy_mesh_ctrl_t::init_tables()
 
 int dm_easy_mesh_ctrl_t::load_net_ssid_table()
 {
-	return dm_network_ssid_list_t::load_table(m_db_client);
+	int ret = dm_network_ssid_list_t::load_table(m_db_client);
+
+	// After reloading the global SSID hash map from DB, propagate the updated
+	// network SSIDs to all per-device data models so that create_encrypted_settings
+	// (which reads from em_t::m_data_model) picks up the new SSID/passphrase.
+	dm_network_ssid_t *net_ssid;
+	unsigned int idx;
+	dm_easy_mesh_t *dm;
+
+	for (dm = get_first_dm(); dm != NULL; dm = get_next_dm(dm)) {
+		idx = 0;
+		for (net_ssid = get_first_network_ssid(); net_ssid != NULL;
+				net_ssid = get_next_network_ssid(net_ssid)) {
+			if (idx < EM_MAX_NET_SSIDS) {
+				*(dm->get_network_ssid(idx)) = *net_ssid;
+				idx++;
+			}
+		}
+		dm->set_num_network_ssid(idx);
+	}
+
+	return ret;
 }
 
 int dm_easy_mesh_ctrl_t::load_tables()

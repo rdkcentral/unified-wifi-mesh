@@ -32,7 +32,7 @@ onewifi_em_ctrl_CPPFLAGS = \
     -I$(top_srcdir)/src/util \
     -I$(top_srcdir)/src/util_crypto
 
-onewifi_em_ctrl_CXXFLAGS = $(INCLUDEDIRS) -g -Wall -Wextra -pedantic -Wpedantic -Wpointer-arith -Wcast-qual -Wcast-align -Wstrict-aliasing -fno-common -Wctor-dtor-privacy -Wold-style-cast -Woverloaded-virtual -Wsign-promo -Wstrict-null-sentinel -fstack-protector-strong -D_FORTIFY_SOURCE=2 -fPIE -pie -ftrapv -Wformat=2 -Wformat-security -Wuninitialized -Winit-self -Wsign-conversion -Weffc++ -Wno-unused-parameter -std=c++17 -fno-omit-frame-pointer #-Wconversion -Werror -O2
+onewifi_em_ctrl_CXXFLAGS = $(INCLUDEDIRS) -g -DEM_CTRL_BUILD -Wall -Wextra -pedantic -Wpedantic -Wpointer-arith -Wcast-qual -Wcast-align -Wstrict-aliasing -fno-common -Wctor-dtor-privacy -Wold-style-cast -Woverloaded-virtual -Wsign-promo -Wstrict-null-sentinel -fstack-protector-strong -D_FORTIFY_SOURCE=2 -fPIE -pie -ftrapv -Wformat=2 -Wformat-security -Wuninitialized -Winit-self -Wsign-conversion -Weffc++ -Wno-unused-parameter -std=c++17 -fno-omit-frame-pointer #-Wconversion -Werror -O2
 if EM_ASAN_CTRL
 onewifi_em_ctrl_CXXFLAGS += -fsanitize=address -fsanitize=undefined
 endif
@@ -84,6 +84,7 @@ onewifi_em_ctrl_SOURCES =  \
      $(top_srcdir)/src/cmd/em_cmd_set_policy.cpp \
      $(top_srcdir)/src/cmd/em_cmd_set_radio.cpp \
      $(top_srcdir)/src/cmd/em_cmd_set_ssid.cpp \
+     $(top_srcdir)/src/cmd/em_cmd_set_bh_cfg.cpp \
      $(top_srcdir)/src/cmd/em_cmd_sta_assoc.cpp \
      $(top_srcdir)/src/cmd/em_cmd_sta_disassoc.cpp \
      $(top_srcdir)/src/cmd/em_cmd_sta_link_metrics.cpp \
@@ -207,6 +208,7 @@ onewifi_em_ctrl_test_SOURCES = $(onewifi_em_ctrl_SOURCES) \
 	$(top_srcdir)/tests/test_l1_em_cmd_start_dpp.cpp \
 	$(top_srcdir)/tests/test_l1_em_cmd_topo_sync.cpp \
 	$(top_srcdir)/tests/test_l1_em_network_topo.cpp \
+	$(top_srcdir)/tests/test_l1_bh_reconfig.cpp \
 	$(top_srcdir)/tests/test_l1_em_cmd_bsta_cap.cpp \
 	$(top_srcdir)/tests/test_l1_em_cmd_onewifi_cb.cpp \
 	$(top_srcdir)/tests/test_l1_em_cmd_ap_cap.cpp \

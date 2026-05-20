@@ -271,6 +271,7 @@ public:
 	 * @note Ensure that the event structure is properly initialized before calling this function.
 	 */
 	void handle_set_ssid_list(em_bus_event_t *evt);
+	void handle_set_bh_cfg(em_bus_event_t *evt);
     
 	/**!
 	 * @brief Handles the removal of a device from the bus.

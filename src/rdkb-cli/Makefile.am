@@ -60,6 +60,7 @@ libemcli_la_SOURCES = \
  $(top_srcdir)/src/cmd/em_cmd_set_policy.cpp \
  $(top_srcdir)/src/cmd/em_cmd_set_radio.cpp \
  $(top_srcdir)/src/cmd/em_cmd_set_ssid.cpp \
+ $(top_srcdir)/src/cmd/em_cmd_set_bh_cfg.cpp \
  $(top_srcdir)/src/cmd/em_cmd_sta_assoc.cpp \
  $(top_srcdir)/src/cmd/em_cmd_sta_disassoc.cpp \
  $(top_srcdir)/src/cmd/em_cmd_sta_link_metrics.cpp \

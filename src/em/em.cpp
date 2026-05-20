@@ -98,6 +98,7 @@ void em_t::orch_execute(em_cmd_t *pcmd)
 			break;
 
         case em_cmd_type_set_ssid:
+        case em_cmd_type_set_bh_cfg:
         case em_cmd_type_set_radio:
 	    if (m_service_type == em_service_type_ctrl) {
 	        set_renew_tx_count(0);
@@ -479,6 +480,7 @@ void em_t::handle_ctrl_state()
     cmd_type = m_cmd->m_type;
     switch (cmd_type) {
         case em_cmd_type_set_ssid:
+        case em_cmd_type_set_bh_cfg:
         case em_cmd_type_set_radio:
         case em_cmd_type_cfg_renew:
             em_configuration_t::process_ctrl_state();
@@ -1025,7 +1027,7 @@ short em_t::create_ap_cap_tlv(unsigned char *buff)
     ap_cap->unassociated_client_link_metrics_non_op_channels = radio_info->unassociated_sta_link_mterics_nonopclass_inclusion_policy;
     ap_cap->unassociated_client_link_metrics_op_channels =  radio_info->unassociated_sta_link_mterics_opclass_inclusion_policy;
     ap_cap->rcpi_steering = radio_info->support_rcpi_steering;
-    // ap_cap->reserved - Future implementation
+    ap_cap->m8_bsta_reconfiguration = 1;
     len = sizeof(em_ap_capability_t);
     return len;
 }
