@@ -240,7 +240,7 @@ int em_capability_t::send_ap_cap_report_msg(unsigned char *dst, unsigned short m
     len += static_cast<unsigned int>((sizeof(em_tlv_t)));
 
     /*if (em_msg_t(em_msg_type_ap_cap_rprt, em_profile_type_3, buff, len).validate(errors) == 0) {
-        printf("Topology Response msg failed validation in tnx end");
+        em_printfout("Error: Topology Response msg failed validation in tnx end");
 
         return -1;
     }*/

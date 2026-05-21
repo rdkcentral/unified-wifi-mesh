@@ -245,7 +245,7 @@ bool dm_device_list_t::search_db(db_client_t& db_client, void *ctx, void *key)
 
 int dm_device_list_t::sync_db(db_client_t& db_client, void *ctx)
 {
-    em_device_info_t info;
+    em_device_info_t info = {};
     mac_addr_str_t	mac;
     em_long_string_t   str;
     int rc = 0;
@@ -302,7 +302,7 @@ int dm_device_list_t::sync_db(db_client_t& db_client, void *ctx)
 
 bool dm_device_list_t::compare_db(db_client_t& db_client, const dm_device_t& sta)
 {
-    em_device_info_t info;
+    em_device_info_t info = {};
     mac_addr_str_t mac;
     em_long_string_t   str;
     db_query_t    query;
