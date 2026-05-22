@@ -185,7 +185,7 @@ TEST(em_cmd_t, bus_2_cmd_type_ValidConversion)
         { em_bus_event_type_client_cap_query,   em_cmd_type_client_cap_query },
         { em_bus_event_type_listener_stop,      em_cmd_type_none },
         { em_bus_event_type_dm_commit,          em_cmd_type_none },
-        { em_bus_event_type_m2_tx,              em_cmd_type_none },
+        { em_bus_event_type_m2_tx,              em_cmd_type_em_config },
         { em_bus_event_type_topo_sync,          em_cmd_type_em_config },
         { em_bus_event_type_onewifi_mesh_sta_cb,em_cmd_type_none },
         { em_bus_event_type_onewifi_radio_cb,   em_cmd_type_none },
@@ -3062,9 +3062,9 @@ TEST(em_cmd_t, get_svc_valid_none) {
     std::cout << "Exiting get_svc_valid_none test" << std::endl;
 }
 /**
- * @brief Validate that the get_svc function returns the invalid service type when m_svc is explicitly set to an out-of-range value.
+ * @brief Validate that the get_svc function returns em_service_type_none when m_svc is explicitly set to an out-of-range value.
  *
- * This test verifies that when the m_svc member of the em_cmd_t object is assigned an invalid value (-1), the get_svc() method correctly returns this invalid value. This helps ensure that the API does not modify or incorrectly process invalid input values.
+ * This test verifies that when the m_svc member of the em_cmd_t object is assigned an invalid value (cast from -1), the get_svc() method returns em_service_type_none. This helps ensure that the API handles out-of-range input gracefully and consistently.
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 067@n
@@ -3075,9 +3075,9 @@ TEST(em_cmd_t, get_svc_valid_none) {
  * **User Interaction:** None@n
  *
  * **Test Procedure:**@n
- * | Variation / Step | Description                                                         | Test Data                               | Expected Result                                            | Notes      |
- * | :--------------: | ------------------------------------------------------------------- | --------------------------------------- | ---------------------------------------------------------- | ---------- |
- * | 01               | Instantiate em_cmd_t, set m_svc to -1, and invoke get_svc() method.   | m_svc = -1, output svc = -1               | get_svc() returns -1 and the EXPECT_EQ assertion passes.   | Should Pass|
+ * | Variation / Step | Description                                                                                          | Test Data                                                       | Expected Result                                                                | Notes      |
+ * | :--------------: | ---------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- | ------------------------------------------------------------------------------ | ---------- |
+ * | 01               | Instantiate em_cmd_t, set m_svc to static_cast<em_service_type_t>(-1), and invoke get_svc() method. | m_svc = static_cast<em_service_type_t>(-1)                      | get_svc() returns em_service_type_none and the EXPECT_EQ assertion passes.     | Should Pass|
  */
 TEST(em_cmd_t, get_svc_invalid_value_check) {
     std::cout << "Entering get_svc_invalid_value_check test" << std::endl;
@@ -3086,7 +3086,7 @@ TEST(em_cmd_t, get_svc_invalid_value_check) {
     std::cout << "Invoking get_svc()" << std::endl;
     em_service_type_t svc = cmd.get_svc();
     std::cout << "get_svc() returned value: " << static_cast<unsigned int>(svc) << std::endl;
-    EXPECT_EQ(svc, -1);
+    EXPECT_EQ(svc, em_service_type_none);
     std::cout << "Exiting get_svc_invalid_value_check test" << std::endl;
 }
 /**

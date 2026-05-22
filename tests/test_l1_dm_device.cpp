@@ -355,7 +355,7 @@ TEST(dm_device_t_Test, RetrieveALInterfaceWithEmptyInterfaceName) {
 /**
  * @brief Test to verify the retrieval of AL Interface MAC Address with a valid MAC address
  *
- * This test checks if the `get_al_interface_mac` function correctly retrieves the MAC address
+ * This test checks if the `get_backhaul_al_interface_mac` function correctly retrieves the MAC address
  * that has been set in the `m_device_info.backhaul_alid.mac` field of the `dm_device_t` object.
  *
  * **Test Group ID:** Basic: 01@n
@@ -370,7 +370,7 @@ TEST(dm_device_t_Test, RetrieveALInterfaceWithEmptyInterfaceName) {
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
  * | 01 | Set the expected MAC address in the `m_device_info.backhaul_alid.mac` field | expected_mac = {0x00, 0x1A, 0x2B, 0x3C, 0x4D, 0x5E} | MAC address should be set successfully | Should be successful |
- * | 02 | Retrieve the MAC address using `get_al_interface_mac` function | None | MAC address should not be null | Should Pass |
+ * | 02 | Retrieve the MAC address using `get_backhaul_al_interface_mac` function | None | MAC address should not be null | Should Pass |
  * | 03 | Verify each byte of the retrieved MAC address against the expected MAC address | expected_mac = {0x00, 0x1A, 0x2B, 0x3C, 0x4D, 0x5E} | Each byte should match the expected MAC address | Should Pass |
  */
 TEST(dm_device_t_Test, RetrieveALInterfaceMACAddressWithValidMACAddress) {
@@ -393,7 +393,7 @@ TEST(dm_device_t_Test, RetrieveALInterfaceMACAddressWithValidMACAddress) {
 /**
  * @brief Test to verify the retrieval of AL Interface MAC Address when it is set to all zeros.
  *
- * This test checks if the `get_al_interface_mac` function correctly retrieves the MAC address when it is set to all zeros. 
+ * This test checks if the `get_backhaul_al_interface_mac` function correctly retrieves the MAC address when it is set to all zeros. 
  * It ensures that the function does not return a null pointer and that the retrieved MAC address matches the expected all-zero MAC address.
  *
  * **Test Group ID:** Basic: 01@n
@@ -408,7 +408,7 @@ TEST(dm_device_t_Test, RetrieveALInterfaceMACAddressWithValidMACAddress) {
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
  * | 01 | Set the device's backhaul ALID MAC address to all zeros | expected_mac = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00} | None | Should be successful |
- * | 02 | Retrieve the AL Interface MAC address using `get_al_interface_mac` | None | mac should not be null | Should Pass |
+ * | 02 | Retrieve the AL Interface MAC address using `get_backhaul_al_interface_mac` | None | mac should not be null | Should Pass |
  * | 03 | Verify that the retrieved MAC address matches the expected all-zero MAC address | mac = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00} | Each byte of mac should match expected_mac | Should Pass |
  */
 TEST(dm_device_t_Test, RetrieveALInterfaceMACAddressWithAllZeroMACAddress) {
@@ -431,7 +431,7 @@ TEST(dm_device_t_Test, RetrieveALInterfaceMACAddressWithAllZeroMACAddress) {
 /**
  * @brief Test to verify the retrieval of AL Interface MAC Address when all bytes are set to FF
  *
- * This test checks if the `get_al_interface_mac` function correctly retrieves the MAC address when all bytes are set to 0xFF. 
+ * This test checks if the `get_backhaul_al_interface_mac` function correctly retrieves the MAC address when all bytes are set to 0xFF. 
  * It ensures that the function returns the expected MAC address and that the returned pointer is not null.
  *
  * **Test Group ID:** Basic: 01@n
@@ -446,7 +446,7 @@ TEST(dm_device_t_Test, RetrieveALInterfaceMACAddressWithAllZeroMACAddress) {
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
  * | 01 | Set the MAC address in the device to all 0xFF | expected_mac = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF} | None | Should be successful |
- * | 02 | Retrieve the AL Interface MAC address using `get_al_interface_mac` | None | mac != nullptr | Should Pass |
+ * | 02 | Retrieve the AL Interface MAC address using `get_backhaul_al_interface_mac` | None | mac != nullptr | Should Pass |
  * | 03 | Verify each byte of the retrieved MAC address matches the expected value | expected_mac = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF} | Each byte of mac should be equal to expected_mac | Should Pass |
  */
 TEST(dm_device_t_Test, RetrieveALInterfaceMACAddressWithAllFFMACAddress) {
@@ -469,7 +469,7 @@ TEST(dm_device_t_Test, RetrieveALInterfaceMACAddressWithAllFFMACAddress) {
 /**
  * @brief Test to verify retrieval of AL interface name with a valid AL interface name.
  *
- * This test checks if the function `get_al_interface_name` correctly retrieves the AL interface name when a valid name is set in the device's backhaul ALID.
+ * This test checks if the function `get_backhaul_al_interface_name` correctly retrieves the AL interface name when a valid name is set in the device's backhaul ALID.
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 014@n
@@ -483,7 +483,7 @@ TEST(dm_device_t_Test, RetrieveALInterfaceMACAddressWithAllFFMACAddress) {
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
  * | 01 | Set the AL interface name in the device's backhaul ALID | expected_name = "eth0" | None | Should be successful |
- * | 02 | Retrieve the AL interface name using `get_al_interface_name` | None | result = "eth0" | Should Pass |
+ * | 02 | Retrieve the AL interface name using `get_backhaul_al_interface_name` | None | result = "eth0" | Should Pass |
  * | 03 | Verify the retrieved AL interface name matches the expected name | result = "eth0", expected_name = "eth0" | Assertion should pass | Should Pass |
  */
  TEST(dm_device_t_Test, RetrieveALInterfaceNameWithValidALInterfaceName) {
@@ -504,7 +504,7 @@ TEST(dm_device_t_Test, RetrieveALInterfaceMACAddressWithAllFFMACAddress) {
 /**
  * @brief Test to verify the retrieval of AL Interface Name when it is empty.
  *
- * This test checks the behavior of the get_al_interface_name() method when the AL Interface Name is set to an empty string. 
+ * This test checks the behavior of the get_backhaul_al_interface_name() method when the AL Interface Name is set to an empty string. 
  * It ensures that the method correctly returns an empty string in this scenario.
  *
  * **Test Group ID:** Basic: 01@n
@@ -519,7 +519,7 @@ TEST(dm_device_t_Test, RetrieveALInterfaceMACAddressWithAllFFMACAddress) {
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
  * | 01 | Set the AL Interface Name to an empty string | expected_name = "" | None | Should be successful |
- * | 02 | Retrieve the AL Interface Name using get_al_interface_name() | None | result = "" | Should Pass |
+ * | 02 | Retrieve the AL Interface Name using get_backhaul_al_interface_name() | None | result = "" | Should Pass |
  * | 03 | Verify the retrieved AL Interface Name is an empty string | result = "", expected_name = "" | result == expected_name | Should Pass |
  */
 TEST(dm_device_t_Test, RetrieveALInterfaceNameWithEmptyALInterfaceName) {
@@ -540,7 +540,7 @@ TEST(dm_device_t_Test, RetrieveALInterfaceNameWithEmptyALInterfaceName) {
 /**
  * @brief Test to retrieve AL interface name with special characters in AL interface name
  *
- * This test verifies that the function `get_al_interface_name` correctly retrieves the AL interface name when it contains special characters. This is important to ensure that the function can handle and return names with special characters accurately.
+ * This test verifies that the function `get_backhaul_al_interface_name` correctly retrieves the AL interface name when it contains special characters. This is important to ensure that the function can handle and return names with special characters accurately.
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 016@n
@@ -554,7 +554,7 @@ TEST(dm_device_t_Test, RetrieveALInterfaceNameWithEmptyALInterfaceName) {
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
  * | 01 | Set the AL interface name with special characters | expected_name = "eth0@# 123" | None | Should be successful |
- * | 02 | Retrieve the AL interface name using `get_al_interface_name` | None | result = "eth0@# 123" | Should Pass |
+ * | 02 | Retrieve the AL interface name using `get_backhaul_al_interface_name` | None | result = "eth0@# 123" | Should Pass |
  * | 03 | Verify the retrieved AL interface name matches the expected name | result = "eth0@# 123", expected_name = "eth0@# 123" | Assertion check: result == expected_name | Should Pass |
  */
 TEST(dm_device_t_Test, RetrieveALInterfaceNameWithSpecialCharactersInALInterfaceName) {
