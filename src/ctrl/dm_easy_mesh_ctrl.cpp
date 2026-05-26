@@ -57,6 +57,7 @@
 #include "em_cmd_get_mld_config.h"
 #include "em_cmd_mld_reconfig.h"
 #include "em_cmd_bsta_cap.h"
+#include "em_cmd_unassoc_sta_query.h"
 
 extern em_network_topo_t *g_network_topology;
 
@@ -1589,6 +1590,170 @@ cleanup:
     return rc;
 }
 
+int dm_easy_mesh_ctrl_t::analyze_unassoc_sta_metrics_query(em_bus_event_t *evt, em_cmd_t *pcmd[])
+{
+    int num = 0;
+    em_cmd_t *tmp = NULL;
+    em_subdoc_info_t *subdoc = NULL;
+
+    cJSON *obj = NULL;
+    cJSON *wfa_obj = NULL;
+
+    cJSON *al_mac_obj = NULL;
+    cJSON *query_list = NULL;
+
+    char wfa[128] = {0};
+
+    subdoc = &evt->u.subdoc;
+    if (subdoc == NULL) {
+        em_printfout("subdoc NULL");
+        return 0;
+    }
+
+    obj = cJSON_Parse(subdoc->buff);
+    if (obj == NULL) {
+        em_printfout("JSON parse failed");
+        return 0;
+    }
+
+    snprintf(wfa, sizeof(wfa), "wfa-dataelements:UnassocSTAQuery");
+
+    wfa_obj = cJSON_GetObjectItem(obj, wfa);
+
+    if (wfa_obj == NULL) {
+        em_printfout("Missing wfa object");
+        cJSON_Delete(obj);
+        return 0;
+    }
+
+    al_mac_obj = cJSON_GetObjectItem(wfa_obj, "AlMac");
+
+    query_list = cJSON_GetObjectItem(wfa_obj, "UnassocStaQueryList");
+
+    if ((al_mac_obj == NULL) || (query_list == NULL) || (!cJSON_IsArray(query_list))) {
+        em_printfout("Missing mandatory params");
+        cJSON_Delete(obj);
+        return 0;
+    }
+
+    em_cmd_params_t params = evt->params;
+
+    const char *al_mac_str = cJSON_GetStringValue(al_mac_obj);
+    if (al_mac_str == NULL) {
+        em_printfout("%s:%d: AlMac is not a string", __func__, __LINE__);
+        cJSON_Delete(obj);
+        return 0;
+    }
+
+    char al_mac_buf[32] = {0};
+    strncpy(al_mac_buf, al_mac_str, sizeof(al_mac_buf) - 1);
+
+    dm_easy_mesh_t::string_to_macbytes(al_mac_buf, params.u.unassoc_sta_query_params.al_mac);
+
+    dm_easy_mesh_t dm = *this;
+
+    em_unassoc_query_list_t query;
+    memset(&query, 0, sizeof(query));
+
+    int opclass_count = cJSON_GetArraySize(query_list);
+
+    if (opclass_count > EM_MAX_OP_CLASS) {
+        opclass_count = EM_MAX_OP_CLASS;
+    }
+
+    query.num_opclass = static_cast<uint8_t>(opclass_count);
+
+    for (int i = 0; i < opclass_count; i++) {
+
+        cJSON *opclass_obj = cJSON_GetArrayItem(query_list, i);
+
+        if (opclass_obj == NULL) {
+            continue;
+        }
+
+        cJSON *opclass_val = cJSON_GetObjectItem(opclass_obj, "opclass");
+
+        cJSON *channels_array = cJSON_GetObjectItem(opclass_obj, "channels");
+
+        if ((opclass_val == NULL) || (channels_array == NULL) || (!cJSON_IsArray(channels_array))) {
+            continue;
+        }
+
+        auto &op = query.opclass_list[i];
+
+        op.op_class = static_cast<uint8_t>(opclass_val->valueint);
+
+        int channel_count = cJSON_GetArraySize(channels_array);
+
+        if (channel_count > EM_MAX_CHANNELS_PER_OPCLASS) {
+            channel_count = EM_MAX_CHANNELS_PER_OPCLASS;
+        }
+
+        op.num_channels = static_cast<uint8_t>(channel_count);
+
+        for (int j = 0; j < channel_count; j++) {
+
+            cJSON *channel_obj = cJSON_GetArrayItem(channels_array, j);
+
+            if (channel_obj == NULL) {
+                continue;
+            }
+
+            cJSON *channel_val = cJSON_GetObjectItem(channel_obj, "channel");
+            cJSON *sta_array = cJSON_GetObjectItem(channel_obj, "sta_macs");
+
+            if ((channel_val == NULL) || (sta_array == NULL) || (!cJSON_IsArray(sta_array))) {
+                continue;
+            }
+
+            auto &ch = op.channel_list[j];
+
+            ch.channel = static_cast<uint8_t>(channel_val->valueint);
+
+            int sta_count = cJSON_GetArraySize(sta_array);
+
+            if (sta_count > EM_MAX_STA_PER_CHANNEL) {
+                sta_count = EM_MAX_STA_PER_CHANNEL;
+            }
+
+            ch.num_sta = static_cast<uint8_t>(sta_count);
+
+            for (int k = 0; k < sta_count; k++) {
+                cJSON *sta_obj = cJSON_GetArrayItem(sta_array, k);
+
+                if ((sta_obj == NULL) || (sta_obj->valuestring == NULL)) {
+                    continue;
+                }
+
+                dm_easy_mesh_t::string_to_macbytes(sta_obj->valuestring, ch.sta_list[k]);
+            }
+        }
+    }
+
+    pcmd[num] = new em_cmd_unassoc_sta_query_t(params, dm, &query);
+
+    if (pcmd[num] == NULL) {
+        cJSON_Delete(obj);
+        return 0;
+    }
+
+    tmp = pcmd[num];
+    num++;
+
+    while ((pcmd[num] =
+            tmp->clone_for_next()) != NULL) {
+
+        tmp = pcmd[num];
+        num++;
+    }
+
+    cJSON_Delete(obj);
+
+    em_printfout("Returning successfully from analyze_unassoc_sta_metrics_query");
+
+    return num;
+}
+
 int dm_easy_mesh_ctrl_t::analyze_sta_link_metrics(em_cmd_t *pcmd[])
 {
     int num = 0;
@@ -1607,7 +1772,6 @@ int dm_easy_mesh_ctrl_t::analyze_sta_link_metrics(em_cmd_t *pcmd[])
 
     return num;
 }
-
 
 int dm_easy_mesh_ctrl_t::analyze_config_renew(em_bus_event_t *evt, em_cmd_t *pcmd[])
 {

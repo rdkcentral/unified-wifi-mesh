@@ -35,6 +35,7 @@
 #include "db_client.h"
 #include "dm_easy_mesh_list.h"
 #include "em_network_topo.h"
+#include "dm_easy_mesh.h"
 
 class em_cmd_t;
 class dm_easy_mesh_t;
@@ -728,6 +729,29 @@ public:
 	 * this function.
 	 */
 	int analyze_bsta_cap_req(em_bus_event_t *evt, em_cmd_t *pcmd[]);
+
+	/**!
+         * @brief Analyzes the Unassociated STA Link Metrics Query event.
+         *
+         * This function processes the Unassociated STA Link Metrics Query
+         * received from the controller, validates the query parameters,
+         * and prepares the corresponding internal command structures for
+         * agent-side handling and RCPI measurement collection.
+         *
+         * @param[in] evt Pointer to the event structure containing the
+         *                Unassociated STA Link Metrics Query payload.
+         * @param[in] pcmd Array of pointers to command structures used
+         *                 for internal processing.
+         *
+         * @returns int Status code indicating success or failure.
+         * @retval 0 on success.
+         * @retval Non-zero error code on failure.
+         *
+         * @note The query may contain one or more operating classes,
+         *       channels, and STA MAC entries as defined by the
+         *       EasyMesh specification.
+         */
+         int analyze_unassoc_sta_metrics_query(em_bus_event_t *evt, em_cmd_t *pcmd[]);
 
 	/**!
 	 * @brief Resets the configuration to its default state.

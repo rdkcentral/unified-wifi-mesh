@@ -286,6 +286,12 @@ bool em_orch_ctrl_t::is_em_ready_for_orch_fini(em_cmd_t *pcmd, em_t *em)
             }
             break;
 
+	case em_cmd_type_unassoc_sta_query:
+            if (em->get_state() == em_state_ctrl_configured) {
+                return true;
+            }
+            break;
+
         default:
             break;
     }
@@ -344,6 +350,7 @@ bool em_orch_ctrl_t::is_em_ready_for_orch_exec(em_cmd_t *pcmd, em_t *em)
         case em_cmd_type_scan_channel:
         case em_cmd_type_set_policy:
         case em_cmd_type_bsta_cap:
+	case em_cmd_type_unassoc_sta_query:
             if (em->get_state() == em_state_ctrl_configured) {
                 return true;
             }
@@ -743,10 +750,16 @@ unsigned int em_orch_ctrl_t::build_candidates(em_cmd_t *pcmd)
                     break;
                 }
                 break;
-
-            default:
-                break;
-        }
+            case em_cmd_type_unassoc_sta_query:
+		if (count == 0 && memcmp(em->get_data_model()->get_agent_al_interface_mac(),
+					pcmd->m_param.u.unassoc_sta_query_params.al_mac, sizeof(mac_address_t)) == 0) {
+		    queue_push(pcmd->m_em_candidates, em);
+		    count++;
+		}		
+		break;
+	    default:
+		break;
+	}
         em = static_cast<em_t *>(hash_map_get_next(m_mgr->m_em_map, em));
     }
 
