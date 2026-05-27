@@ -62,6 +62,8 @@ bool em_msg_t::get_client_mac_info(mac_address_t *mac)
             memcpy(mac, &cltinfo->client_mac_addr, sizeof(mac_address_t));
             return true;
         }
+        len -= static_cast<unsigned int> (sizeof(em_tlv_t) + htons(tlv->len));
+        tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
     }
     return false;
 }

@@ -180,7 +180,10 @@ char *em_cmd_t::status_to_string(em_cmd_out_status_t status, char *str)
 
 void em_cmd_t::deinit()
 {
-    queue_destroy(m_em_candidates);
+    if (m_em_candidates != nullptr) {
+        queue_destroy(m_em_candidates);
+        m_em_candidates = nullptr;
+    }
     m_data_model.deinit();
 	//free(m_evt);
 }
@@ -886,7 +889,7 @@ int em_cmd_t::dump_bus_event(em_bus_event_t *evt)
 }   
 
 em_cmd_t::em_cmd_t(em_cmd_type_t type, em_cmd_params_t param, dm_easy_mesh_t& dm)
-    : m_type(em_cmd_type_none), m_svc(em_service_type_none), m_param{}, m_evt(NULL), m_db_cfg_type(db_cfg_type_none)
+    : m_type(em_cmd_type_none), m_svc(em_service_type_none), m_param{}, m_evt(NULL), m_em_candidates(nullptr), m_db_cfg_type(db_cfg_type_none)
 {
     auto raw = static_cast<std::underlying_type_t<em_cmd_type_t>>(type);
     m_type = (raw >= static_cast<decltype(raw)>(em_cmd_type_max))
@@ -898,7 +901,7 @@ em_cmd_t::em_cmd_t(em_cmd_type_t type, em_cmd_params_t param, dm_easy_mesh_t& dm
 }
 
 em_cmd_t::em_cmd_t(em_cmd_type_t type, em_cmd_params_t param)
-    : m_type(em_cmd_type_none), m_svc(em_service_type_none), m_param{}, m_evt(NULL), m_db_cfg_type(db_cfg_type_none)
+    : m_type(em_cmd_type_none), m_svc(em_service_type_none), m_param{}, m_evt(NULL), m_em_candidates(nullptr), m_db_cfg_type(db_cfg_type_none)
 {
     auto raw = static_cast<std::underlying_type_t<em_cmd_type_t>>(type);
     m_type = (raw >= static_cast<decltype(raw)>(em_cmd_type_max))
@@ -909,7 +912,7 @@ em_cmd_t::em_cmd_t(em_cmd_type_t type, em_cmd_params_t param)
 }
 
 em_cmd_t::em_cmd_t()
-    : m_type(em_cmd_type_none), m_svc(em_service_type_none), m_param{}, m_evt(NULL), m_db_cfg_type(db_cfg_type_none)
+    : m_type(em_cmd_type_none), m_svc(em_service_type_none), m_param{}, m_evt(NULL), m_em_candidates(nullptr), m_db_cfg_type(db_cfg_type_none)
 {
 	m_evt = static_cast<em_event_t *> (malloc(sizeof(em_event_t) + EM_MAX_EVENT_DATA_LEN));
 }

@@ -1635,7 +1635,7 @@ short em_t::create_device_inventory_tlv(unsigned char *buff)
     static constexpr size_t EM_INVENTORY_STR_MAX = 64;
 
     // 1. Serial Number
-    slen = (info->serial_number) ? strlen(info->serial_number) : 0;
+    slen = (info) ? strlen(info->serial_number) : 0;
     if (slen > sizeof(info->serial_number) - 1) slen = sizeof(info->serial_number) - 1;
     if (slen > EM_INVENTORY_STR_MAX) slen = EM_INVENTORY_STR_MAX;
     data_len = static_cast<unsigned char>(slen);
@@ -1647,7 +1647,7 @@ short em_t::create_device_inventory_tlv(unsigned char *buff)
     len += (1 + data_len);
 
     // 2. Software Version
-    slen = (info->software_ver) ? strlen(info->software_ver) : 0;
+    slen = (info) ? strlen(info->software_ver) : 0;
     if (slen > sizeof(info->software_ver) - 1) slen = sizeof(info->software_ver) - 1;
     if (slen > EM_INVENTORY_STR_MAX) slen = EM_INVENTORY_STR_MAX;
     data_len = static_cast<unsigned char>(slen);
@@ -1659,7 +1659,7 @@ short em_t::create_device_inventory_tlv(unsigned char *buff)
     len += (1 + data_len);
 
     // 3. Environment
-    slen = (info->environment) ? strlen(info->environment) : 0;
+    slen = (info) ? strlen(info->environment) : 0;
     if (slen > sizeof(info->environment) - 1) slen = sizeof(info->environment) - 1;
     if (slen > EM_INVENTORY_STR_MAX) slen = EM_INVENTORY_STR_MAX;
     data_len = static_cast<unsigned char>(slen);
@@ -1684,7 +1684,7 @@ short em_t::create_device_inventory_tlv(unsigned char *buff)
         tmp += sizeof(mac_address_t);
         len += static_cast<short>(sizeof(mac_address_t));
 
-        slen = (dm->get_radio_info(i)->chip_vendor) ? strlen(dm->get_radio_info(i)->chip_vendor) : 0;
+        slen = (dm->get_radio_info(i)) ? strlen(dm->get_radio_info(i)->chip_vendor) : 0;
         if (slen > sizeof(dm->get_radio_info(i)->chip_vendor) - 1) slen = sizeof(dm->get_radio_info(i)->chip_vendor) - 1;
         if (slen > EM_INVENTORY_STR_MAX) slen = EM_INVENTORY_STR_MAX;
         data_len = static_cast<unsigned char>(slen);
