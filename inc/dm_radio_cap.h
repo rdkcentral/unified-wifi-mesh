@@ -74,7 +74,7 @@ public:
 	 */
 	void encode(cJSON *obj);
 
-    bool operator == (const dm_radio_cap_t& obj);
+    bool operator == (const dm_radio_cap_t& obj) const;
     void operator = (const dm_radio_cap_t& obj);
 
     

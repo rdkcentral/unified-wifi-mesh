@@ -29,7 +29,7 @@
 class em_cmd_t {
 public:
     em_cmd_type_t   m_type;
-    em_service_type_t   m_svc;
+    em_service_type_t   m_svc = em_service_type_none;
     em_cmd_params_t m_param;
     em_event_t  *m_evt;
     em_string_t m_name;

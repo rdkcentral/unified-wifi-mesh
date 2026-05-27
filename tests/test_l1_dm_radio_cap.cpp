@@ -483,14 +483,14 @@ TEST(dm_radio_cap_t_Test, NullRadioCapPointer) {
 * **Test Procedure:**@n
 * | Variation / Step | Description | Test Data | Expected Result | Notes |
 * | :----: | --------- | ---------- |-------------- | ----- |
-* | 01 | Create invalid radio capability structure | radio_cap.ch_scan.intf.media = 9999, radio_cap.ch_scan.band = 9999 | None | Should be successful |
+* | 01 | Create invalid radio capability structure | radio_cap.ruid.media = 9999, radio_cap.num_op_classes = UINT_MAX | None | Should be successful |
 * | 02 | Initialize dm_radio_cap_t object with invalid structure | dm_radio_cap_t radio_cap_obj(&radio_cap) | None | Should be successful |
 */
 TEST(dm_radio_cap_t_Test, InvalidRadioCapStructure) {
     std::cout << "Entering InvalidRadioCapStructure test";
     em_radio_cap_info_t radio_cap{};
-    radio_cap.ch_scan.scan_impact = static_cast<unsigned char>(3);
-    radio_cap.ch_scan.op_classes_num = static_cast<unsigned char>(255);
+    radio_cap.ruid.media = static_cast<em_media_type_t>(9999);
+    radio_cap.num_op_classes = UINT_MAX;
     dm_radio_cap_t radio_cap_obj(&radio_cap);
     std::cout << "Exiting InvalidRadioCapStructure test";
 }
@@ -877,16 +877,18 @@ TEST(dm_radio_cap_t_Test, AssigningMixedValues) {
 * | :----: | --------- | ---------- |-------------- | ----- |
 * | 01 | Create two dm_radio_cap_t objects | obj1, obj2 | Objects created successfully | Should be successful |
 * | 02 | Assign an invalid enum value to obj2's media type | 0x9999 (not defined in em_media_type_t) | Value assigned without compile-time error | Invalid value handled |
-* | 03 | Assign obj2 to obj1 | obj1 = obj2 | Assignment successful | Should be successful |
-* | 04 | Compare the media type values of obj1 and obj2 | obj2.m_radio_cap_info.ruid.media != obj1.m_radio_cap_info.ruid.media | Should not be the same | Should Pass |
+* | 03 | Verify obj2 has a different media type than the default-initialised obj1 | obj2.m_radio_cap_info.ruid.media != obj1.m_radio_cap_info.ruid.media | EXPECT_NE passes; objects are not equal before assignment | Should Pass |
+* | 04 | Assign obj2 to obj1 | obj1 = obj2 | Assignment successful | Should be successful |
+* | 05 | Verify obj1 has the same media type as obj2 after assignment | obj1.m_radio_cap_info.ruid.media == obj2.m_radio_cap_info.ruid.media | EXPECT_EQ passes; assignment correctly copied the invalid value | Should Pass |
 */
 TEST(dm_radio_cap_t_Test, AssigningInvalidValue) {
     std::cout << "Entering AssigningInvalidValue test";
     dm_radio_cap_t obj1{};
-    dm_radio_cap_t obj2{}; 
-    obj2.m_radio_cap_info.ruid.media = em_media_type_max;
-    obj1 = obj2;
+    dm_radio_cap_t obj2{};
+    obj2.m_radio_cap_info.ruid.media = static_cast<em_media_type_t>(0x9999);
     EXPECT_NE(obj2.m_radio_cap_info.ruid.media, obj1.m_radio_cap_info.ruid.media);
+    obj1 = obj2;
+    EXPECT_EQ(obj1.m_radio_cap_info.ruid.media, obj2.m_radio_cap_info.ruid.media);
     std::cout << "Exiting AssigningInvalidValue test";
 }
 
@@ -910,7 +912,8 @@ TEST(dm_radio_cap_t_Test, AssigningInvalidValue) {
 * | :----: | --------- | ---------- |-------------- | ----- |
 * | 01 | Create first dm_radio_cap_t object | obj1 = dm_radio_cap_t() | None | Should be successful |
 * | 02 | Create second dm_radio_cap_t object | obj2 = dm_radio_cap_t() | None | Should be successful |
-* | 03 | Compare the two objects using equality operator | obj1 == obj2 | EXPECT_TRUE(obj1 == obj2) | Should Pass |
+* | 03 | Set wifi7_cap.mlo_cap_support.ruid[0] and ch_scan.min_scan_interval to the same values in both objects | obj1.m_radio_cap_info.wifi7_cap.mlo_cap_support.ruid[0] = 2, obj1.m_radio_cap_info.ch_scan.min_scan_interval = 80, same for obj2 | None | Should be successful |
+* | 04 | Verify that both objects have the same field values | EXPECT_EQ on ruid[0] and min_scan_interval | EXPECT_EQ passes | Should Pass |
 */
 TEST(dm_radio_cap_t_Test, CompareIdenticalObjects) {
     std::cout << "Entering CompareIdenticalObjects" << std::endl;
@@ -944,8 +947,8 @@ TEST(dm_radio_cap_t_Test, CompareIdenticalObjects) {
 * | Variation / Step | Description | Test Data |Expected Result |Notes |
 * | :----: | --------- | ---------- |-------------- | ----- |
 * | 01| Initialize obj1 and obj2 | obj1 = dm_radio_cap_t(), obj2 = dm_radio_cap_t() | Objects initialized | Should be successful |
-* | 02| Set number_of_bss for obj2 | obj2.m_radio_cap_info.ch_scan.number_of_bss = 5 | obj2.m_radio_cap_info.ch_scan.number_of_bss = 5 | Should be successful |
-* | 03| Compare obj1 and obj2 using equality operator | obj1 == obj2 | EXPECT_FALSE(obj1 == obj2) | Should Pass |
+* | 02| Set op_classes_num for obj1 to 2 and obj2 to 5 | obj1.m_radio_cap_info.ch_scan.op_classes_num = 2, obj2.m_radio_cap_info.ch_scan.op_classes_num = 5 | Values set | Should be successful |
+* | 03| Compare obj1 and obj2 using EXPECT_NE | obj1.ch_scan.op_classes_num != obj2.ch_scan.op_classes_num | EXPECT_NE passes | Should Pass |
 */
 TEST(dm_radio_cap_t_Test, CompareDifferentNumberOfBSS) {
     std::cout << "Entering CompareDifferentNumberOfBSS" << std::endl;
@@ -1008,7 +1011,7 @@ TEST(dm_radio_cap_t_Test, CompareDifferentMediaType) {
 * | Variation / Step | Description | Test Data | Expected Result | Notes |
 * | :----: | --------- | ---------- |-------------- | ----- |
 * | 01 | Initialize obj1 and obj2 | obj1, obj2 | Objects initialized | Should be successful |
-* | 02 | Set obj2.m_radio_cap_info.ch_scan.enabled to true | obj2.m_radio_cap_info.ch_scan.enabled = true | Value set | Should be successful |
+* | 02 | Set obj1.m_radio_cap_info.ch_scan.boot_only to 0 and obj2 to 1 | obj1.m_radio_cap_info.ch_scan.boot_only = 0, obj2.m_radio_cap_info.ch_scan.boot_only = 1 | Values set | Should be successful |
 * | 03 | Compare obj1 and obj2 using equality operator | obj1, obj2 | EXPECT_FALSE(obj1 == obj2) | Should Pass |
 */
 TEST(dm_radio_cap_t_Test, CompareDifferentEnabledValue) {
@@ -1040,7 +1043,7 @@ TEST(dm_radio_cap_t_Test, CompareDifferentEnabledValue) {
 * | Variation / Step | Description | Test Data | Expected Result | Notes |
 * | :----: | --------- | ---------- |-------------- | ----- |
 * | 01 | Initialize two `dm_radio_cap_t` objects | obj1, obj2 | Objects initialized | Should be successful |
-* | 02 | Set `chip_vendor` of `obj2` to "VendorX" | obj2.m_radio_cap_info.ch_scan.chip_vendor = "VendorX" | `chip_vendor` set to "VendorX" | Should be successful |
+* | 02 | Set `ch_scan.ruid` of `obj1` to "vndA" and `obj2` to "vndX" | obj1.m_radio_cap_info.ch_scan.ruid = "vndA\0\0", obj2.m_radio_cap_info.ch_scan.ruid = "vndX\0\0" | `ruid` set with different values | Should be successful |
 * | 03 | Compare `obj1` and `obj2` using equality operator | obj1, obj2 | EXPECT_FALSE(obj1 == obj2) | Should Pass |
 */
 TEST(dm_radio_cap_t_Test, CompareDifferentChipVendor) {
@@ -1072,7 +1075,7 @@ TEST(dm_radio_cap_t_Test, CompareDifferentChipVendor) {
 * | Variation / Step | Description | Test Data |Expected Result |Notes |
 * | :----: | --------- | ---------- |-------------- | ----- |
 * | 01| Create two dm_radio_cap_t objects | obj1, obj2 | Objects created successfully | Should be successful |
-* | 02| Set srg_bss_color_bitmap[0] of obj2 to 1 | obj2.m_radio_cap_info.ch_scan.srg_bss_color_bitmap[0] = 1 | Value set successfully | Should be successful |
+* | 02| Set ch_scan.ruid[0] of obj2 to 1 and obj1 to 0 | obj1.m_radio_cap_info.ch_scan.ruid[0] = 0, obj2.m_radio_cap_info.ch_scan.ruid[0] = 1 | Value set successfully | Should be successful |
 * | 03| Compare obj1 and obj2 using equality operator | obj1 == obj2 | EXPECT_FALSE(obj1 == obj2) | Should Pass |
 */
 TEST(dm_radio_cap_t_Test, CompareDifferentBSSColorBitmap) {
@@ -1199,7 +1202,7 @@ TEST(dm_radio_cap_t_Test, CompareDifferentEHTOpsReserved) {
 * | Variation / Step | Description | Test Data |Expected Result |Notes |
 * | :----: | --------- | ---------- |-------------- | ----- |
 * | 01| Create two dm_radio_cap_t objects | obj1, obj2 | Objects created successfully | Should be successful |
-* | 02| Set EHT capability for obj2 | obj2.m_radio_cap_info.eht_cap = "EHT Capability" | EHT capability set successfully | Should be successful |
+* | 02| Set eht_ops.radios_num of obj1 to 1 and obj2 to 2 | obj1.m_radio_cap_info.eht_ops.radios_num = 1, obj2.m_radio_cap_info.eht_ops.radios_num = 2 | EHT ops radios_num set with different values | Should be successful |
 * | 03| Compare obj1 and obj2 using equality operator | obj1 == obj2 | EXPECT_FALSE(obj1 == obj2) | Should Fail |
 */
 TEST(dm_radio_cap_t_Test, CompareDifferentEHTCap) {

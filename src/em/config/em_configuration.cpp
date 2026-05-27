@@ -851,6 +851,7 @@ void em_configuration_t::handle_ap_vendor_operational_bss(unsigned char *value, 
 			dm_bss = dm->get_bss(radio->ruid, bss->bssid);
 			if (dm_bss == NULL) {
 				dm_bss = &dm->m_bss[dm->m_num_bss];
+				dm_bss->init();
 				dm->set_num_bss(dm->get_num_bss() + 1);
 			}
 			// fill up id first
@@ -1459,6 +1460,7 @@ int em_configuration_t::handle_ap_operational_bss(unsigned char *buff, unsigned 
 		
 			if (dm_bss == NULL) {
 				dm_bss = &dm->m_bss[dm->m_num_bss];
+				dm_bss->init();
 
 				// fill up id first
 				strncpy(dm_bss->m_bss_info.id.net_id, dm->m_device.m_device_info.id.net_id, sizeof(em_long_string_t));
@@ -3605,7 +3607,7 @@ int em_configuration_t::handle_wsc_m1(unsigned char *buff, unsigned int len)
     unsigned int tmp_len;
     unsigned short id;
     mac_addr_str_t mac_str;
-    em_device_info_t    dev_info;
+    em_device_info_t    dev_info = {};
     dm_easy_mesh_t *dm;
     em_freq_band_t  band;
     dm_radio_t *radio;
@@ -5048,16 +5050,21 @@ int em_configuration_t::handle_autoconfig_resp(unsigned char *buff, unsigned int
     }
 
     printf("Received resp and validated...creating M1 msg\n");
-    sz = static_cast<unsigned int> (create_autoconfig_wsc_m1_msg(msg, hdr->src));
+    int msg_len = create_autoconfig_wsc_m1_msg(msg, hdr->src);
+    if (msg_len < 0) {
+        em_printfout("Error: Failed to create autoconfig wsc m1 msg");
+        return -1;
+    }
+    sz = static_cast<unsigned int>(msg_len);
 
     if (em_msg_t(em_msg_type_autoconf_wsc, em_profile_type_3, msg, sz).validate(errors) == 0) {
-        printf("autoconfig wsc m1 validation failed\n");
+        em_printfout("Error: autoconfig wsc m1 validation failed");
 
         return -1;
     }
 
     if (send_frame(msg, sz)  < 0) {
-        printf("%s:%d: autoconfig wsc m1 send failed, error:%d\n", __func__, __LINE__, errno);
+        em_printfout("Error: autoconfig wsc m1 send failed, error:%d", errno);
 
         return -1;
     }
@@ -5109,19 +5116,24 @@ int em_configuration_t::handle_autoconfig_search(unsigned char *buff, unsigned i
         return ec_mgr.handle_autoconf_chirp(reinterpret_cast<em_dpp_chirp_value_t*>(dpp_chirp_tlv->value), SWAP_LITTLE_ENDIAN(dpp_chirp_tlv->len), al_mac, ntohs(cmdu->id));
     }
     
-    sz = static_cast<unsigned int> (create_autoconfig_resp_msg(msg, band, al_mac, ntohs(cmdu->id)));
+    int msg_len = create_autoconfig_resp_msg(msg, band, al_mac, ntohs(cmdu->id));
+    if (msg_len < 0) {
+        em_printfout("Error: Failed to create autoconfig response msg");
+        return -1;
+    }
+    sz = static_cast<unsigned int>(msg_len);
     if (em_msg_t(em_msg_type_autoconf_resp, em_profile_type_3, msg, sz).validate(errors) == 0) {
-        printf("%s:%d: autoconfig rsp validation failed\n", __func__, __LINE__);
+        em_printfout("Error: autoconfig rsp validation failed");
 
         //return -1;
     }
 
     if (send_frame(msg, sz)  < 0) {
-        printf("%s:%d: autoconfig rsp send failed, error:%d\n", __func__, __LINE__, errno);
+        em_printfout("Error: autoconfig rsp send failed, error:%d", errno);
 
         return -1;
     }
-    printf("%s:%d: autoconfig rsp send success\n", __func__, __LINE__);
+    em_printfout("autoconfig rsp send success");
 
     if (!get_is_dpp_onboarding()) {
         set_state(em_state_ctrl_wsc_m1_pending);
@@ -5332,20 +5344,25 @@ void em_configuration_t::handle_state_config_none()
     unsigned char buff[MAX_EM_BUFF_SZ];
     unsigned int sz;
     char* errors[EM_MAX_TLV_MEMBERS] = {0};
-
-    sz = static_cast<unsigned int> (create_autoconfig_search_msg(buff));
+    int len = create_autoconfig_search_msg(buff);
+    if (len < 0) {
+        em_printfout("Error: Failed to create autoconfig_search msg");
+        return;
+    }
+    sz = static_cast<unsigned int>(len);
     if (em_msg_t(em_msg_type_autoconf_search, em_profile_type_3, buff, sz).validate(errors) == 0) {
-        printf("Autoconfig_search validation failed\n");
+        em_printfout("Error: Autoconfig_search validation failed");
 
         return;
     }
 
     if (send_frame(buff, sz, true)  < 0) {
-        printf("%s:%d: failed, err:%d\n", __func__, __LINE__, errno);
+        em_printfout("Error: failed, err:%d\n", errno);
         return;
     }
     em_printf("autoconfig_search send successful");
-    printf("%s:%d: autoconfig_search send successful\n", __func__, __LINE__);
+    em_printfout("autoconfig_search send successful");
+
     set_state(em_state_agent_autoconfig_rsp_pending);
 
     return;
@@ -5361,18 +5378,23 @@ void em_configuration_t::handle_state_autoconfig_renew()
 
 
     memcpy(ctrl_src, get_current_cmd()->get_data_model()->get_controller_interface_mac(), sizeof(mac_address_t));
-    sz = static_cast<unsigned int> (create_autoconfig_wsc_m1_msg(msg, ctrl_src));
+    int msg_len = create_autoconfig_wsc_m1_msg(msg, ctrl_src);
+    if (msg_len < 0) {
+        em_printfout("Error: Failed to create autoconfig wsc m1 msg");
+        return ;
+    }
+    sz = static_cast<unsigned int>(msg_len);
 
     if (em_msg_t(em_msg_type_autoconf_wsc, em_profile_type_3, msg, sz).validate(errors) == 0) {
-        printf("autoconfig wsc m1 validation failed\n");
+        em_printfout("Error: autoconfig wsc m1 validation failed");
         return ;
     }
 
     if (send_frame(msg, sz)  < 0) {
-        printf("%s:%d: autoconfig wsc m1 send failed, error:%d\n", __func__, __LINE__, errno);
+        em_printfout("Error: autoconfig wsc m1 send failed, error:%d", errno);
         return ;
     }
-    printf("%s:%d: autoconfig wsc m1 send success\n", __func__, __LINE__);
+    em_printfout("autoconfig wsc m1 send success");
     set_state(em_state_agent_wsc_m2_pending);
 
     return ;
