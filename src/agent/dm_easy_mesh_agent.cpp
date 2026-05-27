@@ -761,7 +761,7 @@ int dm_easy_mesh_agent_t::analyze_btm_request_action_frame(em_bus_event_t *evt, 
         + sizeof(em_80211_neighbor_report_t);
     aframe = static_cast<action_frame_params_t *> (malloc(sizeof(action_frame_params_t) + static_cast<size_t>(len)));
     if (aframe == NULL) {
-        printf("%s:%d Failed to allocate action frame\n", __func__, __LINE__);
+        em_printfout("Error: Failed to allocate action frame");
         return -1;
     }
     // Point ieeeframe to aframe->frame_data
@@ -799,7 +799,7 @@ int dm_easy_mesh_agent_t::analyze_btm_request_action_frame(em_bus_event_t *evt, 
     bss_list->bss_transition_cand_list[0].phy_type = 0;
 
     dm_easy_mesh_t::macbytes_to_string(steer_req->sta_mac_addr, mac_str);
-    printf("%s:%d STA MAC for BTM request %s\n", __func__, __LINE__, mac_str);
+    em_printfout("STA MAC for BTM request %s", mac_str);
     memcpy(aframe->dest_addr, steer_req->sta_mac_addr, sizeof(mac_addr_t));
     aframe->frequency = 2412;
     aframe->ap_index = 0;
@@ -812,10 +812,10 @@ int dm_easy_mesh_agent_t::analyze_btm_request_action_frame(em_bus_event_t *evt, 
     l_bus_data.raw_data_len = static_cast<size_t>(len) + sizeof(action_frame_params_t);
 
     if (desc->bus_set_fn(bus_hdl, "Device.WiFi.AccessPoint.1.RawFrame.Mgmt.Action.Tx", &l_bus_data)== 0) {
-        printf("%s:%d Frame subdoc send successfull\n",__func__, __LINE__);
+        em_printfout("Frame subdoc send successfull\n");
     }
     else {
-        printf("%s:%d Frame subdoc send fail\n",__func__, __LINE__);
+        em_printfout("Error: Frame subdoc send fail\n");
         free(aframe);
         return -1;
     }
@@ -871,26 +871,26 @@ int dm_easy_mesh_agent_t::analyze_scan_result(em_bus_event_t *evt, em_cmd_t *pcm
     config.apply_data =  webconfig_dummy_apply;
 
     if (webconfig_init(&config) != webconfig_error_none) {
-        printf( "[%s]:%d Init WiFi Web Config  fail\n",__func__,__LINE__);
+        em_printfout( "Error: Init WiFi Web Config  fail");
         return 0;
     }
 
     json = cJSON_Parse(reinterpret_cast<const char *>(evt->u.raw_buff));
     if (json == NULL) {
-        printf("%s:%d Unable to parse scan result JSON\n", __func__, __LINE__);
+        em_printfout("Error: Unable to parse scan result JSON");
         return 0;
     }
     scanner_mac_obj = cJSON_GetObjectItemCaseSensitive(json, "ScannerMac");
     if ((scanner_mac_obj == NULL) || (cJSON_IsString(scanner_mac_obj) == false) || (scanner_mac_obj->valuestring == NULL) ) {
-        printf("%s:%d Unable to find scanner mac\n", __func__, __LINE__);
+        em_printfout("Error: Unable to find scanner mac");
         cJSON_Delete(json);
         return 0;
     }
 
     if ((webconfig_easymesh_decode(&config, reinterpret_cast<char *>(evt->u.raw_buff), &ext, &type)) == webconfig_error_none) {
-        printf("%s:%d scanner mac: %s - analyze_scan_result subdoc decode success\n",__func__, __LINE__, scanner_mac_obj->valuestring);
+        em_printfout("scanner mac: %s - analyze_scan_result subdoc decode success", scanner_mac_obj->valuestring);
     } else {
-        printf("%s:%d scanner mac: %s - analyze_scan_result subdoc decode fail\n",__func__, __LINE__, scanner_mac_obj->valuestring);
+        em_printfout("Error: scanner mac: %s - analyze_scan_result subdoc decode fail", scanner_mac_obj->valuestring);
     }
 
     dm_easy_mesh_t::string_to_macbytes(scanner_mac_obj->valuestring, evt->params.u.scan_params.ruid);
@@ -1101,7 +1101,7 @@ void dm_easy_mesh_agent_t::translate_and_decode_onewifi_subdoc(char *str, webcon
     config.apply_data =  webconfig_dummy_apply;
 
     if (webconfig_init(&config) != webconfig_error_none) {
-        em_printfout( "Init WiFi Web Config  fail");
+        em_printfout( "Init WiFi Web Config fail");
         return;
     }
 
