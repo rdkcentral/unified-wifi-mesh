@@ -574,14 +574,14 @@ void em_agent_t::handle_recv_wfa_action_frame(em_bus_event_t *evt)
         sizeof(uint8_t[3]);  // oui field
 
     if (frame_len <= fixed_full_header_len){
-        printf("%s:%d Recieved WFA Action frame is too short! Must have at least the OUI type in the data field\n", __func__, __LINE__);
+        em_printfout("Error: Received WFA Action frame is too short! Must have at least the OUI type in the data field");
         return;
     }
     auto mgmt_frame = reinterpret_cast<struct ieee80211_mgmt *>(mgmt_frame_buff);
     auto vs_action_data = mgmt_frame->u.action.u.vs_public_action.variable;
     auto vs_data_len = frame_len - fixed_full_header_len;
 
-    printf("%s:%d: Received WFA action frame: Full Length: %zu, VS Action Data Length: %zu\n", __func__, __LINE__, frame_len, vs_data_len);
+    em_printfout("Received WFA action frame: Full Length: %zu, VS Action Data Length: %zu", frame_len, vs_data_len);
 
     std::string dest_mac_str = util::mac_to_string(mgmt_frame->da);
     em_printfout("Dest Mac Str: %s", dest_mac_str.c_str());
@@ -592,19 +592,19 @@ void em_agent_t::handle_recv_wfa_action_frame(em_bus_event_t *evt)
 
     bool is_bcast = (memcmp(mgmt_frame->da, BROADCAST_MAC_ADDR, ETH_ALEN) == 0);
     if (is_bcast) {
-        printf("Received WFA action frame with broadcast destination MAC address\n");
+        em_printfout("Received WFA action frame with broadcast destination MAC address");
     } else {
         // Dest MAC is not necsessarily the same as the radio node's MAC address, so we need to look it up
         em_bss_info_t* dest_bss = m_data_model.get_bss_info_with_mac(mgmt_frame->da);
         if (dest_bss == NULL) {
-            em_printfout("No BSS found for dest mac %s\n", dest_mac_str.c_str());
+            em_printfout("No BSS found for dest mac %s", dest_mac_str.c_str());
             return;
         }
 
         std::string ruid_str = util::mac_to_string(dest_bss->ruid.mac);
         dest_radio_node = static_cast<em_t*>(hash_map_get(g_agent.m_em_map, ruid_str.c_str()));
         if (dest_radio_node == NULL) {
-            em_printfout("No radio node found for dest mac %s\n", dest_mac_str.c_str());
+            em_printfout("No radio node found for dest mac %s", dest_mac_str.c_str());
             return;
         }
     }
@@ -617,7 +617,7 @@ void em_agent_t::handle_recv_wfa_action_frame(em_bus_event_t *evt)
 
     switch (oui_type) {
     case DPP_OUI_TYPE: {
-        printf("%s:%d: Received DPP action frame\n", __func__, __LINE__);
+        em_printfout("Received DPP action frame");
         em_t* al_node = get_al_node();
 
         if (al_node != NULL) {
@@ -1158,84 +1158,84 @@ void em_agent_t::input_listener()
     bus_init(&m_bus_hdl);
 
     if((desc = get_bus_descriptor()) == NULL) {
-        printf("%s:%d descriptor is null\n", __func__, __LINE__);
+        em_printfout("Error: descriptor is null");
     }
 
     if (desc->bus_open_fn(&m_bus_hdl, service_name) != 0) {
-        printf("%s:%d bus open failed\n",__func__, __LINE__);
+        em_printfout("Error: bus open failed");
         return;
     }
 
-    printf("%s:%d he_bus open success\n", __func__, __LINE__);
+    em_printfout("bus open success");
 
     memset(&data, 0, sizeof(raw_data_t));
 
     while ((bus_error_val = desc->bus_data_get_fn(&m_bus_hdl, WIFI_WEBCONFIG_INIT_DML_DATA, &data)) != bus_error_success) {
-        printf("%s:%d bus get failed, error:%d, ", __func__, __LINE__, bus_error_val);
+        em_printfout("Error: bus get failed, error: %d", bus_error_val);
 		usleep(RETRY_SLEEP_INTERVAL_IN_MS * 1000);
 		num_retry++;
-		printf("retrying %d\n", num_retry);
+		em_printfout("retrying %d", num_retry);
 
         if (num_retry % 5 == 0) {
             if (access(EM_CFG_FILE, F_OK) != -1) {
-                printf("Check that OneWifi is running.\n");
+                em_printfout("Check that OneWifi is running.");
             } else {
-                printf("EasymeshCfg.json does not exist. Generate via the unified-wifi-mesh CLI/TUI (if co-located) or by adding the `--interface` flag to the agent (if not)\n");
+                em_printfout("EasymeshCfg.json does not exist. Generate via the unified-wifi-mesh CLI/TUI (if co-located) or by adding the `--interface` flag to the agent (if not)");
             }
         }
     }
-    printf("%s:%d recv data:\r\n%s\r\n", __func__, __LINE__, reinterpret_cast<char *>(data.raw_data.bytes));
+    em_printfout("Received data:\r\n%s\r\n", reinterpret_cast<char *>(data.raw_data.bytes));
 
     g_agent.io_process(em_bus_event_type_dev_init, reinterpret_cast<unsigned char *>(data.raw_data.bytes), data.raw_data_len);
     free(data.raw_data.bytes);
 
     if (desc->bus_event_subs_fn(&m_bus_hdl, WIFI_WEBCONFIG_DOC_DATA_NORTH, reinterpret_cast<void *>(&em_agent_t::onewifi_cb), NULL, 0) != 0) {
-        printf("%s:%d bus get failed\n", __func__, __LINE__);
+        em_printfout("Error: bus get failed");
         return;
     }
 
     if (desc->bus_event_subs_fn(&m_bus_hdl, WIFI_WEBCONFIG_GET_ASSOC, reinterpret_cast<void *>(&em_agent_t::sta_cb), NULL, 0) != 0) {
-        printf("%s:%d bus get failed\n", __func__, __LINE__);
+        em_printfout("Error: bus get failed");
         return;
     }
 
     if (desc->bus_event_subs_fn(&m_bus_hdl, "Device.WiFi.EM.STALinkMetricsReport", reinterpret_cast<void *>(&em_agent_t::assoc_stats_cb), NULL, 0) != 0) {
-        printf("%s:%d bus get failed\n", __func__, __LINE__);
+        em_printfout("Error: bus get failed");
         return;
     }
 
     if (desc->bus_event_subs_fn(&m_bus_hdl, WIFI_EM_CHANNEL_SCAN_REPORT, reinterpret_cast<void *>(&em_agent_t::channel_scan_cb), NULL, 0) != 0) {
-        printf("%s:%d bus get failed\n", __func__, __LINE__);
+        em_printfout("Error: bus get failed");
         return;
     }
 
     if (desc->bus_event_subs_fn(&m_bus_hdl, "Device.WiFi.EM.BeaconReport", reinterpret_cast<void *>(&em_agent_t::beacon_report_cb), NULL, 0) != 0) {
-        printf("%s:%d bus get failed\n", __func__, __LINE__);
+        em_printfout("Error: bus get failed");
         return;
     }
 
     if (desc->bus_event_subs_fn(&m_bus_hdl, "Device.WiFi.EM.AssociationStatus", reinterpret_cast<void *>(&em_agent_t::association_status_cb), nullptr, 0) != 0) {
-        em_printfout("Failed to subscribe to 'Device.WiFi.EM.AssociationStatus'");
+        em_printfout("Error: Failed to subscribe to 'Device.WiFi.EM.AssociationStatus'");
         return;
     }
 
     if (desc->bus_event_subs_fn(&m_bus_hdl, "Device.WiFi.EC.BSSInfo", reinterpret_cast<void *>(&em_agent_t::bss_info_cb), nullptr, 0) != 0) {
-        em_printfout("Failed to subscribe to 'Device.WiFi.EC.BSSInfo', dynamic DPP channel list for Reconfiguration Announcement is not available");
+        em_printfout("Error: Failed to subscribe to 'Device.WiFi.EC.BSSInfo', dynamic DPP channel list for Reconfiguration Announcement is not available");
         // This is fine, not a fatal error
     }
 
     if (desc->bus_event_subs_fn(&m_bus_hdl, "Device.WiFi.EM.APMetricsReport", reinterpret_cast<void *>(&em_agent_t::report_cb), NULL, 0) != 0) {
-        printf("%s:%d bus get failed\n", __func__, __LINE__);
+        em_printfout("Error: bus get failed");
         return;
     }
 
     if (desc->bus_event_subs_fn(&m_bus_hdl,  WIFI_QUALITY_LINKREPORT, reinterpret_cast<void *>(&em_agent_t::report_cb), NULL, 0) != 0) {
-        printf("%s:%d bus get failed\n", __func__, __LINE__);
+        em_printfout("Error: bus get failed");
         return;
     }
 
    if(desc->bus_event_subs_fn(&m_bus_hdl, "Device.WiFi.CSABeaconFrameRecieved", reinterpret_cast<void *>(&em_agent_t::mgmt_csa_beacon_frame_cb), NULL, 0) != 0) {
-        printf("%s:%d bus get failed\n",__func__,__LINE__);
+        em_printfout("Error: bus get failed");
         return;
     }
 
