@@ -1000,20 +1000,7 @@ class em_configuration_t {
 	 */
 	unsigned short create_m2_msg(unsigned char *buff, em_haul_type_t haul_type);
     
-	/**!
-	 * @brief Creates a traffic separation policy.
-	 *
-	 * This function is responsible for creating a traffic separation policy using the provided buffer.
-	 *
-	 * @param[in] buff A pointer to an unsigned char buffer that contains the data required for creating the policy.
-	 *
-	 * @returns An unsigned short value indicating the result of the policy creation.
-	 * @retval 0 on success.
-	 * @retval non-zero error code on failure.
-	 *
-	 * @note Ensure that the buffer is properly initialized before calling this function.
-	 */
-	unsigned short create_traffic_separation_policy(unsigned char *buff);
+	virtual unsigned short create_traffic_separation_policy_tlv(unsigned char *buff) = 0;
     
 	/**!
 	 * @brief Creates an error code TLV.

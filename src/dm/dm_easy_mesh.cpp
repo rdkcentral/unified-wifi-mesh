@@ -973,6 +973,7 @@ int dm_easy_mesh_t::decode_config_set_policy(em_subdoc_info_t *subdoc, const cha
 	cJSON *parent_obj, *net_obj, *net_obj_id, *dev_arr_obj, *dev_obj, *dev_obj_id, *policy_obj; 
 	cJSON *ap_metrics_obj, *scan_obj, *radio_metrics_arr_obj, *radio_steer_arr_obj, *local_steer_obj, *btm_steer_obj;
 	cJSON *backhaul_obj, *radio_id_obj, *radio_metrics_obj, *radio_steer_obj;
+	cJSON *traffic_sep_obj, *unsuccess_assoc_obj, *qos_mgt_obj, *def_8021q_obj;
 	unsigned int num_devices = 0;
 	int i;
 	char *dev_mac_str, *net_id;
@@ -1117,16 +1118,47 @@ int dm_easy_mesh_t::decode_config_set_policy(em_subdoc_info_t *subdoc, const cha
     }
 
     if ((backhaul_obj = cJSON_GetObjectItem(policy_obj, "Backhaul BSS Configuration Policy")) != NULL) {
-        snprintf(parent, sizeof(em_long_string_t), "%s@%s@00:00:00:00:00:00@%d", net_id, dev_mac_str,
-                    em_policy_id_type_backhaul_bss_config);
-        m_policy[m_num_policy].decode(backhaul_obj, parent, em_policy_id_type_backhaul_bss_config);
-        m_num_policy++;
+        for (i = 0; i < cJSON_GetArraySize(backhaul_obj); i++) {
+            cJSON *backhaul_item_obj = cJSON_GetArrayItem(backhaul_obj, i);
+            snprintf(parent, sizeof(em_long_string_t), "%s@%s@00:00:00:00:00:00@%d", net_id, dev_mac_str,
+                        em_policy_id_type_backhaul_bss_config);
+            m_policy[m_num_policy].decode(backhaul_item_obj, parent, em_policy_id_type_backhaul_bss_config);
+            m_num_policy++;
+        }
     }
 
     if ((scan_obj = cJSON_GetObjectItem(policy_obj, "Channel Scan Reporting Policy")) != NULL) {
         snprintf(parent, sizeof(em_long_string_t), "%s@%s@00:00:00:00:00:00@%d", net_id, dev_mac_str,
                     em_policy_id_type_channel_scan);
         m_policy[m_num_policy].decode(scan_obj, parent, em_policy_id_type_channel_scan);
+        m_num_policy++;
+    }
+
+    if ((unsuccess_assoc_obj = cJSON_GetObjectItem(policy_obj, "Unsuccessful Association Policy")) != NULL) {
+        snprintf(parent, sizeof(em_long_string_t), "%s@%s@00:00:00:00:00:00@%d", net_id, dev_mac_str,
+                    em_policy_id_type_unsuccess_assoc);
+        m_policy[m_num_policy].decode(unsuccess_assoc_obj, parent, em_policy_id_type_unsuccess_assoc);
+        m_num_policy++;
+    }
+
+    if ((qos_mgt_obj = cJSON_GetObjectItem(policy_obj, "QoS Management Policy")) != NULL) {
+        snprintf(parent, sizeof(em_long_string_t), "%s@%s@00:00:00:00:00:00@%d", net_id, dev_mac_str,
+                    em_policy_id_type_qos_mgt);
+        m_policy[m_num_policy].decode(qos_mgt_obj, parent, em_policy_id_type_qos_mgt);
+        m_num_policy++;
+    }
+
+    if ((def_8021q_obj = cJSON_GetObjectItem(policy_obj, "Default 802.1Q Settings Policy")) != NULL) {
+        snprintf(parent, sizeof(em_long_string_t), "%s@%s@00:00:00:00:00:00@%d", net_id, dev_mac_str,
+                    em_policy_id_type_default_8021q_settings);
+        m_policy[m_num_policy].decode(def_8021q_obj, parent, em_policy_id_type_default_8021q_settings);
+        m_num_policy++;
+    }
+
+    if ((traffic_sep_obj = cJSON_GetObjectItem(policy_obj, "Traffic Separation Policy")) != NULL) {
+        snprintf(parent, sizeof(em_long_string_t), "%s@%s@00:00:00:00:00:00@%d", net_id, dev_mac_str,
+                    em_policy_id_type_traffic_separation);
+        m_policy[m_num_policy].decode(traffic_sep_obj, parent, em_policy_id_type_traffic_separation);
         m_num_policy++;
     }
 

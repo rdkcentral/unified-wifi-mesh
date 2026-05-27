@@ -1520,7 +1520,19 @@ public:
 	 */
 	dm_policy_t& get_policy_by_ref(unsigned int index) { return m_policy[index]; }
 
-	
+	/**!
+	 * @brief Checks whether this data model contains a policy of the given type.
+	 *
+	 * @param[in] type The policy ID type to search for.
+	 * @returns true if at least one policy with the given type exists, false otherwise.
+	 */
+	bool has_policy_type(em_policy_id_type_t type) const {
+		for (unsigned int i = 0; i < m_num_policy; i++) {
+			if (m_policy[i].m_policy.id.type == type) return true;
+		}
+		return false;
+	}
+
 	/**!
 	 * @brief Finds a matching scan result based on the provided scan result ID.
 	 *

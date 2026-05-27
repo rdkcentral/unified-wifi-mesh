@@ -79,9 +79,17 @@ int dm_policy_list_t::get_config(cJSON *parent_obj, void *parent, bool summary)
         } else if (policy->m_policy.id.type == em_policy_id_type_channel_scan) {
 			policy->encode(obj, em_policy_id_type_channel_scan);
 			cJSON_AddItemToObject(parent_obj, "Channel Scan Reporting Policy", obj);
+		} else if (policy->m_policy.id.type == em_policy_id_type_unsuccess_assoc) {
+			policy->encode(obj, em_policy_id_type_unsuccess_assoc);
+			cJSON_AddItemToObject(parent_obj, "Unsuccessful Association Policy", obj);
 		} else if (policy->m_policy.id.type == em_policy_id_type_backhaul_bss_config) {
+			cJSON_Delete(obj);
+			obj = cJSON_CreateArray();
 			policy->encode(obj, em_policy_id_type_backhaul_bss_config);
 			cJSON_AddItemToObject(parent_obj, "Backhaul BSS Configuration Policy", obj);
+		} else if (policy->m_policy.id.type == em_policy_id_type_qos_mgt) {
+			policy->encode(obj, em_policy_id_type_qos_mgt);
+			cJSON_AddItemToObject(parent_obj, "QoS Management Policy", obj);
 		} else if (policy->m_policy.id.type == em_policy_id_type_alarm_threshold) {
             policy->encode(obj, em_policy_id_type_alarm_threshold);
             cJSON_AddItemToObject(parent_obj, "Algorithm Run Policy", obj);

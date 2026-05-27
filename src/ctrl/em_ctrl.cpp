@@ -685,7 +685,7 @@ void em_ctrl_t::publish_network_topology()
     em_printfout("\n%s:%d TEST_POLICY_CFG start\n", __func__, __LINE__);
 
     /* Read policy JSON from /nik/orch/policy.json and publish it */
-    const char *policy_path = "/nik/orch/policy.json";
+    const char *policy_path = "/nik/test/policy.json";
     FILE *fp = fopen(policy_path, "rb");
     if (!fp) {
         printf("%s:%d Failed to open %s: %s\n", __func__, __LINE__, policy_path, strerror(errno));

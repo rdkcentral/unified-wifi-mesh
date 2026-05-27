@@ -97,7 +97,7 @@ int dm_policy_t::decode(const cJSON *obj, void *parent_id, em_policy_id_type_t t
             m_policy.sta_status = tmp->valuedouble;
         }
 	} else if (type == em_policy_id_type_default_8021q_settings) {
-		if ((tmp = cJSON_GetObjectItem(obj, "Primay VLAN ID")) != NULL) {
+		if ((tmp = cJSON_GetObjectItem(obj, "Primary VLAN ID")) != NULL) {
 			m_policy.def_8021q_settings.primary_vid = static_cast<unsigned short>(tmp->valuedouble);
 		}
 		if ((tmp = cJSON_GetObjectItem(obj, "Default PCP")) != NULL) {
@@ -107,7 +107,44 @@ int dm_policy_t::decode(const cJSON *obj, void *parent_id, em_policy_id_type_t t
     	if ((tmp = cJSON_GetObjectItem(obj, "Report Independent Channel Scans")) != NULL) {
    			m_policy.independent_scan_report = tmp->valuedouble;
     	}
-    } else if (type == em_policy_id_type_alarm_threshold) {
+    } else if (type == em_policy_id_type_unsuccess_assoc) {
+		if ((tmp = cJSON_GetObjectItem(obj, "Report Unsuccessful Associations")) != NULL) {
+			m_policy.report_unassoc_sta = (bool)tmp->valueint;
+		}
+		if ((tmp = cJSON_GetObjectItem(obj, "Maximum Reporting Rate")) != NULL) {
+			m_policy.max_reporting_rate = static_cast<unsigned int>(tmp->valuedouble);
+		}
+	} else if (type == em_policy_id_type_backhaul_bss_config) {
+        if ((tmp = cJSON_GetObjectItem(obj, "BSSID")) != NULL) {
+			dm_easy_mesh_t::string_to_macbytes(cJSON_GetStringValue(tmp), m_policy.bssid);
+		}
+        if ((tmp = cJSON_GetObjectItem(obj, "Profile-1 bSTA Disallowed")) != NULL) {
+			m_policy.profile_1_sta_disallowed = tmp->valuedouble;
+		}
+        if ((tmp = cJSON_GetObjectItem(obj, "Profile-2 bSTA Disallowed")) != NULL) {
+			m_policy.profile_2_sta_disallowed = tmp->valuedouble;
+		}
+	} else if (type == em_policy_id_type_qos_mgt) {
+		cJSON *mac_arr_obj;
+		if ((mac_arr_obj = cJSON_GetObjectItem(obj, "MSCS Disallowed STA List")) != NULL) {
+			for (i = 0; i < static_cast<unsigned int>(cJSON_GetArraySize(mac_arr_obj)) &&
+					m_policy.qos_mgt.num_mscs < EM_MAX_MSC_PER_TRAFFIC_SEPAR; i++) {
+				tmp = cJSON_GetArrayItem(mac_arr_obj, i);
+				dm_easy_mesh_t::string_to_macbytes(cJSON_GetStringValue(tmp),
+						m_policy.qos_mgt.msc_mac[m_policy.qos_mgt.num_mscs]);
+				m_policy.qos_mgt.num_mscs++;
+			}
+		}
+		if ((mac_arr_obj = cJSON_GetObjectItem(obj, "SCS Disallowed STA List")) != NULL) {
+			for (i = 0; i < static_cast<unsigned int>(cJSON_GetArraySize(mac_arr_obj)) &&
+					m_policy.qos_mgt.num_scs < EM_MAX_SCS_PER_TRAFFIC_SEPAR; i++) {
+				tmp = cJSON_GetArrayItem(mac_arr_obj, i);
+				dm_easy_mesh_t::string_to_macbytes(cJSON_GetStringValue(tmp),
+						m_policy.qos_mgt.sc_mac[m_policy.qos_mgt.num_scs]);
+				m_policy.qos_mgt.num_scs++;
+			}
+		}
+	} else if (type == em_policy_id_type_alarm_threshold) {
         if ((tmp = cJSON_GetObjectItem(obj, "Collection Start Time")) != NULL) {
             snprintf(m_policy.link_stats_alarm_cfg.collection_start_time, sizeof(em_long_string_t), "%s", cJSON_GetStringValue(tmp));
         }
@@ -185,13 +222,26 @@ void dm_policy_t::encode(cJSON *obj, em_policy_id_type_t id)
 	} else if (id == em_policy_id_type_channel_scan) {
 		cJSON_AddNumberToObject(obj, "Report Independent Channel Scans", m_policy.independent_scan_report);
 	} else if (id == em_policy_id_type_unsuccess_assoc) {
-
+        cJSON_AddBoolToObject(obj, "Report Unsuccessful Associations", m_policy.report_unassoc_sta);
+        cJSON_AddNumberToObject(obj, "Maximum Reporting Rate", m_policy.max_reporting_rate);
 	} else if (id == em_policy_id_type_backhaul_bss_config) {
-
-	} else if (id == em_policy_id_type_unsuccess_assoc) {
-
+		cJSON *item = cJSON_CreateObject();
+		dm_easy_mesh_t::macbytes_to_string(m_policy.bssid, sta_mac_str);
+		cJSON_AddStringToObject(item, "BSSID", sta_mac_str);
+		cJSON_AddBoolToObject(item, "Profile-1 bSTA Disallowed", m_policy.profile_1_sta_disallowed);
+		cJSON_AddBoolToObject(item, "Profile-2 bSTA Disallowed", m_policy.profile_2_sta_disallowed);
+		cJSON_AddItemToArray(obj, item);
 	} else if (id == em_policy_id_type_qos_mgt) {
-
+        cJSON *mscs_arr = cJSON_AddArrayToObject(obj, "MSCS Disallowed STA List");
+        for (i = 0; i < m_policy.qos_mgt.num_mscs; i++) {
+            dm_easy_mesh_t::macbytes_to_string(m_policy.qos_mgt.msc_mac[i], sta_mac_str);
+            cJSON_AddItemToArray(mscs_arr, cJSON_CreateString(sta_mac_str));
+        }
+        cJSON *scs_arr = cJSON_AddArrayToObject(obj, "SCS Disallowed STA List");
+        for (i = 0; i < m_policy.qos_mgt.num_scs; i++) {
+            dm_easy_mesh_t::macbytes_to_string(m_policy.qos_mgt.sc_mac[i], sta_mac_str);
+            cJSON_AddItemToArray(scs_arr, cJSON_CreateString(sta_mac_str));
+        }
 	}
 }
 
@@ -199,21 +249,7 @@ bool dm_policy_t::operator == (const dm_policy_t& obj)
 {
     int ret = 0;
 
-    ret += (memcmp(&this->m_policy.id.dev_mac, &obj.m_policy.id.dev_mac, sizeof(mac_address_t)) != 0);
-    ret += (memcmp(&this->m_policy.id.radio_mac, &obj.m_policy.id.radio_mac, sizeof(mac_address_t)) != 0);
-    ret += !(this->m_policy.interval == obj.m_policy.interval);
-    ret += !(this->m_policy.independent_scan_report == obj.m_policy.independent_scan_report);
-    ret += !(this->m_policy.rcpi_threshold == obj.m_policy.rcpi_threshold);
-    ret += !(this->m_policy.rcpi_hysteresis == obj.m_policy.rcpi_hysteresis);
-    ret += !(this->m_policy.util_threshold == obj.m_policy.util_threshold);
-    ret += !(this->m_policy.sta_traffic_stats == obj.m_policy.sta_traffic_stats);
-    ret += !(this->m_policy.sta_link_metric == obj.m_policy.sta_link_metric);
-    ret += !(this->m_policy.sta_status == obj.m_policy.sta_status);
-    ret += (strncmp(this->m_policy.managed_sta_marker, obj.m_policy.managed_sta_marker, strlen(this->m_policy.managed_sta_marker)) != 0);
-    ret += (memcmp(&this->m_policy.def_8021q_settings, &obj.m_policy.def_8021q_settings, sizeof(em_8021q_settings_policy_t)) != 0);
-    ret += (memcmp(&this->m_policy.traffic_separ, &obj.m_policy.traffic_separ, sizeof(em_traffic_separation_policy_t)) != 0);
-    ret += (memcmp(&m_policy.link_stats_alarm_cfg, &obj.m_policy.link_stats_alarm_cfg, sizeof(em_link_stats_alarm_cfg_t)) != 0);
-    ret += (memcmp(&m_policy.client_filters, &obj.m_policy.client_filters, sizeof(em_client_filters_cfg_t)) != 0);
+    ret += (memcmp(&m_policy, &obj.m_policy, sizeof(em_policy_t)) != 0);
 
     return (ret > 0) ? false:true;
 }
@@ -221,27 +257,7 @@ bool dm_policy_t::operator == (const dm_policy_t& obj)
 void dm_policy_t::operator = (const dm_policy_t& obj)
 {
     if (this == &obj) { return; }
-	memcpy(&this->m_policy.id.net_id, &obj.m_policy.id.net_id, sizeof(mac_address_t));
-    memcpy(&this->m_policy.id.dev_mac, &obj.m_policy.id.dev_mac, sizeof(mac_address_t));
-    memcpy(&this->m_policy.id.radio_mac, &obj.m_policy.id.radio_mac, sizeof(mac_address_t));
-    m_policy.id.type = obj.m_policy.id.type;
-    m_policy.num_sta = obj.m_policy.num_sta;
-    for(unsigned int i = 0; i < m_policy.num_sta; i++) {
-        memcpy(this->m_policy.sta_mac[i], obj.m_policy.sta_mac[i], sizeof(mac_address_t));
-    }
-    m_policy.policy = obj.m_policy.policy;
-    this->m_policy.interval = obj.m_policy.interval;
-    this->m_policy.independent_scan_report = obj.m_policy.independent_scan_report;
-    this->m_policy.rcpi_threshold = obj.m_policy.rcpi_threshold;
-    this->m_policy.rcpi_hysteresis = obj.m_policy.rcpi_hysteresis;
-    this->m_policy.util_threshold = obj.m_policy.util_threshold;
-    this->m_policy.sta_traffic_stats = obj.m_policy.sta_traffic_stats;
-    this->m_policy.sta_link_metric = obj.m_policy.sta_link_metric;
-    this->m_policy.sta_status = obj.m_policy.sta_status;
-    strncpy(this->m_policy.managed_sta_marker, obj.m_policy.managed_sta_marker, sizeof(em_long_string_t));
-    memcpy(&this->m_policy.def_8021q_settings, &obj.m_policy.def_8021q_settings, sizeof(em_8021q_settings_policy_t));
-    memcpy(&m_policy.link_stats_alarm_cfg, &obj.m_policy.link_stats_alarm_cfg, sizeof(em_link_stats_alarm_cfg_t));
-    memcpy(&m_policy.client_filters, &obj.m_policy.client_filters, sizeof(em_client_filters_cfg_t));
+    memcpy(&m_policy, &obj.m_policy, sizeof(em_policy_t));
 }
 
 int dm_policy_t::parse_dev_radio_mac_from_key(const char *key, em_policy_id_t *id)

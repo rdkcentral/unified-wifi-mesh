@@ -2145,6 +2145,7 @@ int dm_easy_mesh_ctrl_t::analyze_set_policy(em_bus_event_t *evt, em_cmd_t *pcmd[
     em_printfout("Received SetPolicy event: \n%s", subdoc->buff);
     do {
         dm.reset();
+        policy_changed = 0;
 
         if ((ret = dm.decode_config(subdoc, "SetPolicy", i, &num_devices)) < 0) {
             em_printfout("Failed to decode SetPolicy config: %d", ret);
@@ -2157,11 +2158,43 @@ int dm_easy_mesh_ctrl_t::analyze_set_policy(em_bus_event_t *evt, em_cmd_t *pcmd[
 
         dev_dm = get_data_model(GLOBAL_NET_ID, dm.m_device.m_device_info.intf.mac);
         if (dev_dm != NULL) {
-            //compare if policy has changed for this device, create cmd only if a policy chnage is detected
-            for (unsigned int j = 0; j < dev_dm->get_num_policy(); j++) {
-                if ((dev_dm->m_policy[j] == dm.m_policy[j]) == false) {
+            // Compare each incoming policy by type against the existing dm.
+            // Compact dm.m_policy[] in-place to only keep changed/new entries so
+            // that the command (and the resulting 1905 message) carries only what
+            // actually changed — no UI changes required.
+            unsigned int write_idx = 0;
+            for (unsigned int k = 0; k < dm.get_num_policy(); k++) {
+                em_policy_id_type_t new_type = dm.m_policy[k].m_policy.id.type;
+                bool changed = true;   // treat as changed if type not found in existing dm
+                for (unsigned int j = 0; j < dev_dm->get_num_policy(); j++) {
+                    if (dev_dm->m_policy[j].m_policy.id.type == new_type) {
+                        changed = (dev_dm->m_policy[j] == dm.m_policy[k]) == false;
+                        break;
+                    }
+                }
+                if (changed) {
+                    if (write_idx != k) {
+                        dm.m_policy[write_idx] = dm.m_policy[k];
+                    }
+                    write_idx++;
                     policy_changed++;
-                    break;
+                }
+            }
+            dm.set_num_policy(write_idx);
+            if (write_idx > 0) {
+                static const char * const s_policy_type_names[] = {
+                    "steering_local", "steering_btm", "steering_param",
+                    "ap_metrics_rep", "radio_metrics_rep", "default_8021q_settings",
+                    "traffic_separation", "channel_scan", "unsuccess_assoc",
+                    "backhaul_bss_config", "qos_mgt", "alarm_threshold",
+                    "client_filters", "unknown"
+                };
+                em_printfout("Changed policies for device %s (%u):", mac_str, write_idx);
+                for (unsigned int p = 0; p < write_idx; p++) {
+                    em_policy_id_type_t t = dm.m_policy[p].m_policy.id.type;
+                    unsigned int ti = (static_cast<unsigned int>(t) < static_cast<unsigned int>(em_policy_id_type_unknown))
+                                      ? static_cast<unsigned int>(t) : static_cast<unsigned int>(em_policy_id_type_unknown);
+                    em_printfout("  [%u] %s", p, s_policy_type_names[ti]);
                 }
             }
         } else {
@@ -3162,7 +3195,15 @@ int dm_easy_mesh_ctrl_t::get_device_config(cJSON *parent, char *key, bool summar
 int dm_easy_mesh_ctrl_t::get_network_config(cJSON *parent, char *key)
 {
 	// get the data from topology
-	m_topology->encode(parent);
+
+        cJSON *net_obj, *dev_list_obj, *dev_obj, *radio_list_obj, *radio_obj, *bss_list_obj;
+    int i, j;
+    char *tmp;
+
+    net_obj = cJSON_AddObjectToObject(parent, "Network");
+    dm_network_list_t::get_config(net_obj, key, true);
+	// m_network.encode(parent, true);
+	m_topology->encode(net_obj);
 	//em_printfout("Network Topology Json:\n%s",cJSON_Print(parent));
 	return 0;
 }

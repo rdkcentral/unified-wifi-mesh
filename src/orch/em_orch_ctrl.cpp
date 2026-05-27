@@ -378,6 +378,12 @@ void em_orch_ctrl_t::pre_process_cancel(em_cmd_t *pcmd, em_t *em)
             em->set_channel_sel_req_tx_count(0);
             break;
 
+        case em_cmd_type_set_policy:
+            em_printfout("Cancel received for Set Policy command, transitioning to configured state radio: %s",
+                util::mac_to_string(em->get_radio_interface_mac()).c_str());
+            em->set_state(em_state_ctrl_configured);
+            break;
+
         default:
             break;
 	}
@@ -638,14 +644,14 @@ unsigned int em_orch_ctrl_t::build_candidates(em_cmd_t *pcmd)
             case em_cmd_type_set_policy:
                 dm = pcmd->get_data_model();
                 //need a radio from a device to send, no need to push all ems
-                if (memcmp(em->get_radio_interface_mac(), dm->m_radio[0].m_radio_info.intf.mac, sizeof(mac_address_t)) == 0) {
+                //if (memcmp(em->get_radio_interface_mac(), dm->m_radio[0].m_radio_info.intf.mac, sizeof(mac_address_t)) == 0) {
                     //mac_addr_str_t mac_str;
                     //dm_easy_mesh_t::macbytes_to_string(em->get_radio_interface_mac(), mac_str);
-                    //em_printfout("Set Policy: %s pushed to queue", mac_str);
+                    em_printfout("Set Policy: %s pushed to queue", util::mac_to_string(em->get_radio_interface_mac()).c_str());
                     queue_push(pcmd->m_em_candidates, em);
                     count++;
                     break;
-                }
+                //}
                 break;
 
             case em_cmd_type_set_radio:
