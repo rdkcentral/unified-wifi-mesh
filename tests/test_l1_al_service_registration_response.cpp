@@ -42,6 +42,7 @@
  * | 01 | Initialize valid serialized data | valid serialized data | None | Should be successful |
  * | 02 | Call deserializeRegistrationResponse with valid data | validData | None | Should Pass |
  */
+/*
 TEST(AlServiceRegistrationResponseTest, DeserializeWithValidData) {
     std::vector<unsigned char> validData = {
         0xAA, 0xBB, 0xCC, 0xDD,
@@ -54,6 +55,25 @@ TEST(AlServiceRegistrationResponseTest, DeserializeWithValidData) {
         instance.deserializeRegistrationResponse(validData);
     });
     std::cout << "Exiting DeserializeWithValidData test" << std::endl;
+}
+*/
+TEST(AlServiceRegistrationResponseTest, DeserializeWithValidData) {
+
+    constexpr size_t totalSize =
+        sizeof(uint32_t) +
+        sizeof(MacAddress) +
+        sizeof(uint8_t);
+
+    std::vector<unsigned char> validData(totalSize, 0x00);
+
+    // Optional: put a SUCCESS result in last byte
+    validData[totalSize - 1] = 0x01;
+
+    AlServiceRegistrationResponse instance;
+
+    EXPECT_NO_THROW({
+        instance.deserializeRegistrationResponse(validData);
+    });
 }
 
 /**
@@ -105,11 +125,12 @@ TEST(AlServiceRegistrationResponseTest, DeserializeWithNullData) {
  */
 TEST(AlServiceRegistrationResponseTest, RetrieveAlMacAddressLocalWithValidInput) {
     std::cout << "Entering RetrieveAlMacAddressLocalWithValidInput test" << std::endl;
-	AlServiceRegistrationResponse instance(parseMacAddress("00:1A:2B:3C:4D:5E"), RegistrationResult::SUCCESS);
+    AlServiceRegistrationResponse instance(parseMacAddress("00:1A:2B:3C:4D:5E"), RegistrationResult::SUCCESS);
     MacAddress result = instance.getAlMacAddressLocal();
-	std::cout << "The result is " << result << std::endl;
+    std::cout << "The result is " << result << std::endl;
     std::cout << "Exiting RetrieveAlMacAddressLocalWithValidInput test" << std::endl;
 }
+
 
 /**
  * @brief Test the retrieval of AL MAC address with empty input
