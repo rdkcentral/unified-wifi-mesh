@@ -1476,8 +1476,8 @@ short em_t::create_wifi7_tlv(unsigned char *buff)
     offset += static_cast<short>(sizeof(unsigned char));
     em_printfout("  offset:%d", offset);
     for (unsigned int i = 0; i < dm->get_num_radios(); i++) {
-        em_wifi7_cap = &dm->get_radio_cap_info(static_cast<int>(i))->wifi7_cap;
-        em_printfout("Radio[%d]: %s", i, util::mac_to_string(dm->get_radio_cap_info(static_cast<int>(i))->ruid.mac).c_str());
+        em_wifi7_cap = &dm->get_radio_cap_info(i)->wifi7_cap;
+        em_printfout("Radio[%u]: %s", i, util::mac_to_string(dm->get_radio_cap_info(i)->ruid.mac).c_str());
 
         // MLO Support Capabilities
         mlo_mand = reinterpret_cast<em_wifi7_mlo_cap_support_tlv_t *>(buff + offset);
@@ -1595,7 +1595,7 @@ short em_t::create_channelscan_tlv(unsigned char *buff)
         }
        em_radio_cap_info_t *cap_info = radio_cap->get_radio_cap_info();
         if (cap_info == NULL) {
-            em_printfout("create_channelscan_tlv: cap_info NULL for index %d", i);
+            em_printfout("create_channelscan_tlv: cap_info NULL for index %u", i);
             return 0;
         }
 
@@ -1752,7 +1752,7 @@ short em_t::create_metric_col_int_tlv(unsigned char *buff)
     short len = 0;
     dm_easy_mesh_t  *dm;
     dm = get_data_model();
-    dm_radio_cap_t *radio_cap = dm->get_radio_cap(0);//todo: it is dev specific
+    dm_radio_cap_t *radio_cap = dm->get_radio_cap(0u);//todo: it is dev specific
 
     if (radio_cap == NULL) {
         em_printfout("create_metric_col_int_tlv: radio_cap NULL for MAC %s",
@@ -1809,7 +1809,7 @@ short em_t::create_cac_cap_tlv(unsigned char *buff)
         if (dm->get_radio_by_ref(index).m_radio_info.band != em_freq_band_5) {
             continue;
         }
-        dm_radio_cap_t *radio_cap = dm->get_radio_cap(static_cast<int>(index));
+        dm_radio_cap_t *radio_cap = dm->get_radio_cap(index);
         if (radio_cap == NULL) {
             em_printfout("create_cac_cap_tlv: radio[%u] get_radio_cap returned NULL", index);
             continue;
@@ -2052,7 +2052,7 @@ int em_t::handle_eht_operations_tlv(unsigned char *buff, unsigned short tlv_len)
         memcpy(&num_bss, tmp, sizeof(unsigned char));
 
         if (num_bss > EM_MAX_BSS_PER_RADIO) {
-            em_printfout("Invalid num_bss=%d for radio %d, max allowed=%d", num_bss, i, EM_MAX_BSS_PER_RADIO);
+            em_printfout("Invalid num_bss=%d for radio %u, max allowed=%d", num_bss, i, EM_MAX_BSS_PER_RADIO);
             return -1;
         }
 
@@ -2635,25 +2635,25 @@ int em_t::handle_wifi7_agent_cap_tlv(unsigned char *buff)
 
     // Number of radios
     unsigned char *num_radios_ptr = reinterpret_cast<unsigned char *>(buff + offset);
-    int num_radios = static_cast<int>(*num_radios_ptr);
-    em_printfout("Number of radios in wifi7 agent cap: %d", num_radios);
+    unsigned int num_radios = static_cast<unsigned int>(*num_radios_ptr);
+    em_printfout("Number of radios in wifi7 agent cap: %u", num_radios);
     offset += static_cast<short>(sizeof(unsigned char));
 
     if (dm != NULL) {
-        int dm_num_radios = static_cast<int>(dm->get_num_radios());
+        unsigned int dm_num_radios = dm->get_num_radios();
         if (num_radios > EM_MAX_RADIO_PER_AGENT) {
-            em_printfout("Clamping num_radios from %d to EM_MAX_RADIO_PER_AGENT (%d)", num_radios, EM_MAX_RADIO_PER_AGENT);
+            em_printfout("Clamping num_radios from %u to EM_MAX_RADIO_PER_AGENT (%d)", num_radios, EM_MAX_RADIO_PER_AGENT);
             num_radios = EM_MAX_RADIO_PER_AGENT;
         }
         if (num_radios > dm_num_radios) {
-            em_printfout("Clamping num_radios from %d to dm->get_num_radios() (%d)", num_radios, dm_num_radios);
+            em_printfout("Clamping num_radios from %u to dm->get_num_radios() (%u)", num_radios, dm_num_radios);
             num_radios = dm_num_radios;
         }
     }
 
-    for (int idx = 0; idx < num_radios; idx++) {
+    for (unsigned int idx = 0; idx < num_radios; idx++) {
         em_wifi7_cap = &dm->get_radio_cap_info(idx)->wifi7_cap;
-        em_printfout("Updating wifi7 cap for radio[%d]:%s", idx, util::mac_to_string(dm->get_radio_cap_info(idx)->ruid.mac).c_str());
+        em_printfout("Updating wifi7 cap for radio[%u]:%s", idx, util::mac_to_string(dm->get_radio_cap_info(idx)->ruid.mac).c_str());
 
         // Extract MLO support info
         mlo_support = reinterpret_cast<em_wifi7_mlo_cap_support_tlv_t *>(buff + offset);
