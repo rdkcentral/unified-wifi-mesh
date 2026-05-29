@@ -42,21 +42,6 @@
  * | 01 | Initialize valid serialized data | valid serialized data | None | Should be successful |
  * | 02 | Call deserializeRegistrationResponse with valid data | validData | None | Should Pass |
  */
-/*
-TEST(AlServiceRegistrationResponseTest, DeserializeWithValidData) {
-    std::vector<unsigned char> validData = {
-        0xAA, 0xBB, 0xCC, 0xDD,
-        0x00, 0x1A, 0x2B, 0x3C, 0x4D, 0x5E,
-        0x01
-    };
-    std::cout << "Entering DeserializeWithValidData test" << std::endl;
-    AlServiceRegistrationResponse instance;
-    EXPECT_NO_THROW({
-        instance.deserializeRegistrationResponse(validData);
-    });
-    std::cout << "Exiting DeserializeWithValidData test" << std::endl;
-}
-*/
 TEST(AlServiceRegistrationResponseTest, DeserializeWithValidData) {
 
     constexpr size_t totalSize =
