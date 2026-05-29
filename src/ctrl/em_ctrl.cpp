@@ -130,6 +130,22 @@ void em_ctrl_t::handle_client_steer(em_bus_event_t *evt)
     }
 }
 
+void em_ctrl_t::handle_client_assoc(em_bus_event_t *evt)
+{
+    em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
+    int num;
+
+    if (m_orch->is_cmd_type_in_progress(evt) == true) {
+        m_ctrl_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
+    } else if ((num = m_data_model.analyze_client_assoc(evt, pcmd)) <= 0) {
+        m_ctrl_cmd->send_result(status_for_noncmd(num));
+    } else if (m_orch->submit_commands(pcmd, static_cast<unsigned int> (num)) > 0) {
+        m_ctrl_cmd->send_result(em_cmd_out_status_success);
+    } else {
+        m_ctrl_cmd->send_result(em_cmd_out_status_not_ready);
+    }
+}
+
 void em_ctrl_t::handle_client_disassoc(em_bus_event_t *evt)
 {
     em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
@@ -800,6 +816,10 @@ void em_ctrl_t::handle_bus_event(em_bus_event_t *evt)
 
 	case em_bus_event_type_unassoc_sta_query:
            handle_unassoc_sta_metrics_query(evt);
+           break;
+
+        case em_bus_event_type_client_assoc_ctrl_req:
+           handle_client_assoc(evt);
            break;
 
         default:

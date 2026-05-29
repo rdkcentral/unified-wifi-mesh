@@ -254,6 +254,10 @@ void em_t::orch_execute(em_cmd_t *pcmd)
             m_sm.set_state(em_state_beacon_report_pending);
             break;
 
+        case em_cmd_type_client_assoc_ctrl_req:
+            m_sm.set_state(em_state_ctrl_client_assoc_ctrl_req_pending);
+            break;
+
         case em_cmd_type_unassoc_sta_query:
             m_sm.set_state(em_state_ctrl_unassoc_sta_link_metrics_pending);
             break;
@@ -365,14 +369,13 @@ void em_t::proto_process(unsigned char *data, unsigned int len)
         case em_msg_type_1905_ack:
             if (m_sm.get_state() == em_state_ctrl_ap_mld_configured) {
                 em_configuration_t::process_msg(data, len);
-            } else if (m_sm.get_state() == em_state_ctrl_sta_steer_pending) {
-                em_steering_t::process_msg(data, len);
             } else if (m_sm.get_state() == em_state_ctrl_unassoc_sta_link_metrics_pending) {
                 em_metrics_t::process_msg(data, len);		    
             } else {
                 em_policy_cfg_t::process_msg(data, len);
                 em_channel_t::process_msg(data, len);
                 em_metrics_t::process_msg(data, len);
+                em_steering_t::process_msg(data, len);
             }
             break;
 
@@ -582,6 +585,10 @@ void em_t::handle_ctrl_state()
 
         case em_cmd_type_unassoc_sta_query:
             em_metrics_t::process_ctrl_state();
+            break;
+
+        case em_cmd_type_client_assoc_ctrl_req:
+            em_steering_t::process_ctrl_state();
             break;
 
         default:
@@ -963,6 +970,30 @@ void em_t::push_to_queue(em_event_t *evt)
 em_event_t *em_t::pop_from_queue()
 {
     return reinterpret_cast<em_event_t *>(queue_pop(m_iq.queue));
+}
+
+dm_bss_t *em_t::find_bss(bssid_t bssid)
+{
+    dm_bss_t *bss;
+    em_bss_info_t *bss_info;
+
+    bss_info = get_data_model()->get_bss_info_with_mac(bssid);
+    if (bss_info == NULL) {
+        return NULL;
+    }
+
+    // Get the BSS object from the data model
+    bss = get_data_model()->get_bss(bss_info->ruid.mac, bssid);
+    if (bss == NULL) {
+        return NULL;
+    }
+
+    // the bss can be from a different radio
+    if (memcmp(bss_info->ruid.mac, get_radio_interface_mac(), sizeof(mac_address_t)) == 0) {
+        return bss;
+    }
+
+    return NULL;
 }
 
 dm_sta_t *em_t::find_sta(mac_address_t sta_mac, bssid_t bssid)

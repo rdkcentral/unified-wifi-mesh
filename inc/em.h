@@ -769,6 +769,21 @@ public:
 	 */
 	dm_sta_t *find_sta(mac_address_t sta_mac, bssid_t bssid);
 
+	/**!
+	 * @brief Finds a BSS based on its BSSID.
+	 *
+	 * This function searches for a BSS (Basic Service Set) in the network using
+	 * the provided BSSID, and returns a pointer to the BSS information if found.
+	 *
+	 * @param[in] bssid The BSSID of the BSS to find.
+	 *
+	 * @returns A pointer to the BSS information (dm_bss_t) if the BSS is found,
+	 * or NULL if the BSS is not found or belongs to a different radio.
+	 *
+	 * @note Ensure that the BSSID is valid and corresponds to a BSS on the
+	 * current radio interface.
+	 */
+	dm_bss_t *find_bss(bssid_t bssid);
     
 	/**!
 	 * @brief Pushes an event to the queue.
