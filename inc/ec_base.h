@@ -481,14 +481,14 @@ typedef struct {
 } __attribute__((packed)) gtk_1905_kde_t;
 
 // Used to avoid many many if-not-null checks
-#define ASSERT_MSG_FALSE(x, ret, errMsg, ...) \
+#define ASSERT_MSG_FALSE(x, ret, ...) \
     if(x) { \
-        fprintf(stderr, errMsg, ## __VA_ARGS__); \
+        fprintf(stderr, __VA_ARGS__); \
         return ret; \
     }
 
-#define ASSERT_MSG_TRUE(x, ret, errMsg, ...) ASSERT_MSG_FALSE(!(x), ret, errMsg, ## __VA_ARGS__)
-#define ASSERT_NOT_NULL(x, ret, errMsg, ...) ASSERT_MSG_FALSE(x == NULL, ret, errMsg, ## __VA_ARGS__)
+#define ASSERT_MSG_TRUE(x, ret, ...) ASSERT_MSG_FALSE(!(x), ret, __VA_ARGS__)
+#define ASSERT_NOT_NULL(x, ret, ...) ASSERT_MSG_FALSE(x == NULL, ret, __VA_ARGS__)
 
 /**
  * @brief Asserts that a pointer is not NULL, and if it is, frees up to 3 pointers and returns a value
@@ -497,13 +497,12 @@ typedef struct {
  * @param ptr1 First pointer to free (can be NULL)
  * @param ptr2 Second pointer to free (can be NULL) 
  * @param ptr3 Third pointer to free (can be NULL)
- * @param errMsg Format string for error message
- * @param ... Additional arguments for the format string
+ * @param ... Format string and optional arguments for the error message
  */
-#define ASSERT_NOT_NULL_FREE3(x, ret, ptr1, ptr2, ptr3, errMsg, ...) \
+#define ASSERT_NOT_NULL_FREE3(x, ret, ptr1, ptr2, ptr3, ...) \
     do { \
         if(x == NULL) { \
-            fprintf(stderr, errMsg, ## __VA_ARGS__); \
+            fprintf(stderr, __VA_ARGS__); \
             void *_tmp1 = (ptr1); \
             void *_tmp2 = (ptr2); \
             void *_tmp3 = (ptr3); \
@@ -523,19 +522,19 @@ typedef struct {
 /**
  * @brief Asserts that a pointer is not NULL, and if it is, frees up to 2 pointers and returns a value
  */
-#define ASSERT_NOT_NULL_FREE2(x, ret, ptr1, ptr2, errMsg, ...) \
-    ASSERT_NOT_NULL_FREE3(x, ret, ptr1, ptr2, NULL, errMsg, ## __VA_ARGS__)
+#define ASSERT_NOT_NULL_FREE2(x, ret, ptr1, ptr2, ...) \
+    ASSERT_NOT_NULL_FREE3(x, ret, ptr1, ptr2, NULL, __VA_ARGS__)
 
 /**
  * @brief Asserts that a pointer is not NULL, and if it is, frees one pointer and returns a value
  */
-#define ASSERT_NOT_NULL_FREE(x, ret, ptr1, errMsg, ...) \
-    ASSERT_NOT_NULL_FREE2(x, ret, ptr1, NULL, errMsg, ## __VA_ARGS__)
+#define ASSERT_NOT_NULL_FREE(x, ret, ptr1, ...) \
+    ASSERT_NOT_NULL_FREE2(x, ret, ptr1, NULL, __VA_ARGS__)
 
 
-#define ASSERT_NULL(x, ret, errMsg, ...) ASSERT_MSG_TRUE(x == 0, ret, errMsg, ## __VA_ARGS__)
-#define ASSERT_EQUALS(x, y, ret, errMsg, ...) ASSERT_MSG_TRUE(x == y, ret, errMsg, ## __VA_ARGS__)
-#define ASSERT_NOT_EQUALS(x, y, ret, errMsg, ...) ASSERT_MSG_FALSE(x == y, ret, errMsg, ## __VA_ARGS__)
+#define ASSERT_NULL(x, ret, ...) ASSERT_MSG_TRUE(x == 0, ret, __VA_ARGS__)
+#define ASSERT_EQUALS(x, y, ret, ...) ASSERT_MSG_TRUE(x == y, ret, __VA_ARGS__)
+#define ASSERT_NOT_EQUALS(x, y, ret, ...) ASSERT_MSG_FALSE(x == y, ret, __VA_ARGS__)
 
 /**
  * @brief Asserts that a std::optional has a value, and if it doesn't, frees up to 3 pointers and returns a value
@@ -544,13 +543,12 @@ typedef struct {
  * @param ptr1 First pointer to free (can be NULL)
  * @param ptr2 Second pointer to free (can be NULL) 
  * @param ptr3 Third pointer to free (can be NULL)
- * @param errMsg Format string for error message
- * @param ... Additional arguments for the format string
+ * @param ... Format string and optional arguments for the error message
  */
-#define ASSERT_OPT_HAS_VALUE_FREE3(x, ret, ptr1, ptr2, ptr3, errMsg, ...) \
+#define ASSERT_OPT_HAS_VALUE_FREE3(x, ret, ptr1, ptr2, ptr3, ...) \
     do { \
         if(!x.has_value()) { \
-            fprintf(stderr, errMsg, ## __VA_ARGS__); \
+            fprintf(stderr, __VA_ARGS__); \
             void *_tmp1 = (ptr1); \
             void *_tmp2 = (ptr2); \
             void *_tmp3 = (ptr3); \
@@ -573,31 +571,28 @@ typedef struct {
  * @param ret The value to return if x is nullopt
  * @param ptr1 First pointer to free (can be NULL)
  * @param ptr2 Second pointer to free (can be NULL) 
- * @param errMsg Format string for error message
- * @param ... Additional arguments for the format string
+ * @param ... Format string and optional arguments for the error message
  */
-#define ASSERT_OPT_HAS_VALUE_FREE2(x, ret, ptr1, ptr2, errMsg, ...) \
-    ASSERT_OPT_HAS_VALUE_FREE3(x, ret, ptr1, ptr2, NULL, errMsg, ## __VA_ARGS__)
+#define ASSERT_OPT_HAS_VALUE_FREE2(x, ret, ptr1, ptr2, ...) \
+    ASSERT_OPT_HAS_VALUE_FREE3(x, ret, ptr1, ptr2, NULL, __VA_ARGS__)
 
 /**
  * @brief Asserts that a std::optional has a value, and if it doesn't, frees a pointer and returns a value
  * @param x The std::optional to check for a value
  * @param ret The value to return if x is nullopt
  * @param ptr1 First pointer to free (can be NULL)
- * @param errMsg Format string for error message
- * @param ... Additional arguments for the format string
+ * @param ... Format string and optional arguments for the error message
  */
-#define ASSERT_OPT_HAS_VALUE_FREE(x, ret, ptr1, errMsg, ...) \
-    ASSERT_OPT_HAS_VALUE_FREE2(x, ret, ptr1, NULL, errMsg, ## __VA_ARGS__)
+#define ASSERT_OPT_HAS_VALUE_FREE(x, ret, ptr1, ...) \
+    ASSERT_OPT_HAS_VALUE_FREE2(x, ret, ptr1, NULL, __VA_ARGS__)
 
 /**
  * @brief Asserts that a std::optional has a value, and returns a value if it doesn't
  * @param x The std::optional to check for a value
  * @param ret The value to return if x is nullopt
- * @param errMsg Format string for error message
- * @param ... Additional arguments for the format string
+ * @param ... Format string and optional arguments for the error message
  */
-#define ASSERT_OPT_HAS_VALUE(x, ret, errMsg, ...) ASSERT_MSG_TRUE(x.has_value(), ret, errMsg, ## __VA_ARGS__)
+#define ASSERT_OPT_HAS_VALUE(x, ret, ...) ASSERT_MSG_TRUE(x.has_value(), ret, __VA_ARGS__)
 
 #ifndef SSL_KEY
 #if OPENSSL_VERSION_NUMBER < 0x30000000L

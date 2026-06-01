@@ -2249,6 +2249,46 @@ void dm_easy_mesh_t::print_config()
             m_radio_cap[i].get_radio_cap_info()->he_cap.mu_beamformer_cap,
             m_radio_cap[i].get_radio_cap_info()->he_cap.su_beamformer_cap
         );
+        em_printfout("VHT Cap: RUID:%s TXRX_MCS:[0x%04x 0x%04x] "
+            "GI support: 160MHz:%d 80MHz:%d Max RX streams:%d Max TX streams:%d "
+            "MU Beamformer:%d SU Beamformer:%d 160MHz:%d 80+80MHz:%d",
+            util::mac_to_string(m_radio_cap[i].get_radio_cap_info()->ruid.mac).c_str(),
+            m_radio_cap[i].get_radio_cap_info()->vht_cap.sprt_tx_mcs,
+            m_radio_cap[i].get_radio_cap_info()->vht_cap.sprt_rx_mcs,
+            m_radio_cap[i].get_radio_cap_info()->vht_cap.gi_sprt_160mhz,
+            m_radio_cap[i].get_radio_cap_info()->vht_cap.gi_sprt_80mhz,
+            m_radio_cap[i].get_radio_cap_info()->vht_cap.max_sprt_rx_streams,
+            m_radio_cap[i].get_radio_cap_info()->vht_cap.max_sprt_tx_streams,
+            m_radio_cap[i].get_radio_cap_info()->vht_cap.mu_beamformer_cap,
+            m_radio_cap[i].get_radio_cap_info()->vht_cap.su_beamformer_cap,
+            m_radio_cap[i].get_radio_cap_info()->vht_cap.sprt_160mhz,
+            m_radio_cap[i].get_radio_cap_info()->vht_cap.sprt_80_80_mhz
+        );
+        em_printfout("HT Cap: RUID:%s 40MHz:%d GI 40MHz:%d GI 20MHz:%d Max RX streams:%d Max TX streams:%d",
+            util::mac_to_string(m_radio_cap[i].get_radio_cap_info()->ruid.mac).c_str(),
+            m_radio_cap[i].get_radio_cap_info()->ht_cap.ht_sprt_40mhz,
+            m_radio_cap[i].get_radio_cap_info()->ht_cap.gi_sprt_40mhz,
+            m_radio_cap[i].get_radio_cap_info()->ht_cap.gi_sprt_20mhz,
+            m_radio_cap[i].get_radio_cap_info()->ht_cap.max_sprt_rx_streams,
+            m_radio_cap[i].get_radio_cap_info()->ht_cap.max_sprt_tx_streams
+        );
+        em_printfout("Channel scan cap: RUID:%s boot only:%d min scan interval:%u scan impact:%u",
+            util::mac_to_string(m_radio_cap[i].get_radio_cap_info()->ruid.mac).c_str(),
+            m_radio_cap[i].get_radio_cap_info()->ch_scan.boot_only,
+            m_radio_cap[i].get_radio_cap_info()->ch_scan.min_scan_interval,
+            m_radio_cap[i].get_radio_cap_info()->ch_scan.scan_impact
+        );
+        for (size_t k = 0; k < m_radio_cap[i].get_radio_cap_info()->ch_scan.op_classes_num; k++) {
+            const em_scan_cap_op_class_info_t *oc = &m_radio_cap[i].get_radio_cap_info()->ch_scan.op_classes[k];
+            char ch_buf[256] = {0};
+            int  ch_buf_pos  = 0;
+            for (unsigned char ci = 0; ci < oc->num && ch_buf_pos < static_cast<int>(sizeof(ch_buf)) - 5; ci++) {
+                ch_buf_pos += snprintf(ch_buf + ch_buf_pos, sizeof(ch_buf) - static_cast<size_t>(ch_buf_pos),
+                                       "%d ", oc->channels.channel[ci]);
+            }
+            em_printfout("ch_scan op_class[%zu]: op_class=%d num_channels=%d channels=[%s]",
+                k, oc->op_class, oc->num, oc->num > 0 ? ch_buf : "all");
+        }
     }
 }
 

@@ -1768,87 +1768,6 @@ int em_channel_t::handle_channel_pref_tlv_ctrl(unsigned char *buff, unsigned int
     return 0;
 }
 
-int em_channel_t::handle_eht_operations_tlv_ctrl(unsigned char *buff, unsigned int len)
-{
-    unsigned int tmp_len = 0;
-    unsigned int i = 0, j = 0, k = 0, l = 0;
-    unsigned char *tmp = buff;
-    dm_easy_mesh_t  *dm;
-    em_eht_operations_bss_t  *eht_ops_bss;
-    mac_address_t ruid, bss;
-    bool found_radio = false, found_bss = false;
-
-    unsigned char num_radios;
-    unsigned char num_bss;
-
-    // 32 octets are reserved for future use, so skip 32 octets
-    unsigned int reserved_octets = 32;
-    tmp += reserved_octets;
-    tmp_len += reserved_octets;
-
-    memcpy(&num_radios, tmp, sizeof(unsigned char));
-    tmp += sizeof(unsigned char);
-    tmp_len += sizeof(unsigned char);
-
-    dm = get_data_model();
-//  Remove assert since channnel report is per radio
-//  assert(num_radios == dm->get_num_radios());
-
-    for (i = 0; i < num_radios; i++) {
-        memcpy(&ruid, tmp, sizeof(mac_address_t));
-        tmp += sizeof(mac_address_t);
-        tmp_len += sizeof(mac_address_t);
-
-        for (j = 0; j < dm->get_num_radios(); j++) {
-            if (memcmp(ruid, dm->m_radio[j].m_radio_info.intf.mac, sizeof(mac_address_t)) == 0) {
-                found_radio = true;
-                break;
-            }
-
-            if (found_radio == false) {
-                // do not update anything and retrun error
-                return -1;
-            }
-        }
-
-        found_radio = false;
-        memcpy(&num_bss, tmp, sizeof(unsigned char));
-        tmp += sizeof(unsigned char);
-        tmp_len += sizeof(unsigned char);
-
-        for(k = 0; k < num_bss; k++) {
-            memcpy(&bss, tmp, sizeof(mac_address_t));
-            tmp += sizeof(mac_address_t);
-            tmp_len += sizeof(mac_address_t);
-
-            for(l = 0; l < dm->get_num_bss(); l++) {
-                if (memcmp(bss, dm->m_bss[l].m_bss_info.bssid.mac, sizeof(mac_address_t)) == 0) {
-                    found_bss = true;
-                    break;
-                }
-
-                if (found_bss == false) {
-                    // do not update anything and retrun error
-                    return -1;
-                }
-            }
-
-            found_bss = false;
-            eht_ops_bss = &dm->m_bss[l].get_bss_info()->eht_ops;
-            memcpy(eht_ops_bss, tmp, sizeof(em_eht_operations_bss_t));
-            tmp += sizeof(em_eht_operations_bss_t);
-            tmp_len += sizeof(em_eht_operations_bss_t);
-        }
-        // 25 octets are reserved for future use in radio, so skip 25 octets
-        unsigned int radio_reserved_octets = 25;
-        tmp += radio_reserved_octets;
-        tmp_len += radio_reserved_octets;
-    }
-    assert(tmp_len == len);
-
-    return 0;
-}
-
 
 int em_channel_t::handle_channel_pref_rprt(unsigned char *buff, unsigned int len)
 {
@@ -1884,7 +1803,7 @@ int em_channel_t::handle_channel_pref_rprt(unsigned char *buff, unsigned int len
             handle_channel_pref_tlv_ctrl(tlv->value, htons(tlv->len));
         }
         if (tlv->type == em_tlv_eht_operations) {
-            handle_eht_operations_tlv_ctrl(tlv->value, htons(tlv->len));
+            handle_eht_operations_tlv(tlv->value, htons(tlv->len));
             break;
         }
 
@@ -1979,59 +1898,6 @@ int em_channel_t::handle_channel_pref_tlv(unsigned char *buff, op_class_channel_
         }
     }
     return 0;
-}
-
-int em_channel_t::handle_eht_operations_tlv(unsigned char *buff, em_eht_operations_t *eht_ops)
-{
-	int len = 0;
-	int i = 0, j = 0;
-	unsigned char *tmp = buff;
-
-	unsigned char num_radios;
-	unsigned char num_bss;
-
-    // 32 octets are reserved for future use, so skip 32 octets
-    int reserved_octets = 32;
-    tmp += reserved_octets;
-    len += reserved_octets;
-
-	memcpy(&num_radios, tmp, sizeof(unsigned char));
-	eht_ops->radios_num = num_radios;
-	tmp += sizeof(unsigned char);
-	len += static_cast<int> (sizeof(unsigned char));
-
-	if (num_radios > EM_MAX_RADIO_PER_AGENT) {
-		printf("%s:%d Invalid radios count \n", __func__, __LINE__);
-		return -1;
-	}
-
-	for (i = 0; i < num_radios; i++) {
-		memcpy(&eht_ops->radios[i].ruid, tmp, sizeof(mac_address_t));
-		tmp += sizeof(mac_address_t);
-		len += static_cast<int> (sizeof(mac_address_t));
-
-		memcpy(&num_bss, tmp, sizeof(unsigned char));
-		eht_ops->radios[i].bss_num = num_bss;
-		tmp += sizeof(unsigned char);
-		len += static_cast<int> (sizeof(unsigned char));
-
-		if (num_bss > EM_MAX_BSS_PER_RADIO) {
-			printf("%s:%d Invalid bss count \n", __func__, __LINE__);
-			continue;
-		}
-
-		for(j = 0; j < num_bss; j++) {
-			memcpy(&eht_ops->radios[i].bss[j], tmp, sizeof(em_eht_operations_bss_t));
-			tmp += sizeof(em_eht_operations_bss_t);
-			len += static_cast<int> (sizeof(em_eht_operations_bss_t));
-		}
-        // 25 octets are reserved for future use in radio, so skip 25 octets
-        int radio_reserved_octets = 25;
-        tmp += radio_reserved_octets;
-        len += radio_reserved_octets;
-	}
-
-	return 0;
 }
 
 int em_channel_t::handle_channel_pref_query(unsigned char *buff, unsigned int len)

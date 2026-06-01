@@ -308,6 +308,7 @@ void dm_bss_t::operator = (const dm_bss_t& obj)
     this->m_bss_info.r2_disallowed = obj.m_bss_info.r2_disallowed;
     this->m_bss_info.multi_bssid = obj.m_bss_info.multi_bssid;
     this->m_bss_info.transmitted_bssid = obj.m_bss_info.transmitted_bssid;
+    memcpy(&this->m_bss_info.eht_ops, &obj.m_bss_info.eht_ops, sizeof(em_eht_operations_bss_t));
     memcpy(this->m_bss_info.vendor_elements, obj.m_bss_info.vendor_elements, sizeof(this->m_bss_info.vendor_elements));
     this->m_bss_info.vendor_elements_len = obj.m_bss_info.vendor_elements_len;
     this->m_bss_info.connect_status = obj.m_bss_info.connect_status;
@@ -352,6 +353,7 @@ bool dm_bss_t::operator == (const dm_bss_t& obj)
     ret += !(this->m_bss_info.r2_disallowed == obj.m_bss_info.r2_disallowed);
     ret += !(this->m_bss_info.multi_bssid == obj.m_bss_info.multi_bssid);
     ret += !(this->m_bss_info.transmitted_bssid == obj.m_bss_info.transmitted_bssid);
+    ret += (memcmp(&this->m_bss_info.eht_ops, &obj.m_bss_info.eht_ops, sizeof(em_eht_operations_bss_t)) != 0);
     ret += (memcmp(this->m_bss_info.vendor_elements, obj.m_bss_info.vendor_elements, sizeof(this->m_bss_info.vendor_elements)) != 0);
     ret += !(this->m_bss_info.vendor_elements_len == obj.m_bss_info.vendor_elements_len);
     ret += !(this->m_bss_info.connect_status == obj.m_bss_info.connect_status);
