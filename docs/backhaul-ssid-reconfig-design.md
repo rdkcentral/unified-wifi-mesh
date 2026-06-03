@@ -52,7 +52,7 @@ agents are reconfigured before their parents, avoiding network splits.
        |                |
        |                v
        |         Orchestrator: pending → active → execute
-       |           (autoconfig renew → M1/M2 → topo sync → configured)
+       |           (autoconfig renew → M1/M2+M8)
        |                |
        |                v
        |         is_em_ready_for_orch_fini()
