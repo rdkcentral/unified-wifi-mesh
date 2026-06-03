@@ -1767,7 +1767,7 @@ short em_t::create_metric_col_int_tlv(unsigned char *buff)
         return 0;
     }
 
-    memcpy(&clt, &cap_info->metric_interval, sizeof(em_metric_cltn_interval_t));
+    memcpy(clt, &cap_info->metric_interval, sizeof(em_metric_cltn_interval_t));
     len = sizeof(em_metric_cltn_interval_t);
     return len;
 }
