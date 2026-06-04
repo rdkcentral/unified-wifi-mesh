@@ -4147,7 +4147,7 @@ int em_configuration_t::create_autoconfig_resp_msg(unsigned char* buff, em_freq_
     tlv = reinterpret_cast<em_tlv_t *> (tmp);
     tlv->type = em_tlv_type_profile;
     tlv->len = htons(sizeof(em_enum_type_t));
-    profile = em_profile_type_3;
+    profile = static_cast<em_enum_type_t>(m_peer_profile);
     memcpy(tlv->value, &profile, sizeof(em_enum_type_t));
 
     tmp += (sizeof(em_tlv_t) + sizeof(em_enum_type_t));
@@ -5795,16 +5795,21 @@ int em_configuration_t::handle_autoconfig_search(unsigned char *buff, unsigned i
     em_freq_band_t  band;
     mac_address_t al_mac;
 
-    if (em_msg_t(em_msg_type_autoconf_search, em_profile_type_3, buff, len).validate(errors) == 0) {
-        printf("received autoconfig search msg failed validation\n");
-    
-        return -1;
-    }
     if (em_msg_t(buff + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)),
                len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_profile_type(&m_peer_profile) == false) { 
-        printf("%s:%d: Could not get peer profile type\n", __func__, __LINE__);
-    } else {
+        em_printfout("%s:%d: Could not get peer profile type\n", __func__, __LINE__);
         m_peer_profile = em_profile_type_1;
+    } else {
+        if((m_peer_profile < em_profile_type_1) || (m_peer_profile > em_profile_type_3)){
+            em_printfout("%s:%d: Received unsupported profile: %d, using Profile-1\n", __func__, __LINE__, m_peer_profile);
+            m_peer_profile = em_profile_type_1;
+        }
+        em_printfout("%s:%d: Peer profile type set: %d\n", __func__, __LINE__, m_peer_profile);
+    }
+
+    if (em_msg_t(em_msg_type_autoconf_search, m_peer_profile, buff, len).validate(errors) == 0) {
+        em_printfout("received autoconfig search msg failed validation\n");
+        return -1;
     }
 
     if (em_msg_t(buff + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)), len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_freq_band(&band) == false) {
