@@ -290,6 +290,7 @@ class EasyMeshController {
 
     });
 
+    document.querySelector("#report-unassoc-sta")?.addEventListener("change", toggleMaxRateField);
     const applyPolicyBtn = document.getElementById('apply-policy-settings');
     if (applyPolicyBtn) {
       applyPolicyBtn.addEventListener('click', () => this.handlePolicySettingApply());
@@ -357,6 +358,67 @@ class EasyMeshController {
       remBtn?.addEventListener("click", () => {
         const removed = this.removeSelectedRows(tbody, selectAll);
         if (removed > 0) this.showNotification?.(`${removed} MAC${removed > 1 ? "s" : ""} removed`, "success");
+      });
+    })();
+
+    // QoS Management Policy: + / - buttons
+    (() => {
+      // MSCS Disallowed STA List
+      const mscsBody = document.querySelector("#mscs-body");
+      const mscsAdd  = document.getElementById("add-mscs");
+      const mscsRem  = document.getElementById("remove-mscs");
+      const mscsAll  = document.getElementById("select-all-mscs");
+
+      if (mscsAll && mscsBody) {
+        mscsAll.addEventListener("change", () => {
+          mscsBody.querySelectorAll('input.row-select')
+          .forEach(cb => cb.checked = mscsAll.checked);
+          this.updateSelectAllState(mscsBody, mscsAll);
+        });
+
+        mscsBody.addEventListener("change", (e) => {
+          if (e.target && e.target.matches('input.row-select')) {
+            this.updateSelectAllState(mscsBody, mscsAll);
+          }
+        });
+      }
+      mscsAdd?.addEventListener("click", () =>this.addDisallowedMacRow(mscsBody, mscsAll));
+      mscsRem?.addEventListener("click", () => {
+        const removed = this.removeSelectedRows(mscsBody, mscsAll);
+        if (removed > 0) {
+          this.showNotification?.(`${removed} MAC${removed > 1 ? "s" : ""} removed`,"success");
+        }
+      });
+
+      // SCS Disallowed STA List
+      const scsBody = document.querySelector("#scs-body");
+      const scsAdd  = document.getElementById("add-scs");
+      const scsRem  = document.getElementById("remove-scs");
+      const scsAll  = document.getElementById("select-all-scs");
+
+      if (scsAll && scsBody) {
+        scsAll.addEventListener("change", () => {
+          scsBody.querySelectorAll('input.row-select')
+          .forEach(cb => cb.checked = scsAll.checked);
+          this.updateSelectAllState(scsBody, scsAll);
+        });
+
+        scsBody.addEventListener("change", (e) => {
+          if (e.target && e.target.matches('input.row-select')) {
+            this.updateSelectAllState(scsBody, scsAll);
+          }
+        });
+      }
+
+      scsAdd?.addEventListener("click", () =>
+        this.addDisallowedMacRow(scsBody, scsAll)
+      );
+
+      scsRem?.addEventListener("click", () => {
+        const removed = this.removeSelectedRows(scsBody, scsAll);
+        if (removed > 0) {
+          this.showNotification?.(`${removed} MAC${removed > 1 ? "s" : ""} removed`,"success");
+        }
       });
     })();
 
@@ -520,22 +582,25 @@ savePolicySettings(sectionKey, scope = "selected") {
       this.showNotification('AP metrics policy saved successfully', 'success');
       break;
     }
-    case "local-disallowed": {
-      const list = getMacList("#localMacBody") || [];
+    case "steering-policy": {
+
+      // Fetch all steering policies
+      const localList = getMacList("#localMacBody") || [];
+      const btmList = getMacList("#btmMacBody") || [];
+      const radioRows = RSP.getAll();
+
+      if (!Array.isArray(radioRows) || radioRows.length === 0) {
+        this.showNotification('At least one Radio Steering row with a valid ID (Station MAC) is required.', 'error');
+        return;
+      }
+
       indicesToUpdate.forEach(i => {
         const d = this.updatedPolicySettings[i];
-        d.localSteeringDisallowed = Array.isArray(list) ? [...list] : [];
+        d.localSteeringDisallowed = [...localList];
+        d.btmSteeringDisallowed = [...btmList];
+        d.radioSteeringParametersPolicy = [...radioRows];
       });
-      this.showNotification('Local Steering Disallowed Policy saved successfully', 'success');
-      break;
-    }
-    case "btm-disallowed": {
-      const list = getMacList("#btmMacBody") || [];
-      indicesToUpdate.forEach(i => {
-        const d = this.updatedPolicySettings[i];
-        d.btmSteeringDisallowed = Array.isArray(list) ? [...list] : [];
-      });
-      this.showNotification('BTM Steering Disallowed Policy saved successfully', 'success');
+      this.showNotification('Steering Policy saved successfully', 'success')
       break;
     }
     case "channel-scan": {
@@ -565,6 +630,57 @@ savePolicySettings(sectionKey, scope = "selected") {
       this.showNotification('Default 802.1Q Settings Policy saved successfully', 'success');
       break;
     }
+    case "unsuccessful-assoc": {
+      const reportVal = document.querySelector("#report-unassoc-sta")?.value ?? "0";
+      const rateVal   = document.querySelector("#max-reporting-rate")?.value ?? "0";
+
+      // Convert values
+      const reportBool = reportVal === "1";
+      const rateNum    = Number(rateVal);
+
+      indicesToUpdate.forEach(i => {
+        const d = this.updatedPolicySettings[i];
+        d.unsuccessfulAssocPolicy ||= {};
+        d.unsuccessfulAssocPolicy.reportUnsuccessAssoc = reportBool;
+        d.unsuccessfulAssocPolicy.maxReportingRate = Number.isNaN(rateNum) ? 0 : rateNum;
+      });
+      this.showNotification('Unsuccessful Association Policy saved successfully', 'success');
+      break;
+    }
+    case "backhaul-bss": {
+      const rows = document.querySelectorAll("#backhaul-bss-rows tr");
+      if (!rows || rows.length === 0) {
+        this.showNotification('No Backhaul BSS entries found', 'error');
+        return;
+      }
+      const result = Array.from(rows).map(row => {
+        return {
+          bssid: row.querySelector("input[name='bssid']")?.value || "",
+          profile1bSTADisallowed:row.querySelector("select[name='profile1']")?.value === "1",
+          profile2bSTADisallowed:row.querySelector("select[name='profile2']")?.value === "1"
+        };
+      }).filter(r => r.bssid);
+      indicesToUpdate.forEach(i => {
+        const d = this.updatedPolicySettings[i];
+        d.backhaulBssConfigPolicy = result;
+      });
+      this.showNotification('Backhaul BSS Config Policy saved successfully', 'success');
+      break;
+    }
+
+    case "qos-mgt": {
+      const mscsList = getMacList("#mscs-body") || [];
+      const scsList  = getMacList("#scs-body") || [];
+
+      indicesToUpdate.forEach(i => {
+        const d = this.updatedPolicySettings[i];
+        d.qosManagementPolicy ||= {};
+        d.qosManagementPolicy.mscsDisallowedSTAList = [...mscsList];
+        d.qosManagementPolicy.scsDisallowedSTAList  = [...scsList];
+      });
+      this.showNotification('QoS Management Policy saved successfully', 'success');
+      break;
+    }
     case "radio-metrics": {
       const rows = RMP.getAll();
       if (!Array.isArray(rows) || rows.length === 0) {
@@ -576,20 +692,6 @@ savePolicySettings(sectionKey, scope = "selected") {
         d.radioSpecificMetricsPolicy = rows;
       });
       this.showNotification('Radio Specific Metrics Policy saved successfully', 'success');
-      break;
-    }
-    case "radio-steering": {
-      const rows = RSP.getAll();
-
-      if (!Array.isArray(rows) || rows.length === 0) {
-        this.showNotification('At least one Radio Steering row with a valid ID (Station MAC") is required.', 'error');
-        return;
-      }
-      indicesToUpdate.forEach(i => {
-        const d = this.updatedPolicySettings[i];
-        d.radioSteeringParametersPolicy = rows;
-      });
-      this.showNotification('Radio Steering Parameters saved successfully', 'success');
       break;
     }
 
@@ -3484,6 +3586,7 @@ async handleWebSocketMessage(data) {
         const firstId = sel.value;
         const policy = this.policyByDeviceId[firstId];
         populatePolicyUI(policy);
+        toggleMaxRateField();
       }
 
     } catch (err) {
@@ -3566,6 +3669,42 @@ async handleWebSocketMessage(data) {
   }
 }
 
+  /**
+   * Render Backhaul BSS policy
+   */
+function renderBackhaulBSS(rows) {
+  const tbody = document.querySelector("#backhaul-bss-rows");
+  if (!tbody) return;
+
+  tbody.innerHTML = "";
+
+  rows.forEach(row => {
+    const tr = document.createElement("tr");
+
+    tr.innerHTML = `
+      <td>
+        <input type="text" name="bssid" value="${row.bssid}" readonly />
+      </td>
+
+      <td>
+        <select name="profile1">
+          <option value="1" ${row.profile1 ? "selected" : ""}>Disallowed</option>
+          <option value="0" ${!row.profile1 ? "selected" : ""}>Allowed</option>
+        </select>
+      </td>
+
+      <td>
+        <select name="profile2">
+          <option value="1" ${row.profile2 ? "selected" : ""}>Disallowed</option>
+          <option value="0" ${!row.profile2 ? "selected" : ""}>Allowed</option>
+        </select>
+      </td>
+    `;
+
+    tbody.appendChild(tr);
+  });
+}
+
 /**
   * show all the available device list for wifi policy config
   */
@@ -3598,7 +3737,7 @@ function populateDeviceSelectorFromPolicy(data) {
 }
 
 /**
- * Load wifi policy config for seected device
+ * Load wifi policy config for selected device
  */
 function populatePolicyUI(policy) {
   if (!policy) return;
@@ -3620,6 +3759,20 @@ function populatePolicyUI(policy) {
   setInputValue("#primary-vlan-id", dot1q.primaryVLANID);
   setInputValue("#default-pcp", dot1q.defaultPCP);
 
+  // Unsuccessful Association Policy
+  const ua = policy.unsuccessfulAssocPolicy || {};
+  setInputValue("#report-unassoc-sta", ua.reportUnsuccessAssoc?1:0);
+  setInputValue("#max-reporting-rate", ua.maxReportingRate);
+
+  // Backhaul BSS Config Policy
+  const backhaul = policy.backhaulBssConfigPolicy || [];
+  renderBackhaulBSS(backhaul);
+
+  // QoS Management Policy (NEW)
+  const qos = policy.qosManagementPolicy || {};
+  fillMacTable("#mscs-body", qos.mscsDisallowedSTAList);
+  fillMacTable("#scs-body",  qos.scsDisallowedSTAList);
+
   // Radio Specific Metrics (table)
   const rmpEntries = getRadioMetricsEntries(policy);
   RMP.render(rmpEntries);
@@ -3629,6 +3782,24 @@ function populatePolicyUI(policy) {
   const rspEntries = getRadioSteeringEntries(policy);
   RSP.render(rspEntries);
   RSP.bind();
+}
+
+/**
+ * toggle Max Rate Field based on report unassoc status
+ */
+function toggleMaxRateField() {
+  const reportSelect = document.querySelector("#report-unassoc-sta");
+  const rateInput = document.querySelector("#max-reporting-rate");
+
+  if (!reportSelect || !rateInput) return;
+
+  const isDisabled = reportSelect.value === "0";
+
+  rateInput.disabled = isDisabled;
+
+  if (isDisabled) {
+    rateInput.value = "0";
+  }
 }
 
 // RMP entries (array or single legacy object)
