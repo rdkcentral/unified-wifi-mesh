@@ -19,6 +19,6 @@
 if EM_EXTENDER
 SUBDIRS = al-sap agent
 else
-SUBDIRS = al-sap ctrl
+SUBDIRS = rdkb-cli al-sap ctrl agent network_optimiser
 endif
 
