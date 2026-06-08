@@ -2087,6 +2087,10 @@ async handleWebSocketMessage(data) {
     const height = container.node().clientHeight;
     const self = this;
 
+    // Create cache for node position and zoom which persist across refresh calls
+    this.nodePositionCache = this.nodePositionCache || new Map();
+    this.zoomTransformCache = this.zoomTransformCache || d3.zoomIdentity;
+
     // Return if container is not ready
     if (width === 0 || height === 0) {
       setTimeout(() => this.updateTopologyVisualization(), 100);
@@ -2096,6 +2100,13 @@ async handleWebSocketMessage(data) {
     // Return if container is empty
     if (!this.topology?.nodes?.length) return;
 
+    const currentNodeIds = new Set(this.topology.nodes.map(n => String(n.id)));
+    for (const key of this.nodePositionCache.keys()) {
+      if (!currentNodeIds.has(key)) {
+        this.nodePositionCache.delete(key);
+      }
+    }
+
     // Clear previous content
     container.selectAll('*').remove();
 
@@ -2103,11 +2114,16 @@ async handleWebSocketMessage(data) {
     const svg = container.append('svg')
     .attr('width', width)
     .attr('height', height)
-    .call(d3.zoom().on('zoom', (event) => {
-      svgGroup.attr('transform', event.transform);
-    }));
 
     const svgGroup = svg.append('g');
+    const zoom = d3.zoom().on('zoom', (event) => {
+      svgGroup.attr('transform', event.transform);
+      // Save zoom state
+      this.zoomTransformCache = event.transform;
+    });
+
+    svg.call(zoom);
+    svg.call(zoom.transform, this.zoomTransformCache);
 
     // Normalize node and edge IDs to strings
     this.topology.nodes.forEach(n => n.id = String(n.id));
@@ -2136,14 +2152,10 @@ async handleWebSocketMessage(data) {
     const haulColors = {
       Fronthaul: '#c3cbf8ff',
       Backhaul: '#e68b8bff',
-      Iot: '#d3ced3ff'
+      Iot: '#d3ced3ff',
+      Hotspot: '#9fe0c3ff',
+      Configurator: '#f4d28cff'
     };
-
-    const circleOffsets = [
-      { x: -65, y: 50 },
-      { x: 65, y: 50 },
-      { x: 0, y: -65 }
-    ];
 
     const bandColors = {
       '-1': '#0bd476ff',
@@ -2170,8 +2182,18 @@ async handleWebSocketMessage(data) {
     const offsetY = (height - graphHeight) / 2 - minY;
 
     this.topology.nodes.forEach(node => {
-      node.fx = node.x + offsetX;
-      node.fy = node.y + offsetY;
+      const saved = this.nodePositionCache.get(node.id);
+      if (saved) {
+        node.x = saved.x;
+        node.y = saved.y;
+      } else {
+        node.x = node.x + offsetX;
+        node.y = node.y + offsetY;
+      }
+
+      // Keep nodes fixed after positioning
+      node.fx = node.x;
+      node.fy = node.y;
     });
 
     // Create simulation
@@ -2197,16 +2219,26 @@ async handleWebSocketMessage(data) {
     // Draw overlapping haulType circles and icon
     node.each(function(d) {
       const g = d3.select(this);
-      const haulTypes = d.haulTypes?.map(ht => ht.name) || [];
+      const haulTypes = d.haulTypes || [];
+      const count = haulTypes.length;
 
-      haulTypes.forEach((type, i) => {
-        const offset = circleOffsets[i] || { x: 0, y: 0 };
-        const verticalShift = offset.x < 0 ? -8 : offset.x > 0 ? 8 : 0;
+      const circleRadius = 80;
+      const layoutRadius = circleRadius * 0.9;
+
+      haulTypes.forEach((haul, i) => {
+        // Skip invalid entries safely
+        if (!haul || typeof haul !== 'object') return;
+
+        const angle = (2 * Math.PI / count) * i;
+        const offset = {
+          x: layoutRadius * Math.cos(angle),
+          y: layoutRadius * Math.sin(angle)
+        };
 
         // SSID heading inside the each circle
-        const haul = d.haulTypes?.[i];
+        const type = haul.name || 'Unknown';
         const ssid = haul?.ssid || 'SSID N/A';
-        const vlanId = haul?.VlanId || 'N/A';
+        const vlanId = haul?.VlanId ?? 'N/A';
         const mldMap = new Map();
 
         // Extract BSS-band details
@@ -2243,7 +2275,7 @@ async handleWebSocketMessage(data) {
 
         // Draw haultype overlapping circle
         g.append('circle')
-          .attr('r', 80)
+          .attr('r', circleRadius)
           .attr('cx', offset.x)
           .attr('cy', offset.y)
           .attr('fill', haulColors[type] || '#ccc')
@@ -2268,7 +2300,7 @@ async handleWebSocketMessage(data) {
 
         g.append('text')
           .attr('x', offset.x)
-          .attr('y', offset.y + verticalShift)
+          .attr('y', offset.y)
           .attr('text-anchor', 'middle')
           .attr('dominant-baseline', 'middle')
           .attr('font-size', '12px')
@@ -2280,7 +2312,7 @@ async handleWebSocketMessage(data) {
       // STA Placement
       if (Array.isArray(d.STAList) && d.STAList.length > 0) {
         const staList = d.STAList;
-        const baseRadius = 80;
+        const baseRadius = circleRadius + 10;
         const angleStep = (2 * Math.PI) / staList.length;
         const nodeRadius = 20;
         const maxSize = 30;
@@ -2469,8 +2501,6 @@ async handleWebSocketMessage(data) {
 
     function dragstarted(event, d) {
       if (!event.active) simulation.alphaTarget(0.3).restart();
-      d.fx = d.x;
-      d.fy = d.y;
     }
 
     function dragged(event, d) {
@@ -2480,12 +2510,14 @@ async handleWebSocketMessage(data) {
 
     function dragended(event, d) {
       if (!event.active) simulation.alphaTarget(0);
+      self.nodePositionCache.set(d.id, {
+        x: d.fx,
+        y: d.fy
+      });
 
-      // Only release if not originally fixed
-      if (!(d.fixed?.x === true && d.fixed?.y === true)) {
-        d.fx = null;
-        d.fy = null;
-      }
+      // Lock at new position
+      d.x = d.fx;
+      d.y = d.fy;
     }
   }
 
