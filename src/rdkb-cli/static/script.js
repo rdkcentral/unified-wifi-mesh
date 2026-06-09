@@ -281,9 +281,8 @@ class EasyMeshController {
       const sectionKey = btn.getAttribute("data-section");
       if (!sectionKey) return;
 
-      // Resolve the radio name (scope group) for this section
-      const scopeName = sectionMap(sectionKey);
-      const scope = document.querySelector(`input[name="${scopeName}"]:checked`)?.value || "selected";
+      const section = btn.closest(".policy-card");
+      const scope = section.querySelector('input[type="radio"]:checked')?.value || "selected";
 
       // Collect the section's values from the form/table
       this.savePolicySettings(sectionKey, scope);
@@ -4222,20 +4221,6 @@ function fillMacTable(tbodySel, macArray) {
     tr.appendChild(tdMac);
     tbody.appendChild(tr);
   });
-}
-
-function sectionMap(sectionKey) {
-  // Maps data-section to the radio group's name attribute
-  switch (sectionKey) {
-    case "ap-metrics":        return "applyScope-ap";
-    case "local-disallowed":  return "applyScope-local";
-    case "btm-disallowed":    return "applyScope-btm";
-    case "channel-scan":      return "applyScope-scan";
-    case "dot1q-defaults":    return "applyScope-dot1q";
-    case "radio-metrics":     return "applyScope-radio";
-    case "radio-steering":    return "applyScope-steer";
-    default:                  return "";
-  }
 }
 
 function getMacList(tbodySelector) {
