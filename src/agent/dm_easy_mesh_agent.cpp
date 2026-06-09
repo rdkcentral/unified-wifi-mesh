@@ -386,7 +386,7 @@ int dm_easy_mesh_agent_t::analyze_onewifi_vap_cb(em_bus_event_t *evt, em_cmd_t *
     return num;
 }
 
-int dm_easy_mesh_agent_t::analyze_onewifi_radio_cb(em_bus_event_t *evt, em_cmd_t *pcmd[])
+int dm_easy_mesh_agent_t::analyze_onewifi_radio_cb(em_bus_event_t *evt, em_cmd_t *pcmd[], em_mgr_t *mgr)
 {
     webconfig_t config;
     webconfig_external_easymesh_t ext;
@@ -418,19 +418,61 @@ int dm_easy_mesh_agent_t::analyze_onewifi_radio_cb(em_bus_event_t *evt, em_cmd_t
         em_printfout("Radio subdoc decode fail");
     }
 
-	dm_easy_mesh_t::macbytes_to_string(dm.get_radio(index)->get_radio_info()->intf.mac, mac_str);
-	cm_config.type = em_commit_target_radio;
-	snprintf(reinterpret_cast<char *> (cm_config.params), sizeof(cm_config.params), "%s", mac_str);
-	commit_config(dm, cm_config);
-	pcmd[num] = new em_cmd_op_channel_report_t(evt->params, dm);
-	tmp = pcmd[num];
-	num++;
+    em_radio_info_t *radio_info = dm.get_radio(index)->get_radio_info();
+    dm_easy_mesh_t::macbytes_to_string(radio_info->intf.mac, mac_str);
+    cm_config.type = em_commit_target_radio;
+    snprintf(reinterpret_cast<char *> (cm_config.params), sizeof(cm_config.params), "%s", mac_str);
 
-	while ((pcmd[num] = tmp->clone_for_next()) != NULL) {
-		tmp = pcmd[num];
-		num++;
-	}
-	return num;
+    /*
+     * Analyze DFS state for channels in dm that are in CAC Non-Occupancy state
+     * when a matching DFS event is found.
+     */
+    for (unsigned int oc = 0; oc < m_num_opclass; oc++) {
+        if ((m_op_class[oc].m_op_class_info.id.type == em_op_class_type_cac_non_occ) && (memcmp(radio_info->intf.mac,
+                m_op_class[oc].m_op_class_info.id.ruid, sizeof(mac_address_t)) == 0)) {
+            for (unsigned int i = 0; i < radio_info->num_dfs_events; i++) {
+                em_bus_event_type_dfs_event_params_t *dfs = &radio_info->dfs_events[i];
+                if(m_op_class[oc].m_op_class_info.channel == dfs->channel){
+                    analyze_dfs_state(dfs,mgr);
+                    break;
+                }
+            }
+        }
+    }
+
+    commit_config(dm, cm_config);
+
+    /*
+     * Analyze DFS state if:
+     * 1. The current operating channel is a DFS channel and matches a DFS event.
+     * 2. Radar has been detected and the DFS event corresponds to the last radar-detected channel.
+     */
+    for (unsigned int oc = 0; oc < dm.m_num_opclass; oc++) {
+        if ((memcmp(radio_info->intf.mac,dm.m_op_class[oc].m_op_class_info.id.ruid, sizeof(mac_address_t)) == 0) &&
+               (dm.m_op_class[oc].m_op_class_info.id.type == em_op_class_type_current)) {
+            int current_channel = dm.m_op_class[oc].m_op_class_info.channel;
+            bool dfs_channel = ((current_channel >= 52) && (current_channel <= 144));
+
+            for (unsigned int i = 0; i < radio_info->num_dfs_events; i++) {
+                em_bus_event_type_dfs_event_params_t *dfs = &radio_info->dfs_events[i];
+                if ((dfs_channel && dfs->channel == current_channel) || (radio_info->radar_info.num_detected && dfs->channel == radio_info->radar_info.last_channel)) {
+                    analyze_dfs_state(dfs, mgr);
+                }
+            }
+            break;
+        }
+    }
+
+    pcmd[num] = new em_cmd_op_channel_report_t(evt->params, dm);
+    tmp = pcmd[num];
+    num++;
+
+    while ((pcmd[num] = tmp->clone_for_next()) != NULL) {
+        tmp = pcmd[num];
+        num++;
+    }
+
+    return num;
 }
         
 int dm_easy_mesh_agent_t::analyze_channel_pref_query(em_bus_event_t *evt, em_cmd_t *pcmd[])
@@ -659,6 +701,175 @@ int dm_easy_mesh_agent_t::analyze_channel_sel_req(em_bus_event_t *evt, wifi_bus_
         return refresh_onewifi_subdoc(desc, bus_hdl, "Radio", get_subdoc_radio_type_for_freq(channel_sel->freq_band));
     }
 
+}
+
+int dm_easy_mesh_agent_t::analyze_dfs_state(em_bus_event_type_dfs_event_params_t *dfs_params,em_mgr_t *mgr)
+{
+    dm_easy_mesh_t *dm;
+    dm = mgr->get_data_model(NULL, NULL);
+    em_channel_pref_reason_t dfs_event_reason;
+    unsigned int i;
+    dm_op_class_t *op_class;
+    dm_radio_t *radio;
+    bool found = false;
+
+    em_printfout("Processing DFS event type=%d, op_class=%d, channel=%d, radio=%d", dfs_params->event_type, dfs_params->op_class, dfs_params->channel, dfs_params->radio_index);
+
+    // Validate radio index
+    if (dfs_params->radio_index >= get_num_radios()) {
+        em_printfout("Invalid radio index %d", dfs_params->radio_index);
+        return -1;
+    }
+
+    radio = get_radio(dfs_params->radio_index);
+    if (radio == NULL) {
+        em_printfout("Radio not found for index %d", dfs_params->radio_index);
+        return -1;
+    }
+
+    mac_address_t ruid;
+    memcpy(ruid, radio->get_radio_interface_mac(), sizeof(mac_address_t));
+
+    mac_addr_str_t mac_str;
+    dm_easy_mesh_t::macbytes_to_string(ruid, mac_str);
+
+    em_t *radio_em = reinterpret_cast<em_t *>(hash_map_get(mgr->m_em_map, mac_str));
+    if (radio_em == NULL) {
+        em_printfout("No EM instance found for radio %s", mac_str);
+        return -1;
+    }
+
+    switch (dfs_params->event_type) {
+        case em_dfs_event_type_radar_detected: {
+            // Mark channel as non-occupancy and trigger unsolicited report
+            for (i = 0; i < dm->get_num_op_class(); i++) {
+                op_class = dm->get_op_class(i);
+                if ((memcmp(op_class->m_op_class_info.id.ruid, ruid, sizeof(mac_address_t)) == 0) &&
+                    (op_class->m_op_class_info.op_class == dfs_params->op_class) &&
+                    (op_class->m_op_class_info.channel == dfs_params->channel) &&
+                    ((op_class->m_op_class_info.id.type == em_op_class_type_cac_available) || (op_class->m_op_class_info.id.type == em_op_class_type_cac_active))) {
+                    op_class->m_op_class_info.id.type = em_op_class_type_cac_non_occ;
+                    op_class->m_op_class_info.sec_remain_non_occ_dur = dfs_params->sec_remain_non_occ_dur;
+                    found = true;
+                    break;
+                }
+            }
+
+            // Update dm_cac_comp_t for radar detection
+            memcpy(dm->m_cac_comp.m_cac_comp_info.ruid, ruid, sizeof(mac_address_t));
+            dm->m_cac_comp.m_cac_comp_info.op_class = dfs_params->op_class;
+            dm->m_cac_comp.m_cac_comp_info.channel = dfs_params->channel;
+            dm->m_cac_comp.m_cac_comp_info.status = 1; // Radar detected
+            dm->m_cac_comp.m_cac_comp_info.detected_pairs_num = 1;
+            dm->m_cac_comp.m_cac_comp_info.detected_pairs[0].op_class = dfs_params->op_class;
+            dm->m_cac_comp.m_cac_comp_info.detected_pairs[0].channel = dfs_params->channel;
+
+            dfs_event_reason = em_channel_pref_reason_operation_disallowed_dfs_radar_detection;
+            break;
+        }
+        case em_dfs_event_type_finished: {
+            // Update data model with available entry
+            // Mark channel as available (success)
+            for (i = 0; i < dm->get_num_op_class(); i++) {
+                op_class = dm->get_op_class(i);
+                if ((memcmp(op_class->m_op_class_info.id.ruid, ruid, sizeof(mac_address_t)) == 0) &&
+                    (op_class->m_op_class_info.op_class == dfs_params->op_class) &&
+                    (op_class->m_op_class_info.channel == dfs_params->channel) &&
+                    (op_class->m_op_class_info.id.type == em_op_class_type_cac_active)) {
+                    op_class->m_op_class_info.id.type = em_op_class_type_cac_available;
+                    op_class->m_op_class_info.num_channels = 1;
+                    op_class->m_op_class_info.channels[0] = dfs_params->channel;
+                    //op_class->m_op_class_info.channel = cac_params->channel;
+                    op_class->m_op_class_info.id.op_class = dfs_params->op_class;
+                    op_class->m_op_class_info.op_class = dfs_params->op_class;
+                    op_class->m_op_class_info.mins_since_cac_comp = 0;
+                    found = true;
+                    break;
+                }
+            }
+
+            dfs_event_reason = em_channel_pref_reason_immediate_operation_possible_dfs;
+            break;
+        }
+        case em_dfs_event_type_started: {
+            // Mark channel as active CAC
+            for (i = 0; i < dm->get_num_op_class(); i++) {
+                op_class = dm->get_op_class(i);
+
+                if ((memcmp(op_class->m_op_class_info.id.ruid, ruid, sizeof(mac_address_t)) == 0) &&
+                    (op_class->m_op_class_info.op_class == dfs_params->op_class) &&
+                    (op_class->m_op_class_info.channel == dfs_params->channel) &&
+                    (op_class->m_op_class_info.id.type == em_op_class_type_cac_active)) {
+                    op_class->m_op_class_info.id.type = em_op_class_type_cac_active;
+                    op_class->m_op_class_info.countdown_cac_comp = 0;
+                    found = true;
+                    break;
+                }
+            }
+
+            if (!found && dm->get_num_op_class() < EM_MAX_OPCLASS) {
+                op_class = dm->get_op_class(dm->get_num_op_class());
+                memset(op_class, 0, sizeof(dm_op_class_t));
+                memcpy(op_class->m_op_class_info.id.ruid, ruid, sizeof(mac_address_t));
+                op_class->m_op_class_info.id.type = em_op_class_type_cac_active;
+                op_class->m_op_class_info.id.op_class = dfs_params->op_class;
+                op_class->m_op_class_info.op_class = dfs_params->op_class;
+                op_class->m_op_class_info.num_channels = 1;
+                op_class->m_op_class_info.channels[0] = dfs_params->channel;
+                op_class->m_op_class_info.channel = dfs_params->channel;
+                op_class->m_op_class_info.countdown_cac_comp = 0;
+                dm->set_num_op_class(dm->get_num_op_class() + 1);
+            }
+
+            break;
+        }
+        case em_dfs_event_type_aborted: {
+	    // Clear active CAC state
+            for (i = 0; i < dm->get_num_op_class(); i++) {
+                op_class = dm->get_op_class(i);
+                if ((memcmp(op_class->m_op_class_info.id.ruid, ruid, sizeof(mac_address_t)) == 0) &&
+                    (op_class->m_op_class_info.op_class == dfs_params->op_class) &&
+                    (op_class->m_op_class_info.channel == dfs_params->channel) &&
+                    (op_class->m_op_class_info.id.type == em_op_class_type_cac_active)) {
+                     op_class->m_op_class_info.id.type = em_op_class_type_none;
+                     found = true;
+                     break;
+                }
+            }
+
+            dfs_event_reason = em_channel_pref_reason_dfs_state_unknown_cac_not_run_or_expired;
+            break;
+        }
+        case em_dfs_event_type_nop_finished: {
+            // Clear non-occupancy state
+            for (i = 0; i < dm->get_num_op_class(); i++) {
+                 op_class = dm->get_op_class(i);
+                 if ((memcmp(op_class->m_op_class_info.id.ruid, ruid, sizeof(mac_address_t)) == 0) &&
+                     (op_class->m_op_class_info.op_class == dfs_params->op_class) &&
+                     (op_class->m_op_class_info.channel == dfs_params->channel) &&
+                     (op_class->m_op_class_info.id.type == em_op_class_type_cac_non_occ)) {
+                      op_class->m_op_class_info.id.type = em_op_class_type_cac_available;
+                      op_class->m_op_class_info.sec_remain_non_occ_dur = 0;
+                      found = true;
+                      break;
+                 }
+            }
+
+            dfs_event_reason = em_channel_pref_reason_controller_dfs_clear_indication;
+            break;
+        }
+        default: {
+            em_printfout("Unknown DFS event type %d", dfs_params->event_type);
+            return 0;
+        }
+    }
+
+    // Update data model with changes
+    dm->set_db_cfg_param(db_cfg_type_op_class_list_update, "");
+
+    radio_em->send_unsolicited_channel_pref_report(dfs_event_reason);
+
+    return 0;
 }
 
 int dm_easy_mesh_agent_t::analyze_csa_beacon_frame(em_bus_event_t *evt, wifi_bus_desc_t *desc, bus_handle_t *bus_hdl)

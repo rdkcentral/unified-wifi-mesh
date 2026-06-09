@@ -2605,6 +2605,67 @@ typedef struct {
 	em_cac_comp_rprt_pair_t	detected_pairs[EM_MAX_CAC_METHODS];
 } em_cac_comp_info_t;
 
+// CAC Event Types
+typedef enum {
+    em_dfs_event_type_started = 0,
+    em_dfs_event_type_finished,
+    em_dfs_event_type_radar_detected,
+    em_dfs_event_type_aborted,
+    em_dfs_event_type_nop_finished
+} em_dfs_event_type_t;
+
+// CAC Event Parameters Structure
+typedef struct {
+    em_dfs_event_type_t event_type;
+    unsigned char radio_index;
+    unsigned char op_class;
+    unsigned char channel;
+    unsigned short sec_remain_non_occ_dur;
+    unsigned char status;
+} __attribute__((__packed__)) em_bus_event_type_dfs_event_params_t;
+
+typedef struct {
+    unsigned int last_channel;
+    unsigned int num_detected;
+    long long int timestamp;
+} __attribute__((__packed__)) em_radar_info_t;
+
+typedef enum
+{
+    WIFI_EVNT_CHANNELS_CHANGED, /**< Channels changed. */
+    WIFI_EVNT_DFS_RADAR_DETECTED /**< DFS radar detected. */
+} wifi_Chan_evntType_t;
+
+typedef enum
+{
+    WIFI_EVNT_RADAR_DETECTED,       /**< Radar detected. */
+    WIFI_EVNT_RADAR_CAC_FINISHED,   /**< Radar Channel Availability Check (CAC) finished. */
+    WIFI_EVNT_RADAR_CAC_ABORTED,    /**< Radar CAC aborted. */
+    WIFI_EVNT_RADAR_NOP_FINISHED,   /**< Radar Non-Occupancy Period (NOP) finished. */
+    WIFI_EVNT_RADAR_PRE_CAC_EXPIRED, /**< Radar pre-CAC expired. */
+    WIFI_EVNT_RADAR_CAC_STARTED     /**< Radar CAC started. */
+} wifi_radar_evntType_t;
+
+typedef enum
+{
+    WIFI_CHANNEL_BANDWIDTH_20MHZ = 0x1, /**< 20MHz. */
+    WIFI_CHANNEL_BANDWIDTH_40MHZ = 0x2, /**< 40MHz. */
+    WIFI_CHANNEL_BANDWIDTH_80MHZ = 0x4, /**< 80MHz. */
+    WIFI_CHANNEL_BANDWIDTH_160MHZ = 0x8, /**< 160MHz. */
+    WIFI_CHANNEL_BANDWIDTH_80_80MHZ = 0x10, /**< 80+80MHz. */
+    WIFI_CHANNEL_BANDWIDTH_320MHZ = 0x20 /**< 320MHz. */
+} wifi_ChannelBandwidth_t;
+
+typedef struct {
+    //wifi_Radio_index_t RadioIndex;
+    UINT RadioIndex;
+    wifi_Chan_evntType_t Event;
+    wifi_radar_evntType_t Sub_event;
+    UINT Channel;
+    wifi_ChannelBandwidth_t ChannelWidth;
+    UINT Op_class;
+} __attribute__((__packed__)) wifi_channel_change_evnt_t;
+
 typedef struct {
     mac_address_t   id;
     mac_address_t   bssid;
@@ -2866,6 +2927,10 @@ typedef struct {
     unsigned char srg_bss_color_bitmap[8];
     unsigned char srg_partial_bssid_bitmap[8];
     unsigned char neigh_bss_color_in_use_bitmap[8];
+    char radarDetected[256];
+    em_radar_info_t radar_info;
+    unsigned int num_dfs_events;
+    em_bus_event_type_dfs_event_params_t dfs_events[EM_MAX_CHANNELS_IN_LIST];
 } em_radio_info_t;
 
 typedef struct {
@@ -3437,6 +3502,7 @@ typedef struct {
 typedef enum {
     em_cmd_event_type_ap_metrics_report,
     em_cmd_event_type_failed_connection,
+    em_cmd_event_type_operating_channel_report,
 
     em_cmd_event_type_max
 } em_cmd_event_type_t;

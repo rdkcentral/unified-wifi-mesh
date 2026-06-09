@@ -192,10 +192,6 @@ void em_t::orch_execute(em_cmd_t *pcmd)
 	    }
             break;
 
-        case em_cmd_type_op_channel_report:
-            m_sm.set_state(em_state_agent_channel_report_pending);
-            break;
-
         case em_cmd_type_sta_link_metrics:
             m_sm.set_state((m_service_type == em_service_type_agent) ?
                 em_state_agent_sta_link_metrics_pending:em_state_ctrl_sta_link_metrics_pending);
@@ -419,6 +415,23 @@ void em_t::proto_process(em_cmd_event_t *cevt)
             }
             break;
         }
+        case em_cmd_event_type_operating_channel_report:
+        {
+            em_printfout("%s:%d: Received operating channel report event", __func__, __LINE__);
+            em_cmd_t *saved_cmd = m_cmd;
+            em_cmd_t *op_chan_cmd = static_cast<em_cmd_t*>(cevt->cmd_ptr);
+            m_cmd = op_chan_cmd;
+            if (get_service_type() == em_service_type_agent) {
+                send_operating_channel_report_msg();
+                em_printfout("%s:%d operating_channel_report_msg send\n", __func__, __LINE__);
+            }
+            if (op_chan_cmd != NULL) {
+                op_chan_cmd->deinit();
+            }
+            delete op_chan_cmd;
+            m_cmd = saved_cmd;
+            break;
+        }
         default:
             em_printfout("unhandled cmd type %d", cevt->type);
             break;
@@ -468,7 +481,6 @@ void em_t::handle_agent_state()
             }
             break;
         case em_cmd_type_channel_pref_query:
-        case em_cmd_type_op_channel_report:
             em_channel_t::process_state();
             break;
 

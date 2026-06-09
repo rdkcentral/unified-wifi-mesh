@@ -24,6 +24,7 @@
 #include "dm_easy_mesh.h"
 #include "webconfig_external_proto.h"
 #include "bus.h"
+#include "em_mgr.h"
 
 class dm_easy_mesh_agent_t : public dm_easy_mesh_t {
 
@@ -136,7 +137,7 @@ public:
 	 *
 	 * @note Ensure that the event and command structures are properly initialized before calling this function.
 	 */
-	int analyze_onewifi_radio_cb(em_bus_event_t *evt, em_cmd_t *pcmd[]);
+	int analyze_onewifi_radio_cb(em_bus_event_t *evt, em_cmd_t *pcmd[], em_mgr_t *mgr);
 	
 	/**!
 	 * @brief Analyzes the M2 control configuration.
@@ -206,6 +207,8 @@ public:
 	 * @note Ensure that the event and descriptor pointers are valid before calling this function.
 	 */
 	int analyze_csa_beacon_frame(em_bus_event_t *evt, wifi_bus_desc_t *desc, bus_handle_t *bus_hdl);
+
+	int analyze_dfs_state(em_bus_event_type_dfs_event_params_t *dfs_params, em_mgr_t *mgr);
 
 	/**!
 	 * @brief Analyzes the station link metrics.

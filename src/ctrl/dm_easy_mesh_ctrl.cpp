@@ -2347,6 +2347,18 @@ int dm_easy_mesh_ctrl_t::analyze_unassoc_sta_metrics_query(em_bus_event_t *evt, 
     return num;
 }
 
+int dm_easy_mesh_ctrl_t::delete_db_row(dm_op_class_t *opclass)
+{
+    std::string opclass_id =
+    util::mac_to_string(opclass->m_op_class_info.id.ruid) + "@" +
+    std::to_string(static_cast<unsigned int>(opclass->m_op_class_info.id.type)) + "@" +
+    std::to_string(static_cast<unsigned int>(opclass->m_op_class_info.id.op_class));
+
+    em_printfout("Deleting op-class from DB: %s", opclass_id.c_str());
+    dm_op_class_list_t::delete_row(m_db_client, opclass_id.c_str());
+    return 0;
+}
+
 int dm_easy_mesh_ctrl_t::analyze_sta_link_metrics(em_cmd_t *pcmd[])
 {
     int num = 0;
