@@ -2235,7 +2235,6 @@ typedef enum {
     em_event_type_bus,
     em_event_type_nb,
     em_event_type_cmd,
-    em_event_type_orch,
 
     em_event_type_max
 } em_event_type_t;

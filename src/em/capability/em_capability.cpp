@@ -48,7 +48,7 @@
 int em_capability_t::send_ap_cap_report_msg(unsigned char *dst, unsigned short msg_id)
 {
     unsigned char buff[MAX_EM_BUFF_SZ * EM_MAX_RADIO_PER_AGENT] = {0};
-    //char *errors[EM_MAX_TLV_MEMBERS] = {0};
+    char *errors[EM_MAX_TLV_MEMBERS] = {0};
     unsigned short  msg_type = em_msg_type_ap_cap_rprt;
     unsigned int len = 0;
     em_cmdu_t *cmdu;
@@ -247,11 +247,11 @@ int em_capability_t::send_ap_cap_report_msg(unsigned char *dst, unsigned short m
     tmp += (sizeof(em_tlv_t));
     len += static_cast<unsigned int>((sizeof(em_tlv_t)));
 
-    /*if (em_msg_t(em_msg_type_ap_cap_rprt, em_profile_type_3, buff, len).validate(errors) == 0) {
+    if (em_msg_t(em_msg_type_ap_cap_rprt, em_profile_type_3, buff, len).validate(errors) == 0) {
         em_printfout("Error: AP Capability Report msg validation failed in tnx end");
 
         return -1;
-    }*/
+    }
 
     if (send_frame(buff, len)  < 0) {
         em_printfout("Error: AP Capability Report msg send failed, error: %d", errno);

@@ -222,8 +222,7 @@ onewifi_em_ctrl_test_SOURCES = $(onewifi_em_ctrl_SOURCES) \
 	$(top_srcdir)/tests/test_l1_em_dev_test_ctrl.cpp \
 	$(top_srcdir)/src/al-sap/al_service_utils.cpp \
 	$(top_srcdir)/tests/test_l1_al_service_utils.cpp \
-	$(top_srcdir)/tests/test_l1_cjson_util.cpp \	
-	$(top_srcdir)/tests/test_l1_dm_easy_mesh_list.cpp \
+	$(top_srcdir)/tests/test_l1_cjson_util.cpp \
 	$(top_srcdir)/tests/test_l1_em_msg.cpp \
 	$(top_srcdir)/tests/test_l1_timer.cpp \
 	$(top_srcdir)/tests/test_l1_util.cpp \
@@ -232,10 +231,12 @@ onewifi_em_ctrl_test_SOURCES = $(onewifi_em_ctrl_SOURCES) \
 	$(top_srcdir)/tests/test_l1_ec_1905_encrypt_layer.cpp \
 	$(top_srcdir)/tests/test_l1_ec_enrollee.cpp \
 	$(top_srcdir)/tests/test_l1_ec_util.cpp \
-	$(top_srcdir)/tests/test_l1_em_ctrl.cpp \
 	$(top_srcdir)/tests/test_l1_dm_easy_mesh.cpp \
 	$(top_srcdir)/tests/test_l1_ec_pa_configurator.cpp \
-	$(top_srcdir)/tests/test_l1_ec_manager.cpp
+	$(top_srcdir)/tests/test_l1_ec_manager.cpp \
+	$(top_srcdir)/src/al-sap/al_service_registration_response.cpp \
+	$(top_srcdir)/tests/test_l1_em_ctrl.cpp \
+	$(top_srcdir)/tests/test_l1_dm_easy_mesh_list.cpp
 
 onewifi_em_ctrl_test_CPPFLAGS = $(onewifi_em_ctrl_CPPFLAGS) \
                                 -I$(PKG_CONFIG_SYSROOT_DIR)$(includedir)/gtest \
@@ -244,5 +245,5 @@ onewifi_em_ctrl_test_CXXFLAGS = $(INCLUDEDIRS) -g -DUNIT_TEST -fno-omit-frame-po
 onewifi_em_ctrl_test_CXXFLAGS += -fsanitize=address -fsanitize=undefined
 onewifi_em_ctrl_test_LDFLAGS = -lcjson -lgtest -lgtest_main -lgmock -lpthread -lssl -lcrypto -lm -luuid -lssl -lrbus -lmariadb
 onewifi_em_ctrl_test_LDFLAGS += -fsanitize=address -fsanitize=undefined
-onewifi_em_ctrl_test_LDADD = $(top_builddir)/src/al-sap/libalsap.la $(onewifi_em_ctrl_LDADD)
+onewifi_em_ctrl_test_LDADD = $(top_builddir)/src/al-sap/libalsap.la
 endif  # EM_UNITTEST
