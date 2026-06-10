@@ -2164,11 +2164,13 @@ int dm_easy_mesh_ctrl_t::analyze_set_policy(em_bus_event_t *evt, em_cmd_t *pcmd[
             // actually changed — no UI changes required.
             unsigned int write_idx = 0;
             for (unsigned int k = 0; k < dm.get_num_policy(); k++) {
-                em_policy_id_type_t new_type = dm.m_policy[k].m_policy.id.type;
-                bool changed = true;   // treat as changed if type not found in existing dm
+                // Use full equality (operator== does memcmp on em_policy_t) so this works
+                // generically for all policy types, including multi-entry types like
+                // backhaul_bss_config and radio metrics that are keyed by BSSID/radio MAC.
+                bool changed = true;
                 for (unsigned int j = 0; j < dev_dm->get_num_policy(); j++) {
-                    if (dev_dm->m_policy[j].m_policy.id.type == new_type) {
-                        changed = (dev_dm->m_policy[j] == dm.m_policy[k]) == false;
+                    if (dev_dm->m_policy[j] == dm.m_policy[k]) {
+                        changed = false;
                         break;
                     }
                 }

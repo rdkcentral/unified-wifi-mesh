@@ -1103,14 +1103,20 @@ int dm_easy_mesh_t::decode_config_set_policy(em_subdoc_info_t *subdoc, const cha
         m_num_policy++;
     }
 
-    if ((local_steer_obj = cJSON_GetObjectItem(policy_obj, "Local Steering Disallowed Policy")) != NULL) {
+    // "Steering Policies" wrapper (groups local/BTM disallowed + radio steering params)
+    cJSON *steer_policies_obj = cJSON_GetObjectItem(policy_obj, "Steering Policies");
+    cJSON *steer_local_parent = steer_policies_obj ? steer_policies_obj : policy_obj;
+    cJSON *steer_btm_parent   = steer_policies_obj ? steer_policies_obj : policy_obj;
+    cJSON *steer_param_parent = steer_policies_obj ? steer_policies_obj : policy_obj;
+
+    if ((local_steer_obj = cJSON_GetObjectItem(steer_local_parent, "Local Steering Disallowed Policy")) != NULL) {
         snprintf(parent, sizeof(em_long_string_t), "%s@%s@00:00:00:00:00:00@%d", net_id, dev_mac_str,
                     em_policy_id_type_steering_local);
         m_policy[m_num_policy].decode(local_steer_obj, parent, em_policy_id_type_steering_local);
         m_num_policy++;
     }
 
-    if ((btm_steer_obj = cJSON_GetObjectItem(policy_obj, "BTM Steering Disallowed Policy")) != NULL) {
+    if ((btm_steer_obj = cJSON_GetObjectItem(steer_btm_parent, "BTM Steering Disallowed Policy")) != NULL) {
         snprintf(parent, sizeof(em_long_string_t), "%s@%s@00:00:00:00:00:00@%d", net_id, dev_mac_str,
                     em_policy_id_type_steering_btm);
         m_policy[m_num_policy].decode(btm_steer_obj, parent, em_policy_id_type_steering_btm);
@@ -1178,11 +1184,15 @@ int dm_easy_mesh_t::decode_config_set_policy(em_subdoc_info_t *subdoc, const cha
         }
     }
 
-    if ((radio_steer_arr_obj = cJSON_GetObjectItem(policy_obj, "Radio Steering Parameters")) != NULL) {
+    if ((radio_steer_arr_obj = cJSON_GetObjectItem(steer_param_parent, "Radio Steering Parameters")) != NULL) {
         for (i = 0; i < cJSON_GetArraySize(radio_steer_arr_obj); i++) {
             radio_steer_obj = cJSON_GetArrayItem(radio_steer_arr_obj, i);
             radio_id_obj = cJSON_GetObjectItem(radio_steer_obj, "ID");
-            snprintf(parent, sizeof(em_long_string_t), "%s@%s@%s@%d", net_id, dev_mac_str, cJSON_GetStringValue(radio_id_obj),
+            const char *id_str = cJSON_GetStringValue(radio_id_obj);
+            if (id_str == NULL || strcmp(id_str, "00:00:00:00:00:00") == 0) {
+                continue; // skip null/wildcard entries
+            }
+            snprintf(parent, sizeof(em_long_string_t), "%s@%s@%s@%d", net_id, dev_mac_str, id_str,
                         em_policy_id_type_steering_param);
             m_policy[m_num_policy].decode(radio_steer_obj, parent, em_policy_id_type_steering_param);
             m_num_policy++;

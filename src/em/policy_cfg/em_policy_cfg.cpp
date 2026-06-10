@@ -233,33 +233,32 @@ short em_policy_cfg_t::create_steering_policy_tlv(unsigned char *buff)
 	for (i = 0; i < dm->get_num_policy(); i++) {
 		policy = &dm->m_policy[i];
 		if (policy->m_policy.id.type == em_policy_id_type_steering_param) {
-			if ((memcmp(policy->m_policy.id.radio_mac, broadcast_mac, sizeof(mac_address_t)) == 0) ||
-					(memcmp(policy->m_policy.id.radio_mac, get_radio_interface_mac(), sizeof(mac_address_t)) == 0)) {
+			if (memcmp(policy->m_policy.id.radio_mac, broadcast_mac, sizeof(mac_address_t)) == 0 ||
+				memcmp(policy->m_policy.id.radio_mac, get_radio_interface_mac(), sizeof(mac_address_t)) == 0) {
 				found_match = true;
-            	break;	
+				break;
 			}
 		}
 	}
 
 	//radio
-	if (found_match == false) {
-		*tmp = 0;
-		tmp += sizeof(unsigned char);
-		len += sizeof(unsigned char);
-	} else {
-		*tmp = 1;
-		tmp += sizeof(unsigned char);
-		len += sizeof(unsigned char);
-
-		radio_policy = reinterpret_cast<em_steering_policy_radio_t *> (tmp);
-		memcpy(radio_policy->ruid, get_radio_interface_mac(), sizeof(mac_address_t));
-		radio_policy->steering_policy = static_cast<unsigned char> (policy->m_policy.policy);
-		radio_policy->channel_util_thresh = static_cast<unsigned char> (policy->m_policy.util_threshold);
-		radio_policy->rssi_steering_thresh = static_cast<unsigned char> (policy->m_policy.rcpi_threshold);
-
-		tmp += sizeof(em_steering_policy_radio_t);
-		len += sizeof(em_steering_policy_radio_t);
-	}
+    bool is_bcast = found_match &&
+        (memcmp(policy->m_policy.id.radio_mac, broadcast_mac, sizeof(mac_address_t)) == 0);
+    unsigned int num_radios = found_match ? (is_bcast ? get_data_model()->get_num_radios() : 1u) : 0u;
+    *tmp = static_cast<unsigned char>(num_radios);
+    tmp += sizeof(unsigned char);
+    len += sizeof(unsigned char);
+    for (unsigned int r = 0; r < num_radios; r++) {
+        radio_policy = reinterpret_cast<em_steering_policy_radio_t *>(tmp);
+        memcpy(radio_policy->ruid,
+            is_bcast ? get_data_model()->get_radio_info(r)->id.ruid : get_radio_interface_mac(),
+            sizeof(mac_address_t));
+        radio_policy->steering_policy = static_cast<unsigned char>(policy->m_policy.policy);
+        radio_policy->channel_util_thresh = static_cast<unsigned char>(policy->m_policy.util_threshold);
+        radio_policy->rssi_steering_thresh = static_cast<unsigned char>(policy->m_policy.rcpi_threshold);
+        tmp += sizeof(em_steering_policy_radio_t);
+        len += sizeof(em_steering_policy_radio_t);
+    }
 
 	return static_cast<short> (len);
 }
@@ -325,92 +324,64 @@ short em_policy_cfg_t::create_unsucc_assoc_policy_tlv(unsigned char *buff)
     return static_cast<short> (len);
 }
 
-short em_policy_cfg_t::create_backhaul_bss_conf_policy_tlv(unsigned char *buff)
+// Encodes a single Backhaul BSS Configuration TLV value for the given policy entry.
+// The caller emits one TLV per entry (spec 17.2.66: "zero or more" TLVs).
+short em_policy_cfg_t::create_backhaul_bss_conf_policy_tlv(unsigned char *buff, dm_policy_t *policy)
 {
-    size_t len = 0;
-    dm_easy_mesh_t *dm;
-    unsigned char *tmp = buff;
-    unsigned int i;
-
-    if (get_current_cmd()->get_type() == em_cmd_type_set_policy) {
-        dm = get_current_cmd()->get_data_model();
-    } else {
-        dm = get_data_model();
+    static const mac_address_t null_mac = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+    // Skip TLV if BSSID is all zeros — no meaningful config to send.
+    if (memcmp(policy->m_policy.bssid, null_mac, sizeof(mac_address_t)) == 0) {
+        return 0;
     }
-
-    // One em_bh_bss_config_t entry per backhaul BSS policy (BSS/device-specific,
-    // sent only to the owning agent via this per-agent em_policy_cfg_t instance).
-    for (i = 0; i < dm->get_num_policy(); i++) {
-        dm_policy_t *policy = &dm->m_policy[i];
-        if (policy->m_policy.id.type != em_policy_id_type_backhaul_bss_config) {
-            continue;
-        }
-        em_printfout("Found Backhaul BSS Config Policy in DM with BSSID %s, profile_1_sta_disallowed=%d, profile_2_sta_disallowed=%d",
-            util::mac_to_string(policy->m_policy.bssid).c_str(), policy->m_policy.profile_1_sta_disallowed, policy->m_policy.profile_2_sta_disallowed);
-        em_bh_bss_config_t *bss_cfg = reinterpret_cast<em_bh_bss_config_t *>(tmp);
-        memcpy(bss_cfg->bssid, policy->m_policy.bssid, sizeof(mac_address_t));
-        bss_cfg->p1_bsta_disallowed = policy->m_policy.profile_1_sta_disallowed ? 1 : 0;
-        bss_cfg->p2_bsta_disallowed = policy->m_policy.profile_2_sta_disallowed ? 1 : 0;
-        bss_cfg->reserved = 0;
-        tmp += sizeof(em_bh_bss_config_t);
-        len += sizeof(em_bh_bss_config_t);
-    }
-
-    return static_cast<short> (len);
+    em_bh_bss_config_t *bss_cfg = reinterpret_cast<em_bh_bss_config_t *>(buff);
+    memcpy(bss_cfg->bssid, policy->m_policy.bssid, sizeof(mac_address_t));
+    bss_cfg->p1_bsta_disallowed = policy->m_policy.profile_1_sta_disallowed ? 1 : 0;
+    bss_cfg->p2_bsta_disallowed = policy->m_policy.profile_2_sta_disallowed ? 1 : 0;
+    bss_cfg->reserved = 0;
+    return static_cast<short>(sizeof(em_bh_bss_config_t));
 }
-short em_policy_cfg_t::create_qos_mgt_policy_tlv(unsigned char *buff)
+
+short em_policy_cfg_t::create_qos_mgt_policy_tlv(unsigned char *buff, dm_policy_t *policy)
 {
     size_t len = 0;
-    dm_easy_mesh_t *dm;
-    unsigned int i, j;
+    unsigned int j;
     unsigned char *tmp = buff;
 
-    if (get_current_cmd()->get_type() == em_cmd_type_set_policy) {
-        dm = get_current_cmd()->get_data_model();
-    } else {
-        dm = get_data_model();
+    unsigned char mscs_num = static_cast<unsigned char>(
+        (policy->m_policy.qos_mgt.num_mscs < EM_MAX_MSC_PER_TRAFFIC_SEPAR)
+            ? policy->m_policy.qos_mgt.num_mscs : EM_MAX_MSC_PER_TRAFFIC_SEPAR);
+    unsigned char scs_num = static_cast<unsigned char>(
+        (policy->m_policy.qos_mgt.num_scs < EM_MAX_SCS_PER_TRAFFIC_SEPAR)
+            ? policy->m_policy.qos_mgt.num_scs : EM_MAX_SCS_PER_TRAFFIC_SEPAR);
+
+    // Skip TLV if both lists are empty — no meaningful config to send.
+    if (mscs_num == 0 && scs_num == 0) {
+        return 0;
+    }
+    em_printfout("Found QoS Management Policy in DM with num_mscs=%u, num_scs=%u", mscs_num, scs_num);
+
+    // Wire format is variable-length: [mscs_num][mscs MACs...][scs_num][scs MACs...][20 reserved]
+    *tmp++ = mscs_num;
+    len += sizeof(unsigned char);
+    for (j = 0; j < mscs_num; j++) {
+        memcpy(tmp, policy->m_policy.qos_mgt.msc_mac[j], sizeof(mac_address_t));
+        tmp += sizeof(mac_address_t);
+        len += sizeof(mac_address_t);
     }
 
-    // QoS Management Policy is device-specific; sent only to this agent.
-    for (i = 0; i < dm->get_num_policy(); i++) {
-        dm_policy_t *policy = &dm->m_policy[i];
-        if (policy->m_policy.id.type != em_policy_id_type_qos_mgt) {
-            continue;
-        }
-        unsigned char mscs_num = static_cast<unsigned char>(
-            (policy->m_policy.qos_mgt.num_mscs < EM_MAX_MSC_PER_TRAFFIC_SEPAR)
-                ? policy->m_policy.qos_mgt.num_mscs : EM_MAX_MSC_PER_TRAFFIC_SEPAR);
-        unsigned char scs_num = static_cast<unsigned char>(
-            (policy->m_policy.qos_mgt.num_scs < EM_MAX_SCS_PER_TRAFFIC_SEPAR)
-                ? policy->m_policy.qos_mgt.num_scs : EM_MAX_SCS_PER_TRAFFIC_SEPAR);
-        em_printfout("Found QoS Management Policy in DM with num_mscs=%u, num_scs=%u", mscs_num, scs_num);
-
-        // Serialize sequentially so wire format is packed (variable-length).
-        *tmp++ = mscs_num;
-        len += sizeof(unsigned char);
-        for (j = 0; j < mscs_num; j++) {
-            memcpy(tmp, policy->m_policy.qos_mgt.msc_mac[j], sizeof(mac_address_t));
-            tmp += sizeof(mac_address_t);
-            len += sizeof(mac_address_t);
-        }
-
-        *tmp++ = scs_num;
-        len += sizeof(unsigned char);
-        for (j = 0; j < scs_num; j++) {
-            memcpy(tmp, policy->m_policy.qos_mgt.sc_mac[j], sizeof(mac_address_t));
-            tmp += sizeof(mac_address_t);
-            len += sizeof(mac_address_t);
-        }
-
-        // 20 reserved bytes at the end (spec section 17.2.92).
-        memset(tmp, 0, 20);
-        tmp += 20;
-        len += 20;
-
-        break; // one QoS policy entry per agent
+    *tmp++ = scs_num;
+    len += sizeof(unsigned char);
+    for (j = 0; j < scs_num; j++) {
+        memcpy(tmp, policy->m_policy.qos_mgt.sc_mac[j], sizeof(mac_address_t));
+        tmp += sizeof(mac_address_t);
+        len += sizeof(mac_address_t);
     }
 
-    return static_cast<short> (len);
+    // 20 reserved bytes at the end (spec section 17.2.92).
+    memset(tmp, 0, 20);
+    len += 20;
+
+    return static_cast<short>(len);
 }
 
 short em_policy_cfg_t::create_vendor_policy_cfg_tlv(unsigned char *buff)
@@ -609,24 +580,44 @@ int em_policy_cfg_t::send_policy_cfg_request_msg()
         len += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
     }
 
-    // Zero or more Backhaul BSS Configuration TLV (see section 17.2.66).
-    if (!is_set_policy || cmd_dm->has_policy_type(em_policy_id_type_backhaul_bss_config)) {
-        tlv = reinterpret_cast<em_tlv_t *> (tmp);
-        tlv->type = em_tlv_type_backhaul_bss_conf;
-        sz = create_backhaul_bss_conf_policy_tlv(tlv->value);
-        tlv->len = htons(static_cast<short unsigned int> (sz));
-        tmp += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
-        len += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+    // Zero or more Backhaul BSS Configuration TLVs (spec 17.2.66): one TLV per entry.
+    {
+        dm_easy_mesh_t *bh_dm = is_set_policy ? cmd_dm : dm;
+        for (unsigned int pi = 0; pi < bh_dm->get_num_policy(); pi++) {
+            dm_policy_t *bh_pol = &bh_dm->m_policy[pi];
+            if (bh_pol->m_policy.id.type != em_policy_id_type_backhaul_bss_config) {
+                continue;
+            }
+            tlv = reinterpret_cast<em_tlv_t *>(tmp);
+            tlv->type = em_tlv_type_backhaul_bss_conf;
+            sz = create_backhaul_bss_conf_policy_tlv(tlv->value, bh_pol);
+            tlv->len = htons(static_cast<short unsigned int>(sz));
+            em_printfout("Sending Backhaul BSS Config TLV: BSSID=%s p1=%d p2=%d",
+                util::mac_to_string(bh_pol->m_policy.bssid).c_str(),
+                bh_pol->m_policy.profile_1_sta_disallowed,
+                bh_pol->m_policy.profile_2_sta_disallowed);
+            tmp += (sizeof(em_tlv_t) + static_cast<size_t>(sz));
+            len += (sizeof(em_tlv_t) + static_cast<size_t>(sz));
+        }
     }
 
-    // Zero or more QoS Management Policy TLVs (see section 17.2.92).
-    if (!is_set_policy || cmd_dm->has_policy_type(em_policy_id_type_qos_mgt)) {
-        tlv = reinterpret_cast<em_tlv_t *> (tmp);
-        tlv->type = em_tlv_type_qos_mgmt_policy;
-        sz = create_qos_mgt_policy_tlv(tlv->value);
-        tlv->len = htons(static_cast<short unsigned int> (sz));
-        tmp += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
-        len += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+    // Zero or more QoS Management Policy TLVs (spec 17.2.92): one TLV per entry.
+    {
+        dm_easy_mesh_t *qos_dm = is_set_policy ? cmd_dm : dm;
+        for (unsigned int pi = 0; pi < qos_dm->get_num_policy(); pi++) {
+            dm_policy_t *qos_pol = &qos_dm->m_policy[pi];
+            if (qos_pol->m_policy.id.type != em_policy_id_type_qos_mgt) {
+                continue;
+            }
+            tlv = reinterpret_cast<em_tlv_t *>(tmp);
+            tlv->type = em_tlv_type_qos_mgmt_policy;
+            sz = create_qos_mgt_policy_tlv(tlv->value, qos_pol);
+            if (sz > 0) {
+                tlv->len = htons(static_cast<short unsigned int>(sz));
+                tmp += (sizeof(em_tlv_t) + static_cast<size_t>(sz));
+                len += (sizeof(em_tlv_t) + static_cast<size_t>(sz));
+            }
+        }
     }
 
     // Vendor-specific TLV (alarm threshold / client filters / managed STA marker).
@@ -685,17 +676,18 @@ int em_policy_cfg_t::handle_policy_cfg_req(unsigned char *buff, unsigned int len
 
     while ((tlv->type != em_tlv_type_eom) && (tlv_len > 0)) {
         if (tlv->type == em_tlv_type_steering_policy) {
+            data_len = 0; // reset per-TLV offset
             em_steering_policy_sta_t *steer_pol_sta = reinterpret_cast<em_steering_policy_sta_t *> (tlv->value);
             policy.steering_policy.local_steer_policy.num_sta = steer_pol_sta->num_sta;
             for(i = 0; i < steer_pol_sta->num_sta; i++) {
-                memcpy(policy.steering_policy.local_steer_policy.sta_mac[i], steer_pol_sta->sta_mac, sizeof(mac_address_t));
+                memcpy(policy.steering_policy.local_steer_policy.sta_mac[i], steer_pol_sta->sta_mac[i], sizeof(mac_address_t));
             }
             data_len += sizeof(steer_pol_sta->num_sta) + (sizeof(mac_addr_t) * steer_pol_sta->num_sta);
 
             em_steering_policy_sta_t *btm_steer_pol = reinterpret_cast<em_steering_policy_sta_t *> (tlv->value + data_len);
             policy.steering_policy.btm_steer_policy.num_sta = btm_steer_pol->num_sta;
             for(i = 0; i < btm_steer_pol->num_sta; i++) {
-                memcpy(policy.steering_policy.btm_steer_policy.sta_mac[i], btm_steer_pol->sta_mac, sizeof(mac_address_t));
+                memcpy(policy.steering_policy.btm_steer_policy.sta_mac[i], btm_steer_pol->sta_mac[i], sizeof(mac_address_t));
             }
             data_len += sizeof(btm_steer_pol->num_sta) + (sizeof(mac_addr_t) * btm_steer_pol->num_sta);
 
@@ -704,8 +696,7 @@ int em_policy_cfg_t::handle_policy_cfg_req(unsigned char *buff, unsigned int len
 
             em_steering_policy_radio_t *radio_steer_pol = reinterpret_cast<em_steering_policy_radio_t *> (tlv->value + data_len);
             for(i = 0; i < policy.steering_policy.radio_num; i++) {
-                memcpy(&policy.steering_policy.radio_steer_policy[i], radio_steer_pol, sizeof(em_steering_policy_radio_t));
-                radio_steer_pol = reinterpret_cast<em_steering_policy_radio_t *> (tlv->value + data_len);
+                memcpy(&policy.steering_policy.radio_steer_policy[i], &radio_steer_pol[i], sizeof(em_steering_policy_radio_t));
             }
             data_len += policy.steering_policy.radio_num * sizeof(em_steering_policy_radio_t);
         } else if (tlv->type == em_tlv_type_metric_reporting_policy) {
@@ -757,7 +748,7 @@ int em_policy_cfg_t::handle_policy_cfg_req(unsigned char *buff, unsigned int len
                 }
 	        }
         } else if (tlv->type == em_tlv_type_channel_scan_rprt_policy) {
-            if (htons(tlv->len) >= sizeof(em_channel_scan_rprt_policy_t)) {
+            if (htons(tlv->len) == sizeof(em_channel_scan_rprt_policy_t)) {
                 em_channel_scan_rprt_policy_t *scan_policy =
                     reinterpret_cast<em_channel_scan_rprt_policy_t *>(tlv->value);
                 policy.channel_scan_policy.rprt_ind_ch_scan = scan_policy->rprt_ind_ch_scan;
@@ -765,8 +756,61 @@ int em_policy_cfg_t::handle_policy_cfg_req(unsigned char *buff, unsigned int len
                     policy.channel_scan_policy.rprt_ind_ch_scan);
             }
         } else if (tlv->type == em_tlv_type_unsucc_assoc_policy) {
+            if (htons(tlv->len) == sizeof(em_unsuccessful_assoc_policy_t)) {
+                em_unsuccessful_assoc_policy_t *assoc =
+                    reinterpret_cast<em_unsuccessful_assoc_policy_t *>(tlv->value);
+                policy.unsuccessful_assoc_policy.rprt_flag = assoc->rprt_flag;
+                policy.unsuccessful_assoc_policy.max_rprt_rate = ntohl(assoc->max_rprt_rate);
+                em_printfout("Recvd Unsuccessful Assoc Policy: rprt_flag=%d, max_rprt_rate=%u",
+                    policy.unsuccessful_assoc_policy.rprt_flag,
+                    policy.unsuccessful_assoc_policy.max_rprt_rate);
+            }
         } else if (tlv->type == em_tlv_type_backhaul_bss_conf) {
-        } else if (tlv->type == em_tlv_type_qos_mgmt_policy){
+            unsigned int num_entries = htons(tlv->len) / sizeof(em_bh_bss_config_t);
+            em_bh_bss_config_t *bss_cfg = reinterpret_cast<em_bh_bss_config_t *>(tlv->value);
+            for (unsigned int idx = 0; idx < num_entries; idx++) {
+                em_printfout("Recvd Backhaul BSS Config[%u]: bssid=%s, p1_disallowed=%d, p2_disallowed=%d",
+                    idx, util::mac_to_string(bss_cfg[idx].bssid).c_str(),
+                    bss_cfg[idx].p1_bsta_disallowed, bss_cfg[idx].p2_bsta_disallowed);
+                // downstream em_policy_cfg_params_t / em_config_t only hold one entry; store the first
+                if (idx == 0) {
+                    memcpy(policy.bh_bss_cfg_policy.bssid, bss_cfg[0].bssid, sizeof(mac_address_t));
+                    policy.bh_bss_cfg_policy.p1_bsta_disallowed = bss_cfg[0].p1_bsta_disallowed;
+                    policy.bh_bss_cfg_policy.p2_bsta_disallowed = bss_cfg[0].p2_bsta_disallowed;
+                }
+            }
+        } else if (tlv->type == em_tlv_type_qos_mgmt_policy) {
+            // Wire format is variable-length: [mscs_num][mscs MACs...][scs_num][scs MACs...][20 reserved]
+            // Cannot use memcpy — struct has fixed-size arrays; parse field by field.
+            unsigned char *qos_ptr = tlv->value;
+            unsigned short qos_remaining = htons(tlv->len);
+            if (qos_remaining >= sizeof(unsigned char)) {
+                unsigned char mscs_num = *qos_ptr++;
+                qos_remaining--;
+                mscs_num = static_cast<unsigned char>(
+                    (mscs_num < EM_MAX_STA_PER_AGENT) ? mscs_num : EM_MAX_STA_PER_AGENT);
+                policy.qos_mgmt_policy.mscs_disallowed_num = mscs_num;
+                for (unsigned int idx = 0; idx < mscs_num && qos_remaining >= sizeof(mac_address_t); idx++) {
+                    memcpy(policy.qos_mgmt_policy.mac_addr_mscs_disallowed[idx].sta_mac_addr, qos_ptr, sizeof(mac_address_t));
+                    qos_ptr += sizeof(mac_address_t);
+                    qos_remaining -= sizeof(mac_address_t);
+                }
+            }
+            if (qos_remaining >= sizeof(unsigned char)) {
+                unsigned char scs_num = *qos_ptr++;
+                qos_remaining--;
+                scs_num = static_cast<unsigned char>(
+                    (scs_num < EM_MAX_STA_PER_AGENT) ? scs_num : EM_MAX_STA_PER_AGENT);
+                policy.qos_mgmt_policy.scs_disallowed_num = scs_num;
+                for (unsigned int idx = 0; idx < scs_num && qos_remaining >= sizeof(mac_address_t); idx++) {
+                    memcpy(policy.qos_mgmt_policy.mac_addr_scs_disallowed[idx].sta_mac_addr, qos_ptr, sizeof(mac_address_t));
+                    qos_ptr += sizeof(mac_address_t);
+                    qos_remaining -= sizeof(mac_address_t);
+                }
+            }
+            em_printfout("Recvd QoS Mgmt Policy: mscs_num=%d, scs_num=%d",
+                policy.qos_mgmt_policy.mscs_disallowed_num,
+                policy.qos_mgmt_policy.scs_disallowed_num);
         } else if (tlv->type == em_tlv_type_vendor_specific) {
             em_vendor_specific_t *vendor_tlv = reinterpret_cast<em_vendor_specific_t *> (tlv->value);
             em_printfout("Recvd vendor tlv, num: %d and tlv->len:%d", vendor_tlv->num, htons(tlv->len));
@@ -950,32 +994,19 @@ void em_policy_cfg_t::process_ctrl_state()
                 memcpy(current_ruid, get_radio_interface_mac(), sizeof(mac_address_t));
 
                 get_mgr()->get_all_em_for_al_mac(dm->get_agent_al_interface_mac(), em_radios);
+
                 for (auto &em : em_radios) {
                     // Check for null em pointer in vector
                     if (em == NULL) {
                         em_printfout("Warning: Null em pointer in vector, skipping");
                         continue;
                     }
-                    // Policy config is per-device: send once and wait for ACK.
-                    // m_policy_req_msg_id is set when the message is sent and cleared to 0 when the ACK is received.
-                    // Only send if no outstanding request is pending.
-                    // if (em->m_policy_req_msg_id == 0) {
-                        // em_printfout("Sending the Policy config request message to agent al_mac:%s on radio: %s",
-                        //         util::mac_to_string(dm->get_agent_al_interface_mac()).c_str(),
-                        //         util::mac_to_string(get_radio_interface_mac()).c_str());
-                        // int send_result = send_policy_cfg_request_msg();
-                        // if (send_result < 0) {
-                        //     em_printfout("Error: Failed to send policy config request message");
-                        // } else {
-                        //     em_printfout("Policy config request sent successfully, bytes: %d", send_result);
-                        // }
-
                     // Check if radio is in set policy pending, if not log and return without sending policy config request 
                     // check state of em is configured, to handle the case where radio exchange autoconfiguration messages multiple times
                     // resulting the queue of multiple em_cmd_type_em_config.
                     em_printfout("Checking radio[%s]'s state:%s for sending policy config request", util::mac_to_string(em->get_radio_interface_mac()).c_str(),  em_t::state_2_str(em->get_state()));
-                    if (em->get_state() != em_state_ctrl_set_policy_pending && em->get_state() != em_state_ctrl_configured)
-                    {
+                    if (get_current_cmd()->get_type() != em_cmd_type_set_policy &&
+                        em->get_state() != em_state_ctrl_set_policy_pending && em->get_state() != em_state_ctrl_configured) {
                         em_printfout("radio %s is in state:%s, not in em_state_ctrl_set_policy_pending or not in em_state_ctrl_configured",
                             util::mac_to_string(em->get_radio_interface_mac()).c_str(),  em_t::state_2_str(em->get_state()));
                         em_radios.clear();
@@ -1004,8 +1035,8 @@ void em_policy_cfg_t::process_ctrl_state()
                               util::mac_to_string(em_radios.front()->get_radio_interface_mac()).c_str(),
                               util::mac_to_string(get_radio_interface_mac()).c_str());
 
-                // } else {
-                //     em_printfout("Policy config request already sent (msg_id: 0x%04x), waiting for ACK", m_policy_req_msg_id);
+                } else {
+                    em_printfout("Policy config request already sent (msg_id: 0x%04x), waiting for ACK", m_policy_req_msg_id);
                 }
                 em_radios.clear();
             }

@@ -525,6 +525,18 @@ unsigned int em_orch_ctrl_t::build_candidates(em_cmd_t *pcmd)
         return count;
     }
 
+    if (pcmd->m_type == em_cmd_type_set_policy) {
+        dm = pcmd->get_data_model();
+        std::vector<em_t *> em_radios;
+        m_mgr->get_all_em_for_al_mac(dm->get_agent_al_interface_mac(), em_radios);
+        if (!em_radios.empty()) {
+            em_printfout("Set Policy: %s pushed to queue", util::mac_to_string(em_radios.front()->get_radio_interface_mac()).c_str());
+            queue_push(pcmd->m_em_candidates, em_radios.front());
+            count++;
+        }
+        return count;
+    }
+
     pthread_mutex_lock(&m_mgr->m_mutex);
     em = static_cast<em_t *>(hash_map_get_first(m_mgr->m_em_map));
     while (em != NULL) {
@@ -642,16 +654,7 @@ unsigned int em_orch_ctrl_t::build_candidates(em_cmd_t *pcmd)
                 break;
 
             case em_cmd_type_set_policy:
-                dm = pcmd->get_data_model();
-                //need a radio from a device to send, no need to push all ems
-                //if (memcmp(em->get_radio_interface_mac(), dm->m_radio[0].m_radio_info.intf.mac, sizeof(mac_address_t)) == 0) {
-                    //mac_addr_str_t mac_str;
-                    //dm_easy_mesh_t::macbytes_to_string(em->get_radio_interface_mac(), mac_str);
-                    em_printfout("Set Policy: %s pushed to queue", util::mac_to_string(em->get_radio_interface_mac()).c_str());
-                    queue_push(pcmd->m_em_candidates, em);
-                    count++;
-                    break;
-                //}
+                // handled before the loop
                 break;
 
             case em_cmd_type_set_radio:

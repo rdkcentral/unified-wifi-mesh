@@ -1204,7 +1204,7 @@ dm_policy_t *dm_easy_mesh_list_t::get_policy(const char *key)
 	dm_easy_mesh_t::macbytes_to_string(id.dev_mac, dev_mac_str);
 
 	if ((dm = get_data_model(id.net_id, id.dev_mac)) == NULL) {
-		printf("%s:%d: Could not find data model for Network: %s and dev: %s\n", __func__, __LINE__, id.net_id, dev_mac_str);
+		em_printfout("Could not find data model for Network: %s and dev: %s\n", id.net_id, dev_mac_str);
 		return NULL;
 	} 
 
@@ -1219,7 +1219,7 @@ dm_policy_t *dm_easy_mesh_list_t::get_policy(const char *key)
 		}
 	}
 
-	printf("%s:%d: Policy not found for key: %s\n", __func__, __LINE__, key);
+	em_printfout("Policy not found for key: %s\n", key);
 	return NULL;
 }
 
@@ -1527,46 +1527,46 @@ dm_easy_mesh_t *dm_easy_mesh_list_t::create_data_model(const char *net_id, const
 						{{"OneWifiMesh", {0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, {0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
 							em_policy_id_type_ap_metrics_rep}, 0, {}, em_steering_policy_type_disallowed,
 							0, 0, 5, 0, false, false, false, "", false, {}, false, false, false, 0, {0, 0},
-							{0, {{0, "", 0}, {0, "", 0}, {0, "", 0}, {0, "", 0}, {0, "", 0}}}, {}, {}, {}},
-						{{"OneWifiMesh", {0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF},
+                            {0, {{0, "", 0}, {0, "", 0}, {0, "", 0}, {0, "", 0}, {0, "", 0}}}, {}, {}, {}, 0, 0, false},
+						{{"OneWifiMesh", {0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, {0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
 							em_policy_id_type_radio_metrics_rep}, 0, {}, em_steering_policy_type_disallowed,
 							60, 120, 0, 5, true, true, false, "", false, {}, false, false, false, 0, {0, 0},
-							{0, {{0, "", 0}, {0, "", 0}, {0, "", 0}, {0, "", 0}, {0, "", 0}}}, {}, {}, {}},
+                            {0, {{0, "", 0}, {0, "", 0}, {0, "", 0}, {0, "", 0}, {0, "", 0}}}, {}, {}, {}, 0, 0, false},
 						{{"OneWifiMesh", {0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, {0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
 							em_policy_id_type_steering_local}, 1, {{0x00, 0x00, 0x00, 0x00, 0x00, 0x00}},
 							em_steering_policy_type_disallowed,
 							0, 0, 0, 0, false, false, false, "", false, {}, false, false, false, 0, {0, 0},
-							{0, {{0, "", 0}, {0, "", 0}, {0, "", 0}, {0, "", 0}, {0, "", 0}}}, {}, {}, {}},
+                            {0, {{0, "", 0}, {0, "", 0}, {0, "", 0}, {0, "", 0}, {0, "", 0}}}, {}, {}, {}, 0, 0, false},
 						{{"OneWifiMesh", {0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, {0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
 							em_policy_id_type_steering_btm}, 1, {{0x00, 0x00, 0x00, 0x00, 0x00, 0x00}},
 							em_steering_policy_type_disallowed,
 							0, 0, 0, 0, false, false, false, "", false, {}, false, false, false, 0, {0, 0},
-							{0, {{0, "", 0}, {0, "", 0}, {0, "", 0}, {0, "", 0}, {0, "", 0}}}, {}, {}, {}},
-						{{"OneWifiMesh", {0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF},
+                            {0, {{0, "", 0}, {0, "", 0}, {0, "", 0}, {0, "", 0}, {0, "", 0}}}, {}, {}, {}, 0, 0, false},
+						{{"OneWifiMesh", {0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, {0xff, 0xff, 0xff, 0xff, 0xff, 0xff},
 							em_policy_id_type_steering_param}, 0, {},
 							em_steering_policy_type_rcpi_allowed,
 							60, 120, 0, 0, false, false, false, "", false, {}, false, false, false, 0, {0, 0},
-							{0, {{0, "", 0}, {0, "", 0}, {0, "", 0}, {0, "", 0}, {0, "", 0}}}, {}, {}, {}},
+                            {0, {{0, "", 0}, {0, "", 0}, {0, "", 0}, {0, "", 0}, {0, "", 0}}}, {}, {}, {}, 0, 0, false},
 						{{"OneWifiMesh", {0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, {0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
 							em_policy_id_type_channel_scan}, 0, {}, em_steering_policy_type_disallowed,
 							0, 0, 0, 0, false, false, false, "", false, {}, false, false, false, 0, {0, 0},
-							{0, {{0, "", 0}, {0, "", 0}, {0, "", 0}, {0, "", 0}, {0, "", 0}}}, {}, {}, {}},
+                            {0, {{0, "", 0}, {0, "", 0}, {0, "", 0}, {0, "", 0}, {0, "", 0}}}, {}, {}, {}, 0, 0, false},
 						{{"OneWifiMesh", {0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, {0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
 							em_policy_id_type_default_8021q_settings}, 0, {}, em_steering_policy_type_disallowed,
 							0, 0, 0, 0, false, false, false, "", false, {}, false, false, false, 0, {1, 2},
-							{0, {{0, "", 0}, {0, "", 0}, {0, "", 0}, {0, "", 0}, {0, "", 0}}}, {}, {}, {}},
+                            {0, {{0, "", 0}, {0, "", 0}, {0, "", 0}, {0, "", 0}, {0, "", 0}}}, {}, {}, {}, 0, 0, false},
 						{{"OneWifiMesh", {0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, {0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
 							em_policy_id_type_unsuccess_assoc}, 0, {}, em_steering_policy_type_disallowed,
 							0, 0, 0, 0, false, false, false, "", false, {}, false, false, false, 0, {0, 0},
-							{0, {{0, "", 0}, {0, "", 0}, {0, "", 0}, {0, "", 0}, {0, "", 0}}}, {}, {}, {}},
+                            {0, {{0, "", 0}, {0, "", 0}, {0, "", 0}, {0, "", 0}, {0, "", 0}}}, {}, {}, {}, 0, 0, false},
 						{{"OneWifiMesh", {0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, {0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
 							em_policy_id_type_backhaul_bss_config}, 0, {}, em_steering_policy_type_disallowed,
 							0, 0, 0, 0, false, false, false, "", false, {}, false, false, false, 0, {0, 0},
-							{0, {{0, "", 0}, {0, "", 0}, {0, "", 0}, {0, "", 0}, {0, "", 0}}}, {}, {}, {}},
+                            {0, {{0, "", 0}, {0, "", 0}, {0, "", 0}, {0, "", 0}, {0, "", 0}}}, {}, {}, {}, 0, 0, false},
 						{{"OneWifiMesh", {0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, {0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
 							em_policy_id_type_qos_mgt}, 0, {}, em_steering_policy_type_disallowed,
 							0, 0, 0, 0, false, false, false, "", false, {}, false, false, false, 0, {0, 0},
-							{0, {{0, "", 0}, {0, "", 0}, {0, "", 0}, {0, "", 0}, {0, "", 0}}}, {}, {}, {}},
+                            {0, {{0, "", 0}, {0, "", 0}, {0, "", 0}, {0, "", 0}, {0, "", 0}}}, {}, {}, {}, 0, 0, false},
 					};
     unsigned int i;
     bool colocated = false;

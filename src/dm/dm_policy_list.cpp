@@ -42,12 +42,16 @@
 int dm_policy_list_t::get_config(cJSON *parent_obj, void *parent, bool summary)
 {
     dm_policy_t *policy;
-	cJSON *obj, *radio_metrics_arr_obj, *radio_steer_arr_obj;
+	cJSON *obj, *radio_metrics_arr_obj, *radio_steer_arr_obj, *steering_policies_obj;
 	mac_addr_str_t radio_mac_str;
 	mac_address_t dev_mac;
 	mac_address_t null_mac = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 
 	dm_easy_mesh_t::string_to_macbytes(static_cast<char *>(parent), dev_mac);
+
+	// Create the Steering Policies wrapper up front so it can be populated in both loops.
+	steering_policies_obj = cJSON_CreateObject();
+	cJSON_AddItemToObject(parent_obj, "Steering Policies", steering_policies_obj);
 
 	// first report the global policies for the device, for global the radio id will be NULL
     policy = static_cast<dm_policy_t *>(get_first_policy());
@@ -66,10 +70,10 @@ int dm_policy_list_t::get_config(cJSON *parent_obj, void *parent, bool summary)
 
 		if (policy->m_policy.id.type == em_policy_id_type_steering_local) {
 			policy->encode(obj, em_policy_id_type_steering_local);
-			cJSON_AddItemToObject(parent_obj, "Local Steering Disallowed Policy", obj);
+			cJSON_AddItemToObject(steering_policies_obj, "Local Steering Disallowed Policy", obj);
 		} else if (policy->m_policy.id.type == em_policy_id_type_steering_btm) {
 			policy->encode(obj, em_policy_id_type_steering_btm);
-			cJSON_AddItemToObject(parent_obj, "BTM Steering Disallowed Policy", obj);
+			cJSON_AddItemToObject(steering_policies_obj, "BTM Steering Disallowed Policy", obj);
 		} else if (policy->m_policy.id.type == em_policy_id_type_ap_metrics_rep) {
 			policy->encode(obj, em_policy_id_type_ap_metrics_rep);
 			cJSON_AddItemToObject(parent_obj, "AP Metrics Reporting Policy", obj);
@@ -104,7 +108,7 @@ int dm_policy_list_t::get_config(cJSON *parent_obj, void *parent, bool summary)
 	radio_metrics_arr_obj = cJSON_CreateArray();
 	cJSON_AddItemToObject(parent_obj, "Radio Specific Metrics Policy", radio_metrics_arr_obj);
 	radio_steer_arr_obj = cJSON_CreateArray();
-	cJSON_AddItemToObject(parent_obj, "Radio Steering Parameters", radio_steer_arr_obj);
+	cJSON_AddItemToObject(steering_policies_obj, "Radio Steering Parameters", radio_steer_arr_obj);
 
     policy = static_cast<dm_policy_t *>(get_first_policy());
     while (policy != NULL) {
@@ -113,6 +117,7 @@ int dm_policy_list_t::get_config(cJSON *parent_obj, void *parent, bool summary)
 	    	continue;
 		}
 
+		// Skip policies with null radio_mac — they are defaults/wildcards, not real radio entries.
 		if (memcmp(policy->m_policy.id.radio_mac, null_mac, sizeof(mac_address_t)) == 0) {
 	    	policy = get_next_policy(policy);
 	    	continue;
