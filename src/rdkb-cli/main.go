@@ -3781,6 +3781,7 @@ func loadTopologyFromDeviceTree(w  http.ResponseWriter) {
     // Helper to create STA list with circular layout
     createSTAList := func(deviceX, deviceY float32, radioList []Radio) []map[string]interface{} {
         var staList []map[string]interface{}
+        uniqueSTASet := make(map[string]struct{})
 
         for _, radio := range radioList {
             for _, bss := range radio.BSSList {
@@ -3791,6 +3792,13 @@ func loadTopologyFromDeviceTree(w  http.ResponseWriter) {
                     if bss.HaulType == "Backhaul" && bss.SSID == sta.SSID {
                        continue
                     }
+                    staIdentity := sta.MACAddress + "_" + sta.MLDAddr
+                    // Ignore duplicate STA entries which associated on another MLD Links
+                    if _, exists := uniqueSTASet[staIdentity]; exists {
+                        continue
+                    }
+                    uniqueSTASet[staIdentity] = struct{}{}
+
                     staList = append(staList, map[string]interface{}{
                         "staMAC":     sta.MACAddress,
                         "clientType": sta.ClientType,
@@ -3935,10 +3943,25 @@ func loadTopologyFromStaticJSON(w http.ResponseWriter) {
     // Helper to create STA list with circular layout
     createSTAList := func(deviceX, deviceY float32, radioList []Radio) []map[string]interface{} {
         var staList []map[string]interface{}
+        uniqueSTASet := make(map[string]struct{})
 
         for _, radio := range radioList {
             for _, bss := range radio.BSSList {
                 for _, sta := range bss.STAList {
+                    if !sta.Associated {
+                        continue
+                    }
+                    if bss.HaulType == "Backhaul" {
+                        continue
+                    }
+
+                    staIdentity := sta.MACAddress + "_" + sta.MLDAddr
+                    // Ignore duplicate STA entries which associated on another MLD Links
+                    if _, exists := uniqueSTASet[staIdentity]; exists {
+                        continue
+                    }
+                    uniqueSTASet[staIdentity] = struct{}{}
+
                     staList = append(staList, map[string]interface{}{
                         "staMAC":     sta.MACAddress,
                         "clientType": sta.ClientType,
