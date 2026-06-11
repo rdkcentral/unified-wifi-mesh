@@ -4329,7 +4329,7 @@ func getPolicyConfiguration(deviceListTree *C.em_network_node_t) []wifiPolicyCon
             cDisallowed := C.CString("Disallowed STA")
             defer C.free(unsafe.Pointer(cDisallowed))
             disallowedNode := C.get_network_tree_by_key(localSteeringNode, cDisallowed)
-            localDisallowedMACs = parseDisallowedSTAMACs(disallowedNode)
+            localDisallowedMACs = parseMACList(disallowedNode)
         }
 
         // BTM Steering Disallowed Policy
@@ -4341,7 +4341,7 @@ func getPolicyConfiguration(deviceListTree *C.em_network_node_t) []wifiPolicyCon
             cDisallowed := C.CString("Disallowed STA")
             defer C.free(unsafe.Pointer(cDisallowed))
             disallowedNode := C.get_network_tree_by_key(btmSteeringNode, cDisallowed)
-            btmDisallowedMACs = parseDisallowedSTAMACs(disallowedNode)
+            btmDisallowedMACs = parseMACList(disallowedNode)
         }
 
         // Channel Scan Reporting Policy
@@ -4524,15 +4524,14 @@ func updatePolicySettings(deviceListTree *C.em_network_node_t, policyConfig wifi
         defer C.free(unsafe.Pointer(cLocalSteering))
         localSteeringNode := C.get_network_tree_by_key(policyNode, cLocalSteering)
         if localSteeringNode != nil {
-            updateDisallowedSTAStruct(localSteeringNode, "Disallowed STA", policyConfig.LocalSteeringDisallowed)
+            updateNodeArray(localSteeringNode, "Disallowed STA", normalizeMACArray(policyConfig.LocalSteeringDisallowed))
         }
-
         // BTM Steering Disallowed Policy
         cBTMSteering := C.CString("BTM Steering Disallowed Policy")
         defer C.free(unsafe.Pointer(cBTMSteering))
         btmSteeringNode := C.get_network_tree_by_key(policyNode, cBTMSteering)
         if btmSteeringNode != nil {
-            updateDisallowedSTAStruct(btmSteeringNode, "Disallowed STA", policyConfig.BTMSteeringDisallowed)
+            updateNodeArray(btmSteeringNode, "Disallowed STA", normalizeMACArray(policyConfig.BTMSteeringDisallowed))
         }
 
         // Channel Scan Reporting Policy
@@ -4763,31 +4762,6 @@ func reconcileChildrenToCount(parent *C.em_network_node_t, newChildCount int) in
     }
 
     return current
-}
-
-/* func: parseDisallowedSTAMACs()
- * Description:
- * Parse the Disallowed STA MAC from policy list
- * returns: array of disallowed stat mac.
- */
-func parseDisallowedSTAMACs(disallowedNode *C.em_network_node_t) []string {
-    macs := []string{}
-    if disallowedNode == nil {
-        return macs
-    }
-
-    count := int(disallowedNode.num_children)
-    for i := 0; i < count; i++ {
-        elem := disallowedNode.child[i]
-        if elem == nil {
-            continue
-        }
-        mac := getTreeValue(elem, "MAC")
-        if mac != "" && mac != "00:00:00:00:00:00" {
-            macs = append(macs, mac)
-        }
-    }
-    return macs
 }
 
 /* func: parseMACList()

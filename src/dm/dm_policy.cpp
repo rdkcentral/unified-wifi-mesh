@@ -57,7 +57,7 @@ int dm_policy_t::decode(const cJSON *obj, void *parent_id, em_policy_id_type_t t
 		static const mac_address_t null_mac = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 		for (i = 0; i < cJSON_GetArraySize(sta_arr_obj); i++) {
 			tmp = cJSON_GetArrayItem(sta_arr_obj, i);
-			const char *mac_str = cJSON_GetStringValue(tmp);
+			char *mac_str = cJSON_GetStringValue(tmp);
 			if (mac_str == NULL) {
 				continue;
 			}
