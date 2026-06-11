@@ -460,9 +460,9 @@ unsigned int em_orch_agent_t::build_candidates(em_cmd_t *pcmd)
 				break;
             case em_cmd_type_op_channel_report:
                 if (!(em->is_al_interface_em())) {
-                    radio = pcmd->m_data_model.get_radio(static_cast<unsigned int> (0));
+                    radio = pcmd->m_data_model.get_radio(ctx->arr_index);
                     if (radio == NULL) {
-                        printf("%s:%d channel sel radio cannot be found.\n", __func__, __LINE__);
+                        printf("%s:%d channel sel radio cannot be found for arr_index=%u.\n", __func__, __LINE__, ctx->arr_index);
                         break;
                     }
                     if ((memcmp(radio->get_radio_interface_mac(),em->get_radio_interface_mac(),sizeof(mac_address_t)) == 0) && (em->get_state() == em_state_agent_channel_select_configuration_pending)) {

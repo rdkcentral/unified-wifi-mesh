@@ -189,6 +189,27 @@ public:
 	 */
 	int analyze_channel_sel_req(em_bus_event_t *evt, wifi_bus_desc_t *desc,bus_handle_t *bus_hdl);
 
+	/**!
+	 * @brief Builds and sends the ACS exclude-channel list to OneWifi.
+	 *
+	 * Constructs a JSON document containing the channels that ACS must not select,
+	 * derived from the Channel Selection Request TLV and hardware/regulatory capability
+	 * constraints. Publishes the document to OneWifi via the StartACS rbus interface,
+	 * delegating the final channel decision to the platform ACS.
+	 *
+	 * @param[in] desc Pointer to the WiFi bus descriptor to be updated.
+	 * @param[in] bus_hdl Handle to the bus where the event is processed.
+	 * @param[in] channel_sel Pointer to the parsed channel selection request data.
+	 * @param[in] radio_name Radio identifier string (e.g. "radio1") published as RadioName
+	 *                      in the ACS subdoc so OneWifi/vendor ACS can resolve the target radio.
+	 *
+	 * @returns int Status code indicating success or failure of the operation.
+	 * @retval 0 on success.
+	 * @retval Non-zero error code on failure.
+	 */
+	int send_acs_subdoc(wifi_bus_desc_t *desc, bus_handle_t *bus_hdl, op_class_channel_sel *channel_sel,
+	                    const char *radio_name);
+
     /**!
 	 * @brief Analyzes the csa beacon frame received.
 	 *

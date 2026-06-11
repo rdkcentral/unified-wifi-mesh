@@ -36,6 +36,8 @@
 #include <sys/time.h>
 #include <unistd.h>
 #include <unordered_map>
+#include <map>
+#include <set>
 #include <string>
 #include "em_cmd_dev_init.h"
 #include "dm_easy_mesh_agent.h"
@@ -392,7 +394,6 @@ int dm_easy_mesh_agent_t::analyze_onewifi_radio_cb(em_bus_event_t *evt, em_cmd_t
     webconfig_subdoc_type_t type;
     int num = 0;
     mac_addr_str_t  mac_str;
-    unsigned int index = 0;
     dm_easy_mesh_agent_t  dm;
     em_cmd_t *tmp;
     em_commit_target_t cm_config;
@@ -417,19 +418,30 @@ int dm_easy_mesh_agent_t::analyze_onewifi_radio_cb(em_bus_event_t *evt, em_cmd_t
         em_printfout("Radio subdoc decode fail");
     }
 
-	dm_easy_mesh_t::macbytes_to_string(dm.get_radio(index)->get_radio_info()->intf.mac, mac_str);
-	cm_config.type = em_commit_target_radio;
-	snprintf(reinterpret_cast<char *> (cm_config.params), sizeof(cm_config.params), "%s", mac_str);
-	commit_config(dm, cm_config);
-	pcmd[num] = new em_cmd_op_channel_report_t(evt->params, dm);
-	tmp = pcmd[num];
-	num++;
+    // Commit each radio returned in the subdoc and spawn a per-radio
+    // op_channel_report command, tagging each pcmd's ctx.arr_index so the
+    // orchestrator's build_candidates can match the right EM per radio.
+    unsigned int num_radios = dm.get_num_radios();
+    for (unsigned int i = 0; i < num_radios; i++) {
+        dm_easy_mesh_t::macbytes_to_string(dm.get_radio(i)->get_radio_info()->intf.mac, mac_str);
+        cm_config.type = em_commit_target_radio;
+        snprintf(reinterpret_cast<char *> (cm_config.params), sizeof(cm_config.params), "%s", mac_str);
+        commit_config(dm, cm_config);
 
-	while ((pcmd[num] = tmp->clone_for_next()) != NULL) {
-		tmp = pcmd[num];
-		num++;
-	}
-	return num;
+        pcmd[num] = new em_cmd_op_channel_report_t(evt->params, dm);
+        em_cmd_ctx_t *ctx = pcmd[num]->get_data_model()->get_cmd_ctx();
+        ctx->arr_index = i;
+        tmp = pcmd[num];
+        num++;
+
+        while ((pcmd[num] = tmp->clone_for_next()) != NULL) {
+            em_cmd_ctx_t *clone_ctx = pcmd[num]->get_data_model()->get_cmd_ctx();
+            clone_ctx->arr_index = i;
+            tmp = pcmd[num];
+            num++;
+        }
+    }
+    return num;
 }
         
 int dm_easy_mesh_agent_t::analyze_channel_pref_query(em_bus_event_t *evt, em_cmd_t *pcmd[])
@@ -446,6 +458,111 @@ int dm_easy_mesh_agent_t::analyze_channel_pref_query(em_bus_event_t *evt, em_cmd
     return num;
 }
 
+int dm_easy_mesh_agent_t::send_acs_subdoc(wifi_bus_desc_t *desc, bus_handle_t *bus_hdl,
+                                           op_class_channel_sel *channel_sel,
+                                           const char *radio_name)
+{
+    if (radio_name == NULL || radio_name[0] == '\0') {
+        em_printfout("ACS subdoc: radio_name is empty");
+        return -1;
+    }
+
+    // The controller now sends every channel in the band with its preference,
+    // so the exclude list is simply the channels marked non-operable (pref == 0)
+    // in the Channel Preference TLV, grouped per op_class. The platform ACS
+    // picks the channel from whatever remains.
+    std::map<int, std::set<unsigned int>> exclude_per_opclass;
+
+    for (unsigned int i = 0; i < channel_sel->num; i++) {
+        const em_op_class_info_t &info = channel_sel->op_class_info[i];
+        int op_class = static_cast<int>(info.op_class);
+
+        // Ensure an entry exists for every op_class present in the TLV, even
+        // if it has no excluded channels (all operable -> empty exclude list).
+        exclude_per_opclass[op_class];
+
+        for (unsigned int ch_idx = 0; ch_idx < info.num_channels && ch_idx < EM_MAX_CHANNELS_IN_LIST; ch_idx++) {
+            if ((info.channel_pref[ch_idx] & 0xF0) == 0) {
+                exclude_per_opclass[op_class].insert(info.channels[ch_idx]);
+            }
+        }
+    }
+
+    // Build ACS subdoc JSON
+    cJSON *root = cJSON_CreateObject();
+    if (root == NULL) {
+        em_printfout("ACS subdoc: failed to create root JSON object");
+        return -1;
+    }
+    cJSON_AddStringToObject(root, "Version", "1.0");
+    cJSON_AddStringToObject(root, "SubDocName", "Acs");
+    cJSON_AddStringToObject(root, "RadioName", radio_name);
+
+    em_printfout("ACS subdoc: Radio name: %s", radio_name);
+
+    cJSON *acs_list = cJSON_AddArrayToObject(root, "AcsList");
+    if (acs_list == NULL) {
+        em_printfout("ACS subdoc: failed to create AcsList array");
+        cJSON_Delete(root);
+        return -1;
+    }
+
+    em_printfout("ACS subdoc: band=%d num_opclass=%zu",
+                 channel_sel->freq_band, exclude_per_opclass.size());
+
+    for (const auto &oc_pair : exclude_per_opclass) {
+        int op_class = oc_pair.first;
+        const std::set<unsigned int> &exclude_channels = oc_pair.second;
+
+        /* Skip opclasses with no excluded channels (decoder rejects length 0). */
+        if (exclude_channels.empty()) {
+            continue;
+        }
+
+        cJSON *op_class_obj = cJSON_CreateObject();
+        if (op_class_obj == NULL) {
+            continue;
+        }
+        cJSON_AddNumberToObject(op_class_obj, "opclass", op_class);
+        cJSON_AddNumberToObject(op_class_obj, "exclude_channels_length", static_cast<double>(exclude_channels.size()));
+        cJSON *ch_arr = cJSON_AddArrayToObject(op_class_obj, "exclude_channels");
+        if (ch_arr != NULL) {
+            for (unsigned int ex_ch : exclude_channels) {
+                cJSON_AddItemToArray(ch_arr, cJSON_CreateNumber(static_cast<double>(ex_ch)));
+            }
+        }
+        cJSON_AddItemToArray(acs_list, op_class_obj);
+    }
+
+    char *json_str = cJSON_PrintUnformatted(root);
+    cJSON_Delete(root);
+
+    if (json_str == NULL) {
+        em_printfout("ACS subdoc: JSON serialization failed");
+        return -1;
+    }
+
+    em_printfout("ACS subdoc: %s", json_str);
+
+    raw_data_t bus_data;
+    memset(&bus_data, 0, sizeof(raw_data_t));
+    bus_data.data_type      = bus_data_type_string;
+    bus_data.raw_data.bytes = json_str;
+    bus_data.raw_data_len   = strlen(json_str);
+
+    int ret = 0;
+    // TODO: Replace with OneWiFi macro once Device.WiFi.X_RDKCENTRAL-COM_StartACS is added there
+    if (desc->bus_set_fn(bus_hdl, "Device.WiFi.X_RDKCENTRAL-COM_StartACS", &bus_data) == 0) {
+        em_printfout("ACS subdoc send success");
+    } else {
+        em_printfout("ACS subdoc send failed");
+        ret = -1;
+    }
+
+    free(json_str);
+    return ret;
+}
+
 int dm_easy_mesh_agent_t::analyze_channel_sel_req(em_bus_event_t *evt, wifi_bus_desc_t *desc,bus_handle_t *bus_hdl)
 {
     unsigned int i = 0, j = 0, noofopclass = 0;
@@ -453,8 +570,6 @@ int dm_easy_mesh_agent_t::analyze_channel_sel_req(em_bus_event_t *evt, wifi_bus_
     em_op_class_info_t *dm_op_class = nullptr;
     em_tx_power_limit_t *tx_power_limit;
     em_spatial_reuse_req_t *spatial_reuse_req;
-    bool found_mesh_sta = false;
-    em_bss_info_t *bss_info;
     dm_radio_t* radio = NULL;
     em_radio_info_t *radio_info = NULL;
 
@@ -478,43 +593,32 @@ int dm_easy_mesh_agent_t::analyze_channel_sel_req(em_bus_event_t *evt, wifi_bus_
     for (i = 0; i < noofopclass; i++) {
         dm_op_class = this->get_op_class_info(i);
 
-        // Assumption: recevied channel_sel contains entries for one RUID only
+        // Assumption: received channel_sel contains entries for one RUID only
         if ((dm_op_class->id.type == em_op_class_type_anticipated) &&
             memcmp(&dm_op_class->id.ruid, &channel_sel->op_class_info[0].id.ruid, sizeof(mac_address_t)) == 0) {
             dm_op_class->pref_valid = false;
         }
     }
 
-    // To store the channel with best preference
-    unsigned char highest_anticipated_preference = 0;
-    unsigned int most_preferred_channel = 0;
-    unsigned int most_preferred_opclass = 0;
-
-    // Process new preferences from channel_sel
+    // Update DM with new anticipated entries from Channel Selection Request
     bool is_anticipated_invalid_entry_present = true;
-    for (i = 0;i < channel_sel->num; i++) {
+    for (i = 0; i < channel_sel->num; i++) {
 
-        // Check for an existing invalid entry with anticipated type
-        if(is_anticipated_invalid_entry_present) {
+        if (is_anticipated_invalid_entry_present) {
             for (j = 0; j < noofopclass; j++) {
                 dm_op_class = this->get_op_class_info(j);
 
-                // Found an entry of anticipated type in DM with invalid flag,
-                // Update DM entry with new entry received in channel selection request
                 if (dm_op_class->id.type == em_op_class_type_anticipated && !dm_op_class->pref_valid) {
-                    // Update existing entry with new preferences
                     memcpy(dm_op_class, &channel_sel->op_class_info[i], sizeof(em_op_class_info_t));
                     dm_op_class->pref_valid = true;
                     break;
                 }
             }
 
-            // Don't check further for invalid entries of anticipated type
             if (j == noofopclass)
                 is_anticipated_invalid_entry_present = false;
         }
 
-        //Add new entry in DM for the opclass/channel received in channel selection request
         if (!is_anticipated_invalid_entry_present && (noofopclass < EM_MAX_OPCLASS)) {
             dm_op_class = &this->m_op_class[noofopclass].m_op_class_info;
             memcpy(dm_op_class, &channel_sel->op_class_info[i], sizeof(em_op_class_info_t));
@@ -522,47 +626,8 @@ int dm_easy_mesh_agent_t::analyze_channel_sel_req(em_bus_event_t *evt, wifi_bus_
             dm_op_class->pref_valid = true;
             noofopclass++;
         }
-
-        // Check for all channels in the entry to maintian most preferred channel and opclass
-        for (unsigned int ch_idx = 0;
-             ch_idx < dm_op_class->num_channels && ch_idx < EM_MAX_CHANNELS_IN_LIST;
-             ch_idx++) {
-            if ((dm_op_class->channel_pref[ch_idx] & 0xF0) > (highest_anticipated_preference & 0xF0)) {
-                highest_anticipated_preference = dm_op_class->channel_pref[ch_idx];
-                most_preferred_channel = dm_op_class->channels[ch_idx];
-                most_preferred_opclass = dm_op_class->op_class;
-            }
-        }
     }
-
-    // Ensure highest preference is non-zero to update current channel
-    if (highest_anticipated_preference > 0) {
-	//Get beacon channel for the preferred opclass/channel
-        most_preferred_channel = static_cast<unsigned int>(dm_easy_mesh_t::get_beaconchannel_by_opclass(static_cast<int>(most_preferred_opclass), static_cast<int>(most_preferred_channel)));
-        // Update the most preferred channel/opclass in the datamodel
-        for (i = 0; i < noofopclass; i++) {
-            dm_op_class = this->get_op_class_info(i);
-            if ((memcmp(&dm_op_class->id.ruid, &channel_sel->op_class_info[0].id.ruid, sizeof(mac_address_t)) == 0) &&
-                (dm_op_class->id.type == em_op_class_type_current)) {
-                dm_op_class->op_class = most_preferred_opclass;
-                dm_op_class->id.op_class = most_preferred_opclass;
-                dm_op_class->channel = most_preferred_channel;
-                break;
-            }
-        }
-        if (i == noofopclass) {
-            dm_op_class = this->get_op_class_info(i);
-            em_op_class_info_t tmp_op_class_info;
-            memcpy(tmp_op_class_info.id.ruid, channel_sel->op_class_info[0].id.ruid, sizeof(mac_address_t));
-            tmp_op_class_info.id.type = em_op_class_type_current;
-            tmp_op_class_info.id.op_class = most_preferred_opclass;
-            tmp_op_class_info.op_class = most_preferred_opclass;
-            tmp_op_class_info.channel = most_preferred_channel;
-            memcpy(dm_op_class, &tmp_op_class_info, sizeof(em_op_class_info_t));
-            noofopclass++;
-        }
-        this->set_num_op_class(noofopclass);
-    }
+    this->set_num_op_class(noofopclass);
 
     // Fetch radio and radio_info using RUID in Channel Preference TLV
     // Assumption: One RUID data per Channel Selection Request message
@@ -636,28 +701,30 @@ int dm_easy_mesh_agent_t::analyze_channel_sel_req(em_bus_event_t *evt, wifi_bus_
     }
 #endif
 
-    for (i = 0; i < this->m_num_bss; i++) {
-        bss_info = this->get_bss(i)->get_bss_info();
-        if (bss_info == NULL) {
-            printf("%s:%d: Cannot find bss info for index %d\n", __func__, __LINE__, i);
-            continue;
-        }
-        if (memcmp(tx_power_limit->ruid, bss_info->ruid.mac, sizeof(mac_address_t)) == 0 &&
-            strncmp(bss_info->bssid.name, "mesh_sta", strlen("mesh_sta")) == 0 &&
-            bss_info->connect_status) {
-            found_mesh_sta = true;
+    // Resolve the 0-based DM radio index for this request's RUID and build the
+    // "radioN" identifier expected by OneWifi/vendor ACS (1-based, per vendor doc).
+    unsigned int radio_idx = 0;
+    bool radio_idx_found = false;
+    for (unsigned int k = 0; k < this->get_num_radios(); k++) {
+        if (memcmp(this->get_radio_by_ref(k).get_radio_interface_mac(),
+                   channel_sel->op_class_info[0].id.ruid,
+                   sizeof(mac_address_t)) == 0) {
+            radio_idx = k;
+            radio_idx_found = true;
             break;
         }
     }
-
-    if(radio_info->init_cfg_done && found_mesh_sta) {
-        printf("%s:%d channel change trigger is based on CSA since mesh sta present\n", __func__, __LINE__);
-        return 1;
-    } else {
-        radio_info->init_cfg_done = true;
-        return refresh_onewifi_subdoc(desc, bus_hdl, "Radio", get_subdoc_radio_type_for_freq(channel_sel->freq_band));
+    if (!radio_idx_found) {
+        em_printfout("Radio index not found for channel_sel op_class_info[0] RUID");
+        return -1;
     }
+    char radio_name[16];
+    snprintf(radio_name, sizeof(radio_name), "radio%u", radio_idx + 1);
 
+    // Delegate channel selection entirely to OneWifi via ACS subdoc.
+    // Current opclass/channel will be updated when OneWifi sends back a radio
+    // subdoc update through em_bus_event_type_onewifi_radio_cb.
+    return send_acs_subdoc(desc, bus_hdl, channel_sel, radio_name);
 }
 
 int dm_easy_mesh_agent_t::analyze_csa_beacon_frame(em_bus_event_t *evt, wifi_bus_desc_t *desc, bus_handle_t *bus_hdl)

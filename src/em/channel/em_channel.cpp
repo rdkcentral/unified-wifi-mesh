@@ -38,6 +38,8 @@
 #include <pthread.h>
 #include <map>
 #include <vector>
+#include <set>
+#include <string>
 #include <openssl/rand.h>
 #include "em.h"
 #include "em_msg.h"
@@ -224,7 +226,7 @@ short em_channel_t::create_channel_scan_req_tlv(unsigned char *buff)
 	return len;
 }
 
-short em_channel_t::create_channel_pref_tlv(unsigned char *buff)
+short em_channel_t::create_channel_pref_tlv(unsigned char *buff, em_t *target)
 {
     short len = 0;
     em_channel_pref_t *pref;
@@ -234,8 +236,14 @@ short em_channel_t::create_channel_pref_tlv(unsigned char *buff)
     unsigned int num_of_channel = 0;
     em_channels_list_t *channel_list;
 
+    // When no explicit target is passed, default to "this" - preserves the
+    // per-EM call site semantics the single radio flow relied on.
+    const unsigned char *target_ruid = (target != NULL) ? target->get_radio_interface_mac()
+                                                        : get_radio_interface_mac();
+    em_freq_band_t target_band = (target != NULL) ? target->get_band() : get_band();
+
     pref = reinterpret_cast<em_channel_pref_t *> (buff);
-    memcpy(pref->ruid, get_radio_interface_mac(), sizeof(mac_address_t));
+    memcpy(pref->ruid, target_ruid, sizeof(mac_address_t));
     pref_op_class = pref->op_classes;
     pref->op_classes_num = 0;
 
@@ -273,7 +281,7 @@ short em_channel_t::create_channel_pref_tlv(unsigned char *buff)
     for (const auto &oc_pair : opclass_channel_prefs) {
         unsigned char opclass = oc_pair.first;
         em_freq_band_t oc_band = dm_easy_mesh_t::get_freq_band_by_op_class(static_cast<int>(opclass));
-        if (oc_band != get_band())
+        if (oc_band != target_band)
             continue;
 
         /* Group channels by preference */
@@ -385,14 +393,16 @@ void em_channel_t::update_map_with_agent_capability_preference(const unsigned ch
         }
     }
 
-    // Remove unsupported opclasses from the map
-    for (auto& oc_pair : opclass_channel_prefs) {
-        unsigned int opclass = oc_pair.first;
-        if (supported_opclasses.find(opclass) == supported_opclasses.end()) {
-            // Opclass not present in AP Capability Report.
-            opclass_channel_prefs.erase(opclass);
-            break;
+    // Drop opclasses not in the AP Capability Report. Collect keys first, then
+    // erase, to remove all of them without invalidating the iterator mid-loop.
+    std::vector<unsigned char> unsupported_opclasses;
+    for (const auto& oc_pair : opclass_channel_prefs) {
+        if (supported_opclasses.find(oc_pair.first) == supported_opclasses.end()) {
+            unsupported_opclasses.push_back(oc_pair.first);
         }
+    }
+    for (unsigned char opclass : unsupported_opclasses) {
+        opclass_channel_prefs.erase(opclass);
     }
 }
 
@@ -543,15 +553,20 @@ std::vector<unsigned char> em_channel_t::get_non_operable_channels(unsigned char
     return result;
 }
 
-short em_channel_t::create_transmit_power_limit_tlv(unsigned char *buff)
+short em_channel_t::create_transmit_power_limit_tlv(unsigned char *buff, em_t *target)
 {
     short len = 0;
     em_tx_power_limit_t	*tx_power_limit;
 
+    // When no explicit target is passed, default to "this" - preserves the
+    // per-EM call site semantics the single radio flow relied on.
+    const unsigned char *target_ruid = (target != NULL) ? target->get_radio_interface_mac()
+                                                        : get_radio_interface_mac();
+
     tx_power_limit = reinterpret_cast<em_tx_power_limit_t *> (buff);
-    memcpy(tx_power_limit->ruid, get_radio_interface_mac(), sizeof(mac_address_t));
-    
-    dm_radio_t* radio = get_data_model()->get_radio(get_radio_interface_mac());
+    memcpy(tx_power_limit->ruid, target_ruid, sizeof(mac_address_t));
+
+    dm_radio_t* radio = get_data_model()->get_radio(target_ruid);
     em_radio_info_t* radio_info = radio->get_radio_info();
     tx_power_limit->tx_power_eirp = static_cast<unsigned char> (radio_info->transmit_power_limit);
 
@@ -922,7 +937,7 @@ short em_channel_t::create_spatial_reuse_req_tlv(unsigned char *buff)
     return len;
 }
 
-int em_channel_t::send_channel_sel_request_msg()
+int em_channel_t::send_channel_sel_request_msg(const std::vector<em_t *> *targets)
 {
     unsigned char buff[MAX_EM_BUFF_SZ];
     char *errors[EM_MAX_TLV_MEMBERS] = {0};
@@ -936,6 +951,15 @@ int em_channel_t::send_channel_sel_request_msg()
     dm_easy_mesh_t *dm;
 
     dm = get_data_model();
+
+    // Build the target list. When caller passes no targets, fall back to
+    // the single radio behaviour of emitting TLVs for "this" EM - same
+    // bytes on the wire as the pre-bundling code path.
+    std::vector<em_t *> default_targets;
+    if (targets == NULL || targets->empty()) {
+        default_targets.push_back(static_cast<em_t *>(this));
+        targets = &default_targets;
+    }
 
     memcpy(tmp, dm->get_agent_al_interface_mac(), sizeof(mac_address_t));
     tmp += sizeof(mac_address_t);
@@ -960,23 +984,28 @@ int em_channel_t::send_channel_sel_request_msg()
     tmp += sizeof(em_cmdu_t);
     len += sizeof(em_cmdu_t);
 
-    // Zero or more Channel Preference TLVs (see section 17.2.13).
-    tlv = reinterpret_cast<em_tlv_t *> (tmp);
-    tlv->type = em_tlv_type_channel_pref;
-    sz = create_channel_pref_tlv(tlv->value);
-    tlv->len = htons(static_cast<short unsigned int> (sz));
+    // Emit one Channel Preference TLV + one Transmit Power Limit TLV per
+    // target radio, all bundled in a single Channel Selection Request
+    // message (IEEE 1905 / EasyMesh 8.2 permits multiple such TLVs).
+    for (em_t *target : *targets) {
+        // Channel Preference TLV (see section 17.2.13)
+        tlv = reinterpret_cast<em_tlv_t *> (tmp);
+        tlv->type = em_tlv_type_channel_pref;
+        sz = create_channel_pref_tlv(tlv->value, target);
+        tlv->len = htons(static_cast<short unsigned int> (sz));
 
-    tmp += (sizeof(em_tlv_t) + static_cast<short unsigned int> (sz));
-    len += static_cast<unsigned int> (sizeof(em_tlv_t) + static_cast<short unsigned int> (sz));
+        tmp += (sizeof(em_tlv_t) + static_cast<short unsigned int> (sz));
+        len += static_cast<unsigned int> (sizeof(em_tlv_t) + static_cast<short unsigned int> (sz));
 
-	// Zero or more Transmit Power Limit TLVs (see section 17.2.15)
-    tlv = reinterpret_cast<em_tlv_t *> (tmp);
-    tlv->type = em_tlv_type_tx_power;
-    sz = create_transmit_power_limit_tlv(tlv->value);
-    tlv->len = htons(static_cast<short unsigned int> (sz));
+        // Transmit Power Limit TLV (see section 17.2.15)
+        tlv = reinterpret_cast<em_tlv_t *> (tmp);
+        tlv->type = em_tlv_type_tx_power;
+        sz = create_transmit_power_limit_tlv(tlv->value, target);
+        tlv->len = htons(static_cast<short unsigned int> (sz));
 
-    tmp += (sizeof(em_tlv_t) + static_cast<short unsigned int> (sz));
-    len += static_cast<unsigned int> (sizeof(em_tlv_t) + static_cast<short unsigned int> (sz));
+        tmp += (sizeof(em_tlv_t) + static_cast<short unsigned int> (sz));
+        len += static_cast<unsigned int> (sizeof(em_tlv_t) + static_cast<short unsigned int> (sz));
+    }
 
     // End of message
     tlv = reinterpret_cast<em_tlv_t *> (tmp);
@@ -987,7 +1016,8 @@ int em_channel_t::send_channel_sel_request_msg()
     len += (sizeof (em_tlv_t));
 
     // Validate message against IEEE spec compliance
-    em_printfout("Validating Channel Selection Request message (total length: %u bytes)...\n", len);
+    em_printfout("Validating Channel Selection Request message (total length: %u bytes, %zu radio(s))...\n",
+                 len, targets->size());
     if (em_msg_t(em_msg_type_channel_sel_req, em_profile_type_3, buff, len).validate(errors) == 0) {
         em_printfout("Channel Selection Request msg failed validation in txn end\n");
         return -1;
@@ -997,8 +1027,16 @@ int em_channel_t::send_channel_sel_request_msg()
         em_printfout("Failed to send Channel Selection Request message (errno: %d)\n", errno);
         return -1;
     }
-    m_chan_req_msg_id = ntohs(cmdu->id);
-    em_printfout("Channel Selection Request message sent (msg_id: 0x%04x)\n", m_chan_req_msg_id);
+
+    // All targeted EMs share the same msg_id so each can match its own
+    // Channel Selection Response TLV when the single bundled response arrives.
+    unsigned short msg_id = ntohs(cmdu->id);
+    for (em_t *target : *targets) {
+        static_cast<em_channel_t *>(target)->m_chan_req_msg_id = msg_id;
+    }
+    m_chan_req_msg_id = msg_id;
+    em_printfout("Channel Selection Request message sent (msg_id: 0x%04x, radios: %zu)\n",
+                 msg_id, targets->size());
 
     return static_cast<int> (len);
 
@@ -1042,16 +1080,40 @@ int em_channel_t::send_channel_sel_response_msg(em_chan_sel_resp_code_type_t cod
     tmp += sizeof(em_cmdu_t);
     len += sizeof(em_cmdu_t);
 
-    // one or more Channel selection Response TLVs (see section 17.2.16).
-    tlv = reinterpret_cast<em_tlv_t *> (tmp);
-    tlv->type = em_tlv_type_channel_sel_resp;
-    tlv->len = htons(sizeof(em_channel_sel_rsp_t));
-    resp = reinterpret_cast<em_channel_sel_rsp_t *> (tlv->value);
-    memcpy(resp->ruid, get_radio_interface_mac(), sizeof(mac_address_t));
-    memcpy(&resp->response_code, reinterpret_cast<unsigned char *> (&code), sizeof(unsigned char));
+    // When the incoming request bundled TLVs for multiple radios we need
+    // to acknowledge every one of them. Collect every per-radio EM that
+    // currently holds this msg_id (set by handle_channel_sel_req) and
+    // emit one Channel Selection Response TLV for each.
+    std::vector<em_t *> em_radios;
+    std::vector<em_t *> ack_targets;
+    get_mgr()->get_all_em_for_al_mac(dm->get_agent_al_interface_mac(), em_radios);
+    for (auto &em : em_radios) {
+        if (em->is_al_interface_em()) {
+            continue;
+        }
+        em_channel_t *chan = static_cast<em_channel_t *>(em);
+        if (chan->m_chan_req_msg_id == msg_id &&
+            em->get_state() == em_state_agent_channel_select_configuration_pending) {
+            ack_targets.push_back(em);
+        }
+    }
+    em_radios.clear();
+    if (ack_targets.empty()) {
+        ack_targets.push_back(static_cast<em_t *>(this));
+    }
 
-    tmp += (sizeof(em_tlv_t) + sizeof(em_channel_sel_rsp_t));
-    len += (sizeof(em_tlv_t) + sizeof(em_channel_sel_rsp_t));
+    // one or more Channel selection Response TLVs (see section 17.2.16).
+    for (em_t *ack : ack_targets) {
+        tlv = reinterpret_cast<em_tlv_t *> (tmp);
+        tlv->type = em_tlv_type_channel_sel_resp;
+        tlv->len = htons(sizeof(em_channel_sel_rsp_t));
+        resp = reinterpret_cast<em_channel_sel_rsp_t *> (tlv->value);
+        memcpy(resp->ruid, ack->get_radio_interface_mac(), sizeof(mac_address_t));
+        memcpy(&resp->response_code, reinterpret_cast<unsigned char *> (&code), sizeof(unsigned char));
+
+        tmp += (sizeof(em_tlv_t) + sizeof(em_channel_sel_rsp_t));
+        len += (sizeof(em_tlv_t) + sizeof(em_channel_sel_rsp_t));
+    }
 
     // End of message
     tlv = reinterpret_cast<em_tlv_t *> (tmp);
@@ -1814,7 +1876,7 @@ int em_channel_t::handle_channel_pref_rprt(unsigned char *buff, unsigned int len
 	return 0;
 }
 
-int em_channel_t::handle_channel_pref_tlv(unsigned char *buff, op_class_channel_sel *op_class)
+int em_channel_t::handle_channel_pref_tlv(unsigned char *buff, op_class_channel_sel *op_class, em_freq_band_t ruid_band)
 {
     em_channel_pref_t *pref = reinterpret_cast<em_channel_pref_t *> (buff);
     em_channel_pref_op_class_t *channel_pref;
@@ -1832,8 +1894,10 @@ int em_channel_t::handle_channel_pref_tlv(unsigned char *buff, op_class_channel_
             pref_bits_ptr = reinterpret_cast<unsigned char *> (channel_pref) + sizeof(em_channel_pref_op_class_t) + channel_pref->num;
             memcpy(&pref_bits, pref_bits_ptr, sizeof(unsigned char));
 
-            // Skip entries not applicable for the current radio band
-            if (get_band() != (dm_easy_mesh_t::get_freq_band_by_op_class(static_cast<int> (channel_pref->op_class)))) {
+            // Skip entries not applicable for this TLV's target radio band.
+            // In a bundled request the TLVs may span multiple radios, so we
+            // filter against the RUID's band rather than the dispatching EM.
+            if (ruid_band != (dm_easy_mesh_t::get_freq_band_by_op_class(static_cast<int> (channel_pref->op_class)))) {
                 channel_pref = reinterpret_cast<em_channel_pref_op_class_t *> (pref_bits_ptr + sizeof(unsigned char));
                 continue;
             }
@@ -1917,30 +1981,74 @@ int em_channel_t::handle_channel_sel_req(unsigned char *buff, unsigned int len)
     em_tlv_t    *tlv;
     int tlv_len;
 
-    op_class_channel_sel op_class;
+    dm_easy_mesh_t *dm = get_data_model();
+    em_cmdu_t *cmdu = reinterpret_cast<em_cmdu_t *>(buff + sizeof(em_raw_hdr_t));
+    unsigned short req_msg_id = ntohs(cmdu->id);
 
-    memset(&op_class, 0, sizeof(op_class_channel_sel));
+    // The request may carry TLVs for multiple radios bundled into a single
+    // 1905 message. Group TLVs by RUID so each target radio gets its own
+    // op_class_channel_sel event with the correct freq_band.
+    std::map<std::string, op_class_channel_sel> per_ruid;
+
     tlv = reinterpret_cast<em_tlv_t *> (buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
     tlv_len = static_cast<int> (len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)));
 
     while ((tlv->type != em_tlv_type_eom) && (tlv_len > 0)) {
         if (tlv->type == em_tlv_type_channel_pref) {
-            handle_channel_pref_tlv(tlv->value, &op_class);
+            em_channel_pref_t *pref = reinterpret_cast<em_channel_pref_t *>(tlv->value);
+            mac_addr_str_t ruid_key;
+            dm_easy_mesh_t::macbytes_to_string(pref->ruid, ruid_key);
+
+            op_class_channel_sel &entry = per_ruid[std::string(ruid_key)];
+            if (entry.num == 0) {
+                memset(&entry, 0, sizeof(op_class_channel_sel));
+                dm_radio_t *target_radio = dm->get_radio(pref->ruid);
+                entry.freq_band = (target_radio != NULL)
+                                      ? target_radio->get_radio_info()->band
+                                      : get_band();
+            }
+            handle_channel_pref_tlv(tlv->value, &entry, entry.freq_band);
         }
         if (tlv->type == em_tlv_type_tx_power) {
-            memcpy(&op_class.tx_power, tlv->value, sizeof(em_tx_power_limit_t));
+            em_tx_power_limit_t *tx = reinterpret_cast<em_tx_power_limit_t *>(tlv->value);
+            mac_addr_str_t ruid_key;
+            dm_easy_mesh_t::macbytes_to_string(tx->ruid, ruid_key);
+            op_class_channel_sel &entry = per_ruid[std::string(ruid_key)];
+            memcpy(&entry.tx_power, tx, sizeof(em_tx_power_limit_t));
         }
 
         tlv_len -= static_cast<int> (sizeof(em_tlv_t) + ntohs(tlv->len));
         tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + ntohs(tlv->len));
     }
 
-	op_class.freq_band = get_band();
-   
-	get_mgr()->io_process(em_bus_event_type_channel_sel_req, reinterpret_cast<unsigned char *> (&op_class), sizeof(op_class_channel_sel));
-    
-	printf("%s:%d Received channel selection request \n",__func__, __LINE__);
-	set_state(em_state_agent_channel_select_configuration_pending);
+    // Dispatch one event per RUID so analyze_channel_sel_req processes each
+    // radio independently and each corresponding EM reaches the
+    // channel_select_configuration_pending state used by the message gate.
+    for (auto &kv : per_ruid) {
+        op_class_channel_sel &entry = kv.second;
+        if (entry.num == 0) {
+            continue;
+        }
+        get_mgr()->io_process(em_bus_event_type_channel_sel_req,
+                              reinterpret_cast<unsigned char *>(&entry),
+                              sizeof(op_class_channel_sel));
+
+        // Flip the matching per-radio EM into configuration-pending so
+        // subsequent gate checks behave the same for every bundled radio,
+        // not just the one 1905 dispatch happened to land on. Remember the
+        // request msg_id too. send_channel_sel_response_msg uses it to pick
+        // every EM that needs a Channel Selection Response TLV in the reply.
+        em_t *radio_em = reinterpret_cast<em_t *>(
+            hash_map_get(get_mgr()->m_em_map, const_cast<char *>(kv.first.c_str())));
+        if (radio_em != NULL) {
+            em_channel_t *chan = static_cast<em_channel_t *>(radio_em);
+            chan->set_state(em_state_agent_channel_select_configuration_pending);
+            chan->m_chan_req_msg_id = req_msg_id;
+        }
+    }
+
+    em_printfout("%s:%d Received channel selection request (radios=%zu)",
+           __func__, __LINE__, per_ruid.size());
     return 0;
 }
 
@@ -2394,12 +2502,37 @@ void em_channel_t::process_ctrl_state()
             break;
 
         case em_state_ctrl_channel_select_pending:
+            if (get_service_type() == em_service_type_ctrl) {
+                // Collect every EM that is currently pending a channel selection and
+                // bundle their TLVs into a single 1905 Channel Selection Request.
+                // Only the first pending EM emits the message; the rest fall through
+                // this case as no-ops since the message (and their state) has already
+                // been handled.
+                std::vector<em_t *> em_radios;
+                std::vector<em_t *> pending;
+                get_mgr()->get_all_em_for_al_mac(get_data_model()->get_agent_al_interface_mac(), em_radios);
+                for (auto &em : em_radios) {
+                    if (em->is_al_interface_em()) {
+                        continue;
+                    }
+                    if (em->get_state() == em_state_ctrl_channel_select_pending) {
+                        pending.push_back(em);
+                    }
+                }
+                em_radios.clear();
+
+                if (!pending.empty() && this == static_cast<em_channel_t *>(pending.front())) {
+                    send_channel_sel_request_msg(&pending);
+                }
+            }
+            break;
+
         case em_state_ctrl_avail_spectrum_inquiry_pending:
-			if(get_service_type() == em_service_type_ctrl) {
-				send_channel_sel_request_msg();
-			}
-            break; 
-        
+            if (get_service_type() == em_service_type_ctrl) {
+                send_channel_sel_request_msg();
+            }
+            break;
+
         case em_state_ctrl_channel_scan_pending:
 			send_channel_scan_request_msg();
             break;
