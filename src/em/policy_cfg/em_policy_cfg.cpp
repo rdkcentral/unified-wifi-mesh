@@ -324,47 +324,47 @@ short em_policy_cfg_t::create_unsucc_assoc_policy_tlv(unsigned char *buff)
     return static_cast<short> (len);
 }
 
-// Encodes a single Backhaul BSS Configuration TLV value for the given policy entry.
+// Encodes a single Backhaul BSS Configuration TLV value for the given entry.
 // The caller emits one TLV per entry (spec 17.2.66: "zero or more" TLVs).
-short em_policy_cfg_t::create_backhaul_bss_conf_policy_tlv(unsigned char *buff, dm_policy_t *policy)
+short em_policy_cfg_t::create_backhaul_bss_conf_policy_tlv(unsigned char *buff, const em_backhaul_bss_config_policy_t *entry)
 {
     static const mac_address_t null_mac = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
     // Skip TLV if BSSID is all zeros — no meaningful config to send.
-    if (memcmp(policy->m_policy.bssid, null_mac, sizeof(mac_address_t)) == 0) {
+    if (memcmp(entry->bssid, null_mac, sizeof(mac_address_t)) == 0) {
         return 0;
     }
     em_bh_bss_config_t *bss_cfg = reinterpret_cast<em_bh_bss_config_t *>(buff);
-    memcpy(bss_cfg->bssid, policy->m_policy.bssid, sizeof(mac_address_t));
-    bss_cfg->p1_bsta_disallowed = policy->m_policy.profile_1_sta_disallowed ? 1 : 0;
-    bss_cfg->p2_bsta_disallowed = policy->m_policy.profile_2_sta_disallowed ? 1 : 0;
+    memcpy(bss_cfg->bssid, entry->bssid, sizeof(mac_address_t));
+    bss_cfg->p1_bsta_disallowed = entry->b_profile_1_sta_disallowed ? 1 : 0;
+    bss_cfg->p2_bsta_disallowed = entry->b_profile_2_sta_disallowed ? 1 : 0;
     bss_cfg->reserved = 0;
     return static_cast<short>(sizeof(em_bh_bss_config_t));
 }
 
-short em_policy_cfg_t::create_qos_mgt_policy_tlv(unsigned char *buff, dm_policy_t *policy)
+short em_policy_cfg_t::create_qos_mgt_policy_tlv(unsigned char *buff, dm_policy_t *policy, unsigned int qi)
 {
     size_t len = 0;
     unsigned int j;
     unsigned char *tmp = buff;
 
     unsigned char mscs_num = static_cast<unsigned char>(
-        (policy->m_policy.qos_mgt.num_mscs < EM_MAX_MSC_PER_TRAFFIC_SEPAR)
-            ? policy->m_policy.qos_mgt.num_mscs : EM_MAX_MSC_PER_TRAFFIC_SEPAR);
+        (policy->m_policy.qos_mgt[qi].num_mscs < EM_MAX_MSC_PER_TRAFFIC_SEPAR)
+            ? policy->m_policy.qos_mgt[qi].num_mscs : EM_MAX_MSC_PER_TRAFFIC_SEPAR);
     unsigned char scs_num = static_cast<unsigned char>(
-        (policy->m_policy.qos_mgt.num_scs < EM_MAX_SCS_PER_TRAFFIC_SEPAR)
-            ? policy->m_policy.qos_mgt.num_scs : EM_MAX_SCS_PER_TRAFFIC_SEPAR);
+        (policy->m_policy.qos_mgt[qi].num_scs < EM_MAX_SCS_PER_TRAFFIC_SEPAR)
+            ? policy->m_policy.qos_mgt[qi].num_scs : EM_MAX_SCS_PER_TRAFFIC_SEPAR);
 
     // Skip TLV if both lists are empty — no meaningful config to send.
     if (mscs_num == 0 && scs_num == 0) {
         return 0;
     }
-    em_printfout("Found QoS Management Policy in DM with num_mscs=%u, num_scs=%u", mscs_num, scs_num);
+    em_printfout("Found QoS Management Policy in DM with qi=%u num_mscs=%u, num_scs=%u", qi, mscs_num, scs_num);
 
     // Wire format is variable-length: [mscs_num][mscs MACs...][scs_num][scs MACs...][20 reserved]
     *tmp++ = mscs_num;
     len += sizeof(unsigned char);
     for (j = 0; j < mscs_num; j++) {
-        memcpy(tmp, policy->m_policy.qos_mgt.msc_mac[j], sizeof(mac_address_t));
+        memcpy(tmp, policy->m_policy.qos_mgt[qi].msc_mac[j], sizeof(mac_address_t));
         tmp += sizeof(mac_address_t);
         len += sizeof(mac_address_t);
     }
@@ -372,7 +372,7 @@ short em_policy_cfg_t::create_qos_mgt_policy_tlv(unsigned char *buff, dm_policy_
     *tmp++ = scs_num;
     len += sizeof(unsigned char);
     for (j = 0; j < scs_num; j++) {
-        memcpy(tmp, policy->m_policy.qos_mgt.sc_mac[j], sizeof(mac_address_t));
+        memcpy(tmp, policy->m_policy.qos_mgt[qi].sc_mac[j], sizeof(mac_address_t));
         tmp += sizeof(mac_address_t);
         len += sizeof(mac_address_t);
     }
@@ -580,38 +580,43 @@ int em_policy_cfg_t::send_policy_cfg_request_msg()
         len += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
     }
 
-    // Zero or more Backhaul BSS Configuration TLVs (spec 17.2.66): one TLV per entry.
-    {
-        dm_easy_mesh_t *bh_dm = is_set_policy ? cmd_dm : dm;
-        for (unsigned int pi = 0; pi < bh_dm->get_num_policy(); pi++) {
-            dm_policy_t *bh_pol = &bh_dm->m_policy[pi];
-            if (bh_pol->m_policy.id.type != em_policy_id_type_backhaul_bss_config) {
+    // Zero or more Backhaul BSS Configuration TLVs (spec 17.2.66): one TLV per BSSID entry.
+    dm_easy_mesh_t *bh_dm = is_set_policy ? cmd_dm : dm;
+    for (unsigned int pi = 0; pi < bh_dm->get_num_policy(); pi++) {
+        dm_policy_t *bh_pol = &bh_dm->m_policy[pi];
+        if (bh_pol->m_policy.id.type != em_policy_id_type_backhaul_bss_config) {
+            continue;
+        }
+        for (unsigned int bi = 0; bi < bh_pol->m_policy.num_backhaul_bss_config; bi++) {
+            const em_backhaul_bss_config_policy_t *entry = &bh_pol->m_policy.backhaul_bss_config[bi];
+            static const mac_address_t null_mac = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+            if (memcmp(entry->bssid, null_mac, sizeof(mac_address_t)) == 0) {
                 continue;
             }
             tlv = reinterpret_cast<em_tlv_t *>(tmp);
             tlv->type = em_tlv_type_backhaul_bss_conf;
-            sz = create_backhaul_bss_conf_policy_tlv(tlv->value, bh_pol);
+            sz = create_backhaul_bss_conf_policy_tlv(tlv->value, entry);
             tlv->len = htons(static_cast<short unsigned int>(sz));
             em_printfout("Sending Backhaul BSS Config TLV: BSSID=%s p1=%d p2=%d",
-                util::mac_to_string(bh_pol->m_policy.bssid).c_str(),
-                bh_pol->m_policy.profile_1_sta_disallowed,
-                bh_pol->m_policy.profile_2_sta_disallowed);
+                util::mac_to_string(entry->bssid).c_str(),
+                entry->b_profile_1_sta_disallowed,
+                entry->b_profile_2_sta_disallowed);
             tmp += (sizeof(em_tlv_t) + static_cast<size_t>(sz));
             len += (sizeof(em_tlv_t) + static_cast<size_t>(sz));
         }
     }
 
     // Zero or more QoS Management Policy TLVs (spec 17.2.92): one TLV per entry.
-    {
-        dm_easy_mesh_t *qos_dm = is_set_policy ? cmd_dm : dm;
-        for (unsigned int pi = 0; pi < qos_dm->get_num_policy(); pi++) {
-            dm_policy_t *qos_pol = &qos_dm->m_policy[pi];
-            if (qos_pol->m_policy.id.type != em_policy_id_type_qos_mgt) {
-                continue;
-            }
+    dm_easy_mesh_t *qos_dm = is_set_policy ? cmd_dm : dm;
+    for (unsigned int pi = 0; pi < qos_dm->get_num_policy(); pi++) {
+        dm_policy_t *qos_pol = &qos_dm->m_policy[pi];
+        if (qos_pol->m_policy.id.type != em_policy_id_type_qos_mgt) {
+            continue;
+        }
+        for (unsigned int qi = 0; qi < qos_pol->m_policy.num_qos_mgt; qi++) {
             tlv = reinterpret_cast<em_tlv_t *>(tmp);
             tlv->type = em_tlv_type_qos_mgmt_policy;
-            sz = create_qos_mgt_policy_tlv(tlv->value, qos_pol);
+            sz = create_qos_mgt_policy_tlv(tlv->value, qos_pol, qi);
             if (sz > 0) {
                 tlv->len = htons(static_cast<short unsigned int>(sz));
                 tmp += (sizeof(em_tlv_t) + static_cast<size_t>(sz));
@@ -766,51 +771,48 @@ int em_policy_cfg_t::handle_policy_cfg_req(unsigned char *buff, unsigned int len
                     policy.unsuccessful_assoc_policy.max_rprt_rate);
             }
         } else if (tlv->type == em_tlv_type_backhaul_bss_conf) {
-            unsigned int num_entries = htons(tlv->len) / sizeof(em_bh_bss_config_t);
-            em_bh_bss_config_t *bss_cfg = reinterpret_cast<em_bh_bss_config_t *>(tlv->value);
-            for (unsigned int idx = 0; idx < num_entries; idx++) {
-                em_printfout("Recvd Backhaul BSS Config[%u]: bssid=%s, p1_disallowed=%d, p2_disallowed=%d",
-                    idx, util::mac_to_string(bss_cfg[idx].bssid).c_str(),
-                    bss_cfg[idx].p1_bsta_disallowed, bss_cfg[idx].p2_bsta_disallowed);
-                // downstream em_policy_cfg_params_t / em_config_t only hold one entry; store the first
-                if (idx == 0) {
-                    memcpy(policy.bh_bss_cfg_policy.bssid, bss_cfg[0].bssid, sizeof(mac_address_t));
-                    policy.bh_bss_cfg_policy.p1_bsta_disallowed = bss_cfg[0].p1_bsta_disallowed;
-                    policy.bh_bss_cfg_policy.p2_bsta_disallowed = bss_cfg[0].p2_bsta_disallowed;
-                }
+            if (policy.num_bh_bss_cfg < EM_MAX_BSS_PER_RADIO) {
+                unsigned int bh_cnt = policy.num_bh_bss_cfg;
+                // Spec 17.2.66: one TLV carries exactly one Backhaul BSS Config entry.
+                em_bh_bss_config_t *bss_cfg = reinterpret_cast<em_bh_bss_config_t *>(tlv->value);
+                em_printfout("Recvd Backhaul BSS Config TLV[%u]: bssid=%s, p1_disallowed=%d, p2_disallowed=%d",
+                    bh_cnt, util::mac_to_string(bss_cfg->bssid).c_str(),
+                    bss_cfg->p1_bsta_disallowed, bss_cfg->p2_bsta_disallowed);
+                memcpy(policy.bh_bss_cfg_policy[bh_cnt].bssid, bss_cfg->bssid, sizeof(mac_address_t));
+                policy.bh_bss_cfg_policy[bh_cnt].p1_bsta_disallowed = bss_cfg->p1_bsta_disallowed;
+                policy.bh_bss_cfg_policy[bh_cnt].p2_bsta_disallowed = bss_cfg->p2_bsta_disallowed;
+                policy.num_bh_bss_cfg++;
             }
         } else if (tlv->type == em_tlv_type_qos_mgmt_policy) {
-            // Wire format is variable-length: [mscs_num][mscs MACs...][scs_num][scs MACs...][20 reserved]
-            // Cannot use memcpy — struct has fixed-size arrays; parse field by field.
-            unsigned char *qos_ptr = tlv->value;
-            unsigned short qos_remaining = htons(tlv->len);
-            if (qos_remaining >= sizeof(unsigned char)) {
-                unsigned char mscs_num = *qos_ptr++;
-                qos_remaining--;
-                mscs_num = static_cast<unsigned char>(
-                    (mscs_num < EM_MAX_STA_PER_AGENT) ? mscs_num : EM_MAX_STA_PER_AGENT);
-                policy.qos_mgmt_policy.mscs_disallowed_num = mscs_num;
-                for (unsigned int idx = 0; idx < mscs_num && qos_remaining >= sizeof(mac_address_t); idx++) {
-                    memcpy(policy.qos_mgmt_policy.mac_addr_mscs_disallowed[idx].sta_mac_addr, qos_ptr, sizeof(mac_address_t));
-                    qos_ptr += sizeof(mac_address_t);
-                    qos_remaining -= sizeof(mac_address_t);
+            if (policy.num_qos_mgmt < EM_MAX_QOS_MGMT_POLICY) {
+                unsigned int q_cnt = policy.num_qos_mgmt;
+                unsigned char *qos_data = tlv->value;
+                size_t qos_offset = 0;
+
+                unsigned char mscs_num = qos_data[qos_offset++];
+                mscs_num = (mscs_num < EM_MAX_STA_PER_AGENT) ? mscs_num : EM_MAX_STA_PER_AGENT;
+                policy.qos_mgmt_policy[q_cnt].mscs_disallowed_num = mscs_num;
+                for (unsigned int idx = 0; idx < mscs_num; idx++) {
+                    memcpy(policy.qos_mgmt_policy[q_cnt].mac_addr_mscs_disallowed[idx].sta_mac_addr,
+                        qos_data + qos_offset, sizeof(mac_address_t));
+                    qos_offset += sizeof(mac_address_t);
                 }
-            }
-            if (qos_remaining >= sizeof(unsigned char)) {
-                unsigned char scs_num = *qos_ptr++;
-                qos_remaining--;
-                scs_num = static_cast<unsigned char>(
-                    (scs_num < EM_MAX_STA_PER_AGENT) ? scs_num : EM_MAX_STA_PER_AGENT);
-                policy.qos_mgmt_policy.scs_disallowed_num = scs_num;
-                for (unsigned int idx = 0; idx < scs_num && qos_remaining >= sizeof(mac_address_t); idx++) {
-                    memcpy(policy.qos_mgmt_policy.mac_addr_scs_disallowed[idx].sta_mac_addr, qos_ptr, sizeof(mac_address_t));
-                    qos_ptr += sizeof(mac_address_t);
-                    qos_remaining -= sizeof(mac_address_t);
+
+                unsigned char scs_num = qos_data[qos_offset++];
+                scs_num = (scs_num < EM_MAX_STA_PER_AGENT) ? scs_num : EM_MAX_STA_PER_AGENT;
+                policy.qos_mgmt_policy[q_cnt].scs_disallowed_num = scs_num;
+                for (unsigned int idx = 0; idx < scs_num; idx++) {
+                    memcpy(policy.qos_mgmt_policy[q_cnt].mac_addr_scs_disallowed[idx].sta_mac_addr,
+                        qos_data + qos_offset, sizeof(mac_address_t));
+                    qos_offset += sizeof(mac_address_t);
                 }
+
+                policy.num_qos_mgmt++;
+                em_printfout("Recvd QoS Mgmt Policy[%u]: mscs_num=%d, scs_num=%d",
+                    q_cnt,
+                    policy.qos_mgmt_policy[q_cnt].mscs_disallowed_num,
+                    policy.qos_mgmt_policy[q_cnt].scs_disallowed_num);
             }
-            em_printfout("Recvd QoS Mgmt Policy: mscs_num=%d, scs_num=%d",
-                policy.qos_mgmt_policy.mscs_disallowed_num,
-                policy.qos_mgmt_policy.scs_disallowed_num);
         } else if (tlv->type == em_tlv_type_vendor_specific) {
             em_vendor_specific_t *vendor_tlv = reinterpret_cast<em_vendor_specific_t *> (tlv->value);
             em_printfout("Recvd vendor tlv, num: %d and tlv->len:%d", vendor_tlv->num, htons(tlv->len));

@@ -225,7 +225,7 @@ public:
 	 *
 	 * @note Ensure that the buffer is large enough to hold the TLV.
 	 */
-	short create_backhaul_bss_conf_policy_tlv(unsigned char *buff, dm_policy_t *policy);
+short create_backhaul_bss_conf_policy_tlv(unsigned char *buff, const em_backhaul_bss_config_policy_t *entry);
 
 	/**!
 	 * @brief Creates a qos management policy TLV.
@@ -238,7 +238,7 @@ public:
 	 *
 	 * @note Ensure that the buffer is large enough to hold the TLV.
 	 */
-	short create_qos_mgt_policy_tlv(unsigned char *buff, dm_policy_t *policy);
+short create_qos_mgt_policy_tlv(unsigned char *buff, dm_policy_t *policy, unsigned int qi);
 
 	/**!
 	 * @brief Creates a vendor policy configuration TLV.

@@ -1172,12 +1172,11 @@ int dm_easy_mesh_t::decode_config_set_policy(em_subdoc_info_t *subdoc, const cha
         for (i = 0; i < cJSON_GetArraySize(radio_metrics_arr_obj); i++) {
             radio_metrics_obj = cJSON_GetArrayItem(radio_metrics_arr_obj, i);
             radio_id_obj = cJSON_GetObjectItem(radio_metrics_obj, "ID");
-            if (radio_id_obj != NULL) {
-                mac_addr_t mac;
-                dm_easy_mesh_t::string_to_macbytes(cJSON_GetStringValue(radio_id_obj), mac);
-                memcpy(m_policy[m_num_policy].m_policy.id.radio_mac, mac, sizeof(mac_addr_t));
+            const char *radio_id_str = cJSON_GetStringValue(radio_id_obj);
+            if (radio_id_str == NULL || strcmp(radio_id_str, "00:00:00:00:00:00") == 0) {
+                continue; // skip null entries
             }
-            snprintf(parent, sizeof(em_long_string_t), "%s@%s@%s@%d", net_id, dev_mac_str, cJSON_GetStringValue(radio_id_obj),
+            snprintf(parent, sizeof(em_long_string_t), "%s@%s@%s@%d", net_id, dev_mac_str, radio_id_str,
                         em_policy_id_type_radio_metrics_rep);
             m_policy[m_num_policy].decode(radio_metrics_obj, parent, em_policy_id_type_radio_metrics_rep);
             m_num_policy++;
@@ -1190,7 +1189,7 @@ int dm_easy_mesh_t::decode_config_set_policy(em_subdoc_info_t *subdoc, const cha
             radio_id_obj = cJSON_GetObjectItem(radio_steer_obj, "ID");
             const char *id_str = cJSON_GetStringValue(radio_id_obj);
             if (id_str == NULL || strcmp(id_str, "00:00:00:00:00:00") == 0) {
-                continue; // skip null/wildcard entries
+                continue; // skip null entries
             }
             snprintf(parent, sizeof(em_long_string_t), "%s@%s@%s@%d", net_id, dev_mac_str, id_str,
                         em_policy_id_type_steering_param);
@@ -3082,6 +3081,27 @@ void dm_easy_mesh_t::set_policy(dm_policy_t policy)
 	dm_policy_t *ppolicy;
 	bool found_match = false;
 	bool temp = 0;
+	static const mac_address_t null_mac  = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+	static const mac_address_t bcast_mac = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
+
+	// For per-radio policy types: if we're inserting a real per-radio entry,
+	// remove any broadcast (ff:ff) entry of the same type — they are mutually exclusive.
+	if ((policy.m_policy.id.type == em_policy_id_type_radio_metrics_rep ||
+	     policy.m_policy.id.type == em_policy_id_type_steering_param) &&
+	    memcmp(policy.m_policy.id.radio_mac, bcast_mac, sizeof(mac_address_t)) != 0 &&
+	    memcmp(policy.m_policy.id.radio_mac, null_mac, sizeof(mac_address_t)) != 0) {
+		for (unsigned int k = 0; k < m_num_policy; k++) {
+			if (m_policy[k].m_policy.id.type == policy.m_policy.id.type &&
+			    memcmp(m_policy[k].m_policy.id.radio_mac, bcast_mac, sizeof(mac_address_t)) == 0) {
+				// Shift remaining entries down to fill the gap
+				for (unsigned int j = k; j < m_num_policy - 1; j++) {
+					memcpy(&m_policy[j].m_policy, &m_policy[j + 1].m_policy, sizeof(em_policy_t));
+				}
+				m_num_policy--;
+				break;
+			}
+		}
+	}
 
     for (i = 0; i < m_num_policy; i++) {
         ppolicy = &m_policy[i];

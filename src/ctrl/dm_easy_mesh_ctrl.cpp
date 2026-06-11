@@ -2158,6 +2158,35 @@ int dm_easy_mesh_ctrl_t::analyze_set_policy(em_bus_event_t *evt, em_cmd_t *pcmd[
 
         dev_dm = get_data_model(GLOBAL_NET_ID, dm.m_device.m_device_info.intf.mac);
         if (dev_dm != NULL) {
+            // Expand broadcast radio MAC (ff:ff:ff:ff:ff:ff) in per-radio policy entries
+            // (radio_metrics_rep and steering_param) into one entry per actual radio.
+            static const mac_address_t bcast_mac = {0xff,0xff,0xff,0xff,0xff,0xff};
+            unsigned int orig_num = dm.get_num_policy();
+            for (unsigned int k = 0; k < orig_num; k++) {
+                if (dm.m_policy[k].m_policy.id.type != em_policy_id_type_radio_metrics_rep &&
+                    dm.m_policy[k].m_policy.id.type != em_policy_id_type_steering_param) continue;
+                if (memcmp(dm.m_policy[k].m_policy.id.radio_mac, bcast_mac, sizeof(mac_address_t)) != 0) continue;
+                // Replace this broadcast entry with per-radio copies
+                em_policy_t tmpl;
+                memcpy(&tmpl, &dm.m_policy[k].m_policy, sizeof(em_policy_t));
+                // Overwrite slot k with first radio, append remaining radios at end
+                bool first = true;
+                for (unsigned int r = 0; r < dev_dm->get_num_radios(); r++) {
+                    if (first) {
+                        memcpy(dm.m_policy[k].m_policy.id.radio_mac,
+                               dev_dm->m_radio[r].m_radio_info.intf.mac, sizeof(mac_address_t));
+                        first = false;
+                    } else {
+                        unsigned int slot = dm.get_num_policy();
+                        memcpy(&dm.m_policy[slot].m_policy, &tmpl, sizeof(em_policy_t));
+                        memcpy(dm.m_policy[slot].m_policy.id.radio_mac,
+                               dev_dm->m_radio[r].m_radio_info.intf.mac, sizeof(mac_address_t));
+                        dm.set_num_policy(slot + 1);
+                    }
+                }
+                // Don't break — there may be broadcast entries of both types
+            }
+
             // Compare each incoming policy by type against the existing dm.
             // Compact dm.m_policy[] in-place to only keep changed/new entries so
             // that the command (and the resulting 1905 message) carries only what
@@ -2223,6 +2252,7 @@ int dm_easy_mesh_ctrl_t::analyze_set_policy(em_bus_event_t *evt, em_cmd_t *pcmd[
             dm.m_num_radios++;
             radio = m_data_model_list.get_next_radio(dm.m_network.m_net_info.id, dm.m_device.m_device_info.intf.mac, radio);
         }
+
         dm.set_db_cfg_param(db_cfg_type_policy_list_update, "");
         pcmd[num] = new em_cmd_set_policy_t(evt->params, dm);
         num++;

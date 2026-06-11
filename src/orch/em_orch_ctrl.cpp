@@ -253,6 +253,17 @@ bool em_orch_ctrl_t::is_em_ready_for_orch_fini(em_cmd_t *pcmd, em_t *em)
 
 		case em_cmd_type_set_policy:
             if (em->get_state() == em_state_ctrl_configured) {
+                // Commit policies from the command DM to the live data model and DB
+                dm_easy_mesh_t *cmd_dm = pcmd->get_data_model();
+                dm_easy_mesh_t *live_dm = em->get_data_model();
+                if (cmd_dm != NULL && live_dm != NULL) {
+                    for (unsigned int p = 0; p < cmd_dm->get_num_policy(); p++) {
+                        live_dm->set_policy(cmd_dm->m_policy[p]);
+                    }
+                    // Trigger DB write
+                    cmd_dm->set_db_cfg_param(db_cfg_type_policy_list_update, "");
+                    m_mgr->update_tables(cmd_dm);
+                }
                 return true;
             }
 			break;
@@ -494,6 +505,33 @@ bool em_orch_ctrl_t::pre_process_orch_op(em_cmd_t *pcmd)
             }
             m_mgr->update_network_topology();
             break;
+
+        case dm_orch_type_policy_cfg:
+        {
+            // Update dev_dm flat array so the next SET comparison sees the updated
+            // baseline and doesn't re-detect the same change as new.
+            dm_easy_mesh_t *dev_dm = m_mgr->get_data_model(GLOBAL_NET_ID, dm->m_device.m_device_info.intf.mac);
+            if (dev_dm != nullptr) {
+                for (unsigned int p = 0; p < dm->get_num_policy(); p++) {
+                    dm_policy_t &pol = dm->get_policy_by_ref(p);
+                    bool found = false;
+                    for (unsigned int j = 0; j < dev_dm->get_num_policy(); j++) {
+                        if (dev_dm->m_policy[j].m_policy.id.type == pol.m_policy.id.type &&
+                            memcmp(dev_dm->m_policy[j].m_policy.id.radio_mac,
+                                   pol.m_policy.id.radio_mac, sizeof(mac_address_t)) == 0) {
+                            dev_dm->m_policy[j] = pol;
+                            found = true;
+                            break;
+                        }
+                    }
+                    if (!found && dev_dm->get_num_policy() < EM_MAX_POLICIES) {
+                        dev_dm->m_policy[dev_dm->get_num_policy()] = pol;
+                        dev_dm->set_num_policy(dev_dm->get_num_policy() + 1);
+                    }
+                }
+            }
+            break;
+        }
 
         case dm_orch_type_topo_publish:
         case dm_orch_type_bsta_cap_query:

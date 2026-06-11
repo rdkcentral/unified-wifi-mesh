@@ -54,11 +54,18 @@ int dm_policy_t::decode(const cJSON *obj, void *parent_id, em_policy_id_type_t t
 		if ((sta_arr_obj = cJSON_GetObjectItem(obj, "Disallowed STA")) == NULL) {
 			return 0;
 		}
+		static const mac_address_t null_mac = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 		for (i = 0; i < cJSON_GetArraySize(sta_arr_obj); i++) {
 			tmp = cJSON_GetArrayItem(sta_arr_obj, i);
-			dm_easy_mesh_t::string_to_macbytes(cJSON_GetStringValue(cJSON_GetObjectItem(tmp, "MAC")), 
-					m_policy.sta_mac[m_policy.num_sta]);
-			m_policy.num_sta++;	
+			const char *mac_str = cJSON_GetStringValue(tmp);
+			if (mac_str == NULL) {
+				continue;
+			}
+			dm_easy_mesh_t::string_to_macbytes(mac_str, m_policy.sta_mac[m_policy.num_sta]);
+			if (memcmp(m_policy.sta_mac[m_policy.num_sta], null_mac, sizeof(mac_address_t)) == 0) {
+				continue;
+			}
+			m_policy.num_sta++;
 		}
 	} else if (type == em_policy_id_type_steering_param) {
 		if ((tmp = cJSON_GetObjectItem(obj, "Steering Policy")) != NULL) {
@@ -116,33 +123,41 @@ int dm_policy_t::decode(const cJSON *obj, void *parent_id, em_policy_id_type_t t
 		}
 	} else if (type == em_policy_id_type_backhaul_bss_config) {
         if ((tmp = cJSON_GetObjectItem(obj, "BSSID")) != NULL) {
-			dm_easy_mesh_t::string_to_macbytes(cJSON_GetStringValue(tmp), m_policy.bssid);
-		}
-        if ((tmp = cJSON_GetObjectItem(obj, "Profile-1 bSTA Disallowed")) != NULL) {
-			m_policy.profile_1_sta_disallowed = tmp->valuedouble;
-		}
-        if ((tmp = cJSON_GetObjectItem(obj, "Profile-2 bSTA Disallowed")) != NULL) {
-			m_policy.profile_2_sta_disallowed = tmp->valuedouble;
+			if (m_policy.num_backhaul_bss_config < EM_MAX_BSS_PER_RADIO) {
+				unsigned int slot = m_policy.num_backhaul_bss_config;
+				dm_easy_mesh_t::string_to_macbytes(cJSON_GetStringValue(tmp), m_policy.backhaul_bss_config[slot].bssid);
+				if ((tmp = cJSON_GetObjectItem(obj, "Profile-1 bSTA Disallowed")) != NULL) {
+					m_policy.backhaul_bss_config[slot].b_profile_1_sta_disallowed = (bool)tmp->valueint;
+				}
+				if ((tmp = cJSON_GetObjectItem(obj, "Profile-2 bSTA Disallowed")) != NULL) {
+					m_policy.backhaul_bss_config[slot].b_profile_2_sta_disallowed = (bool)tmp->valueint;
+				}
+				m_policy.num_backhaul_bss_config++;
+			}
 		}
 	} else if (type == em_policy_id_type_qos_mgt) {
-		cJSON *mac_arr_obj;
-		if ((mac_arr_obj = cJSON_GetObjectItem(obj, "MSCS Disallowed STA List")) != NULL) {
-			for (i = 0; i < static_cast<unsigned int>(cJSON_GetArraySize(mac_arr_obj)) &&
-					m_policy.qos_mgt.num_mscs < EM_MAX_MSC_PER_TRAFFIC_SEPAR; i++) {
-				tmp = cJSON_GetArrayItem(mac_arr_obj, i);
-				dm_easy_mesh_t::string_to_macbytes(cJSON_GetStringValue(tmp),
-						m_policy.qos_mgt.msc_mac[m_policy.qos_mgt.num_mscs]);
-				m_policy.qos_mgt.num_mscs++;
+		if (m_policy.num_qos_mgt < EM_MAX_STA_PER_AGENT) {
+			unsigned int slot = m_policy.num_qos_mgt;
+			cJSON *mac_arr_obj;
+			if ((mac_arr_obj = cJSON_GetObjectItem(obj, "MSCS Disallowed STA List")) != NULL) {
+				for (i = 0; i < static_cast<unsigned int>(cJSON_GetArraySize(mac_arr_obj)) &&
+						m_policy.qos_mgt[slot].num_mscs < EM_MAX_MSC_PER_TRAFFIC_SEPAR; i++) {
+					tmp = cJSON_GetArrayItem(mac_arr_obj, i);
+					dm_easy_mesh_t::string_to_macbytes(cJSON_GetStringValue(tmp),
+							m_policy.qos_mgt[slot].msc_mac[m_policy.qos_mgt[slot].num_mscs]);
+					m_policy.qos_mgt[slot].num_mscs++;
+				}
 			}
-		}
-		if ((mac_arr_obj = cJSON_GetObjectItem(obj, "SCS Disallowed STA List")) != NULL) {
-			for (i = 0; i < static_cast<unsigned int>(cJSON_GetArraySize(mac_arr_obj)) &&
-					m_policy.qos_mgt.num_scs < EM_MAX_SCS_PER_TRAFFIC_SEPAR; i++) {
-				tmp = cJSON_GetArrayItem(mac_arr_obj, i);
-				dm_easy_mesh_t::string_to_macbytes(cJSON_GetStringValue(tmp),
-						m_policy.qos_mgt.sc_mac[m_policy.qos_mgt.num_scs]);
-				m_policy.qos_mgt.num_scs++;
+			if ((mac_arr_obj = cJSON_GetObjectItem(obj, "SCS Disallowed STA List")) != NULL) {
+				for (i = 0; i < static_cast<unsigned int>(cJSON_GetArraySize(mac_arr_obj)) &&
+						m_policy.qos_mgt[slot].num_scs < EM_MAX_SCS_PER_TRAFFIC_SEPAR; i++) {
+					tmp = cJSON_GetArrayItem(mac_arr_obj, i);
+					dm_easy_mesh_t::string_to_macbytes(cJSON_GetStringValue(tmp),
+							m_policy.qos_mgt[slot].sc_mac[m_policy.qos_mgt[slot].num_scs]);
+					m_policy.qos_mgt[slot].num_scs++;
+				}
 			}
+			m_policy.num_qos_mgt++;
 		}
 	} else if (type == em_policy_id_type_alarm_threshold) {
         if ((tmp = cJSON_GetObjectItem(obj, "Collection Start Time")) != NULL) {
@@ -194,12 +209,14 @@ void dm_policy_t::encode(cJSON *obj, em_policy_id_type_t id)
 	dm_easy_mesh_t::macbytes_to_string(m_policy.id.radio_mac, radio_mac_str);
 
 	if ((id == em_policy_id_type_steering_local) || (id == em_policy_id_type_steering_btm)) {
+		static const mac_address_t null_mac = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 		sta_arr_obj = cJSON_AddArrayToObject(obj, "Disallowed STA");
 		for (i = 0; i < m_policy.num_sta; i++) {
-			sta_obj = cJSON_CreateObject();
+			if (memcmp(m_policy.sta_mac[i], null_mac, sizeof(mac_address_t)) == 0) {
+				continue;
+			}
 			dm_easy_mesh_t::macbytes_to_string(m_policy.sta_mac[i], sta_mac_str);
-			cJSON_AddStringToObject(sta_obj, "MAC", sta_mac_str);
-			cJSON_AddItemToArray(sta_arr_obj, sta_obj);
+			cJSON_AddItemToArray(sta_arr_obj, cJSON_CreateString(sta_mac_str));
 		}
 
 	} else if (id == em_policy_id_type_steering_param) {
@@ -225,23 +242,27 @@ void dm_policy_t::encode(cJSON *obj, em_policy_id_type_t id)
         cJSON_AddBoolToObject(obj, "Report Unsuccessful Associations", m_policy.report_unassoc_sta);
         cJSON_AddNumberToObject(obj, "Maximum Reporting Rate", m_policy.max_reporting_rate);
 	} else if (id == em_policy_id_type_backhaul_bss_config) {
-		cJSON *item = cJSON_CreateObject();
-		dm_easy_mesh_t::macbytes_to_string(m_policy.bssid, sta_mac_str);
-		cJSON_AddStringToObject(item, "BSSID", sta_mac_str);
-		cJSON_AddBoolToObject(item, "Profile-1 bSTA Disallowed", m_policy.profile_1_sta_disallowed);
-		cJSON_AddBoolToObject(item, "Profile-2 bSTA Disallowed", m_policy.profile_2_sta_disallowed);
-		cJSON_AddItemToArray(obj, item);
+		for (unsigned int b = 0; b < m_policy.num_backhaul_bss_config; b++) {
+			cJSON *item = cJSON_CreateObject();
+			dm_easy_mesh_t::macbytes_to_string(m_policy.backhaul_bss_config[b].bssid, sta_mac_str);
+			cJSON_AddStringToObject(item, "BSSID", sta_mac_str);
+			cJSON_AddBoolToObject(item, "Profile-1 bSTA Disallowed", m_policy.backhaul_bss_config[b].b_profile_1_sta_disallowed);
+			cJSON_AddBoolToObject(item, "Profile-2 bSTA Disallowed", m_policy.backhaul_bss_config[b].b_profile_2_sta_disallowed);
+			cJSON_AddItemToArray(obj, item);
+		}
 	} else if (id == em_policy_id_type_qos_mgt) {
-        cJSON *mscs_arr = cJSON_AddArrayToObject(obj, "MSCS Disallowed STA List");
-        for (i = 0; i < m_policy.qos_mgt.num_mscs; i++) {
-            dm_easy_mesh_t::macbytes_to_string(m_policy.qos_mgt.msc_mac[i], sta_mac_str);
-            cJSON_AddItemToArray(mscs_arr, cJSON_CreateString(sta_mac_str));
-        }
-        cJSON *scs_arr = cJSON_AddArrayToObject(obj, "SCS Disallowed STA List");
-        for (i = 0; i < m_policy.qos_mgt.num_scs; i++) {
-            dm_easy_mesh_t::macbytes_to_string(m_policy.qos_mgt.sc_mac[i], sta_mac_str);
-            cJSON_AddItemToArray(scs_arr, cJSON_CreateString(sta_mac_str));
-        }
+		for (unsigned int q = 0; q < m_policy.num_qos_mgt; q++) {
+			cJSON *mscs_arr = cJSON_AddArrayToObject(obj, "MSCS Disallowed STA List");
+			for (i = 0; i < m_policy.qos_mgt[q].num_mscs; i++) {
+				dm_easy_mesh_t::macbytes_to_string(m_policy.qos_mgt[q].msc_mac[i], sta_mac_str);
+				cJSON_AddItemToArray(mscs_arr, cJSON_CreateString(sta_mac_str));
+			}
+			cJSON *scs_arr = cJSON_AddArrayToObject(obj, "SCS Disallowed STA List");
+			for (i = 0; i < m_policy.qos_mgt[q].num_scs; i++) {
+				dm_easy_mesh_t::macbytes_to_string(m_policy.qos_mgt[q].sc_mac[i], sta_mac_str);
+				cJSON_AddItemToArray(scs_arr, cJSON_CreateString(sta_mac_str));
+			}
+		}
 	}
 }
 
