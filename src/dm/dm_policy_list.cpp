@@ -128,10 +128,6 @@ int dm_policy_list_t::get_config(cJSON *parent_obj, void *parent, bool summary)
 	radio_steer_arr_obj = cJSON_CreateArray();
 	cJSON_AddItemToObject(steering_policies_obj, "Radio Steering Parameters", radio_steer_arr_obj);
 
-	static const mac_address_t bcast_mac = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
-	dm_easy_mesh_ctrl_t *radio_ctrl = dynamic_cast<dm_easy_mesh_ctrl_t *>(this);
-	dm_easy_mesh_t *radio_dev_dm = radio_ctrl ? radio_ctrl->get_data_model(GLOBAL_NET_ID, dev_mac) : nullptr;
-
     policy = static_cast<dm_policy_t *>(get_first_policy());
     while (policy != NULL) {
 		if (memcmp(policy->m_policy.id.dev_mac, dev_mac, sizeof(mac_address_t)) != 0) {
@@ -139,32 +135,10 @@ int dm_policy_list_t::get_config(cJSON *parent_obj, void *parent, bool summary)
 	    	continue;
 		}
 
-		// Skip policies with null radio_mac — they are defaults/wildcards, not real radio entries.
+		// Skip policies with null radio_mac — they are device-global, not radio-specific.
 		if (memcmp(policy->m_policy.id.radio_mac, null_mac, sizeof(mac_address_t)) == 0) {
 	    	policy = get_next_policy(policy);
 	    	continue;
-		}
-
-		// Broadcast radio MAC means "applies to all radios" — expand to per-radio entries.
-		if (memcmp(policy->m_policy.id.radio_mac, bcast_mac, sizeof(mac_address_t)) == 0) {
-			if (radio_dev_dm != nullptr) {
-				for (unsigned int r = 0; r < radio_dev_dm->get_num_radios(); r++) {
-					dm_easy_mesh_t::macbytes_to_string(radio_dev_dm->m_radio[r].m_radio_info.intf.mac, radio_mac_str);
-					obj = cJSON_CreateObject();
-					cJSON_AddStringToObject(obj, "ID", radio_mac_str);
-					if (policy->m_policy.id.type == em_policy_id_type_steering_param) {
-						policy->encode(obj, em_policy_id_type_steering_param);
-						cJSON_AddItemToArray(radio_steer_arr_obj, obj);
-					} else if (policy->m_policy.id.type == em_policy_id_type_radio_metrics_rep) {
-						policy->encode(obj, em_policy_id_type_radio_metrics_rep);
-						cJSON_AddItemToArray(radio_metrics_arr_obj, obj);
-					} else {
-						cJSON_Delete(obj);
-					}
-				}
-			}
-			policy = get_next_policy(policy);
-			continue;
 		}
 
 		dm_easy_mesh_t::macbytes_to_string(policy->m_policy.id.radio_mac, radio_mac_str);
@@ -262,9 +236,7 @@ void dm_policy_list_t::update_list(const dm_policy_t& policy, dm_orch_type_t op)
 
         case dm_orch_type_db_update:
             ppolicy = get_policy(key);
-            if (ppolicy != NULL) {
-                memcpy(&ppolicy->m_policy, &policy.m_policy, sizeof(em_policy_t));
-            }
+            memcpy(&ppolicy->m_policy, &policy.m_policy, sizeof(em_policy_t));
             break;
 
         case dm_orch_type_db_delete:

@@ -3081,28 +3081,6 @@ void dm_easy_mesh_t::set_policy(dm_policy_t policy)
 	dm_policy_t *ppolicy;
 	bool found_match = false;
 	bool temp = 0;
-	static const mac_address_t null_mac  = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
-	static const mac_address_t bcast_mac = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
-
-	// For per-radio policy types: if we're inserting a real per-radio entry,
-	// remove any broadcast (ff:ff) entry of the same type — they are mutually exclusive.
-	if ((policy.m_policy.id.type == em_policy_id_type_radio_metrics_rep ||
-	     policy.m_policy.id.type == em_policy_id_type_steering_param) &&
-	    memcmp(policy.m_policy.id.radio_mac, bcast_mac, sizeof(mac_address_t)) != 0 &&
-	    memcmp(policy.m_policy.id.radio_mac, null_mac, sizeof(mac_address_t)) != 0) {
-		for (unsigned int k = 0; k < m_num_policy; k++) {
-			if (m_policy[k].m_policy.id.type == policy.m_policy.id.type &&
-			    memcmp(m_policy[k].m_policy.id.radio_mac, bcast_mac, sizeof(mac_address_t)) == 0) {
-				// Shift remaining entries down to fill the gap
-				for (unsigned int j = k; j < m_num_policy - 1; j++) {
-					memcpy(&m_policy[j].m_policy, &m_policy[j + 1].m_policy, sizeof(em_policy_t));
-				}
-				m_num_policy--;
-				break;
-			}
-		}
-	}
-
     for (i = 0; i < m_num_policy; i++) {
         ppolicy = &m_policy[i];
         temp = ((strncmp(policy.m_policy.id.net_id, ppolicy->m_policy.id.net_id, strlen(policy.m_policy.id.net_id)) == 0) &&

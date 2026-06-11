@@ -61,6 +61,9 @@ short em_policy_cfg_t::create_metrics_rep_policy_tlv(unsigned char *buff)
         dm = get_current_cmd()->get_data_model();
 	}
 
+    em_printfout("      ----->>>>> Creating metrics report policy TLV, num policies=%u, num radios=%u",
+        dm->get_num_policy(),
+        dm->get_num_radios());
     /*Validate policy count */
     unsigned int num_policies = dm->get_num_policy();
     if ((num_policies == 0) || (num_policies > EM_MAX_POLICIES)) {
@@ -84,68 +87,54 @@ short em_policy_cfg_t::create_metrics_rep_policy_tlv(unsigned char *buff)
     }
 
 	if (found_match == false) {
-		return 0;
-	}	
+        em_printfout("No matching policy found for metrics report policy TLV");
+        // ap_metrics_rep not in cmd_dm — get interval from live DM
+        for (i = 0; i < get_data_model()->get_num_policy(); i++) {
+            policy = &get_data_model()->m_policy[i];
+            if (policy->m_policy.id.type == em_policy_id_type_ap_metrics_rep) {
+                found_match = true;
+                break;
+            }
+        }
+        if (found_match == false) {
+            return 0;
+        }
+	}
 
-	found_match = false;
+	//found_match = false;
 	metric->interval = static_cast<unsigned char> (policy->m_policy.interval);
 
     unsigned int radio_cnt = 0;
+	em_printfout(" NUM of radios: %d", radio_cnt);
 
-	for (i = 0; i < dm->get_num_policy(); i++) {
+    for (i = 0; i < dm->get_num_policy(); i++) {
 		policy = &dm->m_policy[i];
 		if (policy->m_policy.id.type == em_policy_id_type_radio_metrics_rep) {
-			if ((memcmp(policy->m_policy.id.radio_mac, broadcast_mac, sizeof(mac_address_t)) == 0)) {
-				found_match = true;
-                //if broadcast, fill all radios
-                em_printfout("  Fill broadcast mac: %s", util::mac_to_string(get_data_model()->get_radio_info(radio_cnt)->id.ruid).c_str());
-                radio_cnt = get_data_model()->get_num_radios();
-            	break;	
-			} else {
-                radio_metric = &metric->radios[radio_cnt];
-                memcpy(radio_metric->ruid, policy->m_policy.id.radio_mac, sizeof(mac_address_t));
-                em_printfout("Radio %d MAC: %s for type %d", radio_cnt, util::mac_to_string(policy->m_policy.id.radio_mac).c_str(), policy->m_policy.id.type);
-
-                radio_metric->rcpi_thres = static_cast<unsigned char> (policy->m_policy.rcpi_threshold);
-                radio_metric->rcpi_hysteresis = static_cast<unsigned char> (policy->m_policy.rcpi_hysteresis);
-                radio_metric->util_thres = static_cast<unsigned char> (policy->m_policy.util_threshold);
-                radio_metric->sta_policy = 0;
-                if (policy->m_policy.sta_traffic_stats == true) {
-                    radio_metric->sta_policy |= (1 << 7);
+            for(int r = 0; r < get_data_model()->get_num_radios(); r++) {
+                if ((memcmp(policy->m_policy.id.radio_mac, get_data_model()->get_radio_info(r)->id.ruid, sizeof(mac_address_t)) == 0)) {
+                    radio_metric = &metric->radios[radio_cnt];
+                    em_printfout(" Radio %d MAC: %s", radio_cnt, util::mac_to_string(policy->m_policy.id.radio_mac).c_str());
+                    memcpy(radio_metric->ruid, policy->m_policy.id.radio_mac, sizeof(mac_address_t));
+                    radio_metric->rcpi_thres = static_cast<unsigned char> (policy->m_policy.rcpi_threshold);
+                    radio_metric->rcpi_hysteresis = static_cast<unsigned char> (policy->m_policy.rcpi_hysteresis);
+                    radio_metric->util_thres = static_cast<unsigned char> (policy->m_policy.util_threshold);
+                    radio_metric->sta_policy = 0;
+                    if (policy->m_policy.sta_traffic_stats == true) {
+                        radio_metric->sta_policy |= (1 << 7);
+                    }
+                    if (policy->m_policy.sta_link_metric == true) {
+                        radio_metric->sta_policy |= (1 << 6);
+                    }
+                    if (policy->m_policy.sta_status == true) {
+                        radio_metric->sta_policy |= (1 << 5);
+                    }
+                    radio_cnt++;
+                    // break;	
                 }
-                if (policy->m_policy.sta_link_metric == true) {
-                    radio_metric->sta_policy |= (1 << 6);
-                }
-                if (policy->m_policy.sta_status == true) {
-                    radio_metric->sta_policy |= (1 << 5);
-                }
-                radio_cnt++;
             }
-		}
-	}
-	em_printfout(" NUM of radios: %d", radio_cnt);
+    	}
+    }
     metric->radios_num = radio_cnt;
-
-    if (found_match == true) {
-        for(i = 0; i < get_data_model()->get_num_radios(); i++) {
-            radio_metric = &metric->radios[i];
-            em_printfout(" Radio %d MAC: %s", i, util::mac_to_string(get_data_model()->get_radio_info(i)->id.ruid).c_str());
-            memcpy(radio_metric->ruid, get_data_model()->get_radio_info(i)->id.ruid, sizeof(mac_address_t));
-            radio_metric->rcpi_thres = static_cast<unsigned char> (policy->m_policy.rcpi_threshold);
-            radio_metric->rcpi_hysteresis = static_cast<unsigned char> (policy->m_policy.rcpi_hysteresis);
-            radio_metric->util_thres = static_cast<unsigned char> (policy->m_policy.util_threshold);
-            radio_metric->sta_policy = 0;
-            if (policy->m_policy.sta_traffic_stats == true) {
-                radio_metric->sta_policy |= (1 << 7);
-            }
-            if (policy->m_policy.sta_link_metric == true) {
-                radio_metric->sta_policy |= (1 << 6);
-            }
-            if (policy->m_policy.sta_status == true) {
-                radio_metric->sta_policy |= (1 << 5);
-            }
-        }
-	}
 
 	tmp += 2*sizeof(unsigned char) + metric->radios_num * sizeof(em_metric_rprt_policy_radio_t);
 	len += static_cast<short> (2*sizeof(unsigned char) + metric->radios_num * sizeof(em_metric_rprt_policy_radio_t));
@@ -195,7 +184,6 @@ short em_policy_cfg_t::create_steering_policy_tlv(unsigned char *buff)
 				memcpy(sta_policy->sta_mac[sta_policy->num_sta], policy->m_policy.sta_mac[i], sizeof(mac_address_t));
 				sta_policy->num_sta++;
 			}
-
 		}
 	}
 
@@ -227,38 +215,50 @@ short em_policy_cfg_t::create_steering_policy_tlv(unsigned char *buff)
 		}
 	}
 
+    unsigned int num_radios = 0;
+
+    	for (i = 0; i < dm->get_num_policy(); i++) {
+            policy = &dm->m_policy[i];
+            if (policy->m_policy.id.type == em_policy_id_type_steering_param) {
+                for (unsigned int r = 0; r < get_data_model()->get_num_radios(); r++) {
+                    if (memcmp(policy->m_policy.id.radio_mac, get_data_model()->get_radio_info(r)->id.ruid, sizeof(mac_address_t)) == 0) {
+                        num_radios++;
+                        break;
+                    }
+                }
+            }
+        }
+
 	tmp += sizeof(unsigned char) + sta_policy->num_sta*sizeof(mac_address_t);
 	len += sizeof(unsigned char) + sta_policy->num_sta*sizeof(mac_address_t);
+
+    //radio
+    *tmp = static_cast<unsigned char>(num_radios);
+    tmp += sizeof(unsigned char);
+    len += sizeof(unsigned char);
+    em_printfout("Steering policy: found radio policy with type %d, num_radios=%u",
+        policy->m_policy.id.type,
+        num_radios);
 
 	for (i = 0; i < dm->get_num_policy(); i++) {
 		policy = &dm->m_policy[i];
 		if (policy->m_policy.id.type == em_policy_id_type_steering_param) {
-			if (memcmp(policy->m_policy.id.radio_mac, broadcast_mac, sizeof(mac_address_t)) == 0 ||
-				memcmp(policy->m_policy.id.radio_mac, get_radio_interface_mac(), sizeof(mac_address_t)) == 0) {
-				found_match = true;
-				break;
-			}
+            for (unsigned int r = 0; r < get_data_model()->get_num_radios(); r++) {
+                if (memcmp(policy->m_policy.id.radio_mac, get_data_model()->get_radio_info(r)->id.ruid, sizeof(mac_address_t)) == 0) {
+                    radio_policy = reinterpret_cast<em_steering_policy_radio_t *>(tmp);
+                    memcpy(radio_policy->ruid,
+                        get_data_model()->get_radio_info(r)->id.ruid,
+                        sizeof(mac_address_t));
+                    radio_policy->steering_policy = static_cast<unsigned char>(policy->m_policy.policy);
+                    radio_policy->channel_util_thresh = static_cast<unsigned char>(policy->m_policy.util_threshold);
+                    radio_policy->rssi_steering_thresh = static_cast<unsigned char>(policy->m_policy.rcpi_threshold);
+                    tmp += sizeof(em_steering_policy_radio_t);
+                    len += sizeof(em_steering_policy_radio_t);
+                    break;
+                }
+            }
 		}
 	}
-
-	//radio
-    bool is_bcast = found_match &&
-        (memcmp(policy->m_policy.id.radio_mac, broadcast_mac, sizeof(mac_address_t)) == 0);
-    unsigned int num_radios = found_match ? (is_bcast ? get_data_model()->get_num_radios() : 1u) : 0u;
-    *tmp = static_cast<unsigned char>(num_radios);
-    tmp += sizeof(unsigned char);
-    len += sizeof(unsigned char);
-    for (unsigned int r = 0; r < num_radios; r++) {
-        radio_policy = reinterpret_cast<em_steering_policy_radio_t *>(tmp);
-        memcpy(radio_policy->ruid,
-            is_bcast ? get_data_model()->get_radio_info(r)->id.ruid : get_radio_interface_mac(),
-            sizeof(mac_address_t));
-        radio_policy->steering_policy = static_cast<unsigned char>(policy->m_policy.policy);
-        radio_policy->channel_util_thresh = static_cast<unsigned char>(policy->m_policy.util_threshold);
-        radio_policy->rssi_steering_thresh = static_cast<unsigned char>(policy->m_policy.rcpi_threshold);
-        tmp += sizeof(em_steering_policy_radio_t);
-        len += sizeof(em_steering_policy_radio_t);
-    }
 
 	return static_cast<short> (len);
 }
