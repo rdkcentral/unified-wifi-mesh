@@ -1470,7 +1470,7 @@ TEST(em_cmd_t, ConstructionWithOutOfRangeCmdType)
     dm_easy_mesh_t dm;
     dm.init();
     em_cmd_t cmd(static_cast<em_cmd_type_t>(-1), param, dm);
-    EXPECT_EQ(cmd.m_type, static_cast<em_cmd_type_t>(-1));
+    EXPECT_EQ(cmd.m_type, em_cmd_type_max);
     cmd.deinit();
     dm.deinit();
     std::cout << "Exiting ConstructionWithOutOfRangeCmdType test" << std::endl;
