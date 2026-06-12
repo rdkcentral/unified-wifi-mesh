@@ -109,10 +109,19 @@ int dm_easy_mesh_agent_t::analyze_dev_init(em_bus_event_t *evt, em_cmd_t *pcmd[]
 int dm_easy_mesh_agent_t::analyze_sta_list(em_bus_event_t *evt, em_cmd_t *pcmd[])
 {
     unsigned int num = 0, i = 0, num_radios = 0;
+    unsigned int idx = 0, j = 0, k = 0;
     dm_easy_mesh_agent_t  dm;
     dm_sta_t *sta = NULL;
     em_cmd_t *tmp = NULL;
+    mac_address_t sta_mld_mac;
+    mac_address_t *candidate = NULL;
     em_long_string_t key;
+    mac_address_t assoc_sta_mld_tracked_macs[EM_MAX_ASSOC_STA_MLD] = {{0}};
+    mac_address_t disassoc_sta_mld_tracked_macs[EM_MAX_ASSOC_STA_MLD] = {{0}};
+    unsigned int assoc_sta_mld_tracked_count = 0;
+    unsigned int disassoc_sta_mld_tracked_count = 0;
+    bool disassoc_only_update = false;
+    bool is_tracked_sta_mld = false;
     mac_addr_str_t radio_str;
     mac_addr_str_t  sta_mac_str, bss_mac_str, radio_mac_str;
 
@@ -132,6 +141,36 @@ int dm_easy_mesh_agent_t::analyze_sta_list(em_bus_event_t *evt, em_cmd_t *pcmd[]
     dm.translate_and_decode_onewifi_subdoc(reinterpret_cast<char *>(evt->u.raw_buff),
         webconfig_subdoc_type_associated_clients, "Assoc clients");
 
+    // Refresh global STA-MLD entries from the latest decoded snapshot.
+    for (idx = 0; idx < dm.m_num_assoc_sta_mld; idx++) {
+        memcpy(sta_mld_mac, dm.m_assoc_sta_mld[idx].m_assoc_sta_mld_info.mac_addr, sizeof(mac_address_t));
+        remove_assoc_sta_mld_info(sta_mld_mac);
+        update_assoc_sta_mld_info(&dm.m_assoc_sta_mld[idx].m_assoc_sta_mld_info);
+    }
+
+    // Purge stale global STA-MLD entries.
+    // Skip purge for disassoc-only updates to retain AP-MLD mapping for disconnect handling.
+    disassoc_only_update = ((dm.m_num_assoc_sta_mld == 0) &&
+                            (hash_map_count(dm.m_sta_dassoc_map) > 0));
+    if (!disassoc_only_update) {
+        for (idx = m_num_assoc_sta_mld; idx-- > 0;) {
+            candidate = &m_assoc_sta_mld[idx].m_assoc_sta_mld_info.mac_addr;
+            bool still_present = false;
+            for (j = 0; j < dm.m_num_assoc_sta_mld; j++) {
+                if (memcmp(dm.m_assoc_sta_mld[j].m_assoc_sta_mld_info.mac_addr, *candidate,
+                           sizeof(mac_address_t)) == 0) {
+                    still_present = true;
+                    break;
+                }
+            }
+            if (!still_present) {
+                em_printfout("Purge stale assoc STA MLD: %s",
+                             util::mac_to_string(*candidate).c_str());
+                remove_assoc_sta_mld_info(*candidate);
+            }
+        }
+    }
+
     for ( i = 0; i < num_radios; i++) {
         evt->params.u.args.num_args = 1;
         dm_easy_mesh_t::macbytes_to_string(get_radio_by_ref(i).get_radio_interface_mac(), radio_str);
@@ -147,8 +186,24 @@ int dm_easy_mesh_agent_t::analyze_sta_list(em_bus_event_t *evt, em_cmd_t *pcmd[]
             }
 
             dm_easy_mesh_t::macbytes_to_string(sta->m_sta_info.id, sta_mac_str);
-            dm_easy_mesh_t::macbytes_to_string(sta->m_sta_info.bssid, bss_mac_str);
             dm_easy_mesh_t::macbytes_to_string(sta->m_sta_info.radiomac, radio_mac_str);
+            is_tracked_sta_mld = false;
+            for (k = 0; k < assoc_sta_mld_tracked_count; k++) {
+                if (memcmp(assoc_sta_mld_tracked_macs[k], sta->m_sta_info.id, sizeof(mac_address_t)) == 0) {
+                    is_tracked_sta_mld = true;
+                    break;
+                }
+            }
+            if (is_tracked_sta_mld) {
+                sta = static_cast<dm_sta_t *>(hash_map_get_next(dm.m_sta_assoc_map, sta));
+                continue;
+            }
+            if (assoc_sta_mld_tracked_count < EM_MAX_ASSOC_STA_MLD) {
+                memcpy(assoc_sta_mld_tracked_macs[assoc_sta_mld_tracked_count], sta->m_sta_info.id, sizeof(mac_address_t));
+                assoc_sta_mld_tracked_count++;
+            }
+
+            dm_easy_mesh_t::macbytes_to_string(sta->m_sta_info.bssid, bss_mac_str);
             snprintf(key, sizeof(em_long_string_t), "%s@%s@%s", sta_mac_str, bss_mac_str, radio_mac_str);
             hash_map_put(pcmd[num]->m_data_model.m_sta_assoc_map, strdup(key), new dm_sta_t(*sta));
             sta = static_cast<dm_sta_t *> (hash_map_get_next(dm.m_sta_assoc_map, sta));
@@ -162,8 +217,24 @@ int dm_easy_mesh_agent_t::analyze_sta_list(em_bus_event_t *evt, em_cmd_t *pcmd[]
              }
 
             dm_easy_mesh_t::macbytes_to_string(sta->m_sta_info.id, sta_mac_str);
-            dm_easy_mesh_t::macbytes_to_string(sta->m_sta_info.bssid, bss_mac_str);
             dm_easy_mesh_t::macbytes_to_string(sta->m_sta_info.radiomac, radio_mac_str);
+            is_tracked_sta_mld = false;
+            for (k = 0; k < disassoc_sta_mld_tracked_count; k++) {
+                if (memcmp(disassoc_sta_mld_tracked_macs[k], sta->m_sta_info.id, sizeof(mac_address_t)) == 0) {
+                    is_tracked_sta_mld = true;
+                    break;
+                }
+            }
+            if (is_tracked_sta_mld) {
+                sta = static_cast<dm_sta_t *>(hash_map_get_next(dm.m_sta_dassoc_map, sta));
+                continue;
+            }
+            if (disassoc_sta_mld_tracked_count < EM_MAX_ASSOC_STA_MLD) {
+                memcpy(disassoc_sta_mld_tracked_macs[disassoc_sta_mld_tracked_count], sta->m_sta_info.id, sizeof(mac_address_t));
+                disassoc_sta_mld_tracked_count++;
+            }
+
+            dm_easy_mesh_t::macbytes_to_string(sta->m_sta_info.bssid, bss_mac_str);
             snprintf(key, sizeof(em_long_string_t), "%s@%s@%s", sta_mac_str, bss_mac_str, radio_mac_str);
             hash_map_put(pcmd[num]->m_data_model.m_sta_dassoc_map, strdup(key), new dm_sta_t(*sta));
             sta = static_cast<dm_sta_t *> (hash_map_get_next(dm.m_sta_dassoc_map, sta));

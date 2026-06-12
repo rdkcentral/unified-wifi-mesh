@@ -523,7 +523,7 @@ class em_metrics_t {
 	 *
 	 * @note Ensure that the buffer is large enough to hold the TLV data.
 	 */
-	short create_assoc_sta_traffic_stats_tlv(unsigned char *buff, const dm_sta_t *const sta);
+	virtual short create_assoc_sta_traffic_stats_tlv(unsigned char *buff, const dm_sta_t *const sta);
     
 	/**!
 	 * @brief Creates an association report TLV for a WiFi 6 station.

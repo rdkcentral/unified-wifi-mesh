@@ -474,7 +474,44 @@ class em_configuration_t {
 	 * @note Ensure that the MAC address and BSSID are valid before calling this function.
 	 */
 	int send_topology_notification_by_client(mac_address_t sta, bssid_t bssid, bool assoc);
-    
+
+	/**!
+	 * @brief Sends a Client Disassociation Stats message as required by EasyMesh spec (17.1.41).
+	 *
+	 * When a client disassociates, this message shall be sent to the Multi-AP Controller
+	 * including STA MAC Address Type TLV, Reason Code TLV, Associated STA Traffic Stats TLV,
+	 * and zero or more Affiliated STA Metrics TLVs (for MLD clients).
+	 *
+	 * @param[in] sta  The MAC address of the disassociated station (MLD MAC if MLD client).
+	 * @param[in] bssid The BSSID from which the station disassociated.
+	 *
+	 * @returns int
+	 * @retval message length on success
+	 * @retval -1 on failure
+	 */
+	int send_client_disassoc_stats_msg(mac_address_t sta, bssid_t bssid);
+
+	/**!
+	 * @brief Sends a Failed Connection message
+	 *
+	 * Message content:
+	 * - One BSSID TLV
+	 * - One STA MAC Address Type TLV
+	 * - One Status Code TLV
+	 * - Zero or one Reason Code TLV
+	 *
+	 * @param[in] sta MAC address of the STA that attempted to connect.
+	 * @param[in] bssid BSSID to which the connection attempt was made.
+	 * @param[in] status_code IEEE 802.11 status code. If non-zero, reason TLV is omitted.
+	 * @param[in] reason_code IEEE 802.11 reason code used when status_code is zero.
+	 *
+	 * @returns int
+	 * @retval message length on success
+	 * @retval -1 on failure
+	 */
+	int send_failed_connection_msg(mac_address_t sta, bssid_t bssid,
+								   unsigned short status_code, unsigned short reason_code);
+
 	/**!
 	 * @brief Sends a BSTA MLD configuration request message.
 	 *
@@ -804,6 +841,7 @@ class em_configuration_t {
 	 */
 	int handle_topology_notification(unsigned char *buff, unsigned int len);
 	int handle_bsta_radio_cap(unsigned char *buff, unsigned int len);
+	int handle_assoc_sta_mld_conf_rep_tlv(unsigned char *buff, unsigned int len);
 
 	/**!
 	 * @brief Handles the operational BSS for the access point.
@@ -1578,7 +1616,21 @@ public:
 	bool send_autoconf_search_resp_ext_chirp(em_dpp_chirp_value_t *chirp, size_t len, uint8_t dest_mac[ETH_ALEN], unsigned short msg_id);
 
 	bool send_bss_config_req_msg(uint8_t dest_al_mac[ETH_ALEN]);
-    
+
+	/**!
+	 * @brief Evaluates Unsuccessful Association Policy and sends a Failed Connection message if permitted.
+	 *
+	 * Checks report_unsuccess_assocs and rate-limiting before calling send_failed_connection_msg.
+	 *
+	 * @param[in] sta MAC address of the STA that attempted to connect.
+	 * @param[in] bssid BSSID to which the connection attempt was made.
+	 * @param[in] status_code IEEE 802.11 status code.
+	 * @param[in] reason_code IEEE 802.11 reason code.
+	 * @param[in] reason_code_present Indicates whether reason_code is valid in the event payload.
+	 */
+	void handle_failed_connection_event(const mac_address_t sta, const bssid_t bssid,
+									 unsigned short status_code, unsigned short reason_code,
+									 bool reason_code_present);
 	/**!
 	 * @brief Processes a message with the given data and length.
 	 *

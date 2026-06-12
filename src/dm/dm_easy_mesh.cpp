@@ -105,6 +105,11 @@ dm_easy_mesh_t& dm_easy_mesh_t::operator = (dm_easy_mesh_t const& obj)
         m_ap_mld[i] = obj.m_ap_mld[i];
     }
 
+    m_num_assoc_sta_mld = obj.m_num_assoc_sta_mld;
+    for (unsigned int i = 0; i < EM_MAX_ASSOC_STA_MLD; i++) {
+        m_assoc_sta_mld[i] = obj.m_assoc_sta_mld[i];
+    }
+
     sta = static_cast<dm_sta_t *> (hash_map_get_first(obj.m_sta_map));
     while (sta != NULL) {
         dm_easy_mesh_t::macbytes_to_string(sta->m_sta_info.id, sta_mac_str);
@@ -3353,8 +3358,99 @@ void dm_easy_mesh_t::update_bsta_mld_info(em_bsta_mld_info_t *bsta_mld_info)
 
 void dm_easy_mesh_t::update_assoc_sta_mld_info(em_assoc_sta_mld_info_t *assoc_sta_mld_info)
 {
-    // TODO: Implement ASSOC MLD info update logic
-    em_printfout("Enter");
+    em_assoc_sta_mld_info_t *target_mld = NULL;
+    em_affiliated_sta_info_t *input_sta = NULL;                             
+    em_affiliated_sta_info_t *target_aff_sta = NULL;                        
+    unsigned int i, j, k;
+
+    // Find existing assoc STA MLD entry by STA MLD MAC address
+    for (i = 0; i < m_num_assoc_sta_mld; i++) {
+        if (memcmp(m_assoc_sta_mld[i].m_assoc_sta_mld_info.mac_addr, assoc_sta_mld_info->mac_addr,
+                sizeof(mac_address_t)) == 0) {
+            target_mld = &m_assoc_sta_mld[i].m_assoc_sta_mld_info;
+            break;
+        }
+    }
+
+    // If not found, create a new entry
+    if (!target_mld) {
+        if (m_num_assoc_sta_mld >= EM_MAX_ASSOC_STA_MLD) {
+            em_printfout("Max assoc STA MLD entries reached");
+            return;
+        }
+
+        target_mld = &m_assoc_sta_mld[m_num_assoc_sta_mld].m_assoc_sta_mld_info;
+        memset(target_mld, 0, sizeof(em_assoc_sta_mld_info_t));
+        m_num_assoc_sta_mld++;
+    }
+
+    // Update top-level MLD fields
+    memcpy(target_mld->mac_addr, assoc_sta_mld_info->mac_addr, sizeof(mac_address_t));
+    memcpy(target_mld->ap_mld_mac_addr, assoc_sta_mld_info->ap_mld_mac_addr, sizeof(mac_address_t));
+    target_mld->str   = assoc_sta_mld_info->str;
+    target_mld->nstr  = assoc_sta_mld_info->nstr;
+    target_mld->emlsr = assoc_sta_mld_info->emlsr;
+    target_mld->emlmr = assoc_sta_mld_info->emlmr;
+
+    // Update affiliated STA entries, keyed by BSSID.
+    // Keep this incremental because some callers may feed one affiliated link per update.
+    for (j = 0; j < assoc_sta_mld_info->num_affiliated_sta; j++) {
+        input_sta = &assoc_sta_mld_info->affiliated_sta[j];
+        target_aff_sta = NULL;
+        bool aff_sta_found = false;
+
+        for (k = 0; k < target_mld->num_affiliated_sta; k++) {
+            if (memcmp(target_mld->affiliated_sta[k].bssid, input_sta->bssid,
+                    sizeof(mac_address_t)) == 0) {
+                target_aff_sta = &target_mld->affiliated_sta[k];
+                aff_sta_found = true;
+                break;
+            }
+        }
+
+        if (!aff_sta_found) {
+            if (target_mld->num_affiliated_sta >= EM_MAX_AP_MLD) {
+                em_printfout("Max affiliated STAs reached for assoc STA MLD");
+                continue;
+            }
+
+            target_aff_sta = &target_mld->affiliated_sta[target_mld->num_affiliated_sta];
+            memset(target_aff_sta, 0, sizeof(em_affiliated_sta_info_t));
+            target_mld->num_affiliated_sta++;
+        }
+
+        memcpy(target_aff_sta->bssid, input_sta->bssid, sizeof(mac_address_t));
+        memcpy(target_aff_sta->mac_addr, input_sta->mac_addr, sizeof(mac_address_t));
+    }
+
+}
+
+void dm_easy_mesh_t::remove_assoc_sta_mld_info(mac_address_t sta_mld_mac)
+{
+    unsigned int found_idx = m_num_assoc_sta_mld; // sentinel: not found
+    unsigned int i;
+
+    for (i = 0; i < m_num_assoc_sta_mld; i++) {
+        if (memcmp(m_assoc_sta_mld[i].m_assoc_sta_mld_info.mac_addr, sta_mld_mac,
+                sizeof(mac_address_t)) == 0) {
+            found_idx = i;
+            break;
+        }
+    }
+
+    if (found_idx == m_num_assoc_sta_mld) {
+        return; // not found
+    }
+
+    // Compact the array: shift entries after found_idx one position left.
+    for (unsigned int i = found_idx; i < m_num_assoc_sta_mld - 1; i++) {
+        m_assoc_sta_mld[i] = m_assoc_sta_mld[i + 1];
+    }
+
+    // Zero out the vacated last slot and decrement count.
+    //memset(&m_assoc_sta_mld[m_num_assoc_sta_mld - 1], 0, sizeof(dm_assoc_sta_mld_t));
+    m_assoc_sta_mld[m_num_assoc_sta_mld - 1].init();
+    m_num_assoc_sta_mld--;
 }
 
 void dm_easy_mesh_t::reset_db_cfg_type(db_cfg_type_t type) 

@@ -1651,8 +1651,7 @@ int dm_easy_mesh_ctrl_t::analyze_sta_assoc_event(em_bus_event_t *evt, em_cmd_t *
     dm_easy_mesh_t  dm, *pdm;
     em_cmd_t *tmp;
     dm_bss_t *pbss;
-    bool radio_matched = false, found;
-    em_sta_info_t sta_info;
+    bool radio_matched = false, found = false;
     em_orch_desc_t desc;
     em_2xlong_string_t	key;
 
@@ -1693,38 +1692,46 @@ int dm_easy_mesh_ctrl_t::analyze_sta_assoc_event(em_bus_event_t *evt, em_cmd_t *
         break;
     }
     if (found == false) {
-        printf("%s:%d: Could not find bss: %s\n", __func__, __LINE__, bss_mac_str);
-        return -1;
-    }
+        // For MLO notifications, BSSID may be AP MLD MAC and not directly resolvable
+        // to a per-link BSS yet. Continue orchestration (topology sync/query path) and
+        // defer exact link resolution to topology response processing
+        em_printfout("BSS not found bssid=%s, using fallback radio",
+            util::mac_to_string(params->assoc.bssid).c_str());
+        if (pdm->m_num_radios == 0) {
+            return -1;
+        }
+        dm_easy_mesh_t::macbytes_to_string(pdm->m_radio[0].m_radio_info.intf.mac, radio_mac_str);
+        radio_matched = true;
+    } else {
+        dm_easy_mesh_t::macbytes_to_string(pbss->m_bss_info.ruid.mac, radio_mac_str);
 
-    dm_easy_mesh_t::macbytes_to_string(pbss->m_bss_info.ruid.mac, radio_mac_str);
+        // confirm that the radio is on this device
+        for (i = 0; i < pdm->m_num_radios; i++) {
+            if (memcmp(pbss->m_bss_info.ruid.mac, pdm->m_radio[i].m_radio_info.intf.mac, sizeof(mac_address_t)) == 0) {
+                radio_matched = true;
+                break;
+            }
+        }
 
-    // confirm that the radio is on this device
-    for (i = 0; i < pdm->m_num_radios; i++) {
-        if (memcmp(pbss->m_bss_info.ruid.mac, pdm->m_radio[i].m_radio_info.intf.mac, sizeof(mac_address_t)) == 0) {
-            radio_matched = true;
-            break;
+        if (radio_matched == false) {
+            printf("%s:%d: Could not find bss: %s on radio: %s\n", __func__, __LINE__, bss_mac_str, radio_mac_str);
+            return -1;
         }
     }
-
-    if (radio_matched == false) {
-        printf("%s:%d: Could not find bss: %s on radio: %s\n", __func__, __LINE__, bss_mac_str, radio_mac_str);
-        return -1;
-    }
-
-    memcpy(sta_info.id, params->assoc.cli_mac_address, sizeof(mac_address_t));
-    memcpy(sta_info.bssid, params->assoc.bssid, sizeof(mac_address_t));
-    memcpy(sta_info.radiomac, pbss->m_bss_info.ruid.mac, sizeof(mac_address_t));
 
     pcmd[num] = new em_cmd_sta_assoc_t(evt->params, dm);
     tmp = pcmd[num];
     num++;
 
     snprintf(key, sizeof(em_long_string_t), "%s@%s@%s", sta_mac_str, bss_mac_str, radio_mac_str);
-    if ((get_sta(key) != NULL) && (params->assoc.assoc_event == false)){
+    if ((params->assoc.assoc_event == false) && ((get_sta(key) != NULL) || (found == false))) {
         desc.op = dm_orch_type_topo_update;
         desc.submit = false;
         pcmd[num - 1]->override_op(0, &desc);
+        desc.op = dm_orch_type_topo_publish;
+        desc.submit = true;
+        pcmd[num - 1]->override_op(1, &desc);
+        pcmd[num - 1]->m_num_orch_desc = 2;
     }
 
     while ((pcmd[num] = tmp->clone_for_next()) != NULL) {
@@ -3519,6 +3526,15 @@ int dm_easy_mesh_ctrl_t::update_tables(dm_easy_mesh_t *dm)
             sta = static_cast<dm_sta_t *> (hash_map_get_next(dm->m_sta_assoc_map, sta));
         }
 
+        sta = static_cast<dm_sta_t *> (hash_map_get_first(dm->m_sta_dassoc_map));
+        while (sta != NULL) {
+            criteria = dm->db_cfg_type_get_criteria(db_cfg_type_sta_list_update);
+            if (dm_sta_list_t::set_config(m_db_client, *sta, NULL) == 0) {
+                dm->reset_db_cfg_type(db_cfg_type_sta_list_update);
+            }
+            sta = static_cast<dm_sta_t *> (hash_map_get_next(dm->m_sta_dassoc_map, sta));
+        }
+
         sta = static_cast<dm_sta_t *> (hash_map_get_first(dm->m_sta_assoc_map));
         while (sta != NULL) {
             tmp = sta;
@@ -3536,6 +3552,21 @@ int dm_easy_mesh_ctrl_t::update_tables(dm_easy_mesh_t *dm)
             delete tmp;
         }
             
+        sta = static_cast<dm_sta_t *> (hash_map_get_first(dm->m_sta_dassoc_map));
+        while (sta != NULL) {
+            tmp = sta;
+            criteria = dm->db_cfg_type_get_criteria(db_cfg_type_sta_list_update);
+            if (dm_sta_list_t::set_config(m_db_client, *sta, NULL) == 0) {
+                dm->reset_db_cfg_type(db_cfg_type_sta_list_update);
+            }
+            dm_easy_mesh_t::macbytes_to_string(sta->m_sta_info.id, sta_mac_str);
+            dm_easy_mesh_t::macbytes_to_string(sta->m_sta_info.bssid, bssid_str);
+            dm_easy_mesh_t::macbytes_to_string(sta->m_sta_info.radiomac, radio_mac_str);
+            snprintf(key, sizeof(em_2xlong_string_t), "%s@%s@%s", sta_mac_str, bssid_str, radio_mac_str);
+            sta = static_cast<dm_sta_t *> (hash_map_get_next(dm->m_sta_dassoc_map, sta));
+            hash_map_remove(dm->m_sta_dassoc_map, key);
+            delete tmp;
+        } 
 		dm->reset_db_cfg_type(db_cfg_type_sta_list_update);
     }
 
