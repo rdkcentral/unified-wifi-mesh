@@ -42,7 +42,7 @@
 int dm_policy_list_t::get_config(cJSON *parent_obj, void *parent, bool summary)
 {
     dm_policy_t *policy;
-	cJSON *obj, *radio_metrics_arr_obj, *radio_steer_arr_obj, *steering_policies_obj, *backhaul_bss_arr_obj;
+	cJSON *obj, *radio_metrics_arr_obj, *radio_steer_arr_obj, *steering_policies_obj;
 	mac_addr_str_t radio_mac_str;
 	mac_address_t dev_mac;
 	mac_address_t null_mac = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
@@ -87,12 +87,12 @@ int dm_policy_list_t::get_config(cJSON *parent_obj, void *parent, bool summary)
 			policy->encode(obj, em_policy_id_type_unsuccess_assoc);
 			cJSON_AddItemToObject(parent_obj, "Unsuccessful Association Policy", obj);
 		} else if (policy->m_policy.id.type == em_policy_id_type_backhaul_bss_config) {
-			cJSON_Delete(obj);
-			// Refresh backhaul_bss_config[] from the live BSS list of this device
-			// so encode() works from accurate data without needing a signature change.
+            mac_addr_str_t dev_mac_str;
+            printf("  ------->>>>> Refreshing backhaul BSS config from dm's BSS list for device %s\n", dm_easy_mesh_t::macbytes_to_string(dev_mac, dev_mac_str));
 			dm_easy_mesh_ctrl_t *ctrl = dynamic_cast<dm_easy_mesh_ctrl_t *>(this);
 			dm_easy_mesh_t *dev_dm = ctrl ? ctrl->get_data_model(GLOBAL_NET_ID, dev_mac) : nullptr;
 			if (dev_dm != nullptr) {
+                printf("Found device in data model, num_bss: %u with num_backhaul_bss_config: %u\n", dev_dm->m_num_bss, policy->m_policy.num_backhaul_bss_config);
 				policy->m_policy.num_backhaul_bss_config = 0;
 				for (unsigned int bi = 0; bi < dev_dm->m_num_bss && policy->m_policy.num_backhaul_bss_config < EM_MAX_BSS_PER_RADIO; bi++) {
 					em_bss_info_t *bss_info = dev_dm->m_bss[bi].get_bss_info();
@@ -102,18 +102,27 @@ int dm_policy_list_t::get_config(cJSON *parent_obj, void *parent, bool summary)
 					if (memcmp(bss_info->bssid.mac, null_mac, sizeof(mac_address_t)) == 0) {
 						continue;
 					}
-					unsigned int slot = policy->m_policy.num_backhaul_bss_config;
-					memcpy(policy->m_policy.backhaul_bss_config[slot].bssid, bss_info->bssid.mac, sizeof(mac_address_t));
-					policy->m_policy.backhaul_bss_config[slot].b_profile_1_sta_disallowed = bss_info->r1_disallowed;
-					policy->m_policy.backhaul_bss_config[slot].b_profile_2_sta_disallowed = bss_info->r2_disallowed;
+
+                    printf("Updtae m_policy's backhual data\n");
+
+					unsigned int cnt = policy->m_policy.num_backhaul_bss_config;
+					memcpy(policy->m_policy.backhaul_bss_config[cnt].bssid, bss_info->bssid.mac, sizeof(mac_address_t));
+					policy->m_policy.backhaul_bss_config[cnt].b_profile_1_sta_disallowed = bss_info->r1_disallowed;
+					policy->m_policy.backhaul_bss_config[cnt].b_profile_2_sta_disallowed = bss_info->r2_disallowed;
 					policy->m_policy.num_backhaul_bss_config++;
 				}
 			}
-			policy->encode(obj, em_policy_id_type_backhaul_bss_config);
+            printf("num_backhaul_bss_config: %d\n", policy->m_policy.num_backhaul_bss_config);
+			//cJSON_Delete(obj);
+			cJSON *arr = cJSON_CreateArray();
+			policy->encode(arr, em_policy_id_type_backhaul_bss_config);
+            cJSON_AddItemToObject(parent_obj, "Backhaul BSS Configurations", arr);
 		} else if (policy->m_policy.id.type == em_policy_id_type_qos_mgt) {
 			policy->encode(obj, em_policy_id_type_qos_mgt);
 			cJSON_AddItemToObject(parent_obj, "QoS Management Policy", obj);
 		} else if (policy->m_policy.id.type == em_policy_id_type_alarm_threshold) {
+            printf("  ------->>>>> Encodeeee\n");
+
             policy->encode(obj, em_policy_id_type_alarm_threshold);
             cJSON_AddItemToObject(parent_obj, "Algorithm Run Policy", obj);
         }
@@ -150,7 +159,7 @@ int dm_policy_list_t::get_config(cJSON *parent_obj, void *parent, bool summary)
 			cJSON_AddItemToArray(radio_steer_arr_obj, obj);
 		} else if (policy->m_policy.id.type == em_policy_id_type_radio_metrics_rep) {
 			policy->encode(obj, em_policy_id_type_radio_metrics_rep);
-			cJSON_AddItemToArray(radio_metrics_arr_obj, obj);
+            cJSON_AddItemToArray(radio_metrics_arr_obj, obj);
 		}
 
 		policy = get_next_policy(policy);
