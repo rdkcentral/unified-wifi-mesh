@@ -522,7 +522,7 @@ public:
 	 *
 	 * @note Ensure that the state provided is valid and within the expected range of states.
 	 */
-	void set_state(em_state_t state);
+	void set_state(em_state_t state) {  m_sm.set_state(state); }
 	
 	/**!
 	 * @brief Retrieves the service type.
