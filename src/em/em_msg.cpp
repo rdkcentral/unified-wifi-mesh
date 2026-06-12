@@ -124,6 +124,9 @@ bool em_msg_t::get_bss_id(mac_address_t *mac)
         } else if (tlv->type == em_tlv_type_ap_metrics) {
             memcpy(mac, tlv->value, sizeof(mac_address_t));
             return true;
+        } else if (tlv->type == em_tlv_type_bssid) {
+            memcpy(mac, tlv->value, sizeof(mac_address_t));
+            return true;
         }
 
         len -= static_cast<unsigned int> (sizeof(em_tlv_t) + htons(tlv->len));
@@ -837,6 +840,7 @@ void em_msg_t::client_disassoc_stats()
     m_tlv_member[m_num_tlv++] = em_tlv_member_t(em_tlv_type_sta_mac_addr, mandatory, "17.2.23 of Wi-Fi Easy Mesh 5.0", 9);
     m_tlv_member[m_num_tlv++] = em_tlv_member_t(em_tlv_type_reason_code, mandatory, "17.2.64 of Wi-Fi Easy Mesh 5.0", 5);
     m_tlv_member[m_num_tlv++] = em_tlv_member_t(em_tlv_type_assoc_sta_traffic_sts, mandatory, "17.2.35 of Wi-Fi Easy Mesh 5.0", 37);
+    m_tlv_member[m_num_tlv++] = em_tlv_member_t(em_tlv_type_affiliated_sta_metrics, optional, "17.2.100 of Wi-Fi Easy Mesh 6.0", 26);
 }
 void em_msg_t::svc_prio_req()
 {

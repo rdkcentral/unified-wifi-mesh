@@ -175,7 +175,11 @@ void em_t::orch_execute(em_cmd_t *pcmd)
             m_sm.set_state(em_state_agent_onewifi_bssconfig_ind);
             break;
         case em_cmd_type_sta_assoc:
-            if ((pcmd->get_orch_op() == dm_orch_type_topo_publish) && (m_sm.get_state() == em_state_ctrl_configured)) {
+            if ((pcmd->get_orch_op() == dm_orch_type_topo_sync) && (m_sm.get_state() == em_state_ctrl_configured)) {
+                m_sm.set_state(em_state_ctrl_topo_sync_pending);
+            } else if ((pcmd->get_orch_op() == dm_orch_type_sta_cap) && (m_sm.get_state() == em_state_ctrl_configured)) {
+                m_sm.set_state(em_state_ctrl_sta_cap_pending);
+            } else if (pcmd->get_orch_op() == dm_orch_type_topo_publish) {
                 m_sm.set_state(em_state_ctrl_topo_publish_pending);
             } else {
                 m_sm.set_state(em_state_ctrl_sta_cap_pending);
@@ -287,6 +291,7 @@ void em_t::proto_process(unsigned char *data, unsigned int len)
         case em_msg_type_topo_resp:
         case em_msg_type_topo_query:
         case em_msg_type_topo_notif:
+        case em_msg_type_failed_conn:
         case em_msg_type_ap_mld_config_req:
         case em_msg_type_ap_mld_config_resp:
         case em_msg_type_bss_config_req:
@@ -378,6 +383,21 @@ void em_t::proto_process(em_cmd_event_t *cevt)
             em_metrics_t::process_agent_state(em_cmd_event_type_ap_metrics_report);
             delete ap_cmd;
             m_cmd = saved_cmd;
+            break;
+        }
+        case em_cmd_event_type_failed_connection:
+        {
+            em_connection_status_evt_data_t *failed_conn_evt =
+                static_cast<em_connection_status_evt_data_t *>(cevt->cmd_ptr);
+
+            if (failed_conn_evt != NULL) {
+                handle_failed_connection_event(failed_conn_evt->sta_mac, failed_conn_evt->bssid,
+                                               failed_conn_evt->status_code,
+                                               failed_conn_evt->reason_code,
+                                               failed_conn_evt->reason_code_present);
+                free(failed_conn_evt);
+                cevt->cmd_ptr = NULL;
+            }
             break;
         }
         default:
