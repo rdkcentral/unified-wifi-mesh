@@ -699,6 +699,7 @@ typedef enum {
     em_tlv_type_ap_mld_config = 0xe0,
     em_tlv_type_bsta_mld_config = 0xe1,
     em_tlv_type_assoc_sta_mld_conf_rep = 0xe2,
+    em_tlv_type_affiliated_sta_metrics = 0xe4,
     em_tlv_type_tid_to_link_map_policy = 0xe6,
     em_tlv_eht_operations = 0xe7,
     em_tlv_type_avail_spectrum_inquiry_reg = 0xe8,
@@ -1453,6 +1454,16 @@ typedef struct {
 typedef struct {
     unsigned short reason_code;
 } __attribute__((__packed__)) em_reason_code_t;
+
+typedef struct
+{
+    mac_address_t sta_mac_addr;
+    unsigned int bytes_sent;
+    unsigned int bytes_recv;
+    unsigned int packets_sent;
+    unsigned int packets_recv;
+    unsigned int tx_packets_errors;
+} __attribute__((__packed__)) em_affiliated_sta_metrics_t;
 
 typedef struct {
     unsigned char *dpp_config_obj;
@@ -2463,6 +2474,7 @@ typedef struct {
 
     wifi_BeaconReport_t beacon_reports[EM_MAX_BEACON_REPORTS_PER_SCAN];
     em_link_report_t link_stats_report;
+    unsigned short  reason_code;
 } em_sta_info_t;
 
 typedef enum {
@@ -2887,6 +2899,7 @@ typedef enum {
     em_bus_event_type_recv_gas_frame,
     em_bus_event_type_get_sta_client_type,
     em_bus_event_type_assoc_status,
+    em_bus_event_type_connection_status,
     em_bus_event_type_ap_metrics_report,
     em_bus_event_type_bss_info,
     em_bus_event_type_get_reset,
@@ -3224,9 +3237,19 @@ typedef struct {
  */
 typedef enum {
     em_cmd_event_type_ap_metrics_report,
+    em_cmd_event_type_failed_connection,
 
     em_cmd_event_type_max
 } em_cmd_event_type_t;
+
+typedef struct {
+    int             ap_index;
+    mac_address_t   sta_mac;
+    mac_address_t   bssid;
+    unsigned short  status_code;
+    unsigned short  reason_code;
+    bool            reason_code_present;
+} em_connection_status_evt_data_t;
 
 typedef struct {
     em_cmd_event_type_t type;

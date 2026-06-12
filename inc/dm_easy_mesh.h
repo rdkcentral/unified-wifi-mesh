@@ -1738,6 +1738,8 @@ public:
 	void update_assoc_sta_mld_info(em_assoc_sta_mld_info_t *assoc_sta_mld_info);
 	static void update_assoc_sta_mld_info(void *dm, em_assoc_sta_mld_info_t *assoc_sta_mld_info) { (static_cast<dm_easy_mesh_t *>(dm))->update_assoc_sta_mld_info(assoc_sta_mld_info); }
 
+	void remove_assoc_sta_mld_info(mac_address_t sta_mld_mac);
+
 	em_radio_cap_info_t *get_radio_cap_info(int index);
 	static em_radio_cap_info_t *get_radio_cap_info(void *dm, int index) { return (static_cast<dm_easy_mesh_t *>(dm))->get_radio_cap_info(index); }
 
