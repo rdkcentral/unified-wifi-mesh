@@ -490,6 +490,22 @@ type Default802_1Q_Settings struct {
 	DefaultPCP      int     `json:"defaultPCP"`
 }
 
+type UnsuccessfulAssociation struct {
+	ReportUnsuccessAssoc bool `json:"reportUnsuccessAssoc"`
+	MaxReportingRate  int  `json:"maxReportingRate"`
+}
+
+type BackhaulBSSConfig struct {
+    BSSID                  string `json:"bssid"`
+    Profile1bSTADisallowed bool   `json:"profile1bSTADisallowed"`
+    Profile2bSTADisallowed bool   `json:"profile2bSTADisallowed"`
+}
+
+type QoSManagementPolicy struct {
+    MSCSDisallowedSTAList []string `json:"mscsDisallowedSTAList"`
+    SCSDisallowedSTAList  []string `json:"scsDisallowedSTAList"`
+}
+
 type RadioSpecificMetrics struct {
 	ID                      string   `json:"id"`
 	STARCPIThreshold        int      `json:"starCPIThreshold"`
@@ -513,8 +529,11 @@ type wifiPolicyConfig struct {
 	APMetricReportingPolicy        APMetricReporting       `json:"apMetricReportingPolicy,omitempty"`
 	LocalSteeringDisallowed        []string                `json:"localSteeringDisallowed"`
 	BTMSteeringDisallowed          []string                `json:"btmSteeringDisallowed"`
-	ReportIndependentChannelScans  int                    `json:"reportIndependentChannelScans"`
+	ReportIndependentChannelScans  int                     `json:"reportIndependentChannelScans"`
 	Default802_1Q_SettingsPolicy   Default802_1Q_Settings  `json:"default802_1Q_SettingsPolicy"`
+	UnsuccessfulAssocPolicy        UnsuccessfulAssociation   `json:"unsuccessfulAssocPolicy"`
+	BackhaulBSSConfigPolicy        []BackhaulBSSConfig       `json:"backhaulBssConfigPolicy,omitempty"`
+	QoSManagementPolicy            QoSManagementPolicy       `json:"qosManagementPolicy,omitempty"`
 	RadioSpecificMetricsPolicy     []RadioSpecificMetrics    `json:"radioSpecificMetricsPolicy,omitempty"`
 	RadioSteeringParametersPolicy  []RadioSteeringParameters `json:"radioSteeringParametersPolicy,omitempty"`
 }
@@ -4333,7 +4352,7 @@ func getPolicyConfiguration(deviceListTree *C.em_network_node_t) []wifiPolicyCon
             cDisallowed := C.CString("Disallowed STA")
             defer C.free(unsafe.Pointer(cDisallowed))
             disallowedNode := C.get_network_tree_by_key(localSteeringNode, cDisallowed)
-            localDisallowedMACs = parseDisallowedSTAMACs(disallowedNode)
+            localDisallowedMACs = parseMACList(disallowedNode)
         }
 
         // BTM Steering Disallowed Policy
@@ -4345,7 +4364,7 @@ func getPolicyConfiguration(deviceListTree *C.em_network_node_t) []wifiPolicyCon
             cDisallowed := C.CString("Disallowed STA")
             defer C.free(unsafe.Pointer(cDisallowed))
             disallowedNode := C.get_network_tree_by_key(btmSteeringNode, cDisallowed)
-            btmDisallowedMACs = parseDisallowedSTAMACs(disallowedNode)
+            btmDisallowedMACs = parseMACList(disallowedNode)
         }
 
         // Channel Scan Reporting Policy
@@ -4366,6 +4385,65 @@ func getPolicyConfiguration(deviceListTree *C.em_network_node_t) []wifiPolicyCon
         dot1qSetting := Default802_1Q_Settings{
             PrimaryVLANID: getKeyIntValue(dot1qSettingNode, "Primary VLAN ID"),
             DefaultPCP:    getKeyIntValue(dot1qSettingNode, "Default PCP"),
+        }
+
+        // Unsuccessful Association Policy
+        cUnsuccAssoc := C.CString("Unsuccessful Association Policy")
+        defer C.free(unsafe.Pointer(cUnsuccAssoc))
+        unSuccesfullAssociation := UnsuccessfulAssociation{}
+        unsuccAssocNode := C.get_network_tree_by_key(policyNode, cUnsuccAssoc)
+        if(unsuccAssocNode != nil) {
+            unSuccesfullAssociation.ReportUnsuccessAssoc = getTreeValue(unsuccAssocNode, "Report Unsuccessful Associations") == "true"
+            unSuccesfullAssociation.MaxReportingRate = getKeyIntValue(unsuccAssocNode, "Maximum Reporting Rate")
+		}
+
+        // Backhaul BSS Config Policy
+        backhaulBssConfigList := []BackhaulBSSConfig{}
+        cBackhaulBssConfig := C.CString("Backhaul BSS Configuration Policy")
+        backhaulBssConfigNode := C.get_network_tree_by_key(policyNode, cBackhaulBssConfig)
+        C.free(unsafe.Pointer(cBackhaulBssConfig))
+        if backhaulBssConfigNode != nil {
+            for j := 0; j < int(backhaulBssConfigNode.num_children); j++ {
+                child := backhaulBssConfigNode.child[j]
+                if child == nil {
+                    continue
+                }
+                bssid := strings.ToUpper(getTreeValue(child, "BSSID"))
+                if bssid == "" || bssid == "00:00:00:00:00:00" {
+                    continue
+                }
+
+                entry := BackhaulBSSConfig{
+                    BSSID: bssid,
+                    Profile1bSTADisallowed: getTreeValue(child, "Profile-1 bSTA Disallowed") == "true",
+                    Profile2bSTADisallowed: getTreeValue(child, "Profile-2 bSTA Disallowed") == "true",
+                }
+                backhaulBssConfigList = append(backhaulBssConfigList, entry)
+            }
+        }
+
+        // QoS Management Policy
+        cQoS := C.CString("QoS Management Policy")
+        defer C.free(unsafe.Pointer(cQoS))
+        qosPolicy := QoSManagementPolicy{
+			MSCSDisallowedSTAList: []string{},
+			SCSDisallowedSTAList:  []string{},
+		}
+        qosNode := C.get_network_tree_by_key(policyNode, cQoS)
+        if qosNode != nil {
+			cMSCS := C.CString("MSCS Disallowed STA List")
+			defer C.free(unsafe.Pointer(cMSCS))
+			mscsNode := C.get_network_tree_by_key(qosNode, cMSCS)
+			if mscsNode != nil {
+				qosPolicy.MSCSDisallowedSTAList = parseMACList(mscsNode)
+			}
+
+            cSCS := C.CString("SCS Disallowed STA List")
+			defer C.free(unsafe.Pointer(cSCS))
+			scsNode := C.get_network_tree_by_key(qosNode, cSCS)
+			if scsNode != nil {
+				qosPolicy.SCSDisallowedSTAList = parseMACList(scsNode)
+			}
         }
 
         // Radio Specific Metrics Policy
@@ -4414,6 +4492,9 @@ func getPolicyConfiguration(deviceListTree *C.em_network_node_t) []wifiPolicyCon
             BTMSteeringDisallowed: btmDisallowedMACs,
             ReportIndependentChannelScans: getKeyIntValue(channelScanReportingNode, "Report Independent Channel Scans"),
             Default802_1Q_SettingsPolicy: dot1qSetting,
+            UnsuccessfulAssocPolicy: unSuccesfullAssociation,
+            BackhaulBSSConfigPolicy: backhaulBssConfigList,
+            QoSManagementPolicy: qosPolicy,
             RadioSpecificMetricsPolicy: radioMetricsArr,
             RadioSteeringParametersPolicy: radioSteeringArr,
         }
@@ -4460,15 +4541,14 @@ func updatePolicySettings(deviceListTree *C.em_network_node_t, policyConfig wifi
         defer C.free(unsafe.Pointer(cLocalSteering))
         localSteeringNode := C.get_network_tree_by_key(policyNode, cLocalSteering)
         if localSteeringNode != nil {
-            updateDisallowedSTAStruct(localSteeringNode, "Disallowed STA", policyConfig.LocalSteeringDisallowed)
+            updateNodeArray(localSteeringNode, "Disallowed STA", normalizeMACArrayString(policyConfig.LocalSteeringDisallowed))
         }
-
         // BTM Steering Disallowed Policy
         cBTMSteering := C.CString("BTM Steering Disallowed Policy")
         defer C.free(unsafe.Pointer(cBTMSteering))
         btmSteeringNode := C.get_network_tree_by_key(policyNode, cBTMSteering)
         if btmSteeringNode != nil {
-            updateDisallowedSTAStruct(btmSteeringNode, "Disallowed STA", policyConfig.BTMSteeringDisallowed)
+            updateNodeArray(btmSteeringNode, "Disallowed STA", normalizeMACArrayString(policyConfig.BTMSteeringDisallowed))
         }
 
         // Channel Scan Reporting Policy
@@ -4486,6 +4566,64 @@ func updatePolicySettings(deviceListTree *C.em_network_node_t, policyConfig wifi
         if (dot1qSettingNode != nil) {
             updateNodeInt(dot1qSettingNode, "Primary VLAN ID", policyConfig.Default802_1Q_SettingsPolicy.PrimaryVLANID)
             updateNodeInt(dot1qSettingNode, "Default PCP", policyConfig.Default802_1Q_SettingsPolicy.DefaultPCP)
+        }
+
+        // "Unsuccessful Association Policy
+        cUnsuccAssoc := C.CString("Unsuccessful Association Policy")
+        defer C.free(unsafe.Pointer(cUnsuccAssoc))
+        unsuccAssocNode := C.get_network_tree_by_key(policyNode, cUnsuccAssoc)
+        if unsuccAssocNode != nil {
+            updateNodeBool(unsuccAssocNode, "Report Unsuccessful Associations", policyConfig.UnsuccessfulAssocPolicy.ReportUnsuccessAssoc)
+            updateNodeInt(unsuccAssocNode, "Maximum Reporting Rate", policyConfig.UnsuccessfulAssocPolicy.MaxReportingRate)
+        }
+
+        // Backhaul BSS Configuration Policy
+        cBackhaul := C.CString("Backhaul BSS Configuration Policy")
+        backhaulNode := C.get_network_tree_by_key(policyNode, cBackhaul)
+        C.free(unsafe.Pointer(cBackhaul))
+        if backhaulNode != nil {
+            for _, entry := range policyConfig.BackhaulBSSConfigPolicy {
+                if entry.BSSID == "" || entry.BSSID == "00:00:00:00:00:00" {
+                    continue
+                }
+                reqBSSID := strings.ToUpper(entry.BSSID)
+                for j := 0; j < int(backhaulNode.num_children); j++ {
+                    child := backhaulNode.child[j]
+                    if child == nil {
+                        continue
+                    }
+                    treeBSSID := strings.ToUpper(getTreeValue(child, "BSSID"))
+                    if treeBSSID == reqBSSID {
+                        updateNodeBool(child,"Profile-1 bSTA Disallowed",entry.Profile1bSTADisallowed)
+                        updateNodeBool(child,"Profile-2 bSTA Disallowed",entry.Profile2bSTADisallowed)
+                        break
+                    }
+                }
+            }
+        }
+
+        // QoS Management Policy
+        cQoS := C.CString("QoS Management Policy")
+        defer C.free(unsafe.Pointer(cQoS))
+        qosNode := C.get_network_tree_by_key(policyNode, cQoS)
+        if qosNode != nil {
+            // MSCS Disallowed STA List
+            cMSCS := C.CString("MSCS Disallowed STA List")
+            defer C.free(unsafe.Pointer(cMSCS))
+            mscsNode := C.get_network_tree_by_key(qosNode, cMSCS)
+            if mscsNode != nil {
+                mscsArray := normalizeMACArrayString(policyConfig.QoSManagementPolicy.MSCSDisallowedSTAList)
+                updateNodeArray(mscsNode, "MSCS Disallowed STA List", mscsArray)
+            }
+
+            // SCS Disallowed STA List
+            cSCS := C.CString("SCS Disallowed STA List")
+            defer C.free(unsafe.Pointer(cSCS))
+            scsNode := C.get_network_tree_by_key(qosNode, cSCS)
+            if scsNode != nil {
+                scsArray := normalizeMACArrayString(policyConfig.QoSManagementPolicy.SCSDisallowedSTAList)
+                updateNodeArray(scsNode, "SCS Disallowed STA List", scsArray)
+            }
         }
 
         // Radio Specific Metrics Policy
@@ -4643,29 +4781,64 @@ func reconcileChildrenToCount(parent *C.em_network_node_t, newChildCount int) in
     return current
 }
 
-/* func: parseDisallowedSTAMACs()
+/* func: parseMACList()
  * Description:
- * Parse the Disallowed STA MAC from policy list
- * returns: array of disallowed stat mac.
+ * Parse the array of MAC from policy list
+ * returns: array of mac address.
  */
-func parseDisallowedSTAMACs(disallowedNode *C.em_network_node_t) []string {
+func parseMACList(node *C.em_network_node_t) []string {
     macs := []string{}
-    if disallowedNode == nil {
+    if node == nil {
         return macs
     }
 
-    count := int(disallowedNode.num_children)
+    count := int(node.num_children)
     for i := 0; i < count; i++ {
-        elem := disallowedNode.child[i]
+        elem := node.child[i]
         if elem == nil {
             continue
         }
-        mac := getTreeValue(elem, "MAC")
+
+        mac := C.GoString(&elem.value_str[0])
+
         if mac != "" && mac != "00:00:00:00:00:00" {
             macs = append(macs, mac)
         }
     }
+
     return macs
+}
+
+/* func: normalizeMACArrayString()
+ * Description:
+ * Processes a list of MAC addresses by cleaning and standardizing them.
+ * returns: A string containing normalized, unique MAC addresses in bracketed comma-separated format.
+ */
+func normalizeMACArrayString(macs []string) string {
+    // Deduplicate + normalize to uppercase
+    seen := make(map[string]struct{}, len(macs))
+
+    for _, mac := range macs {
+        m := strings.ToUpper(strings.TrimSpace(mac))
+
+        // Skip invalid/default values
+        if m == "" || m == "00:00:00:00:00:00" {
+            continue
+        }
+
+        seen[m] = struct{}{}
+    }
+
+    // Convert map keys to slice
+    normalized := make([]string, 0, len(seen))
+    for k := range seen {
+        normalized = append(normalized, k)
+    }
+
+    // sort alphabetically
+    sort.Strings(normalized)
+
+    return "[" + strings.Join(normalized, ", ") + "]"
 }
 
 /* func: applyWifiPolicyConfig()
