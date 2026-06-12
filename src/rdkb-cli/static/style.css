@@ -2219,9 +2219,10 @@ body {
 
 .table-scroll {
   overflow: auto;
-  max-height: 360px;
+  max-height: 180px;
   border: 1px solid #e4e7ec;
   border-radius: 8px;
+  margin-bottom: 16px;
   background: #ffffff;
 }
 
@@ -2514,6 +2515,13 @@ body {
 
 .toolbar { display: flex; gap: 8px; margin-top: 12px; }
 
+#backhaul-bss-rows input[name="bssid"][readonly] {
+  background-color: #f5f5f5;
+  color: #666;
+  cursor: not-allowed;
+  border-color: #ddd;
+}
+.policy-table select {  background-color: #ffffff;  color: #344054;}
 #policy-rows input[name="id"][readonly],
 #radio-metrics-rows input[name="id"][readonly] {
   background-color: #f5f5f5;

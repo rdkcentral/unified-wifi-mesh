@@ -2152,6 +2152,7 @@ int dm_easy_mesh_ctrl_t::analyze_set_policy(em_bus_event_t *evt, em_cmd_t *pcmd[
     em_printfout("Received SetPolicy event: \n%s", subdoc->buff);
     do {
         dm.reset();
+        policy_changed = 0;
 
         if ((ret = dm.decode_config(subdoc, "SetPolicy", i, &num_devices)) < 0) {
             em_printfout("Failed to decode SetPolicy config: %d", ret);
@@ -2164,11 +2165,78 @@ int dm_easy_mesh_ctrl_t::analyze_set_policy(em_bus_event_t *evt, em_cmd_t *pcmd[
 
         dev_dm = get_data_model(GLOBAL_NET_ID, dm.m_device.m_device_info.intf.mac);
         if (dev_dm != NULL) {
-            //compare if policy has changed for this device, create cmd only if a policy chnage is detected
-            for (unsigned int j = 0; j < dev_dm->get_num_policy(); j++) {
-                if ((dev_dm->m_policy[j] == dm.m_policy[j]) == false) {
+            // Expand broadcast radio MAC (ff:ff:ff:ff:ff:ff) in per-radio policy entries
+            // (radio_metrics_rep and steering_param) into one entry per actual radio.
+            static const mac_address_t bcast_mac = {0xff,0xff,0xff,0xff,0xff,0xff};
+            unsigned int orig_num = dm.get_num_policy();
+            for (unsigned int k = 0; k < orig_num; k++) {
+                if (dm.m_policy[k].m_policy.id.type != em_policy_id_type_radio_metrics_rep &&
+                    dm.m_policy[k].m_policy.id.type != em_policy_id_type_steering_param) continue;
+                if (memcmp(dm.m_policy[k].m_policy.id.radio_mac, bcast_mac, sizeof(mac_address_t)) != 0) continue;
+                // Replace this broadcast entry with per-radio copies
+                em_policy_t tmpl;
+                memcpy(&tmpl, &dm.m_policy[k].m_policy, sizeof(em_policy_t));
+                // Overwrite index k with first radio, append remaining radios at end
+                bool first = true;
+                for (unsigned int r = 0; r < dev_dm->get_num_radios(); r++) {
+                    if (first) {
+                        memcpy(dm.m_policy[k].m_policy.id.radio_mac,
+                               dev_dm->m_radio[r].m_radio_info.intf.mac, sizeof(mac_address_t));
+                        first = false;
+                    } else {
+                        unsigned int index = dm.get_num_policy();
+                        if (index >= EM_MAX_POLICIES) {
+                            em_printfout("Warning: policy array full (%u), skipping per-radio expansion for radio %u",
+                                EM_MAX_POLICIES, r);
+                            break;
+                        }
+                        memcpy(&dm.m_policy[index].m_policy, &tmpl, sizeof(em_policy_t));
+                        memcpy(dm.m_policy[index].m_policy.id.radio_mac,
+                               dev_dm->m_radio[r].m_radio_info.intf.mac, sizeof(mac_address_t));
+                        dm.set_num_policy(index + 1);
+                    }
+                }
+                // Don't break — there may be broadcast entries of both types
+            }
+
+            // Compare each incoming policy by type against the existing dm.
+            // Compact dm.m_policy[] in-place to only keep changed/new entries so
+            // that the command carries only what actually changed
+            unsigned int write_idx = 0;
+            for (unsigned int k = 0; k < dm.get_num_policy(); k++) {
+                // Use full equality (operator== does memcmp on em_policy_t) so this works
+                // generically for all policy types, including multi-entry types like
+                // backhaul_bss_config and radio metrics that are keyed by BSSID/radio MAC.
+                bool changed = true;
+                for (unsigned int j = 0; j < dev_dm->get_num_policy(); j++) {
+                    if (dev_dm->m_policy[j] == dm.m_policy[k]) {
+                        changed = false;
+                        break;
+                    }
+                }
+                if (changed) {
+                    if (write_idx != k) {
+                        dm.m_policy[write_idx] = dm.m_policy[k];
+                    }
+                    write_idx++;
                     policy_changed++;
-                    break;
+                }
+            }
+            dm.set_num_policy(write_idx);
+            if (write_idx > 0) {
+                static const char * const s_policy_type_names[] = {
+                    "steering_local", "steering_btm", "steering_param",
+                    "ap_metrics_rep", "radio_metrics_rep", "default_8021q_settings",
+                    "traffic_separation", "channel_scan", "unsuccess_assoc",
+                    "backhaul_bss_config", "qos_mgt", "alarm_threshold",
+                    "client_filters", "unknown"
+                };
+                em_printfout("Changed policies for device %s (%u):", mac_str, write_idx);
+                for (unsigned int p = 0; p < write_idx; p++) {
+                    em_policy_id_type_t t = dm.m_policy[p].m_policy.id.type;
+                    unsigned int ti = (static_cast<unsigned int>(t) < static_cast<unsigned int>(em_policy_id_type_unknown))
+                                      ? static_cast<unsigned int>(t) : static_cast<unsigned int>(em_policy_id_type_unknown);
+                    em_printfout("  [%u] %s", p, s_policy_type_names[ti]);
                 }
             }
         } else {
@@ -2195,6 +2263,7 @@ int dm_easy_mesh_ctrl_t::analyze_set_policy(em_bus_event_t *evt, em_cmd_t *pcmd[
             dm.m_num_radios++;
             radio = m_data_model_list.get_next_radio(dm.m_network.m_net_info.id, dm.m_device.m_device_info.intf.mac, radio);
         }
+
         dm.set_db_cfg_param(db_cfg_type_policy_list_update, "");
         pcmd[num] = new em_cmd_set_policy_t(evt->params, dm);
         num++;
@@ -3168,10 +3237,14 @@ int dm_easy_mesh_ctrl_t::get_device_config(cJSON *parent, char *key, bool summar
 
 int dm_easy_mesh_ctrl_t::get_network_config(cJSON *parent, char *key)
 {
-	// get the data from topology
-	m_topology->encode(parent);
-	//em_printfout("Network Topology Json:\n%s",cJSON_Print(parent));
-	return 0;
+    // get the data from topology
+    cJSON *net_obj;
+
+    net_obj = cJSON_AddObjectToObject(parent, "Network");
+    dm_network_list_t::get_config(net_obj, key, true);
+    m_topology->encode(net_obj);
+    //em_printfout("Network Topology Json:\n%s",cJSON_Print(parent));
+    return 0;
 }
 
 int dm_easy_mesh_ctrl_t::get_mld_config(cJSON *parent, char *key)

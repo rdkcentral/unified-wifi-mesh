@@ -73,6 +73,7 @@ extern "C"
 #define EM_MAX_CHANNEL_PER_OP_CLASS  59
 #define EM_MAX_SERVICE          8
 #define EM_MAX_BSS_PER_RADIO           16
+#define EM_MAX_QOS_MGMT_POLICY         4
 #define EM_MAX_RADIO_PER_AGENT         4
 #define EM_MAX_TRAFFIC_SEP_SSID        8
 #define EM_MAX_FREQ_RECORDS_PER_RADIO  8
@@ -85,6 +86,8 @@ extern "C"
 #define EM_MAX_CAC_CHANS_PER_CLASS     16
 #define EM_MAX_STA_PER_BSS         64
 #define EM_MAX_STA_PER_STEER_POLICY        16 
+#define EM_MAX_MSC_PER_TRAFFIC_SEPAR       16
+#define EM_MAX_SCS_PER_TRAFFIC_SEPAR       16
 #define EM_MAX_STA_PER_AGENT       (EM_MAX_RADIO_PER_AGENT * EM_MAX_STA_PER_BSS)
 #define EM_MAX_NEIGHBORS	16
 #define EM_MAX_CHANNEL_SCAN_RPRT_MSG_LEN		166
@@ -1487,7 +1490,7 @@ typedef struct {
 
 typedef struct {
     unsigned char  ssids_num;
-    em_traffic_sep_policy_ssid_t  ssids[0];
+    em_traffic_sep_policy_ssid_t  ssids[EM_MAX_TRAFFIC_SEP_SSID];
 } __attribute__((__packed__)) em_traffic_sep_policy_t;
 
 typedef struct {
@@ -1953,8 +1956,10 @@ typedef struct {
     em_traffic_sep_policy_t traffic_separation_policy;
     em_channel_scan_rprt_policy_t channel_scan_policy;
     em_unsuccessful_assoc_policy_t unsuccessful_assoc_policy;
-    em_bh_bss_config_t bh_bss_cfg_policy;
-    em_qos_mgmt_policy_t qos_mgmt_policy;
+    unsigned int num_bh_bss_cfg;
+    em_bh_bss_config_t bh_bss_cfg_policy[EM_MAX_BSS_PER_RADIO];
+    unsigned int num_qos_mgmt;
+    em_qos_mgmt_policy_t qos_mgmt_policy[EM_MAX_QOS_MGMT_POLICY];
     em_vendor_policy_t vendor_policy;
 } em_policy_cfg_params_t;
 
@@ -3359,6 +3364,10 @@ typedef enum {
     tag_vht_capability = 191,
     tag_vendor_specific = 221,
     tag_extended_tags = 255,
+    //he
+    //he_6ghz
+    //eht
+    //other tags can be added here
 } tag_type_t;
 
 typedef struct {
@@ -3439,6 +3448,19 @@ typedef struct {
 } em_traffic_separation_policy_t;
 
 typedef struct {
+    unsigned char num_mscs;
+    mac_address_t msc_mac[EM_MAX_MSC_PER_TRAFFIC_SEPAR];
+    unsigned char num_scs;
+    mac_address_t sc_mac[EM_MAX_SCS_PER_TRAFFIC_SEPAR];
+} em_qos_mgt_policy_t;
+
+typedef struct {
+    bssid_t bssid;
+    bool b_profile_1_sta_disallowed;
+    bool b_profile_2_sta_disallowed;
+} em_backhaul_bss_config_policy_t;
+
+typedef struct {
 	em_policy_id_t	id;
 	unsigned int num_sta;
 	mac_address_t	sta_mac[EM_MAX_STA_PER_STEER_POLICY];
@@ -3452,10 +3474,17 @@ typedef struct {
 	bool	sta_status;
 	em_long_string_t	managed_sta_marker;
 	bool	independent_scan_report;
+    bssid_t bssid;
 	bool	profile_1_sta_disallowed;
 	bool	profile_2_sta_disallowed;
+    bool report_unassoc_sta;
+    unsigned int max_reporting_rate;
 	em_8021q_settings_policy_t  def_8021q_settings;
 	em_traffic_separation_policy_t traffic_separ;
+    unsigned int num_qos_mgt;
+    em_qos_mgt_policy_t qos_mgt[EM_MAX_STA_PER_AGENT];
+    unsigned int num_backhaul_bss_config;
+    em_backhaul_bss_config_policy_t backhaul_bss_config[EM_MAX_BSS_PER_RADIO];
     em_link_stats_alarm_cfg_t link_stats_alarm_cfg;
     em_client_filters_cfg_t client_filters;
 } em_policy_t;

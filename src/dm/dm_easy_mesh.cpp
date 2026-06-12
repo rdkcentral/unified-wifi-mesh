@@ -978,6 +978,7 @@ int dm_easy_mesh_t::decode_config_set_policy(em_subdoc_info_t *subdoc, const cha
 	cJSON *parent_obj, *net_obj, *net_obj_id, *dev_arr_obj, *dev_obj, *dev_obj_id, *policy_obj; 
 	cJSON *ap_metrics_obj, *scan_obj, *radio_metrics_arr_obj, *radio_steer_arr_obj, *local_steer_obj, *btm_steer_obj;
 	cJSON *backhaul_obj, *radio_id_obj, *radio_metrics_obj, *radio_steer_obj;
+	cJSON *traffic_sep_obj, *unsuccess_assoc_obj, *qos_mgt_obj, *def_8021q_obj;
 	unsigned int num_devices = 0;
 	int i;
 	char *dev_mac_str, *net_id;
@@ -1107,14 +1108,20 @@ int dm_easy_mesh_t::decode_config_set_policy(em_subdoc_info_t *subdoc, const cha
         m_num_policy++;
     }
 
-    if ((local_steer_obj = cJSON_GetObjectItem(policy_obj, "Local Steering Disallowed Policy")) != NULL) {
+    // "Steering Policies" wrapper (groups local/BTM disallowed + radio steering params)
+    cJSON *steer_policies_obj = cJSON_GetObjectItem(policy_obj, "Steering Policies");
+    cJSON *steer_local_parent = steer_policies_obj ? steer_policies_obj : policy_obj;
+    cJSON *steer_btm_parent   = steer_policies_obj ? steer_policies_obj : policy_obj;
+    cJSON *steer_param_parent = steer_policies_obj ? steer_policies_obj : policy_obj;
+
+    if ((local_steer_obj = cJSON_GetObjectItem(steer_local_parent, "Local Steering Disallowed Policy")) != NULL) {
         snprintf(parent, sizeof(em_long_string_t), "%s@%s@00:00:00:00:00:00@%d", net_id, dev_mac_str,
                     em_policy_id_type_steering_local);
         m_policy[m_num_policy].decode(local_steer_obj, parent, em_policy_id_type_steering_local);
         m_num_policy++;
     }
 
-    if ((btm_steer_obj = cJSON_GetObjectItem(policy_obj, "BTM Steering Disallowed Policy")) != NULL) {
+    if ((btm_steer_obj = cJSON_GetObjectItem(steer_btm_parent, "BTM Steering Disallowed Policy")) != NULL) {
         snprintf(parent, sizeof(em_long_string_t), "%s@%s@00:00:00:00:00:00@%d", net_id, dev_mac_str,
                     em_policy_id_type_steering_btm);
         m_policy[m_num_policy].decode(btm_steer_obj, parent, em_policy_id_type_steering_btm);
@@ -1122,10 +1129,13 @@ int dm_easy_mesh_t::decode_config_set_policy(em_subdoc_info_t *subdoc, const cha
     }
 
     if ((backhaul_obj = cJSON_GetObjectItem(policy_obj, "Backhaul BSS Configuration Policy")) != NULL) {
-        snprintf(parent, sizeof(em_long_string_t), "%s@%s@00:00:00:00:00:00@%d", net_id, dev_mac_str,
-                    em_policy_id_type_backhaul_bss_config);
-        m_policy[m_num_policy].decode(backhaul_obj, parent, em_policy_id_type_backhaul_bss_config);
-        m_num_policy++;
+        for (i = 0; i < cJSON_GetArraySize(backhaul_obj); i++) {
+            cJSON *backhaul_item_obj = cJSON_GetArrayItem(backhaul_obj, i);
+            snprintf(parent, sizeof(em_long_string_t), "%s@%s@00:00:00:00:00:00@%d", net_id, dev_mac_str,
+                        em_policy_id_type_backhaul_bss_config);
+            m_policy[m_num_policy].decode(backhaul_item_obj, parent, em_policy_id_type_backhaul_bss_config);
+            m_num_policy++;
+        }
     }
 
     if ((scan_obj = cJSON_GetObjectItem(policy_obj, "Channel Scan Reporting Policy")) != NULL) {
@@ -1135,27 +1145,58 @@ int dm_easy_mesh_t::decode_config_set_policy(em_subdoc_info_t *subdoc, const cha
         m_num_policy++;
     }
 
+    if ((unsuccess_assoc_obj = cJSON_GetObjectItem(policy_obj, "Unsuccessful Association Policy")) != NULL) {
+        snprintf(parent, sizeof(em_long_string_t), "%s@%s@00:00:00:00:00:00@%d", net_id, dev_mac_str,
+                    em_policy_id_type_unsuccess_assoc);
+        m_policy[m_num_policy].decode(unsuccess_assoc_obj, parent, em_policy_id_type_unsuccess_assoc);
+        m_num_policy++;
+    }
+
+    if ((qos_mgt_obj = cJSON_GetObjectItem(policy_obj, "QoS Management Policy")) != NULL) {
+        snprintf(parent, sizeof(em_long_string_t), "%s@%s@00:00:00:00:00:00@%d", net_id, dev_mac_str,
+                    em_policy_id_type_qos_mgt);
+        m_policy[m_num_policy].decode(qos_mgt_obj, parent, em_policy_id_type_qos_mgt);
+        m_num_policy++;
+    }
+
+    if ((def_8021q_obj = cJSON_GetObjectItem(policy_obj, "Default 802.1Q Settings Policy")) != NULL) {
+        snprintf(parent, sizeof(em_long_string_t), "%s@%s@00:00:00:00:00:00@%d", net_id, dev_mac_str,
+                    em_policy_id_type_default_8021q_settings);
+        m_policy[m_num_policy].decode(def_8021q_obj, parent, em_policy_id_type_default_8021q_settings);
+        m_num_policy++;
+    }
+
+    if ((traffic_sep_obj = cJSON_GetObjectItem(policy_obj, "Traffic Separation Policy")) != NULL) {
+        snprintf(parent, sizeof(em_long_string_t), "%s@%s@00:00:00:00:00:00@%d", net_id, dev_mac_str,
+                    em_policy_id_type_traffic_separation);
+        m_policy[m_num_policy].decode(traffic_sep_obj, parent, em_policy_id_type_traffic_separation);
+        m_num_policy++;
+    }
+
     if ((radio_metrics_arr_obj = cJSON_GetObjectItem(policy_obj, "Radio Specific Metrics Policy")) != NULL) {
         for (i = 0; i < cJSON_GetArraySize(radio_metrics_arr_obj); i++) {
             radio_metrics_obj = cJSON_GetArrayItem(radio_metrics_arr_obj, i);
             radio_id_obj = cJSON_GetObjectItem(radio_metrics_obj, "ID");
-            if (radio_id_obj != NULL) {
-                mac_addr_t mac;
-                dm_easy_mesh_t::string_to_macbytes(cJSON_GetStringValue(radio_id_obj), mac);
-                memcpy(m_policy[m_num_policy].m_policy.id.radio_mac, mac, sizeof(mac_addr_t));
+            const char *radio_id_str = cJSON_GetStringValue(radio_id_obj);
+            if (radio_id_str == NULL || strcmp(radio_id_str, "00:00:00:00:00:00") == 0) {
+                continue; // skip null entries
             }
-            snprintf(parent, sizeof(em_long_string_t), "%s@%s@%s@%d", net_id, dev_mac_str, cJSON_GetStringValue(radio_id_obj),
+            snprintf(parent, sizeof(em_long_string_t), "%s@%s@%s@%d", net_id, dev_mac_str, radio_id_str,
                         em_policy_id_type_radio_metrics_rep);
             m_policy[m_num_policy].decode(radio_metrics_obj, parent, em_policy_id_type_radio_metrics_rep);
             m_num_policy++;
         }
     }
 
-    if ((radio_steer_arr_obj = cJSON_GetObjectItem(policy_obj, "Radio Steering Parameters")) != NULL) {
+    if ((radio_steer_arr_obj = cJSON_GetObjectItem(steer_param_parent, "Radio Steering Parameters")) != NULL) {
         for (i = 0; i < cJSON_GetArraySize(radio_steer_arr_obj); i++) {
             radio_steer_obj = cJSON_GetArrayItem(radio_steer_arr_obj, i);
             radio_id_obj = cJSON_GetObjectItem(radio_steer_obj, "ID");
-            snprintf(parent, sizeof(em_long_string_t), "%s@%s@%s@%d", net_id, dev_mac_str, cJSON_GetStringValue(radio_id_obj),
+            const char *id_str = cJSON_GetStringValue(radio_id_obj);
+            if (id_str == NULL || strcmp(id_str, "00:00:00:00:00:00") == 0) {
+                continue; // skip null entries
+            }
+            snprintf(parent, sizeof(em_long_string_t), "%s@%s@%s@%d", net_id, dev_mac_str, id_str,
                         em_policy_id_type_steering_param);
             m_policy[m_num_policy].decode(radio_steer_obj, parent, em_policy_id_type_steering_param);
             m_num_policy++;
@@ -3045,7 +3086,6 @@ void dm_easy_mesh_t::set_policy(dm_policy_t policy)
 	dm_policy_t *ppolicy;
 	bool found_match = false;
 	bool temp = 0;
-
     for (i = 0; i < m_num_policy; i++) {
         ppolicy = &m_policy[i];
         temp = ((strncmp(policy.m_policy.id.net_id, ppolicy->m_policy.id.net_id, strlen(policy.m_policy.id.net_id)) == 0) &&
