@@ -1950,7 +1950,6 @@ typedef struct {
     unsigned int num_qos_mgmt;
     em_qos_mgmt_policy_t qos_mgmt_policy[EM_MAX_QOS_MGMT_POLICY];
     em_vendor_policy_t vendor_policy;
-    uint32_t present_mask; /* EM_POLICY_PRESENT_* flags; 0 = encode all */
 } em_policy_cfg_params_t;
 
 typedef struct {

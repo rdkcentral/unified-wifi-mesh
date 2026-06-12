@@ -82,22 +82,20 @@ short em_policy_cfg_t::create_metrics_rep_policy_tlv(unsigned char *buff)
         policy = &dm->m_policy[i];
         if (policy->m_policy.id.type == em_policy_id_type_ap_metrics_rep) {
             found_match = true;
+            //use radio from previous
             break;
         }
     }
 
 	if (found_match == false) {
         em_printfout("No matching policy found for metrics report policy TLV");
+        //use interval from previous
         // ap_metrics_rep not in cmd_dm — get interval from live DM
         for (i = 0; i < get_data_model()->get_num_policy(); i++) {
             policy = &get_data_model()->m_policy[i];
             if (policy->m_policy.id.type == em_policy_id_type_ap_metrics_rep) {
-                found_match = true;
                 break;
             }
-        }
-        if (found_match == false) {
-            return 0;
         }
 	}
 
@@ -105,7 +103,6 @@ short em_policy_cfg_t::create_metrics_rep_policy_tlv(unsigned char *buff)
 	metric->interval = static_cast<unsigned char> (policy->m_policy.interval);
 
     unsigned int radio_cnt = 0;
-	em_printfout(" NUM of radios: %d", radio_cnt);
 
     for (i = 0; i < dm->get_num_policy(); i++) {
 		policy = &dm->m_policy[i];
@@ -134,6 +131,8 @@ short em_policy_cfg_t::create_metrics_rep_policy_tlv(unsigned char *buff)
             }
     	}
     }
+	em_printfout(" NUM of radios: %d", radio_cnt);
+
     metric->radios_num = radio_cnt;
 
 	tmp += 2*sizeof(unsigned char) + metric->radios_num * sizeof(em_metric_rprt_policy_radio_t);
@@ -672,7 +671,10 @@ int em_policy_cfg_t::handle_policy_cfg_req(unsigned char *buff, unsigned int len
     unsigned char *cursor = NULL;
     em_vendor_data_t *data = NULL;
 
-    memset(&policy, 0, sizeof(policy));
+    // Start from last applied policy so that absent TLVs retain their
+    // existing values instead of being zeroed out.
+    static em_policy_cfg_params_t last_policy = {};
+    policy = last_policy;
     em_cmdu_t *cmdu = reinterpret_cast<em_cmdu_t *> (buff + sizeof(em_raw_hdr_t));
 
     tlv = reinterpret_cast<em_tlv_t *> (buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
@@ -707,13 +709,17 @@ int em_policy_cfg_t::handle_policy_cfg_req(unsigned char *buff, unsigned int len
         } else if (tlv->type == em_tlv_type_metric_reporting_policy) {
             em_metric_rprt_policy_t *metrics = reinterpret_cast<em_metric_rprt_policy_t *> (tlv->value);
             policy.metrics_policy.interval = metrics->interval;
-            policy.metrics_policy.radios_num = metrics->radios_num;
             data_len += (2 * sizeof(unsigned char));
 
-            for(i = 0; i < metrics->radios_num; i++) {
-                em_metric_rprt_policy_radio_t *radio = &metrics->radios[i];
-                memcpy(&policy.metrics_policy.radios[i], radio, sizeof(em_metric_rprt_policy_radio_t));
-                em_printfout("Recvd policy for radio %s", util::mac_to_string(policy.metrics_policy.radios[i].ruid).c_str());
+            // Only overwrite radios if the TLV actually carries radio entries;
+            // otherwise keep the previously cached per-radio policies (from last_policy).
+            if (metrics->radios_num > 0) {
+                policy.metrics_policy.radios_num = metrics->radios_num;
+                for(i = 0; i < metrics->radios_num; i++) {
+                    em_metric_rprt_policy_radio_t *radio = &metrics->radios[i];
+                    memcpy(&policy.metrics_policy.radios[i], radio, sizeof(em_metric_rprt_policy_radio_t));
+                    em_printfout("Recvd policy for radio %s", util::mac_to_string(policy.metrics_policy.radios[i].ruid).c_str());
+                }
             }
             data_len += (metrics->radios_num * sizeof(em_metric_rprt_policy_radio_t));
         } else if (tlv->type == em_tlv_type_dflt_8021q_settings) {
@@ -858,6 +864,9 @@ int em_policy_cfg_t::handle_policy_cfg_req(unsigned char *buff, unsigned int len
         tlv_len -= static_cast<unsigned int> (sizeof(em_tlv_t) + static_cast<size_t> (htons(tlv->len)));
         tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
     }
+
+    // Save as baseline for next partial update.
+    last_policy = policy;
 
     get_mgr()->io_process(em_bus_event_type_set_policy, reinterpret_cast<unsigned char *> (&policy), sizeof(policy));
     send_1905_ack_message(ntohs(cmdu->id));

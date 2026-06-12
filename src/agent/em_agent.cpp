@@ -1294,23 +1294,23 @@ int em_agent_t::report_cb(char *event_name, bus_data_prop_t *data, void *userDat
     if (strncmp(event_name, "Device.WiFi.EM.APMetricsReport", sizeof("Device.WiFi.EM.APMetricsReport"))==0) {
         g_agent.io_process(em_bus_event_type_ap_metrics_report, reinterpret_cast<unsigned char *>(data->value.raw_data.bytes), data->value.raw_data_len);
     } else if (strncmp(event_name, WIFI_QUALITY_LINKREPORT, sizeof(WIFI_QUALITY_LINKREPORT))==0) {
-        em_printfout("Received Frame data for event [%s] and data :\n%s", event_name, data->value.raw_data.bytes);
         cJSON *json = cJSON_Parse(reinterpret_cast<const char *>(data->value.raw_data.bytes));
         if (json != NULL) {
             cJSON *link_report_arr;
             cJSON *subdoc_name = cJSON_GetObjectItemCaseSensitive(json, "SubDocName");
             if ((strcmp(subdoc_name->valuestring, "LinkReport") == 0)) {
-                em_printfout("Found SubDocName: LinkReport");
+                //em_printfout("Found SubDocName: LinkReport");
                 link_report_arr = cJSON_GetObjectItem(json, "LinkReport");
                 if ((link_report_arr == NULL) && (cJSON_IsObject(link_report_arr) == false)) {
                     cJSON_Delete(json);
                     return 0;
                 }
                 if (cJSON_IsArray(link_report_arr) && cJSON_GetArraySize(link_report_arr) == 0) {
-                    em_printfout("LinkReport is NULL");
+                    //em_printfout("LinkReport is NULL");
                     cJSON_Delete(json);
                     return -1;
                 }
+                em_printfout("Received Frame data for event [%s] and data :\n%s", event_name, data->value.raw_data.bytes);
             }
             cJSON_Delete(json);
         }
