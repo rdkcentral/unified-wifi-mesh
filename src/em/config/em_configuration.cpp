@@ -2650,45 +2650,6 @@ int em_configuration_t::handle_ap_mld_config_resp(unsigned char *buff, unsigned 
     return 0;
 }
 
-unsigned short em_configuration_t::create_traffic_separation_policy(unsigned char *buff)
-{
-    unsigned short len = 0;
-    unsigned int i;
-    dm_easy_mesh_t *dm = get_data_model();
-    dm_network_ssid_t *net_ssid;
-    unsigned char *tmp = buff;
-
-    // get total ssid count
-    unsigned char ssids_num = dm->get_num_network_ssid();
-    *tmp = static_cast<unsigned char>(ssids_num);
-    tmp += sizeof(unsigned char);
-    len += sizeof(unsigned char);
-
-    for (i = 0; i < ssids_num; i++) {
-        net_ssid = dm->get_network_ssid(i);
-
-        std::vector<unsigned char> ssid_bytes(net_ssid->m_network_ssid_info.ssid, 
-                    net_ssid->m_network_ssid_info.ssid + strlen(net_ssid->m_network_ssid_info.ssid));
-        unsigned char ssid_len = static_cast<unsigned char>(ssid_bytes.size());
-
-        *tmp = ssid_len;
-        tmp += sizeof(unsigned char);
-        len += sizeof(unsigned char);
-
-        memcpy(tmp, ssid_bytes.data(), ssid_len);
-        tmp += ssid_len;
-        len += ssid_len;
-
-        unsigned short vlan_n = htons(net_ssid->m_network_ssid_info.vlan_id);
-        memcpy(tmp, &vlan_n, sizeof(vlan_n));
-        tmp += sizeof(unsigned short);
-        len += sizeof(unsigned short);
-	    em_printfout(" TRAFFIC SEPARATION SSID='%.*s' Len=%u, VLAN=%u ",ssid_len,ssid_bytes.data(), ssid_len, net_ssid->m_network_ssid_info.vlan_id);
-    }
-    em_printfout("Length: %d ", len);
-    return len;
-}
-
 unsigned short em_configuration_t::create_m2_msg(unsigned char *buff, em_haul_type_t haul_type)
 {
     data_elem_attr_t *attr;
@@ -3551,7 +3512,7 @@ int em_configuration_t::create_bss_config_rsp_msg(uint8_t *buff, uint8_t dest_al
     tmp = em_msg_t::add_tlv(tmp, &len, em_tlv_type_dflt_8021q_settings, tlv_buff, sizeof(em_8021q_settings_t));
 
     // Zero or One traffic separation policy tlv 17.2.50
-    tlv_size = create_traffic_separation_policy(tlv_buff); // Data
+    tlv_size = create_traffic_separation_policy_tlv(tlv_buff); // Data
     tmp = em_msg_t::add_tlv(tmp, &len, em_tlv_type_traffic_separation_policy, tlv_buff, static_cast<unsigned int> (tlv_size));
 
     // Zero or one Agent AP MLD Configuration TLV (see section 17.2.96)
@@ -4020,7 +3981,7 @@ int em_configuration_t::create_autoconfig_wsc_m2_msg(unsigned char *buff, unsign
     // traffic separation policy tlv 17.2.50 
     tlv = reinterpret_cast<em_tlv_t *> (tmp);
     tlv->type = em_tlv_type_traffic_separation_policy;
-    sz = static_cast<short unsigned int> (create_traffic_separation_policy(tlv->value));
+    sz = static_cast<short unsigned int> (create_traffic_separation_policy_tlv(tlv->value));
     tlv->len = htons(sz);
 
     tmp += (sizeof(em_tlv_t) + sz);
