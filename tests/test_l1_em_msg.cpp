@@ -3590,7 +3590,10 @@ TEST(em_msg_t, get_next_tlv_buff_len_zero) {
 /**
  * @brief Test the retrieval of valid client MAC information from a TLV buffer.
  *
- * This test verifies that the API successfully parses a TLV buffer containing valid client information including the MAC address, correctly extracting and returning the MAC address. The test ensures the API works as expected and confirms the integrity of the TLV parsing.
+ * This test verifies that the get_client_mac_info API successfully parses a TLV buffer containing a valid
+ * em_client_info_t structure (comprising both a BSSID and a client MAC address), and correctly extracts
+ * the client MAC address into the output buffer. The test ensures the API returns true and that the
+ * extracted MAC address matches the expected value.
  *
  * **Test Group ID:** Basic: 01
  * **Test Case ID:** 101
@@ -3601,18 +3604,23 @@ TEST(em_msg_t, get_next_tlv_buff_len_zero) {
  * **User Interaction:** None
  *
  * **Test Procedure:**
- * | Variation / Step | Description                                                                                  | Test Data                                                                                                     | Expected Result                                                                                            | Notes            |
- * | :--------------: | -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- | ---------------- |
- * |      01        | Initialize the TLV buffer and write valid client info including MAC using write_tlv            | buffer size = TLV_HEADER_SIZE + 6, mac_val = {0x01, 0x23, 0x45, 0x67, 0x89, 0xAB}                             | Buffer contains valid TLV with correct client information                                                  | Should be successful |
- * |      02        | Create an instance of em_msg_t using the prepared TLV buffer                                   | buffer, buffer length = TLV_HEADER_SIZE + 6                                                                   | em_msg_t object is successfully created                                                                    | Should be successful |
- * |      03        | Call get_client_mac_info to extract the MAC address and compare it with the expected MAC value | output pointer to mac (6 bytes), expected mac_val = {0x01, 0x23, 0x45, 0x67, 0x89, 0xAB}                         | Function returns true and the extracted MAC address matches the expected value as per EXPECT_TRUE and EXPECT_EQ | Should Pass       |
+ * | Variation / Step | Description                                                                                        | Test Data                                                                                                                                                                           | Expected Result                                                                                            | Notes                |
+ * | :--------------: | -------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- | -------------------- |
+ * |      01        | Populate an em_client_info_t structure with a known BSSID and client MAC address                     | bssid = {0x00,0x11,0x22,0x33,0x44,0x55}, mac_val = {0x01,0x23,0x45,0x67,0x89,0xAB}                                                                                                  | em_client_info_t fields are set to the expected values                                                     | Should be successful |
+ * |      02        | Write the em_client_info_t structure as a client info TLV into the buffer using write_tlv            | buffer size = TLV_HEADER_SIZE + sizeof(em_client_info_t), TLV type = em_tlv_type_client_info, value = reinterpret_cast of em_client_info_t, length = sizeof(em_client_info_t)       | Buffer contains a valid em_tlv_type_client_info TLV with the correct payload                               | Should be successful |
+ * |      03        | Create an instance of em_msg_t using the prepared TLV buffer                                         | buffer, buffer length = sizeof(buffer)                                                                                                                                              | em_msg_t object is successfully created                                                                    | Should be successful |
+ * |      04        | Call get_client_mac_info to extract the client MAC address and compare with the expected value       | output pointer to mac (6 bytes, initialized to zeros), expected mac_val = {0x01,0x23,0x45,0x67,0x89,0xAB}                                                                           | function returns true, the extracted MAC address matches mac_val as verified by EXPECT_TRUE and EXPECT_EQ  | Should Pass          |
  */
 TEST(em_msg_t, get_client_mac_info_valid_client_info_tlv)
 {
     std::cout << "Entering get_client_mac_info_valid_client_info_tlv test" << std::endl;
-    unsigned char buffer[TLV_HEADER_SIZE + 6];
+    unsigned char buffer[TLV_HEADER_SIZE + sizeof(em_client_info_t)];
+    unsigned char bssid[6] = {0x00, 0x11, 0x22, 0x33, 0x44, 0x55};
     unsigned char mac_val[6] = {0x01, 0x23, 0x45, 0x67, 0x89, 0xAB};
-    write_tlv(buffer, em_tlv_type_client_info, mac_val, sizeof(mac_val));
+    em_client_info_t client_info;
+    memcpy(client_info.bssid, bssid, sizeof(bssid));
+    memcpy(client_info.client_mac_addr, mac_val, sizeof(mac_val));
+    write_tlv(buffer, em_tlv_type_client_info, reinterpret_cast<unsigned char*>(&client_info), sizeof(client_info));
     em_msg_t msg(buffer, sizeof(buffer));
     unsigned char mac[6] = {0};
     bool ret = msg.get_client_mac_info(reinterpret_cast<mac_address_t*>(mac));

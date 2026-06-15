@@ -48,7 +48,7 @@
 int em_capability_t::send_ap_cap_report_msg(unsigned char *dst, unsigned short msg_id)
 {
     unsigned char buff[MAX_EM_BUFF_SZ * EM_MAX_RADIO_PER_AGENT] = {0};
-    //char *errors[EM_MAX_TLV_MEMBERS] = {0};
+    char *errors[EM_MAX_TLV_MEMBERS] = {0};
     unsigned short  msg_type = em_msg_type_ap_cap_rprt;
     unsigned int len = 0;
     em_cmdu_t *cmdu;
@@ -239,18 +239,18 @@ int em_capability_t::send_ap_cap_report_msg(unsigned char *dst, unsigned short m
     tmp += (sizeof(em_tlv_t));
     len += static_cast<unsigned int>((sizeof(em_tlv_t)));
 
-    /*if (em_msg_t(em_msg_type_ap_cap_rprt, em_profile_type_3, buff, len).validate(errors) == 0) {
-        printf("Topology Response msg failed validation in tnx end");
+    if (em_msg_t(em_msg_type_ap_cap_rprt, em_profile_type_3, buff, len).validate(errors) == 0) {
+        em_printfout("Error: AP Capability Report msg validation failed in tnx end");
 
         return -1;
-    }*/
+    }
 
     if (send_frame(buff, len)  < 0) {
-        em_printfout("AP capability report send failed, error:%d", errno);
+        em_printfout("Error: AP Capability Report msg send failed, error: %d", errno);
         return -1;
     }
     set_state(em_state_agent_ap_cap_report);
-    em_printfout("AP Cap report sent successfully, len[%d]", len);
+    em_printfout("AP Capability Report msg sent successfully, len[%d]", len);
     return static_cast<int> (len);
 }
 
@@ -312,17 +312,17 @@ int em_capability_t::send_client_cap_query()
     tmp += (sizeof (em_tlv_t));
     len += (sizeof (em_tlv_t));
     if (em_msg_t(em_msg_type_client_cap_query, em_profile_type_3, buff, static_cast<unsigned int> (len)).validate(errors) == 0) {
-        em_printfout("Capability Query msg failed validation in tnx end");
+        em_printfout("Error: Client Capability Query msg validation failed in tnx end");
         return -1;
     }
 
     if (send_frame(buff, static_cast<unsigned int> (len))  < 0) {
-        em_printfout("Capability Query msg failed, error:%d", errno);
+        em_printfout("Error: Client Capability Query msg send failed, error: %d", errno);
         return -1;
     }
 
     m_cap_query_tx_cnt++;
-    em_printfout("Capability Query (%d) Send Successful for sta:%s", m_cap_query_tx_cnt, evt_param->u.args.args[2]);
+    em_printfout("Client Capability Query msg (%d) sent successfully for sta: %s", m_cap_query_tx_cnt, evt_param->u.args.args[2]);
 
     return static_cast<int> (len);
 }
@@ -334,18 +334,53 @@ short em_capability_t::create_client_cap_tlv(unsigned char *buff, mac_address_t 
     unsigned char res = 0;
     dm_easy_mesh_t *dm;
     dm_sta_t *dm_sta;
+    em_assoc_sta_mld_info_t *assoc_info = NULL;
+    unsigned int i, j;
+    mac_address_t lookup_sta;
 
     dm = get_data_model();
+    memcpy(lookup_sta, sta, sizeof(mac_address_t));
 
     dm_sta = reinterpret_cast<dm_sta_t *> (hash_map_get_first(dm->m_sta_map));
     while(dm_sta != NULL) {
-        if (memcmp(dm_sta->get_sta_info()->id, sta, sizeof(mac_address_t)) == 0) {
+        if (memcmp(dm_sta->get_sta_info()->id, lookup_sta, sizeof(mac_address_t)) == 0) {
             break;
         }
-        dm_sta = reinterpret_cast<dm_sta_t *> (hash_map_get_next(dm->m_sta_map, sta));
+        dm_sta = reinterpret_cast<dm_sta_t *> (hash_map_get_next(dm->m_sta_map, dm_sta));
     }
 
-    //TODO; if dm_sta is null break; fill result 0?
+    // Client Capability Query for MLO may carry STA MLD MAC while local sta_map may hold
+    // affiliated link STA MACs. Resolve STA MLD -> affiliated STA and retry lookup.
+    if (dm_sta == NULL) {
+        for (i = 0; i < dm->get_num_assoc_sta_mld(); i++) {
+            assoc_info = &dm->m_assoc_sta_mld[i].m_assoc_sta_mld_info;
+            if (memcmp(assoc_info->mac_addr, sta, sizeof(mac_address_t)) != 0) {
+                continue;
+            }
+
+            for (j = 0; j < assoc_info->num_affiliated_sta; j++) {
+                memcpy(lookup_sta, assoc_info->affiliated_sta[j].mac_addr, sizeof(mac_address_t));
+                dm_sta = reinterpret_cast<dm_sta_t *> (hash_map_get_first(dm->m_sta_map));
+                while (dm_sta != NULL) {
+                    if (memcmp(dm_sta->get_sta_info()->id, lookup_sta, sizeof(mac_address_t)) == 0) {
+                        break;
+                    }
+                    dm_sta = reinterpret_cast<dm_sta_t *> (hash_map_get_next(dm->m_sta_map, dm_sta));
+                }
+
+                if (dm_sta != NULL) {
+                    em_printfout("Client cap: mapped MLD %s to link STA %s",
+                            util::mac_to_string(sta).c_str(), util::mac_to_string(lookup_sta).c_str());
+                    break;
+                }
+            }
+
+            if (dm_sta != NULL) {
+                break;
+            }
+        }
+    }
+
     if(dm_sta == NULL) {
         return 0;
     }
@@ -390,7 +425,7 @@ short em_capability_t::create_error_code_tlv(unsigned char *buff, mac_address_t 
 
     memcpy(tmp, sta, sizeof(mac_address_t));
     tmp += sizeof(mac_address_t);
-    len += static_cast<short> (sizeof(unsigned char));
+    len += static_cast<short> (sizeof(mac_address_t));
 
     return len;
 }
@@ -509,17 +544,17 @@ int em_capability_t::send_client_cap_report_msg(mac_address_t sta, bssid_t bss, 
     len += (sizeof (em_tlv_t));
 
     if (em_msg_t(em_msg_type_client_cap_rprt, em_profile_type_3, buff, static_cast<unsigned int> (len)).validate(errors) == 0) {
-        printf("%s:%d: Client capability report validation failed\n", __func__, __LINE__);
+        em_printfout("Error: Client Capability Report msg validation failed in tnx end");
         return -1;
     }
 
     if (send_frame(buff, static_cast<unsigned int> (len))  < 0) {
-        printf("%s:%d: Client Capablity report send failed, error:%d\n", __func__, __LINE__, errno);
+        em_printfout("Error: Client Capability Report msg send failed, error: %d", errno);
         return -1;
     }
 
     dm_easy_mesh_t::macbytes_to_string(sta, mac_str);
-    printf("%s:%d: Client Capablity report Send Successful for sta:%s\n", __func__, __LINE__, mac_str);
+    em_printfout("Client Capability Report msg sent successfully for sta: %s", mac_str);
 
     return static_cast<int> (len);
 }
@@ -571,15 +606,15 @@ int em_capability_t::send_ap_cap_query_msg()
     len += static_cast<unsigned int> (sizeof (em_tlv_t));
 
     if (em_msg_t(em_msg_type_ap_cap_query, em_profile_type_3, buff, len).validate(errors) == 0) {
-        em_printfout("AP capability Query msg failed validation in tnx end");
+        em_printfout("Error: AP Capability Query msg validation failed in tnx end");
         return -1;
     }
 
     if (send_frame(buff, len)  < 0) {
-        em_printfout("%s:%d: AP capability Query send failed, error:%d", errno);
+        em_printfout("Error: AP Capability Query msg send failed, error: %d", errno);
         return -1;
     }
-    em_printfout("AP capability Query Sent for radio: %s", util::mac_to_string(get_radio_interface_mac()).c_str());
+    em_printfout("AP Capability Query msg sent successfully for radio: %s", util::mac_to_string(get_radio_interface_mac()).c_str());
 
     return 0;
 }
@@ -631,16 +666,16 @@ int em_capability_t::send_bsta_cap_query_msg()
     len += static_cast<unsigned int> (sizeof (em_tlv_t));
 
     if (em_msg_t(em_msg_type_bh_sta_cap_query, em_profile_type_3, buff, len).validate(errors) == 0) {
-        printf("Backhaul Sta capability Query msg failed validation in tnx end\n");
+        em_printfout("Error: Backhaul Sta Capability Query msg validation failed in tnx end");
         return -1;
     }
 
     if (send_frame(buff, len)  < 0) {
-        printf("%s:%d: Backhaul Sta capability Query send failed, error:%d\n", __func__, __LINE__, errno);
+        em_printfout("Error: Backhaul Sta Capability Query msg send failed, error: %d", errno);
         return -1;
     }
 
-    em_printfout("Backhaul Sta capability Query Sent for radio: %s", util::mac_to_string(get_radio_interface_mac()).c_str());
+    em_printfout("Backhaul Sta Capability Query msg sent successfully for radio: %s", util::mac_to_string(get_radio_interface_mac()).c_str());
 
     return 0;
 }
@@ -716,16 +751,16 @@ int em_capability_t::send_bsta_cap_report_msg(unsigned short msg_id)
     len += (sizeof (em_tlv_t));
 
     if (em_msg_t(em_msg_type_bh_sta_cap_rprt, em_profile_type_3, buff, static_cast<unsigned int> (len)).validate(errors) == 0) {
-        em_printfout("Backhaul Sta capability report validation failed");
+        em_printfout("Error: Backhaul Sta Capability Report msg validation failed in tnx end");
         return -1;
     }
 
     if (send_frame(buff, static_cast<unsigned int> (len))  < 0) {
-        em_printfout("Backhaul Sta capability report send failed");
+        em_printfout("Error: Backhaul Sta Capability Report msg send failed");
         return -1;
     }
 
-    em_printfout("Backhaul Sta capability report Send Successful");
+    em_printfout("Backhaul Sta Capability Report msg sent successfully");
 
     return static_cast<int> (len);
 }
@@ -736,16 +771,27 @@ int em_capability_t::handle_client_cap_report(unsigned char *buff, unsigned int 
     em_tlv_t *tlv;
     em_sta_info_t sta_info;
     mac_addr_str_t sta_mac_str, bssid_str, radio_mac_str;
+    mac_addr_str_t link_bssid_str, link_radio_str;
     em_long_string_t	key;
     dm_easy_mesh_t  *dm;
+    em_assoc_sta_mld_info_t *assoc_info = NULL;
+    dm_bss_t *aff_bss = NULL;
+    dm_sta_t *existing_link_sta = NULL;
+    dm_sta_t *existing_sta = NULL;
+    em_sta_info_t link_sta_info;
+    em_long_string_t link_key;
+    bool remapped_bssid = false;
     bool found_client_info = false;
     bool found_cap_report = false;
+    bool sta_match = false;
+    bool updated_any = false;
+    unsigned int i, j, k;
     char *errors[EM_MAX_TLV_MEMBERS] = {0};
 
     dm = get_data_model();
 
     if (em_msg_t(em_msg_type_client_cap_rprt, em_profile_type_3, buff, len).validate(errors) == 0) {
-        printf("%s:%d:Client Capability query message validation failed\n",__func__,__LINE__);
+        em_printfout("Error: Client Capability Report msg validation failed");
         return -1;
     }
 
@@ -766,8 +812,43 @@ int em_capability_t::handle_client_cap_report(unsigned char *buff, unsigned int 
     }
 
     if (found_client_info == false) {
-        printf("%s:%d: Could not find client info\n", __func__, __LINE__);
+        em_printfout("Error: Could not find client info");
         return -1;
+    }
+
+    // Remap AP MLD BSSID to a local link BSSID when needed.
+    if (dm->get_bss(get_radio_interface_mac(), sta_info.bssid) == NULL) {
+        for (i = 0; i < dm->get_num_assoc_sta_mld(); i++) {
+            assoc_info = &dm->m_assoc_sta_mld[i].m_assoc_sta_mld_info;
+            sta_match = (memcmp(assoc_info->mac_addr, sta_info.id, sizeof(mac_address_t)) == 0);
+
+            if (sta_match == false) {
+                for (j = 0; j < assoc_info->num_affiliated_sta; j++) {
+                    if (memcmp(assoc_info->affiliated_sta[j].mac_addr, sta_info.id, sizeof(mac_address_t)) == 0) {
+                        sta_match = true;
+                        break;
+                    }
+                }
+            }
+
+            if (sta_match == false) {
+                continue;
+            }
+
+            for (j = 0; j < assoc_info->num_affiliated_sta; j++) {
+                if (dm->get_bss(get_radio_interface_mac(), assoc_info->affiliated_sta[j].bssid) != NULL) {
+                    memcpy(sta_info.bssid, assoc_info->affiliated_sta[j].bssid, sizeof(mac_address_t));
+                    em_printfout("Client cap: remapped BSSID for STA %s -> %s",
+                        util::mac_to_string(sta_info.id).c_str(), util::mac_to_string(sta_info.bssid).c_str());
+                    remapped_bssid = true;
+                    break;
+                }
+            }
+
+            if (remapped_bssid == true) {
+                break;
+            }
+        }
     }
 
     tlv = reinterpret_cast<em_tlv_t *> (buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
@@ -791,7 +872,7 @@ int em_capability_t::handle_client_cap_report(unsigned char *buff, unsigned int 
     }
 
     if (found_cap_report == false) {
-        printf("%s:%d: Could not find client cap report\n", __func__, __LINE__);
+        em_printfout("Error: Could not find client cap report");
         return -1;
     }
 
@@ -802,11 +883,58 @@ int em_capability_t::handle_client_cap_report(unsigned char *buff, unsigned int 
     dm_easy_mesh_t::macbytes_to_string(get_radio_interface_mac(), radio_mac_str);
     snprintf(key, sizeof(em_long_string_t), "%s@%s@%s", sta_mac_str, bssid_str, radio_mac_str);
 
-    if (hash_map_get(dm->m_sta_assoc_map, key) == NULL) {
-        hash_map_put(dm->m_sta_assoc_map, strdup(key), new dm_sta_t(&sta_info));
-        dm->set_db_cfg_param(db_cfg_type_sta_list_update, "");
-        em_printfout("New client updated to db: %s", key);
+    // For MLO STA, update all affiliated link rows.
+    for (i = 0; i < dm->get_num_assoc_sta_mld(); i++) {
+        assoc_info = &dm->m_assoc_sta_mld[i].m_assoc_sta_mld_info;
+        if (memcmp(assoc_info->mac_addr, sta_info.id, sizeof(mac_address_t)) != 0) {
+            continue;
+        }
+
+        for (j = 0; j < assoc_info->num_affiliated_sta; j++) {
+            aff_bss = NULL;
+            link_sta_info = sta_info;
+            memcpy(link_sta_info.bssid, assoc_info->affiliated_sta[j].bssid, sizeof(mac_address_t));
+            for (k = 0; k < dm->get_num_radios(); k++) {
+                aff_bss = dm->get_bss(dm->get_radio_info(k)->id.ruid, link_sta_info.bssid);
+                if (aff_bss != NULL) {
+                    memcpy(link_sta_info.radiomac, aff_bss->m_bss_info.ruid.mac, sizeof(mac_address_t));
+                    break;
+                }
+            }
+
+            dm_easy_mesh_t::macbytes_to_string(link_sta_info.bssid, link_bssid_str);
+            dm_easy_mesh_t::macbytes_to_string(link_sta_info.radiomac, link_radio_str);
+            snprintf(link_key, sizeof(em_long_string_t), "%s@%s@%s", sta_mac_str, link_bssid_str, link_radio_str);
+
+            existing_link_sta = static_cast<dm_sta_t *>(hash_map_get(dm->m_sta_assoc_map, link_key));
+            if (existing_link_sta == NULL) {
+                hash_map_put(dm->m_sta_assoc_map, strdup(link_key), new dm_sta_t(&link_sta_info));
+                em_printfout("Client cap DB new link: %s len=%u assoc=%d",
+                        link_key, link_sta_info.frame_body_len, link_sta_info.associated);
+            } else {
+                memcpy(&existing_link_sta->m_sta_info, &link_sta_info, sizeof(em_sta_info_t));
+                em_printfout("Client cap DB update link: %s len=%u assoc=%d",
+                        link_key, link_sta_info.frame_body_len, link_sta_info.associated);
+            }
+            updated_any = true;
+        }
+        break;
     }
+
+    if (updated_any == false) {
+        existing_sta = static_cast<dm_sta_t *>(hash_map_get(dm->m_sta_assoc_map, key));
+        if (existing_sta == NULL) {
+            hash_map_put(dm->m_sta_assoc_map, strdup(key), new dm_sta_t(&sta_info));
+            em_printfout("Client cap DB new: %s len=%u assoc=%d",
+                    key, sta_info.frame_body_len, sta_info.associated);
+        } else {
+            memcpy(&existing_sta->m_sta_info, &sta_info, sizeof(em_sta_info_t));
+            em_printfout("Client cap DB update: %s len=%u assoc=%d",
+                    key, sta_info.frame_body_len, sta_info.associated);
+        }
+    }
+
+    dm->set_db_cfg_param(db_cfg_type_sta_list_update, "");
     return 0;
 }
 
@@ -815,20 +943,61 @@ void em_capability_t::handle_client_cap_query(unsigned char *buff, unsigned int 
     mac_address_t sta;
     bssid_t bss;
     em_tlv_t *tlv;
+    em_cmdu_t *cmdu;
+    unsigned int tmp_len;
+    unsigned int tlv_sz;
     char *errors[EM_MAX_TLV_MEMBERS] = {0};
 
-    if (em_msg_t(em_msg_type_client_cap_query, em_profile_type_3, buff, len).validate(errors) == 0) {
-        em_printfout("Client Capability query message validation failed");
+    if (buff == NULL) {
+        em_printfout("Client cap query: null buffer");
         return;
     }
 
-    em_cmdu_t *cmdu = reinterpret_cast<em_cmdu_t *> (buff + sizeof(em_raw_hdr_t));
+    if (len < (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t) + sizeof(em_tlv_t))) {
+        em_printfout("Client cap query: short frame len=%u", len);
+        return;
+    }
+
+    cmdu = reinterpret_cast<em_cmdu_t *> (buff + sizeof(em_raw_hdr_t));
+
+    if (em_msg_t(em_msg_type_client_cap_query, em_profile_type_3, buff, len).validate(errors) == 0) {
+        em_printfout("Error: Client Capability Query msg validation failed");
+        return;
+    }
+
     tlv = reinterpret_cast<em_tlv_t *> (buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+
+    tmp_len = len - static_cast<unsigned int>(sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+    while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
+        if (tlv->type == em_tlv_type_client_info) {
+            break;
+        }
+        tlv_sz = static_cast<unsigned int>(sizeof(em_tlv_t) + htons(tlv->len));
+        if (tmp_len < tlv_sz) {
+            em_printfout("Client cap query: malformed tlv chain");
+            return;
+        }
+        tmp_len -= tlv_sz;
+        tlv = reinterpret_cast<em_tlv_t *>(reinterpret_cast<unsigned char *>(tlv) + tlv_sz);
+    }
+
+    if (tlv->type != em_tlv_type_client_info) {
+        em_printfout("Client cap query: client_info tlv not found");
+        return;
+    }
+
+    if (htons(tlv->len) < (2 * sizeof(mac_address_t))) {
+        em_printfout("Client cap query: invalid client_info tlv len=%u", htons(tlv->len));
+        return;
+    }
 
     memcpy(bss, tlv->value, sizeof(bssid_t));
     memcpy(sta, tlv->value + sizeof(mac_address_t), sizeof(bssid_t));
 
-    send_client_cap_report_msg(sta, bss, ntohs(cmdu->id));
+    if (send_client_cap_report_msg(sta, bss, ntohs(cmdu->id)) < 0) {
+        em_printfout("Client cap report send failed for sta=%s",
+                util::mac_to_string(sta).c_str());
+    }
     set_state(em_state_agent_configured);
 }
 
@@ -838,11 +1007,11 @@ int em_capability_t::handle_bsta_cap_query(unsigned char *buff, unsigned int len
     em_cmdu_t *cmdu = reinterpret_cast<em_cmdu_t *> (buff + sizeof(em_raw_hdr_t));
 
     if (em_msg_t(em_msg_type_bh_sta_cap_query, em_profile_type_3, buff, len).validate(errors) == 0) {
-        em_printfout("Backhaul Sta Capability query message validation failed");
+        em_printfout("Error: Backhaul Sta Capability Query msg validation failed");
         return -1;
     }
 
-    em_printfout("Backhaul Sta Capability query message rcvd");
+    em_printfout("Backhaul Sta Capability Query msg rcvd");
 
     send_bsta_cap_report_msg(ntohs(cmdu->id));
 
@@ -858,7 +1027,7 @@ int em_capability_t::handle_bsta_radio_cap(unsigned char *tlv_buff, unsigned int
 
     if (!tlv_len || ((tlv_len != sizeof(em_bh_sta_radio_cap_t)) && (tlv_len != offsetof(em_bh_sta_radio_cap_t, bsta_addr))))
     {
-        em_printfout("Invalid TLV length:%d Must be %d or %d for bsta radio cap TLV",
+        em_printfout("Error: Invalid TLV length:%d Must be %d or %d for bsta radio cap TLV",
 		     static_cast<int>(tlv_len),
                      static_cast<int>(offsetof(em_bh_sta_radio_cap_t, bsta_addr)),
                      static_cast<int>(sizeof(em_bh_sta_radio_cap_t)));
@@ -890,14 +1059,14 @@ int em_capability_t::handle_bsta_radio_cap(unsigned char *tlv_buff, unsigned int
     dm_easy_mesh_t *dm = get_data_model();
 
     if (!dm) {
-        em_printfout("Could not find data model");
+        em_printfout("Error: Could not find data model");
         return -1;
     }
 
     em_device_info_t *dev = dm->get_device_info();
     if (!dev)
     {
-        em_printfout("Could not find device in data model");
+        em_printfout("Error: Could not find device in data model");
         return -1;
     }
 
@@ -914,7 +1083,7 @@ int em_capability_t::handle_client_info(unsigned char *tlv_buff, unsigned int tl
     }
 
     if (tlv_len != sizeof(em_client_info_t)) {
-        em_printfout("Invalid TLV length for client info TLV: received %u, expected %d", tlv_len, static_cast<int>(sizeof(em_client_info_t)));
+        em_printfout("Error: Invalid TLV length for client info TLV: received %u, expected %d", tlv_len, static_cast<int>(sizeof(em_client_info_t)));
         return -1;
     }
 
@@ -923,12 +1092,13 @@ int em_capability_t::handle_client_info(unsigned char *tlv_buff, unsigned int tl
     dm_easy_mesh_t *dm = get_data_model();
 
     if (!dm) {
-        em_printfout("Could not find data model");
+        em_printfout("Error: Could not find data model");
         return -1;
     }
 
     if (dm->get_colocated() != true) {
-        memcpy(dm->m_device.m_device_info.backhaul_mac.mac, client_info->client_mac_addr, sizeof(mac_address_t));
+        // bssid is the upstream AP BSSID the bSTA is associated to (Backhaul.MACAddress)
+        memcpy(dm->m_device.m_device_info.backhaul_mac.mac, client_info->bssid, sizeof(mac_address_t));
         dm->set_db_cfg_param(db_cfg_type_device_list_update, "");
     }
 
@@ -1107,7 +1277,7 @@ int em_capability_t::handle_channel_scan_cap_tlv(unsigned char *buff, unsigned i
 
     // Fixed part of em_channel_scan_cap_radio_t that create_channelscan_tlv advances over.
     static const size_t radio_hdr_sz = sizeof(em_channel_scan_cap_radio_t)
-                                       - sizeof(((em_channel_scan_cap_radio_t *)nullptr)->op_classes);
+                                       - sizeof(static_cast<em_channel_scan_cap_radio_t *>(nullptr)->op_classes);
 
     for (unsigned char i = 0; i < num_radios_in_tlv; i++) {
         if (sz + radio_hdr_sz > len) {
@@ -1395,11 +1565,11 @@ int em_capability_t::handle_ap_cap_report(unsigned char *buff, unsigned int len)
     }
 
     /*if (em_msg_t(em_msg_type_ap_cap_rprt, em_profile_type_3, buff, len).validate(errors) == 0) {
-        printf("%s:%d:AP Capability report message validation failed\n",__func__,__LINE__);
+        em_printfout("Error: AP Capability Report msg validation failed");
         return -1;
     }*/
 
-    em_printfout("AP Capability report message rcvd for radio: %s", util::mac_to_string(get_radio_interface_mac()).c_str());
+    em_printfout("AP Capability Report msg rcvd for radio: %s", util::mac_to_string(get_radio_interface_mac()).c_str());
 
     return 0;
 }

@@ -345,7 +345,7 @@ int em_metrics_t::handle_ap_metrics_tlv(unsigned char *buff, bssid_t get_bssid)
         dm_easy_mesh_t::macbytes_to_string(ap_metrics->bssid, bss_str);
     } else {
         dm_easy_mesh_t::macbytes_to_string(ap_metrics->bssid, bss_str);
-        printf("%s:%d BSS not found: %s\n", __func__, __LINE__, bss_str);
+        em_printfout("Error: BSS not found: %s", bss_str);
     }
 
     return 0;
@@ -362,7 +362,7 @@ int em_metrics_t::handle_assoc_sta_traffic_stats(unsigned char *buff, bssid_t bs
 
     sta = dm->find_sta(sta_metrics->sta_mac, bssid);
     if (sta == NULL) {
-        em_printfout("sta not found: %s for bssid: %s", util::mac_to_string(sta_metrics->sta_mac).c_str(),
+        em_printfout("Error: sta not found: %s for bssid: %s", util::mac_to_string(sta_metrics->sta_mac).c_str(),
             util::mac_to_string(bssid).c_str());
         return -1;
     }
@@ -473,7 +473,7 @@ int em_metrics_t::handle_ap_metrics_response(unsigned char *buff, unsigned int l
     size_t tmp_len, base_len;
     dm_easy_mesh_t  *dm;
     char *errors[EM_MAX_TLV_MEMBERS] = {0};
-    bssid_t bssid;
+    bssid_t bssid = {};
 
     dm = get_data_model();
 
@@ -485,91 +485,50 @@ int em_metrics_t::handle_ap_metrics_response(unsigned char *buff, unsigned int l
     tlv_start =  reinterpret_cast<em_tlv_t *> (buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
     base_len = static_cast<size_t> (len) - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
 
+    // Single-pass loop: maintain running BSSID context so per-STA TLVs can be associated with the correct BSS
     tlv = tlv_start;
     tmp_len = base_len;
 
     while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
-        if (tlv->type == em_tlv_type_ap_metrics) {
-            handle_ap_metrics_tlv(tlv->value, bssid);
-        }
-        tmp_len -= static_cast<unsigned int> (sizeof(em_tlv_t) + static_cast<size_t> (htons(tlv->len)));
-        tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
-    }
-
-    tlv = tlv_start;
-    tmp_len = base_len;
-
-    while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
-        if (tlv->type == em_tlv_type_ap_ext_metric) {
-        }
-        tmp_len -= (sizeof(em_tlv_t) + static_cast<size_t> (htons(tlv->len)));
-        tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
-    }
-
-    tlv = tlv_start;
-    tmp_len = base_len;
-
-    while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
-        if (tlv->type == em_tlv_type_radio_metric) {
-        }
-        tmp_len -= (sizeof(em_tlv_t) + static_cast<size_t> (htons(tlv->len)));
-        tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
-    }
-
-    tlv = tlv_start;
-    tmp_len = base_len;
-
-    while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
-        if (tlv->type == em_tlv_type_assoc_sta_traffic_sts) {
-            //todo: bug fix to find sta
-            handle_assoc_sta_traffic_stats(tlv->value, bssid);
-        }
-        tmp_len -= (sizeof(em_tlv_t) + static_cast<size_t> (htons(tlv->len)));
-        tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
-    }
-
-    tlv = tlv_start;
-    tmp_len = base_len;
-
-    while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
-        if (tlv->type == em_tlv_type_assoc_sta_link_metric) {
-            uint16_t tlv_len = ntohs(tlv->len);
-            handle_assoc_sta_link_metrics_tlv(tlv->value, tlv_len);
+        switch (tlv->type) {
+            case em_tlv_type_ap_metrics:
+                // Update current BSSID context; subsequent per-STA TLVs use this value.
+                handle_ap_metrics_tlv(tlv->value, bssid);
+                break;
+            case em_tlv_type_ap_ext_metric:
+                /* future implementation */
+                break;
+            case em_tlv_type_radio_metric:
+                /* future implementation */
+                break;
+            case em_tlv_type_assoc_sta_traffic_sts:
+                if (handle_assoc_sta_traffic_stats(tlv->value, bssid) != 0) {
+                    em_printfout("assoc_sta_traffic_stats failed, skipping TLV");
+                }
+                break;
+            case em_tlv_type_assoc_sta_link_metric:
+                if (handle_assoc_sta_link_metrics_tlv(tlv->value, ntohs(tlv->len)) != 0) {
+                    em_printfout("assoc_sta_link_metrics_tlv failed, skipping TLV");
+                }
+                break;
+            case em_tlv_type_assoc_sta_ext_link_metric:
+                if (handle_assoc_sta_ext_link_metrics_tlv(tlv->value, ntohs(tlv->len)) != 0) {
+                    em_printfout("assoc_sta_ext_link_metrics_tlv failed, skipping TLV");
+                }
+                break;
+            case em_tlv_type_assoc_wifi6_sta_rprt:
+                /* future implementation */
+                break;
+            case em_tlv_type_vendor_specific:
+                if (handle_assoc_sta_vendor_link_metrics_tlv(tlv->value, ntohs(tlv->len)) != 0) {
+                    em_printfout("assoc_sta_vendor_link_metrics_tlv failed, skipping TLV");
+                }
+                break;
+            default:
+                break;
         }
         tmp_len -= (sizeof(em_tlv_t) + static_cast<size_t> (ntohs(tlv->len)));
         tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + ntohs(tlv->len));
-    }
-
-    tlv = tlv_start;
-    tmp_len = base_len;
-
-    while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
-        if (tlv->type == em_tlv_type_assoc_sta_ext_link_metric) {
-            handle_assoc_sta_ext_link_metrics_tlv(tlv->value, ntohs(tlv->len));
-        }
-        tmp_len -= (sizeof(em_tlv_t) + static_cast<size_t> (ntohs(tlv->len)));
-        tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + ntohs(tlv->len));
-    }
-
-    tlv = tlv_start;
-    tmp_len = base_len;
-
-    while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
-        if (tlv->type == em_tlv_type_assoc_wifi6_sta_rprt) {
-        }
-        tmp_len -= (sizeof(em_tlv_t) + static_cast<size_t> (htons(tlv->len)));
-        tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
-    }
-
-    tlv = tlv_start;
-    tmp_len = base_len;
-
-    while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
-        if (tlv->type == em_tlv_type_vendor_specific) {
-            handle_assoc_sta_vendor_link_metrics_tlv(tlv->value, ntohs(tlv->len));
-        }
-        tmp_len -= (sizeof(em_tlv_t) + static_cast<size_t> (htons(tlv->len)));
-        tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
     }
 
     dm->set_db_cfg_param(db_cfg_type_sta_metrics_update, "");
