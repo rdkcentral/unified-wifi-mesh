@@ -50,6 +50,11 @@ int dm_bss_t::decode(const cJSON *obj, void *parent_id)
         dm_easy_mesh_t::name_from_mac_address(&m_bss_info.bssid.mac, m_bss_info.bssid.name);
     }
 
+    if ((tmp = cJSON_GetObjectItem(obj, "MLDAddr")) != NULL) {
+        snprintf(mac_str, sizeof(mac_str), "%s", cJSON_GetStringValue(tmp));
+        dm_easy_mesh_t::string_to_macbytes(mac_str, m_bss_info.mld_mac);
+    }
+    
     if ((tmp = cJSON_GetObjectItem(obj, "UnicastBytesSent")) != NULL) {
         m_bss_info.unicast_bytes_sent = static_cast<unsigned int> (tmp->valuedouble);
     }

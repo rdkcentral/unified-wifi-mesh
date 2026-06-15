@@ -58,7 +58,13 @@ void dm_bsta_mld_t::operator = (const dm_bsta_mld_t& obj)
     this->m_bsta_mld_info.emlsr = obj.m_bsta_mld_info.emlsr;
     this->m_bsta_mld_info.emlmr = obj.m_bsta_mld_info.emlmr;
     this->m_bsta_mld_info.num_affiliated_bsta = obj.m_bsta_mld_info.num_affiliated_bsta;
-    memcpy(&this->m_bsta_mld_info.affiliated_bsta,&obj.m_bsta_mld_info.affiliated_bsta,sizeof(em_affiliated_bsta_info_t));
+    for (unsigned int i = 0; i < this->m_bsta_mld_info.num_affiliated_bsta; i++) {
+        this->m_bsta_mld_info.affiliated_bsta[i].mac_addr_valid = obj.m_bsta_mld_info.affiliated_bsta[i].mac_addr_valid;
+        memcpy(&this->m_bsta_mld_info.affiliated_bsta[i].ruid.mac,
+            &obj.m_bsta_mld_info.affiliated_bsta[i].ruid.mac, sizeof(mac_address_t));
+        memcpy(&this->m_bsta_mld_info.affiliated_bsta[i].mac_addr,
+            &obj.m_bsta_mld_info.affiliated_bsta[i].mac_addr, sizeof(mac_address_t));
+    }
 }
 
 
@@ -75,7 +81,13 @@ bool dm_bsta_mld_t::operator == (const dm_bsta_mld_t& obj)
     ret += !(this->m_bsta_mld_info.emlsr == obj.m_bsta_mld_info.emlsr);
     ret += !(this->m_bsta_mld_info.emlmr == obj.m_bsta_mld_info.emlmr);
     ret += !(this->m_bsta_mld_info.num_affiliated_bsta == obj.m_bsta_mld_info.num_affiliated_bsta);
-    ret += (memcmp(&this->m_bsta_mld_info.affiliated_bsta,&obj.m_bsta_mld_info.affiliated_bsta,sizeof(em_affiliated_ap_info_t)) != 0);
+    for (unsigned int i = 0; i < this->m_bsta_mld_info.num_affiliated_bsta; i++) {
+        ret += !(this->m_bsta_mld_info.affiliated_bsta[i].mac_addr_valid == obj.m_bsta_mld_info.affiliated_bsta[i].mac_addr_valid);
+        ret += (memcmp(&this->m_bsta_mld_info.affiliated_bsta[i].ruid.mac,
+            &obj.m_bsta_mld_info.affiliated_bsta[i].ruid.mac, sizeof(mac_address_t)) != 0);
+        ret += (memcmp(&this->m_bsta_mld_info.affiliated_bsta[i].mac_addr,
+            &obj.m_bsta_mld_info.affiliated_bsta[i].mac_addr, sizeof(mac_address_t)) != 0);
+    }
 
     if (ret > 0)
         return false;
@@ -85,6 +97,10 @@ bool dm_bsta_mld_t::operator == (const dm_bsta_mld_t& obj)
 
 dm_bsta_mld_t::dm_bsta_mld_t(em_bsta_mld_info_t *bsta_mld_info)
 {
+    memset(&m_bsta_mld_info, 0, sizeof(em_bsta_mld_info_t));
+    if (bsta_mld_info == nullptr) {
+        return;
+    }
     memcpy(&m_bsta_mld_info, bsta_mld_info, sizeof(em_bsta_mld_info_t));
 }
 

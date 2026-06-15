@@ -175,7 +175,11 @@ void em_t::orch_execute(em_cmd_t *pcmd)
             m_sm.set_state(em_state_agent_onewifi_bssconfig_ind);
             break;
         case em_cmd_type_sta_assoc:
-            if ((pcmd->get_orch_op() == dm_orch_type_topo_publish) && (m_sm.get_state() == em_state_ctrl_configured)) {
+            if ((pcmd->get_orch_op() == dm_orch_type_topo_sync) && (m_sm.get_state() == em_state_ctrl_configured)) {
+                m_sm.set_state(em_state_ctrl_topo_sync_pending);
+            } else if ((pcmd->get_orch_op() == dm_orch_type_sta_cap) && (m_sm.get_state() == em_state_ctrl_configured)) {
+                m_sm.set_state(em_state_ctrl_sta_cap_pending);
+            } else if (pcmd->get_orch_op() == dm_orch_type_topo_publish) {
                 m_sm.set_state(em_state_ctrl_topo_publish_pending);
             } else {
                 m_sm.set_state(em_state_ctrl_sta_cap_pending);
@@ -220,7 +224,7 @@ void em_t::orch_execute(em_cmd_t *pcmd)
             break;
 
 		case em_cmd_type_set_policy:
-            set_state(em_state_ctrl_set_policy_pending);
+            m_sm.set_state(em_state_ctrl_set_policy_pending);
             break;
 
         case em_cmd_type_avail_spectrum_inquiry:
@@ -287,6 +291,7 @@ void em_t::proto_process(unsigned char *data, unsigned int len)
         case em_msg_type_topo_resp:
         case em_msg_type_topo_query:
         case em_msg_type_topo_notif:
+        case em_msg_type_failed_conn:
         case em_msg_type_ap_mld_config_req:
         case em_msg_type_ap_mld_config_resp:
         case em_msg_type_bss_config_req:
@@ -378,6 +383,21 @@ void em_t::proto_process(em_cmd_event_t *cevt)
             em_metrics_t::process_agent_state(em_cmd_event_type_ap_metrics_report);
             delete ap_cmd;
             m_cmd = saved_cmd;
+            break;
+        }
+        case em_cmd_event_type_failed_connection:
+        {
+            em_connection_status_evt_data_t *failed_conn_evt =
+                static_cast<em_connection_status_evt_data_t *>(cevt->cmd_ptr);
+
+            if (failed_conn_evt != NULL) {
+                handle_failed_connection_event(failed_conn_evt->sta_mac, failed_conn_evt->bssid,
+                                               failed_conn_evt->status_code,
+                                               failed_conn_evt->reason_code,
+                                               failed_conn_evt->reason_code_present);
+                free(failed_conn_evt);
+                cevt->cmd_ptr = NULL;
+            }
             break;
         }
         default:
@@ -1858,6 +1878,76 @@ unsigned short em_t::create_eht_operations_tlv(unsigned char *buff)
     }
 
     return len;
+}
+
+unsigned short em_t::create_traffic_separation_policy_tlv(unsigned char *buff)
+{
+    unsigned short len = 0;
+    unsigned int i;
+    dm_easy_mesh_t *dm = get_data_model();
+    dm_network_ssid_t *net_ssid;
+    unsigned char *tmp = buff;
+
+    // get total ssid count
+    unsigned char ssids_num = dm->get_num_network_ssid();
+    *tmp = static_cast<unsigned char>(ssids_num);
+    tmp += sizeof(unsigned char);
+    len += sizeof(unsigned char);
+
+    for (i = 0; i < ssids_num; i++) {
+        net_ssid = dm->get_network_ssid(i);
+
+        std::vector<unsigned char> ssid_bytes(net_ssid->m_network_ssid_info.ssid, 
+                    net_ssid->m_network_ssid_info.ssid + strlen(net_ssid->m_network_ssid_info.ssid));
+        unsigned char ssid_len = static_cast<unsigned char>(ssid_bytes.size());
+
+        *tmp = ssid_len;
+        tmp += sizeof(unsigned char);
+        len += sizeof(unsigned char);
+
+        memcpy(tmp, ssid_bytes.data(), ssid_len);
+        tmp += ssid_len;
+        len += ssid_len;
+
+        unsigned short vlan_n = htons(net_ssid->m_network_ssid_info.vlan_id);
+        memcpy(tmp, &vlan_n, sizeof(vlan_n));
+        tmp += sizeof(unsigned short);
+        len += sizeof(unsigned short);
+	    em_printfout(" TRAFFIC SEPARATION SSID='%.*s' Len=%u, VLAN=%u ",ssid_len,ssid_bytes.data(), ssid_len, net_ssid->m_network_ssid_info.vlan_id);
+    }
+    em_printfout("Length: %d ", len);
+    return len;
+}
+
+short em_t::create_def_8021q_settings_policy_tlv(unsigned char *buff)
+{
+    size_t len = 0;
+    dm_easy_mesh_t *dm;
+    unsigned int i;
+
+    if (get_current_cmd()->get_type() == em_cmd_type_set_policy) {
+        dm = get_current_cmd()->get_data_model();
+    } else {
+        dm = get_data_model();
+    }
+
+    for (i = 0; i < dm->get_num_policy(); i++) {
+        dm_policy_t *policy = &dm->m_policy[i];
+        if (policy->m_policy.id.type != em_policy_id_type_default_8021q_settings) {
+            continue;
+        }
+        em_8021q_settings_t *settings = reinterpret_cast<em_8021q_settings_t *>(buff);
+        settings->primary_vlan_id = htons(policy->m_policy.def_8021q_settings.primary_vid);
+        settings->default_pcp = policy->m_policy.def_8021q_settings.default_pcp & 0x07;
+        settings->reserved = 0;
+        em_printfout("Found Default 802.1Q Settings Policy in DM with primary_vid=%u, default_pcp=%u",
+            policy->m_policy.def_8021q_settings.primary_vid,
+            policy->m_policy.def_8021q_settings.default_pcp);
+        len += sizeof(em_8021q_settings_t);
+        break;
+    }
+
+    return static_cast<short>(len);
 }
 
 int em_t::handle_eht_operations_tlv(unsigned char *buff, unsigned short tlv_len)
