@@ -281,15 +281,17 @@ class EasyMeshController {
       const sectionKey = btn.getAttribute("data-section");
       if (!sectionKey) return;
 
-      // Resolve the radio name (scope group) for this section
-      const scopeName = sectionMap(sectionKey);
-      const scope = document.querySelector(`input[name="${scopeName}"]:checked`)?.value || "selected";
+      const section = btn.closest(".policy-card");
+      if (!section) return;
+
+      const scope = section.querySelector('input[type="radio"]:checked')?.value || "selected";
 
       // Collect the section's values from the form/table
       this.savePolicySettings(sectionKey, scope);
 
     });
 
+    document.querySelector("#report-unassoc-sta")?.addEventListener("change", toggleMaxRateField);
     const applyPolicyBtn = document.getElementById('apply-policy-settings');
     if (applyPolicyBtn) {
       applyPolicyBtn.addEventListener('click', () => this.handlePolicySettingApply());
@@ -357,6 +359,67 @@ class EasyMeshController {
       remBtn?.addEventListener("click", () => {
         const removed = this.removeSelectedRows(tbody, selectAll);
         if (removed > 0) this.showNotification?.(`${removed} MAC${removed > 1 ? "s" : ""} removed`, "success");
+      });
+    })();
+
+    // QoS Management Policy: + / - buttons
+    (() => {
+      // MSCS Disallowed STA List
+      const mscsBody = document.querySelector("#mscs-body");
+      const mscsAdd  = document.getElementById("add-mscs");
+      const mscsRem  = document.getElementById("remove-mscs");
+      const mscsAll  = document.getElementById("select-all-mscs");
+
+      if (mscsAll && mscsBody) {
+        mscsAll.addEventListener("change", () => {
+          mscsBody.querySelectorAll('input.row-select')
+          .forEach(cb => cb.checked = mscsAll.checked);
+          this.updateSelectAllState(mscsBody, mscsAll);
+        });
+
+        mscsBody.addEventListener("change", (e) => {
+          if (e.target && e.target.matches('input.row-select')) {
+            this.updateSelectAllState(mscsBody, mscsAll);
+          }
+        });
+      }
+      mscsAdd?.addEventListener("click", () =>this.addDisallowedMacRow(mscsBody, mscsAll));
+      mscsRem?.addEventListener("click", () => {
+        const removed = this.removeSelectedRows(mscsBody, mscsAll);
+        if (removed > 0) {
+          this.showNotification?.(`${removed} MAC${removed > 1 ? "s" : ""} removed`,"success");
+        }
+      });
+
+      // SCS Disallowed STA List
+      const scsBody = document.querySelector("#scs-body");
+      const scsAdd  = document.getElementById("add-scs");
+      const scsRem  = document.getElementById("remove-scs");
+      const scsAll  = document.getElementById("select-all-scs");
+
+      if (scsAll && scsBody) {
+        scsAll.addEventListener("change", () => {
+          scsBody.querySelectorAll('input.row-select')
+          .forEach(cb => cb.checked = scsAll.checked);
+          this.updateSelectAllState(scsBody, scsAll);
+        });
+
+        scsBody.addEventListener("change", (e) => {
+          if (e.target && e.target.matches('input.row-select')) {
+            this.updateSelectAllState(scsBody, scsAll);
+          }
+        });
+      }
+
+      scsAdd?.addEventListener("click", () =>
+        this.addDisallowedMacRow(scsBody, scsAll)
+      );
+
+      scsRem?.addEventListener("click", () => {
+        const removed = this.removeSelectedRows(scsBody, scsAll);
+        if (removed > 0) {
+          this.showNotification?.(`${removed} MAC${removed > 1 ? "s" : ""} removed`,"success");
+        }
       });
     })();
 
@@ -520,22 +583,40 @@ savePolicySettings(sectionKey, scope = "selected") {
       this.showNotification('AP metrics policy saved successfully', 'success');
       break;
     }
-    case "local-disallowed": {
-      const list = getMacList("#localMacBody") || [];
+    case "steering-policy": {
+
+      // Fetch all steering policies
+      const localList = getMacList("#localMacBody") || [];
+      const btmList = getMacList("#btmMacBody") || [];
+      const radioRows = RSP.getAll();
+
+      if (!Array.isArray(radioRows) || radioRows.length === 0) {
+        this.showNotification('At least one Radio Steering row with a valid ID (Station MAC) is required.', 'error');
+        return;
+      }
+
+      // Build lookup map from UI updates
+      const updateMap = new Map();
+      radioRows.forEach(r => {
+        if (r.id) updateMap.set(r.id, r);
+      });
+
       indicesToUpdate.forEach(i => {
         const d = this.updatedPolicySettings[i];
-        d.localSteeringDisallowed = Array.isArray(list) ? [...list] : [];
+        d.localSteeringDisallowed = [...localList];
+        d.btmSteeringDisallowed = [...btmList];
+
+        // update only existing BSSIDs
+        const existing = d.radioSteeringParametersPolicy || [];
+
+        const updated = existing.map(row => {
+          const match = updateMap.get(row.id);
+          return match ? { ...row, ...match } : row;
+        });
+
+        d.radioSteeringParametersPolicy = updated;
       });
-      this.showNotification('Local Steering Disallowed Policy saved successfully', 'success');
-      break;
-    }
-    case "btm-disallowed": {
-      const list = getMacList("#btmMacBody") || [];
-      indicesToUpdate.forEach(i => {
-        const d = this.updatedPolicySettings[i];
-        d.btmSteeringDisallowed = Array.isArray(list) ? [...list] : [];
-      });
-      this.showNotification('BTM Steering Disallowed Policy saved successfully', 'success');
+      this.showNotification('Steering Policy saved successfully', 'success')
       break;
     }
     case "channel-scan": {
@@ -565,31 +646,92 @@ savePolicySettings(sectionKey, scope = "selected") {
       this.showNotification('Default 802.1Q Settings Policy saved successfully', 'success');
       break;
     }
+    case "unsuccessful-assoc": {
+      const reportVal = document.querySelector("#report-unassoc-sta")?.value ?? "0";
+      const rateVal   = document.querySelector("#max-reporting-rate")?.value ?? "0";
+
+      // Convert values
+      const reportBool = reportVal === "1";
+      const rateNum    = Number(rateVal);
+
+      indicesToUpdate.forEach(i => {
+        const d = this.updatedPolicySettings[i];
+        d.unsuccessfulAssocPolicy ||= {};
+        d.unsuccessfulAssocPolicy.reportUnsuccessAssoc = reportBool;
+        d.unsuccessfulAssocPolicy.maxReportingRate = Number.isNaN(rateNum) ? 0 : rateNum;
+      });
+      this.showNotification('Unsuccessful Association Policy saved successfully', 'success');
+      break;
+    }
+    case "backhaul-bss": {
+      const rows = document.querySelectorAll("#backhaul-bss-rows tr");
+      if (!rows || rows.length === 0) {
+        this.showNotification('No Backhaul BSS entries found', 'error');
+        return;
+      }
+      const uiRows = Array.from(rows).map(row => ({
+        bssid: row.querySelector("input[name='bssid']")?.value || "",
+        profile1bSTADisallowed:row.querySelector("select[name='profile1']")?.value === "1",
+        profile2bSTADisallowed:row.querySelector("select[name='profile2']")?.value === "1"
+      })).filter(r => r.bssid);
+
+      // Build lookup map
+      const updateMap = new Map();
+      uiRows.forEach(r => {
+        updateMap.set(r.bssid, r);
+      });
+
+      indicesToUpdate.forEach(i => {
+        const d = this.updatedPolicySettings[i];
+        const existing = d.backhaulBssConfigPolicy || [];
+
+        // Update only matching BSSIDs
+        const updated = existing.map(entry => {
+          const match = updateMap.get(entry.bssid);
+          return match ? { ...entry, ...match } : entry;
+        });
+        d.backhaulBssConfigPolicy = updated;
+      });
+      this.showNotification('Backhaul BSS Config Policy saved successfully', 'success');
+      break;
+    }
+
+    case "qos-mgt": {
+      const mscsList = getMacList("#mscs-body") || [];
+      const scsList  = getMacList("#scs-body") || [];
+
+      indicesToUpdate.forEach(i => {
+        const d = this.updatedPolicySettings[i];
+        d.qosManagementPolicy ||= {};
+        d.qosManagementPolicy.mscsDisallowedSTAList = [...mscsList];
+        d.qosManagementPolicy.scsDisallowedSTAList  = [...scsList];
+      });
+      this.showNotification('QoS Management Policy saved successfully', 'success');
+      break;
+    }
     case "radio-metrics": {
       const rows = RMP.getAll();
       if (!Array.isArray(rows) || rows.length === 0) {
-        this.showNotification('At least one Radio specific Matrics row with a valid ID (Station MAC") is required.', 'error');
+        this.showNotification('At least one Radio specific Metrics row with a valid ID (Station MAC") is required.', 'error');
         return;
       }
+      // Build lookup map using ID
+      const updateMap = new Map();
+      rows.forEach(r => {
+        if (r.id) updateMap.set(r.id, r);
+      });
+
       indicesToUpdate.forEach(i => {
         const d = this.updatedPolicySettings[i];
-        d.radioSpecificMetricsPolicy = rows;
+        const existing = d.radioSpecificMetricsPolicy || [];
+        // Update only matching IDs
+        const updated = existing.map(entry => {
+          const match = updateMap.get(entry.id);
+          return match ? { ...entry, ...match } : entry;
+        });
+        d.radioSpecificMetricsPolicy = updated;
       });
       this.showNotification('Radio Specific Metrics Policy saved successfully', 'success');
-      break;
-    }
-    case "radio-steering": {
-      const rows = RSP.getAll();
-
-      if (!Array.isArray(rows) || rows.length === 0) {
-        this.showNotification('At least one Radio Steering row with a valid ID (Station MAC") is required.', 'error');
-        return;
-      }
-      indicesToUpdate.forEach(i => {
-        const d = this.updatedPolicySettings[i];
-        d.radioSteeringParametersPolicy = rows;
-      });
-      this.showNotification('Radio Steering Parameters saved successfully', 'success');
       break;
     }
 
@@ -2087,6 +2229,10 @@ async handleWebSocketMessage(data) {
     const height = container.node().clientHeight;
     const self = this;
 
+    // Create cache for node position and zoom which persist across refresh calls
+    this.nodePositionCache = this.nodePositionCache || new Map();
+    this.zoomTransformCache = this.zoomTransformCache || d3.zoomIdentity;
+
     // Return if container is not ready
     if (width === 0 || height === 0) {
       setTimeout(() => this.updateTopologyVisualization(), 100);
@@ -2096,6 +2242,13 @@ async handleWebSocketMessage(data) {
     // Return if container is empty
     if (!this.topology?.nodes?.length) return;
 
+    const currentNodeIds = new Set(this.topology.nodes.map(n => String(n.id)));
+    for (const key of this.nodePositionCache.keys()) {
+      if (!currentNodeIds.has(key)) {
+        this.nodePositionCache.delete(key);
+      }
+    }
+
     // Clear previous content
     container.selectAll('*').remove();
 
@@ -2103,11 +2256,16 @@ async handleWebSocketMessage(data) {
     const svg = container.append('svg')
     .attr('width', width)
     .attr('height', height)
-    .call(d3.zoom().on('zoom', (event) => {
-      svgGroup.attr('transform', event.transform);
-    }));
 
     const svgGroup = svg.append('g');
+    const zoom = d3.zoom().on('zoom', (event) => {
+      svgGroup.attr('transform', event.transform);
+      // Save zoom state
+      this.zoomTransformCache = event.transform;
+    });
+
+    svg.call(zoom);
+    svg.call(zoom.transform, this.zoomTransformCache);
 
     // Normalize node and edge IDs to strings
     this.topology.nodes.forEach(n => n.id = String(n.id));
@@ -2136,14 +2294,10 @@ async handleWebSocketMessage(data) {
     const haulColors = {
       Fronthaul: '#c3cbf8ff',
       Backhaul: '#e68b8bff',
-      Iot: '#d3ced3ff'
+      Iot: '#d3ced3ff',
+      Hotspot: '#9fe0c3ff',
+      Configurator: '#f4d28cff'
     };
-
-    const circleOffsets = [
-      { x: -65, y: 50 },
-      { x: 65, y: 50 },
-      { x: 0, y: -65 }
-    ];
 
     const bandColors = {
       '-1': '#0bd476ff',
@@ -2170,8 +2324,18 @@ async handleWebSocketMessage(data) {
     const offsetY = (height - graphHeight) / 2 - minY;
 
     this.topology.nodes.forEach(node => {
-      node.fx = node.x + offsetX;
-      node.fy = node.y + offsetY;
+      const saved = this.nodePositionCache.get(node.id);
+      if (saved) {
+        node.x = saved.x;
+        node.y = saved.y;
+      } else {
+        node.x = node.x + offsetX;
+        node.y = node.y + offsetY;
+      }
+
+      // Keep nodes fixed after positioning
+      node.fx = node.x;
+      node.fy = node.y;
     });
 
     // Create simulation
@@ -2197,16 +2361,26 @@ async handleWebSocketMessage(data) {
     // Draw overlapping haulType circles and icon
     node.each(function(d) {
       const g = d3.select(this);
-      const haulTypes = d.haulTypes?.map(ht => ht.name) || [];
+      const haulTypes = d.haulTypes || [];
+      const count = haulTypes.length;
 
-      haulTypes.forEach((type, i) => {
-        const offset = circleOffsets[i] || { x: 0, y: 0 };
-        const verticalShift = offset.x < 0 ? -8 : offset.x > 0 ? 8 : 0;
+      const circleRadius = 80;
+      const layoutRadius = circleRadius * 0.9;
+
+      haulTypes.forEach((haul, i) => {
+        // Skip invalid entries safely
+        if (!haul || typeof haul !== 'object') return;
+
+        const angle = (2 * Math.PI / count) * i;
+        const offset = {
+          x: layoutRadius * Math.cos(angle),
+          y: layoutRadius * Math.sin(angle)
+        };
 
         // SSID heading inside the each circle
-        const haul = d.haulTypes?.[i];
+        const type = haul.name || 'Unknown';
         const ssid = haul?.ssid || 'SSID N/A';
-        const vlanId = haul?.VlanId || 'N/A';
+        const vlanId = haul?.VlanId ?? 'N/A';
         const mldMap = new Map();
 
         // Extract BSS-band details
@@ -2243,7 +2417,7 @@ async handleWebSocketMessage(data) {
 
         // Draw haultype overlapping circle
         g.append('circle')
-          .attr('r', 80)
+          .attr('r', circleRadius)
           .attr('cx', offset.x)
           .attr('cy', offset.y)
           .attr('fill', haulColors[type] || '#ccc')
@@ -2268,7 +2442,7 @@ async handleWebSocketMessage(data) {
 
         g.append('text')
           .attr('x', offset.x)
-          .attr('y', offset.y + verticalShift)
+          .attr('y', offset.y)
           .attr('text-anchor', 'middle')
           .attr('dominant-baseline', 'middle')
           .attr('font-size', '12px')
@@ -2280,7 +2454,7 @@ async handleWebSocketMessage(data) {
       // STA Placement
       if (Array.isArray(d.STAList) && d.STAList.length > 0) {
         const staList = d.STAList;
-        const baseRadius = 80;
+        const baseRadius = circleRadius + 10;
         const angleStep = (2 * Math.PI) / staList.length;
         const nodeRadius = 20;
         const maxSize = 30;
@@ -2469,8 +2643,6 @@ async handleWebSocketMessage(data) {
 
     function dragstarted(event, d) {
       if (!event.active) simulation.alphaTarget(0.3).restart();
-      d.fx = d.x;
-      d.fy = d.y;
     }
 
     function dragged(event, d) {
@@ -2480,12 +2652,14 @@ async handleWebSocketMessage(data) {
 
     function dragended(event, d) {
       if (!event.active) simulation.alphaTarget(0);
+      self.nodePositionCache.set(d.id, {
+        x: d.fx,
+        y: d.fy
+      });
 
-      // Only release if not originally fixed
-      if (!(d.fixed?.x === true && d.fixed?.y === true)) {
-        d.fx = null;
-        d.fy = null;
-      }
+      // Lock at new position
+      d.x = d.fx;
+      d.y = d.fy;
     }
   }
 
@@ -3484,6 +3658,7 @@ async handleWebSocketMessage(data) {
         const firstId = sel.value;
         const policy = this.policyByDeviceId[firstId];
         populatePolicyUI(policy);
+        toggleMaxRateField();
       }
 
     } catch (err) {
@@ -3566,6 +3741,76 @@ async handleWebSocketMessage(data) {
   }
 }
 
+  /**
+   * Render Backhaul BSS policy
+   */
+function renderBackhaulBSS(rows) {
+  const tbody = document.querySelector("#backhaul-bss-rows");
+  if (!tbody) return;
+
+  tbody.innerHTML = "";
+
+  rows.forEach(row => {
+    const tr = document.createElement("tr");
+
+    // BSSID
+    const tdBssid = document.createElement("td");
+    const inputBssid = document.createElement("input");
+    inputBssid.type = "text";
+    inputBssid.name = "bssid";
+    inputBssid.value = row.bssid || "";
+    inputBssid.readOnly = true;
+    tdBssid.appendChild(inputBssid);
+
+    // Profile-1 bSTA Disallowed
+    const tdProfile1 = document.createElement("td");
+    const select1 = document.createElement("select");
+    select1.name = "profile1";
+
+    const opt1Disallowed = document.createElement("option");
+    opt1Disallowed.value = "1";
+    opt1Disallowed.textContent = "Disallowed";
+
+    const opt1Allowed = document.createElement("option");
+    opt1Allowed.value = "0";
+    opt1Allowed.textContent = "Allowed";
+    select1.appendChild(opt1Disallowed);
+    select1.appendChild(opt1Allowed);
+
+    // Set selected value
+    select1.value = row.profile1bSTADisallowed ? "1" : "0";
+    tdProfile1.appendChild(select1);
+
+    // Profile-2 bSTA Disallowed
+    const tdProfile2 = document.createElement("td");
+    const select2 = document.createElement("select");
+    select2.name = "profile2";
+
+    const opt2Disallowed = document.createElement("option");
+    opt2Disallowed.value = "1";
+    opt2Disallowed.textContent = "Disallowed";
+
+    const opt2Allowed = document.createElement("option");
+    opt2Allowed.value = "0";
+    opt2Allowed.textContent = "Allowed";
+    select2.appendChild(opt2Disallowed);
+    select2.appendChild(opt2Allowed);
+
+    // Set selected value
+    select2.value = row.profile2bSTADisallowed ? "1" : "0";
+    tdProfile2.appendChild(select2);
+
+    // Append all cells to row
+    tr.appendChild(tdBssid);
+    tr.appendChild(tdProfile1);
+    tr.appendChild(tdProfile2);
+
+    // Append row to tbody
+    tbody.appendChild(tr);
+  });
+
+}
+
 /**
   * show all the available device list for wifi policy config
   */
@@ -3598,7 +3843,7 @@ function populateDeviceSelectorFromPolicy(data) {
 }
 
 /**
- * Load wifi policy config for seected device
+ * Load wifi policy config for selected device
  */
 function populatePolicyUI(policy) {
   if (!policy) return;
@@ -3620,6 +3865,20 @@ function populatePolicyUI(policy) {
   setInputValue("#primary-vlan-id", dot1q.primaryVLANID);
   setInputValue("#default-pcp", dot1q.defaultPCP);
 
+  // Unsuccessful Association Policy
+  const ua = policy.unsuccessfulAssocPolicy || {};
+  setInputValue("#report-unassoc-sta", ua.reportUnsuccessAssoc?1:0);
+  setInputValue("#max-reporting-rate", ua.maxReportingRate);
+
+  // Backhaul BSS Config Policy
+  const backhaul = policy.backhaulBssConfigPolicy || [];
+  renderBackhaulBSS(backhaul);
+
+  // QoS Management Policy (NEW)
+  const qos = policy.qosManagementPolicy || {};
+  fillMacTable("#mscs-body", qos.mscsDisallowedSTAList);
+  fillMacTable("#scs-body",  qos.scsDisallowedSTAList);
+
   // Radio Specific Metrics (table)
   const rmpEntries = getRadioMetricsEntries(policy);
   RMP.render(rmpEntries);
@@ -3629,6 +3888,24 @@ function populatePolicyUI(policy) {
   const rspEntries = getRadioSteeringEntries(policy);
   RSP.render(rspEntries);
   RSP.bind();
+}
+
+/**
+ * toggle Max Rate Field based on report unassoc status
+ */
+function toggleMaxRateField() {
+  const reportSelect = document.querySelector("#report-unassoc-sta");
+  const rateInput = document.querySelector("#max-reporting-rate");
+
+  if (!reportSelect || !rateInput) return;
+
+  const isDisabled = reportSelect.value === "0";
+
+  rateInput.disabled = isDisabled;
+
+  if (isDisabled) {
+    rateInput.value = "0";
+  }
 }
 
 // RMP entries (array or single legacy object)
@@ -4051,20 +4328,6 @@ function fillMacTable(tbodySel, macArray) {
     tr.appendChild(tdMac);
     tbody.appendChild(tr);
   });
-}
-
-function sectionMap(sectionKey) {
-  // Maps data-section to the radio group's name attribute
-  switch (sectionKey) {
-    case "ap-metrics":        return "applyScope-ap";
-    case "local-disallowed":  return "applyScope-local";
-    case "btm-disallowed":    return "applyScope-btm";
-    case "channel-scan":      return "applyScope-scan";
-    case "dot1q-defaults":    return "applyScope-dot1q";
-    case "radio-metrics":     return "applyScope-radio";
-    case "radio-steering":    return "applyScope-steer";
-    default:                  return "";
-  }
 }
 
 function getMacList(tbodySelector) {

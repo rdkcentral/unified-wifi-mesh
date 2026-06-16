@@ -144,14 +144,15 @@ em_network_topo_t *em_network_topo_t::find_topology_by_bh_associated(dm_easy_mes
 	}
 	// From the bss info obtained, find the appropriate em_network_topo_t containing this bss
 	// and return that topology object.
+	// bss->id.bssid  = local bSTA interface MAC (used to locate the parent topology node)
+	// bss->bssid.mac = upstream AP BSSID the bSTA is associated to (shown in Backhaul.MACAddress)
 	mac_address_t bss_mac;
 	memcpy(bss_mac, bss->id.bssid, sizeof(mac_address_t));
 	if (dm->is_controller() == false) {
-		// Update the backhaul of the dm object with the bss mac address
-		memcpy(dm->m_device.m_device_info.backhaul_mac.mac, bss_mac, sizeof(mac_address_t));
+		// Set BackhaulMACAddress to the upstream AP BSSID, not the local bSTA MAC
+		memcpy(dm->m_device.m_device_info.backhaul_mac.mac, bss->bssid.mac, sizeof(mac_address_t));
 		dm->m_device.m_device_info.backhaul_mac.media = em_media_type_ieee80211ac_5;
-		// check if backhaul mac is 00:00:00:00:00:00, then change the media type to em_media_type_ieee8023ab
-		if (memcmp(bss_mac, ZERO_MAC_ADDR, sizeof(mac_address_t)) == 0) {
+		if (memcmp(bss->bssid.mac, ZERO_MAC_ADDR, sizeof(mac_address_t)) == 0) {
 			dm->m_device.m_device_info.backhaul_mac.media = em_media_type_ieee8023ab;
 		}
 	}
