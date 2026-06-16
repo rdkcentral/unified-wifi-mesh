@@ -275,8 +275,8 @@ class em_capability_t {
 	 *
 	 * @note This is a pure virtual function and must be implemented by derived classes.
 	 */
+
 	virtual short create_ht_tlv(unsigned char *buff) = 0;
-    
 	/**!
 	 * @brief Creates a VHT TLV.
 	 *
@@ -321,6 +321,21 @@ class em_capability_t {
 	 * @note This is a pure virtual function and must be implemented by derived classes.
 	 */
 	virtual short create_wifi6_tlv(unsigned char *buff) = 0;
+
+	/**!
+	 * @brief Creates Airties radio capability vendor TLV.
+	 *
+	 * Builds a vendor-specific TLV containing radio capability information
+	 * (supported 802.11 standards) using Airties OUI and TLV ID.
+	 *
+	 * @param buff Output buffer for TLV data.
+	 *
+	 * @return TLV length in bytes, or 0 if radio capability is unavailable.
+	 *
+	 * @note This is a pure virtual function and must be implemented by derived classes.
+	 */
+
+	virtual short create_airties_radio_capability_tlv(unsigned char *buff) = 0;
 
 	virtual int handle_wifi6_cap_tlv(unsigned char *buff) = 0;
 	virtual int handle_wifi7_agent_cap_tlv(unsigned char *buff) = 0;
