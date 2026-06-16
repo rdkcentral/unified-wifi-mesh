@@ -106,6 +106,8 @@ class em_t :
 	 * @note Ensure that the data pointer is valid and the length is correct.
 	 */
 	void proto_process(unsigned char *data, unsigned int len);
+
+	void proto_process(em_cmd_event_t *cevt);
     
 	/**!
 	 * @brief Handles the protocol timeout event.
@@ -841,7 +843,7 @@ public:
 	 * @note Ensure that the buffer is properly allocated before calling this function.
 	 */
 	short create_ht_tlv(unsigned char *buff);
-    
+
 	/**!
 	 * @brief Creates a VHT TLV (Very High Throughput Tag Length Value) structure.
 	 *
@@ -910,6 +912,17 @@ public:
 	 * @note Ensure that the buffer provided is large enough to hold the TLV structure.
 	 */
 	unsigned short create_eht_operations_tlv(unsigned char *buff);
+
+	/**!
+	 * @brief Handles the EHT operations TLV.
+	 *
+	 * @param[in] buff Pointer to the buffer containing the TLV data.
+	 *
+	 * @returns int
+	 * @retval 0 on success
+	 * @retval -1 on failure
+	 */
+	int handle_eht_operations_tlv(unsigned char *buff, unsigned short len);
     
 	/**!
 	 * @brief Creates a channel scan TLV.
@@ -958,22 +971,6 @@ public:
 	short create_device_inventory_tlv(unsigned char *buff);
     
 	/**!
-	 * @brief Creates a radio advertisement TLV.
-	 *
-	 * This function is responsible for creating a radio advertisement TLV (Type-Length-Value) structure
-	 * and storing it in the provided buffer.
-	 *
-	 * @param[out] buff Pointer to the buffer where the TLV will be stored.
-	 *
-	 * @returns A short integer indicating the success or failure of the operation.
-	 * @retval 0 on success.
-	 * @retval -1 on failure.
-	 *
-	 * @note Ensure that the buffer is properly allocated before calling this function.
-	 */
-	short create_radioad_tlv(unsigned char *buff);
-    
-	/**!
 	 * @brief Creates a metric collection integer TLV.
 	 *
 	 * This function initializes a metric collection integer TLV using the provided buffer.
@@ -1014,6 +1011,30 @@ public:
 	 * @note Ensure that the buffer is properly allocated before calling this function.
 	 */
 	short create_ap_radio_basic_cap(unsigned char *buff);
+
+	/**!
+	 * @brief Creates a traffic separation policy.
+	 *
+	 * This function is responsible for creating a traffic separation policy using the provided buffer.
+	 *
+	 * @param[in] buff A pointer to an unsigned char buffer that contains the data required for creating the policy.
+	 *
+	 * @returns An unsigned short value indicating the result of the policy creation.
+	 * @retval 0 on success.
+	 * @retval non-zero error code on failure.
+	 *
+	 * @note Ensure that the buffer is properly initialized before calling this function.
+	 */
+	unsigned short create_traffic_separation_policy_tlv(unsigned char *buff);
+
+	/**!
+	 * @brief Creates a Default 802.1Q Settings TLV from the data model policy.
+	 *
+	 * Reads the em_policy_id_type_default_8021q_settings entry from the DM and
+	 * serialises it into buff.  Returns the number of bytes written (0 if no
+	 * matching policy entry is found).
+	 */
+	short create_def_8021q_settings_policy_tlv(unsigned char *buff);
     //Msg-End
 
 	//START: DPP Callbacks for BSS information
@@ -1072,6 +1093,21 @@ public:
 	cJSON *create_bss_dpp_response_obj(const em_bss_info_t *bss_info, bool is_sta_response, bool tear_down_bss, dm_easy_mesh_t *data_model = NULL);
 
 	// END: DPP Callbacks for BSS information
+
+	/**
+	 * @brief Creates Airties radio capability vendor TLV.
+	 *
+	 * Builds a vendor-specific TLV containing radio capability information
+	 * (supported 802.11 standards) using Airties OUI and TLV ID.
+	 *
+	 * @param buff Output buffer for TLV data.
+	 *
+	 * @return TLV length in bytes, or 0 if radio capability is unavailable.
+	 *
+	 * @note Uses network byte order for multi-byte fields.
+	 */
+
+	short create_airties_radio_capability_tlv(unsigned char *buff);
 
 	int handle_wifi6_cap_tlv(unsigned char *buff);
 	int handle_wifi7_agent_cap_tlv(unsigned char *buff);

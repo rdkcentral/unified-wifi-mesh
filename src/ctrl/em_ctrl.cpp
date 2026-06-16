@@ -792,7 +792,7 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
     em_2xlong_string_t key;
     unsigned int i;
     bool found;
-    mac_addr_str_t mac_str1, mac_str2, dev_mac_str, radio_mac_str;
+    mac_addr_str_t mac_str1 = {0}, mac_str2 = {0}, dev_mac_str = {0}, radio_mac_str = {0};
     em_commit_info_t dm_commit;
 
     assert(len > ((sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))));
@@ -891,6 +891,7 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
         case em_msg_type_topo_notif:
         case em_msg_type_client_cap_rprt:
         case em_msg_type_ap_metrics_rsp:
+        case em_msg_type_failed_conn:
            if (em_msg_t(data + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)),
                     len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_bss_id(&bssid) == false) {
                 printf("%s:%d: Could not find bss id in msg:0x%04x\n", __func__, __LINE__, htons(cmdu->type));
@@ -899,7 +900,10 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
 
             if ((dm = get_data_model(GLOBAL_NET_ID, const_cast<const unsigned char *> (hdr->src))) == NULL) {
                 printf("%s:%d: Can not find data model\n", __func__, __LINE__);
+                return NULL;
             }
+
+            found = false;
 
             for (i = 0; i < dm->get_num_radios(); i++) {
                 found = true;
@@ -917,19 +921,28 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
 
             if (found == false) {
                 printf("%s:%d: Could not find bss:%s from data model, for radio: %s\n", __func__, __LINE__, mac_str1, radio_mac_str);
-                return NULL;
-            }
-              
-            dm_easy_mesh_t::macbytes_to_string(bss->m_bss_info.ruid.mac, mac_str1);
-            if ((em = static_cast<em_t *> (hash_map_get(m_em_map, mac_str1))) == NULL) {
-                printf("%s:%d: Could not find radio:%s\n", __func__, __LINE__, mac_str1);
-                return NULL;
+                if ((htons(cmdu->type) == em_msg_type_topo_notif) ||
+                    (htons(cmdu->type) == em_msg_type_client_cap_rprt)) {
+                    // BSSID may be AP MLD MAC. Use any radio EM for this device.
+                    for (i = 0; i < dm->get_num_radios(); i++) {
+                        dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *>(dm->get_radio_info(i)->id.ruid), mac_str1);
+                        if ((em = static_cast<em_t *>(hash_map_get(m_em_map, mac_str1))) != NULL) {
+                            break;
+                        }
+                    }
+                    if (em == NULL) {
+                        em_printfout("fallback em not found for msg 0x%04x", htons(cmdu->type));
+                        return NULL;
+                    }
+                } else {
+                    return NULL;
+                }
             } else {
-                dm_easy_mesh_t::macbytes_to_string(bssid, mac_str1);
-                mac_addr_str_t mac;
-                dm_easy_mesh_t::macbytes_to_string(em->get_radio_interface_mac(), mac);
-                //printf("%s:%d: Em radio id: %s\n", __func__, __LINE__, mac);
-                //printf("%s:%d: Found em for msg type: %d, key for bss[%s]: %s\n", __func__, __LINE__, htons(cmdu->type), mac_str1, key);
+                dm_easy_mesh_t::macbytes_to_string(bss->m_bss_info.ruid.mac, mac_str1);
+                if ((em = static_cast<em_t *> (hash_map_get(m_em_map, mac_str1))) == NULL) {
+                    printf("%s:%d: Could not find radio:%s\n", __func__, __LINE__, mac_str1);
+                    return NULL;
+                }
             }
 
             break;
@@ -1091,6 +1104,18 @@ void em_ctrl_t::start_complete()
             { bus_data_type_string, false, 0, 0, 0, NULL } },
         { const_cast<char*>(DEVICE_WIFI_DATAELEMENTS_NETWORK_SETSSID_CMD), bus_element_type_method,
             { NULL, NULL , NULL, NULL, NULL, tr_181_t::setssid_handler}, slow_speed, ZERO_TABLE,
+            { bus_data_type_property, false, 0, 0, 0, NULL } },
+        { const_cast<char*>(DE_MAPDEVBH_STEERWIFIBH), bus_element_type_method,
+            { NULL, NULL , NULL, NULL, NULL, tr_181_t::steerwifibh_handler}, slow_speed, ZERO_TABLE,
+            { bus_data_type_property, false, 0, 0, 0, NULL } },
+        { const_cast<char*>(DE_RADIO_CHSCANREQ), bus_element_type_method,
+            { NULL, NULL , NULL, NULL, NULL, tr_181_t::channelscan_handler}, slow_speed, ZERO_TABLE,
+            { bus_data_type_property, false, 0, 0, 0, NULL } },
+        { const_cast<char*>(DE_STA_CLIENTSTEER), bus_element_type_method,
+            { NULL, NULL , NULL, NULL, NULL, tr_181_t::clientsteer_handler}, slow_speed, ZERO_TABLE,
+            { bus_data_type_property, false, 0, 0, 0, NULL } },
+        { const_cast<char*>(DE_STAMAP_DISASSOC), bus_element_type_method,
+            { NULL, NULL , NULL, NULL, NULL, tr_181_t::disassociate_handler}, slow_speed, ZERO_TABLE,
             { bus_data_type_property, false, 0, 0, 0, NULL } }
         };
 
@@ -1225,7 +1250,7 @@ int main(int argc, const char *argv[])
 
 #endif // TESTING
 
-void wifi_util_print(wifi_log_level_t level, wifi_dbg_type_t module, char *format, ...)
+extern "C" void wifi_util_print(wifi_log_level_t level, wifi_dbg_type_t module, const char *format, ...)
 {
 
 }

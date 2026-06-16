@@ -275,8 +275,8 @@ class em_capability_t {
 	 *
 	 * @note This is a pure virtual function and must be implemented by derived classes.
 	 */
+
 	virtual short create_ht_tlv(unsigned char *buff) = 0;
-    
 	/**!
 	 * @brief Creates a VHT TLV.
 	 *
@@ -321,6 +321,21 @@ class em_capability_t {
 	 * @note This is a pure virtual function and must be implemented by derived classes.
 	 */
 	virtual short create_wifi6_tlv(unsigned char *buff) = 0;
+
+	/**!
+	 * @brief Creates Airties radio capability vendor TLV.
+	 *
+	 * Builds a vendor-specific TLV containing radio capability information
+	 * (supported 802.11 standards) using Airties OUI and TLV ID.
+	 *
+	 * @param buff Output buffer for TLV data.
+	 *
+	 * @return TLV length in bytes, or 0 if radio capability is unavailable.
+	 *
+	 * @note This is a pure virtual function and must be implemented by derived classes.
+	 */
+
+	virtual short create_airties_radio_capability_tlv(unsigned char *buff) = 0;
 
 	virtual int handle_wifi6_cap_tlv(unsigned char *buff) = 0;
 	virtual int handle_wifi7_agent_cap_tlv(unsigned char *buff) = 0;
@@ -411,7 +426,7 @@ class em_capability_t {
 	 *
 	 * @note Ensure that the buffer is properly allocated before calling this function.
 	 */
-	virtual short create_radioad_tlv(unsigned char *buff) = 0;
+	virtual short create_ap_radio_advanced_cap_tlv(unsigned char *buff) = 0;
     
 	/**!
 	 * @brief Creates a metric collection integer TLV.
@@ -543,7 +558,9 @@ class em_capability_t {
 	 *
 	 * @note Ensure the buffer is properly allocated and contains valid TLV data before calling this function.
 	 */
-	int handle_eht_operations_tlv(unsigned char *buff);
+	virtual int handle_eht_operations_tlv(unsigned char *buff, unsigned short len) = 0;
+
+	int handle_channel_scan_cap_tlv(unsigned char *buff, unsigned int len);
 
 	/**!
 	 * @brief Creates an AP capability report message.
@@ -699,7 +716,7 @@ class em_capability_t {
 	 * @note Ensure that the data buffer is valid and the length is correctly specified.
 	 */
 	int handle_ap_cap_report(unsigned char *data, unsigned int len);
-    
+
 	/**!
 	 * @brief Handles the client capability report.
 	 *
@@ -737,26 +754,52 @@ class em_capability_t {
 	 *
 	 * This function processes the capability report received from the Extender.
 	 *
-	 * @param[in] buff Pointer to the buffer containing the notification data.
-	 * @param[in] len Length of the data received.
+	 * @param[in] pkt_buff Pointer to the buffer containing the notification data.
+	 * @param[in] pkt_len Length of the data received.
 	 *
 	 * @note Ensure that the data pointer is valid and the length is correct before calling this function.
 	 */
-	int handle_bsta_cap_report(unsigned char *buff, unsigned int len);
+	int handle_bsta_cap_report(unsigned char *pkt_buff, unsigned int pkt_len);
 
 	/**!
 	 * @brief Handles the backhaul sta radio capability TLV
 	 *
 	 * This function processes the backhaul sta radio capability TLV.
 	 *
-	 * @param[in] buff Pointer to the buffer containing the TLV data.
-	 * @param[in] len Length of the data received.
+	 * @param[in] tlv_buff Pointer to the buffer containing the TLV data.
+	 * @param[in] tlv_len Length of the data received.
 	 *
 	 * @note Ensure that the data pointer is valid and the length is correct before calling this function.
 	 */
-	int handle_bsta_radio_cap(unsigned char *buff, unsigned int len);
+	int handle_bsta_radio_cap(unsigned char *tlv_buff, unsigned int tlv_len);
+
+	/**!
+	 * @brief Handles the client info TLV
+	 *
+	 * This function processes the client info TLV.
+	 *
+	 * @param[in] tlv_buff Pointer to the buffer containing the TLV data.
+	 * @param[in] tlv_len Length of the data received.
+	 *
+	 * @note Ensure that the data pointer is valid and the length is correct before calling this function.
+	 */
+	int handle_client_info(unsigned char *tlv_buff, unsigned int tlv_len);
+
+	/**!
+	 * @brief Processes a 1905 message with the given data and length.
+	 *
+	 * This function takes a pointer to a data buffer containing 1905 message with Ethernet header and its length, then processes the message contained within.
+	 *
+	 * @param[in] pkt_buff Pointer to the data buffer containing the message to be processed.
+	 * @param[in] pkt_len The length of the data buffer.
+	 * @param[in] tlv_type Type of TLV
+	 * @param[in] handler Handler function to process specific TLV
+	 *
+	 * @note Ensure that the data buffer is valid and the length is correctly specified to avoid undefined behavior.
+	 */
+	int process_single_tlv_in_1905_message(unsigned char *pkt_buff, unsigned int pkt_len, em_tlv_type_t tlv_type, int (em_capability_t::*handler)(unsigned char*, unsigned int));
 public:
-    
+
 	/**!
 	 * @brief Processes a message with the given data and length.
 	 *
@@ -768,7 +811,7 @@ public:
 	 * @note Ensure that the data buffer is valid and the length is correctly specified to avoid undefined behavior.
 	 */
 	void    process_msg(unsigned char *data, unsigned int len);
-    
+
 	/**!
 	 * @brief Processes the state of the agent.
 	 *

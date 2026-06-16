@@ -17,7 +17,7 @@ jobs:
             container: 'ubuntu:20.04'
             setup-cmd: 'apt-get update && apt-get install -y libssl1.1 libssl-dev'
           - openssl-version: '3.0'
-            container: 'ubuntu:latest'
+            container: 'ubuntu:20.04'
             setup-cmd: 'apt-get update && apt-get install -y libssl-dev'
       # Add this to continue jobs even if one matrix job fails
       fail-fast: false

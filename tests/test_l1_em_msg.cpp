@@ -22,8 +22,8 @@
 #include "em_msg.h"
 #include <cstring>
 
-#define TLV_HEADER_SIZE 3  // type (1) + len (2)
-#define MAC_LEN 6
+#define TLV_HEADER_SIZE 3u  // type (1) + len (2)
+#define MAC_LEN 6u
 
 em_profile_type_t profiles[] = {
     em_profile_type_reserved,
@@ -151,8 +151,6 @@ em_tlv_type_t types[] = {
     em_tlv_eht_operations,
     em_tlv_type_avail_spectrum_inquiry_reg,
     em_tlv_type_avail_spectrum_inquiry_rsp,
-    em_tlv_type_vendor_sta_metrics,
-    em_tlv_vendor_plolicy_cfg,
     em_tlv_type_vendor_operational_bss,
 };
 
@@ -2951,7 +2949,13 @@ TEST(em_msg_t, get_bss_id_valid_ap_metrics_offset0) {
  */
 TEST(em_msg_t, get_bss_id_no_valid_tlv_found) {
     std::cout << "Entering get_bss_id_no_valid_tlv_found test" << std::endl;
-    unsigned char tlv_buf[TLV_HEADER_SIZE + 6] = {0xFF, 0x06, 0x00, 0,0,0,0,0,0}; // invalid type
+    // Buffer: invalid TLV (type=0xFF, len=6) + EOM TLV (type=0, len=0)
+    // EOM is required so the loop reads tlv->type == 0 and exits cleanly,
+    // avoiding a 1-byte OOB read when len hits 0 before the condition is re-checked.
+    unsigned char data[6] = {0};
+    unsigned char tlv_buf[TLV_HEADER_SIZE + 6 + TLV_HEADER_SIZE] = {};
+    write_tlv(tlv_buf, 0xFF, data, sizeof(data));                       // invalid TLV
+    write_tlv(tlv_buf + TLV_HEADER_SIZE + 6, em_tlv_type_eom, nullptr, 0); // EOM
     em_msg_t message(tlv_buf, sizeof(tlv_buf));
     unsigned char mac[6] = {0x00,0x00,0x00,0x00,0x00,0x00};
     unsigned char original_mac[6]; 
@@ -3586,7 +3590,10 @@ TEST(em_msg_t, get_next_tlv_buff_len_zero) {
 /**
  * @brief Test the retrieval of valid client MAC information from a TLV buffer.
  *
- * This test verifies that the API successfully parses a TLV buffer containing valid client information including the MAC address, correctly extracting and returning the MAC address. The test ensures the API works as expected and confirms the integrity of the TLV parsing.
+ * This test verifies that the get_client_mac_info API successfully parses a TLV buffer containing a valid
+ * em_client_info_t structure (comprising both a BSSID and a client MAC address), and correctly extracts
+ * the client MAC address into the output buffer. The test ensures the API returns true and that the
+ * extracted MAC address matches the expected value.
  *
  * **Test Group ID:** Basic: 01
  * **Test Case ID:** 101
@@ -3597,18 +3604,23 @@ TEST(em_msg_t, get_next_tlv_buff_len_zero) {
  * **User Interaction:** None
  *
  * **Test Procedure:**
- * | Variation / Step | Description                                                                                  | Test Data                                                                                                     | Expected Result                                                                                            | Notes            |
- * | :--------------: | -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- | ---------------- |
- * |      01        | Initialize the TLV buffer and write valid client info including MAC using write_tlv            | buffer size = TLV_HEADER_SIZE + 6, mac_val = {0x01, 0x23, 0x45, 0x67, 0x89, 0xAB}                             | Buffer contains valid TLV with correct client information                                                  | Should be successful |
- * |      02        | Create an instance of em_msg_t using the prepared TLV buffer                                   | buffer, buffer length = TLV_HEADER_SIZE + 6                                                                   | em_msg_t object is successfully created                                                                    | Should be successful |
- * |      03        | Call get_client_mac_info to extract the MAC address and compare it with the expected MAC value | output pointer to mac (6 bytes), expected mac_val = {0x01, 0x23, 0x45, 0x67, 0x89, 0xAB}                         | Function returns true and the extracted MAC address matches the expected value as per EXPECT_TRUE and EXPECT_EQ | Should Pass       |
+ * | Variation / Step | Description                                                                                        | Test Data                                                                                                                                                                           | Expected Result                                                                                            | Notes                |
+ * | :--------------: | -------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- | -------------------- |
+ * |      01        | Populate an em_client_info_t structure with a known BSSID and client MAC address                     | bssid = {0x00,0x11,0x22,0x33,0x44,0x55}, mac_val = {0x01,0x23,0x45,0x67,0x89,0xAB}                                                                                                  | em_client_info_t fields are set to the expected values                                                     | Should be successful |
+ * |      02        | Write the em_client_info_t structure as a client info TLV into the buffer using write_tlv            | buffer size = TLV_HEADER_SIZE + sizeof(em_client_info_t), TLV type = em_tlv_type_client_info, value = reinterpret_cast of em_client_info_t, length = sizeof(em_client_info_t)       | Buffer contains a valid em_tlv_type_client_info TLV with the correct payload                               | Should be successful |
+ * |      03        | Create an instance of em_msg_t using the prepared TLV buffer                                         | buffer, buffer length = sizeof(buffer)                                                                                                                                              | em_msg_t object is successfully created                                                                    | Should be successful |
+ * |      04        | Call get_client_mac_info to extract the client MAC address and compare with the expected value       | output pointer to mac (6 bytes, initialized to zeros), expected mac_val = {0x01,0x23,0x45,0x67,0x89,0xAB}                                                                           | function returns true, the extracted MAC address matches mac_val as verified by EXPECT_TRUE and EXPECT_EQ  | Should Pass          |
  */
 TEST(em_msg_t, get_client_mac_info_valid_client_info_tlv)
 {
     std::cout << "Entering get_client_mac_info_valid_client_info_tlv test" << std::endl;
-    unsigned char buffer[TLV_HEADER_SIZE + 6];
+    unsigned char buffer[TLV_HEADER_SIZE + sizeof(em_client_info_t)];
+    unsigned char bssid[6] = {0x00, 0x11, 0x22, 0x33, 0x44, 0x55};
     unsigned char mac_val[6] = {0x01, 0x23, 0x45, 0x67, 0x89, 0xAB};
-    write_tlv(buffer, em_tlv_type_client_info, mac_val, sizeof(mac_val));
+    em_client_info_t client_info;
+    memcpy(client_info.bssid, bssid, sizeof(bssid));
+    memcpy(client_info.client_mac_addr, mac_val, sizeof(mac_val));
+    write_tlv(buffer, em_tlv_type_client_info, reinterpret_cast<unsigned char*>(&client_info), sizeof(client_info));
     em_msg_t msg(buffer, sizeof(buffer));
     unsigned char mac[6] = {0};
     bool ret = msg.get_client_mac_info(reinterpret_cast<mac_address_t*>(mac));
@@ -4925,9 +4937,10 @@ TEST(em_msg_t, get_tlv_found_case)
 TEST(em_msg_t, get_tlv_not_found_case) 
 {
     std::cout << "Entering get_tlv_not_found_case test" << std::endl;
-    unsigned char buffer[16];
+    unsigned char buffer[TLV_HEADER_SIZE + 2 + TLV_HEADER_SIZE] = {}; // zero-init: device_info TLV + EOM
     unsigned char value[2] = {0x01, 0x02};
     write_tlv(buffer, em_tlv_type_device_info, value, sizeof(value));
+    write_tlv(buffer + TLV_HEADER_SIZE + 2, em_tlv_type_eom, nullptr, 0);
     em_tlv_t* ret = em_msg_t::get_tlv(reinterpret_cast<em_tlv_t*>(buffer),sizeof(buffer),em_tlv_type_mac_address);
     ASSERT_EQ(ret, nullptr);
     std::cout << "Exiting get_tlv_not_found_case test" << std::endl;

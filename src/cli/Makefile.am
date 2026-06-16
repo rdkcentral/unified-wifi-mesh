@@ -91,5 +91,4 @@ libemcli_la_SOURCES = \
  $(top_srcdir)/src/utils/util.cpp \
  $(top_srcdir)/src/em/prov/easyconnect/ec_util.cpp \
  $(top_srcdir)/src/em/prov/easyconnect/ec_crypto.cpp \
- $(top_srcdir)/src/util_crypto/aes_siv.c \
- $(top_srcdir)/OneWifi/source/utils/collection.c
+ $(top_srcdir)/src/util_crypto/aes_siv.c

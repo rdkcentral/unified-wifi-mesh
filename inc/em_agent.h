@@ -210,7 +210,14 @@ class em_agent_t : public em_mgr_t {
 	 * @param event The event containing the `rdk_sta_data_t` info which includes the association status along with other information
 	 */
 	void handle_recv_assoc_status(em_bus_event_t *event);
-    
+
+	/**
+	 * @brief Handles the reception of connection status event of a STA
+	 *
+	 * @param event The event containing the `em_connection_status_evt_data_t` payload
+	 */
+	void handle_recv_connection_status(em_bus_event_t *event);
+
 	/**!
 	 * @brief Handles the BTM response action frame.
 	 *
@@ -640,6 +647,20 @@ public:
 	void handle_onewifi_radio_cb(em_bus_event_t *evt);
     
 	/**!
+	 * @brief Handles the client association control request event.
+	 *
+	 * This function processes the client association control request event received
+	 * through the event bus and applies the necessary blocking/unblocking actions.
+	 *
+	 * @param[in] evt Pointer to the event structure containing the client association
+	 * control request details.
+	 *
+	 * @note Ensure that the event structure is properly initialized before
+	 * calling this function.
+	 */
+	void handle_client_assoc_ctrl_req(em_bus_event_t *evt);
+
+	/**!
 	 * @brief Handles the M2 control configuration event.
 	 *
 	 * This function processes the M2 control configuration event received
@@ -866,7 +887,7 @@ public:
 	 *
 	 * @note Ensure that the `event_name` and `data` are valid before processing.
 	 */
-	static void sta_cb(char *event_name, raw_data_t *data, void *userData);
+	static void sta_cb(char *event_name, bus_data_prop_t *data, void *userData);
     
 	/**!
 	 * @brief Callback function for handling WiFi events.
@@ -881,7 +902,7 @@ public:
 	 * @note Ensure that the data pointer is valid and properly initialized before
 	 * passing it to this function.
 	 */
-	static void onewifi_cb(char *event_name, raw_data_t *data, void *userData);
+	static void onewifi_cb(char *event_name, bus_data_prop_t *data, void *userData);
     
 	/**!
 	 * @brief Callback function for association statistics.
@@ -898,7 +919,7 @@ public:
 	 *
 	 * @note Ensure that the data pointer is valid before calling this function.
 	 */
-	static int assoc_stats_cb(char *event_name, raw_data_t *data, void *userData);
+	static int assoc_stats_cb(char *event_name, bus_data_prop_t *data, void *userData);
     
 	/**!
 	 * @brief Callback function for management action frames.
@@ -915,7 +936,7 @@ public:
 	 *
 	 * @note Ensure that the data pointer is valid and points to the correct data structure.
 	 */
-	static int mgmt_action_frame_cb(char *event_name, raw_data_t *data, void *userData);
+	static int mgmt_action_frame_cb(char *event_name, bus_data_prop_t *data, void *userData);
 
 	/**!
 	 * @brief Callback function for management csa beacon frames.
@@ -932,7 +953,7 @@ public:
 	 *
 	 * @note Ensure that the data pointer is valid and points to the correct data structure.
 	 */
-	static int mgmt_csa_beacon_frame_cb(char *event_name, raw_data_t *data, void *userData);
+	static int mgmt_csa_beacon_frame_cb(char *event_name, bus_data_prop_t *data, void *userData);
 
 	/**!
 	 * @brief Callback function for channel scanning.
@@ -949,7 +970,7 @@ public:
 	 *
 	 * @note Ensure that the event_name and data are valid before processing.
 	 */
-	static int channel_scan_cb(char *event_name, raw_data_t *data, void *userData);
+	static int channel_scan_cb(char *event_name, bus_data_prop_t *data, void *userData);
     
 	/**!
 	 * @brief Callback function for handling beacon reports.
@@ -966,7 +987,7 @@ public:
 	 *
 	 * @note Ensure that the data pointer is valid before accessing its contents.
 	 */
-	static int beacon_report_cb(char *event_name, raw_data_t *data, void *userData);
+	static int beacon_report_cb(char *event_name, bus_data_prop_t *data, void *userData);
 
 	/**
 	 * @brief Callback for association status event
@@ -976,7 +997,17 @@ public:
 	 * @param userData Optional user-provided callback data
 	 * @return int 1 on success, otherwise -1
 	 */
-	static int association_status_cb(char *event_name, raw_data_t *data, void *userData);
+	static int association_status_cb(char *event_name, bus_data_prop_t *data, void *userData);
+
+	/**
+	 * @brief Callback for connection-status event
+	 *
+	 * @param event_name The name of the event
+	 * @param data The raw event data
+	 * @param userData Optional user-provided callback data
+	 * @return int 1 on success, otherwise -1
+	 */
+	static int connection_status_cb(char *event_name, bus_data_prop_t *data, void *userData);
 
 	/**
 	 * @brief Callback for BSS scan events
@@ -986,7 +1017,7 @@ public:
 	 * @param userData Optional user-provided callback data
 	 * @return int 1 on success, otherwise -1
 	 */
-	static int bss_info_cb(char *event_name, raw_data_t *data, void *userData);
+	static int bss_info_cb(char *event_name, bus_data_prop_t *data, void *userData);
 
 	/**!
 	 * @brief Callback function for handling AP Metrics reports.
@@ -1003,7 +1034,7 @@ public:
 	 *
 	 * @note Ensure that the data pointer is valid before accessing its contents.
 	 */
-	static int report_cb(char *event_name, raw_data_t *data, void *userData);
+	static int report_cb(char *event_name, bus_data_prop_t *data, void *userData);
 
 	/**!
 	 * @brief Retrieves the associated data for the given input.

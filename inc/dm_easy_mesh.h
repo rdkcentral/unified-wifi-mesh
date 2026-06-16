@@ -102,9 +102,77 @@ public:
 	unsigned int get_ssid_mismatch_check_time() const { return ssid_mismatch_check_time; }
 	void set_last_topo_query_sent_time(unsigned int time) { last_topo_query_sent_time = time; }
 	unsigned int get_last_topo_query_sent_time() const { return last_topo_query_sent_time; }
+        static em_e4_table_t m_e4_table[];
+        static const size_t m_e4_table_size;
 
-	static em_e4_table_t m_e4_table[];
-	
+       /**!
+        * @brief Retrieves the beacon channel based on center channel and bandwidth.
+        *
+        * This function calculates the beacon channel corresponding to a given
+        * center channel and operating bandwidth.
+        *
+        * @param[in] center_channel  The center channel from which the beacon channel is derived.
+        * @param[in] bandwidth       The channel bandwidth (e.g., 20, 40, 80, 160, 320 MHz).
+        *
+        * @return The calculated beacon channel associated with the provided center
+        *         channel and bandwidth.
+        *
+        * @note Ensure that the center_channel is valid.
+        */
+        static int get_beaconchannel_by_bandwidth(int center_channel, int bandwidth);
+ 
+       /**!
+        * @brief Retrieves the center channel from a given beacon channel and bandwidth.
+        *
+        * This function determines the center channel corresponding to a beacon (primary)
+        * channel and the operating bandwidth.
+        *
+        * @param[in] beacon_channel  The primary/beacon channel.
+        * @param[in] bandwidth       The operating channel bandwidth (20/40/80/160/320 MHz).
+        *
+        * @return The calculated center channel for the provided beacon channel and
+        *         bandwidth.
+        *
+        * @note The function assumes a valid beacon channel for the given bandwidth.
+        */
+        static int get_centerchannel_by_bandwidth(int beacon_channel, int bandwidth);
+
+       /**!
+        * @brief Retrieves the beacon channel based on operating class and channel
+        *        as per the m_e4_table.
+	*
+        * This function maps an operating class and channel number to the appropriate
+        * beacon (primary) channel as per the m_e4_table. Operating classes define
+        * regulatory behavior such as bandwidth, channel spacing, and allowed channels.
+        *
+        * @param[in] op_class The operating class that defines channel behavior.
+        * @param[in] channel  The channel for which the beacon channel is required.
+        *
+        * @return The corresponding beacon channel for the given operating class
+        *         and channel.
+        *
+        * @note Ensure that the operating class is valid and corresponds to the region’s
+        *       regulatory domain to avoid incorrect mapping results.
+        */
+        static int get_beaconchannel_by_opclass(int op_class, int channel);
+
+       /**!
+        * @brief Retrieves the center channel for a given operating class and channel
+        *        as per the m_e4_table.
+	*
+        * This function computes the center channel associated with a specific operating
+        * class and channel number as per the m_e4_table.
+        *
+        * @param[in] op_class The operating class.
+        * @param[in] channel  The channel from which the center channel needs to be derived.
+        *
+        * @return The center channel corresponding to the provided operating class and channel.
+        *
+        * @note This mapping is dependent on regulatory domain definitions. Ensure the
+        *       operating class and channel values are valid and supported.
+        */
+        static int get_centerchannel_by_opclass(int op_class, int channel);
+
 	/**!
 	 * @brief Retrieves the frequency band associated with a given operating class.
 	 *
@@ -746,7 +814,7 @@ public:
 	 *
 	 * @note This function modifies the interface name used by the network control agent.
 	 */
-	void set_ctrl_al_interface_name(char *name) { m_network.set_controller_id(reinterpret_cast<unsigned char*>(name)); }
+	void set_ctrl_al_interface_name(char *name) { snprintf(m_network.m_net_info.ctrl_id.name, sizeof(m_network.m_net_info.ctrl_id.name), "%s", name); }
 	
 	/**!
 	 * @brief Sets the controller ID for the network.
@@ -1282,7 +1350,7 @@ public:
 	 *
 	 * @note Ensure that the index is within the valid range of BSS entries.
 	 */
-	static em_bss_info_t *get_bss_info(void *dm, unsigned int index) { return (static_cast<dm_easy_mesh_t *>(dm))->get_bss_info(index); }
+	static em_bss_info_t *get_bss_info(void *dm, unsigned int index) { if (dm == nullptr) return NULL; return (static_cast<dm_easy_mesh_t *>(dm))->get_bss_info(index); }
 
 	/**!
 	 * @brief Retrieves the `em_bss_info_t` for the bSTA.
@@ -1452,7 +1520,19 @@ public:
 	 */
 	dm_policy_t& get_policy_by_ref(unsigned int index) { return m_policy[index]; }
 
-	
+	/**!
+	 * @brief Checks whether this data model contains a policy of the given type.
+	 *
+	 * @param[in] type The policy ID type to search for.
+	 * @returns true if at least one policy with the given type exists, false otherwise.
+	 */
+	bool has_policy_type(em_policy_id_type_t type) const {
+		for (unsigned int i = 0; i < m_num_policy; i++) {
+			if (m_policy[i].m_policy.id.type == type) return true;
+		}
+		return false;
+	}
+
 	/**!
 	 * @brief Finds a matching scan result based on the provided scan result ID.
 	 *
@@ -1669,6 +1749,8 @@ public:
 
 	void update_assoc_sta_mld_info(em_assoc_sta_mld_info_t *assoc_sta_mld_info);
 	static void update_assoc_sta_mld_info(void *dm, em_assoc_sta_mld_info_t *assoc_sta_mld_info) { (static_cast<dm_easy_mesh_t *>(dm))->update_assoc_sta_mld_info(assoc_sta_mld_info); }
+
+	void remove_assoc_sta_mld_info(mac_address_t sta_mld_mac);
 
 	em_radio_cap_info_t *get_radio_cap_info(int index);
 	static em_radio_cap_info_t *get_radio_cap_info(void *dm, int index) { return (static_cast<dm_easy_mesh_t *>(dm))->get_radio_cap_info(index); }
@@ -2068,7 +2150,7 @@ public:
 	 * @note Ensure that the `info` pointer is valid and points to a properly initialized `em_sta_info_t` structure.
 	 */
 	void put_sta_info(em_sta_info_t *info, em_target_sta_map_t target);
-    
+
 	/**!
 	 * @brief Retrieves the first station information.
 	 *
@@ -2130,7 +2212,28 @@ public:
 	 */
 	static void put_sta_info(void *dm, em_sta_info_t *info, em_target_sta_map_t target) { (static_cast<dm_easy_mesh_t *>(dm))->put_sta_info(info, target); }
 
-    
+	/**!
+	 * @brief Checks whether a station (STA) is currently associated with a given BSSID.
+	 *
+	 * This function determines if the station identified by @p sta_mac is
+	 * presently associated with the basic service set identified by @p bssid
+	 * in the EasyMesh data model.
+	 *
+	 * @param[in] bssid    The BSSID of the access point/BSS to check against.
+	 *                     The association check is performed specifically for
+	 *                     this BSSID and does not search across other BSSIDs.
+	 * @param[in] sta_mac  The MAC address of the station whose association
+	 *                     state is being queried.
+	 *
+	 * @returns true if the station is recorded as associated with the given
+	 *          BSSID, false otherwise.
+	 *
+	 * @note Callers are expected to provide valid, normalized MAC addresses
+	 *       for both @p bssid and @p sta_mac that correspond to entities
+	 *       known to the EasyMesh instance.
+	 */
+	bool is_sta_associated(bssid_t bssid, mac_address_t sta_mac);
+
 	/**!
 	 * @brief Finds a station (STA) based on its MAC address and BSSID.
 	 *
