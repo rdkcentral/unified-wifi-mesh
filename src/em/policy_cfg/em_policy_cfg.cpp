@@ -774,7 +774,18 @@ int em_policy_cfg_t::handle_policy_cfg_req(unsigned char *buff, unsigned int len
                     reinterpret_cast<em_unsuccessful_assoc_policy_t *>(tlv->value);
                 policy.unsuccessful_assoc_policy.rprt_flag = assoc->rprt_flag;
                 policy.unsuccessful_assoc_policy.max_rprt_rate = ntohl(assoc->max_rprt_rate);
-                em_printfout("Recvd Unsuccessful Assoc Policy: rprt_flag=%d, max_rprt_rate=%u",
+
+                em_device_info_t *device_info = get_data_model()->get_device_info();
+                if (device_info != NULL) {
+                   device_info->report_unsuccess_assocs =
+                        (policy.unsuccessful_assoc_policy.rprt_flag != 0);
+                    device_info->max_unsuccessful_assoc_report_rate =
+                        static_cast<unsigned short>(policy.unsuccessful_assoc_policy.max_rprt_rate);
+                    em_printfout("Updated device info with unsuccessful assoc policy: report_unsuccess_assocs=%d, max_unsuccessful_assoc_report_rate=%d",
+                        device_info->report_unsuccess_assocs, device_info->max_unsuccessful_assoc_report_rate);
+                }
+
+                em_printfout("Recvd Unsuccessful Assoc Policy: rprt_flag=%d, max_rprt_rate=%d",
                     policy.unsuccessful_assoc_policy.rprt_flag,
                     policy.unsuccessful_assoc_policy.max_rprt_rate);
             }

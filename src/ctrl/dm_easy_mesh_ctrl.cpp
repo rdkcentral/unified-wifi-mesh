@@ -2148,6 +2148,7 @@ int dm_easy_mesh_ctrl_t::analyze_set_policy(em_bus_event_t *evt, em_cmd_t *pcmd[
     int policy_changed = 0;
 
     subdoc = &evt->u.subdoc;
+    dm.init();
 
     em_printfout("Received SetPolicy event: \n%s", subdoc->buff);
     do {
@@ -2259,9 +2260,20 @@ int dm_easy_mesh_ctrl_t::analyze_set_policy(em_bus_event_t *evt, em_cmd_t *pcmd[
         }
         radio = m_data_model_list.get_first_radio(dm.m_network.m_net_info.id, dm.m_device.m_device_info.intf.mac);
         while (radio != NULL) {
-            memcpy(dm.m_radio[dm.m_num_radios].m_radio_info.intf.mac, radio->m_radio_info.intf.mac, sizeof(mac_address_t));
+            if (dm.m_num_radios >= EM_MAX_RADIO_PER_AGENT) {
+                em_printfout("SetPolicy Radio overflow guard triggered | device=%s num_radios=%u max_allowed=%u",
+                    mac_str, dm.m_num_radios, EM_MAX_RADIO_PER_AGENT);
+                break;
+            }
+            memcpy(dm.m_radio[dm.m_num_radios].m_radio_info.intf.mac,
+                radio->m_radio_info.intf.mac, sizeof(mac_address_t));
             dm.m_num_radios++;
-            radio = m_data_model_list.get_next_radio(dm.m_network.m_net_info.id, dm.m_device.m_device_info.intf.mac, radio);
+            radio = m_data_model_list.get_next_radio(dm.m_network.m_net_info.id,
+                dm.m_device.m_device_info.intf.mac, radio);
+        }
+
+        if (dm.m_num_radios == 0) {
+            em_printfout("No radios found for device %s while processing set_policy", mac_str);
         }
 
         dm.set_db_cfg_param(db_cfg_type_policy_list_update, "");

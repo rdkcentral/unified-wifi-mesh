@@ -381,6 +381,9 @@ void em_t::proto_process(em_cmd_event_t *cevt)
             em_cmd_t *ap_cmd = static_cast<em_cmd_t*>(cevt->cmd_ptr);
             m_cmd = ap_cmd;
             em_metrics_t::process_agent_state(em_cmd_event_type_ap_metrics_report);
+            if (ap_cmd != NULL) {
+                ap_cmd->deinit();
+            }
             delete ap_cmd;
             m_cmd = saved_cmd;
             break;
