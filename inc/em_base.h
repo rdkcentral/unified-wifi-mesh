@@ -69,7 +69,7 @@ extern "C"
 #define EM_LONG_IO_BUFF_SZ   4096*4
 
 #define EM_MAX_OP_CLASS    48
-#define EM_MAX_POLICIES	16	
+#define EM_MAX_POLICIES	32
 #define EM_MAX_CHANNEL_PER_OP_CLASS  59
 #define EM_MAX_SERVICE          8
 #define EM_MAX_BSS_PER_RADIO           16

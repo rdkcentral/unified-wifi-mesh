@@ -595,25 +595,63 @@ savePolicySettings(sectionKey, scope = "selected") {
         return;
       }
 
+      const norm = v => PolicyUtil.normalizeId(v);
+
       // Build lookup map from UI updates
       const updateMap = new Map();
       radioRows.forEach(r => {
-        if (r.id) updateMap.set(r.id, r);
+        const key = norm(r.id);
+        if (key) updateMap.set(key, { ...r, id: key });
       });
+      const selectedIdx = this.updatedPolicySettings.findIndex(
+        p => p.id === selectedDeviceId
+      );
 
       indicesToUpdate.forEach(i => {
         const d = this.updatedPolicySettings[i];
         d.localSteeringDisallowed = [...localList];
         d.btmSteeringDisallowed = [...btmList];
 
-        // update only existing BSSIDs
         const existing = d.radioSteeringParametersPolicy || [];
 
-        const updated = existing.map(row => {
-          const match = updateMap.get(row.id);
-          return match ? { ...row, ...match } : row;
+        const existingMap = new Map();
+        existing.forEach(r => {
+          const key = norm(r.id);
+          if (key) existingMap.set(key, r);
         });
 
+        const uiKeys = new Set(updateMap.keys());
+
+        if (uiKeys.size === 1 && uiKeys.has(PolicyUtil.MAC_ALL)) {
+          d.radioSteeringParametersPolicy = [updateMap.get(PolicyUtil.MAC_ALL)];
+          return;
+        }
+
+        let updated;
+
+        if (i === selectedIdx) {
+          updated = existing
+            .filter(r => uiKeys.has(norm(r.id)))
+            .map(r => {
+              const key = norm(r.id);
+              const match = updateMap.get(key);
+              return match ? { ...r, ...match } : r;
+            });
+        } else {
+          updated = existing.map(r => {
+            const key = norm(r.id);
+            const match = updateMap.get(key);
+            return match ? { ...r, ...match } : r;
+          });
+        }
+
+        if (i === selectedIdx) {
+          updateMap.forEach((uiRow, key) => {
+            if (!existingMap.has(key)) {
+              updated.push(uiRow);
+            }
+          });
+        }
         d.radioSteeringParametersPolicy = updated;
       });
       this.showNotification('Steering Policy saved successfully', 'success')
@@ -652,13 +690,14 @@ savePolicySettings(sectionKey, scope = "selected") {
 
       // Convert values
       const reportBool = reportVal === "1";
-      const rateNum    = Number(rateVal);
+      const rateNum = rateVal === "" ? 0 : Number(rateVal);
+      const rateNumValid = Number.isNaN(rateNum) ? 0 : rateNum;
 
       indicesToUpdate.forEach(i => {
         const d = this.updatedPolicySettings[i];
         d.unsuccessfulAssocPolicy ||= {};
         d.unsuccessfulAssocPolicy.reportUnsuccessAssoc = reportBool;
-        d.unsuccessfulAssocPolicy.maxReportingRate = Number.isNaN(rateNum) ? 0 : rateNum;
+        d.unsuccessfulAssocPolicy.maxReportingRate = reportBool ? rateNumValid : 0;
       });
       this.showNotification('Unsuccessful Association Policy saved successfully', 'success');
       break;
@@ -715,20 +754,59 @@ savePolicySettings(sectionKey, scope = "selected") {
         this.showNotification('At least one Radio specific Metrics row with a valid ID (Station MAC") is required.', 'error');
         return;
       }
+
+      const norm = v => PolicyUtil.normalizeId(v)
+
       // Build lookup map using ID
       const updateMap = new Map();
       rows.forEach(r => {
-        if (r.id) updateMap.set(r.id, r);
+        const key = norm(r.id);
+        if (key) updateMap.set(key, { ...r, id: key });
       });
+
+      const selectedIdx = this.updatedPolicySettings.findIndex(
+        p => p.id === selectedDeviceId
+      );
+
 
       indicesToUpdate.forEach(i => {
         const d = this.updatedPolicySettings[i];
         const existing = d.radioSpecificMetricsPolicy || [];
-        // Update only matching IDs
-        const updated = existing.map(entry => {
-          const match = updateMap.get(entry.id);
-          return match ? { ...entry, ...match } : entry;
+
+        // Build existing map
+        const existingMap = new Map();
+        existing.forEach(r => {
+          const key = norm(r.id);
+          if (key) existingMap.set(key, r);
         });
+        const uiKeys = new Set(updateMap.keys());
+        if (uiKeys.size === 1 && uiKeys.has(PolicyUtil.MAC_ALL)) {
+          d.radioSpecificMetricsPolicy = [updateMap.get(PolicyUtil.MAC_ALL)];
+          return;
+        }
+        let updated;
+        if (i === selectedIdx) {
+          updated = existing
+          .filter(r => uiKeys.has(norm(r.id)))   // remove deleted rows
+          .map(r => {
+            const key = norm(r.id);
+            const match = updateMap.get(key);
+            return match ? { ...r, ...match } : r;
+          });
+        } else {
+          updated = existing.map(r => {
+            const key = norm(r.id);
+            const match = updateMap.get(key);
+            return match ? { ...r, ...match } : r;
+          });
+        }
+        if (i === selectedIdx) {
+          updateMap.forEach((uiRow, key) => {
+            if (!existingMap.has(key)) {
+              updated.push(uiRow);
+            }
+          });
+        }
         d.radioSpecificMetricsPolicy = updated;
       });
       this.showNotification('Radio Specific Metrics Policy saved successfully', 'success');
@@ -3869,6 +3947,7 @@ function populatePolicyUI(policy) {
   const ua = policy.unsuccessfulAssocPolicy || {};
   setInputValue("#report-unassoc-sta", ua.reportUnsuccessAssoc?1:0);
   setInputValue("#max-reporting-rate", ua.maxReportingRate);
+  toggleMaxRateField();
 
   // Backhaul BSS Config Policy
   const backhaul = policy.backhaulBssConfigPolicy || [];
@@ -3906,6 +3985,7 @@ function toggleMaxRateField() {
   if (isDisabled) {
     rateInput.value = "0";
   }
+
 }
 
 // RMP entries (array or single legacy object)
@@ -4148,8 +4228,6 @@ function createPolicyTable({
     if (!tbody) return;
     const tr = createRow(prefill || {}, { editableId: true });
     tbody.appendChild(tr);
-    //const idInput = tr.querySelector('input[name="id"]');
-    //if (idInput) { idInput.focus(); idInput.select?.(); }
     // Show one-time scope chooser for this new row
     attachNewEntryScopeChooser(tr);
     updateAddButtonState();
@@ -4158,8 +4236,8 @@ function createPolicyTable({
   function getAll() {
     const rows = qsa(`${tbodySel} tr`);
     return rows.map(tr => {
-      let id = tr.querySelector('input[name="id"]')?.value?.trim().toLowerCase() || "";
-      if (id === "all stations") id = PolicyUtil.MAC_ALL;
+      let raw = tr.querySelector('input[name="id"]')?.value || "";
+      let id = normalizeId(raw)
 
       const out = { id };
       for (const col of columns) {
@@ -4172,7 +4250,7 @@ function createPolicyTable({
         }
       }
       return out;
-    });
+    }).filter(r => r.id);
   }
 
   function bind() {

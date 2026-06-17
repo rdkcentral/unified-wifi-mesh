@@ -110,14 +110,20 @@ dm_easy_mesh_t& dm_easy_mesh_t::operator = (dm_easy_mesh_t const& obj)
         m_assoc_sta_mld[i] = obj.m_assoc_sta_mld[i];
     }
 
-    sta = static_cast<dm_sta_t *> (hash_map_get_first(obj.m_sta_map));
-    while (sta != NULL) {
-        dm_easy_mesh_t::macbytes_to_string(sta->m_sta_info.id, sta_mac_str);
-        dm_easy_mesh_t::macbytes_to_string(sta->m_sta_info.bssid, bss_mac_str);
-        dm_easy_mesh_t::macbytes_to_string(sta->m_sta_info.radiomac, radio_mac_str);
-        snprintf(key, sizeof(em_long_string_t), "%s@%s@%s", sta_mac_str, bss_mac_str, radio_mac_str);
-        hash_map_put(m_sta_map, strdup(key), new dm_sta_t(*sta));
-        sta = static_cast<dm_sta_t *> (hash_map_get_next(obj.m_sta_map, sta));
+    if (m_sta_map == NULL) {
+        m_sta_map = hash_map_create();
+    }
+
+    if (obj.m_sta_map != NULL && m_sta_map != NULL) {
+        sta = static_cast<dm_sta_t *> (hash_map_get_first(obj.m_sta_map));
+        while (sta != NULL) {
+            dm_easy_mesh_t::macbytes_to_string(sta->m_sta_info.id, sta_mac_str);
+            dm_easy_mesh_t::macbytes_to_string(sta->m_sta_info.bssid, bss_mac_str);
+            dm_easy_mesh_t::macbytes_to_string(sta->m_sta_info.radiomac, radio_mac_str);
+            snprintf(key, sizeof(em_long_string_t), "%s@%s@%s", sta_mac_str, bss_mac_str, radio_mac_str);
+            hash_map_put(m_sta_map, strdup(key), new dm_sta_t(*sta));
+            sta = static_cast<dm_sta_t *> (hash_map_get_next(obj.m_sta_map, sta));
+        }
     }
 
     m_em = obj.m_em;
@@ -1202,6 +1208,8 @@ int dm_easy_mesh_t::decode_config_set_policy(em_subdoc_info_t *subdoc, const cha
             m_num_policy++;
         }
     }
+
+    cJSON_Delete(parent_obj);
 
     return 0;
 }

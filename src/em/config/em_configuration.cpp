@@ -3969,24 +3969,6 @@ int em_configuration_t::create_autoconfig_wsc_m2_msg(unsigned char *buff, unsign
         return 0;
     }
 
-    // default 8022.1q settings tlv 17.2.49
-    tlv = reinterpret_cast<em_tlv_t *> (tmp);
-    tlv->type = em_tlv_type_dflt_8021q_settings;
-    tlv->len = htons(sizeof(em_8021q_settings_t));
-    memset(tlv->value, 0, sizeof(tlv->len));
-
-    tmp += (sizeof(em_tlv_t) + sizeof(em_8021q_settings_t));
-    len += static_cast<int> (sizeof(em_tlv_t) + sizeof(em_8021q_settings_t));
-
-    // traffic separation policy tlv 17.2.50 
-    tlv = reinterpret_cast<em_tlv_t *> (tmp);
-    tlv->type = em_tlv_type_traffic_separation_policy;
-    sz = static_cast<short unsigned int> (create_traffic_separation_policy_tlv(tlv->value));
-    tlv->len = htons(sz);
-
-    tmp += (sizeof(em_tlv_t) + sz);
-    len += static_cast<int> (sizeof(em_tlv_t) + sz);
-
     // ap mld tlv 17.2.96
     tlv =reinterpret_cast<em_tlv_t *> (tmp);
     tlv->type = em_tlv_type_ap_mld_config;
