@@ -381,6 +381,9 @@ void em_t::proto_process(em_cmd_event_t *cevt)
             em_cmd_t *ap_cmd = static_cast<em_cmd_t*>(cevt->cmd_ptr);
             m_cmd = ap_cmd;
             em_metrics_t::process_agent_state(em_cmd_event_type_ap_metrics_report);
+            if (ap_cmd != NULL) {
+                ap_cmd->deinit();
+            }
             delete ap_cmd;
             m_cmd = saved_cmd;
             break;
@@ -1201,6 +1204,61 @@ short em_t::create_ht_tlv(unsigned char *buff)
 
     return len;
 }
+
+static uint16_t variant_to_airties_standards(wifi_ieee80211Variant_t current_variant)
+{
+    uint16_t std = 0;
+
+    if (current_variant & WIFI_80211_VARIANT_A)  std |= (1 << 15);
+    if (current_variant & WIFI_80211_VARIANT_B)  std |= (1 << 14);
+    if (current_variant & WIFI_80211_VARIANT_G)  std |= (1 << 13);
+    if (current_variant & WIFI_80211_VARIANT_N)  std |= (1 << 12);
+    if (current_variant & WIFI_80211_VARIANT_AC) std |= (1 << 11);
+    if (current_variant & WIFI_80211_VARIANT_AX) std |= (1 << 10);
+    if (current_variant & WIFI_80211_VARIANT_BE) std |= (1 << 9);
+    if (current_variant & WIFI_80211_VARIANT_BN) std |= (1 << 8);
+
+    return std;
+}
+
+short em_t::create_airties_radio_capability_tlv(unsigned char *buff)
+{
+    short len = 0;
+    dm_easy_mesh_t  *dm;
+    dm = get_data_model();
+    dm_radio_cap_t *radio_cap = dm->get_radio_cap(get_radio_interface_mac());
+
+    if (radio_cap == NULL) {
+        em_printfout("radio_cap NULL for MAC %s",
+                     util::mac_to_string(get_radio_interface_mac()).c_str());
+        return 0;
+    } else {
+        em_radio_cap_info_t* cap_info = radio_cap->get_radio_cap_info();
+        if (cap_info == NULL) {
+            em_printfout("No data Found");
+            return 0;
+        }
+        uint16_t supported_standards = htons(variant_to_airties_standards(cap_info->mode));
+        em_vendor_specific_v_t *vendor = reinterpret_cast<em_vendor_specific_v_t *>(buff);
+        if (vendor == NULL) {
+            em_printfout("No data Found");
+            return 0;
+        }
+        memcpy(reinterpret_cast<unsigned char *> (vendor->vendor_oui), airties_vendor_oui, EM_VENDOR_OUI_SIZE);
+        len += EM_VENDOR_OUI_SIZE;
+        uint16_t tlv_type = htons(static_cast<uint16_t>(em_tlv_type_radio_capability));
+        memcpy(reinterpret_cast<unsigned char *> (vendor->data), &tlv_type, sizeof(tlv_type));
+        len += static_cast<short>(sizeof(tlv_type));
+        em_radio_capability_vendor_t *tmp = reinterpret_cast<em_radio_capability_vendor_t *> (vendor->data + sizeof(tlv_type));
+        memcpy(tmp->interface_mac, get_radio_interface_mac(), sizeof(mac_address_t));
+        len += static_cast<short>(sizeof(mac_address_t));
+        memcpy(tmp->supported_standards, &supported_standards, sizeof(supported_standards));
+        len += static_cast<short>(sizeof(supported_standards));
+        len += 2; //reserved
+    }
+    return len;
+}
+
 
 short em_t::create_vht_tlv(unsigned char *buff)
 {

@@ -843,7 +843,7 @@ public:
 	 * @note Ensure that the buffer is properly allocated before calling this function.
 	 */
 	short create_ht_tlv(unsigned char *buff);
-    
+
 	/**!
 	 * @brief Creates a VHT TLV (Very High Throughput Tag Length Value) structure.
 	 *
@@ -1093,6 +1093,21 @@ public:
 	cJSON *create_bss_dpp_response_obj(const em_bss_info_t *bss_info, bool is_sta_response, bool tear_down_bss, dm_easy_mesh_t *data_model = NULL);
 
 	// END: DPP Callbacks for BSS information
+
+	/**
+	 * @brief Creates Airties radio capability vendor TLV.
+	 *
+	 * Builds a vendor-specific TLV containing radio capability information
+	 * (supported 802.11 standards) using Airties OUI and TLV ID.
+	 *
+	 * @param buff Output buffer for TLV data.
+	 *
+	 * @return TLV length in bytes, or 0 if radio capability is unavailable.
+	 *
+	 * @note Uses network byte order for multi-byte fields.
+	 */
+
+	short create_airties_radio_capability_tlv(unsigned char *buff);
 
 	int handle_wifi6_cap_tlv(unsigned char *buff);
 	int handle_wifi7_agent_cap_tlv(unsigned char *buff);

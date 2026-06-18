@@ -424,6 +424,8 @@ class em_configuration_t {
 	 */
 	virtual short create_ap_radio_advanced_cap_tlv(unsigned char *buff) = 0;
 
+	virtual short create_def_8021q_settings_policy_tlv(unsigned char *buff) = 0;
+
 	/**!
 	 * @brief Creates a list of enrollee BSTA.
 	 *

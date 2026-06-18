@@ -965,6 +965,7 @@ void em_agent_t::handle_ap_metrics_report(em_bus_event_t *evt)
                 } else {
                     em_printfout("failed to allocate event for ap_metrics_report, dropping for radio %s",
                         util::mac_to_string(em->get_radio_interface_mac()).c_str());
+                    pcmd[i]->deinit();
                     delete pcmd[i];
                     pcmd[i] = NULL;
                 }
@@ -974,6 +975,7 @@ void em_agent_t::handle_ap_metrics_report(em_bus_event_t *evt)
         }
         // if no matching em was found, pcmd[i] still non-null here, clean it up
         if (pcmd[i] != NULL) {
+            pcmd[i]->deinit();
             delete pcmd[i];
             pcmd[i] = NULL;
         }
@@ -1478,7 +1480,7 @@ int em_agent_t::report_cb(char *event_name, bus_data_prop_t *data, void *userDat
             }
             cJSON_Delete(json);
         }
-        g_agent.io_process(em_bus_event_type_link_quality_report, reinterpret_cast<unsigned char *>(data->value.raw_data.bytes), data->value.raw_data_len);
+        //g_agent.io_process(em_bus_event_type_link_quality_report, reinterpret_cast<unsigned char *>(data->value.raw_data.bytes), data->value.raw_data_len);
     }
 
     return 0;

@@ -2148,6 +2148,7 @@ int dm_easy_mesh_ctrl_t::analyze_set_policy(em_bus_event_t *evt, em_cmd_t *pcmd[
     int policy_changed = 0;
 
     subdoc = &evt->u.subdoc;
+    dm.init();
 
     em_printfout("Received SetPolicy event: \n%s", subdoc->buff);
     do {
@@ -2259,9 +2260,20 @@ int dm_easy_mesh_ctrl_t::analyze_set_policy(em_bus_event_t *evt, em_cmd_t *pcmd[
         }
         radio = m_data_model_list.get_first_radio(dm.m_network.m_net_info.id, dm.m_device.m_device_info.intf.mac);
         while (radio != NULL) {
-            memcpy(dm.m_radio[dm.m_num_radios].m_radio_info.intf.mac, radio->m_radio_info.intf.mac, sizeof(mac_address_t));
+            if (dm.m_num_radios >= EM_MAX_RADIO_PER_AGENT) {
+                em_printfout("SetPolicy Radio overflow guard triggered | device=%s num_radios=%u max_allowed=%u",
+                    mac_str, dm.m_num_radios, EM_MAX_RADIO_PER_AGENT);
+                break;
+            }
+            memcpy(dm.m_radio[dm.m_num_radios].m_radio_info.intf.mac,
+                radio->m_radio_info.intf.mac, sizeof(mac_address_t));
             dm.m_num_radios++;
-            radio = m_data_model_list.get_next_radio(dm.m_network.m_net_info.id, dm.m_device.m_device_info.intf.mac, radio);
+            radio = m_data_model_list.get_next_radio(dm.m_network.m_net_info.id,
+                dm.m_device.m_device_info.intf.mac, radio);
+        }
+
+        if (dm.m_num_radios == 0) {
+            em_printfout("No radios found for device %s while processing set_policy", mac_str);
         }
 
         dm.set_db_cfg_param(db_cfg_type_policy_list_update, "");
@@ -4805,6 +4817,38 @@ char* dm_easy_mesh_ctrl_t::get_vht_caps_str(em_ap_vht_cap_t *vht, char *buf, siz
     return buf;
 }
 
+char* dm_easy_mesh_ctrl_t::get_supported_standards_str(wifi_ieee80211Variant_t variant, char *buf, size_t buf_size)
+{
+    if (!buf || buf_size == 0)
+        return nullptr;
+
+    buf[0] = '\0';
+    size_t len = 0;
+
+    auto append = [&](const char* s) {
+        size_t slen = strlen(s);
+        size_t needed = (len == 0) ? slen : (slen + 1);
+        if (len + needed + 1 > buf_size) return;
+        if (len != 0) {
+            buf[len++] = ',';
+        }
+        memcpy(buf + len, s, slen);
+        len += slen;
+        buf[len] = '\0';
+    };
+
+    if (variant & WIFI_80211_VARIANT_A)  append("a");
+    if (variant & WIFI_80211_VARIANT_B)  append("b");
+    if (variant & WIFI_80211_VARIANT_G)  append("g");
+    if (variant & WIFI_80211_VARIANT_N)  append("n");
+    if (variant & WIFI_80211_VARIANT_AC) append("ac");
+    if (variant & WIFI_80211_VARIANT_AX) append("ax");
+    if (variant & WIFI_80211_VARIANT_BE) append("be");
+    if (variant & WIFI_80211_VARIANT_BN) append("bn");
+
+    return buf;
+}
+
 bus_error_t dm_easy_mesh_ctrl_t::radio_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
 {
     (void) user_data;
@@ -4859,7 +4903,7 @@ bus_error_t dm_easy_mesh_ctrl_t::radio_get_inner(char *event_name, raw_data_t *p
     } else if (strcmp(param, "Noise") == 0) {
         rc = dm_ctrl->raw_data_set(p_data, static_cast<unsigned int> (ri->noise));
     } else if (strcmp(param, "Utilization") == 0) {
-        rc = dm_ctrl->raw_data_set(p_data, ri->utilization);
+        rc = dm_ctrl->raw_data_set(p_data, static_cast<unsigned int> (ri->utilization));
     } else if (strcmp(param, "Transmit") == 0) {
         rc = dm_ctrl->raw_data_set(p_data, 0U);
     } else if (strcmp(param, "ReceiveSelf") == 0) {
@@ -4922,6 +4966,7 @@ bus_error_t dm_easy_mesh_ctrl_t::radio_tget_params(dm_easy_mesh_t *dm, const cha
 {
     char path[512];
     char caps_str[MAX_CAPS_STR_LEN] = { 0 };
+    char supported_standards[MAX_STDLEN] = { 0 };
     bus_error_t rc = bus_error_success;
     dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
 
@@ -4941,7 +4986,7 @@ bus_error_t dm_easy_mesh_ctrl_t::radio_tget_params(dm_easy_mesh_t *dm, const cha
 #endif
         dm_ctrl->property_append_tail(property, root, idx, "Enabled", ri->enabled);
         dm_ctrl->property_append_tail(property, root, idx, "Noise", static_cast<unsigned int> (ri->noise));
-        dm_ctrl->property_append_tail(property, root, idx, "Utilization", ri->utilization);
+        dm_ctrl->property_append_tail(property, root, idx, "Utilization", static_cast<unsigned int> (ri->utilization));
         dm_ctrl->property_append_tail(property, root, idx, "Transmit", 0U);
         dm_ctrl->property_append_tail(property, root, idx, "ReceiveSelf", 0U);
         dm_ctrl->property_append_tail(property, root, idx, "ReceiveOther", 0U);
@@ -4964,6 +5009,8 @@ bus_error_t dm_easy_mesh_ctrl_t::radio_tget_params(dm_easy_mesh_t *dm, const cha
         dm_radio_cap_t *radio_cap = dm->get_radio_cap(ri->id.ruid);
         if (radio_cap != NULL) {
             em_radio_cap_info_t *rci = radio_cap->get_radio_cap_info();
+            dm_ctrl->get_supported_standards_str(rci->mode, supported_standards, sizeof(supported_standards));
+            dm_ctrl->property_append_tail(property, root, idx, "X_AIRTIES_OperatingStandards", supported_standards);
             dm_ctrl->get_ht_caps_str(&rci->ht_cap, caps_str, sizeof(caps_str));
             dm_ctrl->property_append_tail(property, root, idx, "Capabilities.HTCapabilities", caps_str);
             dm_ctrl->get_vht_caps_str(&rci->vht_cap, caps_str, sizeof(caps_str));
@@ -5055,6 +5102,7 @@ bus_error_t dm_easy_mesh_ctrl_t::rcaps_get_inner(char *event_name, raw_data_t *p
     const char *param;
     char caps_str[MAX_CAPS_STR_LEN] = { 0 };
     char instance[MAX_INSTANCE_LEN] = { 0 };
+    char supported_standards[MAX_STDLEN] = { 0 };
     bool is_num;
     int radio_instance = 0;
     bus_error_t rc;
@@ -5105,6 +5153,9 @@ bus_error_t dm_easy_mesh_ctrl_t::rcaps_get_inner(char *event_name, raw_data_t *p
         rc = dm_ctrl->raw_data_set(p_data, caps_str);
     } else if (strcmp(param, "CapableOperatingClassProfileNumberOfEntries") == 0) {
         rc = dm_ctrl->raw_data_set(p_data, 0U);
+    } else if (strcmp(param, "X_AIRTIES_OperatingStandards") == 0) {
+        dm_ctrl->get_supported_standards_str(rci->mode, supported_standards, sizeof(supported_standards));
+        rc = dm_ctrl->raw_data_set(p_data, supported_standards);
     } else {
         em_printfout("Invalid param: %s", param);
         rc = bus_error_invalid_input;

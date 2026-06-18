@@ -69,7 +69,7 @@ extern "C"
 #define EM_LONG_IO_BUFF_SZ   4096*4
 
 #define EM_MAX_OP_CLASS    48
-#define EM_MAX_POLICIES	16	
+#define EM_MAX_POLICIES	32
 #define EM_MAX_CHANNEL_PER_OP_CLASS  59
 #define EM_MAX_SERVICE          8
 #define EM_MAX_BSS_PER_RADIO           16
@@ -711,6 +711,10 @@ typedef enum {
 
     em_tlv_type_max
 } em_tlv_type_t;
+
+typedef enum {
+    em_tlv_type_radio_capability = 0x0013,
+} em_vendor_airties_tlv_type_t;
 
 typedef enum {
     em_channel_pref_reason_unspecified = 0x00,
@@ -1593,6 +1597,17 @@ typedef struct {
     unsigned char num;
     em_vendor_data_t  data[0];
 } __attribute__((__packed__)) em_vendor_specific_t;
+
+typedef struct {
+    unsigned char  vendor_oui[3];
+    unsigned char  data[0];
+} __attribute__((__packed__)) em_vendor_specific_v_t;
+
+typedef struct {
+    mac_address_t interface_mac;
+    unsigned char supported_standards[2];
+    unsigned char reserved[2];
+}__attribute__((__packed__)) em_radio_capability_vendor_t;
 
 typedef struct {
     unsigned char  destination;    
@@ -2690,6 +2705,7 @@ typedef struct {
 
 typedef struct {
     em_interface_t  ruid;
+    wifi_ieee80211Variant_t mode;
     em_ap_ht_cap_t  ht_cap;
     em_ap_vht_cap_t vht_cap;
     em_ap_he_cap_t  he_cap;
@@ -3545,6 +3561,8 @@ static const SecurityTypeMap securityTypeMap[] = {
     { "WPA3 Personal",   EM_AUTH_WPA3_PERSONAL },
     { "WPA3 Transition", EM_AUTH_WPA3_TRANSITION }
 };
+
+static const unsigned char airties_vendor_oui[EM_VENDOR_OUI_SIZE] = {0x88, 0x41, 0xfc};
 
 #ifndef SSL_KEY
 #if OPENSSL_VERSION_NUMBER < 0x30000000L
