@@ -615,6 +615,7 @@ int em_mgr_t::init(const char *data_model_path)
 em_mgr_t::em_mgr_t()
 {
     m_exit = false;
+    m_passive = false;
     m_timeout = EM_MGR_TOUT;
 	m_tick_demultiplex = 0;
 }

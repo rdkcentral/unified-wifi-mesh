@@ -671,9 +671,9 @@ void em_ctrl_t::publish_network_topology()
     raw.raw_data_len = static_cast<unsigned int> (strlen(str));
 
     if (desc->bus_event_publish_fn(m_data_model.get_bus_hdl(), const_cast<char*>(DEVICE_WIFI_DATAELEMENTS_NETWORK_TOPOLOGY), &raw)== 0) {
-        printf("%s:%d Topology published successfull\n",__func__, __LINE__);
+        em_printfout("Topology published successfull");
     } else {
-        printf("%s:%d Topology publish fail\n",__func__, __LINE__);
+        em_printfout("Topology publish fail");
     }
 
 #if 0
@@ -1237,11 +1237,27 @@ AlServiceAccessPoint* em_ctrl_t::al_sap_register(const std::string& data_socket_
 int main(int argc, const char *argv[])
 {
     em_ctrl_t  *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
+    const char *data_model_path = NULL;
+    bool passive = false;
+
+    for (int i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "--passive") == 0) {
+            passive = true;
+        } else {
+            data_model_path = argv[i];
+        }
+    }
+
+    if (passive == true) {
+        em_ctrl->set_passive(true);
+        em_printfout("Controller started in passive mode");
+    }
+
 #ifdef AL_SAP
     g_sap = em_ctrl->al_sap_register("/tmp/al_em_ctrl_data_socket", "/tmp/al_em_ctrl_control_socket");
 #endif
 
-    if (em_ctrl->init(argv[1]) == 0) {
+    if (em_ctrl->init(data_model_path) == 0) {
         em_ctrl->start();
     }
 
