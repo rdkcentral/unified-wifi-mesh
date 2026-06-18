@@ -41,8 +41,6 @@
 #include "em_msg.h"
 #include "em_cmd_exec.h"
 
-static const unsigned char em_vendor_oui[EM_VENDOR_OUI_SIZE] = {0xd8, 0x9c, 0x8e};
-
 short em_policy_cfg_t::create_metrics_rep_policy_tlv(unsigned char *buff)
 {
 	short len = 0;
@@ -394,7 +392,7 @@ short em_policy_cfg_t::create_vendor_policy_cfg_tlv(unsigned char *buff)
     int idx_filter = -1;
 
     em_vendor_specific_t *vendor_data = reinterpret_cast<em_vendor_specific_t *> (buff);
-    memcpy(reinterpret_cast<char *> (vendor_data->vendor_oui), em_vendor_oui, EM_VENDOR_OUI_SIZE);
+    memcpy(reinterpret_cast<char *> (vendor_data->vendor_oui), comcast_vendor_oui, EM_VENDOR_OUI_SIZE);
     len += sizeof(unsigned char) + EM_VENDOR_OUI_SIZE;
 
     unsigned char *cursor = reinterpret_cast<unsigned char *> (vendor_data->data);

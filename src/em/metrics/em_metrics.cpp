@@ -45,7 +45,6 @@
 #include "em.h"
 #include "em_cmd_exec.h"
 
-static     const unsigned char em_vendor_oui[EM_VENDOR_OUI_SIZE] = {0xd8, 0x9c, 0x8e};
 
 int em_metrics_t::handle_assoc_sta_link_metrics_tlv(unsigned char *buff,
                                                     unsigned int tlv_len)
@@ -1263,7 +1262,7 @@ short em_metrics_t::create_assoc_vendor_sta_link_metrics_tlv(unsigned char *buff
 
     assoc_sta_metrics = reinterpret_cast<em_assoc_sta_vendor_link_metrics_t *> (vendor_data->vendor_data);
 
-    memcpy(vendor_metrics->vendor_oui, em_vendor_oui, sizeof(vendor_metrics->vendor_oui));
+    memcpy(vendor_metrics->vendor_oui, comcast_vendor_oui, sizeof(vendor_metrics->vendor_oui));
     len += sizeof(vendor_metrics->vendor_oui);
 
     vendor_metrics->num = 1;
@@ -1592,7 +1591,7 @@ short em_metrics_t::create_link_stats_alarm_tlv(unsigned char *buff)
     size_t record_len = 0;
 
     em_vendor_specific_t *vendor_data = reinterpret_cast<em_vendor_specific_t *> (buff);
-    memcpy(reinterpret_cast<char *> (vendor_data->vendor_oui), em_vendor_oui, EM_VENDOR_OUI_SIZE);
+    memcpy(reinterpret_cast<char *> (vendor_data->vendor_oui), comcast_vendor_oui, EM_VENDOR_OUI_SIZE);
 
     vendor_data->num = 1;
 
