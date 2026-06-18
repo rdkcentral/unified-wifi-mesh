@@ -2182,6 +2182,7 @@ typedef enum {
     em_state_ctrl_avail_spectrum_inquiry_pending,
     em_state_ctrl_bsta_cap_pending,
     em_state_ctrl_topo_publish_pending,
+    em_state_ctrl_topo_published,
 
     em_state_max,
 } em_state_t;

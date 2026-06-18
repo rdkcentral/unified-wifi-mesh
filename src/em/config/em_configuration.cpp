@@ -6011,14 +6011,14 @@ void em_configuration_t::process_msg(unsigned char *data, unsigned int len)
                 get_mgr()->get_all_em_for_al_mac(hdr->dst, em_radios);
                 for (auto &em : em_radios) {
                     if(get_mgr()->is_passive() == true) {
-                        if ((em->get_service_type() == em_service_type_agent) && (em->get_state() == em_state_agent_wsc_m2_config_skipping)) {
-                            em_printfout("radio %s is skipping config, ignoring", util::mac_to_string(em->get_radio_interface_mac()).c_str());
+                        if ((em->get_service_type() == em_service_type_agent) && (em->get_state() < em_state_agent_wsc_m2_config_skipping)) {
+                            em_printfout("radio %s is skipping config, ignoring, em state is: [%s]", util::mac_to_string(em->get_radio_interface_mac()).c_str(), em_t::state_2_str(em->get_state()));
                             em_radios.clear();
                             return;
                         }
                     } else {
                         if ((em->get_service_type() == em_service_type_agent) && (em->get_state() < em_state_agent_onewifi_bssconfig_ind)) {
-                            em_printfout("radio %s is not configured, ignoring", util::mac_to_string(em->get_radio_interface_mac()).c_str());
+                            em_printfout("radio %s is not configured, ignoring, em state is: [%s]", util::mac_to_string(em->get_radio_interface_mac()).c_str(), em_t::state_2_str(em->get_state()));
                             em_radios.clear();
                             return;
                         }
@@ -6341,12 +6341,16 @@ void em_configuration_t::process_ctrl_state()
             break;
 
         case em_state_ctrl_topo_publish_pending:
+            em_printfout("topo_publish_pending: device=%s radio=%s topo_state=%d",
+                util::mac_to_string(dm->get_agent_al_interface_mac()).c_str(),
+                util::mac_to_string(get_radio_interface_mac()).c_str(),
+                (int)dm->get_topo_state());
             if (dm->get_topo_state() == true) {
-                em_printfout("Topology has changed for device: %s", util::mac_to_string(dm->get_agent_al_interface_mac()).c_str());
+                em_printfout("Publishing topology for device: %s", util::mac_to_string(dm->get_agent_al_interface_mac()).c_str());
                 dm->set_topo_state(false);
                 get_mgr()->publish_network_topology();
             }
-            set_state(em_state_ctrl_configured);
+            set_state(em_state_ctrl_topo_published);
             break;
 
         default:
