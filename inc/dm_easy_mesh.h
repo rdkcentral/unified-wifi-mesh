@@ -1752,8 +1752,8 @@ public:
 
 	void remove_assoc_sta_mld_info(mac_address_t sta_mld_mac);
 
-	em_radio_cap_info_t *get_radio_cap_info(int index);
-	static em_radio_cap_info_t *get_radio_cap_info(void *dm, int index) { return (static_cast<dm_easy_mesh_t *>(dm))->get_radio_cap_info(index); }
+	em_radio_cap_info_t *get_radio_cap_info(unsigned int index);
+	static em_radio_cap_info_t *get_radio_cap_info(void *dm, unsigned int index) { return (static_cast<dm_easy_mesh_t *>(dm))->get_radio_cap_info(index); }
 
 	/**!
 	 * @brief Retrieves the Data Model DPP object.
@@ -1930,7 +1930,7 @@ public:
 	 * @note Ensure that the MAC address provided is valid and registered in the system.
 	 */
 	dm_radio_cap_t *get_radio_cap(mac_address_t mac);
-	dm_radio_cap_t *get_radio_cap(int index);
+	dm_radio_cap_t *get_radio_cap(unsigned int index);
 
     
 	/**!

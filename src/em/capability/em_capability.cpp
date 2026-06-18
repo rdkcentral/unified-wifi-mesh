@@ -1418,7 +1418,7 @@ int em_capability_t::handle_ap_cap_report(unsigned char *buff, unsigned int len)
         if (dm->get_num_radios() > 0) {
             em_printfout("handle_wifi6_cap_tlv: update dm_radio_cap's radio mac");
             for (unsigned int i = 0; i < dm->get_num_radios(); i++) {
-                dm_radio_cap = dm->get_radio_cap(static_cast<int>(i));
+                dm_radio_cap = dm->get_radio_cap(i);
                 if (dm_radio_cap != NULL) {
                     memcpy(dm_radio_cap->m_radio_cap_info.ruid.mac, dm->m_radio[i].m_radio_info.id.ruid, sizeof(mac_address_t));
                     em_printfout("handle_wifi6_cap_tlv: dm_radio_cap updated for MAC %s",

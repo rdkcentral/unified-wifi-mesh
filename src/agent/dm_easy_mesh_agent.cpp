@@ -88,8 +88,8 @@ int dm_easy_mesh_agent_t::analyze_dev_init(em_bus_event_t *evt, em_cmd_t *pcmd[]
     pcmd[num] = new em_cmd_dev_init_t(evt->params, dm);
     tmp = pcmd[num];
 
-    for (int i = 0; i < static_cast<int>(pcmd[num]->m_data_model.m_num_radios); i++) {
-        em_printfout("dm num_role:%u for radio[%d]:%s\n", dm.get_radio_cap_info(i)->wifi6_cap.num_role,
+    for (unsigned int i = 0; i < pcmd[num]->m_data_model.m_num_radios; i++) {
+        em_printfout("dm num_role:%u for radio[%u]:%s\n", dm.get_radio_cap_info(i)->wifi6_cap.num_role,
                 i, util::mac_to_string(dm.get_radio_cap_info(i)->ruid.mac).c_str());
         em_printfout("num_role:%u\n", pcmd[num]->m_data_model.get_radio_cap_info(i)->wifi6_cap.num_role);
         // em_printfout("su_beam:%d\n", pcmd[num]->m_data_model.get_radio_cap_info(i)->wifi6_cap.su_beam_former);
