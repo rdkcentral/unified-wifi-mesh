@@ -2189,16 +2189,16 @@ dm_radio_cap_t *dm_easy_mesh_t::get_radio_cap(mac_address_t mac)
     return NULL;
 }
 
-dm_radio_cap_t *dm_easy_mesh_t::get_radio_cap(int index)
+dm_radio_cap_t *dm_easy_mesh_t::get_radio_cap(unsigned int index)
 {
-    if ((index < 0) || (index >= EM_MAX_BANDS)) {
+    if (index >= EM_MAX_BANDS) {
         return nullptr;
     }
 
     return &m_radio_cap[index];
 }
 
-em_radio_cap_info_t *dm_easy_mesh_t::get_radio_cap_info(int index)
+em_radio_cap_info_t *dm_easy_mesh_t::get_radio_cap_info(unsigned int index)
 {
     dm_radio_cap_t *cap = get_radio_cap(index);
     return cap ? cap->get_radio_cap_info() : nullptr;
