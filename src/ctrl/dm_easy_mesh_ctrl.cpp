@@ -1395,7 +1395,7 @@ bus_error_t em_ctrl_t::cmd_beaconmetricsquery(const char *method_name, const bus
                 goto invalid;
             }
         } else if (strncmp(prop->name, "APChannelReport.", sizeof("APChannelReport.") - 1) == 0) {
-            if (!tr181::parse_object_index(prop->name, &ch_rep_idx)) {
+            if (!tr_181_t::parse_object_index(prop->name, &ch_rep_idx)) {
                 em_printfout("Parse channel report index failed");
                 goto invalid;
             }
@@ -3341,7 +3341,7 @@ int dm_easy_mesh_ctrl_t::analyze_beacon_metrics_query(em_bus_event_t *evt, em_cm
         cJSON_Delete(root);
         return 0;
     }
-    ssize_t ssid_len = strlen(cJSON_GetStringValue(ssid_obj));
+    size_t ssid_len = strlen(cJSON_GetStringValue(ssid_obj));
     ssid_len = (ssid_len <= sizeof(beacon_params->ssid) - 1 ? ssid_len : sizeof(beacon_params->ssid) - 1);
     beacon_params->ssid_len = ssid_len;
     strncpy(beacon_params->ssid, cJSON_GetStringValue(ssid_obj), ssid_len);
@@ -3358,7 +3358,7 @@ int dm_easy_mesh_ctrl_t::analyze_beacon_metrics_query(em_bus_event_t *evt, em_cm
             return 0;
         }
 
-        for (unsigned int i = 0; i < beacon_params->num_ap_channel_rprt; i++) {
+        for (int i = 0; i < beacon_params->num_ap_channel_rprt; i++) {
             if ((chrep_obj = cJSON_GetArrayItem(chrep_arr, i)) == NULL) {
                 cJSON_Delete(root);
                 return 0;
