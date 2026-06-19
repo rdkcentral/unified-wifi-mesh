@@ -745,7 +745,7 @@ public:
      *
      * @note Returns false on invalid input or when index is not present.
      */
-    static bool tr_181_t::parse_object_index(const char *name, int *index);
+    static bool parse_object_index(const char *name, int *index);
 
     /**!
      * @brief Parse the AP channel report object of beacon metrics query from property.
@@ -757,7 +757,7 @@ public:
      *
      * @note Returns false on invalid input.
      */
-    static bool tr_181_t::parse_bmq_ch_rep_obj(const bus_data_prop_t *prop, tr181_bmq_ch_rep_item_t *ch_rep_item);
+    static bool parse_bmq_ch_rep_obj(const bus_data_prop_t *prop, tr181_bmq_ch_rep_item_t *ch_rep_item);
 
      /**!
      * @brief Allocate a bus_data_prop_t with a string value.
