@@ -105,14 +105,25 @@ dm_easy_mesh_t& dm_easy_mesh_t::operator = (dm_easy_mesh_t const& obj)
         m_ap_mld[i] = obj.m_ap_mld[i];
     }
 
-    sta = static_cast<dm_sta_t *> (hash_map_get_first(obj.m_sta_map));
-    while (sta != NULL) {
-        dm_easy_mesh_t::macbytes_to_string(sta->m_sta_info.id, sta_mac_str);
-        dm_easy_mesh_t::macbytes_to_string(sta->m_sta_info.bssid, bss_mac_str);
-        dm_easy_mesh_t::macbytes_to_string(sta->m_sta_info.radiomac, radio_mac_str);
-        snprintf(key, sizeof(em_long_string_t), "%s@%s@%s", sta_mac_str, bss_mac_str, radio_mac_str);
-        hash_map_put(m_sta_map, strdup(key), new dm_sta_t(*sta));
-        sta = static_cast<dm_sta_t *> (hash_map_get_next(obj.m_sta_map, sta));
+    m_num_assoc_sta_mld = obj.m_num_assoc_sta_mld;
+    for (unsigned int i = 0; i < EM_MAX_ASSOC_STA_MLD; i++) {
+        m_assoc_sta_mld[i] = obj.m_assoc_sta_mld[i];
+    }
+
+    if (m_sta_map == NULL) {
+        m_sta_map = hash_map_create();
+    }
+
+    if (obj.m_sta_map != NULL && m_sta_map != NULL) {
+        sta = static_cast<dm_sta_t *> (hash_map_get_first(obj.m_sta_map));
+        while (sta != NULL) {
+            dm_easy_mesh_t::macbytes_to_string(sta->m_sta_info.id, sta_mac_str);
+            dm_easy_mesh_t::macbytes_to_string(sta->m_sta_info.bssid, bss_mac_str);
+            dm_easy_mesh_t::macbytes_to_string(sta->m_sta_info.radiomac, radio_mac_str);
+            snprintf(key, sizeof(em_long_string_t), "%s@%s@%s", sta_mac_str, bss_mac_str, radio_mac_str);
+            hash_map_put(m_sta_map, strdup(key), new dm_sta_t(*sta));
+            sta = static_cast<dm_sta_t *> (hash_map_get_next(obj.m_sta_map, sta));
+        }
     }
 
     m_em = obj.m_em;
@@ -976,6 +987,7 @@ int dm_easy_mesh_t::decode_config_set_policy(em_subdoc_info_t *subdoc, const cha
 	cJSON *parent_obj, *net_obj, *net_obj_id, *dev_arr_obj, *dev_obj, *dev_obj_id, *policy_obj; 
 	cJSON *ap_metrics_obj, *scan_obj, *radio_metrics_arr_obj, *radio_steer_arr_obj, *local_steer_obj, *btm_steer_obj;
 	cJSON *backhaul_obj, *radio_id_obj, *radio_metrics_obj, *radio_steer_obj;
+	cJSON *traffic_sep_obj, *unsuccess_assoc_obj, *qos_mgt_obj, *def_8021q_obj;
 	unsigned int num_devices = 0;
 	int i;
 	char *dev_mac_str, *net_id;
@@ -1105,14 +1117,20 @@ int dm_easy_mesh_t::decode_config_set_policy(em_subdoc_info_t *subdoc, const cha
         m_num_policy++;
     }
 
-    if ((local_steer_obj = cJSON_GetObjectItem(policy_obj, "Local Steering Disallowed Policy")) != NULL) {
+    // "Steering Policies" wrapper (groups local/BTM disallowed + radio steering params)
+    cJSON *steer_policies_obj = cJSON_GetObjectItem(policy_obj, "Steering Policies");
+    cJSON *steer_local_parent = steer_policies_obj ? steer_policies_obj : policy_obj;
+    cJSON *steer_btm_parent   = steer_policies_obj ? steer_policies_obj : policy_obj;
+    cJSON *steer_param_parent = steer_policies_obj ? steer_policies_obj : policy_obj;
+
+    if ((local_steer_obj = cJSON_GetObjectItem(steer_local_parent, "Local Steering Disallowed Policy")) != NULL) {
         snprintf(parent, sizeof(em_long_string_t), "%s@%s@00:00:00:00:00:00@%d", net_id, dev_mac_str,
                     em_policy_id_type_steering_local);
         m_policy[m_num_policy].decode(local_steer_obj, parent, em_policy_id_type_steering_local);
         m_num_policy++;
     }
 
-    if ((btm_steer_obj = cJSON_GetObjectItem(policy_obj, "BTM Steering Disallowed Policy")) != NULL) {
+    if ((btm_steer_obj = cJSON_GetObjectItem(steer_btm_parent, "BTM Steering Disallowed Policy")) != NULL) {
         snprintf(parent, sizeof(em_long_string_t), "%s@%s@00:00:00:00:00:00@%d", net_id, dev_mac_str,
                     em_policy_id_type_steering_btm);
         m_policy[m_num_policy].decode(btm_steer_obj, parent, em_policy_id_type_steering_btm);
@@ -1120,10 +1138,13 @@ int dm_easy_mesh_t::decode_config_set_policy(em_subdoc_info_t *subdoc, const cha
     }
 
     if ((backhaul_obj = cJSON_GetObjectItem(policy_obj, "Backhaul BSS Configuration Policy")) != NULL) {
-        snprintf(parent, sizeof(em_long_string_t), "%s@%s@00:00:00:00:00:00@%d", net_id, dev_mac_str,
-                    em_policy_id_type_backhaul_bss_config);
-        m_policy[m_num_policy].decode(backhaul_obj, parent, em_policy_id_type_backhaul_bss_config);
-        m_num_policy++;
+        for (i = 0; i < cJSON_GetArraySize(backhaul_obj); i++) {
+            cJSON *backhaul_item_obj = cJSON_GetArrayItem(backhaul_obj, i);
+            snprintf(parent, sizeof(em_long_string_t), "%s@%s@00:00:00:00:00:00@%d", net_id, dev_mac_str,
+                        em_policy_id_type_backhaul_bss_config);
+            m_policy[m_num_policy].decode(backhaul_item_obj, parent, em_policy_id_type_backhaul_bss_config);
+            m_num_policy++;
+        }
     }
 
     if ((scan_obj = cJSON_GetObjectItem(policy_obj, "Channel Scan Reporting Policy")) != NULL) {
@@ -1133,32 +1154,65 @@ int dm_easy_mesh_t::decode_config_set_policy(em_subdoc_info_t *subdoc, const cha
         m_num_policy++;
     }
 
+    if ((unsuccess_assoc_obj = cJSON_GetObjectItem(policy_obj, "Unsuccessful Association Policy")) != NULL) {
+        snprintf(parent, sizeof(em_long_string_t), "%s@%s@00:00:00:00:00:00@%d", net_id, dev_mac_str,
+                    em_policy_id_type_unsuccess_assoc);
+        m_policy[m_num_policy].decode(unsuccess_assoc_obj, parent, em_policy_id_type_unsuccess_assoc);
+        m_num_policy++;
+    }
+
+    if ((qos_mgt_obj = cJSON_GetObjectItem(policy_obj, "QoS Management Policy")) != NULL) {
+        snprintf(parent, sizeof(em_long_string_t), "%s@%s@00:00:00:00:00:00@%d", net_id, dev_mac_str,
+                    em_policy_id_type_qos_mgt);
+        m_policy[m_num_policy].decode(qos_mgt_obj, parent, em_policy_id_type_qos_mgt);
+        m_num_policy++;
+    }
+
+    if ((def_8021q_obj = cJSON_GetObjectItem(policy_obj, "Default 802.1Q Settings Policy")) != NULL) {
+        snprintf(parent, sizeof(em_long_string_t), "%s@%s@00:00:00:00:00:00@%d", net_id, dev_mac_str,
+                    em_policy_id_type_default_8021q_settings);
+        m_policy[m_num_policy].decode(def_8021q_obj, parent, em_policy_id_type_default_8021q_settings);
+        m_num_policy++;
+    }
+
+    if ((traffic_sep_obj = cJSON_GetObjectItem(policy_obj, "Traffic Separation Policy")) != NULL) {
+        snprintf(parent, sizeof(em_long_string_t), "%s@%s@00:00:00:00:00:00@%d", net_id, dev_mac_str,
+                    em_policy_id_type_traffic_separation);
+        m_policy[m_num_policy].decode(traffic_sep_obj, parent, em_policy_id_type_traffic_separation);
+        m_num_policy++;
+    }
+
     if ((radio_metrics_arr_obj = cJSON_GetObjectItem(policy_obj, "Radio Specific Metrics Policy")) != NULL) {
         for (i = 0; i < cJSON_GetArraySize(radio_metrics_arr_obj); i++) {
             radio_metrics_obj = cJSON_GetArrayItem(radio_metrics_arr_obj, i);
             radio_id_obj = cJSON_GetObjectItem(radio_metrics_obj, "ID");
-            if (radio_id_obj != NULL) {
-                mac_addr_t mac;
-                dm_easy_mesh_t::string_to_macbytes(cJSON_GetStringValue(radio_id_obj), mac);
-                memcpy(m_policy[m_num_policy].m_policy.id.radio_mac, mac, sizeof(mac_addr_t));
+            const char *radio_id_str = cJSON_GetStringValue(radio_id_obj);
+            if (radio_id_str == NULL || strcmp(radio_id_str, "00:00:00:00:00:00") == 0) {
+                continue; // skip null entries
             }
-            snprintf(parent, sizeof(em_long_string_t), "%s@%s@%s@%d", net_id, dev_mac_str, cJSON_GetStringValue(radio_id_obj),
+            snprintf(parent, sizeof(em_long_string_t), "%s@%s@%s@%d", net_id, dev_mac_str, radio_id_str,
                         em_policy_id_type_radio_metrics_rep);
             m_policy[m_num_policy].decode(radio_metrics_obj, parent, em_policy_id_type_radio_metrics_rep);
             m_num_policy++;
         }
     }
 
-    if ((radio_steer_arr_obj = cJSON_GetObjectItem(policy_obj, "Radio Steering Parameters")) != NULL) {
+    if ((radio_steer_arr_obj = cJSON_GetObjectItem(steer_param_parent, "Radio Steering Parameters")) != NULL) {
         for (i = 0; i < cJSON_GetArraySize(radio_steer_arr_obj); i++) {
             radio_steer_obj = cJSON_GetArrayItem(radio_steer_arr_obj, i);
             radio_id_obj = cJSON_GetObjectItem(radio_steer_obj, "ID");
-            snprintf(parent, sizeof(em_long_string_t), "%s@%s@%s@%d", net_id, dev_mac_str, cJSON_GetStringValue(radio_id_obj),
+            const char *id_str = cJSON_GetStringValue(radio_id_obj);
+            if (id_str == NULL || strcmp(id_str, "00:00:00:00:00:00") == 0) {
+                continue; // skip null entries
+            }
+            snprintf(parent, sizeof(em_long_string_t), "%s@%s@%s@%d", net_id, dev_mac_str, id_str,
                         em_policy_id_type_steering_param);
             m_policy[m_num_policy].decode(radio_steer_obj, parent, em_policy_id_type_steering_param);
             m_num_policy++;
         }
     }
+
+    cJSON_Delete(parent_obj);
 
     return 0;
 }
@@ -2138,16 +2192,16 @@ dm_radio_cap_t *dm_easy_mesh_t::get_radio_cap(mac_address_t mac)
     return NULL;
 }
 
-dm_radio_cap_t *dm_easy_mesh_t::get_radio_cap(int index)
+dm_radio_cap_t *dm_easy_mesh_t::get_radio_cap(unsigned int index)
 {
-    if ((index < 0) || (index >= EM_MAX_BANDS)) {
+    if (index >= EM_MAX_BANDS) {
         return nullptr;
     }
 
     return &m_radio_cap[index];
 }
 
-em_radio_cap_info_t *dm_easy_mesh_t::get_radio_cap_info(int index)
+em_radio_cap_info_t *dm_easy_mesh_t::get_radio_cap_info(unsigned int index)
 {
     dm_radio_cap_t *cap = get_radio_cap(index);
     return cap ? cap->get_radio_cap_info() : nullptr;
@@ -2252,6 +2306,46 @@ void dm_easy_mesh_t::print_config()
             m_radio_cap[i].get_radio_cap_info()->he_cap.mu_beamformer_cap,
             m_radio_cap[i].get_radio_cap_info()->he_cap.su_beamformer_cap
         );
+        em_printfout("VHT Cap: RUID:%s TXRX_MCS:[0x%04x 0x%04x] "
+            "GI support: 160MHz:%d 80MHz:%d Max RX streams:%d Max TX streams:%d "
+            "MU Beamformer:%d SU Beamformer:%d 160MHz:%d 80+80MHz:%d",
+            util::mac_to_string(m_radio_cap[i].get_radio_cap_info()->ruid.mac).c_str(),
+            m_radio_cap[i].get_radio_cap_info()->vht_cap.sprt_tx_mcs,
+            m_radio_cap[i].get_radio_cap_info()->vht_cap.sprt_rx_mcs,
+            m_radio_cap[i].get_radio_cap_info()->vht_cap.gi_sprt_160mhz,
+            m_radio_cap[i].get_radio_cap_info()->vht_cap.gi_sprt_80mhz,
+            m_radio_cap[i].get_radio_cap_info()->vht_cap.max_sprt_rx_streams,
+            m_radio_cap[i].get_radio_cap_info()->vht_cap.max_sprt_tx_streams,
+            m_radio_cap[i].get_radio_cap_info()->vht_cap.mu_beamformer_cap,
+            m_radio_cap[i].get_radio_cap_info()->vht_cap.su_beamformer_cap,
+            m_radio_cap[i].get_radio_cap_info()->vht_cap.sprt_160mhz,
+            m_radio_cap[i].get_radio_cap_info()->vht_cap.sprt_80_80_mhz
+        );
+        em_printfout("HT Cap: RUID:%s 40MHz:%d GI 40MHz:%d GI 20MHz:%d Max RX streams:%d Max TX streams:%d",
+            util::mac_to_string(m_radio_cap[i].get_radio_cap_info()->ruid.mac).c_str(),
+            m_radio_cap[i].get_radio_cap_info()->ht_cap.ht_sprt_40mhz,
+            m_radio_cap[i].get_radio_cap_info()->ht_cap.gi_sprt_40mhz,
+            m_radio_cap[i].get_radio_cap_info()->ht_cap.gi_sprt_20mhz,
+            m_radio_cap[i].get_radio_cap_info()->ht_cap.max_sprt_rx_streams,
+            m_radio_cap[i].get_radio_cap_info()->ht_cap.max_sprt_tx_streams
+        );
+        em_printfout("Channel scan cap: RUID:%s boot only:%d min scan interval:%u scan impact:%u",
+            util::mac_to_string(m_radio_cap[i].get_radio_cap_info()->ruid.mac).c_str(),
+            m_radio_cap[i].get_radio_cap_info()->ch_scan.boot_only,
+            m_radio_cap[i].get_radio_cap_info()->ch_scan.min_scan_interval,
+            m_radio_cap[i].get_radio_cap_info()->ch_scan.scan_impact
+        );
+        for (size_t k = 0; k < m_radio_cap[i].get_radio_cap_info()->ch_scan.op_classes_num; k++) {
+            const em_scan_cap_op_class_info_t *oc = &m_radio_cap[i].get_radio_cap_info()->ch_scan.op_classes[k];
+            char ch_buf[256] = {0};
+            int  ch_buf_pos  = 0;
+            for (unsigned char ci = 0; ci < oc->num && ch_buf_pos < static_cast<int>(sizeof(ch_buf)) - 5; ci++) {
+                ch_buf_pos += snprintf(ch_buf + ch_buf_pos, sizeof(ch_buf) - static_cast<size_t>(ch_buf_pos),
+                                       "%d ", oc->channels.channel[ci]);
+            }
+            em_printfout("ch_scan op_class[%zu]: op_class=%d num_channels=%d channels=[%s]",
+                k, oc->op_class, oc->num, oc->num > 0 ? ch_buf : "all");
+        }
     }
 }
 
@@ -2331,6 +2425,8 @@ em_e4_table_t dm_easy_mesh_t::m_e4_table[] = {
 	//Row with center channels
 	{ 137, em_freq_band_6, 320, false, 6, {31, 63, 95, 127, 159, 191} }
 };
+
+const size_t dm_easy_mesh_t::m_e4_table_size = sizeof(dm_easy_mesh_t::m_e4_table) / sizeof(dm_easy_mesh_t::m_e4_table[0]);
 
 int dm_easy_mesh_t::get_beaconchannel_by_bandwidth(int center_channel, int bandwidth)
 {
@@ -3001,7 +3097,6 @@ void dm_easy_mesh_t::set_policy(dm_policy_t policy)
 	dm_policy_t *ppolicy;
 	bool found_match = false;
 	bool temp = 0;
-
     for (i = 0; i < m_num_policy; i++) {
         ppolicy = &m_policy[i];
         temp = ((strncmp(policy.m_policy.id.net_id, ppolicy->m_policy.id.net_id, strlen(policy.m_policy.id.net_id)) == 0) &&
@@ -3314,8 +3409,99 @@ void dm_easy_mesh_t::update_bsta_mld_info(em_bsta_mld_info_t *bsta_mld_info)
 
 void dm_easy_mesh_t::update_assoc_sta_mld_info(em_assoc_sta_mld_info_t *assoc_sta_mld_info)
 {
-    // TODO: Implement ASSOC MLD info update logic
-    em_printfout("Enter");
+    em_assoc_sta_mld_info_t *target_mld = NULL;
+    em_affiliated_sta_info_t *input_sta = NULL;                             
+    em_affiliated_sta_info_t *target_aff_sta = NULL;                        
+    unsigned int i, j, k;
+
+    // Find existing assoc STA MLD entry by STA MLD MAC address
+    for (i = 0; i < m_num_assoc_sta_mld; i++) {
+        if (memcmp(m_assoc_sta_mld[i].m_assoc_sta_mld_info.mac_addr, assoc_sta_mld_info->mac_addr,
+                sizeof(mac_address_t)) == 0) {
+            target_mld = &m_assoc_sta_mld[i].m_assoc_sta_mld_info;
+            break;
+        }
+    }
+
+    // If not found, create a new entry
+    if (!target_mld) {
+        if (m_num_assoc_sta_mld >= EM_MAX_ASSOC_STA_MLD) {
+            em_printfout("Max assoc STA MLD entries reached");
+            return;
+        }
+
+        target_mld = &m_assoc_sta_mld[m_num_assoc_sta_mld].m_assoc_sta_mld_info;
+        memset(target_mld, 0, sizeof(em_assoc_sta_mld_info_t));
+        m_num_assoc_sta_mld++;
+    }
+
+    // Update top-level MLD fields
+    memcpy(target_mld->mac_addr, assoc_sta_mld_info->mac_addr, sizeof(mac_address_t));
+    memcpy(target_mld->ap_mld_mac_addr, assoc_sta_mld_info->ap_mld_mac_addr, sizeof(mac_address_t));
+    target_mld->str   = assoc_sta_mld_info->str;
+    target_mld->nstr  = assoc_sta_mld_info->nstr;
+    target_mld->emlsr = assoc_sta_mld_info->emlsr;
+    target_mld->emlmr = assoc_sta_mld_info->emlmr;
+
+    // Update affiliated STA entries, keyed by BSSID.
+    // Keep this incremental because some callers may feed one affiliated link per update.
+    for (j = 0; j < assoc_sta_mld_info->num_affiliated_sta; j++) {
+        input_sta = &assoc_sta_mld_info->affiliated_sta[j];
+        target_aff_sta = NULL;
+        bool aff_sta_found = false;
+
+        for (k = 0; k < target_mld->num_affiliated_sta; k++) {
+            if (memcmp(target_mld->affiliated_sta[k].bssid, input_sta->bssid,
+                    sizeof(mac_address_t)) == 0) {
+                target_aff_sta = &target_mld->affiliated_sta[k];
+                aff_sta_found = true;
+                break;
+            }
+        }
+
+        if (!aff_sta_found) {
+            if (target_mld->num_affiliated_sta >= EM_MAX_AP_MLD) {
+                em_printfout("Max affiliated STAs reached for assoc STA MLD");
+                continue;
+            }
+
+            target_aff_sta = &target_mld->affiliated_sta[target_mld->num_affiliated_sta];
+            memset(target_aff_sta, 0, sizeof(em_affiliated_sta_info_t));
+            target_mld->num_affiliated_sta++;
+        }
+
+        memcpy(target_aff_sta->bssid, input_sta->bssid, sizeof(mac_address_t));
+        memcpy(target_aff_sta->mac_addr, input_sta->mac_addr, sizeof(mac_address_t));
+    }
+
+}
+
+void dm_easy_mesh_t::remove_assoc_sta_mld_info(mac_address_t sta_mld_mac)
+{
+    unsigned int found_idx = m_num_assoc_sta_mld; // sentinel: not found
+    unsigned int i;
+
+    for (i = 0; i < m_num_assoc_sta_mld; i++) {
+        if (memcmp(m_assoc_sta_mld[i].m_assoc_sta_mld_info.mac_addr, sta_mld_mac,
+                sizeof(mac_address_t)) == 0) {
+            found_idx = i;
+            break;
+        }
+    }
+
+    if (found_idx == m_num_assoc_sta_mld) {
+        return; // not found
+    }
+
+    // Compact the array: shift entries after found_idx one position left.
+    for (unsigned int i = found_idx; i < m_num_assoc_sta_mld - 1; i++) {
+        m_assoc_sta_mld[i] = m_assoc_sta_mld[i + 1];
+    }
+
+    // Zero out the vacated last slot and decrement count.
+    //memset(&m_assoc_sta_mld[m_num_assoc_sta_mld - 1], 0, sizeof(dm_assoc_sta_mld_t));
+    m_assoc_sta_mld[m_num_assoc_sta_mld - 1].init();
+    m_num_assoc_sta_mld--;
 }
 
 void dm_easy_mesh_t::reset_db_cfg_type(db_cfg_type_t type) 

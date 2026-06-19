@@ -275,8 +275,8 @@ class em_capability_t {
 	 *
 	 * @note This is a pure virtual function and must be implemented by derived classes.
 	 */
+
 	virtual short create_ht_tlv(unsigned char *buff) = 0;
-    
 	/**!
 	 * @brief Creates a VHT TLV.
 	 *
@@ -321,6 +321,21 @@ class em_capability_t {
 	 * @note This is a pure virtual function and must be implemented by derived classes.
 	 */
 	virtual short create_wifi6_tlv(unsigned char *buff) = 0;
+
+	/**!
+	 * @brief Creates Airties radio capability vendor TLV.
+	 *
+	 * Builds a vendor-specific TLV containing radio capability information
+	 * (supported 802.11 standards) using Airties OUI and TLV ID.
+	 *
+	 * @param buff Output buffer for TLV data.
+	 *
+	 * @return TLV length in bytes, or 0 if radio capability is unavailable.
+	 *
+	 * @note This is a pure virtual function and must be implemented by derived classes.
+	 */
+
+	virtual short create_airties_radio_capability_tlv(unsigned char *buff) = 0;
 
 	virtual int handle_wifi6_cap_tlv(unsigned char *buff) = 0;
 	virtual int handle_wifi7_agent_cap_tlv(unsigned char *buff) = 0;
@@ -411,7 +426,7 @@ class em_capability_t {
 	 *
 	 * @note Ensure that the buffer is properly allocated before calling this function.
 	 */
-	virtual short create_radioad_tlv(unsigned char *buff) = 0;
+	virtual short create_ap_radio_advanced_cap_tlv(unsigned char *buff) = 0;
     
 	/**!
 	 * @brief Creates a metric collection integer TLV.
@@ -543,7 +558,9 @@ class em_capability_t {
 	 *
 	 * @note Ensure the buffer is properly allocated and contains valid TLV data before calling this function.
 	 */
-	int handle_eht_operations_tlv(unsigned char *buff);
+	virtual int handle_eht_operations_tlv(unsigned char *buff, unsigned short len) = 0;
+
+	int handle_channel_scan_cap_tlv(unsigned char *buff, unsigned int len);
 
 	/**!
 	 * @brief Creates an AP capability report message.
@@ -699,7 +716,7 @@ class em_capability_t {
 	 * @note Ensure that the data buffer is valid and the length is correctly specified.
 	 */
 	int handle_ap_cap_report(unsigned char *data, unsigned int len);
-    
+
 	/**!
 	 * @brief Handles the client capability report.
 	 *

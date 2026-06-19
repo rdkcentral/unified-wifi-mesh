@@ -102,8 +102,8 @@ public:
 	unsigned int get_ssid_mismatch_check_time() const { return ssid_mismatch_check_time; }
 	void set_last_topo_query_sent_time(unsigned int time) { last_topo_query_sent_time = time; }
 	unsigned int get_last_topo_query_sent_time() const { return last_topo_query_sent_time; }
-
-	static em_e4_table_t m_e4_table[];
+        static em_e4_table_t m_e4_table[];
+        static const size_t m_e4_table_size;
 
        /**!
         * @brief Retrieves the beacon channel based on center channel and bandwidth.
@@ -1520,7 +1520,19 @@ public:
 	 */
 	dm_policy_t& get_policy_by_ref(unsigned int index) { return m_policy[index]; }
 
-	
+	/**!
+	 * @brief Checks whether this data model contains a policy of the given type.
+	 *
+	 * @param[in] type The policy ID type to search for.
+	 * @returns true if at least one policy with the given type exists, false otherwise.
+	 */
+	bool has_policy_type(em_policy_id_type_t type) const {
+		for (unsigned int i = 0; i < m_num_policy; i++) {
+			if (m_policy[i].m_policy.id.type == type) return true;
+		}
+		return false;
+	}
+
 	/**!
 	 * @brief Finds a matching scan result based on the provided scan result ID.
 	 *
@@ -1738,8 +1750,10 @@ public:
 	void update_assoc_sta_mld_info(em_assoc_sta_mld_info_t *assoc_sta_mld_info);
 	static void update_assoc_sta_mld_info(void *dm, em_assoc_sta_mld_info_t *assoc_sta_mld_info) { (static_cast<dm_easy_mesh_t *>(dm))->update_assoc_sta_mld_info(assoc_sta_mld_info); }
 
-	em_radio_cap_info_t *get_radio_cap_info(int index);
-	static em_radio_cap_info_t *get_radio_cap_info(void *dm, int index) { return (static_cast<dm_easy_mesh_t *>(dm))->get_radio_cap_info(index); }
+	void remove_assoc_sta_mld_info(mac_address_t sta_mld_mac);
+
+	em_radio_cap_info_t *get_radio_cap_info(unsigned int index);
+	static em_radio_cap_info_t *get_radio_cap_info(void *dm, unsigned int index) { return (static_cast<dm_easy_mesh_t *>(dm))->get_radio_cap_info(index); }
 
 	/**!
 	 * @brief Retrieves the Data Model DPP object.
@@ -1916,7 +1930,7 @@ public:
 	 * @note Ensure that the MAC address provided is valid and registered in the system.
 	 */
 	dm_radio_cap_t *get_radio_cap(mac_address_t mac);
-	dm_radio_cap_t *get_radio_cap(int index);
+	dm_radio_cap_t *get_radio_cap(unsigned int index);
 
     
 	/**!

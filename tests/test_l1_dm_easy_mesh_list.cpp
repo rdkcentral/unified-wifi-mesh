@@ -106,7 +106,7 @@ protected:
 
 
     void SetUp() override {
-	__lsan_disable();
+	    __lsan_disable();
         list.init(static_cast<em_mgr_t*>(&mgr));
         
         // Add data models for Network1
@@ -135,12 +135,7 @@ protected:
     void TearDown() override {
         if (skip_teardown) {
             return;
-        }
-        list.delete_data_model("Network1", mac1);
-	    list.delete_data_model("Network1", mac2);
-	    list.delete_data_model("Network2", mac3);
-	    list.delete_data_model("Network2", mac4);
-
+		}
         if (dm1->m_wifi_data != NULL) {
             free(dm1->m_wifi_data);
             dm1->m_wifi_data = nullptr;
@@ -157,7 +152,15 @@ protected:
             free(dm4->m_wifi_data);
             dm4->m_wifi_data = nullptr;
         }
-	__lsan_enable();
+		list.delete_data_model("Network1", mac1);
+	    list.delete_data_model("Network1", mac2);
+	    list.delete_data_model("Network2", mac3);
+	    list.delete_data_model("Network2", mac4);
+		dm1 = nullptr;
+        dm2 = nullptr;
+        dm3 = nullptr;
+        dm4 = nullptr;
+	    __lsan_enable();
     }
 };
 

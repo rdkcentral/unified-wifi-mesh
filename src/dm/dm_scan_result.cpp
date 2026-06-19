@@ -252,8 +252,8 @@ bool dm_scan_result_t::has_same_id(em_scan_result_id_t *id)
 }
 
 dm_scan_result_t::dm_scan_result_t(em_scan_result_t *scan_result)
+    : m_scan_result{}
 {
-	memset(&m_scan_result, 0, sizeof(em_scan_result_t));
 	if (scan_result == nullptr) {
 		em_printfout("Error: scan_result is null");
 		return;
@@ -262,18 +262,20 @@ dm_scan_result_t::dm_scan_result_t(em_scan_result_t *scan_result)
 }
 
 dm_scan_result_t::dm_scan_result_t(const dm_scan_result_t& scan_result)
+    : m_scan_result{}
 {
     memcpy(&m_scan_result, &scan_result.m_scan_result, sizeof(em_scan_result_t));
 }
 
 dm_scan_result_t::dm_scan_result_t(const em_scan_result_t& scan_result)
+    : m_scan_result{}
 {
     memcpy(&m_scan_result, &scan_result, sizeof(em_scan_result_t));
 }
 
 dm_scan_result_t::dm_scan_result_t()
+    : m_scan_result{}
 {
-	memset(&m_scan_result, 0, sizeof(em_scan_result_t));
 }
 
 dm_scan_result_t::~dm_scan_result_t()
