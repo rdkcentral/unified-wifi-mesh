@@ -92,6 +92,7 @@ extern "C"
 #define EM_MAX_NEIGHBORS	16
 #define EM_MAX_CHANNEL_SCAN_RPRT_MSG_LEN		166
 #define EM_MAX_CLIENT_MARKER    5
+#define EM_MAX_ELEMENT_IDS      32
 
 #define   EM_MAX_EVENT_DATA_LEN   4096*100
 #define EM_MAX_CHANNELS_IN_LIST  64
@@ -1005,7 +1006,7 @@ typedef struct {
 
 typedef struct {
     unsigned char num_element_id;
-    unsigned char element_list[6];
+    unsigned char element_list[EM_MAX_ELEMENT_IDS];
 }__attribute__((__packed__)) em_beacon_element_list_t;
 
 typedef struct {
@@ -2180,6 +2181,7 @@ typedef enum {
     em_state_ctrl_avail_spectrum_inquiry_pending,
     em_state_ctrl_bsta_cap_pending,
     em_state_ctrl_topo_publish_pending,
+    em_state_ctrl_beacon_report_pending,
 
     em_state_max,
 } em_state_t;
@@ -3194,6 +3196,8 @@ typedef struct em_network_node {
 } em_network_node_t;
 
 typedef em_scan_params_t em_cmd_scan_params_t;
+typedef em_beacon_metrics_query_t em_cmd_beacon_metrics_param_t;
+
 typedef struct {
     union {
         em_cmd_args_t	args;
@@ -3202,6 +3206,7 @@ typedef struct {
         em_cmd_disassoc_params_t	disassoc_params;
 		em_cmd_scan_params_t	scan_params;
         em_cmd_ap_metrics_rprt_params_t ap_metrics_params;
+        em_cmd_beacon_metrics_param_t   beacon_metrics_params;
     } u;
 	em_network_node_t *net_node;
 } em_cmd_params_t;

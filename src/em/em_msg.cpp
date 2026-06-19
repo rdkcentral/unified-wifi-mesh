@@ -105,6 +105,34 @@ bool em_msg_t::get_profile(em_profile_type_t *profile)
     return false;
 }
 
+bool em_msg_t::get_sta_mac(mac_address_t *mac)
+{
+    em_tlv_t    *tlv;
+    unsigned int len;
+
+    tlv = reinterpret_cast<em_tlv_t *> (m_buff); len = m_len;
+    while ((tlv->type != em_tlv_type_eom) && (len > 0)) {
+        if (tlv->type == em_tlv_type_client_info) {
+            memcpy(mac, tlv->value + sizeof(mac_address_t), sizeof(mac_address_t));
+            return true;
+        } else if (tlv->type == em_tlv_type_client_assoc_event) {
+            memcpy(mac, tlv->value, sizeof(mac_address_t));
+            return true;
+        } else if (tlv->type == em_tlv_type_bcon_metric_query) {
+            memcpy(mac, tlv->value, sizeof(mac_address_t));
+            return true;
+        } else if (tlv->type == em_msg_type_assoc_sta_link_metrics_query) {
+            memcpy(mac, tlv->value, sizeof(mac_address_t));
+            return true;
+        }
+
+        len -= static_cast<unsigned int> (sizeof(em_tlv_t) + htons(tlv->len));
+        tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
+    }
+
+    return false;
+}
+
 bool em_msg_t::get_bss_id(mac_address_t *mac)
 {
     em_tlv_t    *tlv;
@@ -116,9 +144,6 @@ bool em_msg_t::get_bss_id(mac_address_t *mac)
             memcpy(mac, tlv->value, sizeof(mac_address_t));
             return true;
         } else if (tlv->type == em_tlv_type_client_assoc_event) {
-            memcpy(mac, tlv->value + sizeof(mac_address_t), sizeof(mac_address_t));
-            return true;
-        } else if (tlv->type == em_tlv_type_client_info) {
             memcpy(mac, tlv->value + sizeof(mac_address_t), sizeof(mac_address_t));
             return true;
         } else if (tlv->type == em_tlv_type_ap_metrics) {

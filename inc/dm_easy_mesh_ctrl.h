@@ -730,6 +730,24 @@ public:
 	int analyze_bsta_cap_req(em_bus_event_t *evt, em_cmd_t *pcmd[]);
 
 	/**!
+	 * @brief Analyzes the beacon metrics query command.
+	 *
+	 * This function processes the beacon metrics query command provided in the
+	 * em_cmd_t structure array.
+	 *
+	 * @param[in] evt Pointer to the event structure containing event details.
+	 * @param[in] pcmd Array of command structures to be analyzed.
+	 *
+	 * @returns int
+	 * @retval 0 on success
+	 * @retval non-zero error code on failure
+	 *
+	 * @note Ensure that the pcmd array is properly initialized before calling
+	 * this function.
+	 */
+	int analyze_beacon_metrics_query(em_bus_event_t *evt, em_cmd_t *pcmd[]);
+
+	/**!
 	 * @brief Resets the configuration to its default state.
 	 *
 	 * This function is responsible for resetting all configuration settings

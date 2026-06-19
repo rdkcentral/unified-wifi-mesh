@@ -459,6 +459,19 @@ void em_ctrl_t::handle_link_stats_alarm_report(em_bus_event_t *evt)
     cJSON_Delete(parent);
 }
 
+void em_ctrl_t::handle_beacon_metrics_query(em_bus_event_t *evt)
+{
+    em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
+    int num;
+
+    if ((num = m_data_model.analyze_beacon_metrics_query(evt, pcmd)) > 0) {
+        em_printfout("Submit commands to orch");
+        m_orch->submit_commands(pcmd, static_cast<unsigned int> (num));
+    } else {
+        em_printfout("Beacon metrics query failed");
+    }
+}
+
 void em_ctrl_t::handle_dirty_dm()
 {
 	m_data_model.handle_dirty_dm();
@@ -623,6 +636,10 @@ void em_ctrl_t::handle_bus_event(em_bus_event_t *evt)
            handle_link_stats_alarm_report(evt);
            break;
 	
+        case em_bus_event_type_beacon_report:
+           handle_beacon_metrics_query(evt);
+           break;
+
         default:
             break;
     }
@@ -1113,6 +1130,9 @@ void em_ctrl_t::start_complete()
             { bus_data_type_property, false, 0, 0, 0, NULL } },
         { const_cast<char*>(DE_STA_CLIENTSTEER), bus_element_type_method,
             { NULL, NULL , NULL, NULL, NULL, tr_181_t::clientsteer_handler}, slow_speed, ZERO_TABLE,
+            { bus_data_type_property, false, 0, 0, 0, NULL } },
+        { const_cast<char*>(DE_STA_BEACONMETRICSQ), bus_element_type_method,
+            { NULL, NULL , NULL, NULL, NULL, tr_181_t::beaconmetricsquery_handler}, slow_speed, ZERO_TABLE,
             { bus_data_type_property, false, 0, 0, 0, NULL } },
         { const_cast<char*>(DE_STAMAP_DISASSOC), bus_element_type_method,
             { NULL, NULL , NULL, NULL, NULL, tr_181_t::disassociate_handler}, slow_speed, ZERO_TABLE,
