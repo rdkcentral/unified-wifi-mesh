@@ -396,3 +396,34 @@ bool tr_181_t::parse_unassoc_ch_obj(const bus_data_prop_t *prop, tr181_unassoc_c
     return true;
 }
 
+bool tr_181_t::parse_bmq_ch_rep_obj(const bus_data_prop_t *prop, tr181_bmq_ch_rep_item_t *ch_rep_item)
+{
+     if (!prop || !prop->name || !ch_rep_item) {
+         return false;
+     }
+
+    const char *name = prop->name;
+
+    /* APChannelReport.{i}.OperatingClass or APChannelReport.{i}.ChannelList */
+    name += sizeof("APChannelReport");
+    name  = strstr(name, ".");
+    if (!name) {
+        return false;
+    }
+
+    ++name;
+    if (strcmp(name, "OperatingClass") == 0) {
+        if (!tr_181_t::tr181_get_prop_int(prop, &ch_rep_item->op_class)) {
+            return false;
+        }
+    } else if (strcmp(name, "ChannelList") == 0) {
+        if (!tr_181_t::tr181_copy_prop_string(prop, ch_rep_item->ch_list, sizeof(ch_rep_item->ch_list))) {
+            return false;
+        }
+    } else {
+        return false;
+    }
+
+    return true;
+}
+

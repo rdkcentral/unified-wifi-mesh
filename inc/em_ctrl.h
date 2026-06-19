@@ -487,6 +487,17 @@ public:
         void handle_unassoc_sta_metrics_query(em_bus_event_t *evt);
 
 	/**!
+	 * @brief Handles the beacon metrics query event.
+	 *
+	 * This function processes the beacon metrics query event received on the bus.
+	 *
+	 * @param[in] evt Pointer to the event structure containing beacon metrics query details.
+	 *
+	 * @note Ensure that the event structure is properly initialized before calling this function.
+	 */
+	void handle_beacon_metrics_query(em_bus_event_t *evt);
+
+	/**!
 	 * @brief 
 	 * This function handles input/output operations.
 	 *
@@ -797,6 +808,25 @@ public:
 	 * @note Input property ownership remains with the caller; this function does not free them.
 	 */
 	static bus_error_t cmd_clientsteer (const char *method_name, const bus_data_prop_t *input_params, bus_data_prop_t **output_params, void *async_handle);
+
+	/**!
+	 * @brief Handles the bus X_AIRTIES_BeaconMetricsQuery method request.
+	 *
+	 * Validates X_AIRTIES_BeaconMetricsQuery input properties, dispatches the request to
+	 * the EasyMesh controller, and optionally populates response properties for the caller.
+	 *
+	 * @param[in] method_name Bus method name (...Radio.{i}.BSS.{i}.STA.{i}.X_AIRTIES_BeaconMetricsQuery).
+	 * @param[in] input_params Linked list of input properties carrying the request payload.
+	 * @param[out] output_params Populated with response properties when provided.
+	 * @param[in] async_handle Async context handle when the bus call is asynchronous.
+	 *
+	 * @returns bus_error_t
+	 * @retval bus_error_none on successful X_AIRTIES_BeaconMetricsQuery handling.
+	 * @retval bus_error_failed on validation or controller execution failure.
+	 *
+	 * @note Input property ownership remains with the caller; this function does not free them.
+	 */
+	static bus_error_t cmd_beaconmetricsquery (const char *method_name, const bus_data_prop_t *input_params, bus_data_prop_t **output_params, void *async_handle);
 
 	/**!
 	 * @brief Handles the bus Disassociate method request.

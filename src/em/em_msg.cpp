@@ -168,6 +168,51 @@ bool em_msg_t::get_profile(em_profile_type_t *profile)
     return false;
 }
 
+bool em_msg_t::get_sta_mac(mac_address_t *mac)
+{
+    em_tlv_t    *tlv;
+    unsigned int len;
+
+    if (mac == nullptr) {
+        em_printfout("Error: NULL mac");
+        return false;
+    }
+
+    tlv = reinterpret_cast<em_tlv_t *> (m_buff);
+    len = m_len;
+
+    while ((len >= sizeof(em_tlv_t)) && (tlv->type != em_tlv_type_eom)) {
+        const uint16_t value_len = ntohs(tlv->len);
+        if (len < (sizeof(em_tlv_t) + value_len)) {
+            em_printfout("Error: length mismatch");
+            return false;
+        }
+
+        if (tlv->type == em_tlv_type_client_info) {
+            if (value_len < (2U * sizeof(mac_address_t))) {
+                em_printfout("Error: tlv data too small");
+                return false;
+            }
+            memcpy(mac, tlv->value + sizeof(mac_address_t), sizeof(mac_address_t));
+            return true;
+        } else if ((tlv->type == em_tlv_type_client_assoc_event) ||
+                   (tlv->type == em_tlv_type_bcon_metric_query) ||
+                   (tlv->type == em_tlv_type_assoc_sta_link_metric)) {
+            if (value_len < sizeof(mac_address_t)) {
+                em_printfout("Error: tlv data too small");
+                return false;
+            }
+            memcpy(mac, tlv->value, sizeof(mac_address_t));
+            return true;
+        }
+
+        len -= static_cast<unsigned int> (sizeof(em_tlv_t) + value_len);
+        tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + value_len);
+    }
+
+    return false;
+}
+
 bool em_msg_t::get_bss_id(mac_address_t *mac)
 {
     em_tlv_t    *tlv;
@@ -179,9 +224,6 @@ bool em_msg_t::get_bss_id(mac_address_t *mac)
             memcpy(mac, tlv->value, sizeof(mac_address_t));
             return true;
         } else if (tlv->type == em_tlv_type_client_assoc_event) {
-            memcpy(mac, tlv->value + sizeof(mac_address_t), sizeof(mac_address_t));
-            return true;
-        } else if (tlv->type == em_tlv_type_client_info) {
             memcpy(mac, tlv->value + sizeof(mac_address_t), sizeof(mac_address_t));
             return true;
         } else if (tlv->type == em_tlv_type_ap_metrics) {

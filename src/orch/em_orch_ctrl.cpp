@@ -302,6 +302,12 @@ bool em_orch_ctrl_t::is_em_ready_for_orch_fini(em_cmd_t *pcmd, em_t *em)
             }
             break;
 
+        case em_cmd_type_beacon_query:
+            if (em->get_state() == em_state_ctrl_configured) {
+                return true;
+            }
+            break;
+
         default:
             break;
     }
@@ -361,6 +367,7 @@ bool em_orch_ctrl_t::is_em_ready_for_orch_exec(em_cmd_t *pcmd, em_t *em)
         case em_cmd_type_set_policy:
         case em_cmd_type_bsta_cap:
 	case em_cmd_type_unassoc_sta_query:
+        case em_cmd_type_beacon_query:
             if (em->get_state() == em_state_ctrl_configured) {
                 return true;
             }
@@ -554,6 +561,7 @@ bool em_orch_ctrl_t::pre_process_orch_op(em_cmd_t *pcmd)
 
         case dm_orch_type_topo_publish:
         case dm_orch_type_bsta_cap_query:
+        case dm_orch_type_beacon_query:
 			break;
 
         default:
@@ -772,9 +780,17 @@ unsigned int em_orch_ctrl_t::build_candidates(em_cmd_t *pcmd)
 		    count++;
 		}		
 		break;
-	    default:
-		break;
-	}
+
+            case em_cmd_type_beacon_query:
+                if (em->find_sta(pcmd->m_param.u.beacon_metrics_params.sta_mac_addr) != NULL) {
+                    queue_push(pcmd->m_em_candidates, em);
+                    count++;
+                }
+                break;
+
+            default:
+                break;
+        }
         em = static_cast<em_t *>(hash_map_get_next(m_mgr->m_em_map, em));
     }
 
