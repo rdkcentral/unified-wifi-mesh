@@ -1403,8 +1403,8 @@ bus_error_t em_ctrl_t::cmd_beaconmetricsquery(const char *method_name, const bus
                 em_printfout("Invalid channel report index: %d", ch_rep_idx);
                 goto invalid;
             }
-            if (ch_rep_idx > static_cast<int> (chanrep_cnt)) {
-                chanrep_cnt = static_cast<unsigned int> (ch_rep_idx);
+            if (ch_rep_idx > static_cast<int> (ch_rep_cnt)) {
+                ch_rep_cnt = static_cast<unsigned int> (ch_rep_idx);
             }
             --ch_rep_idx;
             if (!tr_181_t::parse_bmq_ch_rep_obj(prop, &ch_rep_items[ch_rep_idx])) {
@@ -1430,8 +1430,8 @@ invalid:
      * Note: Wi-Fi EasyMesh Specification allows SSID to be omitted via setting SSID Length
      *       field in 17.2.27 to zero (10.3.3), but this implementation mandates SSID to be
      *       specified. */
-    if (op_class < 0 || channel_num < 0 || !bssid[0] || !ssid[0] ||
-        (channel_num == 255 && !chanrep_cnt) || (rep_detail == 1 && !elem_list[0])) {
+    if (op_class < 0 || channel_num < 0 || !ssid[0] ||
+        (channel_num == 255 && !ch_rep_cnt) || (rep_detail == 1 && !elem_list[0])) {
         em_printfout("Mandatory parameters missing");
         if (output_params) {
             *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
@@ -1608,7 +1608,7 @@ invalid:
             em_printfout("Add APChReportList array failed");
             goto cleanup;
         }
-        for (unsigned int c = 0; c < chanrep_cnt; c++) {
+        for (unsigned int c = 0; c < ch_rep_cnt; c++) {
             tr181_bmq_ch_rep_item_t *ch_rep_item = &ch_rep_items[c];
             chrep_obj = cJSON_CreateObject();
             if (!chrep_obj) {
@@ -1635,6 +1635,7 @@ invalid:
                 char *ep = NULL;
                 int channel = static_cast<int> (std::strtol(channels[i].c_str(), &ep, 10));
                 if (ep == channels[i].c_str() || *ep != '\0') {
+                    rc = bus_error_invalid_input;
                     em_printfout("Invalid channel");
                     goto cleanup;
                 }
@@ -1663,6 +1664,7 @@ invalid:
             char *ep = NULL;
             int element = static_cast<int> (std::strtol(elements[i].c_str(), &ep, 10));
             if (ep == elements[i].c_str() || *ep != '\0') {
+                rc = bus_error_invalid_input;
                 em_printfout("Invalid element");
                 goto cleanup;
             }
@@ -3248,95 +3250,95 @@ int dm_easy_mesh_ctrl_t::analyze_beacon_metrics_query(em_bus_event_t *evt, em_cm
     }
 
     if ((wfa_obj = cJSON_GetObjectItem(root, "wfa-dataelements:BeaconMetricsQuery")) == NULL) {
-        cJSON_free(root);
+        cJSON_Delete(root);
         return 0;
     }
     if ((net_obj = cJSON_GetObjectItem(wfa_obj, "Network")) == NULL) {
-        cJSON_free(root);
+        cJSON_Delete(root);
         return 0;
     }
     dm.m_network.decode(net_obj, NULL);
 
     if ((dev_arr = cJSON_GetObjectItem(net_obj, "DeviceList")) == NULL) {
-        cJSON_free(root);
+        cJSON_Delete(root);
         return 0;
     }
     if (cJSON_GetArraySize(dev_arr) == 0 || (dev_obj = cJSON_GetArrayItem(dev_arr, 0)) == NULL) {
-        cJSON_free(root);
+        cJSON_Delete(root);
         return 0;
     }
     dm.m_device.decode(dev_obj, dm.m_network.get_network_id());
 
     if ((radio_arr = cJSON_GetObjectItem(dev_obj, "RadioList")) == NULL) {
-        cJSON_free(root);
+        cJSON_Delete(root);
         return 0;
     }
     if (cJSON_GetArraySize(radio_arr) == 0 || (radio_obj = cJSON_GetArrayItem(radio_arr, 0)) == NULL) {
-        cJSON_free(root);
+        cJSON_Delete(root);
         return 0;
     }
     dm.m_radio[0].decode(radio_obj, dm.m_network.get_network_id());
     dm.m_num_radios = 1;
 
     if ((bss_arr = cJSON_GetObjectItem(radio_obj, "BSSList")) == NULL) {
-        cJSON_free(root);
+        cJSON_Delete(root);
         return 0;
     }
     if (cJSON_GetArraySize(bss_arr) == 0 || (bss_obj = cJSON_GetArrayItem(bss_arr, 0)) == NULL) {
-        cJSON_free(root);
+        cJSON_Delete(root);
         return 0;
     }
     if ((sta_arr = cJSON_GetObjectItem(bss_obj, "STAList")) == NULL) {
-        cJSON_free(root);
+        cJSON_Delete(root);
         return 0;
     }
     if (cJSON_GetArraySize(sta_arr) == 0 || (sta_obj = cJSON_GetArrayItem(sta_arr, 0)) == NULL) {
-        cJSON_free(root);
+        cJSON_Delete(root);
         return 0;
     }
 
     em_cmd_beacon_metrics_param_t *beacon_params = &evt->params.u.beacon_metrics_params;
 
     if ((mac_obj = cJSON_GetObjectItem(sta_obj, "MACAddress")) == NULL) {
-        cJSON_free(root);
+        cJSON_Delete(root);
         return 0;
     }
     dm_easy_mesh_t::string_to_macbytes(cJSON_GetStringValue(mac_obj), beacon_params->sta_mac_addr);
 
     if ((bmquery_obj = cJSON_GetObjectItem(sta_obj, "BeaconMetricsQuery")) == NULL) {
-        cJSON_free(root);
+        cJSON_Delete(root);
         return 0;
     }
     if ((op_class_obj = cJSON_GetObjectItem(bmquery_obj, "OperatingClass")) == NULL) {
-        cJSON_free(root);
+        cJSON_Delete(root);
         return 0;
     }
     beacon_params->op_class = static_cast<unsigned char> (cJSON_GetNumberValue(op_class_obj));
 
     if ((channel_obj = cJSON_GetObjectItem(bmquery_obj, "Channel")) == NULL) {
-        cJSON_free(root);
+        cJSON_Delete(root);
         return 0;
     }
     beacon_params->channel_num = static_cast<unsigned char> (cJSON_GetNumberValue(channel_obj));
 
     if ((bssid_obj = cJSON_GetObjectItem(bmquery_obj, "BSSID")) == NULL) {
-        cJSON_free(root);
+        cJSON_Delete(root);
         return 0;
     }
     dm_easy_mesh_t::string_to_macbytes(cJSON_GetStringValue(bssid_obj), beacon_params->bssid);
 
     if ((rprt_obj = cJSON_GetObjectItem(bmquery_obj, "ReportingDetail")) == NULL) {
-        cJSON_free(root);
+        cJSON_Delete(root);
         return 0;
     }
     beacon_params->rprt_detail = static_cast<unsigned char> (cJSON_GetNumberValue(rprt_obj));
     if (beacon_params->rprt_detail > 2) {
-        cJSON_free(root);
+        cJSON_Delete(root);
         return 0;
     }
 
     if ((ssid_obj = cJSON_GetObjectItem(bmquery_obj, "SSID")) == NULL) {
-        cJSON_free(root);
+        cJSON_Delete(root);
         return 0;
     }
     ssize_t ssid_len = strlen(cJSON_GetStringValue(ssid_obj));
@@ -3346,30 +3348,30 @@ int dm_easy_mesh_ctrl_t::analyze_beacon_metrics_query(em_bus_event_t *evt, em_cm
 
     if (beacon_params->channel_num == 255) {
         if ((chrep_arr = cJSON_GetObjectItem(bmquery_obj, "APChReportList")) == NULL) {
-            cJSON_free(root);
+            cJSON_Delete(root);
             return 0;
         }
         beacon_params->num_ap_channel_rprt = static_cast<unsigned char> (cJSON_GetArraySize(chrep_arr));
         if (!beacon_params->num_ap_channel_rprt ||
             (beacon_params->num_ap_channel_rprt > ARRAY_SIZE(beacon_params->ap_channel_rprt))) {
-            cJSON_free(root);
+            cJSON_Delete(root);
             return 0;
         }
 
         for (unsigned int i = 0; i < beacon_params->num_ap_channel_rprt; i++) {
             if ((chrep_obj = cJSON_GetArrayItem(chrep_arr, i)) == NULL) {
-                cJSON_free(root);
+                cJSON_Delete(root);
                 return 0;
             }
             if ((op_class_obj = cJSON_GetObjectItem(chrep_obj, "OpClass")) == NULL) {
-                cJSON_free(root);
+                cJSON_Delete(root);
                 return 0;
             }
             beacon_params->ap_channel_rprt[i].ap_channel_op_class =
                 static_cast<unsigned char> (cJSON_GetNumberValue(op_class_obj));
 
             if ((chlist_arr = cJSON_GetObjectItem(chrep_obj, "ChannelList")) == NULL) {
-                cJSON_free(root);
+                cJSON_Delete(root);
                 return 0;
             }
             beacon_params->ap_channel_rprt[i].ap_channel_rprt_len =
@@ -3377,19 +3379,18 @@ int dm_easy_mesh_ctrl_t::analyze_beacon_metrics_query(em_bus_event_t *evt, em_cm
             if (!beacon_params->ap_channel_rprt[i].ap_channel_rprt_len ||
                 (beacon_params->ap_channel_rprt[i].ap_channel_rprt_len >
                 ARRAY_SIZE(beacon_params->ap_channel_rprt[i].ap_channel_list))) {
-                cJSON_free(root);
+                cJSON_Delete(root);
                 return 0;
             }
 
             for (int j = 0; j < beacon_params->ap_channel_rprt[i].ap_channel_rprt_len; j++) {
                 if ((chlist_obj = cJSON_GetArrayItem(chlist_arr, j)) == NULL) {
-                    cJSON_free(root);
+                    cJSON_Delete(root);
                     return 0;
                 }
                 beacon_params->ap_channel_rprt[i].ap_channel_list[j] =
                     static_cast<unsigned char> (cJSON_GetNumberValue(chlist_obj));
             }
-            beacon_params->ap_channel_rprt[i].ap_channel_rprt_len++;
         }
     } else {
         beacon_params->num_ap_channel_rprt = 0;
@@ -3398,29 +3399,29 @@ int dm_easy_mesh_ctrl_t::analyze_beacon_metrics_query(em_bus_event_t *evt, em_cm
 
     if (beacon_params->rprt_detail == 1) {
         if ((elemlist_arr = cJSON_GetObjectItem(bmquery_obj, "ElementList")) == NULL) {
-            cJSON_free(root);
+            cJSON_Delete(root);
             return 0;
         }
         beacon_params->element_list.num_element_id = static_cast<unsigned char> (cJSON_GetArraySize(elemlist_arr));
         if (!beacon_params->element_list.num_element_id ||
             (beacon_params->element_list.num_element_id > ARRAY_SIZE(beacon_params->element_list.element_list))) {
-            cJSON_free(root);
+            cJSON_Delete(root);
             return 0;
         }
 
         for (int i = 0; i < beacon_params->element_list.num_element_id; i++) {
             if ((elemlist_obj = cJSON_GetArrayItem(elemlist_arr, i)) == NULL) {
-                cJSON_free(root);
+                cJSON_Delete(root);
                 return 0;
             }
             beacon_params->element_list.element_list[i] = static_cast<unsigned char> (cJSON_GetNumberValue(elemlist_obj));
         }
     } else {
         beacon_params->element_list.num_element_id = 0;
-        memset(beacon_params->element_list, 0, sizeof(beacon_params->element_list));
+        memset(&beacon_params->element_list, 0, sizeof(beacon_params->element_list));
     }
 
-    cJSON_free(root);
+    cJSON_Delete(root);
 
     pcmd[num] = new em_cmd_beacon_report_t(evt->params, dm);
     tmp = pcmd[num];

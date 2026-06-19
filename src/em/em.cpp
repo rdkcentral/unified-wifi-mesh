@@ -240,8 +240,7 @@ void em_t::orch_execute(em_cmd_t *pcmd)
             break;
 
         case em_cmd_type_beacon_report:
-            m_sm.set_state((m_service_type == em_service_type_agent) ?
-                em_state_agent_beacon_report_pending : em_state_ctrl_beacon_report_pending);
+            m_sm.set_state(em_state_agent_beacon_report_pending);
             break;
 
         case em_cmd_type_bsta_cap:

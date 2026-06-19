@@ -738,9 +738,9 @@ public:
 	 * @param[in] evt Pointer to the event structure containing event details.
 	 * @param[in] pcmd Array of command structures to be analyzed.
 	 *
-	 * @returns int
-	 * @retval 0 on success
-	 * @retval non-zero error code on failure
+	 * @returns int Number of commands generated into pcmd[]
+	 * @retval 0 No command generated / parse failure
+	 * @retval >0 Number of generated commands
 	 *
 	 * @note Ensure that the pcmd array is properly initialized before calling
 	 * this function.
