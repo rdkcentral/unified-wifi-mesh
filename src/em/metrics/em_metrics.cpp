@@ -547,6 +547,7 @@ int em_metrics_t::handle_beacon_metrics_response(unsigned char *buff, unsigned i
     em_beacon_metrics_resp_t *response = NULL;
     dm_easy_mesh_t  *dm;
     unsigned int report_len = 0;
+    em_t *owner = nullptr;
 
     dm = get_data_model();
 
@@ -590,6 +591,26 @@ int em_metrics_t::handle_beacon_metrics_response(unsigned char *buff, unsigned i
         return -1;
     }
 
+    // Route to the radio that actually has this STA's query in flight, rather than
+    // trusting that "this" (chosen by the caller as the first radio for the AL mac)
+    // happens to be the right one. Done before the stub-measurement early return below
+    // so a valid empty response still completes the command instead of leaving the
+    // radio in em_state_beacon_report_pending until the generic orchestration timeout.
+    std::vector<em_t *> em_radios;
+    get_mgr()->get_all_em_for_al_mac(dm->get_agent_al_interface_mac(), em_radios);
+    for (auto &candidate : em_radios) {
+        em_cmd_t *cmd = candidate->get_current_cmd();
+        if (cmd != NULL && cmd->m_type == em_cmd_type_beacon_query &&
+            memcmp(cmd->get_param()->u.beacon_metrics_params.sta_mac_addr,
+                response->sta_mac_addr, sizeof(mac_address_t)) == 0) {
+            owner = candidate;
+            break;
+        }
+    }
+    if (owner != nullptr) {
+        dm = owner->get_data_model();
+    }
+
     // Raw 802.11 Measurement Report IE layout (beacon type):
     //   [0]=elem-id [1]=length [2]=token [3]=report-mode [4]=report-type
     //   [5]=op-class [6]=channel [7..14]=start-time [15..16]=duration
@@ -603,6 +624,9 @@ int em_metrics_t::handle_beacon_metrics_response(unsigned char *buff, unsigned i
         if (memcmp(first_ie + BSSID_OFFSET_IN_BEACON_RPT_IE, null_bssid, sizeof(mac_address_t)) == 0) {
             em_printfout("Beacon Metrics Response: null BSSID in report, discarding stub measurement for sta:%s",
                 util::mac_to_string(response->sta_mac_addr).c_str());
+            if (owner != nullptr) {
+                owner->set_state(em_state_beacon_report_complete);
+            }
             em_cmdu_t *cmdu = reinterpret_cast<em_cmdu_t *>(buff + sizeof(em_raw_hdr_t));
             send_beacon_metrics_ack(ntohs(cmdu->id));
             return 0;
@@ -634,6 +658,12 @@ int em_metrics_t::handle_beacon_metrics_response(unsigned char *buff, unsigned i
     em_printfout("Beacon Metrics Response rcvd for sta:%s reports:%u len:%u",
         util::mac_to_string(sta->m_sta_info.id).c_str(),
         sta->m_sta_info.num_beacon_meas_report, sta->m_sta_info.beacon_report_len);
+
+    // Reset controller state on the radio that actually owns this in-flight query
+    // (found above), rather than "this" or "which radio owns the STA".
+    if (owner != nullptr) {
+        owner->set_state(em_state_beacon_report_complete);
+    }
 
     // Send 1905 ACK back to the agent
     em_cmdu_t *cmdu = reinterpret_cast<em_cmdu_t *>(buff + sizeof(em_raw_hdr_t));
@@ -1297,6 +1327,24 @@ short em_metrics_t::send_single_beacon_metrics_query(mac_address_t sta_mac, bssi
     return static_cast<short>(msg.get_len());
 }
 
+short em_metrics_t::send_single_beacon_metrics_query_msg()
+{
+    dm_easy_mesh_t *dm = get_data_model();
+    if (dm == NULL) {
+        return 0;
+    }
+
+    em_cmd_t *cmd = get_current_cmd();
+    if (cmd == NULL) {
+        return 0;
+    }
+
+    send_single_beacon_metrics_query(cmd->get_param()->u.beacon_metrics_params.sta_mac_addr,
+                                     cmd->get_param()->u.beacon_metrics_params.bssid);
+
+    return 0;
+}
+
 short em_metrics_t::send_beacon_metrics_query(mac_address_t sta_mac, bssid_t bssid)
 {
     dm_easy_mesh_t *dm = get_data_model();
@@ -1637,11 +1685,15 @@ short em_metrics_t::create_beacon_metrics_query_tlv(unsigned char *buff, mac_add
     dm_easy_mesh_t *dm;
     ssid_t ssid = {0};
     dm_sta_t *sta;
-    unsigned int j;
+    unsigned int j = 0;
     bool ssid_found = false;
     em_op_class_info_t *op_class = nullptr;
-    
-	dm = get_data_model();
+    unsigned char final_op_class;
+    unsigned char final_channel;
+    unsigned char final_rprt_detail;
+    const em_cmd_beacon_metrics_param_t *req_params = NULL;
+
+    dm = get_data_model();
 
     sta = reinterpret_cast<dm_sta_t *> (hash_map_get_first(dm->m_sta_map));
     while(sta != NULL) {
@@ -1656,63 +1708,78 @@ short em_metrics_t::create_beacon_metrics_query_tlv(unsigned char *buff, mac_add
         return -1;
     }
 
-    em_printfout("BSS lookup: sta_mac:%s sta->bssid:%s bssid_param:%s num_bss:%u",
-        util::mac_to_string(sta_mac).c_str(),
-        util::mac_to_string(sta->m_sta_info.bssid).c_str(),
-        util::mac_to_string(bssid).c_str(),
-        dm->get_num_bss());
-
-    // Try bssid parameter first (from em_sta->bssid), then fall back to sta->m_sta_info.bssid
-    for (j = 0; j < dm->get_num_bss(); j++) {
-        em_printfout("  BSS[%u] bssid:%s ssid:%s", j,
-            util::mac_to_string(dm->m_bss[j].m_bss_info.bssid.mac).c_str(),
-            dm->m_bss[j].m_bss_info.ssid);
-        if (memcmp(dm->m_bss[j].m_bss_info.bssid.mac, bssid, sizeof(bssid_t)) == 0) {
-            snprintf(ssid, sizeof(ssid_t), "%s", dm->m_bss[j].m_bss_info.ssid);
-            ssid_found = true;
-            em_printfout("BSS found via bssid param: ssid:%s", ssid);
-            break;
-        }
+    em_cmd_t *cmd = get_current_cmd();
+    if (cmd != NULL && get_state() == em_state_beacon_report_pending) {
+        req_params = &cmd->get_param()->u.beacon_metrics_params;
     }
 
-    if (ssid_found == false) {
-        // Fallback: try sta->m_sta_info.bssid
+    if (req_params != NULL) {
+        // Honor the OperatingClass/Channel/SSID/ReportingDetail supplied
+        final_op_class = req_params->op_class;
+        final_channel = req_params->channel_num;
+        final_rprt_detail = req_params->rprt_detail;
+        snprintf(ssid, sizeof(ssid_t), "%.*s", req_params->ssid_len, req_params->ssid);
+    } else {
+        em_printfout("BSS lookup: sta_mac:%s sta->bssid:%s bssid_param:%s num_bss:%u",
+            util::mac_to_string(sta_mac).c_str(),
+            util::mac_to_string(sta->m_sta_info.bssid).c_str(),
+            util::mac_to_string(bssid).c_str(),
+            dm->get_num_bss());
+
+        // Try bssid parameter first (from em_sta->bssid), then fall back to sta->m_sta_info.bssid
         for (j = 0; j < dm->get_num_bss(); j++) {
-            if (memcmp(dm->m_bss[j].m_bss_info.bssid.mac, sta->m_sta_info.bssid, sizeof(bssid_t)) == 0) {
+            em_printfout("  BSS[%u] bssid:%s ssid:%s", j,
+                util::mac_to_string(dm->m_bss[j].m_bss_info.bssid.mac).c_str(),
+                dm->m_bss[j].m_bss_info.ssid);
+            if (memcmp(dm->m_bss[j].m_bss_info.bssid.mac, bssid, sizeof(bssid_t)) == 0) {
                 snprintf(ssid, sizeof(ssid_t), "%s", dm->m_bss[j].m_bss_info.ssid);
                 ssid_found = true;
-                em_printfout("BSS found via sta->bssid fallback: ssid:%s", ssid);
+                em_printfout("BSS found via bssid param: ssid:%s", ssid);
                 break;
             }
         }
-    }
 
-    if (!ssid_found) {
-        em_printfout("BSS not found for bssid_param:%s sta->bssid:%s, cannot populate SSID",
-            util::mac_to_string(bssid).c_str(),
-            util::mac_to_string(sta->m_sta_info.bssid).c_str());
-        return -1;
-    }
-
-    // Derive op_class and channel from the operating channel report data
-    for (unsigned int i = 0; i < dm->m_num_opclass; i++) {
-        em_op_class_info_t *candidate = &dm->m_op_class[i].m_op_class_info;
-        if ((memcmp(candidate->id.ruid, dm->m_bss[j].m_bss_info.id.ruid, sizeof(mac_address_t)) == 0) &&
-                (candidate->id.type == em_op_class_type_current)) {
-            op_class = candidate;
-            break;
+        if (ssid_found == false) {
+            // Fallback: try sta->m_sta_info.bssid
+            for (j = 0; j < dm->get_num_bss(); j++) {
+                if (memcmp(dm->m_bss[j].m_bss_info.bssid.mac, sta->m_sta_info.bssid, sizeof(bssid_t)) == 0) {
+                    snprintf(ssid, sizeof(ssid_t), "%s", dm->m_bss[j].m_bss_info.ssid);
+                    ssid_found = true;
+                    em_printfout("BSS found via sta->bssid fallback: ssid:%s", ssid);
+                    break;
+                }
+            }
         }
-    }
-    if (op_class == nullptr) {
-        em_printfout("Could not get current op_class from operating channel report for ruid, cannot build beacon query");
-        return -1;
-    }
 
-    unsigned char def_channel = (op_class->channel == 0) ? 255 : static_cast<unsigned char>(op_class->channel);
-    if (op_class->channel == 0) {
-        em_printfout("Operating channel report had channel 0, falling back to channel 255 (wildcard)");
-    } else {
-        em_printfout("Using AP operating channel %u from operating channel report for beacon request", op_class->channel);
+        if (!ssid_found) {
+            em_printfout("BSS not found for bssid_param:%s sta->bssid:%s, cannot populate SSID",
+                util::mac_to_string(bssid).c_str(),
+                util::mac_to_string(sta->m_sta_info.bssid).c_str());
+            return -1;
+        }
+
+        // Derive op_class and channel from the operating channel report data
+        for (unsigned int i = 0; i < dm->m_num_opclass; i++) {
+            em_op_class_info_t *candidate = &dm->m_op_class[i].m_op_class_info;
+            if ((memcmp(candidate->id.ruid, dm->m_bss[j].m_bss_info.id.ruid, sizeof(mac_address_t)) == 0) &&
+                    (candidate->id.type == em_op_class_type_current)) {
+                op_class = candidate;
+                break;
+            }
+        }
+        if (op_class == nullptr) {
+            em_printfout("Could not get current op_class from operating channel report for ruid, cannot build beacon query");
+            return -1;
+        }
+
+        final_op_class = op_class->op_class;
+        final_channel = (op_class->channel == 0) ? 255 : static_cast<unsigned char>(op_class->channel);
+        final_rprt_detail = 1;
+        if (op_class->channel == 0) {
+            em_printfout("Operating channel report had channel 0, falling back to channel 255 (wildcard)");
+        } else {
+            em_printfout("Using AP operating channel %u from operating channel report for beacon request", op_class->channel);
+        }
     }
 
     em_beacon_metrics_query_t *beacon_metrics = reinterpret_cast<em_beacon_metrics_query_t*> (buff);
@@ -1720,16 +1787,16 @@ short em_metrics_t::create_beacon_metrics_query_tlv(unsigned char *buff, mac_add
     memcpy(beacon_metrics->sta_mac_addr, sta_mac, sizeof(mac_addr_t));
     len += sizeof(beacon_metrics->sta_mac_addr);
 
-    beacon_metrics->op_class = op_class->op_class;
+    beacon_metrics->op_class = final_op_class;
     len += sizeof(beacon_metrics->op_class);
 
-    beacon_metrics->channel_num = def_channel;
+    beacon_metrics->channel_num = final_channel;
     len += sizeof(beacon_metrics->channel_num);
 
     memcpy(beacon_metrics->bssid, bssid, sizeof(bssid_t));
     len += sizeof(beacon_metrics->bssid);
 
-    beacon_metrics->rprt_detail = 1;
+    beacon_metrics->rprt_detail = final_rprt_detail;
     len += sizeof(beacon_metrics->rprt_detail);
 
     beacon_metrics->ssid_len = strlen(ssid);
@@ -1738,21 +1805,52 @@ short em_metrics_t::create_beacon_metrics_query_tlv(unsigned char *buff, mac_add
     memcpy(beacon_metrics->ssid, ssid, beacon_metrics->ssid_len);
     len += beacon_metrics->ssid_len;
 
-    // Single AP Channel Report with only the current operating channel
-    uint8_t num_rprts = 1;
-    *(buff + len) = num_rprts;
-    len += sizeof(uint8_t);
+    if (req_params != NULL && req_params->channel_num == 255 && req_params->num_ap_channel_rprt > 0) {
+        // Forward the caller-supplied AP Channel Report list as-is
+        uint8_t num_rprts = req_params->num_ap_channel_rprt;
+        *(buff + len) = num_rprts;
+        len += sizeof(uint8_t);
 
-    // AP Channel Report: length = 2 (1 byte op_class + 1 byte channel)
-    uint8_t rprt_len = 2;
-    *(buff + len) = rprt_len;
-    len += sizeof(uint8_t);
+        for (unsigned int r = 0; r < num_rprts; r++) {
+            const em_beacon_ap_channel_rprt_t *rprt = &req_params->ap_channel_rprt[r];
+            *(buff + len) = rprt->ap_channel_rprt_len;
+            len += sizeof(uint8_t);
+            *(buff + len) = rprt->ap_channel_op_class;
+            len += sizeof(uint8_t);
 
-    *(buff + len) = static_cast<uint8_t>(op_class->op_class);
-    len += sizeof(uint8_t);
+            unsigned int num_channels = static_cast<unsigned int>(rprt->ap_channel_rprt_len) - 1;
+            for (unsigned int c = 0; c < num_channels; c++) {
+                *(buff + len) = rprt->ap_channel_list[c];
+                len += sizeof(uint8_t);
+            }
+        }
+    } else {
+        // Single AP Channel Report with only the current operating channel
+        uint8_t num_rprts = 1;
+        *(buff + len) = num_rprts;
+        len += sizeof(uint8_t);
 
-    *(buff + len) = def_channel;
-    len += sizeof(uint8_t);
+        // AP Channel Report: length = 2 (1 byte op_class + 1 byte channel)
+        uint8_t rprt_len = 2;
+        *(buff + len) = rprt_len;
+        len += sizeof(uint8_t);
+
+        *(buff + len) = final_op_class;
+        len += sizeof(uint8_t);
+
+        *(buff + len) = final_channel;
+        len += sizeof(uint8_t);
+    }
+
+    if (req_params != NULL && final_rprt_detail == 1 && req_params->element_list.num_element_id > 0) {
+        // Forward the caller-supplied ElementIDList (only meaningful when ReportingDetail == 1)
+        *(buff + len) = req_params->element_list.num_element_id;
+        len += sizeof(uint8_t);
+        for (unsigned int e = 0; e < req_params->element_list.num_element_id; e++) {
+            *(buff + len) = req_params->element_list.element_list[e];
+            len += sizeof(uint8_t);
+        }
+    }
 
     // Print the filled data
     em_printfout("STA MAC Address: %s", util::mac_to_string(beacon_metrics->sta_mac_addr).c_str());
@@ -1762,11 +1860,9 @@ short em_metrics_t::create_beacon_metrics_query_tlv(unsigned char *buff, mac_add
     em_printfout("Reporting Detail: %u", beacon_metrics->rprt_detail);
     em_printfout("SSID Length: %u", beacon_metrics->ssid_len);
     em_printfout("SSID: %.*s", beacon_metrics->ssid_len, beacon_metrics->ssid);
-    em_printfout("Number of AP Channel Reports: %u", num_rprts);
 
     return static_cast<short> (len);
 }
-
 
 short em_metrics_t::create_beacon_metrics_response_tlv(unsigned char *buff)
 {
@@ -2281,7 +2377,10 @@ int em_metrics_t::handle_1905_ack(unsigned char *buff, unsigned int len)
     em_t *matched_em = nullptr;
     mac_address_t src_mac;
 
-    (void)len;
+    if (len < sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)) {
+        em_printfout("1905 ACK frame too short (len=%u)", len);
+        return -1;
+    }
 
     em_cmdu_t *cmdu = reinterpret_cast<em_cmdu_t *>(buff + sizeof(em_raw_hdr_t));
 
@@ -2308,6 +2407,35 @@ int em_metrics_t::handle_1905_ack(unsigned char *buff, unsigned int len)
             em->get_state() == em_state_beacon_report_pending &&
             cmd->get_data_model() != NULL &&
             response_msg_id == cmd->get_data_model()->get_msg_id()) {
+
+            // Beacon Metrics Query (17.1.22): the 1905 Ack only confirms receipt, or
+            // signals an immediate error (STA not associated) via an Error Code TLV.
+            // On success there is no Error Code TLV, and the real answer arrives later
+            // as a Beacon Metrics Response; let handle_beacon_metrics_response()
+            // complete the command in that case instead.
+            if (cmd->m_type == em_cmd_type_beacon_query) {
+                em_tlv_t *tlv = reinterpret_cast<em_tlv_t *>(buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+                unsigned int tmp_len = len - static_cast<unsigned int>(sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+                bool has_error_code = false;
+
+                while ((tmp_len >= sizeof(em_tlv_t)) && (tlv->type != em_tlv_type_eom)) {
+                    if (tlv->type == em_tlv_type_error_code) {
+                        has_error_code = true;
+                        break;
+                    }
+                    unsigned int tlv_total = sizeof(em_tlv_t) + ntohs(tlv->len);
+                    if (tmp_len < tlv_total) {
+                        break;
+                    }
+                    tmp_len -= tlv_total;
+                    tlv = reinterpret_cast<em_tlv_t *>(reinterpret_cast<unsigned char *>(tlv) + tlv_total);
+                }
+
+                if (!has_error_code) {
+                    continue;
+                }
+            }
+
             matched_em = em;
             cmd->get_data_model()->set_msg_id(0);
             cmd->clear_query_tx_time();
@@ -2812,7 +2940,11 @@ void em_metrics_t::process_ctrl_state()
         case em_state_ctrl_unassoc_sta_link_metrics_pending:
             send_unassoc_sta_link_metrics_query_msg();
             break;
-	    
+
+        case em_state_beacon_report_pending:
+            send_single_beacon_metrics_query_msg();
+            break;
+
         default:
             printf("%s:%d: unhandled case %s\n", __func__, __LINE__, em_t::state_2_str(get_state()));
             break;
