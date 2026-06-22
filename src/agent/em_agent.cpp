@@ -999,6 +999,32 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
         case em_msg_type_beacon_metrics_rsp:
         case em_msg_type_ap_mld_config_resp:
         case em_msg_type_beacon_metrics_query:
+            em_printfout(" Rcvd Beacon Metrics Query");
+            {
+                mac_address_t client_mac = {};
+                em_tlv_t *bmq_tlv = reinterpret_cast<em_tlv_t *>(data + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+                em_beacon_metrics_query_t *bmq = reinterpret_cast<em_beacon_metrics_query_t *>(bmq_tlv->value);
+                memcpy(client_mac, bmq->sta_mac_addr, sizeof(mac_address_t));
+                em_printfout("Beacon Metrics Query for STA: %s", util::mac_to_string(client_mac).c_str());
+
+                em = (em_t *)hash_map_get_first(m_em_map);
+                while (em != NULL) {
+                    if (!em->is_al_interface_em()) {
+                        dm = em->get_data_model();
+                        if (dm->get_first_sta(client_mac) != NULL) {
+                            em_printfout("Found em with STA %s associated", util::mac_to_string(client_mac).c_str());
+                            break;
+                        }
+                    }
+                    em = (em_t *)hash_map_get_next(m_em_map, em);
+                }
+            }
+            // If no em has the STA, fall back to al_em so handle_beacon_metrics_query
+            // can send a 1905 ACK with Error Code TLV (Reason 0x02) per spec 10.3.3.
+            if (em == NULL) {
+                em_printfout("STA not found for Beacon Metrics Query, falling back to al_em for error ACK");
+                em = al_em;
+            }
             break;
 
         default:
