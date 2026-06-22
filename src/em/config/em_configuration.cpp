@@ -39,6 +39,10 @@
 #include <openssl/rand.h>
 #include <assert.h>
 #include <string>
+#include <set>
+#include <deque>
+#include <mutex>
+#include <ctime>
 #include <vector>
 #include <algorithm>
 #include "em_configuration.h"
@@ -58,6 +62,277 @@
 unsigned short em_configuration_t::msg_id = 0;
 // OUI value of Comcast
 static const unsigned char em_vendor_oui[EM_VENDOR_OUI_SIZE] = {0xd8, 0x9c, 0x8e};
+
+std::deque<time_t> g_failed_conn_report_timestamps;
+static std::mutex g_failed_conn_report_mutex;
+
+static bool allow_failed_conn_report(unsigned short max_reports_per_min)
+{
+    if (max_reports_per_min == 0) {
+        return false;
+    }
+
+    std::lock_guard<std::mutex> lock(g_failed_conn_report_mutex);
+
+    time_t now = time(NULL);
+    while (!g_failed_conn_report_timestamps.empty() &&
+           (now - g_failed_conn_report_timestamps.front()) >= 60) {
+        g_failed_conn_report_timestamps.pop_front();
+    }
+
+    if (g_failed_conn_report_timestamps.size() >= max_reports_per_min) {
+        return false;
+    }
+
+    g_failed_conn_report_timestamps.push_back(now);
+    return true;
+}
+
+static bool em_cfg_update_sta_assoc_row(hash_map_t *sta_assoc_map,
+                                        em_sta_info_t *row,
+                                        const char *new_log_prefix,
+                                        const char *update_log_prefix)
+{
+    mac_addr_str_t row_sta_str, row_bssid_str, row_radio_str;
+    em_long_string_t row_key;
+    dm_sta_t *existing_row;
+
+    dm_easy_mesh_t::macbytes_to_string(row->id, row_sta_str);
+    dm_easy_mesh_t::macbytes_to_string(row->bssid, row_bssid_str);
+    dm_easy_mesh_t::macbytes_to_string(row->radiomac, row_radio_str);
+    snprintf(row_key, sizeof(em_long_string_t), "%s@%s@%s", row_sta_str, row_bssid_str, row_radio_str);
+
+    existing_row = static_cast<dm_sta_t *>(hash_map_get(sta_assoc_map, row_key));
+    if (existing_row == NULL) {
+        hash_map_put(sta_assoc_map, strdup(row_key), new dm_sta_t(row));
+        em_printfout("%s%s", new_log_prefix, row_key);
+    } else {
+        existing_row->m_sta_info.associated = row->associated;
+        em_printfout("%s%s", update_log_prefix, row_key);
+    }
+
+    return true;
+}
+
+static dm_sta_t *em_cfg_find_dassoc_sta(dm_easy_mesh_t *dm,
+                                        const mac_address_t sta_mac,
+                                        const bssid_t bssid,
+                                        bool match_bssid)
+{
+    dm_sta_t *dassoc_sta;
+
+    dassoc_sta = static_cast<dm_sta_t *>(hash_map_get_first(dm->m_sta_dassoc_map));
+    while (dassoc_sta != NULL) {
+        if ((memcmp(dassoc_sta->m_sta_info.id, sta_mac, sizeof(mac_address_t)) == 0) &&
+            ((match_bssid == false) ||
+             (memcmp(dassoc_sta->m_sta_info.bssid, bssid, sizeof(bssid_t)) == 0))) {
+            return dassoc_sta;
+        }
+        dassoc_sta = static_cast<dm_sta_t *>(hash_map_get_next(dm->m_sta_dassoc_map, dassoc_sta));
+    }
+
+    return NULL;
+}
+
+static unsigned short em_cfg_create_assoc_sta_traffic_stats_tlv(em_tlv_t *tlv,
+                                                                const mac_address_t logical_sta,
+                                                                dm_easy_mesh_t *dm,
+                                                                const em_assoc_sta_mld_info_t *mld_info,
+                                                                dm_sta_t *dassoc_sta)
+{
+    em_assoc_sta_traffic_sts_t *stats;
+    dm_sta_t *aff_sta;
+    unsigned short sz;
+    unsigned int j;
+    uint32_t bytes_sent = 0, bytes_recv = 0;
+    uint32_t packets_sent = 0, packets_recv = 0;
+    uint32_t tx_errors = 0, rx_errors = 0;
+    uint32_t retrans = 0;
+
+    tlv->type = em_tlv_type_assoc_sta_traffic_sts;
+    stats = reinterpret_cast<em_assoc_sta_traffic_sts_t *>(tlv->value);
+    memset(stats, 0, sizeof(*stats));
+    memcpy(stats->sta_mac_addr, logical_sta, sizeof(mac_address_t));
+
+    if (mld_info != NULL) {
+
+        for (j = 0; j < mld_info->num_affiliated_sta; j++) {
+            aff_sta = em_cfg_find_dassoc_sta(dm,
+                                             mld_info->affiliated_sta[j].mac_addr,
+                                             mld_info->affiliated_sta[j].bssid,
+                                             false);
+            if (aff_sta == NULL) {
+                continue;
+            }
+            bytes_sent    += aff_sta->m_sta_info.bytes_tx;
+            bytes_recv    += aff_sta->m_sta_info.bytes_rx;
+            packets_sent  += aff_sta->m_sta_info.pkts_tx;
+            packets_recv  += aff_sta->m_sta_info.pkts_rx;
+            tx_errors     += aff_sta->m_sta_info.errors_tx;
+            rx_errors     += aff_sta->m_sta_info.errors_rx;
+            retrans       += aff_sta->m_sta_info.retrans_count;
+            if (dassoc_sta == NULL) {
+                dassoc_sta = aff_sta;
+            }
+        }
+        stats->bytes_sent        = htonl(bytes_sent);
+        stats->bytes_recv        = htonl(bytes_recv);
+        stats->packets_sent      = htonl(packets_sent);
+        stats->packets_recv      = htonl(packets_recv);
+        stats->tx_packets_errors = htonl(tx_errors);
+        stats->rx_packets_errors = htonl(rx_errors);
+        stats->retrans_count     = htonl(retrans);
+    } else if (dassoc_sta != NULL) {
+        stats->bytes_sent = htonl(dassoc_sta->m_sta_info.bytes_tx);
+        stats->bytes_recv = htonl(dassoc_sta->m_sta_info.bytes_rx);
+        stats->packets_sent = htonl(dassoc_sta->m_sta_info.pkts_tx);
+        stats->packets_recv = htonl(dassoc_sta->m_sta_info.pkts_rx);
+        stats->tx_packets_errors = htonl(dassoc_sta->m_sta_info.errors_tx);
+        stats->rx_packets_errors = htonl(dassoc_sta->m_sta_info.errors_rx);
+        stats->retrans_count = htonl(dassoc_sta->m_sta_info.retrans_count);
+    }
+
+    sz = static_cast<unsigned short>(sizeof(em_assoc_sta_traffic_sts_t));
+    tlv->len = htons(sz);
+
+    return static_cast<unsigned short>(sizeof(em_tlv_t) + sz);
+}
+
+static unsigned short em_cfg_create_affiliated_sta_metrics_tlvs(unsigned char *buff,
+                                                                dm_easy_mesh_t *dm,
+                                                                const em_assoc_sta_mld_info_t *mld_info)
+{
+    em_tlv_t *tlv;
+    em_affiliated_sta_metrics_t *metrics;
+    dm_sta_t *aff_dassoc_sta;
+    const em_affiliated_sta_info_t *aff_sta;
+    unsigned short sz;
+    unsigned short total_len = 0;
+    unsigned int j;
+
+    if (mld_info == NULL) {
+        return 0;
+    }
+
+    for (j = 0; j < mld_info->num_affiliated_sta; j++) {
+        aff_sta = &mld_info->affiliated_sta[j];
+        aff_dassoc_sta = em_cfg_find_dassoc_sta(dm, aff_sta->mac_addr, aff_sta->bssid, false);
+
+        tlv = reinterpret_cast<em_tlv_t *>(buff + total_len);
+        tlv->type = em_tlv_type_affiliated_sta_metrics;
+        metrics = reinterpret_cast<em_affiliated_sta_metrics_t *>(tlv->value);
+        memset(metrics, 0, sizeof(*metrics));
+        memcpy(metrics->sta_mac_addr, aff_sta->mac_addr, sizeof(mac_address_t));
+
+        if (aff_dassoc_sta != NULL) {
+            metrics->bytes_sent = htonl(aff_dassoc_sta->m_sta_info.bytes_tx);
+            metrics->bytes_recv = htonl(aff_dassoc_sta->m_sta_info.bytes_rx);
+            metrics->packets_sent = htonl(aff_dassoc_sta->m_sta_info.pkts_tx);
+            metrics->packets_recv = htonl(aff_dassoc_sta->m_sta_info.pkts_rx);
+            metrics->tx_packets_errors = htonl(aff_dassoc_sta->m_sta_info.errors_tx);
+        }
+
+        sz = static_cast<unsigned short>(sizeof(em_affiliated_sta_metrics_t));
+        tlv->len = htons(sz);
+        total_len += static_cast<unsigned short>(sizeof(em_tlv_t) + sz);
+    }
+
+    return total_len;
+}
+
+static bool em_cfg_handle_assoc_sta_mld_topology_updates(dm_easy_mesh_t *dm)
+{
+    bool sta_db_update_needed;
+    bool in_new_set;
+    unsigned int i, j, r;
+    em_assoc_sta_mld_info_t *assoc_info;
+    dm_bss_t *aff_bss;
+    em_sta_info_t sta_info;
+    dm_sta_t *db_sta;
+    em_sta_info_t disassoc_info;
+    dm_sta_t *queued_sta;
+    mac_addr_str_t check_sta_str, check_bssid_str, check_radio_str;
+    em_long_string_t check_key;
+
+    sta_db_update_needed = false;
+    assoc_info = NULL;
+    aff_bss = NULL;
+    db_sta = NULL;
+    queued_sta = NULL;
+
+    for (i = 0; i < dm->get_num_assoc_sta_mld(); i++) {
+        assoc_info = &dm->m_assoc_sta_mld[i].m_assoc_sta_mld_info;
+        for (j = 0; j < assoc_info->num_affiliated_sta; j++) {
+            aff_bss = NULL;
+            for (r = 0; r < dm->get_num_radios(); r++) {
+                aff_bss = dm->get_bss(dm->get_radio_info(r)->id.ruid, assoc_info->affiliated_sta[j].bssid);
+                if (aff_bss != NULL) {
+                    break;
+                }
+            }
+
+            if (aff_bss == NULL) {
+                continue;
+            }
+
+            memset(&sta_info, 0, sizeof(em_sta_info_t));
+            memcpy(sta_info.id, assoc_info->mac_addr, sizeof(mac_address_t));
+            memcpy(sta_info.bssid, assoc_info->affiliated_sta[j].bssid, sizeof(mac_address_t));
+            memcpy(sta_info.radiomac, aff_bss->m_bss_info.ruid.mac, sizeof(mac_address_t));
+            sta_info.associated = true;
+
+            if (em_cfg_update_sta_assoc_row(dm->m_sta_assoc_map, &sta_info,
+                        "Topo resp add link: ",
+                        "Topo resp update link: ") == true) {
+                sta_db_update_needed = true;
+            }
+        }
+    }
+
+    for (i = 0; i < dm->get_num_assoc_sta_mld(); i++) {
+        assoc_info = &dm->m_assoc_sta_mld[i].m_assoc_sta_mld_info;
+        db_sta = static_cast<dm_sta_t *>(hash_map_get_first(dm->m_sta_map));
+        while (db_sta != NULL) {
+            if (memcmp(db_sta->m_sta_info.id, assoc_info->mac_addr, sizeof(mac_address_t)) == 0
+                    && db_sta->m_sta_info.associated) {
+                in_new_set = false;
+                for (j = 0; j < assoc_info->num_affiliated_sta; j++) {
+                    if (memcmp(db_sta->m_sta_info.bssid, assoc_info->affiliated_sta[j].bssid,
+                            sizeof(mac_address_t)) == 0) {
+                        in_new_set = true;
+                        break;
+                    }
+                }
+                if (!in_new_set) {
+                    disassoc_info = db_sta->m_sta_info;
+                    disassoc_info.associated = false;
+                    disassoc_info.frame_body_len = 0;
+                    dm_easy_mesh_t::macbytes_to_string(disassoc_info.id, check_sta_str);
+                    dm_easy_mesh_t::macbytes_to_string(disassoc_info.bssid, check_bssid_str);
+                    dm_easy_mesh_t::macbytes_to_string(disassoc_info.radiomac, check_radio_str);
+                    snprintf(check_key, sizeof(em_long_string_t), "%s@%s@%s",
+                            check_sta_str, check_bssid_str, check_radio_str);
+
+                    queued_sta = static_cast<dm_sta_t *>(hash_map_get(dm->m_sta_assoc_map, check_key));
+                    if (queued_sta != NULL) {
+                        queued_sta->m_sta_info.associated = false;
+                        queued_sta->m_sta_info.frame_body_len = 0;
+                        memset(queued_sta->m_sta_info.frame_body, 0, sizeof(queued_sta->m_sta_info.frame_body));
+                        sta_db_update_needed = true;
+                        em_printfout("Topo resp stale link queued disassoc: %s", check_key);
+                    } else {
+                        hash_map_put(dm->m_sta_assoc_map, strdup(check_key), new dm_sta_t(&disassoc_info));
+                        sta_db_update_needed = true;
+                        em_printfout("Topo resp stale link disassoc: %s", check_key);
+                    }
+                }
+            }
+            db_sta = static_cast<dm_sta_t *>(hash_map_get_next(dm->m_sta_map, db_sta));
+        }
+    }
+
+    return sta_db_update_needed;
+}
 
 /* Extract N bytes (ignore endianess) */
 static inline void _EnB(uint8_t **packet_ppointer, void *memory_pointer, uint32_t n)
@@ -107,10 +382,11 @@ unsigned short em_configuration_t::create_client_assoc_event_tlv(unsigned char *
 
     for (i = 0; i < dm->get_num_assoc_sta_mld(); i++) {
         em_assoc_sta_mld_info_t& assoc_sta_mld_info = dm->m_assoc_sta_mld[i].m_assoc_sta_mld_info;
-        if (memcmp(assoc_sta_mld_info.mac_addr, sta, sizeof(mac_address_t) == 0)) {
+        if (memcmp(assoc_sta_mld_info.mac_addr, sta, sizeof(mac_address_t)) == 0) {
             found_assoc_sta_mld = true;
             memcpy(tmp, assoc_sta_mld_info.mac_addr, sizeof(mac_address_t));
             memcpy(tmp + sizeof(mac_address_t), assoc_sta_mld_info.ap_mld_mac_addr, sizeof(mac_address_t));
+            break;        
         }
     }
 
@@ -123,6 +399,300 @@ unsigned short em_configuration_t::create_client_assoc_event_tlv(unsigned char *
     len = 2*sizeof(mac_address_t) + sizeof(unsigned char);
 
     return len;
+}
+
+
+int em_configuration_t::send_client_disassoc_stats_msg(mac_address_t sta, bssid_t bssid)
+{
+    unsigned short  msg_type = em_msg_type_client_disassoc_stats;
+    char *errors[EM_MAX_TLV_MEMBERS] = {0};
+    unsigned int len = 0;
+    unsigned short sz;
+    em_cmdu_t *cmdu;
+    em_tlv_t *tlv;
+    unsigned char buff[MAX_EM_BUFF_SZ];
+    unsigned char *tmp = buff;
+    unsigned short type = htons(ETH_P_1905);
+    dm_easy_mesh_t *dm;
+    dm_sta_t *dassoc_sta = NULL;
+    em_assoc_sta_mld_info_t *mld_info = NULL;
+    unsigned int i, j;
+    mac_address_t logical_sta = {0};
+    unsigned short tlv_total_len;
+
+    dm = get_data_model();
+    memcpy(logical_sta, sta, sizeof(mac_address_t));
+
+    // Ethernet header: dst (controller AL MAC), src (agent AL MAC), EtherType
+    memcpy(tmp, dm->get_ctrl_al_interface_mac(), sizeof(mac_address_t));
+    tmp += sizeof(mac_address_t);
+    len += static_cast<unsigned int>(sizeof(mac_address_t));
+
+    memcpy(tmp, dm->get_agent_al_interface_mac(), sizeof(mac_address_t));
+    tmp += sizeof(mac_address_t);
+    len += static_cast<unsigned int>(sizeof(mac_address_t));
+
+    memcpy(tmp, reinterpret_cast<unsigned char *>(&type), sizeof(unsigned short));
+    tmp += sizeof(unsigned short);
+    len += static_cast<unsigned int>(sizeof(unsigned short));
+
+    // CMDU header
+    cmdu = reinterpret_cast<em_cmdu_t *>(tmp);
+    memset(tmp, 0, sizeof(em_cmdu_t));
+    cmdu->type = htons(msg_type);
+    cmdu->id = htons(get_mgr()->get_next_msg_id());
+    cmdu->last_frag_ind = 1;
+
+    tmp += sizeof(em_cmdu_t);
+    len += static_cast<unsigned int>(sizeof(em_cmdu_t));
+
+    // Resolve whether this STA belongs to an MLD client.
+    for (i = 0; i < dm->get_num_assoc_sta_mld(); i++) {
+        em_assoc_sta_mld_info_t &assoc_sta_mld_info = dm->m_assoc_sta_mld[i].m_assoc_sta_mld_info;
+        if (memcmp(assoc_sta_mld_info.mac_addr, sta, sizeof(mac_address_t)) == 0) {
+            mld_info = &assoc_sta_mld_info;
+            memcpy(logical_sta, assoc_sta_mld_info.mac_addr, sizeof(mac_address_t));
+            break;
+        }
+        for (j = 0; j < assoc_sta_mld_info.num_affiliated_sta; j++) {
+            if (memcmp(assoc_sta_mld_info.affiliated_sta[j].mac_addr, sta, sizeof(mac_address_t)) == 0) {
+                mld_info = &assoc_sta_mld_info;
+                memcpy(logical_sta, assoc_sta_mld_info.mac_addr, sizeof(mac_address_t));
+                break;
+            }
+        }
+        if (mld_info != NULL) {
+            break;
+        }
+    }
+
+    // Use BSSID for non-MLD lookup to avoid ambiguous STA matches.
+    dassoc_sta = em_cfg_find_dassoc_sta(dm, logical_sta, bssid, (mld_info == NULL));
+
+    // STA MAC Address Type TLV (17.2.23)
+    tlv = reinterpret_cast<em_tlv_t *>(tmp);
+    tlv->type = em_tlv_type_sta_mac_addr;
+    memcpy(tlv->value, logical_sta, sizeof(mac_address_t));
+    tlv->len = htons(sizeof(mac_address_t));
+
+    tmp += (sizeof(em_tlv_t) + sizeof(mac_address_t));
+    len += static_cast<unsigned int>(sizeof(em_tlv_t) + sizeof(mac_address_t));
+
+    // Reason Code TLV (17.2.64)
+    tlv = reinterpret_cast<em_tlv_t *>(tmp);
+    tlv->type = em_tlv_type_reason_code;
+    {
+        em_reason_code_t *rc = reinterpret_cast<em_reason_code_t *>(tlv->value);
+        unsigned short reason = (dassoc_sta != NULL) ? dassoc_sta->m_sta_info.reason_code : 1;
+        rc->reason_code = htons(reason);
+    }
+    sz = static_cast<unsigned short>(sizeof(em_reason_code_t));
+    tlv->len = htons(sz);
+
+    tmp += (sizeof(em_tlv_t) + sz);
+    len += static_cast<unsigned int>(sizeof(em_tlv_t) + sz);
+
+    // Associated STA Traffic Stats TLV (17.2.35)
+    tlv = reinterpret_cast<em_tlv_t *>(tmp);
+    tlv_total_len = em_cfg_create_assoc_sta_traffic_stats_tlv(tlv, logical_sta, dm, mld_info, dassoc_sta);
+    tmp += tlv_total_len;
+    len += static_cast<unsigned int>(tlv_total_len);
+
+    // Affiliated STA Metrics TLVs (17.2.100)
+    tlv_total_len = em_cfg_create_affiliated_sta_metrics_tlvs(tmp, dm, mld_info);
+    tmp += tlv_total_len;
+    len += static_cast<unsigned int>(tlv_total_len);
+
+    // End of message TLV
+    tlv = reinterpret_cast<em_tlv_t *>(tmp);
+    tlv->type = em_tlv_type_eom;
+    tlv->len = 0;
+
+    tmp += sizeof(em_tlv_t);
+    len += static_cast<unsigned int>(sizeof(em_tlv_t));
+
+    em_printfout("Client disassoc stats msg built, len=%u", len);
+
+    if (em_msg_t(em_msg_type_client_disassoc_stats, em_profile_type_3, buff, len).validate(errors) == 0) {
+        em_printfout("Client disassoc stats msg validation failed");
+        return -1;
+    }
+
+    if (send_frame(buff, len) < 0) {
+        em_printfout("Client disassoc stats send failed, err=%d", errno);
+        return -1;
+    }
+
+    em_printfout("Client disassoc stats sent");
+
+    return static_cast<int>(len);
+}
+
+int em_configuration_t::send_failed_connection_msg(mac_address_t sta, bssid_t bssid,
+                                                   unsigned short status_code,
+                                                   unsigned short reason_code)
+{
+    unsigned short msg_type = em_msg_type_failed_conn;
+    char *errors[EM_MAX_TLV_MEMBERS] = {0};
+    unsigned int len = 0;
+    unsigned short sz;
+    em_cmdu_t *cmdu;
+    em_tlv_t *tlv;
+    unsigned char buff[MAX_EM_BUFF_SZ];
+    unsigned char *tmp = buff;
+    unsigned short type = htons(ETH_P_1905);
+    dm_easy_mesh_t *dm = get_data_model();
+
+    if (dm == NULL) {
+        em_printfout("%s:%d: Data model is NULL", __func__, __LINE__);
+        return -1;
+    }
+
+    memcpy(tmp, dm->get_ctrl_al_interface_mac(), sizeof(mac_address_t));
+    tmp += sizeof(mac_address_t);
+    len += static_cast<unsigned int>(sizeof(mac_address_t));
+
+    memcpy(tmp, dm->get_agent_al_interface_mac(), sizeof(mac_address_t));
+    tmp += sizeof(mac_address_t);
+    len += static_cast<unsigned int>(sizeof(mac_address_t));
+
+    memcpy(tmp, reinterpret_cast<unsigned char *>(&type), sizeof(unsigned short));
+    tmp += sizeof(unsigned short);
+    len += static_cast<unsigned int>(sizeof(unsigned short));
+
+    cmdu = reinterpret_cast<em_cmdu_t *>(tmp);
+    memset(tmp, 0, sizeof(em_cmdu_t));
+    cmdu->type = htons(msg_type);
+    cmdu->id = htons(get_mgr()->get_next_msg_id());
+    cmdu->last_frag_ind = 1;
+
+    tmp += sizeof(em_cmdu_t);
+    len += static_cast<unsigned int>(sizeof(em_cmdu_t));
+
+    // BSSID TLV (17.2.74)
+    tlv = reinterpret_cast<em_tlv_t *>(tmp);
+    tlv->type = em_tlv_type_bssid;
+    tlv->len = htons(sizeof(mac_address_t));
+    memcpy(tlv->value, bssid, sizeof(mac_address_t));
+
+    tmp += (sizeof(em_tlv_t) + sizeof(mac_address_t));
+    len += static_cast<unsigned int>(sizeof(em_tlv_t) + sizeof(mac_address_t));
+
+    // STA MAC Address Type TLV (17.2.23)
+    tlv = reinterpret_cast<em_tlv_t *>(tmp);
+    tlv->type = em_tlv_type_sta_mac_addr;
+    tlv->len = htons(sizeof(mac_address_t));
+    memcpy(tlv->value, sta, sizeof(mac_address_t));
+
+    tmp += (sizeof(em_tlv_t) + sizeof(mac_address_t));
+    len += static_cast<unsigned int>(sizeof(em_tlv_t) + sizeof(mac_address_t));
+
+    // Status Code TLV (17.2.63)
+    tlv = reinterpret_cast<em_tlv_t *>(tmp);
+    tlv->type = em_tlv_type_status_code;
+    {
+        em_status_code_t *status = reinterpret_cast<em_status_code_t *>(tlv->value);
+        status->status_code = htons(status_code);
+    }
+    sz = static_cast<unsigned short>(sizeof(em_status_code_t));
+    tlv->len = htons(sz);
+
+    tmp += (sizeof(em_tlv_t) + sz);
+    len += static_cast<unsigned int>(sizeof(em_tlv_t) + sz);
+
+    // Reason Code TLV (17.2.64) is included only when Status Code is zero.
+    if (status_code == 0) {
+        tlv = reinterpret_cast<em_tlv_t *>(tmp);
+        tlv->type = em_tlv_type_reason_code;
+        {
+            em_reason_code_t *reason = reinterpret_cast<em_reason_code_t *>(tlv->value);
+            reason->reason_code = htons(reason_code);
+        }
+        sz = static_cast<unsigned short>(sizeof(em_reason_code_t));
+        tlv->len = htons(sz);
+
+        tmp += (sizeof(em_tlv_t) + sz);
+        len += static_cast<unsigned int>(sizeof(em_tlv_t) + sz);
+    }
+
+    // End of message TLV
+    tlv = reinterpret_cast<em_tlv_t *>(tmp);
+    tlv->type = em_tlv_type_eom;
+    tlv->len = 0;
+
+    tmp += sizeof(em_tlv_t);
+    len += static_cast<unsigned int>(sizeof(em_tlv_t));
+
+    if (em_msg_t(em_msg_type_failed_conn, em_profile_type_3, buff, len).validate(errors) == 0) {
+        em_printfout("%s:%d: Failed Connection msg validation failed", __func__, __LINE__);
+        return -1;
+    }
+
+    if (send_frame(buff, len) < 0) {
+        em_printfout("%s:%d: Failed Connection msg send failed, error:%d", __func__, __LINE__, errno);
+        return -1;
+    }
+
+    em_printfout("%s:%d: Failed Connection msg send success", __func__, __LINE__);
+    return static_cast<int>(len);
+}
+
+void em_configuration_t::handle_failed_connection_event(const mac_address_t sta,
+                                                       const bssid_t bssid,
+                                                       unsigned short status_code,
+                                                       unsigned short reason_code,
+                                                       bool reason_code_present)
+{
+    dm_easy_mesh_t *dm = get_data_model();
+    unsigned short max_rate;
+    unsigned short final_reason_code;
+    bssid_t bssid_copy = {0};
+    mac_address_t sta_copy = {0};
+    std::string sta_str;
+    std::string bssid_str;
+
+    if (dm == NULL) {
+        em_printfout("FailedConn: data model is NULL, skipping");
+        return;
+    }
+
+    em_device_info_t *device_info = dm->get_device_info();
+    if (device_info == NULL) {
+        em_printfout("FailedConn: device_info is NULL, skipping");
+        return;
+    }
+
+    if (device_info->report_unsuccess_assocs == false) {
+        //em_printfout("FailedConn: report_unsuccess_assocs=false, skipping");
+        return;
+    }
+
+    max_rate = device_info->max_unsuccessful_assoc_report_rate;
+    if (max_rate == 0) {
+        max_rate = device_info->max_reporting_rate;
+    }
+    em_printfout("FailedConn: max_rate=%u", max_rate);
+
+    if (!allow_failed_conn_report(max_rate)) {
+        em_printfout("FailedConn: rate limit reached (max_rate=%u per min), skipping", max_rate);
+        return;
+    }
+
+    final_reason_code = 1;
+    if ((status_code == 0) && reason_code_present && (reason_code != 0)) {
+        final_reason_code = reason_code;
+    }
+
+    sta_str = util::mac_to_string(sta);
+    bssid_str = util::mac_to_string(bssid);
+    em_printfout("FailedConn: send sta=%s bssid=%s status=%u reason=%u has_reason=%d",
+                 sta_str.c_str(), bssid_str.c_str(), status_code,
+                 final_reason_code, static_cast<int>(reason_code_present));
+
+    memcpy(sta_copy, sta, sizeof(mac_address_t));
+    memcpy(bssid_copy, bssid, sizeof(bssid_t));
+
+    send_failed_connection_msg(sta_copy, bssid_copy, status_code, final_reason_code);
 }
 
 int em_configuration_t::send_topology_notification_by_client(mac_address_t sta, bssid_t bssid, bool assoc)
@@ -212,6 +782,9 @@ void em_configuration_t::handle_state_topology_notify()
 {
     dm_easy_mesh_t *dm;
     dm_sta_t *sta;
+    int notif_ret;
+    int disassoc_stats_ret;
+    std::string sta_str;
 
     dm = get_current_cmd()->get_data_model();
 
@@ -224,8 +797,19 @@ void em_configuration_t::handle_state_topology_notify()
 
     sta = static_cast<dm_sta_t *> (hash_map_get_first(dm->m_sta_dassoc_map));
     while (sta != NULL) {
-        em_printfout("Sending topology notification for disassociated sta %s", util::mac_to_string(sta->m_sta_info.id).c_str());
-        send_topology_notification_by_client(sta->m_sta_info.id, sta->m_sta_info.bssid, false);
+            sta_str = util::mac_to_string(sta->m_sta_info.id);
+            notif_ret = send_topology_notification_by_client(sta->m_sta_info.id, sta->m_sta_info.bssid, false);
+            if (notif_ret >= 0) {
+                disassoc_stats_ret = send_client_disassoc_stats_msg(sta->m_sta_info.id, sta->m_sta_info.bssid);
+
+                if (disassoc_stats_ret >= 0) {
+                    dm->remove_assoc_sta_mld_info(sta->m_sta_info.id);
+                } else {
+                    em_printfout("topo notification: stats send failed for sta=%s", sta_str.c_str());
+                }
+            } else {
+                em_printfout("topo notification: disassoc notif failed for sta=%s", sta_str.c_str());
+            }
         sta = static_cast<dm_sta_t *> (hash_map_get_next(dm->m_sta_dassoc_map, sta));
     }
     set_state(em_state_agent_configured);
@@ -726,6 +1310,7 @@ int em_configuration_t::create_assoc_sta_mld_config_report_tlv(unsigned char *bu
         tlv->type = em_tlv_type_assoc_sta_mld_conf_rep;
 
         assoc_sta_mld = reinterpret_cast<em_assoc_sta_mld_t *>(tlv->value);
+        memset(assoc_sta_mld, 0, sizeof(em_assoc_sta_mld_t));
 
         em_assoc_sta_mld_info_t &assoc_sta_mld_info = dm->m_assoc_sta_mld[i].m_assoc_sta_mld_info;
         memcpy(assoc_sta_mld->sta_mld_mac_addr, assoc_sta_mld_info.mac_addr, sizeof(mac_address_t));
@@ -740,6 +1325,7 @@ int em_configuration_t::create_assoc_sta_mld_config_report_tlv(unsigned char *bu
 
         for (j = 0; j < assoc_sta_mld->num_affiliated_sta; j++) {
             em_affiliated_sta_info_t &affiliated_sta_info = assoc_sta_mld_info.affiliated_sta[j];
+            memset(affiliated_sta_mld, 0, sizeof(em_affiliated_sta_mld_t));
             memcpy(affiliated_sta_mld->bssid, affiliated_sta_info.bssid, sizeof(mac_address_t));
             memcpy(affiliated_sta_mld->affiliated_sta_mac_addr, affiliated_sta_info.mac_addr, sizeof(mac_address_t));
 
@@ -776,6 +1362,8 @@ int em_configuration_t::create_vendor_operational_bss_tlv(unsigned char *buff)
 	printf("first tlv_len in em_configuration_t::create_custom_operational_bss_tlv = %d\n",tlv_len);
 	ap = reinterpret_cast<em_ap_vendor_op_bss_t *> (tlv->value);
 	ap->radios_num = dm->get_num_radios();
+    /* Include em_ap_vendor_op_bss_t header (radios_num) in TLV payload length. */
+    tlv_len = static_cast<unsigned short>(sizeof(em_ap_vendor_op_bss_t));
 	radio = ap->radios;
     for (radio_index = 0; radio_index < dm->get_num_radios(); radio_index++) {
         memcpy(radio->ruid, dm->get_radio_by_ref(radio_index).get_radio_interface_mac(), sizeof(mac_address_t));
@@ -852,6 +1440,7 @@ void em_configuration_t::handle_ap_vendor_operational_bss(unsigned char *value, 
 			dm_bss = dm->get_bss(radio->ruid, bss->bssid);
 			if (dm_bss == NULL) {
 				dm_bss = &dm->m_bss[dm->m_num_bss];
+				dm_bss->init();
 				dm->set_num_bss(dm->get_num_bss() + 1);
 			}
 			// fill up id first
@@ -1460,6 +2049,7 @@ int em_configuration_t::handle_ap_operational_bss(unsigned char *buff, unsigned 
 		
 			if (dm_bss == NULL) {
 				dm_bss = &dm->m_bss[dm->m_num_bss];
+				dm_bss->init();
 
 				// fill up id first
 				strncpy(dm_bss->m_bss_info.id.net_id, dm->m_device.m_device_info.id.net_id, sizeof(em_long_string_t));
@@ -1519,6 +2109,16 @@ int em_configuration_t::handle_topology_notification(unsigned char *buff, unsign
     em_client_assoc_event_t *assoc_evt_tlv;
     em_sta_info_t sta_info;
     em_bus_event_type_client_assoc_params_t    raw;
+    bool updated_any = false;
+    bool assoc_event;
+    unsigned int mld_i, aff_j, r;
+    em_assoc_sta_mld_info_t *assoc_info = NULL;
+    em_sta_info_t link_sta;
+    dm_bss_t *aff_bss = NULL;
+    mac_addr_str_t b_str, r_str;
+    em_long_string_t link_key;
+    dm_sta_t *assoc_row = NULL;
+    dm_sta_t *sta_row = NULL;
     char *errors[EM_MAX_TLV_MEMBERS] = {0};
 
 	dm = get_data_model();
@@ -1556,24 +2156,99 @@ int em_configuration_t::handle_topology_notification(unsigned char *buff, unsign
             dm_easy_mesh_t::macbytes_to_string(assoc_evt_tlv->bssid, bssid_str);
             dm_easy_mesh_t::macbytes_to_string(get_radio_interface_mac(), radio_mac_str);
             snprintf(key, sizeof(em_long_string_t), "%s@%s@%s", sta_mac_str, bssid_str, radio_mac_str);
+            assoc_event = assoc_evt_tlv->assoc_event;
 
             //em_printfout("Client Device:%s %s to BSSID: %s\n", sta_mac_str,
             //        (assoc_evt_tlv->assoc_event == 1)?"associated":"disassociated", bssid_str);
-            if ((assoc_evt_tlv->assoc_event == false)) {
-                //if disassoc, update db with thi sta_info info
-                memset(&sta_info, 0, sizeof(em_sta_info_t));
-                memcpy(sta_info.id, assoc_evt_tlv->cli_mac_address, sizeof(mac_address_t));
-                memcpy(sta_info.bssid, assoc_evt_tlv->bssid, sizeof(mac_address_t));
-                memcpy(sta_info.radiomac, get_radio_interface_mac(), sizeof(mac_address_t));
-                sta_info.associated = assoc_evt_tlv->assoc_event;
-
-                hash_map_put(dm->m_sta_assoc_map, strdup(key), new dm_sta_t(&sta_info));
-
-                dm->set_db_cfg_param(db_cfg_type_sta_list_update, "");
-                //em_printfout("Client updated to db: %s", key);
+            if (assoc_event == false) {
+                em_printfout("topo notification disassoc: sta=%s bssid=%s key=%s",
+                        util::mac_to_string(assoc_evt_tlv->cli_mac_address).c_str(),
+                        util::mac_to_string(assoc_evt_tlv->bssid).c_str(), key);
             }
+            memset(&sta_info, 0, sizeof(em_sta_info_t));
+            memcpy(sta_info.id, assoc_evt_tlv->cli_mac_address, sizeof(mac_address_t));
+            memcpy(sta_info.bssid, assoc_evt_tlv->bssid, sizeof(mac_address_t));
+            memcpy(sta_info.radiomac, get_radio_interface_mac(), sizeof(mac_address_t));
+            sta_info.associated = assoc_event;
+
+            if (assoc_event == false) {
+                updated_any = false;
+
+                for (mld_i = 0; mld_i < dm->get_num_assoc_sta_mld(); mld_i++) {
+                    assoc_info = &dm->m_assoc_sta_mld[mld_i].m_assoc_sta_mld_info;
+                    if (memcmp(assoc_info->mac_addr, sta_info.id, sizeof(mac_address_t)) != 0) {
+                        continue;
+                    }
+                    for (aff_j = 0; aff_j < assoc_info->num_affiliated_sta; aff_j++) {
+                        bool link_radio_resolved = false;
+                        memset(&link_sta, 0, sizeof(em_sta_info_t));
+                        memcpy(link_sta.id, sta_info.id, sizeof(mac_address_t));
+                        memcpy(link_sta.bssid, assoc_info->affiliated_sta[aff_j].bssid, sizeof(mac_address_t));
+                        link_sta.associated = false;
+
+                        aff_bss = NULL;
+                        for (r = 0; r < dm->get_num_radios(); r++) {
+                            aff_bss = dm->get_bss(dm->get_radio_info(r)->id.ruid, link_sta.bssid);
+                            if (aff_bss != NULL) {
+                                memcpy(link_sta.radiomac, aff_bss->m_bss_info.ruid.mac, sizeof(mac_address_t));
+                                link_radio_resolved = true;
+                                break;
+                            }
+                        }
+
+                        if (link_radio_resolved == false) {
+                            em_printfout("TOPO_NOTIF_DISASSOC: skipping unresolved affiliated link sta=%s bssid=%s",
+                                    util::mac_to_string(link_sta.id).c_str(),
+                                    util::mac_to_string(link_sta.bssid).c_str());
+                            continue;
+                        }
+
+                        dm_easy_mesh_t::macbytes_to_string(link_sta.bssid, b_str);
+                        dm_easy_mesh_t::macbytes_to_string(link_sta.radiomac, r_str);
+                        snprintf(link_key, sizeof(em_long_string_t), "%s@%s@%s", sta_mac_str, b_str, r_str);
+
+                        assoc_row = static_cast<dm_sta_t *>(hash_map_get(dm->m_sta_assoc_map, link_key));
+                        if (assoc_row != NULL) {
+                            assoc_row->m_sta_info.associated = false;
+                            assoc_row->m_sta_info.frame_body_len = 0;
+                            memset(assoc_row->m_sta_info.frame_body, 0, sizeof(assoc_row->m_sta_info.frame_body));
+                        } else {
+                            hash_map_put(dm->m_sta_assoc_map, strdup(link_key), new dm_sta_t(&link_sta));
+                        }
+
+                        sta_row = static_cast<dm_sta_t *>(hash_map_get(dm->m_sta_map, link_key));
+                        if (sta_row != NULL) {
+                            sta_row->m_sta_info.associated = false;
+                            sta_row->m_sta_info.frame_body_len = 0;
+                            memset(sta_row->m_sta_info.frame_body, 0, sizeof(sta_row->m_sta_info.frame_body));
+                        }
+
+                        em_printfout("topo notification disassoc key=%s", link_key);
+                        updated_any = true;
+                    }
+                    break;
+                }
+
+                if (updated_any) {
+                    dm->set_db_cfg_param(db_cfg_type_sta_list_update, "");
+                } else {
+                    em_printfout("topo notification disassoc: no MLD info for sta=%s",
+                            util::mac_to_string(sta_info.id).c_str());
+                }
+            } else {
+                em_printfout("topo notification assoc defer: sta=%s bssid=%s",
+                        util::mac_to_string(sta_info.id).c_str(),
+                        util::mac_to_string(sta_info.bssid).c_str());
+            }
+
             memcpy(raw.dev, dev_mac, sizeof(mac_address_t));
             memcpy(reinterpret_cast<unsigned char *> (&raw.assoc), reinterpret_cast<unsigned char *> (assoc_evt_tlv), sizeof(em_client_assoc_event_t));
+            if (assoc_event == false) {
+                em_printfout("topo notification disassoc: dispatch dev=%s sta=%s bssid=%s assoc=%d",
+                        util::mac_to_string(dev_mac).c_str(),
+                        util::mac_to_string(assoc_evt_tlv->cli_mac_address).c_str(),
+                        util::mac_to_string(assoc_evt_tlv->bssid).c_str(), assoc_evt_tlv->assoc_event);
+            }
             get_mgr()->io_process(em_bus_event_type_sta_assoc, reinterpret_cast<unsigned char *> (&raw), sizeof(em_bus_event_type_client_assoc_params_t));
             break;
         }
@@ -1594,6 +2269,8 @@ int em_configuration_t::handle_topology_response(unsigned char *buff, unsigned i
     bool found_op_bss = false;
     bool found_profile = false;
     bool found_bss_config_rprt = false;
+    bool found_ap_mld = false;
+    unsigned int assoc_sta_mld_count = 0;
     em_profile_type_t profile = em_profile_type_reserved;
 	dm_easy_mesh_t *dm;
     em_raw_hdr_t *hdr = reinterpret_cast<em_raw_hdr_t *>(buff);
@@ -1711,8 +2388,6 @@ int em_configuration_t::handle_topology_response(unsigned char *buff, unsigned i
         }
     }
 
-
-    bool found_ap_mld = false;
     while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
         if (tlv->type != em_tlv_type_ap_mld_config) {
             tmp_len -= static_cast<unsigned int> (sizeof(em_tlv_t) + htons(tlv->len));
@@ -1731,6 +2406,26 @@ int em_configuration_t::handle_topology_response(unsigned char *buff, unsigned i
         handle_ap_mld_config_tlv(tlv->value, htons(tlv->len));
     }
     em_printfout("No of AP MLDs: %d", dm->m_num_ap_mld);
+
+    // Parse Associated STA MLD Configuration Report TLVs.
+    tlv = reinterpret_cast<em_tlv_t *>(buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+    tmp_len = len - static_cast<unsigned int>(sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+    assoc_sta_mld_count = 0;
+    while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
+        if (tlv->type == em_tlv_type_assoc_sta_mld_conf_rep) {
+            em_printfout("Found Assoc STA MLD Configuration Report TLV #%u", assoc_sta_mld_count);
+            handle_assoc_sta_mld_conf_rep_tlv(tlv->value, htons(tlv->len));
+            assoc_sta_mld_count++;
+        }
+        tmp_len -= static_cast<unsigned int>(sizeof(em_tlv_t) + htons(tlv->len));
+        tlv = reinterpret_cast<em_tlv_t *>(reinterpret_cast<unsigned char *>(tlv) + sizeof(em_tlv_t) + htons(tlv->len));
+    }
+    em_printfout("Total Assoc STA MLD TLVs parsed: %u, m_num_assoc_sta_mld=%u",
+        assoc_sta_mld_count, dm->m_num_assoc_sta_mld);
+
+    if (em_cfg_handle_assoc_sta_mld_topology_updates(dm) == true) {
+        dm->set_db_cfg_param(db_cfg_type_sta_list_update, "");
+    }
 
     em_printfout("Src al mac: " MACSTRFMT, MAC2STR(src_al_mac));
 
@@ -1776,6 +2471,81 @@ int em_configuration_t::handle_topology_response(unsigned char *buff, unsigned i
 int em_configuration_t::handle_ack_msg(unsigned char *buff, unsigned int len)
 {
     set_state(em_state_ctrl_ap_mld_req_ack_rcvd);
+    return 0;
+}
+
+
+int em_configuration_t::handle_assoc_sta_mld_conf_rep_tlv(unsigned char *buff, unsigned int len)
+{
+    em_assoc_sta_mld_t *assoc_sta_mld;
+    em_affiliated_sta_mld_t *affiliated_sta_mld;
+    em_assoc_sta_mld_info_t assoc_sta_mld_info;
+    dm_easy_mesh_t *dm;
+    unsigned int j;
+    unsigned int affiliated_payload_len;
+    unsigned int max_affiliated_in_tlv;
+    unsigned int reported_affiliated_count;
+
+    dm = get_data_model();
+
+    if (buff == NULL || len < sizeof(em_assoc_sta_mld_t)) {
+        em_printfout("Invalid assoc STA MLD TLV: buff=%p len=%u", buff, len);
+        return -1;
+    }
+
+    assoc_sta_mld = reinterpret_cast<em_assoc_sta_mld_t *>(buff);
+
+    memset(&assoc_sta_mld_info, 0, sizeof(em_assoc_sta_mld_info_t));
+
+    memcpy(assoc_sta_mld_info.mac_addr, assoc_sta_mld->sta_mld_mac_addr, sizeof(mac_address_t));
+    memcpy(assoc_sta_mld_info.ap_mld_mac_addr, assoc_sta_mld->ap_mld_mac_addr, sizeof(mac_address_t));
+    assoc_sta_mld_info.str   = assoc_sta_mld->str;
+    assoc_sta_mld_info.nstr  = assoc_sta_mld->nstr;
+    assoc_sta_mld_info.emlsr = assoc_sta_mld->emlsr;
+    assoc_sta_mld_info.emlmr = assoc_sta_mld->emlmr;
+
+    affiliated_payload_len = len - static_cast<unsigned int>(sizeof(em_assoc_sta_mld_t));
+    max_affiliated_in_tlv = affiliated_payload_len /
+        static_cast<unsigned int>(sizeof(em_affiliated_sta_mld_t));
+    reported_affiliated_count = assoc_sta_mld->num_affiliated_sta;
+
+    if (reported_affiliated_count > max_affiliated_in_tlv) {
+        em_printfout("Malformed assoc STA MLD TLV: num_affiliated_sta=%u exceeds payload capacity=%u (len=%u)",
+            reported_affiliated_count, max_affiliated_in_tlv, len);
+    }
+
+    assoc_sta_mld_info.num_affiliated_sta = static_cast<unsigned char>(
+        std::min(static_cast<unsigned int>(EM_MAX_AP_MLD),
+                 std::min(reported_affiliated_count, max_affiliated_in_tlv)));
+
+    affiliated_sta_mld = assoc_sta_mld->affiliated_sta_mld;
+    for (j = 0; j < assoc_sta_mld_info.num_affiliated_sta; j++) {
+        memcpy(assoc_sta_mld_info.affiliated_sta[j].bssid,
+               affiliated_sta_mld->bssid, sizeof(mac_address_t));
+        memcpy(assoc_sta_mld_info.affiliated_sta[j].mac_addr,
+               affiliated_sta_mld->affiliated_sta_mac_addr, sizeof(mac_address_t));
+        affiliated_sta_mld = reinterpret_cast<em_affiliated_sta_mld_t *>(
+            reinterpret_cast<unsigned char *>(affiliated_sta_mld) + sizeof(em_affiliated_sta_mld_t));
+    }
+
+    em_printfout("Parsed assoc STA MLD: sta_mld_mac=%s ap_mld_mac=%s str=%d nstr=%d emlsr=%d emlmr=%d num_affiliated_sta=%u",
+        util::mac_to_string(assoc_sta_mld_info.mac_addr).c_str(),
+        util::mac_to_string(assoc_sta_mld_info.ap_mld_mac_addr).c_str(),
+        assoc_sta_mld_info.str, assoc_sta_mld_info.nstr,
+        assoc_sta_mld_info.emlsr, assoc_sta_mld_info.emlmr,
+        assoc_sta_mld_info.num_affiliated_sta);
+
+    for (j = 0; j < assoc_sta_mld_info.num_affiliated_sta; j++) {
+        em_printfout("affiliated_sta[%u]: bssid=%s mac_addr=%s", j,
+            util::mac_to_string(assoc_sta_mld_info.affiliated_sta[j].bssid).c_str(),
+            util::mac_to_string(assoc_sta_mld_info.affiliated_sta[j].mac_addr).c_str());
+    }
+
+    // Replace existing STA-MLD row to avoid stale affiliated links.
+    dm->remove_assoc_sta_mld_info(assoc_sta_mld_info.mac_addr);
+    dm->update_assoc_sta_mld_info(&assoc_sta_mld_info);
+
+    em_printfout("Updated controller DM assoc STA MLD, m_num_assoc_sta_mld=%u", dm->m_num_assoc_sta_mld);
     return 0;
 }
 
@@ -1878,45 +2648,6 @@ int em_configuration_t::handle_ap_mld_config_resp(unsigned char *buff, unsigned 
 {
     printf("%s:%d Received AP MLD configuration response\n",__func__, __LINE__);
     return 0;
-}
-
-unsigned short em_configuration_t::create_traffic_separation_policy(unsigned char *buff)
-{
-    unsigned short len = 0;
-    unsigned int i;
-    dm_easy_mesh_t *dm = get_data_model();
-    dm_network_ssid_t *net_ssid;
-    unsigned char *tmp = buff;
-
-    // get total ssid count
-    unsigned char ssids_num = dm->get_num_network_ssid();
-    *tmp = static_cast<unsigned char>(ssids_num);
-    tmp += sizeof(unsigned char);
-    len += sizeof(unsigned char);
-
-    for (i = 0; i < ssids_num; i++) {
-        net_ssid = dm->get_network_ssid(i);
-
-        std::vector<unsigned char> ssid_bytes(net_ssid->m_network_ssid_info.ssid, 
-                    net_ssid->m_network_ssid_info.ssid + strlen(net_ssid->m_network_ssid_info.ssid));
-        unsigned char ssid_len = static_cast<unsigned char>(ssid_bytes.size());
-
-        *tmp = ssid_len;
-        tmp += sizeof(unsigned char);
-        len += sizeof(unsigned char);
-
-        memcpy(tmp, ssid_bytes.data(), ssid_len);
-        tmp += ssid_len;
-        len += ssid_len;
-
-        unsigned short vlan_n = htons(net_ssid->m_network_ssid_info.vlan_id);
-        memcpy(tmp, &vlan_n, sizeof(vlan_n));
-        tmp += sizeof(unsigned short);
-        len += sizeof(unsigned short);
-	    em_printfout(" TRAFFIC SEPARATION SSID='%.*s' Len=%u, VLAN=%u ",ssid_len,ssid_bytes.data(), ssid_len, net_ssid->m_network_ssid_info.vlan_id);
-    }
-    em_printfout("Length: %d ", len);
-    return len;
 }
 
 unsigned short em_configuration_t::create_m2_msg(unsigned char *buff, em_haul_type_t haul_type)
@@ -2781,7 +3512,7 @@ int em_configuration_t::create_bss_config_rsp_msg(uint8_t *buff, uint8_t dest_al
     tmp = em_msg_t::add_tlv(tmp, &len, em_tlv_type_dflt_8021q_settings, tlv_buff, sizeof(em_8021q_settings_t));
 
     // Zero or One traffic separation policy tlv 17.2.50
-    tlv_size = create_traffic_separation_policy(tlv_buff); // Data
+    tlv_size = create_traffic_separation_policy_tlv(tlv_buff); // Data
     tmp = em_msg_t::add_tlv(tmp, &len, em_tlv_type_traffic_separation_policy, tlv_buff, static_cast<unsigned int> (tlv_size));
 
     // Zero or one Agent AP MLD Configuration TLV (see section 17.2.96)
@@ -3238,24 +3969,6 @@ int em_configuration_t::create_autoconfig_wsc_m2_msg(unsigned char *buff, unsign
         return 0;
     }
 
-    // default 8022.1q settings tlv 17.2.49
-    tlv = reinterpret_cast<em_tlv_t *> (tmp);
-    tlv->type = em_tlv_type_dflt_8021q_settings;
-    tlv->len = htons(sizeof(em_8021q_settings_t));
-    memset(tlv->value, 0, sizeof(tlv->len));
-
-    tmp += (sizeof(em_tlv_t) + sizeof(em_8021q_settings_t));
-    len += static_cast<int> (sizeof(em_tlv_t) + sizeof(em_8021q_settings_t));
-
-    // traffic separation policy tlv 17.2.50 
-    // tlv = reinterpret_cast<em_tlv_t *> (tmp);
-    // tlv->type = em_tlv_type_traffic_separation_policy;
-    // sz = static_cast<short unsigned int> (create_traffic_separation_policy(tlv->value));
-    // tlv->len = htons(sz);
-
-    // tmp += (sizeof(em_tlv_t) + sz);
-    // len += static_cast<int> (sizeof(em_tlv_t) + sz);
-
     // ap mld tlv 17.2.96
     tlv =reinterpret_cast<em_tlv_t *> (tmp);
     tlv->type = em_tlv_type_ap_mld_config;
@@ -3606,7 +4319,7 @@ int em_configuration_t::handle_wsc_m1(unsigned char *buff, unsigned int len)
     unsigned int tmp_len;
     unsigned short id;
     mac_addr_str_t mac_str;
-    em_device_info_t    dev_info;
+    em_device_info_t    dev_info = {};
     dm_easy_mesh_t *dm;
     em_freq_band_t  band;
     dm_radio_t *radio;
@@ -5053,16 +5766,21 @@ int em_configuration_t::handle_autoconfig_resp(unsigned char *buff, unsigned int
     }
 
     printf("Received resp and validated...creating M1 msg\n");
-    sz = static_cast<unsigned int> (create_autoconfig_wsc_m1_msg(msg, hdr->src));
+    int msg_len = create_autoconfig_wsc_m1_msg(msg, hdr->src);
+    if (msg_len < 0) {
+        em_printfout("Error: Failed to create autoconfig wsc m1 msg");
+        return -1;
+    }
+    sz = static_cast<unsigned int>(msg_len);
 
     if (em_msg_t(em_msg_type_autoconf_wsc, em_profile_type_3, msg, sz).validate(errors) == 0) {
-        printf("autoconfig wsc m1 validation failed\n");
+        em_printfout("Error: autoconfig wsc m1 validation failed");
 
         return -1;
     }
 
     if (send_frame(msg, sz)  < 0) {
-        printf("%s:%d: autoconfig wsc m1 send failed, error:%d\n", __func__, __LINE__, errno);
+        em_printfout("Error: autoconfig wsc m1 send failed, error:%d", errno);
 
         return -1;
     }
@@ -5114,19 +5832,24 @@ int em_configuration_t::handle_autoconfig_search(unsigned char *buff, unsigned i
         return ec_mgr.handle_autoconf_chirp(reinterpret_cast<em_dpp_chirp_value_t*>(dpp_chirp_tlv->value), SWAP_LITTLE_ENDIAN(dpp_chirp_tlv->len), al_mac, ntohs(cmdu->id));
     }
     
-    sz = static_cast<unsigned int> (create_autoconfig_resp_msg(msg, band, al_mac, ntohs(cmdu->id)));
+    int msg_len = create_autoconfig_resp_msg(msg, band, al_mac, ntohs(cmdu->id));
+    if (msg_len < 0) {
+        em_printfout("Error: Failed to create autoconfig response msg");
+        return -1;
+    }
+    sz = static_cast<unsigned int>(msg_len);
     if (em_msg_t(em_msg_type_autoconf_resp, em_profile_type_3, msg, sz).validate(errors) == 0) {
-        printf("%s:%d: autoconfig rsp validation failed\n", __func__, __LINE__);
+        em_printfout("Error: autoconfig rsp validation failed");
 
         //return -1;
     }
 
     if (send_frame(msg, sz)  < 0) {
-        printf("%s:%d: autoconfig rsp send failed, error:%d\n", __func__, __LINE__, errno);
+        em_printfout("Error: autoconfig rsp send failed, error:%d", errno);
 
         return -1;
     }
-    printf("%s:%d: autoconfig rsp send success\n", __func__, __LINE__);
+    em_printfout("autoconfig rsp send success");
 
     if (!get_is_dpp_onboarding()) {
         set_state(em_state_ctrl_wsc_m1_pending);
@@ -5276,6 +5999,12 @@ void em_configuration_t::process_msg(unsigned char *data, unsigned int len)
                 handle_topology_notification(data, len);
             }
             break;
+
+        case em_msg_type_failed_conn:
+            if (get_service_type() == em_service_type_ctrl) {
+                em_printfout("Received failed connection message from agent src_al_mac:%s", util::mac_to_string(src_al_mac).c_str());
+            }
+            break;
         
         case em_msg_type_ap_mld_config_req:
             if ((get_service_type() == em_service_type_agent)) {
@@ -5344,20 +6073,25 @@ void em_configuration_t::handle_state_config_none()
     unsigned char buff[MAX_EM_BUFF_SZ];
     unsigned int sz;
     char* errors[EM_MAX_TLV_MEMBERS] = {0};
-
-    sz = static_cast<unsigned int> (create_autoconfig_search_msg(buff));
+    int len = create_autoconfig_search_msg(buff);
+    if (len < 0) {
+        em_printfout("Error: Failed to create autoconfig_search msg");
+        return;
+    }
+    sz = static_cast<unsigned int>(len);
     if (em_msg_t(em_msg_type_autoconf_search, em_profile_type_3, buff, sz).validate(errors) == 0) {
-        printf("Autoconfig_search validation failed\n");
+        em_printfout("Error: Autoconfig_search validation failed");
 
         return;
     }
 
     if (send_frame(buff, sz, true)  < 0) {
-        printf("%s:%d: failed, err:%d\n", __func__, __LINE__, errno);
+        em_printfout("Error: failed, err:%d\n", errno);
         return;
     }
     em_printf("autoconfig_search send successful");
-    printf("%s:%d: autoconfig_search send successful\n", __func__, __LINE__);
+    em_printfout("autoconfig_search send successful");
+
     set_state(em_state_agent_autoconfig_rsp_pending);
 
     return;
@@ -5373,18 +6107,23 @@ void em_configuration_t::handle_state_autoconfig_renew()
 
 
     memcpy(ctrl_src, get_current_cmd()->get_data_model()->get_controller_interface_mac(), sizeof(mac_address_t));
-    sz = static_cast<unsigned int> (create_autoconfig_wsc_m1_msg(msg, ctrl_src));
+    int msg_len = create_autoconfig_wsc_m1_msg(msg, ctrl_src);
+    if (msg_len < 0) {
+        em_printfout("Error: Failed to create autoconfig wsc m1 msg");
+        return ;
+    }
+    sz = static_cast<unsigned int>(msg_len);
 
     if (em_msg_t(em_msg_type_autoconf_wsc, em_profile_type_3, msg, sz).validate(errors) == 0) {
-        printf("autoconfig wsc m1 validation failed\n");
+        em_printfout("Error: autoconfig wsc m1 validation failed");
         return ;
     }
 
     if (send_frame(msg, sz)  < 0) {
-        printf("%s:%d: autoconfig wsc m1 send failed, error:%d\n", __func__, __LINE__, errno);
+        em_printfout("Error: autoconfig wsc m1 send failed, error:%d", errno);
         return ;
     }
-    printf("%s:%d: autoconfig wsc m1 send success\n", __func__, __LINE__);
+    em_printfout("autoconfig wsc m1 send success");
     set_state(em_state_agent_wsc_m2_pending);
 
     return ;

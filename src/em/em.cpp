@@ -47,7 +47,6 @@
 #include <sys/types.h>
 #include <ifaddrs.h>
 #include "em.h"
-#include "em_mgr.h"
 #include "em_cmd.h"
 #include "em_cmd_exec.h"
 #include "util.h"
@@ -78,30 +77,6 @@ ec_manager_t &em_t::get_ec_mgr()
         throw std::runtime_error("ec_manager_t is not initialized");
     }
     return *m_ec_manager;
-}
-
-void em_t::set_state(em_state_t state)
-{
-    if(m_sm.get_state() != state) {
-        m_sm.set_state(state);
-        // signal protocol handler to run after state change
-        em_event_t *evt = static_cast<em_event_t *>(malloc(sizeof(em_event_t)));
-        if (evt != NULL) {
-            evt->type = em_event_type_orch;
-            push_to_queue(evt);
-        } else {
-            em_printfout("Failed to allocate protocol handler event");
-        }
-
-        // signal orchestration handler to check if any orchestration changes needed after state change
-        evt = static_cast<em_event_t *>(malloc(sizeof(em_event_t)));
-        if (evt != NULL) {
-            evt->type = em_event_type_orch;
-            m_mgr->push_to_queue(evt);
-        } else {
-            em_printfout("Failed to allocate orchestration handler event");
-        }
-    }
 }
 
 void em_t::orch_execute(em_cmd_t *pcmd)
@@ -200,7 +175,11 @@ void em_t::orch_execute(em_cmd_t *pcmd)
             m_sm.set_state(em_state_agent_onewifi_bssconfig_ind);
             break;
         case em_cmd_type_sta_assoc:
-            if ((pcmd->get_orch_op() == dm_orch_type_topo_publish) && (m_sm.get_state() == em_state_ctrl_configured)) {
+            if ((pcmd->get_orch_op() == dm_orch_type_topo_sync) && (m_sm.get_state() == em_state_ctrl_configured)) {
+                m_sm.set_state(em_state_ctrl_topo_sync_pending);
+            } else if ((pcmd->get_orch_op() == dm_orch_type_sta_cap) && (m_sm.get_state() == em_state_ctrl_configured)) {
+                m_sm.set_state(em_state_ctrl_sta_cap_pending);
+            } else if (pcmd->get_orch_op() == dm_orch_type_topo_publish) {
                 m_sm.set_state(em_state_ctrl_topo_publish_pending);
             } else {
                 m_sm.set_state(em_state_ctrl_sta_cap_pending);
@@ -245,7 +224,7 @@ void em_t::orch_execute(em_cmd_t *pcmd)
             break;
 
 		case em_cmd_type_set_policy:
-            set_state(em_state_ctrl_set_policy_pending);
+            m_sm.set_state(em_state_ctrl_set_policy_pending);
             break;
 
         case em_cmd_type_avail_spectrum_inquiry:
@@ -312,6 +291,7 @@ void em_t::proto_process(unsigned char *data, unsigned int len)
         case em_msg_type_topo_resp:
         case em_msg_type_topo_query:
         case em_msg_type_topo_notif:
+        case em_msg_type_failed_conn:
         case em_msg_type_ap_mld_config_req:
         case em_msg_type_ap_mld_config_resp:
         case em_msg_type_bss_config_req:
@@ -402,8 +382,26 @@ void em_t::proto_process(em_cmd_event_t *cevt)
             em_cmd_t *ap_cmd = static_cast<em_cmd_t*>(cevt->cmd_ptr);
             m_cmd = ap_cmd;
             em_metrics_t::process_agent_state(em_cmd_event_type_ap_metrics_report);
+            if (ap_cmd != NULL) {
+                ap_cmd->deinit();
+            }
             delete ap_cmd;
             m_cmd = saved_cmd;
+            break;
+        }
+        case em_cmd_event_type_failed_connection:
+        {
+            em_connection_status_evt_data_t *failed_conn_evt =
+                static_cast<em_connection_status_evt_data_t *>(cevt->cmd_ptr);
+
+            if (failed_conn_evt != NULL) {
+                handle_failed_connection_event(failed_conn_evt->sta_mac, failed_conn_evt->bssid,
+                                               failed_conn_evt->status_code,
+                                               failed_conn_evt->reason_code,
+                                               failed_conn_evt->reason_code_present);
+                free(failed_conn_evt);
+                cevt->cmd_ptr = NULL;
+            }
             break;
         }
         default:
@@ -613,12 +611,6 @@ void em_t::proto_run()
                     em_cmd_event_t cevnt;
                     memcpy(&cevnt, &evt->u.cevt, sizeof(cevnt)); // safe copy
                     proto_process(&cevnt); // pass pointer
-                } else if (evt->type == em_event_type_orch) {
-                    if (m_service_type == em_service_type_agent) {
-                        handle_agent_state();
-                    } else if (m_service_type == em_service_type_ctrl) {
-                        handle_ctrl_state();
-                    }
                 }
                 free(evt);
                 pthread_mutex_lock(&m_iq.lock);
@@ -1214,6 +1206,61 @@ short em_t::create_ht_tlv(unsigned char *buff)
     return len;
 }
 
+static uint16_t variant_to_airties_standards(wifi_ieee80211Variant_t current_variant)
+{
+    uint16_t std = 0;
+
+    if (current_variant & WIFI_80211_VARIANT_A)  std |= (1 << 15);
+    if (current_variant & WIFI_80211_VARIANT_B)  std |= (1 << 14);
+    if (current_variant & WIFI_80211_VARIANT_G)  std |= (1 << 13);
+    if (current_variant & WIFI_80211_VARIANT_N)  std |= (1 << 12);
+    if (current_variant & WIFI_80211_VARIANT_AC) std |= (1 << 11);
+    if (current_variant & WIFI_80211_VARIANT_AX) std |= (1 << 10);
+    if (current_variant & WIFI_80211_VARIANT_BE) std |= (1 << 9);
+    if (current_variant & WIFI_80211_VARIANT_BN) std |= (1 << 8);
+
+    return std;
+}
+
+short em_t::create_airties_radio_capability_tlv(unsigned char *buff)
+{
+    short len = 0;
+    dm_easy_mesh_t  *dm;
+    dm = get_data_model();
+    dm_radio_cap_t *radio_cap = dm->get_radio_cap(get_radio_interface_mac());
+
+    if (radio_cap == NULL) {
+        em_printfout("radio_cap NULL for MAC %s",
+                     util::mac_to_string(get_radio_interface_mac()).c_str());
+        return 0;
+    } else {
+        em_radio_cap_info_t* cap_info = radio_cap->get_radio_cap_info();
+        if (cap_info == NULL) {
+            em_printfout("No data Found");
+            return 0;
+        }
+        uint16_t supported_standards = htons(variant_to_airties_standards(cap_info->mode));
+        em_vendor_specific_v_t *vendor = reinterpret_cast<em_vendor_specific_v_t *>(buff);
+        if (vendor == NULL) {
+            em_printfout("No data Found");
+            return 0;
+        }
+        memcpy(reinterpret_cast<unsigned char *> (vendor->vendor_oui), airties_vendor_oui, EM_VENDOR_OUI_SIZE);
+        len += EM_VENDOR_OUI_SIZE;
+        uint16_t tlv_type = htons(static_cast<uint16_t>(em_tlv_type_radio_capability));
+        memcpy(reinterpret_cast<unsigned char *> (vendor->data), &tlv_type, sizeof(tlv_type));
+        len += static_cast<short>(sizeof(tlv_type));
+        em_radio_capability_vendor_t *tmp = reinterpret_cast<em_radio_capability_vendor_t *> (vendor->data + sizeof(tlv_type));
+        memcpy(tmp->interface_mac, get_radio_interface_mac(), sizeof(mac_address_t));
+        len += static_cast<short>(sizeof(mac_address_t));
+        memcpy(tmp->supported_standards, &supported_standards, sizeof(supported_standards));
+        len += static_cast<short>(sizeof(supported_standards));
+        len += 2; //reserved
+    }
+    return len;
+}
+
+
 short em_t::create_vht_tlv(unsigned char *buff)
 {
     short len = 0;
@@ -1430,8 +1477,8 @@ short em_t::create_wifi7_tlv(unsigned char *buff)
     offset += static_cast<short>(sizeof(unsigned char));
     em_printfout("  offset:%d", offset);
     for (unsigned int i = 0; i < dm->get_num_radios(); i++) {
-        em_wifi7_cap = &dm->get_radio_cap_info(static_cast<int>(i))->wifi7_cap;
-        em_printfout("Radio[%d]: %s", i, util::mac_to_string(dm->get_radio_cap_info(static_cast<int>(i))->ruid.mac).c_str());
+        em_wifi7_cap = &dm->get_radio_cap_info(i)->wifi7_cap;
+        em_printfout("Radio[%u]: %s", i, util::mac_to_string(dm->get_radio_cap_info(i)->ruid.mac).c_str());
 
         // MLO Support Capabilities
         mlo_mand = reinterpret_cast<em_wifi7_mlo_cap_support_tlv_t *>(buff + offset);
@@ -1549,7 +1596,7 @@ short em_t::create_channelscan_tlv(unsigned char *buff)
         }
        em_radio_cap_info_t *cap_info = radio_cap->get_radio_cap_info();
         if (cap_info == NULL) {
-            em_printfout("create_channelscan_tlv: cap_info NULL for index %d", i);
+            em_printfout("create_channelscan_tlv: cap_info NULL for index %u", i);
             return 0;
         }
 
@@ -1636,7 +1683,7 @@ short em_t::create_device_inventory_tlv(unsigned char *buff)
     static constexpr size_t EM_INVENTORY_STR_MAX = 64;
 
     // 1. Serial Number
-    slen = (info->serial_number) ? strlen(info->serial_number) : 0;
+    slen = (info) ? strlen(info->serial_number) : 0;
     if (slen > sizeof(info->serial_number) - 1) slen = sizeof(info->serial_number) - 1;
     if (slen > EM_INVENTORY_STR_MAX) slen = EM_INVENTORY_STR_MAX;
     data_len = static_cast<unsigned char>(slen);
@@ -1648,7 +1695,7 @@ short em_t::create_device_inventory_tlv(unsigned char *buff)
     len += (1 + data_len);
 
     // 2. Software Version
-    slen = (info->software_ver) ? strlen(info->software_ver) : 0;
+    slen = (info) ? strlen(info->software_ver) : 0;
     if (slen > sizeof(info->software_ver) - 1) slen = sizeof(info->software_ver) - 1;
     if (slen > EM_INVENTORY_STR_MAX) slen = EM_INVENTORY_STR_MAX;
     data_len = static_cast<unsigned char>(slen);
@@ -1660,7 +1707,7 @@ short em_t::create_device_inventory_tlv(unsigned char *buff)
     len += (1 + data_len);
 
     // 3. Environment
-    slen = (info->environment) ? strlen(info->environment) : 0;
+    slen = (info) ? strlen(info->environment) : 0;
     if (slen > sizeof(info->environment) - 1) slen = sizeof(info->environment) - 1;
     if (slen > EM_INVENTORY_STR_MAX) slen = EM_INVENTORY_STR_MAX;
     data_len = static_cast<unsigned char>(slen);
@@ -1685,7 +1732,7 @@ short em_t::create_device_inventory_tlv(unsigned char *buff)
         tmp += sizeof(mac_address_t);
         len += static_cast<short>(sizeof(mac_address_t));
 
-        slen = (dm->get_radio_info(i)->chip_vendor) ? strlen(dm->get_radio_info(i)->chip_vendor) : 0;
+        slen = (dm->get_radio_info(i)) ? strlen(dm->get_radio_info(i)->chip_vendor) : 0;
         if (slen > sizeof(dm->get_radio_info(i)->chip_vendor) - 1) slen = sizeof(dm->get_radio_info(i)->chip_vendor) - 1;
         if (slen > EM_INVENTORY_STR_MAX) slen = EM_INVENTORY_STR_MAX;
         data_len = static_cast<unsigned char>(slen);
@@ -1706,7 +1753,7 @@ short em_t::create_metric_col_int_tlv(unsigned char *buff)
     short len = 0;
     dm_easy_mesh_t  *dm;
     dm = get_data_model();
-    dm_radio_cap_t *radio_cap = dm->get_radio_cap(0);//todo: it is dev specific
+    dm_radio_cap_t *radio_cap = dm->get_radio_cap(0u);//todo: it is dev specific
 
     if (radio_cap == NULL) {
         em_printfout("create_metric_col_int_tlv: radio_cap NULL for MAC %s",
@@ -1721,7 +1768,7 @@ short em_t::create_metric_col_int_tlv(unsigned char *buff)
         return 0;
     }
 
-    memcpy(&clt, &cap_info->metric_interval, sizeof(em_metric_cltn_interval_t));
+    memcpy(clt, &cap_info->metric_interval, sizeof(em_metric_cltn_interval_t));
     len = sizeof(em_metric_cltn_interval_t);
     return len;
 }
@@ -1763,7 +1810,7 @@ short em_t::create_cac_cap_tlv(unsigned char *buff)
         if (dm->get_radio_by_ref(index).m_radio_info.band != em_freq_band_5) {
             continue;
         }
-        dm_radio_cap_t *radio_cap = dm->get_radio_cap(static_cast<int>(index));
+        dm_radio_cap_t *radio_cap = dm->get_radio_cap(index);
         if (radio_cap == NULL) {
             em_printfout("create_cac_cap_tlv: radio[%u] get_radio_cap returned NULL", index);
             continue;
@@ -1892,6 +1939,76 @@ unsigned short em_t::create_eht_operations_tlv(unsigned char *buff)
     return len;
 }
 
+unsigned short em_t::create_traffic_separation_policy_tlv(unsigned char *buff)
+{
+    unsigned short len = 0;
+    unsigned int i;
+    dm_easy_mesh_t *dm = get_data_model();
+    dm_network_ssid_t *net_ssid;
+    unsigned char *tmp = buff;
+
+    // get total ssid count
+    unsigned char ssids_num = dm->get_num_network_ssid();
+    *tmp = static_cast<unsigned char>(ssids_num);
+    tmp += sizeof(unsigned char);
+    len += sizeof(unsigned char);
+
+    for (i = 0; i < ssids_num; i++) {
+        net_ssid = dm->get_network_ssid(i);
+
+        std::vector<unsigned char> ssid_bytes(net_ssid->m_network_ssid_info.ssid, 
+                    net_ssid->m_network_ssid_info.ssid + strlen(net_ssid->m_network_ssid_info.ssid));
+        unsigned char ssid_len = static_cast<unsigned char>(ssid_bytes.size());
+
+        *tmp = ssid_len;
+        tmp += sizeof(unsigned char);
+        len += sizeof(unsigned char);
+
+        memcpy(tmp, ssid_bytes.data(), ssid_len);
+        tmp += ssid_len;
+        len += ssid_len;
+
+        unsigned short vlan_n = htons(net_ssid->m_network_ssid_info.vlan_id);
+        memcpy(tmp, &vlan_n, sizeof(vlan_n));
+        tmp += sizeof(unsigned short);
+        len += sizeof(unsigned short);
+	    em_printfout(" TRAFFIC SEPARATION SSID='%.*s' Len=%u, VLAN=%u ",ssid_len,ssid_bytes.data(), ssid_len, net_ssid->m_network_ssid_info.vlan_id);
+    }
+    em_printfout("Length: %d ", len);
+    return len;
+}
+
+short em_t::create_def_8021q_settings_policy_tlv(unsigned char *buff)
+{
+    size_t len = 0;
+    dm_easy_mesh_t *dm;
+    unsigned int i;
+
+    if (get_current_cmd()->get_type() == em_cmd_type_set_policy) {
+        dm = get_current_cmd()->get_data_model();
+    } else {
+        dm = get_data_model();
+    }
+
+    for (i = 0; i < dm->get_num_policy(); i++) {
+        dm_policy_t *policy = &dm->m_policy[i];
+        if (policy->m_policy.id.type != em_policy_id_type_default_8021q_settings) {
+            continue;
+        }
+        em_8021q_settings_t *settings = reinterpret_cast<em_8021q_settings_t *>(buff);
+        settings->primary_vlan_id = htons(policy->m_policy.def_8021q_settings.primary_vid);
+        settings->default_pcp = policy->m_policy.def_8021q_settings.default_pcp & 0x07;
+        settings->reserved = 0;
+        em_printfout("Found Default 802.1Q Settings Policy in DM with primary_vid=%u, default_pcp=%u",
+            policy->m_policy.def_8021q_settings.primary_vid,
+            policy->m_policy.def_8021q_settings.default_pcp);
+        len += sizeof(em_8021q_settings_t);
+        break;
+    }
+
+    return static_cast<short>(len);
+}
+
 int em_t::handle_eht_operations_tlv(unsigned char *buff, unsigned short tlv_len)
 {
     short len = 0;
@@ -1936,7 +2053,7 @@ int em_t::handle_eht_operations_tlv(unsigned char *buff, unsigned short tlv_len)
         memcpy(&num_bss, tmp, sizeof(unsigned char));
 
         if (num_bss > EM_MAX_BSS_PER_RADIO) {
-            em_printfout("Invalid num_bss=%d for radio %d, max allowed=%d", num_bss, i, EM_MAX_BSS_PER_RADIO);
+            em_printfout("Invalid num_bss=%d for radio %u, max allowed=%d", num_bss, i, EM_MAX_BSS_PER_RADIO);
             return -1;
         }
 
@@ -2519,25 +2636,25 @@ int em_t::handle_wifi7_agent_cap_tlv(unsigned char *buff)
 
     // Number of radios
     unsigned char *num_radios_ptr = reinterpret_cast<unsigned char *>(buff + offset);
-    int num_radios = static_cast<int>(*num_radios_ptr);
-    em_printfout("Number of radios in wifi7 agent cap: %d", num_radios);
+    unsigned int num_radios = static_cast<unsigned int>(*num_radios_ptr);
+    em_printfout("Number of radios in wifi7 agent cap: %u", num_radios);
     offset += static_cast<short>(sizeof(unsigned char));
 
     if (dm != NULL) {
-        int dm_num_radios = static_cast<int>(dm->get_num_radios());
+        unsigned int dm_num_radios = dm->get_num_radios();
         if (num_radios > EM_MAX_RADIO_PER_AGENT) {
-            em_printfout("Clamping num_radios from %d to EM_MAX_RADIO_PER_AGENT (%d)", num_radios, EM_MAX_RADIO_PER_AGENT);
+            em_printfout("Clamping num_radios from %u to EM_MAX_RADIO_PER_AGENT (%d)", num_radios, EM_MAX_RADIO_PER_AGENT);
             num_radios = EM_MAX_RADIO_PER_AGENT;
         }
         if (num_radios > dm_num_radios) {
-            em_printfout("Clamping num_radios from %d to dm->get_num_radios() (%d)", num_radios, dm_num_radios);
+            em_printfout("Clamping num_radios from %u to dm->get_num_radios() (%u)", num_radios, dm_num_radios);
             num_radios = dm_num_radios;
         }
     }
 
-    for (int idx = 0; idx < num_radios; idx++) {
+    for (unsigned int idx = 0; idx < num_radios; idx++) {
         em_wifi7_cap = &dm->get_radio_cap_info(idx)->wifi7_cap;
-        em_printfout("Updating wifi7 cap for radio[%d]:%s", idx, util::mac_to_string(dm->get_radio_cap_info(idx)->ruid.mac).c_str());
+        em_printfout("Updating wifi7 cap for radio[%u]:%s", idx, util::mac_to_string(dm->get_radio_cap_info(idx)->ruid.mac).c_str());
 
         // Extract MLO support info
         mlo_support = reinterpret_cast<em_wifi7_mlo_cap_support_tlv_t *>(buff + offset);

@@ -710,6 +710,9 @@ int main(int argc, char **argv) {
     "ec_manager_t.handle_recv_ec_action_frame_invalid_frame:"
     "ec_manager_t.handle_recv_ec_action_frame_invalid_MAC:"
     "ec_manager_t.handle_recv_gas_pub_action_frame_null_MAC:"
-    "ec_manager_t.process_direct_encap_dpp_msg_enrollee_null_src_mac";
+    "ec_manager_t.process_direct_encap_dpp_msg_enrollee_null_src_mac:"
+    "em_ctrl_t_Test.input_listen_default:"
+    "em_ctrl_t_Test.delete_nodes_valid:"
+    "em_ctrl_t_Test.delete_node_existing_ieee80211n_24";
     return RUN_ALL_TESTS();
 }

@@ -55,12 +55,77 @@ AlServiceAccessPoint* g_sap;
 MacAddress g_al_mac_sap;
 #endif
 
+static bool is_known_failure_status_code(unsigned short status_code)
+{
+    switch (status_code) {
+        case 1:  // Unspecified failure
+        case 5:  // Association denied; AP unable to handle BSS
+        case 10: // Cannot support all requested capabilities
+        case 11: // Reassociation denied; previous association unknown
+        case 12: // Association denied; reason outside scope
+        case 13: // Auth algorithm not supported
+        case 15: // Challenge failure (authentication denied)
+        case 16: // Association failure due to timeout
+        case 17: // Auth sequence timeout; STA did not respond
+        case 30: // Association rejected temporarily; try again later
+        case 31: // Robust management frame policy violation
+        case 43: // Invalid AKMP
+        case 44: // IEEE 802.1X authentication failed
+        case 45: // PMK not available/cached
+        case 53: // Invalid PMKID
+            return true;
+        default:
+            return false;
+    }
+}
+
+static bool is_known_failure_reason_code(unsigned short reason_code)
+{
+    switch (reason_code) {
+        case 2:  // Previous authentication not valid
+        case 3:  // Deauthenticated; STA is leaving
+        case 6:  // Class 2 frame from nonauthenticated STA
+        case 7:  // Class 3 frame from nonassociated STA
+        case 9:  // STA requested (re)assoc without authentication
+        case 13: // Invalid IE in frame
+        case 14: // Michael MIC failure
+        case 15: // 4-way handshake timeout
+        case 16: // Group key update timeout
+        case 17: // IE in 4-way handshake differs from (re)assoc request
+        case 18: // Group cipher suite not valid
+        case 19: // Pairwise cipher suite not valid
+        case 20: // AKMP not valid
+        case 21: // Unsupported RSN IE version
+        case 22: // Invalid RSN IE capabilities
+        case 23: // IEEE 802.1X authentication failed
+        case 24: // Cipher suite rejected by security policy
+        case 39: // Requested from peer STA (wrong password / MIC failure)
+        case 49: // Invalid PMKID
+            return true;
+        default:
+            return false;
+    }
+}
+
+static bool is_failed_connection_message(const em_connection_status_evt_data_t *conn_status_evt)
+{
+    if (conn_status_evt == nullptr) {
+        return false;
+    }
+
+    if (conn_status_evt->reason_code_present) {
+        return is_known_failure_reason_code(conn_status_evt->reason_code);
+    }
+
+    return is_known_failure_status_code(conn_status_evt->status_code);
+}
+
 void em_agent_t::handle_sta_list(em_bus_event_t *evt)
 {
     em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
     unsigned int num;
 
-    if ((num = m_data_model.analyze_sta_list(evt, pcmd)) == 0) {
+    if ((num = static_cast<unsigned int>(m_data_model.analyze_sta_list(evt, pcmd))) == 0) {
         printf("analyze_sta_list failed\n");
     } else if (m_orch->submit_commands(pcmd, num) > 0) {
         printf("analyze_sta_list submit complete\n");
@@ -74,7 +139,7 @@ void em_agent_t::handle_sta_link_metrics(em_bus_event_t *evt)
 
     if (m_orch->is_cmd_type_in_progress(evt) == true) {
         printf("analyze_sta_link_metrics in progress\n");
-    } else if ((num = m_data_model.analyze_sta_link_metrics(evt, pcmd)) == 0) {
+    } else if ((num = static_cast<unsigned int>(m_data_model.analyze_sta_link_metrics(evt, pcmd))) == 0) {
         printf("analyze_sta_link_metrics failed\n");
     } else if (m_orch->submit_commands(pcmd, num) > 0) {
         printf("analyze_sta_link_metrics submit complete\n");
@@ -88,7 +153,7 @@ void em_agent_t::handle_ap_cap_query(em_bus_event_t *evt)
 
     if (m_orch->is_cmd_type_in_progress(evt) == true) {
         m_agent_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
-    } else if ((num = m_data_model.analyze_ap_cap_query(evt, pcmd)) == 0) {
+    } else if ((num = static_cast<unsigned int>(m_data_model.analyze_ap_cap_query(evt, pcmd))) == 0) {
         m_agent_cmd->send_result(em_cmd_out_status_no_change);
     } else if (m_orch->submit_commands(pcmd, num) > 0) {
         m_agent_cmd->send_result(em_cmd_out_status_success);
@@ -105,7 +170,7 @@ void em_agent_t::handle_radio_config(em_bus_event_t *evt)
 
     if (m_orch->is_cmd_type_in_progress(evt) == true) {
         m_agent_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
-    } else if ((num = m_data_model.analyze_radio_config(evt, pcmd)) == 0) {
+    } else if ((num = static_cast<unsigned int>(m_data_model.analyze_radio_config(evt, pcmd))) == 0) {
         m_agent_cmd->send_result(em_cmd_out_status_no_change);
     } else if (m_orch->submit_commands(pcmd, num) > 0) {
         m_agent_cmd->send_result(em_cmd_out_status_success);
@@ -122,7 +187,7 @@ void em_agent_t::handle_vap_config(em_bus_event_t *evt)
 
     if (m_orch->is_cmd_type_in_progress(evt) == true) {
         m_agent_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
-    } else if ((num = m_data_model.analyze_vap_config(evt, pcmd)) == 0) {
+    } else if ((num = static_cast<unsigned int>(m_data_model.analyze_vap_config(evt, pcmd))) == 0) {
         m_agent_cmd->send_result(em_cmd_out_status_no_change);
     } else if (m_orch->submit_commands(pcmd, num) > 0) {
         m_agent_cmd->send_result(em_cmd_out_status_success);
@@ -141,7 +206,7 @@ void em_agent_t::handle_dev_init(em_bus_event_t *evt)
         m_agent_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
         return;
     }
-    if ((num = m_data_model.analyze_dev_init(evt, pcmd)) == 0) {
+    if ((num = static_cast<unsigned int>(m_data_model.analyze_dev_init(evt, pcmd))) == 0) {
         m_agent_cmd->send_result(em_cmd_out_status_no_change);
         return;
     }
@@ -158,7 +223,7 @@ void em_agent_t::handle_dev_init(em_bus_event_t *evt)
     }
 
     // Iterate through all of the BSSs and subscribe to receive management action frames
-    for (int bss_idx = 0; bss_idx < m_data_model.m_num_bss; bss_idx++) {
+    for (unsigned int bss_idx = 0; bss_idx < m_data_model.m_num_bss; bss_idx++) {
         auto bss_info = m_data_model.get_bss_info(bss_idx);
         unsigned int vap_index = bss_info->vap_index; // The actual OneWifi VAP index
 
@@ -176,7 +241,7 @@ void em_agent_t::handle_dev_init(em_bus_event_t *evt)
 
 
         std::string path = "Device.WiFi.AccessPoint." + std::to_string(vap_index + 1) + ".RawFrame.Mgmt.Action.Rx";
-        if (desc->bus_event_subs_fn(&m_bus_hdl, path.c_str(), (void *)&em_agent_t::mgmt_action_frame_cb, NULL, 0) != 0) {
+        if (desc->bus_event_subs_fn(&m_bus_hdl, path.c_str(), reinterpret_cast<void *>(&em_agent_t::mgmt_action_frame_cb), NULL, 0) != 0) {
             em_printfout("Subscription failed for path %s", path.c_str());
             continue;
         }
@@ -202,7 +267,7 @@ void em_agent_t::handle_channel_pref_query(em_bus_event_t *evt)
 
     if (m_orch->is_cmd_type_in_progress(evt) == true) {
         m_agent_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
-    } else if ((num = m_data_model.analyze_channel_pref_query(evt, pcmd)) == 0) {
+    } else if ((num = static_cast<unsigned int>(m_data_model.analyze_channel_pref_query(evt, pcmd))) == 0) {
         printf("%s:%d query send fail \n", __func__, __LINE__);
     } else if (m_orch->submit_commands(pcmd, num) > 0) {
         printf("%s:%d send success \n", __func__, __LINE__);
@@ -213,7 +278,6 @@ void em_agent_t::handle_channel_sel_req(em_bus_event_t *evt)
 {
     unsigned int num;
     wifi_bus_desc_t *desc;
-    raw_data_t l_bus_data;
 
     if((desc = get_bus_descriptor()) == NULL) {
        printf("descriptor is null");
@@ -221,7 +285,7 @@ void em_agent_t::handle_channel_sel_req(em_bus_event_t *evt)
 
     if (m_orch->is_cmd_type_in_progress(evt) == true) {
         m_agent_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
-    } else if ((num = m_data_model.analyze_channel_sel_req(evt, desc, &m_bus_hdl)) == 0) {
+    } else if ((num = static_cast<unsigned int>(m_data_model.analyze_channel_sel_req(evt, desc, &m_bus_hdl))) == 0) {
             printf("handle_channel_sel_req complete");
     }
 }
@@ -235,7 +299,7 @@ void em_agent_t::handle_csa_beacon_frame(em_bus_event_t *evt)
        printf("descriptor is null");
     }
 
-    if ((num = m_data_model.analyze_csa_beacon_frame(evt, desc, &m_bus_hdl)) == 1) {
+    if ((num = static_cast<unsigned int>(m_data_model.analyze_csa_beacon_frame(evt, desc, &m_bus_hdl))) == 1) {
         printf("analyze_csa_beacon_frame completed\n");
     }
 }
@@ -244,7 +308,6 @@ void em_agent_t::handle_m2ctrl_configuration(em_bus_event_t *evt)
 {
     unsigned int num;
     wifi_bus_desc_t *desc;
-    raw_data_t l_bus_data;
 
     if((desc = get_bus_descriptor()) == NULL) {
        printf("descriptor is null");
@@ -252,7 +315,7 @@ void em_agent_t::handle_m2ctrl_configuration(em_bus_event_t *evt)
 
     if (m_orch->is_cmd_type_in_progress(evt) == true) {
         m_agent_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
-    } else if ((num = m_data_model.analyze_m2ctrl_configuration(evt, desc, &m_bus_hdl)) == 0) {
+    } else if ((num = static_cast<unsigned int>(m_data_model.analyze_m2ctrl_configuration(evt, desc, &m_bus_hdl))) == 0) {
 	    printf("analyze_onewifi_private_subdoc complete");
     }
 }
@@ -269,7 +332,7 @@ void em_agent_t::handle_onewifi_private_cb(em_bus_event_t *evt)
 
     if (m_orch->is_cmd_type_in_progress(evt) == true) {
         m_agent_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
-    } else if ((num = m_data_model.analyze_onewifi_vap_cb(evt, pcmd)) == 0) {
+    } else if ((num = static_cast<unsigned int>(m_data_model.analyze_onewifi_vap_cb(evt, pcmd))) == 0) {
         em_printfout("analyze_onewifi_vap_cb completed\n");
     } else if (m_orch->submit_commands(pcmd, num) > 0) {
         em_printfout("submitted command for orchestration");
@@ -288,7 +351,7 @@ void em_agent_t::handle_onewifi_mesh_sta_cb(em_bus_event_t *evt)
 
     if (m_orch->is_cmd_type_in_progress(evt) == true) {
         m_agent_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
-    } else if ((num = m_data_model.analyze_onewifi_vap_cb(evt, pcmd)) == 0) {
+    } else if ((num = static_cast<unsigned int>(m_data_model.analyze_onewifi_vap_cb(evt, pcmd))) == 0) {
         em_printfout("analyze_onewifi_vap_cb completed");
     } else if (m_orch->submit_commands(pcmd, num) > 0) {
         em_printfout("submitted command for orchestration");
@@ -307,7 +370,7 @@ void em_agent_t::handle_onewifi_radio_cb(em_bus_event_t *evt)
 
     if (m_orch->is_cmd_type_in_progress(evt) == true) {
         m_agent_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
-    } else if ((num = m_data_model.analyze_onewifi_radio_cb(evt, pcmd)) == 0) {
+    } else if ((num = static_cast<unsigned int>(m_data_model.analyze_onewifi_radio_cb(evt, pcmd))) == 0) {
         em_printfout("analyze_onewifi_radio_cb completed");
     } else if (m_orch->submit_commands(pcmd, num) > 0) {
         em_printfout("submitted command for orchestration");
@@ -351,14 +414,14 @@ void em_agent_t::handle_frame_event(em_frame_event_t *evt)
 {
     struct ieee80211_frame *frame;
 
-    frame = (struct ieee80211_frame *)evt->frame;
+    frame = reinterpret_cast<struct ieee80211_frame *>(evt->frame);
     assert(IEEE80211_IS_MGMT(frame));
 
     printf("%s:%d: Received management 'frame event' type %d\n", __func__, __LINE__, frame->i_fc[0] & 0x0f);
     
     // handle action frames only 
     if ((frame->i_fc[0] & 0x0f) == IEEE80211_FC0_SUBTYPE_ACTION) {
-        handle_action_frame((struct ieee80211_mgmt *)frame);        
+        handle_action_frame(reinterpret_cast<struct ieee80211_mgmt *>(frame));
     }
 }
 
@@ -369,7 +432,7 @@ void em_agent_t::handle_autoconfig_renew(em_bus_event_t *evt)
 
     if (m_orch->is_cmd_type_in_progress(evt) == true) {
 	printf("handle_autoconfig_renew in progress\n");
-    }  else if ((num = m_data_model.analyze_autoconfig_renew(evt, pcmd)) == 0) {
+    }  else if ((num = static_cast<unsigned int>(m_data_model.analyze_autoconfig_renew(evt, pcmd))) == 0) {
         printf("handle_autoconfig_renew cmd creation failed\n");
     } else if (m_orch->submit_commands(pcmd, num) > 0) {
     }
@@ -385,7 +448,7 @@ void em_agent_t::handle_btm_request_action_frame(em_bus_event_t *evt)
        printf("descriptor is null");
     }
 
-    if ((num = m_data_model.analyze_btm_request_action_frame(evt, desc, &m_bus_hdl)) == 0) {
+    if ((num = static_cast<unsigned int>(m_data_model.analyze_btm_request_action_frame(evt, desc, &m_bus_hdl))) == 0) {
 	    printf("analyze_btm_request_action_frame failed\n");
     }
 }
@@ -411,6 +474,80 @@ void em_agent_t::handle_recv_assoc_status(em_bus_event_t *event)
     }
 }
 
+void em_agent_t::handle_recv_connection_status(em_bus_event_t *event)
+{
+    const em_connection_status_evt_data_t *conn_status_evt = nullptr;
+    em_bss_info_t *target_bss = nullptr;
+    mac_address_t bssid = {0};
+    em_t *em = nullptr;
+    em_event_t *qevt = nullptr;
+    em_connection_status_evt_data_t *evt_copy = nullptr;
+    std::string ruid_str;
+
+    if (event == nullptr) {
+        em_printfout("NULL event!");
+        return;
+    }
+
+    if (event->u.raw_buff == nullptr || event->data_len != sizeof(em_connection_status_evt_data_t)) {
+        em_printfout("Invalid connection status payload: expected %zu, got %u",
+                     sizeof(em_connection_status_evt_data_t), event->data_len);
+        return;
+    }
+
+    conn_status_evt = reinterpret_cast<const em_connection_status_evt_data_t *>(event->u.raw_buff);
+
+    if (!is_failed_connection_message(conn_status_evt)) {
+        /*em_printfout("Skip: sta=%s bssid=%s status=%u not in failed-connection filter",
+                     util::mac_to_string(conn_status_evt->sta_mac).c_str(),
+                     util::mac_to_string(conn_status_evt->bssid).c_str(),
+                     conn_status_evt->status_code);*/
+        return;
+    }
+
+    memcpy(bssid, conn_status_evt->bssid, sizeof(mac_address_t));
+    target_bss = m_data_model.get_bss_info_with_mac(bssid);
+    if (target_bss == nullptr) {
+        em_printfout("No BSS for bssid=%s, drop",
+                     util::mac_to_string(conn_status_evt->bssid).c_str());
+        return;
+    }
+
+    ruid_str = util::mac_to_string(target_bss->ruid.mac);
+    em = static_cast<em_t *>(hash_map_get(g_agent.m_em_map, ruid_str.c_str()));
+    if (em == nullptr) {
+        em_printfout("No radio EM for bssid=%s, drop",
+                     util::mac_to_string(conn_status_evt->bssid).c_str());
+        return;
+    }
+
+    qevt = static_cast<em_event_t *>(calloc(1, sizeof(em_event_t)));
+    if (qevt == nullptr) {
+        em_printfout("Failed to alloc failed connection event");
+        return;
+    }
+
+    evt_copy = static_cast<em_connection_status_evt_data_t *>(malloc(sizeof(em_connection_status_evt_data_t)));
+    if (evt_copy == nullptr) {
+        em_printfout("Failed to alloc connection status payload");
+        free(qevt);
+        return;
+    }
+
+    memcpy(evt_copy, conn_status_evt, sizeof(em_connection_status_evt_data_t));
+
+    qevt->type = em_event_type_cmd;
+    qevt->u.cevt.type = em_cmd_event_type_failed_connection;
+    qevt->u.cevt.cmd_ptr = evt_copy;
+
+    em_printfout("Queue failed connection: sta=%s bssid=%s status=%u",
+                 util::mac_to_string(evt_copy->sta_mac).c_str(),
+                 util::mac_to_string(evt_copy->bssid).c_str(),
+                 evt_copy->status_code);
+
+    em->push_to_queue(qevt);
+}
+
 void em_agent_t::handle_bss_info(em_bus_event_t *event)
 {
     if (event == nullptr) {
@@ -422,7 +559,7 @@ void em_agent_t::handle_bss_info(em_bus_event_t *event)
     unsigned int len = event->data_len;
 
     if (len % expected_size != 0) {
-        em_printfout("Expected event size divisible by %d, got %d, not handling", expected_size, event->data_len);
+        em_printfout("Expected event size divisible by %zu, got %u, not handling", expected_size, event->data_len);
         return;
     }
 
@@ -458,7 +595,7 @@ void em_agent_t::handle_recv_gas_frame(em_bus_event_t *evt)
     }
     const size_t full_frame_length = evt->data_len;
     const size_t mgmt_hdr_len = offsetof(struct ieee80211_mgmt, u);
-    ieee80211_mgmt *mgmt_frame = (ieee80211_mgmt *)evt->u.raw_buff;
+    ieee80211_mgmt *mgmt_frame = reinterpret_cast<ieee80211_mgmt *>(evt->u.raw_buff);
 
     std::string dest_mac_str = util::mac_to_string(mgmt_frame->da);
     // Validate that it is a broadcast frame or we have a node that should have received it
@@ -485,7 +622,7 @@ void em_agent_t::handle_recv_gas_frame(em_bus_event_t *evt)
 
     em_t* al_node = get_al_node();
 
-    auto gas_frame_base = (ec_gas_frame_base_t *)(evt->u.raw_buff + mgmt_hdr_len);
+    auto gas_frame_base = reinterpret_cast<ec_gas_frame_base_t *>(evt->u.raw_buff + mgmt_hdr_len);
 
     bool is_wfa_ec_gas = false;
 
@@ -493,7 +630,7 @@ void em_agent_t::handle_recv_gas_frame(em_bus_event_t *evt)
     case dpp_gas_action_type_t::dpp_gas_initial_req: {
         printf("%s:%d: Received GAS Initial Request\n", __func__, __LINE__);
         ec_gas_initial_request_frame_t *gas_initial_req_frame =
-            (ec_gas_initial_request_frame_t *)gas_frame_base;
+            reinterpret_cast<ec_gas_initial_request_frame_t *>(gas_frame_base);
         uint8_t *ap_proto_id = gas_initial_req_frame->ape_id;
         if (ap_proto_id[0] == 0xDD) {
             // Vendor specific GAS frame
@@ -508,7 +645,7 @@ void em_agent_t::handle_recv_gas_frame(em_bus_event_t *evt)
     case dpp_gas_action_type_t::dpp_gas_initial_resp: {
         printf("%s:%d: Received GAS Initial Response\n", __func__, __LINE__);
         ec_gas_initial_response_frame_t *gas_initial_resp_frame =
-            (ec_gas_initial_response_frame_t *)gas_frame_base;
+            reinterpret_cast<ec_gas_initial_response_frame_t *>(gas_frame_base);
         uint8_t *ap_proto_id = gas_initial_resp_frame->ape_id;
         if (ap_proto_id[0] == 0xDD) {
             // Vendor specific GAS frame
@@ -576,14 +713,14 @@ void em_agent_t::handle_recv_wfa_action_frame(em_bus_event_t *evt)
         sizeof(uint8_t[3]);  // oui field
 
     if (frame_len <= fixed_full_header_len){
-        printf("%s:%d Recieved WFA Action frame is too short! Must have at least the OUI type in the data field\n", __func__, __LINE__);
+        em_printfout("Error: Received WFA Action frame is too short! Must have at least the OUI type in the data field");
         return;
     }
     auto mgmt_frame = reinterpret_cast<struct ieee80211_mgmt *>(mgmt_frame_buff);
     auto vs_action_data = mgmt_frame->u.action.u.vs_public_action.variable;
     auto vs_data_len = frame_len - fixed_full_header_len;
 
-    printf("%s:%d: Received WFA action frame: Full Length: %d, VS Action Data Length: %d\n", __func__, __LINE__, frame_len, vs_data_len);
+    em_printfout("Received WFA action frame: Full Length: %zu, VS Action Data Length: %zu", frame_len, vs_data_len);
 
     std::string dest_mac_str = util::mac_to_string(mgmt_frame->da);
     em_printfout("Dest Mac Str: %s", dest_mac_str.c_str());
@@ -594,19 +731,19 @@ void em_agent_t::handle_recv_wfa_action_frame(em_bus_event_t *evt)
 
     bool is_bcast = (memcmp(mgmt_frame->da, BROADCAST_MAC_ADDR, ETH_ALEN) == 0);
     if (is_bcast) {
-        printf("Received WFA action frame with broadcast destination MAC address\n");
+        em_printfout("Received WFA action frame with broadcast destination MAC address");
     } else {
         // Dest MAC is not necsessarily the same as the radio node's MAC address, so we need to look it up
         em_bss_info_t* dest_bss = m_data_model.get_bss_info_with_mac(mgmt_frame->da);
         if (dest_bss == NULL) {
-            em_printfout("No BSS found for dest mac %s\n", dest_mac_str.c_str());
+            em_printfout("No BSS found for dest mac %s", dest_mac_str.c_str());
             return;
         }
 
         std::string ruid_str = util::mac_to_string(dest_bss->ruid.mac);
         dest_radio_node = static_cast<em_t*>(hash_map_get(g_agent.m_em_map, ruid_str.c_str()));
         if (dest_radio_node == NULL) {
-            em_printfout("No radio node found for dest mac %s\n", dest_mac_str.c_str());
+            em_printfout("No radio node found for dest mac %s", dest_mac_str.c_str());
             return;
         }
     }
@@ -619,7 +756,7 @@ void em_agent_t::handle_recv_wfa_action_frame(em_bus_event_t *evt)
 
     switch (oui_type) {
     case DPP_OUI_TYPE: {
-        printf("%s:%d: Received DPP action frame\n", __func__, __LINE__);
+        em_printfout("Received DPP action frame");
         em_t* al_node = get_al_node();
 
         if (al_node != NULL) {
@@ -642,7 +779,7 @@ void em_agent_t::handle_btm_response_action_frame(em_bus_event_t *evt)
 
     if (m_orch->is_cmd_type_in_progress(evt) == true) {
         printf("analyze_btm_response_action_frame in progress\n");
-    } else if ((num = m_data_model.analyze_btm_response_action_frame(evt, pcmd)) == 0) {
+    } else if ((num = static_cast<unsigned int>(m_data_model.analyze_btm_response_action_frame(evt, pcmd))) == 0) {
         printf("analyze_btm_response_action_frame failed\n");
     } else if (m_orch->submit_commands(pcmd, num) > 0) {
         printf("submitted handle_btm_response_action_frame command for orchestration\n");
@@ -676,7 +813,7 @@ void em_agent_t::handle_client_assoc_ctrl_req(em_bus_event_t *evt)
 
     memset(&raw, 0, sizeof(raw_data_t));
     raw.data_type = bus_data_type_bytes;
-    raw.raw_data.bytes = (void *)&req_data;
+    raw.raw_data.bytes = static_cast<void *>(&req_data);
     raw.raw_data_len = sizeof(client_assoc_ctrl_req_t);
 
     if (desc->bus_set_fn(&m_bus_hdl,WIFI_EM_CLIENT_ASSOC_CTRL_REQ, &raw) != 0) {
@@ -690,7 +827,7 @@ void em_agent_t::handle_channel_scan_result(em_bus_event_t *evt)
     em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
     unsigned int num;
 
-    if ((num = m_data_model.analyze_scan_result(evt, pcmd)) == 0) {
+    if ((num = static_cast<unsigned int>(m_data_model.analyze_scan_result(evt, pcmd))) == 0) {
         printf("scan results failed\n");
     } else if (m_orch->submit_commands(pcmd, num) > 0) {
 		;
@@ -701,16 +838,15 @@ void em_agent_t::handle_channel_scan_params(em_bus_event_t *evt)
 {
     printf("%s:%d: Scan Parameters received\n", __func__, __LINE__);
 #ifdef SCAN_RESULT_TEST
-	m_simulator.configure(m_data_model, (em_scan_params_t *)evt->u.raw_buff);
+	m_simulator.configure(m_data_model, reinterpret_cast<em_scan_params_t *>(evt->u.raw_buff));
 #endif
-    unsigned int num;
     wifi_bus_desc_t *desc;
 
     if((desc = get_bus_descriptor()) == NULL) {
        printf("descriptor is null");
     }
 
-    if (!send_scan_request((em_scan_params_t *)&evt->u.raw_buff, true)) {
+    if (!send_scan_request(reinterpret_cast<em_scan_params_t *>(&evt->u.raw_buff), true)) {
         printf("send_scan_request failed\n");
         return;
     }
@@ -718,7 +854,6 @@ void em_agent_t::handle_channel_scan_params(em_bus_event_t *evt)
 
 bool em_agent_t::send_scan_request(em_scan_params_t* scan_params, bool perform_fresh_scan, bool is_sta_vap){
     unsigned i, j;
-    mac_addr_str_t radio_mac_str;
     raw_data_t l_bus_data;
     
 
@@ -747,7 +882,7 @@ bool em_agent_t::send_scan_request(em_scan_params_t* scan_params, bool perform_f
     }
 
     l_bus_data.data_type = bus_data_type_bytes;
-    l_bus_data.raw_data.bytes = (void *)&scan_data;
+    l_bus_data.raw_data.bytes = static_cast<void *>(&scan_data);
     l_bus_data.raw_data_len = sizeof(channel_scan_request_t);
 
     wifi_bus_desc_t *desc;
@@ -770,10 +905,8 @@ bool em_agent_t::send_scan_request(em_scan_params_t* scan_params, bool perform_f
 
 void em_agent_t::handle_set_policy(em_bus_event_t *evt)
 {
-    em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
     unsigned int num;
     wifi_bus_desc_t *desc;
-    raw_data_t l_bus_data;
 
     if((desc = get_bus_descriptor()) == NULL) {
        printf("descriptor is null");
@@ -781,7 +914,7 @@ void em_agent_t::handle_set_policy(em_bus_event_t *evt)
 
     if (m_orch->is_cmd_type_in_progress(evt) == true) {
         printf("set policy in progress\n");
-    } else if ((num = m_data_model.analyze_set_policy(evt, desc, &m_bus_hdl)) == 0) {
+    } else if ((num = static_cast<unsigned int>(m_data_model.analyze_set_policy(evt, desc, &m_bus_hdl))) == 0) {
         printf("set policy failed\n");
     }
 }
@@ -870,7 +1003,7 @@ void em_agent_t::handle_beacon_report(em_bus_event_t *evt)
 
     if (m_orch->is_cmd_type_in_progress(evt) == true) {
         em_printfout("analyze_beacon_report in progress");
-    } else if ((num = m_data_model.analyze_beacon_report(evt, pcmd)) == 0) {
+    } else if ((num = static_cast<unsigned int>(m_data_model.analyze_beacon_report(evt, pcmd))) == 0) {
         em_printfout("analyze_beacon_report failed");
     } else if (m_orch->submit_commands(pcmd, num) > 0) {
         em_printfout("submitted beacon report cmd for orchestration");
@@ -883,7 +1016,7 @@ void em_agent_t::handle_ap_metrics_report(em_bus_event_t *evt)
     unsigned int num;
 
     // populate data model first
-    if ((num = m_data_model.analyze_ap_metrics_report(evt, pcmd)) == 0) {
+    if ((num = static_cast<unsigned int>(m_data_model.analyze_ap_metrics_report(evt, pcmd))) == 0) {
         em_printfout("analyze_ap_metrics_report failed");
         return;
     }
@@ -909,6 +1042,7 @@ void em_agent_t::handle_ap_metrics_report(em_bus_event_t *evt)
                 } else {
                     em_printfout("failed to allocate event for ap_metrics_report, dropping for radio %s",
                         util::mac_to_string(em->get_radio_interface_mac()).c_str());
+                    pcmd[i]->deinit();
                     delete pcmd[i];
                     pcmd[i] = NULL;
                 }
@@ -918,6 +1052,7 @@ void em_agent_t::handle_ap_metrics_report(em_bus_event_t *evt)
         }
         // if no matching em was found, pcmd[i] still non-null here, clean it up
         if (pcmd[i] != NULL) {
+            pcmd[i]->deinit();
             delete pcmd[i];
             pcmd[i] = NULL;
         }
@@ -931,7 +1066,7 @@ void em_agent_t::handle_link_stats_report(em_bus_event_t *evt)
 
     if (m_orch->is_cmd_type_in_progress(evt) == true) {
         em_printfout("analyze_link_report in progress");
-    } else if ((num = m_data_model.analyze_link_report(evt, pcmd)) == 0) {
+    } else if ((num = static_cast<unsigned int>(m_data_model.analyze_link_report(evt, pcmd))) == 0) {
         em_printfout("analyze_link_report failed");
     } else if (m_orch->submit_commands(pcmd, num) > 0) {
         em_printfout("Submitted Link Stats report cmd for orch");
@@ -1037,6 +1172,10 @@ void em_agent_t::handle_bus_event(em_bus_event_t *evt)
             handle_recv_assoc_status(evt);
             break;
 
+        case em_bus_event_type_connection_status:
+            handle_recv_connection_status(evt);
+            break;
+
         case em_bus_event_type_ap_metrics_report:
             handle_ap_metrics_report(evt);
             break;
@@ -1126,7 +1265,7 @@ bool em_agent_t::send_action_frame(uint8_t dest_mac[ETH_ALEN], uint8_t *action_f
 
     int vap_idx = -1;
 
-    for (int bss_idx = 0; bss_idx < m_data_model.m_num_bss; bss_idx++) {
+    for (unsigned int bss_idx = 0; bss_idx < m_data_model.m_num_bss; bss_idx++) {
         auto bss_info = m_data_model.get_bss_info(bss_idx);
         if (bss_info == nullptr) {
             continue;
@@ -1137,7 +1276,7 @@ bool em_agent_t::send_action_frame(uint8_t dest_mac[ETH_ALEN], uint8_t *action_f
         if (op_class_info == nullptr) {
             continue;
         }
-        vap_idx = bss_info->vap_index;
+        vap_idx = static_cast<int>(bss_info->vap_index);
         // Found a matching BSS, no need to continue searching
         break;
     }
@@ -1158,7 +1297,7 @@ bool em_agent_t::send_action_frame(uint8_t dest_mac[ETH_ALEN], uint8_t *action_f
     EM_ASSERT_NOT_NULL(action_frame, false, "action_frame is null");
 
     // Allocate memory for the action frame parameters, ieee80211 header and action frame body
-    action_frame_params_t *act_frame_params = (action_frame_params_t*) calloc(sizeof(action_frame_params_t) + action_frame_len, 1);
+    action_frame_params_t *act_frame_params = static_cast<action_frame_params_t *>(calloc(sizeof(action_frame_params_t) + action_frame_len, 1));
     EM_ASSERT_NOT_NULL(act_frame_params, false, "calloc failed");
 
     act_frame_params->ap_index = vap_idx;
@@ -1172,7 +1311,7 @@ bool em_agent_t::send_action_frame(uint8_t dest_mac[ETH_ALEN], uint8_t *action_f
 
     raw_data_t raw_act_frame;
     memset(&raw_act_frame, 0, sizeof(raw_data_t));
-    raw_act_frame.raw_data.bytes = (uint8_t *)act_frame_params;
+    raw_act_frame.raw_data.bytes = reinterpret_cast<uint8_t *>(act_frame_params);
     raw_act_frame.raw_data_len = sizeof(action_frame_params_t) + action_frame_len;
     raw_act_frame.data_type = bus_data_type_bytes;
 
@@ -1245,84 +1384,89 @@ void em_agent_t::input_listener()
     bus_init(&m_bus_hdl);
 
     if((desc = get_bus_descriptor()) == NULL) {
-        printf("%s:%d descriptor is null\n", __func__, __LINE__);
+        em_printfout("Error: descriptor is null");
     }
 
     if (desc->bus_open_fn(&m_bus_hdl, service_name) != 0) {
-        printf("%s:%d bus open failed\n",__func__, __LINE__);
+        em_printfout("Error: bus open failed");
         return;
     }
 
-    printf("%s:%d he_bus open success\n", __func__, __LINE__);
+    em_printfout("bus open success");
 
     memset(&data, 0, sizeof(raw_data_t));
 
     while ((bus_error_val = desc->bus_data_get_fn(&m_bus_hdl, WIFI_WEBCONFIG_INIT_DML_DATA, &data)) != bus_error_success) {
-        printf("%s:%d bus get failed, error:%d, ", __func__, __LINE__, bus_error_val);
+        em_printfout("Error: bus get failed, error: %d", bus_error_val);
 		usleep(RETRY_SLEEP_INTERVAL_IN_MS * 1000);
 		num_retry++;
-		printf("retrying %d\n", num_retry);
+		em_printfout("retrying %d", num_retry);
 
         if (num_retry % 5 == 0) {
             if (access(EM_CFG_FILE, F_OK) != -1) {
-                printf("Check that OneWifi is running.\n");
+                em_printfout("Check that OneWifi is running.");
             } else {
-                printf("EasymeshCfg.json does not exist. Generate via the unified-wifi-mesh CLI/TUI (if co-located) or by adding the `--interface` flag to the agent (if not)\n");
+                em_printfout("EasymeshCfg.json does not exist. Generate via the unified-wifi-mesh CLI/TUI (if co-located) or by adding the `--interface` flag to the agent (if not)");
             }
         }
     }
-    printf("%s:%d recv data:\r\n%s\r\n", __func__, __LINE__, (char *)data.raw_data.bytes);
+    em_printfout("Received data:\r\n%s\r\n", reinterpret_cast<char *>(data.raw_data.bytes));
 
-    g_agent.io_process(em_bus_event_type_dev_init, (unsigned char *)data.raw_data.bytes, data.raw_data_len);
+    g_agent.io_process(em_bus_event_type_dev_init, reinterpret_cast<unsigned char *>(data.raw_data.bytes), data.raw_data_len);
     free(data.raw_data.bytes);
 
-    if (desc->bus_event_subs_fn(&m_bus_hdl, WIFI_WEBCONFIG_DOC_DATA_NORTH, (void *)&em_agent_t::onewifi_cb, NULL, 0) != 0) {
-        printf("%s:%d bus get failed\n", __func__, __LINE__);
+    if (desc->bus_event_subs_fn(&m_bus_hdl, WIFI_WEBCONFIG_DOC_DATA_NORTH, reinterpret_cast<void *>(&em_agent_t::onewifi_cb), NULL, 0) != 0) {
+        em_printfout("Error: bus get failed");
         return;
     }
 
-    if (desc->bus_event_subs_fn(&m_bus_hdl, WIFI_WEBCONFIG_GET_ASSOC, (void *)&em_agent_t::sta_cb, NULL, 0) != 0) {
-        printf("%s:%d bus get failed\n", __func__, __LINE__);
+    if (desc->bus_event_subs_fn(&m_bus_hdl, WIFI_WEBCONFIG_GET_ASSOC, reinterpret_cast<void *>(&em_agent_t::sta_cb), NULL, 0) != 0) {
+        em_printfout("Error: bus get failed");
         return;
     }
 
-    if (desc->bus_event_subs_fn(&m_bus_hdl, "Device.WiFi.EM.STALinkMetricsReport", (void *)&em_agent_t::assoc_stats_cb, NULL, 0) != 0) {
-        printf("%s:%d bus get failed\n", __func__, __LINE__);
+    if (desc->bus_event_subs_fn(&m_bus_hdl, "Device.WiFi.EM.STALinkMetricsReport", reinterpret_cast<void *>(&em_agent_t::assoc_stats_cb), NULL, 0) != 0) {
+        em_printfout("Error: bus get failed");
         return;
     }
 
-    if (desc->bus_event_subs_fn(&m_bus_hdl, WIFI_EM_CHANNEL_SCAN_REPORT, (void *)&em_agent_t::channel_scan_cb, NULL, 0) != 0) {
-        printf("%s:%d bus get failed\n", __func__, __LINE__);
+    if (desc->bus_event_subs_fn(&m_bus_hdl, WIFI_EM_CHANNEL_SCAN_REPORT, reinterpret_cast<void *>(&em_agent_t::channel_scan_cb), NULL, 0) != 0) {
+        em_printfout("Error: bus get failed");
         return;
     }
 
-    if (desc->bus_event_subs_fn(&m_bus_hdl, "Device.WiFi.EM.BeaconReport", (void *)&em_agent_t::beacon_report_cb, NULL, 0) != 0) {
-        printf("%s:%d bus get failed\n", __func__, __LINE__);
+    if (desc->bus_event_subs_fn(&m_bus_hdl, "Device.WiFi.EM.BeaconReport", reinterpret_cast<void *>(&em_agent_t::beacon_report_cb), NULL, 0) != 0) {
+        em_printfout("Error: bus get failed");
         return;
     }
 
     if (desc->bus_event_subs_fn(&m_bus_hdl, "Device.WiFi.EM.AssociationStatus", reinterpret_cast<void *>(&em_agent_t::association_status_cb), nullptr, 0) != 0) {
-        em_printfout("Failed to subscribe to 'Device.WiFi.EM.AssociationStatus'");
+        em_printfout("Error: Failed to subscribe to 'Device.WiFi.EM.AssociationStatus'");
+        return;
+    }
+
+    if (desc->bus_event_subs_fn(&m_bus_hdl, "Device.WiFi.EM.ReportConnectionStatus", reinterpret_cast<void *>(&em_agent_t::connection_status_cb), nullptr, 0) != 0) {
+        em_printfout("Error: Failed to subscribe to 'Device.WiFi.EM.ReportConnectionStatus'");
         return;
     }
 
     if (desc->bus_event_subs_fn(&m_bus_hdl, "Device.WiFi.EC.BSSInfo", reinterpret_cast<void *>(&em_agent_t::bss_info_cb), nullptr, 0) != 0) {
-        em_printfout("Failed to subscribe to 'Device.WiFi.EC.BSSInfo', dynamic DPP channel list for Reconfiguration Announcement is not available");
+        em_printfout("Error: Failed to subscribe to 'Device.WiFi.EC.BSSInfo', dynamic DPP channel list for Reconfiguration Announcement is not available");
         // This is fine, not a fatal error
     }
 
-    if (desc->bus_event_subs_fn(&m_bus_hdl, "Device.WiFi.EM.APMetricsReport", (void *)&em_agent_t::report_cb, NULL, 0) != 0) {
-        printf("%s:%d bus get failed\n", __func__, __LINE__);
+    if (desc->bus_event_subs_fn(&m_bus_hdl, "Device.WiFi.EM.APMetricsReport", reinterpret_cast<void *>(&em_agent_t::report_cb), NULL, 0) != 0) {
+        em_printfout("Error: bus get failed");
         return;
     }
 
-    if (desc->bus_event_subs_fn(&m_bus_hdl,  WIFI_QUALITY_LINKREPORT, (void *)&em_agent_t::report_cb, NULL, 0) != 0) {
-        printf("%s:%d bus get failed\n", __func__, __LINE__);
+    if (desc->bus_event_subs_fn(&m_bus_hdl,  WIFI_QUALITY_LINKREPORT, reinterpret_cast<void *>(&em_agent_t::report_cb), NULL, 0) != 0) {
+        em_printfout("Error: bus get failed");
         return;
     }
 
-   if(desc->bus_event_subs_fn(&m_bus_hdl, "Device.WiFi.CSABeaconFrameRecieved", (void *)&em_agent_t::mgmt_csa_beacon_frame_cb, NULL, 0) != 0) {
-        printf("%s:%d bus get failed\n",__func__,__LINE__);
+   if(desc->bus_event_subs_fn(&m_bus_hdl, "Device.WiFi.CSABeaconFrameRecieved", reinterpret_cast<void *>(&em_agent_t::mgmt_csa_beacon_frame_cb), NULL, 0) != 0) {
+        em_printfout("Error: bus get failed");
         return;
     }
 
@@ -1349,23 +1493,42 @@ int em_agent_t::association_status_cb(char *event_name, bus_data_prop_t *data, v
     return 1;
 }
 
+int em_agent_t::connection_status_cb(char *event_name, bus_data_prop_t *data, void *userData)
+{
+    (void)event_name;
+    (void)userData;
+
+    if (data == nullptr) {
+        em_printfout("NULL data from OneWiFi callback!");
+        return -1;
+    }
+
+    g_agent.io_process(em_bus_event_type_connection_status,
+                       reinterpret_cast<unsigned char *>(data->value.raw_data.bytes),
+                       data->value.raw_data_len);
+    return 1;
+}
+
 int em_agent_t::channel_scan_cb(char *event_name, bus_data_prop_t *data, void *userData)
 {
     (void)userData;
     cJSON *json, *channel_stats_arr;
 
-    json = cJSON_Parse((const char *)data->value.raw_data.bytes);
+    json = cJSON_Parse(reinterpret_cast<const char *>(data->value.raw_data.bytes));
     if (json != NULL) {
         channel_stats_arr = cJSON_GetObjectItem(json, "ChannelScanResponse");
         if ((channel_stats_arr == NULL) && (cJSON_IsObject(channel_stats_arr) == false)) {
+            cJSON_Delete(json);
             return -1;
         }
         if (cJSON_IsArray(channel_stats_arr) && cJSON_GetArraySize(channel_stats_arr) == 0) {
+            cJSON_Delete(json);
             return -1;
         }
+        cJSON_Delete(json);
     }
 
-    g_agent.io_process(em_bus_event_type_scan_result, (unsigned char *)data->value.raw_data.bytes, data->value.raw_data_len);
+    g_agent.io_process(em_bus_event_type_scan_result, reinterpret_cast<unsigned char *>(data->value.raw_data.bytes), data->value.raw_data_len);
 
     return 1;
 }
@@ -1376,26 +1539,29 @@ int em_agent_t::report_cb(char *event_name, bus_data_prop_t *data, void *userDat
     (void)userData;
 
     if (strncmp(event_name, "Device.WiFi.EM.APMetricsReport", sizeof("Device.WiFi.EM.APMetricsReport"))==0) {
-        g_agent.io_process(em_bus_event_type_ap_metrics_report, (unsigned char *)data->value.raw_data.bytes, data->value.raw_data_len);
+        g_agent.io_process(em_bus_event_type_ap_metrics_report, reinterpret_cast<unsigned char *>(data->value.raw_data.bytes), data->value.raw_data_len);
     } else if (strncmp(event_name, WIFI_QUALITY_LINKREPORT, sizeof(WIFI_QUALITY_LINKREPORT))==0) {
-        //em_printfout("Received Frame data for event [%s] and data :\n%s", event_name, data->raw_data.bytes);
-        cJSON *json = cJSON_Parse((const char *)data->value.raw_data.bytes);
+        cJSON *json = cJSON_Parse(reinterpret_cast<const char *>(data->value.raw_data.bytes));
         if (json != NULL) {
             cJSON *link_report_arr;
             cJSON *subdoc_name = cJSON_GetObjectItemCaseSensitive(json, "SubDocName");
             if ((strcmp(subdoc_name->valuestring, "LinkReport") == 0)) {
-                em_printfout("Found SubDocName: LinkReport");
+                //em_printfout("Found SubDocName: LinkReport");
                 link_report_arr = cJSON_GetObjectItem(json, "LinkReport");
                 if ((link_report_arr == NULL) && (cJSON_IsObject(link_report_arr) == false)) {
+                    cJSON_Delete(json);
                     return 0;
                 }
                 if (cJSON_IsArray(link_report_arr) && cJSON_GetArraySize(link_report_arr) == 0) {
-                    em_printfout("LinkReport is NULL");
-                    //return -1;
+                    //em_printfout("LinkReport is NULL");
+                    cJSON_Delete(json);
+                    return -1;
                 }
+                em_printfout("Received Frame data for event [%s] and data :\n%s", event_name, data->value.raw_data.bytes);
             }
+            cJSON_Delete(json);
         }
-       // g_agent.io_process(em_bus_event_type_link_quality_report, (unsigned char *)data->value.raw_data.bytes, data->value.raw_data_len);
+        //g_agent.io_process(em_bus_event_type_link_quality_report, reinterpret_cast<unsigned char *>(data->value.raw_data.bytes), data->value.raw_data_len);
     }
 
     return 0;
@@ -1406,7 +1572,7 @@ int em_agent_t::beacon_report_cb(char *event_name, bus_data_prop_t *data, void *
     //printf("%s:%d Received Frame data for event [%s] and data :\n%s\n", __func__, __LINE__, event_name, data->value.raw_data.bytes);
     (void)userData;
 
-    g_agent.io_process(em_bus_event_type_beacon_report, (unsigned char *)data->value.raw_data.bytes, data->value.raw_data_len);
+    g_agent.io_process(em_bus_event_type_beacon_report, reinterpret_cast<unsigned char *>(data->value.raw_data.bytes), data->value.raw_data_len);
 
     return 0;
 }
@@ -1419,18 +1585,18 @@ int em_agent_t::mgmt_action_frame_cb(char *event_name, bus_data_prop_t *data, vo
     EM_ASSERT_MSG_TRUE(data != NULL && data->value.raw_data.bytes != NULL && data->value.raw_data_len > 0, -1,
                    "Invalid data in mgmt_action_frame_cb");
 
-    uint8_t* mgmt_frame_data = (uint8_t*)data->value.raw_data.bytes;
+    uint8_t* mgmt_frame_data = reinterpret_cast<uint8_t *>(data->value.raw_data.bytes);
     unsigned int mgmt_hdr_len = data->value.raw_data_len;
 
     // The frequency (and other wifi data) is prepended to the action frame data
     mgmt_frame_data += sizeof(wifi_frame_t);
     mgmt_hdr_len -= sizeof(wifi_frame_t);
 
-    struct ieee80211_mgmt *mgmt_frame = (struct ieee80211_mgmt *)mgmt_frame_data;
+    struct ieee80211_mgmt *mgmt_frame = reinterpret_cast<struct ieee80211_mgmt *>(mgmt_frame_data);
     
     
 
-    //util::print_hex_dump(data->value.raw_data_len, (uint8_t*)data->value.raw_data.bytes);
+    //util::print_hex_dump(data->value.raw_data_len, reinterpret_cast<uint8_t *>(data->value.raw_data.bytes));
 
     //printf("Received Frame data for event %s \n", event_name);
     if (mgmt_frame->u.action.u.bss_tm_resp.action == WLAN_WNM_BTM_RESPONSE) {
@@ -1461,10 +1627,10 @@ int em_agent_t::mgmt_action_frame_cb(char *event_name, bus_data_prop_t *data, vo
 int em_agent_t::assoc_stats_cb(char *event_name, bus_data_prop_t *data, void *userData)
 {
     (void)userData;
-    //printf("%s:%d recv data:\r\n%s\r\n", __func__, __LINE__, (char *)data->value.raw_data.bytes);
+    //printf("%s:%d recv data:\r\n%s\r\n", __func__, __LINE__, reinterpret_cast<char *>(data->value.raw_data.bytes));
     cJSON *json, *assoc_stats_arr;
 
-    json = cJSON_Parse((const char *)data->value.raw_data.bytes);
+    json = cJSON_Parse(reinterpret_cast<const char *>(data->value.raw_data.bytes));
     if (json != NULL) {
         cJSON *subdoc_name = cJSON_GetObjectItemCaseSensitive(json, "SubDocName");
         if ((strcmp(subdoc_name->valuestring, "Easymesh STA link metrics") == 0)) {
@@ -1473,16 +1639,18 @@ int em_agent_t::assoc_stats_cb(char *event_name, bus_data_prop_t *data, void *us
             printf("%s:%d Found SubDocName: AssociatedDeviceStats\n", __func__, __LINE__);
             assoc_stats_arr = cJSON_GetObjectItem(json, "AssociatedDeviceStats");
             if ((assoc_stats_arr == NULL) && (cJSON_IsObject(assoc_stats_arr) == false)) {
+                cJSON_Delete(json);
                 return -1;
             }
             if (cJSON_IsArray(assoc_stats_arr) && cJSON_GetArraySize(assoc_stats_arr) == 0) {
                 printf("%s:%d AssociatedDeviceStats is NULL\n", __func__, __LINE__);
+                cJSON_Delete(json);
                 return -1;
             }
         }
     }
 
-    g_agent.io_process(em_bus_event_type_sta_link_metrics, (unsigned char *)data->value.raw_data.bytes, data->value.raw_data_len);
+    g_agent.io_process(em_bus_event_type_sta_link_metrics, reinterpret_cast<unsigned char *>(data->value.raw_data.bytes), data->value.raw_data_len);
     cJSON_Delete(json);
 
     return 1;
@@ -1491,18 +1659,18 @@ int em_agent_t::assoc_stats_cb(char *event_name, bus_data_prop_t *data, void *us
 void em_agent_t::sta_cb(char *event_name, bus_data_prop_t *data, void *userData)
 {
     (void)userData;
-    //printf("%s:%d Recv data from onewifi:\r\n%s\r\n", __func__, __LINE__, (char *)data->value.raw_data.bytes);
-    g_agent.io_process(em_bus_event_type_sta_list, (unsigned char *)data->value.raw_data.bytes, data->value.raw_data_len);
+    //printf("%s:%d Recv data from onewifi:\r\n%s\r\n", __func__, __LINE__, reinterpret_cast<char *>(data->value.raw_data.bytes));
+    g_agent.io_process(em_bus_event_type_sta_list, reinterpret_cast<unsigned char *>(data->value.raw_data.bytes), data->value.raw_data_len);
 
 }
 
 void em_agent_t::onewifi_cb(char *event_name, bus_data_prop_t *data, void *userData)
 {
         (void)userData;
-	const char *json_data = (char *)data->value.raw_data.bytes;
+	const char *json_data = reinterpret_cast<char *>(data->value.raw_data.bytes);
 	cJSON *json = cJSON_Parse(json_data);
 
-	//printf("%s:%dRecv data from onewifi:\r\n%s\r\n", __func__, __LINE__, (char *)data->value.raw_data.bytes);
+	//printf("%s:%dRecv data from onewifi:\r\n%s\r\n", __func__, __LINE__, reinterpret_cast<char *>(data->value.raw_data.bytes));
 
 	if (json == NULL) {
 		em_printfout("Error parsing JSON");
@@ -1517,15 +1685,15 @@ void em_agent_t::onewifi_cb(char *event_name, bus_data_prop_t *data, void *userD
     em_printfout("Found SubDocName: %s", subdoc_name->valuestring);
     if ((strcmp(subdoc_name->valuestring, "private") == 0) || (strcmp(subdoc_name->valuestring, "Vap_6G") == 0) ||
         (strcmp(subdoc_name->valuestring, "Vap_5G") == 0) || (strcmp(subdoc_name->valuestring, "Vap_2.4G") == 0)) {
-        g_agent.io_process(em_bus_event_type_onewifi_private_cb, (unsigned char *)data->value.raw_data.bytes, data->value.raw_data_len);
+        g_agent.io_process(em_bus_event_type_onewifi_private_cb, reinterpret_cast<unsigned char *>(data->value.raw_data.bytes), data->value.raw_data_len);
 
     } else if ((strcmp(subdoc_name->valuestring, "radio") == 0) || (strcmp(subdoc_name->valuestring, "radio_6G") == 0) ||
         (strcmp(subdoc_name->valuestring, "radio_5G") == 0) || (strcmp(subdoc_name->valuestring, "radio_2.4G") == 0)) {
-        g_agent.io_process(em_bus_event_type_onewifi_radio_cb, (unsigned char *)data->value.raw_data.bytes, data->value.raw_data_len);
+        g_agent.io_process(em_bus_event_type_onewifi_radio_cb, reinterpret_cast<unsigned char *>(data->value.raw_data.bytes), data->value.raw_data_len);
 
     } else if ((strcmp(subdoc_name->valuestring, "mesh_sta") == 0) || 
                (strcmp(subdoc_name->valuestring, "mesh backhaul sta") == 0)) {
-        g_agent.io_process(em_bus_event_type_onewifi_mesh_sta_cb, (unsigned char *)data->value.raw_data.bytes, data->value.raw_data_len);
+        g_agent.io_process(em_bus_event_type_onewifi_mesh_sta_cb, reinterpret_cast<unsigned char *>(data->value.raw_data.bytes), data->value.raw_data_len);
 
     } else {
         em_printfout("SubDocName (%s) not matching private, mesh_sta, or radio", subdoc_name->valuestring);
@@ -1539,7 +1707,7 @@ int em_agent_t::mgmt_csa_beacon_frame_cb(char *event_name, bus_data_prop_t *data
 {
     printf("%s:%d Received Frame data for event [%s] and data of len:\n%d\n", __func__, __LINE__, event_name, data->value.raw_data_len);
 
-    g_agent.io_process(em_bus_event_type_recv_csa_beacon_frame, (unsigned char *)data->value.raw_data.bytes, data->value.raw_data_len);
+    g_agent.io_process(em_bus_event_type_recv_csa_beacon_frame, reinterpret_cast<unsigned char *>(data->value.raw_data.bytes), data->value.raw_data_len);
     return 1;
 }
 
@@ -1571,31 +1739,31 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
 {
     em_raw_hdr_t *hdr;
     em_cmdu_t *cmdu;
-    em_interface_t intf;
     em_freq_band_t band = em_freq_band_unknown;
     dm_easy_mesh_t *dm;
     em_t *em = NULL;
     mac_address_t ruid;
-    em_profile_type_t profile;
     mac_addr_str_t mac_str1, mac_str2;
     bssid_t bss_mac;
-    mac_address_t client_mac;
     bool found = false;
     em_string_t al_mac_str;
     em_bss_info_t *em_bss = NULL;
+    em_t *tmp_em = NULL;
+    em_ap_mld_info_t *ap_mld_info = NULL;
+    unsigned int i = 0, j = 0;
 
     assert(len > ((sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))));
     if (len < ((sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)))) {
         return NULL;
     }
    
-    hdr = (em_raw_hdr_t *)data;
+    hdr = reinterpret_cast<em_raw_hdr_t *>(data);
 
     if (hdr->type != htons(ETH_P_1905)) {
         return NULL;
     }
    
-    cmdu = (em_cmdu_t *)(data + sizeof(em_raw_hdr_t));
+    cmdu = reinterpret_cast<em_cmdu_t *>(data + sizeof(em_raw_hdr_t));
 
     switch (htons(cmdu->type)) {
 	case em_msg_type_autoconf_resp:
@@ -1610,7 +1778,7 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
             return al_em;
         }
 
-		em = (em_t *)hash_map_get_first(m_em_map);
+		em = static_cast<em_t *>(hash_map_get_first(m_em_map));
 		while (em != NULL) {
 			if (!(em->is_al_interface_em())) {
 				if (em->is_matching_freq_band(&band) == true) {
@@ -1623,7 +1791,7 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
 					}
 				}
 			}
-			em = (em_t *)hash_map_get_next(m_em_map, em);
+			em = static_cast<em_t *>(hash_map_get_next(m_em_map, em));
 		}
 		if (found == false) {
 			printf("%s:%d: Could not find em with matching band%d and expected state \n", __func__, __LINE__, band);
@@ -1646,12 +1814,12 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
 		}
 		dm_easy_mesh_t::macbytes_to_string(ruid, al_mac_str);
 		strcat(al_mac_str, "_al");
-		if ((em = (em_t *)hash_map_get(m_em_map, al_mac_str)) != NULL) {
+		if ((em = static_cast<em_t *>(hash_map_get(m_em_map, al_mac_str))) != NULL) {
 			printf("%s:%d: Found existing AL MAC:%s\n", __func__, __LINE__, al_mac_str);
 		} else {
 			return NULL;
 		}
-		em = (em_t *)hash_map_get_first(m_em_map);
+		em = static_cast<em_t *>(hash_map_get_first(m_em_map));
 		while (em != NULL) {
 			if (!(em->is_al_interface_em())) {
 				if (em->is_matching_freq_band(&band) == true) {
@@ -1664,7 +1832,7 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
 					}
 				}
 			}
-			em = (em_t *)hash_map_get_next(m_em_map, em);
+			em = static_cast<em_t *>(hash_map_get_next(m_em_map, em));
 		}
 		if (found == false) {
 			printf("%s:%d: Could not find em with matching band%d and expected state \n", __func__, __LINE__, band);
@@ -1678,7 +1846,7 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
 			}
 
 			dm_easy_mesh_t::macbytes_to_string(ruid, mac_str1);
-        	if ((em = (em_t *)hash_map_get(m_em_map, mac_str1)) != NULL) {
+         if ((em = static_cast<em_t *>(hash_map_get(m_em_map, mac_str1))) != NULL) {
             	printf("%s:%d: Found existing radio:%s\n", __func__, __LINE__, mac_str1);
         	} else {
 				return NULL;
@@ -1691,7 +1859,7 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
             em_string_t al_mac_str;
             dm_easy_mesh_t::macbytes_to_string(hdr->dst, al_mac_str);
             strcat(al_mac_str, "_al");
-            if ((em = (em_t *)hash_map_get(m_em_map, al_mac_str)) != NULL) {
+            if ((em = static_cast<em_t *>(hash_map_get(m_em_map, al_mac_str))) != NULL) {
                 em_printfout("Received query message, found al_mac agent:%s", al_mac_str);
             } else {
                 em_printfout("Discarding query message, al_mac agent:%s not found",
@@ -1711,7 +1879,7 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
             }
 
             dm_easy_mesh_t::macbytes_to_string(ruid, mac_str1);
-            if ((em = (em_t *)hash_map_get(m_em_map, mac_str1)) != NULL) {
+            if ((em = static_cast<em_t *>(hash_map_get(m_em_map, mac_str1))) != NULL) {
                 if (em->is_al_interface_em() == false) {
                     printf("%s:%d: Received em_msg_type_channel_sel_req, found existing radio:%s\n", __func__, __LINE__, mac_str1);
                 } else {
@@ -1741,12 +1909,50 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
             while (em != NULL) {
                 dm = em->get_data_model();
                 em_bss = dm->get_bss_info_with_mac(bss_mac);
-                if (memcmp(em_bss->ruid.mac, em->get_radio_interface_mac(), sizeof(bssid_t)) == 0) {
+                if ((em_bss != NULL) &&
+                    (memcmp(em_bss->ruid.mac, em->get_radio_interface_mac(), sizeof(bssid_t)) == 0)) {
                     printf("%s:%d: Received client cap query: found radio for bss:%s\n", __func__, __LINE__, mac_str1);
                     break;
                 }
                 em = static_cast<em_t *> (hash_map_get_next(m_em_map, em));
             }
+
+            if (em == NULL) {
+                // AP MLD MAC fallback: resolve affiliated link radio EM.
+                tmp_em = static_cast<em_t *>(hash_map_get_first(m_em_map));
+                while (tmp_em != NULL) {
+                    dm = tmp_em->get_data_model();
+                    if ((dm != NULL) && (tmp_em->is_al_interface_em() == false)) {
+                        for (i = 0; i < dm->get_num_ap_mld(); i++) {
+                            ap_mld_info = &dm->m_ap_mld[i].m_ap_mld_info;
+                            if (memcmp(ap_mld_info->mac_addr, bss_mac, sizeof(mac_address_t)) != 0) {
+                                continue;
+                            }
+
+                            for (j = 0; j < ap_mld_info->num_affiliated_ap; j++) {
+                                if (memcmp(ap_mld_info->affiliated_ap[j].ruid.mac,
+                                           tmp_em->get_radio_interface_mac(),
+                                           sizeof(mac_address_t)) == 0) {
+                                    em = tmp_em;
+                                    em_printfout("Client cap: AP-MLD bssid=%s mapped to radio=%s",
+                                           util::mac_to_string(bss_mac).c_str(),
+                                           util::mac_to_string(em->get_radio_interface_mac()).c_str());
+                                    break;
+                                }
+                            }
+                            if (em != NULL) {
+                                break;
+                            }
+                        }
+                    }
+
+                    if (em != NULL) {
+                        break;
+                    }
+                    tmp_em = static_cast<em_t *>(hash_map_get_next(m_em_map, tmp_em));
+                }
+            }
+
             if(em == NULL){
                 dm_easy_mesh_t::macbytes_to_string(bss_mac, mac_str2);
                 printf("%s:%d: Received client cap query: Could not find radio:%s of bss:%s\n", __func__, __LINE__, mac_str1, mac_str2);
@@ -1762,12 +1968,12 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
         case em_msg_type_assoc_sta_link_metrics_query:
             printf("\n%s:%d: Rcvd Assoc STA Link Metrics Query\n", __func__, __LINE__);
 
-            em = (em_t *)hash_map_get_first(m_em_map);
+            em = static_cast<em_t *>(hash_map_get_first(m_em_map));
             while (em != NULL) {
                 if ((em->is_al_interface_em() == false)) {
                     break;
                 }
-                em = (em_t *)hash_map_get_next(m_em_map, em);
+                em = static_cast<em_t *>(hash_map_get_next(m_em_map, em));
             }
             break;
 
@@ -1777,13 +1983,13 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
 
         case em_msg_type_client_steering_req:
             printf("\n%s:%d: Rcvd Client steering request\n", __func__, __LINE__);
-            em = (em_t *)hash_map_get_first(m_em_map);
+            em = static_cast<em_t *>(hash_map_get_first(m_em_map));
             while (em != NULL) {
                 if ((em->is_al_interface_em() == false)) {
                     //printf("%s:%d: Found em\n", __func__, __LINE__);
                     break;
                 }
-                em = (em_t *)hash_map_get_next(m_em_map, em);
+                em = static_cast<em_t *>(hash_map_get_next(m_em_map, em));
             }
             break;
 
@@ -1798,7 +2004,7 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
 			}
 
 			dm_easy_mesh_t::macbytes_to_string(ruid, mac_str1);
-        	if ((em = (em_t *)hash_map_get(m_em_map, mac_str1)) == NULL) {
+         if ((em = static_cast<em_t *>(hash_map_get(m_em_map, mac_str1))) == NULL) {
 				return NULL;
 			}
 			
@@ -1807,13 +2013,13 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
         case  em_msg_type_ap_mld_config_req:
             printf("%s:%d: Received em_msg_type_ap_mld_config_req\n", __func__, __LINE__);
 
-            em = (em_t *)hash_map_get_first(m_em_map);
+            em = static_cast<em_t *>(hash_map_get_first(m_em_map));
             while (em != NULL) {
                 if ((em->is_al_interface_em() == false)) {
                     //printf("%s:%d: Found em\n", __func__, __LINE__);
                     break;
                 }
-                em = (em_t *)hash_map_get_next(m_em_map, em);
+                em = static_cast<em_t *>(hash_map_get_next(m_em_map, em));
             }
 
             break;
@@ -1823,12 +2029,12 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
         case em_msg_type_channel_pref_rprt:
         case em_msg_type_1905_ack:
         case em_msg_type_map_policy_config_req:
-            em = (em_t *)hash_map_get_first(m_em_map);
+            em = static_cast<em_t *>(hash_map_get_first(m_em_map));
             while (em != NULL) {
                 if ((em->is_al_interface_em() == false)) {
                     break;
                 }
-                em = (em_t *)hash_map_get_next(m_em_map, em);
+                em = static_cast<em_t *>(hash_map_get_next(m_em_map, em));
             }
             break;
 
@@ -1880,13 +2086,13 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
             break;
 
         case em_msg_type_bh_sta_cap_query:
-            em = (em_t *)hash_map_get_first(m_em_map);
+            em = static_cast<em_t *>(hash_map_get_first(m_em_map));
             while (em != NULL) {
                 if ((em->is_al_interface_em() == true)) {
                     em_printfout("Rcvd bsta cap Query");
                     break;
                 }
-                em = (em_t *)hash_map_get_next(m_em_map, em);
+                em = static_cast<em_t *>(hash_map_get_next(m_em_map, em));
             }
             break;
 
@@ -1894,13 +2100,13 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
             break;
 
         case em_msg_type_client_assoc_ctrl_req:
-            em = (em_t *)hash_map_get_first(m_em_map);
+            em = static_cast<em_t *>(hash_map_get_first(m_em_map));
             while (em != NULL) {
 	        if ((em->is_al_interface_em() == true)) {
 	            em_printfout("Rceived client assoc ctrl request from controller");
 	            break;
 	        }
-	        em = (em_t *)hash_map_get_next(m_em_map, em);
+	        em = static_cast<em_t *>(hash_map_get_next(m_em_map, em));
            }
            break;
 
@@ -2057,6 +2263,7 @@ bool em_agent_t::try_start_dpp_onboarding()  {
 }
 
 em_agent_t::em_agent_t()
+    : m_orch(nullptr), m_data_model(), m_data_model_path{}, m_agent_cmd(nullptr), m_simulator(), m_bus_hdl{}
 {
 
 }
@@ -2084,7 +2291,7 @@ AlServiceAccessPoint* em_agent_t::al_sap_register(const std::string& data_socket
         }
         std::cout << std::dec << std::endl;
     } else {
-        std::cout << "Registration failed with error: " << (int)result << std::endl;
+        std::cout << "Registration failed with error: " << static_cast<int>(result) << std::endl;
     }
 
     return sap;
