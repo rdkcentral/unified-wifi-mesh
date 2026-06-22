@@ -135,6 +135,7 @@ int tr_181_t::wfa_set_bus_callbackfunc_pointers(const char *full_namespace, bus_
         ELEMENT(DE_RADIO_CHIPVENDOR,       CALLBACK_GETTER(radio_get)),
         ELEMENT(DE_RADIO_CURROPNOE,        CALLBACK_GETTER(radio_get)),
         ELEMENT(DE_RADIO_BSSNOE,           CALLBACK_GETTER(radio_get)),
+        ELEMENT(DE_RADIO_XAIRTIES_OPERSTANDARDS, CALLBACK_GETTER(rcaps_get)),
         ELEMENT(DE_RCAPS_HTCAPS,           CALLBACK_GETTER(rcaps_get)),
         ELEMENT(DE_RCAPS_VHTCAPS,          CALLBACK_GETTER(rcaps_get)),
         ELEMENT(DE_RCAPS_CAPOPNOE,         CALLBACK_GETTER(rcaps_get)),
