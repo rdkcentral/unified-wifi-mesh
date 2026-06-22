@@ -2047,6 +2047,7 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
         case em_msg_type_beacon_metrics_query:
             em_printfout(" Rcvd Beacon Metrics Query");
             {
+                mac_address_t client_mac = {};
                 em_tlv_t *bmq_tlv = reinterpret_cast<em_tlv_t *>(data + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
                 em_beacon_metrics_query_t *bmq = reinterpret_cast<em_beacon_metrics_query_t *>(bmq_tlv->value);
                 memcpy(client_mac, bmq->sta_mac_addr, sizeof(mac_address_t));
