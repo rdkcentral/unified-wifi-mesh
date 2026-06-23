@@ -636,9 +636,9 @@ unsigned int em_orch_ctrl_t::build_candidates(em_cmd_t *pcmd)
                         (em->is_al_interface_em() == false)) {
                         queue_push(pcmd->m_em_candidates, em);
                         count++;
-                        em_printfout("Found em[%s] for BSS %s, candidate count: %d",
+                        em_printfout("Found em[%s] for BSS %s, candidate count: %d for orch type: %s",
                             util::mac_to_string(em->get_radio_interface_mac()).c_str(),
-                            pcmd->m_param.u.args.args[1], count);
+                            pcmd->m_param.u.args.args[1], count, em_cmd_t::get_orch_op_str(pcmd->get_orch_op()));
                         break;
                     }
                 }

@@ -408,27 +408,21 @@ class em_metrics_t {
 	 */
 	short create_beacon_metrics_query_tlv(unsigned char *buff, mac_address_t sta_mac, bssid_t bssid);
     
-        /**!
-         * @brief Sends a 1905 ACK for a received Beacon Metrics Response.
-         * @param[in] msg_id The message ID from the CMDU being acknowledged.
-         */
-        int send_beacon_metrics_ack(unsigned short msg_id);
+	/**!
+	 * @brief Sends a 1905 ACK for a received Beacon Metrics Response.
+	 * @param[in] msg_id The message ID from the CMDU being acknowledged.
+	 */
+	int send_beacon_metrics_ack(unsigned short msg_id);
 
-        /**!
-         * @brief Sends a 1905 ACK to the controller after receiving a Beacon Metrics Query.
-         *        Includes an Error Code TLV (Reason 0x02) if the STA is not associated.
-         * @param[in] sta_mac STA MAC address from the query.
-         * @param[in] msg_id  Message ID from the CMDU being acknowledged.
-         * @param[in] reason  0 = success; 0x02 = STA not associated with any BSS.
-         */
-        int send_beacon_metrics_query_ack(mac_address_t sta_mac, unsigned short msg_id, unsigned char reason);
+	/**!
+	 * @brief Sends a 1905 ACK to the controller after receiving a Beacon Metrics Query.
+	 *        Includes an Error Code TLV (Reason 0x02) if the STA is not associated.
+	 * @param[in] sta_mac STA MAC address from the query.
+	 * @param[in] msg_id  Message ID from the CMDU being acknowledged.
+	 * @param[in] reason  0 = success; 0x02 = STA not associated with any BSS.
+	 */
+	int send_beacon_metrics_query_ack(mac_address_t sta_mac, unsigned short msg_id, unsigned char reason);
 
-        /**!
-         * @brief Returns true if the STA's RM Enabled Capabilities indicate support
-         *        for at least one 802.11k beacon measurement mode (Passive, Active, or Table).
-         * @param[in] rm_cap  Compact hex string as stored in em_sta_info_t::rm_cap.
-         */
-        static bool sta_supports_beacon_measurement(const char *rm_cap);
 	/**!
 	 * @brief Sends a beacon metrics response.
 	 *

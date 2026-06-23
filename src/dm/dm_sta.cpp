@@ -553,6 +553,24 @@ void dm_sta_t::decode_beacon_report(dm_sta_t *sta)
    }
 }
 
+bool dm_sta_t::supports_beacon_measurement()
+{
+    // IEEE 802.11 (RM Enabled Capabilities, Octet 1):
+    //   bit 4 = Beacon Passive measurement
+    //   bit 5 = Beacon Active measurement
+    //   bit 6 = Beacon Table measurement
+    // Mask 0x70 covers all three.
+    if (m_sta_info.rm_cap == nullptr || m_sta_info.rm_cap[0] == '\0') {
+        return false;
+    }
+    unsigned int byte0 = 0;
+    if (sscanf(m_sta_info.rm_cap, "%02x", &byte0) != 1) {
+        return false;
+    }
+    //return true if any of the three beacon measurement bits are set
+    return (byte0 & 0x70) != 0;
+}
+
 dm_sta_t::dm_sta_t(em_sta_info_t *sta)
 {
     memcpy(&m_sta_info, sta, sizeof(em_sta_info_t));

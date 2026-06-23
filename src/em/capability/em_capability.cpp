@@ -1741,7 +1741,7 @@ void em_capability_t::process_ctrl_state()
             break;
 
         default:
-            printf("%s:%d: unhandled case %s\n", __func__, __LINE__, em_t::state_2_str(get_state()));
+            em_printfout("unhandled case %s", em_t::state_2_str(get_state()));
             break;
     }
 }

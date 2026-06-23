@@ -88,11 +88,8 @@ int em_metrics_t::handle_assoc_sta_link_metrics_tlv(unsigned char *buff,
         if (sta->m_sta_info.rcpi == 0 || !sta->m_sta_info.associated) {
             continue;
         }
-        // Skip only if rm_cap is explicitly present and shows no beacon measurement support.
-        // If rm_cap is empty (e.g. MLD clients where IE parsing may miss it), allow the query —
-        // the agent will send the request and we'll find out from the response.
-        if (sta->m_sta_info.rm_cap[0] != '\0' &&
-            !sta_supports_beacon_measurement(sta->m_sta_info.rm_cap)) {
+
+        if (sta->supports_beacon_measurement() == false) {
             continue;
         }
         // Find the radio this BSS belongs to and check its RCPI threshold
@@ -460,6 +457,33 @@ int em_metrics_t::handle_beacon_metrics_response(unsigned char *buff, unsigned i
         }
         tmp_len -= static_cast<unsigned int> (sizeof(em_tlv_t) + static_cast<size_t> (htons(tlv->len)));
         tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
+    }
+
+    if (response == NULL) {
+        em_printfout("Beacon Metrics Response: no beacon metrics response TLV found");
+        return -1;
+    }
+
+    // Discard null/stub reports where the first measurement report element
+    // contains a null BSSID (00:00:00:00:00:00).  This happens with MLO clients
+    // that return a zeroed report body instead of setting the Incapable bit
+    // in Measurement Report Mode (firmware non-compliance with 802.11-2020 9.4.2.22.2).
+    //
+    // Raw 802.11 Measurement Report IE layout (beacon type):
+    //   [0]=elem-id [1]=length [2]=token [3]=report-mode [4]=report-type
+    //   [5]=op-class [6]=channel [7..14]=start-time [15..16]=duration
+    //   [17]=frame-info [18]=RCPI [19]=RSNI [20..25]=BSSID
+    static constexpr unsigned int BSSID_OFFSET_IN_BEACON_RPT_IE = 20;
+    static constexpr unsigned int MIN_BEACON_RPT_IE_LEN = 26; // through BSSID
+    if (response->meas_rprt_count > 0 &&
+            report_len >= MIN_BEACON_RPT_IE_LEN) {
+        const unsigned char *first_ie = response->meas_reports;
+        mac_address_t null_bssid = {};
+        if (memcmp(first_ie + BSSID_OFFSET_IN_BEACON_RPT_IE, null_bssid, sizeof(mac_address_t)) == 0) {
+            em_printfout("Beacon Metrics Response: null BSSID in report, discarding stub measurement for sta:%s",
+                util::mac_to_string(response->sta_mac_addr).c_str());
+            return 0;
+        }
     }
 
     sta = dm->get_first_sta(response->sta_mac_addr);
@@ -1655,7 +1679,7 @@ short em_metrics_t::create_beacon_metrics_query_tlv(unsigned char *buff, mac_add
     std::vector<int> ch_vec = dm_easy_mesh_t::get_channel_list_by_op_class(static_cast<int>(scan_op_class));
     em_printfout("Channel list for op_class %u: %zu entries", scan_op_class, ch_vec.size());
     for (int ch : ch_vec) {
-        em_printfout("  raw channel: %d", ch);
+        //em_printfout("  raw channel: %d", ch);
     }
 
     // Remove any zero entries — channel 0 is invalid and some STAs reject the request.
@@ -2209,24 +2233,7 @@ int em_metrics_t::send_beacon_metrics_query_ack(mac_address_t sta_mac, unsigned 
     return static_cast<int>(len);
 }
 
-bool em_metrics_t::sta_supports_beacon_measurement(const char *rm_cap)
-{
-    // rm_cap is stored as a compact hex string by dm_easy_mesh_t::hex().
-    // e.g. tag value {0x71, 0x00, ...} → "7100..."
-    // IEEE 802.11-2020 Table 9-157 (RM Enabled Capabilities, Octet 1):
-    //   bit 4 = Beacon Passive measurement
-    //   bit 5 = Beacon Active measurement
-    //   bit 6 = Beacon Table measurement
-    // Mask 0x70 covers all three.
-    if (rm_cap == nullptr || rm_cap[0] == '\0') {
-        return false;
-    }
-    unsigned int byte0 = 0;
-    if (sscanf(rm_cap, "%02x", &byte0) != 1) {
-        return false;
-    }
-    return (byte0 & 0x70) != 0;
-}
+
 
 em_metrics_t::em_metrics_t()
 {

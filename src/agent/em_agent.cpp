@@ -938,8 +938,54 @@ void em_agent_t::send_beacon_query(em_bus_event_t *evt)
     em_printfout("Beacon Query forwarding to OW for sta: %s", util::mac_to_string(query_params->sta_mac_addr).c_str());
     beacon_req->opClass = query_params->op_class;
     beacon_req->channel = query_params->channel_num;
-    beacon_req->mode = 1; // Active: STA actively probes and reports neighboring BSSes
-    memcpy(beacon_req->bssid, query_params->bssid, sizeof(mac_address_t));
+    // Measurement mode selection:
+    //   2 = Beacon Table - report from the STA's internal neighbor cache (no scan needed).
+    //       Most reliable mode; the STA has already heard neighbors passively.
+    //   0 = Passive - listen for beacons; allowed on all bands incl. 6 GHz (Wi-Fi 6E).
+    //   1 = Active - send probe requests; restricted on 6 GHz by Wi-Fi 6E regulations.
+    // Try Beacon Table first.  The request is still sent; if the STA returns a null/empty
+    // report for this mode it can be retried with Passive.
+    beacon_req->mode = 2; // Beacon Table
+    // For MLD APs, query_params->bssid is the AP-MLD MAC which does not appear in the
+    // wifidb VAP map.  OneWifi uses beacon_req->bssid only to resolve ap_index (it then
+    // overwrites it with wildcard before the HAL call).  Resolve the correct link-level
+    // BSSID via the Associated STA MLD info, with fallback to the STA map entry.
+    {
+        bool resolved = false;
+        // Primary: Associated STA MLD table (populated by topology handler)
+        for (unsigned int i = 0; i < m_data_model.get_num_assoc_sta_mld() && !resolved; i++) {
+            em_assoc_sta_mld_info_t &mld =
+                m_data_model.m_assoc_sta_mld[i].m_assoc_sta_mld_info;
+            if (memcmp(mld.mac_addr, query_params->sta_mac_addr, sizeof(mac_address_t)) != 0) {
+                continue;
+            }
+            if (mld.num_affiliated_sta > 0) {
+                em_printfout("MLD STA %s: using affiliated AP BSSID %s for ap_index resolution",
+                    util::mac_to_string(query_params->sta_mac_addr).c_str(),
+                    util::mac_to_string(mld.affiliated_sta[0].bssid).c_str());
+                memcpy(beacon_req->bssid, mld.affiliated_sta[0].bssid, sizeof(mac_address_t));
+                resolved = true;
+            }
+        }
+        // Secondary: STA map bssid field (set from wifidb VAP bssid in the translator).
+        // Only use it when it differs from query_params->bssid - a difference means
+        // query_params->bssid is an MLD MAC while the STA map holds the link address.
+        if (!resolved) {
+            dm_sta_t *sta = m_data_model.get_first_sta(query_params->sta_mac_addr);
+            if (sta != nullptr &&
+                memcmp(sta->m_sta_info.bssid, ZERO_MAC_ADDR, sizeof(mac_address_t)) != 0 &&
+                memcmp(sta->m_sta_info.bssid, query_params->bssid, sizeof(mac_address_t)) != 0) {
+                em_printfout("MLD STA %s: using STA map BSSID %s for ap_index resolution",
+                    util::mac_to_string(query_params->sta_mac_addr).c_str(),
+                    util::mac_to_string(sta->m_sta_info.bssid).c_str());
+                memcpy(beacon_req->bssid, sta->m_sta_info.bssid, sizeof(mac_address_t));
+                resolved = true;
+            }
+        }
+        if (!resolved) {
+            memcpy(beacon_req->bssid, query_params->bssid, sizeof(mac_address_t));
+        }
+    }
     beacon_req->ssidPresent = (query_params->ssid_len > 0);
     if (beacon_req->ssidPresent) {
         size_t ssid_copy_len = query_params->ssid_len;
