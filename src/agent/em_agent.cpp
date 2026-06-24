@@ -498,10 +498,6 @@ void em_agent_t::handle_recv_connection_status(em_bus_event_t *event)
     conn_status_evt = reinterpret_cast<const em_connection_status_evt_data_t *>(event->u.raw_buff);
 
     if (!is_failed_connection_message(conn_status_evt)) {
-        /*em_printfout("Skip: sta=%s bssid=%s status=%u not in failed-connection filter",
-                     util::mac_to_string(conn_status_evt->sta_mac).c_str(),
-                     util::mac_to_string(conn_status_evt->bssid).c_str(),
-                     conn_status_evt->status_code);*/
         return;
     }
 
@@ -540,10 +536,11 @@ void em_agent_t::handle_recv_connection_status(em_bus_event_t *event)
     qevt->u.cevt.type = em_cmd_event_type_failed_connection;
     qevt->u.cevt.cmd_ptr = evt_copy;
 
-    em_printfout("Queue failed connection: sta=%s bssid=%s status=%u",
+    em_printfout("Queue failed connection: sta=%s bssid=%s status=%u reason=%u",
                  util::mac_to_string(evt_copy->sta_mac).c_str(),
                  util::mac_to_string(evt_copy->bssid).c_str(),
-                 evt_copy->status_code);
+                 evt_copy->status_code,
+                 evt_copy->reason_code);
 
     em->push_to_queue(qevt);
 }
@@ -1931,8 +1928,7 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
     bool found = false;
     em_string_t al_mac_str;
     em_bss_info_t *em_bss = NULL;
-    em_t *tmp_em = NULL;
-    em_ap_mld_info_t *ap_mld_info = NULL;
+    mac_address_t fallback_ruid = {0};
     unsigned int i = 0, j = 0;
 
     assert(len > ((sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))));
@@ -2087,58 +2083,32 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
             }
 
             dm_easy_mesh_t::macbytes_to_string(bss_mac, mac_str1);
-
-            em = static_cast<em_t *> (hash_map_get_first(m_em_map));
-            while (em != NULL) {
-                dm = em->get_data_model();
-                em_bss = dm->get_bss_info_with_mac(bss_mac);
-                if ((em_bss != NULL) &&
-                    (memcmp(em_bss->ruid.mac, em->get_radio_interface_mac(), sizeof(bssid_t)) == 0)) {
-                    printf("%s:%d: Received client cap query: found radio for bss:%s\n", __func__, __LINE__, mac_str1);
-                    break;
-                }
-                em = static_cast<em_t *> (hash_map_get_next(m_em_map, em));
-            }
-
-            if (em == NULL) {
-                // AP MLD MAC fallback: resolve affiliated link radio EM.
-                tmp_em = static_cast<em_t *>(hash_map_get_first(m_em_map));
-                while (tmp_em != NULL) {
-                    dm = tmp_em->get_data_model();
-                    if ((dm != NULL) && (tmp_em->is_al_interface_em() == false)) {
-                        for (i = 0; i < dm->get_num_ap_mld(); i++) {
-                            ap_mld_info = &dm->m_ap_mld[i].m_ap_mld_info;
-                            if (memcmp(ap_mld_info->mac_addr, bss_mac, sizeof(mac_address_t)) != 0) {
-                                continue;
-                            }
-
-                            for (j = 0; j < ap_mld_info->num_affiliated_ap; j++) {
-                                if (memcmp(ap_mld_info->affiliated_ap[j].ruid.mac,
-                                           tmp_em->get_radio_interface_mac(),
-                                           sizeof(mac_address_t)) == 0) {
-                                    em = tmp_em;
-                                    em_printfout("Client cap: AP-MLD bssid=%s mapped to radio=%s",
-                                           util::mac_to_string(bss_mac).c_str(),
-                                           util::mac_to_string(em->get_radio_interface_mac()).c_str());
-                                    break;
-                                }
-                            }
-                            if (em != NULL) {
-                                break;
-                            }
-                        }
-                    }
-
-                    if (em != NULL) {
+            if (m_data_model.is_ap_mld_mac(bss_mac) == false) {
+                em_printfout("Client cap query bss=%s is not AP-MLD MAC, using direct BSS lookup", mac_str1);
+                em = static_cast<em_t *>(hash_map_get_first(m_em_map));
+                while (em != NULL) {
+                    dm = em->get_data_model();
+                    em_bss = dm->get_bss_info_with_mac(bss_mac);
+                    if ((em_bss != NULL) &&
+                        (memcmp(em_bss->ruid.mac, em->get_radio_interface_mac(), sizeof(bssid_t)) == 0)) {
+                        em_printfout("Received client cap query: found radio for bss:%s", mac_str1);
                         break;
                     }
-                    tmp_em = static_cast<em_t *>(hash_map_get_next(m_em_map, tmp_em));
+                    em = static_cast<em_t *>(hash_map_get_next(m_em_map, em));
+                }
+            } else {
+                em_printfout("Client cap query bss=%s is AP-MLD MAC, resolving to affiliated radio", mac_str1);
+                if (m_data_model.resolve_ap_mld_to_fallback_ruid(bss_mac, fallback_ruid)) {
+                    dm_easy_mesh_t::macbytes_to_string(fallback_ruid, mac_str2);
+                    em = static_cast<em_t *>(hash_map_get(m_em_map, mac_str2));
+                    if (em != NULL) {
+                        em_printfout("Client cap query AP-MLD bss=%s resolved to radio=%s", mac_str1, mac_str2);
+                    }
                 }
             }
-
             if(em == NULL){
                 dm_easy_mesh_t::macbytes_to_string(bss_mac, mac_str2);
-                printf("%s:%d: Received client cap query: Could not find radio:%s of bss:%s\n", __func__, __LINE__, mac_str1, mac_str2);
+                em_printfout("Received client cap query: Could not find radio:%s of bss:%s", mac_str1, mac_str2);
             }
             break;
 

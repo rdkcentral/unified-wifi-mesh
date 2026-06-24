@@ -57,7 +57,12 @@ void dm_assoc_sta_mld_t::operator = (const dm_assoc_sta_mld_t& obj)
     this->m_assoc_sta_mld_info.emlsr = obj.m_assoc_sta_mld_info.emlsr;
     this->m_assoc_sta_mld_info.emlmr = obj.m_assoc_sta_mld_info.emlmr;
     this->m_assoc_sta_mld_info.num_affiliated_sta = obj.m_assoc_sta_mld_info.num_affiliated_sta;
-    memcpy(&this->m_assoc_sta_mld_info.affiliated_sta,&obj.m_assoc_sta_mld_info.affiliated_sta,sizeof(em_affiliated_sta_info_t));
+    for (unsigned int i = 0; i < this->m_assoc_sta_mld_info.num_affiliated_sta; i++) {
+        memcpy(&this->m_assoc_sta_mld_info.affiliated_sta[i].bssid,
+            &obj.m_assoc_sta_mld_info.affiliated_sta[i].bssid, sizeof(mac_address_t));
+        memcpy(&this->m_assoc_sta_mld_info.affiliated_sta[i].mac_addr,
+            &obj.m_assoc_sta_mld_info.affiliated_sta[i].mac_addr, sizeof(mac_address_t));
+    }
 }
 
 bool dm_assoc_sta_mld_t::operator == (const dm_assoc_sta_mld_t& obj)
@@ -71,7 +76,12 @@ bool dm_assoc_sta_mld_t::operator == (const dm_assoc_sta_mld_t& obj)
     ret += !(this->m_assoc_sta_mld_info.emlsr == obj.m_assoc_sta_mld_info.emlsr);
     ret += !(this->m_assoc_sta_mld_info.emlmr == obj.m_assoc_sta_mld_info.emlmr);
     ret += !(this->m_assoc_sta_mld_info.num_affiliated_sta == obj.m_assoc_sta_mld_info.num_affiliated_sta);
-    ret += (memcmp(&this->m_assoc_sta_mld_info.affiliated_sta,&obj.m_assoc_sta_mld_info.affiliated_sta,sizeof(em_affiliated_ap_info_t)) != 0);
+    for (unsigned int i = 0; i < this->m_assoc_sta_mld_info.num_affiliated_sta; i++) {
+        ret += (memcmp(&this->m_assoc_sta_mld_info.affiliated_sta[i].bssid,
+            &obj.m_assoc_sta_mld_info.affiliated_sta[i].bssid, sizeof(mac_address_t)) != 0);
+        ret += (memcmp(&this->m_assoc_sta_mld_info.affiliated_sta[i].mac_addr,
+            &obj.m_assoc_sta_mld_info.affiliated_sta[i].mac_addr, sizeof(mac_address_t)) != 0);
+    }
 
     if (ret > 0)
         return false;
