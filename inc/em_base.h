@@ -2130,6 +2130,7 @@ typedef enum {
     em_state_agent_1905_securing,
     em_state_agent_autoconfig_rsp_pending,
     em_state_agent_wsc_m2_pending,
+    em_state_agent_wsc_m2_config_skipping,
     em_state_agent_owconfig_pending,
     em_state_agent_onewifi_bssconfig_ind,
 	em_state_agent_autoconfig_renew_pending,
