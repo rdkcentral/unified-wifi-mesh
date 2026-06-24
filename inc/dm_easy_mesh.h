@@ -1753,7 +1753,7 @@ public:
 	void remove_assoc_sta_mld_info(mac_address_t sta_mld_mac);
 
 	em_radio_cap_info_t *get_radio_cap_info(int index);
-	static em_radio_cap_info_t *get_radio_cap_info(void *dm, int index) { return (static_cast<dm_easy_mesh_t *>(dm))->get_radio_cap_info(index); }
+	static em_radio_cap_info_t *get_radio_cap_info(void *dm, unsigned int index) { return (static_cast<dm_easy_mesh_t *>(dm))->get_radio_cap_info(static_cast<int>(index)); }
 
 	/**!
 	 * @brief Retrieves the Data Model DPP object.
