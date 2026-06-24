@@ -4211,6 +4211,16 @@ bus_error_t dm_easy_mesh_ctrl_t::curops_tget(char *event_name, raw_data_t *p_dat
     return bus_get_cb_fwd(event_name, p_data, curops_tget_inner);
 }
 
+bus_error_t dm_easy_mesh_ctrl_t::capops_get(char *event_name, raw_data_t *p_data)
+{
+    return bus_get_cb_fwd(event_name, p_data, capops_get_inner);
+}
+
+bus_error_t dm_easy_mesh_ctrl_t::capops_tget(char *event_name, raw_data_t *p_data)
+{
+    return bus_get_cb_fwd(event_name, p_data, capops_tget_inner);
+}
+
 bus_error_t dm_easy_mesh_ctrl_t::bss_get(char *event_name, raw_data_t *p_data)
 {
     return bus_get_cb_fwd(event_name, p_data, bss_get_inner);
@@ -5063,7 +5073,22 @@ bus_error_t dm_easy_mesh_ctrl_t::radio_get_inner(char *event_name, raw_data_t *p
     } else if (strcmp(param, "ChipsetVendor") == 0) {
         rc = dm_ctrl->raw_data_set(p_data, ri->chip_vendor);
     } else if (strcmp(param, "CurrentOperatingClassProfileNumberOfEntries") == 0) {
-        rc = dm_ctrl->raw_data_set(p_data, 0U);
+        unsigned int curop_count = 0;
+        for (unsigned int i = 0; i < dm->get_num_op_class(); i++) {
+            dm_op_class_t *op_class = dm->get_op_class(i);
+            if (op_class == NULL) {
+                continue;
+            }
+            em_op_class_info_t *oci = op_class->get_op_class_info();
+            if (oci->id.type != em_op_class_type_current) {
+                continue;
+            }
+            if (memcmp(ri->id.ruid, oci->id.ruid, sizeof(oci->id.ruid)) != 0) {
+                continue;
+            }
+            curop_count++;
+        }
+        rc = dm_ctrl->raw_data_set(p_data, curop_count);
     } else if (strcmp(param, "BSSNumberOfEntries") == 0) {
         rc = dm_ctrl->raw_data_set(p_data, ri->number_of_bss);
     } else {
@@ -5141,7 +5166,22 @@ bus_error_t dm_easy_mesh_ctrl_t::radio_tget_params(dm_easy_mesh_t *dm, const cha
         dm_ctrl->property_append_tail(property, root, idx, "ReceiveSelf", 0U);
         dm_ctrl->property_append_tail(property, root, idx, "ReceiveOther", 0U);
         dm_ctrl->property_append_tail(property, root, idx, "ChipsetVendor", ri->chip_vendor);
-        dm_ctrl->property_append_tail(property, root, idx, "CurrentOperatingClassProfileNumberOfEntries", 0U);
+        unsigned int curop_count = 0;
+        for (unsigned int i = 0; i < dm->get_num_op_class(); i++) {
+            dm_op_class_t *op_class = dm->get_op_class(i);
+            if (op_class == NULL) {
+                continue;
+            }
+            em_op_class_info_t *oci = op_class->get_op_class_info();
+            if (oci->id.type != em_op_class_type_current) {
+                continue;
+            }
+            if (memcmp(ri->id.ruid, oci->id.ruid, sizeof(oci->id.ruid)) != 0) {
+                continue;
+            }
+            curop_count++;
+        }
+        dm_ctrl->property_append_tail(property, root, idx, "CurrentOperatingClassProfileNumberOfEntries", curop_count);
         dm_ctrl->property_append_tail(property, root, idx, "BSSNumberOfEntries", ri->number_of_bss);
 
         dm_sta_t *bh_sta = dm_ctrl->get_dm_bh_sta(dm, radio);
@@ -5156,6 +5196,22 @@ bus_error_t dm_easy_mesh_ctrl_t::radio_tget_params(dm_easy_mesh_t *dm, const cha
             }
         }
 
+        unsigned int capop_count = 0;
+        for (unsigned int i = 0; i < dm->get_num_op_class(); i++) {
+            dm_op_class_t *op_class = dm->get_op_class(i);
+            if (op_class == NULL) {
+                continue;
+            }
+            em_op_class_info_t *oci = op_class->get_op_class_info();
+            if (oci->id.type != em_op_class_type_capability) {
+                continue;
+            }
+            if (memcmp(ri->id.ruid, oci->id.ruid, sizeof(oci->id.ruid)) != 0) {
+                continue;
+            }
+            capop_count++;
+        }
+
         dm_radio_cap_t *radio_cap = dm->get_radio_cap(ri->id.ruid);
         if (radio_cap != NULL) {
             em_radio_cap_info_t *rci = radio_cap->get_radio_cap_info();
@@ -5165,15 +5221,18 @@ bus_error_t dm_easy_mesh_ctrl_t::radio_tget_params(dm_easy_mesh_t *dm, const cha
             dm_ctrl->property_append_tail(property, root, idx, "Capabilities.HTCapabilities", caps_str);
             dm_ctrl->get_vht_caps_str(&rci->vht_cap, caps_str, sizeof(caps_str));
             dm_ctrl->property_append_tail(property, root, idx, "Capabilities.VHTCapabilities", caps_str);
-            dm_ctrl->property_append_tail(property, root, idx, "Capabilities.CapableOperatingClassProfileNumberOfEntries", 0U);
+            dm_ctrl->property_append_tail(property, root, idx, "Capabilities.CapableOperatingClassProfileNumberOfEntries", capop_count);
         } else {
             dm_ctrl->property_append_tail(property, root, idx, "Capabilities.HTCapabilities", "");
             dm_ctrl->property_append_tail(property, root, idx, "Capabilities.VHTCapabilities", "");
-            dm_ctrl->property_append_tail(property, root, idx, "Capabilities.CapableOperatingClassProfileNumberOfEntries", 0U);
+            dm_ctrl->property_append_tail(property, root, idx, "Capabilities.CapableOperatingClassProfileNumberOfEntries", capop_count);
         }
 
         snprintf(path, sizeof(path) - 1, "%s%d.CurrentOperatingClassProfile.", root, idx);
         dm_ctrl->curops_tget_params(dm, path, ri, property);
+
+        snprintf(path, sizeof(path) - 1, "%s%d.Capabilities.CapableOperatingClassProfile.", root, idx);
+        dm_ctrl->capops_tget_params(dm, path, ri, property);
 
         snprintf(path, sizeof(path) - 1, "%s%d.Capabilities.WiFi6APRole.", root, idx);
         dm_ctrl->wf6ap_tget_params(dm, path, ri, property, idx);
@@ -5289,6 +5348,26 @@ bus_error_t dm_easy_mesh_ctrl_t::rcaps_get_inner(char *event_name, raw_data_t *p
     em_radio_info_t *ri = radio->get_radio_info();
 
     dm_radio_cap_t *radio_cap = dm->get_radio_cap(ri->id.ruid);
+
+    if (strcmp(param, "CapableOperatingClassProfileNumberOfEntries") == 0) {
+        unsigned int capop_count = 0;
+        for (unsigned int i = 0; i < dm->get_num_op_class(); i++) {
+            dm_op_class_t *op_class = dm->get_op_class(i);
+            if (op_class == NULL) {
+                continue;
+            }
+            em_op_class_info_t *oci = op_class->get_op_class_info();
+            if (oci->id.type != em_op_class_type_capability) {
+                continue;
+            }
+            if (memcmp(ri->id.ruid, oci->id.ruid, sizeof(oci->id.ruid)) != 0) {
+                continue;
+            }
+            capop_count++;
+        }
+        return dm_ctrl->raw_data_set(p_data, capop_count);
+    }
+
     if (radio_cap == NULL) {
         em_printfout("radio_cap is NULL\n");
         return bus_error_invalid_input;
@@ -5301,8 +5380,6 @@ bus_error_t dm_easy_mesh_ctrl_t::rcaps_get_inner(char *event_name, raw_data_t *p
     } else if (strcmp(param, "VHTCapabilities") == 0) {
         dm_ctrl->get_vht_caps_str(&rci->vht_cap, caps_str, sizeof(caps_str));
         rc = dm_ctrl->raw_data_set(p_data, caps_str);
-    } else if (strcmp(param, "CapableOperatingClassProfileNumberOfEntries") == 0) {
-        rc = dm_ctrl->raw_data_set(p_data, 0U);
     } else if (strcmp(param, "X_AIRTIES_OperatingStandards") == 0) {
         dm_ctrl->get_supported_standards_str(rci->mode, supported_standards, sizeof(supported_standards));
         rc = dm_ctrl->raw_data_set(p_data, supported_standards);
@@ -5873,6 +5950,212 @@ bus_error_t dm_easy_mesh_ctrl_t::curops_tget_params(dm_easy_mesh_t *dm, const ch
         dm_ctrl->property_append_tail(property, root, idx, "Class", oci->op_class);
         dm_ctrl->property_append_tail(property, root, idx, "Channel", oci->channel);
         dm_ctrl->property_append_tail(property, root, idx, "TxPower", oci->tx_power);
+    }
+
+    return rc;
+}
+
+/* Build a comma-separated list string of the non-operable channels of a
+ * CapableOperatingClassProfile entry (e.g. "36,40,44,48"). */
+char* dm_easy_mesh_ctrl_t::get_capop_nonoper_str(em_op_class_info_t *oci, char *buf, size_t buf_len)
+{
+    size_t off = 0;
+
+    if (buf == NULL || buf_len == 0) {
+        return buf;
+    }
+
+    buf[0] = '\0';
+    for (unsigned int i = 0; i < oci->num_channels && i < EM_MAX_CHANNELS_IN_LIST; i++) {
+        int n = snprintf(buf + off, buf_len - off, "%s%u",
+                         (i == 0) ? "" : ",", oci->channels[i]);
+        if (n < 0 || static_cast<size_t>(n) >= buf_len - off) {
+            break;
+        }
+        off += static_cast<size_t>(n);
+    }
+
+    return buf;
+}
+
+dm_op_class_t* dm_easy_mesh_ctrl_t::get_dm_capop(dm_easy_mesh_t *dm, dm_radio_t *radio, int instance)
+{
+    int ocnt = 0;
+    em_radio_info_t *ri = radio->get_radio_info();
+
+    for (unsigned int i = 0; i < dm->get_num_op_class(); i++) {
+        dm_op_class_t *op_class = dm->get_op_class(i);
+        if (op_class == NULL) {
+            continue;
+        }
+        em_op_class_info_t *oci = op_class->get_op_class_info();
+        if (oci->id.type != em_op_class_type_capability) {
+            continue;
+        }
+        if (memcmp(ri->id.ruid, oci->id.ruid, sizeof(oci->id.ruid)) != 0) {
+            continue;
+        }
+        ++ocnt;
+        if (ocnt == instance) {
+            return op_class;
+        }
+    }
+
+    return NULL;
+}
+
+bus_error_t dm_easy_mesh_ctrl_t::capops_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
+{
+    (void) user_data;
+    const char *name = event_name;
+    const char *param;
+    char instance[MAX_INSTANCE_LEN] = { 0 };
+    bool is_num;
+    int radio_instance = 0, capop_class_instance = 0;
+    bus_error_t rc;
+
+    if (!name || !p_data) {
+        return bus_error_invalid_input;
+    }
+
+    param = strrchr(name, '.');
+    if (param == NULL) {
+        return bus_error_invalid_input;
+    }
+    ++param;
+
+    dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
+
+    /* Extract device instance (numeric or alias) and find the dm object for
+     * that device instance */
+    name += sizeof(DATAELEMS_NETWORK);
+    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    dm_easy_mesh_t *dm = dm_ctrl->get_dm_easy_mesh(instance, is_num);
+    if (dm == NULL) {
+        printf("device not found\n");
+        return bus_error_invalid_namespace;
+    }
+
+    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    radio_instance = is_num ? atoi(instance) : 0;
+    if (radio_instance < 1 || static_cast<unsigned int>(radio_instance) > dm->get_num_radios()) {
+        em_printfout("invalid radio instance %d\n", radio_instance);
+        return bus_error_invalid_input;
+    }
+    dm_radio_t *radio = &dm->m_radio[radio_instance - 1];
+
+    /* Skip the "Capabilities." segment so the instance is taken from the
+     * CapableOperatingClassProfile table and not the Capabilities object. */
+    name = strstr(name, "CapableOperatingClassProfile.");
+    if (name == NULL) {
+        em_printfout("invalid CapableOperatingClassProfile path\n");
+        return bus_error_invalid_input;
+    }
+    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    capop_class_instance = is_num ? atoi(instance) : 0;
+    dm_op_class_t *op_class = dm_ctrl->get_dm_capop(dm, radio, capop_class_instance);
+    if (op_class == NULL) {
+        em_printfout("op_class is NULL\n");
+        return bus_error_invalid_input;
+    }
+    em_op_class_info_t *oci = op_class->get_op_class_info();
+
+    if (strcmp(param, "Class") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, oci->op_class);
+    } else if (strcmp(param, "MaxTxPower") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, oci->max_tx_power);
+    } else if (strcmp(param, "NumberOfNonOperChan") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, std::min(oci->num_channels,
+                                                    static_cast<unsigned int>(EM_MAX_CHANNELS_IN_LIST)));
+    } else if (strcmp(param, "NonOperable") == 0) {
+        char nonoper[512];
+        dm_ctrl->get_capop_nonoper_str(oci, nonoper, sizeof(nonoper));
+        rc = dm_ctrl->raw_data_set(p_data, nonoper);
+    } else {
+        em_printfout("Invalid param: %s\n", param);
+        rc = bus_error_invalid_input;
+    }
+
+    return rc;
+}
+
+bus_error_t dm_easy_mesh_ctrl_t::capops_tget_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
+{
+    (void) user_data;
+    const char *name = event_name;
+    const char *root = name;
+    bus_data_prop_t *property = NULL;
+    char instance[MAX_INSTANCE_LEN] = { 0 };
+    bool is_num;
+    int radio_instance = 0;
+    bus_error_t rc;
+
+    if (!name || !p_data) {
+        return bus_error_invalid_input;
+    }
+    if (*(name + (strlen(name) - 1)) != '.') {
+        /* Only partial paths are valid */
+        return bus_error_invalid_operation;
+    }
+
+    dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
+
+    /* Extract device instance (numeric or alias) and find the dm object for
+     * that device instance */
+    name += sizeof(DATAELEMS_NETWORK);
+    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    dm_easy_mesh_t *dm = dm_ctrl->get_dm_easy_mesh(instance, is_num);
+    if (dm == NULL) {
+        printf("device not found\n");
+        return bus_error_invalid_namespace;
+    }
+
+    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    radio_instance = is_num ? atoi(instance) : 0;
+    if (radio_instance < 1 || static_cast<unsigned int>(radio_instance) > dm->get_num_radios()) {
+        em_printfout("invalid radio instance %d\n", radio_instance);
+        return bus_error_invalid_input;
+    }
+    dm_radio_t *radio = &dm->m_radio[radio_instance - 1];
+    em_radio_info_t *ri = radio->get_radio_info();
+
+    rc = dm_ctrl->capops_tget_params(dm, root, ri, &property);
+    if (rc == bus_error_success && property) {
+        dm_ctrl->raw_data_set(p_data, property);
+    }
+
+    return rc;
+}
+
+bus_error_t dm_easy_mesh_ctrl_t::capops_tget_params(dm_easy_mesh_t *dm, const char *root, em_radio_info_t *ri, bus_data_prop_t **property)
+{
+    bus_error_t rc = bus_error_success;
+
+    dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
+    unsigned int idx = 0;
+    for (unsigned int i = 0; i < dm->get_num_op_class(); i++) {
+        dm_op_class_t *op_class = dm->get_op_class(i);
+        if (op_class == NULL) {
+            continue;
+        }
+        em_op_class_info_t *oci = op_class->get_op_class_info();
+        if (oci->id.type != em_op_class_type_capability) {
+            continue;
+        }
+        if (memcmp(ri->id.ruid, oci->id.ruid, sizeof(oci->id.ruid)) != 0) {
+            continue;
+        }
+        ++idx;
+
+        char nonoper[512];
+        dm_ctrl->get_capop_nonoper_str(oci, nonoper, sizeof(nonoper));
+
+        dm_ctrl->property_append_tail(property, root, idx, "Class", oci->op_class);
+        dm_ctrl->property_append_tail(property, root, idx, "MaxTxPower", oci->max_tx_power);
+        dm_ctrl->property_append_tail(property, root, idx, "NumberOfNonOperChan",
+                                      std::min(oci->num_channels,
+                                               static_cast<unsigned int>(EM_MAX_CHANNELS_IN_LIST)));
+        dm_ctrl->property_append_tail(property, root, idx, "NonOperable", nonoper);
     }
 
     return rc;
