@@ -469,13 +469,13 @@ int em_metrics_t::handle_assoc_sta_traffic_stats(unsigned char *buff, bssid_t bs
         return -1;
     }
 
-    sta->m_sta_info.bytes_tx        = sta_metrics->tx_bytes;
-    sta->m_sta_info.bytes_rx        = sta_metrics->rx_bytes;
-    sta->m_sta_info.pkts_tx         = sta_metrics->tx_pkts;
-    sta->m_sta_info.pkts_rx         = sta_metrics->rx_pkts;
-    sta->m_sta_info.errors_tx       = sta_metrics->tx_pkt_errors;
-    sta->m_sta_info.errors_rx       = sta_metrics->rx_pkt_errors;
-    sta->m_sta_info.retrans_count   = sta_metrics->retx_cnt;
+    sta->m_sta_info.bytes_tx        = ntohl(sta_metrics->tx_bytes);
+    sta->m_sta_info.bytes_rx        = ntohl(sta_metrics->rx_bytes);
+    sta->m_sta_info.pkts_tx         = ntohl(sta_metrics->tx_pkts);
+    sta->m_sta_info.pkts_rx         = ntohl(sta_metrics->rx_pkts);
+    sta->m_sta_info.errors_tx       = ntohl(sta_metrics->tx_pkt_errors);
+    sta->m_sta_info.errors_rx       = ntohl(sta_metrics->rx_pkt_errors);
+    sta->m_sta_info.retrans_count   = ntohl(sta_metrics->retx_cnt);
 
     return 0;
 }

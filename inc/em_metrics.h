@@ -492,22 +492,7 @@ class em_metrics_t {
 	 * @note Ensure that the buffer is large enough to hold the TLV.
 	 */
 	short create_radio_metrics_tlv(unsigned char *buff, int index);
-    
-	/**!
-	 * @brief Creates an associated station traffic statistics TLV.
-	 *
-	 * This function generates a TLV (Type-Length-Value) structure for the traffic statistics
-	 * of an associated station and stores it in the provided buffer.
-	 *
-	 * @param[out] buff Pointer to the buffer where the TLV will be stored.
-	 * @param[in] sta Constant pointer to the station data structure containing the statistics.
-	 *
-	 * @returns short The length of the TLV created.
-	 *
-	 * @note Ensure that the buffer is large enough to hold the TLV data.
-	 */
-	virtual short create_assoc_sta_traffic_stats_tlv(unsigned char *buff, const dm_sta_t *const sta);
-    
+
 	/**!
 	 * @brief Creates an association report TLV for a WiFi 6 station.
 	 *
@@ -671,6 +656,21 @@ class em_metrics_t {
         void clear_unassoc_sta_query_msg_id() { m_unassoc_sta_query_msg_id = 0; }	
 
 public:
+
+	/**!
+	 * @brief Creates an associated station traffic statistics TLV.
+	 *
+	 * This function generates a TLV (Type-Length-Value) structure for the traffic statistics
+	 * of an associated station and stores it in the provided buffer.
+	 *
+	 * @param[out] buff Pointer to the buffer where the TLV will be stored.
+	 * @param[in] sta Constant pointer to the station data structure containing the statistics.
+	 *
+	 * @returns short The length of the TLV created.
+	 *
+	 * @note Ensure that the buffer is large enough to hold the TLV data.
+	 */
+	virtual short create_assoc_sta_traffic_stats_tlv(unsigned char *buff, const dm_sta_t *const sta);
 
 	/**!
 	 * @brief Retrieves the manager instance.
