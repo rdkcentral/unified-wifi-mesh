@@ -2857,6 +2857,22 @@ dm_sta_t *dm_easy_mesh_t::find_sta(mac_address_t sta_mac, bssid_t bssid)
     return NULL;
 }
 
+dm_sta_t *dm_easy_mesh_t::find_sta(mac_address_t sta_mac)
+{
+    for (unsigned int i = 0; i < get_num_bss(); i++) {
+        auto *bss = get_bss_info(i);
+        if (bss == NULL) {
+            continue;
+        }
+
+        auto *sta = find_sta(sta_mac, bss->bssid.mac);
+        if (sta != NULL) {
+            return sta;
+        }
+    }
+    return NULL;
+}
+
 dm_sta_t *dm_easy_mesh_t::get_first_sta(mac_address_t sta_mac)
 {
     dm_sta_t *sta;

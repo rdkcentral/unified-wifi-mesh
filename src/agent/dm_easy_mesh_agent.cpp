@@ -52,6 +52,7 @@
 #include "em_cmd_sta_link_metrics.h"
 #include "em_cmd_ap_metrics_report.h"
 #include "em_cmd_link_stats_report.h"
+#include "em_cmd_unassoc_sta_result.h"
 
 #ifdef AL_SAP
 #include "al_service_access_point.h"
@@ -910,6 +911,117 @@ int dm_easy_mesh_agent_t::analyze_btm_response_action_frame(em_bus_event_t *evt,
     memcpy(btm_report_param.target, &btm_frame->u.action.u.bss_tm_resp.variable, sizeof(mac_addr_t));
 
     pcmd[num] = new em_cmd_btm_report_t(btm_report_param);
+    tmp = pcmd[num];
+    num++;
+
+    while ((pcmd[num] = tmp->clone_for_next()) != NULL) {
+        tmp = pcmd[num];
+        num++;
+    }
+
+    return num;
+}
+
+int dm_easy_mesh_agent_t::analyze_unassoc_sta_result(em_bus_event_t *evt, em_cmd_t *pcmd[])
+{
+    em_cmd_t *tmp = NULL;
+    unsigned int num = 0;
+
+    cJSON *json;
+    cJSON *resp_array;
+
+    em_unassoc_sta_metrics_rsp_t *rsp;
+
+    translate_and_decode_onewifi_subdoc((char *)evt->u.raw_buff, webconfig_subdoc_type_em_unassoc_sta_link_metrics, "Unassoc STA Metrics Response");
+
+    json = cJSON_Parse((const char *)evt->u.raw_buff);
+
+    if (json == NULL) {
+        em_printfout("%s:%d JSON parse failed", __func__, __LINE__);
+        return 0;
+    }
+
+    resp_array = cJSON_GetObjectItemCaseSensitive(json, "UnassocStaLinkMetricsResponse");
+
+    if ((resp_array == NULL) || (!cJSON_IsArray(resp_array))) {
+        em_printfout("%s:%d UnassocStaLinkMetricsResponse missing", __func__, __LINE__);
+        cJSON_Delete(json);
+        return 0;
+    }
+
+    rsp = &m_unassoc_sta_metrics_rsp;
+    memset(rsp, 0, sizeof(*rsp));
+    unsigned int entry_idx = 0;
+    cJSON *opclass_obj = NULL;
+
+    cJSON_ArrayForEach(opclass_obj, resp_array)
+    {
+        cJSON *opclass_json = cJSON_GetObjectItemCaseSensitive(opclass_obj, "opclass");
+
+        if ((opclass_json == NULL) || (!cJSON_IsNumber(opclass_json))) {
+            continue;
+        }
+
+        unsigned char op_class = (unsigned char)opclass_json->valueint;
+
+        cJSON *channels = cJSON_GetObjectItemCaseSensitive(opclass_obj, "channels");
+        if ((channels == NULL) || (!cJSON_IsArray(channels))) {
+            continue;
+        }
+
+        cJSON *channel_obj = NULL;
+
+        cJSON_ArrayForEach(channel_obj, channels)
+        {
+            cJSON *channel_json = cJSON_GetObjectItemCaseSensitive(channel_obj, "channel");
+
+            if ((channel_json == NULL) || (!cJSON_IsNumber(channel_json))) {
+                continue;
+            }
+
+            unsigned char channel = (unsigned char)channel_json->valueint;
+
+            cJSON *sta_list = cJSON_GetObjectItemCaseSensitive(channel_obj, "sta_list");
+            if ((sta_list == NULL) || (!cJSON_IsArray(sta_list))) {
+                continue;
+            }
+
+            cJSON *sta_obj = NULL;
+
+            cJSON_ArrayForEach(sta_obj, sta_list)
+            {
+                if (entry_idx >= EM_MAX_UNASSOC_STA) {
+                    break;
+                }
+
+                cJSON *mac_json = cJSON_GetObjectItemCaseSensitive(sta_obj, "sta_mac");
+
+                cJSON *rcpi_json = cJSON_GetObjectItemCaseSensitive(sta_obj, "rcpi");
+
+                if ((mac_json == NULL) || (!cJSON_IsString(mac_json)) || (rcpi_json == NULL) || (!cJSON_IsNumber(rcpi_json))) {
+                    continue;
+                }
+
+                dm_easy_mesh_t::string_to_macbytes(mac_json->valuestring, rsp->entry[entry_idx].sta_mac);
+                rsp->entry[entry_idx].channel = channel;
+                rsp->entry[entry_idx].op_class = op_class;
+                rsp->entry[entry_idx].rcpi = (unsigned char)rcpi_json->valueint;
+                rsp->entry[entry_idx].time_delta = 0;
+                em_printfout("Parsed STA[%u] opclass=%u channel=%u rcpi=%u", entry_idx, op_class, channel, (unsigned char)rcpi_json->valueint);
+                entry_idx++;
+            }
+        }
+    }
+
+    rsp->num_entries = entry_idx;
+    cJSON_Delete(json);
+
+    if (rsp->num_entries == 0) {
+        em_printfout("%s:%d No valid STA metrics entries found", __func__, __LINE__);
+        return 0;
+    }
+
+    pcmd[num] = new em_cmd_unassoc_sta_result_t(evt->params, *this);
     tmp = pcmd[num];
     num++;
 
