@@ -220,6 +220,9 @@ static const mac_address_t EM_GLOBAL_MAC_ADDRESS = {0xff, 0xff, 0xff, 0xff, 0xff
 #define EM_MAX_ASSOC_STA_MLD   64
 #define EM_MAX_PRE_SET_CHANNELS   6
 
+#define EM_MAX_CHANNELS_PER_OPCLASS   16
+#define EM_MAX_STA_PER_CHANNEL        64
+
 #define EM_MAX_CMD  16
 
 #define EM_BACKHAUL_DOWNMAC_ADDR 16
@@ -468,6 +471,138 @@ typedef struct {
     em_op_class_t   op_classes[0];
 } __attribute__((__packed__)) em_ap_radio_basic_cap_t;
 
+
+/**
+ * ============================================================================
+ * Unassociated STA Work List Structures
+ * ============================================================================
+ *
+ * These structures are used internally by the Controller/Agent to organize
+ * and process Unassociated STA Link Metrics operations grouped by:
+ *
+ *      Operating Class -> Channel -> STA List
+ *
+ * The work list acts as an intermediate runtime structure while preparing,
+ * scheduling, parsing, or processing Unassociated STA metrics queries.
+ * ============================================================================
+ */
+
+/**
+ * @brief Stores the list of STAs belonging to a specific channel.
+ *
+ * Each channel entry contains:
+ *  - Channel number
+ *  - Number of STAs associated with the channel
+ *  - List of STA MAC addresses to be queried
+ */
+typedef struct {
+    uint8_t channel;
+    uint8_t num_sta;
+    mac_address_t sta_list[EM_MAX_STA_PER_CHANNEL];
+} em_unassoc_work_channel_t;
+
+/**
+ * @brief Stores all channels belonging to a single operating class.
+ *
+ * Each operating class may contain multiple channels,
+ * and each channel may contain multiple STAs.
+ */
+typedef struct {
+    uint8_t op_class;
+    uint8_t num_channels;
+    em_unassoc_work_channel_t channel_list[EM_MAX_CHANNELS_PER_OPCLASS];
+} em_unassoc_work_opclass_t;
+
+/**
+ * @brief Top-level runtime work list for Unassociated STA processing.
+ *
+ * This structure groups all operating classes that are currently
+ * involved in Unassociated STA metrics processing.
+ */
+typedef struct {
+    uint8_t num_opclass;
+    em_unassoc_work_opclass_t opclass_list[EM_MAX_OPCLASS];
+} em_unassoc_work_list_t;
+
+/**
+ * @brief Represents a single channel entry in the query.
+ *
+ * Contains:
+ *  - Channel number
+ *  - Number of STAs on the channel
+ *  - List of STA MAC addresses requested for metrics reporting
+ */
+typedef struct {
+    uint8_t channel;
+    uint8_t num_sta;
+    mac_address_t sta_list[EM_MAX_STA_PER_CHANNEL];
+} em_unassoc_query_channel_t;
+
+/**
+ * @brief Represents an operating class entry in the query.
+ *
+ * Each operating class contains:
+ *  - Number of channels
+ *  - Channel-wise STA query information
+ */
+typedef struct {
+    uint8_t op_class;
+    uint8_t num_channels;
+    em_unassoc_query_channel_t channel_list[EM_MAX_CHANNELS_PER_OPCLASS];
+} em_unassoc_query_opclass_t;
+
+/**
+ * @brief Top-level query structure for Unassociated STA metrics.
+ *
+ * This structure is used by the Controller to organize all requested
+ * operating classes, channels, and STA lists before sending the query.
+ */
+typedef struct {
+    uint8_t num_opclass;
+    em_unassoc_query_opclass_t opclass_list[EM_MAX_OPCLASS];
+} em_unassoc_query_list_t;
+
+#define EM_MAX_UNASSOC_STA 64
+
+/**
+ * @brief Stores metrics information for a single Unassociated STA.
+ *
+ * This structure is populated after parsing an Unassociated STA
+ * Link Metrics Response TLV.
+ *
+ * Contains:
+ *  - STA MAC address
+ *  - Operating class
+ *  - Channel number
+ *  - RCPI value
+ *  - Time delta associated with the measurement
+ */
+typedef struct {
+    mac_address_t sta_mac;
+    unsigned char channel;
+    unsigned char op_class;
+    unsigned char rcpi;
+    unsigned int  time_delta;
+} em_unassoc_sta_metric_entry_t;
+
+typedef struct {
+    unsigned int num_entries;
+    em_unassoc_sta_metric_entry_t entry[EM_MAX_UNASSOC_STA];
+} em_unassoc_sta_metrics_rsp_t;
+
+//For TLV structure
+typedef struct {
+    mac_address_t sta_mac;
+    unsigned char channel;
+    unsigned int  time_delta;
+    unsigned char rcpi;
+}__attribute__((__packed__)) em_unassoc_sta_metric_t;
+
+typedef struct {
+    unsigned char op_class;
+    unsigned char num_sta;
+    em_unassoc_sta_metric_t sta_metric[0];
+}__attribute__((__packed__))em_unassoc_sta_link_metrics_rsp_t;
 
 typedef enum {
     mandatory,
@@ -1033,15 +1168,6 @@ typedef struct {
     unsigned char num_sta_mac_addr;
     mac_address_t sta_mac_addr;
 }__attribute__((__packed__)) em_unassoc_sta_link_metrics_query_t;
-
-typedef struct {
-    unsigned char op_class;
-    unsigned char num_sta_entries;
-    mac_address_t sta_mac_addr;
-    unsigned char channel_num;
-    unsigned int  time_delta_ms;
-    unsigned char uplink_rcpi;
-}__attribute__((__packed__)) em_unassoc_sta_link_metrics_rsp_t;
 
 typedef struct {
      mac_address_t sta_mac_addr;
@@ -2143,6 +2269,7 @@ typedef enum {
 	em_state_agent_channel_select_configuration_pending,
     em_state_agent_channel_report_pending,
 	em_state_agent_channel_scan_result_pending,
+    em_state_agent_unassoc_sta_metrics_report_pending,	
     em_state_agent_configured,
 	
 	// Transient agent stats
@@ -2184,6 +2311,7 @@ typedef enum {
     em_state_ctrl_avail_spectrum_inquiry_pending,
     em_state_ctrl_bsta_cap_pending,
     em_state_ctrl_topo_publish_pending,
+    em_state_ctrl_unassoc_sta_link_metrics_pending, 
 
     em_state_max,
 } em_state_t;
@@ -2236,6 +2364,8 @@ typedef enum {
     em_cmd_type_get_reset,
     em_cmd_type_bsta_cap,
     em_cmd_type_get_link_quality_report,
+    em_cmd_type_unassoc_sta_query,
+    em_cmd_type_unassoc_sta_result,
 
     em_cmd_type_max,
 } em_cmd_type_t;
@@ -2934,6 +3064,9 @@ typedef enum {
     em_bus_event_type_bsta_cap_req,
     em_bus_event_type_link_quality_report,
     em_bus_event_type_client_assoc_ctrl_req,
+    em_bus_event_type_unassoc_sta_query,
+    em_bus_event_type_unassoc_sta_link_metrics_query,
+    em_bus_event_type_unassoc_sta_result,
 
     em_bus_event_type_max
 } em_bus_event_type_t;
@@ -3023,7 +3156,10 @@ typedef enum {
     dm_orch_type_mld_reconfig,
     dm_orch_type_beacon_report,
     dm_orch_type_bsta_cap_query,
-    dm_orch_type_link_quality_report
+    dm_orch_type_link_quality_report,
+    dm_orch_type_unassoc_sta_link_req_query,
+    dm_orch_type_unassoc_sta_result,
+    
 } dm_orch_type_t;
 
 typedef struct {
@@ -3199,6 +3335,10 @@ typedef struct em_network_node {
     struct em_network_node     *child[EM_MAX_DM_CHILDREN];
 } em_network_node_t;
 
+typedef struct {
+    mac_address_t al_mac;
+} em_cmd_unassoc_sta_query_params_t;
+
 typedef em_scan_params_t em_cmd_scan_params_t;
 typedef struct {
     union {
@@ -3208,6 +3348,7 @@ typedef struct {
         em_cmd_disassoc_params_t	disassoc_params;
 		em_cmd_scan_params_t	scan_params;
         em_cmd_ap_metrics_rprt_params_t ap_metrics_params;
+        em_cmd_unassoc_sta_query_params_t unassoc_sta_query_params;
     } u;
 	em_network_node_t *net_node;
 } em_cmd_params_t;

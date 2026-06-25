@@ -139,6 +139,12 @@ bool em_orch_agent_t::is_em_ready_for_orch_fini(em_cmd_t *pcmd, em_t *em)
             }
             break;
 
+        case em_cmd_type_unassoc_sta_result:
+            if (em->get_state() == em_state_agent_configured) {
+                return true;
+            }
+            break;
+
         default:
             if ((em->get_state() == em_state_agent_unconfigured) ||
                     (em->get_state() == em_state_agent_configured) ||
@@ -190,6 +196,11 @@ bool em_orch_agent_t::is_em_ready_for_orch_exec(em_cmd_t *pcmd, em_t *em)
     } else if (pcmd->m_type == em_cmd_type_get_link_quality_report) {
         if ((em->get_state() >= em_state_agent_topo_synchronized) ||
             ((em->get_state() == em_state_agent_link_quality_report_pending))) {
+            return true;
+        }
+    } else if (pcmd->m_type == em_cmd_type_unassoc_sta_result) {
+        if ((em->get_state() == em_state_agent_configured) ||
+            ((em->get_state() ==em_state_agent_unassoc_sta_metrics_report_pending))) {
             return true;
         }
     }
@@ -488,7 +499,17 @@ unsigned int em_orch_agent_t::build_candidates(em_cmd_t *pcmd)
                 }
                 break;
 
-			default:
+            case em_cmd_type_unassoc_sta_result:
+                // Unassociated STA metrics response is processed only once.
+                // Select the first non-AL EM instance as the candidate and
+                // avoid queuing additional EMs for the same response.		
+                if (!(em->is_al_interface_em()) && (count == 0)) {
+                    queue_push(pcmd->m_em_candidates, em);
+                    count++;
+                }
+                break;
+
+            default:
                 break;
         }
         em = static_cast<em_t *> (hash_map_get_next(m_mgr->m_em_map, em));	
