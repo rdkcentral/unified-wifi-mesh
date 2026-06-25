@@ -302,6 +302,7 @@ bool em_orch_t::orchestrate(em_cmd_t *pcmd, em_t *em)
 
     orch_state = em->get_orch_state();
 
+    em_printfout("Entering %s with orch_state as %d\n", __func__, orch_state);
     dm_easy_mesh_t::macbytes_to_string(em->get_radio_interface_mac(), mac_str);
 
     if (orch_state == em_orch_state_pending) {
@@ -320,9 +321,12 @@ bool em_orch_t::orchestrate(em_cmd_t *pcmd, em_t *em)
         }
 
     } else if (orch_state == em_orch_state_progress) {
+        em_printfout("Entering here %d\n", __LINE__);
         if (is_em_ready_for_orch_fini(pcmd, em) == true) {
+            em_printfout("Entering here %d\n", __LINE__);
             em->set_orch_state(em_orch_state_fini);
         } else {
+            em_printfout("Entering here %d\n", __LINE__);
             update_stats(pcmd);
             orch_transient(pcmd, em);
         }
