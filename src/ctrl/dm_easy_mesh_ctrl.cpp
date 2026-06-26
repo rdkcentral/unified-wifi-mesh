@@ -2525,8 +2525,7 @@ int dm_easy_mesh_ctrl_t::analyze_set_channel(em_bus_event_t *evt, em_cmd_t *pcmd
        	return ret;
    	}
 
-	assert(dm.get_num_op_class() == EM_MAX_BANDS);
-
+	// Fewer bands than EM_MAX_BANDS is valid; empty/invalid input is handled by decode_config above.
 	evt->params.u.args.num_args = 0;
 
 	// Reset pref_valid for all anticipated operating classes before update

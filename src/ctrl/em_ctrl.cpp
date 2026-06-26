@@ -102,6 +102,13 @@ void em_ctrl_t::handle_dm_commit(em_bus_event_t *evt)
     }
 }
 
+// Non-positive analyze_*() result: 0/NO_CHANGE is a no-op, any other negative is an error.
+static em_cmd_out_status_t status_for_noncmd(int num)
+{
+    return (num == 0 || num == EM_PARSE_ERR_NO_CHANGE) ?
+        em_cmd_out_status_no_change : em_cmd_out_status_invalid_input;
+}
+
 void em_ctrl_t::handle_client_steer(em_bus_event_t *evt)
 {
     em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
@@ -109,8 +116,8 @@ void em_ctrl_t::handle_client_steer(em_bus_event_t *evt)
 
     if (m_orch->is_cmd_type_in_progress(evt) == true) {
         m_ctrl_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
-    } else if ((num = m_data_model.analyze_command_steer(evt, pcmd)) == 0) {
-        m_ctrl_cmd->send_result(em_cmd_out_status_no_change);
+    } else if ((num = m_data_model.analyze_command_steer(evt, pcmd)) <= 0) {
+        m_ctrl_cmd->send_result(status_for_noncmd(num));
     } else if (m_orch->submit_commands(pcmd, static_cast<unsigned int> (num)) > 0) {
         m_ctrl_cmd->send_result(em_cmd_out_status_success);
     } else {
@@ -125,8 +132,8 @@ void em_ctrl_t::handle_client_disassoc(em_bus_event_t *evt)
 
     if (m_orch->is_cmd_type_in_progress(evt) == true) {
         m_ctrl_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
-    } else if ((num = m_data_model.analyze_command_disassoc(evt, pcmd)) == 0) {
-        m_ctrl_cmd->send_result(em_cmd_out_status_no_change);
+    } else if ((num = m_data_model.analyze_command_disassoc(evt, pcmd)) <= 0) {
+        m_ctrl_cmd->send_result(status_for_noncmd(num));
     } else if (m_orch->submit_commands(pcmd, static_cast<unsigned int> (num)) > 0) {
         m_ctrl_cmd->send_result(em_cmd_out_status_success);
     } else {
@@ -141,8 +148,8 @@ void em_ctrl_t::handle_client_btm(em_bus_event_t *evt)
 
     if (m_orch->is_cmd_type_in_progress(evt) == true) {
         m_ctrl_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
-    } else if ((num = m_data_model.analyze_command_btm(evt, pcmd)) == 0) {
-        m_ctrl_cmd->send_result(em_cmd_out_status_no_change);
+    } else if ((num = m_data_model.analyze_command_btm(evt, pcmd)) <= 0) {
+        m_ctrl_cmd->send_result(status_for_noncmd(num));
     } else if (m_orch->submit_commands(pcmd, static_cast<unsigned int> (num)) > 0) {
         m_ctrl_cmd->send_result(em_cmd_out_status_success);
     } else {
@@ -157,8 +164,8 @@ void em_ctrl_t::handle_start_dpp(em_bus_event_t *evt)
 
     if (m_orch->is_cmd_type_in_progress(evt) == true) {
         m_ctrl_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
-    } else if ((num = m_data_model.analyze_dpp_start(evt, pcmd)) == 0) {
-        m_ctrl_cmd->send_result(em_cmd_out_status_no_change);
+    } else if ((num = m_data_model.analyze_dpp_start(evt, pcmd)) <= 0) {
+        m_ctrl_cmd->send_result(status_for_noncmd(num));
     } else if (m_orch->submit_commands(pcmd, static_cast<unsigned int> (num)) > 0) {
         m_ctrl_cmd->send_result(em_cmd_out_status_success);
     } else {
@@ -174,8 +181,8 @@ void em_ctrl_t::handle_set_channel_list(em_bus_event_t *evt)
 
     if (m_orch->is_cmd_type_in_progress(evt) == true) {
         m_ctrl_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
-    } else if ((num = m_data_model.analyze_set_channel(evt, pcmd)) == 0) {
-        m_ctrl_cmd->send_result(em_cmd_out_status_no_change);
+    } else if ((num = m_data_model.analyze_set_channel(evt, pcmd)) <= 0) {
+        m_ctrl_cmd->send_result(status_for_noncmd(num));
     } else if (m_orch->submit_commands(pcmd, static_cast<unsigned int> (num)) > 0) {
         m_ctrl_cmd->send_result(em_cmd_out_status_success);
     } else {
@@ -191,8 +198,8 @@ void em_ctrl_t::handle_scan_channel_list(em_bus_event_t *evt)
 
     if (m_orch->is_cmd_type_in_progress(evt) == true) {
         m_ctrl_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
-    } else if ((num = m_data_model.analyze_scan_channel(evt, pcmd)) == 0) {
-        m_ctrl_cmd->send_result(em_cmd_out_status_no_change);
+    } else if ((num = m_data_model.analyze_scan_channel(evt, pcmd)) <= 0) {
+        m_ctrl_cmd->send_result(status_for_noncmd(num));
     } else if (m_orch->submit_commands(pcmd, static_cast<unsigned int> (num)) > 0) {
         m_ctrl_cmd->send_result(em_cmd_out_status_success);
     } else {
@@ -208,8 +215,8 @@ void em_ctrl_t::handle_set_policy(em_bus_event_t *evt)
 
     if (m_orch->is_cmd_type_in_progress(evt) == true) {
         m_ctrl_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
-    } else if ((num = m_data_model.analyze_set_policy(evt, pcmd)) == 0) {
-        m_ctrl_cmd->send_result(em_cmd_out_status_no_change);
+    } else if ((num = m_data_model.analyze_set_policy(evt, pcmd)) <= 0) {
+        m_ctrl_cmd->send_result(status_for_noncmd(num));
     } else if (m_orch->submit_commands(pcmd, static_cast<unsigned int> (num)) > 0) {
         m_ctrl_cmd->send_result(em_cmd_out_status_success);
     } else {
@@ -254,8 +261,8 @@ void em_ctrl_t::handle_set_radio(em_bus_event_t *evt)
 
     if (m_orch->is_cmd_type_in_progress(evt) == true) {
         m_ctrl_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
-    } else if ((num = m_data_model.analyze_set_radio(evt, pcmd)) == 0) {
-        m_ctrl_cmd->send_result(em_cmd_out_status_no_change);
+    } else if ((num = m_data_model.analyze_set_radio(evt, pcmd)) <= 0) {
+        m_ctrl_cmd->send_result(status_for_noncmd(num));
     } else if (m_orch->submit_commands(pcmd, static_cast<unsigned int> (num)) > 0) {
         m_ctrl_cmd->send_result(em_cmd_out_status_success);
     } else {
@@ -291,8 +298,8 @@ void em_ctrl_t::handle_remove_device(em_bus_event_t *evt)
 
     if (m_orch->is_cmd_type_in_progress(evt) == true) {
         m_ctrl_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
-    } else if ((num = m_data_model.analyze_remove_device(evt, pcmd)) == 0) {
-        m_ctrl_cmd->send_result(em_cmd_out_status_no_change);
+    } else if ((num = m_data_model.analyze_remove_device(evt, pcmd)) <= 0) {
+        m_ctrl_cmd->send_result(status_for_noncmd(num));
     } else if (m_orch->submit_commands(pcmd, static_cast<unsigned int> (num)) > 0) {
         m_ctrl_cmd->send_result(em_cmd_out_status_success);
     } else {
@@ -362,8 +369,8 @@ void em_ctrl_t::handle_reset(em_bus_event_t *evt)
 	
     if (m_orch->is_cmd_type_in_progress(evt) == true) {
         m_ctrl_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
-    } else if ((num = m_data_model.analyze_reset(evt, pcmd)) == 0) {
-        m_ctrl_cmd->send_result(em_cmd_out_status_no_change);
+    } else if ((num = m_data_model.analyze_reset(evt, pcmd)) <= 0) {
+        m_ctrl_cmd->send_result(status_for_noncmd(num));
     } else if (m_orch->submit_commands(pcmd, static_cast<unsigned int> (num)) > 0) {
         m_ctrl_cmd->send_result(em_cmd_out_status_success);
     } else {
@@ -379,8 +386,8 @@ void em_ctrl_t::handle_mld_reconfig(em_bus_event_t *evt)
 
     if (m_orch->is_cmd_type_in_progress(evt) == true) {
         m_ctrl_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
-    } else if ((num = m_data_model.analyze_mld_reconfig(pcmd)) == 0) {
-        m_ctrl_cmd->send_result(em_cmd_out_status_no_change);
+    } else if ((num = m_data_model.analyze_mld_reconfig(pcmd)) <= 0) {
+        m_ctrl_cmd->send_result(status_for_noncmd(num));
     } else if (m_orch->submit_commands(pcmd, static_cast<unsigned int> (num)) > 0) {
         m_ctrl_cmd->send_result(em_cmd_out_status_success);
     } else {
@@ -405,8 +412,8 @@ void em_ctrl_t::handle_unassoc_sta_metrics_query(em_bus_event_t *evt)
 
     if (m_orch->is_cmd_type_in_progress(evt) == true) {
         m_ctrl_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
-    } else if ((num = m_data_model.analyze_unassoc_sta_metrics_query(evt, pcmd)) == 0) {
-        m_ctrl_cmd->send_result(em_cmd_out_status_no_change);
+    } else if ((num = m_data_model.analyze_unassoc_sta_metrics_query(evt, pcmd)) <= 0) {
+        m_ctrl_cmd->send_result(status_for_noncmd(num));
     } else if (m_orch->submit_commands(pcmd, static_cast<unsigned int> (num)) > 0) {
         m_ctrl_cmd->send_result(em_cmd_out_status_success);
     } else {
