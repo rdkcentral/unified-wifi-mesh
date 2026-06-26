@@ -56,7 +56,8 @@ void dm_assoc_sta_mld_t::operator = (const dm_assoc_sta_mld_t& obj)
     this->m_assoc_sta_mld_info.nstr = obj.m_assoc_sta_mld_info.nstr;
     this->m_assoc_sta_mld_info.emlsr = obj.m_assoc_sta_mld_info.emlsr;
     this->m_assoc_sta_mld_info.emlmr = obj.m_assoc_sta_mld_info.emlmr;
-    this->m_assoc_sta_mld_info.num_affiliated_sta = obj.m_assoc_sta_mld_info.num_affiliated_sta;
+    this->m_assoc_sta_mld_info.num_affiliated_sta = (obj.m_assoc_sta_mld_info.num_affiliated_sta > EM_MAX_AP_MLD)
+                                                    ? EM_MAX_AP_MLD : obj.m_assoc_sta_mld_info.num_affiliated_sta;
     for (unsigned int i = 0; i < this->m_assoc_sta_mld_info.num_affiliated_sta; i++) {
         memcpy(&this->m_assoc_sta_mld_info.affiliated_sta[i].bssid,
             &obj.m_assoc_sta_mld_info.affiliated_sta[i].bssid, sizeof(mac_address_t));
@@ -76,7 +77,9 @@ bool dm_assoc_sta_mld_t::operator == (const dm_assoc_sta_mld_t& obj)
     ret += !(this->m_assoc_sta_mld_info.emlsr == obj.m_assoc_sta_mld_info.emlsr);
     ret += !(this->m_assoc_sta_mld_info.emlmr == obj.m_assoc_sta_mld_info.emlmr);
     ret += !(this->m_assoc_sta_mld_info.num_affiliated_sta == obj.m_assoc_sta_mld_info.num_affiliated_sta);
-    for (unsigned int i = 0; i < this->m_assoc_sta_mld_info.num_affiliated_sta; i++) {
+    unsigned int num_sta = (this->m_assoc_sta_mld_info.num_affiliated_sta > EM_MAX_AP_MLD)
+                           ? EM_MAX_AP_MLD : this->m_assoc_sta_mld_info.num_affiliated_sta;
+    for (unsigned int i = 0; i < num_sta; i++) {
         ret += (memcmp(&this->m_assoc_sta_mld_info.affiliated_sta[i].bssid,
             &obj.m_assoc_sta_mld_info.affiliated_sta[i].bssid, sizeof(mac_address_t)) != 0);
         ret += (memcmp(&this->m_assoc_sta_mld_info.affiliated_sta[i].mac_addr,
