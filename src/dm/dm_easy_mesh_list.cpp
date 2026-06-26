@@ -1517,7 +1517,7 @@ void dm_easy_mesh_list_t::delete_all_data_models()
 	dm_easy_mesh_t *dm = NULL, *tmp;
 	dm_device_t *dev;
 	mac_addr_str_t mac_str;
-	em_2xlong_string_t	key;
+	em_short_string_t key;
 	
 	dm = static_cast<dm_easy_mesh_t *> (hash_map_get_first(m_list));
     while (dm != NULL) {
@@ -1530,10 +1530,13 @@ void dm_easy_mesh_list_t::delete_all_data_models()
         }
 		dev = tmp->get_device();	
 		dm_easy_mesh_t::macbytes_to_string(dev->m_device_info.intf.mac, mac_str);
-		snprintf(key, sizeof(em_2xlong_string_t), "%s@%s", dev->m_device_info.id.net_id, mac_str);
+		snprintf(key, sizeof(key), "%s@%s", dev->m_device_info.id.net_id, mac_str);
 
-		hash_map_remove(m_list, key);
-		delete tmp;
+		void * data = hash_map_remove(m_list, key);
+		tmp->deinit();
+		if (data != NULL) {
+		    delete data;
+		}
     }   
 
 }
