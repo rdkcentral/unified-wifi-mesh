@@ -112,6 +112,7 @@ em_crypto_t::em_crypto_t()
 int em_crypto_t::init()
 {
 
+    int ret;
     BIGNUM *priv_key = NULL, *pub_key = NULL;
 
     RAND_bytes(m_crypto_info.e_nonce, sizeof(em_nonce_t));
@@ -195,16 +196,35 @@ int em_crypto_t::init()
 #endif
 
     // now generate the keys
-    BN_bn2bin(pub_key, m_crypto_info.e_pub);
-    BN_bn2bin(priv_key, m_crypto_info.e_priv);
-    m_crypto_info.e_pub_len = static_cast<unsigned int> (BN_num_bytes(pub_key));
-    m_crypto_info.e_priv_len = static_cast<unsigned int> (BN_num_bytes(priv_key));
-    
-    BN_bn2bin(pub_key, m_crypto_info.r_pub);
-    BN_bn2bin(priv_key, m_crypto_info.r_priv);
-    m_crypto_info.r_pub_len = static_cast<unsigned int> (BN_num_bytes(pub_key));
-    m_crypto_info.r_priv_len = static_cast<unsigned int> (BN_num_bytes(priv_key));
-    
+    // Use BN_bn2binpad to ensure the output is always DH_KEY_SZ bytes,
+    // padding with leading zeros if the key value starts with 0x00.
+
+    ret = BN_bn2binpad(pub_key, m_crypto_info.e_pub, DH_KEY_SZ);
+    if (ret != DH_KEY_SZ) {
+        printf("%s:%d Failed to convert enrollee public key to binary, ret=%d\n", __func__, __LINE__, ret);
+        goto bail;
+    }
+    ret = BN_bn2binpad(priv_key, m_crypto_info.e_priv, DH_KEY_SZ);
+    if (ret != DH_KEY_SZ) {
+        printf("%s:%d Failed to convert enrollee private key to binary, ret=%d\n", __func__, __LINE__, ret);
+        goto bail;
+    }
+    m_crypto_info.e_pub_len  = DH_KEY_SZ;
+    m_crypto_info.e_priv_len = DH_KEY_SZ;
+
+    ret = BN_bn2binpad(pub_key, m_crypto_info.r_pub, DH_KEY_SZ);
+    if (ret != DH_KEY_SZ) {
+        printf("%s:%d Failed to convert registrar public key to binary, ret=%d\n", __func__, __LINE__, ret);
+        goto bail;
+    }
+    ret = BN_bn2binpad(priv_key, m_crypto_info.r_priv, DH_KEY_SZ);
+    if (ret != DH_KEY_SZ) {
+        printf("%s:%d Failed to convert registrar private key to binary, ret=%d\n", __func__, __LINE__, ret);
+        goto bail;
+    }
+    m_crypto_info.r_pub_len  = DH_KEY_SZ;
+    m_crypto_info.r_priv_len = DH_KEY_SZ;
+
     return 0;
 bail:
 

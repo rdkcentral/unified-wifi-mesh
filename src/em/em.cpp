@@ -132,7 +132,10 @@ void em_t::orch_execute(em_cmd_t *pcmd)
 
             uint8_t cce_ind_msg_buff[MAX_EM_BUFF_SZ] = {0};
             int msg_size = create_cce_ind_msg(cce_ind_msg_buff, true);
-            if (send_frame(cce_ind_msg_buff, static_cast<unsigned int>(msg_size)) < 0) {
+            if (msg_size <= 0) {
+                em_printfout("Error: Failed to create DPP CCE Indication message (size=%d)", msg_size);
+
+            } else if (send_frame(cce_ind_msg_buff, static_cast<unsigned int>(msg_size)) < 0) {
                 em_printfout("Failed to send DPP CCE Indication message!");
             }
 
@@ -2804,7 +2807,10 @@ int em_t::init()
     m_iq.timeout = EM_PROTO_TOUT;
 
     // initialize the crypto
-    m_crypto.init();
+    if (m_crypto.init() != 0) {
+        printf("%s:%d Failed to initialize crypto\n", __func__, __LINE__);
+        return -1;
+    }
 
     size_t stack_size = 0x800000; /* 8MB */
     pthread_attr_t attr;
