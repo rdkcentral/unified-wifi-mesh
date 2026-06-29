@@ -1760,7 +1760,7 @@ public:
 	bool resolve_ap_mld_to_fallback_ruid(const mac_address_t ap_mld_mac, mac_address_t fallback_ruid);
 
 	em_radio_cap_info_t *get_radio_cap_info(unsigned int index);
-	static em_radio_cap_info_t *get_radio_cap_info(void *dm, unsigned int index) { return (static_cast<dm_easy_mesh_t *>(dm))->get_radio_cap_info(index); }
+	static em_radio_cap_info_t *get_radio_cap_info(void *dm, unsigned int index) { return (static_cast<dm_easy_mesh_t *>(dm))->get_radio_cap_info(static_cast<int>(index)); }
 
 	/**!
 	 * @brief Retrieves the Data Model DPP object.
