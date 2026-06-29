@@ -155,7 +155,6 @@ void em_orch_ctrl_t::orch_transient(em_cmd_t *pcmd, em_t *em)
 
 bool em_orch_ctrl_t::is_em_ready_for_orch_fini(em_cmd_t *pcmd, em_t *em)
 {
-    em_printfout("Entering %s with m_type as %d\n", __func__, pcmd->m_type);
     // if the command is SetSSID and 5 renews have been sent transition to fini
     switch (pcmd->m_type) {
         case em_cmd_type_set_ssid:
@@ -171,7 +170,6 @@ bool em_orch_ctrl_t::is_em_ready_for_orch_fini(em_cmd_t *pcmd, em_t *em)
             break;
 
         case em_cmd_type_em_config:
-	    em_printfout("Entering %d with state as %d\n", __LINE__, em->get_state());
             if (em->get_state() == em_state_ctrl_configured) {
                 em->set_topo_query_tx_count(0);
                 em->set_channel_pref_query_tx_count(0);
@@ -188,7 +186,6 @@ bool em_orch_ctrl_t::is_em_ready_for_orch_fini(em_cmd_t *pcmd, em_t *em)
             } else if (em->get_state() == em_state_ctrl_configured) {
                 return true;
             } else if (em->get_state() == em_state_ctrl_wsc_m2_sent) {
-                em_printfout("Entering %d with state as %d\n", __LINE__, em->get_state());
                 // A second M1/M2 exchange on 2.4GHz regresses the per band state machine back to em_state_ctrl_m2_sent,
                 // so the controller never reaches/maintains the topo_synch_pending.
                 // Because of thisTopology Query is never sent.
