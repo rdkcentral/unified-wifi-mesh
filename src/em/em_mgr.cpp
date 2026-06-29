@@ -133,14 +133,25 @@ void em_mgr_t::proto_process(unsigned char *data, unsigned int len, em_t *al_em)
     em_event_t	*evt;
     em_t *em = NULL;
 
-	em = find_em_for_msg_type(data, len, al_em);
-	if (em == NULL) {
-		return;
-	}
+    em = find_em_for_msg_type(data, len, al_em);
+    if (em == NULL) {
+        return;
+    }
 
     evt = static_cast<em_event_t *>(malloc(sizeof(em_event_t)));
+    if (evt == NULL) {
+        em_printfout("Error: malloc failed for em_event_t structure");
+        return;
+    }
+
     evt->type = em_event_type_frame;
     evt->u.fevt.frame = static_cast<unsigned char *>(malloc(len));
+    if (evt->u.fevt.frame == NULL) {
+        em_printfout("Error: malloc failed for frame buffer (requested size=%u)", len);
+        free(evt);
+        return;
+    }
+
     memcpy(evt->u.fevt.frame, data, len);
     evt->u.fevt.frame_len = len;
     em->push_to_queue(evt);
@@ -430,9 +441,22 @@ void em_mgr_t::nodes_listener()
                     // receive data from this interface
                     memset(buff, 0, MAX_EM_BUFF_SZ*EM_MAX_BANDS);
                     ssize_t len = read(em->get_fd(), buff, MAX_EM_BUFF_SZ*EM_MAX_BANDS);
-                    if (len) {
-                        proto_process(buff, static_cast<unsigned int>(len), em);
+						  // Validate read() return value before casting to unsigned
+                    // read() returns: -1 on error, 0 on EOF, >0 on success
+                    if (len < 0) {
+                        // Error occurred during read
+                        em_printfout("read() failed on fd=%d, errno=%d (%s)", em->get_fd(), errno, strerror(errno));
+                        break;
                     }
+
+                    if (len == 0) {
+                        // EOF - connection closed gracefully by peer
+                        em_printfout("Connection closed on fd=%d (EOF)", em->get_fd());
+                        break;
+                     }
+                    // len > 0: Valid data received, safe to cast and process
+                    proto_process(buff, static_cast<unsigned int>(len), em);
+
                 }
 #endif
             }
