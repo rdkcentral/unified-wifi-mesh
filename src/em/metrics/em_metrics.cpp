@@ -1780,9 +1780,9 @@ short em_metrics_t::create_beacon_metrics_query_tlv(unsigned char *buff, mac_add
     // Use 20 MHz scan_op_class to get actual primary channel numbers.
     std::vector<int> ch_vec = dm_easy_mesh_t::get_channel_list_by_op_class(static_cast<int>(scan_op_class));
     em_printfout("Channel list for op_class %u: %zu entries", scan_op_class, ch_vec.size());
-    for (int ch : ch_vec) {
-        //em_printfout("  raw channel: %d", ch);
-    }
+    // for (int ch : ch_vec) {
+    //     //em_printfout("  raw channel: %d", ch);
+    // }
 
     // Remove any zero entries — channel 0 is invalid and some STAs reject the request.
     size_t before_erase = ch_vec.size();
@@ -2967,8 +2967,6 @@ int em_metrics_t::send_beacon_metrics_query_ack(mac_address_t sta_mac, unsigned 
     em_printfout("Beacon Metrics Query ACK sent for msg_id=%u reason=%u", msg_id, reason);
     return static_cast<int>(len);
 }
-
-
 
 em_metrics_t::em_metrics_t()
 {

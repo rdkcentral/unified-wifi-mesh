@@ -553,7 +553,7 @@ void dm_sta_t::decode_beacon_report(dm_sta_t *sta)
    }
 }
 
-bool dm_sta_t::supports_beacon_measurement()
+bool dm_sta_t::supports_beacon_measurement() const
 {
     // IEEE 802.11 (RM Enabled Capabilities, Octet 1):
     //   bit 4 = Beacon Passive measurement

@@ -498,6 +498,10 @@ void em_agent_t::handle_recv_connection_status(em_bus_event_t *event)
     conn_status_evt = reinterpret_cast<const em_connection_status_evt_data_t *>(event->u.raw_buff);
 
     if (!is_failed_connection_message(conn_status_evt)) {
+        /*em_printfout("Skip: sta=%s bssid=%s status=%u not in failed-connection filter",
+                     util::mac_to_string(conn_status_evt->sta_mac).c_str(),
+                     util::mac_to_string(conn_status_evt->bssid).c_str(),
+                     conn_status_evt->status_code);*/
         return;
     }
 
@@ -536,11 +540,10 @@ void em_agent_t::handle_recv_connection_status(em_bus_event_t *event)
     qevt->u.cevt.type = em_cmd_event_type_failed_connection;
     qevt->u.cevt.cmd_ptr = evt_copy;
 
-    em_printfout("Queue failed connection: sta=%s bssid=%s status=%u reason=%u",
+    em_printfout("Queue failed connection: sta=%s bssid=%s status=%u",
                  util::mac_to_string(evt_copy->sta_mac).c_str(),
                  util::mac_to_string(evt_copy->bssid).c_str(),
-                 evt_copy->status_code,
-                 evt_copy->reason_code);
+                 evt_copy->status_code);
 
     em->push_to_queue(qevt);
 }
@@ -1117,6 +1120,8 @@ void em_agent_t::send_beacon_query(em_bus_event_t *evt)
     beacon_query_params_t beacon_query = {0};
     wifi_BeaconRequest_t *beacon_req = &beacon_query.data;
     em_beacon_metrics_query_t *query_params = reinterpret_cast<em_beacon_metrics_query_t *>(evt->u.raw_buff);
+    bus_error_t rc;
+    wifi_bus_desc_t *desc;
 
     if ((evt->data_len >= sizeof(em_beacon_metrics_query_t)) &&
         (memcmp(query_params->sta_mac_addr, ZERO_MAC_ADDR, sizeof(mac_address_t)) == 0)) {
@@ -1138,14 +1143,19 @@ void em_agent_t::send_beacon_query(em_bus_event_t *evt)
     //   1 = Active - send probe requests; restricted on 6 GHz by Wi-Fi 6E regulations.
     // Try Beacon Table first.  The request is still sent; if the STA returns a null/empty
     // report for this mode it can be retried with Passive.
-    beacon_req->mode = 2; // Beacon Table
+    beacon_req->mode = 0; // Passive
     // For MLD APs, query_params->bssid is the AP-MLD MAC which does not appear in the
     // wifidb VAP map.  OneWifi uses beacon_req->bssid only to resolve ap_index (it then
-    // overwrites it with wildcard before the HAL call).  Resolve the correct link-level
-    // BSSID via the Associated STA MLD info, with fallback to the STA map entry.
-    {
+    // overwrites it with wildcard before the HAL call).
+    // Detect MLD: the STA map bssid differs from query_params->bssid, meaning
+    // query_params->bssid is the AP-MLD MAC while the STA map holds a link address.
+
+    dm_sta_t *sta = m_data_model.get_first_sta(query_params->sta_mac_addr);
+    bool is_mld = m_data_model.is_sta_mld(query_params->sta_mac_addr);
+    if (is_mld == true) {
+        // MLD STA: resolve to a link-level BSSID that wifidb knows about.
+        // Primary: assoc_sta_mld table (populated by topology handler).
         bool resolved = false;
-        // Primary: Associated STA MLD table (populated by topology handler)
         for (unsigned int i = 0; i < m_data_model.get_num_assoc_sta_mld() && !resolved; i++) {
             em_assoc_sta_mld_info_t &mld =
                 m_data_model.m_assoc_sta_mld[i].m_assoc_sta_mld_info;
@@ -1160,24 +1170,16 @@ void em_agent_t::send_beacon_query(em_bus_event_t *evt)
                 resolved = true;
             }
         }
-        // Secondary: STA map bssid field (set from wifidb VAP bssid in the translator).
-        // Only use it when it differs from query_params->bssid - a difference means
-        // query_params->bssid is an MLD MAC while the STA map holds the link address.
+        // Secondary: sta map bssid (set from wifidb VAP bssid in the translator).
         if (!resolved) {
-            dm_sta_t *sta = m_data_model.get_first_sta(query_params->sta_mac_addr);
-            if (sta != nullptr &&
-                memcmp(sta->m_sta_info.bssid, ZERO_MAC_ADDR, sizeof(mac_address_t)) != 0 &&
-                memcmp(sta->m_sta_info.bssid, query_params->bssid, sizeof(mac_address_t)) != 0) {
-                em_printfout("MLD STA %s: using STA map BSSID %s for ap_index resolution",
-                    util::mac_to_string(query_params->sta_mac_addr).c_str(),
-                    util::mac_to_string(sta->m_sta_info.bssid).c_str());
-                memcpy(beacon_req->bssid, sta->m_sta_info.bssid, sizeof(mac_address_t));
-                resolved = true;
-            }
+            em_printfout("MLD STA %s: using STA map BSSID %s for ap_index resolution",
+                util::mac_to_string(query_params->sta_mac_addr).c_str(),
+                util::mac_to_string(sta->m_sta_info.bssid).c_str());
+            memcpy(beacon_req->bssid, sta->m_sta_info.bssid, sizeof(mac_address_t));
         }
-        if (!resolved) {
-            memcpy(beacon_req->bssid, query_params->bssid, sizeof(mac_address_t));
-        }
+    } else {
+        // Non-MLD STA: query_params->bssid is already a link-level address.
+        memcpy(beacon_req->bssid, query_params->bssid, sizeof(mac_address_t));
     }
     beacon_req->ssidPresent = (query_params->ssid_len > 0);
     if (beacon_req->ssidPresent) {
@@ -1220,14 +1222,11 @@ void em_agent_t::send_beacon_query(em_bus_event_t *evt)
     l_bus_data.raw_data.bytes = (void *)&beacon_query;
     l_bus_data.raw_data_len = sizeof(beacon_query_params_t);
 
-    wifi_bus_desc_t *desc;
-
     if((desc = get_bus_descriptor()) == NULL) {
-       printf("descriptor is null");
+       em_printfout("descriptor is null");
        return;
     }
 
-    bus_error_t rc;
     if ((rc = desc->bus_set_fn(&m_bus_hdl, "Device.WiFi.EM.BeaconQuery", &l_bus_data)) != 0) {
         em_printfout("Failed to send Beacon Query to bus rc=%d len=%u", rc, l_bus_data.raw_data_len);
         return;
@@ -2052,7 +2051,8 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
     bool found = false;
     em_string_t al_mac_str;
     em_bss_info_t *em_bss = NULL;
-    mac_address_t fallback_ruid = {0};
+    em_t *tmp_em = NULL;
+    em_ap_mld_info_t *ap_mld_info = NULL;
     unsigned int i = 0, j = 0;
 
     assert(len > ((sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))));
@@ -2207,32 +2207,58 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
             }
 
             dm_easy_mesh_t::macbytes_to_string(bss_mac, mac_str1);
-            if (m_data_model.is_ap_mld_mac(bss_mac) == false) {
-                em_printfout("Client cap query bss=%s is not AP-MLD MAC, using direct BSS lookup", mac_str1);
-                em = static_cast<em_t *>(hash_map_get_first(m_em_map));
-                while (em != NULL) {
-                    dm = em->get_data_model();
-                    em_bss = dm->get_bss_info_with_mac(bss_mac);
-                    if ((em_bss != NULL) &&
-                        (memcmp(em_bss->ruid.mac, em->get_radio_interface_mac(), sizeof(bssid_t)) == 0)) {
-                        em_printfout("Received client cap query: found radio for bss:%s", mac_str1);
+
+            em = static_cast<em_t *> (hash_map_get_first(m_em_map));
+            while (em != NULL) {
+                dm = em->get_data_model();
+                em_bss = dm->get_bss_info_with_mac(bss_mac);
+                if ((em_bss != NULL) &&
+                    (memcmp(em_bss->ruid.mac, em->get_radio_interface_mac(), sizeof(bssid_t)) == 0)) {
+                    printf("%s:%d: Received client cap query: found radio for bss:%s\n", __func__, __LINE__, mac_str1);
+                    break;
+                }
+                em = static_cast<em_t *> (hash_map_get_next(m_em_map, em));
+            }
+
+            if (em == NULL) {
+                // AP MLD MAC fallback: resolve affiliated link radio EM.
+                tmp_em = static_cast<em_t *>(hash_map_get_first(m_em_map));
+                while (tmp_em != NULL) {
+                    dm = tmp_em->get_data_model();
+                    if ((dm != NULL) && (tmp_em->is_al_interface_em() == false)) {
+                        for (i = 0; i < dm->get_num_ap_mld(); i++) {
+                            ap_mld_info = &dm->m_ap_mld[i].m_ap_mld_info;
+                            if (memcmp(ap_mld_info->mac_addr, bss_mac, sizeof(mac_address_t)) != 0) {
+                                continue;
+                            }
+
+                            for (j = 0; j < ap_mld_info->num_affiliated_ap; j++) {
+                                if (memcmp(ap_mld_info->affiliated_ap[j].ruid.mac,
+                                           tmp_em->get_radio_interface_mac(),
+                                           sizeof(mac_address_t)) == 0) {
+                                    em = tmp_em;
+                                    em_printfout("Client cap: AP-MLD bssid=%s mapped to radio=%s",
+                                           util::mac_to_string(bss_mac).c_str(),
+                                           util::mac_to_string(em->get_radio_interface_mac()).c_str());
+                                    break;
+                                }
+                            }
+                            if (em != NULL) {
+                                break;
+                            }
+                        }
+                    }
+
+                    if (em != NULL) {
                         break;
                     }
-                    em = static_cast<em_t *>(hash_map_get_next(m_em_map, em));
-                }
-            } else {
-                em_printfout("Client cap query bss=%s is AP-MLD MAC, resolving to affiliated radio", mac_str1);
-                if (m_data_model.resolve_ap_mld_to_fallback_ruid(bss_mac, fallback_ruid)) {
-                    dm_easy_mesh_t::macbytes_to_string(fallback_ruid, mac_str2);
-                    em = static_cast<em_t *>(hash_map_get(m_em_map, mac_str2));
-                    if (em != NULL) {
-                        em_printfout("Client cap query AP-MLD bss=%s resolved to radio=%s", mac_str1, mac_str2);
-                    }
+                    tmp_em = static_cast<em_t *>(hash_map_get_next(m_em_map, tmp_em));
                 }
             }
+
             if(em == NULL){
                 dm_easy_mesh_t::macbytes_to_string(bss_mac, mac_str2);
-                em_printfout("Received client cap query: Could not find radio:%s of bss:%s", mac_str1, mac_str2);
+                printf("%s:%d: Received client cap query: Could not find radio:%s of bss:%s\n", __func__, __LINE__, mac_str1, mac_str2);
             }
             break;
 
@@ -2400,6 +2426,201 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
 
         case em_msg_type_unassoc_sta_link_metrics_rsp:
            printf("%s:%d: Sending Unassoc STA Link Metrics response\n", __func__, __LINE__);
+ = static_cast<em_t *> (hash_map_get_next(m_em_map, em));
+            }
+
+            if (em == NULL) {
+                // AP MLD MAC fallback: resolve affiliated link radio EM.
+                tmp_em = static_cast<em_t *>(hash_map_get_first(m_em_map));
+                while (tmp_em != NULL) {
+                    dm = tmp_em->get_data_model();
+                    if ((dm != NULL) && (tmp_em->is_al_interface_em() == false)) {
+                        for (i = 0; i < dm->get_num_ap_mld(); i++) {
+                            ap_mld_info = &dm->m_ap_mld[i].m_ap_mld_info;
+                            if (memcmp(ap_mld_info->mac_addr, bss_mac, sizeof(mac_address_t)) != 0) {
+                                continue;
+                            }
+
+                            for (j = 0; j < ap_mld_info->num_affiliated_ap; j++) {
+                                if (memcmp(ap_mld_info->affiliated_ap[j].ruid.mac,
+                                           tmp_em->get_radio_interface_mac(),
+                                           sizeof(mac_address_t)) == 0) {
+                                    em = tmp_em;
+                                    em_printfout("Client cap: AP-MLD bssid=%s mapped to radio=%s",
+                                           util::mac_to_string(bss_mac).c_str(),
+                                           util::mac_to_string(em->get_radio_interface_mac()).c_str());
+                                    break;
+                                }
+                            }
+                            if (em != NULL) {
+                                break;
+                            }
+                        }
+                    }
+
+                    if (em != NULL) {
+                        break;
+                    }
+                    tmp_em = static_cast<em_t *>(hash_map_get_next(m_em_map, tmp_em));
+                }
+            }
+
+            if(em == NULL){
+                dm_easy_mesh_t::macbytes_to_string(bss_mac, mac_str2);
+                printf("%s:%d: Received client cap query: Could not find radio:%s of bss:%s\n", __func__, __LINE__, mac_str1, mac_str2);
+            }
+            break;
+
+        case em_msg_type_client_cap_rprt:
+            break;
+
+        case em_msg_type_op_channel_rprt:
+            break;
+
+        case em_msg_type_assoc_sta_link_metrics_query:
+            printf("\n%s:%d: Rcvd Assoc STA Link Metrics Query\n", __func__, __LINE__);
+
+            em = static_cast<em_t *>(hash_map_get_first(m_em_map));
+            while (em != NULL) {
+                if ((em->is_al_interface_em() == false)) {
+                    break;
+                }
+                em = static_cast<em_t *>(hash_map_get_next(m_em_map, em));
+            }
+            break;
+
+        case em_msg_type_assoc_sta_link_metrics_rsp:
+            printf("%s:%d: Sending Assoc STA Link Metrics response\n", __func__, __LINE__);
+            break;
+
+        case em_msg_type_client_steering_req:
+            printf("\n%s:%d: Rcvd Client steering request\n", __func__, __LINE__);
+            em = static_cast<em_t *>(hash_map_get_first(m_em_map));
+            while (em != NULL) {
+                if ((em->is_al_interface_em() == false)) {
+                    //printf("%s:%d: Found em\n", __func__, __LINE__);
+                    break;
+                }
+                em = static_cast<em_t *>(hash_map_get_next(m_em_map, em));
+            }
+            break;
+
+        case em_msg_type_client_steering_btm_rprt:
+            printf("%s:%d: Sending Client BTM REPORT\n", __func__, __LINE__);
+            break;
+
+		case em_msg_type_channel_scan_req:
+			if (em_msg_t(data + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)),
+                	len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_radio_id(&ruid) == false) {
+				return NULL;
+			}
+
+			dm_easy_mesh_t::macbytes_to_string(ruid, mac_str1);
+         if ((em = static_cast<em_t *>(hash_map_get(m_em_map, mac_str1))) == NULL) {
+				return NULL;
+			}
+			
+			break;
+
+        case  em_msg_type_ap_mld_config_req:
+            printf("%s:%d: Received em_msg_type_ap_mld_config_req\n", __func__, __LINE__);
+
+            em = static_cast<em_t *>(hash_map_get_first(m_em_map));
+            while (em != NULL) {
+                if ((em->is_al_interface_em() == false)) {
+                    //printf("%s:%d: Found em\n", __func__, __LINE__);
+                    break;
+                }
+                em = static_cast<em_t *>(hash_map_get_next(m_em_map, em));
+            }
+
+            break;
+        
+        case em_msg_type_autoconf_search:
+        case em_msg_type_topo_resp:
+        case em_msg_type_channel_pref_rprt:
+        case em_msg_type_1905_ack:
+        case em_msg_type_map_policy_config_req:
+            em = static_cast<em_t *>(hash_map_get_first(m_em_map));
+            while (em != NULL) {
+                if ((em->is_al_interface_em() == false)) {
+                    break;
+                }
+                em = static_cast<em_t *>(hash_map_get_next(m_em_map, em));
+            }
+            break;
+
+		case em_msg_type_channel_scan_rprt:
+        case em_msg_type_beacon_metrics_rsp:
+        case em_msg_type_ap_mld_config_resp:
+        case em_msg_type_ap_metrics_rsp:
+            break;
+
+        case em_msg_type_beacon_metrics_query:
+            em_printfout(" Rcvd Beacon Metrics Query");
+            {
+                mac_address_t client_mac = {};
+                em_tlv_t *bmq_tlv = reinterpret_cast<em_tlv_t *>(data + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+                em_beacon_metrics_query_t *bmq = reinterpret_cast<em_beacon_metrics_query_t *>(bmq_tlv->value);
+                memcpy(client_mac, bmq->sta_mac_addr, sizeof(mac_address_t));
+                em_printfout("Beacon Metrics Query for STA: %s", util::mac_to_string(client_mac).c_str());
+
+                em = (em_t *)hash_map_get_first(m_em_map);
+                while (em != NULL) {
+                    if (!em->is_al_interface_em()) {
+                        dm = em->get_data_model();
+                        if (dm->get_first_sta(client_mac) != NULL) {
+                            em_printfout("Found em with STA %s associated", util::mac_to_string(client_mac).c_str());
+                            break;
+                        }
+                    }
+                    em = (em_t *)hash_map_get_next(m_em_map, em);
+                }
+            }
+            // If no em has the STA, fall back to al_em so handle_beacon_metrics_query
+            // can send a 1905 ACK with Error Code TLV (Reason 0x02) per spec 10.3.3.
+            if (em == NULL) {
+                em_printfout("STA not found for Beacon Metrics Query, falling back to al_em for error ACK");
+                em = al_em;
+            }
+            break;
+        case em_msg_type_proxied_encap_dpp:
+        case em_msg_type_direct_encap_dpp:
+        case em_msg_type_chirp_notif:
+        case em_msg_type_dpp_cce_ind:
+        case em_msg_type_1905_rekey_req:
+        case em_msg_type_1905_encap_eapol:
+        case em_msg_type_bss_config_rsp:
+        case em_msg_type_agent_list:
+            em = al_em;
+            break;
+        case em_msg_type_topo_disc:
+            em = NULL;
+            break;
+
+        case em_msg_type_bh_sta_cap_query:
+            em = static_cast<em_t *>(hash_map_get_first(m_em_map));
+            while (em != NULL) {
+                if ((em->is_al_interface_em() == true)) {
+                    em_printfout("Rcvd bsta cap Query");
+                    break;
+                }
+                em = static_cast<em_t *>(hash_map_get_next(m_em_map, em));
+            }
+            break;
+
+        case em_msg_type_bh_sta_cap_rprt:
+            break;
+
+        case em_msg_type_client_assoc_ctrl_req:
+            em = static_cast<em_t *>(hash_map_get_first(m_em_map));
+            while (em != NULL) {
+	        if ((em->is_al_interface_em() == true)) {
+	            em_printfout("Rceived client assoc ctrl request from controller");
+	            break;
+	        }
+	        em = static_cast<em_t *>(hash_map_get_next(m_em_map, em));
+           }
            break;
 
         default:

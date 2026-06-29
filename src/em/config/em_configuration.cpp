@@ -3783,7 +3783,7 @@ int em_configuration_t::compute_keys(unsigned char *remote_pub, unsigned short p
     return 1;
 }
 
-int em_configuration_t::create_autoconfig_wsc_m2_msg(unsigned char *buff, unsigned short msg_id, unsigned char *peer_al_mac)
+int em_configuration_t::create_autoconfig_wsc_m2_msg(unsigned char *buff, unsigned short msg_id)
 {
     unsigned short  msg_type = em_msg_type_autoconf_wsc;
     int len = 0;
@@ -3804,7 +3804,7 @@ int em_configuration_t::create_autoconfig_wsc_m2_msg(unsigned char *buff, unsign
         return 0;
     }
 
-    memcpy(tmp, (peer_al_mac != nullptr) ? peer_al_mac : const_cast<unsigned char *>(get_peer_mac()), sizeof(mac_address_t));
+    memcpy(tmp, const_cast<unsigned char *> (get_peer_mac()), sizeof(mac_address_t));
     tmp += sizeof(mac_address_t);
     len += static_cast<int> (sizeof(mac_address_t));
     
@@ -5589,7 +5589,7 @@ int em_configuration_t::handle_autoconfig_wsc_m1(unsigned char *buff, unsigned i
         tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
     }
 
-    int ret = create_autoconfig_wsc_m2_msg(msg, ntohs(cmdu->id), m1_hdr->src);
+    int ret = create_autoconfig_wsc_m2_msg(msg, ntohs(cmdu->id));
     if (ret <= 0) {
         printf("%s:%d: create_autoconfig_wsc_m2_msg failed, ret=%d\n", __func__, __LINE__, ret);
         return -1;
@@ -5861,7 +5861,14 @@ void em_configuration_t::process_msg(unsigned char *data, unsigned int len)
 			break;
 
         case em_msg_type_topo_resp:
-            if ((get_service_type() == em_service_type_ctrl) && (get_state() == em_state_ctrl_topo_sync_pending)){
+        {
+            // For sta_assoc, the send path pre-advances to em_state_ctrl_topo_synchronized
+            // so we also accept responses in that state when processing a sta_assoc command.
+            bool sta_assoc_topo_sync = (get_current_cmd() != NULL &&
+                get_current_cmd()->m_type == em_cmd_type_sta_assoc &&
+                get_state() == em_state_ctrl_topo_synchronized);
+            if ((get_service_type() == em_service_type_ctrl) &&
+                (get_state() == em_state_ctrl_topo_sync_pending || sta_assoc_topo_sync)) {
                 if (handle_topology_response(data, len) == 0) {
                     set_state(em_state_ctrl_topo_synchronized);
                     static_cast<em_t*>(this)->set_ssid_mismatch(false);
@@ -5888,6 +5895,7 @@ void em_configuration_t::process_msg(unsigned char *data, unsigned int len)
                     printf("%s:%d em_msg_type_topo_resp handle failed \n", __func__, __LINE__);
                 }
             }
+        }
             break;
 
         case em_msg_type_topo_notif:
@@ -6125,6 +6133,8 @@ void em_configuration_t::process_ctrl_state()
         {
             std::vector<em_t *> em_radios;
             dm_easy_mesh_t *dm = get_data_model();
+            bool allow_single_radio_topo_query = (get_current_cmd() != NULL &&
+                get_current_cmd()->m_type == em_cmd_type_sta_assoc);
             get_mgr()->get_all_em_for_al_mac(dm->get_agent_al_interface_mac(), em_radios);
 
             // Evaluate SSID mismatch across this AL's radios only.
@@ -6134,20 +6144,34 @@ void em_configuration_t::process_ctrl_state()
 
             if (ssid_mismatch_present == false)
             {
-                for (auto &em : em_radios) {
-                    if (em->get_state() != em_state_ctrl_topo_sync_pending) {
-                        em_printfout("radio %s is in state:%s, not in topo sync pending state, ignoring",
-                            util::mac_to_string(em->get_radio_interface_mac()).c_str(), em_t::state_2_str(em->get_state()));
-                        em_radios.clear();
-                        return;
+                if (allow_single_radio_topo_query == false) {
+                    for (auto &em : em_radios) {
+                        if (em->get_state() != em_state_ctrl_topo_sync_pending) {
+                            em_printfout("radio %s is in state:%s, not in topo sync pending state, ignoring",
+                                util::mac_to_string(em->get_radio_interface_mac()).c_str(), em_t::state_2_str(em->get_state()));
+                            em_radios.clear();
+                            return;
+                        }
                     }
                 }
                 // Reset the mismatch and topo_query_last sent values before sending topo query
                 dm->set_ssid_mismatch_check_time(0);
                 dm->set_last_topo_query_sent_time(0);
-                // If all radios are in topo sync pending state, send topo query on one of them, 
-                // ignore sending topo query on other radios
-                if (this == em_radios.front()){
+                // sta_assoc: send exactly one topo query on the owning radio, then advance state
+                // so the per-tick loop does not re-fire. The regular path requires all radios
+                // to agree before sending, so it uses the front() guard instead.
+                if (allow_single_radio_topo_query) {
+                    if (m_topo_query_tx_cnt == 0) {
+                        em_printfout("sta_assoc: Sending Topology query for agent al_mac:%s on radio: %s",
+                            util::mac_to_string(dm->get_agent_al_interface_mac()).c_str(),
+                            util::mac_to_string(get_radio_interface_mac()).c_str());
+                        em_t *al_em = get_mgr()->get_al_node();
+                        al_em->set_state(em_state_ctrl_topo_sync_pending);
+                        send_topology_query_msg();
+                    }
+                    // Advance state regardless so subsequent ticks do not re-enter this branch
+                    set_state(em_state_ctrl_topo_synchronized);
+                } else if (this == em_radios.front()) {
                     em_printfout("Sending the Topology query message to agent al_mac:%s on radio: %s",
                         util::mac_to_string(dm->get_agent_al_interface_mac()).c_str(),
                         util::mac_to_string(get_radio_interface_mac()).c_str());

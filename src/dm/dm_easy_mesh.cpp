@@ -3015,6 +3015,17 @@ int dm_easy_mesh_t::get_num_bss_for_associated_sta(mac_address_t sta_mac)
     return num_bssids;
 }
 
+bool dm_easy_mesh_t::is_sta_mld(mac_address_t sta_mac)
+{
+    for (unsigned int i = 0; i < m_num_assoc_sta_mld; i++) {
+        if (memcmp(sta_mac, m_assoc_sta_mld[i].m_assoc_sta_mld_info.mac_addr, sizeof(mac_address_t)) == 0) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 void dm_easy_mesh_t::clone_hash_maps(dm_easy_mesh_t& obj)
 {
     mac_addr_str_t  sta_mac_str, bss_mac_str, radio_mac_str;
