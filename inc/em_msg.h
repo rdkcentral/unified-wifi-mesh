@@ -78,6 +78,7 @@ class em_msg_t {
     em_short_string_t m_errors[EM_MAX_TLV_MEMBERS];
     unsigned char *m_buff;
     unsigned int m_len;
+    em_service_type_t m_service_type {em_service_type_none};
 public:
 
     
@@ -1024,7 +1025,8 @@ public:
 	 *
 	 * @note Ensure that the TLVs data is properly allocated and managed outside this constructor.
 	 */
-	em_msg_t(em_msg_type_t type, em_profile_type_t profile, unsigned char *tlvs, unsigned int len);
+        em_msg_t(em_msg_type_t type, em_profile_type_t profile, unsigned char *tlvs, unsigned int len, em_service_type_t service_type = em_service_type_none);
+
     
 	/**!
 	 * @brief Constructor for em_msg_t class.
