@@ -67,11 +67,6 @@
  * EasyMesh topology streaming over VB-SB WebSocket (wss://)
  * ================================================================ */
 
-/* Message format toggle:
- * EM_TOPO_MSG_FORMAT_PYTHON  — matches xb_topology_client.py envelope
- * Comment out to use the legacy start_id/ordering_id/end_id format */
-#define EM_TOPO_MSG_FORMAT_PYTHON 1
-
 #define EM_TOPO_STREAM_URL_SIZE    4096
 #define EM_TOPO_STREAM_TOKEN_KEY   "token="
 #define EM_TOPO_STREAM_SAT_URL     "https://devprimary.vbautobot.comcast.com:6002/get_sat"
@@ -393,42 +388,26 @@ static void em_topo_stream_send_topology(const char *topology_json)
         return;
     }
 
-#ifdef EM_TOPO_MSG_FORMAT_PYTHON
-    /* Python-compatible format: {"type","gatewayMac","timestamp"(ISO8601),"payload"(object)} */
-    {
-        struct tm tm_utc;
-        gmtime_r(&tv_now.tv_sec, &tm_utc);
-        strftime(ts_buf, sizeof(ts_buf), "%Y-%m-%dT%H:%M:%S+00:00", &tm_utc);
-    }
-    cJSON *payload_obj = cJSON_Parse(topology_json);
-    if (payload_obj == NULL) {
-        em_printfout("[TOPO-WS] topology_json parse failed, sending as string");
-        cJSON_AddStringToObject(envelope, "type",       "topology");
-        cJSON_AddStringToObject(envelope, "gatewayMac", g_em_topo_gateway_mac);
-        cJSON_AddStringToObject(envelope, "timestamp",  ts_buf);
-        cJSON_AddStringToObject(envelope, "payload",    topology_json);
-    } else {
-        cJSON_AddStringToObject(envelope, "type",       "topology");
-        cJSON_AddStringToObject(envelope, "gatewayMac", g_em_topo_gateway_mac);
-        cJSON_AddStringToObject(envelope, "timestamp",  ts_buf);
-        cJSON_AddItemToObject(envelope,   "payload",    payload_obj);
-    }
-#else
-    /* Legacy format: {"start_id","ordering_id","app_type","timestamp"(mmddyyHHMMSS),"payload"(string),"end_id"} */
+    /* Format: {"cm_mac","ordering_id","app_type","timestamp"(mmddyyHHMMSS),"payload"(string)} */
     {
         struct tm tm_now;
         char id_buf[32] = {0};
         localtime_r(&tv_now.tv_sec, &tm_now);
         strftime(ts_buf, sizeof(ts_buf), "%m%d%y%H%M%S", &tm_now);
         snprintf(id_buf, sizeof(id_buf), "%llu", g_em_topo_order_id);
-        cJSON_AddStringToObject(envelope, "start_id",    id_buf);
+        cJSON_AddStringToObject(envelope, "cm_mac",      g_em_topo_gateway_mac);
         cJSON_AddStringToObject(envelope, "ordering_id", id_buf);
         cJSON_AddStringToObject(envelope, "app_type",    "easyMesh");
         cJSON_AddStringToObject(envelope, "timestamp",   ts_buf);
-        cJSON_AddStringToObject(envelope, "payload",     topology_json);
-        cJSON_AddStringToObject(envelope, "end_id",      id_buf);
+        {
+            cJSON *payload_obj = cJSON_Parse(topology_json);
+            if (payload_obj) {
+                cJSON_AddItemToObject(envelope, "payload", payload_obj);
+            } else {
+                cJSON_AddStringToObject(envelope, "payload", topology_json);
+            }
+        }
     }
-#endif
 
     envelope_str = cJSON_PrintUnformatted(envelope);
     cJSON_Delete(envelope);
@@ -1791,11 +1770,18 @@ int main(int argc, const char *argv[])
     if (passive == true) {
 #ifdef EM_WEBSOCKET_PUSH
         if (g_em_topo_gateway_mac[0] == '\0') {
-            em_printfout("Usage: %s --passive --cmmac=<MAC> [data_model_path]", argv[0]);
-            em_printfout("  --passive           Run controller in passive mode");
-            em_printfout("  --cmmac=<MAC>       Gateway CM MAC address (required with --passive)");
-            em_printfout("Example: %s --passive --cmmac=D4:E2:CB:9D:4E:D4", argv[0]);
-            return 1;
+            FILE *mac_fp = popen("deviceinfo.sh -cmac 2>/dev/null || "
+                                 "cat /sys/class/net/brlan0/address 2>/dev/null || "
+                                 "cat /sys/class/net/erouter0/address 2>/dev/null", "r");
+            if (mac_fp) {
+                if (fgets(g_em_topo_gateway_mac, sizeof(g_em_topo_gateway_mac), mac_fp))
+                    g_em_topo_gateway_mac[strcspn(g_em_topo_gateway_mac, "\r\n")] = '\0';
+                pclose(mac_fp);
+            }
+            if (g_em_topo_gateway_mac[0] == '\0') {
+                snprintf(g_em_topo_gateway_mac, sizeof(g_em_topo_gateway_mac), "unknown");
+            }
+            em_printfout("Gateway CM-MAC fetched at runtime: %s", g_em_topo_gateway_mac);
         }
 #endif
         em_ctrl->set_passive(true);
