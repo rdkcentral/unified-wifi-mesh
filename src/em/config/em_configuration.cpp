@@ -1432,7 +1432,11 @@ int em_configuration_t::send_topology_response_msg(unsigned char *dst, unsigned 
     tmp += sizeof(mac_address_t);
     len += static_cast<unsigned int> (sizeof(mac_address_t));
 
-    memcpy(tmp, dm->get_agent_al_interface_mac(), sizeof(mac_address_t));
+    if (service_type == em_service_type_ctrl)
+        memcpy(tmp, dm->get_ctrl_al_interface_mac(), sizeof(mac_address_t));
+    else
+        memcpy(tmp, dm->get_agent_al_interface_mac(), sizeof(mac_address_t));
+
     tmp += sizeof(mac_address_t);
     len += static_cast<unsigned int> (sizeof(mac_address_t));
 
@@ -1465,6 +1469,8 @@ int em_configuration_t::send_topology_response_msg(unsigned char *dst, unsigned 
 
     tmp += (sizeof(em_tlv_t) + sizeof(em_enum_type_t) + 1);
     len += static_cast<unsigned int> (sizeof(em_tlv_t) + sizeof(em_enum_type_t) + 1);
+
+    em_printfout("Supported service: %s\n", (service_type == em_service_type_ctrl) ? "Multi-AP Controller" : (service_type == em_service_type_agent) ? "Multi-AP Agent" : "Unknown");
 
     // AP operational BSS
     tlv_len = static_cast<short unsigned int> (create_operational_bss_tlv_topology(tmp));
@@ -1534,10 +1540,10 @@ int em_configuration_t::send_topology_response_msg(unsigned char *dst, unsigned 
     tmp += (sizeof(em_tlv_t) + tlv_len);
     len += static_cast<unsigned int> (sizeof(em_tlv_t) + tlv_len);
 
-	// AP vendor operational BSS
-	tlv_len = static_cast<short unsigned int> (create_vendor_operational_bss_tlv(tmp));
-	tmp += (sizeof(em_tlv_t) + tlv_len);
-	len += static_cast<unsigned int> (sizeof(em_tlv_t) + tlv_len);
+    // AP vendor operational BSS
+    tlv_len = static_cast<short unsigned int> (create_vendor_operational_bss_tlv(tmp));
+    tmp += (sizeof(em_tlv_t) + tlv_len);
+    len += static_cast<unsigned int> (sizeof(em_tlv_t) + tlv_len);
 
     // End of message
     tlv = reinterpret_cast<em_tlv_t *> (tmp);
@@ -1548,20 +1554,29 @@ int em_configuration_t::send_topology_response_msg(unsigned char *dst, unsigned 
     len += static_cast<unsigned int> (sizeof (em_tlv_t));
 
     // Validate the frame
-    if (em_msg_t(em_msg_type_topo_resp, em_profile_type_3, buff, len).validate(errors) == 0) {
-        printf("Topology Response msg failed validation in tnx end\n");
-
-        return -1;
+    if (service_type != em_service_type_ctrl) {
+        if (em_msg_t(em_msg_type_topo_resp, em_profile_type_3, buff, len).validate(errors) == 0) {
+            printf("Topology Response msg failed validation in tnx end\n");
+            return -1;
+        }
     }
+    else
+        em_printfout("Workaround: Controller sending topology respone - skipped msg validation!!!\n");
 
     em_printfout("frame length: %d", len);
     if (send_frame(buff, len)  < 0) {
         printf("%s:%d: Topology Response send failed, error:%d\n", __func__, __LINE__, errno);
         return -1;
     }
-    printf("setting state to em_state_agent_topo_synchronized\n");
-    set_state(em_state_agent_topo_synchronized);
-    return static_cast<int> (len);
+
+    if (service_type == em_service_type_agent) {
+        printf("setting state to em_state_agent_topo_synchronized\n");
+        set_state(em_state_agent_topo_synchronized);
+    }
+
+    em_printfout("Topology response msg_id: 0x%x sent successfully by %s\n",msg_id, (service_type == em_service_type_ctrl) ? "Multi-AP Controller" : (service_type == em_service_type_agent) ? "Multi-AP Agent" : "Unknown");
+
+        return static_cast<int> (len);
 }
 
 int em_configuration_t::send_ap_mld_config_req_msg()
@@ -5829,25 +5844,40 @@ void em_configuration_t::process_msg(unsigned char *data, unsigned int len)
             {
                 int len = 0;
                 std::vector<em_t*> em_radios;
-                get_mgr()->get_all_em_for_al_mac(hdr->dst, em_radios);
-                for (auto &em : em_radios) {
-                    if ((em->get_service_type() == em_service_type_agent) && (em->get_state() < em_state_agent_onewifi_bssconfig_ind)) {
-                        em_printfout("radio %s is not configured, ignoring", util::mac_to_string(em->get_radio_interface_mac()).c_str());
-                        em_radios.clear();
-                        return;
-                    }
+
+		get_mgr()->get_all_em_for_al_mac(hdr->dst, em_radios);
+                /* controller side implementation to handle topology query */
+                if (get_service_type() == em_service_type_ctrl) {
+		    em_printfout("Controller received Topology query message from mac %s\n", util::mac_to_string(hdr->src).c_str());
+                    len = send_topology_response_msg(data, ntohs(cmdu->id));
+                    if(len <= 0)
+                        em_printfout("Topology response message of length %d failed to send!\n", len);
                 }
-                em_printfout("All radios are configured for al_mac:%s, sending topology response", util::mac_to_string(hdr->dst).c_str());
-                len = send_topology_response_msg(data, ntohs(cmdu->id));
-                if(len) {
-                    for(auto &em : em_radios) {
+		/* agent side implementation to handle topology query */
+                else if (get_service_type() == em_service_type_agent) {
+		    em_printfout("Co-located Agent Received Topology query message from mac %s\n", util::mac_to_string(hdr->src).c_str());
+                    for (auto &em : em_radios) {
+                        if ((em->get_service_type() == em_service_type_agent) && (em->get_state() < em_state_agent_onewifi_bssconfig_ind)) {
+                            em_printfout("radio %s is not configured, ignoring", util::mac_to_string(em->get_radio_interface_mac()).c_str());
+                            em_radios.clear();
+                            return;
+                        }
+                    }
+                    em_printfout("All radios are configured for al_mac:%s, sending topology response", util::mac_to_string(hdr->dst).c_str());
+                    len = send_topology_response_msg(data, ntohs(cmdu->id));
+                    if(len) {
+                        for(auto &em : em_radios) {
                             em->set_state(em_state_agent_topo_synchronized);
+                        }
+                        em_printfout("Sent topology response message, set state to em_state_agent_topo_synchronized");
                     }
-                    em_printfout("Sent topology response message, set state to em_state_agent_topo_synchronized");
-                }
-                em_radios.clear();
-            }
-			break;
+                    em_radios.clear();
+                 }
+		else
+		    em_printfout("Unknown service type. Ignoring...\n");
+             }
+
+        break;
 
         case em_msg_type_topo_resp:
             if ((get_service_type() == em_service_type_ctrl) && (get_state() == em_state_ctrl_topo_sync_pending)){

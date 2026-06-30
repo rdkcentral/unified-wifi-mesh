@@ -968,8 +968,14 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
 
             break;
 
+	case em_msg_type_topo_query:
+	    em_string_t al_src_mac_str;
+            dm_easy_mesh_t::macbytes_to_string(hdr->src, al_src_mac_str);
+            em_printfout("Controller received topology query message from agent al_mac: %s", al_src_mac_str);
+	    em = al_em;
+        break;
+
         case em_msg_type_autoconf_resp:
-        case em_msg_type_topo_query:
         case em_msg_type_autoconf_renew:
         case em_msg_type_channel_pref_query:
         case em_msg_type_channel_sel_req:
