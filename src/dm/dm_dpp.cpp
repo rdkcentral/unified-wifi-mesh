@@ -41,6 +41,9 @@
 
 int dm_dpp_t::analyze_config(const cJSON *obj, void *parent, em_cmd_t *pcmd[], em_cmd_params_t *param, void* user_param)
 {
+    if (obj == nullptr) {
+        return -1;
+    }
 	int num = 0;
 	dm_easy_mesh_t	dm;
 
@@ -140,6 +143,11 @@ void dm_dpp_t::operator = (const dm_dpp_t& obj)
 
 dm_dpp_t::dm_dpp_t(ec_data_t *dpp)
 {
+
+    if (dpp == nullptr) {
+        memset(&m_dpp_info, 0, sizeof(m_dpp_info));
+        return;
+    }
     memcpy(&m_dpp_info, dpp, sizeof(ec_data_t));
 }
 

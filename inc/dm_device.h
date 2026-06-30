@@ -21,6 +21,7 @@
 
 #include "em_base.h"
 #include <cstring>
+#include <stdexcept>
 
 class dm_device_t {
 public:
@@ -121,7 +122,10 @@ public:
 	 *
 	 * @note Ensure that the MAC address provided is valid and correctly formatted.
 	 */
-	void set_dev_interface_mac(unsigned char *mac) { memcpy(m_device_info.intf.mac, mac, sizeof(mac_address_t)); }
+	void set_dev_interface_mac(unsigned char *mac) { if (mac == nullptr) throw std::invalid_argument("mac is null"); memcpy(m_device_info.intf.mac, mac, sizeof(mac_address_t)); }
+
+	template<size_t N>
+	void set_dev_interface_mac(unsigned char (&mac)[N]) { if (N != sizeof(mac_address_t)) throw std::invalid_argument("invalid mac length"); memcpy(m_device_info.intf.mac, mac, sizeof(mac_address_t)); }
     
 	/**!
 	 * @brief Sets the device interface name.
@@ -132,7 +136,7 @@ public:
 	 *
 	 * @note Ensure that the name is null-terminated and does not exceed the buffer size.
 	 */
-	void set_dev_interface_name(char *name) { strncpy(m_device_info.intf.name, name, strlen(name) + 1); }
+	void set_dev_interface_name(char *name) { if (name == nullptr) return; strncpy(m_device_info.intf.name, name, strlen(name) + 1); }
 	
     
 	/**!

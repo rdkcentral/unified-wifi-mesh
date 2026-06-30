@@ -123,7 +123,7 @@ public:
 	 *
 	 * @note Ensure that the MAC address provided is valid and correctly formatted.
 	 */
-	void set_controller_id(unsigned char *mac) { memcpy(m_net_info.ctrl_id.mac, mac, sizeof(mac_address_t)); }
+	void set_controller_id(unsigned char *mac) { if (mac == nullptr) return; memcpy(m_net_info.ctrl_id.mac, mac, sizeof(mac_address_t)); }
 	
 	/**!
 	 * @brief Sets the media type for the network interface.

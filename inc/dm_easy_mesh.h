@@ -253,7 +253,7 @@ public:
 	 *
 	 * @note Ensure that the `dm` pointer is valid and properly initialized before calling this function.
 	 */
-	static em_bss_info_t *get_bss_info_with_mac(void *dm, mac_address_t mac) { return (static_cast<dm_easy_mesh_t *>(dm))->get_bss_info_with_mac(mac); }
+	static em_bss_info_t *get_bss_info_with_mac(void *dm, mac_address_t mac) { if (dm == nullptr) return nullptr; return (static_cast<dm_easy_mesh_t *>(dm))->get_bss_info_with_mac(mac); }
     
 	/**!
 	 * @brief Analyzes device initialization.
@@ -808,7 +808,7 @@ public:
 	 *
 	 * @note Ensure that the MAC address is valid and properly formatted before calling this function.
 	 */
-	void set_ctrl_al_interface_mac(unsigned char *mac) { m_network.set_controller_id(mac); }
+	void set_ctrl_al_interface_mac(unsigned char *mac) { if (mac == nullptr) return; m_network.set_controller_id(mac); }
     
 	/**!
 	 * @brief Sets the control AL interface name.
@@ -819,7 +819,7 @@ public:
 	 *
 	 * @note This function modifies the interface name used by the network control agent.
 	 */
-	void set_ctrl_al_interface_name(char *name) { snprintf(m_network.m_net_info.ctrl_id.name, sizeof(m_network.m_net_info.ctrl_id.name), "%s", name); }
+	void set_ctrl_al_interface_name(char *name) { if (name == nullptr) return; snprintf(m_network.m_net_info.ctrl_id.name, sizeof(m_network.m_net_info.ctrl_id.name), "%s", name); }
 	
 	/**!
 	 * @brief Sets the controller ID for the network.
@@ -830,7 +830,7 @@ public:
 	 *
 	 * @note Ensure that the MAC address is valid and correctly formatted before calling this function.
 	 */
-	void set_controller_id(unsigned char *mac) { m_network.set_controller_id(mac); }
+	void set_controller_id(unsigned char *mac) { if (mac == nullptr) return; m_network.set_controller_id(mac); }
 	
 	/**!
 	 * @brief Sets the controller interface media type.
@@ -885,7 +885,7 @@ public:
 	 *
 	 * @note Ensure that the MAC address is valid and properly formatted before calling this function.
 	 */
-	void set_agent_al_interface_mac(unsigned char *mac) { m_device.set_dev_interface_mac(mac); }
+	void set_agent_al_interface_mac(unsigned char *mac) { if (mac == nullptr) return; m_device.set_dev_interface_mac(mac); }
     
 	/**!
 	 * @brief Sets the interface name for the agent.
@@ -896,7 +896,7 @@ public:
 	 *
 	 * @note The name should be a valid network interface identifier.
 	 */
-	void set_agent_al_interface_name(char *name) { return m_device.set_dev_interface_name(name); }
+	void set_agent_al_interface_name(char *name) { if (name == nullptr) return; return m_device.set_dev_interface_name(name); }
 
     
 	/**!
@@ -1268,7 +1268,7 @@ public:
 	 *
 	 * @returns The number of operational classes as an unsigned integer.
 	 */
-	static unsigned int get_num_op_class(void *dm) { return (static_cast<dm_easy_mesh_t *>(dm))->get_num_op_class(); }
+	static unsigned int get_num_op_class(void *dm) { if (dm == nullptr) return 0; return (static_cast<dm_easy_mesh_t *>(dm))->get_num_op_class(); }
     
 	/**!
 	 * @brief Sets the number of operating classes.
@@ -1291,7 +1291,7 @@ public:
 	 *
 	 * @note Ensure that the dm pointer is valid before calling this function.
 	 */
-	static void set_num_op_class(void *dm, unsigned int num) { (static_cast<dm_easy_mesh_t *>(dm))->set_num_op_class(num); }
+	static void set_num_op_class(void *dm, unsigned int num) { if (dm == nullptr) return; (static_cast<dm_easy_mesh_t *>(dm))->set_num_op_class(num); }
     
 	/**!
 	 * @brief Retrieves the operational class at the specified index.
@@ -1390,7 +1390,7 @@ public:
 	 *
 	 * @returns The number of BSS.
 	 */
-	static unsigned int get_num_bss(void *dm) { return (static_cast<dm_easy_mesh_t *>(dm))->get_num_bss(); }
+	static unsigned int get_num_bss(void *dm) { if (dm == nullptr) return 0; return (static_cast<dm_easy_mesh_t *>(dm))->get_num_bss(); }
     
 	/**!
 	 * @brief Sets the number of BSS (Basic Service Set).
@@ -1411,7 +1411,7 @@ public:
 	 *
 	 * @note Ensure that the mesh instance is properly initialized before calling this function.
 	 */
-	static void set_num_bss(void *dm, unsigned int num) { (static_cast<dm_easy_mesh_t *>(dm))->set_num_bss(num); }
+	static void set_num_bss(void *dm, unsigned int num) { if (dm == nullptr) return; (static_cast<dm_easy_mesh_t *>(dm))->set_num_bss(num); }
     
 	/**!
 	 * @brief Retrieves a BSS (Basic Service Set) from the list based on the provided index.
@@ -1611,7 +1611,7 @@ public:
 	 *
 	 * @note This function is static and should be used internally within the EasyMesh module.
 	 */
-	static void update_scan_results(void *dm, em_scan_result_t *scan_result) { (static_cast<dm_easy_mesh_t *> (dm))->update_scan_results(scan_result); }
+	static void update_scan_results(void *dm, em_scan_result_t *scan_result) { if (dm == nullptr) return; (static_cast<dm_easy_mesh_t *> (dm))->update_scan_results(scan_result); }
 
     
 	/**!
@@ -1631,7 +1631,7 @@ public:
 	 *
 	 * @returns The number of AP MLDs.
 	 */
-	static unsigned int get_num_ap_mld(void *dm) { return (static_cast<dm_easy_mesh_t *>(dm))->get_num_ap_mld(); }
+	static unsigned int get_num_ap_mld(void *dm) { if (dm == nullptr) return 0; return (static_cast<dm_easy_mesh_t *>(dm))->get_num_ap_mld(); }
     
 	/**!
 	 * @brief Sets the number of AP MLD.
@@ -1652,7 +1652,7 @@ public:
 	 *
 	 * @note Ensure that the `dm` pointer is valid and points to a properly initialized EasyMesh configuration object.
 	 */
-	static void set_num_ap_mld(void *dm, unsigned int num) { (static_cast<dm_easy_mesh_t *>(dm))->set_num_ap_mld(num); }
+	static void set_num_ap_mld(void *dm, unsigned int num) { if (dm == nullptr) return; (static_cast<dm_easy_mesh_t *>(dm))->set_num_ap_mld(num); }
     
 	/**!
 	 * @brief Retrieves the access point MLD (Multi-Link Device) at the specified index.
@@ -1700,7 +1700,7 @@ public:
 	 *
 	 * @returns True if BSTA MLD is present, false otherwise.
 	 */
-	static bool is_bsta_mld_present(void *dm) { return (static_cast<dm_easy_mesh_t *>(dm))->is_bsta_mld_present(); }
+	static bool is_bsta_mld_present(void *dm) { if (dm == nullptr) return false; return (static_cast<dm_easy_mesh_t *>(dm))->is_bsta_mld_present(); }
 
 	/**!
 	 * @brief Retrieves the BSTA MLD information.
@@ -1720,7 +1720,7 @@ public:
 	 *
 	 * @returns Reference to em_bsta_mld_info_t.
 	 */
-	static em_bsta_mld_info_t& get_bsta_mld_info(void *dm) { return static_cast<dm_easy_mesh_t *>(dm)->get_bsta_mld_info(); }
+	static em_bsta_mld_info_t& get_bsta_mld_info(void *dm) { static em_bsta_mld_info_t empty{}; if (dm == nullptr) return empty; return static_cast<dm_easy_mesh_t *>(dm)->get_bsta_mld_info(); }
 
 	/**!
 	 * @brief Retrieves the number of associated station MLDs.
@@ -1741,19 +1741,19 @@ public:
 	 *
 	 * @returns The number of associated stations in the mesh network.
 	 */
-	static unsigned int get_num_assoc_sta_mld(void *dm) { return (static_cast<dm_easy_mesh_t *>(dm))->get_num_assoc_sta_mld(); }
+	static unsigned int get_num_assoc_sta_mld(void *dm) { if (dm == nullptr) return 0; return (static_cast<dm_easy_mesh_t *>(dm))->get_num_assoc_sta_mld(); }
 
 	em_ap_mld_info_t *get_ap_mld_frm_bssid(mac_address_t bss_id);
 	static em_ap_mld_info_t *get_ap_mld_frm_bssid(void *dm, mac_address_t bss_id) { return (static_cast<dm_easy_mesh_t *>(dm))->get_ap_mld_frm_bssid(bss_id); }
 
 	void update_ap_mld_info(em_ap_mld_info_t *ap_mld_info);
-	static void update_ap_mld_info(void *dm, em_ap_mld_info_t *ap_mld_info) { (static_cast<dm_easy_mesh_t *>(dm))->update_ap_mld_info(ap_mld_info); }
+	static void update_ap_mld_info(void *dm, em_ap_mld_info_t *ap_mld_info) { if (dm == nullptr) return; (static_cast<dm_easy_mesh_t *>(dm))->update_ap_mld_info(ap_mld_info); }
 
 	void update_bsta_mld_info(em_bsta_mld_info_t *bsta_mld_info);
-	static void update_bsta_mld_info(void *dm, em_bsta_mld_info_t *bsta_mld_info) { (static_cast<dm_easy_mesh_t *>(dm))->update_bsta_mld_info(bsta_mld_info); }
+	static void update_bsta_mld_info(void *dm, em_bsta_mld_info_t *bsta_mld_info) { if (dm == nullptr) return; (static_cast<dm_easy_mesh_t *>(dm))->update_bsta_mld_info(bsta_mld_info); }
 
 	void update_assoc_sta_mld_info(em_assoc_sta_mld_info_t *assoc_sta_mld_info);
-	static void update_assoc_sta_mld_info(void *dm, em_assoc_sta_mld_info_t *assoc_sta_mld_info) { (static_cast<dm_easy_mesh_t *>(dm))->update_assoc_sta_mld_info(assoc_sta_mld_info); }
+	static void update_assoc_sta_mld_info(void *dm, em_assoc_sta_mld_info_t *assoc_sta_mld_info) { if (dm == nullptr) return; (static_cast<dm_easy_mesh_t *>(dm))->update_assoc_sta_mld_info(assoc_sta_mld_info); }
 
 	void remove_assoc_sta_mld_info(mac_address_t sta_mld_mac);
 	bool is_ap_mld_mac(const mac_address_t mac);
@@ -1887,7 +1887,7 @@ public:
 	 *
 	 * @returns The number of radios as an unsigned integer.
 	 */
-	static unsigned int get_num_radios(void *dm) { return (static_cast<dm_easy_mesh_t *>(dm))->get_num_radios(); }
+	static unsigned int get_num_radios(void *dm) { if (dm == nullptr) return 0; return (static_cast<dm_easy_mesh_t *>(dm))->get_num_radios(); }
     
 	/**!
 	 * @brief Sets the number of radios.
@@ -1908,7 +1908,7 @@ public:
 	 *
 	 * @note Ensure that the mesh network configuration object is properly initialized before calling this function.
 	 */
-	static void set_num_radios(void *dm, unsigned int num) { (static_cast<dm_easy_mesh_t *>(dm))->set_num_radios(num); }
+	static void set_num_radios(void *dm, unsigned int num) { if (dm == nullptr) return; (static_cast<dm_easy_mesh_t *>(dm))->set_num_radios(num); }
     
 	/**!
 	 * @brief Finds a matching radio from a given radio object.
@@ -2012,7 +2012,7 @@ public:
 	 *
 	 * @note Ensure that the manufacturer name is a valid string and the pointer is not null.
 	 */
-	void set_manufacturer(char *manufacturer) { m_device.set_manufacturer(manufacturer); }
+	void set_manufacturer(char *manufacturer) { if (manufacturer == nullptr) return; m_device.set_manufacturer(manufacturer); }
     
 	/**!
 	 * @brief Sets the manufacturer model for the device.
@@ -2023,7 +2023,7 @@ public:
 	 *
 	 * @note Ensure that the model string is null-terminated and valid.
 	 */
-	void set_manufacturer_model(char *model) { m_device.set_manufacturer_model(model); }
+	void set_manufacturer_model(char *model) { if (model == nullptr) return; m_device.set_manufacturer_model(model); }
     
 	/**!
 	 * @brief Sets the software version for the device.
@@ -2034,7 +2034,7 @@ public:
 	 *
 	 * @note Ensure that the version string is null-terminated.
 	 */
-	void set_software_version(char *version) { m_device.set_software_version(version); }
+	void set_software_version(char *version) { if (version == nullptr) return; m_device.set_software_version(version); }
     
 	/**!
 	 * @brief Sets the serial number for the device.
@@ -2047,7 +2047,7 @@ public:
 	 * @note Ensure that the serial number is null-terminated and does not exceed
 	 * the maximum allowed length for the device.
 	 */
-	void set_serial_number(char *serial) { m_device.set_serial_number(serial); }
+	void set_serial_number(char *serial) { if (serial == nullptr) return; m_device.set_serial_number(serial); }
     
 	/**!
 	 * @brief Sets the primary device type.
@@ -2058,7 +2058,7 @@ public:
 	 *
 	 * @note Ensure that the `type` parameter is a valid string representing the device type.
 	 */
-	void set_primary_device_type(char *type) { m_device.set_primary_device_type(type); }
+	void set_primary_device_type(char *type) { if (type == nullptr) return; m_device.set_primary_device_type(type); }
     //void operator =(dm_easy_mesh_t const& obj);
     dm_easy_mesh_t& operator =(dm_easy_mesh_t const& obj);
     bool operator ==(dm_easy_mesh_t const& obj);
@@ -2217,7 +2217,7 @@ public:
 	 *
 	 * @note This function is a wrapper around the put_sta_info method of the dm_easy_mesh_t class.
 	 */
-	static void put_sta_info(void *dm, em_sta_info_t *info, em_target_sta_map_t target) { (static_cast<dm_easy_mesh_t *>(dm))->put_sta_info(info, target); }
+	static void put_sta_info(void *dm, em_sta_info_t *info, em_target_sta_map_t target) { if (dm == nullptr) return; (static_cast<dm_easy_mesh_t *>(dm))->put_sta_info(info, target); }
 
 	/**!
 	 * @brief Checks whether a station (STA) is currently associated with a given BSSID.
@@ -2605,7 +2605,7 @@ public:
 	 *
 	 * @note Ensure that the pointer is valid and points to a properly initialized Easy Mesh object.
 	 */
-	void set_em(em_t *em) { m_em = em; }
+	void set_em(em_t *em) { if (em == nullptr) return; m_em = em; }
     
 	/**!
 	 * @brief Sets the colocated status.

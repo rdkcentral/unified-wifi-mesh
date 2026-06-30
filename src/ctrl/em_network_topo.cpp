@@ -229,6 +229,9 @@ em_network_topo_t *em_network_topo_t::find_topology(dm_easy_mesh_t *dm)
 
 void em_network_topo_t::add_network_topo(dm_easy_mesh_t *dm, em_network_topo_t **child_topos, unsigned int num_child_topos)
 {
+    if (dm == nullptr) {
+        return;
+    }
 	std::string dev_mac_str = util::mac_to_string(dm->m_device.m_device_info.intf.mac);
 	if (m_num_topologies >= EM_MAX_NETWORKS) {
 		em_printfout("Cannot add more topologies, max limit reached");

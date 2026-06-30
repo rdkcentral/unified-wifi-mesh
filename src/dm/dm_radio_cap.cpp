@@ -37,6 +37,9 @@
 
 int dm_radio_cap_t::decode(const cJSON *obj, void *parent_id)
 {
+    if (obj == nullptr) {
+        return -1;
+    }
     //cJSON *tmp;
     //unsigned int i;
     em_interface_t	*id = static_cast<em_interface_t *>(parent_id);
@@ -73,6 +76,9 @@ int dm_radio_cap_t::decode(const cJSON *obj, void *parent_id)
 
 void dm_radio_cap_t::encode(cJSON *obj)
 {
+    if (obj == nullptr) {
+        return;
+    }
 /*
     cJSON_AddNumberToObject(obj, "NumberOfOpClass", m_radio_cap_info.num_op_classes);
     cJSON_AddStringToObject(obj, "HTCapabilities", m_radio_cap_info.ht_cap);
@@ -95,6 +101,11 @@ void dm_radio_cap_t::operator = (const dm_radio_cap_t& obj)
 
 dm_radio_cap_t::dm_radio_cap_t(em_radio_cap_info_t *radio_cap)
 {
+
+    if (radio_cap == nullptr) {
+        memset(&m_radio_cap_info, 0, sizeof(m_radio_cap_info));
+        return;
+    }
     memcpy(&m_radio_cap_info, radio_cap, sizeof(em_radio_cap_info_t));
 }
 

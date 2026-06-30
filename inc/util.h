@@ -164,6 +164,9 @@ namespace util {
 	 * @return A string representing the MAC address in the format "XX:XX:XX:XX:XX:XX".
 	 */
 	inline std::string mac_to_string(const uint8_t mac[6], const std::string& delim = ":") {
+		if (mac == nullptr) {
+			return "";
+		}
 		char mac_str[18]; // Max size: 6 bytes * 2 hex chars + 5 delimiters + null terminator
 		snprintf(mac_str, sizeof(mac_str), "%02x%s%02x%s%02x%s%02x%s%02x%s%02x", 
 				mac[0], delim.c_str(), mac[1], delim.c_str(), mac[2], delim.c_str(),

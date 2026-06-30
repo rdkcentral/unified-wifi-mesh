@@ -41,6 +41,9 @@
 
 void em_orch_agent_t::orch_transient(em_cmd_t *pcmd, em_t *em)
 {
+    if (pcmd == nullptr || em == nullptr) {
+        return;
+    }
     em_cmd_stats_t *stats;
     em_short_string_t key;
     
@@ -159,6 +162,9 @@ bool em_orch_agent_t::is_em_ready_for_orch_fini(em_cmd_t *pcmd, em_t *em)
 
 bool em_orch_agent_t::is_em_ready_for_orch_exec(em_cmd_t *pcmd, em_t *em)
 {
+    if (pcmd == nullptr || em == nullptr) {
+        return false;
+    }
 	if (pcmd->m_type == em_cmd_type_dev_init) {
         return true;
     } else if (pcmd->m_type == em_cmd_type_onewifi_cb) {
@@ -216,6 +222,9 @@ void em_orch_agent_t::pre_process_cancel(em_cmd_t *pcmd, em_t *em)
 
 bool em_orch_agent_t::pre_process_orch_op(em_cmd_t *pcmd)
 {
+    if (pcmd == nullptr) {
+        return false;
+    }
     em_t *em;
     em_cmd_ctx_t *ctx;
     em_interface_t *intf;
@@ -361,6 +370,9 @@ bool em_orch_agent_t::pre_process_orch_op(em_cmd_t *pcmd)
 
 unsigned int em_orch_agent_t::build_candidates(em_cmd_t *pcmd)
 {
+    if (pcmd == nullptr) {
+        return 0;
+    }
     em_t *em;
     unsigned int count = 0 , num = 0;
     em_cmd_ctx_t *ctx;

@@ -19,6 +19,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <stdexcept>
 #include <errno.h>
 #include <assert.h>
 #include <signal.h>
@@ -66,6 +67,10 @@ void dm_cac_comp_t::operator = (const dm_cac_comp_t& obj)
 
 dm_cac_comp_t::dm_cac_comp_t(em_cac_comp_info_t *radio)
 {
+
+    if (radio == nullptr) {
+        throw std::invalid_argument("cac_comp_info is null");
+    }
     memcpy(&m_cac_comp_info, radio, sizeof(em_cac_comp_info_t));
 }
 

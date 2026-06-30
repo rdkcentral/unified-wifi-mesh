@@ -19,6 +19,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <stdexcept>
 #include <errno.h>
 #include <assert.h>
 #include <signal.h>
@@ -37,6 +38,12 @@
 
 int dm_assoc_sta_mld_t::decode(const cJSON *obj, void *parent_id)
 {
+    if (obj == nullptr) {
+        return -1;
+    }
+    if (parent_id == nullptr) {
+        return -1;
+    }
     //TODO: needs to be implemnented
 
     return 0;
@@ -44,6 +51,9 @@ int dm_assoc_sta_mld_t::decode(const cJSON *obj, void *parent_id)
 
 void dm_assoc_sta_mld_t::encode(cJSON *obj)
 {
+    if (obj == nullptr) {
+        throw std::invalid_argument("encode: obj is null");
+    }
     //TODO: needs to be implemnented
 }
 
@@ -100,11 +110,19 @@ dm_assoc_sta_mld_t::dm_assoc_sta_mld_t(em_assoc_sta_mld_info_t *assoc_sta_mld_in
         return;
     }
     memcpy(&m_assoc_sta_mld_info, assoc_sta_mld_info, sizeof(em_assoc_sta_mld_info_t));
+    if (m_assoc_sta_mld_info.num_affiliated_sta > EM_MAX_AP_MLD) {
+        m_assoc_sta_mld_info.num_affiliated_sta = EM_MAX_AP_MLD;
+    }
 }
 
 dm_assoc_sta_mld_t::dm_assoc_sta_mld_t(const dm_assoc_sta_mld_t& assoc_sta_mld)
 {
     memcpy(&m_assoc_sta_mld_info, &assoc_sta_mld.m_assoc_sta_mld_info, sizeof(em_assoc_sta_mld_info_t));
+    mac_address_t all_ff;
+    memset(all_ff, 0xFF, sizeof(mac_address_t));
+    if (memcmp(m_assoc_sta_mld_info.mac_addr, all_ff, sizeof(mac_address_t)) == 0) {
+        throw std::invalid_argument("copy constructor: invalid MAC address (all 0xFF)");
+    }
 }
 
 dm_assoc_sta_mld_t::dm_assoc_sta_mld_t()

@@ -111,6 +111,9 @@ int dm_network_ssid_t::decode(const cJSON *obj, void *parent_id)
 
 void dm_network_ssid_t::encode(cJSON *obj)
 {
+    if (obj == nullptr) {
+        return;
+    }
   
     unsigned int i;
     mac_addr_str_t  mac_str;
@@ -273,6 +276,11 @@ em_haul_type_t dm_network_ssid_t::haul_type_from_string(em_string_t str)
 
 dm_network_ssid_t::dm_network_ssid_t(em_network_ssid_info_t *net_ssid)
 {
+
+    if (net_ssid == nullptr) {
+        memset(&m_network_ssid_info, 0, sizeof(m_network_ssid_info));
+        return;
+    }
     memcpy(&m_network_ssid_info, net_ssid, sizeof(em_network_ssid_info_t));
 }
 

@@ -37,6 +37,9 @@
 
 int dm_policy_t::decode(const cJSON *obj, void *parent_id, em_policy_id_type_t type)
 {
+    if (obj == nullptr) {
+        return -1;
+    }
     cJSON *tmp, *sta_arr_obj;
 	em_policy_id_t id;
 	int i;
@@ -286,6 +289,9 @@ void dm_policy_t::operator = (const dm_policy_t& obj)
 
 int dm_policy_t::parse_dev_radio_mac_from_key(const char *key, em_policy_id_t *id)
 {
+    if (key == nullptr || id == nullptr) {
+        return -1;
+    }
     em_long_string_t   str;
     char *tmp, *remain;
     unsigned int i = 0;
@@ -317,6 +323,11 @@ int dm_policy_t::parse_dev_radio_mac_from_key(const char *key, em_policy_id_t *i
 
 dm_policy_t::dm_policy_t(em_policy_t *policy)
 {
+
+    if (policy == nullptr) {
+        memset(&m_policy, 0, sizeof(m_policy));
+        return;
+    }
     memcpy(&m_policy, policy, sizeof(em_policy_t));
 }
 

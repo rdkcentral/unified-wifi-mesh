@@ -37,6 +37,9 @@
 
 int dm_sta_t::decode(const cJSON *obj, void *parent_id)
 {
+    if (obj == nullptr) {
+        return -1;
+    }
     cJSON *tmp;
     mac_addr_str_t  mac_str;
 
@@ -551,6 +554,11 @@ void dm_sta_t::decode_beacon_report(dm_sta_t *sta)
 
 dm_sta_t::dm_sta_t(em_sta_info_t *sta)
 {
+
+    if (sta == nullptr) {
+        memset(&m_sta_info, 0, sizeof(m_sta_info));
+        return;
+    }
     memcpy(&m_sta_info, sta, sizeof(em_sta_info_t));
 }
 

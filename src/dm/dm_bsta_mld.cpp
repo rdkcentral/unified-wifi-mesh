@@ -36,6 +36,9 @@
 
 int dm_bsta_mld_t::decode(const cJSON *obj, void *parent_id)
 {
+    if (obj == nullptr) {
+        return -1;
+    }
     //TODO: needs to be implemnented
 
     return 0;

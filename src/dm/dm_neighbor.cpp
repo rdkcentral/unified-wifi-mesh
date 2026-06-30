@@ -41,6 +41,9 @@
 
 int dm_neighbor_t::decode(const cJSON *obj, void *parent_id)
 {
+    if (obj == nullptr) {
+        return -1;
+    }
     cJSON *tmp;
     mac_addr_str_t  mac_str;
 
@@ -82,6 +85,9 @@ int dm_neighbor_t::decode(const cJSON *obj, void *parent_id)
 
 void dm_neighbor_t::encode(cJSON *obj, bool summary)
 {
+    if (obj == nullptr) {
+        return;
+    }
     mac_addr_str_t  mac_str;
 
 	dm_easy_mesh_t::macbytes_to_string(m_neighbor_info.nbr, mac_str);
@@ -134,6 +140,11 @@ bool dm_neighbor_t::operator == (const dm_neighbor_t& obj)
 
 dm_neighbor_t::dm_neighbor_t(em_neighbor_info_t *bss)
 {
+
+    if (bss == nullptr) {
+        memset(&m_neighbor_info, 0, sizeof(m_neighbor_info));
+        return;
+    }
     memcpy(&m_neighbor_info, bss, sizeof(em_neighbor_info_t));
 }
 

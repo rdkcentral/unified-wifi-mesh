@@ -37,6 +37,9 @@
 
 int dm_bss_t::decode(const cJSON *obj, void *parent_id)
 {
+    if (obj == nullptr) {
+        return -1;
+    }
     cJSON *tmp, *tmp_arr;
     mac_addr_str_t  mac_str;
     int i;
@@ -186,6 +189,9 @@ int dm_bss_t::decode(const cJSON *obj, void *parent_id)
 
 void dm_bss_t::encode(cJSON *obj, bool summary)
 {
+    if (obj == nullptr) {
+        return;
+    }
     mac_addr_str_t  mac_str;
     unsigned short i;
 	em_short_string_t	haul_type_str;
@@ -393,6 +399,9 @@ bool dm_bss_t::match_criteria(char *criteria)
 
 int dm_bss_t::parse_bss_id_from_key(const char *key, em_bss_id_t *id)
 {
+    if (key == nullptr || id == nullptr) {
+        return -1;
+    }
     em_long_string_t   str;
     char *tmp, *remain;
     unsigned int i = 0;
@@ -492,6 +501,11 @@ void dm_bss_t::remove_vendor_ie(const struct ieee80211_vs_ie *vs_ie)
 
 dm_bss_t::dm_bss_t(em_bss_info_t *bss)
 {
+
+    if (bss == nullptr) {
+        memset(&m_bss_info, 0, sizeof(m_bss_info));
+        return;
+    }
     memcpy(&m_bss_info, bss, sizeof(em_bss_info_t));
 }
 

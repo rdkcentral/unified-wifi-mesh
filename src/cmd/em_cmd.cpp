@@ -48,6 +48,9 @@ bool em_cmd_t::validate()
 
 unsigned int em_cmd_t::get_event_data_length()
 {
+	if (m_evt == nullptr) {
+		return 0;
+	}
 	em_frame_event_t *fevt;
 	em_bus_event_t *bevt;
 	unsigned int sz = 0;
@@ -72,6 +75,9 @@ unsigned int em_cmd_t::get_event_data_length()
 
 void em_cmd_t::set_event_data_length(unsigned int len)
 {
+	if (m_evt == nullptr) {
+		return;
+	}
 	em_frame_event_t *fevt;
 	em_bus_event_t *bevt;
 
@@ -93,6 +99,9 @@ void em_cmd_t::set_event_data_length(unsigned int len)
 
 void em_cmd_t::copy_bus_event(em_bus_event_t *evt)
 {
+	if (evt == nullptr || m_evt == nullptr) {
+		return;
+	}
 	em_bus_event_t *bevt;
 
 	m_evt->type = em_event_type_bus;
@@ -103,6 +112,9 @@ void em_cmd_t::copy_bus_event(em_bus_event_t *evt)
 
 void em_cmd_t::copy_frame_event(em_frame_event_t *evt)
 {
+	if (evt == nullptr || m_evt == nullptr) {
+		return;
+	}
 	em_frame_event_t *fevt;
 
 	m_evt->type = em_event_type_frame;
@@ -113,6 +125,9 @@ void em_cmd_t::copy_frame_event(em_frame_event_t *evt)
 
 char *em_cmd_t::status_to_string(em_cmd_out_status_t status, char *str)
 {
+    if (str == nullptr) {
+        return nullptr;
+    }
     cJSON *obj, *res = NULL;
     em_long_string_t status_str;
     em_subdoc_info_t *info;
@@ -247,6 +262,9 @@ em_cmd_t *em_cmd_t::clone_for_next()
 
 void em_cmd_t::override_op(unsigned int index, em_orch_desc_t *desc)
 {
+    if (desc == nullptr) {
+        return;
+    }
     em_cmd_ctx_t *ctx;
 
     m_orch_desc[index].op = desc->op;

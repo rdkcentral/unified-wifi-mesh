@@ -582,6 +582,10 @@ bool ec_enrollee_t::handle_recfg_auth_confirm(ec_frame_t *frame, size_t len, uin
 
 bool ec_enrollee_t::handle_auth_request(ec_frame_t *frame, size_t len, uint8_t src_mac[ETHER_ADDR_LEN], unsigned int recv_freq)
 {
+    if (frame == nullptr || src_mac == nullptr) {
+        em_printfout("handle_auth_request: invalid nullptr argument");
+        return false;
+    }
     em_printfout("Recieved a DPP Authentication Request from '" MACSTRFMT "', stopping Presence Announcement\n", MAC2STR(src_mac));
     // Halt presence announcement once DPP Authentication frame is received.
     m_received_auth_frame.store(true);
@@ -763,6 +767,9 @@ Authentication Request frame without replying to it.
 
 bool ec_enrollee_t::handle_auth_confirm(ec_frame_t *frame, size_t len, uint8_t src_mac[ETHER_ADDR_LEN])
 {
+    if (frame == nullptr || src_mac == nullptr) {
+        return false;
+    }
     size_t attrs_len = len - EC_FRAME_BASE_SIZE;
 
     auto status_attrib = ec_util::get_attrib(frame->attributes, attrs_len, ec_attrib_id_dpp_status);
@@ -1768,6 +1775,10 @@ bool ec_enrollee_t::handle_gas_comeback_response(ec_gas_comeback_response_frame_
         em_printfout("NULL GAS comeback response frame");
         return false;
     }
+    if (src_mac == nullptr) {
+        em_printfout("handle_gas_comeback_response: src_mac is nullptr");
+        return false;
+    }
     const std::string source_mac_key = util::mac_to_string(src_mac) + "_" + std::to_string(static_cast<int>(frame->base.dialog_token));
     if (frame->fragment_id != m_gas_fragments[source_mac_key].expected_fragment_id) {
         em_printfout("Fragment ID mismatch for dialog=%d from %s", frame->base.dialog_token, source_mac_key.c_str());
@@ -1977,6 +1988,9 @@ bool ec_enrollee_t::process_direct_encap_dpp_gas_msg(uint8_t* frame, uint16_t le
 
 bool ec_enrollee_t::process_direct_encap_dpp_msg(uint8_t* dpp_frame, uint16_t dpp_frame_len, uint8_t src_mac[ETH_ALEN])
 {
+    if (dpp_frame == nullptr || src_mac == nullptr) {
+        return false;
+    }
     if (dpp_frame == NULL || dpp_frame_len == 0) {
         em_printfout("DPP Message Frame is empty");
         return false;

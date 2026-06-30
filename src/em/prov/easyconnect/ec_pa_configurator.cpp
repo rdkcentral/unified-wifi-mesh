@@ -34,6 +34,10 @@ ec_pa_configurator_t::ec_pa_configurator_t(const std::string& al_mac_addr, const
 
 bool ec_pa_configurator_t::handle_presence_announcement(ec_frame_t *frame, size_t len, uint8_t src_mac[ETHER_ADDR_LEN])
 {
+    if (frame == nullptr || src_mac == nullptr) {
+        em_printfout("handle_presence_announcement: invalid nullptr argument");
+        return false;
+    }
     em_printfout("Recieved a DPP Presence Announcement Frame from '" MACSTRFMT "'", MAC2STR(src_mac));
     size_t attrs_len = len - EC_FRAME_BASE_SIZE;
 
@@ -72,6 +76,9 @@ bool ec_pa_configurator_t::handle_presence_announcement(ec_frame_t *frame, size_
 
 bool ec_pa_configurator_t::handle_recfg_announcement(ec_frame_t *frame, size_t len, uint8_t sa[ETH_ALEN], uint8_t src_al_mac[ETH_ALEN])
 {
+    if (frame == nullptr || sa == nullptr) {
+        return false;
+    }
     (void)src_al_mac; // Unused parameter in proxy agent
     em_printfout("Received a DPP Reconfiguration Announcement frame from '" MACSTRFMT "'", MAC2STR(sa));
 
@@ -99,6 +106,9 @@ bool ec_pa_configurator_t::handle_recfg_announcement(ec_frame_t *frame, size_t l
 
 bool ec_pa_configurator_t::handle_auth_response(ec_frame_t *frame, size_t len, uint8_t src_mac[ETHER_ADDR_LEN], uint8_t src_al_mac[ETH_ALEN])
 {
+    if (frame == nullptr || src_mac == nullptr) {
+        return false;
+    }
     (void)src_al_mac; // Unused parameter in proxy agent
     em_printfout("Received a DPP Authentication Response frame from '" MACSTRFMT "'\n", MAC2STR(src_mac));
     // Encapsulate 802.11 frame into 1905 Encap DPP TLV and send to controller
@@ -113,6 +123,9 @@ bool ec_pa_configurator_t::handle_auth_response(ec_frame_t *frame, size_t len, u
 
 bool ec_pa_configurator_t::handle_cfg_request(uint8_t *buff, unsigned int len, uint8_t sa[ETH_ALEN])
 {
+    if (buff == nullptr || sa == nullptr) {
+        return false;
+    }
     em_printfout("Rx'd a DPP Configuration Request from " MACSTRFMT "", MAC2STR(sa));
     ec_gas_initial_request_frame_t *req_frame = reinterpret_cast<ec_gas_initial_request_frame_t *>(buff);
     m_gas_session_dialog_tokens[util::mac_to_string(sa)] = req_frame->base.dialog_token;
@@ -135,6 +148,9 @@ bool ec_pa_configurator_t::handle_cfg_request(uint8_t *buff, unsigned int len, u
 
 bool ec_pa_configurator_t::handle_cfg_result(ec_frame_t *frame, size_t len, uint8_t sa[ETH_ALEN])
 {
+    if (frame == nullptr || sa == nullptr) {
+        return false;
+    }
     em_printfout("Received a Configuration Result frame from '" MACSTRFMT "'", MAC2STR(sa));
     // EasyMesh 5.3.4
     // If a Proxy Agent receives a DPP Configuration Result frame from an Enrollee Multi-AP Agent, it shall encapsulate the
@@ -155,6 +171,9 @@ bool ec_pa_configurator_t::handle_cfg_result(ec_frame_t *frame, size_t len, uint
 
 bool ec_pa_configurator_t::handle_connection_status_result(ec_frame_t *frame, size_t len, uint8_t sa[ETH_ALEN])
 {
+    if (frame == nullptr || sa == nullptr) {
+        return false;
+    }
     em_printfout("Received a Connection Status Result frame from '" MACSTRFMT "'", MAC2STR(sa));
     // EasyMesh 5.3.4
     // If a Proxy Agent receives a DPP Connection Status Result frame from an Enrollee Multi-AP Agent, it shall encapsulate the
@@ -202,6 +221,7 @@ bool ec_pa_configurator_t::process_proxy_encap_dpp_msg(em_encap_dpp_t *encap_tlv
         auto it = m_gas_session_dialog_tokens.find(dest_mac_str);
         if (it == m_gas_session_dialog_tokens.end()) {
             em_printfout("No GAS session dialog token found for '" MACSTRFMT "', not sending 802.11 frame.", MAC2STR(dest_mac));
+            free(encap_frame);
             return false;
         }
         uint8_t dialog_token = it->second;
@@ -228,6 +248,7 @@ bool ec_pa_configurator_t::process_proxy_encap_dpp_msg(em_encap_dpp_t *encap_tlv
     if (encap_tlv->dpp_frame_indicator && ec_frame_type == ec_frame_type_t::ec_frame_type_easymesh) {
         if (!encap_tlv->enrollee_mac_addr_present) {
             em_printfout("Cannot forward DPP Configuration Result to Enrollee, MAC addr not present!");
+            free(encap_frame);
             return false;
         }
         bool sent = m_send_action_frame(dest_mac, encap_frame, encap_frame_len, 0, 0);
@@ -389,6 +410,9 @@ bool ec_pa_configurator_t::process_direct_encap_dpp_msg(uint8_t* dpp_frame, uint
 
 bool ec_pa_configurator_t::handle_gas_comeback_request([[maybe_unused]] uint8_t *buff, [[maybe_unused]] unsigned int len, uint8_t sa[ETH_ALEN])
 {
+    if (buff == nullptr || sa == nullptr) {
+        return false;
+    }
     em_printfout("Received a GAS Comeback Request frame from '" MACSTRFMT "'", MAC2STR(sa));
     auto frame_it = m_gas_frames_to_be_sent.find(util::mac_to_string(sa));
     if (frame_it == m_gas_frames_to_be_sent.end()) {

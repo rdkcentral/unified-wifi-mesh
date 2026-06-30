@@ -41,6 +41,9 @@
 
 unsigned int em_orch_t::submit_commands(em_cmd_t *pcmd[], unsigned int num)
 {
+    if (pcmd == nullptr || num == 0) {
+        return 0;
+    }
     unsigned int i;
     unsigned int submitted = 0;
     bool submit = true;
@@ -71,6 +74,9 @@ unsigned int em_orch_t::submit_commands(em_cmd_t *pcmd[], unsigned int num)
 
 void em_orch_t::update_stats(em_cmd_t *pcmd)
 {
+    if (pcmd == nullptr) {
+        return;
+    }
     struct timeval  time_now;
     em_cmd_stats_t *stats;
     unsigned int time = 0;
@@ -91,6 +97,9 @@ void em_orch_t::update_stats(em_cmd_t *pcmd)
 
 void em_orch_t::pop_stats(em_cmd_t *pcmd)
 {
+    if (pcmd == nullptr) {
+        return;
+    }
     em_short_string_t key;
     em_cmd_stats_t *stats;
 
@@ -110,6 +119,9 @@ void em_orch_t::pop_stats(em_cmd_t *pcmd)
 
 void em_orch_t::push_stats(em_cmd_t *pcmd)
 {
+    if (pcmd == nullptr) {
+        return;
+    }
     em_short_string_t key;
     em_cmd_stats_t *stats;
 
@@ -140,6 +152,9 @@ void em_orch_t::reset_cmd_time(hash_map_t *cmd_map, em_cmd_type_t type)
 
 bool em_orch_t::submit_command(em_cmd_t *pcmd)
 {
+    if (pcmd == nullptr) {
+        return false;
+    }
     bool submitted = false;
 
     // build em candidates in cmd;
@@ -157,6 +172,9 @@ bool em_orch_t::submit_command(em_cmd_t *pcmd)
 
 void em_orch_t::destroy_command(em_cmd_t *pcmd)
 {
+    if (pcmd == nullptr) {
+        return;
+    }
     unsigned int count;
 	em_t *em;
 
@@ -304,6 +322,9 @@ void em_orch_t::cancel_command(em_cmd_type_t type)
 
 bool em_orch_t::orchestrate(em_cmd_t *pcmd, em_t *em)
 {
+    if (pcmd == nullptr || em == nullptr) {
+        return false;
+    }
     bool done = false;
     em_orch_state_t orch_state;
     mac_addr_str_t	mac_str;
@@ -345,6 +366,9 @@ bool em_orch_t::orchestrate(em_cmd_t *pcmd, em_t *em)
 
 bool em_orch_t::eligible_for_active(em_cmd_t *pcmd)
 {
+    if (pcmd == nullptr) {
+        return false;
+    }
     signed int i;
     bool eligible = true;
     em_t *em;
@@ -481,6 +505,9 @@ bool em_orch_t::get_dev_test_status()
 
 bool em_orch_t::is_cmd_type_in_progress(em_bus_event_t *evt)
 {
+    if (evt == nullptr) {
+        return false;
+    }
     em_cmd_stats_t *stats;
     em_short_string_t key;
     em_cmd_type_t	type;

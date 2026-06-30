@@ -303,6 +303,9 @@ int dm_easy_mesh_t::commit_config(em_cmd_t  *cmd)
 
 int dm_easy_mesh_t::analyze_radio_config(em_bus_event_t *evt, em_cmd_t *pcmd[])
 {
+    if (evt == nullptr || pcmd == nullptr) {
+        return -1;
+    }
 	int num = 0;
 	
 	printf("%s:%d: Enter\n", __func__, __LINE__);
@@ -345,6 +348,9 @@ int analyze_client_cap_query(em_bus_event_t *evt, em_cmd_t *pcmd[])
 
 int dm_easy_mesh_t::analyze_sta_list(em_bus_event_t *evt, em_cmd_t *pcmd[])
 {
+    if (evt == nullptr || pcmd == nullptr) {
+        return -1;
+    }
     return 0;
 }
 
@@ -465,6 +471,9 @@ int dm_easy_mesh_t::encode_config_reset(em_subdoc_info_t *subdoc, const char *ke
 
 int dm_easy_mesh_t::encode_config_op_class_array(cJSON *arr_obj, em_op_class_type_t type, unsigned char *mac)
 {
+    if (arr_obj == nullptr) {
+        return -1;
+    }
 	unsigned int i;
 	cJSON *op_obj;
 	mac_addr_str_t	mac_str;
@@ -493,6 +502,9 @@ int dm_easy_mesh_t::encode_config_op_class_array(cJSON *arr_obj, em_op_class_typ
 
 int dm_easy_mesh_t::encode_config_test(em_subdoc_info_t *subdoc, const char *key)
 {
+    if (subdoc == nullptr || key == nullptr) {
+        return -1;
+    }
     cJSON *parent_obj, *net_obj, *dev_arr_objs,  *dev_obj, *radio_arr_objs, *radio_obj;
 	cJSON *cap_obj, *op_arr_objs, *bss_obj, *bss_arr_objs;
 	char *formatted_json;
@@ -800,6 +812,9 @@ int dm_easy_mesh_t::decode_config(em_subdoc_info_t *subdoc, const char *str, uns
 
 int dm_easy_mesh_t::decode_config_reset(em_subdoc_info_t *subdoc, const char *key)
 {
+    if (subdoc == nullptr) {
+        return -1;
+    }
     cJSON *parent_obj, *net_obj, *ssid_obj, *ssid_arr_obj, *interfaces_obj, *preference_list_obj, *preference_obj, *obj;
     unsigned int i;
 	unsigned int num_interfaces = EM_MAX_INTERFACES;
@@ -887,6 +902,9 @@ int dm_easy_mesh_t::decode_config_reset(em_subdoc_info_t *subdoc, const char *ke
 
 int dm_easy_mesh_t::decode_config_set_radio(em_subdoc_info_t *subdoc, const char *key, unsigned int index, unsigned int *num)
 {
+    if (subdoc == nullptr) {
+        return -1;
+    }
     cJSON *parent_obj, *net_obj, *net_obj_id, *dev_arr_obj, *dev_obj, *dev_obj_id;
 	cJSON *radio_obj, *radio_arr_obj;
     unsigned int num_devices = 0, i;
@@ -984,6 +1002,9 @@ int dm_easy_mesh_t::decode_config_set_radio(em_subdoc_info_t *subdoc, const char
 
 int dm_easy_mesh_t::decode_config_set_policy(em_subdoc_info_t *subdoc, const char *key, unsigned int index, unsigned int *num)
 {
+    if (subdoc == nullptr) {
+        return -1;
+    }
 	cJSON *parent_obj, *net_obj, *net_obj_id, *dev_arr_obj, *dev_obj, *dev_obj_id, *policy_obj; 
 	cJSON *ap_metrics_obj, *scan_obj, *radio_metrics_arr_obj, *radio_steer_arr_obj, *local_steer_obj, *btm_steer_obj;
 	cJSON *backhaul_obj, *radio_id_obj, *radio_metrics_obj, *radio_steer_obj;
@@ -1219,6 +1240,9 @@ int dm_easy_mesh_t::decode_config_set_policy(em_subdoc_info_t *subdoc, const cha
 
 int dm_easy_mesh_t::decode_config_set_channel(em_subdoc_info_t *subdoc, const char *key, unsigned int index, unsigned int *num)
 {
+    if (subdoc == nullptr || key == nullptr || num == nullptr) {
+        return -1;
+    }
 #define KEY_CHANNEL_ANTICIPATED "wfa-dataelements:SetAnticipatedChannelPreference"
 #define KEY_CHANNEL_SCANREQUEST "wfa-dataelements:ChannelScanRequest"
 #define KEY_CHANNEL_SELECTION "wfa-dataelements:ChannelSelectionRequest"
@@ -1440,6 +1464,9 @@ int dm_easy_mesh_t::decode_config_set_channel(em_subdoc_info_t *subdoc, const ch
 
 int dm_easy_mesh_t::decode_config_set_ssid(em_subdoc_info_t *subdoc, const char *key)
 {
+    if (subdoc == nullptr) {
+        return -1;
+    }
 	cJSON *parent_obj, *net_obj, *net_obj_id, *netssid_list_obj;
 	unsigned int i, arr_size;
 	char *parent;
@@ -1514,6 +1541,9 @@ int dm_easy_mesh_t::decode_config_set_ssid(em_subdoc_info_t *subdoc, const char 
 
 int dm_easy_mesh_t::decode_config_op_class_array(cJSON *arr_obj, em_op_class_type_t type, unsigned char *mac)
 {
+    if (arr_obj == nullptr) {
+        return -1;
+    }
 	cJSON *op_obj;
 	int i, num_objs;
 	mac_addr_str_t	mac_str;
@@ -1736,6 +1766,9 @@ int dm_easy_mesh_t::decode_config_test(em_subdoc_info_t *subdoc, const char *key
 
 int dm_easy_mesh_t::decode_ap_cap_config(em_subdoc_info_t *subdoc, const char *str)
 {
+    if (subdoc == nullptr || str == nullptr) {
+        return -1;
+    }
     cJSON *parent_obj, *net_obj, *dev_arr_objs, *dev_obj;
     em_long_string_t parent_key;
     cJSON *id;
@@ -1845,6 +1878,9 @@ int dm_easy_mesh_t::decode_client_cap_config(em_subdoc_info_t *subdoc, const cha
 
 char *dm_easy_mesh_t::hex(unsigned int in_len, unsigned char *in, unsigned int out_len, char *out)
 {
+    if (in == nullptr || out == nullptr) {
+        return nullptr;
+    }
     unsigned int i;
     unsigned char tmp;
 
@@ -1875,6 +1911,9 @@ char *dm_easy_mesh_t::hex(unsigned int in_len, unsigned char *in, unsigned int o
 
 unsigned char *dm_easy_mesh_t::unhex(unsigned int in_len, char *in, unsigned int out_len, unsigned char *out)
 {
+    if (in == nullptr || out == nullptr) {
+        return nullptr;
+    }
     unsigned int i;
     unsigned char tmp1, tmp2;
 
@@ -1907,6 +1946,9 @@ unsigned char *dm_easy_mesh_t::unhex(unsigned int in_len, char *in, unsigned int
 
 char *dm_easy_mesh_t::macbytes_to_string(mac_address_t mac, char* string)
 {
+    if (string == nullptr) {
+        return nullptr;
+    }
     if( mac != NULL) {
         sprintf(const_cast<char *> (string), "%02x:%02x:%02x:%02x:%02x:%02x",
             mac[0] & 0xff,
@@ -1921,6 +1963,9 @@ char *dm_easy_mesh_t::macbytes_to_string(mac_address_t mac, char* string)
 
 void dm_easy_mesh_t::string_to_macbytes(char *key, mac_address_t bmac)
 {
+    if (key == nullptr || bmac == nullptr) {
+        return;
+    }
     unsigned char mac[6];
     if(strlen(key) > MIN_MAC_LEN)
         sscanf(key, "%02hhx:%02hhx:%02hhx:%02hhx:%02hhx:%02hhx",
@@ -2057,6 +2102,9 @@ em_interface_t *dm_easy_mesh_t::get_prioritized_interface(const char *platform)
 
 int dm_easy_mesh_t::get_interfaces_list(em_interface_t interfaces[], unsigned int *num_interfaces)
 {
+    if (interfaces == nullptr || num_interfaces == nullptr) {
+        return -1;
+    }
     struct ifaddrs *ifaddr = NULL, *tmp = NULL;
     struct sockaddr *addr;
 	struct sockaddr_ll *ll_addr;	
@@ -2255,6 +2303,9 @@ dm_op_class_t *dm_easy_mesh_t::get_curr_op_class(unsigned int index)
 
 dm_device_t *dm_easy_mesh_t::find_matching_device(dm_device_t *dev)
 {
+    if (dev == nullptr) {
+        return nullptr;
+    }
     if (memcmp(m_device.m_device_info.intf.mac, dev->m_device_info.intf.mac, sizeof(mac_address_t)) == 0) {
         return &m_device;
     }
@@ -2575,7 +2626,7 @@ em_bss_info_t *dm_easy_mesh_t::get_bss_info_with_mac(mac_address_t mac)
 void dm_easy_mesh_t::create_autoconfig_renew_json_cmd(char* src_mac_addr, char* agent_al_mac, em_freq_band_t freq_band, char* autoconfig_renew_json)
 {
     if (src_mac_addr == NULL || agent_al_mac == NULL || autoconfig_renew_json == NULL) {
-        throw std::invalid_argument("create_autoconfig_renew_json_cmd: null argument");
+        return;
     }
     cJSON *root, *renew, *device_list, *radio_list, *current_operating_classes, *class_item;
     int op_class = em_freq_band_24;
@@ -2622,7 +2673,7 @@ void dm_easy_mesh_t::create_autoconfig_renew_json_cmd(char* src_mac_addr, char* 
 void dm_easy_mesh_t::create_ap_cap_query_json_cmd(char* src_mac_addr, char* agent_al_mac, char* ap_query_json, short msg_id)
 {
     if (src_mac_addr == NULL || agent_al_mac == NULL || ap_query_json == NULL) {
-        throw std::invalid_argument("create_ap_cap_query_json_cmd: null argument");
+        return;
     }
     cJSON *root, *query_info, *device_list;
     root = cJSON_CreateObject();
@@ -2647,7 +2698,7 @@ void dm_easy_mesh_t::create_ap_cap_query_json_cmd(char* src_mac_addr, char* agen
 void dm_easy_mesh_t::create_client_cap_query_json_cmd(char* src_mac_addr, char* agent_al_mac, char* ap_query_json, short msg_id, char *mac)
 {
     if (src_mac_addr == NULL || agent_al_mac == NULL || ap_query_json == NULL || mac == NULL) {
-        throw std::invalid_argument("create_client_cap_query_json_cmd: null argument");
+        return;
     }
     cJSON *root, *query_info, *device_list;
     root = cJSON_CreateObject();
@@ -3007,6 +3058,9 @@ void dm_easy_mesh_t::put_sta_info(em_sta_info_t *sta_info, em_target_sta_map_t t
 
 int dm_easy_mesh_t::get_num_bss_for_associated_sta(mac_address_t sta_mac)
 {
+    if (sta_mac == nullptr) {
+        return 0;
+    }
     dm_sta_t *sta;
     int num_bssids = 0;
 
@@ -3354,6 +3408,9 @@ void dm_easy_mesh_t::update_scan_results(em_scan_result_t *scan_result)
 
 em_ap_mld_info_t *dm_easy_mesh_t::get_ap_mld_frm_bssid(mac_address_t bss_id)
 {
+    if (bss_id == nullptr) {
+        return nullptr;
+    }
     unsigned int i, j;
     em_ap_mld_info_t *ap_mld_info = NULL;
 

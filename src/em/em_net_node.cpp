@@ -38,6 +38,9 @@
 
 em_network_node_data_type_t em_net_node_t::get_node_type(em_network_node_t *node)
 {
+    if (node == nullptr) {
+        return em_network_node_data_type_invalid;
+    }
     return node->type;
 }
 
@@ -48,6 +51,9 @@ void em_net_node_t::free_node_value(char *str)
 
 char *em_net_node_t::get_node_array_value(em_network_node_t *node, em_network_node_data_type_t *type)
 {
+    if (node == nullptr || type == nullptr) {
+        return nullptr;
+    }
     char *str;
     em_2xlong_string_t tmp_str;
     unsigned int i;
@@ -81,6 +87,9 @@ char *em_net_node_t::get_node_array_value(em_network_node_t *node, em_network_no
 
 void em_net_node_t::set_node_array_value(em_network_node_t *node, char *fmt)
 {
+	if (node == nullptr || fmt == nullptr) {
+		return;
+	}
 	em_long_string_t value;
 	char *tmp, *remain;
 	em_network_node_data_type_t arrType = em_network_node_data_type_invalid;
@@ -150,6 +159,9 @@ void em_net_node_t::set_node_array_value(em_network_node_t *node, char *fmt)
 
 char *em_net_node_t::get_node_scalar_value(em_network_node_t *node)
 {
+    if (node == nullptr) {
+        return nullptr;
+    }
     char *str;
 
     str = static_cast<char *> (malloc(sizeof(em_long_string_t)));
@@ -199,6 +211,9 @@ char *em_net_node_t::get_node_scalar_value(em_network_node_t *node)
 
 void em_net_node_t::set_node_scalar_value(em_network_node_t *node, char *fmt)
 {
+    if (node == nullptr || fmt == nullptr) {
+        return;
+    }
 	switch (node->type) {
 		case em_network_node_data_type_false:
 			node->value_int = 0;
@@ -223,6 +238,9 @@ void em_net_node_t::set_node_scalar_value(em_network_node_t *node, char *fmt)
 
 void em_net_node_t::get_network_tree_node_string(char *str, em_network_node_t *node, unsigned int *pident)
 {
+    if (str == nullptr || node == nullptr || pident == nullptr) {
+        return;
+    }
     unsigned int i, ident = 0;
     em_long_string_t fmt = {0};
     em_3xlong_string_t string = {0};
@@ -350,6 +368,9 @@ void em_net_node_t::get_network_tree_node_string(char *str, em_network_node_t *n
 
 char *em_net_node_t::get_network_tree_string(em_network_node_t *node)
 {
+    if (node == nullptr) {
+        return nullptr;
+    }
     unsigned int ident = 0;
     unsigned int size = EM_LONG_IO_BUFF_SZ;
     char *str;
@@ -364,6 +385,9 @@ char *em_net_node_t::get_network_tree_string(em_network_node_t *node)
 
 cJSON *em_net_node_t::network_tree_node_to_json(em_network_node_t *node, cJSON *parent)
 {
+    if (node == nullptr || parent == nullptr) {
+        return nullptr;
+    }
     unsigned int i;
     cJSON *obj = NULL;
 
@@ -423,6 +447,9 @@ cJSON *em_net_node_t::network_tree_node_to_json(em_network_node_t *node, cJSON *
 
 void *em_net_node_t::network_tree_to_json(em_network_node_t *root)
 {
+    if (root == nullptr) {
+        return nullptr;
+    }
     cJSON *obj;
     unsigned int i;
 
@@ -441,6 +468,9 @@ void *em_net_node_t::network_tree_to_json(em_network_node_t *root)
 
 int em_net_node_t::get_network_tree_node(cJSON *obj, em_network_node_t *root, unsigned int *node_display_ctr)
 {
+    if (obj == nullptr || root == nullptr || node_display_ctr == nullptr) {
+        return -1;
+    }
     cJSON *child_obj, *tmp_obj;
     size_t sz = 0;
 
@@ -588,6 +618,9 @@ em_network_node_t *em_net_node_t::clone_network_tree(em_network_node_t *node)
 
 em_network_node_t *em_net_node_t::clone_network_tree_for_display(em_network_node_t *orig_node, em_network_node_t *dis_node, unsigned int index, bool collapse, unsigned int *node_display_ctr)
 {
+    if (orig_node == nullptr || dis_node == nullptr || node_display_ctr == nullptr) {
+        return nullptr;
+    }
     em_network_node_t *cloned = NULL, *tree_to_add = NULL;
     unsigned int i;
     bool should_consider = false;
@@ -694,6 +727,9 @@ em_network_node_t *em_net_node_t::get_network_tree_by_file(const char *file_name
 
 void em_net_node_t::free_network_tree_node(em_network_node_t *node)
 {
+    if (node == nullptr) {
+        return;
+    }
     unsigned int i;
 
     for (i = 0; i < node->num_children; i++) {
@@ -716,6 +752,9 @@ em_network_node_t *em_net_node_t::get_child_node_at_index(em_network_node_t *nod
 
 unsigned int em_net_node_t::get_node_display_position(em_network_node_t *node)
 {
+    if (node == nullptr) {
+        return 0;
+    }
     return node->display_info.node_pos;
 }
 

@@ -97,6 +97,9 @@ uint16_t ec_util::freq_to_channel_attr(unsigned int freq)
 
 bool ec_util::validate_frame(const ec_frame_t *frame)
 {
+    if (frame == nullptr) {
+        return false;
+    }
     if ((frame->category != 0x04) 
             || (frame->action != 0x09)
             || (frame->oui[0] != 0x50)
@@ -367,6 +370,9 @@ std::pair<em_dpp_chirp_value_t*, uint16_t> ec_util::create_dpp_chirp_tlv(bool ma
 
 bool ec_util::parse_encap_dpp_tlv(em_encap_dpp_t *encap_tlv, uint16_t encap_tlv_len, mac_addr_t *dest_mac, uint8_t *frame_type, uint8_t **encap_frame, uint16_t *encap_frame_len)
 {
+    if (encap_tlv == nullptr || encap_frame == nullptr || encap_frame_len == nullptr) {
+        return false;
+    }
     if (encap_tlv == NULL || encap_tlv_len == 0) {
         fprintf(stderr, "Invalid input\n");
         return false;
@@ -796,6 +802,9 @@ bool ec_util::decode_bootstrap_data_uri(const std::string &uri, ec_data_t *boot_
 bool ec_util::decode_bootstrap_data_json(const cJSON *json_obj, ec_data_t *boot_data,
                                          std::string country_code)
 {
+    if (json_obj == nullptr || boot_data == nullptr) {
+        return false;
+    }
     memset(boot_data, 0, sizeof(ec_data_t));
 
     const cJSON *object_item = NULL;

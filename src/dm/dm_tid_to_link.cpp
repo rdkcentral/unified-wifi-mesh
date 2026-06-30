@@ -36,6 +36,9 @@
 
 int dm_tid_to_link_t::decode(const cJSON *obj, void *parent_id)
 {
+    if (obj == nullptr) {
+        return -1;
+    }
     //TODO: needs to be implemnented
 
     return 0;
@@ -43,6 +46,9 @@ int dm_tid_to_link_t::decode(const cJSON *obj, void *parent_id)
 
 void dm_tid_to_link_t::encode(cJSON *obj)
 {
+    if (obj == nullptr) {
+        return;
+    }
     //TODO: needs to be implemnented
 }
 
@@ -74,6 +80,11 @@ bool dm_tid_to_link_t::operator == (const dm_tid_to_link_t& obj)
 
 dm_tid_to_link_t::dm_tid_to_link_t(em_tid_to_link_info_t *tid_to_link_info)
 {
+
+    if (tid_to_link_info == nullptr) {
+        memset(&m_tid_to_link_info, 0, sizeof(m_tid_to_link_info));
+        return;
+    }
     memcpy(&m_tid_to_link_info, tid_to_link_info, sizeof(em_tid_to_link_info_t));
 }
 

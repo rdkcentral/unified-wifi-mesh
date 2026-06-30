@@ -19,6 +19,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <stdexcept>
 #include <errno.h>
 #include <assert.h>
 #include <signal.h>
@@ -37,6 +38,12 @@
 
 int dm_ap_mld_t::decode(const cJSON *obj, void *parent_id)
 {
+    if (obj == nullptr) {
+        return -1;
+    }
+    if (parent_id == nullptr) {
+        return -1;
+    }
     //TODO: needs to be implemnented
 
     return 0;
@@ -44,6 +51,9 @@ int dm_ap_mld_t::decode(const cJSON *obj, void *parent_id)
 
 void dm_ap_mld_t::encode(cJSON *obj)
 {
+    if (obj == nullptr) {
+        throw std::invalid_argument("encode: obj is null");
+    }
     //TODO: needs to be implemnented
 }
 
