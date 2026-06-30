@@ -163,9 +163,6 @@ int dm_easy_mesh_t::commit_config(dm_easy_mesh_t& dm, em_commit_target_t target)
                 } else {
                     /* Capabilities not yet available for this radio; use default/empty caps */
                     m_radio_cap[m_num_radios].init();
-                    /* Still set RUID so MAC-based lookups (e.g. create_ht_tlv) can find this
-                     * entry once capabilities are populated later (e.g. from DML subdoc). */
-                    memcpy(m_radio_cap[m_num_radios].m_radio_cap_info.ruid.mac, mac, sizeof(mac_address_t));
                     em_printfout("Radio capabilities for %s not available; using default capabilities", target.params);
                 }
 
