@@ -56,27 +56,37 @@
 #ifdef EM_WEBSOCKET_PUSH
 #include <openssl/ssl.h>
 #include <openssl/err.h>
+#include <openssl/evp.h>
+#include <openssl/rand.h>
 #include <netdb.h>
 #include <time.h>
 #include <signal.h>
+#include <stdint.h>
 
 /* ================================================================
  * EasyMesh topology streaming over VB-SB WebSocket (wss://)
  * ================================================================ */
 
+/* Message format toggle:
+ * EM_TOPO_MSG_FORMAT_PYTHON  — matches xb_topology_client.py envelope
+ * Comment out to use the legacy start_id/ordering_id/end_id format */
+#define EM_TOPO_MSG_FORMAT_PYTHON 1
+
 #define EM_TOPO_STREAM_URL_SIZE    4096
 #define EM_TOPO_STREAM_TOKEN_KEY   "token="
 #define EM_TOPO_STREAM_SAT_URL     "https://devprimary.vbautobot.comcast.com:6002/get_sat"
 #define EM_TOPO_STREAM_TOKEN_SIZE  4096
+#define EM_TOPO_GATEWAY_MAC_SIZE   18
 
 /* Default base URL — SAT token is appended as ?token=<JWT> after fetch */
 static char g_em_topo_stream_url[EM_TOPO_STREAM_URL_SIZE] =
-    "wss://vb-streamer-api.vb.comcast.com:6100/ws/receive_data";
+    "wss://vb-streamer-api.vb.comcast.com:6100/ws/topology/xb";
 
 static int                g_em_topo_socket_fd     = -1;
 static SSL_CTX           *g_em_topo_ssl_ctx       = NULL;
 static SSL               *g_em_topo_ssl           = NULL;
 static unsigned long long g_em_topo_order_id      = 0;
+static char              g_em_topo_gateway_mac[EM_TOPO_GATEWAY_MAC_SIZE] = {0};
 
 typedef struct {
     bool     use_tls;
@@ -224,6 +234,17 @@ static int em_topo_fetch_sat_token(char *token_out, size_t token_out_len)
                                 curl_output[used-1] == '\r' ||
                                 curl_output[used-1] == ' '))
                 curl_output[--used] = '\0';
+            if (used > 0 && curl_output[0] == '<') {
+                em_printfout("[TOPO-WS] SAT endpoint returned HTML error page (gateway error), treating as failure");
+                break;
+            }
+            /* Strip surrounding double quotes if the server wrapped the token */
+            if (used >= 2 && curl_output[0] == '"' && curl_output[used-1] == '"') {
+                memmove(curl_output, curl_output + 1, used - 2);
+                used -= 2;
+                curl_output[used] = '\0';
+                em_printfout("[TOPO-WS] Stripped surrounding quotes from token (new len=%zu)", used);
+            }
             if (used > 0 && used < token_out_len) {
                 memcpy(token_out, curl_output, used + 1);
                 em_printfout("[TOPO-WS] SAT token fetched OK (len=%zu)", used);
@@ -258,6 +279,77 @@ static int em_topo_fetch_sat_token(char *token_out, size_t token_out_len)
     return -1;
 }
 
+/* --- RFC 6455 WebSocket text frame encoding (client-to-server, masked) --- */
+static int ws_send_frame(const char *payload, size_t payload_len)
+{
+    unsigned char header[14];
+    size_t header_len = 0;
+    unsigned char mask[4];
+    uint32_t mask_val;
+    unsigned char *masked = NULL;
+    int ret;
+
+    if (!payload || payload_len == 0) return -1;
+
+    /* Random 4-byte masking key (required for client frames per RFC 6455 §5.3) */
+    mask_val = ((uint32_t)rand() << 16) ^ (uint32_t)rand();
+    mask[0] = (mask_val >> 24) & 0xFF;
+    mask[1] = (mask_val >> 16) & 0xFF;
+    mask[2] = (mask_val >>  8) & 0xFF;
+    mask[3] =  mask_val        & 0xFF;
+
+    /* FIN=1, RSV=0, opcode=0x1 (text frame) */
+    header[0] = 0x81;
+    if (payload_len <= 125) {
+        header[1] = 0x80 | (unsigned char)payload_len;
+        header_len = 2;
+    } else if (payload_len <= 65535) {
+        header[1] = 0x80 | 126;
+        header[2] = (unsigned char)((payload_len >> 8) & 0xFF);
+        header[3] = (unsigned char)( payload_len       & 0xFF);
+        header_len = 4;
+    } else {
+        header[1] = 0x80 | 127;
+        header[2] = 0; header[3] = 0; header[4] = 0; header[5] = 0;
+        header[6] = (unsigned char)((payload_len >> 24) & 0xFF);
+        header[7] = (unsigned char)((payload_len >> 16) & 0xFF);
+        header[8] = (unsigned char)((payload_len >>  8) & 0xFF);
+        header[9] = (unsigned char)( payload_len        & 0xFF);
+        header_len = 10;
+    }
+    /* Append masking key to header */
+    header[header_len++] = mask[0];
+    header[header_len++] = mask[1];
+    header[header_len++] = mask[2];
+    header[header_len++] = mask[3];
+
+    /* Mask the payload */
+    masked = (unsigned char *)malloc(payload_len);
+    if (!masked) {
+        em_printfout("[TOPO-WS] ws_send_frame: malloc failed (%zu bytes)", payload_len);
+        return -1;
+    }
+    for (size_t i = 0; i < payload_len; i++)
+        masked[i] = ((unsigned char)payload[i]) ^ mask[i & 3];
+
+    /* Send header then masked payload */
+    ret = g_em_topo_ssl ? SSL_write(g_em_topo_ssl, header, (int)header_len)
+                        : (int)send(g_em_topo_socket_fd, header, header_len, MSG_NOSIGNAL);
+    if (ret <= 0) {
+        em_printfout("[TOPO-WS] ws_send_frame: header write failed (ret=%d)", ret);
+        free(masked);
+        return -1;
+    }
+    ret = g_em_topo_ssl ? SSL_write(g_em_topo_ssl, masked, (int)payload_len)
+                        : (int)send(g_em_topo_socket_fd, masked, payload_len, MSG_NOSIGNAL);
+    free(masked);
+    if (ret <= 0) {
+        em_printfout("[TOPO-WS] ws_send_frame: payload write failed (ret=%d)", ret);
+        return -1;
+    }
+    return 0;
+}
+
 static void em_topo_close(void)
 {
     em_printfout("[TOPO-WS] Closing connection (fd=%d ssl=%p)", g_em_topo_socket_fd, (void *)g_em_topo_ssl);
@@ -284,10 +376,8 @@ static void em_topo_close(void)
 static void em_topo_stream_send_topology(const char *topology_json)
 {
     char          *envelope_str = NULL;
-    char           id_buf[32]   = {0};
-    char           ts_buf[32]   = {0};
+    char           ts_buf[64]   = {0};
     struct timeval tv_now       = {0};
-    struct tm      tm_now;
 
     if (topology_json == NULL) {
         em_printfout("[TOPO-WS] topology_json is NULL, skipping");
@@ -296,21 +386,50 @@ static void em_topo_stream_send_topology(const char *topology_json)
 
     g_em_topo_order_id++;
     gettimeofday(&tv_now, NULL);
-    localtime_r(&tv_now.tv_sec, &tm_now);
-    strftime(ts_buf, sizeof(ts_buf), "%m%d%y%H%M%S", &tm_now);
-    snprintf(id_buf, sizeof(id_buf), "%llu", g_em_topo_order_id);
 
     cJSON *envelope = cJSON_CreateObject();
     if (envelope == NULL) {
         em_printfout("[TOPO-WS] cJSON_CreateObject failed");
         return;
     }
-    cJSON_AddStringToObject(envelope, "start_id",    id_buf);
-    cJSON_AddStringToObject(envelope, "ordering_id", id_buf);
-    cJSON_AddStringToObject(envelope, "app_type",    "easyMesh");
-    cJSON_AddStringToObject(envelope, "timestamp",   ts_buf);
-    cJSON_AddStringToObject(envelope, "payload",     topology_json);
-    cJSON_AddStringToObject(envelope, "end_id",      id_buf);
+
+#ifdef EM_TOPO_MSG_FORMAT_PYTHON
+    /* Python-compatible format: {"type","gatewayMac","timestamp"(ISO8601),"payload"(object)} */
+    {
+        struct tm tm_utc;
+        gmtime_r(&tv_now.tv_sec, &tm_utc);
+        strftime(ts_buf, sizeof(ts_buf), "%Y-%m-%dT%H:%M:%S+00:00", &tm_utc);
+    }
+    cJSON *payload_obj = cJSON_Parse(topology_json);
+    if (payload_obj == NULL) {
+        em_printfout("[TOPO-WS] topology_json parse failed, sending as string");
+        cJSON_AddStringToObject(envelope, "type",       "topology");
+        cJSON_AddStringToObject(envelope, "gatewayMac", g_em_topo_gateway_mac);
+        cJSON_AddStringToObject(envelope, "timestamp",  ts_buf);
+        cJSON_AddStringToObject(envelope, "payload",    topology_json);
+    } else {
+        cJSON_AddStringToObject(envelope, "type",       "topology");
+        cJSON_AddStringToObject(envelope, "gatewayMac", g_em_topo_gateway_mac);
+        cJSON_AddStringToObject(envelope, "timestamp",  ts_buf);
+        cJSON_AddItemToObject(envelope,   "payload",    payload_obj);
+    }
+#else
+    /* Legacy format: {"start_id","ordering_id","app_type","timestamp"(mmddyyHHMMSS),"payload"(string),"end_id"} */
+    {
+        struct tm tm_now;
+        char id_buf[32] = {0};
+        localtime_r(&tv_now.tv_sec, &tm_now);
+        strftime(ts_buf, sizeof(ts_buf), "%m%d%y%H%M%S", &tm_now);
+        snprintf(id_buf, sizeof(id_buf), "%llu", g_em_topo_order_id);
+        cJSON_AddStringToObject(envelope, "start_id",    id_buf);
+        cJSON_AddStringToObject(envelope, "ordering_id", id_buf);
+        cJSON_AddStringToObject(envelope, "app_type",    "easyMesh");
+        cJSON_AddStringToObject(envelope, "timestamp",   ts_buf);
+        cJSON_AddStringToObject(envelope, "payload",     topology_json);
+        cJSON_AddStringToObject(envelope, "end_id",      id_buf);
+    }
+#endif
+
     envelope_str = cJSON_PrintUnformatted(envelope);
     cJSON_Delete(envelope);
     if (envelope_str == NULL) {
@@ -318,7 +437,7 @@ static void em_topo_stream_send_topology(const char *topology_json)
         return;
     }
 
-    em_printfout("[TOPO-WS] Sending topology ordering_id=%s ts=%s", id_buf, ts_buf);
+    em_printfout("[TOPO-WS] Sending topology #%llu ts=%s mac=%s", g_em_topo_order_id, ts_buf, g_em_topo_gateway_mac);
 
     /* ---- Connect (only if not already up) ---- */
     if (g_em_topo_socket_fd < 0) {
@@ -405,12 +524,16 @@ static void em_topo_stream_send_topology(const char *topology_json)
         }
 
         char req[2048] = {0}, resp[1024] = {0};
+        unsigned char ws_key_bytes[16];
+        char ws_key_b64[25] = {0};
+        RAND_bytes(ws_key_bytes, sizeof(ws_key_bytes));
+        EVP_EncodeBlock((unsigned char *)ws_key_b64, ws_key_bytes, sizeof(ws_key_bytes));
         snprintf(req, sizeof(req),
             "GET %s HTTP/1.1\r\nHost: %s\r\nUpgrade: websocket\r\n"
-            "Connection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n"
+            "Connection: Upgrade\r\nSec-WebSocket-Key: %s\r\n"
             "Sec-WebSocket-Version: 13\r\n\r\n",
-            info.path_query, info.host);
-        em_printfout("[TOPO-WS] Sending WS upgrade request (%zu bytes)", strlen(req));
+            info.path_query, info.host, ws_key_b64);
+        em_printfout("[TOPO-WS] Sending WS upgrade request (%zu bytes):\n%s", strlen(req), req);
 
         int w = g_em_topo_ssl ? SSL_write(g_em_topo_ssl, req, (int)strlen(req))
                                : (int)send(g_em_topo_socket_fd, req, strlen(req), 0);
@@ -442,13 +565,13 @@ static void em_topo_stream_send_topology(const char *topology_json)
     /* ---- Send ---- */
     {
         size_t jlen = strlen(envelope_str);
-        em_printfout("[TOPO-WS] Sending DataFrame ordering_id=%s len=%zu", id_buf, jlen);
-        int n = g_em_topo_ssl ? SSL_write(g_em_topo_ssl, envelope_str, (int)jlen)
-                              : (int)send(g_em_topo_socket_fd, envelope_str, jlen, MSG_NOSIGNAL);
-        if (n > 0) {
-            em_printfout("[TOPO-WS] DataFrame sent successfully ordering_id=%s len=%zu sent=%d", id_buf, jlen, n);
+        em_printfout("[TOPO-WS] Sending DataFrame #%llu len=%zu", g_em_topo_order_id, jlen);
+        em_printfout("[TOPO-WS] DataFrame content: %s", envelope_str);
+        int n = ws_send_frame(envelope_str, jlen);
+        if (n == 0) {
+            em_printfout("[TOPO-WS] DataFrame sent successfully #%llu len=%zu", g_em_topo_order_id, jlen);
         } else {
-            em_printfout("[TOPO-WS] Send failed ordering_id=%s (ret=%d) — closing connection", id_buf, n);
+            em_printfout("[TOPO-WS] Send failed #%llu — closing connection", g_em_topo_order_id);
             em_topo_close();
         }
     }
@@ -1687,12 +1810,26 @@ int main(int argc, const char *argv[])
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--passive") == 0) {
             passive = true;
+        } else if (strncmp(argv[i], "--cmmac=", 8) == 0) {
+#ifdef EM_WEBSOCKET_PUSH
+            snprintf(g_em_topo_gateway_mac, sizeof(g_em_topo_gateway_mac), "%s", argv[i] + 8);
+            em_printfout("Gateway MAC set from CLI: %s", g_em_topo_gateway_mac);
+#endif
         } else {
             data_model_path = argv[i];
         }
     }
 
     if (passive == true) {
+#ifdef EM_WEBSOCKET_PUSH
+        if (g_em_topo_gateway_mac[0] == '\0') {
+            em_printfout("Usage: %s --passive --cmmac=<MAC> [data_model_path]", argv[0]);
+            em_printfout("  --passive           Run controller in passive mode");
+            em_printfout("  --cmmac=<MAC>       Gateway CM MAC address (required with --passive)");
+            em_printfout("Example: %s --passive --cmmac=D4:E2:CB:9D:4E:D4", argv[0]);
+            return 1;
+        }
+#endif
         em_ctrl->set_passive(true);
         em_printfout("Controller started in passive mode");
     }
