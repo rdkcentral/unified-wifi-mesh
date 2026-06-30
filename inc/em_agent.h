@@ -500,8 +500,9 @@ public:
 	 * @return true if successful or if the file already exists, false otherwise.
 	 */
 	bool try_create_default_em_cfg(std::string interface);
+	void load_em_plus_cfg();
 
-    
+
 	/**!
 	* @brief Attempts to start DPP onboarding process.
 	*
