@@ -1930,17 +1930,20 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
 
     assert(len > ((sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))));
     if (len < ((sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)))) {
-        return NULL;
+        em_printfout("%s %d len : %u comparision-le  : %u\n", __func__, __LINE__, len, (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)));  
+	return NULL;
     }
    
     hdr = reinterpret_cast<em_raw_hdr_t *>(data);
 
     if (hdr->type != htons(ETH_P_1905)) {
+	 em_printfout("%s %d header type failure\n", __func__, __LINE__);
         return NULL;
     }
    
     cmdu = reinterpret_cast<em_cmdu_t *>(data + sizeof(em_raw_hdr_t));
 
+    em_printfout("%s:%d: FrameType:%d\n", __func__, __LINE__, htons(cmdu->type));
     switch (htons(cmdu->type)) {
 	case em_msg_type_autoconf_resp:
 		found = false;
@@ -2018,6 +2021,7 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
 		case em_msg_type_autoconf_wsc:
 			if (em_msg_t(data + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)),
                 	len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_radio_id(&ruid) == false) {
+				em_printfout("%s:%d: Failed here\n", __func__, __LINE__);
 				return NULL;
 			}
 
@@ -2025,6 +2029,7 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
          if ((em = static_cast<em_t *>(hash_map_get(m_em_map, mac_str1))) != NULL) {
             	printf("%s:%d: Found existing radio:%s\n", __func__, __LINE__, mac_str1);
         	} else {
+			         em_printfout("%s:%d: Radio not found%s\n", __func__, __LINE__, mac_str1);
 				return NULL;
 			}
 			break;

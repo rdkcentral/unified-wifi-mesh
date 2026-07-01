@@ -135,6 +135,7 @@ void em_mgr_t::proto_process(unsigned char *data, unsigned int len, em_t *al_em)
 
 	em = find_em_for_msg_type(data, len, al_em);
 	if (em == NULL) {
+		em_printfout("%s %d EM null\n", __func__, __LINE__);
 		return;
 	}
 
@@ -411,11 +412,12 @@ void em_mgr_t::nodes_listener()
                     em_printfout("RECONSTRUCTED_ETH_FRAME: \t");
                     util::print_hex_dump(reconstructed_eth_frame);
 #endif
-                    proto_process(reconstructed_eth_frame.data(), static_cast<unsigned int>(reconstructed_eth_frame.size()), em);
+		    proto_process(reconstructed_eth_frame.data(), static_cast<unsigned int>(reconstructed_eth_frame.size()), em);
                 } catch (const AlServiceException& e) {
                     if (e.getPrimitiveError() == PrimitiveError::InvalidMessage) {
                         em_printfout("%s. Dropping packet", e.what());
                     } else {
+			em_printfout("%s %d Failure\n", __func__, __LINE__);
                         em_printfout("%s", e.what());
                         throw e; // rethrow the exception if it's not an indication failure
                     }
