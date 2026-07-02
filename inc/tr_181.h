@@ -94,6 +94,7 @@ static const yang_to_tr181_map g_yang_map[] = {
 #define TR181_CHLIST_MAX_LEN       128
 #define TR181_BSSID_MAX_LEN        32
 #define TR181_REQMODE_MAX_LEN      24
+#define TR181_STALIST_MAX_LEN      128
 #define TR181_CHITEM_MAX_CNT       8
 #define TR181_STAMAC_MAX_CNT       16
 
@@ -365,6 +366,7 @@ typedef struct {
 #define DE_BSS_FH_SUITE         DE_RADIO_BSS            "FronthaulSuiteSelector"
 #define DE_BSS_BH_SUITE         DE_RADIO_BSS            "BackhaulSuiteSelector"
 #define DE_BSS_STANOE           DE_RADIO_BSS            "STANumberOfEntries"
+#define DE_BSS_CLIENTASSOCCTRL  DE_RADIO_BSS            "X_AIRTIES_ClientAssocControl()"
 /* Device.WiFi.DataElements.Network.Device.Radio.BSS.STA */
 #define DE_BSS_STA              DE_RADIO_BSS            "STA.{i}."
 #define DE_STA_TABLE            DE_RADIO_BSS            "STA.{i}"
@@ -693,6 +695,29 @@ public:
      * @note Ownership of input and output buffers remains with the caller.
      */
     static bus_error_t channelselect_handler(const char *method_name, bus_data_prop_t *input_data,
+        bus_data_prop_t *output_data, void *async_handle);
+
+    /**!
+     * @brief Handles the RBUS X_AIRTIES_ClientAssocControl method invocation.
+     *
+     * This function extracts X_AIRTIES_ClientAssocControl properties from the raw input
+     * payload, forwards them to the EasyMesh controller, and optionally writes response
+     * properties to the output raw buffer for RBUS callers.
+     *
+     * @param method_name RBUS method name, expected to match X_AIRTIES_ClientAssocControl.
+     * @param input_data Input containing a chained list of bus_data_prop_t entries.
+     * @param output_data Output populated with response properties when provided.
+     * @param async_handle RBUS async handle when the call is asynchronous (may be null).
+     *
+     * @returns bus_error_t
+     * @retval bus_error_success on successful X_AIRTIES_ClientAssocControl handling.
+     * @retval bus_error_invalid_input on validation failure.
+     * @retval bus_error_invalid_method if the method name does not match.
+     * @retval bus_error_failed on validation or controller execution failure.
+     *
+     * @note Ownership of input and output buffers remains with the caller.
+     */
+    static bus_error_t clientassoccontrol_handler(const char *method_name, bus_data_prop_t *input_data,
         bus_data_prop_t *output_data, void *async_handle);
 
     /**!

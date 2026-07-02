@@ -780,6 +780,26 @@ public:
 	static bus_error_t cmd_channelselect(const char *method_name, const bus_data_prop_t *input_params, bus_data_prop_t **output_params, void *async_handle);
 
 	/**!
+	 * @brief Handles the bus X_AIRTIES_ClientAssocControl method request.
+	 *
+	 * Validates X_AIRTIES_ClientAssocControl input properties, dispatches the request to
+	 * the EasyMesh controller, and optionally populates response properties for the caller.
+	 *
+	 * @param[in] method_name Bus method name (...Radio.{i}.BSS.{i}.X_AIRTIES_ClientAssocControl).
+	 * @param[in] input_params Linked list of input properties carrying the request payload.
+	 * @param[out] output_params Populated with response properties when provided.
+	 * @param[in] async_handle Async context handle when the bus call is asynchronous.
+	 *
+	 * @returns bus_error_t
+	 * @retval bus_error_success on success.
+	 * @retval bus_error_invalid_input on validation failure.
+	 * @retval bus_error_invalid_method if the method name does not match.
+	 *
+	 * @note Input property ownership remains with the caller; this function does not free them.
+	 */
+	static bus_error_t cmd_clientassoccontrol (const char *method_name, const bus_data_prop_t *input_params, bus_data_prop_t **output_params, void *async_handle);
+
+	/**!
 	 * @brief Handles the bus ClientSteer method request.
 	 *
 	 * Validates ClientSteer input properties, dispatches the request to the EasyMesh
