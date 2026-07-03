@@ -1351,12 +1351,14 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
 
     assert(len > ((sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))));
     if (len < ((sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)))) {
-        return NULL;
+        em_printfout("[%s %d]\n", __func__,__LINE__); 
+	    return NULL;
     }
 
     hdr = reinterpret_cast<em_raw_hdr_t *> (data);
     
     if (hdr->type != htons(ETH_P_1905)) {
+        em_printfout("[%s %d]\n", __func__,__LINE__); 
         return NULL;
     }
     
@@ -1365,10 +1367,12 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
     switch (htons(cmdu->type)) {
         case em_msg_type_autoconf_search:
             if (em_msg_t(data + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)), len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_freq_band(&band) == false) {
+        em_printfout("[%s %d]\n", __func__,__LINE__); 
                 return NULL;
             }
 
             if (em_msg_t(data + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)), len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_al_mac_address(intf.mac) == false) {
+        em_printfout("[%s %d]\n", __func__,__LINE__); 
                 return NULL;
             }
 
@@ -1393,6 +1397,7 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
         case em_msg_type_autoconf_wsc:
             if (em_msg_t(data + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)),
                 	len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_radio_id(&ruid) == false) {
+        em_printfout("[%s %d]\n", __func__,__LINE__); 
                 return NULL;
             }
 
@@ -1522,12 +1527,14 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
 		case em_msg_type_channel_scan_rprt:
             if (em_msg_t(data + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)),
                 	len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_radio_id(&ruid) == false) {
+        em_printfout("[%s %d]\n", __func__,__LINE__); 
                 return NULL;
             }
 
             dm_easy_mesh_t::macbytes_to_string(ruid, mac_str1);
 
             if ((em = static_cast<em_t *> (hash_map_get(m_em_map, mac_str1))) != NULL) {        
+        em_printfout("[%s %d]\n", __func__,__LINE__); 
                 //printf("%s:%d: Found existing radio:%s\n", __func__, __LINE__, mac_str1);
 			}
             break;
@@ -1536,6 +1543,7 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
             em = static_cast<em_t *> (hash_map_get_first(m_em_map));
             while(em != NULL) {
                 if ((em->is_al_interface_em() == false) && (em->has_at_least_one_associated_sta() == true)) {
+        em_printfout("[%s %d]\n", __func__,__LINE__); 
                     break;
                 }
                 em = static_cast<em_t *> (hash_map_get_next(m_em_map, em));
@@ -1594,6 +1602,7 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
         case em_msg_type_bh_sta_cap_rprt:
             if (em_msg_t(data + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)),
                 len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_radio_id(&ruid) == false) {
+        	em_printfout("[%s %d]\n", __func__,__LINE__); 
                 return NULL;
             }
 
