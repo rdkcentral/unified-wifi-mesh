@@ -905,6 +905,26 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
                 em_printfout("Could not find radio:%s", mac_str1);
                 return NULL;
             }
+            em_printfout("topo_resp: routed to radio %s state:%s", mac_str1, em_t::state_2_str(em->get_state()));
+            // For topo_resp: the radio ID in the message may not be the radio
+            // that sent the query (e.g. sta_assoc dispatches only one radio to
+            // topo_sync_pending). Fall back to whichever radio in the same AL
+            // is in topo_sync_pending so process_msg() state guard passes.
+            // if (htons(cmdu->type) == em_msg_type_topo_resp &&
+            //     em->get_state() != em_state_ctrl_topo_sync_pending) {
+            //     std::vector<em_t *> al_radios;
+            //     get_all_em_for_al_mac(em->get_data_model()->get_agent_al_interface_mac(), al_radios);
+            //     for (auto *r : al_radios) {
+            //         if (r->get_state() == em_state_ctrl_topo_sync_pending) {
+            //             em_printfout("topo_resp: rerouting from radio %s (state:%s) to radio %s (topo_sync_pending)",
+            //                 mac_str1,
+            //                 em_t::state_2_str(em->get_state()),
+            //                 util::mac_to_string(r->get_radio_interface_mac()).c_str());
+            //             em = r;
+            //             break;
+            //         }
+            //     }
+            // }
             break;
 
         case em_msg_type_topo_notif:

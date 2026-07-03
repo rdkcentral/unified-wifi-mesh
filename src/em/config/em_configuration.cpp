@@ -139,7 +139,7 @@ static unsigned short create_affiliated_sta_metrics_tlvs(unsigned char *buff,
         tlv->type = em_tlv_type_affiliated_sta_metrics;
         metrics = reinterpret_cast<em_affiliated_sta_metrics_t *>(tlv->value);
         memset(metrics, 0, sizeof(*metrics));
-        memcpy(metrics->sta_mac_addr, aff_sta->mac_addr, sizeof(mac_address_t));
+        memcpy(metrics->sta_mac_addr, aff_sta->link_addr, sizeof(mac_address_t));
         memcpy(aff_bssid, aff_sta->bssid, sizeof(bssid_t));
 
         aff_bss = NULL;
@@ -152,7 +152,7 @@ static unsigned short create_affiliated_sta_metrics_tlvs(unsigned char *buff,
 
         aff_sta_info = NULL;
         if (aff_bss != NULL) {
-            memcpy(aff_sta_mac, aff_sta->mac_addr, sizeof(mac_address_t));
+            memcpy(aff_sta_mac, aff_sta->link_addr, sizeof(mac_address_t));
             memcpy(aff_radio_mac, aff_bss->m_bss_info.ruid.mac, sizeof(mac_address_t));
 
             aff_sta_info = dm->get_sta_info(aff_sta_mac, aff_bssid, aff_radio_mac, target_map);
@@ -1223,7 +1223,7 @@ int em_configuration_t::create_assoc_sta_mld_config_report_tlv(unsigned char *bu
             em_affiliated_sta_info_t &affiliated_sta_info = assoc_sta_mld_info.affiliated_sta[j];
             memset(affiliated_sta_mld, 0, sizeof(em_affiliated_sta_mld_t));
             memcpy(affiliated_sta_mld->bssid, affiliated_sta_info.bssid, sizeof(mac_address_t));
-            memcpy(affiliated_sta_mld->affiliated_sta_mac_addr, affiliated_sta_info.mac_addr, sizeof(mac_address_t));
+            memcpy(affiliated_sta_mld->affiliated_sta_mac_addr, affiliated_sta_info.link_addr, sizeof(mac_address_t));
 
             affiliated_sta_mld = reinterpret_cast<em_affiliated_sta_mld_t *>(reinterpret_cast<unsigned char *>(affiliated_sta_mld) + sizeof(em_affiliated_sta_mld_t));
             affiliated_sta_len += static_cast<short unsigned int>(sizeof(em_affiliated_sta_mld_t));
@@ -2418,7 +2418,7 @@ int em_configuration_t::handle_assoc_sta_mld_conf_rep_tlv(unsigned char *buff, u
     for (j = 0; j < assoc_sta_mld_info.num_affiliated_sta; j++) {
         memcpy(assoc_sta_mld_info.affiliated_sta[j].bssid,
                affiliated_sta_mld->bssid, sizeof(mac_address_t));
-        memcpy(assoc_sta_mld_info.affiliated_sta[j].mac_addr,
+        memcpy(assoc_sta_mld_info.affiliated_sta[j].link_addr,
                affiliated_sta_mld->affiliated_sta_mac_addr, sizeof(mac_address_t));
         affiliated_sta_mld = reinterpret_cast<em_affiliated_sta_mld_t *>(
             reinterpret_cast<unsigned char *>(affiliated_sta_mld) + sizeof(em_affiliated_sta_mld_t));
@@ -2434,7 +2434,7 @@ int em_configuration_t::handle_assoc_sta_mld_conf_rep_tlv(unsigned char *buff, u
     for (j = 0; j < assoc_sta_mld_info.num_affiliated_sta; j++) {
         em_printfout("affiliated_sta[%u]: bssid=%s mac_addr=%s", j,
             util::mac_to_string(assoc_sta_mld_info.affiliated_sta[j].bssid).c_str(),
-            util::mac_to_string(assoc_sta_mld_info.affiliated_sta[j].mac_addr).c_str());
+            util::mac_to_string(assoc_sta_mld_info.affiliated_sta[j].link_addr).c_str());
     }
 
     // Replace existing STA-MLD row to avoid stale affiliated links.
@@ -5862,13 +5862,22 @@ void em_configuration_t::process_msg(unsigned char *data, unsigned int len)
 
         case em_msg_type_topo_resp:
         {
-            // For sta_assoc, the send path pre-advances to em_state_ctrl_topo_synchronized
-            // so we also accept responses in that state when processing a sta_assoc command.
-            bool sta_assoc_topo_sync = (get_current_cmd() != NULL &&
-                get_current_cmd()->m_type == em_cmd_type_sta_assoc &&
-                get_state() == em_state_ctrl_topo_synchronized);
+            // Accept topo_resp if this radio is in topo_sync_pending, OR if any
+            // AL radio is (sta_assoc dispatches only one radio so the response
+            // may land on a different radio than the one that sent the query).
+            bool any_al_topo_sync_pending = false;
+            {
+                std::vector<em_t *> al_check;
+                get_mgr()->get_all_em_for_al_mac(get_data_model()->get_agent_al_interface_mac(), al_check);
+                any_al_topo_sync_pending = std::any_of(al_check.begin(), al_check.end(), [](em_t *r) {
+                    return r->get_state() == em_state_ctrl_topo_sync_pending;
+                });
+            }
+            // bool sta_assoc_topo_sync = (get_current_cmd() != NULL &&
+            //     get_current_cmd()->m_type == em_cmd_type_sta_assoc);
             if ((get_service_type() == em_service_type_ctrl) &&
-                (get_state() == em_state_ctrl_topo_sync_pending || sta_assoc_topo_sync)) {
+                (get_state() == em_state_ctrl_topo_sync_pending || any_al_topo_sync_pending)) {
+            // if ((get_service_type() == em_service_type_ctrl) && (get_state() == em_state_ctrl_topo_sync_pending)){
                 if (handle_topology_response(data, len) == 0) {
                     set_state(em_state_ctrl_topo_synchronized);
                     static_cast<em_t*>(this)->set_ssid_mismatch(false);
@@ -6133,6 +6142,7 @@ void em_configuration_t::process_ctrl_state()
         {
             std::vector<em_t *> em_radios;
             dm_easy_mesh_t *dm = get_data_model();
+            //this is needed as for cases like sta_assoc we send out topo query and client cap query which is per device and not per radio. So we need to allow single radio topo query for sta_assoc case
             bool allow_single_radio_topo_query = (get_current_cmd() != NULL &&
                 get_current_cmd()->m_type == em_cmd_type_sta_assoc);
             get_mgr()->get_all_em_for_al_mac(dm->get_agent_al_interface_mac(), em_radios);
@@ -6144,7 +6154,7 @@ void em_configuration_t::process_ctrl_state()
 
             if (ssid_mismatch_present == false)
             {
-                if (allow_single_radio_topo_query == false) {
+                if (!allow_single_radio_topo_query) {
                     for (auto &em : em_radios) {
                         if (em->get_state() != em_state_ctrl_topo_sync_pending) {
                             em_printfout("radio %s is in state:%s, not in topo sync pending state, ignoring",
@@ -6153,31 +6163,59 @@ void em_configuration_t::process_ctrl_state()
                             return;
                         }
                     }
+                } else {
+                    em_printfout("sta_assoc single-radio topo query: skipping all-radios check for radio %s",
+                        util::mac_to_string(get_radio_interface_mac()).c_str());
                 }
+                // for (auto &em : em_radios) {
+                //     if (em->get_state() != em_state_ctrl_topo_sync_pending) {
+                //         em_printfout("radio %s is in state:%s, not in topo sync pending state, ignoring",
+                //             util::mac_to_string(em->get_radio_interface_mac()).c_str(), em_t::state_2_str(em->get_state()));
+                //         em_radios.clear();
+                //         return;
+                //     }
+                // }
+                // if (allow_single_radio_topo_query == false) {
+                //     for (auto &em : em_radios) {
+                //         if (em->get_state() != em_state_ctrl_topo_sync_pending) {
+                //             em_printfout("radio %s is in state:%s, not in topo sync pending state, ignoring",
+                //                 util::mac_to_string(em->get_radio_interface_mac()).c_str(), em_t::state_2_str(em->get_state()));
+                //             em_radios.clear();
+                //             return;
+                //         }
+                //     }
+                // }
                 // Reset the mismatch and topo_query_last sent values before sending topo query
                 dm->set_ssid_mismatch_check_time(0);
                 dm->set_last_topo_query_sent_time(0);
-                // sta_assoc: send exactly one topo query on the owning radio, then advance state
-                // so the per-tick loop does not re-fire. The regular path requires all radios
-                // to agree before sending, so it uses the front() guard instead.
-                if (allow_single_radio_topo_query) {
-                    if (m_topo_query_tx_cnt == 0) {
-                        em_printfout("sta_assoc: Sending Topology query for agent al_mac:%s on radio: %s",
-                            util::mac_to_string(dm->get_agent_al_interface_mac()).c_str(),
-                            util::mac_to_string(get_radio_interface_mac()).c_str());
-                        em_t *al_em = get_mgr()->get_al_node();
-                        al_em->set_state(em_state_ctrl_topo_sync_pending);
-                        send_topology_query_msg();
-                    }
-                    // Advance state regardless so subsequent ticks do not re-enter this branch
-                    set_state(em_state_ctrl_topo_synchronized);
-                } else if (this == em_radios.front()) {
+                // If all radios are in topo sync pending state, send topo query on one of them, 
+                // ignore sending topo query on other radios
+                if (this == em_radios.front()){
+                // // sta_assoc: send exactly one topo query on the owning radio, then advance state
+                // // so the per-tick loop does not re-fire. The regular path requires all radios
+                // // to agree before sending, so it uses the front() guard instead.
+                // if (allow_single_radio_topo_query) {
+                //     if (m_topo_query_tx_cnt == 0) {
+                //         em_printfout("sta_assoc: Sending Topology query for agent al_mac:%s on radio: %s",
+                //             util::mac_to_string(dm->get_agent_al_interface_mac()).c_str(),
+                //             util::mac_to_string(get_radio_interface_mac()).c_str());
+                //         em_t *al_em = get_mgr()->get_al_node();
+                //         al_em->set_state(em_state_ctrl_topo_sync_pending);
+                //         send_topology_query_msg();
+                //     }
+                //     // Advance state regardless so subsequent ticks do not re-enter this branch
+                //     set_state(em_state_ctrl_topo_synchronized);
+                // } else if (this == em_radios.front()) {
                     em_printfout("Sending the Topology query message to agent al_mac:%s on radio: %s",
                         util::mac_to_string(dm->get_agent_al_interface_mac()).c_str(),
                         util::mac_to_string(get_radio_interface_mac()).c_str());
                     em_t *al_em = get_mgr()->get_al_node();
                     al_em->set_state(em_state_ctrl_topo_sync_pending);
                     send_topology_query_msg();
+                } else {
+                    em_printfout("topo_sync_pending: radio %s is not front radio %s, skipping topo query",
+                        util::mac_to_string(get_radio_interface_mac()).c_str(),
+                        util::mac_to_string(em_radios.front()->get_radio_interface_mac()).c_str());
                 }
                 em_radios.clear();
             }
@@ -6194,6 +6232,7 @@ void em_configuration_t::process_ctrl_state()
                 dm->set_topo_state(false);
                 get_mgr()->publish_network_topology();
             }
+            //Send beacon metrics query for the sta assoc case to get the beacon metrics from the STA
             if (get_current_cmd() != NULL && get_current_cmd()->m_type == em_cmd_type_sta_assoc) {
                 em_cmd_params_t *evt_param = &get_current_cmd()->m_param;
                 mac_address_t sta_mac, bssid;

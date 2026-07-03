@@ -2753,7 +2753,7 @@ typedef struct {
 
 typedef struct {
     mac_address_t  bssid;
-    mac_address_t  mac_addr;//link_address of the sta
+    mac_address_t  link_addr;//link_address of the sta
 } em_affiliated_sta_info_t;
 
 typedef struct {

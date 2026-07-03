@@ -838,6 +838,23 @@ int em_capability_t::handle_client_cap_report(unsigned char *buff, unsigned int 
 
     set_state(em_state_ctrl_sta_cap_confirmed);
 
+      // The cap report may be routed to a different radio than the one running
+    // the sta_assoc command (e.g. MLD: report arrives on 2.4GHz radio but
+    // sta_assoc was dispatched to 6GHz radio which is in sta_cap_pending).
+    // Set sta_cap_confirmed on any AL radio in sta_cap_pending so the
+    // orchestrator's fini check passes.
+    {
+        std::vector<em_t *> al_radios;
+        get_mgr()->get_all_em_for_al_mac(get_data_model()->get_agent_al_interface_mac(), al_radios);
+        for (auto *r : al_radios) {
+            if (r->get_state() == em_state_ctrl_sta_cap_pending) {
+                em_printfout("cap report: setting sta_cap_confirmed on radio %s (was sta_cap_pending)",
+                    util::mac_to_string(r->get_radio_interface_mac()).c_str());
+                r->set_state(em_state_ctrl_sta_cap_confirmed);
+            }
+        }
+    }
+
     dm_easy_mesh_t::macbytes_to_string(sta_info.id, sta_mac_str);
     dm_easy_mesh_t::macbytes_to_string(sta_info.bssid, bssid_str);
     dm_easy_mesh_t::macbytes_to_string(get_radio_interface_mac(), radio_mac_str);
@@ -1696,7 +1713,19 @@ void em_capability_t::process_ctrl_state()
             break;
 
         case em_state_ctrl_sta_cap_pending:
-            send_client_cap_query();
+            {
+                // Only one radio per AL needs to send the Client Capability Query.
+                // Use the same front-radio guard as em_state_ctrl_ap_cap_query_pending.
+                std::vector<em_t *> em_radios;
+                get_mgr()->get_all_em_for_al_mac(get_data_model()->get_agent_al_interface_mac(), em_radios);
+                if (this == em_radios.front()) {
+                    send_client_cap_query();
+                }
+            }
+            break;
+
+        case em_state_ctrl_topo_sync_pending:
+            // Handled by em_configuration_t::process_ctrl_state() for sta_assoc.
             break;
 
         default:

@@ -3572,9 +3572,8 @@ void dm_easy_mesh_t::update_assoc_sta_mld_info(em_assoc_sta_mld_info_t *assoc_st
         }
 
         memcpy(target_aff_sta->bssid, input_sta->bssid, sizeof(mac_address_t));
-        memcpy(target_aff_sta->mac_addr, input_sta->mac_addr, sizeof(mac_address_t));
+        memcpy(target_aff_sta->link_addr, input_sta->link_addr, sizeof(mac_address_t));
     }
-
 }
 
 void dm_easy_mesh_t::remove_assoc_sta_mld_info(mac_address_t sta_mld_mac)

@@ -1136,22 +1136,42 @@ void em_agent_t::send_beacon_query(em_bus_event_t *evt)
     em_printfout("Beacon Query forwarding to OW for sta: %s", util::mac_to_string(query_params->sta_mac_addr).c_str());
     beacon_req->opClass = query_params->op_class;
     beacon_req->channel = query_params->channel_num;
-    // Measurement mode selection:
-    //   2 = Beacon Table - report from the STA's internal neighbor cache (no scan needed).
-    //       Most reliable mode; the STA has already heard neighbors passively.
-    //   0 = Passive - listen for beacons; allowed on all bands incl. 6 GHz (Wi-Fi 6E).
-    //   1 = Active - send probe requests; restricted on 6 GHz by Wi-Fi 6E regulations.
-    // Try Beacon Table first.  The request is still sent; if the STA returns a null/empty
-    // report for this mode it can be retried with Passive.
-    beacon_req->mode = 0; // Passive
-    // For MLD APs, query_params->bssid is the AP-MLD MAC which does not appear in the
-    // wifidb VAP map.  OneWifi uses beacon_req->bssid only to resolve ap_index (it then
-    // overwrites it with wildcard before the HAL call).
-    // Detect MLD: the STA map bssid differs from query_params->bssid, meaning
-    // query_params->bssid is the AP-MLD MAC while the STA map holds a link address.
+    beacon_req->mode = 0; // Passive (default; may be upgraded to Active for 6 GHz below)
 
     dm_sta_t *sta = m_data_model.get_first_sta(query_params->sta_mac_addr);
     bool is_mld = m_data_model.is_sta_mld(query_params->sta_mac_addr);
+
+    // For MLO STAs the controller may request a band that is not one of the
+    // STA's active links (e.g. opClass 81 / 2.4 GHz when the STA is only on
+    // 5/6 GHz).  The STA will scan an idle band and return empty results.
+    // Look up the actual opClass for the STA's connected BSS and override.
+    if (is_mld && sta != NULL) {
+        unsigned int active_op_class = 0;
+        em_op_class_info_t *oci = m_data_model.get_opclass_info_for_bss(
+            sta->m_sta_info.bssid, &active_op_class);
+        if (oci != NULL && active_op_class != 0 &&
+            active_op_class != query_params->op_class) {
+            em_printfout("MLO STA: controller opClass %u does not match active link opClass %u"
+                " (BSSID %s) — overriding",
+                query_params->op_class, active_op_class,
+                util::mac_to_string(sta->m_sta_info.bssid).c_str());
+            beacon_req->opClass = static_cast<uint8_t>(active_op_class);
+        }
+    }
+
+    // After any opClass adaptation, apply band-specific scan settings.
+    // Measurement mode:
+    //   0 = Passive - listen for beacons; works on all bands incl. 6 GHz.
+    //   1 = Active  - send probe requests; faster on 6 GHz PSC channels.
+    bool is_6ghz = (beacon_req->opClass >= 131 && beacon_req->opClass <= 136);
+    if (is_6ghz) {
+        beacon_req->mode = 1; // Active - faster on 6 GHz PSC channels
+        // Active scan: a Probe Request/Response cycle completes in ~10 ms;
+        // 50 TUs (~51 ms) per channel gives sufficient headroom for responses
+        // while still being ~4x faster than the 200 TU passive default.
+        beacon_req->duration = 50;
+        em_printfout("6 GHz opClass %u: using Active scan mode, duration 50 TUs", beacon_req->opClass);
+    }
     if (is_mld == true) {
         // MLD STA: resolve to a link-level BSSID that wifidb knows about.
         // Primary: assoc_sta_mld table (populated by topology handler).
@@ -1163,11 +1183,29 @@ void em_agent_t::send_beacon_query(em_bus_event_t *evt)
                 continue;
             }
             if (mld.num_affiliated_sta > 0) {
+                // Pick the affiliated entry whose AP BSSID matches the STA's
+                // connected BSS in the data model. Fall back to [0] if none matches.
+                int pick = 0;
+                for (int c = 0; c < mld.num_affiliated_sta; c++) {
+                    if (memcmp(mld.affiliated_sta[c].bssid, sta->m_sta_info.bssid,
+                               sizeof(mac_address_t)) == 0) {
+                        pick = c;
+                        break;
+                    }
+                }
                 em_printfout("MLD STA %s: using affiliated AP BSSID %s for ap_index resolution",
                     util::mac_to_string(query_params->sta_mac_addr).c_str(),
-                    util::mac_to_string(mld.affiliated_sta[0].bssid).c_str());
-                memcpy(beacon_req->bssid, mld.affiliated_sta[0].bssid, sizeof(mac_address_t));
+                    util::mac_to_string(mld.affiliated_sta[pick].bssid).c_str());
+                memcpy(beacon_req->bssid, mld.affiliated_sta[pick].bssid, sizeof(mac_address_t));
                 resolved = true;
+            }
+
+            for (int c = 0; c < mld.num_affiliated_sta; c++) {
+                em_printfout("MLD STA %s: using affiliated AP BSSID %s and link address is %s",
+                    util::mac_to_string(query_params->sta_mac_addr).c_str(),
+                    util::mac_to_string(mld.affiliated_sta[c].bssid).c_str(),
+                    util::mac_to_string(mld.affiliated_sta[c].link_addr).c_str());
+
             }
         }
         // Secondary: sta map bssid (set from wifidb VAP bssid in the translator).
@@ -1201,11 +1239,11 @@ void em_agent_t::send_beacon_query(em_bus_event_t *evt)
                 beacon_req->channelReport.opClass = query_params->ap_channel_rprt[i].ap_channel_op_class;
             }
             int num_ch = query_params->ap_channel_rprt[i].ap_channel_rprt_len - 1;
-            for (int j = 0; j < num_ch && total_ch < max_hal_ch; j++, total_ch++) {
+            for (int j = 0; j < num_ch && total_ch < max_hal_ch; j++) {
+                uint8_t ch = query_params->ap_channel_rprt[i].ap_channel_list[j];
                 em_printfout("Ap Channel Report[%d] - OpClass: %d Channel: %d", i,
-                    beacon_req->channelReport.opClass,
-                    query_params->ap_channel_rprt[i].ap_channel_list[j]);
-                beacon_req->channelReport.channels[total_ch] = query_params->ap_channel_rprt[i].ap_channel_list[j];
+                    beacon_req->channelReport.opClass, ch);
+                beacon_req->channelReport.channels[total_ch++] = ch;
             }
         }
         em_printfout("Total channels accumulated into HAL channelReport: %d", total_ch);
@@ -1216,22 +1254,83 @@ void em_agent_t::send_beacon_query(em_bus_event_t *evt)
         em_printfout("Requested Element ID: %d", beacon_req->requestedElementIDS.ids[i]);
     }
 
-    memcpy(beacon_query.sta_mac, query_params->sta_mac_addr, sizeof(mac_address_t));
-
-    l_bus_data.data_type = bus_data_type_bytes;
-    l_bus_data.raw_data.bytes = (void *)&beacon_query;
-    l_bus_data.raw_data_len = sizeof(beacon_query_params_t);
-
     if((desc = get_bus_descriptor()) == NULL) {
        em_printfout("descriptor is null");
        return;
     }
 
-    if ((rc = desc->bus_set_fn(&m_bus_hdl, "Device.WiFi.EM.BeaconQuery", &l_bus_data)) != 0) {
-        em_printfout("Failed to send Beacon Query to bus rc=%d len=%u", rc, l_bus_data.raw_data_len);
-        return;
+    l_bus_data.data_type = bus_data_type_bytes;
+    l_bus_data.raw_data.bytes = (void *)&beacon_query;
+    l_bus_data.raw_data_len = sizeof(beacon_query_params_t);
+
+    if (is_mld) {
+        // For MLO STAs send one beacon query per affiliated link, using the
+        // link-level STA MAC and link-level AP BSSID so that OneWifi can
+        // resolve ap_index from the wifidb VAP map (which stores link BSSIDs,
+        // not the AP-MLD MAC).
+        bool any_sent = false;
+        for (unsigned int i = 0; i < m_data_model.get_num_assoc_sta_mld(); i++) {
+            em_assoc_sta_mld_info_t &mld =
+                m_data_model.m_assoc_sta_mld[i].m_assoc_sta_mld_info;
+            if (memcmp(mld.mac_addr, query_params->sta_mac_addr, sizeof(mac_address_t)) != 0) {
+                continue;
+            }
+            // Use the MLD MAC as beacon request destination (addr1 in the
+            // 802.11 action frame).  In MTK MLO, hostapd registers the STA
+            // under its MLD MAC, so ap_get_sta() only finds it by MLD MAC.
+            // The MLD MAC is also the correct addr1: an MLO STA accepts
+            // frames addressed to its MLD MAC on any active link.
+            memcpy(beacon_query.sta_mac, query_params->sta_mac_addr, sizeof(mac_address_t));
+            // Prefer the affiliated BSSID that matches the STA's current active
+            // connection (sta->m_sta_info.bssid) so that the first query targets
+            // the correct link and not an inactive one (e.g. 2.4 GHz when the
+            // STA is only on 5/6 GHz).  This avoids wasting an ap_index lookup
+            // on an isolated hapd that will return "not connected".
+            int send_pick = 0;
+            for (int c = 0; c < mld.num_affiliated_sta; c++) {
+                if (memcmp(mld.affiliated_sta[c].bssid, sta->m_sta_info.bssid,
+                           sizeof(mac_address_t)) == 0) {
+                    send_pick = c;
+                    break;
+                }
+            }
+            for (int pass = 0; pass < mld.num_affiliated_sta; pass++) {
+                int c = (send_pick + pass) % mld.num_affiliated_sta;
+                memcpy(beacon_req->bssid, mld.affiliated_sta[c].bssid, sizeof(mac_address_t));
+                em_printfout("Sending Beacon Query for MLD link AP=%s MLD-STA=%s",
+                    util::mac_to_string(mld.affiliated_sta[c].bssid).c_str(),
+                    util::mac_to_string(query_params->sta_mac_addr).c_str());
+                rc = desc->bus_set_fn(&m_bus_hdl, "Device.WiFi.EM.BeaconQuery", &l_bus_data);
+                if (rc != 0) {
+                    em_printfout("Failed to send Beacon Query for MLD link AP=%s MLD-STA=%s rc=%d",
+                        util::mac_to_string(mld.affiliated_sta[c].bssid).c_str(),
+                        util::mac_to_string(query_params->sta_mac_addr).c_str(), rc);
+                } else {
+                    em_printfout("Successfully sent Beacon Query for MLD link AP=%s MLD-STA=%s",
+                        util::mac_to_string(mld.affiliated_sta[c].bssid).c_str(),
+                        util::mac_to_string(query_params->sta_mac_addr).c_str());
+                    any_sent = true;
+                    // One successful send is sufficient: in MTK MLO all per-link
+                    // queries end up routed through the same shared hapd and the
+                    // same physical link.  Additional queries are redundant and
+                    // produce spurious "not connected" errors from isolated hapds.
+                    break;
+                }
+            }
+            break; // found the MLD entry
+        }
+        if (!any_sent) {
+            em_printfout("Failed to send Beacon Query to any MLD link for STA %s",
+                util::mac_to_string(query_params->sta_mac_addr).c_str());
+        }
+    } else {
+        memcpy(beacon_query.sta_mac, query_params->sta_mac_addr, sizeof(mac_address_t));
+        if ((rc = desc->bus_set_fn(&m_bus_hdl, "Device.WiFi.EM.BeaconQuery", &l_bus_data)) != 0) {
+            em_printfout("Failed to send Beacon Query to bus rc=%d len=%u", rc, l_bus_data.raw_data_len);
+            return;
+        }
+        em_printfout("Successfully sent Beacon Query to bus");
     }
-    em_printfout("Successfully sent Beacon Query to bus");
 }
 
 void em_agent_t::handle_beacon_report(em_bus_event_t *evt)
@@ -2425,206 +2524,11 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
             break;
 
         case em_msg_type_unassoc_sta_link_metrics_rsp:
-           printf("%s:%d: Sending Unassoc STA Link Metrics response\n", __func__, __LINE__);
- = static_cast<em_t *> (hash_map_get_next(m_em_map, em));
-            }
-
-            if (em == NULL) {
-                // AP MLD MAC fallback: resolve affiliated link radio EM.
-                tmp_em = static_cast<em_t *>(hash_map_get_first(m_em_map));
-                while (tmp_em != NULL) {
-                    dm = tmp_em->get_data_model();
-                    if ((dm != NULL) && (tmp_em->is_al_interface_em() == false)) {
-                        for (i = 0; i < dm->get_num_ap_mld(); i++) {
-                            ap_mld_info = &dm->m_ap_mld[i].m_ap_mld_info;
-                            if (memcmp(ap_mld_info->mac_addr, bss_mac, sizeof(mac_address_t)) != 0) {
-                                continue;
-                            }
-
-                            for (j = 0; j < ap_mld_info->num_affiliated_ap; j++) {
-                                if (memcmp(ap_mld_info->affiliated_ap[j].ruid.mac,
-                                           tmp_em->get_radio_interface_mac(),
-                                           sizeof(mac_address_t)) == 0) {
-                                    em = tmp_em;
-                                    em_printfout("Client cap: AP-MLD bssid=%s mapped to radio=%s",
-                                           util::mac_to_string(bss_mac).c_str(),
-                                           util::mac_to_string(em->get_radio_interface_mac()).c_str());
-                                    break;
-                                }
-                            }
-                            if (em != NULL) {
-                                break;
-                            }
-                        }
-                    }
-
-                    if (em != NULL) {
-                        break;
-                    }
-                    tmp_em = static_cast<em_t *>(hash_map_get_next(m_em_map, tmp_em));
-                }
-            }
-
-            if(em == NULL){
-                dm_easy_mesh_t::macbytes_to_string(bss_mac, mac_str2);
-                printf("%s:%d: Received client cap query: Could not find radio:%s of bss:%s\n", __func__, __LINE__, mac_str1, mac_str2);
-            }
+            em_printfout("Sending Unassoc STA Link Metrics response");
             break;
-
-        case em_msg_type_client_cap_rprt:
-            break;
-
-        case em_msg_type_op_channel_rprt:
-            break;
-
-        case em_msg_type_assoc_sta_link_metrics_query:
-            printf("\n%s:%d: Rcvd Assoc STA Link Metrics Query\n", __func__, __LINE__);
-
-            em = static_cast<em_t *>(hash_map_get_first(m_em_map));
-            while (em != NULL) {
-                if ((em->is_al_interface_em() == false)) {
-                    break;
-                }
-                em = static_cast<em_t *>(hash_map_get_next(m_em_map, em));
-            }
-            break;
-
-        case em_msg_type_assoc_sta_link_metrics_rsp:
-            printf("%s:%d: Sending Assoc STA Link Metrics response\n", __func__, __LINE__);
-            break;
-
-        case em_msg_type_client_steering_req:
-            printf("\n%s:%d: Rcvd Client steering request\n", __func__, __LINE__);
-            em = static_cast<em_t *>(hash_map_get_first(m_em_map));
-            while (em != NULL) {
-                if ((em->is_al_interface_em() == false)) {
-                    //printf("%s:%d: Found em\n", __func__, __LINE__);
-                    break;
-                }
-                em = static_cast<em_t *>(hash_map_get_next(m_em_map, em));
-            }
-            break;
-
-        case em_msg_type_client_steering_btm_rprt:
-            printf("%s:%d: Sending Client BTM REPORT\n", __func__, __LINE__);
-            break;
-
-		case em_msg_type_channel_scan_req:
-			if (em_msg_t(data + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)),
-                	len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_radio_id(&ruid) == false) {
-				return NULL;
-			}
-
-			dm_easy_mesh_t::macbytes_to_string(ruid, mac_str1);
-         if ((em = static_cast<em_t *>(hash_map_get(m_em_map, mac_str1))) == NULL) {
-				return NULL;
-			}
-			
-			break;
-
-        case  em_msg_type_ap_mld_config_req:
-            printf("%s:%d: Received em_msg_type_ap_mld_config_req\n", __func__, __LINE__);
-
-            em = static_cast<em_t *>(hash_map_get_first(m_em_map));
-            while (em != NULL) {
-                if ((em->is_al_interface_em() == false)) {
-                    //printf("%s:%d: Found em\n", __func__, __LINE__);
-                    break;
-                }
-                em = static_cast<em_t *>(hash_map_get_next(m_em_map, em));
-            }
-
-            break;
-        
-        case em_msg_type_autoconf_search:
-        case em_msg_type_topo_resp:
-        case em_msg_type_channel_pref_rprt:
-        case em_msg_type_1905_ack:
-        case em_msg_type_map_policy_config_req:
-            em = static_cast<em_t *>(hash_map_get_first(m_em_map));
-            while (em != NULL) {
-                if ((em->is_al_interface_em() == false)) {
-                    break;
-                }
-                em = static_cast<em_t *>(hash_map_get_next(m_em_map, em));
-            }
-            break;
-
-		case em_msg_type_channel_scan_rprt:
-        case em_msg_type_beacon_metrics_rsp:
-        case em_msg_type_ap_mld_config_resp:
-        case em_msg_type_ap_metrics_rsp:
-            break;
-
-        case em_msg_type_beacon_metrics_query:
-            em_printfout(" Rcvd Beacon Metrics Query");
-            {
-                mac_address_t client_mac = {};
-                em_tlv_t *bmq_tlv = reinterpret_cast<em_tlv_t *>(data + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
-                em_beacon_metrics_query_t *bmq = reinterpret_cast<em_beacon_metrics_query_t *>(bmq_tlv->value);
-                memcpy(client_mac, bmq->sta_mac_addr, sizeof(mac_address_t));
-                em_printfout("Beacon Metrics Query for STA: %s", util::mac_to_string(client_mac).c_str());
-
-                em = (em_t *)hash_map_get_first(m_em_map);
-                while (em != NULL) {
-                    if (!em->is_al_interface_em()) {
-                        dm = em->get_data_model();
-                        if (dm->get_first_sta(client_mac) != NULL) {
-                            em_printfout("Found em with STA %s associated", util::mac_to_string(client_mac).c_str());
-                            break;
-                        }
-                    }
-                    em = (em_t *)hash_map_get_next(m_em_map, em);
-                }
-            }
-            // If no em has the STA, fall back to al_em so handle_beacon_metrics_query
-            // can send a 1905 ACK with Error Code TLV (Reason 0x02) per spec 10.3.3.
-            if (em == NULL) {
-                em_printfout("STA not found for Beacon Metrics Query, falling back to al_em for error ACK");
-                em = al_em;
-            }
-            break;
-        case em_msg_type_proxied_encap_dpp:
-        case em_msg_type_direct_encap_dpp:
-        case em_msg_type_chirp_notif:
-        case em_msg_type_dpp_cce_ind:
-        case em_msg_type_1905_rekey_req:
-        case em_msg_type_1905_encap_eapol:
-        case em_msg_type_bss_config_rsp:
-        case em_msg_type_agent_list:
-            em = al_em;
-            break;
-        case em_msg_type_topo_disc:
-            em = NULL;
-            break;
-
-        case em_msg_type_bh_sta_cap_query:
-            em = static_cast<em_t *>(hash_map_get_first(m_em_map));
-            while (em != NULL) {
-                if ((em->is_al_interface_em() == true)) {
-                    em_printfout("Rcvd bsta cap Query");
-                    break;
-                }
-                em = static_cast<em_t *>(hash_map_get_next(m_em_map, em));
-            }
-            break;
-
-        case em_msg_type_bh_sta_cap_rprt:
-            break;
-
-        case em_msg_type_client_assoc_ctrl_req:
-            em = static_cast<em_t *>(hash_map_get_first(m_em_map));
-            while (em != NULL) {
-	        if ((em->is_al_interface_em() == true)) {
-	            em_printfout("Rceived client assoc ctrl request from controller");
-	            break;
-	        }
-	        em = static_cast<em_t *>(hash_map_get_next(m_em_map, em));
-           }
-           break;
 
         default:
-            printf("%s:%d: Frame: %d not handled in agent\n", __func__, __LINE__, htons(cmdu->type));
+            em_printfout("Frame: %d not handled in agent", htons(cmdu->type));
             em = NULL;
             break;	
 	}

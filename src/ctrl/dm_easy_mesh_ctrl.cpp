@@ -7235,7 +7235,7 @@ bus_error_t dm_easy_mesh_ctrl_t::affsta_get_inner(char *event_name, raw_data_t *
     em_sta_info_t *si = NULL;
     while (sta != NULL) {
         si = sta->get_sta_info();
-        if (si->associated && memcmp(asi->mac_addr, si->id, sizeof(mac_addr_t)) != 0) {
+        if (si->associated && memcmp(asi->link_addr, si->id, sizeof(mac_addr_t)) != 0) {
             break;
         }
         sta = static_cast<dm_sta_t *> (hash_map_get_next(dm->m_sta_map, sta));
@@ -7243,7 +7243,7 @@ bus_error_t dm_easy_mesh_ctrl_t::affsta_get_inner(char *event_name, raw_data_t *
     }
 
     if (strcmp(param, "MACAddress") == 0) {
-        rc = dm_ctrl->raw_data_set(p_data, asi->mac_addr);
+        rc = dm_ctrl->raw_data_set(p_data, asi->link_addr);
     } else if (strcmp(param, "BSSID") == 0) {
         rc = dm_ctrl->raw_data_set(p_data, asi->bssid);
     } else if (strcmp(param, "BytesSent") == 0) {
@@ -7340,14 +7340,14 @@ bus_error_t dm_easy_mesh_ctrl_t::affsta_tget_params(dm_easy_mesh_t *dm, const ch
         em_sta_info_t *si = NULL;
         while (sta != NULL) {
             si = sta->get_sta_info();
-            if (si->associated && memcmp(asi->mac_addr, si->id, sizeof(mac_addr_t)) != 0) {
+            if (si->associated && memcmp(asi->link_addr, si->id, sizeof(mac_addr_t)) != 0) {
                 break;
             }
             sta = static_cast<dm_sta_t *> (hash_map_get_next(dm->m_sta_map, sta));
             si = NULL;
         }
 
-        dm_ctrl->property_append_tail(property, root, idx, "MACAddress", asi->mac_addr);
+        dm_ctrl->property_append_tail(property, root, idx, "MACAddress", asi->link_addr);
         dm_ctrl->property_append_tail(property, root, idx, "BSSID", asi->bssid);
         dm_ctrl->property_append_tail(property, root, idx, "BytesSent", si ? si->bytes_tx : 0);
         dm_ctrl->property_append_tail(property, root, idx, "BytesReceived", si ? si->bytes_rx : 0);

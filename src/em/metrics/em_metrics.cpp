@@ -1744,6 +1744,47 @@ short em_metrics_t::create_beacon_metrics_query_tlv(unsigned char *buff, mac_add
         }
     }
 
+    // For MLO APs the controller may resolve op_class from a 2.4 GHz affiliated BSS
+    // even when the STA's active links are on 5/6 GHz, causing the beacon query to
+    // target the wrong band.  Walk the AP-MLD affiliated BSS list and upgrade to the
+    // highest-capability band available (6 GHz > 5 GHz > 2.4 GHz).
+    {
+        // Band priority: 6 GHz = 3, 5 GHz = 2, 2.4 GHz = 1, unknown = 0
+        auto band_prio = [](unsigned int oc) -> int {
+            int primary = dm_easy_mesh_t::get_primary_channel_op_class(static_cast<int>(oc));
+            if (primary >= 131 && primary <= 136) return 3;
+            if (primary >= 112 && primary <= 130) return 2;
+            if (primary >= 81  && primary <= 84)  return 1;
+            return 0;
+        };
+        int cur_prio = band_prio(radio_op_class);
+        // Try the AP-MLD record for the connected BSS (or the STA's bssid if different)
+        em_ap_mld_info_t *ap_mld = dm->get_ap_mld_frm_bssid(sta->m_sta_info.bssid);
+        if (ap_mld == nullptr) ap_mld = dm->get_ap_mld_frm_bssid(bssid);
+        if (ap_mld != nullptr) {
+            for (int aff = 0; aff < ap_mld->num_affiliated_ap; aff++) {
+                for (unsigned int bss_idx = 0; bss_idx < dm->get_num_bss(); bss_idx++) {
+                    if (memcmp(dm->m_bss[bss_idx].m_bss_info.bssid.mac,
+                               ap_mld->affiliated_ap[aff].mac_addr,
+                               sizeof(mac_address_t)) != 0) continue;
+                    em_op_class_info_t *oci2 = dm->get_opclass_info_for_bss(
+                        dm->m_bss[bss_idx].m_bss_info.id.ruid);
+                    if (oci2 == nullptr) break;
+                    int aff_prio = band_prio(oci2->op_class);
+                    if (aff_prio > cur_prio) {
+                        cur_prio = aff_prio;
+                        radio_op_class = oci2->op_class;
+                        j = bss_idx;
+                        em_printfout("MLO: upgraded op_class to %u (band_prio=%d) via affiliated BSS %s",
+                            radio_op_class, cur_prio,
+                            util::mac_to_string(ap_mld->affiliated_ap[aff].mac_addr).c_str());
+                    }
+                    break;
+                }
+            }
+        }
+    }
+
     em_beacon_metrics_query_t *beacon_metrics = reinterpret_cast<em_beacon_metrics_query_t*> (buff);
 
     memcpy(beacon_metrics->sta_mac_addr, sta_mac, sizeof(mac_addr_t));
