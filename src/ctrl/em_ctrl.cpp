@@ -1395,7 +1395,8 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
             break;
 
         case em_msg_type_autoconf_wsc:
-            if (em_msg_t(data + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)),
+#if 0
+	    if (em_msg_t(data + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)),
                 	len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_radio_id(&ruid) == false) {
         em_printfout("[%s %d]\n", __func__,__LINE__); 
                 return NULL;
@@ -1428,7 +1429,56 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
             }
 
             break;
+#endif
+	    dm_easy_mesh_t::macbytes_to_string(hdr->src, mac_str2);
+	    em_printfout("[%s %d] Received WSC M1, frame src mac: %s, len:%u\n", __func__, __LINE__, mac_str2, len);
 
+	    if (em_msg_t(data + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)),
+				    len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_radio_id(&ruid) == false) {
+		    em_printfout("[%s %d] FAILED to extract radio_id (ruid) from M1 TLV\n", __func__, __LINE__);
+		    return NULL;
+	    }
+
+	    dm_easy_mesh_t::macbytes_to_string(ruid, mac_str1);
+	    em_printfout("[%s %d] Extracted ruid from M1: %s\n", __func__, __LINE__, mac_str1);
+
+	    if ((em = static_cast<em_t *> (hash_map_get(m_em_map, mac_str1))) != NULL) {
+		    em_printfout("[%s %d] Found EXISTING radio entry for ruid:%s, current state:%d\n",
+				    __func__, __LINE__, mac_str1, em->get_state());
+
+		    if (em->get_state() != em_state_ctrl_wsc_m2_sent) {
+			    em_printfout("[%s %d] Setting state to em_state_ctrl_wsc_m1_pending for ruid:%s\n",
+					    __func__, __LINE__, mac_str1);
+			    em->set_state(em_state_ctrl_wsc_m1_pending);
+		    } else {
+			    em_printfout("[%s %d] IGNORING M1 - Autoconf wsc msg (M2) already sent for ruid:%s. Incorrect state = (%d)\n",
+					    __func__, __LINE__, mac_str1, em->get_state());
+		    }
+	    } else {
+		    em_printfout("[%s %d] No existing radio entry for ruid:%s, looking up data model by frame src:%s\n",
+				    __func__, __LINE__, mac_str1, mac_str2);
+
+		    if ((dm = get_data_model(GLOBAL_NET_ID, const_cast<const unsigned char *> (hdr->src))) == NULL) {
+			    em_printfout("[%s %d] FAILED - Can not find data model for src mac:%s (ruid:%s dropped here)\n",
+					    __func__, __LINE__, mac_str2, mac_str1);
+			    break;
+		    }
+
+		    em_printfout("[%s %d] Found data model for mac: %s, creating node for ruid: %s\n",
+				    __func__, __LINE__, mac_str2, mac_str1);
+
+		    memcpy(intf.mac, ruid, sizeof(mac_address_t));
+		    if ((em = create_node(&intf, em_freq_band_unknown, dm, false,  dm->get_device()->m_device_info.profile,
+						    em_service_type_ctrl)) != NULL) {
+			    em_printfout("[%s %d] create_node SUCCESS for ruid:%s, setting state em_state_ctrl_wsc_m1_pending\n",
+					    __func__, __LINE__, mac_str1);
+			    em->set_state(em_state_ctrl_wsc_m1_pending);
+		    } else {
+			    em_printfout("[%s %d] create_node FAILED for ruid:%s\n", __func__, __LINE__, mac_str1);
+		    }
+	    }
+
+	    break;
         case em_msg_type_topo_resp:
         case em_msg_type_channel_pref_rprt:
         case em_msg_type_channel_sel_rsp:

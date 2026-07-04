@@ -346,6 +346,124 @@ int em_mgr_t::input_listen()
     return 0;
 }
 
+
+int em_mgr_t::reset_listeners()
+{
+    int highest_fd = 0, num = 0;
+    em_t *em = NULL;
+    FD_ZERO(&m_rset);
+    pthread_mutex_lock(&m_mutex);
+    em = static_cast<em_t *>(hash_map_get_first(m_em_map));
+    while (em != NULL) {
+        if (em->is_al_interface_em() == true) {
+            FD_SET(em->get_fd(), &m_rset);
+            num++;
+            printf("%s:%d: Added AL interface fd:%d to rset (num:%d)\n", __func__, __LINE__, em->get_fd(), num);
+            highest_fd = (em->get_fd() > highest_fd) ? em->get_fd():highest_fd;
+        }
+        em = static_cast<em_t *>(hash_map_get_next(m_em_map, em));
+    }
+    pthread_mutex_unlock(&m_mutex);
+    printf("%s:%d: reset_listeners done, highest_fd:%d, total AL fds:%d\n", __func__, __LINE__, highest_fd, num);
+    return highest_fd;
+}
+
+void em_mgr_t::nodes_listener()
+{
+    em_t *em = NULL;
+    struct timeval tm;
+    int rc, highest_fd = 0;
+    tm.tv_sec = 0;
+    tm.tv_usec = m_timeout * 1000;
+    highest_fd = reset_listeners();
+    printf("%s:%d: Entering select loop, highest_fd:%d, timeout_usec:%ld\n", __func__, __LINE__, highest_fd, tm.tv_usec);
+
+    while ((rc = select(highest_fd + 1, &m_rset, NULL, NULL, &tm)) >= 0) {
+        printf("%s:%d: select() returned rc:%d\n", __func__, __LINE__, rc);
+
+        if (rc == 0) {
+            printf("%s:%d: select() TIMEOUT, no data, resetting listeners\n", __func__, __LINE__);
+            tm.tv_sec = 0;
+            tm.tv_usec = m_timeout * 1000;
+            highest_fd = reset_listeners();
+            continue;
+        }
+
+        em = static_cast<em_t *>(hash_map_get_first(m_em_map));
+        while (em != NULL) {
+            if (em->is_al_interface_em() == true) {
+#ifdef AL_SAP
+                printf("%s:%d: [AL_SAP] Waiting on serviceAccessPointDataIndication for fd:%d\n", __func__, __LINE__, em->get_fd());
+                try{
+                    AlServiceDataUnit sdu = g_sap->serviceAccessPointDataIndication();
+                    std::vector<unsigned char> payload = sdu.getPayload();
+                    printf("%s:%d: [AL_SAP] Received SDU, payload len:%zu\n", __func__, __LINE__, payload.size());
+
+                    std::vector<unsigned char> reconstructed_eth_frame;
+                    auto first_mac = sdu.getSourceAlMacAddress();
+                    reconstructed_eth_frame.insert(reconstructed_eth_frame.end(),first_mac.begin(),first_mac.end());
+                    auto second_mac = sdu.getDestinationAlMacAddress();
+                    reconstructed_eth_frame.insert(reconstructed_eth_frame.end(),second_mac.begin(),second_mac.end());
+                    reconstructed_eth_frame.push_back(0x89);
+                    reconstructed_eth_frame.push_back(0x3A);
+                    reconstructed_eth_frame.insert(reconstructed_eth_frame.end(),payload.begin(),payload.end());
+
+                    printf("%s:%d: [AL_SAP] Reconstructed frame total len:%zu, src:" MACSTRFMT ", dst:" MACSTRFMT "\n",
+                        __func__, __LINE__, reconstructed_eth_frame.size(), MAC2STR(first_mac), MAC2STR(second_mac));
+#ifdef DEBUG_MODE
+                    em_printfout("First MAC Address: " MACSTRFMT, MAC2STR(first_mac));
+                    em_printfout("Second MAC Address: " MACSTRFMT, MAC2STR(second_mac));
+                    em_printfout("RECONSTRUCTED_ETH_FRAME: \t");
+                    util::print_hex_dump(reconstructed_eth_frame);
+#endif
+                    printf("%s:%d: [AL_SAP] Calling proto_process, len:%u\n", __func__, __LINE__,
+                        static_cast<unsigned int>(reconstructed_eth_frame.size()));
+                    proto_process(reconstructed_eth_frame.data(), static_cast<unsigned int>(reconstructed_eth_frame.size()), em);
+                    printf("%s:%d: [AL_SAP] proto_process returned\n", __func__, __LINE__);
+                } catch (const AlServiceException& e) {
+                    if (e.getPrimitiveError() == PrimitiveError::InvalidMessage) {
+                        em_printfout("%s. Dropping packet", e.what());
+                    } else {
+                        em_printfout("%s %d Failure\n", __func__, __LINE__);
+                        em_printfout("%s", e.what());
+                        throw e;
+                    }
+                }
+#else
+                unsigned char buff[MAX_EM_BUFF_SZ*EM_MAX_BANDS];
+                pthread_mutex_lock(&m_mutex);
+                int ret = FD_ISSET(em->get_fd(), &m_rset);
+                pthread_mutex_unlock(&m_mutex);
+                printf("%s:%d: Checking fd:%d, FD_ISSET:%d\n", __func__, __LINE__, em->get_fd(), ret);
+
+                if (ret)
+                {
+                    memset(buff, 0, MAX_EM_BUFF_SZ*EM_MAX_BANDS);
+                    ssize_t len = read(em->get_fd(), buff, MAX_EM_BUFF_SZ*EM_MAX_BANDS);
+                    printf("%s:%d: read() on fd:%d returned len:%zd\n", __func__, __LINE__, em->get_fd(), len);
+
+                    if (len > 0) {
+                        printf("%s:%d: Calling proto_process, fd:%d, len:%zd\n", __func__, __LINE__, em->get_fd(), len);
+                        proto_process(buff, static_cast<unsigned int>(len), em);
+                        printf("%s:%d: proto_process returned for fd:%d\n", __func__, __LINE__, em->get_fd());
+                    } else if (len == 0) {
+                        printf("%s:%d: read() returned 0 (peer closed?) on fd:%d\n", __func__, __LINE__, em->get_fd());
+                    } else {
+                        printf("%s:%d: read() FAILED on fd:%d, errno:%d (%s)\n", __func__, __LINE__, em->get_fd(), errno, strerror(errno));
+                    }
+                }
+#endif
+            }
+            em = static_cast<em_t *>(hash_map_get_next(m_em_map, em));
+        }
+        tm.tv_sec = 0;
+        tm.tv_usec = m_timeout * 1000;
+        highest_fd = reset_listeners();
+    }
+    printf("%s:%d: select() loop EXITED, rc:%d, errno:%d (%s)\n", __func__, __LINE__, rc, errno, strerror(errno));
+}
+
+#if 0
 int em_mgr_t::reset_listeners()
 {
     int highest_fd = 0, num = 0;
@@ -446,7 +564,7 @@ void em_mgr_t::nodes_listener()
 
     }
 }
-
+#endif
 
 void *em_mgr_t::mgr_nodes_listen(void *arg)
 {
