@@ -101,6 +101,7 @@ public:
 
     char* get_ht_caps_str(em_ap_ht_cap_t *ht, char *buf, size_t buf_len);
     char* get_vht_caps_str(em_ap_vht_cap_t *vht, char *buf, size_t buf_len);
+    char* get_capop_nonoper_str(em_op_class_info_t *oci, char *buf, size_t buf_len);
     char* get_supported_standards_str(wifi_ieee80211Variant_t variant, char *buf, size_t buf_size);
     bus_error_t rcaps_get(char* event_name, raw_data_t* p_data);
     static bus_error_t rcaps_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
@@ -120,6 +121,13 @@ public:
     dm_op_class_t* get_dm_curop(dm_easy_mesh_t *dm, dm_radio_t *radio, int instance);
     bus_error_t curops_get(char* event_name, raw_data_t* p_data);
     static bus_error_t curops_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
+
+    dm_op_class_t* get_dm_capop(dm_easy_mesh_t *dm, dm_radio_t *radio, int instance);
+    bus_error_t capops_get(char* event_name, raw_data_t* p_data);
+    static bus_error_t capops_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
+    bus_error_t capops_tget(char *event_name, raw_data_t *p_data);
+    static bus_error_t capops_tget_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
+    static bus_error_t capops_tget_params(dm_easy_mesh_t *dm, const char *root, em_radio_info_t *ri, bus_data_prop_t **property);
 
     dm_sta_t* get_dm_sta(dm_easy_mesh_t *dm, em_bss_info_t *bi, int instance);
     dm_sta_t *get_dm_sta(dm_easy_mesh_t *dm, em_bss_info_t *bi, char *instance, bool is_num);
