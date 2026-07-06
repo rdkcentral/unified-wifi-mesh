@@ -832,13 +832,28 @@ void em_ctrl_t::publish_network_topology()
 
     if((desc = get_bus_descriptor()) == NULL) {
         printf("%s:%d descriptor is null\n", __func__, __LINE__);
+        return;
     }
 
     parent = cJSON_CreateObject();
+    if (parent == NULL) {
+        printf("%s:%d cJSON_CreateObject failed\n", __func__, __LINE__);
+        return;
+    }
     dm_ctrl = reinterpret_cast<dm_easy_mesh_ctrl_t *>(get_data_model(GLOBAL_NET_ID));
+    if (dm_ctrl == NULL) {
+        printf("%s:%d data model is null\n", __func__, __LINE__);
+        cJSON_Delete(parent);
+        return;
+    }
     dm_ctrl->get_network_config(parent, const_cast<char*>(GLOBAL_NET_ID));
 
     str = cJSON_Print(parent);
+    if (str == NULL) {
+        printf("%s:%d cJSON_Print failed\n", __func__, __LINE__);
+        cJSON_Delete(parent);
+        return;
+    }
     em_printfout("    ===============Publish Network Topology Json:\n%s\n===============\n",str);
 
 	raw.data_type    = bus_data_type_string;
@@ -850,6 +865,10 @@ void em_ctrl_t::publish_network_topology()
     } else {
         printf("%s:%d Topology publish fail\n",__func__, __LINE__);
     }
+
+    // bus_event_publish_fn copies the payload
+    cJSON_Delete(parent);
+    cJSON_free(str);
 
 #if 0
     //Test code here

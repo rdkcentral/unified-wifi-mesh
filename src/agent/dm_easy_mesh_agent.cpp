@@ -225,6 +225,7 @@ int dm_easy_mesh_agent_t::analyze_sta_list(em_bus_event_t *evt, em_cmd_t *pcmd[]
         }
     }
 
+    dm.deinit();
     return static_cast<int> (num);
 }
 
@@ -791,6 +792,7 @@ int dm_easy_mesh_agent_t::analyze_sta_link_metrics(em_bus_event_t *evt, em_cmd_t
         num++;
     }
 
+    dm.deinit();
     return num;
 }
 
@@ -1114,6 +1116,7 @@ int dm_easy_mesh_agent_t::analyze_beacon_report(em_bus_event_t *evt, em_cmd_t *p
         num++;
     }
 
+    dm.deinit();
     return static_cast<int>(num);
 }
 
@@ -1240,6 +1243,7 @@ int dm_easy_mesh_agent_t::analyze_link_report(em_bus_event_t *evt, em_cmd_t *pcm
         num++;
     }
 
+    dm.deinit();
     return static_cast<int>(num);
 }
 
