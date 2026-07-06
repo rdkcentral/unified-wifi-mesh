@@ -842,7 +842,7 @@ TEST_F(EmOrchTest, ZeroCommands) {
  * **Test Procedure:**
  * | Variation / Step | Description                                            | Test Data                           | Expected Result                              | Notes      |
  * | :--------------: | ------------------------------------------------------ | ----------------------------------- | -------------------------------------------- | ---------- |
- * |       01         | Invoke submit_commands with a nullptr command pointer  | commands = nullptr, num = 3           | Returns 0 and EXPECT_NE(result, 0) assertion   | Should Pass|
+ * |       01         | Invoke submit_commands with a nullptr command pointer  | commands = nullptr, num = 3           | Returns 0 and EXPECT_EQ(result, 0) assertion   | Should Pass|
  */
 TEST_F(EmOrchTest, NullCommandsPointer) {
     std::cout << "Entering NullCommandsPointer test" << std::endl;
@@ -850,7 +850,7 @@ TEST_F(EmOrchTest, NullCommandsPointer) {
     std::cout << "Invoking submit_commands with a nullptr for the command array and num = 3" << std::endl;
     unsigned int result = orch->submit_commands(nullptr, 3);
     std::cout << "submit_commands returned: " << result << std::endl;
-    EXPECT_NE(result, 0);
+    EXPECT_EQ(result, 0);
 
     std::cout << "Exiting NullCommandsPointer test" << std::endl;
 }

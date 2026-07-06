@@ -1342,8 +1342,11 @@ int dm_easy_mesh_t::decode_config_set_channel(em_subdoc_info_t *subdoc, const ch
             return EM_PARSE_ERR_GEN;
         }
     } else {
-        if ((target_arr_obj = cJSON_GetObjectItem(dev_obj, target_key)) == NULL) {
-            em_printfout("'%s' not found in Device", target_key);
+        // Anticipated preference is carried at Network scope; Set/Scan at device scope
+        cJSON *src_obj = (type == em_op_class_type_anticipated) ? net_obj : dev_obj;
+        if ((target_arr_obj = cJSON_GetObjectItem(src_obj, target_key)) == NULL) {
+            em_printfout("'%s' not found in %s", target_key,
+                         (type == em_op_class_type_anticipated) ? "Network" : "Device");
             cJSON_Delete(parent_obj);
             return EM_PARSE_ERR_GEN;
         }
@@ -1351,7 +1354,7 @@ int dm_easy_mesh_t::decode_config_set_channel(em_subdoc_info_t *subdoc, const ch
 
     m_num_opclass = 0;
     arr_size = cJSON_GetArraySize(target_arr_obj); // may be 0 for scan
-    for (i = 0; i < arr_size; i++) {
+    for (i = 0; i < arr_size && m_num_opclass < EM_MAX_OPCLASS; i++) {
         if ((target_obj = cJSON_GetArrayItem(target_arr_obj, i)) == NULL) {
             em_printfout("Invalid input index: %d", i);
             cJSON_Delete(parent_obj);
@@ -1382,13 +1385,15 @@ int dm_easy_mesh_t::decode_config_set_channel(em_subdoc_info_t *subdoc, const ch
                 cJSON_Delete(parent_obj);
                 return EM_PARSE_ERR_GEN;
             }
-            for (j = 0; j < cJSON_GetArraySize(channel_arr_obj); j++) {
+            for (j = 0; j < cJSON_GetArraySize(channel_arr_obj) &&
+                        m_op_class[m_num_opclass].m_op_class_info.num_channels < EM_MAX_CHANNELS_IN_LIST; j++) {
                 m_op_class[m_num_opclass].m_op_class_info.channels[m_op_class[m_num_opclass].m_op_class_info.num_channels] = static_cast<unsigned int> (cJSON_GetNumberValue(cJSON_GetArrayItem(channel_arr_obj, j)));
                 m_op_class[m_num_opclass].m_op_class_info.channel_pref[m_op_class[m_num_opclass].m_op_class_info.num_channels] = static_cast<unsigned int> (cJSON_GetNumberValue(cJSON_GetArrayItem(channel_pref_arry_obj, j)));
                 m_op_class[m_num_opclass].m_op_class_info.num_channels++;
             }
         } else {
-            for (j = 0; j < cJSON_GetArraySize(channel_arr_obj); j++) {
+            for (j = 0; j < cJSON_GetArraySize(channel_arr_obj) &&
+                        m_op_class[m_num_opclass].m_op_class_info.num_channels < EM_MAX_CHANNELS_IN_LIST; j++) {
                 m_op_class[m_num_opclass].m_op_class_info.channels[m_op_class[m_num_opclass].m_op_class_info.num_channels] = static_cast<unsigned int> (cJSON_GetNumberValue(cJSON_GetArrayItem(channel_arr_obj, j)));
                 m_op_class[m_num_opclass].m_op_class_info.num_channels++;
             }
@@ -1400,7 +1405,7 @@ int dm_easy_mesh_t::decode_config_set_channel(em_subdoc_info_t *subdoc, const ch
     if (type == em_op_class_type_anticipated && m_num_opclass == 0) {
         em_printfout("OpClass list is empty");
         cJSON_Delete(parent_obj);
-        return EM_PARSE_ERR_GEN;
+        return EM_PARSE_ERR_NO_CHANGE;
     }
 
     cJSON_Delete(parent_obj);

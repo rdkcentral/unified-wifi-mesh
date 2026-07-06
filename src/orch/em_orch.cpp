@@ -45,10 +45,18 @@ unsigned int em_orch_t::submit_commands(em_cmd_t *pcmd[], unsigned int num)
     unsigned int submitted = 0;
     bool submit = true;
 
-    for (i = 0; i < num; i++) {
+    if (pcmd == NULL) {
+        return 0;
+    }
+
+    for (i = 0; i < num && i < EM_MAX_CMD; i++) {
+        // Skip unset slots (analyze_* may return fewer commands than num)
+        if (pcmd[i] == NULL) {
+            continue;
+        }
         if ((submit = pre_process_orch_op(pcmd[i])) == false) {
             // complete the command
-            destroy_command(pcmd[i]);	
+            destroy_command(pcmd[i]);
             submit = true;
             continue;
         } else {
