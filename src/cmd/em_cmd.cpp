@@ -465,6 +465,11 @@ void em_cmd_t::init()
             strncpy(m_name, "get_alarm_report", strlen("get_alarm_report") + 1);
             m_svc = em_service_type_ctrl;
             break;
+        
+	case em_cmd_type_unassoc_sta_query:
+            snprintf(m_name, sizeof(m_name), "%s", "unassoc_sta_query");
+            m_svc = em_service_type_ctrl;
+            break;
 
         default:
             snprintf(m_name, sizeof(m_name), "%s", "unknown");
@@ -515,6 +520,9 @@ const char *em_cmd_t::get_bus_event_type_str(em_bus_event_type_t type)
         BUS_EVENT_TYPE_2S(em_bus_event_type_get_reset)
         BUS_EVENT_TYPE_2S(em_bus_event_type_link_quality_report)
         BUS_EVENT_TYPE_2S(em_bus_event_type_set_bh_cfg)
+        BUS_EVENT_TYPE_2S(em_bus_event_type_unassoc_sta_query)
+	BUS_EVENT_TYPE_2S(em_bus_event_type_unassoc_sta_link_metrics_query)
+	BUS_EVENT_TYPE_2S(em_bus_event_type_unassoc_sta_result)
        
         default:
            break;
@@ -592,6 +600,8 @@ const char *em_cmd_t::get_orch_op_str(dm_orch_type_t type)
         ORCH_TYPE_2S(dm_orch_type_policy_cfg)
         ORCH_TYPE_2S(dm_orch_type_mld_reconfig)
         ORCH_TYPE_2S(dm_orch_type_topo_publish)
+        ORCH_TYPE_2S(dm_orch_type_unassoc_sta_link_req_query)
+	ORCH_TYPE_2S(dm_orch_type_unassoc_sta_result)
 
         default:
            break;
@@ -649,6 +659,8 @@ const char *em_cmd_t::get_cmd_type_str(em_cmd_type_t type)
         CMD_TYPE_2S(em_cmd_type_get_reset)
         CMD_TYPE_2S(em_cmd_type_get_link_quality_report)
         CMD_TYPE_2S(em_cmd_type_set_bh_cfg)
+        CMD_TYPE_2S(em_cmd_type_unassoc_sta_query)
+	CMD_TYPE_2S(em_cmd_type_unassoc_sta_result)
 
         default:
            break;
@@ -797,6 +809,12 @@ em_cmd_type_t em_cmd_t::bus_2_cmd_type(em_bus_event_type_t etype)
 
         case em_bus_event_type_set_bh_cfg:
             type = em_cmd_type_set_bh_cfg;
+      	case em_bus_event_type_unassoc_sta_query:
+            type = em_cmd_type_unassoc_sta_query;
+            break;
+
+      	case em_bus_event_type_unassoc_sta_result:
+            type = em_cmd_type_unassoc_sta_result;
             break;
 
         default:
@@ -853,6 +871,14 @@ em_bus_event_type_t em_cmd_t::cmd_2_bus_event_type(em_cmd_type_t ctype)
 
         case em_cmd_type_get_reset:
             type = em_bus_event_type_get_reset;
+            break;
+
+        case em_cmd_type_unassoc_sta_query:
+            type = em_bus_event_type_unassoc_sta_query;
+            break;
+
+        case em_cmd_type_unassoc_sta_result:
+            type = em_bus_event_type_unassoc_sta_result;
             break;
 
         default:

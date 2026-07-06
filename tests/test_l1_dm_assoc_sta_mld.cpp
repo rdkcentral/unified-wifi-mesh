@@ -918,8 +918,8 @@ TEST(dm_assoc_sta_mld_t_Test, AssigningDefaultObject) {
  * | Variation / Step | Description | Test Data |Expected Result |Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
  * | 01| Create an object of dm_assoc_sta_mld_t and assign maximum values to its members | obj1.m_assoc_sta_mld_info.str = true, obj1.m_assoc_sta_mld_info.num_affiliated_sta = 255 | Values should be assigned correctly | Should be successful |
- * | 02| Assign obj1 to another object obj2 using the assignment operator | obj2 = obj1 | obj2 should have the same values as obj1 | Should Pass |
- * | 03| Verify the values of obj2 | obj2.m_assoc_sta_mld_info.str, obj2.m_assoc_sta_mld_info.num_affiliated_sta | obj2.m_assoc_sta_mld_info.str == obj1.m_assoc_sta_mld_info.str, obj2.m_assoc_sta_mld_info.num_affiliated_sta == obj1.m_assoc_sta_mld_info.num_affiliated_sta | Should Pass |
+ * | 02| Assign obj1 to another object obj2 using the assignment operator | obj2 = obj1 | obj2.str should equal obj1.str; obj2.num_affiliated_sta should be clamped to EM_MAX_AP_MLD (not copied verbatim from obj1) | Should Pass |
+ * | 03| Verify the values of obj2 | obj2.m_assoc_sta_mld_info.str, obj2.m_assoc_sta_mld_info.num_affiliated_sta | obj2.m_assoc_sta_mld_info.str == obj1.m_assoc_sta_mld_info.str, obj2.m_assoc_sta_mld_info.num_affiliated_sta == EM_MAX_AP_MLD | Should Pass |
  */
 TEST(dm_assoc_sta_mld_t_Test, AssigningMaxValues) {
     std::cout << "Entering AssigningMaxValues" << std::endl;
@@ -931,7 +931,7 @@ TEST(dm_assoc_sta_mld_t_Test, AssigningMaxValues) {
     obj1.m_assoc_sta_mld_info.num_affiliated_sta = 255;
     obj2 = obj1;
     ASSERT_EQ(obj2.m_assoc_sta_mld_info.str, obj1.m_assoc_sta_mld_info.str);
-    ASSERT_EQ(obj2.m_assoc_sta_mld_info.num_affiliated_sta, obj1.m_assoc_sta_mld_info.num_affiliated_sta);
+    ASSERT_EQ(obj2.m_assoc_sta_mld_info.num_affiliated_sta, static_cast<unsigned char>(EM_MAX_AP_MLD));
     std::cout << "Exiting AssigningMaxValues" << std::endl;
 }
 

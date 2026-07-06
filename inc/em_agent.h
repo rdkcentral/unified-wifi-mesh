@@ -299,6 +299,67 @@ class em_agent_t : public em_mgr_t {
 
 	void handle_link_stats_report(em_bus_event_t *evt);
 
+       /**!
+        * @brief Handles an Unassociated STA Link Metrics Query event.
+        *
+        * This function processes the Unassociated STA Link Metrics Query
+        * received from the controller, parses the requested operating
+        * classes, channels and STA MAC addresses, and triggers the
+        * agent-side measurement workflow.
+        *
+        * @param[in] evt Pointer to the event structure containing the
+        *                Unassociated STA Query payload.
+        */
+       void handle_unassoc_sta_link_metrics_qry(em_bus_event_t *evt);
+
+       /**!
+        * @brief Handles the Unassociated STA Link Metrics Result event.
+        *
+        * This function processes the collected Unassociated STA RCPI
+        * measurements and prepares them for transmission back to the
+        * controller in one or more Unassociated STA Link Metrics
+        * Response messages.
+        *
+        * @param[in] evt Pointer to the event structure containing the
+        *                Unassociated STA Metrics result payload.
+        */
+       void handle_unassoc_sta_result(em_bus_event_t *evt);
+
+       /**!
+        * @brief Sends the Unassociated STA Query subdocument.
+        *
+        * This function constructs and publishes the Unassociated STA
+        * Query subdocument to the OneWiFi subsystem for RCPI measurement
+        * collection on the requested operating classes and channels.
+        *
+        * @param[in] desc Pointer to the WiFi bus descriptor.
+        * @param[in] bus_hdl Pointer to the bus handle used for communication.
+        * @param[in] work Pointer to the internal work list containing
+        *                 opclass, channel and STA information.
+        *
+        * @returns int Status code indicating success or failure.
+        * @retval 0 on success.
+        * @retval Non-zero error code on failure.
+        */
+       int send_unassoc_sta_query_subdoc(wifi_bus_desc_t *desc, bus_handle_t *bus_hdl, em_unassoc_work_list_t *work);
+
+       /**!
+        * @brief Callback invoked on receiving Unassociated STA Link Metrics results.
+        *
+        * This callback processes asynchronous Unassociated STA RCPI
+        * measurement results received from the OneWiFi subsystem and
+        * forwards them into the EasyMesh agent processing pipeline.
+        *
+        * @param[in] event_name Name of the event triggering the callback.
+        * @param[in] data Pointer to the raw event payload.
+        * @param[in] userData Pointer to user-specific callback context.
+        *
+        * @returns int Status code indicating success or failure.
+        * @retval 0 on success.
+        * @retval Non-zero error code on failure.
+        */
+       static int unassoc_sta_link_metrics_cb(char *event_name, bus_data_prop_t  *data, void *userData);
+
 	/**
 	 * @brief Send an action frame
 	 *

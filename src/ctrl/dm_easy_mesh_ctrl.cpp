@@ -58,6 +58,7 @@
 #include "em_cmd_get_mld_config.h"
 #include "em_cmd_mld_reconfig.h"
 #include "em_cmd_bsta_cap.h"
+#include "em_cmd_unassoc_sta_query.h"
 
 extern em_network_topo_t *g_network_topology;
 
@@ -1597,6 +1598,170 @@ cleanup:
     return rc;
 }
 
+int dm_easy_mesh_ctrl_t::analyze_unassoc_sta_metrics_query(em_bus_event_t *evt, em_cmd_t *pcmd[])
+{
+    int num = 0;
+    em_cmd_t *tmp = NULL;
+    em_subdoc_info_t *subdoc = NULL;
+
+    cJSON *obj = NULL;
+    cJSON *wfa_obj = NULL;
+
+    cJSON *al_mac_obj = NULL;
+    cJSON *query_list = NULL;
+
+    char wfa[128] = {0};
+
+    subdoc = &evt->u.subdoc;
+    if (subdoc == NULL) {
+        em_printfout("subdoc NULL");
+        return 0;
+    }
+
+    obj = cJSON_Parse(subdoc->buff);
+    if (obj == NULL) {
+        em_printfout("JSON parse failed");
+        return 0;
+    }
+
+    snprintf(wfa, sizeof(wfa), "wfa-dataelements:UnassocSTAQuery");
+
+    wfa_obj = cJSON_GetObjectItem(obj, wfa);
+
+    if (wfa_obj == NULL) {
+        em_printfout("Missing wfa object");
+        cJSON_Delete(obj);
+        return 0;
+    }
+
+    al_mac_obj = cJSON_GetObjectItem(wfa_obj, "AlMac");
+
+    query_list = cJSON_GetObjectItem(wfa_obj, "UnassocStaQueryList");
+
+    if ((al_mac_obj == NULL) || (query_list == NULL) || (!cJSON_IsArray(query_list))) {
+        em_printfout("Missing mandatory params");
+        cJSON_Delete(obj);
+        return 0;
+    }
+
+    em_cmd_params_t params = evt->params;
+
+    const char *al_mac_str = cJSON_GetStringValue(al_mac_obj);
+    if (al_mac_str == NULL) {
+        em_printfout("%s:%d: AlMac is not a string", __func__, __LINE__);
+        cJSON_Delete(obj);
+        return 0;
+    }
+
+    char al_mac_buf[32] = {0};
+    strncpy(al_mac_buf, al_mac_str, sizeof(al_mac_buf) - 1);
+
+    dm_easy_mesh_t::string_to_macbytes(al_mac_buf, params.u.unassoc_sta_query_params.al_mac);
+
+    dm_easy_mesh_t dm = *this;
+
+    em_unassoc_query_list_t query;
+    memset(&query, 0, sizeof(query));
+
+    int opclass_count = cJSON_GetArraySize(query_list);
+
+    if (opclass_count > EM_MAX_OP_CLASS) {
+        opclass_count = EM_MAX_OP_CLASS;
+    }
+
+    query.num_opclass = static_cast<uint8_t>(opclass_count);
+
+    for (int i = 0; i < opclass_count; i++) {
+
+        cJSON *opclass_obj = cJSON_GetArrayItem(query_list, i);
+
+        if (opclass_obj == NULL) {
+            continue;
+        }
+
+        cJSON *opclass_val = cJSON_GetObjectItem(opclass_obj, "opclass");
+
+        cJSON *channels_array = cJSON_GetObjectItem(opclass_obj, "channels");
+
+        if ((opclass_val == NULL) || (channels_array == NULL) || (!cJSON_IsArray(channels_array))) {
+            continue;
+        }
+
+        auto &op = query.opclass_list[i];
+
+        op.op_class = static_cast<uint8_t>(opclass_val->valueint);
+
+        int channel_count = cJSON_GetArraySize(channels_array);
+
+        if (channel_count > EM_MAX_CHANNELS_PER_OPCLASS) {
+            channel_count = EM_MAX_CHANNELS_PER_OPCLASS;
+        }
+
+        op.num_channels = static_cast<uint8_t>(channel_count);
+
+        for (int j = 0; j < channel_count; j++) {
+
+            cJSON *channel_obj = cJSON_GetArrayItem(channels_array, j);
+
+            if (channel_obj == NULL) {
+                continue;
+            }
+
+            cJSON *channel_val = cJSON_GetObjectItem(channel_obj, "channel");
+            cJSON *sta_array = cJSON_GetObjectItem(channel_obj, "sta_macs");
+
+            if ((channel_val == NULL) || (sta_array == NULL) || (!cJSON_IsArray(sta_array))) {
+                continue;
+            }
+
+            auto &ch = op.channel_list[j];
+
+            ch.channel = static_cast<uint8_t>(channel_val->valueint);
+
+            int sta_count = cJSON_GetArraySize(sta_array);
+
+            if (sta_count > EM_MAX_STA_PER_CHANNEL) {
+                sta_count = EM_MAX_STA_PER_CHANNEL;
+            }
+
+            ch.num_sta = static_cast<uint8_t>(sta_count);
+
+            for (int k = 0; k < sta_count; k++) {
+                cJSON *sta_obj = cJSON_GetArrayItem(sta_array, k);
+
+                if ((sta_obj == NULL) || (sta_obj->valuestring == NULL)) {
+                    continue;
+                }
+
+                dm_easy_mesh_t::string_to_macbytes(sta_obj->valuestring, ch.sta_list[k]);
+            }
+        }
+    }
+
+    pcmd[num] = new em_cmd_unassoc_sta_query_t(params, dm, &query);
+
+    if (pcmd[num] == NULL) {
+        cJSON_Delete(obj);
+        return 0;
+    }
+
+    tmp = pcmd[num];
+    num++;
+
+    while ((pcmd[num] =
+            tmp->clone_for_next()) != NULL) {
+
+        tmp = pcmd[num];
+        num++;
+    }
+
+    cJSON_Delete(obj);
+
+    em_printfout("Returning successfully from analyze_unassoc_sta_metrics_query");
+
+    return num;
+}
+
 int dm_easy_mesh_ctrl_t::analyze_sta_link_metrics(em_cmd_t *pcmd[])
 {
     int num = 0;
@@ -1615,7 +1780,6 @@ int dm_easy_mesh_ctrl_t::analyze_sta_link_metrics(em_cmd_t *pcmd[])
 
     return num;
 }
-
 
 int dm_easy_mesh_ctrl_t::analyze_config_renew(em_bus_event_t *evt, em_cmd_t *pcmd[])
 {
@@ -1661,10 +1825,10 @@ int dm_easy_mesh_ctrl_t::analyze_sta_assoc_event(em_bus_event_t *evt, em_cmd_t *
     dm_bss_t *pbss;
     bool radio_matched = false, found = false;
     em_orch_desc_t desc;
-    em_2xlong_string_t	key;
+    mac_address_t fallback_ruid = {0};
 
     if (evt == NULL) {
-        printf("%s:%d: NULL event\n", __func__, __LINE__);
+        em_printfout("NULL event");
         return -1;
     }
 
@@ -1690,40 +1854,41 @@ int dm_easy_mesh_ctrl_t::analyze_sta_assoc_event(em_bus_event_t *evt, em_cmd_t *
 
     pdm->set_topo_state(true);
 
-    for (i = 0; i < pdm->get_num_radios(); i++) {
-        found = true;
-        pbss = pdm->get_bss(pdm->get_radio_info(i)->id.ruid, params->assoc.bssid);
-        if (pbss == NULL) {
-            found = false;
-            continue;
-        }
-        break;
-    }
-    if (found == false) {
-        // For MLO notifications, BSSID may be AP MLD MAC and not directly resolvable
-        // to a per-link BSS yet. Continue orchestration (topology sync/query path) and
-        // defer exact link resolution to topology response processing
-        em_printfout("BSS not found bssid=%s, using fallback radio",
-            util::mac_to_string(params->assoc.bssid).c_str());
-        if (pdm->m_num_radios == 0) {
-            return -1;
-        }
-        dm_easy_mesh_t::macbytes_to_string(pdm->m_radio[0].m_radio_info.intf.mac, radio_mac_str);
-        radio_matched = true;
-    } else {
-        dm_easy_mesh_t::macbytes_to_string(pbss->m_bss_info.ruid.mac, radio_mac_str);
-
-        // confirm that the radio is on this device
-        for (i = 0; i < pdm->m_num_radios; i++) {
-            if (memcmp(pbss->m_bss_info.ruid.mac, pdm->m_radio[i].m_radio_info.intf.mac, sizeof(mac_address_t)) == 0) {
-                radio_matched = true;
+    if (pdm->is_ap_mld_mac(params->assoc.bssid) == false) {
+        em_printfout("bssid=%s is not AP-MLD MAC, using direct BSS lookup for STA assoc event", bss_mac_str);
+        found = false;
+        for (i = 0; i < pdm->get_num_radios(); i++) {
+            pbss = pdm->get_bss(pdm->get_radio_info(i)->id.ruid, params->assoc.bssid);
+            if (pbss != NULL) {
+                found = true;
                 break;
             }
         }
 
-        if (radio_matched == false) {
-            printf("%s:%d: Could not find bss: %s on radio: %s\n", __func__, __LINE__, bss_mac_str, radio_mac_str);
-            return -1;
+        if (found == true) {
+            dm_easy_mesh_t::macbytes_to_string(pbss->m_bss_info.ruid.mac, radio_mac_str);
+
+            // confirm that the radio is on this device
+            for (i = 0; i < pdm->m_num_radios; i++) {
+                    if (memcmp(pbss->m_bss_info.ruid.mac, pdm->m_radio[i].m_radio_info.intf.mac,
+                           sizeof(mac_address_t)) == 0) {
+                    radio_matched = true;
+                    break;
+                }
+            }
+
+            if (radio_matched == false) {
+                em_printfout("Could not find bss: %s on radio: %s", bss_mac_str, radio_mac_str);
+                return -1;
+            }
+        }
+    } else {
+        em_printfout("bssid=%s is AP-MLD MAC, resolving to affiliated radio for STA assoc event", bss_mac_str);
+        if (pdm->resolve_ap_mld_to_fallback_ruid(params->assoc.bssid, fallback_ruid)) {
+            dm_easy_mesh_t::macbytes_to_string(fallback_ruid, radio_mac_str);
+            em_printfout("Resolved AP-MLD bssid=%s to radio=%s for STA assoc event",
+                bss_mac_str, radio_mac_str);
+            found = true;
         }
     }
 
@@ -1731,10 +1896,20 @@ int dm_easy_mesh_ctrl_t::analyze_sta_assoc_event(em_bus_event_t *evt, em_cmd_t *
     tmp = pcmd[num];
     num++;
 
-    snprintf(key, sizeof(em_long_string_t), "%s@%s@%s", sta_mac_str, bss_mac_str, radio_mac_str);
-    if ((params->assoc.assoc_event == false) && ((get_sta(key) != NULL) || (found == false))) {
+    if (params->assoc.assoc_event == false) {
         desc.op = dm_orch_type_topo_update;
         desc.submit = false;
+        pcmd[num - 1]->override_op(0, &desc);
+        desc.op = dm_orch_type_topo_publish;
+        desc.submit = true;
+        pcmd[num - 1]->override_op(1, &desc);
+        pcmd[num - 1]->m_num_orch_desc = 2;
+    } else if ((params->assoc.assoc_event == true) && (found == true) &&
+               (pdm->is_ap_mld_mac(params->assoc.bssid) == false)) {
+        // BSS is directly resolvable for a non-MLO client — topology query not needed;
+        // skip dm_orch_type_topo_sync and go straight to client capability query + publish.
+        desc.op = dm_orch_type_sta_cap;
+        desc.submit = true;
         pcmd[num - 1]->override_op(0, &desc);
         desc.op = dm_orch_type_topo_publish;
         desc.submit = true;
@@ -3691,15 +3866,6 @@ int dm_easy_mesh_ctrl_t::update_tables(dm_easy_mesh_t *dm)
             sta = static_cast<dm_sta_t *> (hash_map_get_next(dm->m_sta_assoc_map, sta));
         }
 
-        sta = static_cast<dm_sta_t *> (hash_map_get_first(dm->m_sta_dassoc_map));
-        while (sta != NULL) {
-            criteria = dm->db_cfg_type_get_criteria(db_cfg_type_sta_list_update);
-            if (dm_sta_list_t::set_config(m_db_client, *sta, NULL) == 0) {
-                dm->reset_db_cfg_type(db_cfg_type_sta_list_update);
-            }
-            sta = static_cast<dm_sta_t *> (hash_map_get_next(dm->m_sta_dassoc_map, sta));
-        }
-
         sta = static_cast<dm_sta_t *> (hash_map_get_first(dm->m_sta_assoc_map));
         while (sta != NULL) {
             tmp = sta;
@@ -3716,22 +3882,7 @@ int dm_easy_mesh_ctrl_t::update_tables(dm_easy_mesh_t *dm)
             hash_map_remove(dm->m_sta_assoc_map, key);
             delete tmp;
         }
-            
-        sta = static_cast<dm_sta_t *> (hash_map_get_first(dm->m_sta_dassoc_map));
-        while (sta != NULL) {
-            tmp = sta;
-            criteria = dm->db_cfg_type_get_criteria(db_cfg_type_sta_list_update);
-            if (dm_sta_list_t::set_config(m_db_client, *sta, NULL) == 0) {
-                dm->reset_db_cfg_type(db_cfg_type_sta_list_update);
-            }
-            dm_easy_mesh_t::macbytes_to_string(sta->m_sta_info.id, sta_mac_str);
-            dm_easy_mesh_t::macbytes_to_string(sta->m_sta_info.bssid, bssid_str);
-            dm_easy_mesh_t::macbytes_to_string(sta->m_sta_info.radiomac, radio_mac_str);
-            snprintf(key, sizeof(em_2xlong_string_t), "%s@%s@%s", sta_mac_str, bssid_str, radio_mac_str);
-            sta = static_cast<dm_sta_t *> (hash_map_get_next(dm->m_sta_dassoc_map, sta));
-            hash_map_remove(dm->m_sta_dassoc_map, key);
-            delete tmp;
-        } 
+
 		dm->reset_db_cfg_type(db_cfg_type_sta_list_update);
     }
 

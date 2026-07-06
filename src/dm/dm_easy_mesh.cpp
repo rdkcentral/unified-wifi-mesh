@@ -2860,6 +2860,22 @@ dm_sta_t *dm_easy_mesh_t::find_sta(mac_address_t sta_mac, bssid_t bssid)
     return NULL;
 }
 
+dm_sta_t *dm_easy_mesh_t::find_sta(mac_address_t sta_mac)
+{
+    for (unsigned int i = 0; i < get_num_bss(); i++) {
+        auto *bss = get_bss_info(i);
+        if (bss == NULL) {
+            continue;
+        }
+
+        auto *sta = find_sta(sta_mac, bss->bssid.mac);
+        if (sta != NULL) {
+            return sta;
+        }
+    }
+    return NULL;
+}
+
 dm_sta_t *dm_easy_mesh_t::get_first_sta(mac_address_t sta_mac)
 {
     dm_sta_t *sta;
@@ -3324,6 +3340,59 @@ em_ap_mld_info_t *dm_easy_mesh_t::get_ap_mld_frm_bssid(mac_address_t bss_id)
     }
 
     return NULL;
+}
+
+bool dm_easy_mesh_t::is_ap_mld_mac(const mac_address_t mac)
+{
+    const em_ap_mld_info_t *ap_mld_info = NULL;
+
+    if (mac == NULL) {
+        return false;
+    }
+
+    for (unsigned int i = 0; i < m_num_ap_mld; i++) {
+        ap_mld_info = &m_ap_mld[i].m_ap_mld_info;
+        if (!ap_mld_info->mac_addr_valid) {
+            continue;
+        }
+        if (memcmp(ap_mld_info->mac_addr, mac, sizeof(mac_address_t)) == 0) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+bool dm_easy_mesh_t::resolve_ap_mld_to_fallback_ruid(const mac_address_t ap_mld_mac, mac_address_t fallback_ruid)
+{
+    em_ap_mld_info_t *ap_mld_info = NULL;
+    unsigned int i, j;
+
+    if ((ap_mld_mac == NULL) || (fallback_ruid == NULL)) {
+        return false;
+    }
+
+    for (i = 0; i < m_num_ap_mld; i++) {
+        ap_mld_info = &m_ap_mld[i].m_ap_mld_info;
+        if (!ap_mld_info->mac_addr_valid) {
+            continue;
+        }
+        if (memcmp(ap_mld_info->mac_addr, ap_mld_mac, sizeof(mac_address_t)) != 0) {
+            continue;
+        }
+
+        // Use the first valid affiliated AP's RUID as fallback.
+        for (j = 0; j < ap_mld_info->num_affiliated_ap; j++) {
+            if (!ap_mld_info->affiliated_ap[j].mac_addr_valid) {
+                continue;
+            }
+            memcpy(fallback_ruid, ap_mld_info->affiliated_ap[j].ruid.mac, sizeof(mac_address_t));
+            return true;
+        }
+        return false;
+    }
+
+    return false;
 }
 
 void dm_easy_mesh_t::update_ap_mld_info(em_ap_mld_info_t *ap_mld_info)
