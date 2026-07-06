@@ -468,6 +468,7 @@ public:
 	void handle_bsta_cap_req(em_bus_event_t *evt);
 
 	void handle_link_stats_alarm_report(em_bus_event_t *evt);
+	void handle_failed_conn_msg(unsigned char *data, unsigned int len) override;
 
         /**!
          * @brief Handles an Unassociated STA Link Metrics Query event.
