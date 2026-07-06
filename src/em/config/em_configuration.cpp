@@ -2121,6 +2121,25 @@ int em_configuration_t::handle_topology_notification(unsigned char *buff, unsign
                     break;
                 }
 
+		if (updated_any == false) {
+                    assoc_row = static_cast<dm_sta_t *>(hash_map_get(dm->m_sta_assoc_map, key));
+                    if (assoc_row != NULL) {
+                        assoc_row->m_sta_info.associated = false;
+                        assoc_row->m_sta_info.frame_body_len = 0;
+                        memset(assoc_row->m_sta_info.frame_body, 0, sizeof(assoc_row->m_sta_info.frame_body));
+                    } else {
+                        hash_map_put(dm->m_sta_assoc_map, strdup(key), new dm_sta_t(&sta_info));
+                    }
+
+                    sta_row = static_cast<dm_sta_t *>(hash_map_get(dm->m_sta_map, key));
+                    if (sta_row != NULL) {
+                        sta_row->m_sta_info.associated = false;
+                        sta_row->m_sta_info.frame_body_len = 0;
+                        memset(sta_row->m_sta_info.frame_body, 0, sizeof(sta_row->m_sta_info.frame_body));
+                    }
+                    updated_any = true;
+                }
+
                 if (updated_any) {
                     dm->set_db_cfg_param(db_cfg_type_sta_list_update, "");
                 } else {
