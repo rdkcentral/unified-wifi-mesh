@@ -35,6 +35,12 @@
 #include "dm_easy_mesh_ctrl.h"
 #include "util.h"
 
+#ifdef AL_SAP
+#include "al_service_access_point.h"
+extern MacAddress g_al_mac_sap;
+#endif
+
+
 int dm_device_t::decode(const cJSON *obj, void *parent_id)
 {
     cJSON *tmp, *tmp_arr;
@@ -363,41 +369,87 @@ int dm_device_t::parse_device_id_from_key(const char *key, em_device_id_t *id)
 
 }
 
-int dm_device_t::update_easymesh_json_cfg(bool colocated_mode)
+int dm_device_t::update_easymesh_json_cfg(bool colocated_mode, unsigned char *al_mac_addr,
+                                          const char *backhaul_ssid, const char *backhaul_passphrase)
 {
-	mac_addr_str_t mac_str;
+    mac_addr_str_t mac_str;
+    unsigned char *mac_to_set = NULL;
 
-	// Create a JSON object
-	cJSON *root = cJSON_CreateObject();
+#ifdef AL_SAP
+    mac_address_t al_sap_mac = {0};
+    bool has_al_sap_mac = false;
+    unsigned int uiloop = 0;
 
-	dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *> (m_device_info.intf.mac), mac_str);
+    /* set the mac from AL SAP */
+    for (auto byte : g_al_mac_sap) {
+        if (uiloop < sizeof(al_sap_mac)) {
+            al_sap_mac[uiloop++] = static_cast<unsigned char>(byte);
+        }
+        has_al_sap_mac = has_al_sap_mac || (byte != 0);
+    }
+    if(has_al_sap_mac) {
+        mac_to_set = al_sap_mac;
+        printf("[%s:%d] Using AL_SAP MAC for EasymeshCfg.json\n", __func__, __LINE__);
+    }
+#endif
 
-	cJSON_AddStringToObject(root, "AL_MAC_ADDR", const_cast<char*> (mac_str));
-	cJSON_AddNumberToObject(root, "Colocated_mode", static_cast<int> (colocated_mode));
-	//Configuring Mesh Backhaul with default SSID and KeyPassphrase
- 	//TBD: This file to be updated with the configuration used for mesh_backhaul
-	cJSON_AddStringToObject(root, "Backhaul_SSID", "mesh_backhaul");
-	cJSON_AddStringToObject(root, "Backhaul_KeyPassphrase", "test-backhaul");
-	//Enable 4 address mode by default in unified-wifi-mesh
-	cJSON_AddBoolToObject(root, "sta_4addr_mode_enabled", cJSON_True);
+    /* use the provided mac if AL_SAP MAC disabled or not available */
+    if (mac_to_set == NULL && al_mac_addr != NULL) {
+        mac_to_set = al_mac_addr;
+        printf("[%s:%d] Using provided AL MAC parameter for EasymeshCfg.json\n", __func__, __LINE__);
+    }
 
-	// Convert the JSON object to a string
-	char *jsonString = cJSON_Print(root);
+    /* default: use the device interface mac if no other source available */
+    if (mac_to_set == NULL) {
+        mac_to_set = m_device_info.intf.mac;
+        printf("[%s:%d] Using device interface MAC for EasymeshCfg.json\n", __func__, __LINE__);
+    }
 
-	// Write the JSON string to a file
-	FILE *file = fopen(EM_CFG_FILE, "w");
-	if (file == NULL) {
-		printf("%s:%d Could not open file:%s for writing\n", __func__, __LINE__, EM_CFG_FILE);
-		cJSON_Delete(root);
-		free(jsonString);
-		return -1;
-	}
+    /* use the provided backhaul credentials or fall back to defaults */
+    const char *bh_ssid_to_use = (backhaul_ssid != NULL) ? backhaul_ssid : "mesh_backhaul";
+    const char *bh_passphrase_to_use = (backhaul_passphrase != NULL) ? backhaul_passphrase : "test-backhaul";
 
-	fprintf(file, "%s", jsonString);
-	fclose(file);
-	cJSON_Delete(root);
-	free(jsonString);
-	return 0;
+    // Create a JSON object
+    cJSON *root = cJSON_CreateObject();
+    if(NULL == root) {
+        printf("[%s:%d] Failed to create JSON root object\n", __func__, __LINE__);
+        return -1;
+    }
+
+    dm_easy_mesh_t::macbytes_to_string(mac_to_set, mac_str);
+
+    cJSON_AddStringToObject(root, "AL_MAC_ADDR", mac_str);
+    cJSON_AddNumberToObject(root, "Colocated_mode", static_cast<int> (colocated_mode));
+
+    //Configuring Mesh Backhaul with default SSID and KeyPassphrase
+    cJSON_AddStringToObject(root, "Backhaul_SSID", bh_ssid_to_use);
+    cJSON_AddStringToObject(root, "Backhaul_KeyPassphrase", bh_passphrase_to_use);
+
+    //Enable 4 address mode by default in unified-wifi-mesh
+    cJSON_AddBoolToObject(root, "sta_4addr_mode_enabled", cJSON_True);
+
+    // Convert the JSON object to a string
+    char *jsonString = cJSON_Print(root);
+    if (NULL == jsonString) {
+        printf("[%s:%d] Failed to serialize JSON\n", __func__, __LINE__);
+        cJSON_Delete(root);
+        return -1;
+    }
+
+    // Write the JSON string to a file
+    FILE *file = fopen(EM_CFG_FILE, "w");
+    if (file == NULL) {
+        printf("[%s:%d] Could not open file: %s for writing\n", __func__, __LINE__, EM_CFG_FILE);
+        cJSON_Delete(root);
+        free(jsonString);
+        return -1;
+    }
+    fprintf(file, "%s", jsonString);
+    fclose(file);
+    cJSON_Delete(root);
+    free(jsonString);
+
+    return 0;
 }
 
 dm_device_t::dm_device_t(em_device_info_t *dev)

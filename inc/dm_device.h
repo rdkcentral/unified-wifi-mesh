@@ -319,6 +319,9 @@ public:
 	 * This function updates the configuration settings for EasyMesh based on the provided mode.
 	 *
 	 * @param[in] colocated_mode A boolean flag indicating whether the device is in colocated mode.
+	 * @param[in] al_mac The mac address to set in json file if AL_SAP is disabled or not available
+	 * @param[in] backhaul_ssid The BackHaul SSID to set in the json file 
+	 * @param[in] backhaul_passphrase The BaclHaul passphrase to set in the json file
 	 *
 	 * @returns int
 	 * @retval 0 on success
@@ -326,7 +329,8 @@ public:
 	 *
 	 * @note Ensure that the configuration file is accessible and writable before calling this function.
 	 */
-	int update_easymesh_json_cfg(bool colocated_mode);
+        int update_easymesh_json_cfg(bool colocated_mode, unsigned char *al_mac = NULL,
+                             const char *backhaul_ssid = NULL, const char *backhaul_passphrase = NULL);
 
     
 	/**!

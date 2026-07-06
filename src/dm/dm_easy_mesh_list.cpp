@@ -1656,29 +1656,49 @@ dm_easy_mesh_t *dm_easy_mesh_list_t::create_data_model(const char *net_id, const
     dev = dm->get_device();
     memcpy(dev->m_device_info.intf.mac, al_intf->mac, sizeof(mac_address_t));
     strncpy(dev->m_device_info.id.net_id, net_id, strlen(net_id) + 1);
-	if (controller == true) {
-		memcpy(dev->m_device_info.id.dev_mac, al_intf->mac, sizeof(mac_address_t));
-		dev->m_device_info.id.media = dm->m_network.m_net_info.media;
-		//TODO: Monitor Checks
-		//memcpy(dev->m_device_info.backhaul_mac.mac, al_intf->mac, sizeof(mac_address_t));
-		dev->m_device_info.backhaul_mac.media = dm->m_network.m_net_info.media;
-		em_printfout("Backhaul mac updated to :%s device media:%d backhaul media:%d",
-			util::mac_to_string(dev->m_device_info.backhaul_mac.mac).c_str(),
-			dev->m_device_info.id.media, dev->m_device_info.backhaul_mac.media);
-		//Update the easymesh configuration file to specify colocated agent as true.
-		dev->update_easymesh_json_cfg(true);
-	} else {
+
+    if (controller == true) {
+	/* get backhaul BSS configuration */
+	const char *backhaul_ssid = "mesh_backhaul";
+	const char *backhaul_passphrase = "test-backhaul";
+
+        /* fetch actual backhaul SSID from network configuration */
+	const em_network_ssid_info_t *net_ssid = dm->get_network_ssid_info_by_haul_type(em_haul_type_backhaul);
+	if (net_ssid != NULL)
+		backhaul_ssid = net_ssid->ssid;
+
+        /* get backhaul passphrase from BSS configuration */
+        for (unsigned int uiloop = 0; uiloop < dm->get_num_bss(); uiloop++) {
+            dm_bss_t *bss = dm->get_bss(uiloop);
+            if (bss != NULL && bss->m_bss_info.id.haul_type == em_haul_type_backhaul) {
+                backhaul_passphrase = bss->m_bss_info.mesh_sta_passphrase;
+                break;
+            }
+        }
+
+        memcpy(dev->m_device_info.id.dev_mac, al_intf->mac, sizeof(mac_address_t));
+        dev->m_device_info.id.media = dm->m_network.m_net_info.media;
+
+        //TODO: Monitor Checks
+        dev->m_device_info.backhaul_mac.media = dm->m_network.m_net_info.media;
+        em_printfout("Backhaul mac updated to :%s device media:%d backhaul media:%d",
+        util::mac_to_string(dev->m_device_info.backhaul_mac.mac).c_str(),
+        dev->m_device_info.id.media, dev->m_device_info.backhaul_mac.media);
+
+	/* Update the easymesh configuration file with co-located agent as true, actual al mac address and backhaul credentials */
+	dev->update_easymesh_json_cfg(true, dm->get_ctrl_al_interface_mac(), backhaul_ssid, backhaul_passphrase);
+    } else {
         dm->set_id();
         em_printfout("dm->get_id():%d", dm->get_id());
     }
     dev->m_device_info.profile = profile;
-	dm->set_channels_list(op_class, EM_MAX_PRE_SET_CHANNELS);
+    dm->set_channels_list(op_class, EM_MAX_PRE_SET_CHANNELS);
 	
-	for (i = 0; i < sizeof(em_policy)/sizeof(em_policy_t); i++) {
-		dm->set_policy(policy[i]);
-	}
+    for (i = 0; i < sizeof(em_policy)/sizeof(em_policy_t); i++) {
+        dm->set_policy(policy[i]);
+    }
 
-	em_printfout("Number of policies: %d", dm->get_num_policy());
+    em_printfout("Number of policies: %d", dm->get_num_policy());
 
     // is this the first data model
     if ((net = get_network(net_id)) != NULL) {
