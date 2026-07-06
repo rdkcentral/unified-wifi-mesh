@@ -809,6 +809,7 @@ em_cmd_type_t em_cmd_t::bus_2_cmd_type(em_bus_event_type_t etype)
 
         case em_bus_event_type_set_bh_cfg:
             type = em_cmd_type_set_bh_cfg;
+            break;
       	case em_bus_event_type_unassoc_sta_query:
             type = em_cmd_type_unassoc_sta_query;
             break;
