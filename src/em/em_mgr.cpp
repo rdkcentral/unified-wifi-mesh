@@ -358,13 +358,11 @@ int em_mgr_t::reset_listeners()
         if (em->is_al_interface_em() == true) {
             FD_SET(em->get_fd(), &m_rset);
             num++;
-            printf("%s:%d: Added AL interface fd:%d to rset (num:%d)\n", __func__, __LINE__, em->get_fd(), num);
             highest_fd = (em->get_fd() > highest_fd) ? em->get_fd():highest_fd;
         }
         em = static_cast<em_t *>(hash_map_get_next(m_em_map, em));
     }
     pthread_mutex_unlock(&m_mutex);
-    printf("%s:%d: reset_listeners done, highest_fd:%d, total AL fds:%d\n", __func__, __LINE__, highest_fd, num);
     return highest_fd;
 }
 
@@ -379,10 +377,8 @@ void em_mgr_t::nodes_listener()
     printf("%s:%d: Entering select loop, highest_fd:%d, timeout_usec:%ld\n", __func__, __LINE__, highest_fd, tm.tv_usec);
 
     while ((rc = select(highest_fd + 1, &m_rset, NULL, NULL, &tm)) >= 0) {
-        printf("%s:%d: select() returned rc:%d\n", __func__, __LINE__, rc);
 
         if (rc == 0) {
-            printf("%s:%d: select() TIMEOUT, no data, resetting listeners\n", __func__, __LINE__);
             tm.tv_sec = 0;
             tm.tv_usec = m_timeout * 1000;
             highest_fd = reset_listeners();
