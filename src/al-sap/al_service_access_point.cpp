@@ -223,24 +223,18 @@ AlServiceDataUnit AlServiceAccessPoint::serviceAccessPointDataIndication() {
         } catch (const std::exception& e) {
             throw AlServiceException("Failed to deserialize AlServiceDataUnit fragment", PrimitiveError::InvalidMessage);
         }
-        #ifdef DEBUG_MODE
         std::cout << "Received fragment " << static_cast<int>(fragment.getFragmentId())
                   << " - Size: " << bytesRead << " bytes, "
                   << "isFragment: " << static_cast<int>(fragment.getIsFragment()) << ", "
                   << "FragmentId: " << static_cast<int>(fragment.getFragmentId()) << ", "
                   << "isLastFragment: " << static_cast<int>(fragment.getIsLastFragment()) << std::endl;
-        #endif
         // Check if this is a single message (non-fragmented)
         if (fragment.getIsFragment() == 0 && fragment.getIsLastFragment() == 1) {
-            #ifdef DEBUG_MODE
             std::cout << "Received a non-fragmented message of size: " << bytesRead << " bytes." << std::endl;
-            #endif
             return fragment; // Return immediately, as no reassembly is needed
         }
-        #ifdef DEBUG_MODE
         // Fragmented message handling
         std::cout << "Received fragment " << static_cast<int>(fragment.getFragmentId()) << " of the message." << std::endl;
-        #endif
         // Check fragment ordering
         if (fragment.getFragmentId() != fragmentId) {
             throw AlServiceException("Fragment out of order", PrimitiveError::FragmentOutOfOrder);
@@ -262,9 +256,7 @@ AlServiceDataUnit AlServiceAccessPoint::serviceAccessPointDataIndication() {
 
     // Set the assembled payload on the AlServiceDataUnit object
     message.setPayload(payload);
-    #ifdef DEBUG_MODE
     std::cout << "Reassembled message received with total payload size: " << payload.size() << " bytes." << std::endl;
-    #endif
     return message;
 }
 

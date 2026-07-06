@@ -420,6 +420,10 @@ void em_mgr_t::nodes_listener()
                         static_cast<unsigned int>(reconstructed_eth_frame.size()));
                     proto_process(reconstructed_eth_frame.data(), static_cast<unsigned int>(reconstructed_eth_frame.size()), em);
                     printf("%s:%d: [AL_SAP] proto_process returned\n", __func__, __LINE__);
+		    if (access("/tmp/ctrl_m1_delay", F_OK) == 0) {
+			    printf("Delay file found. Sleeping for 200 ms...\n");
+			    usleep(200000);   // 200000 microseconds = 200 ms
+		    }
                 } catch (const AlServiceException& e) {
                     if (e.getPrimitiveError() == PrimitiveError::InvalidMessage) {
                         em_printfout("%s. Dropping packet", e.what());
