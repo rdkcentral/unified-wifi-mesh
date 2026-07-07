@@ -116,6 +116,7 @@ bool em_orch_agent_t::is_em_ready_for_orch_fini(em_cmd_t *pcmd, em_t *em)
             break;
 
         case em_cmd_type_btm_report:
+        case em_cmd_type_steer_opp_complete:
             if (em->get_state() == em_state_agent_configured) {
                 return true;
             }
@@ -191,6 +192,10 @@ bool em_orch_agent_t::is_em_ready_for_orch_exec(em_cmd_t *pcmd, em_t *em)
 	} else if (pcmd->m_type == em_cmd_type_beacon_report) {
         if ((em->get_state() == em_state_agent_configured) ||
             ((em->get_state() == em_state_agent_beacon_report_pending))) {
+            return true;
+        }
+    } else if (pcmd->m_type == em_cmd_type_steer_opp_complete) {
+        if (em->get_state() == em_state_agent_configured) {
             return true;
         }
     } else if (pcmd->m_type == em_cmd_type_get_link_quality_report) {
@@ -521,6 +526,19 @@ unsigned int em_orch_agent_t::build_candidates(em_cmd_t *pcmd)
                 if (!(em->is_al_interface_em()) && (count == 0)) {
                     queue_push(pcmd->m_em_candidates, em);
                     count++;
+                }
+                break;
+
+            case em_cmd_type_steer_opp_complete:
+                if (!(em->is_al_interface_em()) && pcmd->m_param.u.args.num_args >= 2) {
+                    dm_easy_mesh_t::string_to_macbytes(pcmd->m_param.u.args.args[0], mac1);
+                    dm_easy_mesh_t::string_to_macbytes(pcmd->m_param.u.args.args[1], mac2);
+                    sta = em->find_sta(mac1, mac2);
+                    if (sta != NULL) {
+                        em_printfout("steer opp complete build candidate sta mac=%s", pcmd->m_param.u.args.args[0]);
+                        queue_push(pcmd->m_em_candidates, em);
+                        count++;
+                    }
                 }
                 break;
 

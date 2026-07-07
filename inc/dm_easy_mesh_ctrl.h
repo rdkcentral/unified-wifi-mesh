@@ -57,11 +57,14 @@ public:
     uint32_t get_next_nb_evt_id() { return m_nb_evt_id++; }
 
     bus_error_t bus_get_cb_fwd(char *event_name, raw_data_t *p_data, bus_get_handler_t cb);
-    dm_easy_mesh_t *get_dm_easy_mesh(char *instance, bool is_num);
+	bus_error_t bus_method_cb_fwd(const char *method_name, bus_data_prop_t *input_data, bus_data_prop_t *output_data, void *async_handle, bus_method_handler_t cb);
+
+	dm_easy_mesh_t *get_dm_easy_mesh(char *instance, bool is_num);
     dm_device_t *get_dm_dev(mac_address_t dev_mac, mac_address_t bmac);
     dm_radio_t *get_dm_radio(dm_easy_mesh_t *dm, char *instance, bool is_num);
     dm_sta_t *get_dm_bh_sta(dm_easy_mesh_t *dm, dm_radio_t *radio);
     const char* get_table_instance(const char *src, char *instance, size_t max_len, bool *is_num);
+	bus_error_t get_sta_mac_from_event_name(char *event_name, mac_addr_str_t sta_mac_out);
 
     bus_error_t network_get(char *event_name, raw_data_t *p_data);
     static bus_error_t network_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
@@ -174,6 +177,8 @@ public:
     bus_error_t bstacfg_get(char *event_name, raw_data_t *p_data);
     static bus_error_t bstamld_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
     static bus_error_t bstacfg_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
+
+	static bus_error_t ctrl_cmd_client_steer_inner(const char *method_name, bus_data_prop_t *input_data, bus_data_prop_t *output_data, void *async_handle);
 
 private:
     db_client_t m_db_client;

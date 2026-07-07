@@ -355,6 +355,56 @@ namespace util {
 	 */
 	bool set_net_uint16_from_host(const uint16_t host_val, void* const ptr);
 
+	/**
+	 * @brief Compares a string against an array of allowed strings
+	 *
+	 * @param[in] valuestring The string to compare
+	 * @param[in] allowed An array of allowed strings
+	 * @param[in] len The length of the allowed array
+	 * @return bool true if the string is in the allowed array, false otherwise
+	 *
+	 * @note The function uses `strcmp` to compare the strings.
+	 */
+	bool compare_string(const char* valuestring, const char* allowed[], size_t len);
+
+	/**
+	 * @brief Checks if a string is a valid hexadecimal string
+	 *
+	 * @param[in] str The string to check
+	 * @return bool true if the string is a valid hexadecimal string, false otherwise
+	 *
+	 * @note The function uses `isxdigit` to check if the string is a valid hexadecimal string.
+	 */
+	bool is_hex_str(const char* str);
+
+	/**
+	 * @brief Checks if a string is a valid hexadecimal string or a colon
+	 *
+	 * @param[in] str The string to check
+	 * @return bool true if the string is a valid hexadecimal string or a colon, false otherwise
+	 *
+	 * @note The function uses `isxdigit` and `:` to check if the string is a valid hexadecimal string or a colon.
+	 */
+	bool str_is_mac_address(const char* str);
+
+	/**
+	 * @brief Checks if a string is a valid MAC address
+	 *
+	 * @param[in] a The string to check
+	 * @param[in] b The string to check
+	 * @return bool true if both MAC address are same, false otherwise
+	 *
+	 * @note
+	 */
+	bool mac_equals(const char *a, const char *b);
+
+	/**
+	 * @brief Normalizes a MAC address string
+	 *
+	 * @param[in] mac The MAC address string to normalize
+	 * @return std::string The normalized MAC address string
+	 */
+	std::string normalize_mac(const char *mac);
 } // namespace util
 
 #define __FILENAME__ (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)

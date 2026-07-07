@@ -2134,7 +2134,7 @@ int dm_easy_mesh_ctrl_t::analyze_command_steer(em_bus_event_t *evt, em_cmd_t *cm
                     channel_obj = cJSON_GetObjectItem(steer_obj, "TargetBSSChannel");
                     steer_param.target_channel = static_cast<unsigned int> (cJSON_GetNumberValue(channel_obj));
 
-                    num += analyze_sta_steer(steer_param, cmd);
+                    num += analyze_sta_steer(steer_param, &cmd[num]);
                 }
             }
         }
@@ -7792,6 +7792,73 @@ bus_error_t dm_easy_mesh_ctrl_t::bus_get_cb_fwd(char *event_name, raw_data_t *p_
     return err;
 }
 
+bus_error_t dm_easy_mesh_ctrl_t::bus_method_cb_fwd(const char *method_name, bus_data_prop_t *input_data, bus_data_prop_t *output_data, void *async_handle, bus_method_handler_t cb)
+{
+    uint32_t s_id;
+    em_event_t *req;
+    bus_error_t rc;
+    bus_data_prop_t *input_props = input_data;
+    bus_resp_get_t *resp = NULL;
+    uintptr_t buf;
+    em_ctrl_t *ctrl = em_ctrl_t::get_em_ctrl_instance();
+    dm_easy_mesh_ctrl_t *dm_ctrl;
+
+    if (!input_data || input_data->value.raw_data_len == 0) {
+        em_printfout("Invalid input_data or missing input_props");
+        if (output_data) {
+            tr_181_t::tr181_set_status_output(output_data, "Failure: missing input_props");
+        }
+        return bus_error_invalid_input;
+    }
+
+    if(!ctrl) {
+        em_printfout("Controller unavailable");
+        if (output_data) {
+            tr_181_t::tr181_set_status_output(output_data, "Failure: controller unavailable");
+        }
+        return bus_error_invalid_input;
+    }
+
+    dm_ctrl = ctrl->get_dm_ctrl();
+    if (!dm_ctrl) {
+        em_printfout("DM controller unavailable");
+        if (output_data) {
+            tr_181_t::tr181_set_status_output(output_data, "Failure: DM controller unavailable");
+        }
+        return bus_error_invalid_input;
+    }
+
+    do {
+        req = (em_event_t *) malloc(sizeof(em_event_t));
+        if(!req) {
+            rc = bus_error_out_of_resources;
+            break;
+        }
+
+        s_id = dm_ctrl->get_next_nb_evt_id();
+        req->type = em_event_type_nb;
+        req->u.nevt.id = s_id;
+        req->u.nevt.type = NB_REQTYPE_METHOD;
+        req->u.nevt.u.method.method = method_name;
+        req->u.nevt.u.method.in = input_props;
+        req->u.nevt.u.method.out = output_data;
+        req->u.nevt.u.method.async = async_handle;
+        req->u.nevt.cb = (void *) cb;
+
+        ctrl->push_to_queue(req);
+
+        ssize_t len = read(dm_ctrl->get_nb_pipe_rd(), &buf, sizeof(buf));
+        assert(len == sizeof(buf));
+        resp = (bus_resp_get_t *) buf;
+        assert(resp->id == s_id);
+        rc = resp->rc;
+
+    } while(0);
+
+    free(resp);
+    return rc;
+}
+
 void dm_easy_mesh_ctrl_t::update_network_topology()
 {
     dm_easy_mesh_t *dm;
@@ -7821,6 +7888,310 @@ void dm_easy_mesh_ctrl_t::update_network_topology()
     }
     em_printfout("-----Updating network topology <end>-------");
     g_network_topology->print_topology();
+}
+
+static cJSON *sta_steer_prop_to_cjson(const bus_data_prop_t *input_prop)
+{
+    if (!input_prop || !input_prop->value.raw_data.bytes) return NULL;
+    char val[256] = {0};
+
+    switch (input_prop->value.data_type) {
+        case bus_data_type_boolean:
+            return cJSON_CreateBool(input_prop->value.raw_data.b);
+        case bus_data_type_uint32:
+            return cJSON_CreateNumber(input_prop->value.raw_data.u32);
+        case bus_data_type_int32:
+            return cJSON_CreateNumber(input_prop->value.raw_data.i32);
+        case bus_data_type_string:
+            if (tr_181_t::tr181_copy_prop_string(input_prop, val, sizeof(val))) {
+                if (strcmp(input_prop->name, "RequestMode") == 0) {
+                    cJSON *parsed = cJSON_Parse(val);
+                    if (parsed && cJSON_IsObject(parsed))
+                        return parsed;
+                    cJSON_Delete(parsed);
+                    return NULL;
+                }
+                return cJSON_CreateString(val);
+            }
+            return NULL;
+    default:
+            em_printfout("cs_prop_to_cjson default name:%s", input_prop->name);
+            return NULL;
+    }
+}
+
+static bus_error_t validate_clientsteer_input(cJSON *item, const char *input_name)
+{
+    if (!item || !input_name) return bus_error_invalid_input;
+
+    if (strcmp(input_name, "TargetBSSID") == 0) {
+        if (!cJSON_IsString(item) || !util::str_is_mac_address(item->valuestring))
+            return bus_error_invalid_input;
+    } else if (strcmp(input_name, "RequestMode") == 0) {
+        if (!cJSON_IsObject(item) ||
+            (cJSON_GetObjectItemCaseSensitive(item, "Steering_Mandate") == NULL && 
+            cJSON_GetObjectItemCaseSensitive(item, "Steering_Opportunity") == NULL))
+            return bus_error_invalid_input;
+    } else if (strcmp(input_name, "BTMDisassociationImminent") == 0 || strcmp(input_name, "BTMAbridged") == 0 ||
+              strcmp(input_name, "LinkRemovalImminent") == 0) {
+        if (!cJSON_IsBool(item)) {
+            em_printfout("%s must be a boolean", input_name);
+            return bus_error_invalid_input;
+        }
+    } else if (strcmp(input_name, "SteeringOpportunityWindow") == 0 || strcmp(input_name, "BTMDisassociationTimer") == 0 ||
+                strcmp(input_name, "TargetBSSOperatingClass") == 0 || strcmp(input_name, "TargetBSSChannel") == 0) {
+        if (!cJSON_IsNumber(item) || item->valuedouble < 0) {
+            em_printfout("%s must be a number", input_name);
+            return bus_error_invalid_input;
+        }
+        if (!cJSON_IsNumber(item) || item->valuedouble < 0)
+            return bus_error_invalid_input;
+    }
+
+    return bus_error_success;
+}
+
+bus_error_t dm_easy_mesh_ctrl_t::ctrl_cmd_client_steer_inner(const char *method_name, bus_data_prop_t *input_data, bus_data_prop_t *output_data, void *async_handle)
+{
+    (void)async_handle;
+
+    cJSON *sta_steer_input = NULL, *root = NULL, *parsed_subdoc_json = NULL, *new_subdoc_json = NULL, *found_sta_entry = NULL, *child = NULL, *dev_item = NULL,
+        *tget_sta_obj = NULL, *dbg_json = NULL, *network_obj = NULL, *device_list_obj = NULL;
+    bus_data_prop_t *input_props = input_data;
+    unsigned char     buff[EM_LONG_IO_BUFF_SZ];
+    char             *serialized  = NULL;
+    std::vector<std::string> client_steer_args_list = {"TargetBSSID", "RequestMode", "BTMAbridged", "LinkRemovalImminent", "SteeringOpportunityWindow",
+                                                    "BTMDisassociationImminent", "BTMDisassociationTimer", "TargetBSSOperatingClass", "TargetBSSChannel"};
+    unsigned int      json_len    = 0;
+    em_subdoc_info_t *subdoc      = NULL;
+    mac_addr_str_t    sta_mac     = {0};
+    em_ctrl_t        *g_ctrl      = em_ctrl_t::get_em_ctrl_instance();
+    dm_easy_mesh_ctrl_t *dm_ctrl  = NULL;
+    bus_error_t rc;
+
+    if (!g_ctrl) {
+        if (output_data) tr_181_t::tr181_set_status_output(output_data, "Failure: controller unavailable");
+        em_printfout("ERROR: controller unavailable");
+        return bus_error_general;
+    }
+    if (!input_data || (!input_data->is_data_set)) {
+        if (output_data) tr_181_t::tr181_set_status_output(output_data, "Failure: missing input");
+        em_printfout("ERROR: missing input");
+        return bus_error_invalid_input;
+    }
+
+    em_printfout("method_name:%s input_name:%s input_value:%s input_len:%u", method_name ? method_name : "(null)",
+        input_data->name, (char *)input_data->value.raw_data.bytes, input_data->value.raw_data_len);
+
+    if(input_data->next_data == NULL) {
+        if(strcmp((char *)input_data->name, "TargetBSSID") != 0) {
+            if (output_data) tr_181_t::tr181_set_status_output(output_data, "Failure: missing TargetBSSID");
+            em_printfout("ERROR: missing TargetBSSID");
+            return bus_error_invalid_input;
+        }
+    }
+
+    sta_steer_input = cJSON_CreateObject();
+    if (!sta_steer_input) {
+        if (output_data) tr_181_t::tr181_set_status_output(output_data, "Failure: out of memory");
+        em_printfout("ERROR: out of memory");
+        return bus_error_out_of_resources;
+    }
+
+    for (bus_data_prop_t *prop = input_props; prop; prop = prop->next_data) {
+        if (!prop->name[0]) continue;
+
+        cJSON *val = sta_steer_prop_to_cjson(prop);
+        if (val == NULL) {
+            em_printfout("sta_steer_prop_to_cjson failed to convert prop to cJSON");
+            continue;
+        }
+
+        if (validate_clientsteer_input(val, prop->name) != bus_error_success) {
+            em_printfout("Invalid value for '%s'", prop->name);
+            cJSON_Delete(val);
+            cJSON_Delete(sta_steer_input);
+            if (output_data) tr_181_t::tr181_set_status_output(output_data, "Failure: invalid param");
+            return bus_error_invalid_input;
+        }
+
+        cJSON_AddItemToObject(sta_steer_input, prop->name, val);
+    }
+
+    if (!cJSON_HasObjectItem(sta_steer_input, "TargetBSSID")) {
+        em_printfout("ERROR: TargetBSSID is required");
+        cJSON_Delete(sta_steer_input);
+        if (output_data) tr_181_t::tr181_set_status_output(output_data, "Failure: missing TargetBSSID");
+        return bus_error_invalid_input;
+    }
+
+    dm_ctrl = g_ctrl->get_dm_ctrl();
+    if (!dm_ctrl) {
+        cJSON_Delete(sta_steer_input);
+        if (output_data) tr_181_t::tr181_set_status_output(output_data, "Failure: dm_ctrl unavailable");
+        em_printfout("ERROR: dm_ctrl unavailable");
+        return bus_error_general;
+    }
+
+    rc = tr_181_t::get_sta_mac_from_event_name(const_cast<char *>(method_name), sta_mac);
+    if (rc != bus_error_success) {
+        em_printfout("ERROR: Failed to resolve STA MAC");
+        cJSON_Delete(sta_steer_input);
+        if (output_data) tr_181_t::tr181_set_status_output(output_data, "Failure: cannot resolve STA MAC");
+        return rc;
+    }
+
+    subdoc = reinterpret_cast<em_subdoc_info_t *>(buff);
+    snprintf(subdoc->name, sizeof(subdoc->name), "%s", "STAListSummary@Steer");
+    dm_ctrl->get_config("OneWifiMesh", subdoc);
+
+    if (subdoc->buff[0] == '\0') {
+        cJSON_Delete(sta_steer_input);
+        if (output_data) tr_181_t::tr181_set_status_output(output_data, "Failure: config empty");
+        em_printfout("ERROR: config empty");
+        return bus_error_invalid_input;
+    }
+
+    parsed_subdoc_json = cJSON_Parse(subdoc->buff);
+    if (!parsed_subdoc_json) {
+        cJSON_Delete(sta_steer_input);
+        if (output_data) tr_181_t::tr181_set_status_output(output_data, "Failure: subdoc parse error");
+        em_printfout("ERROR: subdoc parse error");
+        return bus_error_invalid_input;
+    }
+
+    root            = cJSON_CreateObject();
+    new_subdoc_json = cJSON_CreateObject();
+    if (!root || !new_subdoc_json) {
+        cJSON_Delete(root); cJSON_Delete(new_subdoc_json);
+        cJSON_Delete(parsed_subdoc_json); cJSON_Delete(sta_steer_input);
+        if (output_data) tr_181_t::tr181_set_status_output(output_data, "Failure: out of memory");
+        em_printfout("ERROR: out of memory");
+        return bus_error_out_of_resources;
+    }
+
+    cJSON_AddStringToObject(new_subdoc_json, "ID", "OneWifiMesh");
+    child = parsed_subdoc_json->child;
+    while (child) {
+        cJSON *next = child->next;
+        cJSON_DetachItemViaPointer(parsed_subdoc_json, child);
+        cJSON_AddItemToObject(new_subdoc_json, child->string, child);
+        child = next;
+    }
+    cJSON_Delete(parsed_subdoc_json);
+    parsed_subdoc_json = new_subdoc_json;
+    cJSON_AddItemToObject(root, "wfa-dataelements:ClientSteer", parsed_subdoc_json);
+
+    network_obj     = cJSON_GetObjectItem(parsed_subdoc_json, "Network");
+    device_list_obj = network_obj ? cJSON_GetObjectItem(network_obj, "DeviceList") : NULL;
+
+    if (!device_list_obj || !cJSON_IsArray(device_list_obj)) {
+        cJSON_Delete(root); cJSON_Delete(sta_steer_input);
+        if (output_data) tr_181_t::tr181_set_status_output(output_data, "Failure: DeviceList not found");
+        em_printfout("ERROR: DeviceList not found");
+        return bus_error_invalid_input;
+    }
+
+    for (int d_idx = cJSON_GetArraySize(device_list_obj) - 1; d_idx >= 0; d_idx--) {
+        dev_item = cJSON_GetArrayItem(device_list_obj, d_idx);
+        cJSON *radio_list = cJSON_GetObjectItem(dev_item, "RadioList");
+        if (!cJSON_IsArray(radio_list))
+            continue;
+
+        for (int r_idx = cJSON_GetArraySize(radio_list) - 1; r_idx >= 0; r_idx--) {
+            cJSON *radio_item = cJSON_GetArrayItem(radio_list, r_idx);
+            cJSON *bss_list = cJSON_GetObjectItem(radio_item, "BSSList");
+            if (!cJSON_IsArray(bss_list))
+                continue;
+
+            for (int b_idx = cJSON_GetArraySize(bss_list) - 1; b_idx >= 0; b_idx--) {
+                cJSON *bss_item = cJSON_GetArrayItem(bss_list, b_idx);
+                cJSON *sta_list = cJSON_GetObjectItem(bss_item, "STAList");
+
+                if (!cJSON_IsArray(sta_list)) {
+                    cJSON_DeleteItemFromArray(bss_list, b_idx);
+                    continue;
+                }
+
+                cJSON *sta_json_found = tr_181_t::find_target_sta(sta_list, sta_mac);
+                if (sta_json_found != NULL && found_sta_entry == NULL) {
+                    cJSON *found_sta_entry_array = NULL, *detached_sta_entry = NULL;
+                    found_sta_entry = sta_json_found;
+                    found_sta_entry_array = cJSON_CreateArray();
+                    detached_sta_entry = cJSON_DetachItemViaPointer(sta_list, found_sta_entry);
+                    cJSON_AddItemToArray(found_sta_entry_array, detached_sta_entry);
+                    cJSON_ReplaceItemInObject(bss_item, "STAList", found_sta_entry_array);
+                } else {
+                    cJSON_DeleteItemFromArray(bss_list, b_idx);
+                }
+            }
+
+            if (cJSON_GetArraySize(bss_list) == 0)
+                cJSON_DeleteItemFromArray(radio_list, r_idx);
+        }
+
+        if (cJSON_GetArraySize(radio_list) == 0)
+            cJSON_DeleteItemFromArray(device_list_obj, d_idx);
+    }
+
+    if (found_sta_entry == NULL) {
+        cJSON_Delete(root); cJSON_Delete(sta_steer_input);
+        if (output_data) tr_181_t::tr181_set_status_output(output_data, "Failure: STA not found");
+        em_printfout("ERROR: STA not found");
+        return bus_error_invalid_input;
+    }
+
+    tget_sta_obj = cJSON_GetObjectItem(found_sta_entry, "ClientSteer");
+    if (!tget_sta_obj) {
+        cJSON_Delete(root); cJSON_Delete(sta_steer_input);
+        if (output_data) tr_181_t::tr181_set_status_output(output_data, "Failure: ClientSteer missing");
+        em_printfout("ERROR: ClientSteer missing");
+        return bus_error_invalid_input;
+    }
+
+    for (const std::string &client_steer_arg : client_steer_args_list) {
+        cJSON *input_item = cJSON_DetachItemFromObjectCaseSensitive(sta_steer_input, client_steer_arg.c_str());
+        if (!input_item) {
+            continue;
+        }
+        if (cJSON_HasObjectItem(tget_sta_obj, client_steer_arg.c_str())) {
+            cJSON_ReplaceItemInObject(tget_sta_obj, client_steer_arg.c_str(), input_item);
+        }
+    }
+
+    serialized = cJSON_PrintUnformatted(root);
+    json_len   = static_cast<unsigned int>(strlen(serialized));
+
+    if (json_len >= EM_LONG_IO_BUFF_SZ) {
+        free(serialized); cJSON_Delete(root); cJSON_Delete(sta_steer_input);
+        if (output_data) tr_181_t::tr181_set_status_output(output_data, "Failure: JSON too large");
+        em_printfout("ERROR: JSON too large");
+        return bus_error_invalid_input;
+    }
+
+    memcpy(subdoc->buff, serialized, json_len);
+    subdoc->buff[json_len] = '\0';
+    free(serialized);
+
+    dbg_json = cJSON_Parse(subdoc->buff);
+    if (dbg_json) {
+        char *formatted_subdoc = cJSON_Print(dbg_json);
+        em_printfout("Updated and formatted subdoc:\n%s", formatted_subdoc);
+        free(formatted_subdoc);
+        cJSON_Delete(dbg_json);
+    } else {
+        em_printfout("ERROR: Invalid JSON in subdoc->buff");
+        cJSON_Delete(root); cJSON_Delete(sta_steer_input);
+        return bus_error_invalid_input;
+    }
+
+    g_ctrl->io_process(em_bus_event_type_steer_sta, subdoc->buff, static_cast<unsigned int>(strlen(subdoc->buff)), NULL);
+
+    cJSON_Delete(root);
+    cJSON_Delete(sta_steer_input);
+
+    if (output_data) tr_181_t::tr181_set_status_output(output_data, "Success");
+    return bus_error_success;
 }
 
 void dm_easy_mesh_ctrl_t::init_network_topology()

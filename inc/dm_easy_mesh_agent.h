@@ -261,7 +261,36 @@ public:
 	 */
 	int analyze_btm_response_action_frame(em_bus_event_t *evt, em_cmd_t *pcmd[]);
     
-	/**!
+    /**!
+	 * @brief Analyzes the BTM query action frame.
+	 *
+	 * This function processes the BTM (BSS Transition Management) query action frame
+	 * and performs necessary actions based on the event and command parameters provided.
+	 *
+	 * @param[in] evt Pointer to the bus event structure containing event details.
+	 * @param[in] pcmd Array of pointers to command structures for processing.
+	 *
+	 * @returns int Status code indicating success or failure of the analysis.
+	 */
+    int analyze_btm_query_action_frame(em_bus_event_t *evt, em_cmd_t *pcmd[], bus_handle_t *bus_hdl);
+ 
+    /**!
+	 * @brief Analyzes the steering window expired event.
+	 *
+	 * This function processes the steering window expired event.
+	 *
+	 * @param[in] evt Pointer to the event structure containing the steering window expired event.
+	 * @param[out] pcmd Array of command structures to be populated based on the steering window expired event.
+	 *
+	 * @returns int Status code indicating success or failure of the analysis.
+	 * @retval 0 on success.
+	 * @retval Non-zero error code on failure.
+	 *
+	 * @note Ensure that the event and command structures are properly initialized before calling this function.
+	 */
+    int analyze_steering_window_expired(em_bus_event_t *evt, em_cmd_t *pcmd[]);
+
+   /**!
 	 * @brief Analyzes the scan result from the event bus.
 	 *
 	 * This function processes the scan results encapsulated in the event bus event and populates the command structure accordingly.
