@@ -367,6 +367,23 @@ public:
 	int analyze_set_radio(em_bus_event_t *evt, em_cmd_t *cmd[]);
     
 	/**!
+	 * @brief Analyzes the channel selection based on the provided event and command.
+	 *
+	 * This function processes the event and command to determine the appropriate channel selection.
+	 *
+	 * @param[in] evt Pointer to the event structure containing channel selection data.
+	 * @param[in] cmd Array of pointers to command structures for processing.
+	 *
+	 * @returns int Number of generated commands (>0) on success.
+	 * @retval 0 No-op (nothing to do).
+	 * @retval EM_PARSE_ERR_NO_CHANGE No config changes detected.
+	 * @retval <0 Negative parse/validation error code.
+	 * @note Ensure that the event and command structures are properly initialized
+	 * before calling this function.
+	 */
+	int analyze_channel_select(em_bus_event_t *evt, em_cmd_t *pcmd[]);
+
+	/**!
 	 * @brief Analyzes and sets the channel based on the provided event and command.
 	 *
 	 * This function processes the event and command to determine the appropriate channel settings.

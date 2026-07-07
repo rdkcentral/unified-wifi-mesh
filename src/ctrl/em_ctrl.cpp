@@ -174,6 +174,22 @@ void em_ctrl_t::handle_start_dpp(em_bus_event_t *evt)
 
 }
 
+void em_ctrl_t::handle_channel_select(em_bus_event_t *evt)
+{
+    em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
+    int num;
+
+    if (m_orch->is_cmd_type_in_progress(evt) == true) {
+        m_ctrl_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
+    } else if ((num = m_data_model.analyze_channel_select(evt, pcmd)) <= 0) {
+        m_ctrl_cmd->send_result(status_for_noncmd(num));
+    } else if (m_orch->submit_commands(pcmd, static_cast<unsigned int> (num)) > 0) {
+        m_ctrl_cmd->send_result(em_cmd_out_status_success);
+    } else {
+        m_ctrl_cmd->send_result(em_cmd_out_status_not_ready);
+    }
+}
+
 void em_ctrl_t::handle_set_channel_list(em_bus_event_t *evt)
 {
     em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
@@ -592,6 +608,10 @@ void em_ctrl_t::handle_bus_event(em_bus_event_t *evt)
         
         case em_bus_event_type_set_channel:
             handle_set_channel_list(evt);
+            break;
+
+        case em_bus_event_type_channel_select:
+            handle_channel_select(evt);
             break;
 
         case em_bus_event_type_scan_channel:
@@ -1149,6 +1169,9 @@ void em_ctrl_t::start_complete()
             { bus_data_type_property, false, 0, 0, 0, NULL } },
         { const_cast<char*>(DE_RADIO_CHSCANREQ), bus_element_type_method,
             { NULL, NULL , NULL, NULL, NULL, tr_181_t::channelscan_handler}, slow_speed, ZERO_TABLE,
+            { bus_data_type_property, false, 0, 0, 0, NULL } },
+        { const_cast<char*>(DE_RADIO_CHSELREQ), bus_element_type_method,
+            { NULL, NULL , NULL, NULL, NULL, tr_181_t::channelselect_handler}, slow_speed, ZERO_TABLE,
             { bus_data_type_property, false, 0, 0, 0, NULL } },
         { const_cast<char*>(DE_STA_CLIENTSTEER), bus_element_type_method,
             { NULL, NULL , NULL, NULL, NULL, tr_181_t::clientsteer_handler}, slow_speed, ZERO_TABLE,

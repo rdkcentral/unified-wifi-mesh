@@ -175,6 +175,60 @@ bus_error_t tr_181_t::channelscan_handler(const char *method_name, bus_data_prop
     return rc;
 }
 
+bus_error_t tr_181_t::channelselect_handler(const char *method_name, bus_data_prop_t *input_data,
+    bus_data_prop_t *output_data, void *async_handle)
+{
+    // Standardize input pointer checks
+    em_printfout("Entered channelselect_handler");
+    if (!input_data || (!input_data->is_data_set && input_data->next_data == NULL)) {
+        em_printfout("Invalid input_data or missing input_props");
+        if (output_data) {
+            tr_181_t::tr181_set_status_output(output_data, "Failure: missing input_props");
+        }
+        return bus_error_invalid_input;
+    }
+
+    bus_data_prop_t *input_props = input_data;
+    bus_data_prop_t *output_props = NULL;
+
+    uint32_t input_count = 0;
+    for (bus_data_prop_t *p = input_props; p; p = p->next_data) {
+        if (p->is_data_set) {
+            input_count++;
+        }
+    }
+    em_printfout("Method='%s' input_len=%u", method_name ? method_name : "(null)", input_count);
+    // Log all chained input properties
+    for (bus_data_prop_t *p = input_props; p; p = p->next_data) {
+        em_printfout("Prop='%s' type=%d len=%u", p->name, p->value.data_type, p->value.raw_data_len);
+    }
+
+    em_ctrl_t *ctrl = em_ctrl_t::get_em_ctrl_instance();
+    if (!ctrl) {
+        em_printfout("Controller unavailable");
+        if (output_data) {
+            tr_181_t::tr181_set_status_output(output_data, "Failure: controller unavailable");
+        }
+        return bus_error_invalid_input;
+    }
+
+    bus_error_t rc = ctrl->cmd_channelselect(method_name, input_props, output_data ? &output_props : NULL, async_handle);
+
+    if (output_data && output_props) {
+        *output_data = *output_props;
+        output_data->ref_count = 1;
+
+        for (bus_data_prop_t *p = output_data->next_data; p; p = p->next_data) {
+            p->ref_count = 1;
+        }
+
+        free(output_props);
+    }
+    em_printfout("Exiting channelselect_handler with rc=%d", rc);
+
+    return rc;
+}
+
 bus_error_t tr_181_t::clientsteer_handler(const char *method_name, bus_data_prop_t *input_data,
     bus_data_prop_t *output_data, void *async_handle)
 {

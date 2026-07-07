@@ -3441,6 +3441,119 @@ TEST(dm_easy_mesh_t, decode_config_set_channel_valid_anticipated)
     std::cout << "Exiting decode_config_set_channel_valid_anticipated\n";
 }
 
+TEST(dm_easy_mesh_t, decode_config_set_channel_valid_selection_request)
+{
+    std::cout << "Entering decode_config_set_channel_valid_selection_request\n";
+    dm_easy_mesh_t obj;
+    char subdoc_buf[sizeof(em_subdoc_info_t) + EM_IO_BUFF_SZ]{};
+    em_subdoc_info_t *subdoc = reinterpret_cast<em_subdoc_info_t*>(subdoc_buf);
+    const char json[] =
+        "{"
+        "  \"wfa-dataelements:ChannelSelectionRequest\": {"
+        "    \"Network\": {"
+        "      \"ID\": \"TestNet\","
+        "      \"DeviceList\": [{"
+        "        \"ID\": \"AA:BB:CC:DD:EE:FF\","
+        "        \"RadioList\": [{"
+        "          \"ID\": \"AA:BB:CC:DD:EE:FF\","
+        "          \"ChannelSelectionRequest\": [{"
+        "            \"Class\": 81,"
+        "            \"ChannelList\": [1, 6, 11],"
+        "            \"ChannelPrefList\": [0, 0, 0]"
+        "          }]"
+        "        }]"
+        "      }]"
+        "    }"
+        "  }"
+        "}";
+    snprintf(subdoc->buff, EM_IO_BUFF_SZ, "%s", json);
+    unsigned int num = 0;
+    std::cout << "Invoking decode_config_set_channel with valid ChannelSelectionRequest\n";
+    int ret = obj.decode_config_set_channel(
+        subdoc,
+        "wfa-dataelements:ChannelSelectionRequest",
+        0,
+        &num
+    );
+    EXPECT_EQ(ret, 0);
+    EXPECT_EQ(num, 1);
+    std::cout << "Exiting decode_config_set_channel_valid_selection_request\n";
+}
+
+TEST(dm_easy_mesh_t, decode_config_set_channel_missing_class_in_selection_request)
+{
+    std::cout << "Entering decode_config_set_channel_missing_class_in_selection_request\n";
+    dm_easy_mesh_t obj;
+    char subdoc_buf[sizeof(em_subdoc_info_t) + EM_IO_BUFF_SZ]{};
+    em_subdoc_info_t *subdoc = reinterpret_cast<em_subdoc_info_t*>(subdoc_buf);
+    const char json[] =
+        "{"
+        "  \"wfa-dataelements:ChannelSelectionRequest\": {"
+        "    \"Network\": {"
+        "      \"ID\": \"TestNet\","
+        "      \"DeviceList\": [{"
+        "        \"ID\": \"AA:BB:CC:DD:EE:FF\","
+        "        \"RadioList\": [{"
+        "          \"ID\": \"AA:BB:CC:DD:EE:FF\","
+        "          \"ChannelSelectionRequest\": [{"
+        "            \"ChannelList\": [1, 6, 11],"
+        "            \"ChannelPrefList\": [0, 0, 0]"
+        "          }]"
+        "        }]"
+        "      }]"
+        "    }"
+        "  }"
+        "}";
+    snprintf(subdoc->buff, EM_IO_BUFF_SZ, "%s", json);
+    unsigned int num = 0;
+    std::cout << "Invoking decode_config_set_channel with missing Class\n";
+    int ret = obj.decode_config_set_channel(
+        subdoc,
+        "wfa-dataelements:ChannelSelectionRequest",
+        0,
+        &num
+    );
+    EXPECT_EQ(ret, EM_PARSE_ERR_GEN);
+    std::cout << "Exiting decode_config_set_channel_missing_class_in_selection_request\n";
+}
+
+TEST(dm_easy_mesh_t, decode_config_set_channel_missing_channel_pref_list_in_selection_request)
+{
+    std::cout << "Entering decode_config_set_channel_missing_channel_pref_list_in_selection_request\n";
+    dm_easy_mesh_t obj;
+    char subdoc_buf[sizeof(em_subdoc_info_t) + EM_IO_BUFF_SZ]{};
+    em_subdoc_info_t *subdoc = reinterpret_cast<em_subdoc_info_t*>(subdoc_buf);
+    const char json[] =
+        "{"
+        "  \"wfa-dataelements:ChannelSelectionRequest\": {"
+        "    \"Network\": {"
+        "      \"ID\": \"TestNet\","
+        "      \"DeviceList\": [{"
+        "        \"ID\": \"AA:BB:CC:DD:EE:FF\","
+        "        \"RadioList\": [{"
+        "          \"ID\": \"AA:BB:CC:DD:EE:FF\","
+        "          \"ChannelSelectionRequest\": [{"
+        "            \"Class\": 81,"
+        "            \"ChannelList\": [1, 6, 11]"
+        "          }]"
+        "        }]"
+        "      }]"
+        "    }"
+        "  }"
+        "}";
+    snprintf(subdoc->buff, EM_IO_BUFF_SZ, "%s", json);
+    unsigned int num = 0;
+    std::cout << "Invoking decode_config_set_channel with missing ChannelPrefList\n";
+    int ret = obj.decode_config_set_channel(
+        subdoc,
+        "wfa-dataelements:ChannelSelectionRequest",
+        0,
+        &num
+    );
+    EXPECT_EQ(ret, EM_PARSE_ERR_GEN);
+    std::cout << "Exiting decode_config_set_channel_missing_channel_pref_list_in_selection_request\n";
+}
+
 /**
  * @brief Verify that decode_config_set_channel handles empty key input properly
  *
