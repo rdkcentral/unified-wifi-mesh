@@ -216,6 +216,43 @@ AlServiceDataUnit AlServiceAccessPoint::serviceAccessPointDataIndication() {
         }
         buffer.resize(bytesRead);
 
+	{
+            std::ostringstream hex_start, hex_end;
+            size_t head = std::min<size_t>(32, buffer.size());
+            for (size_t i = 0; i < head; ++i)
+                hex_start << std::hex << std::setw(2) << std::setfill('0') << (int)buffer[i] << " ";
+
+            // Also dump bytes around where a second length-prefix would start,
+            // IF the length field says one thing but bytesRead is bigger.
+            uint32_t declaredLen = 0;
+            if (buffer.size() >= 4) {
+                declaredLen = (static_cast<uint32_t>(buffer[0]) << 24)
+                            | (static_cast<uint32_t>(buffer[1]) << 16)
+                            | (static_cast<uint32_t>(buffer[2]) << 8)
+                            |  static_cast<uint32_t>(buffer[3]);
+            }
+            size_t expectedTotal = 4 + declaredLen;  // length field + its payload
+
+            std::cout << "[RAW_RECV] bytesRead=" << bytesRead
+                      << " declared_frame_len(from first 4 bytes)=" << declaredLen
+                      << " expected_total_for_ONE_msg=" << expectedTotal
+                      << " EXTRA_BYTES=" << (static_cast<long>(bytesRead) - static_cast<long>(expectedTotal))
+                      << std::endl;
+            std::cout << "[RAW_RECV] first32_hex=[ " << hex_start.str() << "]" << std::endl;
+
+            if (bytesRead > 0 && static_cast<size_t>(bytesRead) > expectedTotal && expectedTotal > 0) {
+                // Dump the bytes right at the boundary where the SECOND message's
+                // length prefix should begin, if coalescing occurred
+                size_t boundary = expectedTotal;
+                size_t dumpLen = std::min<size_t>(16, buffer.size() - boundary);
+                for (size_t i = boundary; i < boundary + dumpLen; ++i)
+                    hex_end << std::hex << std::setw(2) << std::setfill('0') << (int)buffer[i] << " ";
+                std::cout << "[RAW_RECV] *** COALESCING DETECTED *** bytes at boundary offset "
+                          << boundary << " (likely start of NEXT message): [ " << hex_end.str() << "]"
+                          << std::endl;
+            }
+        }
+
         // Deserialize the received fragment
         AlServiceDataUnit fragment;
         try {
