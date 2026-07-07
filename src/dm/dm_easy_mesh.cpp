@@ -775,6 +775,9 @@ int dm_easy_mesh_t::decode_config(em_subdoc_info_t *subdoc, const char *str, uns
     } else if (strncmp(str, "SetAnticipatedChannelPreference", strlen("SetAnticipatedChannelPreference")) == 0) {
         snprintf(key, sizeof(em_long_string_t), "wfa-dataelements:%s", str);
         return decode_config_set_channel(subdoc, key, index, num);
+    } else if (strncmp(str, "ChannelSelectionRequest", strlen("ChannelSelectionRequest")) == 0) {
+        snprintf(key, sizeof(em_long_string_t), "wfa-dataelements:%s", str);
+        return decode_config_set_channel(subdoc, key, index, num);
     } else if (strncmp(str, "ChannelScanRequest", strlen("ChannelScanRequest")) == 0) {
         snprintf(key, sizeof(em_long_string_t), "wfa-dataelements:%s", str);
         return decode_config_set_channel(subdoc, key, index, num);
@@ -1218,6 +1221,7 @@ int dm_easy_mesh_t::decode_config_set_channel(em_subdoc_info_t *subdoc, const ch
 {
 #define KEY_CHANNEL_ANTICIPATED "wfa-dataelements:SetAnticipatedChannelPreference"
 #define KEY_CHANNEL_SCANREQUEST "wfa-dataelements:ChannelScanRequest"
+#define KEY_CHANNEL_SELECTION "wfa-dataelements:ChannelSelectionRequest"
     cJSON *parent_obj = NULL;
     cJSON *wrapper_obj, *net_obj, *net_id_obj;
     cJSON *dev_arr_obj, *dev_obj, *dev_id_obj;
@@ -1246,6 +1250,9 @@ int dm_easy_mesh_t::decode_config_set_channel(em_subdoc_info_t *subdoc, const ch
     } else if (strncmp(key, KEY_CHANNEL_SCANREQUEST, strlen(KEY_CHANNEL_SCANREQUEST)) == 0) {
         snprintf(target_key, sizeof(em_long_string_t), "ChannelScanParameters");
         type = em_op_class_type_scan_param;
+    } else if (strncmp(key, KEY_CHANNEL_SELECTION, strlen(KEY_CHANNEL_SELECTION)) == 0) {
+        snprintf(target_key, sizeof(em_long_string_t), "ChannelSelectionRequest");
+        type = em_op_class_type_selection;
     } else {
         em_printfout("Invalid wrapper key: '%s'", key);
         return EM_PARSE_ERR_GEN;
@@ -1311,7 +1318,7 @@ int dm_easy_mesh_t::decode_config_set_channel(em_subdoc_info_t *subdoc, const ch
 
     /* "Channel Scan" is for radio, so is "Set Channel". "Set Anticipated Channel Preference"
      * is for device. There is also a clash here. */
-    if (type == em_op_class_type_scan_param) {
+    if (type == em_op_class_type_scan_param || type == em_op_class_type_selection) {
         /* Get 'RadioList' under 'Device' and extract Radio ID (MAC) */
         if ((radio_arr_obj = cJSON_GetObjectItem(dev_obj, "RadioList")) == NULL) {
             em_printfout("'RadioList' not found in Device: %s", subdoc->buff);
@@ -1363,9 +1370,21 @@ int dm_easy_mesh_t::decode_config_set_channel(em_subdoc_info_t *subdoc, const ch
 
         memset(&m_op_class[m_num_opclass].m_op_class_info, 0, sizeof(em_op_class_info_t));
 
-        m_op_class[m_num_opclass].m_op_class_info.id.type = type;
-        m_op_class[m_num_opclass].m_op_class_info.op_class = static_cast<unsigned int> (cJSON_GetNumberValue(cJSON_GetObjectItem(target_obj, "Class")));
-        m_op_class[m_num_opclass].m_op_class_info.id.op_class = m_op_class[m_num_opclass].m_op_class_info.op_class;
+        // Presently only Anticipated opclass is being used as valid.
+        // Support of type selection will be used in upcoming updates
+        m_op_class[m_num_opclass].m_op_class_info.id.type =
+            (type == em_op_class_type_selection) ? em_op_class_type_anticipated : type;
+
+        cJSON *class_num_obj = cJSON_GetObjectItem(target_obj, "Class");
+        if (!cJSON_IsNumber(class_num_obj)) {
+            em_printfout("Class not present");
+            cJSON_Delete(parent_obj);
+            return EM_PARSE_ERR_GEN;
+        }
+        m_op_class[m_num_opclass].m_op_class_info.op_class =
+            static_cast<unsigned int>(cJSON_GetNumberValue(class_num_obj));
+        m_op_class[m_num_opclass].m_op_class_info.id.op_class =
+            m_op_class[m_num_opclass].m_op_class_info.op_class;
 
         if ((channel_arr_obj = cJSON_GetObjectItem(target_obj, "ChannelList")) == NULL) {
             em_printfout("ChannelList not present");
@@ -1375,6 +1394,12 @@ int dm_easy_mesh_t::decode_config_set_channel(em_subdoc_info_t *subdoc, const ch
 
         m_op_class[m_num_opclass].m_op_class_info.num_channels = 0;
         if (type != em_op_class_type_scan_param) {
+
+            // For TR181 request belongs to only one radio, so copying same for all opclass entries as ID
+            if (type == em_op_class_type_selection) {
+                memcpy(m_op_class[m_num_opclass].m_op_class_info.id.ruid, m_radio[0].m_radio_info.intf.mac, sizeof(mac_address_t));
+            }
+
             if ((channel_pref_arry_obj = cJSON_GetObjectItem(target_obj, "ChannelPrefList")) == NULL) {
                 em_printfout("ChannelPrefList not present");
                 cJSON_Delete(parent_obj);
@@ -1402,7 +1427,7 @@ int dm_easy_mesh_t::decode_config_set_channel(em_subdoc_info_t *subdoc, const ch
         m_num_opclass++;
     }
 
-    if (type == em_op_class_type_anticipated && m_num_opclass == 0) {
+    if ((type == em_op_class_type_anticipated || type == em_op_class_type_selection) && m_num_opclass == 0) {
         em_printfout("OpClass list is empty");
         cJSON_Delete(parent_obj);
         return EM_PARSE_ERR_NO_CHANGE;
