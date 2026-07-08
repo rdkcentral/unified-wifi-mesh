@@ -388,46 +388,66 @@ void em_mgr_t::nodes_listener()
 
         em = static_cast<em_t *>(hash_map_get_first(m_em_map));
         while (em != NULL) {
-            printf("%s:%d: Entering into loop\n", __func__, __LINE__);
-            if (em->is_al_interface_em() == true) {
-                if (FD_ISSET(em->get_fd(), &m_rset)) {
-                    printf("%s:%d: fd=%d is READY\n", __func__, __LINE__, em->get_fd());
-                }
+          printf("%s:%d: Entering into loop\n", __func__, __LINE__);
+          if (em->is_al_interface_em() == true) {
 #ifdef AL_SAP
-                printf("%s:%d: [AL_SAP] Waiting on serviceAccessPointDataIndication for fd:%d\n", __func__, __LINE__, em->get_fd());
-                try{
-                    AlServiceDataUnit sdu = g_sap->serviceAccessPointDataIndication();
-                    std::vector<unsigned char> payload = sdu.getPayload();
-                    printf("%s:%d: [AL_SAP] Received SDU, payload len:%zu\n", __func__, __LINE__, payload.size());
+            if (FD_ISSET(em->get_fd(), &m_rset)) {
+              printf("%s:%d: fd=%d is READY\n", __func__, __LINE__,
+                     em->get_fd());
+            }
+            tm.tv_sec = 0;
+            tm.tv_usec = m_timeout * 1000;
+            highest_fd = reset_listeners();
+            printf("%s:%d: [AL_SAP] Waiting on "
+                   "serviceAccessPointDataIndication for fd:%d\n",
+                   __func__, __LINE__, em->get_fd());
+            try {
+              AlServiceDataUnit sdu = g_sap->serviceAccessPointDataIndication();
+              std::vector<unsigned char> payload = sdu.getPayload();
+              printf("%s:%d: [AL_SAP] Received SDU, payload len:%zu\n",
+                     __func__, __LINE__, payload.size());
 
-                    std::vector<unsigned char> reconstructed_eth_frame;
-                    auto first_mac = sdu.getSourceAlMacAddress();
-                    reconstructed_eth_frame.insert(reconstructed_eth_frame.end(),first_mac.begin(),first_mac.end());
-                    auto second_mac = sdu.getDestinationAlMacAddress();
-                    reconstructed_eth_frame.insert(reconstructed_eth_frame.end(),second_mac.begin(),second_mac.end());
-                    reconstructed_eth_frame.push_back(0x89);
-                    reconstructed_eth_frame.push_back(0x3A);
-                    reconstructed_eth_frame.insert(reconstructed_eth_frame.end(),payload.begin(),payload.end());
+              std::vector<unsigned char> reconstructed_eth_frame;
+              auto first_mac = sdu.getSourceAlMacAddress();
+              reconstructed_eth_frame.insert(reconstructed_eth_frame.end(),
+                                             first_mac.begin(),
+                                             first_mac.end());
+              auto second_mac = sdu.getDestinationAlMacAddress();
+              reconstructed_eth_frame.insert(reconstructed_eth_frame.end(),
+                                             second_mac.begin(),
+                                             second_mac.end());
+              reconstructed_eth_frame.push_back(0x89);
+              reconstructed_eth_frame.push_back(0x3A);
+              reconstructed_eth_frame.insert(reconstructed_eth_frame.end(),
+                                             payload.begin(), payload.end());
 
-                    printf("%s:%d: [AL_SAP] Reconstructed frame total len:%zu, src:" MACSTRFMT ", dst:" MACSTRFMT "\n",
-                        __func__, __LINE__, reconstructed_eth_frame.size(), MAC2STR(first_mac), MAC2STR(second_mac));
-                    em_printfout("First MAC Address: " MACSTRFMT, MAC2STR(first_mac));
-                    em_printfout("Second MAC Address: " MACSTRFMT, MAC2STR(second_mac));
-                    em_printfout("RECONSTRUCTED_ETH_FRAME: \t");
-                    util::print_hex_dump(reconstructed_eth_frame);
-                    printf("%s:%d: [AL_SAP] Calling proto_process, len:%u\n", __func__, __LINE__,
-                        static_cast<unsigned int>(reconstructed_eth_frame.size()));
-                    proto_process(reconstructed_eth_frame.data(), static_cast<unsigned int>(reconstructed_eth_frame.size()), em);
-                    printf("%s:%d: [AL_SAP] proto_process returned\n", __func__, __LINE__);
-                } catch (const AlServiceException& e) {
-                    if (e.getPrimitiveError() == PrimitiveError::InvalidMessage) {
-                        em_printfout("%s. Dropping packet", e.what());
-                    } else {
-                        em_printfout("%s %d Failure\n", __func__, __LINE__);
-                        em_printfout("%s", e.what());
-                        throw e;
-                    }
-                }
+              printf("%s:%d: [AL_SAP] Reconstructed frame total len:%zu, "
+                     "src:" MACSTRFMT ", dst:" MACSTRFMT "\n",
+                     __func__, __LINE__, reconstructed_eth_frame.size(),
+                     MAC2STR(first_mac), MAC2STR(second_mac));
+              em_printfout("First MAC Address: " MACSTRFMT, MAC2STR(first_mac));
+              em_printfout("Second MAC Address: " MACSTRFMT,
+                           MAC2STR(second_mac));
+              em_printfout("RECONSTRUCTED_ETH_FRAME: \t");
+              util::print_hex_dump(reconstructed_eth_frame);
+              printf("%s:%d: [AL_SAP] Calling proto_process, len:%u\n",
+                     __func__, __LINE__,
+                     static_cast<unsigned int>(reconstructed_eth_frame.size()));
+              proto_process(
+                  reconstructed_eth_frame.data(),
+                  static_cast<unsigned int>(reconstructed_eth_frame.size()),
+                  em);
+              printf("%s:%d: [AL_SAP] proto_process returned\n", __func__,
+                     __LINE__);
+            } catch (const AlServiceException &e) {
+              if (e.getPrimitiveError() == PrimitiveError::InvalidMessage) {
+                em_printfout("%s. Dropping packet", e.what());
+              } else {
+                em_printfout("%s %d Failure\n", __func__, __LINE__);
+                em_printfout("%s", e.what());
+                throw e;
+              }
+            }
 #else
                 unsigned char buff[MAX_EM_BUFF_SZ*EM_MAX_BANDS];
                 pthread_mutex_lock(&m_mutex);
@@ -452,13 +472,10 @@ void em_mgr_t::nodes_listener()
                     }
                 }
 #endif
-		break;
-            }
+		    break;
+          }
             em = static_cast<em_t *>(hash_map_get_next(m_em_map, em));
         }
-        tm.tv_sec = 0;
-        tm.tv_usec = m_timeout * 1000;
-        highest_fd = reset_listeners();
     }
     printf("%s:%d: select() loop EXITED, rc:%d, errno:%d (%s)\n", __func__, __LINE__, rc, errno, strerror(errno));
 }
