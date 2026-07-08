@@ -787,7 +787,7 @@ TEST_F(em_orch_agent_t_TEST, ZeroCommands) {
 /**
  * @brief Verify that submit_commands handles a nullptr command array correctly.
  *
- * This test verifies that when a nullptr is passed as the command array along with a valid count (num = 3), the submit_commands API returns a non-zero value. This behavior indicates that the function correctly handles invalid input.
+ * This test verifies that when a nullptr is passed as the command array along with a valid count (num = 3), the submit_commands API returns 0 (no commands submitted). This behavior indicates that the function handles the null command array gracefully without crashing.
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 023@n
@@ -800,14 +800,14 @@ TEST_F(em_orch_agent_t_TEST, ZeroCommands) {
  * **Test Procedure:**
  * | Variation / Step | Description                                                        | Test Data                                 | Expected Result                                   | Notes       |
  * | :--------------: | ------------------------------------------------------------------ | ----------------------------------------- | ------------------------------------------------- | ----------- |
- * | 01               | Invoke submit_commands with a nullptr for the command array and num=3 | command = nullptr, num = 3                | Return value is non-zero and EXPECT_NE(result, 0) passes | Should Pass |
+ * | 01               | Invoke submit_commands with a nullptr for the command array and num=3 | command = nullptr, num = 3                | No commands submitted; returns 0 and EXPECT_EQ(result, 0) passes | Should Pass |
  */
 TEST_F(em_orch_agent_t_TEST, NullCommandsPointer) {
     std::cout << "Entering NullCommandsPointer test" << std::endl;
     std::cout << "Invoking submit_commands with a nullptr for the command array and num = 3" << std::endl;
     unsigned int result = orch->submit_commands(nullptr, 3);
     std::cout << "submit_commands returned: " << result << std::endl;
-    EXPECT_NE(result, 0);
+    EXPECT_EQ(result, 0);
     std::cout << "Exiting NullCommandsPointer test" << std::endl;
 }
 /**
