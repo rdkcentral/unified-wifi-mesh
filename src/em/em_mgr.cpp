@@ -386,14 +386,13 @@ void em_mgr_t::nodes_listener()
             continue;
         }
 
-	if (FD_ISSET(em->get_fd(), &m_rset)) {
-		printf("%s:%d: fd=%d is READY\n",
-               __func__, __LINE__, em->get_fd());
-	}
         em = static_cast<em_t *>(hash_map_get_first(m_em_map));
         while (em != NULL) {
             printf("%s:%d: Entering into loop\n", __func__, __LINE__);
             if (em->is_al_interface_em() == true) {
+                if (FD_ISSET(em->get_fd(), &m_rset)) {
+                    printf("%s:%d: fd=%d is READY\n", __func__, __LINE__, em->get_fd());
+                }
 #ifdef AL_SAP
                 printf("%s:%d: [AL_SAP] Waiting on serviceAccessPointDataIndication for fd:%d\n", __func__, __LINE__, em->get_fd());
                 try{
@@ -420,10 +419,6 @@ void em_mgr_t::nodes_listener()
                         static_cast<unsigned int>(reconstructed_eth_frame.size()));
                     proto_process(reconstructed_eth_frame.data(), static_cast<unsigned int>(reconstructed_eth_frame.size()), em);
                     printf("%s:%d: [AL_SAP] proto_process returned\n", __func__, __LINE__);
-		    if (access("/tmp/ctrl_m1_delay", F_OK) == 0) {
-			    printf("Delay file found. Sleeping for 200 ms...\n");
-			    usleep(200000);   // 200000 microseconds = 200 ms
-		    }
                 } catch (const AlServiceException& e) {
                     if (e.getPrimitiveError() == PrimitiveError::InvalidMessage) {
                         em_printfout("%s. Dropping packet", e.what());
