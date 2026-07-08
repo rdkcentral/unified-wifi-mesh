@@ -358,6 +358,7 @@ int em_mgr_t::reset_listeners()
         if (em->is_al_interface_em() == true) {
             FD_SET(em->get_fd(), &m_rset);
             num++;
+	    printf("%s:%d: get_fd=%d highest_fd= %d\n", __func__, __LINE__, em->get_fd(), highest_fd);
             highest_fd = (em->get_fd() > highest_fd) ? em->get_fd():highest_fd;
         }
         em = static_cast<em_t *>(hash_map_get_next(m_em_map, em));
@@ -385,8 +386,13 @@ void em_mgr_t::nodes_listener()
             continue;
         }
 
+	if (FD_ISSET(em->get_fd(), &m_rset)) {
+		printf("%s:%d: fd=%d is READY\n",
+               __func__, __LINE__, em->get_fd());
+	}
         em = static_cast<em_t *>(hash_map_get_first(m_em_map));
         while (em != NULL) {
+            printf("%s:%d: Entering into loop\n", __func__, __LINE__);
             if (em->is_al_interface_em() == true) {
 #ifdef AL_SAP
                 printf("%s:%d: [AL_SAP] Waiting on serviceAccessPointDataIndication for fd:%d\n", __func__, __LINE__, em->get_fd());
@@ -406,12 +412,10 @@ void em_mgr_t::nodes_listener()
 
                     printf("%s:%d: [AL_SAP] Reconstructed frame total len:%zu, src:" MACSTRFMT ", dst:" MACSTRFMT "\n",
                         __func__, __LINE__, reconstructed_eth_frame.size(), MAC2STR(first_mac), MAC2STR(second_mac));
-#ifdef DEBUG_MODE
                     em_printfout("First MAC Address: " MACSTRFMT, MAC2STR(first_mac));
                     em_printfout("Second MAC Address: " MACSTRFMT, MAC2STR(second_mac));
                     em_printfout("RECONSTRUCTED_ETH_FRAME: \t");
                     util::print_hex_dump(reconstructed_eth_frame);
-#endif
                     printf("%s:%d: [AL_SAP] Calling proto_process, len:%u\n", __func__, __LINE__,
                         static_cast<unsigned int>(reconstructed_eth_frame.size()));
                     proto_process(reconstructed_eth_frame.data(), static_cast<unsigned int>(reconstructed_eth_frame.size()), em);
@@ -453,6 +457,7 @@ void em_mgr_t::nodes_listener()
                     }
                 }
 #endif
+		break;
             }
             em = static_cast<em_t *>(hash_map_get_next(m_em_map, em));
         }
