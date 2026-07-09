@@ -484,14 +484,13 @@ class em_configuration_t {
 	 * including STA MAC Address Type TLV, Reason Code TLV, Associated STA Traffic Stats TLV,
 	 * and zero or more Affiliated STA Metrics TLVs (for MLD clients).
 	 *
-	 * @param[in] sta  The MAC address of the disassociated station (MLD MAC if MLD client).
-	 * @param[in] bssid The BSSID from which the station disassociated.
+	 * @param[in] dassoc_sta Pointer to the disassociated sta
 	 *
 	 * @returns int
 	 * @retval message length on success
 	 * @retval -1 on failure
 	 */
-	int send_client_disassoc_stats_msg(mac_address_t sta, bssid_t bssid);
+	int send_client_disassoc_stats_msg(const dm_sta_t *dassoc_sta);
 
 	/**!
 	 * @brief Sends a Failed Connection message

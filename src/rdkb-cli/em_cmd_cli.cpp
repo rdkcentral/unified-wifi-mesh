@@ -69,6 +69,7 @@ em_cmd_params_t spec_params[] = {
     {.u = {.args = {2, {"", "", "", "", ""}, "MLDConfig"}}},
     {.u = {.args = {2, {"", "", "", "", ""}, "MLDReconfig"}}},
     {.u = {.args = {2, {"", "", "", "", ""}, "WifiReset"}}},
+    {.u = {.args = {2, {"", "", "", "", ""}, "UnassocSTAQuery.json"}}},
 	{.u = {.args = {0, {"", "", "", "", ""}, "max"}}},
 };
 
@@ -103,7 +104,8 @@ em_cmd_t em_cmd_cli_t::m_client_cmd_spec[] = {
     em_cmd_t(em_cmd_type_get_mld_config, spec_params[26]),
     em_cmd_t(em_cmd_type_mld_reconfig, spec_params[27]),
     em_cmd_t(em_cmd_type_get_reset, spec_params[28]),
-    em_cmd_t(em_cmd_type_max, spec_params[29]),
+    em_cmd_t(em_cmd_type_unassoc_sta_query, spec_params[29]),
+    em_cmd_t(em_cmd_type_max, spec_params[30]),
 };
 
 int em_cmd_cli_t::get_edited_node(em_network_node_t *node, const char *header, char *buff)
@@ -454,6 +456,20 @@ int em_cmd_cli_t::execute(char *result)
             snprintf(info->name, sizeof(info->name), "%s", param->u.args.fixed_args);
             break;
 
+       case em_cmd_type_unassoc_sta_query:
+
+           bevt->type = em_bus_event_type_unassoc_sta_query;
+           info = &bevt->u.subdoc;
+
+           strncpy(info->name, param->u.args.fixed_args, sizeof(info->name) - 1);
+           info->name[sizeof(info->name) - 1] = '\0';
+
+           if ((bevt->data_len = get_edited_node(m_cmd.m_param.net_node, "UnassocSTAQuery", info->buff)) < 0) {
+               em_printfout("%s:%d: failed to get UnassocSTAQuery node\n", __func__, __LINE__);
+               return -1;
+           }
+           break;
+	   
         default:
             break;
     }

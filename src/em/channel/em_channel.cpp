@@ -2111,8 +2111,18 @@ void em_channel_t::fill_scan_result(dm_scan_result_t *scan_res, em_channel_scan_
 	mac_addr_str_t bssid_str;
 
 	scan_res->m_scan_result.scan_status = res->scan_status;
-	strncpy(scan_res->m_scan_result.timestamp, res->timestamp, static_cast<size_t>(res->timestamp_len + 1));
+	if (res->scan_status != 0) {
+            em_printfout("%s:%d scan failed with status=%u", __func__, __LINE__, res->scan_status);
+            scan_res->m_scan_result.timestamp[0] = '\0';
+            scan_res->m_scan_result.util = 0;
+            scan_res->m_scan_result.noise = 0;
+            scan_res->m_scan_result.num_neighbors = 0;
+            scan_res->m_scan_result.aggr_scan_duration = 0;
+            scan_res->m_scan_result.scan_type = 0;
+	    return;
+	}
 
+	strncpy(scan_res->m_scan_result.timestamp, res->timestamp, static_cast<size_t>(res->timestamp_len + 1));
 	tmp = reinterpret_cast<unsigned char *> (res) + sizeof(em_channel_scan_result_t) + res->timestamp_len;
 	
 	memcpy(&scan_res->m_scan_result.util, tmp, sizeof(unsigned char));
@@ -2156,7 +2166,7 @@ void em_channel_t::fill_scan_result(dm_scan_result_t *scan_res, em_channel_scan_
         } else if (strncmp(bandwidth, "40", strlen("40")) == 0) {
             nbr->bandwidth = WIFI_CHANNELBANDWIDTH_40MHZ;
         } else if (strncmp(bandwidth, "80", strlen("80")) == 0) {
-            nbr->bandwidth = WIFI_CHANNELBANDWIDTH_40MHZ;
+            nbr->bandwidth = WIFI_CHANNELBANDWIDTH_80MHZ;
         } else if (strncmp(bandwidth, "160", strlen("160")) == 0) {
             nbr->bandwidth = WIFI_CHANNELBANDWIDTH_160MHZ;
         } else if (strncmp(bandwidth, "320", strlen("320")) == 0) {

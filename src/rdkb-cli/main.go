@@ -635,6 +635,22 @@ type Obstacle struct {
 	Material    string    `json:"material,omitempty"`
 }
 
+// Holds parameters for Unassociated STA Link Metrics Query
+type unassocStaChannel struct {
+        Channel     int      `json:"channel"`
+        StaMacList  []string `json:"sta_macs"`
+}
+
+type unassocStaOpClass struct {
+        OpClass int                  `json:"opclass"`
+        Channels []unassocStaChannel `json:"channels"`
+}
+
+type unassocStaQueryRequest struct {
+        AlMac string                  `json:"AlMac"`
+        QueryList []unassocStaOpClass `json:"UnassocStaQueryList"`
+}
+
 //ckp cov end
 // ===== GLOBAL VARIABLES =====
 var (
@@ -2889,6 +2905,9 @@ func main() {
 	//system setting Wifi Reset
 	api.HandleFunc("/wifireset", WifiResetHandler).Methods("GET", "POST")
 
+	// Unassoc STA 
+	api.HandleFunc("/unassoc_sta_query", unassocStaQueryHandler).Methods("POST")
+
 	// Enable CORS
 	router.Use(corsMiddleware)
 
@@ -3499,6 +3518,104 @@ func WifiResetHandler(w http.ResponseWriter, r *http.Request) {
             http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
     }
 }
+
+
+/*
+ * func: unassocStaQueryHandler()
+ *
+ * Description:
+ * Handles POST /unassoc_sta_query requests.
+ * Parses payload and triggers Unassociated STA Link Metrics Query.
+ */
+func unassocStaQueryHandler(w http.ResponseWriter, r *http.Request) {
+    if r.Method != http.MethodPost {
+        http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+        return
+    }
+
+    defer r.Body.Close()
+    
+    const maxRequestSize = 64 * 1024 // 64 KB
+    r.Body = http.MaxBytesReader(w, r.Body, maxRequestSize)
+
+    var req unassocStaQueryRequest
+    log.Printf("[DEBUG][HTTP] Received unassoc STA query request")
+
+    if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+        http.Error(w, "Invalid request payload", http.StatusBadRequest)
+        return
+    }
+
+    if req.AlMac == "" {
+        http.Error(w, "AlMac required", http.StatusBadRequest)
+        return
+    }
+
+    if len(req.QueryList) == 0 {
+        http.Error(w, "UnassocStaQueryList required", http.StatusBadRequest)
+        return
+    }
+
+    for _, op := range req.QueryList {
+
+        if len(op.Channels) == 0 {
+            http.Error(w, "Each opclass must contain channels", http.StatusBadRequest)
+            return
+        }
+
+        for _, ch := range op.Channels {
+
+            if len(ch.StaMacList) == 0 {
+                http.Error(w, "Each channel must contain STA list", http.StatusBadRequest)
+                return
+            }
+        }
+    }
+
+    for i, op := range req.QueryList {
+        log.Printf("[DEBUG][HTTP] OpClass[%d]=%d Channels=%d", i, op.OpClass, len(op.Channels))
+
+        for j, ch := range op.Channels {
+            log.Printf("[DEBUG][HTTP]   Channel[%d]=%d STA Count=%d", j, ch.Channel, len(ch.StaMacList))
+        }
+    }
+
+    jsonBytes, err := json.Marshal(req)
+    if err != nil {
+        log.Printf("[ERROR][HTTP] Failed to marshal request: %v", err)
+        http.Error(w, "Failed to process request", http.StatusInternalServerError)
+        return
+    }
+
+    cJsonStr := C.CString(string(jsonBytes))
+    defer C.free(unsafe.Pointer(cJsonStr))
+
+    node := C.get_network_tree(cJsonStr)
+    if node == nil {
+        http.Error(w, "Failed to create network tree", http.StatusInternalServerError)
+        return
+    }
+    defer C.free_network_tree(node)
+
+    cmd := C.CString("unassoc_sta_query OneWifiMesh")
+    defer C.free(unsafe.Pointer(cmd))
+    result := C.exec(cmd, C.strlen(cmd), node)
+
+    if result == nil {
+        http.Error(w, "Command execution failed", http.StatusInternalServerError)
+        return
+    }
+    defer C.free_network_tree(result)
+
+    //log.Printf("[CLI] Unassoc STA Query sent: %+v", req)
+
+    w.Header().Set("Content-Type", "application/json")
+
+    if err := json.NewEncoder(w).Encode(map[string]interface{}{"success": true, "message": "Unassoc STA Query sent",}); err != nil {
+        log.Printf("[ERROR][HTTP] Failed to encode response: %v", err)
+    }    
+}
+
 
 //------------------------------------------------------------
 //                    Helper Functions

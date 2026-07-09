@@ -3,6 +3,19 @@
 
 		"Network":	{
 			"ID":	"OneWifiMesh",
+			"AnticipatedChannelPreference":	[{
+					"Class":	134,
+					"ChannelList":	[1, 2],
+					"ChannelPrefList":	[0, 0]
+				}, {
+					"Class":	136,
+					"ChannelList":	[1, 2],
+					"ChannelPrefList":	[0, 0]
+				}, {
+					"Class":	137,
+					"ChannelList":	[1, 2],
+					"ChannelPrefList":	[0, 0]
+				}],
 			"DeviceList":	[{
 					"ID":	"00:0c:29:dc:63:48",
 					"RadioList":	[{
@@ -22,20 +35,10 @@
 						}, {
 							"ID":	"00:ab:cd:ef:00:10",
 							"CurrentOperatingClasses":	[{
-                                            "Class":	135,
+									"Class":	135,
 									"Channel":	1,
 									"TxPower":	20
 								}]
-						}],
-					"AnticipatedChannelPreference":	[{
-							"Class":	134,
-							"ChannelList":	[1, 2]
-						}, {
-							"Class":	136,
-							"ChannelList":	[1, 2]
-						}, {
-							"Class":	137,
-							"ChannelList":	[1, 2]
 						}]
 				}]
 		},

@@ -498,10 +498,6 @@ void em_agent_t::handle_recv_connection_status(em_bus_event_t *event)
     conn_status_evt = reinterpret_cast<const em_connection_status_evt_data_t *>(event->u.raw_buff);
 
     if (!is_failed_connection_message(conn_status_evt)) {
-        /*em_printfout("Skip: sta=%s bssid=%s status=%u not in failed-connection filter",
-                     util::mac_to_string(conn_status_evt->sta_mac).c_str(),
-                     util::mac_to_string(conn_status_evt->bssid).c_str(),
-                     conn_status_evt->status_code);*/
         return;
     }
 
@@ -540,10 +536,11 @@ void em_agent_t::handle_recv_connection_status(em_bus_event_t *event)
     qevt->u.cevt.type = em_cmd_event_type_failed_connection;
     qevt->u.cevt.cmd_ptr = evt_copy;
 
-    em_printfout("Queue failed connection: sta=%s bssid=%s status=%u",
+    em_printfout("Queue failed connection: sta=%s bssid=%s status=%u reason=%u",
                  util::mac_to_string(evt_copy->sta_mac).c_str(),
                  util::mac_to_string(evt_copy->bssid).c_str(),
-                 evt_copy->status_code);
+                 evt_copy->status_code,
+                 evt_copy->reason_code);
 
     em->push_to_queue(qevt);
 }
@@ -852,6 +849,131 @@ void em_agent_t::handle_channel_scan_params(em_bus_event_t *evt)
     }
 }
 
+void em_agent_t::handle_unassoc_sta_result(em_bus_event_t *evt)
+{
+    em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
+    unsigned int num;
+
+    if ((num = m_data_model.analyze_unassoc_sta_result(evt, pcmd)) == 0) {
+        em_printfout("Unassoc STA Links results failed\n");
+    } else if (m_orch->submit_commands(pcmd, num) > 0) {
+        em_printfout("Unassoc submitting commands");
+    }
+}
+
+int em_agent_t::send_unassoc_sta_query_subdoc(wifi_bus_desc_t *desc, bus_handle_t *bus_hdl, em_unassoc_work_list_t *work)
+{
+    if ((desc == NULL) || (bus_hdl == NULL) || (work == NULL)) {
+        em_printfout("%s:%d Invalid input params desc=%p bus_hdl=%p work=%p",
+                     __func__, __LINE__, desc, bus_hdl, work);
+        return -1;
+    }
+
+    cJSON *root = cJSON_CreateObject();
+    if (root == NULL) {
+        em_printfout("%s:%d root creation failed", __func__, __LINE__);
+        return -1;
+    }
+
+    cJSON_AddStringToObject(root, "Version", "1.0");
+    cJSON_AddStringToObject(root, "SubDocName", "UnassocStaQuery");
+
+    cJSON *query_list = cJSON_AddArrayToObject(root, "UnassocStaQueryList");
+
+    if (query_list == NULL) {
+        em_printfout("%s:%d query_list creation failed", __func__, __LINE__);
+        cJSON_Delete(root);
+        return -1;
+    }
+
+    for (uint8_t i = 0; i < work->num_opclass; i++) {
+        em_unassoc_work_opclass_t *op = &work->opclass_list[i];
+
+        if (op->num_channels == 0) {
+            continue;
+        }
+
+        cJSON *op_obj = cJSON_CreateObject();
+        if (op_obj == NULL) {
+            continue;
+        }
+
+        cJSON_AddNumberToObject(op_obj, "opclass", op->op_class);
+ 
+        cJSON_AddNumberToObject(op_obj, "channels_length", op->num_channels);
+        cJSON *channels = cJSON_AddArrayToObject(op_obj, "channels");
+        if (channels == NULL) {
+            cJSON_Delete(op_obj);
+            continue;
+        }
+
+        for (uint8_t ch_idx = 0; ch_idx < op->num_channels; ch_idx++) {
+            em_unassoc_work_channel_t *ch = &op->channel_list[ch_idx];
+
+            cJSON *ch_obj = cJSON_CreateObject();
+            if (ch_obj == NULL) {
+                continue;
+            }
+
+            cJSON_AddNumberToObject(ch_obj, "channel", ch->channel);
+            cJSON_AddNumberToObject(ch_obj, "sta_list_length", ch->num_sta);
+            cJSON *sta_arr = cJSON_AddArrayToObject(ch_obj, "sta_macs");
+           if (sta_arr == NULL) {
+                cJSON_Delete(ch_obj);
+                continue;
+            }
+
+            for (uint8_t sta_idx = 0; sta_idx < ch->num_sta; sta_idx++)
+            {
+                char mac_str[32] = {0};
+
+                snprintf(mac_str,
+                         sizeof(mac_str),
+                         "%02X:%02X:%02X:%02X:%02X:%02X",
+                         ch->sta_list[sta_idx][0],
+                         ch->sta_list[sta_idx][1],
+                         ch->sta_list[sta_idx][2],
+                         ch->sta_list[sta_idx][3],
+                         ch->sta_list[sta_idx][4],
+                         ch->sta_list[sta_idx][5]);
+
+                cJSON_AddItemToArray(sta_arr, cJSON_CreateString(mac_str));
+            }
+            cJSON_AddItemToArray(channels, ch_obj);
+        }
+        cJSON_AddItemToArray(query_list, op_obj);
+    }
+    char *json_str = cJSON_Print(root);
+
+    if (json_str == NULL) {
+        em_printfout("%s:%d JSON serialization failed",  __func__, __LINE__);
+        cJSON_Delete(root);
+        return -1;
+    }
+
+    em_printfout("========== Unassoc STA Query Subdoc ==========\n%s\n==============================================",
+        json_str);
+
+    raw_data_t bus_data;
+    memset(&bus_data, 0, sizeof(raw_data_t));
+    bus_data.data_type = bus_data_type_string;
+    bus_data.raw_data.bytes = json_str;
+    bus_data.raw_data_len = strlen(json_str);
+
+    if (desc->bus_set_fn(bus_hdl, "Device.WiFi.UnAssoc.STA", &bus_data) != 0) {
+        em_printfout("%s:%d Unassoc subdoc send failed",  __func__, __LINE__);
+        free(json_str);
+        cJSON_Delete(root);	
+        return -1;
+    }
+    em_printfout("%s:%d Unassoc STA Link Metrics Query subdoc send success", __func__, __LINE__);
+    
+    free(json_str);
+    cJSON_Delete(root);
+
+    return 0;
+}
+
 bool em_agent_t::send_scan_request(em_scan_params_t* scan_params, bool perform_fresh_scan, bool is_sta_vap){
     unsigned i, j;
     raw_data_t l_bus_data;
@@ -901,6 +1023,77 @@ bool em_agent_t::send_scan_request(em_scan_params_t* scan_params, bool perform_f
     }
     em_printfout("Sent channel scan request to bus\n");
     return true;
+}
+
+void em_agent_t::handle_unassoc_sta_link_metrics_qry(em_bus_event_t *evt)
+{
+    wifi_bus_desc_t *desc = get_bus_descriptor();
+
+    if ((evt == NULL) || (desc == NULL) || (evt->u.raw_buff == NULL) || (evt->data_len == 0)) {
+        em_printfout("%s:%d Invalid input evt=%p desc=%p buff=%p len=%u", __func__, __LINE__, evt, desc, (evt ? evt->u.raw_buff : NULL),
+                                                                                                 (evt ? evt->data_len : 0));
+        return;
+    }
+
+    unsigned char *buff = reinterpret_cast<unsigned char *>(evt->u.raw_buff);
+    unsigned int len = evt->data_len;
+    int pos = 0;
+
+    em_unassoc_work_list_t work;
+    memset(&work, 0, sizeof(work));
+    int op_idx = 0;
+
+    while ((pos + 2) <= (int)len && op_idx < EM_MAX_OP_CLASS) {
+        auto &op = work.opclass_list[op_idx];
+
+        op.op_class = buff[pos++];
+        op.num_channels = buff[pos++];
+
+        if (op.num_channels > EM_MAX_CHANNELS_PER_OPCLASS) {
+            em_printfout("%s:%d invalid num_channels=%u", __func__, __LINE__, op.num_channels);
+            return;
+        }
+
+        int chan_idx = 0;
+        for (int j = 0; j < op.num_channels; j++) {
+            if ((pos + 2) > (int)len) {
+                em_printfout("%s:%d buffer underrun channel", __func__, __LINE__);
+                return;
+            }
+
+            auto &ch = op.channel_list[chan_idx];
+            ch.channel = buff[pos++];
+            ch.num_sta = buff[pos++];
+
+            if (ch.num_sta > EM_MAX_STA_PER_CHANNEL) {
+                em_printfout("%s:%d invalid num_sta=%u", __func__, __LINE__, ch.num_sta);
+                return;
+            }
+
+            for (int k = 0; k < ch.num_sta; k++) {
+                if ((pos + sizeof(mac_address_t)) > (int)len) {
+                    em_printfout("%s:%d buffer underrun STA", __func__, __LINE__);
+                    return;
+                }
+
+                memcpy(ch.sta_list[k], &buff[pos], sizeof(mac_address_t));
+                pos += sizeof(mac_address_t);
+            }
+            chan_idx++;
+        }
+        op.num_channels = chan_idx;
+        op_idx++;
+    }
+
+    work.num_opclass = op_idx;
+
+    int rc = this->send_unassoc_sta_query_subdoc(desc, &m_bus_hdl, &work);
+
+    if (rc < 0) {
+        em_printfout("%s:%d Failed send subdoc rc=%d", __func__, __LINE__, rc);
+    } else {
+        em_printfout("%s:%d Successfully sent subdoc", __func__, __LINE__);
+    }
 }
 
 void em_agent_t::handle_set_policy(em_bus_event_t *evt)
@@ -1105,6 +1298,14 @@ void em_agent_t::handle_bus_event(em_bus_event_t *evt)
 
         case em_bus_event_type_link_quality_report:
             handle_link_stats_report(evt);
+            break;
+
+        case em_bus_event_type_unassoc_sta_link_metrics_query:
+            handle_unassoc_sta_link_metrics_qry(evt);
+            break;
+
+        case em_bus_event_type_unassoc_sta_result:
+            handle_unassoc_sta_result(evt);
             break;
 
         default:
@@ -1389,7 +1590,64 @@ void em_agent_t::input_listener()
         return;
     }
 
+   if(desc->bus_event_subs_fn(&m_bus_hdl, "Device.WiFi.EM.NaStaResponse", (void *)&em_agent_t::unassoc_sta_link_metrics_cb, NULL, 0) != 0) {
+        printf("%s:%d bus get failed\n",__func__,__LINE__);
+        return;
+    }
+
     io(NULL);
+}
+
+int em_agent_t::unassoc_sta_link_metrics_cb(char *event_name, bus_data_prop_t *data, void *userData)
+{
+    (void)event_name;
+    (void)userData;
+
+    if ((data == NULL) || (data->value.raw_data.bytes == NULL))
+    {
+        em_printfout("%s:%d invalid input", __func__,  __LINE__);
+        return -1;
+    }
+
+    cJSON *json = cJSON_Parse((const char *)data->value.raw_data.bytes);
+
+    if (json == NULL) {
+        em_printfout("%s:%d JSON parse failed",  __func__,  __LINE__);
+        return -1;
+    }
+
+    cJSON *subdoc_name = cJSON_GetObjectItemCaseSensitive(json, "SubDocName");
+
+    if ((subdoc_name == NULL) || (!cJSON_IsString(subdoc_name))) {
+        em_printfout("%s:%d SubDocName missing", __func__,  __LINE__);
+        cJSON_Delete(json);
+        return -1;
+    }
+
+    if (strcmp(subdoc_name->valuestring, "UnassocStaLinkMetricsResponse") != 0) {
+        em_printfout("%s:%d unexpected SubDocName=%s",__func__, __LINE__, subdoc_name->valuestring);
+        cJSON_Delete(json);
+        return -1;
+    }
+
+    cJSON *resp = cJSON_GetObjectItemCaseSensitive(json, "UnassocStaLinkMetricsResponse");
+    if ((resp == NULL) || (!cJSON_IsArray(resp))) {
+        em_printfout("%s:%d response array missing",__func__,__LINE__);
+        cJSON_Delete(json);
+        return -1;
+    }
+
+    char *str = cJSON_Print(json);
+    if (str != NULL) {
+        em_printfout("===== UNASSOC RESPONSE =====\n%s\n", str);
+        free(str);
+    }
+
+    g_agent.io_process(em_bus_event_type_unassoc_sta_result, reinterpret_cast<unsigned char *>(data->value.raw_data.bytes),
+                                                                               data->value.raw_data_len);
+    cJSON_Delete(json);
+
+    return 1;
 }
 
 int em_agent_t::bss_info_cb(char *event_name, bus_data_prop_t *data, void *userData)
@@ -1667,8 +1925,7 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
     bool found = false;
     em_string_t al_mac_str;
     em_bss_info_t *em_bss = NULL;
-    em_t *tmp_em = NULL;
-    em_ap_mld_info_t *ap_mld_info = NULL;
+    mac_address_t fallback_ruid = {0};
     unsigned int i = 0, j = 0;
 
     assert(len > ((sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))));
@@ -1824,58 +2081,32 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
             }
 
             dm_easy_mesh_t::macbytes_to_string(bss_mac, mac_str1);
-
-            em = static_cast<em_t *> (hash_map_get_first(m_em_map));
-            while (em != NULL) {
-                dm = em->get_data_model();
-                em_bss = dm->get_bss_info_with_mac(bss_mac);
-                if ((em_bss != NULL) &&
-                    (memcmp(em_bss->ruid.mac, em->get_radio_interface_mac(), sizeof(bssid_t)) == 0)) {
-                    printf("%s:%d: Received client cap query: found radio for bss:%s\n", __func__, __LINE__, mac_str1);
-                    break;
-                }
-                em = static_cast<em_t *> (hash_map_get_next(m_em_map, em));
-            }
-
-            if (em == NULL) {
-                // AP MLD MAC fallback: resolve affiliated link radio EM.
-                tmp_em = static_cast<em_t *>(hash_map_get_first(m_em_map));
-                while (tmp_em != NULL) {
-                    dm = tmp_em->get_data_model();
-                    if ((dm != NULL) && (tmp_em->is_al_interface_em() == false)) {
-                        for (i = 0; i < dm->get_num_ap_mld(); i++) {
-                            ap_mld_info = &dm->m_ap_mld[i].m_ap_mld_info;
-                            if (memcmp(ap_mld_info->mac_addr, bss_mac, sizeof(mac_address_t)) != 0) {
-                                continue;
-                            }
-
-                            for (j = 0; j < ap_mld_info->num_affiliated_ap; j++) {
-                                if (memcmp(ap_mld_info->affiliated_ap[j].ruid.mac,
-                                           tmp_em->get_radio_interface_mac(),
-                                           sizeof(mac_address_t)) == 0) {
-                                    em = tmp_em;
-                                    em_printfout("Client cap: AP-MLD bssid=%s mapped to radio=%s",
-                                           util::mac_to_string(bss_mac).c_str(),
-                                           util::mac_to_string(em->get_radio_interface_mac()).c_str());
-                                    break;
-                                }
-                            }
-                            if (em != NULL) {
-                                break;
-                            }
-                        }
-                    }
-
-                    if (em != NULL) {
+            if (m_data_model.is_ap_mld_mac(bss_mac) == false) {
+                em_printfout("Client cap query bss=%s is not AP-MLD MAC, using direct BSS lookup", mac_str1);
+                em = static_cast<em_t *>(hash_map_get_first(m_em_map));
+                while (em != NULL) {
+                    dm = em->get_data_model();
+                    em_bss = dm->get_bss_info_with_mac(bss_mac);
+                    if ((em_bss != NULL) &&
+                        (memcmp(em_bss->ruid.mac, em->get_radio_interface_mac(), sizeof(bssid_t)) == 0)) {
+                        em_printfout("Received client cap query: found radio for bss:%s", mac_str1);
                         break;
                     }
-                    tmp_em = static_cast<em_t *>(hash_map_get_next(m_em_map, tmp_em));
+                    em = static_cast<em_t *>(hash_map_get_next(m_em_map, em));
+                }
+            } else {
+                em_printfout("Client cap query bss=%s is AP-MLD MAC, resolving to affiliated radio", mac_str1);
+                if (m_data_model.resolve_ap_mld_to_fallback_ruid(bss_mac, fallback_ruid)) {
+                    dm_easy_mesh_t::macbytes_to_string(fallback_ruid, mac_str2);
+                    em = static_cast<em_t *>(hash_map_get(m_em_map, mac_str2));
+                    if (em != NULL) {
+                        em_printfout("Client cap query AP-MLD bss=%s resolved to radio=%s", mac_str1, mac_str2);
+                    }
                 }
             }
-
             if(em == NULL){
                 dm_easy_mesh_t::macbytes_to_string(bss_mac, mac_str2);
-                printf("%s:%d: Received client cap query: Could not find radio:%s of bss:%s\n", __func__, __LINE__, mac_str1, mac_str2);
+                em_printfout("Received client cap query: Could not find radio:%s of bss:%s", mac_str1, mac_str2);
             }
             break;
 
@@ -2002,6 +2233,20 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
 	        }
 	        em = static_cast<em_t *>(hash_map_get_next(m_em_map, em));
            }
+           break;
+
+        case em_msg_type_unassoc_sta_link_metrics_query:
+           em = (em_t *)hash_map_get_first(m_em_map);
+           while (em != NULL) {
+                if ((em->is_al_interface_em() == false)) {
+                    break;
+                }
+                em = (em_t *)hash_map_get_next(m_em_map, em);
+            }
+            break;
+
+        case em_msg_type_unassoc_sta_link_metrics_rsp:
+           printf("%s:%d: Sending Unassoc STA Link Metrics response\n", __func__, __LINE__);
            break;
 
         default:

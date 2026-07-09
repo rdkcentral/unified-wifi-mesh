@@ -266,6 +266,17 @@ public:
 	void handle_set_ssid_list(em_bus_event_t *evt);
     
 	/**!
+	 * @brief Handles channel selection events.
+	 *
+	 * This function processes channel selection events and schedules channel selection commands.
+	 *
+	 * @param[in] evt Pointer to the event structure containing channel select information.
+	 *
+	 * @note Ensure that the event structure is properly initialized before calling this function.
+	 */
+	void handle_channel_select(em_bus_event_t *evt);
+
+	/**!
 	 * @brief Handles the removal of a device from the bus.
 	 *
 	 * This function processes the event associated with the removal of a device.
@@ -457,6 +468,22 @@ public:
 	void handle_bsta_cap_req(em_bus_event_t *evt);
 
 	void handle_link_stats_alarm_report(em_bus_event_t *evt);
+
+        /**!
+         * @brief Handles an Unassociated STA Link Metrics Query event.
+         *
+         * This function processes the Unassociated STA Link Metrics Query
+         * received from the controller, validates the requested operating
+         * classes, channels and STA MAC entries, and initiates the
+         * corresponding agent-side RCPI measurement workflow.
+         *
+         * @param[in] evt Pointer to the event structure containing the
+         *                Unassociated STA Link Metrics Query payload.
+         *
+         * @note Ensure that the event structure is properly initialized
+         *       before calling this function.
+         */
+        void handle_unassoc_sta_metrics_query(em_bus_event_t *evt);
 
 	/**!
 	 * @brief 
@@ -707,6 +734,29 @@ public:
 	 * @note Input property ownership remains with the caller; this function does not free them.
 	 */
 	static bus_error_t cmd_channelscan (const char *method_name, const bus_data_prop_t *input_params, bus_data_prop_t **output_params, void *async_handle);
+
+	// Constants for channel selection request parsing
+	static const int MAX_CHANSEL_CLASSES = 32;
+	static const int MAX_CHANSEL_CHANNELS = 64;
+
+	/**!
+	 * @brief Handles the bus ChannelSelectionRequest method request.
+	 *
+	 * Validates ChannelSelectionRequest input properties, dispatches the request to the EasyMesh
+	 * controller, and optionally populates response properties for the caller.
+	 *
+	 * @param[in] method_name Bus method name (...Network.Device.{i}.Radio.{i}.ChannelSelectionRequest()).
+	 * @param[in] input_params Linked list of input properties carrying the request payload.
+	 * @param[out] output_params Populated with response properties when provided.
+	 * @param[in] async_handle Async context handle when the bus call is asynchronous.
+	 *
+	 * @returns bus_error_t
+	 * @retval bus_error_success on successful ChannelSelectionRequest handling.
+	 * @retval bus_error_invalid_input on validation failure.
+	 * @retval other non-zero bus_error_t values on error.
+	 * @note Input property ownership remains with the caller; this function does not free them.
+	 */
+	static bus_error_t cmd_channelselect(const char *method_name, const bus_data_prop_t *input_params, bus_data_prop_t **output_params, void *async_handle);
 
 	/**!
 	 * @brief Handles the bus ClientSteer method request.

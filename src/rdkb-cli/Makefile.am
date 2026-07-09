@@ -72,6 +72,7 @@ libemcli_la_SOURCES = \
  $(top_srcdir)/src/cmd/em_cmd_btm_report.cpp \
  $(top_srcdir)/src/cmd/em_cmd_get_mld_config.cpp \
  $(top_srcdir)/src/cmd/em_cmd_mld_reconfig.cpp \
+ $(top_srcdir)/src/cmd/em_cmd_unassoc_sta_query.cpp \
  $(top_srcdir)/src/dm/dm_device.cpp \
  $(top_srcdir)/src/dm/dm_ieee_1905_security.cpp \
  $(top_srcdir)/src/dm/dm_easy_mesh.cpp  \
