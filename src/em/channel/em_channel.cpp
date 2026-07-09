@@ -2131,12 +2131,18 @@ void em_channel_t::fill_scan_result(dm_scan_result_t *scan_res, em_channel_scan_
         memcpy(nbr->bssid, tmp, sizeof(mac_address_t));
         tmp += sizeof(mac_address_t);
 
+        unsigned char original_ssid_len;
+
         memcpy(&ssid_len, tmp, sizeof(unsigned char));
         tmp += sizeof(unsigned char);
+        original_ssid_len = ssid_len;
 
-        strncpy(nbr->ssid, reinterpret_cast<char *> (tmp), static_cast<size_t>(ssid_len + 1));
+        if (ssid_len > static_cast<unsigned char>(sizeof(ssid_t) - 1)) {
+            ssid_len = static_cast<unsigned char>(sizeof(ssid_t) - 1);
+        }
+        strncpy(nbr->ssid, reinterpret_cast<char *> (tmp), static_cast<size_t>(ssid_len));
         nbr->ssid[ssid_len] = '\0';
-        tmp += ssid_len;
+        tmp += original_ssid_len;
 
         memcpy(&nbr->signal_strength, tmp, sizeof(unsigned char));
         tmp += sizeof(unsigned char);
