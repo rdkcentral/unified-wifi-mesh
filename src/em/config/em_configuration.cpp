@@ -6329,14 +6329,14 @@ void em_configuration_t::process_ctrl_state()
 
             if (ssid_mismatch_present == false)
             {
-                for (auto &em : em_radios) {
+                /*for (auto &em : em_radios) {
                     if (em->get_state() != em_state_ctrl_topo_sync_pending) {
                         em_printfout("radio %s is in state:%d, not in topo sync pending state, ignoring",
                             util::mac_to_string(em->get_radio_interface_mac()).c_str(), em->get_state());
                         em_radios.clear();
                         return;
                     }
-                }
+                }*/
                 // Reset the mismatch and topo_query_last sent values before sending topo query
                 dm->set_ssid_mismatch_check_time(0);
                 dm->set_last_topo_query_sent_time(0);
