@@ -401,6 +401,12 @@ void em_mgr_t::nodes_listener()
             printf("%s:%d: [AL_SAP] Waiting on "
                    "serviceAccessPointDataIndication for fd:%d\n",
                    __func__, __LINE__, em->get_fd());
+            // A single recv() on the SOCK_STREAM AL socket can carry several
+            // coalesced messages (a slow first M1 followed by 2nd/3rd). Drain
+            // every message that is ALREADY buffered before returning to
+            // select(). hasBufferedMessage() only inspects the local buffer, so
+            // this never blocks on a partially-received frame.
+            do {
             try {
               AlServiceDataUnit sdu = g_sap->serviceAccessPointDataIndication();
               std::vector<unsigned char> payload = sdu.getPayload();
@@ -448,6 +454,12 @@ void em_mgr_t::nodes_listener()
                 throw e;
               }
             }
+            if (g_sap->hasBufferedMessage()) {
+              printf("%s:%d: [AL_SAP] more coalesced message(s) already "
+                     "buffered, draining next before select()\n",
+                     __func__, __LINE__);
+            }
+            } while (g_sap->hasBufferedMessage());
 #else
                 unsigned char buff[MAX_EM_BUFF_SZ*EM_MAX_BANDS];
                 pthread_mutex_lock(&m_mutex);

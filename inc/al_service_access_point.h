@@ -5,6 +5,8 @@
 #include <sys/un.h>
 #include <unistd.h>
 
+#include <cstdint>
+#include <vector>
 
 #include "al_service_data_unit.h"
 #include "al_service_exception.h"
@@ -71,6 +73,20 @@ public:
 	 * before calling this function.
 	 */
 	AlServiceDataUnit serviceAccessPointDataIndication();  // Fills and returns an AlServiceDataUnit object
+
+	/**!
+	 * @brief Reports whether a full, unconsumed message is already buffered.
+	 *
+	 * The AL data socket is SOCK_STREAM, so a single recv() often returns
+	 * several coalesced messages (e.g. a slow first M1 followed by the 2nd/3rd).
+	 * Surplus bytes are retained in an internal buffer. This lets the caller
+	 * drain every already-received message in a loop before returning to
+	 * select(), WITHOUT risking a blocking read on a partially-received frame.
+	 *
+	 * @returns true if the internal buffer already holds at least one complete
+	 *          length-prefixed frame that can be consumed immediately.
+	 */
+	bool hasBufferedMessage() const;
 
      // Executes service request primitive (send a message)
     
@@ -161,6 +177,10 @@ public:
     std::string alControlSocketpath = "/tmp/al_control_socket"; // Unix socket path initialized
     AlServiceRegistrationResponse registrationResponse;  // Private member instance
     AlServiceRegistrationRequest registrationRequest;  // Private member instance
+    // Leftover bytes read from the SOCK_STREAM socket that have not yet been
+    // consumed as a full frame: either a partial frame awaiting more data, or
+    // following coalesced messages waiting to be drained on subsequent calls.
+    std::vector<unsigned char> receiveBuffer;
 };
 
 #endif // AL_SERVICE_ACCESS_POINT_H
