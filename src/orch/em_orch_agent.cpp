@@ -62,6 +62,45 @@ void em_orch_agent_t::orch_transient(em_cmd_t *pcmd, em_t *em)
     }
 
     if (stats->time > EM_MAX_CMD_GEN_TTL) {
+        // For cfg_renew on a non-colocated agent (extender): after M8 backhaul
+        // reconfig the bSTA disconnects and reconnects with new credentials.
+        // While disconnected the radio cycles through unconfigured →
+        // autoconfig_rsp_pending → wsc_m2_pending.  Allow extra time for the
+        // bSTA to come back up before canceling.
+        if (pcmd->get_type() == em_cmd_type_cfg_renew &&
+            em->get_state() < em_state_agent_topo_synchronized) {
+            dm_easy_mesh_t *dm = em->get_data_model();
+            if (dm != NULL) {
+                // Detect colocation: if the controller's AL MAC is a local
+                // interface, this is the collocated agent (no extended wait).
+                unsigned char *ctrl_mac = dm->get_ctrl_al_interface_mac();
+                em_interface_name_t if_name;
+                bool is_colocated = (ctrl_mac != NULL &&
+                    dm_easy_mesh_t::name_from_mac_address(
+                        reinterpret_cast<const mac_address_t*>(ctrl_mac), if_name) == 0);
+                if (!is_colocated && stats->time <= EM_SSID_MISMATCH_TTL) {
+                    return; // keep sending autoconfig_search
+                }
+            }
+        }
+         // For dev_init on a non-colocated agent (extender): after cfg_renew
+        // completes, the "dml" subdoc triggers dev_init while the bSTA is still
+        // reconnecting to the new SSID.  Allow extended time for the bSTA to
+        // come back up so autoconfig_search can reach the controller.
+        if (pcmd->get_type() == em_cmd_type_dev_init &&
+            em->get_state() == em_state_agent_owconfig_pending) {
+            dm_easy_mesh_t *dm = em->get_data_model();
+            if (dm != NULL) {
+                unsigned char *ctrl_mac = dm->get_ctrl_al_interface_mac();
+                em_interface_name_t if_name;
+                bool is_colocated = (ctrl_mac != NULL &&
+                    dm_easy_mesh_t::name_from_mac_address(
+                        reinterpret_cast<const mac_address_t*>(ctrl_mac), if_name) == 0);
+                if (!is_colocated && stats->time <= EM_SSID_MISMATCH_TTL) {
+                    return; // keep sending autoconfig_search until bSTA reconnects
+                }
+            }
+        }
         em_printfout("Canceling cmd: %s because time limit exceeded\n", pcmd->get_cmd_name());
         cancel_command(pcmd->get_type());
     	if (em->get_state() < em_state_agent_topo_synchronized) {
@@ -88,7 +127,8 @@ bool em_orch_agent_t::is_em_ready_for_orch_fini(em_cmd_t *pcmd, em_t *em)
             }
             break;
         case em_cmd_type_cfg_renew:
-            if (em->get_state() == em_state_agent_owconfig_pending) {
+            if (em->get_state() == em_state_agent_owconfig_pending ||
+                em->get_state() == em_state_agent_topo_synchronized) {
                 return true;
             }
             break;
@@ -387,9 +427,9 @@ unsigned int em_orch_agent_t::build_candidates(em_cmd_t *pcmd)
 				}
 				break;
             case em_cmd_type_cfg_renew:
-		dm_easy_mesh_t::macbytes_to_string(pcmd->get_data_model()->get_radio(num)->get_radio_info()->intf.mac, src_mac_str);
-                if ((memcmp(pcmd->get_data_model()->get_radio(num)->get_radio_info()->intf.mac, em->get_radio_interface_mac(), sizeof(mac_address_t)) == 0) && (!(em->is_al_interface_em()))) {
-		    printf("%s:%d Renew %s added\n", __func__, __LINE__,src_mac_str);
+                if (!(em->is_al_interface_em())) {
+                    dm_easy_mesh_t::macbytes_to_string(em->get_radio_interface_mac(), src_mac_str);
+                    printf("%s:%d Renew %s added\n", __func__, __LINE__, src_mac_str);
                     queue_push(pcmd->m_em_candidates, em);
                     count++;
                 }

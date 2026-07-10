@@ -24,10 +24,12 @@
 #include <pthread.h>
 #include <cjson/cJSON.h>
 #include "em_network_topo.h"
+#include "em.h"
 #include "util.h"
 #include "dm_sta_list.h"
 #include "dm_easy_mesh_ctrl.h"
 #include "em_ctrl.h"
+#include "em_cmd_ctrl.h"
 
 extern em_network_topo_t *g_network_topology;
 
@@ -148,6 +150,13 @@ em_network_topo_t *em_network_topo_t::find_topology_by_bh_associated(dm_easy_mes
 	// bss->bssid.mac = upstream AP BSSID the bSTA is associated to (shown in Backhaul.MACAddress)
 	mac_address_t bss_mac;
 	memcpy(bss_mac, bss->id.bssid, sizeof(mac_address_t));
+	// If bSTA BSS bssid is zero (e.g. after M1 BSS rebuild during bhreconfig),
+	// fall back to the device's backhaul_mac which was set during M1 processing.
+	if (memcmp(bss_mac, ZERO_MAC_ADDR, sizeof(mac_address_t)) == 0 &&
+		memcmp(dm->m_device.m_device_info.backhaul_mac.mac, ZERO_MAC_ADDR, sizeof(mac_address_t)) != 0) {
+		memcpy(bss_mac, dm->m_device.m_device_info.backhaul_mac.mac, sizeof(mac_address_t));
+		em_printfout("bSTA BSS bssid is zero, using device backhaul_mac: %s", util::mac_to_string(bss_mac).c_str());
+	}
 	if (dm->is_controller() == false) {
 		// Set BackhaulMACAddress to the upstream AP BSSID, not the local bSTA MAC
 		memcpy(dm->m_device.m_device_info.backhaul_mac.mac, bss->bssid.mac, sizeof(mac_address_t));
@@ -207,14 +216,8 @@ em_network_topo_t *em_network_topo_t::find_topology(dm_easy_mesh_t *dm)
 {
 	unsigned int i;
 	em_network_topo_t *topo;
-	mac_addr_str_t tgt_dev_mac_str, src_dev_mac_str;
-
-	dm_easy_mesh_t::macbytes_to_string(dm->m_device.m_device_info.intf.mac, tgt_dev_mac_str);
-	dm_easy_mesh_t::macbytes_to_string(m_data_model->m_device.m_device_info.intf.mac, src_dev_mac_str);
-	printf("%s:%d: Trying to find topology: %s in branch: %s\n", __func__, __LINE__, tgt_dev_mac_str, src_dev_mac_str);
 
 	if (m_data_model == dm) {
-		printf("%s:%d: Found topology: %s in branch: %s\n", __func__, __LINE__, tgt_dev_mac_str, src_dev_mac_str);
 		return this;
 	}
 
@@ -320,10 +323,58 @@ bool em_network_topo_t::remove(dm_easy_mesh_t *dm, em_network_topo_t **child_top
 	return false;
 }
 
+bool em_network_topo_t::is_bh_reconfig_complete()
+{
+	return m_bh_processed;
+}
+
+void em_network_topo_t::reset_bh_reconfig()
+{
+	m_bh_processed = false;
+	for (unsigned int i = 0; i < m_num_topologies; i++) {
+		m_topology[i]->reset_bh_reconfig();
+	}
+}
+
+bool em_network_topo_t::is_bh_reconfig_candidate()
+{
+	if (m_bh_processed) {
+		return false;
+	}
+
+	for (unsigned int i = 0; i < m_num_topologies; i++) {
+		if (!m_topology[i]->m_bh_processed) {
+			return false;
+		}
+	}
+
+	return true;
+}
+
+void em_network_topo_t::mark_bh_leaves_processed()
+{
+	for (unsigned int i = 0; i < m_num_topologies; i++) {
+		m_topology[i]->mark_bh_leaves_processed();
+	}
+	if (is_bh_reconfig_candidate()) {
+		m_bh_processed = true;
+	}
+}
+
+void em_network_topo_t::send_bh_reconfig_event()
+{
+	em_ctrl_t *ctrl = em_ctrl_t::get_em_ctrl_instance();
+	em_cmd_params_t params;
+	memset(&params, 0, sizeof(em_cmd_params_t));
+	ctrl->io_process(em_bus_event_type_set_bh_cfg, static_cast<char *>(NULL), 0, &params);
+}
+
 em_network_topo_t::em_network_topo_t(dm_easy_mesh_t *dm)
 {
 	m_num_topologies  = 0;
 	m_data_model = dm;
+	m_bh_processed = false;
+	m_bh_reconfig_active = false;
 	memset(m_topology, 0, sizeof(m_topology));
 }
 
@@ -331,7 +382,19 @@ em_network_topo_t::em_network_topo_t()
 {
 	m_data_model = NULL;
 	m_num_topologies  = 0;
+	m_bh_processed = false;
+	m_bh_reconfig_active = false;
 	memset(m_topology, 0, sizeof(m_topology));
+}
+
+bool em_network_topo_t::is_direct_child(dm_easy_mesh_t *dm)
+{
+	for (unsigned int i = 0; i < m_num_topologies; i++) {
+		if (m_topology[i]->get_data_model() == dm) {
+			return true;
+		}
+	}
+	return false;
 }
 
 em_network_topo_t::~em_network_topo_t()

@@ -1584,6 +1584,7 @@ void em_agent_t::input_listener()
         em_printfout("Error: bus get failed");
         return;
     }
+        */
 
    if(desc->bus_event_subs_fn(&m_bus_hdl, "Device.WiFi.CSABeaconFrameRecieved", reinterpret_cast<void *>(&em_agent_t::mgmt_csa_beacon_frame_cb), NULL, 0) != 0) {
         em_printfout("Error: bus get failed");
@@ -1872,8 +1873,11 @@ void em_agent_t::onewifi_cb(char *event_name, bus_data_prop_t *data, void *userD
                (strcmp(subdoc_name->valuestring, "mesh backhaul sta") == 0)) {
         g_agent.io_process(em_bus_event_type_onewifi_mesh_sta_cb, reinterpret_cast<unsigned char *>(data->value.raw_data.bytes), data->value.raw_data_len);
 
+    } else if (strcmp(subdoc_name->valuestring, "dml") == 0) {
+        g_agent.io_process(em_bus_event_type_dev_init, (unsigned char *)data->value.raw_data.bytes, data->value.raw_data_len);
+
     } else {
-        em_printfout("SubDocName (%s) not matching private, mesh_sta, or radio", subdoc_name->valuestring);
+        em_printfout("SubDocName (%s) not matching private, mesh_sta, radio, or dml", subdoc_name->valuestring);
     }
 
     cJSON_Delete(json);

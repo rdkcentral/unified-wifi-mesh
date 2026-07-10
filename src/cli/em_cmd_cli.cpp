@@ -70,6 +70,7 @@ em_cmd_params_t spec_params[] = {
     {.u = {.args = {2, {"", "", "", "", ""}, "MLDReconfig"}}},
 	{.u = {.args = {2, {"", "", "", "", ""}, "DevTest.json"}}},
 	{.u = {.args = {0, {"", "", "", "", ""}, "max"}}},
+	{.u = {.args = {2, {"", "", "", "", ""}, "BhCfg.json"}}},
 };
 
 em_cmd_t em_cmd_cli_t::m_client_cmd_spec[] = {
@@ -103,6 +104,7 @@ em_cmd_t em_cmd_cli_t::m_client_cmd_spec[] = {
     em_cmd_t(em_cmd_type_get_mld_config, spec_params[26]),
     em_cmd_t(em_cmd_type_mld_reconfig, spec_params[27]),
     em_cmd_t(em_cmd_type_set_dev_test, spec_params[28]),
+    em_cmd_t(em_cmd_type_set_bh_cfg, spec_params[30]),
     em_cmd_t(em_cmd_type_max, spec_params[29]),
 };
 
@@ -312,6 +314,19 @@ int em_cmd_cli_t::execute(char *result)
             info = &bevt->u.subdoc;
             strncpy(info->name, param->u.args.fixed_args, strlen(param->u.args.fixed_args) + 1);
 			if ((bevt->data_len = get_edited_node(node, "SetSSID", info->buff)) < 0) {
+                printf("%s:%d: failed to open file at location:%s error:%d\n", __func__, __LINE__, param->u.args.fixed_args, errno);
+                return -1;
+			}	
+            break;
+
+        case em_cmd_type_set_bh_cfg:
+			if ((node = m_cmd.m_param.net_node) == NULL) {
+				return -1;
+			}
+            bevt->type = em_bus_event_type_set_bh_cfg;
+            info = &bevt->u.subdoc;
+            strncpy(info->name, param->u.args.fixed_args, strlen(param->u.args.fixed_args) + 1);
+			if ((bevt->data_len = get_edited_node(node, "SetBhCfg", info->buff)) < 0) {
                 printf("%s:%d: failed to open file at location:%s error:%d\n", __func__, __LINE__, param->u.args.fixed_args, errno);
                 return -1;
 			}	

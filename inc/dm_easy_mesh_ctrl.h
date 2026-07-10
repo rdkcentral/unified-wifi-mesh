@@ -349,6 +349,22 @@ public:
 	 * @note Ensure that the event and command structures are properly initialized before calling this function.
 	 */
 	int analyze_set_ssid(em_bus_event_t *evt, em_cmd_t *cmd[]);
+
+	/**!
+	 * @brief Analyzes and sets the backhaul configuration based on the provided event and command.
+	 *
+	 * This function processes the event and command to determine the appropriate backhaul configuration settings.
+	 *
+	 * @param[in] evt Pointer to the event structure containing backhaul configuration details.
+	 * @param[out] dm_out Pointer to the dm_easy_mesh_t structure where the backhaul configuration will be updated.
+	 *
+	 * @returns int Status code indicating success or failure of the operation.
+	 * @retval 0 on success.
+	 * @retval -1 on failure.
+	 *
+	 * @note Ensure that the event structure is properly initialized and that dm_out is a valid pointer before calling this function.
+	 */
+	int analyze_set_bh_cfg(em_bus_event_t *evt, dm_easy_mesh_t *dm_out);
     
 	/**!
 	 * @brief Analyzes and sets the radio configuration based on the provided event and command.
