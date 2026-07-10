@@ -431,11 +431,13 @@ void em_mgr_t::nodes_listener()
                      "src:" MACSTRFMT ", dst:" MACSTRFMT "\n",
                      __func__, __LINE__, reconstructed_eth_frame.size(),
                      MAC2STR(first_mac), MAC2STR(second_mac));
-              em_printfout("First MAC Address: " MACSTRFMT, MAC2STR(first_mac));
+#ifdef DEBUG_MODE
+	      em_printfout("First MAC Address: " MACSTRFMT, MAC2STR(first_mac));
               em_printfout("Second MAC Address: " MACSTRFMT,
                            MAC2STR(second_mac));
               em_printfout("RECONSTRUCTED_ETH_FRAME: \t");
               util::print_hex_dump(reconstructed_eth_frame);
+#endif
               printf("%s:%d: [AL_SAP] Calling proto_process, len:%u\n",
                      __func__, __LINE__,
                      static_cast<unsigned int>(reconstructed_eth_frame.size()));
