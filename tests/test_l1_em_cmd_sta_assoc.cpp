@@ -39,7 +39,7 @@
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
  * | 01 | Set up valid parameters for the API call | validParam.u.args.num_args = 1, validParam.u.args.args[0] = "ValidArg", validParam.u.args.fixed_args = "FixedValid", dm instance of dm_easy_mesh_t | Parameters are set correctly and ready for use | Should be successful |
- * | 02 | Construct the em_cmd_sta_assoc_t object using valid parameters | Input: validParam and dm | Object's members m_param reflect the provided valid parameters; m_type equals em_cmd_type_sta_assoc; m_name equals "sta_assoc"; m_svc equals em_service_type_ctrl; m_orch_op_idx equals 0; m_num_orch_desc equals 1; m_orch_desc[0].op equals dm_orch_type_sta_cap; m_orch_desc[0].submit equals true; m_data_model.m_cmd_ctx.type equals dm_orch_type_sta_cap | Should Pass |
+ * | 02 | Construct the em_cmd_sta_assoc_t object using valid parameters | Input: validParam and dm | Object's members m_param reflect the provided valid parameters; m_type equals em_cmd_type_sta_assoc; m_name equals "sta_assoc"; m_svc equals em_service_type_ctrl; m_orch_op_idx equals 0; m_num_orch_desc equals 3; m_orch_desc[0].op equals dm_orch_type_topo_sync; m_orch_desc[1].op equals dm_orch_type_sta_cap; m_orch_desc[2].op equals dm_orch_type_topo_publish; all submit equals true; m_data_model.m_cmd_ctx.type equals dm_orch_type_topo_sync | Should Pass |
  * | 03 | Validate object properties using assertions | Comparisons: em_cmd_sta_assoc_t object's members against expected values | EXPECT_EQ and EXPECT_STREQ assertions confirm correct initialization | Should Pass |
  * | 04 | Invoke deinit to cleanup the object | API call: assoc.deinit() | Successful deinitialization without errors | Should Pass |
  */
@@ -59,12 +59,14 @@ TEST(em_cmd_sta_assoc_t, em_cmd_sta_assoc_t_valid_parameters) {
     EXPECT_STREQ(assoc.m_name, "sta_assoc");
     EXPECT_EQ(assoc.m_svc, em_service_type_ctrl);
     EXPECT_EQ(assoc.m_orch_op_idx, 0);
-    EXPECT_EQ(assoc.m_num_orch_desc, 2);
-    EXPECT_EQ(assoc.m_orch_desc[0].op, dm_orch_type_sta_cap);
+    EXPECT_EQ(assoc.m_num_orch_desc, 3);
+    EXPECT_EQ(assoc.m_orch_desc[0].op, dm_orch_type_topo_sync);
     EXPECT_TRUE(assoc.m_orch_desc[0].submit);
-    EXPECT_EQ(assoc.m_orch_desc[1].op, dm_orch_type_topo_publish);
+    EXPECT_EQ(assoc.m_orch_desc[1].op, dm_orch_type_sta_cap);
     EXPECT_TRUE(assoc.m_orch_desc[1].submit);
-    EXPECT_EQ(assoc.m_data_model.m_cmd_ctx.type, dm_orch_type_sta_cap);
+    EXPECT_EQ(assoc.m_orch_desc[2].op, dm_orch_type_topo_publish);
+    EXPECT_TRUE(assoc.m_orch_desc[2].submit);
+    EXPECT_EQ(assoc.m_data_model.m_cmd_ctx.type, dm_orch_type_topo_sync);
     assoc.deinit();
     std::cout << "Exiting em_cmd_sta_assoc_t_valid_parameters test" << std::endl;
 }
@@ -87,7 +89,7 @@ TEST(em_cmd_sta_assoc_t, em_cmd_sta_assoc_t_valid_parameters) {
  * | 01 | Initialize em_cmd_params_t with minimal parameters | num_args = 0, fixed_args = "" | Structure initialized with zero arguments and empty fixed_args | Should be successful |
  * | 02 | Instantiate dm_easy_mesh_t object | None | dm object created successfully | Should be successful |
  * | 03 | Invoke em_cmd_sta_assoc_t constructor with minimal parameters | param (num_args = 0, fixed_args = ""), dm instance | em_cmd_sta_assoc_t object constructed with default values | Should Pass |
- * | 04 | Validate initialized fields of em_cmd_sta_assoc_t object | assoc.m_param.u.args.num_args = 0, assoc.m_param.u.args.fixed_args = "", assoc.m_type = em_cmd_type_sta_assoc, assoc.m_name = "sta_assoc", assoc.m_svc = em_service_type_ctrl, assoc.m_orch_op_idx = 0, assoc.m_num_orch_desc = 1, assoc.m_orch_desc[0].op = dm_orch_type_sta_cap, assoc.m_orch_desc[0].submit = true, assoc.m_data_model.m_cmd_ctx.type = dm_orch_type_sta_cap | Each field matches expected value as per the API design | Should Pass |
+ * | 04 | Validate initialized fields of em_cmd_sta_assoc_t object | assoc.m_param.u.args.num_args = 0, assoc.m_param.u.args.fixed_args = "", assoc.m_type = em_cmd_type_sta_assoc, assoc.m_name = "sta_assoc", assoc.m_svc = em_service_type_ctrl, assoc.m_orch_op_idx = 0, assoc.m_num_orch_desc = 3, assoc.m_orch_desc[0].op = dm_orch_type_topo_sync, assoc.m_orch_desc[1].op = dm_orch_type_sta_cap, assoc.m_orch_desc[2].op = dm_orch_type_topo_publish, all submit = true, assoc.m_data_model.m_cmd_ctx.type = dm_orch_type_topo_sync | Each field matches expected value as per the API design | Should Pass |
  * | 05 | Cleanup by invoking deinit() method on the em_cmd_sta_assoc_t object | None | Object deinitialized successfully | Should be successful |
  */
 TEST(em_cmd_sta_assoc_t, em_cmd_sta_assoc_t_valid_minimal_parameters) {
@@ -105,10 +107,14 @@ TEST(em_cmd_sta_assoc_t, em_cmd_sta_assoc_t_valid_minimal_parameters) {
     EXPECT_STREQ(assoc.m_name, "sta_assoc");
     EXPECT_EQ(assoc.m_svc, em_service_type_ctrl);
     EXPECT_EQ(assoc.m_orch_op_idx, 0);
-    EXPECT_EQ(assoc.m_num_orch_desc, 2);
-    EXPECT_EQ(assoc.m_orch_desc[0].op, dm_orch_type_sta_cap);
+    EXPECT_EQ(assoc.m_num_orch_desc, 3);
+    EXPECT_EQ(assoc.m_orch_desc[0].op, dm_orch_type_topo_sync);
     EXPECT_TRUE(assoc.m_orch_desc[0].submit);
-    EXPECT_EQ(assoc.m_data_model.m_cmd_ctx.type, dm_orch_type_sta_cap);
+    EXPECT_EQ(assoc.m_orch_desc[1].op, dm_orch_type_sta_cap);
+    EXPECT_TRUE(assoc.m_orch_desc[1].submit);
+    EXPECT_EQ(assoc.m_orch_desc[2].op, dm_orch_type_topo_publish);
+    EXPECT_TRUE(assoc.m_orch_desc[2].submit);
+    EXPECT_EQ(assoc.m_data_model.m_cmd_ctx.type, dm_orch_type_topo_sync);
     assoc.deinit();
     std::cout << "Exiting em_cmd_sta_assoc_t_valid_minimal_parameters test" << std::endl;
 }
@@ -132,7 +138,7 @@ TEST(em_cmd_sta_assoc_t, em_cmd_sta_assoc_t_valid_minimal_parameters) {
  * | 02 | Initialize the first argument in args array with maximum characters. | args[0] = 127 'Y' characters, null-terminated | The args[0] string in param is correctly set and null-terminated. | Should be successful |
  * | 03 | Set num_args value and prepare the parameter structure before constructor invocation. | num_args = 5 | The num_args field in param is set to 5. | Should be successful |
  * | 04 | Call the em_cmd_sta_assoc_t constructor with the parameter structure and dm instance. | Input: param structure and dm instance | A new assoc instance is created with its members initialized according to the input parameters, including m_param.u.args, m_type, m_name, m_svc, m_orch_op_idx, m_num_orch_desc, m_orch_desc, and m_data_model fields. | Should Pass |
- * | 05 | Verify the initialization by asserting each member's value and then deinitialize the instance. | Expected values: num_args = 5, fixed_args, args[0] match, m_type = em_cmd_type_sta_assoc, m_name = "sta_assoc", m_svc = em_service_type_ctrl, m_orch_op_idx = 0, m_num_orch_desc = 1, m_orch_desc[0].op = dm_orch_type_sta_cap, m_orch_desc[0].submit true, m_data_model.m_cmd_ctx.type = dm_orch_type_sta_cap. | All assertions pass confirming the proper initialization. | Should Pass |
+ * | 05 | Verify the initialization by asserting each member's value and then deinitialize the instance. | Expected values: num_args = 5, fixed_args, args[0] match, m_type = em_cmd_type_sta_assoc, m_name = "sta_assoc", m_svc = em_service_type_ctrl, m_orch_op_idx = 0, m_num_orch_desc = 3, m_orch_desc[0].op = dm_orch_type_topo_sync, m_orch_desc[1].op = dm_orch_type_sta_cap, m_orch_desc[2].op = dm_orch_type_topo_publish, all submit true, m_data_model.m_cmd_ctx.type = dm_orch_type_topo_sync. | All assertions pass confirming the proper initialization. | Should Pass |
  */
 TEST(em_cmd_sta_assoc_t, em_cmd_sta_assoc_t_ctor_max_fixed_args) {
     std::cout << "Entering em_cmd_sta_assoc_t_ctor_max_fixed_args test" << std::endl;
@@ -157,10 +163,14 @@ TEST(em_cmd_sta_assoc_t, em_cmd_sta_assoc_t_ctor_max_fixed_args) {
     EXPECT_STREQ(assoc.m_name, "sta_assoc");
     EXPECT_EQ(assoc.m_svc, em_service_type_ctrl);
     EXPECT_EQ(assoc.m_orch_op_idx, 0);
-    EXPECT_EQ(assoc.m_num_orch_desc, 2);
-    EXPECT_EQ(assoc.m_orch_desc[0].op, dm_orch_type_sta_cap);
+    EXPECT_EQ(assoc.m_num_orch_desc, 3);
+    EXPECT_EQ(assoc.m_orch_desc[0].op, dm_orch_type_topo_sync);
     EXPECT_TRUE(assoc.m_orch_desc[0].submit);
-    EXPECT_EQ(assoc.m_data_model.m_cmd_ctx.type, dm_orch_type_sta_cap);
+    EXPECT_EQ(assoc.m_orch_desc[1].op, dm_orch_type_sta_cap);
+    EXPECT_TRUE(assoc.m_orch_desc[1].submit);
+    EXPECT_EQ(assoc.m_orch_desc[2].op, dm_orch_type_topo_publish);
+    EXPECT_TRUE(assoc.m_orch_desc[2].submit);
+    EXPECT_EQ(assoc.m_data_model.m_cmd_ctx.type, dm_orch_type_topo_sync);
     assoc.deinit();
     std::cout << "Exiting em_cmd_sta_assoc_t_ctor_max_fixed_args test" << std::endl;
 }

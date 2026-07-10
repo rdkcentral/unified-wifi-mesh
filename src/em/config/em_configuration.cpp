@@ -85,10 +85,7 @@ static bool allow_failed_conn_report(unsigned short max_reports_per_min)
     return true;
 }
 
-static bool em_cfg_update_sta_assoc_row(hash_map_t *sta_assoc_map,
-                                        em_sta_info_t *row,
-                                        const char *new_log_prefix,
-                                        const char *update_log_prefix)
+static bool update_sta_map_assoc_row(hash_map_t *sta_assoc_map, em_sta_info_t *row)
 {
     mac_addr_str_t row_sta_str, row_bssid_str, row_radio_str;
     em_long_string_t row_key;
@@ -102,131 +99,68 @@ static bool em_cfg_update_sta_assoc_row(hash_map_t *sta_assoc_map,
     existing_row = static_cast<dm_sta_t *>(hash_map_get(sta_assoc_map, row_key));
     if (existing_row == NULL) {
         hash_map_put(sta_assoc_map, strdup(row_key), new dm_sta_t(row));
-        em_printfout("%s%s", new_log_prefix, row_key);
+        em_printfout("sta_map add: %s", row_key);
     } else {
-        existing_row->m_sta_info.associated = row->associated;
-        em_printfout("%s%s", update_log_prefix, row_key);
+        memcpy(&existing_row->m_sta_info, row, sizeof(em_sta_info_t));
+        em_printfout("sta_map update: %s", row_key);
     }
 
     return true;
 }
 
-static dm_sta_t *em_cfg_find_dassoc_sta(dm_easy_mesh_t *dm,
-                                        const mac_address_t sta_mac,
-                                        const bssid_t bssid,
-                                        bool match_bssid)
-{
-    dm_sta_t *dassoc_sta;
-
-    dassoc_sta = static_cast<dm_sta_t *>(hash_map_get_first(dm->m_sta_dassoc_map));
-    while (dassoc_sta != NULL) {
-        if ((memcmp(dassoc_sta->m_sta_info.id, sta_mac, sizeof(mac_address_t)) == 0) &&
-            ((match_bssid == false) ||
-             (memcmp(dassoc_sta->m_sta_info.bssid, bssid, sizeof(bssid_t)) == 0))) {
-            return dassoc_sta;
-        }
-        dassoc_sta = static_cast<dm_sta_t *>(hash_map_get_next(dm->m_sta_dassoc_map, dassoc_sta));
-    }
-
-    return NULL;
-}
-
-static unsigned short em_cfg_create_assoc_sta_traffic_stats_tlv(em_tlv_t *tlv,
-                                                                const mac_address_t logical_sta,
-                                                                dm_easy_mesh_t *dm,
-                                                                const em_assoc_sta_mld_info_t *mld_info,
-                                                                dm_sta_t *dassoc_sta)
-{
-    em_assoc_sta_traffic_sts_t *stats;
-    dm_sta_t *aff_sta;
-    unsigned short sz;
-    unsigned int j;
-    uint32_t bytes_sent = 0, bytes_recv = 0;
-    uint32_t packets_sent = 0, packets_recv = 0;
-    uint32_t tx_errors = 0, rx_errors = 0;
-    uint32_t retrans = 0;
-
-    tlv->type = em_tlv_type_assoc_sta_traffic_sts;
-    stats = reinterpret_cast<em_assoc_sta_traffic_sts_t *>(tlv->value);
-    memset(stats, 0, sizeof(*stats));
-    memcpy(stats->sta_mac_addr, logical_sta, sizeof(mac_address_t));
-
-    if (mld_info != NULL) {
-
-        for (j = 0; j < mld_info->num_affiliated_sta; j++) {
-            aff_sta = em_cfg_find_dassoc_sta(dm,
-                                             mld_info->affiliated_sta[j].mac_addr,
-                                             mld_info->affiliated_sta[j].bssid,
-                                             false);
-            if (aff_sta == NULL) {
-                continue;
-            }
-            bytes_sent    += aff_sta->m_sta_info.bytes_tx;
-            bytes_recv    += aff_sta->m_sta_info.bytes_rx;
-            packets_sent  += aff_sta->m_sta_info.pkts_tx;
-            packets_recv  += aff_sta->m_sta_info.pkts_rx;
-            tx_errors     += aff_sta->m_sta_info.errors_tx;
-            rx_errors     += aff_sta->m_sta_info.errors_rx;
-            retrans       += aff_sta->m_sta_info.retrans_count;
-            if (dassoc_sta == NULL) {
-                dassoc_sta = aff_sta;
-            }
-        }
-        stats->bytes_sent        = htonl(bytes_sent);
-        stats->bytes_recv        = htonl(bytes_recv);
-        stats->packets_sent      = htonl(packets_sent);
-        stats->packets_recv      = htonl(packets_recv);
-        stats->tx_packets_errors = htonl(tx_errors);
-        stats->rx_packets_errors = htonl(rx_errors);
-        stats->retrans_count     = htonl(retrans);
-    } else if (dassoc_sta != NULL) {
-        stats->bytes_sent = htonl(dassoc_sta->m_sta_info.bytes_tx);
-        stats->bytes_recv = htonl(dassoc_sta->m_sta_info.bytes_rx);
-        stats->packets_sent = htonl(dassoc_sta->m_sta_info.pkts_tx);
-        stats->packets_recv = htonl(dassoc_sta->m_sta_info.pkts_rx);
-        stats->tx_packets_errors = htonl(dassoc_sta->m_sta_info.errors_tx);
-        stats->rx_packets_errors = htonl(dassoc_sta->m_sta_info.errors_rx);
-        stats->retrans_count = htonl(dassoc_sta->m_sta_info.retrans_count);
-    }
-
-    sz = static_cast<unsigned short>(sizeof(em_assoc_sta_traffic_sts_t));
-    tlv->len = htons(sz);
-
-    return static_cast<unsigned short>(sizeof(em_tlv_t) + sz);
-}
-
-static unsigned short em_cfg_create_affiliated_sta_metrics_tlvs(unsigned char *buff,
-                                                                dm_easy_mesh_t *dm,
-                                                                const em_assoc_sta_mld_info_t *mld_info)
+static unsigned short create_affiliated_sta_metrics_tlvs(unsigned char *buff,
+                                                         dm_easy_mesh_t *dm,
+                                                         const em_assoc_sta_mld_info_t *mld_info,
+                                                         em_target_sta_map_t target_map)
 {
     em_tlv_t *tlv;
     em_affiliated_sta_metrics_t *metrics;
-    dm_sta_t *aff_dassoc_sta;
     const em_affiliated_sta_info_t *aff_sta;
+    em_sta_info_t *aff_sta_info;
+    dm_bss_t *aff_bss;
     unsigned short sz;
     unsigned short total_len = 0;
-    unsigned int j;
+    unsigned int j, r;
+    mac_address_t aff_sta_mac = {0};
+    bssid_t aff_bssid = {0};
+    mac_address_t aff_radio_mac = {0};
 
-    if (mld_info == NULL) {
+    if ((dm == NULL) || (mld_info == NULL)) {
         return 0;
     }
 
     for (j = 0; j < mld_info->num_affiliated_sta; j++) {
         aff_sta = &mld_info->affiliated_sta[j];
-        aff_dassoc_sta = em_cfg_find_dassoc_sta(dm, aff_sta->mac_addr, aff_sta->bssid, false);
 
         tlv = reinterpret_cast<em_tlv_t *>(buff + total_len);
         tlv->type = em_tlv_type_affiliated_sta_metrics;
         metrics = reinterpret_cast<em_affiliated_sta_metrics_t *>(tlv->value);
         memset(metrics, 0, sizeof(*metrics));
         memcpy(metrics->sta_mac_addr, aff_sta->mac_addr, sizeof(mac_address_t));
+        memcpy(aff_bssid, aff_sta->bssid, sizeof(bssid_t));
 
-        if (aff_dassoc_sta != NULL) {
-            metrics->bytes_sent = htonl(aff_dassoc_sta->m_sta_info.bytes_tx);
-            metrics->bytes_recv = htonl(aff_dassoc_sta->m_sta_info.bytes_rx);
-            metrics->packets_sent = htonl(aff_dassoc_sta->m_sta_info.pkts_tx);
-            metrics->packets_recv = htonl(aff_dassoc_sta->m_sta_info.pkts_rx);
-            metrics->tx_packets_errors = htonl(aff_dassoc_sta->m_sta_info.errors_tx);
+        aff_bss = NULL;
+        for (r = 0; r < dm->get_num_radios(); r++) {
+            aff_bss = dm->get_bss(dm->get_radio_info(r)->id.ruid, aff_bssid);
+            if (aff_bss != NULL) {
+                break;
+            }
+        }
+
+        aff_sta_info = NULL;
+        if (aff_bss != NULL) {
+            memcpy(aff_sta_mac, aff_sta->mac_addr, sizeof(mac_address_t));
+            memcpy(aff_radio_mac, aff_bss->m_bss_info.ruid.mac, sizeof(mac_address_t));
+
+            aff_sta_info = dm->get_sta_info(aff_sta_mac, aff_bssid, aff_radio_mac, target_map);
+        }
+
+        if (aff_sta_info != NULL) {
+            metrics->bytes_sent = htonl(aff_sta_info->bytes_tx);
+            metrics->bytes_recv = htonl(aff_sta_info->bytes_rx);
+            metrics->packets_sent = htonl(aff_sta_info->pkts_tx);
+            metrics->packets_recv = htonl(aff_sta_info->pkts_rx);
+            metrics->tx_packets_errors = htonl(aff_sta_info->errors_tx);
         }
 
         sz = static_cast<unsigned short>(sizeof(em_affiliated_sta_metrics_t));
@@ -237,25 +171,20 @@ static unsigned short em_cfg_create_affiliated_sta_metrics_tlvs(unsigned char *b
     return total_len;
 }
 
-static bool em_cfg_handle_assoc_sta_mld_topology_updates(dm_easy_mesh_t *dm)
+static bool handle_assoc_sta_mld_topology_update(dm_easy_mesh_t *dm)
 {
     bool sta_db_update_needed;
-    bool in_new_set;
     unsigned int i, j, r;
     em_assoc_sta_mld_info_t *assoc_info;
     dm_bss_t *aff_bss;
     em_sta_info_t sta_info;
-    dm_sta_t *db_sta;
-    em_sta_info_t disassoc_info;
-    dm_sta_t *queued_sta;
-    mac_addr_str_t check_sta_str, check_bssid_str, check_radio_str;
-    em_long_string_t check_key;
+    mac_addr_str_t s_str, b_str_tmp, r_str_tmp;
+    em_long_string_t exist_key;
+    dm_sta_t *existing_sta;
 
     sta_db_update_needed = false;
     assoc_info = NULL;
     aff_bss = NULL;
-    db_sta = NULL;
-    queued_sta = NULL;
 
     for (i = 0; i < dm->get_num_assoc_sta_mld(); i++) {
         assoc_info = &dm->m_assoc_sta_mld[i].m_assoc_sta_mld_info;
@@ -278,53 +207,20 @@ static bool em_cfg_handle_assoc_sta_mld_topology_updates(dm_easy_mesh_t *dm)
             memcpy(sta_info.radiomac, aff_bss->m_bss_info.ruid.mac, sizeof(mac_address_t));
             sta_info.associated = true;
 
-            if (em_cfg_update_sta_assoc_row(dm->m_sta_assoc_map, &sta_info,
-                        "Topo resp add link: ",
-                        "Topo resp update link: ") == true) {
+            dm_easy_mesh_t::macbytes_to_string(sta_info.id, s_str);
+            dm_easy_mesh_t::macbytes_to_string(sta_info.bssid, b_str_tmp);
+            dm_easy_mesh_t::macbytes_to_string(sta_info.radiomac, r_str_tmp);
+            snprintf(exist_key, sizeof(em_long_string_t), "%s@%s@%s", s_str, b_str_tmp, r_str_tmp);
+            existing_sta = static_cast<dm_sta_t *>(hash_map_get(dm->m_sta_map, exist_key));
+            if (existing_sta != NULL) {
+                em_printfout("Existing sta row found for %s, preserving stats", exist_key);
+                memcpy(&sta_info, &existing_sta->m_sta_info, sizeof(em_sta_info_t));
+                sta_info.associated = true;
+            }
+
+            if (update_sta_map_assoc_row(dm->m_sta_assoc_map, &sta_info)) {
                 sta_db_update_needed = true;
             }
-        }
-    }
-
-    for (i = 0; i < dm->get_num_assoc_sta_mld(); i++) {
-        assoc_info = &dm->m_assoc_sta_mld[i].m_assoc_sta_mld_info;
-        db_sta = static_cast<dm_sta_t *>(hash_map_get_first(dm->m_sta_map));
-        while (db_sta != NULL) {
-            if (memcmp(db_sta->m_sta_info.id, assoc_info->mac_addr, sizeof(mac_address_t)) == 0
-                    && db_sta->m_sta_info.associated) {
-                in_new_set = false;
-                for (j = 0; j < assoc_info->num_affiliated_sta; j++) {
-                    if (memcmp(db_sta->m_sta_info.bssid, assoc_info->affiliated_sta[j].bssid,
-                            sizeof(mac_address_t)) == 0) {
-                        in_new_set = true;
-                        break;
-                    }
-                }
-                if (!in_new_set) {
-                    disassoc_info = db_sta->m_sta_info;
-                    disassoc_info.associated = false;
-                    disassoc_info.frame_body_len = 0;
-                    dm_easy_mesh_t::macbytes_to_string(disassoc_info.id, check_sta_str);
-                    dm_easy_mesh_t::macbytes_to_string(disassoc_info.bssid, check_bssid_str);
-                    dm_easy_mesh_t::macbytes_to_string(disassoc_info.radiomac, check_radio_str);
-                    snprintf(check_key, sizeof(em_long_string_t), "%s@%s@%s",
-                            check_sta_str, check_bssid_str, check_radio_str);
-
-                    queued_sta = static_cast<dm_sta_t *>(hash_map_get(dm->m_sta_assoc_map, check_key));
-                    if (queued_sta != NULL) {
-                        queued_sta->m_sta_info.associated = false;
-                        queued_sta->m_sta_info.frame_body_len = 0;
-                        memset(queued_sta->m_sta_info.frame_body, 0, sizeof(queued_sta->m_sta_info.frame_body));
-                        sta_db_update_needed = true;
-                        em_printfout("Topo resp stale link queued disassoc: %s", check_key);
-                    } else {
-                        hash_map_put(dm->m_sta_assoc_map, strdup(check_key), new dm_sta_t(&disassoc_info));
-                        sta_db_update_needed = true;
-                        em_printfout("Topo resp stale link disassoc: %s", check_key);
-                    }
-                }
-            }
-            db_sta = static_cast<dm_sta_t *>(hash_map_get_next(dm->m_sta_map, db_sta));
         }
     }
 
@@ -399,26 +295,43 @@ unsigned short em_configuration_t::create_client_assoc_event_tlv(unsigned char *
 }
 
 
-int em_configuration_t::send_client_disassoc_stats_msg(mac_address_t sta, bssid_t bssid)
+int em_configuration_t::send_client_disassoc_stats_msg(const dm_sta_t *dassoc_sta)
 {
     unsigned short  msg_type = em_msg_type_client_disassoc_stats;
     char *errors[EM_MAX_TLV_MEMBERS] = {0};
-    unsigned int len = 0;
-    unsigned short sz;
+    unsigned int i, len = 0;
+    unsigned short sz, stats_sz, tlv_total_len;
     em_cmdu_t *cmdu;
     em_tlv_t *tlv;
     unsigned char buff[MAX_EM_BUFF_SZ];
     unsigned char *tmp = buff;
     unsigned short type = htons(ETH_P_1905);
     dm_easy_mesh_t *dm;
-    dm_sta_t *dassoc_sta = NULL;
     em_assoc_sta_mld_info_t *mld_info = NULL;
-    unsigned int i, j;
-    mac_address_t logical_sta = {0};
-    unsigned short tlv_total_len;
+    dm_sta_t dassoc_stats_sta;
+    em_sta_info_t *dassoc_stats_sta_info;
+    const em_sta_info_t *sta_info;
+    mac_address_t sta_id = {0}, radio_mac = {0};
+    bssid_t bssid = {0};
 
     dm = get_data_model();
-    memcpy(logical_sta, sta, sizeof(mac_address_t));
+    if (dassoc_sta == NULL) {
+        em_printfout("Client disassoc stats: input disassoc row is NULL");
+        return -1;
+    }
+
+    sta_info = &dassoc_sta->m_sta_info;
+    memcpy(sta_id, dassoc_sta->m_sta_info.id, sizeof(mac_address_t));
+    memcpy(bssid, dassoc_sta->m_sta_info.bssid, sizeof(bssid_t));
+    memcpy(radio_mac, dassoc_sta->m_sta_info.radiomac, sizeof(mac_address_t));
+
+    // Resolve stats from the global DM to get the correct values instead of using the input from command.
+    dassoc_stats_sta_info = dm->get_sta_info(sta_id, bssid, radio_mac, em_target_sta_map_disassoc);
+    if (dassoc_stats_sta_info != NULL) {
+        memcpy(&dassoc_stats_sta.m_sta_info, dassoc_stats_sta_info, sizeof(em_sta_info_t));
+        dassoc_sta = &dassoc_stats_sta;
+        sta_info = &dassoc_stats_sta.m_sta_info;
+    }
 
     // Ethernet header: dst (controller AL MAC), src (agent AL MAC), EtherType
     memcpy(tmp, dm->get_ctrl_al_interface_mac(), sizeof(mac_address_t));
@@ -446,30 +359,16 @@ int em_configuration_t::send_client_disassoc_stats_msg(mac_address_t sta, bssid_
     // Resolve whether this STA belongs to an MLD client.
     for (i = 0; i < dm->get_num_assoc_sta_mld(); i++) {
         em_assoc_sta_mld_info_t &assoc_sta_mld_info = dm->m_assoc_sta_mld[i].m_assoc_sta_mld_info;
-        if (memcmp(assoc_sta_mld_info.mac_addr, sta, sizeof(mac_address_t)) == 0) {
+        if (memcmp(assoc_sta_mld_info.mac_addr, sta_info->id, sizeof(mac_address_t)) == 0) {
             mld_info = &assoc_sta_mld_info;
-            memcpy(logical_sta, assoc_sta_mld_info.mac_addr, sizeof(mac_address_t));
-            break;
-        }
-        for (j = 0; j < assoc_sta_mld_info.num_affiliated_sta; j++) {
-            if (memcmp(assoc_sta_mld_info.affiliated_sta[j].mac_addr, sta, sizeof(mac_address_t)) == 0) {
-                mld_info = &assoc_sta_mld_info;
-                memcpy(logical_sta, assoc_sta_mld_info.mac_addr, sizeof(mac_address_t));
-                break;
-            }
-        }
-        if (mld_info != NULL) {
             break;
         }
     }
 
-    // Use BSSID for non-MLD lookup to avoid ambiguous STA matches.
-    dassoc_sta = em_cfg_find_dassoc_sta(dm, logical_sta, bssid, (mld_info == NULL));
-
     // STA MAC Address Type TLV (17.2.23)
     tlv = reinterpret_cast<em_tlv_t *>(tmp);
     tlv->type = em_tlv_type_sta_mac_addr;
-    memcpy(tlv->value, logical_sta, sizeof(mac_address_t));
+    memcpy(tlv->value, sta_info->id, sizeof(mac_address_t));
     tlv->len = htons(sizeof(mac_address_t));
 
     tmp += (sizeof(em_tlv_t) + sizeof(mac_address_t));
@@ -478,11 +377,8 @@ int em_configuration_t::send_client_disassoc_stats_msg(mac_address_t sta, bssid_
     // Reason Code TLV (17.2.64)
     tlv = reinterpret_cast<em_tlv_t *>(tmp);
     tlv->type = em_tlv_type_reason_code;
-    {
-        em_reason_code_t *rc = reinterpret_cast<em_reason_code_t *>(tlv->value);
-        unsigned short reason = (dassoc_sta != NULL) ? dassoc_sta->m_sta_info.reason_code : 1;
-        rc->reason_code = htons(reason);
-    }
+    em_reason_code_t *rc = reinterpret_cast<em_reason_code_t *>(tlv->value);
+    rc->reason_code = htons(dassoc_sta->m_sta_info.reason_code);
     sz = static_cast<unsigned short>(sizeof(em_reason_code_t));
     tlv->len = htons(sz);
 
@@ -491,12 +387,15 @@ int em_configuration_t::send_client_disassoc_stats_msg(mac_address_t sta, bssid_
 
     // Associated STA Traffic Stats TLV (17.2.35)
     tlv = reinterpret_cast<em_tlv_t *>(tmp);
-    tlv_total_len = em_cfg_create_assoc_sta_traffic_stats_tlv(tlv, logical_sta, dm, mld_info, dassoc_sta);
+    tlv->type = em_tlv_type_assoc_sta_traffic_sts;
+    stats_sz = static_cast<unsigned short>(static_cast<em_t *>(this)->create_assoc_sta_traffic_stats_tlv(tlv->value, dassoc_sta));
+    tlv->len = htons(stats_sz);
+    tlv_total_len = static_cast<unsigned short>(sizeof(em_tlv_t) + stats_sz);
     tmp += tlv_total_len;
     len += static_cast<unsigned int>(tlv_total_len);
 
-    // Affiliated STA Metrics TLVs (17.2.100)
-    tlv_total_len = em_cfg_create_affiliated_sta_metrics_tlvs(tmp, dm, mld_info);
+    // Zero or more Affiliated STA Metrics TLVs (17.2.100)
+    tlv_total_len = create_affiliated_sta_metrics_tlvs(tmp, dm, mld_info, em_target_sta_map_disassoc);
     tmp += tlv_total_len;
     len += static_cast<unsigned int>(tlv_total_len);
 
@@ -507,8 +406,6 @@ int em_configuration_t::send_client_disassoc_stats_msg(mac_address_t sta, bssid_
 
     tmp += sizeof(em_tlv_t);
     len += static_cast<unsigned int>(sizeof(em_tlv_t));
-
-    em_printfout("Client disassoc stats msg built, len=%u", len);
 
     if (em_msg_t(em_msg_type_client_disassoc_stats, em_profile_type_3, buff, len).validate(errors) == 0) {
         em_printfout("Client disassoc stats msg validation failed");
@@ -668,7 +565,6 @@ void em_configuration_t::handle_failed_connection_event(const mac_address_t sta,
     if (max_rate == 0) {
         max_rate = device_info->max_reporting_rate;
     }
-    em_printfout("FailedConn: max_rate=%u", max_rate);
 
     if (!allow_failed_conn_report(max_rate)) {
         em_printfout("FailedConn: rate limit reached (max_rate=%u per min), skipping", max_rate);
@@ -797,8 +693,7 @@ void em_configuration_t::handle_state_topology_notify()
             sta_str = util::mac_to_string(sta->m_sta_info.id);
             notif_ret = send_topology_notification_by_client(sta->m_sta_info.id, sta->m_sta_info.bssid, false);
             if (notif_ret >= 0) {
-                disassoc_stats_ret = send_client_disassoc_stats_msg(sta->m_sta_info.id, sta->m_sta_info.bssid);
-
+                disassoc_stats_ret = send_client_disassoc_stats_msg(sta);
                 if (disassoc_stats_ret >= 0) {
                     dm->remove_assoc_sta_mld_info(sta->m_sta_info.id);
                 } else {
@@ -2420,7 +2315,7 @@ int em_configuration_t::handle_topology_response(unsigned char *buff, unsigned i
     em_printfout("Total Assoc STA MLD TLVs parsed: %u, m_num_assoc_sta_mld=%u",
         assoc_sta_mld_count, dm->m_num_assoc_sta_mld);
 
-    if (em_cfg_handle_assoc_sta_mld_topology_updates(dm) == true) {
+    if (handle_assoc_sta_mld_topology_update(dm) == true) {
         dm->set_db_cfg_param(db_cfg_type_sta_list_update, "");
     }
 

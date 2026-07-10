@@ -1082,7 +1082,7 @@ TEST_F(dm_easy_mesh_list_tTEST, get_first_device_returns_valid_pointer)
  * | 03               | Assert that the returned firstElement is not null                          | firstElement, expected value: non-null                                                             | Assertion passes when firstElement != nullptr                           | Should Pass     |
  * | 04               | Validate that the network id of firstElement is "Network2"                  | firstElement->m_device.m_device_info.id.net_id = "Network2"                                          | The network id string is equal to "Network2"                           | Should Pass     |
  * | 05               | Validate that the profile type of firstElement is em_profile_type_3         | firstElement->m_device.m_device_info.profile, expected: em_profile_type_3                             | Profile type matches em_profile_type_3                                 | Should Pass     |
- * | 06               | Validate that the number of policies for firstElement is 7                  | firstElement->m_num_policy, expected: 7                                                              | Policy count equals 7                                                   | Should Pass     |
+ * | 06               | Validate that the number of policies for firstElement is 8                  | firstElement->m_num_policy, expected: 8                                                              | Policy count equals 8                                                   | Should Pass     |
  * | 07               | Log the exit message "Exiting get_first_dm_valid test"                    | No input arguments                                                                                 | "Exiting get_first_dm_valid test" printed to stdout                     | Should be successful |
  */
 TEST_F(dm_easy_mesh_list_tTEST, get_first_dm_valid)
@@ -1092,7 +1092,7 @@ TEST_F(dm_easy_mesh_list_tTEST, get_first_dm_valid)
     ASSERT_NE(firstElement, nullptr);
 	EXPECT_STREQ(firstElement->m_device.m_device_info.id.net_id, "Network2");
 	EXPECT_EQ(firstElement->m_device.m_device_info.profile, em_profile_type_3);
-	EXPECT_EQ(firstElement->m_num_policy, 7);
+	EXPECT_EQ(firstElement->m_num_policy, 8);
     std::cout << "Exiting get_first_dm_valid test" << std::endl;
 }
 

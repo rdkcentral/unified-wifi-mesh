@@ -299,7 +299,6 @@ namespace util {
 	 */
 	std::pair<uint8_t, uint8_t> em_freq_to_chan(unsigned int frequency, const std::string& region="");
 
-
 	/**
 	 * @brief Translate an AKM literal to its OUI representation case-insensitively.
 	 *

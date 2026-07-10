@@ -355,9 +355,11 @@ int dm_policy_list_t::sync_db(db_client_t& db_client, void *ctx)
 
     while (db_client.next_result(ctx)) {
         memset(&policy, 0, sizeof(em_policy_t));
+        memset(&id, 0, sizeof(id));
 
         db_client.get_string(ctx, str, 1);
 		dm_policy_t::parse_dev_radio_mac_from_key(str, &id);
+		strncpy(policy.id.net_id, id.net_id, sizeof(policy.id.net_id));
 		memcpy(policy.id.dev_mac, id.dev_mac, sizeof(mac_address_t));
 		memcpy(policy.id.radio_mac, id.radio_mac, sizeof(mac_address_t));
         policy.id.type = static_cast<em_policy_id_type_t>(db_client.get_number(ctx, 2));
