@@ -217,6 +217,7 @@ static const yang_to_tr181_map g_yang_map[] = {
 #define DE_RADIO_BSSNOE         DE_DEVICE_RADIO         "BSSNumberOfEntries"
 #define DE_RADIO_NOUNASSCSTA    DE_DEVICE_RADIO         "UnassociatedSTANumberOfEntries"
 #define DE_RADIO_CHSCANREQ      DE_DEVICE_RADIO         "ChannelScanRequest()"
+#define DE_RADIO_CHSELREQ       DE_DEVICE_RADIO         "ChannelSelectionRequest()"
 #define DE_RADIO_XAIRTIES_OPERSTANDARDS DE_DEVICE_RADIO "X_AIRTIES_OperatingStandards"
 /* Device.WiFi.DataElements.Network.Device.Radio.BackhaulSta */
 #define DE_RADIO_BHSTA          DE_DEVICE_RADIO         "BackhaulSta."
@@ -616,6 +617,27 @@ public:
         bus_data_prop_t *output_data, void *async_handle);
 
     /**!
+     * @brief Handles the RBUS ChannelSelectionRequest method invocation.
+     *
+     * This function extracts ChannelSelectionRequest properties from the raw input payload, forwards
+     * them to the EasyMesh controller, and optionally writes response properties to the output
+     * raw buffer for RBUS callers.
+     *
+     * @param method_name RBUS method name, expected to match ChannelSelectionRequest().
+     * @param input_data Input containing a chained list of bus_data_prop_t entries.
+     * @param output_data Output populated with response properties when provided.
+     * @param async_handle RBUS async handle when the call is asynchronous (may be null).
+     *
+     * @returns bus_error_t
+     * @retval bus_error_success on successful ChannelSelectionRequest handling.
+     * @retval bus_error_invalid_input on validation failure.
+     * @retval other non-zero bus_error_t values on error.
+     * @note Ownership of input and output buffers remains with the caller.
+     */
+    static bus_error_t channelselect_handler(const char *method_name, bus_data_prop_t *input_data,
+        bus_data_prop_t *output_data, void *async_handle);
+
+    /**!
      * @brief Handles the RBUS ClientSteer method invocation.
      *
      * This function extracts ClientSteer properties from the raw input payload, forwards them
@@ -801,6 +823,8 @@ public:
     static bus_error_t wf7ap_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
     static bus_error_t curops_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
     static bus_error_t curops_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
+    static bus_error_t capops_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
+    static bus_error_t capops_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
 
     //BSS
     static bus_error_t bss_get(char* event_name, raw_data_t* p_data, struct bus_user_data* user_data);

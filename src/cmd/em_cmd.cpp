@@ -497,6 +497,7 @@ const char *em_cmd_t::get_bus_event_type_str(em_bus_event_type_t type)
         BUS_EVENT_TYPE_2S(em_bus_event_type_set_ssid)
         BUS_EVENT_TYPE_2S(em_bus_event_type_get_channel)
         BUS_EVENT_TYPE_2S(em_bus_event_type_set_channel)
+        BUS_EVENT_TYPE_2S(em_bus_event_type_channel_select)
         BUS_EVENT_TYPE_2S(em_bus_event_type_get_bss)
         BUS_EVENT_TYPE_2S(em_bus_event_type_get_sta)
         BUS_EVENT_TYPE_2S(em_bus_event_type_steer_sta)
@@ -811,6 +812,10 @@ em_cmd_type_t em_cmd_t::bus_2_cmd_type(em_bus_event_type_t etype)
 
       	case em_bus_event_type_unassoc_sta_result:
             type = em_cmd_type_unassoc_sta_result;
+            break;
+
+        case em_bus_event_type_channel_select:
+            type = em_cmd_type_set_channel;
             break;
 
         default:

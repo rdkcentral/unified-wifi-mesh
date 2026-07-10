@@ -328,7 +328,6 @@ int em_configuration_t::send_client_disassoc_stats_msg(const dm_sta_t *dassoc_st
     // Resolve stats from the global DM to get the correct values instead of using the input from command.
     dassoc_stats_sta_info = dm->get_sta_info(sta_id, bssid, radio_mac, em_target_sta_map_disassoc);
     if (dassoc_stats_sta_info != NULL) {
-        dassoc_stats_sta = *dassoc_sta;
         memcpy(&dassoc_stats_sta.m_sta_info, dassoc_stats_sta_info, sizeof(em_sta_info_t));
         dassoc_sta = &dassoc_stats_sta;
         sta_info = &dassoc_stats_sta.m_sta_info;
