@@ -1562,7 +1562,7 @@ void dm_easy_mesh_list_t::delete_data_model(const char *net_id, const unsigned c
     delete dm;
 }
 
-dm_easy_mesh_t *dm_easy_mesh_list_t::create_data_model(const char *net_id, const em_interface_t *al_intf, em_profile_type_t profile, bool controller)
+dm_easy_mesh_t *    dm_easy_mesh_list_t::create_data_model(const char *net_id, const em_interface_t *al_intf, em_profile_type_t profile, bool controller)
 {
     dm_easy_mesh_t *dm = NULL, *ref_dm, *ctrl_dm;
     mac_addr_str_t mac_str;

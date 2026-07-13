@@ -5764,6 +5764,11 @@ int em_configuration_t::handle_autoconfig_resp(unsigned char *buff, unsigned int
         return -1;
     }
 
+    if (access("/tmp/agent_m1_delay", F_OK) == 0) {
+	    em_printfout("[DL]Delay file found. Sleeping for 200 ms...\n");
+	    usleep(200000);   // 200000 microseconds = 200 ms
+    }
+
     if (send_frame(msg, sz)  < 0) {
         em_printfout("Error: autoconfig wsc m1 send failed, error:%d", errno);
 
