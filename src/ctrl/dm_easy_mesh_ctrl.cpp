@@ -2213,6 +2213,7 @@ int dm_easy_mesh_ctrl_t::analyze_sta_assoc_event(em_bus_event_t *evt, em_cmd_t *
     bool radio_matched = false, found = false;
     em_orch_desc_t desc;
     mac_address_t fallback_ruid = {0};
+    em_long_string_t key;
 
     if (evt == NULL) {
         em_printfout("NULL event");
@@ -2295,13 +2296,26 @@ int dm_easy_mesh_ctrl_t::analyze_sta_assoc_event(em_bus_event_t *evt, em_cmd_t *
                (pdm->is_ap_mld_mac(params->assoc.bssid) == false)) {
         // BSS is directly resolvable for a non-MLO client — topology query not needed;
         // skip dm_orch_type_topo_sync and go straight to client capability query + publish.
-        desc.op = dm_orch_type_sta_cap;
-        desc.submit = true;
-        pcmd[num - 1]->override_op(0, &desc);
-        desc.op = dm_orch_type_topo_publish;
-        desc.submit = true;
-        pcmd[num - 1]->override_op(1, &desc);
-        pcmd[num - 1]->m_num_orch_desc = 2;
+        // Skip the sta capability request if the client has already been connected to this earlier
+        snprintf(key, sizeof(em_2xlong_string_t), "%s@%s@%s", sta_mac_str, bss_mac_str, dev_mac_str);
+        em_printfout("Key is %s\n", key);
+        dm_sta_t *is_sta_existing = static_cast<dm_sta_t *>(hash_map_get(dm.m_sta_assoc_map, key));
+        if (is_sta_existing == NULL) {
+            em_printfout("Sta is connected for first time\n");
+            desc.op = dm_orch_type_sta_cap;
+            desc.submit = true;
+            pcmd[num - 1]->override_op(0, &desc);
+            desc.op = dm_orch_type_topo_publish;
+            desc.submit = true;
+            pcmd[num - 1]->override_op(1, &desc);
+            pcmd[num - 1]->m_num_orch_desc = 2;
+        } else {
+            em_printfout("Sta is already present in DB\n");
+            desc.op = dm_orch_type_topo_publish;
+            desc.submit = true;
+            pcmd[num - 1]->override_op(1, &desc);
+            pcmd[num - 1]->m_num_orch_desc = 1;
+        }
     }
 
     while ((pcmd[num] = tmp->clone_for_next()) != NULL) {
