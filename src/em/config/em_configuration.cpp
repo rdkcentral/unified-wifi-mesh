@@ -60,9 +60,6 @@
 
 // Initialize the static member variables
 unsigned short em_configuration_t::msg_id = 0;
-// OUI value of Comcast
-static const unsigned char em_vendor_oui[EM_VENDOR_OUI_SIZE] = {0xd8, 0x9c, 0x8e};
-
 std::deque<time_t> g_failed_conn_report_timestamps;
 static std::mutex g_failed_conn_report_mutex;
 
@@ -1963,7 +1960,7 @@ int em_configuration_t::handle_ap_operational_bss(unsigned char *buff, unsigned 
             }
             memcpy(ssid_buf, bss->ssid, ssid_len);
             ssid_buf[ssid_len] = '\0';
-            if (dm->is_ssid_match(ssid_buf)) {
+            if (dm->is_ssid_match(ssid_buf) || get_mgr()->is_passive()) {
                 strncpy(dm_bss->m_bss_info.ssid, ssid_buf, sizeof(dm_bss->m_bss_info.ssid) - 1);
                 dm_bss->m_bss_info.ssid[sizeof(dm_bss->m_bss_info.ssid) - 1] = '\0';
             } else {
@@ -2122,6 +2119,25 @@ int em_configuration_t::handle_topology_notification(unsigned char *buff, unsign
                         updated_any = true;
                     }
                     break;
+                }
+
+		if (updated_any == false) {
+                    assoc_row = static_cast<dm_sta_t *>(hash_map_get(dm->m_sta_assoc_map, key));
+                    if (assoc_row != NULL) {
+                        assoc_row->m_sta_info.associated = false;
+                        assoc_row->m_sta_info.frame_body_len = 0;
+                        memset(assoc_row->m_sta_info.frame_body, 0, sizeof(assoc_row->m_sta_info.frame_body));
+                    } else {
+                        hash_map_put(dm->m_sta_assoc_map, strdup(key), new dm_sta_t(&sta_info));
+                    }
+
+                    sta_row = static_cast<dm_sta_t *>(hash_map_get(dm->m_sta_map, key));
+                    if (sta_row != NULL) {
+                        sta_row->m_sta_info.associated = false;
+                        sta_row->m_sta_info.frame_body_len = 0;
+                        memset(sta_row->m_sta_info.frame_body, 0, sizeof(sta_row->m_sta_info.frame_body));
+                    }
+                    updated_any = true;
                 }
 
                 if (updated_any) {
@@ -3873,6 +3889,23 @@ int em_configuration_t::create_autoconfig_wsc_m2_msg(unsigned char *buff, unsign
     tmp += (sizeof(em_tlv_t) + sz);
     len += static_cast<int> (sizeof(em_tlv_t) + sz);
 
+    // Vendor Specific TLV indicating passive mode (appended when controller is started with --passive)
+    if (get_mgr()->is_passive()) {
+        tlv = reinterpret_cast<em_tlv_t *> (tmp);
+        tlv->type = em_tlv_type_vendor_specific;
+        em_vendor_specific_t *vs = reinterpret_cast<em_vendor_specific_t *> (tlv->value);
+        // em_vendor_data_t data;
+        memcpy(vs->vendor_oui, comcast_vendor_oui, EM_VENDOR_OUI_SIZE);
+        vs->num = 1;
+        vs->data[0].attr_id = static_cast<unsigned char> (vendor_ext_attr_id_passive);
+        vs->data[0].vendor_data[0] = 0x01;
+        unsigned short vs_len = static_cast<unsigned short> (EM_VENDOR_OUI_SIZE + 1 + sizeof(em_vendor_data_t) + 1);
+        tlv->len = htons(vs_len);
+
+        tmp += (sizeof(em_tlv_t) + vs_len);
+        len += static_cast<int> (sizeof(em_tlv_t) + vs_len);
+    }
+
     // End of message
     tlv = reinterpret_cast<em_tlv_t *> (tmp);
     tlv->type = em_tlv_type_eom;
@@ -4067,6 +4100,22 @@ int em_configuration_t::create_autoconfig_resp_msg(unsigned char* buff, em_freq_
 
         tmp += (sizeof(em_tlv_t) + sizeof(em_dpp_chirp_value_t) + hash_len);
         len += static_cast<int> (sizeof(em_tlv_t) + sizeof(em_dpp_chirp_value_t) + hash_len);
+    }
+
+    // Vendor Specific TLV indicating passive mode (appended when controller is started with --passive)
+    if (get_mgr()->is_passive()) {
+        tlv = reinterpret_cast<em_tlv_t *> (tmp);
+        tlv->type = em_tlv_type_vendor_specific;
+        em_vendor_specific_t *vs = reinterpret_cast<em_vendor_specific_t *> (tlv->value);
+        memcpy(vs->vendor_oui, comcast_vendor_oui, EM_VENDOR_OUI_SIZE);
+        vs->num = 1;
+        vs->data[0].attr_id = static_cast<unsigned char> (vendor_ext_attr_id_passive);
+        vs->data[0].vendor_data[0] = 0x01;
+        unsigned short vs_len = static_cast<unsigned short> (EM_VENDOR_OUI_SIZE + 1 + sizeof(em_vendor_data_t) + 1);
+        tlv->len = htons(vs_len);
+
+        tmp += (sizeof(em_tlv_t) + vs_len);
+        len += static_cast<int> (sizeof(em_tlv_t) + vs_len);
     }
 
     // End of message
@@ -4357,6 +4406,18 @@ int em_configuration_t::handle_autoconfig_wsc_m2(unsigned char *buff, unsigned i
         if (tlv->type == em_tlv_type_ap_mld_config) {
             em_printfout("Found AP MLD details in message");
             handle_ap_mld_config_tlv(tlv->value, htons(tlv->len));
+        } else if (tlv->type == em_tlv_type_vendor_specific) {
+            unsigned short vlen = htons(tlv->len);
+            if (vlen >= static_cast<unsigned short>(EM_VENDOR_OUI_SIZE + 1 + sizeof(em_vendor_data_t) + 1)) {
+                em_vendor_specific_t *vs = reinterpret_cast<em_vendor_specific_t *>(tlv->value);
+                if ((memcmp(vs->vendor_oui, comcast_vendor_oui, EM_VENDOR_OUI_SIZE) == 0) &&
+                    (vs->num >= 1) &&
+                    (vs->data[0].attr_id == static_cast<unsigned char>(vendor_ext_attr_id_passive)) &&
+                    (vs->data[0].vendor_data[0] == 0x01)) {
+                    em_printfout("Detected passive mode from controller via M2 vendor TLV");
+                    get_mgr()->set_passive(true);
+                }
+            }
         } else if (tlv->type == em_tlv_type_wsc) {
             em_printfout("Handle wsc TLV, count: %d", wsc_tlv_count);
             //Storing m2 address and length in static variable;
@@ -4453,9 +4514,9 @@ int em_configuration_t::handle_encrypted_settings(unsigned int wsc_tlv_count)
         while (tmp_len > 0) {
             id = htons(attr->id);
             if (id == attr_id_vendor_ext) {
-                // Handle only em_vendor_oui
+                // Handle only comcast_vendor_oui
                 unsigned short attr_len = htons(attr->len);
-                if ((attr_len > EM_VENDOR_OUI_SIZE) && (memcmp(attr->val, em_vendor_oui, EM_VENDOR_OUI_SIZE) == 0)) {
+                if ((attr_len > EM_VENDOR_OUI_SIZE) && (memcmp(attr->val, comcast_vendor_oui, EM_VENDOR_OUI_SIZE) == 0)) {
                     unsigned char vendor_attr_id = attr->val[EM_VENDOR_OUI_SIZE];
                     if (vendor_attr_id == vendor_ext_attr_id_haul_type) {
                         radioconfig.haultype[wsc_index] = static_cast<em_haul_type_t> (attr->val[EM_VENDOR_OUI_SIZE + 1]);
@@ -4496,8 +4557,13 @@ int em_configuration_t::handle_encrypted_settings(unsigned int wsc_tlv_count)
     for (unsigned int i = 0; i < radioconfig.noofbssconfig; i++){
         radioconfig.freq[i] = get_band();
     }
-    get_mgr()->io_process(em_bus_event_type_m2ctrl_configuration, reinterpret_cast<unsigned char *> (&radioconfig), sizeof(radioconfig));
-    set_state(em_state_agent_owconfig_pending);
+    if (get_mgr()->is_passive()) {
+        em_printfout("Passive mode: skipping M2 configuration push to OneWifi");
+        set_state(em_state_agent_wsc_m2_config_skipping);
+    } else {
+        get_mgr()->io_process(em_bus_event_type_m2ctrl_configuration, reinterpret_cast<unsigned char *> (&radioconfig), sizeof(radioconfig));
+        set_state(em_state_agent_owconfig_pending);
+    }
     return ret;
 }
 
@@ -5088,8 +5154,13 @@ int em_configuration_t::handle_bss_config_rsp_msg(uint8_t *buff, unsigned int le
         }
         em_printfout("Committing radio configuration to node '" MACSTRFMT "' on band %d with %d BSS configurations", 
                      MAC2STR(em->get_radio_interface_mac()), band_radioconfig->freq[0], band_radioconfig->noofbssconfig);
-        em->get_mgr()->io_process(em_bus_event_type_m2ctrl_configuration, reinterpret_cast<unsigned char *> (band_radioconfig), sizeof(m2ctrl_radioconfig));
-        em->set_state(em_state_agent_owconfig_pending);
+        if (em->get_mgr()->is_passive()) {
+            em_printfout("Passive mode: skipping M2 configuration push to OneWifi for node '" MACSTRFMT "'", MAC2STR(em->get_radio_interface_mac()));
+            em->set_state(em_state_agent_configured);
+        } else {
+            em->get_mgr()->io_process(em_bus_event_type_m2ctrl_configuration, reinterpret_cast<unsigned char *> (band_radioconfig), sizeof(m2ctrl_radioconfig));
+            em->set_state(em_state_agent_owconfig_pending);
+        }
 
         em = static_cast<em_t *>(hash_map_get_next(em_map, reinterpret_cast<void *>(em)));
     }
@@ -5298,7 +5369,7 @@ int em_configuration_t::create_encrypted_settings(unsigned char *buff, em_haul_t
     attr->id = htons(attr_id_vendor_ext);
     size = EM_VENDOR_OUI_SIZE + sizeof(vendor_ext_attr_id_t) + sizeof(em_haul_type_t);
     attr->len = htons(static_cast<short unsigned int> (size));
-    memcpy(reinterpret_cast<char *> (attr->val), em_vendor_oui, EM_VENDOR_OUI_SIZE);
+    memcpy(reinterpret_cast<char *> (attr->val), comcast_vendor_oui, EM_VENDOR_OUI_SIZE);
     attr->val[EM_VENDOR_OUI_SIZE] = static_cast<unsigned char> (vendor_ext_attr_id_haul_type);
     attr->val[EM_VENDOR_OUI_SIZE + 1] = static_cast<unsigned char> (haul_type);
 
@@ -5646,6 +5717,29 @@ int em_configuration_t::handle_autoconfig_resp(unsigned char *buff, unsigned int
         return get_ec_mgr().handle_autoconf_resp_chirp(reinterpret_cast<em_dpp_chirp_value_t*>(dpp_chirp_tlv->value), SWAP_LITTLE_ENDIAN(dpp_chirp_tlv->len), hdr->src);
     }
 
+    // Check for passive mode vendor TLV from the controller
+    {
+        em_tlv_t *tlv = reinterpret_cast<em_tlv_t *>(buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+        int tlv_remaining = static_cast<int>(len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)));
+        while ((tlv->type != em_tlv_type_eom) && (tlv_remaining > 0)) {
+            if (tlv->type == em_tlv_type_vendor_specific) {
+                unsigned short vlen = htons(tlv->len);
+                if (vlen >= static_cast<unsigned short>(EM_VENDOR_OUI_SIZE + 1 + sizeof(em_vendor_data_t) + 1)) {
+                    em_vendor_specific_t *vs = reinterpret_cast<em_vendor_specific_t *>(tlv->value);
+                    if ((memcmp(vs->vendor_oui, comcast_vendor_oui, EM_VENDOR_OUI_SIZE) == 0) &&
+                        (vs->num >= 1) &&
+                        (vs->data[0].attr_id == static_cast<unsigned char>(vendor_ext_attr_id_passive)) &&
+                        (vs->data[0].vendor_data[0] == 0x01)) {
+                        em_printfout("Detected passive mode from controller via Autoconfig Response vendor TLV");
+                        get_mgr()->set_passive(true);
+                    }
+                }
+            }
+            tlv_remaining -= static_cast<int>(sizeof(em_tlv_t) + htons(tlv->len));
+            tlv = reinterpret_cast<em_tlv_t *>(reinterpret_cast<unsigned char *>(tlv) + sizeof(em_tlv_t) + htons(tlv->len));
+        }
+    }
+
     if (get_is_dpp_onboarding()) {
         // If DPP onboarding is enabled, we end here and start securing the 1905 layer
         set_state(em_state_agent_1905_securing); // Set state to avoid follow-on autoconf messages
@@ -5830,10 +5924,18 @@ void em_configuration_t::process_msg(unsigned char *data, unsigned int len)
                 std::vector<em_t*> em_radios;
                 get_mgr()->get_all_em_for_al_mac(hdr->dst, em_radios);
                 for (auto &em : em_radios) {
-                    if ((em->get_service_type() == em_service_type_agent) && (em->get_state() < em_state_agent_onewifi_bssconfig_ind)) {
-                        em_printfout("radio %s is not configured, ignoring", util::mac_to_string(em->get_radio_interface_mac()).c_str());
-                        em_radios.clear();
-                        return;
+                    if(get_mgr()->is_passive() == true) {
+                        if ((em->get_service_type() == em_service_type_agent) && (em->get_state() < em_state_agent_wsc_m2_config_skipping)) {
+                            em_printfout("radio %s is skipping config, ignoring, em state is: [%s]", util::mac_to_string(em->get_radio_interface_mac()).c_str(), em_t::state_2_str(em->get_state()));
+                            em_radios.clear();
+                            return;
+                        }
+                    } else {
+                        if ((em->get_service_type() == em_service_type_agent) && (em->get_state() < em_state_agent_onewifi_bssconfig_ind)) {
+                            em_printfout("radio %s is not configured, ignoring, em state is: [%s]", util::mac_to_string(em->get_radio_interface_mac()).c_str(), em_t::state_2_str(em->get_state()));
+                            em_radios.clear();
+                            return;
+                        }
                     }
                 }
                 em_printfout("All radios are configured for al_mac:%s, sending topology response", util::mac_to_string(hdr->dst).c_str());
@@ -6122,14 +6224,14 @@ void em_configuration_t::process_ctrl_state()
 
             if (ssid_mismatch_present == false)
             {
-                for (auto &em : em_radios) {
+                /*for (auto &em : em_radios) {
                     if (em->get_state() != em_state_ctrl_topo_sync_pending) {
                         em_printfout("radio %s is in state:%d, not in topo sync pending state, ignoring",
                             util::mac_to_string(em->get_radio_interface_mac()).c_str(), em->get_state());
                         em_radios.clear();
                         return;
                     }
-                }
+                }*/
                 // Reset the mismatch and topo_query_last sent values before sending topo query
                 dm->set_ssid_mismatch_check_time(0);
                 dm->set_last_topo_query_sent_time(0);
@@ -6153,12 +6255,16 @@ void em_configuration_t::process_ctrl_state()
             break;
 
         case em_state_ctrl_topo_publish_pending:
+            em_printfout("topo_publish_pending: device=%s radio=%s topo_state=%d",
+                util::mac_to_string(dm->get_agent_al_interface_mac()).c_str(),
+                util::mac_to_string(get_radio_interface_mac()).c_str(),
+                (int)dm->get_topo_state());
             if (dm->get_topo_state() == true) {
-                em_printfout("Topology has changed for device: %s", util::mac_to_string(dm->get_agent_al_interface_mac()).c_str());
+                em_printfout("Publishing topology for device: %s", util::mac_to_string(dm->get_agent_al_interface_mac()).c_str());
                 dm->set_topo_state(false);
                 get_mgr()->publish_network_topology();
             }
-            set_state(em_state_ctrl_configured);
+            set_state(em_state_ctrl_topo_published);
             break;
 
         default:

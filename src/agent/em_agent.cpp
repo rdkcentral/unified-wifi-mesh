@@ -1666,7 +1666,7 @@ int em_agent_t::association_status_cb(char *event_name, bus_data_prop_t *data, v
         em_printfout("NULL data from OneWiFi callback!");
         return -1;
     }
-    g_agent.io_process(em_bus_event_type_assoc_status, reinterpret_cast<unsigned char *>(data->value.raw_data.bytes), data->value.raw_data_len);
+    //g_agent.io_process(em_bus_event_type_assoc_status, reinterpret_cast<unsigned char *>(data->value.raw_data.bytes), data->value.raw_data_len);
     return 1;
 }
 
@@ -1959,7 +1959,8 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
 			if (!(em->is_al_interface_em())) {
 				if (em->is_matching_freq_band(&band) == true) {
 					if ((em->get_state() != em_state_agent_autoconfig_renew_pending) && (em->get_state() !=em_state_agent_wsc_m2_pending) && 
-                        (em->get_state() != em_state_agent_owconfig_pending) && (em->get_state() != em_state_agent_1905_securing)) {
+                        (em->get_state() != em_state_agent_owconfig_pending) && (em->get_state() != em_state_agent_1905_securing) &&
+                        (em->get_state() != em_state_agent_wsc_m2_config_skipping)) {
 						found = true;
 						break;
 					} else {

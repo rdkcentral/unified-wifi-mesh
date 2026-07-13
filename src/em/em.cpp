@@ -153,7 +153,9 @@ void em_t::orch_execute(em_cmd_t *pcmd)
                     util::mac_to_string(em_t::get_radio_interface_mac()).c_str());
             if ((pcmd->get_orch_op() == dm_orch_type_topo_sync) && (m_sm.get_state() == em_state_ctrl_wsc_m2_sent)) {
                 m_sm.set_state(em_state_ctrl_topo_sync_pending);
-            } else if ((pcmd->get_orch_op() == dm_orch_type_ap_cap_query) && (m_sm.get_state() == em_state_ctrl_topo_synchronized)) {
+            }  else if ((pcmd->get_orch_op() == dm_orch_type_topo_publish) && (m_sm.get_state() == em_state_ctrl_topo_synchronized)) {
+                m_sm.set_state(em_state_ctrl_topo_publish_pending);
+            } else if ((pcmd->get_orch_op() == dm_orch_type_ap_cap_query) && (m_sm.get_state() == em_state_ctrl_topo_published)) {
                 m_sm.set_state(em_state_ctrl_ap_cap_query_pending);
             } else if ((pcmd->get_orch_op() == dm_orch_type_channel_pref) && (m_sm.get_state() == em_state_ctrl_ap_cap_report_received)) {
                 m_sm.set_state(em_state_ctrl_channel_query_pending);
@@ -161,11 +163,9 @@ void em_t::orch_execute(em_cmd_t *pcmd)
                 m_sm.set_state(em_state_ctrl_set_policy_pending);
             } else if ((pcmd->get_orch_op() == dm_orch_type_channel_sel) && (m_sm.get_state() == em_state_ctrl_configured)) {
                 m_sm.set_state(em_state_ctrl_channel_select_pending);
-            } else if ((pcmd->get_orch_op() == dm_orch_type_channel_scan_req) && (m_sm.get_state() == em_state_ctrl_configured)) {
+            } /*else if ((pcmd->get_orch_op() == dm_orch_type_channel_scan_req) && (m_sm.get_state() == em_state_ctrl_configured)) {
                 m_sm.set_state(em_state_ctrl_channel_scan_pending);
-            } else if ((pcmd->get_orch_op() == dm_orch_type_topo_publish) && (m_sm.get_state() == em_state_ctrl_configured)) {
-                m_sm.set_state(em_state_ctrl_topo_publish_pending);
-            }
+            }*/
             break;
 
         case em_cmd_type_dev_test:
@@ -2878,6 +2878,7 @@ const char *em_t::state_2_str(em_state_t state)
         EM_STATE_2S(em_state_agent_unconfigured)
         EM_STATE_2S(em_state_agent_autoconfig_rsp_pending)
         EM_STATE_2S(em_state_agent_wsc_m2_pending)
+        EM_STATE_2S(em_state_agent_wsc_m2_config_skipping)
         EM_STATE_2S(em_state_agent_steer_btm_res_pending)
         EM_STATE_2S(em_state_agent_owconfig_pending)
         EM_STATE_2S(em_state_agent_onewifi_bssconfig_ind)
