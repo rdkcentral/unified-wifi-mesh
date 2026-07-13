@@ -2297,7 +2297,7 @@ int dm_easy_mesh_ctrl_t::analyze_sta_assoc_event(em_bus_event_t *evt, em_cmd_t *
         // BSS is directly resolvable for a non-MLO client — topology query not needed;
         // skip dm_orch_type_topo_sync and go straight to client capability query + publish.
         // Skip the sta capability request if the client has already been connected to this earlier
-        snprintf(key, sizeof(em_long_string_t), "%s@%s@%s", sta_mac_str, bss_mac_str, dev_mac_str);
+        snprintf(key, sizeof(em_2xlong_string_t), "%s@%s@%s", sta_mac_str, bss_mac_str, dev_mac_str);
         em_printfout("Key is %s\n", key);
         dm_sta_t *is_sta_existing = static_cast<dm_sta_t *>(hash_map_get(dm.m_sta_assoc_map, key));
         if (is_sta_existing == NULL) {
