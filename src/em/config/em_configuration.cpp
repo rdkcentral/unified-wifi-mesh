@@ -2190,14 +2190,14 @@ int em_configuration_t::handle_topology_response(unsigned char *buff, unsigned i
         }
     }
 
-	if (found_profile == false) {
-		printf("%s:%d: Could not find profile in topo reponse message, dropping\n", __func__, __LINE__);
-		return -1;
-	}
-
-	m_peer_profile = profile;
-    
-	if (em_msg_t(em_msg_type_topo_resp, m_peer_profile, buff, len).validate(errors) == 0) {
+    // For backward compatibility with earlier EasyMesh specifications.
+    if (found_profile == true) {
+        m_peer_profile = profile;
+    } else {
+        // MultiAP profile TLV is mandatory for profile >= em_profile_type_2
+        m_peer_profile = em_profile_type_1;
+    }
+    if (em_msg_t(em_msg_type_topo_resp, m_peer_profile, buff, len).validate(errors) == 0) {
         printf("%s:%d: topology response msg validation failed\n", __func__, __LINE__);
             
         //return -1;
@@ -2262,15 +2262,16 @@ int em_configuration_t::handle_topology_response(unsigned char *buff, unsigned i
         }
     }
 
-    if (found_bss_config_rprt == false) {
-        printf("%s:%d: Could not find bss configuration report, failing mesaage\n", __func__, __LINE__);
-        return -1;
+    if (found_bss_config_rprt) {
+        if (handle_bss_configuration_report(tlv->value, tlv->len) != 0) {
+            printf("%s:%d: BSS Configuration Report handling failed\n", __func__, __LINE__);
+            return -1;
+        }
+    } else {
+        // bss_conf_rep is optional; reset cursor so subsequent TLV searches still run
+        tlv = reinterpret_cast<em_tlv_t *>(buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+        tmp_len = len - static_cast<unsigned int>(sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
     }
-
-	if (handle_bss_configuration_report(tlv->value, tlv->len) != 0) {
-		printf("%s:%d: BSS Configuration Report handling failed\n", __func__, __LINE__);
-		return -1;
-	}
 
     while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
         if (tlv->type != em_tlv_type_bh_sta_radio_cap) {
@@ -5561,10 +5562,10 @@ int em_configuration_t::handle_autoconfig_wsc_m1(unsigned char *buff, unsigned i
     dm_easy_mesh_t::macbytes_to_string(get_peer_mac(), mac_str);
     printf("%s:%d: Device AL MAC: %s\n", __func__, __LINE__, mac_str);
 
-    if (em_msg_t(em_msg_type_autoconf_wsc, em_profile_type_3, buff, len).validate(errors) == 0) {
+    if (em_msg_t(em_msg_type_autoconf_wsc, m_peer_profile, buff, len).validate(errors) == 0) {
         printf("%s:%d: received autoconfig wsc m1 msg failed validation\n", __func__, __LINE__);
 
-        //return -1;
+        return -1;
     }
 
     tlv = reinterpret_cast<em_tlv_t *>(buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)); 
@@ -5629,8 +5630,8 @@ int em_configuration_t::handle_autoconfig_resp(unsigned char *buff, unsigned int
 
     if (em_msg_t(buff + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)),
                 len - static_cast<unsigned int>(sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_profile_type(&m_peer_profile) == false) {
-        printf("%s:%d: Could not get peer profile type\n", __func__, __LINE__);
-        return -1;
+        // For backward compatibility with earlier EasyMesh specifications.
+        m_peer_profile =  em_profile_type_1;
     }
 
     if (em_msg_t(em_msg_type_autoconf_resp, m_peer_profile, buff, len).validate(errors) == 0) {
@@ -5690,16 +5691,14 @@ int em_configuration_t::handle_autoconfig_search(unsigned char *buff, unsigned i
     em_freq_band_t  band;
     mac_address_t al_mac;
 
-    if (em_msg_t(em_msg_type_autoconf_search, em_profile_type_3, buff, len).validate(errors) == 0) {
-        printf("received autoconfig search msg failed validation\n");
-    
-        return -1;
-    }
     if (em_msg_t(buff + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)),
                len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_profile_type(&m_peer_profile) == false) { 
         printf("%s:%d: Could not get peer profile type\n", __func__, __LINE__);
-    } else {
         m_peer_profile = em_profile_type_1;
+    }
+    if (em_msg_t(em_msg_type_autoconf_search, m_peer_profile, buff, len).validate(errors) == 0) {
+        em_printfout("received autoconfig search msg failed validation\n");
+        return -1;
     }
 
     if (em_msg_t(buff + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)), len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_freq_band(&band) == false) {
