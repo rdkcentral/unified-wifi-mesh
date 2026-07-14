@@ -418,6 +418,10 @@ static void em_topo_stream_send_topology(const char *topology_json)
 
     em_printfout("[TOPO-WS] Sending topology #%llu ts=%s mac=%s", g_em_topo_order_id, ts_buf, g_em_topo_gateway_mac);
 
+    /* Retry once: an idle reused connection may have been closed by the peer
+     * between publishes, which only surfaces as a write failure on the next send. */
+    for (int send_attempt = 0; send_attempt < 5; send_attempt++) {
+
     /* ---- Connect (only if not already up) ---- */
     if (g_em_topo_socket_fd < 0) {
         em_printfout("[TOPO-WS] No active connection, starting connect sequence");
@@ -440,7 +444,7 @@ static void em_topo_stream_send_topology(const char *topology_json)
         em_printfout("[TOPO-WS] Parsing URL: %s", g_em_topo_stream_url);
         if (!em_topo_parse_url(&info)) {
             em_printfout("[TOPO-WS] URL parse failed");
-            goto cleanup;
+            em_topo_close(); continue;
         }
         snprintf(port_str, sizeof(port_str), "%u", (unsigned int)info.port);
         em_printfout("[TOPO-WS] Parsed — host=%s port=%s path=%s tls=%d",
@@ -450,7 +454,7 @@ static void em_topo_stream_send_topology(const char *topology_json)
         hints.ai_family = AF_UNSPEC; hints.ai_socktype = SOCK_STREAM;
         if (getaddrinfo(info.host, port_str, &hints, &result) != 0 || !result) {
             em_printfout("[TOPO-WS] DNS lookup failed for %s", info.host);
-            goto cleanup;
+            em_topo_close(); continue;
         }
         em_printfout("[TOPO-WS] DNS resolved OK, attempting TCP connect to %s:%s", info.host, port_str);
 
@@ -471,7 +475,7 @@ static void em_topo_stream_send_topology(const char *topology_json)
 
         if (g_em_topo_socket_fd < 0) {
             em_printfout("[TOPO-WS] TCP connect to %s:%s failed", info.host, port_str);
-            goto cleanup;
+            em_topo_close(); continue;
         }
         em_printfout("[TOPO-WS] TCP connected to %s:%s (fd=%d)", info.host, port_str, g_em_topo_socket_fd);
 
@@ -481,14 +485,14 @@ static void em_topo_stream_send_topology(const char *topology_json)
             g_em_topo_ssl_ctx = SSL_CTX_new(TLS_client_method());
             if (g_em_topo_ssl_ctx == NULL) {
                 em_printfout("[TOPO-WS] SSL_CTX_new failed");
-                em_topo_close(); goto cleanup;
+                em_topo_close(); continue;
             }
             em_printfout("[TOPO-WS] SSL_CTX created OK");
 
             g_em_topo_ssl = SSL_new(g_em_topo_ssl_ctx);
             if (g_em_topo_ssl == NULL) {
                 em_printfout("[TOPO-WS] SSL_new failed");
-                em_topo_close(); goto cleanup;
+                em_topo_close(); continue;
             }
             em_printfout("[TOPO-WS] SSL object created OK");
 
@@ -497,7 +501,7 @@ static void em_topo_stream_send_topology(const char *topology_json)
             em_printfout("[TOPO-WS] Calling SSL_connect to %s", info.host);
             if (SSL_connect(g_em_topo_ssl) != 1) {
                 em_printfout("[TOPO-WS] SSL_connect failed (SSL error=%d)", SSL_get_error(g_em_topo_ssl, -1));
-                em_topo_close(); goto cleanup;
+                em_topo_close(); continue;
             }
             em_printfout("[TOPO-WS] TLS handshake OK — cipher=%s", SSL_get_cipher(g_em_topo_ssl));
         }
@@ -519,7 +523,7 @@ static void em_topo_stream_send_topology(const char *topology_json)
         em_printfout("[TOPO-WS] WS upgrade write returned %d (expected %zu)", w, strlen(req));
         if (w <= 0) {
             em_printfout("[TOPO-WS] WS upgrade write failed");
-            em_topo_close(); goto cleanup;
+            em_topo_close(); continue;
         }
 
         int r = g_em_topo_ssl ? SSL_read(g_em_topo_ssl, resp, (int)sizeof(resp) - 1)
@@ -527,14 +531,14 @@ static void em_topo_stream_send_topology(const char *topology_json)
         em_printfout("[TOPO-WS] WS upgrade read returned %d bytes", r);
         if (r <= 0) {
             em_printfout("[TOPO-WS] WS upgrade read failed");
-            em_topo_close(); goto cleanup;
+            em_topo_close(); continue;
         }
         resp[r] = '\0';
         em_printfout("[TOPO-WS] WS upgrade response: %.120s", resp);
 
         if (!strstr(resp, "101")) {
             em_printfout("[TOPO-WS] WS upgrade rejected — no 101 in response");
-            em_topo_close(); goto cleanup;
+            em_topo_close(); continue;
         }
         em_printfout("[TOPO-WS] WS upgrade OK — connected to %s:%s%s", info.host, port_str, info.path_query);
     } else {
@@ -549,13 +553,14 @@ static void em_topo_stream_send_topology(const char *topology_json)
         int n = ws_send_frame(envelope_str, jlen);
         if (n == 0) {
             em_printfout("[TOPO-WS] DataFrame sent successfully #%llu len=%zu", g_em_topo_order_id, jlen);
-        } else {
-            em_printfout("[TOPO-WS] Send failed #%llu — closing connection", g_em_topo_order_id);
-            em_topo_close();
+            break;
         }
+        em_printfout("[TOPO-WS] Send failed #%llu — closing connection", g_em_topo_order_id);
+        em_topo_close();
+        continue;
     }
+    } /* end send_attempt retry loop */
 
-cleanup:
     free(envelope_str);
 }
 
