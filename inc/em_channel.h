@@ -19,11 +19,13 @@
 #ifndef EM_CHANNEL_H
 #define EM_CHANNEL_H
 
+#include <vector>
 #include "em_base.h"
 
 #define ACK_FROM_AGENT 0
 #define ACK_FROM_CTRL  1
 
+class em_t;
 class em_cmd_t;
 class em_channel_t {
 
@@ -202,7 +204,7 @@ public:
 	 *
 	 * @note Ensure that the buffer is allocated with sufficient size before calling this function.
 	 */
-	short create_channel_pref_tlv(unsigned char *buff);
+	short create_channel_pref_tlv(unsigned char *buff, em_t *target = NULL);
 
 	/**!
 	 * @brief Updates map with non-operable and unsupported channels as per
@@ -333,7 +335,7 @@ public:
 	 *
 	 * @note Ensure the buffer is large enough to hold the TLV.
 	 */
-	short create_transmit_power_limit_tlv(unsigned char *buff);
+	short create_transmit_power_limit_tlv(unsigned char *buff, em_t *target = NULL);
     
 	/**!
 	 * @brief Creates a spatial reuse request TLV.
@@ -403,7 +405,7 @@ public:
 	 *
 	 * @note Ensure that the channel is available before sending the request.
 	 */
-	int send_channel_sel_request_msg();
+	int send_channel_sel_request_msg(const std::vector<em_t *> *targets = NULL);
     
 	/**!
 	 * @brief Sends a channel selection response message.
@@ -637,7 +639,7 @@ public:
 	 *
 	 * @note Ensure the buffer is properly initialized before calling this function.
 	 */
-	int handle_channel_pref_tlv(unsigned char *buff, op_class_channel_sel *op_class);
+	int handle_channel_pref_tlv(unsigned char *buff, op_class_channel_sel *op_class, em_freq_band_t ruid_band);
     
 	/**!
 	 * @brief Handles the channel preference TLV control.

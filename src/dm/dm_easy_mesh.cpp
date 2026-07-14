@@ -2532,6 +2532,18 @@ int dm_easy_mesh_t::get_beaconchannel_by_opclass(int op_class, int channel)
     return channel;
 }
 
+std::vector<int> dm_easy_mesh_t::get_op_classes_by_band(em_freq_band_t band)
+{
+    std::vector<int> result;
+    size_t count = sizeof(m_e4_table) / sizeof(m_e4_table[0]);
+    for (size_t i = 0; i < count; ++i) {
+        if (m_e4_table[i].band == band) {
+            result.push_back(m_e4_table[i].op_class);
+        }
+    }
+    return result;
+}
+
 // Function to get frequency band by operating class
 em_freq_band_t  dm_easy_mesh_t::get_freq_band_by_op_class(int op_class)
 {

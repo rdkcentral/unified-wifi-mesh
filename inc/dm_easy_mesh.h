@@ -195,6 +195,14 @@ public:
 	static em_freq_band_t get_freq_band_by_op_class(int op_class);
 
 	/**!
+	 * @brief Returns all op_class numbers for the given frequency band.
+	 *
+	 * @param[in] band Frequency band to filter by.
+	 * @returns Vector of op_class numbers belonging to that band.
+	 */
+	static std::vector<int> get_op_classes_by_band(em_freq_band_t band);
+
+	/**!
 	 * @brief Retrieves the list of channel associated with a given operating class.
 	 *
 	 * This function takes an operating class as input and returns the corresponding

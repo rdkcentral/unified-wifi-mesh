@@ -143,6 +143,16 @@ void em_orch_ctrl_t::orch_transient(em_cmd_t *pcmd, em_t *em)
             break;
         }
 
+        case em_cmd_type_set_channel:
+            // Platform ACS scan/convergence (and DFS CAC) take longer than the
+            // generic TTL; use the extended window to avoid cancelling mid-ACS.
+            if (stats->time > (EM_MAX_CMD_GEN_TTL + EM_MAX_CMD_EXT_TTL))
+            {
+                em_printfout("Canceling cmd: %s because time limit exceeded",pcmd->get_cmd_name());
+                cancel_command(pcmd->get_type());
+            }
+            break;
+
         default:
         if (stats->time > EM_MAX_CMD_GEN_TTL)
         {
