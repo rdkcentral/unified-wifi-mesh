@@ -358,7 +358,7 @@ int em_mgr_t::reset_listeners()
         if (em->is_al_interface_em() == true) {
             FD_SET(em->get_fd(), &m_rset);
             num++;
-	    printf("%s:%d: get_fd=%d highest_fd= %d\n", __func__, __LINE__, em->get_fd(), highest_fd);
+	    //printf("%s:%d: get_fd=%d highest_fd= %d\n", __func__, __LINE__, em->get_fd(), highest_fd);
             highest_fd = (em->get_fd() > highest_fd) ? em->get_fd():highest_fd;
         }
         em = static_cast<em_t *>(hash_map_get_next(m_em_map, em));
