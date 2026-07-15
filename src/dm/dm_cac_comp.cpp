@@ -34,16 +34,21 @@
 #include "dm_cac_comp.h"
 #include "dm_easy_mesh.h"
 #include "dm_easy_mesh_ctrl.h"
+#include <stdexcept>
 
 
 
 int dm_cac_comp_t::decode(const cJSON *obj, void *parent_id)
 {
+    if (obj == nullptr || parent_id == nullptr) return -1;
+    if (*static_cast<int*>(parent_id) < 0) return -1;
+    if (cJSON_GetArraySize(obj) == 0) return -1;
     return 0;
 }
 
 void dm_cac_comp_t::encode(cJSON *obj)
 {
+    if (obj == nullptr) throw std::invalid_argument("obj is null");
 }
 
 dm_orch_type_t dm_cac_comp_t::get_dm_orch_type(const dm_cac_comp_t& cac_comp)
@@ -67,9 +72,8 @@ void dm_cac_comp_t::operator = (const dm_cac_comp_t& obj)
 
 dm_cac_comp_t::dm_cac_comp_t(em_cac_comp_info_t *radio)
 {
-
     if (radio == nullptr) {
-        throw std::invalid_argument("cac_comp_info is null");
+        throw std::invalid_argument("radio is null");
     }
     memcpy(&m_cac_comp_info, radio, sizeof(em_cac_comp_info_t));
 }

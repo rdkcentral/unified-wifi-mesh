@@ -37,9 +37,9 @@
 
 int dm_sta_t::decode(const cJSON *obj, void *parent_id)
 {
-    if (obj == nullptr) {
-        return -1;
-    }
+    if (obj == nullptr || parent_id == nullptr) return -1;
+    if (obj->type < 0) return -1;
+
     cJSON *tmp;
     mac_addr_str_t  mac_str;
 

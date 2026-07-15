@@ -37,7 +37,7 @@
 
 int dm_policy_t::decode(const cJSON *obj, void *parent_id, em_policy_id_type_t type)
 {
-    if (obj == nullptr) {
+    if (obj == nullptr || parent_id == nullptr || obj->type < 0) {
         return -1;
     }
     cJSON *tmp, *sta_arr_obj;

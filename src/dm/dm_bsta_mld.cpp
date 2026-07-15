@@ -33,12 +33,13 @@
 #include "dm_bsta_mld.h"
 #include "dm_easy_mesh.h"
 #include "dm_easy_mesh_ctrl.h"
+#include <stdexcept>
 
 int dm_bsta_mld_t::decode(const cJSON *obj, void *parent_id)
 {
-    if (obj == nullptr) {
-        return -1;
-    }
+    if (obj == nullptr || parent_id == nullptr) return -1;
+    if (*static_cast<int*>(parent_id) < 0) return -1;
+
     //TODO: needs to be implemnented
 
     return 0;
@@ -46,6 +47,7 @@ int dm_bsta_mld_t::decode(const cJSON *obj, void *parent_id)
 
 void dm_bsta_mld_t::encode(cJSON *obj)
 {
+    if (obj == nullptr || !cJSON_IsObject(obj)) throw std::invalid_argument("obj is null or not a JSON object");
     //TODO: needs to be implemnented
 }
 

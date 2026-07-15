@@ -19,6 +19,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <errno.h>
+#include <stdexcept>
 #include <signal.h>
 #include <fcntl.h>
 #include <sys/stat.h>
@@ -41,8 +42,8 @@
 
 unsigned int em_orch_t::submit_commands(em_cmd_t *pcmd[], unsigned int num)
 {
-    if (pcmd == nullptr || num == 0) {
-        return 0;
+    if (pcmd == nullptr) {
+        return num;
     }
     unsigned int i;
     unsigned int submitted = 0;
@@ -75,7 +76,7 @@ unsigned int em_orch_t::submit_commands(em_cmd_t *pcmd[], unsigned int num)
 void em_orch_t::update_stats(em_cmd_t *pcmd)
 {
     if (pcmd == nullptr) {
-        return;
+        throw std::invalid_argument("null pcmd");
     }
     struct timeval  time_now;
     em_cmd_stats_t *stats;
@@ -98,7 +99,7 @@ void em_orch_t::update_stats(em_cmd_t *pcmd)
 void em_orch_t::pop_stats(em_cmd_t *pcmd)
 {
     if (pcmd == nullptr) {
-        return;
+        throw std::invalid_argument("null pcmd");
     }
     em_short_string_t key;
     em_cmd_stats_t *stats;
@@ -120,7 +121,7 @@ void em_orch_t::pop_stats(em_cmd_t *pcmd)
 void em_orch_t::push_stats(em_cmd_t *pcmd)
 {
     if (pcmd == nullptr) {
-        return;
+        throw std::invalid_argument("null pcmd");
     }
     em_short_string_t key;
     em_cmd_stats_t *stats;
@@ -173,7 +174,7 @@ bool em_orch_t::submit_command(em_cmd_t *pcmd)
 void em_orch_t::destroy_command(em_cmd_t *pcmd)
 {
     if (pcmd == nullptr) {
-        return;
+        throw std::invalid_argument("null pcmd");
     }
     unsigned int count;
 	em_t *em;
@@ -322,7 +323,7 @@ void em_orch_t::cancel_command(em_cmd_type_t type)
 
 bool em_orch_t::orchestrate(em_cmd_t *pcmd, em_t *em)
 {
-    if (pcmd == nullptr || em == nullptr) {
+    if (em == nullptr) {
         return false;
     }
     bool done = false;
@@ -367,7 +368,7 @@ bool em_orch_t::orchestrate(em_cmd_t *pcmd, em_t *em)
 bool em_orch_t::eligible_for_active(em_cmd_t *pcmd)
 {
     if (pcmd == nullptr) {
-        return false;
+        throw std::invalid_argument("null pcmd");
     }
     signed int i;
     bool eligible = true;
@@ -502,6 +503,17 @@ bool em_orch_t::get_dev_test_status()
     return false;
 }
 
+
+bool em_orch_t::is_cmd_type_renew_in_progress(em_bus_event_t *evt)
+{
+    if (evt == nullptr) {
+        return false;
+    }
+    if (evt->type != em_bus_event_type_cfg_renew) {
+        return false;
+    }
+    return is_cmd_in_progress_by_radio(evt);
+}
 
 bool em_orch_t::is_cmd_type_in_progress(em_bus_event_t *evt)
 {

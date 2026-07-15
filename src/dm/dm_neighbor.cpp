@@ -41,16 +41,21 @@
 
 int dm_neighbor_t::decode(const cJSON *obj, void *parent_id)
 {
-    if (obj == nullptr) {
+    if (obj == nullptr || parent_id == nullptr) {
         return -1;
     }
+
     cJSON *tmp;
     mac_addr_str_t  mac_str;
 
     memset(&m_neighbor_info, 0, sizeof(em_neighbor_info_t));
 
     if ((tmp = cJSON_GetObjectItem(obj, "Neighbor")) != NULL) {
-		snprintf(mac_str, sizeof(mac_str), "%s", cJSON_GetStringValue(tmp));
+		const char *nbr_str = cJSON_GetStringValue(tmp);
+		if (nbr_str == nullptr) {
+		    return -1;
+		}
+		snprintf(mac_str, sizeof(mac_str), "%s", nbr_str);
 		dm_easy_mesh_t::string_to_macbytes(mac_str, m_neighbor_info.nbr);
     }
 

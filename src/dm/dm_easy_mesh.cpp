@@ -19,6 +19,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <ctype.h>
+#include <stdexcept>
 #include <stdlib.h>
 #include <errno.h>
 #include <assert.h>
@@ -323,7 +324,10 @@ int dm_easy_mesh_t::analyze_vap_config(em_bus_event_t *evt, em_cmd_t *pcmd[])
 
 int dm_easy_mesh_t::analyze_ap_cap_query(em_bus_event_t *evt, em_cmd_t *pcmd[])
 {
-    if (evt == nullptr || pcmd == nullptr) {
+    if (evt == nullptr) {
+        return -1;
+    }
+    if (pcmd == nullptr) {
         return -1;
     }
     dm_easy_mesh_t  dm;
@@ -385,6 +389,12 @@ int dm_easy_mesh_t::encode_config(em_subdoc_info_t *subdoc, const char *str)
 
 int dm_easy_mesh_t::encode_config_reset(em_subdoc_info_t *subdoc, const char *key)
 {
+    if (subdoc == nullptr) {
+        return -1;
+    }
+    if (key == nullptr || key[0] == '\0') {
+        return -1;
+    }
     cJSON *parent_obj, *net_obj, *interfaces_obj, *interface_obj, *interface_arr_obj, *ssid_obj, *ssid_arr_objs;
 	char *formatted_json;
 	mac_addr_str_t	mac_str;
@@ -741,6 +751,9 @@ int dm_easy_mesh_t::decode_num_devices(em_subdoc_info_t *subdoc)
     cJSON *parent_obj, *net_obj, *dev_arr_objs;
     int size;
 
+    if (subdoc == nullptr) {
+        return -1;
+    }
     if ((parent_obj = cJSON_Parse(subdoc->buff)) == NULL) {
         printf("%s:%d: Failed to initialize device data model\n", __func__, __LINE__);
         return -1;
@@ -773,11 +786,15 @@ int dm_easy_mesh_t::decode_config(em_subdoc_info_t *subdoc, const char *str, uns
 {
 	em_long_string_t key;
 
-	if (subdoc == NULL || str == NULL || str[0] == '\0') {
-        printf("%s:%d: invalid null or empty argument\n", __func__, __LINE__);
-        return -1;
-    }
-
+	if (subdoc == nullptr) {
+		return -1;
+	}
+	if (str == nullptr) {
+		return -1;
+	}
+	if (num == nullptr) {
+		return -1;
+	}
 	if (strncmp(str, "Reset", strlen("Reset")) == 0) {
     	snprintf(key, sizeof(em_long_string_t), "wfa-dataelements:%s", str);
 		return decode_config_reset(subdoc, key);
@@ -819,6 +836,12 @@ int dm_easy_mesh_t::decode_config_reset(em_subdoc_info_t *subdoc, const char *ke
     unsigned int i;
 	unsigned int num_interfaces = EM_MAX_INTERFACES;
 
+	if (subdoc == nullptr) {
+		return -1;
+	}
+	if (key == nullptr) {
+		return -1;
+	}
 	get_interfaces_list(m_interfaces, &num_interfaces);
 	m_num_interfaces = num_interfaces;
 
@@ -911,6 +934,15 @@ int dm_easy_mesh_t::decode_config_set_radio(em_subdoc_info_t *subdoc, const char
     char *dev_mac_str, *net_id;
     em_long_string_t parent;
 
+    if (subdoc == nullptr) {
+        return -1;
+    }
+    if (key == nullptr) {
+        return -1;
+    }
+    if (num == nullptr) {
+        return -1;
+    }
     parent_obj = cJSON_Parse(subdoc->buff);
     if (parent_obj == NULL) {
         printf("%s:%d: Failed to parse: %s\n", __func__, __LINE__, subdoc->buff);
@@ -1003,6 +1035,9 @@ int dm_easy_mesh_t::decode_config_set_radio(em_subdoc_info_t *subdoc, const char
 int dm_easy_mesh_t::decode_config_set_policy(em_subdoc_info_t *subdoc, const char *key, unsigned int index, unsigned int *num)
 {
     if (subdoc == nullptr) {
+        return -1;
+    }
+    if (num == nullptr) {
         return -1;
     }
 	cJSON *parent_obj, *net_obj, *net_obj_id, *dev_arr_obj, *dev_obj, *dev_obj_id, *policy_obj; 
@@ -1282,6 +1317,15 @@ int dm_easy_mesh_t::decode_config_set_channel(em_subdoc_info_t *subdoc, const ch
         return EM_PARSE_ERR_GEN;
     }
 
+    if (subdoc == nullptr) {
+        return -1;
+    }
+    if (key == nullptr) {
+        return -1;
+    }
+    if (num == nullptr) {
+        return -1;
+    }
     parent_obj = cJSON_Parse(subdoc->buff);
     if (parent_obj == NULL) {
         em_printfout("Failed to parse: %s", subdoc->buff);
@@ -1473,6 +1517,12 @@ int dm_easy_mesh_t::decode_config_set_ssid(em_subdoc_info_t *subdoc, const char 
 	int ret = 0;
 	int haul_bit_mask = 0;
 
+    if (subdoc == nullptr) {
+        return -1;
+    }
+    if (key == nullptr) {
+        return -1;
+    }
     parent_obj = cJSON_Parse(subdoc->buff);
     if (parent_obj == NULL) {
         printf("%s:%d: Failed to parse: %s\n", __func__, __LINE__, subdoc->buff);
@@ -1549,6 +1599,9 @@ int dm_easy_mesh_t::decode_config_op_class_array(cJSON *arr_obj, em_op_class_typ
 	mac_addr_str_t	mac_str;
 	em_long_string_t key;
 
+	if (arr_obj == nullptr) {
+		return -1;
+	}
 	num_objs = cJSON_GetArraySize(arr_obj);
 	//printf("%s:%d: Operating Classes for type: %d are: %d\n", __func__, __LINE__, type, num_objs);
 
@@ -1601,6 +1654,12 @@ int dm_easy_mesh_t::decode_config_test(em_subdoc_info_t *subdoc, const char *key
 	mac_addr_str_t mac_str;
 	em_2xlong_string_t parent_key;
 
+    if (subdoc == nullptr) {
+        return -1;
+    }
+    if (key == nullptr) {
+        return -1;
+    }
     if ((parent_obj = cJSON_Parse(subdoc->buff)) == NULL) {
         printf("%s:%d: Failed to initialize device data model\n", __func__, __LINE__);
         return -1;
@@ -1774,10 +1833,12 @@ int dm_easy_mesh_t::decode_ap_cap_config(em_subdoc_info_t *subdoc, const char *s
     cJSON *id;
     int size;
 
-    if (subdoc == NULL || str == NULL) {
+    if (subdoc == nullptr) {
         return -1;
     }
-
+    if (str == nullptr) {
+        return -1;
+    }
     printf("%s:%d: test Received Subdoc\n", __func__, __LINE__);
     printf("%s\n", subdoc->buff);
 
@@ -1823,11 +1884,19 @@ int dm_easy_mesh_t::decode_client_cap_config(em_subdoc_info_t *subdoc, const cha
     cJSON *id, *cltmac, *rmac;
     int size;
 
-    if (subdoc == NULL || str == NULL || clientmac == NULL || radiomac == NULL) {
-        printf("%s:%d: invalid null argument\n", __func__, __LINE__);
+    if (subdoc == nullptr) {
         return -1;
     }
-
+    if (str == nullptr) {
+        return -1;
+    }
+    if (clientmac == nullptr) {
+        return -1;
+    }
+    if (radiomac == nullptr) {
+        return -1;
+    }
+	
     printf("%s:%d: test Received Subdoc\n", __func__, __LINE__);
     printf("%s\n", subdoc->buff);
 
@@ -2625,8 +2694,14 @@ em_bss_info_t *dm_easy_mesh_t::get_bss_info_with_mac(mac_address_t mac)
 
 void dm_easy_mesh_t::create_autoconfig_renew_json_cmd(char* src_mac_addr, char* agent_al_mac, em_freq_band_t freq_band, char* autoconfig_renew_json)
 {
-    if (src_mac_addr == NULL || agent_al_mac == NULL || autoconfig_renew_json == NULL) {
-        return;
+    if (src_mac_addr == nullptr) {
+        throw std::invalid_argument("src_mac_addr is null");
+    }
+    if (agent_al_mac == nullptr) {
+        throw std::invalid_argument("agent_al_mac is null");
+    }
+    if (autoconfig_renew_json == nullptr) {
+        throw std::invalid_argument("autoconfig_renew_json is null");
     }
     cJSON *root, *renew, *device_list, *radio_list, *current_operating_classes, *class_item;
     int op_class = em_freq_band_24;
@@ -2672,8 +2747,17 @@ void dm_easy_mesh_t::create_autoconfig_renew_json_cmd(char* src_mac_addr, char* 
 
 void dm_easy_mesh_t::create_ap_cap_query_json_cmd(char* src_mac_addr, char* agent_al_mac, char* ap_query_json, short msg_id)
 {
-    if (src_mac_addr == NULL || agent_al_mac == NULL || ap_query_json == NULL) {
-        return;
+    if (src_mac_addr == nullptr) {
+        throw std::invalid_argument("src_mac_addr is null");
+    }
+    if (agent_al_mac == nullptr) {
+        throw std::invalid_argument("agent_al_mac is null");
+    }
+    if (ap_query_json == nullptr) {
+        throw std::invalid_argument("ap_query_json is null");
+    }
+    if (msg_id < 0) {
+        throw std::invalid_argument("msg_id is negative");
     }
     cJSON *root, *query_info, *device_list;
     root = cJSON_CreateObject();
@@ -2697,8 +2781,20 @@ void dm_easy_mesh_t::create_ap_cap_query_json_cmd(char* src_mac_addr, char* agen
 
 void dm_easy_mesh_t::create_client_cap_query_json_cmd(char* src_mac_addr, char* agent_al_mac, char* ap_query_json, short msg_id, char *mac)
 {
-    if (src_mac_addr == NULL || agent_al_mac == NULL || ap_query_json == NULL || mac == NULL) {
-        return;
+    if (src_mac_addr == nullptr) {
+        throw std::invalid_argument("src_mac_addr is null");
+    }
+    if (agent_al_mac == nullptr) {
+        throw std::invalid_argument("agent_al_mac is null");
+    }
+    if (ap_query_json == nullptr) {
+        throw std::invalid_argument("ap_query_json is null");
+    }
+    if (mac == nullptr) {
+        throw std::invalid_argument("mac is null");
+    }
+    if (msg_id < 0) {
+        throw std::invalid_argument("msg_id is negative");
     }
     cJSON *root, *query_info, *device_list;
     root = cJSON_CreateObject();
@@ -3331,8 +3427,7 @@ dm_scan_result_t *dm_easy_mesh_t::create_new_scan_result(em_scan_result_id_t *id
 	if (id == nullptr) {
 		return nullptr;
 	}
-
-	memcpy(&scan_result.m_scan_result.id, id, sizeof(em_scan_result_id_t));
+memcpy(&scan_result.m_scan_result.id, id, sizeof(em_scan_result_id_t));
 
 	res = new dm_scan_result_t(scan_result);
 

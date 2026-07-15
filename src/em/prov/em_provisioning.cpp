@@ -47,9 +47,13 @@
 #include "cjson_util.h"
 #include "em_provisioning.h"
 #include "ec_ctrl_configurator.h"
+#include <stdexcept>
 
 int em_provisioning_t::create_cce_ind_msg(uint8_t *buff, bool enable)
 {
+    if (buff == nullptr) {
+        return -1;
+    }
     unsigned int len = 0;
 
     /*
@@ -76,6 +80,15 @@ int em_provisioning_t::send_prox_encap_dpp_msg(em_encap_dpp_t* encap_dpp_tlv, si
 {
     if (encap_dpp_len == 0 || encap_dpp_tlv == NULL) {
         em_printfout("Encap DPP TLV is empty");
+        return -1;
+    }
+
+    if (chirp == nullptr && chirp_len > 0) {
+        em_printfout("Chirp TLV is NULL but chirp_len is non-zero");
+        return -1;
+    }
+    if (chirp != nullptr && chirp_len == 0) {
+        em_printfout("Chirp TLV is non-NULL but chirp_len is zero");
         return -1;
     }
 
@@ -432,6 +445,16 @@ int em_provisioning_t::handle_cce_ind_msg(uint8_t *buff, unsigned int len)
 
 void em_provisioning_t::process_msg(uint8_t *data, unsigned int len)
 {
+    if (data == nullptr) {
+        throw std::invalid_argument("process_msg: data is null");
+    }
+    if (len < sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)) {
+        throw std::invalid_argument("process_msg: len is too small");
+    }
+    if (len > MAX_EM_BUFF_SZ) {
+        throw std::invalid_argument("process_msg: len exceeds maximum buffer size");
+    }
+
     em_cmdu_t *cmdu = reinterpret_cast<em_cmdu_t *> (data + sizeof(em_raw_hdr_t));
 
     em_raw_hdr_t *hdr = reinterpret_cast<em_raw_hdr_t *>(data);

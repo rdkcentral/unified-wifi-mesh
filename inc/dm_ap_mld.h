@@ -46,14 +46,16 @@ public:
 	 *
 	 * @note Ensure that the returned pointer is not null before accessing the structure.
 	 */
-	em_ap_mld_info_t *get_ap_mld_info() {
-		mac_address_t all_ff;
-		memset(all_ff, 0xFF, sizeof(mac_address_t));
-		if (memcmp(m_ap_mld_info.mac_addr, all_ff, sizeof(mac_address_t)) == 0) {
-			memset(m_ap_mld_info.mac_addr, 0, sizeof(mac_address_t));
-		}
-		return &m_ap_mld_info;
-	}
+em_ap_mld_info_t *get_ap_mld_info() {
+            bool all_ff = true;
+            for (size_t i = 0; i < sizeof(mac_address_t); ++i) {
+                if (m_ap_mld_info.mac_addr[i] != 0xFF) { all_ff = false; break; }
+            }
+            if (all_ff) {
+                memset(m_ap_mld_info.mac_addr, 0, sizeof(mac_address_t));
+            }
+            return &m_ap_mld_info;
+        }
     
 	/**!
 	 * @brief Decodes a JSON object and associates it with a parent ID.

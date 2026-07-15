@@ -52,6 +52,8 @@
 
  void *db_client_t::execute(const char *query)
  {
+     if (query == nullptr) return NULL;
+
      if (!m_con) {
          printf("%s:%d: Query: %s m_con is NULL, exiting\n", __func__, __LINE__, query);
          return NULL;
@@ -125,6 +127,7 @@
 
  int db_client_t::get_number(void *ctx, unsigned int col)
  {
+     if (col < 1) return 0;
      assert(ctx != NULL);
 
      result_context_t *res_ctx = static_cast<result_context_t *>(ctx);

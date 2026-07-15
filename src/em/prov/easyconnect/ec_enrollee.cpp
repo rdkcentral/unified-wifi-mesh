@@ -582,8 +582,8 @@ bool ec_enrollee_t::handle_recfg_auth_confirm(ec_frame_t *frame, size_t len, uin
 
 bool ec_enrollee_t::handle_auth_request(ec_frame_t *frame, size_t len, uint8_t src_mac[ETHER_ADDR_LEN], unsigned int recv_freq)
 {
-    if (frame == nullptr || src_mac == nullptr) {
-        em_printfout("handle_auth_request: invalid nullptr argument");
+    if (frame == nullptr) {
+        em_printfout("handle_auth_request: frame is null");
         return false;
     }
     em_printfout("Recieved a DPP Authentication Request from '" MACSTRFMT "', stopping Presence Announcement\n", MAC2STR(src_mac));
@@ -767,7 +767,8 @@ Authentication Request frame without replying to it.
 
 bool ec_enrollee_t::handle_auth_confirm(ec_frame_t *frame, size_t len, uint8_t src_mac[ETHER_ADDR_LEN])
 {
-    if (frame == nullptr || src_mac == nullptr) {
+    if (frame == nullptr) {
+        em_printfout("handle_auth_confirm: frame is null");
         return false;
     }
     size_t attrs_len = len - EC_FRAME_BASE_SIZE;

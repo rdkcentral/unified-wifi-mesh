@@ -35,15 +35,12 @@
 #include "dm_easy_mesh.h"
 #include "dm_easy_mesh_ctrl.h"
 #include "util.h"
+#include <stdexcept>
 
 int dm_ap_mld_t::decode(const cJSON *obj, void *parent_id)
 {
-    if (obj == nullptr) {
-        return -1;
-    }
-    if (parent_id == nullptr) {
-        return -1;
-    }
+    if (obj == nullptr || parent_id == nullptr) return -1;
+
     //TODO: needs to be implemnented
 
     return 0;
@@ -51,9 +48,7 @@ int dm_ap_mld_t::decode(const cJSON *obj, void *parent_id)
 
 void dm_ap_mld_t::encode(cJSON *obj)
 {
-    if (obj == nullptr) {
-        throw std::invalid_argument("encode: obj is null");
-    }
+    if (obj == nullptr) throw std::invalid_argument("obj is null");
     //TODO: needs to be implemnented
 }
 
@@ -106,10 +101,21 @@ dm_ap_mld_t::dm_ap_mld_t(em_ap_mld_info_t *ap_mld_info)
         return;
     }
     memcpy(&m_ap_mld_info, ap_mld_info, sizeof(em_ap_mld_info_t));
+    // If any MAC byte is 0x00, the address is invalid — replace with 0xFF sentinel
+    for (size_t i = 0; i < sizeof(mac_address_t); ++i) {
+        if (m_ap_mld_info.mac_addr[i] == 0x00) {
+            memset(m_ap_mld_info.mac_addr, 0xFF, sizeof(mac_address_t));
+            m_ap_mld_info.mac_addr_valid = false;
+            break;
+        }
+    }
 }
 
 dm_ap_mld_t::dm_ap_mld_t(const dm_ap_mld_t& ap_mld)
 {
+    if (&ap_mld == nullptr) {
+        throw std::invalid_argument("null ap_mld reference");
+    }
     memcpy(&m_ap_mld_info, &ap_mld.m_ap_mld_info, sizeof(em_ap_mld_info_t));
 }
 

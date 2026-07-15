@@ -295,6 +295,15 @@ public:
 	bool is_cmd_type_in_progress(em_bus_event_t *evt);
 
 	/**!
+	 * @brief Checks if a cfg renew command is currently in progress for a specific radio.
+	 *
+	 * @param[in] evt bus event.
+	 *
+	 * @returns True if a cfg renew command is in progress, false otherwise.
+	 */
+	bool is_cmd_type_renew_in_progress(em_bus_event_t *evt);
+
+	/**!
 	 * @brief Checks if a command type is currently in progress.
 	 *
 	 * This function determines whether a dev test commands types are identified by the

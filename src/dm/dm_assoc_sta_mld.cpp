@@ -35,15 +35,13 @@
 #include "dm_easy_mesh.h"
 #include "dm_easy_mesh_ctrl.h"
 #include "util.h"
+#include <stdexcept>
 
 int dm_assoc_sta_mld_t::decode(const cJSON *obj, void *parent_id)
 {
-    if (obj == nullptr) {
-        return -1;
-    }
-    if (parent_id == nullptr) {
-        return -1;
-    }
+    if (obj == nullptr || parent_id == nullptr) return -1;
+    if (*static_cast<int*>(parent_id) < 0) return -1;
+
     //TODO: needs to be implemnented
 
     return 0;
@@ -51,9 +49,7 @@ int dm_assoc_sta_mld_t::decode(const cJSON *obj, void *parent_id)
 
 void dm_assoc_sta_mld_t::encode(cJSON *obj)
 {
-    if (obj == nullptr) {
-        throw std::invalid_argument("encode: obj is null");
-    }
+    if (obj == nullptr || cJSON_GetArraySize(obj) == 0) throw std::invalid_argument("obj is null or empty");
     //TODO: needs to be implemnented
 }
 
@@ -106,8 +102,7 @@ dm_assoc_sta_mld_t::dm_assoc_sta_mld_t(em_assoc_sta_mld_info_t *assoc_sta_mld_in
 {
     memset(&m_assoc_sta_mld_info, 0, sizeof(em_assoc_sta_mld_info_t));
     if (assoc_sta_mld_info == nullptr) {
-        em_printfout("Error: assoc_sta_mld_info is null");
-        return;
+        throw std::invalid_argument("assoc_sta_mld_info is null");
     }
     memcpy(&m_assoc_sta_mld_info, assoc_sta_mld_info, sizeof(em_assoc_sta_mld_info_t));
     if (m_assoc_sta_mld_info.num_affiliated_sta > EM_MAX_AP_MLD) {
@@ -117,6 +112,16 @@ dm_assoc_sta_mld_t::dm_assoc_sta_mld_t(em_assoc_sta_mld_info_t *assoc_sta_mld_in
 
 dm_assoc_sta_mld_t::dm_assoc_sta_mld_t(const dm_assoc_sta_mld_t& assoc_sta_mld)
 {
+    bool all_ff = true;
+    for (size_t i = 0; i < sizeof(mac_address_t); ++i) {
+        if (assoc_sta_mld.m_assoc_sta_mld_info.mac_addr[i] != 0xFF) {
+            all_ff = false;
+            break;
+        }
+    }
+    if (all_ff) {
+        throw std::invalid_argument("invalid MAC address: all 0xFF");
+    }
     memcpy(&m_assoc_sta_mld_info, &assoc_sta_mld.m_assoc_sta_mld_info, sizeof(em_assoc_sta_mld_info_t));
     mac_address_t all_ff;
     memset(all_ff, 0xFF, sizeof(mac_address_t));

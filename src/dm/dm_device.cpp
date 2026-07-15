@@ -37,6 +37,10 @@
 
 int dm_device_t::decode(const cJSON *obj, void *parent_id)
 {
+    if (obj == nullptr || parent_id == nullptr || obj->child == nullptr) {
+        return -1;
+    }
+
     cJSON *tmp, *tmp_arr;
     mac_addr_str_t  mac_str;
     int i;

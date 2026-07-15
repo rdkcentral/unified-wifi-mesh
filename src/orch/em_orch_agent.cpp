@@ -19,6 +19,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <errno.h>
+#include <stdexcept>
 #include <signal.h>
 #include <fcntl.h>
 #include <sys/stat.h>
@@ -41,7 +42,10 @@
 
 void em_orch_agent_t::orch_transient(em_cmd_t *pcmd, em_t *em)
 {
-    if (pcmd == nullptr || em == nullptr) {
+    if (pcmd == nullptr) {
+        return;
+    }
+    if (em == nullptr) {
         return;
     }
     em_cmd_stats_t *stats;
@@ -162,7 +166,10 @@ bool em_orch_agent_t::is_em_ready_for_orch_fini(em_cmd_t *pcmd, em_t *em)
 
 bool em_orch_agent_t::is_em_ready_for_orch_exec(em_cmd_t *pcmd, em_t *em)
 {
-    if (pcmd == nullptr || em == nullptr) {
+    if (pcmd == nullptr) {
+        return false;
+    }
+    if (em == nullptr) {
         return false;
     }
 	if (pcmd->m_type == em_cmd_type_dev_init) {
@@ -217,7 +224,15 @@ bool em_orch_agent_t::is_em_ready_for_orch_exec(em_cmd_t *pcmd, em_t *em)
 
 void em_orch_agent_t::pre_process_cancel(em_cmd_t *pcmd, em_t *em)
 {
-
+    if (pcmd == nullptr) {
+        return;
+    }
+    if (em == nullptr) {
+        return;
+    }
+    if (pcmd->get_type() >= em_cmd_type_max) {
+        throw std::invalid_argument("invalid command type");
+    }
 }
 
 bool em_orch_agent_t::pre_process_orch_op(em_cmd_t *pcmd)
@@ -547,5 +562,8 @@ unsigned int em_orch_agent_t::build_candidates(em_cmd_t *pcmd)
 
 em_orch_agent_t::em_orch_agent_t(em_mgr_t *mgr)
 {
+    if (mgr == nullptr) {
+        throw std::invalid_argument("null mgr");
+    }
     m_mgr = mgr;
 }  

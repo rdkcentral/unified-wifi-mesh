@@ -38,6 +38,7 @@
 
 #include <string>
 #include <sstream>
+#include <stdexcept>
 
 int dm_dpp_t::analyze_config(const cJSON *obj, void *parent, em_cmd_t *pcmd[], em_cmd_params_t *param, void* user_param)
 {
@@ -61,6 +62,10 @@ int dm_dpp_t::analyze_config(const cJSON *obj, void *parent, em_cmd_t *pcmd[], e
 
 int dm_dpp_t::decode(const cJSON *obj, void *parent_id, void* user_info)
 {
+    if (obj == nullptr || parent_id == nullptr || user_info == nullptr) {
+        return -1;
+    }
+
     printf("%s:%d: Decoding DPP\n", __func__, __LINE__);
 
     std::string country_code = "US";
@@ -143,16 +148,18 @@ void dm_dpp_t::operator = (const dm_dpp_t& obj)
 
 dm_dpp_t::dm_dpp_t(ec_data_t *dpp)
 {
-
     if (dpp == nullptr) {
-        memset(&m_dpp_info, 0, sizeof(m_dpp_info));
-        return;
+        throw std::invalid_argument("null pointer passed to dm_dpp_t constructor");
     }
     memcpy(&m_dpp_info, dpp, sizeof(ec_data_t));
 }
 
 dm_dpp_t::dm_dpp_t(const dm_dpp_t& dpp)
 {
+    volatile const dm_dpp_t* dpp_ptr = &dpp;
+    if (dpp_ptr == nullptr) {
+        throw std::invalid_argument("null reference passed to dm_dpp_t copy constructor");
+    }
 	memcpy(&m_dpp_info, &dpp.m_dpp_info, sizeof(ec_data_t));
 }
 

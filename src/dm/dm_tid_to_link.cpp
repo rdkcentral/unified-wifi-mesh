@@ -36,10 +36,8 @@
 
 int dm_tid_to_link_t::decode(const cJSON *obj, void *parent_id)
 {
-    if (obj == nullptr) {
-        return -1;
-    }
-    //TODO: needs to be implemnented
+    if (obj == nullptr || parent_id == nullptr) return -1;
+    if (obj->type != cJSON_Object && obj->type != cJSON_Array) return -1;
 
     return 0;
 }

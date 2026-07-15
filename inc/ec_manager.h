@@ -273,6 +273,10 @@ public:
 	 * @note Ensure that the configurator is initialized before calling this function.
 	 */
 	inline bool process_direct_encap_dpp_msg(uint8_t* dpp_frame, uint16_t dpp_frame_len, uint8_t src_al_mac[ETH_ALEN]) {
+        if (src_al_mac == nullptr) {
+            em_printfout("src_al_mac is null");
+            return false;
+        }
         if (m_configurator) {
             return m_configurator->process_direct_encap_dpp_msg(dpp_frame, dpp_frame_len, src_al_mac);
         }

@@ -18,6 +18,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <stdexcept>
 #include <stdlib.h>
 #include <errno.h>
 #include <assert.h>
@@ -111,6 +112,9 @@ static em_cmd_out_status_t status_for_noncmd(int num)
 
 void em_ctrl_t::handle_client_steer(em_bus_event_t *evt)
 {
+    if (evt == nullptr) {
+        throw std::invalid_argument("evt pointer is null");
+    }
     em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
     int num;
 
@@ -127,6 +131,9 @@ void em_ctrl_t::handle_client_steer(em_bus_event_t *evt)
 
 void em_ctrl_t::handle_client_disassoc(em_bus_event_t *evt)
 {
+    if (evt == nullptr) {
+        throw std::invalid_argument("evt pointer is null");
+    }
     em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
     int num;
 
@@ -143,6 +150,9 @@ void em_ctrl_t::handle_client_disassoc(em_bus_event_t *evt)
 
 void em_ctrl_t::handle_client_btm(em_bus_event_t *evt)
 {
+    if (evt == nullptr) {
+        throw std::invalid_argument("evt pointer is null");
+    }
     em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
     int num;
 
@@ -159,6 +169,9 @@ void em_ctrl_t::handle_client_btm(em_bus_event_t *evt)
 
 void em_ctrl_t::handle_start_dpp(em_bus_event_t *evt)
 {
+    if (evt == nullptr) {
+        throw std::invalid_argument("evt pointer is null");
+    }
     em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
     int num;
 
@@ -192,6 +205,9 @@ void em_ctrl_t::handle_channel_select(em_bus_event_t *evt)
 
 void em_ctrl_t::handle_set_channel_list(em_bus_event_t *evt)
 {
+    if (evt == nullptr) {
+        throw std::invalid_argument("evt pointer is null");
+    }
     em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
     int num;
 
@@ -209,6 +225,9 @@ void em_ctrl_t::handle_set_channel_list(em_bus_event_t *evt)
 
 void em_ctrl_t::handle_scan_channel_list(em_bus_event_t *evt)
 {
+    if (evt == nullptr) {
+        throw std::invalid_argument("evt pointer is null");
+    }
     em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
     int num;
 
@@ -226,6 +245,9 @@ void em_ctrl_t::handle_scan_channel_list(em_bus_event_t *evt)
 
 void em_ctrl_t::handle_set_policy(em_bus_event_t *evt)
 {
+    if (evt == nullptr) {
+        throw std::invalid_argument("evt pointer is null");
+    }
     em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
     int num;
 
@@ -242,6 +264,9 @@ void em_ctrl_t::handle_set_policy(em_bus_event_t *evt)
 
 void em_ctrl_t::handle_config_renew(em_bus_event_t *evt)
 {
+    if (evt == nullptr) {
+        throw std::invalid_argument("evt pointer is null");
+    }
     em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
     int num;
     
@@ -252,6 +277,9 @@ void em_ctrl_t::handle_config_renew(em_bus_event_t *evt)
 
 void em_ctrl_t::handle_m2_tx(em_bus_event_t *evt)
 {
+    if (evt == nullptr) {
+        throw std::invalid_argument("evt pointer is null");
+    }
     em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
     int num;
     
@@ -262,6 +290,9 @@ void em_ctrl_t::handle_m2_tx(em_bus_event_t *evt)
 
 void em_ctrl_t::handle_sta_assoc_event(em_bus_event_t *evt)
 {
+    if (evt == nullptr) {
+        throw std::invalid_argument("evt pointer is null");
+    }
     em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
     int num;
     
@@ -272,6 +303,9 @@ void em_ctrl_t::handle_sta_assoc_event(em_bus_event_t *evt)
 
 void em_ctrl_t::handle_set_radio(em_bus_event_t *evt)
 {
+    if (evt == nullptr) {
+        throw std::invalid_argument("evt pointer is null");
+    }
     em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
     int num;
 
@@ -288,6 +322,9 @@ void em_ctrl_t::handle_set_radio(em_bus_event_t *evt)
 
 void em_ctrl_t::handle_set_ssid_list(em_bus_event_t *evt)
 {
+    if (evt == nullptr) {
+        throw std::invalid_argument("evt pointer is null");
+    }
     em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
     int num, ret;
 
@@ -309,6 +346,9 @@ void em_ctrl_t::handle_set_ssid_list(em_bus_event_t *evt)
 
 void em_ctrl_t::handle_remove_device(em_bus_event_t *evt)
 {
+    if (evt == nullptr) {
+        throw std::invalid_argument("evt pointer is null");
+    }
     em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
     int num;
 
@@ -326,6 +366,9 @@ void em_ctrl_t::handle_remove_device(em_bus_event_t *evt)
 
 void em_ctrl_t::handle_get_dev_test(em_bus_event_t *evt)
 {
+    if (evt == nullptr) {
+        throw std::invalid_argument("evt pointer is null");
+    }
     em_cmd_params_t params = evt->params;
     char *temp = NULL;
     bool teststatus = false;
@@ -352,6 +395,9 @@ void em_ctrl_t::handle_get_dev_test(em_bus_event_t *evt)
 
 void em_ctrl_t::handle_set_dev_test(em_bus_event_t *evt)
 {
+    if (evt == nullptr) {
+        throw std::invalid_argument("evt pointer is null");
+    }
 
     if (m_orch->is_cmd_type_in_progress(evt) == true) {
         m_ctrl_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
@@ -364,6 +410,9 @@ void em_ctrl_t::handle_set_dev_test(em_bus_event_t *evt)
 
 void em_ctrl_t::handle_get_dm_data(em_bus_event_t *evt)
 {           
+    if (evt == nullptr) {
+        throw std::invalid_argument("evt pointer is null");
+    }
     em_cmd_params_t params = evt->params;
         
     //em_cmd_t::dump_bus_event(evt);
@@ -380,6 +429,9 @@ void em_ctrl_t::handle_get_dm_data(em_bus_event_t *evt)
 
 void em_ctrl_t::handle_reset(em_bus_event_t *evt)
 {
+    if (evt == nullptr) {
+        throw std::invalid_argument("evt pointer is null");
+    }
     em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
     int num = 0;
 	
@@ -397,6 +449,9 @@ void em_ctrl_t::handle_reset(em_bus_event_t *evt)
 
 void em_ctrl_t::handle_mld_reconfig(em_bus_event_t *evt)
 {
+    if (evt == nullptr) {
+        throw std::invalid_argument("evt pointer is null");
+    }
     em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
     int num;
 
@@ -449,6 +504,9 @@ void em_ctrl_t::handle_client_metrics_req()
 
 void em_ctrl_t::handle_bsta_cap_req(em_bus_event_t *evt)
 {
+    if (evt == nullptr) {
+        throw std::invalid_argument("evt pointer is null");
+    }
     em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
     int num;
 
@@ -677,6 +735,9 @@ void em_ctrl_t::handle_bus_event(em_bus_event_t *evt)
 
 void em_ctrl_t::handle_event(em_event_t *evt)
 {
+    if (evt == nullptr) {
+        throw std::invalid_argument("evt pointer is null");
+    }
     switch(evt->type) {
         case em_event_type_bus:
             handle_bus_event(&evt->u.bevt);
@@ -781,6 +842,10 @@ void em_ctrl_t::publish_network_topology()
 
 int em_ctrl_t::data_model_init(const char *data_model_path)
 {
+    if (data_model_path == nullptr || strlen(data_model_path) == 0) {
+        printf("%s:%d: data_model_path is null or empty\n", __func__, __LINE__);
+        return -1;
+    }
     em_t *em = NULL;
     em_interface_t *intf;
     dm_easy_mesh_t *dm;

@@ -40,6 +40,10 @@ bool ec_manager_t::handle_recv_ec_action_frame(ec_frame_t *frame, size_t len, ui
         em_printfout("frame validation failed");
         return false;
     }
+    if (src_mac == nullptr) {
+        em_printfout("src_mac is null");
+        return false;
+    }
     bool did_succeed = false;
     switch (frame->frame_type) {
         case ec_frame_type_presence_announcement:
@@ -88,8 +92,8 @@ bool ec_manager_t::handle_recv_gas_pub_action_frame(ec_gas_frame_base_t *frame, 
         em_printfout("EC manager given a NULL DPP GAS frame!");
         return false;
     }
-    if (source_addr == nullptr) {
-        em_printfout("EC manager given a NULL source address!");
+    if (!source_addr) {
+        em_printfout("EC manager given a NULL source MAC address!");
         return false;
     }
     em_printfout("Got a GAS frame with %02x action!", frame->action);

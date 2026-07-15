@@ -34,6 +34,7 @@
 #include "dm_easy_mesh.h"
 #include "dm_easy_mesh_ctrl.h"
 #include "util.h"
+#include <stdexcept>
 
 int dm_bss_t::decode(const cJSON *obj, void *parent_id)
 {
@@ -43,6 +44,9 @@ int dm_bss_t::decode(const cJSON *obj, void *parent_id)
     cJSON *tmp, *tmp_arr;
     mac_addr_str_t  mac_str;
     int i;
+
+    if (obj == nullptr || parent_id == nullptr) return -1;
+    if (cJSON_GetArraySize(obj) == 0) return -1;
 
     memset(&m_bss_info, 0, sizeof(em_bss_info_t));
     dm_easy_mesh_t::string_to_macbytes(static_cast<char *> (parent_id), m_bss_info.ruid.mac);
@@ -189,9 +193,7 @@ int dm_bss_t::decode(const cJSON *obj, void *parent_id)
 
 void dm_bss_t::encode(cJSON *obj, bool summary)
 {
-    if (obj == nullptr) {
-        return;
-    }
+    if (obj == nullptr) throw std::invalid_argument("obj is null");
     mac_addr_str_t  mac_str;
     unsigned short i;
 	em_short_string_t	haul_type_str;
@@ -439,6 +441,8 @@ int dm_bss_t::parse_bss_id_from_key(const char *key, em_bss_id_t *id)
 
 bool dm_bss_t::add_vendor_ie(const struct ieee80211_vs_ie *vs_ie)
 {
+    if (vs_ie == nullptr) return false;
+    if (vs_ie->vs_len == 0) return false;
     // Fetch full length from the IE
     unsigned int vs_ie_len = offsetof(struct ieee80211_vs_ie, vs_oui) + vs_ie->vs_len;
 

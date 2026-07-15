@@ -34,8 +34,12 @@ ec_pa_configurator_t::ec_pa_configurator_t(const std::string& al_mac_addr, const
 
 bool ec_pa_configurator_t::handle_presence_announcement(ec_frame_t *frame, size_t len, uint8_t src_mac[ETHER_ADDR_LEN])
 {
-    if (frame == nullptr || src_mac == nullptr) {
-        em_printfout("handle_presence_announcement: invalid nullptr argument");
+    if (frame == nullptr) {
+        em_printfout("handle_presence_announcement: frame is null");
+        return false;
+    }
+    if (src_mac == nullptr) {
+        em_printfout("handle_presence_announcement: src_mac is null");
         return false;
     }
     em_printfout("Recieved a DPP Presence Announcement Frame from '" MACSTRFMT "'", MAC2STR(src_mac));
@@ -80,6 +84,14 @@ bool ec_pa_configurator_t::handle_recfg_announcement(ec_frame_t *frame, size_t l
         return false;
     }
     (void)src_al_mac; // Unused parameter in proxy agent
+    if (frame == nullptr) {
+        em_printfout("handle_recfg_announcement: frame is null");
+        return false;
+    }
+    if (sa == nullptr) {
+        em_printfout("handle_recfg_announcement: sa is null");
+        return false;
+    }
     em_printfout("Received a DPP Reconfiguration Announcement frame from '" MACSTRFMT "'", MAC2STR(sa));
 
     // EasyMesh 5.3.10.2
@@ -110,6 +122,14 @@ bool ec_pa_configurator_t::handle_auth_response(ec_frame_t *frame, size_t len, u
         return false;
     }
     (void)src_al_mac; // Unused parameter in proxy agent
+    if (frame == nullptr) {
+        em_printfout("handle_auth_response: frame is null");
+        return false;
+    }
+    if (src_mac == nullptr) {
+        em_printfout("handle_auth_response: src_mac is null");
+        return false;
+    }
     em_printfout("Received a DPP Authentication Response frame from '" MACSTRFMT "'\n", MAC2STR(src_mac));
     // Encapsulate 802.11 frame into 1905 Encap DPP TLV and send to controller
     auto [encap_dpp_tlv, encap_dpp_size] = ec_util::create_encap_dpp_tlv(false, src_mac, ec_frame_type_auth_rsp, reinterpret_cast<uint8_t*>(frame), len);
@@ -123,7 +143,12 @@ bool ec_pa_configurator_t::handle_auth_response(ec_frame_t *frame, size_t len, u
 
 bool ec_pa_configurator_t::handle_cfg_request(uint8_t *buff, unsigned int len, uint8_t sa[ETH_ALEN])
 {
-    if (buff == nullptr || sa == nullptr) {
+    if (buff == nullptr) {
+        em_printfout("handle_cfg_request: buff is null");
+        return false;
+    }
+    if (sa == nullptr) {
+        em_printfout("handle_cfg_request: sa is null");
         return false;
     }
     em_printfout("Rx'd a DPP Configuration Request from " MACSTRFMT "", MAC2STR(sa));
@@ -148,7 +173,12 @@ bool ec_pa_configurator_t::handle_cfg_request(uint8_t *buff, unsigned int len, u
 
 bool ec_pa_configurator_t::handle_cfg_result(ec_frame_t *frame, size_t len, uint8_t sa[ETH_ALEN])
 {
-    if (frame == nullptr || sa == nullptr) {
+    if (frame == nullptr) {
+        em_printfout("handle_cfg_result: frame is null");
+        return false;
+    }
+    if (sa == nullptr) {
+        em_printfout("handle_cfg_result: sa is null");
         return false;
     }
     em_printfout("Received a Configuration Result frame from '" MACSTRFMT "'", MAC2STR(sa));
@@ -171,7 +201,12 @@ bool ec_pa_configurator_t::handle_cfg_result(ec_frame_t *frame, size_t len, uint
 
 bool ec_pa_configurator_t::handle_connection_status_result(ec_frame_t *frame, size_t len, uint8_t sa[ETH_ALEN])
 {
-    if (frame == nullptr || sa == nullptr) {
+    if (frame == nullptr) {
+        em_printfout("handle_connection_status_result: frame is null");
+        return false;
+    }
+    if (sa == nullptr) {
+        em_printfout("handle_connection_status_result: sa is null");
         return false;
     }
     em_printfout("Received a Connection Status Result frame from '" MACSTRFMT "'", MAC2STR(sa));
@@ -196,7 +231,7 @@ bool ec_pa_configurator_t::process_proxy_encap_dpp_msg(em_encap_dpp_t *encap_tlv
 {
     if (encap_tlv == NULL || encap_tlv_len == 0) {
         em_printfout("Encap DPP TLV is empty");
-        return -1;
+        return false;
     }
 
     
@@ -410,7 +445,8 @@ bool ec_pa_configurator_t::process_direct_encap_dpp_msg(uint8_t* dpp_frame, uint
 
 bool ec_pa_configurator_t::handle_gas_comeback_request([[maybe_unused]] uint8_t *buff, [[maybe_unused]] unsigned int len, uint8_t sa[ETH_ALEN])
 {
-    if (buff == nullptr || sa == nullptr) {
+    if (sa == nullptr) {
+        em_printfout("handle_gas_comeback_request: sa is null");
         return false;
     }
     em_printfout("Received a GAS Comeback Request frame from '" MACSTRFMT "'", MAC2STR(sa));

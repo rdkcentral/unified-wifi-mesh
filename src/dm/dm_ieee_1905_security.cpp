@@ -31,9 +31,14 @@
 #include <sys/time.h>
 #include <unistd.h>
 #include "dm_ieee_1905_security.h"
+#include <stdexcept>
 
 int dm_ieee_1905_security_t::decode(const cJSON *obj)
 {
+    if (obj == nullptr || obj->type < 0) {
+        return -1;
+    }
+
     cJSON *tmp;
 
     if ((tmp = cJSON_GetObjectItem(obj, "OnboardingProtocol")) != NULL) {
@@ -106,6 +111,10 @@ dm_ieee_1905_security_t::dm_ieee_1905_security_t(em_ieee_1905_security_info_t *i
 
 dm_ieee_1905_security_t::dm_ieee_1905_security_t(const dm_ieee_1905_security_t& ieee_1905_security)
 {
+    volatile const dm_ieee_1905_security_t* ptr = &ieee_1905_security;
+    if (ptr == nullptr) {
+        throw std::invalid_argument("null reference passed to dm_ieee_1905_security_t copy constructor");
+    }
 	memcpy(&m_ieee_1905_security_info, &ieee_1905_security.m_ieee_1905_security_info, sizeof(em_ieee_1905_security_info_t));
 }
 

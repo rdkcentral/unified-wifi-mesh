@@ -34,7 +34,11 @@ void db_column_t::operator = (const db_column_t& col)
 
 db_column_t::db_column_t(const db_column_name_t name, const db_data_type_t type, const db_data_type_args_t args)
 {
-    snprintf(m_name, sizeof(m_name), "%s", name);
+    if (name == nullptr || name[0] == '\0') {
+        snprintf(m_name, sizeof(m_name), "%s", "(empty)");
+    } else {
+        snprintf(m_name, sizeof(m_name), "%s", name);
+    }
     m_type = type;
     m_type_args = args;
 }

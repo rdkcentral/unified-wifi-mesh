@@ -38,7 +38,7 @@
 
 int dm_radio_t::decode(const cJSON *obj, void *parent_id)
 {
-    if (obj == nullptr) {
+    if (obj == nullptr || parent_id == nullptr || obj->type < 0) {
         return -1;
     }
     cJSON *tmp;
