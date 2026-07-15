@@ -39,6 +39,7 @@
 #include <string>
 #include <sstream>
 #include <stdexcept>
+#include <stdexcept>
 
 int dm_dpp_t::analyze_config(const cJSON *obj, void *parent, em_cmd_t *pcmd[], em_cmd_params_t *param, void* user_param)
 {
@@ -66,6 +67,11 @@ int dm_dpp_t::decode(const cJSON *obj, void *parent_id, void* user_info)
 
     if (user_info == NULL) {
         printf("%s:%d: Error - user_info is NULL\n", __func__, __LINE__);
+        return -1;
+    }
+
+    if (parent_id == NULL) {
+        printf("%s:%d: Error - parent_id is NULL\n", __func__, __LINE__);
         return -1;
     }
 
@@ -155,7 +161,7 @@ dm_dpp_t::dm_dpp_t(ec_data_t *dpp)
     if (dpp == NULL) {
         printf("%s:%d: Error - dpp is NULL\n", __func__, __LINE__);
         memset(&m_dpp_info, 0, sizeof(ec_data_t));
-        return;
+        throw std::invalid_argument("dm_dpp_t: dpp is NULL");
     }
     memcpy(&m_dpp_info, dpp, sizeof(ec_data_t));
 }

@@ -15,8 +15,12 @@ AlServiceDataUnit::AlServiceDataUnit() {
 // Set and get MAC addresses
 void AlServiceDataUnit::setSourceAlMacAddress(const MacAddress& mac) {
     MacAddress null_mac = {0, 0, 0, 0, 0, 0};
+    MacAddress broadcast_mac = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
     if (mac == null_mac) {
         throw std::invalid_argument("setSourceAlMacAddress: invalid (all-zero) MAC address");
+    }
+    if (mac == broadcast_mac) {
+        throw std::invalid_argument("setSourceAlMacAddress: invalid (broadcast) MAC address");
     }
     sourceAlMacAddress = mac;
 }

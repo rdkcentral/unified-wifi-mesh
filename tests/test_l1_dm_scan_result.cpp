@@ -549,7 +549,7 @@ TEST(dm_scan_result_t_Test, IndependenceAfterModification)
     
     // Verify that copied instance still retains its initial state.
     EXPECT_STREQ(reinterpret_cast<const char*>(copy_scan->id.net_id), "Initial_Net_ID");
-    EXPECT_STREQ(reinterpret_cast<const char*>(copy_scan->id.dev_mac), "00:11:22:33:44:55");
+    EXPECT_EQ(memcmp(copy_scan->id.dev_mac, "00:11:22:33:44:55", sizeof(copy_scan->id.dev_mac)), 0);
     EXPECT_EQ(copy_scan->id.op_class, 2);
     
     std::cout << "Exiting IndependenceAfterModification test" << std::endl;
@@ -1766,6 +1766,9 @@ TEST(dm_scan_result_t_Test, PositiveMatch_AllFieldsIdentical)
     std::cout << "Setting scanner_type = " << static_cast<unsigned int>(id.scanner_type) << std::endl;
 
     std::cout << "Invoking has_same_id with a properly initialized id" << std::endl;
+    // Populate the object's own id with the same values so the ids match.
+    em_scan_result_t* obj_res = obj.get_scan_result();
+    memcpy(&obj_res->id, &id, sizeof(em_scan_result_id_t));
     bool ret = obj.has_same_id(&id);
     std::cout << "has_same_id returned " << (ret ? "true" : "false") << std::endl;
     EXPECT_TRUE(ret);
@@ -2177,6 +2180,9 @@ TEST(dm_scan_result_t_Test, ScannerTypeVariation)
     std::cout << "Case 1: Setting scanner_type = " << static_cast<unsigned int>(idRadio.scanner_type) << std::endl;
  
     std::cout << "Case 1: Invoking has_same_id with scanner_type radio" << std::endl;
+    // Populate the object's own id to match Case 1 (radio) so the ids match.
+    em_scan_result_t* obj_res = obj.get_scan_result();
+    memcpy(&obj_res->id, &idRadio, sizeof(em_scan_result_id_t));
     bool retRadio = obj.has_same_id(&idRadio);
     std::cout << "Case 1: has_same_id returned " << (retRadio ? "true" : "false") << std::endl;
     EXPECT_TRUE(retRadio);
@@ -3328,7 +3334,7 @@ TEST(dm_scan_result_t_Test, DifferentScanType)
 TEST(dm_scan_result_t_Test, ValidKeyWithoutBSSID) {
     std::cout << "Entering ValidKeyWithoutBSSID test" << std::endl;
 
-    const char key[] = "NETID:network123;DEV_MAC:00-11-22-33-44-55;SCANNER_MAC:66-77-88-99-AA-BB;OP_CLASS:15;CHANNEL:6;SCANNER_TYPE:1";
+    const char key[] = "network123@00-11-22-33-44-55@66-77-88-99-AA-BB@15@6@1@00-00-00-00-00-00";
     em_scan_result_id_t id{};
 
     EXPECT_NO_THROW({
@@ -3395,7 +3401,7 @@ TEST(dm_scan_result_t_Test, ValidKeyWithoutBSSID) {
 TEST(dm_scan_result_t_Test, ValidKeyWithBSSID) {
     std::cout << "Entering ValidKeyWithBSSID test" << std::endl;
 
-    const char key[] = "NETID:network456;DEV_MAC:AA-BB-CC-DD-EE-FF;SCANNER_MAC:11-22-33-44-55-66;OP_CLASS:20;CHANNEL:11;SCANNER_TYPE:2";
+    const char key[] = "network456@AA-BB-CC-DD-EE-FF@11-22-33-44-55-66@20@11@2@11-22-33-44-55-66";
     em_scan_result_id_t id{};
     unsigned char bssid_buffer[64] = {0};
 
@@ -3662,7 +3668,7 @@ TEST(dm_scan_result_t_Test, EmptyKeyString) {
     id.channel = 50;
     id.scanner_type = em_scanner_type_sta;
 
-    unsigned char bssid_buffer[64];
+    unsigned char bssid_buffer[64] = {0};
     memcpy(bssid_buffer, initStr, strlen(initStr));
 
     EXPECT_NO_THROW({

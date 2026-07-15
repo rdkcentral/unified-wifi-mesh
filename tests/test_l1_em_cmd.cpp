@@ -2520,11 +2520,9 @@ TEST(em_cmd_t, Retrieve_correct_event_data_length_when_valid_non_empty_event_dat
         // Create an instance of em_cmd_t using the default constructor.
         em_cmd_t cmd;
         std::cout << "Constructed em_cmd_t object using default constructor" << std::endl;
+        // The default constructor already allocated m_evt; set the event type
+        // before the data length so get_event_data_length() reads the right union member.
         cmd.m_evt->type = em_event_type_bus;
-        // Allocate a valid em_event_t structure and assign to m_evt.
-        // Set the event data length to 100 bytes.
-        cmd.m_evt = new em_event_t;
-        std::cout << "Allocated em_event_t object and assigned to m_evt" << std::endl;
         cmd.m_evt->u.bevt.data_len = 100;
         std::cout << "Set m_evt->data_length to 100" << std::endl;
         // Invoke the get_event_data_length() method.
@@ -2533,10 +2531,6 @@ TEST(em_cmd_t, Retrieve_correct_event_data_length_when_valid_non_empty_event_dat
         std::cout << "get_event_data_length() returned: " << length << std::endl;
         // Validate that the returned length is 100.
         EXPECT_EQ(length, 100u);
-        // Clean up allocated memory.
-        delete cmd.m_evt;
-        cmd.m_evt = nullptr;
-        std::cout << "Deleted m_evt object" << std::endl;
     });
     std::cout << "Exiting Retrieve_correct_event_data_length_when_valid_non_empty_event_data_is_set test" << std::endl;
 }
@@ -2564,23 +2558,17 @@ TEST(em_cmd_t, Retrieve_correct_frame_data_length_when_valid_non_empty_frame_dat
         // Create an instance of em_cmd_t using the default constructor.
         em_cmd_t cmd;
         std::cout << "Constructed em_cmd_t object using default constructor" << std::endl;
+        // The default constructor already allocated m_evt; set the event type
+        // before the frame length so get_event_data_length() reads the right union member.
         cmd.m_evt->type = em_event_type_frame;
-        // Allocate a valid em_event_t structure and assign to m_evt.
-        // Set the event data length to 100 bytes.
-        cmd.m_evt = new em_event_t;
-        std::cout << "Allocated em_event_t object and assigned to m_evt" << std::endl;
         cmd.m_evt->u.fevt.frame_len = 10;
-        std::cout << "Set m_evt->data_length to 100" << std::endl;
+        std::cout << "Set m_evt->frame_len to 10" << std::endl;
         // Invoke the get_event_data_length() method.
         std::cout << "Invoking get_event_data_length() method" << std::endl;
         unsigned int length = cmd.get_event_data_length();
         std::cout << "get_event_data_length() returned: " << length << std::endl;
         // Validate that the returned length is 10.
         EXPECT_EQ(length, 10u);
-        // Clean up allocated memory.
-        delete cmd.m_evt;
-        cmd.m_evt = nullptr;
-        std::cout << "Deleted m_evt object" << std::endl;
     });
     std::cout << "Exiting Retrieve_correct_frame_data_length_when_valid_non_empty_frame_data_is_set test" << std::endl;
 }
@@ -2613,7 +2601,8 @@ TEST(em_cmd_t, Retrieve_event_data_length_as_zero_when_m_evt_pointer_is_null) {
         // Create an instance of em_cmd_t using the default constructor.
         em_cmd_t cmd;
         std::cout << "Constructed em_cmd_t object using default constructor" << std::endl;
-        // Set the m_evt pointer to NULL.
+        // Free the constructor-allocated buffer, then set the m_evt pointer to NULL.
+        free(cmd.m_evt);
         cmd.m_evt = nullptr;
         std::cout << "Set m_evt to nullptr" << std::endl;
         // Invoke the get_event_data_length() method.
@@ -2621,7 +2610,7 @@ TEST(em_cmd_t, Retrieve_event_data_length_as_zero_when_m_evt_pointer_is_null) {
         unsigned int length = cmd.get_event_data_length();
         std::cout << "get_event_data_length() returned: " << length << std::endl;
         // Validate that the returned length is 0.
-        EXPECT_NE(length, 0);
+        EXPECT_EQ(length, 0u);
     });
     std::cout << "Exiting Retrieve_event_data_length_as_zero_when_m_evt_pointer_is_null test" << std::endl;
 }
