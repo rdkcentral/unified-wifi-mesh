@@ -1732,56 +1732,27 @@ short em_metrics_t::create_beacon_metrics_query_tlv(unsigned char *buff, mac_add
         return -1;
     }
 
-    // Derive op_class from the radio the serving BSS is on (index j holds the found BSS)
+    // Derive op_class and channel from the operating channel report data
+    // (em_op_class_type_current entries populated by handle_op_channel_report)
+    unsigned int ap_channel = 0;
     {
-        em_op_class_info_t *oci = dm->get_opclass_info_for_bss(dm->m_bss[j].m_bss_info.id.ruid);
+        em_op_class_info_t *oci = nullptr;
+        for (unsigned int oc_idx = 0; oc_idx < dm->m_num_opclass; oc_idx++) {
+            em_op_class_info_t *candidate = &dm->m_op_class[oc_idx].m_op_class_info;
+            if ((memcmp(candidate->id.ruid, dm->m_bss[j].m_bss_info.id.ruid, sizeof(mac_address_t)) == 0) &&
+                    (candidate->id.type == em_op_class_type_current)) {
+                oci = candidate;
+                break;
+            }
+        }
         if (oci != nullptr) {
             radio_op_class = oci->op_class;
-            em_printfout("Derived radio op_class %u from BSS ruid:%s",
-                radio_op_class, util::mac_to_string(dm->m_bss[j].m_bss_info.id.ruid).c_str());
+            ap_channel = oci->channel;
+            em_printfout("Derived radio op_class %u channel %u from operating channel report for ruid:%s",
+                radio_op_class, ap_channel, util::mac_to_string(dm->m_bss[j].m_bss_info.id.ruid).c_str());
         } else {
-            em_printfout("Could not get op_class from BSS ruid, using default %u", radio_op_class);
-        }
-    }
-
-    // For MLO APs the controller may resolve op_class from a 2.4 GHz affiliated BSS
-    // even when the STA's active links are on 5/6 GHz, causing the beacon query to
-    // target the wrong band.  Walk the AP-MLD affiliated BSS list and upgrade to the
-    // highest-capability band available (6 GHz > 5 GHz > 2.4 GHz).
-    {
-        // Band priority: 6 GHz = 3, 5 GHz = 2, 2.4 GHz = 1, unknown = 0
-        auto band_prio = [](unsigned int oc) -> int {
-            int primary = dm_easy_mesh_t::get_primary_channel_op_class(static_cast<int>(oc));
-            if (primary >= 131 && primary <= 136) return 3;
-            if (primary >= 112 && primary <= 130) return 2;
-            if (primary >= 81  && primary <= 84)  return 1;
-            return 0;
-        };
-        int cur_prio = band_prio(radio_op_class);
-        // Try the AP-MLD record for the connected BSS (or the STA's bssid if different)
-        em_ap_mld_info_t *ap_mld = dm->get_ap_mld_frm_bssid(sta->m_sta_info.bssid);
-        if (ap_mld == nullptr) ap_mld = dm->get_ap_mld_frm_bssid(bssid);
-        if (ap_mld != nullptr) {
-            for (int aff = 0; aff < ap_mld->num_affiliated_ap; aff++) {
-                for (unsigned int bss_idx = 0; bss_idx < dm->get_num_bss(); bss_idx++) {
-                    if (memcmp(dm->m_bss[bss_idx].m_bss_info.bssid.mac,
-                               ap_mld->affiliated_ap[aff].mac_addr,
-                               sizeof(mac_address_t)) != 0) continue;
-                    em_op_class_info_t *oci2 = dm->get_opclass_info_for_bss(
-                        dm->m_bss[bss_idx].m_bss_info.id.ruid);
-                    if (oci2 == nullptr) break;
-                    int aff_prio = band_prio(oci2->op_class);
-                    if (aff_prio > cur_prio) {
-                        cur_prio = aff_prio;
-                        radio_op_class = oci2->op_class;
-                        j = bss_idx;
-                        em_printfout("MLO: upgraded op_class to %u (band_prio=%d) via affiliated BSS %s",
-                            radio_op_class, cur_prio,
-                            util::mac_to_string(ap_mld->affiliated_ap[aff].mac_addr).c_str());
-                    }
-                    break;
-                }
-            }
+            em_printfout("Could not get current op_class from operating channel report for ruid, using default %u",
+                radio_op_class);
         }
     }
 
@@ -1790,18 +1761,17 @@ short em_metrics_t::create_beacon_metrics_query_tlv(unsigned char *buff, mac_add
     memcpy(beacon_metrics->sta_mac_addr, sta_mac, sizeof(mac_addr_t));
     len += sizeof(beacon_metrics->sta_mac_addr);
 
-    // Map any wide-band op_class to its 20 MHz primary-channel equivalent using
-    // the e4 table, so get_channel_list_by_op_class() returns actual primary
-    // channel numbers rather than VHT/HE centre frequencies.
-    unsigned int scan_op_class = static_cast<unsigned int>(
-        dm_easy_mesh_t::get_primary_channel_op_class(static_cast<int>(radio_op_class)));
-    em_printfout("Using scan_op_class %u (derived from radio_op_class %u) for channel list",
-        scan_op_class, radio_op_class);
-
-    beacon_metrics->op_class = static_cast<unsigned char>(scan_op_class);
+    beacon_metrics->op_class = radio_op_class;//static_cast<unsigned char>(scan_op_class);
     len += sizeof(beacon_metrics->op_class);
 
-    beacon_metrics->channel_num = 255; // 255 = wildcard, use AP Channel Report IE
+    // Use the AP's actual operating channel from the operating channel report.
+    if (ap_channel == 0) {
+        em_printfout("Operating channel report had channel 0, falling back to channel 255 (wildcard)");
+        ap_channel = 255;
+    } else {
+        em_printfout("Using AP operating channel %u from operating channel report for beacon request", ap_channel);
+    }
+    beacon_metrics->channel_num = 255;//ap_channel//todo: test and see with only correct op class, static_cast<unsigned char>(ap_channel);
     len += sizeof(beacon_metrics->channel_num);
 
     // Keep real BSSID so agent can resolve ap_index; OW will override to wildcard after lookup
@@ -1817,61 +1787,23 @@ short em_metrics_t::create_beacon_metrics_query_tlv(unsigned char *buff, mac_add
     memcpy(beacon_metrics->ssid, ssid, beacon_metrics->ssid_len);
     len += beacon_metrics->ssid_len;
 
-    // Write num_ap_channel_rprt at wire position (variable-length SSID means we can't use struct member)
-    // Use 20 MHz scan_op_class to get actual primary channel numbers.
-    std::vector<int> ch_vec = dm_easy_mesh_t::get_channel_list_by_op_class(static_cast<int>(scan_op_class));
-    em_printfout("Channel list for op_class %u: %zu entries", scan_op_class, ch_vec.size());
-    // for (int ch : ch_vec) {
-    //     //em_printfout("  raw channel: %d", ch);
-    // }
+    // Single AP Channel Report with only the current operating channel
+    uint8_t num_rprts = 1;
+    *(buff + len) = num_rprts;
+    len += sizeof(uint8_t);
 
-    // Remove any zero entries — channel 0 is invalid and some STAs reject the request.
-    size_t before_erase = ch_vec.size();
-    ch_vec.erase(std::remove(ch_vec.begin(), ch_vec.end(), 0), ch_vec.end());
-    if (ch_vec.size() != before_erase) {
-        em_printfout("Removed %zu zero/invalid channel entries", before_erase - ch_vec.size());
-    }
+    // AP Channel Report: length = 2 (1 byte op_class + 1 byte channel)
+    uint8_t rprt_len = 2;
+    *(buff + len) = rprt_len;
+    len += sizeof(uint8_t);
 
-    // Chunk the channel list across multiple AP Channel Report entries.
-    // Each entry holds at most EM_MAX_CHANNELS_IN_LIST channels.
-    // Up to EM_MAX_AP_CHANNEL_RPRT_ENTRIES report entries, giving full coverage
-    // of all op classes including 6 GHz op_class 131 (59 channels).
-    const size_t max_ch_per_rprt = EM_MAX_CHANNELS_IN_LIST;
-    const size_t max_rprts       = EM_MAX_NEIGHBORS;
+    *(buff + len) = static_cast<uint8_t>(radio_op_class);
+    len += sizeof(uint8_t);
 
-    uint8_t num_rprts;
-    if (ch_vec.empty()) {
-        // No valid channels: omit the channel report IE; STA will treat channel=255
-        // as "all supported channels".
-        em_printfout("No valid channels for scan_op_class %u, omitting AP Channel Report", scan_op_class);
-        num_rprts = 0;
-        *(buff + len) = num_rprts;
-        len += sizeof(uint8_t);
-    } else {
-        // Calculate how many report entries are needed
-        size_t total_ch  = std::min(ch_vec.size(), max_ch_per_rprt * max_rprts);
-        num_rprts = static_cast<uint8_t>((total_ch + max_ch_per_rprt - 1) / max_ch_per_rprt);
-        *(buff + len) = num_rprts;
-        len += sizeof(uint8_t);
+    *(buff + len) = static_cast<uint8_t>(ap_channel);
+    len += sizeof(uint8_t);
 
-        size_t ch_idx = 0;
-        for (uint8_t r = 0; r < num_rprts; r++) {
-            size_t chunk = std::min(max_ch_per_rprt, total_ch - ch_idx);
-            uint8_t rprt_len = static_cast<uint8_t>(1 + chunk); // 1 for op_class byte
-            *(buff + len) = rprt_len;
-            len += sizeof(uint8_t);
-
-            *(buff + len) = static_cast<uint8_t>(scan_op_class);
-            len += sizeof(uint8_t);
-
-            em_printfout("AP Channel Report[%u]: op_class=%u num_channels=%zu", r, scan_op_class, chunk);
-            for (size_t c = 0; c < chunk; c++, ch_idx++) {
-                em_printfout("  channel: %d", ch_vec[ch_idx]);
-                *(buff + len) = static_cast<uint8_t>(ch_vec[ch_idx]);
-                len += sizeof(uint8_t);
-            }
-        }
-    }
+    em_printfout("AP Channel Report: op_class=%u channel=%u", radio_op_class, ap_channel);
 
     // Print the filled data
     em_printfout("STA MAC Address: %s", util::mac_to_string(beacon_metrics->sta_mac_addr).c_str());

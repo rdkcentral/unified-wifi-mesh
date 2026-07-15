@@ -3114,6 +3114,7 @@ void dm_easy_mesh_t::deinit()
 		snprintf(key, sizeof(em_2xlong_string_t), "%s@%s@%s@%d@%d@%d", tmp_res->m_scan_result.id.net_id, dev_mac_str, scanner_mac_str,
 					tmp_res->m_scan_result.id.op_class, tmp_res->m_scan_result.id.channel, tmp_res->m_scan_result.id.scanner_type);
 		hash_map_remove(m_scan_result_map, key);
+        delete tmp_res;
 	}
 
 	hash_map_destroy(m_scan_result_map);	
@@ -3443,12 +3444,33 @@ bool dm_easy_mesh_t::resolve_ap_mld_to_fallback_ruid(const mac_address_t ap_mld_
             continue;
         }
 
+        em_printfout("resolve_ap_mld_to_fallback_ruid: ap_mld=%s num_affiliated_ap=%d num_bss=%d",
+            util::mac_to_string(ap_mld_mac).c_str(), ap_mld_info->num_affiliated_ap, m_num_bss);
+
         // Use the first valid affiliated AP's RUID as fallback.
         for (j = 0; j < ap_mld_info->num_affiliated_ap; j++) {
+            mac_addr_str_t aff_mac_str, stored_ruid_str, bss_ruid_str;
+            dm_easy_mesh_t::macbytes_to_string(ap_mld_info->affiliated_ap[j].mac_addr, aff_mac_str);
+            dm_easy_mesh_t::macbytes_to_string(ap_mld_info->affiliated_ap[j].ruid.mac, stored_ruid_str);
+            em_printfout("  affiliated_ap[%d]: mac=%s valid=%d stored_ruid=%s",
+                j, aff_mac_str,
+                ap_mld_info->affiliated_ap[j].mac_addr_valid,
+                stored_ruid_str);
+            // Cross-check: find this BSSID in m_bss[] and log its ruid
+            for (unsigned int k = 0; k < m_num_bss; k++) {
+                if (memcmp(m_bss[k].m_bss_info.bssid.mac,
+                           ap_mld_info->affiliated_ap[j].mac_addr,
+                           sizeof(mac_address_t)) == 0) {
+                    dm_easy_mesh_t::macbytes_to_string(m_bss[k].m_bss_info.ruid.mac, bss_ruid_str);
+                    em_printfout("    m_bss[%d] bssid=%s ruid=%s", k, aff_mac_str, bss_ruid_str);
+                }
+            }
             if (!ap_mld_info->affiliated_ap[j].mac_addr_valid) {
                 continue;
             }
             memcpy(fallback_ruid, ap_mld_info->affiliated_ap[j].ruid.mac, sizeof(mac_address_t));
+            em_printfout("  returning stored_ruid=%s for affiliated_ap[%d]",
+                stored_ruid_str, j);
             return true;
         }
         return false;

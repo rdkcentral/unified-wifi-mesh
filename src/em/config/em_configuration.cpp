@@ -698,7 +698,7 @@ void em_configuration_t::handle_state_topology_notify()
             if (notif_ret >= 0) {
                 disassoc_stats_ret = send_client_disassoc_stats_msg(sta);
                 if (disassoc_stats_ret >= 0) {
-                    dm->remove_assoc_sta_mld_info(sta->m_sta_info.id);
+                    // dm->remove_assoc_sta_mld_info(sta->m_sta_info.id);
                 } else {
                     em_printfout("topo notification: stats send failed for sta=%s", sta_str.c_str());
                 }
@@ -2017,7 +2017,6 @@ int em_configuration_t::handle_topology_notification(unsigned char *buff, unsign
     char *errors[EM_MAX_TLV_MEMBERS] = {0};
 
 	dm = get_data_model();
-	em_printfout("Topology Notification received, length: %d", len);
 
 	if (em_msg_t(em_msg_type_topo_notif, m_peer_profile, buff, len).validate(errors) == 0) {
         printf("%s:%d: topology response msg validation failed\n", __func__, __LINE__);
@@ -2053,8 +2052,8 @@ int em_configuration_t::handle_topology_notification(unsigned char *buff, unsign
             snprintf(key, sizeof(em_long_string_t), "%s@%s@%s", sta_mac_str, bssid_str, radio_mac_str);
             assoc_event = assoc_evt_tlv->assoc_event;
 
-            //em_printfout("Client Device:%s %s to BSSID: %s\n", sta_mac_str,
-            //        (assoc_evt_tlv->assoc_event == 1)?"associated":"disassociated", bssid_str);
+            em_printfout("Client Device:%s %s to BSSID: %s\n", sta_mac_str,
+                   (assoc_evt_tlv->assoc_event == 1)?"associated":"disassociated", bssid_str);
             if (assoc_event == false) {
                 em_printfout("topo notification disassoc: sta=%s bssid=%s key=%s",
                         util::mac_to_string(assoc_evt_tlv->cli_mac_address).c_str(),
@@ -2134,6 +2133,23 @@ int em_configuration_t::handle_topology_notification(unsigned char *buff, unsign
                 em_printfout("topo notification assoc defer: sta=%s bssid=%s",
                         util::mac_to_string(sta_info.id).c_str(),
                         util::mac_to_string(sta_info.bssid).c_str());
+                // Mark any stale entries for this STA on a different BSSID as disassociated
+                // so they don't appear alongside the new entry in the topology.
+                bool stale_cleared = false;
+                dm_sta_t *iter_sta = static_cast<dm_sta_t *>(hash_map_get_first(dm->m_sta_map));
+                while (iter_sta != NULL) {
+                    if ((memcmp(iter_sta->m_sta_info.id, sta_info.id, sizeof(mac_address_t)) == 0) &&
+                        (memcmp(iter_sta->m_sta_info.bssid, sta_info.bssid, sizeof(mac_address_t)) != 0) &&
+                        (iter_sta->m_sta_info.associated == true)) {
+                        iter_sta->m_sta_info.associated = false;
+                        stale_cleared = true;
+                    }
+                    iter_sta = static_cast<dm_sta_t *>(hash_map_get_next(dm->m_sta_map, iter_sta));
+                }
+                if (stale_cleared) {
+                    em_printfout("topo notification assoc: cleared stale entries for sta=%s", util::mac_to_string(sta_info.id).c_str());
+                    dm->set_db_cfg_param(db_cfg_type_sta_list_update, "");
+                }
             }
 
             memcpy(raw.dev, dev_mac, sizeof(mac_address_t));
@@ -5781,6 +5797,7 @@ void em_configuration_t::process_msg(unsigned char *data, unsigned int len)
 {
     unsigned char *tlvs;
     unsigned int tlvs_len;
+    std::vector<em_t *> em_radios;
 
     em_cmdu_t *cmdu = reinterpret_cast<em_cmdu_t *>(data + sizeof(em_raw_hdr_t));
             
@@ -5907,8 +5924,13 @@ void em_configuration_t::process_msg(unsigned char *data, unsigned int len)
             break;
 
         case em_msg_type_topo_notif:
-            if ((get_service_type() == em_service_type_ctrl) && (get_state() >= em_state_ctrl_topo_synchronized)) {
-                handle_topology_notification(data, len);
+            em_radios.clear();
+            get_mgr()->get_all_em_for_al_mac(hdr->src, em_radios);
+            for (auto *get_em : em_radios) {
+                if ((get_service_type() == em_service_type_ctrl) && (get_em->get_state() >= em_state_ctrl_topo_synchronized)) {
+                    get_em->handle_topology_notification(data, len);
+                    break;
+                }
             }
             break;
 

@@ -2235,13 +2235,15 @@ int dm_easy_mesh_ctrl_t::analyze_sta_assoc_event(em_bus_event_t *evt, em_cmd_t *
     strncpy(evt->params.u.args.args[3], (params->assoc.assoc_event == 1)?"Assoc":"Disassoc", len);
     pdm = get_data_model(GLOBAL_NET_ID, params->dev);
     if (pdm == NULL) {
-        printf("%s:%d: Could not find data model for dev: %s\n", __func__, __LINE__, dev_mac_str);
+        em_printfout("Could not find data model for dev: %s", dev_mac_str);
         return -1;
     }
 
     pdm->set_topo_state(true);
 
-    if (pdm->is_ap_mld_mac(params->assoc.bssid) == false) {
+    bool is_ap_mld = pdm->is_ap_mld_mac(params->assoc.bssid);
+
+    if (is_ap_mld == false) {
         em_printfout("bssid=%s is not AP-MLD MAC, using direct BSS lookup for STA assoc event", bss_mac_str);
         found = false;
         for (i = 0; i < pdm->get_num_radios(); i++) {
@@ -2283,7 +2285,36 @@ int dm_easy_mesh_ctrl_t::analyze_sta_assoc_event(em_bus_event_t *evt, em_cmd_t *
     tmp = pcmd[num];
     num++;
 
-    if (params->assoc.assoc_event == false) {
+    bool is_assoc = (params->assoc.assoc_event == true) ? true : false;
+    // Before processing the topology update, clear the associated flag for all
+    // consolidated map entries matching this STA MAC — on both assoc and disassoc.
+    // This ensures stale multi-link entries (AP-MLD or direct-BSS) are cleaned up
+    // before the new state is applied.
+    bool sta_exists = false;
+    for (dm_sta_t *iter = static_cast<dm_sta_t *>(hash_map_get_first(pdm->m_sta_map));
+        iter != NULL;
+        iter = static_cast<dm_sta_t *>(hash_map_get_next(pdm->m_sta_map, iter))) {
+        if (memcmp(iter->m_sta_info.id, params->assoc.cli_mac_address, sizeof(mac_address_t)) == 0) {
+            sta_exists = true;
+            // STA is "known" only if we already have its capability data
+            bool new_sta_exists = (iter->m_sta_info.cap[0] != '\0' ||
+                      iter->m_sta_info.ht_cap[0] != '\0' ||
+                      iter->m_sta_info.vht_cap[0] != '\0');
+                      em_printfout("sta found is m_sta_map %s, sta_exists=%d, new_sta_exists=%d", sta_mac_str, sta_exists, new_sta_exists);
+            sta_exists = new_sta_exists;
+            break;
+        }
+    }
+
+        for (dm_sta_t *iter = static_cast<dm_sta_t *>(hash_map_get_first(pdm->m_sta_assoc_map));
+        iter != NULL;
+        iter = static_cast<dm_sta_t *>(hash_map_get_next(pdm->m_sta_assoc_map, iter))) {
+        if (memcmp(iter->m_sta_info.id, params->assoc.cli_mac_address, sizeof(mac_address_t)) == 0) {
+            em_printfout("sta found is m_assoc_map %s ", sta_mac_str);
+        }
+    }
+
+    if (is_assoc == false) {
         desc.op = dm_orch_type_topo_update;
         desc.submit = false;
         pcmd[num - 1]->override_op(0, &desc);
@@ -2291,17 +2322,33 @@ int dm_easy_mesh_ctrl_t::analyze_sta_assoc_event(em_bus_event_t *evt, em_cmd_t *
         desc.submit = true;
         pcmd[num - 1]->override_op(1, &desc);
         pcmd[num - 1]->m_num_orch_desc = 2;
-    } else if ((params->assoc.assoc_event == true) && (found == true) &&
-               (pdm->is_ap_mld_mac(params->assoc.bssid) == false)) {
-        // BSS is directly resolvable for a non-MLO client — topology query not needed;
-        // skip dm_orch_type_topo_sync and go straight to client capability query + publish.
-        desc.op = dm_orch_type_sta_cap;
-        desc.submit = true;
-        pcmd[num - 1]->override_op(0, &desc);
-        desc.op = dm_orch_type_topo_publish;
-        desc.submit = true;
-        pcmd[num - 1]->override_op(1, &desc);
-        pcmd[num - 1]->m_num_orch_desc = 2;
+    } else {
+        if (sta_exists == true) {
+            desc.op = dm_orch_type_topo_update;
+            desc.submit = false;
+            pcmd[num - 1]->override_op(0, &desc);
+            desc.op = dm_orch_type_topo_publish;
+            desc.submit = true;
+            pcmd[num - 1]->override_op(1, &desc);
+            pcmd[num - 1]->m_num_orch_desc = 2;
+            em_printfout("STA info already present in data model, skipping topology query. Do a topology update + publish for STA assoc event");
+        } else {
+            // sta_exists = false;
+            if ((found == true) && (is_ap_mld == false)) {
+                            // BSS is directly resolvable for a non-MLO client — topology query not needed;
+                // skip dm_orch_type_topo_sync and go straight to client capability query + publish.
+                // Also check if sta info is already present in the data model, if yes then we can go straight to topology update + publish.
+                //new mlo client
+                em_printfout("------ >>>>>> New non-mlo STA identified Send a cap query....");
+                desc.op = dm_orch_type_sta_cap;
+                desc.submit = true;
+                pcmd[num - 1]->override_op(0, &desc);
+                desc.op = dm_orch_type_topo_publish;
+                desc.submit = true;
+                pcmd[num - 1]->override_op(1, &desc);
+                pcmd[num - 1]->m_num_orch_desc = 2;
+            }
+        }
     }
 
     while ((pcmd[num] = tmp->clone_for_next()) != NULL) {

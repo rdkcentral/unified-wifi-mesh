@@ -772,7 +772,23 @@ int em_capability_t::handle_client_cap_report(unsigned char *buff, unsigned int 
             memset(&sta_info, 0, sizeof(em_sta_info_t));
             memcpy(sta_info.bssid, tlv->value, sizeof(mac_address_t));
             memcpy(sta_info.id, tlv->value + sizeof(mac_address_t), sizeof(mac_address_t));
-            memcpy(sta_info.radiomac, get_radio_interface_mac(), sizeof(mac_address_t));
+            // Resolve the radio MAC from the BSSID so the key is correct regardless
+            // of which EM instance handled this message.
+            // First search this EM's DM, then walk all DMs if not found (the cap report
+            // may arrive on the controller's own EM whose DM doesn't hold agent BSSes).
+            bool radio_found = false;
+            for (unsigned int r = 0; r < dm->get_num_radios() && !radio_found; r++) {
+                dm_bss_t *bss = dm->get_bss(dm->get_radio_info(r)->id.ruid, sta_info.bssid);
+                if (bss != NULL) {
+                    memcpy(sta_info.radiomac, bss->m_bss_info.ruid.mac, sizeof(mac_address_t));
+                    radio_found = true;
+                    em_printfout("client_cap_report: resolved radio %s for sta %s bssid %s",
+                        util::mac_to_string(sta_info.radiomac).c_str(),
+                        util::mac_to_string(sta_info.id).c_str(),
+                        util::mac_to_string(sta_info.bssid).c_str());
+                }
+            }
+
             found_client_info = true;
             break;
         }
@@ -857,7 +873,7 @@ int em_capability_t::handle_client_cap_report(unsigned char *buff, unsigned int 
 
     dm_easy_mesh_t::macbytes_to_string(sta_info.id, sta_mac_str);
     dm_easy_mesh_t::macbytes_to_string(sta_info.bssid, bssid_str);
-    dm_easy_mesh_t::macbytes_to_string(get_radio_interface_mac(), radio_mac_str);
+    dm_easy_mesh_t::macbytes_to_string(sta_info.radiomac, radio_mac_str);
     snprintf(key, sizeof(em_long_string_t), "%s@%s@%s", sta_mac_str, bssid_str, radio_mac_str);
 
     // For MLO STA, update all affiliated link rows.
@@ -1624,6 +1640,7 @@ void em_capability_t::process_msg(unsigned char *data, unsigned int len)
 {
     em_cmdu_t *cmdu = reinterpret_cast<em_cmdu_t *> (data + sizeof(em_raw_hdr_t));
     em_raw_hdr_t *hdr = reinterpret_cast<em_raw_hdr_t *>(data);
+    std::vector<em_t *> em_radios;
 
     switch (htons(cmdu->type)) {
         case em_msg_type_ap_cap_query:
@@ -1668,8 +1685,13 @@ void em_capability_t::process_msg(unsigned char *data, unsigned int len)
                 }
                 break;
             case em_msg_type_client_cap_rprt:
-                if (get_service_type() == em_service_type_ctrl){
-                    handle_client_cap_report(data, len);
+                em_radios.clear();
+                get_mgr()->get_all_em_for_al_mac(hdr->src, em_radios);
+                for (auto &em : em_radios) {
+                    if (get_service_type() == em_service_type_ctrl){
+                        em->handle_client_cap_report(data, len);
+                        break;
+                    }
                 }
                 break;
 

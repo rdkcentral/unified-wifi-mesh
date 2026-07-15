@@ -821,6 +821,7 @@ int em_channel_t::send_channel_scan_report_msg(unsigned int *last_index)
 
     dm = get_data_model();
 
+    em_printfout("  ------>>> Sending channel scan report message starting from index %u", start_idx);
     memcpy(tmp, dm->get_ctl_mac(), sizeof(mac_address_t));
     tmp += sizeof(mac_address_t);
     len += sizeof(mac_address_t);
@@ -863,6 +864,8 @@ int em_channel_t::send_channel_scan_report_msg(unsigned int *last_index)
         if(memcmp(get_radio_interface_mac(), scan_res->m_scan_result.id.scanner_mac, sizeof(mac_address_t)) == 0) { 
             tlv = reinterpret_cast<em_tlv_t *> (tmp);
             tlv->type = em_tlv_type_channel_scan_rslt;
+    em_printfout("create_channel_scan_res_tlv");
+
             sz = create_channel_scan_res_tlv(tlv->value, i);
             tlv->len = htons(static_cast<short unsigned int> (sz));
 
