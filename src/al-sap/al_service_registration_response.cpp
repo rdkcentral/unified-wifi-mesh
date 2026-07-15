@@ -30,6 +30,16 @@ RegistrationResult AlServiceRegistrationResponse::getResult() const {
 
 std::vector<unsigned char> AlServiceRegistrationResponse::serializeRegistrationResponse() {
     std::vector<unsigned char> data;
+
+    MacAddress null_mac = {0, 0, 0, 0, 0, 0};
+    if (alMacAddressLocal == null_mac) {
+        // Invalid (all-zero) MAC address: return an empty vector instead of serializing.
+        return data;
+    }
+    if (result < RegistrationResult::UNKNOWN || result > RegistrationResult::SERVICE_NOT_SUPPORTED) {
+        throw std::invalid_argument("serializeRegistrationResponse: invalid RegistrationResult value");
+    }
+
     uint32_t packet_size = alMacAddressLocal.size() + sizeof(uint8_t);
     // Serialize MAC address
     data = convert_u32_into_bytes(packet_size);

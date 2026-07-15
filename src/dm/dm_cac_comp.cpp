@@ -19,6 +19,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <stdexcept>
 #include <errno.h>
 #include <assert.h>
 #include <signal.h>
@@ -38,11 +39,32 @@
 
 int dm_cac_comp_t::decode(const cJSON *obj, void *parent_id)
 {
+    if (obj == NULL) {
+        printf("%s:%d: Error - obj is NULL\n", __func__, __LINE__);
+        return -1;
+    }
+    if (parent_id == NULL) {
+        printf("%s:%d: Error - parent_id is NULL\n", __func__, __LINE__);
+        return -1;
+    }
+    if (!cJSON_IsObject(obj)) {
+        printf("%s:%d: Error - obj is not a valid JSON object\n", __func__, __LINE__);
+        return -1;
+    }
+    if ((cJSON_GetObjectItem(obj, "RUID") == NULL) &&
+        (cJSON_GetObjectItem(obj, "OpClass") == NULL) &&
+        (cJSON_GetObjectItem(obj, "Channel") == NULL)) {
+        printf("%s:%d: Error - missing required CAC completion fields\n", __func__, __LINE__);
+        return -1;
+    }
     return 0;
 }
 
 void dm_cac_comp_t::encode(cJSON *obj)
 {
+    if (obj == NULL || !cJSON_IsObject(obj)) {
+        throw std::invalid_argument("dm_cac_comp_t::encode: obj is NULL or not a valid JSON object");
+    }
 }
 
 dm_orch_type_t dm_cac_comp_t::get_dm_orch_type(const dm_cac_comp_t& cac_comp)
@@ -57,15 +79,27 @@ dm_orch_type_t dm_cac_comp_t::get_dm_orch_type(const dm_cac_comp_t& cac_comp)
 
 bool dm_cac_comp_t::operator == (const dm_cac_comp_t& obj) 
 {   
-	return true;
+    int ret = 0;
+    ret += (memcmp(m_cac_comp_info.ruid, obj.m_cac_comp_info.ruid, sizeof(mac_address_t)) != 0);
+    ret += (m_cac_comp_info.op_class != obj.m_cac_comp_info.op_class);
+    ret += (m_cac_comp_info.channel != obj.m_cac_comp_info.channel);
+    ret += (m_cac_comp_info.status != obj.m_cac_comp_info.status);
+    ret += (m_cac_comp_info.detected_pairs_num != obj.m_cac_comp_info.detected_pairs_num);
+    ret += (memcmp(m_cac_comp_info.detected_pairs, obj.m_cac_comp_info.detected_pairs, sizeof(m_cac_comp_info.detected_pairs)) != 0);
+    return (ret == 0);
 }
 
 void dm_cac_comp_t::operator = (const dm_cac_comp_t& obj)
 {
+    if (this == &obj) { return; }
+    memcpy(&m_cac_comp_info, &obj.m_cac_comp_info, sizeof(em_cac_comp_info_t));
 }
 
 dm_cac_comp_t::dm_cac_comp_t(em_cac_comp_info_t *radio)
 {
+    if (radio == NULL) {
+        throw std::invalid_argument("dm_cac_comp_t: radio is NULL");
+    }
     memcpy(&m_cac_comp_info, radio, sizeof(em_cac_comp_info_t));
 }
 

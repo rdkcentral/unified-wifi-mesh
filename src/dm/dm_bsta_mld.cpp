@@ -19,6 +19,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <stdexcept>
 #include <errno.h>
 #include <assert.h>
 #include <signal.h>
@@ -36,14 +37,27 @@
 
 int dm_bsta_mld_t::decode(const cJSON *obj, void *parent_id)
 {
-    //TODO: needs to be implemnented
+    if (obj == NULL) {
+        printf("%s:%d: Error - obj is NULL\n", __func__, __LINE__);
+        return -1;
+    }
+    if (parent_id == NULL) {
+        printf("%s:%d: Error - parent_id is NULL\n", __func__, __LINE__);
+        return -1;
+    }
+    if (!cJSON_IsObject(obj) || (cJSON_GetObjectItem(obj, "MACAddress") == NULL)) {
+        printf("%s:%d: Error - obj is not a valid bsta mld JSON object\n", __func__, __LINE__);
+        return -1;
+    }
 
     return 0;
 }
 
 void dm_bsta_mld_t::encode(cJSON *obj)
 {
-    //TODO: needs to be implemnented
+    if (obj == NULL || !cJSON_IsObject(obj) || (cJSON_GetArraySize(obj) == 0)) {
+        throw std::invalid_argument("dm_bsta_mld_t::encode: obj is NULL or empty/invalid JSON object");
+    }
 }
 
 void dm_bsta_mld_t::operator = (const dm_bsta_mld_t& obj)

@@ -108,6 +108,11 @@ void em_simulator_t::configure(dm_easy_mesh_agent_t& dm, em_scan_params_t *param
 	mac_addr_str_t  radio_mac_str;
     unsigned int i, j;
 
+	if (params == NULL) {
+		printf("%s:%d: Error - params is NULL\n", __func__, __LINE__);
+		return;
+	}
+
 	memcpy(&m_param.u.scan_params, params, sizeof(em_scan_params_t));
 
     dm_easy_mesh_t::macbytes_to_string(m_param.u.scan_params.ruid, radio_mac_str);

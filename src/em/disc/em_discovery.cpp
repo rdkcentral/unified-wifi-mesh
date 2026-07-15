@@ -19,6 +19,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <stdexcept>
 #include <errno.h>
 #include <assert.h>
 #include <signal.h>
@@ -161,7 +162,9 @@ unsigned int em_discovery_t::create_topo_discovery_msg(unsigned char *buff)
 
 void em_discovery_t::process_msg(unsigned char *data, unsigned int len)
 {
-
+    if (data == NULL) {
+        throw std::invalid_argument("process_msg: data is NULL");
+    }
 }
 
 void em_discovery_t::process_state()

@@ -19,6 +19,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <stdexcept>
 #include <errno.h>
 #include <assert.h>
 #include <signal.h>
@@ -1674,6 +1675,10 @@ short em_metrics_t::create_error_code_tlv(unsigned char *buff, mac_address_t sta
 
 void em_metrics_t::process_msg(unsigned char *data, unsigned int len)
 {
+    if (data == NULL) {
+        throw std::invalid_argument("process_msg: data is NULL");
+    }
+
     em_cmdu_t *cmdu = reinterpret_cast<em_cmdu_t *> (data + sizeof(em_raw_hdr_t));
 
     switch (htons(cmdu->type)) {

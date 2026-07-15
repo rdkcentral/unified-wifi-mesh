@@ -19,6 +19,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <stdexcept>
 #include <ctype.h>
 #include <errno.h>
 #include <assert.h>
@@ -742,8 +743,13 @@ int em_t::send_frame(unsigned char *buff, unsigned int len, bool multicast)
     std::copy(hdr->dst, hdr->dst + ETH_ALEN, dest_mac.begin());
     std::copy(hdr->src, hdr->src + ETH_ALEN, src_mac.begin());
 
-    sdu.setDestinationAlMacAddress(dest_mac);
-    sdu.setSourceAlMacAddress(src_mac);
+    try {
+        sdu.setDestinationAlMacAddress(dest_mac);
+        sdu.setSourceAlMacAddress(src_mac);
+    } catch (const std::exception& e) {
+        em_printfout("Error - invalid AL MAC address, dropping frame: %s", e.what());
+        return -1;
+    }
 
 #ifdef DEBUG_MODE
     em_printfout("Destination MAC Address: " MACSTRFMT, MAC2STR(buff));
@@ -751,6 +757,10 @@ int em_t::send_frame(unsigned char *buff, unsigned int len, bool multicast)
 #endif
     // Copy over the payload, excluding the header
     sdu.setPayload({buff + sizeof(em_raw_hdr_t), buff + len});
+    if (g_sap == NULL) {
+        em_printfout("Error - AL SAP not registered, dropping frame");
+        return -1;
+    }
     g_sap->serviceAccessPointDataRequest(sdu);
 #else
     em_short_string_t   ifname;
@@ -923,6 +933,10 @@ bool em_t::trigger_sta_scan()
 
 void em_t::push_to_queue(em_event_t *evt)
 {
+    if (m_iq.queue == NULL) {
+        printf("%s:%d: Error - queue is NULL\n", __func__, __LINE__);
+        return;
+    }
     pthread_mutex_lock(&m_iq.lock);
     queue_push(m_iq.queue, evt);
     pthread_cond_signal(&m_iq.cond);

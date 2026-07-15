@@ -39,6 +39,17 @@ int dm_radio_cap_t::decode(const cJSON *obj, void *parent_id)
 {
     //cJSON *tmp;
     //unsigned int i;
+
+    if (obj == NULL) {
+        printf("%s:%d: Error - obj is NULL\n", __func__, __LINE__);
+        return -1;
+    }
+
+    if (parent_id == NULL) {
+        printf("%s:%d: Error - parent_id is NULL\n", __func__, __LINE__);
+        return -1;
+    }
+
     em_interface_t	*id = static_cast<em_interface_t *>(parent_id);
     
     memset(&m_radio_cap_info, 0, sizeof(em_radio_cap_info_t));
@@ -95,6 +106,11 @@ void dm_radio_cap_t::operator = (const dm_radio_cap_t& obj)
 
 dm_radio_cap_t::dm_radio_cap_t(em_radio_cap_info_t *radio_cap)
 {
+    if (radio_cap == NULL) {
+        printf("%s:%d: Error - radio_cap is NULL\n", __func__, __LINE__);
+        memset(&m_radio_cap_info, 0, sizeof(em_radio_cap_info_t));
+        return;
+    }
     memcpy(&m_radio_cap_info, radio_cap, sizeof(em_radio_cap_info_t));
 }
 

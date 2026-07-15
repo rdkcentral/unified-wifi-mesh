@@ -23,6 +23,7 @@
 #include <errno.h>
 #include <assert.h>
 #include <signal.h>
+#include <stdexcept>
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <net/if.h>
@@ -76,6 +77,10 @@ dm_network_t *dm_easy_mesh_list_t::get_next_network(dm_network_t *net)
     dm_easy_mesh_t *dm;
     bool found = false;
 
+    if (net == NULL) {
+        return NULL;
+    }
+
     for (i = 0; i < m_num_networks; i++) {
         if (strncmp(net->m_net_info.id, m_network_list[i], strlen(m_network_list[i])) == 0) {
 	    break;
@@ -108,6 +113,11 @@ dm_network_t *dm_easy_mesh_list_t::get_network(const char *key)
     dm_easy_mesh_t *dm = NULL;
     bool found = false;
 
+    if (key == NULL) {
+        printf("%s:%d: Error - key is NULL\n", __func__, __LINE__);
+        return NULL;
+    }
+
     dm = static_cast<dm_easy_mesh_t *> (hash_map_get_first(m_list));
     while (dm != NULL) {
         net = dm->get_network();
@@ -123,6 +133,9 @@ dm_network_t *dm_easy_mesh_list_t::get_network(const char *key)
 
 void dm_easy_mesh_list_t::remove_network(const char *key)
 {
+    if (key == NULL || key[0] == '\0') {
+        throw std::invalid_argument("remove_network: key is NULL or empty");
+    }
 
 }
 
@@ -132,6 +145,14 @@ void dm_easy_mesh_list_t::put_network(const char *key, const dm_network_t *net)
     dm_network_t *pnet;
     mac_addr_str_t	mac_str;
     em_network_info_t *net_info;
+
+    if (key == NULL || key[0] == '\0') {
+        throw std::invalid_argument("put_network: key is NULL or empty");
+    }
+
+    if (net == NULL) {
+        throw std::invalid_argument("put_network: net is NULL");
+    }
 
     net_info = &(const_cast<dm_network_t *> (net))->m_net_info;
     dm_easy_mesh_t::macbytes_to_string(net_info->ctrl_id.mac, mac_str);
@@ -192,6 +213,11 @@ dm_device_t *dm_easy_mesh_list_t::get_device(const char *key)
     dm_easy_mesh_t *dm;
 	em_device_id_t	id;
 
+    if (key == NULL) {
+        printf("%s:%d: Error - key is NULL\n", __func__, __LINE__);
+        return NULL;
+    }
+
 	dm_device_t::parse_device_id_from_key(key, &id);
 
     //printf("%s:%d: Getting device at key: %s\n", __func__, __LINE__, key);
@@ -206,6 +232,11 @@ dm_device_t *dm_easy_mesh_list_t::get_device(const char *key)
 void dm_easy_mesh_list_t::remove_device(const char *key)
 {
     dm_easy_mesh_t *dm;
+
+    if (key == NULL || key[0] == '\0') {
+        throw std::invalid_argument("remove_device: key is NULL or empty");
+    }
+
     dm = static_cast<dm_easy_mesh_t *> (hash_map_remove(m_list, key));
 	if (dm != NULL) {
 		delete dm;
@@ -218,6 +249,14 @@ void dm_easy_mesh_list_t::put_device(const char *key, const dm_device_t *dev)
     dm_device_t *pdev;
     mac_addr_str_t mac_str;
 	em_device_id_t	id;
+
+    if (key == NULL || key[0] == '\0') {
+        throw std::invalid_argument("put_device: key is NULL or empty");
+    }
+
+    if (dev == NULL) {
+        throw std::invalid_argument("put_device: dev is NULL");
+    }
 
 	dm_device_t::parse_device_id_from_key(key, &id);
 	dm_easy_mesh_t::macbytes_to_string(id.dev_mac, mac_str);
@@ -244,16 +283,26 @@ void dm_easy_mesh_list_t::update_device(const char *key, const dm_device_t *dev)
     mac_addr_str_t mac_str;
 	em_device_id_t	id;
 
+    if (key == NULL || key[0] == '\0') {
+        throw std::invalid_argument("update_device: key is NULL or empty");
+    }
+
+    if (dev == NULL) {
+        throw std::invalid_argument("update_device: dev is NULL");
+    }
+
 	dm_device_t::parse_device_id_from_key(key, &id);
 	dm_easy_mesh_t::macbytes_to_string(id.dev_mac, mac_str);
 
-    if ((pdev = get_device(key)) != NULL) {
-        memcpy(&pdev->m_device_info, &dev->m_device_info, sizeof(em_device_info_t));
-	    dm = get_data_model(pdev->m_device_info.id.net_id, pdev->m_device_info.id.dev_mac);
-        if (dm == NULL) {
-            em_printfout("Could not find data model for device at key: %s@%s", pdev->m_device_info.id.net_id, mac_str);
-            return;
-        }
+    if ((pdev = get_device(key)) == NULL) {
+        throw std::invalid_argument("update_device: device not found");
+    }
+
+    memcpy(&pdev->m_device_info, &dev->m_device_info, sizeof(em_device_info_t));
+    dm = get_data_model(pdev->m_device_info.id.net_id, pdev->m_device_info.id.dev_mac);
+    if (dm == NULL) {
+        em_printfout("Could not find data model for device at key: %s@%s", pdev->m_device_info.id.net_id, mac_str);
+        return;
     }
 }
 
@@ -324,6 +373,10 @@ dm_radio_t *dm_easy_mesh_list_t::get_radio(const char *key)
 	bool found = false;
 	mac_address_t mac;
 
+	if (key == NULL) {
+		return NULL;
+	}
+
 	dm_easy_mesh_t::string_to_macbytes(const_cast<char *> (key), mac);
 	
 	dm = static_cast<dm_easy_mesh_t *> (hash_map_get_first(m_list));
@@ -347,7 +400,9 @@ dm_radio_t *dm_easy_mesh_list_t::get_radio(const char *key)
 
 void dm_easy_mesh_list_t::remove_radio(const char *key)
 {
-
+    if (key == NULL || key[0] == '\0') {
+        throw std::invalid_argument("remove_radio: key is NULL or empty");
+    }
 }
 
 void dm_easy_mesh_list_t::put_radio(const char *key, const dm_radio_t *radio)
@@ -357,6 +412,18 @@ void dm_easy_mesh_list_t::put_radio(const char *key, const dm_radio_t *radio)
     em_t *em = NULL;
 
     //em_printfout("Radio: %s", key);
+
+    if (key == NULL || key[0] == '\0') {
+        throw std::invalid_argument("put_radio: key is NULL or empty");
+    }
+
+    if (radio == NULL) {
+        throw std::invalid_argument("put_radio: radio is NULL");
+    }
+
+    if (radio->m_radio_info.id.net_id[0] == '\0') {
+        throw std::invalid_argument("put_radio: empty net_id in radio");
+    }
 
     if ((pradio = get_radio(key)) == NULL) {
         dm = get_data_model(radio->m_radio_info.id.net_id, radio->m_radio_info.id.dev_mac);
@@ -571,13 +638,16 @@ void dm_easy_mesh_list_t::remove_bss(const char *key)
 	unsigned int i;
 	mac_addr_str_t  radio_mac_str, dev_mac_str;
 	
+	if (key == NULL || key[0] == '\0') {
+		throw std::invalid_argument("remove_bss: key is NULL or empty");
+	}
+
 	dm_bss_t::parse_bss_id_from_key(key, &id);
 	dm_easy_mesh_t::macbytes_to_string(id.dev_mac, dev_mac_str);	
 	dm_easy_mesh_t::macbytes_to_string(id.ruid, radio_mac_str);	
 
 	if ((dm = get_data_model(id.net_id, id.dev_mac)) == NULL) {
-		printf("%s:%d: Could not find data model for Network: %s and dev: %s\n", __func__, __LINE__, id.net_id, dev_mac_str);
-		return;
+		throw std::invalid_argument("remove_bss: data model not found");
 	}
 
 	for (i = 0; i < dm->m_num_bss; i++) {
@@ -593,6 +663,14 @@ void dm_easy_mesh_list_t::put_bss(const char *key, const dm_bss_t *bss)
 	mac_addr_str_t	dev_mac_str, radio_mac_str, bssid_str;
 	dm_easy_mesh_t *dm;
 	dm_bss_t *pbss;
+
+	if (key == NULL || key[0] == '\0') {
+		throw std::invalid_argument("put_bss: key is NULL or empty");
+	}
+
+	if (bss == NULL) {
+		throw std::invalid_argument("put_bss: bss is NULL");
+	}
 
 	dm_bss_t::parse_bss_id_from_key(key, &id);
 	dm_easy_mesh_t::macbytes_to_string(id.dev_mac, dev_mac_str);
@@ -699,7 +777,9 @@ dm_sta_t *dm_easy_mesh_list_t::get_sta(const char *key)
 
 void dm_easy_mesh_list_t::remove_sta(const char *key)
 {
-
+    if (key == NULL || key[0] == '\0') {
+        throw std::invalid_argument("remove_sta: key is NULL or empty");
+    }
 }
 
 void dm_easy_mesh_list_t::put_sta(const char *key, const dm_sta_t *sta)
@@ -711,6 +791,14 @@ void dm_easy_mesh_list_t::put_sta(const char *key, const dm_sta_t *sta)
     bssid_t	bssid;
     bool found = false;
     unsigned int i;
+
+    if (key == NULL || key[0] == '\0') {
+        throw std::invalid_argument("put_sta: key is NULL or empty");
+    }
+
+    if (sta == NULL) {
+        throw std::invalid_argument("put_sta: sta is NULL");
+    }
 
     dm_sta_t::parse_sta_bss_radio_from_key(key, sta_mac, bssid, ruid);
     dm_easy_mesh_t::macbytes_to_string(sta_mac, sta_mac_str);
@@ -815,6 +903,11 @@ dm_network_ssid_t *dm_easy_mesh_list_t::get_network_ssid(const char *key)
     unsigned int i;
     bool found = false;
 
+    if (key == NULL) {
+        printf("%s:%d: Error - key is NULL\n", __func__, __LINE__);
+        return NULL;
+    }
+
     dm = static_cast<dm_easy_mesh_t *> (hash_map_get_first(m_list));
     while (dm != NULL) {
         for (i = 0;  i < dm->get_num_network_ssid(); i++) {
@@ -854,6 +947,10 @@ void dm_easy_mesh_list_t::remove_network_ssid(const char *key)
     unsigned int i;
     bool found = false;
 
+    if (key == NULL || key[0] == '\0') {
+        throw std::invalid_argument("remove_network_ssid: key is NULL or empty");
+    }
+
     //printf("%s:%d: Remove: %s\n", __func__, __LINE__, key);
     dm = static_cast<dm_easy_mesh_t *> (hash_map_get_first(m_list));
     while (dm != NULL) {
@@ -874,6 +971,10 @@ void dm_easy_mesh_list_t::remove_network_ssid(const char *key)
 
         dm = static_cast<dm_easy_mesh_t *> (hash_map_get_next(m_list, dm));
     }
+
+    if (found == false) {
+        throw std::invalid_argument("remove_network_ssid: network ssid not found");
+    }
 }
 
 void dm_easy_mesh_list_t::put_network_ssid(const char *key, const dm_network_ssid_t *net_ssid)
@@ -886,6 +987,14 @@ void dm_easy_mesh_list_t::put_network_ssid(const char *key, const dm_network_ssi
     char *ptr = NULL;
     unsigned int i;
     bool found = false;
+
+    if (key == NULL || key[0] == '\0') {
+        throw std::invalid_argument("put_network_ssid: key is NULL or empty");
+    }
+
+    if (net_ssid == NULL) {
+        throw std::invalid_argument("put_network_ssid: net_ssid is NULL");
+    }
 
     strncpy(key_copy, key, strlen(key) + 1);
 
@@ -917,8 +1026,12 @@ void dm_easy_mesh_list_t::put_network_ssid(const char *key, const dm_network_ssi
             *pnet_ssid = *net_ssid;
         } else {
             pnet_ssid = dm->get_network_ssid(dm->get_num_network_ssid());
-            *pnet_ssid = *net_ssid;
-            dm->set_num_network_ssid(dm->get_num_network_ssid() + 1);
+            if (pnet_ssid == NULL) {
+                printf("%s:%d: Error - network_ssid array full (max %d), cannot add key %s\n", __func__, __LINE__, EM_MAX_NET_SSIDS, key);
+            } else {
+                *pnet_ssid = *net_ssid;
+                dm->set_num_network_ssid(dm->get_num_network_ssid() + 1);
+            }
         }
         dm = static_cast<dm_easy_mesh_t *> (hash_map_get_next(m_list, dm));
     }
@@ -1102,7 +1215,9 @@ dm_op_class_t *dm_easy_mesh_list_t::get_next_pre_set_op_class_by_type(em_op_clas
 
 void dm_easy_mesh_list_t::remove_op_class(const char *key)
 {
-
+    if (key == NULL || key[0] == '\0') {
+        throw std::invalid_argument("remove_op_class: key is NULL or empty");
+    }
 }
 
 void dm_easy_mesh_list_t::put_op_class(const char *key, const dm_op_class_t *op_class)
@@ -1114,6 +1229,14 @@ void dm_easy_mesh_list_t::put_op_class(const char *key, const dm_op_class_t *op_
 	unsigned int i;
 	dm_op_class_t	*pop_class;
 	dm_radio_t *radio;
+
+	if (key == NULL || key[0] == '\0') {
+		throw std::invalid_argument("put_op_class: key is NULL or empty");
+	}
+
+	if (op_class == NULL) {
+		throw std::invalid_argument("put_op_class: op_class is NULL");
+	}
 
 	dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *> (op_class->m_op_class_info.id.ruid), mac_str);
 	//printf("%s:%d: key: %s, ruid: %s, type: %d, op_class: %d\n", __func__, __LINE__, 
@@ -1265,7 +1388,9 @@ dm_policy_t *dm_easy_mesh_list_t::get_policy(const char *key)
 
 void dm_easy_mesh_list_t::remove_policy(const char *key)
 {
-
+    if (key == NULL || key[0] == '\0') {
+        throw std::invalid_argument("remove_policy: key is NULL or empty");
+    }
 }
 
 void dm_easy_mesh_list_t::put_policy(const char *key, const dm_policy_t *policy)
@@ -1274,8 +1399,19 @@ void dm_easy_mesh_list_t::put_policy(const char *key, const dm_policy_t *policy)
 	dm_easy_mesh_t	*dm;
 	mac_addr_str_t	dev_mac_str;
 	
+	if (key == NULL || key[0] == '\0') {
+		throw std::invalid_argument("put_policy: key is NULL or empty");
+	}
+
+	if (policy == NULL) {
+		throw std::invalid_argument("put_policy: policy is NULL");
+	}
+
 	dm_policy_t::parse_dev_radio_mac_from_key(key, &id);
 	dm_easy_mesh_t::macbytes_to_string(id.dev_mac, dev_mac_str);
+	if (id.net_id[0] == '\0') {
+		throw std::invalid_argument("put_policy: empty net_id in key");
+	}
 	if ((dm = get_data_model(id.net_id, id.dev_mac)) == NULL) {
 		printf("%s:%d: Could not find data model for Network: %s and dev: %s\n", __func__, __LINE__, id.net_id, dev_mac_str);
 		return;
@@ -1366,6 +1502,10 @@ void dm_easy_mesh_list_t::remove_scan_result(const char *key)
     bool found_sta = false;
     wifi_BeaconReport_t *rprt;
 
+    if (key == NULL || key[0] == '\0') {
+        throw std::invalid_argument("remove_scan_result: key is NULL or empty");
+    }
+
     dm_scan_result_t::parse_scan_result_id_from_key(key, &id, bssid);
 
     dm_easy_mesh_t::macbytes_to_string(id.dev_mac, dev_mac_str);
@@ -1437,10 +1577,22 @@ void dm_easy_mesh_list_t::put_scan_result(const char *key, const dm_scan_result_
 	em_2xlong_string_t list_key;
 	wifi_BeaconReport_t *rprt;
 	
+	if (key == NULL || key[0] == '\0') {
+		throw std::invalid_argument("put_scan_result: key is NULL or empty");
+	}
+
+	if (scan_result == NULL) {
+		throw std::invalid_argument("put_scan_result: scan_result is NULL");
+	}
+
 	dm_scan_result_t::parse_scan_result_id_from_key(key, &id, bssid);
 
 	dm_easy_mesh_t::macbytes_to_string(id.dev_mac, dev_mac_str);
 	dm_easy_mesh_t::macbytes_to_string(id.scanner_mac, scanner_mac_str);
+
+	if (id.net_id[0] == '\0') {
+		throw std::invalid_argument("put_scan_result: empty net_id in key");
+	}
 
 	if ((dm = get_data_model(id.net_id, id.dev_mac)) == NULL) {
 		printf("%s:%d: Could not find data model for Network: %s and dev: %s\n", __func__, __LINE__, id.net_id, dev_mac_str);
@@ -1543,12 +1695,24 @@ void dm_easy_mesh_list_t::delete_data_model(const char *net_id, const unsigned c
     dm_easy_mesh_t *dm = NULL;
     mac_addr_str_t mac_str;
     em_long_string_t	key;
-	
+
+    if (net_id == NULL || al_mac == NULL) {
+        throw std::invalid_argument("delete_data_model: net_id/al_mac is NULL");
+    }
+
+    if (net_id[0] == '\0') {
+        throw std::invalid_argument("delete_data_model: net_id is empty");
+    }
+
     dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *> (al_mac), mac_str);
     snprintf(key, sizeof(em_short_string_t), "%s@%s", net_id, mac_str);
     //printf("%s:%d: Putting data model at key: %s\n", __func__, __LINE__, key);
 
     dm = static_cast<dm_easy_mesh_t *> (hash_map_remove(m_list, key));
+
+    if (dm == NULL) {
+        throw std::runtime_error("delete_data_model: data model not found");
+    }
 
     //printf("%s:%d: deleteing data model at key: %s, dm:%p, colocated:%d\n", __func__, __LINE__, key, dm, dm->get_colocated());
     dm->deinit();
@@ -1563,6 +1727,17 @@ dm_easy_mesh_t *dm_easy_mesh_list_t::create_data_model(const char *net_id, const
     dm_network_t *net, *pnet;
     dm_device_t *dev;
     dm_network_ssid_t *net_ssid, *pnet_ssid;
+
+    if (net_id == NULL) {
+        printf("%s:%d: Error - net_id is NULL\n", __func__, __LINE__);
+        return NULL;
+    }
+
+    if (al_intf == NULL) {
+        printf("%s:%d: Error - al_intf is NULL\n", __func__, __LINE__);
+        return NULL;
+    }
+
 	// Per-radio policies (radio_metrics_rep, steering_param) are NOT initialized here.
 	// They are created with real radio MACs in put_radio() when radios are discovered.
 	const em_policy_t	em_policy[] = {
@@ -1711,6 +1886,11 @@ dm_easy_mesh_t *dm_easy_mesh_list_t::get_data_model(const char *net_id, const un
     mac_addr_str_t mac_str;
     em_2xlong_string_t	key;
 
+    if (net_id == NULL || al_mac == NULL) {
+        printf("%s:%d: Error - net_id/al_mac is NULL\n", __func__, __LINE__);
+        return NULL;
+    }
+
     dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *> (al_mac), mac_str);
     snprintf(key, sizeof(key), "%s@%s", net_id, mac_str);
     dm = static_cast<dm_easy_mesh_t *> (hash_map_get(m_list, key));
@@ -1720,6 +1900,9 @@ dm_easy_mesh_t *dm_easy_mesh_list_t::get_data_model(const char *net_id, const un
 
 void dm_easy_mesh_list_t::init(em_mgr_t *mgr)
 {
+    if (mgr == NULL) {
+        throw std::invalid_argument("init: mgr is NULL");
+    }
     m_list = hash_map_create();	
     m_num_networks = 0;
     m_mgr = mgr;

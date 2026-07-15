@@ -19,6 +19,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <stdexcept>
 #include <errno.h>
 #include <assert.h>
 #include <signal.h>
@@ -65,10 +66,15 @@ em_network_node_t *em_cli_t::get_reset_tree(char *platform)
 		intf = dm.get_interface_by_index(0);
 	}
 
+	if (intf == NULL) {
+		printf("%s:%d: Error - no valid interface found\n", __func__, __LINE__);
+		return NULL;
+	}
+
 	snprintf(dbg_str, sizeof(em_long_string_t), "Interface Name: %s Media: %d", intf->name, intf->media);	
     g_cli.dump_lib_dbg(dbg_str);
-    dm.set_ctrl_al_interface_mac(intf->mac);
     dm.set_ctrl_al_interface_name(intf->name);
+	dm.set_ctrl_al_interface_mac(intf->mac);
 	dm.set_controller_id(intf->mac);
 	dm.set_controller_intf_media(intf->media);
             

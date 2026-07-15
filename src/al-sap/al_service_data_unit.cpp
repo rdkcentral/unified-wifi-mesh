@@ -1,6 +1,7 @@
 #include "al_service_data_unit.h"
 #include "al_service_exception.h"
 #include "al_service_utils.h"
+#include <stdexcept>
 
 AlServiceDataUnit::AlServiceDataUnit() {
     sourceAlMacAddress.fill(0);
@@ -12,8 +13,20 @@ AlServiceDataUnit::AlServiceDataUnit() {
 }
 
 // Set and get MAC addresses
-void AlServiceDataUnit::setSourceAlMacAddress(const MacAddress& mac) { sourceAlMacAddress = mac; }
-void AlServiceDataUnit::setDestinationAlMacAddress(const MacAddress& mac) { destinationAlMacAddress = mac; }
+void AlServiceDataUnit::setSourceAlMacAddress(const MacAddress& mac) {
+    MacAddress null_mac = {0, 0, 0, 0, 0, 0};
+    if (mac == null_mac) {
+        throw std::invalid_argument("setSourceAlMacAddress: invalid (all-zero) MAC address");
+    }
+    sourceAlMacAddress = mac;
+}
+void AlServiceDataUnit::setDestinationAlMacAddress(const MacAddress& mac) {
+    MacAddress null_mac = {0, 0, 0, 0, 0, 0};
+    if (mac == null_mac) {
+        throw std::invalid_argument("setDestinationAlMacAddress: invalid (all-zero) MAC address");
+    }
+    destinationAlMacAddress = mac;
+}
 const MacAddress& AlServiceDataUnit::getSourceAlMacAddress() const { return sourceAlMacAddress; }
 const MacAddress& AlServiceDataUnit::getDestinationAlMacAddress() const { return destinationAlMacAddress; }
 

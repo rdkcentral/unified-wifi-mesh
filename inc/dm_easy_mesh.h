@@ -20,6 +20,7 @@
 #define DM_EM_H
 #include <vector>
 #include <atomic>
+#include <stdexcept>
 #include "em_base.h"
 #include "wifi_webconfig.h"
 #include "dm_device.h"
@@ -248,7 +249,13 @@ public:
 	 *
 	 * @note Ensure that the `dm` pointer is valid and properly initialized before calling this function.
 	 */
-	static em_bss_info_t *get_bss_info_with_mac(void *dm, mac_address_t mac) { return (static_cast<dm_easy_mesh_t *>(dm))->get_bss_info_with_mac(mac); }
+	static em_bss_info_t *get_bss_info_with_mac(void *dm, mac_address_t mac) { 
+		if (dm == NULL) {
+			printf("%s:%d: Error - dm is NULL\n", __func__, __LINE__);
+			return NULL;
+		}
+		return (static_cast<dm_easy_mesh_t *>(dm))->get_bss_info_with_mac(mac); 
+	}
     
 	/**!
 	 * @brief Analyzes device initialization.
@@ -814,7 +821,7 @@ public:
 	 *
 	 * @note This function modifies the interface name used by the network control agent.
 	 */
-	void set_ctrl_al_interface_name(char *name) { snprintf(m_network.m_net_info.ctrl_id.name, sizeof(m_network.m_net_info.ctrl_id.name), "%s", name); }
+	void set_ctrl_al_interface_name(char *name) { if (name == NULL) { throw std::invalid_argument("name is NULL"); } snprintf(m_network.m_net_info.ctrl_id.name, sizeof(m_network.m_net_info.ctrl_id.name), "%s", name); }
 	
 	/**!
 	 * @brief Sets the controller ID for the network.
@@ -880,7 +887,7 @@ public:
 	 *
 	 * @note Ensure that the MAC address is valid and properly formatted before calling this function.
 	 */
-	void set_agent_al_interface_mac(unsigned char *mac) { m_device.set_dev_interface_mac(mac); }
+	void set_agent_al_interface_mac(unsigned char *mac) { if (mac == NULL) return; m_device.set_dev_interface_mac(mac); }
     
 	/**!
 	 * @brief Sets the interface name for the agent.
@@ -891,7 +898,7 @@ public:
 	 *
 	 * @note The name should be a valid network interface identifier.
 	 */
-	void set_agent_al_interface_name(char *name) { return m_device.set_dev_interface_name(name); }
+	void set_agent_al_interface_name(char *name) { if (name == NULL) return; return m_device.set_dev_interface_name(name); }
 
     
 	/**!
@@ -944,7 +951,7 @@ public:
 	 * @note Ensure that the provided data model pointer is valid and properly
 	 * initialized before calling this function.
 	 */
-	static em_ieee_1905_security_info_t *get_ieee_1905_security_info(void *dm) { return (static_cast<dm_easy_mesh_t *>(dm))->get_ieee_1905_security_info(); }
+	static em_ieee_1905_security_info_t *get_ieee_1905_security_info(void *dm) { if (dm == NULL) return NULL; return (static_cast<dm_easy_mesh_t *>(dm))->get_ieee_1905_security_info(); }
     
 	/**!
 	 * @brief Retrieves the IEEE 1905 security information.
@@ -991,7 +998,13 @@ public:
 	 *
 	 * @note Ensure that the `dm` pointer is valid and correctly castable to `dm_easy_mesh_t`.
 	 */
-	static em_device_info_t *get_device_info(void *dm) { return (static_cast<dm_easy_mesh_t *>(dm))->get_device_info(); }
+	static em_device_info_t *get_device_info(void *dm) { 
+		if (dm == NULL) {
+			printf("%s:%d: Error - dm is NULL\n", __func__, __LINE__);
+			return NULL;
+		}
+		return (static_cast<dm_easy_mesh_t *>(dm))->get_device_info(); 
+	}
     
     
 	/**!
@@ -1041,7 +1054,13 @@ public:
 	 *
 	 * @note Ensure that the provided pointer is valid and correctly initialized.
 	 */
-	static em_network_info_t *get_network_info(void *dm) { return (static_cast<dm_easy_mesh_t *>(dm))->get_network_info(); }
+	static em_network_info_t *get_network_info(void *dm) { 
+		if (dm == NULL) {
+			printf("%s:%d: Error - dm is NULL\n", __func__, __LINE__);
+			return NULL;
+		}
+		return (static_cast<dm_easy_mesh_t *>(dm))->get_network_info(); 
+	}
     
 	/**!
 	 * @brief Retrieves the MAC address of the controller interface.
@@ -1068,7 +1087,13 @@ public:
 	 *
 	 * @note Ensure that the index is within the valid range of interfaces.
 	 */
-	em_interface_t *get_interface_by_index(unsigned int index) { return &m_interfaces[index]; }
+	em_interface_t *get_interface_by_index(unsigned int index) { 
+		if (index >= EM_MAX_INTERFACES) {
+			printf("%s:%d: Error - index %u out of bounds (max: %d)\n", __func__, __LINE__, index, EM_MAX_INTERFACES);
+			return NULL;
+		}
+		return &m_interfaces[index]; 
+	}
 	
 	/**!
 	 * @brief Retrieves the prioritized interface for a given platform.
@@ -1173,7 +1198,13 @@ public:
 	 *
 	 * @note Ensure that the index is within the valid range of the array.
 	 */
-	dm_network_ssid_t *get_network_ssid(unsigned int index) { return &m_network_ssid[index]; }
+	dm_network_ssid_t *get_network_ssid(unsigned int index) { 
+		if (index >= EM_MAX_NET_SSIDS) {
+			printf("%s:%d: Error - index %u out of bounds (max: %d)\n", __func__, __LINE__, index, EM_MAX_NET_SSIDS);
+			return NULL;
+		}
+		return &m_network_ssid[index]; 
+	}
     
 	/**!
 	 * @brief Retrieves the network SSID by reference for a given index.
@@ -1228,7 +1259,13 @@ public:
 	 * @note Ensure that the index is within the valid range of operational
 	 * classes to avoid undefined behavior.
 	 */
-	em_op_class_info_t *get_op_class_info(unsigned int index) { return m_op_class[index].get_op_class_info(); }
+	em_op_class_info_t *get_op_class_info(unsigned int index) { 
+		if (index >= EM_MAX_OPCLASS) {
+			printf("%s:%d: Error - index %u out of bounds (max: %d)\n", __func__, __LINE__, index, EM_MAX_OPCLASS);
+			return NULL;
+		}
+		return m_op_class[index].get_op_class_info(); 
+	}
     
 	/**!
 	 * @brief Retrieves the operational class information for a given index.
@@ -1244,7 +1281,7 @@ public:
 	 *
 	 * @note Ensure that the data model (dm) is properly initialized before calling this function.
 	 */
-	static em_op_class_info_t *get_op_class_info(void *dm, unsigned int index) { return (static_cast<dm_easy_mesh_t *>(dm))->get_op_class_info(index); }
+	static em_op_class_info_t *get_op_class_info(void *dm, unsigned int index) { if (dm == NULL) return NULL; return (static_cast<dm_easy_mesh_t *>(dm))->get_op_class_info(index); }
     
 	/**!
 	 * @brief Retrieves the number of operational classes.
@@ -1263,7 +1300,13 @@ public:
 	 *
 	 * @returns The number of operational classes as an unsigned integer.
 	 */
-	static unsigned int get_num_op_class(void *dm) { return (static_cast<dm_easy_mesh_t *>(dm))->get_num_op_class(); }
+	static unsigned int get_num_op_class(void *dm) { 
+		if (dm == NULL) {
+			printf("%s:%d: Error - dm is NULL\n", __func__, __LINE__);
+			return 0;
+		}
+		return (static_cast<dm_easy_mesh_t *>(dm))->get_num_op_class(); 
+	}
     
 	/**!
 	 * @brief Sets the number of operating classes.
@@ -1286,7 +1329,7 @@ public:
 	 *
 	 * @note Ensure that the dm pointer is valid before calling this function.
 	 */
-	static void set_num_op_class(void *dm, unsigned int num) { (static_cast<dm_easy_mesh_t *>(dm))->set_num_op_class(num); }
+	static void set_num_op_class(void *dm, unsigned int num) { if (dm == NULL) return; (static_cast<dm_easy_mesh_t *>(dm))->set_num_op_class(num); }
     
 	/**!
 	 * @brief Retrieves the operational class at the specified index.
@@ -1297,7 +1340,7 @@ public:
 	 *
 	 * @note Ensure that the index is within the valid range to avoid undefined behavior.
 	 */
-	dm_op_class_t *get_op_class(unsigned int index) { return &m_op_class[index]; }
+	dm_op_class_t *get_op_class(unsigned int index) { if (index >= EM_MAX_OPCLASS) { return NULL; } return &m_op_class[index]; }
     
 	/**!
 	 * @brief Retrieves the operational class by reference.
@@ -1336,7 +1379,13 @@ public:
 	 *
 	 * @note Ensure that the index is within the valid range of available BSS information.
 	 */
-	em_bss_info_t *get_bss_info(unsigned int index) { return m_bss[index].get_bss_info(); }
+	em_bss_info_t *get_bss_info(unsigned int index) { 
+		if (index >= EM_MAX_BSSS) {
+			printf("%s:%d: Error - index %u out of bounds (max: %d)\n", __func__, __LINE__, index, EM_MAX_BSSS);
+			return NULL;
+		}
+		return m_bss[index].get_bss_info(); 
+	}
     
 	/**!
 	 * @brief Retrieves the BSS information for a given index.
@@ -1385,7 +1434,13 @@ public:
 	 *
 	 * @returns The number of BSS.
 	 */
-	static unsigned int get_num_bss(void *dm) { return (static_cast<dm_easy_mesh_t *>(dm))->get_num_bss(); }
+	static unsigned int get_num_bss(void *dm) { 
+		if (dm == NULL) {
+			printf("%s:%d: Error - dm is NULL\n", __func__, __LINE__);
+			return 0;
+		}
+		return (static_cast<dm_easy_mesh_t *>(dm))->get_num_bss(); 
+	}
     
 	/**!
 	 * @brief Sets the number of BSS (Basic Service Set).
@@ -1406,7 +1461,7 @@ public:
 	 *
 	 * @note Ensure that the mesh instance is properly initialized before calling this function.
 	 */
-	static void set_num_bss(void *dm, unsigned int num) { (static_cast<dm_easy_mesh_t *>(dm))->set_num_bss(num); }
+	static void set_num_bss(void *dm, unsigned int num) { if (dm == NULL) return; (static_cast<dm_easy_mesh_t *>(dm))->set_num_bss(num); }
     
 	/**!
 	 * @brief Retrieves a BSS (Basic Service Set) from the list based on the provided index.
@@ -1503,7 +1558,7 @@ public:
 	 *
 	 * @note Ensure that the index is within the valid range of the policy array.
 	 */
-	dm_policy_t *get_policy(unsigned int index) { return &m_policy[index]; }
+	dm_policy_t *get_policy(unsigned int index) { if (index >= m_num_policy) { return NULL; } return &m_policy[index]; }
     
 	/**!
 	 * @brief Retrieves a reference to the policy at the specified index.
@@ -1567,7 +1622,7 @@ public:
 	 *
 	 * @returns The number of scan results.
 	 */
-	unsigned int	get_num_scan_results() { return hash_map_count(m_scan_result_map); }
+	unsigned int	get_num_scan_results() { if (m_scan_result_map == NULL) return 0; return hash_map_count(m_scan_result_map); }
 	
 	/**!
 	 * @brief Retrieves the scan result at the specified index.
@@ -1606,7 +1661,7 @@ public:
 	 *
 	 * @note This function is static and should be used internally within the EasyMesh module.
 	 */
-	static void update_scan_results(void *dm, em_scan_result_t *scan_result) { (static_cast<dm_easy_mesh_t *> (dm))->update_scan_results(scan_result); }
+	static void update_scan_results(void *dm, em_scan_result_t *scan_result) { if (dm == NULL) throw std::invalid_argument("update_scan_results: dm is NULL"); (static_cast<dm_easy_mesh_t *> (dm))->update_scan_results(scan_result); }
 
     
 	/**!
@@ -1626,7 +1681,13 @@ public:
 	 *
 	 * @returns The number of AP MLDs.
 	 */
-	static unsigned int get_num_ap_mld(void *dm) { return (static_cast<dm_easy_mesh_t *>(dm))->get_num_ap_mld(); }
+	static unsigned int get_num_ap_mld(void *dm) { 
+		if (dm == NULL) {
+			printf("%s:%d: Error - dm is NULL\n", __func__, __LINE__);
+			return 0;
+		}
+		return (static_cast<dm_easy_mesh_t *>(dm))->get_num_ap_mld(); 
+	}
     
 	/**!
 	 * @brief Sets the number of AP MLD.
@@ -1647,7 +1708,7 @@ public:
 	 *
 	 * @note Ensure that the `dm` pointer is valid and points to a properly initialized EasyMesh configuration object.
 	 */
-	static void set_num_ap_mld(void *dm, unsigned int num) { (static_cast<dm_easy_mesh_t *>(dm))->set_num_ap_mld(num); }
+	static void set_num_ap_mld(void *dm, unsigned int num) { if (dm == NULL) return; (static_cast<dm_easy_mesh_t *>(dm))->set_num_ap_mld(num); }
     
 	/**!
 	 * @brief Retrieves the access point MLD (Multi-Link Device) at the specified index.
@@ -1660,7 +1721,13 @@ public:
 	 *
 	 * @note Ensure that the index is within the valid range to avoid undefined behavior.
 	 */
-	dm_ap_mld_t *get_ap_mld(unsigned int index) { return &m_ap_mld[index]; }
+	dm_ap_mld_t *get_ap_mld(unsigned int index) { 
+		if (index >= m_num_ap_mld) {
+			printf("%s:%d: Error - index %u out of bounds (num: %u)\n", __func__, __LINE__, index, m_num_ap_mld);
+			return NULL;
+		}
+		return &m_ap_mld[index]; 
+	}
     
 	/**!
 	 * @brief Retrieves a reference to the AP MLD at the specified index.
@@ -1695,7 +1762,13 @@ public:
 	 *
 	 * @returns True if BSTA MLD is present, false otherwise.
 	 */
-	static bool is_bsta_mld_present(void *dm) { return (static_cast<dm_easy_mesh_t *>(dm))->is_bsta_mld_present(); }
+	static bool is_bsta_mld_present(void *dm) { 
+		if (dm == NULL) {
+			printf("%s:%d: Error - dm is NULL\n", __func__, __LINE__);
+			return false;
+		}
+		return (static_cast<dm_easy_mesh_t *>(dm))->is_bsta_mld_present(); 
+	}
 
 	/**!
 	 * @brief Retrieves the BSTA MLD information.
@@ -1736,24 +1809,34 @@ public:
 	 *
 	 * @returns The number of associated stations in the mesh network.
 	 */
-	static unsigned int get_num_assoc_sta_mld(void *dm) { return (static_cast<dm_easy_mesh_t *>(dm))->get_num_assoc_sta_mld(); }
+	static unsigned int get_num_assoc_sta_mld(void *dm) { if (dm == NULL) return 0; return (static_cast<dm_easy_mesh_t *>(dm))->get_num_assoc_sta_mld(); }
 
 	em_ap_mld_info_t *get_ap_mld_frm_bssid(mac_address_t bss_id);
-	static em_ap_mld_info_t *get_ap_mld_frm_bssid(void *dm, mac_address_t bss_id) { return (static_cast<dm_easy_mesh_t *>(dm))->get_ap_mld_frm_bssid(bss_id); }
+	static em_ap_mld_info_t *get_ap_mld_frm_bssid(void *dm, mac_address_t bss_id) { 
+		if (dm == NULL) {
+			printf("%s:%d: Error - dm is NULL\n", __func__, __LINE__);
+			return NULL;
+		}
+		if (bss_id == NULL) {
+			printf("%s:%d: Error - bss_id is NULL\n", __func__, __LINE__);
+			return NULL;
+		}
+		return (static_cast<dm_easy_mesh_t *>(dm))->get_ap_mld_frm_bssid(bss_id); 
+	}
 
 	void update_ap_mld_info(em_ap_mld_info_t *ap_mld_info);
-	static void update_ap_mld_info(void *dm, em_ap_mld_info_t *ap_mld_info) { (static_cast<dm_easy_mesh_t *>(dm))->update_ap_mld_info(ap_mld_info); }
+	static void update_ap_mld_info(void *dm, em_ap_mld_info_t *ap_mld_info) { if (dm == NULL) throw std::invalid_argument("update_ap_mld_info: dm is NULL"); (static_cast<dm_easy_mesh_t *>(dm))->update_ap_mld_info(ap_mld_info); }
 
 	void update_bsta_mld_info(em_bsta_mld_info_t *bsta_mld_info);
-	static void update_bsta_mld_info(void *dm, em_bsta_mld_info_t *bsta_mld_info) { (static_cast<dm_easy_mesh_t *>(dm))->update_bsta_mld_info(bsta_mld_info); }
+	static void update_bsta_mld_info(void *dm, em_bsta_mld_info_t *bsta_mld_info) { if (dm == NULL) return; (static_cast<dm_easy_mesh_t *>(dm))->update_bsta_mld_info(bsta_mld_info); }
 
 	void update_assoc_sta_mld_info(em_assoc_sta_mld_info_t *assoc_sta_mld_info);
-	static void update_assoc_sta_mld_info(void *dm, em_assoc_sta_mld_info_t *assoc_sta_mld_info) { (static_cast<dm_easy_mesh_t *>(dm))->update_assoc_sta_mld_info(assoc_sta_mld_info); }
+	static void update_assoc_sta_mld_info(void *dm, em_assoc_sta_mld_info_t *assoc_sta_mld_info) { if (dm == NULL) return; (static_cast<dm_easy_mesh_t *>(dm))->update_assoc_sta_mld_info(assoc_sta_mld_info); }
 
 	void remove_assoc_sta_mld_info(mac_address_t sta_mld_mac);
 
 	em_radio_cap_info_t *get_radio_cap_info(unsigned int index);
-	static em_radio_cap_info_t *get_radio_cap_info(void *dm, unsigned int index) { return (static_cast<dm_easy_mesh_t *>(dm))->get_radio_cap_info(index); }
+	static em_radio_cap_info_t *get_radio_cap_info(void *dm, unsigned int index) { if (dm == NULL) return NULL; return (static_cast<dm_easy_mesh_t *>(dm))->get_radio_cap_info(index); }
 
 	/**!
 	 * @brief Retrieves the Data Model DPP object.
@@ -1814,7 +1897,7 @@ public:
 	 *
 	 * @note Ensure that the index is within the valid range of available radio interfaces.
 	 */
-	em_interface_t *get_radio_interface(unsigned int index) { return m_radio[index].get_radio_interface(); }
+	em_interface_t *get_radio_interface(unsigned int index) { if (index >= EM_MAX_BANDS) { return nullptr; } return m_radio[index].get_radio_interface(); }
     
 	/**!
 	 * @brief Retrieves the radio information for a given index.
@@ -1829,7 +1912,7 @@ public:
 	 *
 	 * @note Ensure that the index is within the valid range of available radios.
 	 */
-	em_radio_info_t *get_radio_info(unsigned int index) { return m_radio[index].get_radio_info(); }
+	em_radio_info_t *get_radio_info(unsigned int index) { if (index >= EM_MAX_BANDS) { return nullptr; } return m_radio[index].get_radio_info(); }
     
 	/**!
 	 * @brief Retrieves radio information for a given index.
@@ -1844,7 +1927,7 @@ public:
 	 *
 	 * @note Ensure that the index is within the valid range of available radios.
 	 */
-	static em_radio_info_t *get_radio_info(void *dm, unsigned int index) { return (static_cast<dm_easy_mesh_t *>(dm))->get_radio_info(index); }
+	static em_radio_info_t *get_radio_info(void *dm, unsigned int index) { if (dm == NULL) return NULL; return (static_cast<dm_easy_mesh_t *>(dm))->get_radio_info(index); }
     
 	/**!
 	 * @brief Retrieves the radio data for a given interface.
@@ -1880,7 +1963,7 @@ public:
 	 *
 	 * @returns The number of radios as an unsigned integer.
 	 */
-	static unsigned int get_num_radios(void *dm) { return (static_cast<dm_easy_mesh_t *>(dm))->get_num_radios(); }
+	static unsigned int get_num_radios(void *dm) { if (dm == NULL) return 0; return (static_cast<dm_easy_mesh_t *>(dm))->get_num_radios(); }
     
 	/**!
 	 * @brief Sets the number of radios.
@@ -1901,7 +1984,7 @@ public:
 	 *
 	 * @note Ensure that the mesh network configuration object is properly initialized before calling this function.
 	 */
-	static void set_num_radios(void *dm, unsigned int num) { (static_cast<dm_easy_mesh_t *>(dm))->set_num_radios(num); }
+	static void set_num_radios(void *dm, unsigned int num) { if (dm == NULL) return; (static_cast<dm_easy_mesh_t *>(dm))->set_num_radios(num); }
     
 	/**!
 	 * @brief Finds a matching radio from a given radio object.
@@ -2074,7 +2157,7 @@ public:
 	 *
 	 * @note Ensure that the provided context is properly initialized before calling this function.
 	 */
-	void    set_cmd_ctx(em_cmd_ctx_t *ctx) { memcpy(&m_cmd_ctx, ctx, sizeof(em_cmd_ctx_t)); }
+	void    set_cmd_ctx(em_cmd_ctx_t *ctx) { if (ctx == NULL) { throw std::invalid_argument("ctx is NULL"); } memcpy(&m_cmd_ctx, ctx, sizeof(em_cmd_ctx_t)); }
     
 	/**!
 	 * @brief Resets the command context to its initial state.
@@ -2164,7 +2247,13 @@ public:
 	 *
 	 * @note Ensure that the dm pointer is valid before calling this function.
 	 */
-	static em_sta_info_t *get_first_sta_info(void *dm, em_target_sta_map_t target) { return (static_cast<dm_easy_mesh_t *>(dm))->get_first_sta_info(target); }
+	static em_sta_info_t *get_first_sta_info(void *dm, em_target_sta_map_t target) { 
+		if (dm == NULL) {
+			printf("%s:%d: Error - dm is NULL\n", __func__, __LINE__);
+			return NULL;
+		}
+		return (static_cast<dm_easy_mesh_t *>(dm))->get_first_sta_info(target); 
+	}
     
 	/**!
 	 * @brief Retrieves the next station information from the mesh network.
@@ -2180,7 +2269,7 @@ public:
 	 *
 	 * @note Ensure that the `dm` pointer is valid and points to a properly initialized mesh network structure.
 	 */
-	static em_sta_info_t *get_next_sta_info(void *dm, em_sta_info_t *info, em_target_sta_map_t target) { return (static_cast<dm_easy_mesh_t *>(dm))->get_first_sta_info(info, target); }
+	static em_sta_info_t *get_next_sta_info(void *dm, em_sta_info_t *info, em_target_sta_map_t target) { if (dm == NULL) return NULL; return (static_cast<dm_easy_mesh_t *>(dm))->get_first_sta_info(info, target); }
     
 	/**!
 	 * @brief Retrieves station information.
@@ -2197,7 +2286,7 @@ public:
 	 *
 	 * @note Ensure that the EasyMesh instance is properly initialized before calling this function.
 	 */
-	static em_sta_info_t *get_sta_info(void *dm, mac_address_t sta, bssid_t bssid, mac_address_t ruid, em_target_sta_map_t target) { return (static_cast<dm_easy_mesh_t *>(dm))->get_sta_info(sta, bssid, ruid, target); }
+	static em_sta_info_t *get_sta_info(void *dm, mac_address_t sta, bssid_t bssid, mac_address_t ruid, em_target_sta_map_t target) { if (dm == NULL) return NULL; return (static_cast<dm_easy_mesh_t *>(dm))->get_sta_info(sta, bssid, ruid, target); }
     
 	/**!
 	 * @brief Puts station information into the EasyMesh data structure.
@@ -2210,7 +2299,7 @@ public:
 	 *
 	 * @note This function is a wrapper around the put_sta_info method of the dm_easy_mesh_t class.
 	 */
-	static void put_sta_info(void *dm, em_sta_info_t *info, em_target_sta_map_t target) { (static_cast<dm_easy_mesh_t *>(dm))->put_sta_info(info, target); }
+	static void put_sta_info(void *dm, em_sta_info_t *info, em_target_sta_map_t target) { if (dm == NULL || info == NULL) return; (static_cast<dm_easy_mesh_t *>(dm))->put_sta_info(info, target); }
 
 	/**!
 	 * @brief Checks whether a station (STA) is currently associated with a given BSSID.
@@ -2596,7 +2685,7 @@ public:
 	 *
 	 * @note Ensure that the pointer is valid and points to a properly initialized Easy Mesh object.
 	 */
-	void set_em(em_t *em) { m_em = em; }
+	void set_em(em_t *em) { if (em == NULL) { throw std::invalid_argument("em is NULL"); } m_em = em; }
     
 	/**!
 	 * @brief Sets the colocated status.

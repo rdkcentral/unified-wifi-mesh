@@ -37,7 +37,7 @@ bool em_msg_t::get_tlv(em_tlv_t *itlv)
     unsigned int len;
 
     tlv = reinterpret_cast<em_tlv_t *> (m_buff); len = m_len;
-    while ((tlv->type != em_tlv_type_eom) && (len > 0)) {
+    while ((len >= sizeof(em_tlv_t)) && (tlv->type != em_tlv_type_eom) && (len >= sizeof(em_tlv_t) + htons(tlv->len))) {
         if (tlv->type == itlv->type) {
             memcpy(itlv->value, tlv->value, htons(tlv->len));
             return true;
@@ -55,8 +55,13 @@ bool em_msg_t::get_client_mac_info(mac_address_t *mac)
     unsigned int len;
     em_client_info_t *cltinfo;
 
+    if (mac == NULL) {
+        printf("%s:%d: Error - mac is NULL\n", __func__, __LINE__);
+        return false;
+    }
+
     tlv = reinterpret_cast<em_tlv_t *> (m_buff); len = m_len;
-    while ((tlv->type != em_tlv_type_eom) && (len > 0)) {
+    while ((len >= sizeof(em_tlv_t)) && (tlv->type != em_tlv_type_eom) && (len >= sizeof(em_tlv_t) + htons(tlv->len))) {
         if (tlv->type == em_tlv_type_client_info) {
             cltinfo = reinterpret_cast<em_client_info_t *> (tlv->value);
             memcpy(mac, &cltinfo->client_mac_addr, sizeof(mac_address_t));
@@ -74,7 +79,7 @@ bool em_msg_t::get_al_mac_address(unsigned char *mac)
     unsigned int len;
 
     tlv = reinterpret_cast<em_tlv_t *> (m_buff); len = m_len;
-    while ((tlv->type != em_tlv_type_eom) && (len > 0)) {
+    while ((len >= sizeof(em_tlv_t)) && (tlv->type != em_tlv_type_eom) && (len >= sizeof(em_tlv_t) + htons(tlv->len))) {
         if (tlv->type == em_tlv_type_al_mac_address) {
             memcpy(mac, tlv->value, htons(tlv->len));
             return true;
@@ -91,8 +96,13 @@ bool em_msg_t::get_profile(em_profile_type_t *profile)
     em_tlv_t    *tlv;
     unsigned int len;
 
+    if (profile == NULL) {
+        printf("%s:%d: Error - profile is NULL\n", __func__, __LINE__);
+        return false;
+    }
+
     tlv = reinterpret_cast<em_tlv_t *> (m_buff); len = m_len;
-    while ((tlv->type != em_tlv_type_eom) && (len > 0)) {
+    while ((len >= sizeof(em_tlv_t)) && (tlv->type != em_tlv_type_eom) && (len >= sizeof(em_tlv_t) + htons(tlv->len))) {
         if (tlv->type == em_tlv_type_profile) {
             memcpy(profile, tlv->value, htons(tlv->len));
             return true;
@@ -110,8 +120,13 @@ bool em_msg_t::get_bss_id(mac_address_t *mac)
     em_tlv_t    *tlv;
     unsigned int len;
 
+    if (mac == NULL) {
+        printf("%s:%d: Error - mac is NULL\n", __func__, __LINE__);
+        return false;
+    }
+
     tlv = reinterpret_cast<em_tlv_t *> (m_buff); len = m_len;
-    while ((tlv->type != em_tlv_type_eom) && (len > 0)) {
+    while ((len >= sizeof(em_tlv_t)) && (tlv->type != em_tlv_type_eom) && (len >= sizeof(em_tlv_t) + htons(tlv->len))) {
         if (tlv->type == em_tlv_type_client_info) {
             memcpy(mac, tlv->value, sizeof(mac_address_t));
             return true;
@@ -150,8 +165,13 @@ bool em_msg_t::get_radio_id(mac_address_t *mac)
     
 	em_ap_op_bss_radio_t    *radio;
 
+    if (mac == NULL) {
+        printf("%s:%d: Error - mac is NULL\n", __func__, __LINE__);
+        return false;
+    }
+
     tlv = reinterpret_cast<em_tlv_t *> (m_buff); len = m_len;
-    while ((tlv->type != em_tlv_type_eom) && (len > 0)) {
+    while ((len >= sizeof(em_tlv_t)) && (tlv->type != em_tlv_type_eom) && (len >= sizeof(em_tlv_t) + htons(tlv->len))) {
         if (tlv->type == em_tlv_type_radio_id) {
             memcpy(mac, tlv->value, sizeof(mac_address_t));
             return true;    
@@ -224,7 +244,7 @@ bool em_msg_t::get_freq_band(em_freq_band_t *band)
     unsigned int len;
 
     tlv = reinterpret_cast<em_tlv_t *> (m_buff); len = m_len;
-    while ((tlv->type != em_tlv_type_eom) && (len > 0)) {
+    while ((len >= sizeof(em_tlv_t)) && (tlv->type != em_tlv_type_eom) && (len >= sizeof(em_tlv_t) + htons(tlv->len))) {
         if ((tlv->type == em_tlv_type_supported_freq_band) || (tlv->type == em_tlv_type_autoconf_freq_band)) {
             memcpy(reinterpret_cast<unsigned char *> (band), tlv->value, sizeof(unsigned char));
             return true;
@@ -242,9 +262,14 @@ bool em_msg_t::get_profile_type(em_profile_type_t *profile)
     em_tlv_t    *tlv;
     unsigned int len;
 
+    if (profile == NULL) {
+        printf("%s:%d: Error - profile is NULL\n", __func__, __LINE__);
+        return false;
+    }
+
     *profile = em_profile_type_reserved;
     tlv = reinterpret_cast<em_tlv_t *> (m_buff); len = m_len;
-    while ((tlv->type != em_tlv_type_eom) && (len > 0)) {
+    while ((len >= sizeof(em_tlv_t)) && (tlv->type != em_tlv_type_eom) && (len >= sizeof(em_tlv_t) + htons(tlv->len))) {
         if (tlv->type == em_tlv_type_profile) {
             memcpy(reinterpret_cast<unsigned char *> (profile), tlv->value, htons(tlv->len));
             return true;
@@ -262,7 +287,7 @@ em_tlv_t *em_msg_t::get_tlv(em_tlv_type_t type)
     unsigned int len;
 
     tlv = reinterpret_cast<em_tlv_t *> (m_buff); len = m_len;
-    while ((tlv->type != em_tlv_type_eom) && (len > 0)) {
+    while ((len >= sizeof(em_tlv_t)) && (tlv->type != em_tlv_type_eom) && (len >= sizeof(em_tlv_t) + ntohs(tlv->len))) {
         if (tlv->type == type) {
             return tlv; 
         }
@@ -282,7 +307,7 @@ em_tlv_t *em_msg_t::get_tlv(em_tlv_t* tlvs_buff, unsigned int buff_len, em_tlv_t
     em_tlv_t    *tlv = tlvs_buff;
     unsigned int len = buff_len;
 
-    while ((tlv->type != em_tlv_type_eom) && (len > 0)) {
+    while ((len >= sizeof(em_tlv_t)) && (tlv->type != em_tlv_type_eom) && (len >= sizeof(em_tlv_t) + ntohs(tlv->len))) {
         if (tlv->type == type) {
             return tlv; 
         }
@@ -348,6 +373,21 @@ em_tlv_t *em_msg_t::get_next_tlv(em_tlv_t* tlv, em_tlv_t* tlvs_buff, unsigned in
 
 unsigned char* em_msg_t::add_buff_element(unsigned char *buff, unsigned int *len, unsigned char *element, unsigned int element_len)
 {
+    if (buff == NULL) {
+        printf("%s:%d: Error - buff is NULL\n", __func__, __LINE__);
+        return NULL;
+    }
+
+    if (len == NULL) {
+        printf("%s:%d: Error - len is NULL\n", __func__, __LINE__);
+        return NULL;
+    }
+
+    if (element == NULL) {
+        printf("%s:%d: Error - element is NULL\n", __func__, __LINE__);
+        return NULL;
+    }
+
     memcpy(buff, element, element_len);
     *len += element_len;
     return buff + element_len;
@@ -356,6 +396,21 @@ unsigned char* em_msg_t::add_buff_element(unsigned char *buff, unsigned int *len
 unsigned char* em_msg_t::add_tlv(unsigned char *buff, unsigned int *len, em_tlv_type_t tlv_type, 
                                             unsigned char *value, unsigned int value_len)
 {
+    if (buff == NULL) {
+        printf("%s:%d: Error - buff is NULL\n", __func__, __LINE__);
+        return NULL;
+    }
+
+    if (len == NULL) {
+        printf("%s:%d: Error - len is NULL\n", __func__, __LINE__);
+        return NULL;
+    }
+
+    if (value_len > 0 && value == NULL) {
+        printf("%s:%d: Error - value is NULL but value_len is %u\n", __func__, __LINE__, value_len);
+        return NULL;
+    }
+
     em_tlv_t* tlv = reinterpret_cast<em_tlv_t *> (buff);
     tlv->type = tlv_type;
     tlv->len = (htons(static_cast<short unsigned int>(value_len)));
@@ -369,6 +424,25 @@ unsigned char* em_msg_t::add_tlv(unsigned char *buff, unsigned int *len, em_tlv_
 }
 unsigned char* em_msg_t::add_1905_header(unsigned char *buff, unsigned int *len, mac_addr_t dst, mac_addr_t src, em_msg_type_t msg_type, unsigned short msg_id)
 {
+    if (buff == NULL) {
+        printf("%s:%d: Error - buff is NULL\n", __func__, __LINE__);
+        return NULL;
+    }
+
+    if (len == NULL) {
+        printf("%s:%d: Error - len is NULL\n", __func__, __LINE__);
+        return NULL;
+    }
+
+    if (dst == NULL) {
+        printf("%s:%d: Error - dst is NULL\n", __func__, __LINE__);
+        return NULL;
+    }
+
+    if (src == NULL) {
+        printf("%s:%d: Error - src is NULL\n", __func__, __LINE__);
+        return NULL;
+    }
 
     uint16_t type = htons(ETH_P_1905);
 
@@ -413,7 +487,7 @@ unsigned int em_msg_t::validate(char *errors[])
         tlv =  reinterpret_cast<em_tlv_t *> (m_buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
         len = m_len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
 
-        while ((tlv->type != em_tlv_type_eom) && (len > 0)) {
+        while ((len >= sizeof(em_tlv_t)) && (tlv->type != em_tlv_type_eom) && (len >= sizeof(em_tlv_t) + htons(tlv->len))) {
             if (tlv->type == m_tlv_member[i].m_type) {
                 m_tlv_member[i].m_present = true;
                 break;

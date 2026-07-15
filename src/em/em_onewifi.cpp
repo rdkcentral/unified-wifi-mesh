@@ -43,6 +43,7 @@
 #include <pthread.h>
 #include <sys/types.h>
 #include <ifaddrs.h>
+#include <stdexcept>
 #include "em_onewifi.h"
 #include "util.h"
 
@@ -58,6 +59,10 @@ em_onewifi_t::~em_onewifi_t()
 
 char *em_onewifi_t::macbytes_to_string(mac_address_t mac, char* string)
 {
+	if (mac == NULL || string == NULL) {
+		printf("%s:%d: Error - mac/string is NULL\n", __func__, __LINE__);
+		return NULL;
+	}
 	sprintf(const_cast<char *> (string), "%02x:%02x:%02x:%02x:%02x:%02x",
             mac[0] & 0xff,
             mac[1] & 0xff,
@@ -71,12 +76,19 @@ char *em_onewifi_t::macbytes_to_string(mac_address_t mac, char* string)
 void em_onewifi_t::string_to_macbytes(char *key, mac_address_t bmac) 
 {
     unsigned int mac[6];
+    int parsed;
+    if (key == NULL || bmac == NULL) {
+        throw std::invalid_argument("string_to_macbytes: key/bmac is NULL");
+    }
     if (strlen(key) > MIN_MAC_LEN)
-        sscanf(key, "%02x:%02x:%02x:%02x:%02x:%02x",
+        parsed = sscanf(key, "%02x:%02x:%02x:%02x:%02x:%02x",
                 &mac[0], &mac[1], &mac[2], &mac[3], &mac[4], &mac[5]);
     else
-        sscanf(key, "%02x%02x%02x%02x%02x%02x",
+        parsed = sscanf(key, "%02x%02x%02x%02x%02x%02x",
                 &mac[0], &mac[1], &mac[2], &mac[3], &mac[4], &mac[5]);
+    if (parsed != 6) {
+        throw std::invalid_argument("string_to_macbytes: invalid MAC address string");
+    }
     bmac[0] = static_cast<unsigned char> (mac[0]); bmac[1] = static_cast<unsigned char> (mac[1]); bmac[2] = static_cast<unsigned char> (mac[2]);
     bmac[3] = static_cast<unsigned char> (mac[3]); bmac[4] = static_cast<unsigned char> (mac[4]); bmac[5] = static_cast<unsigned char> (mac[5]);
 

@@ -18,6 +18,7 @@
 
 #include <string.h>
 #include <stdlib.h>
+#include <stdexcept>
 #include <errno.h>
 #include <signal.h>
 #include <fcntl.h>
@@ -68,6 +69,10 @@ void em_orch_t::update_stats(em_cmd_t *pcmd)
     unsigned int time = 0;
     em_short_string_t key;
 
+    if (pcmd == NULL) {
+        throw std::invalid_argument("update_stats: pcmd is NULL");
+    }
+
     snprintf(key, sizeof(em_short_string_t), "%d", pcmd->get_type());
 
     gettimeofday(&time_now, NULL);
@@ -85,6 +90,10 @@ void em_orch_t::pop_stats(em_cmd_t *pcmd)
 {
     em_short_string_t key;
     em_cmd_stats_t *stats;
+
+    if (pcmd == NULL) {
+        throw std::invalid_argument("pop_stats: pcmd is NULL");
+    }
 
     snprintf(key, sizeof(em_short_string_t), "%d", pcmd->get_type());
     stats = static_cast<em_cmd_stats_t *>(hash_map_get(m_cmd_map, key));
@@ -104,6 +113,10 @@ void em_orch_t::push_stats(em_cmd_t *pcmd)
 {
     em_short_string_t key;
     em_cmd_stats_t *stats;
+
+    if (pcmd == NULL) {
+        throw std::invalid_argument("push_stats: pcmd is NULL");
+    }
 
     snprintf(key, sizeof(em_short_string_t), "%d", pcmd->get_type());
     stats = static_cast<em_cmd_stats_t *>(hash_map_get(m_cmd_map, key));
@@ -134,6 +147,11 @@ bool em_orch_t::submit_command(em_cmd_t *pcmd)
 {
     bool submitted = false;
 
+    if (pcmd == NULL) {
+        printf("%s:%d: Error - pcmd is NULL\n", __func__, __LINE__);
+        return false;
+    }
+
     // build em candidates in cmd;
     if (build_candidates(pcmd) == 0) {
         // if there are no candidates, complete the command
@@ -151,6 +169,10 @@ void em_orch_t::destroy_command(em_cmd_t *pcmd)
 {
     unsigned int count;
 	em_t *em;
+
+    if (pcmd == NULL) {
+        throw std::invalid_argument("destroy_command: pcmd is NULL");
+    }
 
     // remove candidates from queue
     while ((count = queue_count(pcmd->m_em_candidates)) != 0) {
@@ -300,6 +322,16 @@ bool em_orch_t::orchestrate(em_cmd_t *pcmd, em_t *em)
     em_orch_state_t orch_state;
     mac_addr_str_t	mac_str;
 
+    if (pcmd == NULL) {
+        printf("%s:%d: Error - pcmd is NULL\n", __func__, __LINE__);
+        return false;
+    }
+
+    if (em == NULL) {
+        printf("%s:%d: Error - em is NULL\n", __func__, __LINE__);
+        return false;
+    }
+
     orch_state = em->get_orch_state();
 
     dm_easy_mesh_t::macbytes_to_string(em->get_radio_interface_mac(), mac_str);
@@ -340,6 +372,10 @@ bool em_orch_t::eligible_for_active(em_cmd_t *pcmd)
     signed int i;
     bool eligible = true;
     em_t *em;
+
+    if (pcmd == NULL) {
+        throw std::invalid_argument("eligible_for_active: pcmd is NULL");
+    }
 
     for (i = static_cast<int>(queue_count(pcmd->m_em_candidates)) - 1; i >= 0; i--) {
         em = static_cast<em_t *>(queue_peek(pcmd->m_em_candidates, static_cast<unsigned int>(i)));
@@ -564,6 +600,25 @@ void em_orch_t::handle_timeout()
 
     }
 
+}
+
+em_orch_state_t em_orch_t::get_state(em_cmd_t *cmd)
+{
+    em_short_string_t key;
+    em_cmd_stats_t *stats;
+
+    if (cmd == NULL) {
+        printf("%s:%d: Error - cmd is NULL\n", __func__, __LINE__);
+        return em_orch_state_none;
+    }
+
+    snprintf(key, sizeof(em_short_string_t), "%d", cmd->get_type());
+    stats = static_cast<em_cmd_stats_t *>(hash_map_get(m_cmd_map, key));
+    if (stats != NULL && stats->count > 0) {
+        return em_orch_state_progress;
+    }
+
+    return em_orch_state_idle;
 }
 
 em_orch_t::em_orch_t()

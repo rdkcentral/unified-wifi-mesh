@@ -32,6 +32,16 @@ ec_manager_t::~ec_manager_t()
 
 bool ec_manager_t::handle_recv_ec_action_frame(ec_frame_t *frame, size_t len, uint8_t src_mac[ETHER_ADDR_LEN], unsigned int recv_freq)
 {
+    if (frame == NULL) {
+        em_printfout("Error - frame is NULL");
+        return false;
+    }
+
+    if (src_mac == NULL) {
+        em_printfout("Error - src_mac is NULL");
+        return false;
+    }
+
     if (!ec_util::validate_frame(frame)) {
         em_printfout("frame validation failed");
         return false;
@@ -84,6 +94,12 @@ bool ec_manager_t::handle_recv_gas_pub_action_frame(ec_gas_frame_base_t *frame, 
         em_printfout("EC manager given a NULL DPP GAS frame!");
         return false;
     }
+
+    if (source_addr == NULL) {
+        em_printfout("Error - source_addr is NULL");
+        return false;
+    }
+
     em_printfout("Got a GAS frame with %02x action!", frame->action);
     bool did_succeed = false;
     switch (static_cast<dpp_gas_action_type_t>(frame->action)) {

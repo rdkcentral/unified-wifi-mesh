@@ -38,6 +38,7 @@
 
 #include <string>
 #include <sstream>
+#include <stdexcept>
 
 int dm_dpp_t::analyze_config(const cJSON *obj, void *parent, em_cmd_t *pcmd[], em_cmd_params_t *param, void* user_param)
 {
@@ -58,6 +59,16 @@ int dm_dpp_t::analyze_config(const cJSON *obj, void *parent, em_cmd_t *pcmd[], e
 
 int dm_dpp_t::decode(const cJSON *obj, void *parent_id, void* user_info)
 {
+    if (obj == NULL) {
+        printf("%s:%d: Error - obj is NULL\n", __func__, __LINE__);
+        return -1;
+    }
+
+    if (user_info == NULL) {
+        printf("%s:%d: Error - user_info is NULL\n", __func__, __LINE__);
+        return -1;
+    }
+
     printf("%s:%d: Decoding DPP\n", __func__, __LINE__);
 
     std::string country_code = "US";
@@ -92,6 +103,7 @@ void dm_dpp_t::encode(cJSON *obj)
 
 
 bool ec_pub_keys_equal(const SSL_KEY* key1, const SSL_KEY* key2) {
+    if (key1 == key2) return true;
     if (!key1 || !key2) return false;
     
     const EC_POINT* point1 = em_crypto_t::get_pub_key_point(key1);
@@ -140,6 +152,11 @@ void dm_dpp_t::operator = (const dm_dpp_t& obj)
 
 dm_dpp_t::dm_dpp_t(ec_data_t *dpp)
 {
+    if (dpp == NULL) {
+        printf("%s:%d: Error - dpp is NULL\n", __func__, __LINE__);
+        memset(&m_dpp_info, 0, sizeof(ec_data_t));
+        return;
+    }
     memcpy(&m_dpp_info, dpp, sizeof(ec_data_t));
 }
 

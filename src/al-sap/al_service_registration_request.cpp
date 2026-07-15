@@ -1,11 +1,19 @@
 #include "al_service_registration_enums.h"
 #include "al_service_registration_request.h"
 #include "al_service_utils.h"
+#include <stdexcept>
 
 // Constructor
 // Parameterized constructor
 AlServiceRegistrationRequest::AlServiceRegistrationRequest(SAPActivation operation, ServiceType type)
-    : serviceOperation(operation), serviceType(type) {}
+    : serviceOperation(operation), serviceType(type) {
+    if (operation != SAPActivation::SAP_ENABLE && operation != SAPActivation::SAP_DISABLE) {
+        throw std::invalid_argument("AlServiceRegistrationRequest: invalid SAPActivation operation");
+    }
+    if (type != ServiceType::EmAgent && type != ServiceType::EmController) {
+        throw std::invalid_argument("AlServiceRegistrationRequest: invalid ServiceType");
+    }
+}
 
 // Default constructor
 AlServiceRegistrationRequest::AlServiceRegistrationRequest()
@@ -23,6 +31,9 @@ SAPActivation AlServiceRegistrationRequest::getSAPActivationStatus() const {
 
 // Setter for service type
 void AlServiceRegistrationRequest::setServiceType(ServiceType service) {
+    if (service != ServiceType::EmAgent && service != ServiceType::EmController) {
+        throw std::invalid_argument("setServiceType: invalid ServiceType");
+    }
     serviceType = service;
 }
 

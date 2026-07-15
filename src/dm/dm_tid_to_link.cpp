@@ -36,6 +36,21 @@
 
 int dm_tid_to_link_t::decode(const cJSON *obj, void *parent_id)
 {
+    if (obj == NULL) {
+        printf("%s:%d: Error - obj is NULL\n", __func__, __LINE__);
+        return -1;
+    }
+
+    if (parent_id == NULL) {
+        printf("%s:%d: Error - parent_id is NULL\n", __func__, __LINE__);
+        return -1;
+    }
+
+    if (!cJSON_IsObject(obj)) {
+        printf("%s:%d: Error - obj is not a valid JSON object\n", __func__, __LINE__);
+        return -1;
+    }
+
     //TODO: needs to be implemnented
 
     return 0;
@@ -74,7 +89,16 @@ bool dm_tid_to_link_t::operator == (const dm_tid_to_link_t& obj)
 
 dm_tid_to_link_t::dm_tid_to_link_t(em_tid_to_link_info_t *tid_to_link_info)
 {
+    if (tid_to_link_info == NULL) {
+        printf("%s:%d: Error - tid_to_link_info is NULL\n", __func__, __LINE__);
+        memset(&m_tid_to_link_info, 0, sizeof(em_tid_to_link_info_t));
+        return;
+    }
     memcpy(&m_tid_to_link_info, tid_to_link_info, sizeof(em_tid_to_link_info_t));
+    if (m_tid_to_link_info.num_mapping > EM_MAX_AP_MLD) {
+        printf("%s:%d: Error - num_mapping %u exceeds max %d, resetting\n", __func__, __LINE__, m_tid_to_link_info.num_mapping, EM_MAX_AP_MLD);
+        m_tid_to_link_info.num_mapping = 0;
+    }
 }
 
 dm_tid_to_link_t::dm_tid_to_link_t(const dm_tid_to_link_t& tid_to_link)

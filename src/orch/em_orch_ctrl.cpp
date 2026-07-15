@@ -33,6 +33,7 @@
 #include <sys/uio.h>
 #include <unistd.h>
 #include <assert.h>
+#include <stdexcept>
 #include <vector>
 #include "em_base.h"
 #include "em_cmd.h"
@@ -46,10 +47,21 @@ void em_orch_ctrl_t::orch_transient(em_cmd_t *pcmd, em_t *em)
     em_cmd_stats_t *stats;
     em_short_string_t key;
 
+    if (pcmd == NULL) {
+        throw std::invalid_argument("orch_transient: pcmd is NULL");
+    }
+
+    if (em == NULL) {
+        throw std::invalid_argument("orch_transient: em is NULL");
+    }
+
     snprintf(key, sizeof(em_short_string_t), "%d", pcmd->get_type());
 
     stats = static_cast<em_cmd_stats_t *>(hash_map_get(m_cmd_map, key));
-    assert(stats != NULL);
+    if (stats == NULL) {
+        printf("%s:%d: Error - stats not found for cmd type %s\n", __func__, __LINE__, key);
+        return;
+    }
 	
 	//printf("%s:%d: Orchestration:%s(%s) state:%s, time in transient:%d\n", __func__, __LINE__, 
 		//em_cmd_t::get_orch_op_str(pcmd->get_orch_op()), em_cmd_t::get_cmd_type_str(pcmd->m_type), 
@@ -155,6 +167,10 @@ void em_orch_ctrl_t::orch_transient(em_cmd_t *pcmd, em_t *em)
 
 bool em_orch_ctrl_t::is_em_ready_for_orch_fini(em_cmd_t *pcmd, em_t *em)
 {
+    if (pcmd == NULL || em == NULL) {
+        printf("%s:%d: Error - pcmd/em is NULL\n", __func__, __LINE__);
+        return false;
+    }
     // if the command is SetSSID and 5 renews have been sent transition to fini
     switch (pcmd->m_type) {
         case em_cmd_type_set_ssid:
@@ -295,6 +311,10 @@ bool em_orch_ctrl_t::is_em_ready_for_orch_fini(em_cmd_t *pcmd, em_t *em)
 
 bool em_orch_ctrl_t::is_em_ready_for_orch_exec(em_cmd_t *pcmd, em_t *em)
 {
+    if (pcmd == NULL || em == NULL) {
+        printf("%s:%d: Error - pcmd/em is NULL\n", __func__, __LINE__);
+        return false;
+    }
     switch (pcmd->m_type) {
         case em_cmd_type_set_ssid:
         case em_cmd_type_set_radio:
@@ -359,6 +379,15 @@ void em_orch_ctrl_t::pre_process_cancel(em_cmd_t *pcmd, em_t *em)
 	em_event_t  ev;
     em_bus_event_t *bev;
     em_bus_event_type_cfg_renew_params_t    *raw;
+
+	if (pcmd == NULL || em == NULL) {
+		throw std::invalid_argument("pre_process_cancel: pcmd/em is NULL");
+	}
+
+	if (pcmd->get_type() >= em_cmd_type_max) {
+		throw std::invalid_argument("pre_process_cancel: invalid command type");
+	}
+
 	em_ctrl_t *ctrl = static_cast<em_ctrl_t *>(m_mgr);
 	em_cmd_ctrl_t *cmd_ctrl = ctrl->get_ctrl_cmd();
 
@@ -405,6 +434,12 @@ void em_orch_ctrl_t::pre_process_cancel(em_cmd_t *pcmd, em_t *em)
 bool em_orch_ctrl_t::pre_process_orch_op(em_cmd_t *pcmd)
 {
     em_t *em;
+
+    if (pcmd == NULL) {
+        printf("%s:%d: Error - pcmd is NULL\n", __func__, __LINE__);
+        return false;
+    }
+
     em_ctrl_t *ctrl = static_cast<em_ctrl_t *>(m_mgr);
     dm_easy_mesh_ctrl_t *dm_ctrl = reinterpret_cast<dm_easy_mesh_ctrl_t *>(ctrl->get_data_model(GLOBAL_NET_ID));
     dm_easy_mesh_t *dm = &pcmd->m_data_model;
@@ -556,7 +591,10 @@ unsigned int em_orch_ctrl_t::build_candidates(em_cmd_t *pcmd)
     em_disassoc_params_t *disassoc_param;
     dm_sta_t *sta;
     mac_address_t null_mac = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
-
+    if (pcmd == NULL) {
+        printf("%s:%d: Error - pcmd is NULL\n", __func__, __LINE__);
+        return 0;
+    }
     if (pcmd->m_type == em_cmd_type_em_config) {
         em = static_cast<em_t *>(hash_map_get(m_mgr->m_em_map, pcmd->m_param.u.args.args[0]));
         if (em != NULL) {
@@ -766,5 +804,8 @@ unsigned int em_orch_ctrl_t::build_candidates(em_cmd_t *pcmd)
 
 em_orch_ctrl_t::em_orch_ctrl_t(em_mgr_t *mgr)
 {
+    if (mgr == NULL) {
+        throw std::invalid_argument("em_orch_ctrl_t: mgr is NULL");
+    }
     m_mgr = mgr;
 }

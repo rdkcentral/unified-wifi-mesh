@@ -38,6 +38,7 @@
 #include <pthread.h>
 #include <openssl/rand.h>
 #include <assert.h>
+#include <stdexcept>
 #include "em.h"
 #include "em_cmd.h"
 #include "em_msg.h"
@@ -51,6 +52,11 @@
 int em_provisioning_t::create_cce_ind_msg(uint8_t *buff, bool enable)
 {
     unsigned int len = 0;
+
+    if (buff == NULL) {
+        em_printfout("buff is NULL");
+        return -1;
+    }
 
     /*
     ...it shall send a DPP CCE Indication message containing one DPP CCE Indication TLV 
@@ -86,6 +92,11 @@ int em_provisioning_t::send_prox_encap_dpp_msg(em_encap_dpp_t* encap_dpp_tlv, si
 
     if (memcmp(dest_al_mac, ZERO_MAC_ADDR, ETH_ALEN) == 0) {
         em_printfout("Destination AL MAC address is zero");
+        return -1;
+    }
+
+    if ((chirp == NULL) != (chirp_len == 0)) {
+        em_printfout("Chirp pointer and length are inconsistent");
         return -1;
     }
 
@@ -432,6 +443,10 @@ int em_provisioning_t::handle_cce_ind_msg(uint8_t *buff, unsigned int len)
 
 void em_provisioning_t::process_msg(uint8_t *data, unsigned int len)
 {
+    if (data == NULL) {
+        throw std::invalid_argument("process_msg: data is NULL");
+    }
+
     em_cmdu_t *cmdu = reinterpret_cast<em_cmdu_t *> (data + sizeof(em_raw_hdr_t));
 
     em_raw_hdr_t *hdr = reinterpret_cast<em_raw_hdr_t *>(data);

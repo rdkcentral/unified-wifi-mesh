@@ -38,41 +38,80 @@
 #include "dm_neighbor.h"
 #include "dm_easy_mesh.h"
 #include "dm_easy_mesh_ctrl.h"
+#include <stdexcept>
 
 int dm_neighbor_t::decode(const cJSON *obj, void *parent_id)
 {
     cJSON *tmp;
     mac_addr_str_t  mac_str;
 
+    if (obj == NULL) {
+        printf("%s:%d: Error - obj is NULL\n", __func__, __LINE__);
+        return -1;
+    }
+
+    if (parent_id == NULL) {
+        printf("%s:%d: Error - parent_id is NULL\n", __func__, __LINE__);
+        return -1;
+    }
+
     memset(&m_neighbor_info, 0, sizeof(em_neighbor_info_t));
 
     if ((tmp = cJSON_GetObjectItem(obj, "Neighbor")) != NULL) {
+		if (!cJSON_IsString(tmp)) {
+			printf("%s:%d: Error - Neighbor is not a string\n", __func__, __LINE__);
+			return -1;
+		}
 		snprintf(mac_str, sizeof(mac_str), "%s", cJSON_GetStringValue(tmp));
 		dm_easy_mesh_t::string_to_macbytes(mac_str, m_neighbor_info.nbr);
     }
 
     if ((tmp = cJSON_GetObjectItem(obj, "POS_I")) != NULL) {
+        if (!cJSON_IsNumber(tmp)) {
+            printf("%s:%d: Error - POS_I is not a number\n", __func__, __LINE__);
+            return -1;
+        }
         m_neighbor_info.pos_x = static_cast <float> (tmp->valuedouble);
     }
 
     if ((tmp = cJSON_GetObjectItem(obj, "POS_J")) != NULL) {
+        if (!cJSON_IsNumber(tmp)) {
+            printf("%s:%d: Error - POS_J is not a number\n", __func__, __LINE__);
+            return -1;
+        }
         m_neighbor_info.pos_y = static_cast <float> (tmp->valuedouble);
     }
 
     if ((tmp = cJSON_GetObjectItem(obj, "POS_K")) != NULL) {
+        if (!cJSON_IsNumber(tmp)) {
+            printf("%s:%d: Error - POS_K is not a number\n", __func__, __LINE__);
+            return -1;
+        }
         m_neighbor_info.pos_z = static_cast <float> (tmp->valuedouble);
     }
 
     if ((tmp = cJSON_GetObjectItem(obj, "NextHop")) != NULL) {
+		if (!cJSON_IsString(tmp)) {
+			printf("%s:%d: Error - NextHop is not a string\n", __func__, __LINE__);
+			return -1;
+		}
 		snprintf(mac_str, sizeof(mac_str), "%s", cJSON_GetStringValue(tmp));
 		dm_easy_mesh_t::string_to_macbytes(mac_str, m_neighbor_info.next_hop);
     }
     
 	if ((tmp = cJSON_GetObjectItem(obj, "NumHops")) != NULL) {
+        if (!cJSON_IsNumber(tmp)) {
+            printf("%s:%d: Error - NumHops is not a number\n", __func__, __LINE__);
+            return -1;
+        }
         m_neighbor_info.num_hops = static_cast <unsigned int> (tmp->valueint);
     }
 
     if ((tmp = cJSON_GetObjectItem(obj, "PathLoss")) != NULL) {
+        if (!cJSON_IsNumber(tmp)) {
+            printf("%s:%d: Error - PathLoss is not a number\n", __func__, __LINE__);
+            return -1;
+        }
         m_neighbor_info.path_loss = tmp->valueint;
     }
 
@@ -83,6 +122,10 @@ int dm_neighbor_t::decode(const cJSON *obj, void *parent_id)
 void dm_neighbor_t::encode(cJSON *obj, bool summary)
 {
     mac_addr_str_t  mac_str;
+
+    if (obj == NULL) {
+        throw std::invalid_argument("dm_neighbor_t::encode: obj is NULL");
+    }
 
 	dm_easy_mesh_t::macbytes_to_string(m_neighbor_info.nbr, mac_str);
     cJSON_AddStringToObject(obj, "Neighbor", mac_str);
