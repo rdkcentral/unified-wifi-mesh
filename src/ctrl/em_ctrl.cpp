@@ -279,6 +279,27 @@ static int em_topo_fetch_sat_token(char *token_out, size_t token_out_len)
     return -1;
 }
 
+/* Check whether the peer has closed the connection before we attempt a write.
+ * recv(MSG_PEEK|MSG_DONTWAIT) returns 0 on a graceful FIN — the case that never
+ * raises SIGPIPE and where SSL_write would silently succeed into a dead socket. */
+static int em_topo_peer_closed(void)
+{
+    int fd = g_em_topo_ssl ? SSL_get_fd(g_em_topo_ssl) : g_em_topo_socket_fd;
+    if (fd < 0) return 1;
+
+    char peek;
+    ssize_t n = recv(fd, &peek, 1, MSG_PEEK | MSG_DONTWAIT);
+    if (n == 0) {
+        em_printfout("[TOPO-WS] peer_closed: peer sent FIN, connection gone");
+        return 1;
+    }
+    if (n < 0 && errno != EAGAIN && errno != EWOULDBLOCK) {
+        em_printfout("[TOPO-WS] peer_closed: socket error errno=%d (%s)", errno, strerror(errno));
+        return 1;
+    }
+    return 0;  /* EAGAIN/EWOULDBLOCK → no data pending, connection alive */
+}
+
 /* --- RFC 6455 WebSocket text frame encoding (client-to-server, masked) --- */
 static int ws_send_frame(const char *payload, size_t payload_len)
 {
@@ -333,6 +354,11 @@ static int ws_send_frame(const char *payload, size_t payload_len)
         masked[i] = ((unsigned char)payload[i]) ^ mask[i & 3];
 
     /* Send header then masked payload */
+    if (em_topo_peer_closed()) {
+        em_printfout("[TOPO-WS] ws_send_frame: peer closed before write");
+        free(masked);
+        return -1;
+    }
     ret = g_em_topo_ssl ? SSL_write(g_em_topo_ssl, header, (int)header_len)
                         : (int)send(g_em_topo_socket_fd, header, header_len, MSG_NOSIGNAL);
     if (ret <= 0) {
@@ -379,6 +405,11 @@ static int em_topo_send_all(const unsigned char *buf, size_t len)
     size_t sent = 0;
     int    flags = 0;
 
+    if (em_topo_peer_closed()) {
+        em_printfout("[TOPO-WS] em_topo_send_all: peer closed before write");
+        return -1;
+    }
+
 #ifdef MSG_NOSIGNAL
     flags = MSG_NOSIGNAL;
 #endif
@@ -395,7 +426,7 @@ static int em_topo_send_all(const unsigned char *buf, size_t len)
     return 0;
 }
 
-/* Masked control frame (opcode must have high bit set, e.g. 0xA pong). */
+/* Masked control frame. Pass the opcode nibble: 0x8=close, 0x9=ping, 0xA=pong. */
 static int em_topo_send_ws_control_frame(unsigned char opcode,
     const unsigned char *payload, size_t payload_len)
 {
@@ -405,7 +436,8 @@ static int em_topo_send_ws_control_frame(unsigned char opcode,
     size_t         header_len = 0;
     int            rc = -1;
 
-    if ((opcode & 0x80) == 0 || payload_len > 125) {
+    /* Control frame opcodes are 0x8–0xF (bit 3 set); payload must be <= 125 bytes (RFC 6455 §5.5) */
+    if ((opcode & 0x08) == 0 || payload_len > 125) {
         return -1;
     }
 
@@ -2106,17 +2138,14 @@ AlServiceAccessPoint* em_ctrl_t::al_sap_register(const std::string& data_socket_
 }
 #endif
 
-
 static volatile sig_atomic_t g_sigpipe_received = 0;
 
 static void handle_sigpipe(int)
 {
     g_sigpipe_received = 1;
-    /* write() is async-signal-safe; use it instead of printf */
+    /* write() is async-signal-safe; must not use printf/em_printfout here */
     const char msg[] = "[em_ctrl] SIGPIPE received: broken SSL/socket write\n";
     (void)write(STDERR_FILENO, msg, sizeof(msg) - 1);
-    em_printfout("SIGPIPE received so calling the topo close\n");
-    em_topo_close();
 }
 
 #ifndef TESTING
