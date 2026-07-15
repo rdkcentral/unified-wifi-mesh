@@ -73,6 +73,11 @@
 #define EM_TOPO_STREAM_TOKEN_SIZE  4096
 #define EM_TOPO_GATEWAY_MAC_SIZE   18
 
+/* After each DataFrame send, read (and validate) the server's WebSocket
+ * response, transparently answering ping frames with pong (RFC 6455 §5.5).
+ */
+#define EM_TOPO_WAIT_WS_RESPONSE   1
+
 /* Default base URL — SAT token is appended as ?token=<JWT> after fetch */
 static char g_em_topo_stream_url[EM_TOPO_STREAM_URL_SIZE] =
     "wss://vb-streamer-api.vb.comcast.com:6100/ws/topology/xb";
@@ -345,6 +350,221 @@ static int ws_send_frame(const char *payload, size_t payload_len)
     return 0;
 }
 
+/* --- Read helpers + ping/pong-aware response reader (mirrors CSI_STREAM_WAIT_WS_RESPONSE) --- */
+static int em_topo_read(char *buf, size_t len)
+{
+    if (g_em_topo_ssl)
+        return SSL_read(g_em_topo_ssl, buf, (int)len);
+    return (int)recv(g_em_topo_socket_fd, buf, len, 0);
+}
+
+static int em_topo_read_exact(unsigned char *buf, size_t len)
+{
+    size_t used = 0;
+
+    while (used < len) {
+        int n = em_topo_read((char *)buf + used, len - used);
+        if (n <= 0) {
+            em_printfout("[TOPO-WS] read_exact failed: got %d after %zu/%zu bytes (errno=%d %s)",
+                n, used, len, errno, strerror(errno));
+            return -1;
+        }
+        used += (size_t)n;
+    }
+    return 0;
+}
+
+static int em_topo_send_all(const unsigned char *buf, size_t len)
+{
+    size_t sent = 0;
+    int    flags = 0;
+
+#ifdef MSG_NOSIGNAL
+    flags = MSG_NOSIGNAL;
+#endif
+
+    while (sent < len) {
+        int n = g_em_topo_ssl
+            ? SSL_write(g_em_topo_ssl, buf + sent, (int)(len - sent))
+            : (int)send(g_em_topo_socket_fd, buf + sent, len - sent, flags);
+        if (n <= 0) {
+            return -1;
+        }
+        sent += (size_t)n;
+    }
+    return 0;
+}
+
+/* Masked control frame (opcode must have high bit set, e.g. 0xA pong). */
+static int em_topo_send_ws_control_frame(unsigned char opcode,
+    const unsigned char *payload, size_t payload_len)
+{
+    unsigned char  header[6] = {0};
+    unsigned char  mask[4]   = {0};
+    unsigned char *masked    = NULL;
+    size_t         header_len = 0;
+    int            rc = -1;
+
+    if ((opcode & 0x80) == 0 || payload_len > 125) {
+        return -1;
+    }
+
+    header[0] = (unsigned char)(0x80 | (opcode & 0x0F));
+    header[1] = (unsigned char)(0x80 | payload_len);
+    header_len = 2;
+
+    em_printfout("[TOPO-WS] sending control frame opcode=0x%X payload_len=%zu",
+        (unsigned int)(opcode & 0x0F), payload_len);
+
+    if (RAND_bytes(mask, sizeof(mask)) != 1) {
+        em_printfout("[TOPO-WS] control frame RAND_bytes(mask) failed");
+        return -1;
+    }
+    memcpy(header + header_len, mask, sizeof(mask));
+    header_len += sizeof(mask);
+
+    if (payload_len > 0) {
+        masked = (unsigned char *)malloc(payload_len);
+        if (masked == NULL) {
+            return -1;
+        }
+        for (size_t i = 0; i < payload_len; i++) {
+            masked[i] = payload[i] ^ mask[i % 4];
+        }
+    }
+
+    if (em_topo_send_all(header, header_len) != 0) {
+        goto cleanup;
+    }
+    if (payload_len > 0 && em_topo_send_all(masked, payload_len) != 0) {
+        goto cleanup;
+    }
+    rc = 0;
+
+cleanup:
+    if (masked != NULL) {
+        free(masked);
+    }
+    return rc;
+}
+
+/* Read one application (text/binary) WebSocket frame into out. Ping frames are
+ * answered with pong and skipped; pong frames are ignored; a close frame is
+ * treated as an error. Returns payload length on success, -1 on error.
+ */
+static int em_topo_recv_ws_response(char *out, size_t out_len)
+{
+    for (;;) {
+        unsigned char  hdr[2]     = {0};
+        unsigned char  ext_len[8] = {0};
+        unsigned char  mask[4]    = {0};
+        unsigned char *payload    = NULL;
+        size_t         payload_len = 0;
+        int            is_masked  = 0;
+        unsigned char  opcode     = 0;
+        int            rc         = -1;
+
+        if (out == NULL || out_len == 0 || g_em_topo_socket_fd < 0) {
+            return -1;
+        }
+
+        out[0] = '\0';
+
+        em_printfout("[TOPO-WS] recv_ws_response: waiting for frame header");
+        if (em_topo_read_exact(hdr, sizeof(hdr)) != 0) {
+            em_printfout("[TOPO-WS] recv_ws_response: failed reading 2-byte frame header");
+            return -1;
+        }
+
+        opcode      = (unsigned char)(hdr[0] & 0x0F);
+        is_masked   = ((hdr[1] & 0x80) != 0);
+        payload_len = (size_t)(hdr[1] & 0x7F);
+
+        em_printfout("[TOPO-WS] frame header: fin=%d opcode=0x%X masked=%d len7=%zu",
+            (hdr[0] & 0x80) ? 1 : 0, (unsigned int)opcode, is_masked, payload_len);
+
+        if (payload_len == 126) {
+            if (em_topo_read_exact(ext_len, 2) != 0) {
+                em_printfout("[TOPO-WS] failed reading 16-bit extended length");
+                return -1;
+            }
+            payload_len = ((size_t)ext_len[0] << 8) | (size_t)ext_len[1];
+            em_printfout("[TOPO-WS] extended 16-bit payload_len=%zu", payload_len);
+        } else if (payload_len == 127) {
+            if (em_topo_read_exact(ext_len, 8) != 0) {
+                em_printfout("[TOPO-WS] failed reading 64-bit extended length");
+                return -1;
+            }
+            if (ext_len[0] || ext_len[1] || ext_len[2] || ext_len[3]) {
+                em_printfout("[TOPO-WS] 64-bit payload length too large (>4GB), rejecting");
+                return -1;
+            }
+            payload_len = ((size_t)ext_len[4] << 24) |
+                          ((size_t)ext_len[5] << 16) |
+                          ((size_t)ext_len[6] << 8)  |
+                          (size_t)ext_len[7];
+            em_printfout("[TOPO-WS] extended 64-bit payload_len=%zu", payload_len);
+        }
+
+        if (is_masked) {
+            if (em_topo_read_exact(mask, sizeof(mask)) != 0) {
+                em_printfout("[TOPO-WS] failed reading 4-byte mask key");
+                return -1;
+            }
+        }
+
+        payload = (unsigned char *)malloc(payload_len + 1);
+        if (payload == NULL) {
+            em_printfout("[TOPO-WS] malloc(%zu) for payload failed", payload_len + 1);
+            return -1;
+        }
+
+        if (payload_len > 0 && em_topo_read_exact(payload, payload_len) != 0) {
+            em_printfout("[TOPO-WS] failed reading %zu-byte payload body", payload_len);
+            free(payload);
+            return -1;
+        }
+
+        if (is_masked) {
+            for (size_t i = 0; i < payload_len; i++) {
+                payload[i] ^= mask[i % 4];
+            }
+        }
+        payload[payload_len] = '\0';
+
+        if (opcode == 0x9) {                 /* ping -> reply with pong */
+            em_printfout("[TOPO-WS] PING frame received (len=%zu), replying with PONG", payload_len);
+            if (em_topo_send_ws_control_frame(0xA, payload, payload_len) != 0) {
+                em_printfout("[TOPO-WS] failed to send PONG reply");
+                free(payload);
+                return -1;
+            }
+            em_printfout("[TOPO-WS] websocket ping received, pong sent len=%zu", payload_len);
+            free(payload);
+            continue;
+        }
+
+        if (opcode == 0xA) {                 /* pong -> ignore and keep reading */
+            em_printfout("[TOPO-WS] PONG frame received (len=%zu), ignoring and continuing", payload_len);
+            free(payload);
+            continue;
+        }
+
+        if (opcode == 0x8) {                 /* close -> treat as error */
+            em_printfout("[TOPO-WS] websocket close frame received len=%zu", payload_len);
+            free(payload);
+            return -1;
+        }
+
+        em_printfout("[TOPO-WS] application frame (opcode=0x%X) received, returning %zu bytes: %s",
+            (unsigned int)opcode, payload_len, (const char *)payload);
+        snprintf(out, out_len, "%s", (const char *)payload);
+        rc = (int)payload_len;
+        free(payload);
+        return rc;
+    }
+}
+
 static void em_topo_close(void)
 {
     em_printfout("[TOPO-WS] Closing connection (fd=%d ssl=%p)", g_em_topo_socket_fd, (void *)g_em_topo_ssl);
@@ -553,6 +773,20 @@ static void em_topo_stream_send_topology(const char *topology_json)
         int n = ws_send_frame(envelope_str, jlen);
         if (n == 0) {
             em_printfout("[TOPO-WS] DataFrame sent successfully #%llu len=%zu", g_em_topo_order_id, jlen);
+#if EM_TOPO_WAIT_WS_RESPONSE
+            {
+                char ws_response[512] = {0};
+                int  resp_len = em_topo_recv_ws_response(ws_response, sizeof(ws_response));
+
+                if (resp_len < 0) {
+                    em_printfout("[TOPO-WS] failed to read websocket response #%llu, closing connection",
+                        g_em_topo_order_id);
+                    em_topo_close();
+                    continue;
+                }
+                em_printfout("[TOPO-WS] websocket response: %s", ws_response);
+            }
+#endif
             break;
         }
         em_printfout("[TOPO-WS] Send failed #%llu — closing connection", g_em_topo_order_id);
@@ -1873,9 +2107,23 @@ AlServiceAccessPoint* em_ctrl_t::al_sap_register(const std::string& data_socket_
 #endif
 
 
+static volatile sig_atomic_t g_sigpipe_received = 0;
+
+static void handle_sigpipe(int)
+{
+    g_sigpipe_received = 1;
+    /* write() is async-signal-safe; use it instead of printf */
+    const char msg[] = "[em_ctrl] SIGPIPE received: broken SSL/socket write\n";
+    (void)write(STDERR_FILENO, msg, sizeof(msg) - 1);
+    em_printfout("SIGPIPE received so calling the topo close\n");
+    em_topo_close();
+}
+
 #ifndef TESTING
 int main(int argc, const char *argv[])
 {
+    signal(SIGPIPE, handle_sigpipe);
+
     em_ctrl_t  *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
     const char *data_model_path = NULL;
     bool passive = false;
