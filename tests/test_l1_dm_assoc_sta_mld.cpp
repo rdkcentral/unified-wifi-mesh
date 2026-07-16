@@ -1008,9 +1008,9 @@ TEST(dm_assoc_sta_mld_t_Test, ValidAPMLDInformation) {
     ap_mld_info.emlmr = true;
     ap_mld_info.num_affiliated_sta = 2;
     memcpy(ap_mld_info.affiliated_sta[0].bssid, bssid1, 6);
-    memcpy(ap_mld_info.affiliated_sta[0].mac_addr, sta_mac1, 6);
+    memcpy(ap_mld_info.affiliated_sta[0].link_addr, sta_mac1, 6);
     memcpy(ap_mld_info.affiliated_sta[1].bssid, bssid2, 6);
-    memcpy(ap_mld_info.affiliated_sta[1].mac_addr, sta_mac2, 6);
+    memcpy(ap_mld_info.affiliated_sta[1].link_addr, sta_mac2, 6);
     // Create instance with initialized data
     dm_assoc_sta_mld_t assoc_sta_mld(&ap_mld_info);
     std::cout << "Exiting ValidAPMLDInformation test";

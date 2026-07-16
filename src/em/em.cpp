@@ -239,10 +239,6 @@ void em_t::orch_execute(em_cmd_t *pcmd)
             m_sm.set_state(em_state_ctrl_ap_mld_config_pending);
             break;
 
-        case em_cmd_type_beacon_report:
-            m_sm.set_state(em_state_agent_beacon_report_pending);
-            break;
-
         case em_cmd_type_bsta_cap:
             m_sm.set_state(em_state_ctrl_bsta_cap_pending);
             break;
@@ -314,6 +310,7 @@ void em_t::proto_process(unsigned char *data, unsigned int len)
         case em_msg_type_client_cap_query:
         case em_msg_type_client_cap_rprt:
             em_capability_t::process_msg(data, len);
+            em_metrics_t::process_msg(data, len);
             break;
 
         case em_msg_type_channel_pref_query:
@@ -333,7 +330,7 @@ void em_t::proto_process(unsigned char *data, unsigned int len)
         case em_msg_type_beacon_metrics_rsp:
         case em_msg_type_ap_metrics_rsp:
         case em_msg_type_topo_vendor:
-	case em_msg_type_unassoc_sta_link_metrics_query: 
+	    case em_msg_type_unassoc_sta_link_metrics_query: 
         case em_msg_type_unassoc_sta_link_metrics_rsp:	    
             em_metrics_t::process_msg(data, len);
             break;
@@ -481,7 +478,7 @@ void em_t::handle_agent_state()
 			break;
 
         case em_cmd_type_beacon_report:
-            if (m_sm.get_state() == em_state_agent_beacon_report_pending) {
+            if (m_sm.get_state() >= em_state_agent_topo_synchronized) {
                 em_metrics_t::process_agent_state();
             }
             break;
@@ -2892,7 +2889,6 @@ const char *em_t::state_2_str(em_state_t state)
         EM_STATE_2S(em_state_agent_client_cap_report)
         EM_STATE_2S(em_state_agent_channel_pref_query)
         EM_STATE_2S(em_state_agent_sta_link_metrics_pending)
-        EM_STATE_2S(em_state_agent_beacon_report_pending)
         EM_STATE_2S(em_state_agent_channel_select_configuration_pending)
 	EM_STATE_2S(em_state_agent_unassoc_sta_metrics_report_pending)
         EM_STATE_2S(em_state_max)
