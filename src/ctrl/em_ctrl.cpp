@@ -72,6 +72,7 @@
 #define EM_TOPO_STREAM_SAT_URL     "https://devprimary.vbautobot.comcast.com:6002/get_sat"
 #define EM_TOPO_STREAM_TOKEN_SIZE  4096
 #define EM_TOPO_GATEWAY_MAC_SIZE   18
+#define EM_TOPO_SSL_KEYLOG_FILE    "/tmp/em_topo_ssl_keys.log"
 
 /* After each DataFrame send, read (and validate) the server's WebSocket
  * response, transparently answering ping frames with pong (RFC 6455 §5.5).
@@ -94,6 +95,35 @@ typedef struct {
     uint16_t port;
     char     path_query[1024];
 } em_topo_url_info_t;
+
+#if OPENSSL_VERSION_NUMBER >= 0x10101000L
+/* SSL key log callback <E2><80><94> writes NSS Key Log format lines readable by Wireshark.
+ *
+ * Covers ALL cipher suites automatically:
+ *   - RSA key exchange   -> CLIENT_RANDOM <client_random> <master_secret>
+ *   - DHE/ECDHE (TLS1.2) -> CLIENT_RANDOM <client_random> <master_secret>
+ *   - TLS 1.3 (ECDHE)    -> CLIENT_HANDSHAKE_TRAFFIC_SECRET / SERVER_HANDSHAKE_TRAFFIC_SECRET
+ *                           CLIENT_TRAFFIC_SECRET_0 / SERVER_TRAFFIC_SECRET_0
+ *
+ * To decrypt in Wireshark:
+ *   Edit > Preferences > Protocols > TLS > (Pre)-Master-Secret log filename
+ *   -> /tmp/em_topo_ssl_keys.log
+ */
+static void em_topo_ssl_keylog_cb(const SSL *ssl, const char *line)
+{
+    (void)ssl;
+    FILE *fp = fopen(EM_TOPO_SSL_KEYLOG_FILE, "a");
+    if (fp == NULL) {
+        em_printfout("[TOPO-WS] keylog: fopen(%s) failed: %s",
+            EM_TOPO_SSL_KEYLOG_FILE, strerror(errno));
+        return;
+    }
+    fprintf(fp, "%s\n", line);
+    fflush(fp);
+    fclose(fp);
+    em_printfout("[TOPO-WS] keylog: %s", line);
+}
+#endif /* OPENSSL_VERSION_NUMBER >= 0x10101000L */
 
 /* --- URL parsing (same logic as parse_csi_stream_url in websocket.c) --- */
 static bool em_topo_parse_url(em_topo_url_info_t *info)
@@ -740,6 +770,12 @@ static void em_topo_stream_send_topology(const char *topology_json)
                 em_topo_close(); continue;
             }
             em_printfout("[TOPO-WS] SSL_CTX created OK");
+#if OPENSSL_VERSION_NUMBER >= 0x10101000L
+            SSL_CTX_set_keylog_callback(g_em_topo_ssl_ctx, em_topo_ssl_keylog_cb);
+            em_printfout("[TOPO-WS] SSL key logging enabled -> %s", EM_TOPO_SSL_KEYLOG_FILE);
+#else
+            em_printfout("[TOPO-WS] SSL key logging NOT available (OpenSSL < 1.1.1)");
+#endif
 
             g_em_topo_ssl = SSL_new(g_em_topo_ssl_ctx);
             if (g_em_topo_ssl == NULL) {
