@@ -658,6 +658,7 @@ int em_metrics_t::handle_vendor_msg(unsigned char *buff, unsigned int len)
     while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
         if (tlv->type == em_tlv_type_vendor_specific) {
             handle_link_stats_alarm_rprt_tlv(tlv->value, ntohs(tlv->len));
+            handle_vendor_tlv_ext(tlv->value, ntohs(tlv->len), get_data_model());
         }
         tmp_len -= (sizeof(em_tlv_t) + static_cast<size_t> (htons(tlv->len)));
         tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
@@ -2463,6 +2464,10 @@ void em_metrics_t::process_agent_state()
             send_link_quality_report();
             break;
 
+        case em_state_agent_vendor_data_pending:
+            send_vendor_sta_lq_data();
+            break;
+
         case em_state_agent_unassoc_sta_metrics_report_pending:
             send_unassoc_sta_link_metrics_resp_msg();
             break;
@@ -2482,6 +2487,23 @@ void em_metrics_t::process_agent_state(em_cmd_event_type_t type)
         default:
             break;
     }
+}
+
+// Weak no-op — overridden by private repo (vendor_sta_agent.cpp) to build
+// and send the vendor STA LQ CMDU to the controller.
+__attribute__((weak)) int em_metrics_t::send_vendor_sta_lq_data()
+{
+    return 0;
+}
+
+// Weak no-op — overridden by private repo (vendor_sta_ctrl.cpp) to parse
+// vendor STA private TLVs and populate dm_sta_ext_t on the controller side.
+__attribute__((weak)) int em_metrics_t::handle_vendor_tlv_ext(
+    const unsigned char * /*tlv_value*/,
+    unsigned int          /*tlv_len*/,
+    dm_easy_mesh_t *      /*dm*/)
+{
+    return 0;
 }
 
 em_metrics_t::em_metrics_t()

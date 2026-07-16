@@ -27,6 +27,7 @@ PROGRAM = $(INSTALLDIR)/bin/onewifi_em_ctrl
 
 INCLUDEDIRS = \
 	-I$(ONEWIFI_EM_HOME)/inc \
+	-I$(ONEWIFI_EM_HOME) \
 	-I$(ONEWIFI_HAL_INTF_HOME)/ \
 	-I$(ONEWIFI_HOME)/source/utils \
 	-I$(ONEWIFI_HOME)/include \
@@ -114,6 +115,10 @@ CTRL_SOURCES = $(wildcard $(ONEWIFI_EM_SRC)/em/*.cpp) \
 	$(ONEWIFI_EM_SRC)/orch/em_orch.cpp \
 	$(ONEWIFI_EM_SRC)/orch/em_orch_ctrl.cpp \
 	$(wildcard $(ONEWIFI_EM_SRC)/utils/*.cpp) \
+	
+
+-include $(ONEWIFI_EM_HOME)/custom/custom.mk
+CTRL_SOURCES += $(CUSTOM_CTRL_SOURCES)
 
 CTRL_OBJECTS = $(CTRL_SOURCES:.cpp=.o)
 GENERIC_OBJECTS = $(GENERIC_SOURCES:.c=.o) 

@@ -251,6 +251,10 @@ void em_t::orch_execute(em_cmd_t *pcmd)
             m_sm.set_state(em_state_agent_link_quality_report_pending);
             break;
 
+        case em_cmd_type_vendor_data:
+            m_sm.set_state(em_state_agent_vendor_data_pending);
+            break;
+
         case em_cmd_type_unassoc_sta_query:
             m_sm.set_state(em_state_ctrl_unassoc_sta_link_metrics_pending);
             break;
@@ -488,6 +492,12 @@ void em_t::handle_agent_state()
 
         case em_cmd_type_get_link_quality_report:
             if (m_sm.get_state() == em_state_agent_link_quality_report_pending) {
+                em_metrics_t::process_agent_state();
+            }
+            break;
+
+        case em_cmd_type_vendor_data:
+            if (m_sm.get_state() == em_state_agent_vendor_data_pending) {
                 em_metrics_t::process_agent_state();
             }
             break;

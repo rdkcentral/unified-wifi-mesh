@@ -307,7 +307,7 @@ class em_metrics_t {
 	 */
 	int handle_ap_metrics_response(unsigned char *buff, unsigned int len);
 	int handle_vendor_msg(unsigned char *buff, unsigned int len);
-
+    int handle_vendor_tlv_ext(const unsigned char *tlv_value, unsigned int tlv_len, dm_easy_mesh_t *dm);
   	/**!
 	 * @brief Handles the AP metrics tlv.
 	 *
@@ -434,7 +434,7 @@ class em_metrics_t {
 	int send_ap_metrics_response();
 
 	int send_link_quality_report();
-    
+    int send_vendor_sta_lq_data();
 	/**!
 	 * @brief Creates a beacon metrics response TLV.
 	 *

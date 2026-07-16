@@ -52,6 +52,7 @@
 #include "em_cmd_sta_link_metrics.h"
 #include "em_cmd_ap_metrics_report.h"
 #include "em_cmd_link_stats_report.h"
+#include "em_cmd_sta_lq_data.h"
 #include "em_cmd_unassoc_sta_result.h"
 
 #ifdef AL_SAP
@@ -1186,6 +1187,41 @@ int dm_easy_mesh_agent_t::analyze_ap_metrics_report(em_bus_event_t *evt, em_cmd_
     }
 
     cJSON_Delete(json);
+    return static_cast<int>(num);
+}
+
+int dm_easy_mesh_agent_t::analyze_wei_app_data(em_bus_event_t *evt, em_cmd_t *pcmd[])
+{
+    em_cmd_t *tmp = NULL;
+    unsigned int num = 0;
+
+    pcmd[num] = new em_cmd_ap_metrics_query_t(evt->params, *(this));
+    tmp = pcmd[num];
+    num++;
+
+    while ((pcmd[num] = tmp->clone_for_next()) != NULL) {
+        tmp = pcmd[num];
+        num++;
+    }
+
+    return static_cast<int>(num);
+}
+
+int dm_easy_mesh_agent_t::analyze_sta_lq_data(em_bus_event_t *evt, em_cmd_t *pcmd[])
+{
+    unsigned int num = 0;
+
+    pcmd[num] = new em_cmd_type_vendor_data(evt->u.raw_buff, static_cast<int>(evt->data_len), *(this));
+    if (pcmd[num] == nullptr) {
+        return 0;
+    }
+    em_cmd_t *tmp = pcmd[num++];
+
+    while ((pcmd[num] = tmp->clone_for_next()) != nullptr) {
+        tmp = pcmd[num];
+        num++;
+    }
+
     return static_cast<int>(num);
 }
 

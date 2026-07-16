@@ -25,6 +25,7 @@ PROGRAM = $(INSTALLDIR)/bin/onewifi_em_agent
 
 INCLUDEDIRS = \
 	-I$(ONEWIFI_EM_HOME)/inc \
+	-I$(ONEWIFI_EM_HOME) \
 	-I$(ONEWIFI_EM_HOME)/src/utils \
 	-I$(ONEWIFI_HAL_INTF_HOME) \
 	-I$(ONEWIFI_HOME)/source/utils \
@@ -124,6 +125,10 @@ AGENT_SOURCES = $(wildcard $(ONEWIFI_EM_SRC)/em/*.cpp) \
 	$(ONEWIFI_EM_SRC)/dm/dm_assoc_sta_mld.cpp \
 	$(ONEWIFI_EM_SRC)/dm/dm_tid_to_link.cpp \
 	$(wildcard $(ONEWIFI_EM_SRC)/utils/*.cpp) \
+	
+
+-include $(ONEWIFI_EM_HOME)/custom/custom.mk
+AGENT_SOURCES += $(CUSTOM_AGENT_SOURCES)
 
 AGENT_OBJECTS = $(AGENT_SOURCES:.cpp=.o)
 GENERIC_OBJECTS = $(GENERIC_SOURCES:.c=.o) 

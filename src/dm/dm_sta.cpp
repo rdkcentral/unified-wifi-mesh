@@ -35,6 +35,9 @@
 #include "dm_easy_mesh_ctrl.h"
 #include "util.h"
 
+// Forward declaration of optional private-repo hook (defined weak below).
+extern "C" void custom_decode_sta(dm_sta_t *sta, const cJSON *obj);
+
 int dm_sta_t::decode(const cJSON *obj, void *parent_id)
 {
     cJSON *tmp;
@@ -142,8 +145,18 @@ int dm_sta_t::decode(const cJSON *obj, void *parent_id)
         snprintf(m_sta_info.cellular_data_pref, sizeof(m_sta_info.cellular_data_pref), "%s", cJSON_GetStringValue(tmp));
     }
 
+    custom_decode_sta(this, obj);
+
     return 0;
 
+}
+
+// Weak no-op — overridden by private repo when present.
+// Private repo decodes its own fields from the same JSON object and
+// populates m_sta_ext without exposing any types or field names here.
+extern "C" __attribute__((weak)) void custom_decode_sta(dm_sta_t *sta, const cJSON *obj)
+{
+    (void)sta; (void)obj;
 }
 
 void dm_sta_t::encode(cJSON *obj, em_get_sta_list_reason_t reason)

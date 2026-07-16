@@ -41,6 +41,8 @@ AM_CONDITIONAL([EM_ASAN_CTRL], [test "x$EM_ASAN_CTRL" = "xtrue"])
 # Check for ASAN in em_agent
 AM_CONDITIONAL([EM_ASAN_AGENT], [test "x$EM_ASAN_AGENT" = "xtrue"])
 
+AM_CONDITIONAL([HAVE_CUSTOM], [test -d "$srcdir/custom/src"])
+
 # Checks for programs.
 AC_PROG_CC
 AC_PROG_CXX

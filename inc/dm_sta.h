@@ -21,9 +21,23 @@
 
 #include "em_base.h"
 
+// Forward declaration — definition lives in a separate (private) repo.
+// Consumers of this header never see the internals of dm_sta_ext_t.
+struct dm_sta_ext_t;
+
 class dm_sta_t {
 public:
     em_sta_info_t    m_sta_info;
+
+private:
+    dm_sta_ext_t *m_sta_ext;
+
+public:
+    // Returns the opaque private extension pointer.
+    // Only meaningful when built together with the private repo that defines dm_sta_ext_t.
+    dm_sta_ext_t *get_priv() { return m_sta_ext; }
+    const dm_sta_ext_t *get_priv() const { return m_sta_ext; }
+    void              set_priv(dm_sta_ext_t *p) { m_sta_ext = p; }
 
 public:
     
