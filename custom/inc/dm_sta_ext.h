@@ -59,6 +59,11 @@ public:
 
     dm_sta_ext_t(const dm_sta_ext_t&) = default;
     dm_sta_ext_t& operator=(const dm_sta_ext_t&) = default;
+
+    // Called by the extern "C" hook in dm_sta_ext.cpp at the end of
+    // dm_sta_t::decode() — parses vendor-private JSON fields from the
+    // same cJSON object that decode() used for public fields.
+    static void decode_from_json(dm_sta_t *sta, const cJSON *obj);
 };
 
 #endif // DM_STA_EXT_H

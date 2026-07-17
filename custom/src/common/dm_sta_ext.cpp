@@ -35,12 +35,12 @@ dm_sta_t::~dm_sta_t()
     m_sta_ext = nullptr;
 }
 
-// ─── OneWifi webconfig decode hook ───────────────────────────────────────────
+// ─── dm_sta_ext_t::decode_from_json ──────────────────────────────────────────
 //
-// Strong override of the weak no-op in dm_sta.cpp.
-// Called at the end of dm_sta_t::decode() with the same cJSON object.
+// Parses vendor-private JSON fields from the same cJSON object that
+// dm_sta_t::decode() used for public fields.
 //
-extern "C" void custom_decode_sta(dm_sta_t *sta, const cJSON *obj)
+void dm_sta_ext_t::decode_from_json(dm_sta_t *sta, const cJSON *obj)
 {
     if (!sta->get_priv()) {
         sta->set_priv(new dm_sta_ext_t());
@@ -59,4 +59,10 @@ extern "C" void custom_decode_sta(dm_sta_t *sta, const cJSON *obj)
         const char *tag = cJSON_GetStringValue(tmp);
         if (tag) ext->custom_tag = tag;
     }
+}
+
+// Strong override of the weak no-op in dm_sta.cpp — delegates to the class.
+extern "C" void custom_decode_sta(dm_sta_t *sta, const cJSON *obj)
+{
+    dm_sta_ext_t::decode_from_json(sta, obj);
 }

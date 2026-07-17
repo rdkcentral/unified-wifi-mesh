@@ -336,12 +336,13 @@ void em_t::proto_process(unsigned char *data, unsigned int len)
         case em_msg_type_beacon_metrics_query:
         case em_msg_type_beacon_metrics_rsp:
         case em_msg_type_ap_metrics_rsp:
-        case em_msg_type_topo_vendor:
-	case em_msg_type_unassoc_sta_link_metrics_query: 
-        case em_msg_type_unassoc_sta_link_metrics_rsp:	    
+        case em_msg_type_unassoc_sta_link_metrics_query: 
+        case em_msg_type_unassoc_sta_link_metrics_rsp:      
             em_metrics_t::process_msg(data, len);
             break;
 
+        case em_msg_type_topo_vendor:
+            em_vendor_t::handle_vendor_msg(data, len);
         case em_msg_type_dpp_cce_ind:
         case em_msg_type_proxied_encap_dpp:
         case em_msg_type_direct_encap_dpp:
@@ -498,7 +499,7 @@ void em_t::handle_agent_state()
 
         case em_cmd_type_vendor_data:
             if (m_sm.get_state() == em_state_agent_vendor_data_pending) {
-                em_metrics_t::process_agent_state();
+                em_vendor_t::send_vendor_sta_lq_data();
             }
             break;
 

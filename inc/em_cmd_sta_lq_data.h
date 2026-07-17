@@ -34,6 +34,8 @@ public:
     using populate_fn_t = void(*)(em_cmd_type_vendor_data &, dm_easy_mesh_t &);
     static populate_fn_t s_populate;
 
+    const std::vector<uint8_t> *get_raw_data() const override { return &m_raw_data; }
+
     em_cmd_type_vendor_data(uint8_t *raw_buff, int len, dm_easy_mesh_t& dm);
 };
 
