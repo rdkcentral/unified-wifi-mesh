@@ -98,6 +98,10 @@ static volatile int       g_em_topo_listen_stop    = 0;
  * race with the TLS handshake / HTTP upgrade and corrupt them. */
 static volatile int       g_em_topo_ws_ready       = 0;
 
+/* Forward declaration — defined later; called from the ping-listener thread
+ * on CLOSE frame receipt to tear down the fd before the loop re-checks. */
+static void em_topo_close(void);
+
 typedef struct {
     bool     use_tls;
     char     host[128];
@@ -715,8 +719,8 @@ static void *em_topo_ping_listener_thread(void *arg)
         unsigned char hdr[2] = {0};
         if (em_topo_read_exact(hdr, sizeof(hdr)) != 0) {
             em_printfout("[TOPO-WS] ping-listener: failed reading frame header, waiting for reconnect");
+            g_em_topo_ws_ready = 0;
             pthread_mutex_unlock(&g_em_topo_sock_mtx);
-            usleep(200000);
             continue;
         }
 
@@ -728,9 +732,9 @@ static void *em_topo_ping_listener_thread(void *arg)
          * 125 bytes.  Reject oversized frames to prevent unbounded malloc. */
         if ((opcode & 0x08) && payload_len > 125) {
             em_printfout("[TOPO-WS] ping-listener: oversized control frame "
-                         "opcode=0x%X len=%zu, discarding", (unsigned int)opcode, payload_len);
+                         "opcode=0x%X len=%zu, stream framing lost", (unsigned int)opcode, payload_len);
+            g_em_topo_ws_ready = 0;
             pthread_mutex_unlock(&g_em_topo_sock_mtx);
-            usleep(200000);
             continue;
         }
 
@@ -738,8 +742,8 @@ static void *em_topo_ping_listener_thread(void *arg)
             unsigned char ext[2] = {0};
             if (em_topo_read_exact(ext, 2) != 0) {
                 em_printfout("[TOPO-WS] ping-listener: failed reading 16-bit ext length, waiting for reconnect");
+                g_em_topo_ws_ready = 0;
                 pthread_mutex_unlock(&g_em_topo_sock_mtx);
-                usleep(200000);
                 continue;
             }
             payload_len = ((size_t)ext[0] << 8) | (size_t)ext[1];
@@ -747,8 +751,8 @@ static void *em_topo_ping_listener_thread(void *arg)
             unsigned char ext[8] = {0};
             if (em_topo_read_exact(ext, 8) != 0) {
                 em_printfout("[TOPO-WS] ping-listener: failed reading 64-bit ext length, waiting for reconnect");
+                g_em_topo_ws_ready = 0;
                 pthread_mutex_unlock(&g_em_topo_sock_mtx);
-                usleep(200000);
                 continue;
             }
             payload_len = ((size_t)ext[4] << 24) | ((size_t)ext[5] << 16) |
@@ -759,8 +763,8 @@ static void *em_topo_ping_listener_thread(void *arg)
         if (is_masked) {
             if (em_topo_read_exact(mask, sizeof(mask)) != 0) {
                 em_printfout("[TOPO-WS] ping-listener: failed reading mask key, waiting for reconnect");
+                g_em_topo_ws_ready = 0;
                 pthread_mutex_unlock(&g_em_topo_sock_mtx);
-                usleep(200000);
                 continue;
             }
         }
@@ -778,8 +782,8 @@ static void *em_topo_ping_listener_thread(void *arg)
             if (em_topo_read_exact(payload, payload_len) != 0) {
                 em_printfout("[TOPO-WS] ping-listener: failed reading payload body, waiting for reconnect");
                 free(payload);
+                g_em_topo_ws_ready = 0;
                 pthread_mutex_unlock(&g_em_topo_sock_mtx);
-                usleep(200000);
                 continue;
             }
             if (is_masked) {
@@ -797,8 +801,8 @@ static void *em_topo_ping_listener_thread(void *arg)
             if (em_topo_send_ws_control_frame(0xA, payload, payload_len) != 0) {
                 em_printfout("[TOPO-WS] ping-listener: failed to send PONG, waiting for reconnect");
                 free(payload);
+                g_em_topo_ws_ready = 0;
                 pthread_mutex_unlock(&g_em_topo_sock_mtx);
-                usleep(200000);
                 continue;
             }
             em_printfout("[TOPO-WS] ping-listener: PONG sent (len=%zu)", payload_len);
@@ -806,7 +810,13 @@ static void *em_topo_ping_listener_thread(void *arg)
             em_printfout("[TOPO-WS] ping-listener: CLOSE frame received, waiting for reconnect");
             free(payload);
             pthread_mutex_unlock(&g_em_topo_sock_mtx);
-            usleep(200000);
+            /* Tear down the fd now so that g_em_topo_ws_ready=0 and
+             * g_em_topo_socket_fd=-1 are visible at the top-of-loop guard
+             * on the very next iteration.  Without this the loop re-enters
+             * select()/read_exact on the already-closed fd and logs spurious
+             * "read_exact failed" errors until the main thread eventually
+             * calls em_topo_close() itself. */
+            em_topo_close();
             continue;
         } else if (opcode == 0xA) {             /* Pong -> ignore */
             em_printfout("[TOPO-WS] ping-listener: PONG received (ignored)");
@@ -937,7 +947,8 @@ static void em_topo_stream_send_topology(const char *topology_json)
     for (int send_attempt = 0; send_attempt < 5; send_attempt++) {
 
     /* ---- Connect (only if not already up) ---- */
-    if (g_em_topo_socket_fd < 0) {
+    if (g_em_topo_socket_fd < 0 || !g_em_topo_ws_ready) {
+        em_topo_close(); /* no-op if already closed; cleans up if ping-listener flagged it broken */
         em_printfout("[TOPO-WS] No active connection, starting connect sequence");
         em_printfout("[TOPO-WS] Target URL: %s", g_em_topo_stream_url);
 
