@@ -93,6 +93,10 @@ static char              g_em_topo_gateway_mac[EM_TOPO_GATEWAY_MAC_SIZE] = {0};
 static pthread_mutex_t    g_em_topo_sock_mtx      = PTHREAD_MUTEX_INITIALIZER;
 static pthread_t          g_em_topo_ping_tid       = 0;
 static volatile int       g_em_topo_listen_stop    = 0;
+/* Set to 1 only after the full WebSocket upgrade (101) succeeds.
+ * The ping-listener must not touch the fd before this point or it will
+ * race with the TLS handshake / HTTP upgrade and corrupt them. */
+static volatile int       g_em_topo_ws_ready       = 0;
 
 typedef struct {
     bool     use_tls;
@@ -652,12 +656,16 @@ static int em_topo_recv_ws_response(char *out, size_t out_len)
 
 /* ---- Background ping-listener thread ----
  *
- * Runs while the WebSocket connection is open. Waits for incoming frames and
- * immediately replies to any RFC 6455 Ping (opcode 0x9) with a Pong (0xA),
- * keeping the server from closing an idle connection due to missed heartbeats.
- * Close frames (0x8) cause the thread to exit; all other unsolicited frames are
- * silently discarded.  g_em_topo_sock_mtx serialises reads against
- * em_topo_recv_ws_response() so there is no data-race on the SSL handle.
+ * Runs for the entire program lifetime (started once in main()).  Waits for
+ * incoming frames and immediately replies to any RFC 6455 Ping (opcode 0x9)
+ * with a Pong (0xA), keeping the server from closing an idle connection due to
+ * missed heartbeats.  All other unsolicited frames are silently discarded.
+ * On any error or Close frame the thread waits for the connection to be
+ * re-established (g_em_topo_ws_ready) and then resumes — it never exits.
+ *
+ * g_em_topo_sock_mtx serialises ALL SSL reads and writes so that concurrent
+ * Pong sends from this thread and topology-data sends from the main thread
+ * never call SSL_write on the same SSL* simultaneously.
  */
 static void *em_topo_ping_listener_thread(void *arg)
 {
@@ -666,8 +674,8 @@ static void *em_topo_ping_listener_thread(void *arg)
 
     while (!g_em_topo_listen_stop) {
         int fd = g_em_topo_socket_fd;
-        if (fd < 0) {
-            usleep(200000); /* 200 ms back-off while socket is not yet up */
+        if (fd < 0 || !g_em_topo_ws_ready) {
+            usleep(200000); /* wait until TCP+TLS+WS upgrade are all complete */
             continue;
         }
 
@@ -715,6 +723,16 @@ static void *em_topo_ping_listener_thread(void *arg)
         unsigned char  opcode      = (unsigned char)(hdr[0] & 0x0F);
         int            is_masked   = ((hdr[1] & 0x80) != 0);
         size_t         payload_len = (size_t)(hdr[1] & 0x7F);
+
+        /* RFC 6455 §5.5: control frames (Ping/Pong/Close) must not exceed
+         * 125 bytes.  Reject oversized frames to prevent unbounded malloc. */
+        if ((opcode & 0x08) && payload_len > 125) {
+            em_printfout("[TOPO-WS] ping-listener: oversized control frame "
+                         "opcode=0x%X len=%zu, discarding", (unsigned int)opcode, payload_len);
+            pthread_mutex_unlock(&g_em_topo_sock_mtx);
+            usleep(200000);
+            continue;
+        }
 
         if (payload_len == 126) {
             unsigned char ext[2] = {0};
@@ -831,6 +849,17 @@ static void em_topo_stop_ping_listener(void)
 static void em_topo_close(void)
 {
     em_printfout("[TOPO-WS] Closing connection (fd=%d ssl=%p)", g_em_topo_socket_fd, (void *)g_em_topo_ssl);
+
+    /* Clear the ready flag first so the ping-listener stops issuing new reads
+     * as soon as possible, before we acquire the lock. */
+    g_em_topo_ws_ready = 0;
+
+    /* Acquire the socket mutex before touching the SSL object.  The ping-
+     * listener thread may be mid-SSL_read while holding this mutex; waiting
+     * here ensures we never call SSL_shutdown/SSL_free concurrently with
+     * SSL_read — which is undefined behaviour in OpenSSL. */
+    pthread_mutex_lock(&g_em_topo_sock_mtx);
+
     if (g_em_topo_ssl) {
         em_printfout("[TOPO-WS] SSL_shutdown + SSL_free");
         SSL_shutdown(g_em_topo_ssl);
@@ -847,6 +876,8 @@ static void em_topo_close(void)
         close(g_em_topo_socket_fd);
         g_em_topo_socket_fd = -1;
     }
+
+    pthread_mutex_unlock(&g_em_topo_sock_mtx);
     em_printfout("[TOPO-WS] Connection closed");
 }
 
@@ -1030,16 +1061,23 @@ static void em_topo_stream_send_topology(const char *topology_json)
             em_topo_close(); continue;
         }
         em_printfout("[TOPO-WS] WS upgrade OK — connected to %s:%s%s", info.host, port_str, info.path_query);
+        g_em_topo_ws_ready = 1; /* ping-listener may now monitor this fd */
     } else {
         em_printfout("[TOPO-WS] Reusing existing connection (fd=%d)", g_em_topo_socket_fd);
     }
 
-    /* ---- Send ---- */
+    /* ---- Send ----
+     * Hold g_em_topo_sock_mtx for the entire send so that a concurrent Pong
+     * from the ping-listener thread cannot interleave SSL_write calls on the
+     * same SSL* object. em_topo_recv_ws_response() acquires the mutex
+     * internally per-frame, so release it before calling that. */
     {
         size_t jlen = strlen(envelope_str);
         em_printfout("[TOPO-WS] Sending DataFrame #%llu len=%zu", g_em_topo_order_id, jlen);
         em_printfout("[TOPO-WS] DataFrame content: %s", envelope_str);
+        pthread_mutex_lock(&g_em_topo_sock_mtx);
         int n = ws_send_frame(envelope_str, jlen);
+        pthread_mutex_unlock(&g_em_topo_sock_mtx);
         if (n == 0) {
             em_printfout("[TOPO-WS] DataFrame sent successfully #%llu len=%zu", g_em_topo_order_id, jlen);
 #if EM_TOPO_WAIT_WS_RESPONSE
