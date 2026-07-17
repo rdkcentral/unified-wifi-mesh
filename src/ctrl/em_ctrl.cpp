@@ -872,6 +872,17 @@ static void em_topo_close(void)
 
     if (g_em_topo_ssl) {
         em_printfout("[TOPO-WS] SSL_shutdown + SSL_free");
+        /* Make the socket non-blocking so SSL_shutdown() does not block
+         * waiting for the peer's close_notify.  The peer may already be
+         * gone (e.g. after a WebSocket CLOSE frame), causing a blocking
+         * SSL_shutdown() to stall for tens of seconds and hold the mutex,
+         * which starves all other threads and triggers the watchdog. */
+        int _fd = SSL_get_fd(g_em_topo_ssl);
+        if (_fd >= 0) {
+            int _flags = fcntl(_fd, F_GETFL, 0);
+            if (_flags >= 0)
+                fcntl(_fd, F_SETFL, _flags | O_NONBLOCK);
+        }
         SSL_shutdown(g_em_topo_ssl);
         SSL_free(g_em_topo_ssl);
         g_em_topo_ssl = NULL;
