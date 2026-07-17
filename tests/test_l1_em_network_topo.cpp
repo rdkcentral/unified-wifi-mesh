@@ -2178,7 +2178,7 @@ TEST(em_network_topo_t, remove_nonexistent_dm)
  */
 TEST(em_network_topo_t, destructor_releases_resources_for_valid_dm_pointer) {
     std::cout << "Entering destructor_releases_resources_for_valid_dm_pointer test" << std::endl;
-    dm_easy_mesh_t* dm;
+    dm_easy_mesh_t* dm = nullptr;
     em_network_topo_t* instance;
     EXPECT_NO_THROW({
         instance = new em_network_topo_t(dm);

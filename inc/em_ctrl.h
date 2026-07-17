@@ -70,6 +70,8 @@ public:
     static em_ctrl_t *get_em_ctrl_instance();
 
 	dm_easy_mesh_ctrl_t *get_dm_ctrl() { return &m_data_model; }
+
+	em_orch_t *get_orch() override { return m_orch; }
     
 	/**!
 	 * @brief Listens for input events and processes them accordingly.
@@ -264,6 +266,17 @@ public:
 	void handle_set_ssid_list(em_bus_event_t *evt);
     
 	/**!
+	 * @brief Handles channel selection events.
+	 *
+	 * This function processes channel selection events and schedules channel selection commands.
+	 *
+	 * @param[in] evt Pointer to the event structure containing channel select information.
+	 *
+	 * @note Ensure that the event structure is properly initialized before calling this function.
+	 */
+	void handle_channel_select(em_bus_event_t *evt);
+
+	/**!
 	 * @brief Handles the removal of a device from the bus.
 	 *
 	 * This function processes the event associated with the removal of a device.
@@ -455,6 +468,22 @@ public:
 	void handle_bsta_cap_req(em_bus_event_t *evt);
 
 	void handle_link_stats_alarm_report(em_bus_event_t *evt);
+
+        /**!
+         * @brief Handles an Unassociated STA Link Metrics Query event.
+         *
+         * This function processes the Unassociated STA Link Metrics Query
+         * received from the controller, validates the requested operating
+         * classes, channels and STA MAC entries, and initiates the
+         * corresponding agent-side RCPI measurement workflow.
+         *
+         * @param[in] evt Pointer to the event structure containing the
+         *                Unassociated STA Link Metrics Query payload.
+         *
+         * @note Ensure that the event structure is properly initialized
+         *       before calling this function.
+         */
+        void handle_unassoc_sta_metrics_query(em_bus_event_t *evt);
 
 	/**!
 	 * @brief 
@@ -655,7 +684,7 @@ public:
 	 * Validates SetSSID input properties, dispatches the request to the EasyMesh
 	 * controller, and optionally populates response properties for the caller.
 	 *
-	 * @param[in] event_name Bus method name (Device.WiFi.DataElements.Network.SetSSID).
+	 * @param[in] method_name Bus method name (Device.WiFi.DataElements.Network.SetSSID).
 	 * @param[in] input_params Linked list of input properties carrying the request payload.
 	 * @param[out] output_params Populated with response properties when provided.
 	 * @param[in] async_handle Async context handle when the bus call is asynchronous.
@@ -666,7 +695,106 @@ public:
 	 *
 	 * @note Input property ownership remains with the caller; this function does not free them.
 	 */
-	static bus_error_t cmd_setssid (const char *event_name, const bus_data_prop_t *input_params, bus_data_prop_t **output_params, void *async_handle);
+	static bus_error_t cmd_setssid (const char *method_name, const bus_data_prop_t *input_params, bus_data_prop_t **output_params, void *async_handle);
+
+	/**!
+	 * @brief Handles the bus SteerWiFiBackhaul method request.
+	 *
+	 * Validates SteerWiFiBackhaul input properties, dispatches the request to the EasyMesh
+	 * controller, and optionally populates response properties for the caller.
+	 *
+	 * @param[in] method_name Bus method name (...Device.{i}.MultiAPDevice.Backhaul.SteerWiFiBackhaul).
+	 * @param[in] input_params Linked list of input properties carrying the request payload.
+	 * @param[out] output_params Populated with response properties when provided.
+	 * @param[in] async_handle Async context handle when the bus call is asynchronous.
+	 *
+	 * @returns bus_error_t
+	 * @retval bus_error_none on successful SteerWiFiBackhaul handling.
+	 * @retval bus_error_failed on validation or controller execution failure.
+	 *
+	 * @note Input property ownership remains with the caller; this function does not free them.
+	 */
+	static bus_error_t cmd_steerwifibh (const char *method_name, const bus_data_prop_t *input_params, bus_data_prop_t **output_params, void *async_handle);
+
+	/**!
+	 * @brief Handles the bus ChannelScanRequest method request.
+	 *
+	 * Validates ChannelScanRequest input properties, dispatches the request to the EasyMesh
+	 * controller, and optionally populates response properties for the caller.
+	 *
+	 * @param[in] method_name Bus method name (...Network.Device.{i}.Radio.{i}.ChannelScanRequest).
+	 * @param[in] input_params Linked list of input properties carrying the request payload.
+	 * @param[out] output_params Populated with response properties when provided.
+	 * @param[in] async_handle Async context handle when the bus call is asynchronous.
+	 *
+	 * @returns bus_error_t
+	 * @retval bus_error_none on successful ChannelScanRequest handling.
+	 * @retval bus_error_failed on validation or controller execution failure.
+	 *
+	 * @note Input property ownership remains with the caller; this function does not free them.
+	 */
+	static bus_error_t cmd_channelscan (const char *method_name, const bus_data_prop_t *input_params, bus_data_prop_t **output_params, void *async_handle);
+
+	// Constants for channel selection request parsing
+	static const int MAX_CHANSEL_CLASSES = 32;
+	static const int MAX_CHANSEL_CHANNELS = 64;
+
+	/**!
+	 * @brief Handles the bus ChannelSelectionRequest method request.
+	 *
+	 * Validates ChannelSelectionRequest input properties, dispatches the request to the EasyMesh
+	 * controller, and optionally populates response properties for the caller.
+	 *
+	 * @param[in] method_name Bus method name (...Network.Device.{i}.Radio.{i}.ChannelSelectionRequest()).
+	 * @param[in] input_params Linked list of input properties carrying the request payload.
+	 * @param[out] output_params Populated with response properties when provided.
+	 * @param[in] async_handle Async context handle when the bus call is asynchronous.
+	 *
+	 * @returns bus_error_t
+	 * @retval bus_error_success on successful ChannelSelectionRequest handling.
+	 * @retval bus_error_invalid_input on validation failure.
+	 * @retval other non-zero bus_error_t values on error.
+	 * @note Input property ownership remains with the caller; this function does not free them.
+	 */
+	static bus_error_t cmd_channelselect(const char *method_name, const bus_data_prop_t *input_params, bus_data_prop_t **output_params, void *async_handle);
+
+	/**!
+	 * @brief Handles the bus ClientSteer method request.
+	 *
+	 * Validates ClientSteer input properties, dispatches the request to the EasyMesh
+	 * controller, and optionally populates response properties for the caller.
+	 *
+	 * @param[in] method_name Bus method name (...Device.{i}.Radio.{i}.BSS.{i}.STA.{i}.ClientSteer).
+	 * @param[in] input_params Linked list of input properties carrying the request payload.
+	 * @param[out] output_params Populated with response properties when provided.
+	 * @param[in] async_handle Async context handle when the bus call is asynchronous.
+	 *
+	 * @returns bus_error_t
+	 * @retval bus_error_none on successful ClientSteer handling.
+	 * @retval bus_error_failed on validation or controller execution failure.
+	 *
+	 * @note Input property ownership remains with the caller; this function does not free them.
+	 */
+	static bus_error_t cmd_clientsteer (const char *method_name, const bus_data_prop_t *input_params, bus_data_prop_t **output_params, void *async_handle);
+
+	/**!
+	 * @brief Handles the bus Disassociate method request.
+	 *
+	 * Validates Disassociate input properties, dispatches the request to the EasyMesh
+	 * controller, and optionally populates response properties for the caller.
+	 *
+	 * @param[in] method_name Bus method name (....Radio.{i}.BSS.{i}.STA.{i}.MultiAPSTA.Disassociate).
+	 * @param[in] input_params Linked list of input properties carrying the request payload.
+	 * @param[out] output_params Populated with response properties when provided.
+	 * @param[in] async_handle Async context handle when the bus call is asynchronous.
+	 *
+	 * @returns bus_error_t
+	 * @retval bus_error_none on successful Disassociate handling.
+	 * @retval bus_error_failed on validation or controller execution failure.
+	 *
+	 * @note Input property ownership remains with the caller; this function does not free them.
+	 */
+	static bus_error_t cmd_disassociate (const char *method_name, const bus_data_prop_t *input_params, bus_data_prop_t **output_params, void *async_handle);
 
 	/**!
 	 *

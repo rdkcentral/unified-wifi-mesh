@@ -33,32 +33,33 @@
 #include <unistd.h>
 #include <pthread.h>
 #include <cjson/cJSON.h>
-#include "em_cmd_sta_assoc.h"
+#include "em_cmd_unassoc_sta_result.h"
 
-em_cmd_sta_assoc_t::em_cmd_sta_assoc_t(em_cmd_params_t param, dm_easy_mesh_t& dm)
+em_cmd_unassoc_sta_result_t::em_cmd_unassoc_sta_result_t(em_cmd_params_t param,  dm_easy_mesh_t& dm)
 {
     em_cmd_ctx_t ctx;
 
-    m_type = em_cmd_type_sta_assoc;
+    m_type = em_cmd_type_unassoc_sta_result;
+
     memcpy(&m_param, &param, sizeof(em_cmd_params_t));
 
-	memset(reinterpret_cast<unsigned char *> (&m_orch_desc[0]), 0, EM_MAX_CMD*sizeof(em_orch_desc_t));
+    memset(reinterpret_cast<unsigned char *>(&m_orch_desc[0]), 0, EM_MAX_CMD * sizeof(em_orch_desc_t));
 
     m_orch_op_idx = 0;
-    m_num_orch_desc = 3;
-    m_orch_desc[0].op = dm_orch_type_topo_sync;
-    m_orch_desc[0].submit = true;
-    m_orch_desc[1].op = dm_orch_type_sta_cap;
-    m_orch_desc[1].submit = true;
-    m_orch_desc[2].op = dm_orch_type_topo_publish;
-    m_orch_desc[2].submit = true;
+    m_num_orch_desc = 1;
 
-    strncpy(m_name, "sta_assoc", strlen("sta_assoc") + 1);
-    m_svc = em_service_type_ctrl;
+    m_orch_desc[0].op = dm_orch_type_unassoc_sta_result;
+    m_orch_desc[0].submit = true;
+
+    strncpy(m_name, "unassoc_sta_result", sizeof(m_name) - 1);
+
+    m_svc = em_service_type_agent;
+
     init(dm);
 
     memset(&ctx, 0, sizeof(em_cmd_ctx_t));
+
     ctx.type = m_orch_desc[0].op;
+
     m_data_model.set_cmd_ctx(&ctx);
 }
-

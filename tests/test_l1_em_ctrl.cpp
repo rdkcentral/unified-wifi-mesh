@@ -218,8 +218,9 @@ TEST_F(em_ctrl_t_Test, is_network_topology_initialized_valid)
     unsigned char mac[6] = {0x11,0x22,0x33,0x04,0x05,0x01};
     setup_interface(intf, "eth0", mac);
     dm_easy_mesh_t* dm = ctrl.create_data_model("Network2", &intf, em_profile_type_1);
-    dm->m_colocated = true;
     ASSERT_NE(dm, nullptr);
+    dm->m_colocated = true;
+    dm->set_controller(true);
     ctrl.init_network_topology();
     EXPECT_TRUE(ctrl.is_network_topology_initialized());
     std::cout << "Exiting is_network_topology_initialized_valid test" << std::endl;
@@ -313,9 +314,9 @@ TEST_F(em_ctrl_t_Test, orch_init_default)
     std::cout << "Exiting orch_init_default test" << std::endl;
 }
 /**
- * @brief Verifies that handle_500ms_tick() executes without throwing an exception.
+ * @brief Verifies that handle_250ms_tick() executes without throwing an exception.
  *
- * This test verifies that the em_ctrl_t object's handle_500ms_tick() method does not throw any exceptions when invoked.
+ * This test verifies that the em_ctrl_t object's handle_250ms_tick() method does not throw any exceptions when invoked.
  * It ensures that the periodic tick processing in the control module is handled correctly under normal operating conditions.
  *
  * **Test Group ID:** Basic: 01
@@ -329,12 +330,12 @@ TEST_F(em_ctrl_t_Test, orch_init_default)
  * **Test Procedure:**
  * | Variation / Step | Description                                                           | Test Data                                              | Expected Result                                  | Notes      |
  * | :--------------: | --------------------------------------------------------------------- | ------------------------------------------------------ | ----------------------------------------------- | ---------- |
- * | 01               | Invoke handle_500ms_tick() method of the em_ctrl_t object.             | ctrl.handle_500ms_tick() with default internal state   | EXPECT_NO_THROW passes, no exception thrown     | Should Pass |
+ * | 01               | Invoke handle_250ms_tick() method of the em_ctrl_t object.             | ctrl.handle_250ms_tick() with default internal state   | EXPECT_NO_THROW passes, no exception thrown     | Should Pass |
  */
-TEST_F(em_ctrl_t_Test, handle_500ms_tick_default) {
-    std::cout << "Entering handle_500ms_tick_default test" << std::endl;
-    EXPECT_NO_THROW(ctrl.handle_500ms_tick());
-    std::cout << "Exiting handle_500ms_tick_default test" << std::endl;
+TEST_F(em_ctrl_t_Test, handle_250ms_tick_default) {
+    std::cout << "Entering handle_250ms_tick_default test" << std::endl;
+    EXPECT_NO_THROW(ctrl.handle_250ms_tick());
+    std::cout << "Exiting handle_250ms_tick_default test" << std::endl;
 }
 /**
  * @brief Validate the execution of handle_dirty_dm for a single data model instance.

@@ -162,7 +162,7 @@ public:
 	short create_metrics_rep_policy_tlv(unsigned char *buff);
 
 	/**!
-	 * @brief Creates a default 802.1q settings policy TLV.
+	 * @brief Creates a default 802.1Q settings policy TLV.
 	 *
 	 * This function generates a default 802.1q settings TLV (Type-Length-Value) and stores it in the provided buffer.
 	 *
@@ -172,9 +172,10 @@ public:
 	 *
 	 * @note Ensure that the buffer is large enough to hold the TLV.
 	 */
-	short create_def_8021q_settings_policy_tlv(unsigned char *buff);
+	virtual short create_def_8021q_settings_policy_tlv(unsigned char *buff) = 0;
 
 	/**!
+
 	 * @brief Creates a traffic separation policy TLV.
 	 *
 	 * This function generates a traffic separation policy TLV (Type-Length-Value) and stores it in the provided buffer.
@@ -185,7 +186,7 @@ public:
 	 *
 	 * @note Ensure that the buffer is large enough to hold the TLV.
 	 */
-	short create_traffic_sep_policy_tlv(unsigned char *buff);
+	virtual unsigned short create_traffic_separation_policy_tlv(unsigned char *buff) = 0;
 
 	/**!
 	 * @brief Creates a channel scan report policy TLV.
@@ -224,7 +225,7 @@ public:
 	 *
 	 * @note Ensure that the buffer is large enough to hold the TLV.
 	 */
-	short create_backhaul_bss_conf_policy_tlv(unsigned char *buff);
+short create_backhaul_bss_conf_policy_tlv(unsigned char *buff, const em_backhaul_bss_config_policy_t *entry);
 
 	/**!
 	 * @brief Creates a qos management policy TLV.
@@ -237,7 +238,7 @@ public:
 	 *
 	 * @note Ensure that the buffer is large enough to hold the TLV.
 	 */
-	short create_qos_mgt_policy_tlv(unsigned char *buff);
+short create_qos_mgt_policy_tlv(unsigned char *buff, dm_policy_t *policy, unsigned int qi);
 
 	/**!
 	 * @brief Creates a vendor policy configuration TLV.
@@ -272,6 +273,19 @@ public:
 	 */
 	int send_policy_cfg_request_msg();
 
+	/**!
+	 * @brief Sends a 1905 acknowledgment message.
+	 *
+	 * This function is responsible for sending an acknowledgment message
+	 *
+	 * @param[in] msg_id The message ID of the original message being acknowledged.
+	 *
+	 * @returns int
+	 * @retval length of buffer on success
+	 * @retval 0 on failure
+	 *
+	 */
+	int send_1905_ack_message(unsigned short msg_id);
     
 	/**!
 	 * @brief Handles the policy configuration request.
@@ -289,6 +303,21 @@ public:
 	 */
 	int handle_policy_cfg_req(unsigned char *buff, unsigned int len);
 
+	/**!
+	 * @brief Handles a 1905 acknowledgment message for policy configuration operations.
+	 *
+	 * This function processes 1905 ack messages received in response to policy configuration requests.
+	 *
+	 * @param[in] buff Pointer to the buffer containing the 1905 ACK message data.
+	 * @param[in] len Length of the message data in the buffer.
+	 *
+	 * @returns int Status code indicating success or failure.
+	 * @retval 0 on success.
+	 * @retval -1 on failure.
+	 *
+	 * @note This function is called when a 1905 ACK message is received and handles acknowledgments for policy configuration.
+	 */
+	int handle_1905_ack(unsigned char *buff, unsigned int len);
     
 	/**!
 	 * @brief Processes a message with the given data and length.
@@ -339,6 +368,9 @@ public:
 	 * @note This is a virtual destructor, allowing for proper cleanup of derived classes.
 	 */
 	virtual ~em_policy_cfg_t();
+
+	//stores MultiAP Policy config req msg_id
+	unsigned short m_policy_req_msg_id = 0;
 };
 
 #endif
