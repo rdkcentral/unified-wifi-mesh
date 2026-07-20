@@ -371,6 +371,7 @@ void em_channel_t::update_map_with_agent_capability_preference(const unsigned ch
         dm_op_class_t *op_class = &dm->m_op_class[i];
         em_op_class_info_t *info = &op_class->m_op_class_info;
         if ((info->id.type == em_op_class_type_preference) &&
+            (info->pref_valid == EM_CH_PREF_ENTRY_VALID) &&
             (memcmp(info->id.ruid, ruid, sizeof(mac_address_t)) == 0)) {
 
             for (j = 0; j < info->num_channels; j++) {
@@ -418,7 +419,8 @@ bool em_channel_t::update_map_with_ctrl_anticipated(const unsigned char *ruid, s
         em_op_class_info_t &info = dm_opclass->m_op_class_info;
 
         // Only handle anticipated entries for RUID, Device or for Global address for the Radio band
-        if (((info.id.type == em_op_class_type_anticipated) &&
+        // Checking pref_valid flag to determine if the entry is valid for anticipated preference
+        if (((info.id.type == em_op_class_type_anticipated && info.pref_valid == EM_CH_PREF_ENTRY_VALID) &&
              ((memcmp(info.id.ruid, ruid, sizeof(mac_address_t)) == 0) ||
              (((memcmp(info.id.ruid, EM_GLOBAL_MAC_ADDRESS, sizeof(mac_address_t)) == 0) ||
              (memcmp(info.id.ruid, dm->get_device()->get_dev_interface_mac(), sizeof(mac_address_t)) == 0)) &&
