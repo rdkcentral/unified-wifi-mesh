@@ -1616,7 +1616,7 @@ dm_easy_mesh_t *dm_easy_mesh_list_t::create_data_model(const char *net_id, const
 		dm_op_class_t({{{0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, em_op_class_type_anticipated, 135}, 135, 0, 0, 0, 1, {7}, {0xe0}, EM_CH_PREF_ENTRY_VALID, 0, 0, 0}),
 		dm_op_class_t({{{0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, em_op_class_type_scan_param, 81}, 81, 0, 0, 0, 3, {3, 6, 9},{0}, EM_CH_PREF_ENTRY_VALID, 0, 0, 0}),
 		dm_op_class_t({{{0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, em_op_class_type_scan_param, 115}, 115, 0, 0, 0, 9, {36, 40, 44, 48, 149, 153, 157, 161, 165}, {0}, EM_CH_PREF_ENTRY_VALID, 0, 0, 0}),
-		dm_op_class_t({{{0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, em_op_class_type_scan_param, 135}, 135, 0, 0, 0, 1, {1}, {0}, EM_CH_PREF_ENTRY_VALID, 0, 0, 0})
+		dm_op_class_t({{{0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, em_op_class_type_scan_param, 131}, 131, 0, 0, 0, 1, {1}, {0}, EM_CH_PREF_ENTRY_VALID, 0, 0, 0})
 									};
 	dm_policy_t	policy[] = {
 								dm_policy_t(em_policy[0]), dm_policy_t(em_policy[1]),
