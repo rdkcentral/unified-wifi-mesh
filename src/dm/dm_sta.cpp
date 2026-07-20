@@ -403,16 +403,18 @@ void dm_sta_t::decode_sta_capability(dm_sta_t *sta)
 
     sta->m_sta_info.num_vendor_infos = 0;
 
+    em_printfout("Entering %s\n", __func__);
     /* The frame_body stores the full 802.11 (Re)Association Request frame body:
      * capab_info (2B) + listen_interval (2B) + IEs. Skip the fixed fields. */
     if (sta->m_sta_info.frame_body_len < 4) {
+        em_printfout("Frame body len is lesser\n");
         return;
     }
     offset = 4;
 
     while (offset < sta->m_sta_info.frame_body_len) {
         if (offset + 2 > sta->m_sta_info.frame_body_len) {
-            printf("%s:%d: Insufficient data for tag header\n", __func__, __LINE__);
+            em_printfout("%s:%d: Insufficient data for tag header\n", __func__, __LINE__);
             return;
         }
 
@@ -420,13 +422,13 @@ void dm_sta_t::decode_sta_capability(dm_sta_t *sta)
         length = sta->m_sta_info.frame_body[offset + 1];
 
         if (offset + 2 + length > sta->m_sta_info.frame_body_len) {
-            printf("%s:%d: Tag length exceeds remaining packet length\n", __func__, __LINE__);
+            em_printfout("%s:%d: Tag length exceeds remaining packet length\n", __func__, __LINE__);
             return;
         }
 
         ieee80211_tagvalue_t *tag = static_cast<ieee80211_tagvalue_t *> (malloc(sizeof(ieee80211_tagvalue_t) + length));
         if (!tag) {
-            printf("%s:%d: Memory allocation failed\n", __func__, __LINE__);
+            em_printfout("%s:%d: Memory allocation failed\n", __func__, __LINE__);
             return;
         }
 
@@ -435,6 +437,7 @@ void dm_sta_t::decode_sta_capability(dm_sta_t *sta)
         memcpy(tag->value, &sta->m_sta_info.frame_body[offset + 2], length);
 
         switch (tag->tag_id) {
+            em_printfout("Tag id is %d\n", tag->tag_id);
             case tag_ssid:
                 memset(sta->m_sta_info.ssid, 0, sizeof(em_long_string_t));
                 memcpy(sta->m_sta_info.ssid, tag->value, tag->length);
@@ -516,7 +519,7 @@ void dm_sta_t::decode_sta_capability(dm_sta_t *sta)
             }
 
             default:
-                printf("%s:%d: Unknown Tag ID: %d\n", __func__, __LINE__, tag->tag_id);
+                em_printfout("%s:%d: Unknown Tag ID: %d\n", __func__, __LINE__, tag->tag_id);
                 break;
         }
     offset += static_cast<unsigned int>(2 + tag->length);

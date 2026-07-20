@@ -1573,6 +1573,7 @@ void em_ctrl_t::handle_link_stats_alarm_report(em_bus_event_t *evt)
         em_printfout("Link Stats Alarm publish fail");
     }
 
+    free(str);
     cJSON_Delete(parent);
 }
 
@@ -1804,6 +1805,8 @@ void em_ctrl_t::publish_network_topology()
 #ifdef EM_WEBSOCKET_PUSH
     em_topo_stream_send_topology(str);
 #endif
+    free(str);
+    cJSON_Delete(parent);
 
 #if 0
     //Test code here
