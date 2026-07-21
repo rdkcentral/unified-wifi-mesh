@@ -135,6 +135,7 @@ void em_mgr_t::proto_process(unsigned char *data, unsigned int len, em_t *al_em)
 
     em = find_em_for_msg_type(data, len, al_em);
     if (em == NULL) {
+        em_printfout("Error: find_em_for_msg_type failed");
         return;
     }
 
@@ -441,24 +442,11 @@ void em_mgr_t::nodes_listener()
                     // receive data from this interface
                     memset(buff, 0, MAX_EM_BUFF_SZ*EM_MAX_BANDS);
                     ssize_t len = read(em->get_fd(), buff, MAX_EM_BUFF_SZ*EM_MAX_BANDS);
-						  // Validate read() return value before casting to unsigned
-                    // read() returns: -1 on error, 0 on EOF, >0 on success
-                    if (len < 0) {
-                        // Error occurred during read
-                        em_printfout("read() failed on fd=%d, errno=%d (%s)", em->get_fd(), errno, strerror(errno));
-                        break;
+                    if (len) {
+                        proto_process(buff, static_cast<unsigned int>(len), em);
                     }
-
-                    if (len == 0) {
-                        // EOF - connection closed gracefully by peer
-                        em_printfout("Connection closed on fd=%d (EOF)", em->get_fd());
-                        break;
-                     }
-                    // len > 0: Valid data received, safe to cast and process
-                    proto_process(buff, static_cast<unsigned int>(len), em);
-
                 }
-#endif
+#endif //AL_SAP not defined.
             }
             em = static_cast<em_t *>(hash_map_get_next(m_em_map, em));
         }
