@@ -371,6 +371,7 @@ void em_channel_t::update_map_with_agent_capability_preference(const unsigned ch
         dm_op_class_t *op_class = &dm->m_op_class[i];
         em_op_class_info_t *info = &op_class->m_op_class_info;
         if ((info->id.type == em_op_class_type_preference) &&
+            (info->pref_valid == EM_CH_PREF_ENTRY_VALID) &&
             (memcmp(info->id.ruid, ruid, sizeof(mac_address_t)) == 0)) {
 
             for (j = 0; j < info->num_channels; j++) {
@@ -418,7 +419,8 @@ bool em_channel_t::update_map_with_ctrl_anticipated(const unsigned char *ruid, s
         em_op_class_info_t &info = dm_opclass->m_op_class_info;
 
         // Only handle anticipated entries for RUID, Device or for Global address for the Radio band
-        if (((info.id.type == em_op_class_type_anticipated) &&
+        // Checking pref_valid flag to determine if the entry is valid for anticipated preference
+        if (((info.id.type == em_op_class_type_anticipated && info.pref_valid == EM_CH_PREF_ENTRY_VALID) &&
              ((memcmp(info.id.ruid, ruid, sizeof(mac_address_t)) == 0) ||
              (((memcmp(info.id.ruid, EM_GLOBAL_MAC_ADDRESS, sizeof(mac_address_t)) == 0) ||
              (memcmp(info.id.ruid, dm->get_device()->get_dev_interface_mac(), sizeof(mac_address_t)) == 0)) &&
@@ -800,6 +802,32 @@ short em_channel_t::create_channel_scan_res_tlv(unsigned char *buff, unsigned in
         return len;
 }
 
+bool em_channel_t::is_requested_scan_result(const dm_scan_result_t *scan_res) const
+{
+    if (scan_res == NULL)
+        return false;
+
+    if (!m_last_scan_req_valid || !m_last_scan_req)
+        return true;    // No cached request
+
+    unsigned char scan_op_class = scan_res->m_scan_result.id.op_class;
+    unsigned char scan_channel = scan_res->m_scan_result.id.channel;
+
+    for (unsigned int i = 0; i < m_last_scan_req->num_op_classes; i++) {
+        if (m_last_scan_req->op_class[i].op_class != scan_op_class)
+            continue;
+
+        /* Empty channel list => all channels in this op class */
+        if (m_last_scan_req->op_class[i].num_channels == 0)
+            return true;
+
+        for (unsigned int j = 0; j < m_last_scan_req->op_class[i].num_channels; j++) {
+            if (m_last_scan_req->op_class[i].channels[j] == scan_channel)
+                return true;
+        }
+    }
+    return false;
+}
 
 int em_channel_t::send_channel_scan_report_msg(unsigned int *last_index)
 {
@@ -858,15 +886,19 @@ int em_channel_t::send_channel_scan_report_msg(unsigned int *last_index)
     // One or more Channel Scan Result TLVs (see section 17.2.40).
     for (i = start_idx; i < dm->get_num_scan_results(); i++) {
         scan_res = dm->get_scan_result(i);
-        if(memcmp(get_radio_interface_mac(), scan_res->m_scan_result.id.scanner_mac, sizeof(mac_address_t)) == 0) { 
-            tlv = reinterpret_cast<em_tlv_t *> (tmp);
-            tlv->type = em_tlv_type_channel_scan_rslt;
-            sz = create_channel_scan_res_tlv(tlv->value, i);
-            tlv->len = htons(static_cast<short unsigned int> (sz));
+        if(memcmp(get_radio_interface_mac(), scan_res->m_scan_result.id.scanner_mac, sizeof(mac_address_t)) != 0) {
+	        continue;
+        }	
+        if (!is_requested_scan_result(scan_res)) {
+            continue;
+        }
+        tlv = reinterpret_cast<em_tlv_t *> (tmp);
+        tlv->type = em_tlv_type_channel_scan_rslt;
+        sz = create_channel_scan_res_tlv(tlv->value, i);
+        tlv->len = htons(static_cast<short unsigned int> (sz));
 
-            tmp += (sizeof(em_tlv_t) + static_cast<short unsigned int> (sz));
-            len += static_cast<unsigned int> (sizeof(em_tlv_t) + static_cast<short unsigned int> (sz));
-	}
+        tmp += (sizeof(em_tlv_t) + static_cast<short unsigned int> (sz));
+        len += static_cast<unsigned int> (sizeof(em_tlv_t) + static_cast<short unsigned int> (sz));
     }
 
     *last_index = i + 1;
@@ -891,6 +923,10 @@ int em_channel_t::send_channel_scan_report_msg(unsigned int *last_index)
     }
 
     set_state(em_state_ctrl_configured);
+    if (*last_index >= dm->get_num_scan_results()) {
+        m_last_scan_req.reset();
+        m_last_scan_req_valid = false;
+    }
 
     return static_cast<int> (len);
 
@@ -2044,47 +2080,104 @@ int em_channel_t::handle_1905_ack(unsigned char *buff, unsigned int len)
 
 int em_channel_t::handle_channel_scan_req(unsigned char *buff, unsigned int len)
 {
-    em_tlv_t    *tlv;
+    em_tlv_t *tlv;
     int tlv_len;
-	em_channel_scan_req_t *req;
-	em_channel_scan_req_op_class_t	*op_class;
-	em_scan_params_t	params;
-	unsigned int i;
+    em_channel_scan_req_t *req;
+    em_channel_scan_req_op_class_t *op_class;
+    em_scan_params_t params;
+    unsigned int i;
 
-	memset(&params, 0, sizeof(em_scan_params_t));
-    em_cmdu_t *cmdu = reinterpret_cast<em_cmdu_t *> (buff + sizeof(em_raw_hdr_t));
+    memset(&params, 0, sizeof(params));
+    unsigned int header_len = sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t);
 
-    tlv = reinterpret_cast<em_tlv_t *> (buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
-    tlv_len = static_cast<int> (len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)));
-
-    while ((tlv->type != em_tlv_type_eom) && (len > 0)) {
-        if (tlv->type == em_tlv_type_channel_scan_req) {
-			req = reinterpret_cast<em_channel_scan_req_t *> (tlv->value);
-
-			memcpy(params.ruid, get_radio_interface_mac(), sizeof(mac_address_t));
-			params.num_op_classes = req->num_op_classes;
-					
-			op_class = req->op_class;
-			for (i = 0; i < params.num_op_classes; i++) {
-				params.op_class[i].op_class = op_class->op_class;
-				params.op_class[i].num_channels = op_class->num_channels;
-				memcpy(params.op_class[i].channels, op_class->channel_list, op_class->num_channels);
-
-				op_class = reinterpret_cast<em_channel_scan_req_op_class_t *> (reinterpret_cast<unsigned char *> (op_class) +
-							sizeof(em_channel_scan_req_op_class_t) + op_class->num_channels);
-			}	
-        }
-
-        tlv_len -= static_cast<int> (sizeof(em_tlv_t) + htons(tlv->len));
-        tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
+    if (len < header_len + sizeof(em_tlv_t)) {
+        em_printfout("%s:%d Invalid Channel Scan Request (len=%u)",__func__, __LINE__, len);
+        return -1;
     }
 
-	if (params.num_op_classes > 0) {
-		get_mgr()->io_process(em_bus_event_type_channel_scan_params,  reinterpret_cast<unsigned char *> (&params), sizeof(em_scan_params_t));
-	}
+    em_cmdu_t *cmdu = reinterpret_cast<em_cmdu_t *>(buff + sizeof(em_raw_hdr_t));
+    tlv = reinterpret_cast<em_tlv_t *>(buff + header_len);
+    tlv_len = static_cast<int>(len - header_len);
 
-	send_1905_ack_message(ntohs(cmdu->id), ACK_FROM_AGENT);
-	return 0;
+    while (tlv_len >= static_cast<int>(sizeof(em_tlv_t)) && tlv->type != em_tlv_type_eom) {
+        unsigned int cur_tlv_len = ntohs(tlv->len);
+
+        if (tlv_len < static_cast<int>(sizeof(em_tlv_t) + cur_tlv_len)) {
+            em_printfout("%s:%d Truncated TLV in Channel Scan Request",__func__, __LINE__);
+            return -1;
+        }	    
+        
+        if (tlv->type == em_tlv_type_channel_scan_req) {
+
+            unsigned char *payload = tlv->value;
+            unsigned char *payload_end = payload + cur_tlv_len;
+
+            /* Validate fixed request header */
+            if (payload + sizeof(em_channel_scan_req_t) > payload_end) {
+                em_printfout("%s:%d Invalid Channel Scan Request TLV",__func__, __LINE__);
+                return -1;
+            }
+
+            req = reinterpret_cast<em_channel_scan_req_t *>(payload);
+
+            memcpy(params.ruid, get_radio_interface_mac(), sizeof(mac_address_t));
+            params.num_op_classes = req->num_op_classes;
+
+            if (params.num_op_classes > EM_MAX_OP_CLASS) {
+                em_printfout("%s:%d Invalid num_op_classes=%u", __func__, __LINE__, params.num_op_classes);
+                return -1;
+            }
+
+            op_class = req->op_class;
+
+            for (i = 0; i < params.num_op_classes; i++) {
+
+                /* Validate fixed op-class entry */
+                if (reinterpret_cast<unsigned char *>(op_class) + sizeof(em_channel_scan_req_op_class_t) > payload_end) {
+                    em_printfout("%s:%d Truncated operating class entry", __func__, __LINE__);
+                    return -1;
+                }
+
+                if (op_class->num_channels > EM_MAX_CHANNELS_IN_LIST) {
+                    em_printfout("%s:%d Invalid num_channels=%u", __func__, __LINE__, op_class->num_channels);
+                    return -1;
+                }
+
+                /* Validate variable-length channel list */
+                if (reinterpret_cast<unsigned char *>(op_class) + sizeof(em_channel_scan_req_op_class_t) +
+                                                                             op_class->num_channels > payload_end) {
+                    em_printfout("%s:%d Truncated channel list", __func__, __LINE__);
+                    return -1;
+                }
+
+                params.op_class[i].op_class = op_class->op_class;
+                params.op_class[i].num_channels = op_class->num_channels;
+
+                memcpy(params.op_class[i].channels, op_class->channel_list, op_class->num_channels);
+
+                op_class = reinterpret_cast<em_channel_scan_req_op_class_t *>(reinterpret_cast<unsigned char *>(op_class) +
+                                                 sizeof(em_channel_scan_req_op_class_t) + op_class->num_channels);
+            }
+        }
+	
+	tlv_len -= static_cast<int>(sizeof(em_tlv_t) + cur_tlv_len);
+
+        tlv = reinterpret_cast<em_tlv_t *>(reinterpret_cast<unsigned char *>(tlv) + sizeof(em_tlv_t) + cur_tlv_len);
+    }
+
+    if (params.num_op_classes > 0) {
+        if (!m_last_scan_req) {
+	        m_last_scan_req = std::make_unique<em_scan_params_t>();
+	    }
+	    memcpy(m_last_scan_req.get(), &params, sizeof(em_scan_params_t));
+        m_last_scan_req_valid = true;
+	    get_mgr()->io_process(em_bus_event_type_channel_scan_params,  reinterpret_cast<unsigned char *> (&params), sizeof(em_scan_params_t));
+    } else {
+        m_last_scan_req.reset();
+        m_last_scan_req_valid = false;
+    }
+    send_1905_ack_message(ntohs(cmdu->id), ACK_FROM_AGENT);
+    return 0;
 }
 
 void em_channel_t::fill_scan_result(dm_scan_result_t *scan_res, em_channel_scan_result_t *res)
@@ -2110,10 +2203,10 @@ void em_channel_t::fill_scan_result(dm_scan_result_t *scan_res, em_channel_scan_
 
 	strncpy(scan_res->m_scan_result.timestamp, res->timestamp, static_cast<size_t>(res->timestamp_len + 1));
 	tmp = reinterpret_cast<unsigned char *> (res) + sizeof(em_channel_scan_result_t) + res->timestamp_len;
-	
+
 	memcpy(&scan_res->m_scan_result.util, tmp, sizeof(unsigned char));
 	tmp += sizeof(unsigned char);
-	
+
 	memcpy(&scan_res->m_scan_result.noise, tmp, sizeof(unsigned char));
 	tmp += sizeof(unsigned char);
 
@@ -2433,10 +2526,10 @@ em_channel_t::em_channel_t()
 {
     m_channel_pref_query_tx_cnt = 0;
     m_channel_sel_req_tx_cnt = 0;
+    m_last_scan_req_valid = false;
 }
 
 em_channel_t::~em_channel_t()
 {
-
 }
 

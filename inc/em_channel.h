@@ -19,6 +19,7 @@
 #ifndef EM_CHANNEL_H
 #define EM_CHANNEL_H
 
+#include <memory>
 #include "em_base.h"
 
 #define ACK_FROM_AGENT 0
@@ -26,8 +27,12 @@
 
 class em_cmd_t;
 class em_channel_t {
+    /* Cached Channel Scan Request received from controller.
+     * Freed after corresponding report is sent.
+     */
+    std::unique_ptr<em_scan_params_t> m_last_scan_req;
+    bool                              m_last_scan_req_valid;
 
-    
 	/**!
 	 * @brief Sends a frame of data.
 	 *
@@ -728,6 +733,21 @@ public:
 	*/
 	void set_channel_sel_req_tx_count(unsigned int cnt) { m_channel_sel_req_tx_cnt = cnt; }
 
+	/**
+     * @brief Checks whether a scan result matches the most recent Channel Scan Request.
+     *
+     * Compares the scan result's operating class and channel against the cached
+     * Channel Scan Request parameters received from the controller. Only scan
+     * results that were explicitly requested are included in the Channel Scan
+     * Report sent back to the controller.
+     *
+     * @param scan_res Pointer to the scan result to validate.
+     *
+     * @return true if the scan result matches one of the requested operating
+     *         class/channel combinations.
+     * @return false otherwise.
+     */
+    bool is_requested_scan_result(const dm_scan_result_t *scan_res) const;
 	
 	/**!
 	 * @brief Fills the scan result structure with data from the channel scan result.
