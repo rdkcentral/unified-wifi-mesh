@@ -82,7 +82,7 @@ graph LR
 - **EasyMesh Agent (`onewifi_em_agent`)**: Runs on each access point node; handles all agent-side IEEE 1905.1 flows including autoconfiguration, capability reporting, channel preference/selection, client association tracking, BTM-based steering, and beacon/scan reports
 - **DPP / EasyConnect Onboarding**: Implements Wi-Fi EasyMesh DPP bootstrapping and provisioning flows (`ec_configurator`, `ec_enrollee`, `ec_manager`), including GAS and WFA action-frame exchange, AES-SIV encryption, and 1905-layer securing under the `ENABLE_COLOCATED_1905_SECURE` path
 - **AL-SAP Integration (`libalsap`)**: IEEE 1905.1 Abstract Layer Service Access Point library that offloads raw CMDU frame relay to a co-running `ieee1905` daemon over Unix domain sockets
-- **TR-181 Data Model Interface**: Controller exposes a TR-181 Wi-Fi EasyMesh data model (`src/ctrl/tr_181`) over R-BUS, enabling data-model-driven configuration and topology queries via `Network.Device.*` objects
+- **TR-181 Data Model Interface**: Controller exposes a TR-181 Wi-Fi EasyMesh data model (`src/ctrl/tr_181`) over R-BUS, enabling data-model-driven configuration and topology queries via `Device.WiFi.DataElements.Network.*` objects
 - **Network Optimiser (`onewifi_em_network_optimiser`)**: Standalone optimisation process that consumes topology and metrics data to drive channel, band, and steering decisions via R-BUS/HE-BUS. Note: some legacy build targets use the historical misspelling `onewifi_em_network_optimser`.
 - **Data Model & Persistence**: Shared `dm_easy_mesh_t` hierarchy covering network, device, radio, BSS, STA, op-class, policy, scan result, CAC, AP-MLD, BSTA-MLD, and TID-to-link objects; controller-side state is persisted to MariaDB for recovery across restarts
 - **Command Orchestration Framework**: Type-safe command objects (`em_cmd_*`) submitted to an orchestrator (`em_orch_t`) that serialises and tracks multi-step protocol exchanges across concurrent EM radio threads
@@ -156,7 +156,7 @@ graph LR
 
 **RDK-B Platform and Integration Requirements:**
 
-- **Build Dependencies**: C++17 compiler, `libcjson`, `libuuid`, `libssl`, `libcrypto` (OpenSSL), `libmariadb` / MariaDB C client, `libpthread`, `libdl`, `libwebconfig`, `libalsap` (when `WITH_SAP=1`); on non-RDK platforms additionally `libstdc++fs` when building with older GCC/libstdc++ toolchains that require explicit linking for `std::filesystem` (for example, GCC < 9)
+- **Build Dependencies**: C++17 compiler, `libcjson`, `libuuid`, `libssl`, `libcrypto` (OpenSSL), `libmariadb` / MariaDB C client, `libpthread`, `libdl`, `libwebconfig`, `libhebus` (HE-BUS), `libalsap` (when `WITH_SAP=1`); on non-RDK platforms additionally `libstdc++fs` when building with older GCC/libstdc++ toolchains that require explicit linking for `std::filesystem` (for example, GCC < 9)
 - **Companion Repositories**: `OneWifi` (webconfig subdoc protocol, HE-BUS and R-BUS, platform bus abstraction at `OneWifi/source/platform/`), `halinterface` (Wi-Fi HAL headers at `halinterface/include`)
 - **Systemd / Init Services**: `em_ctrl` (non-RDK init, START=95), `em_agent` (non-RDK init, started manually after 30 s delay), `ieee1905_agent` (prerequisite when AL-SAP is enabled)
 - **Hardware Requirements**: At least one Wi-Fi radio capable of IEEE 802.11 management frame injection and reception for DPP/EasyConnect action-frame exchange
