@@ -191,7 +191,7 @@ sequenceDiagram
 
     Sys->>Ctrl: Start onewifi_em_ctrl (START=95)
     Ctrl->>Ctrl: bus_init() + bus_open("tr_181_service")
-    Ctrl->>Ctrl: setup_mysql_db, MariaDB connect
+    Ctrl->>Ctrl: Connect to MariaDB (seed if empty on RDK-B via /usr/ccsp/EasyMesh/setup_mysql_db_post.sh)
     Ctrl->>OW: bus_open("tr_181_service")
     Ctrl->>Ctrl: Register TR-181 R-BUS methods
     Ctrl->>ALSAP: Connect to al_em_ctrl_{data,control}_socket
