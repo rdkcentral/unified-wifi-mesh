@@ -1482,16 +1482,26 @@ int em_capability_t::handle_ap_cap_report(unsigned char *buff, unsigned int len)
         }
         else if (tlv->type == em_tlv_type_cac_cap){
             em_cac_cap_t *cac = reinterpret_cast<em_cac_cap_t *>(tlv->value);
+            if (cac == nullptr) {
+                em_printfout("Invalid CAC TLV: null pointer");
+                return -1;
+            }
+
+            if (cac->radios_num > EM_MAX_RADIO_PER_AGENT) {
+                em_printfout("Invalid CAC TLV: radios_num=%u exceeds max=%u", cac->radios_num, EM_MAX_RADIO_PER_AGENT);
+                return -1;
+            }
+
             for (int idx = 0; idx < cac->radios_num; idx++)
             {
                 dm_radio_cap_t *radio_cap = dm->get_radio_cap(cac->radios[idx].ruid);
-                if ((cac != NULL) && (radio_cap != NULL)){
+                if (radio_cap != NULL){
                     em_radio_cap_info_t *cap_info = radio_cap->get_radio_cap_info();
                     if ((cap_info == NULL)){
                         em_printfout("No data Found");
                         return 0;
                     }
-                    memcpy(&cap_info->cac_cap, &cac->radios[0], sizeof(em_cac_cap_t));
+                    memcpy(&cap_info->cac_cap, &cac->radios[idx], sizeof(cap_info->cac_cap));
                 }
             }
         } else if (tlv->type == em_tlv_type_profile_2_ap_cap){

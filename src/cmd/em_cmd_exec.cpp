@@ -411,7 +411,8 @@ int em_cmd_exec_t::init()
 
 em_cmd_exec_t::em_cmd_exec_t()
 {
-
+    m_ssl = NULL;
+    m_ssl_ctx = NULL;
 }
 
 em_cmd_exec_t::~em_cmd_exec_t()
