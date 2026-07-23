@@ -1,5 +1,5 @@
 /**
- * Copyright 2025 Comcast Cable Communications Management, LLC
+ * Copyright 2026 Comcast Cable Communications Management, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -52,20 +52,26 @@ int em_vendor_t::handle_vendor_msg(unsigned char *buff, unsigned int len)
 
     tlv     = tlv_start;
     tmp_len = base_len;
+    em_vendor_data_t *vendor_data_ptr = nullptr;
 
     while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
-        if (tlv->type == vendor_ext_attr_id_link_report) {
-            unsigned int vendor_id = get_vendor_id(tlv->value);
-            if (vendor_id == EM_LQ_DATA_VENDOR_TLV_ATTR_ID) {
-                // Handle the LQ data vendor TLV
-                handle_vendor_tlv_ext(tlv->value, ntohs(tlv->len), get_data_model());
-            } else if (vendor_id >= vendor_ext_attr_id_comcast_start && vendor_id <= vendor_ext_attr_id_comcast_end) {
-                // Handle other Comcast vendor TLVs
-                handle_vendor_tlv_ext(tlv->value, ntohs(tlv->len), get_data_model());
-            } else {
-                printf("%s:%d: Unrecognized vendor ID: %u\n", __func__, __LINE__, vendor_id);
+        if (tlv->type == em_tlv_type_vendor_specific) {
+            em_vendor_specific_t *vendor_tlv = reinterpret_cast<em_vendor_specific_t *> (tlv->value);
+            em_printfout("Recvd vendor tlv, num: %d and tlv->len:%d", vendor_tlv->num, ntohs(tlv->len));
+            if ((vendor_tlv->num <= 0) || (ntohs(tlv->len) == 0)) {
+                break;
             }
-            
+
+            for(int i = 0; i < vendor_tlv->num; i++) {
+                vendor_data_ptr = vendor_tlv->data;
+                em_printfout("Vendor data attr_id [%d]", vendor_data_ptr->attr_id);
+                 
+                if (vendor_data_ptr->attr_id == vendor_ext_attr_id_wei_data) {
+                    // Handle the LQ data vendor TLV
+                    handle_vendor_tlv_ext(tlv->value, ntohs(tlv->len), get_data_model());
+                    // handle_vendor_ext_tlv(tlv->value, ntohs(tlv->len), get_data_model());
+                }
+            }            
         }
         tmp_len -= (sizeof(em_tlv_t) + static_cast<size_t>(htons(tlv->len)));
         tlv = reinterpret_cast<em_tlv_t *>(
@@ -75,39 +81,34 @@ int em_vendor_t::handle_vendor_msg(unsigned char *buff, unsigned int len)
     return 0;
 }
 
-// Weak no-op — overridden by private repo (vendor_sta_ctrl.cpp) to parse
-// vendor STA private TLVs and populate dm_sta_ext_t on the controller side.
-__attribute__((weak)) int em_vendor_t::handle_vendor_tlv_ext(
-    const unsigned char * /*tlv_value*/,
-    unsigned int          /*tlv_len*/,
-    dm_easy_mesh_t *      /*dm*/)
-{
-    return 0;
-}
-
 // Sends the raw stats_arg_t[] bytes from the current vendor-data cmd
 // directly as the vendor TLV payload — no dm_sta_ext_t access needed.
-int em_vendor_t::send_vendor_sta_lq_data()
+int em_vendor_t::send_vendor_msg()
 {
     em_cmd_t *cmd = get_current_cmd();
-    if (!cmd) return -1;
+    if (!cmd) {
+        return -1;
+    }
 
     const std::vector<uint8_t> *raw = cmd->get_raw_data();
-    if (!raw || raw->empty()) return 0;
+    if (!raw || raw->empty()) {
+        return 0;
+    }
 
-    unsigned char buff[EM_LONG_IO_BUFF_SZ] = {0};
+    unsigned char buff[MAX_EM_BUFF_SZ] = {0};
     unsigned char *tmp = buff;
     size_t len = 0;
-
-    unsigned short type = htons(ETH_P_1905);
     em_cmdu_t *cmdu;
     em_tlv_t  *tlv;
     dm_easy_mesh_t *dm = get_data_model();
+    unsigned short type = htons(ETH_P_1905);
 
     memcpy(tmp, dm->get_ctl_mac(), sizeof(mac_address_t));
     tmp += sizeof(mac_address_t); len += sizeof(mac_address_t);
+
     memcpy(tmp, dm->get_agent_al_interface_mac(), sizeof(mac_address_t));
     tmp += sizeof(mac_address_t); len += sizeof(mac_address_t);
+
     memcpy(tmp, &type, sizeof(unsigned short));
     tmp += sizeof(unsigned short); len += sizeof(unsigned short);
 
@@ -122,10 +123,10 @@ int em_vendor_t::send_vendor_sta_lq_data()
     tlv = reinterpret_cast<em_tlv_t *>(tmp);
     tlv->type = em_tlv_type_vendor_specific;
     unsigned char *vp = tlv->value;
-    static const unsigned char oui[EM_VENDOR_OUI_SIZE] = {0xd8, 0x9c, 0x8e};
-    memcpy(vp, oui, EM_VENDOR_OUI_SIZE);  vp += EM_VENDOR_OUI_SIZE;
+    memcpy(vp, comcast_vendor_oui, EM_VENDOR_OUI_SIZE);
+    vp += EM_VENDOR_OUI_SIZE;
     *vp++ = 1;     // num
-    *vp++ = 0x10;  // attr_id = VENDOR_ATTR_STA_PRIVATE
+    *vp++ = vendor_ext_attr_id_wei_data;
     memcpy(vp, raw->data(), raw->size()); vp += raw->size();
     unsigned int tlv_val_len = static_cast<unsigned int>(vp - tlv->value);
     tlv->len = htons(static_cast<unsigned short>(tlv_val_len));
@@ -139,6 +140,18 @@ int em_vendor_t::send_vendor_sta_lq_data()
     len += sizeof(em_tlv_t);
 
     return send_frame(buff, static_cast<unsigned int>(len));
+}
+
+void em_vendor_t::process_agent_state()
+{
+    switch (get_current_cmd()->get_type()) {
+        case em_cmd_type_generic_data:
+            send_vendor_msg();
+            break;
+
+        default:
+            break;
+    }
 }
 
 em_vendor_t::em_vendor_t()  {}

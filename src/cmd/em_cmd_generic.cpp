@@ -27,23 +27,22 @@
 #include <sys/socket.h>
 #include <sys/uio.h>
 #include <pthread.h>
-#include "em_cmd_sta_lq_data.h"
+#include "em_cmd_generic.h"
 
-em_cmd_type_vendor_data::em_cmd_type_vendor_data(uint8_t *raw_buff, int len, dm_easy_mesh_t& dm)
+em_cmd_generic::em_cmd_generic(uint8_t *raw_buff, int len, dm_easy_mesh_t& dm)
 {
     em_cmd_ctx_t ctx;
 
-    m_type = em_cmd_type_vendor_data;
-    // memcpy(&m_param.u.raw_data, raw_buff, len);
+    m_type = em_cmd_type_generic_data;
 
     memset(reinterpret_cast<unsigned char *>(&m_orch_desc[0]), 0, EM_MAX_CMD * sizeof(em_orch_desc_t));
 
     m_orch_op_idx = 0;
     m_num_orch_desc = 1;
-    m_orch_desc[0].op = dm_orch_type_vendor_ie_data;
+    m_orch_desc[0].op = dm_orch_type_wei_data;
     m_orch_desc[0].submit = true;
 
-    strncpy(m_name, "sta_lq_data", strlen("sta_lq_data") + 1);
+    strncpy(m_name, "cmd_data", strlen("cmd_data") + 1);
     m_svc = em_service_type_agent;
     init(dm);
 
@@ -55,5 +54,5 @@ em_cmd_type_vendor_data::em_cmd_type_vendor_data(uint8_t *raw_buff, int len, dm_
     if (raw_buff && len > 0) {
         m_raw_data.assign(raw_buff, raw_buff + len);
     }
-    if (s_populate) s_populate(*this, dm);
+   // if (s_populate) s_populate(*this, dm);
 }

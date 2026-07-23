@@ -251,7 +251,7 @@ void em_t::orch_execute(em_cmd_t *pcmd)
             m_sm.set_state(em_state_agent_link_quality_report_pending);
             break;
 
-        case em_cmd_type_vendor_data:
+        case em_cmd_type_generic_data:
             m_sm.set_state(em_state_agent_vendor_data_pending);
             break;
 
@@ -262,6 +262,10 @@ void em_t::orch_execute(em_cmd_t *pcmd)
         case em_cmd_type_unassoc_sta_result:
             m_sm.set_state(em_state_agent_unassoc_sta_metrics_report_pending);
             break;
+
+        // case em_cmd_type_generic_data:
+        //     m_sm.set_state(em_state_agent_generic_data_pending);
+        //     break;
         
 	default:
             break;
@@ -497,15 +501,21 @@ void em_t::handle_agent_state()
             }
             break;
 
-        case em_cmd_type_vendor_data:
-            if (m_sm.get_state() == em_state_agent_vendor_data_pending) {
-                em_vendor_t::send_vendor_sta_lq_data();
-            }
-            break;
+        // case em_cmd_type_generic_data:
+        //     if (m_sm.get_state() == em_state_agent_vendor_data_pending) {
+        //         em_vendor_t::send_vendor_sta_lq_data();
+        //     }
+        //     break;
 
         case em_cmd_type_unassoc_sta_result:
             if (m_sm.get_state() == em_state_agent_unassoc_sta_metrics_report_pending) {
                 em_metrics_t::process_agent_state();
+            }
+            break;
+
+        case em_cmd_type_generic_data:
+            if (m_sm.get_state() >= em_state_agent_topo_synchronized) {
+                em_vendor_t::process_agent_state();
             }
             break;
 

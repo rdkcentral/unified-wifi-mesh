@@ -40,23 +40,16 @@ public:
 
     unsigned int get_vendor_id(unsigned char *buff);
     // Dispatches to the appropriate handler based on the TLV's attr_id.
-    int handle_vendor_msg(unsigned char *buff, unsigned int len);
-
-    // Generic dispatch point — pure virtual so em_t owns the routing logic
-    // and can forward to em_metrics_t, em_steering_t, etc. as needed.
-    // For unrecognised attr_ids, em_t falls back to handle_vendor_tlv_ext().
-    virtual int dispatch_vendor_attr(vendor_ext_attr_id_t attr_id,
-                                     unsigned char        *buff,
-                                     unsigned int          len) = 0;
+    // int handle_vendor_msg(unsigned char *buff, unsigned int len);
 
     // Weak hook for unrecognised attr_ids — overridden by private repo
     // to parse vendor STA private TLVs and populate dm_sta_ext_t.
-    int handle_vendor_tlv_ext(const unsigned char *tlv_value,
+    virtual int handle_vendor_tlv_ext(const unsigned char *tlv_value,
                                unsigned int         tlv_len,
-                               dm_easy_mesh_t      *dm);
+                               dm_easy_mesh_t      *dm) { return 0; }
 
     // Send: packages m_raw_data from the current cmd as a vendor TLV CMDU.
-    int send_vendor_sta_lq_data();
+    // int send_vendor_sta_lq_data();
 
     em_vendor_t();
     virtual ~em_vendor_t();

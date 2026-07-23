@@ -146,6 +146,7 @@ public:
 	 */
 	static void decode_beacon_report(dm_sta_t *sta);
 
+	//virtual void handle_vendor_ext_tlv(const unsigned char *tlv_value, unsigned int tlv_len, dm_easy_mesh_t *dm) {}
     
 	/**!
 	 * @brief Creates a dm_sta_t object using the provided em_sta_info_t.

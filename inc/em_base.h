@@ -2247,6 +2247,8 @@ typedef enum {
     vendor_ext_attr_id_link_report,     // data of type em_link_report_t
 
     //comcast vendor extension attributes, 0x100 - 0x1FF
+    vendor_ext_attr_id_wei_data = 0x100,
+
 
     vendor_ext_attr_id_max
 } vendor_ext_attr_id_t;
@@ -2365,7 +2367,7 @@ typedef enum {
     em_cmd_type_get_link_quality_report,
     em_cmd_type_unassoc_sta_query,
     em_cmd_type_unassoc_sta_result,
-    em_cmd_type_vendor_data,
+    em_cmd_type_generic_data,
 
     em_cmd_type_max,
 } em_cmd_type_t;
@@ -3068,7 +3070,6 @@ typedef enum {
     em_bus_event_type_unassoc_sta_link_metrics_query,
     em_bus_event_type_unassoc_sta_result,
     em_bus_event_type_wei_app_data,
-    em_bus_event_type_sta_lq_data,
 
     em_bus_event_type_max
 } em_bus_event_type_t;
@@ -3161,7 +3162,7 @@ typedef enum {
     dm_orch_type_link_quality_report,
     dm_orch_type_unassoc_sta_link_req_query,
     dm_orch_type_unassoc_sta_result,
-    dm_orch_type_vendor_ie_data,
+    dm_orch_type_wei_data,
     
 } dm_orch_type_t;
 
@@ -3714,6 +3715,7 @@ static const SecurityTypeMap securityTypeMap[] = {
 };
 
 static const unsigned char airties_vendor_oui[EM_VENDOR_OUI_SIZE] = {0x88, 0x41, 0xfc};
+static const unsigned char comcast_vendor_oui[EM_VENDOR_OUI_SIZE] = {0xd8, 0x9c, 0x8e};
 
 #ifndef SSL_KEY
 #if OPENSSL_VERSION_NUMBER < 0x30000000L

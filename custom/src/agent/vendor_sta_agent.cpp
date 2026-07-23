@@ -2,7 +2,7 @@
  * Agent-side private code for the vendor STA extension.
  *
  * Responsibilities:
- *  - Register s_populate so that when an em_cmd_type_vendor_data cmd is
+ *  - Register s_populate so that when an em_cmd_type_generic_data cmd is
  *    created, the raw stats_arg_t[] bytes are also decoded into dm_sta_ext_t
  *    on the local data model (for agent-side use).
  *
@@ -22,14 +22,14 @@
 // wifi_base.h defines stats_arg_t
 #include "wifi_base.h"
 
-// ── em_cmd_type_vendor_data populate hook ─────────────────────────────────────
+// ── em_cmd_type_generic_data populate hook ─────────────────────────────────────
 //
 // Registered via __attribute__((constructor)) before main().
 // Decodes raw stats_arg_t[] bytes from m_raw_data into dm_sta_ext_t so the
 // agent has the structured data locally (e.g. for policy decisions).
 // The bytes are also sent as-is in the vendor TLV by the public send function.
 //
-static void sta_lq_data_populate(em_cmd_type_vendor_data &cmd, dm_easy_mesh_t &dm)
+static void sta_lq_data_populate(em_cmd_type_generic_data &cmd, dm_easy_mesh_t &dm)
 {
     const uint8_t *buf = cmd.m_raw_data.data();
     int count = static_cast<int>(cmd.m_raw_data.size() / sizeof(stats_arg_t));
@@ -73,5 +73,5 @@ static void sta_lq_data_populate(em_cmd_type_vendor_data &cmd, dm_easy_mesh_t &d
 __attribute__((constructor))
 static void register_sta_lq_data_populate()
 {
-    em_cmd_type_vendor_data::s_populate = sta_lq_data_populate;
+    em_cmd_type_generic_data::s_populate = sta_lq_data_populate;
 }

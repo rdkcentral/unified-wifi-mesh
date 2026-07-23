@@ -1,15 +1,50 @@
 /**
- * Private extension implementation for dm_sta_t.
+ * Copyright 2026 Comcast Cable Communications Management, LLC
  *
- * Overrides the constructors and destructor from the public repo's dm_sta.cpp
- * so that m_sta_ext (dm_sta_ext_t) is properly allocated and freed.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * SPDX-License-Identifier: Apache-2.0
  */
 
 #include "dm_sta.h"
 #include "custom/inc/dm_sta_ext.h"
 #include <cjson/cJSON.h>
 
-// ─── dm_sta_t constructor / destructor overrides ─────────────────────────────
+
+void dm_sta_ext_t::handle_vendor_ext_tlv(const unsigned char *tlv_value,
+                                        unsigned int         tlv_len,
+                                        dm_easy_mesh_t      *dm)
+{
+    if (tlv_len < sizeof(em_vendor_specific_t) + 1) {
+        return;
+    }
+
+    const em_vendor_specific_t *vs = reinterpret_cast<const em_vendor_specific_t *>(tlv_value);
+
+    
+    return;
+}
+
+dm_sta_ext_t::dm_sta_ext_t()
+    : ap_mac_str()
+    , vap_index(0), radio_index(0), channel_utilization(0)
+    , cli_snr(0)
+    , cli_pkts_tx(0), cli_pkts_rx(0), cli_retrans(0), cli_rx_retries(0)
+    , cli_max_dl_rate(0), cli_max_ul_rate(0)
+    , cli_last_dl_rate(0), cli_last_ul_rate(0)
+    , cli_power_save(false)
+    , total_connected_time_sec(0), total_disconnected_time_sec(0)
+{}
 
 dm_sta_t::dm_sta_t()
     : m_sta_ext(new dm_sta_ext_t())
@@ -35,8 +70,7 @@ dm_sta_t::~dm_sta_t()
     m_sta_ext = nullptr;
 }
 
-// ─── dm_sta_ext_t::decode_from_json ──────────────────────────────────────────
-//
+
 // Parses vendor-private JSON fields from the same cJSON object that
 // dm_sta_t::decode() used for public fields.
 //

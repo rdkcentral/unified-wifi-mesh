@@ -1175,32 +1175,6 @@ void em_agent_t::handle_ap_metrics_report(em_bus_event_t *evt)
     }
 }
 
-void em_agent_t::handle_wei_app_data(em_bus_event_t *evt)
-{
-    em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
-    unsigned int num;
-
-    if (m_orch->is_cmd_type_in_progress(evt) == true) {
-        em_printfout("analyze_wei_app_data in progress");
-    } else if ((num = static_cast<unsigned int>(m_data_model.analyze_wei_app_data(evt, pcmd))) == 0) {
-        em_printfout("analyze_wei_app_data failed");
-    }
-}
-
-void em_agent_t::handle_sta_lq_data(em_bus_event_t *evt)
-{
-    em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
-    unsigned int num;
-
-    if (m_orch->is_cmd_type_in_progress(evt) == true) {
-        em_printfout("handle_sta_lq_data in progress");
-    } else if ((num = static_cast<unsigned int>(m_data_model.analyze_sta_lq_data(evt, pcmd))) == 0) {
-        em_printfout("handle_sta_lq_data: no cmd created (private repo not linked?)");
-    } else if (m_orch->submit_commands(pcmd, num) > 0) {
-        em_printfout("handle_sta_lq_data: submitted %u cmd(s) to orchestrator", num);
-    }
-}
-
 void em_agent_t::handle_link_stats_report(em_bus_event_t *evt)
 {
     em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
@@ -1212,6 +1186,18 @@ void em_agent_t::handle_link_stats_report(em_bus_event_t *evt)
         em_printfout("analyze_link_report failed");
     } else if (m_orch->submit_commands(pcmd, num) > 0) {
         em_printfout("Submitted Link Stats report cmd for orch");
+    }
+}
+
+void em_agent_t::handle_wei_app_data(em_bus_event_t *evt)
+{
+    em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
+    unsigned int num;
+
+    if (m_orch->is_cmd_type_in_progress(evt) == true) {
+        em_printfout("analyze_wei_app_data in progress");
+    } else if ((num = static_cast<unsigned int>(m_data_model.analyze_wei_app_data(evt, pcmd))) == 0) {
+        em_printfout("analyze_wei_app_data failed");
     }
 }
 
@@ -1336,10 +1322,6 @@ void em_agent_t::handle_bus_event(em_bus_event_t *evt)
 
         case em_bus_event_type_wei_app_data:
             handle_wei_app_data(evt);
-            break;
-
-        case em_bus_event_type_sta_lq_data:
-            handle_sta_lq_data(evt);
             break;
 
         default:
@@ -1614,10 +1596,6 @@ void em_agent_t::input_listener()
         return;
     }
 
-    if (desc->bus_event_subs_fn(&m_bus_hdl, "Device.WiFi.EM.StaLQData", reinterpret_cast<void *>(&em_agent_t::sta_lq_data_cb), NULL, 0) != 0) {
-        em_printfout("Error: bus subscribe failed for StaLQData");
-    }
-
     if (desc->bus_event_subs_fn(&m_bus_hdl,  WIFI_QUALITY_LINKREPORT, reinterpret_cast<void *>(&em_agent_t::report_cb), NULL, 0) != 0) {
         em_printfout("Error: bus get failed");
         return;
@@ -1630,6 +1608,11 @@ void em_agent_t::input_listener()
 
    if(desc->bus_event_subs_fn(&m_bus_hdl, "Device.WiFi.EM.NaStaResponse", (void *)&em_agent_t::unassoc_sta_link_metrics_cb, NULL, 0) != 0) {
         printf("%s:%d bus get failed\n",__func__,__LINE__);
+        return;
+    }
+
+    if (desc->bus_event_subs_fn(&m_bus_hdl, "Device.WiFi.EM.WEIData", reinterpret_cast<void *>(&em_agent_t::wei_data_cb), NULL, 0) != 0) {
+        em_printfout("Error: bus get failed for WEIData");
         return;
     }
 
@@ -1786,16 +1769,6 @@ int em_agent_t::report_cb(char *event_name, bus_data_prop_t *data, void *userDat
     return 0;
 }
 
-int em_agent_t::sta_lq_data_cb(char *event_name, bus_data_prop_t *data, void *userData)
-{
-    (void)event_name; (void)userData;
-    if (!data) return -1;
-    g_agent.io_process(em_bus_event_type_sta_lq_data,
-                       reinterpret_cast<unsigned char *>(data->value.raw_data.bytes),
-                       data->value.raw_data_len);
-    return 1;
-}
-
 int em_agent_t::beacon_report_cb(char *event_name, bus_data_prop_t *data, void *userData)
 {
     //printf("%s:%d Received Frame data for event [%s] and data :\n%s\n", __func__, __LINE__, event_name, data->value.raw_data.bytes);
@@ -1937,6 +1910,12 @@ int em_agent_t::mgmt_csa_beacon_frame_cb(char *event_name, bus_data_prop_t *data
     printf("%s:%d Received Frame data for event [%s] and data of len:\n%d\n", __func__, __LINE__, event_name, data->value.raw_data_len);
 
     g_agent.io_process(em_bus_event_type_recv_csa_beacon_frame, reinterpret_cast<unsigned char *>(data->value.raw_data.bytes), data->value.raw_data_len);
+    return 1;
+}
+
+int em_agent_t::wei_data_cb(char *event_name, bus_data_prop_t *data, void *userData)
+{
+    g_agent.io_process(em_bus_event_type_wei_app_data, reinterpret_cast<unsigned char *>(data->value.raw_data.bytes), data->value.raw_data_len);
     return 1;
 }
 

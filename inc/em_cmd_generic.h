@@ -16,14 +16,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#ifndef EM_CMD_STA_LQ_DATA_H
-#define EM_CMD_STA_LQ_DATA_H
+#ifndef EM_CMD_GENERIC_H
+#define EM_CMD_GENERIC_H
 
 #include <vector>
 #include <cstdint>
 #include "em_cmd.h"
 
-class em_cmd_type_vendor_data : public em_cmd_t {
+class em_cmd_generic : public em_cmd_t {
 
 public:
     // Raw stats_arg_t[] payload copied from the rbus event.
@@ -31,12 +31,12 @@ public:
 
     // Optional hook — private repo registers this (via __attribute__((constructor)))
     // to extract stats_arg_t fields into dm_sta_ext_t before the cmd is submitted.
-    using populate_fn_t = void(*)(em_cmd_type_vendor_data &, dm_easy_mesh_t &);
-    static populate_fn_t s_populate;
+    // using populate_fn_t = void(*)(em_cmd_generic &, dm_easy_mesh_t &);
+    // static populate_fn_t s_populate;
 
     const std::vector<uint8_t> *get_raw_data() const override { return &m_raw_data; }
 
-    em_cmd_type_vendor_data(uint8_t *raw_buff, int len, dm_easy_mesh_t& dm);
+    em_cmd_generic(uint8_t *raw_buff, int len, dm_easy_mesh_t& dm);
 };
 
 #endif

@@ -300,7 +300,7 @@ class em_agent_t : public em_mgr_t {
 	void handle_link_stats_report(em_bus_event_t *evt);
 
         void handle_sta_lq_data(em_bus_event_t *evt);
-        *
+        /**!
         * This function processes the Unassociated STA Link Metrics Query
         * received from the controller, parses the requested operating
         * classes, channels and STA MAC addresses, and triggers the

@@ -145,7 +145,7 @@ bool em_orch_agent_t::is_em_ready_for_orch_fini(em_cmd_t *pcmd, em_t *em)
             }
             break;
 
-        case em_cmd_type_vendor_data:
+        case em_cmd_type_generic_data:
             if (em->get_state() == em_state_agent_configured) {
                 return true;
             }
@@ -209,9 +209,9 @@ bool em_orch_agent_t::is_em_ready_for_orch_exec(em_cmd_t *pcmd, em_t *em)
             ((em->get_state() ==em_state_agent_unassoc_sta_metrics_report_pending))) {
             return true;
         }
-    } else if (pcmd->m_type == em_cmd_type_vendor_data) {
+    } else if (pcmd->m_type == em_cmd_type_generic_data) {
         if ((em->get_state() == em_state_agent_configured) ||
-            (em->get_state() == em_state_agent_vendor_data_pending)) {
+            (em->get_state() >= em_state_agent_topo_synchronized)){
             return true;
         }
     }
@@ -345,7 +345,7 @@ bool em_orch_agent_t::pre_process_orch_op(em_cmd_t *pcmd)
         case dm_orch_type_channel_pref:
         case dm_orch_type_op_channel_report:
         case dm_orch_type_beacon_report:
-        case dm_orch_type_vendor_ie_data:
+        case dm_orch_type_wei_data:
             break;
 
         case dm_orch_type_sta_link_metrics:
@@ -536,13 +536,23 @@ unsigned int em_orch_agent_t::build_candidates(em_cmd_t *pcmd)
                 }
                 break;
 
-            case em_cmd_type_vendor_data:
+            case em_cmd_type_generic_data:
                 // Vendor data is sent once via the first non-AL EM.
                 if (!(em->is_al_interface_em()) && (count == 0)) {
                     queue_push(pcmd->m_em_candidates, em);
+                    em_printfout("%s:%d WEi data build candidate pushed [count=%d]\n", __func__, __LINE__, count);
                     count++;
                 }
                 break;
+
+            default:
+                break;
+        }
+        em = static_cast<em_t *> (hash_map_get_next(m_mgr->m_em_map, em));	
+    }
+	pthread_mutex_unlock(&m_mgr->m_mutex);
+    return count;
+}
 
 em_orch_agent_t::em_orch_agent_t(em_mgr_t *mgr)
 {
