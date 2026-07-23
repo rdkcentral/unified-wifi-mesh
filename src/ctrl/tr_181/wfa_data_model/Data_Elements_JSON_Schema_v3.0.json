@@ -3065,7 +3065,6 @@
                                             "description": "List of 802.11 standards in operation for this radio instance",
                                             "enum": ["a", "b", "g", "n", "ac", "ax", "be", "bn"]
                                         }
-                                        }
                                     }
                                 }
                             }
