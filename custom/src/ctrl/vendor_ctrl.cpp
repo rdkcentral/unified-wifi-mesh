@@ -24,6 +24,7 @@
 #include "custom/inc/dm_sta_ext.h"
 // #include "custom/inc/vendor_sta_tlv.h"
 #include "vendor_sta_ctrl.h"
+#include "util.h"
 
 // int em_vendor_ctrl_t::process(const unsigned char *tlv_value,
 //                                   unsigned int         tlv_len,
@@ -99,6 +100,38 @@
 
                     // handle_vendor_ext_tlv(tlv->value, ntohs(tlv->len), get_data_model());
 //
+
+typedef struct {
+    unsigned long cli_PacketsSent;
+    unsigned long cli_PacketsReceived;
+    unsigned long cli_RetransCount;
+    unsigned long long cli_RxRetries;
+    int cli_SNR;
+    unsigned int   cli_MaxDownlinkRate;
+    unsigned int cli_MaxUplinkRate;
+    unsigned int cli_LastDataDownlinkRate;
+    unsigned int cli_LastDataUplinkRate;
+    bool cli_PowerSaveMode;
+} dev_stats_t;
+
+typedef struct {
+    mac_addr_t sta_mac;
+    mac_addr_t ap_mac;
+    unsigned int vap_index;
+    unsigned int radio_index;
+    int channel_utilization;
+    dev_stats_t dev;
+    struct timespec total_connected_time;
+    struct timespec total_disconnected_time;
+    // int event;
+    // unsigned int status_code;
+    // int dhcp_event;
+    // int dhcp_msg_type;
+    // char dhcp_hostname[256];
+    // char dhcp_vendor_class[256];
+    // char dhcp_param_list[512];
+} wei_data_t;
+
 int em_vendor_ctrl_t::handle_vendor_tlv_ext(const unsigned char *tlv_value,
                                         unsigned int         tlv_len,
                                         dm_easy_mesh_t      *dm)
@@ -110,26 +143,28 @@ int em_vendor_ctrl_t::handle_vendor_tlv_ext(const unsigned char *tlv_value,
         reinterpret_cast<const em_vendor_specific_t *>(tlv_value);
     const unsigned char attr_id = vs->data[0].attr_id;
 
-    em_vendor_data_t *vendor_data_ptr = vendor_data->data;
+    const em_vendor_data_t *vendor_data_ptr = &vs->data[0];
     em_printfout("vendor_data->attri [%d]", vendor_data_ptr->attr_id);
 
     if (vendor_data_ptr->attr_id != vendor_ext_attr_id_link_report) {
         return 0;
     }
 
-    wei_data_t *wei_data = reinterpret_cast<const wei_data_t *>(vendor_data_ptr->vendor_data);
+    const wei_data_t *wei_data = reinterpret_cast<const wei_data_t *>(vendor_data_ptr->vendor_data);
 
-    sta = dm->get_first_sta(wei_data->sta_mac);
+    dm_sta_t *sta = dm->get_first_sta(const_cast<unsigned char *>(
+                    reinterpret_cast<const unsigned char *>(wei_data->sta_mac)));
     while (sta != NULL) {
-        if (memcmp(sta->m_sta_info.id, wei_data->sta_mac, sizeof(mac_address_t)) == 0) {
+        if (memcmp(sta->m_sta_info.id, reinterpret_cast<const mac_addr_t &>(wei_data->sta_mac), sizeof(mac_address_t)) == 0) {
             break;
         }
-        sta = dm->get_next_sta(wei_data->sta_mac, sta);
+        sta = dm->get_next_sta(const_cast<unsigned char *>(
+            reinterpret_cast<const unsigned char *>(wei_data->sta_mac)), const_cast<dm_sta_t*>(sta));
     }
 
     if(sta == NULL)
     {
-        em_printfout("sta[%s] not found", sta_str);
+        em_printfout("sta[%s] not found", util::mac_to_string(reinterpret_cast<const mac_addr_t &>(wei_data->sta_mac)));
         //todo: handle this case, shouldnot return, should goto next after incrementing
         return -1;
     }

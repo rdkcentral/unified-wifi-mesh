@@ -10,6 +10,8 @@
 #define DM_STA_EXT_H
 
 #include <string>
+#include "dm_easy_mesh.h"
+
 
 #if 0
 typedef struct {
@@ -43,7 +45,8 @@ typedef struct {
  * Add whatever private members are needed here without touching
  * em_sta_info_t or dm_sta_t in the public repo.
  */
-class dm_sta_ext_t : public dm_sta_t {
+// class dm_sta_ext_t : public dm_sta_t {
+class dm_sta_ext_t {
 private:
     // Populated from Device.WiFi.EM.StaLQData (stats_arg_t, no DHCP fields)
     std::string    ap_mac_str;
@@ -65,12 +68,15 @@ private:
     long long      total_connected_time_sec;
     long long      total_disconnected_time_sec;
 
+
+public:
+
     dm_sta_ext_t();
 
     dm_sta_ext_t(const dm_sta_ext_t&) = default;
     dm_sta_ext_t& operator=(const dm_sta_ext_t&) = default;
 
-public:
+    virtual ~dm_sta_ext_t();
     // void handle_vendor_ext_tlv(const unsigned char *tlv_value, unsigned int tlv_len, dm_easy_mesh_t *dm) override;
     // Called by the extern "C" hook in dm_sta_ext.cpp at the end of
     // dm_sta_t::decode() — parses vendor-private JSON fields from the

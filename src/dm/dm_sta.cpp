@@ -34,9 +34,11 @@
 #include "dm_easy_mesh.h"
 #include "dm_easy_mesh_ctrl.h"
 #include "util.h"
+// Near the top of src/dm/dm_sta.cpp
+#include "dm_sta_ext.h"  // 👈 ADD THIS INCLUDE HERE
 
 // Forward declaration of optional private-repo hook (defined weak below).
-extern "C" void custom_decode_sta(dm_sta_t *sta, const cJSON *obj);
+// extern "C" void custom_decode_sta(dm_sta_t *sta, const cJSON *obj);
 
 int dm_sta_t::decode(const cJSON *obj, void *parent_id)
 {
@@ -145,7 +147,7 @@ int dm_sta_t::decode(const cJSON *obj, void *parent_id)
         snprintf(m_sta_info.cellular_data_pref, sizeof(m_sta_info.cellular_data_pref), "%s", cJSON_GetStringValue(tmp));
     }
 
-    custom_decode_sta(this, obj);
+    // custom_decode_sta(this, obj);
 
     return 0;
 
@@ -562,22 +564,51 @@ void dm_sta_t::decode_beacon_report(dm_sta_t *sta)
    }
 }
 
-dm_sta_t::dm_sta_t(em_sta_info_t *sta)
-{
-    memcpy(&m_sta_info, sta, sizeof(em_sta_info_t));
-}
+// dm_sta_t::dm_sta_t(em_sta_info_t *sta)
+// {
+//     memcpy(&m_sta_info, sta, sizeof(em_sta_info_t));
+// }
 
-dm_sta_t::dm_sta_t(const dm_sta_t& sta)
-{
-    memcpy(&m_sta_info, &sta.m_sta_info, sizeof(em_sta_info_t));
-}
+// dm_sta_t::dm_sta_t(const dm_sta_t& sta)
+// {
+//     memcpy(&m_sta_info, &sta.m_sta_info, sizeof(em_sta_info_t));
+// }
+
+// dm_sta_t::dm_sta_t()
+// {
+//     memset(&m_sta_info, 0, sizeof(em_sta_info_t));
+// }
+
+// dm_sta_t::~dm_sta_t()
+// {
+
+// }
+
 
 dm_sta_t::dm_sta_t()
+    : m_sta_ext(new dm_sta_ext_t())
 {
     memset(&m_sta_info, 0, sizeof(em_sta_info_t));
 }
 
+dm_sta_t::dm_sta_t(em_sta_info_t *sta)
+    : m_sta_ext(new dm_sta_ext_t())
+{
+    if (sta) {
+        memcpy(&m_sta_info, sta, sizeof(em_sta_info_t));
+    } else {
+        memset(&m_sta_info, 0, sizeof(em_sta_info_t));
+    }
+}
+
+dm_sta_t::dm_sta_t(const dm_sta_t& sta)
+    : m_sta_ext(sta.m_sta_ext ? new dm_sta_ext_t(*sta.m_sta_ext) : nullptr)
+{
+    memcpy(&m_sta_info, &sta.m_sta_info, sizeof(em_sta_info_t));
+}
+
 dm_sta_t::~dm_sta_t()
 {
-
+    delete m_sta_ext;
+    m_sta_ext = nullptr;
 }

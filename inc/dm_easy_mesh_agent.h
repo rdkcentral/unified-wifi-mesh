@@ -326,7 +326,8 @@ public:
 	 */
 	int analyze_ap_metrics_report(em_bus_event_t *evt, em_cmd_t *pcmd[]);
 	int analyze_link_report(em_bus_event_t *evt, em_cmd_t *pcmd[]);
-        int analyze_sta_lq_data(em_bus_event_t *evt, em_cmd_t *pcmd[]);
+        int analyze_wei_app_data(em_bus_event_t *evt, em_cmd_t *pcmd[]);
+        /**!
          * @brief Analyzes the Unassociated STA Link Metrics Result.
          *
          * This function processes the Unassociated STA Link Metrics

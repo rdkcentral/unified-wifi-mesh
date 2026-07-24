@@ -21,9 +21,10 @@
 
 #include "em_base.h"
 
+
 // Forward declaration — definition lives in a separate (private) repo.
 // Consumers of this header never see the internals of dm_sta_ext_t.
-struct dm_sta_ext_t;
+class dm_sta_ext_t;
 
 class dm_sta_t {
 public:

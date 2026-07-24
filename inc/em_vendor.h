@@ -40,7 +40,7 @@ public:
 
     unsigned int get_vendor_id(unsigned char *buff);
     // Dispatches to the appropriate handler based on the TLV's attr_id.
-    // int handle_vendor_msg(unsigned char *buff, unsigned int len);
+    int handle_vendor_msg(unsigned char *buff, unsigned int len);
 
     // Weak hook for unrecognised attr_ids — overridden by private repo
     // to parse vendor STA private TLVs and populate dm_sta_ext_t.
@@ -48,8 +48,20 @@ public:
                                unsigned int         tlv_len,
                                dm_easy_mesh_t      *dm) { return 0; }
 
+    /**!
+     * @brief Processes the state of the agent.
+     *
+     * This function is responsible for handling the current state of the agent and performing necessary actions based on that state.
+     *
+     * @note This function does not take any parameters and does not return any value.
+     */
+    void process_agent_state();
+    void process_agent_state(em_cmd_event_type_t type);
+    
     // Send: packages m_raw_data from the current cmd as a vendor TLV CMDU.
     // int send_vendor_sta_lq_data();
+
+    int send_vendor_msg();
 
     em_vendor_t();
     virtual ~em_vendor_t();
