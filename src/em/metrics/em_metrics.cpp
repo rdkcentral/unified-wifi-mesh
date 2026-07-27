@@ -394,16 +394,39 @@ int em_metrics_t::handle_beacon_metrics_response(unsigned char *buff, unsigned i
         return -1;
     }
 
+    if (len < sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)) {
+        em_printfout("Frame shorter than the 1905 headers");
+        return -1;
+    }
+
     tlv = reinterpret_cast<em_tlv_t *> (buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
     tmp_len = len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
-    while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
+    while ((tmp_len >= sizeof(em_tlv_t)) && (tlv->type != em_tlv_type_eom)) {
+        /* Stop before a TLV that runs past the received bytes; tmp_len would underflow. */
+        size_t tlv_total = sizeof(em_tlv_t) + static_cast<size_t> (ntohs(tlv->len));
+        if (tmp_len < tlv_total) {
+            em_printfout("Truncated beacon metrics TLV, stopping");
+            break;
+        }
         if (tlv->type == em_tlv_type_bcon_metric_rsp) {
+            if (ntohs(tlv->len) < 8) {
+                em_printfout("Beacon metrics TLV too short");
+                return -1;
+            }
             report_len = static_cast<unsigned int>(ntohs(tlv->len) - 8);
+            if (report_len > sizeof(em_sta_info_t::beacon_report_elem)) {
+                report_len = sizeof(em_sta_info_t::beacon_report_elem);
+            }
             response = reinterpret_cast<em_beacon_metrics_resp_t *> (tlv->value);
             break;
         }
-        tmp_len -= static_cast<unsigned int> (sizeof(em_tlv_t) + static_cast<size_t> (htons(tlv->len)));
-        tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
+        tmp_len -= static_cast<unsigned int> (tlv_total);
+        tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + tlv_total);
+    }
+
+    if (response == NULL) {
+        em_printfout("Beacon metrics TLV not found");
+        return -1;
     }
 
     sta = dm->get_first_sta(response->sta_mac_addr);
@@ -435,20 +458,101 @@ int em_metrics_t::handle_beacon_metrics_response(unsigned char *buff, unsigned i
     return 0;
 }
 
-int em_metrics_t::handle_ap_metrics_tlv(unsigned char *buff, bssid_t get_bssid)
+int em_metrics_t::handle_ap_metrics_tlv(unsigned char *buff, unsigned int tlv_len, bssid_t get_bssid)
 {
-    em_ap_metric_t *ap_metrics = reinterpret_cast<em_ap_metric_t *> (buff);
-    em_bss_info_t *bss = get_data_model()->get_bss_info_with_mac(ap_metrics->bssid);
+    em_ap_metric_t *ap_metrics;
+    em_bss_info_t *bss;
     mac_addr_str_t bss_str;
+    mac_address_t zero_bssid = {0};
+
+    if (buff == NULL || tlv_len < sizeof(em_ap_metric_t)) {
+        return -1;
+    }
+
+    ap_metrics = reinterpret_cast<em_ap_metric_t *> (buff);
+
+    /* Unconfigured VAP: its zeroed utilization would clobber the radio's real value. */
+    if (memcmp(ap_metrics->bssid, zero_bssid, sizeof(mac_address_t)) == 0) {
+        return 0;
+    }
+
+    bss = get_data_model()->get_bss_info_with_mac(ap_metrics->bssid);
 
     memcpy(get_bssid, ap_metrics->bssid, sizeof(mac_addr_t));
     if (bss != NULL) {
         bss->numberofsta = htons(ap_metrics->num_sta);
+        bss->channel_util = ap_metrics->channel_util;
+        /* ruid.mac holds the owning radio's interface MAC, which get_radio() matches. */
+        dm_radio_t *radio = get_data_model()->get_radio(bss->ruid.mac);
+        if (radio != NULL) {
+            radio->m_radio_info.utilization = ap_metrics->channel_util;
+        }
         dm_easy_mesh_t::macbytes_to_string(ap_metrics->bssid, bss_str);
     } else {
         dm_easy_mesh_t::macbytes_to_string(ap_metrics->bssid, bss_str);
         em_printfout("Error: BSS not found: %s", bss_str);
     }
+
+    return 0;
+}
+
+int em_metrics_t::handle_ap_ext_metrics_tlv(unsigned char *buff, unsigned int tlv_len)
+{
+    em_ap_ext_metric_t *ap_ext_metrics;
+    em_bss_info_t *bss;
+    mac_addr_str_t bss_str;
+    uint32_t bytes;
+
+    if (buff == NULL || tlv_len < sizeof(em_ap_ext_metric_t)) {
+        return -1;
+    }
+
+    ap_ext_metrics = reinterpret_cast<em_ap_ext_metric_t *> (buff);
+    bss = get_data_model()->get_bss_info_with_mac(ap_ext_metrics->bssid);
+    if (bss == NULL) {
+        dm_easy_mesh_t::macbytes_to_string(ap_ext_metrics->bssid, bss_str);
+        em_printfout("Error: BSS not found: %s", bss_str);
+        return -1;
+    }
+
+    memcpy(&bytes, ap_ext_metrics->uni_bytes_sent, sizeof(bytes));
+    bss->unicast_bytes_sent = ntohl(bytes);
+    memcpy(&bytes, ap_ext_metrics->uni_bytes_recv, sizeof(bytes));
+    bss->unicast_bytes_rcvd = ntohl(bytes);
+    memcpy(&bytes, ap_ext_metrics->multi_bytes_sent, sizeof(bytes));
+    bss->multicast_bytes_sent = ntohl(bytes);
+    memcpy(&bytes, ap_ext_metrics->multi_bytes_recv, sizeof(bytes));
+    bss->multicast_bytes_rcvd = ntohl(bytes);
+    memcpy(&bytes, ap_ext_metrics->bcast_bytes_sent, sizeof(bytes));
+    bss->broadcast_bytes_sent = ntohl(bytes);
+    memcpy(&bytes, ap_ext_metrics->bcast_bytes_recv, sizeof(bytes));
+    bss->broadcast_bytes_rcvd = ntohl(bytes);
+
+    return 0;
+}
+
+int em_metrics_t::handle_radio_metrics_tlv(unsigned char *buff, unsigned int tlv_len)
+{
+    em_radio_metric_t *radio_metrics;
+    dm_radio_t *radio;
+    mac_addr_str_t radio_str;
+
+    if (buff == NULL || tlv_len < sizeof(em_radio_metric_t)) {
+        return -1;
+    }
+
+    radio_metrics = reinterpret_cast<em_radio_metric_t *> (buff);
+    radio = get_data_model()->get_radio(radio_metrics->ruid);
+    if (radio == NULL) {
+        dm_easy_mesh_t::macbytes_to_string(radio_metrics->ruid, radio_str);
+        em_printfout("Error: Radio not found: %s", radio_str);
+        return -1;
+    }
+
+    radio->m_radio_info.noise = radio_metrics->noise;
+    radio->m_radio_info.transmit = radio_metrics->transmit;
+    radio->m_radio_info.receive_self = radio_metrics->rece_self;
+    radio->m_radio_info.receive_other = radio_metrics->rece_other;
 
     return 0;
 }
@@ -542,6 +646,14 @@ int em_metrics_t::handle_link_stats_alarm_rprt_tlv(unsigned char *buff, size_t l
         em_printfout("\t\tLink Quality Threshold: %.2f", sta->m_sta_info.link_stats_report.link_quality_threshold);
         em_printfout("\t\tAlarm Triggered: %s", sta->m_sta_info.link_stats_report.alarm_triggered ? "True" : "False");
 
+        /* sample_count is wire data: reject counts past the array or the received bytes. */
+        if (link_report->sample_count < 0 ||
+            static_cast<size_t>(link_report->sample_count) > EM_MAX_SAMPLES_PER_LINK_REPORT ||
+            len < alarm_offset + static_cast<size_t>(link_report->sample_count) * sizeof(em_alarm_samples_t)) {
+            em_printfout("Invalid alarm sample_count %d (len %zu)", link_report->sample_count, len);
+            break;
+        }
+
         sta->m_sta_info.link_stats_report.sample_count = link_report->sample_count;
         em_printfout("    Number of Samples: %d", sta->m_sta_info.link_stats_report.sample_count);
 
@@ -584,6 +696,11 @@ int em_metrics_t::handle_ap_metrics_response(unsigned char *buff, unsigned int l
         return -1;
     }
 
+    if (len < sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)) {
+        em_printfout("Frame shorter than the 1905 headers");
+        return -1;
+    }
+
     tlv_start =  reinterpret_cast<em_tlv_t *> (buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
     base_len = static_cast<size_t> (len) - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
 
@@ -591,17 +708,29 @@ int em_metrics_t::handle_ap_metrics_response(unsigned char *buff, unsigned int l
     tlv = tlv_start;
     tmp_len = base_len;
 
-    while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
+    while ((tmp_len >= sizeof(em_tlv_t)) && (tlv->type != em_tlv_type_eom)) {
+        /* Stop before a TLV that runs past the received bytes; tmp_len would underflow. */
+        size_t tlv_total = sizeof(em_tlv_t) + static_cast<size_t> (ntohs(tlv->len));
+        if (tmp_len < tlv_total) {
+            em_printfout("Truncated AP metrics TLV, stopping");
+            break;
+        }
         switch (tlv->type) {
             case em_tlv_type_ap_metrics:
                 // Update current BSSID context; subsequent per-STA TLVs use this value.
-                handle_ap_metrics_tlv(tlv->value, bssid);
+                if (handle_ap_metrics_tlv(tlv->value, ntohs(tlv->len), bssid) != 0) {
+                    em_printfout("ap_metrics_tlv failed, skipping TLV");
+                }
                 break;
             case em_tlv_type_ap_ext_metric:
-                /* future implementation */
+                if (handle_ap_ext_metrics_tlv(tlv->value, ntohs(tlv->len)) != 0) {
+                    em_printfout("ap_ext_metrics_tlv failed, skipping TLV");
+                }
                 break;
             case em_tlv_type_radio_metric:
-                /* future implementation */
+                if (handle_radio_metrics_tlv(tlv->value, ntohs(tlv->len)) != 0) {
+                    em_printfout("radio_metrics_tlv failed, skipping TLV");
+                }
                 break;
             case em_tlv_type_assoc_sta_traffic_sts:
                 if (handle_assoc_sta_traffic_stats(tlv->value, bssid) != 0) {
@@ -629,8 +758,8 @@ int em_metrics_t::handle_ap_metrics_response(unsigned char *buff, unsigned int l
             default:
                 break;
         }
-        tmp_len -= (sizeof(em_tlv_t) + static_cast<size_t> (ntohs(tlv->len)));
-        tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + ntohs(tlv->len));
+        tmp_len -= tlv_total;
+        tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + tlv_total);
     }
 
     dm->set_db_cfg_param(db_cfg_type_sta_metrics_update, "");
@@ -1140,6 +1269,12 @@ int em_metrics_t::send_ap_metrics_response()
 
         if(dm->m_bss[bss_index].get_bss_info()->vap_mode != em_vap_mode_ap) {
             em_printfout("Vap mode is not ap, skipping");
+            continue;
+        }
+
+        mac_address_t zero_bssid = {0};
+        if (memcmp(dm->m_bss[bss_index].get_bss_info()->bssid.mac, zero_bssid, sizeof(mac_address_t)) == 0) {
+            /* Unconfigured VAP with no BSSID assigned; do not emit metrics for it. */
             continue;
         }
 
