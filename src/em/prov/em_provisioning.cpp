@@ -465,7 +465,7 @@ void em_provisioning_t::process_msg(uint8_t *data, unsigned int len)
             handle_1905_encap_eapol_msg(data, len, src_al_mac);
             break;
         default:
-            em_printfout("unhandled message type %u", htons(cmdu->type));
+            // em_printfout("unhandled message type %u", htons(cmdu->type));
             break;
     }
 }

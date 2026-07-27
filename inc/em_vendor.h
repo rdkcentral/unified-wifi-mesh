@@ -27,8 +27,25 @@ class dm_easy_mesh_t;
 class em_cmd_t;
 class em_mgr_t;
 
-class em_vendor_t {
 
+/**
+ * Abstract interface for private vendor extensions.
+ */
+class em_vendor_ext_interface_t {
+public:
+    virtual ~em_vendor_ext_interface_t() = default;
+
+    virtual int handle_vendor_tlv_ext(const unsigned char *tlv_value,
+                                       unsigned int         tlv_len,
+                                       dm_easy_mesh_t      *dm) = 0;
+
+};
+
+em_vendor_ext_interface_t* create_em_vendor_ext();
+
+class em_vendor_t {
+private:
+    em_vendor_ext_interface_t *m_vendor_ext;
 public:
     virtual dm_easy_mesh_t  *get_data_model() = 0;
     virtual em_state_t       get_state() = 0;
@@ -46,7 +63,7 @@ public:
     // to parse vendor STA private TLVs and populate dm_sta_ext_t.
     virtual int handle_vendor_tlv_ext(const unsigned char *tlv_value,
                                unsigned int         tlv_len,
-                               dm_easy_mesh_t      *dm) { return 0; }
+                               dm_easy_mesh_t      *dm);
 
     /**!
      * @brief Processes the state of the agent.
@@ -57,11 +74,14 @@ public:
      */
     void process_agent_state();
     void process_agent_state(em_cmd_event_type_t type);
-    
+
     // Send: packages m_raw_data from the current cmd as a vendor TLV CMDU.
     // int send_vendor_sta_lq_data();
 
     int send_vendor_msg();
+
+    // Helper getter for the extension pointer
+    em_vendor_ext_interface_t* get_ext() const { return m_vendor_ext; }
 
     em_vendor_t();
     virtual ~em_vendor_t();

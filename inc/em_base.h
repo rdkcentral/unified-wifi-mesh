@@ -2247,7 +2247,7 @@ typedef enum {
     vendor_ext_attr_id_link_report,     // data of type em_link_report_t
 
     //comcast vendor extension attributes, 0x100 - 0x1FF
-    vendor_ext_attr_id_wei_data = 0x100,
+    vendor_ext_attr_id_wei_data = 0xcc,
 
 
     vendor_ext_attr_id_max

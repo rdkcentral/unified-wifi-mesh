@@ -20,10 +20,10 @@
 #include "dm_sta.h"
 #include "dm_easy_mesh.h"
 #include "em_vendor.h"
-// #include "custom/inc/em_vendor_tlv_handler.h"
 #include "custom/inc/dm_sta_ext.h"
+#include "lq_socket.h"
 
-class em_vendor_ctrl_t : public em_vendor_t {
+class em_vendor_ctrl_t : public em_vendor_ext_interface_t {
 public:
     // bool handles(unsigned char attr_id) const override
     // {
@@ -106,5 +106,6 @@ public:
                                unsigned int         tlv_len,
                                dm_easy_mesh_t      *dm) override;
 
-    void publish_wei_app();
+private:
+    void publish_wei_app(wei_data_t wei_data);
 };

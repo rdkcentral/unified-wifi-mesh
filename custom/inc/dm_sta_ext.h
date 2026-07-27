@@ -11,7 +11,7 @@
 
 #include <string>
 #include "dm_easy_mesh.h"
-
+#include "dm_sta.h"
 
 #if 0
 typedef struct {
@@ -46,7 +46,8 @@ typedef struct {
  * em_sta_info_t or dm_sta_t in the public repo.
  */
 // class dm_sta_ext_t : public dm_sta_t {
-class dm_sta_ext_t {
+// class dm_sta_ext_t {
+class dm_sta_ext_t : public dm_sta_ext_interface_t {
 private:
     // Populated from Device.WiFi.EM.StaLQData (stats_arg_t, no DHCP fields)
     std::string    ap_mac_str;
@@ -76,7 +77,7 @@ public:
     dm_sta_ext_t(const dm_sta_ext_t&) = default;
     dm_sta_ext_t& operator=(const dm_sta_ext_t&) = default;
 
-    virtual ~dm_sta_ext_t();
+    ~dm_sta_ext_t() override;
     // void handle_vendor_ext_tlv(const unsigned char *tlv_value, unsigned int tlv_len, dm_easy_mesh_t *dm) override;
     // Called by the extern "C" hook in dm_sta_ext.cpp at the end of
     // dm_sta_t::decode() — parses vendor-private JSON fields from the
@@ -86,6 +87,11 @@ public:
     // encode
     // decode
     // publish
+
+    // Deep copy implementation for copy constructor of dm_sta_t
+    dm_sta_ext_interface_t* clone() const override {
+        return new dm_sta_ext_t(*this);
+    }
 };
 
 #endif // DM_STA_EXT_H

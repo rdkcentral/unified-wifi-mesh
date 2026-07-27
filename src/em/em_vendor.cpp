@@ -25,6 +25,12 @@
 #include "em_cmd.h"
 
 #define EM_LQ_DATA_VENDOR_TLV_ATTR_ID 0x10
+
+// Weak factory fallback: Returns nullptr if custom extension code is omitted
+__attribute__((weak)) em_vendor_ext_interface_t* create_em_vendor_ext() {
+    return nullptr;
+}
+
 unsigned int em_vendor_t::get_vendor_id(unsigned char *buff) 
 {
     em_vendor_specific_t *vendor_data = reinterpret_cast<em_vendor_specific_t *> (buff);
@@ -57,7 +63,7 @@ int em_vendor_t::handle_vendor_msg(unsigned char *buff, unsigned int len)
     while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
         if (tlv->type == em_tlv_type_vendor_specific) {
             em_vendor_specific_t *vendor_tlv = reinterpret_cast<em_vendor_specific_t *> (tlv->value);
-            em_printfout("Recvd vendor tlv, num: %d and tlv->len:%d", vendor_tlv->num, ntohs(tlv->len));
+            em_printfout("------->> Recvd vendor tlv, num: %d and tlv->len:%d", vendor_tlv->num, ntohs(tlv->len));
             if ((vendor_tlv->num <= 0) || (ntohs(tlv->len) == 0)) {
                 break;
             }
@@ -68,6 +74,8 @@ int em_vendor_t::handle_vendor_msg(unsigned char *buff, unsigned int len)
                  
                 if (vendor_data_ptr->attr_id == vendor_ext_attr_id_wei_data) {
                     // Handle the LQ data vendor TLV
+                em_printfout("call vendor handler");
+
                     handle_vendor_tlv_ext(tlv->value, ntohs(tlv->len), get_data_model());
                     // handle_vendor_ext_tlv(tlv->value, ntohs(tlv->len), get_data_model());
                 }
@@ -79,6 +87,16 @@ int em_vendor_t::handle_vendor_msg(unsigned char *buff, unsigned int len)
     }
 
     return 0;
+}
+
+int em_vendor_t::handle_vendor_tlv_ext(const unsigned char *tlv_value,
+                                        unsigned int         tlv_len,
+                                        dm_easy_mesh_t      *dm)
+{
+    if (m_vendor_ext) {
+        return m_vendor_ext->handle_vendor_tlv_ext(tlv_value, tlv_len, dm);
+    }
+    return 0; // Default base fallback
 }
 
 // Sends the raw stats_arg_t[] bytes from the current vendor-data cmd
@@ -95,7 +113,11 @@ int em_vendor_t::send_vendor_msg()
         return 0;
     }
 
-    unsigned char buff[MAX_EM_BUFF_SZ] = {0};
+    em_printfout("-------> Sending vendor message with raw data size: %zu\n", raw->size());
+    // em_printfout("-------> cmdd state: %s", em_t::state_2_str(get_current_cmd()->get_state()));
+
+
+    unsigned char buff[MAX_EM_BUFF_SZ * EM_MAX_RADIO_PER_AGENT] = {0};
     unsigned char *tmp = buff;
     size_t len = 0;
     em_cmdu_t *cmdu;
@@ -129,6 +151,7 @@ int em_vendor_t::send_vendor_msg()
     *vp++ = vendor_ext_attr_id_wei_data;
     memcpy(vp, raw->data(), raw->size()); vp += raw->size();
     unsigned int tlv_val_len = static_cast<unsigned int>(vp - tlv->value);
+    em_printfout("Vendor TLV value length: %u\n", tlv_val_len);
     tlv->len = htons(static_cast<unsigned short>(tlv_val_len));
     tmp += sizeof(em_tlv_t) + tlv_val_len;
     len += sizeof(em_tlv_t) + tlv_val_len;
@@ -139,14 +162,27 @@ int em_vendor_t::send_vendor_msg()
     tlv->len  = 0;
     len += sizeof(em_tlv_t);
 
-    return send_frame(buff, static_cast<unsigned int>(len));
+    int ret = send_frame(buff, static_cast<unsigned int>(len));
+    if (ret == 0) {
+        cmd->processed = true;
+        em_printfout("Vendor msg sent and proceesd cmd set to true: %u\n", tlv_val_len);
+    }
+    return ret;
 }
 
 void em_vendor_t::process_agent_state()
 {
-    switch (get_current_cmd()->get_type()) {
+    em_cmd_t *cmd = get_current_cmd();
+    if (cmd == NULL) {
+        em_printfout("Current command is NULL");
+        return;
+    }
+
+    switch (cmd->get_type()) {
         case em_cmd_type_generic_data:
-            send_vendor_msg();
+            if (cmd->processed == false) {
+                send_vendor_msg();
+            }
             break;
 
         default:
@@ -154,5 +190,16 @@ void em_vendor_t::process_agent_state()
     }
 }
 
-em_vendor_t::em_vendor_t()  {}
-em_vendor_t::~em_vendor_t() {}
+em_vendor_t::em_vendor_t()
+    : m_vendor_ext(create_em_vendor_ext())
+{
+    // Base initialization logic here
+}
+
+em_vendor_t::~em_vendor_t()
+{
+    // Safe! ~em_vendor_ext_interface_t() is virtual, so delete cleanly destroys
+    // the private instance without needing custom headers included here.
+    delete m_vendor_ext;
+    m_vendor_ext = nullptr;
+}

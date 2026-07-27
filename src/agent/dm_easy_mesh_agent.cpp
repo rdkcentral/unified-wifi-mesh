@@ -1194,11 +1194,13 @@ int dm_easy_mesh_agent_t::analyze_wei_app_data(em_bus_event_t *evt, em_cmd_t *pc
 {
     unsigned int num = 0;
 
-    pcmd[num] = new em_cmd_generic(evt->u.raw_buff, static_cast<int>(evt->data_len), *(this));
+    pcmd[num] = new em_cmd_generic_t(evt->u.raw_buff, static_cast<int>(evt->data_len), *(this));
     if (pcmd[num] == nullptr) {
         return 0;
     }
 
+    num++;
+    em_printfout("Analyzing WEI app data [num=%u], raw buffer: %s", num, reinterpret_cast<const char *>(evt->u.raw_buff));
     return static_cast<int>(num);
 }
 

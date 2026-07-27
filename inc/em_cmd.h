@@ -43,6 +43,7 @@ public:
     unsigned int m_rd_op_class;
     unsigned int m_rd_channel;
     unsigned int m_db_cfg_type;
+	bool processed = false;
 
 public:
     

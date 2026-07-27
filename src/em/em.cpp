@@ -252,7 +252,7 @@ void em_t::orch_execute(em_cmd_t *pcmd)
             break;
 
         case em_cmd_type_generic_data:
-            m_sm.set_state(em_state_agent_vendor_data_pending);
+           // m_sm.set_state(em_state_agent_vendor_data_pending);
             break;
 
         case em_cmd_type_unassoc_sta_query:

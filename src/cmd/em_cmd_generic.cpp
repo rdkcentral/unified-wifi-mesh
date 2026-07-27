@@ -29,7 +29,7 @@
 #include <pthread.h>
 #include "em_cmd_generic.h"
 
-em_cmd_generic::em_cmd_generic(uint8_t *raw_buff, int len, dm_easy_mesh_t& dm)
+em_cmd_generic_t::em_cmd_generic_t(uint8_t *raw_buff, int len, dm_easy_mesh_t& dm)
 {
     em_cmd_ctx_t ctx;
 

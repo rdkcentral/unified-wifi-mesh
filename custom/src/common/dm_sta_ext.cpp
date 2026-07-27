@@ -105,3 +105,23 @@ dm_sta_ext_t::~dm_sta_ext_t()
 // {
 //     dm_sta_ext_t::decode_from_json(sta, obj);
 // }
+
+
+// dm_sta_ext_t* create_dm_sta_ext() {
+//     return new dm_sta_ext_t();
+// }
+
+// void destroy_dm_sta_ext(dm_sta_ext_t* ext) {
+//     delete ext;
+// }
+
+// dm_sta_ext_t* clone_dm_sta_ext(const dm_sta_ext_t* ext) {
+//     return ext ? new dm_sta_ext_t(*ext) : nullptr;
+// }
+
+
+// STRONG FACTORY SYMBOL OVERRIDE:
+// Linker automatically binds this instead of the weak default when building with private repo.
+dm_sta_ext_interface_t* create_dm_sta_ext() {
+    return new dm_sta_ext_t();
+}

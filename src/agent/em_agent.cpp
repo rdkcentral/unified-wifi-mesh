@@ -1198,6 +1198,8 @@ void em_agent_t::handle_wei_app_data(em_bus_event_t *evt)
         em_printfout("analyze_wei_app_data in progress");
     } else if ((num = static_cast<unsigned int>(m_data_model.analyze_wei_app_data(evt, pcmd))) == 0) {
         em_printfout("analyze_wei_app_data failed");
+    } else if (m_orch->submit_commands(pcmd, num) > 0) {
+        em_printfout("Submitted WEI app data cmd for orch");
     }
 }
 
@@ -1738,10 +1740,6 @@ int em_agent_t::report_cb(char *event_name, bus_data_prop_t *data, void *userDat
 
     if (strncmp(event_name, "Device.WiFi.EM.APMetricsReport", sizeof("Device.WiFi.EM.APMetricsReport"))==0) {
         g_agent.io_process(em_bus_event_type_ap_metrics_report, reinterpret_cast<unsigned char *>(data->value.raw_data.bytes), data->value.raw_data_len);
-
-        //test code to treigger wei app data from onewifi
-        g_agent.io_process(em_bus_event_type_wei_app_data, reinterpret_cast<unsigned char *>(data->value.raw_data.bytes), data->value.raw_data_len);
-
     } else if (strncmp(event_name, WIFI_QUALITY_LINKREPORT, sizeof(WIFI_QUALITY_LINKREPORT))==0) {
         cJSON *json = cJSON_Parse(reinterpret_cast<const char *>(data->value.raw_data.bytes));
         if (json != NULL) {
@@ -1759,7 +1757,7 @@ int em_agent_t::report_cb(char *event_name, bus_data_prop_t *data, void *userDat
                     cJSON_Delete(json);
                     return -1;
                 }
-                em_printfout("Received Frame data for event [%s] and data :\n%s", event_name, data->value.raw_data.bytes);
+                //em_printfout("Received Frame data for event [%s] and data :\n%s", event_name, data->value.raw_data.bytes);
             }
             cJSON_Delete(json);
         }
@@ -1915,6 +1913,7 @@ int em_agent_t::mgmt_csa_beacon_frame_cb(char *event_name, bus_data_prop_t *data
 
 int em_agent_t::wei_data_cb(char *event_name, bus_data_prop_t *data, void *userData)
 {
+    em_printfout("  ########### Received WEI app data, raw buffer: %s", reinterpret_cast<const char *>(data->value.raw_data.bytes));
     g_agent.io_process(em_bus_event_type_wei_app_data, reinterpret_cast<unsigned char *>(data->value.raw_data.bytes), data->value.raw_data_len);
     return 1;
 }

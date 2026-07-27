@@ -22,23 +22,43 @@
 #include "em_base.h"
 
 
-// Forward declaration — definition lives in a separate (private) repo.
-// Consumers of this header never see the internals of dm_sta_ext_t.
-class dm_sta_ext_t;
+// // Forward declaration — definition lives in a separate (private) repo.
+// class dm_sta_ext_t;
+
+// // Factory function declarations for lifecycle management
+// dm_sta_ext_t* create_dm_sta_ext();
+// void destroy_dm_sta_ext(dm_sta_ext_t* ext);
+// dm_sta_ext_t* clone_dm_sta_ext(const dm_sta_ext_t* ext);
+
+// Pure Abstract Interface for private vendor extensions.
+// Public code interacts ONLY with this interface.
+class dm_sta_ext_interface_t {
+public:
+    virtual ~dm_sta_ext_interface_t() = default;
+    
+    // Abstract clone method to support copy-construction of dm_sta_t
+    virtual dm_sta_ext_interface_t* clone() const = 0;
+};
+
+// Factory function declaration (implemented via weak symbol in dm_sta.cpp)
+dm_sta_ext_interface_t* create_dm_sta_ext();
 
 class dm_sta_t {
 public:
     em_sta_info_t    m_sta_info;
 
 private:
-    dm_sta_ext_t *m_sta_ext;
+    dm_sta_ext_interface_t *m_sta_ext;
 
 public:
     // Returns the opaque private extension pointer.
     // Only meaningful when built together with the private repo that defines dm_sta_ext_t.
-    dm_sta_ext_t *get_priv() { return m_sta_ext; }
-    const dm_sta_ext_t *get_priv() const { return m_sta_ext; }
-    void              set_priv(dm_sta_ext_t *p) { m_sta_ext = p; }
+    // dm_sta_ext_t *get_priv() { return m_sta_ext; }
+    // const dm_sta_ext_t *get_priv() const { return m_sta_ext; }
+    // void              set_priv(dm_sta_ext_t *p) { m_sta_ext = p; }
+	dm_sta_ext_interface_t *get_priv() { return m_sta_ext; }
+    const dm_sta_ext_interface_t *get_priv() const { return m_sta_ext; }
+    void set_priv(dm_sta_ext_interface_t *p) { m_sta_ext = p; }
 
 public:
     
