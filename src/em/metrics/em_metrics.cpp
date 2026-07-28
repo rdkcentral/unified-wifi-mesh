@@ -80,8 +80,8 @@ int em_metrics_t::handle_assoc_sta_link_metrics_tlv(unsigned char *buff,
             continue;
         }
 
-        sta->m_sta_info.est_dl_rate = metrics->est_mac_data_rate_dl;
-        sta->m_sta_info.est_ul_rate = metrics->est_mac_data_rate_ul;
+        sta->m_sta_info.est_dl_rate = ntohl(metrics->est_mac_data_rate_dl);
+        sta->m_sta_info.est_ul_rate = ntohl(metrics->est_mac_data_rate_ul);
         sta->m_sta_info.rcpi = metrics->rcpi;
     }
 
@@ -119,10 +119,10 @@ int em_metrics_t::handle_assoc_sta_ext_link_metrics_tlv(unsigned char *buff, uns
             continue;
         }
 
-        sta->m_sta_info.last_dl_rate = metrics->last_data_dl_rate;
-        sta->m_sta_info.last_ul_rate = metrics->last_data_ul_rate;
-        sta->m_sta_info.util_rx = metrics->util_receive;
-        sta->m_sta_info.util_tx = metrics->util_transmit;
+        sta->m_sta_info.last_dl_rate = ntohl(metrics->last_data_dl_rate);
+        sta->m_sta_info.last_ul_rate = ntohl(metrics->last_data_ul_rate);
+        sta->m_sta_info.util_rx = ntohl(metrics->util_receive);
+        sta->m_sta_info.util_tx = ntohl(metrics->util_transmit);
     }
 
     return 0;

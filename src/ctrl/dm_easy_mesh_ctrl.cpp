@@ -39,6 +39,7 @@
 #include "em_ctrl.h"
 #include "tr_181.h"
 #include "util.h"
+#include "em_crypto.h"
 #include <cjson/cJSON.h>
 #include "em_cmd_exec.h"
 #include "em_cmd_reset.h"
@@ -5419,17 +5420,9 @@ char* dm_easy_mesh_ctrl_t::get_ht_caps_str(em_ap_ht_cap_t *ht, char *buf, size_t
     data |= static_cast<uint8_t>(ht->gi_sprt_40mhz << 2);
     data |= static_cast<uint8_t>(ht->ht_sprt_40mhz << 1);
 
-#if 0 // enable when libubox is added
-    /* Now encode as base64 */
-    if (b64_encode(&data, sizeof(data), buf, buf_len) < 0) {
-        em_printfout("b64_encode failed\n");
-    }
-#else
-    // Encode as hex string
-    if (buf_len >= 3) { // 2 chars + null terminator
-        snprintf(buf, buf_len, "%02X", data);
-    }
-#endif
+    /* HTCapabilities is a base64 encoded octet string per TR-181 DataElements. */
+    std::string encoded = em_crypto_t::base64_encode(&data, sizeof(data));
+    snprintf(buf, buf_len, "%s", encoded.c_str());
     return buf;
 }
 
@@ -5454,19 +5447,9 @@ char* dm_easy_mesh_ctrl_t::get_vht_caps_str(em_ap_vht_cap_t *vht, char *buf, siz
     data[5] |= static_cast<uint8_t>(vht->su_beamformer_cap << 5);
     data[5] |= static_cast<uint8_t>(vht->mu_beamformer_cap << 4);
 
-#if 0 // enable when libubox is added
-    /* Now encode as base64 */
-    if (b64_encode(&data, sizeof(data), buf, buf_len) < 0) {
-        em_printfout("b64_encode failed\n");
-    }
-#else
-    // Encode as hex string
-    if (buf_len >= sizeof(data) * 2 + 1) {
-        for (size_t i = 0; i < sizeof(data); i++) {
-            snprintf(buf + i*2, buf_len - i*2, "%02X", data[i]);
-        }
-    }
-#endif
+    /* VHTCapabilities is a base64 encoded octet string per TR-181 DataElements. */
+    std::string encoded = em_crypto_t::base64_encode(data, sizeof(data));
+    snprintf(buf, buf_len, "%s", encoded.c_str());
 
     return buf;
 }
@@ -5545,13 +5528,11 @@ bus_error_t dm_easy_mesh_ctrl_t::radio_get_inner(char *event_name, raw_data_t *p
     em_radio_info_t *ri = radio->get_radio_info();
 
     if (strcmp(param, "ID") == 0) {
-#if 0 // enable when libubox is added
+        /* Radio ID is the base64 encoded RUID (MAC) per TR-181 DataElements. */
         char id_str[16] = { 0 };
-        b64_encode(ri->id.ruid, sizeof(ri->id.ruid), id_str, sizeof(id_str));
+        std::string id_b64 = em_crypto_t::base64_encode(ri->id.ruid, sizeof(ri->id.ruid));
+        snprintf(id_str, sizeof(id_str), "%s", id_b64.c_str());
         rc = dm_ctrl->raw_data_set(p_data, id_str);
-#else
-        rc = dm_ctrl->raw_data_set(p_data, ri->id.ruid);
-#endif
     } else if (strcmp(param, "Enabled") == 0) {
         rc = dm_ctrl->raw_data_set(p_data, ri->enabled);
     } else if (strcmp(param, "Noise") == 0) {
@@ -5645,14 +5626,11 @@ bus_error_t dm_easy_mesh_ctrl_t::radio_tget_params(dm_easy_mesh_t *dm, const cha
             continue;
         }
         em_radio_info_t *ri = radio->get_radio_info();
-#if 0 // enable when libubox is added
+        /* Radio ID is the base64 encoded RUID (MAC) per TR-181 DataElements. */
         char id_str[16] = { 0 };
-
-        b64_encode(ri->id.ruid, sizeof(ri->id.ruid), id_str, sizeof(id_str));
+        std::string id_b64 = em_crypto_t::base64_encode(ri->id.ruid, sizeof(ri->id.ruid));
+        snprintf(id_str, sizeof(id_str), "%s", id_b64.c_str());
         dm_ctrl->property_append_tail(property, root, idx, "ID", id_str);
-#else
-        dm_ctrl->property_append_tail(property, root, idx, "ID", ri->id.ruid);
-#endif
         dm_ctrl->property_append_tail(property, root, idx, "Enabled", ri->enabled);
         dm_ctrl->property_append_tail(property, root, idx, "Noise", static_cast<unsigned int> (ri->noise));
         dm_ctrl->property_append_tail(property, root, idx, "Utilization", static_cast<unsigned int> (ri->utilization));
