@@ -118,6 +118,15 @@ public:
 	 * calling this function.
 	 */
 	static void decode_sta_capability(dm_sta_t *sta);
+
+    /**!
+     * @brief Returns true if the STA advertises support for at least one 802.11k
+     *        beacon measurement mode (Passive, Active, or Table).
+     *
+     * Reads m_sta_info.rm_cap (a compact hex string) and tests bits 4-6 of the
+     * first RM Enabled Capabilities octet (IEEE 802.11-2020 Table 9-157).
+     */
+    bool supports_beacon_measurement() const;
     
 	/**!
 	 * @brief Decodes the beacon report for the given station.

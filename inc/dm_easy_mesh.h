@@ -1756,6 +1756,7 @@ public:
 	static void update_assoc_sta_mld_info(void *dm, em_assoc_sta_mld_info_t *assoc_sta_mld_info) { (static_cast<dm_easy_mesh_t *>(dm))->update_assoc_sta_mld_info(assoc_sta_mld_info); }
 
 	void remove_assoc_sta_mld_info(mac_address_t sta_mld_mac);
+	void apply_sta_cap_to_maps(const char *key, em_sta_info_t *info);
 	bool is_ap_mld_mac(const mac_address_t mac);
 	bool resolve_ap_mld_to_fallback_ruid(const mac_address_t ap_mld_mac, mac_address_t fallback_ruid);
 
@@ -2313,7 +2314,8 @@ public:
 	 */
 	int get_num_bss_for_associated_sta(mac_address_t sta_mac);
     
-    
+    bool is_sta_mld(mac_address_t sta_mac);
+
 	/**!
 	 * @brief Converts a byte array to a hexadecimal string representation.
 	 *

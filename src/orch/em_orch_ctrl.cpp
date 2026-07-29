@@ -296,8 +296,11 @@ bool em_orch_ctrl_t::is_em_ready_for_orch_fini(em_cmd_t *pcmd, em_t *em)
             }
             break;
 
-	case em_cmd_type_unassoc_sta_query:
-            if (em->get_state() == em_state_ctrl_configured) {
+	    case em_cmd_type_unassoc_sta_query:
+            break;
+
+        case em_cmd_type_beacon_report:
+            if (em->get_state() == em_state_beacon_report_complete) {
                 return true;
             }
             break;
@@ -360,8 +363,14 @@ bool em_orch_ctrl_t::is_em_ready_for_orch_exec(em_cmd_t *pcmd, em_t *em)
         case em_cmd_type_scan_channel:
         case em_cmd_type_set_policy:
         case em_cmd_type_bsta_cap:
-	case em_cmd_type_unassoc_sta_query:
-            if (em->get_state() == em_state_ctrl_configured) {
+	    case em_cmd_type_unassoc_sta_query:
+            if (em->get_state() >= em_state_ctrl_topo_synchronized) {
+                return true;
+            }
+            break;
+        case em_cmd_type_beacon_report:
+            if ((em->get_state() >= em_state_ctrl_topo_synchronized) ||
+                (em->get_state() == em_state_beacon_report_pending)) {
                 return true;
             }
             break;
@@ -566,9 +575,8 @@ bool em_orch_ctrl_t::pre_process_orch_op(em_cmd_t *pcmd)
 unsigned int em_orch_ctrl_t::build_candidates(em_cmd_t *pcmd)
 {
     em_t *em;
-    std::vector<em_t *> sta_assoc_fallback_ems;
     dm_easy_mesh_t *dm;
-    mac_address_t	bss_mac, rad_mac, dev_mac;
+    mac_address_t   rad_mac, dev_mac;
     unsigned int count = 0, i;
     em_disassoc_params_t *disassoc_param;
     dm_sta_t *sta;
@@ -645,21 +653,15 @@ unsigned int em_orch_ctrl_t::build_candidates(em_cmd_t *pcmd)
             case em_cmd_type_sta_assoc:
                 dm = em->get_data_model();
                 dm_easy_mesh_t::string_to_macbytes(pcmd->m_param.u.args.args[0], dev_mac);
-                dm_easy_mesh_t::string_to_macbytes(pcmd->m_param.u.args.args[1], bss_mac);
-                //em_printfout("BSS for this STA %s is %s", pcmd->m_param.u.args.args[2], pcmd->m_param.u.args.args[1]);
-                for (i = 0; i < dm->m_num_bss; i++) {
-                    if ((memcmp(dm->m_bss[i].m_bss_info.bssid.mac, bss_mac, sizeof(mac_address_t)) == 0) &&
-                        (em->is_al_interface_em() == false)) {
-                        queue_push(pcmd->m_em_candidates, em);
-                        count++;
-                        //em_printfout("Found em this STA, candidate count: %d", count);
-                        break;
-                    }
-                }
-
                 if ((em->is_al_interface_em() == false) &&
-                    (memcmp(dm->get_agent_al_interface_mac(), dev_mac, sizeof(mac_address_t)) == 0)) {
-                    sta_assoc_fallback_ems.push_back(em);
+                    (memcmp(dm->get_agent_al_interface_mac(), dev_mac, sizeof(mac_address_t)) == 0) &&
+                    (count == 0)) {
+                    em_printfout("sta_assoc: using radio %s for dev %s orch_op: %s",
+                        util::mac_to_string(em->get_radio_interface_mac()).c_str(),
+                        pcmd->m_param.u.args.args[0],
+                        em_cmd_t::get_orch_op_str(pcmd->get_orch_op()));
+                    queue_push(pcmd->m_em_candidates, em);
+                    count++;
                 }
                 break;
 
@@ -776,15 +778,6 @@ unsigned int em_orch_ctrl_t::build_candidates(em_cmd_t *pcmd)
 		break;
 	}
         em = static_cast<em_t *>(hash_map_get_next(m_mgr->m_em_map, em));
-    }
-
-    if ((pcmd->m_type == em_cmd_type_sta_assoc) && (count == 0) && (!sta_assoc_fallback_ems.empty())) {
-        em_printfout("No per-link BSS match for %s, using %zu fallback radios",
-                pcmd->m_param.u.args.args[1], sta_assoc_fallback_ems.size());
-        for (auto *fallback_em : sta_assoc_fallback_ems) {
-            queue_push(pcmd->m_em_candidates, fallback_em);
-            count++;
-        }
     }
 
     pthread_mutex_unlock(&m_mgr->m_mutex);
