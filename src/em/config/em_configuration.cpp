@@ -753,7 +753,7 @@ int em_configuration_t::send_autoconfig_renew_msg()
     tlv = reinterpret_cast<em_tlv_t *> (tmp);
     tlv->type = em_tlv_type_al_mac_address;
     tlv->len = htons(sizeof(mac_address_t));
-    memcpy(tlv->value, dm->get_agent_al_interface_mac(), sizeof(mac_address_t));
+    memcpy(tlv->value, dm->get_ctrl_al_interface_mac(), sizeof(mac_address_t));
 
     tmp += (sizeof (em_tlv_t) + sizeof(mac_address_t));
     len += static_cast<unsigned int> (sizeof (em_tlv_t) + sizeof(mac_address_t));

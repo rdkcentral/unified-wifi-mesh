@@ -1979,31 +1979,44 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
 		found = false;
 		if (em_msg_t(data + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)),
 				len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_freq_band(&band) == false) {
-			printf("%s:%d: Could not find frequency band\n", __func__, __LINE__);
+			em_printfout("Could not find frequency band");
 			return NULL;
 		}
 
 		if (em_msg_t(data + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)),
 			len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_al_mac_address(ruid) == false) {
-			printf("%s:%d: Could not find radio_id for em_msg_type_autoconf_renew\n", __func__, __LINE__);
+			em_printfout("Could not find AL MAC for em_msg_type_autoconf_renew");
 			return NULL;
 		}
 		dm_easy_mesh_t::macbytes_to_string(ruid, al_mac_str);
-		strcat(al_mac_str, "_al");
-		if ((em = static_cast<em_t *>(hash_map_get(m_em_map, al_mac_str))) != NULL) {
-			printf("%s:%d: Found existing AL MAC:%s\n", __func__, __LINE__, al_mac_str);
-		} else {
-			return NULL;
-		}
+
 		em = static_cast<em_t *>(hash_map_get_first(m_em_map));
 		while (em != NULL) {
 			if (!(em->is_al_interface_em())) {
+				if (em->get_data_model() != NULL) {
+					mac_address_t ctrl_al_mac = {0};
+					unsigned char *ctrl_mac_ptr = em->get_data_model()->get_ctrl_al_interface_mac();
+					if (ctrl_mac_ptr != NULL) {
+						memcpy(ctrl_al_mac, ctrl_mac_ptr, sizeof(mac_address_t));
+					}
+					mac_address_t zero_mac = {0};
+					// Check if the controller AL MAC is not zero and does not match the received AL MAC
+					if ((memcmp(ctrl_al_mac, zero_mac, sizeof(mac_address_t)) != 0) &&
+					    (memcmp(ruid, ctrl_al_mac, sizeof(mac_address_t)) != 0)) {
+						dm_easy_mesh_t::macbytes_to_string(ctrl_al_mac, mac_str2);
+						em_printfout("Received AL MAC %s does not match previously connected controller AL MAC %s", al_mac_str, mac_str2);
+						em = static_cast<em_t *>(hash_map_get_next(m_em_map, em));
+						//TODO : Need to check do we really need to check for next radio if match fails!
+						continue;
+					}
+				}
 				if (em->is_matching_freq_band(&band) == true) {
 					if ((em->get_state() != em_state_agent_autoconfig_renew_pending) && (em->get_state() !=em_state_agent_wsc_m2_pending) && (em->get_state() != em_state_agent_owconfig_pending) ) {
+						em_printfout("Found matching band %d for autoconfig renew request, received controller AL MAC is %s", band, al_mac_str);
 						found = true;
 						break;
 					} else {
-						printf("%s:%d: Found matching band%d but incorrect em state %d\n", __func__, __LINE__, band, em->get_state());
+						em_printfout("Found matching band %d but incorrect em state %d", band, em->get_state());
 						return NULL;
 					}
 				}
@@ -2011,7 +2024,7 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
 			em = static_cast<em_t *>(hash_map_get_next(m_em_map, em));
 		}
 		if (found == false) {
-			printf("%s:%d: Could not find em with matching band%d and expected state \n", __func__, __LINE__, band);
+			em_printfout("Could not find em with matching band %d and expected state", band);
 			return NULL;
 		}
 		break;
