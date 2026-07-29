@@ -916,11 +916,8 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
 
             break;
 
-        case em_msg_type_topo_resp:
-        case em_msg_type_channel_pref_rprt:
         case em_msg_type_channel_sel_rsp:
         case em_msg_type_op_channel_rprt:
-        case em_msg_type_ap_cap_rprt:
             if (em_msg_t(data + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)),
                     len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_radio_id(&ruid) == false) {
                 em_printfout("Could not find radio id in msg:0x%04x", htons(cmdu->type));
@@ -931,6 +928,27 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
             if ((em = static_cast<em_t *> (hash_map_get(m_em_map, mac_str1))) == NULL) {
                 em_printfout("Could not find radio:%s", mac_str1);
                 return NULL;
+            }
+            break;
+
+        case em_msg_type_topo_resp:
+        case em_msg_type_ap_cap_rprt:
+        case em_msg_type_channel_pref_rprt:
+            if ((dm = get_data_model(GLOBAL_NET_ID, const_cast<const unsigned char *>(hdr->src))) == NULL) {
+                em_printfout("Cannot find data model for agent AL MAC %s", util::mac_to_string(hdr->src).c_str());
+                em = NULL;
+                break;
+            }
+            em = NULL;
+            for (i = 0; i < dm->get_num_radios(); i++) {
+                dm_easy_mesh_t::macbytes_to_string(dm->get_radio_info(i)->id.ruid, mac_str1);
+                em = static_cast<em_t *>(hash_map_get(m_em_map, mac_str1));
+                if (em != NULL) {
+                    break;
+                }
+            }
+            if (em == NULL) {
+                em_printfout("No EM found for agent AL MAC %s", util::mac_to_string(hdr->src).c_str());
             }
             break;
 
