@@ -1026,17 +1026,6 @@ em_msg_t::em_msg_t(em_msg_type_t type, em_profile_type_t profile, unsigned char 
             higher_layer_data();
             break;
 
-
-        case em_msg_type_bh_steering_req:
-            bh_steering_req();
-            break;
-
-
-        case em_msg_type_bh_steering_rsp:
-            bh_steering_rsp();
-            break;
-
-
         case em_msg_type_client_cap_rprt:
             client_cap_rprt();
             break;
@@ -1203,6 +1192,14 @@ em_msg_t::em_msg_t(em_msg_type_t type, em_profile_type_t profile, unsigned char 
 
         case em_msg_type_1905_ack:
             i1905_ack();
+            break;
+
+        case em_msg_type_bh_steering_req:
+            bh_steering_req();
+            break;
+
+        case em_msg_type_bh_steering_rsp:
+            bh_steering_rsp();
             break;
 
         default: 

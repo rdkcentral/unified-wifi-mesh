@@ -111,6 +111,16 @@ type Backhaul struct {
     Child      []NetworkDevice `json:"child"`
 }
 
+// Holds the parameters for a 1905 Backhaul Steering Request.
+// Field names match the keys expected by the C JSON parser.
+type backhaulSteeringRequest struct {
+    AlMac   string `json:"AlMac"`
+    StaMac  string `json:"StaMac"`
+    Bssid   string `json:"Bssid"`
+    OpClass int    `json:"OpClass"`
+    Channel int    `json:"Channel"`
+}
+
 type Radio struct {
     Band     int      `json:"band"`
     Channel  int      `json:"channel"`
@@ -2905,8 +2915,11 @@ func main() {
 	//system setting Wifi Reset
 	api.HandleFunc("/wifireset", WifiResetHandler).Methods("GET", "POST")
 
-	// Unassoc STA 
+	// Unassoc STA
 	api.HandleFunc("/unassoc_sta_query", unassocStaQueryHandler).Methods("POST")
+
+	// 1905 Backhaul Steering
+	api.HandleFunc("/backhaul_steer", backhaulSteerHandler).Methods("POST")
 
 	// Enable CORS
 	router.Use(corsMiddleware)
@@ -3519,7 +3532,6 @@ func WifiResetHandler(w http.ResponseWriter, r *http.Request) {
     }
 }
 
-
 /*
  * func: unassocStaQueryHandler()
  *
@@ -3534,7 +3546,7 @@ func unassocStaQueryHandler(w http.ResponseWriter, r *http.Request) {
     }
 
     defer r.Body.Close()
-    
+
     const maxRequestSize = 64 * 1024 // 64 KB
     r.Body = http.MaxBytesReader(w, r.Body, maxRequestSize)
 
@@ -3613,9 +3625,90 @@ func unassocStaQueryHandler(w http.ResponseWriter, r *http.Request) {
 
     if err := json.NewEncoder(w).Encode(map[string]interface{}{"success": true, "message": "Unassoc STA Query sent",}); err != nil {
         log.Printf("[ERROR][HTTP] Failed to encode response: %v", err)
-    }    
+    }
 }
 
+/* func: backhaulSteerHandler()
+ * Description:
+ * Handles POST /backhaul_steer requests. Parses the backhaulSteeringRequest payload
+ * and triggers a 1905 Backhaul Steering Request.
+ */
+func backhaulSteerHandler(w http.ResponseWriter, r *http.Request) {
+    if r.Method != http.MethodPost {
+        http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+        return
+    }
+
+    defer r.Body.Close()
+
+    const maxRequestSize = 64 * 1024 // 64 KB
+    r.Body = http.MaxBytesReader(w, r.Body, maxRequestSize)
+
+    var req backhaulSteeringRequest
+    if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+        http.Error(w, "Invalid request payload", http.StatusBadRequest)
+        return
+    }
+
+    if req.AlMac == "" || req.StaMac == "" || req.Bssid == "" {
+        http.Error(w, "AlMac, StaMac and Bssid are required", http.StatusBadRequest)
+        return
+    }
+
+    for _, m := range []struct{ name, val string }{{"AlMac", req.AlMac}, {"StaMac", req.StaMac}, {"Bssid", req.Bssid}} {
+        if hw, err := net.ParseMAC(m.val); err != nil || len(hw) != 6 {
+            http.Error(w, m.name+" is not a valid MAC address", http.StatusBadRequest)
+            return
+        }
+    }
+
+    // OpClass and Channel are encoded as single octets in the 1905 TLV.
+    if req.OpClass < 0 || req.OpClass > 255 {
+        http.Error(w, "OpClass must be in range 0-255", http.StatusBadRequest)
+        return
+    }
+    if req.Channel < 0 || req.Channel > 255 {
+        http.Error(w, "Channel must be in range 0-255", http.StatusBadRequest)
+        return
+    }
+
+    jsonBytes, err := json.Marshal(req)
+    if err != nil {
+        http.Error(w, "Failed to serialize backhaul steer parameters", http.StatusInternalServerError)
+        return
+    }
+
+    cJsonStr := C.CString(string(jsonBytes))
+    defer C.free(unsafe.Pointer(cJsonStr))
+
+    node := C.get_network_tree(cJsonStr)
+    if node == nil {
+        http.Error(w, "Failed to create network tree for backhaul steer request", http.StatusInternalServerError)
+        return
+    }
+    defer C.free_network_tree(node)
+
+    cmd := C.CString("steer_backhaul OneWifiMesh")
+    defer C.free(unsafe.Pointer(cmd))
+
+    result := C.exec(cmd, C.strlen(cmd), node)
+    if result == nil {
+        http.Error(w, "Backhaul steering command failed", http.StatusInternalServerError)
+        return
+    }
+    defer C.free_network_tree(result)
+
+    log.Printf("Backhaul steering request sent: almac=%s stamac=%s bssid=%s opclass=%d channel=%d",
+        req.AlMac, req.StaMac, req.Bssid, req.OpClass, req.Channel)
+
+    w.Header().Set("Content-Type", "application/json")
+    if err := json.NewEncoder(w).Encode(map[string]interface{}{
+        "success": true,
+        "message": "Backhaul steering request sent",
+    }); err != nil {
+        log.Printf("[ERROR][HTTP] Failed to encode response: %v", err)
+    }
+}
 
 //------------------------------------------------------------
 //                    Helper Functions

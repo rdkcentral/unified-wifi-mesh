@@ -23,10 +23,13 @@
 
 class em_steering_t {
 
-    unsigned int m_client_steering_req_tx_cnt;
-    unsigned int m_client_assoc_ctrl_req_tx_cnt;
+	unsigned int m_client_steering_req_tx_cnt;
+	unsigned int m_client_assoc_ctrl_req_tx_cnt;
 
-    
+	// BH Steering pending context. Saved on request receipt, used by timeout/result handlers.
+	mac_address_t m_bh_steer_pending_sta_mac;
+	bssid_t       m_bh_steer_pending_bssid;
+
 	/**!
 	 * @brief Sends a client steering request message.
 	 *
@@ -39,7 +42,59 @@ class em_steering_t {
 	 * @note Ensure that the client is ready to receive the steering request before calling this function.
 	 */
 	int send_client_steering_req_msg();
-    
+
+	/**!
+	 * @brief Sends a 1905 Backhaul Steering Request message.
+	 *
+	 * @returns int bytes sent on success, -1 on failure.
+	 */
+	int send_bh_steering_req_msg();
+
+	/**!
+	 * @brief Sends a 1905 Backhaul Steering Response message (agent side).
+	 *
+	 * @param[in] sta_mac      Backhaul STA MAC address.
+	 * @param[in] target_bssid Target BSSID from the steering request.
+	 * @param[in] result_code  0x00 = success, 0x01 = failure.
+	 * @param[in] error_reason Error Code TLV Reason_Code per 17.2.36
+	 *                         (0x04/0x05/0x06). Only used when result_code == 0x01.
+	 *
+	 * @returns int bytes sent on success, -1 on failure.
+	 */
+	int send_bh_steering_rsp_msg(mac_address_t sta_mac, unsigned char *target_bssid,
+		unsigned char result_code, unsigned char error_reason = 0x00);
+
+	/**!
+	 * @brief Handles a received Backhaul Steering Request (agent side).
+	 *
+	 * @param[in] buff Buffer containing the raw message.
+	 * @param[in] len Length of the message.
+	 *
+	 * @returns int 0 on success, -1 on failure.
+	 */
+	int handle_bh_steering_req(unsigned char *buff, unsigned int len);
+
+	/**!
+	 * @brief Handles a received Backhaul Steering Response.
+	 *
+	 * @param[in] buff Buffer containing the raw message.
+	 * @param[in] len Length of the message.
+	 *
+	 * @returns int 0 on success, -1 on failure.
+	 */
+	int handle_bh_steering_rsp(unsigned char *buff, unsigned int len);
+
+	/**!
+	 * @brief Sends a 1905 ACK message from the controller to the agent.
+	 *
+	 * Used after the controller receives a Backhaul Steering Response
+	 *
+	 * @param[in] msg_id CMDU message ID of the Response being acknowledged.
+	 *
+	 * @returns int bytes sent on success, -1 on failure.
+	 */
+	int send_1905_ack_to_agent(unsigned short msg_id);
+
 	/**!
 	 * @brief Sends a client association control request message.
 	 *
@@ -216,7 +271,7 @@ class em_steering_t {
 	short create_btm_request_tlv(unsigned char *buff);
 
 public:
-	
+
 	/**!
 	 * @brief Retrieves the manager instance.
 	 *
@@ -297,6 +352,28 @@ public:
 
 public:
 
+	/**!
+	 * @brief Delivers a BH Steering result received from OneWifi via AssociationStatus.
+	 *
+	 * Called when an AssociationStatus event arrives while BH Steering is in flight.
+	 * Cancels the 10-second timeout and sends the actual BH Steering Response based on
+	 * the connection outcome.
+	 *
+	 * @param[in] connected_bssid BSSID that the backhaul STA connected to (or attempted).
+	 * @param[in] connect_status  Raw wifi_connection_status_t value from OneWifi.
+	 *
+	 * @returns true  if this node had a pending BH steer and handled the result.
+	 * @returns false if no BH steer is in flight on this node (caller should try next node).
+	 */
+	bool handle_bh_steer_result(const bssid_t connected_bssid, int connect_status);
+
+	/**!
+	 * @brief Handles BH Steering orchestration timeout.
+	 *
+	 * Sends a failure BH Steering Response when the orchestration timer expires
+	 * without receiving a result from OneWifi.
+	 */
+	void handle_bh_steer_timeout();
     
 	/**!
 	 * @brief Retrieves the client steering request transmission count.

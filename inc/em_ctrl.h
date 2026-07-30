@@ -220,7 +220,7 @@ public:
 	 * @note Ensure that the event structure is properly initialized before calling this function.
 	 */
 	void handle_client_steer(em_bus_event_t *evt);
-    
+
 	/**!
 	 * @brief Handles the disassociation of a client.
 	 *
@@ -484,6 +484,13 @@ public:
          *       before calling this function.
          */
         void handle_unassoc_sta_metrics_query(em_bus_event_t *evt);
+
+	/**!
+	 * @brief Handles the backhaul steering request event.
+	 *
+	 * @param[in] evt Pointer to the bus event containing backhaul steering parameters.
+	 */
+	void handle_backhaul_steer(em_bus_event_t *evt);
 
 	/**!
 	 * @brief 

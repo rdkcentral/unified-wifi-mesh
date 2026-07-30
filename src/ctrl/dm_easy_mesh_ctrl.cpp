@@ -61,6 +61,7 @@
 #include "em_cmd_mld_reconfig.h"
 #include "em_cmd_bsta_cap.h"
 #include "em_cmd_unassoc_sta_query.h"
+#include "em_cmd_backhaul_steer.h"
 
 extern em_network_topo_t *g_network_topology;
 
@@ -2536,6 +2537,111 @@ int dm_easy_mesh_ctrl_t::analyze_command_steer(em_bus_event_t *evt, em_cmd_t *cm
         }
     }
     cJSON_free(obj);
+
+    return num;
+}
+
+int dm_easy_mesh_ctrl_t::analyze_backhaul_steer(em_bus_event_t *evt, em_cmd_t *cmd[])
+{
+    cJSON *obj, *wfa_obj;
+    cJSON *al_mac_obj, *sta_mac_obj, *bssid_obj, *op_class_obj, *channel_obj;
+    int num = 0;
+    em_subdoc_info_t *subdoc;
+    em_long_string_t wfa;
+    em_cmd_backhaul_steer_params_t bsteer_param;
+
+    subdoc = &evt->u.subdoc;
+    obj = cJSON_Parse(subdoc->buff);
+    if (obj == NULL) {
+        em_printfout("%s:%d: Failed to parse: %s", __func__, __LINE__, subdoc->buff);
+        return 0;
+    }
+
+    snprintf(wfa, sizeof(wfa), "wfa-dataelements:BackhaulSteering");
+
+    if ((wfa_obj = cJSON_GetObjectItem(obj, wfa)) == NULL) {
+        em_printfout("%s:%d: Failed to get BackhaulSteering object", __func__, __LINE__);
+        cJSON_Delete(obj);
+        return 0;
+    }
+
+    memset(&bsteer_param, 0, sizeof(em_cmd_backhaul_steer_params_t));
+
+    if ((al_mac_obj = cJSON_GetObjectItem(wfa_obj, "AlMac")) == NULL) {
+        em_printfout("%s:%d: Failed to get AlMac", __func__, __LINE__);
+        cJSON_Delete(obj);
+        return 0;
+    }
+    const char *al_mac_str = cJSON_GetStringValue(al_mac_obj);
+    if (al_mac_str == NULL) {
+        em_printfout("%s:%d: AlMac is not a string", __func__, __LINE__);
+        cJSON_Delete(obj);
+        return 0;
+    }
+    dm_easy_mesh_t::string_to_macbytes(const_cast<char *> (al_mac_str), bsteer_param.al_mac);
+
+    if ((sta_mac_obj = cJSON_GetObjectItem(wfa_obj, "StaMac")) == NULL) {
+        em_printfout("%s:%d: Failed to get StaMac", __func__, __LINE__);
+        cJSON_Delete(obj);
+        return 0;
+    }
+    const char *sta_mac_str = cJSON_GetStringValue(sta_mac_obj);
+    if (sta_mac_str == NULL) {
+        em_printfout("%s:%d: StaMac is not a string", __func__, __LINE__);
+        cJSON_Delete(obj);
+        return 0;
+    }
+    dm_easy_mesh_t::string_to_macbytes(const_cast<char *> (sta_mac_str), bsteer_param.sta_mac);
+
+    if ((bssid_obj = cJSON_GetObjectItem(wfa_obj, "Bssid")) == NULL) {
+        em_printfout("%s:%d: Failed to get Bssid", __func__, __LINE__);
+        cJSON_Delete(obj);
+        return 0;
+    }
+    const char *bssid_str = cJSON_GetStringValue(bssid_obj);
+    if (bssid_str == NULL) {
+        em_printfout("%s:%d: Bssid is not a string", __func__, __LINE__);
+        cJSON_Delete(obj);
+        return 0;
+    }
+    dm_easy_mesh_t::string_to_macbytes(const_cast<char *> (bssid_str), bsteer_param.target_bssid);
+
+    // OpClass and Channel are encoded as single octets in the 1905 TLV,
+    // so reject out-of-range values instead of silently truncating them.
+    if ((op_class_obj = cJSON_GetObjectItem(wfa_obj, "OpClass")) != NULL) {
+        if (!cJSON_IsNumber(op_class_obj)) {
+            em_printfout("%s:%d: OpClass is not a number", __func__, __LINE__);
+            cJSON_Delete(obj);
+            return 0;
+        }
+        double op_class_val = cJSON_GetNumberValue(op_class_obj);
+        if (op_class_val < 0 || op_class_val > 255) {
+            em_printfout("%s:%d: OpClass %f out of range 0-255", __func__, __LINE__, op_class_val);
+            cJSON_Delete(obj);
+            return 0;
+        }
+        bsteer_param.op_class = static_cast<unsigned int>(op_class_val);
+    }
+
+    if ((channel_obj = cJSON_GetObjectItem(wfa_obj, "Channel")) != NULL) {
+        if (!cJSON_IsNumber(channel_obj)) {
+            em_printfout("%s:%d: Channel is not a number", __func__, __LINE__);
+            cJSON_Delete(obj);
+            return 0;
+        }
+        double channel_val = cJSON_GetNumberValue(channel_obj);
+        if (channel_val < 0 || channel_val > 255) {
+            em_printfout("%s:%d: Channel %f out of range 0-255", __func__, __LINE__, channel_val);
+            cJSON_Delete(obj);
+            return 0;
+        }
+        bsteer_param.channel = static_cast<unsigned int>(channel_val);
+    }
+
+    cJSON_Delete(obj);
+
+    cmd[num] = new em_cmd_backhaul_steer_t(bsteer_param);
+    num++;
 
     return num;
 }

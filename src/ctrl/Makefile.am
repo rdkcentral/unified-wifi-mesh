@@ -96,6 +96,7 @@ onewifi_em_ctrl_SOURCES =  \
      $(top_srcdir)/src/cmd/em_cmd_get_mld_config.cpp \
      $(top_srcdir)/src/cmd/em_cmd_bsta_cap.cpp \
      $(top_srcdir)/src/cmd/em_cmd_unassoc_sta_query.cpp \
+     $(top_srcdir)/src/cmd/em_cmd_backhaul_steer.cpp \
      $(top_srcdir)/src/ctrl/dm_easy_mesh_ctrl.cpp \
      $(top_srcdir)/src/ctrl/em_cmd_ctrl.cpp \
      $(top_srcdir)/src/ctrl/em_ctrl.cpp \
@@ -237,7 +238,8 @@ onewifi_em_ctrl_test_SOURCES = $(onewifi_em_ctrl_SOURCES) \
 	$(top_srcdir)/tests/test_l1_ec_manager.cpp \
 	$(top_srcdir)/src/al-sap/al_service_registration_response.cpp \
 	$(top_srcdir)/tests/test_l1_em_ctrl.cpp \
-	$(top_srcdir)/tests/test_l1_dm_easy_mesh_list.cpp
+	$(top_srcdir)/tests/test_l1_dm_easy_mesh_list.cpp \
+	$(top_srcdir)/tests/test_l1_em_cmd_backhaul_steer.cpp
 
 onewifi_em_ctrl_test_CPPFLAGS = $(onewifi_em_ctrl_CPPFLAGS) \
                                 -I$(PKG_CONFIG_SYSROOT_DIR)$(includedir)/gtest \

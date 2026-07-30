@@ -529,7 +529,7 @@ public:
 	 * @note Ensure that the event and command array are properly initialized before calling this function.
 	 */
 	int analyze_command_steer(em_bus_event_t *evt, em_cmd_t *cmd[]);
-    
+
 	/**!
 	 * @brief Analyzes the disassociation command.
 	 *
@@ -777,6 +777,16 @@ public:
          *       EasyMesh specification.
          */
          int analyze_unassoc_sta_metrics_query(em_bus_event_t *evt, em_cmd_t *pcmd[]);
+
+	/**!
+	 * @brief Analyzes the backhaul steering command.
+	 *
+	 * @param[in] evt Pointer to the event structure containing the backhaul steering command.
+	 * @param[in] cmd Array of command structures to be populated.
+	 *
+	 * @returns int Number of commands created, 0 if no change needed.
+	 */
+	int analyze_backhaul_steer(em_bus_event_t *evt, em_cmd_t *cmd[]);
 
 	/**!
 	 * @brief Resets the configuration to its default state.

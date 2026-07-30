@@ -38,6 +38,7 @@
 #include "ieee80211.h"
 #include "em_cmd_agent.h"
 #include "em_orch_agent.h"
+#include "em_cmd_backhaul_steer.h"
 #include "ec_util.h"
 #include "util.h"
 
@@ -460,6 +461,17 @@ void em_agent_t::handle_recv_assoc_status(em_bus_event_t *event)
         return;
     }
     rdk_sta_data_t *sta_data = reinterpret_cast<rdk_sta_data_t *>(event->u.raw_buff);
+
+    // Deliver the result to any EM node that has a BH Steering operation in flight.
+    // This cancels the 10-second timeout and sends the actual BH Steering Response.
+    em_t *em = static_cast<em_t *>(hash_map_get_first(m_em_map));
+    while (em != nullptr) {
+        if (em->handle_bh_steer_result(sta_data->bss_info.bssid,
+                                        static_cast<int>(sta_data->stats.connect_status))) {
+            break;  // Found the pending node, stop iterating
+        }
+        em = static_cast<em_t *>(hash_map_get_next(m_em_map, em));
+    }
 
     // Only the `ec_manager_t` (which belongs only to the AL node) needs to get live association status at this time
     em_t *al_node = get_al_node();
@@ -1189,6 +1201,46 @@ void em_agent_t::handle_link_stats_report(em_bus_event_t *evt)
     }
 }
 
+void em_agent_t::handle_backhaul_steer(em_bus_event_t *evt)
+{
+    wifi_bus_desc_t *desc = get_bus_descriptor();
+    if (desc == NULL) {
+        em_printfout("Bus descriptor is null, cannot forward BH Steer request");
+        return;
+    }
+
+    raw_data_t l_bus_data;
+    memset(&l_bus_data, 0, sizeof(raw_data_t));
+    l_bus_data.data_type = bus_data_type_bytes;
+    l_bus_data.raw_data.bytes = (void *)evt->u.raw_buff;
+    l_bus_data.raw_data_len = sizeof(em_bh_steering_req_t);
+
+    int bus_rc = desc->bus_set_fn(&m_bus_hdl, WIFI_EM_BACKHAUL_STEER, &l_bus_data);
+    if (bus_rc != 0) {
+        // Forward to OneWifi failed: fail now instead of waiting for the timeout.
+        em_printfout("bus_set_fn failed for path " WIFI_EM_BACKHAUL_STEER " rc=%d; failing BH steer immediately", bus_rc);
+        em_t *al_node = get_al_node();
+        if (al_node != nullptr) {
+            al_node->handle_bh_steer_timeout();
+        }
+        return;
+    }
+
+    // Submit orchestration command to track timeout for the pending BH steer.
+    em_bh_steering_req_t *bh_req = reinterpret_cast<em_bh_steering_req_t *>(evt->u.raw_buff);
+    em_cmd_backhaul_steer_params_t params{};
+    memcpy(params.sta_mac, bh_req->bh_sta_mac_addr, sizeof(mac_address_t));
+    memcpy(params.target_bssid, bh_req->target_bssid, sizeof(bssid_t));
+    params.op_class = bh_req->op_class;
+    params.channel = bh_req->channel_numb;
+
+    em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
+    pcmd[0] = new em_cmd_backhaul_steer_t(params, em_service_type_agent);
+    if (m_orch->submit_commands(pcmd, 1) > 0) {
+        em_printfout("Submitted BH steer command for agent-side orchestration");
+    }
+}
+
 void em_agent_t::handle_bus_event(em_bus_event_t *evt)
 {   
 
@@ -1306,6 +1358,10 @@ void em_agent_t::handle_bus_event(em_bus_event_t *evt)
 
         case em_bus_event_type_unassoc_sta_result:
             handle_unassoc_sta_result(evt);
+            break;
+
+        case em_bus_event_type_backhaul_steer:
+            handle_backhaul_steer(evt);
             break;
 
         default:
@@ -2260,6 +2316,11 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
         case em_msg_type_unassoc_sta_link_metrics_rsp:
            printf("%s:%d: Sending Unassoc STA Link Metrics response\n", __func__, __LINE__);
            break;
+
+        case em_msg_type_bh_steering_req:
+        case em_msg_type_bh_steering_rsp:
+            em = al_em;
+            break;
 
         default:
             printf("%s:%d: Frame: %d not handled in agent\n", __func__, __LINE__, htons(cmdu->type));
