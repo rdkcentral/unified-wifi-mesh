@@ -49,6 +49,28 @@ void tr_181_t::tr181_trim_whitespace(char *str)
     str[len] = '\0';
 }
 
+bool tr_181_t::parse_object_index(const char *name, int *index)
+{
+    char instance[MAX_INSTANCE_LEN] = { 0 };
+    char *dst = instance;
+    size_t len = 0;
+    const char *src = strstr(name, ".");
+
+    if (!src || !index) {
+        return false;
+    }
+
+    ++src;
+    while (*src && *src != '.' && ++len < sizeof(instance)) {
+        *dst++ = *src++;
+    }
+    *dst++ = 0;
+
+    *index = atoi(instance);
+
+    return true;
+}
+
 // Create a HaulType array from a single value (Fronthaul/Backhaul only)
 cJSON *tr_181_t::create_haultype_array(const char *haul_val)
 {
@@ -257,3 +279,31 @@ bool tr_181_t::tr181_get_prop_bool(const bus_data_prop_t *prop, bool *value)
 
     return true;
 }
+
+bool tr_181_t::parse_bmq_ch_rep_obj(const bus_data_prop_t *prop, tr181_bmq_ch_rep_item_t *ch_rep_item)
+{
+    const char *name = prop->name;
+
+    /* APChannelReport.{i}.OperatingClass or APChannelReport.{i}.ChannelList */
+    name += sizeof("APChannelReport");
+    name  = strstr(name, ".");
+    if (!name) {
+        return false;
+    }
+
+    ++name;
+    if (strcmp(name, "OperatingClass") == 0) {
+        if (!tr_181_t::tr181_get_prop_int(prop, &ch_rep_item->op_class)) {
+            return false;
+        }
+    } else if (strcmp(name, "ChannelList") == 0) {
+        if (!tr_181_t::tr181_copy_prop_string(prop, ch_rep_item->ch_list, sizeof(ch_rep_item->ch_list))) {
+            return false;
+        }
+    } else {
+        return false;
+    }
+
+    return true;
+}
+
