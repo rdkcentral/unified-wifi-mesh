@@ -33,12 +33,11 @@
 #include <sys/uio.h>
 #include <unistd.h>
 #include <assert.h>
+#include <util.h>
 #include "em_base.h"
 #include "em_cmd.h"
 #include "em_orch_agent.h"
 #include "em.h"
-
-extern char *global_netid;
 
 void em_orch_agent_t::orch_transient(em_cmd_t *pcmd, em_t *em)
 {
@@ -47,10 +46,23 @@ void em_orch_agent_t::orch_transient(em_cmd_t *pcmd, em_t *em)
     
     snprintf(key, sizeof(em_short_string_t), "%d", pcmd->get_type());
 
-    stats = (em_cmd_stats_t *)hash_map_get(m_cmd_map, key);
+    stats = static_cast <em_cmd_stats_t *> (hash_map_get(m_cmd_map, key));
     assert(stats != NULL);
+
+    if (pcmd->get_type() == em_cmd_type_dev_init && pcmd->get_agent_al_interface() != NULL) {
+        auto agent_int = pcmd->get_agent_al_interface();
+        std::string al_mac_key = util::mac_to_string(agent_int->mac) + "_al";
+        em_t* al_node = static_cast <em_t*> (hash_map_get(m_mgr->m_em_map, al_mac_key.c_str()));
+        if (al_node != NULL && al_node->m_ec_manager && al_node->get_is_dpp_onboarding()) {
+            // If the enrollee is still onboarding, we need to wait for it to finish before timing out
+            // Lets reset the timeout
+            gettimeofday(&pcmd->m_start_time, NULL);
+            stats->time = 0;
+        }
+    }
+
     if (stats->time > EM_MAX_CMD_GEN_TTL) {
-        printf("%s:%d: Canceling comd: %s because time limit exceeded\n", __func__, __LINE__, pcmd->get_cmd_name());
+        em_printfout("Canceling cmd: %s because time limit exceeded\n", pcmd->get_cmd_name());
         cancel_command(pcmd->get_type());
     	if (em->get_state() < em_state_agent_topo_synchronized) {
 	    	em->set_state(em_state_agent_unconfigured);
@@ -90,6 +102,12 @@ bool em_orch_agent_t::is_em_ready_for_orch_fini(em_cmd_t *pcmd, em_t *em)
                 return true;
             }
             break;
+
+        case em_cmd_type_sta_link_metrics:
+            if (em->get_state() == em_state_agent_configured) {
+                return true;
+            }
+            break;
 		
         case em_cmd_type_op_channel_report:
             if (em->get_state() == em_state_agent_configured) {
@@ -115,9 +133,22 @@ bool em_orch_agent_t::is_em_ready_for_orch_fini(em_cmd_t *pcmd, em_t *em)
             }
             break;
 
+        case em_cmd_type_get_link_quality_report:
+            if (em->get_state() == em_state_agent_configured) {
+                return true;
+            }
+            break;
+
+        case em_cmd_type_unassoc_sta_result:
+            if (em->get_state() == em_state_agent_configured) {
+                return true;
+            }
+            break;
+
         default:
             if ((em->get_state() == em_state_agent_unconfigured) ||
-                    (em->get_state() == em_state_agent_configured)) {
+                    (em->get_state() == em_state_agent_configured) ||
+                    (em->get_state() == em_state_agent_1905_unconfigured)) {
                 return true;
             }
             break;
@@ -134,7 +165,9 @@ bool em_orch_agent_t::is_em_ready_for_orch_exec(em_cmd_t *pcmd, em_t *em)
         return true;
     } else if (pcmd->m_type == em_cmd_type_cfg_renew) {
         return true;
-    } else if ((pcmd->m_type == em_cmd_type_channel_pref_query) && (em->get_state() >= em_state_agent_topo_synchronized)) {
+    } else if (pcmd->m_type == em_cmd_type_ap_cap_query) {
+        return true;
+    } else if ((pcmd->m_type == em_cmd_type_channel_pref_query) && (em->get_state() >= em_state_agent_ap_cap_report)) {
 		return true;
     } else if (pcmd->m_type == em_cmd_type_op_channel_report) {
         return true;
@@ -143,6 +176,11 @@ bool em_orch_agent_t::is_em_ready_for_orch_exec(em_cmd_t *pcmd, em_t *em)
 			return true;
 		}
     } else if (pcmd->m_type == em_cmd_type_sta_list) {
+		if ((em->get_state() == em_state_agent_configured) ||
+				(em->get_state() >= em_state_agent_topo_synchronized)){
+			return true;
+		}
+    } else if (pcmd->m_type == em_cmd_type_sta_link_metrics) {
 		if (em->get_state() == em_state_agent_configured) {
 			return true;
 		}
@@ -151,7 +189,18 @@ bool em_orch_agent_t::is_em_ready_for_orch_exec(em_cmd_t *pcmd, em_t *em)
 			return true;
 		}
 	} else if (pcmd->m_type == em_cmd_type_beacon_report) {
-        if ((em->get_state() == em_state_agent_configured) || ((em->get_state() == em_state_agent_beacon_report_pending))) {
+        if ((em->get_state() == em_state_agent_configured) ||
+            ((em->get_state() == em_state_agent_beacon_report_pending))) {
+            return true;
+        }
+    } else if (pcmd->m_type == em_cmd_type_get_link_quality_report) {
+        if ((em->get_state() >= em_state_agent_topo_synchronized) ||
+            ((em->get_state() == em_state_agent_link_quality_report_pending))) {
+            return true;
+        }
+    } else if (pcmd->m_type == em_cmd_type_unassoc_sta_result) {
+        if ((em->get_state() == em_state_agent_configured) ||
+            ((em->get_state() ==em_state_agent_unassoc_sta_metrics_report_pending))) {
             return true;
         }
     }
@@ -176,7 +225,6 @@ bool em_orch_agent_t::pre_process_orch_op(em_cmd_t *pcmd)
     dm_sta_t *sta;
     em_long_string_t key;
     mac_addr_str_t sta_mac_str, bss_mac_str, radio_mac_str;
-    mac_address_t   radio_mac;
     em_freq_band_t band;
 
     ctx = pcmd->m_data_model.get_cmd_ctx();
@@ -187,8 +235,8 @@ bool em_orch_agent_t::pre_process_orch_op(em_cmd_t *pcmd)
             printf("%s:%d: calling create node\n", __func__, __LINE__);
 
             intf = pcmd->get_agent_al_interface();
-            if ((dm = m_mgr->get_data_model(global_netid, intf->mac)) == NULL) {
-                dm = m_mgr->create_data_model(global_netid, intf);
+            if ((dm = m_mgr->get_data_model(GLOBAL_NET_ID, intf->mac)) == NULL) {
+                dm = m_mgr->create_data_model(GLOBAL_NET_ID, intf);
             }
             config.type = em_commit_target_al;
             //commit basic configuration before orchestrate
@@ -202,20 +250,19 @@ bool em_orch_agent_t::pre_process_orch_op(em_cmd_t *pcmd)
             // for radio insert, create the radio em and then submit command
             for (unsigned int i = 0; i < pcmd->get_data_model()->get_num_radios(); i++) {
                 intf = pcmd->get_radio_interface(i);
-                if ((dm = m_mgr->get_data_model(global_netid, intf->mac)) == NULL) {
-                    dm = m_mgr->create_data_model(global_netid, intf);
+                if ((dm = m_mgr->get_data_model(GLOBAL_NET_ID, intf->mac)) == NULL) {
+                    dm = m_mgr->create_data_model(GLOBAL_NET_ID, intf);
                 }    
                 dm_easy_mesh_t::macbytes_to_string(intf->mac, mac_str);
                 config.type = em_commit_target_radio;
-                snprintf((char *)config.params,sizeof(config.params),(char*)"%s",mac_str);
+                snprintf(reinterpret_cast<char*>(&config.params[0]), sizeof(config.params), "%s", mac_str);
                 dm->commit_config(pcmd->m_data_model, config);
                 config.type = em_commit_target_bss;
                 dm->commit_config(pcmd->m_data_model, config);
                 band =  pcmd->get_radio(i)->get_radio_info()->band;
-                printf("%s:%d: calling create_node band=%d\n", __func__, __LINE__, band);
+                em_printfout("calling create_node band=%d", band);
                 if ((em = m_mgr->create_node(intf, band, dm, 0, em_profile_type_3, em_service_type_agent)) == NULL) {
-                    printf("%s:%d: Failed to create node\n", __func__, __LINE__);
-            
+                    em_printfout("Failed to create node");
                 }
             }
             break;
@@ -223,11 +270,11 @@ bool em_orch_agent_t::pre_process_orch_op(em_cmd_t *pcmd)
             break;
         case dm_orch_type_sta_aggregate:
             intf = pcmd->get_radio_interface(ctx->arr_index);
-            if ((dm = m_mgr->get_data_model(global_netid, intf->mac)) == NULL) {
-                dm = m_mgr->create_data_model(global_netid, intf);
+            if ((dm = m_mgr->get_data_model(GLOBAL_NET_ID, intf->mac)) == NULL) {
+                dm = m_mgr->create_data_model(GLOBAL_NET_ID, intf);
             }
 
-            sta = (dm_sta_t *)hash_map_get_first(pcmd->get_data_model()->m_sta_assoc_map);
+            sta = static_cast<dm_sta_t *> (hash_map_get_first(pcmd->get_data_model()->m_sta_assoc_map));
             while(sta != NULL) {
                 dm_easy_mesh_t::macbytes_to_string(sta->m_sta_info.id, sta_mac_str);
                 dm_easy_mesh_t::macbytes_to_string(sta->m_sta_info.bssid, bss_mac_str);
@@ -243,24 +290,39 @@ bool em_orch_agent_t::pre_process_orch_op(em_cmd_t *pcmd)
                     hash_map_put(dm->m_sta_map, strdup(key), new dm_sta_t(*sta));
                 }
 
-                sta = (dm_sta_t *)hash_map_get_next(pcmd->get_data_model()->m_sta_assoc_map, sta);
+                dm_sta_t *stale_dassoc = static_cast<dm_sta_t *>(hash_map_remove(dm->m_sta_dassoc_map, key));
+                if (stale_dassoc != NULL) {
+                    em_printfout("Assoc row key=%s found in live disassoc map; removing stale disassoc entry", key);
+                    delete stale_dassoc;
+                }
+
+                sta = static_cast<dm_sta_t *> (hash_map_get_next(pcmd->get_data_model()->m_sta_assoc_map, sta));
             }
 
-            sta = (dm_sta_t *)hash_map_get_first(pcmd->get_data_model()->m_sta_dassoc_map);
+            sta = static_cast<dm_sta_t *> (hash_map_get_first(pcmd->get_data_model()->m_sta_dassoc_map));
             while(sta != NULL) {
                 dm_easy_mesh_t::macbytes_to_string(sta->m_sta_info.id, sta_mac_str);
                 dm_easy_mesh_t::macbytes_to_string(sta->m_sta_info.bssid, bss_mac_str);
                 dm_easy_mesh_t::macbytes_to_string(sta->m_sta_info.radiomac, radio_mac_str);
                 snprintf(key, sizeof(em_long_string_t), "%s@%s@%s", sta_mac_str, bss_mac_str, radio_mac_str);
 
-                em_sta_info_t *em_sta = dm->get_sta_info(sta->get_sta_info()->id, sta->get_sta_info()->bssid, sta->get_sta_info()->radiomac, em_target_sta_map_consolidated);
-                sta = (dm_sta_t *)hash_map_get_next(pcmd->get_data_model()->m_sta_dassoc_map, sta);
+                em_sta_info_t *em_sta = dm->get_sta_info(sta->m_sta_info.id, sta->m_sta_info.bssid, sta->m_sta_info.radiomac, em_target_sta_map_consolidated);
                 if (em_sta != NULL) {
-                    printf("Consolidated Map removed with key: %s\n", key);
-                    dm_sta_t *tmp = sta;
-                    tmp = (dm_sta_t *)hash_map_remove(dm->m_sta_map, key);
+                    // Copy all stats from the consolidated row into the dassoc row.
+                    memcpy(&sta->m_sta_info, em_sta, sizeof(em_sta_info_t));
+                    sta->m_sta_info.associated = false;
+                    em_sta_info_t *em_sta_dassoc = dm->get_sta_info(sta->m_sta_info.id, sta->m_sta_info.bssid, sta->m_sta_info.radiomac, em_target_sta_map_disassoc);
+                    if (em_sta_dassoc != NULL) {
+                        em_printfout("Consolidated Map removed with key: %s, updating em_target_sta_map_disassoc entry", key);
+                        memcpy(em_sta_dassoc, &sta->m_sta_info, sizeof(em_sta_info_t));
+                    } else {
+                        em_printfout("Consolidated Map removed with key: %s, added em_target_sta_map_disassoc entry", key);
+                        dm->put_sta_info(&sta->m_sta_info, em_target_sta_map_disassoc);
+                    }
+                    dm_sta_t *tmp = static_cast<dm_sta_t *>(hash_map_remove(dm->m_sta_map, key));
                     delete tmp;
                 }
+                sta = static_cast<dm_sta_t *>(hash_map_get_next(pcmd->get_data_model()->m_sta_dassoc_map, sta));
             }
             break;
         case dm_orch_type_sta_insert:
@@ -273,6 +335,23 @@ bool em_orch_agent_t::pre_process_orch_op(em_cmd_t *pcmd)
         case dm_orch_type_op_channel_report:
         case dm_orch_type_beacon_report:
             break;
+
+        case dm_orch_type_sta_link_metrics:
+            intf = pcmd->get_radio_interface(ctx->arr_index);
+            if ((dm = m_mgr->get_data_model(GLOBAL_NET_ID, intf->mac)) == NULL) {
+                dm = m_mgr->create_data_model(GLOBAL_NET_ID, intf);
+            }
+
+            sta = static_cast<dm_sta_t *> (hash_map_get_first(pcmd->get_data_model()->m_sta_assoc_map));
+            while(sta != NULL) {
+                em_sta_info_t *em_sta = dm->get_sta_info(sta->get_sta_info()->id, sta->get_sta_info()->bssid, sta->get_sta_info()->radiomac, em_target_sta_map_consolidated);
+                if (em_sta != NULL) {
+                    memcpy(em_sta, &sta->m_sta_info, sizeof(em_sta_info_t));
+                }
+                sta = static_cast<dm_sta_t *> (hash_map_get_next(pcmd->get_data_model()->m_sta_assoc_map, sta));
+            }
+            break;
+
         default:
             break;
     }
@@ -287,15 +366,13 @@ unsigned int em_orch_agent_t::build_candidates(em_cmd_t *pcmd)
     em_cmd_ctx_t *ctx;
     dm_radio_t *radio;
     mac_addr_str_t	src_mac_str, dst_mac_str;
-    em_freq_band_t freq_band, em_freq_band;
-    int build_autoconf_renew = 0;
     dm_easy_mesh_t dm;
     mac_address_t	radio_mac, mac1, mac2;
     dm_sta_t *sta;
 
     ctx = pcmd->m_data_model.get_cmd_ctx();
 	pthread_mutex_lock(&m_mgr->m_mutex);
-    em = (em_t *)hash_map_get_first(m_mgr->m_em_map);	
+    em = static_cast<em_t *> (hash_map_get_first(m_mgr->m_em_map));
     while (em != NULL) {
         switch (pcmd->m_type) {
             case em_cmd_type_dev_init:
@@ -310,7 +387,9 @@ unsigned int em_orch_agent_t::build_candidates(em_cmd_t *pcmd)
 				}
 				break;
             case em_cmd_type_cfg_renew:
-                if (memcmp(pcmd->get_data_model()->get_radio(num)->get_radio_info()->intf.mac, em->get_radio_interface_mac(), sizeof(mac_address_t)) == 0) {
+		dm_easy_mesh_t::macbytes_to_string(pcmd->get_data_model()->get_radio(num)->get_radio_info()->intf.mac, src_mac_str);
+                if ((memcmp(pcmd->get_data_model()->get_radio(num)->get_radio_info()->intf.mac, em->get_radio_interface_mac(), sizeof(mac_address_t)) == 0) && (!(em->is_al_interface_em()))) {
+		    printf("%s:%d Renew %s added\n", __func__, __LINE__,src_mac_str);
                     queue_push(pcmd->m_em_candidates, em);
                     count++;
                 }
@@ -326,18 +405,25 @@ unsigned int em_orch_agent_t::build_candidates(em_cmd_t *pcmd)
                     queue_push(pcmd->m_em_candidates, em);
                     count++;
                 }
-                break;	
+                break;
+
+            case em_cmd_type_sta_link_metrics:
+                if ((em->is_al_interface_em() == false) && \
+                    (em->has_at_least_one_associated_sta() == true)) {
+                    queue_push(pcmd->m_em_candidates, em);
+                    count++;
+                }
+                break;
+
 	        case em_cmd_type_ap_cap_query:
-                if (!(em->is_al_interface_em())) {
                     dm_easy_mesh_t::macbytes_to_string(em->get_radio_interface_mac(), dst_mac_str);
                     printf("%s:%d Radio CAP report build candidate MAC=%s\n", __func__, __LINE__,dst_mac_str);
                     queue_push(pcmd->m_em_candidates, em);
                     count++;
-                }
 		        break;
 	        case em_cmd_type_client_cap_query:
                 if (!(em->is_al_interface_em())) {
-                    radio = pcmd->m_data_model.get_radio((unsigned int)0);
+                    radio = pcmd->m_data_model.get_radio(static_cast<unsigned int> (0));
 		            if (radio == NULL) {
                         printf("%s:%d client cap radio cannot be found.\n", __func__, __LINE__);
                         break;
@@ -354,7 +440,7 @@ unsigned int em_orch_agent_t::build_candidates(em_cmd_t *pcmd)
 				if (!(em->is_al_interface_em())) {
                     if (memcmp(pcmd->get_data_model()->get_bss(0)->get_bss_info()->ruid.mac, em->get_radio_interface_mac(), sizeof(mac_address_t)) == 0) {
                         if (em->get_state() == em_state_agent_owconfig_pending) {
-                        	printf("em candidates created for em_cmd_type_onewifi_cb\n");
+                            em_printfout("em candidates created for em_cmd_type_onewifi_cb");
                         	queue_push(pcmd->m_em_candidates, em);
                         	count++;
 						}
@@ -362,30 +448,24 @@ unsigned int em_orch_agent_t::build_candidates(em_cmd_t *pcmd)
                 }
                 break;
 			case em_cmd_type_channel_pref_query:
-				if (!(em->is_al_interface_em())) {
-					radio = pcmd->m_data_model.get_radio((unsigned int)0);
-					if (radio == NULL) {
-						printf("%s:%d em_cmd_type_channel_pref_query radio cannot be found.\n", __func__, __LINE__);
-						break;
-					}
-					if ((memcmp(radio->get_radio_interface_mac(),em->get_radio_interface_mac(),sizeof(mac_address_t)) == 0)
-							&& (em->get_state() >= em_state_agent_topo_synchronized)
+				if ((em->is_al_interface_em())) {
+					if ((em->get_state() >= em_state_agent_ap_cap_report)
 							&& (em->get_state() < em_state_agent_configured)) {
 						queue_push(pcmd->m_em_candidates, em);
 						count++;
-						dm_easy_mesh_t::macbytes_to_string(em->get_radio_interface_mac(), dst_mac_str);
+						dm_easy_mesh_t::macbytes_to_string(em->get_al_interface_mac(), dst_mac_str);
 						printf("%s:%d em_cmd_type_channel_pref_query build candidate MAC=%s\n", __func__, __LINE__,dst_mac_str);
 					}
 				}
 				break;
             case em_cmd_type_op_channel_report:
                 if (!(em->is_al_interface_em())) {
-                    radio = pcmd->m_data_model.get_radio((unsigned int)0);
+                    radio = pcmd->m_data_model.get_radio(static_cast<unsigned int> (0));
                     if (radio == NULL) {
                         printf("%s:%d channel sel radio cannot be found.\n", __func__, __LINE__);
                         break;
                     }
-                    if (memcmp(radio->get_radio_interface_mac(),em->get_radio_interface_mac(),sizeof(mac_address_t)) == 0) {
+                    if ((memcmp(radio->get_radio_interface_mac(),em->get_radio_interface_mac(),sizeof(mac_address_t)) == 0) && (em->get_state() == em_state_agent_channel_select_configuration_pending)) {
                         queue_push(pcmd->m_em_candidates, em);
                         count++;
                         dm_easy_mesh_t::macbytes_to_string(em->get_radio_interface_mac(), dst_mac_str);
@@ -422,14 +502,32 @@ unsigned int em_orch_agent_t::build_candidates(em_cmd_t *pcmd)
                 sta = em->find_sta(mac1, mac2);
                 if (sta != NULL) {
                     queue_push(pcmd->m_em_candidates, em);
+                    printf("%s:%d Beacon report build candidate pushed\n", __func__, __LINE__);
                     count++;
                 }
                 break;
 
-			default:
+            case em_cmd_type_get_link_quality_report:
+                if ((em->is_al_interface_em() == true)) {
+                    queue_push(pcmd->m_em_candidates, em);
+                    count++;
+                }
+                break;
+
+            case em_cmd_type_unassoc_sta_result:
+                // Unassociated STA metrics response is processed only once.
+                // Select the first non-AL EM instance as the candidate and
+                // avoid queuing additional EMs for the same response.		
+                if (!(em->is_al_interface_em()) && (count == 0)) {
+                    queue_push(pcmd->m_em_candidates, em);
+                    count++;
+                }
+                break;
+
+            default:
                 break;
         }
-        em = (em_t *)hash_map_get_next(m_mgr->m_em_map, em);	
+        em = static_cast<em_t *> (hash_map_get_next(m_mgr->m_em_map, em));	
     }
 	pthread_mutex_unlock(&m_mgr->m_mutex);
     return count;

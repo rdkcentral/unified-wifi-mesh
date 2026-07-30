@@ -42,38 +42,25 @@
 #include "em_cmd_agent.h"
 
 em_cmd_t em_cmd_agent_t::m_client_cmd_spec[] = {
-    em_cmd_t(em_cmd_type_none,em_cmd_params_t{0, {"", "", "", "", ""}, "none"}),
-    em_cmd_t(em_cmd_type_dev_init,em_cmd_params_t{1, {"", "", "", "", ""}, "wfa-dataelements:Network"}),
-    em_cmd_t(em_cmd_type_cfg_renew, em_cmd_params_t{1, {"", "", "", "", ""}, "wfa-dataelements:Renew"}),
-    em_cmd_t(em_cmd_type_vap_config,em_cmd_params_t{1, {"", "", "", "", ""}, "wfa-dataelements:BssConfig"}),
-    em_cmd_t(em_cmd_type_sta_list,em_cmd_params_t{1, {"", "", "", "", ""}, "wfa-dataelements:StaList"}),
-    em_cmd_t(em_cmd_type_ap_cap_query,em_cmd_params_t{1, {"", "", "", "", ""}, "wfa-dataelements:CapReport"}),
-    em_cmd_t(em_cmd_type_max,em_cmd_params_t{0, {"", "", "", "", ""}, "max"}),
+    em_cmd_t(em_cmd_type_none,em_cmd_params_t{0, {"", "", "", "", ""}, "none", nullptr}),
+    em_cmd_t(em_cmd_type_dev_init,em_cmd_params_t{1, {"", "", "", "", ""}, "wfa-dataelements:Network", nullptr}),
+    em_cmd_t(em_cmd_type_cfg_renew, em_cmd_params_t{1, {"", "", "", "", ""}, "wfa-dataelements:Renew", nullptr}),
+    em_cmd_t(em_cmd_type_vap_config,em_cmd_params_t{1, {"", "", "", "", ""}, "wfa-dataelements:BssConfig", nullptr}),
+    em_cmd_t(em_cmd_type_sta_list,em_cmd_params_t{1, {"", "", "", "", ""}, "wfa-dataelements:StaList", nullptr}),
+    em_cmd_t(em_cmd_type_ap_cap_query,em_cmd_params_t{1, {"", "", "", "", ""}, "wfa-dataelements:CapReport", nullptr}),
+    em_cmd_t(em_cmd_type_max,em_cmd_params_t{0, {"", "", "", "", ""}, "max", nullptr}),
 };
 
 int em_cmd_agent_t::execute(em_long_string_t result)
 {
-    struct sockaddr_un addr;
-    int ret, lsock, dsock;
-    unsigned int sz = EM_MAX_EVENT_DATA_LEN, i, offset, iter;
+    int ret, lsock;
+    unsigned int sz = EM_MAX_EVENT_DATA_LEN;
     unsigned char *tmp;
 
     m_cmd.reset();
 
-    unlink(get_path());
-
-    if ((lsock = socket(AF_UNIX, SOCK_STREAM, 0)) < 0) {
-        printf("%s:%d: error opening socket, err:%d\n", __func__, __LINE__, errno);
-        return -1;
-    }
-
-    memset(&addr, 0, sizeof(addr));
-    addr.sun_family = AF_UNIX;
-    snprintf(addr.sun_path, sizeof(addr.sun_path), "%s", get_path());
-    //strcpy(addr.sun_path, m_sock_path);
-
-    if ((ret = bind(lsock, (const struct sockaddr *)&addr, sizeof(struct sockaddr_un))) == -1) {
-        printf("%s:%d: bind error on socket: %d, err:%d\n", __func__, __LINE__, lsock, errno);
+	if ((lsock = get_listener_socket(em_service_type_agent)) < 0) {
+        printf("%s:%d: listener socket get failed, service:%d\n", __func__, __LINE__, get_svc());
         return -1;
     }
 
@@ -94,7 +81,7 @@ int em_cmd_agent_t::execute(em_long_string_t result)
 
         printf("%s:%d: Connection accepted from client\n", __func__, __LINE__);
 
-        tmp = (unsigned char *)get_event();
+        tmp = reinterpret_cast<unsigned char *>(get_event());
 
         if ((ret = recv(m_dsock, tmp, sizeof(em_event_t) + EM_MAX_EVENT_DATA_LEN, 0)) <= 0) {
             printf("%s:%d: listen error on socket, err:%d\n", __func__, __LINE__, errno);
@@ -115,8 +102,7 @@ int em_cmd_agent_t::execute(em_long_string_t result)
 
     }
 
-    close(lsock);
-    unlink(get_path());
+	close_listener_socket(lsock, get_svc());
 
     return 0;
 }
@@ -127,7 +113,7 @@ int em_cmd_agent_t::send_result(em_cmd_out_status_t status)
     em_status_string_t str;
     unsigned char *tmp;
 
-    tmp = (unsigned char *)m_cmd.status_to_string(status, str);
+    tmp = reinterpret_cast<unsigned char *>(m_cmd.status_to_string(status, str));
 
     if ((ret = send(m_dsock, tmp, sizeof(em_status_string_t), 0)) <= 0) {
         printf("%s:%d: write error on socket, err:%d\n", __func__, __LINE__, errno);
@@ -143,7 +129,7 @@ em_event_t *em_cmd_agent_t::create_event(char *buff)
     // here is the entry point of RBUS subdocuments
     em_cmd_type_t   type = em_cmd_type_none;
     cJSON *obj, *child_obj;
-    char *tmp;
+    const char *tmp;
     em_cmd_t    *cmd;
     unsigned int idx;
     em_event_t *evt;
@@ -165,7 +151,7 @@ em_event_t *em_cmd_agent_t::create_event(char *buff)
             type = em_cmd_agent_t::m_client_cmd_spec[idx].get_type(); continue;
         }
 
-        tmp = (char *)cmd->get_arg();
+        tmp = cmd->get_arg();
 
         if ((child_obj = cJSON_GetObjectItem(obj, tmp)) != NULL) {
             break;
@@ -183,7 +169,8 @@ em_event_t *em_cmd_agent_t::create_event(char *buff)
         return NULL;
     }
 
-    evt = (em_event_t *)malloc(sizeof(em_event_t));
+    unsigned int buff_len = static_cast<unsigned int>(strlen(buff)) + 1;
+    evt = reinterpret_cast<em_event_t *>(malloc(sizeof(em_event_t) + buff_len));
     evt->type = em_event_type_bus;
     bevt = &evt->u.bevt;
 
@@ -213,22 +200,22 @@ em_event_t *em_cmd_agent_t::create_event(char *buff)
     }
 
     memcpy(&bevt->params, &cmd->m_param, sizeof(em_cmd_params_t));
-    memcpy(&bevt->u.subdoc.buff, buff, EM_MAX_EVENT_DATA_LEN);
-    bevt->data_len = strlen(buff) + 1;   
+    memcpy(&bevt->u.subdoc.buff, buff, buff_len);
+    bevt->data_len = buff_len;
     return evt;
 }
 
-em_cmd_agent_t::em_cmd_agent_t(em_cmd_t& obj)
+em_cmd_agent_t::em_cmd_agent_t(em_cmd_t& obj) : m_dsock(-1)
 {
     memcpy(&m_cmd.m_param, &obj.m_param, sizeof(em_cmd_params_t));
 }
 
-em_cmd_agent_t::em_cmd_agent_t(em_cmd_type_t type)
+em_cmd_agent_t::em_cmd_agent_t(em_cmd_type_t type) : m_dsock(-1)
 {
     memcpy(&m_cmd.m_param, &em_cmd_agent_t::m_client_cmd_spec[type].m_param, sizeof(em_cmd_params_t));
 }
 
-em_cmd_agent_t::em_cmd_agent_t()
+em_cmd_agent_t::em_cmd_agent_t() : m_dsock(-1)
 {
-    snprintf(m_sock_path, sizeof(m_sock_path), "%s_%s", EM_PATH_PREFIX, EM_AGENT_PATH);
+
 }

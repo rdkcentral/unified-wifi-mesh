@@ -24,7 +24,19 @@
 class em_cmd_start_dpp_t : public em_cmd_t {
 
 public:
-    em_cmd_start_dpp_t(em_cmd_params_t param);
+    
+	/**!
+	 * @brief Starts the DPP command with the given parameters.
+	 *
+	 * This function initiates the DPP (Device Provisioning Protocol) command using the specified parameters.
+	 *
+	 * @param[in] param The parameters required to start the DPP command.
+	 *
+	 * @returns em_cmd_start_dpp_t The result of the DPP command initiation.
+	 *
+	 * @note Ensure that the parameters provided are valid and conform to the expected format for successful execution.
+	 */
+	em_cmd_start_dpp_t(em_cmd_params_t param);
 };
 
 #endif

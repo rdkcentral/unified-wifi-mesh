@@ -25,11 +25,6 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <net/if.h>
-#include <linux/filter.h>
-#include <netinet/ether.h>
-#include <netpacket/packet.h>
-#include <linux/netlink.h>
-#include <linux/rtnetlink.h>
 #include <sys/ioctl.h>
 #include <sys/socket.h>
 #include <sys/uio.h>
@@ -54,7 +49,7 @@ int dm_radio_t::decode(const cJSON *obj, void *parent_id)
         dm_easy_mesh_t::name_from_mac_address(&m_radio_info.intf.mac, m_radio_info.intf.name);
     }
 
-    dm_radio_t::parse_radio_id_from_key((char *)parent_id, &m_radio_info.id);
+    dm_radio_t::parse_radio_id_from_key(static_cast<char *>(parent_id), &m_radio_info.id);
     dm_easy_mesh_t::macbytes_to_string(m_radio_info.id.ruid, mac_str);
     dm_easy_mesh_t::macbytes_to_string(m_radio_info.id.dev_mac, dev_mac);
 
@@ -65,19 +60,19 @@ int dm_radio_t::decode(const cJSON *obj, void *parent_id)
     }
 
     if ((tmp = cJSON_GetObjectItem(obj, "NumberOfBSS")) != NULL) {
-        m_radio_info.number_of_bss = tmp->valuedouble;
+        m_radio_info.number_of_bss = static_cast<unsigned int>(tmp->valuedouble);
     }
 
     if ((tmp = cJSON_GetObjectItem(obj, "NumberOfUnassocSta")) != NULL) {
-        m_radio_info.number_of_unassoc_sta = tmp->valuedouble;
+        m_radio_info.number_of_unassoc_sta = static_cast<unsigned int>(tmp->valuedouble);
     }
 
     if ((tmp = cJSON_GetObjectItem(obj, "Noise")) != NULL) {
-        m_radio_info.noise = tmp->valuedouble;
+        m_radio_info.noise = static_cast<int>(tmp->valuedouble);
     }
 
     if ((tmp = cJSON_GetObjectItem(obj, "Utilization")) != NULL) {
-        m_radio_info.utilization = tmp->valuedouble;
+        m_radio_info.utilization = static_cast<short unsigned int>(tmp->valuedouble);
     }
 
     if ((tmp = cJSON_GetObjectItem(obj, "TrafficSeparationCombinedFronthaul")) != NULL) {
@@ -89,27 +84,27 @@ int dm_radio_t::decode(const cJSON *obj, void *parent_id)
     }
 
     if ((tmp = cJSON_GetObjectItem(obj, "SteeringPolicy")) != NULL) {
-        m_radio_info.steering_policy = tmp->valuedouble;
+        m_radio_info.steering_policy = static_cast<unsigned int>(tmp->valuedouble);
     }
 
     if ((tmp = cJSON_GetObjectItem(obj, "ChannelUtilizationThreshold")) != NULL) {
-        m_radio_info.channel_util_threshold = tmp->valuedouble;
+        m_radio_info.channel_util_threshold = static_cast<unsigned int>(tmp->valuedouble);
     }
 
     if ((tmp = cJSON_GetObjectItem(obj, "RCPISteeringThreshold")) != NULL) {
-        m_radio_info.rcpi_steering_threshold = tmp->valuedouble;
+        m_radio_info.rcpi_steering_threshold = static_cast<unsigned int>(tmp->valuedouble);
     }
 
     if ((tmp = cJSON_GetObjectItem(obj, "STAReportingRCPIThreshold")) != NULL) {
-        m_radio_info.sta_reporting_rcpi_threshold = tmp->valuedouble;
+        m_radio_info.sta_reporting_rcpi_threshold = static_cast<unsigned int>(tmp->valuedouble);
     }
 
     if ((tmp = cJSON_GetObjectItem(obj, "STAReportingRCPIHysteresisMarginOverride")) != NULL) {
-        m_radio_info.sta_reporting_hysteresis_margin_override = tmp->valuedouble;
+        m_radio_info.sta_reporting_hysteresis_margin_override = static_cast<unsigned int>(tmp->valuedouble);
     }
 
     if ((tmp = cJSON_GetObjectItem(obj, "ChannelUtilizationReportingThreshold")) != NULL) {
-        m_radio_info.channel_utilization_reporting_threshold = tmp->valuedouble;
+        m_radio_info.channel_utilization_reporting_threshold = static_cast<unsigned int>(tmp->valuedouble);
     }
 
     if ((tmp = cJSON_GetObjectItem(obj, "AssociatedSTATrafficStatsInclusionPolicy")) != NULL) {
@@ -129,7 +124,7 @@ int dm_radio_t::decode(const cJSON *obj, void *parent_id)
     }
 
     if ((tmp = cJSON_GetObjectItem(obj, "TransmitPowerLimit")) != NULL) {
-        m_radio_info.transmit_power_limit = tmp->valuedouble;;
+        m_radio_info.transmit_power_limit = static_cast<int>(tmp->valuedouble);
     }
 
     return 0;
@@ -151,6 +146,7 @@ void dm_radio_t::encode(cJSON *obj, em_get_radio_list_reason_t reason)
     cJSON_AddNumberToObject(obj, "NumberOfUnassocSta", m_radio_info.number_of_unassoc_sta);
     cJSON_AddNumberToObject(obj, "Noise", m_radio_info.noise);
     cJSON_AddNumberToObject(obj, "Utilization", m_radio_info.utilization);
+    cJSON_AddNumberToObject(obj, "Band", m_radio_info.band);
 
 	if (reason == em_get_radio_list_reason_radio_summary) {
 		return;
@@ -174,7 +170,7 @@ void dm_radio_t::encode(cJSON *obj, em_get_radio_list_reason_t reason)
 dm_orch_type_t dm_radio_t::get_dm_orch_type(const dm_radio_t& radio)
 {
     if ( this == &radio) {
-        dm_orch_type_none;
+        return dm_orch_type_none;
     } else {
         return dm_orch_type_db_update;
     }
@@ -221,7 +217,7 @@ bool dm_radio_t::operator == (const dm_radio_t& obj) {
 void dm_radio_t::operator = (const dm_radio_t& obj)
 {
 	if (this == &obj) { return; }
-	strncpy(this->m_radio_info.id.net_id, obj.m_radio_info.id.net_id, strlen(obj.m_radio_info.id.net_id) + 1);
+	strncpy(this->m_radio_info.id.net_id, obj.m_radio_info.id.net_id, sizeof(em_long_string_t));
 	memcpy(this->m_radio_info.id.dev_mac, obj.m_radio_info.id.dev_mac, sizeof(mac_address_t));
 	memcpy(this->m_radio_info.id.ruid, obj.m_radio_info.id.ruid, sizeof(mac_address_t));
 	
@@ -302,7 +298,7 @@ dm_radio_t::dm_radio_t(const dm_radio_t& radio)
 
 dm_radio_t::dm_radio_t()
 {
-
+    memset(&m_radio_info, 0, sizeof(em_radio_info_t));
 }
 
 dm_radio_t::~dm_radio_t()

@@ -25,11 +25,6 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <net/if.h>
-#include <linux/filter.h>
-#include <netinet/ether.h>
-#include <netpacket/packet.h>
-#include <linux/netlink.h>
-#include <linux/rtnetlink.h>
 #include <sys/ioctl.h>
 #include <sys/socket.h>
 #include <sys/uio.h>
@@ -42,11 +37,10 @@
 
 int dm_sta_t::decode(const cJSON *obj, void *parent_id)
 {
-    cJSON *tmp, *tmp_arr;
+    cJSON *tmp;
     mac_addr_str_t  mac_str;
-    unsigned int i;
 
-    mac_address_t *bssid = (mac_address_t *)parent_id;
+    mac_address_t *bssid = static_cast<mac_address_t *>(parent_id);
 
     memset(&m_sta_info, 0, sizeof(em_sta_info_t));
     memcpy(&m_sta_info.bssid,bssid,sizeof(mac_address_t));
@@ -57,7 +51,7 @@ int dm_sta_t::decode(const cJSON *obj, void *parent_id)
     }
 
     if ((tmp = cJSON_GetObjectItem(obj, "LastDataUplinkRate")) != NULL) {
-        m_sta_info.last_ul_rate = tmp->valuedouble;
+        m_sta_info.last_ul_rate = static_cast<unsigned int>(tmp->valuedouble);
     }
 
     if ((tmp = cJSON_GetObjectItem(obj, "TimeStamp")) != NULL) {
@@ -65,59 +59,63 @@ int dm_sta_t::decode(const cJSON *obj, void *parent_id)
     }
 
     if ((tmp = cJSON_GetObjectItem(obj, "LastDataDownlinkRate")) != NULL) {
-        m_sta_info.last_dl_rate = tmp->valuedouble;
+        m_sta_info.last_dl_rate = static_cast<unsigned int>(tmp->valuedouble);
     }
 
     if ((tmp = cJSON_GetObjectItem(obj, "EstMACDataRateUplink")) != NULL) {
-        m_sta_info.est_ul_rate = tmp->valuedouble;
+        m_sta_info.est_ul_rate = static_cast<unsigned int>(tmp->valuedouble);
     }
 
     if ((tmp = cJSON_GetObjectItem(obj, "EstMACDataRateDownlink")) != NULL) {
-        m_sta_info.est_dl_rate = tmp->valuedouble;
+        m_sta_info.est_dl_rate = static_cast<unsigned int>(tmp->valuedouble);
     }
 
     if ((tmp = cJSON_GetObjectItem(obj, "LastConnectTime")) != NULL) {
-        m_sta_info.last_conn_time = tmp->valuedouble;
+        m_sta_info.last_conn_time = static_cast<unsigned int>(tmp->valuedouble);
     }
 
     if ((tmp = cJSON_GetObjectItem(obj, "RetransCount")) != NULL) {
-        m_sta_info.retrans_count = tmp->valuedouble;
+        m_sta_info.retrans_count = static_cast<unsigned int>(tmp->valuedouble);
     }
 
     if ((tmp = cJSON_GetObjectItem(obj, "SignalStrength")) != NULL) {
-        m_sta_info.signal_strength = tmp->valuedouble;
+        m_sta_info.signal_strength = static_cast<int>(tmp->valuedouble);
+    }
+
+    if ((tmp = cJSON_GetObjectItem(obj, "RCPI")) != NULL) {
+        m_sta_info.rcpi = static_cast<unsigned char>(tmp->valuedouble);
     }
 
     if ((tmp = cJSON_GetObjectItem(obj, "UtilizationTransmit")) != NULL) {
-        m_sta_info.util_tx = tmp->valuedouble;
+        m_sta_info.util_tx = static_cast<unsigned int>(tmp->valuedouble);
     }
 
     if ((tmp = cJSON_GetObjectItem(obj, "UtilizationReceive")) != NULL) {
-        m_sta_info.util_rx = tmp->valuedouble;
+        m_sta_info.util_rx = static_cast<unsigned int>(tmp->valuedouble);
     }
 
     if ((tmp = cJSON_GetObjectItem(obj, "PacketsSent")) != NULL) {
-        m_sta_info.pkts_tx = tmp->valuedouble;
+        m_sta_info.pkts_tx = static_cast<unsigned int>(tmp->valuedouble);
     }
 
     if ((tmp = cJSON_GetObjectItem(obj, "PacketsReceived")) != NULL) {
-        m_sta_info.pkts_rx = tmp->valuedouble;
+        m_sta_info.pkts_rx = static_cast<unsigned int>(tmp->valuedouble);
     }
 
     if ((tmp = cJSON_GetObjectItem(obj, "BytesSent")) != NULL) {
-        m_sta_info.bytes_tx = tmp->valuedouble;
+        m_sta_info.bytes_tx = static_cast<unsigned int>(tmp->valuedouble);
     }
 
     if ((tmp = cJSON_GetObjectItem(obj, "BytesReceived")) != NULL) {
-        m_sta_info.bytes_rx = tmp->valuedouble;
+        m_sta_info.bytes_rx = static_cast<unsigned int>(tmp->valuedouble);
     }
 
     if ((tmp = cJSON_GetObjectItem(obj, "ErrorsSent")) != NULL) {
-        m_sta_info.errors_tx = tmp->valuedouble;
+        m_sta_info.errors_tx = static_cast<unsigned int>(tmp->valuedouble);
     }
 
     if ((tmp = cJSON_GetObjectItem(obj, "ErrorsReceived")) != NULL) {
-        m_sta_info.errors_rx = tmp->valuedouble;
+        m_sta_info.errors_rx = static_cast<unsigned int>(tmp->valuedouble);
     }
 
     if ((tmp = cJSON_GetObjectItem(obj, "ClientCapabilities")) != NULL) {
@@ -136,6 +134,10 @@ int dm_sta_t::decode(const cJSON *obj, void *parent_id)
         snprintf(m_sta_info.he_cap, sizeof(m_sta_info.he_cap), "%s", cJSON_GetStringValue(tmp));
     }
 
+    if ((tmp = cJSON_GetObjectItem(obj, "MLDAddr")) != NULL) {
+        snprintf(m_sta_info.multi_link, sizeof(m_sta_info.multi_link), "%s", cJSON_GetStringValue(tmp));
+    }
+
     if ((tmp = cJSON_GetObjectItem(obj, "CellularDataPreference")) != NULL) {
         snprintf(m_sta_info.cellular_data_pref, sizeof(m_sta_info.cellular_data_pref), "%s", cJSON_GetStringValue(tmp));
     }
@@ -149,9 +151,33 @@ void dm_sta_t::encode(cJSON *obj, em_get_sta_list_reason_t reason)
     mac_addr_str_t  mac_str;
     cJSON *reason_obj, *request_obj;
 
+    if (reason == em_get_sta_list_reason_alarm_report) {
+        dm_easy_mesh_t::macbytes_to_string(m_sta_info.id, mac_str);
+        cJSON_AddStringToObject(obj, "Mac", mac_str);
+        dm_easy_mesh_t::macbytes_to_string(m_sta_info.bssid, mac_str);
+        cJSON_AddStringToObject(obj, "BSSID", mac_str);
+        cJSON_AddStringToObject(obj, "ReportingTime", reinterpret_cast<const char*>(m_sta_info.link_stats_report.reporting_timestamp));
+        cJSON_AddNumberToObject(obj, "Threshold", m_sta_info.link_stats_report.link_quality_threshold);
+        cJSON_AddBoolToObject(obj, "Alarm", m_sta_info.link_stats_report.alarm_triggered);
+        cJSON *samples_obj = cJSON_AddArrayToObject(obj, "Samples");
+        for (int i = 0; i < m_sta_info.link_stats_report.sample_count; i++) {
+            cJSON *sample = cJSON_CreateObject();
+            cJSON_AddNumberToObject(sample, "Score", m_sta_info.link_stats_report.alarm_sample[i].link_quality_score);
+            cJSON_AddStringToObject(sample, "Time", reinterpret_cast<const char*>(m_sta_info.link_stats_report.alarm_sample[i].reporting_time));
+            cJSON_AddNumberToObject(sample, "SNR", m_sta_info.link_stats_report.alarm_sample[i].snr);
+            cJSON_AddNumberToObject(sample, "PER", m_sta_info.link_stats_report.alarm_sample[i].per);
+            cJSON_AddNumberToObject(sample, "PHY", m_sta_info.link_stats_report.alarm_sample[i].phy);
+            cJSON_AddItemToArray(samples_obj, sample);
+        }
+        return;
+    }
+
     dm_sta_t::decode_sta_capability(this);
     dm_sta_t::decode_beacon_report(this);
     dm_easy_mesh_t::macbytes_to_string(m_sta_info.id, mac_str);
+    if (strlen(m_sta_info.sta_client_type) != 0) {
+        cJSON_AddStringToObject(obj, "ClientType", m_sta_info.sta_client_type);
+    }
     cJSON_AddStringToObject(obj, "MACAddress", mac_str);
     cJSON_AddBoolToObject(obj, "Associated", m_sta_info.associated);
 
@@ -166,6 +192,7 @@ void dm_sta_t::encode(cJSON *obj, em_get_sta_list_reason_t reason)
         cJSON_AddNumberToObject(obj, "EstMACDataRateDownlink", m_sta_info.est_dl_rate);
         cJSON_AddStringToObject(obj, "HTCapabilities", m_sta_info.ht_cap);
         cJSON_AddNumberToObject(obj, "SignalStrength", m_sta_info.signal_strength);
+        cJSON_AddNumberToObject(obj, "RCPI", m_sta_info.rcpi);
         cJSON_AddNumberToObject(obj, "UtilizationTransmit", m_sta_info.util_tx);
         cJSON_AddStringToObject(obj, "VHTCapabilities", m_sta_info.vht_cap);
         cJSON_AddStringToObject(obj, "HECapabilities", m_sta_info.he_cap);
@@ -181,6 +208,8 @@ void dm_sta_t::encode(cJSON *obj, em_get_sta_list_reason_t reason)
         cJSON_AddStringToObject(obj, "CellularDataPreference", m_sta_info.cellular_data_pref);
         cJSON_AddStringToObject(obj, "ListenInterval", m_sta_info.listen_interval);
         cJSON_AddStringToObject(obj, "SSID", m_sta_info.ssid);
+        if (m_sta_info.multi_link[0] != '\0')
+            cJSON_AddStringToObject(obj, "MLDAddr", m_sta_info.multi_link);
         cJSON_AddStringToObject(obj, "SupportedRates", m_sta_info.supp_rates);
         cJSON_AddStringToObject(obj, "PowerCapability", m_sta_info.power_cap);
         cJSON_AddStringToObject(obj, "SupportedChannels", m_sta_info.supp_channels);
@@ -190,7 +219,7 @@ void dm_sta_t::encode(cJSON *obj, em_get_sta_list_reason_t reason)
         cJSON_AddStringToObject(obj, "ExtendedCapabilities", m_sta_info.ext_cap);
         cJSON_AddStringToObject(obj, "RMEnabledCapabilities", m_sta_info.rm_cap);
         cJSON *vendor_info = cJSON_CreateArray();
-        for (int i = 0; i < m_sta_info.num_vendor_infos; i++) {
+        for (unsigned int i = 0; i < m_sta_info.num_vendor_infos; i++) {
             cJSON *vendor = cJSON_CreateObject();
             cJSON_AddStringToObject(vendor, "VendorInfo", m_sta_info.vendor_info[i]);
             cJSON_AddItemToArray(vendor_info, vendor);
@@ -227,8 +256,18 @@ void dm_sta_t::encode(cJSON *obj, em_get_sta_list_reason_t reason)
         cJSON_AddNumberToObject(reason_obj, "SteeringTimer", 0);
         cJSON_AddStringToObject(reason_obj, "TargetBSS", "00:00:00:00:00:00");
     } else if (reason == em_get_sta_list_reason_neighbors) {
-		encode_beacon_report(obj);
-	}
+        encode_beacon_report(obj);
+    } else if (reason == em_get_sta_list_reason_topology) {
+        cJSON_AddStringToObject(obj, "SSID", m_sta_info.ssid);
+        if (m_sta_info.multi_link[0] != '\0')
+            cJSON_AddStringToObject(obj, "MLDAddr", m_sta_info.multi_link);
+        cJSON_AddNumberToObject(obj, "SignalStrength", m_sta_info.signal_strength);
+        cJSON_AddNumberToObject(obj, "LastConnectTime", m_sta_info.last_conn_time);
+        cJSON_AddStringToObject(obj, "HTCapabilities", m_sta_info.ht_cap);
+        cJSON_AddStringToObject(obj, "VHTCapabilities", m_sta_info.vht_cap);
+        cJSON_AddStringToObject(obj, "HECapabilities", m_sta_info.he_cap);
+        cJSON_AddStringToObject(obj, "ClientCapabilities", m_sta_info.cap);
+    }
 }
 
 void dm_sta_t::encode_beacon_report(cJSON *obj)
@@ -255,6 +294,7 @@ bool dm_sta_t::operator == (const dm_sta_t& obj)
 {
     int ret = 0;
     ret += (memcmp(&this->m_sta_info.id, &obj.m_sta_info.id, sizeof(mac_address_t)) != 0);
+    ret += (memcmp(&this->m_sta_info.sta_client_type, &obj.m_sta_info.sta_client_type, sizeof(em_string_t)) != 0);
     ret += (memcmp(&this->m_sta_info.bssid, &obj.m_sta_info.bssid, sizeof(mac_address_t)) != 0);
     ret += (memcmp(&this->m_sta_info.radiomac, &obj.m_sta_info.radiomac, sizeof(mac_address_t)) != 0);
 
@@ -266,6 +306,7 @@ bool dm_sta_t::operator == (const dm_sta_t& obj)
     ret += !(this->m_sta_info.last_conn_time == obj.m_sta_info.last_conn_time);
     ret += !(this->m_sta_info.retrans_count == obj.m_sta_info.retrans_count);
     ret += !(this->m_sta_info.signal_strength == obj.m_sta_info.signal_strength);
+    ret += !(this->m_sta_info.rcpi == obj.m_sta_info.rcpi);
     ret += !(this->m_sta_info.util_tx == obj.m_sta_info.util_tx);
     ret += !(this->m_sta_info.util_rx == obj.m_sta_info.util_rx);
     ret += !(this->m_sta_info.pkts_tx == obj.m_sta_info.pkts_tx);
@@ -286,6 +327,7 @@ void dm_sta_t::operator = (const dm_sta_t& obj)
 {
     if (this == &obj) { return; }
     memcpy(&this->m_sta_info.id, &obj.m_sta_info.id, sizeof(mac_address_t));
+    memcpy(&this->m_sta_info.sta_client_type, &obj.m_sta_info.sta_client_type, sizeof(em_string_t));
     memcpy(&this->m_sta_info.bssid, &obj.m_sta_info.bssid, sizeof(mac_address_t));
     memcpy(&this->m_sta_info.radiomac, &obj.m_sta_info.radiomac, sizeof(mac_address_t));
     this->m_sta_info.last_ul_rate = obj.m_sta_info.last_ul_rate;
@@ -295,6 +337,7 @@ void dm_sta_t::operator = (const dm_sta_t& obj)
     this->m_sta_info.last_conn_time = obj.m_sta_info.last_conn_time;
     this->m_sta_info.retrans_count = obj.m_sta_info.retrans_count;
     this->m_sta_info.signal_strength = obj.m_sta_info.signal_strength;
+    this->m_sta_info.rcpi = obj.m_sta_info.rcpi;
     this->m_sta_info.util_tx = obj.m_sta_info.util_tx;
     this->m_sta_info.util_rx = obj.m_sta_info.util_rx;
     this->m_sta_info.pkts_tx = obj.m_sta_info.pkts_tx;
@@ -318,9 +361,11 @@ void dm_sta_t::operator = (const dm_sta_t& obj)
     memcpy(&this->m_sta_info.supp_op_classes, &obj.m_sta_info.supp_op_classes, sizeof(em_long_string_t));
     memcpy(&this->m_sta_info.ext_cap, &obj.m_sta_info.ext_cap, sizeof(em_long_string_t));
     memcpy(&this->m_sta_info.rm_cap, &obj.m_sta_info.rm_cap, sizeof(em_long_string_t));
+    memcpy(&this->m_sta_info.multi_link, &obj.m_sta_info.multi_link, sizeof(em_long_string_t));
     for (unsigned int i = 0; i < this->m_sta_info.num_vendor_infos; i++) {
         memcpy(&this->m_sta_info.vendor_info, &obj.m_sta_info.vendor_info, sizeof(em_long_string_t));
     }
+    memcpy(&m_sta_info.link_stats_report, &obj.m_sta_info.link_stats_report, sizeof(em_link_report_t));
 }
 
 void dm_sta_t::parse_sta_bss_radio_from_key(const char *key, mac_address_t sta, bssid_t bssid, mac_address_t ruid)
@@ -352,8 +397,18 @@ void dm_sta_t::decode_sta_capability(dm_sta_t *sta)
     unsigned int offset = 0;
     unsigned char length;
     tag_type_t tag_id;
+    unsigned char *ext_ptr;
+    int ext_len;
+    unsigned char common_info_len;
 
     sta->m_sta_info.num_vendor_infos = 0;
+
+    /* The frame_body stores the full 802.11 (Re)Association Request frame body:
+     * capab_info (2B) + listen_interval (2B) + IEs. Skip the fixed fields. */
+    if (sta->m_sta_info.frame_body_len < 4) {
+        return;
+    }
+    offset = 4;
 
     while (offset < sta->m_sta_info.frame_body_len) {
         if (offset + 2 > sta->m_sta_info.frame_body_len) {
@@ -361,7 +416,7 @@ void dm_sta_t::decode_sta_capability(dm_sta_t *sta)
             return;
         }
 
-        tag_id = (tag_type_t)sta->m_sta_info.frame_body[offset];
+        tag_id = static_cast<tag_type_t>(sta->m_sta_info.frame_body[offset]);
         length = sta->m_sta_info.frame_body[offset + 1];
 
         if (offset + 2 + length > sta->m_sta_info.frame_body_len) {
@@ -369,7 +424,7 @@ void dm_sta_t::decode_sta_capability(dm_sta_t *sta)
             return;
         }
 
-        ieee80211_tagvalue_t *tag = (ieee80211_tagvalue_t *) malloc(sizeof(ieee80211_tagvalue_t) + length);
+        ieee80211_tagvalue_t *tag = static_cast<ieee80211_tagvalue_t *> (malloc(sizeof(ieee80211_tagvalue_t) + length));
         if (!tag) {
             printf("%s:%d: Memory allocation failed\n", __func__, __LINE__);
             return;
@@ -381,7 +436,8 @@ void dm_sta_t::decode_sta_capability(dm_sta_t *sta)
 
         switch (tag->tag_id) {
             case tag_ssid:
-                dm_easy_mesh_t::hex(tag->length, tag->value, sizeof(em_long_string_t), sta->m_sta_info.ssid);
+                memset(sta->m_sta_info.ssid, 0, sizeof(em_long_string_t));
+                memcpy(sta->m_sta_info.ssid, tag->value, tag->length);
                 break;
 
             case tag_supported_rates:
@@ -440,11 +496,30 @@ void dm_sta_t::decode_sta_capability(dm_sta_t *sta)
                 }
                 break;
 
+            case tag_extended_tags: {
+                if (tag->value[0] == tag_ext_multi_link) {
+                    ext_ptr = tag->value + 1;
+                    ext_len = tag->length - 1;
+
+                    // Minimum required length: 2 (multilink_control) + 1 (common_info_len) + 6 (MLD MAC)
+                    if (ext_len >= 9) {
+                        ext_ptr += 2; // Skip multilink_control
+                        common_info_len = ext_ptr[0];
+                        ext_ptr++;
+
+                        if (common_info_len >= EM_MAC_ADDR_LEN) {
+                            strncpy(sta->m_sta_info.multi_link, util::mac_to_string(ext_ptr).c_str(), sizeof(em_long_string_t));
+                        }
+                    }
+                }
+                break;
+            }
+
             default:
                 printf("%s:%d: Unknown Tag ID: %d\n", __func__, __LINE__, tag->tag_id);
                 break;
         }
-    offset += 2 + tag->length;
+    offset += static_cast<unsigned int>(2 + tag->length);
     free(tag);
     }
 
@@ -452,13 +527,12 @@ void dm_sta_t::decode_sta_capability(dm_sta_t *sta)
 
 void dm_sta_t::decode_beacon_report(dm_sta_t *sta)
 {
-    size_t offset = 0;
-    int report_count = 0, i =0;
+    unsigned int i =0;
     unsigned char *ie;
     int current_pkt_len = 0;
 
     em_sta_info_t *sta_info = &sta->m_sta_info;
-    ie = (unsigned char *)sta->m_sta_info.beacon_report_elem;
+    ie = static_cast<unsigned char *>(sta->m_sta_info.beacon_report_elem);
 
     for (i = 0; i < sta_info->num_beacon_meas_report; i++) {
         current_pkt_len = ie[1];
@@ -487,7 +561,7 @@ dm_sta_t::dm_sta_t(const dm_sta_t& sta)
 
 dm_sta_t::dm_sta_t()
 {
-
+    memset(&m_sta_info, 0, sizeof(em_sta_info_t));
 }
 
 dm_sta_t::~dm_sta_t()

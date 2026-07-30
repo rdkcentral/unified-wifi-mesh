@@ -24,7 +24,22 @@
 class em_cmd_topo_sync_t : public em_cmd_t {
 
 public:
-    em_cmd_topo_sync_t(em_cmd_params_t param, dm_easy_mesh_t& dm);
+    
+	/**!
+	 * @brief Synchronize the topology using the provided command parameters.
+	 *
+	 * This function takes command parameters and a reference to the easy mesh
+	 * data model to perform synchronization of the network topology.
+	 *
+	 * @param[in] param The command parameters used for synchronization.
+	 * @param[out] dm The easy mesh data model that will be updated.
+	 *
+	 * @returns em_cmd_topo_sync_t The result of the synchronization operation.
+	 *
+	 * @note Ensure that the data model is properly initialized before calling
+	 * this function.
+	 */
+	em_cmd_topo_sync_t(em_cmd_params_t param, dm_easy_mesh_t& dm);
 };
 
 #endif

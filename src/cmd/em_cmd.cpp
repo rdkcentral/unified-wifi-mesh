@@ -25,11 +25,6 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <net/if.h>
-#include <linux/filter.h>
-#include <netinet/ether.h>
-#include <netpacket/packet.h>
-#include <linux/netlink.h>
-#include <linux/rtnetlink.h>
 #include <sys/ioctl.h>
 #include <sys/socket.h>
 #include <sys/uio.h>
@@ -38,6 +33,7 @@
 #include <unistd.h>
 #include <pthread.h>
 #include <cjson/cJSON.h>
+#include <type_traits>
 #include "em_cmd.h"
 
 bool em_cmd_t::validate()
@@ -66,6 +62,9 @@ unsigned int em_cmd_t::get_event_data_length()
 			bevt = &m_evt->u.bevt;
 			sz = bevt->data_len;
 			break;
+
+		default:
+			break;
 	}
 
 	return sz;
@@ -74,20 +73,22 @@ unsigned int em_cmd_t::get_event_data_length()
 void em_cmd_t::set_event_data_length(unsigned int len)
 {
 	em_frame_event_t *fevt;
-    em_bus_event_t *bevt;
-    unsigned int sz = 0;
-    
-    switch (m_evt->type) {
-        case em_event_type_frame:
-            fevt = &m_evt->u.fevt;
+	em_bus_event_t *bevt;
+
+	switch (m_evt->type) {
+		case em_event_type_frame:
+			fevt = &m_evt->u.fevt;
 			fevt->frame_len = len;
-            break;
-        
-        case em_event_type_bus:
-            bevt = &m_evt->u.bevt;
+			break;
+
+		case em_event_type_bus:
+			bevt = &m_evt->u.bevt;
 			bevt->data_len = len;
-            break;
-    }
+			break;
+
+		default:
+			break;
+	}
 }
 
 void em_cmd_t::copy_bus_event(em_bus_event_t *evt)
@@ -179,16 +180,19 @@ char *em_cmd_t::status_to_string(em_cmd_out_status_t status, char *str)
 
 void em_cmd_t::deinit()
 {
-    queue_destroy(m_em_candidates);
+    if (m_em_candidates != nullptr) {
+        queue_destroy(m_em_candidates);
+        m_em_candidates = nullptr;
+    }
     m_data_model.deinit();
 	//free(m_evt);
 }
 
-void em_cmd_t::init(dm_easy_mesh_t *dm)
+void em_cmd_t::init(dm_easy_mesh_t& dm)
 {
     m_em_candidates = queue_create();
     m_data_model.init();
-    m_data_model = *dm;
+    m_data_model = dm;
 }
 
 em_cmd_t *em_cmd_t::clone()
@@ -269,6 +273,11 @@ void em_cmd_t::init()
 
         case em_cmd_type_dev_test:
             snprintf(m_name, sizeof(m_name), "%s", "dev_test");
+            m_svc = em_service_type_ctrl;
+            break;
+
+        case em_cmd_type_set_dev_test:
+            snprintf(m_name, sizeof(m_name), "%s", "set_dev_test");
             m_svc = em_service_type_ctrl;
             break;
 
@@ -447,45 +456,79 @@ void em_cmd_t::init()
             m_svc = em_service_type_ctrl;
             break;
 
+        case em_cmd_type_get_reset:
+            snprintf(m_name, sizeof(m_name), "%s", "get_reset");
+            m_svc = em_service_type_ctrl;
+            break;
+
+        case em_cmd_type_get_link_quality_report:
+            strncpy(m_name, "get_alarm_report", strlen("get_alarm_report") + 1);
+            m_svc = em_service_type_ctrl;
+            break;
+        
+	case em_cmd_type_unassoc_sta_query:
+            snprintf(m_name, sizeof(m_name), "%s", "unassoc_sta_query");
+            m_svc = em_service_type_ctrl;
+            break;
+
+        default:
+            snprintf(m_name, sizeof(m_name), "%s", "unknown");
+            m_svc = em_service_type_none;
+            break;
+
     }
 }
 
 const char *em_cmd_t::get_bus_event_type_str(em_bus_event_type_t type)
 {
 #define BUS_EVENT_TYPE_2S(x) case x: return #x;
-    switch (type) { 
-    	BUS_EVENT_TYPE_2S(em_bus_event_type_none)
-    	BUS_EVENT_TYPE_2S(em_bus_event_type_chirp)
-    	BUS_EVENT_TYPE_2S(em_bus_event_type_reset)
-    	BUS_EVENT_TYPE_2S(em_bus_event_type_dev_test)
-    	BUS_EVENT_TYPE_2S(em_bus_event_type_get_network)
-    	BUS_EVENT_TYPE_2S(em_bus_event_type_get_device)
-    	BUS_EVENT_TYPE_2S(em_bus_event_type_remove_device)
-    	BUS_EVENT_TYPE_2S(em_bus_event_type_get_radio)
-    	BUS_EVENT_TYPE_2S(em_bus_event_type_set_radio)
-    	BUS_EVENT_TYPE_2S(em_bus_event_type_get_ssid)
-    	BUS_EVENT_TYPE_2S(em_bus_event_type_set_ssid)
-    	BUS_EVENT_TYPE_2S(em_bus_event_type_get_channel)
-    	BUS_EVENT_TYPE_2S(em_bus_event_type_set_channel)
-    	BUS_EVENT_TYPE_2S(em_bus_event_type_get_bss)
-    	BUS_EVENT_TYPE_2S(em_bus_event_type_get_sta)
-    	BUS_EVENT_TYPE_2S(em_bus_event_type_steer_sta)
-    	BUS_EVENT_TYPE_2S(em_bus_event_type_disassoc_sta)
-    	BUS_EVENT_TYPE_2S(em_bus_event_type_btm_sta)
-    	BUS_EVENT_TYPE_2S(em_bus_event_type_start_dpp)
-    	BUS_EVENT_TYPE_2S(em_bus_event_type_dev_init)
-    	BUS_EVENT_TYPE_2S(em_bus_event_type_cfg_renew)
-    	BUS_EVENT_TYPE_2S(em_bus_event_type_radio_config)
-    	BUS_EVENT_TYPE_2S(em_bus_event_type_vap_config)
-    	BUS_EVENT_TYPE_2S(em_bus_event_type_sta_list)
-    	BUS_EVENT_TYPE_2S(em_bus_event_type_listener_stop)
-    	BUS_EVENT_TYPE_2S(em_bus_event_type_dm_commit)
-    	BUS_EVENT_TYPE_2S(em_bus_event_type_topo_sync)
-    	BUS_EVENT_TYPE_2S(em_bus_event_type_get_policy)
-    	BUS_EVENT_TYPE_2S(em_bus_event_type_set_policy)
+    switch (type) {
+        BUS_EVENT_TYPE_2S(em_bus_event_type_none)
+        BUS_EVENT_TYPE_2S(em_bus_event_type_chirp)
+        BUS_EVENT_TYPE_2S(em_bus_event_type_reset)
+        BUS_EVENT_TYPE_2S(em_bus_event_type_dev_test)
+	BUS_EVENT_TYPE_2S(em_bus_event_type_set_dev_test)
+        BUS_EVENT_TYPE_2S(em_bus_event_type_get_network)
+        BUS_EVENT_TYPE_2S(em_bus_event_type_get_device)
+        BUS_EVENT_TYPE_2S(em_bus_event_type_remove_device)
+        BUS_EVENT_TYPE_2S(em_bus_event_type_get_radio)
+        BUS_EVENT_TYPE_2S(em_bus_event_type_set_radio)
+        BUS_EVENT_TYPE_2S(em_bus_event_type_get_ssid)
+        BUS_EVENT_TYPE_2S(em_bus_event_type_set_ssid)
+        BUS_EVENT_TYPE_2S(em_bus_event_type_get_channel)
+        BUS_EVENT_TYPE_2S(em_bus_event_type_set_channel)
+        BUS_EVENT_TYPE_2S(em_bus_event_type_channel_select)
+        BUS_EVENT_TYPE_2S(em_bus_event_type_get_bss)
+        BUS_EVENT_TYPE_2S(em_bus_event_type_get_sta)
+        BUS_EVENT_TYPE_2S(em_bus_event_type_steer_sta)
+        BUS_EVENT_TYPE_2S(em_bus_event_type_disassoc_sta)
+        BUS_EVENT_TYPE_2S(em_bus_event_type_btm_sta)
+        BUS_EVENT_TYPE_2S(em_bus_event_type_start_dpp)
+        BUS_EVENT_TYPE_2S(em_bus_event_type_dev_init)
+        BUS_EVENT_TYPE_2S(em_bus_event_type_cfg_renew)
+        BUS_EVENT_TYPE_2S(em_bus_event_type_m2_tx)
+        BUS_EVENT_TYPE_2S(em_bus_event_type_radio_config)
+        BUS_EVENT_TYPE_2S(em_bus_event_type_vap_config)
+        BUS_EVENT_TYPE_2S(em_bus_event_type_sta_list)
+        BUS_EVENT_TYPE_2S(em_bus_event_type_listener_stop)
+        BUS_EVENT_TYPE_2S(em_bus_event_type_dm_commit)
+        BUS_EVENT_TYPE_2S(em_bus_event_type_topo_sync)
+        BUS_EVENT_TYPE_2S(em_bus_event_type_get_policy)
+        BUS_EVENT_TYPE_2S(em_bus_event_type_set_policy)
+        BUS_EVENT_TYPE_2S(em_bus_event_type_ap_metrics_report)
         BUS_EVENT_TYPE_2S(em_bus_event_type_get_mld_config)
         BUS_EVENT_TYPE_2S(em_bus_event_type_mld_reconfig)
+        BUS_EVENT_TYPE_2S(em_bus_event_type_get_reset)
+        BUS_EVENT_TYPE_2S(em_bus_event_type_link_quality_report)
+        BUS_EVENT_TYPE_2S(em_bus_event_type_unassoc_sta_query)
+	BUS_EVENT_TYPE_2S(em_bus_event_type_unassoc_sta_link_metrics_query)
+	BUS_EVENT_TYPE_2S(em_bus_event_type_unassoc_sta_result)
+	BUS_EVENT_TYPE_2S(em_bus_event_type_failed_conn)
+       
+        default:
+           break;
     }
+    return "em_bus_event_type_unknown";
 }   
 
 const char *em_cmd_t::get_orch_op_str(dm_orch_type_t type)
@@ -538,6 +581,7 @@ const char *em_cmd_t::get_orch_op_str(dm_orch_type_t type)
         ORCH_TYPE_2S(dm_orch_type_owconfig_req)
         ORCH_TYPE_2S(dm_orch_type_owconfig_cnf)
         ORCH_TYPE_2S(dm_orch_type_ctrl_notify)
+        ORCH_TYPE_2S(dm_orch_type_ap_cap_query)
         ORCH_TYPE_2S(dm_orch_type_ap_cap_report)
         ORCH_TYPE_2S(dm_orch_type_client_cap_report)
         ORCH_TYPE_2S(dm_orch_type_net_ssid_update)
@@ -556,6 +600,12 @@ const char *em_cmd_t::get_orch_op_str(dm_orch_type_t type)
         ORCH_TYPE_2S(dm_orch_type_sta_disassoc)
         ORCH_TYPE_2S(dm_orch_type_policy_cfg)
         ORCH_TYPE_2S(dm_orch_type_mld_reconfig)
+        ORCH_TYPE_2S(dm_orch_type_topo_publish)
+        ORCH_TYPE_2S(dm_orch_type_unassoc_sta_link_req_query)
+	ORCH_TYPE_2S(dm_orch_type_unassoc_sta_result)
+
+        default:
+           break;
     }
 
     return "dm_orch_type_unknown";
@@ -585,6 +635,7 @@ const char *em_cmd_t::get_cmd_type_str(em_cmd_type_t type)
         CMD_TYPE_2S(em_cmd_type_btm_sta)
         CMD_TYPE_2S(em_cmd_type_dev_init)
         CMD_TYPE_2S(em_cmd_type_dev_test)
+	CMD_TYPE_2S(em_cmd_type_set_dev_test)
         CMD_TYPE_2S(em_cmd_type_cfg_renew)
         CMD_TYPE_2S(em_cmd_type_vap_config)
         CMD_TYPE_2S(em_cmd_type_sta_list)
@@ -593,6 +644,7 @@ const char *em_cmd_t::get_cmd_type_str(em_cmd_type_t type)
         CMD_TYPE_2S(em_cmd_type_client_cap_query)
         CMD_TYPE_2S(em_cmd_type_topo_sync)
         CMD_TYPE_2S(em_cmd_type_em_config)
+        CMD_TYPE_2S(em_cmd_type_onewifi_cb)
         CMD_TYPE_2S(em_cmd_type_sta_assoc)
         CMD_TYPE_2S(em_cmd_type_channel_pref_query)
         CMD_TYPE_2S(em_cmd_type_sta_link_metrics)
@@ -604,6 +656,14 @@ const char *em_cmd_t::get_cmd_type_str(em_cmd_type_t type)
         CMD_TYPE_2S(em_cmd_type_get_mld_config)
         CMD_TYPE_2S(em_cmd_type_mld_reconfig)
         CMD_TYPE_2S(em_cmd_type_beacon_report)
+        CMD_TYPE_2S(em_cmd_type_ap_metrics_report)
+        CMD_TYPE_2S(em_cmd_type_get_reset)
+        CMD_TYPE_2S(em_cmd_type_get_link_quality_report)
+        CMD_TYPE_2S(em_cmd_type_unassoc_sta_query)
+	CMD_TYPE_2S(em_cmd_type_unassoc_sta_result)
+
+        default:
+           break;
     }
 
     return "em_cmd_type_unknown";
@@ -621,6 +681,10 @@ em_cmd_type_t em_cmd_t::bus_2_cmd_type(em_bus_event_type_t etype)
         case em_bus_event_type_dev_test:
             type = em_cmd_type_dev_test;
             break;
+
+	case em_bus_event_type_set_dev_test:
+	    type = em_cmd_type_set_dev_test;
+	    break;
 
         case em_bus_event_type_get_network:
             type = em_cmd_type_get_network;
@@ -715,6 +779,7 @@ em_cmd_type_t em_cmd_t::bus_2_cmd_type(em_bus_event_type_t etype)
 	        break;
 
         case em_bus_event_type_topo_sync:
+        case em_bus_event_type_m2_tx:
             type = em_cmd_type_em_config;
             break;
 
@@ -728,6 +793,33 @@ em_cmd_type_t em_cmd_t::bus_2_cmd_type(em_bus_event_type_t etype)
 
         case em_bus_event_type_beacon_report:
             type = em_cmd_type_beacon_report;
+            break;
+
+        case em_bus_event_type_ap_metrics_report:
+            type = em_cmd_type_ap_metrics_report;
+            break;
+
+        case em_bus_event_type_get_reset:
+            type = em_cmd_type_get_reset;
+            break;
+
+        case em_bus_event_type_link_quality_report:
+            type = em_cmd_type_get_link_quality_report;
+            break;
+
+      	case em_bus_event_type_unassoc_sta_query:
+            type = em_cmd_type_unassoc_sta_query;
+            break;
+
+      	case em_bus_event_type_unassoc_sta_result:
+            type = em_cmd_type_unassoc_sta_result;
+            break;
+
+        case em_bus_event_type_channel_select:
+            type = em_cmd_type_set_channel;
+            break;
+
+        default:
             break;
     }
 
@@ -774,19 +866,37 @@ em_bus_event_type_t em_cmd_t::cmd_2_bus_event_type(em_cmd_type_t ctype)
         case em_cmd_type_mld_reconfig:
             type = em_bus_event_type_mld_reconfig;
             break;
+
+        case em_cmd_type_get_reset:
+            type = em_bus_event_type_get_reset;
+            break;
+
+        case em_cmd_type_unassoc_sta_query:
+            type = em_bus_event_type_unassoc_sta_query;
+            break;
+
+        case em_cmd_type_unassoc_sta_result:
+            type = em_bus_event_type_unassoc_sta_result;
+            break;
+
+        default:
+            break;
     }
 
     return type;
 }
 
-void em_cmd_t::dump_bus_event(em_bus_event_t *evt)
+int em_cmd_t::dump_bus_event(em_bus_event_t *evt)
 {
-    em_cmd_params_t *params;
     unsigned int i;
     em_subdoc_info_t *info;
 
+    if (evt == NULL) {
+        printf("%s:%d: NULL event\n", __func__, __LINE__);
+        return -1;
+    }
+
     printf("Bus Event\n");
-    params = &evt->params;
 
     switch (evt->type) {
         case em_bus_event_type_get_network:
@@ -801,34 +911,44 @@ void em_cmd_t::dump_bus_event(em_bus_event_t *evt)
             info = &evt->u.subdoc;
             printf("Name: %s\n", info->name);
             break;
+        default:
+            break;
     }
 
-    printf("Type: %s\tNumber of Command Parameters: %d\n", get_bus_event_type_str(evt->type), params->u.args.num_args);
-    for (i = 0; i < params->u.args.num_args; i++) {
-        printf("Arg[%d]: %s\n", i, params->u.args.args[i]);
+    printf("Type: %s\tNumber of Command Parameters: %d\n", get_bus_event_type_str(evt->type), evt->params.u.args.num_args);
+    for (i = 0; i < evt->params.u.args.num_args; i++) {
+        printf("Arg[%d]: %s\n", i, evt->params.u.args.args[i]);
     }   
+	return 0;
 }   
 
-em_cmd_t::em_cmd_t(em_cmd_type_t type, em_cmd_params_t param, dm_easy_mesh_t& dm) : m_evt(NULL)
+em_cmd_t::em_cmd_t(em_cmd_type_t type, em_cmd_params_t param, dm_easy_mesh_t& dm)
+    : m_type(em_cmd_type_none), m_svc(em_service_type_none), m_param{}, m_evt(NULL), m_em_candidates(nullptr), m_db_cfg_type(db_cfg_type_none)
 {
-    m_type = type;
+    auto raw = static_cast<std::underlying_type_t<em_cmd_type_t>>(type);
+    m_type = (raw >= static_cast<decltype(raw)>(em_cmd_type_max))
+             ? em_cmd_type_max : type;
     m_db_cfg_type = db_cfg_type_none;
     memcpy(&m_param, &param, sizeof(em_cmd_params_t));
-    init(&dm);
+    init(dm);
     init();
 }
 
-em_cmd_t::em_cmd_t(em_cmd_type_t type, em_cmd_params_t param) : m_evt(NULL)
+em_cmd_t::em_cmd_t(em_cmd_type_t type, em_cmd_params_t param)
+    : m_type(em_cmd_type_none), m_svc(em_service_type_none), m_param{}, m_evt(NULL), m_em_candidates(nullptr), m_db_cfg_type(db_cfg_type_none)
 {
-    m_type = type;
+    auto raw = static_cast<std::underlying_type_t<em_cmd_type_t>>(type);
+    m_type = (raw >= static_cast<decltype(raw)>(em_cmd_type_max))
+             ? em_cmd_type_max : type;
     m_db_cfg_type = db_cfg_type_none;
     memcpy(&m_param, &param, sizeof(em_cmd_params_t));
     init();
 }
 
-em_cmd_t::em_cmd_t() : m_evt(NULL)
+em_cmd_t::em_cmd_t()
+    : m_type(em_cmd_type_none), m_svc(em_service_type_none), m_param{}, m_evt(NULL), m_em_candidates(nullptr), m_db_cfg_type(db_cfg_type_none)
 {
-	m_evt = (em_event_t *)malloc(sizeof(em_event_t) + EM_MAX_EVENT_DATA_LEN);
+	m_evt = static_cast<em_event_t *> (malloc(sizeof(em_event_t) + EM_MAX_EVENT_DATA_LEN));
 }
 
 em_cmd_t::~em_cmd_t()

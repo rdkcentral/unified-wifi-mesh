@@ -25,11 +25,6 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <net/if.h>
-#include <linux/filter.h>
-#include <netinet/ether.h>
-#include <netpacket/packet.h>
-#include <linux/netlink.h>
-#include <linux/rtnetlink.h>
 #include <sys/ioctl.h>
 #include <sys/socket.h>
 #include <sys/uio.h>
@@ -47,16 +42,20 @@ em_cmd_sta_assoc_t::em_cmd_sta_assoc_t(em_cmd_params_t param, dm_easy_mesh_t& dm
     m_type = em_cmd_type_sta_assoc;
     memcpy(&m_param, &param, sizeof(em_cmd_params_t));
 
-	memset((unsigned char *)&m_orch_desc[0], 0, EM_MAX_CMD*sizeof(em_orch_desc_t));
+	memset(reinterpret_cast<unsigned char *> (&m_orch_desc[0]), 0, EM_MAX_CMD*sizeof(em_orch_desc_t));
 
     m_orch_op_idx = 0;
-    m_num_orch_desc = 1;
-    m_orch_desc[0].op = dm_orch_type_sta_cap;
+    m_num_orch_desc = 3;
+    m_orch_desc[0].op = dm_orch_type_topo_sync;
     m_orch_desc[0].submit = true;
+    m_orch_desc[1].op = dm_orch_type_sta_cap;
+    m_orch_desc[1].submit = true;
+    m_orch_desc[2].op = dm_orch_type_topo_publish;
+    m_orch_desc[2].submit = true;
 
     strncpy(m_name, "sta_assoc", strlen("sta_assoc") + 1);
     m_svc = em_service_type_ctrl;
-    init(&dm);
+    init(dm);
 
     memset(&ctx, 0, sizeof(em_cmd_ctx_t));
     ctx.type = m_orch_desc[0].op;

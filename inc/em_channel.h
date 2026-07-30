@@ -19,78 +19,819 @@
 #ifndef EM_CHANNEL_H
 #define EM_CHANNEL_H
 
+#include <memory>
 #include "em_base.h"
+
+#define ACK_FROM_AGENT 0
+#define ACK_FROM_CTRL  1
 
 class em_cmd_t;
 class em_channel_t {
+    /* Cached Channel Scan Request received from controller.
+     * Freed after corresponding report is sent.
+     */
+    std::unique_ptr<em_scan_params_t> m_last_scan_req;
+    bool                              m_last_scan_req_valid;
 
-    virtual int send_frame(unsigned char *buff, unsigned int len, bool multicast = false) = 0;
+	/**!
+	 * @brief Sends a frame of data.
+	 *
+	 * This function is responsible for sending a frame of data through the channel.
+	 *
+	 * @param[in] buff Pointer to the buffer containing the data to be sent.
+	 * @param[in] len The length of the data in the buffer.
+	 * @param[in] multicast Indicates whether the frame should be sent as multicast.
+	 *
+	 * @returns int
+	 * @retval 0 on success
+	 * @retval non-zero error code on failure
+	 *
+	 * @note This is a pure virtual function and must be implemented by derived classes.
+	 */
+	virtual int send_frame(unsigned char *buff, unsigned int len, bool multicast = false) = 0;
+	
+	/**!
+	 * @brief Sends a 1905 acknowledgment message.
+	 *
+	 * This function is responsible for sending an acknowledgment message
+	 *
+	 * @param[in] msg_id The message ID of the original message being acknowledged.
+	 *
+	 * @returns int
+	 * @retval length of buffer on success
+	 * @retval 0 on failure
+	 *
+	 */
+	int send_1905_ack_message(unsigned short msg_id, bool ack_from);
+	/**!
+	 * @brief Pushes an event to the event manager.
+	 *
+	 * This function is responsible for adding an event to the event manager's queue.
+	 *
+	 * @param[in] evt Pointer to the event to be pushed.
+	 *
+	 * @returns int
+	 * @retval 0 on success.
+	 * @retval -1 on failure.
+	 *
+	 * @note This is a pure virtual function and must be implemented by derived classes.
+	 */
 	virtual int push_event(em_event_t *evt) = 0;
 
 public:
+	
+	/**!
+	 * @brief Retrieves the manager instance.
+	 *
+	 * This function is a pure virtual function that must be implemented by derived classes.
+	 *
+	 * @returns A pointer to the em_mgr_t instance.
+	 *
+	 * @note This function does not take any parameters and returns a non-null pointer to the manager instance.
+	 */
 	virtual em_mgr_t *get_mgr() = 0;
-    virtual dm_easy_mesh_t *get_data_model() = 0;
-    virtual unsigned char *get_radio_interface_mac() = 0;
-    virtual em_state_t get_state() = 0;
-    virtual void set_state(em_state_t state) = 0;
-    virtual em_service_type_t get_service_type() = 0;
-    virtual em_device_info_t *get_device_info() = 0;
-    virtual em_cmd_t *get_current_cmd() = 0;
+    
+	/**!
+	 * @brief Retrieves the data model.
+	 *
+	 * This function is a pure virtual function that must be implemented by derived classes.
+	 *
+	 * @returns A pointer to a dm_easy_mesh_t object representing the data model.
+	 *
+	 * @note This function does not take any parameters and must be overridden in derived classes.
+	 */
+	virtual dm_easy_mesh_t *get_data_model() = 0;
+    
+	/**!
+	 * @brief Retrieves the MAC address of the radio interface.
+	 *
+	 * @returns A pointer to an unsigned char array representing the MAC address.
+	 *
+	 * @note This function is pure virtual and must be implemented by derived classes.
+	 */
+	virtual unsigned char *get_radio_interface_mac() = 0;
+    
+	/**!
+	 * @brief Retrieves the current state.
+	 *
+	 * @returns The current state as an em_state_t.
+	 */
+	virtual em_state_t get_state() = 0;
+    
+	/**!
+	 * @brief Sets the state of the channel.
+	 *
+	 * This function sets the state of the channel to the specified state.
+	 *
+	 * @param[in] state The state to set for the channel.
+	 *
+	 * @note This is a pure virtual function and must be implemented by derived classes.
+	 */
+	virtual void set_state(em_state_t state) = 0;
+    
+	/**!
+	 * @brief Retrieves the service type.
+	 *
+	 * This function is a pure virtual function that must be implemented by derived classes.
+	 *
+	 * @returns The service type as an em_service_type_t.
+	 */
+	virtual em_service_type_t get_service_type() = 0;
+    
+	/**!
+	 * @brief Retrieves the device information.
+	 *
+	 * This function is a pure virtual function that must be implemented by the derived class.
+	 *
+	 * @returns A pointer to an em_device_info_t structure containing the device information.
+	 *
+	 * @note The caller is responsible for managing the memory of the returned structure.
+	 */
+	virtual em_device_info_t *get_device_info() = 0;
+    
+	/**!
+	 * @brief Retrieves the current command.
+	 *
+	 * This function returns a pointer to the current command being processed.
+	 *
+	 * @returns A pointer to the current command of type em_cmd_t.
+	 * @retval nullptr if no command is currently being processed.
+	 *
+	 * @note This is a pure virtual function and must be implemented by derived classes.
+	 */
+	virtual em_cmd_t *get_current_cmd() = 0;
 
-    short create_channel_scan_req_tlv(unsigned char *buff);
-    short create_channel_scan_res_tlv(unsigned char *buff, unsigned int index);
-    short create_channel_pref_tlv(unsigned char *buff);
-    short create_operating_channel_report_tlv(unsigned char *buff);
-    short create_spatial_reuse_report_tlv(unsigned char *buff);
-    short create_radio_op_restriction_tlv(unsigned char *buff);
-    short create_cac_complete_report_tlv(unsigned char *buff);
-    short create_cac_status_report_tlv(unsigned char *buff);
-    short create_channel_pref_tlv_agent(unsigned char *buff);
-    short create_transmit_power_limit_tlv(unsigned char *buff);
-    short create_spatial_reuse_req_tlv(unsigned char *buff);
-    short create_eht_operations_tlv(unsigned char *buff);
+    
+	/**!
+	* @brief Creates a channel scan request TLV.
+	*
+	* This function initializes a channel scan request TLV and stores it in the provided buffer.
+	*
+	* @param[out] buff Pointer to the buffer where the TLV will be stored.
+	*
+	* @returns short
+	* @retval 0 on success
+	* @retval -1 on failure
+	*
+	* @note Ensure the buffer is allocated with sufficient size before calling this function.
+	*/
+	short create_channel_scan_req_tlv(unsigned char *buff);
+    
+	/**!
+	 * @brief Creates a channel scan result TLV.
+	 *
+	 * This function is responsible for creating a channel scan result TLV (Type-Length-Value) structure
+	 * and storing it in the provided buffer at the specified index.
+	 *
+	 * @param[out] buff Pointer to the buffer where the TLV will be stored.
+	 * @param[in] index The index in the buffer where the TLV should be placed.
+	 *
+	 * @returns short
+	 * @retval 0 on success.
+	 * @retval -1 on failure.
+	 *
+	 * @note Ensure that the buffer has sufficient space to store the TLV.
+	 */
+	short create_channel_scan_res_tlv(unsigned char *buff, unsigned int index);
+    
+	/**!
+	 * @brief Creates a channel preference TLV.
+	 *
+	 * This function is responsible for creating a channel preference TLV (Type-Length-Value) structure and storing it in the provided buffer.
+	 *
+	 * @param[out] buff Pointer to the buffer where the TLV will be stored.
+	 *
+	 * @returns A short integer indicating the success or failure of the operation.
+	 * @retval 0 on success.
+	 * @retval -1 on failure.
+	 *
+	 * @note Ensure that the buffer is allocated with sufficient size before calling this function.
+	 */
+	short create_channel_pref_tlv(unsigned char *buff);
 
-    int send_channel_scan_request_msg();
-    int send_channel_scan_report_msg(unsigned int *last_inex);
-    int send_channel_sel_request_msg();
-    int send_channel_sel_response_msg(em_chan_sel_resp_code_type_t code, unsigned short msg_id);
+	/**!
+	 * @brief Updates map with non-operable and unsupported channels as per
+	 * Agent's Capability and Channel Preference Report
+	 *
+	 * Marks non-op channels for the operating classes from AP Capability Report with preference 0
+	 * Updates non-operable/operable preference from Preference Report. Preference report
+	 * overrides operable/non-operable preference from AP Capability Report
+	 * Removes unsupported opclasses as per AP Capability Report from the map
+	 *
+	 * @param[in] ruid Radio unique identifier (MAC address)
+	 * @param[in,out] opclass_channel_prefs Map keyed by op-class (outer key = opclass ID).
+	 * Each entry in outer map has an inner map keyed by channel number with preference byte as value
+	 */
+	void update_map_with_agent_capability_preference(const unsigned char *ruid, std::map<unsigned char, std::map<unsigned char, unsigned char>> &opclass_channel_prefs);
+
+	/**!
+	 * @brief This function updates the map with ctrl anticipated preferences
+	 *
+	 * Create a merged list of anticipated entries for Global, Device and RUID from datamodel
+	 * Assumes, only one entry for an OPCLASS for Global, Device or RUID in the datamodel
+	 * For an OPCLASS, RUID entry overrides the Global/Device ID entry
+	 * Updates the preferences for operable channels in the map with anticipated preferences
+	 *
+	 * @param[in] ruid Radio unique identifier (MAC address)
+	 * @param[in,out] opclass_channel_prefs Map keyed by op-class (outer key = opclass ID).
+	 * Each entry in outer map has an inner map keyed by channel number with preference byte as value
+	 *
+	 * @returns bool
+	 * @retval true if at least one entry was updated with anticipated preference for the RUID
+	 * @retval false otherwise
+	 *
+	 */
+	bool update_map_with_ctrl_anticipated(const unsigned char *ruid, std::map<unsigned char, std::map<unsigned char, unsigned char>> &opclass_channel_prefs);
+
+	/**!
+	 * @brief This function fills the map with opclass->channel entries from m_e4_table
+	 * with default preference for controller/agent
+	 *
+	 * This function is responsible for filling the map which is keyed by op-class (outer key = opclass ID).
+	 * Each entry in outer map has an inner map keyed by channel number with preference byte as value
+	 * Default preference is CTRL_DEFAULT_CH_PREF / AGENT_DEFAULT_CH_PREF
+	 *
+	 * @param[in,out] opclass_channel_prefs Map to fill with opclass and channel entries
+	 */
+	void fill_map_with_opclass_channel_prefs(std::map<unsigned char, std::map<unsigned char, unsigned char>> &opclass_channel_prefs);
+
+	/**!
+	 * @brief Creates an operating channel report TLV.
+	 *
+	 * This function generates a TLV (Type-Length-Value) report for the operating channel
+	 * and stores it in the provided buffer.
+	 *
+	 * @param[out] buff Pointer to the buffer where the TLV report will be stored.
+	 *
+	 * @returns short The size of the TLV report generated.
+	 *
+	 * @note Ensure the buffer is allocated with sufficient space to store the TLV report.
+	 */
+	short create_operating_channel_report_tlv(unsigned char *buff);
+    
+	/**!
+	 * @brief Creates a spatial reuse report TLV.
+	 *
+	 * This function generates a spatial reuse report TLV and stores it in the provided buffer.
+	 *
+	 * @param[out] buff Pointer to the buffer where the TLV will be stored.
+	 *
+	 * @returns The size of the TLV in bytes.
+	 *
+	 * @note Ensure that the buffer is large enough to hold the TLV.
+	 */
+	short create_spatial_reuse_report_tlv(unsigned char *buff);
+    
+	/**!
+	 * @brief Creates a complete CAC report TLV.
+	 *
+	 * This function generates a complete CAC (Channel Access Control) report TLV (Type-Length-Value) and stores it in the provided buffer.
+	 *
+	 * @param[out] buff Pointer to the buffer where the TLV will be stored.
+	 *
+	 * @returns A short integer indicating the success or failure of the operation.
+	 * @retval 0 on success.
+	 * @retval -1 on failure.
+	 *
+	 * @note Ensure that the buffer is adequately sized to hold the TLV data.
+	 */
+	short create_cac_complete_report_tlv(unsigned char *buff);
+    
+	/**!
+	 * @brief Creates a CAC status report TLV.
+	 *
+	 * This function generates a CAC (Channel Access Control) status report TLV (Type-Length-Value) and stores it in the provided buffer.
+	 *
+	 * @param[out] buff Pointer to the buffer where the TLV will be stored.
+	 *
+	 * @returns short The length of the TLV created.
+	 *
+	 * @note Ensure that the buffer is large enough to hold the TLV.
+	 */
+	short create_cac_status_report_tlv(unsigned char *buff);
+    
+	/**!
+	 * @brief Creates a channel preference TLV agent.
+	 *
+	 * This function is responsible for creating a channel preference TLV agent using the provided buffer.
+	 *
+	 * @param[out] buff Pointer to the buffer where the channel preference TLV agent will be created.
+	 * @param[in] index The index of the channel preference TLV agent to be created.
+	 *
+	 * @returns short
+	 * @retval 0 on success
+	 * @retval -1 on failure
+	 *
+	 * @note Ensure that the buffer is properly allocated before calling this function.
+	 */
+	short create_channel_pref_tlv_agent(unsigned char *buff, unsigned int index);
+    
+	/**!
+	 * @brief Creates a TLV for transmit power limit.
+	 *
+	 * This function generates a TLV (Type-Length-Value) structure for setting the transmit power limit.
+	 *
+	 * @param[out] buff Pointer to the buffer where the TLV will be stored.
+	 *
+	 * @returns The size of the TLV in bytes.
+	 * @retval -1 if an error occurs during TLV creation.
+	 *
+	 * @note Ensure the buffer is large enough to hold the TLV.
+	 */
+	short create_transmit_power_limit_tlv(unsigned char *buff);
+    
+	/**!
+	 * @brief Creates a spatial reuse request TLV.
+	 *
+	 * This function initializes a spatial reuse request TLV and stores it in the provided buffer.
+	 *
+	 * @param[out] buff Pointer to the buffer where the TLV will be stored.
+	 *
+	 * @returns The size of the TLV created.
+	 */
+	short create_spatial_reuse_req_tlv(unsigned char *buff);
+    
+	/**!
+	 * @brief Creates an EHT operations TLV.
+	 *
+	 * This function is responsible for creating an EHT (Extremely High Throughput) operations TLV (Type-Length-Value) structure and storing it in the provided buffer.
+	 *
+	 * @param[out] buff Pointer to the buffer where the TLV will be stored.
+	 *
+	 * @returns A short integer indicating the success or failure of the operation.
+	 * @retval 0 on success.
+	 * @retval -1 on failure.
+	 *
+	 * @note Ensure that the buffer is allocated with sufficient size before calling this function.
+	 */
+	virtual unsigned short create_eht_operations_tlv(unsigned char *buff) = 0;
+
+	virtual int handle_eht_operations_tlv(unsigned char *buff, unsigned short len) = 0;
+    
+	/**!
+	 * @brief Sends a channel scan request message.
+	 *
+	 * This function initiates a scan request on the channel to gather available network information.
+	 *
+	 * @returns int
+	 * @retval 0 on success
+	 * @retval -1 on failure
+	 *
+	 * @note Ensure that the channel is initialized before calling this function.
+	 */
+	int send_channel_scan_request_msg();
+    
+	/**!
+	 * @brief Sends a channel scan report message.
+	 *
+	 * This function is responsible for sending a report message after scanning channels.
+	 *
+	 * @param[in] last_inex Pointer to the last index scanned.
+	 *
+	 * @returns int Status code of the operation.
+	 * @retval 0 on success.
+	 * @retval -1 on failure.
+	 *
+	 * @note Ensure that the pointer is valid before calling this function.
+	 */
+	int send_channel_scan_report_msg(unsigned int *last_inex);
+    
+	/**!
+	 * @brief Sends a channel selection request message.
+	 *
+	 * This function is responsible for initiating a request to select a specific or from a list of channels.
+	 * The anticipated list is validated against agent's capability and preference.
+	 *
+	 * @returns int
+	 * @retval 0 on success
+	 * @retval -1 on failure
+	 *
+	 * @note Ensure that the channel is available before sending the request.
+	 */
+	int send_channel_sel_request_msg();
+    
+	/**!
+	 * @brief Sends a channel selection response message.
+	 *
+	 * This function is responsible for sending a response message based on the channel selection response code provided.
+	 *
+	 * @param[in] code The response code indicating the result of the channel selection process.
+	 * @param[in] msg_id The message identifier for the response message.
+	 *
+	 * @returns int
+	 * @retval 0 on success
+	 * @retval -1 on failure
+	 *
+	 * @note Ensure that the response code and message ID are valid before calling this function.
+	 */
+	int send_channel_sel_response_msg(em_chan_sel_resp_code_type_t code, unsigned short msg_id);
+	
+	/**!
+	 * @brief Sends an operating channel report message.
+	 *
+	 * This function is responsible for sending a report message regarding the operating channel.
+	 *
+	 * @returns int
+	 * @retval 0 on success
+	 * @retval -1 on failure
+	 *
+	 * @note Ensure that the channel is properly configured before calling this function.
+	 */
 	int send_operating_channel_report_msg();
+	
+	/**!
+	 * @brief Sends a channel preference query message.
+	 *
+	 * This function is responsible for sending a query message to determine
+	 * the preferred channel for communication.
+	 *
+	 * @returns int
+	 * @retval 0 on success
+	 * @retval -1 on failure
+	 *
+	 * @note Ensure that the communication channel is initialized before calling this function.
+	 */
 	int send_channel_pref_query_msg();
+	
+	/**!
+	 * @brief Sends a channel preference report message.
+	 *
+	 * This function is responsible for sending a message that contains
+	 * the channel preference report. It is typically used in scenarios
+	 * where channel selection or preference needs to be communicated.
+	 *
+	 * @returns int
+	 * @retval 0 on success
+	 * @retval -1 on failure
+	 *
+	 * @note Ensure that the channel configuration is set before calling
+	 * this function.
+	 */
 	int send_channel_pref_report_msg();
-    int send_available_spectrum_inquiry_msg();
+    
+	/**!
+	 * @brief Sends an inquiry message to check available spectrum.
+	 *
+	 * This function is responsible for sending a message to inquire about the available spectrum.
+	 *
+	 * @returns int
+	 * @retval 0 on success
+	 * @retval -1 on failure
+	 *
+	 * @note Ensure that the communication channel is properly initialized before calling this function.
+	 */
+	int send_available_spectrum_inquiry_msg();
 
-    int handle_channel_scan_req(unsigned char *buff, unsigned int len);
-    int handle_channel_scan_rprt(unsigned char *buff, unsigned int len);
-    int handle_channel_scan_result(unsigned char *buff, unsigned int len);
-    int handle_channel_pref_rprt(unsigned char *buff, unsigned int len);
-    int handle_channel_pref_query(unsigned char *buff, unsigned int len);
-    int handle_channel_sel_rsp(unsigned char *buff, unsigned int len);
-    int handle_operating_channel_rprt(unsigned char *buff, unsigned int len);
-    int handle_channel_sel_req(unsigned char *buff, unsigned int len);
-    int handle_channel_pref_tlv(unsigned char *buff, op_class_channel_sel *op_class);
-    int handle_channel_pref_tlv_ctrl(unsigned char *buff, unsigned int len);
-    int handle_op_channel_report(unsigned char *buff, unsigned int len);
-    int handle_spatial_reuse_report(unsigned char *buff, unsigned int len);
-    int handle_eht_operations_tlv(unsigned char *buff, em_eht_operations_t *eht_ops);
-    int handle_eht_operations_tlv_ctrl(unsigned char *buff, unsigned int len);
+    
+	/**!
+	 * @brief Handles the channel scan request.
+	 *
+	 * This function processes the channel scan request using the provided buffer and length.
+	 *
+	 * @param[in] buff Pointer to the buffer containing the scan request data.
+	 * @param[in] len Length of the data in the buffer.
+	 *
+	 * @returns int Status code indicating the success or failure of the operation.
+	 * @retval 0 on success.
+	 * @retval Non-zero error code on failure.
+	 *
+	 * @note Ensure the buffer is properly initialized before calling this function.
+	 */
+	int handle_channel_scan_req(unsigned char *buff, unsigned int len);
 
-    int get_channel_pref_query_tx_count() { return static_cast<int>(m_channel_pref_query_tx_cnt); }
-    void set_channel_pref_query_tx_count(unsigned int cnt) { m_channel_pref_query_tx_cnt = cnt; }
-    int get_channel_sel_req_tx_count() { return static_cast<int>(m_channel_sel_req_tx_cnt); }
-    void set_channel_sel_req_tx_count(unsigned int cnt) { m_channel_sel_req_tx_cnt = cnt; }
+	/**!
+	 * @brief Handles a 1905 acknowledgment message for channel operations.
+	 *
+	 * This function processes 1905 ack message received in response to channel scan requests.
+	 *
+	 * @param[in] buff Pointer to the buffer containing the 1905 ACK message data.
+	 * @param[in] len Length of the message data in the buffer.
+	 *
+	 * @returns int Status code indicating success or failure.
+	 * @retval 0 on success.
+	 * @retval -1 on failure.
+	 *
+	 * @note This function is called when a 1905 ACK message is received
+	 */
+	int handle_1905_ack(unsigned char *buff, unsigned int len);
+    
+	/**!
+	 * @brief Handles the channel scan report.
+	 *
+	 * This function processes the channel scan report contained in the buffer.
+	 *
+	 * @param[in] buff Pointer to the buffer containing the scan report data.
+	 * @param[in] len Length of the data in the buffer.
+	 *
+	 * @returns int Status code indicating success or failure.
+	 * @retval 0 on success.
+	 * @retval -1 on failure.
+	 *
+	 * @note Ensure the buffer is properly allocated and the length is correct.
+	 */
+	int handle_channel_scan_rprt(unsigned char *buff, unsigned int len);
+    
+	/**!
+	 * @brief Handles the result of a channel scan.
+	 *
+	 * This function processes the data obtained from a channel scan and performs necessary actions based on the scan results.
+	 *
+	 * @param[in] buff Pointer to the buffer containing the scan result data.
+	 * @param[in] len Length of the data in the buffer.
+	 *
+	 * @returns int
+	 * @retval 0 on success
+	 * @retval -1 on failure
+	 *
+	 * @note Ensure that the buffer is properly allocated and the length is correctly specified to avoid buffer overflow issues.
+	 */
+	int handle_channel_scan_result(unsigned char *buff, unsigned int len);
+    
+	/**!
+	 * @brief Handles the channel preference report.
+	 *
+	 * This function processes the channel preference report contained in the buffer.
+	 *
+	 * @param[in] buff Pointer to the buffer containing the channel preference report.
+	 * @param[in] len Length of the buffer.
+	 *
+	 * @returns int Status code indicating success or failure.
+	 * @retval 0 on success.
+	 * @retval -1 on failure.
+	 *
+	 * @note Ensure the buffer is properly allocated and the length is correct before calling this function.
+	 */
+	int handle_channel_pref_rprt(unsigned char *buff, unsigned int len);
+    
+	/**!
+	 * @brief Handles the channel preference query.
+	 *
+	 * This function processes the channel preference query and populates the provided buffer.
+	 *
+	 * @param[out] buff Pointer to the buffer where the query result will be stored.
+	 * @param[in] len The length of the buffer.
+	 *
+	 * @returns int Status code indicating success or failure.
+	 * @retval 0 on success.
+	 * @retval -1 on failure.
+	 *
+	 * @note Ensure the buffer is allocated with sufficient size to store the query result.
+	 */
+	int handle_channel_pref_query(unsigned char *buff, unsigned int len);
+    
+	/**!
+	 * @brief Handles the channel selection response.
+	 *
+	 * This function processes the response received for channel selection.
+	 *
+	 * @param[in] buff Pointer to the buffer containing the response data.
+	 * @param[in] len Length of the data in the buffer.
+	 *
+	 * @returns int Status code indicating success or failure.
+	 * @retval 0 on success.
+	 * @retval -1 on failure.
+	 *
+	 * @note Ensure that the buffer is properly allocated and the length is correctly specified.
+	 */
+	int handle_channel_sel_rsp(unsigned char *buff, unsigned int len);
+    
+	/**!
+	 * @brief Handles the operating channel report.
+	 *
+	 * This function processes the operating channel report from the given buffer.
+	 *
+	 * @param[in] buff Pointer to the buffer containing the channel report data.
+	 * @param[in] len Length of the buffer.
+	 *
+	 * @returns int Status code indicating success or failure.
+	 * @retval 0 on success.
+	 * @retval -1 on failure.
+	 *
+	 * @note Ensure that the buffer is properly allocated and the length is correctly specified.
+	 */
+	int handle_operating_channel_rprt(unsigned char *buff, unsigned int len);
+    
+	/**!
+	 * @brief Handles the channel selection request.
+	 *
+	 * This function processes the channel selection request contained in the buffer.
+	 *
+	 * @param[in] buff Pointer to the buffer containing the channel selection request data.
+	 * @param[in] len Length of the data in the buffer.
+	 *
+	 * @returns int Status code indicating success or failure of the operation.
+	 * @retval 0 Success.
+	 * @retval -1 Failure due to invalid parameters.
+	 *
+	 * @note Ensure that the buffer is properly initialized and contains valid data before calling this function.
+	 */
+	int handle_channel_sel_req(unsigned char *buff, unsigned int len);
+    
+	/**!
+	 * @brief Handles the channel preference TLV.
+	 *
+	 * This function processes the channel preference TLV from the given buffer
+	 * and updates the operation class channel selection structure.
+	 *
+	 * @param[in] buff Pointer to the buffer containing the TLV data.
+	 * @param[out] op_class Pointer to the operation class channel selection structure.
+	 *
+	 * @returns int Status code indicating success or failure.
+	 * @retval 0 on success.
+	 * @retval -1 on failure.
+	 *
+	 * @note Ensure the buffer is properly initialized before calling this function.
+	 */
+	int handle_channel_pref_tlv(unsigned char *buff, op_class_channel_sel *op_class);
+    
+	/**!
+	 * @brief Handles the channel preference TLV control.
+	 *
+	 * This function processes the channel preference TLV (Type-Length-Value) control message.
+	 *
+	 * @param[in] buff Pointer to the buffer containing the TLV data.
+	 * @param[in] len Length of the buffer.
+	 *
+	 * @returns int Status code indicating success or failure.
+	 * @retval 0 on success.
+	 * @retval -1 on failure.
+	 *
+	 * @note Ensure that the buffer is properly allocated and the length is correctly specified.
+	 */
+	int handle_channel_pref_tlv_ctrl(unsigned char *buff, unsigned int len);
+    
+	/**!
+	 * @brief Handles the operation channel report.
+	 *
+	 * This function processes the channel report data provided in the buffer.
+	 *
+	 * @param[in] buff Pointer to the buffer containing the channel report data.
+	 * @param[in] len Length of the data in the buffer.
+	 *
+	 * @returns int Status code indicating success or failure of the operation.
+	 * @retval 0 Success.
+	 * @retval -1 Failure.
+	 *
+	 * @note Ensure that the buffer is properly allocated and the length is correctly specified.
+	 */
+	int handle_op_channel_report(unsigned char *buff, unsigned int len);
+    
+	/**!
+	 * @brief Handles the spatial reuse report.
+	 *
+	 * This function processes the spatial reuse report contained in the buffer.
+	 *
+	 * @param[in] buff Pointer to the buffer containing the spatial reuse report data.
+	 * @param[in] len Length of the buffer in bytes.
+	 *
+	 * @returns int
+	 * @retval 0 on success.
+	 * @retval -1 on failure.
+	 *
+	 * @note Ensure that the buffer is properly allocated and the length is correctly specified.
+	 */
+	int handle_spatial_reuse_report(unsigned char *buff, unsigned int len);
+    
+	/**!
+	 * @brief Retrieves the channel preference query transmission count.
+	 *
+	 * This function returns the number of times the channel preference query
+	 * has been transmitted.
+	 *
+	 * @returns The channel preference query transmission count as an integer.
+	 */
+	int get_channel_pref_query_tx_count() { return static_cast<int>(m_channel_pref_query_tx_cnt); }
+    
+	/**!
+	* @brief Sets the channel preference query transmission count.
+	*
+	* This function assigns the provided count to the member variable
+	* responsible for tracking the number of channel preference query
+	* transmissions.
+	*
+	* @param[in] cnt The count to set for channel preference query transmissions.
+	*/
+	void set_channel_pref_query_tx_count(unsigned int cnt) { m_channel_pref_query_tx_cnt = cnt; }
+    
+	/**!
+	 * @brief Retrieves the transmission count for channel selection requests.
+	 *
+	 * This function returns the number of times a channel selection request has been transmitted.
+	 *
+	 * @returns The transmission count for channel selection requests as an integer.
+	 */
+	int get_channel_sel_req_tx_count() { return static_cast<int>(m_channel_sel_req_tx_cnt); }
+    
+	/**!
+	* @brief Sets the channel selection request transmission count.
+	*
+	* This function assigns the provided count to the member variable
+	* responsible for tracking the number of channel selection request
+	* transmissions.
+	*
+	* @param[in] cnt The count to set for channel selection request transmissions.
+	*/
+	void set_channel_sel_req_tx_count(unsigned int cnt) { m_channel_sel_req_tx_cnt = cnt; }
 
+	/**
+     * @brief Checks whether a scan result matches the most recent Channel Scan Request.
+     *
+     * Compares the scan result's operating class and channel against the cached
+     * Channel Scan Request parameters received from the controller. Only scan
+     * results that were explicitly requested are included in the Channel Scan
+     * Report sent back to the controller.
+     *
+     * @param scan_res Pointer to the scan result to validate.
+     *
+     * @return true if the scan result matches one of the requested operating
+     *         class/channel combinations.
+     * @return false otherwise.
+     */
+    bool is_requested_scan_result(const dm_scan_result_t *scan_res) const;
+	
+	/**!
+	 * @brief Fills the scan result structure with data from the channel scan result.
+	 *
+	 * This function takes the scan result from the channel scan and populates the
+	 * provided scan result structure with the relevant data.
+	 *
+	 * @param[out] scan_res Pointer to the destination scan result structure to be filled.
+	 * @param[in] res Pointer to the source channel scan result structure.
+	 *
+	 * @note Ensure that both structures are properly initialized before calling this function.
+	 */
 	void fill_scan_result(dm_scan_result_t *scan_res, em_channel_scan_result_t *res);
 
-    void    process_msg(unsigned char *data, unsigned int len);
-    void    process_ctrl_state();
-    void    process_state();
+    
+	/**!
+	 * @brief Processes a message with the given data and length.
+	 *
+	 * This function takes a pointer to a data buffer and its length, then processes the message contained within.
+	 *
+	 * @param[in] data Pointer to the data buffer containing the message.
+	 * @param[in] len Length of the data buffer.
+	 *
+	 * @note Ensure that the data buffer is valid and the length is correct to avoid undefined behavior.
+	 */
+	void process_msg(unsigned char *data, unsigned int len);
+    
+	/**!
+	* @brief Processes the control state.
+	*
+	* This function is responsible for handling the current state of the control mechanism.
+	*
+	* @note Ensure that the control state is initialized before calling this function.
+	*/
+	void process_ctrl_state();
+    
+	/**!
+	 * @brief Processes the current state.
+	 *
+	 * This function is responsible for handling the current state of the system.
+	 *
+	 * @note Ensure the system is initialized before calling this function.
+	 */
+	void process_state();
 
     unsigned int m_channel_pref_query_tx_cnt;
     unsigned int m_channel_sel_req_tx_cnt;
+    //stores Channel request msg_id
+    unsigned short m_chan_req_msg_id = 0;
+	
+	/**!
+	 * @brief Retrieves the frequency band.
+	 *
+	 * @returns The frequency band as an em_freq_band_t.
+	 */
 	virtual em_freq_band_t get_band() = 0;
 
-    em_channel_t();
-    virtual ~em_channel_t();
+	/**!
+	 * @brief Prepares a list of non-operable channels for the opclass,
+	 * reported by agent in capability and channel preference report.
+	 *
+	 * @param[in] op_class Operational class identifier.
+	 * @param[in] ruid Radio unique identifier (MAC address).
+	 * @returns std::vector<unsigned char> list of non-operable channels. Can be empty.
+	 */
+	std::vector<unsigned char> get_non_operable_channels(unsigned char op_class, const unsigned char *ruid);
+    
+	/**!
+	 * @brief Constructor for em_channel_t.
+	 *
+	 * Initializes a new instance of the em_channel_t class.
+	 *
+	 * @note This constructor does not take any parameters.
+	 */
+	em_channel_t();
+    
+	/**!
+	 * @brief Destructor for the em_channel_t class.
+	 *
+	 * This function cleans up any resources used by the em_channel_t instance.
+	 *
+	 * @note This is a virtual destructor, allowing for proper cleanup of derived classes.
+	 */
+	virtual ~em_channel_t();
 
 };
 

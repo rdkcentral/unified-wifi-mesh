@@ -42,15 +42,19 @@
 int dm_policy_list_t::get_config(cJSON *parent_obj, void *parent, bool summary)
 {
     dm_policy_t *policy;
-	cJSON *obj, *radio_metrics_arr_obj, *radio_steer_arr_obj;
+	cJSON *obj, *radio_metrics_arr_obj, *radio_steer_arr_obj, *steering_policies_obj;
 	mac_addr_str_t radio_mac_str;
 	mac_address_t dev_mac;
 	mac_address_t null_mac = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 
-	dm_easy_mesh_t::string_to_macbytes((char *)parent, dev_mac);
+	dm_easy_mesh_t::string_to_macbytes(static_cast<char *>(parent), dev_mac);
+
+	// Create the Steering Policies wrapper up front so it can be populated in both loops.
+	steering_policies_obj = cJSON_CreateObject();
+	cJSON_AddItemToObject(parent_obj, "Steering Policies", steering_policies_obj);
 
 	// first report the global policies for the device, for global the radio id will be NULL
-    policy = (dm_policy_t *)get_first_policy();
+    policy = static_cast<dm_policy_t *>(get_first_policy());
     while (policy != NULL) {
 		if (memcmp(policy->m_policy.id.dev_mac, dev_mac, sizeof(mac_address_t)) != 0) {
 	    	policy = get_next_policy(policy);
@@ -66,39 +70,72 @@ int dm_policy_list_t::get_config(cJSON *parent_obj, void *parent, bool summary)
 
 		if (policy->m_policy.id.type == em_policy_id_type_steering_local) {
 			policy->encode(obj, em_policy_id_type_steering_local);
-			cJSON_AddItemToObject(parent_obj, "Local Steering Disallowed Policy", obj);
+			cJSON_AddItemToObject(steering_policies_obj, "Local Steering Disallowed Policy", obj);
 		} else if (policy->m_policy.id.type == em_policy_id_type_steering_btm) {
 			policy->encode(obj, em_policy_id_type_steering_btm);
-			cJSON_AddItemToObject(parent_obj, "BTM Steering Disallowed Policy", obj);
+			cJSON_AddItemToObject(steering_policies_obj, "BTM Steering Disallowed Policy", obj);
 		} else if (policy->m_policy.id.type == em_policy_id_type_ap_metrics_rep) {
 			policy->encode(obj, em_policy_id_type_ap_metrics_rep);
 			cJSON_AddItemToObject(parent_obj, "AP Metrics Reporting Policy", obj);
-		} else if (policy->m_policy.id.type == em_policy_id_type_channel_scan) {
+        } else if (policy->m_policy.id.type == em_policy_id_type_default_8021q_settings) {
+            policy->encode(obj, em_policy_id_type_default_8021q_settings);
+            cJSON_AddItemToObject(parent_obj, "Default 802.1Q Settings Policy", obj);
+        } else if (policy->m_policy.id.type == em_policy_id_type_channel_scan) {
 			policy->encode(obj, em_policy_id_type_channel_scan);
 			cJSON_AddItemToObject(parent_obj, "Channel Scan Reporting Policy", obj);
+		} else if (policy->m_policy.id.type == em_policy_id_type_unsuccess_assoc) {
+			policy->encode(obj, em_policy_id_type_unsuccess_assoc);
+			cJSON_AddItemToObject(parent_obj, "Unsuccessful Association Policy", obj);
 		} else if (policy->m_policy.id.type == em_policy_id_type_backhaul_bss_config) {
-			policy->encode(obj, em_policy_id_type_backhaul_bss_config);
-			cJSON_AddItemToObject(parent_obj, "Backhaul BSS Configuration Policy", obj);
-		}
+			dm_easy_mesh_ctrl_t *ctrl = dynamic_cast<dm_easy_mesh_ctrl_t *>(this);
+			dm_easy_mesh_t *dev_dm = ctrl ? ctrl->get_data_model(GLOBAL_NET_ID, dev_mac) : nullptr;
+			if (dev_dm != nullptr) {
+				policy->m_policy.num_backhaul_bss_config = 0;
+				for (unsigned int bi = 0; bi < dev_dm->m_num_bss && policy->m_policy.num_backhaul_bss_config < EM_MAX_BSS_PER_RADIO; bi++) {
+					em_bss_info_t *bss_info = dev_dm->m_bss[bi].get_bss_info();
+					if (bss_info == nullptr || bss_info->id.haul_type != em_haul_type_backhaul) {
+						continue;
+					}
+					if (memcmp(bss_info->bssid.mac, null_mac, sizeof(mac_address_t)) == 0) {
+						continue;
+					}
+
+					unsigned int cnt = policy->m_policy.num_backhaul_bss_config;
+					memcpy(policy->m_policy.backhaul_bss_config[cnt].bssid, bss_info->bssid.mac, sizeof(mac_address_t));
+					policy->m_policy.backhaul_bss_config[cnt].b_profile_1_sta_disallowed = bss_info->r1_disallowed;
+					policy->m_policy.backhaul_bss_config[cnt].b_profile_2_sta_disallowed = bss_info->r2_disallowed;
+					policy->m_policy.num_backhaul_bss_config++;
+				}
+			}
+			cJSON *arr = cJSON_CreateArray();
+			policy->encode(arr, em_policy_id_type_backhaul_bss_config);
+			cJSON_AddItemToObject(parent_obj, "Backhaul BSS Configuration Policy", arr);
+		} else if (policy->m_policy.id.type == em_policy_id_type_qos_mgt) {
+			policy->encode(obj, em_policy_id_type_qos_mgt);
+			cJSON_AddItemToObject(parent_obj, "QoS Management Policy", obj);
+		} else if (policy->m_policy.id.type == em_policy_id_type_alarm_threshold) {
+            policy->encode(obj, em_policy_id_type_alarm_threshold);
+            cJSON_AddItemToObject(parent_obj, "Algorithm Run Policy", obj);
+        }
 
 		policy = get_next_policy(policy);
 
     }
 
 	// then report the policies of the radios of this device
-	
 	radio_metrics_arr_obj = cJSON_CreateArray();
 	cJSON_AddItemToObject(parent_obj, "Radio Specific Metrics Policy", radio_metrics_arr_obj);
 	radio_steer_arr_obj = cJSON_CreateArray();
-	cJSON_AddItemToObject(parent_obj, "Radio Steering Parameters", radio_steer_arr_obj);
+	cJSON_AddItemToObject(steering_policies_obj, "Radio Steering Parameters", radio_steer_arr_obj);
 
-    policy = (dm_policy_t *)get_first_policy();
+    policy = static_cast<dm_policy_t *>(get_first_policy());
     while (policy != NULL) {
 		if (memcmp(policy->m_policy.id.dev_mac, dev_mac, sizeof(mac_address_t)) != 0) {
 	    	policy = get_next_policy(policy);
 	    	continue;
 		}
 
+		// Skip policies with null radio_mac — they are device-global, not radio-specific.
 		if (memcmp(policy->m_policy.id.radio_mac, null_mac, sizeof(mac_address_t)) == 0) {
 	    	policy = get_next_policy(policy);
 	    	continue;
@@ -113,7 +150,7 @@ int dm_policy_list_t::get_config(cJSON *parent_obj, void *parent, bool summary)
 			cJSON_AddItemToArray(radio_steer_arr_obj, obj);
 		} else if (policy->m_policy.id.type == em_policy_id_type_radio_metrics_rep) {
 			policy->encode(obj, em_policy_id_type_radio_metrics_rep);
-			cJSON_AddItemToArray(radio_metrics_arr_obj, obj);
+            cJSON_AddItemToArray(radio_metrics_arr_obj, obj);
 		}
 
 		policy = get_next_policy(policy);
@@ -128,7 +165,7 @@ int dm_policy_list_t::set_config(db_client_t& db_client, const cJSON *obj_arr, v
     cJSON *obj;
     dm_policy_t policy;
     dm_orch_type_t op;
-	unsigned int i, size;
+	int i, size;
 
     size = cJSON_GetArraySize(obj_arr);
 
@@ -145,8 +182,7 @@ int dm_policy_list_t::set_config(db_client_t& db_client, const cJSON *obj_arr, v
 int dm_policy_list_t::set_config(db_client_t& db_client, dm_policy_t& policy, void *parent_id)
 {
     dm_orch_type_t op;
-    char *tmp = (char *)parent_id;
-
+    parse_dev_radio_mac_from_key(static_cast<char *>(parent_id), &policy.m_policy.id);
     update_db(db_client, (op = get_dm_orch_type(db_client, policy)), policy.get_policy());
     update_list(policy, op);
 
@@ -157,11 +193,11 @@ dm_orch_type_t dm_policy_list_t::get_dm_orch_type(db_client_t& db_client, const 
 {
     dm_policy_t *ppolicy;
     mac_addr_str_t	dev_mac_str, radio_mac_str;
-	em_long_string_t key;
+	em_2xlong_string_t key;
 
-    dm_easy_mesh_t::macbytes_to_string((unsigned char *)policy.m_policy.id.dev_mac, dev_mac_str);
-    dm_easy_mesh_t::macbytes_to_string((unsigned char *)policy.m_policy.id.radio_mac, radio_mac_str);
-    snprintf(key, sizeof(em_long_string_t), "%s@%s@%s@%d", policy.m_policy.id.net_id, dev_mac_str, radio_mac_str, policy.m_policy.id.type);
+    dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *>(policy.m_policy.id.dev_mac), dev_mac_str);
+    dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *>(policy.m_policy.id.radio_mac), radio_mac_str);
+    snprintf(key, sizeof(key), "%s@%s@%s@%d", policy.m_policy.id.net_id, dev_mac_str, radio_mac_str, policy.m_policy.id.type);
 
     ppolicy = get_policy(key);
     if (ppolicy != NULL) {
@@ -170,12 +206,13 @@ dm_orch_type_t dm_policy_list_t::get_dm_orch_type(db_client_t& db_client, const 
             return dm_orch_type_db_insert;
         }
 
-        if (*ppolicy == policy) {
-            return dm_orch_type_db_update;
-        }
-
         return dm_orch_type_db_update;
     }  
+
+    // Not in memory — still check if the DB already has this row to avoid duplicates.
+    if (entry_exists_in_table(db_client, key) == true) {
+        return dm_orch_type_db_update;
+    }
 
     return dm_orch_type_db_insert;
 }
@@ -184,11 +221,11 @@ void dm_policy_list_t::update_list(const dm_policy_t& policy, dm_orch_type_t op)
 {
     dm_policy_t *ppolicy;
     mac_addr_str_t	dev_mac_str, radio_mac_str;
-	em_long_string_t key;
+	em_2xlong_string_t key;
 
-    dm_easy_mesh_t::macbytes_to_string((unsigned char *)policy.m_policy.id.dev_mac, dev_mac_str);
-    dm_easy_mesh_t::macbytes_to_string((unsigned char *)policy.m_policy.id.radio_mac, radio_mac_str);
-    snprintf(key, sizeof(em_long_string_t), "%s@%s@%s@%d", policy.m_policy.id.net_id, dev_mac_str, radio_mac_str, policy.m_policy.id.type);
+    dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *>(policy.m_policy.id.dev_mac), dev_mac_str);
+    dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *>(policy.m_policy.id.radio_mac), radio_mac_str);
+    snprintf(key, sizeof(key), "%s@%s@%s@%d", policy.m_policy.id.net_id, dev_mac_str, radio_mac_str, policy.m_policy.id.type);
 
 	//printf("%s:%d: Operation: %d for key: %s\n", __func__, __LINE__, op, key);
 
@@ -205,6 +242,9 @@ void dm_policy_list_t::update_list(const dm_policy_t& policy, dm_orch_type_t op)
         case dm_orch_type_db_delete:
             remove_policy(key);
             break;
+
+        default:
+            break;
     }
 }
 
@@ -212,7 +252,7 @@ void dm_policy_list_t::delete_list()
 {   
     dm_policy_t *policy, *tmp;
 	mac_addr_str_t dev_mac_str, radio_mac_str;
-    em_long_string_t key;
+    em_2xlong_string_t key;
   
     policy = get_first_policy();
     while (policy != NULL) {
@@ -222,7 +262,7 @@ void dm_policy_list_t::delete_list()
 		dm_easy_mesh_t::macbytes_to_string(tmp->m_policy.id.dev_mac, dev_mac_str);
     	dm_easy_mesh_t::macbytes_to_string(tmp->m_policy.id.radio_mac, radio_mac_str);
 
-    	snprintf(key, sizeof(em_long_string_t), "%s@%s@%s@%d", tmp->m_policy.id.net_id, dev_mac_str, radio_mac_str, tmp->m_policy.id.type);
+        snprintf(key, sizeof(key), "%s@%s@%s@%d", tmp->m_policy.id.net_id, dev_mac_str, radio_mac_str, tmp->m_policy.id.type);
   
         remove_policy(key);
     }
@@ -236,22 +276,22 @@ bool dm_policy_list_t::operator == (const db_easy_mesh_t& obj)
 int dm_policy_list_t::update_db(db_client_t& db_client, dm_orch_type_t op, void *data)
 {
     mac_addr_str_t dev_mac_str, radio_mac_str;
-	em_long_string_t key;
-    em_policy_t *policy = (em_policy_t *)data;
-    int ret = 0, i = 0;
+	em_2xlong_string_t key;
+    em_policy_t *policy = static_cast<em_policy_t *>(data);
+    int ret = 0;
+    unsigned int i = 0;
 	mac_addr_str_t	sta_mac_str;
 	char sta_mac_list_str[1024];
 
     dm_easy_mesh_t::macbytes_to_string(policy->id.dev_mac, dev_mac_str);
     dm_easy_mesh_t::macbytes_to_string(policy->id.radio_mac, radio_mac_str);
 
-	snprintf(key, sizeof(em_long_string_t), "%s@%s@%s@%d", policy->id.net_id, dev_mac_str, radio_mac_str, policy->id.type);
+	snprintf(key, sizeof(key), "%s@%s@%s@%d", policy->id.net_id, dev_mac_str, radio_mac_str, policy->id.type);
 
 	memset(sta_mac_list_str, 0, sizeof(sta_mac_list_str));
     for (i = 0; i < policy->num_sta; i++) {
 		dm_easy_mesh_t::macbytes_to_string(policy->sta_mac[i], sta_mac_str);
-        strncat(sta_mac_list_str, sta_mac_str, strlen(sta_mac_str));
-        strncat(sta_mac_list_str, ",", strlen(","));
+        snprintf(sta_mac_list_str + strlen(sta_mac_list_str), sizeof(sta_mac_list_str) - strlen(sta_mac_list_str) - 1,"%s,", sta_mac_str);
     }
 
 	if (strlen(sta_mac_list_str) > 0)
@@ -261,18 +301,19 @@ int dm_policy_list_t::update_db(db_client_t& db_client, dm_orch_type_t op, void 
 
     switch (op) {
         case dm_orch_type_db_insert:
-            ret = insert_row(db_client, key, sta_mac_list_str, policy->policy, policy->interval, policy->rcpi_threshold, 
+            ret = insert_row(db_client, key, policy->id.type, policy->interval, sta_mac_list_str, policy->policy, policy->interval, policy->rcpi_threshold,
 											policy->rcpi_hysteresis, policy->util_threshold, policy->sta_traffic_stats, 
 											policy->sta_link_metric, policy->sta_status, policy->managed_sta_marker,
-											policy->independent_scan_report, policy->profile_1_sta_disallowed, policy->profile_2_sta_disallowed);
+											policy->independent_scan_report, policy->profile_1_sta_disallowed, policy->profile_2_sta_disallowed,
+                                            policy->def_8021q_settings.primary_vid, policy->def_8021q_settings.default_pcp);
             break;
 
 	    case dm_orch_type_db_update:
-            ret = update_row(db_client, sta_mac_list_str, policy->policy, policy->interval, policy->rcpi_threshold, 
+            ret = update_row(db_client, policy->id.type, policy->interval, sta_mac_list_str, policy->policy, policy->interval, policy->rcpi_threshold,
                                             policy->rcpi_hysteresis, policy->util_threshold, policy->sta_traffic_stats, 
                                             policy->sta_link_metric, policy->sta_status, policy->managed_sta_marker,
-                                            policy->independent_scan_report, policy->profile_1_sta_disallowed, 
-											policy->profile_2_sta_disallowed, key);
+                                            policy->independent_scan_report, policy->profile_1_sta_disallowed, policy->profile_2_sta_disallowed,
+                                            policy->def_8021q_settings.primary_vid, policy->def_8021q_settings.default_pcp, key);
             break;
 
 	    case dm_orch_type_db_delete:
@@ -294,7 +335,7 @@ bool dm_policy_list_t::search_db(db_client_t& db_client, void *ctx, void *key)
         db_client.get_string(ctx, str, 1);
 		//printf("%s:%d: Comparing source: %s target: %s\n", __func__, __LINE__, str, (char *)key);
 
-        if (strncmp(str, (char *)key, strlen((char *)key)) == 0) {
+        if (strncmp(str, static_cast<char *>(key), strlen(static_cast<char *>(key))) == 0) {
             return true;
         }
     }
@@ -306,7 +347,6 @@ int dm_policy_list_t::sync_db(db_client_t& db_client, void *ctx)
     em_policy_t policy;
 	em_policy_id_t	id;
     em_long_string_t   str;
-    mac_addr_str_t	mac_str;
 	char sta_mac_list_str[1024] = {0};
 	char   *token_parts[EM_MAX_STA_PER_STEER_POLICY];
 	em_short_string_t	sta_mac_str[EM_MAX_STA_PER_STEER_POLICY];	
@@ -315,35 +355,39 @@ int dm_policy_list_t::sync_db(db_client_t& db_client, void *ctx)
 
     while (db_client.next_result(ctx)) {
         memset(&policy, 0, sizeof(em_policy_t));
+        memset(&id, 0, sizeof(id));
 
         db_client.get_string(ctx, str, 1);
 		dm_policy_t::parse_dev_radio_mac_from_key(str, &id);
+		strncpy(policy.id.net_id, id.net_id, sizeof(policy.id.net_id));
 		memcpy(policy.id.dev_mac, id.dev_mac, sizeof(mac_address_t));
 		memcpy(policy.id.radio_mac, id.radio_mac, sizeof(mac_address_t));
-		policy.id.type = id.type;
-
-		db_client.get_string(ctx, sta_mac_list_str, 2);
+        policy.id.type = static_cast<em_policy_id_type_t>(db_client.get_number(ctx, 2));
+        policy.interval = static_cast<unsigned short int>(db_client.get_number(ctx, 3));
+        db_client.get_string(ctx, sta_mac_list_str, 4);
 		for (i = 0; i < EM_MAX_STA_PER_STEER_POLICY; i++) {
             token_parts[i] = sta_mac_str[i];
         }
 
-        policy.num_sta = get_strings_by_token(sta_mac_list_str, ',', EM_MAX_STA_PER_STEER_POLICY, token_parts);
+        policy.num_sta = static_cast<unsigned int>(get_strings_by_token(sta_mac_list_str, ',', EM_MAX_STA_PER_STEER_POLICY, token_parts));
 		for (i = 0; i < policy.num_sta; i++) {
 			dm_easy_mesh_t::string_to_macbytes(sta_mac_str[i], policy.sta_mac[i]);
 		}		
 
-		policy.policy = (em_steering_policy_type_t)db_client.get_number(ctx, 3);
-		policy.interval = db_client.get_number(ctx, 4);
-		policy.rcpi_threshold = db_client.get_number(ctx, 5);
-		policy.rcpi_hysteresis = db_client.get_number(ctx, 6);
-		policy.util_threshold = db_client.get_number(ctx, 7);
-		policy.sta_traffic_stats = db_client.get_number(ctx, 8);
-		policy.sta_link_metric = db_client.get_number(ctx, 9);
-		policy.sta_status = db_client.get_number(ctx, 10);
-		db_client.get_string(ctx, policy.managed_sta_marker, 11);
-		policy.independent_scan_report = db_client.get_number(ctx, 12);
-		policy.profile_1_sta_disallowed = db_client.get_number(ctx, 13);
-		policy.profile_2_sta_disallowed = db_client.get_number(ctx, 14);
+		policy.policy = static_cast<em_steering_policy_type_t>(db_client.get_number(ctx, 5));
+		policy.interval = static_cast<short unsigned int>(db_client.get_number(ctx, 6));
+		policy.rcpi_threshold = static_cast<short unsigned int>(db_client.get_number(ctx, 7));
+		policy.rcpi_hysteresis = static_cast<short unsigned int>(db_client.get_number(ctx, 8));
+		policy.util_threshold = static_cast<short unsigned int>(db_client.get_number(ctx, 9));
+		policy.sta_traffic_stats = db_client.get_number(ctx, 10);
+		policy.sta_link_metric = db_client.get_number(ctx, 11);
+		policy.sta_status = db_client.get_number(ctx, 12);
+		db_client.get_string(ctx, policy.managed_sta_marker, 13);
+		policy.independent_scan_report = db_client.get_number(ctx, 14);
+		policy.profile_1_sta_disallowed = db_client.get_number(ctx, 15);
+		policy.profile_2_sta_disallowed = db_client.get_number(ctx, 16);
+        policy.def_8021q_settings.primary_vid = static_cast<unsigned short>(db_client.get_number(ctx, 17));
+        policy.def_8021q_settings.default_pcp = static_cast<unsigned char>(db_client.get_number(ctx, 18));
         
 		update_list(dm_policy_t(&policy), dm_orch_type_db_insert);
     }
@@ -361,6 +405,8 @@ void dm_policy_list_t::init_columns()
     m_num_cols = 0;
 
     m_columns[m_num_cols++] = db_column_t("ID", db_data_type_char, 64);
+    m_columns[m_num_cols++] = db_column_t("PolicyType", db_data_type_smallint, 0);
+    m_columns[m_num_cols++] = db_column_t("APMetricsInterval", db_data_type_smallint, 0);
     m_columns[m_num_cols++] = db_column_t("STAList", db_data_type_text, 512);
     m_columns[m_num_cols++] = db_column_t("SteeringPolicyType", db_data_type_smallint, 0);
     m_columns[m_num_cols++] = db_column_t("RepInterval", db_data_type_smallint, 0);
@@ -374,6 +420,8 @@ void dm_policy_list_t::init_columns()
     m_columns[m_num_cols++] = db_column_t("IndependentScanRep", db_data_type_tinyint, 0);
     m_columns[m_num_cols++] = db_column_t("Profile_1_Disallowed", db_data_type_tinyint, 0);
     m_columns[m_num_cols++] = db_column_t("Profile_2_Disallowed", db_data_type_tinyint, 0);
+    m_columns[m_num_cols++] = db_column_t("PrimaryVlanId", db_data_type_smallint, 0);
+    m_columns[m_num_cols++] = db_column_t("DefaultPcp", db_data_type_tinyint, 0);
 }
 
 int dm_policy_list_t::init()

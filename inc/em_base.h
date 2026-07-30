@@ -32,6 +32,8 @@ extern "C"
 #include "wifi_webconfig.h"
 #include <openssl/evp.h>
 #include <uuid/uuid.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
 #include "ec_base.h"
 
 #define EM_MAX_NETWORKS	5
@@ -41,17 +43,18 @@ extern "C"
 #define EM_MAX_PLATFORMS	5
 #define ETH_P_1905      0x893a
 #define MAX_INTF_NAME_SZ    16
+#define EM_MAC_ADDR_LEN 6
 #define EM_MAC_STR_LEN  17
 #define EM_MAX_COLS     32
-#define EM_MAX_DM_CHILDREN	32
-#define EM_MAX_E4_TABLE_CHANNEL 32
+#define EM_MAX_DM_CHILDREN	64
+#define EM_MAX_E4_TABLE_CHANNEL 64
 #define EM_DATE_TIME_BUFF_SZ	64
 #define EM_PROTO_TOUT   1
 #define EM_METRICS_REQ_MULT 5
-#define EM_MGR_TOUT     500 // in milliseconds
-#define EM_1_TOUT_MULT 	2
-#define EM_2_TOUT_MULT 	4	
-#define EM_5_TOUT_MULT 	10	
+#define EM_MGR_TOUT     250 // in milliseconds
+#define EM_1_TOUT_MULT 	(1000 / EM_MGR_TOUT)
+#define EM_2_TOUT_MULT 	(2000 / EM_MGR_TOUT)
+#define EM_5_TOUT_MULT 	(5000 / EM_MGR_TOUT)
 #define EM_CTRL_CAP_SZ  8
 #define MIN_MAC_LEN 12
 #define MAX_EM_BUFF_SZ  1024
@@ -59,36 +62,42 @@ extern "C"
 #define MAX_VENDOR_INFO 5
 #define EM_MAX_BEACON_MEASUREMENT_LEN  400
 #define EM_MAX_BEACON_REPORTS_PER_SCAN 10
+#define EM_MAX_SAMPLES_PER_LINK_REPORT  10
 
 #define EM_TEST_IO_PERM 0666
 #define EM_IO_BUFF_SZ   4096
 #define EM_LONG_IO_BUFF_SZ   4096*4
 
 #define EM_MAX_OP_CLASS    48
-#define EM_MAX_POLICIES	16	
+#define EM_MAX_POLICIES	32
 #define EM_MAX_CHANNEL_PER_OP_CLASS  59
 #define EM_MAX_SERVICE          8
 #define EM_MAX_BSS_PER_RADIO           16
+#define EM_MAX_QOS_MGMT_POLICY         4
 #define EM_MAX_RADIO_PER_AGENT         4
 #define EM_MAX_TRAFFIC_SEP_SSID        8
 #define EM_MAX_FREQ_RECORDS_PER_RADIO  8
-#define EM_MAX_CHANNELS   30
 #define MAP_INVENTORY_ITEM_LEN  64
-#define MAX_MCS  6
+#define MAX_MCS  3
 #define MAP_AP_ROLE_MAX 2
-#define MAX_MCS_NSS 6
-#define EM_MAX_CAC_METHODS 4
-#define EM_MAX_STA_PER_BSS         128
+// #define MAX_MCS_NSS 6
+#define EM_MAX_CAC_METHODS             4
+#define EM_MAX_CAC_OP_CLASS_PER_METHOD 8
+#define EM_MAX_CAC_CHANS_PER_CLASS     16
+#define EM_MAX_STA_PER_BSS         64
 #define EM_MAX_STA_PER_STEER_POLICY        16 
+#define EM_MAX_MSC_PER_TRAFFIC_SEPAR       16
+#define EM_MAX_SCS_PER_TRAFFIC_SEPAR       16
 #define EM_MAX_STA_PER_AGENT       (EM_MAX_RADIO_PER_AGENT * EM_MAX_STA_PER_BSS)
-#define EM_MAX_NEIGHORS		32
-#define EM_MAX_CHANNEL_SCAN_RPRT_MSG_LEN		768
+#define EM_MAX_NEIGHBORS	16
+#define EM_MAX_CHANNEL_SCAN_RPRT_MSG_LEN		166
 #define EM_MAX_CLIENT_MARKER    5
 
 #define   EM_MAX_EVENT_DATA_LEN   4096*100
 #define EM_MAX_CHANNELS_IN_LIST  64
 #define EM_MAX_CMD_GEN_TTL  10
 #define EM_MAX_CMD_EXT_TTL  30
+#define EM_SSID_MISMATCH_TTL  120
 #define EM_MAX_RENEW_TX_THRESH  5
 #define EM_MAX_CAP_QUERY_TX_THRESH  2
 #define EM_MAX_TOPO_QUERY_TX_THRESH  5
@@ -113,6 +122,10 @@ extern "C"
 #define EM_AUTH_TYPES (EM_AUTH_OPEN | EM_AUTH_WPAPSK | EM_AUTH_SHARED | \
             EM_AUTH_WPA | EM_AUTH_WPA2 | EM_AUTH_WPA2PSK | EM_AUTH_SAE_AKM8 | \
             EM_AUTH_DPP_AKM | EM_AUTH_SAE_AKM24 )
+
+#define EM_AUTH_ENHANCED_OPEN 0x1000
+#define EM_AUTH_WPA3_PERSONAL EM_AUTH_SAE_AKM8
+#define EM_AUTH_WPA3_TRANSITION (EM_AUTH_SAE_AKM8 | EM_AUTH_WPA2PSK)
     
 /* Encryption Type Flags */
 #define EM_ENCR_NONE 0x0001
@@ -127,6 +140,28 @@ extern "C"
 #define EM_RF_50GHZ 0x02
 #define EM_RF_60GHZ 0x04
 #define EM_RF_6GHZ  0x08
+
+/* Bandwidth Constants */
+#define BANDWIDTH_20MHZ 20
+#define BANDWIDTH_40MHZ 40
+#define BANDWIDTH_80MHZ 80
+#define BANDWIDTH_160MHZ 160
+#define BANDWIDTH_320MHZ 320
+
+/* Multi-AP Extension Subelement constants */
+#define EM_MULTI_AP_EXT_SUBELEM_LEN         0x01
+#define EM_MULTI_AP_EXT_SUBELEM_ID          0x06
+#define EM_MULTI_AP_EXT_BSS_TEARDOWN        0x10
+#define EM_MULTI_AP_EXT_BSS_FRONTHAUL       0x20
+#define EM_MULTI_AP_EXT_BSS_BACKHAUL        0x40
+#define EM_MULTI_AP_EXT_BSS_BSTA            0x80
+#define EM_MULTI_AP_EXT_R1_BSTA_DISALLOW    0x08
+#define EM_MULTI_AP_EXT_R2_BSTA_DISALLOW    0x04
+
+/*  Bands */
+#define EM_BAND_2_4GHZ_STR   "2.4"
+#define EM_BAND_5GHZ_STR     "5"
+#define EM_BAND_6GHZ_STR     "6"
 
 /* Config Methods */
 #define EM_CONFIG_USBA 0x0001
@@ -148,15 +183,44 @@ extern "C"
 #define EM_CONN_ESS 0x01
 #define EM_CONN_IBSS 0x02
 
+/* Channel Preference Flags*/
+#define EM_CH_PREF_NON_OPERABLE 0x00
+#define EM_CH_PREF_MAX          0x0F
+
+#define CTRL_DEFAULT_CH_PREF    0x01 // Least preferred
+#define AGENT_DEFAULT_CH_PREF   0x0F // Most preferred
+
+/**
+ * Bit shift for preference value (high nibble of preference byte).
+ * Preference bytes store the preference value in bits 7-4.
+ * Use this macro when shifting preference values to/from the high nibble.
+ */
+#define EM_CH_PREF_SHIFT 4
+
+/* Flags indicating whether a channel preference entry
+   is considered valid or invalid */
+#define EM_CH_PREF_ENTRY_VALID      0x01
+#define EM_CH_PREF_ENTRY_INVALID    0x00
+
+#define EM_SCAN_TYPE_PASSIVE 0U
+#define EM_SCAN_TYPE_ACTIVE  1U
+
+#define EM_SCAN_TYPE_BIT     (1U << 7)  // bit 7 in TLV
+
+/* Global MAC Address */
+static const mac_address_t EM_GLOBAL_MAC_ADDRESS = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
+
 #define EM_MAX_BANDS    3
 #define EM_MAX_BSSS     EM_MAX_BANDS*8  
 #define EM_MAX_AKMS     10
 #define EM_MAX_HAUL_TYPES   8
 #define EM_MAX_OPCLASS  64
 #define EM_MAX_AP_MLD   64
-#define EM_MAX_BSTA_MLD   64
 #define EM_MAX_ASSOC_STA_MLD   64
 #define EM_MAX_PRE_SET_CHANNELS   6
+
+#define EM_MAX_CHANNELS_PER_OPCLASS   16
+#define EM_MAX_STA_PER_CHANNEL        64
 
 #define EM_MAX_CMD  16
 
@@ -166,10 +230,27 @@ extern "C"
 #define EM_AGENT_PATH   "agent"
 #define EM_CTRL_PATH    "ctrl"
 #define EM_CLI_PATH "cli"
+#define EM_AGENT_PORT	0xc000
+#define EM_CTRL_PORT    0xc001
+#define EM_CERT_FILE	"/nvram/test_cert.crt"
+#define EM_KEY_FILE	"/nvram//test_cert.key"
+
 #define EM_CFG_FILE "/nvram/EasymeshCfg.json"
+#define EM_VENDOR_OUI_SIZE 3
 
 #define EM_MAX_SSID_LEN                33 
 #define EM_MAX_WIFI_PASSWORD_LEN       65 
+
+/* WSC Message TLV LENs */
+#define EM_CONN_TYPE_FLAGS_LEN         0x01
+#define EM_PRIMARY_DEV_TYPE_LEN        0x08
+#define EM_OS_VERSION_LEN              0x04
+#define EM_KEY_WRAP_TLV_LEN            0x08
+
+/* Length in bytes of the Estimated Service Parameters (ESP) AC field
+ * as defined in IEEE 1905.1 / EasyMesh spec (Table 44) */
+#define EM_ESP_AC_PARAMS_LEN    3
+
 /* Disallowed STAList */
 #define EM_MSCS_DISALLOWED_STA      10
 #define EM_SCS_DISALLOWED_STA       10
@@ -188,6 +269,9 @@ extern "C"
 #define AUTHENTICATOR_LEN   8
 
 #define WIFI_EASYMESH_NOTIFICATION "Device.WiFi.Easymesh.Notification"
+#ifndef WIFI_QUALITY_LINKREPORT
+#define WIFI_QUALITY_LINKREPORT      "Device.WiFi.LinkReport"
+#endif
 
 #define EM_MEDIA_ETH    0x0000
 #define EM_MEDIA_WIFI   0x0100
@@ -203,17 +287,67 @@ extern "C"
 #define EM_MEDIA_WIFI_80211af       htons(EM_MEDIA_WIFI | 0x07)
 #define EM_MEDIA_WIFI_80211ax_6     htons(EM_MEDIA_WIFI | 0x08)
 
+#define EM_MEDIA_WIFI_ROLE_AP           0x00
+#define EM_MEDIA_WIFI_ROLE_STA          0x40
+#define EM_MEDIA_WIFI_ROLE_P2P_CLIENT   0x80
+#define EM_MEDIA_WIFI_ROLE_P2P_GO       0x90
+
 #define 	EM_PARSE_NO_ERR			0
 #define 	EM_PARSE_ERR_GEN		EM_PARSE_NO_ERR	- 1	
 #define 	EM_PARSE_ERR_NET_ID		EM_PARSE_NO_ERR	- 2	
 #define 	EM_PARSE_ERR_CONFIG		EM_PARSE_NO_ERR	- 3	
 #define 	EM_PARSE_ERR_NO_CHANGE	EM_PARSE_NO_ERR	- 4	
 
+#ifndef WIFI_EM_CHANNEL_SCAN_REQUEST
+#define WIFI_EM_CHANNEL_SCAN_REQUEST          "Device.WiFi.EM.ChannelScanRequest"
+#endif
+
+#ifndef WIFI_EM_FAILED_CONNECTION
+#define WIFI_EM_FAILED_CONNECTION             "Device.WiFi.EM.FailedConnection"
+#endif
+
+#ifndef WIFI_EM_CLIENT_ASSOC_CTRL_REQ
+#define WIFI_EM_CLIENT_ASSOC_CTRL_REQ        "Device.WiFi.EM.ClientAssocCtrlRequest"
+#endif
+
+#ifndef WIFI_EC_SEND_TRIG_STA_SCAN
+#define WIFI_EC_SEND_TRIG_STA_SCAN          "Device.WiFi.EC.TriggerStaScan"
+#endif
+
+
+#ifndef WIFI_EM_CHANNEL_SCAN_REPORT
+#define WIFI_EM_CHANNEL_SCAN_REPORT           "Device.WiFi.EM.ChannelScanReport"
+#endif
+
+#ifndef WIFI_SET_DISCONN_STEADY_STATE
+#define WIFI_SET_DISCONN_STEADY_STATE         "Device.WiFi.EM.SetDisconnSteadyState"
+#endif
+
+#ifndef WIFI_SET_DISCONN_SCAN_NONE_STATE
+#define WIFI_SET_DISCONN_SCAN_NONE_STATE      "Device.WiFi.EM.SetDisconnScanNoneState"
+#endif
+
+// Beacon CSA parsing
+#define CSA_TAG_ID                   37
+#define CSA_IE_MIN_LENGTH            3
+#define TAG_HEADER_LENGTH            2
+#define TAG_NUMBER_OFFSET            0
+#define TAG_LENGTH_OFFSET            1
+#define CSA_SWITCH_MODE_OFFSET       0
+#define CSA_NEW_CHANNEL_OFFSET       1
+#define CSA_SWITCH_COUNT_OFFSET      2
+
+/* Min supported HE-MCS and NSS Set field's length */
+#define EM_MIN_HE_MCS_LEN            4
+
 typedef char em_interface_name_t[32];
 typedef unsigned char em_nonce_t[16];
 typedef unsigned char em_dh5_key_t[192];    // because this is DH group 5 (1536 bits)
 typedef char    em_short_string_t[64];
 typedef char    em_long_string_t[128];
+typedef char    em_2xlong_string_t[256];
+typedef char    em_3xlong_string_t[512];
+typedef char    em_4xlong_string_t[1024];
 typedef char    em_string_t[32];
 typedef char    em_small_string_t[16];
 typedef char    em_tiny_string_t[4];
@@ -298,12 +432,17 @@ typedef enum {
     em_freq_band_24,    //IEEE-1905-1-2013 table 6-23
     em_freq_band_5,
     em_freq_band_60,
+    em_freq_band_6,     // Extended for 6GHz Band
     em_freq_band_unknown
 } em_freq_band_t;
 
 typedef struct {
     unsigned char   channel[0];
 } __attribute__((__packed__)) em_channels_list_t;
+
+typedef struct {
+    unsigned char   channel[EM_MAX_CHANNELS_IN_LIST];
+} __attribute__((__packed__)) em_per_op_class_channels_list_t;
 
 typedef struct {
     unsigned char   op_class;
@@ -313,12 +452,160 @@ typedef struct {
 } __attribute__((__packed__)) em_op_class_t;
 
 typedef struct {
+    unsigned char op_class;
+       unsigned char   num;
+    em_per_op_class_channels_list_t channels;
+} __attribute__((__packed__)) em_scan_cap_op_class_info_t;
+
+/* Per-op-class entry inside em_cac_cap_method_t.
+ * EM_MAX_CAC_CHANS_PER_CLASS channels (class 121 has 12 - largest DFS class).
+ * EM_MAX_CAC_OP_CLASS_PER_METHOD x sizeof == 144 bytes, preserving
+ * sizeof(em_cac_cap_method_t) == 150 and sizeof(em_cac_cap_radio_t) == 607. */
+typedef struct {
+    unsigned char   op_class;
+    unsigned char   num;      /* channels listed; 0 = all channels in op class */
+    unsigned char   channels[EM_MAX_CAC_CHANS_PER_CLASS];
+} __attribute__((__packed__)) em_cac_op_class_t;
+
+typedef struct {
     mac_address_t   ruid;
     unsigned char   num_bss;
     unsigned char   op_class_num;
     em_op_class_t   op_classes[0];
 } __attribute__((__packed__)) em_ap_radio_basic_cap_t;
 
+
+/**
+ * ============================================================================
+ * Unassociated STA Work List Structures
+ * ============================================================================
+ *
+ * These structures are used internally by the Controller/Agent to organize
+ * and process Unassociated STA Link Metrics operations grouped by:
+ *
+ *      Operating Class -> Channel -> STA List
+ *
+ * The work list acts as an intermediate runtime structure while preparing,
+ * scheduling, parsing, or processing Unassociated STA metrics queries.
+ * ============================================================================
+ */
+
+/**
+ * @brief Stores the list of STAs belonging to a specific channel.
+ *
+ * Each channel entry contains:
+ *  - Channel number
+ *  - Number of STAs associated with the channel
+ *  - List of STA MAC addresses to be queried
+ */
+typedef struct {
+    uint8_t channel;
+    uint8_t num_sta;
+    mac_address_t sta_list[EM_MAX_STA_PER_CHANNEL];
+} em_unassoc_work_channel_t;
+
+/**
+ * @brief Stores all channels belonging to a single operating class.
+ *
+ * Each operating class may contain multiple channels,
+ * and each channel may contain multiple STAs.
+ */
+typedef struct {
+    uint8_t op_class;
+    uint8_t num_channels;
+    em_unassoc_work_channel_t channel_list[EM_MAX_CHANNELS_PER_OPCLASS];
+} em_unassoc_work_opclass_t;
+
+/**
+ * @brief Top-level runtime work list for Unassociated STA processing.
+ *
+ * This structure groups all operating classes that are currently
+ * involved in Unassociated STA metrics processing.
+ */
+typedef struct {
+    uint8_t num_opclass;
+    em_unassoc_work_opclass_t opclass_list[EM_MAX_OPCLASS];
+} em_unassoc_work_list_t;
+
+/**
+ * @brief Represents a single channel entry in the query.
+ *
+ * Contains:
+ *  - Channel number
+ *  - Number of STAs on the channel
+ *  - List of STA MAC addresses requested for metrics reporting
+ */
+typedef struct {
+    uint8_t channel;
+    uint8_t num_sta;
+    mac_address_t sta_list[EM_MAX_STA_PER_CHANNEL];
+} em_unassoc_query_channel_t;
+
+/**
+ * @brief Represents an operating class entry in the query.
+ *
+ * Each operating class contains:
+ *  - Number of channels
+ *  - Channel-wise STA query information
+ */
+typedef struct {
+    uint8_t op_class;
+    uint8_t num_channels;
+    em_unassoc_query_channel_t channel_list[EM_MAX_CHANNELS_PER_OPCLASS];
+} em_unassoc_query_opclass_t;
+
+/**
+ * @brief Top-level query structure for Unassociated STA metrics.
+ *
+ * This structure is used by the Controller to organize all requested
+ * operating classes, channels, and STA lists before sending the query.
+ */
+typedef struct {
+    uint8_t num_opclass;
+    em_unassoc_query_opclass_t opclass_list[EM_MAX_OPCLASS];
+} em_unassoc_query_list_t;
+
+#define EM_MAX_UNASSOC_STA 64
+
+/**
+ * @brief Stores metrics information for a single Unassociated STA.
+ *
+ * This structure is populated after parsing an Unassociated STA
+ * Link Metrics Response TLV.
+ *
+ * Contains:
+ *  - STA MAC address
+ *  - Operating class
+ *  - Channel number
+ *  - RCPI value
+ *  - Time delta associated with the measurement
+ */
+typedef struct {
+    mac_address_t sta_mac;
+    unsigned char channel;
+    unsigned char op_class;
+    unsigned char rcpi;
+    unsigned int  time_delta;
+} em_unassoc_sta_metric_entry_t;
+
+typedef struct {
+    unsigned int num_entries;
+    em_unassoc_sta_metric_entry_t entry[EM_MAX_UNASSOC_STA];
+} em_unassoc_sta_metrics_rsp_t;
+
+//For TLV structure
+typedef struct {
+    mac_address_t sta_mac;
+    unsigned char channel;
+    unsigned int  time_delta;
+    unsigned char rcpi;
+}__attribute__((__packed__)) em_unassoc_sta_metric_t;
+
+typedef struct {
+    unsigned char op_class;
+    unsigned char num_sta;
+    em_unassoc_sta_metric_t sta_metric[0];
+}__attribute__((__packed__))em_unassoc_sta_link_metrics_rsp_t;
 
 typedef enum {
     mandatory,
@@ -554,17 +841,36 @@ typedef enum {
     em_tlv_type_ap_mld_config = 0xe0,
     em_tlv_type_bsta_mld_config = 0xe1,
     em_tlv_type_assoc_sta_mld_conf_rep = 0xe2,
+    em_tlv_type_affiliated_sta_metrics = 0xe4,
     em_tlv_type_tid_to_link_map_policy = 0xe6,
     em_tlv_eht_operations = 0xe7,
     em_tlv_type_avail_spectrum_inquiry_reg = 0xe8,
     em_tlv_type_avail_spectrum_inquiry_rsp = 0xe9,
-    em_tlv_type_vendor_sta_metrics = 0xf1,
-    em_tlv_vendor_plolicy_cfg = 0xf2,
-    em_tlv_type_vendor_operational_bss = 0xf3,
+    em_tlv_type_vendor_operational_bss = 0xf2,
 
-	// RDK Proprietary TLV values
-	em_tlv_type_rdk_radio_enable = 0xfe,
+    em_tlv_type_max
 } em_tlv_type_t;
+
+typedef enum {
+    em_tlv_type_radio_capability = 0x0013,
+} em_vendor_airties_tlv_type_t;
+
+typedef enum {
+    em_channel_pref_reason_unspecified = 0x00,
+    em_channel_pref_reason_proximate_non_80211_interferer = 0x01,
+    em_channel_pref_reason_intra_network_obss_interference_mgmt = 0x02,
+    em_channel_pref_reason_external_network_obss_interference_mgmt = 0x03,
+    em_channel_pref_reason_reduced_coverage = 0x04,
+    em_channel_pref_reason_reduced_throughput = 0x05,
+    em_channel_pref_reason_in_device_interferer = 0x06,
+    em_channel_pref_reason_operation_disallowed_dfs_radar_detection = 0x07,
+    em_channel_pref_reason_operation_prevent_backhaul_shared_radio = 0x08,
+    em_channel_pref_reason_immediate_operation_possible_dfs = 0x09,
+    em_channel_pref_reason_dfs_state_unknown_cac_not_run_or_expired = 0x0a,
+    em_channel_pref_reason_controller_dfs_clear_indication = 0x0b,
+    em_channel_pref_reason_operation_disallowed_regulatory_restriction = 0x0c,
+    em_channel_pref_reason_change_due_to_available_spectrum_inquiry = 0x0d
+} em_channel_pref_reason_t;
 
 typedef struct {
     unsigned short qmid;
@@ -574,10 +880,14 @@ typedef struct {
 } __attribute__((__packed__)) em_qos_mgmt_des_t;
 
 typedef struct {
-    unsigned char num_agents;
     mac_address_t agent_mac;
     unsigned char multi_ap_profile;
     unsigned char security;
+} __attribute__((__packed__)) em_agent_list_agent_t;
+
+typedef struct {
+    unsigned char num_agents;
+    unsigned char agents[0]; // em_agent_list_agent_t array
 } __attribute__((__packed__)) em_agent_list_t;
 
 typedef struct {
@@ -605,14 +915,23 @@ typedef struct {
 }__attribute__((__packed__)) em_dpp_bootstrap_uri_t;
 
 typedef struct {
-    unsigned char enrollee_mac_addr_present : 1;
-    unsigned char reserved : 1;
+    uint8_t advertise_cce; // 1->Enable, 0->Disable
+} __attribute__((__packed__)) em_cce_indication_t;
+
+typedef struct {
+    unsigned char reserved : 5;
     unsigned char dpp_frame_indicator : 1;
-    unsigned char content_type : 5;
-    mac_address_t dest_mac_addr;
-    unsigned char frame_type;
-    unsigned short encap_frame_len;
-    unsigned char encap_frame[0];
+    unsigned char reserved2 : 1;
+    unsigned char enrollee_mac_addr_present : 1;
+/*
+    Contains:
+        - dest_mac_addr (6 bytes, if enrollee_mac_addr_present)
+        - frame_type (1 byte)
+        - encap_frame_len (2 bytes)
+        - encap_frame (encap_frame_len bytes)
+*/
+    unsigned char data[0];
+
 }__attribute__((__packed__)) em_encap_dpp_t;
 
 typedef struct {
@@ -641,9 +960,9 @@ typedef struct {
     mac_address_t ruid;
     unsigned char op_lass;
     unsigned char channel;
-    unsigned char cas_method : 3;
-    unsigned char cac_completion_action : 3;
     unsigned char reserved : 2;
+    unsigned char cac_completion_action : 3;
+    unsigned char cas_method : 3;
 }__attribute__((__packed__)) em_cac_req_t;
 
 typedef struct {
@@ -674,6 +993,7 @@ typedef struct {
     unsigned char bss_color;
     unsigned char channel_util;
     unsigned short sta_count;
+    unsigned char bss_load_element_present;
 } em_neighbor_t;
 
 typedef struct {
@@ -683,7 +1003,7 @@ typedef struct {
     unsigned char util;
     unsigned char noise;
 	unsigned short num_neighbors;
-	em_neighbor_t	neighbor[EM_MAX_NEIGHORS];
+	em_neighbor_t	neighbor[EM_MAX_NEIGHBORS];
     unsigned int  aggr_scan_duration;
     unsigned char scan_type;
 } em_scan_result_t;
@@ -714,8 +1034,8 @@ typedef struct {
 } __attribute__((__packed__)) em_channel_scan_req_op_class_t;
 
 typedef struct {
-    unsigned char perform_fresh_scan : 1;
     unsigned char reserved : 7;
+    unsigned char perform_fresh_scan : 1;
     unsigned char num_radios;
     mac_address_t ruid;
     unsigned char num_op_classes;
@@ -762,11 +1082,11 @@ typedef struct {
 
 typedef struct {
     bssid_t bssid;
-    unsigned char req_mode : 1;
-    unsigned char btm_dissoc_imminent : 1;
-    unsigned char btm_abridged : 1;
-    unsigned char btm_link_removal_imminent : 1;
     unsigned char reserved : 4;
+    unsigned char btm_link_removal_imminent : 1;
+    unsigned char btm_abridged : 1;
+    unsigned char btm_dissoc_imminent : 1;
+    unsigned char req_mode : 1;
     unsigned short steering_opportunity_window;
     unsigned short btm_dissoc_timer;
     unsigned char sta_list_count;
@@ -850,15 +1170,6 @@ typedef struct {
 }__attribute__((__packed__)) em_unassoc_sta_link_metrics_query_t;
 
 typedef struct {
-    unsigned char op_class;
-    unsigned char num_sta_entries;
-    mac_address_t sta_mac_addr;
-    unsigned char channel_num;
-    unsigned int  time_delta_ms;
-    unsigned char uplink_rcpi;
-}__attribute__((__packed__)) em_unassoc_sta_link_metrics_rsp_t;
-
-typedef struct {
      mac_address_t sta_mac_addr;
 }__attribute__((__packed__)) em_assoc_sta_mac_addr_t;
 
@@ -900,8 +1211,10 @@ typedef struct {
 
 typedef struct {
     mac_address_t sta_mac;
-    unsigned char num_bssids;
-    em_assoc_vendor_link_metrics_t assoc_vendor_link_metrics[0];
+    bssid_t bssid;
+    em_string_t sta_client_type;
+    //unsigned char num_bssids;
+    //em_assoc_vendor_link_metrics_t assoc_vendor_link_metrics[0];
 }__attribute__((__packed__)) em_assoc_sta_vendor_link_metrics_t;
 
 typedef struct {
@@ -914,18 +1227,15 @@ typedef struct {
 }__attribute__((__packed__)) em_ap_radio_id_t;
 
 typedef struct {
-    unsigned char bssid[6];
+    bssid_t bssid;
     unsigned char channel_util;
     unsigned short num_sta;
-    unsigned char est_service_params_BE_bit : 1;
-    unsigned char est_service_params_BK_bit : 1;
-    unsigned char est_service_params_VO_bit : 1;
-    unsigned char est_service_params_VI_bit : 1;
     unsigned char reserved : 4;
+    unsigned char est_service_params_VI_bit : 1;
+    unsigned char est_service_params_VO_bit : 1;
+    unsigned char est_service_params_BK_bit : 1;
+    unsigned char est_service_params_BE_bit : 1;
     unsigned char est_service_params_BE[3];
-    unsigned char est_service_params_BK[3];
-    unsigned char est_service_params_VO[3];
-    unsigned char est_service_params_VI[3];
 } __attribute__((__packed__)) em_ap_metric_t;
 
 
@@ -966,8 +1276,8 @@ typedef struct {
 } __attribute__((__packed__)) em_assoc_wifi6_sta_sts_t;
 
 typedef struct {
-    mac_address_t client_mac_addr;
     unsigned char bssid[6];
+    mac_address_t client_mac_addr;
 } __attribute__((__packed__)) em_client_info_t;
 
 typedef struct {
@@ -989,15 +1299,15 @@ typedef struct {
 
 typedef struct {
     mac_address_t ruid;
-    unsigned char reserved1 : 1;
-    unsigned char partial_bss_color : 1;
     unsigned char bss_color : 6;
-    unsigned char reserved2 : 3;
-    unsigned char hesiga_spatial_reuse_value15_allowed : 1;
-    unsigned char srg_info_valid : 1;
-    unsigned char non_srg_offset_valid : 1;
-    unsigned char reserved3 : 1;
+    unsigned char partial_bss_color : 1;
+    unsigned char reserved1 : 1;
     unsigned char psr_disallowed : 1;
+    unsigned char reserved2 : 1;
+    unsigned char non_srg_offset_valid : 1;
+    unsigned char srg_info_valid : 1;
+    unsigned char hesiga_spatial_reuse_value15_allowed : 1;
+    unsigned char reserved3 : 3;
     unsigned char non_srg_obsspd_max_offset;
     unsigned char srg_obsspd_min_offset;
     unsigned char srg_obsspd_max_offset;
@@ -1006,6 +1316,23 @@ typedef struct {
     unsigned char neigh_bss_color_in_use_bitmap[8];
     unsigned char reserved[2];
 } __attribute__((__packed__)) em_spatial_reuse_rprt_t;
+
+typedef struct {
+    float link_quality_score;
+    em_string_t reporting_time;
+    float snr;
+    float per;
+    float phy;
+} __attribute__((__packed__)) em_alarm_samples_t;
+
+typedef struct {
+    mac_addr_t sta_mac;
+    em_string_t reporting_timestamp;
+    float link_quality_threshold;
+    bool alarm_triggered;
+    int sample_count;
+    em_alarm_samples_t alarm_sample[EM_MAX_SAMPLES_PER_LINK_REPORT];
+} __attribute__((__packed__)) em_link_report_t;
 
 typedef enum {
     em_chan_sel_resp_code_type_accept,
@@ -1060,14 +1387,14 @@ typedef struct {
 
 typedef struct {
     mac_address_t ruid;
-    unsigned char reserved1 : 2;
     unsigned char bss_color : 6;
-    unsigned char reserved2 : 3;
-    unsigned char hesiga_spatial_reuse_value15_allowed : 1;
-    unsigned char srg_info_valid : 1;
-    unsigned char non_srg_offset_valid : 1;
-    unsigned char reserved3: 1;
+    unsigned char reserved1: 2;
     unsigned char psr_disallowed : 1;
+    unsigned char reserved2 : 1;
+    unsigned char non_srg_offset_valid : 1;
+    unsigned char srg_info_valid : 1;
+    unsigned char hesiga_spatial_reuse_value15_allowed : 1;
+    unsigned char reserved3 : 3;
     unsigned char non_srg_obsspd_max_offset;
     unsigned char srg_obsspd_min_offset;
     unsigned char srg_obsspd_max_offset;
@@ -1204,8 +1531,9 @@ typedef struct {
 } __attribute__((__packed__)) em_neigh_device_list_t;
 
 typedef struct {
-	   mac_address_t bssid;
-		  unsigned short haultype;
+    mac_address_t bssid;
+    unsigned short haultype;
+    unsigned short vap_mode;
 } __attribute__((__packed__)) em_ap_vendor_operational_bss_t;
 
 typedef struct {
@@ -1264,28 +1592,39 @@ typedef struct {
     unsigned short reason_code;
 } __attribute__((__packed__)) em_reason_code_t;
 
+typedef struct
+{
+    mac_address_t sta_mac_addr;
+    unsigned int bytes_sent;
+    unsigned int bytes_recv;
+    unsigned int packets_sent;
+    unsigned int packets_recv;
+    unsigned int tx_packets_errors;
+} __attribute__((__packed__)) em_affiliated_sta_metrics_t;
+
 typedef struct {
     unsigned char *dpp_config_obj;
 } __attribute__((__packed__)) em_bss_conf_rsp_t;
 
 typedef struct {
-    unsigned char *dpp_config_req_obj;
+    char dpp_config_req_obj[0];
 } __attribute__((__packed__)) em_bss_conf_req_t;
 
 typedef struct {
     unsigned short primary_vlan_id;
-    unsigned char  default_pcp : 3;
     unsigned char  reserved : 5;
+    unsigned char  default_pcp : 3;
 } __attribute__((__packed__)) em_8021q_settings_t;
 
 typedef struct {
     unsigned char  ssid_len;
-    char  ssid[0];
+    char  ssid[EM_MAX_SSID_LEN];
+    unsigned short vlan_id;
 } __attribute__((__packed__)) em_traffic_sep_policy_ssid_t;
 
 typedef struct {
     unsigned char  ssids_num;
-    em_traffic_sep_policy_ssid_t  ssids[0];
+    em_traffic_sep_policy_ssid_t  ssids[EM_MAX_TRAFFIC_SEP_SSID];
 } __attribute__((__packed__)) em_traffic_sep_policy_t;
 
 typedef struct {
@@ -1296,19 +1635,26 @@ typedef struct {
 typedef struct {
     unsigned char  oui[3];
     unsigned char  akm_suite_type;
-} __attribute__((__packed__)) em_fh_akm_suite_t;
+}  em_fh_akm_suite_t;
 
 typedef struct {
-    unsigned char  bh_akm_suite_count;
-    em_bh_akm_suite_t  *bh_akm_suites;
-    unsigned char  fh_akm_suite_count;
-    em_fh_akm_suite_t  *fh_akm_suites;
-} __attribute__((__packed__)) em_akm_suite_info_t;
+    uint8_t count;
+    em_fh_akm_suite_t suites[0];
+} __attribute__((__packed__)) em_fh_akm_suite_info_t;
 
+typedef struct {
+    uint8_t count;
+    em_bh_akm_suite_t suites[0];
+} __attribute__((__packed__)) em_bh_akm_suite_info_t;
+
+typedef struct {
+    em_bh_akm_suite_info_t bh_akm_suites;
+    em_fh_akm_suite_info_t fh_akm_suites; 
+} __attribute__((__packed__)) em_akm_suite_info_t;
 typedef struct {
     mac_address_t  ruid;
-    unsigned char  bsta_mac_present : 1;
     unsigned char  reserved : 7;
+    unsigned char  bsta_mac_present : 1;
     mac_address_t  bsta_addr;
 } __attribute__((__packed__)) em_bh_sta_radio_cap_t;
 
@@ -1320,22 +1666,22 @@ typedef struct {
 typedef struct {
     unsigned char  max_prior_rule;
     unsigned char  reserved1;
-    unsigned char  byte_counter_units : 2;
-    unsigned char  prioritization : 1;
-    unsigned char  dpp_onboarding : 1;
-    unsigned char  traffic_separation : 1;
     unsigned char  reserved2 : 3;
+    unsigned char  traffic_separation : 1;
+    unsigned char  dpp_onboarding : 1;
+    unsigned char  prioritization : 1;
+    unsigned char  byte_counter_units : 2;
     unsigned char  max_vid_count;
 } __attribute__((__packed__)) em_profile_2_ap_cap_t;
 
 typedef struct {
     unsigned int   rule_id;
-    unsigned char  add_rule : 1;
     unsigned char  reserved1 : 7;
+    unsigned char  add_rule : 1;
     unsigned char  rule_precedence;
     unsigned char  rule_output;
-    unsigned char  always_match : 1;
     unsigned char  reserved2 : 7;
+    unsigned char  always_match : 1;
 } __attribute__((__packed__)) em_service_prio_rule_t;
 
 typedef struct {
@@ -1371,10 +1717,27 @@ typedef struct {
 } __attribute__((__packed__)) em_1905_mac_addr_t;
 
 typedef struct {
+    // this is of type vendor_ext_attr_id_t for vendor specific attributes
+    unsigned char attr_id;
+    unsigned char  vendor_data[0];
+} __attribute__((__packed__)) em_vendor_data_t;
+
+typedef struct {
     unsigned char  vendor_oui[3];
-    unsigned short m_num;
-    unsigned char  *m;
+    unsigned char num;
+    em_vendor_data_t  data[0];
 } __attribute__((__packed__)) em_vendor_specific_t;
+
+typedef struct {
+    unsigned char  vendor_oui[3];
+    unsigned char  data[0];
+} __attribute__((__packed__)) em_vendor_specific_v_t;
+
+typedef struct {
+    mac_address_t interface_mac;
+    unsigned char supported_standards[2];
+    unsigned char reserved[2];
+}__attribute__((__packed__)) em_radio_capability_vendor_t;
 
 typedef struct {
     unsigned char  destination;    
@@ -1424,151 +1787,163 @@ typedef struct {
 } __attribute__((__packed__)) em_radio_vendor_t;
 
 typedef struct {
-    unsigned char   serial_len;
-    unsigned char   serial[MAP_INVENTORY_ITEM_LEN];
-    unsigned char   ver_len;
-    unsigned char   version[MAP_INVENTORY_ITEM_LEN];
-    unsigned char   envi_len;
-    unsigned char   environment[MAP_INVENTORY_ITEM_LEN];
-    unsigned char   radios_num;
     em_radio_vendor_t radios[EM_MAX_RADIO_PER_AGENT];
 } __attribute__((__packed__)) em_device_inventory_t;
 
 typedef struct {
     mac_address_t  ruid;
-    unsigned char  max_sprt_tx_streams : 2;
-    unsigned char  max_sprt_rx_streams : 2;
-    unsigned char  gi_sprt_20mhz : 1;
-    unsigned char  gi_sprt_40mhz : 1;
-    unsigned char  ht_sprt_40mhz : 1;
     unsigned char  reserved : 1;
+    unsigned char  ht_sprt_40mhz : 1;
+    unsigned char  gi_sprt_40mhz : 1;
+    unsigned char  gi_sprt_20mhz : 1;
+    unsigned char  max_sprt_rx_streams : 2;
+    unsigned char  max_sprt_tx_streams : 2;
 } __attribute__((__packed__)) em_ap_ht_cap_t;
 
 typedef struct {
     mac_address_t  ruid;
     unsigned short sprt_tx_mcs;
     unsigned short sprt_rx_mcs;
-    unsigned char  max_sprt_tx_streams : 3;
-    unsigned char  max_sprt_rx_streams : 3;
-    unsigned char  gi_sprt_80mhz : 1;
     unsigned char  gi_sprt_160mhz : 1;
-    unsigned char  sprt_80_80_mhz : 1;
-    unsigned char  sprt_160mhz : 1;
-    unsigned char  su_beamformer_cap : 1;
-    unsigned char  mu_beamformer_cap : 1;
+    unsigned char  gi_sprt_80mhz : 1;
+    unsigned char  max_sprt_rx_streams : 3;
+    unsigned char  max_sprt_tx_streams : 3;
     unsigned char  reserved : 4;
+    unsigned char  mu_beamformer_cap : 1;
+    unsigned char  su_beamformer_cap : 1;
+    unsigned char  sprt_160mhz : 1;
+    unsigned char  sprt_80_80_mhz : 1;
 } __attribute__((__packed__)) em_ap_vht_cap_t;
+
+typedef struct {
+    unsigned short tx_he_mcs;
+    unsigned short rx_he_mcs;
+} __attribute__((__packed__)) em_ap_he_mcs_maps_t;
 
 typedef struct {
     mac_address_t  ruid;
     unsigned char  sprt_mcs_len;
-    unsigned short sprt_tx_rx_mcs[MAX_MCS];
-    unsigned char  max_sprt_tx_streams : 3;
-    unsigned char  max_sprt_rx_streams : 3;
-    unsigned char  sprt_80_80_mhz : 1;
+    em_ap_he_mcs_maps_t sprt_tx_rx_mcs[MAX_MCS];
     unsigned char  sprt_160mhz : 1;
-    unsigned char  su_beamformer_cap : 1;
-    unsigned char  mu_beamformer_cap : 1;
-    unsigned char  ul_mimo_cap : 1;
-    unsigned char  ul_mimo_ofdma_cap : 1;
-    unsigned char  dl_mimo_ofdma_cap : 1;
-    unsigned char  ul_ofdma_cap : 1;
-    unsigned char  dl_ofdma_cap : 1;
+    unsigned char  sprt_80_80_mhz : 1;
+    unsigned char  max_sprt_rx_streams : 3;
+    unsigned char  max_sprt_tx_streams : 3;
     unsigned char  reserved : 1;
+    unsigned char  dl_ofdma_cap : 1;
+    unsigned char  ul_ofdma_cap : 1;
+    unsigned char  dl_mimo_ofdma_cap : 1;
+    unsigned char  ul_mimo_ofdma_cap : 1;
+    unsigned char  ul_mimo_cap : 1;
+    unsigned char  mu_beamformer_cap : 1;
+    unsigned char  su_beamformer_cap : 1;
 } __attribute__((__packed__))em_ap_he_cap_t;
 
+typedef struct {
+    unsigned char  mcs_nss_num : 4;
+    unsigned char  he_8080 : 1;
+    unsigned char  he_160 : 1;
+    unsigned char  agent_role : 2;
+} __attribute__((__packed__)) em_wifi6_cap_role_head_tlv_t;
 
 typedef struct {
-    unsigned char  agent_role : 2;
-    unsigned char  he_160 : 1;
-    unsigned char  he_8080 : 1;
-    unsigned char  mcs_nss_num : 4;
-    unsigned short mcs_nss[MAX_MCS_NSS];
-    unsigned char  su_beam_former : 1;
-    unsigned char  su_beam_formee : 1;
-    unsigned char  mu_beam_former : 1;
-    unsigned char  beam_formee_sts_l80 : 1;
-    unsigned char  beam_formee_sts_g80 : 1;
-    unsigned char  ul_mumimo : 1;
-    unsigned char  ul_ofdma : 1;
     unsigned char  dl_ofdma : 1;
-    unsigned char  max_dl_mumimo_tx : 4;
+    unsigned char  ul_ofdma : 1;
+    unsigned char  ul_mumimo : 1;
+    unsigned char  beam_formee_sts_g80 : 1;
+    unsigned char  beam_formee_sts_l80 : 1;
+    unsigned char  mu_beam_former : 1;
+    unsigned char  su_beam_formee : 1;
+    unsigned char  su_beam_former : 1;
     unsigned char  max_ul_mumimo_rx : 4;
+    unsigned char  max_dl_mumimo_tx : 4;
     unsigned char  max_dl_ofdma_tx;
     unsigned char  max_ul_ofdma_rx;
-    unsigned char  rts : 1;
-    unsigned char  mu_rts : 1;
-    unsigned char  multi_bssid : 1;
-    unsigned char  mu_edca : 1;
-    unsigned char  twt_req : 1;
-    unsigned char  twt_resp : 1;
+    unsigned char  anticipated_channel_usage : 1;
     unsigned char  spatial_reuse : 1;
-    unsigned char  reserved : 1;
-} __attribute__((__packed__)) em_radio_wifi6_cap_data_t;
+    unsigned char  twt_resp : 1;
+    unsigned char  twt_req : 1;
+    unsigned char  mu_edca : 1;
+    unsigned char  multi_bssid : 1;
+    unsigned char  mu_rts : 1;
+    unsigned char  rts : 1;
+} __attribute__((__packed__)) em_wifi6_cap_role_tail_tlv_t;
 
 typedef struct {
-    mac_address_t  ruid;
-    unsigned char  roles_num;
-    em_radio_wifi6_cap_data_t  cap_data[MAP_AP_ROLE_MAX];
-} __attribute__((__packed__))em_ap_wifi6_cap_t;
+    em_wifi6_cap_role_head_tlv_t role_head;
+    em_ap_he_mcs_maps_t sprt_tx_rx_mcs[MAX_MCS];
+    em_wifi6_cap_role_tail_tlv_t role_tail;
+} __attribute__((__packed__)) em_wifi6_role_wire_t;
+
+typedef struct {
+    unsigned char  num_role;
+    em_wifi6_role_wire_t roles[MAP_AP_ROLE_MAX];
+} __attribute__((__packed__))em_radio_wifi6_cap_data_t;
 
 typedef struct {
     mac_address_t ruid;
-    unsigned char freq_sep : 5;
     unsigned char reserved : 3;
-} __attribute__((__packed__)) em_radio_wifi7_freq_record_t;
+    unsigned char freq_sep : 5;
+} __attribute__((__packed__)) em_wifi7_freq_record_tlv_t;
 
 typedef struct {
     unsigned char num_records;
-    em_radio_wifi7_freq_record_t records[EM_MAX_FREQ_RECORDS_PER_RADIO];
-} __attribute__((__packed__)) em_radio_wifi7_freq_records_t;
+    em_wifi7_freq_record_tlv_t records[EM_MAX_FREQ_RECORDS_PER_RADIO];
+} __attribute__((__packed__)) em_wifi7_freq_records_t;
 
 typedef struct {
     unsigned char max_num_mlds;
-    unsigned char ap_max_links : 4;
     unsigned char bsta_max_links : 4;
-    unsigned char tid_link_mapping_cap : 2;
+    unsigned char ap_max_links : 4;
     unsigned char reserved1 : 6;
+    unsigned char tid_link_mapping_cap : 2;
     unsigned char reserved2[13];
-} __attribute__((__packed__)) em_radio_wifi7_cap_data_t;
+} __attribute__((__packed__)) em_wifi7_cap_link_info_tlv_t;
 
 typedef struct {
     mac_address_t ruid;
     unsigned char reserved3[24];
-    unsigned char ap_str_support : 1;
-    unsigned char ap_nstr_support : 1;
-    unsigned char ap_emlsr_support : 1;
-    unsigned char ap_emlmr_support : 1;
     unsigned char reserved4 : 4;
-    unsigned char bsta_str_support : 1;
-    unsigned char bsta_nstr_support : 1;
-    unsigned char bsta_emlrs_support : 1;
-    unsigned char bsta_emlmr_support : 1;
+    unsigned char ap_emlmr_support : 1;
+    unsigned char ap_emlsr_support : 1;
+    unsigned char ap_nstr_support : 1;
+    unsigned char ap_str_support : 1;
     unsigned char reserved5 : 4;
-    em_radio_wifi7_freq_records_t ap_str;
-    em_radio_wifi7_freq_records_t ap_nstr;
-    em_radio_wifi7_freq_records_t ap_emlsr;
-    em_radio_wifi7_freq_records_t ap_emlmr;
-    em_radio_wifi7_freq_records_t bsta_str;
-    em_radio_wifi7_freq_records_t bsta_nstr;
-    em_radio_wifi7_freq_records_t bsta_emlsr;
-    em_radio_wifi7_freq_records_t bsta_emlmr;
-} __attribute__((__packed__)) em_radio_wifi7_radio_t;
+    unsigned char bsta_emlmr_support : 1;
+    unsigned char bsta_emlsr_support : 1;
+    unsigned char bsta_nstr_support : 1;
+    unsigned char bsta_str_support : 1;
+} __attribute__((__packed__)) em_wifi7_mlo_cap_support_tlv_t;
 
 typedef struct {
-    em_radio_wifi7_cap_data_t cap_data;
-    unsigned char radios_num;
-    em_radio_wifi7_radio_t radios[EM_MAX_RADIO_PER_AGENT];
+    em_wifi7_freq_records_t ap_str;
+    em_wifi7_freq_records_t ap_nstr;
+    em_wifi7_freq_records_t ap_emlsr;
+    em_wifi7_freq_records_t ap_emlmr;
+    em_wifi7_freq_records_t bsta_str;
+    em_wifi7_freq_records_t bsta_nstr;
+    em_wifi7_freq_records_t bsta_emlsr;
+    em_wifi7_freq_records_t bsta_emlmr;
+} __attribute__((__packed__)) em_wifi7_mlo_cap_records_t;
+
+typedef struct {
+    em_wifi7_mlo_cap_support_tlv_t mlo_cap_support;
+    em_wifi7_mlo_cap_records_t mlo_cap_records;
 } __attribute__((__packed__)) em_wifi7_agent_cap_t;
 
 typedef struct {
+    em_wifi7_cap_link_info_tlv_t link_info;
+    unsigned char radios_num;
+    unsigned char mlo_data[0];
+} __attribute__((__packed__)) em_wifi7_cap_tlv_t;
+
+typedef struct {
     mac_address_t bssid;
-    unsigned char op_info_valid : 1;
-    unsigned char disabled_subchannel_valid : 1;
-    unsigned char default_pe_duration : 1;
-    unsigned char group_addr_bu_ind_limit : 1;
-    unsigned char group_addr_bu_ind_exp : 2;
     unsigned char reserved1 : 2;
+    unsigned char group_addr_bu_ind_exp : 2;
+    unsigned char group_addr_bu_ind_limit : 1;
+    unsigned char default_pe_duration : 1;
+    unsigned char disabled_subchannel_valid : 1;
+    unsigned char op_info_valid : 1;
     unsigned char eht_msc_nss_set[4];
     unsigned char control;
     unsigned char ccfs0;
@@ -1585,7 +1960,6 @@ typedef struct {
 } __attribute__((__packed__)) em_eht_operations_radio_t;
 
 typedef struct {
-    unsigned char reserved[32];
     unsigned char radios_num;
     em_eht_operations_radio_t radios[EM_MAX_RADIO_PER_AGENT];
 } __attribute__((__packed__)) em_eht_operations_t;
@@ -1600,11 +1974,12 @@ typedef struct {
 
 typedef struct {
     mac_address_t  ruid;
-    unsigned char  boot_only : 1;
+    unsigned char  reserved : 5;
     unsigned char  scan_impact : 2;
+    unsigned char  boot_only : 1;
     unsigned int   min_scan_interval;
     unsigned char  op_classes_num;
-    em_op_class_t  op_classes[EM_MAX_OP_CLASS];
+    em_scan_cap_op_class_info_t  op_classes[EM_MAX_OPCLASS];
 } __attribute__((__packed__))em_channel_scan_cap_radio_t;
 
 typedef struct {
@@ -1612,11 +1987,19 @@ typedef struct {
     em_channel_scan_cap_radio_t  radios[EM_MAX_RADIO_PER_AGENT];
 } __attribute__((__packed__))em_channel_scan_cap_t;
 
+/* CAC Method types — Wi-Fi Easy Mesh spec - 17.2.46 Table 16 */
+typedef enum {
+    em_cac_method_continuous              = 0, /* Continuous CAC */
+    em_cac_method_continuous_dedicated    = 1, /* Continuous with dedicated radio */
+    em_cac_method_mimo_reduced            = 2, /* MIMO dimension reduced */
+    em_cac_method_time_sliced             = 3, /* Time-sliced CAC */
+} em_cac_method_type_t;
+
 typedef struct {
     unsigned char   cac_method;
-    unsigned int    cac_duration;
+    unsigned int    cac_duration : 24;
     unsigned char   op_classes_num;
-    em_op_class_t   op_classes[EM_MAX_OP_CLASS];
+    em_cac_op_class_t   op_classes[EM_MAX_OP_CLASS];
 } __attribute__((__packed__)) em_cac_cap_method_t;
 
 typedef struct {
@@ -1669,21 +2052,21 @@ typedef struct {
 } __attribute__((__packed__)) em_metric_rprt_policy_t;
 
 typedef struct {
-   unsigned char rprt_ind_ch_scan : 1;
    unsigned char reserved : 7;
+   unsigned char rprt_ind_ch_scan : 1;
 } __attribute__((__packed__)) em_channel_scan_rprt_policy_t;
 
 typedef struct {
-    unsigned char  rprt_flag : 1;
     unsigned char  reserved : 7;
+    unsigned char  rprt_flag : 1;
     unsigned int   max_rprt_rate;
 } __attribute__((__packed__)) em_unsuccessful_assoc_policy_t;
 
 typedef struct {
     mac_address_t  bssid;
-    unsigned char  p1_bsta_disallowed : 1;
-    unsigned char  p2_bsta_disallowed : 1;
     unsigned char  reserved : 6;
+    unsigned char  p2_bsta_disallowed : 1;
+    unsigned char  p1_bsta_disallowed : 1;
 } __attribute__((__packed__)) em_bh_bss_config_t;
 
 typedef struct {
@@ -1695,18 +2078,33 @@ typedef struct {
 } __attribute__((__packed__)) em_qos_mgmt_policy_t;
 
 typedef struct {
+    em_string_t collection_start_time;
+    unsigned int reporting_interval;
+    float link_quality_threshold;
+} __attribute__((__packed__)) em_link_stats_alarm_cfg_t;
+
+typedef struct {
+    mac_addr_t sta_mac;
+    unsigned int consec_alarm_thres_cnt;
+    em_small_string_t collect_duration;
+} __attribute__((__packed__)) em_client_filters_cfg_t;
+typedef struct {
     em_string_t managed_client_marker;
+    em_link_stats_alarm_cfg_t link_stats_alarm_policy_cfg;
+    em_client_filters_cfg_t client_filters_policy_cfg;
 }__attribute__((__packed__)) em_vendor_policy_t;
 
 typedef struct {
     em_steering_policy_t steering_policy;
     em_metric_rprt_policy_t metrics_policy;
     em_8021q_settings_t def_8021q_settings;
-    em_traffic_sep_policy_ssid_t traffic_separation_policy;
+    em_traffic_sep_policy_t traffic_separation_policy;
     em_channel_scan_rprt_policy_t channel_scan_policy;
     em_unsuccessful_assoc_policy_t unsuccessful_assoc_policy;
-    em_bh_bss_config_t bh_bss_cfg_policy;
-    em_qos_mgmt_policy_t qos_mgmt_policy;
+    unsigned int num_bh_bss_cfg;
+    em_bh_bss_config_t bh_bss_cfg_policy[EM_MAX_BSS_PER_RADIO];
+    unsigned int num_qos_mgmt;
+    em_qos_mgmt_policy_t qos_mgmt_policy[EM_MAX_QOS_MGMT_POLICY];
     em_vendor_policy_t vendor_policy;
 } em_policy_cfg_params_t;
 
@@ -1721,7 +2119,8 @@ typedef struct {
 } __attribute__((__packed__)) em_searched_service_t;
 
 typedef struct {
-    unsigned char   reserved:5;
+    unsigned char   reserved:4;
+    unsigned char   m8_bsta_reconfiguration:1;
     unsigned char   rcpi_steering:1;
     unsigned char   unassociated_client_link_metrics_non_op_channels:1;
     unsigned char   unassociated_client_link_metrics_op_channels:1;
@@ -1730,13 +2129,14 @@ typedef struct {
 
 typedef struct {
     mac_address_t   ruid;
-    unsigned char   comb_front_back : 1;
-    unsigned char   comp_prof1_prof2 : 1;
-    unsigned char   mscs : 1;
-    unsigned char   scs : 1;
-    unsigned char   qos_map : 1;
+    unsigned char   reserved : 1;
+    unsigned char   qm_scs_traffic_description : 1;
     unsigned char   dscp_policy : 1;
-    unsigned char   reserved : 2;
+    unsigned char   qos_map : 1;
+    unsigned char   scs : 1;
+    unsigned char   mscs : 1;
+    unsigned char   comp_prof1_prof2 : 1;
+    unsigned char   comb_front_back : 1;
 } __attribute__((__packed__)) em_ap_radio_advanced_cap_t;
 
 typedef enum {
@@ -1749,17 +2149,20 @@ typedef enum {
     em_media_type_ieee80211ac_5,
     em_media_type_ieee80211ad_60,
     em_media_type_ieee80211af,
+    em_media_type_max,
 } em_media_type_t;
 
 typedef struct {
-    uint8_t mac_present : 1;  // Bit 7: Enrollee MAC Address Present
-    uint8_t hash_valid : 1;   // Bit 6: Hash Validity
     uint8_t reserved : 6;     // Bits 5-0: Reserved
+    uint8_t hash_valid : 1;   // Bit 6: Hash Validity
+    uint8_t mac_present : 1;  // Bit 7: Enrollee MAC Address Present
     uint8_t data[0];           // Flexible array for MAC address (if present) + hash length + hash value
 } __attribute__((__packed__)) em_dpp_chirp_value_t;
 
 typedef struct {
-    unsigned char   value[EM_CTRL_CAP_SZ];
+    uint8_t reserved : 6;              // Bits 6-0: Reserved
+    uint8_t early_ap_capability : 1;   // Bit 6: Prefers to receive an Early AP Capability Report
+    uint8_t kibmib_counter : 1;        // Bit 7: Sender supports KiB / MiB byte counters
 } __attribute__((__packed__)) em_ctrl_cap_t;
 
 typedef struct {
@@ -1833,39 +2236,57 @@ typedef enum {
     attr_id_totalPnetworks,
     attr_id_uuid_e, 
     attr_id_uuid_r, 
+    attr_id_vendor_ext,
     attr_id_version,
     attr_id_primary_device_type = 0x1054,
-	attr_id_haul_type,
-	attr_id_no_of_haul_type,
 } data_elem_attr_id_t;
 
 typedef enum {
+    // Vendor Extension Attribute for Haul Type with data
+    vendor_ext_attr_id_haul_type = 0x01,    // of 1 byte having value corresponding to em_haul_type_t
+    vendor_ext_attr_id_policy_sta_marker,   // string value with variable length
+    vendor_ext_attr_id_client_type,      // data of type em_assoc_sta_vendor_link_metrics_t
+    vendor_ext_attr_id_policy_alarm,    // data of type em_link_stats_alarm_cfg_t
+    vendor_ext_attr_id_policy_cfg_client_filter,    // data of type em_client_filters_cfg_t
+    vendor_ext_attr_id_link_report,     // data of type em_link_report_t
+
+    vendor_ext_attr_id_max
+} vendor_ext_attr_id_t;
+
+typedef enum {
     em_state_agent_unconfigured,
+    em_state_agent_1905_unconfigured,
+    em_state_agent_1905_securing,
     em_state_agent_autoconfig_rsp_pending,
     em_state_agent_wsc_m2_pending,
     em_state_agent_owconfig_pending,
     em_state_agent_onewifi_bssconfig_ind,
 	em_state_agent_autoconfig_renew_pending,
     em_state_agent_topo_synchronized,
+    em_state_agent_ap_cap_report,
+	em_state_agent_channel_pref_query,
 	em_state_agent_channel_selection_pending,
+	em_state_agent_channel_select_configuration_pending,
     em_state_agent_channel_report_pending,
 	em_state_agent_channel_scan_result_pending,
+    em_state_agent_unassoc_sta_metrics_report_pending,	
     em_state_agent_configured,
 	
 	// Transient agent stats
     em_state_agent_topology_notify,
-    em_state_agent_ap_cap_report,
     em_state_agent_client_cap_report,
-    em_state_agent_channel_pref_query,
-    em_state_agent_sta_link_metrics,
+    em_state_agent_sta_link_metrics_pending,
     em_state_agent_steer_btm_res_pending,
     em_state_agent_beacon_report_pending,
+    em_state_agent_link_quality_report_pending,
 
     em_state_ctrl_unconfigured = 0x100,
     em_state_ctrl_wsc_m1_pending,
     em_state_ctrl_wsc_m2_sent,
     em_state_ctrl_topo_sync_pending,
     em_state_ctrl_topo_synchronized,
+    em_state_ctrl_ap_cap_query_pending,
+    em_state_ctrl_ap_cap_report_received,
     em_state_ctrl_channel_query_pending,
 	em_state_ctrl_channel_pref_report_pending,
     em_state_ctrl_channel_queried,
@@ -1888,6 +2309,9 @@ typedef enum {
     em_state_ctrl_bsta_mld_config_pending,
     em_state_ctrl_ap_mld_req_ack_rcvd,
     em_state_ctrl_avail_spectrum_inquiry_pending,
+    em_state_ctrl_bsta_cap_pending,
+    em_state_ctrl_topo_publish_pending,
+    em_state_ctrl_unassoc_sta_link_metrics_pending, 
 
     em_state_max,
 } em_state_t;
@@ -1913,6 +2337,7 @@ typedef enum {
     em_cmd_type_btm_sta,
     em_cmd_type_dev_init,
     em_cmd_type_dev_test,
+    em_cmd_type_set_dev_test,
     em_cmd_type_cfg_renew,
     em_cmd_type_vap_config,
     em_cmd_type_sta_list,
@@ -1935,6 +2360,13 @@ typedef enum {
     em_cmd_type_get_mld_config,
     em_cmd_type_mld_reconfig,
     em_cmd_type_beacon_report,
+    em_cmd_type_ap_metrics_report,
+    em_cmd_type_get_reset,
+    em_cmd_type_bsta_cap,
+    em_cmd_type_get_link_quality_report,
+    em_cmd_type_unassoc_sta_query,
+    em_cmd_type_unassoc_sta_result,
+
     em_cmd_type_max,
 } em_cmd_type_t;
 
@@ -1951,6 +2383,9 @@ typedef enum {
     em_event_type_device,
     em_event_type_node,
     em_event_type_bus,
+    em_event_type_nb,
+    em_event_type_cmd,
+
     em_event_type_max
 } em_event_type_t;
 
@@ -1962,6 +2397,11 @@ typedef enum {
 	em_haul_type_hotspot,
 	em_haul_type_max,
 } em_haul_type_t;
+
+typedef enum {
+    em_vap_mode_ap,
+	em_vap_mode_sta
+} em_vap_mode_t;
 
 typedef struct {
     unsigned int frame_len;
@@ -1990,7 +2430,7 @@ typedef struct {
     em_string_t     mscs_disallowed_sta[EM_MSCS_DISALLOWED_STA];
     unsigned char    num_scs_disallowed_sta;
     em_string_t     scs_disallowed_sta[EM_SCS_DISALLOWED_STA];
-    em_interface_t    colocated_agent_id; // Controller and Colocated Agent AL MAC
+    em_interface_t    colocated_agent_id; // Colocated Agent AL MAC
 	em_media_type_t	media;
 } em_network_info_t;
 
@@ -2040,14 +2480,16 @@ typedef struct {
     wifi_ieee80211Variant_t  backhaul_media_type;
     unsigned int    backhaul_phyrate;
     em_interface_t   backhaul_alid;
+    mac_address_t   backhaul_sta;
     bool    traffic_sep_cap;
     bool    easy_conn_cap;
     unsigned char test_cap;
     unsigned char apmld_maxlinks;
-    em_string_t   tidlink_map;
+    unsigned char   tidlink_map;
     unsigned char assoc_sta_reporting_int;
     unsigned char max_nummlds;
     unsigned char bstamld_maxlinks;
+    em_string_t   environment;
 
     em_small_string_t    primary_device_type;
     em_small_string_t    secondary_device_type;
@@ -2086,6 +2528,8 @@ typedef struct {
     mac_address_t   mobility_domain;
     unsigned char   num_hauls;
     em_haul_type_t haul_type[EM_MAX_HAUL_TYPES];   
+    em_string_t auth_type;
+    unsigned short vlan_id;
 } em_network_ssid_info_t;
 
 typedef enum {
@@ -2098,6 +2542,7 @@ typedef enum {
     em_op_class_type_preference,
     em_op_class_type_anticipated,
     em_op_class_type_scan_param,
+    em_op_class_type_selection,
 } em_op_class_type_t;
 
 typedef struct {
@@ -2114,6 +2559,8 @@ typedef struct {
     int max_tx_power;
     unsigned int    num_channels;
     unsigned int    channels[EM_MAX_CHANNELS_IN_LIST];
+    unsigned char   channel_pref[EM_MAX_CHANNELS_IN_LIST];
+    bool            pref_valid;
     unsigned short	mins_since_cac_comp;
 	unsigned short	sec_remain_non_occ_dur;
 	unsigned int	countdown_cac_comp;
@@ -2133,6 +2580,7 @@ typedef struct {
     mac_address_t   bssid;
     mac_address_t radiomac;
     bool associated;
+    em_string_t sta_client_type;
     em_long_string_t    timestamp;
     unsigned int    last_ul_rate;
     unsigned int    last_dl_rate;
@@ -2157,6 +2605,7 @@ typedef struct {
     unsigned int    num_beacon_meas_report;
     unsigned int    beacon_report_len;
     unsigned char   beacon_report_elem[EM_MAX_BEACON_MEASUREMENT_LEN];
+    unsigned int    delta_ms;
 
     em_long_string_t    cap;
     em_long_string_t    ht_cap;
@@ -2175,9 +2624,12 @@ typedef struct {
     em_long_string_t    supp_op_classes;
     em_long_string_t    ext_cap;
     em_long_string_t    rm_cap;
+    em_long_string_t    multi_link;
     em_long_string_t    vendor_info[MAX_VENDOR_INFO];
 
     wifi_BeaconReport_t beacon_reports[EM_MAX_BEACON_REPORTS_PER_SCAN];
+    em_link_report_t link_stats_report;
+    unsigned short  reason_code;
 } em_sta_info_t;
 
 typedef enum {
@@ -2195,6 +2647,10 @@ typedef struct {
 } em_bss_id_t;
 
 typedef struct {
+    // Vap Index is constant. Any modification will not be reflected in OneWifi.
+    unsigned int vap_index;
+    // Vap Mode is constant. Any modification will not be reflected in OneWifi.
+    em_vap_mode_t vap_mode;
 	em_bss_id_t	id;
 	em_interface_t	bssid;
 	em_interface_t	ruid;
@@ -2202,9 +2658,19 @@ typedef struct {
     bool    enabled;
     unsigned int last_change;
     em_long_string_t     timestamp;
-    unsigned int unicast_bytes_sent;
-    unsigned int    unicast_bytes_rcvd;
     unsigned int    numberofsta;
+    unsigned int    channel_util;
+    // Extended report
+    unsigned int unicast_bytes_sent;
+    unsigned int unicast_bytes_rcvd;
+    unsigned int multicast_bytes_sent;
+    unsigned int multicast_bytes_rcvd;
+    unsigned int broadcast_bytes_sent;
+    unsigned int broadcast_bytes_rcvd;
+    bool inc_esp_ac_be;
+    bool inc_esp_ac_bk;
+    bool inc_esp_ac_vo;
+    bool inc_esp_ac_vi;
     em_string_t     est_svc_params_be;
     em_string_t     est_svc_params_bk;
     em_string_t     est_svc_params_vi;
@@ -2224,7 +2690,27 @@ typedef struct {
     bool    multi_bssid;
     bool    transmitted_bssid;
     em_eht_operations_bss_t eht_ops;
+    em_short_string_t mesh_sta_passphrase;
+    unsigned int vlan_id;
+    mac_address_t   mld_mac;
+    mac_address_t   sta_mac;
+
+    // Extra vendor information elements for the BSS
+    // @note Don't manually allocate, use the helper functions to add/remove elements 
+    unsigned char vendor_elements[WIFI_AP_MAX_VENDOR_IE_LEN];
+    size_t vendor_elements_len;
+    bool    connect_status;
 } em_bss_info_t;
+
+typedef struct {
+    mac_address_t   nbr;
+    float   pos_x;
+    float   pos_y;
+    float   pos_z;
+    mac_address_t   next_hop;
+    unsigned int num_hops;
+    int path_loss; 
+} em_neighbor_info_t;
 
 typedef struct {
     bool  mac_addr_valid;
@@ -2298,7 +2784,7 @@ typedef struct {
     bool  is_bsta_config;
     mac_address_t  mld_mac_addr;
     bool  tid_to_link_map_neg;
-    unsigned char  num_mapping;
+    unsigned short  num_mapping;
     em_tid_to_link_map_info_t  tid_to_link_mapping[EM_MAX_AP_MLD];
 } em_tid_to_link_info_t;
 
@@ -2317,6 +2803,9 @@ typedef struct {
     unsigned  int   number_of_bss;
     unsigned  int   number_of_unassoc_sta;
     int     noise;
+    unsigned char transmit;
+    unsigned char receive_self;
+    unsigned char receive_other;
     unsigned short utilization;
     bool    traffic_sep_combined_fronthaul;
     bool    traffic_sep_combined_backhaul;
@@ -2333,7 +2822,6 @@ typedef struct {
     bool    support_rcpi_steering;
     em_long_string_t    chip_vendor;
     bool    ap_metrics_wifi6;
-    em_device_inventory_t inventory_info;
     int     transmit_power_limit;
     unsigned char partial_bss_color;
     unsigned char bss_color;
@@ -2341,6 +2829,7 @@ typedef struct {
     bool srg_information_valid;
     bool non_srg_offset_valid;
     bool psr_disallowed;
+    bool init_cfg_done;
     unsigned char non_srg_obsspd_max_offset;
     unsigned char srg_obsspd_min_offset;
     unsigned char srg_obsspd_max_offset;
@@ -2351,14 +2840,14 @@ typedef struct {
 
 typedef struct {
     em_interface_t  ruid;
+    wifi_ieee80211Variant_t mode;
     em_ap_ht_cap_t  ht_cap;
     em_ap_vht_cap_t vht_cap;
     em_ap_he_cap_t  he_cap;
-    em_long_string_t    eht_cap;
     em_radio_wifi6_cap_data_t wifi6_cap;
     em_wifi7_agent_cap_t wifi7_cap;
     em_eht_operations_t eht_ops;
-    em_radio_info_t ch_scan;
+    em_channel_scan_cap_radio_t ch_scan;
     em_ap_radio_advanced_cap_t radio_ad_cap;
     em_profile_2_ap_cap_t   prof_2_ap_cap;
     em_cac_cap_radio_t cac_cap;
@@ -2391,9 +2880,9 @@ typedef struct {
 } __attribute__((__packed__)) em_ap_mld_ssids_t;
 
 typedef struct {
-    unsigned char affiliated_mac_addr_valid : 1;
+    unsigned char reserved1 : 6;
     unsigned char link_id_valid : 1;
-    unsigned char reseverd1 : 6;
+    unsigned char affiliated_mac_addr_valid : 1;
     mac_address_t ruid;
     mac_addr_t affiliated_mac_addr;
     unsigned char link_id;
@@ -2401,15 +2890,16 @@ typedef struct {
 } __attribute__((__packed__)) em_affiliated_ap_mld_t;
 
 typedef struct {
-    unsigned char ap_mld_mac_addr_valid : 1;
     unsigned char reserved1 : 7;
-    em_ap_mld_ssids_t ssids[0];
+    unsigned char ap_mld_mac_addr_valid : 1;
+    unsigned char ssid_len;
+    ssid_t ssid;
     mac_addr_t ap_mld_mac_addr;
-    unsigned char str : 1;
-    unsigned char nstr : 1;
-    unsigned char emlsr : 1;
+    unsigned char reserved2 : 4;
     unsigned char emlmr : 1;
-    unsigned char reseverd2 : 4;
+    unsigned char emlsr : 1;
+    unsigned char nstr : 1;
+    unsigned char str : 1;
     unsigned char reserved3[20];
     unsigned char num_affiliated_ap;
     em_affiliated_ap_mld_t affiliated_ap_mld[0];
@@ -2421,33 +2911,28 @@ typedef struct {
 } __attribute__((__packed__)) em_ap_mld_config_t;
 
 typedef struct {
+    unsigned char reserved1 : 7;
     unsigned char affiliated_bsta_mac_addr_valid : 1;
-    unsigned char reseverd1 : 7;
     mac_address_t ruid;
     mac_addr_t affiliated_bsta_mac_addr;
     unsigned char reserved2[19];
 } __attribute__((__packed__)) em_affiliated_bsta_mld_t;
 
 typedef struct {
-    unsigned char bsta_mld_mac_addr_valid : 1;
-    unsigned char ap_mld_mac_addr_valid : 1;
     unsigned char reserved1 : 6;
+    unsigned char ap_mld_mac_addr_valid : 1;
+    unsigned char bsta_mld_mac_addr_valid : 1;
     mac_addr_t bsta_mld_mac_addr;
     mac_addr_t ap_mld_mac_addr;
-    unsigned char str : 1;
-    unsigned char nstr : 1;
-    unsigned char emlsr : 1;
-    unsigned char emlmr : 1;
     unsigned char reseverd2 : 4;
+    unsigned char emlmr : 1;
+    unsigned char emlsr : 1;
+    unsigned char nstr : 1;
+    unsigned char str : 1;
     unsigned char reserved3[17];
     unsigned char num_affiliated_bsta;
     em_affiliated_bsta_mld_t affiliated_bsta_mld[0];
 } __attribute__((__packed__)) em_bsta_mld_t;
-
-typedef struct {
-    unsigned char num_bsta_mld;
-    em_bsta_mld_t bsta_mld[0];
-} __attribute__((__packed__)) em_bsta_mld_config_t;
 
 typedef struct {
     bssid_t bssid;
@@ -2458,31 +2943,26 @@ typedef struct {
 typedef struct {
     mac_addr_t sta_mld_mac_addr;
     mac_addr_t ap_mld_mac_addr;
-    unsigned char str : 1;
-    unsigned char nstr : 1;
-    unsigned char emlsr : 1;
+    unsigned char reserved1 : 4;
     unsigned char emlmr : 1;
-    unsigned char reseverd1 : 4;
+    unsigned char emlsr : 1;
+    unsigned char nstr : 1;
+    unsigned char str : 1;
     unsigned char reserved2[18];
     unsigned char num_affiliated_sta;
     em_affiliated_sta_mld_t affiliated_sta_mld[0];
 } __attribute__((__packed__)) em_assoc_sta_mld_t;
 
 typedef struct {
-    unsigned char num_assoc_sta_mld;
-    em_assoc_sta_mld_t assoc_sta_mld[0];
-} __attribute__((__packed__)) em_assoc_sta_mld_config_report_t;
-
-typedef struct {
-    unsigned char add_remove : 1;
     unsigned char reserved4 : 7;
+    unsigned char add_remove : 1;
     mac_addr_t sta_mld_mac_addr;
-    unsigned char direction : 2;
-    unsigned char default_link_mapping : 1;
-    unsigned char map_switch_time_present : 1;
-    unsigned char exp_dur_present : 1;
-    unsigned char link_map_size : 1;
     unsigned char reserved5 : 2;
+    unsigned char link_map_size : 1;
+    unsigned char exp_dur_present : 1;
+    unsigned char map_switch_time_present : 1;
+    unsigned char default_link_mapping : 1;
+    unsigned char direction : 2;
     unsigned char link_map_presence_ind;
     unsigned char expected_duration[3];
     unsigned char tid_to_link_map[0];
@@ -2490,13 +2970,13 @@ typedef struct {
 } __attribute__((__packed__)) em_tid_to_link_mapping_t;
 
 typedef struct {
-    unsigned char is_bsta_config : 1;
     unsigned char reserved1 : 7;
+    unsigned char is_bsta_config : 1;
     mac_addr_t mld_mac_addr;
-    unsigned char tid_to_link_map_negotiation : 1;
     unsigned char reserved2 : 7;
+    unsigned char tid_to_link_map_negotiation : 1;
     unsigned char reserved3[22];
-    unsigned char num_mapping;
+    unsigned short num_mapping;
     em_tid_to_link_mapping_t tid_to_link_mapping[0];
 } __attribute__((__packed__)) em_tid_to_link_map_policy_t;
 
@@ -2526,6 +3006,7 @@ typedef enum {
     em_bus_event_type_chirp,
     em_bus_event_type_reset,
     em_bus_event_type_dev_test,
+    em_bus_event_type_set_dev_test,
     em_bus_event_type_get_network,
     em_bus_event_type_get_device,
     em_bus_event_type_remove_device,
@@ -2536,6 +3017,7 @@ typedef enum {
     em_bus_event_type_set_channel,
     em_bus_event_type_scan_channel,
     em_bus_event_type_scan_result,
+    em_bus_event_type_channel_select,
     em_bus_event_type_get_bss,
     em_bus_event_type_get_sta,
     em_bus_event_type_steer_sta,
@@ -2556,6 +3038,7 @@ typedef enum {
     em_bus_event_type_m2_tx,
     em_bus_event_type_topo_sync,
     em_bus_event_type_onewifi_private_cb,
+    em_bus_event_type_onewifi_mesh_sta_cb,
     em_bus_event_type_onewifi_radio_cb,
     em_bus_event_type_m2ctrl_configuration,
     em_bus_event_type_sta_assoc,
@@ -2569,7 +3052,23 @@ typedef enum {
     em_bus_event_type_get_mld_config,
     em_bus_event_type_mld_reconfig,
     em_bus_event_type_beacon_report,
-    em_bus_event_type_recv_wfa_action_frame
+    em_bus_event_type_recv_wfa_action_frame,
+    em_bus_event_type_recv_gas_frame,
+    em_bus_event_type_get_sta_client_type,
+    em_bus_event_type_assoc_status,
+    em_bus_event_type_ap_metrics_report,
+    em_bus_event_type_bss_info,
+    em_bus_event_type_get_reset,
+    em_bus_event_type_recv_csa_beacon_frame,
+    em_bus_event_type_bsta_cap_req,
+    em_bus_event_type_link_quality_report,
+    em_bus_event_type_client_assoc_ctrl_req,
+    em_bus_event_type_unassoc_sta_query,
+    em_bus_event_type_unassoc_sta_link_metrics_query,
+    em_bus_event_type_unassoc_sta_result,
+    em_bus_event_type_failed_conn,
+
+    em_bus_event_type_max
 } em_bus_event_type_t;
 
 typedef struct {
@@ -2632,6 +3131,7 @@ typedef enum {
     dm_orch_type_owconfig_req,
     dm_orch_type_owconfig_cnf,
     dm_orch_type_ctrl_notify,
+    dm_orch_type_ap_cap_query,
     dm_orch_type_ap_cap_report,
     dm_orch_type_client_cap_report,
     dm_orch_type_1905_security_update,
@@ -2639,6 +3139,7 @@ typedef enum {
     dm_orch_type_net_ssid_update,
     dm_orch_type_topo_sync,
     dm_orch_type_topo_update,
+    dm_orch_type_topo_publish,
     dm_orch_type_channel_pref,
     dm_orch_type_channel_sel,
     dm_orch_type_channel_cnf,
@@ -2653,7 +3154,12 @@ typedef enum {
     dm_orch_type_sta_disassoc,
     dm_orch_type_policy_cfg,
     dm_orch_type_mld_reconfig,
-    dm_orch_type_beacon_report
+    dm_orch_type_beacon_report,
+    dm_orch_type_bsta_cap_query,
+    dm_orch_type_link_quality_report,
+    dm_orch_type_unassoc_sta_link_req_query,
+    dm_orch_type_unassoc_sta_result,
+
 } dm_orch_type_t;
 
 typedef struct {
@@ -2700,16 +3206,18 @@ typedef struct{
 	mac_address_t bssid_mac[EM_MAX_BSS_PER_RADIO];
 	unsigned int key_wrap_authenticator[EM_MAX_BSS_PER_RADIO];
 	bool enable[EM_MAX_BSS_PER_RADIO];
-	em_freq_band_t freq;
+	em_freq_band_t freq[EM_MAX_BSS_PER_RADIO];
 	unsigned int noofbssconfig;
 	em_haul_type_t haultype[EM_MAX_BSS_PER_RADIO];
 	mac_address_t radio_mac[EM_MAX_BSS_PER_RADIO];
+    em_4xlong_string_t dpp_connector[EM_MAX_BSS_PER_RADIO];
 } m2ctrl_radioconfig;
 
 typedef struct{
 	int op_class;
 	em_freq_band_t band;
 	int channel_spacing;
+	bool has_beaconchannel;
 	int num_channels;
 	int channels[EM_MAX_E4_TABLE_CHANNEL];
 } em_e4_table_t;
@@ -2750,17 +3258,9 @@ typedef struct {
 } em_cmd_args_t;
 
 typedef enum {
-    em_steering_opportunity_none,
-} em_steering_opportunity_t;
-
-typedef enum {
-    em_steering_mandate_none,
-} em_steering_mandate_t;
-
-typedef struct {
-    em_steering_opportunity_t	opportunity;
-    em_steering_mandate_t	mandate;
-} em_steer_req_mode_t;
+    em_steering_req_mode_opportunity,
+    em_steering_req_mode_mandate
+} em_steering_req_mode_t;
 
 typedef struct {
     mac_address_t	sta_mac;
@@ -2796,6 +3296,14 @@ typedef struct {
     em_disassoc_params_t	params[MAX_STA_TO_DISASSOC];
 } em_cmd_disassoc_params_t;
 
+typedef struct {
+    int num_radios;
+    mac_address_t   ruid[EM_MAX_RADIO_PER_AGENT];
+    bool sta_link_metrics_include;
+    bool sta_traffic_stats_include;
+    bool wifi6_status_report_include;
+} __attribute__((__packed__)) em_cmd_ap_metrics_rprt_params_t;
+
 typedef enum {
     em_network_node_data_type_invalid,
     em_network_node_data_type_false,
@@ -2827,6 +3335,10 @@ typedef struct em_network_node {
     struct em_network_node     *child[EM_MAX_DM_CHILDREN];
 } em_network_node_t;
 
+typedef struct {
+    mac_address_t al_mac;
+} em_cmd_unassoc_sta_query_params_t;
+
 typedef em_scan_params_t em_cmd_scan_params_t;
 typedef struct {
     union {
@@ -2835,6 +3347,8 @@ typedef struct {
         em_cmd_btm_report_params_t  btm_report_params;
         em_cmd_disassoc_params_t	disassoc_params;
 		em_cmd_scan_params_t	scan_params;
+        em_cmd_ap_metrics_rprt_params_t ap_metrics_params;
+        em_cmd_unassoc_sta_query_params_t unassoc_sta_query_params;
     } u;
 	em_network_node_t *net_node;
 } em_cmd_params_t;
@@ -2862,11 +3376,62 @@ typedef struct {
     } u;
 } __attribute__((__packed__)) em_bus_event_t;
 
+typedef enum {
+    NB_REQTYPE_GET,
+    NB_REQTYPE_METHOD,
+} nb_req_type_e;
+
+typedef struct {
+    uint32_t id;
+    nb_req_type_e type;
+    void *cb;
+    union {
+        struct {
+            char *name;
+            void *property;
+        } get;
+        struct {
+            const char *method;
+            void *in;
+            void *out;
+            void *async;
+        } method;
+    } u;
+} __attribute__((__packed__)) em_nb_event_t;
+
+/*
+ * @brief Internal cmd event types dispatched directly to the EM thread, bypassing orchestration.
+ * Use this for periodic or one-shot events that require no state machine involvement.
+ */
+typedef enum {
+    em_cmd_event_type_ap_metrics_report,
+    em_cmd_event_type_failed_connection,
+
+    em_cmd_event_type_max
+} em_cmd_event_type_t;
+
+typedef struct {
+    int             ap_index;
+    mac_address_t   sta_mac;
+    mac_address_t   bssid;
+    unsigned short  status_code;
+    unsigned short  reason_code;
+    bool            reason_code_present;
+} em_connection_status_evt_data_t;
+
+typedef struct {
+    em_cmd_event_type_t type;
+    void *cmd_ptr; 
+} em_cmd_event_t;
+
 typedef struct {
     em_event_type_t     type;
     union {
         em_frame_event_t    fevt;
         em_bus_event_t      bevt;
+        em_nb_event_t       nevt;
+        // internal cmd events
+        em_cmd_event_t      cevt;
     } u;    
 } __attribute__((__packed__)) em_event_t;
 
@@ -2919,7 +3484,9 @@ typedef enum {
     em_commit_target_agent,
     em_commit_target_sta_hash_map,
     em_commit_target_radio,
+    em_commit_target_radio_cap,
     em_commit_target_bss,
+    em_commit_target_max
 } em_commit_target_type_t;
 
 typedef struct {
@@ -2955,9 +3522,15 @@ typedef enum {
     tag_extended_supported_rates = 50,
     tag_supported_operating_classes = 59,
     tag_rm_enabled_capability = 70,
+    tag_ext_multi_link = 107,
     tag_extended_capabilities = 127,
     tag_vht_capability = 191,
     tag_vendor_specific = 221,
+    tag_extended_tags = 255,
+    //he
+    //he_6ghz
+    //eht
+    //other tags can be added here
 } tag_type_t;
 
 typedef struct {
@@ -2972,6 +3545,8 @@ typedef enum {
     em_get_sta_list_reason_btm,
     em_get_sta_list_reason_disassoc,
     em_get_sta_list_reason_neighbors,
+    em_get_sta_list_reason_topology,
+    em_get_sta_list_reason_alarm_report,
 } em_get_sta_list_reason_t;
 
 typedef enum {
@@ -2993,8 +3568,15 @@ typedef enum {
 	em_policy_id_type_steering_param,
 	em_policy_id_type_ap_metrics_rep,
 	em_policy_id_type_radio_metrics_rep,
+	em_policy_id_type_default_8021q_settings,
+	em_policy_id_type_traffic_separation,
 	em_policy_id_type_channel_scan,
+	em_policy_id_type_unsuccess_assoc,
 	em_policy_id_type_backhaul_bss_config,
+	em_policy_id_type_qos_mgt,
+    em_policy_id_type_alarm_threshold,
+    em_policy_id_type_client_filters,
+
 	em_policy_id_type_unknown,
 } em_policy_id_type_t;
 
@@ -3013,12 +3595,41 @@ typedef enum {
 } em_steering_policy_type_t;
 
 typedef struct {
+    unsigned short	primary_vid;
+    unsigned char default_pcp;
+} em_8021q_settings_policy_t;
+
+typedef struct {
+    unsigned char ssid_len;
+    char ssid[MAX_WIFI_SSID_LEN];
+    unsigned short vlan_id;
+} em_ssid_info_traffic_separ_pol_t;
+
+typedef struct {
+    unsigned char num_ssids;
+    em_ssid_info_traffic_separ_pol_t ssid_info[em_haul_type_max];
+} em_traffic_separation_policy_t;
+
+typedef struct {
+    unsigned char num_mscs;
+    mac_address_t msc_mac[EM_MAX_MSC_PER_TRAFFIC_SEPAR];
+    unsigned char num_scs;
+    mac_address_t sc_mac[EM_MAX_SCS_PER_TRAFFIC_SEPAR];
+} em_qos_mgt_policy_t;
+
+typedef struct {
+    bssid_t bssid;
+    bool b_profile_1_sta_disallowed;
+    bool b_profile_2_sta_disallowed;
+} em_backhaul_bss_config_policy_t;
+
+typedef struct {
 	em_policy_id_t	id;
 	unsigned int num_sta;
 	mac_address_t	sta_mac[EM_MAX_STA_PER_STEER_POLICY];
 	em_steering_policy_type_t	policy;
 	unsigned short	util_threshold;
-	unsigned short	rcpi_threshold;	
+	unsigned short	rcpi_threshold;
 	unsigned short	interval;
 	unsigned short	rcpi_hysteresis;
 	bool	sta_traffic_stats;
@@ -3026,8 +3637,19 @@ typedef struct {
 	bool	sta_status;
 	em_long_string_t	managed_sta_marker;
 	bool	independent_scan_report;
+    bssid_t bssid;
 	bool	profile_1_sta_disallowed;
 	bool	profile_2_sta_disallowed;
+    bool report_unassoc_sta;
+    unsigned int max_reporting_rate;
+	em_8021q_settings_policy_t  def_8021q_settings;
+	em_traffic_separation_policy_t traffic_separ;
+    unsigned int num_qos_mgt;
+    em_qos_mgt_policy_t qos_mgt[EM_MAX_STA_PER_AGENT];
+    unsigned int num_backhaul_bss_config;
+    em_backhaul_bss_config_policy_t backhaul_bss_config[EM_MAX_BSS_PER_RADIO];
+    em_link_stats_alarm_cfg_t link_stats_alarm_cfg;
+    em_client_filters_cfg_t client_filters;
 } em_policy_t;
 
 typedef em_network_node_t  *(* em_editor_callback_t)(em_network_node_t *, void *);
@@ -3039,10 +3661,63 @@ typedef enum {
 } em_cli_type_t;
 
 typedef struct {
-    void *user_data; 
+	struct sockaddr_in  addr;
+	bool	valid;
+} user_data_t;
+
+typedef struct {
+	user_data_t user_data; 
 	em_editor_callback_t	cb_func;
 	em_cli_type_t	cli_type;
 } em_cli_params_t;
+
+typedef enum {
+	em_dev_test_type_ssid,
+	em_dev_test_type_channel,
+	em_dev_test_type_max
+} em_dev_test_type;
+
+typedef enum {
+        em_dev_test_status_inprogess,
+        em_dev_test_status_idle,
+	em_dev_test_status_complete,
+	em_dev_test_status_failed,
+        em_dev_test_status_max
+} em_dev_test_status;
+
+typedef struct{
+	int num_iteration[em_dev_test_type_max];
+	em_dev_test_type test_type[em_dev_test_type_max];
+	int enabled[em_dev_test_type_max];
+	int num_of_iteration_completed[em_dev_test_type_max];
+	int test_inprogress[em_dev_test_type_max];
+	em_dev_test_status test_status[em_dev_test_type_max];
+        em_haul_type_t haul_type;
+        em_freq_band_t freq_band;
+}em_dev_test_info;
+
+typedef struct {
+    const char *name;
+    uint32_t hex;
+} SecurityTypeMap;
+
+static const SecurityTypeMap securityTypeMap[] = {
+    { "Open",            EM_AUTH_OPEN },
+    { "WPA2 Personal",   EM_AUTH_WPA2 },
+    { "Enhanced Open",   EM_AUTH_ENHANCED_OPEN },
+    { "WPA3 Personal",   EM_AUTH_WPA3_PERSONAL },
+    { "WPA3 Transition", EM_AUTH_WPA3_TRANSITION }
+};
+
+static const unsigned char airties_vendor_oui[EM_VENDOR_OUI_SIZE] = {0x88, 0x41, 0xfc};
+
+#ifndef SSL_KEY
+#if OPENSSL_VERSION_NUMBER < 0x30000000L
+#define SSL_KEY EC_KEY
+#else
+#define SSL_KEY EVP_PKEY
+#endif
+#endif
 
 #ifdef __cplusplus
 }

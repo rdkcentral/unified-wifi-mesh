@@ -24,7 +24,20 @@
 class em_cmd_beacon_report_t : public em_cmd_t {
 
 public:
-    em_cmd_beacon_report_t(em_cmd_params_t param, dm_easy_mesh_t& dm);
+    
+	/**!
+	 * @brief 
+	 *
+	 * This function handles the beacon report command.
+	 *
+	 * @param[in] param The command parameters for the beacon report.
+	 * @param[in,out] dm The easy mesh data structure to be updated.
+	 *
+	 * @returns em_cmd_beacon_report_t
+	 *
+	 * @note Ensure that the dm structure is properly initialized before calling this function.
+	 */
+	em_cmd_beacon_report_t(em_cmd_params_t param, dm_easy_mesh_t& dm);
 };
 
 #endif

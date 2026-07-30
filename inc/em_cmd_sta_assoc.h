@@ -24,7 +24,20 @@
 class em_cmd_sta_assoc_t : public em_cmd_t {
 
 public:
-    em_cmd_sta_assoc_t(em_cmd_params_t param, dm_easy_mesh_t& dm);
+    
+	/**!
+	 * @brief Associates a station with the given parameters and mesh configuration.
+	 *
+	 * This function handles the association of a station using the specified command parameters and mesh configuration.
+	 *
+	 * @param[in] param The command parameters required for station association.
+	 * @param[in,out] dm The easy mesh configuration to be used for association.
+	 *
+	 * @returns em_cmd_sta_assoc_t The result of the association command.
+	 *
+	 * @note Ensure that the mesh configuration is properly initialized before calling this function.
+	 */
+	em_cmd_sta_assoc_t(em_cmd_params_t param, dm_easy_mesh_t& dm);
 };
 
 #endif

@@ -22,43 +22,716 @@
 #include "em_base.h"
 #include "dm_easy_mesh.h"
 
+class em_mgr_t;
 class em_metrics_t {
 
-    virtual dm_easy_mesh_t *get_data_model() = 0;
-    virtual em_state_t get_state() = 0;
-    virtual void set_state(em_state_t state) = 0;
-    virtual int send_frame(unsigned char *buff, unsigned int len, bool multicast = false) = 0;
-    virtual em_profile_type_t get_profile_type() = 0;
-    virtual em_cmd_t *get_current_cmd() = 0;
+    
+	/**!
+	 * @brief Retrieves the data model instance.
+	 *
+	 * This function provides access to the data model used within the system.
+	 *
+	 * @returns A pointer to the data model instance of type `dm_easy_mesh_t`.
+	 *
+	 * @note This is a pure virtual function and must be implemented by derived classes.
+	 */
+	virtual dm_easy_mesh_t *get_data_model() = 0;
+    
+	/**!
+	 * @brief Retrieves the current state.
+	 *
+	 * @returns The current state as an em_state_t.
+	 *
+	 * @note This is a pure virtual function that must be implemented by derived classes.
+	 */
+	virtual em_state_t get_state() = 0;
+    
+	/**!
+	 * @brief Sets the state of the EM.
+	 *
+	 * This function sets the current state of the EM to the specified state.
+	 *
+	 * @param[in] state The state to set, represented by em_state_t.
+	 *
+	 * @note This is a pure virtual function and must be implemented by derived classes.
+	 */
+	virtual void set_state(em_state_t state) = 0;
+    
+	/**!
+	 * @brief Sends a frame of data.
+	 *
+	 * This function is responsible for sending a frame of data, which can be multicast or unicast.
+	 *
+	 * @param[in] buff Pointer to the buffer containing the data to be sent.
+	 * @param[in] len Length of the data in the buffer.
+	 * @param[in] multicast Flag indicating whether the data should be sent as multicast.
+	 *
+	 * @returns int
+	 * @retval 0 on success
+	 * @retval -1 on failure
+	 *
+	 * @note Ensure the buffer is properly allocated and the length is correctly specified.
+	 */
+	virtual int send_frame(unsigned char *buff, unsigned int len, bool multicast = false) = 0;
+    
+	/**!
+	 * @brief Retrieves the profile type.
+	 *
+	 * This function returns the current profile type of the entity.
+	 *
+	 * @returns The profile type as an em_profile_type_t.
+	 *
+	 * @note This is a pure virtual function and must be implemented by derived classes.
+	 */
+	virtual em_profile_type_t get_profile_type() = 0;
+    
+	/**!
+	 * @brief Retrieves the current command.
+	 *
+	 * This function returns a pointer to the current command being processed.
+	 *
+	 * @returns A pointer to the current command of type em_cmd_t.
+	 * @retval nullptr If there is no current command.
+	 *
+	 * @note This is a pure virtual function and must be implemented by derived classes.
+	 */
+	virtual em_cmd_t *get_current_cmd() = 0;
+    
+	/**!
+	 * @brief Sends link metrics message to all associated stations.
+	 *
+	 * This function is responsible for sending link metrics messages to all stations that are currently associated.
+	 *
+	 * @note Ensure that the station list is up-to-date before calling this function.
+	 */
+	void send_all_associated_sta_link_metrics_msg();
+    
+	/**!
+	 * @brief Sends a link metrics message to the associated station.
+	 *
+	 * This function is responsible for sending a link metrics message to a station
+	 * identified by its MAC address. The metrics message contains information
+	 * about the link quality and other relevant metrics.
+	 *
+	 * @param[in] sta_mac The MAC address of the station to which the link metrics
+	 * message will be sent.
+	 *
+	 * @returns int
+	 * @retval 0 on success
+	 * @retval -1 on failure
+	 *
+	 * @note Ensure that the MAC address is valid and the station is associated
+	 * before calling this function.
+	 */
+	int send_associated_sta_link_metrics_msg(mac_address_t sta_mac);
+    
+	/**!
+	 * @brief Sends a response with associated link metrics for a given station.
+	 *
+	 * This function is responsible for sending a response that contains the link metrics
+	 * associated with a specific station identified by its MAC address.
+	 *
+	 * @param[in] sta_mac The MAC address of the station for which the link metrics response is to be sent.
+	 * @param[in] msg_id The message ID associated with the link metrics response.
+	 *
+	 * @returns int Status code indicating the success or failure of the operation.
+	 * @retval 0 on success.
+	 * @retval -1 on failure.
+	 *
+	 * @note Ensure that the MAC address provided is valid and that the system is
+	 * capable of sending the response before calling this function.
+	 */
+	int send_associated_link_metrics_response(mac_address_t sta_mac, unsigned short msg_id);
 
-    void send_all_associated_sta_link_metrics_msg();
-    int send_associated_sta_link_metrics_msg(mac_address_t sta_mac);
-    int send_associated_link_metrics_response(mac_address_t sta_mac);
+	/**!
+	 * @brief Sends link metrics message for associated stations.
+	 *
+	 * This function is responsible for sending link metrics messages for all stations that are received
+	 * from onewifi as per policy configuration.
+	 *
+	 * @note Ensure that the station list is up-to-date before calling this function.
+	 */
+	void send_associated_sta_link_metrics_resp_msg();
+    
+	/**!
+	 * @brief Handles the query for associated station link metrics.
+	 *
+	 * This function processes the query for link metrics associated with a station.
+	 *
+	 * @param[in] buff Pointer to the buffer containing the query data.
+	 * @param[in] len Length of the data in the buffer.
+	 *
+	 * @returns int Status code indicating success or failure of the operation.
+	 *
+	 * @note Ensure that the buffer is properly allocated and the length is correctly specified.
+	 */
+	int handle_associated_sta_link_metrics_query(unsigned char *buff, unsigned int len);
+    
+	/**!
+	 * @brief Handles the response for associated station link metrics.
+	 *
+	 * This function processes the response data for associated station link metrics
+	 * received in the buffer.
+	 *
+	 * @param[in] buff Pointer to the buffer containing the response data.
+	 * @param[in] len Length of the data in the buffer.
+	 *
+	 * @returns int Status code indicating success or failure of the operation.
+	 *
+	 * @note Ensure that the buffer is properly allocated and the length is correctly
+	 * specified to avoid buffer overflows.
+	 */
+	int handle_associated_sta_link_metrics_resp(unsigned char *buff, unsigned int len);
+    
+	/**!
+	 * @brief Handles the association station link metrics TLV.
+	 *
+	 * This function processes the TLV (Type-Length-Value) data related to the link metrics
+	 * of an associated station.
+	 *
+	 * @param[in] buff Pointer to the buffer containing the TLV data.
+	 * @param[in] tlv_len Length of the TLV value field.
+	 *
+	 * @returns int Status code indicating success or failure of the operation.
+	 * @retval 0 on success.
+	 * @retval -1 on failure.
+	 *
+	 * @note Ensure that the buffer is properly allocated and contains valid TLV data
+	 * before calling this function.
+	 * @note The TLV length must strictly follow: (7 + k × 19), where
+	 * 7 bytes = STA MAC (6) + number of BSSIDs (1),
+	 * and 19 bytes per BSSID metrics entry.
+	 * Invalid or partial TLVs are rejected to prevent out-of-bounds access.
+	 */
+	int handle_assoc_sta_link_metrics_tlv(unsigned char *buff, unsigned int tlv_len);
+    
+	/**!
+	 * @brief Handles the association of station external link metrics TLV.
+	 *
+	 * This function processes the given buffer to handle the association of
+	 * station external link metrics TLV.
+	 *
+	 * @param[in] buff Pointer to the buffer containing the TLV data.
+	 * @param[in] tlv_len Length of the TLV value field in bytes.
+	 * 
+	 * @returns int
+	 * @retval 0 on success
+	 * @retval -1 on failure
+	 *
+	 * @note Ensure that the buffer is properly allocated and contains valid TLV data.
+         * - Minimum required length is 7 bytes (STA MAC + k).
+         * - Each BSSID entry contains one `em_assoc_ext_link_metrics_t` block
+         * - Total TLV length must strictly follow:
+	 *   tlv_len = 7 + (k * sizeof(em_assoc_ext_link_metrics_t))
+         * - Any deviation from expected length results in rejection to prevent
+         *   out-of-bounds memory access
+	 */
+	int handle_assoc_sta_ext_link_metrics_tlv(unsigned char *buff, unsigned int tlv_len);
+    
+	/**!
+	 * @brief Handles the association of station vendor link metrics TLV.
+	 *
+	 * This function processes the given buffer to handle the association
+	 * of station vendor link metrics TLV.
+	 *
+	 * @param[in] buff Pointer to the buffer containing the TLV data.
+	 * @param[in] len Length of the data in the buffer.
+	 *
+	 * @returns int Status code indicating success or failure.
+	 * @retval 0 on success.
+	 * @retval -1 on failure.
+	 *
+	 * @note Ensure that the buffer is properly allocated and contains valid TLV data.
+	 */
+	int handle_assoc_sta_vendor_link_metrics_tlv(unsigned char *buff, unsigned int len);
+    
+	/**!
+	 * @brief Handles the beacon metrics query.
+	 *
+	 * This function processes the beacon metrics query contained in the buffer.
+	 *
+	 * @param[in] buff Pointer to the buffer containing the query data.
+	 * @param[in] len Length of the data in the buffer.
+	 *
+	 * @returns int
+	 * @retval 0 on success
+	 * @retval -1 on failure
+	 *
+	 * @note Ensure that the buffer is properly allocated and the length is correctly specified.
+	 */
+	int handle_beacon_metrics_query(unsigned char *buff, unsigned int len);
+    
+	/**!
+	 * @brief Handles the response for beacon metrics.
+	 *
+	 * This function processes the beacon metrics response contained in the buffer.
+	 *
+	 * @param[in] buff Pointer to the buffer containing the beacon metrics response.
+	 * @param[in] len Length of the buffer.
+	 *
+	 * @returns int
+	 * @retval 0 on success
+	 * @retval -1 on failure
+	 *
+	 * @note Ensure that the buffer is properly allocated and the length is correctly specified.
+	 */
+	int handle_beacon_metrics_response(unsigned char *buff, unsigned int len);
 
-    int handle_associated_sta_link_metrics_query(unsigned char *buff, unsigned int len);
-    int handle_associated_sta_link_metrics_resp(unsigned char *buff, unsigned int len);
-    int handle_assoc_sta_link_metrics_tlv(unsigned char *buff);
-    int handle_assoc_sta_ext_link_metrics_tlv(unsigned char *buff);
-    int handle_assoc_sta_vendor_link_metrics_tlv(unsigned char *buff);
-    int handle_beacon_metrics_query(unsigned char *buff, unsigned int len);
-    int handle_beacon_metrics_response(unsigned char *buff, unsigned int len);
+  	/**!
+	 * @brief Handles the associated station traffic statistics.
+	 *
+	 * This function processes the traffic statistics for a given associated station.
+	 *
+	 * @param[in] buff Pointer to the buffer containing traffic data.
+	 * @param[in] bssid The BSSID of the associated station.
+	 *
+	 * @returns int Status code indicating success or failure.
+	 *
+	 * @note Ensure that the buffer is properly allocated and the BSSID is valid before calling this function.
+	 */
+	int handle_assoc_sta_traffic_stats(unsigned char *buff, bssid_t bssid);
+    
+	/**!
+	 * @brief Handles the access point metrics response.
+	 *
+	 * This function processes the metrics response received from the access point.
+	 *
+	 * @param[in] buff Pointer to the buffer containing the response data.
+	 * @param[in] len Length of the data in the buffer.
+	 *
+	 * @returns int Status code indicating success or failure of the operation.
+	 * @retval 0 on success.
+	 * @retval -1 on failure.
+	 *
+	 * @note Ensure that the buffer is properly allocated and the length is correctly specified.
+	 */
+	int handle_ap_metrics_response(unsigned char *buff, unsigned int len);
+	int handle_vendor_msg(unsigned char *buff, unsigned int len);
 
-    short create_assoc_sta_link_metrics_tlv(unsigned char *buff, mac_address_t sta_mac, const dm_sta_t *const sta);
-    short create_assoc_ext_sta_link_metrics_tlv(unsigned char *buff, mac_address_t sta_mac, const dm_sta_t *const sta);
-    short create_error_code_tlv(unsigned char *buff, mac_address_t sta, bool sta_found);
-    short create_assoc_vendor_sta_link_metrics_tlv(unsigned char *buff, mac_address_t sta_mac, const dm_sta_t *const sta);
-    short create_beacon_metrics_query_tlv(unsigned char *buff, mac_address_t sta_mac, bssid_t bssid);
-    short send_beacon_metrics_query(mac_address_t sta_mac, bssid_t bssid);
-    int send_beacon_metrics_response();
-    short create_beacon_metrics_response_tlv(unsigned char *buff);
+  	/**!
+	 * @brief Handles the AP metrics tlv.
+	 *
+	 * This function processes the AP Metrics for one or more BSSIDs.
+	 *
+	 * @param[in] buff Pointer to the buffer containing AP metrics.
+	 * @param[in] bssid The extracted BSSID recieved in the message.
+	 *
+	 * @returns int Status code indicating success or failure.
+	 *
+	 * @note Ensure that the buffer is properly allocated.
+	 */
+	int handle_ap_metrics_tlv(unsigned char *buff, bssid_t bssid);
+
+	int handle_link_stats_alarm_rprt_tlv(unsigned char *buff, size_t len);
+
+	/**!
+	 * @brief Creates an association station link metrics TLV.
+	 *
+	 * This function generates a TLV (Type-Length-Value) structure for the association
+	 * station link metrics and stores it in the provided buffer.
+	 *
+	 * @param[out] buff Pointer to the buffer where the TLV will be stored.
+	 * @param[in] sta_mac MAC address of the station for which the metrics are being created.
+	 * @param[in] sta Pointer to the station data structure containing metrics information.
+	 *
+	 * @returns short The length of the TLV created.
+	 * @retval 0 on success.
+	 * @retval -1 on failure.
+	 *
+	 * @note Ensure that the buffer is large enough to hold the TLV.
+	 */
+	short create_assoc_sta_link_metrics_tlv(unsigned char *buff, mac_address_t sta_mac, const dm_sta_t *const sta);
+    
+	/**!
+	 * @brief Creates an association extension for station link metrics TLV.
+	 *
+	 * This function is responsible for creating a TLV (Type-Length-Value) structure
+	 * for the station link metrics associated with a given station MAC address.
+	 *
+	 * @param[out] buff Buffer where the TLV will be stored.
+	 * @param[in] sta_mac MAC address of the station for which the metrics are being created.
+	 * @param[in] sta Pointer to the station data structure containing metrics information.
+	 *
+	 * @returns A short integer indicating the success or failure of the operation.
+	 * @retval 0 on success.
+	 * @retval -1 on failure.
+	 *
+	 * @note Ensure that the buffer provided is large enough to hold the TLV structure.
+	 */
+	short create_assoc_ext_sta_link_metrics_tlv(unsigned char *buff, mac_address_t sta_mac, const dm_sta_t *const sta);
+    
+	/**!
+	 * @brief Creates an association vendor STA link metrics TLV.
+	 *
+	 * This function generates a TLV (Type-Length-Value) structure for the association
+	 * vendor-specific STA (Station) link metrics and stores it in the provided buffer.
+	 *
+	 * @param[out] buff Pointer to the buffer where the TLV will be stored.
+	 * @param[in] sta_mac MAC address of the station for which the TLV is being created.
+	 * @param[in] sta Pointer to the station data structure containing metrics information.
+	 *
+	 * @returns short
+	 * @retval 0 on success
+	 * @retval -1 on failure
+	 *
+	 * @note Ensure that the buffer is large enough to hold the TLV structure.
+	 */
+	short create_assoc_vendor_sta_link_metrics_tlv(unsigned char *buff, mac_address_t sta_mac, const dm_sta_t *const sta);
+    
+	/**!
+	 * @brief Creates a beacon metrics query TLV.
+	 *
+	 * This function generates a beacon metrics query TLV and stores it in the provided buffer.
+	 *
+	 * @param[out] buff Pointer to the buffer where the TLV will be stored.
+	 * @param[in] sta_mac MAC address of the station.
+	 * @param[in] bssid BSSID of the network.
+	 *
+	 * @returns short The length of the generated TLV.
+	 */
+	short create_beacon_metrics_query_tlv(unsigned char *buff, mac_address_t sta_mac, bssid_t bssid);
+    
+	/**!
+	 * @brief Sends a beacon metrics query to a specified station.
+	 *
+	 * This function initiates a query to gather beacon metrics from a station identified by its MAC address.
+	 *
+	 * @param[in] sta_mac The MAC address of the station to which the beacon metrics query is sent.
+	 * @param[in] bssid The BSSID of the network to which the station is connected.
+	 *
+	 * @returns A short integer indicating the success or failure of the operation.
+	 * @retval 0 on success.
+	 * @retval -1 on failure.
+	 *
+	 * @note Ensure that the station is within range and the MAC address is correct before sending the query.
+	 */
+	short send_beacon_metrics_query(mac_address_t sta_mac, bssid_t bssid);
+    
+	/**!
+	 * @brief Sends a beacon metrics response.
+	 *
+	 * This function is responsible for sending a response containing beacon metrics.
+	 *
+	 * @returns int
+	 * @retval 0 on success
+	 * @retval -1 on failure
+	 *
+	 * @note Ensure that the beacon metrics are correctly formatted before calling this function.
+	 */
+	int send_beacon_metrics_response();
+
+        /**!
+	 * @brief Sends the AP metrics response.
+	 *
+	 * This function is responsible for sending the metrics response for the access point.
+	 *
+	 * @returns int
+	 * @retval 0 on success
+	 * @retval -1 on failure
+	 *
+	 * @note Ensure that the network connection is established before calling this function.
+	 */
+	int send_ap_metrics_response();
+
+	int send_link_quality_report();
+
+	/**!
+	 * @brief Creates a beacon metrics response TLV.
+	 *
+	 * This function generates a beacon metrics response TLV and stores it in the provided buffer.
+	 *
+	 * @param[out] buff Pointer to the buffer where the TLV will be stored.
+	 *
+	 * @returns A short integer indicating the success or failure of the operation.
+	 * @retval 0 on success.
+	 * @retval -1 on failure.
+	 *
+	 * @note Ensure that the buffer is allocated with sufficient size before calling this function.
+	 */
+	short create_beacon_metrics_response_tlv(unsigned char *buff);
+  
+	/**!
+	 * @brief Creates an AP metrics TLV.
+	 *
+	 * This function generates an AP metrics TLV and stores it in the provided buffer.
+	 *
+	 * @param[out] buff Pointer to the buffer where the TLV will be stored.
+	 * @param[in] buff Reference to dm_bss_t object whose data gets packed for the message.
+	 *
+	 * @returns short The length of the created TLV.
+	 *
+	 * @note Ensure the buffer is large enough to hold the TLV.
+	 */
+	short create_ap_metrics_tlv(unsigned char *buff, dm_bss_t &dm_bss);
+    
+	/**!
+	 * @brief Creates an AP extension metrics TLV.
+	 *
+	 * This function initializes and creates a TLV (Type-Length-Value) for AP extension metrics.
+	 *
+	 * @param[out] buff Pointer to the buffer where the TLV will be stored.
+	 * @param[in] buff Reference to dm_bss_t object whose data gets packed for the message.
+	 *
+	 * @returns A short integer indicating the success or failure of the operation.
+	 * @retval 0 on success.
+	 * @retval -1 on failure.
+	 *
+	 * @note Ensure the buffer is allocated with sufficient space before calling this function.
+	 */
+	short create_ap_ext_metrics_tlv(unsigned char *buff, dm_bss_t &dm_bss);
+    
+	/**!
+	 * @brief Creates a radio metrics TLV.
+	 *
+	 * This function generates a radio metrics TLV (Type-Length-Value) and stores it in the provided buffer.
+	 *
+	 * @param[out] buff Pointer to the buffer where the TLV will be stored.
+	 *
+	 * @returns short The size of the TLV created.
+	 *
+	 * @note Ensure that the buffer is large enough to hold the TLV.
+	 */
+	short create_radio_metrics_tlv(unsigned char *buff, int index);
+
+	/**!
+	 * @brief Creates an association report TLV for a WiFi 6 station.
+	 *
+	 * This function generates a TLV (Type-Length-Value) report for a WiFi 6 station
+	 * and stores it in the provided buffer.
+	 *
+	 * @param[out] buff Pointer to the buffer where the TLV report will be stored.
+	 * @param[in] sta Constant pointer to the station data structure containing
+	 *                information about the WiFi 6 station.
+	 *
+	 * @returns A short integer indicating the success or failure of the operation.
+	 * @retval 0 on success.
+	 * @retval -1 on failure.
+	 *
+	 * @note Ensure that the buffer is adequately sized to hold the TLV report.
+	 */
+	short create_assoc_wifi6_sta_sta_report_tlv(unsigned char *buff, const dm_sta_t *const sta);
+
+	short create_link_stats_alarm_tlv(unsigned char *buff);
+
+        /*
+         * @brief Tracks whether an Unassociated STA Link Metrics Query
+         *        has already been transmitted and is awaiting response.
+         */
+        bool m_unassoc_query_sent = false;
+
+        /*
+         * @brief Tracks whether an Unassociated STA Link Metrics Response
+         *        has already been handled.
+         */
+	bool m_unassoc_in_progress = false;
+
+        /*
+         * @brief Sends an Unassociated STA Link Metrics Response message.
+         *
+         * @note Used by Agent to send measured RCPI metrics
+         *       for requested unassociated STAs.
+         */
+        void send_unassoc_sta_link_metrics_resp_msg();
+
+       /*!
+        * @brief Creates Unassociated STA Link Metrics Query TLV
+        *        for a given operating class.
+        *
+        * @param buff Output buffer where TLV is written.
+        * @param op   Operating class query structure.
+        *
+        * @return Length of generated TLV.
+        */
+        unsigned short create_unassoc_sta_link_metrics_query_tlv(unsigned char *buff, em_unassoc_query_opclass_t *op);
+
+       /*
+        * @brief Handles received Unassociated STA Link Metrics
+        *        Response CMDU.
+        *
+        * @param buff Incoming CMDU buffer.
+        * @param len  CMDU length.
+        *
+        * @return 0 on success.
+        */
+        int handle_unassoc_sta_link_metrics_rsp(unsigned char *buff, unsigned int len);
+
+       /*
+        * @brief Parses and processes an Unassociated STA
+        *        Link Metrics TLV.
+        *
+        * @param buff TLV payload buffer.
+	* @param tlv_len TLV length
+        *
+        * @return 0 on success.
+        */
+        int handle_unassoc_sta_link_metrics_tlv(unsigned char *buff, unsigned int tlv_len);
+
+       /* 
+        * @brief Sends an Unassociated STA Link Metrics Query
+        *        message from Controller to Agent.
+        *
+        * @return 0 on success.
+        */
+        int send_unassoc_sta_link_metrics_query_msg();
+
+       /*
+        * @brief Handles received Unassociated STA Link Metrics Query.
+        *
+        * @param buff Incoming CMDU buffer.
+        * @param len  CMDU length.
+        *
+        * @return 0 on success.
+        */
+        int handle_unassoc_sta_link_metrics_query(unsigned char *buff, unsigned int len);
+
+       /*
+        * @brief Handles incoming 1905 ACK message.
+        *
+        * @param buff Incoming ACK CMDU buffer.
+        * @param len  CMDU length.
+        *
+        * @return 0 on success.
+        */
+        int handle_1905_ack(unsigned char *buff, unsigned int len);
+
+       /*
+        * @brief Sends a 1905 ACK for an Unassociated STA
+        *        Metrics Query request.
+        *
+        * @param sta_list List of queried STA MAC addresses.
+        * @param sta_count Number of STA MAC addresses.
+        * @param msg_id Original CMDU message ID being acknowledged.
+        *
+        * @return 0 on success.
+        */
+        int send_1905_ack_unassoc_sta_query(mac_address_t *sta_list, int sta_count, unsigned short msg_id);
+
+       /*
+        * @brief Creates Unassociated STA Link Metrics Response TLV.
+        *
+        * @param buff      Output buffer where TLV is written.
+        * @param op_class  Operating class of response metrics.
+        * @param rsp       Response metrics structure.
+        *
+        * @return Length of generated TLV.
+        */
+        unsigned short create_unassoc_sta_link_metrics_resp_tlv(unsigned char *buff, unsigned char op_class, em_unassoc_sta_metrics_rsp_t *rsp);
+
+       /*
+        * @brief Creates an Error Code TLV for STA metrics responses.
+        *
+        * @param buff          Output buffer where TLV is written.
+        * @param sta           STA MAC address associated with error.
+        * @param sta_found     Indicates whether STA was found.
+        * @param is_associated Indicates whether STA is associated.
+        *
+        * @return Length of generated TLV.
+        */
+        short create_error_code_tlv(unsigned char *buff, mac_address_t sta, bool sta_found, bool is_associated);
+
+       /*
+        * @brief Stores the CMDU Message ID of the last transmitted
+        *        Unassociated STA Link Metrics Query.
+        *
+        * @note Used for ACK tracking and response correlation.
+        */
+        unsigned short m_unassoc_sta_query_msg_id = 0;
+ 
+       /**
+        * @brief Get the current Unassociated STA Query message ID.
+        *
+        * Returns the message ID associated with the outstanding
+        * Unassociated STA Link Metrics Query.
+        *
+        * @return Message ID of the pending query.
+        */
+        unsigned short get_unassoc_sta_query_msg_id() const { return m_unassoc_sta_query_msg_id; }
+
+       /**
+        * @brief Clear the Unassociated STA Query message ID.
+        *
+        * Resets the stored query message ID after the corresponding
+        * ACK has been received and processed.
+        */
+        void clear_unassoc_sta_query_msg_id() { m_unassoc_sta_query_msg_id = 0; }	
 
 public:
-    void    process_msg(unsigned char *data, unsigned int len);
-    void    process_ctrl_state();
-    void    process_agent_state();
 
-    em_metrics_t();
-    ~em_metrics_t();
+	/**!
+	 * @brief Creates an associated station traffic statistics TLV.
+	 *
+	 * This function generates a TLV (Type-Length-Value) structure for the traffic statistics
+	 * of an associated station and stores it in the provided buffer.
+	 *
+	 * @param[out] buff Pointer to the buffer where the TLV will be stored.
+	 * @param[in] sta Constant pointer to the station data structure containing the statistics.
+	 *
+	 * @returns short The length of the TLV created.
+	 *
+	 * @note Ensure that the buffer is large enough to hold the TLV data.
+	 */
+	virtual short create_assoc_sta_traffic_stats_tlv(unsigned char *buff, const dm_sta_t *const sta);
+
+	/**!
+	 * @brief Retrieves the manager instance.
+	 *
+	 * This function returns a pointer to the manager instance associated with the steering module.
+	 *
+	 * @returns A pointer to the manager instance of type `em_mgr_t`.
+	 *
+	 * @note This is a pure virtual function and must be implemented by derived classes.
+	 */
+	virtual em_mgr_t *get_mgr() = 0;
+    
+	/**!
+	 * @brief Processes a message.
+	 *
+	 * This function takes a data buffer and its length, processing the message contained within.
+	 *
+	 * @param[in] data Pointer to the data buffer containing the message.
+	 * @param[in] len Length of the data buffer.
+	 *
+	 * @note Ensure that the data buffer is valid and the length is correct to avoid undefined behavior.
+	 */
+	void process_msg(unsigned char *data, unsigned int len);
+    
+	/**!
+	 * @brief Processes the control state.
+	 *
+	 * This function is responsible for handling the control state of the system.
+	 *
+	 * @note Ensure that the system is initialized before calling this function.
+	 */
+	void process_ctrl_state();
+    
+	/**!
+	 * @brief Processes the state of the agent.
+	 *
+	 * This function is responsible for handling the current state of the agent and performing necessary actions based on that state.
+	 *
+	 * @note This function does not take any parameters and does not return any value.
+	 */
+	void process_agent_state();
+	void process_agent_state(em_cmd_event_type_t type);
+
+    
+	/**!
+	 * @brief Constructor for the em_metrics_t class.
+	 *
+	 * Initializes a new instance of the em_metrics_t class.
+	 *
+	 * @note This constructor does not take any parameters.
+	 */
+	em_metrics_t();
+    
+	/**!
+	 * @brief Destructor for the em_metrics_t class.
+	 *
+	 * This function cleans up any resources used by the em_metrics_t instance.
+	 *
+	 * @note This is a virtual destructor, allowing for proper cleanup of derived class objects.
+	 */
+	virtual ~em_metrics_t();
 };
 
 #endif

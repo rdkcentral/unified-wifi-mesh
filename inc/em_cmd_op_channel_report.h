@@ -24,7 +24,21 @@
 class em_cmd_op_channel_report_t : public em_cmd_t {
 
 public:
-    em_cmd_op_channel_report_t(em_cmd_params_t param, dm_easy_mesh_t& dm);
+    
+	/**!
+	 * @brief 
+	 *
+	 * This function handles the operation of channel reporting.
+	 *
+	 * @param[in] param The command parameters required for the operation.
+	 * @param[out] dm The easy mesh data structure that will be updated with the channel report.
+	 *
+	 * @returns em_cmd_op_channel_report_t
+	 * @retval Returns a status code indicating the success or failure of the operation.
+	 *
+	 * @note Ensure that the dm structure is properly initialized before calling this function.
+	 */
+	em_cmd_op_channel_report_t(em_cmd_params_t param, dm_easy_mesh_t& dm);
 };
 
 #endif

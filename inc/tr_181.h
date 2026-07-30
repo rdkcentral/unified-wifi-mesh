@@ -1,0 +1,933 @@
+/**
+ * Copyright 2023 Comcast Cable Communications Management, LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+#ifndef TR_181_H
+#define TR_181_H
+
+#include "bus.h"
+#include "dm_easy_mesh.h"
+#include <string>
+#include <memory>
+#include <cjson/cJSON.h>
+#include <unistd.h>
+
+#define DEVICE_WIFI_DATAELEMENTS_NETWORK_COLOCATEDAGENTID   "Device.WiFi.DataElements.Network.ColocatedAgentID"
+#define DEVICE_WIFI_DATAELEMENTS_NETWORK_CONTROLLERID       "Device.WiFi.DataElements.Network.ControllerID"
+//#define DEVICE_WIFI_DATAELEMENTS_NETWORK_SETSSID_CMD "Device.WiFi.DataElements.Network.SetSSID()"
+#define DEVICE_WIFI_DATAELEMENTS_NETWORK_SETSSID_CMD        "Device.WiFi.DataElements.Network.SetSSID"
+//Orchestrator
+#define DEVICE_WIFI_DATAELEMENTS_NETWORK_TOPOLOGY           "Device.WiFi.DataElements.Network.Topology"
+#define DEVICE_WIFI_DATAELEMENTS_NETWORK_NODE_SYNC          "Device.WiFi.DataElements.Network.NodeSynchronize"
+#define DEVICE_WIFI_DATAELEMENTS_NETWORK_NODE_CFG_POLICY    "Device.WiFi.DataElements.Network.NodeConfigurePolicy"
+#define DEVICE_WIFI_DATAELEMENTS_NETWORK_NODE_LINKSTATS_ALARM    "Device.WiFi.DataElements.Network.NodeLinkStatsAlarm"
+#define DEVICE_WIFI_DATAELEMENTS_FAILED_CONNECTION               "Device.WiFi.DataElements.FailedConnectionEvent.FailedConnection!"
+
+#define LIST_OF_DEFINITION_NAME "List_Of_Def"
+#define MAX_NUM_OF_OBJECTS_NAME "Num_Of_Objects"
+
+typedef struct {
+    uint32_t id;
+    bus_error_t rc;
+} bus_resp_get_t;
+typedef struct bus_data_cb_func {
+    char                  *cb_table_name;
+    bus_callback_table_t  cb_func;
+} bus_data_cb_func_t;
+
+struct yang_to_tr181_map {
+    const char* yang;
+    const char* tr181;
+};
+
+static const yang_to_tr181_map g_yang_map[] = {
+    { "NumberOfDevices", "DeviceNumberOfEntries" },
+    { "DeviceList", "Device" },
+    { "NumberOfRadios", "RadioNumberOfEntries" },
+    { "AvailableChannelList", "CACAvailableChannel" },
+    { "NonOccupancyChannelList", "CACNonOccupancyChannel" },
+    { "ActiveChannelList", "CACActiveChannel" },
+    { "RadioList", "Radio" },
+    { "NumberOfCurrOpClass", "CurrentOperatingClassProfileNumberOfEntries" },
+    { "NumberOfBSS", "BSSNumberOfEntries" },
+    { "NumberOfUnassocSta", "UnassociatedSTANumberOfEntries" },
+    { "NumberOfOpClass", "CapableOperatingClassProfileNumberOfEntries" },
+    { "OperatingClasses", "CapableOperatingClassProfile" },
+    { "CurrentOperatingClasses", "CurrentOperatingClassProfile" },
+    { "BSSList", "BSS" },
+    { "NumberOfSTA", "STANumberOfEntries" },
+    { "STAList", "STA" },
+    { "UnassociatedStaList", "UnassociatedSTA" },
+    { "OpClassList", "OpClassChannels" },
+    { "ScanResultList", "ScanResult" },
+    { "OpClassScanList", "OpClassScan" },
+    { "ChannelScanList", "ChannelScan" },
+    { "NeighborList", "NeighborBSS" },
+    { "NetworkSSIDList", "SSID" },
+
+    { nullptr, nullptr } // Default case
+};
+
+#define DATAELEMS_NETWORK       "Device.WiFi.DataElements.Network."
+
+// pre-defined lengths for TR-181 method parameters and properties.
+#define TR181_SSID_MAX_LEN         32
+#define TR181_PASSPHRASE_MAX_LEN   63
+#define TR181_BAND_MAX_LEN         16
+#define TR181_ADDREMOVE_MAX_LEN    16
+#define TR181_HAULTYPE_MAX_LEN     32
+#define TR181_CHLIST_MAX_LEN       128
+#define TR181_BSSID_MAX_LEN        32
+#define TR181_REQMODE_MAX_LEN      24
+
+#define MAX_INSTANCE_LEN        32
+#define MAX_CAPS_STR_LEN        32
+#define MAX_MACLIST_ITEMS       14
+#define MAX_MACLIST_STRLEN      256
+#define MAX_TIME_STRLEN         24
+#define MAX_ZONE_STRLEN         8
+#define MAX_TIMESTAMP_STRLEN    64
+#define MAX_STDLEN              64
+#define ARRAY_SIZE(a)           (sizeof(a) / sizeof(a[0]))
+
+/* Device.WiFi.DataElements.Network */
+#define DE_NETWORK_ID           DATAELEMS_NETWORK       "ID"
+#define DE_NETWORK_CTRLID       DATAELEMS_NETWORK       "ControllerID"
+#define DE_NETWORK_COLAGTID     DATAELEMS_NETWORK       "ColocatedAgentID"
+#define DE_NETWORK_DEVNOE       DATAELEMS_NETWORK       "DeviceNumberOfEntries"
+#define DE_NETWORK_TIMESTAMP    DATAELEMS_NETWORK       "TimeStamp"
+#define DE_NETWORK_SETSSID      DATAELEMS_NETWORK       "SetSSID()"
+/* Device.WiFi.DataElements.Network.SSID */
+#define DE_NETWORK_SSID         DATAELEMS_NETWORK       "SSID.{i}."
+#define DE_SSID_TABLE           DATAELEMS_NETWORK       "SSID.{i}"
+#define DE_SSID_SSID            DE_NETWORK_SSID         "SSID"
+#define DE_SSID_BAND            DE_NETWORK_SSID         "Band"
+#define DE_SSID_ENABLE          DE_NETWORK_SSID         "Enable"
+#define DE_SSID_AKMALLOWE       DE_NETWORK_SSID         "AKMsAllowed"
+#define DE_SSID_SUITESEL        DE_NETWORK_SSID         "SuiteSelector"
+#define DE_SSID_ADVENABLED      DE_NETWORK_SSID         "AdvertisementEnabled"
+#define DE_SSID_MFPCONFIG       DE_NETWORK_SSID         "MFPConfig"
+#define DE_SSID_MOBDOMAIN       DE_NETWORK_SSID         "MobilityDomain"
+#define DE_SSID_HAULTYPE        DE_NETWORK_SSID         "HaulType"
+/* Device.WiFi.DataElements.Network.Device */
+#define DE_NETWORK_DEVICE       DATAELEMS_NETWORK       "Device.{i}."
+#define DE_DEVICE_TABLE         DATAELEMS_NETWORK       "Device.{i}"
+#define DE_DEVICE_ID            DE_NETWORK_DEVICE       "ID"
+#define DE_DEVICE_MAPCAP        DE_NETWORK_DEVICE       "MultiAPCapabilities"
+#define DE_DEVICE_COLLINT       DE_NETWORK_DEVICE       "CollectionInterval"
+#define DE_DEVICE_RUASSOC       DE_NETWORK_DEVICE       "ReportUnsuccessfulAssociations"
+#define DE_DEVICE_MAXRRATE      DE_NETWORK_DEVICE       "MaxReportingRate"
+#define DE_DEVICE_APMERINT      DE_NETWORK_DEVICE       "APMetricsReportingInterval"
+#define DE_DEVICE_MANUFACT      DE_NETWORK_DEVICE       "Manufacturer"
+#define DE_DEVICE_SERIALNO      DE_NETWORK_DEVICE       "SerialNumber"
+#define DE_DEVICE_MFCMODEL      DE_NETWORK_DEVICE       "ManufacturerModel"
+#define DE_DEVICE_SWVERSION     DE_NETWORK_DEVICE       "SoftwareVersion"
+#define DE_DEVICE_EXECENV       DE_NETWORK_DEVICE       "ExecutionEnv"
+#define DE_DEVICE_LSDSTALIST    DE_NETWORK_DEVICE       "LocalSteeringDisallowedSTAList"
+#define DE_DEVICE_BTMSDSTALIST  DE_NETWORK_DEVICE       "BTMSteeringDisallowedSTAList"
+#define DE_DEVICE_MAXVIDS       DE_NETWORK_DEVICE       "MaxVIDs"
+#define DE_DEVICE_DE8021QPVID   DE_NETWORK_DEVICE       "Default8021Q.PrimaryVID"
+#define DE_DEVICE_DE8021QDPCP   DE_NETWORK_DEVICE       "Default8021Q.DefaultPCP"
+#define DE_DEVICE_TSEPPOLI      DE_NETWORK_DEVICE       "TrafficSeparationPolicy"
+#define DE_DEVICE_STVMAP        DE_NETWORK_DEVICE       "SSIDtoVIDMapping"
+#define DE_DEVICE_DSCPM         DE_NETWORK_DEVICE       "DSCPMap"
+#define DE_DEVICE_MAXPRIRULE    DE_NETWORK_DEVICE       "MaxPrioritizationRules"
+#define DE_DEVICE_COUNTRCODE    DE_NETWORK_DEVICE       "CountryCode"
+#define DE_DEVICE_PRIOSUPP      DE_NETWORK_DEVICE       "PrioritizationSupport"
+#define DE_DEVICE_REPINDSCAN    DE_NETWORK_DEVICE       "ReportIndependentScans"
+#define DE_DEVICE_TRASEPALW     DE_NETWORK_DEVICE       "TrafficSeparationAllowed"
+#define DE_DEVICE_SERPRIOALW    DE_NETWORK_DEVICE       "ServicePrioritizationAllowed"
+#define DE_DEVICE_DFSENABLE     DE_NETWORK_DEVICE       "DFSEnable"
+#define DE_DEVICE_MAXUSASSOCREP DE_NETWORK_DEVICE       "MaxUnsuccessfulAssociationReportingRate"
+#define DE_DEVICE_STASSTATE     DE_NETWORK_DEVICE       "STASteeringState"
+#define DE_DEVICE_COORCACALW    DE_NETWORK_DEVICE       "CoordinatedCACAllowed"
+#define DE_DEVICE_CONOPMODE     DE_NETWORK_DEVICE       "ControllerOperationMode"
+#define DE_DEVICE_BHMACADDR     DE_NETWORK_DEVICE       "BackhaulMACAddress"
+#define DE_DEVICE_BHDMACADDR    DE_NETWORK_DEVICE       "BackhaulDownMACAddress"
+#define DE_DEVICE_BHPHYRATE     DE_NETWORK_DEVICE       "BackhaulPHYRate"
+#define DE_DEVICE_TRSEPCAP      DE_NETWORK_DEVICE       "TrafficSeparationCapability"
+#define DE_DEVICE_EASYCCAP      DE_NETWORK_DEVICE       "EasyConnectCapability"
+#define DE_DEVICE_TESTCAP       DE_NETWORK_DEVICE       "TestCapabilities"
+#define DE_DEVICE_BSTAMLDMACLNK DE_NETWORK_DEVICE       "bSTAMLDMaxLinks"
+#define DE_DEVICE_MACNUMMLDS    DE_NETWORK_DEVICE       "MaxNumMLDs"
+#define DE_DEVICE_BHALID        DE_NETWORK_DEVICE       "BackhaulALID"
+#define DE_DEVICE_TIDLMAP       DE_NETWORK_DEVICE       "TIDLinkMapping"
+#define DE_DEVICE_ASSOCSTAREP   DE_NETWORK_DEVICE       "AssociatedSTAReportingInterval"
+#define DE_DEVICE_BHMEDIATYPE   DE_NETWORK_DEVICE       "BackhaulMediaType"
+#define DE_DEVICE_RADIONOE      DE_NETWORK_DEVICE       "RadioNumberOfEntries"
+#define DE_DEVICE_CACSTATNOE    DE_NETWORK_DEVICE       "CACStatusNumberOfEntries"
+#define DE_DEVICE_BHDOWNNOE     DE_NETWORK_DEVICE       "BackhaulDownNumberOfEntries"
+/* Device.WiFi.DataElements.Network.Device.CACStatus */
+#define DE_DEVICE_CACSTAT       DE_NETWORK_DEVICE       "CACStatus.{i}."
+#define DE_CACSTAT_TABLE        DE_NETWORK_DEVICE       "CACStatus.{i}"
+#define DE_CACSTAT_NONOCCNOE    DE_DEVICE_CACSTAT       "CACNonOccupancyChannelNumberOfEntries"
+/* Device.WiFi.DataElements.Network.Device.CACStatus.CACNonOccupancyChannel */
+#define DE_CACSTAT_CACNON       DE_DEVICE_CACSTAT       "CACNonOccupancyChannel.{i}."
+#define DE_CACNON_TABLE         DE_DEVICE_CACSTAT       "CACNonOccupancyChannel.{i}"
+#define DE_CACNON_OPCLASS       DE_CACSTAT_CACNON       "OpClass"
+#define DE_CACNON_CHANNEL       DE_CACSTAT_CACNON       "Channel"
+#define DE_CACNON_SECONDS       DE_CACSTAT_CACNON       "Seconds"
+/* Device.WiFi.DataElements.Network.Device.BackhaulDown */
+#define DE_DEVICE_BHDOWN        DE_NETWORK_DEVICE       "BackhaulDown.{i}."
+#define DE_BHDOWN_TABLE         DE_NETWORK_DEVICE       "BackhaulDown.{i}"
+#define DE_BHDOWN_ALID          DE_DEVICE_BHDOWN        "BackhaulDownALID"
+#define DE_BHDOWN_MACADDR       DE_DEVICE_BHDOWN        "BackhaulDownMACAddress"
+/* Device.WiFi.DataElements.Network.Device.MultiAPDevice */
+#define DE_DEVICE_MAPDEV        DE_NETWORK_DEVICE       "MultiAPDevice."
+/* Device.WiFi.DataElements.Network.Device.MultiAPDevice.Backhaul */
+#define DE_MAPDEV_BACKHAUL      DE_DEVICE_MAPDEV        "Backhaul."
+#define DE_MAPDEVBH_STEERWIFIBH DE_MAPDEV_BACKHAUL      "SteerWiFiBackhaul()"
+/* Device.WiFi.DataElements.Network.Device.MultiAPDevice.Backhaul.Stats */
+#define DE_MAPDEVBH_STATS       DE_MAPDEV_BACKHAUL      "Stats."
+#define DE_MDBHSTATS_BYTESSNT   DE_MAPDEVBH_STATS       "BytesSent"
+#define DE_MDBHSTATS_BYTESRCV   DE_MAPDEVBH_STATS       "BytesReceived"
+#define DE_MDBHSTATS_PCKTSSNT   DE_MAPDEVBH_STATS       "PacketsSent"
+#define DE_MDBHSTATS_PCKTSRCV   DE_MAPDEVBH_STATS       "PacketsReceived"
+#define DE_MDBHSTATS_ERRSSNT    DE_MAPDEVBH_STATS       "ErrorsSent"
+#define DE_MDBHSTATS_ERRSRCV    DE_MAPDEVBH_STATS       "ErrorsReceived"
+#define DE_MDBHSTATS_LINKUTIL   DE_MAPDEVBH_STATS       "LinkUtilization"
+#define DE_MDBHSTATS_SIGNALSTR  DE_MAPDEVBH_STATS       "SignalStrength"
+#define DE_MDBHSTATS_LSTDTADLR  DE_MAPDEVBH_STATS       "LastDataDownlinkRate"
+#define DE_MDBHSTATS_LSTDTAULR  DE_MAPDEVBH_STATS       "LastDataUplinkRate"
+/* Device.WiFi.DataElements.Network.Device.Radio */
+#define DE_DEVICE_RADIO         DE_NETWORK_DEVICE       "Radio.{i}."
+#define DE_RADIO_TABLE          DE_NETWORK_DEVICE       "Radio.{i}"
+#define DE_RADIO_ID             DE_DEVICE_RADIO         "ID"
+#define DE_RADIO_ENABLED        DE_DEVICE_RADIO         "Enabled"
+#define DE_RADIO_NOISE          DE_DEVICE_RADIO         "Noise"
+#define DE_RADIO_UTILIZATION    DE_DEVICE_RADIO         "Utilization"
+#define DE_RADIO_TRANSMIT       DE_DEVICE_RADIO         "Transmit"
+#define DE_RADIO_RECEIVESELF    DE_DEVICE_RADIO         "ReceiveSelf"
+#define DE_RADIO_RECEIVEOTHER   DE_DEVICE_RADIO         "ReceiveOther"
+#define DE_RADIO_CHIPVENDOR     DE_DEVICE_RADIO         "ChipsetVendor"
+#define DE_RADIO_CURROPNOE      DE_DEVICE_RADIO         "CurrentOperatingClassProfileNumberOfEntries"
+#define DE_RADIO_BSSNOE         DE_DEVICE_RADIO         "BSSNumberOfEntries"
+#define DE_RADIO_NOUNASSCSTA    DE_DEVICE_RADIO         "UnassociatedSTANumberOfEntries"
+#define DE_RADIO_CHSCANREQ      DE_DEVICE_RADIO         "ChannelScanRequest()"
+#define DE_RADIO_CHSELREQ       DE_DEVICE_RADIO         "ChannelSelectionRequest()"
+#define DE_RADIO_XAIRTIES_OPERSTANDARDS DE_DEVICE_RADIO "X_AIRTIES_OperatingStandards"
+/* Device.WiFi.DataElements.Network.Device.Radio.BackhaulSta */
+#define DE_RADIO_BHSTA          DE_DEVICE_RADIO         "BackhaulSta."
+#define DE_BHSTA_MACADDR        DE_RADIO_BHSTA          "MACAddress"
+/* Device.WiFi.DataElements.Network.Device.Radio.Capabilities */
+#define DE_RADIO_CAPS           DE_DEVICE_RADIO         "Capabilities."
+#define DE_RCAPS_HTCAPS         DE_RADIO_CAPS           "HTCapabilities"
+#define DE_RCAPS_VHTCAPS        DE_RADIO_CAPS           "VHTCapabilities"
+#define DE_RCAPS_MSCS_CAP       DE_RADIO_CAPS           "MSCSCapability"
+#define DE_RCAPS_SCS_CAP        DE_RADIO_CAPS           "SCSCapability"
+#define DE_RCAPS_QOSMAP_CAP     DE_RADIO_CAPS           "QoSMapCapability"
+#define DE_RCAPS_DSCP_POLICY    DE_RADIO_CAPS           "DSCPPolicyCapability"
+#define DE_RCAPS_SCSTRAFDESC    DE_RADIO_CAPS           "SCSTrafficDescriptionCapability"
+#define DE_RCAPS_CAPOPNOE       DE_RADIO_CAPS           "CapableOperatingClassProfileNumberOfEntries"
+#define DE_RCAPS_AKMFHNOE       DE_RADIO_CAPS           "AKMFrontHaulNumberOfEntries"
+#define DE_RCAPS_AKMBHNOE       DE_RADIO_CAPS           "AKMBackhaulNumberOfEntries"
+/* Device.WiFi.DataElements.Network.Device.Radio.Capabilities.WiFi6APRole */
+#define DE_CAPS_WF6AP           DE_RADIO_CAPS           "WiFi6APRole."
+#define DE_WF6AP_HE160          DE_CAPS_WF6AP           "HE160"
+#define DE_WF6AP_HE8080         DE_CAPS_WF6AP           "HE8080"
+#define DE_WF6AP_MCSNSS         DE_CAPS_WF6AP           "MCSNSS"
+#define DE_WF6AP_SU_BFER        DE_CAPS_WF6AP           "SUBeamformer"
+#define DE_WF6AP_SU_BFEE        DE_CAPS_WF6AP           "SUBeamformee"
+#define DE_WF6AP_MU_BFER        DE_CAPS_WF6AP           "MUBeamformer"
+#define DE_WF6AP_BFEE_80L       DE_CAPS_WF6AP           "Beamformee80orLess"
+#define DE_WF6AP_BFEE_80A       DE_CAPS_WF6AP           "BeamformeeAbove80"
+#define DE_WF6AP_UL_MUMIMO      DE_CAPS_WF6AP           "ULMUMIMO"
+#define DE_WF6AP_UL_OFDMA       DE_CAPS_WF6AP           "ULOFDMA"
+#define DE_WF6AP_DL_OFDMA       DE_CAPS_WF6AP           "DLOFDMA"
+#define DE_WF6AP_MAX_DL_MUMIMO  DE_CAPS_WF6AP           "MaxDLMUMIMO"
+#define DE_WF6AP_MAX_UL_MUMIMO  DE_CAPS_WF6AP           "MaxULMUMIMO"
+#define DE_WF6AP_MAX_DL_OF      DE_CAPS_WF6AP           "MaxDLOFDMA"
+#define DE_WF6AP_MAX_UL_OF      DE_CAPS_WF6AP           "MaxULOFDMA"
+#define DE_WF6AP_RTS            DE_CAPS_WF6AP           "RTS"
+#define DE_WF6AP_MU_RTS         DE_CAPS_WF6AP           "MURTS"
+#define DE_WF6AP_MULTI_BSS      DE_CAPS_WF6AP           "MultiBSSID"
+#define DE_WF6AP_MU_EDCA        DE_CAPS_WF6AP           "MUEDCA"
+#define DE_WF6AP_TWT_REQ        DE_CAPS_WF6AP           "TWTRequestor"
+#define DE_WF6AP_TWT_RSP        DE_CAPS_WF6AP           "TWTResponder"
+#define DE_WF6AP_SPAT_REUSE     DE_CAPS_WF6AP           "SpatialReuse"
+#define DE_WF6AP_ANT_CH_USE     DE_CAPS_WF6AP           "AnticipatedChannelUsage"
+/* Device.WiFi.DataElements.Network.Device.Radio.Capabilities.WiFi6bSTARole */
+#define DE_CAPS_WF6BSTA         DE_RADIO_CAPS           "WiFi6bSTARole."
+#define DE_WF6BSTA_HE160        DE_CAPS_WF6BSTA         "HE160"
+#define DE_WF6BSTA_MCSNSS       DE_CAPS_WF6BSTA         "MCSNSS"
+#define DE_WF6BSTA_SU_BFER      DE_CAPS_WF6BSTA         "SUBeamformer"
+#define DE_WF6BSTA_SU_BFEE      DE_CAPS_WF6BSTA         "SUBeamformee"
+#define DE_WF6BSTA_MU_BFER      DE_CAPS_WF6BSTA         "MUBeamformer"
+#define DE_WF6BSTA_BFEE_80_LESS DE_CAPS_WF6BSTA         "Beamformee80orLess"
+#define DE_WF6BSTA_BFEE_ABV_80  DE_CAPS_WF6BSTA         "BeamformeeAbove80"
+#define DE_WF6BSTA_UL_MUMIMO    DE_CAPS_WF6BSTA         "ULMUMIMO"
+#define DE_WF6BSTA_UL_OFDMA     DE_CAPS_WF6BSTA         "ULOFDMA"
+#define DE_WF6BSTA_DL_OFDMA     DE_CAPS_WF6BSTA         "DLOFDMA"
+#define DE_WF6BSTA_MAX_DLMUMIMO DE_CAPS_WF6BSTA         "MaxDLMUMIMO"
+#define DE_WF6BSTA_MAX_ULMUMIMO DE_CAPS_WF6BSTA         "MaxULMUMIMO"
+#define DE_WF6BSTA_MAX_DL_OFDMA DE_CAPS_WF6BSTA         "MaxDLOFDMA"
+#define DE_WF6BSTA_MAX_UL_OFDMA DE_CAPS_WF6BSTA         "MaxULOFDMA"
+#define DE_WF6BSTA_RTS          DE_CAPS_WF6BSTA         "RTS"
+#define DE_WF6BSTA_MU_RTS       DE_CAPS_WF6BSTA         "MURTS"
+#define DE_WF6BSTA_MULTI_BSSID  DE_CAPS_WF6BSTA         "MultiBSSID"
+#define DE_WF6BSTA_MUEDCA       DE_CAPS_WF6BSTA         "MUEDCA"
+#define DE_WF6BSTA_TWT_REQ      DE_CAPS_WF6BSTA         "TWTRequestor"
+#define DE_WF6BSTA_TWT_RSP      DE_CAPS_WF6BSTA         "TWTResponder"
+#define DE_WF6BSTA_SPAT_REUSE   DE_CAPS_WF6BSTA         "SpatialReuse"
+#define DE_WF6BSTA_ANT_CH_USE   DE_CAPS_WF6BSTA         "AnticipatedChannelUsage"
+/* Device.WiFi.DataElements.Network.Device.Radio.Capabilities.WiFi7APRole */
+#define DE_CAPS_WF7AP           DE_RADIO_CAPS           "WiFi7APRole."
+#define DE_WF7AP_EMLMR          DE_CAPS_WF7AP           "EMLMRSupport"
+#define DE_WF7AP_EMLSR          DE_CAPS_WF7AP           "EMLSRSupport"
+#define DE_WF7AP_STR            DE_CAPS_WF7AP           "STRSupport"
+#define DE_WF7AP_NSTR           DE_CAPS_WF7AP           "NSTRSupport"
+#define DE_WF7AP_TID_MAP        DE_CAPS_WF7AP           "TIDLinkMapNegotiation"
+/* Device.WiFi.DataElements.Network.Device.Radio.Capabilities.WiFi7bSTARole */
+#define DE_CAPS_WF7BSTA         DE_RADIO_CAPS           "WiFi7bSTARole."
+#define DE_WF7BSTA_EMLMR        DE_CAPS_WF7BSTA         "EMLMRSupport"
+#define DE_WF7BSTA_EMLSR        DE_CAPS_WF7BSTA         "EMLSRSupport"
+#define DE_WF7BSTA_STR          DE_CAPS_WF7BSTA         "STRSupport"
+#define DE_WF7BSTA_NSTR         DE_CAPS_WF7BSTA         "NSTRSupport"
+#define DE_WF7BSTA_TID_MAP      DE_CAPS_WF7BSTA         "TIDLinkMapNegotiation"
+/* Device.WiFi.DataElements.Network.Device.Radio.Capabilities.ScanCapability */
+#define DE_CAPS_SCANCAP         DE_RADIO_CAPS           "ScanCapability."
+#define DE_SCANCAP_TIMESTAMP    DE_CAPS_SCANCAP         "TimeStamp"
+#define DE_SCANCAP_OPCLSCANSNOE DE_CAPS_SCANCAP         "OpClassChannelsNumberOfEntries"
+/* Device.WiFi.DataElements.Network.Device.Radio.Capabilities.CapableOperatingClassProfile */
+#define DE_CAPS_CAPOP           DE_RADIO_CAPS           "CapableOperatingClassProfile.{i}."
+#define DE_CAPOP_TABLE          DE_RADIO_CAPS           "CapableOperatingClassProfile.{i}"
+#define DE_CAPOP_CLASS          DE_CAPS_CAPOP           "Class"
+#define DE_CAPOP_MAXTXPOWER     DE_CAPS_CAPOP           "MaxTxPower"
+#define DE_CAPOP_NONOPERABLE    DE_CAPS_CAPOP           "NonOperable"
+#define DE_CAPOP_NONOPCNT       DE_CAPS_CAPOP           "NumberOfNonOperChan"
+/* Device.WiFi.DataElements.Network.Device.Radio.CurrentOperatingClassProfile */
+#define DE_RADIO_CUROP          DE_DEVICE_RADIO         "CurrentOperatingClassProfile.{i}."
+#define DE_CUROP_TABLE          DE_DEVICE_RADIO         "CurrentOperatingClassProfile.{i}"
+#define DE_CUROP_TIMESTAMP      DE_RADIO_CUROP          "TimeStamp"
+#define DE_CUROP_CLASS          DE_RADIO_CUROP          "Class"
+#define DE_CUROP_CHANNEL        DE_RADIO_CUROP          "Channel"
+#define DE_CUROP_TXPOWER        DE_RADIO_CUROP          "TxPower"
+/* Device.WiFi.DataElements.Network.Device.Radio.ScanResult */
+#define DE_RADIO_SCANRES        DE_DEVICE_RADIO         "ScanResult.{i}."
+#define DE_SCANRES_TABLE        DE_DEVICE_RADIO         "ScanResult.{i}"
+#define DE_SCANRES_TIMESTAMP    DE_RADIO_SCANRES        "TimeStamp"
+/* Device.WiFi.DataElements.Network.Device.Radio.BSS */
+#define DE_RADIO_BSS            DE_DEVICE_RADIO         "BSS.{i}."
+#define DE_BSS_TABLE            DE_DEVICE_RADIO         "BSS.{i}"
+#define DE_BSS_BSSID            DE_RADIO_BSS            "BSSID"
+#define DE_BSS_SSID             DE_RADIO_BSS            "SSID"
+#define DE_BSS_ENABLED          DE_RADIO_BSS            "Enabled"
+#define DE_BSS_LASTCHG          DE_RADIO_BSS            "LastChange"
+#define DE_BSS_TIMESTAMP        DE_RADIO_BSS            "TimeStamp"
+#define DE_BSS_UCAST_TX         DE_RADIO_BSS            "UnicastBytesSent"
+#define DE_BSS_UCAST_RX         DE_RADIO_BSS            "UnicastBytesReceived"
+#define DE_BSS_MCAST_TX         DE_RADIO_BSS            "MulticastBytesSent"
+#define DE_BSS_MCAST_RX         DE_RADIO_BSS            "MulticastBytesReceived"
+#define DE_BSS_BCAST_TX         DE_RADIO_BSS            "BroadcastBytesSent"
+#define DE_BSS_BCAST_RX         DE_RADIO_BSS            "BroadcastBytesReceived"
+#define DE_BSS_EST_BE           DE_RADIO_BSS            "EstServiceParametersBE"
+#define DE_BSS_EST_BK           DE_RADIO_BSS            "EstServiceParametersBK"
+#define DE_BSS_EST_VI           DE_RADIO_BSS            "EstServiceParametersVI"
+#define DE_BSS_EST_VO           DE_RADIO_BSS            "EstServiceParametersVO"
+#define DE_BSS_BYTCNTUNITS      DE_RADIO_BSS            "ByteCounterUnits"
+#define DE_BSS_PROF1_DIS        DE_RADIO_BSS            "Profile1bSTAsDisallowed"
+#define DE_BSS_PROF2_DIS        DE_RADIO_BSS            "Profile2bSTAsDisallowed"
+#define DE_BSS_ASSOC_STAT       DE_RADIO_BSS            "AssociationAllowanceStatus"
+#define DE_BSS_BHAULUSE         DE_RADIO_BSS            "BackhaulUse"
+#define DE_BSS_FHAULUSE         DE_RADIO_BSS            "FronthaulUse"
+#define DE_BSS_R1_DIS           DE_RADIO_BSS            "R1disallowed"
+#define DE_BSS_R2_DIS           DE_RADIO_BSS            "R2disallowed"
+#define DE_BSS_MULTI_BSSID      DE_RADIO_BSS            "MultiBSSID"
+#define DE_BSS_TX_BSSID         DE_RADIO_BSS            "TransmittedBSSID"
+#define DE_BSS_FHAULAKMS        DE_RADIO_BSS            "FronthaulAKMsAllowed"
+#define DE_BSS_BHAULAKMS        DE_RADIO_BSS            "BackhaulAKMsAllowed"
+#define DE_BSS_QM_DESC          DE_RADIO_BSS            "QMDescriptor"
+#define DE_BSS_LINK_IMM         DE_RADIO_BSS            "LinkRemovalImminent"
+#define DE_BSS_FH_SUITE         DE_RADIO_BSS            "FronthaulSuiteSelector"
+#define DE_BSS_BH_SUITE         DE_RADIO_BSS            "BackhaulSuiteSelector"
+#define DE_BSS_STANOE           DE_RADIO_BSS            "STANumberOfEntries"
+/* Device.WiFi.DataElements.Network.Device.Radio.BSS.STA */
+#define DE_BSS_STA              DE_RADIO_BSS            "STA.{i}."
+#define DE_STA_TABLE            DE_RADIO_BSS            "STA.{i}"
+#define DE_STA_MACADDR          DE_BSS_STA              "MACAddress"
+#define DE_STA_TIMESTAMP        DE_BSS_STA              "TimeStamp"
+#define DE_STA_HTCAPS           DE_BSS_STA              "HTCapabilities"
+#define DE_STA_VHTCAPS          DE_BSS_STA              "VHTCapabilities"
+#define DE_STA_CLIENTCAPS       DE_BSS_STA              "ClientCapabilities"
+#define DE_STA_LSTDTADLR        DE_BSS_STA              "LastDataDownlinkRate"
+#define DE_STA_LSTDTAULR        DE_BSS_STA              "LastDataUplinkRate"
+#define DE_STA_UTILRECV         DE_BSS_STA              "UtilizationReceive"
+#define DE_STA_UTILTRMT         DE_BSS_STA              "UtilizationTransmit"
+#define DE_STA_ESTMACDTARDL     DE_BSS_STA              "EstMACDataRateDownlink"
+#define DE_STA_ESTMACDTARUL     DE_BSS_STA              "EstMACDataRateUplink"
+#define DE_STA_SIGNALSTR        DE_BSS_STA              "SignalStrength"
+#define DE_STA_LASTCONNTIME     DE_BSS_STA              "LastConnectTime"
+#define DE_STA_BYTESSNT         DE_BSS_STA              "BytesSent"
+#define DE_STA_BYTESRCV         DE_BSS_STA              "BytesReceived"
+#define DE_STA_PCKTSSNT         DE_BSS_STA              "PacketsSent"
+#define DE_STA_PCKTSRCV         DE_BSS_STA              "PacketsReceived"
+#define DE_STA_ERRSSNT          DE_BSS_STA              "ErrorsSent"
+#define DE_STA_ERRSRCV          DE_BSS_STA              "ErrorsReceived"
+#define DE_STA_RETRANSCNT       DE_BSS_STA              "RetransCount"
+#define DE_STA_IPV4ADDR         DE_BSS_STA              "IPV4Address"
+#define DE_STA_IPV6ADDR         DE_BSS_STA              "IPV6Address"
+#define DE_STA_HOSTNAME         DE_BSS_STA              "Hostname"
+#define DE_STA_PAIRWSAKM        DE_BSS_STA              "PairwiseAKM"
+#define DE_STA_PAIRWSCIPHER     DE_BSS_STA              "PairwiseCipher"
+#define DE_STA_RSNCAPS          DE_BSS_STA              "RSNCapabilities"
+#define DE_STA_CLIENTSTEER      DE_BSS_STA              "ClientSteer()"
+/* Device.WiFi.DataElements.Network.Device.Radio.BSS.STA.WiFi6Capabilities */
+#define DE_STA_WIFI6CAPS        DE_BSS_STA              "WiFi6Capabilities."
+#define DE_STAWF6CAPS_HE160     DE_STA_WIFI6CAPS        "HE160"
+#define DE_STAWF6CAPS_MCSNSS    DE_STA_WIFI6CAPS        "MCSNSS"
+/* Device.WiFi.DataElements.Network.Device.Radio.BSS.STA.MultiAPSTA */
+#define DE_STA_MULTIAP          DE_BSS_STA              "MultiAPSTA."
+#define DE_STAMAP_DISASSOC      DE_STA_MULTIAP          "Disassociate()"
+/* Device.WiFi.DataElements.Network.Device.Radio.UnassociatedSTA */
+#define DE_RADIO_UNASSOCSTA     DE_DEVICE_RADIO         "UnassociatedSTA.{i}."
+#define DE_UNASSOCSTA_TABLE     DE_DEVICE_RADIO         "UnassociatedSTA.{i}"
+#define DE_UNASSOCSTA_MACADDR   DE_RADIO_UNASSOCSTA     "MACAddress"
+#define DE_UNASSOCSTA_SGNLSTR   DE_RADIO_UNASSOCSTA     "SignalStrength"
+#define DE_UNASSOCSTA_OPCLASS   DE_RADIO_UNASSOCSTA     "OperatingClass"
+#define DE_UNASSOCSTA_CHANNEL   DE_RADIO_UNASSOCSTA     "Channel"
+/* Device.WiFi.DataElements.Network.Device.APMLD */
+#define DE_DEVICE_APMLD         DE_NETWORK_DEVICE       "APMLD.{i}."
+#define DE_APMLD_TABLE          DE_NETWORK_DEVICE       "APMLD.{i}"
+#define DE_APMLD_MACADDRESS     DE_DEVICE_APMLD         "MLDMACAddress"
+#define DE_APMLD_AFFAPNOE       DE_DEVICE_APMLD         "AffiliatedAPNumberOfEntries"
+#define DE_APMLD_STAMLDNOE      DE_DEVICE_APMLD         "STAMLDNumberOfEntries"
+/* Device.WiFi.DataElements.Network.Device.APMLD.APMLDConfig */
+#define DE_APMLD_CONFIG         DE_DEVICE_APMLD         "APMLDConfig."
+#define DE_APMLDCFG_EMLMR       DE_APMLD_CONFIG         "EMLMREnabled"
+#define DE_APMLDCFG_EMLSR       DE_APMLD_CONFIG         "EMLSREnabled"
+#define DE_APMLDCFG_STR         DE_APMLD_CONFIG         "STREnabled"
+#define DE_APMLDCFG_NSTR        DE_APMLD_CONFIG         "NSTREnabled"
+/* Device.WiFi.DataElements.Network.Device.APMLD.AffiliatedAP */
+#define DE_APMLD_AFFAP          DE_DEVICE_APMLD         "AffiliatedAP.{i}."
+#define DE_AFFAP_TABLE          DE_DEVICE_APMLD         "AffiliatedAP.{i}"
+#define DE_AFFAP_BSSID          DE_APMLD_AFFAP          "BSSID"
+#define DE_AFFAP_LINKID         DE_APMLD_AFFAP          "LinkID"
+#define DE_AFFAP_RUID           DE_APMLD_AFFAP          "RUID"
+#define DE_AFFAP_PCKTSSNT       DE_APMLD_AFFAP          "PacketsSent"
+#define DE_AFFAP_PCKTSRCV       DE_APMLD_AFFAP          "PacketsReceived"
+#define DE_AFFAP_ERRSSNT        DE_APMLD_AFFAP          "ErrorsSent"
+#define DE_AFFAP_UCBYTESSNT     DE_APMLD_AFFAP          "UnicastBytesSent"
+#define DE_AFFAP_UCBYTESRCV     DE_APMLD_AFFAP          "UnicastBytesReceived"
+#define DE_AFFAP_MCBYTESSNT     DE_APMLD_AFFAP          "MulticastBytesSent"
+#define DE_AFFAP_MCBYTESRCV     DE_APMLD_AFFAP          "MulticastBytesReceived"
+#define DE_AFFAP_BCBYTESSNT     DE_APMLD_AFFAP          "BroadcastBytesSent"
+#define DE_AFFAP_BCBYTESRCV     DE_APMLD_AFFAP          "BroadcastBytesReceived"
+/* Device.WiFi.DataElements.Network.Device.APMLD.STAMLD */
+#define DE_APMLD_STAMLD         DE_DEVICE_APMLD         "STAMLD.{i}."
+#define DE_STAMLD_TABLE         DE_DEVICE_APMLD         "STAMLD.{i}"
+#define DE_STAMLD_MLDMACADDR    DE_APMLD_STAMLD         "MLDMACAddress"
+#define DE_STAMLD_ISBSTA        DE_APMLD_STAMLD         "IsbSTA"
+#define DE_STAMLD_LASTCONTME    DE_APMLD_STAMLD         "LastConnectTime"
+#define DE_STAMLD_BYTESSNT      DE_APMLD_STAMLD         "BytesReceived"
+#define DE_STAMLD_BYTESRCV      DE_APMLD_STAMLD         "BytesSent"
+#define DE_STAMLD_PCKTSSNT      DE_APMLD_STAMLD         "PacketsReceived"
+#define DE_STAMLD_PCKTSRCV      DE_APMLD_STAMLD         "PacketsSent"
+#define DE_STAMLD_ERRSSNT       DE_APMLD_STAMLD         "ErrorsReceived"
+#define DE_STAMLD_ERRSRCVD      DE_APMLD_STAMLD         "ErrorsSent"
+#define DE_STAMLD_RETRANSCNT    DE_APMLD_STAMLD         "RetransCount"
+#define DE_STAMLD_AFFSTANOE     DE_APMLD_STAMLD         "AffiliatedSTANumberOfEntries"
+/* Device.WiFi.DataElements.Network.Device.APMLD.STAMLD.WiFi7Capabilities */
+#define DE_STAMLD_WIFI7CAPS     DE_APMLD_STAMLD         "WiFi7Capabilities."
+#define DE_WIFI7CAPS_EMLMR      DE_STAMLD_WIFI7CAPS     "EMLMRSupport"
+#define DE_WIFI7CAPS_EMLSR      DE_STAMLD_WIFI7CAPS     "EMLSRSupport"
+#define DE_WIFI7CAPS_STR        DE_STAMLD_WIFI7CAPS     "STRSupport"
+#define DE_WIFI7CAPS_NSTR       DE_STAMLD_WIFI7CAPS     "NSTRSupport"
+/* Device.WiFi.DataElements.Network.Device.APMLD.STAMLD.STAMLDConfig */
+#define DE_STAMLD_CONFIG        DE_APMLD_STAMLD         "STAMLDConfig."
+#define DE_STAMLDCFG_EMLMR      DE_STAMLD_CONFIG        "EMLMREnabled"
+#define DE_STAMLDCFG_EMLSR      DE_STAMLD_CONFIG        "EMLSREnabled"
+#define DE_STAMLDCFG_STR        DE_STAMLD_CONFIG        "STREnabled"
+#define DE_STAMLDCFG_NSTR       DE_STAMLD_CONFIG        "NSTREnabled"
+/* Device.WiFi.DataElements.Network.Device.APMLD.STAMLD.AffiliatedSTA */
+#define DE_STAMLD_AFFSTA        DE_APMLD_STAMLD         "AffiliatedSTA.{i}."
+#define DE_AFFSTA_TABLE         DE_APMLD_STAMLD         "AffiliatedSTA.{i}"
+#define DE_AFFSTA_MACADDR       DE_STAMLD_AFFSTA        "MACAddress"
+#define DE_AFFSTA_BSSID         DE_STAMLD_AFFSTA        "BSSID"
+#define DE_AFFSTA_BYTESSNT      DE_STAMLD_AFFSTA        "BytesSent"
+#define DE_AFFSTA_BYTESRCV      DE_STAMLD_AFFSTA        "BytesReceived"
+#define DE_AFFSTA_PCKTSSNT      DE_STAMLD_AFFSTA        "PacketsSent"
+#define DE_AFFSTA_PCKTSRCV      DE_STAMLD_AFFSTA        "PacketsReceived"
+#define DE_AFFSTA_ERRSSNT       DE_STAMLD_AFFSTA        "ErrorsSent"
+#define DE_AFFSTA_SIGNALSTR     DE_STAMLD_AFFSTA        "SignalStrength"
+#define DE_AFFSTA_ESTMACDRDL    DE_STAMLD_AFFSTA        "EstMACDataRateDownlink"
+#define DE_AFFSTA_ESTMACDRUL    DE_STAMLD_AFFSTA        "EstMACDataRateUplink"
+/* Device.WiFi.DataElements.Network.Device.bSTAMLD */
+#define DE_DEVICE_BSTAMLD       DE_NETWORK_DEVICE       "bSTAMLD."
+#define DE_BSTAMLD_MACADDR      DE_DEVICE_BSTAMLD       "MLDMACAddress"
+#define DE_BSTAMLD_BSSID        DE_DEVICE_BSTAMLD       "BSSID"
+#define DE_BSTAMLD_AFFBSTAS     DE_DEVICE_BSTAMLD       "AffiliatedbSTAList"
+/* Device.WiFi.DataElements.Network.Device.bSTAMLD.bSTAMLDConfig */
+#define DE_BSTAMLD_CONFIG       DE_DEVICE_BSTAMLD       "bSTAMLDConfig."
+#define DE_BSTACFG_EMLMR        DE_BSTAMLD_CONFIG       "EMLMREnabled"
+#define DE_BSTACFG_EMLSR        DE_BSTAMLD_CONFIG       "EMLSREnabled"
+#define DE_BSTACFG_STR          DE_BSTAMLD_CONFIG       "STREnabled"
+#define DE_BSTACFG_NSTR         DE_BSTAMLD_CONFIG       "NSTREnabled"
+
+#define ELEMENT_DEFAULTS(t)         slow_speed, ZERO_TABLE, {t, false, 0L, 0L, 0U, NULL}
+#define CALLBACK_GETTER(f)          {f, NULL, NULL, NULL, NULL, NULL}
+#define CALLBACK_METHOD(f)          {NULL, NULL, NULL, NULL, NULL, f}
+#define ELEMENT_PROPERTY(n, f, t)   {const_cast<char*>(n), bus_element_type_property, CALLBACK_GETTER(f), ELEMENT_DEFAULTS(t)}
+#define ELEMENT_METHOD(n, f, t)     {const_cast<char*>(n), bus_element_type_method, CALLBACK_METHOD(f), ELEMENT_DEFAULTS(t)}
+#define ELEMENT_TABLE(n, f, t)      {const_cast<char*>(n), bus_element_type_table, CALLBACK_GETTER(f), ELEMENT_DEFAULTS(t)}
+
+#define CALLBACK_ADD_ROW(f)          {NULL, NULL, f, NULL, NULL, NULL}
+#define CB(...)                      (bus_callback_table_t){ __VA_ARGS__ }
+#define CALLBACK_GETTER(f)           {f, NULL, NULL, NULL, NULL, NULL}
+#define ELEMENT(n, f)                {const_cast<char*>(n), f}
+#define ELEMENT_TABLE_ROW(n, f)      {const_cast<char*>(n), f}
+
+class dm_easy_mesh_ctrl_t;
+
+class tr_181_t {
+private:
+    bus_handle_t m_bus_handle;
+
+public:
+
+    tr_181_t() {}
+    virtual ~tr_181_t() {}
+    
+    bus_handle_t *get_bus_hdl() { return &m_bus_handle; }
+    
+    // Delete copy constructor and assignment
+    tr_181_t(const tr_181_t&) = delete;
+    tr_181_t& operator=(const tr_181_t&) = delete;
+    
+    // Initialization
+    void init(void* ptr);
+    
+    // WFA DML interface
+    int register_wfa_dml();
+    int wfa_set_bus_callbackfunc_pointers(const char* full_namespace, bus_callback_table_t* cb_table);
+    int wfa_bus_register_namespace(char* full_namespace, 
+                                 bus_element_type_t element_type,
+                                 bus_callback_table_t cb_table, 
+                                 data_model_properties_t data_model_value, 
+                                 int num_of_rows);
+    bus_error_t raw_data_set(raw_data_t *p_data, bool b);
+    bus_error_t raw_data_set(raw_data_t *p_data, int32_t i);
+    bus_error_t raw_data_set(raw_data_t *p_data, uint8_t u);
+    bus_error_t raw_data_set(raw_data_t *p_data, uint16_t u);
+    bus_error_t raw_data_set(raw_data_t *p_data, uint32_t u);
+    bus_error_t raw_data_set(raw_data_t *p_data, const char *str);
+    bus_error_t raw_data_set(raw_data_t *p_data, mac_address_t mac);
+    bus_error_t raw_data_set(raw_data_t *p_data, wifi_ieee80211Variant_t var);
+    bus_error_t raw_data_set(raw_data_t *p_data, bus_data_prop_t *property);
+    template <typename T> 
+    bus_data_prop_t *property_init_value(const char *root, unsigned int idx, const char *param, T value);
+    template <typename T> 
+    void property_append_tail(bus_data_prop_t **property, const char *root, unsigned int idx, const char *param, T value);
+
+    virtual bus_error_t bus_get_cb_fwd(char *event_name, raw_data_t *p_data, bus_get_handler_t cb) = 0;
+    
+    //Table callback handlers
+    static bus_error_t add_table_row(char const *name, dm_easy_mesh_t *dm);
+    bus_error_t reg_table_row(char *name, int index);
+    int find_radio(dm_easy_mesh_t *dm);
+
+    // Bus callback handlers
+    static bus_error_t default_get_param_value(char* event_name, raw_data_t* p_data, struct bus_user_data* user_data);
+    static bus_error_t default_set_param_value(char* event_name, raw_data_t* p_data, struct bus_user_data* user_data);
+    static bus_error_t default_table_add_row_handler(const char* tableName, const char* aliasName, uint32_t* instNum);
+    static bus_error_t default_table_remove_row_handler(const char* rowName);
+    static bus_error_t default_event_sub_handler(char* eventName, bus_event_sub_action_t action, int32_t interval, bool* autoPublish);
+
+    //Network
+    static bus_error_t network_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
+    
+    //SSID
+    static bus_error_t ssid_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
+    static bus_error_t ssid_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
+    static bus_error_t ssid_table_add_row_handler(const char* table_name, const char* alias_name, uint32_t* instance_number);
+
+    /**!
+     * @brief Handles the RBUS SetSSID method invocation.
+     *
+     * This function extracts SetSSID properties from the raw input payload, forwards them
+     * to the EasyMesh controller, and optionally writes response properties to the output
+     * raw buffer for RBUS callers.
+     *
+     * @param method_name RBUS method name, expected to match SetSSID.
+     * @param input_data Input containing a chained list of bus_data_prop_t entries.
+     * @param output_data Output populated with response properties when provided.
+     * @param async_handle RBUS async handle when the call is asynchronous (may be null).
+     *
+     * @returns bus_error_t
+     * @retval bus_error_none on successful SetSSID handling.
+     * @retval bus_error_failed on validation or controller execution failure.
+     *
+     * @note Ownership of input and output buffers remains with the caller.
+     */
+    static bus_error_t setssid_handler(const char *method_name, bus_data_prop_t *input_data,
+        bus_data_prop_t *output_data, void *async_handle);
+
+    /**!
+     * @brief Handles the RBUS SteerWiFiBackhaul method invocation.
+     *
+     * This function extracts SteerWiFiBackhaul properties from the raw input payload, forwards
+     * them to the EasyMesh controller, and optionally writes response properties to the output
+     * raw buffer for RBUS callers.
+     *
+     * @param method_name RBUS method name, expected to match SteerWiFiBackhaul.
+     * @param input_data Input containing a chained list of bus_data_prop_t entries.
+     * @param output_data Output populated with response properties when provided.
+     * @param async_handle RBUS async handle when the call is asynchronous (may be null).
+     *
+     * @returns bus_error_t
+     * @retval bus_error_none on successful SteerWiFiBackhaul handling.
+     * @retval bus_error_failed on validation or controller execution failure.
+     *
+     * @note Ownership of input and output buffers remains with the caller.
+     */
+    static bus_error_t steerwifibh_handler(const char *method_name, bus_data_prop_t *input_data,
+        bus_data_prop_t *output_data, void *async_handle);
+
+    /**!
+     * @brief Handles the RBUS ChannelScanRequest method invocation.
+     *
+     * This function extracts ChannelScanRequest properties from the raw input payload, forwards
+     * them to the EasyMesh controller, and optionally writes response properties to the output
+     * raw buffer for RBUS callers.
+     *
+     * @param method_name RBUS method name, expected to match ChannelScanRequest.
+     * @param input_data Input containing a chained list of bus_data_prop_t entries.
+     * @param output_data Output populated with response properties when provided.
+     * @param async_handle RBUS async handle when the call is asynchronous (may be null).
+     *
+     * @returns bus_error_t
+     * @retval bus_error_none on successful ChannelScanRequest handling.
+     * @retval bus_error_failed on validation or controller execution failure.
+     *
+     * @note Ownership of input and output buffers remains with the caller.
+     */
+    static bus_error_t channelscan_handler(const char *method_name, bus_data_prop_t *input_data,
+        bus_data_prop_t *output_data, void *async_handle);
+
+    /**!
+     * @brief Handles the RBUS ChannelSelectionRequest method invocation.
+     *
+     * This function extracts ChannelSelectionRequest properties from the raw input payload, forwards
+     * them to the EasyMesh controller, and optionally writes response properties to the output
+     * raw buffer for RBUS callers.
+     *
+     * @param method_name RBUS method name, expected to match ChannelSelectionRequest().
+     * @param input_data Input containing a chained list of bus_data_prop_t entries.
+     * @param output_data Output populated with response properties when provided.
+     * @param async_handle RBUS async handle when the call is asynchronous (may be null).
+     *
+     * @returns bus_error_t
+     * @retval bus_error_success on successful ChannelSelectionRequest handling.
+     * @retval bus_error_invalid_input on validation failure.
+     * @retval other non-zero bus_error_t values on error.
+     * @note Ownership of input and output buffers remains with the caller.
+     */
+    static bus_error_t channelselect_handler(const char *method_name, bus_data_prop_t *input_data,
+        bus_data_prop_t *output_data, void *async_handle);
+
+    /**!
+     * @brief Handles the RBUS ClientSteer method invocation.
+     *
+     * This function extracts ClientSteer properties from the raw input payload, forwards them
+     * to the EasyMesh controller, and optionally writes response properties to the output
+     * raw buffer for RBUS callers.
+     *
+     * @param method_name RBUS method name, expected to match ClientSteer.
+     * @param input_data Input containing a chained list of bus_data_prop_t entries.
+     * @param output_data Output populated with response properties when provided.
+     * @param async_handle RBUS async handle when the call is asynchronous (may be null).
+     *
+     * @returns bus_error_t
+     * @retval bus_error_none on successful ClientSteer handling.
+     * @retval bus_error_failed on validation or controller execution failure.
+     *
+     * @note Ownership of input and output buffers remains with the caller.
+     */
+    static bus_error_t clientsteer_handler(const char *method_name, bus_data_prop_t *input_data,
+        bus_data_prop_t *output_data, void *async_handle);
+
+    /**!
+     * @brief Handles the RBUS Disassociate method invocation.
+     *
+     * This function extracts Disassociate properties from the raw input payload, forwards them
+     * to the EasyMesh controller, and optionally writes response properties to the output
+     * raw buffer for RBUS callers.
+     *
+     * @param method_name RBUS method name, expected to match Disassociate.
+     * @param input_data Input containing a chained list of bus_data_prop_t entries.
+     * @param output_data Output populated with response properties when provided.
+     * @param async_handle RBUS async handle when the call is asynchronous (may be null).
+     *
+     * @returns bus_error_t
+     * @retval bus_error_none on successful Disassociate handling.
+     * @retval bus_error_failed on validation or controller execution failure.
+     *
+     * @note Ownership of input and output buffers remains with the caller.
+     */
+    static bus_error_t disassociate_handler(const char *method_name, bus_data_prop_t *input_data,
+        bus_data_prop_t *output_data, void *async_handle);
+
+    //Methods helper utilities
+
+    /**!
+     * @brief Trim leading and trailing whitespace in-place.
+     *
+     * @param str Mutable C-string to trim.
+     *
+     * @note The input buffer is modified in-place.
+     */
+    static void tr181_trim_whitespace(char *str);
+
+    /**!
+     * @brief Create a HaulType JSON array from a single value.
+     *
+     * Valid values are "Fronthaul" or "Backhaul".
+     *
+     * @param haul_val Input HaulType string.
+     *
+     * @returns cJSON*
+     * @retval non-null Newly allocated cJSON array on success.
+     * @retval null on validation or allocation failure.
+     */
+    static cJSON *create_haultype_array(const char *haul_val);
+
+     /**!
+     * @brief Check whether a JSON item contains the requested HaulType.
+     *
+     * @param item JSON object expected to contain a "HaulType" array.
+     * @param haul_val HaulType string to match.
+     *
+     * @returns bool
+     * @retval true if the HaulType matches.
+     * @retval false otherwise.
+     */
+    static bool item_matches_haultype(const cJSON *item, const char *haul_val);
+
+    /**!
+     * @brief Format the HaulType array as a comma-separated string.
+     *
+     * @param item JSON object expected to contain a "HaulType" array.
+     * @param out Output buffer for the formatted list.
+     * @param out_len Maximum length of the output buffer.
+     *
+     *  @returns size_t Number of characters written to the output buffer, excluding the null terminator.
+     *
+     *  @note Returns 0 on invalid input or when no HaulType value is formatted.
+     */
+    static size_t format_haultype_list(const cJSON *item, char *out, size_t out_len);
+
+     /**!
+     * @brief Allocate a bus_data_prop_t with a string value.
+     *
+     * @param name Property name.
+     * @param value String value to store.
+     *
+     * @returns bus_data_prop_t*
+     * @retval non-null Allocated property on success.
+     * @retval null on allocation failure or invalid input.
+     *
+     * @note Caller owns the returned property and must free it.
+     */
+    static bus_data_prop_t *tr181_alloc_string_prop(const char *name, const char *value);
+
+    /**!
+     * @brief Build a "Status" output property.
+     *
+     * @param status Status string (e.g., "Success", "Failure: reason").
+     *
+     * @returns bus_data_prop_t*
+     * @retval non-null Allocated property on success.
+     * @retval null on allocation failure or invalid input.
+     *
+     * @note Caller owns the returned property and must free it.
+     */
+    static bus_data_prop_t *tr181_set_status_output_prop(const char *status);
+
+    /**!
+     * @brief Populate output_data with a "Status" property.
+     *
+     * @param output_data Raw output buffer to populate.
+     * @param status Status string (e.g., "Success", "Failure: reason").
+     *
+     * @note On success, output_data takes ownership of the allocated property.
+     */
+    static void tr181_set_status_output(bus_data_prop_t *output_data, const char *status);
+
+    /**!
+     * @brief Copy a string property value into a destination buffer.
+     *
+     * @param prop Property expected to contain a string value.
+     * @param dst Destination buffer.
+     * @param dst_len Length of the destination buffer.
+     *
+     * @returns bool
+     * @retval true if the copy succeeded.
+     * @retval false on invalid input or type mismatch.
+     */
+    static bool tr181_copy_prop_string(const bus_data_prop_t *prop, char *dst, size_t dst_len);
+
+    /**!
+     * @brief Get integer value of property into provided variable.
+     *
+     * @param prop Property expected to contain an integer value.
+     * @param value Destination variable.
+     *
+     * @returns bool
+     * @retval true if the copy succeeded.
+     * @retval false on invalid input or type mismatch.
+     */
+    static bool tr181_get_prop_int(const bus_data_prop_t *prop, int *value);
+
+    /**!
+     * @brief Get boolean value of property into provided variable.
+     *
+     * @param prop Property expected to contain a boolean value.
+     * @param value Destination variable.
+     *
+     * @returns bool
+     * @retval true if the copy succeeded.
+     * @retval false on invalid input or type mismatch.
+     */
+    static bool tr181_get_prop_bool(const bus_data_prop_t *prop, bool *value);
+
+    //Device Callbacks
+    static bus_error_t device_get(char* event_name, raw_data_t* p_data, struct bus_user_data* user_data);
+    static bus_error_t device_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
+    static bus_error_t device_table_add_row_handler(const char* table_name, const char* alias_name, uint32_t* instance_number);
+
+    //Policy Callbacks
+    static bus_error_t policy_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
+    static bus_error_t subs_policy_config(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
+
+    //Radio
+    static bus_error_t radio_get(char* event_name, raw_data_t* p_data, struct bus_user_data* user_data);
+    static bus_error_t radio_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
+    static bus_error_t rbhsta_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
+    static bus_error_t radio_table_add_row_handler(const char* table_name, const char* alias_name, uint32_t* instance_number);
+    static bus_error_t rcaps_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
+    static bus_error_t wf6ap_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
+    static bus_error_t wf6ap_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
+    static bus_error_t wf7ap_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
+    static bus_error_t wf7ap_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
+    static bus_error_t curops_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
+    static bus_error_t curops_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
+    static bus_error_t capops_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
+    static bus_error_t capops_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
+
+    //BSS
+    static bus_error_t bss_get(char* event_name, raw_data_t* p_data, struct bus_user_data* user_data);
+    static bus_error_t bss_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
+    static bus_error_t bss_table_add_row_handler(const char* table_name, const char* alias_name, uint32_t* instance_number);
+
+    //STA
+    static bus_error_t sta_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
+    static bus_error_t sta_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
+    static bus_error_t sta_table_add_row_handler(const char* table_name, const char* alias_name, uint32_t* instance_number);
+
+    //APMLD
+    static bus_error_t apmld_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
+    static bus_error_t apmld_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
+    static bus_error_t apmldcfg_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
+
+    //AffiliatedAP
+    static bus_error_t affap_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
+    static bus_error_t affap_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
+
+    //STAMLD
+    static bus_error_t stamld_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
+    static bus_error_t stamld_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
+    static bus_error_t wifi7caps_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
+    static bus_error_t stamldcfg_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
+
+    //AffiliatedSTA
+    static bus_error_t affsta_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
+    static bus_error_t affsta_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
+
+    //bSTAMLD
+    static bus_error_t bstamld_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
+    static bus_error_t bstacfg_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
+
+    //Orchestrator
+    static bus_error_t get_network_topology(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
+    static bus_error_t get_node_sync(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
+    static bus_error_t set_node_sync(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
+    static bus_error_t policy_config(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
+
+    virtual bus_error_t network_get(char *event_name, raw_data_t *p_data) = 0;
+    virtual bus_error_t device_get(char *event_name, raw_data_t *p_data) = 0;
+    // virtual bus_error_t radio_tget_impl(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data) = 0;
+    // virtual bus_error_t bss_tget_impl(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data) = 0;
+    // virtual bus_error_t ssid_tget_impl(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data) = 0;
+
+    // Data model access
+    bus_error_t wifi_elem_num_of_table_row(char* event_name, uint32_t* table_row_size);
+    
+    // File operations
+    void generate_namespaces_without_lib_refined(const std::string& filename);
+    void register_cjson_namespace(cJSON *node, const std::string &prefix);
+
+    //Data_Elements_JSON_Schema_v3.0 parsing related functions
+    std::string yang_to_tr181_path(const std::string& in);
+    cJSON* follow_ref_if_any(cJSON* root, cJSON* node);
+    cJSON* resolve_ref(cJSON* root, const char* refStr);
+    void parse_property_constraints(cJSON* schemaNode, data_model_properties_t& props);
+    void parse_readwrite(cJSON* schemaNode, data_model_properties_t& props);
+    bool schema_has_type(cJSON* schema, const char* want);
+    bool schema_is_deprecated(cJSON* schema);
+    void handle_property_node(cJSON* root, const std::string& fullPath, cJSON* propertySchema);
+    void traverse_schema(cJSON* root, cJSON* schemaNode, const std::string& basePath);
+    bool parse_and_register_schema(const char *filename);
+};
+
+template <typename T> bus_data_prop_t *tr_181_t::property_init_value(const char *root, unsigned int idx, const char *param, T value)
+{
+    bus_data_prop_t *property = static_cast<bus_data_prop_t *>(calloc(1, sizeof(bus_data_prop_t)));
+
+    if (property == NULL) {
+        return NULL;
+    }
+
+    snprintf(property->name, sizeof(bus_name_string_t), "%s%d.%s", root, idx, param);
+    raw_data_set(&property->value, value);
+    property->name_len = static_cast<uint32_t>(strlen(property->name));
+    property->is_data_set = true;
+
+    return property;
+}
+
+template <typename T> void tr_181_t::property_append_tail(bus_data_prop_t **property, const char *root, unsigned int idx, const char *param, T value)
+{
+    bus_data_prop_t *tail;
+    bus_data_prop_t *last;
+
+    if (*property == NULL) {
+        *property = property_init_value(root, idx, param, value);
+    } else {
+        tail = static_cast<bus_data_prop_t *>(calloc(1, sizeof(bus_data_prop_t)));
+        snprintf(tail->name, sizeof(bus_name_string_t), "%s%d.%s", root, idx, param);
+        raw_data_set(&tail->value, value);
+        tail->name_len = static_cast<uint32_t>(strlen(tail->name));
+        tail->is_data_set = true;
+
+        last = *property;
+        while (last->next_data) {
+            last = last->next_data;
+        }
+        last->next_data = tail;
+    }
+}
+
+#endif // TR_181_H

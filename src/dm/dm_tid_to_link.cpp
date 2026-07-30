@@ -25,11 +25,6 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <net/if.h>
-#include <linux/filter.h>
-#include <netinet/ether.h>
-#include <netpacket/packet.h>
-#include <linux/netlink.h>
-#include <linux/rtnetlink.h>
 #include <sys/ioctl.h>
 #include <sys/socket.h>
 #include <sys/uio.h>
@@ -88,6 +83,7 @@ dm_tid_to_link_t::dm_tid_to_link_t(const dm_tid_to_link_t& tid_to_link)
 }
 
 dm_tid_to_link_t::dm_tid_to_link_t()
+    : m_tid_to_link_info{}
 {
 
 }

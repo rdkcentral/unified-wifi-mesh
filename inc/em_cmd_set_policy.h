@@ -24,7 +24,22 @@
 class em_cmd_set_policy_t : public em_cmd_t {
 
 public:
-    em_cmd_set_policy_t(em_cmd_params_t param, dm_easy_mesh_t& dm);
+    
+	/**!
+	 * @brief Sets the policy for the EasyMesh device.
+	 *
+	 * This function configures the policy settings for the EasyMesh device using the provided parameters.
+	 *
+	 * @param[in] param The command parameters used to set the policy.
+	 * @param[in,out] dm Reference to the EasyMesh device configuration.
+	 *
+	 * @returns em_cmd_set_policy_t The result of the policy setting operation.
+	 * @retval SUCCESS if the policy was set successfully.
+	 * @retval FAILURE if there was an error setting the policy.
+	 *
+	 * @note Ensure that the EasyMesh device is initialized before calling this function.
+	 */
+	em_cmd_set_policy_t(em_cmd_params_t param, dm_easy_mesh_t& dm);
 };
 
 #endif

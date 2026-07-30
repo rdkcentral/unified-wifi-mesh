@@ -24,7 +24,25 @@
 class em_cmd_dev_init_t : public em_cmd_t {
 
 public:
-    em_cmd_dev_init_t(em_cmd_params_t param, dm_easy_mesh_t& dm);
+    
+	/**!
+	 * @brief Initializes the device with the given parameters and mesh configuration.
+	 *
+	 * This function sets up the device using the specified command parameters and
+	 * the provided easy mesh configuration.
+	 *
+	 * @param[in] param The command parameters required for device initialization.
+	 * @param[in,out] dm The easy mesh configuration to be used for initialization.
+	 *                   This parameter is modified during the initialization process.
+	 *
+	 * @returns em_cmd_dev_init_t
+	 * @retval SUCCESS if the device is initialized successfully.
+	 * @retval FAILURE if the initialization fails due to invalid parameters or
+	 *                 configuration issues.
+	 *
+	 * @note Ensure that the device is in a proper state before calling this function.
+	 */
+	em_cmd_dev_init_t(em_cmd_params_t param, dm_easy_mesh_t& dm);
 };
 
 #endif

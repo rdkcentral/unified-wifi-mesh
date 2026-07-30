@@ -25,11 +25,6 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <net/if.h>
-#include <linux/filter.h>
-#include <netinet/ether.h>
-#include <netpacket/packet.h>
-#include <linux/netlink.h>
-#include <linux/rtnetlink.h>
 #include <sys/ioctl.h>
 #include <sys/socket.h>
 #include <sys/uio.h>
@@ -42,9 +37,9 @@
 
 int dm_radio_cap_t::decode(const cJSON *obj, void *parent_id)
 {
-    cJSON *tmp;
-    unsigned int i;
-    em_interface_t	*id = (em_interface_t *)parent_id;
+    //cJSON *tmp;
+    //unsigned int i;
+    em_interface_t	*id = static_cast<em_interface_t *>(parent_id);
     
     memset(&m_radio_cap_info, 0, sizeof(em_radio_cap_info_t));
 
@@ -78,7 +73,6 @@ int dm_radio_cap_t::decode(const cJSON *obj, void *parent_id)
 
 void dm_radio_cap_t::encode(cJSON *obj)
 {
-    unsigned int i;
 /*
     cJSON_AddNumberToObject(obj, "NumberOfOpClass", m_radio_cap_info.num_op_classes);
     cJSON_AddStringToObject(obj, "HTCapabilities", m_radio_cap_info.ht_cap);
@@ -88,37 +82,15 @@ void dm_radio_cap_t::encode(cJSON *obj)
 */
 }
 
-bool dm_radio_cap_t::operator == (const dm_radio_cap_t& obj)
+bool dm_radio_cap_t::operator == (const dm_radio_cap_t& obj) const
 {
-    int ret = 0;
-    ret += (memcmp(&this->m_radio_cap_info.ruid.mac ,&obj.m_radio_cap_info.ruid.mac,sizeof(mac_address_t)) != 0);
-    ret += (memcmp(&this->m_radio_cap_info.ruid.name,&obj.m_radio_cap_info.ruid.name,sizeof(em_interface_name_t)) != 0);
-     ret += (memcmp(&this->m_radio_cap_info.ht_cap,&obj.m_radio_cap_info.ht_cap,sizeof(m_radio_cap_info.ht_cap)) != 0);
-     ret += (memcmp(&this->m_radio_cap_info.vht_cap,&obj.m_radio_cap_info.vht_cap,sizeof(m_radio_cap_info.vht_cap)) != 0);
-     ret += (memcmp(&this->m_radio_cap_info.he_cap,&obj.m_radio_cap_info.he_cap,sizeof(m_radio_cap_info.he_cap)) != 0);
-     ret += (memcmp(&this->m_radio_cap_info.eht_cap,&obj.m_radio_cap_info.eht_cap,sizeof(em_long_string_t)) != 0);
-     ret += !(this->m_radio_cap_info.num_op_classes == obj.m_radio_cap_info.num_op_classes);
-   
-     //em_util_info_print(EM_MGR, "%s:%d: MUH ret=%d\n", __func__, __LINE__,ret);
-
-     if (ret > 0)
-        return false;
-    else
-        return true;
-
+    return (memcmp(&this->m_radio_cap_info, &obj.m_radio_cap_info, sizeof(em_radio_cap_info_t)) == 0);
 }
 
 void dm_radio_cap_t::operator = (const dm_radio_cap_t& obj)
 {
     if (this == &obj) { return; }
-    memcpy(&this->m_radio_cap_info.ruid.mac ,&obj.m_radio_cap_info.ruid.mac,sizeof(mac_address_t));
-    memcpy(&this->m_radio_cap_info.ruid.name,&obj.m_radio_cap_info.ruid.name,sizeof(em_interface_name_t));
-    memcpy(&this->m_radio_cap_info.ht_cap,&obj.m_radio_cap_info.ht_cap,sizeof(m_radio_cap_info.ht_cap));
-    memcpy(&this->m_radio_cap_info.vht_cap,&obj.m_radio_cap_info.vht_cap,sizeof(m_radio_cap_info.vht_cap));
-    memcpy(&this->m_radio_cap_info.he_cap,&obj.m_radio_cap_info.he_cap,sizeof(m_radio_cap_info.he_cap));
-    memcpy(&this->m_radio_cap_info.eht_cap,&obj.m_radio_cap_info.eht_cap,sizeof(em_long_string_t));
-    this->m_radio_cap_info.num_op_classes = obj.m_radio_cap_info.num_op_classes;
-
+    memcpy(&this->m_radio_cap_info, &obj.m_radio_cap_info, sizeof(em_radio_cap_info_t));
 }
 
 dm_radio_cap_t::dm_radio_cap_t(em_radio_cap_info_t *radio_cap)
@@ -133,7 +105,7 @@ dm_radio_cap_t::dm_radio_cap_t(const dm_radio_cap_t& radio_cap)
 
 dm_radio_cap_t::dm_radio_cap_t()
 {
-
+    memset(&m_radio_cap_info, 0, sizeof(m_radio_cap_info));
 }
 
 dm_radio_cap_t::~dm_radio_cap_t()

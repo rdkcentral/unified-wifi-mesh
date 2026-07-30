@@ -24,6 +24,21 @@
 class em_cmd_remove_device_t : public em_cmd_t {
 
 public:
+	
+	/**!
+	 * @brief Removes a device from the EasyMesh network.
+	 *
+	 * This function is responsible for removing a specified device from the EasyMesh network using the provided parameters.
+	 *
+	 * @param[in] param The command parameters required for device removal.
+	 * @param[in,out] dm The EasyMesh network context from which the device will be removed.
+	 *
+	 * @returns em_cmd_remove_device_t
+	 * @retval true if the device was successfully removed.
+	 * @retval false if the device removal failed.
+	 *
+	 * @note Ensure that the device is part of the network before attempting removal.
+	 */
 	em_cmd_remove_device_t(em_cmd_params_t param, dm_easy_mesh_t& dm);
 };
 

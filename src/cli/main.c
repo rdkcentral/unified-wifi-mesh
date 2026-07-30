@@ -44,7 +44,7 @@
 #include "em_cli_apis.h"
 
 const char *prompt = "<<OneWifiMeshCli>>: ";
-
+int parse_args(int argc, const char *argv[], em_cli_params_t *params);
 
 em_network_node_t *editor(em_network_node_t *node, void *user_data)
 {
@@ -75,6 +75,25 @@ em_network_node_t *editor(em_network_node_t *node, void *user_data)
 
 }
 
+int parse_args(int argc, const char *argv[], em_cli_params_t *params)
+{
+	unsigned short a, b, c, d, port; 
+	em_string_t	ip;
+
+	if (argc != 2) {
+		return -1;
+	}
+
+	sscanf(argv[1], "%hd.%hd.%hd.%hd:%hd", &a, &b, &c, &d, &port);	
+	snprintf(ip, sizeof(em_string_t), "%hd.%hd.%hd.%hd", a, b, c, d);
+
+	params->user_data.addr.sin_family = AF_INET;
+    params->user_data.addr.sin_addr.s_addr = inet_addr(ip);
+    params->user_data.addr.sin_port = htons(port);
+	
+	return 0;
+}
+
 int main(int argc, const char *argv[])
 {
    	char *line = NULL;
@@ -82,7 +101,11 @@ int main(int argc, const char *argv[])
 	cJSON *obj;
 	em_cli_params_t	params;
 
-	params.user_data = NULL;
+	if (parse_args(argc, argv, &params) != 0) {
+		printf("%s:%d: Invalid Arrguments\n", __func__, __LINE__);
+		return -1;
+	}
+
 	params.cb_func = editor;
 	params.cli_type = em_cli_type_cmd;
 

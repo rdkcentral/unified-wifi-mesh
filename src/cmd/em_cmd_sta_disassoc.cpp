@@ -25,11 +25,6 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <net/if.h>
-#include <linux/filter.h>
-#include <netinet/ether.h>
-#include <netpacket/packet.h>
-#include <linux/netlink.h>
-#include <linux/rtnetlink.h>
 #include <sys/ioctl.h>
 #include <sys/socket.h>
 #include <sys/uio.h>
@@ -48,7 +43,7 @@ em_cmd_sta_disassoc_t::em_cmd_sta_disassoc_t(em_cmd_disassoc_params_t params)
     m_type = em_cmd_type_sta_disassoc;
     memcpy(&m_param.u.disassoc_params, &params, sizeof(em_cmd_disassoc_params_t));
 
-    memset((unsigned char *)&m_orch_desc[0], 0, EM_MAX_CMD*sizeof(em_orch_desc_t));
+    memset(reinterpret_cast<unsigned char *> (&m_orch_desc[0]), 0, EM_MAX_CMD*sizeof(em_orch_desc_t));
 
     m_orch_op_idx = 0;
     m_num_orch_desc = 1;
@@ -57,7 +52,7 @@ em_cmd_sta_disassoc_t::em_cmd_sta_disassoc_t(em_cmd_disassoc_params_t params)
 
     strncpy(m_name, "disassoc_sta", strlen("disassoc_sta") + 1);
     m_svc = em_service_type_agent;
-    init(&dm);
+    init(dm);
 
     memset(&ctx, 0, sizeof(em_cmd_ctx_t));
     ctx.type = m_orch_desc[0].op;

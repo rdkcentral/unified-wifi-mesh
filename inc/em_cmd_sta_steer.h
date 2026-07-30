@@ -24,7 +24,19 @@
 class em_cmd_sta_steer_t : public em_cmd_t {
 
 public:
-    em_cmd_sta_steer_t(em_cmd_steer_params_t params);
+    
+	/**!
+	 * @brief 
+	 *
+	 * This function is responsible for handling the steering of STA (Station) based on the provided parameters.
+	 *
+	 * @param[in] params The parameters required for steering the STA.
+	 *
+	 * @returns em_cmd_sta_steer_t
+	 *
+	 * @note Ensure that the parameters are correctly initialized before calling this function.
+	 */
+	em_cmd_sta_steer_t(em_cmd_steer_params_t params);
 };
 
 #endif

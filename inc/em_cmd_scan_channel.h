@@ -24,7 +24,22 @@
 class em_cmd_scan_channel_t : public em_cmd_t {
 
 public:
-    em_cmd_scan_channel_t(em_cmd_params_t param, dm_easy_mesh_t& dm);
+    
+	/**!
+	 * @brief Initiates a scan on the specified channel using the provided parameters.
+	 *
+	 * This function is responsible for scanning a channel based on the parameters
+	 * provided in `em_cmd_params_t` and updates the `dm_easy_mesh_t` structure.
+	 *
+	 * @param[in] param The parameters for the scan operation.
+	 * @param[out] dm The easy mesh structure to be updated with scan results.
+	 *
+	 * @returns em_cmd_scan_channel_t The result of the scan operation.
+	 *
+	 * @note Ensure that the `dm` structure is properly initialized before calling
+	 * this function.
+	 */
+	em_cmd_scan_channel_t(em_cmd_params_t param, dm_easy_mesh_t& dm);
 };
 
 #endif

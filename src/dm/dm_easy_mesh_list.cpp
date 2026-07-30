@@ -42,11 +42,11 @@
 #include "em_cmd_dev_init.h"
 #include <cjson/cJSON.h>
 #include "em_cmd_sta_list.h"
-#include "em_cmd_ap_cap.h" 
+#include "em_cmd_ap_cap.h"
+#include "tr_181.h"
 
 dm_network_t *dm_easy_mesh_list_t::get_first_network()
 {
-    unsigned int i;
     dm_network_t *net = NULL;
     dm_easy_mesh_t *dm;
     bool found = false;
@@ -55,14 +55,14 @@ dm_network_t *dm_easy_mesh_list_t::get_first_network()
         return NULL;
     }
 
-    dm = (dm_easy_mesh_t *)hash_map_get_first(m_list);
+    dm = static_cast<dm_easy_mesh_t *> (hash_map_get_first(m_list));
     while (dm != NULL) {
         net = dm->get_network();
 	if (strncmp(net->m_net_info.id, m_network_list[0], strlen(m_network_list[0])) == 0) {
 	    found = true;
 	    break;
 	}
-	dm = (dm_easy_mesh_t *)hash_map_get_next(m_list, dm);
+	dm = static_cast<dm_easy_mesh_t *> (hash_map_get_next(m_list, dm));
     }
 	
     return (found == true) ? net:NULL;
@@ -88,14 +88,14 @@ dm_network_t *dm_easy_mesh_list_t::get_next_network(dm_network_t *net)
 
     net_id_to_find = m_network_list[i + 1];
 
-    dm = (dm_easy_mesh_t *)hash_map_get_first(m_list);
+    dm = static_cast<dm_easy_mesh_t *> (hash_map_get_first(m_list));
     while (dm != NULL) {
         pnet = dm->get_network();
 		if (strncmp(pnet->m_net_info.id, net_id_to_find, strlen(net_id_to_find)) == 0) {
 			found = true;
 			break;
 		}
-		dm = (dm_easy_mesh_t *)hash_map_get_next(m_list, dm);
+		dm = static_cast<dm_easy_mesh_t *> (hash_map_get_next(m_list, dm));
 	}
 	
 
@@ -108,14 +108,14 @@ dm_network_t *dm_easy_mesh_list_t::get_network(const char *key)
     dm_easy_mesh_t *dm = NULL;
     bool found = false;
 
-    dm = (dm_easy_mesh_t *)hash_map_get_first(m_list);
+    dm = static_cast<dm_easy_mesh_t *> (hash_map_get_first(m_list));
     while (dm != NULL) {
         net = dm->get_network();
 		if (strncmp(net->m_net_info.id, key, strlen(key)) == 0) {
 	    	found = true;
 	    	break;
 		}
-		dm = (dm_easy_mesh_t *)hash_map_get_next(m_list, dm);
+		dm = static_cast<dm_easy_mesh_t *> (hash_map_get_next(m_list, dm));
     }
 
     return (found == true) ? net:NULL;
@@ -133,24 +133,24 @@ void dm_easy_mesh_list_t::put_network(const char *key, const dm_network_t *net)
     mac_addr_str_t	mac_str;
     em_network_info_t *net_info;
 
-    net_info = &((dm_network_t *)net)->m_net_info;
-    dm_easy_mesh_t::macbytes_to_string(net_info->colocated_agent_id.mac, mac_str);
+    net_info = &(const_cast<dm_network_t *> (net))->m_net_info;
+    dm_easy_mesh_t::macbytes_to_string(net_info->ctrl_id.mac, mac_str);
 			
     /* try to find any data model with this network, if exists, the colocated dm must be there, otherwise create one */
-    if ((dm = get_data_model(key, net_info->colocated_agent_id.mac)) == NULL) {
-		dm = create_data_model(key, &net_info->colocated_agent_id, em_profile_type_3, true);
+    if ((dm = get_data_model(key, net_info->ctrl_id.mac)) == NULL) {
+		dm = create_data_model(key, &net_info->ctrl_id, em_profile_type_3, true);
 		pnet = dm->get_network();
 		*pnet = *net;	
 		strncpy(m_network_list[m_num_networks], key, strlen(key));
 		m_num_networks++;
     } else {
-        dm = (dm_easy_mesh_t *)hash_map_get_first(m_list);
+        dm = static_cast<dm_easy_mesh_t *> (hash_map_get_first(m_list));
         while (dm != NULL) {
             pnet = dm->get_network();
             if (strncmp(net->m_net_info.id, key, strlen(key)) == 0) {
 	        	*pnet = *net;	
             }
-            dm = (dm_easy_mesh_t *)hash_map_get_next(m_list, dm);
+            dm = static_cast<dm_easy_mesh_t *> (hash_map_get_next(m_list, dm));
         }
     }
 }
@@ -159,7 +159,7 @@ dm_device_t *dm_easy_mesh_list_t::get_first_device()
 {
     dm_easy_mesh_t *dm;
 
-    dm = (dm_easy_mesh_t *)hash_map_get_first(m_list);
+    dm = static_cast<dm_easy_mesh_t *> (hash_map_get_first(m_list));
     if (dm == NULL) {
 		return NULL;
     }
@@ -173,7 +173,7 @@ dm_device_t *dm_easy_mesh_list_t::get_next_device(dm_device_t *dev)
 	bool return_next = false;
 
 
-	dm = (dm_easy_mesh_t *)hash_map_get_first(m_list);
+	dm = static_cast<dm_easy_mesh_t *> (hash_map_get_first(m_list));
 	while (dm != NULL) {
 		if (return_next == true) {
 			break;
@@ -181,7 +181,7 @@ dm_device_t *dm_easy_mesh_list_t::get_next_device(dm_device_t *dev)
 		if (dm->get_device() == dev) {
 			return_next = true;
 		}	
-		dm = (dm_easy_mesh_t *)hash_map_get_next(m_list, dm);
+		dm = static_cast<dm_easy_mesh_t *> (hash_map_get_next(m_list, dm));
 	}
 
     return ((return_next == true) && (dm != NULL)) ? dm->get_device():NULL;
@@ -206,7 +206,7 @@ dm_device_t *dm_easy_mesh_list_t::get_device(const char *key)
 void dm_easy_mesh_list_t::remove_device(const char *key)
 {
     dm_easy_mesh_t *dm;
-    dm = (dm_easy_mesh_t *)hash_map_remove(m_list, key);
+    dm = static_cast<dm_easy_mesh_t *> (hash_map_remove(m_list, key));
 	if (dm != NULL) {
 		delete dm;
 	}
@@ -223,7 +223,7 @@ void dm_easy_mesh_list_t::put_device(const char *key, const dm_device_t *dev)
 	dm_easy_mesh_t::macbytes_to_string(id.dev_mac, mac_str);
 
     if ((pdev = get_device(key)) == NULL) {
-        //printf("%s:%d: device at key: %s not found\n", __func__, __LINE__, key);
+        em_printfout("device at key: %s not found\n", key);
 	    dm = create_data_model(dev->m_device_info.id.net_id, &dev->m_device_info.intf, dev->m_device_info.profile);
         pdev = dm->get_device();
     }
@@ -237,19 +237,39 @@ void dm_easy_mesh_list_t::put_device(const char *key, const dm_device_t *dev)
 	}
 }
 
+void dm_easy_mesh_list_t::update_device(const char *key, const dm_device_t *dev)
+{
+    dm_easy_mesh_t *dm;
+    dm_device_t *pdev;
+    mac_addr_str_t mac_str;
+	em_device_id_t	id;
+
+	dm_device_t::parse_device_id_from_key(key, &id);
+	dm_easy_mesh_t::macbytes_to_string(id.dev_mac, mac_str);
+
+    if ((pdev = get_device(key)) != NULL) {
+        memcpy(&pdev->m_device_info, &dev->m_device_info, sizeof(em_device_info_t));
+	    dm = get_data_model(pdev->m_device_info.id.net_id, pdev->m_device_info.id.dev_mac);
+        if (dm == NULL) {
+            em_printfout("Could not find data model for device at key: %s@%s", pdev->m_device_info.id.net_id, mac_str);
+            return;
+        }
+    }
+}
+
 dm_radio_t *dm_easy_mesh_list_t::get_first_radio()
 {
     dm_radio_t *radio = NULL;
     dm_easy_mesh_t *dm;
 
-    dm = (dm_easy_mesh_t *)hash_map_get_first(m_list);
+    dm = static_cast<dm_easy_mesh_t *> (hash_map_get_first(m_list));
     while (dm != NULL) {
         //printf("%s:%d: Number of radios:%d\n", __func__, __LINE__, dm->get_num_radios());
         if (dm->get_num_radios() > 0) {
-            radio = dm->get_radio((unsigned int)0);
+            radio = dm->get_radio(static_cast<unsigned int> (0));
             break;
         }
-        dm = (dm_easy_mesh_t *)hash_map_get_next(m_list, dm);
+        dm = static_cast<dm_easy_mesh_t *> (hash_map_get_next(m_list, dm));
     }
 
     return radio;
@@ -263,7 +283,7 @@ dm_radio_t *dm_easy_mesh_list_t::get_next_radio(dm_radio_t *radio)
 	unsigned int i;
 
 	
-	dm = (dm_easy_mesh_t *)hash_map_get_first(m_list);
+	dm = static_cast<dm_easy_mesh_t *> (hash_map_get_first(m_list));
 	while (dm != NULL) {
         if (return_next == true) {
             if (dm->get_num_radios()) {
@@ -286,7 +306,7 @@ dm_radio_t *dm_easy_mesh_list_t::get_next_radio(dm_radio_t *radio)
 			}
 		}
 
-		dm = (dm_easy_mesh_t *)hash_map_get_next(m_list, dm);
+		dm = static_cast<dm_easy_mesh_t *> (hash_map_get_next(m_list, dm));
         
         if ((dm == NULL) && (return_next == true)) {
             return_next = false;
@@ -304,9 +324,9 @@ dm_radio_t *dm_easy_mesh_list_t::get_radio(const char *key)
 	bool found = false;
 	mac_address_t mac;
 
-	dm_easy_mesh_t::string_to_macbytes((char *)key, mac);
+	dm_easy_mesh_t::string_to_macbytes(const_cast<char *> (key), mac);
 	
-	dm = (dm_easy_mesh_t *)hash_map_get_first(m_list);
+	dm = static_cast<dm_easy_mesh_t *> (hash_map_get_first(m_list));
 	while (dm != NULL) {
 		for (i = 0;  i < dm->get_num_radios(); i++) {
 			radio = dm->get_radio(i);
@@ -319,7 +339,7 @@ dm_radio_t *dm_easy_mesh_list_t::get_radio(const char *key)
 		if (found == true) {
 			break;
 		}
-		dm = (dm_easy_mesh_t *)hash_map_get_next(m_list, dm);
+		dm = static_cast<dm_easy_mesh_t *> (hash_map_get_next(m_list, dm));
 	}
 
     return (found == true) ? radio:NULL;
@@ -334,33 +354,65 @@ void dm_easy_mesh_list_t::put_radio(const char *key, const dm_radio_t *radio)
 {
     dm_radio_t *pradio = NULL;
     dm_easy_mesh_t	*dm = NULL;
-    mac_addr_str_t	radio_mac, dev_mac;
     em_t *em = NULL;
 
-    //printf("%s:%d: Radio: %s\n", __func__, __LINE__, key);
+    //em_printfout("Radio: %s", key);
 
     if ((pradio = get_radio(key)) == NULL) {
         dm = get_data_model(radio->m_radio_info.id.net_id, radio->m_radio_info.id.dev_mac);
-        dm_easy_mesh_t::macbytes_to_string((unsigned char *)radio->m_radio_info.id.dev_mac, dev_mac);
-		//printf("%s:%d: dm: %p net: %s device: %s\n", __func__, __LINE__, dm, radio->m_radio_info.net_id, dev_mac);
+        //em_printfout("dm: %p net: %s device: %s", dm, radio->m_radio_info.id.net_id,
+        //      util::mac_to_string(radio->m_radio_info.id.dev_mac).c_str());
         if (dm == NULL) {
             return;
         }
 
-        //printf("%s:%d: Current Number of Radios: %d\n", __func__, __LINE__, dm->get_num_radios());
+        //em_printfout("Current Number of Radios: %d", dm->get_num_radios());
         dm->set_num_radios(dm->get_num_radios() + 1);
         pradio = dm->get_radio(dm->get_num_radios() - 1);
     }
     *pradio = *radio;
 
-    if ((em = m_mgr->create_node(&pradio->m_radio_info.intf, (em_freq_band_t)pradio->m_radio_info.media_data.band, dm, false,
-            em_profile_type_3, em_service_type_ctrl)) != NULL) {
-        printf("%s:%d Node created successfully\n", __func__, __LINE__);
+    // Create default per-radio policies (radio_metrics_rep and steering_param) for newly discovered radios.
+    if (dm != NULL) {
+        bool has_radio_metrics = false, has_steering_param = false;
+        for (unsigned int p = 0; p < dm->get_num_policy(); p++) {
+            if (memcmp(dm->m_policy[p].m_policy.id.radio_mac, pradio->m_radio_info.intf.mac, sizeof(mac_address_t)) == 0) {
+                if (dm->m_policy[p].m_policy.id.type == em_policy_id_type_radio_metrics_rep) has_radio_metrics = true;
+                if (dm->m_policy[p].m_policy.id.type == em_policy_id_type_steering_param) has_steering_param = true;
+            }
+        }
+        if (!has_radio_metrics) {
+            em_policy_t rm_default = {};
+            strncpy(rm_default.id.net_id, "OneWifiMesh", sizeof(rm_default.id.net_id) - 1);
+            rm_default.id.type = em_policy_id_type_radio_metrics_rep;
+            rm_default.policy = em_steering_policy_type_disallowed;
+            rm_default.util_threshold = 60;
+            rm_default.rcpi_threshold = 120;
+            rm_default.rcpi_hysteresis = 5;
+            rm_default.sta_traffic_stats = true;
+            rm_default.sta_link_metric = true;
+            dm_policy_t rp(rm_default);
+            memcpy(rp.m_policy.id.radio_mac, pradio->m_radio_info.intf.mac, sizeof(mac_address_t));
+            dm->set_policy(rp);
+        }
+        if (!has_steering_param) {
+            em_policy_t sp_default = {};
+            strncpy(sp_default.id.net_id, "OneWifiMesh", sizeof(sp_default.id.net_id) - 1);
+            sp_default.id.type = em_policy_id_type_steering_param;
+            sp_default.policy = em_steering_policy_type_rcpi_allowed;
+            sp_default.util_threshold = 60;
+            sp_default.rcpi_threshold = 120;
+            dm_policy_t sp(sp_default);
+            memcpy(sp.m_policy.id.radio_mac, pradio->m_radio_info.intf.mac, sizeof(mac_address_t));
+            dm->set_policy(sp);
+        }
     }
 
-    dm_easy_mesh_t::macbytes_to_string(pradio->m_radio_info.intf.mac, radio_mac);
-    dm_easy_mesh_t::macbytes_to_string(pradio->m_radio_info.id.dev_mac, dev_mac);
-
+    em_printfout("Radio dev_id is:%s", util::mac_to_string(pradio->m_radio_info.id.dev_mac).c_str());
+    if ((em = m_mgr->create_node(&pradio->m_radio_info.intf, static_cast<em_freq_band_t> (pradio->m_radio_info.media_data.band), dm, false,
+            em_profile_type_3, em_service_type_ctrl)) != NULL) {
+        em_printfout("Node created successfully for radio:%s almac:%s", key, util::mac_to_string(pradio->m_radio_info.id.dev_mac).c_str());
+    }
 }
 
 dm_radio_t *dm_easy_mesh_list_t::get_first_radio(const char *net_id, mac_address_t al_mac)
@@ -407,14 +459,14 @@ dm_bss_t *dm_easy_mesh_list_t::get_first_bss()
     dm_easy_mesh_t *dm;
     bool found = false;
 
-    dm = (dm_easy_mesh_t *)hash_map_get_first(m_list);
+    dm = static_cast<dm_easy_mesh_t *> (hash_map_get_first(m_list));
     while (dm != NULL) {
         if (dm->get_num_bss() > 0) {
-            bss = dm->get_bss((unsigned int)0);
+            bss = dm->get_bss(static_cast<unsigned int> (0));
 			found = true;
 			break;
         }
-        dm = (dm_easy_mesh_t *)hash_map_get_next(m_list, dm);
+        dm = static_cast<dm_easy_mesh_t *> (hash_map_get_next(m_list, dm));
     }
     return (found == true) ? bss:NULL;
     
@@ -427,7 +479,7 @@ dm_bss_t *dm_easy_mesh_list_t::get_next_bss(dm_bss_t *bss)
     bool return_next = false;
     unsigned int i;
 
-    dm = (dm_easy_mesh_t *)hash_map_get_first(m_list);
+    dm = static_cast<dm_easy_mesh_t *> (hash_map_get_first(m_list));
     while (dm != NULL) {
         if (return_next == true) {
             if (dm->get_num_bss()) {
@@ -449,7 +501,7 @@ dm_bss_t *dm_easy_mesh_list_t::get_next_bss(dm_bss_t *bss)
             }
         }
 
-        dm = (dm_easy_mesh_t *)hash_map_get_next(m_list, dm);
+        dm = static_cast<dm_easy_mesh_t *> (hash_map_get_next(m_list, dm));
         if ((dm == NULL) && (return_next == true)) {
             return_next = false;
         }
@@ -463,7 +515,6 @@ dm_bss_t *dm_easy_mesh_list_t::get_bss(const char *key)
 	em_bss_id_t id;
 	mac_addr_str_t dev_mac_str;
 	dm_easy_mesh_t *dm;
-	dm_bss_t *pbss;
 
 	dm_bss_t::parse_bss_id_from_key(key, &id);
 	dm_easy_mesh_t::macbytes_to_string(id.dev_mac, dev_mac_str);	
@@ -474,6 +525,43 @@ dm_bss_t *dm_easy_mesh_list_t::get_bss(const char *key)
 	}
 
 	return dm->find_matching_bss(&id);
+}
+
+dm_bss_t *dm_easy_mesh_list_t::get_first_bss(mac_addr_t al_mac)
+{
+    dm_easy_mesh_t *dm;
+
+    dm = get_data_model(GLOBAL_NET_ID, al_mac);
+    if ((dm != NULL) && (dm->get_num_bss() > 0)) {
+        return &dm->m_bss[0];
+    }
+
+    return NULL;
+}
+
+dm_bss_t *dm_easy_mesh_list_t::get_next_bss(mac_addr_t al_mac, dm_bss_t *bss)
+{
+    dm_easy_mesh_t *dm;
+    unsigned int i;
+    bool found_match = false;
+
+    dm = get_data_model(GLOBAL_NET_ID, al_mac);
+    if ((dm == NULL) || (dm->get_num_bss() == 0)) {
+        return NULL;
+    }
+
+    for (i = 0; i < dm->get_num_bss(); i++) {
+        if (&dm->m_bss[i] == bss) {
+            found_match = true;
+            break;
+        }
+    }
+
+    if ((found_match == true) && (i < (dm->get_num_bss() - 1))) {
+        return &dm->m_bss[i + 1];
+    }
+
+    return NULL;
 }
 
 void dm_easy_mesh_list_t::remove_bss(const char *key)
@@ -529,13 +617,13 @@ dm_sta_t *dm_easy_mesh_list_t::get_first_sta()
     dm_sta_t *sta = NULL;
     dm_easy_mesh_t *dm;
 
-    dm = (dm_easy_mesh_t *)hash_map_get_first(m_list);
+    dm = static_cast<dm_easy_mesh_t *> (hash_map_get_first(m_list));
     while (dm != NULL) {
-        sta = (dm_sta_t *)hash_map_get_first(dm->m_sta_map);
+        sta = static_cast<dm_sta_t *> (hash_map_get_first(dm->m_sta_map));
         if (sta != NULL) {
             return sta;
         }
-        dm = (dm_easy_mesh_t *)hash_map_get_next(m_list, dm);
+        dm = static_cast<dm_easy_mesh_t *> (hash_map_get_next(m_list, dm));
     }
 
     return sta;
@@ -547,9 +635,9 @@ dm_sta_t *dm_easy_mesh_list_t::get_next_sta(dm_sta_t *psta)
     dm_easy_mesh_t *dm;
     bool return_next = false;
 
-    dm = (dm_easy_mesh_t *)hash_map_get_first(m_list);
+    dm = static_cast<dm_easy_mesh_t *> (hash_map_get_first(m_list));
     while (dm != NULL) {
-        sta = (dm_sta_t *)hash_map_get_first(dm->m_sta_map);
+        sta = static_cast<dm_sta_t *> (hash_map_get_first(dm->m_sta_map));
         while (sta != NULL) {
             if (return_next == true) {
                 return sta;
@@ -557,9 +645,9 @@ dm_sta_t *dm_easy_mesh_list_t::get_next_sta(dm_sta_t *psta)
             if (sta == psta) {
                 return_next = true;
             }
-            sta = (dm_sta_t *)hash_map_get_next(dm->m_sta_map, sta);
+            sta = static_cast<dm_sta_t *> (hash_map_get_next(dm->m_sta_map, sta));
         }
-        dm = (dm_easy_mesh_t *)hash_map_get_next(m_list, dm);
+        dm = static_cast<dm_easy_mesh_t *> (hash_map_get_next(m_list, dm));
     }
 
     return NULL;
@@ -577,7 +665,7 @@ dm_sta_t *dm_easy_mesh_list_t::get_sta(const char *key)
 
     dm_sta_t::parse_sta_bss_radio_from_key(key, sta_mac, bssid, ruid);
 
-    dm = (dm_easy_mesh_t *)hash_map_get_first(m_list);
+    dm = static_cast<dm_easy_mesh_t *> (hash_map_get_first(m_list));
     while (dm != NULL) {
         for (i = 0; i < dm->m_num_radios; i++) {
             if (memcmp(dm->m_radio[i].m_radio_info.intf.mac, ruid, sizeof(mac_address_t)) == 0) {
@@ -589,7 +677,7 @@ dm_sta_t *dm_easy_mesh_list_t::get_sta(const char *key)
         if (found == true) {
             break;
         }
-        dm = (dm_easy_mesh_t *)hash_map_get_next(m_list, dm);
+        dm = static_cast<dm_easy_mesh_t *> (hash_map_get_next(m_list, dm));
     }
 
     if (found == false) {
@@ -600,7 +688,7 @@ dm_sta_t *dm_easy_mesh_list_t::get_sta(const char *key)
     dm_easy_mesh_t::macbytes_to_string(bssid, bssid_str);
     dm_easy_mesh_t::macbytes_to_string(ruid, radio_mac_str);
 
-    if ((sta = (dm_sta_t *)hash_map_get(dm->m_sta_map, key)) != NULL) {
+    if ((sta = static_cast<dm_sta_t *> (hash_map_get(dm->m_sta_map, key))) != NULL) {
         //printf("%s:%d: STA:%s found on BSS:%s of radio:%s\n", __func__, __LINE__,
         //sta_mac_str, bssid_str, radio_mac_str);
         return sta;
@@ -629,7 +717,7 @@ void dm_easy_mesh_list_t::put_sta(const char *key, const dm_sta_t *sta)
     dm_easy_mesh_t::macbytes_to_string(bssid, bssid_str);
     dm_easy_mesh_t::macbytes_to_string(ruid, radio_mac_str);
 
-    dm = (dm_easy_mesh_t *)hash_map_get_first(m_list);
+    dm = static_cast<dm_easy_mesh_t *> (hash_map_get_first(m_list));
     while (dm != NULL) {
         for (i = 0; i < dm->m_num_radios; i++) {
             if (memcmp(dm->m_radio[i].m_radio_info.intf.mac, ruid, sizeof(mac_address_t)) == 0) {
@@ -641,7 +729,7 @@ void dm_easy_mesh_list_t::put_sta(const char *key, const dm_sta_t *sta)
         if (found == true) {
             break;
         }
-        dm = (dm_easy_mesh_t *)hash_map_get_next(m_list, dm);
+        dm = static_cast<dm_easy_mesh_t *> (hash_map_get_next(m_list, dm));
     }
 
     if (found == false) {
@@ -649,9 +737,9 @@ void dm_easy_mesh_list_t::put_sta(const char *key, const dm_sta_t *sta)
         return;
     }
 
-    if ((psta = (dm_sta_t *)hash_map_get(dm->m_sta_map, key)) != NULL) {
-        //printf("%s:%d: STA:%s already present on BSS:%s of radio:%s\n", __func__, __LINE__,
-        //		sta_mac_str, bssid_str, radio_mac_str);
+    if ((psta = static_cast<dm_sta_t *> (hash_map_get(dm->m_sta_map, key))) != NULL) {
+        //printf("%s:%d: STA:%s already present on BSS:%s of radio:%s dm:%p dm_mac:%s\n", __func__, __LINE__,
+        //    sta_mac_str, bssid_str, radio_mac_str, dm, util::mac_to_string(dm->m_device.m_device_info.intf.mac).c_str());
         memcpy(&psta->m_sta_info, &sta->m_sta_info, sizeof(em_sta_info_t));
         return;
     }
@@ -659,8 +747,8 @@ void dm_easy_mesh_list_t::put_sta(const char *key, const dm_sta_t *sta)
     psta = new dm_sta_t(*sta);
     hash_map_put(dm->m_sta_map, strdup(key), psta);
 
-    //printf("%s:%d: STA:%s added to BSS:%s of radio:%s\n", __func__, __LINE__,
-            //sta_mac_str, bssid_str, radio_mac_str);
+    //printf("%s:%d: STA:%s added to BSS:%s of radio:%s dm:%p dm_mac:%s\n", __func__, __LINE__,
+    //        sta_mac_str, bssid_str, radio_mac_str, dm, util::mac_to_string(dm->m_device.m_device_info.intf.mac).c_str());
 }
 
 dm_network_ssid_t *dm_easy_mesh_list_t::get_first_network_ssid()
@@ -669,12 +757,12 @@ dm_network_ssid_t *dm_easy_mesh_list_t::get_first_network_ssid()
     dm_easy_mesh_t *dm;
 
 	
-	dm = (dm_easy_mesh_t *)hash_map_get_first(m_list);
+	dm = static_cast<dm_easy_mesh_t *> (hash_map_get_first(m_list));
 	while (dm != NULL) {
 		if (dm->get_num_network_ssid() > 0) {
-			net_ssid = dm->get_network_ssid((unsigned int)0);
+			net_ssid = dm->get_network_ssid(static_cast<unsigned int> (0));
 		}
-		dm = (dm_easy_mesh_t *)hash_map_get_next(m_list, dm);
+		dm = static_cast<dm_easy_mesh_t *> (hash_map_get_next(m_list, dm));
 	}
 
     return net_ssid;
@@ -687,7 +775,7 @@ dm_network_ssid_t *dm_easy_mesh_list_t::get_next_network_ssid(dm_network_ssid_t 
     bool return_next = false;
     unsigned int i;
 
-    dm = (dm_easy_mesh_t *)hash_map_get_first(m_list);
+    dm = static_cast<dm_easy_mesh_t *> (hash_map_get_first(m_list));
     while (dm != NULL) {
         if (return_next == true) {
             if (dm->get_num_network_ssid()) {
@@ -711,7 +799,7 @@ dm_network_ssid_t *dm_easy_mesh_list_t::get_next_network_ssid(dm_network_ssid_t 
             }
         }
 
-        dm = (dm_easy_mesh_t *)hash_map_get_next(m_list, dm);
+        dm = static_cast<dm_easy_mesh_t *> (hash_map_get_next(m_list, dm));
         if ((dm == NULL) && (return_next == true)) {
             return_next = false;
         }
@@ -726,9 +814,8 @@ dm_network_ssid_t *dm_easy_mesh_list_t::get_network_ssid(const char *key)
     dm_easy_mesh_t *dm;
     unsigned int i;
     bool found = false;
-    mac_address_t mac;
 
-    dm = (dm_easy_mesh_t *)hash_map_get_first(m_list);
+    dm = static_cast<dm_easy_mesh_t *> (hash_map_get_first(m_list));
     while (dm != NULL) {
         for (i = 0;  i < dm->get_num_network_ssid(); i++) {
             net_ssid = dm->get_network_ssid(i);
@@ -741,7 +828,7 @@ dm_network_ssid_t *dm_easy_mesh_list_t::get_network_ssid(const char *key)
         if (found == true) {
             break;
         }
-        dm = (dm_easy_mesh_t *)hash_map_get_next(m_list, dm);
+        dm = static_cast<dm_easy_mesh_t *> (hash_map_get_next(m_list, dm));
     }
     return (found == true) ? net_ssid:NULL;
 }
@@ -751,12 +838,12 @@ void dm_easy_mesh_list_t::debug_probe()
     dm_easy_mesh_t *dm;
     mac_addr_str_t  mac_str;
 
-    dm = (dm_easy_mesh_t *)hash_map_get_first(m_list);
+    dm = static_cast<dm_easy_mesh_t *> (hash_map_get_first(m_list));
     while (dm != NULL) {
         dm_easy_mesh_t::macbytes_to_string(dm->get_agent_al_interface_mac(), mac_str);
         //printf("%s:%d: Dst AL MAC: %s\n", __func__, __LINE__, mac_str);
         //printf("%s:%d: Number of radios:%d Number of BSS: %d\n", __func__, __LINE__, dm->get_num_radios(), dm->get_num_bss());
-        dm = (dm_easy_mesh_t *)hash_map_get_next(m_list, dm);
+        dm = static_cast<dm_easy_mesh_t *> (hash_map_get_next(m_list, dm));
     }
 }
 
@@ -768,7 +855,7 @@ void dm_easy_mesh_list_t::remove_network_ssid(const char *key)
     bool found = false;
 
     //printf("%s:%d: Remove: %s\n", __func__, __LINE__, key);
-    dm = (dm_easy_mesh_t *)hash_map_get_first(m_list);
+    dm = static_cast<dm_easy_mesh_t *> (hash_map_get_first(m_list));
     while (dm != NULL) {
         for (i = 0;  i < EM_MAX_NET_SSIDS; i++) {
             net_ssid = dm->get_network_ssid(i);
@@ -781,11 +868,11 @@ void dm_easy_mesh_list_t::remove_network_ssid(const char *key)
         if (found == true) {
             //printf("%s:%d: Removing at index: %d\n", __func__, __LINE__, i);
             tgt = dm->get_network_ssid(i);
-            memset((unsigned char *)&tgt->m_network_ssid_info, 0, sizeof(em_network_ssid_info_t)); 
+            memset(reinterpret_cast<unsigned char *> (&tgt->m_network_ssid_info), 0, sizeof(em_network_ssid_info_t)); 
             dm->set_num_network_ssid(dm->get_num_network_ssid() - 1);
         }
 
-        dm = (dm_easy_mesh_t *)hash_map_get_next(m_list, dm);
+        dm = static_cast<dm_easy_mesh_t *> (hash_map_get_next(m_list, dm));
     }
 }
 
@@ -810,11 +897,11 @@ void dm_easy_mesh_list_t::put_network_ssid(const char *key, const dm_network_ssi
     *ptr = 0;
 
 
-    dm = (dm_easy_mesh_t *)hash_map_get_first(m_list);
+    dm = static_cast<dm_easy_mesh_t *> (hash_map_get_first(m_list));
     while (dm != NULL) {
         net = dm->get_network();
         if (strncmp(net->m_net_info.id, net_id, strlen(net_id)) != 0) {
-            dm = (dm_easy_mesh_t *)hash_map_get_next(m_list, dm);
+            dm = static_cast<dm_easy_mesh_t *> (hash_map_get_next(m_list, dm));
             continue;
         }
         for (i = 0;  i < dm->get_num_network_ssid(); i++) {
@@ -833,7 +920,7 @@ void dm_easy_mesh_list_t::put_network_ssid(const char *key, const dm_network_ssi
             *pnet_ssid = *net_ssid;
             dm->set_num_network_ssid(dm->get_num_network_ssid() + 1);
         }
-        dm = (dm_easy_mesh_t *)hash_map_get_next(m_list, dm);
+        dm = static_cast<dm_easy_mesh_t *> (hash_map_get_next(m_list, dm));
     }
 }
 
@@ -843,14 +930,14 @@ dm_op_class_t *dm_easy_mesh_list_t::get_first_op_class()
     dm_easy_mesh_t *dm;
 	bool found = false;
     
-    dm = (dm_easy_mesh_t *)hash_map_get_first(m_list);
+    dm = static_cast<dm_easy_mesh_t *> (hash_map_get_first(m_list));
     while (dm != NULL) {
         if (dm->get_num_op_class() > 0) {
-            op_class = dm->get_op_class((unsigned int)0);
+            op_class = dm->get_op_class(static_cast<unsigned int> (0));
 			found = true;
 			break;
         }
-        dm = (dm_easy_mesh_t *)hash_map_get_next(m_list, dm);
+        dm = static_cast<dm_easy_mesh_t *> (hash_map_get_next(m_list, dm));
     }
 
     return (found == true) ? op_class:NULL;
@@ -863,7 +950,7 @@ dm_op_class_t *dm_easy_mesh_list_t::get_next_op_class(dm_op_class_t *op_class)
     bool return_next = false;
     unsigned int i;
         
-    dm = (dm_easy_mesh_t *)hash_map_get_first(m_list);
+    dm = static_cast<dm_easy_mesh_t *> (hash_map_get_first(m_list));
     while (dm != NULL) {
         if (return_next == true) {
             if (dm->get_num_op_class()) {
@@ -885,7 +972,7 @@ dm_op_class_t *dm_easy_mesh_list_t::get_next_op_class(dm_op_class_t *op_class)
             }
         }
 
-        dm = (dm_easy_mesh_t *)hash_map_get_next(m_list, dm);
+        dm = static_cast<dm_easy_mesh_t *> (hash_map_get_next(m_list, dm));
         if ((dm == NULL) && (return_next == true)) {
             return_next = false;
         }
@@ -910,9 +997,9 @@ dm_op_class_t *dm_easy_mesh_list_t::get_op_class(const char *key)
 	dm_easy_mesh_t::macbytes_to_string(id.ruid, mac_str);
 	//printf("%s:%d: MAC: %s\tType: %d\tClass: %d\n", __func__, __LINE__, mac_str, id.type, id.op_class);
 	
-    dm = (dm_easy_mesh_t *)hash_map_get_first(m_list);
+    dm = static_cast<dm_easy_mesh_t *> (hash_map_get_first(m_list));
     while (dm != NULL) {
-        if (id.type <= em_op_class_type_capability) {
+        if (id.type <= em_op_class_type_capability || id.type == em_op_class_type_preference || id.type == em_op_class_type_anticipated ) {
 		    for (i = 0; i < dm->get_num_radios(); i++) {
 			    radio = dm->get_radio(i);
 			    if (memcmp(radio->m_radio_info.intf.mac, id.ruid, sizeof(mac_address_t)) == 0) {
@@ -924,12 +1011,20 @@ dm_op_class_t *dm_easy_mesh_list_t::get_op_class(const char *key)
 			if (memcmp(dm->m_device.m_device_info.intf.mac, id.ruid, sizeof(mac_address_t)) == 0) {
             	found_dm = true;
            	}
-		}	
-
-		if (found_dm == true) {
-			break;
 		}
-        dm = (dm_easy_mesh_t *)hash_map_get_next(m_list, dm);
+
+        if (found_dm == true) {
+            break;
+        } else {
+            if (((memcmp(dm->m_device.m_device_info.intf.mac, id.ruid, sizeof(mac_address_t)) == 0) ||
+                (memcmp(EM_GLOBAL_MAC_ADDRESS, id.ruid, sizeof(mac_address_t)) == 0)) &&
+                (id.type == em_op_class_type_anticipated))
+            {
+                found_dm = true;
+                break;
+            }
+        }
+        dm = static_cast<dm_easy_mesh_t *> (hash_map_get_next(m_list, dm));
 	}
 
 	if (found_dm == false) {
@@ -961,15 +1056,19 @@ dm_op_class_t *dm_easy_mesh_list_t::get_first_pre_set_op_class_by_type(em_op_cla
 	dm_op_class_t *op_class;
 	unsigned int i;
     
-	dm = (dm_easy_mesh_t *)hash_map_get_first(m_list);
+	dm = static_cast<dm_easy_mesh_t *> (hash_map_get_first(m_list));
     if (dm == NULL) {
 		return NULL;
     }
 
 	for (i = 0; i < dm->get_num_op_class(); i++) {
 		op_class = &dm->m_op_class[i];
-		if (op_class->m_op_class_info.id.type == type) {
-			return op_class;
+        // Make sure PRESET opclasses should not include the radio level anticipated opclasses
+		if (op_class->m_op_class_info.id.type == type ) {
+                if (type != em_op_class_type_anticipated ||
+                    memcmp(op_class->m_op_class_info.id.ruid, dm->m_device.m_device_info.intf.mac, sizeof(mac_address_t)) == 0) {
+                    return op_class;
+                }
 		}
 	}	
 
@@ -983,7 +1082,7 @@ dm_op_class_t *dm_easy_mesh_list_t::get_next_pre_set_op_class_by_type(em_op_clas
 	unsigned int i;
 	bool return_next = false;
     
-	dm = (dm_easy_mesh_t *)hash_map_get_first(m_list);
+	dm = static_cast<dm_easy_mesh_t *> (hash_map_get_first(m_list));
     if (dm == NULL) {
 		return NULL;
     }
@@ -992,7 +1091,10 @@ dm_op_class_t *dm_easy_mesh_list_t::get_next_pre_set_op_class_by_type(em_op_clas
 		pop_class = &dm->m_op_class[i];
 
 		if ((return_next == true) && (pop_class->m_op_class_info.id.type == type)) {
-			return pop_class;
+            if (type != em_op_class_type_anticipated ||
+                memcmp(pop_class->m_op_class_info.id.ruid, dm->m_device.m_device_info.intf.mac, sizeof(mac_address_t)) == 0) {
+                return pop_class;
+            }
 		}
 
 		if ((pop_class->m_op_class_info.id.type == type) &&
@@ -1020,15 +1122,15 @@ void dm_easy_mesh_list_t::put_op_class(const char *key, const dm_op_class_t *op_
 	dm_op_class_t	*pop_class;
 	dm_radio_t *radio;
 
-	dm_easy_mesh_t::macbytes_to_string((unsigned char *)op_class->m_op_class_info.id.ruid, mac_str);
+	dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *> (op_class->m_op_class_info.id.ruid), mac_str);
 	//printf("%s:%d: key: %s, ruid: %s, type: %d, op_class: %d\n", __func__, __LINE__, 
 		//key, mac_str, op_class->m_op_class_info.id.type, op_class->m_op_class_info.id.op_class);
 	dm_op_class_t::parse_op_class_id_from_key(key, &id);
 
 	// find the dm that has this radio
-    dm = (dm_easy_mesh_t *)hash_map_get_first(m_list);
+    dm = static_cast<dm_easy_mesh_t *> (hash_map_get_first(m_list));
     while (dm != NULL) {
-        if (id.type <= em_op_class_type_capability) {
+        if (id.type <= em_op_class_type_capability || id.type == em_op_class_type_preference || id.type == em_op_class_type_anticipated) {
             for (i = 0; i < dm->get_num_radios(); i++) {
                 radio = dm->get_radio(i);
                 dm_easy_mesh_t::macbytes_to_string(radio->m_radio_info.intf.mac, mac_str);
@@ -1049,12 +1151,18 @@ void dm_easy_mesh_list_t::put_op_class(const char *key, const dm_op_class_t *op_
             if ((memcmp(dm->m_device.m_device_info.intf.mac, id.ruid, sizeof(mac_address_t)) == 0) && (id.type >= em_op_class_type_cac_available)) {
                 found_dm = true;
                 break;
+            } else if ((memcmp(EM_GLOBAL_MAC_ADDRESS, id.ruid, sizeof(mac_address_t)) == 0) && (id.type == em_op_class_type_anticipated)) {
+                found_dm = true;
+                break;
             }
         }
-        dm = (dm_easy_mesh_t *)hash_map_get_next(m_list, dm);
+        dm = static_cast<dm_easy_mesh_t *> (hash_map_get_next(m_list, dm));
     }
 
-    assert(found_dm == true);
+    if (found_dm != true) {
+        em_printfout("dm for  mac address:%s id.type:%d not found, return...", mac_str, id.type);
+        return;
+    }
 
     // now check if the op class is already there
     for (i = 0; i < dm->get_num_op_class(); i++) {
@@ -1069,7 +1177,7 @@ void dm_easy_mesh_list_t::put_op_class(const char *key, const dm_op_class_t *op_
 
     pop_class = &dm->m_op_class[dm->get_num_op_class()];
     memcpy(&pop_class->m_op_class_info, &op_class->m_op_class_info, sizeof(em_op_class_info_t));
-	dm_easy_mesh_t::macbytes_to_string((unsigned char *)pop_class->m_op_class_info.id.ruid, mac_str);
+	dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *> (pop_class->m_op_class_info.id.ruid), mac_str);
 	//printf("%s:%d: ruid: %s, type: %d, op_class: %d\n", __func__, __LINE__, 
 		//mac_str, pop_class->m_op_class_info.id.type, pop_class->m_op_class_info.id.op_class);
     dm->set_num_op_class(dm->get_num_op_class() + 1);
@@ -1080,13 +1188,13 @@ dm_policy_t *dm_easy_mesh_list_t::get_first_policy()
 {
 	dm_easy_mesh_t *dm;
 
-	dm = (dm_easy_mesh_t *)hash_map_get_first(m_list);
+	dm = static_cast<dm_easy_mesh_t *> (hash_map_get_first(m_list));
     while (dm != NULL) {
 		if (dm->m_num_policy > 0) {
 			return &dm->m_policy[0];
 		}	
 
-        dm = (dm_easy_mesh_t *)hash_map_get_next(m_list, dm);
+        dm = static_cast<dm_easy_mesh_t *> (hash_map_get_next(m_list, dm));
     }
 
 	return NULL;
@@ -1098,10 +1206,10 @@ dm_policy_t *dm_easy_mesh_list_t::get_next_policy(dm_policy_t *policy)
 	bool return_next = false;
 	unsigned int i;
 
-	dm = (dm_easy_mesh_t *)hash_map_get_first(m_list);
+	dm = static_cast<dm_easy_mesh_t *> (hash_map_get_first(m_list));
     while (dm != NULL) {
 		if (dm->m_num_policy == 0) {
-			dm = (dm_easy_mesh_t *)hash_map_get_next(m_list, dm);
+			dm = static_cast<dm_easy_mesh_t *> (hash_map_get_next(m_list, dm));
 			continue;		
 		}
 
@@ -1120,7 +1228,7 @@ dm_policy_t *dm_easy_mesh_list_t::get_next_policy(dm_policy_t *policy)
 			return &dm->m_policy[i + 1];
 		}
 	
-        dm = (dm_easy_mesh_t *)hash_map_get_next(m_list, dm);
+        dm = static_cast<dm_easy_mesh_t *> (hash_map_get_next(m_list, dm));
     }
 	return NULL;
 }
@@ -1136,26 +1244,29 @@ dm_policy_t *dm_easy_mesh_list_t::get_policy(const char *key)
 	dm_policy_t::parse_dev_radio_mac_from_key(key, &id);
 	dm_easy_mesh_t::macbytes_to_string(id.dev_mac, dev_mac_str);
 	dm_easy_mesh_t::macbytes_to_string(id.radio_mac, radio_mac_str);
-	//printf("%s:%d: Net id: %s\tdev: %s\tradio: %s\tType: %d\n", __func__, __LINE__, id.net_id, dev_mac_str, radio_mac_str, id.type);
+	em_printfout("%s:%d: Net id: %s\tdev: %s\tradio: %s\tType: %d\n", __func__, __LINE__, id.net_id, dev_mac_str, radio_mac_str, id.type);
 	dm_easy_mesh_t::macbytes_to_string(id.dev_mac, dev_mac_str);
 
 	if ((dm = get_data_model(id.net_id, id.dev_mac)) == NULL) {
-		printf("%s:%d: Could not find data model for Network: %s and dev: %s\n", __func__, __LINE__, id.net_id, dev_mac_str);
+		em_printfout("Could not find data model for Network: %s and dev: %s\n", id.net_id, dev_mac_str);
 		return NULL;
 	} 
 
 	for (i = 0; i < dm->get_num_policy(); i++) {
 		policy = &dm->m_policy[i];
+        em_printfout("compare with policy[%d]: Net id: %s[%s]\tdev: %s[%s]\tradio: %s[%s]\tType: %d[%d]\n", i, policy->m_policy.id.net_id, id.net_id,
+            util::mac_to_string(policy->m_policy.id.dev_mac).c_str(), dev_mac_str,
+            util::mac_to_string(policy->m_policy.id.radio_mac).c_str(), radio_mac_str, policy->m_policy.id.type, id.type);
 		if ((strncmp(policy->m_policy.id.net_id, id.net_id, strlen(id.net_id)) == 0) && 
 				(memcmp(policy->m_policy.id.dev_mac, id.dev_mac, sizeof(mac_address_t)) == 0) && 
 				(memcmp(policy->m_policy.id.radio_mac, id.radio_mac, sizeof(mac_address_t)) == 0) && 
 				(policy->m_policy.id.type == id.type)) {
-			//printf("%s:%d: Policy found for key: %s\n", __func__, __LINE__, key);
+			em_printfout("%s:%d: Policy found for key: %s\n", __func__, __LINE__, key);
 			return policy;
 		}
 	}
 
-	printf("%s:%d: Policy not found for key: %s\n", __func__, __LINE__, key);
+	em_printfout("Policy not found for key: %s\n", key);
 	return NULL;
 }
 
@@ -1185,14 +1296,14 @@ dm_scan_result_t *dm_easy_mesh_list_t::get_first_scan_result()
 	dm_easy_mesh_t *dm;
 	dm_scan_result_t *res;
 
-    dm = (dm_easy_mesh_t *)hash_map_get_first(m_list);
+    dm = static_cast<dm_easy_mesh_t *> (hash_map_get_first(m_list));
     while (dm != NULL) {
-		res = (dm_scan_result_t *)hash_map_get_first(dm->m_scan_result_map);
+		res = static_cast<dm_scan_result_t *> (hash_map_get_first(dm->m_scan_result_map));
 		if (res != NULL) {
 			return res;
 		}
 		
-		dm = (dm_easy_mesh_t *)hash_map_get_next(m_list, dm);
+		dm = static_cast<dm_easy_mesh_t *> (hash_map_get_next(m_list, dm));
 	}
 
 	return NULL;
@@ -1203,11 +1314,10 @@ dm_scan_result_t *dm_easy_mesh_list_t::get_next_scan_result(dm_scan_result_t *sc
     dm_easy_mesh_t *dm;
 	dm_scan_result_t *res;
     bool return_next = false;
-    unsigned int i;
 
-    dm = (dm_easy_mesh_t *)hash_map_get_first(m_list);
+    dm = static_cast<dm_easy_mesh_t *> (hash_map_get_first(m_list));
     while (dm != NULL) {
-		res = (dm_scan_result_t *)hash_map_get_first(dm->m_scan_result_map);
+		res = static_cast<dm_scan_result_t *> (hash_map_get_first(dm->m_scan_result_map));
 		while (res != NULL) {
 			if (return_next == true) {
 				return res;
@@ -1215,10 +1325,10 @@ dm_scan_result_t *dm_easy_mesh_list_t::get_next_scan_result(dm_scan_result_t *sc
 			if (res == scan_result) {
 				return_next = true;
 			}
-			res = (dm_scan_result_t *)hash_map_get_next(dm->m_scan_result_map, res);
+			res = static_cast<dm_scan_result_t *> (hash_map_get_next(dm->m_scan_result_map, res));
 		}
 
-        dm = (dm_easy_mesh_t *)hash_map_get_next(m_list, dm);
+        dm = static_cast<dm_easy_mesh_t *> (hash_map_get_next(m_list, dm));
     }
     return NULL;
 
@@ -1230,7 +1340,7 @@ dm_scan_result_t *dm_easy_mesh_list_t::get_scan_result(const char *key)
 	dm_easy_mesh_t	*dm;
 	mac_addr_str_t	dev_mac_str, scanner_mac_str;
 	dm_scan_result_t *res;
-	em_long_string_t list_key;
+	em_2xlong_string_t list_key;
 	
 	dm_scan_result_t::parse_scan_result_id_from_key(key, &id);
 	dm_easy_mesh_t::macbytes_to_string(id.dev_mac, dev_mac_str);
@@ -1241,10 +1351,10 @@ dm_scan_result_t *dm_easy_mesh_list_t::get_scan_result(const char *key)
 		return NULL;
 	} 
 
-	snprintf(list_key, sizeof(em_long_string_t), "%s@%s@%s@%d@%d@%d", id.net_id, dev_mac_str, scanner_mac_str,
+	snprintf(list_key, sizeof(em_2xlong_string_t), "%s@%s@%s@%d@%d@%d", id.net_id, dev_mac_str, scanner_mac_str,
 		id.op_class, id.channel, id.scanner_type);	
 
-	res = (dm_scan_result_t *)hash_map_get(dm->m_scan_result_map, list_key);
+	res = static_cast<dm_scan_result_t *> (hash_map_get(dm->m_scan_result_map, list_key));
 
 	return res;
 }
@@ -1257,9 +1367,9 @@ void dm_easy_mesh_list_t::remove_scan_result(const char *key)
     dm_easy_mesh_t *dm;
     dm_scan_result_t *res;
     dm_sta_t *sta;
-    unsigned int i;
+    int i;
     int index_to_remove = -1;
-    em_long_string_t list_key;
+    em_2xlong_string_t list_key;
     bool found_sta = false;
     wifi_BeaconReport_t *rprt;
 
@@ -1274,10 +1384,10 @@ void dm_easy_mesh_list_t::remove_scan_result(const char *key)
         return;
     }
 
-    snprintf(list_key, sizeof(em_long_string_t), "%s@%s@%s@%d@%d@%d", id.net_id, dev_mac_str, scanner_mac_str,
+    snprintf(list_key, sizeof(em_2xlong_string_t), "%s@%s@%s@%d@%d@%d", id.net_id, dev_mac_str, scanner_mac_str,
         id.op_class, id.channel, id.scanner_type);
 
-    if ((res = (dm_scan_result_t *)hash_map_remove(dm->m_scan_result_map, list_key)) != NULL) {
+    if ((res = static_cast<dm_scan_result_t *> (hash_map_remove(dm->m_scan_result_map, list_key))) != NULL) {
         delete res;
     }
 
@@ -1286,20 +1396,20 @@ void dm_easy_mesh_list_t::remove_scan_result(const char *key)
         return;
     }
 
-    sta = (dm_sta_t *)hash_map_get_first(dm->m_sta_map);
+    sta = static_cast<dm_sta_t *> (hash_map_get_first(dm->m_sta_map));
         while (sta != NULL) {
             if (memcmp(sta->m_sta_info.id, id.scanner_mac, sizeof(mac_address_t)) == 0) {
                 found_sta = true;
                 break;
             }
-        sta = (dm_sta_t *)hash_map_get_next(dm->m_sta_map, sta);
+        sta = static_cast<dm_sta_t *> (hash_map_get_next(dm->m_sta_map, sta));
     }
 
     if (found_sta == false) {
         return;
     }
 
-    for (i = 0; i < sta->m_sta_info.num_beacon_meas_report; i++) {
+    for (i = 0; i < static_cast<int> (sta->m_sta_info.num_beacon_meas_report); i++) {
         dm_sta_t::decode_beacon_report(sta);
         rprt = &sta->m_sta_info.beacon_reports[i];
 
@@ -1313,14 +1423,14 @@ void dm_easy_mesh_list_t::remove_scan_result(const char *key)
         return;
     }
 
-    for (i = index_to_remove; i < sta->m_sta_info.num_beacon_meas_report - 1; i++) {
+    for (i = index_to_remove; i < static_cast<int> (sta->m_sta_info.num_beacon_meas_report) - 1; i++) {
         memcpy(&sta->m_sta_info.beacon_report_elem[i], &sta->m_sta_info.beacon_report_elem[i + 1], sta->m_sta_info.beacon_report_len);
     }
 
     sta->m_sta_info.num_beacon_meas_report--;
 }
 
-void dm_easy_mesh_list_t::put_scan_result(const char *key, const dm_scan_result_t *scan_result)
+void dm_easy_mesh_list_t::put_scan_result(const char *key, const dm_scan_result_t *scan_result, unsigned int index)
 {
 	em_scan_result_id_t	id;
 	dm_easy_mesh_t	*dm;
@@ -1331,7 +1441,7 @@ void dm_easy_mesh_list_t::put_scan_result(const char *key, const dm_scan_result_
 	bool found_neighbor = false, found_sta = false;
 	unsigned int i;
 	em_neighbor_t *nbr;
-	em_long_string_t list_key;
+	em_2xlong_string_t list_key;
 	wifi_BeaconReport_t *rprt;
 	
 	dm_scan_result_t::parse_scan_result_id_from_key(key, &id, bssid);
@@ -1344,10 +1454,10 @@ void dm_easy_mesh_list_t::put_scan_result(const char *key, const dm_scan_result_
 		return;
 	}
 		
-	snprintf(list_key, sizeof(em_long_string_t), "%s@%s@%s@%d@%d@%d", id.net_id, dev_mac_str, scanner_mac_str, 
+	snprintf(list_key, sizeof(em_2xlong_string_t), "%s@%s@%s@%d@%d@%d", id.net_id, dev_mac_str, scanner_mac_str, 
     							id.op_class, id.channel, id.scanner_type);
 
-	if ((res = (dm_scan_result_t *)hash_map_get(dm->m_scan_result_map, list_key)) == NULL) {
+	if ((res = static_cast<dm_scan_result_t *> (hash_map_get(dm->m_scan_result_map, list_key))) == NULL) {
 		//printf("%s:%d: New Scan Result\tnetwork: %s\tdevice: %s\tradio: %s\topclass: %d\tchannel: %d\tScanner Type: %d\n", 
 				//__func__, __LINE__, id.net_id, dev_mac_str, scanner_mac_str, id.op_class, id.channel, id.scanner_type);	
 		res = new dm_scan_result_t();
@@ -1366,14 +1476,17 @@ void dm_easy_mesh_list_t::put_scan_result(const char *key, const dm_scan_result_
 
 			if (memcmp(nbr->bssid, bssid, sizeof(mac_address_t)) == 0) {
 				found_neighbor = true;
-				memcpy(nbr, &scan_result->m_scan_result.neighbor[0], sizeof(em_neighbor_t));
+				memcpy(nbr, &scan_result->m_scan_result.neighbor[index], sizeof(em_neighbor_t));
 				break;
 			}
 		}
 
 		if (found_neighbor == false) {
+			if (res->m_scan_result.num_neighbors >= EM_MAX_NEIGHBORS) {
+				return;
+			}
 			nbr = &res->m_scan_result.neighbor[res->m_scan_result.num_neighbors];
-			memcpy(nbr, &scan_result->m_scan_result.neighbor[0], sizeof(em_neighbor_t));
+			memcpy(nbr, &scan_result->m_scan_result.neighbor[index], sizeof(em_neighbor_t));
 			res->m_scan_result.num_neighbors++;
 		}
 	}
@@ -1383,14 +1496,14 @@ void dm_easy_mesh_list_t::put_scan_result(const char *key, const dm_scan_result_
 		return;
 	} 
 
-	sta = (dm_sta_t *)hash_map_get_first(dm->m_sta_map);
+	sta = static_cast<dm_sta_t *> (hash_map_get_first(dm->m_sta_map));
 	while (sta != NULL) {
 
 		if (memcmp(sta->m_sta_info.id, id.scanner_mac, sizeof(mac_address_t)) == 0) {
 			found_sta = true;
 			break;
 		}
-		sta = (dm_sta_t *)hash_map_get_next(dm->m_sta_map, sta);
+		sta = static_cast<dm_sta_t *> (hash_map_get_next(dm->m_sta_map, sta));
 	}		
 
 	if (found_sta == false) {
@@ -1411,20 +1524,20 @@ void dm_easy_mesh_list_t::delete_all_data_models()
 	dm_easy_mesh_t *dm = NULL, *tmp;
 	dm_device_t *dev;
 	mac_addr_str_t mac_str;
-	em_long_string_t	key;
+	em_2xlong_string_t	key;
 	
-	dm = (dm_easy_mesh_t *)hash_map_get_first(m_list);
+	dm = static_cast<dm_easy_mesh_t *> (hash_map_get_first(m_list));
     while (dm != NULL) {
 		tmp = dm;
-        dm = (dm_easy_mesh_t *)hash_map_get_next(m_list, dm); 
+        dm = static_cast<dm_easy_mesh_t *> (hash_map_get_next(m_list, dm)); 
 
-        if (tmp->get_colocated() == true) {
-            //printf("%s:%d: Skipping delete as colocated\n", __func__, __LINE__);
+        if (tmp->is_controller() == true) {
+            //printf("%s:%d: Skipping delete of controller data model\n", __func__, __LINE__);
             continue;
         }
 		dev = tmp->get_device();	
 		dm_easy_mesh_t::macbytes_to_string(dev->m_device_info.intf.mac, mac_str);
-		snprintf(key, sizeof(em_short_string_t), "%s@%s", dev->m_device_info.id.net_id, mac_str);
+		snprintf(key, sizeof(em_2xlong_string_t), "%s@%s", dev->m_device_info.id.net_id, mac_str);
 
 		hash_map_remove(m_list, key);
 		delete tmp;
@@ -1438,81 +1551,133 @@ void dm_easy_mesh_list_t::delete_data_model(const char *net_id, const unsigned c
     mac_addr_str_t mac_str;
     em_long_string_t	key;
 	
-    dm_easy_mesh_t::macbytes_to_string((unsigned char *)al_mac, mac_str);
+    dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *> (al_mac), mac_str);
     snprintf(key, sizeof(em_short_string_t), "%s@%s", net_id, mac_str);
     //printf("%s:%d: Putting data model at key: %s\n", __func__, __LINE__, key);
 
-    dm = (dm_easy_mesh_t *)hash_map_remove(m_list, key);
+    dm = static_cast<dm_easy_mesh_t *> (hash_map_remove(m_list, key));
 
     //printf("%s:%d: deleteing data model at key: %s, dm:%p, colocated:%d\n", __func__, __LINE__, key, dm, dm->get_colocated());
     dm->deinit();
     delete dm;
 }
 
-dm_easy_mesh_t *dm_easy_mesh_list_t::create_data_model(const char *net_id, const em_interface_t *al_intf, em_profile_type_t profile, bool colocated)
+dm_easy_mesh_t *dm_easy_mesh_list_t::create_data_model(const char *net_id, const em_interface_t *al_intf, em_profile_type_t profile, bool controller)
 {
-    dm_easy_mesh_t *dm = NULL, *ref_dm;
+    dm_easy_mesh_t *dm = NULL, *ref_dm, *ctrl_dm;
     mac_addr_str_t mac_str;
     em_short_string_t	key;
     dm_network_t *net, *pnet;
     dm_device_t *dev;
     dm_network_ssid_t *net_ssid, *pnet_ssid;
+	// Per-radio policies (radio_metrics_rep, steering_param) are NOT initialized here.
+	// They are created with real radio MACs in put_radio() when radios are discovered.
 	const em_policy_t	em_policy[] = {
-						{{"OneWifiMesh", {0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, {0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, 
-							em_policy_id_type_ap_metrics_rep}, 0, {}, em_steering_policy_type_unknown, 
-							0, 0, 120, 0, false, false, false, "", false, false, false},
-						{{"OneWifiMesh", {0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}, 
-							em_policy_id_type_radio_metrics_rep}, 0, {}, em_steering_policy_type_unknown, 
-							60, 120, 0, 5, false, false, false, "", false, false, false},
-						{{"OneWifiMesh", {0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, {0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, 
-							em_policy_id_type_steering_local}, 1, {{0x00, 0x00, 0x00, 0x00, 0x00, 0x00}}, 
-							em_steering_policy_type_unknown, 
-							0, 0, 0, 0, false, false, false, "", false, false, false},
-						{{"OneWifiMesh", {0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, {0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, 
-							em_policy_id_type_steering_btm}, 1, {{0x00, 0x00, 0x00, 0x00, 0x00, 0x00}}, 
-							em_steering_policy_type_unknown, 
-							0, 0, 0, 0, false, false, false, "", false, false, false},
-						{{"OneWifiMesh", {0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}, 
-							em_policy_id_type_steering_param}, 1, {{0x00, 0x00, 0x00, 0x00, 0x00, 0x00}}, 
-							em_steering_policy_type_rcpi_allowed, 
-							60, 120, 0, 0, false, false, false, "", false, false, false},
-						{{"OneWifiMesh", {0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, {0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, 
-							em_policy_id_type_channel_scan}, 0, {}, em_steering_policy_type_unknown, 
-							0, 0, 0, 0, false, false, false, "", false, false, false}
+						{{"OneWifiMesh", {0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, {0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
+							em_policy_id_type_ap_metrics_rep}, 0, {}, em_steering_policy_type_disallowed,
+							0, 0, 5, 0, false, false, false, "", false, {}, false, false, false, 0, {0, 0},
+                            {0, {{0, "", 0}, {0, "", 0}, {0, "", 0}, {0, "", 0}, {0, "", 0}}}, {}, {}, {}, {}, {}, {}},
+						{{"OneWifiMesh", {0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, {0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
+							em_policy_id_type_steering_local}, 1, {{0x00, 0x00, 0x00, 0x00, 0x00, 0x00}},
+							em_steering_policy_type_disallowed,
+							0, 0, 0, 0, false, false, false, "", false, {}, false, false, false, 0, {0, 0},
+                            {0, {{0, "", 0}, {0, "", 0}, {0, "", 0}, {0, "", 0}, {0, "", 0}}}, {}, {}, {}, {}, {}, {}},
+						{{"OneWifiMesh", {0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, {0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
+							em_policy_id_type_steering_btm}, 1, {{0x00, 0x00, 0x00, 0x00, 0x00, 0x00}},
+							em_steering_policy_type_disallowed,
+							0, 0, 0, 0, false, false, false, "", false, {}, false, false, false, 0, {0, 0},
+                            {0, {{0, "", 0}, {0, "", 0}, {0, "", 0}, {0, "", 0}, {0, "", 0}}}, {}, {}, {}, {}, {}, {}},
+						{{"OneWifiMesh", {0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, {0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
+							em_policy_id_type_channel_scan}, 0, {}, em_steering_policy_type_disallowed,
+							0, 0, 0, 0, false, false, false, "", false, {}, false, false, false, 0, {0, 0},
+                            {0, {{0, "", 0}, {0, "", 0}, {0, "", 0}, {0, "", 0}, {0, "", 0}}}, {}, {}, {}, {}, {}, {}},
+						{{"OneWifiMesh", {0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, {0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
+							em_policy_id_type_default_8021q_settings}, 0, {}, em_steering_policy_type_disallowed,
+							0, 0, 0, 0, false, false, false, "", false, {}, false, false, false, 0, {1, 2},
+                            {0, {{0, "", 0}, {0, "", 0}, {0, "", 0}, {0, "", 0}, {0, "", 0}}}, {}, {}, {}, {}, {}, {}},
+						{{"OneWifiMesh", {0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, {0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
+							em_policy_id_type_unsuccess_assoc}, 0, {}, em_steering_policy_type_disallowed,
+							0, 0, 0, 0, false, false, false, "", false, {}, false, false, false, 0, {0, 0},
+                            {0, {{0, "", 0}, {0, "", 0}, {0, "", 0}, {0, "", 0}, {0, "", 0}}}, {}, {}, {}, {}, {}, {}},
+						{{"OneWifiMesh", {0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, {0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
+							em_policy_id_type_backhaul_bss_config}, 0, {}, em_steering_policy_type_disallowed,
+							0, 0, 0, 0, false, false, false, "", false, {}, false, false, false, 0, {0, 0},
+                            {0, {{0, "", 0}, {0, "", 0}, {0, "", 0}, {0, "", 0}, {0, "", 0}}}, {}, {}, {}, {}, {}, {}},
+						{{"OneWifiMesh", {0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, {0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
+							em_policy_id_type_qos_mgt}, 0, {}, em_steering_policy_type_disallowed,
+							0, 0, 0, 0, false, false, false, "", false, {}, false, false, false, 0, {0, 0},
+                            {0, {{0, "", 0}, {0, "", 0}, {0, "", 0}, {0, "", 0}, {0, "", 0}}}, {}, {}, {}, {}, {}, {}},
 					};
     unsigned int i;
+    bool colocated = false;
 	dm_op_class_t	op_class[EM_MAX_PRE_SET_CHANNELS] 	= 	{
-		dm_op_class_t({{{0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, em_op_class_type_anticipated, 81}, 81, 0, 0, 0, 1, {6}, 0, 0, 0}), 
-		dm_op_class_t({{{0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, em_op_class_type_anticipated, 115}, 115, 0, 0, 0, 1, {36}, 0, 0, 0}), 
-		dm_op_class_t({{{0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, em_op_class_type_anticipated, 135}, 135, 0, 0, 0, 1, {1}, 0, 0, 0}),
-		dm_op_class_t({{{0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, em_op_class_type_scan_param, 81}, 81, 0, 0, 0, 3, {3, 6, 9}, 0, 0, 0}),
-		dm_op_class_t({{{0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, em_op_class_type_scan_param, 115}, 115, 0, 0, 0, 9, {36, 40, 44, 48, 149, 153, 157, 161, 165}, 0, 0, 0}),
-		dm_op_class_t({{{0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, em_op_class_type_scan_param, 135}, 135, 0, 0, 0, 1, {1}, 0, 0, 0})
+		dm_op_class_t({{{0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, em_op_class_type_anticipated, 83}, 83, 0, 0, 0, 1, {6}, {0xe0}, EM_CH_PREF_ENTRY_VALID, 0, 0, 0}),
+		dm_op_class_t({{{0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, em_op_class_type_anticipated, 128}, 128, 0, 0, 0, 1, {42},{0xe0}, EM_CH_PREF_ENTRY_VALID, 0, 0, 0}),
+		dm_op_class_t({{{0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, em_op_class_type_anticipated, 135}, 135, 0, 0, 0, 1, {7}, {0xe0}, EM_CH_PREF_ENTRY_VALID, 0, 0, 0}),
+		dm_op_class_t({{{0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, em_op_class_type_scan_param, 81}, 81, 0, 0, 0, 3, {3, 6, 9},{0}, EM_CH_PREF_ENTRY_VALID, 0, 0, 0}),
+		dm_op_class_t({{{0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, em_op_class_type_scan_param, 115}, 115, 0, 0, 0, 9, {36, 40, 44, 48, 149, 153, 157, 161, 165}, {0}, EM_CH_PREF_ENTRY_VALID, 0, 0, 0}),
+		dm_op_class_t({{{0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, em_op_class_type_scan_param, 131}, 131, 0, 0, 0, 1, {1}, {0}, EM_CH_PREF_ENTRY_VALID, 0, 0, 0})
 									};
 	dm_policy_t	policy[] = {
-								dm_policy_t(em_policy[0]), dm_policy_t(em_policy[1]), 
-								dm_policy_t(em_policy[2]), dm_policy_t(em_policy[3]), 
-								dm_policy_t(em_policy[4]), dm_policy_t(em_policy[5])
-						};
-	
-    dm_easy_mesh_t::macbytes_to_string((unsigned char *)al_intf->mac, mac_str);
+								dm_policy_t(em_policy[0]), dm_policy_t(em_policy[1]),
+								dm_policy_t(em_policy[2]), dm_policy_t(em_policy[3]),
+								dm_policy_t(em_policy[4]), dm_policy_t(em_policy[5]),
+								dm_policy_t(em_policy[6]), dm_policy_t(em_policy[7])
+							};
+
+    dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *> (al_intf->mac), mac_str);
     snprintf(key, sizeof(em_short_string_t), "%s@%s", net_id, mac_str);
+
 
     dm = new dm_easy_mesh_t();
     dm->init();
-    printf("%s:%d: Created data model for net_id: %s mac: %s, coloc:%d\n", __func__, __LINE__, net_id, mac_str, colocated);
-    dm->set_colocated(colocated);
+
+    if (controller == true) {
+        em_printfout("Creating data model as controller ...");
+        dm->set_controller(controller);
+    } else {
+        em_printfout("Creating data model as agent...");
+        //Identify colocated and set colocated here
+        em_interface_name_t name;
+        if (dm_easy_mesh_t::name_from_mac_address(&al_intf->mac, name) == 0) {
+            em_printfout("MAC %s address exists on this device. DM is colocated.", mac_str);
+            colocated = true;
+            dm->set_colocated(colocated);
+
+            if ((net = get_network(net_id)) != NULL) {
+                ctrl_dm = get_data_model(GLOBAL_NET_ID, net->m_net_info.ctrl_id.mac);
+                assert(ctrl_dm != NULL);
+                pnet = ctrl_dm->get_network();
+                *pnet = *net;
+                //if colocated, set the agent interface mac address in controller's dm
+                ctrl_dm->m_network.set_colocated_agent_interface_mac(const_cast<unsigned char *>(al_intf->mac));
+                em_printfout("Set colocated agent interface mac %s in controller dm",
+                    util::mac_to_string(ctrl_dm->m_network.get_colocated_agent_interface_mac()).c_str());
+                //also trigger db update of networklist for colocated agent id
+                ctrl_dm->set_db_cfg_param(db_cfg_type_network_list_update, "");
+            }
+        }
+    }
+    em_printfout("Created data model for net_id: %s mac: %s, is_colocated:%d is_controller:%d", net_id, mac_str, colocated, controller);
 
     dev = dm->get_device();
     memcpy(dev->m_device_info.intf.mac, al_intf->mac, sizeof(mac_address_t));
     strncpy(dev->m_device_info.id.net_id, net_id, strlen(net_id) + 1);
-	if (colocated == true) {
+	if (controller == true) {
+		memcpy(dev->m_device_info.id.dev_mac, al_intf->mac, sizeof(mac_address_t));
 		dev->m_device_info.id.media = dm->m_network.m_net_info.media;
-		memcpy(dev->m_device_info.backhaul_mac.mac, al_intf->mac, sizeof(mac_address_t));
+		//TODO: Monitor Checks
+		//memcpy(dev->m_device_info.backhaul_mac.mac, al_intf->mac, sizeof(mac_address_t));
 		dev->m_device_info.backhaul_mac.media = dm->m_network.m_net_info.media;
-		//Update the easymesh configuration file
-		dev->update_easymesh_json_cfg(colocated);
-	}
+		em_printfout("Backhaul mac updated to :%s device media:%d backhaul media:%d",
+			util::mac_to_string(dev->m_device_info.backhaul_mac.mac).c_str(),
+			dev->m_device_info.id.media, dev->m_device_info.backhaul_mac.media);
+		//Update the easymesh configuration file to specify colocated agent as true.
+		dev->update_easymesh_json_cfg(true);
+	} else {
+        dm->set_id();
+        em_printfout("dm->get_id():%d", dm->get_id());
+    }
     dev->m_device_info.profile = profile;
 	dm->set_channels_list(op_class, EM_MAX_PRE_SET_CHANNELS);
 	
@@ -1520,25 +1685,29 @@ dm_easy_mesh_t *dm_easy_mesh_list_t::create_data_model(const char *net_id, const
 		dm->set_policy(policy[i]);
 	}
 
-	printf("%s:%d: Number of policies: %d\n", __func__, __LINE__, dm->get_num_policy());
+	em_printfout("Number of policies: %d", dm->get_num_policy());
 
     // is this the first data model
     if ((net = get_network(net_id)) != NULL) {
         pnet = dm->get_network();
         *pnet = *net;
 
-        ref_dm = get_data_model(net->m_net_info.id, net->m_net_info.colocated_agent_id.mac);
-        assert(ref_dm != NULL);
-        dm->set_num_network_ssid(ref_dm->get_num_network_ssid());
-        //printf("%s:%d: Number of network ssid in reference data model: %d\n", __func__, __LINE__, ref_dm->get_num_network_ssid());
-        for (i = 0; i < ref_dm->get_num_network_ssid(); i++) {
-            pnet_ssid = dm->get_network_ssid(i);
-            net_ssid = ref_dm->get_network_ssid(i);
-            *pnet_ssid = *net_ssid;
+        ref_dm = get_data_model(net->m_net_info.id, net->m_net_info.ctrl_id.mac);
+        if(ref_dm != NULL) {
+            dm->set_num_network_ssid(ref_dm->get_num_network_ssid());
+            //printf("%s:%d: Number of network ssid in reference data model: %d\n", __func__, __LINE__, ref_dm->get_num_network_ssid());
+            for (i = 0; i < ref_dm->get_num_network_ssid(); i++) {
+                pnet_ssid = dm->get_network_ssid(i);
+                net_ssid = ref_dm->get_network_ssid(i);
+                *pnet_ssid = *net_ssid;
+            }
+        } else {
+            em_printfout("Reference data model not found for network: %s and ctrl AL mac: %s",
+                net->m_net_info.id, util::mac_to_string(net->m_net_info.ctrl_id.mac).c_str());
         }
     }
-    printf("%s:%d: Putting data model at key: %s\n", __func__, __LINE__, key);
-    hash_map_put(m_list, strdup(key), dm);	
+    em_printfout("Putting data model at key: %s", key);
+    hash_map_put(m_list, strdup(key), dm);
 
     return dm;
 }
@@ -1547,12 +1716,11 @@ dm_easy_mesh_t *dm_easy_mesh_list_t::get_data_model(const char *net_id, const un
 {
     dm_easy_mesh_t *dm = NULL;
     mac_addr_str_t mac_str;
-    em_short_string_t	key;
+    em_2xlong_string_t	key;
 
-    dm_easy_mesh_t::macbytes_to_string((unsigned char *)al_mac, mac_str);
-    snprintf(key, sizeof(em_short_string_t), "%s@%s", net_id, mac_str);
-    //printf("%s:%d: Retrieve data model at key: %s\n", __func__, __LINE__, key);
-    dm = (dm_easy_mesh_t *)hash_map_get(m_list, key);
+    dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *> (al_mac), mac_str);
+    snprintf(key, sizeof(key), "%s@%s", net_id, mac_str);
+    dm = static_cast<dm_easy_mesh_t *> (hash_map_get(m_list, key));
 
     return dm;
 }

@@ -25,11 +25,6 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <net/if.h>
-#include <linux/filter.h>
-#include <netinet/ether.h>
-#include <netpacket/packet.h>
-#include <linux/netlink.h>
-#include <linux/rtnetlink.h>
 #include <sys/ioctl.h>
 #include <sys/socket.h>
 #include <sys/uio.h>
@@ -45,48 +40,48 @@ int dm_op_class_t::decode(const cJSON *obj, void *parent_id)
     unsigned int i;
 
     memset(&m_op_class_info, 0, sizeof(em_op_class_info_t));
-    dm_op_class_t::parse_op_class_id_from_key((char *)parent_id, &m_op_class_info.id);
+    dm_op_class_t::parse_op_class_id_from_key(static_cast<char*>(parent_id), &m_op_class_info.id);
 	
     if ((tmp = cJSON_GetObjectItem(obj, "Class")) != NULL) {
-        m_op_class_info.op_class = tmp->valuedouble;
+        m_op_class_info.op_class = static_cast<unsigned int>(tmp->valuedouble);
     }
 
     if ((tmp = cJSON_GetObjectItem(obj, "OpClass")) != NULL) {
-        m_op_class_info.op_class = tmp->valuedouble;
+        m_op_class_info.op_class = static_cast<unsigned int>(tmp->valuedouble);
     }
 
     if ((tmp = cJSON_GetObjectItem(obj, "Channel")) != NULL) {
-        m_op_class_info.channel = tmp->valuedouble;
+        m_op_class_info.channel = static_cast<unsigned int>(tmp->valuedouble);
     }
 
     if ((tmp = cJSON_GetObjectItem(obj, "TxPower")) != NULL) {
-        m_op_class_info.tx_power = tmp->valuedouble;
+        m_op_class_info.tx_power = static_cast<int>(tmp->valuedouble);
     }
 
     if ((tmp = cJSON_GetObjectItem(obj, "MaxTxPower")) != NULL) {
-       m_op_class_info.max_tx_power = tmp->valuedouble;
+       m_op_class_info.max_tx_power = static_cast<int>(tmp->valuedouble);
     }
     
     m_op_class_info.num_channels = 0;
     if ((non_op_array = cJSON_GetObjectItem(obj, "NonOperable")) != NULL) {
-        m_op_class_info.num_channels = cJSON_GetArraySize(non_op_array);
+        m_op_class_info.num_channels = static_cast<unsigned int>(cJSON_GetArraySize(non_op_array));
         for (i = 0; i < m_op_class_info.num_channels; i++) {
-            if ((tmp = cJSON_GetArrayItem(non_op_array, i)) != NULL) {
-                m_op_class_info.channels[i] = tmp->valuedouble;
+            if ((tmp = cJSON_GetArrayItem(non_op_array, static_cast<int>(i))) != NULL) {
+                m_op_class_info.channels[i] = static_cast<unsigned int>(tmp->valuedouble);
             }
         }
     }
 
     if ((tmp = cJSON_GetObjectItem(obj, "Minutes")) != NULL) {
-       m_op_class_info.mins_since_cac_comp = tmp->valuedouble;
+       m_op_class_info.mins_since_cac_comp = static_cast<short unsigned int>(tmp->valuedouble);
     }
 
     if ((tmp = cJSON_GetObjectItem(obj, "Seconds")) != NULL) {
-       m_op_class_info.sec_remain_non_occ_dur = tmp->valuedouble;
+       m_op_class_info.sec_remain_non_occ_dur = static_cast<short unsigned int>(tmp->valuedouble);
     }
 
     if ((tmp = cJSON_GetObjectItem(obj, "Countdown")) != NULL) {
-       m_op_class_info.countdown_cac_comp = tmp->valuedouble;
+       m_op_class_info.countdown_cac_comp = static_cast<unsigned int>(tmp->valuedouble);
     }
     return 0;
 
@@ -158,6 +153,7 @@ bool dm_op_class_t::operator == (const dm_op_class_t& obj)
 						(this->m_op_class_info.id.type == em_op_class_type_scan_param)) {
         ret += !(this->m_op_class_info.num_channels == obj.m_op_class_info.num_channels);
         ret += (memcmp(this->m_op_class_info.channels, obj.m_op_class_info.channels, sizeof(unsigned int) * EM_MAX_CHANNELS_IN_LIST) != 0);
+        ret += (memcmp(this->m_op_class_info.channel_pref, obj.m_op_class_info.channel_pref, sizeof(unsigned char) * EM_MAX_CHANNELS_IN_LIST) != 0);
 	} 
      
     if (ret > 0)
@@ -178,11 +174,11 @@ void dm_op_class_t::operator = (const dm_op_class_t& obj)
     this->m_op_class_info.max_tx_power = obj.m_op_class_info.max_tx_power;
     this->m_op_class_info.num_channels = obj.m_op_class_info.num_channels;
     memcpy(this->m_op_class_info.channels, obj.m_op_class_info.channels, sizeof(unsigned int) * EM_MAX_CHANNELS_IN_LIST);
+    memcpy(this->m_op_class_info.channel_pref, obj.m_op_class_info.channel_pref, sizeof(unsigned char) * EM_MAX_CHANNELS_IN_LIST);
+    this->m_op_class_info.pref_valid = obj.m_op_class_info.pref_valid;
     this->m_op_class_info.mins_since_cac_comp = obj.m_op_class_info.mins_since_cac_comp;
     this->m_op_class_info.sec_remain_non_occ_dur = obj.m_op_class_info.sec_remain_non_occ_dur;
     this->m_op_class_info.countdown_cac_comp = obj.m_op_class_info.countdown_cac_comp;
-    this->m_op_class_info.num_channels = obj.m_op_class_info.num_channels;
-    memcpy(this->m_op_class_info.channels, obj.m_op_class_info.channels, sizeof(unsigned int) * EM_MAX_CHANNELS_IN_LIST);
 }
 
 int dm_op_class_t::parse_op_class_id_from_key(const char *key, em_op_class_id_t *id)
@@ -201,9 +197,9 @@ int dm_op_class_t::parse_op_class_id_from_key(const char *key, em_op_class_id_t 
             remain = tmp;
         } else if (i == 1) {
             *tmp = 0;
-            id->type = (em_op_class_type_t)atoi(remain);
+            id->type = static_cast<em_op_class_type_t>(atoi(remain));
             tmp++;
-            id->op_class = atoi(tmp);
+            id->op_class = static_cast<unsigned int>(atoi(tmp));
         }
         i++;
     }

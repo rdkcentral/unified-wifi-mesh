@@ -24,11 +24,15 @@ include ../makefile.inc
 
 PROGRAM = $(INSTALLDIR)/bin/onewifi_em_cli
 EM_CLI_LIBRARY = $(INSTALLDIR)/lib/libemcli.so
+EM_CERT_SRC = $(INSTALLDIR)/config/test_cert.crt
+EM_KEY_SRC  = $(INSTALLDIR)/config/test_cert.key
+CERT_TARGETS = $(NVRAM_DIR)/test_cert.crt $(NVRAM_DIR)/test_cert.key
 
 INCLUDEDIRS = \
 	-I$(ONEWIFI_EM_HOME)/inc \
 	-I$(ONEWIFI_EM_HOME)/src/utils \
 	-I$(ONEWIFI_EM_HOME)/src/util/ \
+	-I$(ONEWIFI_EM_HOME)/src/util_crypto/ \
 	-I$(ONEWIFI_HAL_INTF_HOME) \
 	-I$(ONEWIFI_HOME)/source/utils \
 	-I$(ONEWIFI_HOME)/include \
@@ -39,15 +43,17 @@ INCLUDEDIRS = \
     -I$(RBUS_HOME)/include \
 	-I$(WIFI_CJSON) \
 
-CXXFLAGS = $(INCLUDEDIRS) -g -fPIC
+
+CXXFLAGS = $(INCLUDEDIRS) -g -std=c++17 -fPIC -I$(STAGING_DIR)/usr/include
 CFLAGS = $(INCLUDEDIRS) -g
 LDFLAGS = $(LIBDIRS) $(LIBS)
 LIBDIRS = \
 	-L$(INSTALLDIR)/lib \
 
-LIBS = -lemcli -lm -lpthread -ldl -lcjson -lreadline -lssl -lcrypto
+LIBS = -lemcli -luuid -lm -lpthread -ldl -lcjson -lreadline -lssl -lcrypto -I$(STAGING_DIR)/usr/lib -lmariadb
 
 GENERIC_SOURCES = $(ONEWIFI_HOME)/source/utils/collection.c	\
+                  $(ONEWIFI_EM_SRC)/util_crypto/aes_siv.c \
 
 CLI_SOURCES = $(wildcard $(ONEWIFI_EM_SRC)/cli/*.cpp) \
 	$(wildcard $(ONEWIFI_EM_SRC)/cmd/*.cpp) \
@@ -72,6 +78,9 @@ CLI_SOURCES = $(wildcard $(ONEWIFI_EM_SRC)/cli/*.cpp) \
     $(ONEWIFI_EM_SRC)/dm/dm_tid_to_link.cpp \
     $(ONEWIFI_EM_SRC)/em/em_net_node.cpp \
     $(ONEWIFI_EM_SRC)/utils/util.cpp \
+    $(ONEWIFI_EM_SRC)/em/prov/easyconnect/ec_util.cpp \
+    $(ONEWIFI_EM_SRC)/em/prov/easyconnect/ec_crypto.cpp \
+
 
 MAIN_SOURCE = $(ONEWIFI_EM_SRC)/cli/main.c
 
@@ -80,10 +89,10 @@ GENERIC_OBJECTS = $(GENERIC_SOURCES:.c=.o)
 EMCLIOBJECTS = $(CLI_OBJECTS) $(GENERIC_OBJECTS)
 MAIN_OBJECT = $(MAIN_SOURCE:.c=.o) 
 
-all: $(EM_CLI_LIBRARY) $(PROGRAM)
+all: $(EM_CLI_LIBRARY) $(PROGRAM) $(CERT_TARGETS)
 
 $(EM_CLI_LIBRARY): $(EMCLIOBJECTS)
-	$(CXX) -shared -o $@ $(EMCLIOBJECTS)
+	$(CXX) -shared -o $@ $(EMCLIOBJECTS) $(LDFLAGS)
 
 $(GENERIC_OBJECTS): %.o: %.c
 	$(CC) $(CXXFLAGS) -o $@ -c $<
@@ -95,7 +104,25 @@ $(MAIN_OBJECT): %.o: %.c
 	$(CXX) $(CFLAGS) -o $@ -c $<
 
 $(PROGRAM):
+# use go 1.19 or above to build
+ifeq ($(CC), aarch64-linux-gnu-gcc-11)
+	CGO_ENABLED=1 GOOS=linux GOARCH=arm64 go build -ldflags="-s -w -extldflags '-L$(INSTALLDIR)/lib -lcrypto -lssl -luuid'" -o $(PROGRAM) $(ONEWIFI_EM_SRC)/cli/*.go
+else
 	go build -ldflags="-extldflags '-L$(INSTALLDIR)/lib -lcrypto -lssl -luuid'" -o $(PROGRAM) $(ONEWIFI_EM_SRC)/cli/*.go
+endif
+
+# Make sure $(NVRAM_DIR) exists
+$(NVRAM_DIR):
+	@if [ ! -d "$@" ]; then \
+        sudo mkdir -p "$@" && sudo chmod 777 "$@"; \
+    fi
+
+#copy the certificate and key to /nvram
+$(NVRAM_DIR)/test_cert.crt: $(EM_CERT_SRC) | $(NVRAM_DIR)
+	$(CP) $< $@
+
+$(NVRAM_DIR)/test_cert.key: $(EM_KEY_SRC) | $(NVRAM_DIR)
+	$(CP) $< $@
 
 # Clean target: "make -f Makefile.Linux clean" to remove unwanted objects and executables.
 #
@@ -110,5 +137,7 @@ clean:
 # 
 
 run:
-	LD_LIBRARY_PATH=$(INSTALLDIR)/lib $(PROGRAM) $(RUNARGS)
+	@cd $(INSTALLDIR)/bin && \
+	LD_LIBRARY_PATH=$(INSTALLDIR)/lib ./onewifi_em_cli $(RUNARGS)
 
+.PHONY: run

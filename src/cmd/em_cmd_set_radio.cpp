@@ -25,11 +25,6 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <net/if.h>
-#include <linux/filter.h>
-#include <netinet/ether.h>
-#include <netpacket/packet.h>
-#include <linux/netlink.h>
-#include <linux/rtnetlink.h>
 #include <sys/ioctl.h>
 #include <sys/socket.h>
 #include <sys/uio.h>
@@ -47,7 +42,7 @@ em_cmd_set_radio_t::em_cmd_set_radio_t(em_cmd_params_t param, dm_easy_mesh_t& dm
     m_type = em_cmd_type_set_radio;
     memcpy(&m_param, &param, sizeof(em_cmd_params_t));
 
-    memset((unsigned char *)&m_orch_desc[0], 0, EM_MAX_CMD*sizeof(em_orch_desc_t));
+    memset(reinterpret_cast<unsigned char *> (&m_orch_desc[0]), 0, EM_MAX_CMD*sizeof(em_orch_desc_t));
 
     m_orch_op_idx = 0;
     m_num_orch_desc = 1;
@@ -56,7 +51,7 @@ em_cmd_set_radio_t::em_cmd_set_radio_t(em_cmd_params_t param, dm_easy_mesh_t& dm
 
     strncpy(m_name, "set_radio", strlen("set_radio") + 1);
     m_svc = em_service_type_ctrl;
-    init(&dm);
+    init(dm);
 
     memset(&ctx, 0, sizeof(em_cmd_ctx_t));
     ctx.type = m_orch_desc[0].op;

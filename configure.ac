@@ -1,0 +1,73 @@
+##########################################################################
+# If not stated otherwise in this file or this component's Licenses.txt
+# file the following copyright and licenses apply:
+#
+# Copyright 2025 RDK Management
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+##########################################################################
+#                                              -*- Autoconf -*-
+# Process this file with autoconf to produce configure script.
+#
+ 
+AC_PREREQ([2.65])
+AC_INIT([unified-wifi-mesh], [1.0], [BUG-REPORT-ADDRESS])
+AM_INIT_AUTOMAKE([subdir-objects foreign ])
+LT_INIT
+ 
+AC_PREFIX_DEFAULT(`pwd`)
+AC_ENABLE_SHARED
+AC_DISABLE_STATIC
+ 
+AC_CONFIG_HEADERS([config.h])
+AC_CONFIG_MACRO_DIR([m4])
+ 
+# Check for em agent
+AM_CONDITIONAL([EM_EXTENDER], [test x$EM_EXTENDER = xtrue])
+# Check for em unittest
+AM_CONDITIONAL([EM_UNITTEST], [test "x$EM_UNITTEST" = "xtrue"])
+# Check for ASAN in em_ctrl
+AM_CONDITIONAL([EM_ASAN_CTRL], [test "x$EM_ASAN_CTRL" = "xtrue"])
+# Check for ASAN in em_agent
+AM_CONDITIONAL([EM_ASAN_AGENT], [test "x$EM_ASAN_AGENT" = "xtrue"])
+
+# Checks for programs.
+AC_PROG_CC
+AC_PROG_CXX
+AC_PROG_INSTALL
+AM_PROG_CC_C_O
+AM_PROG_LIBTOOL(libtool)
+ 
+# Checks for header files.
+AC_CHECK_HEADERS([stdlib.h string.h unistd.h])
+ 
+# Checks for typedefs, structures, and compiler characteristics.
+AC_HEADER_STDBOOL
+AC_C_INLINE
+ 
+# Checks for library functions.
+AC_FUNC_MALLOC
+ 
+AC_CONFIG_FILES(
+    src/rdkb-cli/Makefile
+    src/network_optimiser/Makefile
+    src/al-sap/Makefile
+    src/ctrl/Makefile
+    src/agent/Makefile
+    src/Makefile
+    Makefile
+)
+ 
+ 
+AC_OUTPUT
+ 

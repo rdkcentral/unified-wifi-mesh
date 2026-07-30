@@ -79,7 +79,7 @@ em_testValidation_t::em_testValidation_t(unsigned char *buff, unsigned int &len)
     em_cmdu_t *cmdu;
     em_tlv_t *tlv;
     unsigned char *tmp = buff; 
-    unsigned short  msg_id = em_msg_type_autoconf_search;
+    unsigned short  msg_type = em_msg_type_autoconf_search;
     unsigned short type = htons(ETH_P_1905);
     mac_address_t   multi_addr = {0x01, 0x80, 0xc2, 0x00, 0x00, 0x13};
     mac_address_t   src_addr = {0x02, 0x10, 0xc1, 0x00, 0x00, 0x13};
@@ -99,8 +99,8 @@ em_testValidation_t::em_testValidation_t(unsigned char *buff, unsigned int &len)
     cmdu = (em_cmdu_t *)tmp;
 
     memset(tmp, 0, sizeof(em_cmdu_t));
-    cmdu->type = htons(msg_id);
-    cmdu->id = htons(msg_id);
+    cmdu->type = htons(msg_type);
+    cmdu->id = htons(get_mgr()->get_next_msg_id());
     cmdu->last_frag_ind = 1;
     cmdu->relay_ind = 1;
 

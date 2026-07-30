@@ -25,11 +25,6 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <net/if.h>
-#include <linux/filter.h>
-#include <netinet/ether.h>
-#include <netpacket/packet.h>
-#include <linux/netlink.h>
-#include <linux/rtnetlink.h>
 #include <sys/ioctl.h>
 #include <sys/socket.h>
 #include <sys/uio.h>
@@ -53,7 +48,7 @@ void dm_cac_comp_t::encode(cJSON *obj)
 dm_orch_type_t dm_cac_comp_t::get_dm_orch_type(const dm_cac_comp_t& cac_comp)
 {
     if ( this == &cac_comp) {
-         dm_orch_type_none;
+        return dm_orch_type_none;
     } else {
         return dm_orch_type_db_update;
     }

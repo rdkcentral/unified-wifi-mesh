@@ -24,7 +24,19 @@
 class em_cmd_em_config_t : public em_cmd_t {
 
 public:
-    em_cmd_em_config_t(em_cmd_params_t param, dm_easy_mesh_t& dm);
+    
+	/**!
+	 * @brief Configures RasyMesh parameters
+	 * 
+	 * This function is responsible for configuring the EasyMesh command parameters.
+	 *
+	 * @param[in] param The command parameters to be configured.
+	 * @param[out] dm The EasyMesh data structure that will be modified based on the command parameters.
+	 *
+	 * @returns em_cmd_em_config_t
+	 * @note Ensure that the dm structure is properly initialized before calling this function.
+	 */
+	em_cmd_em_config_t(em_cmd_params_t param, dm_easy_mesh_t& dm);
 };
 
 #endif

@@ -47,7 +47,7 @@ int dm_network_ssid_list_t::get_config(cJSON *obj_arr, void *parent_id, bool sum
 	mac_addr_str_t	mac_str;
 	unsigned int i;
     em_string_t	haul_str;
-    char *tmp = NULL, *net_id = (char *)parent_id;
+    char *tmp = NULL, *net_id = static_cast<char *> (parent_id);
 
 	pnet_ssid = get_first_network_ssid();
 	while (pnet_ssid != NULL) {
@@ -92,6 +92,9 @@ int dm_network_ssid_list_t::get_config(cJSON *obj_arr, void *parent_id, bool sum
             cJSON_AddItemToArray(hauls_arr, cJSON_CreateString(haul_str));
 		}
 
+		cJSON_AddStringToObject(obj, "AuthType", pnet_ssid->m_network_ssid_info.auth_type);
+
+		cJSON_AddNumberToObject(obj, "VLANID", pnet_ssid->m_network_ssid_info.vlan_id);
 
 		cJSON_AddItemToArray(obj_arr, obj);		
 		pnet_ssid = get_next_network_ssid(pnet_ssid);
@@ -103,7 +106,7 @@ int dm_network_ssid_list_t::get_config(cJSON *obj_arr, void *parent_id, bool sum
 
 int dm_network_ssid_list_t::analyze_config(const cJSON *obj_arr, void *parent_id, em_cmd_t *pcmd[], em_cmd_params_t *param)
 {
-    unsigned int num = 0;
+    int num = 0;
 
 	return num;
 }
@@ -124,7 +127,7 @@ int dm_network_ssid_list_t::set_config(db_client_t& db_client, dm_network_ssid_t
 int dm_network_ssid_list_t::set_config(db_client_t& db_client, const cJSON *obj_arr, void *parent_id)
 {
     cJSON *obj;
-    unsigned int i, size;
+    int i, size;
 	dm_network_ssid_t network_ssid;
 	dm_orch_type_t op;
 
@@ -178,6 +181,9 @@ void dm_network_ssid_list_t::update_list(const dm_network_ssid_t& net_ssid, dm_o
 		case dm_orch_type_db_delete:
             remove_network_ssid(net_ssid.m_network_ssid_info.id);
             break;
+
+        default:
+            break;
 	}
 }
 
@@ -196,7 +202,7 @@ void dm_network_ssid_list_t::delete_list()
 
 bool dm_network_ssid_list_t::operator == (const db_easy_mesh_t& obj)
 {
-	dm_network_ssid_t *pnet_ssid = (dm_network_ssid_t *)&obj;
+	dm_network_ssid_t *pnet_ssid = const_cast<dm_network_ssid_t*>(reinterpret_cast<const dm_network_ssid_t*>(&obj));
 	unsigned int i, j;
 	bool matched = false;
 
@@ -302,13 +308,23 @@ bool dm_network_ssid_list_t::operator == (const db_easy_mesh_t& obj)
 		return false;
 	}
 
+	if (strncmp(m_network_ssid_info.auth_type, pnet_ssid->m_network_ssid_info.auth_type, strlen(m_network_ssid_info.auth_type)) != 0) {
+		printf("%s:%d: Auth type is different\n", __func__, __LINE__);
+		return false;
+	}
+
+	if (m_network_ssid_info.vlan_id != pnet_ssid->m_network_ssid_info.vlan_id) {
+		printf("%s:%d: vlan id is different\n", __func__, __LINE__);
+		return false;
+	}
+
 	return true;
 }
 
 int dm_network_ssid_list_t::update_db(db_client_t& db_client, dm_orch_type_t op, void *data)
 {
     mac_addr_str_t mac_str;
-    em_network_ssid_info_t *info = (em_network_ssid_info_t *)data;
+    em_network_ssid_info_t *info = static_cast<em_network_ssid_info_t *> (data);
 	int ret = 0;
 	em_long_string_t	bands, hauls, akms;
     em_string_t	haul_str;
@@ -327,8 +343,7 @@ int dm_network_ssid_list_t::update_db(db_client_t& db_client, dm_orch_type_t op,
 	memset(hauls, 0, sizeof(em_long_string_t));
     for (i = 0; i < info->num_hauls; i++) {
         dm_network_ssid_t::haul_type_to_string(info->haul_type[i], haul_str);
-        strncat(hauls, haul_str, strlen(haul_str));
-        strncat(hauls, ",", strlen(","));
+        snprintf(hauls + strlen(hauls), sizeof(hauls) - strlen(hauls) - 1, "%s,", haul_str);
     }
     hauls[strlen(hauls) - 1] = 0;
     //printf("%s:%d: Haul Types: %s\n", __func__, __LINE__, bands);
@@ -344,11 +359,11 @@ int dm_network_ssid_list_t::update_db(db_client_t& db_client, dm_orch_type_t op,
 	switch (op) {
 		case dm_orch_type_db_insert:
 			ret = insert_row(db_client, info->id, info->ssid, info->pass_phrase, bands, info->enable, akms, info->suite_select,
-						info->advertisement, info->mfp, dm_easy_mesh_t::macbytes_to_string(info->mobility_domain, mac_str), hauls);
+						info->advertisement, info->mfp, dm_easy_mesh_t::macbytes_to_string(info->mobility_domain, mac_str), hauls, info->auth_type, info->vlan_id);
 			break;
 
 		case dm_orch_type_db_update:
-			ret = update_row(db_client, info->ssid, info->pass_phrase, bands, info->enable, akms, info->suite_select, info->advertisement, info->mfp, dm_easy_mesh_t::macbytes_to_string(info->mobility_domain, mac_str), hauls, info->id);
+			ret = update_row(db_client, info->ssid, info->pass_phrase, bands, info->enable, akms, info->suite_select, info->advertisement, info->mfp, dm_easy_mesh_t::macbytes_to_string(info->mobility_domain, mac_str), hauls, info->auth_type, info->vlan_id, info->id);
 			break;
 
 		case dm_orch_type_db_delete:
@@ -369,7 +384,7 @@ bool dm_network_ssid_list_t::search_db(db_client_t& db_client, void *ctx, void *
     while (db_client.next_result(ctx)) {
         db_client.get_string(ctx, id, 1);
 
-        if (strncmp(id, (char *)key, strlen((char *)key)) == 0) {
+        if (strncmp(id, static_cast<char *> (key), strlen(static_cast<char *> (key))) == 0) {
             return true;
         }
     }
@@ -384,7 +399,6 @@ int dm_network_ssid_list_t::sync_db(db_client_t& db_client, void *ctx)
     em_long_string_t   str;
     char   *token_parts[10];
     em_string_t haul_type[10];
-	char *tmp;
 	unsigned int i;
     int rc = 0;
 
@@ -398,7 +412,7 @@ int dm_network_ssid_list_t::sync_db(db_client_t& db_client, void *ctx)
 		for (i = 0; i < EM_MAX_BANDS; i++) {
 			token_parts[i] = info.band[i];
 		}
-		info.num_bands = get_strings_by_token(str, ',', EM_MAX_BANDS, token_parts);	
+		info.num_bands = static_cast<unsigned char> (get_strings_by_token(str, ',', EM_MAX_BANDS, token_parts));
 		for (i = 0; i < info.num_bands; i++) {
 			//printf("%s:%d: Band[%d]: %s\n", __func__, __LINE__, i, info.band[i]);
 		}
@@ -409,7 +423,7 @@ int dm_network_ssid_list_t::sync_db(db_client_t& db_client, void *ctx)
 		for (i = 0; i < EM_MAX_AKMS; i++) {
 			token_parts[i] = info.akm[i];
 		}
-		info.num_akms = get_strings_by_token(str, ',', EM_MAX_AKMS, token_parts);	
+		info.num_akms = static_cast<unsigned char> (get_strings_by_token(str, ',', EM_MAX_AKMS, token_parts));
 		for (i = 0; i < info.num_akms; i++) {
 			//printf("%s:%d: akm[%d]: %s\n", __func__, __LINE__, i, info.akm[i]);
 		}
@@ -426,12 +440,15 @@ int dm_network_ssid_list_t::sync_db(db_client_t& db_client, void *ctx)
 		for (i = 0; i < EM_MAX_HAUL_TYPES; i++) {
 			token_parts[i] = haul_type[i];
 		}
-		info.num_hauls = get_strings_by_token(str, ',', EM_MAX_HAUL_TYPES, token_parts);
+		info.num_hauls = static_cast<unsigned char> (get_strings_by_token(str, ',', EM_MAX_HAUL_TYPES, token_parts));
 		for (i = 0; i < info.num_hauls; i++) {
             info.haul_type[i] = dm_network_ssid_t::haul_type_from_string(haul_type[i]);
 			//printf("%s:%d: Haul Type[%d]: %s\n", __func__, __LINE__, i, info.haul_type[i]);
 		}
 
+		db_client.get_string(ctx, info.auth_type, 12);
+
+		info.vlan_id = db_client.get_number(ctx, 13);
         
 		update_list(dm_network_ssid_t(&info), dm_orch_type_db_insert);
     }
@@ -458,6 +475,8 @@ void dm_network_ssid_list_t::init_columns()
     m_columns[m_num_cols++] = db_column_t("MFPConfig", db_data_type_char, 16);
     m_columns[m_num_cols++] = db_column_t("MobilityDomain", db_data_type_char, 17);
     m_columns[m_num_cols++] = db_column_t("HaulType", db_data_type_char, 64);
+    m_columns[m_num_cols++] = db_column_t("AuthType", db_data_type_char, 16);
+    m_columns[m_num_cols++] = db_column_t("VLANID", db_data_type_smallint, 0);
 }
 
 int dm_network_ssid_list_t::init()

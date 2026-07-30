@@ -24,6 +24,20 @@
 class em_cmd_get_radio_t : public em_cmd_t {
 
 public:
+	
+	/**!
+	 * @brief Retrieves radio information based on the provided parameters.
+	 *
+	 * This function is responsible for obtaining radio details using the specified
+	 * command parameters and the easy mesh data model.
+	 *
+	 * @param[in] param The command parameters used to specify the radio details to retrieve.
+	 * @param[in,out] dm The easy mesh data model that will be updated with the retrieved radio information.
+	 *
+	 * @returns em_cmd_get_radio_t The result of the radio information retrieval operation.
+	 *
+	 * @note Ensure that the data model is properly initialized before calling this function.
+	 */
 	em_cmd_get_radio_t(em_cmd_params_t param, dm_easy_mesh_t& dm);
 };
 

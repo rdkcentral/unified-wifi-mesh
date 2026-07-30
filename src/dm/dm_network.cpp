@@ -25,11 +25,6 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <net/if.h>
-#include <linux/filter.h>
-#include <netinet/ether.h>
-#include <netpacket/packet.h>
-#include <linux/netlink.h>
-#include <linux/rtnetlink.h>
 #include <sys/ioctl.h>
 #include <sys/socket.h>
 #include <sys/uio.h>
@@ -41,9 +36,8 @@
 
 int dm_network_t::decode(const cJSON *obj, void *parent_id)
 {
-    cJSON *tmp, *tmp_arr;
+    cJSON *tmp;
     mac_addr_str_t  mac_str;
-    unsigned short i;
 
     memset(&m_net_info, 0, sizeof(em_network_info_t));
 
@@ -52,7 +46,7 @@ int dm_network_t::decode(const cJSON *obj, void *parent_id)
     }
 
     if ((tmp = cJSON_GetObjectItem(obj, "NumberOfDevices")) != NULL) {
-       m_net_info.num_of_devices = cJSON_IsTrue(tmp);
+       m_net_info.num_of_devices = static_cast<short unsigned int> (cJSON_IsTrue(tmp));
     }
 
     if ((tmp = cJSON_GetObjectItem(obj, "TimeStamp")) != NULL) {
@@ -67,6 +61,7 @@ int dm_network_t::decode(const cJSON *obj, void *parent_id)
     }
 
 #ifdef STA_ENGANCEMENT
+    cJSON *tmp_arr;
     if ((tmp_arr = cJSON_GetObjectItem(obj, "MSCSDisallowedStaList")) != NULL) {
         m_net_info.num_mscs_disallowed_sta = cJSON_GetArraySize(tmp_arr);
         for (i = 0; i < m_net_info.num_mscs_disallowed_sta; i++) {
@@ -105,7 +100,6 @@ int dm_network_t::decode(const cJSON *obj, void *parent_id)
 void dm_network_t::encode(cJSON *obj, bool summary)
 {
     mac_addr_str_t  mac_str;
-    unsigned short i;
 	em_string_t	str;
 
     cJSON_AddStringToObject(obj, "ID", m_net_info.id);
@@ -135,7 +129,11 @@ void dm_network_t::encode(cJSON *obj, bool summary)
 
     dm_easy_mesh_t::macbytes_to_string(m_net_info.colocated_agent_id.mac, mac_str);
     cJSON_AddStringToObject(obj, "CollocatedAgentID", mac_str);
-	
+
+    if (summary == true) {
+        return;
+    }
+
 	if (m_net_info.media == em_media_type_ieee8023ab) {
 		strncpy(str, "Ethernet", strlen("Ethernet") + 1);
 	} else if (m_net_info.media == em_media_type_ieee80211b_24) {
@@ -177,7 +175,7 @@ void dm_network_t::operator = (const dm_network_t& obj)
     if (this == &obj) { return; }
     memcpy(&this->m_net_info.id,&obj.m_net_info.id,sizeof(em_long_string_t));
     this->m_net_info.num_of_devices = obj.m_net_info.num_of_devices;
-    strncpy(this->m_net_info.timestamp, obj.m_net_info.timestamp, strlen(obj.m_net_info.timestamp) + 1);
+    strncpy(this->m_net_info.timestamp, obj.m_net_info.timestamp, sizeof(em_long_string_t));
     memcpy(&this->m_net_info.ctrl_id.mac ,&obj.m_net_info.ctrl_id.mac,sizeof(mac_address_t));
     memcpy(&this->m_net_info.ctrl_id.name,&obj.m_net_info.ctrl_id.name,sizeof(em_interface_name_t));
     this->m_net_info.num_mscs_disallowed_sta = obj.m_net_info.num_mscs_disallowed_sta;
@@ -199,7 +197,9 @@ int dm_network_t::init()
 	util::get_date_time_rfc3399(date_time, EM_DATE_TIME_BUFF_SZ);
 
 	memset(&m_net_info, 0, sizeof(em_network_info_t)); 
-	strncpy(m_net_info.timestamp, date_time, strlen(date_time) + 1);
+	strncpy(m_net_info.timestamp, date_time, EM_DATE_TIME_BUFF_SZ);
+	// set the default media to Ethernet
+	m_net_info.media = em_media_type_ieee8023ab;
 	return 0;
 }
 

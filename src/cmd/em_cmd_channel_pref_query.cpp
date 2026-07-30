@@ -16,7 +16,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <linux/rtnetlink.h>
 #include <sys/ioctl.h>
 #include <sys/socket.h>
 #include <sys/uio.h>
@@ -33,7 +32,7 @@ em_cmd_channel_pref_query_t::em_cmd_channel_pref_query_t(em_service_type_t servi
     m_type = em_cmd_type_channel_pref_query;
     memcpy(&m_param, &param, sizeof(em_cmd_params_t));
 
-    memset((unsigned char *)&m_orch_desc[0], 0, EM_MAX_CMD*sizeof(em_orch_desc_t));
+    memset(reinterpret_cast<unsigned char *> (&m_orch_desc[0]), 0, EM_MAX_CMD*sizeof(em_orch_desc_t));
 
     m_svc = service;
     m_orch_op_idx = 0;
@@ -43,7 +42,7 @@ em_cmd_channel_pref_query_t::em_cmd_channel_pref_query_t(em_service_type_t servi
 
     snprintf(m_name, sizeof(m_name), "%s", "channel_pref_query");
     m_svc = em_service_type_ctrl;
-    init(&dm);
+    init(dm);
     m_data_model.set_msg_id(dm.msg_id);
 
     memset(&ctx, 0, sizeof(em_cmd_ctx_t));

@@ -24,7 +24,22 @@
 class em_cmd_cfg_renew_t : public em_cmd_t {
 
 public:
-    em_cmd_cfg_renew_t(em_service_type_t service, em_cmd_params_t param, dm_easy_mesh_t& dm);
+    
+	/**!
+	 * @brief 
+	 *
+	 * This function is responsible for renewing the command configuration for a given service type.
+	 *
+	 * @param[in] service The type of service for which the command configuration is to be renewed.
+	 * @param[in] param The parameters associated with the command configuration.
+	 * @param[out] dm The easy mesh data structure that will be updated with the renewed configuration.
+	 *
+	 * @returns em_cmd_cfg_renew_t
+	 * @retval Returns a status code indicating the success or failure of the operation.
+	 *
+	 * @note Ensure that the service type and parameters are valid before calling this function.
+	 */
+	em_cmd_cfg_renew_t(em_service_type_t service, em_cmd_params_t param, dm_easy_mesh_t& dm);
 };
 
 #endif

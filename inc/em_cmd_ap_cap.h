@@ -24,6 +24,21 @@
 class em_cmd_ap_cap_report_t : public em_cmd_t {
 
 public:
+	
+	/**!
+	 * @brief Reports the AP capabilities.
+	 *
+	 * This function is responsible for reporting the access point capabilities
+	 * based on the provided parameters and mesh data.
+	 *
+	 * @param[in] param The command parameters used for the report.
+	 * @param[in,out] dm The easy mesh data structure that will be updated with the report.
+	 *
+	 * @returns The result of the AP capability report operation.
+	 * @retval em_cmd_ap_cap_report_t The type indicating the success or failure of the operation.
+	 *
+	 * @note Ensure that the mesh data is properly initialized before calling this function.
+	 */
 	em_cmd_ap_cap_report_t(em_cmd_params_t param, dm_easy_mesh_t& dm);
 };
 

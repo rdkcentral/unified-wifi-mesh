@@ -25,11 +25,6 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <net/if.h>
-#include <linux/filter.h>
-#include <netinet/ether.h>
-#include <netpacket/packet.h>
-#include <linux/netlink.h>
-#include <linux/rtnetlink.h>
 #include <sys/ioctl.h>
 #include <sys/socket.h>
 #include <sys/uio.h>
@@ -38,15 +33,15 @@
 #include "dm_device.h"
 #include "dm_easy_mesh.h"
 #include "dm_easy_mesh_ctrl.h"
-//#include "util.h"
+#include "util.h"
 
 int dm_device_t::decode(const cJSON *obj, void *parent_id)
 {
     cJSON *tmp, *tmp_arr;
     mac_addr_str_t  mac_str;
-    unsigned int i;
+    int i;
 
-    char *net_id = (char *)parent_id;
+    char *net_id = static_cast<char *> (parent_id);
 	
     memset(&m_device_info, 0, sizeof(em_device_info_t));
     if ((tmp = cJSON_GetObjectItem(obj, "ID")) != NULL) {
@@ -59,16 +54,16 @@ int dm_device_t::decode(const cJSON *obj, void *parent_id)
         snprintf(m_device_info.multi_ap_cap, sizeof(m_device_info.multi_ap_cap), "%s", cJSON_GetStringValue(tmp));
     }
     if ((tmp = cJSON_GetObjectItem(obj, "CollectionInterval")) != NULL) {
-       	m_device_info.coll_interval = tmp->valuedouble;
+       	m_device_info.coll_interval = static_cast<unsigned int> (tmp->valuedouble);
    	}
     if ((tmp = cJSON_GetObjectItem(obj, "ReportUnsuccessfulAssociations")) != NULL) {
        	m_device_info.report_unsuccess_assocs = cJSON_IsTrue(tmp);
     }
     if ((tmp = cJSON_GetObjectItem(obj, "MaxReportingRate")) != NULL) {
-        m_device_info.max_reporting_rate = tmp->valuedouble;
+        m_device_info.max_reporting_rate = static_cast<short unsigned int> (tmp->valuedouble);
     }
     if ((tmp = cJSON_GetObjectItem(obj, "APMetricsReportingInterval")) != NULL) {
-       m_device_info.ap_metrics_reporting_interval = tmp->valuedouble;
+       m_device_info.ap_metrics_reporting_interval = static_cast<short unsigned int> (tmp->valuedouble);
     }
     if ((tmp = cJSON_GetObjectItem(obj, "Manufacturer")) != NULL) {
         snprintf(m_device_info.manufacturer, sizeof(m_device_info.manufacturer), "%s", cJSON_GetStringValue(tmp));
@@ -89,10 +84,10 @@ int dm_device_t::decode(const cJSON *obj, void *parent_id)
         snprintf(m_device_info.dscp_map, sizeof(m_device_info.dscp_map), "%s", cJSON_GetStringValue(tmp));
     }
     if ((tmp = cJSON_GetObjectItem(obj, "MaxPrioritizationRules")) != NULL) {
-        m_device_info.max_pri_rules = tmp->valuedouble;
+        m_device_info.max_pri_rules = static_cast<unsigned char> (tmp->valuedouble);
     }
     if ((tmp = cJSON_GetObjectItem(obj, "MaxVIDs")) != NULL) {
-        m_device_info.max_vids = tmp->valuedouble;
+        m_device_info.max_vids = static_cast<unsigned char> (tmp->valuedouble);
     }
     if ((tmp = cJSON_GetObjectItem(obj, "CountryCode")) != NULL) {
        snprintf(m_device_info.country_code, sizeof(m_device_info.country_code), "%s", cJSON_GetStringValue(tmp));
@@ -113,7 +108,7 @@ int dm_device_t::decode(const cJSON *obj, void *parent_id)
         m_device_info.dfs_enable = cJSON_IsTrue(tmp);
     }
     if ((tmp = cJSON_GetObjectItem(obj, "MaxUnsuccessfulAssociationReportingRate")) != NULL) {
-        m_device_info.max_unsuccessful_assoc_report_rate = tmp->valuedouble;
+        m_device_info.max_unsuccessful_assoc_report_rate = static_cast<short unsigned int> (tmp->valuedouble);
     }
     if ((tmp = cJSON_GetObjectItem(obj, "STASteeringState")) != NULL) {
         m_device_info.sta_steer_state = cJSON_IsTrue(tmp);
@@ -132,7 +127,7 @@ int dm_device_t::decode(const cJSON *obj, void *parent_id)
     }
   
     if ((tmp_arr = cJSON_GetObjectItem(obj, "BackhaulDownMACAddress")) != NULL) {
-        m_device_info.num_backhaul_down_mac = cJSON_GetArraySize(tmp_arr);
+        m_device_info.num_backhaul_down_mac = static_cast<unsigned char> (cJSON_GetArraySize(tmp_arr));
         for (i = 0; i < m_device_info.num_backhaul_down_mac; i++) {
             tmp = cJSON_GetArrayItem(tmp_arr, i);
             snprintf(m_device_info.backhaul_down_mac[i], sizeof(m_device_info.backhaul_down_mac[i]), "%s", cJSON_GetStringValue(tmp));
@@ -144,12 +139,12 @@ int dm_device_t::decode(const cJSON *obj, void *parent_id)
     }
 	
     if ((tmp = cJSON_GetObjectItem(obj, "BackhaulPHYRate")) != NULL) {
-        m_device_info.backhaul_phyrate = tmp->valuedouble;
+        m_device_info.backhaul_phyrate = static_cast<unsigned int> (tmp->valuedouble);
     }
     if ((tmp = cJSON_GetObjectItem(obj, "BackhaulALID")) != NULL) {
         snprintf(mac_str, sizeof(mac_str), "%s", cJSON_GetStringValue(tmp));
         dm_easy_mesh_t::string_to_macbytes(mac_str, m_device_info.backhaul_alid.mac);
-	dm_easy_mesh_t::name_from_mac_address(&m_device_info.backhaul_alid.mac, m_device_info.backhaul_alid.name);
+        dm_easy_mesh_t::name_from_mac_address(&m_device_info.backhaul_alid.mac, m_device_info.backhaul_alid.name);
     }
     if ((tmp = cJSON_GetObjectItem(obj, "TrafficSeparationCapability")) != NULL) {
         m_device_info.traffic_sep_cap = cJSON_IsTrue(tmp);
@@ -158,24 +153,24 @@ int dm_device_t::decode(const cJSON *obj, void *parent_id)
         m_device_info.easy_conn_cap = cJSON_IsTrue(tmp);
     }
     if ((tmp = cJSON_GetObjectItem(obj, "TestCapabilities")) != NULL) {
-        m_device_info.test_cap = tmp->valuedouble;
+        m_device_info.test_cap = static_cast<unsigned char> (tmp->valuedouble);
     }
     if ((tmp = cJSON_GetObjectItem(obj, "APMLDMaxLinks")) != NULL) {
-        m_device_info.apmld_maxlinks = tmp->valuedouble;
+        m_device_info.apmld_maxlinks = static_cast<unsigned char> (tmp->valuedouble);
     }
 	
     if ((tmp = cJSON_GetObjectItem(obj, "TIDLinkMapping")) != NULL) {
-        snprintf(m_device_info.tidlink_map, sizeof(m_device_info.tidlink_map), "%s", cJSON_GetStringValue(tmp));
+        m_device_info.tidlink_map = static_cast<unsigned char> (tmp->valuedouble);
     }
 	
     if ((tmp = cJSON_GetObjectItem(obj, "AssociatedSTAReportingInterval")) != NULL) {
-        m_device_info.assoc_sta_reporting_int = tmp->valuedouble;
+        m_device_info.assoc_sta_reporting_int = static_cast<unsigned char> (tmp->valuedouble);
     }
     if ((tmp = cJSON_GetObjectItem(obj, "MaxNumMLDs")) != NULL) {
-        m_device_info.max_nummlds = tmp->valuedouble;
+        m_device_info.max_nummlds = static_cast<unsigned char> (tmp->valuedouble);
     }
     if ((tmp = cJSON_GetObjectItem(obj, "bSTAMLDMaxLinks")) != NULL) {
-        m_device_info.bstamld_maxlinks = tmp->valuedouble;
+        m_device_info.bstamld_maxlinks = static_cast<unsigned char> (tmp->valuedouble);
     }
     return 0;
 }
@@ -248,7 +243,7 @@ void dm_device_t::encode(cJSON *obj, bool summary)
     cJSON_AddBoolToObject(obj, "EasyConnectCapability", m_device_info.easy_conn_cap);
     cJSON_AddNumberToObject(obj, "TestCapabilities", m_device_info.test_cap);
     cJSON_AddNumberToObject(obj, "APMLDMaxLinks", m_device_info.apmld_maxlinks);
-    cJSON_AddStringToObject(obj, "TIDLinkMapping", m_device_info.tidlink_map);
+    cJSON_AddNumberToObject(obj, "TIDLinkMapping", m_device_info.tidlink_map);
     cJSON_AddNumberToObject(obj, "AssociatedSTAReportingInterval", m_device_info.assoc_sta_reporting_int);
     cJSON_AddNumberToObject(obj, "MaxNumMLDs", m_device_info.max_nummlds);
     cJSON_AddNumberToObject(obj, "bSTAMLDMaxLinks", m_device_info.bstamld_maxlinks);
@@ -257,7 +252,7 @@ void dm_device_t::encode(cJSON *obj, bool summary)
 dm_orch_type_t dm_device_t::get_dm_orch_type(const dm_device_t& device)
 {
     if ( this == &device) {
-         dm_orch_type_none;
+        return dm_orch_type_none;
     } else {
         return dm_orch_type_db_update;
     }
@@ -329,15 +324,11 @@ bool dm_device_t::operator == (const dm_device_t& obj)
     ret += (memcmp(&this->m_device_info.backhaul_media_type,&obj.m_device_info.backhaul_media_type,sizeof(wifi_ieee80211Variant_t)) != 0);
     ret += (memcmp(&this->m_device_info.backhaul_alid.mac ,&obj.m_device_info.backhaul_alid.mac,sizeof(mac_address_t)) != 0);
     ret += (memcmp(&this->m_device_info.backhaul_alid.name,&obj.m_device_info.backhaul_alid.name,sizeof(em_interface_name_t)) != 0);
-    ret += !(this->m_device_info.backhaul_alid.name == obj.m_device_info.backhaul_alid.name);
-    ret += !(this->m_device_info.backhaul_alid.mac == obj.m_device_info.backhaul_alid.mac);
     ret += !(this->m_device_info.traffic_sep_cap == obj.m_device_info.traffic_sep_cap);
     ret += !(this->m_device_info.easy_conn_cap == obj.m_device_info.easy_conn_cap);
     ret += !(this->m_device_info.test_cap == obj.m_device_info.test_cap);
-    ret += !(this->m_device_info.primary_device_type == obj.m_device_info.primary_device_type);
-    ret += !(this->m_device_info.secondary_device_type == obj.m_device_info.secondary_device_type);
     ret += (memcmp(&this->m_device_info.primary_device_type,&obj.m_device_info.primary_device_type,sizeof(em_small_string_t)) != 0);;
-    ret += (memcmp(&this->m_device_info.backhaul_media_type,&obj.m_device_info.secondary_device_type,sizeof(em_small_string_t)) != 0);
+    ret += (memcmp(&this->m_device_info.secondary_device_type,&obj.m_device_info.secondary_device_type,sizeof(em_small_string_t)) != 0);
 
     if (ret > 0)
         return false;
@@ -363,7 +354,7 @@ int dm_device_t::parse_device_id_from_key(const char *key, em_device_id_t *id)
             *tmp = 0;
             dm_easy_mesh_t::string_to_macbytes(remain, id->dev_mac);
             tmp++;
-            id->media = (em_media_type_t)atoi(tmp);
+            id->media = static_cast<em_media_type_t> (atoi(tmp));
         }  
         i++;
     }
@@ -379,13 +370,16 @@ int dm_device_t::update_easymesh_json_cfg(bool colocated_mode)
 	// Create a JSON object
 	cJSON *root = cJSON_CreateObject();
 
-	dm_easy_mesh_t::macbytes_to_string((unsigned char *)m_device_info.backhaul_mac.mac, mac_str);
-	cJSON_AddStringToObject(root, "AL_MAC_ADDR", (char*)mac_str);
-	cJSON_AddNumberToObject(root, "Colocated_mode", (int)colocated_mode);
+	dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *> (m_device_info.intf.mac), mac_str);
+
+	cJSON_AddStringToObject(root, "AL_MAC_ADDR", const_cast<char*> (mac_str));
+	cJSON_AddNumberToObject(root, "Colocated_mode", static_cast<int> (colocated_mode));
 	//Configuring Mesh Backhaul with default SSID and KeyPassphrase
  	//TBD: This file to be updated with the configuration used for mesh_backhaul
 	cJSON_AddStringToObject(root, "Backhaul_SSID", "mesh_backhaul");
 	cJSON_AddStringToObject(root, "Backhaul_KeyPassphrase", "test-backhaul");
+	//Enable 4 address mode by default in unified-wifi-mesh
+	cJSON_AddBoolToObject(root, "sta_4addr_mode_enabled", cJSON_True);
 
 	// Convert the JSON object to a string
 	char *jsonString = cJSON_Print(root);
@@ -408,6 +402,11 @@ int dm_device_t::update_easymesh_json_cfg(bool colocated_mode)
 
 dm_device_t::dm_device_t(em_device_info_t *dev)
 {
+    memset(&m_device_info, 0, sizeof(em_device_info_t));
+    if ( dev == nullptr ) {
+        em_printfout("Error: device_info is null");
+        return;
+    }
     memcpy(&m_device_info, dev, sizeof(em_device_info_t));
 }
 
@@ -418,7 +417,7 @@ dm_device_t::dm_device_t(const dm_device_t& dev)
 
 dm_device_t::dm_device_t()
 {
-
+    memset(&m_device_info, 0, sizeof(em_device_info_t));
 }
 
 dm_device_t::~dm_device_t()
