@@ -798,7 +798,7 @@ bool ec_util::decode_bootstrap_data_json(const cJSON *json_obj, ec_data_t *boot_
 {
     memset(boot_data, 0, sizeof(ec_data_t));
 
-    const cJSON *object_item = NULL;
+    cJSON *object_item = NULL;
 
     std::map<dpp_uri_field, std::string> uri_map;
 
