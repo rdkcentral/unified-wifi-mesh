@@ -574,7 +574,7 @@ void em_configuration_t::handle_failed_connection_event(const mac_address_t sta,
         return;
     }
 
-    final_reason_code = 1;
+    final_reason_code = 0;
     if ((status_code == 0) && reason_code_present && (reason_code != 0)) {
         final_reason_code = reason_code;
     }
@@ -5917,12 +5917,6 @@ void em_configuration_t::process_msg(unsigned char *data, unsigned int len)
             }
             break;
 
-        case em_msg_type_failed_conn:
-            if (get_service_type() == em_service_type_ctrl) {
-                em_printfout("Received failed connection message from agent src_al_mac:%s", util::mac_to_string(src_al_mac).c_str());
-            }
-            break;
-        
         case em_msg_type_ap_mld_config_req:
             if ((get_service_type() == em_service_type_agent)) {
                 handle_ap_mld_config_req(data, len);
