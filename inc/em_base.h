@@ -2245,6 +2245,7 @@ typedef enum {
     vendor_ext_attr_id_policy_alarm,    // data of type em_link_stats_alarm_cfg_t
     vendor_ext_attr_id_policy_cfg_client_filter,    // data of type em_client_filters_cfg_t
     vendor_ext_attr_id_link_report,     // data of type em_link_report_t
+    vendor_ext_attr_id_passive,         // 1 byte: 0x01 indicates controller is in passive mode
 
     //comcast vendor extension attributes, 0x100 - 0x1FF
     vendor_ext_attr_id_wei_data = 0xcc,
@@ -2259,6 +2260,7 @@ typedef enum {
     em_state_agent_1905_securing,
     em_state_agent_autoconfig_rsp_pending,
     em_state_agent_wsc_m2_pending,
+    em_state_agent_wsc_m2_config_skipping,
     em_state_agent_owconfig_pending,
     em_state_agent_onewifi_bssconfig_ind,
 	em_state_agent_autoconfig_renew_pending,
@@ -2312,6 +2314,7 @@ typedef enum {
     em_state_ctrl_avail_spectrum_inquiry_pending,
     em_state_ctrl_bsta_cap_pending,
     em_state_ctrl_topo_publish_pending,
+    em_state_ctrl_topo_published,
     em_state_ctrl_unassoc_sta_link_metrics_pending, 
 
     em_state_max,
@@ -3714,6 +3717,7 @@ static const SecurityTypeMap securityTypeMap[] = {
     { "WPA3 Transition", EM_AUTH_WPA3_TRANSITION }
 };
 
+static const unsigned char comcast_vendor_oui[EM_VENDOR_OUI_SIZE] = {0xd8, 0x9c, 0x8e};
 static const unsigned char airties_vendor_oui[EM_VENDOR_OUI_SIZE] = {0x88, 0x41, 0xfc};
 static const unsigned char comcast_vendor_oui[EM_VENDOR_OUI_SIZE] = {0xd8, 0x9c, 0x8e};
 

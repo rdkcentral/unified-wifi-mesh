@@ -27,6 +27,7 @@ class em_mgr_t {
    
     pthread_t   m_tid;
     bool m_exit;
+    bool m_passive;
     em_queue_t  m_queue;
 	unsigned int m_tick_demultiplex;
 	unsigned short m_msg_id;
@@ -280,6 +281,20 @@ public:
 	 * @note The message ID is incremented with each call and wraps around at 0xFFFF.
 	 */
 	unsigned short get_next_msg_id();
+
+	/**!
+	 * @brief Returns whether the controller was started in passive mode.
+	 *
+	 * @returns true if passive mode is enabled, false otherwise.
+	 */
+	bool is_passive() const { return m_passive; }
+
+	/**!
+	 * @brief Sets the passive mode flag.
+	 *
+	 * @param[in] passive true to enable passive mode, false to disable.
+	 */
+	void set_passive(bool passive) { m_passive = passive; }
 
 	/**!
 	 * @brief Listens to manager nodes.
