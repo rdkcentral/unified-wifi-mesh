@@ -1204,11 +1204,12 @@ short em_metrics_t::send_single_beacon_metrics_query(mac_address_t sta_mac, bssi
 
 short em_metrics_t::send_beacon_metrics_query(mac_address_t sta_mac, bssid_t bssid)
 {
-    dm_easy_mesh_t *dm = get_data_model();
     em_assoc_sta_mld_info_t *mld_info = NULL;
+    dm_easy_mesh_t *dm = get_data_model();
 
     if (dm == NULL) {
-        return 0;
+        em_printfout("No data model available");
+        return -1;
     }
 
     //check if mlo, then trigger multiple query based on links
