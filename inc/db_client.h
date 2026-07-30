@@ -19,7 +19,7 @@
 #ifndef DB_CLIENT_H
 #define DB_CLIENT_H
 
-#if defined(OPENWRT_BUILD) || defined(_PLATFORM_BANANAPI_R4_)
+#if defined(OPENWRT_BUILD) || defined(_PLATFORM_BANANAPI_R4_) || defined(RDKB_BUILD)
 // MariaDB C client header for cross compiled OpenWRT
 #include <mysql/mysql.h>
 #else
