@@ -43,7 +43,7 @@
 int dm_op_class_list_t::get_config(cJSON *obj_arr, void *parent, bool summary)
 {
     dm_op_class_t *pop_class;
-    cJSON *obj, *non_op_arr, *anticipated_arr, *channel_arr;
+    cJSON *obj, *non_op_arr, *anticipated_arr, *anticipated_pref_list, *channel_arr;
     unsigned int i;
     em_op_class_id_t id;
     em_op_class_info_t *info;
@@ -86,7 +86,16 @@ int dm_op_class_list_t::get_config(cJSON *obj_arr, void *parent, bool summary)
 			anticipated_arr = cJSON_AddArrayToObject(obj, "ChannelList");
 			for (i = 0; i < pop_class->m_op_class_info.num_channels; i++) {
             	cJSON_AddItemToArray(anticipated_arr, cJSON_CreateNumber(pop_class->m_op_class_info.channels[i]));
-        	}
+            }
+            if (id.type == em_op_class_type_anticipated) {
+                if (pop_class->m_op_class_info.pref_valid) {
+                    anticipated_pref_list = cJSON_AddArrayToObject(obj, "ChannelPrefList");
+                    for (i = 0; i < pop_class->m_op_class_info.num_channels; i++) {
+                        cJSON_AddItemToArray(anticipated_pref_list, cJSON_CreateNumber(pop_class->m_op_class_info.channel_pref[i]));
+                    }
+                }
+
+            }
     	}
 		cJSON_AddItemToArray(obj_arr, obj);
 		pop_class = get_next_op_class(pop_class);

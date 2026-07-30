@@ -92,6 +92,11 @@ public:
     unsigned int    m_num_assoc_sta_mld;
     dm_assoc_sta_mld_t m_assoc_sta_mld[EM_MAX_ASSOC_STA_MLD];
     dm_tid_to_link_t m_tid_to_link;
+    em_unassoc_sta_metrics_rsp_t    m_unassoc_sta_metrics_rsp;
+    em_unassoc_query_list_t m_unassoc_query_list;
+
+    unsigned int m_num_unassoc_sta_metrics;
+    em_unassoc_sta_metric_entry_t  m_unassoc_sta_metrics[EM_MAX_UNASSOC_STA];
 
 public:
 
@@ -1834,6 +1839,8 @@ public:
 	static void update_assoc_sta_mld_info(void *dm, em_assoc_sta_mld_info_t *assoc_sta_mld_info) { if (dm == NULL) return; (static_cast<dm_easy_mesh_t *>(dm))->update_assoc_sta_mld_info(assoc_sta_mld_info); }
 
 	void remove_assoc_sta_mld_info(mac_address_t sta_mld_mac);
+	bool is_ap_mld_mac(const mac_address_t mac);
+	bool resolve_ap_mld_to_fallback_ruid(const mac_address_t ap_mld_mac, mac_address_t fallback_ruid);
 
 	em_radio_cap_info_t *get_radio_cap_info(unsigned int index);
 	static em_radio_cap_info_t *get_radio_cap_info(void *dm, unsigned int index) { if (dm == NULL) return NULL; return (static_cast<dm_easy_mesh_t *>(dm))->get_radio_cap_info(index); }
@@ -2340,6 +2347,8 @@ public:
 	 *       the network's configuration.
 	 */
 	dm_sta_t *find_sta(mac_address_t sta_mac, bssid_t bssid);
+
+	dm_sta_t *find_sta(mac_address_t sta_mac);
     
 	/**!
 	 * @brief Retrieves the first station associated with the given MAC address.

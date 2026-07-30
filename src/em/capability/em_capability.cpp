@@ -343,51 +343,15 @@ short em_capability_t::create_client_cap_tlv(unsigned char *buff, mac_address_t 
     unsigned char res = 0;
     dm_easy_mesh_t *dm;
     dm_sta_t *dm_sta;
-    em_assoc_sta_mld_info_t *assoc_info = NULL;
-    unsigned int i, j;
-    mac_address_t lookup_sta;
 
     dm = get_data_model();
-    memcpy(lookup_sta, sta, sizeof(mac_address_t));
 
     dm_sta = reinterpret_cast<dm_sta_t *> (hash_map_get_first(dm->m_sta_map));
     while(dm_sta != NULL) {
-        if (memcmp(dm_sta->get_sta_info()->id, lookup_sta, sizeof(mac_address_t)) == 0) {
+        if (memcmp(dm_sta->get_sta_info()->id, sta, sizeof(mac_address_t)) == 0) {
             break;
         }
         dm_sta = reinterpret_cast<dm_sta_t *> (hash_map_get_next(dm->m_sta_map, dm_sta));
-    }
-
-    // Client Capability Query for MLO may carry STA MLD MAC while local sta_map may hold
-    // affiliated link STA MACs. Resolve STA MLD -> affiliated STA and retry lookup.
-    if (dm_sta == NULL) {
-        for (i = 0; i < dm->get_num_assoc_sta_mld(); i++) {
-            assoc_info = &dm->m_assoc_sta_mld[i].m_assoc_sta_mld_info;
-            if (memcmp(assoc_info->mac_addr, sta, sizeof(mac_address_t)) != 0) {
-                continue;
-            }
-
-            for (j = 0; j < assoc_info->num_affiliated_sta; j++) {
-                memcpy(lookup_sta, assoc_info->affiliated_sta[j].mac_addr, sizeof(mac_address_t));
-                dm_sta = reinterpret_cast<dm_sta_t *> (hash_map_get_first(dm->m_sta_map));
-                while (dm_sta != NULL) {
-                    if (memcmp(dm_sta->get_sta_info()->id, lookup_sta, sizeof(mac_address_t)) == 0) {
-                        break;
-                    }
-                    dm_sta = reinterpret_cast<dm_sta_t *> (hash_map_get_next(dm->m_sta_map, dm_sta));
-                }
-
-                if (dm_sta != NULL) {
-                    em_printfout("Client cap: mapped MLD %s to link STA %s",
-                            util::mac_to_string(sta).c_str(), util::mac_to_string(lookup_sta).c_str());
-                    break;
-                }
-            }
-
-            if (dm_sta != NULL) {
-                break;
-            }
-        }
     }
 
     if(dm_sta == NULL) {
@@ -789,10 +753,8 @@ int em_capability_t::handle_client_cap_report(unsigned char *buff, unsigned int 
     dm_sta_t *existing_sta = NULL;
     em_sta_info_t link_sta_info;
     em_long_string_t link_key;
-    bool remapped_bssid = false;
     bool found_client_info = false;
     bool found_cap_report = false;
-    bool sta_match = false;
     bool updated_any = false;
     unsigned int i, j, k;
     char *errors[EM_MAX_TLV_MEMBERS] = {0};
@@ -825,37 +787,27 @@ int em_capability_t::handle_client_cap_report(unsigned char *buff, unsigned int 
         return -1;
     }
 
-    // Remap AP MLD BSSID to a local link BSSID when needed.
-    if (dm->get_bss(get_radio_interface_mac(), sta_info.bssid) == NULL) {
+    if ((dm->get_bss(get_radio_interface_mac(), sta_info.bssid) == NULL) && dm->is_ap_mld_mac(sta_info.bssid)) {
+        em_printfout("Client cap: STA %s is affiliated with MLD BSSID %s, remapping to affiliated link BSSID",
+            util::mac_to_string(sta_info.id).c_str(), util::mac_to_string(sta_info.bssid).c_str());
+        assoc_info = NULL;
         for (i = 0; i < dm->get_num_assoc_sta_mld(); i++) {
-            assoc_info = &dm->m_assoc_sta_mld[i].m_assoc_sta_mld_info;
-            sta_match = (memcmp(assoc_info->mac_addr, sta_info.id, sizeof(mac_address_t)) == 0);
-
-            if (sta_match == false) {
-                for (j = 0; j < assoc_info->num_affiliated_sta; j++) {
-                    if (memcmp(assoc_info->affiliated_sta[j].mac_addr, sta_info.id, sizeof(mac_address_t)) == 0) {
-                        sta_match = true;
-                        break;
-                    }
-                }
+            if (memcmp(dm->m_assoc_sta_mld[i].m_assoc_sta_mld_info.mac_addr,
+                       sta_info.id,
+                       sizeof(mac_address_t)) == 0) {
+                assoc_info = &dm->m_assoc_sta_mld[i].m_assoc_sta_mld_info;
+                break;
             }
+        }
 
-            if (sta_match == false) {
-                continue;
-            }
-
+        if (assoc_info != NULL) {
             for (j = 0; j < assoc_info->num_affiliated_sta; j++) {
                 if (dm->get_bss(get_radio_interface_mac(), assoc_info->affiliated_sta[j].bssid) != NULL) {
                     memcpy(sta_info.bssid, assoc_info->affiliated_sta[j].bssid, sizeof(mac_address_t));
                     em_printfout("Client cap: remapped BSSID for STA %s -> %s",
                         util::mac_to_string(sta_info.id).c_str(), util::mac_to_string(sta_info.bssid).c_str());
-                    remapped_bssid = true;
                     break;
                 }
-            }
-
-            if (remapped_bssid == true) {
-                break;
             }
         }
     }
@@ -909,6 +861,13 @@ int em_capability_t::handle_client_cap_report(unsigned char *buff, unsigned int 
                     memcpy(link_sta_info.radiomac, aff_bss->m_bss_info.ruid.mac, sizeof(mac_address_t));
                     break;
                 }
+            }
+
+            if (aff_bss == NULL) {
+                em_printfout("Client cap DB skip link: unresolved BSSID %s for STA %s",
+                    util::mac_to_string(link_sta_info.bssid).c_str(),
+                    util::mac_to_string(link_sta_info.id).c_str());
+                continue;
             }
 
             dm_easy_mesh_t::macbytes_to_string(link_sta_info.bssid, link_bssid_str);
@@ -1524,16 +1483,40 @@ int em_capability_t::handle_ap_cap_report(unsigned char *buff, unsigned int len)
         }
         else if (tlv->type == em_tlv_type_cac_cap){
             em_cac_cap_t *cac = reinterpret_cast<em_cac_cap_t *>(tlv->value);
+            if (cac == nullptr) {
+                em_printfout("Invalid CAC TLV: null pointer");
+                return -1;
+            }
+
+            if (cac->radios_num > EM_MAX_RADIO_PER_AGENT) {
+                em_printfout("Invalid CAC TLV: radios_num=%u exceeds max=%u", cac->radios_num, EM_MAX_RADIO_PER_AGENT);
+                return -1;
+            }
+
+            /* Country Code = first 2 ASCII octets of the CAC Capabilities TLV;
+               persist it into the reporting device so it surfaces as Device.{i}.CountryCode. */
+            if (ntohs(tlv->len) >= 2) {
+                const unsigned char *cc = tlv->value;
+                em_device_info_t *dev_info = dm->get_device_info();
+                if ((dev_info != NULL) &&
+                    (cc[0] >= 'A') && (cc[0] <= 'Z') &&
+                    (cc[1] >= 'A') && (cc[1] <= 'Z')) {
+                    dev_info->country_code[0] = static_cast<char>(cc[0]);
+                    dev_info->country_code[1] = static_cast<char>(cc[1]);
+                    dev_info->country_code[2] = '\0';
+                }
+            }
+
             for (int idx = 0; idx < cac->radios_num; idx++)
             {
                 dm_radio_cap_t *radio_cap = dm->get_radio_cap(cac->radios[idx].ruid);
-                if ((cac != NULL) && (radio_cap != NULL)){
+                if (radio_cap != NULL){
                     em_radio_cap_info_t *cap_info = radio_cap->get_radio_cap_info();
                     if ((cap_info == NULL)){
                         em_printfout("No data Found");
                         return 0;
                     }
-                    memcpy(&cap_info->cac_cap, &cac->radios[0], sizeof(em_cac_cap_t));
+                    memcpy(&cap_info->cac_cap, &cac->radios[idx], sizeof(cap_info->cac_cap));
                 }
             }
         } else if (tlv->type == em_tlv_type_profile_2_ap_cap){

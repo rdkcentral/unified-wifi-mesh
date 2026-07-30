@@ -56,7 +56,7 @@ unsigned int em_orch_t::submit_commands(em_cmd_t *pcmd[], unsigned int num)
         }
         if ((submit = pre_process_orch_op(pcmd[i])) == false) {
             // complete the command
-            destroy_command(pcmd[i]);	
+            destroy_command(pcmd[i]);
             submit = true;
             continue;
         } else {
