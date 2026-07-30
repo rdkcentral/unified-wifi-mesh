@@ -949,6 +949,46 @@ short em_metrics_t::send_beacon_metrics_query(mac_address_t sta_mac, bssid_t bss
     return static_cast<short> (len);
 }
 
+short em_metrics_t::send_beacon_metrics_query(mac_address_t sta_mac, bssid_t bssid)
+{
+    em_assoc_sta_mld_info_t *mld_info = NULL;
+    dm_easy_mesh_t *dm = get_data_model();
+
+    if (dm == NULL) {
+        em_printfout("No data model available");
+        return -1;
+    }
+
+    //check if mlo, then trigger multiple query based on links
+    if (dm->is_sta_mld(sta_mac) == true) {
+        // Resolve whether this STA belongs to an MLD client.
+        for (int mld = 0; mld < dm->get_num_assoc_sta_mld(); mld++) {
+            em_assoc_sta_mld_info_t &assoc_sta_mld_info = dm->m_assoc_sta_mld[mld].m_assoc_sta_mld_info;
+            if (memcmp(assoc_sta_mld_info.mac_addr, sta_mac, sizeof(mac_address_t)) == 0) {
+                mld_info = &assoc_sta_mld_info;
+                //mld info found
+                break;
+            }
+        }
+        if (mld_info == NULL) {
+            em_printfout("No MLD info found for STA: %s", util::mac_to_string(sta_mac).c_str());
+            return -1;
+        }
+        for (int i = 0; i < mld_info->num_affiliated_sta; i++) {
+            em_printfout("for sta %s, bssid is %s and link_addr is %s", util::mac_to_string(mld_info->mac_addr).c_str(),
+                util::mac_to_string(mld_info->affiliated_sta[i].bssid).c_str(), util::mac_to_string(mld_info->affiliated_sta[i].link_addr).c_str());
+            em_printfout("Sending %d beacon metrics query for affiliated STA: %s", i, util::mac_to_string(mld_info->mac_addr).c_str());
+
+            send_single_beacon_metrics_query(sta_mac, mld_info->affiliated_sta[i].bssid);
+        }
+    } else {
+        em_printfout("Sending beacon metrics query for STA: %s", util::mac_to_string(sta_mac).c_str());
+        send_single_beacon_metrics_query(sta_mac, bssid);
+    }
+
+    return 0;
+}
+
 int em_metrics_t::send_beacon_metrics_response()
 {
     unsigned char buff[MAX_EM_BUFF_SZ];
@@ -2446,12 +2486,24 @@ void em_metrics_t::process_msg(unsigned char *data, unsigned int len)
 
 void em_metrics_t::process_ctrl_state()
 {
+    em_cmd_t *cmd = get_current_cmd();
+    if (!cmd) {
+        return;
+    }
+    
     switch (get_state()) {
         case em_state_ctrl_sta_link_metrics_pending:
             send_all_associated_sta_link_metrics_msg();
             break;
         case em_state_ctrl_unassoc_sta_link_metrics_pending:
             send_unassoc_sta_link_metrics_query_msg();
+            break;
+
+        case em_state_beacon_report_pending:
+            if (cmd->get_param()) {
+                em_cmd_beacon_metrics_param_t *param = &cmd->get_param()->u.beacon_metrics_params;
+                send_beacon_metrics_query(param->sta_mac_addr, param->bssid);
+            }
             break;
 	    
         default:

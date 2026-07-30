@@ -258,6 +258,10 @@ void em_t::orch_execute(em_cmd_t *pcmd)
         case em_cmd_type_unassoc_sta_result:
             m_sm.set_state(em_state_agent_unassoc_sta_metrics_report_pending);
             break;
+
+        case em_cmd_type_beacon_report:
+            m_sm.set_state(em_state_beacon_report_pending);
+            break;
         
 	default:
             break;
@@ -576,6 +580,10 @@ void em_t::handle_ctrl_state()
             break;
 
         case em_cmd_type_unassoc_sta_query:
+            em_metrics_t::process_ctrl_state();
+            break;
+
+        case em_cmd_type_beacon_report:
             em_metrics_t::process_ctrl_state();
             break;
 
@@ -2878,7 +2886,7 @@ const char *em_t::state_2_str(em_state_t state)
         EM_STATE_2S(em_state_ctrl_avail_spectrum_inquiry_pending)
         EM_STATE_2S(em_state_ctrl_bsta_cap_pending)
         EM_STATE_2S(em_state_ctrl_topo_publish_pending)
-	EM_STATE_2S(em_state_ctrl_unassoc_sta_link_metrics_pending)
+        EM_STATE_2S(em_state_ctrl_unassoc_sta_link_metrics_pending)
         EM_STATE_2S(em_state_agent_unconfigured)
         EM_STATE_2S(em_state_agent_autoconfig_rsp_pending)
         EM_STATE_2S(em_state_agent_wsc_m2_pending)
@@ -2898,7 +2906,8 @@ const char *em_t::state_2_str(em_state_t state)
         EM_STATE_2S(em_state_agent_sta_link_metrics_pending)
         EM_STATE_2S(em_state_agent_beacon_report_pending)
         EM_STATE_2S(em_state_agent_channel_select_configuration_pending)
-	EM_STATE_2S(em_state_agent_unassoc_sta_metrics_report_pending)
+        EM_STATE_2S(em_state_agent_unassoc_sta_metrics_report_pending)
+        EM_STATE_2S(em_state_beacon_report_pending)
         EM_STATE_2S(em_state_max)
         default: break;
     }

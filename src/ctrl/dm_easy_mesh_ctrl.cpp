@@ -3946,7 +3946,7 @@ int dm_easy_mesh_ctrl_t::analyze_beacon_metrics_query(em_bus_event_t *evt, em_cm
         cJSON_Delete(root);
         return 0;
     }
-    dm.m_radio[0].decode(radio_obj, dm.m_network.get_network_id());
+    dm.m_radio[0].decode(radio_obj, dm.m_network.get_network_id());//its hard-coded, wont work if sta cpnnects to other radios
     dm.m_num_radios = 1;
 
     if ((bss_arr = cJSON_GetObjectItem(radio_obj, "BSSList")) == NULL) {

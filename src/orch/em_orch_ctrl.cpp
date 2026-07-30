@@ -355,7 +355,8 @@ bool em_orch_ctrl_t::is_em_ready_for_orch_exec(em_cmd_t *pcmd, em_t *em)
         case em_cmd_type_bsta_cap:
         case em_cmd_type_unassoc_sta_query:
         case em_cmd_type_beacon_report:
-            if (em->get_state() == em_state_ctrl_configured) {
+            if ((em->get_state() == em_state_ctrl_configured) ||
+                (em->get_state() == em_state_beacon_report_pending)) {
                 return true;
             }
             break;
@@ -771,6 +772,7 @@ unsigned int em_orch_ctrl_t::build_candidates(em_cmd_t *pcmd)
                 dm = pcmd->get_data_model();
                 if (memcmp(em->get_radio_interface_mac(), dm->m_radio[0].m_radio_info.intf.mac, sizeof(mac_address_t)) == 0) {
                     queue_push(pcmd->m_em_candidates, em);
+                    em_printfout("Beacon report count: %d; push to queue for em radio: %s", count, util::mac_to_string(em->get_radio_interface_mac()).c_str());
                     count++;
                 }
                 break;
