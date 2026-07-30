@@ -3719,7 +3719,6 @@ static const SecurityTypeMap securityTypeMap[] = {
 
 static const unsigned char comcast_vendor_oui[EM_VENDOR_OUI_SIZE] = {0xd8, 0x9c, 0x8e};
 static const unsigned char airties_vendor_oui[EM_VENDOR_OUI_SIZE] = {0x88, 0x41, 0xfc};
-static const unsigned char comcast_vendor_oui[EM_VENDOR_OUI_SIZE] = {0xd8, 0x9c, 0x8e};
 
 #ifndef SSL_KEY
 #if OPENSSL_VERSION_NUMBER < 0x30000000L
