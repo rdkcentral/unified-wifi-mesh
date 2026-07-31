@@ -6904,7 +6904,7 @@ bus_error_t dm_easy_mesh_ctrl_t::bss_tget_params(dm_easy_mesh_t *dm, const char 
         dm_ctrl->property_append_tail(property, root, idx, "FronthaulAKMsAllowed", val_str);
         dm_ctrl->property_append_tail(property, root, idx, "FronthaulSuiteSelector", 0U);
         memset(val_str, 0, sizeof(val_str));
-        dm_ctrl->fill_comma_sep(bi->fronthaul_akm, ARRAY_SIZE(bi->backhaul_akm), val_str);
+        dm_ctrl->fill_comma_sep(bi->backhaul_akm, ARRAY_SIZE(bi->backhaul_akm), val_str);
         dm_ctrl->property_append_tail(property, root, idx, "BackhaulAKMsAllowed", val_str);
         dm_ctrl->property_append_tail(property, root, idx, "BackhaulSuiteSelector", 0U);
         dm_ctrl->property_append_tail(property, root, idx, "STANumberOfEntries", bi->numberofsta);

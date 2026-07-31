@@ -1624,6 +1624,11 @@ private:
 
 public:
 
+	/* Parse a received AKM Suite Capabilities TLV and store the
+	 * advertised fronthaul/backhaul AKMs into every BSS of the data model. Wire format:
+	 * [bh_count][bh_suite*4][fh_count][fh_suite*4], each suite OUI[3] + type[1]. */
+	static void store_akm_suite_cap(dm_easy_mesh_t *dm, unsigned char *buff, unsigned int len);
+
 	bool send_autoconf_search_ext_chirp(em_dpp_chirp_value_t *chirp, size_t hash_len);
 
 	bool send_autoconf_search_resp_ext_chirp(em_dpp_chirp_value_t *chirp, size_t len, uint8_t dest_mac[ETH_ALEN], unsigned short msg_id);
