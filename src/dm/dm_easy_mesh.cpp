@@ -3651,6 +3651,7 @@ char *dm_easy_mesh_t::db_cfg_type_get_criteria(db_cfg_type_t cfg_type)
 int dm_easy_mesh_t::init()
 {
     unsigned int i;
+    m_num_assoc_sta_mld = 0;
     m_network.init();
     m_device.init();
     m_ieee_1905_security.init();
@@ -3659,8 +3660,12 @@ int dm_easy_mesh_t::init()
         m_radio[i].init();
     }
     
-	for (i = 0; i < EM_MAX_NET_SSIDS; i++) {
-	    m_network_ssid[i].init();
+    for (i = 0; i < EM_MAX_NET_SSIDS; i++) {
+        m_network_ssid[i].init();
+    }
+
+    for (i = 0; i < EM_MAX_ASSOC_STA_MLD; i++) {
+        m_assoc_sta_mld[i].init();
     }
 
     m_scan_result_map = hash_map_create();
@@ -3668,26 +3673,30 @@ int dm_easy_mesh_t::init()
     m_sta_assoc_map = hash_map_create();
     m_sta_dassoc_map = hash_map_create();
     m_wifi_data = static_cast<webconfig_subdoc_data_t*> (malloc(sizeof(webconfig_subdoc_data_t)));
-	memset(&m_db_cfg_param, 0, sizeof(em_db_cfg_param_t));
+    memset(&m_db_cfg_param, 0, sizeof(em_db_cfg_param_t));
     return 0;
 }
 
 void dm_easy_mesh_t::reset()
 {
-	m_num_preferences = 0;
-	m_num_interfaces = 0;
+    m_num_preferences = 0;
+    m_num_interfaces = 0;
     m_num_radios = 0;
-	m_num_opclass = 0;
-	m_num_policy = 0;
-	m_num_bss = 0;
+    m_num_opclass = 0;
+    m_num_policy = 0;
+    m_num_bss = 0;
     m_num_ap_mld = 0;
-	m_db_cfg_param.db_cfg_type = db_cfg_type_none;
+    m_num_assoc_sta_mld = 0;
+    m_db_cfg_param.db_cfg_type = db_cfg_type_none;
     m_colocated = false;
     m_is_ctlr = false;
 
-	memset(&m_network.m_net_info, 0, sizeof(em_network_info_t));
-	memset(&m_device.m_device_info, 0, sizeof(em_device_info_t));
-	memset(&m_db_cfg_param, 0, sizeof(em_db_cfg_param_t));
+    memset(&m_network.m_net_info, 0, sizeof(em_network_info_t));
+    memset(&m_device.m_device_info, 0, sizeof(em_device_info_t));
+    memset(&m_db_cfg_param, 0, sizeof(em_db_cfg_param_t));
+    for (unsigned int i = 0; i < EM_MAX_ASSOC_STA_MLD; i++) {
+        m_assoc_sta_mld[i].init();
+    }
 }
 
 dm_easy_mesh_t::dm_easy_mesh_t(const dm_network_t& net)
@@ -3705,15 +3714,16 @@ dm_easy_mesh_t::dm_easy_mesh_t(const dm_network_t& net)
 dm_easy_mesh_t::dm_easy_mesh_t()
     : m_wifi_data(nullptr)
 {
-	m_num_preferences = 0;
-	m_num_interfaces = 0;
+    m_num_preferences = 0;
+    m_num_interfaces = 0;
     m_num_radios = 0;
-	m_num_opclass = 0;
-	m_num_policy = 0;
-	m_num_bss = 0;
+    m_num_opclass = 0;
+    m_num_policy = 0;
+    m_num_bss = 0;
     m_num_ap_mld = 0;
     m_num_net_ssids = 0;
-	m_db_cfg_param.db_cfg_type = db_cfg_type_none;
+    m_num_assoc_sta_mld = 0;
+    m_db_cfg_param.db_cfg_type = db_cfg_type_none;
     m_colocated = false;
     m_is_ctlr = false;
 }
