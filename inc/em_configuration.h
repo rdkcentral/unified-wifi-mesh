@@ -1203,6 +1203,31 @@ class em_configuration_t {
 	 * @note This function does not take any parameters and returns a pointer to the manager.
 	 */
 	virtual em_mgr_t *get_mgr() = 0;
+
+	/**!
+	 * @brief Retrieves the peer profile from the AL-node EM instance.
+	 *
+	 * The AL-node EM instance is treated as the source of truth for
+	 * the peer profile during message handling when available.
+	 *
+	 * @returns The AL-node cached peer profile if set; otherwise the local cached profile
+	 * (treating em_profile_type_reserved as em_profile_type_1).
+	 */
+	em_profile_type_t get_peer_profile_from_al_em();
+
+	/**!
+	 * @brief Retrieves the cached peer profile for this EM instance.
+	 *
+	 * @returns The cached peer profile.
+	 */
+	em_profile_type_t get_peer_profile() const { return m_peer_profile; }
+
+	/**!
+	 * @brief Updates the cached peer profile for this EM instance.
+	 *
+	 * @param[in] profile The peer profile to cache.
+	 */
+	void set_peer_profile(em_profile_type_t profile) { m_peer_profile = profile; }
     
 	/**!
 	 * @brief Retrieves the EC Manager instance.
@@ -1598,6 +1623,11 @@ private:
     unsigned int m_m2_encrypted_settings_len[em_haul_type_max];
 
 public:
+
+	/* Parse a received AKM Suite Capabilities TLV and store the
+	 * advertised fronthaul/backhaul AKMs into every BSS of the data model. Wire format:
+	 * [bh_count][bh_suite*4][fh_count][fh_suite*4], each suite OUI[3] + type[1]. */
+	static void store_akm_suite_cap(dm_easy_mesh_t *dm, unsigned char *buff, unsigned int len);
 
 	bool send_autoconf_search_ext_chirp(em_dpp_chirp_value_t *chirp, size_t hash_len);
 

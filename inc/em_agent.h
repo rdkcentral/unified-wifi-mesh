@@ -212,11 +212,11 @@ class em_agent_t : public em_mgr_t {
 	void handle_recv_assoc_status(em_bus_event_t *event);
 
 	/**
-	 * @brief Handles the reception of connection status event of a STA
+	 * @brief Handles the reception of a failed connection event from OneWifi
 	 *
-	 * @param event The event containing the `em_connection_status_evt_data_t` payload
+	 * @param event The event containing the JSON failed-connection payload (bssid, sta_mac, status, reason)
 	 */
-	void handle_recv_connection_status(em_bus_event_t *event);
+	void handle_recv_failed_conn(em_bus_event_t *event);
 
 	/**!
 	 * @brief Handles the BTM response action frame.
@@ -1061,14 +1061,14 @@ public:
 	static int association_status_cb(char *event_name, bus_data_prop_t *data, void *userData);
 
 	/**
-	 * @brief Callback for connection-status event
+	 * @brief Callback for failed-connection event
 	 *
 	 * @param event_name The name of the event
 	 * @param data The raw event data
 	 * @param userData Optional user-provided callback data
 	 * @return int 1 on success, otherwise -1
 	 */
-	static int connection_status_cb(char *event_name, bus_data_prop_t *data, void *userData);
+	static int failed_conn_cb(char *event_name, bus_data_prop_t *data, void *userData);
 
 	/**
 	 * @brief Callback for BSS scan events
