@@ -5503,6 +5503,103 @@ char* dm_easy_mesh_ctrl_t::get_vht_caps_str(em_ap_vht_cap_t *vht, char *buf, siz
     return buf;
 }
 
+char* dm_easy_mesh_ctrl_t::get_sta_ht_caps_str(char *ht_cap_hex, char *buf, size_t buf_len)
+{
+    unsigned char ie[32] = {0};
+    unsigned int hex_len;
+    unsigned short cap_info;
+    uint8_t data = 0, rx_nss = 1, tx_nss;
+    unsigned int i;
+
+    buf[0] = '\0';
+    if ((ht_cap_hex == NULL) || (ht_cap_hex[0] == '\0')) {
+        return buf;
+    }
+    hex_len = static_cast<unsigned int>(strlen(ht_cap_hex));
+    if ((hex_len < 32) || (hex_len & 1) || (hex_len > 2 * sizeof(ie)) ||
+        (dm_easy_mesh_t::unhex(hex_len, ht_cap_hex, sizeof(ie), ie) == NULL)) {
+        return buf;
+    }
+
+    cap_info = static_cast<unsigned short>(ie[0] | (ie[1] << 8));
+
+    /* Supported MCS Set (offset 3): one rx bitmask byte per spatial stream */
+    for (i = 0; i < 4; i++) {
+        if (ie[3 + i] != 0) {
+            rx_nss = static_cast<uint8_t>(i + 1);
+        }
+    }
+    tx_nss = rx_nss;
+    /* Tx MCS Set Defined + Tx Rx MCS Set Not Equal -> explicit max Tx NSS */
+    if ((ie[15] & 0x01) && (ie[15] & 0x02)) {
+        tx_nss = static_cast<uint8_t>(((ie[15] >> 2) & 0x03) + 1);
+    }
+
+    data  = static_cast<uint8_t>(((tx_nss - 1) & 0x03) << 6);
+    data |= static_cast<uint8_t>(((rx_nss - 1) & 0x03) << 4);
+    data |= static_cast<uint8_t>(((cap_info >> 5) & 1) << 3); /* SGI 20 MHz */
+    data |= static_cast<uint8_t>(((cap_info >> 6) & 1) << 2); /* SGI 40 MHz */
+    data |= static_cast<uint8_t>(((cap_info >> 1) & 1) << 1); /* HT 40 MHz */
+
+    std::string encoded = em_crypto_t::base64_encode(&data, sizeof(data));
+    snprintf(buf, buf_len, "%s", encoded.c_str());
+    return buf;
+}
+
+char* dm_easy_mesh_ctrl_t::get_sta_vht_caps_str(char *vht_cap_hex, char *buf, size_t buf_len)
+{
+    unsigned char ie[16] = {0};
+    unsigned int hex_len;
+    unsigned int cap_info;
+    unsigned short rx_map, tx_map;
+    uint8_t data[6] = {0};
+    uint8_t rx_nss = 1, tx_nss = 1, cw_set;
+    unsigned int i;
+
+    buf[0] = '\0';
+    if ((vht_cap_hex == NULL) || (vht_cap_hex[0] == '\0')) {
+        return buf;
+    }
+    hex_len = static_cast<unsigned int>(strlen(vht_cap_hex));
+    if ((hex_len < 24) || (hex_len & 1) || (hex_len > 2 * sizeof(ie)) ||
+        (dm_easy_mesh_t::unhex(hex_len, vht_cap_hex, sizeof(ie), ie) == NULL)) {
+        return buf;
+    }
+
+    cap_info = static_cast<unsigned int>(ie[0]) | (static_cast<unsigned int>(ie[1]) << 8) |
+               (static_cast<unsigned int>(ie[2]) << 16) | (static_cast<unsigned int>(ie[3]) << 24);
+    cw_set = (cap_info >> 2) & 0x03;
+    rx_map = static_cast<unsigned short>(ie[4] | (ie[5] << 8));
+    tx_map = static_cast<unsigned short>(ie[8] | (ie[9] << 8));
+
+    /* MCS/NSS maps: 2 bits per stream, 0x3 = not supported */
+    for (i = 0; i < 8; i++) {
+        if (((rx_map >> (2 * i)) & 0x03) != 0x03) {
+            rx_nss = static_cast<uint8_t>(i + 1);
+        }
+        if (((tx_map >> (2 * i)) & 0x03) != 0x03) {
+            tx_nss = static_cast<uint8_t>(i + 1);
+        }
+    }
+
+    data[0] = static_cast<uint8_t>(tx_map >> 8);
+    data[1] = static_cast<uint8_t>(tx_map & 0xff);
+    data[2] = static_cast<uint8_t>(rx_map >> 8);
+    data[3] = static_cast<uint8_t>(rx_map & 0xff);
+    data[4]  = static_cast<uint8_t>(((tx_nss - 1) & 0x07) << 5);
+    data[4] |= static_cast<uint8_t>(((rx_nss - 1) & 0x07) << 2);
+    data[4] |= static_cast<uint8_t>(((cap_info >> 5) & 1) << 1);  /* SGI 80 MHz */
+    data[4] |= static_cast<uint8_t>((cap_info >> 6) & 1);         /* SGI 160 MHz */
+    data[5]  = static_cast<uint8_t>((cw_set == 2 ? 1 : 0) << 7);  /* 80+80 MHz */
+    data[5] |= static_cast<uint8_t>((cw_set >= 1 ? 1 : 0) << 6);  /* 160 MHz */
+    data[5] |= static_cast<uint8_t>(((cap_info >> 11) & 1) << 5); /* SU beamformer */
+    data[5] |= static_cast<uint8_t>(((cap_info >> 19) & 1) << 4); /* MU beamformer */
+
+    std::string encoded = em_crypto_t::base64_encode(data, sizeof(data));
+    snprintf(buf, buf_len, "%s", encoded.c_str());
+    return buf;
+}
+
 char* dm_easy_mesh_ctrl_t::get_supported_standards_str(wifi_ieee80211Variant_t variant, char *buf, size_t buf_size)
 {
     if (!buf || buf_size == 0)
@@ -7070,9 +7167,13 @@ bus_error_t dm_easy_mesh_ctrl_t::sta_get_inner(char *event_name, raw_data_t *p_d
     } else if (strcmp(param, "TimeStamp") == 0) {
         rc = dm_ctrl->raw_data_set(p_data, si->timestamp);
     } else if (strcmp(param, "HTCapabilities") == 0) {
-        rc = dm_ctrl->raw_data_set(p_data, si->ht_cap);
+        char caps_str[32] = {0};
+        dm_ctrl->get_sta_ht_caps_str(si->ht_cap, caps_str, sizeof(caps_str));
+        rc = dm_ctrl->raw_data_set(p_data, caps_str);
     } else if (strcmp(param, "VHTCapabilities") == 0) {
-        rc = dm_ctrl->raw_data_set(p_data, si->vht_cap);
+        char caps_str[32] = {0};
+        dm_ctrl->get_sta_vht_caps_str(si->vht_cap, caps_str, sizeof(caps_str));
+        rc = dm_ctrl->raw_data_set(p_data, caps_str);
     } else if (strcmp(param, "ClientCapabilities") == 0) {
         rc = dm_ctrl->raw_data_set(p_data, "");
     } else if (strcmp(param, "LastDataDownlinkRate") == 0) {
@@ -7207,9 +7308,14 @@ bus_error_t dm_easy_mesh_ctrl_t::sta_tget_params(dm_easy_mesh_t *dm, const char 
         }
         ++idx;
 
+        char ht_caps_str[32] = {0};
+        char vht_caps_str[32] = {0};
+        dm_ctrl->get_sta_ht_caps_str(si->ht_cap, ht_caps_str, sizeof(ht_caps_str));
+        dm_ctrl->get_sta_vht_caps_str(si->vht_cap, vht_caps_str, sizeof(vht_caps_str));
+
         dm_ctrl->property_append_tail(property, root, idx, "MACAddress", si->id);
-        dm_ctrl->property_append_tail(property, root, idx, "HTCapabilities", si->ht_cap);
-        dm_ctrl->property_append_tail(property, root, idx, "VHTCapabilities", si->vht_cap);
+        dm_ctrl->property_append_tail(property, root, idx, "HTCapabilities", ht_caps_str);
+        dm_ctrl->property_append_tail(property, root, idx, "VHTCapabilities", vht_caps_str);
         dm_ctrl->property_append_tail(property, root, idx, "ClientCapabilities", "");
         dm_ctrl->property_append_tail(property, root, idx, "LastDataDownlinkRate", si->last_dl_rate);
         dm_ctrl->property_append_tail(property, root, idx, "LastDataUplinkRate", si->last_ul_rate);
