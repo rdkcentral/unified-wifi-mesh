@@ -76,6 +76,7 @@ bus_error_t em_ctrl_t::cmd_setssid(const char *method_name, const bus_data_prop_
     char band[TR181_BAND_MAX_LEN + 1] = {0};
     char addremove[TR181_ADDREMOVE_MAX_LEN + 1] = {0};
     char HaulType[TR181_HAULTYPE_MAX_LEN + 1] = {0};
+    char AKMsAllowed[TR181_AKMS_MAX_LEN + 1] = {0};
     size_t json_len = 0;
 
     (void)method_name;
@@ -98,6 +99,13 @@ bus_error_t em_ctrl_t::cmd_setssid(const char *method_name, const bus_data_prop_
             tr_181_t::tr181_copy_prop_string(prop, band, sizeof(band));
         } else if (strcmp(prop->name, "HaulType") == 0) {
             tr_181_t::tr181_copy_prop_string(prop, HaulType, sizeof(HaulType));
+        } else if (strcmp(prop->name, "AKMsAllowed") == 0) {
+            tr_181_t::tr181_copy_prop_string(prop, AKMsAllowed, sizeof(AKMsAllowed));
+            /* Full buffer = truncated input, longer than any valid akm_t value. */
+            if (strnlen(AKMsAllowed, sizeof(AKMsAllowed)) >= TR181_AKMS_MAX_LEN) {
+                if (output_params) *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
+                return bus_error_invalid_input;
+            }
         }
     }
 
@@ -256,6 +264,28 @@ bus_error_t em_ctrl_t::cmd_setssid(const char *method_name, const bus_data_prop_
                 cJSON_ReplaceItemInObject(target, "HaulType", haul_arr);
                 haul_arr = NULL;
             }
+            if (AKMsAllowed[0]) {
+                /* BBF TR-181 SetSSID() input AKMsAllowed (since 2.17): update the
+                 * entry's AKMsAllowed and derive the internal AuthType used to
+                 * build the WSC M2 auth type. */
+                cJSON *akms_arr = tr_181_t::create_akms_array(AKMsAllowed);
+                if (!akms_arr) {
+                    cJSON_Delete(root);
+                    if (output_params) *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
+                    return bus_error_invalid_input;
+                }
+                const char *auth_str =
+                    tr_181_t::akms_to_auth_type(cJSON_GetStringValue(cJSON_GetArrayItem(akms_arr, 0)));
+                cJSON *auth_item = (auth_str != NULL) ? cJSON_CreateString(auth_str) : NULL;
+                if (!auth_item) {
+                    cJSON_Delete(akms_arr);
+                    cJSON_Delete(root);
+                    if (output_params) *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
+                    return bus_error_out_of_resources;
+                }
+                cJSON_ReplaceItemInObject(target, "AKMsAllowed", akms_arr);
+                cJSON_ReplaceItemInObject(target, "AuthType", auth_item);
+            }
         }
     } else if (is_add) {
         target = cJSON_CreateObject();
@@ -300,6 +330,25 @@ bus_error_t em_ctrl_t::cmd_setssid(const char *method_name, const bus_data_prop_
         if (haul_arr) {
             cJSON_AddItemToObject(target, "HaulType", haul_arr);
             haul_arr = NULL;
+        }
+        if (AKMsAllowed[0]) {
+            cJSON *akms_arr = tr_181_t::create_akms_array(AKMsAllowed);
+            if (!akms_arr) {
+                cJSON_Delete(root);
+                if (output_params) *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
+                return bus_error_invalid_input;
+            }
+            const char *auth_str =
+                tr_181_t::akms_to_auth_type(cJSON_GetStringValue(cJSON_GetArrayItem(akms_arr, 0)));
+            cJSON *auth_item = (auth_str != NULL) ? cJSON_CreateString(auth_str) : NULL;
+            if (!auth_item) {
+                cJSON_Delete(akms_arr);
+                cJSON_Delete(root);
+                if (output_params) *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
+                return bus_error_out_of_resources;
+            }
+            cJSON_AddItemToObject(target, "AKMsAllowed", akms_arr);
+            cJSON_AddItemToObject(target, "AuthType", auth_item);
         }
     } else {
         if (haul_arr) cJSON_Delete(haul_arr);
@@ -7001,7 +7050,7 @@ bus_error_t dm_easy_mesh_ctrl_t::bss_tget_params(dm_easy_mesh_t *dm, const char 
         dm_ctrl->property_append_tail(property, root, idx, "FronthaulAKMsAllowed", val_str);
         dm_ctrl->property_append_tail(property, root, idx, "FronthaulSuiteSelector", 0U);
         memset(val_str, 0, sizeof(val_str));
-        dm_ctrl->fill_comma_sep(bi->fronthaul_akm, ARRAY_SIZE(bi->backhaul_akm), val_str);
+        dm_ctrl->fill_comma_sep(bi->backhaul_akm, ARRAY_SIZE(bi->backhaul_akm), val_str);
         dm_ctrl->property_append_tail(property, root, idx, "BackhaulAKMsAllowed", val_str);
         dm_ctrl->property_append_tail(property, root, idx, "BackhaulSuiteSelector", 0U);
         dm_ctrl->property_append_tail(property, root, idx, "STANumberOfEntries", bi->numberofsta);

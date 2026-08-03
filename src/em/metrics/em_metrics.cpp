@@ -1097,6 +1097,7 @@ int em_metrics_t::send_link_quality_report()
     return static_cast<int> (len);
 }
 
+
 int em_metrics_t::send_ap_metrics_response()
 {
     unsigned char buff[MAX_EM_BUFF_SZ] = {0};
@@ -2425,6 +2426,10 @@ void em_metrics_t::process_msg(unsigned char *data, unsigned int len)
             break;
         case em_msg_type_1905_ack:
             handle_1905_ack(data, len);
+            break;
+
+        case em_msg_type_failed_conn:
+            get_mgr()->handle_failed_conn_msg(data, len);
             break;
 
         default:
