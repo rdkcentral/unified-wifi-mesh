@@ -1970,7 +1970,9 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
 					}
 				}
 				if (em->is_matching_freq_band(&band) == true) {
-					if ((em->get_state() != em_state_agent_autoconfig_renew_pending) && (em->get_state() !=em_state_agent_wsc_m2_pending) && (em->get_state() != em_state_agent_owconfig_pending) ) {
+					/* Accept renew in owconfig_pending too: the apply confirmation
+					 * never arrived and renew is the mechanism to recover that. */
+					if ((em->get_state() != em_state_agent_autoconfig_renew_pending) && (em->get_state() !=em_state_agent_wsc_m2_pending)) {
 						em_printfout("Found matching band %d for autoconfig renew request, received controller AL MAC is %s", band, al_mac_str);
 						found = true;
 						break;

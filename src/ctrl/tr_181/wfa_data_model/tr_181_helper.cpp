@@ -257,3 +257,52 @@ bool tr_181_t::tr181_get_prop_bool(const bus_data_prop_t *prop, bool *value)
 
     return true;
 }
+
+cJSON *tr_181_t::create_akms_array(const char *akms_val)
+{
+    if (!akms_val || *akms_val == '\0') return NULL;
+    if (strchr(akms_val, ',')) {
+        em_printfout("ERROR: AKMsAllowed must be a single value (no commas): '%s'", akms_val);
+        return NULL;
+    }
+    char tok_buf[TR181_AKMS_MAX_LEN + 1];
+    size_t val_len = strnlen(akms_val, sizeof(tok_buf));
+    if (val_len >= sizeof(tok_buf)) {
+        em_printfout("ERROR: AKMsAllowed too long");
+        return NULL;
+    }
+    memcpy(tok_buf, akms_val, val_len + 1);
+    tr181_trim_whitespace(tok_buf);
+    if (*tok_buf == '\0') {
+        em_printfout("ERROR: AKMsAllowed empty after trimming");
+        return NULL;
+    }
+    /* akm_t enum values that map to a WSC M2 auth type on this stack. */
+    if (strcmp(tok_buf, "psk") != 0 && strcmp(tok_buf, "sae") != 0 &&
+        strcmp(tok_buf, "psk+sae") != 0) {
+        em_printfout("ERROR: Invalid/unsupported AKMsAllowed value '%s' (expected psk/sae/psk+sae)", tok_buf);
+        return NULL;
+    }
+    cJSON *arr = cJSON_CreateArray();
+    if (!arr) {
+        return NULL;
+    }
+    cJSON *val = cJSON_CreateString(tok_buf);
+    if (!val) {
+        cJSON_Delete(arr);
+        return NULL;
+    }
+    cJSON_AddItemToArray(arr, val);
+    return arr;
+}
+
+const char *tr_181_t::akms_to_auth_type(const char *akms_val)
+{
+    if (akms_val == NULL) {
+        return NULL;
+    }
+    if (strcmp(akms_val, "psk") == 0) return "WPA2 Personal";
+    if (strcmp(akms_val, "sae") == 0) return "WPA3 Personal";
+    if (strcmp(akms_val, "psk+sae") == 0) return "WPA3 Transition";
+    return NULL;
+}
