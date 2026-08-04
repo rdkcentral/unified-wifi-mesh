@@ -30,6 +30,7 @@ extern "C"
 #endif
 
 #include "wifi_webconfig.h"
+#include <time.h>
 #include <openssl/evp.h>
 #include <uuid/uuid.h>
 #include <sys/socket.h>
@@ -92,6 +93,7 @@ extern "C"
 #define EM_MAX_NEIGHBORS	16
 #define EM_MAX_CHANNEL_SCAN_RPRT_MSG_LEN		166
 #define EM_MAX_CLIENT_MARKER    5
+#define EM_MAX_ELEMENT_IDS      32
 
 #define   EM_MAX_EVENT_DATA_LEN   4096*100
 #define EM_MAX_CHANNELS_IN_LIST  64
@@ -1139,12 +1141,12 @@ typedef struct {
 typedef struct {
     unsigned char ap_channel_rprt_len;
     unsigned char ap_channel_op_class;
-    unsigned char ap_channel_list[6];
+    unsigned char ap_channel_list[EM_MAX_CHANNELS_IN_LIST];
 }__attribute__((__packed__)) em_beacon_ap_channel_rprt_t;
 
 typedef struct {
     unsigned char num_element_id;
-    unsigned char element_list[6];
+    unsigned char element_list[EM_MAX_ELEMENT_IDS];
 }__attribute__((__packed__)) em_beacon_element_list_t;
 
 typedef struct {
@@ -1156,8 +1158,7 @@ typedef struct {
     unsigned char ssid_len;
     ssid_t ssid;
     unsigned char num_ap_channel_rprt;
-    em_beacon_ap_channel_rprt_t ap_channel_rprt[6];
-    unsigned char num_element_id;
+    em_beacon_ap_channel_rprt_t ap_channel_rprt[EM_MAX_NEIGHBORS];
     em_beacon_element_list_t element_list;
 }__attribute__((__packed__)) em_beacon_metrics_query_t;
 
@@ -2277,7 +2278,6 @@ typedef enum {
     em_state_agent_client_cap_report,
     em_state_agent_sta_link_metrics_pending,
     em_state_agent_steer_btm_res_pending,
-    em_state_agent_beacon_report_pending,
     em_state_agent_link_quality_report_pending,
 
     em_state_ctrl_unconfigured = 0x100,
@@ -2311,7 +2311,11 @@ typedef enum {
     em_state_ctrl_avail_spectrum_inquiry_pending,
     em_state_ctrl_bsta_cap_pending,
     em_state_ctrl_topo_publish_pending,
-    em_state_ctrl_unassoc_sta_link_metrics_pending, 
+    em_state_ctrl_unassoc_sta_link_metrics_pending,
+
+    //common states
+    em_state_beacon_report_pending,
+    em_state_beacon_report_complete,
 
     em_state_max,
 } em_state_t;
@@ -2602,6 +2606,7 @@ typedef struct {
     unsigned char	frame_body[EM_MAX_FRAME_BODY_LEN];
     unsigned int    num_vendor_infos;
     bool            multi_band_cap;
+    time_t          beacon_query_sent_time;
     unsigned int    num_beacon_meas_report;
     unsigned int    beacon_report_len;
     unsigned char   beacon_report_elem[EM_MAX_BEACON_MEASUREMENT_LEN];
@@ -2753,7 +2758,7 @@ typedef struct {
 
 typedef struct {
     mac_address_t  bssid;
-    mac_address_t  mac_addr;
+    mac_address_t  link_addr;
 } em_affiliated_sta_info_t;
 
 typedef struct {
@@ -3051,6 +3056,7 @@ typedef enum {
 	em_bus_event_type_channel_scan_params,
     em_bus_event_type_get_mld_config,
     em_bus_event_type_mld_reconfig,
+    em_bus_event_type_beacon_query,
     em_bus_event_type_beacon_report,
     em_bus_event_type_recv_wfa_action_frame,
     em_bus_event_type_recv_gas_frame,
@@ -3340,6 +3346,8 @@ typedef struct {
 } em_cmd_unassoc_sta_query_params_t;
 
 typedef em_scan_params_t em_cmd_scan_params_t;
+typedef em_beacon_metrics_query_t em_cmd_beacon_metrics_param_t;
+
 typedef struct {
     union {
         em_cmd_args_t	args;
@@ -3349,6 +3357,7 @@ typedef struct {
 		em_cmd_scan_params_t	scan_params;
         em_cmd_ap_metrics_rprt_params_t ap_metrics_params;
         em_cmd_unassoc_sta_query_params_t unassoc_sta_query_params;
+        em_cmd_beacon_metrics_param_t   beacon_metrics_params;
     } u;
 	em_network_node_t *net_node;
 } em_cmd_params_t;
@@ -3527,9 +3536,8 @@ typedef enum {
     tag_vht_capability = 191,
     tag_vendor_specific = 221,
     tag_extended_tags = 255,
-    //he
-    //he_6ghz
-    //eht
+    tag_ext_he_cap = 35,
+    tag_ext_eht_cap = 108,
     //other tags can be added here
 } tag_type_t;
 
