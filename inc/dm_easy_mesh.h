@@ -73,8 +73,8 @@ public:
     em_cmd_ctx_t    m_cmd_ctx;
     unsigned int 	m_num_opclass;    
     dm_op_class_t m_op_class[EM_MAX_OPCLASS];
-	unsigned int	m_num_policy;
-	dm_policy_t	m_policy[EM_MAX_POLICIES];
+	//unsigned int	m_num_policy;
+	hash_map_t	*m_policy_map = NULL;
 	hash_map_t		*m_scan_result_map = NULL;
     hash_map_t  	*m_sta_map = NULL;
     hash_map_t      *m_sta_assoc_map = NULL;
@@ -1484,8 +1484,8 @@ public:
 	 *
 	 * @returns The number of policies as an unsigned integer.
 	 */
-	unsigned int get_num_policy() { return m_num_policy; }
-	
+        unsigned int get_num_policy() { return (m_policy_map != NULL) ? hash_map_count(m_policy_map) : 0; }
+
 	/**!
 	 * @brief Sets the number policy.
 	 *
@@ -1498,9 +1498,9 @@ public:
 	/**!
 	 * @brief Retrieves the policy at the specified index.
 	 *
-	 * This function returns a pointer to the policy object located at the given index
-	 * within the policy array.
-	 *
+	 * This function walks the policy map and returns a pointer to the policy
+	 * object at the given iteration index.
+	 * 
 	 * @param[in] index The index of the policy to retrieve.
 	 *
 	 * @returns A pointer to the policy object at the specified index.
@@ -1508,8 +1508,21 @@ public:
 	 *
 	 * @note Ensure that the index is within the valid range of the policy array.
 	 */
-	dm_policy_t *get_policy(unsigned int index) { return &m_policy[index]; }
-    
+   	 dm_policy_t *get_policy(unsigned int index) {
+		if (m_policy_map == NULL) {
+			return NULL;
+		}
+		unsigned int i = 0;
+		dm_policy_t *policy = static_cast<dm_policy_t *> (hash_map_get_first(m_policy_map));
+		while (policy != NULL) {
+			if (i == index) {
+				return policy;
+			}
+			policy = static_cast<dm_policy_t *> (hash_map_get_next(m_policy_map, policy));
+			i++;
+		}
+		return NULL;
+	} 
 	/**!
 	 * @brief Retrieves a reference to the policy at the specified index.
 	 *
@@ -1523,8 +1536,21 @@ public:
 	 * @note Ensure that the index is within the bounds of the policy array to avoid
 	 * undefined behavior.
 	 */
-	dm_policy_t& get_policy_by_ref(unsigned int index) { return m_policy[index]; }
-
+	dm_policy_t& get_policy_by_ref(unsigned int index) { return *get_policy(index); }
+	
+	/**!
+	 * @brief Builds the hash map key for a policy from its identity.
+	 *
+	 * @param[in] id The policy identity (net_id, dev_mac, radio_mac, type).
+	 * @param[out] key Buffer to receive the key string.
+	 * @param[in] sz Size of the key buffer.
+	 */
+	static void get_policy_key(const em_policy_id_t& id, char *key, size_t sz) {
+		mac_addr_str_t dev_mac_str, radio_mac_str;
+		dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *> (id.dev_mac), dev_mac_str);
+		dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *> (id.radio_mac), radio_mac_str);
+		snprintf(key, sz, "%s@%s@%s@%d", id.net_id, dev_mac_str, radio_mac_str, id.type);
+	}
 	/**!
 	 * @brief Checks whether this data model contains a policy of the given type.
 	 *
@@ -1532,8 +1558,15 @@ public:
 	 * @returns true if at least one policy with the given type exists, false otherwise.
 	 */
 	bool has_policy_type(em_policy_id_type_t type) const {
-		for (unsigned int i = 0; i < m_num_policy; i++) {
-			if (m_policy[i].m_policy.id.type == type) return true;
+		if (m_policy_map == NULL) {
+			return false;
+		}
+		dm_policy_t *policy = static_cast<dm_policy_t *> (hash_map_get_first(m_policy_map));
+		while (policy != NULL) {
+			if (policy->m_policy.id.type == type) {
+				return true;
+			}
+			policy = static_cast<dm_policy_t *> (hash_map_get_next(m_policy_map, policy));
 		}
 		return false;
 	}

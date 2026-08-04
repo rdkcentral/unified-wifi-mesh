@@ -3073,6 +3073,8 @@ void dm_easy_mesh_t::deinit()
     dm_sta_t *tmp_sta = NULL;
     dm_scan_result_t	*res = NULL;
     dm_scan_result_t	*tmp_res = NULL;
+    dm_policy_t	*policy = NULL;
+    dm_policy_t	*tmp_policy = NULL;
     em_2xlong_string_t key;
     mac_addr_str_t dev_mac_str, radio_mac_str, bss_mac_str, sta_mac_str, scanner_mac_str;
 
@@ -3117,17 +3119,31 @@ void dm_easy_mesh_t::deinit()
     }
     sta = NULL;
 
-    if (m_sta_assoc_map != NULL) {
-        sta = static_cast<dm_sta_t *> (hash_map_get_first(m_sta_assoc_map));
-        while (sta != NULL)
-        {
-            tmp_sta = sta;
-            sta = static_cast<dm_sta_t *> (hash_map_get_next(m_sta_assoc_map, sta));
-            dm_easy_mesh_t::macbytes_to_string(tmp_sta->m_sta_info.id, sta_mac_str);
-            dm_easy_mesh_t::macbytes_to_string(tmp_sta->m_sta_info.bssid, bss_mac_str);
-            dm_easy_mesh_t::macbytes_to_string(tmp_sta->m_sta_info.radiomac, radio_mac_str);
-            snprintf(key, sizeof(em_long_string_t), "%s@%s@%s", sta_mac_str, bss_mac_str, radio_mac_str);
+    //destroy elements of m_policy_map
+    if (m_policy_map != NULL) {
+	    policy = static_cast<dm_policy_t *>(hash_map_get_first(m_policy_map));
+	    while (policy != NULL) {
+		    tmp_policy = policy;
+		    policy = static_cast<dm_policy_t *>(hash_map_get_next(m_policy_map, policy));
 
+		    dm_easy_mesh_t::get_policy_key(tmp_policy->m_policy.id, key, sizeof(key));
+		    if ((tmp_policy = static_cast<dm_policy_t *>(hash_map_remove(m_policy_map, key))) != NULL) {
+			    delete tmp_policy;
+		    }
+	    }
+	    hash_map_destroy(m_policy_map);
+	    m_policy_map = NULL;
+    }
+
+    sta = static_cast<dm_sta_t *> (hash_map_get_first(m_sta_assoc_map));
+    while (sta != NULL)
+    {
+        tmp_sta = sta;
+        sta = static_cast<dm_sta_t *> (hash_map_get_next(m_sta_assoc_map, sta));
+        dm_easy_mesh_t::macbytes_to_string(tmp_sta->m_sta_info.id, sta_mac_str);
+        dm_easy_mesh_t::macbytes_to_string(tmp_sta->m_sta_info.bssid, bss_mac_str);
+        dm_easy_mesh_t::macbytes_to_string(tmp_sta->m_sta_info.radiomac, radio_mac_str);
+        snprintf(key, sizeof(em_long_string_t), "%s@%s@%s", sta_mac_str, bss_mac_str, radio_mac_str);
             delete static_cast<dm_sta_t *> (hash_map_remove(m_sta_assoc_map, key));
         }
         hash_map_destroy(m_sta_assoc_map);
@@ -3162,11 +3178,9 @@ void dm_easy_mesh_t::deinit()
 
 void dm_easy_mesh_t::set_policy(dm_policy_t policy)
 {
-	unsigned int i = 0;
 	dm_policy_t *ppolicy;
-	bool found_match = false;
-	bool temp = 0;
-    for (i = 0; i < m_num_policy; i++) {
+	em_2xlong_string_t key;
+    /*for (i = 0; i < m_num_policy; i++) {
         ppolicy = &m_policy[i];
         temp = ((strncmp(policy.m_policy.id.net_id, ppolicy->m_policy.id.net_id, strlen(policy.m_policy.id.net_id)) == 0) &&
                 (memcmp(policy.m_policy.id.dev_mac, ppolicy->m_policy.id.dev_mac, sizeof(mac_address_t)) == 0) &&
@@ -3176,13 +3190,25 @@ void dm_easy_mesh_t::set_policy(dm_policy_t policy)
             found_match = true;
             break;
         }
-    }
+    }*/
 
-	memcpy(&m_policy[i].m_policy, &policy.m_policy, sizeof(em_policy_t));
-	memcpy(m_policy[i].m_policy.id.dev_mac, m_device.m_device_info.intf.mac, sizeof(mac_address_t));
-	if (found_match == false) {
-		m_num_policy++;
-	}	
+	if (m_policy_map == NULL) {
+		m_policy_map = hash_map_create();
+	}
+
+	//Fetch the key from the incoming policy
+	dm_easy_mesh_t::get_policy_key(policy.m_policy.id, key, sizeof(key));
+
+	ppolicy = static_cast<dm_policy_t *> (hash_map_get(m_policy_map, key));
+
+	if (ppolicy == NULL) {
+		ppolicy = new dm_policy_t(); //Heap allocation
+		hash_map_put(m_policy_map, strdup(key), ppolicy); //Load the address into the hashmap
+	}
+
+	//Filling the values in the memory which is present in hash_map. Need to remove the memory once the node gets deleted
+	memcpy(&ppolicy->m_policy, &policy.m_policy, sizeof(em_policy_t));
+	memcpy(ppolicy->m_policy.id.dev_mac, m_device.m_device_info.intf.mac, sizeof(mac_address_t));
 }
 
 void dm_easy_mesh_t::set_channels_list(dm_op_class_t op_class[], unsigned int num)
@@ -3694,6 +3720,7 @@ int dm_easy_mesh_t::init()
         m_assoc_sta_mld[i].init();
     }
 
+    m_policy_map = hash_map_create();
     m_scan_result_map = hash_map_create();
     m_sta_map = hash_map_create();
     m_sta_assoc_map = hash_map_create();

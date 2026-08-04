@@ -2016,7 +2016,7 @@ short em_t::create_def_8021q_settings_policy_tlv(unsigned char *buff)
     }
 
     for (i = 0; i < dm->get_num_policy(); i++) {
-        dm_policy_t *policy = &dm->m_policy[i];
+        dm_policy_t *policy = dm->get_policy(i);
         if (policy->m_policy.id.type != em_policy_id_type_default_8021q_settings) {
             continue;
         }

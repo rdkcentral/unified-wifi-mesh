@@ -78,7 +78,7 @@ short em_policy_cfg_t::create_metrics_rep_policy_tlv(unsigned char *buff)
 
 	metric = reinterpret_cast<em_metric_rprt_policy_t *> (tmp);
 	for (i = 0; i < dm->get_num_policy(); i++) {
-        policy = &dm->m_policy[i];
+        policy = dm->get_policy(i);
         if (policy->m_policy.id.type == em_policy_id_type_ap_metrics_rep) {
             found_match = true;
             //use radio from previous
@@ -90,9 +90,9 @@ short em_policy_cfg_t::create_metrics_rep_policy_tlv(unsigned char *buff)
         em_printfout("No matching policy found for metrics report policy TLV in cmd_dm, trying DM");
         policy = nullptr;
         for (i = 0; i < get_data_model()->get_num_policy(); i++) {
-            if (get_data_model()->m_policy[i].m_policy.id.type == em_policy_id_type_ap_metrics_rep) {
-                policy = &get_data_model()->m_policy[i];
-                break;
+            if (get_data_model()->get_policy(i).m_policy.id.type == em_policy_id_type_ap_metrics_rep) {
+                policy = get_data_model()->get_policy(i);
+                break;  
             }
         }
         if (policy == nullptr) {
@@ -106,7 +106,7 @@ short em_policy_cfg_t::create_metrics_rep_policy_tlv(unsigned char *buff)
     unsigned int radio_cnt = 0;
 
     for (i = 0; i < dm->get_num_policy(); i++) {
-		policy = &dm->m_policy[i];
+		policy = dm->get_policy(i);
 		if (policy->m_policy.id.type == em_policy_id_type_radio_metrics_rep) {
             for(unsigned int r = 0; r < get_data_model()->get_num_radios(); r++) {
                 if ((memcmp(policy->m_policy.id.radio_mac, get_data_model()->get_radio_info(r)->id.ruid, sizeof(mac_address_t)) == 0)) {
@@ -163,7 +163,7 @@ short em_policy_cfg_t::create_steering_policy_tlv(unsigned char *buff)
 	}
 	
 	for (i = 0; i < dm->get_num_policy(); i++) {
-		policy = &dm->m_policy[i];
+		policy = dm->get_policy(i);
 		if (policy->m_policy.id.type == em_policy_id_type_steering_local) {
 			found_match = true;
 			break;
@@ -190,7 +190,7 @@ short em_policy_cfg_t::create_steering_policy_tlv(unsigned char *buff)
 	len += sizeof(unsigned char) + sta_policy->num_sta*sizeof(mac_address_t);
 
 	for (i = 0; i < dm->get_num_policy(); i++) {
-		policy = &dm->m_policy[i];
+		policy =  dm->get_policy(i);
 		if (policy->m_policy.id.type == em_policy_id_type_steering_btm) {
 			found_match = true;
 			break;
@@ -217,7 +217,7 @@ short em_policy_cfg_t::create_steering_policy_tlv(unsigned char *buff)
     unsigned int num_radios = 0;
 
     	for (i = 0; i < dm->get_num_policy(); i++) {
-            policy = &dm->m_policy[i];
+            policy = dm->get_policy(i);
             if (policy->m_policy.id.type == em_policy_id_type_steering_param) {
                 for (unsigned int r = 0; r < get_data_model()->get_num_radios(); r++) {
                     if (memcmp(policy->m_policy.id.radio_mac, get_data_model()->get_radio_info(r)->id.ruid, sizeof(mac_address_t)) == 0) {
@@ -240,7 +240,7 @@ short em_policy_cfg_t::create_steering_policy_tlv(unsigned char *buff)
         num_radios);
 
 	for (i = 0; i < dm->get_num_policy(); i++) {
-		policy = &dm->m_policy[i];
+		policy =  dm->get_policy(i);
 		if (policy->m_policy.id.type == em_policy_id_type_steering_param) {
             for (unsigned int r = 0; r < get_data_model()->get_num_radios(); r++) {
                 if (memcmp(policy->m_policy.id.radio_mac, get_data_model()->get_radio_info(r)->id.ruid, sizeof(mac_address_t)) == 0) {
@@ -275,7 +275,7 @@ short em_policy_cfg_t::create_chan_scan_report_policy_tlv(unsigned char *buff)
     }
 
     for (i = 0; i < dm->get_num_policy(); i++) {
-        dm_policy_t *policy = &dm->m_policy[i];
+        dm_policy_t *policy = dm->get_policy(i);
         if (policy->m_policy.id.type != em_policy_id_type_channel_scan) {
             continue;
         }
@@ -306,7 +306,7 @@ short em_policy_cfg_t::create_unsucc_assoc_policy_tlv(unsigned char *buff)
     }
 
     for (i = 0; i < dm->get_num_policy(); i++) {
-        dm_policy_t *policy = &dm->m_policy[i];
+        dm_policy_t *policy = dm->get_policy(i);
         if (policy->m_policy.id.type != em_policy_id_type_unsuccess_assoc) {
             continue;
         }
@@ -404,11 +404,11 @@ short em_policy_cfg_t::create_vendor_policy_cfg_tlv(unsigned char *buff)
     dm = get_current_cmd()->get_data_model();
 
     for (i = 0; i < dm->get_num_policy(); i++) {
-        if (dm->m_policy[i].m_policy.id.type == em_policy_id_type_ap_metrics_rep) {
+        if (dm->get_policy(i)->m_policy.id.type == em_policy_id_type_ap_metrics_rep) {
             idx_ap = static_cast<int>(i);
-        } else if (dm->m_policy[i].m_policy.id.type == em_policy_id_type_alarm_threshold) {
+        } else if (dm->get_policy(i)->m_policy.id.type == em_policy_id_type_alarm_threshold) {
             idx_alarm = static_cast<int>(i);
-        } else if (dm->m_policy[i].m_policy.id.type == em_policy_id_type_client_filters) {
+        } else if (dm->get_policy(i)->m_policy.id.type == em_policy_id_type_client_filters) {
             idx_filter = static_cast<int>(i);
         }
         /* If both found, we can stop scanning early */
@@ -423,7 +423,7 @@ short em_policy_cfg_t::create_vendor_policy_cfg_tlv(unsigned char *buff)
 
     /* If AP metrics policy exists, append its vendor data */
     if (idx_ap != -1) {
-        policy = &dm->m_policy[idx_ap];
+        policy = dm->get_policy(idx_ap);
         em_printfout(" Vendor Policy cfg TLV for metrics report policy ");
 
         data = reinterpret_cast<em_vendor_data_t *> (cursor);
@@ -437,7 +437,7 @@ short em_policy_cfg_t::create_vendor_policy_cfg_tlv(unsigned char *buff)
     }
 
     if (idx_alarm != -1) {
-        policy = &dm->m_policy[idx_alarm];
+        policy = dm->get_policy(idx_alarm);
         em_printfout(" Vendor Policy cfg TLV for link stats alarm policy ");
 
         data = reinterpret_cast<em_vendor_data_t *> (cursor);
@@ -453,7 +453,7 @@ short em_policy_cfg_t::create_vendor_policy_cfg_tlv(unsigned char *buff)
     }
 
     if (idx_filter != -1) {
-        policy = &dm->m_policy[idx_filter];
+        policy = dm->get_policy(idx_filter);
         em_printfout(" Vendor Policy cfg TLV for client filters policy ");
 
         data = reinterpret_cast<em_vendor_data_t *> (cursor);
@@ -484,13 +484,25 @@ int em_policy_cfg_t::send_policy_cfg_request_msg()
     unsigned short type = htons(ETH_P_1905);
     dm_easy_mesh_t *dm;
 
+    em_printfout("ENTER send_policy_cfg_request_msg on radio %s",
+        util::mac_to_string(get_radio_interface_mac()).c_str());
+
     dm = get_data_model();
+    if (dm == NULL) {
+        em_printfout("ERROR: get_data_model() returned NULL, aborting");
+        return -1;
+    }
 
     // For UI-triggered set_policy: only include TLVs for policy types that are
     // present in the command dm (i.e., the policies that actually changed).
     // For onboarding (em_config / autoconfig renew): always include all TLVs.
     bool is_set_policy = (get_current_cmd()->get_type() == em_cmd_type_set_policy);
+    em_printfout("is_set_policy : %d\n", is_set_policy);
     dm_easy_mesh_t *cmd_dm = is_set_policy ? get_current_cmd()->get_data_model() : nullptr;
+
+    em_printfout("Agent al_mac:%s Ctrl al_mac:%s",
+        util::mac_to_string(dm->get_agent_al_interface_mac()).c_str(),
+        util::mac_to_string(dm->get_ctrl_al_interface_mac()).c_str());
 
     memcpy(tmp, dm->get_agent_al_interface_mac(), sizeof(mac_address_t));
     tmp += sizeof(mac_address_t);
@@ -512,6 +524,9 @@ int em_policy_cfg_t::send_policy_cfg_request_msg()
     cmdu->last_frag_ind = 1;
     cmdu->relay_ind = 0;
 
+    em_printfout("CMDU built: type=0x%04x msg_id=0x%04x, header len so far=%zu",
+        msg_type, ntohs(cmdu->id), len);
+
     tmp += sizeof(em_cmdu_t);
     len += sizeof(em_cmdu_t);
 
@@ -523,8 +538,12 @@ int em_policy_cfg_t::send_policy_cfg_request_msg()
         tlv->type = em_tlv_type_steering_policy;
         sz = create_steering_policy_tlv(tlv->value);
         tlv->len = htons(static_cast<short unsigned int> (sz));
+        em_printfout("Added Steering Policy TLV: value_sz=%d, total len=%zu",
+            sz, len + sizeof(em_tlv_t) + static_cast<size_t>(sz));
         tmp += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
         len += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+    } else {
+        em_printfout("Skipping Steering Policy TLV (not in set_policy cmd_dm)");
     }
 
     // Zero or one Metric Reporting Policy TLV (see section 17.2.12).
@@ -534,8 +553,12 @@ int em_policy_cfg_t::send_policy_cfg_request_msg()
         tlv->type = em_tlv_type_metric_reporting_policy;
         sz = create_metrics_rep_policy_tlv(tlv->value);
         tlv->len = htons(static_cast<short unsigned int> (sz));
+        em_printfout("Added Metric Reporting Policy TLV: value_sz=%d, total len=%zu",
+            sz, len + sizeof(em_tlv_t) + static_cast<size_t>(sz));
         tmp += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
         len += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+    } else {
+        em_printfout("Skipping Metric Reporting Policy TLV (not in set_policy cmd_dm)");
     }
 
     // Zero or one Default 802.1Q Settings TLV (see section 17.2.49).
@@ -544,8 +567,12 @@ int em_policy_cfg_t::send_policy_cfg_request_msg()
         tlv->type = em_tlv_type_dflt_8021q_settings;
         sz = create_def_8021q_settings_policy_tlv(tlv->value);
         tlv->len = htons(static_cast<short unsigned int> (sz));
+        em_printfout("Added Default 802.1Q Settings TLV: value_sz=%d, total len=%zu",
+            sz, len + sizeof(em_tlv_t) + static_cast<size_t>(sz));
         tmp += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
         len += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+    } else {
+        em_printfout("Skipping Default 802.1Q Settings TLV (not in set_policy cmd_dm)");
     }
 
     // Zero or one Traffic Separation Policy TLV (see section 17.2.50).
@@ -555,8 +582,12 @@ int em_policy_cfg_t::send_policy_cfg_request_msg()
         tlv->type = em_tlv_type_traffic_separation_policy;
         sz = static_cast<short>(create_traffic_separation_policy_tlv(tlv->value));
         tlv->len = htons(static_cast<unsigned short>(static_cast<unsigned int>(sz)));
+        em_printfout("Added Traffic Separation Policy TLV: value_sz=%d, total len=%zu",
+            sz, len + sizeof(em_tlv_t) + static_cast<size_t>(sz));
         tmp += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
         len += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+    } else {
+        em_printfout("Skipping Traffic Separation Policy TLV (set_policy path)");
     }
 
     // Zero or one Channel Scan Reporting Policy TLV (see section 17.2.37).
@@ -565,8 +596,12 @@ int em_policy_cfg_t::send_policy_cfg_request_msg()
         tlv->type = em_tlv_type_channel_scan_rprt_policy;
         sz = create_chan_scan_report_policy_tlv(tlv->value);
         tlv->len = htons(static_cast<short unsigned int> (sz));
+        em_printfout("Added Channel Scan Reporting Policy TLV: value_sz=%d, total len=%zu",
+            sz, len + sizeof(em_tlv_t) + static_cast<size_t>(sz));
         tmp += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
         len += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+    } else {
+        em_printfout("Skipping Channel Scan Reporting Policy TLV (not in set_policy cmd_dm)");
     }
 
     // Zero or one Unsuccessful Association Policy TLV (see section 17.2.58).
@@ -575,14 +610,19 @@ int em_policy_cfg_t::send_policy_cfg_request_msg()
         tlv->type = em_tlv_type_unsucc_assoc_policy;
         sz = create_unsucc_assoc_policy_tlv(tlv->value);
         tlv->len = htons(static_cast<short unsigned int> (sz));
+        em_printfout("Added Unsuccessful Assoc Policy TLV: value_sz=%d, total len=%zu",
+            sz, len + sizeof(em_tlv_t) + static_cast<size_t>(sz));
         tmp += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
         len += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+    } else {
+        em_printfout("Skipping Unsuccessful Assoc Policy TLV (not in set_policy cmd_dm)");
     }
 
     // Zero or more Backhaul BSS Configuration TLVs (spec 17.2.66): one TLV per BSSID entry.
     dm_easy_mesh_t *bh_dm = is_set_policy ? cmd_dm : dm;
+    em_printfout("Scanning %u policies for Backhaul BSS Config TLVs", bh_dm->get_num_policy());
     for (unsigned int pi = 0; pi < bh_dm->get_num_policy(); pi++) {
-        dm_policy_t *bh_pol = &bh_dm->m_policy[pi];
+        dm_policy_t *bh_pol = bh_dm->get_policy(pi);
         if (bh_pol->m_policy.id.type != em_policy_id_type_backhaul_bss_config) {
             continue;
         }
@@ -590,16 +630,18 @@ int em_policy_cfg_t::send_policy_cfg_request_msg()
             const em_backhaul_bss_config_policy_t *entry = &bh_pol->m_policy.backhaul_bss_config[bi];
             static const mac_address_t null_mac = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
             if (memcmp(entry->bssid, null_mac, sizeof(mac_address_t)) == 0) {
+                em_printfout("Skipping Backhaul BSS Config entry[%u] with null BSSID", bi);
                 continue;
             }
             tlv = reinterpret_cast<em_tlv_t *>(tmp);
             tlv->type = em_tlv_type_backhaul_bss_conf;
             sz = create_backhaul_bss_conf_policy_tlv(tlv->value, entry);
             tlv->len = htons(static_cast<short unsigned int>(sz));
-            em_printfout("Sending Backhaul BSS Config TLV: BSSID=%s p1=%d p2=%d",
+            em_printfout("Sending Backhaul BSS Config TLV: BSSID=%s p1=%d p2=%d value_sz=%d, total len=%zu",
                 util::mac_to_string(entry->bssid).c_str(),
                 entry->b_profile_1_sta_disallowed,
-                entry->b_profile_2_sta_disallowed);
+                entry->b_profile_2_sta_disallowed,
+                sz, len + sizeof(em_tlv_t) + static_cast<size_t>(sz));
             tmp += (sizeof(em_tlv_t) + static_cast<size_t>(sz));
             len += (sizeof(em_tlv_t) + static_cast<size_t>(sz));
         }
@@ -607,8 +649,9 @@ int em_policy_cfg_t::send_policy_cfg_request_msg()
 
     // Zero or more QoS Management Policy TLVs (spec 17.2.92): one TLV per entry.
     dm_easy_mesh_t *qos_dm = is_set_policy ? cmd_dm : dm;
+    em_printfout("Scanning %u policies for QoS Management TLVs", qos_dm->get_num_policy());
     for (unsigned int pi = 0; pi < qos_dm->get_num_policy(); pi++) {
-        dm_policy_t *qos_pol = &qos_dm->m_policy[pi];
+        dm_policy_t *qos_pol = qos_dm->get_policy(pi);
         if (qos_pol->m_policy.id.type != em_policy_id_type_qos_mgt) {
             continue;
         }
@@ -618,8 +661,12 @@ int em_policy_cfg_t::send_policy_cfg_request_msg()
             sz = create_qos_mgt_policy_tlv(tlv->value, qos_pol, qi);
             if (sz > 0) {
                 tlv->len = htons(static_cast<short unsigned int>(sz));
+                em_printfout("Added QoS Management TLV[qi=%u]: value_sz=%d, total len=%zu",
+                    qi, sz, len + sizeof(em_tlv_t) + static_cast<size_t>(sz));
                 tmp += (sizeof(em_tlv_t) + static_cast<size_t>(sz));
                 len += (sizeof(em_tlv_t) + static_cast<size_t>(sz));
+            } else {
+                em_printfout("Skipping empty QoS Management TLV[qi=%u]", qi);
             }
         }
     }
@@ -632,8 +679,12 @@ int em_policy_cfg_t::send_policy_cfg_request_msg()
         tlv->type = em_tlv_type_vendor_specific;
         sz = create_vendor_policy_cfg_tlv(tlv->value);
         tlv->len = htons(static_cast<short unsigned int> (sz));
+        em_printfout("Added Vendor Specific TLV: value_sz=%d, total len=%zu",
+            sz, len + sizeof(em_tlv_t) + static_cast<size_t>(sz));
         tmp += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
         len += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+    } else {
+        em_printfout("Skipping Vendor Specific TLV (not in set_policy cmd_dm)");
     }
 
     // End of message
@@ -643,19 +694,28 @@ int em_policy_cfg_t::send_policy_cfg_request_msg()
 
     tmp += (sizeof (em_tlv_t));
     len += (sizeof (em_tlv_t));
+
+    em_printfout("Added EOM TLV, final message len=%zu", len);
+
     if (em_msg_t(em_msg_type_map_policy_config_req, em_profile_type_3, buff, static_cast<unsigned int> (len)).validate(errors) == 0) {
         printf("%s:%d: Policy Cfg Request msg validation failed\n", __func__, __LINE__);
+        em_printfout("VALIDATION FAILED for Policy Cfg Request msg, len=%zu", len);
         return -1;
     }
+    em_printfout("Policy Cfg Request msg validation passed");
 
     if (send_frame(buff, static_cast<unsigned int> (len))  < 0) {
         printf("%s:%d: Policy Cfg Request msg send failed, error:%d\n", __func__, __LINE__, errno);
+        em_printfout("send_frame FAILED, errno=%d, len=%zu", errno, len);
         return -1;
     }
 
-	em_printfout("Policy Cfg Request Msg Send Success");
+    em_printfout("Policy Cfg Request Msg Send Success");
 
     m_policy_req_msg_id = ntohs(cmdu->id);
+
+    em_printfout("EXIT send_policy_cfg_request_msg: sent %zu bytes, stored msg_id=0x%04x",
+        len, m_policy_req_msg_id);
 
     return static_cast<int> (len);
 
