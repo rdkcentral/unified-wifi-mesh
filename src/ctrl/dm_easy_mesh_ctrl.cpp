@@ -76,6 +76,7 @@ bus_error_t em_ctrl_t::cmd_setssid(const char *method_name, const bus_data_prop_
     char band[TR181_BAND_MAX_LEN + 1] = {0};
     char addremove[TR181_ADDREMOVE_MAX_LEN + 1] = {0};
     char HaulType[TR181_HAULTYPE_MAX_LEN + 1] = {0};
+    char AKMsAllowed[TR181_AKMS_MAX_LEN + 1] = {0};
     size_t json_len = 0;
 
     (void)method_name;
@@ -98,6 +99,13 @@ bus_error_t em_ctrl_t::cmd_setssid(const char *method_name, const bus_data_prop_
             tr_181_t::tr181_copy_prop_string(prop, band, sizeof(band));
         } else if (strcmp(prop->name, "HaulType") == 0) {
             tr_181_t::tr181_copy_prop_string(prop, HaulType, sizeof(HaulType));
+        } else if (strcmp(prop->name, "AKMsAllowed") == 0) {
+            tr_181_t::tr181_copy_prop_string(prop, AKMsAllowed, sizeof(AKMsAllowed));
+            /* Full buffer = truncated input, longer than any valid akm_t value. */
+            if (strnlen(AKMsAllowed, sizeof(AKMsAllowed)) >= TR181_AKMS_MAX_LEN) {
+                if (output_params) *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
+                return bus_error_invalid_input;
+            }
         }
     }
 
@@ -256,6 +264,28 @@ bus_error_t em_ctrl_t::cmd_setssid(const char *method_name, const bus_data_prop_
                 cJSON_ReplaceItemInObject(target, "HaulType", haul_arr);
                 haul_arr = NULL;
             }
+            if (AKMsAllowed[0]) {
+                /* BBF TR-181 SetSSID() input AKMsAllowed (since 2.17): update the
+                 * entry's AKMsAllowed and derive the internal AuthType used to
+                 * build the WSC M2 auth type. */
+                cJSON *akms_arr = tr_181_t::create_akms_array(AKMsAllowed);
+                if (!akms_arr) {
+                    cJSON_Delete(root);
+                    if (output_params) *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
+                    return bus_error_invalid_input;
+                }
+                const char *auth_str =
+                    tr_181_t::akms_to_auth_type(cJSON_GetStringValue(cJSON_GetArrayItem(akms_arr, 0)));
+                cJSON *auth_item = (auth_str != NULL) ? cJSON_CreateString(auth_str) : NULL;
+                if (!auth_item) {
+                    cJSON_Delete(akms_arr);
+                    cJSON_Delete(root);
+                    if (output_params) *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
+                    return bus_error_out_of_resources;
+                }
+                cJSON_ReplaceItemInObject(target, "AKMsAllowed", akms_arr);
+                cJSON_ReplaceItemInObject(target, "AuthType", auth_item);
+            }
         }
     } else if (is_add) {
         target = cJSON_CreateObject();
@@ -300,6 +330,25 @@ bus_error_t em_ctrl_t::cmd_setssid(const char *method_name, const bus_data_prop_
         if (haul_arr) {
             cJSON_AddItemToObject(target, "HaulType", haul_arr);
             haul_arr = NULL;
+        }
+        if (AKMsAllowed[0]) {
+            cJSON *akms_arr = tr_181_t::create_akms_array(AKMsAllowed);
+            if (!akms_arr) {
+                cJSON_Delete(root);
+                if (output_params) *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
+                return bus_error_invalid_input;
+            }
+            const char *auth_str =
+                tr_181_t::akms_to_auth_type(cJSON_GetStringValue(cJSON_GetArrayItem(akms_arr, 0)));
+            cJSON *auth_item = (auth_str != NULL) ? cJSON_CreateString(auth_str) : NULL;
+            if (!auth_item) {
+                cJSON_Delete(akms_arr);
+                cJSON_Delete(root);
+                if (output_params) *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
+                return bus_error_out_of_resources;
+            }
+            cJSON_AddItemToObject(target, "AKMsAllowed", akms_arr);
+            cJSON_AddItemToObject(target, "AuthType", auth_item);
         }
     } else {
         if (haul_arr) cJSON_Delete(haul_arr);
@@ -4869,6 +4918,10 @@ bus_error_t dm_easy_mesh_ctrl_t::network_get_inner(char *event_name, raw_data_t 
         unsigned int dev_cnt = 0;
         dm_easy_mesh_t *dm = dm_ctrl->get_first_dm();
         while (dm != NULL) {
+            if (dm->is_controller()) {
+                dm = dm_ctrl->get_next_dm(dm);
+                continue;
+            }
             dm_device_t *dev = dm->get_device();
             if (dev != NULL) {
                 em_device_info_t *di = dev->get_device_info();
@@ -5104,7 +5157,12 @@ bus_error_t dm_easy_mesh_ctrl_t::device_tget_inner(char *event_name, raw_data_t 
 
     /* Calculate device count */
     unsigned int device_cnt = 0;
+    int max_id = 0;
     while (dm != NULL) {
+        if (dm->is_controller()) {
+            dm = dm_ctrl->get_next_dm(dm);
+            continue;
+        }
         if (dm->get_id() < 0) {
             dm = dm_ctrl->get_next_dm(dm);
             continue;
@@ -5119,12 +5177,15 @@ bus_error_t dm_easy_mesh_ctrl_t::device_tget_inner(char *event_name, raw_data_t 
             dm = dm_ctrl->get_next_dm(dm);
             continue;
         }
+        if (dm->get_id() > max_id) {
+            max_id = dm->get_id();
+        }
         ++device_cnt;
         dm = dm_ctrl->get_next_dm(dm);
     }
 
     /* Iterate according to dm id */
-    for (unsigned int idx = 1, cnt = 0; cnt < device_cnt; idx++) {
+    for (unsigned int idx = 1, cnt = 0; cnt < device_cnt && idx <= static_cast<unsigned int>(max_id); idx++) {
         dm = dm_ctrl->get_first_dm();
         do {
             if (dm && (dm->get_id() == static_cast<int>(idx))) {
@@ -5135,15 +5196,22 @@ bus_error_t dm_easy_mesh_ctrl_t::device_tget_inner(char *event_name, raw_data_t 
         if (dm == NULL) {
             continue;
         }
-        ++cnt;
+
+	if (dm->is_controller()) {
+            continue;
+        }
+
         dm_device_t *dev = dm->get_device();
         if (dev == NULL) {
             continue;
         }
+
         em_device_info_t *di = dev->get_device_info();
         if (memcmp(di->id.dev_mac, ZERO_MAC_ADDR, sizeof(di->id.dev_mac)) == 0) {
             continue;
         }
+        ++cnt;
+
         em_ieee_1905_security_cap_t *sec_cap = dm->get_ieee_1905_security_cap();
 
         dm_ctrl->property_append_tail(&property, root, idx, "ID", di->id.dev_mac);
@@ -5451,6 +5519,103 @@ char* dm_easy_mesh_ctrl_t::get_vht_caps_str(em_ap_vht_cap_t *vht, char *buf, siz
     std::string encoded = em_crypto_t::base64_encode(data, sizeof(data));
     snprintf(buf, buf_len, "%s", encoded.c_str());
 
+    return buf;
+}
+
+char* dm_easy_mesh_ctrl_t::get_sta_ht_caps_str(char *ht_cap_hex, char *buf, size_t buf_len)
+{
+    unsigned char ie[32] = {0};
+    unsigned int hex_len;
+    unsigned short cap_info;
+    uint8_t data = 0, rx_nss = 1, tx_nss;
+    unsigned int i;
+
+    buf[0] = '\0';
+    if ((ht_cap_hex == NULL) || (ht_cap_hex[0] == '\0')) {
+        return buf;
+    }
+    hex_len = static_cast<unsigned int>(strlen(ht_cap_hex));
+    if ((hex_len < 32) || (hex_len & 1) || (hex_len > 2 * sizeof(ie)) ||
+        (dm_easy_mesh_t::unhex(hex_len, ht_cap_hex, sizeof(ie), ie) == NULL)) {
+        return buf;
+    }
+
+    cap_info = static_cast<unsigned short>(ie[0] | (ie[1] << 8));
+
+    /* Supported MCS Set (offset 3): one rx bitmask byte per spatial stream */
+    for (i = 0; i < 4; i++) {
+        if (ie[3 + i] != 0) {
+            rx_nss = static_cast<uint8_t>(i + 1);
+        }
+    }
+    tx_nss = rx_nss;
+    /* Tx MCS Set Defined + Tx Rx MCS Set Not Equal -> explicit max Tx NSS */
+    if ((ie[15] & 0x01) && (ie[15] & 0x02)) {
+        tx_nss = static_cast<uint8_t>(((ie[15] >> 2) & 0x03) + 1);
+    }
+
+    data  = static_cast<uint8_t>(((tx_nss - 1) & 0x03) << 6);
+    data |= static_cast<uint8_t>(((rx_nss - 1) & 0x03) << 4);
+    data |= static_cast<uint8_t>(((cap_info >> 5) & 1) << 3); /* SGI 20 MHz */
+    data |= static_cast<uint8_t>(((cap_info >> 6) & 1) << 2); /* SGI 40 MHz */
+    data |= static_cast<uint8_t>(((cap_info >> 1) & 1) << 1); /* HT 40 MHz */
+
+    std::string encoded = em_crypto_t::base64_encode(&data, sizeof(data));
+    snprintf(buf, buf_len, "%s", encoded.c_str());
+    return buf;
+}
+
+char* dm_easy_mesh_ctrl_t::get_sta_vht_caps_str(char *vht_cap_hex, char *buf, size_t buf_len)
+{
+    unsigned char ie[16] = {0};
+    unsigned int hex_len;
+    unsigned int cap_info;
+    unsigned short rx_map, tx_map;
+    uint8_t data[6] = {0};
+    uint8_t rx_nss = 1, tx_nss = 1, cw_set;
+    unsigned int i;
+
+    buf[0] = '\0';
+    if ((vht_cap_hex == NULL) || (vht_cap_hex[0] == '\0')) {
+        return buf;
+    }
+    hex_len = static_cast<unsigned int>(strlen(vht_cap_hex));
+    if ((hex_len < 24) || (hex_len & 1) || (hex_len > 2 * sizeof(ie)) ||
+        (dm_easy_mesh_t::unhex(hex_len, vht_cap_hex, sizeof(ie), ie) == NULL)) {
+        return buf;
+    }
+
+    cap_info = static_cast<unsigned int>(ie[0]) | (static_cast<unsigned int>(ie[1]) << 8) |
+               (static_cast<unsigned int>(ie[2]) << 16) | (static_cast<unsigned int>(ie[3]) << 24);
+    cw_set = (cap_info >> 2) & 0x03;
+    rx_map = static_cast<unsigned short>(ie[4] | (ie[5] << 8));
+    tx_map = static_cast<unsigned short>(ie[8] | (ie[9] << 8));
+
+    /* MCS/NSS maps: 2 bits per stream, 0x3 = not supported */
+    for (i = 0; i < 8; i++) {
+        if (((rx_map >> (2 * i)) & 0x03) != 0x03) {
+            rx_nss = static_cast<uint8_t>(i + 1);
+        }
+        if (((tx_map >> (2 * i)) & 0x03) != 0x03) {
+            tx_nss = static_cast<uint8_t>(i + 1);
+        }
+    }
+
+    data[0] = static_cast<uint8_t>(tx_map >> 8);
+    data[1] = static_cast<uint8_t>(tx_map & 0xff);
+    data[2] = static_cast<uint8_t>(rx_map >> 8);
+    data[3] = static_cast<uint8_t>(rx_map & 0xff);
+    data[4]  = static_cast<uint8_t>(((tx_nss - 1) & 0x07) << 5);
+    data[4] |= static_cast<uint8_t>(((rx_nss - 1) & 0x07) << 2);
+    data[4] |= static_cast<uint8_t>(((cap_info >> 5) & 1) << 1);  /* SGI 80 MHz */
+    data[4] |= static_cast<uint8_t>((cap_info >> 6) & 1);         /* SGI 160 MHz */
+    data[5]  = static_cast<uint8_t>((cw_set == 2 ? 1 : 0) << 7);  /* 80+80 MHz */
+    data[5] |= static_cast<uint8_t>((cw_set >= 1 ? 1 : 0) << 6);  /* 160 MHz */
+    data[5] |= static_cast<uint8_t>(((cap_info >> 11) & 1) << 5); /* SU beamformer */
+    data[5] |= static_cast<uint8_t>(((cap_info >> 19) & 1) << 4); /* MU beamformer */
+
+    std::string encoded = em_crypto_t::base64_encode(data, sizeof(data));
+    snprintf(buf, buf_len, "%s", encoded.c_str());
     return buf;
 }
 
@@ -6904,7 +7069,7 @@ bus_error_t dm_easy_mesh_ctrl_t::bss_tget_params(dm_easy_mesh_t *dm, const char 
         dm_ctrl->property_append_tail(property, root, idx, "FronthaulAKMsAllowed", val_str);
         dm_ctrl->property_append_tail(property, root, idx, "FronthaulSuiteSelector", 0U);
         memset(val_str, 0, sizeof(val_str));
-        dm_ctrl->fill_comma_sep(bi->fronthaul_akm, ARRAY_SIZE(bi->backhaul_akm), val_str);
+        dm_ctrl->fill_comma_sep(bi->backhaul_akm, ARRAY_SIZE(bi->backhaul_akm), val_str);
         dm_ctrl->property_append_tail(property, root, idx, "BackhaulAKMsAllowed", val_str);
         dm_ctrl->property_append_tail(property, root, idx, "BackhaulSuiteSelector", 0U);
         dm_ctrl->property_append_tail(property, root, idx, "STANumberOfEntries", bi->numberofsta);
@@ -7021,9 +7186,13 @@ bus_error_t dm_easy_mesh_ctrl_t::sta_get_inner(char *event_name, raw_data_t *p_d
     } else if (strcmp(param, "TimeStamp") == 0) {
         rc = dm_ctrl->raw_data_set(p_data, si->timestamp);
     } else if (strcmp(param, "HTCapabilities") == 0) {
-        rc = dm_ctrl->raw_data_set(p_data, si->ht_cap);
+        char caps_str[32] = {0};
+        dm_ctrl->get_sta_ht_caps_str(si->ht_cap, caps_str, sizeof(caps_str));
+        rc = dm_ctrl->raw_data_set(p_data, caps_str);
     } else if (strcmp(param, "VHTCapabilities") == 0) {
-        rc = dm_ctrl->raw_data_set(p_data, si->vht_cap);
+        char caps_str[32] = {0};
+        dm_ctrl->get_sta_vht_caps_str(si->vht_cap, caps_str, sizeof(caps_str));
+        rc = dm_ctrl->raw_data_set(p_data, caps_str);
     } else if (strcmp(param, "ClientCapabilities") == 0) {
         rc = dm_ctrl->raw_data_set(p_data, "");
     } else if (strcmp(param, "LastDataDownlinkRate") == 0) {
@@ -7158,9 +7327,14 @@ bus_error_t dm_easy_mesh_ctrl_t::sta_tget_params(dm_easy_mesh_t *dm, const char 
         }
         ++idx;
 
+        char ht_caps_str[32] = {0};
+        char vht_caps_str[32] = {0};
+        dm_ctrl->get_sta_ht_caps_str(si->ht_cap, ht_caps_str, sizeof(ht_caps_str));
+        dm_ctrl->get_sta_vht_caps_str(si->vht_cap, vht_caps_str, sizeof(vht_caps_str));
+
         dm_ctrl->property_append_tail(property, root, idx, "MACAddress", si->id);
-        dm_ctrl->property_append_tail(property, root, idx, "HTCapabilities", si->ht_cap);
-        dm_ctrl->property_append_tail(property, root, idx, "VHTCapabilities", si->vht_cap);
+        dm_ctrl->property_append_tail(property, root, idx, "HTCapabilities", ht_caps_str);
+        dm_ctrl->property_append_tail(property, root, idx, "VHTCapabilities", vht_caps_str);
         dm_ctrl->property_append_tail(property, root, idx, "ClientCapabilities", "");
         dm_ctrl->property_append_tail(property, root, idx, "LastDataDownlinkRate", si->last_dl_rate);
         dm_ctrl->property_append_tail(property, root, idx, "LastDataUplinkRate", si->last_ul_rate);

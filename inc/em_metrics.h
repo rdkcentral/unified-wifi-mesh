@@ -458,7 +458,7 @@ class em_metrics_t {
 	int send_ap_metrics_response();
 
 	int send_link_quality_report();
-    
+
 	/**!
 	 * @brief Creates a beacon metrics response TLV.
 	 *

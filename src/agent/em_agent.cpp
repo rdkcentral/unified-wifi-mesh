@@ -55,71 +55,6 @@ AlServiceAccessPoint* g_sap;
 MacAddress g_al_mac_sap;
 #endif
 
-static bool is_known_failure_status_code(unsigned short status_code)
-{
-    switch (status_code) {
-        case 1:  // Unspecified failure
-        case 5:  // Association denied; AP unable to handle BSS
-        case 10: // Cannot support all requested capabilities
-        case 11: // Reassociation denied; previous association unknown
-        case 12: // Association denied; reason outside scope
-        case 13: // Auth algorithm not supported
-        case 15: // Challenge failure (authentication denied)
-        case 16: // Association failure due to timeout
-        case 17: // Auth sequence timeout; STA did not respond
-        case 30: // Association rejected temporarily; try again later
-        case 31: // Robust management frame policy violation
-        case 43: // Invalid AKMP
-        case 44: // IEEE 802.1X authentication failed
-        case 45: // PMK not available/cached
-        case 53: // Invalid PMKID
-            return true;
-        default:
-            return false;
-    }
-}
-
-static bool is_known_failure_reason_code(unsigned short reason_code)
-{
-    switch (reason_code) {
-        case 2:  // Previous authentication not valid
-        case 3:  // Deauthenticated; STA is leaving
-        case 6:  // Class 2 frame from nonauthenticated STA
-        case 7:  // Class 3 frame from nonassociated STA
-        case 9:  // STA requested (re)assoc without authentication
-        case 13: // Invalid IE in frame
-        case 14: // Michael MIC failure
-        case 15: // 4-way handshake timeout
-        case 16: // Group key update timeout
-        case 17: // IE in 4-way handshake differs from (re)assoc request
-        case 18: // Group cipher suite not valid
-        case 19: // Pairwise cipher suite not valid
-        case 20: // AKMP not valid
-        case 21: // Unsupported RSN IE version
-        case 22: // Invalid RSN IE capabilities
-        case 23: // IEEE 802.1X authentication failed
-        case 24: // Cipher suite rejected by security policy
-        case 39: // Requested from peer STA (wrong password / MIC failure)
-        case 49: // Invalid PMKID
-            return true;
-        default:
-            return false;
-    }
-}
-
-static bool is_failed_connection_message(const em_connection_status_evt_data_t *conn_status_evt)
-{
-    if (conn_status_evt == nullptr) {
-        return false;
-    }
-
-    if (conn_status_evt->reason_code_present) {
-        return is_known_failure_reason_code(conn_status_evt->reason_code);
-    }
-
-    return is_known_failure_status_code(conn_status_evt->status_code);
-}
-
 void em_agent_t::handle_sta_list(em_bus_event_t *evt)
 {
     em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
@@ -474,11 +409,14 @@ void em_agent_t::handle_recv_assoc_status(em_bus_event_t *event)
     }
 }
 
-void em_agent_t::handle_recv_connection_status(em_bus_event_t *event)
+void em_agent_t::handle_recv_failed_conn(em_bus_event_t *event)
 {
-    const em_connection_status_evt_data_t *conn_status_evt = nullptr;
     em_bss_info_t *target_bss = nullptr;
     mac_address_t bssid = {0};
+    mac_address_t sta_mac = {0};
+    unsigned short status_code = 0;
+    unsigned short reason_code = 0;
+    bool reason_code_present = false;
     em_t *em = nullptr;
     em_event_t *qevt = nullptr;
     em_connection_status_evt_data_t *evt_copy = nullptr;
@@ -489,31 +427,55 @@ void em_agent_t::handle_recv_connection_status(em_bus_event_t *event)
         return;
     }
 
-    if (event->u.raw_buff == nullptr || event->data_len != sizeof(em_connection_status_evt_data_t)) {
-        em_printfout("Invalid connection status payload: expected %zu, got %u",
-                     sizeof(em_connection_status_evt_data_t), event->data_len);
+    if (event->u.raw_buff == nullptr || event->data_len == 0) {
+        em_printfout("NULL failed connection payload!");
         return;
     }
 
-    conn_status_evt = reinterpret_cast<const em_connection_status_evt_data_t *>(event->u.raw_buff);
+    // event->u.raw_buff is a fixed-length copy of the bus payload and is not
+    // guaranteed to be NUL-terminated; copy it into a NUL-terminated buffer
+    // before treating it as a C string.
+    std::vector<char> payload(event->data_len + 1, '\0');
+    memcpy(payload.data(), event->u.raw_buff, event->data_len);
 
-    if (!is_failed_connection_message(conn_status_evt)) {
+    cJSON *obj = cJSON_Parse(payload.data());
+    if (obj == nullptr) {
+        em_printfout("Failed connection JSON parse failed, raw: %s", payload.data());
         return;
     }
 
-    memcpy(bssid, conn_status_evt->bssid, sizeof(mac_address_t));
+    cJSON *bssid_item = cJSON_GetObjectItem(obj, "bssid");
+    cJSON *sta_item = cJSON_GetObjectItem(obj, "sta_mac");
+    cJSON *status_item = cJSON_GetObjectItem(obj, "status");
+    cJSON *reason_item = cJSON_GetObjectItem(obj, "reason");
+
+    if (!cJSON_IsString(bssid_item) || !cJSON_IsString(sta_item) || !cJSON_IsNumber(status_item)) {
+        em_printfout("Failed connection JSON missing/invalid mandatory fields (bssid/sta_mac/status), raw: %s", payload.data());
+        cJSON_Delete(obj);
+        return;
+    }
+
+    dm_easy_mesh_t::string_to_macbytes(bssid_item->valuestring, bssid);
+    dm_easy_mesh_t::string_to_macbytes(sta_item->valuestring, sta_mac);
+    status_code = static_cast<unsigned short>(status_item->valueint);
+
+    if (reason_item && cJSON_IsNumber(reason_item)) {
+        reason_code = static_cast<unsigned short>(reason_item->valueint);
+        reason_code_present = true;
+    }
+
+    cJSON_Delete(obj);
+
     target_bss = m_data_model.get_bss_info_with_mac(bssid);
     if (target_bss == nullptr) {
-        em_printfout("No BSS for bssid=%s, drop",
-                     util::mac_to_string(conn_status_evt->bssid).c_str());
+        em_printfout("No BSS for bssid=%s, drop", util::mac_to_string(bssid).c_str());
         return;
     }
 
     ruid_str = util::mac_to_string(target_bss->ruid.mac);
     em = static_cast<em_t *>(hash_map_get(g_agent.m_em_map, ruid_str.c_str()));
     if (em == nullptr) {
-        em_printfout("No radio EM for bssid=%s, drop",
-                     util::mac_to_string(conn_status_evt->bssid).c_str());
+        em_printfout("No radio EM for bssid=%s, drop", util::mac_to_string(bssid).c_str());
         return;
     }
 
@@ -523,14 +485,18 @@ void em_agent_t::handle_recv_connection_status(em_bus_event_t *event)
         return;
     }
 
-    evt_copy = static_cast<em_connection_status_evt_data_t *>(malloc(sizeof(em_connection_status_evt_data_t)));
+    evt_copy = static_cast<em_connection_status_evt_data_t *>(calloc(1, sizeof(em_connection_status_evt_data_t)));
     if (evt_copy == nullptr) {
-        em_printfout("Failed to alloc connection status payload");
+        em_printfout("Failed to alloc failed connection payload");
         free(qevt);
         return;
     }
 
-    memcpy(evt_copy, conn_status_evt, sizeof(em_connection_status_evt_data_t));
+    memcpy(evt_copy->bssid, bssid, sizeof(mac_address_t));
+    memcpy(evt_copy->sta_mac, sta_mac, sizeof(mac_address_t));
+    evt_copy->status_code = status_code;
+    evt_copy->reason_code = reason_code;
+    evt_copy->reason_code_present = reason_code_present;
 
     qevt->type = em_event_type_cmd;
     qevt->u.cevt.type = em_cmd_event_type_failed_connection;
@@ -1284,8 +1250,8 @@ void em_agent_t::handle_bus_event(em_bus_event_t *evt)
             handle_recv_assoc_status(evt);
             break;
 
-        case em_bus_event_type_connection_status:
-            handle_recv_connection_status(evt);
+        case em_bus_event_type_failed_conn:
+            handle_recv_failed_conn(evt);
             break;
 
         case em_bus_event_type_ap_metrics_report:
@@ -1565,9 +1531,8 @@ void em_agent_t::input_listener()
         return;
     }
 
-    if (desc->bus_event_subs_fn(&m_bus_hdl, "Device.WiFi.EM.ReportConnectionStatus", reinterpret_cast<void *>(&em_agent_t::connection_status_cb), nullptr, 0) != 0) {
-        em_printfout("Error: Failed to subscribe to 'Device.WiFi.EM.ReportConnectionStatus'");
-        return;
+    if (desc->bus_event_subs_fn(&m_bus_hdl, WIFI_EM_FAILED_CONNECTION, reinterpret_cast<void *>(&em_agent_t::failed_conn_cb), nullptr, 0) != 0) {
+        em_printfout("Warning: Failed to subscribe to '" WIFI_EM_FAILED_CONNECTION "', Failed Connection reporting unavailable");
     }
 
     if (desc->bus_event_subs_fn(&m_bus_hdl, "Device.WiFi.EC.BSSInfo", reinterpret_cast<void *>(&em_agent_t::bss_info_cb), nullptr, 0) != 0) {
@@ -1670,19 +1635,13 @@ int em_agent_t::association_status_cb(char *event_name, bus_data_prop_t *data, v
     return 1;
 }
 
-int em_agent_t::connection_status_cb(char *event_name, bus_data_prop_t *data, void *userData)
+int em_agent_t::failed_conn_cb(char *event_name, bus_data_prop_t *data, void *userData)
 {
-    (void)event_name;
-    (void)userData;
-
     if (data == nullptr) {
-        em_printfout("NULL data from OneWiFi callback!");
+        em_printfout("NULL data from OneWiFi failed connection callback!");
         return -1;
     }
-
-    g_agent.io_process(em_bus_event_type_connection_status,
-                       reinterpret_cast<unsigned char *>(data->value.raw_data.bytes),
-                       data->value.raw_data_len);
+    g_agent.io_process(em_bus_event_type_failed_conn, reinterpret_cast<unsigned char *>(data->value.raw_data.bytes), data->value.raw_data_len);
     return 1;
 }
 
@@ -1979,31 +1938,46 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
 		found = false;
 		if (em_msg_t(data + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)),
 				len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_freq_band(&band) == false) {
-			printf("%s:%d: Could not find frequency band\n", __func__, __LINE__);
+			em_printfout("Could not find frequency band");
 			return NULL;
 		}
 
 		if (em_msg_t(data + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)),
 			len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_al_mac_address(ruid) == false) {
-			printf("%s:%d: Could not find radio_id for em_msg_type_autoconf_renew\n", __func__, __LINE__);
+			em_printfout("Could not find AL MAC for em_msg_type_autoconf_renew");
 			return NULL;
 		}
 		dm_easy_mesh_t::macbytes_to_string(ruid, al_mac_str);
-		strcat(al_mac_str, "_al");
-		if ((em = static_cast<em_t *>(hash_map_get(m_em_map, al_mac_str))) != NULL) {
-			printf("%s:%d: Found existing AL MAC:%s\n", __func__, __LINE__, al_mac_str);
-		} else {
-			return NULL;
-		}
+
 		em = static_cast<em_t *>(hash_map_get_first(m_em_map));
 		while (em != NULL) {
 			if (!(em->is_al_interface_em())) {
+				if (em->get_data_model() != NULL) {
+					mac_address_t ctrl_al_mac = {0};
+					unsigned char *ctrl_mac_ptr = em->get_data_model()->get_ctrl_al_interface_mac();
+					if (ctrl_mac_ptr != NULL) {
+						memcpy(ctrl_al_mac, ctrl_mac_ptr, sizeof(mac_address_t));
+					}
+					mac_address_t zero_mac = {0};
+					// Check if the controller AL MAC is not zero and does not match the received AL MAC
+					if ((memcmp(ctrl_al_mac, zero_mac, sizeof(mac_address_t)) != 0) &&
+					    (memcmp(ruid, ctrl_al_mac, sizeof(mac_address_t)) != 0)) {
+						dm_easy_mesh_t::macbytes_to_string(ctrl_al_mac, mac_str2);
+						em_printfout("Received AL MAC %s does not match previously connected controller AL MAC %s", al_mac_str, mac_str2);
+						em = static_cast<em_t *>(hash_map_get_next(m_em_map, em));
+						//TODO : Need to check do we really need to check for next radio if match fails!
+						continue;
+					}
+				}
 				if (em->is_matching_freq_band(&band) == true) {
-					if ((em->get_state() != em_state_agent_autoconfig_renew_pending) && (em->get_state() !=em_state_agent_wsc_m2_pending) && (em->get_state() != em_state_agent_owconfig_pending) ) {
+					/* Accept renew in owconfig_pending too: the apply confirmation
+					 * never arrived and renew is the mechanism to recover that. */
+					if ((em->get_state() != em_state_agent_autoconfig_renew_pending) && (em->get_state() !=em_state_agent_wsc_m2_pending)) {
+						em_printfout("Found matching band %d for autoconfig renew request, received controller AL MAC is %s", band, al_mac_str);
 						found = true;
 						break;
 					} else {
-						printf("%s:%d: Found matching band%d but incorrect em state %d\n", __func__, __LINE__, band, em->get_state());
+						em_printfout("Found matching band %d but incorrect em state %d", band, em->get_state());
 						return NULL;
 					}
 				}
@@ -2011,7 +1985,7 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
 			em = static_cast<em_t *>(hash_map_get_next(m_em_map, em));
 		}
 		if (found == false) {
-			printf("%s:%d: Could not find em with matching band%d and expected state \n", __func__, __LINE__, band);
+			em_printfout("Could not find em with matching band %d and expected state", band);
 			return NULL;
 		}
 		break;

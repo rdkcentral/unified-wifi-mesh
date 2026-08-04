@@ -35,6 +35,7 @@
 #define DEVICE_WIFI_DATAELEMENTS_NETWORK_NODE_SYNC          "Device.WiFi.DataElements.Network.NodeSynchronize"
 #define DEVICE_WIFI_DATAELEMENTS_NETWORK_NODE_CFG_POLICY    "Device.WiFi.DataElements.Network.NodeConfigurePolicy"
 #define DEVICE_WIFI_DATAELEMENTS_NETWORK_NODE_LINKSTATS_ALARM    "Device.WiFi.DataElements.Network.NodeLinkStatsAlarm"
+#define DEVICE_WIFI_DATAELEMENTS_FAILED_CONNECTION               "Device.WiFi.DataElements.FailedConnectionEvent.FailedConnection!"
 
 #define LIST_OF_DEFINITION_NAME "List_Of_Def"
 #define MAX_NUM_OF_OBJECTS_NAME "Num_Of_Objects"
@@ -89,6 +90,7 @@ static const yang_to_tr181_map g_yang_map[] = {
 #define TR181_BAND_MAX_LEN         16
 #define TR181_ADDREMOVE_MAX_LEN    16
 #define TR181_HAULTYPE_MAX_LEN     32
+#define TR181_AKMS_MAX_LEN         32
 #define TR181_CHLIST_MAX_LEN       128
 #define TR181_BSSID_MAX_LEN        32
 #define TR181_REQMODE_MAX_LEN      24
@@ -714,6 +716,28 @@ public:
      * @retval false otherwise.
      */
     static bool item_matches_haultype(const cJSON *item, const char *haul_val);
+
+     /**!
+     * @brief Create a JSON array for the SetSSID() AKMsAllowed input.
+     *
+     * @param akms_val Single akm_t enum value (psk, sae or psk+sae).
+     *
+     * @returns cJSON*
+     * @retval non-null Newly allocated cJSON array on success.
+     * @retval null on validation or allocation failure.
+     */
+    static cJSON *create_akms_array(const char *akms_val);
+
+     /**!
+     * @brief Map an AKMsAllowed value to the internal NetworkSSID AuthType.
+     *
+     * @param akms_val Single akm_t enum value (psk, sae or psk+sae).
+     *
+     * @returns const char*
+     * @retval AuthType string (securityTypeMap name) on success.
+     * @retval null for unsupported values.
+     */
+    static const char *akms_to_auth_type(const char *akms_val);
 
     /**!
      * @brief Format the HaulType array as a comma-separated string.
