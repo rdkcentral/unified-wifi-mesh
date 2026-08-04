@@ -4918,6 +4918,10 @@ bus_error_t dm_easy_mesh_ctrl_t::network_get_inner(char *event_name, raw_data_t 
         unsigned int dev_cnt = 0;
         dm_easy_mesh_t *dm = dm_ctrl->get_first_dm();
         while (dm != NULL) {
+            if (dm->is_controller()) {
+                dm = dm_ctrl->get_next_dm(dm);
+                continue;
+            }
             dm_device_t *dev = dm->get_device();
             if (dev != NULL) {
                 em_device_info_t *di = dev->get_device_info();
@@ -5153,7 +5157,12 @@ bus_error_t dm_easy_mesh_ctrl_t::device_tget_inner(char *event_name, raw_data_t 
 
     /* Calculate device count */
     unsigned int device_cnt = 0;
+    int max_id = 0;
     while (dm != NULL) {
+        if (dm->is_controller()) {
+            dm = dm_ctrl->get_next_dm(dm);
+            continue;
+        }
         if (dm->get_id() < 0) {
             dm = dm_ctrl->get_next_dm(dm);
             continue;
@@ -5168,12 +5177,15 @@ bus_error_t dm_easy_mesh_ctrl_t::device_tget_inner(char *event_name, raw_data_t 
             dm = dm_ctrl->get_next_dm(dm);
             continue;
         }
+        if (dm->get_id() > max_id) {
+            max_id = dm->get_id();
+        }
         ++device_cnt;
         dm = dm_ctrl->get_next_dm(dm);
     }
 
     /* Iterate according to dm id */
-    for (unsigned int idx = 1, cnt = 0; cnt < device_cnt; idx++) {
+    for (unsigned int idx = 1, cnt = 0; cnt < device_cnt && idx <= static_cast<unsigned int>(max_id); idx++) {
         dm = dm_ctrl->get_first_dm();
         do {
             if (dm && (dm->get_id() == static_cast<int>(idx))) {
@@ -5184,15 +5196,22 @@ bus_error_t dm_easy_mesh_ctrl_t::device_tget_inner(char *event_name, raw_data_t 
         if (dm == NULL) {
             continue;
         }
-        ++cnt;
+
+	if (dm->is_controller()) {
+            continue;
+        }
+
         dm_device_t *dev = dm->get_device();
         if (dev == NULL) {
             continue;
         }
+
         em_device_info_t *di = dev->get_device_info();
         if (memcmp(di->id.dev_mac, ZERO_MAC_ADDR, sizeof(di->id.dev_mac)) == 0) {
             continue;
         }
+        ++cnt;
+
         em_ieee_1905_security_cap_t *sec_cap = dm->get_ieee_1905_security_cap();
 
         dm_ctrl->property_append_tail(&property, root, idx, "ID", di->id.dev_mac);
