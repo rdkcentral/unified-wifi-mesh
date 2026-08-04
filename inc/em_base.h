@@ -2315,6 +2315,7 @@ typedef enum {
 
     //common states
     em_state_beacon_report_pending,
+    em_state_beacon_report_complete,
 
     em_state_max,
 } em_state_t;

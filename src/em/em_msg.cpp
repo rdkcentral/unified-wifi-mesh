@@ -121,6 +121,9 @@ bool em_msg_t::get_sta_mac(mac_address_t *mac)
         } else if (tlv->type == em_tlv_type_bcon_metric_query) {
             memcpy(mac, tlv->value, sizeof(mac_address_t));
             return true;
+        } else if (tlv->type == em_tlv_type_bcon_metric_rsp) {
+            memcpy(mac, tlv->value, sizeof(mac_address_t));
+            return true;
         } else if (tlv->type == em_tlv_type_assoc_sta_link_metric) {
             memcpy(mac, tlv->value, sizeof(mac_address_t));
             return true;

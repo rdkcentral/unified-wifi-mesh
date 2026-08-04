@@ -247,16 +247,16 @@ void em_t::orch_execute(em_cmd_t *pcmd)
             m_sm.set_state(em_state_agent_link_quality_report_pending);
             break;
 
+        case em_cmd_type_beacon_report:
+            m_sm.set_state(em_state_beacon_report_pending);
+            break;
+
         case em_cmd_type_unassoc_sta_query:
             m_sm.set_state(em_state_ctrl_unassoc_sta_link_metrics_pending);
             break;
 
         case em_cmd_type_unassoc_sta_result:
             m_sm.set_state(em_state_agent_unassoc_sta_metrics_report_pending);
-            break;
-
-        case em_cmd_type_beacon_report:
-            m_sm.set_state(em_state_beacon_report_pending);
             break;
         
 	default:
@@ -486,7 +486,7 @@ void em_t::handle_agent_state()
 			break;
 
         case em_cmd_type_beacon_report:
-            if (m_sm.get_state() >= em_state_agent_topo_synchronized) {
+            if (m_sm.get_state() == em_state_beacon_report_pending) {
                 em_metrics_t::process_agent_state();
             }
             break;

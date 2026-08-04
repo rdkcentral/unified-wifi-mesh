@@ -977,14 +977,12 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
     em_freq_band_t band;
     dm_easy_mesh_t *dm;
     em_t *em = NULL;
-    mac_address_t ruid;
+    mac_address_t ruid, sta_mac;
     bssid_t	bssid;
-    dm_bss_t *bss;
     em_profile_type_t profile;
-    unsigned int i;
     mac_addr_str_t mac_str1 = {0}, mac_str2 = {0};
     em_commit_info_t dm_commit;
-    mac_address_t fallback_ruid = {0};
+    unsigned int i = 0;
 
     assert(len > ((sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))));
     if (len < ((sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)))) {
@@ -1171,13 +1169,12 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
             break;
 
         case em_msg_type_beacon_metrics_rsp:
-            em = static_cast<em_t *> (hash_map_get_first(m_em_map));
-            while(em != NULL) {
-                if ((em->is_al_interface_em() == false) && (em->has_at_least_one_associated_sta() == true)) {
-                    break;
-                }
-                em = static_cast<em_t *> (hash_map_get_next(m_em_map, em));
+            if (em_msg_t(data + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)),
+                    len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_sta_mac(&sta_mac) == false) {
+                em_printfout("Could not find sta mac in msg:0x%04x", htons(cmdu->type));
+                return NULL;
             }
+            em = al_em;
             break;
 
         case em_msg_type_chirp_notif:

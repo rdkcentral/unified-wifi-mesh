@@ -520,13 +520,13 @@ void dm_sta_t::decode_sta_capability(dm_sta_t *sta)
                 } else if (ext_id == tag_ext_he_cap) {
                     // HE Capabilities (ext tag 35): skip the 1-byte ext ID, hex-encode the rest
                     if (tag->length > 1) {
-                        dm_easy_mesh_t::hex(tag->length - 1, tag->value + 1,
+                        dm_easy_mesh_t::hex(static_cast<unsigned int>(tag->length - 1), tag->value + 1,
                                             sizeof(em_long_string_t), sta->m_sta_info.he_cap);
                     }
                 } else if (ext_id == tag_ext_eht_cap) {
                     // EHT Capabilities (ext tag 108) — encode as ClientCapabilities string
                     if (tag->length > 1) {
-                        dm_easy_mesh_t::hex(tag->length - 1, tag->value + 1,
+                        dm_easy_mesh_t::hex(static_cast<unsigned int>(tag->length - 1), tag->value + 1,
                                             sizeof(em_long_string_t), sta->m_sta_info.cap);
                     }
                 }

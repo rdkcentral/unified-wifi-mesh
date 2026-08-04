@@ -128,7 +128,7 @@ bool em_orch_agent_t::is_em_ready_for_orch_fini(em_cmd_t *pcmd, em_t *em)
             break;
 
         case em_cmd_type_beacon_report:
-            if (em->get_state() >= em_state_agent_topo_synchronized) {
+            if (em->get_state() == em_state_beacon_report_complete) {
                 return true;
             }
             break;
@@ -189,7 +189,8 @@ bool em_orch_agent_t::is_em_ready_for_orch_exec(em_cmd_t *pcmd, em_t *em)
 			return true;
 		}
 	} else if (pcmd->m_type == em_cmd_type_beacon_report) {
-        if ((em->get_state() == em_state_agent_configured) ||
+        if ((em->get_state() == em_state_beacon_report_pending) ||
+            (em->get_state() == em_state_agent_configured) ||
             (em->get_state() >= em_state_agent_topo_synchronized)) {
             return true;
         }

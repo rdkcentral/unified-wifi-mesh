@@ -2079,6 +2079,11 @@ int em_configuration_t::handle_topology_notification(unsigned char *buff, unsign
             bss_info = dm->get_bss_info_with_mac(assoc_evt_tlv->bssid);
             if (bss_info != NULL) {
                 memcpy(sta_info.radiomac, bss_info->ruid.mac, sizeof(mac_address_t));
+            } else if (dm->is_ap_mld_mac(assoc_evt_tlv->bssid)) {
+                mac_address_t fallback_ruid = {0};
+                if (dm->resolve_ap_mld_to_fallback_ruid(assoc_evt_tlv->bssid, fallback_ruid)) {
+                    memcpy(sta_info.radiomac, fallback_ruid, sizeof(mac_address_t));
+                }
             }
             dm_easy_mesh_t::macbytes_to_string(sta_info.radiomac, radio_mac_str);
             snprintf(key, sizeof(em_long_string_t), "%s@%s@%s", sta_mac_str, bssid_str, radio_mac_str);
@@ -2449,6 +2454,7 @@ int em_configuration_t::handle_assoc_sta_mld_conf_rep_tlv(unsigned char *buff, u
     unsigned int max_affiliated_in_tlv;
     unsigned int reported_affiliated_count;
     const em_assoc_sta_mld_info_t *existing = nullptr;
+
 
     dm = get_data_model();
 
@@ -4629,6 +4635,86 @@ int em_configuration_t::handle_encrypted_settings(unsigned int wsc_tlv_count)
     return ret;
 }
 
+void em_configuration_t::store_akm_suite_cap(dm_easy_mesh_t *dm, unsigned char *buff, unsigned int len)
+{
+    if ((dm == NULL) || (buff == NULL) || (len < 1)) {
+        return;
+    }
+
+    unsigned char *pos = buff;
+    const unsigned char *end = buff + len;
+
+    /* Each suite is OUI[3] + type[1]; convert to the "OUIOUIOUITYPE" hex form used by util::oui_to_akm().
+       Returns false when the TLV is truncated or the suite count does not fit the remaining length. */
+    auto parse_suites = [&](std::vector<std::string> &out) -> bool {
+        if (pos >= end) {
+            return false;
+        }
+        uint8_t count = *pos++;
+        if ((static_cast<size_t>(count) * 4) > static_cast<size_t>(end - pos)) {
+            return false;
+        }
+        for (uint8_t i = 0; i < count; i++) {
+            char hex[9];
+            snprintf(hex, sizeof(hex), "%02X%02X%02X%02X", pos[0], pos[1], pos[2], pos[3]);
+            std::string akm = util::oui_to_akm(hex);
+            if (!akm.empty()) {
+                out.push_back(akm);
+            } else {
+                em_printfout("Unknown AKM suite selector %s in AKM Suite Cap TLV", hex);
+            }
+            pos += 4;
+        }
+        return true;
+    };
+
+    /* Backhaul first, then fronthaul (matches em_t::create_akm_suite_cap_tlv()). */
+    std::vector<std::string> bh_akms;
+    std::vector<std::string> fh_akms;
+    if (!parse_suites(bh_akms) || !parse_suites(fh_akms)) {
+        em_printfout("Malformed AKM Suite Cap TLV (len %u), ignoring", len);
+        return;
+    }
+
+    /* The TLV carries the agent wide AKM sets, so apply to every BSS (mirrors the M1 auth type flags path).
+       Empty sets are applied too: an agent advertising 0 suites must clear the previously stored AKMs. */
+    for (unsigned int i = 0; i < dm->get_num_bss(); i++) {
+        em_bss_info_t *bss_info = dm->get_bss_info(i);
+        if (bss_info == NULL) {
+            continue;
+        }
+
+        /* Clear the entries past the new counts: readers such as fill_comma_sep()
+           collect every non-empty entry, so stale AKMs must not linger. */
+        bss_info->num_fronthaul_akms =
+            static_cast<unsigned char>(std::min<size_t>(fh_akms.size(), EM_MAX_AKMS));
+        for (unsigned char j = 0; j < EM_MAX_AKMS; j++) {
+            if (j < bss_info->num_fronthaul_akms) {
+                snprintf(bss_info->fronthaul_akm[j], sizeof(em_short_string_t), "%s", fh_akms[j].c_str());
+            } else {
+                bss_info->fronthaul_akm[j][0] = '\0';
+            }
+        }
+
+        bss_info->num_backhaul_akms =
+            static_cast<unsigned char>(std::min<size_t>(bh_akms.size(), EM_MAX_AKMS));
+        for (unsigned char j = 0; j < EM_MAX_AKMS; j++) {
+            if (j < bss_info->num_backhaul_akms) {
+                snprintf(bss_info->backhaul_akm[j], sizeof(em_short_string_t), "%s", bh_akms[j].c_str());
+            } else {
+                bss_info->backhaul_akm[j][0] = '\0';
+            }
+        }
+    }
+
+    em_printfout("Stored AKM Suite Cap: %zu FH AKMs, %zu BH AKMs into %u BSS(es)",
+        fh_akms.size(), bh_akms.size(), dm->get_num_bss());
+
+    if (dm->get_num_bss() > 0) {
+        dm->set_db_cfg_param(db_cfg_type_bss_list_update, "");
+    }
+}
+
 int em_configuration_t::handle_bss_config_req_msg(uint8_t *buff, unsigned int len, uint8_t src_al_mac[ETH_ALEN]) {
     // Controller
 
@@ -4701,10 +4787,8 @@ int em_configuration_t::handle_bss_config_req_msg(uint8_t *buff, unsigned int le
                 handle_ap_radio_basic_cap(tlv->value, htons(tlv->len));
                 break;
             case em_tlv_type_akm_suite:
-                 // Not handled by UWM right now?
                 em_printfout("Processing AKM Suite Capabilities TLV");
-                // TODO: HANDLE AKM Suite Capabilities TLV
-                util::print_hex_dump(ntohs(tlv->len), tlv->value);
+                store_akm_suite_cap(get_data_model(), tlv->value, htons(tlv->len));
                 break;
             case em_tlv_type_profile_2_ap_cap:
                 // Not handled by UWM right now?
@@ -6307,18 +6391,19 @@ void em_configuration_t::process_ctrl_state()
                 em_printfout("Topology has changed for device: %s", util::mac_to_string(dm->get_agent_al_interface_mac()).c_str());
                 dm->set_topo_state(false);
                 get_mgr()->publish_network_topology();
-            }
-            //Send beacon metrics query for the sta assoc case to get the beacon metrics from the STA
-            if (get_current_cmd() != NULL && get_current_cmd()->m_type == em_cmd_type_sta_assoc) {
-                em_cmd_params_t *evt_param = &get_current_cmd()->m_param;
-                // args[3] is "Assoc" or "Disassoc" - skip beacon query on disassociation
-                if (strncmp(evt_param->u.args.args[3], "Assoc", 5) == 0) {
-                    mac_address_t sta_mac, bssid;
-                    dm_easy_mesh_t::string_to_macbytes(evt_param->u.args.args[2], sta_mac);
-                    dm_easy_mesh_t::string_to_macbytes(evt_param->u.args.args[1], bssid);
-                    em_printfout("Sending beacon metrics query for sta:%s bssid:%s",
-                        evt_param->u.args.args[2], evt_param->u.args.args[1]);
-                    static_cast<em_t*>(this)->send_beacon_metrics_query(sta_mac, bssid);
+                //Send beacon metrics query for the sta assoc case to get the beacon metrics from the STA
+                if (get_current_cmd() != NULL && get_current_cmd()->m_type == em_cmd_type_sta_assoc) {
+                    em_cmd_params_t *evt_param = &get_current_cmd()->m_param;
+                    // args[3] is "Assoc" or "Disassoc" - skip beacon query on disassociation
+                    if (strncmp(evt_param->u.args.args[3], "Assoc", 5) == 0) {
+                        mac_address_t sta_mac, bssid;
+                        dm_easy_mesh_t::string_to_macbytes(evt_param->u.args.args[2], sta_mac);
+                        dm_easy_mesh_t::string_to_macbytes(evt_param->u.args.args[1], bssid);
+                        em_printfout("Sending beacon metrics query for sta:%s bssid:%s",
+                            evt_param->u.args.args[2], evt_param->u.args.args[1]);
+                        static_cast<em_t*>(this)->send_beacon_metrics_query(sta_mac, bssid);
+                        break;
+                    }
                 }
             }
             set_state(em_state_ctrl_configured);
