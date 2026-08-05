@@ -303,6 +303,10 @@ static const mac_address_t EM_GLOBAL_MAC_ADDRESS = {0xff, 0xff, 0xff, 0xff, 0xff
 #define WIFI_EM_CHANNEL_SCAN_REQUEST          "Device.WiFi.EM.ChannelScanRequest"
 #endif
 
+#ifndef WIFI_EM_FAILED_CONNECTION
+#define WIFI_EM_FAILED_CONNECTION             "Device.WiFi.EM.FailedConnection"
+#endif
+
 #ifndef WIFI_EM_CLIENT_ASSOC_CTRL_REQ
 #define WIFI_EM_CLIENT_ASSOC_CTRL_REQ        "Device.WiFi.EM.ClientAssocCtrlRequest"
 #endif
@@ -3057,7 +3061,6 @@ typedef enum {
     em_bus_event_type_recv_gas_frame,
     em_bus_event_type_get_sta_client_type,
     em_bus_event_type_assoc_status,
-    em_bus_event_type_connection_status,
     em_bus_event_type_ap_metrics_report,
     em_bus_event_type_bss_info,
     em_bus_event_type_get_reset,
@@ -3068,6 +3071,7 @@ typedef enum {
     em_bus_event_type_unassoc_sta_query,
     em_bus_event_type_unassoc_sta_link_metrics_query,
     em_bus_event_type_unassoc_sta_result,
+    em_bus_event_type_failed_conn,
 
     em_bus_event_type_max
 } em_bus_event_type_t;
@@ -3161,7 +3165,7 @@ typedef enum {
     dm_orch_type_link_quality_report,
     dm_orch_type_unassoc_sta_link_req_query,
     dm_orch_type_unassoc_sta_result,
-    
+
 } dm_orch_type_t;
 
 typedef struct {
