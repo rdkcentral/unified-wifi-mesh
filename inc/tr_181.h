@@ -530,8 +530,13 @@ public:
     bus_error_t raw_data_set(raw_data_t *p_data, bus_data_prop_t *property);
     template <typename T> 
     bus_data_prop_t *property_init_value(const char *root, unsigned int idx, const char *param, T value);
-    template <typename T> 
+    template <typename T>
     void property_append_tail(bus_data_prop_t **property, const char *root, unsigned int idx, const char *param, T value);
+    /* Instance-less variants (name = root + param) for object nodes that are not tables. */
+    template <typename T>
+    bus_data_prop_t *property_init_value(const char *root, const char *param, T value);
+    template <typename T>
+    void property_append_tail(bus_data_prop_t **property, const char *root, const char *param, T value);
 
     virtual bus_error_t bus_get_cb_fwd(char *event_name, raw_data_t *p_data, bus_get_handler_t cb) = 0;
     
@@ -941,6 +946,47 @@ template <typename T> void tr_181_t::property_append_tail(bus_data_prop_t **prop
     } else {
         tail = static_cast<bus_data_prop_t *>(calloc(1, sizeof(bus_data_prop_t)));
         snprintf(tail->name, sizeof(bus_name_string_t), "%s%d.%s", root, idx, param);
+        raw_data_set(&tail->value, value);
+        tail->name_len = static_cast<uint32_t>(strlen(tail->name));
+        tail->is_data_set = true;
+
+        last = *property;
+        while (last->next_data) {
+            last = last->next_data;
+        }
+        last->next_data = tail;
+    }
+}
+
+template <typename T> bus_data_prop_t *tr_181_t::property_init_value(const char *root, const char *param, T value)
+{
+    bus_data_prop_t *property = static_cast<bus_data_prop_t *>(calloc(1, sizeof(bus_data_prop_t)));
+
+    if (property == NULL) {
+        return NULL;
+    }
+
+    snprintf(property->name, sizeof(bus_name_string_t), "%s%s", root, param);
+    raw_data_set(&property->value, value);
+    property->name_len = static_cast<uint32_t>(strlen(property->name));
+    property->is_data_set = true;
+
+    return property;
+}
+
+template <typename T> void tr_181_t::property_append_tail(bus_data_prop_t **property, const char *root, const char *param, T value)
+{
+    bus_data_prop_t *tail;
+    bus_data_prop_t *last;
+
+    if (*property == NULL) {
+        *property = property_init_value(root, param, value);
+    } else {
+        tail = static_cast<bus_data_prop_t *>(calloc(1, sizeof(bus_data_prop_t)));
+        if (tail == NULL) {
+            return;
+        }
+        snprintf(tail->name, sizeof(bus_name_string_t), "%s%s", root, param);
         raw_data_set(&tail->value, value);
         tail->name_len = static_cast<uint32_t>(strlen(tail->name));
         tail->is_data_set = true;
