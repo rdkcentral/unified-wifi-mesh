@@ -376,9 +376,10 @@ void dm_easy_mesh_list_t::put_radio(const char *key, const dm_radio_t *radio)
     if (dm != NULL) {
         bool has_radio_metrics = false, has_steering_param = false;
         for (unsigned int p = 0; p < dm->get_num_policy(); p++) {
-            if (memcmp(dm->m_policy[p].m_policy.id.radio_mac, pradio->m_radio_info.intf.mac, sizeof(mac_address_t)) == 0) {
-                if (dm->m_policy[p].m_policy.id.type == em_policy_id_type_radio_metrics_rep) has_radio_metrics = true;
-                if (dm->m_policy[p].m_policy.id.type == em_policy_id_type_steering_param) has_steering_param = true;
+            dm_policy_t *policy = dm->get_policy(p);
+            if (memcmp(policy->m_policy.id.radio_mac, pradio->m_radio_info.intf.mac, sizeof(mac_address_t)) == 0) {
+                if (policy->m_policy.id.type == em_policy_id_type_radio_metrics_rep) has_radio_metrics = true;
+                if (policy->m_policy.id.type == em_policy_id_type_steering_param) has_steering_param = true;
             }
         }
         if (!has_radio_metrics) {
@@ -1187,47 +1188,39 @@ void dm_easy_mesh_list_t::put_op_class(const char *key, const dm_op_class_t *op_
 dm_policy_t *dm_easy_mesh_list_t::get_first_policy()
 {
 	dm_easy_mesh_t *dm;
-
+    dm_policy_t *policy;
 	dm = static_cast<dm_easy_mesh_t *> (hash_map_get_first(m_list));
     while (dm != NULL) {
-		if (dm->m_num_policy > 0) {
-			return &dm->m_policy[0];
-		}	
-
+		policy = static_cast<dm_policy_t *> (hash_map_get_first(dm->m_policy_map));
+		if (policy != NULL) {
+			return policy;
+		}
         dm = static_cast<dm_easy_mesh_t *> (hash_map_get_next(m_list, dm));
     }
 
 	return NULL;
 }
 
+//Revisit this change
 dm_policy_t *dm_easy_mesh_list_t::get_next_policy(dm_policy_t *policy)
 {
 	dm_easy_mesh_t *dm;
 	bool return_next = false;
 	unsigned int i;
+    dm_policy_t *ppolicy;
 
 	dm = static_cast<dm_easy_mesh_t *> (hash_map_get_first(m_list));
     while (dm != NULL) {
-		if (dm->m_num_policy == 0) {
-			dm = static_cast<dm_easy_mesh_t *> (hash_map_get_next(m_list, dm));
-			continue;		
-		}
-
-		if (return_next == true) {
-			return &dm->m_policy[0];
-		}
-
-		for (i = 0; i < dm->m_num_policy; i++) {
-			if (policy == &dm->m_policy[i]) {
-				return_next = true;
-				break;
+        ppolicy = static_cast<dm_policy_t *> (hash_map_get_first(dm->m_policy_map));
+		while (ppolicy != NULL) {
+			if (return_next == true) {
+				return ppolicy;
 			}
-		}
-
-		if ((return_next == true) && ((i + 1) < dm->m_num_policy)) {
-			return &dm->m_policy[i + 1];
-		}
-	
+			if (ppolicy == policy) {
+                return_next = true; // Find the policy and return the next one in the next iteration
+            }
+            ppolicy = static_cast<dm_policy_t *> (hash_map_get_next(dm->m_policy_map, ppolicy));
+        }
         dm = static_cast<dm_easy_mesh_t *> (hash_map_get_next(m_list, dm));
     }
 	return NULL;
@@ -1240,39 +1233,46 @@ dm_policy_t *dm_easy_mesh_list_t::get_policy(const char *key)
 	mac_addr_str_t	dev_mac_str, radio_mac_str;
 	unsigned int i;
 	dm_policy_t *policy;
+    em_2xlong_string_t list_key;
 	
 	dm_policy_t::parse_dev_radio_mac_from_key(key, &id);
 	dm_easy_mesh_t::macbytes_to_string(id.dev_mac, dev_mac_str);
 	dm_easy_mesh_t::macbytes_to_string(id.radio_mac, radio_mac_str);
 	em_printfout("%s:%d: Net id: %s\tdev: %s\tradio: %s\tType: %d\n", __func__, __LINE__, id.net_id, dev_mac_str, radio_mac_str, id.type);
-	dm_easy_mesh_t::macbytes_to_string(id.dev_mac, dev_mac_str);
+	//dm_easy_mesh_t::macbytes_to_string(id.dev_mac, dev_mac_str);
 
 	if ((dm = get_data_model(id.net_id, id.dev_mac)) == NULL) {
 		em_printfout("Could not find data model for Network: %s and dev: %s\n", id.net_id, dev_mac_str);
 		return NULL;
 	} 
+    snprintf(list_key, sizeof(em_2xlong_string_t), "%s@%s@%s@%d", id.net_id, dev_mac_str, radio_mac_str, id.type);
 
-	for (i = 0; i < dm->get_num_policy(); i++) {
-		policy = &dm->m_policy[i];
-        em_printfout("compare with policy[%d]: Net id: %s[%s]\tdev: %s[%s]\tradio: %s[%s]\tType: %d[%d]\n", i, policy->m_policy.id.net_id, id.net_id,
-            util::mac_to_string(policy->m_policy.id.dev_mac).c_str(), dev_mac_str,
-            util::mac_to_string(policy->m_policy.id.radio_mac).c_str(), radio_mac_str, policy->m_policy.id.type, id.type);
-		if ((strncmp(policy->m_policy.id.net_id, id.net_id, strlen(id.net_id)) == 0) && 
-				(memcmp(policy->m_policy.id.dev_mac, id.dev_mac, sizeof(mac_address_t)) == 0) && 
-				(memcmp(policy->m_policy.id.radio_mac, id.radio_mac, sizeof(mac_address_t)) == 0) && 
-				(policy->m_policy.id.type == id.type)) {
-			em_printfout("%s:%d: Policy found for key: %s\n", __func__, __LINE__, key);
-			return policy;
-		}
-	}
+	return static_cast<dm_policy_t *> (hash_map_get(dm->m_policy_map, list_key));
 
-	em_printfout("Policy not found for key: %s\n", key);
-	return NULL;
 }
 
 void dm_easy_mesh_list_t::remove_policy(const char *key)
 {
+    em_policy_id_t	id;
+	dm_easy_mesh_t	*dm;
+	mac_addr_str_t	dev_mac_str, radio_mac_str;
+	em_2xlong_string_t list_key;
+	dm_policy_t *policy;
 
+	dm_policy_t::parse_dev_radio_mac_from_key(key, &id);
+	dm_easy_mesh_t::macbytes_to_string(id.dev_mac, dev_mac_str);
+	dm_easy_mesh_t::macbytes_to_string(id.radio_mac, radio_mac_str);
+
+	if ((dm = get_data_model(id.net_id, id.dev_mac)) == NULL) {
+		printf("%s:%d: Could not find data model for Network: %s and dev: %s\n", __func__, __LINE__, id.net_id, dev_mac_str);
+		return;
+	}
+
+	snprintf(list_key, sizeof(em_2xlong_string_t), "%s@%s@%s@%d", id.net_id, dev_mac_str, radio_mac_str, id.type);
+
+	if ((policy = static_cast<dm_policy_t *> (hash_map_remove(dm->m_policy_map, list_key))) != NULL) {
+		delete policy;
+	}
 }
 
 void dm_easy_mesh_list_t::put_policy(const char *key, const dm_policy_t *policy)
