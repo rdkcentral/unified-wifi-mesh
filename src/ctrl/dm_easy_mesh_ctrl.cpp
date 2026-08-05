@@ -5853,11 +5853,11 @@ bus_error_t dm_easy_mesh_ctrl_t::radio_get_inner(char *event_name, raw_data_t *p
     } else if (strcmp(param, "Utilization") == 0) {
         rc = dm_ctrl->raw_data_set(p_data, static_cast<unsigned int> (ri->utilization));
     } else if (strcmp(param, "Transmit") == 0) {
-        rc = dm_ctrl->raw_data_set(p_data, 0U);
+        rc = dm_ctrl->raw_data_set(p_data, static_cast<unsigned int> (ri->transmit));
     } else if (strcmp(param, "ReceiveSelf") == 0) {
-        rc = dm_ctrl->raw_data_set(p_data, 0U);
+        rc = dm_ctrl->raw_data_set(p_data, static_cast<unsigned int> (ri->receive_self));
     } else if (strcmp(param, "ReceiveOther") == 0) {
-        rc = dm_ctrl->raw_data_set(p_data, 0U);
+        rc = dm_ctrl->raw_data_set(p_data, static_cast<unsigned int> (ri->receive_other));
     } else if (strcmp(param, "ChipsetVendor") == 0) {
         rc = dm_ctrl->raw_data_set(p_data, ri->chip_vendor);
     } else if (strcmp(param, "CurrentOperatingClassProfileNumberOfEntries") == 0) {
@@ -5947,9 +5947,9 @@ bus_error_t dm_easy_mesh_ctrl_t::radio_tget_params(dm_easy_mesh_t *dm, const cha
         dm_ctrl->property_append_tail(property, root, idx, "Enabled", ri->enabled);
         dm_ctrl->property_append_tail(property, root, idx, "Noise", static_cast<unsigned int> (ri->noise));
         dm_ctrl->property_append_tail(property, root, idx, "Utilization", static_cast<unsigned int> (ri->utilization));
-        dm_ctrl->property_append_tail(property, root, idx, "Transmit", 0U);
-        dm_ctrl->property_append_tail(property, root, idx, "ReceiveSelf", 0U);
-        dm_ctrl->property_append_tail(property, root, idx, "ReceiveOther", 0U);
+        dm_ctrl->property_append_tail(property, root, idx, "Transmit", static_cast<unsigned int> (ri->transmit));
+        dm_ctrl->property_append_tail(property, root, idx, "ReceiveSelf", static_cast<unsigned int> (ri->receive_self));
+        dm_ctrl->property_append_tail(property, root, idx, "ReceiveOther", static_cast<unsigned int> (ri->receive_other));
         dm_ctrl->property_append_tail(property, root, idx, "ChipsetVendor", ri->chip_vendor);
         unsigned int curop_count = 0;
         for (unsigned int i = 0; i < dm->get_num_op_class(); i++) {
@@ -7081,13 +7081,13 @@ bus_error_t dm_easy_mesh_ctrl_t::bss_get_inner(char *event_name, raw_data_t *p_d
     } else if (strcmp(param, "UnicastBytesReceived") == 0) {
         rc = dm_ctrl->raw_data_set(p_data, bi->unicast_bytes_rcvd);
     } else if (strcmp(param, "MulticastBytesSent") == 0) {
-        //rc = dm_ctrl->raw_data_set(p_data, bi->);
+        rc = dm_ctrl->raw_data_set(p_data, bi->multicast_bytes_sent);
     } else if (strcmp(param, "MulticastBytesReceived") == 0) {
-        //rc = dm_ctrl->raw_data_set(p_data, bi->);
+        rc = dm_ctrl->raw_data_set(p_data, bi->multicast_bytes_rcvd);
     } else if (strcmp(param, "BroadcastBytesSent") == 0) {
-        //rc = dm_ctrl->raw_data_set(p_data, bi->);
+        rc = dm_ctrl->raw_data_set(p_data, bi->broadcast_bytes_sent);
     } else if (strcmp(param, "BroadcastBytesReceived") == 0) {
-        //rc = dm_ctrl->raw_data_set(p_data, bi->);
+        rc = dm_ctrl->raw_data_set(p_data, bi->broadcast_bytes_rcvd);
     } else if (strcmp(param, "EstServiceParametersBE") == 0) {
         rc = dm_ctrl->raw_data_set(p_data, bi->est_svc_params_be);
     } else if (strcmp(param, "EstServiceParametersBK") == 0) {
@@ -7358,7 +7358,7 @@ bus_error_t dm_easy_mesh_ctrl_t::sta_get_inner(char *event_name, raw_data_t *p_d
     } else if (strcmp(param, "EstMACDataRateUplink") == 0) {
         rc = dm_ctrl->raw_data_set(p_data, si->est_ul_rate);
     } else if (strcmp(param, "SignalStrength") == 0) {
-        rc = dm_ctrl->raw_data_set(p_data, si->signal_strength);
+        rc = dm_ctrl->raw_data_set(p_data, static_cast<int32_t> (si->rcpi));
     } else if (strcmp(param, "LastConnectTime") == 0) {
         rc = dm_ctrl->raw_data_set(p_data, si->last_conn_time);
     } else if (strcmp(param, "BytesSent") == 0) {
@@ -7492,7 +7492,7 @@ bus_error_t dm_easy_mesh_ctrl_t::sta_tget_params(dm_easy_mesh_t *dm, const char 
         dm_ctrl->property_append_tail(property, root, idx, "UtilizationTransmit", si->util_tx);
         dm_ctrl->property_append_tail(property, root, idx, "EstMACDataRateDownlink", si->est_dl_rate);
         dm_ctrl->property_append_tail(property, root, idx, "EstMACDataRateUplink", si->est_ul_rate);
-        dm_ctrl->property_append_tail(property, root, idx, "SignalStrength", si->signal_strength);
+        dm_ctrl->property_append_tail(property, root, idx, "SignalStrength", static_cast<int32_t> (si->rcpi));
         dm_ctrl->property_append_tail(property, root, idx, "LastConnectTime", si->last_conn_time);
         dm_ctrl->property_append_tail(property, root, idx, "BytesSent", si->bytes_tx);
         dm_ctrl->property_append_tail(property, root, idx, "BytesReceived", si->bytes_rx);
