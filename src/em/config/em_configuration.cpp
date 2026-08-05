@@ -2227,13 +2227,11 @@ int em_configuration_t::handle_topology_response(unsigned char *buff, unsigned i
             continue;
 
         } else {
-            // Validation of length before assigning profile to avoid potential buffer overflows or invalid data.
-            uint16_t tlv_len = ntohs(tlv->len);
-            if (tlv_len == sizeof(uint8_t)) {
+            // Validate length and value before assigning profile to avoid invalid enum data.
+            if (em_msg_t::parse_profile_tlv(tlv->value, ntohs(tlv->len), &profile)) {
                 found_profile = true;
-                profile = static_cast<em_profile_type_t>(tlv->value[0]);
             } else {
-                em_printfout("Invalid Profile TLV length %u in topology response", static_cast<unsigned int>(tlv_len));
+                em_printfout("Error: Invalid Profile TLV in topology response");
             }
             break;
         }
@@ -5776,10 +5774,14 @@ int em_configuration_t::handle_autoconfig_resp(unsigned char *buff, unsigned int
 
     em_printfout("Received autoconfig resp from " MACSTRFMT, MAC2STR(hdr->src));
 
+    em_profile_type_t parsed_profile = em_profile_type_reserved;
     if (em_msg_t(buff + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)),
-                len - static_cast<unsigned int>(sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_profile_type(&m_peer_profile) == false) {
+                len - static_cast<unsigned int>(sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_profile_type(&parsed_profile) == false ||
+        parsed_profile == em_profile_type_reserved) {
         // For backward compatibility with earlier EasyMesh specifications.
         m_peer_profile =  em_profile_type_1;
+    } else {
+        m_peer_profile = parsed_profile;
     }
 
     if (em_msg_t(em_msg_type_autoconf_resp, m_peer_profile, buff, len).validate(errors) == 0) {
@@ -5839,10 +5841,14 @@ int em_configuration_t::handle_autoconfig_search(unsigned char *buff, unsigned i
     em_freq_band_t  band;
     mac_address_t al_mac;
 
+    em_profile_type_t parsed_search_profile = em_profile_type_reserved;
     if (em_msg_t(buff + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)),
-               len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_profile_type(&m_peer_profile) == false) { 
+               len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_profile_type(&parsed_search_profile) == false ||
+        parsed_search_profile == em_profile_type_reserved) {
         em_printfout("Could not get peer profile type, fallback to profile type 1");
         m_peer_profile = em_profile_type_1;
+    } else {
+        m_peer_profile = parsed_search_profile;
     }
     em_printfout("Received autoconfig search with profile type %d", m_peer_profile);
     if (em_msg_t(em_msg_type_autoconf_search, m_peer_profile, buff, len).validate(errors) == 0) {
@@ -6323,10 +6329,23 @@ void em_configuration_t::process_ctrl_state()
 
 }
 
-em_configuration_t::em_configuration_t()
+em_configuration_t::em_configuration_t() :
+    m_peer_profile(em_profile_type_reserved),
+    m_m1_msg{},
+    m_m2_msg{},
+    m_m1_length(0),
+    m_m2_length(0),
+    m_m2_authenticator{},
+    m_m2_authenticator_len{},
+    m_m2_encrypted_settings{},
+    m_m2_encrypted_settings_len{},
+    m_crypto{},
+    m_auth_key{},
+    m_key_wrap_key{},
+    m_emsk{},
+    m_renew_tx_cnt(0),
+    m_topo_query_tx_cnt(0)
 {
-    m_renew_tx_cnt = 0;
-    m_topo_query_tx_cnt = 0;
 }
 
 em_configuration_t::~em_configuration_t()
