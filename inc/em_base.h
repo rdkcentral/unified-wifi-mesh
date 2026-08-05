@@ -236,6 +236,7 @@ static const mac_address_t EM_GLOBAL_MAC_ADDRESS = {0xff, 0xff, 0xff, 0xff, 0xff
 #define EM_KEY_FILE	"/nvram//test_cert.key"
 
 #define EM_CFG_FILE "/nvram/EasymeshCfg.json"
+#define EM_PLUS_FILE "/nvram/EasymeshPlus.json"
 #define EM_VENDOR_OUI_SIZE 3
 
 #define EM_MAX_SSID_LEN                33 
@@ -415,9 +416,11 @@ typedef struct {
 typedef unsigned char em_enum_type_t;
 
 typedef enum {
-    em_service_type_ctrl,
-    em_service_type_agent,
-    em_service_type_cli,
+    em_service_type_ctrl         = 0x00,
+    em_service_type_agent        = 0x01,
+    em_service_type_cli          = 0x02,
+    em_service_type_emplus_ctrl  = 0xA0,
+    em_service_type_emplus_agent = 0xA1,
     em_service_type_none
 } em_service_type_t;
 
@@ -2494,6 +2497,8 @@ typedef struct {
     em_small_string_t    primary_device_type;
     em_small_string_t    secondary_device_type;
     ieee_1905_security_t    sec_1905;
+    
+    uint8_t is_emplus_agent;
 } em_device_info_t;
 
 typedef struct {
@@ -3080,6 +3085,7 @@ typedef struct {
     mac_address_t	mac;
     em_long_string_t	net_id;
     int sz;
+    uint8_t is_emplus_agent;
 } __attribute__((__packed__)) em_commit_info_t;
 
 typedef enum {
