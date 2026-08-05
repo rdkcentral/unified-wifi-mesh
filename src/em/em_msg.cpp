@@ -519,14 +519,12 @@ void em_msg_t::topo_query()
 
 }
 
+
 void em_msg_t::topo_resp()
 {
-    m_tlv_member[m_num_tlv++] = em_tlv_member_t(em_tlv_type_device_info, mandatory, "table 6-10 of IEEE-1905-1", 19); 
-    m_tlv_member[m_num_tlv++] = em_tlv_member_t(em_tlv_type_operational_bss, mandatory, "17.2.4 of Wi-Fi Easy Mesh 5.0", 18);
-    m_tlv_member[m_num_tlv++] = em_tlv_member_t(em_tlv_type_supported_service, optional, "17.2.1 of Wi-Fi Easy Mesh 5.0", 5);
+    m_tlv_member[m_num_tlv++] = em_tlv_member_t(em_tlv_type_supported_service, mandatory, "17.2.1 of Wi-Fi Easy Mesh 6.0", 5);
     m_tlv_member[m_num_tlv++] = em_tlv_member_t(em_tlv_type_associated_clients, optional, "17.2.5 of Wi-Fi Easy Mesh 5.0", 20);
     m_tlv_member[m_num_tlv++] = em_tlv_member_t(em_tlv_type_profile, (m_profile > em_profile_type_1) ? mandatory:bad, "17.2.47 of Wi-Fi Easy Mesh 5.0", 4);
-    m_tlv_member[m_num_tlv++] = em_tlv_member_t(em_tlv_type_bss_conf_rep, (m_profile > em_profile_type_2) ? mandatory:bad, "17.2.75 of Wi-Fi Easy Mesh 5.0", 17);
     m_tlv_member[m_num_tlv++] = em_tlv_member_t(em_tlv_type_ap_mld_config, optional, "17.2.96 of Wi-Fi Easy Mesh 6.0", 64);
     m_tlv_member[m_num_tlv++] = em_tlv_member_t(em_tlv_type_bsta_mld_config, optional, "17.2.97 of Wi-Fi Easy Mesh 6.0", 64);
     m_tlv_member[m_num_tlv++] = em_tlv_member_t(em_tlv_type_assoc_sta_mld_conf_rep, optional, "17.2.98 of Wi-Fi Easy Mesh 6.0", 64);
@@ -534,6 +532,17 @@ void em_msg_t::topo_resp()
     m_tlv_member[m_num_tlv++] = em_tlv_member_t(em_tlv_type_device_bridging_cap, optional, "table 6-11 of IEEE-1905-1", 11);
     m_tlv_member[m_num_tlv++] = em_tlv_member_t(em_tlv_type_non1905_neigh_list, optional, "table 6-14 of IEEE-1905-1", 15);
     m_tlv_member[m_num_tlv++] = em_tlv_member_t(em_tlv_type_1905_neigh_list, optional, "table 6-15 of IEEE-1905-1", 15);
+
+    if (m_service_type != em_service_type_ctrl) {
+        m_tlv_member[m_num_tlv++] = em_tlv_member_t(em_tlv_type_device_info, mandatory, "table 6-10 of IEEE-1905-1", 19);
+        m_tlv_member[m_num_tlv++] = em_tlv_member_t(em_tlv_type_operational_bss, mandatory, "17.2.4 of Wi-Fi Easy Mesh 5.0", 18);
+        m_tlv_member[m_num_tlv++] = em_tlv_member_t(em_tlv_type_bss_conf_rep, (m_profile > em_profile_type_2) ? mandatory:bad, "17.2.75 of Wi-Fi Easy Mesh 5.0", 17);
+   }
+    else {
+         m_tlv_member[m_num_tlv++] = em_tlv_member_t(em_tlv_type_device_info, mandatory, "table 6-10 of IEEE-1905-1", static_cast<int>(sizeof(em_tlv_t) + sizeof(mac_address_t) + sizeof(unsigned char)));
+         m_tlv_member[m_num_tlv++] = em_tlv_member_t(em_tlv_type_operational_bss, mandatory, "17.2.4 of Wi-Fi Easy Mesh 5.0", static_cast<int>(sizeof(em_tlv_t) + sizeof(unsigned char)));
+         m_tlv_member[m_num_tlv++] = em_tlv_member_t(em_tlv_type_bss_conf_rep, (m_profile > em_profile_type_2) ? mandatory:bad, "17.2.75 of Wi-Fi Easy Mesh 5.0", static_cast<int>(sizeof(em_tlv_t) + sizeof(unsigned char)));
+    }
 }
 
 
@@ -905,14 +914,15 @@ void em_msg_t::i1905_ack()
 }
 
 
-em_msg_t::em_msg_t(em_msg_type_t type, em_profile_type_t profile, unsigned char *tlvs, unsigned int len)
+em_msg_t::em_msg_t(em_msg_type_t type, em_profile_type_t profile, unsigned char *tlvs, unsigned int len, em_service_type_t service_type)
 {
     m_type = type;
     m_profile = profile;
     m_num_tlv = 0;
     m_buff  = tlvs;
     m_len = len;
-    m_num_errors = 0;   
+    m_num_errors = 0;
+    m_service_type = service_type;
 
     switch (type) {
         case em_msg_type_autoconf_search:

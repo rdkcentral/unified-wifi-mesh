@@ -1141,8 +1141,25 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
 
             break;
 
+	case em_msg_type_topo_query:
+	    em_string_t al_src_mac_str;
+            /* TODO: the destination MAC address is not found in our internal hash map,
+                     we use the brlan0 MAC address as the controller entry in the hash map. */
+            //dm_easy_mesh_t::macbytes_to_string(hdr->dst, al_mac_str);
+            //strcat(al_mac_str, "_al");  
+            /* RDKBWIFI-479: Controller AL MAC initialized with brlan0 MAC instead of eth0 virtual peer MAC */
+            //if ((em = static_cast<em_t *>(hash_map_get(m_em_map, al_mac_str))) != NULL)
+            //    em_printfout("Controller received topology query message from al_mac :%s", al_mac_str);
+            //else {
+            //    em_printfout("Discarding topology query message, al_mac :%s not found", al_mac_str);
+            //    return NULL;
+           //}
+            dm_easy_mesh_t::macbytes_to_string(hdr->src, al_src_mac_str);
+            em_printfout("Controller received topology query message from agent al_mac: %s", al_src_mac_str);
+	    em = al_em;
+        break;
+
         case em_msg_type_autoconf_resp:
-        case em_msg_type_topo_query:
         case em_msg_type_autoconf_renew:
         case em_msg_type_channel_pref_query:
         case em_msg_type_channel_sel_req:

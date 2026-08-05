@@ -1041,39 +1041,47 @@ int em_configuration_t::create_device_info_type_tlv(unsigned char *buff)
     unsigned short tlv_len = 0;
 
     dm = get_data_model();
+    em_service_type_t   service_type = get_service_type();
 
     tlv = reinterpret_cast<em_tlv_t *> (tmp);
     tlv->type = em_tlv_type_device_info;
     dev_info = reinterpret_cast<em_device_info_type_t *> (tlv->value);
 
-    memcpy(dev_info->al_mac_addr, dm->get_agent_al_interface_mac(), sizeof(mac_address_t));
+    if (service_type == em_service_type_ctrl)
+        memcpy(dev_info->al_mac_addr, dm->get_ctrl_al_interface_mac(), sizeof(mac_address_t));
+    else
+        memcpy(dev_info->al_mac_addr, dm->get_agent_al_interface_mac(), sizeof(mac_address_t));
+
     dev_info->local_interface_num = static_cast<unsigned char> (dm->get_num_bss());
     local_intf = dev_info->local_interface;
     tlv_len = sizeof(em_device_info_type_t);
-	for (i = 0; i < dm->get_num_radios(); i++) {
-    	for (j = 0; j < dm->get_num_bss(); j++) {
-			if (memcmp(dm->m_bss[j].m_bss_info.ruid.mac, dm->get_radio_by_ref(i).get_radio_interface_mac(), sizeof(mac_address_t)) != 0) {
-				continue;
+
+    for (i = 0; i < dm->get_num_radios(); i++) {
+        for (j = 0; j < dm->get_num_bss(); j++) {
+            if (memcmp(dm->m_bss[j].m_bss_info.ruid.mac, dm->get_radio_by_ref(i).get_radio_interface_mac(), sizeof(mac_address_t)) != 0) {
+                continue;
             }
-			no_of_bss++;
-			if (dm->m_bss[j].m_bss_info.vap_mode == em_vap_mode_ap) {
-				memcpy(local_intf->mac_addr, dm->m_bss[j].m_bss_info.bssid.mac, sizeof(mac_address_t));
-			} else {
-				memcpy(local_intf->mac_addr, dm->m_bss[j].m_bss_info.sta_mac, sizeof(mac_address_t));
-			}
-			// fill test data
-			fill_media_data(&local_intf->media_data, &dm->m_bss[j]);
+            no_of_bss++;
+            if (dm->m_bss[j].m_bss_info.vap_mode == em_vap_mode_ap) {
+            memcpy(local_intf->mac_addr, dm->m_bss[j].m_bss_info.bssid.mac, sizeof(mac_address_t));
+            }
+            else {
+                memcpy(local_intf->mac_addr, dm->m_bss[j].m_bss_info.sta_mac, sizeof(mac_address_t));
+            }
+            // fill test data
+            fill_media_data(&local_intf->media_data, &dm->m_bss[j]);
+            local_intf = reinterpret_cast<em_local_interface_t *>(reinterpret_cast<unsigned char *> (local_intf) + sizeof(em_local_interface_t));
+            tlv_len = tlv_len + sizeof(em_local_interface_t);
+        }
+    }
 
-			local_intf = reinterpret_cast<em_local_interface_t *>(reinterpret_cast<unsigned char *> (local_intf) + sizeof(em_local_interface_t));
-			tlv_len = tlv_len + sizeof(em_local_interface_t);
-		}
-	}
-
-	dev_info->local_interface_num = static_cast<unsigned char> (no_of_bss);
+    dev_info->local_interface_num = static_cast<unsigned char> (no_of_bss);
     tlv->len = htons(tlv_len);
+    em_printfout("%s-%d Device Info TLV - local_interface_num: %d tlv_len: %d", __func__, __LINE__, dev_info->local_interface_num, tlv_len);
 
     return tlv_len;
 }
+
 
 int em_configuration_t::create_ap_mld_config_tlv(unsigned char *buff)
 {
@@ -1431,7 +1439,12 @@ int em_configuration_t::send_topology_response_msg(unsigned char *dst, unsigned 
     tmp += sizeof(mac_address_t);
     len += static_cast<unsigned int> (sizeof(mac_address_t));
 
-    memcpy(tmp, dm->get_agent_al_interface_mac(), sizeof(mac_address_t));
+    /* set the correct source mac based on service type */
+    if (service_type == em_service_type_ctrl)
+        memcpy(tmp, dm->get_ctrl_al_interface_mac(), sizeof(mac_address_t));
+    else
+        memcpy(tmp, dm->get_agent_al_interface_mac(), sizeof(mac_address_t));
+
     tmp += sizeof(mac_address_t);
     len += static_cast<unsigned int> (sizeof(mac_address_t));
 
@@ -1451,11 +1464,14 @@ int em_configuration_t::send_topology_response_msg(unsigned char *dst, unsigned 
 
     // Device Info type TLV 1905.1 6.4.5
     tlv_len = static_cast<short unsigned int> (create_device_info_type_tlv(tmp));
-
+    em_printfout("Device Info TLV length: %d", tlv_len);
+    if (tlv_len == 0) {
+        em_printfout("Device Info TLV creation failed - no data available");
+    }
     tmp += (sizeof (em_tlv_t) + tlv_len);
     len += static_cast<unsigned int> (sizeof (em_tlv_t) + tlv_len);
 
-    // supported service tlv 17.2.1
+    // Supported Service TLV 17.2.1
     tlv = reinterpret_cast<em_tlv_t *> (tmp);
     tlv->type = em_tlv_type_supported_service;
     tlv->len = htons(sizeof(em_enum_type_t) + 1);
@@ -1465,13 +1481,18 @@ int em_configuration_t::send_topology_response_msg(unsigned char *dst, unsigned 
     tmp += (sizeof(em_tlv_t) + sizeof(em_enum_type_t) + 1);
     len += static_cast<unsigned int> (sizeof(em_tlv_t) + sizeof(em_enum_type_t) + 1);
 
+    em_printfout("Supported service: %s", (service_type == em_service_type_ctrl) ? "Multi-AP Controller" : (service_type == em_service_type_agent) ? "Multi-AP Agent" : "Unknown");
+
     // AP operational BSS
     tlv_len = static_cast<short unsigned int> (create_operational_bss_tlv_topology(tmp));
-
+    em_printfout("Operational BSS TLV length: %d", tlv_len);
+    if (tlv_len == 0) {
+        em_printfout("Operational BSS TLV creation failed - no BSS configured");
+    }
     tmp += (sizeof(em_tlv_t) + tlv_len);
     len += static_cast<unsigned int> (sizeof(em_tlv_t) + tlv_len);
 
-    // One multiAP profile tlv 17.2.47
+    // One Multi-AP Profile TLV 17.2.47
     tlv = reinterpret_cast<em_tlv_t *> (tmp);
     tlv->type = em_tlv_type_profile;
     tlv->len = htons(sizeof(em_enum_type_t));
@@ -1483,60 +1504,66 @@ int em_configuration_t::send_topology_response_msg(unsigned char *dst, unsigned 
 
     // One BSS Configuration Report 17.2.75
     tlv_len = static_cast<short unsigned int> (create_bss_config_rprt_tlv(tmp));
-
+    em_printfout("BSS Config Report TLV length: %d", tlv_len);
+    if (tlv_len == 0) {
+        em_printfout("BSS Config Report TLV creation failed - no BSS config data");
+    }
     tmp += tlv_len;
     len += static_cast<unsigned int> (tlv_len);
 
-    // Zero or One Backhaul STA Radio capabilities, 17.2.65 Backhaul STA Radio Capabilities TLV
-    tlv = reinterpret_cast<em_tlv_t *> (tmp);
-    tlv_len = static_cast<short unsigned int> (create_bsta_radio_cap_tlv(tlv->value));
-    if (tlv_len != 0) {
-        tlv->type = em_tlv_type_bh_sta_radio_cap;
+    if (service_type != em_service_type_ctrl) {
+        // Zero or One Backhaul STA Radio capabilities, 17.2.65 Backhaul STA Radio Capabilities TLV
+        tlv = reinterpret_cast<em_tlv_t *> (tmp);
+        tlv_len = static_cast<short unsigned int> (create_bsta_radio_cap_tlv(tlv->value));
+
+        if (tlv_len != 0) {
+            tlv->type = em_tlv_type_bh_sta_radio_cap;
+            tlv->len = htons(tlv_len);
+            tmp += sizeof(em_tlv_t) + tlv_len;
+            len += static_cast<unsigned int> (sizeof(em_tlv_t) + tlv_len);
+        } else {
+            // No Backhaul STA Radio capabilities
+            em_printfout("%s:%d: No Backhaul STA Radio capabilities", __func__, __LINE__);
+        }
+
+        // One AP MLD Configuration TLV
+        tlv = reinterpret_cast<em_tlv_t *> (tmp);
+        tlv->type = em_tlv_type_ap_mld_config;
+        tlv_len = static_cast<short unsigned int> (create_ap_mld_config_tlv(tlv->value));
         tlv->len = htons(tlv_len);
+
         tmp += sizeof(em_tlv_t) + tlv_len;
         len += static_cast<unsigned int> (sizeof(em_tlv_t) + tlv_len);
-    } else {
-        // No Backhaul STA Radio capabilities
-        em_printfout("No Backhaul STA Radio capabilities", __func__, __LINE__);
-    }
 
-    // One AP MLD Configuration TLV
-    tlv = reinterpret_cast<em_tlv_t *> (tmp);
-    tlv->type = em_tlv_type_ap_mld_config;
-    tlv_len = static_cast<short unsigned int> (create_ap_mld_config_tlv(tlv->value));
-    tlv->len = htons(tlv_len);
+        // Zero or one Backhaul STA MLD Configuration TLV
+        tlv = reinterpret_cast<em_tlv_t *> (tmp);
+        tlv_len = static_cast<short unsigned int> (create_bsta_mld_config_tlv(tlv->value));
+        if (tlv_len != 0) {
+            tlv->type = em_tlv_type_bsta_mld_config;
+            tlv->len = htons(tlv_len);
+            tmp += sizeof(em_tlv_t) + tlv_len;
+            len += static_cast<unsigned int> (sizeof(em_tlv_t) + tlv_len);
+        } else {
+            em_printfout("No Backhaul STA MLD configurations present");
+        }
 
-    tmp += sizeof(em_tlv_t) + tlv_len;
-    len += static_cast<unsigned int> (sizeof(em_tlv_t) + tlv_len);
+        // Zero or more Associated STA MLD Configuration Report TLV
+        tlv_len = static_cast<short unsigned int> (create_assoc_sta_mld_config_report_tlv(tmp));
 
-    // Zero or one Backhaul STA MLD Configuration TLV
-    tlv = reinterpret_cast<em_tlv_t *> (tmp);
-    tlv_len = static_cast<short unsigned int> (create_bsta_mld_config_tlv(tlv->value));
-    if (tlv_len != 0) {
-        tlv->type = em_tlv_type_bsta_mld_config;
-        tlv->len = htons(tlv_len);
-        tmp += sizeof(em_tlv_t) + tlv_len;
+        tmp += tlv_len;
+        len += static_cast<unsigned int> (tlv_len);
+
+        // One TID-to-Link Mapping Policy TLV
+        tlv_len = static_cast<short unsigned int> (create_tid_to_link_map_policy_tlv(tmp));
+
+        tmp += (sizeof(em_tlv_t) + tlv_len);
         len += static_cast<unsigned int> (sizeof(em_tlv_t) + tlv_len);
-    } else {
-        em_printfout("No Backhaul STA MLD configurations present");
     }
 
-    // Zero or more Associated STA MLD Configuration Report TLV
-    tlv_len = static_cast<short unsigned int> (create_assoc_sta_mld_config_report_tlv(tmp));
-
-    tmp += tlv_len;
-    len += static_cast<unsigned int> (tlv_len);
-
-    // One TID-to-Link Mapping Policy TLV
-    tlv_len = static_cast<short unsigned int> (create_tid_to_link_map_policy_tlv(tmp));
-
+    // AP vendor operational BSS
+    tlv_len = static_cast<short unsigned int> (create_vendor_operational_bss_tlv(tmp));
     tmp += (sizeof(em_tlv_t) + tlv_len);
     len += static_cast<unsigned int> (sizeof(em_tlv_t) + tlv_len);
-
-	// AP vendor operational BSS
-	tlv_len = static_cast<short unsigned int> (create_vendor_operational_bss_tlv(tmp));
-	tmp += (sizeof(em_tlv_t) + tlv_len);
-	len += static_cast<unsigned int> (sizeof(em_tlv_t) + tlv_len);
 
     // End of message
     tlv = reinterpret_cast<em_tlv_t *> (tmp);
@@ -1546,20 +1573,28 @@ int em_configuration_t::send_topology_response_msg(unsigned char *dst, unsigned 
     tmp += (sizeof (em_tlv_t));
     len += static_cast<unsigned int> (sizeof (em_tlv_t));
 
-    // Validate the frame
-    if (em_msg_t(em_msg_type_topo_resp, em_profile_type_3, buff, len).validate(errors) == 0) {
-        printf("Topology Response msg failed validation in tnx end\n");
 
+    // Validate the frame
+    if (em_msg_t(em_msg_type_topo_resp, em_profile_type_3, buff, len, service_type).validate(errors) == 0) {
+        printf("Topology Response msg failed validation in tnx end\n");
         return -1;
     }
 
+    //util::print_hex_dump(len, buff);
+
     em_printfout("frame length: %d", len);
-    if (send_frame(buff, len)  < 0) {
+    if (send_frame(buff, len) < 0) {
         printf("%s:%d: Topology Response send failed, error:%d\n", __func__, __LINE__, errno);
         return -1;
     }
-    printf("setting state to em_state_agent_topo_synchronized\n");
-    set_state(em_state_agent_topo_synchronized);
+
+    if (service_type == em_service_type_agent) {
+        printf("setting state to em_state_agent_topo_synchronized\n");
+        set_state(em_state_agent_topo_synchronized);
+    }
+
+    em_printfout("Topology response msg_id: 0x%x sent successfully by %s",msg_id, (service_type == em_service_type_ctrl) ? "Multi-AP Controller" : (service_type == em_service_type_agent) ? "Multi-AP Agent" : "Unknown");
+
     return static_cast<int> (len);
 }
 
@@ -5939,25 +5974,38 @@ void em_configuration_t::process_msg(unsigned char *data, unsigned int len)
             {
                 int len = 0;
                 std::vector<em_t*> em_radios;
-                get_mgr()->get_all_em_for_al_mac(hdr->dst, em_radios);
-                for (auto &em : em_radios) {
-                    if ((em->get_service_type() == em_service_type_agent) && (em->get_state() < em_state_agent_onewifi_bssconfig_ind)) {
-                        em_printfout("radio %s is not configured, ignoring", util::mac_to_string(em->get_radio_interface_mac()).c_str());
-                        em_radios.clear();
-                        return;
-                    }
+
+		get_mgr()->get_all_em_for_al_mac(hdr->dst, em_radios);
+                /* controller side implementation to handle topology query */
+                if (get_service_type() == em_service_type_ctrl) {
+                    len = send_topology_response_msg(data, ntohs(cmdu->id));
+                    if(len <= 0)
+                        em_printfout("Topology response message of length %d failed to send!\n", len);
                 }
-                em_printfout("All radios are configured for al_mac:%s, sending topology response", util::mac_to_string(hdr->dst).c_str());
-                len = send_topology_response_msg(data, ntohs(cmdu->id));
-                if(len) {
-                    for(auto &em : em_radios) {
+		/* agent side implementation to handle topology query */
+                else if (get_service_type() == em_service_type_agent) {
+                    for (auto &em : em_radios) {
+                        if ((em->get_service_type() == em_service_type_agent) && (em->get_state() < em_state_agent_onewifi_bssconfig_ind)) {
+                            em_printfout("radio %s is not configured, ignoring", util::mac_to_string(em->get_radio_interface_mac()).c_str());
+                            em_radios.clear();
+                            return;
+                        }
+                    }
+                    em_printfout("All radios are configured for al_mac:%s, sending topology response", util::mac_to_string(hdr->dst).c_str());
+                    len = send_topology_response_msg(data, ntohs(cmdu->id));
+                    if(len > 0) {
+                        for(auto &em : em_radios) {
                             em->set_state(em_state_agent_topo_synchronized);
+                        }
+                        em_printfout("Sent topology response message, set state to em_state_agent_topo_synchronized");
                     }
-                    em_printfout("Sent topology response message, set state to em_state_agent_topo_synchronized");
-                }
-                em_radios.clear();
-            }
-			break;
+                    em_radios.clear();
+                 }
+		else
+		    em_printfout("Unknown service type - discarding the topology query");
+             }
+
+        break;
 
         case em_msg_type_topo_resp:
             if ((get_service_type() == em_service_type_ctrl) && (get_state() == em_state_ctrl_topo_sync_pending)){
