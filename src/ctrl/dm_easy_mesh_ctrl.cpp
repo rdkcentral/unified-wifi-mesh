@@ -5767,6 +5767,94 @@ char* dm_easy_mesh_ctrl_t::get_sta_vht_caps_str(char *vht_cap_hex, char *buf, si
     return buf;
 }
 
+/* Locate the HE Capabilities element in the sta's stored (re)assoc frame body. */
+bool dm_easy_mesh_ctrl_t::find_sta_he_caps(em_sta_info_t *si, const unsigned char **mac_caps,
+    const unsigned char **phy_caps)
+{
+    /* Skip the fixed fields, as decode_sta_capability() does. */
+    unsigned int offset = EM_ASSOC_FIXED_FIELDS_LEN;
+
+    if ((si == NULL) || (mac_caps == NULL) || (phy_caps == NULL) ||
+        (si->frame_body_len <= EM_ASSOC_FIXED_FIELDS_LEN)) {
+        return false;
+    }
+    while (offset + EM_IE_HDR_LEN <= si->frame_body_len) {
+        unsigned char id = si->frame_body[offset];
+        unsigned char len = si->frame_body[offset + 1];
+        if (offset + EM_IE_HDR_LEN + len > si->frame_body_len) {
+            break;
+        }
+        if ((id == EM_EID_EXTENSION) && (len >= EM_HE_CAPS_MIN_LEN) &&
+            (si->frame_body[offset + EM_IE_HDR_LEN] == EM_EXT_EID_HE_CAPS)) {
+            *mac_caps = &si->frame_body[offset + EM_IE_HDR_LEN + 1];
+            *phy_caps = &si->frame_body[offset + EM_IE_HDR_LEN + 1 + EM_HE_MAC_CAPS_LEN];
+            return true;
+        }
+        offset += EM_IE_HDR_LEN + static_cast<unsigned int>(len);
+    }
+    return false;
+}
+
+static const char *sta_wifi6_cap_members[] = {
+    "HE160", "HE8080", "MCSNSS", "SUBeamformer", "SUBeamformee",
+    "MUBeamformer", "Beamformee80orLess", "BeamformeeAbove80", "ULMUMIMO",
+    "ULOFDMA", "DLOFDMA", "MaxDLMUMIMO", "MaxULMUMIMO", "MaxDLOFDMA",
+    "MaxULOFDMA", "RTS", "MURTS", "MultiBSSID", "MUEDCA", "TWTRequestor",
+    "TWTResponder", "SpatialReuse", "AnticipatedChannelUsage",
+};
+
+/* Derive WiFi6Capabilities.<param> from the HE caps element; false if param is not a member. */
+bool dm_easy_mesh_ctrl_t::sta_wifi6_cap_value(em_sta_info_t *si, const char *param, bool *out)
+{
+    const unsigned char *m = NULL, *p = NULL;
+    unsigned int i;
+    bool member = false;
+
+    if (!si || !param || !out) {
+        return false;
+    }
+
+    for (i = 0; i < sizeof(sta_wifi6_cap_members) / sizeof(sta_wifi6_cap_members[0]); i++) {
+        if (strcmp(param, sta_wifi6_cap_members[i]) == 0) {
+            member = true;
+            break;
+        }
+    }
+    if (member == false) {
+        return false;
+    }
+
+    *out = false;
+    if (find_sta_he_caps(si, &m, &p) == false) {
+        return true;
+    }
+    if (strcmp(param, "MCSNSS") == 0) {
+        *out = true; /* supported HE-MCS and NSS set is always present */
+    } else if (strcmp(param, "HE160") == 0) {
+        *out = (p[0] & EM_HE_PHY0_CHWIDTH_160_5G) != 0;
+    } else if (strcmp(param, "HE8080") == 0) {
+        *out = (p[0] & EM_HE_PHY0_CHWIDTH_8080_5G) != 0;
+    } else if (strcmp(param, "SUBeamformer") == 0) {
+        *out = (p[3] & EM_HE_PHY3_SU_BEAMFORMER) != 0;
+    } else if (strcmp(param, "SUBeamformee") == 0) {
+        *out = (p[4] & EM_HE_PHY4_SU_BEAMFORMEE) != 0;
+    } else if (strcmp(param, "MUBeamformer") == 0) {
+        *out = (p[4] & EM_HE_PHY4_MU_BEAMFORMER) != 0;
+    } else if (strcmp(param, "Beamformee80orLess") == 0) {
+        *out = (p[4] & EM_HE_PHY4_BFEE_STS_LE80_MASK) != 0;
+    } else if (strcmp(param, "BeamformeeAbove80") == 0) {
+        *out = (p[4] & EM_HE_PHY4_BFEE_STS_GT80_MASK) != 0;
+    } else if (strcmp(param, "ULMUMIMO") == 0) {
+        *out = (p[2] & EM_HE_PHY2_UL_MUMIMO_MASK) != 0;
+    } else if (strcmp(param, "TWTRequestor") == 0) {
+        *out = (m[0] & EM_HE_MAC0_TWT_REQ) != 0;
+    } else if (strcmp(param, "TWTResponder") == 0) {
+        *out = (m[0] & EM_HE_MAC0_TWT_RESP) != 0;
+    }
+    /* remaining members are not present in the HE Capabilities element */
+    return true;
+}
+
 char* dm_easy_mesh_ctrl_t::get_supported_standards_str(wifi_ieee80211Variant_t variant, char *buf, size_t buf_size)
 {
     if (!buf || buf_size == 0)
@@ -7344,7 +7432,12 @@ bus_error_t dm_easy_mesh_ctrl_t::sta_get_inner(char *event_name, raw_data_t *p_d
         dm_ctrl->get_sta_vht_caps_str(si->vht_cap, caps_str, sizeof(caps_str));
         rc = dm_ctrl->raw_data_set(p_data, caps_str);
     } else if (strcmp(param, "ClientCapabilities") == 0) {
-        rc = dm_ctrl->raw_data_set(p_data, "");
+        /* TR-181: base64-encoded frame body of the last (Re)Association Request. */
+        std::string caps_b64;
+        if (si->frame_body_len > 0) {
+            caps_b64 = em_crypto_t::base64_encode(si->frame_body, si->frame_body_len);
+        }
+        rc = dm_ctrl->raw_data_set(p_data, caps_b64.c_str());
     } else if (strcmp(param, "LastDataDownlinkRate") == 0) {
         rc = dm_ctrl->raw_data_set(p_data, si->last_dl_rate);
     } else if (strcmp(param, "LastDataUplinkRate") == 0) {
@@ -7388,8 +7481,13 @@ bus_error_t dm_easy_mesh_ctrl_t::sta_get_inner(char *event_name, raw_data_t *p_d
     } else if (strcmp(param, "RSNCapabilities") == 0) {
         rc = dm_ctrl->raw_data_set(p_data, 0U);
     } else {
-        em_printfout("Invalid param: %s\n", param);
-        rc = bus_error_invalid_input;
+        bool wifi6_val = false;
+        if (dm_ctrl->sta_wifi6_cap_value(si, param, &wifi6_val)) {
+            rc = dm_ctrl->raw_data_set(p_data, wifi6_val);
+        } else {
+            em_printfout("Invalid param: %s\n", param);
+            rc = bus_error_invalid_input;
+        }
     }
 
     return rc;
@@ -7482,10 +7580,23 @@ bus_error_t dm_easy_mesh_ctrl_t::sta_tget_params(dm_easy_mesh_t *dm, const char 
         dm_ctrl->get_sta_ht_caps_str(si->ht_cap, ht_caps_str, sizeof(ht_caps_str));
         dm_ctrl->get_sta_vht_caps_str(si->vht_cap, vht_caps_str, sizeof(vht_caps_str));
 
+        std::string client_caps_b64;
+        if (si->frame_body_len > 0) {
+            client_caps_b64 = em_crypto_t::base64_encode(si->frame_body, si->frame_body_len);
+        }
+
         dm_ctrl->property_append_tail(property, root, idx, "MACAddress", si->id);
         dm_ctrl->property_append_tail(property, root, idx, "HTCapabilities", ht_caps_str);
         dm_ctrl->property_append_tail(property, root, idx, "VHTCapabilities", vht_caps_str);
-        dm_ctrl->property_append_tail(property, root, idx, "ClientCapabilities", "");
+        dm_ctrl->property_append_tail(property, root, idx, "ClientCapabilities", client_caps_b64.c_str());
+
+        for (unsigned int wi = 0; wi < sizeof(sta_wifi6_cap_members) / sizeof(sta_wifi6_cap_members[0]); wi++) {
+            bool wifi6_val = false;
+            em_long_string_t wifi6_name;
+            (void)dm_ctrl->sta_wifi6_cap_value(si, sta_wifi6_cap_members[wi], &wifi6_val);
+            snprintf(wifi6_name, sizeof(wifi6_name), "WiFi6Capabilities.%s", sta_wifi6_cap_members[wi]);
+            dm_ctrl->property_append_tail(property, root, idx, wifi6_name, wifi6_val);
+        }
         dm_ctrl->property_append_tail(property, root, idx, "LastDataDownlinkRate", si->last_dl_rate);
         dm_ctrl->property_append_tail(property, root, idx, "LastDataUplinkRate", si->last_ul_rate);
         dm_ctrl->property_append_tail(property, root, idx, "UtilizationReceive", si->util_rx);
