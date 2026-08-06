@@ -1487,15 +1487,6 @@ public:
         unsigned int get_num_policy() { return (m_policy_map != NULL) ? hash_map_count(m_policy_map) : 0; }
 
 	/**!
-	 * @brief Sets the number policy.
-	 *
-	 * This function assigns the provided number to the member variable `m_num_policy`.
-	 *
-	 * @param[in] num The number to set as the policy.
-	 */
-	void set_num_policy(unsigned int num) { m_num_policy = num; }
-	
-	/**!
 	 * @brief Retrieves the policy at the specified index.
 	 *
 	 * This function walks the policy map and returns a pointer to the policy

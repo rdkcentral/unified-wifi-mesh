@@ -95,9 +95,14 @@ dm_easy_mesh_t& dm_easy_mesh_t::operator = (dm_easy_mesh_t const& obj)
 
     m_db_cfg_param = obj.m_db_cfg_param;
 
-    m_num_policy = obj.m_num_policy;
-    for (unsigned int i = 0; i < EM_MAX_POLICIES; i++) {
-        m_policy[i] = obj.m_policy[i];
+    if (obj.m_policy_map != NULL && m_policy_map != NULL) {
+        dm_policy_t *policy = static_cast<dm_policy_t *> (hash_map_get_first(obj.m_policy_map));
+        while (policy != NULL) {
+            em_2xlong_string_t policy_key;
+            dm_easy_mesh_t::get_policy_key(policy->m_policy.id, policy_key, sizeof(policy_key));
+            hash_map_put(m_policy_map, strdup(policy_key), new dm_policy_t(*policy));
+            policy = static_cast<dm_policy_t *> (hash_map_get_next(obj.m_policy_map, policy));
+        }
     }
 
     m_num_ap_mld = obj.m_num_ap_mld;
@@ -3747,7 +3752,18 @@ void dm_easy_mesh_t::reset()
     m_num_interfaces = 0;
     m_num_radios = 0;
     m_num_opclass = 0;
-    m_num_policy = 0;
+    if (m_policy_map != NULL) {
+        dm_policy_t *policy = static_cast<dm_policy_t *> (hash_map_get_first(m_policy_map));
+        while (policy != NULL) {
+            dm_policy_t *tmp_policy = policy;
+            policy = static_cast<dm_policy_t *> (hash_map_get_next(m_policy_map, policy));
+            em_2xlong_string_t rkey;
+            dm_easy_mesh_t::get_policy_key(tmp_policy->m_policy.id, rkey, sizeof(rkey));
+            if ((tmp_policy = static_cast<dm_policy_t *> (hash_map_remove(m_policy_map, rkey))) != NULL) {
+                delete tmp_policy;
+            }
+        }
+    }
     m_num_bss = 0;
     m_num_ap_mld = 0;
     m_num_assoc_sta_mld = 0;
@@ -3782,7 +3798,6 @@ dm_easy_mesh_t::dm_easy_mesh_t()
     m_num_interfaces = 0;
     m_num_radios = 0;
     m_num_opclass = 0;
-    m_num_policy = 0;
     m_num_bss = 0;
     m_num_ap_mld = 0;
     m_num_net_ssids = 0;
