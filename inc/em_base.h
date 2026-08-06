@@ -236,6 +236,7 @@ static const mac_address_t EM_GLOBAL_MAC_ADDRESS = {0xff, 0xff, 0xff, 0xff, 0xff
 #define EM_KEY_FILE	"/nvram//test_cert.key"
 
 #define EM_CFG_FILE "/nvram/EasymeshCfg.json"
+#define EM_PLUS_FILE "/nvram/EasymeshPlus.json"
 #define EM_VENDOR_OUI_SIZE 3
 
 #define EM_MAX_SSID_LEN                33 
@@ -300,6 +301,10 @@ static const mac_address_t EM_GLOBAL_MAC_ADDRESS = {0xff, 0xff, 0xff, 0xff, 0xff
 
 #ifndef WIFI_EM_CHANNEL_SCAN_REQUEST
 #define WIFI_EM_CHANNEL_SCAN_REQUEST          "Device.WiFi.EM.ChannelScanRequest"
+#endif
+
+#ifndef WIFI_EM_FAILED_CONNECTION
+#define WIFI_EM_FAILED_CONNECTION             "Device.WiFi.EM.FailedConnection"
 #endif
 
 #ifndef WIFI_EM_CLIENT_ASSOC_CTRL_REQ
@@ -411,9 +416,11 @@ typedef struct {
 typedef unsigned char em_enum_type_t;
 
 typedef enum {
-    em_service_type_ctrl,
-    em_service_type_agent,
-    em_service_type_cli,
+    em_service_type_ctrl         = 0x00,
+    em_service_type_agent        = 0x01,
+    em_service_type_cli          = 0x02,
+    em_service_type_emplus_ctrl  = 0xA0,
+    em_service_type_emplus_agent = 0xA1,
     em_service_type_none
 } em_service_type_t;
 
@@ -2490,6 +2497,8 @@ typedef struct {
     em_small_string_t    primary_device_type;
     em_small_string_t    secondary_device_type;
     ieee_1905_security_t    sec_1905;
+    
+    uint8_t is_emplus_agent;
 } em_device_info_t;
 
 typedef struct {
@@ -3052,7 +3061,6 @@ typedef enum {
     em_bus_event_type_recv_gas_frame,
     em_bus_event_type_get_sta_client_type,
     em_bus_event_type_assoc_status,
-    em_bus_event_type_connection_status,
     em_bus_event_type_ap_metrics_report,
     em_bus_event_type_bss_info,
     em_bus_event_type_get_reset,
@@ -3063,6 +3071,7 @@ typedef enum {
     em_bus_event_type_unassoc_sta_query,
     em_bus_event_type_unassoc_sta_link_metrics_query,
     em_bus_event_type_unassoc_sta_result,
+    em_bus_event_type_failed_conn,
 
     em_bus_event_type_max
 } em_bus_event_type_t;
@@ -3076,6 +3085,7 @@ typedef struct {
     mac_address_t	mac;
     em_long_string_t	net_id;
     int sz;
+    uint8_t is_emplus_agent;
 } __attribute__((__packed__)) em_commit_info_t;
 
 typedef enum {
@@ -3155,7 +3165,7 @@ typedef enum {
     dm_orch_type_link_quality_report,
     dm_orch_type_unassoc_sta_link_req_query,
     dm_orch_type_unassoc_sta_result,
-    
+
 } dm_orch_type_t;
 
 typedef struct {

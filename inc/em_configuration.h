@@ -46,7 +46,7 @@ class em_configuration_t {
 	 *
 	 * @note Ensure that the buffer is adequately sized to hold the response message.
 	 */
-	int create_autoconfig_resp_msg(unsigned char *buff, em_freq_band_t band, unsigned char *dst, unsigned short msg_id, em_dpp_chirp_value_t *chirp = nullptr, size_t hash_len = 0);
+	int create_autoconfig_resp_msg(unsigned char *buff, em_freq_band_t band, unsigned char *dst, unsigned short msg_id, em_dpp_chirp_value_t *chirp = nullptr, size_t hash_len = 0, bool peer_is_emplus = false);
     
 	/**!
 	 * @brief Creates an auto-configuration search message.
@@ -1624,9 +1624,14 @@ private:
 
 public:
 
+	/* Parse a received AKM Suite Capabilities TLV and store the
+	 * advertised fronthaul/backhaul AKMs into every BSS of the data model. Wire format:
+	 * [bh_count][bh_suite*4][fh_count][fh_suite*4], each suite OUI[3] + type[1]. */
+	static void store_akm_suite_cap(dm_easy_mesh_t *dm, unsigned char *buff, unsigned int len);
+
 	bool send_autoconf_search_ext_chirp(em_dpp_chirp_value_t *chirp, size_t hash_len);
 
-	bool send_autoconf_search_resp_ext_chirp(em_dpp_chirp_value_t *chirp, size_t len, uint8_t dest_mac[ETH_ALEN], unsigned short msg_id);
+	bool send_autoconf_search_resp_ext_chirp(em_dpp_chirp_value_t *chirp, size_t len, uint8_t dest_mac[ETH_ALEN], unsigned short msg_id, bool peer_is_emplus);
 
 	bool send_bss_config_req_msg(uint8_t dest_al_mac[ETH_ALEN]);
 

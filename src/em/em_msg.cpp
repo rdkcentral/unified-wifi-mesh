@@ -86,6 +86,42 @@ bool em_msg_t::get_al_mac_address(unsigned char *mac)
     return false;
 }
 
+bool em_msg_t::get_supported_service(em_supported_service_t *svc)
+{
+    unsigned int tlv_len;
+    if (!svc) {
+        return false;
+    }
+
+    em_tlv_t *tlv = reinterpret_cast<em_tlv_t *>(m_buff);
+    unsigned int len = m_len;
+    while ((len >= sizeof(em_tlv_t)) && (tlv->type != em_tlv_type_eom)) {
+        tlv_len = ntohs(tlv->len);
+        if (len < sizeof(em_tlv_t) + tlv_len) {
+            return false;
+        }
+        if (tlv->type == em_tlv_type_supported_service) {
+             if (tlv_len < 2) {
+                 return false;
+            }
+            unsigned int copy_len = tlv_len - 1;
+            if (copy_len > EM_MAX_SERVICE) {
+                copy_len = EM_MAX_SERVICE;
+            }
+            svc->num = tlv->value[0];
+            if (svc->num > copy_len) {
+                svc->num = static_cast<unsigned char>(copy_len);
+            }
+            memset(svc->service, 0, EM_MAX_SERVICE);
+            memcpy(svc->service, &tlv->value[1], svc->num);
+            return true;
+        }
+        len -= static_cast<unsigned int>(sizeof(em_tlv_t) + tlv_len);
+        tlv = reinterpret_cast<em_tlv_t *>(reinterpret_cast<unsigned char *>(tlv) + sizeof(em_tlv_t) + tlv_len);
+    }
+    return false;
+}
+
 bool em_msg_t::get_profile(em_profile_type_t *profile)
 {
     em_tlv_t    *tlv;

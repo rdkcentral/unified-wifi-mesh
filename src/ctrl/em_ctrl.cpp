@@ -35,6 +35,7 @@
 #include <sys/socket.h>
 #include <sys/uio.h>
 #include <sys/time.h>
+#include <time.h>
 #include <unistd.h>
 #include <pthread.h>
 #include <cjson/cJSON.h>
@@ -97,8 +98,12 @@ void em_ctrl_t::handle_dm_commit(em_bus_event_t *evt)
         }
         em_printfout("data model dev mac: %s and int.mac: %s\n", util::mac_to_string(new_dm.m_device.m_device_info.id.dev_mac).c_str(),
             util::mac_to_string(new_dm.m_device.m_device_info.intf.mac).c_str());
+        new_dm.m_device.m_device_info.is_emplus_agent = info->is_emplus_agent;
         new_dm.set_db_cfg_param(db_cfg_type_device_list_update, "");
         m_data_model.set_config(&new_dm);
+    } else {
+        dm->get_device_info()->is_emplus_agent = info->is_emplus_agent;
+        dm->set_db_cfg_param(db_cfg_type_device_list_update, "");
     }
 }
 
@@ -498,6 +503,133 @@ void em_ctrl_t::handle_link_stats_alarm_report(em_bus_event_t *evt)
     cJSON_Delete(parent);
 }
 
+void em_ctrl_t::handle_failed_conn_msg(unsigned char *data, unsigned int len)
+{
+    char *errors[EM_MAX_TLV_MEMBERS] = {0};
+
+    if (em_msg_t(em_msg_type_failed_conn, em_profile_type_3, data, len).validate(errors) == 0) {
+        em_printfout("Failed Connection message validation failed");
+        return;
+    }
+
+    unsigned int hdr_size = static_cast<unsigned int>(sizeof(em_raw_hdr_t)) + static_cast<unsigned int>(sizeof(em_cmdu_t));
+    if (len <= hdr_size) {
+        em_printfout("Failed Connection message too short");
+        return;
+    }
+    unsigned char *tmp = data + hdr_size;
+    unsigned int remaining = len - hdr_size;
+    mac_address_t bssid = {0};
+    mac_address_t sta_mac = {0};
+    unsigned short status_code = 0;
+    unsigned short reason_code = 0;
+    bool has_bssid = false, has_sta = false, has_status = false;
+
+    while (remaining >= sizeof(em_tlv_t)) {
+        em_tlv_t *tlv = reinterpret_cast<em_tlv_t *>(tmp);
+        unsigned short tlv_len = ntohs(tlv->len);
+
+        if (tlv->type == em_tlv_type_eom) {
+            break;
+        }
+        if (remaining < sizeof(em_tlv_t) + tlv_len) {
+            break;
+        }
+
+        switch (tlv->type) {
+            case em_tlv_type_bssid:
+                memcpy(bssid, tlv->value, sizeof(mac_address_t));
+                has_bssid = true;
+                break;
+            case em_tlv_type_sta_mac_addr:
+                memcpy(sta_mac, tlv->value, sizeof(mac_address_t));
+                has_sta = true;
+                break;
+            case em_tlv_type_status_code: {
+                em_status_code_t *sc = reinterpret_cast<em_status_code_t *>(tlv->value);
+                status_code = ntohs(sc->status_code);
+                has_status = true;
+                break;
+            }
+            case em_tlv_type_reason_code: {
+                if (tlv_len < sizeof(em_reason_code_t)) {
+                    em_printfout("Failed Connection message malformed Reason Code TLV (len=%u)", static_cast<unsigned int>(tlv_len));
+                    break;
+                }
+                em_reason_code_t *rc = reinterpret_cast<em_reason_code_t *>(tlv->value);
+                reason_code = ntohs(rc->reason_code);
+                break;
+            }
+            default:
+                break;
+        }
+
+        tmp += sizeof(em_tlv_t) + tlv_len;
+        remaining -= static_cast<unsigned int>(sizeof(em_tlv_t)) + tlv_len;
+    }
+
+    if (!has_bssid || !has_sta || !has_status) {
+        em_printfout("Failed Connection message missing mandatory TLVs");
+        return;
+    }
+
+    struct timespec ts;
+    clock_gettime(CLOCK_REALTIME, &ts);
+    struct tm tm_info;
+    gmtime_r(&ts.tv_sec, &tm_info);
+    char timestamp[MAX_TIMESTAMP_STRLEN];
+    snprintf(timestamp, sizeof(timestamp), "%04d-%02d-%02dT%02d:%02d:%02dZ",
+        tm_info.tm_year + 1900, tm_info.tm_mon + 1, tm_info.tm_mday,
+        tm_info.tm_hour, tm_info.tm_min, tm_info.tm_sec);
+
+    mac_addr_str_t bssid_str, sta_str;
+    dm_easy_mesh_t::macbytes_to_string(bssid, bssid_str);
+    dm_easy_mesh_t::macbytes_to_string(sta_mac, sta_str);
+
+    cJSON *obj = cJSON_CreateObject();
+    if (obj == nullptr) {
+        em_printfout("Failed to allocate JSON object for FailedConnectionEvent");
+        return;
+    }
+
+    cJSON_AddStringToObject(obj, "BSSID", bssid_str);
+    cJSON_AddStringToObject(obj, "MACAddress", sta_str);
+    cJSON_AddNumberToObject(obj, "StatusCode", status_code);
+    cJSON_AddNumberToObject(obj, "ReasonCode", reason_code);
+    cJSON_AddStringToObject(obj, "TimeStamp", timestamp);
+
+    char *str = cJSON_Print(obj);
+    cJSON_Delete(obj);
+
+    if (str == nullptr) {
+        em_printfout("Failed to serialize FailedConnectionEvent JSON");
+        return;
+    }
+
+    wifi_bus_desc_t *desc = get_bus_descriptor();
+    if (desc == nullptr) {
+        em_printfout("Bus descriptor is null");
+        free(str);
+        return;
+    }
+
+    raw_data_t raw;
+    memset(&raw, 0, sizeof(raw));
+    raw.data_type = bus_data_type_string;
+    raw.raw_data.bytes = reinterpret_cast<unsigned char *>(str);
+    raw.raw_data_len = static_cast<unsigned int>(strlen(str));
+
+    if (desc->bus_event_publish_fn(m_data_model.get_bus_hdl(), DEVICE_WIFI_DATAELEMENTS_FAILED_CONNECTION, &raw) == 0) {
+        em_printfout("FailedConnectionEvent published: bssid=%s sta=%s status=%u reason=%u",
+            bssid_str, sta_str, status_code, reason_code);
+    } else {
+        em_printfout("FailedConnectionEvent publish failed");
+    }
+
+    free(str);
+}
+
+
 void em_ctrl_t::handle_dirty_dm()
 {
 	m_data_model.handle_dirty_dm();
@@ -838,8 +970,10 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
     em_profile_type_t profile;
     unsigned int i;
     mac_addr_str_t mac_str1 = {0}, mac_str2 = {0};
-    em_commit_info_t dm_commit;
+    em_commit_info_t dm_commit = {};
     mac_address_t fallback_ruid = {0};
+    em_supported_service_t svc = {};
+    uint8_t is_emplus;
 
     assert(len > ((sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))));
     if (len < ((sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)))) {
@@ -866,6 +1000,17 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
 
             dm_easy_mesh_t::macbytes_to_string(intf.mac, mac_str1);
             em_printfout("[%s] Received autoconfig search from agent al mac: %s\n", __func__, mac_str1);
+
+            is_emplus = 0;
+            if (em_msg_t(data + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)), len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_supported_service(&svc)) {
+                for (i = 0; i < svc.num && i < EM_MAX_SERVICE; i++) {
+                    if (svc.service[i] == em_service_type_emplus_agent) {
+                        is_emplus = 1;
+                        break;
+                    }
+                }
+            }
+
             if ((dm = get_data_model(GLOBAL_NET_ID, const_cast<const unsigned char *> (intf.mac))) == NULL) {
                 if (em_msg_t(data + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)), len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_profile(&profile) == false) {
                     profile = em_profile_type_1;
@@ -873,11 +1018,14 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
                 //dm = create_data_model(GLOBAL_NET_ID, const_cast<const em_interface_t *> (&intf), profile);
                 memcpy(dm_commit.mac, intf.mac, sizeof(mac_addr_t));
                 strncpy(dm_commit.net_id, GLOBAL_NET_ID, sizeof(dm_commit.net_id));
+                dm_commit.is_emplus_agent = is_emplus;
                 io_process(em_bus_event_type_dm_commit, reinterpret_cast<unsigned char *> (&dm_commit), sizeof(em_commit_info_t));
-                em_printfout("[%s] Creating data model for mac: %s net: %s\n", __func__, mac_str1, GLOBAL_NET_ID);
+                em_printfout("[%s] Creating data model for mac: %s net: %s emplus: %d\n", __func__, mac_str1, GLOBAL_NET_ID, is_emplus);
             } else {
+                dm->get_device_info()->is_emplus_agent = is_emplus;
+                dm->set_db_cfg_param(db_cfg_type_device_list_update, "");
                 dm_easy_mesh_t::macbytes_to_string(dm->get_agent_al_interface_mac(), mac_str1);
-                em_printfout("[%s] Found existing data model for mac: %s net: %s\n", __func__, mac_str1, GLOBAL_NET_ID);
+                em_printfout("[%s] Found existing data model for mac: %s net: %s emplus: %d\n", __func__, mac_str1, GLOBAL_NET_ID, is_emplus);
             }
             em = al_em;
             break;
@@ -916,11 +1064,8 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
 
             break;
 
-        case em_msg_type_topo_resp:
-        case em_msg_type_channel_pref_rprt:
         case em_msg_type_channel_sel_rsp:
         case em_msg_type_op_channel_rprt:
-        case em_msg_type_ap_cap_rprt:
             if (em_msg_t(data + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)),
                     len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_radio_id(&ruid) == false) {
                 em_printfout("Could not find radio id in msg:0x%04x", htons(cmdu->type));
@@ -931,6 +1076,27 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
             if ((em = static_cast<em_t *> (hash_map_get(m_em_map, mac_str1))) == NULL) {
                 em_printfout("Could not find radio:%s", mac_str1);
                 return NULL;
+            }
+            break;
+
+        case em_msg_type_topo_resp:
+        case em_msg_type_ap_cap_rprt:
+        case em_msg_type_channel_pref_rprt:
+            if ((dm = get_data_model(GLOBAL_NET_ID, const_cast<const unsigned char *>(hdr->src))) == NULL) {
+                em_printfout("Cannot find data model for agent AL MAC %s", util::mac_to_string(hdr->src).c_str());
+                em = NULL;
+                break;
+            }
+            em = NULL;
+            for (i = 0; i < dm->get_num_radios(); i++) {
+                dm_easy_mesh_t::macbytes_to_string(dm->get_radio_info(i)->id.ruid, mac_str1);
+                em = static_cast<em_t *>(hash_map_get(m_em_map, mac_str1));
+                if (em != NULL) {
+                    break;
+                }
+            }
+            if (em == NULL) {
+                em_printfout("No EM found for agent AL MAC %s", util::mac_to_string(hdr->src).c_str());
             }
             break;
 
@@ -1159,6 +1325,9 @@ void em_ctrl_t::start_complete()
             { NULL, tr_181_t::policy_config , NULL, NULL, NULL, NULL }, slow_speed, ZERO_TABLE,
             { bus_data_type_string, false, 0, 0, 0, NULL } },
          { const_cast<char*>(DEVICE_WIFI_DATAELEMENTS_NETWORK_NODE_LINKSTATS_ALARM), bus_element_type_method,
+            { NULL, NULL , NULL, NULL, NULL, NULL }, slow_speed, ZERO_TABLE,
+            { bus_data_type_string, false, 0, 0, 0, NULL } },
+        { const_cast<char*>(DEVICE_WIFI_DATAELEMENTS_FAILED_CONNECTION), bus_element_type_event,
             { NULL, NULL , NULL, NULL, NULL, NULL }, slow_speed, ZERO_TABLE,
             { bus_data_type_string, false, 0, 0, 0, NULL } },
         { const_cast<char*>(DEVICE_WIFI_DATAELEMENTS_NETWORK_SETSSID_CMD), bus_element_type_method,
