@@ -249,7 +249,8 @@ public:
 	* @note Ensure that the profile pointer is valid before calling this function.
 	*/
 	bool get_profile(em_profile_type_t *profile);
-    
+	bool get_supported_service(em_supported_service_t *svc);
+
 	/**!
 	 * @brief Retrieves the frequency band.
 	 *

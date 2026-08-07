@@ -1480,6 +1480,8 @@ void em_agent_t::input_listener()
 
     em_printfout("bus open success");
 
+    load_em_plus_cfg();
+
     memset(&data, 0, sizeof(raw_data_t));
 
     while ((bus_error_val = desc->bus_data_get_fn(&m_bus_hdl, WIFI_WEBCONFIG_INIT_DML_DATA, &data)) != bus_error_success) {
@@ -2320,6 +2322,51 @@ bool em_agent_t::try_create_default_em_cfg(std::string interface)
     free(json_str);
 
     return true;
+}
+
+void em_agent_t::load_em_plus_cfg()
+{
+
+    m_data_model.get_device_info()->is_emplus_agent = 0;
+
+    FILE *fp = fopen(EM_PLUS_FILE, "r");
+    if (fp == NULL) {
+        return;
+    }
+
+    if (fseek(fp, 0, SEEK_END) != 0) {
+        fclose(fp);
+        return;
+    }
+    long sz = ftell(fp);
+    rewind(fp);
+
+    if (sz <= 0) {
+        fclose(fp);
+        return;
+    }
+
+    char *buf = static_cast<char *>(malloc(static_cast<size_t>(sz) + 1));
+    if (buf == NULL) {
+        fclose(fp);
+        return;
+    }
+    size_t nread = fread(buf, 1, static_cast<size_t>(sz), fp);
+    buf[nread] = '\0';
+    fclose(fp);
+
+    cJSON *root = cJSON_Parse(buf);
+    free(buf);
+    if (root == NULL) {
+      return;
+    }
+
+    cJSON *item = cJSON_GetObjectItem(root, "EM_Plus");
+    if (cJSON_IsBool(item) && cJSON_IsTrue(item)) {
+        m_data_model.get_device_info()->is_emplus_agent = 1;
+        em_printfout("EM+ agent mode enabled");
+    }
+    cJSON_Delete(root);
 }
 
 bool em_agent_t::try_start_dpp_onboarding()  {
