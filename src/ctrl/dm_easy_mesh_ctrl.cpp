@@ -3255,6 +3255,44 @@ int dm_easy_mesh_ctrl_t::analyze_set_policy(em_bus_event_t *evt, em_cmd_t *pcmd[
     return static_cast<int>(num);
 }
 
+int dm_easy_mesh_ctrl_t::analyze_scan_channel(em_bus_event_t *evt, em_cmd_t *pcmd[])
+{
+    int ret;
+    em_subdoc_info_t *subdoc;
+    dm_easy_mesh_t dm, *pdm;
+    em_cmd_t *tmp;
+    unsigned int num = 0, num_devices = 0, i = 0;
+
+    subdoc = &evt->u.subdoc;
+
+    if ((ret = dm.decode_config(subdoc, "ChannelScanRequest", i, &num_devices)) < 0) {
+        em_printfout("Decode config for channel scan failed");
+        return ret;
+    }
+
+    //methods don't have multiple op_classes (yet)
+    //assert(dm.get_num_op_class() == EM_MAX_BANDS);
+
+    pdm = m_data_model_list.get_first_dm();
+    while (pdm != NULL) {
+        pdm->set_channels_list(dm.m_op_class, dm.get_num_op_class());
+        pdm->set_db_cfg_param(db_cfg_type_op_class_list_update, "");
+
+        pdm = m_data_model_list.get_next_dm(pdm);
+    }
+
+    pcmd[num] = new em_cmd_scan_channel_t(evt->params, dm);
+    tmp = pcmd[num];
+    num++;
+
+    while ((pcmd[num] = tmp->clone_for_next()) != NULL) {
+        tmp = pcmd[num];
+        num++;
+    }
+
+    return static_cast<int> (num);
+}
+
 int dm_easy_mesh_ctrl_t::analyze_channel_select(em_bus_event_t *evt, em_cmd_t *pcmd[])
 {
     int ret;

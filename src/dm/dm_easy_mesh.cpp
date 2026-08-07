@@ -95,6 +95,10 @@ dm_easy_mesh_t& dm_easy_mesh_t::operator = (dm_easy_mesh_t const& obj)
 
     m_db_cfg_param = obj.m_db_cfg_param;
 
+/*    if (m_policy_map == NULL) {
+        m_policy_map = hash_map_create();
+    }*/
+
     if (obj.m_policy_map != NULL && m_policy_map != NULL) {
         dm_policy_t *policy = static_cast<dm_policy_t *> (hash_map_get_first(obj.m_policy_map));
         while (policy != NULL) {
