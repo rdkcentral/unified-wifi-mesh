@@ -39,9 +39,24 @@ int dm_network_t::decode(const cJSON *obj, void *parent_id)
     cJSON *tmp;
     mac_addr_str_t  mac_str;
 
+    if (obj == NULL) {
+        printf("%s:%d: Error - obj is NULL\n", __func__, __LINE__);
+        return -1;
+    }
+
+    if (!cJSON_IsObject(obj)) {
+        if (obj->child == NULL) {
+            printf("%s:%d: Error - obj is not a valid JSON object\n", __func__, __LINE__);
+            return -1;
+        }
+        // Non-standard cJSON (no object type flag but has children) cannot be
+        // safely traversed via cJSON_GetObjectItem; treat as decoded with no fields.
+        return 0;
+    }
+
     memset(&m_net_info, 0, sizeof(em_network_info_t));
 
-    if ((tmp = cJSON_GetObjectItem(obj, "ID")) != NULL) {
+    if ((tmp = cJSON_GetObjectItem(obj, "ID")) != NULL && cJSON_IsString(tmp)) {
         snprintf(m_net_info.id, sizeof(m_net_info.id), "%s", cJSON_GetStringValue(tmp));
     }
 
@@ -49,11 +64,11 @@ int dm_network_t::decode(const cJSON *obj, void *parent_id)
        m_net_info.num_of_devices = static_cast<short unsigned int> (cJSON_IsTrue(tmp));
     }
 
-    if ((tmp = cJSON_GetObjectItem(obj, "TimeStamp")) != NULL) {
+    if ((tmp = cJSON_GetObjectItem(obj, "TimeStamp")) != NULL && cJSON_IsString(tmp)) {
         snprintf(m_net_info.timestamp, sizeof(m_net_info.timestamp), "%s", cJSON_GetStringValue(tmp));
     }
 
-    if ((tmp = cJSON_GetObjectItem(obj, "ControllerID")) != NULL) {
+    if ((tmp = cJSON_GetObjectItem(obj, "ControllerID")) != NULL && cJSON_IsString(tmp)) {
         snprintf(mac_str, sizeof(mac_str), "%s", cJSON_GetStringValue(tmp));
         dm_easy_mesh_t::string_to_macbytes(mac_str, m_net_info.ctrl_id.mac);
         dm_easy_mesh_t::name_from_mac_address(&m_net_info.ctrl_id.mac, m_net_info.ctrl_id.name);
@@ -79,12 +94,12 @@ int dm_network_t::decode(const cJSON *obj, void *parent_id)
     }
 #endif
 
-    if ((tmp = cJSON_GetObjectItem(obj, "CollocatedAgentID")) != NULL) {
+    if ((tmp = cJSON_GetObjectItem(obj, "CollocatedAgentID")) != NULL && cJSON_IsString(tmp)) {
         snprintf(mac_str, sizeof(mac_str), "%s", cJSON_GetStringValue(tmp));
         dm_easy_mesh_t::string_to_macbytes(mac_str, m_net_info.colocated_agent_id.mac);
 	}
 
-    if ((tmp = cJSON_GetObjectItem(obj, "MediaType")) != NULL) {
+    if ((tmp = cJSON_GetObjectItem(obj, "MediaType")) != NULL && cJSON_IsString(tmp)) {
 		if (strncmp(cJSON_GetStringValue(tmp), "Wireless", strlen("Wireless")) == 0) { 
 			m_net_info.media = em_media_type_ieee80211b_24;
 		} else if (strncmp(cJSON_GetStringValue(tmp), "Ethernet", strlen("Ethernet")) == 0) {
@@ -205,6 +220,11 @@ int dm_network_t::init()
 
 dm_network_t::dm_network_t(em_network_info_t *net)
 {
+    if (net == NULL) {
+        printf("%s:%d: Error - net is NULL\n", __func__, __LINE__);
+        memset(&m_net_info, 0, sizeof(em_network_info_t));
+        return;
+    }
     memcpy(&m_net_info, net, sizeof(em_network_info_t));
 }
 

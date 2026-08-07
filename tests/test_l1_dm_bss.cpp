@@ -211,7 +211,7 @@
       ASSERT_NE(empty_payload_ie, nullptr);
       // Initialize fields
       empty_payload_ie->vs_ie = 0xDD;
-      empty_payload_ie->vs_len = 0;  // Payload length is 0
+      empty_payload_ie->vs_len = 5;  // OUI(3) + type(1) + subtype(1); empty payload
       empty_payload_ie->vs_oui[0] = 0x00;
       empty_payload_ie->vs_oui[1] = 0x50;
       empty_payload_ie->vs_oui[2] = 0xF2;

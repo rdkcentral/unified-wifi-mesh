@@ -52,6 +52,11 @@
 
  void *db_client_t::execute(const char *query)
  {
+     if (query == NULL) {
+         printf("%s:%d: Error - query is NULL\n", __func__, __LINE__);
+         return NULL;
+     }
+
      if (!m_con) {
          printf("%s:%d: Query: %s m_con is NULL, exiting\n", __func__, __LINE__, query);
          return NULL;

@@ -19,6 +19,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <stdexcept>
 #include <errno.h>
 #include <assert.h>
 #include <signal.h>
@@ -985,6 +986,10 @@ int em_policy_cfg_t::handle_1905_ack(unsigned char *buff, unsigned int len)
 
 void em_policy_cfg_t::process_msg(unsigned char *data, unsigned int len)
 {
+    if (data == NULL) {
+        throw std::invalid_argument("process_msg: data is NULL");
+    }
+
     em_cmdu_t *cmdu = reinterpret_cast<em_cmdu_t *> (data + sizeof(em_raw_hdr_t));
     
     switch (htons(cmdu->type)) {

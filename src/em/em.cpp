@@ -19,6 +19,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <stdexcept>
 #include <ctype.h>
 #include <errno.h>
 #include <assert.h>
@@ -671,7 +672,19 @@ void *em_t::em_func(void *arg)
 
 void em_t::deinit()
 {
+    // Signal the worker thread to exit, then wait for it to actually finish
+    // before destroying the ingress queue/mutex/cond it uses. Joining here
+    // prevents a heap-use-after-free when the node is deleted.
+    pthread_mutex_lock(&m_iq.lock);
     m_exit = true;
+    pthread_cond_signal(&m_iq.cond);
+    pthread_mutex_unlock(&m_iq.lock);
+
+    if (m_thread_started) {
+        pthread_join(m_tid, NULL);
+        m_thread_started = false;
+    }
+
     pthread_cond_destroy(&m_iq.cond);
     pthread_mutex_destroy(&m_iq.lock);
     close(m_fd);
@@ -768,8 +781,13 @@ int em_t::send_frame(unsigned char *buff, unsigned int len, bool multicast)
     std::copy(hdr->dst, hdr->dst + ETH_ALEN, dest_mac.begin());
     std::copy(hdr->src, hdr->src + ETH_ALEN, src_mac.begin());
 
-    sdu.setDestinationAlMacAddress(dest_mac);
-    sdu.setSourceAlMacAddress(src_mac);
+    try {
+        sdu.setDestinationAlMacAddress(dest_mac);
+        sdu.setSourceAlMacAddress(src_mac);
+    } catch (const std::exception& e) {
+        em_printfout("Error - invalid AL MAC address, dropping frame: %s", e.what());
+        return -1;
+    }
 
 #ifdef DEBUG_MODE
     em_printfout("Destination MAC Address: " MACSTRFMT, MAC2STR(buff));
@@ -777,6 +795,10 @@ int em_t::send_frame(unsigned char *buff, unsigned int len, bool multicast)
 #endif
     // Copy over the payload, excluding the header
     sdu.setPayload({buff + sizeof(em_raw_hdr_t), buff + len});
+    if (g_sap == NULL) {
+        em_printfout("Error - AL SAP not registered, dropping frame");
+        return -1;
+    }
     g_sap->serviceAccessPointDataRequest(sdu);
 #else
     em_short_string_t   ifname;
@@ -949,6 +971,10 @@ bool em_t::trigger_sta_scan()
 
 void em_t::push_to_queue(em_event_t *evt)
 {
+    if (m_iq.queue == NULL) {
+        printf("%s:%d: Error - queue is NULL\n", __func__, __LINE__);
+        return;
+    }
     pthread_mutex_lock(&m_iq.lock);
     queue_push(m_iq.queue, evt);
     pthread_cond_signal(&m_iq.cond);
@@ -2824,7 +2850,10 @@ int em_t::init()
         printf("%s:%d pthread_attr_setstacksize failed for size:%ld ret:%d\n",
                 __func__, __LINE__, stack_size, ret);
     }
-    pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+    // Create the thread joinable so deinit() can pthread_join() it before the
+    // em_t (and its ingress queue/mutex/cond) are destroyed. A detached thread
+    // could keep running proto_run() after "delete em", causing a
+    // heap-use-after-free.
 
     if (pthread_create(&m_tid, attrp, em_t::em_func, this) != 0) {
         printf("%s:%d: Failed to start em thread\n", __func__, __LINE__);
@@ -2836,6 +2865,7 @@ int em_t::init()
         }
         return -1;
     }
+    m_thread_started = true;
     if(attrp != NULL) {
         pthread_attr_destroy(attrp);
     }
@@ -3077,7 +3107,7 @@ void em_t::cfg_1905_handshake_complete_handler(uint8_t peer_al_mac[ETH_ALEN], bo
     set_peer_1905_security_status(peer_al_mac, peer_1905_security_status::PEER_1905_SECURITY_SECURED);
 }
 
-em_t::em_t(em_interface_t *ruid, em_freq_band_t band, dm_easy_mesh_t *dm, em_mgr_t *mgr, em_profile_type_t profile, em_service_type_t type, bool is_al_em): m_data_model(), m_mgr(mgr), m_orch_state(), m_cmd(), m_sm(), m_service_type(), m_fd(0), m_ruid(*ruid), m_band(band), m_profile_type(profile), m_iq(), m_tid(), m_exit(), m_is_al_em(is_al_em)
+em_t::em_t(em_interface_t *ruid, em_freq_band_t band, dm_easy_mesh_t *dm, em_mgr_t *mgr, em_profile_type_t profile, em_service_type_t type, bool is_al_em): m_data_model(), m_mgr(mgr), m_orch_state(), m_cmd(), m_sm(), m_service_type(), m_fd(0), m_ruid(*ruid), m_band(band), m_profile_type(profile), m_iq(), m_tid(), m_exit(), m_thread_started(false), m_is_al_em(is_al_em)
 {
     memcpy(&m_ruid, ruid, sizeof(em_interface_t));
     m_band = band;

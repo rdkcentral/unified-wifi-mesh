@@ -27,7 +27,16 @@
 
 bool em_sm_t::validate_sm(em_state_t state)
 {
-	return true;
+	// Valid states fall within the agent range [em_state_agent_unconfigured,
+	// em_state_agent_link_quality_report_pending] or the controller range
+	// [em_state_ctrl_unconfigured, em_state_max)
+	if (state >= em_state_agent_unconfigured && state <= em_state_agent_link_quality_report_pending) {
+		return true;
+	}
+	if (state >= em_state_ctrl_unconfigured && state < em_state_max) {
+		return true;
+	}
+	return false;
 }
 
 int em_sm_t::set_state(em_state_t state)
@@ -47,7 +56,7 @@ void em_sm_t::init_sm(em_service_type_t service)
 
 em_sm_t::em_sm_t()
 {
-
+    m_state = em_state_agent_unconfigured;
 }
 
 em_sm_t::~em_sm_t()

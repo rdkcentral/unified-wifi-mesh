@@ -42,8 +42,9 @@ public:
                             send_1905_eapol_encap_func send_1905_eapol_encap_msg,
                             handshake_completed_handler handshake_complete);
     ~ec_1905_encrypt_layer_t() {
-        if (m_C_signing_key) em_crypto_t::free_key(m_C_signing_key);
-        if (m_net_access_key) em_crypto_t::free_key(m_net_access_key);
+        // m_C_signing_key and m_net_access_key are borrowed (set via set_sec_params)
+        // from the owning configurator/enrollee's persistent security context, which
+        // frees them. Do NOT free them here or it results in a double-free.
     };
 
     /**

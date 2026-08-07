@@ -37,6 +37,7 @@
 #include <unistd.h>
 #include <pthread.h>
 #include <assert.h>
+#include <stdexcept>
 #include <openssl/bio.h> /* BasicInput/Output streams */
 #include <openssl/err.h> /* errors */
 #include <openssl/ssl.h> /* core library */
@@ -102,6 +103,11 @@ bool em_mgr_t::io_process(em_event_t *evt)
     em_bus_event_t *bevt;
     bool should_wait;
 
+    if (evt == NULL) {
+        printf("%s:%d: Error - evt is NULL\n", __func__, __LINE__);
+        return false;
+    }
+
     bevt = &evt->u.bevt;
     //em_cmd_t::dump_bus_event(bevt);
 
@@ -165,6 +171,10 @@ void em_mgr_t::delete_node(em_interface_t *ruid)
 {
     em_t *em = NULL;
     mac_addr_str_t	mac_str;
+
+    if (ruid == NULL) {
+        throw std::invalid_argument("delete_node: ruid is NULL");
+    }
 
     dm_easy_mesh_t::macbytes_to_string(ruid->mac, mac_str);
 
@@ -582,6 +592,16 @@ int em_mgr_t::start()
 
 void em_mgr_t::push_to_queue(em_event_t *evt)
 {
+    if (evt == NULL) {
+        throw std::invalid_argument("push_to_queue: evt is NULL");
+    }
+    if (evt->type >= em_event_type_max) {
+        throw std::invalid_argument("push_to_queue: invalid event type");
+    }
+    if (m_queue.queue == NULL) {
+        printf("%s:%d: Error - queue is NULL\n", __func__, __LINE__);
+        return;
+    }
     pthread_mutex_lock(&m_queue.lock);
     queue_push(m_queue.queue, evt);
     pthread_cond_signal(&m_queue.cond);

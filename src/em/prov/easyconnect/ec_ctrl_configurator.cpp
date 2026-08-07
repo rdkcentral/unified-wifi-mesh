@@ -278,6 +278,11 @@ bool ec_ctrl_configurator_t::process_direct_encap_dpp_msg(uint8_t* dpp_frame, ui
         return false;
     }
 
+    if (src_mac == NULL) {
+        em_printfout("Source MAC address is NULL");
+        return false;
+    }
+
     ec_frame_t* ec_frame = reinterpret_cast<ec_frame_t*>(dpp_frame);
 
     /*

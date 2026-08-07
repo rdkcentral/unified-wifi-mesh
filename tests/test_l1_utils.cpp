@@ -21,12 +21,21 @@
 #include <array>
 #include <sstream>
 #include <cctype>
+#include <stdexcept>
 
 MacAddress parseMacAddress(const std::string& macStr) {
     std::string cleaned;
     for (char c : macStr) {
-        if (std::isalnum(c)) {
+        if (std::isalnum(static_cast<unsigned char>(c))) {
             cleaned += c;
+        }
+    }
+    if (cleaned.size() != 12) {
+        throw std::invalid_argument("parseMacAddress: MAC address must contain exactly 6 octets");
+    }
+    for (char c : cleaned) {
+        if (!std::isxdigit(static_cast<unsigned char>(c))) {
+            throw std::invalid_argument("parseMacAddress: MAC address contains non-hex characters");
         }
     }
     MacAddress mac{};

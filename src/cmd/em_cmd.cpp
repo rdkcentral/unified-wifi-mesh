@@ -34,6 +34,7 @@
 #include <pthread.h>
 #include <cjson/cJSON.h>
 #include <type_traits>
+#include <stdexcept>
 #include "em_cmd.h"
 
 bool em_cmd_t::validate()
@@ -51,6 +52,11 @@ unsigned int em_cmd_t::get_event_data_length()
 	em_frame_event_t *fevt;
 	em_bus_event_t *bevt;
 	unsigned int sz = 0;
+
+	if (m_evt == NULL) {
+		printf("%s:%d: Error - m_evt is NULL\n", __func__, __LINE__);
+		return 0;
+	}
 
 	switch (m_evt->type) {
 		case em_event_type_frame:
@@ -95,6 +101,10 @@ void em_cmd_t::copy_bus_event(em_bus_event_t *evt)
 {
 	em_bus_event_t *bevt;
 
+	if (evt == NULL) {
+		throw std::invalid_argument("copy_bus_event: evt is NULL");
+	}
+
 	m_evt->type = em_event_type_bus;
 	bevt = &m_evt->u.bevt;
 	memcpy(bevt, evt, sizeof(em_bus_event_t));
@@ -104,6 +114,10 @@ void em_cmd_t::copy_bus_event(em_bus_event_t *evt)
 void em_cmd_t::copy_frame_event(em_frame_event_t *evt)
 {
 	em_frame_event_t *fevt;
+
+	if (evt == NULL) {
+		throw std::invalid_argument("copy_frame_event: evt is NULL");
+	}
 
 	m_evt->type = em_event_type_frame;
 	fevt = &m_evt->u.fevt;
@@ -118,6 +132,11 @@ char *em_cmd_t::status_to_string(em_cmd_out_status_t status, char *str)
     em_subdoc_info_t *info;
     em_event_t *evt;
     char *tmp;
+
+    if (str == NULL) {
+        printf("%s:%d: Error - str is NULL\n", __func__, __LINE__);
+        return NULL;
+    }
 
     evt = get_event();
     info = &evt->u.bevt.u.subdoc;
@@ -171,6 +190,11 @@ char *em_cmd_t::status_to_string(em_cmd_out_status_t status, char *str)
     }
 
     tmp = cJSON_Print(obj);
+    if (tmp == NULL) {
+        printf("%s:%d: Error - failed to print JSON\n", __func__, __LINE__);
+        cJSON_Delete(obj);
+        return NULL;
+    }
     strncpy(str, tmp, strlen(tmp) + 1);
     cJSON_free(tmp);
     cJSON_Delete(obj);
@@ -224,6 +248,10 @@ em_cmd_t *em_cmd_t::clone_for_next()
     unsigned int i;
     em_cmd_ctx_t ctx;
 
+    if (m_num_orch_desc == 0) {
+        return NULL;
+    }
+
     if (m_orch_op_idx == (m_num_orch_desc - 1)) {
         return NULL;
     }
@@ -248,6 +276,14 @@ em_cmd_t *em_cmd_t::clone_for_next()
 void em_cmd_t::override_op(unsigned int index, em_orch_desc_t *desc)
 {
     em_cmd_ctx_t *ctx;
+
+    if (desc == NULL) {
+        throw std::invalid_argument("override_op: desc is NULL");
+    }
+
+    if (index >= EM_MAX_CMD) {
+        throw std::out_of_range("override_op: index out of bounds");
+    }
 
     m_orch_desc[index].op = desc->op;
     m_orch_desc[index].submit = desc->submit;
@@ -896,6 +932,11 @@ int em_cmd_t::dump_bus_event(em_bus_event_t *evt)
         return -1;
     }
 
+    if (evt->type >= em_bus_event_type_max) {
+        printf("%s:%d: Invalid event type %d\n", __func__, __LINE__, evt->type);
+        return -1;
+    }
+
     printf("Bus Event\n");
 
     switch (evt->type) {
@@ -916,7 +957,7 @@ int em_cmd_t::dump_bus_event(em_bus_event_t *evt)
     }
 
     printf("Type: %s\tNumber of Command Parameters: %d\n", get_bus_event_type_str(evt->type), evt->params.u.args.num_args);
-    for (i = 0; i < evt->params.u.args.num_args; i++) {
+    for (i = 0; i < evt->params.u.args.num_args && i < EM_CLI_MAX_ARGS; i++) {
         printf("Arg[%d]: %s\n", i, evt->params.u.args.args[i]);
     }   
 	return 0;

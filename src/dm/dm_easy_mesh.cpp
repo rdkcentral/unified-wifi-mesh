@@ -336,7 +336,9 @@ int dm_easy_mesh_t::analyze_ap_cap_query(em_bus_event_t *evt, em_cmd_t *pcmd[])
     desc.op = dm_orch_type_ap_cap_report;
     desc.submit = true;    
 
-    dm.decode_ap_cap_config(subdoc, "CapReport");
+    if (dm.decode_ap_cap_config(subdoc, "CapReport") != 0) {
+        return -1;
+    }
     pcmd[0] = new em_cmd_ap_cap_report_t(evt->params,dm);
     pcmd[0]->override_op(0, &desc);
 
@@ -473,6 +475,23 @@ int dm_easy_mesh_t::encode_config_op_class_array(cJSON *arr_obj, em_op_class_typ
 	unsigned int i;
 	cJSON *op_obj;
 	mac_addr_str_t	mac_str;
+	
+	if (arr_obj == NULL) {
+		printf("%s:%d: Error - arr_obj is NULL\n", __func__, __LINE__);
+		return -1;
+	}
+	if (mac == NULL) {
+		printf("%s:%d: Error - mac is NULL\n", __func__, __LINE__);
+		return -1;
+	}
+	if (!cJSON_IsArray(arr_obj)) {
+		printf("%s:%d: Error - arr_obj is not a JSON array\n", __func__, __LINE__);
+		return -1;
+	}
+	if (type > em_op_class_type_scan_param) {
+		printf("%s:%d: Error - invalid op class type %d\n", __func__, __LINE__, type);
+		return -1;
+	}
 	
 	dm_easy_mesh_t::macbytes_to_string(mac, mac_str);
 
@@ -734,6 +753,11 @@ int dm_easy_mesh_t::decode_num_devices(em_subdoc_info_t *subdoc)
     cJSON *parent_obj, *net_obj, *dev_arr_objs;
     int size;
 
+    if (subdoc == NULL) {
+        printf("%s:%d: invalid null argument\n", __func__, __LINE__);
+        return -1;
+    }
+
     if ((parent_obj = cJSON_Parse(subdoc->buff)) == NULL) {
         printf("%s:%d: Failed to initialize device data model\n", __func__, __LINE__);
         return -1;
@@ -808,6 +832,11 @@ int dm_easy_mesh_t::decode_config_reset(em_subdoc_info_t *subdoc, const char *ke
     cJSON *parent_obj, *net_obj, *ssid_obj, *ssid_arr_obj, *interfaces_obj, *preference_list_obj, *preference_obj, *obj;
     unsigned int i;
 	unsigned int num_interfaces = EM_MAX_INTERFACES;
+
+    if (subdoc == NULL || key == NULL) {
+        printf("%s:%d: invalid null argument\n", __func__, __LINE__);
+        return -1;
+    }
 
 	get_interfaces_list(m_interfaces, &num_interfaces);
 	m_num_interfaces = num_interfaces;
@@ -897,6 +926,11 @@ int dm_easy_mesh_t::decode_config_set_radio(em_subdoc_info_t *subdoc, const char
     unsigned int num_devices = 0, i;
     char *dev_mac_str, *net_id;
     em_long_string_t parent;
+
+    if (subdoc == NULL || num == NULL) {
+        printf("%s:%d: invalid null argument\n", __func__, __LINE__);
+        return EM_PARSE_ERR_GEN;
+    }
 
     parent_obj = cJSON_Parse(subdoc->buff);
     if (parent_obj == NULL) {
@@ -998,6 +1032,11 @@ int dm_easy_mesh_t::decode_config_set_policy(em_subdoc_info_t *subdoc, const cha
 	char *dev_mac_str, *net_id;
 	em_long_string_t parent;
     cJSON *alarm_obj, *client_obj;
+
+    if (subdoc == NULL || num == NULL) {
+        em_printfout("invalid null argument");
+        return EM_PARSE_ERR_GEN;
+    }
 
     parent_obj = cJSON_Parse(subdoc->buff);
     if (parent_obj == NULL) {
@@ -1263,6 +1302,11 @@ int dm_easy_mesh_t::decode_config_set_channel(em_subdoc_info_t *subdoc, const ch
         return EM_PARSE_ERR_GEN;
     }
 
+    if (subdoc == NULL || num == NULL) {
+        em_printfout("invalid null argument");
+        return EM_PARSE_ERR_GEN;
+    }
+
     parent_obj = cJSON_Parse(subdoc->buff);
     if (parent_obj == NULL) {
         em_printfout("Failed to parse: %s", subdoc->buff);
@@ -1451,6 +1495,11 @@ int dm_easy_mesh_t::decode_config_set_ssid(em_subdoc_info_t *subdoc, const char 
 	int ret = 0;
 	int haul_bit_mask = 0;
 
+    if (subdoc == NULL) {
+        printf("%s:%d: invalid null argument\n", __func__, __LINE__);
+        return EM_PARSE_ERR_GEN;
+    }
+
     parent_obj = cJSON_Parse(subdoc->buff);
     if (parent_obj == NULL) {
         printf("%s:%d: Failed to parse: %s\n", __func__, __LINE__, subdoc->buff);
@@ -1524,6 +1573,11 @@ int dm_easy_mesh_t::decode_config_op_class_array(cJSON *arr_obj, em_op_class_typ
 	mac_addr_str_t	mac_str;
 	em_long_string_t key;
 
+	if (arr_obj == NULL || mac == NULL) {
+		printf("%s:%d: Error - null argument\n", __func__, __LINE__);
+		return -1;
+	}
+
 	num_objs = cJSON_GetArraySize(arr_obj);
 	//printf("%s:%d: Operating Classes for type: %d are: %d\n", __func__, __LINE__, type, num_objs);
 
@@ -1575,6 +1629,11 @@ int dm_easy_mesh_t::decode_config_test(em_subdoc_info_t *subdoc, const char *key
     int size;
 	mac_addr_str_t mac_str;
 	em_2xlong_string_t parent_key;
+
+    if (subdoc == NULL) {
+        printf("%s:%d: invalid null argument\n", __func__, __LINE__);
+        return -1;
+    }
 
     if ((parent_obj = cJSON_Parse(subdoc->buff)) == NULL) {
         printf("%s:%d: Failed to initialize device data model\n", __func__, __LINE__);
@@ -1853,6 +1912,16 @@ char *dm_easy_mesh_t::hex(unsigned int in_len, unsigned char *in, unsigned int o
     unsigned int i;
     unsigned char tmp;
 
+    if (in == NULL) {
+        printf("%s:%d: Error - in is NULL\n", __func__, __LINE__);
+        return NULL;
+    }
+
+    if (out == NULL) {
+        printf("%s:%d: Error - out is NULL\n", __func__, __LINE__);
+        return NULL;
+    }
+
     if (out_len < 2*in_len + 1) {
         return NULL;
     }
@@ -1882,6 +1951,16 @@ unsigned char *dm_easy_mesh_t::unhex(unsigned int in_len, char *in, unsigned int
 {
     unsigned int i;
     unsigned char tmp1, tmp2;
+
+    if (in == NULL) {
+        printf("%s:%d: Error - in is NULL\n", __func__, __LINE__);
+        return NULL;
+    }
+
+    if (out == NULL) {
+        printf("%s:%d: Error - out is NULL\n", __func__, __LINE__);
+        return NULL;
+    }
 
     if (out_len < in_len/2) {
         return NULL;
@@ -1927,6 +2006,9 @@ char *dm_easy_mesh_t::macbytes_to_string(mac_address_t mac, char* string)
 void dm_easy_mesh_t::string_to_macbytes(char *key, mac_address_t bmac)
 {
     unsigned char mac[6];
+    if (key == NULL || bmac == NULL) {
+        return;
+    }
     if(strlen(key) > MIN_MAC_LEN)
         sscanf(key, "%02hhx:%02hhx:%02hhx:%02hhx:%02hhx:%02hhx",
                 &mac[0], &mac[1], &mac[2], &mac[3], &mac[4], &mac[5]);
@@ -2068,6 +2150,16 @@ int dm_easy_mesh_t::get_interfaces_list(em_interface_t interfaces[], unsigned in
 	unsigned int num = 0;
 	mac_address_t null_mac = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 
+    if (interfaces == NULL) {
+        printf("%s:%d: Error - interfaces is NULL\n", __func__, __LINE__);
+        return -1;
+    }
+
+    if (num_interfaces == NULL) {
+        printf("%s:%d: Error - num_interfaces is NULL\n", __func__, __LINE__);
+        return -1;
+    }
+
     if (getifaddrs(&ifaddr) != 0) {
         printf("%s:%d: Failed to get interfae information\n", __func__, __LINE__);
         return -1;
@@ -2146,6 +2238,16 @@ int dm_easy_mesh_t::name_from_mac_address(const mac_address_t *mac, char *ifname
     struct sockaddr_ll *ll_addr;
     bool found = false;
 
+    if (mac == NULL) {
+        printf("%s:%d: Error - mac is NULL\n", __func__, __LINE__);
+        return -1;
+    }
+
+    if (ifname == NULL) {
+        printf("%s:%d: Error - ifname is NULL\n", __func__, __LINE__);
+        return -1;
+    }
+
     if (getifaddrs(&ifaddr) != 0) {
         printf("%s:%d: Failed to get interfae information\n", __func__, __LINE__);
         return -1;
@@ -2173,6 +2275,11 @@ rdk_wifi_radio_t *dm_easy_mesh_t::get_radio_data(em_interface_t *interface)
 {
 	unsigned int i;
 	rdk_wifi_radio_t *radio;
+
+	if (interface == NULL) {
+		printf("%s:%d: Error - interface is NULL\n", __func__, __LINE__);
+		return nullptr;
+	}
 
 	if ( m_wifi_data == nullptr )
         {
@@ -2242,6 +2349,12 @@ em_radio_cap_info_t *dm_easy_mesh_t::get_radio_cap_info(unsigned int index)
 dm_radio_t *dm_easy_mesh_t::find_matching_radio(dm_radio_t *radio)
 {
     unsigned int i = 0;
+
+    if (radio == NULL) {
+        printf("%s:%d: Error - radio is NULL\n", __func__, __LINE__);
+        return NULL;
+    }
+
     for (i = 0; i < m_num_radios; i++) {
         if (memcmp(m_radio[i].m_radio_info.intf.mac, radio->m_radio_info.intf.mac, sizeof(mac_address_t)) == 0) {
             return &m_radio[i];
@@ -2260,6 +2373,11 @@ dm_op_class_t *dm_easy_mesh_t::get_curr_op_class(unsigned int index)
 
 dm_device_t *dm_easy_mesh_t::find_matching_device(dm_device_t *dev)
 {
+    if (dev == NULL) {
+        printf("%s:%d: Error - dev is NULL\n", __func__, __LINE__);
+        return NULL;
+    }
+
     if (memcmp(m_device.m_device_info.intf.mac, dev->m_device_info.intf.mac, sizeof(mac_address_t)) == 0) {
         return &m_device;
     }
@@ -2389,16 +2507,16 @@ bool dm_easy_mesh_t::operator==(dm_easy_mesh_t const& obj)
     ret += (memcmp(&this->m_network,&obj.m_network,sizeof(dm_network_t)) != 0);
     ret += (memcmp(&this->m_ieee_1905_security,&obj.m_ieee_1905_security,sizeof(dm_ieee_1905_security_t)) != 0);
     for (unsigned int i = 0; i < m_num_radios; i++) {
-        ret += memcmp(&this->m_radio, &obj.m_radio, sizeof(dm_radio_t));
+        ret += (memcmp(&this->m_radio[i], &obj.m_radio[i], sizeof(dm_radio_t)) != 0);
     }
-    ret += this->m_num_radios == obj.m_num_radios;
-    ret += this->m_num_opclass == obj.m_num_opclass;
+    ret += (this->m_num_radios != obj.m_num_radios);
+    ret += (this->m_num_opclass != obj.m_num_opclass);
     for (unsigned int i = 0; i < EM_MAX_BSSS; i++) {
-        ret += memcmp(&this->m_bss[i], &obj.m_bss[i], sizeof(dm_bss_t));
+        ret += (memcmp(&this->m_bss[i], &obj.m_bss[i], sizeof(dm_bss_t)) != 0);
     }
     ret += (memcmp(&this->m_dpp,&obj.m_dpp,sizeof(dm_dpp_t)) != 0);
     for (unsigned int i = 0; i < EM_MAX_OPCLASS; i++) {
-        ret += (memcmp(&this->m_op_class[i], &obj.m_op_class, sizeof(dm_op_class_t)) != 0);
+        ret += (memcmp(&this->m_op_class[i], &obj.m_op_class[i], sizeof(dm_op_class_t)) != 0);
     }
     ret += (memcmp(&this->m_network_ssid,&obj.m_network_ssid,sizeof(dm_network_ssid_t)) != 0);
 
@@ -2619,9 +2737,14 @@ void dm_easy_mesh_t::create_autoconfig_renew_json_cmd(char* src_mac_addr, char* 
     cJSON_AddItemToObject(renew, "DeviceList", device_list);
     cJSON_AddItemToObject(root, "wfa-dataelements:Renew", renew);
     char* tmp = cJSON_Print(root);
+    if (tmp == NULL) {
+        cJSON_Delete(root);
+        throw std::runtime_error("create_autoconfig_renew_json_cmd: failed to print JSON");
+    }
     size_t tmp_length = strlen(tmp) + 1;
     snprintf(autoconfig_renew_json, tmp_length, "%s", tmp);
     cJSON_Delete(root);
+    free(tmp);
 }
 
 void dm_easy_mesh_t::create_ap_cap_query_json_cmd(char* src_mac_addr, char* agent_al_mac, char* ap_query_json, short msg_id)
@@ -2644,14 +2767,22 @@ void dm_easy_mesh_t::create_ap_cap_query_json_cmd(char* src_mac_addr, char* agen
     cJSON_AddItemToObject(query_info, "DeviceList", device_list);
     cJSON_AddItemToObject(root, "wfa-dataelements:Radiocap", query_info);
     char* tmp = cJSON_Print(root);
+    if (tmp == NULL) {
+        cJSON_Delete(root);
+        throw std::runtime_error("create_ap_cap_query_json_cmd: failed to print JSON");
+    }
     size_t tmp_length = strlen(tmp) + 1;
     snprintf(ap_query_json, tmp_length, "%s", tmp);
     cJSON_Delete(root);
+    free(tmp);
+    if (msg_id < 0) {
+        throw std::invalid_argument("create_ap_cap_query_json_cmd: negative msg_id");
+    }
 }
 
 void dm_easy_mesh_t::create_client_cap_query_json_cmd(char* src_mac_addr, char* agent_al_mac, char* ap_query_json, short msg_id, char *mac)
 {
-    if (src_mac_addr == NULL || agent_al_mac == NULL || ap_query_json == NULL || mac == NULL) {
+    if (src_mac_addr == NULL || agent_al_mac == NULL || ap_query_json == NULL) {
         throw std::invalid_argument("create_client_cap_query_json_cmd: null argument");
     }
     cJSON *root, *query_info, *device_list;
@@ -2663,16 +2794,29 @@ void dm_easy_mesh_t::create_client_cap_query_json_cmd(char* src_mac_addr, char* 
     cJSON_AddStringToObject(query_info, "TimeStamp", "2019-02-11T06:23:43.743847-08:00");
     cJSON_AddStringToObject(query_info, "ControllerID", src_mac_addr);
     cJSON_AddNumberToObject(query_info, "MsgID", msg_id);
-    cJSON_AddStringToObject(query_info, "ClientMac", mac);
+    if (mac != NULL) {
+        cJSON_AddStringToObject(query_info, "ClientMac", mac);
+    }
     cJSON *device = cJSON_CreateObject();
     cJSON_AddStringToObject(device, "ID", agent_al_mac);
     cJSON_AddItemToArray(device_list, device);
     cJSON_AddItemToObject(query_info, "DeviceList", device_list);
     cJSON_AddItemToObject(root, "wfa-dataelements:Clientcap", query_info);
     char* tmp = cJSON_Print(root);
+    if (tmp == NULL) {
+        cJSON_Delete(root);
+        throw std::runtime_error("create_client_cap_query_json_cmd: failed to print JSON");
+    }
     size_t tmp_length = strlen(tmp) + 1;
     snprintf(ap_query_json, tmp_length, "%s", tmp);
     cJSON_Delete(root);
+    free(tmp);
+    if (mac == NULL) {
+        throw std::invalid_argument("create_client_cap_query_json_cmd: mac is NULL");
+    }
+    if (msg_id < 0) {
+        throw std::invalid_argument("create_client_cap_query_json_cmd: negative msg_id");
+    }
 }
 
 bool dm_easy_mesh_t::is_ssid_match(const ssid_t &ssid)
@@ -2984,6 +3128,10 @@ void dm_easy_mesh_t::put_sta_info(em_sta_info_t *sta_info, em_target_sta_map_t t
     mac_addr_str_t radio_str, bss_str, sta_str;
     em_2xlong_string_t key;
 
+    if (sta_info == NULL) {
+        throw std::invalid_argument("sta_info is NULL");
+    }
+
     if (target == em_target_sta_map_assoc) {
         map = m_sta_assoc_map;
         map_str = "Assoc Map";
@@ -3014,6 +3162,11 @@ int dm_easy_mesh_t::get_num_bss_for_associated_sta(mac_address_t sta_mac)
 {
     dm_sta_t *sta;
     int num_bssids = 0;
+
+    if (sta_mac == NULL) {
+        printf("%s:%d: Error - sta_mac is NULL\n", __func__, __LINE__);
+        return 0;
+    }
 
     sta = static_cast<dm_sta_t *> (hash_map_get_first(m_sta_map));
     while (sta != NULL) {
@@ -3073,6 +3226,9 @@ void dm_easy_mesh_t::deinit()
     mac_addr_str_t dev_mac_str, radio_mac_str, bss_mac_str, sta_mac_str, scanner_mac_str;
 
     //destroy elements of m_scan_result_map
+    if (m_scan_result_map == NULL) {
+        printf("%s:%d: Warning - m_scan_result_map is NULL\n", __func__, __LINE__);
+    } else {
 	res = static_cast<dm_scan_result_t *> (hash_map_get_first(m_scan_result_map));
 	while (res != NULL) {
 		tmp_res = res;
@@ -3086,9 +3242,13 @@ void dm_easy_mesh_t::deinit()
 		hash_map_remove(m_scan_result_map, key);
 	}
 
-	hash_map_destroy(m_scan_result_map);	
+	hash_map_destroy(m_scan_result_map);
+    }
 
     //destroy elements of m_sta_map
+    if (m_sta_map == NULL) {
+        printf("%s:%d: Warning - m_sta_map is NULL\n", __func__, __LINE__);
+    } else {
     sta = static_cast<dm_sta_t *> (hash_map_get_first(m_sta_map));
     while (sta != NULL) {
         tmp_sta = sta;
@@ -3102,8 +3262,12 @@ void dm_easy_mesh_t::deinit()
         hash_map_remove(m_sta_map, key);
     }
     hash_map_destroy(m_sta_map);
+    }
     sta = NULL;
 
+    if (m_sta_assoc_map == NULL) {
+        printf("%s:%d: Warning - m_sta_assoc_map is NULL\n", __func__, __LINE__);
+    } else {
     sta = static_cast<dm_sta_t *> (hash_map_get_first(m_sta_assoc_map));
     while (sta != NULL)
     {
@@ -3117,8 +3281,12 @@ void dm_easy_mesh_t::deinit()
         hash_map_remove(m_sta_assoc_map, key);
     }
 	hash_map_destroy(m_sta_assoc_map);
+    }
     sta = NULL;
 
+    if (m_sta_dassoc_map == NULL) {
+        printf("%s:%d: Warning - m_sta_dassoc_map is NULL\n", __func__, __LINE__);
+    } else {
     sta = static_cast<dm_sta_t *> (hash_map_get_first(m_sta_dassoc_map));
     while (sta != NULL)
     {
@@ -3133,6 +3301,7 @@ void dm_easy_mesh_t::deinit()
         hash_map_remove(m_sta_dassoc_map, key);
     }
 	hash_map_destroy(m_sta_dassoc_map);
+    }
 	if (m_wifi_data != nullptr) {
         free(m_wifi_data);
         m_wifi_data = nullptr;
@@ -3258,6 +3427,11 @@ dm_bss_t *dm_easy_mesh_t::find_matching_bss(em_bss_id_t *id)
 	unsigned int i;
 	dm_bss_t *bss;
 
+	if (id == NULL) {
+		printf("%s:%d: Error - id is NULL\n", __func__, __LINE__);
+		return NULL;
+	}
+
 	for (i = 0; i < m_num_bss; i++) {
 		bss = &m_bss[i];
 
@@ -3319,6 +3493,11 @@ dm_scan_result_t *dm_easy_mesh_t::find_matching_scan_result(em_scan_result_id_t 
 {
     dm_scan_result_t *res;
 
+    if (id == NULL) {
+        printf("%s:%d: Error - id is NULL\n", __func__, __LINE__);
+        return NULL;
+    }
+
 	res = static_cast<dm_scan_result_t *> (hash_map_get_first(m_scan_result_map));
 	while (res != NULL) {
         if ((strncmp(res->m_scan_result.id.net_id, id->net_id, strlen(id->net_id)) == 0) &&
@@ -3339,6 +3518,10 @@ dm_scan_result_t *dm_easy_mesh_t::find_matching_scan_result(em_scan_result_id_t 
 void dm_easy_mesh_t::update_scan_results(em_scan_result_t *scan_result)
 {
     const char *netid = "OneWifiMesh";
+
+    if (scan_result == NULL) {
+        throw std::invalid_argument("update_scan_results: scan_result is NULL");
+    }
 
     em_scan_result_id_t *id = &scan_result->id;
 
@@ -3361,6 +3544,11 @@ em_ap_mld_info_t *dm_easy_mesh_t::get_ap_mld_frm_bssid(mac_address_t bss_id)
 {
     unsigned int i, j;
     em_ap_mld_info_t *ap_mld_info = NULL;
+
+    if (bss_id == NULL) {
+        printf("%s:%d: Error - bss_id is NULL\n", __func__, __LINE__);
+        return NULL;
+    }
 
     for (i = 0; i < m_num_ap_mld; i++) {
         ap_mld_info = &m_ap_mld[i].m_ap_mld_info;
@@ -3431,6 +3619,10 @@ void dm_easy_mesh_t::update_ap_mld_info(em_ap_mld_info_t *ap_mld_info)
 {
 
     em_ap_mld_info_t *target_mld = NULL;
+
+    if (ap_mld_info == NULL) {
+        throw std::invalid_argument("update_ap_mld_info: ap_mld_info is NULL");
+    }
 
     // Find existing MLD by MAC
     em_printfout("m_num_ap_mld %d", m_num_ap_mld);
@@ -3610,6 +3802,11 @@ void dm_easy_mesh_t::reset_db_cfg_type(db_cfg_type_t type)
     unsigned int num = type;
     unsigned int index = 0;
 
+    if (num == 0) {
+        printf("%s:%d: Error - db_cfg_type_none is not a valid type\n", __func__, __LINE__);
+        return;
+    }
+
     while (num % 2 == 0) {
         num /= 2;
         index++;
@@ -3626,6 +3823,15 @@ void dm_easy_mesh_t::set_db_cfg_param(db_cfg_type_t cfg_type, const char *criter
 {
 	unsigned int num = cfg_type;
 	unsigned int index = 0;
+
+	if (num == 0) {
+		printf("%s:%d: Error - db_cfg_type_none is not a valid type\n", __func__, __LINE__);
+		return;
+	}
+
+	if (criteria == NULL) {
+		throw std::invalid_argument("criteria is NULL");
+	}
 
 	while (num % 2 == 0) {
 		num /= 2;
@@ -3645,9 +3851,17 @@ char *dm_easy_mesh_t::db_cfg_type_get_criteria(db_cfg_type_t cfg_type)
 	unsigned int num = 0;
 	unsigned int type = static_cast<unsigned int> (cfg_type);
 
-	while (type != 1) {
+	if (type == 0) {
+		return NULL;
+	}
+
+	while (type % 2 == 0) {
 		type = type >> 1;
 		num++;
+	}
+
+	if (type != 1 || num >= EM_MAX_DB_CFG_CRITERIA) {
+		return NULL;
 	}
 
 	return m_db_cfg_param.db_cfg_criteria[num];
@@ -3707,6 +3921,11 @@ void dm_easy_mesh_t::reset()
 dm_easy_mesh_t::dm_easy_mesh_t(const dm_network_t& net)
     : m_wifi_data(nullptr)
 {
+    const dm_network_t* net_ptr = &net;
+    if (net_ptr == nullptr) {
+        throw std::invalid_argument("dm_easy_mesh_t: net reference is null");
+    }
+
     memcpy(&m_device.m_device_info.id, &net.m_net_info.ctrl_id, sizeof(em_interface_t));
     memcpy(&m_device.m_device_info.backhaul_alid, &net.m_net_info.ctrl_id, sizeof(em_interface_t));
     memcpy(&m_device.m_device_info.backhaul_mac, &net.m_net_info.ctrl_id, sizeof(em_interface_t));

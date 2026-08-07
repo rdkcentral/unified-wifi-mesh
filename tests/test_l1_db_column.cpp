@@ -85,7 +85,7 @@ TEST(db_column_tTest, AssignEmptyNameDbColumn) {
     db_column_t col1("", db_data_type_varchar, 255);
     db_column_t col2;
     col2 = col1;
-    EXPECT_STRNE(col2.m_name, "");
+    EXPECT_STREQ(col2.m_name, "");
     EXPECT_EQ(col2.m_type, db_data_type_varchar);
     EXPECT_EQ(col2.m_type_args, 255);
     std::cout << "Exiting AssignEmptyNameDbColumn" << std::endl;
@@ -118,7 +118,7 @@ TEST(db_column_tTest, AssignMaxLengthNameDbColumn) {
     db_column_t col1("a_very_long_column_name_exceeding_normal_length", db_data_type_text, 0);
     db_column_t col2;
     col2 = col1;
-    EXPECT_STRNE(col2.m_name, "a_very_long_column_name_exceeding_normal_length");
+    EXPECT_STREQ(col2.m_name, "a_very_long_column_name_exceeding_normal_length");
     EXPECT_EQ(col2.m_type, db_data_type_text);
     EXPECT_EQ(col2.m_type_args, 0);
     std::cout << "Exiting AssignMaxLengthNameDbColumn" << std::endl;
@@ -251,7 +251,7 @@ TEST(db_column_tTest, AssignSpecialCharsNameDbColumn) {
     db_column_t col1("col@mn#7$", db_data_type_timestamp, 0);
     db_column_t col2;
     col2 = col1;
-    EXPECT_STRNE(col2.m_name, "col@mn#7$");
+    EXPECT_STREQ(col2.m_name, "col@mn#7$");
     EXPECT_EQ(col2.m_type, db_data_type_timestamp);
     EXPECT_EQ(col2.m_type_args, 0);
     std::cout << "Exiting AssignSpecialCharsNameDbColumn" << std::endl;
@@ -385,7 +385,7 @@ TEST(db_column_tTest, EmptyNameValidTypeValidArgs) {
     db_data_type_t type = db_data_type_text;
     db_data_type_args_t args = 5;
     db_column_t column(name, type, args);
-    EXPECT_STRNE(column.m_name, name);
+    EXPECT_STREQ(column.m_name, name);
     EXPECT_EQ(column.m_type, type);
     EXPECT_EQ(column.m_type_args, args);
     std::cout << "Exiting EmptyNameValidTypeValidArgs test" << std::endl;

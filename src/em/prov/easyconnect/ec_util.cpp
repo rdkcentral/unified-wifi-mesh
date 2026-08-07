@@ -208,12 +208,26 @@ std::pair<uint8_t *, uint16_t> ec_util::unwrap_wrapped_attrib(const ec_attribute
 
 std::pair<uint8_t*, uint16_t> ec_util::unwrap_wrapped_attrib(const ec_attribute_t& wrapped_attrib, ec_frame_t *frame, bool uses_aad, uint8_t* key)
 {
+    if (frame == NULL) {
+        em_printfout("Error - frame is NULL");
+        return {nullptr, 0};
+    }
     return unwrap_wrapped_attrib(wrapped_attrib, reinterpret_cast<uint8_t*>(frame), sizeof(ec_frame_t), frame->attributes, uses_aad, key);
 }
 
 std::pair<uint8_t*, uint16_t> ec_util::unwrap_wrapped_attrib(const ec_attribute_t& wrapped_attrib, uint8_t *frame, size_t frame_len, uint8_t *frame_attribs, bool uses_aad, uint8_t *key)
 {
     siv_ctx ctx;
+
+    if (key == NULL) {
+        em_printfout("Error - key is NULL");
+        return {nullptr, 0};
+    }
+
+    if (frame_attribs == NULL) {
+        em_printfout("Error - frame_attribs is NULL");
+        return {nullptr, 0};
+    }
 
     // NOTE: HARDCODING AS SIV_256 FOR NOW
     //  The spec technically only specifies P-256 so technically this is all that's allowed but for future proofing it's better to add more 

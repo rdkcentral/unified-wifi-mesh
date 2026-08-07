@@ -416,7 +416,8 @@ TEST(dm_network_t_Test, NullNetworkInformation) {
     std::cout << "Entering NullNetworkInformation test";
     em_network_info_t *null_net_info = NULL;
     dm_network_t *network = new dm_network_t(null_net_info);
-    EXPECT_EQ(network, nullptr);
+    EXPECT_NE(network, nullptr);
+    delete network;
     std::cout << "Exiting NullNetworkInformation test";
 }
 

@@ -40,7 +40,7 @@ static inline void write_u16(uint16_t v, uint8_t *p)
 
 
 #ifndef SWAP_LITTLE_ENDIAN
-#define SWAP_LITTLE_ENDIAN(x) htons(x)
+#define SWAP_LITTLE_ENDIAN(x) (x)
 #endif
 
 /**

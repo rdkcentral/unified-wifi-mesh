@@ -38,6 +38,7 @@
 #include <time.h>
 #include <unistd.h>
 #include <pthread.h>
+#include <stdexcept>
 #include <cjson/cJSON.h>
 #include "em.h"
 #include "em_msg.h"
@@ -116,6 +117,10 @@ static em_cmd_out_status_t status_for_noncmd(int num)
 
 void em_ctrl_t::handle_client_steer(em_bus_event_t *evt)
 {
+    if (evt == NULL) {
+        throw std::invalid_argument("handle_client_steer: evt is NULL");
+    }
+
     em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
     int num;
 
@@ -132,6 +137,10 @@ void em_ctrl_t::handle_client_steer(em_bus_event_t *evt)
 
 void em_ctrl_t::handle_client_disassoc(em_bus_event_t *evt)
 {
+    if (evt == NULL) {
+        throw std::invalid_argument("handle_client_disassoc: evt is NULL");
+    }
+
     em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
     int num;
 
@@ -148,6 +157,10 @@ void em_ctrl_t::handle_client_disassoc(em_bus_event_t *evt)
 
 void em_ctrl_t::handle_client_btm(em_bus_event_t *evt)
 {
+    if (evt == NULL) {
+        throw std::invalid_argument("handle_client_btm: evt is NULL");
+    }
+
     em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
     int num;
 
@@ -164,6 +177,10 @@ void em_ctrl_t::handle_client_btm(em_bus_event_t *evt)
 
 void em_ctrl_t::handle_start_dpp(em_bus_event_t *evt)
 {
+    if (evt == NULL) {
+        throw std::invalid_argument("handle_start_dpp: evt is NULL");
+    }
+
     em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
     int num;
 
@@ -197,6 +214,10 @@ void em_ctrl_t::handle_channel_select(em_bus_event_t *evt)
 
 void em_ctrl_t::handle_set_channel_list(em_bus_event_t *evt)
 {
+    if (evt == NULL) {
+        throw std::invalid_argument("handle_set_channel_list: evt is NULL");
+    }
+
     em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
     int num;
 
@@ -214,6 +235,10 @@ void em_ctrl_t::handle_set_channel_list(em_bus_event_t *evt)
 
 void em_ctrl_t::handle_scan_channel_list(em_bus_event_t *evt)
 {
+    if (evt == NULL) {
+        throw std::invalid_argument("handle_scan_channel_list: evt is NULL");
+    }
+
     em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
     int num;
 
@@ -231,6 +256,10 @@ void em_ctrl_t::handle_scan_channel_list(em_bus_event_t *evt)
 
 void em_ctrl_t::handle_set_policy(em_bus_event_t *evt)
 {
+    if (evt == NULL) {
+        throw std::invalid_argument("handle_set_policy: evt is NULL");
+    }
+
     em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
     int num;
 
@@ -247,6 +276,10 @@ void em_ctrl_t::handle_set_policy(em_bus_event_t *evt)
 
 void em_ctrl_t::handle_config_renew(em_bus_event_t *evt)
 {
+    if (evt == NULL) {
+        throw std::invalid_argument("handle_config_renew: evt is NULL");
+    }
+
     em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
     int num;
     
@@ -257,6 +290,10 @@ void em_ctrl_t::handle_config_renew(em_bus_event_t *evt)
 
 void em_ctrl_t::handle_m2_tx(em_bus_event_t *evt)
 {
+    if (evt == NULL) {
+        throw std::invalid_argument("handle_m2_tx: evt is NULL");
+    }
+
     em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
     int num;
     
@@ -270,6 +307,10 @@ void em_ctrl_t::handle_sta_assoc_event(em_bus_event_t *evt)
     em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
     int num;
     
+    if (evt == NULL) {
+        throw std::invalid_argument("handle_sta_assoc_event: evt is NULL");
+    }
+
     if ((num = m_data_model.analyze_sta_assoc_event(evt, pcmd)) > 0) {
         m_orch->submit_commands(pcmd, static_cast<unsigned int> (num));
     }
@@ -277,6 +318,10 @@ void em_ctrl_t::handle_sta_assoc_event(em_bus_event_t *evt)
 
 void em_ctrl_t::handle_set_radio(em_bus_event_t *evt)
 {
+    if (evt == NULL) {
+        throw std::invalid_argument("handle_set_radio: evt is NULL");
+    }
+
     em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
     int num;
 
@@ -293,6 +338,10 @@ void em_ctrl_t::handle_set_radio(em_bus_event_t *evt)
 
 void em_ctrl_t::handle_set_ssid_list(em_bus_event_t *evt)
 {
+    if (evt == NULL) {
+        throw std::invalid_argument("handle_set_ssid_list: evt is NULL");
+    }
+
     em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
     int num, ret;
 
@@ -314,6 +363,10 @@ void em_ctrl_t::handle_set_ssid_list(em_bus_event_t *evt)
 
 void em_ctrl_t::handle_remove_device(em_bus_event_t *evt)
 {
+    if (evt == NULL) {
+        throw std::invalid_argument("handle_remove_device: evt is NULL");
+    }
+
     em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
     int num;
 
@@ -331,6 +384,10 @@ void em_ctrl_t::handle_remove_device(em_bus_event_t *evt)
 
 void em_ctrl_t::handle_get_dev_test(em_bus_event_t *evt)
 {
+    if (evt == NULL) {
+        throw std::invalid_argument("handle_get_dev_test: evt is NULL");
+    }
+
     em_cmd_params_t params = evt->params;
     char *temp = NULL;
     bool teststatus = false;
@@ -357,6 +414,9 @@ void em_ctrl_t::handle_get_dev_test(em_bus_event_t *evt)
 
 void em_ctrl_t::handle_set_dev_test(em_bus_event_t *evt)
 {
+    if (evt == NULL) {
+        throw std::invalid_argument("handle_set_dev_test: evt is NULL");
+    }
 
     if (m_orch->is_cmd_type_in_progress(evt) == true) {
         m_ctrl_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
@@ -369,6 +429,10 @@ void em_ctrl_t::handle_set_dev_test(em_bus_event_t *evt)
 
 void em_ctrl_t::handle_get_dm_data(em_bus_event_t *evt)
 {           
+    if (evt == NULL) {
+        throw std::invalid_argument("handle_get_dm_data: evt is NULL");
+    }
+
     em_cmd_params_t params = evt->params;
         
     //em_cmd_t::dump_bus_event(evt);
@@ -385,6 +449,10 @@ void em_ctrl_t::handle_get_dm_data(em_bus_event_t *evt)
 
 void em_ctrl_t::handle_reset(em_bus_event_t *evt)
 {
+    if (evt == NULL) {
+        throw std::invalid_argument("handle_reset: evt is NULL");
+    }
+
     em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
     int num = 0;
 	
@@ -402,6 +470,10 @@ void em_ctrl_t::handle_reset(em_bus_event_t *evt)
 
 void em_ctrl_t::handle_mld_reconfig(em_bus_event_t *evt)
 {
+    if (evt == NULL) {
+        throw std::invalid_argument("handle_mld_reconfig: evt is NULL");
+    }
+
     em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
     int num;
 
@@ -454,6 +526,10 @@ void em_ctrl_t::handle_client_metrics_req()
 
 void em_ctrl_t::handle_bsta_cap_req(em_bus_event_t *evt)
 {
+    if (evt == NULL) {
+        throw std::invalid_argument("handle_bsta_cap_req: evt is NULL");
+    }
+
     em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
     int num;
 
@@ -666,6 +742,11 @@ void em_ctrl_t::input_listener()
 
 void em_ctrl_t::handle_nb_event(em_nb_event_t *evt)
 {
+    if (evt == NULL) {
+        printf("%s:%d: Error - evt is NULL\n", __func__, __LINE__);
+        return;
+    }
+
     bus_resp_get_t *resp = static_cast<bus_resp_get_t *> (calloc(1, sizeof(*resp)));
     assert(resp != NULL);
     resp->id = evt->id;
@@ -699,6 +780,11 @@ void em_ctrl_t::handle_nb_event(em_nb_event_t *evt)
 
 void em_ctrl_t::handle_bus_event(em_bus_event_t *evt)
 {
+    if (evt == NULL) {
+        printf("%s:%d: Error - evt is NULL\n", __func__, __LINE__);
+        return;
+    }
+
     switch (evt->type) {
         case em_bus_event_type_reset:
             handle_reset(evt);
@@ -809,6 +895,10 @@ void em_ctrl_t::handle_bus_event(em_bus_event_t *evt)
 
 void em_ctrl_t::handle_event(em_event_t *evt)
 {
+    if (evt == NULL) {
+        throw std::invalid_argument("handle_event: evt is NULL");
+    }
+
     switch(evt->type) {
         case em_event_type_bus:
             handle_bus_event(&evt->u.bevt);
@@ -917,6 +1007,11 @@ int em_ctrl_t::data_model_init(const char *data_model_path)
     em_interface_t *intf;
     dm_easy_mesh_t *dm;
     mac_addr_str_t  mac_str;
+
+    if (data_model_path == NULL) {
+        printf("%s:%d: Error - data_model_path is NULL\n", __func__, __LINE__);
+        return -1;
+    }
 
     m_ctrl_cmd = new em_cmd_ctrl_t();
     if (m_ctrl_cmd->init() != 0) {
@@ -1441,22 +1536,32 @@ em_ctrl_t::~em_ctrl_t()
 #ifdef AL_SAP
 AlServiceAccessPoint* em_ctrl_t::al_sap_register(const std::string& data_socket_path, const std::string& control_socket_path)
 {
-    AlServiceAccessPoint* sap = new AlServiceAccessPoint(data_socket_path.c_str(), control_socket_path.c_str());
+    AlServiceAccessPoint* sap = NULL;
 
-    AlServiceRegistrationRequest registrationRequest(SAPActivation::SAP_ENABLE, ServiceType::EmController);
-    sap->serviceAccessPointRegistrationRequest(registrationRequest);
+    try {
+        sap = new AlServiceAccessPoint(data_socket_path.c_str(), control_socket_path.c_str());
 
-    AlServiceRegistrationResponse registrationResponse = sap->serviceAccessPointRegistrationResponse();
+        AlServiceRegistrationRequest registrationRequest(SAPActivation::SAP_ENABLE, ServiceType::EmController);
+        sap->serviceAccessPointRegistrationRequest(registrationRequest);
 
-    RegistrationResult result = registrationResponse.getResult();
-    if (result == RegistrationResult::SUCCESS) {
-        g_al_mac_sap = registrationResponse.getAlMacAddressLocal();
-        uint8_t* al_mac_bytes = g_al_mac_sap.data();
-        em_printfout("AL SAP registration successful, AL MAC: %s", util::mac_to_string(al_mac_bytes).c_str());
+        AlServiceRegistrationResponse registrationResponse = sap->serviceAccessPointRegistrationResponse();
 
-        m_data_model.set_dev_interface_mac(al_mac_bytes);
-    } else {
-        std::cout << "Registration failed with error: " << static_cast<int>(result) << std::endl;
+        RegistrationResult result = registrationResponse.getResult();
+        if (result == RegistrationResult::SUCCESS) {
+            g_al_mac_sap = registrationResponse.getAlMacAddressLocal();
+            uint8_t* al_mac_bytes = g_al_mac_sap.data();
+            em_printfout("AL SAP registration successful, AL MAC: %s", util::mac_to_string(al_mac_bytes).c_str());
+
+            m_data_model.set_dev_interface_mac(al_mac_bytes);
+        } else {
+            std::cout << "Registration failed with error: " << static_cast<int>(result) << std::endl;
+        }
+    } catch (const std::exception& e) {
+        em_printfout("AL SAP registration failed: %s", e.what());
+        if (sap != NULL) {
+            delete sap;
+            sap = NULL;
+        }
     }
 
     return sap;

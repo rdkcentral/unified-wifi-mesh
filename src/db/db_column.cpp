@@ -34,14 +34,21 @@ void db_column_t::operator = (const db_column_t& col)
 
 db_column_t::db_column_t(const db_column_name_t name, const db_data_type_t type, const db_data_type_args_t args)
 {
-    snprintf(m_name, sizeof(m_name), "%s", name);
+    if (name == NULL) {
+        printf("%s:%d: Error - name is NULL\n", __func__, __LINE__);
+        m_name[0] = '\0';
+    } else {
+        snprintf(m_name, sizeof(m_name), "%s", name);
+    }
     m_type = type;
     m_type_args = args;
 }
 
 db_column_t::db_column_t()
 {
-
+    m_name[0] = '\0';
+    m_type = db_data_type_char;
+    m_type_args = 0;
 }
 
 db_column_t::~db_column_t()

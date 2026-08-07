@@ -211,7 +211,7 @@ public:
 	 * @note Ensure that the orchestration operation index is valid
 	 * before calling this function.
 	 */
-	em_orch_desc_t *get_orch_desc() { return &m_orch_desc[m_orch_op_idx]; }
+	em_orch_desc_t *get_orch_desc() { if (m_orch_op_idx >= EM_MAX_CMD) { return nullptr; } return &m_orch_desc[m_orch_op_idx]; }
     
 	/**!
 	 * @brief Retrieves the current orchestration operation type.

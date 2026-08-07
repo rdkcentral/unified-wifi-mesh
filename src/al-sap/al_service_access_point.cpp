@@ -5,6 +5,10 @@
 AlServiceAccessPoint::AlServiceAccessPoint(const std::string &dataSocketPath, const std::string &controlSocketPath) : alDataSocketpath(dataSocketPath),
                                                                                                                       alControlSocketpath(controlSocketPath)
 {
+    if (dataSocketPath.empty() || controlSocketPath.empty())
+    {
+        throw AlServiceException("Invalid socket path: path must not be empty", PrimitiveError::ConnectionFailed);
+    }
     alControlSocketDescriptor = socket(AF_UNIX, SOCK_STREAM, 0);
     if (alControlSocketDescriptor == -1)
     {

@@ -19,6 +19,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <stdexcept>
 #include <errno.h>
 #include <assert.h>
 #include <signal.h>
@@ -37,14 +38,27 @@
 
 int dm_assoc_sta_mld_t::decode(const cJSON *obj, void *parent_id)
 {
-    //TODO: needs to be implemnented
+    if (obj == NULL) {
+        printf("%s:%d: Error - obj is NULL\n", __func__, __LINE__);
+        return -1;
+    }
+    if (parent_id == NULL) {
+        printf("%s:%d: Error - parent_id is NULL\n", __func__, __LINE__);
+        return -1;
+    }
+    if (!cJSON_IsObject(obj) || (cJSON_GetObjectItem(obj, "MACAddress") == NULL)) {
+        printf("%s:%d: Error - obj is not a valid assoc sta mld JSON object\n", __func__, __LINE__);
+        return -1;
+    }
 
     return 0;
 }
 
 void dm_assoc_sta_mld_t::encode(cJSON *obj)
 {
-    //TODO: needs to be implemnented
+    if (obj == NULL || !cJSON_IsObject(obj) || (cJSON_GetArraySize(obj) == 0)) {
+        throw std::invalid_argument("dm_assoc_sta_mld_t::encode: obj is NULL or empty/invalid JSON object");
+    }
 }
 
 void dm_assoc_sta_mld_t::operator = (const dm_assoc_sta_mld_t& obj)
@@ -96,10 +110,13 @@ dm_assoc_sta_mld_t::dm_assoc_sta_mld_t(em_assoc_sta_mld_info_t *assoc_sta_mld_in
 {
     memset(&m_assoc_sta_mld_info, 0, sizeof(em_assoc_sta_mld_info_t));
     if (assoc_sta_mld_info == nullptr) {
-        em_printfout("Error: assoc_sta_mld_info is null");
-        return;
+        throw std::invalid_argument("dm_assoc_sta_mld_t: assoc_sta_mld_info is null");
     }
     memcpy(&m_assoc_sta_mld_info, assoc_sta_mld_info, sizeof(em_assoc_sta_mld_info_t));
+    if (m_assoc_sta_mld_info.num_affiliated_sta > EM_MAX_AP_MLD) {
+        printf("%s:%d: Error - num_affiliated_sta %u exceeds max %d, resetting\n", __func__, __LINE__, m_assoc_sta_mld_info.num_affiliated_sta, EM_MAX_AP_MLD);
+        m_assoc_sta_mld_info.num_affiliated_sta = 0;
+    }
 }
 
 dm_assoc_sta_mld_t::dm_assoc_sta_mld_t(const dm_assoc_sta_mld_t& assoc_sta_mld)

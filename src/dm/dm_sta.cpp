@@ -30,6 +30,7 @@
 #include <sys/uio.h>
 #include <sys/time.h>
 #include <unistd.h>
+#include <stdexcept>
 #include "dm_sta.h"
 #include "dm_easy_mesh.h"
 #include "dm_easy_mesh_ctrl.h"
@@ -39,6 +40,21 @@ int dm_sta_t::decode(const cJSON *obj, void *parent_id)
 {
     cJSON *tmp;
     mac_addr_str_t  mac_str;
+
+    if (obj == NULL) {
+        printf("%s:%d: Error - obj is NULL\n", __func__, __LINE__);
+        return -1;
+    }
+
+    if (parent_id == NULL) {
+        printf("%s:%d: Error - parent_id is NULL\n", __func__, __LINE__);
+        return -1;
+    }
+
+    if (!cJSON_IsObject(obj)) {
+        printf("%s:%d: Error - obj is not a JSON object\n", __func__, __LINE__);
+        return -1;
+    }
 
     mac_address_t *bssid = static_cast<mac_address_t *>(parent_id);
 
@@ -150,6 +166,10 @@ void dm_sta_t::encode(cJSON *obj, em_get_sta_list_reason_t reason)
 {
     mac_addr_str_t  mac_str;
     cJSON *reason_obj, *request_obj;
+
+    if (obj == NULL || !cJSON_IsObject(obj)) {
+        throw std::invalid_argument("encode: obj is NULL or not a JSON object");
+    }
 
     if (reason == em_get_sta_list_reason_alarm_report) {
         dm_easy_mesh_t::macbytes_to_string(m_sta_info.id, mac_str);
@@ -276,6 +296,10 @@ void dm_sta_t::encode_beacon_report(cJSON *obj)
     cJSON *neighbors_arr_obj, *neighbor_obj;
 	unsigned int i;
 
+	if (obj == NULL || !cJSON_IsObject(obj)) {
+		throw std::invalid_argument("encode_beacon_report: obj is NULL or not a JSON object");
+	}
+
 	neighbors_arr_obj = cJSON_AddArrayToObject(obj, "Neighbors");
 	for (i = 0; i < m_sta_info.num_beacon_meas_report; i++) {
 		neighbor_obj = cJSON_CreateObject();
@@ -315,6 +339,9 @@ bool dm_sta_t::operator == (const dm_sta_t& obj)
     ret += !(this->m_sta_info.bytes_rx == obj.m_sta_info.bytes_rx);
     ret += !(this->m_sta_info.errors_tx == obj.m_sta_info.errors_tx);
     ret += !(this->m_sta_info.errors_rx == obj.m_sta_info.errors_rx);
+    ret += !(this->m_sta_info.multi_band_cap == obj.m_sta_info.multi_band_cap);
+    ret += !(this->m_sta_info.num_vendor_infos == obj.m_sta_info.num_vendor_infos);
+    ret += (strncmp(this->m_sta_info.ssid, obj.m_sta_info.ssid, sizeof(em_long_string_t)) != 0);
     //em_util_info_print(EM_MGR, "%s:%d: MUH ret=%d\n", __func__, __LINE__,ret);
 
     if (ret > 0)
@@ -330,6 +357,8 @@ void dm_sta_t::operator = (const dm_sta_t& obj)
     memcpy(&this->m_sta_info.sta_client_type, &obj.m_sta_info.sta_client_type, sizeof(em_string_t));
     memcpy(&this->m_sta_info.bssid, &obj.m_sta_info.bssid, sizeof(mac_address_t));
     memcpy(&this->m_sta_info.radiomac, &obj.m_sta_info.radiomac, sizeof(mac_address_t));
+    this->m_sta_info.associated = obj.m_sta_info.associated;
+    this->m_sta_info.multi_band_cap = obj.m_sta_info.multi_band_cap;
     this->m_sta_info.last_ul_rate = obj.m_sta_info.last_ul_rate;
     this->m_sta_info.last_dl_rate = obj.m_sta_info.last_dl_rate;
     this->m_sta_info.est_ul_rate = obj.m_sta_info.est_ul_rate;
@@ -374,16 +403,31 @@ void dm_sta_t::parse_sta_bss_radio_from_key(const char *key, mac_address_t sta, 
     char *tmp, *remain;
     unsigned int i = 0;
 
+    if (key == NULL) {
+        printf("%s:%d: Error - key is NULL\n", __func__, __LINE__);
+        return;
+    }
+
+    memset(sta, 0, sizeof(mac_address_t));
+    memset(bssid, 0, sizeof(bssid_t));
+    memset(ruid, 0, sizeof(mac_address_t));
+
     strncpy(str, key, strlen(key) + 1);
     remain = str;
     while ((tmp = strchr(remain, '@')) != NULL) {
         *tmp = 0;
         if (i == 0) {
-            dm_easy_mesh_t::string_to_macbytes(remain, sta);
+            if (remain[0] != '\0') {
+                dm_easy_mesh_t::string_to_macbytes(remain, sta);
+            }
         } else if (i == 1) {
-            dm_easy_mesh_t::string_to_macbytes(remain, bssid);
+            if (remain[0] != '\0') {
+                dm_easy_mesh_t::string_to_macbytes(remain, bssid);
+            }
             tmp++;
-            dm_easy_mesh_t::string_to_macbytes(tmp, ruid);
+            if (tmp[0] != '\0') {
+                dm_easy_mesh_t::string_to_macbytes(tmp, ruid);
+            }
         }
         tmp++;
         remain = tmp;
@@ -400,6 +444,15 @@ void dm_sta_t::decode_sta_capability(dm_sta_t *sta)
     unsigned char *ext_ptr;
     int ext_len;
     unsigned char common_info_len;
+
+    if (sta == NULL) {
+        throw std::invalid_argument("decode_sta_capability: sta is NULL");
+    }
+
+    if (((sta->m_sta_info.id[3] == 0) && (sta->m_sta_info.id[4] == 0) && (sta->m_sta_info.id[5] == 0)) &&
+        !((sta->m_sta_info.id[0] == 0) && (sta->m_sta_info.id[1] == 0) && (sta->m_sta_info.id[2] == 0))) {
+        throw std::invalid_argument("decode_sta_capability: invalid STA MAC address");
+    }
 
     sta->m_sta_info.num_vendor_infos = 0;
 
@@ -531,6 +584,14 @@ void dm_sta_t::decode_beacon_report(dm_sta_t *sta)
     unsigned char *ie;
     int current_pkt_len = 0;
 
+    if (sta == NULL) {
+        throw std::invalid_argument("decode_beacon_report: sta is NULL");
+    }
+
+    if (sta->m_sta_info.beacon_report_len > EM_MAX_BEACON_MEASUREMENT_LEN) {
+        throw std::invalid_argument("decode_beacon_report: beacon report length exceeds maximum");
+    }
+
     em_sta_info_t *sta_info = &sta->m_sta_info;
     ie = static_cast<unsigned char *>(sta->m_sta_info.beacon_report_elem);
 
@@ -551,6 +612,15 @@ void dm_sta_t::decode_beacon_report(dm_sta_t *sta)
 
 dm_sta_t::dm_sta_t(em_sta_info_t *sta)
 {
+    if (sta == NULL) {
+        throw std::invalid_argument("dm_sta_t: sta is NULL");
+    }
+
+    if (((sta->id[3] == 0) && (sta->id[4] == 0) && (sta->id[5] == 0)) &&
+        !((sta->id[0] == 0) && (sta->id[1] == 0) && (sta->id[2] == 0))) {
+        throw std::invalid_argument("dm_sta_t: invalid STA MAC address");
+    }
+
     memcpy(&m_sta_info, sta, sizeof(em_sta_info_t));
 }
 

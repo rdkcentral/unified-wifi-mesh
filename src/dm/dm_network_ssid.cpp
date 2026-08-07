@@ -32,6 +32,7 @@
 #include <unistd.h>
 #include "dm_network_ssid.h"
 #include "dm_easy_mesh.h"
+#include <stdexcept>
 
 int dm_network_ssid_t::decode(const cJSON *obj, void *parent_id)
 {
@@ -39,6 +40,26 @@ int dm_network_ssid_t::decode(const cJSON *obj, void *parent_id)
     mac_addr_str_t  mac_str;
     int j;
     em_string_t haul_str;
+
+    if (obj == NULL) {
+        printf("%s:%d: Error - obj is NULL\n", __func__, __LINE__);
+        return -1;
+    }
+
+    if (parent_id == NULL) {
+        printf("%s:%d: Error - parent_id is NULL\n", __func__, __LINE__);
+        return -1;
+    }
+
+    if (!cJSON_IsObject(obj)) {
+        printf("%s:%d: Error - obj is not a valid JSON object\n", __func__, __LINE__);
+        return -1;
+    }
+
+    if (cJSON_GetArraySize(obj) == 0) {
+        printf("%s:%d: Error - obj is an empty JSON object\n", __func__, __LINE__);
+        return -1;
+    }
 
     char *net_id = static_cast<char *> (parent_id);
 
@@ -115,6 +136,10 @@ void dm_network_ssid_t::encode(cJSON *obj)
     unsigned int i;
     mac_addr_str_t  mac_str;
     em_string_t	haul_str;
+
+    if (obj == NULL) {
+        throw std::invalid_argument("obj is NULL");
+    }
 
     cJSON_AddStringToObject(obj, "SSID", m_network_ssid_info.ssid);
     cJSON_AddStringToObject(obj, "PassPhrase", m_network_ssid_info.pass_phrase);
@@ -273,6 +298,10 @@ em_haul_type_t dm_network_ssid_t::haul_type_from_string(em_string_t str)
 
 dm_network_ssid_t::dm_network_ssid_t(em_network_ssid_info_t *net_ssid)
 {
+    if (net_ssid == NULL) {
+        memset(&m_network_ssid_info, 0, sizeof(em_network_ssid_info_t));
+        throw std::invalid_argument("net_ssid is NULL");
+    }
     memcpy(&m_network_ssid_info, net_ssid, sizeof(em_network_ssid_info_t));
 }
 

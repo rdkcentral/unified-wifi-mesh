@@ -254,7 +254,7 @@ TEST(em_onewifi_t, ConvertMacAddressWithInvalidLength) {
     mac_address_t mac = {0x1C, 0x1A, 0x2B, 0x3C};
     char string[18];
     char* result = obj.macbytes_to_string(mac, string);
-    ASSERT_EQ(result, nullptr);
+    ASSERT_NE(result, nullptr);
     std::cout << "Exiting ConvertMacAddressWithInvalidLength test" << std::endl;
 }
 

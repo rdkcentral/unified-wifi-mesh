@@ -18,6 +18,7 @@
 
 #include <math.h>
 #include <assert.h>
+#include <stdexcept>
 #include <arpa/inet.h>
 #include <net/if.h>
 #include <linux/filter.h>
@@ -4078,6 +4079,11 @@ int dm_easy_mesh_ctrl_t::get_wifi_reset_config(cJSON *parent, char *key)
     // Prioritize the interface list depending on platform
     if ((intf = dm.get_prioritized_interface(platform)) == NULL) {
         intf = dm.get_interface_by_index(0);//Todo: check why index 0 as it is taking brlan0
+    }
+
+    if (intf == NULL) {
+        printf("%s:%d: Error - no valid interface found\n", __func__, __LINE__);
+        return -1;
     }
 
     dm.set_ctrl_al_interface_mac(intf->mac);

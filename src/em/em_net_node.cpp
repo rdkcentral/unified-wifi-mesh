@@ -35,14 +35,22 @@
 #include <cjson/cJSON.h>
 #include "em_net_node.h"
 #include "em_cmd_exec.h"
+#include <stdexcept>
 
 em_network_node_data_type_t em_net_node_t::get_node_type(em_network_node_t *node)
 {
+    if (node == NULL) {
+        printf("%s:%d: Error - node is NULL\n", __func__, __LINE__);
+        return em_network_node_data_type_invalid;
+    }
     return node->type;
 }
 
 void em_net_node_t::free_node_value(char *str)
 {
+    if (str == NULL) {
+        throw std::invalid_argument("str is NULL");
+    }
     free(str);
 }
 
@@ -51,6 +59,23 @@ char *em_net_node_t::get_node_array_value(em_network_node_t *node, em_network_no
     char *str;
     em_2xlong_string_t tmp_str;
     unsigned int i;
+
+    if (node == NULL) {
+        printf("%s:%d: Error - node is NULL\n", __func__, __LINE__);
+        return NULL;
+    }
+
+    if (type == NULL) {
+        printf("%s:%d: Error - type is NULL\n", __func__, __LINE__);
+        return NULL;
+    }
+
+    if (node->type != em_network_node_data_type_array_str &&
+        node->type != em_network_node_data_type_array_num &&
+        node->type != em_network_node_data_type_array_obj) {
+        printf("%s:%d: Error - node is not an array node\n", __func__, __LINE__);
+        return NULL;
+    }
 
     str = static_cast<char *> (malloc(sizeof(em_long_string_t)));
     memset(str, 0, sizeof(em_long_string_t));
@@ -84,6 +109,14 @@ void em_net_node_t::set_node_array_value(em_network_node_t *node, char *fmt)
 	em_long_string_t value;
 	char *tmp, *remain;
 	em_network_node_data_type_t arrType = em_network_node_data_type_invalid;
+
+	if (node == NULL) {
+		throw std::invalid_argument("node is NULL");
+	}
+
+	if (fmt == NULL) {
+		throw std::invalid_argument("fmt is NULL");
+	}
 
 	if (node->type == em_network_node_data_type_array_str) {
 		arrType = em_network_node_data_type_string;
@@ -152,6 +185,11 @@ char *em_net_node_t::get_node_scalar_value(em_network_node_t *node)
 {
     char *str;
 
+    if (node == NULL) {
+        printf("%s:%d: Error - node is NULL\n", __func__, __LINE__);
+        return NULL;
+    }
+
     str = static_cast<char *> (malloc(sizeof(em_long_string_t)));
     memset(str, 0, sizeof(em_long_string_t));
 
@@ -199,6 +237,14 @@ char *em_net_node_t::get_node_scalar_value(em_network_node_t *node)
 
 void em_net_node_t::set_node_scalar_value(em_network_node_t *node, char *fmt)
 {
+	if (node == NULL) {
+		throw std::invalid_argument("node is NULL");
+	}
+
+	if (fmt == NULL) {
+		throw std::invalid_argument("fmt is NULL");
+	}
+
 	switch (node->type) {
 		case em_network_node_data_type_false:
 			node->value_int = 0;
@@ -228,6 +274,18 @@ void em_net_node_t::get_network_tree_node_string(char *str, em_network_node_t *n
     em_3xlong_string_t string = {0};
     em_2xlong_string_t value_str = {0};
     em_2xlong_string_t tmp_str;
+
+    if (str == NULL) {
+        throw std::invalid_argument("str is NULL");
+    }
+
+    if (node == NULL) {
+        throw std::invalid_argument("node is NULL");
+    }
+
+    if (pident == NULL) {
+        throw std::invalid_argument("pident is NULL");
+    }
 
     ident = *pident;
     ident++;
@@ -323,7 +381,9 @@ void em_net_node_t::get_network_tree_node_string(char *str, em_network_node_t *n
         }
 
         for (i = 0; i < node->num_children; i++) {
-            get_network_tree_node_string(str, node->child[i], pident);
+            if (node->child[i] != NULL) {
+                get_network_tree_node_string(str, node->child[i], pident);
+            }
         }
         if (node->type == em_network_node_data_type_array_obj) {
             if (node->num_children == 0) {
@@ -354,6 +414,11 @@ char *em_net_node_t::get_network_tree_string(em_network_node_t *node)
     unsigned int size = EM_LONG_IO_BUFF_SZ;
     char *str;
 
+    if (node == NULL) {
+        printf("%s:%d: Error - node is NULL\n", __func__, __LINE__);
+        return NULL;
+    }
+
     str = static_cast<char *> (malloc(size));
     memset(str, 0, size);
 
@@ -366,6 +431,16 @@ cJSON *em_net_node_t::network_tree_node_to_json(em_network_node_t *node, cJSON *
 {
     unsigned int i;
     cJSON *obj = NULL;
+
+    if (node == NULL) {
+        printf("%s:%d: Error - node is NULL\n", __func__, __LINE__);
+        return NULL;
+    }
+
+    if (parent == NULL) {
+        printf("%s:%d: Error - parent is NULL\n", __func__, __LINE__);
+        return NULL;
+    }
 
     switch (node->type) {
         case em_network_node_data_type_invalid:
@@ -426,6 +501,11 @@ void *em_net_node_t::network_tree_to_json(em_network_node_t *root)
     cJSON *obj;
     unsigned int i;
 
+    if (root == NULL) {
+        printf("%s:%d: Error - root is NULL\n", __func__, __LINE__);
+        return NULL;
+    }
+
     obj = cJSON_CreateObject();
     if (obj == NULL) {
         printf("%s:%d: Failed to allocate JSON object\n",__func__,__LINE__);
@@ -443,6 +523,21 @@ int em_net_node_t::get_network_tree_node(cJSON *obj, em_network_node_t *root, un
 {
     cJSON *child_obj, *tmp_obj;
     size_t sz = 0;
+
+    if (obj == NULL) {
+        printf("%s:%d: Error - obj is NULL\n", __func__, __LINE__);
+        return -1;
+    }
+
+    if (root == NULL) {
+        printf("%s:%d: Error - root is NULL\n", __func__, __LINE__);
+        return -1;
+    }
+
+    if (node_display_ctr == NULL) {
+        printf("%s:%d: Error - node_display_ctr is NULL\n", __func__, __LINE__);
+        return -1;
+    }
 
     if (obj->string != NULL) {
         strncpy(root->key, obj->string, strlen(obj->string) + 1);
@@ -658,7 +753,7 @@ em_network_node_t *em_net_node_t::clone_network_tree_for_display(em_network_node
 
 
         } else {
-            if (dis_node->num_children > 0) {
+            if (dis_node != NULL && dis_node->num_children > 0) {
                 cloned->display_info.collapsed = true;
             }
         }
@@ -696,8 +791,14 @@ void em_net_node_t::free_network_tree_node(em_network_node_t *node)
 {
     unsigned int i;
 
+    if (node == NULL) {
+        throw std::invalid_argument("node is NULL");
+    }
+
     for (i = 0; i < node->num_children; i++) {
-        free_network_tree_node(node->child[i]);
+        if (node->child[i] != NULL) {
+            free_network_tree_node(node->child[i]);
+        }
     }
 
     free(node);
@@ -705,17 +806,28 @@ void em_net_node_t::free_network_tree_node(em_network_node_t *node)
 
 void em_net_node_t::free_network_tree(em_network_node_t *node)
 {
+    if (node == NULL) {
+        throw std::invalid_argument("node is NULL");
+    }
     free_network_tree_node(node);
 }
 
 em_network_node_t *em_net_node_t::get_child_node_at_index(em_network_node_t *node, unsigned int idx)
 {
+    if (node == NULL) {
+        printf("%s:%d: Error - node is NULL\n", __func__, __LINE__);
+        assert(node != NULL);
+    }
     //printf("%s:%d: Index: %d(%d), node:%p\n", __func__, __LINE__, idx, node->num_children, node->child[idx]);
     return node->child[idx];
 }
 
 unsigned int em_net_node_t::get_node_display_position(em_network_node_t *node)
 {
+    if (node == NULL) {
+        printf("%s:%d: Error - node is NULL\n", __func__, __LINE__);
+        return 0;
+    }
     return node->display_info.node_pos;
 }
 
@@ -723,6 +835,21 @@ em_network_node_t *em_net_node_t::get_network_tree_by_key(em_network_node_t *nod
 {
 	unsigned int i;
 	em_network_node_t *tmp;
+
+	if (node == NULL) {
+		printf("%s:%d: Error - node is NULL\n", __func__, __LINE__);
+		return NULL;
+	}
+
+	if (key == NULL) {
+		printf("%s:%d: Error - key is NULL\n", __func__, __LINE__);
+		return NULL;
+	}
+
+	if (key[0] == '\0') {
+		printf("%s:%d: Error - key is empty\n", __func__, __LINE__);
+		return NULL;
+	}
 
 	if (strncmp(node->key, key, strlen(key)) == 0) {
 		return node;

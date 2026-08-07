@@ -39,6 +39,28 @@ int dm_op_class_t::decode(const cJSON *obj, void *parent_id)
     cJSON *tmp, *non_op_array;
     unsigned int i;
 
+    if (obj == NULL) {
+        printf("%s:%d: Error - obj is NULL\n", __func__, __LINE__);
+        return -1;
+    }
+
+    if (parent_id == NULL) {
+        printf("%s:%d: Error - parent_id is NULL\n", __func__, __LINE__);
+        return -1;
+    }
+
+    if (!cJSON_IsObject(obj)) {
+        printf("%s:%d: Error - obj is not a valid JSON object\n", __func__, __LINE__);
+        return -1;
+    }
+
+    for (cJSON *child = obj->child; child != NULL; child = child->next) {
+        if (cJSON_IsObject(child)) {
+            printf("%s:%d: Error - unexpected nested object in op_class JSON\n", __func__, __LINE__);
+            return -1;
+        }
+    }
+
     memset(&m_op_class_info, 0, sizeof(em_op_class_info_t));
     dm_op_class_t::parse_op_class_id_from_key(static_cast<char*>(parent_id), &m_op_class_info.id);
 	
@@ -65,6 +87,11 @@ int dm_op_class_t::decode(const cJSON *obj, void *parent_id)
     m_op_class_info.num_channels = 0;
     if ((non_op_array = cJSON_GetObjectItem(obj, "NonOperable")) != NULL) {
         m_op_class_info.num_channels = static_cast<unsigned int>(cJSON_GetArraySize(non_op_array));
+        if (m_op_class_info.num_channels > EM_MAX_CHANNELS_IN_LIST) {
+            printf("%s:%d: Error - num_channels %u exceeds max %d\n", __func__, __LINE__, m_op_class_info.num_channels, EM_MAX_CHANNELS_IN_LIST);
+            m_op_class_info.num_channels = 0;
+            return -1;
+        }
         for (i = 0; i < m_op_class_info.num_channels; i++) {
             if ((tmp = cJSON_GetArrayItem(non_op_array, static_cast<int>(i))) != NULL) {
                 m_op_class_info.channels[i] = static_cast<unsigned int>(tmp->valuedouble);
@@ -136,26 +163,16 @@ bool dm_op_class_t::operator == (const dm_op_class_t& obj)
     ret += !(this->m_op_class_info.id.op_class == obj.m_op_class_info.id.op_class);
     ret += !(this->m_op_class_info.op_class == obj.m_op_class_info.op_class);
     ret += !(this->m_op_class_info.channel == obj.m_op_class_info.channel);
-    if (this->m_op_class_info.id.type == em_op_class_type_current) {
-        ret += !(this->m_op_class_info.tx_power == obj.m_op_class_info.tx_power);
-    } else if (this->m_op_class_info.id.type == em_op_class_type_capability) {
-        ret += !(this->m_op_class_info.max_tx_power == obj.m_op_class_info.max_tx_power);
-        ret += !(this->m_op_class_info.num_channels == obj.m_op_class_info.num_channels);
-        ret += (memcmp(this->m_op_class_info.channels, obj.m_op_class_info.channels, sizeof(unsigned int) * EM_MAX_CHANNELS_IN_LIST) != 0);
-    } else if (this->m_op_class_info.id.type == em_op_class_type_cac_available) {
-    	ret += !(this->m_op_class_info.mins_since_cac_comp == obj.m_op_class_info.mins_since_cac_comp);
-	} else if (this->m_op_class_info.id.type == em_op_class_type_cac_non_occ) {
-    	ret += !(this->m_op_class_info.sec_remain_non_occ_dur == obj.m_op_class_info.sec_remain_non_occ_dur);
-	} else if (this->m_op_class_info.id.type == em_op_class_type_cac_active) {
-    	ret += !(this->m_op_class_info.countdown_cac_comp == obj.m_op_class_info.countdown_cac_comp);
-    } else if ((this->m_op_class_info.id.type == em_op_class_type_preference) || 
-						(this->m_op_class_info.id.type == em_op_class_type_anticipated) ||
-						(this->m_op_class_info.id.type == em_op_class_type_scan_param)) {
-        ret += !(this->m_op_class_info.num_channels == obj.m_op_class_info.num_channels);
-        ret += (memcmp(this->m_op_class_info.channels, obj.m_op_class_info.channels, sizeof(unsigned int) * EM_MAX_CHANNELS_IN_LIST) != 0);
-        ret += (memcmp(this->m_op_class_info.channel_pref, obj.m_op_class_info.channel_pref, sizeof(unsigned char) * EM_MAX_CHANNELS_IN_LIST) != 0);
-	} 
-     
+    ret += !(this->m_op_class_info.tx_power == obj.m_op_class_info.tx_power);
+    ret += !(this->m_op_class_info.max_tx_power == obj.m_op_class_info.max_tx_power);
+    ret += !(this->m_op_class_info.num_channels == obj.m_op_class_info.num_channels);
+    ret += (memcmp(this->m_op_class_info.channels, obj.m_op_class_info.channels, sizeof(unsigned int) * EM_MAX_CHANNELS_IN_LIST) != 0);
+    ret += (memcmp(this->m_op_class_info.channel_pref, obj.m_op_class_info.channel_pref, sizeof(unsigned char) * EM_MAX_CHANNELS_IN_LIST) != 0);
+    ret += !(this->m_op_class_info.pref_valid == obj.m_op_class_info.pref_valid);
+    ret += !(this->m_op_class_info.mins_since_cac_comp == obj.m_op_class_info.mins_since_cac_comp);
+    ret += !(this->m_op_class_info.sec_remain_non_occ_dur == obj.m_op_class_info.sec_remain_non_occ_dur);
+    ret += !(this->m_op_class_info.countdown_cac_comp == obj.m_op_class_info.countdown_cac_comp);
+
     if (ret > 0)
         return false;
     else
@@ -187,6 +204,16 @@ int dm_op_class_t::parse_op_class_id_from_key(const char *key, em_op_class_id_t 
     char *tmp, *remain;
     unsigned int i = 0;
 
+    if (key == NULL) {
+        printf("%s:%d: Error - key is NULL\n", __func__, __LINE__);
+        return -1;
+    }
+
+    if (id == NULL) {
+        printf("%s:%d: Error - id is NULL\n", __func__, __LINE__);
+        return -1;
+    }
+
     strncpy(str, key, strlen(key) + 1);
     remain = str;
     while ((tmp = strchr(remain, '@')) != NULL) {
@@ -204,12 +231,26 @@ int dm_op_class_t::parse_op_class_id_from_key(const char *key, em_op_class_id_t 
         i++;
     }
 
+    if (i < 2) {
+        printf("%s:%d: Error - malformed key, could not parse all op_class id fields\n", __func__, __LINE__);
+        return -1;
+    }
+
 	return 0;
 }
 
 dm_op_class_t::dm_op_class_t(em_op_class_info_t *op_class)
 {
+    if (op_class == NULL) {
+        printf("%s:%d: Error - op_class is NULL\n", __func__, __LINE__);
+        memset(&m_op_class_info, 0, sizeof(em_op_class_info_t));
+        return;
+    }
     memcpy(&m_op_class_info, op_class, sizeof(em_op_class_info_t));
+    if (m_op_class_info.num_channels > EM_MAX_CHANNELS_IN_LIST) {
+        printf("%s:%d: Error - num_channels %u exceeds max %d, clamping\n", __func__, __LINE__, m_op_class_info.num_channels, EM_MAX_CHANNELS_IN_LIST);
+        m_op_class_info.num_channels = EM_MAX_CHANNELS_IN_LIST;
+    }
 }
 
 dm_op_class_t::dm_op_class_t(const dm_op_class_t& op_class)
@@ -220,6 +261,10 @@ dm_op_class_t::dm_op_class_t(const dm_op_class_t& op_class)
 dm_op_class_t::dm_op_class_t(const em_op_class_info_t& op_class_info)
 {
     memcpy(&m_op_class_info, &op_class_info, sizeof(em_op_class_info_t));
+    if (m_op_class_info.num_channels > EM_MAX_CHANNELS_IN_LIST) {
+        printf("%s:%d: Error - num_channels %u exceeds max %d, clamping\n", __func__, __LINE__, m_op_class_info.num_channels, EM_MAX_CHANNELS_IN_LIST);
+        m_op_class_info.num_channels = EM_MAX_CHANNELS_IN_LIST;
+    }
 }
 
 dm_op_class_t::dm_op_class_t()

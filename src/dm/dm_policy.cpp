@@ -34,6 +34,28 @@
 #include "dm_easy_mesh.h"
 #include "dm_easy_mesh_ctrl.h"
 #include "util.h"
+#include <stdexcept>
+#include <ctype.h>
+
+static bool is_valid_mac_str(const char *mac)
+{
+    if (mac == NULL) {
+        return false;
+    }
+    if (strlen(mac) != 17) {
+        return false;
+    }
+    for (int i = 0; i < 17; i++) {
+        if ((i % 3) == 2) {
+            if (mac[i] != ':') {
+                return false;
+            }
+        } else if (!isxdigit(static_cast<unsigned char>(mac[i]))) {
+            return false;
+        }
+    }
+    return true;
+}
 
 int dm_policy_t::decode(const cJSON *obj, void *parent_id, em_policy_id_type_t type)
 {
@@ -41,10 +63,28 @@ int dm_policy_t::decode(const cJSON *obj, void *parent_id, em_policy_id_type_t t
 	em_policy_id_t id;
 	int i;
 
+	if (obj == NULL) {
+		printf("%s:%d: Error - obj is NULL\n", __func__, __LINE__);
+		return -1;
+	}
+
+	if (parent_id == NULL) {
+		printf("%s:%d: Error - parent_id is NULL\n", __func__, __LINE__);
+		return -1;
+	}
+
+	if (!cJSON_IsObject(obj)) {
+		printf("%s:%d: Error - obj is not a valid JSON object\n", __func__, __LINE__);
+		return -1;
+	}
+
 	//printf("%s:%d: Key: %s\tType: %d\n", __func__, __LINE__, (char *)parent_id, type);
 
     memset(&m_policy, 0, sizeof(em_policy_t));
-	parse_dev_radio_mac_from_key(static_cast<char *>(parent_id), &id);
+	if (parse_dev_radio_mac_from_key(static_cast<char *>(parent_id), &id) != 0) {
+		printf("%s:%d: Error - failed to parse parent_id\n", __func__, __LINE__);
+		return -1;
+	}
 	strncpy(m_policy.id.net_id, id.net_id, sizeof(em_long_string_t));
 	memcpy(m_policy.id.dev_mac, id.dev_mac, sizeof(mac_address_t));
 	memcpy(m_policy.id.radio_mac, id.radio_mac, sizeof(mac_address_t));
@@ -208,6 +248,15 @@ void dm_policy_t::encode(cJSON *obj, em_policy_id_type_t id)
 	mac_addr_str_t	dev_mac_str, radio_mac_str, sta_mac_str;
 	cJSON *sta_arr_obj;
 
+	if (obj == NULL) {
+		printf("%s:%d: Error - obj is NULL\n", __func__, __LINE__);
+		return;
+	}
+
+	if ((static_cast<int>(id) < 0) || (id >= em_policy_id_type_unknown)) {
+		throw std::invalid_argument("invalid policy id type");
+	}
+
 	dm_easy_mesh_t::macbytes_to_string(m_policy.id.dev_mac, dev_mac_str);
 	dm_easy_mesh_t::macbytes_to_string(m_policy.id.radio_mac, radio_mac_str);
 
@@ -290,6 +339,16 @@ int dm_policy_t::parse_dev_radio_mac_from_key(const char *key, em_policy_id_t *i
     char *tmp, *remain;
     unsigned int i = 0;
 
+    if (key == NULL) {
+        printf("%s:%d: Error - key is NULL\n", __func__, __LINE__);
+        return -1;
+    }
+
+    if (id == NULL) {
+        printf("%s:%d: Error - id is NULL\n", __func__, __LINE__);
+        return -1;
+    }
+
     strncpy(str, key, strlen(key) + 1);
     remain = str;
     while ((tmp = strchr(remain, '@')) != NULL) {
@@ -300,11 +359,19 @@ int dm_policy_t::parse_dev_radio_mac_from_key(const char *key, em_policy_id_t *i
             remain = tmp;
         } else if (i == 1) {
             *tmp = 0;
+			if (!is_valid_mac_str(remain)) {
+				printf("%s:%d: Error - invalid dev_mac in key\n", __func__, __LINE__);
+				return -1;
+			}
 			dm_easy_mesh_t::string_to_macbytes(remain, id->dev_mac);
             tmp++;
 			remain = tmp;
         } else if (i == 2) {
             *tmp = 0;
+			if (!is_valid_mac_str(remain)) {
+				printf("%s:%d: Error - invalid radio_mac in key\n", __func__, __LINE__);
+				return -1;
+			}
 			dm_easy_mesh_t::string_to_macbytes(remain, id->radio_mac);
             tmp++;
 			id->type = static_cast<em_policy_id_type_t>(atoi(tmp));
@@ -312,11 +379,20 @@ int dm_policy_t::parse_dev_radio_mac_from_key(const char *key, em_policy_id_t *i
         i++;
     }
 
+    if (i < 3) {
+        printf("%s:%d: Error - malformed key, could not parse all policy id fields\n", __func__, __LINE__);
+        return -1;
+    }
+
     return 0;
 }
 
 dm_policy_t::dm_policy_t(em_policy_t *policy)
 {
+    if (policy == NULL) {
+        memset(&m_policy, 0, sizeof(em_policy_t));
+        throw std::invalid_argument("policy is NULL");
+    }
     memcpy(&m_policy, policy, sizeof(em_policy_t));
 }
 

@@ -34,12 +34,28 @@
 #include "dm_easy_mesh.h"
 #include "dm_easy_mesh_ctrl.h"
 #include "util.h"
+#include <stdexcept>
 
 int dm_bss_t::decode(const cJSON *obj, void *parent_id)
 {
     cJSON *tmp, *tmp_arr;
     mac_addr_str_t  mac_str;
     int i;
+
+    if (obj == NULL) {
+        printf("%s:%d: Error - obj is NULL\n", __func__, __LINE__);
+        return -1;
+    }
+
+    if (parent_id == NULL) {
+        printf("%s:%d: Error - parent_id is NULL\n", __func__, __LINE__);
+        return -1;
+    }
+
+    if (!cJSON_IsObject(obj) || (cJSON_GetArraySize(obj) == 0)) {
+        printf("%s:%d: Error - obj is not a valid/non-empty JSON object\n", __func__, __LINE__);
+        return -1;
+    }
 
     memset(&m_bss_info, 0, sizeof(em_bss_info_t));
     dm_easy_mesh_t::string_to_macbytes(static_cast<char *> (parent_id), m_bss_info.ruid.mac);
@@ -190,6 +206,10 @@ void dm_bss_t::encode(cJSON *obj, bool summary)
     unsigned short i;
 	em_short_string_t	haul_type_str;
 
+    if (obj == NULL) {
+        throw std::invalid_argument("dm_bss_t::encode: obj is NULL");
+    }
+
     dm_easy_mesh_t::macbytes_to_string(m_bss_info.bssid.mac, mac_str);
     cJSON_AddStringToObject(obj, "BSSID", mac_str);
     if (strcmp(util::mac_to_string(m_bss_info.mld_mac).c_str(), "00:00:00:00:00:00") != 0) {
@@ -296,6 +316,12 @@ void dm_bss_t::operator = (const dm_bss_t& obj)
     memcpy(&this->m_bss_info.ruid.name, &obj.m_bss_info.ruid.name, sizeof(em_interface_name_t));
     memcpy(&this->m_bss_info.ssid,&obj.m_bss_info.ssid, sizeof(ssid_t));
     this->m_bss_info.enabled = obj.m_bss_info.enabled;
+    this->m_bss_info.last_change = obj.m_bss_info.last_change;
+    memcpy(&this->m_bss_info.timestamp, &obj.m_bss_info.timestamp, sizeof(em_long_string_t));
+    this->m_bss_info.numberofsta = obj.m_bss_info.numberofsta;
+    this->m_bss_info.unicast_bytes_sent = obj.m_bss_info.unicast_bytes_sent;
+    this->m_bss_info.unicast_bytes_rcvd = obj.m_bss_info.unicast_bytes_rcvd;
+    this->m_bss_info.byte_counter_units = obj.m_bss_info.byte_counter_units;
     memcpy(&this->m_bss_info.est_svc_params_be,&obj.m_bss_info.est_svc_params_be,sizeof(em_string_t));
     memcpy(&this->m_bss_info.est_svc_params_bk,&obj.m_bss_info.est_svc_params_bk,sizeof(em_string_t));
     memcpy(&this->m_bss_info.est_svc_params_vi,&obj.m_bss_info.est_svc_params_vi,sizeof(em_string_t));
@@ -327,7 +353,7 @@ bool dm_bss_t::operator == (const dm_bss_t& obj)
 {
 	int ret = 0;
 
-	ret += (strncmp(this->m_bss_info.id.net_id, obj.m_bss_info.id.net_id, strlen(obj.m_bss_info.id.net_id)) != 0);
+	ret += (strcmp(this->m_bss_info.id.net_id, obj.m_bss_info.id.net_id) != 0);
 	ret += (memcmp(this->m_bss_info.id.dev_mac, obj.m_bss_info.id.dev_mac, sizeof(mac_address_t)) != 0);
 	ret += (memcmp(this->m_bss_info.id.ruid, obj.m_bss_info.id.ruid, sizeof(mac_address_t)) != 0);
 	ret += (memcmp(this->m_bss_info.id.bssid, obj.m_bss_info.id.bssid, sizeof(mac_address_t)) != 0);
@@ -341,6 +367,12 @@ bool dm_bss_t::operator == (const dm_bss_t& obj)
     ret += (memcmp(&this->m_bss_info.ruid.name,&obj.m_bss_info.ruid.name,sizeof(em_interface_name_t)) != 0);
     ret += (memcmp(&this->m_bss_info.ssid,&obj.m_bss_info.ssid,sizeof(ssid_t)) != 0);
     ret += !(this->m_bss_info.enabled == obj.m_bss_info.enabled);
+    ret += !(this->m_bss_info.last_change == obj.m_bss_info.last_change);
+    ret += (strcmp(this->m_bss_info.timestamp, obj.m_bss_info.timestamp) != 0);
+    ret += !(this->m_bss_info.numberofsta == obj.m_bss_info.numberofsta);
+    ret += !(this->m_bss_info.unicast_bytes_sent == obj.m_bss_info.unicast_bytes_sent);
+    ret += !(this->m_bss_info.unicast_bytes_rcvd == obj.m_bss_info.unicast_bytes_rcvd);
+    ret += !(this->m_bss_info.byte_counter_units == obj.m_bss_info.byte_counter_units);
     ret += (memcmp(&this->m_bss_info.est_svc_params_be,&obj.m_bss_info.est_svc_params_be,sizeof(em_string_t)) != 0);
     ret += (memcmp(&this->m_bss_info.est_svc_params_bk,&obj.m_bss_info.est_svc_params_bk,sizeof(em_string_t)) != 0);
     ret += (memcmp(&this->m_bss_info.est_svc_params_vi,&obj.m_bss_info.est_svc_params_vi,sizeof(em_string_t)) != 0);
@@ -377,6 +409,11 @@ bool dm_bss_t::match_criteria(char *criteria)
 	char *tmp;
 	mac_address_t radio_mac;
 
+	if (criteria == NULL) {
+		printf("%s:%d: Error - criteria is NULL\n", __func__, __LINE__);
+		return false;
+	}
+
 	if ((tmp = strstr(criteria, "radio=")) != NULL) {
 		tmp += strlen("radio=");
 		dm_easy_mesh_t::string_to_macbytes(tmp, radio_mac);
@@ -388,7 +425,7 @@ bool dm_bss_t::match_criteria(char *criteria)
 		}
 	}
 
-	return true;	
+	return false;	
 }
 
 int dm_bss_t::parse_bss_id_from_key(const char *key, em_bss_id_t *id)
@@ -396,6 +433,16 @@ int dm_bss_t::parse_bss_id_from_key(const char *key, em_bss_id_t *id)
     em_long_string_t   str;
     char *tmp, *remain;
     unsigned int i = 0;
+
+    if (key == NULL) {
+        printf("%s:%d: Error - key is NULL\n", __func__, __LINE__);
+        return -1;
+    }
+
+    if (id == NULL) {
+        printf("%s:%d: Error - id is NULL\n", __func__, __LINE__);
+        return -1;
+    }
 
     strncpy(str, key, strlen(key) + 1);
     remain = str;
@@ -423,13 +470,27 @@ int dm_bss_t::parse_bss_id_from_key(const char *key, em_bss_id_t *id)
         }
         i++;
     }
-   
+
+    if (i < 4) {
+        printf("%s:%d: Error - malformed key, could not parse all bss id fields\n", __func__, __LINE__);
+        return -1;
+    }
 
     return 0;
 }
 
 bool dm_bss_t::add_vendor_ie(const struct ieee80211_vs_ie *vs_ie)
 {
+    if (vs_ie == NULL) {
+        printf("%s:%d: Error - vs_ie is NULL\n", __func__, __LINE__);
+        return false;
+    }
+
+    if (vs_ie->vs_len == 0) {
+        printf("%s:%d: Error - vs_ie has zero payload length\n", __func__, __LINE__);
+        return false;
+    }
+
     // Fetch full length from the IE
     unsigned int vs_ie_len = offsetof(struct ieee80211_vs_ie, vs_oui) + vs_ie->vs_len;
 
@@ -447,6 +508,10 @@ bool dm_bss_t::add_vendor_ie(const struct ieee80211_vs_ie *vs_ie)
 
 void dm_bss_t::remove_vendor_ie(const struct ieee80211_vs_ie *vs_ie)
 {
+    if (vs_ie == NULL) {
+        throw std::invalid_argument("vs_ie is NULL");
+    }
+
     size_t vs_ie_len = offsetof(struct ieee80211_vs_ie, vs_oui) + vs_ie->vs_len;
     if (m_bss_info.vendor_elements_len < vs_ie_len) {
         // The IE is not present in the BSS, return true since it's technically removed
@@ -492,6 +557,10 @@ void dm_bss_t::remove_vendor_ie(const struct ieee80211_vs_ie *vs_ie)
 
 dm_bss_t::dm_bss_t(em_bss_info_t *bss)
 {
+    if (bss == NULL) {
+        memset(&m_bss_info, 0, sizeof(em_bss_info_t));
+        throw std::invalid_argument("bss is NULL");
+    }
     memcpy(&m_bss_info, bss, sizeof(em_bss_info_t));
 }
 

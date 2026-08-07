@@ -45,6 +45,10 @@ int dm_scan_result_t::decode(const cJSON *obj, void *parent_id)
 		em_printfout("Error: obj/parent_id is null");
 		return -1;
 	}
+	if (!cJSON_IsObject(obj)) {
+		em_printfout("Error: obj is not a valid JSON object");
+		return -1;
+	}
 	memset(&m_scan_result, 0, sizeof(em_scan_result_t));
 	
 	if ((tmp = cJSON_GetObjectItem(obj, "ScanStatus")) != NULL) {
@@ -153,7 +157,22 @@ void dm_scan_result_t::encode(cJSON *obj)
 bool dm_scan_result_t::operator == (const dm_scan_result_t& obj)
 {
     int ret = 0;
-    
+
+    ret += (memcmp(m_scan_result.id.net_id, obj.m_scan_result.id.net_id, sizeof(em_long_string_t)) != 0);
+    ret += (memcmp(m_scan_result.id.dev_mac, obj.m_scan_result.id.dev_mac, sizeof(mac_address_t)) != 0);
+    ret += (memcmp(m_scan_result.id.scanner_mac, obj.m_scan_result.id.scanner_mac, sizeof(mac_address_t)) != 0);
+    ret += !(m_scan_result.id.op_class == obj.m_scan_result.id.op_class);
+    ret += !(m_scan_result.id.channel == obj.m_scan_result.id.channel);
+    ret += !(m_scan_result.id.scanner_type == obj.m_scan_result.id.scanner_type);
+    ret += !(m_scan_result.scan_status == obj.m_scan_result.scan_status);
+    ret += (strcmp(m_scan_result.timestamp, obj.m_scan_result.timestamp) != 0);
+    ret += !(m_scan_result.util == obj.m_scan_result.util);
+    ret += !(m_scan_result.noise == obj.m_scan_result.noise);
+    ret += !(m_scan_result.aggr_scan_duration == obj.m_scan_result.aggr_scan_duration);
+    ret += !(m_scan_result.scan_type == obj.m_scan_result.scan_type);
+    ret += !(m_scan_result.num_neighbors == obj.m_scan_result.num_neighbors);
+    ret += (memcmp(m_scan_result.neighbor, obj.m_scan_result.neighbor, sizeof(m_scan_result.neighbor)) != 0);
+
 	return (ret > 0) ? false:true;
 }
 
@@ -213,6 +232,10 @@ int dm_scan_result_t::parse_scan_result_id_from_key(const char *key, em_scan_res
         i++;
     }
     
+    if (i < 5) {
+        em_printfout("Error: malformed key, could not parse all scan result id fields");
+        return -1;
+    }
 
     return 0;
 }
@@ -224,7 +247,7 @@ bool dm_scan_result_t::has_same_id(em_scan_result_id_t *id)
         return false;
     }
 
-	if (strncmp(m_scan_result.id.net_id, id->net_id, strlen(id->net_id)) != 0) {
+	if (strcmp(m_scan_result.id.net_id, id->net_id) != 0) {
 		return false;
 	}	
 

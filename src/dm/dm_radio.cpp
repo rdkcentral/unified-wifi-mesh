@@ -33,6 +33,7 @@
 #include "dm_radio.h"
 #include "dm_easy_mesh.h"
 #include "dm_easy_mesh_ctrl.h"
+#include <stdexcept>
 
 
 
@@ -40,6 +41,26 @@ int dm_radio_t::decode(const cJSON *obj, void *parent_id)
 {
     cJSON *tmp;
     mac_addr_str_t  mac_str, dev_mac;
+
+    if (obj == NULL) {
+        printf("%s:%d: Error - obj is NULL\n", __func__, __LINE__);
+        return -1;
+    }
+
+    if (parent_id == NULL) {
+        printf("%s:%d: Error - parent_id is NULL\n", __func__, __LINE__);
+        return -1;
+    }
+
+    if (!cJSON_IsObject(obj)) {
+        printf("%s:%d: Error - obj is not a valid JSON object\n", __func__, __LINE__);
+        return -1;
+    }
+
+    if (cJSON_GetArraySize(obj) == 0) {
+        printf("%s:%d: Error - obj is an empty JSON object\n", __func__, __LINE__);
+        return -1;
+    }
 
     memset(&m_radio_info, 0, sizeof(em_radio_info_t));
 
@@ -49,7 +70,10 @@ int dm_radio_t::decode(const cJSON *obj, void *parent_id)
         dm_easy_mesh_t::name_from_mac_address(&m_radio_info.intf.mac, m_radio_info.intf.name);
     }
 
-    dm_radio_t::parse_radio_id_from_key(static_cast<char *>(parent_id), &m_radio_info.id);
+    if (dm_radio_t::parse_radio_id_from_key(static_cast<char *>(parent_id), &m_radio_info.id) != 0) {
+        printf("%s:%d: Error - failed to parse parent_id\n", __func__, __LINE__);
+        return -1;
+    }
     dm_easy_mesh_t::macbytes_to_string(m_radio_info.id.ruid, mac_str);
     dm_easy_mesh_t::macbytes_to_string(m_radio_info.id.dev_mac, dev_mac);
 
@@ -134,6 +158,14 @@ void dm_radio_t::encode(cJSON *obj, em_get_radio_list_reason_t reason)
 {
     mac_addr_str_t  mac_str;
 
+    if (obj == NULL) {
+        throw std::invalid_argument("obj is NULL");
+    }
+
+    if (!cJSON_IsObject(obj)) {
+        throw std::invalid_argument("obj is not a valid JSON object");
+    }
+
     dm_easy_mesh_t::macbytes_to_string(m_radio_info.intf.mac, mac_str);
     cJSON_AddStringToObject(obj, "ID", mac_str);
     cJSON_AddBoolToObject(obj, "Enabled", m_radio_info.enabled);
@@ -177,73 +209,15 @@ dm_orch_type_t dm_radio_t::get_dm_orch_type(const dm_radio_t& radio)
     return dm_orch_type_db_insert;
 }
 
-bool dm_radio_t::operator == (const dm_radio_t& obj) {   
+bool dm_radio_t::operator == (const dm_radio_t& obj) {
 
-    int ret = 0;
-
-	ret += strncmp(this->m_radio_info.id.net_id, obj.m_radio_info.id.net_id, strlen(obj.m_radio_info.id.net_id));
-    ret += (memcmp(&this->m_radio_info.id.dev_mac, &obj.m_radio_info.id.dev_mac, sizeof(mac_address_t)) != 0);
-    ret += (memcmp(&this->m_radio_info.id.ruid, &obj.m_radio_info.id.ruid, sizeof(mac_address_t)) != 0);
-
-    ret += (memcmp(&this->m_radio_info.intf.mac, &obj.m_radio_info.intf.mac, sizeof(mac_address_t)) != 0);
-    ret += (memcmp(&this->m_radio_info.intf.name, &obj.m_radio_info.intf.name, sizeof(em_interface_name_t)) != 0);
-    ret += !(this->m_radio_info.enabled == obj.m_radio_info.enabled);
-	ret += !(this->m_radio_info.band == obj.m_radio_info.band);
-    ret += !(this->m_radio_info.media_data.media_type == obj.m_radio_info.media_data.media_type);
-    ret += !(this->m_radio_info.media_data.band == obj.m_radio_info.media_data.band);
-    ret += !(this->m_radio_info.number_of_unassoc_sta == obj.m_radio_info.number_of_unassoc_sta);
-    ret += !(this->m_radio_info.noise == obj.m_radio_info.noise);
-    ret += !(this->m_radio_info.utilization == obj.m_radio_info.utilization);
-    ret += !(this->m_radio_info.traffic_sep_combined_fronthaul == obj.m_radio_info.traffic_sep_combined_fronthaul);
-    ret += !(this->m_radio_info.traffic_sep_combined_backhaul == obj.m_radio_info.traffic_sep_combined_backhaul);
-    ret += !(this->m_radio_info.steering_policy == obj.m_radio_info.steering_policy);
-    ret += !(this->m_radio_info.channel_util_threshold == obj.m_radio_info.channel_util_threshold);
-    ret += !(this->m_radio_info.rcpi_steering_threshold == obj.m_radio_info.rcpi_steering_threshold);
-    ret += !(this->m_radio_info.sta_reporting_rcpi_threshold == obj.m_radio_info.sta_reporting_rcpi_threshold);
-    ret += !(this->m_radio_info.sta_reporting_hysteresis_margin_override  == obj.m_radio_info.sta_reporting_hysteresis_margin_override);
-    ret += !(this->m_radio_info.channel_utilization_reporting_threshold  == obj.m_radio_info.channel_utilization_reporting_threshold);
-    ret += !(this->m_radio_info.associated_sta_traffic_stats_inclusion_policy == obj.m_radio_info.associated_sta_traffic_stats_inclusion_policy);
-    ret += !(this->m_radio_info.associated_sta_link_mterics_inclusion_policy == obj.m_radio_info.associated_sta_link_mterics_inclusion_policy);
-    ret += (memcmp(&this->m_radio_info.chip_vendor,&obj.m_radio_info.chip_vendor,sizeof(em_long_string_t)) != 0);
-    //ret += !(this->m_radio_info.ap_metrics_wifi6 == obj.m_radio_info.ap_metrics_wifi6);
-    ret += !(this->m_radio_info.transmit_power_limit == obj.m_radio_info.transmit_power_limit);
-
-    if (ret > 0)
-        return false;
-    else
-        return true;
+    return (memcmp(&this->m_radio_info, &obj.m_radio_info, sizeof(em_radio_info_t)) == 0);
 }
 
 void dm_radio_t::operator = (const dm_radio_t& obj)
 {
 	if (this == &obj) { return; }
-	strncpy(this->m_radio_info.id.net_id, obj.m_radio_info.id.net_id, sizeof(em_long_string_t));
-	memcpy(this->m_radio_info.id.dev_mac, obj.m_radio_info.id.dev_mac, sizeof(mac_address_t));
-	memcpy(this->m_radio_info.id.ruid, obj.m_radio_info.id.ruid, sizeof(mac_address_t));
-	
-    memcpy(&this->m_radio_info.intf.mac, &obj.m_radio_info.intf.mac, sizeof(mac_address_t));
-    memcpy(&this->m_radio_info.intf.name, &obj.m_radio_info.intf.name, sizeof(em_interface_name_t));
-    
-	this->m_radio_info.enabled = obj.m_radio_info.enabled;
-	this->m_radio_info.band = obj.m_radio_info.band;
-    this->m_radio_info.media_data.media_type = obj.m_radio_info.media_data.media_type;
-    this->m_radio_info.media_data.band = obj.m_radio_info.media_data.band;
-    this->m_radio_info.number_of_unassoc_sta = obj.m_radio_info.number_of_unassoc_sta;
-    this->m_radio_info.noise = obj.m_radio_info.noise;
-    this->m_radio_info.utilization = obj.m_radio_info.utilization;
-    this->m_radio_info.traffic_sep_combined_fronthaul = obj.m_radio_info.traffic_sep_combined_fronthaul;
-    this->m_radio_info.traffic_sep_combined_backhaul = obj.m_radio_info.traffic_sep_combined_backhaul;
-    this->m_radio_info.steering_policy = obj.m_radio_info.steering_policy;
-    this->m_radio_info.channel_util_threshold = obj.m_radio_info.channel_util_threshold;
-    this->m_radio_info.rcpi_steering_threshold = obj.m_radio_info.rcpi_steering_threshold;
-    this->m_radio_info.sta_reporting_rcpi_threshold = obj.m_radio_info.sta_reporting_rcpi_threshold;
-    this->m_radio_info.sta_reporting_hysteresis_margin_override  = obj.m_radio_info.sta_reporting_hysteresis_margin_override;
-    this->m_radio_info.channel_utilization_reporting_threshold  = obj.m_radio_info.channel_utilization_reporting_threshold;
-    this->m_radio_info.associated_sta_traffic_stats_inclusion_policy = obj.m_radio_info.associated_sta_traffic_stats_inclusion_policy;
-    this->m_radio_info.associated_sta_link_mterics_inclusion_policy = obj.m_radio_info.associated_sta_link_mterics_inclusion_policy;
-    memcpy(&this->m_radio_info.chip_vendor,&obj.m_radio_info.chip_vendor,sizeof(em_long_string_t));
-    //this->m_radio_info.ap_metrics_wifi6 = obj.m_radio_info.ap_metrics_wifi6;
-    this->m_radio_info.transmit_power_limit = obj.m_radio_info.transmit_power_limit;
+	memcpy(&this->m_radio_info, &obj.m_radio_info, sizeof(em_radio_info_t));
 }
 
 int dm_radio_t::parse_radio_id_from_key(const char *key, em_radio_id_t *id)
@@ -251,6 +225,16 @@ int dm_radio_t::parse_radio_id_from_key(const char *key, em_radio_id_t *id)
 	em_long_string_t   str;
     char *tmp, *remain;
     unsigned int i = 0;
+
+    if (key == NULL) {
+        printf("%s:%d: Error - key is NULL\n", __func__, __LINE__);
+        return -1;
+    }
+
+    if (id == NULL) {
+        printf("%s:%d: Error - id is NULL\n", __func__, __LINE__);
+        return -1;
+    }
    
     strncpy(str, key, strlen(key) + 1);
     remain = str;
@@ -270,6 +254,11 @@ int dm_radio_t::parse_radio_id_from_key(const char *key, em_radio_id_t *id)
     }
    
 
+    if (i < 2) {
+        printf("%s:%d: Error - malformed key, could not parse all radio id fields\n", __func__, __LINE__);
+        return -1;
+    }
+
     return 0;
 
 }
@@ -288,6 +277,10 @@ void dm_radio_t::dump_radio_info()
 
 dm_radio_t::dm_radio_t(em_radio_info_t *radio)
 {
+    if (radio == NULL) {
+        memset(&m_radio_info, 0, sizeof(em_radio_info_t));
+        throw std::invalid_argument("radio is NULL");
+    }
     memcpy(&m_radio_info, radio, sizeof(em_radio_info_t));
 }
 

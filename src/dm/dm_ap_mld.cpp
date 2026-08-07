@@ -19,6 +19,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <stdexcept>
 #include <errno.h>
 #include <assert.h>
 #include <signal.h>
@@ -37,6 +38,18 @@
 
 int dm_ap_mld_t::decode(const cJSON *obj, void *parent_id)
 {
+    if (obj == NULL) {
+        printf("%s:%d: Error - obj is NULL\n", __func__, __LINE__);
+        return -1;
+    }
+    if (parent_id == NULL) {
+        printf("%s:%d: Error - parent_id is NULL\n", __func__, __LINE__);
+        return -1;
+    }
+    if (!cJSON_IsObject(obj)) {
+        printf("%s:%d: Error - obj is not a valid JSON object\n", __func__, __LINE__);
+        return -1;
+    }
     //TODO: needs to be implemnented
 
     return 0;
@@ -44,6 +57,9 @@ int dm_ap_mld_t::decode(const cJSON *obj, void *parent_id)
 
 void dm_ap_mld_t::encode(cJSON *obj)
 {
+    if (obj == NULL || !cJSON_IsObject(obj)) {
+        throw std::invalid_argument("dm_ap_mld_t::encode: obj is NULL or not a valid JSON object");
+    }
     //TODO: needs to be implemnented
 }
 
@@ -96,6 +112,9 @@ dm_ap_mld_t::dm_ap_mld_t(em_ap_mld_info_t *ap_mld_info)
         return;
     }
     memcpy(&m_ap_mld_info, ap_mld_info, sizeof(em_ap_mld_info_t));
+    if (m_ap_mld_info.mac_addr_valid == false) {
+        memset(&m_ap_mld_info.mac_addr, 0, sizeof(mac_address_t));
+    }
 }
 
 dm_ap_mld_t::dm_ap_mld_t(const dm_ap_mld_t& ap_mld)
