@@ -90,7 +90,7 @@ short em_policy_cfg_t::create_metrics_rep_policy_tlv(unsigned char *buff)
         em_printfout("No matching policy found for metrics report policy TLV in cmd_dm, trying DM");
         policy = nullptr;
         for (i = 0; i < get_data_model()->get_num_policy(); i++) {
-            if (get_data_model()->get_policy(i).m_policy.id.type == em_policy_id_type_ap_metrics_rep) {
+            if (get_data_model()->get_policy(i)->m_policy.id.type == em_policy_id_type_ap_metrics_rep) {
                 policy = get_data_model()->get_policy(i);
                 break;  
             }
