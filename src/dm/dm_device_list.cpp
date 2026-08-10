@@ -366,6 +366,9 @@ bool dm_device_list_t::compare_db(db_client_t& db_client, const dm_device_t& sta
         info.test_cap = static_cast<unsigned char> (db_client.get_number(ctx, 27));
 
         if (memcmp(static_cast<const void*>(&sta.m_device_info), static_cast<const void*>(&info), sizeof(em_device_info_t)) == 0) {
+            // drain remaining rows; next_result() frees the context
+            // when it returns false
+            while (db_client.next_result(ctx) == true);
             return true;
         }
     }

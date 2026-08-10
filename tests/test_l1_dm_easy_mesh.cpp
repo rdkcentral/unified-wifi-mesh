@@ -21900,8 +21900,13 @@ TEST(dm_easy_mesh_t, CloneHashMapsTest_positive_CloneMaps)
     src.clone_hash_maps(dst);
     dm_sta_t* dst_sta = static_cast<dm_sta_t*>(hash_map_get_first(dst.m_sta_map));
     dm_sta_t* dst_assoc = static_cast<dm_sta_t*>(hash_map_get_first(dst.m_sta_assoc_map));
-    EXPECT_EQ(dst_sta, src_sta);
-    EXPECT_EQ(dst_assoc, src_assoc);
+    ASSERT_NE(dst_sta, nullptr);
+    ASSERT_NE(dst_assoc, nullptr);
+    // deep copy: distinct objects, equal content
+    EXPECT_NE(dst_sta, src_sta);
+    EXPECT_NE(dst_assoc, src_assoc);
+    EXPECT_EQ(memcmp(dst_sta->m_sta_info.id, src_sta->m_sta_info.id, sizeof(mac_address_t)), 0);
+    EXPECT_EQ(memcmp(dst_assoc->m_sta_info.id, src_assoc->m_sta_info.id, sizeof(mac_address_t)), 0);
     EXPECT_EQ(hash_map_get_first(dst.m_sta_dassoc_map), nullptr);
     src.deinit();
     dst.deinit();
