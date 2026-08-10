@@ -30,7 +30,7 @@ static void parse_mac(const char* str, unsigned char out[6])
            &b[0], &b[1], &b[2], &b[3], &b[4], &b[5]);
 
     for (int i = 0; i < 6; i++)
-        out[i] = (unsigned char)b[i];
+        out[i] = static_cast<unsigned char>(b[i]);
 }
 
 

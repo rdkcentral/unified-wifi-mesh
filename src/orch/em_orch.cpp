@@ -45,10 +45,18 @@ unsigned int em_orch_t::submit_commands(em_cmd_t *pcmd[], unsigned int num)
     unsigned int submitted = 0;
     bool submit = true;
 
-    for (i = 0; i < num; i++) {
+    if (pcmd == NULL) {
+        return 0;
+    }
+
+    for (i = 0; i < num && i < EM_MAX_CMD; i++) {
+        // Skip unset slots (analyze_* may return fewer commands than num)
+        if (pcmd[i] == NULL) {
+            continue;
+        }
         if ((submit = pre_process_orch_op(pcmd[i])) == false) {
             // complete the command
-            destroy_command(pcmd[i]);	
+            destroy_command(pcmd[i]);
             submit = true;
             continue;
         } else {
@@ -477,6 +485,10 @@ bool em_orch_t::is_cmd_type_in_progress(em_bus_event_t *evt)
     em_short_string_t key;
     em_cmd_type_t	type;
 
+    if (evt == nullptr) {
+        return false;
+    }
+
     type = em_cmd_t::bus_2_cmd_type(evt->type);
 
     snprintf(key, sizeof(em_short_string_t), "%d", type);
@@ -536,8 +548,11 @@ void em_orch_t::handle_timeout()
     // go through active queue and check command states
     for (i = static_cast<int>(queue_count(m_active)) - 1; i >= 0; i--) {
         pcmd = static_cast<em_cmd_t *>(queue_peek(m_active, static_cast<unsigned int>(i)));
-		//printf("%s:%d: Cmd: %s, em candidates: %d\n", __func__, __LINE__, 
+		//printf("%s:%d: Cmd: %s, em candidates: %d\n", __func__, __LINE__,
 					//em_cmd_t::get_cmd_type_str(pcmd->m_type), queue_count(pcmd->m_em_candidates));
+        // ret must be evaluated per command; carrying it across commands lets one
+        // non-fini command block destruction of every other command in the queue
+        ret = true;
         for (j = static_cast<int>(queue_count(pcmd->m_em_candidates)) - 1; j >= 0; j--) {
             em = static_cast<em_t *>(queue_peek(pcmd->m_em_candidates, static_cast<unsigned int>(j)));
             ret &= orchestrate(pcmd, em);
@@ -555,7 +570,6 @@ void em_orch_t::handle_timeout()
             }
             destroy_command(pcmd);
             //em->set_state(em_state_agent_config_complete);
-            break;
         }
 
     }

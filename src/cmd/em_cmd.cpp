@@ -33,6 +33,7 @@
 #include <unistd.h>
 #include <pthread.h>
 #include <cjson/cJSON.h>
+#include <type_traits>
 #include "em_cmd.h"
 
 bool em_cmd_t::validate()
@@ -179,7 +180,15 @@ char *em_cmd_t::status_to_string(em_cmd_out_status_t status, char *str)
 
 void em_cmd_t::deinit()
 {
-    queue_destroy(m_em_candidates);
+    if (m_em_candidates != nullptr) {
+        // queue_destroy frees the data pointers it still holds, and the
+        // em_t candidates are owned by em_mgr's m_em_map — drain first
+        while (queue_count(m_em_candidates) != 0) {
+            queue_remove(m_em_candidates, queue_count(m_em_candidates) - 1);
+        }
+        queue_destroy(m_em_candidates);
+        m_em_candidates = nullptr;
+    }
     m_data_model.deinit();
 	//free(m_evt);
 }
@@ -461,8 +470,15 @@ void em_cmd_t::init()
             strncpy(m_name, "get_alarm_report", strlen("get_alarm_report") + 1);
             m_svc = em_service_type_ctrl;
             break;
+        
+	case em_cmd_type_unassoc_sta_query:
+            snprintf(m_name, sizeof(m_name), "%s", "unassoc_sta_query");
+            m_svc = em_service_type_ctrl;
+            break;
 
         default:
+            snprintf(m_name, sizeof(m_name), "%s", "unknown");
+            m_svc = em_service_type_none;
             break;
 
     }
@@ -486,6 +502,7 @@ const char *em_cmd_t::get_bus_event_type_str(em_bus_event_type_t type)
         BUS_EVENT_TYPE_2S(em_bus_event_type_set_ssid)
         BUS_EVENT_TYPE_2S(em_bus_event_type_get_channel)
         BUS_EVENT_TYPE_2S(em_bus_event_type_set_channel)
+        BUS_EVENT_TYPE_2S(em_bus_event_type_channel_select)
         BUS_EVENT_TYPE_2S(em_bus_event_type_get_bss)
         BUS_EVENT_TYPE_2S(em_bus_event_type_get_sta)
         BUS_EVENT_TYPE_2S(em_bus_event_type_steer_sta)
@@ -508,6 +525,10 @@ const char *em_cmd_t::get_bus_event_type_str(em_bus_event_type_t type)
         BUS_EVENT_TYPE_2S(em_bus_event_type_mld_reconfig)
         BUS_EVENT_TYPE_2S(em_bus_event_type_get_reset)
         BUS_EVENT_TYPE_2S(em_bus_event_type_link_quality_report)
+        BUS_EVENT_TYPE_2S(em_bus_event_type_unassoc_sta_query)
+	BUS_EVENT_TYPE_2S(em_bus_event_type_unassoc_sta_link_metrics_query)
+	BUS_EVENT_TYPE_2S(em_bus_event_type_unassoc_sta_result)
+	BUS_EVENT_TYPE_2S(em_bus_event_type_failed_conn)
        
         default:
            break;
@@ -585,6 +606,8 @@ const char *em_cmd_t::get_orch_op_str(dm_orch_type_t type)
         ORCH_TYPE_2S(dm_orch_type_policy_cfg)
         ORCH_TYPE_2S(dm_orch_type_mld_reconfig)
         ORCH_TYPE_2S(dm_orch_type_topo_publish)
+        ORCH_TYPE_2S(dm_orch_type_unassoc_sta_link_req_query)
+	ORCH_TYPE_2S(dm_orch_type_unassoc_sta_result)
 
         default:
            break;
@@ -641,6 +664,8 @@ const char *em_cmd_t::get_cmd_type_str(em_cmd_type_t type)
         CMD_TYPE_2S(em_cmd_type_ap_metrics_report)
         CMD_TYPE_2S(em_cmd_type_get_reset)
         CMD_TYPE_2S(em_cmd_type_get_link_quality_report)
+        CMD_TYPE_2S(em_cmd_type_unassoc_sta_query)
+	CMD_TYPE_2S(em_cmd_type_unassoc_sta_result)
 
         default:
            break;
@@ -787,6 +812,18 @@ em_cmd_type_t em_cmd_t::bus_2_cmd_type(em_bus_event_type_t etype)
             type = em_cmd_type_get_link_quality_report;
             break;
 
+      	case em_bus_event_type_unassoc_sta_query:
+            type = em_cmd_type_unassoc_sta_query;
+            break;
+
+      	case em_bus_event_type_unassoc_sta_result:
+            type = em_cmd_type_unassoc_sta_result;
+            break;
+
+        case em_bus_event_type_channel_select:
+            type = em_cmd_type_set_channel;
+            break;
+
         default:
             break;
     }
@@ -839,6 +876,14 @@ em_bus_event_type_t em_cmd_t::cmd_2_bus_event_type(em_cmd_type_t ctype)
             type = em_bus_event_type_get_reset;
             break;
 
+        case em_cmd_type_unassoc_sta_query:
+            type = em_bus_event_type_unassoc_sta_query;
+            break;
+
+        case em_cmd_type_unassoc_sta_result:
+            type = em_bus_event_type_unassoc_sta_result;
+            break;
+
         default:
             break;
     }
@@ -882,30 +927,39 @@ int em_cmd_t::dump_bus_event(em_bus_event_t *evt)
 	return 0;
 }   
 
-em_cmd_t::em_cmd_t(em_cmd_type_t type, em_cmd_params_t param, dm_easy_mesh_t& dm) : m_evt(NULL)
+em_cmd_t::em_cmd_t(em_cmd_type_t type, em_cmd_params_t param, dm_easy_mesh_t& dm)
+    : m_type(em_cmd_type_none), m_svc(em_service_type_none), m_param{}, m_evt(NULL), m_em_candidates(nullptr), m_db_cfg_type(db_cfg_type_none)
 {
-    m_type = type;
+    auto raw = static_cast<std::underlying_type_t<em_cmd_type_t>>(type);
+    m_type = (raw >= static_cast<decltype(raw)>(em_cmd_type_max))
+             ? em_cmd_type_max : type;
     m_db_cfg_type = db_cfg_type_none;
     memcpy(&m_param, &param, sizeof(em_cmd_params_t));
     init(dm);
     init();
 }
 
-em_cmd_t::em_cmd_t(em_cmd_type_t type, em_cmd_params_t param) : m_evt(NULL)
+em_cmd_t::em_cmd_t(em_cmd_type_t type, em_cmd_params_t param)
+    : m_type(em_cmd_type_none), m_svc(em_service_type_none), m_param{}, m_evt(NULL), m_em_candidates(nullptr), m_db_cfg_type(db_cfg_type_none)
 {
-    m_type = type;
+    auto raw = static_cast<std::underlying_type_t<em_cmd_type_t>>(type);
+    m_type = (raw >= static_cast<decltype(raw)>(em_cmd_type_max))
+             ? em_cmd_type_max : type;
     m_db_cfg_type = db_cfg_type_none;
     memcpy(&m_param, &param, sizeof(em_cmd_params_t));
     init();
 }
 
-em_cmd_t::em_cmd_t() : m_evt(NULL)
+em_cmd_t::em_cmd_t()
+    : m_type(em_cmd_type_none), m_svc(em_service_type_none), m_param{}, m_evt(NULL), m_em_candidates(nullptr), m_db_cfg_type(db_cfg_type_none)
 {
 	m_evt = static_cast<em_event_t *> (malloc(sizeof(em_event_t) + EM_MAX_EVENT_DATA_LEN));
 }
 
 em_cmd_t::~em_cmd_t()
 {
-	free(m_evt);	
+	// deinit is idempotent; paths that already call it before delete are safe
+	deinit();
+	free(m_evt);
 }
 

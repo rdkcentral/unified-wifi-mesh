@@ -69,10 +69,11 @@ extern "C"
 #define EM_LONG_IO_BUFF_SZ   4096*4
 
 #define EM_MAX_OP_CLASS    48
-#define EM_MAX_POLICIES	16	
+#define EM_MAX_POLICIES	32
 #define EM_MAX_CHANNEL_PER_OP_CLASS  59
 #define EM_MAX_SERVICE          8
 #define EM_MAX_BSS_PER_RADIO           16
+#define EM_MAX_QOS_MGMT_POLICY         4
 #define EM_MAX_RADIO_PER_AGENT         4
 #define EM_MAX_TRAFFIC_SEP_SSID        8
 #define EM_MAX_FREQ_RECORDS_PER_RADIO  8
@@ -80,9 +81,13 @@ extern "C"
 #define MAX_MCS  3
 #define MAP_AP_ROLE_MAX 2
 // #define MAX_MCS_NSS 6
-#define EM_MAX_CAC_METHODS 4
+#define EM_MAX_CAC_METHODS             4
+#define EM_MAX_CAC_OP_CLASS_PER_METHOD 8
+#define EM_MAX_CAC_CHANS_PER_CLASS     16
 #define EM_MAX_STA_PER_BSS         64
 #define EM_MAX_STA_PER_STEER_POLICY        16 
+#define EM_MAX_MSC_PER_TRAFFIC_SEPAR       16
+#define EM_MAX_SCS_PER_TRAFFIC_SEPAR       16
 #define EM_MAX_STA_PER_AGENT       (EM_MAX_RADIO_PER_AGENT * EM_MAX_STA_PER_BSS)
 #define EM_MAX_NEIGHBORS	16
 #define EM_MAX_CHANNEL_SCAN_RPRT_MSG_LEN		166
@@ -182,10 +187,25 @@ extern "C"
 #define EM_CH_PREF_NON_OPERABLE 0x00
 #define EM_CH_PREF_MAX          0x0F
 
+#define CTRL_DEFAULT_CH_PREF    0x01 // Least preferred
+#define AGENT_DEFAULT_CH_PREF   0x0F // Most preferred
+
+/**
+ * Bit shift for preference value (high nibble of preference byte).
+ * Preference bytes store the preference value in bits 7-4.
+ * Use this macro when shifting preference values to/from the high nibble.
+ */
+#define EM_CH_PREF_SHIFT 4
+
 /* Flags indicating whether a channel preference entry
    is considered valid or invalid */
 #define EM_CH_PREF_ENTRY_VALID      0x01
 #define EM_CH_PREF_ENTRY_INVALID    0x00
+
+#define EM_SCAN_TYPE_PASSIVE 0U
+#define EM_SCAN_TYPE_ACTIVE  1U
+
+#define EM_SCAN_TYPE_BIT     (1U << 7)  // bit 7 in TLV
 
 /* Global MAC Address */
 static const mac_address_t EM_GLOBAL_MAC_ADDRESS = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
@@ -198,6 +218,9 @@ static const mac_address_t EM_GLOBAL_MAC_ADDRESS = {0xff, 0xff, 0xff, 0xff, 0xff
 #define EM_MAX_AP_MLD   64
 #define EM_MAX_ASSOC_STA_MLD   64
 #define EM_MAX_PRE_SET_CHANNELS   6
+
+#define EM_MAX_CHANNELS_PER_OPCLASS   16
+#define EM_MAX_STA_PER_CHANNEL        64
 
 #define EM_MAX_CMD  16
 
@@ -213,6 +236,7 @@ static const mac_address_t EM_GLOBAL_MAC_ADDRESS = {0xff, 0xff, 0xff, 0xff, 0xff
 #define EM_KEY_FILE	"/nvram//test_cert.key"
 
 #define EM_CFG_FILE "/nvram/EasymeshCfg.json"
+#define EM_PLUS_FILE "/nvram/EasymeshPlus.json"
 #define EM_VENDOR_OUI_SIZE 3
 
 #define EM_MAX_SSID_LEN                33 
@@ -279,6 +303,14 @@ static const mac_address_t EM_GLOBAL_MAC_ADDRESS = {0xff, 0xff, 0xff, 0xff, 0xff
 #define WIFI_EM_CHANNEL_SCAN_REQUEST          "Device.WiFi.EM.ChannelScanRequest"
 #endif
 
+#ifndef WIFI_EM_FAILED_CONNECTION
+#define WIFI_EM_FAILED_CONNECTION             "Device.WiFi.EM.FailedConnection"
+#endif
+
+#ifndef WIFI_EM_CLIENT_ASSOC_CTRL_REQ
+#define WIFI_EM_CLIENT_ASSOC_CTRL_REQ        "Device.WiFi.EM.ClientAssocCtrlRequest"
+#endif
+
 #ifndef WIFI_EC_SEND_TRIG_STA_SCAN
 #define WIFI_EC_SEND_TRIG_STA_SCAN          "Device.WiFi.EC.TriggerStaScan"
 #endif
@@ -308,6 +340,27 @@ static const mac_address_t EM_GLOBAL_MAC_ADDRESS = {0xff, 0xff, 0xff, 0xff, 0xff
 
 /* Min supported HE-MCS and NSS Set field's length */
 #define EM_MIN_HE_MCS_LEN            4
+
+/* 802.11 (re)assoc request frame body and HE Capabilities element layout */
+#define EM_ASSOC_FIXED_FIELDS_LEN    4   /* capab_info(2) + listen_interval(2) */
+#define EM_IE_HDR_LEN                2   /* element id + length */
+#define EM_EID_EXTENSION             255
+#define EM_EXT_EID_HE_CAPS           35
+#define EM_HE_MAC_CAPS_LEN           6
+#define EM_HE_PHY_CAPS_LEN           11
+#define EM_HE_CAPS_MIN_LEN           (1 + EM_HE_MAC_CAPS_LEN + EM_HE_PHY_CAPS_LEN + EM_MIN_HE_MCS_LEN)
+/* HE MAC capabilities bits (octet 0) */
+#define EM_HE_MAC0_TWT_REQ           0x02
+#define EM_HE_MAC0_TWT_RESP          0x04
+/* HE PHY capabilities bits */
+#define EM_HE_PHY0_CHWIDTH_160_5G    0x08          /* channel width set: 160 MHz in 5 GHz */
+#define EM_HE_PHY0_CHWIDTH_8080_5G   0x10          /* channel width set: 160/80+80 MHz in 5 GHz */
+#define EM_HE_PHY2_UL_MUMIMO_MASK    0xc0          /* full/partial bandwidth UL MU-MIMO */
+#define EM_HE_PHY3_SU_BEAMFORMER     0x80
+#define EM_HE_PHY4_SU_BEAMFORMEE     0x01
+#define EM_HE_PHY4_MU_BEAMFORMER     0x02
+#define EM_HE_PHY4_BFEE_STS_LE80_MASK  (0x07 << 2) /* beamformee STS <= 80 MHz */
+#define EM_HE_PHY4_BFEE_STS_GT80_MASK  (0x07 << 5) /* beamformee STS > 80 MHz */
 
 typedef char em_interface_name_t[32];
 typedef unsigned char em_nonce_t[16];
@@ -384,9 +437,11 @@ typedef struct {
 typedef unsigned char em_enum_type_t;
 
 typedef enum {
-    em_service_type_ctrl,
-    em_service_type_agent,
-    em_service_type_cli,
+    em_service_type_ctrl         = 0x00,
+    em_service_type_agent        = 0x01,
+    em_service_type_cli          = 0x02,
+    em_service_type_emplus_ctrl  = 0xA0,
+    em_service_type_emplus_agent = 0xA1,
     em_service_type_none
 } em_service_type_t;
 
@@ -395,6 +450,7 @@ typedef enum {
     em_profile_type_1,
     em_profile_type_2,
     em_profile_type_3,
+    em_profile_type_max,
 } em_profile_type_t;
 
 typedef enum {
@@ -410,11 +466,31 @@ typedef struct {
 } __attribute__((__packed__)) em_channels_list_t;
 
 typedef struct {
+    unsigned char   channel[EM_MAX_CHANNELS_IN_LIST];
+} __attribute__((__packed__)) em_per_op_class_channels_list_t;
+
+typedef struct {
     unsigned char   op_class;
     unsigned char   max_tx_eirp;
 	unsigned char   num;
     em_channels_list_t  channels;
 } __attribute__((__packed__)) em_op_class_t;
+
+typedef struct {
+    unsigned char op_class;
+       unsigned char   num;
+    em_per_op_class_channels_list_t channels;
+} __attribute__((__packed__)) em_scan_cap_op_class_info_t;
+
+/* Per-op-class entry inside em_cac_cap_method_t.
+ * EM_MAX_CAC_CHANS_PER_CLASS channels (class 121 has 12 - largest DFS class).
+ * EM_MAX_CAC_OP_CLASS_PER_METHOD x sizeof == 144 bytes, preserving
+ * sizeof(em_cac_cap_method_t) == 150 and sizeof(em_cac_cap_radio_t) == 607. */
+typedef struct {
+    unsigned char   op_class;
+    unsigned char   num;      /* channels listed; 0 = all channels in op class */
+    unsigned char   channels[EM_MAX_CAC_CHANS_PER_CLASS];
+} __attribute__((__packed__)) em_cac_op_class_t;
 
 typedef struct {
     mac_address_t   ruid;
@@ -423,6 +499,138 @@ typedef struct {
     em_op_class_t   op_classes[0];
 } __attribute__((__packed__)) em_ap_radio_basic_cap_t;
 
+
+/**
+ * ============================================================================
+ * Unassociated STA Work List Structures
+ * ============================================================================
+ *
+ * These structures are used internally by the Controller/Agent to organize
+ * and process Unassociated STA Link Metrics operations grouped by:
+ *
+ *      Operating Class -> Channel -> STA List
+ *
+ * The work list acts as an intermediate runtime structure while preparing,
+ * scheduling, parsing, or processing Unassociated STA metrics queries.
+ * ============================================================================
+ */
+
+/**
+ * @brief Stores the list of STAs belonging to a specific channel.
+ *
+ * Each channel entry contains:
+ *  - Channel number
+ *  - Number of STAs associated with the channel
+ *  - List of STA MAC addresses to be queried
+ */
+typedef struct {
+    uint8_t channel;
+    uint8_t num_sta;
+    mac_address_t sta_list[EM_MAX_STA_PER_CHANNEL];
+} em_unassoc_work_channel_t;
+
+/**
+ * @brief Stores all channels belonging to a single operating class.
+ *
+ * Each operating class may contain multiple channels,
+ * and each channel may contain multiple STAs.
+ */
+typedef struct {
+    uint8_t op_class;
+    uint8_t num_channels;
+    em_unassoc_work_channel_t channel_list[EM_MAX_CHANNELS_PER_OPCLASS];
+} em_unassoc_work_opclass_t;
+
+/**
+ * @brief Top-level runtime work list for Unassociated STA processing.
+ *
+ * This structure groups all operating classes that are currently
+ * involved in Unassociated STA metrics processing.
+ */
+typedef struct {
+    uint8_t num_opclass;
+    em_unassoc_work_opclass_t opclass_list[EM_MAX_OPCLASS];
+} em_unassoc_work_list_t;
+
+/**
+ * @brief Represents a single channel entry in the query.
+ *
+ * Contains:
+ *  - Channel number
+ *  - Number of STAs on the channel
+ *  - List of STA MAC addresses requested for metrics reporting
+ */
+typedef struct {
+    uint8_t channel;
+    uint8_t num_sta;
+    mac_address_t sta_list[EM_MAX_STA_PER_CHANNEL];
+} em_unassoc_query_channel_t;
+
+/**
+ * @brief Represents an operating class entry in the query.
+ *
+ * Each operating class contains:
+ *  - Number of channels
+ *  - Channel-wise STA query information
+ */
+typedef struct {
+    uint8_t op_class;
+    uint8_t num_channels;
+    em_unassoc_query_channel_t channel_list[EM_MAX_CHANNELS_PER_OPCLASS];
+} em_unassoc_query_opclass_t;
+
+/**
+ * @brief Top-level query structure for Unassociated STA metrics.
+ *
+ * This structure is used by the Controller to organize all requested
+ * operating classes, channels, and STA lists before sending the query.
+ */
+typedef struct {
+    uint8_t num_opclass;
+    em_unassoc_query_opclass_t opclass_list[EM_MAX_OPCLASS];
+} em_unassoc_query_list_t;
+
+#define EM_MAX_UNASSOC_STA 64
+
+/**
+ * @brief Stores metrics information for a single Unassociated STA.
+ *
+ * This structure is populated after parsing an Unassociated STA
+ * Link Metrics Response TLV.
+ *
+ * Contains:
+ *  - STA MAC address
+ *  - Operating class
+ *  - Channel number
+ *  - RCPI value
+ *  - Time delta associated with the measurement
+ */
+typedef struct {
+    mac_address_t sta_mac;
+    unsigned char channel;
+    unsigned char op_class;
+    unsigned char rcpi;
+    unsigned int  time_delta;
+} em_unassoc_sta_metric_entry_t;
+
+typedef struct {
+    unsigned int num_entries;
+    em_unassoc_sta_metric_entry_t entry[EM_MAX_UNASSOC_STA];
+} em_unassoc_sta_metrics_rsp_t;
+
+//For TLV structure
+typedef struct {
+    mac_address_t sta_mac;
+    unsigned char channel;
+    unsigned int  time_delta;
+    unsigned char rcpi;
+}__attribute__((__packed__)) em_unassoc_sta_metric_t;
+
+typedef struct {
+    unsigned char op_class;
+    unsigned char num_sta;
+    em_unassoc_sta_metric_t sta_metric[0];
+}__attribute__((__packed__))em_unassoc_sta_link_metrics_rsp_t;
 
 typedef enum {
     mandatory,
@@ -658,6 +866,7 @@ typedef enum {
     em_tlv_type_ap_mld_config = 0xe0,
     em_tlv_type_bsta_mld_config = 0xe1,
     em_tlv_type_assoc_sta_mld_conf_rep = 0xe2,
+    em_tlv_type_affiliated_sta_metrics = 0xe4,
     em_tlv_type_tid_to_link_map_policy = 0xe6,
     em_tlv_eht_operations = 0xe7,
     em_tlv_type_avail_spectrum_inquiry_reg = 0xe8,
@@ -666,6 +875,10 @@ typedef enum {
 
     em_tlv_type_max
 } em_tlv_type_t;
+
+typedef enum {
+    em_tlv_type_radio_capability = 0x0013,
+} em_vendor_airties_tlv_type_t;
 
 typedef enum {
     em_channel_pref_reason_unspecified = 0x00,
@@ -805,6 +1018,7 @@ typedef struct {
     unsigned char bss_color;
     unsigned char channel_util;
     unsigned short sta_count;
+    unsigned char bss_load_element_present;
 } em_neighbor_t;
 
 typedef struct {
@@ -981,15 +1195,6 @@ typedef struct {
 }__attribute__((__packed__)) em_unassoc_sta_link_metrics_query_t;
 
 typedef struct {
-    unsigned char op_class;
-    unsigned char num_sta_entries;
-    mac_address_t sta_mac_addr;
-    unsigned char channel_num;
-    unsigned int  time_delta_ms;
-    unsigned char uplink_rcpi;
-}__attribute__((__packed__)) em_unassoc_sta_link_metrics_rsp_t;
-
-typedef struct {
      mac_address_t sta_mac_addr;
 }__attribute__((__packed__)) em_assoc_sta_mac_addr_t;
 
@@ -1096,8 +1301,8 @@ typedef struct {
 } __attribute__((__packed__)) em_assoc_wifi6_sta_sts_t;
 
 typedef struct {
-    mac_address_t client_mac_addr;
     unsigned char bssid[6];
+    mac_address_t client_mac_addr;
 } __attribute__((__packed__)) em_client_info_t;
 
 typedef struct {
@@ -1412,6 +1617,16 @@ typedef struct {
     unsigned short reason_code;
 } __attribute__((__packed__)) em_reason_code_t;
 
+typedef struct
+{
+    mac_address_t sta_mac_addr;
+    unsigned int bytes_sent;
+    unsigned int bytes_recv;
+    unsigned int packets_sent;
+    unsigned int packets_recv;
+    unsigned int tx_packets_errors;
+} __attribute__((__packed__)) em_affiliated_sta_metrics_t;
+
 typedef struct {
     unsigned char *dpp_config_obj;
 } __attribute__((__packed__)) em_bss_conf_rsp_t;
@@ -1434,7 +1649,7 @@ typedef struct {
 
 typedef struct {
     unsigned char  ssids_num;
-    em_traffic_sep_policy_ssid_t  ssids[0];
+    em_traffic_sep_policy_ssid_t  ssids[EM_MAX_TRAFFIC_SEP_SSID];
 } __attribute__((__packed__)) em_traffic_sep_policy_t;
 
 typedef struct {
@@ -1539,6 +1754,17 @@ typedef struct {
 } __attribute__((__packed__)) em_vendor_specific_t;
 
 typedef struct {
+    unsigned char  vendor_oui[3];
+    unsigned char  data[0];
+} __attribute__((__packed__)) em_vendor_specific_v_t;
+
+typedef struct {
+    mac_address_t interface_mac;
+    unsigned char supported_standards[2];
+    unsigned char reserved[2];
+}__attribute__((__packed__)) em_radio_capability_vendor_t;
+
+typedef struct {
     unsigned char  destination;    
     mac_address_t  specific_neigh;
     unsigned char  link_metrics_type; 
@@ -1586,13 +1812,6 @@ typedef struct {
 } __attribute__((__packed__)) em_radio_vendor_t;
 
 typedef struct {
-    unsigned char   serial_len;
-    unsigned char   serial[MAP_INVENTORY_ITEM_LEN];
-    unsigned char   ver_len;
-    unsigned char   version[MAP_INVENTORY_ITEM_LEN];
-    unsigned char   envi_len;
-    unsigned char   environment[MAP_INVENTORY_ITEM_LEN];
-    unsigned char   radios_num;
     em_radio_vendor_t radios[EM_MAX_RADIO_PER_AGENT];
 } __attribute__((__packed__)) em_device_inventory_t;
 
@@ -1766,7 +1985,6 @@ typedef struct {
 } __attribute__((__packed__)) em_eht_operations_radio_t;
 
 typedef struct {
-    unsigned char reserved[32];
     unsigned char radios_num;
     em_eht_operations_radio_t radios[EM_MAX_RADIO_PER_AGENT];
 } __attribute__((__packed__)) em_eht_operations_t;
@@ -1786,7 +2004,7 @@ typedef struct {
     unsigned char  boot_only : 1;
     unsigned int   min_scan_interval;
     unsigned char  op_classes_num;
-    em_op_class_t  op_classes[EM_MAX_OP_CLASS];
+    em_scan_cap_op_class_info_t  op_classes[EM_MAX_OPCLASS];
 } __attribute__((__packed__))em_channel_scan_cap_radio_t;
 
 typedef struct {
@@ -1794,11 +2012,19 @@ typedef struct {
     em_channel_scan_cap_radio_t  radios[EM_MAX_RADIO_PER_AGENT];
 } __attribute__((__packed__))em_channel_scan_cap_t;
 
+/* CAC Method types — Wi-Fi Easy Mesh spec - 17.2.46 Table 16 */
+typedef enum {
+    em_cac_method_continuous              = 0, /* Continuous CAC */
+    em_cac_method_continuous_dedicated    = 1, /* Continuous with dedicated radio */
+    em_cac_method_mimo_reduced            = 2, /* MIMO dimension reduced */
+    em_cac_method_time_sliced             = 3, /* Time-sliced CAC */
+} em_cac_method_type_t;
+
 typedef struct {
     unsigned char   cac_method;
-    unsigned int    cac_duration;
+    unsigned int    cac_duration : 24;
     unsigned char   op_classes_num;
-    em_op_class_t   op_classes[EM_MAX_OP_CLASS];
+    em_cac_op_class_t   op_classes[EM_MAX_OP_CLASS];
 } __attribute__((__packed__)) em_cac_cap_method_t;
 
 typedef struct {
@@ -1900,8 +2126,10 @@ typedef struct {
     em_traffic_sep_policy_t traffic_separation_policy;
     em_channel_scan_rprt_policy_t channel_scan_policy;
     em_unsuccessful_assoc_policy_t unsuccessful_assoc_policy;
-    em_bh_bss_config_t bh_bss_cfg_policy;
-    em_qos_mgmt_policy_t qos_mgmt_policy;
+    unsigned int num_bh_bss_cfg;
+    em_bh_bss_config_t bh_bss_cfg_policy[EM_MAX_BSS_PER_RADIO];
+    unsigned int num_qos_mgmt;
+    em_qos_mgmt_policy_t qos_mgmt_policy[EM_MAX_QOS_MGMT_POLICY];
     em_vendor_policy_t vendor_policy;
 } em_policy_cfg_params_t;
 
@@ -1946,6 +2174,7 @@ typedef enum {
     em_media_type_ieee80211ac_5,
     em_media_type_ieee80211ad_60,
     em_media_type_ieee80211af,
+    em_media_type_max,
 } em_media_type_t;
 
 typedef struct {
@@ -2065,6 +2294,7 @@ typedef enum {
 	em_state_agent_channel_select_configuration_pending,
     em_state_agent_channel_report_pending,
 	em_state_agent_channel_scan_result_pending,
+    em_state_agent_unassoc_sta_metrics_report_pending,	
     em_state_agent_configured,
 	
 	// Transient agent stats
@@ -2106,6 +2336,7 @@ typedef enum {
     em_state_ctrl_avail_spectrum_inquiry_pending,
     em_state_ctrl_bsta_cap_pending,
     em_state_ctrl_topo_publish_pending,
+    em_state_ctrl_unassoc_sta_link_metrics_pending, 
 
     em_state_max,
 } em_state_t;
@@ -2158,6 +2389,8 @@ typedef enum {
     em_cmd_type_get_reset,
     em_cmd_type_bsta_cap,
     em_cmd_type_get_link_quality_report,
+    em_cmd_type_unassoc_sta_query,
+    em_cmd_type_unassoc_sta_result,
 
     em_cmd_type_max,
 } em_cmd_type_t;
@@ -2281,10 +2514,13 @@ typedef struct {
     unsigned char assoc_sta_reporting_int;
     unsigned char max_nummlds;
     unsigned char bstamld_maxlinks;
+    em_string_t   environment;
 
     em_small_string_t    primary_device_type;
     em_small_string_t    secondary_device_type;
     ieee_1905_security_t    sec_1905;
+    
+    uint8_t is_emplus_agent;
 } em_device_info_t;
 
 typedef struct {
@@ -2333,6 +2569,7 @@ typedef enum {
     em_op_class_type_preference,
     em_op_class_type_anticipated,
     em_op_class_type_scan_param,
+    em_op_class_type_selection,
 } em_op_class_type_t;
 
 typedef struct {
@@ -2419,6 +2656,7 @@ typedef struct {
 
     wifi_BeaconReport_t beacon_reports[EM_MAX_BEACON_REPORTS_PER_SCAN];
     em_link_report_t link_stats_report;
+    unsigned short  reason_code;
 } em_sta_info_t;
 
 typedef enum {
@@ -2611,7 +2849,6 @@ typedef struct {
     bool    support_rcpi_steering;
     em_long_string_t    chip_vendor;
     bool    ap_metrics_wifi6;
-    em_device_inventory_t inventory_info;
     int     transmit_power_limit;
     unsigned char partial_bss_color;
     unsigned char bss_color;
@@ -2630,6 +2867,7 @@ typedef struct {
 
 typedef struct {
     em_interface_t  ruid;
+    wifi_ieee80211Variant_t mode;
     em_ap_ht_cap_t  ht_cap;
     em_ap_vht_cap_t vht_cap;
     em_ap_he_cap_t  he_cap;
@@ -2806,6 +3044,7 @@ typedef enum {
     em_bus_event_type_set_channel,
     em_bus_event_type_scan_channel,
     em_bus_event_type_scan_result,
+    em_bus_event_type_channel_select,
     em_bus_event_type_get_bss,
     em_bus_event_type_get_sta,
     em_bus_event_type_steer_sta,
@@ -2850,6 +3089,11 @@ typedef enum {
     em_bus_event_type_recv_csa_beacon_frame,
     em_bus_event_type_bsta_cap_req,
     em_bus_event_type_link_quality_report,
+    em_bus_event_type_client_assoc_ctrl_req,
+    em_bus_event_type_unassoc_sta_query,
+    em_bus_event_type_unassoc_sta_link_metrics_query,
+    em_bus_event_type_unassoc_sta_result,
+    em_bus_event_type_failed_conn,
 
     em_bus_event_type_max
 } em_bus_event_type_t;
@@ -2863,6 +3107,7 @@ typedef struct {
     mac_address_t	mac;
     em_long_string_t	net_id;
     int sz;
+    uint8_t is_emplus_agent;
 } __attribute__((__packed__)) em_commit_info_t;
 
 typedef enum {
@@ -2939,7 +3184,10 @@ typedef enum {
     dm_orch_type_mld_reconfig,
     dm_orch_type_beacon_report,
     dm_orch_type_bsta_cap_query,
-    dm_orch_type_link_quality_report
+    dm_orch_type_link_quality_report,
+    dm_orch_type_unassoc_sta_link_req_query,
+    dm_orch_type_unassoc_sta_result,
+
 } dm_orch_type_t;
 
 typedef struct {
@@ -3038,17 +3286,9 @@ typedef struct {
 } em_cmd_args_t;
 
 typedef enum {
-    em_steering_opportunity_none,
-} em_steering_opportunity_t;
-
-typedef enum {
-    em_steering_mandate_none,
-} em_steering_mandate_t;
-
-typedef struct {
-    em_steering_opportunity_t	opportunity;
-    em_steering_mandate_t	mandate;
-} em_steer_req_mode_t;
+    em_steering_req_mode_opportunity,
+    em_steering_req_mode_mandate
+} em_steering_req_mode_t;
 
 typedef struct {
     mac_address_t	sta_mac;
@@ -3123,6 +3363,10 @@ typedef struct em_network_node {
     struct em_network_node     *child[EM_MAX_DM_CHILDREN];
 } em_network_node_t;
 
+typedef struct {
+    mac_address_t al_mac;
+} em_cmd_unassoc_sta_query_params_t;
+
 typedef em_scan_params_t em_cmd_scan_params_t;
 typedef struct {
     union {
@@ -3132,6 +3376,7 @@ typedef struct {
         em_cmd_disassoc_params_t	disassoc_params;
 		em_cmd_scan_params_t	scan_params;
         em_cmd_ap_metrics_rprt_params_t ap_metrics_params;
+        em_cmd_unassoc_sta_query_params_t unassoc_sta_query_params;
     } u;
 	em_network_node_t *net_node;
 } em_cmd_params_t;
@@ -3188,9 +3433,19 @@ typedef struct {
  */
 typedef enum {
     em_cmd_event_type_ap_metrics_report,
+    em_cmd_event_type_failed_connection,
 
     em_cmd_event_type_max
 } em_cmd_event_type_t;
+
+typedef struct {
+    int             ap_index;
+    mac_address_t   sta_mac;
+    mac_address_t   bssid;
+    unsigned short  status_code;
+    unsigned short  reason_code;
+    bool            reason_code_present;
+} em_connection_status_evt_data_t;
 
 typedef struct {
     em_cmd_event_type_t type;
@@ -3259,6 +3514,7 @@ typedef enum {
     em_commit_target_radio,
     em_commit_target_radio_cap,
     em_commit_target_bss,
+    em_commit_target_max
 } em_commit_target_type_t;
 
 typedef struct {
@@ -3299,6 +3555,10 @@ typedef enum {
     tag_vht_capability = 191,
     tag_vendor_specific = 221,
     tag_extended_tags = 255,
+    //he
+    //he_6ghz
+    //eht
+    //other tags can be added here
 } tag_type_t;
 
 typedef struct {
@@ -3379,6 +3639,19 @@ typedef struct {
 } em_traffic_separation_policy_t;
 
 typedef struct {
+    unsigned char num_mscs;
+    mac_address_t msc_mac[EM_MAX_MSC_PER_TRAFFIC_SEPAR];
+    unsigned char num_scs;
+    mac_address_t sc_mac[EM_MAX_SCS_PER_TRAFFIC_SEPAR];
+} em_qos_mgt_policy_t;
+
+typedef struct {
+    bssid_t bssid;
+    bool b_profile_1_sta_disallowed;
+    bool b_profile_2_sta_disallowed;
+} em_backhaul_bss_config_policy_t;
+
+typedef struct {
 	em_policy_id_t	id;
 	unsigned int num_sta;
 	mac_address_t	sta_mac[EM_MAX_STA_PER_STEER_POLICY];
@@ -3392,10 +3665,17 @@ typedef struct {
 	bool	sta_status;
 	em_long_string_t	managed_sta_marker;
 	bool	independent_scan_report;
+    bssid_t bssid;
 	bool	profile_1_sta_disallowed;
 	bool	profile_2_sta_disallowed;
+    bool report_unassoc_sta;
+    unsigned int max_reporting_rate;
 	em_8021q_settings_policy_t  def_8021q_settings;
 	em_traffic_separation_policy_t traffic_separ;
+    unsigned int num_qos_mgt;
+    em_qos_mgt_policy_t qos_mgt[EM_MAX_STA_PER_AGENT];
+    unsigned int num_backhaul_bss_config;
+    em_backhaul_bss_config_policy_t backhaul_bss_config[EM_MAX_BSS_PER_RADIO];
     em_link_stats_alarm_cfg_t link_stats_alarm_cfg;
     em_client_filters_cfg_t client_filters;
 } em_policy_t;
@@ -3456,6 +3736,8 @@ static const SecurityTypeMap securityTypeMap[] = {
     { "WPA3 Personal",   EM_AUTH_WPA3_PERSONAL },
     { "WPA3 Transition", EM_AUTH_WPA3_TRANSITION }
 };
+
+static const unsigned char airties_vendor_oui[EM_VENDOR_OUI_SIZE] = {0x88, 0x41, 0xfc};
 
 #ifndef SSL_KEY
 #if OPENSSL_VERSION_NUMBER < 0x30000000L

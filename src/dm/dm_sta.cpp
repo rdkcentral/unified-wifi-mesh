@@ -403,6 +403,13 @@ void dm_sta_t::decode_sta_capability(dm_sta_t *sta)
 
     sta->m_sta_info.num_vendor_infos = 0;
 
+    /* The frame_body stores the full 802.11 (Re)Association Request frame body:
+     * capab_info (2B) + listen_interval (2B) + IEs. Skip the fixed fields. */
+    if (sta->m_sta_info.frame_body_len < 4) {
+        return;
+    }
+    offset = 4;
+
     while (offset < sta->m_sta_info.frame_body_len) {
         if (offset + 2 > sta->m_sta_info.frame_body_len) {
             printf("%s:%d: Insufficient data for tag header\n", __func__, __LINE__);

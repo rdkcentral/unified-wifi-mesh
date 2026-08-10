@@ -62,6 +62,8 @@ bool em_msg_t::get_client_mac_info(mac_address_t *mac)
             memcpy(mac, &cltinfo->client_mac_addr, sizeof(mac_address_t));
             return true;
         }
+        len -= static_cast<unsigned int> (sizeof(em_tlv_t) + htons(tlv->len));
+        tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
     }
     return false;
 }
@@ -84,16 +86,79 @@ bool em_msg_t::get_al_mac_address(unsigned char *mac)
     return false;
 }
 
+bool em_msg_t::get_supported_service(em_supported_service_t *svc)
+{
+    unsigned int tlv_len;
+    if (!svc) {
+        return false;
+    }
+
+    em_tlv_t *tlv = reinterpret_cast<em_tlv_t *>(m_buff);
+    unsigned int len = m_len;
+    while ((len >= sizeof(em_tlv_t)) && (tlv->type != em_tlv_type_eom)) {
+        tlv_len = ntohs(tlv->len);
+        if (len < sizeof(em_tlv_t) + tlv_len) {
+            return false;
+        }
+        if (tlv->type == em_tlv_type_supported_service) {
+             if (tlv_len < 2) {
+                 return false;
+            }
+            unsigned int copy_len = tlv_len - 1;
+            if (copy_len > EM_MAX_SERVICE) {
+                copy_len = EM_MAX_SERVICE;
+            }
+            svc->num = tlv->value[0];
+            if (svc->num > copy_len) {
+                svc->num = static_cast<unsigned char>(copy_len);
+            }
+            memset(svc->service, 0, EM_MAX_SERVICE);
+            memcpy(svc->service, &tlv->value[1], svc->num);
+            return true;
+        }
+        len -= static_cast<unsigned int>(sizeof(em_tlv_t) + tlv_len);
+        tlv = reinterpret_cast<em_tlv_t *>(reinterpret_cast<unsigned char *>(tlv) + sizeof(em_tlv_t) + tlv_len);
+    }
+    return false;
+}
+
+bool em_msg_t::parse_profile_tlv(const unsigned char *value, uint16_t value_len, em_profile_type_t *profile)
+{
+    if ((value == nullptr) || (profile == nullptr)) {
+        em_printfout("Error: Invalid Profile TLV input: value=%p profile=%p", static_cast<const void *>(value), static_cast<void *>(profile));
+        return false;
+    }
+
+    // Multi-AP Profile TLV may be encoded as 1 byte (legacy) or 4 bytes (profile + 3 reserved bytes).
+    if ((value_len != sizeof(unsigned char)) && (value_len != 4U)) {
+        em_printfout("Error: Invalid Profile TLV length %u", static_cast<unsigned int>(value_len));
+        return false;
+    }
+
+    const unsigned char raw_profile = value[0];
+    if (raw_profile >= static_cast<unsigned char>(em_profile_type_max)) {
+        em_printfout("Error: Invalid Profile TLV value %u", static_cast<unsigned int>(raw_profile));
+        return false;
+    }
+
+    *profile = static_cast<em_profile_type_t>(raw_profile);
+    return true;
+}
+
 bool em_msg_t::get_profile(em_profile_type_t *profile)
 {
     em_tlv_t    *tlv;
     unsigned int len;
 
+    if (profile == nullptr) {
+        em_printfout("Error: get_profile called with null profile");
+        return false;
+    }
+    *profile = em_profile_type_reserved;
     tlv = reinterpret_cast<em_tlv_t *> (m_buff); len = m_len;
     while ((tlv->type != em_tlv_type_eom) && (len > 0)) {
         if (tlv->type == em_tlv_type_profile) {
-            memcpy(profile, tlv->value, htons(tlv->len));
-            return true;
+            return parse_profile_tlv(tlv->value, ntohs(tlv->len), profile);
         }
 
         len -= static_cast<unsigned int> (sizeof(em_tlv_t) + htons(tlv->len));
@@ -120,6 +185,9 @@ bool em_msg_t::get_bss_id(mac_address_t *mac)
             memcpy(mac, tlv->value + sizeof(mac_address_t), sizeof(mac_address_t));
             return true;
         } else if (tlv->type == em_tlv_type_ap_metrics) {
+            memcpy(mac, tlv->value, sizeof(mac_address_t));
+            return true;
+        } else if (tlv->type == em_tlv_type_bssid) {
             memcpy(mac, tlv->value, sizeof(mac_address_t));
             return true;
         }
@@ -237,12 +305,15 @@ bool em_msg_t::get_profile_type(em_profile_type_t *profile)
     em_tlv_t    *tlv;
     unsigned int len;
 
+    if (profile == nullptr) {
+        em_printfout("Error: get_profile_type called with null profile");
+        return false;
+    }
     *profile = em_profile_type_reserved;
     tlv = reinterpret_cast<em_tlv_t *> (m_buff); len = m_len;
     while ((tlv->type != em_tlv_type_eom) && (len > 0)) {
         if (tlv->type == em_tlv_type_profile) {
-            memcpy(reinterpret_cast<unsigned char *> (profile), tlv->value, htons(tlv->len));
-            return true;
+            return parse_profile_tlv(tlv->value, ntohs(tlv->len), profile);
         }
         len -= static_cast<unsigned int> (sizeof(em_tlv_t) + htons(tlv->len));
         tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
@@ -576,10 +647,10 @@ void em_msg_t::ap_cap_rprt()
     m_tlv_member[m_num_tlv++] = em_tlv_member_t(em_tlv_type_ap_wifi6_cap, (m_profile > em_profile_type_2) ? optional:bad, "17.2.72 of Wi-Fi Easy Mesh 5.0", 24);
     m_tlv_member[m_num_tlv++] = em_tlv_member_t(em_tlv_type_channel_scan_cap, (m_profile > em_profile_type_1) ? mandatory:bad, "17.2.38 of Wi-Fi Easy Mesh 5.0", 17);
     m_tlv_member[m_num_tlv++] = em_tlv_member_t(em_tlv_type_1905_layer_security_cap, (m_profile > em_profile_type_2) ? mandatory:bad, "17.2.67 of Wi-Fi Easy Mesh 5.0", 6);
-    m_tlv_member[m_num_tlv++] = em_tlv_member_t(em_tlv_type_cac_cap, (m_profile > em_profile_type_1) ? mandatory:bad, "17.2.46 of Wi-Fi Easy Mesh 5.0", 21);
+    m_tlv_member[m_num_tlv++] = em_tlv_member_t(em_tlv_type_cac_cap, optional, "17.2.46 of Wi-Fi Easy Mesh 5.0", 21);
     m_tlv_member[m_num_tlv++] = em_tlv_member_t(em_tlv_type_profile_2_ap_cap, (m_profile > em_profile_type_1) ? mandatory:bad, "17.2.48 of Wi-Fi Easy Mesh 5.0", 6); 
     m_tlv_member[m_num_tlv++] = em_tlv_member_t(em_tlv_type_metric_cltn_interval, (m_profile > em_profile_type_1) ? mandatory:bad, "17.2.59 of Wi-Fi Easy Mesh 5.0", 7);
-    m_tlv_member[m_num_tlv++] = em_tlv_member_t(em_tlv_type_device_inventory, (m_profile > em_profile_type_2) ? mandatory:bad, "17.2.76 of Wi-Fi Easy Mesh 5.0", 270); 
+    m_tlv_member[m_num_tlv++] = em_tlv_member_t(em_tlv_type_device_inventory, optional, "17.2.76 of Wi-Fi Easy Mesh 5.0", 270); 
     m_tlv_member[m_num_tlv++] = em_tlv_member_t(em_tlv_type_ap_radio_advanced_cap, optional, "17.2.52 of Wi-Fi Easy Mesh 5.0", 9);
 }
 
@@ -840,6 +911,7 @@ void em_msg_t::client_disassoc_stats()
     m_tlv_member[m_num_tlv++] = em_tlv_member_t(em_tlv_type_sta_mac_addr, mandatory, "17.2.23 of Wi-Fi Easy Mesh 5.0", 9);
     m_tlv_member[m_num_tlv++] = em_tlv_member_t(em_tlv_type_reason_code, mandatory, "17.2.64 of Wi-Fi Easy Mesh 5.0", 5);
     m_tlv_member[m_num_tlv++] = em_tlv_member_t(em_tlv_type_assoc_sta_traffic_sts, mandatory, "17.2.35 of Wi-Fi Easy Mesh 5.0", 37);
+    m_tlv_member[m_num_tlv++] = em_tlv_member_t(em_tlv_type_affiliated_sta_metrics, optional, "17.2.100 of Wi-Fi Easy Mesh 6.0", 26);
 }
 void em_msg_t::svc_prio_req()
 {

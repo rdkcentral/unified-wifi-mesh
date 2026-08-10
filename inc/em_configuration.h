@@ -46,7 +46,7 @@ class em_configuration_t {
 	 *
 	 * @note Ensure that the buffer is adequately sized to hold the response message.
 	 */
-	int create_autoconfig_resp_msg(unsigned char *buff, em_freq_band_t band, unsigned char *dst, unsigned short msg_id, em_dpp_chirp_value_t *chirp = nullptr, size_t hash_len = 0);
+	int create_autoconfig_resp_msg(unsigned char *buff, em_freq_band_t band, unsigned char *dst, unsigned short msg_id, em_dpp_chirp_value_t *chirp = nullptr, size_t hash_len = 0, bool peer_is_emplus = false);
     
 	/**!
 	 * @brief Creates an auto-configuration search message.
@@ -424,6 +424,8 @@ class em_configuration_t {
 	 */
 	virtual short create_ap_radio_advanced_cap_tlv(unsigned char *buff) = 0;
 
+	virtual short create_def_8021q_settings_policy_tlv(unsigned char *buff) = 0;
+
 	/**!
 	 * @brief Creates a list of enrollee BSTA.
 	 *
@@ -474,7 +476,43 @@ class em_configuration_t {
 	 * @note Ensure that the MAC address and BSSID are valid before calling this function.
 	 */
 	int send_topology_notification_by_client(mac_address_t sta, bssid_t bssid, bool assoc);
-    
+
+	/**!
+	 * @brief Sends a Client Disassociation Stats message as required by EasyMesh spec (17.1.41).
+	 *
+	 * When a client disassociates, this message shall be sent to the Multi-AP Controller
+	 * including STA MAC Address Type TLV, Reason Code TLV, Associated STA Traffic Stats TLV,
+	 * and zero or more Affiliated STA Metrics TLVs (for MLD clients).
+	 *
+	 * @param[in] dassoc_sta Pointer to the disassociated sta
+	 *
+	 * @returns int
+	 * @retval message length on success
+	 * @retval -1 on failure
+	 */
+	int send_client_disassoc_stats_msg(const dm_sta_t *dassoc_sta);
+
+	/**!
+	 * @brief Sends a Failed Connection message
+	 *
+	 * Message content:
+	 * - One BSSID TLV
+	 * - One STA MAC Address Type TLV
+	 * - One Status Code TLV
+	 * - Zero or one Reason Code TLV
+	 *
+	 * @param[in] sta MAC address of the STA that attempted to connect.
+	 * @param[in] bssid BSSID to which the connection attempt was made.
+	 * @param[in] status_code IEEE 802.11 status code. If non-zero, reason TLV is omitted.
+	 * @param[in] reason_code IEEE 802.11 reason code used when status_code is zero.
+	 *
+	 * @returns int
+	 * @retval message length on success
+	 * @retval -1 on failure
+	 */
+	int send_failed_connection_msg(mac_address_t sta, bssid_t bssid,
+								   unsigned short status_code, unsigned short reason_code);
+
 	/**!
 	 * @brief Sends a BSTA MLD configuration request message.
 	 *
@@ -804,6 +842,7 @@ class em_configuration_t {
 	 */
 	int handle_topology_notification(unsigned char *buff, unsigned int len);
 	int handle_bsta_radio_cap(unsigned char *buff, unsigned int len);
+	int handle_assoc_sta_mld_conf_rep_tlv(unsigned char *buff, unsigned int len);
 
 	/**!
 	 * @brief Handles the operational BSS for the access point.
@@ -928,7 +967,7 @@ class em_configuration_t {
 	 *
 	 * @note Ensure the buffer is properly allocated and contains valid TLV data before calling this function.
 	 */
-	int handle_eht_operations_tlv(unsigned char *buff);
+	virtual int handle_eht_operations_tlv(unsigned char *buff, unsigned short len) = 0;
     
 	/**!
 	 * @brief Handles the Access Point MLD (Multi-Link Device) configuration request.
@@ -1000,20 +1039,7 @@ class em_configuration_t {
 	 */
 	unsigned short create_m2_msg(unsigned char *buff, em_haul_type_t haul_type);
     
-	/**!
-	 * @brief Creates a traffic separation policy.
-	 *
-	 * This function is responsible for creating a traffic separation policy using the provided buffer.
-	 *
-	 * @param[in] buff A pointer to an unsigned char buffer that contains the data required for creating the policy.
-	 *
-	 * @returns An unsigned short value indicating the result of the policy creation.
-	 * @retval 0 on success.
-	 * @retval non-zero error code on failure.
-	 *
-	 * @note Ensure that the buffer is properly initialized before calling this function.
-	 */
-	unsigned short create_traffic_separation_policy(unsigned char *buff);
+	virtual unsigned short create_traffic_separation_policy_tlv(unsigned char *buff) = 0;
     
 	/**!
 	 * @brief Creates an error code TLV.
@@ -1177,6 +1203,31 @@ class em_configuration_t {
 	 * @note This function does not take any parameters and returns a pointer to the manager.
 	 */
 	virtual em_mgr_t *get_mgr() = 0;
+
+	/**!
+	 * @brief Retrieves the peer profile from the AL-node EM instance.
+	 *
+	 * The AL-node EM instance is treated as the source of truth for
+	 * the peer profile during message handling when available.
+	 *
+	 * @returns The AL-node cached peer profile if set; otherwise the local cached profile
+	 * (treating em_profile_type_reserved as em_profile_type_1).
+	 */
+	em_profile_type_t get_peer_profile_from_al_em();
+
+	/**!
+	 * @brief Retrieves the cached peer profile for this EM instance.
+	 *
+	 * @returns The cached peer profile.
+	 */
+	em_profile_type_t get_peer_profile() const { return m_peer_profile; }
+
+	/**!
+	 * @brief Updates the cached peer profile for this EM instance.
+	 *
+	 * @param[in] profile The peer profile to cache.
+	 */
+	void set_peer_profile(em_profile_type_t profile) { m_peer_profile = profile; }
     
 	/**!
 	 * @brief Retrieves the EC Manager instance.
@@ -1573,12 +1624,31 @@ private:
 
 public:
 
+	/* Parse a received AKM Suite Capabilities TLV and store the
+	 * advertised fronthaul/backhaul AKMs into every BSS of the data model. Wire format:
+	 * [bh_count][bh_suite*4][fh_count][fh_suite*4], each suite OUI[3] + type[1]. */
+	static void store_akm_suite_cap(dm_easy_mesh_t *dm, unsigned char *buff, unsigned int len);
+
 	bool send_autoconf_search_ext_chirp(em_dpp_chirp_value_t *chirp, size_t hash_len);
 
-	bool send_autoconf_search_resp_ext_chirp(em_dpp_chirp_value_t *chirp, size_t len, uint8_t dest_mac[ETH_ALEN], unsigned short msg_id);
+	bool send_autoconf_search_resp_ext_chirp(em_dpp_chirp_value_t *chirp, size_t len, uint8_t dest_mac[ETH_ALEN], unsigned short msg_id, bool peer_is_emplus);
 
 	bool send_bss_config_req_msg(uint8_t dest_al_mac[ETH_ALEN]);
-    
+
+	/**!
+	 * @brief Evaluates Unsuccessful Association Policy and sends a Failed Connection message if permitted.
+	 *
+	 * Checks report_unsuccess_assocs and rate-limiting before calling send_failed_connection_msg.
+	 *
+	 * @param[in] sta MAC address of the STA that attempted to connect.
+	 * @param[in] bssid BSSID to which the connection attempt was made.
+	 * @param[in] status_code IEEE 802.11 status code.
+	 * @param[in] reason_code IEEE 802.11 reason code.
+	 * @param[in] reason_code_present Indicates whether reason_code is valid in the event payload.
+	 */
+	void handle_failed_connection_event(const mac_address_t sta, const bssid_t bssid,
+									 unsigned short status_code, unsigned short reason_code,
+									 bool reason_code_present);
 	/**!
 	 * @brief Processes a message with the given data and length.
 	 *

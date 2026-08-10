@@ -371,6 +371,43 @@ void dm_easy_mesh_list_t::put_radio(const char *key, const dm_radio_t *radio)
         pradio = dm->get_radio(dm->get_num_radios() - 1);
     }
     *pradio = *radio;
+
+    // Create default per-radio policies (radio_metrics_rep and steering_param) for newly discovered radios.
+    if (dm != NULL) {
+        bool has_radio_metrics = false, has_steering_param = false;
+        for (unsigned int p = 0; p < dm->get_num_policy(); p++) {
+            if (memcmp(dm->m_policy[p].m_policy.id.radio_mac, pradio->m_radio_info.intf.mac, sizeof(mac_address_t)) == 0) {
+                if (dm->m_policy[p].m_policy.id.type == em_policy_id_type_radio_metrics_rep) has_radio_metrics = true;
+                if (dm->m_policy[p].m_policy.id.type == em_policy_id_type_steering_param) has_steering_param = true;
+            }
+        }
+        if (!has_radio_metrics) {
+            em_policy_t rm_default = {};
+            strncpy(rm_default.id.net_id, "OneWifiMesh", sizeof(rm_default.id.net_id) - 1);
+            rm_default.id.type = em_policy_id_type_radio_metrics_rep;
+            rm_default.policy = em_steering_policy_type_disallowed;
+            rm_default.util_threshold = 60;
+            rm_default.rcpi_threshold = 120;
+            rm_default.rcpi_hysteresis = 5;
+            rm_default.sta_traffic_stats = true;
+            rm_default.sta_link_metric = true;
+            dm_policy_t rp(rm_default);
+            memcpy(rp.m_policy.id.radio_mac, pradio->m_radio_info.intf.mac, sizeof(mac_address_t));
+            dm->set_policy(rp);
+        }
+        if (!has_steering_param) {
+            em_policy_t sp_default = {};
+            strncpy(sp_default.id.net_id, "OneWifiMesh", sizeof(sp_default.id.net_id) - 1);
+            sp_default.id.type = em_policy_id_type_steering_param;
+            sp_default.policy = em_steering_policy_type_rcpi_allowed;
+            sp_default.util_threshold = 60;
+            sp_default.rcpi_threshold = 120;
+            dm_policy_t sp(sp_default);
+            memcpy(sp.m_policy.id.radio_mac, pradio->m_radio_info.intf.mac, sizeof(mac_address_t));
+            dm->set_policy(sp);
+        }
+    }
+
     em_printfout("Radio dev_id is:%s", util::mac_to_string(pradio->m_radio_info.id.dev_mac).c_str());
     if ((em = m_mgr->create_node(&pradio->m_radio_info.intf, static_cast<em_freq_band_t> (pradio->m_radio_info.media_data.band), dm, false,
             em_profile_type_3, em_service_type_ctrl)) != NULL) {
@@ -1026,8 +1063,12 @@ dm_op_class_t *dm_easy_mesh_list_t::get_first_pre_set_op_class_by_type(em_op_cla
 
 	for (i = 0; i < dm->get_num_op_class(); i++) {
 		op_class = &dm->m_op_class[i];
-		if (op_class->m_op_class_info.id.type == type) {
-			return op_class;
+        // Make sure PRESET opclasses should not include the radio level anticipated opclasses
+		if (op_class->m_op_class_info.id.type == type ) {
+                if (type != em_op_class_type_anticipated ||
+                    memcmp(op_class->m_op_class_info.id.ruid, dm->m_device.m_device_info.intf.mac, sizeof(mac_address_t)) == 0) {
+                    return op_class;
+                }
 		}
 	}	
 
@@ -1050,7 +1091,10 @@ dm_op_class_t *dm_easy_mesh_list_t::get_next_pre_set_op_class_by_type(em_op_clas
 		pop_class = &dm->m_op_class[i];
 
 		if ((return_next == true) && (pop_class->m_op_class_info.id.type == type)) {
-			return pop_class;
+            if (type != em_op_class_type_anticipated ||
+                memcmp(pop_class->m_op_class_info.id.ruid, dm->m_device.m_device_info.intf.mac, sizeof(mac_address_t)) == 0) {
+                return pop_class;
+            }
 		}
 
 		if ((pop_class->m_op_class_info.id.type == type) &&
@@ -1200,26 +1244,29 @@ dm_policy_t *dm_easy_mesh_list_t::get_policy(const char *key)
 	dm_policy_t::parse_dev_radio_mac_from_key(key, &id);
 	dm_easy_mesh_t::macbytes_to_string(id.dev_mac, dev_mac_str);
 	dm_easy_mesh_t::macbytes_to_string(id.radio_mac, radio_mac_str);
-	//printf("%s:%d: Net id: %s\tdev: %s\tradio: %s\tType: %d\n", __func__, __LINE__, id.net_id, dev_mac_str, radio_mac_str, id.type);
+	em_printfout("%s:%d: Net id: %s\tdev: %s\tradio: %s\tType: %d\n", __func__, __LINE__, id.net_id, dev_mac_str, radio_mac_str, id.type);
 	dm_easy_mesh_t::macbytes_to_string(id.dev_mac, dev_mac_str);
 
 	if ((dm = get_data_model(id.net_id, id.dev_mac)) == NULL) {
-		printf("%s:%d: Could not find data model for Network: %s and dev: %s\n", __func__, __LINE__, id.net_id, dev_mac_str);
+		em_printfout("Could not find data model for Network: %s and dev: %s\n", id.net_id, dev_mac_str);
 		return NULL;
 	} 
 
 	for (i = 0; i < dm->get_num_policy(); i++) {
 		policy = &dm->m_policy[i];
+        em_printfout("compare with policy[%d]: Net id: %s[%s]\tdev: %s[%s]\tradio: %s[%s]\tType: %d[%d]\n", i, policy->m_policy.id.net_id, id.net_id,
+            util::mac_to_string(policy->m_policy.id.dev_mac).c_str(), dev_mac_str,
+            util::mac_to_string(policy->m_policy.id.radio_mac).c_str(), radio_mac_str, policy->m_policy.id.type, id.type);
 		if ((strncmp(policy->m_policy.id.net_id, id.net_id, strlen(id.net_id)) == 0) && 
 				(memcmp(policy->m_policy.id.dev_mac, id.dev_mac, sizeof(mac_address_t)) == 0) && 
 				(memcmp(policy->m_policy.id.radio_mac, id.radio_mac, sizeof(mac_address_t)) == 0) && 
 				(policy->m_policy.id.type == id.type)) {
-			//printf("%s:%d: Policy found for key: %s\n", __func__, __LINE__, key);
+			em_printfout("%s:%d: Policy found for key: %s\n", __func__, __LINE__, key);
 			return policy;
 		}
 	}
 
-	printf("%s:%d: Policy not found for key: %s\n", __func__, __LINE__, key);
+	em_printfout("Policy not found for key: %s\n", key);
 	return NULL;
 }
 
@@ -1523,38 +1570,43 @@ dm_easy_mesh_t *dm_easy_mesh_list_t::create_data_model(const char *net_id, const
     dm_network_t *net, *pnet;
     dm_device_t *dev;
     dm_network_ssid_t *net_ssid, *pnet_ssid;
+	// Per-radio policies (radio_metrics_rep, steering_param) are NOT initialized here.
+	// They are created with real radio MACs in put_radio() when radios are discovered.
 	const em_policy_t	em_policy[] = {
 						{{"OneWifiMesh", {0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, {0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
-							em_policy_id_type_ap_metrics_rep}, 0, {}, em_steering_policy_type_unknown, 
-							0, 0, 5, 0, false, false, false, "", false, false, false, {0, 0},
-							{0, {{0, "", 0}, {0, "", 0}, {0, "", 0}, {0, "", 0}, {0, "", 0}}}, {}, {}},
-						{{"OneWifiMesh", {0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF},
-							em_policy_id_type_radio_metrics_rep}, 0, {}, em_steering_policy_type_unknown, 
-							60, 120, 0, 5, true, true, false, "", false, false, false, {0, 0},
-							{0, {{0, "", 0}, {0, "", 0}, {0, "", 0}, {0, "", 0}, {0, "", 0}}}, {}, {}},
+							em_policy_id_type_ap_metrics_rep}, 0, {}, em_steering_policy_type_disallowed,
+							0, 0, 5, 0, false, false, false, "", false, {}, false, false, false, 0, {0, 0},
+                            {0, {{0, "", 0}, {0, "", 0}, {0, "", 0}, {0, "", 0}, {0, "", 0}}}, {}, {}, {}, {}, {}, {}},
 						{{"OneWifiMesh", {0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, {0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
-							em_policy_id_type_steering_local}, 1, {{0x00, 0x00, 0x00, 0x00, 0x00, 0x00}}, 
-							em_steering_policy_type_unknown, 
-							0, 0, 0, 0, false, false, false, "", false, false, false, {0, 0},
-							{0, {{0, "", 0}, {0, "", 0}, {0, "", 0}, {0, "", 0}, {0, "", 0}}}, {}, {}},
+							em_policy_id_type_steering_local}, 1, {{0x00, 0x00, 0x00, 0x00, 0x00, 0x00}},
+							em_steering_policy_type_disallowed,
+							0, 0, 0, 0, false, false, false, "", false, {}, false, false, false, 0, {0, 0},
+                            {0, {{0, "", 0}, {0, "", 0}, {0, "", 0}, {0, "", 0}, {0, "", 0}}}, {}, {}, {}, {}, {}, {}},
 						{{"OneWifiMesh", {0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, {0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
-							em_policy_id_type_steering_btm}, 1, {{0x00, 0x00, 0x00, 0x00, 0x00, 0x00}}, 
-							em_steering_policy_type_unknown, 
-							0, 0, 0, 0, false, false, false, "", false, false, false, {0, 0},
-							{0, {{0, "", 0}, {0, "", 0}, {0, "", 0}, {0, "", 0}, {0, "", 0}}}, {}, {}},
-						{{"OneWifiMesh", {0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF},
-							em_policy_id_type_steering_param}, 1, {{0x00, 0x00, 0x00, 0x00, 0x00, 0x00}}, 
-							em_steering_policy_type_rcpi_allowed, 
-							60, 120, 0, 0, false, false, false, "", false, false, false, {0, 0},
-							{0, {{0, "", 0}, {0, "", 0}, {0, "", 0}, {0, "", 0}, {0, "", 0}}}, {}, {}},
+							em_policy_id_type_steering_btm}, 1, {{0x00, 0x00, 0x00, 0x00, 0x00, 0x00}},
+							em_steering_policy_type_disallowed,
+							0, 0, 0, 0, false, false, false, "", false, {}, false, false, false, 0, {0, 0},
+                            {0, {{0, "", 0}, {0, "", 0}, {0, "", 0}, {0, "", 0}, {0, "", 0}}}, {}, {}, {}, {}, {}, {}},
 						{{"OneWifiMesh", {0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, {0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
-							em_policy_id_type_channel_scan}, 0, {}, em_steering_policy_type_unknown,
-							0, 0, 0, 0, false, false, false, "", false, false, false, {0, 0},
-							{0, {{0, "", 0}, {0, "", 0}, {0, "", 0}, {0, "", 0}, {0, "", 0}}}, {}, {}},
+							em_policy_id_type_channel_scan}, 0, {}, em_steering_policy_type_disallowed,
+							0, 0, 0, 0, false, false, false, "", false, {}, false, false, false, 0, {0, 0},
+                            {0, {{0, "", 0}, {0, "", 0}, {0, "", 0}, {0, "", 0}, {0, "", 0}}}, {}, {}, {}, {}, {}, {}},
 						{{"OneWifiMesh", {0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, {0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
-							em_policy_id_type_default_8021q_settings}, 0, {}, em_steering_policy_type_unknown,
-							0, 0, 0, 0, false, false, false, "", false, false, false, {1, 2},
-							{0, {{0, "", 0}, {0, "", 0}, {0, "", 0}, {0, "", 0}, {0, "", 0}}}, {}, {}},
+							em_policy_id_type_default_8021q_settings}, 0, {}, em_steering_policy_type_disallowed,
+							0, 0, 0, 0, false, false, false, "", false, {}, false, false, false, 0, {1, 2},
+                            {0, {{0, "", 0}, {0, "", 0}, {0, "", 0}, {0, "", 0}, {0, "", 0}}}, {}, {}, {}, {}, {}, {}},
+						{{"OneWifiMesh", {0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, {0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
+							em_policy_id_type_unsuccess_assoc}, 0, {}, em_steering_policy_type_disallowed,
+							0, 0, 0, 0, false, false, false, "", false, {}, false, false, false, 0, {0, 0},
+                            {0, {{0, "", 0}, {0, "", 0}, {0, "", 0}, {0, "", 0}, {0, "", 0}}}, {}, {}, {}, {}, {}, {}},
+						{{"OneWifiMesh", {0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, {0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
+							em_policy_id_type_backhaul_bss_config}, 0, {}, em_steering_policy_type_disallowed,
+							0, 0, 0, 0, false, false, false, "", false, {}, false, false, false, 0, {0, 0},
+                            {0, {{0, "", 0}, {0, "", 0}, {0, "", 0}, {0, "", 0}, {0, "", 0}}}, {}, {}, {}, {}, {}, {}},
+						{{"OneWifiMesh", {0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, {0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
+							em_policy_id_type_qos_mgt}, 0, {}, em_steering_policy_type_disallowed,
+							0, 0, 0, 0, false, false, false, "", false, {}, false, false, false, 0, {0, 0},
+                            {0, {{0, "", 0}, {0, "", 0}, {0, "", 0}, {0, "", 0}, {0, "", 0}}}, {}, {}, {}, {}, {}, {}},
 					};
     unsigned int i;
     bool colocated = false;
@@ -1564,17 +1616,18 @@ dm_easy_mesh_t *dm_easy_mesh_list_t::create_data_model(const char *net_id, const
 		dm_op_class_t({{{0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, em_op_class_type_anticipated, 135}, 135, 0, 0, 0, 1, {7}, {0xe0}, EM_CH_PREF_ENTRY_VALID, 0, 0, 0}),
 		dm_op_class_t({{{0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, em_op_class_type_scan_param, 81}, 81, 0, 0, 0, 3, {3, 6, 9},{0}, EM_CH_PREF_ENTRY_VALID, 0, 0, 0}),
 		dm_op_class_t({{{0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, em_op_class_type_scan_param, 115}, 115, 0, 0, 0, 9, {36, 40, 44, 48, 149, 153, 157, 161, 165}, {0}, EM_CH_PREF_ENTRY_VALID, 0, 0, 0}),
-		dm_op_class_t({{{0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, em_op_class_type_scan_param, 135}, 135, 0, 0, 0, 1, {1}, {0}, EM_CH_PREF_ENTRY_VALID, 0, 0, 0})
+		dm_op_class_t({{{0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, em_op_class_type_scan_param, 131}, 131, 0, 0, 0, 1, {1}, {0}, EM_CH_PREF_ENTRY_VALID, 0, 0, 0})
 									};
 	dm_policy_t	policy[] = {
-								dm_policy_t(em_policy[0]), dm_policy_t(em_policy[1]), 
-								dm_policy_t(em_policy[2]), dm_policy_t(em_policy[3]), 
+								dm_policy_t(em_policy[0]), dm_policy_t(em_policy[1]),
+								dm_policy_t(em_policy[2]), dm_policy_t(em_policy[3]),
 								dm_policy_t(em_policy[4]), dm_policy_t(em_policy[5]),
-								dm_policy_t(em_policy[6])
-						};
-	
+								dm_policy_t(em_policy[6]), dm_policy_t(em_policy[7])
+							};
+
     dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *> (al_intf->mac), mac_str);
     snprintf(key, sizeof(em_short_string_t), "%s@%s", net_id, mac_str);
+
 
     dm = new dm_easy_mesh_t();
     dm->init();
@@ -1611,6 +1664,7 @@ dm_easy_mesh_t *dm_easy_mesh_list_t::create_data_model(const char *net_id, const
     memcpy(dev->m_device_info.intf.mac, al_intf->mac, sizeof(mac_address_t));
     strncpy(dev->m_device_info.id.net_id, net_id, strlen(net_id) + 1);
 	if (controller == true) {
+		memcpy(dev->m_device_info.id.dev_mac, al_intf->mac, sizeof(mac_address_t));
 		dev->m_device_info.id.media = dm->m_network.m_net_info.media;
 		//TODO: Monitor Checks
 		//memcpy(dev->m_device_info.backhaul_mac.mac, al_intf->mac, sizeof(mac_address_t));

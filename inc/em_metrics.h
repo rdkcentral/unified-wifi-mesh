@@ -190,6 +190,7 @@ class em_metrics_t {
 	 * of an associated station.
 	 *
 	 * @param[in] buff Pointer to the buffer containing the TLV data.
+	 * @param[in] tlv_len Length of the TLV value field.
 	 *
 	 * @returns int Status code indicating success or failure of the operation.
 	 * @retval 0 on success.
@@ -197,8 +198,12 @@ class em_metrics_t {
 	 *
 	 * @note Ensure that the buffer is properly allocated and contains valid TLV data
 	 * before calling this function.
+	 * @note The TLV length must strictly follow: (7 + k × 19), where
+	 * 7 bytes = STA MAC (6) + number of BSSIDs (1),
+	 * and 19 bytes per BSSID metrics entry.
+	 * Invalid or partial TLVs are rejected to prevent out-of-bounds access.
 	 */
-	int handle_assoc_sta_link_metrics_tlv(unsigned char *buff);
+	int handle_assoc_sta_link_metrics_tlv(unsigned char *buff, unsigned int tlv_len);
     
 	/**!
 	 * @brief Handles the association of station external link metrics TLV.
@@ -207,14 +212,21 @@ class em_metrics_t {
 	 * station external link metrics TLV.
 	 *
 	 * @param[in] buff Pointer to the buffer containing the TLV data.
-	 *
+	 * @param[in] tlv_len Length of the TLV value field in bytes.
+	 * 
 	 * @returns int
 	 * @retval 0 on success
 	 * @retval -1 on failure
 	 *
 	 * @note Ensure that the buffer is properly allocated and contains valid TLV data.
+         * - Minimum required length is 7 bytes (STA MAC + k).
+         * - Each BSSID entry contains one `em_assoc_ext_link_metrics_t` block
+         * - Total TLV length must strictly follow:
+	 *   tlv_len = 7 + (k * sizeof(em_assoc_ext_link_metrics_t))
+         * - Any deviation from expected length results in rejection to prevent
+         *   out-of-bounds memory access
 	 */
-	int handle_assoc_sta_ext_link_metrics_tlv(unsigned char *buff);
+	int handle_assoc_sta_ext_link_metrics_tlv(unsigned char *buff, unsigned int tlv_len);
     
 	/**!
 	 * @brief Handles the association of station vendor link metrics TLV.
@@ -308,7 +320,31 @@ class em_metrics_t {
 	 *
 	 * @note Ensure that the buffer is properly allocated.
 	 */
-	int handle_ap_metrics_tlv(unsigned char *buff, bssid_t bssid);
+	int handle_ap_metrics_tlv(unsigned char *buff, unsigned int tlv_len, bssid_t bssid);
+
+	/**!
+	 * @brief Handles the AP Extended Metrics tlv.
+	 *
+	 * This function stores the unicast/multicast/broadcast byte counters into the BSS.
+	 *
+	 * @param[in] buff Pointer to the buffer containing AP extended metrics.
+	 * @param[in] tlv_len Length of the TLV value.
+	 *
+	 * @returns int Status code indicating success or failure.
+	 */
+	int handle_ap_ext_metrics_tlv(unsigned char *buff, unsigned int tlv_len);
+
+	/**!
+	 * @brief Handles the Radio Metrics tlv.
+	 *
+	 * This function stores the radio noise and transmit/receive metrics into the radio.
+	 *
+	 * @param[in] buff Pointer to the buffer containing radio metrics.
+	 * @param[in] tlv_len Length of the TLV value.
+	 *
+	 * @returns int Status code indicating success or failure.
+	 */
+	int handle_radio_metrics_tlv(unsigned char *buff, unsigned int tlv_len);
 
 	int handle_link_stats_alarm_rprt_tlv(unsigned char *buff, size_t len);
 
@@ -347,23 +383,6 @@ class em_metrics_t {
 	 * @note Ensure that the buffer provided is large enough to hold the TLV structure.
 	 */
 	short create_assoc_ext_sta_link_metrics_tlv(unsigned char *buff, mac_address_t sta_mac, const dm_sta_t *const sta);
-    
-	/**!
-	 * @brief Creates an error code TLV.
-	 *
-	 * This function generates a TLV (Type-Length-Value) structure for error codes.
-	 *
-	 * @param[out] buff Buffer where the TLV will be stored.
-	 * @param[in] sta MAC address of the station.
-	 * @param[in] sta_found Boolean indicating if the station was found.
-	 *
-	 * @returns Short integer representing the status of the TLV creation.
-	 * @retval 0 on success.
-	 * @retval -1 on failure.
-	 *
-	 * @note Ensure the buffer is large enough to hold the TLV.
-	 */
-	short create_error_code_tlv(unsigned char *buff, mac_address_t sta, bool sta_found);
     
 	/**!
 	 * @brief Creates an association vendor STA link metrics TLV.
@@ -439,7 +458,7 @@ class em_metrics_t {
 	int send_ap_metrics_response();
 
 	int send_link_quality_report();
-    
+
 	/**!
 	 * @brief Creates a beacon metrics response TLV.
 	 *
@@ -497,22 +516,7 @@ class em_metrics_t {
 	 * @note Ensure that the buffer is large enough to hold the TLV.
 	 */
 	short create_radio_metrics_tlv(unsigned char *buff, int index);
-    
-	/**!
-	 * @brief Creates an associated station traffic statistics TLV.
-	 *
-	 * This function generates a TLV (Type-Length-Value) structure for the traffic statistics
-	 * of an associated station and stores it in the provided buffer.
-	 *
-	 * @param[out] buff Pointer to the buffer where the TLV will be stored.
-	 * @param[in] sta Constant pointer to the station data structure containing the statistics.
-	 *
-	 * @returns short The length of the TLV created.
-	 *
-	 * @note Ensure that the buffer is large enough to hold the TLV data.
-	 */
-	short create_assoc_sta_traffic_stats_tlv(unsigned char *buff, const dm_sta_t *const sta);
-    
+
 	/**!
 	 * @brief Creates an association report TLV for a WiFi 6 station.
 	 *
@@ -533,7 +537,164 @@ class em_metrics_t {
 
 	short create_link_stats_alarm_tlv(unsigned char *buff);
 
+        /*
+         * @brief Tracks whether an Unassociated STA Link Metrics Query
+         *        has already been transmitted and is awaiting response.
+         */
+        bool m_unassoc_query_sent = false;
+
+        /*
+         * @brief Tracks whether an Unassociated STA Link Metrics Response
+         *        has already been handled.
+         */
+	bool m_unassoc_in_progress = false;
+
+        /*
+         * @brief Sends an Unassociated STA Link Metrics Response message.
+         *
+         * @note Used by Agent to send measured RCPI metrics
+         *       for requested unassociated STAs.
+         */
+        void send_unassoc_sta_link_metrics_resp_msg();
+
+       /*!
+        * @brief Creates Unassociated STA Link Metrics Query TLV
+        *        for a given operating class.
+        *
+        * @param buff Output buffer where TLV is written.
+        * @param op   Operating class query structure.
+        *
+        * @return Length of generated TLV.
+        */
+        unsigned short create_unassoc_sta_link_metrics_query_tlv(unsigned char *buff, em_unassoc_query_opclass_t *op);
+
+       /*
+        * @brief Handles received Unassociated STA Link Metrics
+        *        Response CMDU.
+        *
+        * @param buff Incoming CMDU buffer.
+        * @param len  CMDU length.
+        *
+        * @return 0 on success.
+        */
+        int handle_unassoc_sta_link_metrics_rsp(unsigned char *buff, unsigned int len);
+
+       /*
+        * @brief Parses and processes an Unassociated STA
+        *        Link Metrics TLV.
+        *
+        * @param buff TLV payload buffer.
+	* @param tlv_len TLV length
+        *
+        * @return 0 on success.
+        */
+        int handle_unassoc_sta_link_metrics_tlv(unsigned char *buff, unsigned int tlv_len);
+
+       /* 
+        * @brief Sends an Unassociated STA Link Metrics Query
+        *        message from Controller to Agent.
+        *
+        * @return 0 on success.
+        */
+        int send_unassoc_sta_link_metrics_query_msg();
+
+       /*
+        * @brief Handles received Unassociated STA Link Metrics Query.
+        *
+        * @param buff Incoming CMDU buffer.
+        * @param len  CMDU length.
+        *
+        * @return 0 on success.
+        */
+        int handle_unassoc_sta_link_metrics_query(unsigned char *buff, unsigned int len);
+
+       /*
+        * @brief Handles incoming 1905 ACK message.
+        *
+        * @param buff Incoming ACK CMDU buffer.
+        * @param len  CMDU length.
+        *
+        * @return 0 on success.
+        */
+        int handle_1905_ack(unsigned char *buff, unsigned int len);
+
+       /*
+        * @brief Sends a 1905 ACK for an Unassociated STA
+        *        Metrics Query request.
+        *
+        * @param sta_list List of queried STA MAC addresses.
+        * @param sta_count Number of STA MAC addresses.
+        * @param msg_id Original CMDU message ID being acknowledged.
+        *
+        * @return 0 on success.
+        */
+        int send_1905_ack_unassoc_sta_query(mac_address_t *sta_list, int sta_count, unsigned short msg_id);
+
+       /*
+        * @brief Creates Unassociated STA Link Metrics Response TLV.
+        *
+        * @param buff      Output buffer where TLV is written.
+        * @param op_class  Operating class of response metrics.
+        * @param rsp       Response metrics structure.
+        *
+        * @return Length of generated TLV.
+        */
+        unsigned short create_unassoc_sta_link_metrics_resp_tlv(unsigned char *buff, unsigned char op_class, em_unassoc_sta_metrics_rsp_t *rsp);
+
+       /*
+        * @brief Creates an Error Code TLV for STA metrics responses.
+        *
+        * @param buff          Output buffer where TLV is written.
+        * @param sta           STA MAC address associated with error.
+        * @param sta_found     Indicates whether STA was found.
+        * @param is_associated Indicates whether STA is associated.
+        *
+        * @return Length of generated TLV.
+        */
+        short create_error_code_tlv(unsigned char *buff, mac_address_t sta, bool sta_found, bool is_associated);
+
+       /*
+        * @brief Stores the CMDU Message ID of the last transmitted
+        *        Unassociated STA Link Metrics Query.
+        *
+        * @note Used for ACK tracking and response correlation.
+        */
+        unsigned short m_unassoc_sta_query_msg_id = 0;
+ 
+       /**
+        * @brief Get the current Unassociated STA Query message ID.
+        *
+        * Returns the message ID associated with the outstanding
+        * Unassociated STA Link Metrics Query.
+        *
+        * @return Message ID of the pending query.
+        */
+        unsigned short get_unassoc_sta_query_msg_id() const { return m_unassoc_sta_query_msg_id; }
+
+       /**
+        * @brief Clear the Unassociated STA Query message ID.
+        *
+        * Resets the stored query message ID after the corresponding
+        * ACK has been received and processed.
+        */
+        void clear_unassoc_sta_query_msg_id() { m_unassoc_sta_query_msg_id = 0; }	
+
 public:
+
+	/**!
+	 * @brief Creates an associated station traffic statistics TLV.
+	 *
+	 * This function generates a TLV (Type-Length-Value) structure for the traffic statistics
+	 * of an associated station and stores it in the provided buffer.
+	 *
+	 * @param[out] buff Pointer to the buffer where the TLV will be stored.
+	 * @param[in] sta Constant pointer to the station data structure containing the statistics.
+	 *
+	 * @returns short The length of the TLV created.
+	 *
+	 * @note Ensure that the buffer is large enough to hold the TLV data.
+	 */
+	virtual short create_assoc_sta_traffic_stats_tlv(unsigned char *buff, const dm_sta_t *const sta);
 
 	/**!
 	 * @brief Retrieves the manager instance.

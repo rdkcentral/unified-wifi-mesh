@@ -135,9 +135,15 @@ int tr_181_t::wfa_set_bus_callbackfunc_pointers(const char *full_namespace, bus_
         ELEMENT(DE_RADIO_CHIPVENDOR,       CALLBACK_GETTER(radio_get)),
         ELEMENT(DE_RADIO_CURROPNOE,        CALLBACK_GETTER(radio_get)),
         ELEMENT(DE_RADIO_BSSNOE,           CALLBACK_GETTER(radio_get)),
+        ELEMENT(DE_RADIO_XAIRTIES_OPERSTANDARDS, CALLBACK_GETTER(rcaps_get)),
         ELEMENT(DE_RCAPS_HTCAPS,           CALLBACK_GETTER(rcaps_get)),
         ELEMENT(DE_RCAPS_VHTCAPS,          CALLBACK_GETTER(rcaps_get)),
         ELEMENT(DE_RCAPS_CAPOPNOE,         CALLBACK_GETTER(rcaps_get)),
+        ELEMENT(DE_CAPOP_TABLE,            CALLBACK_GETTER(capops_tget)),
+        ELEMENT(DE_CAPOP_CLASS,            CALLBACK_GETTER(capops_get)),
+        ELEMENT(DE_CAPOP_MAXTXPOWER,       CALLBACK_GETTER(capops_get)),
+        ELEMENT(DE_CAPOP_NONOPERABLE,      CALLBACK_GETTER(capops_get)),
+        ELEMENT(DE_CAPOP_NONOPCNT,         CALLBACK_GETTER(capops_get)),
         ELEMENT(DE_CAPS_WF6AP,             CALLBACK_GETTER(wf6ap_tget)),
         ELEMENT(DE_WF6AP_HE160,            CALLBACK_GETTER(wf6ap_get)),
         ELEMENT(DE_WF6AP_HE8080,           CALLBACK_GETTER(wf6ap_get)),
@@ -233,6 +239,29 @@ int tr_181_t::wfa_set_bus_callbackfunc_pointers(const char *full_namespace, bus_
         ELEMENT(DE_STA_PAIRWSAKM,          CALLBACK_GETTER(sta_get)),
         ELEMENT(DE_STA_PAIRWSCIPHER,       CALLBACK_GETTER(sta_get)),
         ELEMENT(DE_STA_RSNCAPS,            CALLBACK_GETTER(sta_get)),
+        ELEMENT(DE_STAWF6CAPS_HE160,       CALLBACK_GETTER(sta_get)),
+        ELEMENT(DE_STAWF6CAPS_HE8080,      CALLBACK_GETTER(sta_get)),
+        ELEMENT(DE_STAWF6CAPS_MCSNSS,      CALLBACK_GETTER(sta_get)),
+        ELEMENT(DE_STAWF6CAPS_SUBFER,      CALLBACK_GETTER(sta_get)),
+        ELEMENT(DE_STAWF6CAPS_SUBFEE,      CALLBACK_GETTER(sta_get)),
+        ELEMENT(DE_STAWF6CAPS_MUBFER,      CALLBACK_GETTER(sta_get)),
+        ELEMENT(DE_STAWF6CAPS_BFEE80L,     CALLBACK_GETTER(sta_get)),
+        ELEMENT(DE_STAWF6CAPS_BFEEA80,     CALLBACK_GETTER(sta_get)),
+        ELEMENT(DE_STAWF6CAPS_ULMUMIMO,    CALLBACK_GETTER(sta_get)),
+        ELEMENT(DE_STAWF6CAPS_ULOFDMA,     CALLBACK_GETTER(sta_get)),
+        ELEMENT(DE_STAWF6CAPS_DLOFDMA,     CALLBACK_GETTER(sta_get)),
+        ELEMENT(DE_STAWF6CAPS_MAXDLMU,     CALLBACK_GETTER(sta_get)),
+        ELEMENT(DE_STAWF6CAPS_MAXULMU,     CALLBACK_GETTER(sta_get)),
+        ELEMENT(DE_STAWF6CAPS_MAXDLOF,     CALLBACK_GETTER(sta_get)),
+        ELEMENT(DE_STAWF6CAPS_MAXULOF,     CALLBACK_GETTER(sta_get)),
+        ELEMENT(DE_STAWF6CAPS_RTS,         CALLBACK_GETTER(sta_get)),
+        ELEMENT(DE_STAWF6CAPS_MURTS,       CALLBACK_GETTER(sta_get)),
+        ELEMENT(DE_STAWF6CAPS_MBSSID,      CALLBACK_GETTER(sta_get)),
+        ELEMENT(DE_STAWF6CAPS_MUEDCA,      CALLBACK_GETTER(sta_get)),
+        ELEMENT(DE_STAWF6CAPS_TWTREQ,      CALLBACK_GETTER(sta_get)),
+        ELEMENT(DE_STAWF6CAPS_TWTRSP,      CALLBACK_GETTER(sta_get)),
+        ELEMENT(DE_STAWF6CAPS_SPATRE,      CALLBACK_GETTER(sta_get)),
+        ELEMENT(DE_STAWF6CAPS_ACU,         CALLBACK_GETTER(sta_get)),
         ELEMENT(DE_APMLD_TABLE,            CALLBACK_GETTER(apmld_tget)),
         ELEMENT(DE_APMLD_MACADDRESS,       CALLBACK_GETTER(apmld_get)),
         ELEMENT(DE_APMLD_AFFAPNOE,         CALLBACK_GETTER(apmld_get)),
@@ -471,6 +500,9 @@ bus_error_t tr_181_t::raw_data_set(raw_data_t *p_data, bus_data_prop_t *property
     memcpy(p_data->raw_data.bytes, property, sizeof(bus_data_prop_t));
     p_data->raw_data_len = sizeof(bus_data_prop_t);
 
+    // ownership moved with the copy; no caller uses the pointer afterwards
+    free(property);
+
     return bus_error_success;
 }
 
@@ -595,12 +627,23 @@ bus_error_t tr_181_t::radio_get(char *event_name, raw_data_t *p_data, bus_user_d
     return bus_error_general;
 }
 
-bus_error_t tr_181_t::bss_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
+bus_error_t tr_181_t::radio_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
 {
     em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
 
     if (em_ctrl != NULL) {
-        return em_ctrl->get_dm_ctrl()->bss_get(event_name, p_data);
+        return em_ctrl->get_dm_ctrl()->radio_tget(event_name, p_data);
+    }
+    
+    return bus_error_general;
+}
+
+bus_error_t tr_181_t::rbhsta_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
+{
+    em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
+
+    if (em_ctrl != NULL) {
+        return em_ctrl->get_dm_ctrl()->rbhsta_get(event_name, p_data);
     }
     
     return bus_error_general;
@@ -679,38 +722,38 @@ bus_error_t tr_181_t::curops_tget(char *event_name, raw_data_t *p_data, bus_user
     if (em_ctrl != NULL) {
         return em_ctrl->get_dm_ctrl()->curops_tget(event_name, p_data);
     }
-    
+
     return bus_error_general;
 }
 
-bus_error_t tr_181_t::sta_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
+bus_error_t tr_181_t::capops_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
 {
     em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
 
     if (em_ctrl != NULL) {
-        return em_ctrl->get_dm_ctrl()->sta_get(event_name, p_data);
+        return em_ctrl->get_dm_ctrl()->capops_get(event_name, p_data);
     }
-    
+
     return bus_error_general;
 }
 
-bus_error_t tr_181_t::radio_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
+bus_error_t tr_181_t::capops_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
 {
     em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
 
     if (em_ctrl != NULL) {
-        return em_ctrl->get_dm_ctrl()->radio_tget(event_name, p_data);
+        return em_ctrl->get_dm_ctrl()->capops_tget(event_name, p_data);
     }
-    
+
     return bus_error_general;
 }
 
-bus_error_t tr_181_t::rbhsta_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
+bus_error_t tr_181_t::bss_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
 {
     em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
 
     if (em_ctrl != NULL) {
-        return em_ctrl->get_dm_ctrl()->rbhsta_get(event_name, p_data);
+        return em_ctrl->get_dm_ctrl()->bss_get(event_name, p_data);
     }
     
     return bus_error_general;
@@ -722,6 +765,17 @@ bus_error_t tr_181_t::bss_tget(char *event_name, raw_data_t *p_data, bus_user_da
 
     if (em_ctrl != NULL) {
         return em_ctrl->get_dm_ctrl()->bss_tget(event_name, p_data);
+    }
+    
+    return bus_error_general;
+}
+
+bus_error_t tr_181_t::sta_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
+{
+    em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
+
+    if (em_ctrl != NULL) {
+        return em_ctrl->get_dm_ctrl()->sta_get(event_name, p_data);
     }
     
     return bus_error_general;
@@ -883,27 +937,35 @@ bus_error_t tr_181_t::bstacfg_get(char *event_name, raw_data_t *p_data, bus_user
 
 bus_error_t tr_181_t::get_network_topology(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
 {
-    p_data->data_type       = bus_data_type_string;
-    p_data->raw_data.bytes  = malloc(sizeof(mac_addr_str_t));
-    if (p_data->raw_data.bytes == NULL) {
-        em_printfout("Memory allocation is failed");
-        return bus_error_out_of_resources;
-    }
-
     cJSON *parent = NULL;
     char *str = NULL;
     dm_easy_mesh_ctrl_t *dm_ctrl = NULL;
 
     parent = cJSON_CreateObject();
+    if (parent == NULL) {
+        em_printfout("Error: Memory allocation is failed");
+        return bus_error_out_of_resources;
+    }
 
-    dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
+    em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
+    if ((em_ctrl == NULL) || ((dm_ctrl = em_ctrl->get_dm_ctrl()) == NULL)) {
+        em_printfout("Error: controller instance not available");
+        cJSON_Delete(parent);
+        return bus_error_general;
+    }
     dm_ctrl->get_network_config(parent, const_cast<char*>(GLOBAL_NET_ID));
 
     str = cJSON_Print(parent);
-    em_printfout(" get_network_topology: node mac len: %d", sizeof(mac_addr_str_t));
+    cJSON_Delete(parent);
+    if (str == NULL) {
+        em_printfout("Error: Memory allocation is failed");
+        return bus_error_out_of_resources;
+    }
 
+    p_data->data_type = bus_data_type_string;
     p_data->raw_data.bytes = reinterpret_cast<unsigned char *> (str);
-    p_data->raw_data_len = static_cast<unsigned int> (strlen(str));
+    /* include the NUL, as raw_data_set(const char *) does */
+    p_data->raw_data_len = static_cast<unsigned int> (strlen(str) + 1);
 
     return bus_error_success;
 }
