@@ -1195,13 +1195,19 @@ dm_policy_t *dm_easy_mesh_list_t::get_first_policy()
     dm_policy_t *policy;
 	dm = static_cast<dm_easy_mesh_t *> (hash_map_get_first(m_list));
     while (dm != NULL) {
+		if (dm->m_policy_map == NULL) {
+			em_printfout("get_first_policy: dm has NULL policy_map, skipping");
+			dm = static_cast<dm_easy_mesh_t *> (hash_map_get_next(m_list, dm));
+			continue;
+		}
 		policy = static_cast<dm_policy_t *> (hash_map_get_first(dm->m_policy_map));
 		if (policy != NULL) {
+			em_printfout("get_first_policy: returning policy type=%d", policy->m_policy.id.type);
 			return policy;
 		}
         dm = static_cast<dm_easy_mesh_t *> (hash_map_get_next(m_list, dm));
     }
-
+	em_printfout("get_first_policy: no policies found in any dm");
 	return NULL;
 }
 
@@ -1243,16 +1249,27 @@ dm_policy_t *dm_easy_mesh_list_t::get_policy(const char *key)
 	dm_easy_mesh_t::macbytes_to_string(id.dev_mac, dev_mac_str);
 	dm_easy_mesh_t::macbytes_to_string(id.radio_mac, radio_mac_str);
 	em_printfout("%s:%d: Net id: %s\tdev: %s\tradio: %s\tType: %d\n", __func__, __LINE__, id.net_id, dev_mac_str, radio_mac_str, id.type);
-	//dm_easy_mesh_t::macbytes_to_string(id.dev_mac, dev_mac_str);
 
 	if ((dm = get_data_model(id.net_id, id.dev_mac)) == NULL) {
-		em_printfout("Could not find data model for Network: %s and dev: %s\n", id.net_id, dev_mac_str);
+		em_printfout("get_policy(key): FAILED - no data model for net=%s dev=%s", id.net_id, dev_mac_str);
 		return NULL;
-	} 
+	}
+
+	if (dm->m_policy_map == NULL) {
+		em_printfout("get_policy(key): FAILED - policy_map is NULL for net=%s dev=%s", id.net_id, dev_mac_str);
+		return NULL;
+	}
+
     snprintf(list_key, sizeof(em_2xlong_string_t), "%s@%s@%s@%d", id.net_id, dev_mac_str, radio_mac_str, id.type);
+	em_printfout("get_policy(key): looking up map key=[%s]", list_key);
 
-	return static_cast<dm_policy_t *> (hash_map_get(dm->m_policy_map, list_key));
-
+	policy = static_cast<dm_policy_t *> (hash_map_get(dm->m_policy_map, list_key));
+	if (policy == NULL) {
+		em_printfout("get_policy(key): NOT FOUND for key=[%s] (map_count=%u)", list_key, hash_map_count(dm->m_policy_map));
+	} else {
+		em_printfout("get_policy(key): FOUND policy type=%d for key=[%s]", policy->m_policy.id.type, list_key);
+	}
+	return policy;
 }
 
 void dm_easy_mesh_list_t::remove_policy(const char *key)
@@ -1266,16 +1283,26 @@ void dm_easy_mesh_list_t::remove_policy(const char *key)
 	dm_policy_t::parse_dev_radio_mac_from_key(key, &id);
 	dm_easy_mesh_t::macbytes_to_string(id.dev_mac, dev_mac_str);
 	dm_easy_mesh_t::macbytes_to_string(id.radio_mac, radio_mac_str);
+	em_printfout("remove_policy: key=[%s] net=%s dev=%s radio=%s type=%d", key, id.net_id, dev_mac_str, radio_mac_str, id.type);
 
 	if ((dm = get_data_model(id.net_id, id.dev_mac)) == NULL) {
-		printf("%s:%d: Could not find data model for Network: %s and dev: %s\n", __func__, __LINE__, id.net_id, dev_mac_str);
+		em_printfout("remove_policy: FAILED - no data model for net=%s dev=%s", id.net_id, dev_mac_str);
+		return;
+	}
+
+	if (dm->m_policy_map == NULL) {
+		em_printfout("remove_policy: FAILED - policy_map is NULL for net=%s dev=%s", id.net_id, dev_mac_str);
 		return;
 	}
 
 	snprintf(list_key, sizeof(em_2xlong_string_t), "%s@%s@%s@%d", id.net_id, dev_mac_str, radio_mac_str, id.type);
+	em_printfout("remove_policy: removing map key=[%s] (map_count_before=%u)", list_key, hash_map_count(dm->m_policy_map));
 
 	if ((policy = static_cast<dm_policy_t *> (hash_map_remove(dm->m_policy_map, list_key))) != NULL) {
+		em_printfout("remove_policy: SUCCESS removed and deleted type=%d, map_count_after=%u", policy->m_policy.id.type, hash_map_count(dm->m_policy_map));
 		delete policy;
+	} else {
+		em_printfout("remove_policy: key=[%s] not found in map", list_key);
 	}
 }
 

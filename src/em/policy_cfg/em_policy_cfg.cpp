@@ -95,9 +95,15 @@ short em_policy_cfg_t::create_metrics_rep_policy_tlv(unsigned char *buff)
         em_printfout("No matching policy found for metrics report policy TLV in cmd_dm, trying DM");
         policy = nullptr;
         for (i = 0; i < get_data_model()->get_num_policy(); i++) {
-            if (get_data_model()->get_policy(i)->m_policy.id.type == em_policy_id_type_ap_metrics_rep) {
-                policy = get_data_model()->get_policy(i);
-                break;  
+            dm_policy_t *fb = get_data_model()->get_policy(i);
+            if (fb == NULL) {
+                em_printfout("create_metrics_rep_policy_tlv: fallback get_policy(%u) NULL, skipping", i);
+                continue;
+            }
+            if (fb->m_policy.id.type == em_policy_id_type_ap_metrics_rep) {
+                em_printfout("create_metrics_rep_policy_tlv: fallback found ap_metrics_rep at index %u", i);
+                policy = fb;
+                break;
             }
         }
         if (policy == nullptr) {
