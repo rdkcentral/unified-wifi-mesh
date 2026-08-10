@@ -1501,20 +1501,17 @@ public:
 	 */
    	 dm_policy_t *get_policy(unsigned int index) {
 		if (m_policy_map == NULL) {
-			em_printfout("get_policy(%u): m_policy_map is NULL", index);
 			return NULL;
 		}
 		unsigned int i = 0;
 		dm_policy_t *policy = static_cast<dm_policy_t *> (hash_map_get_first(m_policy_map));
 		while (policy != NULL) {
 			if (i == index) {
-				em_printfout("get_policy(%u): found type=%d key_type=%d", index, policy->m_policy.id.type, policy->m_policy.id.type);
 				return policy;
 			}
 			policy = static_cast<dm_policy_t *> (hash_map_get_next(m_policy_map, policy));
 			i++;
 		}
-		em_printfout("get_policy(%u): index out of range (map_count=%u)", index, hash_map_count(m_policy_map));
 		return NULL;
 	} 
 	/**!
@@ -1544,7 +1541,6 @@ public:
 		dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *> (id.dev_mac), dev_mac_str);
 		dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *> (id.radio_mac), radio_mac_str);
 		snprintf(key, sz, "%s@%s@%s@%d", id.net_id, dev_mac_str, radio_mac_str, id.type);
-		em_printfout("get_policy_key: net=%s dev=%s radio=%s type=%d -> key=[%s]", id.net_id, dev_mac_str, radio_mac_str, id.type, key);
 	}
 	/**!
 	 * @brief Checks whether this data model contains a policy of the given type.
@@ -1554,18 +1550,15 @@ public:
 	 */
 	bool has_policy_type(em_policy_id_type_t type) const {
 		if (m_policy_map == NULL) {
-			em_printfout("has_policy_type(%d): m_policy_map is NULL, returning false", type);
 			return false;
 		}
 		dm_policy_t *policy = static_cast<dm_policy_t *> (hash_map_get_first(m_policy_map));
 		while (policy != NULL) {
 			if (policy->m_policy.id.type == type) {
-				em_printfout("has_policy_type(%d): FOUND in map", type);
 				return true;
 			}
 			policy = static_cast<dm_policy_t *> (hash_map_get_next(m_policy_map, policy));
 		}
-		em_printfout("has_policy_type(%d): NOT found in map (count=%u)", type, hash_map_count(m_policy_map));
 		return false;
 	}
 
