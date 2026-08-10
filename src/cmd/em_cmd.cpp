@@ -181,6 +181,11 @@ char *em_cmd_t::status_to_string(em_cmd_out_status_t status, char *str)
 void em_cmd_t::deinit()
 {
     if (m_em_candidates != nullptr) {
+        // queue_destroy frees the data pointers it still holds, and the
+        // em_t candidates are owned by em_mgr's m_em_map — drain first
+        while (queue_count(m_em_candidates) != 0) {
+            queue_remove(m_em_candidates, queue_count(m_em_candidates) - 1);
+        }
         queue_destroy(m_em_candidates);
         m_em_candidates = nullptr;
     }
@@ -953,6 +958,8 @@ em_cmd_t::em_cmd_t()
 
 em_cmd_t::~em_cmd_t()
 {
-	free(m_evt);	
+	// deinit is idempotent; paths that already call it before delete are safe
+	deinit();
+	free(m_evt);
 }
 
