@@ -270,7 +270,13 @@ bool em_orch_ctrl_t::is_em_ready_for_orch_fini(em_cmd_t *pcmd, em_t *em)
                 dm_easy_mesh_t *live_dm = em->get_data_model();
                 if (cmd_dm != NULL && live_dm != NULL) {
                     for (unsigned int p = 0; p < cmd_dm->get_num_policy(); p++) {
-                         live_dm->set_policy(*cmd_dm->get_policy(p));
+                        dm_policy_t *pol = cmd_dm->get_policy(p);
+                        if (pol == NULL) {
+                            em_printfout("orch set_policy: get_policy(%u) returned NULL, skipping", p);
+                            continue;
+                        }
+                        em_printfout("orch set_policy: committing policy[%u] type=%d to live_dm", p, pol->m_policy.id.type);
+                        live_dm->set_policy(*pol);
                     }
                     // Trigger DB write
                     cmd_dm->set_db_cfg_param(db_cfg_type_policy_list_update, "");

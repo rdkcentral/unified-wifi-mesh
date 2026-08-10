@@ -79,7 +79,12 @@ short em_policy_cfg_t::create_metrics_rep_policy_tlv(unsigned char *buff)
 	metric = reinterpret_cast<em_metric_rprt_policy_t *> (tmp);
 	for (i = 0; i < dm->get_num_policy(); i++) {
         policy = dm->get_policy(i);
+        if (policy == NULL) {
+            em_printfout("create_metrics_rep_policy_tlv: get_policy(%u) returned NULL, skipping", i);
+            continue;
+        }
         if (policy->m_policy.id.type == em_policy_id_type_ap_metrics_rep) {
+            em_printfout("Found ap_metrics_rep policy at index %u, interval=%u", i, policy->m_policy.interval);
             found_match = true;
             //use radio from previous
             break;
@@ -107,6 +112,10 @@ short em_policy_cfg_t::create_metrics_rep_policy_tlv(unsigned char *buff)
 
     for (i = 0; i < dm->get_num_policy(); i++) {
 		policy = dm->get_policy(i);
+		if (policy == NULL) {
+			em_printfout("create_metrics_rep_policy_tlv: radio loop get_policy(%u) returned NULL, skipping", i);
+			continue;
+		}
 		if (policy->m_policy.id.type == em_policy_id_type_radio_metrics_rep) {
             for(unsigned int r = 0; r < get_data_model()->get_num_radios(); r++) {
                 if ((memcmp(policy->m_policy.id.radio_mac, get_data_model()->get_radio_info(r)->id.ruid, sizeof(mac_address_t)) == 0)) {
@@ -164,7 +173,12 @@ short em_policy_cfg_t::create_steering_policy_tlv(unsigned char *buff)
 	
 	for (i = 0; i < dm->get_num_policy(); i++) {
 		policy = dm->get_policy(i);
+		if (policy == NULL) {
+			em_printfout("create_steering_policy_tlv: get_policy(%u) returned NULL, skipping", i);
+			continue;
+		}
 		if (policy->m_policy.id.type == em_policy_id_type_steering_local) {
+			em_printfout("Found steering_local policy at index %u, num_sta=%u", i, policy->m_policy.num_sta);
 			found_match = true;
 			break;
 		}
@@ -190,8 +204,13 @@ short em_policy_cfg_t::create_steering_policy_tlv(unsigned char *buff)
 	len += sizeof(unsigned char) + sta_policy->num_sta*sizeof(mac_address_t);
 
 	for (i = 0; i < dm->get_num_policy(); i++) {
-		policy =  dm->get_policy(i);
+		policy = dm->get_policy(i);
+		if (policy == NULL) {
+			em_printfout("create_steering_policy_tlv: btm loop get_policy(%u) returned NULL, skipping", i);
+			continue;
+		}
 		if (policy->m_policy.id.type == em_policy_id_type_steering_btm) {
+			em_printfout("Found steering_btm policy at index %u, num_sta=%u", i, policy->m_policy.num_sta);
 			found_match = true;
 			break;
 		}
@@ -218,6 +237,10 @@ short em_policy_cfg_t::create_steering_policy_tlv(unsigned char *buff)
 
     	for (i = 0; i < dm->get_num_policy(); i++) {
             policy = dm->get_policy(i);
+            if (policy == NULL) {
+                em_printfout("create_steering_policy_tlv: radio count loop get_policy(%u) returned NULL, skipping", i);
+                continue;
+            }
             if (policy->m_policy.id.type == em_policy_id_type_steering_param) {
                 for (unsigned int r = 0; r < get_data_model()->get_num_radios(); r++) {
                     if (memcmp(policy->m_policy.id.radio_mac, get_data_model()->get_radio_info(r)->id.ruid, sizeof(mac_address_t)) == 0) {
@@ -240,7 +263,11 @@ short em_policy_cfg_t::create_steering_policy_tlv(unsigned char *buff)
         num_radios);
 
 	for (i = 0; i < dm->get_num_policy(); i++) {
-		policy =  dm->get_policy(i);
+		policy = dm->get_policy(i);
+		if (policy == NULL) {
+			em_printfout("create_steering_policy_tlv: radio fill loop get_policy(%u) returned NULL, skipping", i);
+			continue;
+		}
 		if (policy->m_policy.id.type == em_policy_id_type_steering_param) {
             for (unsigned int r = 0; r < get_data_model()->get_num_radios(); r++) {
                 if (memcmp(policy->m_policy.id.radio_mac, get_data_model()->get_radio_info(r)->id.ruid, sizeof(mac_address_t)) == 0) {
@@ -276,6 +303,10 @@ short em_policy_cfg_t::create_chan_scan_report_policy_tlv(unsigned char *buff)
 
     for (i = 0; i < dm->get_num_policy(); i++) {
         dm_policy_t *policy = dm->get_policy(i);
+        if (policy == NULL) {
+            em_printfout("create_chan_scan_report_policy_tlv: get_policy(%u) returned NULL, skipping", i);
+            continue;
+        }
         if (policy->m_policy.id.type != em_policy_id_type_channel_scan) {
             continue;
         }
@@ -307,6 +338,10 @@ short em_policy_cfg_t::create_unsucc_assoc_policy_tlv(unsigned char *buff)
 
     for (i = 0; i < dm->get_num_policy(); i++) {
         dm_policy_t *policy = dm->get_policy(i);
+        if (policy == NULL) {
+            em_printfout("create_unsucc_assoc_policy_tlv: get_policy(%u) returned NULL, skipping", i);
+            continue;
+        }
         if (policy->m_policy.id.type != em_policy_id_type_unsuccess_assoc) {
             continue;
         }
@@ -404,11 +439,16 @@ short em_policy_cfg_t::create_vendor_policy_cfg_tlv(unsigned char *buff)
     dm = get_current_cmd()->get_data_model();
 
     for (i = 0; i < dm->get_num_policy(); i++) {
-        if (dm->get_policy(i)->m_policy.id.type == em_policy_id_type_ap_metrics_rep) {
+        dm_policy_t *vpol = dm->get_policy(i);
+        if (vpol == NULL) {
+            em_printfout("create_vendor_policy_cfg_tlv: get_policy(%u) returned NULL, skipping", i);
+            continue;
+        }
+        if (vpol->m_policy.id.type == em_policy_id_type_ap_metrics_rep) {
             idx_ap = static_cast<int>(i);
-        } else if (dm->get_policy(i)->m_policy.id.type == em_policy_id_type_alarm_threshold) {
+        } else if (vpol->m_policy.id.type == em_policy_id_type_alarm_threshold) {
             idx_alarm = static_cast<int>(i);
-        } else if (dm->get_policy(i)->m_policy.id.type == em_policy_id_type_client_filters) {
+        } else if (vpol->m_policy.id.type == em_policy_id_type_client_filters) {
             idx_filter = static_cast<int>(i);
         }
         /* If both found, we can stop scanning early */
@@ -623,6 +663,10 @@ int em_policy_cfg_t::send_policy_cfg_request_msg()
     em_printfout("Scanning %u policies for Backhaul BSS Config TLVs", bh_dm->get_num_policy());
     for (unsigned int pi = 0; pi < bh_dm->get_num_policy(); pi++) {
         dm_policy_t *bh_pol = bh_dm->get_policy(pi);
+        if (bh_pol == NULL) {
+            em_printfout("send_policy_cfg: backhaul loop get_policy(%u) returned NULL, skipping", pi);
+            continue;
+        }
         if (bh_pol->m_policy.id.type != em_policy_id_type_backhaul_bss_config) {
             continue;
         }
@@ -652,6 +696,10 @@ int em_policy_cfg_t::send_policy_cfg_request_msg()
     em_printfout("Scanning %u policies for QoS Management TLVs", qos_dm->get_num_policy());
     for (unsigned int pi = 0; pi < qos_dm->get_num_policy(); pi++) {
         dm_policy_t *qos_pol = qos_dm->get_policy(pi);
+        if (qos_pol == NULL) {
+            em_printfout("send_policy_cfg: qos loop get_policy(%u) returned NULL, skipping", pi);
+            continue;
+        }
         if (qos_pol->m_policy.id.type != em_policy_id_type_qos_mgt) {
             continue;
         }

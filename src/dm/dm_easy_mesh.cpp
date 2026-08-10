@@ -3222,13 +3222,17 @@ void dm_easy_mesh_t::set_policy(dm_policy_t policy)
 	ppolicy = static_cast<dm_policy_t *> (hash_map_get(m_policy_map, key));
 
 	if (ppolicy == NULL) {
+		em_printfout("set_policy: inserting NEW policy key=%s type=%d", key, policy.m_policy.id.type);
 		ppolicy = new dm_policy_t(); //Heap allocation
 		hash_map_put(m_policy_map, strdup(key), ppolicy); //Load the address into the hashmap
+	} else {
+		em_printfout("set_policy: updating EXISTING policy key=%s type=%d", key, policy.m_policy.id.type);
 	}
 
 	//Filling the values in the memory which is present in hash_map. Need to remove the memory once the node gets deleted
 	memcpy(&ppolicy->m_policy, &policy.m_policy, sizeof(em_policy_t));
 	memcpy(ppolicy->m_policy.id.dev_mac, m_device.m_device_info.intf.mac, sizeof(mac_address_t));
+	em_printfout("set_policy: stored policy key=%s type=%d", key, ppolicy->m_policy.id.type);
 }
 
 void dm_easy_mesh_t::set_channels_list(dm_op_class_t op_class[], unsigned int num)
