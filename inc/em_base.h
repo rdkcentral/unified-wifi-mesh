@@ -450,6 +450,7 @@ typedef enum {
     em_profile_type_1,
     em_profile_type_2,
     em_profile_type_3,
+    em_profile_type_max,
 } em_profile_type_t;
 
 typedef enum {
