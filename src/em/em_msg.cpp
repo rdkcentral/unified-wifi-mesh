@@ -395,6 +395,11 @@ em_tlv_t *em_msg_t::get_next_tlv(em_tlv_t* tlv, em_tlv_t* tlvs_buff, unsigned in
     size_t offset = static_cast<size_t>(signed_offset);
     EM_ASSERT_MSG_TRUE(offset < buff_len, NULL, "TLV offset exceeds buffer length");
 
+    if (buff_len < sizeof(em_tlv_t)) {
+        em_printfout("Truncated packet: not enough space for TLV length field");
+        return NULL;
+    }
+
     // Calculate the size of the current TLV (header + data)
     uint16_t current_tlv_size = sizeof(em_tlv_t) + ntohs(tlv->len);
     
