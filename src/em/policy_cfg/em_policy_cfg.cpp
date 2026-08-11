@@ -246,8 +246,7 @@ short em_policy_cfg_t::create_steering_policy_tlv(unsigned char *buff)
     *tmp = static_cast<unsigned char>(num_radios);
     tmp += sizeof(unsigned char);
     len += sizeof(unsigned char);
-    em_printfout("Steering policy: found radio policy with type %d, num_radios=%u",
-        policy->m_policy.id.type,
+    em_printfout("Steering policy: num_radios=%u",
         num_radios);
 
 	for (policy = static_cast<dm_policy_t *>(hash_map_get_first(dm->m_policy_map));
