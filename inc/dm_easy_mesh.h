@@ -1486,48 +1486,6 @@ public:
 	 */
         unsigned int get_num_policy() { return (m_policy_map != NULL) ? hash_map_count(m_policy_map) : 0; }
 
-	/**!
-	 * @brief Retrieves the policy at the specified index.
-	 *
-	 * This function walks the policy map and returns a pointer to the policy
-	 * object at the given iteration index.
-	 * 
-	 * @param[in] index The index of the policy to retrieve.
-	 *
-	 * @returns A pointer to the policy object at the specified index.
-	 * @retval nullptr If the index is out of bounds.
-	 *
-	 * @note Ensure that the index is within the valid range of the policy array.
-	 */
-   	 dm_policy_t *get_policy(unsigned int index) {
-		if (m_policy_map == NULL) {
-			return NULL;
-		}
-		unsigned int i = 0;
-		dm_policy_t *policy = static_cast<dm_policy_t *> (hash_map_get_first(m_policy_map));
-		while (policy != NULL) {
-			if (i == index) {
-				return policy;
-			}
-			policy = static_cast<dm_policy_t *> (hash_map_get_next(m_policy_map, policy));
-			i++;
-		}
-		return NULL;
-	} 
-	/**!
-	 * @brief Retrieves a reference to the policy at the specified index.
-	 *
-	 * This function returns a reference to the policy object stored at the given index
-	 * within the policy array. It is used to access and modify the policy directly.
-	 *
-	 * @param[in] index The index of the policy to retrieve.
-	 *
-	 * @returns A reference to the policy object at the specified index.
-	 *
-	 * @note Ensure that the index is within the bounds of the policy array to avoid
-	 * undefined behavior.
-	 */
-	dm_policy_t& get_policy_by_ref(unsigned int index) { return *get_policy(index); }
 	
 	/**!
 	 * @brief Builds the hash map key for a policy from its identity.

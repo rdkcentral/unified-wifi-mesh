@@ -375,12 +375,9 @@ void dm_easy_mesh_list_t::put_radio(const char *key, const dm_radio_t *radio)
     // Create default per-radio policies (radio_metrics_rep and steering_param) for newly discovered radios.
     if (dm != NULL) {
         bool has_radio_metrics = false, has_steering_param = false;
-        for (unsigned int p = 0; p < dm->get_num_policy(); p++) {
-            dm_policy_t *policy = dm->get_policy(p);
-            if (policy == NULL) {
-                em_printfout("put_radio: get_policy(%u) returned NULL, skipping", p);
-                continue;
-            }
+        for (dm_policy_t *policy = static_cast<dm_policy_t *>(hash_map_get_first(dm->m_policy_map));
+             policy != NULL;
+             policy = static_cast<dm_policy_t *>(hash_map_get_next(dm->m_policy_map, policy))) {
             if (memcmp(policy->m_policy.id.radio_mac, pradio->m_radio_info.intf.mac, sizeof(mac_address_t)) == 0) {
                 if (policy->m_policy.id.type == em_policy_id_type_radio_metrics_rep) has_radio_metrics = true;
                 if (policy->m_policy.id.type == em_policy_id_type_steering_param) has_steering_param = true;

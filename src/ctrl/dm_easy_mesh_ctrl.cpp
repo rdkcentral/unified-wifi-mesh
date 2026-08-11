@@ -4755,14 +4755,14 @@ int dm_easy_mesh_ctrl_t::update_tables(dm_easy_mesh_t *dm)
     }
 
     if (dm->db_cfg_type_is_set(db_cfg_type_policy_list_update)) {
-        for (i = 0; i < dm->get_num_policy(); i++) {
-			policy = dm->get_policy_by_ref(i);
-			dm_easy_mesh_t::macbytes_to_string(policy.m_policy.id.dev_mac, dev_mac_str);
-			dm_easy_mesh_t::macbytes_to_string(policy.m_policy.id.radio_mac, radio_mac_str);
-            snprintf(parent, sizeof(em_2xlong_string_t), "%s@%s@%s@%d", GLOBAL_NET_ID, dev_mac_str, radio_mac_str, policy.m_policy.id.type);
-            //printf("%s:%d: Key: %s\n", __func__, __LINE__, parent);
+        for (dm_policy_t *pol_ptr = static_cast<dm_policy_t *>(hash_map_get_first(dm->m_policy_map));
+             pol_ptr != NULL;
+             pol_ptr = static_cast<dm_policy_t *>(hash_map_get_next(dm->m_policy_map, pol_ptr))) {
+			dm_easy_mesh_t::macbytes_to_string(pol_ptr->m_policy.id.dev_mac, dev_mac_str);
+			dm_easy_mesh_t::macbytes_to_string(pol_ptr->m_policy.id.radio_mac, radio_mac_str);
+            snprintf(parent, sizeof(em_2xlong_string_t), "%s@%s@%s@%d", GLOBAL_NET_ID, dev_mac_str, radio_mac_str, pol_ptr->m_policy.id.type);
 			criteria = dm->db_cfg_type_get_criteria(db_cfg_type_policy_list_update);
-            if (dm_policy_list_t::set_config(m_db_client, dm->get_policy_by_ref(i), parent) != 0) {
+            if (dm_policy_list_t::set_config(m_db_client, *pol_ptr, parent) != 0) {
                 at_least_one_failed = true;
             }
         }
@@ -5359,9 +5359,9 @@ bus_error_t dm_easy_mesh_ctrl_t::device_get_inner(char *event_name, raw_data_t *
     } else if (strcmp(param, "LocalSteeringDisallowedSTAList") == 0) {
         //rc = dm_ctrl->raw_data_set(p_data, );
     } else if (strcmp(param, "BTMSteeringDisallowedSTAList") == 0) {
-        unsigned int count = 0;
-	dm_policy_t *pi = dm->get_policy(count);
-        while (pi != NULL && count < dm->get_num_policy()) {
+        for (dm_policy_t *pi = static_cast<dm_policy_t *>(hash_map_get_first(dm->m_policy_map));
+             pi != NULL;
+             pi = static_cast<dm_policy_t *>(hash_map_get_next(dm->m_policy_map, pi))) {
             if(pi->m_policy.id.type == em_policy_id_type_steering_btm) {
                 const size_t n = static_cast<size_t>(pi->m_policy.num_sta);
                 std::vector<em_short_string_t> BTMSteeringDisallowed(n);
@@ -5373,8 +5373,6 @@ bus_error_t dm_easy_mesh_ctrl_t::device_get_inner(char *event_name, raw_data_t *
                 rc = dm_ctrl->raw_data_set(p_data, val_str);
                 break;
             }
-            count++;
-            pi = dm->get_policy(count);
         }
     } else if (strcmp(param, "MaxVIDs") == 0) {
         rc = dm_ctrl->raw_data_set(p_data, di->max_vids);
@@ -5641,7 +5639,6 @@ bus_error_t dm_easy_mesh_ctrl_t::policy_get_inner(char *event_name, raw_data_t *
     (void) user_data;
     const char *name = event_name;
     const char *param;
-    unsigned int count = 0;
     char instance[MAX_INSTANCE_LEN] = { 0 };
     bool is_num;
     bus_error_t rc = bus_error_success;
@@ -5668,12 +5665,14 @@ bus_error_t dm_easy_mesh_ctrl_t::policy_get_inner(char *event_name, raw_data_t *
         return bus_error_invalid_namespace;
     }
 
-    dm_policy_t *pi = dm->get_policy(count);
     em_printfout("num_policy:%d", dm->get_num_policy());
-    while (pi == NULL && count < dm->get_num_policy()) {
-        em_printfout("policy is NULL, checking next:%d", count);
-        count++;
-        pi = dm->get_policy(count);
+    for (dm_policy_t *p = static_cast<dm_policy_t *>(hash_map_get_first(dm->m_policy_map));
+         p != NULL;
+         p = static_cast<dm_policy_t *>(hash_map_get_next(dm->m_policy_map, p))) {
+        if (p->m_policy.id.type == em_policy_id_type_default_8021q_settings) {
+            pi = p;
+            break;
+        }
     }
 
     if(pi == NULL) {
