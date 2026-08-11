@@ -369,6 +369,7 @@ void em_t::proto_process(unsigned char *data, unsigned int len)
             } else {
                 em_policy_cfg_t::process_msg(data, len);
                 em_channel_t::process_msg(data, len);
+                em_metrics_t::process_msg(data, len);
             }
             break;
 
