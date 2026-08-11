@@ -5666,6 +5666,7 @@ bus_error_t dm_easy_mesh_ctrl_t::policy_get_inner(char *event_name, raw_data_t *
     }
 
     em_printfout("num_policy:%d", dm->get_num_policy());
+    dm_policy_t *pi = NULL;
     for (dm_policy_t *p = static_cast<dm_policy_t *>(hash_map_get_first(dm->m_policy_map));
          p != NULL;
          p = static_cast<dm_policy_t *>(hash_map_get_next(dm->m_policy_map, p))) {
