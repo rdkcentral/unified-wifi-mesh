@@ -358,14 +358,14 @@ void dm_easy_mesh_list_t::put_radio(const char *key, const dm_radio_t *radio)
 
     //em_printfout("Radio: %s", key);
 
-    if ((pradio = get_radio(key)) == NULL) {
-        dm = get_data_model(radio->m_radio_info.id.net_id, radio->m_radio_info.id.dev_mac);
-        //em_printfout("dm: %p net: %s device: %s", dm, radio->m_radio_info.id.net_id,
-        //      util::mac_to_string(radio->m_radio_info.id.dev_mac).c_str());
-        if (dm == NULL) {
-            return;
-        }
+    dm = get_data_model(radio->m_radio_info.id.net_id, radio->m_radio_info.id.dev_mac);
+    //em_printfout("dm: %p net: %s device: %s", dm, radio->m_radio_info.id.net_id,
+    //      util::mac_to_string(radio->m_radio_info.id.dev_mac).c_str());
+    if (dm == NULL) {
+        return;
+    }
 
+    if ((pradio = get_radio(key)) == NULL) {
         //em_printfout("Current Number of Radios: %d", dm->get_num_radios());
         dm->set_num_radios(dm->get_num_radios() + 1);
         pradio = dm->get_radio(dm->get_num_radios() - 1);
