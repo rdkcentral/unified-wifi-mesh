@@ -3093,10 +3093,10 @@ void dm_easy_mesh_t::deinit()
 {
     dm_sta_t *sta = NULL;
     dm_sta_t *tmp_sta = NULL;
-    dm_scan_result_t	*res = NULL;
-    dm_scan_result_t	*tmp_res = NULL;
     dm_policy_t	*policy = NULL;
     dm_policy_t	*tmp_policy = NULL;
+    dm_scan_result_t	*res = NULL;
+    dm_scan_result_t	*tmp_res = NULL;
     em_2xlong_string_t key;
     mac_addr_str_t dev_mac_str, radio_mac_str, bss_mac_str, sta_mac_str, scanner_mac_str;
 
