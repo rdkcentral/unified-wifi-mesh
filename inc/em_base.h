@@ -343,7 +343,10 @@ static const mac_address_t EM_GLOBAL_MAC_ADDRESS = {0xff, 0xff, 0xff, 0xff, 0xff
 
 /* 802.11 (re)assoc request frame body and HE Capabilities element layout */
 #define EM_ASSOC_FIXED_FIELDS_LEN    4   /* capab_info(2) + listen_interval(2) */
+#define EM_REASSOC_FIXED_FIELDS_LEN  (EM_ASSOC_FIXED_FIELDS_LEN + 6)  /* + current_ap(6) */
 #define EM_IE_HDR_LEN                2   /* element id + length */
+#define EM_EID_SSID                  0
+#define EM_EID_SUPP_RATES            1
 #define EM_EID_EXTENSION             255
 #define EM_EXT_EID_HE_CAPS           35
 #define EM_HE_MAC_CAPS_LEN           6
