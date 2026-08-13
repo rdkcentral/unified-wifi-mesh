@@ -3216,6 +3216,7 @@ void dm_easy_mesh_t::set_policy(dm_policy_t policy)
 
 	//need to use assert 
 
+	memcpy(policy.m_policy.id.dev_mac, m_device.m_device_info.intf.mac,sizeof(mac_address_t))
 	//Fetch the key from the incoming policy
 	dm_easy_mesh_t::get_policy_key(policy.m_policy.id, key, sizeof(key));
 
@@ -3231,7 +3232,7 @@ void dm_easy_mesh_t::set_policy(dm_policy_t policy)
 
 	//Filling the values in the memory which is present in hash_map. Need to remove the memory once the node gets deleted
 	memcpy(&ppolicy->m_policy, &policy.m_policy, sizeof(em_policy_t));
-	memcpy(ppolicy->m_policy.id.dev_mac, m_device.m_device_info.intf.mac, sizeof(mac_address_t));
+	//memcpy(ppolicy->m_policy.id.dev_mac, m_device.m_device_info.intf.mac, sizeof(mac_address_t));
 	em_printfout("set_policy: stored policy key=%s type=%d", key, ppolicy->m_policy.id.type);
 }
 
