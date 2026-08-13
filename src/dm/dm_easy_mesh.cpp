@@ -3216,7 +3216,7 @@ void dm_easy_mesh_t::set_policy(dm_policy_t policy)
 
 	//need to use assert 
 
-	memcpy(policy.m_policy.id.dev_mac, m_device.m_device_info.intf.mac,sizeof(mac_address_t))
+	memcpy(policy.m_policy.id.dev_mac, m_device.m_device_info.intf.mac,sizeof(mac_address_t));
 	//Fetch the key from the incoming policy
 	dm_easy_mesh_t::get_policy_key(policy.m_policy.id, key, sizeof(key));
 
