@@ -5771,13 +5771,13 @@ char* dm_easy_mesh_ctrl_t::get_sta_vht_caps_str(char *vht_cap_hex, char *buf, si
 bool dm_easy_mesh_ctrl_t::find_sta_he_caps(em_sta_info_t *si, const unsigned char **mac_caps,
     const unsigned char **phy_caps)
 {
-    /* Skip the fixed fields, as decode_sta_capability() does. */
-    unsigned int offset = EM_ASSOC_FIXED_FIELDS_LEN;
+    unsigned int offset;
 
     if ((si == NULL) || (mac_caps == NULL) || (phy_caps == NULL) ||
-        (si->frame_body_len <= EM_ASSOC_FIXED_FIELDS_LEN)) {
+        (si->frame_body_len == 0)) {
         return false;
     }
+    offset = dm_sta_t::get_assoc_frame_ie_offset(si->frame_body, si->frame_body_len);
     while (offset + EM_IE_HDR_LEN <= si->frame_body_len) {
         unsigned char id = si->frame_body[offset];
         unsigned char len = si->frame_body[offset + 1];
