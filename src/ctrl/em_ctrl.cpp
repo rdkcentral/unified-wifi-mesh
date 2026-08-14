@@ -989,7 +989,6 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
     mac_addr_str_t mac_str1 = {0}, mac_str2 = {0};
     unsigned int i = 0;
     em_commit_info_t dm_commit = {};
-    mac_address_t fallback_ruid = {0};
     em_supported_service_t svc = {};
     uint8_t is_emplus;
 

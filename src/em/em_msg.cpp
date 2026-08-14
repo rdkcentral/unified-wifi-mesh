@@ -174,7 +174,7 @@ bool em_msg_t::get_sta_mac(mac_address_t *mac)
     unsigned int len;
 
     tlv = reinterpret_cast<em_tlv_t *> (m_buff); len = m_len;
-    while ((tlv->type != em_tlv_type_eom) && (len > 0)) {
+    while ((tlv->type != em_tlv_type_eom) && (len >= sizeof(em_tlv_t)) {
         if (tlv->type == em_tlv_type_client_info) {
             memcpy(mac, tlv->value + sizeof(mac_address_t), sizeof(mac_address_t));
             return true;
@@ -192,8 +192,8 @@ bool em_msg_t::get_sta_mac(mac_address_t *mac)
             return true;
         }
 
-        len -= static_cast<unsigned int> (sizeof(em_tlv_t) + htons(tlv->len));
-        tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
+        len -= static_cast<unsigned int> (sizeof(em_tlv_t) + ntohs(tlv->len));
+        tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + ntohs(tlv->len));
     }
 
     return false;

@@ -595,6 +595,8 @@ int em_metrics_t::handle_beacon_metrics_response(unsigned char *buff, unsigned i
         if (memcmp(first_ie + BSSID_OFFSET_IN_BEACON_RPT_IE, null_bssid, sizeof(mac_address_t)) == 0) {
             em_printfout("Beacon Metrics Response: null BSSID in report, discarding stub measurement for sta:%s",
                 util::mac_to_string(response->sta_mac_addr).c_str());
+            em_cmdu_t *cmdu = reinterpret_cast<em_cmdu_t *>(buff + sizeof(em_raw_hdr_t));
+            send_beacon_metrics_ack(ntohs(cmdu->id));
             return 0;
         }
     }
@@ -1247,18 +1249,15 @@ short em_metrics_t::send_single_beacon_metrics_query(mac_address_t sta_mac, bssi
     bool ack_gated_retry = (cmd != NULL && cmd->get_data_model() != NULL &&
         cmd->supports_retry_state());
 
-    // For assoc/beacon_report commands: retry once per second until ACK is received for the tracked MID.
-    static constexpr time_t BEACON_QUERY_RETRY_SECS = 1;
+    // For beacon_report commands, send once and wait for ACK or orchestration timeout.
     static constexpr time_t BEACON_QUERY_TIMEOUT_SECS = 10;
 
     time_t now = time(NULL);
-    if (ack_gated_retry == TRUE) {
+    if (ack_gated_retry == true) {
         time_t last_tx = cmd->get_query_tx_time();
-        int elapsed = now - last_tx;
-        if (last_tx != 0 && elapsed < BEACON_QUERY_RETRY_SECS) {
-            // em_printfout("Beacon Metrics Query retry window active for sta:%s (sent %lds ago), skipping.......",
-            //     util::mac_to_string(sta_mac).c_str(),
-            // static_cast<long>(elapsed));
+        if (last_tx != 0) {
+            em_printfout("Beacon Metrics Query already sent for sta:%s, waiting for ACK or timeout",
+                util::mac_to_string(sta_mac).c_str());
             return 0;
         }
     } else {
@@ -1274,6 +1273,8 @@ short em_metrics_t::send_single_beacon_metrics_query(mac_address_t sta_mac, bssi
     }
 
     dm = get_data_model();
+
+    em_printfout("Sending beacon metrics query for STA: %s", util::mac_to_string(sta_mac).c_str());
 
     memcpy(tmp, dm->get_agent_al_interface_mac(), sizeof(mac_address_t));
     tmp += sizeof(mac_address_t);
@@ -1391,12 +1392,11 @@ short em_metrics_t::send_beacon_metrics_query(mac_address_t sta_mac, bssid_t bss
         for (int i = 0; i < mld_info->num_affiliated_sta; i++) {
             em_printfout("For sta %s, bssid is %s and link_addr is %s", util::mac_to_string(mld_info->mac_addr).c_str(),
                 util::mac_to_string(mld_info->affiliated_sta[i].bssid).c_str(), util::mac_to_string(mld_info->affiliated_sta[i].link_addr).c_str());
-            em_printfout("Sending %d beacon metrics query for affiliated STA: %s", i, util::mac_to_string(mld_info->mac_addr).c_str());
+            em_printfout("Attempting beacon metrics query for affiliated STA[%d]: %s", i, util::mac_to_string(mld_info->mac_addr).c_str());
 
             send_single_beacon_metrics_query(sta_mac, mld_info->affiliated_sta[i].bssid);
         }
     } else {
-        em_printfout("Sending beacon metrics query for STA: %s", util::mac_to_string(sta_mac).c_str());
         send_single_beacon_metrics_query(sta_mac, bssid);
     }
 
@@ -2301,7 +2301,6 @@ int em_metrics_t::handle_1905_ack(unsigned char *buff, unsigned int len)
     std::vector<em_t *> em_radios;
     em_t *matched_em = nullptr;
     mac_address_t src_mac;
-    bool is_beacon_query_ack = false;
 
     (void)len;
 
@@ -2320,6 +2319,7 @@ int em_metrics_t::handle_1905_ack(unsigned char *buff, unsigned int len)
             (response_msg_id == em->get_unassoc_sta_query_msg_id())) {
             matched_em = em;
             em->clear_unassoc_sta_query_msg_id();
+            em_printfout("Unassociated STA Link Metrics Query Ack handled successfully");
             break;
         }
 
@@ -2333,22 +2333,15 @@ int em_metrics_t::handle_1905_ack(unsigned char *buff, unsigned int len)
             is_beacon_query_ack = true;
             cmd->get_data_model()->set_msg_id(0);
             cmd->clear_query_tx_time();
+            matched_em->set_state(em_state_beacon_report_complete);
+            em_printfout("1905 ACK received src_al_mac:%s msg_id:%u",
+                util::mac_to_string(src_mac).c_str(), response_msg_id);
             break;
         }
     }
 
-    if (matched_em != nullptr) {
-        if (is_beacon_query_ack) {
-            matched_em->set_state(em_state_beacon_report_complete);
-        }
-    }
-
     em_radios.clear();
-    if (is_beacon_query_ack) {
-        em_printfout("Beacon Metrics Query ACK handled successfully, moving beacon_report to fini");
-    } else {
-        em_printfout("Unassociated STA Link Metrics Query Ack handled successfully");
-    }
+
     return 0;
 }
 
@@ -2996,8 +2989,6 @@ void em_metrics_t::process_ctrl_state()
 
 void em_metrics_t::process_agent_state()
 {
-    em_cmd_t *cmd = get_current_cmd();
-
     switch (get_state()) {
         case em_state_agent_sta_link_metrics_pending:
             send_associated_sta_link_metrics_resp_msg();
