@@ -50,7 +50,6 @@ short em_policy_cfg_t::create_metrics_rep_policy_tlv(unsigned char *buff)
 	dm_policy_t *policy;
 	bool found_match = false;
 	unsigned char *tmp = buff;
-	unsigned int i = 0;
 	em_metric_rprt_policy_t	*metric;
 	em_metric_rprt_policy_radio_t *radio_metric;
 
@@ -277,7 +276,6 @@ short em_policy_cfg_t::create_chan_scan_report_policy_tlv(unsigned char *buff)
 {
     size_t len = 0;
     dm_easy_mesh_t *dm;
-    unsigned int i;
 
     if (get_current_cmd()->get_type() == em_cmd_type_set_policy) {
         dm = get_current_cmd()->get_data_model();
@@ -309,7 +307,6 @@ short em_policy_cfg_t::create_unsucc_assoc_policy_tlv(unsigned char *buff)
 {
     size_t len = 0;
     dm_easy_mesh_t *dm;
-    unsigned int i;
 
     if (get_current_cmd()->get_type() == em_cmd_type_set_policy) {
         dm = get_current_cmd()->get_data_model();

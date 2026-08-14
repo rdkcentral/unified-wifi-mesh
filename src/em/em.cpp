@@ -2007,7 +2007,7 @@ short em_t::create_def_8021q_settings_policy_tlv(unsigned char *buff)
 {
     size_t len = 0;
     dm_easy_mesh_t *dm;
-    unsigned int i;
+//    unsigned int i;
 
     if (get_current_cmd()->get_type() == em_cmd_type_set_policy) {
         dm = get_current_cmd()->get_data_model();

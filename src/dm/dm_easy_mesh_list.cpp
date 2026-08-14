@@ -1213,7 +1213,6 @@ dm_policy_t *dm_easy_mesh_list_t::get_next_policy(dm_policy_t *policy)
 {
 	dm_easy_mesh_t *dm;
 	bool return_next = false;
-	unsigned int i;
     dm_policy_t *ppolicy;
 
 	dm = static_cast<dm_easy_mesh_t *> (hash_map_get_first(m_list));
@@ -1238,7 +1237,6 @@ dm_policy_t *dm_easy_mesh_list_t::get_policy(const char *key)
 	em_policy_id_t	id;
 	dm_easy_mesh_t	*dm;
 	mac_addr_str_t	dev_mac_str, radio_mac_str;
-	unsigned int i;
 	dm_policy_t *policy;
     em_2xlong_string_t list_key;
 	
