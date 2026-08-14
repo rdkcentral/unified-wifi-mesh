@@ -237,6 +237,7 @@ static const mac_address_t EM_GLOBAL_MAC_ADDRESS = {0xff, 0xff, 0xff, 0xff, 0xff
 #define EM_KEY_FILE	"/nvram//test_cert.key"
 
 #define EM_CFG_FILE "/nvram/EasymeshCfg.json"
+#define EM_PLUS_FILE "/nvram/EasymeshPlus.json"
 #define EM_VENDOR_OUI_SIZE 3
 
 #define EM_MAX_SSID_LEN                33 
@@ -341,6 +342,30 @@ static const mac_address_t EM_GLOBAL_MAC_ADDRESS = {0xff, 0xff, 0xff, 0xff, 0xff
 /* Min supported HE-MCS and NSS Set field's length */
 #define EM_MIN_HE_MCS_LEN            4
 
+/* 802.11 (re)assoc request frame body and HE Capabilities element layout */
+#define EM_ASSOC_FIXED_FIELDS_LEN    4   /* capab_info(2) + listen_interval(2) */
+#define EM_REASSOC_FIXED_FIELDS_LEN  (EM_ASSOC_FIXED_FIELDS_LEN + 6)  /* + current_ap(6) */
+#define EM_IE_HDR_LEN                2   /* element id + length */
+#define EM_EID_SSID                  0
+#define EM_EID_SUPP_RATES            1
+#define EM_EID_EXTENSION             255
+#define EM_EXT_EID_HE_CAPS           35
+#define EM_HE_MAC_CAPS_LEN           6
+#define EM_HE_PHY_CAPS_LEN           11
+#define EM_HE_CAPS_MIN_LEN           (1 + EM_HE_MAC_CAPS_LEN + EM_HE_PHY_CAPS_LEN + EM_MIN_HE_MCS_LEN)
+/* HE MAC capabilities bits (octet 0) */
+#define EM_HE_MAC0_TWT_REQ           0x02
+#define EM_HE_MAC0_TWT_RESP          0x04
+/* HE PHY capabilities bits */
+#define EM_HE_PHY0_CHWIDTH_160_5G    0x08          /* channel width set: 160 MHz in 5 GHz */
+#define EM_HE_PHY0_CHWIDTH_8080_5G   0x10          /* channel width set: 160/80+80 MHz in 5 GHz */
+#define EM_HE_PHY2_UL_MUMIMO_MASK    0xc0          /* full/partial bandwidth UL MU-MIMO */
+#define EM_HE_PHY3_SU_BEAMFORMER     0x80
+#define EM_HE_PHY4_SU_BEAMFORMEE     0x01
+#define EM_HE_PHY4_MU_BEAMFORMER     0x02
+#define EM_HE_PHY4_BFEE_STS_LE80_MASK  (0x07 << 2) /* beamformee STS <= 80 MHz */
+#define EM_HE_PHY4_BFEE_STS_GT80_MASK  (0x07 << 5) /* beamformee STS > 80 MHz */
+
 typedef char em_interface_name_t[32];
 typedef unsigned char em_nonce_t[16];
 typedef unsigned char em_dh5_key_t[192];    // because this is DH group 5 (1536 bits)
@@ -416,9 +441,11 @@ typedef struct {
 typedef unsigned char em_enum_type_t;
 
 typedef enum {
-    em_service_type_ctrl,
-    em_service_type_agent,
-    em_service_type_cli,
+    em_service_type_ctrl         = 0x00,
+    em_service_type_agent        = 0x01,
+    em_service_type_cli          = 0x02,
+    em_service_type_emplus_ctrl  = 0xA0,
+    em_service_type_emplus_agent = 0xA1,
     em_service_type_none
 } em_service_type_t;
 
@@ -427,6 +454,7 @@ typedef enum {
     em_profile_type_1,
     em_profile_type_2,
     em_profile_type_3,
+    em_profile_type_max,
 } em_profile_type_t;
 
 typedef enum {
@@ -2497,6 +2525,8 @@ typedef struct {
     em_small_string_t    primary_device_type;
     em_small_string_t    secondary_device_type;
     ieee_1905_security_t    sec_1905;
+    
+    uint8_t is_emplus_agent;
 } em_device_info_t;
 
 typedef struct {
@@ -3085,6 +3115,7 @@ typedef struct {
     mac_address_t	mac;
     em_long_string_t	net_id;
     int sz;
+    uint8_t is_emplus_agent;
 } __attribute__((__packed__)) em_commit_info_t;
 
 typedef enum {

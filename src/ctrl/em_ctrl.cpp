@@ -98,8 +98,12 @@ void em_ctrl_t::handle_dm_commit(em_bus_event_t *evt)
         }
         em_printfout("data model dev mac: %s and int.mac: %s\n", util::mac_to_string(new_dm.m_device.m_device_info.id.dev_mac).c_str(),
             util::mac_to_string(new_dm.m_device.m_device_info.intf.mac).c_str());
+        new_dm.m_device.m_device_info.is_emplus_agent = info->is_emplus_agent;
         new_dm.set_db_cfg_param(db_cfg_type_device_list_update, "");
         m_data_model.set_config(&new_dm);
+    } else {
+        dm->get_device_info()->is_emplus_agent = info->is_emplus_agent;
+        dm->set_db_cfg_param(db_cfg_type_device_list_update, "");
     }
 }
 
@@ -832,13 +836,28 @@ void em_ctrl_t::publish_network_topology()
 
     if((desc = get_bus_descriptor()) == NULL) {
         printf("%s:%d descriptor is null\n", __func__, __LINE__);
+        return;
     }
 
     parent = cJSON_CreateObject();
+    if (parent == NULL) {
+        printf("%s:%d cJSON_CreateObject failed\n", __func__, __LINE__);
+        return;
+    }
     dm_ctrl = reinterpret_cast<dm_easy_mesh_ctrl_t *>(get_data_model(GLOBAL_NET_ID));
+    if (dm_ctrl == NULL) {
+        printf("%s:%d data model is null\n", __func__, __LINE__);
+        cJSON_Delete(parent);
+        return;
+    }
     dm_ctrl->get_network_config(parent, const_cast<char*>(GLOBAL_NET_ID));
 
     str = cJSON_Print(parent);
+    if (str == NULL) {
+        printf("%s:%d cJSON_Print failed\n", __func__, __LINE__);
+        cJSON_Delete(parent);
+        return;
+    }
     em_printfout("    ===============Publish Network Topology Json:\n%s\n===============\n",str);
 
 	raw.data_type    = bus_data_type_string;
@@ -850,6 +869,10 @@ void em_ctrl_t::publish_network_topology()
     } else {
         printf("%s:%d Topology publish fail\n",__func__, __LINE__);
     }
+
+    // bus_event_publish_fn copies the payload
+    cJSON_Delete(parent);
+    cJSON_free(str);
 
 #if 0
     //Test code here
@@ -964,8 +987,11 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
     bssid_t	bssid;
     em_profile_type_t profile;
     mac_addr_str_t mac_str1 = {0}, mac_str2 = {0};
-    em_commit_info_t dm_commit;
     unsigned int i = 0;
+    em_commit_info_t dm_commit = {};
+    mac_address_t fallback_ruid = {0};
+    em_supported_service_t svc = {};
+    uint8_t is_emplus;
 
     assert(len > ((sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))));
     if (len < ((sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)))) {
@@ -992,6 +1018,17 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
 
             dm_easy_mesh_t::macbytes_to_string(intf.mac, mac_str1);
             em_printfout("[%s] Received autoconfig search from agent al mac: %s\n", __func__, mac_str1);
+
+            is_emplus = 0;
+            if (em_msg_t(data + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)), len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_supported_service(&svc)) {
+                for (i = 0; i < svc.num && i < EM_MAX_SERVICE; i++) {
+                    if (svc.service[i] == em_service_type_emplus_agent) {
+                        is_emplus = 1;
+                        break;
+                    }
+                }
+            }
+
             if ((dm = get_data_model(GLOBAL_NET_ID, const_cast<const unsigned char *> (intf.mac))) == NULL) {
                 if (em_msg_t(data + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)), len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_profile(&profile) == false) {
                     profile = em_profile_type_1;
@@ -999,11 +1036,14 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
                 //dm = create_data_model(GLOBAL_NET_ID, const_cast<const em_interface_t *> (&intf), profile);
                 memcpy(dm_commit.mac, intf.mac, sizeof(mac_addr_t));
                 strncpy(dm_commit.net_id, GLOBAL_NET_ID, sizeof(dm_commit.net_id));
+                dm_commit.is_emplus_agent = is_emplus;
                 io_process(em_bus_event_type_dm_commit, reinterpret_cast<unsigned char *> (&dm_commit), sizeof(em_commit_info_t));
-                em_printfout("[%s] Creating data model for mac: %s net: %s\n", __func__, mac_str1, GLOBAL_NET_ID);
+                em_printfout("[%s] Creating data model for mac: %s net: %s emplus: %d\n", __func__, mac_str1, GLOBAL_NET_ID, is_emplus);
             } else {
+                dm->get_device_info()->is_emplus_agent = is_emplus;
+                dm->set_db_cfg_param(db_cfg_type_device_list_update, "");
                 dm_easy_mesh_t::macbytes_to_string(dm->get_agent_al_interface_mac(), mac_str1);
-                em_printfout("[%s] Found existing data model for mac: %s net: %s\n", __func__, mac_str1, GLOBAL_NET_ID);
+                em_printfout("[%s] Found existing data model for mac: %s net: %s emplus: %d\n", __func__, mac_str1, GLOBAL_NET_ID, is_emplus);
             }
             em = al_em;
             break;

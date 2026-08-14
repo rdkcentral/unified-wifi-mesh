@@ -2974,7 +2974,7 @@ bool em_t::initialize_ec_manager(){
                                                 this, std::placeholders::_1);
         ops.send_autoconf_search_resp =
             std::bind(&em_t::send_autoconf_search_resp_ext_chirp, this, std::placeholders::_1,
-                      std::placeholders::_2, std::placeholders::_3, std::placeholders::_4);
+                      std::placeholders::_2, std::placeholders::_3, std::placeholders::_4, std::placeholders::_5);
     }
 
     // Read in the persistent security context for the controller or agent
