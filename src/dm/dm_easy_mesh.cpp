@@ -95,10 +95,6 @@ dm_easy_mesh_t& dm_easy_mesh_t::operator = (dm_easy_mesh_t const& obj)
 
     m_db_cfg_param = obj.m_db_cfg_param;
 
-/*    if (m_policy_map == NULL) {
-        m_policy_map = hash_map_create();
-    }*/
-
     if (obj.m_policy_map != NULL && m_policy_map != NULL) {
         dm_policy_t *policy = static_cast<dm_policy_t *> (hash_map_get_first(obj.m_policy_map));
         while (policy != NULL) {
@@ -3202,19 +3198,6 @@ void dm_easy_mesh_t::set_policy(dm_policy_t policy)
 {
 	dm_policy_t *ppolicy;
 	em_2xlong_string_t key;
-    /*for (i = 0; i < m_num_policy; i++) {
-        ppolicy = &m_policy[i];
-        temp = ((strncmp(policy.m_policy.id.net_id, ppolicy->m_policy.id.net_id, strlen(policy.m_policy.id.net_id)) == 0) &&
-                (memcmp(policy.m_policy.id.dev_mac, ppolicy->m_policy.id.dev_mac, sizeof(mac_address_t)) == 0) &&
-                (memcmp(policy.m_policy.id.radio_mac, ppolicy->m_policy.id.radio_mac, sizeof(mac_address_t)) == 0));
-
-        if ( (temp == true) && (policy.m_policy.id.type == ppolicy->m_policy.id.type) ) {
-            found_match = true;
-            break;
-        }
-    }*/
-
-	//need to use assert 
 
 	memcpy(policy.m_policy.id.dev_mac, m_device.m_device_info.intf.mac,sizeof(mac_address_t));
 	//Fetch the key from the incoming policy
@@ -3232,8 +3215,6 @@ void dm_easy_mesh_t::set_policy(dm_policy_t policy)
 
 	//Filling the values in the memory which is present in hash_map. Need to remove the memory once the node gets deleted
 	memcpy(&ppolicy->m_policy, &policy.m_policy, sizeof(em_policy_t));
-	//memcpy(ppolicy->m_policy.id.dev_mac, m_device.m_device_info.intf.mac, sizeof(mac_address_t));
-	em_printfout("set_policy: stored policy key=%s type=%d", key, ppolicy->m_policy.id.type);
 }
 
 void dm_easy_mesh_t::set_channels_list(dm_op_class_t op_class[], unsigned int num)
