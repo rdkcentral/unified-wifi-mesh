@@ -3469,6 +3469,29 @@ typedef struct {
 typedef em_long_string_t db_table_name_t;
 typedef em_long_string_t db_column_name_t;
 
+/**!
+ * @brief Identifies which persistence backend the controller's data model
+ * should bind to. This is the "strategy selector" for the db_client_factory_t.
+ *
+ * db_client_type_local - Existing on-box MariaDB/MySQL persistence (default,
+ *                         backward compatible behavior).
+ * db_client_type_cloud - Reserved for a future cloud-hosted database backend.
+ *                        Not implemented yet; factory returns a stub that
+ *                        fails fast so callers notice if it is selected
+ *                        prematurely.
+ * db_client_type_none  - No persistent storage at all. The controller's
+ *                        in-memory data model (dm_*_list_t containers) is
+ *                        authoritative and nothing is written to or read
+ *                        from disk/network. Useful for stateless/ephemeral
+ *                        controller deployments (e.g. containers, test
+ *                        harnesses) where a DB dependency is undesirable.
+ */
+typedef enum {
+    db_client_type_local = 0,
+    db_client_type_cloud,
+    db_client_type_none,
+} db_client_type_t;
+
 typedef enum {
     db_data_type_char,
     db_data_type_varchar,

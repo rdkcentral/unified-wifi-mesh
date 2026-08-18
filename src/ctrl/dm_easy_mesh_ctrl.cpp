@@ -3172,7 +3172,7 @@ int dm_easy_mesh_ctrl_t::analyze_channel_select(em_bus_event_t *evt, em_cmd_t *p
 
     // Delete invalid row of anticipated type from db
     for (const auto &del_id : delete_invalid_opclass_ids) {
-        dm_op_class_list_t::delete_row(m_db_client, del_id.c_str());
+        dm_op_class_list_t::delete_row(*m_db_client, del_id.c_str());
     }
 
     // Update db with new opclasses received in the event
@@ -3318,7 +3318,7 @@ int dm_easy_mesh_ctrl_t::analyze_set_channel(em_bus_event_t *evt, em_cmd_t *pcmd
 		// Delete invalid row of anticipated type from db
 		for (const auto &del_id : delete_invalid_opclass_ids) {
 			em_printfout("Deleting obsolete op-class from DB: %s\n", del_id.c_str());
-			dm_op_class_list_t::delete_row(m_db_client, del_id.c_str());
+			dm_op_class_list_t::delete_row(*m_db_client, del_id.c_str());
 		}
 
 		pdm->set_db_cfg_param(db_cfg_type_op_class_list_update, "");
@@ -3621,19 +3621,19 @@ int dm_easy_mesh_ctrl_t::analyze_bsta_cap_req(em_bus_event_t *evt, em_cmd_t *pcm
 
 int dm_easy_mesh_ctrl_t::set_op_class_list(cJSON *op_class_list_obj, mac_address_t *radio_mac)
 {
-    dm_op_class_list_t::set_config(m_db_client, op_class_list_obj, radio_mac);
+    dm_op_class_list_t::set_config(*m_db_client, op_class_list_obj, radio_mac);
     return 0;
 }
 
 int dm_easy_mesh_ctrl_t::set_radio_cap_list(cJSON *radio_cap_list_obj, mac_address_t *radio_mac)
 {
-    dm_radio_cap_list_t::set_config(m_db_client, radio_cap_list_obj, radio_mac);
+    dm_radio_cap_list_t::set_config(*m_db_client, radio_cap_list_obj, radio_mac);
     return 0;
 }
 
 int dm_easy_mesh_ctrl_t::set_bss_list(cJSON *bss_list_obj, mac_address_t *radio_mac)
 {
-    dm_bss_list_t::set_config(m_db_client, bss_list_obj, radio_mac);
+    dm_bss_list_t::set_config(*m_db_client, bss_list_obj, radio_mac);
     return 0;
 }
 
@@ -3643,7 +3643,7 @@ int dm_easy_mesh_ctrl_t::set_radio_list(cJSON *radio_list_obj, mac_address_t *de
     cJSON *obj, *radio_obj, *bss_list_obj, *op_class_list_obj, *radio_cap_list_obj;
     mac_address_t radio_mac;
 
-    dm_radio_list_t::set_config(m_db_client, radio_list_obj, dev_mac);
+    dm_radio_list_t::set_config(*m_db_client, radio_list_obj, dev_mac);
 
     num = cJSON_GetArraySize(radio_list_obj);
     //printf("%s:%d: Number of devices: %d\n", __func__, __LINE__, num);
@@ -3678,7 +3678,7 @@ int dm_easy_mesh_ctrl_t::set_device_list(cJSON *dev_list_obj)
     cJSON *obj, *dev_obj, *radio_list_obj;
     mac_address_t dev_mac;
 
-    dm_device_list_t::set_config(m_db_client, dev_list_obj, static_cast<void*>(const_cast<char*>(GLOBAL_NET_ID)));
+    dm_device_list_t::set_config(*m_db_client, dev_list_obj, static_cast<void*>(const_cast<char*>(GLOBAL_NET_ID)));
 
     num = cJSON_GetArraySize(dev_list_obj);
     //printf("%s:%d: Number of devices: %d\n", __func__, __LINE__, num);
@@ -3709,28 +3709,28 @@ int dm_easy_mesh_ctrl_t::reset_config()
     dm_sta_list_t::delete_list();
     dm_policy_list_t::delete_list();
     
-    dm_network_list_t::delete_table(m_db_client);
-    dm_device_list_t::delete_table(m_db_client);
-    dm_radio_list_t::delete_table(m_db_client);    
-    dm_network_ssid_list_t::delete_table(m_db_client);   
-    //dm_ieee_1905_security_list_t::delete_table(m_db_client);
-    //dm_radio_cap_list_t::delete_table(m_db_client);
-    dm_op_class_list_t::delete_table(m_db_client);
-    dm_bss_list_t::delete_table(m_db_client);
-    dm_sta_list_t::delete_table(m_db_client);
-    dm_policy_list_t::delete_table(m_db_client);
+    dm_network_list_t::delete_table(*m_db_client);
+    dm_device_list_t::delete_table(*m_db_client);
+    dm_radio_list_t::delete_table(*m_db_client);    
+    dm_network_ssid_list_t::delete_table(*m_db_client);   
+    //dm_ieee_1905_security_list_t::delete_table(*m_db_client);
+    //dm_radio_cap_list_t::delete_table(*m_db_client);
+    dm_op_class_list_t::delete_table(*m_db_client);
+    dm_bss_list_t::delete_table(*m_db_client);
+    dm_sta_list_t::delete_table(*m_db_client);
+    dm_policy_list_t::delete_table(*m_db_client);
 
-    dm_network_list_t::load_table(m_db_client);
-    dm_device_list_t::load_table(m_db_client);
-    dm_radio_list_t::load_table(m_db_client);    
-    dm_network_ssid_list_t::load_table(m_db_client);    
-    //dm_ieee_1905_security_list_t::load_table(m_db_client);
-    //dm_radio_cap_list_t::load_table(m_db_client);
-    dm_op_class_list_t::load_table(m_db_client);
-    dm_bss_list_t::load_table(m_db_client);
-    dm_sta_list_t::load_table(m_db_client);
-    dm_policy_list_t::load_table(m_db_client);
-    dm_scan_result_list_t::load_table(m_db_client);
+    dm_network_list_t::load_table(*m_db_client);
+    dm_device_list_t::load_table(*m_db_client);
+    dm_radio_list_t::load_table(*m_db_client);    
+    dm_network_ssid_list_t::load_table(*m_db_client);    
+    //dm_ieee_1905_security_list_t::load_table(*m_db_client);
+    //dm_radio_cap_list_t::load_table(*m_db_client);
+    dm_op_class_list_t::load_table(*m_db_client);
+    dm_bss_list_t::load_table(*m_db_client);
+    dm_sta_list_t::load_table(*m_db_client);
+    dm_policy_list_t::load_table(*m_db_client);
+    dm_scan_result_list_t::load_table(*m_db_client);
 
     return 0;
 }
@@ -4237,6 +4237,10 @@ dm_easy_mesh_t  *dm_easy_mesh_ctrl_t::get_data_model(const char *net_id, const u
 
 void dm_easy_mesh_ctrl_t::init_tables()
 {
+    if (m_db_client == nullptr || m_db_client->get_type() == db_client_type_none) {
+        em_printf("Database client is not initialized or set to 'none'\n");
+        return;
+    }
     dm_network_list_t::init();
     dm_device_list_t::init();
     dm_network_ssid_list_t::init();
@@ -4252,30 +4256,38 @@ void dm_easy_mesh_ctrl_t::init_tables()
 
 int dm_easy_mesh_ctrl_t::load_net_ssid_table()
 {
-	return dm_network_ssid_list_t::load_table(m_db_client);
+	return dm_network_ssid_list_t::load_table(*m_db_client);
 }
 
 int dm_easy_mesh_ctrl_t::load_tables()
 {
+   /*  if (m_db_client == nullptr || m_db_client->get_type() == db_client_type_none) {
+        em_printfout("Database client set to 'none'\n");
+        return 0;
+    } */
+
+    em_printfout("Loading tables from database client for DB type: %d\n", m_db_client->get_type());
+
+
     db_cfg_type_t type = db_cfg_type_none;
     
-    if (dm_network_list_t::load_table(m_db_client) != 0) {
+    if (dm_network_list_t::load_table(*m_db_client) != 0) {
         type = db_cfg_type_network_list_update;
-    } else if (dm_device_list_t::load_table(m_db_client) != 0) {
+    } else if (dm_device_list_t::load_table(*m_db_client) != 0) {
         type = db_cfg_type_device_list_update;
-    } else if (dm_radio_list_t::load_table(m_db_client) != 0) {
+    } else if (dm_radio_list_t::load_table(*m_db_client) != 0) {
         type = db_cfg_type_radio_list_update;
-    } else if (dm_network_ssid_list_t::load_table(m_db_client) != 0) {
+    } else if (dm_network_ssid_list_t::load_table(*m_db_client) != 0) {
         type = db_cfg_type_network_ssid_list_update;
-    } else if (dm_op_class_list_t::load_table(m_db_client) != 0) {
+    } else if (dm_op_class_list_t::load_table(*m_db_client) != 0) {
         type = db_cfg_type_op_class_list_update;
-    } else if (dm_bss_list_t::load_table(m_db_client) != 0) {
+    } else if (dm_bss_list_t::load_table(*m_db_client) != 0) {
         type = db_cfg_type_bss_list_update;
-    } else if (dm_sta_list_t::load_table(m_db_client) != 0) {
+    } else if (dm_sta_list_t::load_table(*m_db_client) != 0) {
         type = db_cfg_type_sta_list_update;
-    } else if (dm_policy_list_t::load_table(m_db_client) != 0) {
+    } else if (dm_policy_list_t::load_table(*m_db_client) != 0) {
         type = db_cfg_type_policy_list_update;
-    } else if (dm_scan_result_list_t::load_table(m_db_client) != 0) {
+    } else if (dm_scan_result_list_t::load_table(*m_db_client) != 0) {
         type = db_cfg_type_scan_result_list_update;
     }
 
@@ -4283,8 +4295,8 @@ int dm_easy_mesh_ctrl_t::load_tables()
         return type;
     }
 
-    if (dm_network_list_t::is_table_empty(m_db_client) == true) {
-        printf("%s:%d: data base empty ... needs reset / init setup\n", __func__, __LINE__);
+    if (dm_network_list_t::is_table_empty(*m_db_client) == true) {
+        em_printfout("%s:%d: data base empty ... needs reset / init setup\n", __func__, __LINE__);
         return -1;
     }
 
@@ -4316,14 +4328,14 @@ int dm_easy_mesh_ctrl_t::update_tables(dm_easy_mesh_t *dm)
 
     if (dm->db_cfg_type_is_set(db_cfg_type_network_list_update)) {
 		criteria = dm->db_cfg_type_get_criteria(db_cfg_type_network_list_update);
-        if (dm_network_list_t::set_config(m_db_client, dm->get_network_by_ref(), static_cast<void*>(const_cast<char*>(GLOBAL_NET_ID))) == 0) {
+        if (dm_network_list_t::set_config(*m_db_client, dm->get_network_by_ref(), static_cast<void*>(const_cast<char*>(GLOBAL_NET_ID))) == 0) {
             dm->reset_db_cfg_type(db_cfg_type_network_list_update);
         }
     }
 
     if (dm->db_cfg_type_is_set(db_cfg_type_network_list_delete)) {
 		criteria = dm->db_cfg_type_get_criteria(db_cfg_type_network_list_delete);
-        if (dm_network_list_t::update_db(m_db_client, dm_orch_type_db_delete, dm->get_network_info()) == 0) {
+        if (dm_network_list_t::update_db(*m_db_client, dm_orch_type_db_delete, dm->get_network_info()) == 0) {
             dm->reset_db_cfg_type(db_cfg_type_network_list_delete);
         }
     }
@@ -4333,14 +4345,14 @@ int dm_easy_mesh_ctrl_t::update_tables(dm_easy_mesh_t *dm)
 		dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *> (dm->m_device.m_device_info.intf.mac), dev_mac_str);
     	snprintf(key, sizeof(em_2xlong_string_t), "%s@%s@%d", dm->m_network.m_net_info.id, 
 					dev_mac_str, dm->m_device.m_device_info.id.media);
-        if (dm_device_list_t::set_config(m_db_client, dm->get_device_by_ref(), key) == 0) {
+        if (dm_device_list_t::set_config(*m_db_client, dm->get_device_by_ref(), key) == 0) {
             dm->reset_db_cfg_type(db_cfg_type_device_list_update);
         }
     }
 
     if (dm->db_cfg_type_is_set(db_cfg_type_device_list_delete)) {
 		criteria = dm->db_cfg_type_get_criteria(db_cfg_type_device_list_delete);
-        if (dm_device_list_t::update_db(m_db_client, dm_orch_type_db_delete, dm->get_device_info()) != 0) {
+        if (dm_device_list_t::update_db(*m_db_client, dm_orch_type_db_delete, dm->get_device_info()) != 0) {
             dm->reset_db_cfg_type(db_cfg_type_device_list_delete);
         }
     }
@@ -4353,7 +4365,7 @@ int dm_easy_mesh_ctrl_t::update_tables(dm_easy_mesh_t *dm)
             dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *> (radio->m_radio_info.intf.mac), radio_mac_str);
             snprintf(parent, sizeof(em_2xlong_string_t), "%s@%s@%s", device.m_device_info.id.net_id, dev_mac_str, radio_mac_str);
 			criteria = dm->db_cfg_type_get_criteria(db_cfg_type_radio_list_update);
-            if (dm_radio_list_t::set_config(m_db_client, *radio, parent) != 0) {
+            if (dm_radio_list_t::set_config(*m_db_client, *radio, parent) != 0) {
                 at_least_one_failed = true;;
             }
         }
@@ -4373,7 +4385,7 @@ int dm_easy_mesh_ctrl_t::update_tables(dm_easy_mesh_t *dm)
             snprintf(parent, sizeof(em_2xlong_string_t), "%s@%s@%s", device.m_device_info.id.net_id, dev_mac_str, radio_mac_str);
 			criteria = dm->db_cfg_type_get_criteria(db_cfg_type_radio_list_delete);
 			if (dm->get_radio(i) &&
-				dm_radio_list_t::update_db(m_db_client, dm_orch_type_db_delete, dm->get_radio(i)->get_radio_info()) != 0) {
+				dm_radio_list_t::update_db(*m_db_client, dm_orch_type_db_delete, dm->get_radio(i)->get_radio_info()) != 0) {
                 at_least_one_failed = true;
             }
 			dm_radio_list_t::update_list(*radio, dm_orch_type_db_delete);
@@ -4395,7 +4407,7 @@ int dm_easy_mesh_ctrl_t::update_tables(dm_easy_mesh_t *dm)
 					dev_mac_str, radio_mac_str, bssid_str, bss.m_bss_info.id.haul_type);
             em_printfout("BSS[%d] Parent ID: %s\n", i, parent);
 			criteria = dm->db_cfg_type_get_criteria(db_cfg_type_bss_list_update);
-            if (dm_bss_list_t::set_config(m_db_client, bss, parent) != 0) {
+            if (dm_bss_list_t::set_config(*m_db_client, bss, parent) != 0) {
                 at_least_one_failed = true;
             }
         }
@@ -4411,7 +4423,7 @@ int dm_easy_mesh_ctrl_t::update_tables(dm_easy_mesh_t *dm)
             bss = dm->get_bss_by_ref(i);
 			criteria = dm->db_cfg_type_get_criteria(db_cfg_type_bss_list_delete);
 			if ((bss.match_criteria(criteria) == true) && (dm->get_bss(i)) &&
-					(dm_bss_list_t::update_db(m_db_client, dm_orch_type_db_delete, dm->get_bss(i)->get_bss_info()) != 0)) {
+					(dm_bss_list_t::update_db(*m_db_client, dm_orch_type_db_delete, dm->get_bss(i)->get_bss_info()) != 0)) {
                 at_least_one_failed = true;
             }
 			dm_bss_list_t::update_list(bss, dm_orch_type_db_delete);
@@ -4433,7 +4445,7 @@ int dm_easy_mesh_ctrl_t::update_tables(dm_easy_mesh_t *dm)
             snprintf(parent, sizeof(em_2xlong_string_t), "%s@%d@%d", radio_mac_str, dm->m_op_class[i].m_op_class_info.id.type, 
 					dm->m_op_class[i].m_op_class_info.id.op_class);
 			criteria = dm->db_cfg_type_get_criteria(db_cfg_type_op_class_list_update);
-            if (dm_op_class_list_t::set_config(m_db_client, dm->m_op_class[i], parent) != 0) {
+            if (dm_op_class_list_t::set_config(*m_db_client, dm->m_op_class[i], parent) != 0) {
                 at_least_one_failed = true;
             }
         }
@@ -4454,7 +4466,7 @@ int dm_easy_mesh_ctrl_t::update_tables(dm_easy_mesh_t *dm)
             snprintf(parent, sizeof(em_2xlong_string_t), "%s@%d@%d", radio_mac_str, op_class.m_op_class_info.id.type, op_class.m_op_class_info.id.op_class);
 			criteria = dm->db_cfg_type_get_criteria(db_cfg_type_op_class_list_delete);
 			if (dm->get_op_class(i) &&
-				dm_op_class_list_t::update_db(m_db_client, dm_orch_type_db_delete, dm->get_op_class(i)->get_op_class_info()) != 0) {
+				dm_op_class_list_t::update_db(*m_db_client, dm_orch_type_db_delete, dm->get_op_class(i)->get_op_class_info()) != 0) {
 				at_least_one_failed = true;
 			}
 			dm_op_class_list_t::update_list(op_class, dm_orch_type_db_delete);
@@ -4471,7 +4483,7 @@ int dm_easy_mesh_ctrl_t::update_tables(dm_easy_mesh_t *dm)
         sta = static_cast<dm_sta_t *> (hash_map_get_first(dm->m_sta_assoc_map));
         while (sta != NULL) {
 			criteria = dm->db_cfg_type_get_criteria(db_cfg_type_sta_list_update);
-            if (dm_sta_list_t::set_config(m_db_client, *sta, NULL) == 0) {
+            if (dm_sta_list_t::set_config(*m_db_client, *sta, NULL) == 0) {
                 dm->reset_db_cfg_type(db_cfg_type_sta_list_update);
             }
             sta = static_cast<dm_sta_t *> (hash_map_get_next(dm->m_sta_assoc_map, sta));
@@ -4481,7 +4493,7 @@ int dm_easy_mesh_ctrl_t::update_tables(dm_easy_mesh_t *dm)
         while (sta != NULL) {
             tmp = sta;
 			criteria = dm->db_cfg_type_get_criteria(db_cfg_type_sta_list_update);
-            if (dm_sta_list_t::set_config(m_db_client, *sta, NULL) == 0) {
+            if (dm_sta_list_t::set_config(*m_db_client, *sta, NULL) == 0) {
                 dm->reset_db_cfg_type(db_cfg_type_sta_list_update);
             }
 
@@ -4501,7 +4513,7 @@ int dm_easy_mesh_ctrl_t::update_tables(dm_easy_mesh_t *dm)
         sta = static_cast<dm_sta_t *> (hash_map_get_first(dm->m_sta_dassoc_map));
         while (sta != NULL) {
 			criteria = dm->db_cfg_type_get_criteria(db_cfg_type_sta_list_delete);
-            if (dm_sta_list_t::update_db(m_db_client, dm_orch_type_db_delete, sta->get_sta_info()) != 0) {
+            if (dm_sta_list_t::update_db(*m_db_client, dm_orch_type_db_delete, sta->get_sta_info()) != 0) {
                 dm->reset_db_cfg_type(db_cfg_type_sta_list_delete);
             }
             sta = static_cast<dm_sta_t *> (hash_map_get_next(dm->m_sta_dassoc_map, sta));
@@ -4511,7 +4523,7 @@ int dm_easy_mesh_ctrl_t::update_tables(dm_easy_mesh_t *dm)
         while (sta != NULL) {
             tmp = sta;
 			criteria = dm->db_cfg_type_get_criteria(db_cfg_type_sta_list_delete);
-            if (dm_sta_list_t::update_db(m_db_client, dm_orch_type_db_delete, sta->get_sta_info()) != 0) {
+            if (dm_sta_list_t::update_db(*m_db_client, dm_orch_type_db_delete, sta->get_sta_info()) != 0) {
                 dm->reset_db_cfg_type(db_cfg_type_sta_list_delete);
             }
             dm_easy_mesh_t::macbytes_to_string(sta->m_sta_info.id, sta_mac_str);
@@ -4531,7 +4543,7 @@ int dm_easy_mesh_ctrl_t::update_tables(dm_easy_mesh_t *dm)
         sta = static_cast<dm_sta_t *> (hash_map_get_first(dm->m_sta_map));
         while (sta != NULL) {
 			criteria = dm->db_cfg_type_get_criteria(db_cfg_type_sta_metrics_update);
-            if (dm_sta_list_t::set_config(m_db_client, *sta, NULL) == 0) {
+            if (dm_sta_list_t::set_config(*m_db_client, *sta, NULL) == 0) {
                 dm->reset_db_cfg_type(db_cfg_type_sta_metrics_update);
             }
             sta = static_cast<dm_sta_t *> (hash_map_get_next(dm->m_sta_map, sta));
@@ -4546,7 +4558,7 @@ int dm_easy_mesh_ctrl_t::update_tables(dm_easy_mesh_t *dm)
                     GLOBAL_NET_ID, dm_network_ssid_t::haul_type_to_string(net_ssid.m_network_ssid_info.haul_type[0], haul_str));
             //printf("%s:%d: Key: %s\n", __func__, __LINE__, parent);
 			criteria = dm->db_cfg_type_get_criteria(db_cfg_type_network_ssid_list_update);
-            if (dm_network_ssid_list_t::set_config(m_db_client, dm->get_network_ssid_by_ref(i), parent) != 0) {
+            if (dm_network_ssid_list_t::set_config(*m_db_client, dm->get_network_ssid_by_ref(i), parent) != 0) {
                 at_least_one_failed = true;
             }
         }
@@ -4565,7 +4577,7 @@ int dm_easy_mesh_ctrl_t::update_tables(dm_easy_mesh_t *dm)
             snprintf(parent, sizeof(em_2xlong_string_t), "%s@%s@%s@%d", GLOBAL_NET_ID, dev_mac_str, radio_mac_str, policy.m_policy.id.type);
             //printf("%s:%d: Key: %s\n", __func__, __LINE__, parent);
 			criteria = dm->db_cfg_type_get_criteria(db_cfg_type_policy_list_update);
-            if (dm_policy_list_t::set_config(m_db_client, dm->get_policy_by_ref(i), parent) != 0) {
+            if (dm_policy_list_t::set_config(*m_db_client, dm->get_policy_by_ref(i), parent) != 0) {
                 at_least_one_failed = true;
             }
         }
@@ -4586,7 +4598,7 @@ int dm_easy_mesh_ctrl_t::update_tables(dm_easy_mesh_t *dm)
 					scan_result->m_scan_result.id.channel, scan_result->m_scan_result.id.scanner_type);
             //printf("%s:%d: Key: %s\n", __func__, __LINE__, parent);
 			criteria = dm->db_cfg_type_get_criteria(db_cfg_type_scan_result_list_update);
-            if (dm_scan_result_list_t::set_config(m_db_client, *scan_result, parent) != 0) {
+            if (dm_scan_result_list_t::set_config(*m_db_client, *scan_result, parent) != 0) {
                 at_least_one_failed = true;
             }
         }
@@ -4604,13 +4616,13 @@ int dm_easy_mesh_ctrl_t::update_tables(dm_easy_mesh_t *dm)
 			// first delect self
 			res.result = scan_result->get_scan_result();
         	res.index = scan_result_self_index;		
-            if (dm_scan_result_list_t::update_db(m_db_client, dm_orch_type_db_delete, &res) != 0) {
+            if (dm_scan_result_list_t::update_db(*m_db_client, dm_orch_type_db_delete, &res) != 0) {
                 at_least_one_failed = true;
             }
 			for (j = 0; j < scan_result->m_scan_result.num_neighbors; j++) {
 				res.result = scan_result->get_scan_result();
         		res.index = j;		
-            	if (dm_scan_result_list_t::update_db(m_db_client, dm_orch_type_db_delete, &res) != 0) {
+            	if (dm_scan_result_list_t::update_db(*m_db_client, dm_orch_type_db_delete, &res) != 0) {
                 	at_least_one_failed = true;
             	}
 			}
@@ -8751,17 +8763,25 @@ void dm_easy_mesh_ctrl_t::init_network_topology()
     em_printfout("Root topology dev_mac:%s, num_bss:%d", dev_mac_str, dm->get_num_bss());
 }
 
-int dm_easy_mesh_ctrl_t::init(const char *data_model_path, em_mgr_t *mgr)
+int dm_easy_mesh_ctrl_t::init(const char *data_model_path, em_mgr_t *mgr, db_client_type_t db_type)
 {
     int rc;
 
     m_data_model_list.init(mgr);
-    init_tables();
 
-    if (m_db_client.init(data_model_path) != 0) {
-        printf("%s:%d db init failed\n", __func__, __LINE__);
+    m_db_client_type = db_type;
+    m_db_client = db_client_factory_t::create(db_type);
+    if (m_db_client == nullptr) {
+        em_printfout("%s:%d unknown db client type: %d\n", __func__, __LINE__, static_cast<int>(db_type));
         return -1;
     }
+
+    if (m_db_client->init(data_model_path) != 0) {
+        em_printfout("%s:%d db init failed\n", __func__, __LINE__);
+        // return -1;
+    }
+
+    init_tables();
 
     int pipefd[2];
     int rcp;
@@ -8775,19 +8795,60 @@ int dm_easy_mesh_ctrl_t::init(const char *data_model_path, em_mgr_t *mgr)
     tr_181_t::init(this);
     rc = load_tables();
 
-    //Database is empty and need to fill it, then load tables with data again
-    if (rc == -1) {
+    //Database is empty and need to fill it, then load tables with data again.
+    //This on-box provisioning script only applies to the local MariaDB
+    //backend. For db_client_type_none (and, once implemented,
+    //db_client_type_cloud) every table always reports empty since nothing
+    //is ever persisted - that is the expected fresh-start state, not a
+    //failure, so we don't try to run a MySQL-specific script against it.
+    if (rc == -1 && m_db_client_type == db_client_type_local) {
        //Assuming this will not fail, and there is known setup script to fill data
-       printf("%s:%d: data base empty ... fill it from /usr/ccsp/EasyMesh/setup_mysql_db_post.sh\n", __func__, __LINE__);
+       em_printfout("%s:%d: data base empty ... fill it from /usr/ccsp/EasyMesh/setup_mysql_db_post.sh\n", __func__, __LINE__);
        std::system("/usr/ccsp/EasyMesh/setup_mysql_db_post.sh");
 
        //Load tables and update rc to check it for non-empty database
        rc = load_tables();
+    } else if (rc == -1) {
+       //No-DB (and future cloud) backends: empty tables at startup are normal.
+       em_printfout("%s:%d: starting with an empty in-memory data model (db type: %d)\n",
+           __func__, __LINE__, static_cast<int>(m_db_client_type));
+       rc = 0;
     }
 
     if (rc != 0) {
-        printf("%s:%d: Load operation failed, err: %s\n", __func__, __LINE__, em_cmd_t::get_orch_op_str(static_cast<dm_orch_type_t> (rc)));
+        em_printfout("%s:%d: Load operation failed, err: %s\n", __func__, __LINE__, em_cmd_t::get_orch_op_str(static_cast<dm_orch_type_t> (rc)));
         return -1;
+    }
+
+    // Backends that persist nothing load no NetworkList row, so the network the
+    // controller looks up by GLOBAL_NET_ID has to be synthesized here instead.
+    if (get_network(GLOBAL_NET_ID) == NULL) {
+        em_network_info_t info;
+        mac_address_t null_mac;
+        char date_time[EM_DATE_TIME_BUFF_SZ];
+
+        memset(null_mac, 0, sizeof(mac_address_t));
+        if (memcmp(get_dev_interface_mac(), null_mac, sizeof(mac_address_t)) == 0) {
+            em_printfout("%s:%d: no AL MAC available to bootstrap network %s\n", __func__, __LINE__, GLOBAL_NET_ID);
+            return -1;
+        }
+
+        memset(&info, 0, sizeof(em_network_info_t));
+        snprintf(info.id, sizeof(info.id), "%s", GLOBAL_NET_ID);
+        util::get_date_time_rfc3399(date_time, EM_DATE_TIME_BUFF_SZ);
+        snprintf(info.timestamp, sizeof(info.timestamp), "%s", date_time);
+        info.media = em_media_type_ieee8023ab;
+
+        memcpy(info.ctrl_id.mac, get_dev_interface_mac(), sizeof(mac_address_t));
+        info.ctrl_id.media = info.media;
+        dm_easy_mesh_t::name_from_mac_address(&info.ctrl_id.mac, info.ctrl_id.name);
+
+        memcpy(info.colocated_agent_id.mac, info.ctrl_id.mac, sizeof(mac_address_t));
+        info.colocated_agent_id.media = info.media;
+        dm_easy_mesh_t::name_from_mac_address(&info.colocated_agent_id.mac, info.colocated_agent_id.name);
+
+        dm_network_list_t::update_list(dm_network_t(&info), dm_orch_type_db_insert);
+        set_initialized();
     }
 
     return 0;
@@ -8795,6 +8856,8 @@ int dm_easy_mesh_ctrl_t::init(const char *data_model_path, em_mgr_t *mgr)
 
 dm_easy_mesh_ctrl_t::dm_easy_mesh_ctrl_t()
 {
+    m_db_client = nullptr;
+    m_db_client_type = db_client_type_local;
     m_initialized = false;
     m_network_initialized = false;
     m_nb_pipe_rd = 0;
@@ -8810,5 +8873,9 @@ dm_easy_mesh_ctrl_t::~dm_easy_mesh_ctrl_t()
     }
     if (m_nb_pipe_wr != 0) {
         close(m_nb_pipe_wr);
+    }
+    if (m_db_client != nullptr) {
+        delete m_db_client;
+        m_db_client = nullptr;
     }
 }
