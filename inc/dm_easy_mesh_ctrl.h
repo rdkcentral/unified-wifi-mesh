@@ -86,6 +86,31 @@ public:
     static bus_error_t curops_tget_params(dm_easy_mesh_t *dm, const char *root, em_radio_info_t *ri, bus_data_prop_t **property);
 
     void fill_comma_sep(em_short_string_t str[], size_t max, char *buf);
+
+    /**!
+     * @brief Format stored WSC AKM suite names as TR-181 akm_t values.
+     *
+     * @param[in] akms AKM suites stored for the BSS.
+     * @param[in] num_akms Number of entries in akms.
+     * @param[out] buf Output buffer for the formatted value.
+     * @param[in] buf_len Size of the output buffer.
+     */
+    void fill_akms_allowed(em_short_string_t akms[], unsigned char num_akms, char *buf, size_t buf_len);
+
+    /**!
+     * @brief Format a BSS's AKMsAllowed from the profile assigned to its haul type.
+     *
+     * Derived at read time, mirroring the band and platform overrides the M2
+     * build applies; the stored BSS row is only the fallback when the haul type
+     * has no profile or the profile's auth type is not known.
+     *
+     * @param[in] dm Data model the BSS belongs to.
+     * @param[in] bi BSS whose AKMsAllowed is read.
+     * @param[in] backhaul true for BackhaulAKMsAllowed, false for FronthaulAKMsAllowed.
+     * @param[out] buf Output buffer for the formatted value.
+     * @param[in] buf_len Size of the output buffer.
+     */
+    void fill_bss_akms_allowed(dm_easy_mesh_t *dm, em_bss_info_t *bi, bool backhaul, char *buf, size_t buf_len);
     dm_bss_t *get_dm_bss(dm_easy_mesh_t *dm, em_radio_info_t *ri, char *instance, bool is_num);
     bus_error_t bss_get(char* event_name, raw_data_t* p_data);
     static bus_error_t bss_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);

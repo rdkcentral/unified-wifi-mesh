@@ -46,6 +46,7 @@
 #include <vector>
 #include <algorithm>
 #include "em_configuration.h"
+#include "em_mgr.h"
 #include "em_msg.h"
 #include "dm_easy_mesh.h"
 #include "em_cmd.h"
@@ -2899,7 +2900,9 @@ static const std::vector<security_mapping_table_t> wps_security_map = {
     { { "wpa2-psk", "sae" },          wifi_security_mode_wps_wpa2_personal | wifi_security_mode_wps_sae_m8 },
     { { "wpa-psk", "wpa2-psk" },      wifi_security_mode_wps_wpa2_personal },
     { { "wpa2-psk", "sae", "rsno" },  wifi_security_mode_wps_wpa2_personal | wifi_security_mode_wps_sae_m8 },
-    { { "dpp" },                      wifi_security_mode_wps_dpp }
+    { { "dpp" },                      wifi_security_mode_wps_dpp },
+    /* WPA3 Personal carries AKM8 alone; kept last so a lone "sae" still maps to AKM24. */
+    { { "sae" },                      wifi_security_mode_wps_sae_m8 }
 };
 
 static const std::vector<security_mapping_table_t> ow_security_map = {
@@ -4571,7 +4574,7 @@ int em_configuration_t::handle_encrypted_settings(unsigned int wsc_tlv_count)
     return ret;
 }
 
-void em_configuration_t::store_akm_suite_cap(dm_easy_mesh_t *dm, unsigned char *buff, unsigned int len)
+void em_configuration_t::store_akm_suite_cap(dm_easy_mesh_t *dm, unsigned char *buff, unsigned int len, em_mgr_t *mgr)
 {
     if ((dm == NULL) || (buff == NULL) || (len < 1)) {
         return;
@@ -4612,31 +4615,89 @@ void em_configuration_t::store_akm_suite_cap(dm_easy_mesh_t *dm, unsigned char *
         return;
     }
 
-    /* The TLV carries the agent wide AKM sets, so apply to every BSS (mirrors the M1 auth type flags path).
-       Empty sets are applied too: an agent advertising 0 suites must clear the previously stored AKMs. */
+    /* The TLV carries the agent wide AKM capability union, which cannot describe
+       per-BSS values (one sae BSS would leak sae into every other BSS). Derive the
+       per-BSS AKMs from the profile assigned to the haul type, mirroring the M2
+       build's band/platform overrides; the union is only the no-profile fallback. */
     for (unsigned int i = 0; i < dm->get_num_bss(); i++) {
         em_bss_info_t *bss_info = dm->get_bss_info(i);
         if (bss_info == NULL) {
             continue;
         }
 
+        const std::vector<std::string> *fh = &fh_akms;
+        const std::vector<std::string> *bh = &bh_akms;
+        std::vector<std::string> profile_akms;
+        const std::vector<std::string> no_akms;
+
+        em_network_ssid_info_t *profile =
+            dm->get_network_ssid_info_by_haul_type(bss_info->id.haul_type);
+        /* Profiles are network wide but not present in every agent's dm;
+           scan the same network's other instances for a remote agent's BSS. */
+        if ((profile == NULL) && (mgr != NULL)) {
+            const char *net_id = dm->get_device_info()->id.net_id;
+            dm_easy_mesh_t *pdm = mgr->get_first_dm();
+            while (pdm != NULL) {
+                if ((strncmp(pdm->get_device_info()->id.net_id, net_id, sizeof(em_long_string_t)) == 0) &&
+                    ((profile = pdm->get_network_ssid_info_by_haul_type(bss_info->id.haul_type)) != NULL)) {
+                    break;
+                }
+                pdm = mgr->get_next_dm(pdm);
+            }
+        }
+        if (profile != NULL) {
+            uint16_t auth_flags = 0;
+            bool auth_known = false;
+            for (size_t s = 0; s < sizeof(securityTypeMap)/sizeof(securityTypeMap[0]); s++) {
+                if (strcmp(profile->auth_type, securityTypeMap[s].name) == 0) {
+                    auth_flags = static_cast<uint16_t>(securityTypeMap[s].hex);
+                    auth_known = true;
+                    break;
+                }
+            }
+            if (auth_known) {
+                dm_radio_t *radio = dm->get_radio(bss_info->ruid.mac);
+                if ((radio != NULL) && (radio->get_radio_info()->band == em_freq_band_6) &&
+                    ((auth_flags == EM_AUTH_WPA2PSK) ||
+                     (auth_flags == EM_AUTH_WPA2) ||
+                     (auth_flags == EM_AUTH_OPEN) ||
+                     (auth_flags == EM_AUTH_WPA3_TRANSITION))) {
+                    auth_flags = EM_AUTH_WPA3_PERSONAL;
+                }
+#if defined(_PLATFORM_RASPBERRYPI_)
+                if (auth_flags == EM_AUTH_WPA3_PERSONAL) {
+                    auth_flags = EM_AUTH_WPA3_TRANSITION;
+                }
+#endif
+                /* An open profile maps to the empty AKMsAllowed list. */
+                profile_akms = convert_wps_authtype_to_akm_strings(auth_flags);
+                if (bss_info->id.haul_type == em_haul_type_backhaul) {
+                    bh = &profile_akms;
+                    fh = &no_akms;
+                } else {
+                    fh = &profile_akms;
+                    bh = &no_akms;
+                }
+            }
+        }
+
         /* Clear the entries past the new counts: readers such as fill_comma_sep()
            collect every non-empty entry, so stale AKMs must not linger. */
         bss_info->num_fronthaul_akms =
-            static_cast<unsigned char>(std::min<size_t>(fh_akms.size(), EM_MAX_AKMS));
+            static_cast<unsigned char>(std::min<size_t>(fh->size(), EM_MAX_AKMS));
         for (unsigned char j = 0; j < EM_MAX_AKMS; j++) {
             if (j < bss_info->num_fronthaul_akms) {
-                snprintf(bss_info->fronthaul_akm[j], sizeof(em_short_string_t), "%s", fh_akms[j].c_str());
+                snprintf(bss_info->fronthaul_akm[j], sizeof(em_short_string_t), "%s", (*fh)[j].c_str());
             } else {
                 bss_info->fronthaul_akm[j][0] = '\0';
             }
         }
 
         bss_info->num_backhaul_akms =
-            static_cast<unsigned char>(std::min<size_t>(bh_akms.size(), EM_MAX_AKMS));
+            static_cast<unsigned char>(std::min<size_t>(bh->size(), EM_MAX_AKMS));
         for (unsigned char j = 0; j < EM_MAX_AKMS; j++) {
             if (j < bss_info->num_backhaul_akms) {
-                snprintf(bss_info->backhaul_akm[j], sizeof(em_short_string_t), "%s", bh_akms[j].c_str());
+                snprintf(bss_info->backhaul_akm[j], sizeof(em_short_string_t), "%s", (*bh)[j].c_str());
             } else {
                 bss_info->backhaul_akm[j][0] = '\0';
             }
@@ -4724,7 +4785,7 @@ int em_configuration_t::handle_bss_config_req_msg(uint8_t *buff, unsigned int le
                 break;
             case em_tlv_type_akm_suite:
                 em_printfout("Processing AKM Suite Capabilities TLV");
-                store_akm_suite_cap(get_data_model(), tlv->value, htons(tlv->len));
+                store_akm_suite_cap(get_data_model(), tlv->value, htons(tlv->len), get_mgr());
                 break;
             case em_tlv_type_profile_2_ap_cap:
                 // Not handled by UWM right now?
@@ -5411,7 +5472,8 @@ int em_configuration_t::create_encrypted_settings(unsigned char *buff, em_haul_t
 
     auth_type = get_Auth_type_hex(net_ssid_info->auth_type);
 
-    if((get_band() == em_freq_band_6) && ((auth_type == EM_AUTH_WPA2) ||
+    if((get_band() == em_freq_band_6) && ((auth_type == EM_AUTH_WPA2PSK) ||
+                                         (auth_type == EM_AUTH_WPA2) ||
                                          (auth_type == EM_AUTH_OPEN) ||
                                          (auth_type == EM_AUTH_WPA3_TRANSITION))) {
         // WPA2 Personal and open and WPA3 personal transition authentication type does not

@@ -1412,7 +1412,7 @@ int em_capability_t::handle_ap_cap_report(unsigned char *buff, unsigned int len)
             handle_ap_radio_basic_cap(tlv->value, htons(tlv->len));
         } else if (tlv->type == em_tlv_type_akm_suite){
             em_printfout("Received AKM Suite Capabilities TLV");
-            em_configuration_t::store_akm_suite_cap(dm, tlv->value, htons(tlv->len));
+            em_configuration_t::store_akm_suite_cap(dm, tlv->value, htons(tlv->len), get_mgr());
         } else if (tlv->type == em_tlv_type_ht_cap){
             em_printfout("Received HT Capability TLV");
             em_ap_ht_cap_t *ht_cap = reinterpret_cast<em_ap_ht_cap_t *>(tlv->value);

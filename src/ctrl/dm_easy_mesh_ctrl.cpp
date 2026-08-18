@@ -80,6 +80,7 @@ bus_error_t em_ctrl_t::cmd_setssid(const char *method_name, const bus_data_prop_
     char addremove[TR181_ADDREMOVE_MAX_LEN + 1] = {0};
     char HaulType[TR181_HAULTYPE_MAX_LEN + 1] = {0};
     char AKMsAllowed[TR181_AKMS_MAX_LEN + 1] = {0};
+    bool akms_given = false;
     size_t json_len = 0;
 
     (void)method_name;
@@ -103,7 +104,12 @@ bus_error_t em_ctrl_t::cmd_setssid(const char *method_name, const bus_data_prop_
         } else if (strcmp(prop->name, "HaulType") == 0) {
             tr_181_t::tr181_copy_prop_string(prop, HaulType, sizeof(HaulType));
         } else if (strcmp(prop->name, "AKMsAllowed") == 0) {
-            tr_181_t::tr181_copy_prop_string(prop, AKMsAllowed, sizeof(AKMsAllowed));
+            /* An empty string is Open, a failed copy is not: both leave the buffer empty. */
+            if (tr_181_t::tr181_copy_prop_string(prop, AKMsAllowed, sizeof(AKMsAllowed)) == false) {
+                if (output_params) *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
+                return bus_error_invalid_input;
+            }
+            akms_given = true;
             /* Full buffer = truncated input, longer than any valid akm_t value. */
             if (strnlen(AKMsAllowed, sizeof(AKMsAllowed)) >= TR181_AKMS_MAX_LEN) {
                 if (output_params) *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
@@ -267,18 +273,18 @@ bus_error_t em_ctrl_t::cmd_setssid(const char *method_name, const bus_data_prop_
                 cJSON_ReplaceItemInObject(target, "HaulType", haul_arr);
                 haul_arr = NULL;
             }
-            if (AKMsAllowed[0]) {
+            if (akms_given) {
                 /* BBF TR-181 SetSSID() input AKMsAllowed (since 2.17): update the
                  * entry's AKMsAllowed and derive the internal AuthType used to
-                 * build the WSC M2 auth type. */
+                 * build the WSC M2 auth type. An empty value is an empty list,
+                 * which selects an open BSS. */
                 cJSON *akms_arr = tr_181_t::create_akms_array(AKMsAllowed);
                 if (!akms_arr) {
                     cJSON_Delete(root);
                     if (output_params) *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
                     return bus_error_invalid_input;
                 }
-                const char *auth_str =
-                    tr_181_t::akms_to_auth_type(cJSON_GetStringValue(cJSON_GetArrayItem(akms_arr, 0)));
+                const char *auth_str = tr_181_t::akms_array_to_auth_type(akms_arr);
                 cJSON *auth_item = (auth_str != NULL) ? cJSON_CreateString(auth_str) : NULL;
                 if (!auth_item) {
                     cJSON_Delete(akms_arr);
@@ -334,15 +340,14 @@ bus_error_t em_ctrl_t::cmd_setssid(const char *method_name, const bus_data_prop_
             cJSON_AddItemToObject(target, "HaulType", haul_arr);
             haul_arr = NULL;
         }
-        if (AKMsAllowed[0]) {
+        if (akms_given) {
             cJSON *akms_arr = tr_181_t::create_akms_array(AKMsAllowed);
             if (!akms_arr) {
                 cJSON_Delete(root);
                 if (output_params) *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
                 return bus_error_invalid_input;
             }
-            const char *auth_str =
-                tr_181_t::akms_to_auth_type(cJSON_GetStringValue(cJSON_GetArrayItem(akms_arr, 0)));
+            const char *auth_str = tr_181_t::akms_array_to_auth_type(akms_arr);
             cJSON *auth_item = (auth_str != NULL) ? cJSON_CreateString(auth_str) : NULL;
             if (!auth_item) {
                 cJSON_Delete(akms_arr);
@@ -5050,6 +5055,115 @@ void dm_easy_mesh_ctrl_t::fill_comma_sep(em_short_string_t str[], size_t max, ch
     }
 }
 
+void dm_easy_mesh_ctrl_t::fill_akms_allowed(em_short_string_t akms[], unsigned char num_akms, char *buf, size_t buf_len)
+{
+    bool psk = false, sae = false, dpp = false;
+    const char *delim = "";
+
+    for (unsigned char i = 0; (i < num_akms) && (i < EM_MAX_AKMS); i++) {
+        if ((strcmp(akms[i], "wpa2-psk") == 0) || (strcmp(akms[i], "wpa-psk") == 0) ||
+            (strcmp(akms[i], "psk") == 0)) {
+            psk = true;
+        } else if (strcmp(akms[i], "sae") == 0) {
+            sae = true;
+        } else if (strcmp(akms[i], "dpp") == 0) {
+            dpp = true;
+        }
+    }
+
+    buf[0] = '\0';
+
+    /* akm_t defines a joint value for every combination that includes sae. */
+    if (sae && (psk || dpp)) {
+        snprintf(buf, buf_len, "%s%ssae", dpp ? "dpp+" : "", psk ? "psk+" : "");
+        return;
+    }
+
+    if (dpp) {
+        snprintf(buf + strlen(buf), buf_len - strlen(buf), "%sdpp", delim);
+        delim = ",";
+    }
+    if (psk) {
+        snprintf(buf + strlen(buf), buf_len - strlen(buf), "%spsk", delim);
+        delim = ",";
+    }
+    if (sae) {
+        snprintf(buf + strlen(buf), buf_len - strlen(buf), "%ssae", delim);
+    }
+}
+
+void dm_easy_mesh_ctrl_t::fill_bss_akms_allowed(dm_easy_mesh_t *dm, em_bss_info_t *bi, bool backhaul, char *buf, size_t buf_len)
+{
+    buf[0] = '\0';
+
+    em_network_ssid_info_t *profile =
+        (dm != NULL) ? dm->get_network_ssid_info_by_haul_type(bi->id.haul_type) : NULL;
+    /* Profiles are network wide but not present in every agent's dm;
+       scan the same network's other instances for a remote agent's BSS. */
+    if ((profile == NULL) && (dm != NULL)) {
+        const char *net_id = dm->get_device_info()->id.net_id;
+        dm_easy_mesh_t *pdm = m_data_model_list.get_first_dm();
+        while (pdm != NULL) {
+            if ((strncmp(pdm->get_device_info()->id.net_id, net_id, sizeof(em_long_string_t)) == 0) &&
+                ((profile = pdm->get_network_ssid_info_by_haul_type(bi->id.haul_type)) != NULL)) {
+                break;
+            }
+            pdm = m_data_model_list.get_next_dm(pdm);
+        }
+    }
+    if (profile != NULL) {
+        uint16_t auth_flags = 0;
+        bool auth_known = false;
+        for (size_t s = 0; s < sizeof(securityTypeMap)/sizeof(securityTypeMap[0]); s++) {
+            if (strcmp(profile->auth_type, securityTypeMap[s].name) == 0) {
+                auth_flags = static_cast<uint16_t>(securityTypeMap[s].hex);
+                auth_known = true;
+                break;
+            }
+        }
+        if (auth_known) {
+            /* The backhaul side of a backhaul BSS carries the profile AKMs,
+               every other combination is empty. */
+            if (backhaul != (bi->id.haul_type == em_haul_type_backhaul)) {
+                return;
+            }
+            dm_radio_t *radio = dm->get_radio(bi->ruid.mac);
+            if ((radio != NULL) && (radio->get_radio_info()->band == em_freq_band_6) &&
+                ((auth_flags == EM_AUTH_WPA2PSK) ||
+                 (auth_flags == EM_AUTH_WPA2) ||
+                 (auth_flags == EM_AUTH_OPEN) ||
+                 (auth_flags == EM_AUTH_WPA3_TRANSITION))) {
+                auth_flags = EM_AUTH_WPA3_PERSONAL;
+            }
+#if defined(_PLATFORM_RASPBERRYPI_)
+            if (auth_flags == EM_AUTH_WPA3_PERSONAL) {
+                auth_flags = EM_AUTH_WPA3_TRANSITION;
+            }
+#endif
+            bool psk = (auth_flags & EM_AUTH_WPA2PSK) != 0;
+            bool sae = (auth_flags & EM_AUTH_SAE_AKM8) != 0;
+            bool dpp = (auth_flags & EM_AUTH_DPP_AKM) != 0;
+            if (sae && (psk || dpp)) {
+                snprintf(buf, buf_len, "%s%ssae", dpp ? "dpp+" : "", psk ? "psk+" : "");
+            } else if (dpp) {
+                snprintf(buf, buf_len, "dpp");
+            } else if (psk) {
+                snprintf(buf, buf_len, "psk");
+            } else if (sae) {
+                snprintf(buf, buf_len, "sae");
+            }
+            /* Open and other AKM-less auth types leave the list empty. */
+            return;
+        }
+    }
+
+    if (backhaul) {
+        fill_akms_allowed(bi->backhaul_akm, bi->num_backhaul_akms, buf, buf_len);
+    } else {
+        fill_akms_allowed(bi->fronthaul_akm, bi->num_fronthaul_akms, buf, buf_len);
+    }
+}
+
 void dm_easy_mesh_ctrl_t::fill_haul_type(em_haul_type_t hauls[], size_t max, char *buf)
 {
     unsigned int cnt = 0;
@@ -5801,12 +5915,12 @@ bus_error_t dm_easy_mesh_ctrl_t::ssid_get_inner(char *event_name, raw_data_t *p_
     if (strcmp(param, "SSID") == 0) {
         rc = dm_ctrl->raw_data_set(p_data, si->ssid);
     } else if (strcmp(param, "Band") == 0) {
-        dm_ctrl->fill_comma_sep(si->band, ARRAY_SIZE(si->band), val_str);
+        dm_ctrl->fill_comma_sep(si->band, si->num_bands, val_str);
         rc = dm_ctrl->raw_data_set(p_data, val_str);
     } else if (strcmp(param, "Enable") == 0) {
         rc = dm_ctrl->raw_data_set(p_data, si->enable);
     } else if (strcmp(param, "AKMsAllowed") == 0) {
-        dm_ctrl->fill_comma_sep(si->akm, ARRAY_SIZE(si->akm), val_str);
+        dm_ctrl->fill_comma_sep(si->akm, si->num_akms, val_str);
         rc = dm_ctrl->raw_data_set(p_data, val_str);
     } else if (strcmp(param, "SuiteSelector") == 0) {
         rc = dm_ctrl->raw_data_set(p_data, si->suite_select);
@@ -5858,11 +5972,11 @@ bus_error_t dm_easy_mesh_ctrl_t::ssid_tget_inner(char *event_name, raw_data_t *p
 
         dm_ctrl->property_append_tail(&property, root, idx, "SSID", si->ssid);
         memset(val_str, 0, sizeof(val_str));
-        dm_ctrl->fill_comma_sep(si->band, ARRAY_SIZE(si->band), val_str);
+        dm_ctrl->fill_comma_sep(si->band, si->num_bands, val_str);
         dm_ctrl->property_append_tail(&property, root, idx, "Band", val_str);
         dm_ctrl->property_append_tail(&property, root, idx, "Enable", si->enable);
         memset(val_str, 0, sizeof(val_str));
-        dm_ctrl->fill_comma_sep(si->akm, ARRAY_SIZE(si->akm), val_str);
+        dm_ctrl->fill_comma_sep(si->akm, si->num_akms, val_str);
         dm_ctrl->property_append_tail(&property, root, idx, "AKMsAllowed", val_str);
         dm_ctrl->property_append_tail(&property, root, idx, "SuiteSelector", si->suite_select);
         dm_ctrl->property_append_tail(&property, root, idx, "AdvertisementEnabled", si->advertisement);
@@ -7465,10 +7579,10 @@ bus_error_t dm_easy_mesh_ctrl_t::bss_get_inner(char *event_name, raw_data_t *p_d
     } else if (strcmp(param, "TransmittedBSSID") == 0) {
         rc = dm_ctrl->raw_data_set(p_data, bi->transmitted_bssid);
     } else if (strcmp(param, "FronthaulAKMsAllowed") == 0) {
-        dm_ctrl->fill_comma_sep(bi->fronthaul_akm, ARRAY_SIZE(bi->fronthaul_akm), val_str);
+        dm_ctrl->fill_bss_akms_allowed(dm, bi, false, val_str, sizeof(val_str));
         rc = dm_ctrl->raw_data_set(p_data, val_str);
     } else if (strcmp(param, "BackhaulAKMsAllowed") == 0) {
-        dm_ctrl->fill_comma_sep(bi->backhaul_akm, ARRAY_SIZE(bi->backhaul_akm), val_str);
+        dm_ctrl->fill_bss_akms_allowed(dm, bi, true, val_str, sizeof(val_str));
         rc = dm_ctrl->raw_data_set(p_data, val_str);
     } else if (strcmp(param, "QMDescriptor") == 0) {
         //rc = dm_ctrl->raw_data_set(p_data, bi->);
@@ -7563,11 +7677,11 @@ bus_error_t dm_easy_mesh_ctrl_t::bss_tget_params(dm_easy_mesh_t *dm, const char 
         dm_ctrl->property_append_tail(property, root, idx, "BackhaulUse", (bi->id.haul_type == em_haul_type_backhaul));
         dm_ctrl->property_append_tail(property, root, idx, "FronthaulUse", (bi->id.haul_type == em_haul_type_fronthaul));
         memset(val_str, 0, sizeof(val_str));
-        dm_ctrl->fill_comma_sep(bi->fronthaul_akm, ARRAY_SIZE(bi->fronthaul_akm), val_str);
+        dm_ctrl->fill_bss_akms_allowed(dm, bi, false, val_str, sizeof(val_str));
         dm_ctrl->property_append_tail(property, root, idx, "FronthaulAKMsAllowed", val_str);
         dm_ctrl->property_append_tail(property, root, idx, "FronthaulSuiteSelector", 0U);
         memset(val_str, 0, sizeof(val_str));
-        dm_ctrl->fill_comma_sep(bi->backhaul_akm, ARRAY_SIZE(bi->backhaul_akm), val_str);
+        dm_ctrl->fill_bss_akms_allowed(dm, bi, true, val_str, sizeof(val_str));
         dm_ctrl->property_append_tail(property, root, idx, "BackhaulAKMsAllowed", val_str);
         dm_ctrl->property_append_tail(property, root, idx, "BackhaulSuiteSelector", 0U);
         dm_ctrl->property_append_tail(property, root, idx, "STANumberOfEntries", bi->numberofsta);
