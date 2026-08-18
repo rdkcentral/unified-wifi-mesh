@@ -1624,10 +1624,12 @@ private:
 
 public:
 
-	/* Parse a received AKM Suite Capabilities TLV and store the
-	 * advertised fronthaul/backhaul AKMs into every BSS of the data model. Wire format:
+	/* Parse a received AKM Suite Capabilities TLV and store per-BSS AKMs derived
+	 * from the profile assigned to each BSS's haul type (resolved from dm, then from
+	 * mgr's other data model instances); the advertised agent wide union is only the
+	 * no-profile fallback. Wire format:
 	 * [bh_count][bh_suite*4][fh_count][fh_suite*4], each suite OUI[3] + type[1]. */
-	static void store_akm_suite_cap(dm_easy_mesh_t *dm, unsigned char *buff, unsigned int len);
+	static void store_akm_suite_cap(dm_easy_mesh_t *dm, unsigned char *buff, unsigned int len, em_mgr_t *mgr = NULL);
 
 	bool send_autoconf_search_ext_chirp(em_dpp_chirp_value_t *chirp, size_t hash_len);
 
