@@ -181,6 +181,16 @@ typedef struct {
 #define DE_DEVICE_CACSTATNOE    DE_NETWORK_DEVICE       "CACStatusNumberOfEntries"
 #define DE_DEVICE_BHDOWNNOE     DE_NETWORK_DEVICE       "BackhaulDownNumberOfEntries"
 #define DE_DEVICE_UNASSOCSTALMQ DE_NETWORK_DEVICE       "X_AIRTIES_UnassociatedStaLinkMetricsQuery()"
+#define DE_DEVICE_XAIRTIES_DEVICEINFO        DE_NETWORK_DEVICE                    "X_AIRTIES_DeviceInfo."
+#define DE_DEVICE_XAIRTIES_UPTIME            DE_DEVICE_XAIRTIES_DEVICEINFO        "Uptime"
+#define DE_DEVICE_XAIRTIES_MEMORYSTATUS      DE_DEVICE_XAIRTIES_DEVICEINFO        "MemoryStatus."
+#define DE_DEVICE_XAIRTIES_TOTAL             DE_DEVICE_XAIRTIES_MEMORYSTATUS      "Total"
+#define DE_DEVICE_XAIRTIES_FREE              DE_DEVICE_XAIRTIES_MEMORYSTATUS      "Free"
+#define DE_DEVICE_XAIRTIES_CACHED            DE_DEVICE_XAIRTIES_MEMORYSTATUS      "Cached"
+#define DE_DEVICE_XAIRTIES_PROCESSSTATUS     DE_DEVICE_XAIRTIES_DEVICEINFO        "ProcessStatus."
+#define DE_DEVICE_XAIRTIES_CPUUSAGE          DE_DEVICE_XAIRTIES_PROCESSSTATUS     "CPUUsage"
+#define DE_DEVICE_XAIRTIES_CPUTEMPERATURE    DE_DEVICE_XAIRTIES_PROCESSSTATUS     "CPUTemperature"
+
 /* Device.WiFi.DataElements.Network.Device.CACStatus */
 #define DE_DEVICE_CACSTAT       DE_NETWORK_DEVICE       "CACStatus.{i}."
 #define DE_CACSTAT_TABLE        DE_NETWORK_DEVICE       "CACStatus.{i}"
@@ -230,6 +240,8 @@ typedef struct {
 #define DE_RADIO_CHSCANREQ      DE_DEVICE_RADIO         "ChannelScanRequest()"
 #define DE_RADIO_CHSELREQ       DE_DEVICE_RADIO         "ChannelSelectionRequest()"
 #define DE_RADIO_XAIRTIES_OPERSTANDARDS DE_DEVICE_RADIO "X_AIRTIES_OperatingStandards"
+#define DE_RADIO_XAIRTIES_TEMP DE_DEVICE_RADIO          "X_AIRTIES_Temperature"
+
 /* Device.WiFi.DataElements.Network.Device.Radio.BackhaulSta */
 #define DE_RADIO_BHSTA          DE_DEVICE_RADIO         "BackhaulSta."
 #define DE_BHSTA_MACADDR        DE_RADIO_BHSTA          "MACAddress"
