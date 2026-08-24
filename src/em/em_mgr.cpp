@@ -536,7 +536,6 @@ int em_mgr_t::start()
     int rc;
     em_event_t *evt;;
     struct timespec time_to_wait;
-    struct timeval tm;
 	bool started = false;
     input_listen();
     nodes_listen();
@@ -544,9 +543,8 @@ int em_mgr_t::start()
     while (m_exit == false) {
         rc = 0;
 
-        gettimeofday(&tm, NULL);
-        time_to_wait.tv_sec = tm.tv_sec;
-       	time_to_wait.tv_nsec = tm.tv_usec * 1000;
+        /* m_queue.cond is CLOCK_MONOTONIC (util::monotonic_cond_init) */
+        util::monotonic_now(&time_to_wait);
 		util::add_milliseconds(&time_to_wait, m_queue.timeout);
 
         if (queue_count(m_queue.queue) == 0) {
@@ -615,7 +613,13 @@ int em_mgr_t::init(const char *data_model_path)
     // initialize the egress queue
     m_queue.queue = queue_create();
     pthread_mutex_init(&m_queue.lock, NULL);
-    pthread_cond_init(&m_queue.cond, NULL);
+    int rc = util::monotonic_cond_init(&m_queue.cond);
+    if (rc != 0) {
+        em_printfout("Failed to initialize egress queue condition variable, err:%d", rc);
+        pthread_mutex_destroy(&m_queue.lock);
+        queue_destroy(m_queue.queue);
+        return -1;
+    }
 
     m_queue.timeout = EM_MGR_TOUT;
     m_msg_id = 0;

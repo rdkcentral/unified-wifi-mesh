@@ -605,15 +605,13 @@ void em_t::proto_run()
     int rc;
     em_event_t *evt;
     struct timespec time_to_wait;
-    struct timeval tm;
 
     pthread_mutex_lock(&m_iq.lock);
     while (m_exit == false) {
         rc = 0;
 
-        gettimeofday(&tm, NULL);
-        time_to_wait.tv_sec = tm.tv_sec;
-        time_to_wait.tv_nsec = tm.tv_usec * 1000;
+        /* m_iq.cond is CLOCK_MONOTONIC (util::monotonic_cond_init) */
+        util::monotonic_now(&time_to_wait);
         time_to_wait.tv_sec += m_iq.timeout;
 
         if (queue_count(m_iq.queue) == 0) {
@@ -2804,7 +2802,13 @@ int em_t::init()
     // initialize the ingress queue
     m_iq.queue = queue_create();
     pthread_mutex_init(&m_iq.lock, NULL);
-    pthread_cond_init(&m_iq.cond, NULL);
+    int rc = util::monotonic_cond_init(&m_iq.cond);
+    if (rc != 0) {
+        em_printfout("Failed to initialize ingress queue condition variable, err:%d", rc);
+        pthread_mutex_destroy(&m_iq.lock);
+        queue_destroy(m_iq.queue);
+        return -1;
+    }
     m_iq.timeout = EM_PROTO_TOUT;
 
     // initialize the crypto
