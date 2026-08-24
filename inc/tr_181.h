@@ -94,6 +94,8 @@ static const yang_to_tr181_map g_yang_map[] = {
 #define TR181_CHLIST_MAX_LEN       128
 #define TR181_BSSID_MAX_LEN        32
 #define TR181_REQMODE_MAX_LEN      24
+#define TR181_CHITEM_MAX_CNT       8
+#define TR181_STAMAC_MAX_CNT       16
 
 #define MAX_INSTANCE_LEN        32
 #define MAX_CAPS_STR_LEN        32
@@ -104,6 +106,12 @@ static const yang_to_tr181_map g_yang_map[] = {
 #define MAX_TIMESTAMP_STRLEN    64
 #define MAX_STDLEN              64
 #define ARRAY_SIZE(a)           (sizeof(a) / sizeof(a[0]))
+
+typedef struct {
+    int channel;
+    unsigned int sta_cnt;
+    mac_addr_str_t sta_macs[TR181_STAMAC_MAX_CNT];
+} tr181_unassoc_ch_item_t;
 
 /* Device.WiFi.DataElements.Network */
 #define DE_NETWORK_ID           DATAELEMS_NETWORK       "ID"
@@ -172,6 +180,7 @@ static const yang_to_tr181_map g_yang_map[] = {
 #define DE_DEVICE_RADIONOE      DE_NETWORK_DEVICE       "RadioNumberOfEntries"
 #define DE_DEVICE_CACSTATNOE    DE_NETWORK_DEVICE       "CACStatusNumberOfEntries"
 #define DE_DEVICE_BHDOWNNOE     DE_NETWORK_DEVICE       "BackhaulDownNumberOfEntries"
+#define DE_DEVICE_UNASSOCSTALMQ DE_NETWORK_DEVICE       "X_AIRTIES_UnassociatedStaLinkMetricsQuery()"
 /* Device.WiFi.DataElements.Network.Device.CACStatus */
 #define DE_DEVICE_CACSTAT       DE_NETWORK_DEVICE       "CACStatus.{i}."
 #define DE_CACSTAT_TABLE        DE_NETWORK_DEVICE       "CACStatus.{i}"
@@ -603,6 +612,27 @@ public:
         bus_data_prop_t *output_data, void *async_handle);
 
     /**!
+     * @brief Handles the RBUS X_AIRTIES_UnassociatedStaLinkMetricsQuery method invocation.
+     *
+     * This function extracts X_AIRTIES_UnassociatedStaLinkMetricsQuery properties from the raw
+     * input payload, forwards them to the EasyMesh controller, and optionally writes response
+     * properties to the output raw buffer for RBUS callers.
+     *
+     * @param method_name RBUS method name, expected to match X_AIRTIES_UnassociatedStaLinkMetricsQuery.
+     * @param input_data Input containing a chained list of bus_data_prop_t entries.
+     * @param output_data Output populated with response properties when provided.
+     * @param async_handle RBUS async handle when the call is asynchronous (may be null).
+     *
+     * @returns bus_error_t
+     * @retval bus_error_none on successful X_AIRTIES_UnassociatedStaLinkMetricsQuery handling.
+     * @retval bus_error_failed on validation or controller execution failure.
+     *
+     * @note Ownership of input and output buffers remains with the caller.
+     */
+    static bus_error_t unassocstalinkmetricsquery_handler(const char *method_name,
+        bus_data_prop_t *input_data, bus_data_prop_t *output_data, void *async_handle);
+
+    /**!
      * @brief Handles the RBUS SteerWiFiBackhaul method invocation.
      *
      * This function extracts SteerWiFiBackhaul properties from the raw input payload, forwards
@@ -777,6 +807,30 @@ public:
      *  @note Returns 0 on invalid input or when no HaulType value is formatted.
      */
     static size_t format_haultype_list(const cJSON *item, char *out, size_t out_len);
+
+    /**!
+     * @brief Extract object index from string buffer, eg. n from "ABC.n".
+     *
+     * @param name Input value expected to contain name string.
+     * @param index Output, will contain index of the object, if successful.
+     *
+     * @returns bool Result of the operation.
+     *
+     * @note Returns false on invalid input or when index is not present.
+     */
+    static bool parse_object_index(const char *name, int *index);
+
+    /**!
+     * @brief Parse the channel object of unassociated sta link metrics query from property.
+     *
+     * @param prop Input, property expected to contain a valid name and value pair.
+     * @param ch_item Output, channel object of unassociated sta link metrics query.
+     *
+     * @returns bool Result of the operation.
+     *
+     * @note Returns false on invalid input.
+     */
+    static bool parse_unassoc_ch_obj(const bus_data_prop_t *prop, tr181_unassoc_ch_item_t *ch_item);
 
      /**!
      * @brief Allocate a bus_data_prop_t with a string value.
