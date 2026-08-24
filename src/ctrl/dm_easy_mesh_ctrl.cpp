@@ -7417,6 +7417,9 @@ bus_error_t dm_easy_mesh_ctrl_t::sta_get_inner(char *event_name, raw_data_t *p_d
         em_printfout("sta is NULL\n");
         return bus_error_invalid_input;
     }
+    /* The capability fields are derived from the stored (re)assoc request frame
+       body, not persisted with the station record; decode before reading. */
+    dm_sta_t::decode_sta_capability(sta);
     em_sta_info_t *si = sta->get_sta_info();
 
     if (strcmp(param, "MACAddress") == 0) {
@@ -7574,6 +7577,9 @@ bus_error_t dm_easy_mesh_ctrl_t::sta_tget_params(dm_easy_mesh_t *dm, const char 
             continue;
         }
         ++idx;
+
+        /* Derived capability fields; decode before reading (see sta_get_inner). */
+        dm_sta_t::decode_sta_capability(sta);
 
         char ht_caps_str[32] = {0};
         char vht_caps_str[32] = {0};
