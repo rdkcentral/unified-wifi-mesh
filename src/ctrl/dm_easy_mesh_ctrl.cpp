@@ -402,6 +402,265 @@ bus_error_t em_ctrl_t::cmd_setssid(const char *method_name, const bus_data_prop_
     return bus_error_success;
 }
 
+bus_error_t em_ctrl_t::cmd_unassocstalinkmetricsquery(const char *method_name, const bus_data_prop_t *input_params, bus_data_prop_t **output_params, void *async_handle)
+{
+    (void)async_handle;
+    const char *name = method_name;
+    const char *param;
+    char instance[MAX_INSTANCE_LEN] = { 0 };
+    bool is_num;
+    const bus_data_prop_t *prop = NULL;
+    int op_class = -1;
+    int ch_idx;
+    unsigned int ch_cnt = 0;
+    tr181_unassoc_ch_item_t ch_items[TR181_CHITEM_MAX_CNT] = {};
+    em_subdoc_info_t *subdoc = NULL;
+    alignas(em_subdoc_info_t) unsigned char buff[sizeof(em_subdoc_info_t) + EM_IO_BUFF_SZ];
+    cJSON *root = NULL, *json = NULL;
+    cJSON *unassoc_arr = NULL, *unassoc_obj = NULL;
+    cJSON *ch_arr = NULL, *ch_obj = NULL;
+    cJSON *sta_mac_arr = NULL, *sta_mac_obj = NULL;
+    mac_addr_str_t mac_str;
+    char *json_buff = NULL;
+    size_t json_len = 0;
+    bus_error_t rc;
+
+    param = (name ? strrchr(name, '.') : NULL);
+    if (param == NULL) {
+        em_printfout("Invalid method name");
+        if (output_params) {
+            *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
+        }
+        return bus_error_invalid_input;
+    }
+    ++param;
+    if (strcmp("X_AIRTIES_UnassociatedStaLinkMetricsQuery()", param) != 0) {
+        em_printfout("Invalid method");
+        if (output_params) {
+            *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
+        }
+        return bus_error_invalid_method;
+    }
+
+    em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
+    if (!em_ctrl) {
+        em_printfout("Controller not found");
+        if (output_params) {
+            *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
+        }
+        return bus_error_general;
+    }
+    dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl->get_dm_ctrl();
+
+    /* Extract device instance (numeric or alias) and find the dm object for
+     * that device instance */
+    name += sizeof(DATAELEMS_NETWORK);
+    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    dm_easy_mesh_t *dm = dm_ctrl->get_dm_easy_mesh(instance, is_num);
+    if (dm == NULL) {
+        em_printfout("Device not found");
+        if (output_params) {
+            *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
+        }
+        return bus_error_invalid_namespace;
+    }
+    em_device_info_t *di = dm->get_device()->get_device_info();
+
+    /* Most of the parameters are mandatory, parse them */
+    for (prop = input_params; prop; prop = prop->next_data) {
+        if (strcmp(prop->name, "OpClass") == 0) {
+            if (!tr_181_t::tr181_get_prop_int(prop, &op_class)) {
+                goto invalid;
+            }
+        } else if (strncmp(prop->name, "Channel.", sizeof("Channel.") - 1) == 0) {
+            if (!tr_181_t::parse_object_index(prop->name, &ch_idx)) {
+                em_printfout("Parse unassoc index failed");
+                goto invalid;
+            }
+            if (ch_idx < 1 || ch_idx > TR181_CHITEM_MAX_CNT) {
+                em_printfout("Invalid ch_idx: %d", ch_idx);
+                goto invalid;
+            }
+            if (ch_idx > static_cast<int> (ch_cnt)) {
+                ch_cnt = static_cast<unsigned int> (ch_idx);
+            }
+            --ch_idx;
+            if (!tr_181_t::parse_unassoc_ch_obj(prop, &ch_items[ch_idx])) {
+                em_printfout("Parse unassoc ch_item failed");
+                goto invalid;
+            }
+        } else {
+invalid:
+            em_printfout("Invalid parameter: %s", prop->name);
+            if (output_params) {
+                *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
+            }
+            return bus_error_invalid_input;
+        }
+    }
+
+    /* Mandatory parameters: OpClass and a valid Channel object list */
+    if (op_class < 0 || ch_cnt == 0) {
+        em_printfout("Mandatory parameters missing");
+        if (output_params) {
+            *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
+        }
+        return bus_error_invalid_input;
+    }
+    for (unsigned int c = 0; c < ch_cnt; c++) {
+        tr181_unassoc_ch_item_t *ch_item = &ch_items[c];
+        if (ch_item->channel <= 0 || ch_item->sta_cnt == 0) {
+            em_printfout("Invalid Channel[%d] parameter", c);
+            if (output_params) {
+                *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
+            }
+            return bus_error_invalid_input;
+        }
+        for (unsigned int s = 0; s < ch_item->sta_cnt; s++) {
+            if (!ch_item->sta_macs[s][0]) {
+                em_printfout("Invalid Channel[%d].STA[%d] parameter", c, s);
+                if (output_params) {
+                    *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
+                }
+                return bus_error_invalid_input;
+            }
+        }
+    }
+
+    /* Prepare subdoc to be processed with command */
+    subdoc = reinterpret_cast<em_subdoc_info_t *>(buff);
+    memset(subdoc, 0, sizeof(em_subdoc_info_t));
+    strncpy(subdoc->name, "UnassocSTAQuery", sizeof(subdoc->name) - 1);
+
+    /* Create json with root "wfa-dataelements:UnassocSTAQuery" and fill
+     * with necessary parameters we extract from path */
+    rc = bus_error_out_of_resources;
+    root = cJSON_CreateObject();
+    json = cJSON_CreateObject();
+    if (!root || !json) {
+        em_printfout("Create object failed");
+        goto cleanup;
+    }
+    if (!cJSON_AddItemToObject(root, "wfa-dataelements:UnassocSTAQuery", json)) {
+        em_printfout("Add item failed");
+        cJSON_Delete(json);
+        goto cleanup;
+    }
+    dm_easy_mesh_t::macbytes_to_string(di->intf.mac, mac_str);
+    if (!cJSON_AddStringToObject(json, "AlMac", mac_str)) {
+        em_printfout("Add Device ID failed");
+        goto cleanup;
+    }
+    /* Add method parameters */
+    unassoc_arr = cJSON_AddArrayToObject(json, "UnassocStaQueryList");
+    if (!unassoc_arr) {
+        em_printfout("Add UnassocStaQueryList failed");
+        goto cleanup;
+    }
+    unassoc_obj = cJSON_CreateObject();
+    if (!unassoc_obj) {
+        em_printfout("Create object failed");
+        goto cleanup;
+    }
+    if (!cJSON_AddItemToArray(unassoc_arr, unassoc_obj)) {
+        em_printfout("Add UnassocStaQuery failed");
+        cJSON_Delete(unassoc_obj);
+        goto cleanup;
+    }
+    if (!cJSON_AddNumberToObject(unassoc_obj, "opclass", op_class)) {
+        em_printfout("Add opclass failed");
+        goto cleanup;
+    }
+    ch_arr = cJSON_AddArrayToObject(unassoc_obj, "channels");
+    if (!ch_arr) {
+        em_printfout("Add channels array failed");
+        goto cleanup;
+    }
+    for (unsigned int c = 0; c < ch_cnt; c++) {
+        ch_obj = cJSON_CreateObject();
+        if (!ch_obj) {
+            em_printfout("Create object failed");
+            goto cleanup;
+        }
+        if (!cJSON_AddItemToArray(ch_arr, ch_obj)) {
+            em_printfout("Add Channel failed");
+            cJSON_Delete(ch_obj);
+            goto cleanup;
+        }
+        tr181_unassoc_ch_item_t *ch_item = &ch_items[c];
+        if (!cJSON_AddNumberToObject(ch_obj, "channel", ch_item->channel)) {
+            em_printfout("Add channel failed");
+            goto cleanup;
+        }
+        sta_mac_arr = cJSON_AddArrayToObject(ch_obj, "sta_macs");
+        if (!sta_mac_arr) {
+            em_printfout("Add sta_macs array failed");
+            goto cleanup;
+        }
+        for (unsigned int s = 0; s < ch_item->sta_cnt; s++) {
+            sta_mac_obj = cJSON_CreateString(ch_item->sta_macs[s]);
+            if (!sta_mac_obj) {
+                em_printfout("Create string failed");
+                goto cleanup;
+            }
+            if (!cJSON_AddItemToArray(sta_mac_arr, sta_mac_obj)) {
+                em_printfout("Add item failed");
+                cJSON_Delete(sta_mac_obj);
+                goto cleanup;
+            }
+        }
+    }
+
+    /* Convert JSON back to string and store in subdoc buffer. */
+    json_buff = cJSON_PrintUnformatted(root);
+    if (!json_buff) {
+        em_printfout("Create output buffer failed");
+        rc = bus_error_out_of_resources;
+        goto cleanup;
+    }
+    /* Ensure updated JSON fits in buffer. */
+    json_len = strlen(json_buff);
+    if (json_len >= EM_IO_BUFF_SZ) {
+        em_printfout("Buffer too big for subdoc");
+        free(json_buff);
+        rc = bus_error_invalid_input;
+        goto cleanup;
+    }
+    memcpy(subdoc->buff, json_buff, json_len);
+    subdoc->buff[json_len] = '\0';
+
+    // uncomment below lines to log the updated JSON before sending to DM; can be helpful for debugging.
+    /*
+    cJSON *json_obj;
+    json_obj = cJSON_Parse(subdoc->buff);
+    if (json_obj) {
+        char *new_json = cJSON_Print(json_obj);
+        em_printfout("Updated and formatted JSON:\n%s", new_json);
+        free(new_json);
+        cJSON_Delete(json_obj);
+    } else {
+        em_printfout("Invalid JSON in subdoc->buff");
+    }
+    */
+
+    em_ctrl->io_process(em_bus_event_type_unassoc_sta_query, subdoc->buff, json_len);
+    free(json_buff);
+    cJSON_Delete(root);
+
+    if (output_params) {
+        *output_params = tr_181_t::tr181_set_status_output_prop("Success");
+    }
+
+    return bus_error_success;
+
+cleanup:
+    cJSON_Delete(root);
+    if (output_params) {
+        *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
+    }
+    return rc;
+}
+
 bus_error_t em_ctrl_t::cmd_steerwifibh(const char *method_name, const bus_data_prop_t *input_params, bus_data_prop_t **output_params, void *async_handle)
 {
     (void)async_handle;
@@ -837,6 +1096,7 @@ invalid:
             int channel = static_cast<int> (std::strtol(channels[i].c_str(), &ep, 10));
             if (ep == channels[i].c_str() || *ep != '\0') {
                 em_printfout("Invalid channel");
+                rc = bus_error_invalid_input;
                 goto cleanup;
             }
             chlist_obj = cJSON_CreateNumber(channel);
@@ -5767,6 +6027,94 @@ char* dm_easy_mesh_ctrl_t::get_sta_vht_caps_str(char *vht_cap_hex, char *buf, si
     return buf;
 }
 
+/* Locate the HE Capabilities element in the sta's stored (re)assoc frame body. */
+bool dm_easy_mesh_ctrl_t::find_sta_he_caps(em_sta_info_t *si, const unsigned char **mac_caps,
+    const unsigned char **phy_caps)
+{
+    unsigned int offset;
+
+    if ((si == NULL) || (mac_caps == NULL) || (phy_caps == NULL) ||
+        (si->frame_body_len == 0)) {
+        return false;
+    }
+    offset = dm_sta_t::get_assoc_frame_ie_offset(si->frame_body, si->frame_body_len);
+    while (offset + EM_IE_HDR_LEN <= si->frame_body_len) {
+        unsigned char id = si->frame_body[offset];
+        unsigned char len = si->frame_body[offset + 1];
+        if (offset + EM_IE_HDR_LEN + len > si->frame_body_len) {
+            break;
+        }
+        if ((id == EM_EID_EXTENSION) && (len >= EM_HE_CAPS_MIN_LEN) &&
+            (si->frame_body[offset + EM_IE_HDR_LEN] == EM_EXT_EID_HE_CAPS)) {
+            *mac_caps = &si->frame_body[offset + EM_IE_HDR_LEN + 1];
+            *phy_caps = &si->frame_body[offset + EM_IE_HDR_LEN + 1 + EM_HE_MAC_CAPS_LEN];
+            return true;
+        }
+        offset += EM_IE_HDR_LEN + static_cast<unsigned int>(len);
+    }
+    return false;
+}
+
+static const char *sta_wifi6_cap_members[] = {
+    "HE160", "HE8080", "MCSNSS", "SUBeamformer", "SUBeamformee",
+    "MUBeamformer", "Beamformee80orLess", "BeamformeeAbove80", "ULMUMIMO",
+    "ULOFDMA", "DLOFDMA", "MaxDLMUMIMO", "MaxULMUMIMO", "MaxDLOFDMA",
+    "MaxULOFDMA", "RTS", "MURTS", "MultiBSSID", "MUEDCA", "TWTRequestor",
+    "TWTResponder", "SpatialReuse", "AnticipatedChannelUsage",
+};
+
+/* Derive WiFi6Capabilities.<param> from the HE caps element; false if param is not a member. */
+bool dm_easy_mesh_ctrl_t::sta_wifi6_cap_value(em_sta_info_t *si, const char *param, bool *out)
+{
+    const unsigned char *m = NULL, *p = NULL;
+    unsigned int i;
+    bool member = false;
+
+    if (!si || !param || !out) {
+        return false;
+    }
+
+    for (i = 0; i < sizeof(sta_wifi6_cap_members) / sizeof(sta_wifi6_cap_members[0]); i++) {
+        if (strcmp(param, sta_wifi6_cap_members[i]) == 0) {
+            member = true;
+            break;
+        }
+    }
+    if (member == false) {
+        return false;
+    }
+
+    *out = false;
+    if (find_sta_he_caps(si, &m, &p) == false) {
+        return true;
+    }
+    if (strcmp(param, "MCSNSS") == 0) {
+        *out = true; /* supported HE-MCS and NSS set is always present */
+    } else if (strcmp(param, "HE160") == 0) {
+        *out = (p[0] & EM_HE_PHY0_CHWIDTH_160_5G) != 0;
+    } else if (strcmp(param, "HE8080") == 0) {
+        *out = (p[0] & EM_HE_PHY0_CHWIDTH_8080_5G) != 0;
+    } else if (strcmp(param, "SUBeamformer") == 0) {
+        *out = (p[3] & EM_HE_PHY3_SU_BEAMFORMER) != 0;
+    } else if (strcmp(param, "SUBeamformee") == 0) {
+        *out = (p[4] & EM_HE_PHY4_SU_BEAMFORMEE) != 0;
+    } else if (strcmp(param, "MUBeamformer") == 0) {
+        *out = (p[4] & EM_HE_PHY4_MU_BEAMFORMER) != 0;
+    } else if (strcmp(param, "Beamformee80orLess") == 0) {
+        *out = (p[4] & EM_HE_PHY4_BFEE_STS_LE80_MASK) != 0;
+    } else if (strcmp(param, "BeamformeeAbove80") == 0) {
+        *out = (p[4] & EM_HE_PHY4_BFEE_STS_GT80_MASK) != 0;
+    } else if (strcmp(param, "ULMUMIMO") == 0) {
+        *out = (p[2] & EM_HE_PHY2_UL_MUMIMO_MASK) != 0;
+    } else if (strcmp(param, "TWTRequestor") == 0) {
+        *out = (m[0] & EM_HE_MAC0_TWT_REQ) != 0;
+    } else if (strcmp(param, "TWTResponder") == 0) {
+        *out = (m[0] & EM_HE_MAC0_TWT_RESP) != 0;
+    }
+    /* remaining members are not present in the HE Capabilities element */
+    return true;
+}
+
 char* dm_easy_mesh_ctrl_t::get_supported_standards_str(wifi_ieee80211Variant_t variant, char *buf, size_t buf_size)
 {
     if (!buf || buf_size == 0)
@@ -7329,6 +7677,9 @@ bus_error_t dm_easy_mesh_ctrl_t::sta_get_inner(char *event_name, raw_data_t *p_d
         em_printfout("sta is NULL\n");
         return bus_error_invalid_input;
     }
+    /* The capability fields are derived from the stored (re)assoc request frame
+       body, not persisted with the station record; decode before reading. */
+    dm_sta_t::decode_sta_capability(sta);
     em_sta_info_t *si = sta->get_sta_info();
 
     if (strcmp(param, "MACAddress") == 0) {
@@ -7344,7 +7695,12 @@ bus_error_t dm_easy_mesh_ctrl_t::sta_get_inner(char *event_name, raw_data_t *p_d
         dm_ctrl->get_sta_vht_caps_str(si->vht_cap, caps_str, sizeof(caps_str));
         rc = dm_ctrl->raw_data_set(p_data, caps_str);
     } else if (strcmp(param, "ClientCapabilities") == 0) {
-        rc = dm_ctrl->raw_data_set(p_data, "");
+        /* TR-181: base64-encoded frame body of the last (Re)Association Request. */
+        std::string caps_b64;
+        if (si->frame_body_len > 0) {
+            caps_b64 = em_crypto_t::base64_encode(si->frame_body, si->frame_body_len);
+        }
+        rc = dm_ctrl->raw_data_set(p_data, caps_b64.c_str());
     } else if (strcmp(param, "LastDataDownlinkRate") == 0) {
         rc = dm_ctrl->raw_data_set(p_data, si->last_dl_rate);
     } else if (strcmp(param, "LastDataUplinkRate") == 0) {
@@ -7388,8 +7744,13 @@ bus_error_t dm_easy_mesh_ctrl_t::sta_get_inner(char *event_name, raw_data_t *p_d
     } else if (strcmp(param, "RSNCapabilities") == 0) {
         rc = dm_ctrl->raw_data_set(p_data, 0U);
     } else {
-        em_printfout("Invalid param: %s\n", param);
-        rc = bus_error_invalid_input;
+        bool wifi6_val = false;
+        if (dm_ctrl->sta_wifi6_cap_value(si, param, &wifi6_val)) {
+            rc = dm_ctrl->raw_data_set(p_data, wifi6_val);
+        } else {
+            em_printfout("Invalid param: %s\n", param);
+            rc = bus_error_invalid_input;
+        }
     }
 
     return rc;
@@ -7477,15 +7838,31 @@ bus_error_t dm_easy_mesh_ctrl_t::sta_tget_params(dm_easy_mesh_t *dm, const char 
         }
         ++idx;
 
+        /* Derived capability fields; decode before reading (see sta_get_inner). */
+        dm_sta_t::decode_sta_capability(sta);
+
         char ht_caps_str[32] = {0};
         char vht_caps_str[32] = {0};
         dm_ctrl->get_sta_ht_caps_str(si->ht_cap, ht_caps_str, sizeof(ht_caps_str));
         dm_ctrl->get_sta_vht_caps_str(si->vht_cap, vht_caps_str, sizeof(vht_caps_str));
 
+        std::string client_caps_b64;
+        if (si->frame_body_len > 0) {
+            client_caps_b64 = em_crypto_t::base64_encode(si->frame_body, si->frame_body_len);
+        }
+
         dm_ctrl->property_append_tail(property, root, idx, "MACAddress", si->id);
         dm_ctrl->property_append_tail(property, root, idx, "HTCapabilities", ht_caps_str);
         dm_ctrl->property_append_tail(property, root, idx, "VHTCapabilities", vht_caps_str);
-        dm_ctrl->property_append_tail(property, root, idx, "ClientCapabilities", "");
+        dm_ctrl->property_append_tail(property, root, idx, "ClientCapabilities", client_caps_b64.c_str());
+
+        for (unsigned int wi = 0; wi < sizeof(sta_wifi6_cap_members) / sizeof(sta_wifi6_cap_members[0]); wi++) {
+            bool wifi6_val = false;
+            em_long_string_t wifi6_name;
+            (void)dm_ctrl->sta_wifi6_cap_value(si, sta_wifi6_cap_members[wi], &wifi6_val);
+            snprintf(wifi6_name, sizeof(wifi6_name), "WiFi6Capabilities.%s", sta_wifi6_cap_members[wi]);
+            dm_ctrl->property_append_tail(property, root, idx, wifi6_name, wifi6_val);
+        }
         dm_ctrl->property_append_tail(property, root, idx, "LastDataDownlinkRate", si->last_dl_rate);
         dm_ctrl->property_append_tail(property, root, idx, "LastDataUplinkRate", si->last_ul_rate);
         dm_ctrl->property_append_tail(property, root, idx, "UtilizationReceive", si->util_rx);

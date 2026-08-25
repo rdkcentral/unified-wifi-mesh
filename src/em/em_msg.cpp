@@ -122,16 +122,43 @@ bool em_msg_t::get_supported_service(em_supported_service_t *svc)
     return false;
 }
 
+bool em_msg_t::parse_profile_tlv(const unsigned char *value, uint16_t value_len, em_profile_type_t *profile)
+{
+    if ((value == nullptr) || (profile == nullptr)) {
+        em_printfout("Error: Invalid Profile TLV input: value=%p profile=%p", static_cast<const void *>(value), static_cast<void *>(profile));
+        return false;
+    }
+
+    // Multi-AP Profile TLV may be encoded as 1 byte (legacy) or 4 bytes (profile + 3 reserved bytes).
+    if ((value_len != sizeof(unsigned char)) && (value_len != 4U)) {
+        em_printfout("Error: Invalid Profile TLV length %u", static_cast<unsigned int>(value_len));
+        return false;
+    }
+
+    const unsigned char raw_profile = value[0];
+    if (raw_profile >= static_cast<unsigned char>(em_profile_type_max)) {
+        em_printfout("Error: Invalid Profile TLV value %u", static_cast<unsigned int>(raw_profile));
+        return false;
+    }
+
+    *profile = static_cast<em_profile_type_t>(raw_profile);
+    return true;
+}
+
 bool em_msg_t::get_profile(em_profile_type_t *profile)
 {
     em_tlv_t    *tlv;
     unsigned int len;
 
+    if (profile == nullptr) {
+        em_printfout("Error: get_profile called with null profile");
+        return false;
+    }
+    *profile = em_profile_type_reserved;
     tlv = reinterpret_cast<em_tlv_t *> (m_buff); len = m_len;
     while ((tlv->type != em_tlv_type_eom) && (len > 0)) {
         if (tlv->type == em_tlv_type_profile) {
-            memcpy(profile, tlv->value, htons(tlv->len));
-            return true;
+            return parse_profile_tlv(tlv->value, ntohs(tlv->len), profile);
         }
 
         len -= static_cast<unsigned int> (sizeof(em_tlv_t) + htons(tlv->len));
@@ -278,12 +305,15 @@ bool em_msg_t::get_profile_type(em_profile_type_t *profile)
     em_tlv_t    *tlv;
     unsigned int len;
 
+    if (profile == nullptr) {
+        em_printfout("Error: get_profile_type called with null profile");
+        return false;
+    }
     *profile = em_profile_type_reserved;
     tlv = reinterpret_cast<em_tlv_t *> (m_buff); len = m_len;
     while ((tlv->type != em_tlv_type_eom) && (len > 0)) {
         if (tlv->type == em_tlv_type_profile) {
-            memcpy(reinterpret_cast<unsigned char *> (profile), tlv->value, htons(tlv->len));
-            return true;
+            return parse_profile_tlv(tlv->value, ntohs(tlv->len), profile);
         }
         len -= static_cast<unsigned int> (sizeof(em_tlv_t) + htons(tlv->len));
         tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
@@ -364,6 +394,11 @@ em_tlv_t *em_msg_t::get_next_tlv(em_tlv_t* tlv, em_tlv_t* tlvs_buff, unsigned in
     EM_ASSERT_MSG_TRUE(signed_offset >= 0, NULL, "TLV is before buffer start");
     size_t offset = static_cast<size_t>(signed_offset);
     EM_ASSERT_MSG_TRUE(offset < buff_len, NULL, "TLV offset exceeds buffer length");
+
+    if (buff_len < sizeof(em_tlv_t)) {
+        em_printfout("Truncated packet: not enough space for TLV length field");
+        return NULL;
+    }
 
     // Calculate the size of the current TLV (header + data)
     uint16_t current_tlv_size = sizeof(em_tlv_t) + ntohs(tlv->len);

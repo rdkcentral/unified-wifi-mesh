@@ -118,6 +118,15 @@ public:
 	 * calling this function.
 	 */
 	static void decode_sta_capability(dm_sta_t *sta);
+
+	/**!
+	 * @brief Returns the offset of the first IE in a stored (re)assoc request
+	 * frame body, which may or may not carry the 802.11 fixed fields.
+	 *
+	 * @param[in] body Frame body as stored in the sta info.
+	 * @param[in] len Length of the frame body.
+	 */
+	static unsigned int get_assoc_frame_ie_offset(const unsigned char *body, unsigned int len);
     
 	/**!
 	 * @brief Decodes the beacon report for the given station.

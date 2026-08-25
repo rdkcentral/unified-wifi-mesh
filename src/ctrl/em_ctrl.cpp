@@ -836,13 +836,28 @@ void em_ctrl_t::publish_network_topology()
 
     if((desc = get_bus_descriptor()) == NULL) {
         printf("%s:%d descriptor is null\n", __func__, __LINE__);
+        return;
     }
 
     parent = cJSON_CreateObject();
+    if (parent == NULL) {
+        printf("%s:%d cJSON_CreateObject failed\n", __func__, __LINE__);
+        return;
+    }
     dm_ctrl = reinterpret_cast<dm_easy_mesh_ctrl_t *>(get_data_model(GLOBAL_NET_ID));
+    if (dm_ctrl == NULL) {
+        printf("%s:%d data model is null\n", __func__, __LINE__);
+        cJSON_Delete(parent);
+        return;
+    }
     dm_ctrl->get_network_config(parent, const_cast<char*>(GLOBAL_NET_ID));
 
     str = cJSON_Print(parent);
+    if (str == NULL) {
+        printf("%s:%d cJSON_Print failed\n", __func__, __LINE__);
+        cJSON_Delete(parent);
+        return;
+    }
     em_printfout("    ===============Publish Network Topology Json:\n%s\n===============\n",str);
 
 	raw.data_type    = bus_data_type_string;
@@ -854,6 +869,10 @@ void em_ctrl_t::publish_network_topology()
     } else {
         printf("%s:%d Topology publish fail\n",__func__, __LINE__);
     }
+
+    // bus_event_publish_fn copies the payload
+    cJSON_Delete(parent);
+    cJSON_free(str);
 
 #if 0
     //Test code here
@@ -1333,6 +1352,9 @@ void em_ctrl_t::start_complete()
         { const_cast<char*>(DEVICE_WIFI_DATAELEMENTS_NETWORK_SETSSID_CMD), bus_element_type_method,
             { NULL, NULL , NULL, NULL, NULL, tr_181_t::setssid_handler}, slow_speed, ZERO_TABLE,
             { bus_data_type_property, false, 0, 0, 0, NULL } },
+        { const_cast<char*>(DE_DEVICE_UNASSOCSTALMQ), bus_element_type_method,
+            { NULL, NULL , NULL, NULL, NULL, tr_181_t::unassocstalinkmetricsquery_handler}, slow_speed, ZERO_TABLE,
+            { bus_data_type_property, false, 0, 0, 0, NULL } },
         { const_cast<char*>(DE_MAPDEVBH_STEERWIFIBH), bus_element_type_method,
             { NULL, NULL , NULL, NULL, NULL, tr_181_t::steerwifibh_handler}, slow_speed, ZERO_TABLE,
             { bus_data_type_property, false, 0, 0, 0, NULL } },
@@ -1441,22 +1463,45 @@ em_ctrl_t::~em_ctrl_t()
 #ifdef AL_SAP
 AlServiceAccessPoint* em_ctrl_t::al_sap_register(const std::string& data_socket_path, const std::string& control_socket_path)
 {
-    AlServiceAccessPoint* sap = new AlServiceAccessPoint(data_socket_path.c_str(), control_socket_path.c_str());
+    AlServiceAccessPoint* sap = NULL;
+    try {
+        sap = new AlServiceAccessPoint(data_socket_path.c_str(), control_socket_path.c_str());
+        if (NULL == sap) {
+            em_printfout("%s-%d: Failed to allocate AlServiceAccessPoint", __func__, __LINE__);
+            return NULL;
+        }
 
-    AlServiceRegistrationRequest registrationRequest(SAPActivation::SAP_ENABLE, ServiceType::EmController);
-    sap->serviceAccessPointRegistrationRequest(registrationRequest);
+        AlServiceRegistrationRequest registrationRequest(SAPActivation::SAP_ENABLE, ServiceType::EmController);
+        sap->serviceAccessPointRegistrationRequest(registrationRequest);
 
-    AlServiceRegistrationResponse registrationResponse = sap->serviceAccessPointRegistrationResponse();
+        AlServiceRegistrationResponse registrationResponse = sap->serviceAccessPointRegistrationResponse();
 
-    RegistrationResult result = registrationResponse.getResult();
-    if (result == RegistrationResult::SUCCESS) {
-        g_al_mac_sap = registrationResponse.getAlMacAddressLocal();
-        uint8_t* al_mac_bytes = g_al_mac_sap.data();
-        em_printfout("AL SAP registration successful, AL MAC: %s", util::mac_to_string(al_mac_bytes).c_str());
-
-        m_data_model.set_dev_interface_mac(al_mac_bytes);
-    } else {
-        std::cout << "Registration failed with error: " << static_cast<int>(result) << std::endl;
+        RegistrationResult result = registrationResponse.getResult();
+        if (result == RegistrationResult::SUCCESS) {
+            g_al_mac_sap = registrationResponse.getAlMacAddressLocal();
+            uint8_t* al_mac_bytes = g_al_mac_sap.data();
+            if (NULL == al_mac_bytes) {
+                em_printfout("%s-%d: AL SAP registration failed with invalid AL MAC: %s", util::mac_to_string(al_mac_bytes).c_str());
+                delete sap;
+                return NULL;
+            }
+            em_printfout("AL SAP registration successful, AL MAC: %s", util::mac_to_string(al_mac_bytes).c_str());
+            m_data_model.set_dev_interface_mac(al_mac_bytes);
+        } else {
+            std::cout << "Registration failed with error: " << static_cast<int>(result) << std::endl;
+            delete sap;
+            return NULL;
+        }
+    }
+    catch (const AlServiceException& e) {
+        em_printfout("%s-%d: AL SAP registration exception %s", __func__, __LINE__, e.what());
+        delete sap;
+        return NULL;
+    }
+    catch (const std::exception e) {
+        em_printfout("%s-%d: Unknown exception %s during AL SAP registration", __func__, __LINE__, e.what());
+        delete sap;
+        return NULL;
     }
 
     return sap;
@@ -1469,7 +1514,23 @@ int main(int argc, const char *argv[])
 {
     em_ctrl_t  *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
 #ifdef AL_SAP
-    g_sap = em_ctrl->al_sap_register("/tmp/al_em_ctrl_data_socket", "/tmp/al_em_ctrl_control_socket");
+    const char* data_socket_path = "/tmp/al_em_ctrl_data_socket";
+    const char* control_socket_path = "/tmp/al_em_ctrl_control_socket";
+
+    if(0 == access(data_socket_path, F_OK) && 0 == access(control_socket_path, F_OK)) {
+        g_sap = em_ctrl->al_sap_register(data_socket_path, control_socket_path);
+        if (NULL == g_sap) {
+            em_printfout("%s-%d: Error in AL SAP registration, exiting", __func__, __LINE__);
+            return -1;
+        }
+    }
+    else {
+        em_printfout("%s-%d: Data Socket: %s, Control Socket: %s", __func__, __FILE__,
+	              access(data_socket_path, F_OK) == 0 ? "present" : "missing",
+                      access(control_socket_path, F_OK) == 0 ? "present" : "missing");
+        em_printfout("%s-%d: Required AL SAP socket(s) not available, exiting", __func__, __LINE__);
+        return -1;
+    }
 #endif
 
     if (em_ctrl->init(argv[1]) == 0) {
