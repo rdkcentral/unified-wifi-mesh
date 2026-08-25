@@ -148,6 +148,7 @@ int em_crypto_t::init()
     if (DH_set0_pqg(dh, p, NULL, g) != 1) {
         goto bail;
     }
+    p = NULL; g = NULL; /* ownership transferred to dh */
     #endif
 
     /* Obtain key pair */
@@ -201,12 +202,12 @@ int em_crypto_t::init()
 
     ret = BN_bn2binpad(pub_key, m_crypto_info.e_pub, DH_KEY_SZ);
     if (ret != DH_KEY_SZ) {
-        printf("%s:%d Failed to convert enrollee public key to binary, ret=%d\n", __func__, __LINE__, ret);
+        em_printfout("Failed to convert enrollee public key to binary, ret=%d", ret);
         goto bail;
     }
     ret = BN_bn2binpad(priv_key, m_crypto_info.e_priv, DH_KEY_SZ);
     if (ret != DH_KEY_SZ) {
-        printf("%s:%d Failed to convert enrollee private key to binary, ret=%d\n", __func__, __LINE__, ret);
+        em_printfout("Failed to convert enrollee private key to binary, ret=%d", ret);
         goto bail;
     }
     m_crypto_info.e_pub_len  = DH_KEY_SZ;
@@ -214,12 +215,12 @@ int em_crypto_t::init()
 
     ret = BN_bn2binpad(pub_key, m_crypto_info.r_pub, DH_KEY_SZ);
     if (ret != DH_KEY_SZ) {
-        printf("%s:%d Failed to convert registrar public key to binary, ret=%d\n", __func__, __LINE__, ret);
+        em_printfout("Failed to convert registrar public key to binary, ret=%d", ret);
         goto bail;
     }
     ret = BN_bn2binpad(priv_key, m_crypto_info.r_priv, DH_KEY_SZ);
     if (ret != DH_KEY_SZ) {
-        printf("%s:%d Failed to convert registrar private key to binary, ret=%d\n", __func__, __LINE__, ret);
+        em_printfout("Failed to convert registrar private key to binary, ret=%d", ret);
         goto bail;
     }
     m_crypto_info.r_pub_len  = DH_KEY_SZ;
@@ -230,9 +231,8 @@ bail:
 
 #if OPENSSL_VERSION_NUMBER < 0x30000000L
     if (dh) {
-        DH_free(dh);
-        cleanup_bignums(NULL, NULL, priv_key, pub_key);
-    }else{
+        DH_free(dh);  // owns p, g (via set0_pqg) and pub_key, priv_key (via generate_key)
+    } else {
         cleanup_bignums(p, g, priv_key, pub_key);
     }
 #else

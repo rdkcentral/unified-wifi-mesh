@@ -2812,7 +2812,13 @@ int em_t::init()
 
     // initialize the crypto
     if (m_crypto.init() != 0) {
-        printf("%s:%d Failed to initialize crypto\n", __func__, __LINE__);
+        em_printfout("Error: Failed to initialize crypto");
+        queue_destroy(m_iq.queue);
+        pthread_mutex_destroy(&m_iq.lock);
+        pthread_cond_destroy(&m_iq.cond);
+        if (is_al_interface_em()) {
+            close(m_fd);
+        }
         return -1;
     }
 
@@ -2827,14 +2833,16 @@ int em_t::init()
     // leading to stack overflow.
     ret = pthread_attr_setstacksize(&attr, stack_size);
     if (ret != 0) {
-        printf("%s:%d pthread_attr_setstacksize failed for size:%ld ret:%d\n",
-                __func__, __LINE__, stack_size, ret);
+        em_printfout("Error: pthread_attr_setstacksize failed for size:%ld ret:%d", stack_size, ret);
     }
     pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
 
     if (pthread_create(&m_tid, attrp, em_t::em_func, this) != 0) {
-        printf("%s:%d: Failed to start em thread\n", __func__, __LINE__);
-        close(m_fd);
+        em_printfout("Error: Failed to start em thread");
+        queue_destroy(m_iq.queue);
+        if (is_al_interface_em()) {
+            close(m_fd);
+        }
         pthread_mutex_destroy(&m_iq.lock);
         pthread_cond_destroy(&m_iq.cond);
         if(attrp != NULL) {

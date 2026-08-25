@@ -2252,10 +2252,9 @@ int em_configuration_t::handle_topology_response(unsigned char *buff, unsigned i
         al_em->set_peer_profile(m_peer_profile);
     }
     if (em_msg_t(em_msg_type_topo_resp, m_peer_profile, buff, len).validate(errors) == 0) {
-        em_printfout("topology response msg validation failed");
-            
-        //return -1;
-    }       
+        em_printfout("topology response msg validation failed, ignoring message");
+        return -1;
+    }
         
     tlv =  reinterpret_cast<em_tlv_t *> (buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
     tmp_len = len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));

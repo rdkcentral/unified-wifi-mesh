@@ -49,6 +49,48 @@ void tr_181_t::tr181_trim_whitespace(char *str)
     str[len] = '\0';
 }
 
+bool tr_181_t::parse_object_index(const char *name, int *index)
+{
+    if (!name || !index) {
+        em_printfout("name or index invalid");
+        return false;
+    }
+
+    const char *src = strchr(name, '.');
+    if (!src || !*(src + 1)) {
+        em_printfout("invalid name format");
+        return false;
+    }
+
+    ++src;
+    char instance[MAX_INSTANCE_LEN] = { 0 };
+    size_t len = 0;
+    while (src[len] && src[len] != '.' && len < sizeof(instance) - 1) {
+        if (!isdigit(static_cast<unsigned char> (src[len]))) {
+            em_printfout("invalid name format");
+            return false;
+        }
+        instance[len] = src[len];
+        ++len;
+    }
+
+    if ((len == 0) || (src[len] && (src[len] != '.'))) {
+        em_printfout("invalid name format");
+        return false;
+    }
+
+    char *ep = NULL;
+    long val = strtol(instance, &ep, 10);
+    if (!ep || *ep != '\0' || val <= 0 || val > UINT8_MAX) {
+        em_printfout("invalid name format");
+        return false;
+    }
+
+    *index = static_cast<int>(val);
+
+    return true;
+}
+
 // Create a HaulType array from a single value (Fronthaul/Backhaul only)
 cJSON *tr_181_t::create_haultype_array(const char *haul_val)
 {
@@ -306,3 +348,51 @@ const char *tr_181_t::akms_to_auth_type(const char *akms_val)
     if (strcmp(akms_val, "psk+sae") == 0) return "WPA3 Transition";
     return NULL;
 }
+
+bool tr_181_t::parse_unassoc_ch_obj(const bus_data_prop_t *prop, tr181_unassoc_ch_item_t *ch_item)
+{
+     if (!prop || !ch_item) {
+         return false;
+     }
+
+    const char *name = prop->name;
+    int sta_idx;
+
+    /* Channel.{i}.Channel or Channel.{i}.STA.{j}.MAC */
+    name += sizeof("Channel");
+    name  = strstr(name, ".");
+    if (!name) {
+        return false;
+    }
+
+    ++name;
+    if (strcmp(name, "Channel") == 0) {
+        if (!tr_181_t::tr181_get_prop_int(prop, &ch_item->channel)) {
+            return false;
+        }
+    } else if (strncmp(name, "STA.", sizeof("STA.") - 1) == 0) {
+        const char *next_dot = strchr(name + sizeof("STA.") - 1, '.');
+        const char *last_dot = strrchr(name, '.');
+        if (!last_dot || next_dot != last_dot || strcmp(last_dot + 1, "MAC") != 0) {
+            return false;
+        }
+        if (!tr_181_t::parse_object_index(name, &sta_idx)) {
+            return false;
+        }
+        if (sta_idx < 1 || sta_idx > TR181_STAMAC_MAX_CNT) {
+            return false;
+        }
+        if (sta_idx > static_cast<int> (ch_item->sta_cnt)) {
+            ch_item->sta_cnt = static_cast<unsigned int> (sta_idx);
+        }
+        --sta_idx;
+        if (!tr_181_t::tr181_copy_prop_string(prop, ch_item->sta_macs[sta_idx], sizeof(mac_addr_str_t))) {
+            return false;
+        }
+    } else {
+        return false;
+    }
+
+    return true;
+}
+
