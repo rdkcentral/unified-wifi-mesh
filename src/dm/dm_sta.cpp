@@ -288,6 +288,8 @@ void dm_sta_t::encode_beacon_report(cJSON *obj)
 		cJSON_AddNumberToObject(neighbor_obj, "OpClass", m_sta_info.beacon_reports[i].opClass);
 		cJSON_AddNumberToObject(neighbor_obj, "Channel", m_sta_info.beacon_reports[i].channel);
 		cJSON_AddNumberToObject(neighbor_obj, "RCPI", m_sta_info.beacon_reports[i].rcpi);
+		cJSON_AddNumberToObject(neighbor_obj, "RSNI", m_sta_info.beacon_reports[i].rsni);
+		cJSON_AddNumberToObject(neighbor_obj, "Antenna", m_sta_info.beacon_reports[i].antenna);
 
 		cJSON_AddItemToArray(neighbors_arr_obj, neighbor_obj);
 	}
@@ -600,6 +602,8 @@ void dm_sta_t::decode_beacon_report(dm_sta_t *sta)
 
     em_sta_info_t *sta_info = &sta->m_sta_info;
     ie = static_cast<unsigned char *>(sta->m_sta_info.beacon_report_elem);
+
+    memset(sta_info->beacon_reports, 0, sizeof(sta_info->beacon_reports));
 
     for (i = 0; i < sta_info->num_beacon_meas_report; i++) {
         current_pkt_len = ie[1];

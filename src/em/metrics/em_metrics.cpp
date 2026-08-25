@@ -618,6 +618,7 @@ int em_metrics_t::handle_beacon_metrics_response(unsigned char *buff, unsigned i
     sta->m_sta_info.num_beacon_meas_report = response->meas_rprt_count;
     sta->m_sta_info.beacon_report_len = report_len;
     memcpy(sta->m_sta_info.beacon_report_elem, response->meas_reports, static_cast<size_t> (report_len));
+    dm_sta_t::decode_beacon_report(sta);
 
     // Clear the timestamp so new queries can be sent immediately after a response
     sta->m_sta_info.beacon_query_sent_time = 0;
@@ -2330,7 +2331,6 @@ int em_metrics_t::handle_1905_ack(unsigned char *buff, unsigned int len)
             cmd->get_data_model() != NULL &&
             response_msg_id == cmd->get_data_model()->get_msg_id()) {
             matched_em = em;
-            is_beacon_query_ack = true;
             cmd->get_data_model()->set_msg_id(0);
             cmd->clear_query_tx_time();
             matched_em->set_state(em_state_beacon_report_complete);
