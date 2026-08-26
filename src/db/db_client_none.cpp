@@ -18,6 +18,7 @@
 
 #include <stdio.h>
 #include "db_client_none.h"
+#include "util.h"
 
 int db_client_none_t::init(const char *path)
 {
@@ -29,6 +30,7 @@ int db_client_none_t::init(const char *path)
 void *db_client_none_t::execute(const char *query)
 {
     // Nothing to run against; there is never a result set to iterate.
+    em_printfout("No backend to execute query: %s\n", query);
     (void) query;
     return NULL;
 }

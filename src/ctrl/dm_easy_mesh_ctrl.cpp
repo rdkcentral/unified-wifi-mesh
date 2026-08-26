@@ -2843,7 +2843,7 @@ int dm_easy_mesh_ctrl_t::analyze_reset(em_bus_event_t *evt, em_cmd_t *pcmd[])
 
     subdoc = &evt->u.subdoc;
 
-
+    em_printfout("  DBG, analyze set polcy", __func__, __LINE__);
     dm.decode_config(subdoc, "Reset");
     //dm.print_config();
 
@@ -4319,7 +4319,7 @@ int dm_easy_mesh_ctrl_t::get_wifi_reset_config(cJSON *parent, char *key)
 {
     cJSON *obj;
     dm_easy_mesh_t dm;
-    em_interface_t *intf;
+    // em_interface_t *intf;
     em_subdoc_info_t *subdoc;
     unsigned char buff[EM_IO_BUFF_SZ];
 
@@ -4333,19 +4333,19 @@ int dm_easy_mesh_ctrl_t::get_wifi_reset_config(cJSON *parent, char *key)
     dm.init();
     dm.decode_config(subdoc, "Reset");
 
-    const char* platform = dm.get_platform();
+    // const char* platform = dm.get_platform();
 
-    // Prioritize the interface list depending on platform
-    if ((intf = dm.get_prioritized_interface(platform)) == NULL) {
-        intf = dm.get_interface_by_index(0);//Todo: check why index 0 as it is taking brlan0
-    }
-
-    dm.set_ctrl_al_interface_mac(intf->mac);
-    dm.set_ctrl_al_interface_name(intf->name);
-    dm.set_controller_id(intf->mac);//Should be set to eth0-virt-peer mac
-    dm.set_controller_intf_media(intf->media);
+    /*
+     * Keep the controller ID tied to the AL-SAP MAC only.
+     * Do not overwrite it with the interface-derived MAC from config.
+     */
+    dm.set_ctrl_al_interface_mac(m_device_info.intf.mac);
+    // dm.set_ctrl_al_interface_name(m_device_info.intf.name);
+    // dm.set_controller_intf_media(m_device_info.intf.media);
 
     //dm.print_config();
+
+    em_printfout("  DBG, set ctrl al interface mac: %s", util::mac_to_string(m_device_info.intf.mac).c_str());
 
     dm.encode_config(subdoc, "Reset");
 
@@ -4556,7 +4556,7 @@ int dm_easy_mesh_ctrl_t::load_tables()
     }
 
     if (dm_network_list_t::is_table_empty(*m_db_client) == true) {
-        em_printfout("%s:%d: data base empty ... needs reset / init setup\n", __func__, __LINE__);
+        em_printfout("%s:%d: data base empty ... needs reset / init setup with type: %d\n", __func__, __LINE__, type);
         return -1;
     }
 
@@ -4812,6 +4812,8 @@ int dm_easy_mesh_ctrl_t::update_tables(dm_easy_mesh_t *dm)
     }
 
     if (dm->db_cfg_type_is_set(db_cfg_type_network_ssid_list_update)) {
+        em_printfout("SSID_TRACE: update_tables: db_cfg_type_network_ssid_list_update set, num_network_ssid in incoming dm: %d",
+            dm->get_num_network_ssid());
         for (i = 0; i < dm->get_num_network_ssid(); i++) {
             net_ssid = dm->get_network_ssid_by_ref(i);
             snprintf(parent, sizeof(em_2xlong_string_t), "%s@%s",
@@ -9036,7 +9038,7 @@ int dm_easy_mesh_ctrl_t::init(const char *data_model_path, em_mgr_t *mgr, db_cli
     m_data_model_list.init(mgr);
 
     m_db_client_type = db_type;
-    m_db_client = db_client_factory_t::create(db_type);
+    m_db_client = db_client_create(db_type);
     if (m_db_client == nullptr) {
         em_printfout("%s:%d unknown db client type: %d\n", __func__, __LINE__, static_cast<int>(db_type));
         return -1;
@@ -9086,36 +9088,44 @@ int dm_easy_mesh_ctrl_t::init(const char *data_model_path, em_mgr_t *mgr, db_cli
         return -1;
     }
 
-    // Backends that persist nothing load no NetworkList row, so the network the
-    // controller looks up by GLOBAL_NET_ID has to be synthesized here instead.
-    if (get_network(GLOBAL_NET_ID) == NULL) {
-        em_network_info_t info;
-        mac_address_t null_mac;
-        char date_time[EM_DATE_TIME_BUFF_SZ];
-
-        memset(null_mac, 0, sizeof(mac_address_t));
-        if (memcmp(get_dev_interface_mac(), null_mac, sizeof(mac_address_t)) == 0) {
-            em_printfout("%s:%d: no AL MAC available to bootstrap network %s\n", __func__, __LINE__, GLOBAL_NET_ID);
-            return -1;
-        }
-
-        memset(&info, 0, sizeof(em_network_info_t));
-        snprintf(info.id, sizeof(info.id), "%s", GLOBAL_NET_ID);
-        util::get_date_time_rfc3399(date_time, EM_DATE_TIME_BUFF_SZ);
-        snprintf(info.timestamp, sizeof(info.timestamp), "%s", date_time);
-        info.media = em_media_type_ieee8023ab;
-
-        memcpy(info.ctrl_id.mac, get_dev_interface_mac(), sizeof(mac_address_t));
-        info.ctrl_id.media = info.media;
-        dm_easy_mesh_t::name_from_mac_address(&info.ctrl_id.mac, info.ctrl_id.name);
-
-        memcpy(info.colocated_agent_id.mac, info.ctrl_id.mac, sizeof(mac_address_t));
-        info.colocated_agent_id.media = info.media;
-        dm_easy_mesh_t::name_from_mac_address(&info.colocated_agent_id.mac, info.colocated_agent_id.name);
-
-        dm_network_list_t::update_list(dm_network_t(&info), dm_orch_type_db_insert);
-        set_initialized();
+    // For no-DB (and future cloud) backends: synthesize the controller's
+    // network entry from the AL-SAP MAC so data_model_init can find it.
+    if (get_network(GLOBAL_NET_ID) == NULL && bootstrap_controller_network() != 0) {
+        return -1;
     }
+
+    return 0;
+}
+
+int dm_easy_mesh_ctrl_t::bootstrap_controller_network()
+{
+    em_network_info_t info;
+    mac_address_t null_mac;
+    char date_time[EM_DATE_TIME_BUFF_SZ];
+
+    memset(null_mac, 0, sizeof(mac_address_t));
+    if (memcmp(get_dev_interface_mac(), null_mac, sizeof(mac_address_t)) == 0) {
+        em_printfout("%s:%d: no AL MAC available to bootstrap network %s", __func__, __LINE__, GLOBAL_NET_ID);
+        return -1;
+    }
+
+    memset(&info, 0, sizeof(em_network_info_t));
+    snprintf(info.id, sizeof(info.id), "%s", GLOBAL_NET_ID);
+    util::get_date_time_rfc3399(date_time, EM_DATE_TIME_BUFF_SZ);
+    snprintf(info.timestamp, sizeof(info.timestamp), "%s", date_time);
+    info.media = em_media_type_ieee8023ab;
+
+    memcpy(info.ctrl_id.mac, get_dev_interface_mac(), sizeof(mac_address_t));
+    info.ctrl_id.media = info.media;
+    dm_easy_mesh_t::name_from_mac_address(&info.ctrl_id.mac, info.ctrl_id.name);
+
+    memcpy(info.colocated_agent_id.mac, info.ctrl_id.mac, sizeof(mac_address_t));
+    info.colocated_agent_id.media = info.media;
+    dm_easy_mesh_t::name_from_mac_address(&info.colocated_agent_id.mac, info.colocated_agent_id.name);
+
+    dm_network_list_t::update_list(dm_network_t(&info), dm_orch_type_db_insert);
+    //create_data_model(GLOBAL_NET_ID, &info.ctrl_id, em_profile_type_3);
+    // set_initialized();
 
     return 0;
 }

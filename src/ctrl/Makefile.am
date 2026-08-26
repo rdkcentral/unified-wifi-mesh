@@ -104,6 +104,7 @@ onewifi_em_ctrl_SOURCES =  \
      $(top_srcdir)/src/ctrl/tr_181/wfa_data_model/tr_181.cpp \
      $(top_srcdir)/src/ctrl/tr_181/wfa_data_model/tr_181_method.cpp \
      $(top_srcdir)/src/ctrl/tr_181/wfa_data_model/tr_181_helper.cpp\
+     $(top_srcdir)/src/db/db_client.cpp \
      $(top_srcdir)/src/db/db_client_local.cpp \
      $(top_srcdir)/src/db/db_client_cloud.cpp \
      $(top_srcdir)/src/db/db_client_none.cpp \

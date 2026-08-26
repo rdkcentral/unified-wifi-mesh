@@ -33,7 +33,6 @@
 #include "dm_scan_result_list.h"
 #include "dm_dpp.h"
 #include "db_client.h"
-#include "db_client_factory.h"
 #include "dm_easy_mesh_list.h"
 #include "em_network_topo.h"
 #include "dm_easy_mesh.h"
@@ -181,7 +180,7 @@ public:
     static bus_error_t bstacfg_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
 
 private:
-    // Bound at init() time via db_client_factory_t, based on the requested
+    // Bound at init() time via db_client_t::create(), based on the requested
     // db_client_type_t (local/cloud/none). Every dm_*_list_t table class
     // only ever sees this through the db_client_t& interface, so which
     // concrete backend is behind it is invisible to them.
@@ -1137,6 +1136,18 @@ public:
 	 * @note Ensure that the network identifier and interface are valid before calling this function.
 	 */
 	dm_easy_mesh_t	*create_data_model(const char *net_id, const em_interface_t *al_intf, em_profile_type_t profile);    
+
+	/**!
+	 * @brief Synthesizes the controller's network entry and data model from the AL-SAP MAC.
+	 *
+	 * Used only during init() for --db-type=none (and future cloud) backends, where no
+	 * persisted network entry exists yet to load.
+	 *
+	 * @returns int Status code.
+	 * @retval 0 on success.
+	 * @retval -1 if no AL-SAP MAC is available yet.
+	 */
+	int bootstrap_controller_network();
 
 	
 	/**!

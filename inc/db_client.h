@@ -37,7 +37,7 @@
  *   - db_client_cloud_t (db_client_cloud.h)  : reserved for future cloud DB
  *   - db_client_none_t  (db_client_none.h)   : no-op / in-memory-only backend
  *
- * Use db_client_factory_t to obtain the correct implementation for a given
+ * Use db_client_t::create() to obtain the correct implementation for a given
  * db_client_type_t rather than constructing one directly.
  *
  * @note Implementations are not required to be thread-safe.
@@ -130,5 +130,8 @@ public:
 
     virtual ~db_client_t() {}
 };
+
+db_client_t *db_client_create(db_client_type_t type);
+db_client_type_t db_client_type_from_string(const char *name);
 
 #endif

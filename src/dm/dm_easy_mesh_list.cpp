@@ -138,6 +138,7 @@ void dm_easy_mesh_list_t::put_network(const char *key, const dm_network_t *net)
 			
     /* try to find any data model with this network, if exists, the colocated dm must be there, otherwise create one */
     if ((dm = get_data_model(key, net_info->ctrl_id.mac)) == NULL) {
+        em_printfout("%s:%d: ------->>>>>> Creating data model for network %s\n", __func__, __LINE__, key);
 		dm = create_data_model(key, &net_info->ctrl_id, em_profile_type_3, true);
 		pnet = dm->get_network();
 		*pnet = *net;	
@@ -896,6 +897,7 @@ void dm_easy_mesh_list_t::put_network_ssid(const char *key, const dm_network_ssi
     strncpy(net_id, ptr + 1, strlen(ptr));
     *ptr = 0;
 
+    em_printfout("SSID_TRACE: put_network_ssid: key: %s, net_id: %s, ssid: %s", key, net_id, net_ssid->m_network_ssid_info.ssid);
 
     dm = static_cast<dm_easy_mesh_t *> (hash_map_get_first(m_list));
     while (dm != NULL) {
@@ -915,10 +917,13 @@ void dm_easy_mesh_list_t::put_network_ssid(const char *key, const dm_network_ssi
         if (found == true) {
             found = false;
             *pnet_ssid = *net_ssid;
+            em_printfout("SSID_TRACE: put_network_ssid: updated existing ssid: %s on dm(is_controller:%d)", net_ssid->m_network_ssid_info.ssid, dm->is_controller());
         } else {
             pnet_ssid = dm->get_network_ssid(dm->get_num_network_ssid());
             *pnet_ssid = *net_ssid;
             dm->set_num_network_ssid(dm->get_num_network_ssid() + 1);
+            em_printfout("SSID_TRACE: put_network_ssid: inserted new ssid: %s on dm(is_controller:%d), num_network_ssid now: %d",
+                net_ssid->m_network_ssid_info.ssid, dm->is_controller(), dm->get_num_network_ssid());
         }
         dm = static_cast<dm_easy_mesh_t *> (hash_map_get_next(m_list, dm));
     }
