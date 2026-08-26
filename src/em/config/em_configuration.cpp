@@ -6039,7 +6039,7 @@ void em_configuration_t::process_msg(unsigned char *data, unsigned int len)
                     dm->set_topo_state(true);
                     dm->set_db_cfg_param(db_cfg_type_device_list_update, "");
                 } else {
-                    printf("%s:%d em_msg_type_topo_resp handle failed \n", __func__, __LINE__);
+                    em_printfout("em_msg_type_topo_resp handle failed");
                 }
             }
             break;

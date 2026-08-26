@@ -72,7 +72,7 @@ void em_ctrl_t::handle_dm_commit(em_bus_event_t *evt)
     info = &evt->u.commit;
 
     dm_easy_mesh_t::macbytes_to_string(info->mac, mac_str);
-    dm = m_data_model.get_data_model(info->net_id, info->mac);
+    dm = m_ctrl_data_model.get_data_model(info->net_id, info->mac);
     if (dm == NULL) {
         new_dm.init();
         em_printfout("data model mac: %s and info->net_id : %s\n",mac_str, info->net_id);
@@ -82,7 +82,7 @@ void em_ctrl_t::handle_dm_commit(em_bus_event_t *evt)
         em_printfout("data model dev mac: %s and int.mac: %s\n", util::mac_to_string(new_dm.m_device.m_device_info.id.dev_mac).c_str(),
             util::mac_to_string(new_dm.m_device.m_device_info.intf.mac).c_str());
 
-        if ((net = m_data_model.get_network(info->net_id)) != NULL) {
+        if ((net = m_ctrl_data_model.get_network(info->net_id)) != NULL) {
             em_printfout("net id: %s", net->m_net_info.id);
             pnet = new_dm.get_network();
             *pnet = *net;
@@ -100,7 +100,7 @@ void em_ctrl_t::handle_dm_commit(em_bus_event_t *evt)
             util::mac_to_string(new_dm.m_device.m_device_info.intf.mac).c_str());
         new_dm.m_device.m_device_info.is_emplus_agent = info->is_emplus_agent;
         new_dm.set_db_cfg_param(db_cfg_type_device_list_update, "");
-        m_data_model.set_config(&new_dm);
+        m_ctrl_data_model.set_config(&new_dm);
     } else {
         dm->get_device_info()->is_emplus_agent = info->is_emplus_agent;
         dm->set_db_cfg_param(db_cfg_type_device_list_update, "");
@@ -121,7 +121,7 @@ void em_ctrl_t::handle_client_steer(em_bus_event_t *evt)
 
     if (m_orch->is_cmd_type_in_progress(evt) == true) {
         m_ctrl_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
-    } else if ((num = m_data_model.analyze_command_steer(evt, pcmd)) <= 0) {
+    } else if ((num = m_ctrl_data_model.analyze_command_steer(evt, pcmd)) <= 0) {
         m_ctrl_cmd->send_result(status_for_noncmd(num));
     } else if (m_orch->submit_commands(pcmd, static_cast<unsigned int> (num)) > 0) {
         m_ctrl_cmd->send_result(em_cmd_out_status_success);
@@ -137,7 +137,7 @@ void em_ctrl_t::handle_client_disassoc(em_bus_event_t *evt)
 
     if (m_orch->is_cmd_type_in_progress(evt) == true) {
         m_ctrl_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
-    } else if ((num = m_data_model.analyze_command_disassoc(evt, pcmd)) <= 0) {
+    } else if ((num = m_ctrl_data_model.analyze_command_disassoc(evt, pcmd)) <= 0) {
         m_ctrl_cmd->send_result(status_for_noncmd(num));
     } else if (m_orch->submit_commands(pcmd, static_cast<unsigned int> (num)) > 0) {
         m_ctrl_cmd->send_result(em_cmd_out_status_success);
@@ -153,7 +153,7 @@ void em_ctrl_t::handle_client_btm(em_bus_event_t *evt)
 
     if (m_orch->is_cmd_type_in_progress(evt) == true) {
         m_ctrl_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
-    } else if ((num = m_data_model.analyze_command_btm(evt, pcmd)) <= 0) {
+    } else if ((num = m_ctrl_data_model.analyze_command_btm(evt, pcmd)) <= 0) {
         m_ctrl_cmd->send_result(status_for_noncmd(num));
     } else if (m_orch->submit_commands(pcmd, static_cast<unsigned int> (num)) > 0) {
         m_ctrl_cmd->send_result(em_cmd_out_status_success);
@@ -169,7 +169,7 @@ void em_ctrl_t::handle_start_dpp(em_bus_event_t *evt)
 
     if (m_orch->is_cmd_type_in_progress(evt) == true) {
         m_ctrl_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
-    } else if ((num = m_data_model.analyze_dpp_start(evt, pcmd)) <= 0) {
+    } else if ((num = m_ctrl_data_model.analyze_dpp_start(evt, pcmd)) <= 0) {
         m_ctrl_cmd->send_result(status_for_noncmd(num));
     } else if (m_orch->submit_commands(pcmd, static_cast<unsigned int> (num)) > 0) {
         m_ctrl_cmd->send_result(em_cmd_out_status_success);
@@ -186,7 +186,7 @@ void em_ctrl_t::handle_channel_select(em_bus_event_t *evt)
 
     if (m_orch->is_cmd_type_in_progress(evt) == true) {
         m_ctrl_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
-    } else if ((num = m_data_model.analyze_channel_select(evt, pcmd)) <= 0) {
+    } else if ((num = m_ctrl_data_model.analyze_channel_select(evt, pcmd)) <= 0) {
         m_ctrl_cmd->send_result(status_for_noncmd(num));
     } else if (m_orch->submit_commands(pcmd, static_cast<unsigned int> (num)) > 0) {
         m_ctrl_cmd->send_result(em_cmd_out_status_success);
@@ -202,7 +202,7 @@ void em_ctrl_t::handle_set_channel_list(em_bus_event_t *evt)
 
     if (m_orch->is_cmd_type_in_progress(evt) == true) {
         m_ctrl_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
-    } else if ((num = m_data_model.analyze_set_channel(evt, pcmd)) <= 0) {
+    } else if ((num = m_ctrl_data_model.analyze_set_channel(evt, pcmd)) <= 0) {
         m_ctrl_cmd->send_result(status_for_noncmd(num));
     } else if (m_orch->submit_commands(pcmd, static_cast<unsigned int> (num)) > 0) {
         m_ctrl_cmd->send_result(em_cmd_out_status_success);
@@ -219,7 +219,7 @@ void em_ctrl_t::handle_scan_channel_list(em_bus_event_t *evt)
 
     if (m_orch->is_cmd_type_in_progress(evt) == true) {
         m_ctrl_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
-    } else if ((num = m_data_model.analyze_scan_channel(evt, pcmd)) <= 0) {
+    } else if ((num = m_ctrl_data_model.analyze_scan_channel(evt, pcmd)) <= 0) {
         m_ctrl_cmd->send_result(status_for_noncmd(num));
     } else if (m_orch->submit_commands(pcmd, static_cast<unsigned int> (num)) > 0) {
         m_ctrl_cmd->send_result(em_cmd_out_status_success);
@@ -236,7 +236,7 @@ void em_ctrl_t::handle_set_policy(em_bus_event_t *evt)
 
     if (m_orch->is_cmd_type_in_progress(evt) == true) {
         m_ctrl_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
-    } else if ((num = m_data_model.analyze_set_policy(evt, pcmd)) <= 0) {
+    } else if ((num = m_ctrl_data_model.analyze_set_policy(evt, pcmd)) <= 0) {
         m_ctrl_cmd->send_result(status_for_noncmd(num));
     } else if (m_orch->submit_commands(pcmd, static_cast<unsigned int> (num)) > 0) {
         m_ctrl_cmd->send_result(em_cmd_out_status_success);
@@ -250,7 +250,7 @@ void em_ctrl_t::handle_config_renew(em_bus_event_t *evt)
     em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
     int num;
     
-    if ((num = m_data_model.analyze_config_renew(evt, pcmd)) > 0) {
+    if ((num = m_ctrl_data_model.analyze_config_renew(evt, pcmd)) > 0) {
         m_orch->submit_commands(pcmd, static_cast<unsigned int> (num));
     }
 }
@@ -260,7 +260,7 @@ void em_ctrl_t::handle_m2_tx(em_bus_event_t *evt)
     em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
     int num;
     
-    if ((num = m_data_model.analyze_m2_tx(evt, pcmd)) > 0) {
+    if ((num = m_ctrl_data_model.analyze_m2_tx(evt, pcmd)) > 0) {
         m_orch->submit_commands(pcmd, static_cast<unsigned int> (num));
     }
 }
@@ -270,7 +270,7 @@ void em_ctrl_t::handle_sta_assoc_event(em_bus_event_t *evt)
     em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
     int num;
     
-    if ((num = m_data_model.analyze_sta_assoc_event(evt, pcmd)) > 0) {
+    if ((num = m_ctrl_data_model.analyze_sta_assoc_event(evt, pcmd)) > 0) {
         m_orch->submit_commands(pcmd, static_cast<unsigned int> (num));
     }
 }
@@ -282,7 +282,7 @@ void em_ctrl_t::handle_set_radio(em_bus_event_t *evt)
 
     if (m_orch->is_cmd_type_in_progress(evt) == true) {
         m_ctrl_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
-    } else if ((num = m_data_model.analyze_set_radio(evt, pcmd)) <= 0) {
+    } else if ((num = m_ctrl_data_model.analyze_set_radio(evt, pcmd)) <= 0) {
         m_ctrl_cmd->send_result(status_for_noncmd(num));
     } else if (m_orch->submit_commands(pcmd, static_cast<unsigned int> (num)) > 0) {
         m_ctrl_cmd->send_result(em_cmd_out_status_success);
@@ -298,7 +298,7 @@ void em_ctrl_t::handle_set_ssid_list(em_bus_event_t *evt)
 
     if (m_orch->is_cmd_type_in_progress(evt) == true) {
         m_ctrl_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
-    } else if ((ret = m_data_model.analyze_set_ssid(evt, pcmd)) <= 0) {
+    } else if ((ret = m_ctrl_data_model.analyze_set_ssid(evt, pcmd)) <= 0) {
         if (ret == EM_PARSE_ERR_NO_CHANGE) {
         	m_ctrl_cmd->send_result(em_cmd_out_status_no_change);
 		} else {
@@ -319,7 +319,7 @@ void em_ctrl_t::handle_remove_device(em_bus_event_t *evt)
 
     if (m_orch->is_cmd_type_in_progress(evt) == true) {
         m_ctrl_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
-    } else if ((num = m_data_model.analyze_remove_device(evt, pcmd)) <= 0) {
+    } else if ((num = m_ctrl_data_model.analyze_remove_device(evt, pcmd)) <= 0) {
         m_ctrl_cmd->send_result(status_for_noncmd(num));
     } else if (m_orch->submit_commands(pcmd, static_cast<unsigned int> (num)) > 0) {
         m_ctrl_cmd->send_result(em_cmd_out_status_success);
@@ -377,7 +377,7 @@ void em_ctrl_t::handle_get_dm_data(em_bus_event_t *evt)
         return;
     }
 
-    m_data_model.get_config(params.u.args.args[1], &evt->u.subdoc);
+    m_ctrl_data_model.get_config(params.u.args.args[1], &evt->u.subdoc);
 	evt->data_len = static_cast<unsigned int> (strlen(evt->u.subdoc.buff)) + 1;
     m_ctrl_cmd->copy_bus_event(evt);
     m_ctrl_cmd->send_result(em_cmd_out_status_success);
@@ -390,7 +390,7 @@ void em_ctrl_t::handle_reset(em_bus_event_t *evt)
 	
     if (m_orch->is_cmd_type_in_progress(evt) == true) {
         m_ctrl_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
-    } else if ((num = m_data_model.analyze_reset(evt, pcmd)) <= 0) {
+    } else if ((num = m_ctrl_data_model.analyze_reset(evt, pcmd)) <= 0) {
         m_ctrl_cmd->send_result(status_for_noncmd(num));
     } else if (m_orch->submit_commands(pcmd, static_cast<unsigned int> (num)) > 0) {
         m_ctrl_cmd->send_result(em_cmd_out_status_success);
@@ -407,7 +407,7 @@ void em_ctrl_t::handle_mld_reconfig(em_bus_event_t *evt)
 
     if (m_orch->is_cmd_type_in_progress(evt) == true) {
         m_ctrl_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
-    } else if ((num = m_data_model.analyze_mld_reconfig(pcmd)) <= 0) {
+    } else if ((num = m_ctrl_data_model.analyze_mld_reconfig(pcmd)) <= 0) {
         m_ctrl_cmd->send_result(status_for_noncmd(num));
     } else if (m_orch->submit_commands(pcmd, static_cast<unsigned int> (num)) > 0) {
         m_ctrl_cmd->send_result(em_cmd_out_status_success);
@@ -433,7 +433,7 @@ void em_ctrl_t::handle_unassoc_sta_metrics_query(em_bus_event_t *evt)
 
     if (m_orch->is_cmd_type_in_progress(evt) == true) {
         m_ctrl_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
-    } else if ((num = m_data_model.analyze_unassoc_sta_metrics_query(evt, pcmd)) <= 0) {
+    } else if ((num = m_ctrl_data_model.analyze_unassoc_sta_metrics_query(evt, pcmd)) <= 0) {
         m_ctrl_cmd->send_result(status_for_noncmd(num));
     } else if (m_orch->submit_commands(pcmd, static_cast<unsigned int> (num)) > 0) {
         m_ctrl_cmd->send_result(em_cmd_out_status_success);
@@ -447,7 +447,7 @@ void em_ctrl_t::handle_client_metrics_req()
     em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
     int num;
 
-    if ((num = m_data_model.analyze_sta_link_metrics(pcmd)) > 0) {
+    if ((num = m_ctrl_data_model.analyze_sta_link_metrics(pcmd)) > 0) {
         m_orch->submit_commands(pcmd, static_cast<unsigned int> (num));
     }
 }
@@ -457,7 +457,7 @@ void em_ctrl_t::handle_bsta_cap_req(em_bus_event_t *evt)
     em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
     int num;
 
-    if ((num = m_data_model.analyze_bsta_cap_req(evt, pcmd)) > 0) {
+    if ((num = m_ctrl_data_model.analyze_bsta_cap_req(evt, pcmd)) > 0) {
         m_orch->submit_commands(pcmd, static_cast<unsigned int> (num));
     }
 }
@@ -473,7 +473,7 @@ void em_ctrl_t::handle_link_stats_alarm_report(em_bus_event_t *evt)
 
     cJSON *parent = cJSON_CreateObject();
     em_printfout("Getting STAList for alarm report\n");
-    m_data_model.get_sta_config(parent, const_cast<char*>(GLOBAL_NET_ID), em_get_sta_list_reason_alarm_report, info->buff);
+    m_ctrl_data_model.get_sta_config(parent, const_cast<char*>(GLOBAL_NET_ID), em_get_sta_list_reason_alarm_report, info->buff);
 
     //publish to orch
     if((desc = get_bus_descriptor()) == NULL) {
@@ -494,7 +494,7 @@ void em_ctrl_t::handle_link_stats_alarm_report(em_bus_event_t *evt)
     raw.raw_data.bytes = reinterpret_cast<unsigned char *> (str);
     raw.raw_data_len = static_cast<unsigned int> (strlen(str));
 
-    if (desc->bus_event_publish_fn(m_data_model.get_bus_hdl(), DEVICE_WIFI_DATAELEMENTS_NETWORK_NODE_LINKSTATS_ALARM, &raw)== 0) {
+    if (desc->bus_event_publish_fn(m_ctrl_data_model.get_bus_hdl(), DEVICE_WIFI_DATAELEMENTS_NETWORK_NODE_LINKSTATS_ALARM, &raw)== 0) {
         em_printfout("Link Stats Alarm published successfull");
     } else {
         em_printfout("Link Stats Alarm publish fail");
@@ -619,7 +619,7 @@ void em_ctrl_t::handle_failed_conn_msg(unsigned char *data, unsigned int len)
     raw.raw_data.bytes = reinterpret_cast<unsigned char *>(str);
     raw.raw_data_len = static_cast<unsigned int>(strlen(str));
 
-    if (desc->bus_event_publish_fn(m_data_model.get_bus_hdl(), DEVICE_WIFI_DATAELEMENTS_FAILED_CONNECTION, &raw) == 0) {
+    if (desc->bus_event_publish_fn(m_ctrl_data_model.get_bus_hdl(), DEVICE_WIFI_DATAELEMENTS_FAILED_CONNECTION, &raw) == 0) {
         em_printfout("FailedConnectionEvent published: bssid=%s sta=%s status=%u reason=%u",
             bssid_str, sta_str, status_code, reason_code);
     } else {
@@ -632,7 +632,7 @@ void em_ctrl_t::handle_failed_conn_msg(unsigned char *data, unsigned int len)
 
 void em_ctrl_t::handle_dirty_dm()
 {
-	m_data_model.handle_dirty_dm();
+	m_ctrl_data_model.handle_dirty_dm();
 }
 
 void em_ctrl_t::handle_5s_tick()
@@ -693,7 +693,7 @@ void em_ctrl_t::handle_nb_event(em_nb_event_t *evt)
     }
 
     uintptr_t buf = reinterpret_cast<uintptr_t>(resp);
-    ssize_t len = write(m_data_model.m_nb_pipe_wr, &buf, sizeof(buf));
+    ssize_t len = write(m_ctrl_data_model.m_nb_pipe_wr, &buf, sizeof(buf));
     assert(len == sizeof(buf));
 }
 
@@ -864,7 +864,7 @@ void em_ctrl_t::publish_network_topology()
     raw.raw_data.bytes = reinterpret_cast<unsigned char *> (str);
     raw.raw_data_len = static_cast<unsigned int> (strlen(str));
 
-    if (desc->bus_event_publish_fn(m_data_model.get_bus_hdl(), const_cast<char*>(DEVICE_WIFI_DATAELEMENTS_NETWORK_TOPOLOGY), &raw)== 0) {
+    if (desc->bus_event_publish_fn(m_ctrl_data_model.get_bus_hdl(), const_cast<char*>(DEVICE_WIFI_DATAELEMENTS_NETWORK_TOPOLOGY), &raw)== 0) {
         printf("%s:%d Topology published successfull\n",__func__, __LINE__);
     } else {
         printf("%s:%d Topology publish fail\n",__func__, __LINE__);
@@ -915,8 +915,8 @@ void em_ctrl_t::publish_network_topology()
                     raw.raw_data.bytes = reinterpret_cast<unsigned char*>(buf);
                     raw.raw_data_len = static_cast<unsigned int>(read);
 
-                    if (desc->bus_event_publish_fn(m_data_model.get_bus_hdl(), DEVICE_WIFI_DATAELEMENTS_NETWORK_NODE_CFG_POLICY, &raw) == 0) {
-                    //if (desc->bus_set_fn(m_data_model.get_bus_hdl(), DEVICE_WIFI_DATAELEMENTS_NETWORK_NODE_CFG_POLICY, &raw) == 0) {
+                    if (desc->bus_event_publish_fn(m_ctrl_data_model.get_bus_hdl(), DEVICE_WIFI_DATAELEMENTS_NETWORK_NODE_CFG_POLICY, &raw) == 0) {
+                    //if (desc->bus_set_fn(m_ctrl_data_model.get_bus_hdl(), DEVICE_WIFI_DATAELEMENTS_NETWORK_NODE_CFG_POLICY, &raw) == 0) {
                         printf("%s:%d Policy published successfully\n", __func__, __LINE__);
                     } else {
                         printf("%s:%d Policy publish failed\n", __func__, __LINE__);
@@ -943,12 +943,12 @@ int em_ctrl_t::data_model_init(const char *data_model_path)
         return 0;
     }
     
-    if (m_data_model.init(data_model_path, this) != 0) {
+    if (m_ctrl_data_model.init(data_model_path, this) != 0) {
         printf("%s:%d: data model init failed\n", __func__, __LINE__);
         return 0;
     }
 
-    intf = m_data_model.get_ctrl_al_interface(const_cast<char*>(GLOBAL_NET_ID));
+    intf = m_ctrl_data_model.get_ctrl_al_interface(const_cast<char*>(GLOBAL_NET_ID));
 	if (intf == NULL) {
 		printf("%s:%d: data model init failed could not find netid\n", __func__, __LINE__);
 		return 0;
@@ -1372,7 +1372,7 @@ void em_ctrl_t::start_complete()
             { bus_data_type_property, false, 0, 0, 0, NULL } }
         };
 
-	if (m_data_model.is_initialized() == false) {
+	if (m_ctrl_data_model.is_initialized() == false) {
 		printf("%s:%d: Database not initialized ... needs reset\n", __func__, __LINE__);
 		return;
 	}
@@ -1380,13 +1380,13 @@ void em_ctrl_t::start_complete()
 	// build initial network topology
 	init_network_topology();
 
-    dm = m_data_model.get_first_dm();
+    dm = m_ctrl_data_model.get_first_dm();
     while (dm != NULL) {
 		dm->set_db_cfg_param(db_cfg_type_scan_result_list_delete, "");
 		dm->set_db_cfg_param(db_cfg_type_sta_list_delete, "");
 		dm->set_db_cfg_param(db_cfg_type_op_class_list_delete, "");
 		dm->set_db_cfg_param(db_cfg_type_bss_list_delete, "");
-        dm = m_data_model.get_next_dm(dm);
+        dm = m_ctrl_data_model.get_next_dm(dm);
     }
 	memcpy(&ac_config_raw.radio, &null_mac, sizeof(mac_address_t));
 	io_process(em_bus_event_type_cfg_renew, reinterpret_cast<unsigned char *> (&ac_config_raw), sizeof(em_bus_event_type_cfg_renew_params_t));
@@ -1408,15 +1408,15 @@ void em_ctrl_t::start_complete()
     }
 
     num_elements = (sizeof(dataElements) / sizeof(bus_data_element_t));
-    bus_error_val = desc->bus_reg_data_element_fn(m_data_model.get_bus_hdl(), dataElements, num_elements);
+    bus_error_val = desc->bus_reg_data_element_fn(m_ctrl_data_model.get_bus_hdl(), dataElements, num_elements);
     if (bus_error_val != bus_error_success) {
         printf("%s:%d bus: bus_regDataElements failed\n", __func__, __LINE__);
         return;
     }
 
-    dm = m_data_model.get_first_dm();
+    dm = m_ctrl_data_model.get_first_dm();
     while (dm != NULL && dm->is_controller() == false) {
-        dm = m_data_model.get_next_dm(dm);
+        dm = m_ctrl_data_model.get_next_dm(dm);
     }
 
     if (dm) {
@@ -1428,7 +1428,7 @@ void em_ctrl_t::start_complete()
         raw.raw_data.bytes   = al_mac_str;
         raw.raw_data_len = static_cast<unsigned int> (strlen(al_mac_str));
 
-        if (desc->bus_set_fn(m_data_model.get_bus_hdl(), "Device.WiFi.DataElements.Network.ControllerID", &raw) == 0) {
+        if (desc->bus_set_fn(m_ctrl_data_model.get_bus_hdl(), "Device.WiFi.DataElements.Network.ControllerID", &raw) == 0) {
             em_printfout("Controller ID: %s publish successful.", al_mac_str);
         }
         else {
@@ -1438,7 +1438,7 @@ void em_ctrl_t::start_complete()
             em_printfout("Could not find data model with controller role");
     }
 
-    if (desc->bus_event_subs_fn(m_data_model.get_bus_hdl(), DEVICE_WIFI_DATAELEMENTS_NETWORK_NODE_CFG_POLICY, reinterpret_cast<void *> (&tr_181_t::subs_policy_config), NULL, 0) != 0) {
+    if (desc->bus_event_subs_fn(m_ctrl_data_model.get_bus_hdl(), DEVICE_WIFI_DATAELEMENTS_NETWORK_NODE_CFG_POLICY, reinterpret_cast<void *> (&tr_181_t::subs_policy_config), NULL, 0) != 0) {
         em_printfout("bus subscribe failed");
         return;
     }
@@ -1463,14 +1463,9 @@ em_ctrl_t::~em_ctrl_t()
 #ifdef AL_SAP
 AlServiceAccessPoint* em_ctrl_t::al_sap_register(const std::string& data_socket_path, const std::string& control_socket_path)
 {
-    AlServiceAccessPoint* sap = NULL;
+    AlServiceAccessPoint* sap = nullptr;
     try {
         sap = new AlServiceAccessPoint(data_socket_path.c_str(), control_socket_path.c_str());
-        if (NULL == sap) {
-            em_printfout("%s-%d: Failed to allocate AlServiceAccessPoint", __func__, __LINE__);
-            return NULL;
-        }
-
         AlServiceRegistrationRequest registrationRequest(SAPActivation::SAP_ENABLE, ServiceType::EmController);
         sap->serviceAccessPointRegistrationRequest(registrationRequest);
 
@@ -1481,12 +1476,12 @@ AlServiceAccessPoint* em_ctrl_t::al_sap_register(const std::string& data_socket_
             g_al_mac_sap = registrationResponse.getAlMacAddressLocal();
             uint8_t* al_mac_bytes = g_al_mac_sap.data();
             if (NULL == al_mac_bytes) {
-                em_printfout("%s-%d: AL SAP registration failed with invalid AL MAC: %s", util::mac_to_string(al_mac_bytes).c_str());
+                em_printfout("AL SAP registration failed with invalid AL MAC");
                 delete sap;
                 return NULL;
             }
             em_printfout("AL SAP registration successful, AL MAC: %s", util::mac_to_string(al_mac_bytes).c_str());
-            m_data_model.set_dev_interface_mac(al_mac_bytes);
+            m_ctrl_data_model.set_dev_interface_mac(al_mac_bytes);
         } else {
             std::cout << "Registration failed with error: " << static_cast<int>(result) << std::endl;
             delete sap;
@@ -1494,12 +1489,12 @@ AlServiceAccessPoint* em_ctrl_t::al_sap_register(const std::string& data_socket_
         }
     }
     catch (const AlServiceException& e) {
-        em_printfout("%s-%d: AL SAP registration exception %s", __func__, __LINE__, e.what());
+        em_printfout("AL SAP registration exception %s", e.what());
         delete sap;
         return NULL;
     }
-    catch (const std::exception e) {
-        em_printfout("%s-%d: Unknown exception %s during AL SAP registration", __func__, __LINE__, e.what());
+    catch (const std::exception&) {
+        em_printfout("Unknown exception during AL SAP registration");
         delete sap;
         return NULL;
     }
@@ -1520,15 +1515,15 @@ int main(int argc, const char *argv[])
     if(0 == access(data_socket_path, F_OK) && 0 == access(control_socket_path, F_OK)) {
         g_sap = em_ctrl->al_sap_register(data_socket_path, control_socket_path);
         if (NULL == g_sap) {
-            em_printfout("%s-%d: Error in AL SAP registration, exiting", __func__, __LINE__);
+            em_printfout("Error in AL SAP registration, exiting");
             return -1;
         }
     }
     else {
-        em_printfout("%s-%d: Data Socket: %s, Control Socket: %s", __func__, __FILE__,
+        em_printfout("Data Socket: %s, Control Socket: %s",
 	              access(data_socket_path, F_OK) == 0 ? "present" : "missing",
                       access(control_socket_path, F_OK) == 0 ? "present" : "missing");
-        em_printfout("%s-%d: Required AL SAP socket(s) not available, exiting", __func__, __LINE__);
+        em_printfout("Required AL SAP socket(s) not available, exiting");
         return -1;
     }
 #endif

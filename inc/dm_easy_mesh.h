@@ -776,7 +776,7 @@ public:
 	 *
 	 * @note Ensure that the network is properly initialized before calling this function.
 	 */
-	em_interface_t *get_ctrl_al_interface() { return m_network.get_controller_interface(); }
+	em_interface_t *get_ctrl_al_interface() { return m_device.get_dev_interface(); }
 
 	/**!
 	 * @brief Retrieves the MAC address of the control interface.
@@ -786,7 +786,7 @@ public:
 	 * @returns A pointer to an unsigned char array representing the MAC address.
 	 * @note Ensure that the returned MAC address is valid and properly formatted.
 	 */
-	unsigned char *get_ctrl_al_interface_mac() { return m_network.get_controller_interface_mac(); }
+	unsigned char *get_ctrl_al_interface_mac() { return m_device.get_dev_interface_mac(); }
     
 	/**!
 	 * @brief Retrieves the control AL interface name.
@@ -797,7 +797,7 @@ public:
 	 *
 	 * @note The returned string is managed internally and should not be freed by the caller.
 	 */
-	char *get_ctrl_al_interface_name() { return m_network.get_controller_interface()->name; }
+	char *get_ctrl_al_interface_name() { return m_device.get_dev_interface_name(); }
     
 	/**!
 	 * @brief Sets the control AL interface MAC address.
@@ -808,7 +808,12 @@ public:
 	 *
 	 * @note Ensure that the MAC address is valid and properly formatted before calling this function.
 	 */
-	void set_ctrl_al_interface_mac(unsigned char *mac) { m_network.set_controller_id(mac); }
+	void set_ctrl_al_interface_mac(unsigned char *mac) {
+            if(NULL != mac) {
+                m_device.set_dev_interface_mac(mac);
+                m_network.set_controller_id(mac);
+            }
+        }
     
 	/**!
 	 * @brief Sets the control AL interface name.
@@ -819,7 +824,10 @@ public:
 	 *
 	 * @note This function modifies the interface name used by the network control agent.
 	 */
-	void set_ctrl_al_interface_name(char *name) { snprintf(m_network.m_net_info.ctrl_id.name, sizeof(m_network.m_net_info.ctrl_id.name), "%s", name); }
+	void set_ctrl_al_interface_name(char *name) {
+            if(NULL != name)
+                m_device.set_dev_interface_name(name);
+        }
 	
 	/**!
 	 * @brief Sets the controller ID for the network.
@@ -830,7 +838,11 @@ public:
 	 *
 	 * @note Ensure that the MAC address is valid and correctly formatted before calling this function.
 	 */
-	void set_controller_id(unsigned char *mac) { m_network.set_controller_id(mac); }
+	void set_controller_id(unsigned char *mac) {
+            if(NULL != mac)
+                m_device.set_dev_interface_mac(mac);
+                m_network.set_controller_id(mac);
+        }
 	
 	/**!
 	 * @brief Sets the controller interface media type.
