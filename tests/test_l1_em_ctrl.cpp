@@ -20,7 +20,9 @@
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>
 #include <stdio.h>
+#include <cstring>
 #include "em_ctrl.h"
+#include "em_crypto.h"
 
 class em_ctrl_t_Test : public ::testing::Test {
 protected:
@@ -3929,4 +3931,55 @@ TEST_F(em_ctrl_t_Test, io_process_invalid_event_type)
     EXPECT_FALSE(ret);
     free(evt);
     std::cout << "Exiting io_process_invalid_event_type test" << std::endl;
+}
+
+/**
+ * @brief Verify that get_dm_radio() resolves a Radio.{i} alias as base64(RUID) and returns NULL otherwise.
+ *
+ * Radio.{i} aliases are published as base64(RUID) by radio_get_inner(). The lookup must select the radio
+ * whose RUID encodes to the alias, must not match the MAC-string form of the RUID that the old comparison
+ * used, and must return NULL instead of another radio when nothing matches. The numeric instance path
+ * is checked as well.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 010@n
+ * **Priority:** High@n
+ *
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ *
+ * **Test Procedure:**
+ * | Variation / Step | Description                                                    | Test Data                              | Expected Result                     | Notes       |
+ * | :--------------: | -------------------------------------------------------------- | -------------------------------------- | ----------------------------------- | ----------- |
+ * | 01               | Look up the second radio by its base64(RUID) alias             | alias = base64(ruid1), is_num = false  | Returns dm.get_radio(1)             | Should Pass |
+ * | 02               | Look up with the MAC string of the same RUID                   | "02:11:22:33:44:66", is_num = false    | Returns NULL                        | Should Pass |
+ * | 03               | Look up with an alias that matches no radio                    | "AAAAAAAA", is_num = false             | Returns NULL                        | Should Pass |
+ * | 04               | Look up by numeric instance                                    | "1", is_num = true                     | Returns dm.get_radio(0)             | Should Pass |
+ */
+TEST(dm_easy_mesh_ctrl_t, get_dm_radio_alias_is_base64_ruid) {
+    std::cout << "Entering get_dm_radio_alias_is_base64_ruid test" << std::endl;
+    dm_easy_mesh_ctrl_t dm_ctrl;
+    dm_easy_mesh_t dm;
+    const unsigned char ruid0[6] = { 0x02, 0x11, 0x22, 0x33, 0x44, 0x55 };
+    const unsigned char ruid1[6] = { 0x02, 0x11, 0x22, 0x33, 0x44, 0x66 };
+    memcpy(dm.get_radio_by_ref(0).get_radio_info()->id.ruid, ruid0, sizeof(ruid0));
+    memcpy(dm.get_radio_by_ref(1).get_radio_info()->id.ruid, ruid1, sizeof(ruid1));
+    dm.set_num_radios(2);
+
+    std::string alias = em_crypto_t::base64_encode(ruid1, sizeof(ruid1));
+    char instance[64];
+    snprintf(instance, sizeof(instance), "%s", alias.c_str());
+    std::cout << "Invoking get_dm_radio(...) with alias " << instance << std::endl;
+    EXPECT_EQ(dm_ctrl.get_dm_radio(&dm, instance, false), dm.get_radio(1u));
+
+    char mac_str[] = "02:11:22:33:44:66";
+    EXPECT_EQ(dm_ctrl.get_dm_radio(&dm, mac_str, false), nullptr);
+
+    char unknown[] = "AAAAAAAA";
+    EXPECT_EQ(dm_ctrl.get_dm_radio(&dm, unknown, false), nullptr);
+
+    char index[] = "1";
+    EXPECT_EQ(dm_ctrl.get_dm_radio(&dm, index, true), dm.get_radio(0u));
+    std::cout << "Exiting get_dm_radio_alias_is_base64_ruid test" << std::endl;
 }

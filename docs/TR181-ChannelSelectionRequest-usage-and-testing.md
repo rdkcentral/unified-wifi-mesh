@@ -25,9 +25,11 @@ The payload uses nested Class.N and Channel.M objects, for example:
 ```text
 method_values "Device.WiFi.DataElements.Network.Device.2.Radio.1.ChannelSelectionRequest()"
   Class.1.OpClass uint32 81
-  Class.1.Channel.1.Channel uint32 1
+  Class.1.Channel.1.Channel string 1,6,11
   Class.1.Channel.1.Preference uint32 14
 ```
+
+Class.N.Channel.M.Channel is a TR-181 list of unsignedInt, carried as a comma-separated string. Every channel in a Channel.M row takes that row's Preference; channels that need a different preference go in another Channel.M row.
 
 ### Validation rules
 
@@ -37,6 +39,8 @@ The implementation now rejects requests when:
 - Channel indices are not valid positive integers starting at 1, or are not contiguous from 1 within each Class.N
 - OpClass is missing or invalid for the selected radio
 - OpClass band does not match the radio band
+- Channel is not a comma-separated list of channel numbers in 1..255 (empty list, empty item or trailing comma)
+- A Class.N lists more than 64 channels in total
 - Requested channels are not valid for the selected OpClass
 - Preference values are invalid for the implementation range
 - A preference is supplied without a matching channel entry
@@ -47,113 +51,113 @@ The implementation now rejects requests when:
 ### 2.4 GHz (Radio.1) - Positive
 
 ```text
-method_values "Device.WiFi.DataElements.Network.Device.2.Radio.1.ChannelSelectionRequest()" Class.1.OpClass uint32 81 Class.1.Channel.1.Channel uint32 1 Class.1.Channel.1.Preference uint32 14 Class.1.Channel.2.Channel uint32 6 Class.1.Channel.2.Preference uint32 14 Class.1.Channel.3.Channel uint32 11 Class.1.Channel.3.Preference uint32 14
+method_values "Device.WiFi.DataElements.Network.Device.2.Radio.1.ChannelSelectionRequest()" Class.1.OpClass uint32 81 Class.1.Channel.1.Channel string 1,6,11 Class.1.Channel.1.Preference uint32 14
 
-method_values "Device.WiFi.DataElements.Network.Device.2.Radio.1.ChannelSelectionRequest()" Class.1.OpClass uint32 82 Class.1.Channel.1.Channel uint32 14 Class.1.Channel.1.Preference uint32 14
+method_values "Device.WiFi.DataElements.Network.Device.2.Radio.1.ChannelSelectionRequest()" Class.1.OpClass uint32 82 Class.1.Channel.1.Channel string 14 Class.1.Channel.1.Preference uint32 14
 
-method_values "Device.WiFi.DataElements.Network.Device.2.Radio.1.ChannelSelectionRequest()" Class.1.OpClass uint32 83 Class.1.Channel.1.Channel uint32 1 Class.1.Channel.1.Preference uint32 14 Class.1.Channel.2.Channel uint32 5 Class.1.Channel.2.Preference uint32 14 Class.1.Channel.3.Channel uint32 9 Class.1.Channel.3.Preference uint32 14
+method_values "Device.WiFi.DataElements.Network.Device.2.Radio.1.ChannelSelectionRequest()" Class.1.OpClass uint32 83 Class.1.Channel.1.Channel string 1 Class.1.Channel.1.Preference uint32 14 Class.1.Channel.2.Channel string 5 Class.1.Channel.2.Preference uint32 14 Class.1.Channel.3.Channel string 9 Class.1.Channel.3.Preference uint32 14
 
-method_values "Device.WiFi.DataElements.Network.Device.2.Radio.1.ChannelSelectionRequest()" Class.1.OpClass uint32 84 Class.1.Channel.1.Channel uint32 5 Class.1.Channel.1.Preference uint32 14 Class.1.Channel.2.Channel uint32 9 Class.1.Channel.2.Preference uint32 14 Class.1.Channel.3.Channel uint32 13 Class.1.Channel.3.Preference uint32 14
+method_values "Device.WiFi.DataElements.Network.Device.2.Radio.1.ChannelSelectionRequest()" Class.1.OpClass uint32 84 Class.1.Channel.1.Channel string 5 Class.1.Channel.1.Preference uint32 14 Class.1.Channel.2.Channel string 9 Class.1.Channel.2.Preference uint32 14 Class.1.Channel.3.Channel string 13 Class.1.Channel.3.Preference uint32 14
 
-method_values "Device.WiFi.DataElements.Network.Device.2.Radio.1.ChannelSelectionRequest()" Class.1.OpClass uint32 81 Class.1.Channel.1.Channel uint32 1 Class.1.Channel.1.Preference uint32 14 Class.2.OpClass uint32 83 Class.2.Channel.1.Channel uint32 5 Class.2.Channel.1.Preference uint32 14 Class.3.OpClass uint32 84 Class.3.Channel.1.Channel uint32 9 Class.3.Channel.1.Preference uint32 14
+method_values "Device.WiFi.DataElements.Network.Device.2.Radio.1.ChannelSelectionRequest()" Class.1.OpClass uint32 81 Class.1.Channel.1.Channel string 1 Class.1.Channel.1.Preference uint32 14 Class.2.OpClass uint32 83 Class.2.Channel.1.Channel string 5 Class.2.Channel.1.Preference uint32 14 Class.3.OpClass uint32 84 Class.3.Channel.1.Channel string 9 Class.3.Channel.1.Preference uint32 14
 ```
 
 ### 2.4 GHz (Radio.1) - Negative
 
 ```text
-method_values "Device.WiFi.DataElements.Network.Device.2.Radio.1.ChannelSelectionRequest()" Class.1.OpClass uint32 999 Class.1.Channel.1.Channel uint32 1 Class.1.Channel.1.Preference uint32 14
+method_values "Device.WiFi.DataElements.Network.Device.2.Radio.1.ChannelSelectionRequest()" Class.1.OpClass uint32 999 Class.1.Channel.1.Channel string 1 Class.1.Channel.1.Preference uint32 14
 
-method_values "Device.WiFi.DataElements.Network.Device.2.Radio.1.ChannelSelectionRequest()" Class.1.OpClass uint32 81 Class.1.Channel.1.Channel uint32 14 Class.1.Channel.1.Preference uint32 14
+method_values "Device.WiFi.DataElements.Network.Device.2.Radio.1.ChannelSelectionRequest()" Class.1.OpClass uint32 81 Class.1.Channel.1.Channel string 14 Class.1.Channel.1.Preference uint32 14
 
-method_values "Device.WiFi.DataElements.Network.Device.2.Radio.1.ChannelSelectionRequest()" Class.1.OpClass uint32 82 Class.1.Channel.1.Channel uint32 1 Class.1.Channel.1.Preference uint32 14
+method_values "Device.WiFi.DataElements.Network.Device.2.Radio.1.ChannelSelectionRequest()" Class.1.OpClass uint32 82 Class.1.Channel.1.Channel string 1 Class.1.Channel.1.Preference uint32 14
 
-method_values "Device.WiFi.DataElements.Network.Device.2.Radio.1.ChannelSelectionRequest()" Class.1.OpClass uint32 83 Class.1.Channel.1.Channel uint32 13 Class.1.Channel.1.Preference uint32 14
+method_values "Device.WiFi.DataElements.Network.Device.2.Radio.1.ChannelSelectionRequest()" Class.1.OpClass uint32 83 Class.1.Channel.1.Channel string 13 Class.1.Channel.1.Preference uint32 14
 
-method_values "Device.WiFi.DataElements.Network.Device.2.Radio.1.ChannelSelectionRequest()" Class.1.OpClass uint32 115 Class.1.Channel.1.Channel uint32 36 Class.1.Channel.1.Preference uint32 14
+method_values "Device.WiFi.DataElements.Network.Device.2.Radio.1.ChannelSelectionRequest()" Class.1.OpClass uint32 115 Class.1.Channel.1.Channel string 36 Class.1.Channel.1.Preference uint32 14
 
-method_values "Device.WiFi.DataElements.Network.Device.2.Radio.1.ChannelSelectionRequest()" Class.1.OpClass uint32 131 Class.1.Channel.1.Channel uint32 1 Class.1.Channel.1.Preference uint32 14
+method_values "Device.WiFi.DataElements.Network.Device.2.Radio.1.ChannelSelectionRequest()" Class.1.OpClass uint32 131 Class.1.Channel.1.Channel string 1 Class.1.Channel.1.Preference uint32 14
 
-method_values "Device.WiFi.DataElements.Network.Device.2.Radio.1.ChannelSelectionRequest()" Class.1.OpClass uint32 81 Class.1.Channel.1.Channel uint32 100 Class.1.Channel.1.Preference uint32 14
+method_values "Device.WiFi.DataElements.Network.Device.2.Radio.1.ChannelSelectionRequest()" Class.1.OpClass uint32 81 Class.1.Channel.1.Channel string 100 Class.1.Channel.1.Preference uint32 14
 
-method_values "Device.WiFi.DataElements.Network.Device.2.Radio.1.ChannelSelectionRequest()" Class.1.OpClass uint32 81 Class.1.Channel.1.Channel uint32 6 Class.1.Channel.1.Preference uint32 255
+method_values "Device.WiFi.DataElements.Network.Device.2.Radio.1.ChannelSelectionRequest()" Class.1.OpClass uint32 81 Class.1.Channel.1.Channel string 6 Class.1.Channel.1.Preference uint32 255
 
-method_values "Device.WiFi.DataElements.Network.Device.2.Radio.1.ChannelSelectionRequest()" Class.1.OpClass uint32 81 Class.1.Channel.1.Channel uint32 6 Class.1.Channel.1.Preference uint32 14 Class.1.Channel.2.Channel uint32 6 Class.1.Channel.2.Preference uint32 14
+method_values "Device.WiFi.DataElements.Network.Device.2.Radio.1.ChannelSelectionRequest()" Class.1.OpClass uint32 81 Class.1.Channel.1.Channel string 6 Class.1.Channel.1.Preference uint32 14 Class.1.Channel.2.Channel string 6 Class.1.Channel.2.Preference uint32 14
 
-method_values "Device.WiFi.DataElements.Network.Device.2.Radio.1.ChannelSelectionRequest()" Class.1.OpClass uint32 81 Class.1.Channel.1.Channel uint32 6
+method_values "Device.WiFi.DataElements.Network.Device.2.Radio.1.ChannelSelectionRequest()" Class.1.OpClass uint32 81 Class.1.Channel.1.Channel string 6
 ```
 
 ### 5 GHz (Radio.2) - Positive
 
 ```text
-method_values "Device.WiFi.DataElements.Network.Device.2.Radio.2.ChannelSelectionRequest()" Class.1.OpClass uint32 115 Class.1.Channel.1.Channel uint32 36 Class.1.Channel.1.Preference uint32 14 Class.1.Channel.2.Channel uint32 40 Class.1.Channel.2.Preference uint32 14 Class.1.Channel.3.Channel uint32 44 Class.1.Channel.3.Preference uint32 14 Class.1.Channel.4.Channel uint32 48 Class.1.Channel.4.Preference uint32 14
+method_values "Device.WiFi.DataElements.Network.Device.2.Radio.2.ChannelSelectionRequest()" Class.1.OpClass uint32 115 Class.1.Channel.1.Channel string 36,40,44,48 Class.1.Channel.1.Preference uint32 14
 
-method_values "Device.WiFi.DataElements.Network.Device.2.Radio.2.ChannelSelectionRequest()" Class.1.OpClass uint32 116 Class.1.Channel.1.Channel uint32 36 Class.1.Channel.1.Preference uint32 14 Class.1.Channel.2.Channel uint32 44 Class.1.Channel.2.Preference uint32 14
+method_values "Device.WiFi.DataElements.Network.Device.2.Radio.2.ChannelSelectionRequest()" Class.1.OpClass uint32 116 Class.1.Channel.1.Channel string 36 Class.1.Channel.1.Preference uint32 14 Class.1.Channel.2.Channel string 44 Class.1.Channel.2.Preference uint32 14
 
-method_values "Device.WiFi.DataElements.Network.Device.2.Radio.2.ChannelSelectionRequest()" Class.1.OpClass uint32 118 Class.1.Channel.1.Channel uint32 52 Class.1.Channel.1.Preference uint32 14 Class.1.Channel.2.Channel uint32 56 Class.1.Channel.2.Preference uint32 14 Class.1.Channel.3.Channel uint32 60 Class.1.Channel.3.Preference uint32 14 Class.1.Channel.4.Channel uint32 64 Class.1.Channel.4.Preference uint32 14
+method_values "Device.WiFi.DataElements.Network.Device.2.Radio.2.ChannelSelectionRequest()" Class.1.OpClass uint32 118 Class.1.Channel.1.Channel string 52 Class.1.Channel.1.Preference uint32 14 Class.1.Channel.2.Channel string 56 Class.1.Channel.2.Preference uint32 14 Class.1.Channel.3.Channel string 60 Class.1.Channel.3.Preference uint32 14 Class.1.Channel.4.Channel string 64 Class.1.Channel.4.Preference uint32 14
 
-method_values "Device.WiFi.DataElements.Network.Device.2.Radio.2.ChannelSelectionRequest()" Class.1.OpClass uint32 121 Class.1.Channel.1.Channel uint32 100 Class.1.Channel.1.Preference uint32 14 Class.1.Channel.2.Channel uint32 104 Class.1.Channel.2.Preference uint32 14 Class.1.Channel.3.Channel uint32 108 Class.1.Channel.3.Preference uint32 14
+method_values "Device.WiFi.DataElements.Network.Device.2.Radio.2.ChannelSelectionRequest()" Class.1.OpClass uint32 121 Class.1.Channel.1.Channel string 100 Class.1.Channel.1.Preference uint32 14 Class.1.Channel.2.Channel string 104 Class.1.Channel.2.Preference uint32 14 Class.1.Channel.3.Channel string 108 Class.1.Channel.3.Preference uint32 14
 
-method_values "Device.WiFi.DataElements.Network.Device.2.Radio.2.ChannelSelectionRequest()" Class.1.OpClass uint32 124 Class.1.Channel.1.Channel uint32 149 Class.1.Channel.1.Preference uint32 14 Class.1.Channel.2.Channel uint32 153 Class.1.Channel.2.Preference uint32 14 Class.1.Channel.3.Channel uint32 157 Class.1.Channel.3.Preference uint32 14 Class.1.Channel.4.Channel uint32 161 Class.1.Channel.4.Preference uint32 14
+method_values "Device.WiFi.DataElements.Network.Device.2.Radio.2.ChannelSelectionRequest()" Class.1.OpClass uint32 124 Class.1.Channel.1.Channel string 149 Class.1.Channel.1.Preference uint32 14 Class.1.Channel.2.Channel string 153 Class.1.Channel.2.Preference uint32 14 Class.1.Channel.3.Channel string 157 Class.1.Channel.3.Preference uint32 14 Class.1.Channel.4.Channel string 161 Class.1.Channel.4.Preference uint32 14
 
-method_values "Device.WiFi.DataElements.Network.Device.2.Radio.2.ChannelSelectionRequest()" Class.1.OpClass uint32 128 Class.1.Channel.1.Channel uint32 42 Class.1.Channel.1.Preference uint32 14 Class.1.Channel.2.Channel uint32 58 Class.1.Channel.2.Preference uint32 14 Class.1.Channel.3.Channel uint32 106 Class.1.Channel.3.Preference uint32 14
+method_values "Device.WiFi.DataElements.Network.Device.2.Radio.2.ChannelSelectionRequest()" Class.1.OpClass uint32 128 Class.1.Channel.1.Channel string 42 Class.1.Channel.1.Preference uint32 14 Class.1.Channel.2.Channel string 58 Class.1.Channel.2.Preference uint32 14 Class.1.Channel.3.Channel string 106 Class.1.Channel.3.Preference uint32 14
 
-method_values "Device.WiFi.DataElements.Network.Device.2.Radio.2.ChannelSelectionRequest()" Class.1.OpClass uint32 129 Class.1.Channel.1.Channel uint32 50 Class.1.Channel.1.Preference uint32 14 Class.1.Channel.2.Channel uint32 114 Class.1.Channel.2.Preference uint32 14
+method_values "Device.WiFi.DataElements.Network.Device.2.Radio.2.ChannelSelectionRequest()" Class.1.OpClass uint32 129 Class.1.Channel.1.Channel string 50 Class.1.Channel.1.Preference uint32 14 Class.1.Channel.2.Channel string 114 Class.1.Channel.2.Preference uint32 14
 
-method_values "Device.WiFi.DataElements.Network.Device.2.Radio.2.ChannelSelectionRequest()" Class.1.OpClass uint32 115 Class.1.Channel.1.Channel uint32 36 Class.1.Channel.1.Preference uint32 14 Class.2.OpClass uint32 118 Class.2.Channel.1.Channel uint32 52 Class.2.Channel.1.Preference uint32 14 Class.3.OpClass uint32 121 Class.3.Channel.1.Channel uint32 100 Class.3.Channel.1.Preference uint32 14 Class.4.OpClass uint32 124 Class.4.Channel.1.Channel uint32 149 Class.4.Channel.1.Preference uint32 14
+method_values "Device.WiFi.DataElements.Network.Device.2.Radio.2.ChannelSelectionRequest()" Class.1.OpClass uint32 115 Class.1.Channel.1.Channel string 36 Class.1.Channel.1.Preference uint32 14 Class.2.OpClass uint32 118 Class.2.Channel.1.Channel string 52 Class.2.Channel.1.Preference uint32 14 Class.3.OpClass uint32 121 Class.3.Channel.1.Channel string 100 Class.3.Channel.1.Preference uint32 14 Class.4.OpClass uint32 124 Class.4.Channel.1.Channel string 149 Class.4.Channel.1.Preference uint32 14
 ```
 
 ### 5 GHz (Radio.2) - Negative
 
 ```text
-method_values "Device.WiFi.DataElements.Network.Device.2.Radio.2.ChannelSelectionRequest()" Class.1.OpClass uint32 999 Class.1.Channel.1.Channel uint32 36 Class.1.Channel.1.Preference uint32 14
+method_values "Device.WiFi.DataElements.Network.Device.2.Radio.2.ChannelSelectionRequest()" Class.1.OpClass uint32 999 Class.1.Channel.1.Channel string 36 Class.1.Channel.1.Preference uint32 14
 
-method_values "Device.WiFi.DataElements.Network.Device.2.Radio.2.ChannelSelectionRequest()" Class.1.OpClass uint32 115 Class.1.Channel.1.Channel uint32 149 Class.1.Channel.1.Preference uint32 14
+method_values "Device.WiFi.DataElements.Network.Device.2.Radio.2.ChannelSelectionRequest()" Class.1.OpClass uint32 115 Class.1.Channel.1.Channel string 149 Class.1.Channel.1.Preference uint32 14
 
-method_values "Device.WiFi.DataElements.Network.Device.2.Radio.2.ChannelSelectionRequest()" Class.1.OpClass uint32 116 Class.1.Channel.1.Channel uint32 40 Class.1.Channel.1.Preference uint32 14
+method_values "Device.WiFi.DataElements.Network.Device.2.Radio.2.ChannelSelectionRequest()" Class.1.OpClass uint32 116 Class.1.Channel.1.Channel string 40 Class.1.Channel.1.Preference uint32 14
 
-method_values "Device.WiFi.DataElements.Network.Device.2.Radio.2.ChannelSelectionRequest()" Class.1.OpClass uint32 81 Class.1.Channel.1.Channel uint32 1 Class.1.Channel.1.Preference uint32 14
+method_values "Device.WiFi.DataElements.Network.Device.2.Radio.2.ChannelSelectionRequest()" Class.1.OpClass uint32 81 Class.1.Channel.1.Channel string 1 Class.1.Channel.1.Preference uint32 14
 
-method_values "Device.WiFi.DataElements.Network.Device.2.Radio.2.ChannelSelectionRequest()" Class.1.OpClass uint32 131 Class.1.Channel.1.Channel uint32 1 Class.1.Channel.1.Preference uint32 14
+method_values "Device.WiFi.DataElements.Network.Device.2.Radio.2.ChannelSelectionRequest()" Class.1.OpClass uint32 131 Class.1.Channel.1.Channel string 1 Class.1.Channel.1.Preference uint32 14
 
-method_values "Device.WiFi.DataElements.Network.Device.2.Radio.2.ChannelSelectionRequest()" Class.1.OpClass uint32 128 Class.1.Channel.1.Channel uint32 36 Class.1.Channel.1.Preference uint32 14
+method_values "Device.WiFi.DataElements.Network.Device.2.Radio.2.ChannelSelectionRequest()" Class.1.OpClass uint32 128 Class.1.Channel.1.Channel string 36 Class.1.Channel.1.Preference uint32 14
 
-method_values "Device.WiFi.DataElements.Network.Device.2.Radio.2.ChannelSelectionRequest()" Class.1.OpClass uint32 129 Class.1.Channel.1.Channel uint32 100 Class.1.Channel.1.Preference uint32 14
+method_values "Device.WiFi.DataElements.Network.Device.2.Radio.2.ChannelSelectionRequest()" Class.1.OpClass uint32 129 Class.1.Channel.1.Channel string 100 Class.1.Channel.1.Preference uint32 14
 
-method_values "Device.WiFi.DataElements.Network.Device.2.Radio.2.ChannelSelectionRequest()" Class.1.OpClass uint32 115 Class.1.Channel.1.Channel uint32 500 Class.1.Channel.1.Preference uint32 14
+method_values "Device.WiFi.DataElements.Network.Device.2.Radio.2.ChannelSelectionRequest()" Class.1.OpClass uint32 115 Class.1.Channel.1.Channel string 500 Class.1.Channel.1.Preference uint32 14
 ```
 
 ### 6 GHz (Radio.3) - Positive
 
 ```text
-method_values "Device.WiFi.DataElements.Network.Device.2.Radio.3.ChannelSelectionRequest()" Class.1.OpClass uint32 131 Class.1.Channel.1.Channel uint32 1 Class.1.Channel.1.Preference uint32 14 Class.1.Channel.2.Channel uint32 5 Class.1.Channel.2.Preference uint32 14 Class.1.Channel.3.Channel uint32 9 Class.1.Channel.3.Preference uint32 14 Class.1.Channel.4.Channel uint32 13 Class.1.Channel.4.Preference uint32 14
+method_values "Device.WiFi.DataElements.Network.Device.2.Radio.3.ChannelSelectionRequest()" Class.1.OpClass uint32 131 Class.1.Channel.1.Channel string 1,5,9,13 Class.1.Channel.1.Preference uint32 14
 
-method_values "Device.WiFi.DataElements.Network.Device.2.Radio.3.ChannelSelectionRequest()" Class.1.OpClass uint32 132 Class.1.Channel.1.Channel uint32 3 Class.1.Channel.1.Preference uint32 14 Class.1.Channel.2.Channel uint32 11 Class.1.Channel.2.Preference uint32 14
+method_values "Device.WiFi.DataElements.Network.Device.2.Radio.3.ChannelSelectionRequest()" Class.1.OpClass uint32 132 Class.1.Channel.1.Channel string 3 Class.1.Channel.1.Preference uint32 14 Class.1.Channel.2.Channel string 11 Class.1.Channel.2.Preference uint32 14
 
-method_values "Device.WiFi.DataElements.Network.Device.2.Radio.3.ChannelSelectionRequest()" Class.1.OpClass uint32 133 Class.1.Channel.1.Channel uint32 7 Class.1.Channel.1.Preference uint32 14 Class.1.Channel.2.Channel uint32 23 Class.1.Channel.2.Preference uint32 14 Class.1.Channel.3.Channel uint32 39 Class.1.Channel.3.Preference uint32 14
+method_values "Device.WiFi.DataElements.Network.Device.2.Radio.3.ChannelSelectionRequest()" Class.1.OpClass uint32 133 Class.1.Channel.1.Channel string 7 Class.1.Channel.1.Preference uint32 14 Class.1.Channel.2.Channel string 23 Class.1.Channel.2.Preference uint32 14 Class.1.Channel.3.Channel string 39 Class.1.Channel.3.Preference uint32 14
 
-method_values "Device.WiFi.DataElements.Network.Device.2.Radio.3.ChannelSelectionRequest()" Class.1.OpClass uint32 134 Class.1.Channel.1.Channel uint32 15 Class.1.Channel.1.Preference uint32 14 Class.1.Channel.2.Channel uint32 47 Class.1.Channel.2.Preference uint32 14 Class.1.Channel.3.Channel uint32 79 Class.1.Channel.3.Preference uint32 14
+method_values "Device.WiFi.DataElements.Network.Device.2.Radio.3.ChannelSelectionRequest()" Class.1.OpClass uint32 134 Class.1.Channel.1.Channel string 15 Class.1.Channel.1.Preference uint32 14 Class.1.Channel.2.Channel string 47 Class.1.Channel.2.Preference uint32 14 Class.1.Channel.3.Channel string 79 Class.1.Channel.3.Preference uint32 14
 
-method_values "Device.WiFi.DataElements.Network.Device.2.Radio.3.ChannelSelectionRequest()" Class.1.OpClass uint32 131 Class.1.Channel.1.Channel uint32 1 Class.1.Channel.1.Preference uint32 14 Class.2.OpClass uint32 132 Class.2.Channel.1.Channel uint32 3 Class.2.Channel.1.Preference uint32 14 Class.3.OpClass uint32 133 Class.3.Channel.1.Channel uint32 7 Class.3.Channel.1.Preference uint32 14 Class.4.OpClass uint32 134 Class.4.Channel.1.Channel uint32 15 Class.4.Channel.1.Preference uint32 14
+method_values "Device.WiFi.DataElements.Network.Device.2.Radio.3.ChannelSelectionRequest()" Class.1.OpClass uint32 131 Class.1.Channel.1.Channel string 1 Class.1.Channel.1.Preference uint32 14 Class.2.OpClass uint32 132 Class.2.Channel.1.Channel string 3 Class.2.Channel.1.Preference uint32 14 Class.3.OpClass uint32 133 Class.3.Channel.1.Channel string 7 Class.3.Channel.1.Preference uint32 14 Class.4.OpClass uint32 134 Class.4.Channel.1.Channel string 15 Class.4.Channel.1.Preference uint32 14
 ```
 
 ### 6 GHz (Radio.3) - Negative
 
 ```text
-method_values "Device.WiFi.DataElements.Network.Device.2.Radio.3.ChannelSelectionRequest()" Class.1.OpClass uint32 999 Class.1.Channel.1.Channel uint32 1 Class.1.Channel.1.Preference uint32 14
+method_values "Device.WiFi.DataElements.Network.Device.2.Radio.3.ChannelSelectionRequest()" Class.1.OpClass uint32 999 Class.1.Channel.1.Channel string 1 Class.1.Channel.1.Preference uint32 14
 
-method_values "Device.WiFi.DataElements.Network.Device.2.Radio.3.ChannelSelectionRequest()" Class.1.OpClass uint32 81 Class.1.Channel.1.Channel uint32 1 Class.1.Channel.1.Preference uint32 14
+method_values "Device.WiFi.DataElements.Network.Device.2.Radio.3.ChannelSelectionRequest()" Class.1.OpClass uint32 81 Class.1.Channel.1.Channel string 1 Class.1.Channel.1.Preference uint32 14
 
-method_values "Device.WiFi.DataElements.Network.Device.2.Radio.3.ChannelSelectionRequest()" Class.1.OpClass uint32 115 Class.1.Channel.1.Channel uint32 36 Class.1.Channel.1.Preference uint32 14
+method_values "Device.WiFi.DataElements.Network.Device.2.Radio.3.ChannelSelectionRequest()" Class.1.OpClass uint32 115 Class.1.Channel.1.Channel string 36 Class.1.Channel.1.Preference uint32 14
 
-method_values "Device.WiFi.DataElements.Network.Device.2.Radio.3.ChannelSelectionRequest()" Class.1.OpClass uint32 131 Class.1.Channel.1.Channel uint32 250 Class.1.Channel.1.Preference uint32 14
+method_values "Device.WiFi.DataElements.Network.Device.2.Radio.3.ChannelSelectionRequest()" Class.1.OpClass uint32 131 Class.1.Channel.1.Channel string 250 Class.1.Channel.1.Preference uint32 14
 
-method_values "Device.WiFi.DataElements.Network.Device.2.Radio.3.ChannelSelectionRequest()" Class.1.OpClass uint32 131 Class.1.Channel.1.Channel uint32 1 Class.1.Channel.1.Preference uint32 255
+method_values "Device.WiFi.DataElements.Network.Device.2.Radio.3.ChannelSelectionRequest()" Class.1.OpClass uint32 131 Class.1.Channel.1.Channel string 1 Class.1.Channel.1.Preference uint32 255
 
-method_values "Device.WiFi.DataElements.Network.Device.2.Radio.3.ChannelSelectionRequest()" Class.1.OpClass uint32 131 Class.1.Channel.1.Channel uint32 1 Class.1.Channel.1.Preference uint32 14 Class.1.Channel.2.Channel uint32 1 Class.1.Channel.2.Preference uint32 14
+method_values "Device.WiFi.DataElements.Network.Device.2.Radio.3.ChannelSelectionRequest()" Class.1.OpClass uint32 131 Class.1.Channel.1.Channel string 1 Class.1.Channel.1.Preference uint32 14 Class.1.Channel.2.Channel string 1 Class.1.Channel.2.Preference uint32 14
 
-method_values "Device.WiFi.DataElements.Network.Device.2.Radio.3.ChannelSelectionRequest()" Class.1.OpClass uint32 131 Class.1.Channel.1.Channel uint32 1
+method_values "Device.WiFi.DataElements.Network.Device.2.Radio.3.ChannelSelectionRequest()" Class.1.OpClass uint32 131 Class.1.Channel.1.Channel string 1
 
-method_values "Device.WiFi.DataElements.Network.Device.2.Radio.3.ChannelSelectionRequest()" Class.1.OpClass uint32 131 Class.1.Channel.1.Channel uint32 1 Class.1.Channel.1.Preference uint32 14 Class.1.Channel.2.Channel uint32 999 Class.1.Channel.2.Preference uint32 14
+method_values "Device.WiFi.DataElements.Network.Device.2.Radio.3.ChannelSelectionRequest()" Class.1.OpClass uint32 131 Class.1.Channel.1.Channel string 1 Class.1.Channel.1.Preference uint32 14 Class.1.Channel.2.Channel string 999 Class.1.Channel.2.Preference uint32 14
 ```
 
 ## Testing done
