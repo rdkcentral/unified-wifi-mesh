@@ -1352,6 +1352,9 @@ void em_ctrl_t::start_complete()
         { const_cast<char*>(DEVICE_WIFI_DATAELEMENTS_NETWORK_SETSSID_CMD), bus_element_type_method,
             { NULL, NULL , NULL, NULL, NULL, tr_181_t::setssid_handler}, slow_speed, ZERO_TABLE,
             { bus_data_type_property, false, 0, 0, 0, NULL } },
+        { const_cast<char*>(DE_DEVICE_UNASSOCSTALMQ), bus_element_type_method,
+            { NULL, NULL , NULL, NULL, NULL, tr_181_t::unassocstalinkmetricsquery_handler}, slow_speed, ZERO_TABLE,
+            { bus_data_type_property, false, 0, 0, 0, NULL } },
         { const_cast<char*>(DE_MAPDEVBH_STEERWIFIBH), bus_element_type_method,
             { NULL, NULL , NULL, NULL, NULL, tr_181_t::steerwifibh_handler}, slow_speed, ZERO_TABLE,
             { bus_data_type_property, false, 0, 0, 0, NULL } },
@@ -1460,22 +1463,41 @@ em_ctrl_t::~em_ctrl_t()
 #ifdef AL_SAP
 AlServiceAccessPoint* em_ctrl_t::al_sap_register(const std::string& data_socket_path, const std::string& control_socket_path)
 {
-    AlServiceAccessPoint* sap = new AlServiceAccessPoint(data_socket_path.c_str(), control_socket_path.c_str());
+    AlServiceAccessPoint* sap = nullptr;
+    try {
+        sap = new AlServiceAccessPoint(data_socket_path.c_str(), control_socket_path.c_str());
 
-    AlServiceRegistrationRequest registrationRequest(SAPActivation::SAP_ENABLE, ServiceType::EmController);
-    sap->serviceAccessPointRegistrationRequest(registrationRequest);
+        AlServiceRegistrationRequest registrationRequest(SAPActivation::SAP_ENABLE, ServiceType::EmController);
+        sap->serviceAccessPointRegistrationRequest(registrationRequest);
 
-    AlServiceRegistrationResponse registrationResponse = sap->serviceAccessPointRegistrationResponse();
+        AlServiceRegistrationResponse registrationResponse = sap->serviceAccessPointRegistrationResponse();
 
-    RegistrationResult result = registrationResponse.getResult();
-    if (result == RegistrationResult::SUCCESS) {
-        g_al_mac_sap = registrationResponse.getAlMacAddressLocal();
-        uint8_t* al_mac_bytes = g_al_mac_sap.data();
-        em_printfout("AL SAP registration successful, AL MAC: %s", util::mac_to_string(al_mac_bytes).c_str());
-
-        m_data_model.set_dev_interface_mac(al_mac_bytes);
-    } else {
-        std::cout << "Registration failed with error: " << static_cast<int>(result) << std::endl;
+        RegistrationResult result = registrationResponse.getResult();
+        if (result == RegistrationResult::SUCCESS) {
+            g_al_mac_sap = registrationResponse.getAlMacAddressLocal();
+            uint8_t* al_mac_bytes = g_al_mac_sap.data();
+            em_printfout("AL SAP registration successful, AL MAC: %s", util::mac_to_string(al_mac_bytes).c_str());
+            m_data_model.set_dev_interface_mac(al_mac_bytes);
+        } else {
+            em_printfout("Registration failed with error: %d, data socket: %s, control socket: %s",
+                         static_cast<int>(result),
+                         data_socket_path.c_str(),
+                         control_socket_path.c_str());
+            delete sap;
+            return nullptr;
+        }
+    }
+    catch (const AlServiceException& e) {
+        em_printfout("AL SAP registration exception: %s, data socket: %s, control socket: %s",
+                     e.what(), data_socket_path.c_str(), control_socket_path.c_str());
+        delete sap;
+        return nullptr;
+    }
+    catch (const std::exception& e) {
+        em_printfout("Unknown exception: %s during AL SAP registration, data socket: %s, control socket: %s",
+                     e.what(), data_socket_path.c_str(), control_socket_path.c_str());
+        delete sap;
+        return nullptr;
     }
 
     return sap;
@@ -1488,13 +1510,17 @@ int main(int argc, const char *argv[])
 {
     em_ctrl_t  *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
 #ifdef AL_SAP
-    g_sap = em_ctrl->al_sap_register("/tmp/al_em_ctrl_data_socket", "/tmp/al_em_ctrl_control_socket");
+    const char* data_socket_path = "/tmp/al_em_ctrl_data_socket";
+    const char* control_socket_path = "/tmp/al_em_ctrl_control_socket";
+    g_sap = em_ctrl->al_sap_register(data_socket_path, control_socket_path);
+    if (nullptr == g_sap) {
+        em_printfout("Error in AL SAP registration, exiting");
+        return -1;
+    }
 #endif
-
     if (em_ctrl->init(argv[1]) == 0) {
         em_ctrl->start();
     }
-
     return 0;
 }
 

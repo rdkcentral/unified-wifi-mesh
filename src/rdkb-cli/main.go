@@ -88,7 +88,6 @@ type HaulTypeVisual struct {
 
 //structure of the incoming wifireset payload
 type WifiResetPayload struct {
-    SelectedMac string       `json:"selectedMac"`
     HaulTypes   []HaulConfig `json:"haulTypes"`
 }
 
@@ -3431,27 +3430,19 @@ func WifiResetHandler(w http.ResponseWriter, r *http.Request) {
     switch r.Method {
         case http.MethodGet:
             log.Println("Received GET request for wifireset")
-            controllerValue := getTreeValue(resetTree, "ControllerID")
-
-            // Interface MACs
-            interfacesList := C.get_network_tree_by_key(resetTree, C.CString("List"))
-            macOptions := getInterfacePrefence(interfacesList)
 
             // Parse NetworkSSIDList
             ssidHaulConfig := getConfiguredHauls(resetTree)
 
-            type MacResponse struct {
-                Options         []string `json:"options"`
-                SelectedOption  string   `json:"selectedOption"`
+            type WiFiResetResponse struct {
                 SSIDHaulConfig  []HaulConfig `json:"ssidHaulConfig"`
             }
 
-            response := MacResponse{
-                Options:        macOptions,
-                SelectedOption: controllerValue,
+            response := WiFiResetResponse{
                 SSIDHaulConfig: ssidHaulConfig,
             }
 
+            w.Header().Set("Content-Type", "application/json")
             json.NewEncoder(w).Encode(response)
 
         case http.MethodPost:
@@ -3463,19 +3454,6 @@ func WifiResetHandler(w http.ResponseWriter, r *http.Request) {
             if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
                 http.Error(w, "Invalid request payload", http.StatusBadRequest)
                 return
-            }
-
-            if payload.SelectedMac != "" {
-                selectedMac := strings.Split(payload.SelectedMac, " ")[0]
-
-                // update the ControllerID in reset tree
-                if err := updateControllerID(resetTree, selectedMac); err != nil {
-                    msg := fmt.Sprintf("Update failed for AL_MAC Interface: %v", err)
-                    errorsList = append(errorsList, msg)
-                }
-            } else {
-                msg := fmt.Sprintf("Received empty value for AL MAC")
-                errorsList = append(errorsList, msg)
             }
 
             for _, haul := range payload.HaulTypes {
@@ -3626,7 +3604,7 @@ func unassocStaQueryHandler(w http.ResponseWriter, r *http.Request) {
  * Returns: Array of HaulConfig
  */
 func getConfiguredHauls(tree *C.em_network_node_t) []HaulConfig {
-    var haulConfigs []HaulConfig
+    haulConfigs := []HaulConfig{}
     networkssidListNode := C.get_network_tree_by_key(tree, C.CString("NetworkSSIDList"))
     if networkssidListNode == nil {
         return haulConfigs
@@ -3683,37 +3661,6 @@ func getConfiguredHauls(tree *C.em_network_node_t) []HaulConfig {
     }
 
     return haulConfigs
-}
-
-/* func: updateControllerID
- * Description:
- * updates the ControllerID value in the given reset configuration tree
- * based on the selected or manually entered MAC address, validates its format,
- * and executes the reset command to apply the updated configuration.
- * Return: true or false
- */
-func updateControllerID(resetTree *C.em_network_node_t, selectedMac string) error {
-    if !isValidMac(selectedMac) {
-        return fmt.Errorf("invalid MAC address: %s", selectedMac)
-    }
-
-    cMac := C.CString(selectedMac)
-    cKey := C.CString("ControllerID")
-    defer C.free(unsafe.Pointer(cMac))
-    defer C.free(unsafe.Pointer(cKey))
-
-    node := C.get_network_tree_by_key(resetTree, cKey)
-    if node == nil {
-        return fmt.Errorf("ControllerID node not found in reset tree")
-    }
-
-    buf := (*[256]byte)(unsafe.Pointer(&node.value_str[0]))
-    for i := range buf {
-        buf[i] = 0
-    }
-    copy(buf[:], selectedMac)
-
-    return nil
 }
 
 /* func: updateNetworkSSIDList()
