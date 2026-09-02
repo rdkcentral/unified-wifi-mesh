@@ -2147,8 +2147,24 @@ int em_configuration_t::handle_topology_notification(unsigned char *buff, unsign
                 if (updated_any) {
                     dm->set_db_cfg_param(db_cfg_type_sta_list_update, "");
                 } else {
+                    /* Non-MLD client: same in-place update the MLD branch applies per link. */
                     em_printfout("topo notification disassoc: no MLD info for sta=%s",
                             util::mac_to_string(sta_info.id).c_str());
+                    assoc_row = static_cast<dm_sta_t *>(hash_map_get(dm->m_sta_assoc_map, key));
+                    if (assoc_row != NULL) {
+                        assoc_row->m_sta_info.associated = false;
+                        assoc_row->m_sta_info.frame_body_len = 0;
+                        memset(assoc_row->m_sta_info.frame_body, 0, sizeof(assoc_row->m_sta_info.frame_body));
+                    }
+                    sta_row = static_cast<dm_sta_t *>(hash_map_get(dm->m_sta_map, key));
+                    if (sta_row != NULL) {
+                        sta_row->m_sta_info.associated = false;
+                        sta_row->m_sta_info.frame_body_len = 0;
+                        memset(sta_row->m_sta_info.frame_body, 0, sizeof(sta_row->m_sta_info.frame_body));
+                        dm->set_db_cfg_param(db_cfg_type_sta_list_update, "");
+                        em_printfout("topo notification disassoc: marked sta=%s disassociated, key=%s",
+                                util::mac_to_string(sta_info.id).c_str(), key);
+                    }
                 }
             } else {
                 em_printfout("topo notification assoc defer: sta=%s bssid=%s",
