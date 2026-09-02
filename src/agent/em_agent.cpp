@@ -1157,7 +1157,18 @@ void em_agent_t::send_beacon_query(em_bus_event_t *evt)
     }
     em_printfout("Total channels accumulated into HAL channelReport: %d", total_ch);
     beacon_req->channelReportPresent = (query_params->num_ap_channel_rprt > 0);
-    for (int i = 0; i < query_params->element_list.num_element_id; i++) {
+    // Clamp to both the HAL destination capacity and the source array size: the
+    // subdoc path reaches here without the wire-TLV parser's num_element_id clamp.
+    size_t max_ids = sizeof(beacon_req->requestedElementIDS.ids) / sizeof(beacon_req->requestedElementIDS.ids[0]);
+    size_t src_ids = sizeof(query_params->element_list.element_list) / sizeof(query_params->element_list.element_list[0]);
+    if (src_ids < max_ids) {
+        max_ids = src_ids;
+    }
+    size_t ids_to_copy = static_cast<size_t>(query_params->element_list.num_element_id);
+    if (ids_to_copy > max_ids) {
+        ids_to_copy = max_ids;
+    }
+    for (size_t i = 0; i < ids_to_copy; i++) {
         beacon_req->requestedElementIDS.ids[i] = query_params->element_list.element_list[i];
         em_printfout("Requested Element ID: %d", beacon_req->requestedElementIDS.ids[i]);
     }

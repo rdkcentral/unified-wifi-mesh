@@ -297,6 +297,9 @@ bool em_orch_ctrl_t::is_em_ready_for_orch_fini(em_cmd_t *pcmd, em_t *em)
             break;
 
 	    case em_cmd_type_unassoc_sta_query:
+            if (em->get_state() == em_state_ctrl_configured) {
+                return true;
+            }
             break;
 
         case em_cmd_type_beacon_report:
@@ -364,7 +367,7 @@ bool em_orch_ctrl_t::is_em_ready_for_orch_exec(em_cmd_t *pcmd, em_t *em)
         case em_cmd_type_set_policy:
         case em_cmd_type_bsta_cap:
 	    case em_cmd_type_unassoc_sta_query:
-            if (em->get_state() >= em_state_ctrl_configured) {
+            if (em->get_state() == em_state_ctrl_configured) {
                 return true;
             }
             break;
