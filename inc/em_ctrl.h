@@ -470,21 +470,21 @@ public:
 	void handle_link_stats_alarm_report(em_bus_event_t *evt);
 	void handle_failed_conn_msg(unsigned char *data, unsigned int len) override;
 
-        /**!
-         * @brief Handles an Unassociated STA Link Metrics Query event.
-         *
-         * This function processes the Unassociated STA Link Metrics Query
-         * received from the controller, validates the requested operating
-         * classes, channels and STA MAC entries, and initiates the
-         * corresponding agent-side RCPI measurement workflow.
-         *
-         * @param[in] evt Pointer to the event structure containing the
-         *                Unassociated STA Link Metrics Query payload.
-         *
-         * @note Ensure that the event structure is properly initialized
-         *       before calling this function.
-         */
-        void handle_unassoc_sta_metrics_query(em_bus_event_t *evt);
+	/**!
+	 * @brief Handles an Unassociated STA Link Metrics Query event.
+	 *
+	 * This function processes the Unassociated STA Link Metrics Query
+	 * received from the controller, validates the requested operating
+	 * classes, channels and STA MAC entries, and initiates the
+	 * corresponding agent-side RCPI measurement workflow.
+	 *
+	 * @param[in] evt Pointer to the event structure containing the
+	 *                Unassociated STA Link Metrics Query payload.
+	 *
+	 * @note Ensure that the event structure is properly initialized
+	 *       before calling this function.
+	 */
+	void handle_unassoc_sta_metrics_query(em_bus_event_t *evt);
 
 	/**!
 	 * @brief 

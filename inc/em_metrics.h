@@ -415,22 +415,23 @@ class em_metrics_t {
 	 */
 	short create_beacon_metrics_query_tlv(unsigned char *buff, mac_address_t sta_mac, bssid_t bssid);
     
+	short send_single_beacon_metrics_query(mac_address_t sta_mac, bssid_t bssid);
+
 	/**!
-	 * @brief Sends a beacon metrics query to a specified station.
-	 *
-	 * This function initiates a query to gather beacon metrics from a station identified by its MAC address.
-	 *
-	 * @param[in] sta_mac The MAC address of the station to which the beacon metrics query is sent.
-	 * @param[in] bssid The BSSID of the network to which the station is connected.
-	 *
-	 * @returns A short integer indicating the success or failure of the operation.
-	 * @retval 0 on success.
-	 * @retval -1 on failure.
-	 *
-	 * @note Ensure that the station is within range and the MAC address is correct before sending the query.
+	 * @brief Sends a 1905 ACK for a received Beacon Metrics Response.
+	 * @param[in] msg_id The message ID from the CMDU being acknowledged.
 	 */
-	short send_beacon_metrics_query(mac_address_t sta_mac, bssid_t bssid);
-    
+	int send_beacon_metrics_ack(unsigned short msg_id);
+
+	/**!
+	 * @brief Sends a 1905 ACK to the controller after receiving a Beacon Metrics Query.
+	 *        Includes an Error Code TLV (Reason 0x02) if the STA is not associated.
+	 * @param[in] sta_mac STA MAC address from the query.
+	 * @param[in] msg_id  Message ID from the CMDU being acknowledged.
+	 * @param[in] reason  0 = success; 0x02 = STA not associated with any BSS.
+	 */
+	int send_beacon_metrics_query_ack(mac_address_t sta_mac, unsigned short msg_id, unsigned char reason);
+
 	/**!
 	 * @brief Sends a beacon metrics response.
 	 *
@@ -695,6 +696,8 @@ public:
 	 * @note Ensure that the buffer is large enough to hold the TLV data.
 	 */
 	virtual short create_assoc_sta_traffic_stats_tlv(unsigned char *buff, const dm_sta_t *const sta);
+
+	short send_beacon_metrics_query(mac_address_t sta_mac, bssid_t bssid);
 
 	/**!
 	 * @brief Retrieves the manager instance.

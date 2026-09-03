@@ -1078,17 +1078,129 @@ void em_agent_t::handle_set_policy(em_bus_event_t *evt)
     }
 }
 
+void em_agent_t::send_beacon_query(em_bus_event_t *evt)
+{
+    raw_data_t l_bus_data;
+    beacon_query_params_t beacon_query = {0};
+    wifi_BeaconRequest_t *beacon_req = &beacon_query.data;
+    em_beacon_metrics_query_t *query_params = reinterpret_cast<em_beacon_metrics_query_t *>(evt->u.raw_buff);
+    bus_error_t rc;
+    wifi_bus_desc_t *desc;
+    int total_ch = 0;
+    const int max_hal_ch = MAX_CHANNELS_REPORT;
+
+    if (evt->data_len < sizeof(em_beacon_metrics_query_t)) {
+         em_printfout("Beacon Query event payload too short (len=%u)", evt->data_len);
+         return;
+    }
+    if ((memcmp(query_params->sta_mac_addr, ZERO_MAC_ADDR, sizeof(mac_address_t)) == 0)) {
+        em_beacon_metrics_query_t *subdoc_query = reinterpret_cast<em_beacon_metrics_query_t *>(evt->u.subdoc.buff);
+        if (memcmp(subdoc_query->sta_mac_addr, ZERO_MAC_ADDR, sizeof(mac_address_t)) != 0) {
+            em_printfout("Beacon Query payload found in subdoc buffer, using fallback decode path");
+            query_params = subdoc_query;
+        }
+    }
+
+    em_printfout("Beacon Query forwarding to OW for sta: %s", util::mac_to_string(query_params->sta_mac_addr).c_str());
+    beacon_req->opClass = query_params->op_class;
+    beacon_req->channel = query_params->channel_num;
+
+    // channel_num==0 means current channel; 255 is wildcard (all channels).
+    // Passive mode avoids probe-request transmission on off-channel/DFS channels.
+    bool is_off_channel = true;
+    if (query_params->channel_num == 0) {
+        is_off_channel = false;
+    } else if (query_params->channel_num != 255) {
+        em_bss_info_t *bss_info = m_data_model.get_bss_info_with_mac(query_params->bssid);
+        if (bss_info != NULL) {
+            for (unsigned int i = 0; i < m_data_model.m_num_opclass; i++) {
+                em_op_class_info_t *oc = &m_data_model.m_op_class[i].m_op_class_info;
+                if (memcmp(oc->id.ruid, bss_info->ruid.mac, sizeof(mac_address_t)) == 0 &&
+                        oc->id.type == em_op_class_type_current && oc->channel != 0) {
+                    is_off_channel = (query_params->channel_num != static_cast<unsigned char>(oc->channel));
+                    break;
+                }
+            }
+        }
+    }
+    // Measurement mode: 0=Passive, 1=Active
+    beacon_req->mode = is_off_channel ? 0 : 1;
+    em_printfout("Beacon Query: channel=%u is_off_channel=%d mode=%u",
+        query_params->channel_num, (int)is_off_channel, beacon_req->mode);
+
+    beacon_req->duration = 200;
+    memcpy(beacon_req->bssid, query_params->bssid, sizeof(mac_address_t));
+    beacon_req->ssidPresent = (query_params->ssid_len > 0);
+    if (beacon_req->ssidPresent) {
+        size_t ssid_copy_len = query_params->ssid_len;
+        if (ssid_copy_len >= sizeof(beacon_req->ssid)) {
+            ssid_copy_len = sizeof(beacon_req->ssid) - 1;
+        }
+        memcpy(beacon_req->ssid, query_params->ssid, ssid_copy_len);
+        beacon_req->ssid[ssid_copy_len] = '\0';
+    }
+    em_printfout("SSID Name: %s[%s]", beacon_req->ssid, util::mac_to_string(beacon_req->bssid).c_str());
+    beacon_req->reportingDetail = query_params->rprt_detail;
+
+    for (int i = 0; i < query_params->num_ap_channel_rprt && total_ch < max_hal_ch; i++) {
+        // All entries share the same op_class (single-band query); use the first.
+        if (i == 0) {
+            beacon_req->channelReport.opClass = query_params->ap_channel_rprt[i].ap_channel_op_class;
+        }
+        int num_ch = query_params->ap_channel_rprt[i].ap_channel_rprt_len - 1;
+        for (int j = 0; j < num_ch && total_ch < max_hal_ch; j++) {
+            uint8_t ch = query_params->ap_channel_rprt[i].ap_channel_list[j];
+            em_printfout("Ap Channel Report[%d] - OpClass: %d Channel: %d", i,
+                beacon_req->channelReport.opClass, ch);
+            beacon_req->channelReport.channels[total_ch++] = ch;
+        }
+    }
+    em_printfout("Total channels accumulated into HAL channelReport: %d", total_ch);
+    beacon_req->channelReportPresent = (query_params->num_ap_channel_rprt > 0);
+    // Clamp to both the HAL destination capacity and the source array size: the
+    // subdoc path reaches here without the wire-TLV parser's num_element_id clamp.
+    size_t max_ids = sizeof(beacon_req->requestedElementIDS.ids) / sizeof(beacon_req->requestedElementIDS.ids[0]);
+    size_t src_ids = sizeof(query_params->element_list.element_list) / sizeof(query_params->element_list.element_list[0]);
+    if (src_ids < max_ids) {
+        max_ids = src_ids;
+    }
+    size_t ids_to_copy = static_cast<size_t>(query_params->element_list.num_element_id);
+    if (ids_to_copy > max_ids) {
+        ids_to_copy = max_ids;
+    }
+    for (size_t i = 0; i < ids_to_copy; i++) {
+        beacon_req->requestedElementIDS.ids[i] = query_params->element_list.element_list[i];
+        em_printfout("Requested Element ID: %d", beacon_req->requestedElementIDS.ids[i]);
+    }
+
+    if((desc = get_bus_descriptor()) == NULL) {
+       em_printfout("descriptor is null");
+       return;
+    }
+
+    l_bus_data.data_type = bus_data_type_bytes;
+    l_bus_data.raw_data.bytes = (void *)&beacon_query;
+    l_bus_data.raw_data_len = sizeof(beacon_query_params_t);
+
+    memcpy(beacon_query.sta_mac, query_params->sta_mac_addr, sizeof(mac_address_t));
+    if ((rc = desc->bus_set_fn(&m_bus_hdl, "Device.WiFi.EM.BeaconQuery", &l_bus_data)) != 0) {
+        em_printfout("Failed to send Beacon Query to bus rc=%d len=%u", rc, l_bus_data.raw_data_len);
+        return;
+    }
+    em_printfout("Successfully sent Beacon Query to bus");
+}
+
 void em_agent_t::handle_beacon_report(em_bus_event_t *evt)
 {
     em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
     unsigned int num = 0;
 
     if (m_orch->is_cmd_type_in_progress(evt) == true) {
-        printf("analyze_beacon_report in progress\n");
+        em_printfout("analyze_beacon_report in progress");
     } else if ((num = static_cast<unsigned int>(m_data_model.analyze_beacon_report(evt, pcmd))) == 0) {
-        printf("analyze_beacon_report failed\n");
+        em_printfout("analyze_beacon_report failed");
     } else if (m_orch->submit_commands(pcmd, num) > 0) {
-        printf("submitted beacon report cmd for orch\n");
+        em_printfout("submitted beacon report cmd for orchestration");
     }
 }
 
@@ -1233,6 +1345,10 @@ void em_agent_t::handle_bus_event(em_bus_event_t *evt)
 
         case em_bus_event_type_set_policy:
             handle_set_policy(evt);
+            break;
+
+        case em_bus_event_type_beacon_query:
+            send_beacon_query(evt);
             break;
 
         case em_bus_event_type_beacon_report:
@@ -1695,7 +1811,7 @@ int em_agent_t::report_cb(char *event_name, bus_data_prop_t *data, void *userDat
                     cJSON_Delete(json);
                     return -1;
                 }
-                em_printfout("Received Frame data for event [%s] and data :\n%s", event_name, data->value.raw_data.bytes);
+                //em_printfout("Received Frame data for event [%s] and data :\n%s", event_name, data->value.raw_data.bytes);
             }
             cJSON_Delete(json);
         }
@@ -1886,8 +2002,8 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
     bool found = false;
     em_string_t al_mac_str;
     em_bss_info_t *em_bss = NULL;
-    mac_address_t fallback_ruid = {0};
     unsigned int i = 0, j = 0;
+    mac_addr_t fallback_ruid;
 
     assert(len > ((sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))));
     if (len < ((sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)))) {
@@ -2076,6 +2192,7 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
                     em = static_cast<em_t *>(hash_map_get(m_em_map, mac_str2));
                     if (em != NULL) {
                         em_printfout("Client cap query AP-MLD bss=%s resolved to radio=%s", mac_str1, mac_str2);
+                        break;
                     }
                 }
             }
@@ -2167,10 +2284,12 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
 		case em_msg_type_channel_scan_rprt:
         case em_msg_type_beacon_metrics_rsp:
         case em_msg_type_ap_mld_config_resp:
-        case em_msg_type_beacon_metrics_query:
         case em_msg_type_ap_metrics_rsp:
             break;
 
+        case em_msg_type_beacon_metrics_query:
+            em = al_em;
+            break;
         case em_msg_type_proxied_encap_dpp:
         case em_msg_type_direct_encap_dpp:
         case em_msg_type_chirp_notif:
@@ -2221,11 +2340,11 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
             break;
 
         case em_msg_type_unassoc_sta_link_metrics_rsp:
-           printf("%s:%d: Sending Unassoc STA Link Metrics response\n", __func__, __LINE__);
-           break;
+            em_printfout("Sending Unassoc STA Link Metrics response");
+            break;
 
         default:
-            printf("%s:%d: Frame: %d not handled in agent\n", __func__, __LINE__, htons(cmdu->type));
+            em_printfout("Frame: %d not handled in agent", htons(cmdu->type));
             em = NULL;
             break;	
 	}

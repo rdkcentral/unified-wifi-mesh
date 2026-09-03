@@ -376,6 +376,7 @@ class em_agent_t : public em_mgr_t {
 	 */
 	bool send_action_frame(uint8_t dest_mac[ETH_ALEN], uint8_t *action_frame, size_t action_frame_len, uint8_t vap_idx, unsigned int frequency=0, unsigned int wait_time_ms=0);
 
+	void send_beacon_query(em_bus_event_t *evt);
 public:
 
     bus_handle_t m_bus_hdl;

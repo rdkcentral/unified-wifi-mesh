@@ -748,8 +748,6 @@ int em_capability_t::handle_client_cap_report(unsigned char *buff, unsigned int 
     dm_easy_mesh_t  *dm;
     em_assoc_sta_mld_info_t *assoc_info = NULL;
     dm_bss_t *aff_bss = NULL;
-    dm_sta_t *existing_link_sta = NULL;
-    dm_sta_t *existing_sta = NULL;
     em_sta_info_t link_sta_info;
     em_long_string_t link_key;
     bool found_client_info = false;
@@ -757,6 +755,7 @@ int em_capability_t::handle_client_cap_report(unsigned char *buff, unsigned int 
     bool updated_any = false;
     unsigned int i, j, k;
     char *errors[EM_MAX_TLV_MEMBERS] = {0};
+    dm_bss_t *bss = NULL;
 
     dm = get_data_model();
 
@@ -772,7 +771,21 @@ int em_capability_t::handle_client_cap_report(unsigned char *buff, unsigned int 
             memset(&sta_info, 0, sizeof(em_sta_info_t));
             memcpy(sta_info.bssid, tlv->value, sizeof(mac_address_t));
             memcpy(sta_info.id, tlv->value + sizeof(mac_address_t), sizeof(mac_address_t));
-            memcpy(sta_info.radiomac, get_radio_interface_mac(), sizeof(mac_address_t));
+            // Resolve the radio MAC from the BSSID so the key is correct regardless
+            // of which EM instance handled this message.
+            bool radio_found = false;
+            for (unsigned int r = 0; r < dm->get_num_radios() && !radio_found; r++) {
+                bss = dm->get_bss(dm->get_radio_info(r)->id.ruid, sta_info.bssid);
+                if (bss != NULL) {
+                    memcpy(sta_info.radiomac, bss->m_bss_info.ruid.mac, sizeof(mac_address_t));
+                    radio_found = true;
+                    em_printfout("client_cap_report: resolved radio %s for sta %s bssid %s",
+                        util::mac_to_string(sta_info.radiomac).c_str(),
+                        util::mac_to_string(sta_info.id).c_str(),
+                        util::mac_to_string(sta_info.bssid).c_str());
+                }
+            }
+
             found_client_info = true;
             break;
         }
@@ -786,7 +799,7 @@ int em_capability_t::handle_client_cap_report(unsigned char *buff, unsigned int 
         return -1;
     }
 
-    if ((dm->get_bss(get_radio_interface_mac(), sta_info.bssid) == NULL) && dm->is_ap_mld_mac(sta_info.bssid)) {
+    if ((bss == NULL) && dm->is_ap_mld_mac(sta_info.bssid)) {
         em_printfout("Client cap: STA %s is affiliated with MLD BSSID %s, remapping to affiliated link BSSID",
             util::mac_to_string(sta_info.id).c_str(), util::mac_to_string(sta_info.bssid).c_str());
         assoc_info = NULL;
@@ -838,9 +851,24 @@ int em_capability_t::handle_client_cap_report(unsigned char *buff, unsigned int 
 
     set_state(em_state_ctrl_sta_cap_confirmed);
 
+    // The cap report may be routed to a different radio than the one running
+    // the sta_assoc command (e.g. MLD: report arrives on 2.4GHz radio but
+    // sta_assoc was dispatched to 6GHz radio which is in sta_cap_pending).
+    // Set sta_cap_confirmed on any AL radio in sta_cap_pending so the
+    // orchestrator's fini check passes.
+    std::vector<em_t *> al_radios;
+    get_mgr()->get_all_em_for_al_mac(get_data_model()->get_agent_al_interface_mac(), al_radios);
+    for (auto *em : al_radios) {
+        if (em->get_state() == em_state_ctrl_sta_cap_pending) {
+            em_printfout("cap report: setting sta_cap_confirmed on radio %s (was sta_cap_pending)",
+                util::mac_to_string(em->get_radio_interface_mac()).c_str());
+            em->set_state(em_state_ctrl_sta_cap_confirmed);
+        }
+    }
+
     dm_easy_mesh_t::macbytes_to_string(sta_info.id, sta_mac_str);
     dm_easy_mesh_t::macbytes_to_string(sta_info.bssid, bssid_str);
-    dm_easy_mesh_t::macbytes_to_string(get_radio_interface_mac(), radio_mac_str);
+    dm_easy_mesh_t::macbytes_to_string(sta_info.radiomac, radio_mac_str);
     snprintf(key, sizeof(em_long_string_t), "%s@%s@%s", sta_mac_str, bssid_str, radio_mac_str);
 
     // For MLO STA, update all affiliated link rows.
@@ -873,32 +901,14 @@ int em_capability_t::handle_client_cap_report(unsigned char *buff, unsigned int 
             dm_easy_mesh_t::macbytes_to_string(link_sta_info.radiomac, link_radio_str);
             snprintf(link_key, sizeof(em_long_string_t), "%s@%s@%s", sta_mac_str, link_bssid_str, link_radio_str);
 
-            existing_link_sta = static_cast<dm_sta_t *>(hash_map_get(dm->m_sta_assoc_map, link_key));
-            if (existing_link_sta == NULL) {
-                hash_map_put(dm->m_sta_assoc_map, strdup(link_key), new dm_sta_t(&link_sta_info));
-                em_printfout("Client cap DB new link: %s len=%u assoc=%d",
-                        link_key, link_sta_info.frame_body_len, link_sta_info.associated);
-            } else {
-                memcpy(&existing_link_sta->m_sta_info, &link_sta_info, sizeof(em_sta_info_t));
-                em_printfout("Client cap DB update link: %s len=%u assoc=%d",
-                        link_key, link_sta_info.frame_body_len, link_sta_info.associated);
-            }
+            dm->apply_sta_cap_to_maps(link_key, &link_sta_info);
             updated_any = true;
         }
         break;
     }
 
     if (updated_any == false) {
-        existing_sta = static_cast<dm_sta_t *>(hash_map_get(dm->m_sta_assoc_map, key));
-        if (existing_sta == NULL) {
-            hash_map_put(dm->m_sta_assoc_map, strdup(key), new dm_sta_t(&sta_info));
-            em_printfout("Client cap DB new: %s len=%u assoc=%d",
-                    key, sta_info.frame_body_len, sta_info.associated);
-        } else {
-            memcpy(&existing_sta->m_sta_info, &sta_info, sizeof(em_sta_info_t));
-            em_printfout("Client cap DB update: %s len=%u assoc=%d",
-                    key, sta_info.frame_body_len, sta_info.associated);
-        }
+        dm->apply_sta_cap_to_maps(key, &sta_info);
     }
 
     dm->set_db_cfg_param(db_cfg_type_sta_list_update, "");
@@ -1624,110 +1634,120 @@ void em_capability_t::process_msg(unsigned char *data, unsigned int len)
 {
     em_cmdu_t *cmdu = reinterpret_cast<em_cmdu_t *> (data + sizeof(em_raw_hdr_t));
     em_raw_hdr_t *hdr = reinterpret_cast<em_raw_hdr_t *>(data);
+    std::vector<em_t *> em_radios;
 
     switch (htons(cmdu->type)) {
         case em_msg_type_ap_cap_query:
-            {
-                std::vector<em_t *> em_radios;
-                get_mgr()->get_all_em_for_al_mac(hdr->dst, em_radios);
-                for (auto &em : em_radios){
-                    em_printfout("em_msg_type_ap_cap_query received, state: %s", em_t::state_2_str(em->get_state()));
-                    if ((em->get_service_type() == em_service_type_agent) && (em->get_state() < em_state_agent_topo_synchronized)){
-                        em_printfout("radio %s is not configured, ignoring", util::mac_to_string(em->get_radio_interface_mac()).c_str());
-                        em_radios.clear();
-                        return;
-                    }
+            get_mgr()->get_all_em_for_al_mac(hdr->dst, em_radios);
+            for (auto &em : em_radios){
+                em_printfout("em_msg_type_ap_cap_query received, state: %s", em_t::state_2_str(em->get_state()));
+                if ((em->get_service_type() == em_service_type_agent) && (em->get_state() < em_state_agent_topo_synchronized)){
+                    em_printfout("radio %s is not configured, ignoring", util::mac_to_string(em->get_radio_interface_mac()).c_str());
+                    em_radios.clear();
+                    return;
                 }
-                em_radios.clear();
-                em_printfout("All radios are configured for al_mac:%s, sending AP capability response", util::mac_to_string(hdr->dst).c_str());
-                if ((get_service_type() == em_service_type_agent)){
-                    send_ap_cap_report_msg(data, ntohs(cmdu->id));
+            }
+            em_radios.clear();
+            em_printfout("All radios are configured for al_mac:%s, sending AP capability response", util::mac_to_string(hdr->dst).c_str());
+            if ((get_service_type() == em_service_type_agent)){
+                send_ap_cap_report_msg(data, ntohs(cmdu->id));
+            }
+            break;
+        case em_msg_type_ap_cap_rprt:
+            if (get_service_type() == em_service_type_ctrl) {
+                if (handle_ap_cap_report(data, len) == 0){
+                    set_state(em_state_ctrl_ap_cap_report_received);
+                    std::vector<em_t *> em_radios;
+                    dm_easy_mesh_t *dm = get_data_model();
+                    em_printfout("AP capability report handled successfully by em radio:%s agent al_mac:%s src_mac:%s",
+                                    util::mac_to_string(get_radio_interface_mac()).c_str(), util::mac_to_string(dm->get_agent_al_interface_mac()).c_str(),
+                                    util::mac_to_string(hdr->src).c_str());
+                    get_mgr()->get_all_em_for_al_mac(hdr->src, em_radios);
+                    for (auto &em : em_radios)
+                    {
+                        em->set_state(em_state_ctrl_ap_cap_report_received);
+                        em_printfout("em_msg_type_ap_cap_rprt handle success, state: %s", em_t::state_2_str(em->get_state()));
+                    }
+                    em_radios.clear();
+                } else {
+                    em_printfout("em_msg_type_ap_cap_rprt handle failed");
                 }
             }
             break;
-            case em_msg_type_ap_cap_rprt:
-                if (get_service_type() == em_service_type_ctrl)
-                {
-                    if (handle_ap_cap_report(data, len) == 0){
-                        set_state(em_state_ctrl_ap_cap_report_received);
-                        std::vector<em_t *> em_radios;
-                        dm_easy_mesh_t *dm = get_data_model();
-                        em_printfout("AP capability report handled successfully by em radio:%s agent al_mac:%s src_mac:%s",
-                                     util::mac_to_string(get_radio_interface_mac()).c_str(), util::mac_to_string(dm->get_agent_al_interface_mac()).c_str(),
-                                     util::mac_to_string(hdr->src).c_str());
-                        get_mgr()->get_all_em_for_al_mac(hdr->src, em_radios);
-                        for (auto &em : em_radios)
-                        {
-                            em->set_state(em_state_ctrl_ap_cap_report_received);
-                            em_printfout("em_msg_type_ap_cap_rprt handle success, state: %s", em_t::state_2_str(em->get_state()));
-                        }
-                        em_radios.clear();
-                    } else {
-                        em_printfout("em_msg_type_ap_cap_rprt handle failed");
-                    }
-                }
-                break;
-            case em_msg_type_client_cap_rprt:
+        case em_msg_type_client_cap_rprt:
+            em_radios.clear();
+            get_mgr()->get_all_em_for_al_mac(hdr->src, em_radios);
+            for (auto &em : em_radios) {
                 if (get_service_type() == em_service_type_ctrl){
-                    handle_client_cap_report(data, len);
+                    em->handle_client_cap_report(data, len);
+                    break;
                 }
-                break;
-
-            case em_msg_type_client_cap_query:
-                if (get_service_type() == em_service_type_agent){
-                    handle_client_cap_query(data, len);
-                }
-                break;
-
-            case em_msg_type_bh_sta_cap_query:
-                handle_bsta_cap_query(data, len);
-                break;
-
-            case em_msg_type_bh_sta_cap_rprt:
-                handle_bsta_cap_report(data, len);
-                break;
-
-            default:
-                break;
             }
+            break;
+
+        case em_msg_type_client_cap_query:
+            if (get_service_type() == em_service_type_agent){
+                handle_client_cap_query(data, len);
+            }
+            break;
+
+        case em_msg_type_bh_sta_cap_query:
+            handle_bsta_cap_query(data, len);
+            break;
+
+        case em_msg_type_bh_sta_cap_rprt:
+            handle_bsta_cap_report(data, len);
+            break;
+
+        default:
+            break;
+    }
 }
 
 void em_capability_t::process_ctrl_state()
 {
+    std::vector<em_t *> em_radios;
+    dm_easy_mesh_t *dm = NULL;
+
     switch (get_state()) {
         case em_state_ctrl_ap_cap_query_pending:
-            {
-                std::vector<em_t *> em_radios;
-                dm_easy_mesh_t *dm = get_data_model();
-                get_mgr()->get_all_em_for_al_mac(dm->get_agent_al_interface_mac(), em_radios);
-                for (auto &em : em_radios)
-                {
-                    if (em->get_state() != em_state_ctrl_ap_cap_query_pending){
-                        em_printfout("radio %s is not in AP Capability query pending state, ignoring",
-                                     util::mac_to_string(em->get_radio_interface_mac()).c_str());
-                        em_radios.clear();
-                        return;
-                    }
+            dm = get_data_model();
+            get_mgr()->get_all_em_for_al_mac(dm->get_agent_al_interface_mac(), em_radios);
+            for (auto &em : em_radios) {
+                if (em->get_state() != em_state_ctrl_ap_cap_query_pending){
+                    em_printfout("radio %s is not in AP Capability query pending state, ignoring",
+                                    util::mac_to_string(em->get_radio_interface_mac()).c_str());
+                    em_radios.clear();
+                    return;
                 }
-                if (this == em_radios.front()){
-                    em_printfout("Sending the AP query message to agent al_mac:%s on radio: %s",
-                        util::mac_to_string(dm->get_agent_al_interface_mac()).c_str(),
-                        util::mac_to_string(get_radio_interface_mac()).c_str());
-                    send_ap_cap_query_msg();
-                }
-                em_radios.clear();
             }
+            if (this == em_radios.front()) {
+                em_printfout("Sending the AP query message to agent al_mac:%s on radio: %s",
+                    util::mac_to_string(dm->get_agent_al_interface_mac()).c_str(),
+                    util::mac_to_string(get_radio_interface_mac()).c_str());
+                send_ap_cap_query_msg();
+            }
+            em_radios.clear();
             break;
         case em_state_ctrl_bsta_cap_pending:
             send_bsta_cap_query_msg();
             break;
 
         case em_state_ctrl_sta_cap_pending:
-            send_client_cap_query();
+            // Only one radio per AL needs to send the Client Capability Query.
+            // Use the same front-radio guard as em_state_ctrl_ap_cap_query_pending.
+            get_mgr()->get_all_em_for_al_mac(get_data_model()->get_agent_al_interface_mac(), em_radios);
+            if (this == em_radios.front()) {
+                send_client_cap_query();
+            }
+            break;
+
+        case em_state_ctrl_topo_sync_pending:
+            // Handled by em_configuration_t::process_ctrl_state() for sta_assoc.
             break;
 
         default:
-            printf("%s:%d: unhandled case %s\n", __func__, __LINE__, em_t::state_2_str(get_state()));
+            em_printfout("unhandled case %s", em_t::state_2_str(get_state()));
             break;
     }
 }

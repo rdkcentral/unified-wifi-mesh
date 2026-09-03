@@ -555,6 +555,10 @@ public:
 	 */
 	void reset_cmd_ctx() { m_data_model.reset_cmd_ctx(); }
 
+	virtual bool supports_retry_state() const { return false; }
+	virtual time_t get_query_tx_time() const { return 0; }
+	virtual void set_query_tx_time(time_t tx_time) { (void)tx_time; }
+	virtual void clear_query_tx_time() {}
     
 	/**!
 	 * @brief Retrieves the database configuration type.

@@ -252,6 +252,8 @@ public:
 	 * @note Ensure that the mac pointer is valid and points to a properly allocated mac_address_t structure.
 	 */
 	bool get_bss_id(mac_address_t *mac);
+
+	bool get_sta_mac(mac_address_t *mac);
     
 	/**!
 	* @brief Retrieves the profile information.
