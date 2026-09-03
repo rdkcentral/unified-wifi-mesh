@@ -5525,6 +5525,18 @@ bus_error_t dm_easy_mesh_ctrl_t::device_get_inner(char *event_name, raw_data_t *
         rc = dm_ctrl->raw_data_set(p_data, 0U);
     } else if (strcmp(param, "BackhaulDownNumberOfEntries") == 0) {
         rc = dm_ctrl->raw_data_set(p_data, di->num_backhaul_down_mac);
+    } else if (strcmp(param, "Uptime") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, di->uptime);
+    } else if (strcmp(param, "Total") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, di->total_mem);
+    } else if (strcmp(param, "Free") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, di->free_mem);
+    } else if (strcmp(param, "Cached") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, di->cached_mem);
+    } else if (strcmp(param, "CPUUsage") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, di->cpu_load);
+    } else if (strcmp(param, "CPUTemperature") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, di->cpu_temp);
     } else if (strcmp(param, "OnboardingProtocol") == 0) {
         rc = dm_ctrl->raw_data_set(p_data, sec_cap ? sec_cap->onboarding_proto : 0);
     } else if (strcmp(param, "IntegrityAlgorithm") == 0) {
@@ -6227,6 +6239,8 @@ bus_error_t dm_easy_mesh_ctrl_t::radio_get_inner(char *event_name, raw_data_t *p
         rc = dm_ctrl->raw_data_set(p_data, curop_count);
     } else if (strcmp(param, "BSSNumberOfEntries") == 0) {
         rc = dm_ctrl->raw_data_set(p_data, ri->number_of_bss);
+    } else if (strcmp(param, "X_AIRTIES_Temperature") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, ri->radio_temp);
     } else {
         em_printfout("Invalid param: %s\n", param);
         rc = bus_error_invalid_input;

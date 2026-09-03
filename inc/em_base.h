@@ -239,6 +239,16 @@ static const mac_address_t EM_GLOBAL_MAC_ADDRESS = {0xff, 0xff, 0xff, 0xff, 0xff
 #define EM_PLUS_FILE "/nvram/EasymeshPlus.json"
 #define EM_VENDOR_OUI_SIZE 3
 
+#define CPU_TEMP_FILE "/sys/devices/virtual/thermal/thermal_zone0/temp"
+#define MEMINFO_FILE "/proc/meminfo"
+#define STAT_FILE "/proc/stat"
+#define STAT_CPU_TXT "cpu "
+#define MEMCACHED_TXT "Cached:"
+#define MEMTOTAL_TXT "MemTotal:"
+#define MEMFREE_TXT "MemFree:"
+#define MEMBUFFER_TXT "Buffers:"
+#define STAT_IDLE_IND 3
+
 #define EM_MAX_SSID_LEN                33 
 #define EM_MAX_WIFI_PASSWORD_LEN       65 
 
@@ -880,6 +890,7 @@ typedef enum {
 } em_tlv_type_t;
 
 typedef enum {
+    em_tlv_type_device_metrics = 0x0004,
     em_tlv_type_radio_capability = 0x0013,
 } em_vendor_airties_tlv_type_t;
 
@@ -1768,6 +1779,22 @@ typedef struct {
 }__attribute__((__packed__)) em_radio_capability_vendor_t;
 
 typedef struct {
+        unsigned char radio_uid[6];
+        unsigned char radio_temp;
+} __attribute__((__packed__)) em_radio_metrics_t;
+
+typedef struct {
+    uint32_t uptime;
+    unsigned char cpu_load;
+    unsigned char cpu_temp;
+    uint32_t total_mem;
+    uint32_t free_mem;
+    uint32_t cached_mem;
+    unsigned char radio_num;
+    em_radio_metrics_t radios[0];
+}__attribute__((__packed__)) em_radio_device_metrics_vendor_t;
+
+typedef struct {
     unsigned char  destination;    
     mac_address_t  specific_neigh;
     unsigned char  link_metrics_type; 
@@ -2524,6 +2551,13 @@ typedef struct {
     ieee_1905_security_t    sec_1905;
     
     uint8_t is_emplus_agent;
+
+    uint32_t uptime;
+    uint32_t total_mem;
+    uint32_t free_mem;
+    uint32_t cached_mem;
+    unsigned char cpu_load;
+    unsigned char cpu_temp;
 } em_device_info_t;
 
 typedef struct {
@@ -2866,6 +2900,7 @@ typedef struct {
     unsigned char srg_bss_color_bitmap[8];
     unsigned char srg_partial_bssid_bitmap[8];
     unsigned char neigh_bss_color_in_use_bitmap[8];
+    unsigned char radio_temp;
 } em_radio_info_t;
 
 typedef struct {

@@ -458,6 +458,60 @@ int em_metrics_t::handle_beacon_metrics_response(unsigned char *buff, unsigned i
     return 0;
 }
 
+int em_metrics_t::handle_device_metrics_vendor_tlv(unsigned char *buf, unsigned int len) {
+
+    if (len < sizeof(em_radio_device_metrics_vendor_t)) {
+        printf("%s:%d Invalid Radio Device Metrics TLV\n", __func__, __LINE__);
+        return -1;
+    }
+    em_radio_device_metrics_vendor_t *device_metrics = reinterpret_cast<em_radio_device_metrics_vendor_t *> (buf);
+    dm_easy_mesh_t  *dm;
+    em_device_info_t *device_info = NULL;
+    dm_radio_t *radio = NULL;
+    em_radio_info_t *em_radio_info = NULL;
+    unsigned char radio_num = device_metrics->radio_num;
+
+    if (radio_num > EM_MAX_RADIO_PER_AGENT) {
+        printf("%s:%d radio_num %d exceeds max %d\n", __func__, __LINE__, radio_num, EM_MAX_RADIO_PER_AGENT);
+        return -1;
+    }
+
+    if (len < sizeof(em_radio_device_metrics_vendor_t) + (size_t)radio_num * sizeof(em_radio_metrics_t)) {
+        printf("%s:%d Invalid Radio Device Metrics TLV\n", __func__, __LINE__);
+        return -1;
+    }
+
+    dm = get_data_model();
+    if (dm == NULL) {
+        return -1;
+    }
+
+    device_info = dm->get_device_info();
+    if (device_info != NULL) {
+        device_info->uptime = ntohl(device_metrics->uptime);
+        device_info->total_mem = ntohl(device_metrics->total_mem);
+        device_info->free_mem = ntohl(device_metrics->free_mem);
+        device_info->cached_mem = ntohl(device_metrics->cached_mem);
+        device_info->cpu_load = device_metrics->cpu_load;
+        device_info->cpu_temp = device_metrics->cpu_temp;
+    }
+
+    for (int i = 0 ; i < radio_num; i++) {
+        radio = dm->get_radio(device_metrics->radios[i].radio_uid);
+        if (radio != NULL) {
+            em_radio_info = radio->get_radio_info();
+            if (em_radio_info != NULL) {
+                em_radio_info->radio_temp = device_metrics->radios[i].radio_temp;
+            }
+        } else {
+            printf("%s:%d Radio not found\n", __func__, __LINE__);
+            continue;
+        }
+    }
+
+    return 0;
+}
+
 int em_metrics_t::handle_ap_metrics_tlv(unsigned char *buff, unsigned int tlv_len, bssid_t get_bssid)
 {
     em_ap_metric_t *ap_metrics;
@@ -750,11 +804,28 @@ int em_metrics_t::handle_ap_metrics_response(unsigned char *buff, unsigned int l
             case em_tlv_type_assoc_wifi6_sta_rprt:
                 /* future implementation */
                 break;
-            case em_tlv_type_vendor_specific:
-                if (handle_assoc_sta_vendor_link_metrics_tlv(tlv->value, ntohs(tlv->len)) != 0) {
-                    em_printfout("assoc_sta_vendor_link_metrics_tlv failed, skipping TLV");
+            case em_tlv_type_vendor_specific: {
+                em_vendor_specific_v_t *vendor_tlv = reinterpret_cast<em_vendor_specific_v_t *> (tlv->value);
+                size_t len = ntohs(tlv->len);
+                uint16_t tlv_id;
+                if ((len >= sizeof(airties_vendor_oui) + sizeof(tlv_id)) && (memcmp(vendor_tlv->vendor_oui, airties_vendor_oui, sizeof(airties_vendor_oui)) == 0)) {
+                    memcpy(&tlv_id, vendor_tlv->data, sizeof(tlv_id));
+                    tlv_id = ntohs(tlv_id);
+                    if (tlv_id == em_tlv_type_device_metrics) {
+                        len -= sizeof(airties_vendor_oui) + sizeof(tlv_id);
+                        if (handle_device_metrics_vendor_tlv(vendor_tlv->data + sizeof(tlv_id), len) != 0) {
+                            em_printfout("device_metrics_vendor_tlv failed, skipping TLV");
+                        }
+                    } else {
+                        em_printfout("unknown Airties vendor tlv_id 0x%04x, skipping TLV", tlv_id);
+                    }
+                } else {
+                    if (handle_assoc_sta_vendor_link_metrics_tlv(tlv->value, len) != 0) {
+                        em_printfout("assoc_sta_vendor_link_metrics_tlv failed, skipping TLV");
+                    }
                 }
                 break;
+            }
             default:
                 break;
         }
@@ -1376,6 +1447,24 @@ int em_metrics_t::send_ap_metrics_response()
         }
     }
 
+    const unsigned char radio_num = get_current_cmd()->get_param()->u.ap_metrics_params.num_radios;
+    const size_t max_vendor_value_len = EM_VENDOR_OUI_SIZE + sizeof(uint16_t) +
+        sizeof(em_radio_device_metrics_vendor_t) + (size_t)radio_num * sizeof(em_radio_metrics_t);
+    if ((len + sizeof(em_tlv_t) + max_vendor_value_len + sizeof(em_tlv_t)) > sizeof(buff)) {
+        em_printfout("AP Metrics Response buffer too small for Device Metrics vendor TLV, skipping");
+    } else {
+        tlv = reinterpret_cast<em_tlv_t *> (tmp);
+        tlv->type = em_tlv_type_vendor_specific;
+        sz = create_vendor_device_metrics_tlv(tlv->value);
+        if (sz == 0) {
+            em_printfout("create_vendor_device_metrics_tlv size equals to zero\n");
+        } else {
+            tlv->len = htons(static_cast<short unsigned int> (sz));
+            tmp += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+            len += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+        }
+    }
+
     // End of message
     tlv = reinterpret_cast<em_tlv_t *> (tmp);
     tlv->type = em_tlv_type_eom;
@@ -1775,6 +1864,214 @@ short em_metrics_t::create_radio_metrics_tlv(unsigned char *buff, int index)
 
     return static_cast<short> (len);
 }
+
+//Function to get the Device Uptime
+bool em_metrics_t::devicemetrics_get_uptime(struct timespec &ts)
+{
+    if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0) {
+        return false;
+    }
+    return true;
+}
+
+//Function to get the CPU temperature
+bool em_metrics_t::devicemetrics_get_cpu_temp(uint8_t &cpu_temp)
+{
+    char buf[32] = {0};
+    /* Open ACPI thermal zone sysfs file to read temperature. */
+    FILE *fd = fopen(CPU_TEMP_FILE, "r");
+    if (fd == NULL) {
+        em_printfout("cannot open file " CPU_TEMP_FILE);
+        return false;
+    }
+
+    if (fgets(buf, sizeof(buf), fd)) {
+        /* Temperature resides as milidegree Celsius as denoted in Linux ACPI docs. */
+        cpu_temp = atoi(buf) / 1000;
+    } else {
+        cpu_temp = 0;
+    }
+    fclose(fd);
+    return true;
+}
+
+//Function to get the CPU Load
+bool em_metrics_t::devicemetrics_get_cpu_load(uint8_t &cpu_load)
+{
+    uint64_t cpu_total = 0, cpu_idle = 0;
+    char buf[256] = {0};
+
+    cpu_load = 0;
+
+    FILE *fp = fopen(STAT_FILE, "r");
+    if (fp == NULL) {
+        em_printfout("cannot open file " STAT_FILE);
+        return false;
+    }
+
+    if (!fgets(buf, sizeof(buf), fp)) {
+        fclose(fp);
+        return false;
+    }
+    fclose(fp);
+
+    /* Check if we have expected string in read buffer. */
+    if (strncmp(buf, STAT_CPU_TXT, strlen(STAT_CPU_TXT)) != 0) {
+        em_printfout("Incorrect string read in CPU stats.");
+        return false;
+    }
+
+    /* Point empty spaces and parse to get CPU stats: user nice system idle .. */
+    int i = 0;
+    char *token, *ctx;
+    token = strtok_r(buf, " ", &ctx);
+    while (token != NULL) {
+        token = strtok_r(NULL, " ", &ctx);
+        if (token != NULL) {
+            cpu_total += (uint64_t)atoll(token);
+            /* IDLE ticks are stored in 4th column according to Linux documentation. */
+            if (i == STAT_IDLE_IND) {
+                cpu_idle = (uint64_t)atoll(token);
+            }
+            i++;
+        }
+    }
+
+    //em_printfout("cpu_idle_prev %llu cpu_idle %llu cpu_total_prev %llu cpu_total %llu\n", m_cpu_idle_prev, cpu_idle, m_cpu_total_prev, cpu_total);
+    if (cpu_total > 0 && cpu_idle > 0 && cpu_total != m_cpu_total_prev) {
+        double load = (1.0 - (double)(cpu_idle - m_cpu_idle_prev) / (double)(cpu_total - m_cpu_total_prev)) * 100.0;
+        if (load < 0.0)   load = 0.0;
+        if (load > 100.0) load = 100.0;
+        cpu_load = (uint8_t)load;
+    }
+    /* Keep previous data to get delta between cpu load changes. */
+    m_cpu_idle_prev  = cpu_idle;
+    m_cpu_total_prev = cpu_total;
+    return true;
+}
+
+bool em_metrics_t::devicemetrics_get_meminfo(int32_t &memtotal, int32_t &memfree, int32_t &memcached)
+{
+    FILE *fp        = NULL;
+    char buf[64]    = {0};
+    int32_t membufs = -1;
+
+    memtotal = -1;
+    memfree = -1;
+    memcached = -1;
+
+    fp = fopen(MEMINFO_FILE, "r");
+    if (fp == NULL) {
+        em_printfout("cannot open file " MEMINFO_FILE);
+        goto out;
+    }
+    /* Read meminfo file line by line to fetch free, cached and total sizes. */
+    while (fgets(buf, sizeof(buf), fp) != NULL) {
+        char *ctx = NULL, *fld = NULL, *val = NULL;
+        fld = strtok_r(buf, " ", &ctx);
+        if (fld == NULL) {
+            continue;
+        }
+        /* Point empty spaces and parse to get mem info. */
+        val = strtok_r(NULL, " ", &ctx);
+        if (val == NULL) {
+            continue;
+        }
+        if (strcmp(fld, MEMCACHED_TXT) == 0) {
+            memcached = atoi(val);
+        } else if (strcmp(fld, MEMFREE_TXT) == 0) {
+            memfree = atoi(val);
+        } else if (strcmp(fld, MEMTOTAL_TXT) == 0) {
+            memtotal = atoi(val);
+        } else if (strcmp(fld, MEMBUFFER_TXT) == 0) {
+            membufs = atoi(val);
+        }
+        if (memcached >= 0 && memfree >= 0 && memtotal >= 0 && membufs >= 0) {
+            /* We got all we need, break the loop. */
+            break;
+        }
+    }
+    if ((memcached < 0) || (memtotal < 0) || (memfree < 0) || (membufs < 0)) {
+        em_printfout("Failed to read meminfo fields memcache: %d memtotal: %d memfree: %d  membuffs: %d\n", memcached, memtotal, memfree, membufs);
+        goto out;
+    }
+    memcached = memcached + membufs;
+    fclose(fp);
+    return true;
+out:
+    if (fp != NULL) {
+        fclose(fp);
+    }
+    return false;
+}
+
+short em_metrics_t::create_vendor_device_metrics_tlv(unsigned char *buff)
+{
+    size_t len = 0;
+    unsigned char radio_num;
+    struct timespec ts;
+    uint8_t cpu_load, cpu_temp;
+    int32_t total_mem, free_mem, cached_mem;
+    em_vendor_specific_v_t *vendor = reinterpret_cast<em_vendor_specific_v_t *>(buff);
+
+    memcpy(reinterpret_cast<unsigned char *> (vendor->vendor_oui), airties_vendor_oui, EM_VENDOR_OUI_SIZE);
+    len += EM_VENDOR_OUI_SIZE;
+    uint16_t tlv_type = htons(static_cast<uint16_t>(em_tlv_type_device_metrics));
+    memcpy(reinterpret_cast<unsigned char *> (vendor->data), &tlv_type, sizeof(tlv_type));
+    len += static_cast<short>(sizeof(tlv_type));
+    uint8_t *ptr = vendor->data + sizeof(tlv_type);
+    em_radio_device_metrics_vendor_t *device_metrics = reinterpret_cast<em_radio_device_metrics_vendor_t *> (ptr);
+
+    if (devicemetrics_get_uptime(ts)) {
+        device_metrics->uptime = htonl(ts.tv_sec);
+    } else {
+        em_printfout("Unable to fetch the clock time for updating the Device Metrics TLV");
+        device_metrics->uptime = 0;
+    }
+    len += sizeof(device_metrics->uptime);
+
+    if (devicemetrics_get_cpu_load(cpu_load)) {
+        device_metrics->cpu_load = cpu_load;
+    } else {
+        em_printfout("Unable to fetch the CPU load for updating the Device Metrics TLV");
+        device_metrics->cpu_load = 0;
+    }
+    len += sizeof(device_metrics->cpu_load);
+
+    if (devicemetrics_get_cpu_temp(cpu_temp)) {
+        device_metrics->cpu_temp = cpu_temp;
+    } else {
+        em_printfout("Unable to fetch the CPU Temp for updating the Device Metrics TLV");
+        device_metrics->cpu_temp = 0;
+    }
+    len += sizeof(device_metrics->cpu_temp);
+
+    if (devicemetrics_get_meminfo(total_mem, free_mem, cached_mem)) {
+        device_metrics->total_mem = htonl(total_mem);
+        device_metrics->free_mem = htonl(free_mem);
+        device_metrics->cached_mem = htonl(cached_mem);
+    } else {
+        em_printfout("Unable to fetch the Memory Info for updating the Device Metrics TLV");
+        device_metrics->total_mem  = 0;
+        device_metrics->free_mem   = 0;
+        device_metrics->cached_mem = 0;
+    }
+    len += sizeof(device_metrics->cached_mem);
+    len += sizeof(device_metrics->free_mem);
+    len += sizeof(device_metrics->total_mem);
+
+    radio_num = get_current_cmd()->get_param()->u.ap_metrics_params.num_radios;
+    device_metrics->radio_num = radio_num;
+    len += sizeof(device_metrics->radio_num);
+    for (int i = 0; i < radio_num; i++) {
+        device_metrics->radios[i].radio_temp = 0; //Radio temperature will be provided by the chip vendors, as there is no standardized way to obtain this information
+        memcpy(device_metrics->radios[i].radio_uid, get_current_cmd()->get_param()->u.ap_metrics_params.ruid[i], sizeof(mac_address_t));
+        len += sizeof(em_radio_metrics_t);
+    }
+
+    return static_cast<short> (len);
+}
+
 
 short em_metrics_t::create_assoc_sta_traffic_stats_tlv(unsigned char *buff, const dm_sta_t *const sta)
 {
