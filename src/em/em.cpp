@@ -132,7 +132,10 @@ void em_t::orch_execute(em_cmd_t *pcmd)
 
             uint8_t cce_ind_msg_buff[MAX_EM_BUFF_SZ] = {0};
             int msg_size = create_cce_ind_msg(cce_ind_msg_buff, true);
-            if (send_frame(cce_ind_msg_buff, static_cast<unsigned int>(msg_size)) < 0) {
+            if (msg_size <= 0) {
+                em_printfout("Error: Failed to create DPP CCE Indication message (size=%d)", msg_size);
+
+            } else if (send_frame(cce_ind_msg_buff, static_cast<unsigned int>(msg_size)) < 0) {
                 em_printfout("Failed to send DPP CCE Indication message!");
             }
 
@@ -2810,7 +2813,16 @@ int em_t::init()
     m_iq.timeout = EM_PROTO_TOUT;
 
     // initialize the crypto
-    m_crypto.init();
+    if (m_crypto.init() != 0) {
+        em_printfout("Error: Failed to initialize crypto");
+        queue_destroy(m_iq.queue);
+        pthread_mutex_destroy(&m_iq.lock);
+        pthread_cond_destroy(&m_iq.cond);
+        if (is_al_interface_em()) {
+            close(m_fd);
+        }
+        return -1;
+    }
 
     size_t stack_size = 0x800000; /* 8MB */
     pthread_attr_t attr;
@@ -2823,14 +2835,16 @@ int em_t::init()
     // leading to stack overflow.
     ret = pthread_attr_setstacksize(&attr, stack_size);
     if (ret != 0) {
-        printf("%s:%d pthread_attr_setstacksize failed for size:%ld ret:%d\n",
-                __func__, __LINE__, stack_size, ret);
+        em_printfout("Error: pthread_attr_setstacksize failed for size:%ld ret:%d", stack_size, ret);
     }
     pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
 
     if (pthread_create(&m_tid, attrp, em_t::em_func, this) != 0) {
-        printf("%s:%d: Failed to start em thread\n", __func__, __LINE__);
-        close(m_fd);
+        em_printfout("Error: Failed to start em thread");
+        queue_destroy(m_iq.queue);
+        if (is_al_interface_em()) {
+            close(m_fd);
+        }
         pthread_mutex_destroy(&m_iq.lock);
         pthread_cond_destroy(&m_iq.cond);
         if(attrp != NULL) {
