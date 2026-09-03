@@ -414,8 +414,16 @@ int em_metrics_t::handle_beacon_metrics_query(unsigned char *buff, unsigned int 
 
     // Check if the STA is associated with any BSS on this agent
     dm_easy_mesh_t *dm = get_data_model();
-    dm_sta_t *sta = dm->get_first_sta(query_params.sta_mac_addr);
-    if (sta == NULL) {
+    bool associated = false;
+    for (dm_sta_t *sta = dm->get_first_sta(query_params.sta_mac_addr);
+            sta != NULL;
+            sta = dm->get_next_sta(query_params.sta_mac_addr, sta)) {
+        if (sta->m_sta_info.associated) {
+            associated = true;
+            break;
+        }
+    }
+    if (!associated) {
         em_printfout("STA %s not associated, sending error ACK (reason 0x02)",
             util::mac_to_string(query_params.sta_mac_addr).c_str());
         send_beacon_metrics_query_ack(query_params.sta_mac_addr, msg_id, 0x02);
@@ -1369,37 +1377,15 @@ short em_metrics_t::send_single_beacon_metrics_query(mac_address_t sta_mac, bssi
 short em_metrics_t::send_beacon_metrics_query(mac_address_t sta_mac, bssid_t bssid)
 {
     dm_easy_mesh_t *dm = get_data_model();
-    em_assoc_sta_mld_info_t *mld_info = NULL;
 
     if (dm == NULL) {
         return 0;
     }
 
-    //check if mlo, then trigger multiple query based on links
-    if (dm->is_sta_mld(sta_mac) == true) {
-        // Resolve whether this STA belongs to an MLD client.
-        for (unsigned int mld = 0; mld < dm->get_num_assoc_sta_mld(); mld++) {
-            em_assoc_sta_mld_info_t &assoc_sta_mld_info = dm->m_assoc_sta_mld[mld].m_assoc_sta_mld_info;
-            if (memcmp(assoc_sta_mld_info.mac_addr, sta_mac, sizeof(mac_address_t)) == 0) {
-                mld_info = &assoc_sta_mld_info;
-                //mld info found
-                break;
-            }
-        }
-        if (mld_info == NULL) {
-            em_printfout("No MLD info found for STA: %s", util::mac_to_string(sta_mac).c_str());
-            return -1;
-        }
-        for (int i = 0; i < mld_info->num_affiliated_sta; i++) {
-            em_printfout("For sta %s, bssid is %s and link_addr is %s", util::mac_to_string(mld_info->mac_addr).c_str(),
-                util::mac_to_string(mld_info->affiliated_sta[i].bssid).c_str(), util::mac_to_string(mld_info->affiliated_sta[i].link_addr).c_str());
-            em_printfout("Attempting beacon metrics query for affiliated STA[%d]: %s", i, util::mac_to_string(mld_info->mac_addr).c_str());
-
-            send_single_beacon_metrics_query(sta_mac, mld_info->affiliated_sta[i].bssid);
-        }
-    } else {
-        send_single_beacon_metrics_query(sta_mac, bssid);
-    }
+    /* For MLD clients, the HAL now expands a single query into per-link Beacon
+     * Requests covering every established link, so only one query is sent here
+     * to avoid sending duplicate over-the-air requests per affiliated link. */
+    send_single_beacon_metrics_query(sta_mac, bssid);
 
     return 0;
 }

@@ -597,6 +597,7 @@ void dm_sta_t::decode_sta_capability(dm_sta_t *sta)
 void dm_sta_t::decode_beacon_report(dm_sta_t *sta)
 {
     unsigned int i =0;
+    unsigned int num_reports;
     unsigned char *ie;
     int current_pkt_len = 0;
 
@@ -605,7 +606,17 @@ void dm_sta_t::decode_beacon_report(dm_sta_t *sta)
 
     memset(sta_info->beacon_reports, 0, sizeof(sta_info->beacon_reports));
 
-    for (i = 0; i < sta_info->num_beacon_meas_report; i++) {
+    // Clamp to array size to avoid out-of-bounds writes from a malformed/oversized count.
+    num_reports = sta_info->num_beacon_meas_report;
+    if (num_reports > EM_MAX_BEACON_REPORTS_PER_SCAN) {
+        num_reports = EM_MAX_BEACON_REPORTS_PER_SCAN;
+    }
+
+    for (i = 0; i < num_reports; i++) {
+        if ((ie + 25) > (sta_info->beacon_report_elem + sta_info->beacon_report_len)) {
+            break;
+        }
+
         current_pkt_len = ie[1];
         ie += 2;
 
