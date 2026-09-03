@@ -769,7 +769,21 @@ public:
 	 */
 	dm_sta_t *find_sta(mac_address_t sta_mac, bssid_t bssid);
 
-    
+    	/**!
+	 * @brief Finds a station based on its MAC address.
+	 *
+	 * This function searches for a station in the network using the provided
+	 * MAC address, and returns a pointer to the station information if found.
+	 *
+	 * @param[in] sta_mac The MAC address of the station to find.
+	 *
+	 * @returns A pointer to the station information (dm_sta_t) if the station
+	 * is found, or NULL if the station is not found.
+	 *
+	 * @note Ensure that the MAC address is valid.
+	 */
+	dm_sta_t *find_sta(mac_address_t sta_mac);
+
 	/**!
 	 * @brief Pushes an event to the queue.
 	 *

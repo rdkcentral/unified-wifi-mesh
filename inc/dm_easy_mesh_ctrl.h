@@ -783,6 +783,24 @@ public:
          int analyze_unassoc_sta_metrics_query(em_bus_event_t *evt, em_cmd_t *pcmd[]);
 
 	/**!
+	 * @brief Analyzes the beacon metrics query command.
+	 *
+	 * This function processes the beacon metrics query command provided in the
+	 * em_cmd_t structure array.
+	 *
+	 * @param[in] evt Pointer to the event structure containing event details.
+	 * @param[in] pcmd Array of command structures to be analyzed.
+	 *
+	 * @returns int Number of commands generated into pcmd[]
+	 * @retval 0 No command generated / parse failure
+	 * @retval >0 Number of generated commands
+	 *
+	 * @note Ensure that the pcmd array is properly initialized before calling
+	 * this function.
+	 */
+	int analyze_beacon_metrics_query(em_bus_event_t *evt, em_cmd_t *pcmd[]);
+
+	/**!
 	 * @brief Resets the configuration to its default state.
 	 *
 	 * This function is responsible for resetting all configuration settings

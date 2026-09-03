@@ -239,6 +239,10 @@ void em_t::orch_execute(em_cmd_t *pcmd)
             m_sm.set_state(em_state_ctrl_ap_mld_config_pending);
             break;
 
+        case em_cmd_type_beacon_query:
+            m_sm.set_state(em_state_ctrl_beacon_query_pending);
+            break;
+
         case em_cmd_type_beacon_report:
             m_sm.set_state(em_state_agent_beacon_report_pending);
             break;
@@ -576,6 +580,10 @@ void em_t::handle_ctrl_state()
             break;
 
         case em_cmd_type_unassoc_sta_query:
+            em_metrics_t::process_ctrl_state();
+            break;
+
+        case em_cmd_type_beacon_query:
             em_metrics_t::process_ctrl_state();
             break;
 
@@ -965,6 +973,23 @@ dm_sta_t *em_t::find_sta(mac_address_t sta_mac, bssid_t bssid)
     dm_sta_t *sta;
 
     sta = get_data_model()->find_sta(sta_mac, bssid);
+    if (sta == NULL) {
+        return NULL;
+    }
+
+    // the sta can be from a different radio
+    if (memcmp(sta->m_sta_info.radiomac, get_radio_interface_mac(), sizeof(mac_address_t)) == 0) {
+        return sta;
+    }
+
+    return NULL;
+}
+
+dm_sta_t *em_t::find_sta(mac_address_t sta_mac)
+{
+    dm_sta_t *sta;
+
+    sta = get_data_model()->find_sta(sta_mac);
     if (sta == NULL) {
         return NULL;
     }
@@ -2879,6 +2904,7 @@ const char *em_t::state_2_str(em_state_t state)
         EM_STATE_2S(em_state_ctrl_bsta_cap_pending)
         EM_STATE_2S(em_state_ctrl_topo_publish_pending)
 	EM_STATE_2S(em_state_ctrl_unassoc_sta_link_metrics_pending)
+	EM_STATE_2S(em_state_ctrl_beacon_query_pending)
         EM_STATE_2S(em_state_agent_unconfigured)
         EM_STATE_2S(em_state_agent_autoconfig_rsp_pending)
         EM_STATE_2S(em_state_agent_wsc_m2_pending)

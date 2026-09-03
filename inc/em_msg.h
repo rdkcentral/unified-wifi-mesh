@@ -254,6 +254,19 @@ public:
 	bool get_bss_id(mac_address_t *mac);
     
 	/**!
+	 * @brief Retrieves the STA MAC address.
+	 *
+	 * This function fetches the STA MAC address and stores it in the provided MAC address structure.
+	 *
+	 * @param[out] mac Pointer to a mac_address_t structure where the STA MAC address will be stored.
+	 *
+	 * @returns true if the STA MAC address was successfully retrieved, false otherwise.
+	 *
+	 * @note Ensure that the mac pointer is valid and points to a properly allocated mac_address_t structure.
+	 */
+	bool get_sta_mac(mac_address_t *mac);
+
+	/**!
 	* @brief Retrieves the profile information.
 	*
 	* This function fetches the profile details based on the provided profile type.

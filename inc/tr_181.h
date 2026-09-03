@@ -96,6 +96,8 @@ static const yang_to_tr181_map g_yang_map[] = {
 #define TR181_REQMODE_MAX_LEN      24
 #define TR181_CHITEM_MAX_CNT       8
 #define TR181_STAMAC_MAX_CNT       16
+#define TR181_CHANREP_MAX_CNT      6
+#define TR181_ELEMLIST_MAX_LEN     128
 
 #define MAX_INSTANCE_LEN        32
 #define MAX_CAPS_STR_LEN        32
@@ -112,6 +114,11 @@ typedef struct {
     unsigned int sta_cnt;
     mac_addr_str_t sta_macs[TR181_STAMAC_MAX_CNT];
 } tr181_unassoc_ch_item_t;
+
+typedef struct {
+    int op_class;
+    char ch_list[EM_MAX_CHANNELS_IN_LIST];
+} tr181_bmq_ch_rep_item_t;
 
 /* Device.WiFi.DataElements.Network */
 #define DE_NETWORK_ID           DATAELEMS_NETWORK       "ID"
@@ -395,6 +402,7 @@ typedef struct {
 #define DE_STA_PAIRWSCIPHER     DE_BSS_STA              "PairwiseCipher"
 #define DE_STA_RSNCAPS          DE_BSS_STA              "RSNCapabilities"
 #define DE_STA_CLIENTSTEER      DE_BSS_STA              "ClientSteer()"
+#define DE_STA_BEACONMETRICSQ   DE_BSS_STA              "X_AIRTIES_BeaconMetricsQuery()"
 /* Device.WiFi.DataElements.Network.Device.Radio.BSS.STA.WiFi6Capabilities */
 #define DE_STA_WIFI6CAPS        DE_BSS_STA              "WiFi6Capabilities."
 #define DE_STAWF6CAPS_HE160     DE_STA_WIFI6CAPS        "HE160"
@@ -717,6 +725,27 @@ public:
         bus_data_prop_t *output_data, void *async_handle);
 
     /**!
+     * @brief Handles the RBUS X_AIRTIES_BeaconMetricsQuery method invocation.
+     *
+     * This function extracts X_AIRTIES_BeaconMetricsQuery properties from the raw input
+     * payload, forwards them to the EasyMesh controller, and optionally writes response
+     * properties to the output raw buffer for RBUS callers.
+     *
+     * @param method_name RBUS method name, expected to match X_AIRTIES_BeaconMetricsQuery.
+     * @param input_data Input containing a chained list of bus_data_prop_t entries.
+     * @param output_data Output populated with response properties when provided.
+     * @param async_handle RBUS async handle when the call is asynchronous (may be null).
+     *
+     * @returns bus_error_t
+     * @retval bus_error_none on successful X_AIRTIES_BeaconMetricsQuery handling.
+     * @retval bus_error_failed on validation or controller execution failure.
+     *
+     * @note Ownership of input and output buffers remains with the caller.
+     */
+    static bus_error_t beaconmetricsquery_handler(const char *method_name, bus_data_prop_t *input_data,
+        bus_data_prop_t *output_data, void *async_handle);
+
+    /**!
      * @brief Handles the RBUS Disassociate method invocation.
      *
      * This function extracts Disassociate properties from the raw input payload, forwards them
@@ -831,6 +860,18 @@ public:
      * @note Returns false on invalid input.
      */
     static bool parse_unassoc_ch_obj(const bus_data_prop_t *prop, tr181_unassoc_ch_item_t *ch_item);
+
+    /**!
+     * @brief Parse the AP channel report object of beacon metrics query from property.
+     *
+     * @param prop Input, property expected to contain a valid name and value pair.
+     * @param ch_rep_item Output, AP channel report object of beacon metrics query.
+     *
+     * @returns bool Result of the operation.
+     *
+     * @note Returns false on invalid input.
+     */
+    static bool parse_bmq_ch_rep_obj(const bus_data_prop_t *prop, tr181_bmq_ch_rep_item_t *ch_rep_item);
 
      /**!
      * @brief Allocate a bus_data_prop_t with a string value.

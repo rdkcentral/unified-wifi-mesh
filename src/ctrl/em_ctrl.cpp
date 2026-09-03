@@ -630,6 +630,22 @@ void em_ctrl_t::handle_failed_conn_msg(unsigned char *data, unsigned int len)
 }
 
 
+void em_ctrl_t::handle_beacon_metrics_query(em_bus_event_t *evt)
+{
+    em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
+    int num;
+
+    if (m_orch->is_cmd_type_in_progress(evt) == true) {
+        m_ctrl_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
+    } else if ((num = m_data_model.analyze_beacon_metrics_query(evt, pcmd)) <= 0) {
+        m_ctrl_cmd->send_result(status_for_noncmd(num));
+    } else if (m_orch->submit_commands(pcmd, static_cast<unsigned int> (num)) > 0) {
+        m_ctrl_cmd->send_result(em_cmd_out_status_success);
+    } else {
+        m_ctrl_cmd->send_result(em_cmd_out_status_not_ready);
+    }
+}
+
 void em_ctrl_t::handle_dirty_dm()
 {
 	m_data_model.handle_dirty_dm();
@@ -800,6 +816,10 @@ void em_ctrl_t::handle_bus_event(em_bus_event_t *evt)
 
 	case em_bus_event_type_unassoc_sta_query:
            handle_unassoc_sta_metrics_query(evt);
+           break;
+	
+        case em_bus_event_type_beacon_query:
+           handle_beacon_metrics_query(evt);
            break;
 
         default:
@@ -1366,6 +1386,9 @@ void em_ctrl_t::start_complete()
             { bus_data_type_property, false, 0, 0, 0, NULL } },
         { const_cast<char*>(DE_STA_CLIENTSTEER), bus_element_type_method,
             { NULL, NULL , NULL, NULL, NULL, tr_181_t::clientsteer_handler}, slow_speed, ZERO_TABLE,
+            { bus_data_type_property, false, 0, 0, 0, NULL } },
+        { const_cast<char*>(DE_STA_BEACONMETRICSQ), bus_element_type_method,
+            { NULL, NULL , NULL, NULL, NULL, tr_181_t::beaconmetricsquery_handler}, slow_speed, ZERO_TABLE,
             { bus_data_type_property, false, 0, 0, 0, NULL } },
         { const_cast<char*>(DE_STAMAP_DISASSOC), bus_element_type_method,
             { NULL, NULL , NULL, NULL, NULL, tr_181_t::disassociate_handler}, slow_speed, ZERO_TABLE,

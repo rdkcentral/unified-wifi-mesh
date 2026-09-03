@@ -91,7 +91,7 @@ onewifi_em_ctrl_SOURCES =  \
      $(top_srcdir)/src/cmd/em_cmd_start_dpp.cpp \
      $(top_srcdir)/src/cmd/em_cmd_sta_steer.cpp \
      $(top_srcdir)/src/cmd/em_cmd_topo_sync.cpp \
-     $(top_srcdir)/src/cmd/em_cmd_beacon_report.cpp \
+     $(top_srcdir)/src/cmd/em_cmd_beacon_query.cpp \
      $(top_srcdir)/src/cmd/em_cmd_mld_reconfig.cpp \
      $(top_srcdir)/src/cmd/em_cmd_get_mld_config.cpp \
      $(top_srcdir)/src/cmd/em_cmd_bsta_cap.cpp \
@@ -190,7 +190,7 @@ onewifi_em_ctrl_test_SOURCES = $(onewifi_em_ctrl_SOURCES) \
 	$(top_srcdir)/tests/test_l1_em_cmd_get_ssid.cpp \
 	$(top_srcdir)/tests/test_l1_em_cmd_mld_reconfig.cpp \
 	$(top_srcdir)/tests/test_l1_em_cmd_sta_link_metrics.cpp	\
-	$(top_srcdir)/tests/test_l1_em_cmd_beacon_report.cpp \
+	$(top_srcdir)/tests/test_l1_em_cmd_beacon_query.cpp \
 	$(top_srcdir)/tests/test_l1_em_cmd_cfg_renew.cpp \
 	$(top_srcdir)/tests/test_l1_em_cmd_client_cap.cpp \
 	$(top_srcdir)/tests/test_l1_em_cmd_get_device.cpp \

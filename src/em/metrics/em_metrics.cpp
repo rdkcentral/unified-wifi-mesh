@@ -2581,7 +2581,10 @@ void em_metrics_t::process_ctrl_state()
         case em_state_ctrl_unassoc_sta_link_metrics_pending:
             send_unassoc_sta_link_metrics_query_msg();
             break;
-	    
+
+        case em_state_ctrl_beacon_query_pending:
+            break;
+
         default:
             printf("%s:%d: unhandled case %s\n", __func__, __LINE__, em_t::state_2_str(get_state()));
             break;
