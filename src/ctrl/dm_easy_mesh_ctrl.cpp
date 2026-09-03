@@ -2671,6 +2671,9 @@ int dm_easy_mesh_ctrl_t::analyze_sta_assoc_event(em_bus_event_t *evt, em_cmd_t *
     bool radio_matched = false, found = false;
     em_orch_desc_t desc;
     mac_address_t fallback_ruid = {0};
+    bool is_ap_mld = false;
+    bool is_assoc = false;
+    bool sta_exists = false;
 
     if (evt == NULL) {
         em_printfout("NULL event");
@@ -2682,8 +2685,8 @@ int dm_easy_mesh_ctrl_t::analyze_sta_assoc_event(em_bus_event_t *evt, em_cmd_t *
     dm_easy_mesh_t::macbytes_to_string(params->assoc.cli_mac_address, sta_mac_str);
     dm_easy_mesh_t::macbytes_to_string(params->assoc.bssid, bss_mac_str);
     
-    //printf("%s:%d: Client:%s %s BSS: %s of Device: %s\n", __func__, __LINE__,
-        //sta_mac_str, (params->assoc.assoc_event == 1)?"associated with":"disassociated from", bss_mac_str, dev_mac_str);
+    // em_printfout("%s:%d: Client:%s %s BSS: %s of Device: %s\n", __func__, __LINE__,
+    //     sta_mac_str, (params->assoc.assoc_event == 1)?"associated with":"disassociated from", bss_mac_str, dev_mac_str);
 
     evt->params.u.args.num_args = 4;
     strncpy(evt->params.u.args.args[0], dev_mac_str, sizeof(em_long_string_t));
@@ -2693,13 +2696,15 @@ int dm_easy_mesh_ctrl_t::analyze_sta_assoc_event(em_bus_event_t *evt, em_cmd_t *
     strncpy(evt->params.u.args.args[3], (params->assoc.assoc_event == 1)?"Assoc":"Disassoc", len);
     pdm = get_data_model(GLOBAL_NET_ID, params->dev);
     if (pdm == NULL) {
-        printf("%s:%d: Could not find data model for dev: %s\n", __func__, __LINE__, dev_mac_str);
+        em_printfout("Could not find data model for dev: %s", dev_mac_str);
         return -1;
     }
 
     pdm->set_topo_state(true);
 
-    if (pdm->is_ap_mld_mac(params->assoc.bssid) == false) {
+    is_ap_mld = pdm->is_ap_mld_mac(params->assoc.bssid);
+
+    if (is_ap_mld == false) {
         em_printfout("bssid=%s is not AP-MLD MAC, using direct BSS lookup for STA assoc event", bss_mac_str);
         found = false;
         for (i = 0; i < pdm->get_num_radios(); i++) {
@@ -2715,8 +2720,8 @@ int dm_easy_mesh_ctrl_t::analyze_sta_assoc_event(em_bus_event_t *evt, em_cmd_t *
 
             // confirm that the radio is on this device
             for (i = 0; i < pdm->m_num_radios; i++) {
-                    if (memcmp(pbss->m_bss_info.ruid.mac, pdm->m_radio[i].m_radio_info.intf.mac,
-                           sizeof(mac_address_t)) == 0) {
+                if (memcmp(pbss->m_bss_info.ruid.mac, pdm->m_radio[i].m_radio_info.intf.mac,
+                        sizeof(mac_address_t)) == 0) {
                     radio_matched = true;
                     break;
                 }
@@ -2741,7 +2746,37 @@ int dm_easy_mesh_ctrl_t::analyze_sta_assoc_event(em_bus_event_t *evt, em_cmd_t *
     tmp = pcmd[num];
     num++;
 
-    if (params->assoc.assoc_event == false) {
+    is_assoc = (params->assoc.assoc_event == true) ? true : false;
+    // Look up STA in datamodel (m_sta_map)
+    dm_sta_t *iter = static_cast<dm_sta_t *>(hash_map_get_first(pdm->m_sta_map));
+    while (iter != NULL) {
+        if (memcmp(iter->m_sta_info.id, params->assoc.cli_mac_address, sizeof(mac_address_t)) == 0) {
+            if (is_ap_mld) {
+                // MLD STA is "known" only if we already have its capability data
+                sta_exists = (iter->m_sta_info.frame_body_len > 0);
+            } else {
+                // Legacy STA: verify BSSID matches and we have capability data
+                if (memcmp(iter->m_sta_info.bssid, params->assoc.bssid, sizeof(mac_address_t)) == 0) {
+                    sta_exists = (iter->m_sta_info.frame_body_len > 0);
+                }
+            }
+            em_printfout("sta found in m_sta_map %s, sta_exists=%d", sta_mac_str, sta_exists);
+            break;
+        }
+        iter = static_cast<dm_sta_t *>(hash_map_get_next(pdm->m_sta_map, iter));
+    }
+
+    // Look up STA in persistent DB map (m_sta_assoc_map)
+    iter = static_cast<dm_sta_t *>(hash_map_get_first(pdm->m_sta_assoc_map));
+    while (iter != NULL) {
+        if (memcmp(iter->m_sta_info.id, params->assoc.cli_mac_address, sizeof(mac_address_t)) == 0) {
+            em_printfout("sta found in m_assoc_map %s", sta_mac_str);
+            break;
+        }
+        iter = static_cast<dm_sta_t *>(hash_map_get_next(pdm->m_sta_assoc_map, iter));
+    }
+
+    if (is_assoc == false) {
         desc.op = dm_orch_type_topo_update;
         desc.submit = false;
         pcmd[num - 1]->override_op(0, &desc);
@@ -2749,17 +2784,48 @@ int dm_easy_mesh_ctrl_t::analyze_sta_assoc_event(em_bus_event_t *evt, em_cmd_t *
         desc.submit = true;
         pcmd[num - 1]->override_op(1, &desc);
         pcmd[num - 1]->m_num_orch_desc = 2;
-    } else if ((params->assoc.assoc_event == true) && (found == true) &&
-               (pdm->is_ap_mld_mac(params->assoc.bssid) == false)) {
-        // BSS is directly resolvable for a non-MLO client — topology query not needed;
-        // skip dm_orch_type_topo_sync and go straight to client capability query + publish.
-        desc.op = dm_orch_type_sta_cap;
-        desc.submit = true;
-        pcmd[num - 1]->override_op(0, &desc);
-        desc.op = dm_orch_type_topo_publish;
-        desc.submit = true;
-        pcmd[num - 1]->override_op(1, &desc);
-        pcmd[num - 1]->m_num_orch_desc = 2;
+    } else {
+        if (sta_exists == true) {
+            if (is_ap_mld == false) {
+                // Non-MLO: STA already known with full capability data - skip topo_sync.
+                desc.op = dm_orch_type_topo_update;
+                desc.submit = false;
+                pcmd[num - 1]->override_op(0, &desc);
+                desc.op = dm_orch_type_topo_publish;
+                desc.submit = true;
+                pcmd[num - 1]->override_op(1, &desc);
+                pcmd[num - 1]->m_num_orch_desc = 2;
+                em_printfout("STA info already present in data model, skipping topology query. Do a topology update + publish for STA assoc event");
+            } else {
+                // MLO: even if STA capability data is known, per-link association state
+                // (which BSSIDs are active) can change on every assoc event.  We must
+                // trigger a topo_sync so that handle_assoc_sta_mld_topology_update()
+                // runs against fresh assoc_sta_mld_conf_rep data and correctly refreshes
+                // all per-link entries in m_sta_assoc_map / DB.
+                em_printfout("MLO STA %s re-association: triggering topo_sync to refresh per-link state", sta_mac_str);
+                for (unsigned int i = 0; i < pcmd[num - 1]->m_num_orch_desc; i++) {
+                    em_printfout("Orch desc %u: op = %d, submit = %d", i, pcmd[num - 1]->m_orch_desc[i].op, pcmd[num - 1]->m_orch_desc[i].submit);
+                    if (pcmd[num - 1]->m_orch_desc[i].op == dm_orch_type_sta_cap) {
+                        em_orch_desc_t updated = pcmd[num - 1]->m_orch_desc[i];
+                        updated.submit = false;
+                        pcmd[num - 1]->override_op(i, &updated);
+                    }
+                }
+            }
+        } else {
+            // New Non-MLO client: STA doesn't exist
+            if ((found == true) && (is_ap_mld == false)) {
+                // BSS is directly resolvable for a non-MLO client - topology query not needed;
+                em_printfout("New non-mlo STA identified Send a cap query....");
+                desc.op = dm_orch_type_sta_cap;
+                desc.submit = true;
+                pcmd[num - 1]->override_op(0, &desc);
+                desc.op = dm_orch_type_topo_publish;
+                desc.submit = true;
+                pcmd[num - 1]->override_op(1, &desc);
+                pcmd[num - 1]->m_num_orch_desc = 2;
+            }
+        }
     }
 
     while ((pcmd[num] = tmp->clone_for_next()) != NULL) {
@@ -3225,7 +3291,7 @@ int dm_easy_mesh_ctrl_t::analyze_set_policy(em_bus_event_t *evt, em_cmd_t *pcmd[
                         dm.set_num_policy(index + 1);
                     }
                 }
-                // Don't break — there may be broadcast entries of both types
+                // Don't break - there may be broadcast entries of both types
             }
 
             // Compare each incoming policy by type against the existing dm.
@@ -8690,7 +8756,7 @@ bus_error_t dm_easy_mesh_ctrl_t::affsta_get_inner(char *event_name, raw_data_t *
     em_sta_info_t *si = NULL;
     while (sta != NULL) {
         si = sta->get_sta_info();
-        if (si->associated && memcmp(asi->mac_addr, si->id, sizeof(mac_addr_t)) != 0) {
+        if (si->associated && memcmp(asi->link_addr, si->id, sizeof(mac_addr_t)) != 0) {
             break;
         }
         sta = static_cast<dm_sta_t *> (hash_map_get_next(dm->m_sta_map, sta));
@@ -8698,7 +8764,7 @@ bus_error_t dm_easy_mesh_ctrl_t::affsta_get_inner(char *event_name, raw_data_t *
     }
 
     if (strcmp(param, "MACAddress") == 0) {
-        rc = dm_ctrl->raw_data_set(p_data, asi->mac_addr);
+        rc = dm_ctrl->raw_data_set(p_data, asi->link_addr);
     } else if (strcmp(param, "BSSID") == 0) {
         rc = dm_ctrl->raw_data_set(p_data, asi->bssid);
     } else if (strcmp(param, "BytesSent") == 0) {
@@ -8795,14 +8861,14 @@ bus_error_t dm_easy_mesh_ctrl_t::affsta_tget_params(dm_easy_mesh_t *dm, const ch
         em_sta_info_t *si = NULL;
         while (sta != NULL) {
             si = sta->get_sta_info();
-            if (si->associated && memcmp(asi->mac_addr, si->id, sizeof(mac_addr_t)) != 0) {
+            if (si->associated && memcmp(asi->link_addr, si->id, sizeof(mac_addr_t)) != 0) {
                 break;
             }
             sta = static_cast<dm_sta_t *> (hash_map_get_next(dm->m_sta_map, sta));
             si = NULL;
         }
 
-        dm_ctrl->property_append_tail(property, root, idx, "MACAddress", asi->mac_addr);
+        dm_ctrl->property_append_tail(property, root, idx, "MACAddress", asi->link_addr);
         dm_ctrl->property_append_tail(property, root, idx, "BSSID", asi->bssid);
         dm_ctrl->property_append_tail(property, root, idx, "BytesSent", si ? si->bytes_tx : 0);
         dm_ctrl->property_append_tail(property, root, idx, "BytesReceived", si ? si->bytes_rx : 0);

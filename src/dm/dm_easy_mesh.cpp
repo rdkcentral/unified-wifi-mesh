@@ -3026,6 +3026,17 @@ int dm_easy_mesh_t::get_num_bss_for_associated_sta(mac_address_t sta_mac)
     return num_bssids;
 }
 
+bool dm_easy_mesh_t::is_sta_mld(mac_address_t sta_mac)
+{
+    for (unsigned int i = 0; i < m_num_assoc_sta_mld; i++) {
+        if (memcmp(sta_mac, m_assoc_sta_mld[i].m_assoc_sta_mld_info.mac_addr, sizeof(mac_address_t)) == 0) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 void dm_easy_mesh_t::clone_hash_maps(dm_easy_mesh_t& obj)
 {
     mac_addr_str_t  sta_mac_str, bss_mac_str, radio_mac_str;
@@ -3593,9 +3604,8 @@ void dm_easy_mesh_t::update_assoc_sta_mld_info(em_assoc_sta_mld_info_t *assoc_st
         }
 
         memcpy(target_aff_sta->bssid, input_sta->bssid, sizeof(mac_address_t));
-        memcpy(target_aff_sta->mac_addr, input_sta->mac_addr, sizeof(mac_address_t));
+        memcpy(target_aff_sta->link_addr, input_sta->link_addr, sizeof(mac_address_t));
     }
-
 }
 
 void dm_easy_mesh_t::remove_assoc_sta_mld_info(mac_address_t sta_mld_mac)
@@ -3624,6 +3634,28 @@ void dm_easy_mesh_t::remove_assoc_sta_mld_info(mac_address_t sta_mld_mac)
     //memset(&m_assoc_sta_mld[m_num_assoc_sta_mld - 1], 0, sizeof(dm_assoc_sta_mld_t));
     m_assoc_sta_mld[m_num_assoc_sta_mld - 1].init();
     m_num_assoc_sta_mld--;
+}
+
+void dm_easy_mesh_t::apply_sta_cap_to_maps(const char *key, em_sta_info_t *info)
+{
+    // Write to m_sta_assoc_map for DB persistence on the next update_tables() flush.
+    dm_sta_t *entry = static_cast<dm_sta_t *>(hash_map_get(m_sta_assoc_map, key));
+    if (entry == NULL) {
+        hash_map_put(m_sta_assoc_map, strdup(key), new dm_sta_t(info));
+        em_printfout("Client cap assoc_map new: %s len=%u assoc=%d", key, info->frame_body_len, info->associated);
+    } else {
+        memcpy(&entry->m_sta_info, info, sizeof(em_sta_info_t));
+        em_printfout("Client cap assoc_map update: %s len=%u assoc=%d", key, info->frame_body_len, info->associated);
+    }
+
+    // Also update m_sta_map immediately so the topology reflects decoded
+    // caps in the current session without waiting for a DB sync.
+    dm_sta_t *map_sta = static_cast<dm_sta_t *>(hash_map_get(m_sta_map, key));
+    if (map_sta != NULL) {
+        map_sta->m_sta_info.frame_body_len = info->frame_body_len;
+        memcpy(map_sta->m_sta_info.frame_body, info->frame_body, info->frame_body_len);
+        dm_sta_t::decode_sta_capability(map_sta);
+    }
 }
 
 void dm_easy_mesh_t::reset_db_cfg_type(db_cfg_type_t type) 
