@@ -984,70 +984,72 @@ dm_op_class_t *dm_easy_mesh_list_t::get_next_op_class(dm_op_class_t *op_class)
 
 dm_op_class_t *dm_easy_mesh_list_t::get_op_class(const char *key)
 {
-	em_op_class_id_t id;
+    em_op_class_id_t id;
     dm_easy_mesh_t *dm;
-	dm_radio_t *radio;
-	bool found_dm = false;
-	unsigned int i;
+    dm_radio_t *radio;
+    bool found_dm = false;
+    unsigned int i;
     dm_op_class_t *pop_class;
-	mac_addr_str_t	mac_str;
+    mac_addr_str_t mac_str;
 	
     dm_op_class_t::parse_op_class_id_from_key(key, &id);
 
-	dm_easy_mesh_t::macbytes_to_string(id.ruid, mac_str);
-	//printf("%s:%d: MAC: %s\tType: %d\tClass: %d\n", __func__, __LINE__, mac_str, id.type, id.op_class);
+    dm_easy_mesh_t::macbytes_to_string(id.ruid, mac_str);
+    //printf("%s:%d: MAC: %s\tType: %d\tClass: %d\n", __func__, __LINE__, mac_str, id.type, id.op_class);
 	
     dm = static_cast<dm_easy_mesh_t *> (hash_map_get_first(m_list));
     while (dm != NULL) {
-        if (id.type <= em_op_class_type_capability || id.type == em_op_class_type_preference || id.type == em_op_class_type_anticipated ) {
-		    for (i = 0; i < dm->get_num_radios(); i++) {
-			    radio = dm->get_radio(i);
-			    if (memcmp(radio->m_radio_info.intf.mac, id.ruid, sizeof(mac_address_t)) == 0) {
-				    found_dm = true;
-			    	break;
-			    }
-		    }
+        if (id.type <= em_op_class_type_capability || id.type == em_op_class_type_preference ||
+            id.type == em_op_class_type_anticipated || id.type == em_op_class_type_cac_available ||
+            id.type == em_op_class_type_cac_active || id.type == em_op_class_type_cac_non_occ) {
+            for (i = 0; i < dm->get_num_radios(); i++) {
+                radio = dm->get_radio(i);
+                if (memcmp(radio->m_radio_info.intf.mac, id.ruid, sizeof(mac_address_t)) == 0) {
+                    found_dm = true;
+                    break;
+                }
+            }
         } else {
-			if (memcmp(dm->m_device.m_device_info.intf.mac, id.ruid, sizeof(mac_address_t)) == 0) {
-            	found_dm = true;
-           	}
-		}
+            if (memcmp(dm->m_device.m_device_info.intf.mac, id.ruid, sizeof(mac_address_t)) == 0) {
+                found_dm = true;
+            }
+        }
 
         if (found_dm == true) {
             break;
         } else {
             if (((memcmp(dm->m_device.m_device_info.intf.mac, id.ruid, sizeof(mac_address_t)) == 0) ||
-                (memcmp(EM_GLOBAL_MAC_ADDRESS, id.ruid, sizeof(mac_address_t)) == 0)) &&
-                (id.type == em_op_class_type_anticipated))
+                 (memcmp(EM_GLOBAL_MAC_ADDRESS, id.ruid, sizeof(mac_address_t)) == 0)) &&
+                 (id.type == em_op_class_type_anticipated))
             {
                 found_dm = true;
                 break;
             }
         }
         dm = static_cast<dm_easy_mesh_t *> (hash_map_get_next(m_list, dm));
-	}
+    }
 
-	if (found_dm == false) {
-		return NULL;
-	}
-	//printf("%s:%d: Number of op classes: %d\n", __func__, __LINE__, dm->get_num_op_class());
+    if (found_dm == false) {
+        return NULL;
+    }
+    //printf("%s:%d: Number of op classes: %d\n", __func__, __LINE__, dm->get_num_op_class());
 
     // now check if the op class is already there
-	for (i = 0; i < dm->get_num_op_class(); i++) {
-		pop_class = &dm->m_op_class[i];
-		dm_easy_mesh_t::macbytes_to_string(pop_class->m_op_class_info.id.ruid, mac_str);
-		//printf("%s:%d: MAC: %s\tType: %d\tClass: %d\n", __func__, __LINE__, 
-				//mac_str, pop_class->m_op_class_info.id.type, pop_class->m_op_class_info.id.op_class);
-		if ((memcmp(pop_class->m_op_class_info.id.ruid, id.ruid, sizeof(mac_address_t)) == 0) && 
-					(pop_class->m_op_class_info.id.type == id.type) &&
-					(pop_class->m_op_class_info.id.op_class == id.op_class)) {
-			//printf("%s:%d: Found match\n\n\n", __func__, __LINE__);
-			return pop_class;
-		}	
-	}
+    for (i = 0; i < dm->get_num_op_class(); i++) {
+        pop_class = &dm->m_op_class[i];
+        dm_easy_mesh_t::macbytes_to_string(pop_class->m_op_class_info.id.ruid, mac_str);
+        //printf("%s:%d: MAC: %s\tType: %d\tClass: %d\n", __func__, __LINE__, 
+        //mac_str, pop_class->m_op_class_info.id.type, pop_class->m_op_class_info.id.op_class);
+        if ((memcmp(pop_class->m_op_class_info.id.ruid, id.ruid, sizeof(mac_address_t)) == 0) && 
+            (pop_class->m_op_class_info.id.type == id.type) &&
+            (pop_class->m_op_class_info.id.op_class == id.op_class)) {
+            //printf("%s:%d: Found match\n\n\n", __func__, __LINE__);
+            return pop_class;
+        }
+    }
 
-	//printf("%s:%d: Match not found\n\n\n", __func__, __LINE__);
-	return NULL;
+    //printf("%s:%d: Match not found\n\n\n", __func__, __LINE__);
+    return NULL;
 }
 
 dm_op_class_t *dm_easy_mesh_list_t::get_first_pre_set_op_class_by_type(em_op_class_type_t type)
@@ -1114,23 +1116,25 @@ void dm_easy_mesh_list_t::remove_op_class(const char *key)
 
 void dm_easy_mesh_list_t::put_op_class(const char *key, const dm_op_class_t *op_class)
 {
-	em_op_class_id_t id;
-	mac_addr_str_t mac_str;
-	dm_easy_mesh_t *dm;
-	bool found_dm = false;
-	unsigned int i;
-	dm_op_class_t	*pop_class;
-	dm_radio_t *radio;
+    em_op_class_id_t id;
+    mac_addr_str_t mac_str;
+    dm_easy_mesh_t *dm;
+    bool found_dm = false;
+    unsigned int i;
+    dm_op_class_t	*pop_class;
+    dm_radio_t *radio;
 
-	dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *> (op_class->m_op_class_info.id.ruid), mac_str);
-	//printf("%s:%d: key: %s, ruid: %s, type: %d, op_class: %d\n", __func__, __LINE__, 
-		//key, mac_str, op_class->m_op_class_info.id.type, op_class->m_op_class_info.id.op_class);
-	dm_op_class_t::parse_op_class_id_from_key(key, &id);
+    dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *> (op_class->m_op_class_info.id.ruid), mac_str);
+    //printf("%s:%d: key: %s, ruid: %s, type: %d, op_class: %d\n", __func__, __LINE__, 
+    //key, mac_str, op_class->m_op_class_info.id.type, op_class->m_op_class_info.id.op_class);
+    dm_op_class_t::parse_op_class_id_from_key(key, &id);
 
-	// find the dm that has this radio
+    // find the dm that has this radio
     dm = static_cast<dm_easy_mesh_t *> (hash_map_get_first(m_list));
     while (dm != NULL) {
-        if (id.type <= em_op_class_type_capability || id.type == em_op_class_type_preference || id.type == em_op_class_type_anticipated) {
+        if (id.type <= em_op_class_type_capability || id.type == em_op_class_type_preference ||
+            id.type == em_op_class_type_anticipated || id.type == em_op_class_type_cac_available ||
+            id.type == em_op_class_type_cac_active || id.type == em_op_class_type_cac_non_occ) {
             for (i = 0; i < dm->get_num_radios(); i++) {
                 radio = dm->get_radio(i);
                 dm_easy_mesh_t::macbytes_to_string(radio->m_radio_info.intf.mac, mac_str);

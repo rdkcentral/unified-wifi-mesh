@@ -882,6 +882,7 @@ public:
 	 */
 	~em_ctrl_t();
 
+	int delete_db_row(dm_op_class_t *opclass) override;
 };
 
 #endif

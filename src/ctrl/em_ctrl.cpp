@@ -60,6 +60,12 @@ AlServiceAccessPoint* g_sap;
 MacAddress g_al_mac_sap;
 #endif
 
+int em_ctrl_t::delete_db_row(dm_op_class_t *opclass)
+{
+    m_data_model.delete_db_row(opclass);
+    return 0;
+}
+
 void em_ctrl_t::handle_dm_commit(em_bus_event_t *evt)
 {
     em_commit_info_t *info;
