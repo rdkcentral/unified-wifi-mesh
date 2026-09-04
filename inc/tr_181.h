@@ -35,6 +35,7 @@
 #define DEVICE_WIFI_DATAELEMENTS_NETWORK_NODE_SYNC          "Device.WiFi.DataElements.Network.NodeSynchronize"
 #define DEVICE_WIFI_DATAELEMENTS_NETWORK_NODE_CFG_POLICY    "Device.WiFi.DataElements.Network.NodeConfigurePolicy"
 #define DEVICE_WIFI_DATAELEMENTS_NETWORK_NODE_LINKSTATS_ALARM    "Device.WiFi.DataElements.Network.NodeLinkStatsAlarm"
+#define DEVICE_WIFI_DATAELEMENTS_FAILED_CONNECTION               "Device.WiFi.DataElements.FailedConnectionEvent.FailedConnection!"
 
 #define LIST_OF_DEFINITION_NAME "List_Of_Def"
 #define MAX_NUM_OF_OBJECTS_NAME "Num_Of_Objects"
@@ -89,9 +90,12 @@ static const yang_to_tr181_map g_yang_map[] = {
 #define TR181_BAND_MAX_LEN         16
 #define TR181_ADDREMOVE_MAX_LEN    16
 #define TR181_HAULTYPE_MAX_LEN     32
+#define TR181_AKMS_MAX_LEN         32
 #define TR181_CHLIST_MAX_LEN       128
 #define TR181_BSSID_MAX_LEN        32
 #define TR181_REQMODE_MAX_LEN      24
+#define TR181_CHITEM_MAX_CNT       8
+#define TR181_STAMAC_MAX_CNT       16
 
 #define MAX_INSTANCE_LEN        32
 #define MAX_CAPS_STR_LEN        32
@@ -102,6 +106,12 @@ static const yang_to_tr181_map g_yang_map[] = {
 #define MAX_TIMESTAMP_STRLEN    64
 #define MAX_STDLEN              64
 #define ARRAY_SIZE(a)           (sizeof(a) / sizeof(a[0]))
+
+typedef struct {
+    int channel;
+    unsigned int sta_cnt;
+    mac_addr_str_t sta_macs[TR181_STAMAC_MAX_CNT];
+} tr181_unassoc_ch_item_t;
 
 /* Device.WiFi.DataElements.Network */
 #define DE_NETWORK_ID           DATAELEMS_NETWORK       "ID"
@@ -170,6 +180,7 @@ static const yang_to_tr181_map g_yang_map[] = {
 #define DE_DEVICE_RADIONOE      DE_NETWORK_DEVICE       "RadioNumberOfEntries"
 #define DE_DEVICE_CACSTATNOE    DE_NETWORK_DEVICE       "CACStatusNumberOfEntries"
 #define DE_DEVICE_BHDOWNNOE     DE_NETWORK_DEVICE       "BackhaulDownNumberOfEntries"
+#define DE_DEVICE_UNASSOCSTALMQ DE_NETWORK_DEVICE       "X_AIRTIES_UnassociatedStaLinkMetricsQuery()"
 /* Device.WiFi.DataElements.Network.Device.CACStatus */
 #define DE_DEVICE_CACSTAT       DE_NETWORK_DEVICE       "CACStatus.{i}."
 #define DE_CACSTAT_TABLE        DE_NETWORK_DEVICE       "CACStatus.{i}"
@@ -388,6 +399,27 @@ static const yang_to_tr181_map g_yang_map[] = {
 #define DE_STA_WIFI6CAPS        DE_BSS_STA              "WiFi6Capabilities."
 #define DE_STAWF6CAPS_HE160     DE_STA_WIFI6CAPS        "HE160"
 #define DE_STAWF6CAPS_MCSNSS    DE_STA_WIFI6CAPS        "MCSNSS"
+#define DE_STAWF6CAPS_HE8080    DE_STA_WIFI6CAPS        "HE8080"
+#define DE_STAWF6CAPS_SUBFER    DE_STA_WIFI6CAPS        "SUBeamformer"
+#define DE_STAWF6CAPS_SUBFEE    DE_STA_WIFI6CAPS        "SUBeamformee"
+#define DE_STAWF6CAPS_MUBFER    DE_STA_WIFI6CAPS        "MUBeamformer"
+#define DE_STAWF6CAPS_BFEE80L   DE_STA_WIFI6CAPS        "Beamformee80orLess"
+#define DE_STAWF6CAPS_BFEEA80   DE_STA_WIFI6CAPS        "BeamformeeAbove80"
+#define DE_STAWF6CAPS_ULMUMIMO  DE_STA_WIFI6CAPS        "ULMUMIMO"
+#define DE_STAWF6CAPS_ULOFDMA   DE_STA_WIFI6CAPS        "ULOFDMA"
+#define DE_STAWF6CAPS_DLOFDMA   DE_STA_WIFI6CAPS        "DLOFDMA"
+#define DE_STAWF6CAPS_MAXDLMU   DE_STA_WIFI6CAPS        "MaxDLMUMIMO"
+#define DE_STAWF6CAPS_MAXULMU   DE_STA_WIFI6CAPS        "MaxULMUMIMO"
+#define DE_STAWF6CAPS_MAXDLOF   DE_STA_WIFI6CAPS        "MaxDLOFDMA"
+#define DE_STAWF6CAPS_MAXULOF   DE_STA_WIFI6CAPS        "MaxULOFDMA"
+#define DE_STAWF6CAPS_RTS       DE_STA_WIFI6CAPS        "RTS"
+#define DE_STAWF6CAPS_MURTS     DE_STA_WIFI6CAPS        "MURTS"
+#define DE_STAWF6CAPS_MBSSID    DE_STA_WIFI6CAPS        "MultiBSSID"
+#define DE_STAWF6CAPS_MUEDCA    DE_STA_WIFI6CAPS        "MUEDCA"
+#define DE_STAWF6CAPS_TWTREQ    DE_STA_WIFI6CAPS        "TWTRequestor"
+#define DE_STAWF6CAPS_TWTRSP    DE_STA_WIFI6CAPS        "TWTResponder"
+#define DE_STAWF6CAPS_SPATRE    DE_STA_WIFI6CAPS        "SpatialReuse"
+#define DE_STAWF6CAPS_ACU       DE_STA_WIFI6CAPS        "AnticipatedChannelUsage"
 /* Device.WiFi.DataElements.Network.Device.Radio.BSS.STA.MultiAPSTA */
 #define DE_STA_MULTIAP          DE_BSS_STA              "MultiAPSTA."
 #define DE_STAMAP_DISASSOC      DE_STA_MULTIAP          "Disassociate()"
@@ -528,8 +560,13 @@ public:
     bus_error_t raw_data_set(raw_data_t *p_data, bus_data_prop_t *property);
     template <typename T> 
     bus_data_prop_t *property_init_value(const char *root, unsigned int idx, const char *param, T value);
-    template <typename T> 
+    template <typename T>
     void property_append_tail(bus_data_prop_t **property, const char *root, unsigned int idx, const char *param, T value);
+    /* Instance-less variants (name = root + param) for object nodes that are not tables. */
+    template <typename T>
+    bus_data_prop_t *property_init_value(const char *root, const char *param, T value);
+    template <typename T>
+    void property_append_tail(bus_data_prop_t **property, const char *root, const char *param, T value);
 
     virtual bus_error_t bus_get_cb_fwd(char *event_name, raw_data_t *p_data, bus_get_handler_t cb) = 0;
     
@@ -573,6 +610,27 @@ public:
      */
     static bus_error_t setssid_handler(const char *method_name, bus_data_prop_t *input_data,
         bus_data_prop_t *output_data, void *async_handle);
+
+    /**!
+     * @brief Handles the RBUS X_AIRTIES_UnassociatedStaLinkMetricsQuery method invocation.
+     *
+     * This function extracts X_AIRTIES_UnassociatedStaLinkMetricsQuery properties from the raw
+     * input payload, forwards them to the EasyMesh controller, and optionally writes response
+     * properties to the output raw buffer for RBUS callers.
+     *
+     * @param method_name RBUS method name, expected to match X_AIRTIES_UnassociatedStaLinkMetricsQuery.
+     * @param input_data Input containing a chained list of bus_data_prop_t entries.
+     * @param output_data Output populated with response properties when provided.
+     * @param async_handle RBUS async handle when the call is asynchronous (may be null).
+     *
+     * @returns bus_error_t
+     * @retval bus_error_none on successful X_AIRTIES_UnassociatedStaLinkMetricsQuery handling.
+     * @retval bus_error_failed on validation or controller execution failure.
+     *
+     * @note Ownership of input and output buffers remains with the caller.
+     */
+    static bus_error_t unassocstalinkmetricsquery_handler(const char *method_name,
+        bus_data_prop_t *input_data, bus_data_prop_t *output_data, void *async_handle);
 
     /**!
      * @brief Handles the RBUS SteerWiFiBackhaul method invocation.
@@ -715,6 +773,28 @@ public:
      */
     static bool item_matches_haultype(const cJSON *item, const char *haul_val);
 
+     /**!
+     * @brief Create a JSON array for the SetSSID() AKMsAllowed input.
+     *
+     * @param akms_val Single akm_t enum value (psk, sae or psk+sae).
+     *
+     * @returns cJSON*
+     * @retval non-null Newly allocated cJSON array on success.
+     * @retval null on validation or allocation failure.
+     */
+    static cJSON *create_akms_array(const char *akms_val);
+
+     /**!
+     * @brief Map an AKMsAllowed value to the internal NetworkSSID AuthType.
+     *
+     * @param akms_val Single akm_t enum value (psk, sae or psk+sae).
+     *
+     * @returns const char*
+     * @retval AuthType string (securityTypeMap name) on success.
+     * @retval null for unsupported values.
+     */
+    static const char *akms_to_auth_type(const char *akms_val);
+
     /**!
      * @brief Format the HaulType array as a comma-separated string.
      *
@@ -727,6 +807,30 @@ public:
      *  @note Returns 0 on invalid input or when no HaulType value is formatted.
      */
     static size_t format_haultype_list(const cJSON *item, char *out, size_t out_len);
+
+    /**!
+     * @brief Extract object index from string buffer, eg. n from "ABC.n".
+     *
+     * @param name Input value expected to contain name string.
+     * @param index Output, will contain index of the object, if successful.
+     *
+     * @returns bool Result of the operation.
+     *
+     * @note Returns false on invalid input or when index is not present.
+     */
+    static bool parse_object_index(const char *name, int *index);
+
+    /**!
+     * @brief Parse the channel object of unassociated sta link metrics query from property.
+     *
+     * @param prop Input, property expected to contain a valid name and value pair.
+     * @param ch_item Output, channel object of unassociated sta link metrics query.
+     *
+     * @returns bool Result of the operation.
+     *
+     * @note Returns false on invalid input.
+     */
+    static bool parse_unassoc_ch_obj(const bus_data_prop_t *prop, tr181_unassoc_ch_item_t *ch_item);
 
      /**!
      * @brief Allocate a bus_data_prop_t with a string value.
@@ -917,6 +1021,47 @@ template <typename T> void tr_181_t::property_append_tail(bus_data_prop_t **prop
     } else {
         tail = static_cast<bus_data_prop_t *>(calloc(1, sizeof(bus_data_prop_t)));
         snprintf(tail->name, sizeof(bus_name_string_t), "%s%d.%s", root, idx, param);
+        raw_data_set(&tail->value, value);
+        tail->name_len = static_cast<uint32_t>(strlen(tail->name));
+        tail->is_data_set = true;
+
+        last = *property;
+        while (last->next_data) {
+            last = last->next_data;
+        }
+        last->next_data = tail;
+    }
+}
+
+template <typename T> bus_data_prop_t *tr_181_t::property_init_value(const char *root, const char *param, T value)
+{
+    bus_data_prop_t *property = static_cast<bus_data_prop_t *>(calloc(1, sizeof(bus_data_prop_t)));
+
+    if (property == NULL) {
+        return NULL;
+    }
+
+    snprintf(property->name, sizeof(bus_name_string_t), "%s%s", root, param);
+    raw_data_set(&property->value, value);
+    property->name_len = static_cast<uint32_t>(strlen(property->name));
+    property->is_data_set = true;
+
+    return property;
+}
+
+template <typename T> void tr_181_t::property_append_tail(bus_data_prop_t **property, const char *root, const char *param, T value)
+{
+    bus_data_prop_t *tail;
+    bus_data_prop_t *last;
+
+    if (*property == NULL) {
+        *property = property_init_value(root, param, value);
+    } else {
+        tail = static_cast<bus_data_prop_t *>(calloc(1, sizeof(bus_data_prop_t)));
+        if (tail == NULL) {
+            return;
+        }
+        snprintf(tail->name, sizeof(bus_name_string_t), "%s%s", root, param);
         raw_data_set(&tail->value, value);
         tail->name_len = static_cast<uint32_t>(strlen(tail->name));
         tail->is_data_set = true;
