@@ -3223,6 +3223,10 @@ void dm_easy_mesh_t::set_policy(dm_policy_t policy)
 	dm_policy_t *ppolicy;
 	em_2xlong_string_t key;
 
+	if (m_policy_map == NULL) {
+		m_policy_map = hash_map_create();
+	}
+
 	memcpy(policy.m_policy.id.dev_mac, m_device.m_device_info.intf.mac,sizeof(mac_address_t));
 	//Fetch the key from the incoming policy
 	dm_easy_mesh_t::get_policy_key(policy.m_policy.id, key, sizeof(key));
