@@ -269,8 +269,11 @@ bool em_orch_ctrl_t::is_em_ready_for_orch_fini(em_cmd_t *pcmd, em_t *em)
                 dm_easy_mesh_t *cmd_dm = pcmd->get_data_model();
                 dm_easy_mesh_t *live_dm = em->get_data_model();
                 if (cmd_dm != NULL && live_dm != NULL) {
-                    for (unsigned int p = 0; p < cmd_dm->get_num_policy(); p++) {
-                        live_dm->set_policy(cmd_dm->m_policy[p]);
+                    for (dm_policy_t *pol = static_cast<dm_policy_t *>(hash_map_get_first(cmd_dm->m_policy_map));
+                         pol != NULL;
+                         pol = static_cast<dm_policy_t *>(hash_map_get_next(cmd_dm->m_policy_map, pol))) {
+                        em_printfout("orch set_policy: committing policy type=%d to live_dm", pol->m_policy.id.type);
+                        live_dm->set_policy(*pol);
                     }
                     // Trigger DB write
                     cmd_dm->set_db_cfg_param(db_cfg_type_policy_list_update, "");
@@ -543,22 +546,10 @@ bool em_orch_ctrl_t::pre_process_orch_op(em_cmd_t *pcmd)
             // baseline and doesn't re-detect the same change as new.
             dm_easy_mesh_t *dev_dm = m_mgr->get_data_model(GLOBAL_NET_ID, dm->m_device.m_device_info.intf.mac);
             if (dev_dm != nullptr) {
-                for (unsigned int p = 0; p < dm->get_num_policy(); p++) {
-                    dm_policy_t &pol = dm->get_policy_by_ref(p);
-                    bool found = false;
-                    for (unsigned int j = 0; j < dev_dm->get_num_policy(); j++) {
-                        if (dev_dm->m_policy[j].m_policy.id.type == pol.m_policy.id.type &&
-                            memcmp(dev_dm->m_policy[j].m_policy.id.radio_mac,
-                                   pol.m_policy.id.radio_mac, sizeof(mac_address_t)) == 0) {
-                            dev_dm->m_policy[j] = pol;
-                            found = true;
-                            break;
-                        }
-                    }
-                    if (!found && dev_dm->get_num_policy() < EM_MAX_POLICIES) {
-                        dev_dm->m_policy[dev_dm->get_num_policy()] = pol;
-                        dev_dm->set_num_policy(dev_dm->get_num_policy() + 1);
-                    }
+                for (dm_policy_t *pol = static_cast<dm_policy_t *>(hash_map_get_first(dm->m_policy_map));
+                     pol != NULL;
+                     pol = static_cast<dm_policy_t *>(hash_map_get_next(dm->m_policy_map, pol))) {
+                    dev_dm->set_policy(*pol);
                 }
             }
             break;
