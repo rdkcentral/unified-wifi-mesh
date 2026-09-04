@@ -448,8 +448,7 @@ static const std::unordered_map<std::string, std::string> oui_akm_map = {
     {"0050F201", "wpa-eap"},
     {"0050F202", "wpa-psk"},
     {"000FAC01", "wpa2-eap"},
-    {"000FAC02", "wpa2-psk"}, // Same as "psk"
-    {"000FAC02", "psk"},
+    {"000FAC02", "wpa2-psk"}, // covers "psk" too
     {"000FAC08", "sae"},
     {"506F9A02", "dpp"},
 };

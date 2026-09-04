@@ -3741,7 +3741,7 @@ typedef struct {
 
 static const SecurityTypeMap securityTypeMap[] = {
     { "Open",            EM_AUTH_OPEN },
-    { "WPA2 Personal",   EM_AUTH_WPA2 },
+    { "WPA2 Personal",   EM_AUTH_WPA2PSK },
     { "Enhanced Open",   EM_AUTH_ENHANCED_OPEN },
     { "WPA3 Personal",   EM_AUTH_WPA3_PERSONAL },
     { "WPA3 Transition", EM_AUTH_WPA3_TRANSITION }

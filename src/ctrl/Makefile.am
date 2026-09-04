@@ -237,7 +237,8 @@ onewifi_em_ctrl_test_SOURCES = $(onewifi_em_ctrl_SOURCES) \
 	$(top_srcdir)/tests/test_l1_ec_manager.cpp \
 	$(top_srcdir)/src/al-sap/al_service_registration_response.cpp \
 	$(top_srcdir)/tests/test_l1_em_ctrl.cpp \
-	$(top_srcdir)/tests/test_l1_dm_easy_mesh_list.cpp
+	$(top_srcdir)/tests/test_l1_dm_easy_mesh_list.cpp \
+	$(top_srcdir)/tests/test_l1_akms_allowed.cpp
 
 onewifi_em_ctrl_test_CPPFLAGS = $(onewifi_em_ctrl_CPPFLAGS) \
                                 -I$(PKG_CONFIG_SYSROOT_DIR)$(includedir)/gtest \
