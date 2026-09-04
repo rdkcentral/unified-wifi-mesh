@@ -1977,14 +1977,34 @@ unsigned short em_t::create_traffic_separation_policy_tlv(unsigned char *buff)
     dm_network_ssid_t *net_ssid;
     unsigned char *tmp = buff;
 
-    // get total ssid count
-    unsigned char ssids_num = dm->get_num_network_ssid();
-    *tmp = static_cast<unsigned char>(ssids_num);
+    // Include only enabled, non-empty SSIDs so the Traffic Separation
+    // Policy remains consistent with the SSIDs provisioned in WSC M2.
+    unsigned char total = dm->get_num_network_ssid();
+    if (total > EM_MAX_NET_SSIDS) {
+        total = EM_MAX_NET_SSIDS;
+    }
+
+    unsigned char enabled_num = 0;
+    for (i = 0; i < total; i++) {
+        net_ssid = dm->get_network_ssid(i);
+        if (net_ssid != NULL && net_ssid->m_network_ssid_info.enable &&
+            strlen(net_ssid->m_network_ssid_info.ssid) > 0) {
+            enabled_num++;
+        }
+    }
+
+    *tmp = enabled_num;
     tmp += sizeof(unsigned char);
     len += sizeof(unsigned char);
 
-    for (i = 0; i < ssids_num; i++) {
+    for (i = 0; i < total; i++) {
         net_ssid = dm->get_network_ssid(i);
+
+        // Skip disabled / empty SSIDs so the policy matches what M2 actually pushed.
+        if (net_ssid == NULL || !net_ssid->m_network_ssid_info.enable ||
+            strlen(net_ssid->m_network_ssid_info.ssid) == 0) {
+            continue;
+        }
 
         std::vector<unsigned char> ssid_bytes(net_ssid->m_network_ssid_info.ssid, 
                     net_ssid->m_network_ssid_info.ssid + strlen(net_ssid->m_network_ssid_info.ssid));
@@ -2002,9 +2022,9 @@ unsigned short em_t::create_traffic_separation_policy_tlv(unsigned char *buff)
         memcpy(tmp, &vlan_n, sizeof(vlan_n));
         tmp += sizeof(unsigned short);
         len += sizeof(unsigned short);
-	    em_printfout(" TRAFFIC SEPARATION SSID='%.*s' Len=%u, VLAN=%u ",ssid_len,ssid_bytes.data(), ssid_len, net_ssid->m_network_ssid_info.vlan_id);
+        em_printfout(" TRAFFIC SEPARATION SSID='%.*s' Len=%u, VLAN=%u ",ssid_len,ssid_bytes.data(), ssid_len, net_ssid->m_network_ssid_info.vlan_id);
     }
-    em_printfout("Length: %d ", len);
+    em_printfout("Traffic Separation: %u of %u SSIDs enabled, Length: %d ", (unsigned int)enabled_num, (unsigned int)total, len);
     return len;
 }
 
