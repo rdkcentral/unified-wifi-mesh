@@ -73,9 +73,8 @@ public:
     em_cmd_ctx_t    m_cmd_ctx;
     unsigned int 	m_num_opclass;    
     dm_op_class_t m_op_class[EM_MAX_OPCLASS];
-	//unsigned int	m_num_policy;
-	hash_map_t	*m_policy_map = NULL;
-	hash_map_t		*m_scan_result_map = NULL;
+    hash_map_t	*m_policy_map = NULL;
+    hash_map_t		*m_scan_result_map = NULL;
     hash_map_t  	*m_sta_map = NULL;
     hash_map_t      *m_sta_assoc_map = NULL;
     hash_map_t      *m_sta_dassoc_map = NULL;

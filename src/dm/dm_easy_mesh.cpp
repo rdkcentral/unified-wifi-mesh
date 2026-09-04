@@ -95,13 +95,25 @@ dm_easy_mesh_t& dm_easy_mesh_t::operator = (dm_easy_mesh_t const& obj)
 
     m_db_cfg_param = obj.m_db_cfg_param;
 
+    // Replace policy map contents with a deep copy from obj
+    if (m_policy_map == NULL) {
+        m_policy_map = hash_map_create();
+    } else {
+        dm_policy_t *p = static_cast<dm_policy_t *>(hash_map_get_first(m_policy_map));
+        while (p != NULL) {
+            dm_policy_t *next = static_cast<dm_policy_t *>(hash_map_get_next(m_policy_map, p));
+            em_2xlong_string_t k;
+            dm_easy_mesh_t::get_policy_key(p->m_policy.id, k, sizeof(k));
+            delete static_cast<dm_policy_t *>(hash_map_remove(m_policy_map, k));
+            p = next;
+        }
+    }
+
     if (obj.m_policy_map != NULL && m_policy_map != NULL) {
         dm_policy_t *policy = static_cast<dm_policy_t *> (hash_map_get_first(obj.m_policy_map));
         while (policy != NULL) {
-            em_2xlong_string_t policy_key;
-            dm_easy_mesh_t::get_policy_key(policy->m_policy.id, policy_key, sizeof(policy_key));
-            hash_map_put(m_policy_map, strdup(policy_key), new dm_policy_t(*policy));
-            policy = static_cast<dm_policy_t *> (hash_map_get_next(obj.m_policy_map, policy));
+            set_policy(*policy);
+	    policy = static_cast<dm_policy_t *> (hash_map_get_next(obj.m_policy_map, policy));
         }
     }
 

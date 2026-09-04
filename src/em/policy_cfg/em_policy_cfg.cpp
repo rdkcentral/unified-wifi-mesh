@@ -505,7 +505,7 @@ int em_policy_cfg_t::send_policy_cfg_request_msg()
     // For UI-triggered set_policy: only include TLVs for policy types that are
     // present in the command dm (i.e., the policies that actually changed).
     // For onboarding (em_config / autoconfig renew): always include all TLVs.
-    const bool is_set_policy = (get_current_cmd()->get_type() == em_cmd_type_set_policy);
+    bool is_set_policy = (get_current_cmd()->get_type() == em_cmd_type_set_policy);
     em_printfout("is_set_policy : %d", is_set_policy);
     dm_easy_mesh_t *cmd_dm = is_set_policy ? get_current_cmd()->get_data_model() : nullptr;
     if (is_set_policy && cmd_dm == nullptr) {
