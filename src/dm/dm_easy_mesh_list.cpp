@@ -1208,7 +1208,6 @@ dm_policy_t *dm_easy_mesh_list_t::get_first_policy()
 	return NULL;
 }
 
-// TODO(RDKB-66800): verify hash_map iteration/ordering semantics are acceptable for policy enumeration APIs.
 dm_policy_t *dm_easy_mesh_list_t::get_next_policy(dm_policy_t *policy)
 {
 	dm_easy_mesh_t *dm;
