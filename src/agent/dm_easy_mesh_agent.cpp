@@ -908,8 +908,6 @@ int dm_easy_mesh_agent_t::analyze_unassoc_sta_result(em_bus_event_t *evt, em_cmd
 
     em_unassoc_sta_metrics_rsp_t *rsp;
 
-    translate_and_decode_onewifi_subdoc(reinterpret_cast<char *>(evt->u.raw_buff), webconfig_subdoc_type_nasta_query, "Unassoc STA Metrics Response");
-
     json = cJSON_Parse((const char *)evt->u.raw_buff);
 
     if (json == NULL) {
@@ -917,9 +915,9 @@ int dm_easy_mesh_agent_t::analyze_unassoc_sta_result(em_bus_event_t *evt, em_cmd
         return 0;
     }
 
-    resp_array = cJSON_GetObjectItemCaseSensitive(json, "UnassocStaLinkMetricsResponse");
+    resp_array = cJSON_GetObjectItemCaseSensitive(json, "UnassociatedSTALinkMetricsResponse");
 
-    if ((resp_array == NULL) || (!cJSON_IsArray(resp_array))) {
+    if ((resp_array == NULL) || (!cJSON_IsObject(resp_array))) {
         em_printfout("%s:%d UnassocStaLinkMetricsResponse missing", __func__, __LINE__);
         cJSON_Delete(json);
         return 0;
@@ -927,66 +925,46 @@ int dm_easy_mesh_agent_t::analyze_unassoc_sta_result(em_bus_event_t *evt, em_cmd
 
     rsp = &m_unassoc_sta_metrics_rsp;
     memset(rsp, 0, sizeof(*rsp));
+
     unsigned int entry_idx = 0;
-    cJSON *opclass_obj = NULL;
 
-    cJSON_ArrayForEach(opclass_obj, resp_array)
+    cJSON *sta_list = cJSON_GetObjectItemCaseSensitive(resp_array, "sta_list");
+
+    if ((sta_list == NULL) || (!cJSON_IsArray(sta_list))) {
+        em_printfout("%s:%d sta_list missing", __func__, __LINE__);
+        cJSON_Delete(json);
+        return 0;
+    }
+
+    cJSON *sta_obj = NULL;
+
+    cJSON_ArrayForEach(sta_obj, sta_list)
     {
-        cJSON *opclass_json = cJSON_GetObjectItemCaseSensitive(opclass_obj, "opclass");
+        if (entry_idx >= EM_MAX_UNASSOC_STA) {
+            break;
+        }
 
-        if ((opclass_json == NULL) || (!cJSON_IsNumber(opclass_json))) {
+        cJSON *mac_json = cJSON_GetObjectItemCaseSensitive(sta_obj, "sta_mac");
+        cJSON *channel_json = cJSON_GetObjectItemCaseSensitive(sta_obj, "channel");
+        cJSON *opclass_json = cJSON_GetObjectItemCaseSensitive(sta_obj, "op_class");
+        cJSON *rcpi_json = cJSON_GetObjectItemCaseSensitive(sta_obj, "rcpi");
+
+        if ((mac_json == NULL) || (!cJSON_IsString(mac_json)) ||
+            (channel_json == NULL) || (!cJSON_IsNumber(channel_json)) ||
+            (opclass_json == NULL) || (!cJSON_IsNumber(opclass_json)) ||
+            (rcpi_json == NULL) || (!cJSON_IsNumber(rcpi_json))) {
             continue;
         }
+        dm_easy_mesh_t::string_to_macbytes(mac_json->valuestring, rsp->entry[entry_idx].sta_mac);
 
-        unsigned char op_class = (unsigned char)opclass_json->valueint;
+        rsp->entry[entry_idx].channel = (unsigned char)channel_json->valueint;
+        rsp->entry[entry_idx].op_class = (unsigned char)opclass_json->valueint;
+        rsp->entry[entry_idx].rcpi = (unsigned char)rcpi_json->valueint;
+        rsp->entry[entry_idx].time_delta = 0;
 
-        cJSON *channels = cJSON_GetObjectItemCaseSensitive(opclass_obj, "channels");
-        if ((channels == NULL) || (!cJSON_IsArray(channels))) {
-            continue;
-        }
-
-        cJSON *channel_obj = NULL;
-
-        cJSON_ArrayForEach(channel_obj, channels)
-        {
-            cJSON *channel_json = cJSON_GetObjectItemCaseSensitive(channel_obj, "channel");
-
-            if ((channel_json == NULL) || (!cJSON_IsNumber(channel_json))) {
-                continue;
-            }
-
-            unsigned char channel = (unsigned char)channel_json->valueint;
-
-            cJSON *sta_list = cJSON_GetObjectItemCaseSensitive(channel_obj, "sta_list");
-            if ((sta_list == NULL) || (!cJSON_IsArray(sta_list))) {
-                continue;
-            }
-
-            cJSON *sta_obj = NULL;
-
-            cJSON_ArrayForEach(sta_obj, sta_list)
-            {
-                if (entry_idx >= EM_MAX_UNASSOC_STA) {
-                    break;
-                }
-
-                cJSON *mac_json = cJSON_GetObjectItemCaseSensitive(sta_obj, "sta_mac");
-
-                cJSON *rcpi_json = cJSON_GetObjectItemCaseSensitive(sta_obj, "rcpi");
-
-                if ((mac_json == NULL) || (!cJSON_IsString(mac_json)) || (rcpi_json == NULL) || (!cJSON_IsNumber(rcpi_json))) {
-                    continue;
-                }
-
-                dm_easy_mesh_t::string_to_macbytes(mac_json->valuestring, rsp->entry[entry_idx].sta_mac);
-                rsp->entry[entry_idx].channel = channel;
-                rsp->entry[entry_idx].op_class = op_class;
-                rsp->entry[entry_idx].rcpi = (unsigned char)rcpi_json->valueint;
-                rsp->entry[entry_idx].time_delta = 0;
-                em_printfout("Parsed STA[%u] opclass=%u channel=%u rcpi=%u", entry_idx, op_class, channel, (unsigned char)rcpi_json->valueint);
-                entry_idx++;
-            }
-        }
+        em_printfout("Parsed STA[%u] opclass=%u channel=%u rcpi=%u", entry_idx, rsp->entry[entry_idx].op_class,
+                                    rsp->entry[entry_idx].channel, rsp->entry[entry_idx].rcpi);
+        entry_idx++;
     }
 
     rsp->num_entries = entry_idx;

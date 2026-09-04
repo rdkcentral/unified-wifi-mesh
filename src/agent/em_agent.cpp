@@ -829,6 +829,10 @@ void em_agent_t::handle_unassoc_sta_result(em_bus_event_t *evt)
 
 int em_agent_t::send_unassoc_sta_query_subdoc(wifi_bus_desc_t *desc, bus_handle_t *bus_hdl, em_unassoc_work_list_t *work)
 {
+    unsigned int vap_index = 0;
+    bool found = false;
+    mac_address_t target_ruid = {0};
+
     if ((desc == NULL) || (bus_hdl == NULL) || (work == NULL)) {
         em_printfout("%s:%d Invalid input params desc=%p bus_hdl=%p work=%p",
                      __func__, __LINE__, desc, bus_hdl, work);
@@ -926,8 +930,47 @@ int em_agent_t::send_unassoc_sta_query_subdoc(wifi_bus_desc_t *desc, bus_handle_
     bus_data.raw_data.bytes = json_str;
     bus_data.raw_data_len = strlen(json_str);
 
-    if (desc->bus_set_fn(bus_hdl, "Device.WiFi.UnAssoc.STA", &bus_data) != 0) {
-        em_printfout("%s:%d Unassoc subdoc send failed",  __func__, __LINE__);
+
+    for (unsigned int i = 0; i < m_data_model.get_num_op_class(); i++) {
+        dm_op_class_t *opclass = m_data_model.get_op_class(i);
+
+        if (opclass == nullptr) {
+            continue;
+        }
+
+        if (opclass->m_op_class_info.op_class == work->opclass_list[0].op_class) {
+            memcpy(target_ruid, opclass->m_op_class_info.id.ruid, sizeof(mac_address_t));
+            break;
+        }
+    }
+
+    /* Find AP BSS for this RUID */
+    for (unsigned int i = 0; i < m_data_model.get_num_bss(); i++) {
+        em_bss_info_t *bss = m_data_model.get_bss_info(i);
+        if (bss == nullptr) {
+            continue;
+        }
+
+        if (bss->vap_mode != em_vap_mode_ap) {
+            continue;
+        }
+
+        if (memcmp(bss->ruid.mac, target_ruid, sizeof(mac_address_t)) == 0) {
+            vap_index = bss->vap_index;
+            found = true;
+            break;
+        }
+    }
+
+    char bus_path[128] = {0};
+    snprintf(bus_path, sizeof(bus_path), "Device.WiFi.AccessPoint.%u.X_RDKCENTRAL-COM_GetNaSta", vap_index + 1);
+
+    raw_data_t out_data;
+    memset(&out_data, 0, sizeof(raw_data_t));
+
+    int rc = desc->bus_method_invoke_fn(bus_hdl,NULL, bus_path, &bus_data, &out_data, 1);
+    if (rc != bus_error_success) {
+        em_printfout("%s:%d Unassoc STA subdoc send failed",  __func__, __LINE__);
         free(json_str);
         cJSON_Delete(root);	
         return -1;
@@ -1591,14 +1634,14 @@ int em_agent_t::unassoc_sta_link_metrics_cb(char *event_name, bus_data_prop_t *d
         return -1;
     }
 
-    if (strcmp(subdoc_name->valuestring, "UnassocStaLinkMetricsResponse") != 0) {
+    if (strcmp(subdoc_name->valuestring, "UnassocStaQuery") != 0) {
         em_printfout("%s:%d unexpected SubDocName=%s",__func__, __LINE__, subdoc_name->valuestring);
         cJSON_Delete(json);
         return -1;
     }
 
     cJSON *resp = cJSON_GetObjectItemCaseSensitive(json, "UnassocStaLinkMetricsResponse");
-    if ((resp == NULL) || (!cJSON_IsArray(resp))) {
+    if ((resp == NULL) || (!cJSON_IsObject(resp))) {
         em_printfout("%s:%d response array missing",__func__,__LINE__);
         cJSON_Delete(json);
         return -1;
