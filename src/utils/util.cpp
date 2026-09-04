@@ -39,6 +39,8 @@
 
 
 #include "util.h"
+#include <errno.h>
+#include <time.h>
 #include <netinet/in.h>
 
 extern "C" {
@@ -93,16 +95,51 @@ void util::add_milliseconds(struct timespec *ts, long milliseconds)
 
 }
 
+void util::monotonic_now(struct timespec *ts)
+{
+    clock_gettime(CLOCK_MONOTONIC, ts);
+}
+
+void util::monotonic_now(struct timeval *tv)
+{
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    tv->tv_sec = ts.tv_sec;
+    tv->tv_usec = static_cast<suseconds_t>(ts.tv_nsec / 1000);
+}
+
+int util::monotonic_cond_init(pthread_cond_t *cond)
+{
+    pthread_condattr_t attr;
+    int rc;
+
+    rc = pthread_condattr_init(&attr);
+    if (rc != 0) {
+        return rc;
+    }
+    rc = pthread_condattr_setclock(&attr, CLOCK_MONOTONIC);
+    if (rc == 0) {
+        rc = pthread_cond_init(cond, &attr);
+    }
+    pthread_condattr_destroy(&attr);
+    return rc;
+}
+
 void util::delay(int seconds) {
-    time_t start_time, current_time;
+    struct timespec deadline;
+    int rc;
 
-    // Get current time
-    time(&start_time);
-
-    do {
-        // Update current time
-        time(&current_time);
-    } while ((current_time - start_time) < seconds); // Loop until desired delay is achieved
+    monotonic_now(&deadline);
+    deadline.tv_sec += seconds;
+    while ((rc = clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &deadline, NULL)) == EINTR) {
+        /* interrupted by a signal: keep sleeping until the deadline */
+    }
+    if (rc != 0) {
+        /* clock_nanosleep not usable here: fall back to a relative sleep */
+        struct timespec req = { seconds, 0 };
+        while (nanosleep(&req, &req) == -1 && errno == EINTR) {
+        }
+    }
 }
 
 char *get_formatted_time_em(char *time)
