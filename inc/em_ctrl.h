@@ -470,21 +470,21 @@ public:
 	void handle_link_stats_alarm_report(em_bus_event_t *evt);
 	void handle_failed_conn_msg(unsigned char *data, unsigned int len) override;
 
-        /**!
-         * @brief Handles an Unassociated STA Link Metrics Query event.
-         *
-         * This function processes the Unassociated STA Link Metrics Query
-         * received from the controller, validates the requested operating
-         * classes, channels and STA MAC entries, and initiates the
-         * corresponding agent-side RCPI measurement workflow.
-         *
-         * @param[in] evt Pointer to the event structure containing the
-         *                Unassociated STA Link Metrics Query payload.
-         *
-         * @note Ensure that the event structure is properly initialized
-         *       before calling this function.
-         */
-        void handle_unassoc_sta_metrics_query(em_bus_event_t *evt);
+	/**!
+	 * @brief Handles an Unassociated STA Link Metrics Query event.
+	 *
+	 * This function processes the Unassociated STA Link Metrics Query
+	 * received from the controller, validates the requested operating
+	 * classes, channels and STA MAC entries, and initiates the
+	 * corresponding agent-side RCPI measurement workflow.
+	 *
+	 * @param[in] evt Pointer to the event structure containing the
+	 *                Unassociated STA Link Metrics Query payload.
+	 *
+	 * @note Ensure that the event structure is properly initialized
+	 *       before calling this function.
+	 */
+	void handle_unassoc_sta_metrics_query(em_bus_event_t *evt);
 
 	/**!
 	 * @brief 
@@ -697,6 +697,26 @@ public:
 	 * @note Input property ownership remains with the caller; this function does not free them.
 	 */
 	static bus_error_t cmd_setssid (const char *method_name, const bus_data_prop_t *input_params, bus_data_prop_t **output_params, void *async_handle);
+
+	/**!
+	 * @brief Handles the bus X_AIRTIES_UnassociatedStaLinkMetricsQuery method request.
+	 *
+	 * Validates X_AIRTIES_UnassociatedStaLinkMetricsQuery input properties, dispatches the
+	 * request to the EasyMesh controller, and optionally populates response properties for
+	 * the caller.
+	 *
+	 * @param[in] method_name Bus method name (...Device.{i}.X_AIRTIES_UnassociatedStaLinkMetricsQuery).
+	 * @param[in] input_params Linked list of input properties carrying the request payload.
+	 * @param[out] output_params Populated with response properties when provided.
+	 * @param[in] async_handle Async context handle when the bus call is asynchronous.
+	 *
+	 * @returns bus_error_t
+	 * @retval bus_error_none on successful X_AIRTIES_UnassociatedStaLinkMetricsQuery handling.
+	 * @retval bus_error_failed on validation or controller execution failure.
+	 *
+	 * @note Input property ownership remains with the caller; this function does not free them.
+	 */
+	static bus_error_t cmd_unassocstalinkmetricsquery (const char *method_name, const bus_data_prop_t *input_params, bus_data_prop_t **output_params, void *async_handle);
 
 	/**!
 	 * @brief Handles the bus SteerWiFiBackhaul method request.

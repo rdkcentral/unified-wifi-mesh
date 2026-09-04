@@ -132,7 +132,10 @@ void em_t::orch_execute(em_cmd_t *pcmd)
 
             uint8_t cce_ind_msg_buff[MAX_EM_BUFF_SZ] = {0};
             int msg_size = create_cce_ind_msg(cce_ind_msg_buff, true);
-            if (send_frame(cce_ind_msg_buff, static_cast<unsigned int>(msg_size)) < 0) {
+            if (msg_size <= 0) {
+                em_printfout("Error: Failed to create DPP CCE Indication message (size=%d)", msg_size);
+
+            } else if (send_frame(cce_ind_msg_buff, static_cast<unsigned int>(msg_size)) < 0) {
                 em_printfout("Failed to send DPP CCE Indication message!");
             }
 
@@ -239,16 +242,16 @@ void em_t::orch_execute(em_cmd_t *pcmd)
             m_sm.set_state(em_state_ctrl_ap_mld_config_pending);
             break;
 
-        case em_cmd_type_beacon_report:
-            m_sm.set_state(em_state_agent_beacon_report_pending);
-            break;
-
         case em_cmd_type_bsta_cap:
             m_sm.set_state(em_state_ctrl_bsta_cap_pending);
             break;
 
         case em_cmd_type_get_link_quality_report:
             m_sm.set_state(em_state_agent_link_quality_report_pending);
+            break;
+
+        case em_cmd_type_beacon_report:
+            m_sm.set_state(em_state_beacon_report_pending);
             break;
 
         case em_cmd_type_unassoc_sta_query:
@@ -313,6 +316,7 @@ void em_t::proto_process(unsigned char *data, unsigned int len)
         case em_msg_type_client_cap_query:
         case em_msg_type_client_cap_rprt:
             em_capability_t::process_msg(data, len);
+            em_metrics_t::process_msg(data, len);
             break;
 
         case em_msg_type_channel_pref_query:
@@ -332,7 +336,7 @@ void em_t::proto_process(unsigned char *data, unsigned int len)
         case em_msg_type_beacon_metrics_rsp:
         case em_msg_type_ap_metrics_rsp:
         case em_msg_type_topo_vendor:
-	case em_msg_type_unassoc_sta_link_metrics_query: 
+	    case em_msg_type_unassoc_sta_link_metrics_query: 
         case em_msg_type_unassoc_sta_link_metrics_rsp:	    
             em_metrics_t::process_msg(data, len);
             break;
@@ -368,6 +372,7 @@ void em_t::proto_process(unsigned char *data, unsigned int len)
             } else {
                 em_policy_cfg_t::process_msg(data, len);
                 em_channel_t::process_msg(data, len);
+                em_metrics_t::process_msg(data, len);
             }
             break;
 
@@ -485,7 +490,7 @@ void em_t::handle_agent_state()
 			break;
 
         case em_cmd_type_beacon_report:
-            if (m_sm.get_state() == em_state_agent_beacon_report_pending) {
+            if (m_sm.get_state() == em_state_beacon_report_pending) {
                 em_metrics_t::process_agent_state();
             }
             break;
@@ -2809,7 +2814,16 @@ int em_t::init()
     m_iq.timeout = EM_PROTO_TOUT;
 
     // initialize the crypto
-    m_crypto.init();
+    if (m_crypto.init() != 0) {
+        em_printfout("Error: Failed to initialize crypto");
+        queue_destroy(m_iq.queue);
+        pthread_mutex_destroy(&m_iq.lock);
+        pthread_cond_destroy(&m_iq.cond);
+        if (is_al_interface_em()) {
+            close(m_fd);
+        }
+        return -1;
+    }
 
     size_t stack_size = 0x800000; /* 8MB */
     pthread_attr_t attr;
@@ -2822,14 +2836,16 @@ int em_t::init()
     // leading to stack overflow.
     ret = pthread_attr_setstacksize(&attr, stack_size);
     if (ret != 0) {
-        printf("%s:%d pthread_attr_setstacksize failed for size:%ld ret:%d\n",
-                __func__, __LINE__, stack_size, ret);
+        em_printfout("Error: pthread_attr_setstacksize failed for size:%ld ret:%d", stack_size, ret);
     }
     pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
 
     if (pthread_create(&m_tid, attrp, em_t::em_func, this) != 0) {
-        printf("%s:%d: Failed to start em thread\n", __func__, __LINE__);
-        close(m_fd);
+        em_printfout("Error: Failed to start em thread");
+        queue_destroy(m_iq.queue);
+        if (is_al_interface_em()) {
+            close(m_fd);
+        }
         pthread_mutex_destroy(&m_iq.lock);
         pthread_cond_destroy(&m_iq.cond);
         if(attrp != NULL) {
@@ -2897,7 +2913,6 @@ const char *em_t::state_2_str(em_state_t state)
         EM_STATE_2S(em_state_agent_client_cap_report)
         EM_STATE_2S(em_state_agent_channel_pref_query)
         EM_STATE_2S(em_state_agent_sta_link_metrics_pending)
-        EM_STATE_2S(em_state_agent_beacon_report_pending)
         EM_STATE_2S(em_state_agent_channel_select_configuration_pending)
 	EM_STATE_2S(em_state_agent_unassoc_sta_metrics_report_pending)
         EM_STATE_2S(em_state_max)

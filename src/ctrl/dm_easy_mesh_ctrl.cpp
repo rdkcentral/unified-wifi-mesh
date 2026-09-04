@@ -402,6 +402,265 @@ bus_error_t em_ctrl_t::cmd_setssid(const char *method_name, const bus_data_prop_
     return bus_error_success;
 }
 
+bus_error_t em_ctrl_t::cmd_unassocstalinkmetricsquery(const char *method_name, const bus_data_prop_t *input_params, bus_data_prop_t **output_params, void *async_handle)
+{
+    (void)async_handle;
+    const char *name = method_name;
+    const char *param;
+    char instance[MAX_INSTANCE_LEN] = { 0 };
+    bool is_num;
+    const bus_data_prop_t *prop = NULL;
+    int op_class = -1;
+    int ch_idx;
+    unsigned int ch_cnt = 0;
+    tr181_unassoc_ch_item_t ch_items[TR181_CHITEM_MAX_CNT] = {};
+    em_subdoc_info_t *subdoc = NULL;
+    alignas(em_subdoc_info_t) unsigned char buff[sizeof(em_subdoc_info_t) + EM_IO_BUFF_SZ];
+    cJSON *root = NULL, *json = NULL;
+    cJSON *unassoc_arr = NULL, *unassoc_obj = NULL;
+    cJSON *ch_arr = NULL, *ch_obj = NULL;
+    cJSON *sta_mac_arr = NULL, *sta_mac_obj = NULL;
+    mac_addr_str_t mac_str;
+    char *json_buff = NULL;
+    size_t json_len = 0;
+    bus_error_t rc;
+
+    param = (name ? strrchr(name, '.') : NULL);
+    if (param == NULL) {
+        em_printfout("Invalid method name");
+        if (output_params) {
+            *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
+        }
+        return bus_error_invalid_input;
+    }
+    ++param;
+    if (strcmp("X_AIRTIES_UnassociatedStaLinkMetricsQuery()", param) != 0) {
+        em_printfout("Invalid method");
+        if (output_params) {
+            *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
+        }
+        return bus_error_invalid_method;
+    }
+
+    em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
+    if (!em_ctrl) {
+        em_printfout("Controller not found");
+        if (output_params) {
+            *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
+        }
+        return bus_error_general;
+    }
+    dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl->get_dm_ctrl();
+
+    /* Extract device instance (numeric or alias) and find the dm object for
+     * that device instance */
+    name += sizeof(DATAELEMS_NETWORK);
+    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    dm_easy_mesh_t *dm = dm_ctrl->get_dm_easy_mesh(instance, is_num);
+    if (dm == NULL) {
+        em_printfout("Device not found");
+        if (output_params) {
+            *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
+        }
+        return bus_error_invalid_namespace;
+    }
+    em_device_info_t *di = dm->get_device()->get_device_info();
+
+    /* Most of the parameters are mandatory, parse them */
+    for (prop = input_params; prop; prop = prop->next_data) {
+        if (strcmp(prop->name, "OpClass") == 0) {
+            if (!tr_181_t::tr181_get_prop_int(prop, &op_class)) {
+                goto invalid;
+            }
+        } else if (strncmp(prop->name, "Channel.", sizeof("Channel.") - 1) == 0) {
+            if (!tr_181_t::parse_object_index(prop->name, &ch_idx)) {
+                em_printfout("Parse unassoc index failed");
+                goto invalid;
+            }
+            if (ch_idx < 1 || ch_idx > TR181_CHITEM_MAX_CNT) {
+                em_printfout("Invalid ch_idx: %d", ch_idx);
+                goto invalid;
+            }
+            if (ch_idx > static_cast<int> (ch_cnt)) {
+                ch_cnt = static_cast<unsigned int> (ch_idx);
+            }
+            --ch_idx;
+            if (!tr_181_t::parse_unassoc_ch_obj(prop, &ch_items[ch_idx])) {
+                em_printfout("Parse unassoc ch_item failed");
+                goto invalid;
+            }
+        } else {
+invalid:
+            em_printfout("Invalid parameter: %s", prop->name);
+            if (output_params) {
+                *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
+            }
+            return bus_error_invalid_input;
+        }
+    }
+
+    /* Mandatory parameters: OpClass and a valid Channel object list */
+    if (op_class < 0 || ch_cnt == 0) {
+        em_printfout("Mandatory parameters missing");
+        if (output_params) {
+            *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
+        }
+        return bus_error_invalid_input;
+    }
+    for (unsigned int c = 0; c < ch_cnt; c++) {
+        tr181_unassoc_ch_item_t *ch_item = &ch_items[c];
+        if (ch_item->channel <= 0 || ch_item->sta_cnt == 0) {
+            em_printfout("Invalid Channel[%d] parameter", c);
+            if (output_params) {
+                *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
+            }
+            return bus_error_invalid_input;
+        }
+        for (unsigned int s = 0; s < ch_item->sta_cnt; s++) {
+            if (!ch_item->sta_macs[s][0]) {
+                em_printfout("Invalid Channel[%d].STA[%d] parameter", c, s);
+                if (output_params) {
+                    *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
+                }
+                return bus_error_invalid_input;
+            }
+        }
+    }
+
+    /* Prepare subdoc to be processed with command */
+    subdoc = reinterpret_cast<em_subdoc_info_t *>(buff);
+    memset(subdoc, 0, sizeof(em_subdoc_info_t));
+    strncpy(subdoc->name, "UnassocSTAQuery", sizeof(subdoc->name) - 1);
+
+    /* Create json with root "wfa-dataelements:UnassocSTAQuery" and fill
+     * with necessary parameters we extract from path */
+    rc = bus_error_out_of_resources;
+    root = cJSON_CreateObject();
+    json = cJSON_CreateObject();
+    if (!root || !json) {
+        em_printfout("Create object failed");
+        goto cleanup;
+    }
+    if (!cJSON_AddItemToObject(root, "wfa-dataelements:UnassocSTAQuery", json)) {
+        em_printfout("Add item failed");
+        cJSON_Delete(json);
+        goto cleanup;
+    }
+    dm_easy_mesh_t::macbytes_to_string(di->intf.mac, mac_str);
+    if (!cJSON_AddStringToObject(json, "AlMac", mac_str)) {
+        em_printfout("Add Device ID failed");
+        goto cleanup;
+    }
+    /* Add method parameters */
+    unassoc_arr = cJSON_AddArrayToObject(json, "UnassocStaQueryList");
+    if (!unassoc_arr) {
+        em_printfout("Add UnassocStaQueryList failed");
+        goto cleanup;
+    }
+    unassoc_obj = cJSON_CreateObject();
+    if (!unassoc_obj) {
+        em_printfout("Create object failed");
+        goto cleanup;
+    }
+    if (!cJSON_AddItemToArray(unassoc_arr, unassoc_obj)) {
+        em_printfout("Add UnassocStaQuery failed");
+        cJSON_Delete(unassoc_obj);
+        goto cleanup;
+    }
+    if (!cJSON_AddNumberToObject(unassoc_obj, "opclass", op_class)) {
+        em_printfout("Add opclass failed");
+        goto cleanup;
+    }
+    ch_arr = cJSON_AddArrayToObject(unassoc_obj, "channels");
+    if (!ch_arr) {
+        em_printfout("Add channels array failed");
+        goto cleanup;
+    }
+    for (unsigned int c = 0; c < ch_cnt; c++) {
+        ch_obj = cJSON_CreateObject();
+        if (!ch_obj) {
+            em_printfout("Create object failed");
+            goto cleanup;
+        }
+        if (!cJSON_AddItemToArray(ch_arr, ch_obj)) {
+            em_printfout("Add Channel failed");
+            cJSON_Delete(ch_obj);
+            goto cleanup;
+        }
+        tr181_unassoc_ch_item_t *ch_item = &ch_items[c];
+        if (!cJSON_AddNumberToObject(ch_obj, "channel", ch_item->channel)) {
+            em_printfout("Add channel failed");
+            goto cleanup;
+        }
+        sta_mac_arr = cJSON_AddArrayToObject(ch_obj, "sta_macs");
+        if (!sta_mac_arr) {
+            em_printfout("Add sta_macs array failed");
+            goto cleanup;
+        }
+        for (unsigned int s = 0; s < ch_item->sta_cnt; s++) {
+            sta_mac_obj = cJSON_CreateString(ch_item->sta_macs[s]);
+            if (!sta_mac_obj) {
+                em_printfout("Create string failed");
+                goto cleanup;
+            }
+            if (!cJSON_AddItemToArray(sta_mac_arr, sta_mac_obj)) {
+                em_printfout("Add item failed");
+                cJSON_Delete(sta_mac_obj);
+                goto cleanup;
+            }
+        }
+    }
+
+    /* Convert JSON back to string and store in subdoc buffer. */
+    json_buff = cJSON_PrintUnformatted(root);
+    if (!json_buff) {
+        em_printfout("Create output buffer failed");
+        rc = bus_error_out_of_resources;
+        goto cleanup;
+    }
+    /* Ensure updated JSON fits in buffer. */
+    json_len = strlen(json_buff);
+    if (json_len >= EM_IO_BUFF_SZ) {
+        em_printfout("Buffer too big for subdoc");
+        free(json_buff);
+        rc = bus_error_invalid_input;
+        goto cleanup;
+    }
+    memcpy(subdoc->buff, json_buff, json_len);
+    subdoc->buff[json_len] = '\0';
+
+    // uncomment below lines to log the updated JSON before sending to DM; can be helpful for debugging.
+    /*
+    cJSON *json_obj;
+    json_obj = cJSON_Parse(subdoc->buff);
+    if (json_obj) {
+        char *new_json = cJSON_Print(json_obj);
+        em_printfout("Updated and formatted JSON:\n%s", new_json);
+        free(new_json);
+        cJSON_Delete(json_obj);
+    } else {
+        em_printfout("Invalid JSON in subdoc->buff");
+    }
+    */
+
+    em_ctrl->io_process(em_bus_event_type_unassoc_sta_query, subdoc->buff, json_len);
+    free(json_buff);
+    cJSON_Delete(root);
+
+    if (output_params) {
+        *output_params = tr_181_t::tr181_set_status_output_prop("Success");
+    }
+
+    return bus_error_success;
+
+cleanup:
+    cJSON_Delete(root);
+    if (output_params) {
+        *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
+    }
+    return rc;
+}
+
 bus_error_t em_ctrl_t::cmd_steerwifibh(const char *method_name, const bus_data_prop_t *input_params, bus_data_prop_t **output_params, void *async_handle)
 {
     (void)async_handle;
@@ -837,6 +1096,7 @@ invalid:
             int channel = static_cast<int> (std::strtol(channels[i].c_str(), &ep, 10));
             if (ep == channels[i].c_str() || *ep != '\0') {
                 em_printfout("Invalid channel");
+                rc = bus_error_invalid_input;
                 goto cleanup;
             }
             chlist_obj = cJSON_CreateNumber(channel);
@@ -2411,6 +2671,9 @@ int dm_easy_mesh_ctrl_t::analyze_sta_assoc_event(em_bus_event_t *evt, em_cmd_t *
     bool radio_matched = false, found = false;
     em_orch_desc_t desc;
     mac_address_t fallback_ruid = {0};
+    bool is_ap_mld = false;
+    bool is_assoc = false;
+    bool sta_exists = false;
 
     if (evt == NULL) {
         em_printfout("NULL event");
@@ -2422,8 +2685,8 @@ int dm_easy_mesh_ctrl_t::analyze_sta_assoc_event(em_bus_event_t *evt, em_cmd_t *
     dm_easy_mesh_t::macbytes_to_string(params->assoc.cli_mac_address, sta_mac_str);
     dm_easy_mesh_t::macbytes_to_string(params->assoc.bssid, bss_mac_str);
     
-    //printf("%s:%d: Client:%s %s BSS: %s of Device: %s\n", __func__, __LINE__,
-        //sta_mac_str, (params->assoc.assoc_event == 1)?"associated with":"disassociated from", bss_mac_str, dev_mac_str);
+    // em_printfout("%s:%d: Client:%s %s BSS: %s of Device: %s\n", __func__, __LINE__,
+    //     sta_mac_str, (params->assoc.assoc_event == 1)?"associated with":"disassociated from", bss_mac_str, dev_mac_str);
 
     evt->params.u.args.num_args = 4;
     strncpy(evt->params.u.args.args[0], dev_mac_str, sizeof(em_long_string_t));
@@ -2433,13 +2696,15 @@ int dm_easy_mesh_ctrl_t::analyze_sta_assoc_event(em_bus_event_t *evt, em_cmd_t *
     strncpy(evt->params.u.args.args[3], (params->assoc.assoc_event == 1)?"Assoc":"Disassoc", len);
     pdm = get_data_model(GLOBAL_NET_ID, params->dev);
     if (pdm == NULL) {
-        printf("%s:%d: Could not find data model for dev: %s\n", __func__, __LINE__, dev_mac_str);
+        em_printfout("Could not find data model for dev: %s", dev_mac_str);
         return -1;
     }
 
     pdm->set_topo_state(true);
 
-    if (pdm->is_ap_mld_mac(params->assoc.bssid) == false) {
+    is_ap_mld = pdm->is_ap_mld_mac(params->assoc.bssid);
+
+    if (is_ap_mld == false) {
         em_printfout("bssid=%s is not AP-MLD MAC, using direct BSS lookup for STA assoc event", bss_mac_str);
         found = false;
         for (i = 0; i < pdm->get_num_radios(); i++) {
@@ -2455,8 +2720,8 @@ int dm_easy_mesh_ctrl_t::analyze_sta_assoc_event(em_bus_event_t *evt, em_cmd_t *
 
             // confirm that the radio is on this device
             for (i = 0; i < pdm->m_num_radios; i++) {
-                    if (memcmp(pbss->m_bss_info.ruid.mac, pdm->m_radio[i].m_radio_info.intf.mac,
-                           sizeof(mac_address_t)) == 0) {
+                if (memcmp(pbss->m_bss_info.ruid.mac, pdm->m_radio[i].m_radio_info.intf.mac,
+                        sizeof(mac_address_t)) == 0) {
                     radio_matched = true;
                     break;
                 }
@@ -2481,7 +2746,37 @@ int dm_easy_mesh_ctrl_t::analyze_sta_assoc_event(em_bus_event_t *evt, em_cmd_t *
     tmp = pcmd[num];
     num++;
 
-    if (params->assoc.assoc_event == false) {
+    is_assoc = (params->assoc.assoc_event == true) ? true : false;
+    // Look up STA in datamodel (m_sta_map)
+    dm_sta_t *iter = static_cast<dm_sta_t *>(hash_map_get_first(pdm->m_sta_map));
+    while (iter != NULL) {
+        if (memcmp(iter->m_sta_info.id, params->assoc.cli_mac_address, sizeof(mac_address_t)) == 0) {
+            if (is_ap_mld) {
+                // MLD STA is "known" only if we already have its capability data
+                sta_exists = (iter->m_sta_info.frame_body_len > 0);
+            } else {
+                // Legacy STA: verify BSSID matches and we have capability data
+                if (memcmp(iter->m_sta_info.bssid, params->assoc.bssid, sizeof(mac_address_t)) == 0) {
+                    sta_exists = (iter->m_sta_info.frame_body_len > 0);
+                }
+            }
+            em_printfout("sta found in m_sta_map %s, sta_exists=%d", sta_mac_str, sta_exists);
+            break;
+        }
+        iter = static_cast<dm_sta_t *>(hash_map_get_next(pdm->m_sta_map, iter));
+    }
+
+    // Look up STA in persistent DB map (m_sta_assoc_map)
+    iter = static_cast<dm_sta_t *>(hash_map_get_first(pdm->m_sta_assoc_map));
+    while (iter != NULL) {
+        if (memcmp(iter->m_sta_info.id, params->assoc.cli_mac_address, sizeof(mac_address_t)) == 0) {
+            em_printfout("sta found in m_assoc_map %s", sta_mac_str);
+            break;
+        }
+        iter = static_cast<dm_sta_t *>(hash_map_get_next(pdm->m_sta_assoc_map, iter));
+    }
+
+    if (is_assoc == false) {
         desc.op = dm_orch_type_topo_update;
         desc.submit = false;
         pcmd[num - 1]->override_op(0, &desc);
@@ -2489,17 +2784,48 @@ int dm_easy_mesh_ctrl_t::analyze_sta_assoc_event(em_bus_event_t *evt, em_cmd_t *
         desc.submit = true;
         pcmd[num - 1]->override_op(1, &desc);
         pcmd[num - 1]->m_num_orch_desc = 2;
-    } else if ((params->assoc.assoc_event == true) && (found == true) &&
-               (pdm->is_ap_mld_mac(params->assoc.bssid) == false)) {
-        // BSS is directly resolvable for a non-MLO client — topology query not needed;
-        // skip dm_orch_type_topo_sync and go straight to client capability query + publish.
-        desc.op = dm_orch_type_sta_cap;
-        desc.submit = true;
-        pcmd[num - 1]->override_op(0, &desc);
-        desc.op = dm_orch_type_topo_publish;
-        desc.submit = true;
-        pcmd[num - 1]->override_op(1, &desc);
-        pcmd[num - 1]->m_num_orch_desc = 2;
+    } else {
+        if (sta_exists == true) {
+            if (is_ap_mld == false) {
+                // Non-MLO: STA already known with full capability data - skip topo_sync.
+                desc.op = dm_orch_type_topo_update;
+                desc.submit = false;
+                pcmd[num - 1]->override_op(0, &desc);
+                desc.op = dm_orch_type_topo_publish;
+                desc.submit = true;
+                pcmd[num - 1]->override_op(1, &desc);
+                pcmd[num - 1]->m_num_orch_desc = 2;
+                em_printfout("STA info already present in data model, skipping topology query. Do a topology update + publish for STA assoc event");
+            } else {
+                // MLO: even if STA capability data is known, per-link association state
+                // (which BSSIDs are active) can change on every assoc event.  We must
+                // trigger a topo_sync so that handle_assoc_sta_mld_topology_update()
+                // runs against fresh assoc_sta_mld_conf_rep data and correctly refreshes
+                // all per-link entries in m_sta_assoc_map / DB.
+                em_printfout("MLO STA %s re-association: triggering topo_sync to refresh per-link state", sta_mac_str);
+                for (unsigned int i = 0; i < pcmd[num - 1]->m_num_orch_desc; i++) {
+                    em_printfout("Orch desc %u: op = %d, submit = %d", i, pcmd[num - 1]->m_orch_desc[i].op, pcmd[num - 1]->m_orch_desc[i].submit);
+                    if (pcmd[num - 1]->m_orch_desc[i].op == dm_orch_type_sta_cap) {
+                        em_orch_desc_t updated = pcmd[num - 1]->m_orch_desc[i];
+                        updated.submit = false;
+                        pcmd[num - 1]->override_op(i, &updated);
+                    }
+                }
+            }
+        } else {
+            // New Non-MLO client: STA doesn't exist
+            if ((found == true) && (is_ap_mld == false)) {
+                // BSS is directly resolvable for a non-MLO client - topology query not needed;
+                em_printfout("New non-mlo STA identified Send a cap query....");
+                desc.op = dm_orch_type_sta_cap;
+                desc.submit = true;
+                pcmd[num - 1]->override_op(0, &desc);
+                desc.op = dm_orch_type_topo_publish;
+                desc.submit = true;
+                pcmd[num - 1]->override_op(1, &desc);
+                pcmd[num - 1]->m_num_orch_desc = 2;
+            }
+        }
     }
 
     while ((pcmd[num] = tmp->clone_for_next()) != NULL) {
@@ -7455,6 +7781,9 @@ bus_error_t dm_easy_mesh_ctrl_t::sta_get_inner(char *event_name, raw_data_t *p_d
         em_printfout("sta is NULL\n");
         return bus_error_invalid_input;
     }
+    /* The capability fields are derived from the stored (re)assoc request frame
+       body, not persisted with the station record; decode before reading. */
+    dm_sta_t::decode_sta_capability(sta);
     em_sta_info_t *si = sta->get_sta_info();
 
     if (strcmp(param, "MACAddress") == 0) {
@@ -7612,6 +7941,9 @@ bus_error_t dm_easy_mesh_ctrl_t::sta_tget_params(dm_easy_mesh_t *dm, const char 
             continue;
         }
         ++idx;
+
+        /* Derived capability fields; decode before reading (see sta_get_inner). */
+        dm_sta_t::decode_sta_capability(sta);
 
         char ht_caps_str[32] = {0};
         char vht_caps_str[32] = {0};
@@ -8462,7 +8794,7 @@ bus_error_t dm_easy_mesh_ctrl_t::affsta_get_inner(char *event_name, raw_data_t *
     em_sta_info_t *si = NULL;
     while (sta != NULL) {
         si = sta->get_sta_info();
-        if (si->associated && memcmp(asi->mac_addr, si->id, sizeof(mac_addr_t)) != 0) {
+        if (si->associated && memcmp(asi->link_addr, si->id, sizeof(mac_addr_t)) != 0) {
             break;
         }
         sta = static_cast<dm_sta_t *> (hash_map_get_next(dm->m_sta_map, sta));
@@ -8470,7 +8802,7 @@ bus_error_t dm_easy_mesh_ctrl_t::affsta_get_inner(char *event_name, raw_data_t *
     }
 
     if (strcmp(param, "MACAddress") == 0) {
-        rc = dm_ctrl->raw_data_set(p_data, asi->mac_addr);
+        rc = dm_ctrl->raw_data_set(p_data, asi->link_addr);
     } else if (strcmp(param, "BSSID") == 0) {
         rc = dm_ctrl->raw_data_set(p_data, asi->bssid);
     } else if (strcmp(param, "BytesSent") == 0) {
@@ -8567,14 +8899,14 @@ bus_error_t dm_easy_mesh_ctrl_t::affsta_tget_params(dm_easy_mesh_t *dm, const ch
         em_sta_info_t *si = NULL;
         while (sta != NULL) {
             si = sta->get_sta_info();
-            if (si->associated && memcmp(asi->mac_addr, si->id, sizeof(mac_addr_t)) != 0) {
+            if (si->associated && memcmp(asi->link_addr, si->id, sizeof(mac_addr_t)) != 0) {
                 break;
             }
             sta = static_cast<dm_sta_t *> (hash_map_get_next(dm->m_sta_map, sta));
             si = NULL;
         }
 
-        dm_ctrl->property_append_tail(property, root, idx, "MACAddress", asi->mac_addr);
+        dm_ctrl->property_append_tail(property, root, idx, "MACAddress", asi->link_addr);
         dm_ctrl->property_append_tail(property, root, idx, "BSSID", asi->bssid);
         dm_ctrl->property_append_tail(property, root, idx, "BytesSent", si ? si->bytes_tx : 0);
         dm_ctrl->property_append_tail(property, root, idx, "BytesReceived", si ? si->bytes_rx : 0);

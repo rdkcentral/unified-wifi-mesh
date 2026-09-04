@@ -22,9 +22,15 @@
 #include "em_cmd.h"
 
 class em_cmd_sta_assoc_t : public em_cmd_t {
+private:
+	time_t m_beacon_query_tx_time = 0;
 
 public:
-    
+    bool supports_retry_state() const override { return true; }
+	time_t get_query_tx_time() const override { return m_beacon_query_tx_time; }
+	void set_query_tx_time(time_t tx_time) override { m_beacon_query_tx_time = tx_time; }
+	void clear_query_tx_time() override { m_beacon_query_tx_time = 0; }
+
 	/**!
 	 * @brief Associates a station with the given parameters and mesh configuration.
 	 *
