@@ -1253,22 +1253,22 @@ TEST(dm_assoc_sta_mld_t_Test, CopyConstructorWithInvalidMacAddressInput) {
  * | Variation / Step | Description | Test Data |Expected Result |Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
  * | 01| Initialize original object with maximum affiliated stations | original.m_assoc_sta_mld_info.num_affiliated_sta = EM_MAX_AP_MLD | Should be successful | |
- * | 02| Set MAC addresses for each affiliated station in the original object | original.m_assoc_sta_mld_info.affiliated_sta[i].mac_addr[0] = i (for i from 0 to EM_MAX_AP_MLD-1) | Should be successful | |
+ * | 02| Set MAC addresses for each affiliated station in the original object | original.m_assoc_sta_mld_info.affiliated_sta[i].link_addr[0] = i (for i from 0 to EM_MAX_AP_MLD-1) | Should be successful | |
  * | 03| Invoke copy constructor to create a new object from the original | dm_assoc_sta_mld_t copy(original) | Should be successful | Should Pass |
  * | 04| Verify the number of affiliated stations in the copied object | copy.m_assoc_sta_mld_info.num_affiliated_sta == original.m_assoc_sta_mld_info.num_affiliated_sta | Should be equal | Should Pass |
- * | 05| Verify the MAC addresses of each affiliated station in the copied object | copy.m_assoc_sta_mld_info.affiliated_sta[i].mac_addr[0] == original.m_assoc_sta_mld_info.affiliated_sta[i].mac_addr[0] (for i from 0 to EM_MAX_AP_MLD-1) | Should be equal | Should Pass |
+ * | 05| Verify the MAC addresses of each affiliated station in the copied object | copy.m_assoc_sta_mld_info.affiliated_sta[i].link_addr[0] == original.m_assoc_sta_mld_info.affiliated_sta[i].link_addr[0] (for i from 0 to EM_MAX_AP_MLD-1) | Should be equal | Should Pass |
  */
 TEST(dm_assoc_sta_mld_t_Test, CopyConstructorWithMaxAffiliatedStations) {
     std::cout << "Entering CopyConstructorWithMaxAffiliatedStations" << std::endl;
     dm_assoc_sta_mld_t original;
     original.m_assoc_sta_mld_info.num_affiliated_sta = EM_MAX_AP_MLD;
     for (size_t i = 0; i < EM_MAX_AP_MLD; ++i) {
-        original.m_assoc_sta_mld_info.affiliated_sta[i].mac_addr[0] = static_cast<unsigned char>(i);
+        original.m_assoc_sta_mld_info.affiliated_sta[i].link_addr[0] = static_cast<unsigned char>(i);
     }
     dm_assoc_sta_mld_t copy(original);
     EXPECT_EQ(copy.m_assoc_sta_mld_info.num_affiliated_sta, original.m_assoc_sta_mld_info.num_affiliated_sta);
     for (size_t i = 0; i < EM_MAX_AP_MLD; ++i) {
-        EXPECT_EQ(copy.m_assoc_sta_mld_info.affiliated_sta[i].mac_addr[0], original.m_assoc_sta_mld_info.affiliated_sta[i].mac_addr[0]);
+        EXPECT_EQ(copy.m_assoc_sta_mld_info.affiliated_sta[i].link_addr[0], original.m_assoc_sta_mld_info.affiliated_sta[i].link_addr[0]);
     }
     std::cout << "Exiting CopyConstructorWithMaxAffiliatedStations" << std::endl;
 }
