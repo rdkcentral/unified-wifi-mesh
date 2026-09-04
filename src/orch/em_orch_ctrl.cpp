@@ -251,6 +251,12 @@ bool em_orch_ctrl_t::is_em_ready_for_orch_fini(em_cmd_t *pcmd, em_t *em)
             }
             break;
 
+        case em_cmd_type_client_assoc_ctrl_req:
+            if (em->get_state() == em_state_ctrl_configured) {
+                return true;
+            }
+            break;
+
         case em_cmd_type_sta_disassoc:
             if (em->get_client_assoc_ctrl_req_tx_count() >= EM_MAX_CLIENT_ASSOC_CTRL_REQ_TX_THRESH) {
                 em->set_client_assoc_ctrl_req_tx_count(0);
@@ -367,6 +373,7 @@ bool em_orch_ctrl_t::is_em_ready_for_orch_exec(em_cmd_t *pcmd, em_t *em)
         case em_cmd_type_set_policy:
         case em_cmd_type_bsta_cap:
 	    case em_cmd_type_unassoc_sta_query:
+        case em_cmd_type_client_assoc_ctrl_req:
             if (em->get_state() == em_state_ctrl_configured) {
                 return true;
             }
@@ -566,6 +573,7 @@ bool em_orch_ctrl_t::pre_process_orch_op(em_cmd_t *pcmd)
 
         case dm_orch_type_topo_publish:
         case dm_orch_type_bsta_cap_query:
+        case dm_orch_type_client_assoc:
 			break;
 
         default:
@@ -711,6 +719,19 @@ unsigned int em_orch_ctrl_t::build_candidates(em_cmd_t *pcmd)
 
             case em_cmd_type_sta_steer:
                 if (em->find_sta(pcmd->m_param.u.steer_params.sta_mac, pcmd->m_param.u.steer_params.source) != NULL) {
+                    queue_push(pcmd->m_em_candidates, em);
+                    count++;
+                }
+                break;
+
+            case em_cmd_type_client_assoc_ctrl_req:
+                if (em->is_al_interface_em() == false) {
+                    em_cmd_client_assoc_params_t *assoc = &pcmd->m_param.u.client_assoc_params;
+
+                    if (em->find_bss(assoc->bssid) == NULL) {
+                        em_printfout("Skipping radio (BSSID not owned by this EM)\n");
+                        break;
+                    }
                     queue_push(pcmd->m_em_candidates, em);
                     count++;
                 }
