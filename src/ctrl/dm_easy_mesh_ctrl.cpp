@@ -9736,19 +9736,25 @@ int dm_easy_mesh_ctrl_t::init(const char *data_model_path, em_mgr_t *mgr)
     tr_181_t::init(this);
     rc = load_tables();
 
-    //Database is empty and need to fill it, then load tables with data again
-    if (rc == -1) {
-       //Assuming this will not fail, and there is known setup script to fill data
-       printf("%s:%d: data base empty ... fill it from /usr/ccsp/EasyMesh/setup_mysql_db_post.sh\n", __func__, __LINE__);
-       std::system("/usr/ccsp/EasyMesh/setup_mysql_db_post.sh");
-
-       //Load tables and update rc to check it for non-empty database
-       rc = load_tables();
+	if (rc == -1) {
+        static const char *sqlite_setup_script = "/usr/ccsp/EasyMesh/setup_sqlite_db_post.sh";
+        if (access(sqlite_setup_script, X_OK) == 0) {
+            printf("%s:%d: database is empty; initializing it with %s\n",
+                   __func__, __LINE__, sqlite_setup_script);
+            std::string setup_command = std::string(sqlite_setup_script) +
+                " >> /tmp/setup_sqlite_db_post.log 2>&1";
+            if (std::system(setup_command.c_str()) == 0) {
+                rc = load_tables();
+            } else {
+                printf("%s:%d: SQLite database initialization failed\n", __func__, __LINE__);
+            }
+        }
     }
 
     if (rc != 0) {
         printf("%s:%d: Load operation failed, err: %s\n", __func__, __LINE__, em_cmd_t::get_orch_op_str(static_cast<dm_orch_type_t> (rc)));
-        return -1;
+        
+		return -1;
     }
 
     return 0;
