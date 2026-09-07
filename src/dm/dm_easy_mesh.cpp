@@ -95,9 +95,26 @@ dm_easy_mesh_t& dm_easy_mesh_t::operator = (dm_easy_mesh_t const& obj)
 
     m_db_cfg_param = obj.m_db_cfg_param;
 
-    m_num_policy = obj.m_num_policy;
-    for (unsigned int i = 0; i < EM_MAX_POLICIES; i++) {
-        m_policy[i] = obj.m_policy[i];
+    // Replace policy map contents with a deep copy from obj
+    if (m_policy_map == NULL) {
+        m_policy_map = hash_map_create();
+    } else {
+        dm_policy_t *p = static_cast<dm_policy_t *>(hash_map_get_first(m_policy_map));
+        while (p != NULL) {
+            dm_policy_t *next = static_cast<dm_policy_t *>(hash_map_get_next(m_policy_map, p));
+            em_2xlong_string_t k;
+            dm_easy_mesh_t::get_policy_key(p->m_policy.id, k, sizeof(k));
+            delete static_cast<dm_policy_t *>(hash_map_remove(m_policy_map, k));
+            p = next;
+        }
+    }
+
+    if (obj.m_policy_map != NULL && m_policy_map != NULL) {
+        dm_policy_t *policy = static_cast<dm_policy_t *> (hash_map_get_first(obj.m_policy_map));
+        while (policy != NULL) {
+            set_policy(*policy);
+	    policy = static_cast<dm_policy_t *> (hash_map_get_next(obj.m_policy_map, policy));
+        }
     }
 
     m_num_ap_mld = obj.m_num_ap_mld;
@@ -130,6 +147,46 @@ dm_easy_mesh_t& dm_easy_mesh_t::operator = (dm_easy_mesh_t const& obj)
     m_instance_num = obj.m_instance_num;
 
     return *this;
+}
+
+void dm_easy_mesh_t::get_policy_key(const em_policy_id_t& id,
+                                    char *key,
+                                    size_t sz)
+{
+    mac_addr_str_t dev_mac_str, radio_mac_str;
+
+    dm_easy_mesh_t::macbytes_to_string(
+        const_cast<unsigned char *>(id.dev_mac), dev_mac_str);
+
+    dm_easy_mesh_t::macbytes_to_string(
+        const_cast<unsigned char *>(id.radio_mac), radio_mac_str);
+
+    snprintf(key, sz, "%s@%s@%s@%d",
+             id.net_id,
+             dev_mac_str,
+             radio_mac_str,
+             id.type);
+}
+
+bool dm_easy_mesh_t::has_policy_type(em_policy_id_type_t type) const
+{
+    if (m_policy_map == NULL) {
+        return false;
+    }
+
+    dm_policy_t *policy =
+        static_cast<dm_policy_t *>(hash_map_get_first(m_policy_map));
+
+    while (policy != NULL) {
+        if (policy->m_policy.id.type == type) {
+            return true;
+        }
+
+        policy = static_cast<dm_policy_t *>(
+            hash_map_get_next(m_policy_map, policy));
+    }
+
+    return false;
 }
 
 int dm_easy_mesh_t::commit_config(dm_easy_mesh_t& dm, em_commit_target_t target)
@@ -1104,22 +1161,25 @@ int dm_easy_mesh_t::decode_config_set_policy(em_subdoc_info_t *subdoc, const cha
     if ((alarm_obj = cJSON_GetObjectItem(policy_obj, "Algorithm Run Policy")) != NULL) {
         snprintf(parent, sizeof(em_long_string_t), "%s@%s@00:00:00:00:00:00@%d", net_id, dev_mac_str,
                     em_policy_id_type_alarm_threshold);
-        m_policy[m_num_policy].decode(alarm_obj, parent, em_policy_id_type_alarm_threshold);
-        m_num_policy++;
+        dm_policy_t pol;
+        pol.decode(alarm_obj, parent, em_policy_id_type_alarm_threshold);
+        set_policy(pol);
     }
 
     if ((client_obj = cJSON_GetObjectItem(policy_obj, "Client Filters")) != NULL) {
         snprintf(parent, sizeof(em_long_string_t), "%s@%s@00:00:00:00:00:00@%d", net_id, dev_mac_str,
             em_policy_id_type_client_filters);
-        m_policy[m_num_policy].decode(client_obj, parent, em_policy_id_type_client_filters);
-        m_num_policy++;
+        dm_policy_t pol;
+        pol.decode(client_obj, parent, em_policy_id_type_client_filters);
+        set_policy(pol);
     }
 
     if ((ap_metrics_obj = cJSON_GetObjectItem(policy_obj, "AP Metrics Reporting Policy")) != NULL) {
         snprintf(parent, sizeof(em_long_string_t), "%s@%s@00:00:00:00:00:00@%d", net_id, dev_mac_str,
                     em_policy_id_type_ap_metrics_rep);
-        m_policy[m_num_policy].decode(ap_metrics_obj, parent, em_policy_id_type_ap_metrics_rep);
-        m_num_policy++;
+        dm_policy_t pol;
+        pol.decode(ap_metrics_obj, parent, em_policy_id_type_ap_metrics_rep);
+        set_policy(pol);
     }
 
     // "Steering Policies" wrapper (groups local/BTM disallowed + radio steering params)
@@ -1131,60 +1191,88 @@ int dm_easy_mesh_t::decode_config_set_policy(em_subdoc_info_t *subdoc, const cha
     if ((local_steer_obj = cJSON_GetObjectItem(steer_local_parent, "Local Steering Disallowed Policy")) != NULL) {
         snprintf(parent, sizeof(em_long_string_t), "%s@%s@00:00:00:00:00:00@%d", net_id, dev_mac_str,
                     em_policy_id_type_steering_local);
-        m_policy[m_num_policy].decode(local_steer_obj, parent, em_policy_id_type_steering_local);
-        m_num_policy++;
+        dm_policy_t pol;
+        pol.decode(local_steer_obj, parent, em_policy_id_type_steering_local);
+        set_policy(pol); // This will update the entries in the policy hash map
     }
 
     if ((btm_steer_obj = cJSON_GetObjectItem(steer_btm_parent, "BTM Steering Disallowed Policy")) != NULL) {
         snprintf(parent, sizeof(em_long_string_t), "%s@%s@00:00:00:00:00:00@%d", net_id, dev_mac_str,
                     em_policy_id_type_steering_btm);
-        m_policy[m_num_policy].decode(btm_steer_obj, parent, em_policy_id_type_steering_btm);
-        m_num_policy++;
+        dm_policy_t pol;
+        pol.decode(btm_steer_obj, parent, em_policy_id_type_steering_btm);
+        set_policy(pol);
     }
 
     if ((backhaul_obj = cJSON_GetObjectItem(policy_obj, "Backhaul BSS Configuration Policy")) != NULL) {
+        dm_policy_t agg_pol;
+        bool has_entry = false;
         for (i = 0; i < cJSON_GetArraySize(backhaul_obj); i++) {
             cJSON *backhaul_item_obj = cJSON_GetArrayItem(backhaul_obj, i);
             snprintf(parent, sizeof(em_long_string_t), "%s@%s@00:00:00:00:00:00@%d", net_id, dev_mac_str,
                         em_policy_id_type_backhaul_bss_config);
-            m_policy[m_num_policy].decode(backhaul_item_obj, parent, em_policy_id_type_backhaul_bss_config);
-            m_num_policy++;
+            dm_policy_t pol;
+            pol.decode(backhaul_item_obj, parent, em_policy_id_type_backhaul_bss_config);
+            // decode() resets the whole struct each call, so merge this item's single
+            // entry into the aggregate instead of overwriting it via repeated set_policy()
+            if (!has_entry) {
+                agg_pol = pol;
+                has_entry = true;
+            } else {
+                for (unsigned int b = 0; b < pol.m_policy.num_backhaul_bss_config; b++) {
+                    if (agg_pol.m_policy.num_backhaul_bss_config < EM_MAX_BSSS) {
+                        unsigned int slot = agg_pol.m_policy.num_backhaul_bss_config;
+                        agg_pol.m_policy.backhaul_bss_config[slot] = pol.m_policy.backhaul_bss_config[b];
+                        agg_pol.m_policy.num_backhaul_bss_config++;
+                    } else {
+                        em_printfout("decode_config_set_policy: backhaul BSS config overflow, dropping entry beyond %u", static_cast<unsigned int>(EM_MAX_BSSS));
+                    }
+                }
+            }
+        }
+        if (has_entry) {
+            set_policy(agg_pol);
         }
     }
 
     if ((scan_obj = cJSON_GetObjectItem(policy_obj, "Channel Scan Reporting Policy")) != NULL) {
         snprintf(parent, sizeof(em_long_string_t), "%s@%s@00:00:00:00:00:00@%d", net_id, dev_mac_str,
                     em_policy_id_type_channel_scan);
-        m_policy[m_num_policy].decode(scan_obj, parent, em_policy_id_type_channel_scan);
-        m_num_policy++;
+        dm_policy_t pol;
+        pol.decode(scan_obj, parent, em_policy_id_type_channel_scan);
+        set_policy(pol);
     }
 
     if ((unsuccess_assoc_obj = cJSON_GetObjectItem(policy_obj, "Unsuccessful Association Policy")) != NULL) {
         snprintf(parent, sizeof(em_long_string_t), "%s@%s@00:00:00:00:00:00@%d", net_id, dev_mac_str,
                     em_policy_id_type_unsuccess_assoc);
-        m_policy[m_num_policy].decode(unsuccess_assoc_obj, parent, em_policy_id_type_unsuccess_assoc);
-        m_num_policy++;
+        dm_policy_t pol;
+        pol.decode(unsuccess_assoc_obj, parent, em_policy_id_type_unsuccess_assoc);
+        set_policy(pol);
     }
 
     if ((qos_mgt_obj = cJSON_GetObjectItem(policy_obj, "QoS Management Policy")) != NULL) {
         snprintf(parent, sizeof(em_long_string_t), "%s@%s@00:00:00:00:00:00@%d", net_id, dev_mac_str,
                     em_policy_id_type_qos_mgt);
-        m_policy[m_num_policy].decode(qos_mgt_obj, parent, em_policy_id_type_qos_mgt);
-        m_num_policy++;
+        dm_policy_t pol;
+        pol.decode(qos_mgt_obj, parent, em_policy_id_type_qos_mgt);
+        set_policy(pol);
     }
 
     if ((def_8021q_obj = cJSON_GetObjectItem(policy_obj, "Default 802.1Q Settings Policy")) != NULL) {
         snprintf(parent, sizeof(em_long_string_t), "%s@%s@00:00:00:00:00:00@%d", net_id, dev_mac_str,
                     em_policy_id_type_default_8021q_settings);
-        m_policy[m_num_policy].decode(def_8021q_obj, parent, em_policy_id_type_default_8021q_settings);
-        m_num_policy++;
+        dm_policy_t pol;
+        pol.decode(def_8021q_obj, parent, em_policy_id_type_default_8021q_settings);
+        set_policy(pol);
     }
 
     if ((traffic_sep_obj = cJSON_GetObjectItem(policy_obj, "Traffic Separation Policy")) != NULL) {
         snprintf(parent, sizeof(em_long_string_t), "%s@%s@00:00:00:00:00:00@%d", net_id, dev_mac_str,
                     em_policy_id_type_traffic_separation);
-        m_policy[m_num_policy].decode(traffic_sep_obj, parent, em_policy_id_type_traffic_separation);
-        m_num_policy++;
+        dm_policy_t pol;
+        pol.decode(traffic_sep_obj, parent, em_policy_id_type_traffic_separation);
+        set_policy(pol);
     }
 
     if ((radio_metrics_arr_obj = cJSON_GetObjectItem(policy_obj, "Radio Specific Metrics Policy")) != NULL) {
@@ -1197,8 +1285,9 @@ int dm_easy_mesh_t::decode_config_set_policy(em_subdoc_info_t *subdoc, const cha
             }
             snprintf(parent, sizeof(em_long_string_t), "%s@%s@%s@%d", net_id, dev_mac_str, radio_id_str,
                         em_policy_id_type_radio_metrics_rep);
-            m_policy[m_num_policy].decode(radio_metrics_obj, parent, em_policy_id_type_radio_metrics_rep);
-            m_num_policy++;
+            dm_policy_t pol;
+            pol.decode(radio_metrics_obj, parent, em_policy_id_type_radio_metrics_rep);
+            set_policy(pol);
         }
     }
 
@@ -1212,8 +1301,9 @@ int dm_easy_mesh_t::decode_config_set_policy(em_subdoc_info_t *subdoc, const cha
             }
             snprintf(parent, sizeof(em_long_string_t), "%s@%s@%s@%d", net_id, dev_mac_str, id_str,
                         em_policy_id_type_steering_param);
-            m_policy[m_num_policy].decode(radio_steer_obj, parent, em_policy_id_type_steering_param);
-            m_num_policy++;
+            dm_policy_t pol;
+            pol.decode(radio_steer_obj, parent, em_policy_id_type_steering_param);
+            set_policy(pol);
         }
     }
 
@@ -3082,12 +3172,12 @@ void dm_easy_mesh_t::deinit()
 {
     dm_sta_t *sta = NULL;
     dm_sta_t *tmp_sta = NULL;
+    dm_policy_t	*policy = NULL;
+    dm_policy_t	*tmp_policy = NULL;
     dm_scan_result_t	*res = NULL;
     dm_scan_result_t	*tmp_res = NULL;
     em_2xlong_string_t key;
     mac_addr_str_t dev_mac_str, radio_mac_str, bss_mac_str, sta_mac_str, scanner_mac_str;
-
-    // idempotent: also called from ~em_cmd_t; guard each map and reset it to NULL
 
     //destroy elements of m_scan_result_map
     if (m_scan_result_map != NULL) {
@@ -3128,6 +3218,22 @@ void dm_easy_mesh_t::deinit()
     }
     sta = NULL;
 
+    //destroy elements of m_policy_map
+    if (m_policy_map != NULL) {
+	    policy = static_cast<dm_policy_t *>(hash_map_get_first(m_policy_map));
+	    while (policy != NULL) {
+		    tmp_policy = policy;
+		    policy = static_cast<dm_policy_t *>(hash_map_get_next(m_policy_map, policy));
+
+		    dm_easy_mesh_t::get_policy_key(tmp_policy->m_policy.id, key, sizeof(key));
+		    if ((tmp_policy = static_cast<dm_policy_t *>(hash_map_remove(m_policy_map, key))) != NULL) {
+			    delete tmp_policy;
+		    }
+	    }
+	    hash_map_destroy(m_policy_map);
+	    m_policy_map = NULL;
+    }
+
     if (m_sta_assoc_map != NULL) {
         sta = static_cast<dm_sta_t *> (hash_map_get_first(m_sta_assoc_map));
         while (sta != NULL)
@@ -3138,7 +3244,6 @@ void dm_easy_mesh_t::deinit()
             dm_easy_mesh_t::macbytes_to_string(tmp_sta->m_sta_info.bssid, bss_mac_str);
             dm_easy_mesh_t::macbytes_to_string(tmp_sta->m_sta_info.radiomac, radio_mac_str);
             snprintf(key, sizeof(em_long_string_t), "%s@%s@%s", sta_mac_str, bss_mac_str, radio_mac_str);
-
             delete static_cast<dm_sta_t *> (hash_map_remove(m_sta_assoc_map, key));
         }
         hash_map_destroy(m_sta_assoc_map);
@@ -3173,27 +3278,37 @@ void dm_easy_mesh_t::deinit()
 
 void dm_easy_mesh_t::set_policy(dm_policy_t policy)
 {
-	unsigned int i = 0;
 	dm_policy_t *ppolicy;
-	bool found_match = false;
-	bool temp = 0;
-    for (i = 0; i < m_num_policy; i++) {
-        ppolicy = &m_policy[i];
-        temp = ((strncmp(policy.m_policy.id.net_id, ppolicy->m_policy.id.net_id, strlen(policy.m_policy.id.net_id)) == 0) &&
-                (memcmp(policy.m_policy.id.dev_mac, ppolicy->m_policy.id.dev_mac, sizeof(mac_address_t)) == 0) &&
-                (memcmp(policy.m_policy.id.radio_mac, ppolicy->m_policy.id.radio_mac, sizeof(mac_address_t)) == 0));
+	em_2xlong_string_t key;
 
-        if ( (temp == true) && (policy.m_policy.id.type == ppolicy->m_policy.id.type) ) {
-            found_match = true;
-            break;
-        }
-    }
+	if (m_policy_map == NULL) {
+		m_policy_map = hash_map_create();
+		if (m_policy_map == NULL) {
+			em_printfout("Failed to create policy map\n");
+			return;
+		}
+	}
 
-	memcpy(&m_policy[i].m_policy, &policy.m_policy, sizeof(em_policy_t));
-	memcpy(m_policy[i].m_policy.id.dev_mac, m_device.m_device_info.intf.mac, sizeof(mac_address_t));
-	if (found_match == false) {
-		m_num_policy++;
-	}	
+	memcpy(policy.m_policy.id.dev_mac, m_device.m_device_info.intf.mac,sizeof(mac_address_t));
+	//Fetch the key from the incoming policy
+	dm_easy_mesh_t::get_policy_key(policy.m_policy.id, key, sizeof(key));
+
+	ppolicy = static_cast<dm_policy_t *> (hash_map_get(m_policy_map, key));
+
+	if (ppolicy == NULL) {
+		if (hash_map_count(m_policy_map) >= EM_MAX_POLICIES) {
+			em_printfout("set_policy: maximum policy count (%u) reached, rejecting key=%s type=%d", static_cast<unsigned int>(EM_MAX_POLICIES), key, policy.m_policy.id.type);
+			return;
+		}
+		em_printfout("set_policy: inserting NEW policy key=%s type=%d", key, policy.m_policy.id.type);
+		ppolicy = new dm_policy_t(); //Heap allocation
+		hash_map_put(m_policy_map, strdup(key), ppolicy); //Load the address into the hashmap
+	} else {
+		em_printfout("set_policy: updating EXISTING policy key=%s type=%d", key, policy.m_policy.id.type);
+	}
+
+	//Filling the values in the memory which is present in hash_map. Need to remove the memory once the node gets deleted
+	memcpy(&ppolicy->m_policy, &policy.m_policy, sizeof(em_policy_t));
 }
 
 void dm_easy_mesh_t::set_channels_list(dm_op_class_t op_class[], unsigned int num)
@@ -3349,8 +3464,7 @@ dm_scan_result_t *dm_easy_mesh_t::get_scan_result(unsigned int index)
 
 dm_scan_result_t *dm_easy_mesh_t::find_matching_scan_result(em_scan_result_id_t *id)
 {
-    dm_scan_result_t *res;
-
+    	dm_scan_result_t *res;
 	res = static_cast<dm_scan_result_t *> (hash_map_get_first(m_scan_result_map));
 	while (res != NULL) {
         if ((strncmp(res->m_scan_result.id.net_id, id->net_id, strlen(id->net_id)) == 0) &&
@@ -3726,6 +3840,7 @@ int dm_easy_mesh_t::init()
         m_assoc_sta_mld[i].init();
     }
 
+    m_policy_map = hash_map_create();
     m_scan_result_map = hash_map_create();
     m_sta_map = hash_map_create();
     m_sta_assoc_map = hash_map_create();
@@ -3741,7 +3856,18 @@ void dm_easy_mesh_t::reset()
     m_num_interfaces = 0;
     m_num_radios = 0;
     m_num_opclass = 0;
-    m_num_policy = 0;
+    if (m_policy_map != NULL) {
+        dm_policy_t *policy = static_cast<dm_policy_t *> (hash_map_get_first(m_policy_map));
+        while (policy != NULL) {
+            dm_policy_t *tmp_policy = policy;
+            policy = static_cast<dm_policy_t *> (hash_map_get_next(m_policy_map, policy));
+            em_2xlong_string_t rkey;
+            dm_easy_mesh_t::get_policy_key(tmp_policy->m_policy.id, rkey, sizeof(rkey));
+            if ((tmp_policy = static_cast<dm_policy_t *> (hash_map_remove(m_policy_map, rkey))) != NULL) {
+                delete tmp_policy;
+            }
+        }
+    }
     m_num_bss = 0;
     m_num_ap_mld = 0;
     m_num_assoc_sta_mld = 0;
@@ -3776,7 +3902,6 @@ dm_easy_mesh_t::dm_easy_mesh_t()
     m_num_interfaces = 0;
     m_num_radios = 0;
     m_num_opclass = 0;
-    m_num_policy = 0;
     m_num_bss = 0;
     m_num_ap_mld = 0;
     m_num_net_ssids = 0;
@@ -3788,7 +3913,7 @@ dm_easy_mesh_t::dm_easy_mesh_t()
 
 dm_easy_mesh_t::~dm_easy_mesh_t()
 {
-
+    deinit();
 }
 
 

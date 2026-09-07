@@ -91,7 +91,7 @@ int dm_policy_list_t::get_config(cJSON *parent_obj, void *parent, bool summary)
 			dm_easy_mesh_t *dev_dm = ctrl ? ctrl->get_data_model(GLOBAL_NET_ID, dev_mac) : nullptr;
 			if (dev_dm != nullptr) {
 				policy->m_policy.num_backhaul_bss_config = 0;
-				for (unsigned int bi = 0; bi < dev_dm->m_num_bss && policy->m_policy.num_backhaul_bss_config < EM_MAX_BSS_PER_RADIO; bi++) {
+				for (unsigned int bi = 0; bi < dev_dm->m_num_bss && policy->m_policy.num_backhaul_bss_config < EM_MAX_BSSS; bi++) {
 					em_bss_info_t *bss_info = dev_dm->m_bss[bi].get_bss_info();
 					if (bss_info == nullptr || bss_info->id.haul_type != em_haul_type_backhaul) {
 						continue;
@@ -236,6 +236,10 @@ void dm_policy_list_t::update_list(const dm_policy_t& policy, dm_orch_type_t op)
 
         case dm_orch_type_db_update:
             ppolicy = get_policy(key);
+            if (ppolicy == NULL) {
+                put_policy(key, &policy);
+                break;
+            }
             memcpy(&ppolicy->m_policy, &policy.m_policy, sizeof(em_policy_t));
             break;
 
