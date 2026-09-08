@@ -24,7 +24,7 @@
 #include <fcntl.h>
 #include <sys/time.h>
 #include <unistd.h>
-
+#include <errno.h>
 
 #include <string>
 #include <vector>
@@ -491,4 +491,93 @@ bool util::set_net_uint16_from_host(const uint16_t host_val, void* const ptr) {
     uint16_t net_val = htons(host_val);
     memcpy(ptr, &net_val, sizeof(uint16_t));
     return true;
+}
+
+int util::get_random_bytes(unsigned char *buf, unsigned short len)
+{
+    if (buf == nullptr || len == 0) {
+        return -1;
+    }
+
+    int fd = open(URANDOM_FILE, O_RDONLY | O_CLOEXEC);
+    if (fd < 0) {
+        em_printfout("Error: Cannot open device '%s': %s", URANDOM_FILE, strerror(errno));
+        return -1;
+    }
+
+    size_t off = 0;
+    while (off < len) {
+        ssize_t n = read(fd, buf + off, static_cast<size_t>(len - off));
+        if (n < 0 && errno == EINTR) {
+            continue;
+        }
+        if (n < 0) {
+            em_printfout("Error: Cannot read random bytes from '%s': %s", URANDOM_FILE, strerror(errno));
+            close(fd);
+            return -1;
+        }
+        if (n == 0) {
+            em_printfout("Error: Unexpected EOF while reading random bytes from '%s'", URANDOM_FILE);
+            close(fd);
+            return -1;
+        }
+        off += static_cast<size_t>(n);
+    }
+
+    close(fd);
+
+    return 0;
+}
+
+int util::get_file_content(const char *path, char *out_val, unsigned int max_len)
+{
+    if (path == nullptr || out_val == nullptr || max_len == 0) {
+        return -1;
+    }
+
+    out_val[0] = '\0';
+
+    FILE *fd = fopen(path, "r");
+    if (fd == NULL) {
+        em_printfout("Error: Cannot open file '%s': %s", path, strerror(errno));
+        return -1;
+    }
+
+    if (fgets(out_val, static_cast<int>(max_len), fd) == NULL) {
+        em_printfout("Error: Cannot read file '%s': %s", path, strerror(errno));
+        fclose(fd);
+        return -1;
+    }
+
+    size_t len = strlen(out_val);
+    /* Remove new line after fgets operation. */
+    if (len && out_val[len - 1] == '\n') {
+        out_val[len - 1] = '\0';
+    }
+
+    fclose(fd);
+
+    return 0;
+}
+
+int util::set_file_content(const char *path, const char *val)
+{
+    if (path == nullptr || val == nullptr) {
+        return -1;
+    }
+
+    FILE *fd = fopen(path, "w");
+    if (fd == NULL) {
+        em_printfout("Error: Cannot open file '%s': %s", path, strerror(errno));
+        return -1;
+    }
+
+    /* fputs only fills the stdio buffer, a full or read only filesystem is reported by fclose. */
+    int rc = fputs(val, fd);
+    if (fclose(fd) != 0 || rc == EOF) {
+        em_printfout("Error: Cannot write file '%s': %s", path, strerror(errno));
+        return -1;
+    }
+
+    return 0;
 }

@@ -276,7 +276,6 @@ void dm_device_t::operator = (const dm_device_t& obj) {
     memcpy(&this->m_device_info.software_ver,&obj.m_device_info.software_ver,sizeof(em_string_t));
     memcpy(&this->m_device_info.exec_env,&obj.m_device_info.exec_env,sizeof(em_string_t));
     memcpy(&this->m_device_info.country_code,&obj.m_device_info.country_code,sizeof(em_tiny_string_t));
-    //this->m_device_info.country_code = obj.m_device_info.country_code;
     this->m_device_info.traffic_sep_allowed = obj.m_device_info.traffic_sep_allowed;
     this->m_device_info.svc_prio_allowed = obj.m_device_info.svc_prio_allowed;
     this->m_device_info.dfs_enable = obj.m_device_info.dfs_enable;
@@ -286,14 +285,15 @@ void dm_device_t::operator = (const dm_device_t& obj) {
     memcpy(&this->m_device_info.backhaul_mac.mac ,&obj.m_device_info.backhaul_mac.mac,sizeof(mac_address_t));
     memcpy(&this->m_device_info.backhaul_mac.name,&obj.m_device_info.backhaul_mac.name,sizeof(em_interface_name_t));
     memcpy(&this->m_device_info.backhaul_media_type,&obj.m_device_info.backhaul_media_type,sizeof(wifi_ieee80211Variant_t));
-    this->m_device_info.backhaul_media_type = obj.m_device_info.backhaul_media_type;
     memcpy(&this->m_device_info.backhaul_alid.mac ,&obj.m_device_info.backhaul_alid.mac,sizeof(mac_address_t));
     memcpy(&this->m_device_info.backhaul_alid.name,&obj.m_device_info.backhaul_alid.name,sizeof(em_interface_name_t));
     this->m_device_info.traffic_sep_cap = obj.m_device_info.traffic_sep_cap;
     this->m_device_info.easy_conn_cap = obj.m_device_info.easy_conn_cap;
     this->m_device_info.test_cap = obj.m_device_info.test_cap;
     memcpy(&this->m_device_info.primary_device_type,&obj.m_device_info.primary_device_type,sizeof(em_small_string_t));
-    memcpy(&this->m_device_info.backhaul_media_type,&obj.m_device_info.secondary_device_type,sizeof(em_small_string_t));
+    memcpy(&this->m_device_info.secondary_device_type,&obj.m_device_info.secondary_device_type,sizeof(em_small_string_t));
+    this->m_device_info.is_emplus_agent = obj.m_device_info.is_emplus_agent;
+    memcpy(&this->m_device_info.extended_info,&obj.m_device_info.extended_info,sizeof(em_ext_device_info_t));
 }
 
 bool dm_device_t::operator == (const dm_device_t& obj)

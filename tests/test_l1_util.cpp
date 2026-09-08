@@ -4,9 +4,31 @@
 #include <vector>
 #include <arpa/inet.h>
 #include <cstring>
+#include <cstdio>
+#include <fstream>
+#include <string>
+#include <unistd.h>
 #include "util.h"
 
 using namespace util;
+
+/* Per-process paths so parallel test binaries never collide on the same file. */
+static std::string tmp_path(const char *tag)
+{
+    return "/tmp/test_l1_util_" + std::string(tag) + "_" + std::to_string(getpid());
+}
+
+static void write_raw_file(const std::string &path, const std::string &content)
+{
+    std::ofstream out(path, std::ios::binary | std::ios::trunc);
+    out << content;
+}
+
+static std::string read_raw_file(const std::string &path)
+{
+    std::ifstream in(path, std::ios::binary);
+    return std::string(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>());
+}
 
 /**
  * @brief Verify that the split_nodelim_hex_str function correctly splits a hexadecimal string into a vector of bytes.
@@ -587,4 +609,612 @@ TEST(UtilTest, set_net_uint16_from_host_negative_nullptr) {
     EXPECT_FALSE(ok);
     std::cout << "Returned bool=" << ok << std::endl;
     std::cout << "Exiting set_net_uint16_from_host_negative_nullptr test" << std::endl;
+}
+/**
+ * @brief Verify that get_random_bytes fills the requested number of bytes and reports success.
+ *
+ * This test confirms that get_random_bytes returns 0 for a valid buffer and length, that it writes
+ * exactly len bytes and not one byte more, and that two consecutive calls do not return the same
+ * 32-byte sequence. The buffer is pre-filled with a sentinel and a guard byte is placed past the
+ * requested length so that both under-filling and over-running are detected.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 021@n
+ * **Priority:** High@n
+ *
+ * **Pre-Conditions:** URANDOM_FILE is readable@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ *
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01 | Pre-fill a 33 byte buffer with 0xAA and invoke get_random_bytes for the first 32 bytes | buf[33] = 0xAA, len = 32 | Function returns 0 | Should Pass |
+ * | 02 | Inspect the guard byte located past the requested length | buf[32] | Guard byte still holds 0xAA, proving no overrun | Should Pass |
+ * | 03 | Invoke get_random_bytes a second time into a separate buffer and compare | len = 32 | The two 32 byte sequences differ | Should Pass |
+ */
+TEST(UtilTest, get_random_bytes_positive) {
+    std::cout << "Entering get_random_bytes_positive test" << std::endl;
+    std::cout << "Invoking get_random_bytes(...)" << std::endl;
+    unsigned char first[33];
+    unsigned char second[33];
+    memset(first, 0xAA, sizeof(first));
+    memset(second, 0xAA, sizeof(second));
+
+    EXPECT_EQ(get_random_bytes(first, 32), 0);
+    EXPECT_EQ(get_random_bytes(second, 32), 0);
+
+    /* The byte past the requested length must be untouched. */
+    EXPECT_EQ(first[32], 0xAA);
+    EXPECT_EQ(second[32], 0xAA);
+
+    /* Two independent 32 byte draws colliding has probability 2^-256. */
+    EXPECT_NE(memcmp(first, second, 32), 0);
+
+    std::cout << "Returned two distinct 32 byte buffers, guard byte intact" << std::endl;
+    std::cout << "Exiting get_random_bytes_positive test" << std::endl;
+}
+/**
+ * @brief Verify that get_random_bytes fills a single byte request.
+ *
+ * This test exercises the smallest valid length so that the boundary between the rejected length of
+ * zero and an accepted request is covered, and confirms the write stays inside the requested byte.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 022@n
+ * **Priority:** Medium@n
+ *
+ * **Pre-Conditions:** URANDOM_FILE is readable@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ *
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01 | Invoke get_random_bytes with a length of one on a sentinel filled buffer | buf[2] = 0xAA, len = 1 | Function returns 0 | Should Pass |
+ * | 02 | Inspect the second byte of the buffer | buf[1] | Still holds 0xAA, proving only one byte was written | Should Pass |
+ */
+TEST(UtilTest, get_random_bytes_positive_single_byte) {
+    std::cout << "Entering get_random_bytes_positive_single_byte test" << std::endl;
+    std::cout << "Invoking get_random_bytes(...) with len=1" << std::endl;
+    unsigned char buf[2];
+    memset(buf, 0xAA, sizeof(buf));
+    EXPECT_EQ(get_random_bytes(buf, 1), 0);
+    EXPECT_EQ(buf[1], 0xAA);
+    std::cout << "Returned single byte, guard byte intact" << std::endl;
+    std::cout << "Exiting get_random_bytes_positive_single_byte test" << std::endl;
+}
+/**
+ * @brief Validate that get_random_bytes rejects a NULL buffer.
+ *
+ * This test verifies that the API validates its output pointer instead of dereferencing it, which
+ * would otherwise crash the caller.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 023@n
+ * **Priority:** High@n
+ *
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ *
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01 | Invoke get_random_bytes with a NULL buffer and a non zero length | buf = nullptr, len = 16 | Function returns -1 without dereferencing the pointer | Should Pass |
+ */
+TEST(UtilTest, get_random_bytes_negative_nullptr) {
+    std::cout << "Entering get_random_bytes_negative_nullptr test" << std::endl;
+    std::cout << "Invoking get_random_bytes(...) with NULL" << std::endl;
+    int rc = get_random_bytes(nullptr, 16);
+    EXPECT_EQ(rc, -1);
+    std::cout << "Returned rc=" << rc << std::endl;
+    std::cout << "Exiting get_random_bytes_negative_nullptr test" << std::endl;
+}
+/**
+ * @brief Validate that get_random_bytes rejects a zero length request.
+ *
+ * A zero length request carries no meaning for the caller and must be reported as an error rather
+ * than silently succeeding, so that a caller cannot mistake an unfilled buffer for random data.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 024@n
+ * **Priority:** High@n
+ *
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ *
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01 | Invoke get_random_bytes with a valid buffer and a length of zero | buf[4] = 0xAA, len = 0 | Function returns -1 | Should Pass |
+ * | 02 | Inspect the buffer contents | buf[0] | Still holds 0xAA, proving nothing was written | Should Pass |
+ */
+TEST(UtilTest, get_random_bytes_negative_zero_len) {
+    std::cout << "Entering get_random_bytes_negative_zero_len test" << std::endl;
+    std::cout << "Invoking get_random_bytes(...) with len=0" << std::endl;
+    unsigned char buf[4];
+    memset(buf, 0xAA, sizeof(buf));
+    int rc = get_random_bytes(buf, 0);
+    EXPECT_EQ(rc, -1);
+    EXPECT_EQ(buf[0], 0xAA);
+    std::cout << "Returned rc=" << rc << std::endl;
+    std::cout << "Exiting get_random_bytes_negative_zero_len test" << std::endl;
+}
+/**
+ * @brief Verify that get_file_content reads the first line of a file and strips the trailing newline.
+ *
+ * The APIs that consume this function read single line sysfs style files, so the trailing newline
+ * that such files carry must not reach the caller. This test writes a file with a trailing newline
+ * and confirms the returned string excludes it.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 025@n
+ * **Priority:** High@n
+ *
+ * **Pre-Conditions:** /tmp is writable@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ *
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01 | Create a file whose single line ends with a newline | content = "1234567890\n" | File created | Should be successful |
+ * | 02 | Invoke get_file_content on that file | path = temp file, max_len = 64 | Function returns 0 | Should Pass |
+ * | 03 | Compare the returned string against the content without the newline | out_val | Equals "1234567890" | Should Pass |
+ */
+TEST(UtilTest, get_file_content_positive_strips_newline) {
+    std::cout << "Entering get_file_content_positive_strips_newline test" << std::endl;
+    const std::string path = tmp_path("get_nl");
+    write_raw_file(path, "1234567890\n");
+
+    char out[64];
+    memset(out, 0xAA, sizeof(out));
+    std::cout << "Invoking get_file_content(...)" << std::endl;
+    int rc = get_file_content(path.c_str(), out, sizeof(out));
+    EXPECT_EQ(rc, 0);
+    EXPECT_STREQ(out, "1234567890");
+
+    remove(path.c_str());
+    std::cout << "Returned rc=" << rc << " out='" << out << "'" << std::endl;
+    std::cout << "Exiting get_file_content_positive_strips_newline test" << std::endl;
+}
+/**
+ * @brief Verify that get_file_content returns the content unchanged when the file has no trailing newline.
+ *
+ * The newline stripping must be conditional. This test confirms that a file whose last line is not
+ * newline terminated is not shortened by one character.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 026@n
+ * **Priority:** High@n
+ *
+ * **Pre-Conditions:** /tmp is writable@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ *
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01 | Create a file with no trailing newline | content = "abcdef" | File created | Should be successful |
+ * | 02 | Invoke get_file_content on that file | path = temp file, max_len = 64 | Function returns 0 | Should Pass |
+ * | 03 | Compare the returned string against the full content | out_val | Equals "abcdef", no character dropped | Should Pass |
+ */
+TEST(UtilTest, get_file_content_positive_no_newline) {
+    std::cout << "Entering get_file_content_positive_no_newline test" << std::endl;
+    const std::string path = tmp_path("get_nonl");
+    write_raw_file(path, "abcdef");
+
+    char out[64];
+    std::cout << "Invoking get_file_content(...)" << std::endl;
+    int rc = get_file_content(path.c_str(), out, sizeof(out));
+    EXPECT_EQ(rc, 0);
+    EXPECT_STREQ(out, "abcdef");
+
+    remove(path.c_str());
+    std::cout << "Returned rc=" << rc << " out='" << out << "'" << std::endl;
+    std::cout << "Exiting get_file_content_positive_no_newline test" << std::endl;
+}
+/**
+ * @brief Verify that get_file_content reads only the first line of a multi line file.
+ *
+ * The function is documented to read a single line. This test confirms that content after the first
+ * newline is not returned and that the first line arrives without its newline.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 027@n
+ * **Priority:** Medium@n
+ *
+ * **Pre-Conditions:** /tmp is writable@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ *
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01 | Create a file holding three lines | content = "first\nsecond\nthird\n" | File created | Should be successful |
+ * | 02 | Invoke get_file_content on that file | path = temp file, max_len = 64 | Function returns 0 | Should Pass |
+ * | 03 | Compare the returned string against the first line | out_val | Equals "first" | Should Pass |
+ */
+TEST(UtilTest, get_file_content_positive_first_line_only) {
+    std::cout << "Entering get_file_content_positive_first_line_only test" << std::endl;
+    const std::string path = tmp_path("get_multiline");
+    write_raw_file(path, "first\nsecond\nthird\n");
+
+    char out[64];
+    std::cout << "Invoking get_file_content(...)" << std::endl;
+    int rc = get_file_content(path.c_str(), out, sizeof(out));
+    EXPECT_EQ(rc, 0);
+    EXPECT_STREQ(out, "first");
+
+    remove(path.c_str());
+    std::cout << "Returned rc=" << rc << " out='" << out << "'" << std::endl;
+    std::cout << "Exiting get_file_content_positive_first_line_only test" << std::endl;
+}
+/**
+ * @brief Verify that get_file_content truncates to max_len and stays NUL terminated.
+ *
+ * A short output buffer must never be overrun and must always come back NUL terminated. This test
+ * passes a buffer smaller than the file content and checks that at most max_len - 1 characters are
+ * returned, that the result is terminated, and that a guard byte past max_len is untouched.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 028@n
+ * **Priority:** High@n
+ *
+ * **Pre-Conditions:** /tmp is writable@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ *
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01 | Create a file with content longer than the buffer that will be offered | content = "0123456789abcdef\n" | File created | Should be successful |
+ * | 02 | Invoke get_file_content with max_len smaller than the content | max_len = 5, buffer holds a guard byte at index 5 | Function returns 0 | Should Pass |
+ * | 03 | Compare the returned string against the first max_len - 1 characters | out_val | Equals "0123" and is NUL terminated | Should Pass |
+ * | 04 | Inspect the guard byte past max_len | out[5] | Still holds 0xAA, proving no overrun | Should Pass |
+ */
+TEST(UtilTest, get_file_content_positive_truncates_to_max_len) {
+    std::cout << "Entering get_file_content_positive_truncates_to_max_len test" << std::endl;
+    const std::string path = tmp_path("get_trunc");
+    write_raw_file(path, "0123456789abcdef\n");
+
+    char out[8];
+    memset(out, 0xAA, sizeof(out));
+    std::cout << "Invoking get_file_content(...) with max_len=5" << std::endl;
+    int rc = get_file_content(path.c_str(), out, 5);
+    EXPECT_EQ(rc, 0);
+    EXPECT_STREQ(out, "0123");
+    EXPECT_EQ(strlen(out), 4u);
+    /* Nothing may be written at or past max_len. */
+    EXPECT_EQ(out[5], static_cast<char>(0xAA));
+
+    remove(path.c_str());
+    std::cout << "Returned rc=" << rc << " out='" << out << "'" << std::endl;
+    std::cout << "Exiting get_file_content_positive_truncates_to_max_len test" << std::endl;
+}
+/**
+ * @brief Validate that get_file_content reports a missing file and clears the output buffer.
+ *
+ * A caller that ignores the return code must not be handed stale bytes from a previous use of the
+ * buffer. This test confirms both the error return and that the output buffer is emptied first.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 029@n
+ * **Priority:** High@n
+ *
+ * **Pre-Conditions:** The path used must not exist@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ *
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01 | Pre-fill the output buffer with stale content | out = "stale" | Buffer holds stale content | Should be successful |
+ * | 02 | Invoke get_file_content on a path that does not exist | path = non existent temp path, max_len = 64 | Function returns -1 | Should Pass |
+ * | 03 | Inspect the output buffer | out_val | Holds an empty string, the stale content is gone | Should Pass |
+ */
+TEST(UtilTest, get_file_content_negative_missing_file) {
+    std::cout << "Entering get_file_content_negative_missing_file test" << std::endl;
+    const std::string path = tmp_path("get_missing");
+    remove(path.c_str());
+
+    char out[64];
+    snprintf(out, sizeof(out), "stale");
+    std::cout << "Invoking get_file_content(...) on a missing path" << std::endl;
+    int rc = get_file_content(path.c_str(), out, sizeof(out));
+    EXPECT_EQ(rc, -1);
+    EXPECT_STREQ(out, "");
+    std::cout << "Returned rc=" << rc << " out='" << out << "'" << std::endl;
+    std::cout << "Exiting get_file_content_negative_missing_file test" << std::endl;
+}
+/**
+ * @brief Validate that get_file_content reports an empty file as an error.
+ *
+ * An empty file yields no line to read, so the function must report failure rather than returning an
+ * empty string that a caller could mistake for a valid value.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 030@n
+ * **Priority:** Medium@n
+ *
+ * **Pre-Conditions:** /tmp is writable@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ *
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01 | Create a zero byte file | content = "" | File created and empty | Should be successful |
+ * | 02 | Invoke get_file_content on that file | path = temp file, max_len = 64 | Function returns -1 | Should Pass |
+ * | 03 | Inspect the output buffer | out_val | Holds an empty string | Should Pass |
+ */
+TEST(UtilTest, get_file_content_negative_empty_file) {
+    std::cout << "Entering get_file_content_negative_empty_file test" << std::endl;
+    const std::string path = tmp_path("get_empty");
+    write_raw_file(path, "");
+
+    char out[64];
+    snprintf(out, sizeof(out), "stale");
+    std::cout << "Invoking get_file_content(...) on an empty file" << std::endl;
+    int rc = get_file_content(path.c_str(), out, sizeof(out));
+    EXPECT_EQ(rc, -1);
+    EXPECT_STREQ(out, "");
+
+    remove(path.c_str());
+    std::cout << "Returned rc=" << rc << std::endl;
+    std::cout << "Exiting get_file_content_negative_empty_file test" << std::endl;
+}
+/**
+ * @brief Validate that get_file_content reports a read failure on an openable but unreadable path.
+ *
+ * Opening a directory for reading succeeds while reading from it fails, which exercises the read
+ * failure branch that a missing file cannot reach.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 031@n
+ * **Priority:** Medium@n
+ *
+ * **Pre-Conditions:** /tmp exists and is a directory@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ *
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01 | Invoke get_file_content on a directory path | path = "/tmp", max_len = 64 | Function returns -1 because the read fails after a successful open | Should Pass |
+ * | 02 | Inspect the output buffer | out_val | Holds an empty string | Should Pass |
+ */
+TEST(UtilTest, get_file_content_negative_read_failure) {
+    std::cout << "Entering get_file_content_negative_read_failure test" << std::endl;
+    char out[64];
+    snprintf(out, sizeof(out), "stale");
+    std::cout << "Invoking get_file_content(...) on a directory" << std::endl;
+    int rc = get_file_content("/tmp", out, sizeof(out));
+    EXPECT_EQ(rc, -1);
+    EXPECT_STREQ(out, "");
+    std::cout << "Returned rc=" << rc << std::endl;
+    std::cout << "Exiting get_file_content_negative_read_failure test" << std::endl;
+}
+/**
+ * @brief Validate that get_file_content rejects invalid arguments.
+ *
+ * This test covers the three argument combinations the function must refuse: a NULL path, a NULL
+ * output buffer, and a zero length output buffer. A zero length buffer has no room even for the
+ * terminator, so writing to it would be an overrun.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 032@n
+ * **Priority:** High@n
+ *
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ *
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01 | Invoke get_file_content with a NULL path | path = nullptr, out = valid, max_len = 64 | Function returns -1 | Should Pass |
+ * | 02 | Invoke get_file_content with a NULL output buffer | path = valid, out = nullptr, max_len = 64 | Function returns -1 | Should Pass |
+ * | 03 | Invoke get_file_content with a zero length output buffer | path = valid, out = valid, max_len = 0 | Function returns -1 and the buffer is left untouched | Should Pass |
+ */
+TEST(UtilTest, get_file_content_negative_invalid_args) {
+    std::cout << "Entering get_file_content_negative_invalid_args test" << std::endl;
+    const std::string path = tmp_path("get_args");
+    write_raw_file(path, "value\n");
+
+    char out[64];
+    memset(out, 0xAA, sizeof(out));
+
+    std::cout << "Invoking get_file_content(...) with NULL path" << std::endl;
+    EXPECT_EQ(get_file_content(nullptr, out, sizeof(out)), -1);
+
+    std::cout << "Invoking get_file_content(...) with NULL out_val" << std::endl;
+    EXPECT_EQ(get_file_content(path.c_str(), nullptr, sizeof(out)), -1);
+
+    std::cout << "Invoking get_file_content(...) with max_len=0" << std::endl;
+    EXPECT_EQ(get_file_content(path.c_str(), out, 0), -1);
+    /* A zero length buffer has no room for a terminator, so nothing may be written. */
+    EXPECT_EQ(out[0], static_cast<char>(0xAA));
+
+    remove(path.c_str());
+    std::cout << "Exiting get_file_content_negative_invalid_args test" << std::endl;
+}
+/**
+ * @brief Verify that set_file_content writes exactly the supplied string.
+ *
+ * This test confirms the value reaches the file byte for byte, with no newline appended, since a
+ * caller reading the file back with get_file_content would otherwise see a different string.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 033@n
+ * **Priority:** High@n
+ *
+ * **Pre-Conditions:** /tmp is writable@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ *
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01 | Invoke set_file_content with a plain value on a new path | path = temp file, val = "0123456789" | Function returns 0 | Should Pass |
+ * | 02 | Read the raw file back and compare byte for byte | file content | Equals "0123456789" with no trailing newline | Should Pass |
+ */
+TEST(UtilTest, set_file_content_positive) {
+    std::cout << "Entering set_file_content_positive test" << std::endl;
+    const std::string path = tmp_path("set_basic");
+    remove(path.c_str());
+
+    std::cout << "Invoking set_file_content(...)" << std::endl;
+    int rc = set_file_content(path.c_str(), "0123456789");
+    EXPECT_EQ(rc, 0);
+    EXPECT_EQ(read_raw_file(path), "0123456789");
+
+    remove(path.c_str());
+    std::cout << "Returned rc=" << rc << std::endl;
+    std::cout << "Exiting set_file_content_positive test" << std::endl;
+}
+/**
+ * @brief Verify that set_file_content truncates an existing longer file.
+ *
+ * Writing a shorter value over a longer one must not leave the tail of the previous value behind,
+ * which would make the file read back as a concatenation of both.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 034@n
+ * **Priority:** High@n
+ *
+ * **Pre-Conditions:** /tmp is writable@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ *
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01 | Create a file holding a long value | content = "AAAAAAAAAAAAAAAAAAAAAAAA" | File created | Should be successful |
+ * | 02 | Invoke set_file_content with a shorter value on the same path | val = "B" | Function returns 0 | Should Pass |
+ * | 03 | Read the raw file back and compare | file content | Equals "B" only, the previous value is fully gone | Should Pass |
+ */
+TEST(UtilTest, set_file_content_positive_truncates_existing) {
+    std::cout << "Entering set_file_content_positive_truncates_existing test" << std::endl;
+    const std::string path = tmp_path("set_trunc");
+    write_raw_file(path, "AAAAAAAAAAAAAAAAAAAAAAAA");
+
+    std::cout << "Invoking set_file_content(...) with a shorter value" << std::endl;
+    int rc = set_file_content(path.c_str(), "B");
+    EXPECT_EQ(rc, 0);
+    EXPECT_EQ(read_raw_file(path), "B");
+
+    remove(path.c_str());
+    std::cout << "Returned rc=" << rc << std::endl;
+    std::cout << "Exiting set_file_content_positive_truncates_existing test" << std::endl;
+}
+/**
+ * @brief Verify that a value written by set_file_content is returned unchanged by get_file_content.
+ *
+ * The two functions are used as a pair on the same file, so this test checks the round trip rather
+ * than each side in isolation, including the empty value which writes a zero byte file.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 035@n
+ * **Priority:** High@n
+ *
+ * **Pre-Conditions:** /tmp is writable@n
+ * **Dependencies:** get_file_content and set_file_content@n
+ * **User Interaction:** None@n
+ *
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01 | Write a value and read it back | val = "4294967295" | Both calls return 0 and the value matches | Should Pass |
+ * | 02 | Write a value containing spaces and punctuation and read it back | val = "a b-c_d.e" | Both calls return 0 and the value matches | Should Pass |
+ * | 03 | Write an empty value and read it back | val = "" | The write returns 0 and the read returns -1 because the file holds no line | Should Pass |
+ */
+TEST(UtilTest, set_get_file_content_positive_round_trip) {
+    std::cout << "Entering set_get_file_content_positive_round_trip test" << std::endl;
+    const std::string path = tmp_path("round_trip");
+    char out[64];
+
+    std::cout << "Invoking set_file_content(...) then get_file_content(...)" << std::endl;
+    EXPECT_EQ(set_file_content(path.c_str(), "4294967295"), 0);
+    EXPECT_EQ(get_file_content(path.c_str(), out, sizeof(out)), 0);
+    EXPECT_STREQ(out, "4294967295");
+
+    EXPECT_EQ(set_file_content(path.c_str(), "a b-c_d.e"), 0);
+    EXPECT_EQ(get_file_content(path.c_str(), out, sizeof(out)), 0);
+    EXPECT_STREQ(out, "a b-c_d.e");
+
+    /* An empty value produces a zero byte file, which has no line to read back. */
+    EXPECT_EQ(set_file_content(path.c_str(), ""), 0);
+    EXPECT_EQ(read_raw_file(path), "");
+    EXPECT_EQ(get_file_content(path.c_str(), out, sizeof(out)), -1);
+
+    remove(path.c_str());
+    std::cout << "Exiting set_get_file_content_positive_round_trip test" << std::endl;
+}
+/**
+ * @brief Validate that set_file_content reports an unopenable path.
+ *
+ * A path inside a directory that does not exist cannot be opened for writing, and the failure must
+ * be reported to the caller rather than being silently swallowed.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 036@n
+ * **Priority:** High@n
+ *
+ * **Pre-Conditions:** The parent directory used must not exist@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ *
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01 | Invoke set_file_content on a path whose parent directory does not exist | path = "/tmp/<missing dir>/file", val = "x" | Function returns -1 | Should Pass |
+ */
+TEST(UtilTest, set_file_content_negative_unopenable_path) {
+    std::cout << "Entering set_file_content_negative_unopenable_path test" << std::endl;
+    const std::string path = tmp_path("no_such_dir") + "/file";
+    std::cout << "Invoking set_file_content(...) on an unopenable path" << std::endl;
+    int rc = set_file_content(path.c_str(), "x");
+    EXPECT_EQ(rc, -1);
+    std::cout << "Returned rc=" << rc << std::endl;
+    std::cout << "Exiting set_file_content_negative_unopenable_path test" << std::endl;
+}
+/**
+ * @brief Validate that set_file_content rejects a NULL path and a NULL value.
+ *
+ * Both arguments are passed straight to stdio, so they must be validated before use to avoid
+ * undefined behaviour inside fopen and fputs.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 037@n
+ * **Priority:** High@n
+ *
+ * **Pre-Conditions:** /tmp is writable@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ *
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01 | Invoke set_file_content with a NULL path | path = nullptr, val = "x" | Function returns -1 | Should Pass |
+ * | 02 | Invoke set_file_content with a NULL value | path = valid temp path, val = nullptr | Function returns -1 | Should Pass |
+ * | 03 | Check whether the NULL value call created a file | temp path | No file was created | Should Pass |
+ */
+TEST(UtilTest, set_file_content_negative_invalid_args) {
+    std::cout << "Entering set_file_content_negative_invalid_args test" << std::endl;
+    const std::string path = tmp_path("set_args");
+    remove(path.c_str());
+
+    std::cout << "Invoking set_file_content(...) with NULL path" << std::endl;
+    EXPECT_EQ(set_file_content(nullptr, "x"), -1);
+
+    std::cout << "Invoking set_file_content(...) with NULL val" << std::endl;
+    EXPECT_EQ(set_file_content(path.c_str(), nullptr), -1);
+
+    /* Rejecting the value must happen before the file is created. */
+    EXPECT_NE(access(path.c_str(), F_OK), 0);
+
+    std::cout << "Exiting set_file_content_negative_invalid_args test" << std::endl;
 }

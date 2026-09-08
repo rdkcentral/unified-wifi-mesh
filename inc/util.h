@@ -34,6 +34,10 @@
 #define LOG_PATH_PREFIX "/nvram/"
 #endif // LOG_PATH_PREFIX
 
+#ifndef URANDOM_FILE
+#define URANDOM_FILE "/dev/urandom"
+#endif
+
 /**
  * @brief Perform a byte swap if needed to convert little endian to/from host byte ordering
  * @param x Unsigned 16 bit integer
@@ -355,6 +359,37 @@ namespace util {
 	 */
 	bool set_net_uint16_from_host(const uint16_t host_val, void* const ptr);
 
+	/**
+	 * @brief Fill a buffer with cryptographically random bytes
+	 *
+	 * @param[out] buf Buffer the random bytes are written to
+	 * @param[in] len Number of bytes to read, the buffer must be at least this large
+	 * @return int 0 on success, -1 if the random device cannot be opened or returns fewer bytes than requested
+	 *
+	 * @note Reads from URANDOM_FILE. On failure the contents of `buf` are undefined.
+	 */
+	int get_random_bytes(unsigned char *buf, unsigned short len);
+
+	/**
+	 * @brief Read the first line of a file into a NUL terminated string
+	 *
+	 * @param[in] path Path of the file to read
+	 * @param[out] out_val Buffer the line is written to, NUL terminated and stripped of its trailing new line
+	 * @param[in] max_len Size of `out_val` in bytes, including room for the NUL terminator
+	 * @return int 0 on success, -1 if the file cannot be opened or holds no line to read
+	 *
+	 * @note Only the first line is returned, and it is truncated to `max_len` - 1 bytes.
+	 */
+	int get_file_content(const char *path, char *out_val, unsigned int max_len);
+
+	/**
+	 * @brief Write a NUL terminated string to a file, replacing its contents
+	 *
+	 * @param[in] path Path of the file to write, created if it does not exist and truncated if it does
+	 * @param[in] val NUL terminated string to write, no new line is appended
+	 * @return int 0 on success, -1 if the file cannot be opened or the write fails
+	 */
+	int set_file_content(const char *path, const char *val);
 } // namespace util
 
 #define __FILENAME__ (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
