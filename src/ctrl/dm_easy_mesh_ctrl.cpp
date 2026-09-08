@@ -2756,9 +2756,10 @@ int dm_easy_mesh_ctrl_t::analyze_sta_assoc_event(em_bus_event_t *evt, em_cmd_t *
                 // MLD STA is "known" only if we already have its capability data
                 sta_exists = (iter->m_sta_info.frame_body_len > 0);
             } else {
-                // Legacy STA: verify BSSID matches and we have capability data
+                // Legacy STA: verify BSSID matches and we have capability data from a
+                // still-active association; a reconnect after a disassoc is queried again.
                 if (memcmp(iter->m_sta_info.bssid, params->assoc.bssid, sizeof(mac_address_t)) == 0) {
-                    sta_exists = (iter->m_sta_info.frame_body_len > 0);
+                    sta_exists = (iter->m_sta_info.frame_body_len > 0) && iter->m_sta_info.associated;
                 }
             }
             em_printfout("sta found in m_sta_map %s, sta_exists=%d", sta_mac_str, sta_exists);
