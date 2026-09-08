@@ -501,8 +501,25 @@ public:
 	 * @return true if successful or if the file already exists, false otherwise.
 	 */
 	bool try_create_default_em_cfg(std::string interface);
+
 	void load_em_plus_cfg();
 
+	/**!
+	 * @brief Fills the extended device information of the local data model.
+	 *
+	 * Assigns the boot id, which is read back from its persisted file when present and
+	 * generated randomly and persisted otherwise, and reads the cloud client id and client
+	 * secret over the bus. A field that cannot be retrieved is left zeroed and logged, the
+	 * remaining ones are still filled.
+	 *
+	 * @returns int
+	 * @retval 0 on success
+	 * @retval -1 if no bus descriptor is available
+	 *
+	 * @note Must be called after the bus is open, since the credentials are fetched with the
+	 * bus handle of the agent. The filled data is sent to the controller in the WSC M1 message.
+	 */
+	int fill_extended_device_info();
 
 	/**!
 	* @brief Attempts to start DPP onboarding process.

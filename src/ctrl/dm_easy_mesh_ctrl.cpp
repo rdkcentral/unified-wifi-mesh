@@ -6205,6 +6205,23 @@ bus_error_t dm_easy_mesh_ctrl_t::device_get_inner(char *event_name, raw_data_t *
         rc = dm_ctrl->raw_data_set(p_data, sec_cap ? sec_cap->integrity_algo : 0);
     } else if (strcmp(param, "EncryptionAlgorithm") == 0) {
         rc = dm_ctrl->raw_data_set(p_data, sec_cap ? sec_cap->encryption_algo : 0);
+    } else if (strcmp(param, "X_AIRTIES_BootID") == 0) {
+        em_ext_device_info_t *edi = &di->extended_info;
+        rc = dm_ctrl->raw_data_set(p_data, edi->received ? edi->boot_id : 0);
+    } else if (strcmp(param, "X_AIRTIES_ClientID") == 0) {
+        em_ext_device_info_t *edi = &di->extended_info;
+        if (edi->received && edi->client_id_len) {
+            rc = dm_ctrl->raw_data_set(p_data, edi->client_id);
+        } else {
+            rc = dm_ctrl->raw_data_set(p_data, "");
+        }
+    } else if (strcmp(param, "X_AIRTIES_ClientSecret") == 0) {
+        em_ext_device_info_t *edi = &di->extended_info;
+        if (edi->received && edi->client_secret_len) {
+            rc = dm_ctrl->raw_data_set(p_data, edi->client_secret);
+        } else {
+            rc = dm_ctrl->raw_data_set(p_data, "");
+        }
     } else {
         em_printfout("Invalid param: %s", param);
         rc = bus_error_invalid_input;
@@ -6345,6 +6362,19 @@ bus_error_t dm_easy_mesh_ctrl_t::device_tget_inner(char *event_name, raw_data_t 
         dm_ctrl->property_append_tail(&property, root, idx, "X_AIRTIES_DeviceInfo.MemoryStatus.Cached", di->cached_mem);
         dm_ctrl->property_append_tail(&property, root, idx, "X_AIRTIES_DeviceInfo.ProcessStatus.CPUUsage", di->cpu_load);
         dm_ctrl->property_append_tail(&property, root, idx, "X_AIRTIES_DeviceInfo.ProcessStatus.CPUTemperature", di->cpu_temp);
+
+        em_ext_device_info_t *edi = &di->extended_info;
+        dm_ctrl->property_append_tail(&property, root, idx, "X_AIRTIES_BootID", edi->received ? edi->boot_id : 0);
+        if (edi->received && edi->client_id_len) {
+            dm_ctrl->property_append_tail(&property, root, idx, "X_AIRTIES_ClientID", edi->client_id);
+        } else {
+            dm_ctrl->property_append_tail(&property, root, idx, "X_AIRTIES_ClientID", "");
+        }
+        if (edi->received && edi->client_secret_len) {
+            dm_ctrl->property_append_tail(&property, root, idx, "X_AIRTIES_ClientSecret", edi->client_secret);
+        } else {
+            dm_ctrl->property_append_tail(&property, root, idx, "X_AIRTIES_ClientSecret", "");
+        }
 
         snprintf(path, sizeof(path) - 1, "%s%d.Radio.", root, idx);
         dm_ctrl->radio_tget_params(dm, path, &property);
