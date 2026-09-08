@@ -86,6 +86,7 @@ onewifi_em_ctrl_SOURCES =  \
      $(top_srcdir)/src/cmd/em_cmd_set_ssid.cpp \
      $(top_srcdir)/src/cmd/em_cmd_sta_assoc.cpp \
      $(top_srcdir)/src/cmd/em_cmd_sta_disassoc.cpp \
+     $(top_srcdir)/src/cmd/em_cmd_client_assoc_ctrl_req.cpp \
      $(top_srcdir)/src/cmd/em_cmd_sta_link_metrics.cpp \
      $(top_srcdir)/src/cmd/em_cmd_sta_list.cpp \
      $(top_srcdir)/src/cmd/em_cmd_start_dpp.cpp \

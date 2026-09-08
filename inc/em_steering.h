@@ -20,6 +20,7 @@
 #define EM_STEERING_H
 
 #include "em_base.h"
+#include <vector>
 
 class em_steering_t {
 
@@ -107,6 +108,25 @@ class em_steering_t {
 	int send_1905_ack_message(mac_addr_t sta_mac, unsigned short msg_id, unsigned char reason = 0, unsigned char *dst = nullptr);
     
 	/**!
+	 * @brief Sends a 1905 acknowledgment message for one or more STA MACs.
+	 *
+	 * This function is responsible for sending a consolidated acknowledgment message.
+	 *
+	 * @param[in] sta_list List of STA MAC addresses to include in the ACK.
+	 * @param[in] msg_id The message ID of the original message being acknowledged.
+	 * @param[in] reason The reason code used in Error Code TLV.
+	 * @param[in] dst Destination AL MAC to use when controller AL MAC is unknown).
+	 *
+	 * @returns int Number of bytes sent on success.
+	 * @retval >0 Frame length in bytes.
+	 * @retval 0 No destination available (nothing sent).
+	 * @retval -1 on failure
+	 * @note Ensure that the MAC address is valid and the station is reachable
+	 * before calling this function.
+	 */
+	int send_consolidated_1905_ack_message(const std::vector<const unsigned char*>& sta_list, unsigned short msg_id, unsigned char reason, unsigned char *dst);
+
+	/**!
 	 * @brief Handles the client steering request.
 	 *
 	 * This function processes the steering request received from a client.
@@ -184,7 +204,7 @@ class em_steering_t {
 	 *
 	 * @note Ensure the buffer is large enough to hold the TLV structure.
 	 */
-	short create_error_code_tlv(unsigned char *buff, int val, mac_addr_t sta_mac);
+	short create_error_code_tlv(unsigned char *buff, int val, const mac_addr_t sta_mac);
     
 	/**!
 	 * @brief Creates a BTM report TLV.
@@ -342,7 +362,32 @@ public:
 	 */
 	void set_client_assoc_ctrl_req_tx_count(unsigned int cnt) { m_client_assoc_ctrl_req_tx_cnt = cnt; }
 
-    
+	/*
+	 * @brief Stores the CMDU Message ID of the last transmitted
+	 * Client Assoc Ctrl Req message..
+	 *
+	 * @note Used for ACK tracking and response correlation.
+	 */
+	unsigned short m_client_assoc_ctrl_req_msg_id = 0;
+
+	/**
+	 * @brief Get the current Client Assoc Ctrl Req message ID.
+	 *
+	 * Returns the message ID associated with the outstanding
+	 * Client Assoc Ctrl Req message
+	 *
+	 * @return Message ID of the pending request.
+	 */
+	unsigned short get_client_assoc_ctrl_req_msg_id() const { return m_client_assoc_ctrl_req_msg_id; }
+
+	/**
+	 * @brief Clear the Client Assoc Ctrl Req message ID.
+	 *
+	 * Resets the stored cacr message ID after the corresponding
+	 * ACK has been received and processed.
+	 */
+	void clear_client_assoc_ctrl_req_msg_id() { m_client_assoc_ctrl_req_msg_id = 0; }
+
 	/**!
 	 * @brief Processes a message with the given data and length.
 	 *
