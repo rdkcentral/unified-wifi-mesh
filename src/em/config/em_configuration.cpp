@@ -1101,7 +1101,9 @@ int em_configuration_t::create_ap_mld_config_tlv(unsigned char *buff)
     em_ap_mld_t *ap_mld;
     em_affiliated_ap_mld_t *affiliated_ap_mld;
     dm_easy_mesh_t  *dm;
-    unsigned int i, j;
+    dm_ap_mld_t *dm_ap_mld;
+    unsigned int j;
+    unsigned char num_ap_mld = 0;
     unsigned short ap_mld_len = 0;
     unsigned short affiliated_ap_len = 0;
     unsigned short tlv_len = 0;
@@ -1116,10 +1118,10 @@ int em_configuration_t::create_ap_mld_config_tlv(unsigned char *buff)
     ap_mld = ap_mld_conf->ap_mld;
     memset(ap_mld, 0, sizeof(em_ap_mld_t));
 
-    ap_mld_conf->num_ap_mld = static_cast<unsigned char> (dm->get_num_ap_mld());
-
-    for (i = 0; i < dm->get_num_ap_mld(); i++) {
-        em_ap_mld_info_t& ap_mld_info = dm->m_ap_mld[i].m_ap_mld_info;
+    // AP MLDs are keyed by AL MAC + haul type; iterate the hash map instead of an array.
+    dm_ap_mld = (dm->m_ap_mld_map != NULL) ? static_cast<dm_ap_mld_t *> (hash_map_get_first(dm->m_ap_mld_map)) : NULL;
+    while (dm_ap_mld != NULL) {
+        em_ap_mld_info_t& ap_mld_info = dm_ap_mld->m_ap_mld_info;
         ap_mld->ap_mld_mac_addr_valid = ap_mld_info.mac_addr_valid;
 
         ap_mld->ssid_len = static_cast<unsigned char>(sizeof(ssid_t));
@@ -1136,7 +1138,7 @@ int em_configuration_t::create_ap_mld_config_tlv(unsigned char *buff)
         affiliated_ap_len = 0;
 
         for (j = 0; j < ap_mld->num_affiliated_ap; j++) {
-            em_affiliated_ap_info_t& affiliated_ap_info = dm->m_ap_mld[i].m_ap_mld_info.affiliated_ap[j];
+            em_affiliated_ap_info_t& affiliated_ap_info = ap_mld_info.affiliated_ap[j];
             memset(affiliated_ap_mld, 0, sizeof(em_affiliated_ap_mld_t));
             affiliated_ap_mld->affiliated_mac_addr_valid = affiliated_ap_info.mac_addr_valid;
             affiliated_ap_mld->link_id_valid = affiliated_ap_info.link_id_valid;
@@ -1150,8 +1152,12 @@ int em_configuration_t::create_ap_mld_config_tlv(unsigned char *buff)
 
         ap_mld = reinterpret_cast<em_ap_mld_t *>(reinterpret_cast<unsigned char *> (ap_mld) + sizeof(em_ap_mld_t) + affiliated_ap_len);
         ap_mld_len += static_cast<short unsigned int> (sizeof(em_ap_mld_t) + affiliated_ap_len);
+
+        num_ap_mld++;
+        dm_ap_mld = static_cast<dm_ap_mld_t *> (hash_map_get_next(dm->m_ap_mld_map, dm_ap_mld));
     }
 
+    ap_mld_conf->num_ap_mld = num_ap_mld;
     tlv_len += ap_mld_len;
 
     return tlv_len;
@@ -2392,7 +2398,7 @@ int em_configuration_t::handle_topology_response(unsigned char *buff, unsigned i
         em_printfout("Found AP MLD details in topology response message");
         handle_ap_mld_config_tlv(tlv->value, htons(tlv->len));
     }
-    em_printfout("No of AP MLDs: %d", dm->m_num_ap_mld);
+    em_printfout("No of AP MLDs: %d", dm->get_num_ap_mld());
 
     // Parse Associated STA MLD Configuration Report TLVs.
     tlv = reinterpret_cast<em_tlv_t *>(buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
@@ -2604,7 +2610,6 @@ int em_configuration_t::handle_ap_mld_config_tlv(unsigned char *buff, unsigned i
     em_affiliated_ap_mld_t *affiliated_ap_mld;
     dm_easy_mesh_t  *dm;
     unsigned int i, j;
-    unsigned short ap_mld_len = 0;
     unsigned short affiliated_ap_len = 0;
     dm_bss_t *dm_bss;
 
@@ -2614,32 +2619,29 @@ int em_configuration_t::handle_ap_mld_config_tlv(unsigned char *buff, unsigned i
         em_printfout("Zero AP MLD data");
         return 0;
     }
-    dm->set_num_ap_mld(ap_mld_conf->num_ap_mld);
 
     em_printfout("No of AP MLDs: %d", ap_mld_conf->num_ap_mld);
     ap_mld = ap_mld_conf->ap_mld;
 
     for (i = 0; i < ap_mld_conf->num_ap_mld; i++) {
-        em_ap_mld_info_t* ap_mld_info = &dm->m_ap_mld[i].m_ap_mld_info;
-        if (ap_mld_info == NULL) {
-           em_printfout("NULL pointer detected in ap_mld_info");
-           return 0;
-        }
+        em_ap_mld_info_t ap_mld_info;
 
-        ap_mld_info->mac_addr_valid = ap_mld->ap_mld_mac_addr_valid;
-        strncpy(ap_mld_info->ssid, ap_mld->ssid, ap_mld->ssid_len);
+        memset(&ap_mld_info, 0, sizeof(em_ap_mld_info_t));
+        ap_mld_info.mac_addr_valid = ap_mld->ap_mld_mac_addr_valid;
+        strncpy(ap_mld_info.ssid, ap_mld->ssid, ap_mld->ssid_len);
 
-        memcpy(ap_mld_info->mac_addr, ap_mld->ap_mld_mac_addr, sizeof(mac_address_t));
-        ap_mld_info->str = ap_mld->str;
-        ap_mld_info->nstr = ap_mld->nstr;
-        ap_mld_info->emlsr = ap_mld->emlsr;
-        ap_mld_info->emlmr = ap_mld->emlmr;
+        memcpy(ap_mld_info.mac_addr, ap_mld->ap_mld_mac_addr, sizeof(mac_address_t));
+        ap_mld_info.str = ap_mld->str;
+        ap_mld_info.nstr = ap_mld->nstr;
+        ap_mld_info.emlsr = ap_mld->emlsr;
+        ap_mld_info.emlmr = ap_mld->emlmr;
 
-        ap_mld_info->num_affiliated_ap = ap_mld->num_affiliated_ap;
+        ap_mld_info.num_affiliated_ap = ap_mld->num_affiliated_ap;
         affiliated_ap_mld = ap_mld->affiliated_ap_mld;
+        affiliated_ap_len = 0;
 
         for (j = 0; j < ap_mld->num_affiliated_ap; j++) {
-            em_affiliated_ap_info_t* affiliated_ap_info = &dm->m_ap_mld[i].m_ap_mld_info.affiliated_ap[j];
+            em_affiliated_ap_info_t* affiliated_ap_info = &ap_mld_info.affiliated_ap[j];
             affiliated_ap_info->mac_addr_valid = affiliated_ap_mld->affiliated_mac_addr_valid;
             affiliated_ap_info->link_id_valid = affiliated_ap_mld->link_id_valid;
             memcpy(affiliated_ap_info->ruid.mac, affiliated_ap_mld->ruid, sizeof(mac_address_t));
@@ -2651,13 +2653,20 @@ int em_configuration_t::handle_ap_mld_config_tlv(unsigned char *buff, unsigned i
 
             dm_bss = dm->get_bss(affiliated_ap_info->ruid.mac, affiliated_ap_info->mac_addr);
             if (dm_bss != NULL) {
-                memcpy(dm_bss->m_bss_info.mld_mac, ap_mld_info->mac_addr , sizeof(mac_address_t));
+                memcpy(dm_bss->m_bss_info.mld_mac, ap_mld_info.mac_addr , sizeof(mac_address_t));
             }
 
         }
 
+        // Inserts/merges into the AP MLD hash map, keyed by AL MAC + haul type.
+        // The AP MLD Config TLV does not carry haul type on the wire, so resolve it from the SSID.
+	// NOTE: Make sure ap_mld_info.ssid is updated whenever there is any change in the SSID
+        if (dm->get_haul_type_from_ssid(ap_mld_info.ssid, &ap_mld_info.haul_type) == false) {
+            em_printfout("Could not resolve haul type from ssid=%s, defaulting to fronthaul", ap_mld_info.ssid);
+        }
+        dm->update_ap_mld_info(&ap_mld_info);
+
         ap_mld = reinterpret_cast<em_ap_mld_t *> (reinterpret_cast<unsigned char *> (ap_mld) + sizeof(em_ap_mld_t) + affiliated_ap_len);
-        ap_mld_len += static_cast<short unsigned int> (sizeof(em_ap_mld_t) + affiliated_ap_len);
     }
 
     return 0;
