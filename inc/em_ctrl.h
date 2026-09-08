@@ -220,7 +220,18 @@ public:
 	 * @note Ensure that the event structure is properly initialized before calling this function.
 	 */
 	void handle_client_steer(em_bus_event_t *evt);
-    
+
+	/**!
+	 * @brief Handles client assoc ctrl req based on the event provided.
+	 *
+	 * This function processes the client assoc ctrl request event and performs necessary actions.
+	 *
+	 * @param[in] evt Pointer to the event structure containing client assoc ctrl information.
+	 *
+	 * @note Ensure that the event structure is properly initialized before calling this function.
+	 */
+	void handle_client_assoc(em_bus_event_t *evt);
+
 	/**!
 	 * @brief Handles the disassociation of a client.
 	 *
