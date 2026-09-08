@@ -124,6 +124,7 @@ TEST(em_sm_t_Test, SetStateToValidStates) {
         em_state_agent_channel_select_configuration_pending,
         em_state_agent_channel_report_pending,
         em_state_agent_channel_scan_result_pending,
+        em_state_agent_unassoc_sta_metrics_report_pending,
         em_state_agent_configured,
         em_state_agent_topology_notify,
         em_state_agent_ap_cap_report,
@@ -161,7 +162,11 @@ TEST(em_sm_t_Test, SetStateToValidStates) {
         em_state_ctrl_ap_mld_req_ack_rcvd,
         em_state_ctrl_avail_spectrum_inquiry_pending,
         em_state_ctrl_bsta_cap_pending,
-        em_state_ctrl_topo_publish_pending
+        em_state_ctrl_topo_publish_pending,
+        em_state_ctrl_unassoc_sta_link_metrics_pending,
+        em_state_ctrl_client_assoc_ctrl_req_pending,
+        em_state_beacon_report_pending,
+        em_state_beacon_report_complete,
     };
     for (em_state_t state : valid_states) {
         em_sm_t obj;
@@ -232,6 +237,7 @@ TEST(em_sm_t_Test, ValidateValidStates) {
         em_state_agent_channel_select_configuration_pending,
         em_state_agent_channel_report_pending,
         em_state_agent_channel_scan_result_pending,
+        em_state_agent_unassoc_sta_metrics_report_pending,
         em_state_agent_configured,
         em_state_agent_topology_notify,
         em_state_agent_ap_cap_report,
@@ -269,7 +275,11 @@ TEST(em_sm_t_Test, ValidateValidStates) {
         em_state_ctrl_ap_mld_req_ack_rcvd,
         em_state_ctrl_avail_spectrum_inquiry_pending,
         em_state_ctrl_bsta_cap_pending,
-        em_state_ctrl_topo_publish_pending
+        em_state_ctrl_topo_publish_pending,
+        em_state_ctrl_unassoc_sta_link_metrics_pending,
+        em_state_ctrl_client_assoc_ctrl_req_pending,
+        em_state_beacon_report_pending,
+        em_state_beacon_report_complete,
     };
 
     for (em_state_t state : valid_states) {
