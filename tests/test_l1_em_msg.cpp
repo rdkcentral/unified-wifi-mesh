@@ -6496,3 +6496,214 @@ TEST(em_tlv_member_t, em_tlv_member_t_destructor_invoked_valid_instance) {
     std::cout << "Instance went out of scope. Destructor ~em_tlv_member_t() should have been invoked with no errors, memory leaks, or crashes." << std::endl;
     std::cout << "Exiting em_tlv_member_t_destructor_invoked_valid_instance test" << std::endl;
 }
+
+/**
+ * @brief Build a frame with a header, a copied TLV, a produced TLV and the EOM TLV and verify its layout.
+ *
+ * **Test Procedure:**
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01 | add_1905_header, add_tlv (copy), tlv_value + commit_tlv (produce), add_eom | dst, src, msg_id = 0x1234, 6 byte value, 2 byte produced value | every call returns true, length and TLV fields match | Should Pass |
+ */
+TEST(em_msg_builder_t, builds_header_tlvs_and_eom) {
+    std::cout << "Entering builds_header_tlvs_and_eom test" << std::endl;
+    em_msg_builder_t msg;
+    unsigned char dst[6] = {0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF};
+    unsigned char src[6] = {0x11, 0x22, 0x33, 0x44, 0x55, 0x66};
+    unsigned char value[6] = {0x01, 0x02, 0x03, 0x04, 0x05, 0x06};
+    const unsigned int hdr_len = sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t);
+
+    EXPECT_TRUE(msg.add_1905_header(dst, src, em_msg_type_ap_metrics_rsp, 0x1234));
+    EXPECT_EQ(msg.get_len(), hdr_len);
+    EXPECT_TRUE(msg.add_tlv(em_tlv_type_sta_mac_addr, value, sizeof(value)));
+
+    unsigned char *produced = msg.tlv_value();
+    produced[0] = 0x7A;
+    produced[1] = 0x7B;
+    EXPECT_TRUE(msg.commit_tlv(em_tlv_type_ap_metrics, 2));
+    EXPECT_TRUE(msg.add_eom());
+
+    const unsigned int expected_len = hdr_len + (sizeof(em_tlv_t) + 6) + (sizeof(em_tlv_t) + 2) + sizeof(em_tlv_t);
+    EXPECT_EQ(msg.get_len(), expected_len);
+
+    unsigned char *buff = msg.get_buff();
+    EXPECT_EQ(std::memcmp(buff, dst, sizeof(mac_address_t)), 0);
+    EXPECT_EQ(std::memcmp(buff + sizeof(mac_address_t), src, sizeof(mac_address_t)), 0);
+    em_cmdu_t *cmdu = reinterpret_cast<em_cmdu_t *>(buff + sizeof(em_raw_hdr_t));
+    EXPECT_EQ(ntohs(cmdu->type), em_msg_type_ap_metrics_rsp);
+    EXPECT_EQ(ntohs(cmdu->id), 0x1234);
+    EXPECT_EQ(cmdu->relay_ind, 0);
+    EXPECT_EQ(cmdu->last_frag_ind, 1);
+
+    em_tlv_t *tlv = reinterpret_cast<em_tlv_t *>(buff + hdr_len);
+    EXPECT_EQ(tlv->type, em_tlv_type_sta_mac_addr);
+    EXPECT_EQ(ntohs(tlv->len), 6u);
+    EXPECT_EQ(std::memcmp(tlv->value, value, sizeof(value)), 0);
+
+    tlv = reinterpret_cast<em_tlv_t *>(buff + hdr_len + sizeof(em_tlv_t) + 6);
+    EXPECT_EQ(tlv->type, em_tlv_type_ap_metrics);
+    EXPECT_EQ(ntohs(tlv->len), 2u);
+    EXPECT_EQ(tlv->value[0], 0x7A);
+    EXPECT_EQ(tlv->value[1], 0x7B);
+
+    tlv = reinterpret_cast<em_tlv_t *>(buff + msg.get_len() - sizeof(em_tlv_t));
+    EXPECT_EQ(tlv->type, em_tlv_type_eom);
+    EXPECT_EQ(ntohs(tlv->len), 0u);
+    std::cout << "Exiting builds_header_tlvs_and_eom test" << std::endl;
+}
+
+/**
+ * @brief Verify that commit_tlv() with a negative producer result leaves the frame unchanged and marks it failed.
+ *
+ * **Test Procedure:**
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01 | add_1905_header, commit_tlv(-1), add_eom | value_len = -1 | commit_tlv and add_eom return false, length unchanged | Should Pass |
+ */
+TEST(em_msg_builder_t, commit_tlv_rejects_negative_length) {
+    std::cout << "Entering commit_tlv_rejects_negative_length test" << std::endl;
+    em_msg_builder_t msg;
+    unsigned char dst[6] = {0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF};
+    unsigned char src[6] = {0x11, 0x22, 0x33, 0x44, 0x55, 0x66};
+
+    EXPECT_TRUE(msg.add_1905_header(dst, src, em_msg_type_ap_metrics_rsp, 1));
+    unsigned int len = msg.get_len();
+    EXPECT_FALSE(msg.commit_tlv(em_tlv_type_ap_metrics, -1));
+    EXPECT_FALSE(msg.add_eom());
+    EXPECT_EQ(msg.get_len(), len);
+    std::cout << "Exiting commit_tlv_rejects_negative_length test" << std::endl;
+}
+
+/**
+ * @brief Verify that the first append that does not fit is dropped, later appends are dropped too and add_eom() fails.
+ *
+ * **Test Procedure:**
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01 | Builder with capacity for header + one 8 byte TLV + EOM; add header and one 8 byte TLV | capacity = 22 + 11 + 3 | both appends return true | Should Pass |
+ * | 02 | Append a second 8 byte TLV | 11 bytes needed, 3 left | returns false, length unchanged | Should Pass |
+ * | 03 | Append an empty TLV that would fit, then add_eom | value_len = 0 | both return false, length unchanged | Should Pass |
+ */
+TEST(em_msg_builder_t, overflow_is_sticky_and_fails_eom) {
+    std::cout << "Entering overflow_is_sticky_and_fails_eom test" << std::endl;
+    const unsigned int hdr_len = sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t);
+    em_msg_builder_t msg(hdr_len + (sizeof(em_tlv_t) + 8) + sizeof(em_tlv_t));
+    unsigned char dst[6] = {0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF};
+    unsigned char src[6] = {0x11, 0x22, 0x33, 0x44, 0x55, 0x66};
+    unsigned char value[8] = {0};
+
+    EXPECT_TRUE(msg.add_1905_header(dst, src, em_msg_type_ap_metrics_rsp, 1));
+    EXPECT_TRUE(msg.add_tlv(em_tlv_type_ap_metrics, value, sizeof(value)));
+    unsigned int len = msg.get_len();
+
+    EXPECT_FALSE(msg.add_tlv(em_tlv_type_ap_metrics, value, sizeof(value)));
+    EXPECT_EQ(msg.get_len(), len);
+
+    EXPECT_FALSE(msg.add_tlv(em_tlv_type_ap_metrics, value, 0));
+    EXPECT_FALSE(msg.add_eom());
+    EXPECT_EQ(msg.get_len(), len);
+    std::cout << "Exiting overflow_is_sticky_and_fails_eom test" << std::endl;
+}
+
+/**
+ * @brief Verify that a frame larger than the former MAX_EM_BUFF_SZ stack buffer is built without error.
+ *
+ * **Test Procedure:**
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01 | add_1905_header, six 200 byte TLVs, add_eom | 22 + 6 * 203 + 3 = 1243 bytes | every call returns true, length is 1243 and above MAX_EM_BUFF_SZ | Should Pass |
+ */
+TEST(em_msg_builder_t, exceeds_legacy_stack_buffer) {
+    std::cout << "Entering exceeds_legacy_stack_buffer test" << std::endl;
+    em_msg_builder_t msg;
+    unsigned char dst[6] = {0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF};
+    unsigned char src[6] = {0x11, 0x22, 0x33, 0x44, 0x55, 0x66};
+    unsigned char value[200] = {0};
+    const unsigned int hdr_len = sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t);
+
+    EXPECT_TRUE(msg.add_1905_header(dst, src, em_msg_type_ap_metrics_rsp, 1));
+    for (int i = 0; i < 6; i++) {
+        EXPECT_TRUE(msg.add_tlv(em_tlv_type_ap_metrics, value, sizeof(value)));
+    }
+    EXPECT_TRUE(msg.add_eom());
+    EXPECT_EQ(msg.get_len(), hdr_len + 6 * (sizeof(em_tlv_t) + sizeof(value)) + sizeof(em_tlv_t));
+    EXPECT_GT(msg.get_len(), static_cast<unsigned int>(MAX_EM_BUFF_SZ));
+    std::cout << "Exiting exceeds_legacy_stack_buffer test" << std::endl;
+}
+
+/**
+ * @brief Verify that a producer may write a maximum size TLV value at tlv_value() and that the commit is refused when it does not fit.
+ *
+ * **Test Procedure:**
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01 | add_1905_header, memset EM_MAX_TLV_VALUE_SZ bytes at tlv_value(), commit_tlv, add_eom | value_len = EM_MAX_TLV_VALUE_SZ | write stays inside the scratch area, commit_tlv and add_eom return false, length unchanged | Should Pass |
+ */
+TEST(em_msg_builder_t, tlv_value_holds_max_tlv) {
+    std::cout << "Entering tlv_value_holds_max_tlv test" << std::endl;
+    em_msg_builder_t msg;
+    unsigned char dst[6] = {0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF};
+    unsigned char src[6] = {0x11, 0x22, 0x33, 0x44, 0x55, 0x66};
+
+    EXPECT_TRUE(msg.add_1905_header(dst, src, em_msg_type_ap_metrics_rsp, 1));
+    unsigned int len = msg.get_len();
+    memset(msg.tlv_value(), 0xAB, EM_MAX_TLV_VALUE_SZ);
+    EXPECT_FALSE(msg.commit_tlv(em_tlv_type_ap_metrics, EM_MAX_TLV_VALUE_SZ));
+    EXPECT_FALSE(msg.add_eom());
+    EXPECT_EQ(msg.get_len(), len);
+    std::cout << "Exiting tlv_value_holds_max_tlv test" << std::endl;
+}
+
+/**
+ * @brief Verify that a value longer than the 16-bit TLV length field is refused even when it would fit in the frame.
+ *
+ * **Test Procedure:**
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01 | Builder with capacity above the TLV limit; add_1905_header, commit_tlv(EM_MAX_TLV_VALUE_SZ) | value_len = 65535 | commit_tlv returns true | Should Pass |
+ * | 02 | add_tlv with EM_MAX_TLV_VALUE_SZ + 1 bytes, add_eom | value_len = 65536 | add_tlv and add_eom return false, length unchanged | Should Pass |
+ */
+TEST(em_msg_builder_t, refuses_value_above_tlv_limit) {
+    std::cout << "Entering refuses_value_above_tlv_limit test" << std::endl;
+    em_msg_builder_t msg(2 * EM_MAX_TLV_VALUE_SZ);
+    unsigned char dst[6] = {0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF};
+    unsigned char src[6] = {0x11, 0x22, 0x33, 0x44, 0x55, 0x66};
+    std::vector<unsigned char> value(EM_MAX_TLV_VALUE_SZ + 1, 0xCD);
+
+    EXPECT_TRUE(msg.add_1905_header(dst, src, em_msg_type_ap_metrics_rsp, 1));
+    memset(msg.tlv_value(), 0xAB, EM_MAX_TLV_VALUE_SZ);
+    EXPECT_TRUE(msg.commit_tlv(em_tlv_type_ap_metrics, EM_MAX_TLV_VALUE_SZ));
+    unsigned int len = msg.get_len();
+
+    EXPECT_FALSE(msg.add_tlv(em_tlv_type_ap_metrics, value.data(), static_cast<unsigned int>(value.size())));
+    EXPECT_FALSE(msg.add_eom());
+    EXPECT_EQ(msg.get_len(), len);
+    std::cout << "Exiting refuses_value_above_tlv_limit test" << std::endl;
+}
+
+/**
+ * @brief Verify that tlv_value() hands out zeroed memory after a committed TLV and after an uncommitted write.
+ *
+ * **Test Procedure:**
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01 | Write 8 bytes at tlv_value(), commit_tlv(8), call tlv_value() again | value 0xCD x 8 | the 8 bytes read back as zero | Should Pass |
+ * | 02 | Write 16 bytes at tlv_value() without committing, call tlv_value() again | value 0xCD x 16 | the 16 bytes read back as zero | Should Pass |
+ */
+TEST(em_msg_builder_t, tlv_value_is_zeroed) {
+    std::cout << "Entering tlv_value_is_zeroed test" << std::endl;
+    em_msg_builder_t msg;
+    unsigned char dst[6] = {0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF};
+    unsigned char src[6] = {0x11, 0x22, 0x33, 0x44, 0x55, 0x66};
+    unsigned char zeros[16] = {0};
+
+    EXPECT_TRUE(msg.add_1905_header(dst, src, em_msg_type_ap_metrics_rsp, 1));
+
+    memset(msg.tlv_value(), 0xCD, 8);
+    EXPECT_TRUE(msg.commit_tlv(em_tlv_type_ap_metrics, 8));
+    EXPECT_EQ(std::memcmp(msg.tlv_value(), zeros, 8), 0);
+
+    memset(msg.tlv_value(), 0xCD, 16);
+    EXPECT_EQ(std::memcmp(msg.tlv_value(), zeros, 16), 0);
+    std::cout << "Exiting tlv_value_is_zeroed test" << std::endl;
+}
