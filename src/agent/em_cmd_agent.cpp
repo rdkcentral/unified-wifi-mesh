@@ -37,19 +37,8 @@
 #include <sys/un.h>
 #include <unistd.h>
 #include <pthread.h>
-#include <cjson/cJSON.h>
 #include "em_agent.h"
 #include "em_cmd_agent.h"
-
-em_cmd_t em_cmd_agent_t::m_client_cmd_spec[] = {
-    em_cmd_t(em_cmd_type_none,em_cmd_params_t{0, {"", "", "", "", ""}, "none", nullptr}),
-    em_cmd_t(em_cmd_type_dev_init,em_cmd_params_t{1, {"", "", "", "", ""}, "wfa-dataelements:Network", nullptr}),
-    em_cmd_t(em_cmd_type_cfg_renew, em_cmd_params_t{1, {"", "", "", "", ""}, "wfa-dataelements:Renew", nullptr}),
-    em_cmd_t(em_cmd_type_vap_config,em_cmd_params_t{1, {"", "", "", "", ""}, "wfa-dataelements:BssConfig", nullptr}),
-    em_cmd_t(em_cmd_type_sta_list,em_cmd_params_t{1, {"", "", "", "", ""}, "wfa-dataelements:StaList", nullptr}),
-    em_cmd_t(em_cmd_type_ap_cap_query,em_cmd_params_t{1, {"", "", "", "", ""}, "wfa-dataelements:CapReport", nullptr}),
-    em_cmd_t(em_cmd_type_max,em_cmd_params_t{0, {"", "", "", "", ""}, "max", nullptr}),
-};
 
 int em_cmd_agent_t::execute(em_long_string_t result)
 {
@@ -124,95 +113,9 @@ int em_cmd_agent_t::send_result(em_cmd_out_status_t status)
     return 0;
 }
 
-em_event_t *em_cmd_agent_t::create_event(char *buff)
-{
-    // here is the entry point of RBUS subdocuments
-    em_cmd_type_t   type = em_cmd_type_none;
-    cJSON *obj, *child_obj;
-    const char *tmp;
-    em_cmd_t    *cmd;
-    unsigned int idx;
-    em_event_t *evt;
-    em_bus_event_t *bevt;
-
-    if ((obj = cJSON_Parse(buff)) == NULL) {
-        printf("%s:%d: Failed to parse JSON object\n", __func__, __LINE__);
-        return NULL;
-    }
-
-    idx = 0; type = em_cmd_agent_t::m_client_cmd_spec[idx].get_type();
-    cmd = &em_cmd_agent_t::m_client_cmd_spec[idx];
-    while (type != em_cmd_type_max) {
-        //cmd = &em_cmd_agent_t::m_client_cmd_spec[idx];
-
-        if (cmd->get_svc() != em_service_type_agent) {
-            idx++;
-            cmd = &em_cmd_agent_t::m_client_cmd_spec[idx];
-            type = em_cmd_agent_t::m_client_cmd_spec[idx].get_type(); continue;
-        }
-
-        tmp = cmd->get_arg();
-
-        if ((child_obj = cJSON_GetObjectItem(obj, tmp)) != NULL) {
-            break;
-        }
-
-        idx++;
-        type = em_cmd_agent_t::m_client_cmd_spec[idx].get_type();
-        cmd = &em_cmd_agent_t::m_client_cmd_spec[idx];
-    }
-
-    cJSON_Delete(obj);
-
-    if ((type == em_cmd_type_none) || (type >= em_cmd_type_max)) {
-        printf("%s:%d: type invalid=%d\n", __func__, __LINE__,type);
-        return NULL;
-    }
-
-    unsigned int buff_len = static_cast<unsigned int>(strlen(buff)) + 1;
-    evt = reinterpret_cast<em_event_t *>(malloc(sizeof(em_event_t) + buff_len));
-    evt->type = em_event_type_bus;
-    bevt = &evt->u.bevt;
-
-    switch (type) {
-        case em_cmd_type_dev_init:  
-            bevt->type = em_bus_event_type_dev_init;
-            break;
-
-        case em_cmd_type_sta_list:
-            bevt->type = em_bus_event_type_sta_list;
-            break;
-
-        case em_cmd_type_ap_cap_query:
-            bevt->type = em_bus_event_type_ap_cap_query;
-            break;
-
-	    case em_cmd_type_client_cap_query:
-	        bevt->type = em_bus_event_type_client_cap_query;
-	        break;
-
-        case em_cmd_type_cfg_renew:
-            bevt->type = em_bus_event_type_cfg_renew;
-            break;
-       
-         default:
-            break;
-    }
-
-    memcpy(&bevt->params, &cmd->m_param, sizeof(em_cmd_params_t));
-    memcpy(&bevt->u.subdoc.buff, buff, buff_len);
-    bevt->data_len = buff_len;
-    return evt;
-}
-
 em_cmd_agent_t::em_cmd_agent_t(em_cmd_t& obj) : m_dsock(-1)
 {
     memcpy(&m_cmd.m_param, &obj.m_param, sizeof(em_cmd_params_t));
-}
-
-em_cmd_agent_t::em_cmd_agent_t(em_cmd_type_t type) : m_dsock(-1)
-{
-    memcpy(&m_cmd.m_param, &em_cmd_agent_t::m_client_cmd_spec[type].m_param, sizeof(em_cmd_params_t));
 }
 
 em_cmd_agent_t::em_cmd_agent_t() : m_dsock(-1)

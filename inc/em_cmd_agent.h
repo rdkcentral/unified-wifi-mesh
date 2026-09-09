@@ -28,9 +28,8 @@ class em_cmd_agent_t : public em_cmd_exec_t {
     em_agent_t& m_agent = g_agent;
     int m_dsock;
 public:
-    static em_cmd_t m_client_cmd_spec[];
-public:
     
+
 	/**!
 	 * @brief Executes a command and stores the result.
 	 *
@@ -61,35 +60,7 @@ public:
 	 */
 	int send_result(em_cmd_out_status_t status);
 
-    
-	/**!
-	 * @brief Creates an event from the given buffer.
-	 *
-	 * This function takes a character buffer as input and creates an event of type `em_event_t`.
-	 *
-	 * @param[in] buff A character buffer containing the event data.
-	 *
-	 * @returns A pointer to the created `em_event_t` event.
-	 * @retval NULL if the event creation fails.
-	 *
-	 * @note Ensure that the buffer is properly formatted to create a valid event.
-	 */
-	static em_event_t *create_event(char *buff);
-    
-    
-	/**!
-	 * @brief 
-	 *
-	 * Initializes a command agent with the specified command type.
-	 *
-	 * @param[in] type The type of command to initialize the agent with.
-	 *
-	 * @returns A new instance of em_cmd_agent_t initialized with the given command type.
-	 *
-	 * @note Ensure that the command type is valid and supported by the system.
-	 */
-	em_cmd_agent_t(em_cmd_type_t type);
-    
+
 	/**!
 	 * @brief Constructor for em_cmd_agent_t class.
 	 *
