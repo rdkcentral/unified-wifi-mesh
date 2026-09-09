@@ -505,6 +505,110 @@ unsigned char* em_msg_t::add_1905_header(unsigned char *buff, unsigned int *len,
 
     return em_msg_t::add_buff_element(tmp, len, reinterpret_cast<uint8_t *> (&cmdu), sizeof(em_cmdu_t));
 }
+
+thread_local unsigned char em_msg_builder_t::s_tlv_value[EM_MAX_TLV_VALUE_SZ];
+
+em_msg_builder_t::em_msg_builder_t(unsigned int capacity) :
+    m_buff(), m_capacity(capacity), m_len(0), m_msg_type(0), m_failed(false)
+{
+}
+
+bool em_msg_builder_t::fits(unsigned int size)
+{
+    if (size > m_capacity - m_len) {
+        m_failed = true;
+        return false;
+    }
+
+    return true;
+}
+
+em_tlv_t *em_msg_builder_t::append_tlv(em_tlv_type_t tlv_type, unsigned int value_len)
+{
+    if (m_failed) {
+        return NULL;
+    }
+
+    if (value_len > EM_MAX_TLV_VALUE_SZ) {
+        m_failed = true;
+        em_printfout("msg type 0x%04x: TLV 0x%02x value length %u exceeds the TLV limit", m_msg_type, tlv_type, value_len);
+        return NULL;
+    }
+
+    unsigned int size = static_cast<unsigned int>(sizeof(em_tlv_t)) + value_len;
+
+    if (fits(size) == false) {
+        em_printfout("msg type 0x%04x: TLV 0x%02x of %u bytes does not fit, len %u capacity %u", m_msg_type, tlv_type, size, m_len, m_capacity);
+        return NULL;
+    }
+
+    m_buff.resize(m_len + size);
+    em_tlv_t *tlv = reinterpret_cast<em_tlv_t *>(m_buff.data() + m_len);
+    tlv->type = tlv_type;
+    tlv->len = htons(static_cast<unsigned short>(value_len));
+    m_len += size;
+
+    return tlv;
+}
+
+bool em_msg_builder_t::add_1905_header(mac_addr_t dst, mac_addr_t src, em_msg_type_t msg_type, unsigned short msg_id)
+{
+    unsigned int size = static_cast<unsigned int>(sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+
+    if (m_failed) {
+        return false;
+    }
+
+    m_msg_type = msg_type;
+    if (fits(size) == false) {
+        em_printfout("msg type 0x%04x: header does not fit, len %u capacity %u", m_msg_type, m_len, m_capacity);
+        return false;
+    }
+
+    m_buff.resize(m_len + size);
+    em_msg_t::add_1905_header(m_buff.data() + m_len, &m_len, dst, src, msg_type, msg_id);
+
+    return true;
+}
+
+unsigned char *em_msg_builder_t::tlv_value()
+{
+    memset(s_tlv_value, 0, sizeof(s_tlv_value));
+
+    return s_tlv_value;
+}
+
+bool em_msg_builder_t::commit_tlv(em_tlv_type_t tlv_type, int value_len)
+{
+    if (value_len < 0) {
+        m_failed = true;
+        em_printfout("msg type 0x%04x: TLV 0x%02x not created (%d)", m_msg_type, tlv_type, value_len);
+        return false;
+    }
+
+    return add_tlv(tlv_type, s_tlv_value, static_cast<unsigned int>(value_len));
+}
+
+bool em_msg_builder_t::add_tlv(em_tlv_type_t tlv_type, const unsigned char *value, unsigned int value_len)
+{
+    em_tlv_t *tlv = append_tlv(tlv_type, value_len);
+
+    if (tlv == NULL) {
+        return false;
+    }
+
+    if (value_len > 0) {
+        memcpy(tlv->value, value, value_len);
+    }
+
+    return true;
+}
+
+bool em_msg_builder_t::add_eom()
+{
+    return append_tlv(em_tlv_type_eom, 0) != NULL;
+}
+
 unsigned int em_msg_t::validate(char *errors[])
 {
     em_tlv_t *tlv;
