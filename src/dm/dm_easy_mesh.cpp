@@ -1844,6 +1844,7 @@ int dm_easy_mesh_t::decode_client_cap_config(em_subdoc_info_t *subdoc, const cha
 	//printf("%s:%d: msg id %d rmac=%s\n", __func__, __LINE__,msg_id,radiomac);
 
     }
+    cJSON_Delete(parent_obj);
     return 0;
 }
 
