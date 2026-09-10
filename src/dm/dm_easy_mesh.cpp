@@ -3159,6 +3159,11 @@ void dm_easy_mesh_t::deinit()
     em_2xlong_string_t key;
     mac_addr_str_t dev_mac_str, radio_mac_str, bss_mac_str, sta_mac_str, scanner_mac_str;
 
+    // log map pointer addresses so a future dangling/shared-map crash can be traced back here
+    em_printfout("[SCAN_DM_DEBUG] deinit this=%p scan_result_map=%p policy_map=%p sta_map=%p sta_assoc_map=%p sta_dassoc_map=%p wifi_data=%p",
+        static_cast<void*>(this), static_cast<void*>(m_scan_result_map), static_cast<void*>(m_policy_map),
+        static_cast<void*>(m_sta_map), static_cast<void*>(m_sta_assoc_map), static_cast<void*>(m_sta_dassoc_map), static_cast<void*>(m_wifi_data));
+
     // idempotent: also called from ~em_cmd_t; guard each map and reset it to NULL
 
     //destroy elements of m_scan_result_map
@@ -3442,7 +3447,8 @@ dm_scan_result_t *dm_easy_mesh_t::get_scan_result(unsigned int index)
 
 dm_scan_result_t *dm_easy_mesh_t::find_matching_scan_result(em_scan_result_id_t *id)
 {
-    dm_scan_result_t *res;
+    	dm_scan_result_t *res;
+    	em_printfout("[SCAN_DM_DEBUG] find_matching_scan_result this=%p scan_result_map=%p", static_cast<void*>(this), static_cast<void*>(m_scan_result_map));
 
 	res = static_cast<dm_scan_result_t *> (hash_map_get_first(m_scan_result_map));
 	while (res != NULL) {
@@ -3464,6 +3470,8 @@ dm_scan_result_t *dm_easy_mesh_t::find_matching_scan_result(em_scan_result_id_t 
 void dm_easy_mesh_t::update_scan_results(em_scan_result_t *scan_result)
 {
     const char *netid = "OneWifiMesh";
+
+    em_printfout("[SCAN_DM_DEBUG] update_scan_results this=%p scan_result_map=%p", static_cast<void*>(this), static_cast<void*>(m_scan_result_map));
 
     em_scan_result_id_t *id = &scan_result->id;
 

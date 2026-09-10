@@ -231,7 +231,9 @@ int dm_easy_mesh_agent_t::analyze_sta_list(em_bus_event_t *evt, em_cmd_t *pcmd[]
 int dm_easy_mesh_agent_t::analyze_autoconfig_renew(em_bus_event_t *evt, em_cmd_t *pcmd[])
 {
     em_bus_event_type_cfg_renew_params_t *raw;
-    dm_easy_mesh_agent_t  dm = *this;
+    dm_easy_mesh_agent_t  dm;
+    dm.init();
+    dm = *this;
     int num = 0;
     unsigned int index = 0;
     em_cmd_t *tmp;
@@ -662,7 +664,9 @@ int dm_easy_mesh_agent_t::analyze_channel_sel_req(em_bus_event_t *evt, wifi_bus_
 
 int dm_easy_mesh_agent_t::analyze_csa_beacon_frame(em_bus_event_t *evt, wifi_bus_desc_t *desc, bus_handle_t *bus_hdl)
 {
-    dm_easy_mesh_agent_t dm = *this;
+    dm_easy_mesh_agent_t dm;
+    dm.init();
+    dm = *this;
 
     bool found_mesh_sta = false;
     bool csa_found = false;
@@ -1011,7 +1015,11 @@ int dm_easy_mesh_agent_t::analyze_unassoc_sta_result(em_bus_event_t *evt, em_cmd
 int dm_easy_mesh_agent_t::analyze_scan_result(em_bus_event_t *evt, em_cmd_t *pcmd[])
 {
     unsigned int num = 0;
-    dm_easy_mesh_agent_t  dm = *this;
+    // operate directly on the live agent object instead of a local copy: a
+    // shallow-copied dm here would share m_scan_result_map with *this, and its
+    // destructor would later free memory *this still points to
+    em_printfout("[SCAN_DM_DEBUG] analyze_scan_result this=%p scan_result_map=%p",
+        static_cast<void*>(this), static_cast<void*>(m_scan_result_map));
     em_cmd_t *tmp;
     cJSON *json, *scanner_mac_obj;
 
@@ -1019,7 +1027,7 @@ int dm_easy_mesh_agent_t::analyze_scan_result(em_bus_event_t *evt, em_cmd_t *pcm
     webconfig_external_easymesh_t ext;
     webconfig_subdoc_type_t type = webconfig_subdoc_type_em_channel_stats;
 
-    webconfig_proto_easymesh_init(&ext, &dm, NULL, NULL, get_num_radios, set_num_radios,
+    webconfig_proto_easymesh_init(&ext, this, NULL, NULL, get_num_radios, set_num_radios,
             get_num_op_class, set_num_op_class, get_num_bss, set_num_bss,
             get_device_info, get_network_info, get_radio_info, get_ieee_1905_security_info, get_bss_info, get_op_class_info,
             get_first_sta_info, get_next_sta_info, get_sta_info, put_sta_info, get_bss_info_with_mac, update_scan_results,
@@ -1053,7 +1061,7 @@ int dm_easy_mesh_agent_t::analyze_scan_result(em_bus_event_t *evt, em_cmd_t *pcm
 
     dm_easy_mesh_t::string_to_macbytes(scanner_mac_obj->valuestring, evt->params.u.scan_params.ruid);
 
-    pcmd[num] = new em_cmd_scan_result_t(evt->params, dm);
+    pcmd[num] = new em_cmd_scan_result_t(evt->params, *this);
     tmp = pcmd[num];
     num++;
     

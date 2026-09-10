@@ -2026,6 +2026,10 @@ public:
 	void set_primary_device_type(char *type) { m_device.set_primary_device_type(type); }
     //void operator =(dm_easy_mesh_t const& obj);
     dm_easy_mesh_t& operator =(dm_easy_mesh_t const& obj);
+    // deleted: prevents the compiler's shallow, member-wise copy constructor
+    // (which would share raw hash-map pointers between two live objects and
+    // double-free them); use operator= on a default/init()'d object instead
+    dm_easy_mesh_t(dm_easy_mesh_t const& obj) = delete;
     bool operator ==(dm_easy_mesh_t const& obj);
     
 	/**!

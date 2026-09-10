@@ -2504,6 +2504,8 @@ int dm_easy_mesh_ctrl_t::analyze_unassoc_sta_metrics_query(em_bus_event_t *evt, 
 
     dm_easy_mesh_t::string_to_macbytes(al_mac_buf, params.u.unassoc_sta_query_params.al_mac);
 
+    // dm_easy_mesh_ctrl_t is not a dm_easy_mesh_t; this constructs one via
+    // the dm_network_t converting constructor, not the (deleted) copy ctor
     dm_easy_mesh_t dm = *this;
 
     em_unassoc_query_list_t query;
@@ -2613,6 +2615,8 @@ int dm_easy_mesh_ctrl_t::analyze_sta_link_metrics(em_cmd_t *pcmd[])
     int num = 0;
     em_cmd_t *tmp;
 
+    // dm_easy_mesh_ctrl_t is not a dm_easy_mesh_t; this constructs one via
+    // the dm_network_t converting constructor, not the (deleted) copy ctor
     dm_easy_mesh_t dm = *this;
 
     pcmd[num] = new em_cmd_sta_link_metrics_t(dm);
@@ -3074,6 +3078,8 @@ int dm_easy_mesh_ctrl_t::analyze_client_assoc(em_bus_event_t *evt, em_cmd_t *pcm
     em_subdoc_info_t *subdoc;
     em_long_string_t wfa;
     em_cmd_client_assoc_params_t assoc_param;
+    // dm_easy_mesh_ctrl_t is not a dm_easy_mesh_t; this constructs one via
+    // the dm_network_t converting constructor, not the (deleted) copy ctor
     dm_easy_mesh_t dm = *this;
 
     subdoc = &evt->u.subdoc;
@@ -4117,6 +4123,8 @@ int dm_easy_mesh_ctrl_t::analyze_mld_reconfig(em_cmd_t *pcmd[])
 int dm_easy_mesh_ctrl_t::analyze_bsta_cap_req(em_bus_event_t *evt, em_cmd_t *pcmd[])
 {
     int num = 0;
+    // dm_easy_mesh_ctrl_t is not a dm_easy_mesh_t; this constructs one via
+    // the dm_network_t converting constructor, not the (deleted) copy ctor
     dm_easy_mesh_t dm = *this;
 
     em_printfout("analyze radio mac '%s' for bsta cap request", evt->u.raw_buff);
