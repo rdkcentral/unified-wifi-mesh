@@ -245,6 +245,7 @@ int main(int argc, char **argv) {
     "db_client_crud_Test.NextResultValidContextHasRows:"
     "db_client_crud_Test.NextResultNoMoreRows:"
     "db_client_crud_Test.NextResultInvalidContext:"
+    "db_client_crud_Test.FreeResultEarlyExitAllowsSubsequentQueries:"
     "db_client_t_Test.RecreateDatabaseWithValidConnection:"
     "db_client_tTest.ConnectWithValidDatabasePath:"
     "db_client_t_Test.ExecuteNullQuery:"

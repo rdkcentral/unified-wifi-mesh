@@ -37,15 +37,11 @@ protected:
 class db_client_crud_Test : public ::testing::Test {
 protected:
     db_client_t* dbClient;
-    struct result_context_t {
-        MYSQL_RES *result;
-        MYSQL_ROW row;
-    };
     void SetUp() override {
         dbClient = new db_client_t();
         dbClient->init("bpi@root");
         // Step 1: Create table
-        free_result(dbClient->execute(
+        dbClient->free_result(dbClient->execute(
             "CREATE TABLE IF NOT EXISTS users ("
             "id INT AUTO_INCREMENT PRIMARY KEY,"
             "username VARCHAR(50) NOT NULL,"
@@ -54,7 +50,7 @@ protected:
             ");"
         ));
         // Step 2: Insert two rows
-        free_result(dbClient->execute(
+        dbClient->free_result(dbClient->execute(
             "INSERT INTO users (username, email) VALUES "
             "('alice', 'alice@example.com'),"
             "('bob', 'bob@example.com');"
@@ -62,16 +58,8 @@ protected:
     }
     void TearDown() override {
         // Drop table
-        free_result(dbClient->execute("DROP TABLE IF EXISTS users;"));
+        dbClient->free_result(dbClient->execute("DROP TABLE IF EXISTS users;"));
         delete dbClient;
-    }
-    // Helper to free memory
-    void free_result(void* result) {
-        if (result) {
-            result_context_t* ctx = static_cast<result_context_t*>(result);
-            if (ctx->result) mysql_free_result(ctx->result);
-            delete ctx;
-        }
     }
 };
 
@@ -100,7 +88,7 @@ TEST_F(db_client_crud_Test, ExecuteValidSelectQuery) {
     const char* selectQuery = "SELECT id, username, email FROM users;";
     void* result = dbClient->execute(selectQuery);
     ASSERT_NE(result, nullptr) << "SELECT query failed.";
-    free_result(result);
+    dbClient->free_result(result);
     std::cout << "Exiting ExecuteValidSelectQuery test" << std::endl;
 }
 
@@ -208,7 +196,7 @@ TEST_F(db_client_t_Test, ExecuteInvalidSQLSyntax) {
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
  * | 01 | Execute a SELECT query to retrieve the first user's ID | query = "SELECT id FROM users ORDER BY id ASC LIMIT 1;" | Result context is not null | Should Pass |
- * | 02 | Fetch the first row from the result | ctx->row = mysql_fetch_row(ctx->result) | Row is not null | Should Pass |
+ * | 02 | Fetch the first row from the result | next_result(ctx) | Returns true | Should Pass |
  * | 03 | Call `get_number` with the valid context and column index 1 | ctx, column_index = 1 | Returns integer value `1` | Expected ID of first row |
  * | 04 | Verify the returned value matches expected | id == 1 | Assertion passes | Should Pass |
  */
@@ -219,14 +207,13 @@ TEST_F(db_client_crud_Test, GetNumberValidColumn) {
     void* result = dbClient->execute("SELECT id FROM users ORDER BY id ASC LIMIT 1;");
     ASSERT_NE(result, nullptr);
     // Step 2: Fetch first row
-    result_context_t* ctx = static_cast<result_context_t*>(result);
-    ctx->row = mysql_fetch_row(ctx->result);
-    ASSERT_NE(ctx->row, nullptr);
+    bool hasRow = dbClient->next_result(result);
+    ASSERT_TRUE(hasRow);
     // Step 3: Retrieve number from valid column
-    int id = dbClient->get_number(ctx, 1);
+    int id = dbClient->get_number(result, 1);
     EXPECT_EQ(id, 1);
     // Cleanup
-    free_result(result);
+    dbClient->free_result(result);
     std::cout << "Exiting GetNumberValidColumn test" << std::endl;
 }
 
@@ -275,7 +262,7 @@ TEST_F(db_client_t_Test, RetrieveIntegerFromInvalidContext) {
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
  * | 01 | Execute a SELECT query to retrieve the first user's ID and username | query = "SELECT id, username FROM users ORDER BY id ASC LIMIT 1;" | Result context is not null | Should Pass |
- * | 02 | Fetch the first row from the result | ctx->row = mysql_fetch_row(ctx->result) | Row is not null | Should Pass |
+ * | 02 | Fetch the first row from the result | next_result(ctx) | Returns true | Should Pass |
  * | 03 | Call `get_number` on the second column (non-numeric) | ctx, column_index = 2 | Returns 0 | Non-numeric column handled correctly |
  * | 04 | Verify that the returned value is 0 | value == 0 | Assertion passes | Should Pass |
  */
@@ -285,14 +272,13 @@ TEST_F(db_client_crud_Test, GetNumberNonNumericColumn) {
     void* result = dbClient->execute("SELECT id, username FROM users ORDER BY id ASC LIMIT 1;");
     ASSERT_NE(result, nullptr);
     // Step 2: Fetch first row
-    result_context_t* ctx = static_cast<result_context_t*>(result);
-    ctx->row = mysql_fetch_row(ctx->result);
-    ASSERT_NE(ctx->row, nullptr);
+    bool hasRow = dbClient->next_result(result);
+    ASSERT_TRUE(hasRow);
     // Step 3: Attempt to retrieve number from non-numeric column
-    int value = dbClient->get_number(ctx, 2);
+    int value = dbClient->get_number(result, 2);
     EXPECT_EQ(value, 0);
     // Cleanup
-    free_result(result);
+    dbClient->free_result(result);
     std::cout << "Exiting GetNumberNonNumericColumn test" << std::endl;
 }
 
@@ -300,8 +286,8 @@ TEST_F(db_client_crud_Test, GetNumberNonNumericColumn) {
  * @brief Test to verify the behavior of `get_number` when called with an invalid column index
  *
  * This test checks that the `get_number` function correctly handles an invalid column index
- * (0 in this case, which is out of bounds). The function should return `0` when the column
- * index is invalid.
+ * (0 in this case; columns are 1-based) on a row that has actually been fetched. The function
+ * is expected to deterministically return 0 rather than exhibit undefined behavior.
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 008@n
@@ -315,19 +301,23 @@ TEST_F(db_client_crud_Test, GetNumberNonNumericColumn) {
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
  * | 01 | Execute a SELECT query to retrieve the first user's ID | query = "SELECT id FROM users ORDER BY id ASC LIMIT 1;" | Result context is not null | Should Pass |
- * | 02 | Call `get_number` with an invalid column index (0) | ctx, column_index = 0 | Returns 0 | Invalid column handled correctly |
- * | 03 | Verify that the returned value is 0 | number == 0 | Assertion passes | Should Pass |
+ * | 02 | Fetch the first row from the result | next_result(ctx) | Returns true | Should Pass |
+ * | 03 | Call `get_number` with an invalid column index (0) | ctx, column_index = 0 | Returns 0 | Invalid column handled deterministically |
+ * | 04 | Verify that the returned value is 0 | number == 0 | Assertion passes | Should Pass |
  */
 TEST_F(db_client_crud_Test, GetNumberInvalidColumn) {
     std::cout << "Entering GetNumberInvalidColumn test" << std::endl;
     // Step 1: Execute SELECT query
     void* result = dbClient->execute("SELECT id FROM users ORDER BY id ASC LIMIT 1;");
     ASSERT_NE(result, nullptr) << "execute() returned null — query failed or DB not initialized";
-    // Step 2: Attempt to retrieve number from invalid column index
+    // Step 2: Fetch first row so the invalid column index is actually exercised on real row data
+    bool hasRow = dbClient->next_result(result);
+    ASSERT_TRUE(hasRow);
+    // Step 3: Attempt to retrieve number from invalid column index
     int number = dbClient->get_number(result, 0);
     EXPECT_EQ(number, 0);
     // Cleanup
-    free_result(result);
+    dbClient->free_result(result);
     std::cout << "Exiting GetNumberInvalidColumn test" << std::endl;
 }
 
@@ -350,7 +340,7 @@ TEST_F(db_client_crud_Test, GetNumberInvalidColumn) {
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
  * | 01 | Execute a SELECT query to retrieve the first user's username | query = "SELECT username FROM users ORDER BY id ASC LIMIT 1;" | Result context is not null | Should Pass |
- * | 02 | Fetch the first row from the result | ctx->row = mysql_fetch_row(ctx->result) | Row is not null | Should Pass |
+ * | 02 | Fetch the first row from the result | next_result(ctx) | Returns true | Should Pass |
  * | 03 | Call `get_string` with valid context and column index 1 | ctx, column_index = 1, buffer[256] | Returns pointer to non-empty string | String successfully retrieved |
  * | 04 | Verify that the returned string is not empty | strlen(str) > 0 | Assertion passes | Should Pass |
  */
@@ -360,9 +350,8 @@ TEST_F(db_client_crud_Test, GetStringValidColumn) {
     void* result = dbClient->execute("SELECT username FROM users ORDER BY id ASC LIMIT 1;");
     ASSERT_NE(result, nullptr);
     // Step 2: Fetch first row
-    result_context_t* ctx = static_cast<result_context_t*>(result);
-    ctx->row = mysql_fetch_row(ctx->result);
-    ASSERT_NE(ctx->row, nullptr) << "First row is null — query returned no data";
+    bool hasRow = dbClient->next_result(result);
+    ASSERT_TRUE(hasRow) << "First row is null — query returned no data";
     // Step 3: Retrieve string from valid column
     char buffer[256] = {0};
     char* str = dbClient->get_string(result, buffer, 1);
@@ -371,7 +360,7 @@ TEST_F(db_client_crud_Test, GetStringValidColumn) {
     // Step 4: Verify string is non-empty
     EXPECT_GT(strlen(str), 0);
     // Cleanup
-    free_result(result);
+    dbClient->free_result(result);
     std::cout << "Exiting GetStringValidColumn test" << std::endl;
 }
 
@@ -379,8 +368,8 @@ TEST_F(db_client_crud_Test, GetStringValidColumn) {
  * @brief Test to verify the behavior of `get_string` when called with an invalid column index
  *
  * This test checks that the `get_string` function correctly handles an invalid column index
- * (0 in this case, which is out of bounds). The function is expected to cause an assertion
- * failure or program termination when the column index is invalid.
+ * (0 in this case; columns are 1-based) on a row that has actually been fetched. The function
+ * is expected to deterministically return NULL rather than exhibit undefined behavior.
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 010@n
@@ -394,9 +383,9 @@ TEST_F(db_client_crud_Test, GetStringValidColumn) {
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
  * | 01 | Execute a SELECT query to retrieve the first user's username | query = "SELECT username FROM users ORDER BY id ASC LIMIT 1;" | Result context is not null | Should Pass |
- * | 02 | Fetch the first row from the result | ctx->row = mysql_fetch_row(ctx->result) | Row is not null | Should Pass |
- * | 03 | Call `get_string` with invalid column index (0) | ctx, buffer[256], column_index = 0 | Program terminates / assertion triggers | Handled by EXPECT_DEATH |
- * | 04 | Verify that the invalid access is detected | — | Assertion triggers; test passes | Checked using EXPECT_DEATH |
+ * | 02 | Fetch the first row from the result | next_result(ctx) | Returns true | Should Pass |
+ * | 03 | Call `get_string` with invalid column index (0) | ctx, buffer[256], column_index = 0 | Returns NULL | Invalid column handled deterministically |
+ * | 04 | Verify that the returned pointer is NULL | str == nullptr | Assertion passes | Should Pass |
  */
 TEST_F(db_client_crud_Test, GetStringInvalidColumn) {
     std::cout << "Entering GetStringInvalidColumn test" << std::endl;
@@ -404,16 +393,14 @@ TEST_F(db_client_crud_Test, GetStringInvalidColumn) {
     void* result = dbClient->execute("SELECT username FROM users ORDER BY id ASC LIMIT 1;");
     ASSERT_NE(result, nullptr) << "execute() returned null — query failed or DB not initialized";
     // Step 2: Fetch first row
-    result_context_t* ctx = static_cast<result_context_t*>(result);
-    ctx->row = mysql_fetch_row(ctx->result);
-    ASSERT_NE(ctx->row, nullptr);
+    bool hasRow = dbClient->next_result(result);
+    ASSERT_TRUE(hasRow);
     char buffer[256] = {0};
     // Step 3: Attempt to retrieve string from invalid column index
-    EXPECT_DEATH({
-        dbClient->get_string(result, buffer, 0);
-    }, ".*");
+    char* str = dbClient->get_string(result, buffer, 0);
+    EXPECT_EQ(str, nullptr);
     // Cleanup
-    free_result(result);
+    dbClient->free_result(result);
     std::cout << "Exiting GetStringInvalidColumn test" << std::endl;
 }
 
@@ -556,10 +543,56 @@ TEST_F(db_client_crud_Test, NextResultValidContextHasRows) {
     ASSERT_NE(result, nullptr) << "execute() returned null — query failed";
     // Step 2: Advance to first row
     bool hasRow = dbClient->next_result(result);
-    EXPECT_TRUE(hasRow) << "Expected next_result() to find first row";
+    ASSERT_TRUE(hasRow) << "Expected next_result() to find first row";
     // Cleanup
-    free_result(result);
+    dbClient->free_result(result);
     std::cout << "Exiting NextResultValidContextHasRows test" << std::endl;
+}
+
+/**
+ * @brief Test the early-exit scenario supported by free_result(): releasing a result
+ * context after consuming only part of it, and confirming the client remains usable.
+ *
+ * This test executes a multi-row SELECT, advances to only the first row via
+ * next_result(), then releases the context early with the public free_result() API
+ * instead of draining every row. It then verifies subsequent queries still execute
+ * correctly, proving free_result() leaves the connection in a valid state.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 023@n
+ * **Priority:** High@n
+ * @n
+ * **Pre-Conditions:** The `users` table exists with at least two rows.@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ * @n
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01 | Execute a SELECT query returning multiple rows | query = "SELECT username FROM users ORDER BY id ASC;" | Result context is not null | Should Pass |
+ * | 02 | Advance to only the first row | ctx | Returns true | Row exists |
+ * | 03 | Release the context early via free_result() | ctx | Context released | Should Pass |
+ * | 04 | Execute another query afterward | new query | Result context is not null | Client still usable |
+ * | 05 | Verify the new query's data and free its context | second ctx | Assertions pass | Should Pass |
+ */
+TEST_F(db_client_crud_Test, FreeResultEarlyExitAllowsSubsequentQueries) {
+    std::cout << "Entering FreeResultEarlyExitAllowsSubsequentQueries test" << std::endl;
+    // Step 1: Execute a SELECT query returning multiple rows
+    void* result = dbClient->execute("SELECT username FROM users ORDER BY id ASC;");
+    ASSERT_NE(result, nullptr) << "execute() returned null — query failed";
+    // Step 2: Advance to only the first row (early exit before exhausting all rows)
+    bool hasRow = dbClient->next_result(result);
+    ASSERT_TRUE(hasRow) << "Expected first row to be available";
+    // Step 3: Release the context early instead of draining every row
+    dbClient->free_result(result);
+    // Step 4: Verify the client can still execute subsequent queries without crashing
+    void* second_result = dbClient->execute("SELECT id, username FROM users ORDER BY id ASC LIMIT 1;");
+    ASSERT_NE(second_result, nullptr) << "execute() failed after early free_result()";
+    bool secondHasRow = dbClient->next_result(second_result);
+    EXPECT_TRUE(secondHasRow);
+    EXPECT_EQ(dbClient->get_number(second_result, 1), 1);
+    dbClient->free_result(second_result);
+    std::cout << "Exiting FreeResultEarlyExitAllowsSubsequentQueries test" << std::endl;
 }
 
 /**
@@ -589,7 +622,7 @@ TEST_F(db_client_crud_Test, NextResultNoMoreRows) {
     void* result = dbClient->execute("SELECT username FROM users WHERE id = 1;");
     ASSERT_NE(result, nullptr);
     bool hasRow = dbClient->next_result(result);
-    EXPECT_TRUE(hasRow) << "Expected first row to be available";
+    ASSERT_TRUE(hasRow) << "Expected first row to be available";
     bool hasNext = dbClient->next_result(result);
     EXPECT_FALSE(hasNext) << "Expected no more rows";
     std::cout << "Exiting NextResultNoMoreRows test" << std::endl;
@@ -662,6 +695,31 @@ TEST_F(db_client_t_Test, NullResultContext) {
     bool result = dbClient->next_result(ctx);
     EXPECT_FALSE(result);
     std::cout << "Exiting NullResultContext test" << std::endl;
+}
+
+/**
+ * @brief Test that free_result() safely handles a NULL context without crashing.
+ *
+ * This test ensures that calling free_result() with a NULL context is a documented
+ * no-op, so callers do not need to NULL-check before releasing a result context.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 024@n
+ * **Priority:** High@n
+ * @n
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ * @n
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01 | Call free_result with a null context | ctx = nullptr | No crash | Should Pass |
+ */
+TEST_F(db_client_t_Test, FreeResultNullContext) {
+    std::cout << "Entering FreeResultNullContext test" << std::endl;
+    dbClient->free_result(nullptr);
+    std::cout << "Exiting FreeResultNullContext test" << std::endl;
 }
 
 /**
