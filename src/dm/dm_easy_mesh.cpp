@@ -144,8 +144,10 @@ int dm_easy_mesh_t::commit_config(dm_easy_mesh_t& dm, em_commit_target_t target)
     } else if (target.type == em_commit_target_al) {
         m_network = dm.m_network;
         uint8_t saved_emplus = m_device.m_device_info.is_emplus_agent;
+        em_ext_device_info_t saved_edi = m_device.m_device_info.extended_info;
         m_device = dm.m_device;
         m_device.m_device_info.is_emplus_agent = saved_emplus;
+        m_device.m_device_info.extended_info = saved_edi;
     } else if (target.type == em_commit_target_radio) {
         string_to_macbytes(reinterpret_cast<char *> (target.params),mac);
         radio = dm.get_radio(mac);
@@ -285,8 +287,10 @@ int dm_easy_mesh_t::commit_config(em_cmd_t  *cmd)
                 switch (cmd->get_orch_op()) {
                     case dm_orch_type_al_insert: {
                         uint8_t saved_emplus = m_device.m_device_info.is_emplus_agent;
+                        em_ext_device_info_t saved_edi = m_device.m_device_info.extended_info;
                         m_device = cmd->m_data_model.m_device;
                         m_device.m_device_info.is_emplus_agent = saved_emplus;
+                        m_device.m_device_info.extended_info = saved_edi;
                         break;
                     }
                     case dm_orch_type_em_insert:

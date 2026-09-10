@@ -2027,6 +2027,15 @@
                             "AssociatedSTAReportingInterval": {
                                 "$ref": "#/definitions/uint8_t"
                             },
+                            "X_AIRTIES_BootID": {
+                                "$ref": "#/definitions/uint32_t"
+                            },
+                            "X_AIRTIES_ClientID": {
+                                "type": "string"
+                            },
+                            "X_AIRTIES_ClientSecret": {
+                                "type": "string"
+                            },
                             "RadioList": {
                                 "type": "array",
                                 "items": {

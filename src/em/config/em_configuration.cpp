@@ -34,6 +34,7 @@
 #include <sys/socket.h>
 #include <sys/uio.h>
 #include <sys/time.h>
+#include <fcntl.h>
 #include <unistd.h>
 #include <pthread.h>
 #include <openssl/rand.h>
@@ -1091,6 +1092,159 @@ int em_configuration_t::create_device_info_type_tlv(unsigned char *buff)
     tlv->len = htons(tlv_len);
 
     return tlv_len;
+}
+
+int em_configuration_t::create_airties_device_info_tlv(unsigned char *buff, size_t buff_sz)
+{
+    unsigned char *start = buff;
+    em_ext_device_info_t *edi = &get_device_info()->extended_info;
+    size_t needed = EM_VENDOR_OUI_SIZE + // Vendor OUI
+                    sizeof(uint16_t) + // TLV type
+                    sizeof(uint32_t) + // Boot ID
+                    sizeof(unsigned char) + // Client ID Length
+                    edi->client_id_len + // Client ID
+                    sizeof(unsigned char) + // Client Secret Length
+                    edi->client_secret_len + // Client Secret
+                    sizeof(unsigned char) + // Product Class
+                    sizeof(unsigned char); // Device Role
+
+    if (needed > buff_sz) {
+        em_printfout("Warning: Airties device info TLV dropped, insufficient buffer, need %zu, have %zu", needed, buff_sz);
+        return 0;
+    }
+
+    em_vendor_specific_v_t *vendor = reinterpret_cast<em_vendor_specific_v_t *> (buff);
+    memcpy(reinterpret_cast<unsigned char *> (vendor->vendor_oui), airties_vendor_oui, EM_VENDOR_OUI_SIZE);
+
+    uint16_t tlv_type = htons(static_cast<uint16_t> (em_tlv_type_airties_device_info));
+    memcpy(reinterpret_cast<unsigned char *> (vendor->data), &tlv_type, sizeof(tlv_type));
+    buff = reinterpret_cast<unsigned char *> (vendor->data) + sizeof(tlv_type);
+
+    uint32_t boot_id = htonl(static_cast<uint32_t> (edi->boot_id));
+    memcpy(buff, &boot_id, sizeof(boot_id));
+    buff += sizeof(boot_id);
+
+    *buff = edi->client_id_len;
+    buff++;
+
+    memcpy(buff, edi->client_id, edi->client_id_len);
+    buff += edi->client_id_len;
+
+    *buff = edi->client_secret_len;
+    buff++;
+
+    memcpy(buff, edi->client_secret, edi->client_secret_len);
+    buff += edi->client_secret_len;
+
+    *buff = static_cast<unsigned char> (edi->product_class);
+    buff++;
+
+    *buff = static_cast<unsigned char> (edi->device_role);
+    buff++;
+
+    return static_cast<unsigned short> (buff - start);
+}
+
+int em_configuration_t::handle_airties_device_info_tlv(unsigned char *buff, unsigned int len)
+{
+    dm_easy_mesh_t *dm;
+
+    if ((dm = get_data_model()) == NULL) {
+        em_printfout("Error: No dm found");
+        return -1;
+    }
+
+    em_device_info_t *di = dm->get_device()->get_device_info();
+
+    unsigned short min_tlv_len = sizeof(uint16_t) + // TLV type
+                                 sizeof(uint32_t) + // Boot ID
+                                 sizeof(unsigned char) + // Client ID Length
+                                 sizeof(unsigned char) + // Client Secret Length
+                                 sizeof(unsigned char) + // Product Class
+                                 sizeof(unsigned char); // Device Role
+    if (len < min_tlv_len) {
+        em_printfout("Error: Minimal TLV size check failed");
+        return -1;
+    }
+
+    unsigned char *data = buff;
+    buff += 2;
+
+    em_ext_device_info_t edi = {};
+    uint32_t boot_id;
+    memcpy(&boot_id, buff, sizeof(boot_id));
+    edi.boot_id = ntohl(boot_id);
+    buff += sizeof(boot_id);
+
+    edi.client_id_len = *buff;
+    buff++;
+
+    /* Check buffer overflow before fetching client id: the bytes already consumed
+     * (buff - data) plus the declared client id length must stay within the payload,
+     * and one more byte is needed for the client secret length that follows.
+     */
+    if (len <= (buff - data) + edi.client_id_len) {
+        em_printfout("Error: Possible buffer overflow before getting client ID");
+        return -1;
+    }
+
+    memcpy(edi.client_id, buff, edi.client_id_len);
+    edi.client_id[edi.client_id_len] = '\0';
+    buff += edi.client_id_len;
+
+    edi.client_secret_len = *buff;
+    buff++;
+
+    /* Check exact buffer size after gathering all variable length elements */
+    if (len != static_cast<unsigned int> (min_tlv_len) + edi.client_id_len + edi.client_secret_len) {
+        em_printfout("Error: Size mismatch on payload");
+        return -1;
+    }
+
+    memcpy(edi.client_secret, buff, edi.client_secret_len);
+    edi.client_secret[edi.client_secret_len] = '\0';
+    buff += edi.client_secret_len;
+
+    edi.product_class = static_cast<emex_product_class_t> (*buff);
+    buff++;
+
+    edi.device_role = static_cast<emex_device_role_t> (*buff);
+    buff++;
+
+    edi.received = true;
+
+    di->extended_info = edi;
+
+    return 0;
+}
+
+int em_configuration_t::handle_vendor_specific_tlv(unsigned char *buff, unsigned int len)
+{
+    em_vendor_specific_v_t *vendor = reinterpret_cast<em_vendor_specific_v_t *> (buff);
+
+    if (len >= (EM_VENDOR_OUI_SIZE + sizeof(uint16_t))) {
+        /* Check for Airties TLV, OUI(3) + TLV_ID(2) */
+        if (memcmp(vendor->vendor_oui, airties_vendor_oui, EM_VENDOR_OUI_SIZE) == 0) {
+            uint16_t tlv_type;
+
+            memcpy(&tlv_type, reinterpret_cast<unsigned char *> (vendor->data), sizeof(tlv_type));
+            tlv_type = ntohs(tlv_type);
+
+            switch (tlv_type) {
+                case em_tlv_type_airties_device_info:
+                    handle_airties_device_info_tlv(vendor->data, len - EM_VENDOR_OUI_SIZE);
+                    break;
+
+                default:
+                    em_printfout("Warning: Unknown Airties TLV: %u", tlv_type);
+                    break;
+            }
+        }
+    } else {
+        em_printfout("Warning: Invalid vendor specific TLV (len=%u)", len);
+    }
+
+    return 0;
 }
 
 int em_configuration_t::create_ap_mld_config_tlv(unsigned char *buff)
@@ -4040,7 +4194,7 @@ int em_configuration_t::create_autoconfig_wsc_m2_msg(unsigned char *buff, unsign
 
 }
 
-int em_configuration_t::create_autoconfig_wsc_m1_msg(unsigned char *buff, unsigned char *dst)
+int em_configuration_t::create_autoconfig_wsc_m1_msg(unsigned char *buff, size_t buff_sz, unsigned char *dst)
 {
     unsigned short  msg_type = em_msg_type_autoconf_wsc;
     int len = 0;
@@ -4108,6 +4262,21 @@ int em_configuration_t::create_autoconfig_wsc_m1_msg(unsigned char *buff, unsign
 
     tmp += (sizeof(em_tlv_t) + sizeof(em_ap_radio_advanced_cap_t));
     len += static_cast<int> (sizeof(em_tlv_t) + sizeof(em_ap_radio_advanced_cap_t));
+
+    // One Vendor (Airties) Device Info TLV
+    /* Two headers are reserved: this TLV's own and the end of message TLV below. */
+    size_t reserved = static_cast<size_t> (len) + 2 * sizeof(em_tlv_t);
+    tlv = reinterpret_cast<em_tlv_t *> (tmp);
+    sz = (buff_sz > reserved) ? static_cast<short unsigned int> (
+             create_airties_device_info_tlv(tlv->value, buff_sz - reserved)) : 0;
+    /* Emit nothing when Airties Device Info TLV is dropped. */
+    if (sz > 0) {
+        tlv->type = em_tlv_type_vendor_specific;
+        tlv->len = htons(sz);
+
+        tmp += (sizeof(em_tlv_t) + sz);
+        len += static_cast<int> (sizeof(em_tlv_t) + sz);
+    }
 
     // End of message
     tlv = reinterpret_cast<em_tlv_t *> (tmp);
@@ -5814,18 +5983,40 @@ int em_configuration_t::handle_autoconfig_wsc_m1(unsigned char *buff, unsigned i
     tlv_len = len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
     em_cmdu_t *cmdu = reinterpret_cast<em_cmdu_t *> (buff + sizeof(em_raw_hdr_t));
 
-    while ((tlv->type != em_tlv_type_eom) && (len > 0)) {
-        if (tlv->type == em_tlv_type_ap_radio_basic_cap) {
-            handle_ap_radio_basic_cap(tlv->value, htons(tlv->len));
-        } else if (tlv->type == em_tlv_type_wsc) {
-            handle_wsc_m1(tlv->value, htons(tlv->len));
-        } else if (tlv->type == em_tlv_type_profile_2_ap_cap) {
-        } else if (tlv->type == em_tlv_type_ap_radio_advanced_cap) {
-            handle_ap_radio_advanced_cap(tlv->value, htons(tlv->len));
+    /* The Airties device info is carried in the M1 only, so it is refreshed from every M1.
+     * Drop what a previous one reported before the walk, otherwise an agent that stops
+     * sending the TLV keeps appearing to report its old boot id.
+     */
+    dm_easy_mesh_t *ext_dm = get_data_model();
+    if (ext_dm != NULL) {
+        em_ext_device_info_t *edi = &ext_dm->get_device()->get_device_info()->extended_info;
+        memset(edi, 0, sizeof(*edi));
+    }
+
+    while ((tlv_len >= static_cast<unsigned int> (sizeof(em_tlv_t))) && (tlv->type != em_tlv_type_eom)) {
+        unsigned int val_len = ntohs(tlv->len);
+
+        /* A peer-declared length must never be handed to a parser before it is
+         * confirmed to fit within the bytes actually received.
+         */
+        if (tlv_len < static_cast<unsigned int> (sizeof(em_tlv_t)) + val_len) {
+            em_printfout("Truncated TLV: type %d declares %u bytes, %u remaining", tlv->type, val_len, tlv_len);
+            break;
         }
 
-        tlv_len -= static_cast<unsigned int> (sizeof(em_tlv_t) + htons(tlv->len));
-        tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
+        if (tlv->type == em_tlv_type_ap_radio_basic_cap) {
+            handle_ap_radio_basic_cap(tlv->value, val_len);
+        } else if (tlv->type == em_tlv_type_wsc) {
+            handle_wsc_m1(tlv->value, val_len);
+        } else if (tlv->type == em_tlv_type_profile_2_ap_cap) {
+        } else if (tlv->type == em_tlv_type_ap_radio_advanced_cap) {
+            handle_ap_radio_advanced_cap(tlv->value, val_len);
+        } else if (tlv->type == em_tlv_type_vendor_specific) {
+            handle_vendor_specific_tlv(tlv->value, val_len);
+        }
+
+        tlv_len -= static_cast<unsigned int> (sizeof(em_tlv_t)) + val_len;
+        tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + val_len);
     }
 
     int ret = create_autoconfig_wsc_m2_msg(msg, ntohs(cmdu->id));
@@ -5863,7 +6054,7 @@ int em_configuration_t::handle_autoconfig_wsc_m1(unsigned char *buff, unsigned i
 
 int em_configuration_t::handle_autoconfig_resp(unsigned char *buff, unsigned int len)
 {
-    unsigned char msg[MAX_EM_BUFF_SZ];
+    unsigned char msg[MAX_EM_BUFF_SZ*2];
     unsigned int sz;
     char *errors[EM_MAX_TLV_MEMBERS] = {0};
     em_raw_hdr_t *hdr = reinterpret_cast<em_raw_hdr_t *> (buff);
@@ -5904,7 +6095,7 @@ int em_configuration_t::handle_autoconfig_resp(unsigned char *buff, unsigned int
     }
 
     printf("Received resp and validated...creating M1 msg\n");
-    int msg_len = create_autoconfig_wsc_m1_msg(msg, hdr->src);
+    int msg_len = create_autoconfig_wsc_m1_msg(msg, sizeof(msg), hdr->src);
     if (msg_len < 0) {
         em_printfout("Error: Failed to create autoconfig wsc m1 msg");
         return -1;
@@ -6260,14 +6451,14 @@ void em_configuration_t::handle_state_config_none()
 
 void em_configuration_t::handle_state_autoconfig_renew()
 {
-    unsigned char msg[MAX_EM_BUFF_SZ];
+    unsigned char msg[MAX_EM_BUFF_SZ*2];
     unsigned int sz;
     char *errors[EM_MAX_TLV_MEMBERS] = {0};
     mac_address_t ctrl_src;
 
 
     memcpy(ctrl_src, get_current_cmd()->get_data_model()->get_controller_interface_mac(), sizeof(mac_address_t));
-    int msg_len = create_autoconfig_wsc_m1_msg(msg, ctrl_src);
+    int msg_len = create_autoconfig_wsc_m1_msg(msg, sizeof(msg), ctrl_src);
     if (msg_len < 0) {
         em_printfout("Error: Failed to create autoconfig wsc m1 msg");
         return ;

@@ -20,6 +20,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <errno.h>
+#include <limits.h>
 #include <signal.h>
 #include <unistd.h>
 #include <assert.h>
@@ -30,6 +31,7 @@
 #include <sys/ioctl.h>
 #include <sys/socket.h>
 #include <sys/uio.h>
+#include <fcntl.h>
 #include <unistd.h>
 #include <pthread.h>
 #include <cjson/cJSON.h>
@@ -48,6 +50,11 @@
 #endif
 
 #define RETRY_SLEEP_INTERVAL_IN_MS 1000
+
+#define EMEX_AIRTIES_CLIENT_ID      "Device.Services.X_AIRTIES_Edge.AuthConfig.ClientID"
+#define EMEX_AIRTIES_CLIENT_SECRET  "Device.Services.X_AIRTIES_Edge.AuthConfig.ClientPassword"
+#define EMEX_FILE_BOOT_ID           "/tmp/emex_boot_id"
+#define EMEX_BOOT_ID_BUF_LEN        32
 
 em_agent_t g_agent;
 #ifdef AL_SAP
@@ -1652,6 +1659,7 @@ void em_agent_t::input_listener()
     em_printfout("bus open success");
 
     load_em_plus_cfg();
+    fill_extended_device_info();
 
     memset(&data, 0, sizeof(raw_data_t));
 
@@ -2541,6 +2549,100 @@ void em_agent_t::load_em_plus_cfg()
         em_printfout("EM+ agent mode enabled");
     }
     cJSON_Delete(root);
+}
+
+int em_agent_t::fill_extended_device_info()
+{
+    em_ext_device_info_t *edi = &m_data_model.get_device_info()->extended_info;
+    char boot_str[EMEX_BOOT_ID_BUF_LEN];
+
+    memset(boot_str, 0, sizeof(boot_str));
+
+    int rc = -1;
+    if (access(EMEX_FILE_BOOT_ID, F_OK) == 0) {
+        rc = util::get_file_content(EMEX_FILE_BOOT_ID, boot_str, sizeof(boot_str));
+    }
+    if (rc || (strlen(boot_str) == 0)) {
+        /* Assign random (4-byte) boot id at initialization.
+         * Unlikely, but on a failure fall back to a rand() value.
+         * Note: No need to care about endianness for random bytes.
+         */
+        if (util::get_random_bytes(reinterpret_cast<unsigned char *> (&edi->boot_id), sizeof(edi->boot_id)) != 0) {
+            srand(static_cast<unsigned int> (time(NULL)));
+            edi->boot_id = static_cast<unsigned int> (rand());
+        }
+        snprintf(boot_str, sizeof(boot_str), "%u", edi->boot_id);
+        util::set_file_content(EMEX_FILE_BOOT_ID, boot_str);
+    } else {
+        char *ep;
+        errno = 0;
+        unsigned long val = strtoul(boot_str, &ep, 10);
+        if (ep == boot_str || *ep || errno == ERANGE || val > UINT_MAX) {
+            srand(static_cast<unsigned int> (time(NULL)));
+            edi->boot_id = static_cast<unsigned int> (rand());
+            snprintf(boot_str, sizeof(boot_str), "%u", edi->boot_id);
+            util::set_file_content(EMEX_FILE_BOOT_ID, boot_str);
+        } else {
+            edi->boot_id = static_cast<unsigned int> (val);
+        }
+    }
+
+    /* Set before the bus lookup, these need no bus access to be valid. */
+
+    /* Set as gateway by default, until it is implemented */
+    edi->product_class = emex_product_class_gw;
+
+    /* Set as controller by default, until it is implemented */
+    edi->device_role = emex_device_role_controller;
+
+    wifi_bus_desc_t *desc;
+    if ((desc = get_bus_descriptor()) == NULL) {
+        em_printfout("Error: Descriptor is null");
+        return -1;
+    }
+
+    raw_data_t data;
+    memset(&data, 0, sizeof(raw_data_t));
+    bus_error_t bus_rc = desc->bus_data_get_fn(&m_bus_hdl, EMEX_AIRTIES_CLIENT_ID, &data);
+    if (bus_rc != bus_error_success) {
+        em_printfout("Error: Client ID not found");
+    } else if (data.data_type == bus_data_type_string && data.raw_data.bytes != NULL) {
+        const char *val = reinterpret_cast<const char *> (data.raw_data.bytes);
+        size_t scan = (data.raw_data_len < sizeof(edi->client_id)) ? data.raw_data_len : sizeof(edi->client_id);
+        size_t id_len = strnlen(val, scan);
+
+        if (id_len == 0 || id_len > EMEX_MAX_CLIENT_ID_LEN) {
+            em_printfout("Error: Client ID has invalid length");
+        } else {
+            edi->client_id_len = static_cast<unsigned char> (id_len);
+            memcpy(edi->client_id, val, id_len);
+        }
+    } else {
+        em_printfout("Error: Client ID has invalid type");
+    }
+    desc->bus_data_free_fn(&data);
+
+    memset(&data, 0, sizeof(raw_data_t));
+    bus_rc = desc->bus_data_get_fn(&m_bus_hdl, EMEX_AIRTIES_CLIENT_SECRET, &data);
+    if (bus_rc != bus_error_success) {
+        em_printfout("Error: Client Secret not found");
+    } else if (data.data_type == bus_data_type_string && data.raw_data.bytes != NULL) {
+        const char *val = reinterpret_cast<const char *> (data.raw_data.bytes);
+        size_t scan = (data.raw_data_len < sizeof(edi->client_secret)) ? data.raw_data_len : sizeof(edi->client_secret);
+        size_t sec_len = strnlen(val, scan);
+
+        if (sec_len == 0 || sec_len > EMEX_MAX_CLIENT_SEC_LEN) {
+            em_printfout("Error: Client Secret has invalid length");
+        } else {
+            edi->client_secret_len = static_cast<unsigned char> (sec_len);
+            memcpy(edi->client_secret, val, sec_len);
+        }
+    } else {
+        em_printfout("Error: Client Secret has invalid type");
+    }
+    desc->bus_data_free_fn(&data);
+
+    return 0;
 }
 
 bool em_agent_t::try_start_dpp_onboarding()  {

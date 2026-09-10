@@ -588,7 +588,7 @@ void em_msg_t::autoconfig_wsc_m1() //M1 from MAP Agent
     m_tlv_member[m_num_tlv++] = em_tlv_member_t(em_tlv_type_wsc, mandatory, "table 8 of WSC v2.0.7", 264);
     m_tlv_member[m_num_tlv++] = em_tlv_member_t(em_tlv_type_profile_2_ap_cap, (m_profile > em_profile_type_1) ? mandatory:bad, "17.2.48 of Wi-Fi Easy Mesh 5.0", 2);
     m_tlv_member[m_num_tlv++] = em_tlv_member_t(em_tlv_type_ap_radio_advanced_cap, (m_profile > em_profile_type_1) ? mandatory:bad, "17.2.52 of Wi-Fi Easy Mesh 5.0", 2);
-
+    m_tlv_member[m_num_tlv++] = em_tlv_member_t(em_tlv_type_vendor_specific, optional, "table 6-7 of IEEE-1905-1", EMEX_MIN_EXT_DEV_INFO_SZ);
 
 }
 
