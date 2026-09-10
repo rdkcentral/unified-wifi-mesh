@@ -385,6 +385,7 @@ bool dm_network_ssid_list_t::search_db(db_client_t& db_client, void *ctx, void *
         db_client.get_string(ctx, id, 1);
 
         if (strncmp(id, static_cast<char *> (key), strlen(static_cast<char *> (key))) == 0) {
+            db_client.free_result(ctx);
             return true;
         }
     }
