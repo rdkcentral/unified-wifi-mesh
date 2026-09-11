@@ -796,6 +796,18 @@ public:
     static const char *akms_to_auth_type(const char *akms_val);
 
     /**!
+     * @brief Map an AKMsAllowed list to the internal NetworkSSID AuthType.
+     *
+     * @param akms_arr AKMsAllowed array; an empty array means that no AKM is
+     * offered, which is an open BSS.
+     *
+     * @returns const char*
+     * @retval AuthType string (securityTypeMap name) on success.
+     * @retval null for unsupported values.
+     */
+    static const char *akms_array_to_auth_type(const cJSON *akms_arr);
+
+    /**!
      * @brief Format the HaulType array as a comma-separated string.
      *
      * @param item JSON object expected to contain a "HaulType" array.
