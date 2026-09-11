@@ -1785,6 +1785,7 @@ int dm_easy_mesh_t::decode_ap_cap_config(em_subdoc_info_t *subdoc, const char *s
              msg_id = static_cast<short unsigned int> (id->valuedouble);
         printf("%s:%d: msg id %d\n", __func__, __LINE__,msg_id);
     }
+    cJSON_Delete(parent_obj);
     return 0;
 }
 
