@@ -412,13 +412,15 @@ int dm_easy_mesh_t::encode_config_reset(em_subdoc_info_t *subdoc, const char *ke
         return -1;
     }
 
-	if ((interfaces_obj = cJSON_AddObjectToObject(net_obj, "Interfaces")) == NULL) {
-		printf("%s:%d: Could not create interface object\n", __func__, __LINE__);
+    if ((interfaces_obj = cJSON_AddObjectToObject(net_obj, "Interfaces")) == NULL) {
+        printf("%s:%d: Could not create interface object\n", __func__, __LINE__);
+        cJSON_Delete(parent_obj);
         return -1;
-	}
+    }
 
-	if ((interface_arr_obj = cJSON_AddArrayToObject(interfaces_obj, "List")) == NULL) {
+    if ((interface_arr_obj = cJSON_AddArrayToObject(interfaces_obj, "List")) == NULL) {
         printf("%s:%d: Could not create interface array object\n", __func__, __LINE__);
+        cJSON_Delete(parent_obj);
         return -1;
     }
 
