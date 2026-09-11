@@ -1715,9 +1715,9 @@ bus_error_t em_ctrl_t::cmd_clientsteer(const char *method_name, const bus_data_p
     bool bridged = false, bridged_set = false;
     bool link = false, link_set = false;
     int opportunity = -1;
-    int timer = -1;
-    int op_class = -1;
-    int channel = -1;
+    int timer = 0;
+    int op_class = 0;
+    int channel = 0;
     em_subdoc_info_t *subdoc = NULL;
     unsigned char buff[sizeof(em_subdoc_info_t) + EM_IO_BUFF_SZ];
     cJSON *root = NULL, *json = NULL, *net_obj = NULL;
@@ -1862,11 +1862,11 @@ invalid:
         }
     }
     /* Mandatory parameters: TargetBSSID, RequestMode, BTMDisassociationImminent, BTMAbridged,
-     *   BTMDisassociationTimer, TargetBSSOperatingClass, TargetBSSChannel and
+     *   BTMDisassociationTimer if RequestMode is Steering_Mandate and
      *   SteeringOpportunityWindow if RequestMode is Steering_Opportunity */
     if (!target[0] || !requestmode[0] || !imminent_set || !bridged_set ||
-        timer < 0  || op_class < 0    || channel < 0   ||
-        (strcasecmp(requestmode, "Steering_Opportunity") == 0 && opportunity < 0)) {
+        (strcasecmp(requestmode, "Steering_Mandate") == 0 && timer < 0) ||
+        (strcasecmp(requestmode, "Steering_Opportunity") == 0 && opportunity <= 0)) {
         em_printfout("Mandatory parameters missing");
         if (output_params) {
             *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
@@ -2444,6 +2444,66 @@ cleanup:
     return rc;
 }
 
+int dm_easy_mesh_ctrl_t::build_steer_cac_block_params(const em_cmd_steer_params_t &steer, em_cmd_disassoc_params_t &disassoc)
+{
+    dm_device_t *device;
+    dm_bss_t *bss;
+    dm_easy_mesh_t *pdm;
+    em_bss_info_t *src_bss = NULL;
+    ssid_t source_ssid = {0};
+    unsigned int validity;
+    bool limit_reached = false;
+
+    memset(&disassoc, 0, sizeof(em_cmd_disassoc_params_t));
+    validity = EM_CAC_REQ_VALIDITY_PERIOD;
+
+    pdm = m_data_model_list.get_first_dm();
+    while (pdm != NULL) {
+        src_bss = pdm->get_bss_info_with_mac((unsigned char *)steer.source);
+        if (src_bss != NULL) {
+            memcpy(source_ssid, src_bss->ssid, sizeof(ssid_t));
+            break;
+        }
+        pdm = m_data_model_list.get_next_dm(pdm);
+    }
+
+    device = m_data_model_list.get_first_device();
+    while (device != NULL && limit_reached == false) {
+        bss = m_data_model_list.get_first_bss(device->m_device_info.intf.mac);
+        while (bss != NULL) {
+            em_bss_info_t *bi = &bss->m_bss_info;
+
+            if (memcmp(bi->ssid, source_ssid, sizeof(ssid_t)) != 0) {
+                bss = m_data_model_list.get_next_bss(device->m_device_info.intf.mac, bss);
+                continue;
+            }
+
+            if (memcmp(bi->bssid.mac, steer.target, sizeof(bssid_t)) == 0 || memcmp(bi->bssid.mac, steer.source, sizeof(bssid_t)) == 0) {
+                bss = m_data_model_list.get_next_bss(device->m_device_info.intf.mac, bss);
+                continue;
+            }
+            if (disassoc.num >= MAX_STA_TO_DISASSOC) {
+                em_printfout("MAX_STA_TO_DISASSOC reached for STA %s", util::mac_to_string(steer.sta_mac).c_str());
+                limit_reached = true;
+                break;
+            }
+
+            memcpy(disassoc.params[disassoc.num].sta_mac, steer.sta_mac, sizeof(mac_address_t));
+            memcpy(disassoc.params[disassoc.num].bssid, bi->bssid.mac, sizeof(bssid_t));
+            disassoc.params[disassoc.num].disassoc_time = validity;
+            disassoc.num++;
+
+            em_printfout("Steer CAC block STA %s on BSSID %s", util::mac_to_string(steer.sta_mac).c_str(),
+                util::mac_to_string(bi->bssid.mac).c_str());
+
+            bss = m_data_model_list.get_next_bss(device->m_device_info.intf.mac, bss);
+        }
+        device = m_data_model_list.get_next_device(device);
+    }
+
+    return static_cast<int>(disassoc.num);
+}
+
 int dm_easy_mesh_ctrl_t::analyze_unassoc_sta_metrics_query(em_bus_event_t *evt, em_cmd_t *pcmd[])
 {
     int num = 0;
@@ -2935,7 +2995,9 @@ int dm_easy_mesh_ctrl_t::analyze_sta_steer(em_cmd_steer_params_t &params, em_cmd
 {
     int num = 0;
     em_cmd_t *tmp;
+    em_cmd_disassoc_params_t cac_params;
 
+    /* Disassoc/steer first so source BSS is clear before CAC deny ACL is applied */
     pcmd[num] = new em_cmd_sta_steer_t(params);
     tmp = pcmd[num];
     num++;
@@ -2943,6 +3005,11 @@ int dm_easy_mesh_ctrl_t::analyze_sta_steer(em_cmd_steer_params_t &params, em_cmd
     while ((pcmd[num] = tmp->clone_for_next()) != NULL) {
         tmp = pcmd[num];
         num++;
+    }
+
+    memset(&cac_params, 0, sizeof(cac_params));
+    if (build_steer_cac_block_params(params, cac_params) > 0) {
+        num += analyze_sta_disassoc(cac_params, &pcmd[num]);
     }
 
     return num;
@@ -3055,7 +3122,7 @@ int dm_easy_mesh_ctrl_t::analyze_command_steer(em_bus_event_t *evt, em_cmd_t *cm
                     channel_obj = cJSON_GetObjectItem(steer_obj, "TargetBSSChannel");
                     steer_param.target_channel = static_cast<unsigned int> (cJSON_GetNumberValue(channel_obj));
 
-                    num += analyze_sta_steer(steer_param, cmd);
+                    num += analyze_sta_steer(steer_param, &cmd[num]);
                 }
             }
         }
