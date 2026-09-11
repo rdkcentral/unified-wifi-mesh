@@ -386,13 +386,22 @@ void em_channel_t::update_map_with_agent_capability_preference(const unsigned ch
         }
     }
 
-    // Remove unsupported opclasses from the map
-    for (auto& oc_pair : opclass_channel_prefs) {
-        unsigned int opclass = oc_pair.first;
+    // Remove unsupported opclasses from the map using iterator-based traversal
+    // to safely erase entries while iterating.
+    for (auto it = opclass_channel_prefs.begin(); it != opclass_channel_prefs.end();) {
+        unsigned int opclass = it->first;
         if (supported_opclasses.find(opclass) == supported_opclasses.end()) {
             // Opclass not present in AP Capability Report.
-            opclass_channel_prefs.erase(opclass);
-            break;
+            it = opclass_channel_prefs.erase(it);
+        } else {
+            ++it;
+        }
+    }
+    em_printfout("List of Opclass and channels with preference");
+    for (const auto& [opClass, channelMap] : opclass_channel_prefs) {
+        for (const auto& [channel, pref] : channelMap) {
+            em_printfout("OpClass= %d, channel= %d, pref= %d " ,
+                        static_cast<int>(opClass), static_cast<int>(channel), static_cast<int>(pref));
         }
     }
 }
