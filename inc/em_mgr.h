@@ -776,6 +776,8 @@ public:
 	 * @note Ensure that all resources are properly released before the object is destroyed.
 	 */
 	virtual ~em_mgr_t();
+
+	virtual int delete_db_row(dm_op_class_t *opclass) { return -1; }
 };
 
 #endif

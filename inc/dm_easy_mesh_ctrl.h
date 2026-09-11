@@ -1529,7 +1529,9 @@ public:
 	 * @note Ensure that the key and op_class are valid and properly initialized before calling this function.
 	 */
 	void put_op_class(const char *key, const dm_op_class_t *op_class) { m_data_model_list.put_op_class(key, op_class); }
-	
+
+	int delete_db_row(dm_op_class_t *opclass);
+
 	/**!
 	 * @brief Retrieves the first pre-set operational class by type.
 	 *

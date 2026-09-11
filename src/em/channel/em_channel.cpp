@@ -60,7 +60,7 @@ short em_channel_t::create_channel_pref_tlv_agent(unsigned char *buff, unsigned 
     dm_easy_mesh_t *dm;
     dm_op_class_t	*op_class;
     unsigned char *tmp;
-    unsigned char pref_bits = EM_CH_PREF_NON_OPERABLE | em_channel_pref_reason_t::em_channel_pref_reason_operation_disallowed_regulatory_restriction;
+    unsigned char pref_bits = EM_CH_PREF_NON_OPERABLE | m_current_reason;
     unsigned int num_of_channel = 0;
     em_channels_list_t *channel_list;
 
@@ -342,12 +342,13 @@ void em_channel_t::fill_map_with_opclass_channel_prefs(std::map<unsigned char, s
 void em_channel_t::update_map_with_agent_capability_preference(const unsigned char *ruid, std::map<unsigned char, std::map<unsigned char, unsigned char>> &opclass_channel_prefs)
 {
     dm_easy_mesh_t *dm = get_data_model();
+    dm_op_class_t *op_class;
     unsigned int i, j;
 
     // Mark non-operable channels and add supported operating classes from Agent's Capability Report
     std::set<unsigned int> supported_opclasses;
     for (i = 0; i < dm->get_num_op_class(); i++) {
-        dm_op_class_t *op_class = &dm->m_op_class[i];
+        op_class = &dm->m_op_class[i];
         em_op_class_info_t *info = &op_class->m_op_class_info;
 
         if ((info->id.type == em_op_class_type_capability) &&
@@ -368,7 +369,7 @@ void em_channel_t::update_map_with_agent_capability_preference(const unsigned ch
     // Update non-operable/operable preference from Agent's Preference Report
     for (i = 0; i < dm->get_num_op_class(); i++) {
 
-        dm_op_class_t *op_class = &dm->m_op_class[i];
+        op_class = &dm->m_op_class[i];
         em_op_class_info_t *info = &op_class->m_op_class_info;
         if ((info->id.type == em_op_class_type_preference) &&
             (info->pref_valid == EM_CH_PREF_ENTRY_VALID) &&
@@ -393,6 +394,27 @@ void em_channel_t::update_map_with_agent_capability_preference(const unsigned ch
             // Opclass not present in AP Capability Report.
             opclass_channel_prefs.erase(opclass);
             break;
+        }
+    }
+
+    // Mark non_occ channels with appropriate reason code in the map
+    for (unsigned int k = 0; k < dm->m_num_opclass; k++) {
+        op_class = &dm->m_op_class[k];
+
+	if ((op_class->m_op_class_info.id.type == em_op_class_type_cac_non_occ) &&
+            (memcmp(op_class->m_op_class_info.id.ruid, ruid, sizeof(mac_address_t)) == 0)) {
+	    unsigned int op_class_num = op_class->m_op_class_info.op_class;
+	    unsigned int channel = op_class->m_op_class_info.channel;
+
+	    auto opclass_it = opclass_channel_prefs.find(op_class_num);
+	    if (opclass_it != opclass_channel_prefs.end()) {
+                auto& channel_map = opclass_it->second;
+                if (op_class->m_op_class_info.sec_remain_non_occ_dur > 0) {
+                   channel_map[channel] = em_channel_pref_reason_operation_disallowed_dfs_radar_detection;
+	        } else {
+                   channel_map[channel] = em_channel_pref_reason_controller_dfs_clear_indication;
+                }
+            }
         }
     }
 }
@@ -1105,6 +1127,7 @@ int em_channel_t::send_channel_sel_response_msg(em_chan_sel_resp_code_type_t cod
         printf("%s:%d: Channel Selection Response msg failed, error:%d\n", __func__, __LINE__, errno);
         return -1;
     }
+    set_state(em_state_ctrl_configured);
 
     return static_cast<int> (len);
 
@@ -1430,12 +1453,29 @@ short em_channel_t::create_cac_complete_report_tlv(unsigned char *buff)
     unsigned int num_radios = static_cast<unsigned int>(dm->get_num_radios());
 
     for (radio_index = 0; radio_index < num_radios; radio_index++) {
+        dm_radio_t *radio = dm->get_radio(radio_index);
+        if (radio == NULL) {
+            continue;
+        }
+        em_radio_info_t *radio_info = radio->get_radio_info();
+        if (radio_info->band != em_freq_band_5) {
+            continue;
+        }
+
         em_cac_comp_rprt_radio_t *cac_comp_radio = reinterpret_cast<em_cac_comp_rprt_radio_t *>(tmp);
         memcpy(cac_comp_radio->ruid, dm->get_radio_by_ref(radio_index).get_radio_interface_mac() , sizeof(mac_address_t));
         cac_comp_radio->op_class = comp->m_cac_comp_info.op_class;
         cac_comp_radio->channel = comp->m_cac_comp_info.channel;
         cac_comp_radio->status = comp->m_cac_comp_info.status;
         cac_comp_radio->detected_pairs_num = comp->m_cac_comp_info.detected_pairs_num;
+
+        // Skip entries with channel 0, opclass 0, or radar detected count 0
+        if (comp->m_cac_comp_info.channel == 0 ||
+            comp->m_cac_comp_info.op_class == 0 ||
+            comp->m_cac_comp_info.detected_pairs_num == 0) {
+            em_printfout("Skip entries with channel 0, opclass 0, or radar detected count 0");
+            continue;
+        }
 
         tmp += sizeof(em_cac_comp_rprt_radio_t);
         len += static_cast<short>(sizeof(em_cac_comp_rprt_radio_t));
@@ -1460,7 +1500,7 @@ short em_channel_t::create_cac_complete_report_tlv(unsigned char *buff)
 int em_channel_t::send_channel_pref_report_msg()
 {
     unsigned char buff[MAX_EM_BUFF_SZ];
-    unsigned short msg_id = get_current_cmd()->get_data_model()->get_msg_id();
+    unsigned short msg_id = get_mgr()->get_next_msg_id();
     unsigned short  msg_type = em_msg_type_channel_pref_rprt;
     unsigned int len = 0, radio_index = 0;
     short sz;
@@ -1548,6 +1588,16 @@ int em_channel_t::send_channel_pref_report_msg()
         
     printf("%s:%d: Channel Preference Report send success\n", __func__, __LINE__);
     return static_cast<int> (len);
+}
+
+int em_channel_t::send_unsolicited_channel_pref_report(em_channel_pref_reason_t reason)
+{
+    em_printfout("Sending unsolicited channel preference report for DFS event reason: %d", reason);
+
+    m_current_reason = reason;
+
+    // Send the channel preference report
+    return send_channel_pref_report_msg();
 }
 
 int em_channel_t::send_available_spectrum_inquiry_msg()
@@ -1649,8 +1699,14 @@ int em_channel_t::handle_op_channel_report(unsigned char *buff, unsigned int len
         op_class_info = &dm->m_op_class[i].m_op_class_info;
         if (((memcmp(op_class_info->id.ruid, rpt->ruid, sizeof(mac_address_t)) == 0) &&
                     (op_class_info->id.type == em_op_class_type_current)) == true) {
-            op_class_info->op_class = static_cast<unsigned int> (rpt->op_classes[0].op_class);
-            op_class_info->channel = static_cast<unsigned int> (rpt->op_classes[0].channel);
+            if((op_class_info->op_class != static_cast<unsigned int> (rpt->op_classes[0].op_class)) ||
+               (op_class_info->channel != static_cast<unsigned int> (rpt->op_classes[0].channel))) {
+                op_class_info->op_class = static_cast<unsigned int> (rpt->op_classes[0].op_class);
+                op_class_info->id.op_class = op_class_info->op_class;
+                op_class_info->channel = static_cast<unsigned int> (rpt->op_classes[0].channel);
+                dm->set_db_cfg_param(db_cfg_type_op_class_list_update, "");
+                dm->set_db_cfg_param(db_cfg_type_radio_list_update, "");
+            }
             found++;
         }
     }
@@ -1804,6 +1860,244 @@ int em_channel_t::handle_channel_pref_tlv_ctrl(unsigned char *buff, unsigned int
     return 0;
 }
 
+int em_channel_t::update_op_class_cac_status(unsigned char op_class, unsigned char channel, em_op_class_type_t type, unsigned int val)
+{
+    dm_easy_mesh_t *dm = get_data_model();
+    em_op_class_info_t *info = NULL;
+    bool found = false;
+    unsigned int i;
+    mac_address_t ruid_5ghz;
+
+    em_freq_band_t band = dm_easy_mesh_t::get_freq_band_by_op_class(op_class);
+    if (band != em_freq_band_5) {
+        em_printfout("Skipping CAC status update for non 5GHz band %d", band);
+        return -1;
+    }
+
+    for (i = 0; i < dm->get_num_radios(); i++) {
+        dm_radio_t *radio = dm->get_radio(i);
+        if (radio == NULL)
+            continue;
+
+        em_radio_info_t *radio_info = radio->get_radio_info();
+        if (radio_info->band == em_freq_band_5) {
+            memcpy(ruid_5ghz, radio_info->id.ruid, sizeof(mac_address_t));
+            break;
+        }
+    }
+
+    // Find the old entries for cac types (active, available, non_occ)
+    for (i = 0; i < dm->get_num_op_class(); i++) {
+        info = &dm->m_op_class[i].m_op_class_info;
+        if ((memcmp(info->id.ruid, ruid_5ghz, sizeof(mac_address_t)) == 0) &&
+            (info->id.op_class == op_class) &&
+            (info->channel == channel) &&
+            (info->id.type >= em_op_class_type_cac_available) &&
+            (info->id.type <= em_op_class_type_cac_active)) {
+            found = true;
+            break;
+        }
+    }
+
+    if (found) {
+        // Delete row from op_class table in DB to avoid duplicate entries for the same RUID, op_class, and different type
+        std::string opclass_id = util::mac_to_string(info->id.ruid) + "@" +
+                                 std::to_string(static_cast<unsigned int>(info->id.type)) + "@" +
+                                 std::to_string(info->id.op_class);
+        get_mgr()->delete_db_row(&dm->m_op_class[i]);
+
+        info->id.type = type;
+
+        // Update the specific value based on type
+        if (type == em_op_class_type_cac_available) {
+            info->mins_since_cac_comp = static_cast<unsigned short>(val);
+            info->sec_remain_non_occ_dur = 0;
+        } else if (type == em_op_class_type_cac_non_occ) {
+            info->sec_remain_non_occ_dur = static_cast<unsigned short>(val);
+        } else if (type == em_op_class_type_cac_active) {
+            info->countdown_cac_comp = val;
+        }
+    }
+    else {
+        info =  &dm->m_op_class[dm->get_num_op_class()].m_op_class_info;
+        memset(info, 0, sizeof(em_op_class_info_t));
+
+        memcpy(info->id.ruid, ruid_5ghz, sizeof(mac_address_t));
+        info->id.type = type;
+        info->op_class = op_class;
+        info->id.op_class = op_class;
+        info->channel = channel;
+        info->pref_valid = EM_CH_PREF_ENTRY_VALID;
+
+        // Update the specific value based on type
+        if (type == em_op_class_type_cac_available) {
+            info->mins_since_cac_comp = static_cast<unsigned short>(val);
+        } else if (type == em_op_class_type_cac_non_occ) {
+            info->sec_remain_non_occ_dur = static_cast<unsigned short>(val);
+        } else if (type == em_op_class_type_cac_active) {
+            info->countdown_cac_comp = val;
+        }
+        dm->set_num_op_class(dm->get_num_op_class() + 1);
+    }
+
+    // Trigger DB update
+    dm->set_db_cfg_param(db_cfg_type_op_class_list_update, "");
+
+    return 0;
+}
+
+int em_channel_t::get_freq_by_channel(unsigned char op_class, unsigned char channel)
+{
+    return util::em_chan_to_freq(op_class, channel);
+}
+
+int em_channel_t::get_bandwidth_by_op_class(unsigned char op_class, unsigned char channel)
+{
+    size_t table_sz = dm_easy_mesh_t::m_e4_table_size;
+
+    for (size_t i = 0; i < table_sz; ++i) {
+        if (dm_easy_mesh_t::m_e4_table[i].op_class == op_class) {
+            return dm_easy_mesh_t::m_e4_table[i].channel_spacing;
+        }
+    }
+
+    return 20; // Default to 20MHz if not found
+}
+
+void em_channel_t::propagate_cac_availability(unsigned char op_class, unsigned char channel, unsigned short mins_since_cac_comp)
+{
+    dm_easy_mesh_t *dm = get_data_model();
+    unsigned int i;
+
+    // Get frequency range for the reported channel
+    unsigned int freq_start = static_cast<unsigned int>(get_freq_by_channel(op_class, channel));
+    unsigned int bandwidth = static_cast<unsigned int>(get_bandwidth_by_op_class(op_class, channel));
+    unsigned int freq_end = freq_start + bandwidth;
+
+    // Iterate through all operating classes in the data model
+    for (i = 0; i < dm->m_num_opclass; i++) {
+        em_op_class_info_t *info = &dm->m_op_class[i].m_op_class_info;
+
+        // Only check CAC available entries
+        if (info->id.type != em_op_class_type_cac_available) {
+            continue;
+        }
+
+        // Get frequency range for the reported channel
+        unsigned int entry_freq_start = static_cast<unsigned int>(get_freq_by_channel(info->op_class, info->channel));
+        unsigned int entry_bandwidth = static_cast<unsigned int>(get_bandwidth_by_op_class(info->op_class, info->channel));
+        unsigned int entry_freq_end = entry_freq_start + entry_bandwidth;
+
+        // Get frequency range for this entry
+        if ((freq_start < entry_freq_end) && (freq_end > entry_freq_start)) {
+            // Update this overlapping entry with the same availability
+            info->mins_since_cac_comp = mins_since_cac_comp;
+        }
+    }
+
+    // Update DB
+    dm->set_db_cfg_param(db_cfg_type_op_class_list_update, "");
+}
+
+int em_channel_t::handle_cac_completion_rprt_tlv_ctrl(unsigned char *buff, unsigned int len)
+{
+    dm_easy_mesh_t *dm = get_data_model();
+    em_cac_comp_rprt_t *cac_comp = reinterpret_cast<em_cac_comp_rprt_t *>(buff);
+    unsigned char *tmp = buff;
+
+    if (cac_comp == NULL || dm == NULL) {
+        em_printfout("Invalid parameters");
+        return -1;
+    }
+
+    tmp += sizeof(em_cac_comp_rprt_t);
+    
+    em_printfout("CAC Completion Report received, radios_num: %d", cac_comp->radios_num);
+
+    dm_cac_comp_t *comp = &dm->m_cac_comp;
+
+    for (unsigned int radio_index = 0; radio_index < cac_comp->radios_num; radio_index++) {
+
+        em_cac_comp_rprt_radio_t *radio = reinterpret_cast<em_cac_comp_rprt_radio_t *>(tmp);
+
+        // Copy fixed fields
+        memcpy(comp->m_cac_comp_info.ruid, radio->ruid, sizeof(mac_address_t));
+        comp->m_cac_comp_info.op_class = radio->op_class;
+        comp->m_cac_comp_info.channel = radio->channel;
+        comp->m_cac_comp_info.status = radio->status;
+        comp->m_cac_comp_info.detected_pairs_num = radio->detected_pairs_num;
+
+        tmp += sizeof(em_cac_comp_rprt_radio_t);
+
+        // Now parse detected pairs (variable part)
+        for (unsigned int pair_index = 0; pair_index < radio->detected_pairs_num; pair_index++) {
+
+            em_cac_comp_rprt_pair_t *pair = reinterpret_cast<em_cac_comp_rprt_pair_t *>(tmp);
+
+            if (pair_index < EM_MAX_CAC_METHODS) {
+                comp->m_cac_comp_info.detected_pairs[pair_index].op_class = pair->op_class;
+                comp->m_cac_comp_info.detected_pairs[pair_index].channel = pair->channel;
+            }
+
+            // Update CAC status
+            update_op_class_cac_status(pair->op_class, pair->channel, em_op_class_type_cac_non_occ, 1800);
+
+            tmp += sizeof(em_cac_comp_rprt_pair_t);
+        }
+    }
+
+    return 0;
+}
+
+int em_channel_t::handle_cac_status_rprt_tlv_ctrl(unsigned char *buff, unsigned int len)
+{
+    unsigned char *tmp = buff;
+    unsigned int i;
+
+    // Process Available Channels
+    em_cac_status_rprt_avail_t *avail_rprt = reinterpret_cast<em_cac_status_rprt_avail_t *>(tmp);
+    tmp += sizeof(em_cac_status_rprt_avail_t);
+    em_printfout("DFS_DEBUG: avail_rprt->avail_num = %d", avail_rprt->avail_num);
+    for (i = 0; i < avail_rprt->avail_num; i++) {
+        em_cac_avail_t *avail = reinterpret_cast<em_cac_avail_t *>(tmp);
+        update_op_class_cac_status(avail->op_class, avail->channel, em_op_class_type_cac_available, ntohs(avail->mins_since_cac_comp));
+
+        // Propagate availability to overlapping channels
+        propagate_cac_availability(avail->op_class, avail->channel, ntohs(avail->mins_since_cac_comp));
+
+        tmp += sizeof(em_cac_avail_t);
+    }
+
+    // Process Non-Occupancy Channels
+    em_cac_status_rprt_non_occ_t *non_occ_rprt = reinterpret_cast<em_cac_status_rprt_non_occ_t *>(tmp);
+    tmp += sizeof(em_cac_status_rprt_non_occ_t);
+    em_printfout("DFS_DEBUG: non_occ_rprt->non_occ_num = %d", non_occ_rprt->non_occ_num);
+    for (i = 0; i < non_occ_rprt->non_occ_num; i++) {
+        em_cac_non_occ_t *non_occ = reinterpret_cast<em_cac_non_occ_t *>(tmp);
+        update_op_class_cac_status(non_occ->op_class, non_occ->channel, em_op_class_type_cac_non_occ, ntohs(non_occ->sec_remain_non_occ_dur));
+        tmp += sizeof(em_cac_non_occ_t);
+    }
+
+    // Process Active CAC Channels
+    em_cac_status_rprt_active_t *active_rprt = reinterpret_cast<em_cac_status_rprt_active_t *>(tmp);
+    tmp += sizeof(em_cac_status_rprt_active_t);
+
+    em_printfout("DFS_DEBUG: active_rprt->active_num = %d", active_rprt->active_num);
+    for (i = 0; i < active_rprt->active_num; i++) {
+        em_cac_active_t *active = reinterpret_cast<em_cac_active_t *>(tmp);
+
+        // Decode the 3-byte countdown from TLV
+        unsigned int countdown;
+        countdown |= (static_cast<unsigned int>(active->countdown_cac_comp[2]));
+        countdown |= (static_cast<unsigned int>(active->countdown_cac_comp[1]) << 8);
+        countdown |= (static_cast<unsigned int>(active->countdown_cac_comp[2]) << 16);
+
+        update_op_class_cac_status(active->op_class, active->channel, em_op_class_type_cac_active, countdown);
+        tmp += sizeof(em_cac_active_t);
+    }
+
+    return 0;
+}
 
 int em_channel_t::handle_channel_pref_rprt(unsigned char *buff, unsigned int len)
 {
@@ -1831,6 +2125,8 @@ int em_channel_t::handle_channel_pref_rprt(unsigned char *buff, unsigned int len
         }
     }
 
+    em_cmdu_t *cmdu = reinterpret_cast<em_cmdu_t *> (buff + sizeof(em_raw_hdr_t));
+
     tlv = reinterpret_cast<em_tlv_t *> (buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
     tlv_len = static_cast<int> (len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)));
 
@@ -1842,12 +2138,23 @@ int em_channel_t::handle_channel_pref_rprt(unsigned char *buff, unsigned int len
             handle_eht_operations_tlv(tlv->value, htons(tlv->len));
             break;
         }
+        if (tlv->type == em_tlv_type_cac_sts_rprt) {
+            handle_cac_status_rprt_tlv_ctrl(tlv->value, htons(tlv->len));
+        }
+        if (tlv->type == em_tlv_type_cac_cmpltn_rprt) {
+            handle_cac_completion_rprt_tlv_ctrl(tlv->value, htons(tlv->len));
+        }
 
         tlv_len -= static_cast<int> (sizeof(em_tlv_t) + htons(tlv->len));
         tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
     }
-	set_state(em_state_ctrl_channel_queried);
-	return 0;
+
+    // Send 1905 ACK for unsolicited channel preference report
+    send_1905_ack_message(ntohs(cmdu->id), ACK_FROM_CTRL);
+
+    set_state(em_state_ctrl_channel_queried);
+
+    return 0;
 }
 
 int em_channel_t::handle_channel_pref_tlv(unsigned char *buff, op_class_channel_sel *op_class)
