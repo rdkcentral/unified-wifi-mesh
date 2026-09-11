@@ -78,7 +78,8 @@ void em_orch_t::update_stats(em_cmd_t *pcmd)
 
     snprintf(key, sizeof(em_short_string_t), "%d", pcmd->get_type());
 
-    gettimeofday(&time_now, NULL);
+    /* Same clock as em_cmd_t::set_start_time() */
+    util::monotonic_now(&time_now);
     stats = static_cast<em_cmd_stats_t *>(hash_map_get(m_cmd_map, key));
     assert(stats != NULL);
     time = static_cast<unsigned int>(time_now.tv_sec - pcmd->m_start_time.tv_sec);

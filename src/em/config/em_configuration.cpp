@@ -74,7 +74,9 @@ static bool allow_failed_conn_report(unsigned short max_reports_per_min)
 
     std::lock_guard<std::mutex> lock(g_failed_conn_report_mutex);
 
-    time_t now = time(NULL);
+    struct timespec ts_now;
+    util::monotonic_now(&ts_now);
+    time_t now = ts_now.tv_sec;
     while (!g_failed_conn_report_timestamps.empty() &&
            (now - g_failed_conn_report_timestamps.front()) >= 60) {
         g_failed_conn_report_timestamps.pop_front();
