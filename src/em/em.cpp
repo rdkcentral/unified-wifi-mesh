@@ -55,9 +55,12 @@
 
 #ifdef AL_SAP
 #include "al_service_access_point.h"
+#include "al_service_utils.h"
 
 extern AlServiceAccessPoint* g_sap;
 extern MacAddress g_al_mac_sap;
+
+static_assert(EM_MAX_MSG_SZ <= SOCKET_MTU - PACKET_HEADER_SIZE, "EM_MAX_MSG_SZ exceeds the AL SAP SDU size");
 #endif
 
 ec_manager_t &em_t::get_ec_mgr()
