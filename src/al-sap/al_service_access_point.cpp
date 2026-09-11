@@ -1,6 +1,29 @@
 #include "al_service_access_point.h"
 #include "al_service_utils.h"
 
+namespace {
+// Reads exactly len bytes from fd into buffer starting at offset, retrying on partial reads and EINTR.
+void recvExact(int fd, unsigned char *buffer, size_t len) {
+    size_t totalRead = 0;
+    while (totalRead < len) {
+        ssize_t bytesRead = recv(fd, buffer + totalRead, len - totalRead, 0);
+        if (bytesRead == 0) {
+            throw AlServiceException("Socket closed or connection reset", PrimitiveError::SocketClosed);
+        }
+        if (bytesRead < 0) {
+            if (errno == EINTR) {
+                continue;
+            }
+            if (errno == EBADF || errno == ECONNRESET) {
+                throw AlServiceException("Socket closed or connection reset", PrimitiveError::SocketClosed);
+            }
+            throw AlServiceException("Failed to receive message through Unix socket", PrimitiveError::IndicationFailed);
+        }
+        totalRead += static_cast<size_t>(bytesRead);
+    }
+}
+}
+
 // Constructor: Connects to the Unix domain socket using the provided path --> moved from hardcoded to check in the unit test for socket creation
 AlServiceAccessPoint::AlServiceAccessPoint(const std::string &dataSocketPath, const std::string &controlSocketPath) : alDataSocketpath(dataSocketPath),
                                                                                                                       alControlSocketpath(controlSocketPath)
@@ -202,20 +225,19 @@ AlServiceDataUnit AlServiceAccessPoint::serviceAccessPointDataIndication() {
     int fragmentId = 0;
     bool receivingFragments = true;
     AlServiceDataUnit message;
-
+    constexpr size_t lengthPrefixSize = sizeof(uint32_t);
     while (receivingFragments) {
-        std::vector<unsigned char> buffer(SOCKET_MTU, 0x00);
+        std::vector<unsigned char> buffer(lengthPrefixSize, 0x00);
+        buffer.reserve(SOCKET_MTU);
 
         // Receive data from the socket
-        ssize_t bytesRead = recv(alDataSocketDescriptor, buffer.data(), buffer.size(), 0);
-        if (bytesRead <= 0) {
-            if (errno == EBADF || errno == ECONNRESET) {
-                throw AlServiceException("Socket closed or connection reset", PrimitiveError::SocketClosed);
-            }
-            throw AlServiceException("Failed to receive message through Unix socket", PrimitiveError::IndicationFailed);
+        recvExact(alDataSocketDescriptor, buffer.data(), lengthPrefixSize);
+        uint32_t packet_size = convert_bytes_into_u32(buffer);
+        if (packet_size < (PACKET_HEADER_SIZE - lengthPrefixSize) || packet_size > (SOCKET_MTU - lengthPrefixSize)) {
+             throw AlServiceException("Invalid packet size", PrimitiveError::InvalidMessage);
         }
-        buffer.resize(bytesRead);
-
+        buffer.resize(lengthPrefixSize + packet_size);
+        recvExact(alDataSocketDescriptor, buffer.data() + lengthPrefixSize, packet_size);
         // Deserialize the received fragment
         AlServiceDataUnit fragment;
         try {
@@ -225,7 +247,7 @@ AlServiceDataUnit AlServiceAccessPoint::serviceAccessPointDataIndication() {
         }
         #ifdef DEBUG_MODE
         std::cout << "Received fragment " << static_cast<int>(fragment.getFragmentId())
-                  << " - Size: " << bytesRead << " bytes, "
+                  << " - Size: " << buffer.size() << " bytes, "
                   << "isFragment: " << static_cast<int>(fragment.getIsFragment()) << ", "
                   << "FragmentId: " << static_cast<int>(fragment.getFragmentId()) << ", "
                   << "isLastFragment: " << static_cast<int>(fragment.getIsLastFragment()) << std::endl;
@@ -233,7 +255,7 @@ AlServiceDataUnit AlServiceAccessPoint::serviceAccessPointDataIndication() {
         // Check if this is a single message (non-fragmented)
         if (fragment.getIsFragment() == 0 && fragment.getIsLastFragment() == 1) {
             #ifdef DEBUG_MODE
-            std::cout << "Received a non-fragmented message of size: " << bytesRead << " bytes." << std::endl;
+            std::cout << "Received a non-fragmented message of size: " << buffer.size() << " bytes." << std::endl;
             #endif
             return fragment; // Return immediately, as no reassembly is needed
         }

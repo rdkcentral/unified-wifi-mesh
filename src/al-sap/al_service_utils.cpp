@@ -77,7 +77,8 @@ uint32_t convert_bytes_into_u32(const std::vector<unsigned char>& bytes)
 {
     if (bytes.size() < 4)
         return 0;
-    return static_cast<uint32_t>((bytes[0] << 24) | (bytes[1] << 16) | (bytes[2] << 8) | (bytes[3] << 0));
+    return (static_cast<uint32_t>(bytes[0]) << 24) | (static_cast<uint32_t>(bytes[1]) << 16) |
+           (static_cast<uint32_t>(bytes[2]) << 8)  | static_cast<uint32_t>(bytes[3]);
 }
 
 std::vector<unsigned char> remove_length_delimited_part(const std::vector<unsigned char>& buffer)
