@@ -236,7 +236,7 @@ int dm_sta_list_t::update_row(db_client_t& db_client, ...)
     //printf("%s:%d: Query: %s\n", __func__, __LINE__, query);
 
     ctx = db_client.execute(query);
-    while (db_client.next_result(ctx) == true);
+    db_client.free_result(ctx);
 
     return 0;
 }
@@ -296,6 +296,7 @@ bool dm_sta_list_t::search_db(db_client_t& db_client, void *ctx, void *key)
         db_client.get_string(ctx, mac, 1);
 
         if (strncmp(mac, static_cast<char *>(key), strlen(static_cast<char *>(key))) == 0) {
+            db_client.free_result(ctx);
             return true;
         }
     }
@@ -352,9 +353,7 @@ bool dm_sta_list_t::compare_db(db_client_t& db_client, const dm_sta_t& sta)
         dm_easy_mesh_t::unhex(static_cast<unsigned int>(strlen(frame_body)), frame_body, EM_MAX_FRAME_BODY_LEN, info.frame_body);
 
         if (memcmp(static_cast<const void*>(&sta.m_sta_info), static_cast<const void*>(&info), sizeof(em_sta_info_t)) == 0) {
-            // drain remaining rows; next_result() frees the context
-            // when it returns false
-            while (db_client.next_result(ctx) == true);
+            db_client.free_result(ctx);
             return true;
         }
     }
