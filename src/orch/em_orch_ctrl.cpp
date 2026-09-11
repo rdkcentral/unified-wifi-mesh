@@ -719,6 +719,7 @@ unsigned int em_orch_ctrl_t::build_candidates(em_cmd_t *pcmd)
 
             case em_cmd_type_sta_steer:
                 if (em->find_sta(pcmd->m_param.u.steer_params.sta_mac, pcmd->m_param.u.steer_params.source) != NULL) {
+                    em_printfout("Sta Steer: %s found", util::mac_to_string(pcmd->m_param.u.steer_params.sta_mac).c_str());
                     queue_push(pcmd->m_em_candidates, em);
                     count++;
                 }

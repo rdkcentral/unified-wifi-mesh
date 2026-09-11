@@ -96,7 +96,10 @@ public:
 
     unsigned int m_num_unassoc_sta_metrics;
     em_unassoc_sta_metric_entry_t  m_unassoc_sta_metrics[EM_MAX_UNASSOC_STA];
+	unsigned int dialog_token;
 
+	em_sta_timer_t  **m_sta_timers;
+	unsigned int      m_sta_timer_count;
 public:
 
 	bool get_topo_state() { return m_topo_changed; }
@@ -107,6 +110,7 @@ public:
 	unsigned int get_ssid_mismatch_check_time() const { return ssid_mismatch_check_time; }
 	void set_last_topo_query_sent_time(unsigned int time) { last_topo_query_sent_time = time; }
 	unsigned int get_last_topo_query_sent_time() const { return last_topo_query_sent_time; }
+	bool is_sta_timer_pending() const { return m_sta_timer_count > 0;}
         static em_e4_table_t m_e4_table[];
         static const size_t m_e4_table_size;
 
@@ -224,6 +228,17 @@ public:
 	 */
 	em_op_class_info_t* get_opclass_info_for_bss(mac_address_t bssid, unsigned int* op_class = NULL);
 	
+	/**!
+	 * @brief Retrieves the PHY type for a given BSS.
+	 *
+	 * This function retrieves the PHY type for a given BSS based on the radio capabilities.
+	 *
+	 * @param[in] target_bssid The MAC address of the BSS for which the PHY type is requested.
+	 *
+	 * @returns The PHY type for the given BSS.
+	 */
+	unsigned char get_phy_type_for_bss(mac_address_t target_bssid);
+
 	/**!
 	 * @brief Retrieves the BSS information associated with a given MAC address.
 	 *
