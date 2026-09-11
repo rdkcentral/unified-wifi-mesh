@@ -2027,6 +2027,42 @@
                             "AssociatedSTAReportingInterval": {
                                 "$ref": "#/definitions/uint8_t"
                             },
+                            "X_AIRTIES_DeviceInfo": {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "properties": {
+                                    "Uptime": {
+                                        "$ref": "#/definitions/uint32_t"
+                                    },
+                                    "MemoryStatus": {
+                                        "type": "object",
+                                        "additionalProperties": false,
+                                        "properties": {
+                                            "Total": {
+                                                "$ref": "#/definitions/uint32_t"
+                                            },
+                                            "Free": {
+                                                "$ref": "#/definitions/uint32_t"
+                                            },
+                                            "Cached": {
+                                                "$ref": "#/definitions/uint32_t"
+                                            }
+                                        }
+                                    },
+                                    "ProcessStatus": {
+                                        "type": "object",
+                                        "additionalProperties": false,
+                                        "properties": {
+                                            "CPUUsage": {
+                                                "$ref": "#/definitions/uint8_t"
+                                            },
+                                            "CPUTemperature": {
+                                                "$ref": "#/definitions/uint8_t"
+                                            }
+                                        }
+                                    }
+                                }
+                            },
                             "RadioList": {
                                 "type": "array",
                                 "items": {
@@ -3064,6 +3100,10 @@
                                             "type": "string",
                                             "description": "List of 802.11 standards in operation for this radio instance",
                                             "enum": ["a", "b", "g", "n", "ac", "ax", "be", "bn"]
+                                        },
+                                        "X_AIRTIES_Temperature": {
+                                            "$ref": "#/definitions/uint8_t",
+                                            "description": "Radio chip temperature in degrees Celsius"
                                         }
                                     }
                                 }
