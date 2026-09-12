@@ -328,7 +328,8 @@ int em_cmd_exec_t::send_cmd(em_service_type_t to_svc, unsigned char *in, unsigne
 
     if ((ret = connect(dsock, reinterpret_cast<const struct sockaddr *> (&addr), sizeof(struct sockaddr_un))) != 0) {
         snprintf(out, out_len, "%s:%d: connect error on socket, err:%d\n", __func__, __LINE__, errno);
-        return -1;
+        close(dsock);
+	return -1;
     }
 
     ssl = SSL_new(m_ssl_ctx);
