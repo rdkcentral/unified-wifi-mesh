@@ -66,7 +66,7 @@ int em_cmd_agent_t::execute(em_long_string_t result)
 
     if ((ret = listen(lsock, 20)) == -1) {
         printf("%s:%d: listen error on socket, err:%d\n", __func__, __LINE__, errno);
-        close(lsock);
+        close_listener_socket(lsock, get_svc());
 	return -1;
     }
     while (1) {
