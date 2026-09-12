@@ -66,7 +66,8 @@ int em_cmd_agent_t::execute(em_long_string_t result)
 
     if ((ret = listen(lsock, 20)) == -1) {
         printf("%s:%d: listen error on socket, err:%d\n", __func__, __LINE__, errno);
-        return -1;
+        close(lsock);
+	return -1;
     }
     while (1) {
 
@@ -85,7 +86,8 @@ int em_cmd_agent_t::execute(em_long_string_t result)
 
         if ((ret = recv(m_dsock, tmp, sizeof(em_event_t) + EM_MAX_EVENT_DATA_LEN, 0)) <= 0) {
             printf("%s:%d: listen error on socket, err:%d\n", __func__, __LINE__, errno);
-            break;
+            close(m_dsock);
+	    break;
         }
 
         switch (get_event()->type) {
