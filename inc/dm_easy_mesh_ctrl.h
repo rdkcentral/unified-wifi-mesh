@@ -179,6 +179,8 @@ public:
     static bus_error_t bstamld_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
     static bus_error_t bstacfg_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
 
+	static bus_error_t ctrl_cmd_client_steer_inner(const char *method_name, bus_data_prop_t *input_data, bus_data_prop_t *output_data, void *async_handle);
+
 private:
     db_client_t m_db_client;
     bool	m_initialized;
@@ -320,6 +322,18 @@ public:
 	 * @note This function does not take any parameters and does not return any value.
 	 */
 	void set_network_initialized() { m_network_initialized = true; }
+
+	/**!
+	 * @brief Builds the CAC block parameters for the steer command.
+	 *
+	 * This function builds the CAC block parameters for the steer command.
+	 *
+	 * @param[in] steer Pointer to the steer command parameters.
+	 * @param[out] disassoc Pointer to the disassoc command parameters.
+	 *
+	 * @returns number of disassoc commands to be generated.
+	 */
+	int build_steer_cac_block_params(const em_cmd_steer_params_t &steer, em_cmd_disassoc_params_t &disassoc);
 
     //int analyze_network_ssid_list(em_bus_event_t *evt, em_cmd_t *cmd[]);
     

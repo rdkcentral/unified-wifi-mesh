@@ -219,7 +219,7 @@ void em_t::orch_execute(em_cmd_t *pcmd)
             break;
 
         case em_cmd_type_btm_report:
-            m_sm.set_state(em_state_agent_steer_btm_res_pending);
+            m_sm.set_state(em_state_agent_steer_btm_rpt_pending);
             break;
 
         case em_cmd_type_sta_disassoc:
@@ -266,6 +266,11 @@ void em_t::orch_execute(em_cmd_t *pcmd)
             m_sm.set_state(em_state_agent_unassoc_sta_metrics_report_pending);
             break;
         
+        case em_cmd_type_steer_opp_complete:
+            em_printfout("Set state to %d", em_state_agent_steer_complete);
+            m_sm.set_state(em_state_agent_steer_complete);
+            break;
+
 	default:
             break;
 
@@ -358,6 +363,7 @@ void em_t::proto_process(unsigned char *data, unsigned int len)
         case em_msg_type_client_steering_req:
         case em_msg_type_client_steering_btm_rprt:
         case em_msg_type_client_assoc_ctrl_req:
+        case em_msg_type_steering_complete:
             em_printfout("  proto_process, type rcvd: %d\n", htons(cmdu->type));
             em_steering_t::process_msg(data, len);
             break;
@@ -367,8 +373,12 @@ void em_t::proto_process(unsigned char *data, unsigned int len)
             break;
 
         case em_msg_type_1905_ack:
+            em_printfout("Received ack msg");
             if (m_sm.get_state() == em_state_ctrl_ap_mld_configured) {
                 em_configuration_t::process_msg(data, len);
+            } else if (m_sm.get_state() == em_state_agent_steer_btm_rpt_pending || m_sm.get_state() == em_state_agent_steer_complete ||
+                      m_sm.get_state() == em_state_ctrl_sta_steer_pending) {
+                em_steering_t::process_msg(data, len);
             } else if (m_sm.get_state() == em_state_ctrl_unassoc_sta_link_metrics_pending) {
                 em_metrics_t::process_msg(data, len);		    
             } else {
@@ -481,6 +491,7 @@ void em_t::handle_agent_state()
             break;
 
         case em_cmd_type_btm_report:
+        case em_cmd_type_steer_opp_complete:
             if (m_sm.get_state() >= em_state_agent_configured) {
                 em_steering_t::process_agent_state();
             }
@@ -2929,7 +2940,7 @@ const char *em_t::state_2_str(em_state_t state)
         EM_STATE_2S(em_state_agent_unconfigured)
         EM_STATE_2S(em_state_agent_autoconfig_rsp_pending)
         EM_STATE_2S(em_state_agent_wsc_m2_pending)
-        EM_STATE_2S(em_state_agent_steer_btm_res_pending)
+        EM_STATE_2S(em_state_agent_steer_btm_rpt_pending)
         EM_STATE_2S(em_state_agent_owconfig_pending)
         EM_STATE_2S(em_state_agent_onewifi_bssconfig_ind)
         EM_STATE_2S(em_state_agent_autoconfig_renew_pending)
