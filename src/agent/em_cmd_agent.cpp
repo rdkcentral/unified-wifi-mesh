@@ -104,7 +104,7 @@ int em_cmd_agent_t::execute(em_long_string_t result)
 
     }
 
-	close_listener_socket(lsock, get_svc());
+	close_listener_socket(lsock, em_service_type_agent);
 
     return 0;
 }
