@@ -1261,7 +1261,9 @@ short em_metrics_t::send_single_beacon_metrics_query(mac_address_t sta_mac, bssi
     // For beacon_report commands, send once and wait for ACK or orchestration timeout.
     static constexpr time_t BEACON_QUERY_TIMEOUT_SECS = 10;
 
-    time_t now = time(NULL);
+    struct timespec ts;
+    util::monotonic_now(&ts);
+    time_t now = ts.tv_sec;
     if (ack_gated_retry == true) {
         time_t last_tx = cmd->get_query_tx_time();
         if (last_tx != 0) {
