@@ -56,7 +56,7 @@ void em_orch_agent_t::orch_transient(em_cmd_t *pcmd, em_t *em)
         if (al_node != NULL && al_node->m_ec_manager && al_node->get_is_dpp_onboarding()) {
             // If the enrollee is still onboarding, we need to wait for it to finish before timing out
             // Lets reset the timeout
-            gettimeofday(&pcmd->m_start_time, NULL);
+            pcmd->set_start_time();
             stats->time = 0;
         }
     }

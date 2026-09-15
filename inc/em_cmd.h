@@ -26,6 +26,10 @@
 #include <type_traits>
 #include "dm_easy_mesh.h"
 
+namespace util {
+	void monotonic_now(struct timeval *tv);
+}
+
 class em_cmd_t {
 public:
     em_cmd_type_t   m_type;
@@ -492,14 +496,14 @@ public:
 
     
 	/**!
-	 * @brief Sets the start time using the current time of day.
+	 * @brief Sets the command start time from the monotonic clock.
 	 *
-	 * This function initializes the start time by retrieving the current time
-	 * of day and storing it in the member variable `m_start_time`.
+	 * This function initializes the start time by reading CLOCK_MONOTONIC
+	 * and storing it in the member variable `m_start_time`.
 	 *
 	 * @note This function does not take any parameters and does not return any value.
 	 */
-	void set_start_time() { gettimeofday(&m_start_time, NULL);}
+	void set_start_time() { util::monotonic_now(&m_start_time); }
 
     
 	/**!
