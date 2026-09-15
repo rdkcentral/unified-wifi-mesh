@@ -54,7 +54,7 @@ int em_cmd_agent_t::execute(em_long_string_t result)
     }
 
     if ((ret = listen(lsock, 20)) == -1) {
-        printf("%s:%d: listen error on socket, err:%d\n", __func__, __LINE__, errno);
+        em_printfout("%s:%d: listen error on socket, err:%d\n", __func__, __LINE__, errno);
         close_listener_socket(lsock, em_service_type_agent);
 	return -1;
     }
