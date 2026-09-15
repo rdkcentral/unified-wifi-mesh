@@ -365,6 +365,16 @@ bool dm_device_list_t::compare_db(db_client_t& db_client, const dm_device_t& sta
         info.easy_conn_cap = db_client.get_number(ctx, 26);
         info.test_cap = static_cast<unsigned char> (db_client.get_number(ctx, 27));
 
+        // Runtime-only metrics (uptime, memory, cpu) are never persisted to the DB,
+        // so they must not affect this comparison; copy them from sta to avoid a
+        // spurious mismatch that would trigger an unnecessary db_update.
+        info.uptime = sta.m_device_info.uptime;
+        info.total_mem = sta.m_device_info.total_mem;
+        info.free_mem = sta.m_device_info.free_mem;
+        info.cached_mem = sta.m_device_info.cached_mem;
+        info.cpu_load = sta.m_device_info.cpu_load;
+        info.cpu_temp = sta.m_device_info.cpu_temp;
+
         if (memcmp(static_cast<const void*>(&sta.m_device_info), static_cast<const void*>(&info), sizeof(em_device_info_t)) == 0) {
             // drain remaining rows; next_result() frees the context
             // when it returns false

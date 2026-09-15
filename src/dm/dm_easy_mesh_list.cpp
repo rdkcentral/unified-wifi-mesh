@@ -248,7 +248,26 @@ void dm_easy_mesh_list_t::update_device(const char *key, const dm_device_t *dev)
 	dm_easy_mesh_t::macbytes_to_string(id.dev_mac, mac_str);
 
     if ((pdev = get_device(key)) != NULL) {
+        // Runtime-only metrics are updated in-place by the metrics module and are
+        // never carried by config-driven device objects (e.g. decoded DeviceList
+        // JSON); preserve them across a config update instead of letting this
+        // memcpy clobber them with zeros.
+        uint32_t uptime = pdev->m_device_info.uptime;
+        uint32_t total_mem = pdev->m_device_info.total_mem;
+        uint32_t free_mem = pdev->m_device_info.free_mem;
+        uint32_t cached_mem = pdev->m_device_info.cached_mem;
+        unsigned char cpu_load = pdev->m_device_info.cpu_load;
+        unsigned char cpu_temp = pdev->m_device_info.cpu_temp;
+
         memcpy(&pdev->m_device_info, &dev->m_device_info, sizeof(em_device_info_t));
+
+        pdev->m_device_info.uptime = uptime;
+        pdev->m_device_info.total_mem = total_mem;
+        pdev->m_device_info.free_mem = free_mem;
+        pdev->m_device_info.cached_mem = cached_mem;
+        pdev->m_device_info.cpu_load = cpu_load;
+        pdev->m_device_info.cpu_temp = cpu_temp;
+
 	    dm = get_data_model(pdev->m_device_info.id.net_id, pdev->m_device_info.id.dev_mac);
         if (dm == NULL) {
             em_printfout("Could not find data model for device at key: %s@%s", pdev->m_device_info.id.net_id, mac_str);
