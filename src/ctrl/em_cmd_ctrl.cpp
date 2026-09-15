@@ -66,7 +66,7 @@ int em_cmd_ctrl_t::execute(char *result)
     if (em_ctrl == NULL) {
         em_printfout("em_ctrl is NULL");
         close_listener_socket(lsock, em_service_type_ctrl);
-	return -1;
+    return -1;
     }
 
     while (1) {
