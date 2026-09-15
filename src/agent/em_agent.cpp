@@ -298,17 +298,58 @@ void em_agent_t::handle_onewifi_radio_cb(em_bus_event_t *evt)
     em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
     unsigned int num;
     wifi_bus_desc_t *desc;
+    dm_radio_t *radio;
 
     if ((desc = get_bus_descriptor()) == NULL) {
         em_printfout("descriptor is null");
     }
 
-    if (m_orch->is_cmd_type_in_progress(evt) == true) {
-        m_agent_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
-    } else if ((num = static_cast<unsigned int>(m_data_model.analyze_onewifi_radio_cb(evt, pcmd))) == 0) {
+    if ((num = static_cast<unsigned int>(m_data_model.analyze_onewifi_radio_cb(evt, pcmd, this))) == 0)
+    {
         em_printfout("analyze_onewifi_radio_cb completed");
-    } else if (m_orch->submit_commands(pcmd, num) > 0) {
-        em_printfout("submitted command for orchestration");
+    }
+
+    // push directly to the matching em thread same ruid selection as build_candidates
+    for (unsigned int i = 0; i < num; i++)
+    {
+        if (pcmd[i] == NULL) continue;
+
+        em_t *em = static_cast<em_t *>(hash_map_get_first(m_em_map));
+        while (em != NULL) {
+            if (!(em->is_al_interface_em())) {
+                radio = pcmd[i]->m_data_model.get_radio(static_cast<unsigned int>(0));
+                if (radio == NULL) {
+                    printf("%s:%d channel sel radio cannot be found.\n", __func__, __LINE__);
+                    break;
+                }
+                if (memcmp(radio->get_radio_interface_mac(), em->get_radio_interface_mac(), sizeof(mac_address_t)) == 0) {
+                    em_event_t *qevt = static_cast<em_event_t *>(malloc(sizeof(em_event_t)));
+                    if (qevt != NULL) {
+                        em_printfout("%s:%d: Allocated event for operating channel report, pushing to em %p for radio %s",
+                                     __func__, __LINE__, em, util::mac_to_string(em->get_radio_interface_mac()).c_str());
+                        memset(qevt, 0, sizeof(em_event_t));
+                        qevt->type = em_event_type_cmd;
+                        qevt->u.cevt.type = em_cmd_event_type_operating_channel_report;
+                        qevt->u.cevt.cmd_ptr = pcmd[i]; // store pointer directly
+                        em->push_to_queue(qevt);
+                        pcmd[i] = NULL;
+                    } else {
+                        em_printfout("failed to allocate event for ap_metrics_report, dropping for radio %s",
+                                     util::mac_to_string(em->get_radio_interface_mac()).c_str());
+                        delete pcmd[i];
+                        pcmd[i] = NULL;
+                    }
+                    break; // found the matching em, no need to continue
+                }
+            }
+            em = static_cast<em_t *>(hash_map_get_next(m_em_map, em));
+        }
+        // if no matching em was found, pcmd[i] still non-null here, clean it up
+        if (pcmd[i] != NULL) {
+            pcmd[i]->deinit();
+            delete pcmd[i];
+            pcmd[i] = NULL;
+        }
     }
 }
 

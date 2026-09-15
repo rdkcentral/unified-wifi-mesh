@@ -468,7 +468,9 @@ public:
 	 * this function.
 	 */
 	int send_channel_pref_report_msg();
-    
+
+	int send_unsolicited_channel_pref_report(em_channel_pref_reason_t reason);
+
 	/**!
 	 * @brief Sends an inquiry message to check available spectrum.
 	 *
@@ -482,7 +484,6 @@ public:
 	 */
 	int send_available_spectrum_inquiry_msg();
 
-    
 	/**!
 	 * @brief Handles the channel scan request.
 	 *
@@ -546,7 +547,14 @@ public:
 	 * @note Ensure that the buffer is properly allocated and the length is correctly specified to avoid buffer overflow issues.
 	 */
 	int handle_channel_scan_result(unsigned char *buff, unsigned int len);
-    
+	
+	int handle_cac_status_rprt_tlv_ctrl(unsigned char *buff, unsigned int len);
+	int handle_cac_completion_rprt_tlv_ctrl(unsigned char *buff, unsigned int len);
+	void propagate_cac_availability(unsigned char op_class, unsigned char channel, unsigned short mins_since_cac_comp);
+	int update_op_class_cac_status(unsigned char op_class, unsigned char channel, em_op_class_type_t type, unsigned int val);
+	int get_bandwidth_by_op_class(unsigned char op_class, unsigned char channel);
+	int get_freq_by_channel(unsigned char op_class, unsigned char channel);
+
 	/**!
 	 * @brief Handles the channel preference report.
 	 *
@@ -793,11 +801,12 @@ public:
 	 */
 	void process_state();
 
-    unsigned int m_channel_pref_query_tx_cnt;
-    unsigned int m_channel_sel_req_tx_cnt;
-    //stores Channel request msg_id
-    unsigned short m_chan_req_msg_id = 0;
-	
+	unsigned int m_channel_pref_query_tx_cnt;
+	unsigned int m_channel_sel_req_tx_cnt;
+	//stores Channel request msg_id
+	unsigned short m_chan_req_msg_id = 0;
+	em_channel_pref_reason_t m_current_reason;
+
 	/**!
 	 * @brief Retrieves the frequency band.
 	 *
