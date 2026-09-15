@@ -475,7 +475,7 @@ int dm_easy_mesh_t::encode_config_reset(em_subdoc_info_t *subdoc, const char *ke
     }
 
     if ((interfaces_obj = cJSON_AddObjectToObject(net_obj, "Interfaces")) == NULL) {
-        printf("%s:%d: Could not create interface object\n", __func__, __LINE__);
+        em_printfout("%s:%d: Could not create interface object\n", __func__, __LINE__);
         cJSON_Delete(parent_obj);
         return -1;
     }
