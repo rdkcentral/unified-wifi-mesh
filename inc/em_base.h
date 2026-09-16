@@ -3737,7 +3737,7 @@ typedef struct {
     unsigned int num_qos_mgt;
     em_qos_mgt_policy_t qos_mgt[EM_MAX_STA_PER_AGENT];
     unsigned int num_backhaul_bss_config;
-    em_backhaul_bss_config_policy_t backhaul_bss_config[EM_MAX_BSS_PER_RADIO];
+    em_backhaul_bss_config_policy_t backhaul_bss_config[EM_MAX_BSSS]; // device-wide, not per-radio
     em_link_stats_alarm_cfg_t link_stats_alarm_cfg;
     em_client_filters_cfg_t client_filters;
 } em_policy_t;
