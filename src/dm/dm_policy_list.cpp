@@ -182,7 +182,7 @@ int dm_policy_list_t::set_config(db_client_t& db_client, const cJSON *obj_arr, v
 int dm_policy_list_t::set_config(db_client_t& db_client, dm_policy_t& policy, void *parent_id)
 {
     dm_orch_type_t op;
-    parse_dev_radio_mac_from_key(static_cast<char *>(parent_id), &policy.m_policy.id);
+    //parse_dev_radio_mac_from_key(static_cast<char *>(parent_id), &policy.m_policy.id);
     update_db(db_client, (op = get_dm_orch_type(db_client, policy)), policy.get_policy());
     update_list(policy, op);
 
