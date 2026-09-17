@@ -529,3 +529,20 @@ bool util::set_net_uint16_from_host(const uint16_t host_val, void* const ptr) {
     memcpy(ptr, &net_val, sizeof(uint16_t));
     return true;
 }
+
+bool util::str_is_mac_address(const char* mac)
+{
+    int i;
+    if(mac == NULL) return false;
+    for (i = 0; i < 6; i++)
+    {
+        if (!isxdigit(*mac++))
+            return false;
+        if (!isxdigit(*mac++))
+            return false;
+        if (i < 5 && *mac++ != ':')
+            return false;
+    }
+
+    return true;
+}
