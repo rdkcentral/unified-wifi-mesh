@@ -60,7 +60,7 @@ int em_cmd_ctrl_t::execute(char *result)
     if ((ret = listen(lsock, 20)) == -1) {
         printf("%s:%d: listen error on socket, err:%d\n", __func__, __LINE__, errno);
         close_listener_socket(lsock, em_service_type_ctrl);
-	return -1;
+        return -1;
     }
 
     if (em_ctrl == NULL) {
