@@ -202,7 +202,7 @@ int em_cmd_exec_t::get_listener_socket(em_service_type_t svc)
     if ((ret = bind(lsock, reinterpret_cast<const struct sockaddr *> (&addr), sizeof(struct sockaddr_un))) == -1) {
         printf("%s:%d: bind error on socket: %d, err:%d\n", __func__, __LINE__, lsock, errno);
         close(lsock);
-	return -1;
+        return -1;
     }
 
 	return lsock;
