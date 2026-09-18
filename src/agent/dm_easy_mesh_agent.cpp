@@ -104,7 +104,7 @@ int dm_easy_mesh_agent_t::analyze_dev_init(em_bus_event_t *evt, em_cmd_t *pcmd[]
         tmp = pcmd[num];
         num++;
     }
-
+    dm.deinit();
 	return num;
 }
 
