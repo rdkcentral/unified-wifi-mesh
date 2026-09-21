@@ -542,7 +542,7 @@ class em_metrics_t {
 	 */
 	short create_assoc_wifi6_sta_sta_report_tlv(unsigned char *buff, const dm_sta_t *const sta);
 
-	short create_link_stats_alarm_tlv(unsigned char *buff);
+	int create_link_stats_alarm_tlv(unsigned char *buff);
 
         /*
          * @brief Tracks whether an Unassociated STA Link Metrics Query
