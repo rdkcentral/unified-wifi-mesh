@@ -6789,6 +6789,136 @@ TEST(em_msg_t, supported_service_count_exceeds_destination_capacity)
 }
 
 /**
+ * @brief get_sta_mac() returns the address carried by a STA MAC Address TLV.
+ *
+ * The Client Disassociation Stats message is routed on this TLV before it is validated.
+ *
+ * **Test Procedure:**
+ * | Variation / Step | Description                                   | Test Data                               | Expected Result                      | Notes       |
+ * | :--------------: | --------------------------------------------- | --------------------------------------- | ------------------------------------ | ----------- |
+ * | 01               | STA MAC Address TLV with a 6-octet value      | mac = 02:11:22:33:44:55, then EOM       | Returns true, mac copied             | Should Pass |
+ */
+TEST(em_msg_t, get_sta_mac_from_sta_mac_addr_tlv)
+{
+    std::cout << "Entering get_sta_mac_from_sta_mac_addr_tlv test" << std::endl;
+    unsigned char buffer[64] = {0};
+    size_t offset = 0;
+    const unsigned char sta[MAC_LEN] = {0x02, 0x11, 0x22, 0x33, 0x44, 0x55};
+    write_tlv(buffer + offset, em_tlv_type_sta_mac_addr, sta, MAC_LEN);
+    offset += TLV_HEADER_SIZE + MAC_LEN;
+    write_tlv(buffer + offset, em_tlv_type_eom, nullptr, 0);
+    offset += TLV_HEADER_SIZE;
+    em_msg_t msg(em_msg_type_client_disassoc_stats, em_profile_type_3, buffer, static_cast<unsigned int>(offset));
+    mac_address_t mac = {0};
+    EXPECT_TRUE(msg.get_sta_mac(&mac));
+    EXPECT_EQ(memcmp(mac, sta, MAC_LEN), 0);
+    std::cout << "Exiting get_sta_mac_from_sta_mac_addr_tlv test" << std::endl;
+}
+
+/**
+ * @brief get_sta_mac() rejects a STA MAC Address TLV shorter than an address.
+ *
+ * **Test Procedure:**
+ * | Variation / Step | Description                                   | Test Data                               | Expected Result                      | Notes       |
+ * | :--------------: | --------------------------------------------- | --------------------------------------- | ------------------------------------ | ----------- |
+ * | 01               | STA MAC Address TLV with a 5-octet value      | 5 bytes, then EOM                       | Returns false                        | Should Pass |
+ */
+TEST(em_msg_t, get_sta_mac_sta_mac_addr_tlv_too_short)
+{
+    std::cout << "Entering get_sta_mac_sta_mac_addr_tlv_too_short test" << std::endl;
+    unsigned char buffer[64] = {0};
+    size_t offset = 0;
+    const unsigned char sta[MAC_LEN - 1] = {0x02, 0x11, 0x22, 0x33, 0x44};
+    write_tlv(buffer + offset, em_tlv_type_sta_mac_addr, sta, MAC_LEN - 1);
+    offset += TLV_HEADER_SIZE + MAC_LEN - 1;
+    write_tlv(buffer + offset, em_tlv_type_eom, nullptr, 0);
+    offset += TLV_HEADER_SIZE;
+    em_msg_t msg(em_msg_type_client_disassoc_stats, em_profile_type_3, buffer, static_cast<unsigned int>(offset));
+    mac_address_t mac = {0};
+    EXPECT_FALSE(msg.get_sta_mac(&mac));
+    std::cout << "Exiting get_sta_mac_sta_mac_addr_tlv_too_short test" << std::endl;
+}
+
+/* Client Disassociation Stats message: STA MAC Address, Reason Code and Associated STA Traffic Stats TLVs (17.1.41). */
+static unsigned int build_client_disassoc_stats_msg(unsigned char *buffer, bool with_reason, unsigned short stats_len)
+{
+    unsigned int len = sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t);
+    unsigned char sta[MAC_LEN] = {0x02, 0x11, 0x22, 0x33, 0x44, 0x55};
+    unsigned char reason[2] = {0x00, 0x08};
+    unsigned char stats[sizeof(em_assoc_sta_traffic_sts_t)] = {0};
+
+    memcpy(stats, sta, MAC_LEN);
+    em_msg_t::add_tlv(buffer + len, &len, em_tlv_type_sta_mac_addr, sta, sizeof(sta));
+    if (with_reason) {
+        em_msg_t::add_tlv(buffer + len, &len, em_tlv_type_reason_code, reason, sizeof(reason));
+    }
+    em_msg_t::add_tlv(buffer + len, &len, em_tlv_type_assoc_sta_traffic_sts, stats, stats_len);
+    em_msg_t::add_tlv(buffer + len, &len, em_tlv_type_eom, nullptr, 0);
+    return len;
+}
+
+/**
+ * @brief validate() accepts a Client Disassociation Stats message with its three mandatory TLVs.
+ *
+ * **Test Procedure:**
+ * | Variation / Step | Description                                              | Test Data                                   | Expected Result | Notes       |
+ * | :--------------: | -------------------------------------------------------- | ------------------------------------------- | --------------- | ----------- |
+ * | 01               | STA MAC Address, Reason Code, Traffic Stats (34 octets)  | em_msg_type_client_disassoc_stats, profile 3 | Returns true    | Should Pass |
+ */
+TEST(em_msg_t, validate_client_disassoc_stats_all_mandatory_tlvs)
+{
+    std::cout << "Entering validate_client_disassoc_stats_all_mandatory_tlvs test" << std::endl;
+    unsigned char buffer[256] = {0};
+    unsigned int len = build_client_disassoc_stats_msg(buffer, true, sizeof(em_assoc_sta_traffic_sts_t));
+    em_msg_t msg(em_msg_type_client_disassoc_stats, em_profile_type_3, buffer, len);
+    char *errors[EM_MAX_TLV_MEMBERS] = {nullptr};
+    EXPECT_TRUE(msg.validate(errors));
+    std::cout << "Exiting validate_client_disassoc_stats_all_mandatory_tlvs test" << std::endl;
+}
+
+/**
+ * @brief validate() rejects a Client Disassociation Stats message without a Reason Code TLV.
+ *
+ * **Test Procedure:**
+ * | Variation / Step | Description                                   | Test Data                                   | Expected Result                                   | Notes       |
+ * | :--------------: | --------------------------------------------- | ------------------------------------------- | ------------------------------------------------- | ----------- |
+ * | 01               | STA MAC Address and Traffic Stats only        | em_msg_type_client_disassoc_stats, profile 3 | Returns false, errors[0] names 17.2.64            | Should Pass |
+ */
+TEST(em_msg_t, validate_client_disassoc_stats_missing_reason_code)
+{
+    std::cout << "Entering validate_client_disassoc_stats_missing_reason_code test" << std::endl;
+    unsigned char buffer[256] = {0};
+    unsigned int len = build_client_disassoc_stats_msg(buffer, false, sizeof(em_assoc_sta_traffic_sts_t));
+    em_msg_t msg(em_msg_type_client_disassoc_stats, em_profile_type_3, buffer, len);
+    char *errors[EM_MAX_TLV_MEMBERS] = {nullptr};
+    EXPECT_FALSE(msg.validate(errors));
+    ASSERT_NE(errors[0], nullptr);
+    EXPECT_STREQ(errors[0], "17.2.64 of Wi-Fi Easy Mesh 5.0");
+    std::cout << "Exiting validate_client_disassoc_stats_missing_reason_code test" << std::endl;
+}
+
+/**
+ * @brief validate() rejects a Client Disassociation Stats message whose Traffic Stats TLV is too short.
+ *
+ * **Test Procedure:**
+ * | Variation / Step | Description                                   | Test Data                                   | Expected Result                                   | Notes       |
+ * | :--------------: | --------------------------------------------- | ------------------------------------------- | ------------------------------------------------- | ----------- |
+ * | 01               | Traffic Stats TLV one octet short             | stats_len = 33                              | Returns false, errors[0] names 17.2.35            | Should Pass |
+ */
+TEST(em_msg_t, validate_client_disassoc_stats_short_traffic_stats)
+{
+    std::cout << "Entering validate_client_disassoc_stats_short_traffic_stats test" << std::endl;
+    unsigned char buffer[256] = {0};
+    unsigned int len = build_client_disassoc_stats_msg(buffer, true, sizeof(em_assoc_sta_traffic_sts_t) - 1);
+    em_msg_t msg(em_msg_type_client_disassoc_stats, em_profile_type_3, buffer, len);
+    char *errors[EM_MAX_TLV_MEMBERS] = {nullptr};
+    EXPECT_FALSE(msg.validate(errors));
+    ASSERT_NE(errors[0], nullptr);
+    EXPECT_STREQ(errors[0], "17.2.35 of Wi-Fi Easy Mesh 5.0");
+    std::cout << "Exiting validate_client_disassoc_stats_short_traffic_stats test" << std::endl;
+}
+
+/**
  * @brief Build a frame with a header, a copied TLV, a produced TLV and the EOM TLV and verify its layout.
  *
  * **Test Procedure:**
