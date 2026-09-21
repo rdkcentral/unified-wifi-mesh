@@ -770,6 +770,9 @@ public:
 	// Constants for channel selection request parsing
 	static const int MAX_CHANSEL_CLASSES = 32;
 	static const int MAX_CHANSEL_CHANNELS = 64;
+	// Channel.{i}.Channel list: up to EM_MAX_CHANNELS_IN_LIST entries of at
+	// most three digits, comma-separated
+	static const int MAX_CHANSEL_LIST_LEN = EM_MAX_CHANNELS_IN_LIST * 4 - 1;
 
 	/**!
 	 * @brief Handles the bus ChannelSelectionRequest method request.
