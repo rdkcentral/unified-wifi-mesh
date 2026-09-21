@@ -48,6 +48,11 @@
 #include "em_cmd_ap_cap.h"
 #include "em_cmd_client_cap.h"
 
+#ifdef AL_SAP
+#include "al_service_access_point.h"
+extern MacAddress g_al_mac_sap;
+#endif
+
 std::atomic<int> dm_easy_mesh_t::s_counter{0};
 
 dm_easy_mesh_t& dm_easy_mesh_t::operator = (dm_easy_mesh_t const& obj)
@@ -3652,7 +3657,28 @@ void dm_easy_mesh_t::update_ap_mld_info(em_ap_mld_info_t *ap_mld_info)
 	return;
     }
 
-    dm_easy_mesh_t::get_ap_mld_key(get_agent_al_interface_mac(), ap_mld_info->haul_type, key, sizeof(key));
+    mac_address_t key_al_mac;
+    mac_addr_str_t agent_al_mac_str;
+    mac_addr_str_t key_al_mac_str;
+    dm_easy_mesh_t::macbytes_to_string(get_agent_al_interface_mac(), agent_al_mac_str);
+#ifdef AL_SAP
+    mac_addr_str_t sap_al_mac_str;
+    dm_easy_mesh_t::macbytes_to_string(g_al_mac_sap.data(), sap_al_mac_str);
+    em_printfout("AP MLD key AL MAC selection: agent=%s, SAP=%s", agent_al_mac_str, sap_al_mac_str);
+    if (memcmp(get_agent_al_interface_mac(), g_al_mac_sap.data(), sizeof(mac_address_t)) != 0) {
+        memcpy(key_al_mac, g_al_mac_sap.data(), sizeof(mac_address_t));
+        em_printfout("AP MLD key AL MAC selection: using SAP AL MAC");
+    } else {
+        memcpy(key_al_mac, get_agent_al_interface_mac(), sizeof(mac_address_t));
+        em_printfout("AP MLD key AL MAC selection: using agent AL MAC");
+    }
+#else
+    memcpy(key_al_mac, get_agent_al_interface_mac(), sizeof(mac_address_t));
+    em_printfout("AP MLD key AL MAC selection: using agent AL MAC=%s", agent_al_mac_str);
+#endif
+    dm_easy_mesh_t::macbytes_to_string(key_al_mac, key_al_mac_str);
+    em_printfout("AP MLD hashmap key AL MAC=%s, haul type=%d", key_al_mac_str, ap_mld_info->haul_type);
+    dm_easy_mesh_t::get_ap_mld_key(key_al_mac, ap_mld_info->haul_type, key, sizeof(key));
 
     // Find existing MLD by key (AL MAC + haul type)
     dm_ap_mld = static_cast<dm_ap_mld_t *> (hash_map_get(m_ap_mld_map, key));
@@ -3681,30 +3707,43 @@ void dm_easy_mesh_t::update_ap_mld_info(em_ap_mld_info_t *ap_mld_info)
     target_mld->emlsr = ap_mld_info->emlsr;
     target_mld->emlmr = ap_mld_info->emlmr;
 
+    em_printfout("Processing %d affiliated APs for MLD key=%s (existing count=%d)",
+        ap_mld_info->num_affiliated_ap, key, target_mld->num_affiliated_ap);
+
     // Loop through all affiliated APs
     for (int j = 0; j < ap_mld_info->num_affiliated_ap; j++) {
         em_affiliated_ap_info_t *input_ap = &ap_mld_info->affiliated_ap[j];
         em_affiliated_ap_info_t *target_aff_ap = NULL;
         bool aff_ap_found = false;
 
+        em_printfout("Processing affiliated AP input index=%d bssid=%02x:%02x:%02x:%02x:%02x:%02x link_id=%d valid=%d",
+            j, input_ap->mac_addr[0], input_ap->mac_addr[1], input_ap->mac_addr[2],
+            input_ap->mac_addr[3], input_ap->mac_addr[4], input_ap->mac_addr[5],
+            input_ap->link_id, input_ap->mac_addr_valid);
+
         for (int k = 0; k < target_mld->num_affiliated_ap; k++) {
+            em_printfout("Comparing input affiliated AP index=%d with existing index=%d bssid=%02x:%02x:%02x:%02x:%02x:%02x",
+                j, k, target_mld->affiliated_ap[k].mac_addr[0],
+                target_mld->affiliated_ap[k].mac_addr[1], target_mld->affiliated_ap[k].mac_addr[2],
+                target_mld->affiliated_ap[k].mac_addr[3], target_mld->affiliated_ap[k].mac_addr[4],
+                target_mld->affiliated_ap[k].mac_addr[5]);
             if (memcmp(target_mld->affiliated_ap[k].mac_addr, input_ap->mac_addr, sizeof(mac_address_t)) == 0) {
                 target_aff_ap = &target_mld->affiliated_ap[k];
                 aff_ap_found = true;
-                em_printfout("Found existing affiliated AP at index %d", k);
+                em_printfout("Found existing affiliated AP: input index=%d existing index=%d", j, k);
                 break;
             }
         }
 
         if (!aff_ap_found) {
             if (target_mld->num_affiliated_ap >= EM_MAX_AP_MLD) {
-                em_printfout("Max affiliated APs reached for MLD");
+                em_printfout("Max affiliated APs reached for MLD key=%s; dropping input index=%d", key, j);
                 continue;
             }
 
             target_aff_ap = &target_mld->affiliated_ap[target_mld->num_affiliated_ap];
             memset(target_aff_ap, 0, sizeof(em_affiliated_ap_info_t));
-            em_printfout("Added new affiliated AP at index %d",target_mld->num_affiliated_ap);
+            em_printfout("Added new affiliated AP: input index=%d target index=%d", j, target_mld->num_affiliated_ap);
             target_mld->num_affiliated_ap++;
         }
 
@@ -3714,10 +3753,15 @@ void dm_easy_mesh_t::update_ap_mld_info(em_ap_mld_info_t *ap_mld_info)
         target_aff_ap->ruid = input_ap->ruid;
         memcpy(target_aff_ap->mac_addr, input_ap->mac_addr, sizeof(mac_address_t));
         target_aff_ap->link_id = input_ap->link_id;
+        em_printfout("Stored affiliated AP: target index=%d bssid=%02x:%02x:%02x:%02x:%02x:%02x link_id=%d total=%d",
+            static_cast<int>(target_aff_ap - target_mld->affiliated_ap),
+            target_aff_ap->mac_addr[0], target_aff_ap->mac_addr[1], target_aff_ap->mac_addr[2],
+            target_aff_ap->mac_addr[3], target_aff_ap->mac_addr[4], target_aff_ap->mac_addr[5],
+            target_aff_ap->link_id, target_mld->num_affiliated_ap);
     }
 
-    em_printfout("Updated MLD key=%s (al_mac=%s) with %d affiliated APs", key,
-        util::mac_to_string(get_agent_al_interface_mac()).c_str(), target_mld->num_affiliated_ap);
+    em_printfout("Updated MLD key=%s (key_al_mac=%s haul_type=%d ssid=%s) with %d affiliated APs", key,
+        key_al_mac_str, target_mld->haul_type, target_mld->ssid, target_mld->num_affiliated_ap);
 }
 
 
