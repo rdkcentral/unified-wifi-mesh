@@ -285,7 +285,14 @@ void em_ctrl_t::handle_sta_assoc_event(em_bus_event_t *evt)
 {
     em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
     int num;
-    
+    em_bus_event_type_client_assoc_params_t *params;
+    dm_easy_mesh_t *dm;
+
+    params = reinterpret_cast<em_bus_event_type_client_assoc_params_t *> (evt->u.raw_buff);
+    if ((dm = get_data_model(GLOBAL_NET_ID, params->dev)) != NULL) {
+        record_client_disassoc(dm, &params->assoc);
+    }
+
     if ((num = m_data_model.analyze_sta_assoc_event(evt, pcmd)) > 0) {
         m_orch->submit_commands(pcmd, static_cast<unsigned int> (num));
     }
@@ -519,6 +526,40 @@ void em_ctrl_t::handle_link_stats_alarm_report(em_bus_event_t *evt)
     cJSON_Delete(parent);
 }
 
+/* DisassociationEvent InitiatedBy from the 802.11 reason code. The message does not
+ * say which side sent the frame; only the reasons defined for one side are attributed. */
+static const char *disassoc_initiated_by(unsigned short reason_code)
+{
+    switch (reason_code) {
+    case 3: /* deauthenticated because sending STA is leaving */
+    case 8: /* disassociated because sending STA is leaving BSS */
+        return "STA";
+    case 4: /* disassociated due to inactivity */
+    case 5: /* AP is unable to handle all currently associated STAs */
+    case 6: /* class 2 frame received from nonauthenticated STA */
+    case 7: /* class 3 frame received from nonassociated STA */
+        return "EasyMesh_Agent";
+    default:
+        return "Unknown";
+    }
+}
+
+/* Publishes the event and releases the argument list, the head included. */
+static bool event_publish(wifi_bus_desc_t *desc, bus_handle_t *hdl, const char *event, bus_data_prop_t *args)
+{
+    raw_data_t raw;
+    bool ok;
+
+    memset(&raw, 0, sizeof(raw));
+    raw.data_type = bus_data_type_property;
+    raw.raw_data.bytes = args;
+
+    ok = (desc->bus_event_publish_fn(hdl, event, &raw) == 0);
+    desc->bus_data_free_fn(&raw);
+    free(args);
+    return ok;
+}
+
 void em_ctrl_t::handle_failed_conn_msg(unsigned char *data, unsigned int len)
 {
     char *errors[EM_MAX_TLV_MEMBERS] = {0};
@@ -602,47 +643,266 @@ void em_ctrl_t::handle_failed_conn_msg(unsigned char *data, unsigned int len)
     dm_easy_mesh_t::macbytes_to_string(bssid, bssid_str);
     dm_easy_mesh_t::macbytes_to_string(sta_mac, sta_str);
 
-    cJSON *obj = cJSON_CreateObject();
-    if (obj == nullptr) {
-        em_printfout("Failed to allocate JSON object for FailedConnectionEvent");
-        return;
-    }
-
-    cJSON_AddStringToObject(obj, "BSSID", bssid_str);
-    cJSON_AddStringToObject(obj, "MACAddress", sta_str);
-    cJSON_AddNumberToObject(obj, "StatusCode", status_code);
-    cJSON_AddNumberToObject(obj, "ReasonCode", reason_code);
-    cJSON_AddStringToObject(obj, "TimeStamp", timestamp);
-
-    char *str = cJSON_Print(obj);
-    cJSON_Delete(obj);
-
-    if (str == nullptr) {
-        em_printfout("Failed to serialize FailedConnectionEvent JSON");
-        return;
-    }
-
     wifi_bus_desc_t *desc = get_bus_descriptor();
-    if (desc == nullptr) {
+    if (desc == NULL) {
         em_printfout("Bus descriptor is null");
-        free(str);
         return;
     }
 
-    raw_data_t raw;
-    memset(&raw, 0, sizeof(raw));
-    raw.data_type = bus_data_type_string;
-    raw.raw_data.bytes = reinterpret_cast<unsigned char *>(str);
-    raw.raw_data_len = static_cast<unsigned int>(strlen(str));
+    bus_data_prop_t *args = NULL;
+    tr_181_t::tr181_append_string_prop(&args, "BSSID", bssid_str);
+    tr_181_t::tr181_append_string_prop(&args, "MACAddress", sta_str);
+    tr_181_t::tr181_append_uint32_prop(&args, "StatusCode", status_code);
+    tr_181_t::tr181_append_uint32_prop(&args, "ReasonCode", reason_code);
+    tr_181_t::tr181_append_string_prop(&args, "TimeStamp", timestamp);
 
-    if (desc->bus_event_publish_fn(m_data_model.get_bus_hdl(), DEVICE_WIFI_DATAELEMENTS_FAILED_CONNECTION, &raw) == 0) {
+    if (event_publish(desc, m_data_model.get_bus_hdl(), DEVICE_WIFI_DATAELEMENTS_FAILED_CONNECTION, args)) {
         em_printfout("FailedConnectionEvent published: bssid=%s sta=%s status=%u reason=%u",
             bssid_str, sta_str, status_code, reason_code);
     } else {
         em_printfout("FailedConnectionEvent publish failed");
     }
+}
 
-    free(str);
+void em_ctrl_t::record_client_disassoc(dm_easy_mesh_t *dm, const em_client_assoc_event_t *assoc)
+{
+    std::string sta_str = util::mac_to_string(assoc->cli_mac_address);
+    std::string key = util::mac_to_string(dm->get_agent_al_interface_mac()) + "@" + sta_str;
+    em_recent_disassoc_t rec;
+    bssid_t bssid;
+    dm_bss_t *bss = NULL;
+    unsigned int i;
+
+    std::lock_guard<std::mutex> lock(m_recent_disassoc_lock);
+    if (assoc->assoc_event) {
+        m_recent_disassoc.erase(key);
+        return;
+    }
+
+    memset(&rec, 0, sizeof(rec));
+    memcpy(bssid, assoc->bssid, sizeof(bssid_t));
+    memcpy(rec.bssid, bssid, sizeof(bssid_t));
+    for (i = 0; i < dm->get_num_radios(); i++) {
+        bss = dm->get_bss(dm->get_radio_info(i)->id.ruid, bssid);
+        if (bss != NULL) {
+            memcpy(rec.radiomac, bss->m_bss_info.ruid.mac, sizeof(mac_address_t));
+            break;
+        }
+    }
+    if (bss == NULL && !dm->resolve_ap_mld_to_fallback_ruid(bssid, rec.radiomac)) {
+        em_printfout("Disassociation of sta=%s: no radio for bssid=%s", sta_str.c_str(),
+            util::mac_to_string(bssid).c_str());
+        return;
+    }
+    util::monotonic_now(&rec.ts);
+    m_recent_disassoc[key] = rec;
+}
+
+bool em_ctrl_t::resolve_client_disassoc(dm_easy_mesh_t *dm, mac_address_t sta_mac, bssid_t bssid, mac_address_t radiomac)
+{
+    std::string key = util::mac_to_string(dm->get_agent_al_interface_mac()) + "@" + util::mac_to_string(sta_mac);
+    struct timespec now;
+
+    {
+        std::lock_guard<std::mutex> lock(m_recent_disassoc_lock);
+        auto it = m_recent_disassoc.find(key);
+        if (it != m_recent_disassoc.end()) {
+            util::monotonic_now(&now);
+            if (now.tv_sec - it->second.ts.tv_sec <= EM_RECENT_DISASSOC_MAX_AGE_SEC) {
+                memcpy(bssid, it->second.bssid, sizeof(bssid_t));
+                memcpy(radiomac, it->second.radiomac, sizeof(mac_address_t));
+                return true;
+            }
+            m_recent_disassoc.erase(it);
+        }
+    }
+
+    for (dm_sta_t *sta = dm->get_first_sta(sta_mac); sta != NULL; sta = dm->get_next_sta(sta_mac, sta)) {
+        if (sta->m_sta_info.associated) {
+            memcpy(bssid, sta->m_sta_info.bssid, sizeof(bssid_t));
+            memcpy(radiomac, sta->m_sta_info.radiomac, sizeof(mac_address_t));
+            return true;
+        }
+    }
+
+    return false;
+}
+
+void em_ctrl_t::handle_client_disassoc_stats_msg(unsigned char *data, unsigned int len)
+{
+    char *errors[EM_MAX_TLV_MEMBERS] = {0};
+
+    if (em_msg_t(em_msg_type_client_disassoc_stats, em_profile_type_3, data, len).validate(errors) == 0) {
+        em_printfout("Client Disassociation Stats message validation failed");
+        return;
+    }
+
+    unsigned int hdr_size = static_cast<unsigned int>(sizeof(em_raw_hdr_t)) + static_cast<unsigned int>(sizeof(em_cmdu_t));
+    if (len <= hdr_size) {
+        em_printfout("Client Disassociation Stats message too short");
+        return;
+    }
+    em_raw_hdr_t *hdr = reinterpret_cast<em_raw_hdr_t *>(data);
+    unsigned char *tmp = data + hdr_size;
+    unsigned int remaining = len - hdr_size;
+    mac_address_t sta_mac = {0};
+    unsigned short reason_code = 0;
+    em_assoc_sta_traffic_sts_t stats;
+    bool has_sta = false, has_reason = false, has_stats = false;
+
+    memset(&stats, 0, sizeof(stats));
+
+    while (remaining >= sizeof(em_tlv_t)) {
+        em_tlv_t *tlv = reinterpret_cast<em_tlv_t *>(tmp);
+        unsigned short tlv_len = ntohs(tlv->len);
+
+        if (tlv->type == em_tlv_type_eom) {
+            break;
+        }
+        if (remaining < sizeof(em_tlv_t) + tlv_len) {
+            break;
+        }
+
+        switch (tlv->type) {
+            case em_tlv_type_sta_mac_addr:
+                if (tlv_len >= sizeof(mac_address_t)) {
+                    memcpy(sta_mac, tlv->value, sizeof(mac_address_t));
+                    has_sta = true;
+                }
+                break;
+            case em_tlv_type_reason_code: {
+                if (tlv_len < sizeof(em_reason_code_t)) {
+                    em_printfout("Client Disassociation Stats malformed Reason Code TLV (len=%u)", static_cast<unsigned int>(tlv_len));
+                    break;
+                }
+                em_reason_code_t *rc = reinterpret_cast<em_reason_code_t *>(tlv->value);
+                reason_code = ntohs(rc->reason_code);
+                has_reason = true;
+                break;
+            }
+            case em_tlv_type_assoc_sta_traffic_sts:
+                if (tlv_len >= sizeof(em_assoc_sta_traffic_sts_t)) {
+                    memcpy(&stats, tlv->value, sizeof(stats));
+                    has_stats = true;
+                }
+                break;
+            default:
+                break;
+        }
+
+        tmp += sizeof(em_tlv_t) + tlv_len;
+        remaining -= static_cast<unsigned int>(sizeof(em_tlv_t)) + tlv_len;
+    }
+
+    if (!has_sta || !has_reason || !has_stats) {
+        em_printfout("Client Disassociation Stats message missing mandatory TLVs");
+        return;
+    }
+
+    mac_addr_str_t sta_str;
+    dm_easy_mesh_t::macbytes_to_string(sta_mac, sta_str);
+
+    dm_easy_mesh_t *dm = get_data_model(GLOBAL_NET_ID, hdr->src);
+    if (dm == NULL) {
+        em_printfout("Client Disassociation Stats: no data model for agent %s", util::mac_to_string(hdr->src).c_str());
+        return;
+    }
+    bssid_t bssid;
+    mac_address_t radiomac;
+    if (!resolve_client_disassoc(dm, sta_mac, bssid, radiomac)) {
+        em_printfout("Client Disassociation Stats: no BSS known for sta=%s, DisassociationEvent not published", sta_str);
+        return;
+    }
+
+    struct timespec ts;
+    clock_gettime(CLOCK_REALTIME, &ts);
+    struct tm tm_info;
+    gmtime_r(&ts.tv_sec, &tm_info);
+    char timestamp[MAX_TIMESTAMP_STRLEN];
+    snprintf(timestamp, sizeof(timestamp), "%04d-%02d-%02dT%02d:%02d:%02dZ",
+        tm_info.tm_year + 1900, tm_info.tm_mon + 1, tm_info.tm_mday,
+        tm_info.tm_hour, tm_info.tm_min, tm_info.tm_sec);
+
+    mac_addr_str_t bssid_str;
+    dm_easy_mesh_t::macbytes_to_string(bssid, bssid_str);
+
+    /* Mark the station disassociated now, the Topology Notification arrives seconds later. */
+    mac_addr_str_t radio_str;
+    em_long_string_t sta_key;
+    dm_sta_t *assoc_row;
+    dm_sta_t *sta_row;
+
+    dm_easy_mesh_t::macbytes_to_string(radiomac, radio_str);
+    snprintf(sta_key, sizeof(em_long_string_t), "%s@%s@%s", sta_str, bssid_str, radio_str);
+
+    assoc_row = static_cast<dm_sta_t *>(hash_map_get(dm->m_sta_assoc_map, sta_key));
+    if (assoc_row != NULL) {
+        assoc_row->m_sta_info.associated = false;
+        assoc_row->m_sta_info.frame_body_len = 0;
+        memset(assoc_row->m_sta_info.frame_body, 0, sizeof(assoc_row->m_sta_info.frame_body));
+    }
+
+    sta_row = static_cast<dm_sta_t *>(hash_map_get(dm->m_sta_map, sta_key));
+    if (sta_row != NULL) {
+        sta_row->m_sta_info.associated = false;
+        sta_row->m_sta_info.frame_body_len = 0;
+        memset(sta_row->m_sta_info.frame_body, 0, sizeof(sta_row->m_sta_info.frame_body));
+        dm->set_db_cfg_param(db_cfg_type_sta_list_update, "");
+        em_printfout("Client Disassociation Stats: marked sta=%s disassociated, key=%s", sta_str, sta_key);
+    }
+
+    /* The last metrics of the station, the radio noise and its operating channel, as the
+     * data model reported them before the station left. */
+    em_sta_info_t *last = (sta_row != NULL) ? &sta_row->m_sta_info :
+                          (assoc_row != NULL) ? &assoc_row->m_sta_info : NULL;
+    dm_radio_t *radio = dm->get_radio(radiomac);
+    unsigned int op_class = 0, channel = 0;
+    for (unsigned int i = 0; i < dm->get_num_op_class(); i++) {
+        em_op_class_info_t *oc = dm->get_op_class_info(i);
+        if ((oc->id.type == em_op_class_type_current) &&
+            (memcmp(oc->id.ruid, radiomac, sizeof(mac_address_t)) == 0)) {
+            op_class = oc->op_class;
+            channel = oc->channel;
+            break;
+        }
+    }
+
+    wifi_bus_desc_t *desc = get_bus_descriptor();
+    if (desc == NULL) {
+        em_printfout("Bus descriptor is null");
+        return;
+    }
+
+    bus_data_prop_t *args = NULL;
+    tr_181_t::tr181_append_string_prop(&args, "BSSID", bssid_str);
+    tr_181_t::tr181_append_string_prop(&args, "MACAddress", sta_str);
+    tr_181_t::tr181_append_uint32_prop(&args, "ReasonCode", reason_code);
+    tr_181_t::tr181_append_uint64_prop(&args, "BytesSent", ntohl(stats.bytes_sent));
+    tr_181_t::tr181_append_uint64_prop(&args, "BytesReceived", ntohl(stats.bytes_recv));
+    tr_181_t::tr181_append_uint64_prop(&args, "PacketsSent", ntohl(stats.packets_sent));
+    tr_181_t::tr181_append_uint64_prop(&args, "PacketsReceived", ntohl(stats.packets_recv));
+    tr_181_t::tr181_append_uint32_prop(&args, "ErrorsSent", ntohl(stats.tx_packets_errors));
+    tr_181_t::tr181_append_uint32_prop(&args, "ErrorsReceived", ntohl(stats.rx_packets_errors));
+    tr_181_t::tr181_append_uint32_prop(&args, "RetransCount", ntohl(stats.retrans_count));
+    tr_181_t::tr181_append_string_prop(&args, "TimeStamp", timestamp);
+    tr_181_t::tr181_append_uint32_prop(&args, "LastDataDownlinkRate", last ? last->last_dl_rate : 0);
+    tr_181_t::tr181_append_uint32_prop(&args, "LastDataUplinkRate", last ? last->last_ul_rate : 0);
+    tr_181_t::tr181_append_uint64_prop(&args, "UtilizationReceive", last ? last->util_rx : 0);
+    tr_181_t::tr181_append_uint64_prop(&args, "UtilizationTransmit", last ? last->util_tx : 0);
+    tr_181_t::tr181_append_uint32_prop(&args, "EstMACDataRateDownlink", last ? last->est_dl_rate : 0);
+    tr_181_t::tr181_append_uint32_prop(&args, "EstMACDataRateUplink", last ? last->est_ul_rate : 0);
+    tr_181_t::tr181_append_uint32_prop(&args, "SignalStrength", last ? last->rcpi : 0);
+    tr_181_t::tr181_append_uint32_prop(&args, "LastConnectTime", last ? last->last_conn_time : 0);
+    tr_181_t::tr181_append_uint32_prop(&args, "Noise", radio ? static_cast<uint32_t>(radio->get_radio_info()->noise) : 0);
+    tr_181_t::tr181_append_string_prop(&args, "InitiatedBy", disassoc_initiated_by(reason_code));
+    tr_181_t::tr181_append_uint32_prop(&args, "OpClass", op_class);
+    tr_181_t::tr181_append_uint32_prop(&args, "Channel", channel);
+
+    if (event_publish(desc, m_data_model.get_bus_hdl(), DEVICE_WIFI_DATAELEMENTS_DISASSOCIATION, args)) {
+        em_printfout("DisassociationEvent published: bssid=%s sta=%s reason=%u", bssid_str, sta_str, reason_code);
+    } else {
+        em_printfout("DisassociationEvent publish failed");
+    }
 }
 
 
@@ -1149,6 +1409,35 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
             em = al_em;
             break;
 
+        case em_msg_type_client_disassoc_stats: {
+            mac_address_t sta_mac;
+            mac_address_t radiomac;
+
+            if (em_msg_t(data + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)),
+                    len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_sta_mac(&sta_mac) == false) {
+                em_printfout("Could not find STA MAC in msg:0x%04x", htons(cmdu->type));
+                return NULL;
+            }
+
+            if ((dm = get_data_model(GLOBAL_NET_ID, const_cast<const unsigned char *> (hdr->src))) == NULL) {
+                em_printfout("Can not find data model for agent %s", util::mac_to_string(hdr->src).c_str());
+                return NULL;
+            }
+
+            if (resolve_client_disassoc(dm, sta_mac, bssid, radiomac) == false) {
+                em_printfout("No BSS known for sta=%s in msg:0x%04x",
+                    util::mac_to_string(sta_mac).c_str(), htons(cmdu->type));
+                return NULL;
+            }
+
+            dm_easy_mesh_t::macbytes_to_string(radiomac, mac_str1);
+            if ((em = static_cast<em_t *>(hash_map_get(m_em_map, mac_str1))) == NULL) {
+                em_printfout("Could not find radio:%s for sta=%s", mac_str1, util::mac_to_string(sta_mac).c_str());
+                return NULL;
+            }
+            break;
+        }
+
         case em_msg_type_autoconf_resp:
         case em_msg_type_topo_query:
         case em_msg_type_autoconf_renew:
@@ -1316,7 +1605,10 @@ void em_ctrl_t::start_complete()
             { bus_data_type_string, false, 0, 0, 0, NULL } },
         { const_cast<char*>(DEVICE_WIFI_DATAELEMENTS_FAILED_CONNECTION), bus_element_type_event,
             { NULL, NULL , NULL, NULL, NULL, NULL }, slow_speed, ZERO_TABLE,
-            { bus_data_type_string, false, 0, 0, 0, NULL } },
+            { bus_data_type_property, false, 0, 0, 0, NULL } },
+        { const_cast<char*>(DEVICE_WIFI_DATAELEMENTS_DISASSOCIATION), bus_element_type_event,
+            { NULL, NULL , NULL, NULL, NULL, NULL }, slow_speed, ZERO_TABLE,
+            { bus_data_type_property, false, 0, 0, 0, NULL } },
         { const_cast<char*>(DEVICE_WIFI_DATAELEMENTS_NETWORK_SETSSID_CMD), bus_element_type_method,
             { NULL, NULL , NULL, NULL, NULL, tr_181_t::setssid_handler}, slow_speed, ZERO_TABLE,
             { bus_data_type_property, false, 0, 0, 0, NULL } },

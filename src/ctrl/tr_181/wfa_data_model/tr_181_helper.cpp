@@ -198,6 +198,75 @@ bus_data_prop_t *tr_181_t::tr181_alloc_string_prop(const char *name, const char 
     return prop;
 }
 
+// Create a property with the given name; the value is set by the caller.
+static bus_data_prop_t *tr181_alloc_prop(const char *name)
+{
+    if (!name) return nullptr;
+
+    bus_data_prop_t *prop = static_cast<bus_data_prop_t *>(calloc(1, sizeof(bus_data_prop_t)));
+    if (!prop) return nullptr;
+
+    size_t name_len = strnlen(name, sizeof(prop->name) - 1U);
+    memcpy(prop->name, name, name_len);
+    prop->name[name_len] = '\0';
+    prop->name_len = static_cast<uint32_t>(name_len);
+    prop->is_data_set = true;
+    prop->status = bus_error_success;
+    return prop;
+}
+
+bus_data_prop_t *tr_181_t::tr181_alloc_uint32_prop(const char *name, uint32_t value)
+{
+    bus_data_prop_t *prop = tr181_alloc_prop(name);
+    if (!prop) return nullptr;
+
+    prop->value.data_type = bus_data_type_uint32;
+    prop->value.raw_data.u32 = value;
+    prop->value.raw_data_len = sizeof(uint32_t);
+    return prop;
+}
+
+bus_data_prop_t *tr_181_t::tr181_alloc_uint64_prop(const char *name, uint64_t value)
+{
+    bus_data_prop_t *prop = tr181_alloc_prop(name);
+    if (!prop) return nullptr;
+
+    prop->value.data_type = bus_data_type_uint64;
+    prop->value.raw_data.u64 = value;
+    prop->value.raw_data_len = sizeof(uint64_t);
+    return prop;
+}
+
+void tr_181_t::tr181_prop_append(bus_data_prop_t **list, bus_data_prop_t *prop)
+{
+    if (!list || !prop) return;
+    if (!*list) {
+        *list = prop;
+        return;
+    }
+
+    bus_data_prop_t *last = *list;
+    while (last->next_data) {
+        last = last->next_data;
+    }
+    last->next_data = prop;
+}
+
+void tr_181_t::tr181_append_string_prop(bus_data_prop_t **list, const char *name, const char *value)
+{
+    tr181_prop_append(list, tr181_alloc_string_prop(name, value));
+}
+
+void tr_181_t::tr181_append_uint32_prop(bus_data_prop_t **list, const char *name, uint32_t value)
+{
+    tr181_prop_append(list, tr181_alloc_uint32_prop(name, value));
+}
+
+void tr_181_t::tr181_append_uint64_prop(bus_data_prop_t **list, const char *name, uint64_t value)
+{
+    tr181_prop_append(list, tr181_alloc_uint64_prop(name, value));
+}
+
 // Build a "Status" output property with the given status string.
 bus_data_prop_t *tr_181_t::tr181_set_status_output_prop(const char *status)
 {

@@ -2798,6 +2798,10 @@ void em_metrics_t::process_msg(unsigned char *data, unsigned int len)
             get_mgr()->handle_failed_conn_msg(data, len);
             break;
 
+        case em_msg_type_client_disassoc_stats:
+            get_mgr()->handle_client_disassoc_stats_msg(data, len);
+            break;
+
         default:
             break;
     }
