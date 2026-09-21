@@ -478,21 +478,6 @@ class em_configuration_t {
 	int send_topology_notification_by_client(mac_address_t sta, bssid_t bssid, bool assoc);
 
 	/**!
-	 * @brief Sends a Client Disassociation Stats message as required by EasyMesh spec (17.1.41).
-	 *
-	 * When a client disassociates, this message shall be sent to the Multi-AP Controller
-	 * including STA MAC Address Type TLV, Reason Code TLV, Associated STA Traffic Stats TLV,
-	 * and zero or more Affiliated STA Metrics TLVs (for MLD clients).
-	 *
-	 * @param[in] dassoc_sta Pointer to the disassociated sta
-	 *
-	 * @returns int
-	 * @retval message length on success
-	 * @retval -1 on failure
-	 */
-	int send_client_disassoc_stats_msg(const dm_sta_t *dassoc_sta);
-
-	/**!
 	 * @brief Sends a Failed Connection message
 	 *
 	 * Message content:
@@ -1636,6 +1621,20 @@ public:
 	bool send_autoconf_search_resp_ext_chirp(em_dpp_chirp_value_t *chirp, size_t len, uint8_t dest_mac[ETH_ALEN], unsigned short msg_id, bool peer_is_emplus);
 
 	bool send_bss_config_req_msg(uint8_t dest_al_mac[ETH_ALEN]);
+
+	/**!
+	 * @brief Sends a Client Disassociation Stats message as required by EasyMesh spec (17.1.41).
+	 *
+	 * STA MAC Address, Reason Code and Associated STA Traffic Stats TLVs come from the OneWifi
+	 * ClientDisassocStats event, Affiliated STA Metrics TLVs (MLD clients) from the data model.
+	 *
+	 * @param[in] evt Decoded ClientDisassocStats event
+	 *
+	 * @returns int
+	 * @retval message length on success
+	 * @retval -1 on failure
+	 */
+	int send_client_disassoc_stats_msg(const em_client_disassoc_stats_evt_data_t *evt);
 
 	/**!
 	 * @brief Evaluates Unsuccessful Association Policy and sends a Failed Connection message if permitted.
