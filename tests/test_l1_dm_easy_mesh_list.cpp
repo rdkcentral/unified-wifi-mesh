@@ -343,6 +343,32 @@ TEST_F(dm_easy_mesh_list_tTEST, create_data_model_loop_profile_types) {
 }
 
 /**
+ * @brief Verify the default Unsuccessful Association Policy of a new data model
+ *
+ * The defaults are a positional initializer, so this guards the values and the field order.
+ */
+TEST_F(dm_easy_mesh_list_tTEST, create_data_model_default_unsuccess_assoc_policy) {
+    dm_policy_t *policy;
+    dm_policy_t *found = nullptr;
+
+    ASSERT_NE(dm1, nullptr);
+    ASSERT_NE(dm1->m_policy_map, nullptr);
+
+    policy = static_cast<dm_policy_t *>(hash_map_get_first(dm1->m_policy_map));
+    while (policy != nullptr) {
+        if (policy->m_policy.id.type == em_policy_id_type_unsuccess_assoc) {
+            found = policy;
+            break;
+        }
+        policy = static_cast<dm_policy_t *>(hash_map_get_next(dm1->m_policy_map, policy));
+    }
+
+    ASSERT_NE(found, nullptr);
+    EXPECT_TRUE(found->m_policy.report_unassoc_sta);
+    EXPECT_EQ(found->m_policy.max_reporting_rate, 30u);
+}
+
+/**
  * @brief Test debug_probe() API for valid invocation.
  *
  * This test verifies that the debug_probe() method of the list object executes without throwing any exceptions. It confirms that when debug_probe() is invoked on a properly initialized and populated list, the operation completes successfully, which is critical for ensuring that diagnostic functionalities are stable.
