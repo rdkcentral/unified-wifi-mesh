@@ -20,6 +20,129 @@
 #define DB_CLIENT_H
 
 #include "em_base.h"
+#if defined(OPENWRT_BUILD) || defined(RDKB_BUILD)
+// MariaDB C client header for cross-compiled builds (OpenWRT / RDKB), where headers are under <mysql/>
+#include <mysql/mysql.h>
+#else
+// MariaDB C client header for a standard Linux install (Debian)
+#include <mariadb/mysql.h>
+#endif
+
+ /**!
+  * @brief Database client class to manage database connections and queries.
+  *
+  * This class provides methods for initializing, executing queries,
+  * and retrieving results from a database using the MariaDB C client library.
+  *
+  * @note This class is not thread-safe.
+  */
+ class db_client_t {
+	MYSQL *m_con;    ///< MariaDB connection instance
+
+
+	 /**!
+	  * @brief Establish a connection to the database.
+	  *
+	  * This function attempts to establish a connection to the specified database
+	  * using the provided path. It is essential to call this function before
+	  * executing any database queries to ensure a valid connection is established.
+	  *
+	  * @param[in] path A constant character pointer representing the path to the
+	  * database in the format "username@password".
+	  *
+	  * @returns An integer indicating the success or failure of the connection
+	  * attempt.
+	  * @retval 0 Connection successful.
+	  * @retval -1 Connection failed due to invalid path or other errors.
+	  *
+	  * @note Ensure that the database server is running and accessible before
+	  * calling this function. Failure to do so may result in a connection error.
+	  */
+	 int connect(const char *path);
+
+ public:
+
+	 /**!
+	  * @brief Initialize the database connection.
+	  *
+	  * This function sets up the necessary environment to interact with the database
+	  * specified by the given path. It must be called before any other database
+	  * operations are performed.
+	  *
+	  * @param[in] path Path to the database in the format "username@password".
+	  *
+	  * @returns 0 on success, non-zero on failure.
+	  * @retval 0 Initialization successful.
+	  * @retval -1 Initialization failed due to an invalid path or other errors.
+	  *
+	  * @note Ensure that the path is correct and accessible by the application.
+	  */
+	 int init(const char *path);
+
+
+	 /**!
+	  * @brief Execute a SQL query on the database.
+	  *
+	  * This function takes a SQL query as input and executes it on the connected database.
+	  *
+	  * @param[in] query SQL query to execute. This should be a valid SQL statement.
+	  *
+	  * @returns Pointer to result context on success, NULL on failure.
+	  *
+	  * @note Caller is responsible for handling the returned result context.
+	  *       The context will be automatically freed when next_result() returns false.
+	  */
+	 void *execute(const char *query);
+
+
+	 /**!
+	  * @brief Retrieve the next result from the query execution.
+	  *
+	  * This function checks if there is another result available in the
+	  * result context provided. It is typically used in a loop to
+	  * iterate over all results of a query.
+	  *
+	  * @param[in] ctx Result context. This should be a valid context
+	  * obtained from a previous call to execute().
+	  *
+	  * @returns True if there is another result available, false otherwise.
+	  *
+	  * @note When this function returns false, it automatically frees the result context,
+	  *       so you don't need to call free_result() manually.
+	  *       If you need to release the result context before fully iterating, use free_result().
+	  */
+	 bool next_result(void *ctx);
+
+
+	 /**!
+	  * @brief Release a result context before it has been drained by next_result().
+	  *
+	  * Callers that stop iterating early (e.g. after finding a match) must use
+	  * this instead of leaving the context to leak.
+ 	  * @note The context is freed automatically when next_result() returns false.
+ 	  *       Do not call free_result() after fully draining results, and do not
+ 	  *       use ctx after next_result() returns false or free_result() is called.
+	  *
+	  * @param[in] ctx Result context obtained from execute(). Safe to call with NULL.
+	  */
+	 void free_result(void *ctx);
+
+
+	 /**!
+	  * @brief Retrieve a string value from the result context.
+	  *
+	  * This function extracts a string from a specified column in the result context and stores it in the provided buffer.
+	  *
+	  * @param[in] ctx Result context from which the string is retrieved.
+	  * @param[out] res Buffer to store the retrieved string. The buffer must be pre-allocated and large enough to hold the string.
+	  * @param[in] col Column index from which to retrieve the string (1-based).
+	  *
+	  * @returns Pointer to the result buffer containing the string, or NULL on error.
+	  *
+	  * @note Ensure the buffer size is sufficient to store the retrieved string to avoid buffer overflow.
+	  */
+	 char *get_string(void *ctx, char *res, unsigned int col);
+
 
 /**!
  * @brief Abstract persistence-backend interface used by db_easy_mesh_t (and,

@@ -163,6 +163,10 @@ void dm_bss_list_t::update_list(const dm_bss_t& bss, dm_orch_type_t op)
 
         case dm_orch_type_db_update:
 			pbss = get_bss(key);
+            if (pbss == NULL) {
+                em_printfout("update_list: BSS not found for update, key=%s", key);
+                break;
+            }
             memcpy(&pbss->m_bss_info, &bss.m_bss_info, sizeof(em_bss_info_t));
             break;
 
@@ -269,6 +273,7 @@ bool dm_bss_list_t::search_db(db_client_t& db_client, void *ctx, void *key)
         db_client.get_string(ctx, str, 1);
 
         if (strncmp(str, static_cast<char *> (key), strlen(static_cast<char *> (key))) == 0) {
+            db_client.free_result(ctx);
             return true;
         }
     }

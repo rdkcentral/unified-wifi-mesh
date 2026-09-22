@@ -26,6 +26,10 @@
 #include <type_traits>
 #include "dm_easy_mesh.h"
 
+namespace util {
+	void monotonic_now(struct timeval *tv);
+}
+
 class em_cmd_t {
 public:
     em_cmd_type_t   m_type;
@@ -492,14 +496,14 @@ public:
 
     
 	/**!
-	 * @brief Sets the start time using the current time of day.
+	 * @brief Sets the command start time from the monotonic clock.
 	 *
-	 * This function initializes the start time by retrieving the current time
-	 * of day and storing it in the member variable `m_start_time`.
+	 * This function initializes the start time by reading CLOCK_MONOTONIC
+	 * and storing it in the member variable `m_start_time`.
 	 *
 	 * @note This function does not take any parameters and does not return any value.
 	 */
-	void set_start_time() { gettimeofday(&m_start_time, NULL);}
+	void set_start_time() { util::monotonic_now(&m_start_time); }
 
     
 	/**!
@@ -555,6 +559,10 @@ public:
 	 */
 	void reset_cmd_ctx() { m_data_model.reset_cmd_ctx(); }
 
+	virtual bool supports_retry_state() const { return false; }
+	virtual time_t get_query_tx_time() const { return 0; }
+	virtual void set_query_tx_time(time_t tx_time) { (void)tx_time; }
+	virtual void clear_query_tx_time() {}
     
 	/**!
 	 * @brief Retrieves the database configuration type.

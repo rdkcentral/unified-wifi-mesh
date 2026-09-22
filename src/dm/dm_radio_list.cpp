@@ -153,7 +153,15 @@ void dm_radio_list_t::update_list(const dm_radio_t& radio, dm_orch_type_t op)
 
         case dm_orch_type_db_update:
             pradio = get_radio(mac_str);
-            memcpy(&pradio->m_radio_info, &radio.m_radio_info, sizeof(em_radio_info_t));
+            {
+                // radio_temp is updated in-place by the metrics module and is never
+                // carried by config-driven radio objects (e.g. decoded RadioList
+                // JSON); preserve it across a config update instead of letting this
+                // memcpy clobber it with zero.
+                unsigned char radio_temp = pradio->m_radio_info.radio_temp;
+                memcpy(&pradio->m_radio_info, &radio.m_radio_info, sizeof(em_radio_info_t));
+                pradio->m_radio_info.radio_temp = radio_temp;
+            }
             break;
 
         case dm_orch_type_db_delete:
@@ -239,6 +247,7 @@ bool dm_radio_list_t::search_db(db_client_t& db_client, void *ctx, void *key)
         db_client.get_string(ctx, str, 1);
 
         if (strncmp(str, static_cast<char *>(key), strlen(static_cast<char *>(key))) == 0) {
+            db_client.free_result(ctx);
             return true;
         }
     }

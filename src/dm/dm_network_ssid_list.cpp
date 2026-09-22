@@ -342,7 +342,9 @@ int dm_network_ssid_list_t::update_db(db_client_t& db_client, dm_orch_type_t op,
 		snprintf(bands + strlen(bands), sizeof(bands) - strlen(bands), "%s", info->band[i]);
         snprintf(bands + strlen(bands), sizeof(bands) - strlen(bands), "%s", ",");
 	}
-	bands[strlen(bands) - 1] = 0;
+	if (bands[0] != '\0') {
+		bands[strlen(bands) - 1] = 0;
+	}
 	//printf("%s:%d: Bands: %s\n", __func__, __LINE__, bands);
 
 	memset(hauls, 0, sizeof(em_long_string_t));
@@ -350,7 +352,9 @@ int dm_network_ssid_list_t::update_db(db_client_t& db_client, dm_orch_type_t op,
         dm_network_ssid_t::haul_type_to_string(info->haul_type[i], haul_str);
         snprintf(hauls + strlen(hauls), sizeof(hauls) - strlen(hauls) - 1, "%s,", haul_str);
     }
-    hauls[strlen(hauls) - 1] = 0;
+    if (hauls[0] != '\0') {
+        hauls[strlen(hauls) - 1] = 0;
+    }
     //printf("%s:%d: Haul Types: %s\n", __func__, __LINE__, bands);
 
 	memset(akms, 0, sizeof(em_long_string_t));
@@ -358,7 +362,9 @@ int dm_network_ssid_list_t::update_db(db_client_t& db_client, dm_orch_type_t op,
         snprintf(akms + strlen(akms), sizeof(akms) - strlen(akms), "%s", info->akm[i]);
         snprintf(akms + strlen(akms), sizeof(akms) - strlen(akms), "%s", ",");
     }
-    akms[strlen(akms) - 1] = 0;
+    if (akms[0] != '\0') {
+        akms[strlen(akms) - 1] = 0;
+    }
     //printf("%s:%d: AKMs: %s\n", __func__, __LINE__, akms);
 
 	switch (op) {
@@ -390,6 +396,7 @@ bool dm_network_ssid_list_t::search_db(db_client_t& db_client, void *ctx, void *
         db_client.get_string(ctx, id, 1);
 
         if (strncmp(id, static_cast<char *> (key), strlen(static_cast<char *> (key))) == 0) {
+            db_client.free_result(ctx);
             return true;
         }
     }
