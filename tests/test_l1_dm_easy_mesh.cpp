@@ -4198,6 +4198,68 @@ TEST(dm_easy_mesh_t, decode_config_set_radio_valid_multiple_radios)
 }
 
 /**
+ * @brief Validate that decode_config_set_radio rejects RadioList entries beyond EM_MAX_BANDS.
+ *
+ * This test verifies that a RadioList longer than the fixed radio array capacity is decoded
+ * without writing past m_radio[EM_MAX_BANDS]. The decoder should return an error once the
+ * EasyMesh radio limit is reached.
+ *
+ * **Test Group ID:** Basic: 01
+ * **Test Case ID:** 089a
+ * **Priority:** High
+ *
+ * **Pre-Conditions:** None
+ * **Dependencies:** None
+ * **User Interaction:** None
+ *
+ * **Test Procedure:**
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |
+ * | :--------------: | ----------- | --------- | --------------- | ----- |
+ * | 01 | Invoke decode_config_set_radio with four radio entries | RadioList contains radio0, radio1, radio2, radio3 | API returns EM_PARSE_ERR_GEN, device count remains 1, and m_num_radios is capped at EM_MAX_BANDS | Should Pass |
+ * | 02 | Request the first index past the radio array | index = EM_MAX_BANDS | get_radio returns nullptr | Should Pass |
+ */
+TEST(dm_easy_mesh_t, decode_config_set_radio_rejects_radio_list_above_max_bands)
+{
+    std::cout << "Entering decode_config_set_radio_rejects_radio_list_above_max_bands\n";
+    dm_easy_mesh_t obj;
+    char subdoc_buf[sizeof(em_subdoc_info_t) + EM_IO_BUFF_SZ]{};
+    em_subdoc_info_t *subdoc = reinterpret_cast<em_subdoc_info_t*>(subdoc_buf);
+    const char json[] =
+        "{"
+        " \"wfa-dataelements:SetRadio\": {"
+        "   \"Network\": {"
+        "     \"ID\": \"TestNet\","
+        "     \"DeviceList\": ["
+        "       {"
+        "         \"ID\": \"AA:BB:CC:DD:EE:FF\","
+        "         \"RadioList\": ["
+        "           { \"ID\": \"radio0\" },"
+        "           { \"ID\": \"radio1\" },"
+        "           { \"ID\": \"radio2\" },"
+        "           { \"ID\": \"radio3\" }"
+        "         ]"
+        "       }"
+        "     ]"
+        "   }"
+        " }"
+        "}";
+    snprintf(subdoc->buff, EM_IO_BUFF_SZ, "%s", json);
+    unsigned int num = 0;
+    std::cout << "Invoking decode_config_set_radio with RadioList above EM_MAX_BANDS" << std::endl;
+    int ret = obj.decode_config_set_radio(
+        subdoc,
+        "wfa-dataelements:SetRadio",
+        0,
+        &num
+    );
+    EXPECT_EQ(ret, EM_PARSE_ERR_GEN);
+    EXPECT_EQ(num, 1u);
+    EXPECT_EQ(obj.m_num_radios, EM_MAX_BANDS);
+    EXPECT_EQ(obj.get_radio(EM_MAX_BANDS), nullptr);
+    std::cout << "Exiting decode_config_set_radio_rejects_radio_list_above_max_bands\n";
+}
+
+/**
  * @brief Verify that decode_config_set_radio handles an out-of-bound radio index properly.
  *
  * This test verifies that when an out-of-bound index is passed to the decode_config_set_radio API,
@@ -14563,7 +14625,7 @@ TEST(dm_easy_mesh_t, get_num_radios_configured)
 /**
  * @brief Test the get_num_radios() API with maximum boundary value for m_num_radios.
  *
- * This test verifies that the get_num_radios() API correctly returns the maximum possible unsigned integer value when mesh.m_num_radios is explicitly set to std::numeric_limits<unsigned int>::max(). It ensures that the API handles the boundary condition properly.
+ * This test verifies that the get_num_radios() API clamps the maximum possible unsigned integer value to EM_MAX_BANDS when mesh.m_num_radios is explicitly set to std::numeric_limits<unsigned int>::max(). It ensures that the API handles the boundary condition properly.
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 364@n
@@ -14576,7 +14638,7 @@ TEST(dm_easy_mesh_t, get_num_radios_configured)
  * **Test Procedure:**@n
  * | Variation / Step | Description                                                        | Test Data                                                                  | Expected Result                                                                            | Notes       |
  * | :--------------: | ------------------------------------------------------------------ | -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ | ----------- |
- * | 01               | Set m_num_radios to maximum unsigned integer and invoke get_num_radios() | mesh.m_num_radios = std::numeric_limits<unsigned int>::max()                | get_num_radios() returns std::numeric_limits<unsigned int>::max() and EXPECT_EQ passes        | Should Pass |
+ * | 01               | Set m_num_radios to maximum unsigned integer and invoke get_num_radios() | mesh.m_num_radios = std::numeric_limits<unsigned int>::max()                | get_num_radios() returns EM_MAX_BANDS and EXPECT_EQ passes        | Should Pass |
  */
 TEST(dm_easy_mesh_t, get_num_radios_boundary_max)
 {
@@ -14587,7 +14649,7 @@ TEST(dm_easy_mesh_t, get_num_radios_boundary_max)
     std::cout << "Invoking get_num_radios()" << std::endl;
     unsigned int result = mesh.get_num_radios();
     std::cout << "Retrieved num_radios = " << result << std::endl;
-    EXPECT_EQ(result, std::numeric_limits<unsigned int>::max());
+    EXPECT_EQ(result, EM_MAX_BANDS);
     std::cout << "Exiting " << testName << " test" << std::endl;
 }
 
@@ -19823,10 +19885,9 @@ TEST(dm_easy_mesh_t, set_num_radios_set_to_0) {
 /**
  * @brief Validate that set_num_radios correctly sets the number of radios when given a positive value.
  *
- * This test verifies that invoking set_num_radios with a positive integer (5) correctly updates the internal
+ * This test verifies that invoking set_num_radios with a positive integer above EM_MAX_BANDS clamps the internal
  * m_num_radios member of the dm_easy_mesh_t object. The test checks that after calling the method, the m_num_radios
- * variable matches the expected positive value. It is essential to ensure that the API correctly handles and assigns
- * positive values without issues.
+ * variable matches the maximum supported radio count.
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 513@n
@@ -19839,7 +19900,7 @@ TEST(dm_easy_mesh_t, set_num_radios_set_to_0) {
  * **Test Procedure:**
  * | Variation / Step | Description                                                                                  | Test Data                                 | Expected Result                                             | Notes       |
  * | :--------------: | -------------------------------------------------------------------------------------------- | ----------------------------------------- | ----------------------------------------------------------- | ----------- |
- * | 01               | Instantiate dm_easy_mesh_t, set the input value to 5, and call set_num_radios with this value. | input_value = 5, output m_num_radios = 5  | m_num_radios should be updated to 5 as verified by EXPECT_EQ | Should Pass |
+ * | 01               | Instantiate dm_easy_mesh_t, set the input value to 5, and call set_num_radios with this value. | input_value = 5, output m_num_radios = EM_MAX_BANDS  | m_num_radios should be clamped to EM_MAX_BANDS as verified by EXPECT_EQ | Should Pass |
  */
 TEST(dm_easy_mesh_t, set_num_radios_set_to_positive_value) {
     std::cout << "Entering set_num_radios_set_to_positive_value test" << std::endl;
@@ -19848,14 +19909,14 @@ TEST(dm_easy_mesh_t, set_num_radios_set_to_positive_value) {
     std::cout << "Invoking set_num_radios with value: " << input_value << std::endl;
     testObj.set_num_radios(input_value);
     std::cout << "Retrieved m_num_radios value: " << testObj.m_num_radios << std::endl;
-    EXPECT_EQ(testObj.m_num_radios, 5u);
+    EXPECT_EQ(testObj.m_num_radios, EM_MAX_BANDS);
     std::cout << "Exiting set_num_radios_set_to_positive_value test" << std::endl;
 }
 
 /**
  * @brief Verify that set_num_radios assigns UINT_MAX correctly
  *
- * This test verifies that the set_num_radios API correctly assigns the maximum unsigned integer value (UINT_MAX) to the object's internal member m_num_radios. It ensures that the API handles extreme boundary input correctly.
+ * This test verifies that the set_num_radios API clamps the maximum unsigned integer value (UINT_MAX) to EM_MAX_BANDS in the object's internal member m_num_radios. It ensures that the API handles extreme boundary input correctly.
  *
  * **Test Group ID:** Basic: 01 / Module (L2): 02 / Stress (L2): 03@n
  * **Test Case ID:** 514@n
@@ -19868,7 +19929,7 @@ TEST(dm_easy_mesh_t, set_num_radios_set_to_positive_value) {
  * **Test Procedure:**@n
  * | Variation / Step | Description                                                        | Test Data                                          | Expected Result                      | Notes       |
  * | :--------------: | ------------------------------------------------------------------ | -------------------------------------------------- | ------------------------------------ | ----------- |
- * | 01               | Call set_num_radios with UINT_MAX and verify m_num_radios is set to UINT_MAX | input_value = UINT_MAX, expected_m_num_radios = UINT_MAX | m_num_radios equals UINT_MAX | Should Pass |
+ * | 01               | Call set_num_radios with UINT_MAX and verify m_num_radios is set to EM_MAX_BANDS | input_value = UINT_MAX, expected_m_num_radios = EM_MAX_BANDS | m_num_radios equals EM_MAX_BANDS | Should Pass |
  */
 TEST(dm_easy_mesh_t, set_num_radios_set_to_UINT_MAX) {
     std::cout << "Entering set_num_radios_set_to_UINT_MAX test" << std::endl;
@@ -19877,7 +19938,7 @@ TEST(dm_easy_mesh_t, set_num_radios_set_to_UINT_MAX) {
     std::cout << "Invoking set_num_radios with value: " << input_value << std::endl;
     testObj.set_num_radios(input_value);
     std::cout << "Retrieved m_num_radios value: " << testObj.m_num_radios << std::endl;
-    EXPECT_EQ(testObj.m_num_radios, UINT_MAX);
+    EXPECT_EQ(testObj.m_num_radios, EM_MAX_BANDS);
     std::cout << "Exiting set_num_radios_set_to_UINT_MAX test" << std::endl;
 }
 
@@ -19918,8 +19979,8 @@ TEST(dm_easy_mesh_t, set_num_radios_valid_typical)
  * @brief Validate that set_num_radios correctly handles the maximum unsigned integer.
  *
  * This test verifies that calling set_num_radios with the maximum unsigned integer (UINT_MAX)
- * properly sets the m_num_radios member variable. It ensures that the API can accept and process
- * the highest possible valid unsigned integer value without errors.
+ * clamps the m_num_radios member variable to EM_MAX_BANDS. It ensures that the API can accept and process
+ * the highest possible unsigned integer value without exceeding the supported radio count.
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 516@n
@@ -19932,7 +19993,7 @@ TEST(dm_easy_mesh_t, set_num_radios_valid_typical)
  * **Test Procedure:**@n
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Create a dm_easy_mesh_t instance, invoke set_num_radios with test_num set to UINT_MAX, and verify that m_num_radios equals UINT_MAX. | dm instance, input: test_num = UINT_MAX, output: m_num_radios should equal UINT_MAX | m_num_radios is set to UINT_MAX and the assertion passes. | Should Pass |
+ * | 01 | Create a dm_easy_mesh_t instance, invoke set_num_radios with test_num set to UINT_MAX, and verify that m_num_radios equals EM_MAX_BANDS. | dm instance, input: test_num = UINT_MAX, output: m_num_radios should equal EM_MAX_BANDS | m_num_radios is clamped to EM_MAX_BANDS and the assertion passes. | Should Pass |
  */
 TEST(dm_easy_mesh_t, set_num_radios_valid_max_unsigned)
 {
@@ -19941,9 +20002,9 @@ TEST(dm_easy_mesh_t, set_num_radios_valid_max_unsigned)
     unsigned int test_num = UINT_MAX;
     std::cout << "Invoking set_num_radios with num: " << test_num << std::endl;
     dm_easy_mesh_t::set_num_radios(&dm, test_num);
-    std::cout << "Expected m_num_radios: " << test_num << std::endl;
+    std::cout << "Expected m_num_radios: " << EM_MAX_BANDS << std::endl;
     std::cout << "Retrieved m_num_radios: " << dm.m_num_radios << std::endl;
-    EXPECT_EQ(dm.m_num_radios, test_num);
+    EXPECT_EQ(dm.m_num_radios, EM_MAX_BANDS);
     std::cout << "Exiting set_num_radios_valid_max_unsigned test" << std::endl;
 }
 

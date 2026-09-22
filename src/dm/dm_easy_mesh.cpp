@@ -65,11 +65,8 @@ dm_easy_mesh_t& dm_easy_mesh_t::operator = (dm_easy_mesh_t const& obj)
     m_network = obj.m_network;
     m_ieee_1905_security = obj.m_ieee_1905_security;
 
-	if (m_num_radios >= EM_MAX_BANDS) {
-		m_num_radios = 0;
-	}
-    this->m_num_radios = obj.m_num_radios;
-    for (unsigned int i = 0; i < obj.m_num_radios; i++) {
+    this->m_num_radios = (obj.m_num_radios > EM_MAX_BANDS) ? EM_MAX_BANDS : obj.m_num_radios;
+    for (unsigned int i = 0; i < this->m_num_radios; i++) {
         m_radio[i] = obj.m_radio[i];
     }
 
@@ -210,11 +207,15 @@ int dm_easy_mesh_t::commit_config(dm_easy_mesh_t& dm, em_commit_target_t target)
             for (i = 0;i < m_num_radios; i++) {
                 if (memcmp(radio->get_radio_info()->intf.mac, get_radio(i)->get_radio_info()->intf.mac, sizeof(mac_address_t)) == 0) {
                     m_radio[i] = *(radio);
-                    printf("%s:%d Radio %s configuration updated \n", __func__, __LINE__,target.params);
+                    em_printfout("Radio %s configuration updated", target.params);
                     break;
                 }
             }
             if (i == m_num_radios) { //New Radio
+                if (m_num_radios >= EM_MAX_BANDS) {
+                    em_printfout("Error: Cannot add radio %s: maximum radios limit reached (%d)", target.params, EM_MAX_BANDS);
+                    return -1;
+                }
                 m_radio[m_num_radios] = *(radio);
                 radio_cap = dm.get_radio_cap(mac);
                 if (radio_cap != NULL) {
@@ -225,7 +226,7 @@ int dm_easy_mesh_t::commit_config(dm_easy_mesh_t& dm, em_commit_target_t target)
                     em_printfout("Radio capabilities for %s not available; using default capabilities", target.params);
                 }
 
-                m_num_radios = m_num_radios + 1;
+                set_num_radios(m_num_radios + 1);
                 em_printfout("New Radio %s configuration created no of radios=%d", target.params, m_num_radios);
             }
 			//Commit op class
@@ -236,7 +237,7 @@ int dm_easy_mesh_t::commit_config(dm_easy_mesh_t& dm, em_commit_target_t target)
 						if ((dm.m_op_class[i].m_op_class_info.op_class == m_op_class[j].m_op_class_info.op_class) &&
 							(dm.m_op_class[i].m_op_class_info.id.type == m_op_class[j].m_op_class_info.id.type)) {
 							m_op_class[j].m_op_class_info = dm.m_op_class[i].m_op_class_info;
-							printf("%s:%d op class=%d  already exist so updated \n", __func__, __LINE__,
+							em_printfout("op class=%d already exists, so updated",
 								dm.m_op_class[i].m_op_class_info.op_class);
 							found++;
 							break;
@@ -244,15 +245,15 @@ int dm_easy_mesh_t::commit_config(dm_easy_mesh_t& dm, em_commit_target_t target)
 							(dm.m_op_class[i].m_op_class_info.id.type == 1) &&
 							(memcmp(dm.m_op_class[i].m_op_class_info.id.ruid, m_op_class[j].m_op_class_info.id.ruid, sizeof(mac_address_t)) == 0)) {
 							m_op_class[j].m_op_class_info = dm.m_op_class[i].m_op_class_info;
-							printf("%s:%d op class=%d  already exist so updated  ID = 1\n", 
-								__func__, __LINE__,dm.m_op_class[i].m_op_class_info.op_class);
+							em_printfout("op class=%d already exists, so updated ID = 1",
+								dm.m_op_class[i].m_op_class_info.op_class);
                            	found++;
                            	break;
 						}
 					}
 					if (found == 0) {
 						//New Op class
-						printf("%s:%d New op class=%d commiting it \n", __func__, __LINE__,dm.m_op_class[i].m_op_class_info.op_class);
+						em_printfout("New op class=%d committing it", dm.m_op_class[i].m_op_class_info.op_class);
 						m_op_class[m_num_opclass].m_op_class_info = dm.m_op_class[i].m_op_class_info;
 						m_num_opclass++;
 					}
@@ -260,15 +261,15 @@ int dm_easy_mesh_t::commit_config(dm_easy_mesh_t& dm, em_commit_target_t target)
         	}
 		}
     } else if (target.type == em_commit_target_bss) {
-        printf("%s:%d Commit radio=%s\n", __func__, __LINE__,target.params);
-        string_to_macbytes(reinterpret_cast<char *> (target.params),mac);
+		em_printfout("Commit radio=%s", target.params);
+		string_to_macbytes(reinterpret_cast<char *> (target.params),mac);
 		for (i = 0; i < dm.m_num_bss; i++) {
 			if (memcmp(mac, dm.get_bss(i)->get_bss_info()->ruid.mac, sizeof(mac_address_t)) == 0) {
 				for (j = 0; j < m_num_bss; j++) {
 					if ((memcmp(get_bss(j)->get_bss_info()->bssid.mac, dm.get_bss(i)->get_bss_info()->bssid.mac, sizeof(mac_address_t)) == 0)){
 						m_bss[j] = dm.m_bss[i];
 						macbytes_to_string(dm.get_bss(i)->get_bss_info()->bssid.mac,mac_str);
-						printf("%s:%d BSS %s configuration updated \n", __func__, __LINE__,mac_str);
+						em_printfout("BSS %s configuration updated", mac_str);
 						break;
 					}
 				}
@@ -277,8 +278,8 @@ int dm_easy_mesh_t::commit_config(dm_easy_mesh_t& dm, em_commit_target_t target)
 					m_bss[m_num_bss] = dm.m_bss[i];
 					m_num_bss = m_num_bss + 1;
 					macbytes_to_string(dm.get_bss(i)->get_bss_info()->bssid.mac,mac_str);
-					printf("%s:%d New BSS %s configuration updated  no of bss=%d vapname=%s\n",
-						__func__, __LINE__, mac_str, m_num_bss, dm.get_bss(i)->get_bss_info()->bssid.name);
+					em_printfout("New BSS %s configuration updated  no of bss=%d vapname=%s",
+						mac_str, m_num_bss, dm.get_bss(i)->get_bss_info()->bssid.name);
 				}
 			}
 		}
@@ -347,8 +348,12 @@ int dm_easy_mesh_t::commit_config(em_cmd_t  *cmd)
                         break;
                     }
                     case dm_orch_type_em_insert:
+                        if (m_num_radios >= EM_MAX_BANDS) {
+                            em_printfout("Error: maximum radios limit reached (%d)", EM_MAX_BANDS);
+                            return -1;
+                        }
                         m_radio[m_num_radios] = cmd->m_data_model.m_radio[0];
-                        m_num_radios++;
+                        set_num_radios(m_num_radios + 1);
 
                         break;
                     default:
@@ -1035,11 +1040,16 @@ int dm_easy_mesh_t::decode_config_set_radio(em_subdoc_info_t *subdoc, const char
        		cJSON_Delete(parent_obj);
        		return EM_PARSE_ERR_GEN;
 		}
-		
-		snprintf(parent, sizeof(em_long_string_t), "%s@%s", dev_mac_str, net_id);	
-		m_radio[m_num_radios].decode(radio_obj, parent);
-		m_num_radios++;
-			
+
+        snprintf(parent, sizeof(em_long_string_t), "%s@%s", dev_mac_str, net_id);	
+        if (m_num_radios >= EM_MAX_BANDS) {
+            em_printfout("Error: maximum radios limit reached (%d)", EM_MAX_BANDS);
+            cJSON_Delete(parent_obj);
+            return EM_PARSE_ERR_GEN;
+        }
+        m_radio[m_num_radios].decode(radio_obj, parent);
+        set_num_radios(m_num_radios + 1);
+
 	}
     return 0;
 }
@@ -1667,11 +1677,12 @@ int dm_easy_mesh_t::decode_config_test(em_subdoc_info_t *subdoc, const char *key
 	em_2xlong_string_t parent_key;
 
     if ((parent_obj = cJSON_Parse(subdoc->buff)) == NULL) {
-        printf("%s:%d: Failed to initialize device data model\n", __func__, __LINE__);
+        em_printfout("Error: Failed to initialize device data model");
         return -1;
     }
 
     if ((net_obj = cJSON_GetObjectItem(parent_obj, key)) == NULL) {
+        em_printfout("Error: Network object not present");
         cJSON_Delete(parent_obj);
         return -1;
     }
@@ -1680,14 +1691,14 @@ int dm_easy_mesh_t::decode_config_test(em_subdoc_info_t *subdoc, const char *key
 
     if ((dev_arr_objs = cJSON_GetObjectItem(net_obj, "DeviceList")) == NULL) {
         cJSON_Delete(parent_obj);
-        printf("%s:%d: DeviceList not present\n", __func__, __LINE__);
+        em_printfout("Error: DeviceList not present");
         return -1;
     }
 
     size = cJSON_GetArraySize(dev_arr_objs);
     if (size == 0) {
         cJSON_Delete(parent_obj);
-        printf("%s:%d: DeviceList has no memebers not present\n", __func__, __LINE__);
+        em_printfout("Error: DeviceList has no members present");
         return -1;
     }
 
@@ -1697,21 +1708,27 @@ int dm_easy_mesh_t::decode_config_test(em_subdoc_info_t *subdoc, const char *key
 
     if ((radio_arr_objs = cJSON_GetObjectItem(dev_obj, "RadioList")) == NULL) {
         cJSON_Delete(parent_obj);
-        printf("%s:%d: RadioList not present\n", __func__, __LINE__);
+        em_printfout("Error: RadioList not present");
         return -1;
 
     }
 
-    m_num_radios = static_cast<unsigned int> (cJSON_GetArraySize(radio_arr_objs));
-    if (m_num_radios == 0) {
+    unsigned int num_radios = static_cast<unsigned int> (cJSON_GetArraySize(radio_arr_objs));
+    if (num_radios == 0) {
         cJSON_Delete(parent_obj);
-        printf("%s:%d: RadioList has no memebers not present\n", __func__, __LINE__);
+        em_printfout("Error: RadioList has no members");
         return -1;
     }
+    if (num_radios > EM_MAX_BANDS) {
+        cJSON_Delete(parent_obj);
+        em_printfout("Error: RadioList exceeds maximum supported radios: %d (%d)", num_radios, EM_MAX_BANDS);
+        return -1;
+    }
+    set_num_radios(num_radios);
     for (i = 0; i < m_num_radios; i++) {
         if((radio_obj = cJSON_GetArrayItem(radio_arr_objs, static_cast<int> (i))) == NULL) {
             cJSON_Delete(parent_obj);
-            printf("%s:%d: RadioList has no members present\n", __func__, __LINE__);
+            em_printfout("Error: RadioList member read failed");
             return -1;
         }
 			
@@ -1722,38 +1739,38 @@ int dm_easy_mesh_t::decode_config_test(em_subdoc_info_t *subdoc, const char *key
 
         if ((op_arr_objs = cJSON_GetObjectItem(radio_obj, "CurrentOperatingClasses")) == NULL) {
             cJSON_Delete(parent_obj);
-            printf("%s:%d: CurrentOperatingClasses not present\n", __func__, __LINE__);
+            em_printfout("Error: CurrentOperatingClasses not present");
             return -1;
         }
 
         if (decode_config_op_class_array(op_arr_objs, em_op_class_type_current, m_radio[i].m_radio_info.intf.mac) != 0) {
             cJSON_Delete(parent_obj);
-            printf("%s:%d: CurrentOperatingClasses decode failed\n", __func__, __LINE__);
+            em_printfout("Error: CurrentOperatingClasses decode failed");
             return -1;
 		}
 
 		// Capabilities
 		if ((cap_obj = cJSON_GetObjectItem(radio_obj, "Capabilities")) == NULL) {
             cJSON_Delete(parent_obj);
-            printf("%s:%d: Capabilities not present\n", __func__, __LINE__);
+            em_printfout("Error: Capabilities not present");
             return -1;
         }
 
 		if ((op_arr_objs = cJSON_GetObjectItem(cap_obj, "OperatingClasses")) == NULL) {
             cJSON_Delete(parent_obj);
-            printf("%s:%d: OperatingClasses not present\n", __func__, __LINE__);
+            em_printfout("Error: OperatingClasses not present");
             return -1;
 		}
 
 		if (decode_config_op_class_array(op_arr_objs, em_op_class_type_capability, m_radio[i].m_radio_info.intf.mac) != 0) {
             cJSON_Delete(parent_obj);
-            printf("%s:%d: OperatingClasses decode failed\n", __func__, __LINE__);
+            em_printfout("Error: OperatingClasses decode failed");
             return -1;
 		}
 
         if ((bss_arr_objs = cJSON_GetObjectItem(radio_obj, "BSSList")) == NULL) {
             cJSON_Delete(parent_obj);
-            printf("%s:%d: BssList not present\n", __func__, __LINE__);
+            em_printfout("Error: BssList not present");
             return -1;
         }
 
@@ -1763,17 +1780,17 @@ int dm_easy_mesh_t::decode_config_test(em_subdoc_info_t *subdoc, const char *key
 
             if((bss_obj = cJSON_GetArrayItem(bss_arr_objs, static_cast<int> (j))) == NULL) {
                 cJSON_Delete(parent_obj);
-                printf("%s:%d: BSSObj member read failed \n", __func__, __LINE__);
+                em_printfout("Error: BSSObj member read failed");
                 return -1;
             }
 
             if ((tmp = cJSON_GetObjectItem(bss_obj, "BSSID")) == NULL) {
                 cJSON_Delete(parent_obj);
-                printf("%s:%d: BSSID not found\n", __func__, __LINE__);
+                em_printfout("Error: BSSID not found");
                 return -1;
             }
-			printf("%s:%d: BSSID: %s\n", __func__, __LINE__, cJSON_GetStringValue(tmp));
-			dm_easy_mesh_t::macbytes_to_string(m_radio[i].m_radio_info.intf.mac, mac_str);
+            em_printfout("BSSID: %s", cJSON_GetStringValue(tmp));
+            dm_easy_mesh_t::macbytes_to_string(m_radio[i].m_radio_info.intf.mac, mac_str);
             m_bss[j + m_num_bss].decode(bss_obj, mac_str);
         }
 
@@ -1783,49 +1800,49 @@ int dm_easy_mesh_t::decode_config_test(em_subdoc_info_t *subdoc, const char *key
     
     if ((cac_status_obj = cJSON_GetObjectItem(dev_obj, "CACStatus")) == NULL) {
         cJSON_Delete(parent_obj);
-        printf("%s:%d: CACStatus not present\n", __func__, __LINE__);
+        em_printfout("Error: CACStatus not present");
         return -1;
 
     }
 
 	if ((op_arr_objs = cJSON_GetObjectItem(cac_status_obj, "AvailableChannelList")) == NULL) {
         cJSON_Delete(parent_obj);
-        printf("%s:%d: AvailableChannelList not present\n", __func__, __LINE__);
+        em_printfout("Error: AvailableChannelList not present");
         return -1;
 	}	
 		
 	if (decode_config_op_class_array(op_arr_objs, em_op_class_type_cac_available, m_device.m_device_info.intf.mac) != 0) {
         cJSON_Delete(parent_obj);
-        printf("%s:%d: AvailableChannelList decode failed\n", __func__, __LINE__);
+        em_printfout("Error: AvailableChannelList decode failed");
         return -1;
 	}
         
 	if ((op_arr_objs = cJSON_GetObjectItem(cac_status_obj, "NonOccupancyChannelList")) == NULL) {
         cJSON_Delete(parent_obj);
-        printf("%s:%d: NonOccupancyChannelList not present\n", __func__, __LINE__);
+        em_printfout("Error: NonOccupancyChannelList not present");
         return -1;
 	}	
 
 	if (decode_config_op_class_array(op_arr_objs, em_op_class_type_cac_non_occ, m_device.m_device_info.intf.mac) != 0) {
         cJSON_Delete(parent_obj);
-        printf("%s:%d: NonOccupancyChannelList decode failed\n", __func__, __LINE__);
+        em_printfout("Error: NonOccupancyChannelList decode failed");
         return -1;
 	}
         
 	if ((op_arr_objs = cJSON_GetObjectItem(cac_status_obj, "ActiveChannelList")) == NULL) {
         cJSON_Delete(parent_obj);
-        printf("%s:%d: ActiveChannelList not present\n", __func__, __LINE__);
+        em_printfout("Error: ActiveChannelList not present");
         return -1;
 	}	
 
 	if (decode_config_op_class_array(op_arr_objs, em_op_class_type_cac_active, m_device.m_device_info.intf.mac) != 0) {
         cJSON_Delete(parent_obj);
-        printf("%s:%d: ActiveChannelList decode failed\n", __func__, __LINE__);
+        em_printfout("Error: ActiveChannelList decode failed");
         return -1;
 	}
 
     cJSON_Delete(parent_obj);
-    //printf("%s:%d: End\n", __func__, __LINE__);
+    //em_printfout("End of decode_cac_status");
     return 0;
 }
 

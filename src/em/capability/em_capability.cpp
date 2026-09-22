@@ -1183,12 +1183,17 @@ int em_capability_t::handle_ap_radio_basic_cap(unsigned char *buff, unsigned int
 			break;
 		}
 	}
-	if (radio_exists == false) {
-		em_printfout("Radio does not exist, getting radio at index: %d", dm->get_num_radios());
-		radio = dm->get_radio(dm->get_num_radios());
-		memset(&radio->m_radio_info, 0, sizeof(em_radio_info_t));	
-		dm->set_num_radios(dm->get_num_radios() + 1);
-	}
+    if (radio_exists == false) {
+        unsigned int radio_index = dm->get_num_radios();
+        if (radio_index >= EM_MAX_BANDS) {
+            em_printfout("Error: Cannot add radio %s: maximum radios limit reached (%d)", mac_str, EM_MAX_BANDS);
+            return -1;
+        }
+        em_printfout("Radio does not exist, getting radio at index: %d", radio_index);
+        radio = dm->get_radio(radio_index);
+        memset(&radio->m_radio_info, 0, sizeof(em_radio_info_t));	
+        dm->set_num_radios(radio_index + 1);
+    }
 
 	radio_info = &radio->m_radio_info;
 	memcpy(radio_info->intf.mac, ruid, sizeof(mac_address_t));
