@@ -538,6 +538,13 @@ public:
 	void publish_network_topology();
 
 	/**!
+	 * @brief Publishes the X_AIRTIES_MetricsUpdated event for a data model.
+	 *
+	 * @param[in] dm The data model an AP Metrics Response was stored in.
+	 */
+	void publish_metrics_updated(dm_easy_mesh_t *dm);
+
+	/**!
 	 * @brief Retrieves the first data model in the agent list.
 	 *
 	 * @returns A pointer to the first `dm_easy_mesh_t` data model, or nullptr if no dms are available.

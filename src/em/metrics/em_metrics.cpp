@@ -1047,6 +1047,8 @@ int em_metrics_t::handle_ap_metrics_response(unsigned char *buff, unsigned int l
 
     dm->set_db_cfg_param(db_cfg_type_sta_metrics_update, "");
 
+    get_mgr()->publish_metrics_updated(dm);
+
     return 0;
 }
 
