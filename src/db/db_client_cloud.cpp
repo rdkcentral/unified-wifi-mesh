@@ -41,6 +41,11 @@ bool db_client_cloud_t::next_result(void *ctx)
     return false;
 }
 
+void db_client_cloud_t::free_result(void *ctx)
+{
+    (void) ctx;
+}
+
 char *db_client_cloud_t::get_string(void *ctx, char *res, unsigned int col)
 {
     (void) ctx;

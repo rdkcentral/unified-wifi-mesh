@@ -54,6 +54,7 @@ public:
     int init(const char *path) override;
     void *execute(const char *query) override;
     bool next_result(void *ctx) override;
+    void free_result(void *ctx) override;
     char *get_string(void *ctx, char *res, unsigned int col) override;
     int get_number(void *ctx, unsigned int col) override;
     int recreate_db() override;

@@ -56,10 +56,12 @@ public:
     int init(const char *path) override;
     void *execute(const char *query) override;
     bool next_result(void *ctx) override;
+    void free_result(void *ctx) override;
     char *get_string(void *ctx, char *res, unsigned int col) override;
     int get_number(void *ctx, unsigned int col) override;
     int recreate_db() override;
     db_client_type_t get_type() const override { return db_client_type_none; }
+    bool is_persistent() const override { return false; }
 
     db_client_none_t();
     virtual ~db_client_none_t();

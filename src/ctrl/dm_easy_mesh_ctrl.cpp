@@ -5083,10 +5083,10 @@ int dm_easy_mesh_ctrl_t::load_net_ssid_table()
 
 int dm_easy_mesh_ctrl_t::load_tables()
 {
-   /*  if (m_db_client == nullptr || m_db_client->get_type() == db_client_type_none) {
-        em_printfout("Database client set to 'none'\n");
+    if (m_db_client == nullptr || m_db_client->get_type() == db_client_type_none) {
+        em_printfout("Database client not initialized or set to 'none'\n");
         return 0;
-    } */
+    }
 
     em_printfout("Loading tables from database client for DB type: %d\n", m_db_client->get_type());
 
@@ -9819,8 +9819,8 @@ int dm_easy_mesh_ctrl_t::bootstrap_controller_network()
     dm_easy_mesh_t::name_from_mac_address(&info.colocated_agent_id.mac, info.colocated_agent_id.name);
 
     dm_network_list_t::update_list(dm_network_t(&info), dm_orch_type_db_insert);
-    //create_data_model(GLOBAL_NET_ID, &info.ctrl_id, em_profile_type_3);
-    // set_initialized();
+    // create_data_model() not needed here: update_list() -> put_network() already creates it.
+    set_initialized();
 
     return 0;
 }

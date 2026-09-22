@@ -137,7 +137,7 @@ void em_ctrl_t::handle_client_assoc(em_bus_event_t *evt)
 
     if (m_orch->is_cmd_type_in_progress(evt) == true) {
         m_ctrl_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
-    } else if ((num = m_data_model.analyze_client_assoc(evt, pcmd)) <= 0) {
+    } else if ((num = m_ctrl_data_model.analyze_client_assoc(evt, pcmd)) <= 0) {
         m_ctrl_cmd->send_result(status_for_noncmd(num));
     } else if (m_orch->submit_commands(pcmd, static_cast<unsigned int> (num)) > 0) {
         m_ctrl_cmd->send_result(em_cmd_out_status_success);

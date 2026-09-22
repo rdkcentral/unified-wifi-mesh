@@ -41,6 +41,12 @@ bool db_client_none_t::next_result(void *ctx)
     return false;
 }
 
+void db_client_none_t::free_result(void *ctx)
+{
+    // No result context is ever created; nothing to release.
+    (void) ctx;
+}
+
 char *db_client_none_t::get_string(void *ctx, char *res, unsigned int col)
 {
     (void) ctx;
