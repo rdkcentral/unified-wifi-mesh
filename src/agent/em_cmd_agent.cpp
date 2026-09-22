@@ -54,7 +54,8 @@ int em_cmd_agent_t::execute(em_long_string_t result)
     }
 
     if ((ret = listen(lsock, 20)) == -1) {
-        printf("%s:%d: listen error on socket, err:%d\n", __func__, __LINE__, errno);
+        em_printfout("%s:%d: listen error on socket, err:%d\n", __func__, __LINE__, errno);
+        close_listener_socket(lsock, em_service_type_agent);
         return -1;
     }
     while (1) {
@@ -74,6 +75,7 @@ int em_cmd_agent_t::execute(em_long_string_t result)
 
         if ((ret = recv(m_dsock, tmp, sizeof(em_event_t) + EM_MAX_EVENT_DATA_LEN, 0)) <= 0) {
             printf("%s:%d: listen error on socket, err:%d\n", __func__, __LINE__, errno);
+            close(m_dsock);
             break;
         }
 
@@ -91,7 +93,7 @@ int em_cmd_agent_t::execute(em_long_string_t result)
 
     }
 
-	close_listener_socket(lsock, get_svc());
+	close_listener_socket(lsock, em_service_type_agent);
 
     return 0;
 }

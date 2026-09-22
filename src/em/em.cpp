@@ -55,9 +55,13 @@
 
 #ifdef AL_SAP
 #include "al_service_access_point.h"
+#include "al_service_utils.h"
 
 extern AlServiceAccessPoint* g_sap;
 extern MacAddress g_al_mac_sap;
+
+static_assert(EM_MAX_MSG_SZ - sizeof(em_raw_hdr_t) <= SOCKET_MTU - PACKET_HEADER_SIZE,
+    "EM_MAX_MSG_SZ exceeds the AL SAP SDU size");
 #endif
 
 ec_manager_t &em_t::get_ec_mgr()
@@ -1126,11 +1130,16 @@ int em_t::create_akm_suite_cap_tlv(uint8_t *buff)
         em_bss_info_t *bss_info = dm->get_bss_info(i);
         if (bss_info == NULL) continue;
 
-        for (int i = 0; i < bss_info->num_fronthaul_akms; i++) {
-            fh_akms.insert(bss_info->fronthaul_akm[i]);
+        /* A BSS with no AKM reports one empty entry; keep it out of the sets. */
+        for (int j = 0; j < bss_info->num_fronthaul_akms && j < EM_MAX_AKMS; j++) {
+            if (bss_info->fronthaul_akm[j][0] != '\0') {
+                fh_akms.insert(bss_info->fronthaul_akm[j]);
+            }
         }
-        for (int i = 0; i < bss_info->num_backhaul_akms; i++) {
-            bh_akms.insert(bss_info->backhaul_akm[i]);
+        for (int j = 0; j < bss_info->num_backhaul_akms && j < EM_MAX_AKMS; j++) {
+            if (bss_info->backhaul_akm[j][0] != '\0') {
+                bh_akms.insert(bss_info->backhaul_akm[j]);
+            }
         }
     }
 

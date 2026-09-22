@@ -81,6 +81,7 @@ bus_error_t em_ctrl_t::cmd_setssid(const char *method_name, const bus_data_prop_
     char addremove[TR181_ADDREMOVE_MAX_LEN + 1] = {0};
     char HaulType[TR181_HAULTYPE_MAX_LEN + 1] = {0};
     char AKMsAllowed[TR181_AKMS_MAX_LEN + 1] = {0};
+    bool akms_given = false;
     size_t json_len = 0;
 
     (void)method_name;
@@ -104,7 +105,12 @@ bus_error_t em_ctrl_t::cmd_setssid(const char *method_name, const bus_data_prop_
         } else if (strcmp(prop->name, "HaulType") == 0) {
             tr_181_t::tr181_copy_prop_string(prop, HaulType, sizeof(HaulType));
         } else if (strcmp(prop->name, "AKMsAllowed") == 0) {
-            tr_181_t::tr181_copy_prop_string(prop, AKMsAllowed, sizeof(AKMsAllowed));
+            /* An empty string is Open, a failed copy is not: both leave the buffer empty. */
+            if (tr_181_t::tr181_copy_prop_string(prop, AKMsAllowed, sizeof(AKMsAllowed)) == false) {
+                if (output_params) *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
+                return bus_error_invalid_input;
+            }
+            akms_given = true;
             /* Full buffer = truncated input, longer than any valid akm_t value. */
             if (strnlen(AKMsAllowed, sizeof(AKMsAllowed)) >= TR181_AKMS_MAX_LEN) {
                 if (output_params) *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
@@ -268,18 +274,18 @@ bus_error_t em_ctrl_t::cmd_setssid(const char *method_name, const bus_data_prop_
                 cJSON_ReplaceItemInObject(target, "HaulType", haul_arr);
                 haul_arr = NULL;
             }
-            if (AKMsAllowed[0]) {
+            if (akms_given) {
                 /* BBF TR-181 SetSSID() input AKMsAllowed (since 2.17): update the
                  * entry's AKMsAllowed and derive the internal AuthType used to
-                 * build the WSC M2 auth type. */
+                 * build the WSC M2 auth type. An empty value is an empty list,
+                 * which selects an open BSS. */
                 cJSON *akms_arr = tr_181_t::create_akms_array(AKMsAllowed);
                 if (!akms_arr) {
                     cJSON_Delete(root);
                     if (output_params) *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
                     return bus_error_invalid_input;
                 }
-                const char *auth_str =
-                    tr_181_t::akms_to_auth_type(cJSON_GetStringValue(cJSON_GetArrayItem(akms_arr, 0)));
+                const char *auth_str = tr_181_t::akms_array_to_auth_type(akms_arr);
                 cJSON *auth_item = (auth_str != NULL) ? cJSON_CreateString(auth_str) : NULL;
                 if (!auth_item) {
                     cJSON_Delete(akms_arr);
@@ -335,15 +341,14 @@ bus_error_t em_ctrl_t::cmd_setssid(const char *method_name, const bus_data_prop_
             cJSON_AddItemToObject(target, "HaulType", haul_arr);
             haul_arr = NULL;
         }
-        if (AKMsAllowed[0]) {
+        if (akms_given) {
             cJSON *akms_arr = tr_181_t::create_akms_array(AKMsAllowed);
             if (!akms_arr) {
                 cJSON_Delete(root);
                 if (output_params) *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
                 return bus_error_invalid_input;
             }
-            const char *auth_str =
-                tr_181_t::akms_to_auth_type(cJSON_GetStringValue(cJSON_GetArrayItem(akms_arr, 0)));
+            const char *auth_str = tr_181_t::akms_array_to_auth_type(akms_arr);
             cJSON *auth_item = (auth_str != NULL) ? cJSON_CreateString(auth_str) : NULL;
             if (!auth_item) {
                 cJSON_Delete(akms_arr);
@@ -1238,9 +1243,9 @@ bus_error_t em_ctrl_t::cmd_channelselect(const char *method_name, const bus_data
     // Data structures used to collect nested Class.N.* channel preference input.
     // The instance number is represented by the array slot itself, so the
     // incoming values must be contiguous and start at 1.
-    // Each channel entry stores the parsed channel number and preference value.
+    // Each Channel.M entry is a group of channel numbers sharing one preference.
     struct channel_info {
-        int channel;
+        std::vector<int> channels;
         int preference;
     };
 
@@ -1252,8 +1257,9 @@ bus_error_t em_ctrl_t::cmd_channelselect(const char *method_name, const bus_data
         channel_info channels[MAX_CHANSEL_CHANNELS];
     };
 
-    // Store parsed classes in slot-based arrays keyed by their 1-based instance number.
-    class_info classes[MAX_CHANSEL_CLASSES];
+    // Parsed classes keyed by their 1-based instance number; heap-allocated,
+    // the channel group vectors are too heavy for the stack.
+    std::vector<class_info> classes(MAX_CHANSEL_CLASSES);
     int highest_class_instance = 0;
 
     // Reset a class slot so it can be reused for a newly parsed instance.
@@ -1262,14 +1268,14 @@ bus_error_t em_ctrl_t::cmd_channelselect(const char *method_name, const bus_data
         cls.num_channels = 0;
         cls.highest_channel_instance = 0;
         for (int i = 0; i < MAX_CHANSEL_CHANNELS; i++) {
-            cls.channels[i].channel = -1;
+            cls.channels[i].channels.clear();
             cls.channels[i].preference = -1;
         }
     };
 
     // Initialize every slot so the emptiness checks are always well-defined.
-    for (int i = 0; i < MAX_CHANSEL_CLASSES; i++) {
-        clear_class(classes[i]);
+    for (class_info &cls : classes) {
+        clear_class(cls);
     }
 
     // Locate the storage slot for a given Class.N instance, creating it when needed.
@@ -1278,7 +1284,7 @@ bus_error_t em_ctrl_t::cmd_channelselect(const char *method_name, const bus_data
             return NULL;
         }
 
-        int slot = instance_index - 1;
+        size_t slot = static_cast<size_t>(instance_index - 1);
         if (classes[slot].op_class == -1 && classes[slot].num_channels == 0 && classes[slot].highest_channel_instance == 0) {
             clear_class(classes[slot]);
             if (instance_index > highest_class_instance) {
@@ -1295,13 +1301,13 @@ bus_error_t em_ctrl_t::cmd_channelselect(const char *method_name, const bus_data
         }
 
         int slot = channel_instance - 1;
-        bool slot_is_empty = (cls->channels[slot].channel == -1 && cls->channels[slot].preference == -1);
+        bool slot_is_empty = (cls->channels[slot].channels.empty() && cls->channels[slot].preference == -1);
         if (cls->num_channels == 0 || slot_is_empty) {
             cls->num_channels++;
             if (channel_instance > cls->highest_channel_instance) {
                 cls->highest_channel_instance = channel_instance;
             }
-            cls->channels[slot].channel = -1;
+            cls->channels[slot].channels.clear();
             cls->channels[slot].preference = -1;
         }
         return slot;
@@ -1386,7 +1392,50 @@ bus_error_t em_ctrl_t::cmd_channelselect(const char *method_name, const bus_data
                     goto finish;
                 }
                 if (strcmp(tokens[TR181_CHANNEL_ATTR_TOKEN], TR181_CHANNEL_STR) == 0) {
-                    if (!tr_181_t::tr181_get_prop_int(prop, &cls->channels[channel_slot].channel)) {
+                    // TR-181 models Channel as a list of unsignedInt, carried
+                    // as a comma-separated string per TR-106 list syntax.
+                    char list_str[MAX_CHANSEL_LIST_LEN + 1] = { 0 };
+                    if (!tr_181_t::tr181_copy_prop_string(prop, list_str, sizeof(list_str))) {
+                        em_printfout("Channel in '%s' must be a comma-separated list string", prop->name);
+                        rc = bus_error_invalid_input;
+                        goto finish;
+                    }
+                    // tr181_copy_prop_string() truncates silently and stops at an
+                    // embedded NUL; the copy must be the whole property value.
+                    const char *list_src = static_cast<const char *>(prop->value.raw_data.bytes);
+                    size_t list_len = prop->value.raw_data_len;
+                    if (list_len > 0 && list_src[list_len - 1] == '\0') {
+                        list_len--;
+                    } else if (list_len == 0) {
+                        list_len = strnlen(list_src, sizeof(list_str));
+                    }
+                    if (strlen(list_str) != list_len) {
+                        em_printfout("Channel list in '%s' is too long or not a plain string", prop->name);
+                        rc = bus_error_invalid_input;
+                        goto finish;
+                    }
+                    cls->channels[channel_slot].channels.clear();
+                    const char *cursor = list_str;
+                    while (*cursor != '\0') {
+                        char *chan_end = NULL;
+                        errno = 0;
+                        long channel_l = strtol(cursor, &chan_end, 10);
+                        while (isspace(static_cast<unsigned char>(*chan_end))) {
+                            ++chan_end;
+                        }
+                        if (chan_end == cursor || errno == ERANGE ||
+                            channel_l < 1 || channel_l > 255 ||
+                            (*chan_end != ',' && *chan_end != '\0') ||
+                            (*chan_end == ',' && *(chan_end + 1) == '\0')) {
+                            em_printfout("Invalid channel list '%s' in '%s'", list_str, prop->name);
+                            rc = bus_error_invalid_input;
+                            goto finish;
+                        }
+                        cls->channels[channel_slot].channels.push_back(static_cast<int>(channel_l));
+                        cursor = (*chan_end == ',') ? chan_end + 1 : chan_end;
+                    }
+                    if (cls->channels[channel_slot].channels.empty()) {
+                        em_printfout("Empty channel list in '%s'", prop->name);
                         rc = bus_error_invalid_input;
                         goto finish;
                     }
@@ -1428,7 +1477,8 @@ bus_error_t em_ctrl_t::cmd_channelselect(const char *method_name, const bus_data
 
     // Validate that all requested class instances have an OpClass and at least one channel entry.
     for (int class_index = 1; class_index <= highest_class_instance; class_index++) {
-        if (classes[class_index - 1].op_class == -1 && classes[class_index - 1].num_channels == 0 && classes[class_index - 1].highest_channel_instance == 0) {
+        const class_info &cls = classes[static_cast<size_t>(class_index - 1)];
+        if (cls.op_class == -1 && cls.num_channels == 0 && cls.highest_channel_instance == 0) {
             em_printfout("Missing Class.%d instance", class_index);
             rc = bus_error_invalid_input;
             goto finish;
@@ -1437,7 +1487,7 @@ bus_error_t em_ctrl_t::cmd_channelselect(const char *method_name, const bus_data
 
     // Validate each parsed class entry against the radio band and operating-class rules.
     for (int class_index = 1; class_index <= highest_class_instance; class_index++) {
-        class_info &cls = classes[class_index - 1];
+        class_info &cls = classes[static_cast<size_t>(class_index - 1)];
         if (cls.op_class == -1) {
             em_printfout("Missing OpClass for Class.%d", class_index);
             rc = bus_error_invalid_input;
@@ -1449,11 +1499,19 @@ bus_error_t em_ctrl_t::cmd_channelselect(const char *method_name, const bus_data
             goto finish;
         }
         
-        // Validate that every requested channel entry has both values populated.
+        // Reject numbering gaps and entries missing one of Channel/Preference.
         for (int channel_index = 1; channel_index <= cls.highest_channel_instance; channel_index++) {
             int channel_slot = channel_index - 1;
-            if (cls.channels[channel_slot].channel == -1 && cls.channels[channel_slot].preference == -1) {
+            bool has_channel = !cls.channels[channel_slot].channels.empty();
+            bool has_preference = (cls.channels[channel_slot].preference != -1);
+            if (!has_channel && !has_preference) {
                 em_printfout("Missing Channel.%d instance for Class.%d", channel_index, class_index);
+                rc = bus_error_invalid_input;
+                goto finish;
+            }
+            if (has_channel != has_preference) {
+                em_printfout("Class.%d.Channel.%d must set both Channel and Preference",
+                              class_index, channel_index);
                 rc = bus_error_invalid_input;
                 goto finish;
             }
@@ -1478,47 +1536,47 @@ bus_error_t em_ctrl_t::cmd_channelselect(const char *method_name, const bus_data
             goto finish;
         }
 
+        std::vector<int> seen_channels;
         for (int channel_index = 1; channel_index <= cls.highest_channel_instance; channel_index++) {
             int channel_slot = channel_index - 1;
-            if (cls.channels[channel_slot].channel == -1) {
-                if (cls.channels[channel_slot].preference != -1) {
-                    em_printfout("Missing Channel for Class.%d.Channel.%d", class_index, channel_index);
-                    rc = bus_error_invalid_input;
-                    goto finish;
-                }
+            channel_info &group = cls.channels[channel_slot];
+            if (group.channels.empty()) {
                 continue;
             }
-            if (cls.channels[channel_slot].channel < 1) {
-                em_printfout("Invalid channel value %d in Class.%d.Channel.%d",
-                              cls.channels[channel_slot].channel, class_index, channel_index);
-                rc = bus_error_invalid_input;
-                goto finish;
-            }
 
-            // Reject duplicate channel values within the same Class
-            for (int prev = 0; prev < channel_slot; prev++) {
-                if (cls.channels[channel_slot].channel != -1 &&
-                    cls.channels[prev].channel == cls.channels[channel_slot].channel) {
-                    em_printfout("Duplicate Channel %d in Class.%d",
-                                   cls.channels[channel_slot].channel, class_index);
+            for (int channel : group.channels) {
+                // Reject duplicate channel values within the same Class
+                for (int prev : seen_channels) {
+                    if (prev == channel) {
+                        em_printfout("Duplicate Channel %d in Class.%d", channel, class_index);
+                        rc = bus_error_invalid_input;
+                        goto finish;
+                    }
+                }
+                seen_channels.push_back(channel);
+
+                bool channel_matches_opclass = false;
+                for (int valid_channel : valid_channels) {
+                    if (valid_channel == channel) {
+                        channel_matches_opclass = true;
+                        break;
+                    }
+                }
+                if (!channel_matches_opclass) {
+                    em_printfout("Channel %d not allowed for OpClass %d in Class.%d",
+                                  channel, cls.op_class, class_index);
                     rc = bus_error_invalid_input;
                     goto finish;
                 }
             }
-
-            bool channel_matches_opclass = false;
-            for (int valid_channel : valid_channels) {
-                if (valid_channel == cls.channels[channel_slot].channel) {
-                    channel_matches_opclass = true;
-                    break;
-                }
-            }
-            if (!channel_matches_opclass) {
-                em_printfout("Channel %d not allowed for OpClass %d in Class.%d",
-                              cls.channels[channel_slot].channel, cls.op_class, class_index);
-                rc = bus_error_invalid_input;
-                goto finish;
-            }
+        }
+        // The decoded ChannelList holds EM_MAX_CHANNELS_IN_LIST entries; reject
+        // a class that would be truncated silently.
+        if (seen_channels.size() > EM_MAX_CHANNELS_IN_LIST) {
+            em_printfout("Class.%d lists %zu channels, at most %d allowed",
+                          class_index, seen_channels.size(), EM_MAX_CHANNELS_IN_LIST);
+            rc = bus_error_invalid_input;
+            goto finish;
         }
     }
 
@@ -1617,7 +1675,7 @@ bus_error_t em_ctrl_t::cmd_channelselect(const char *method_name, const bus_data
     if (highest_class_instance > 0) {
         // Convert each validated class entry into JSON with ChannelList and ChannelPrefList.
         for (int class_index = 1; class_index <= highest_class_instance; class_index++) {
-            class_info &cls = classes[class_index - 1];
+            class_info &cls = classes[static_cast<size_t>(class_index - 1)];
             if (cls.op_class == -1 || cls.num_channels == 0) {
                 em_printfout("Incomplete class entry");
                 rc = bus_error_invalid_input;
@@ -1652,13 +1710,20 @@ bus_error_t em_ctrl_t::cmd_channelselect(const char *method_name, const bus_data
 
             for (int channel_index = 1; channel_index <= cls.highest_channel_instance; channel_index++) {
                 int channel_slot = channel_index - 1;
-                if (cls.channels[channel_slot].channel == -1 || cls.channels[channel_slot].preference == -1) {
+                channel_info &group = cls.channels[channel_slot];
+                if (group.channels.empty() || group.preference == -1) {
                     em_printfout("Missing Channel or Preference for channel instance %d", channel_index);
                     rc = bus_error_invalid_input;
                     goto finish;
                 }
-                cJSON_AddItemToArray(channel_list_obj, cJSON_CreateNumber(cls.channels[channel_slot].channel));
-                cJSON_AddItemToArray(channel_pref_obj, cJSON_CreateNumber(cls.channels[channel_slot].preference));
+                for (int channel : group.channels) {
+                    if (!cJSON_AddItemToArray(channel_list_obj, cJSON_CreateNumber(channel)) ||
+                        !cJSON_AddItemToArray(channel_pref_obj, cJSON_CreateNumber(group.preference))) {
+                        em_printfout("Add channel entry failed");
+                        rc = bus_error_out_of_resources;
+                        goto finish;
+                    }
+                }
             }
         }
     }
@@ -5455,20 +5520,19 @@ dm_radio_t *dm_easy_mesh_ctrl_t::get_dm_radio(dm_easy_mesh_t *dm, char *instance
     }
 
     for (unsigned int i = 0; i < dm->get_num_radios(); i++) {
-        char mac_str[18];
         radio = dm->get_radio(i);
         if (radio == NULL) {
             continue;
         }
         em_radio_info_t *ri = radio->get_radio_info();
-        dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *> (ri->id.ruid), mac_str);
-        /* Probably wrong, we need base64 */
-        if (strcmp(instance, mac_str) == 0) {
+        /* Radio.{i} aliases are published as base64(RUID), see radio_get_inner(). */
+        std::string id_b64 = em_crypto_t::base64_encode(ri->id.ruid, sizeof(ri->id.ruid));
+        if (strcmp(instance, id_b64.c_str()) == 0) {
             return radio;
         }
     }
 
-    return radio;
+    return NULL;
 }
 
 dm_sta_t *dm_easy_mesh_ctrl_t::get_dm_bh_sta(dm_easy_mesh_t *dm, dm_radio_t *radio)
@@ -5538,6 +5602,115 @@ void dm_easy_mesh_ctrl_t::fill_comma_sep(em_short_string_t str[], size_t max, ch
             break;
         }
         cnt++;
+    }
+}
+
+void dm_easy_mesh_ctrl_t::fill_akms_allowed(em_short_string_t akms[], unsigned char num_akms, char *buf, size_t buf_len)
+{
+    bool psk = false, sae = false, dpp = false;
+    const char *delim = "";
+
+    for (unsigned char i = 0; (i < num_akms) && (i < EM_MAX_AKMS); i++) {
+        if ((strcmp(akms[i], "wpa2-psk") == 0) || (strcmp(akms[i], "wpa-psk") == 0) ||
+            (strcmp(akms[i], "psk") == 0)) {
+            psk = true;
+        } else if (strcmp(akms[i], "sae") == 0) {
+            sae = true;
+        } else if (strcmp(akms[i], "dpp") == 0) {
+            dpp = true;
+        }
+    }
+
+    buf[0] = '\0';
+
+    /* akm_t defines a joint value for every combination that includes sae. */
+    if (sae && (psk || dpp)) {
+        snprintf(buf, buf_len, "%s%ssae", dpp ? "dpp+" : "", psk ? "psk+" : "");
+        return;
+    }
+
+    if (dpp) {
+        snprintf(buf + strlen(buf), buf_len - strlen(buf), "%sdpp", delim);
+        delim = ",";
+    }
+    if (psk) {
+        snprintf(buf + strlen(buf), buf_len - strlen(buf), "%spsk", delim);
+        delim = ",";
+    }
+    if (sae) {
+        snprintf(buf + strlen(buf), buf_len - strlen(buf), "%ssae", delim);
+    }
+}
+
+void dm_easy_mesh_ctrl_t::fill_bss_akms_allowed(dm_easy_mesh_t *dm, em_bss_info_t *bi, bool backhaul, char *buf, size_t buf_len)
+{
+    buf[0] = '\0';
+
+    /* A BSS has one haul type, its other side is empty whatever the source of the AKMs. */
+    if (backhaul != (bi->id.haul_type == em_haul_type_backhaul)) {
+        return;
+    }
+
+    em_network_ssid_info_t *profile =
+        (dm != NULL) ? dm->get_network_ssid_info_by_haul_type(bi->id.haul_type) : NULL;
+    /* Profiles are network wide but not present in every agent's dm;
+       scan the same network's other instances for a remote agent's BSS. */
+    if ((profile == NULL) && (dm != NULL)) {
+        const char *net_id = dm->get_device_info()->id.net_id;
+        dm_easy_mesh_t *pdm = m_data_model_list.get_first_dm();
+        while (pdm != NULL) {
+            if ((strncmp(pdm->get_device_info()->id.net_id, net_id, sizeof(em_long_string_t)) == 0) &&
+                ((profile = pdm->get_network_ssid_info_by_haul_type(bi->id.haul_type)) != NULL)) {
+                break;
+            }
+            pdm = m_data_model_list.get_next_dm(pdm);
+        }
+    }
+    if (profile != NULL) {
+        uint16_t auth_flags = 0;
+        bool auth_known = false;
+        for (size_t s = 0; s < sizeof(securityTypeMap)/sizeof(securityTypeMap[0]); s++) {
+            if (strcmp(profile->auth_type, securityTypeMap[s].name) == 0) {
+                auth_flags = static_cast<uint16_t>(securityTypeMap[s].hex);
+                auth_known = true;
+                break;
+            }
+        }
+        if (auth_known) {
+            dm_radio_t *radio = dm->get_radio(bi->ruid.mac);
+            if ((radio != NULL) && (radio->get_radio_info()->band == em_freq_band_6) &&
+                ((auth_flags == EM_AUTH_WPA2PSK) ||
+                 (auth_flags == EM_AUTH_WPA2) ||
+                 (auth_flags == EM_AUTH_OPEN) ||
+                 (auth_flags == EM_AUTH_WPA3_TRANSITION))) {
+                auth_flags = EM_AUTH_WPA3_PERSONAL;
+            }
+#if defined(_PLATFORM_RASPBERRYPI_)
+            if (auth_flags == EM_AUTH_WPA3_PERSONAL) {
+                auth_flags = EM_AUTH_WPA3_TRANSITION;
+            }
+#endif
+            bool psk = (auth_flags & EM_AUTH_WPA2PSK) != 0;
+            bool sae = (auth_flags & EM_AUTH_SAE_AKM8) != 0;
+            bool dpp = (auth_flags & EM_AUTH_DPP_AKM) != 0;
+            if (sae && (psk || dpp)) {
+                snprintf(buf, buf_len, "%s%ssae", dpp ? "dpp+" : "", psk ? "psk+" : "");
+            } else if (dpp) {
+                snprintf(buf, buf_len, "dpp");
+            } else if (psk) {
+                snprintf(buf, buf_len, "psk");
+            } else if (sae) {
+                snprintf(buf, buf_len, "sae");
+            }
+            /* Open and other AKM-less auth types leave the list empty. */
+            return;
+        }
+    }
+
+    if (backhaul) {
+        fill_akms_allowed(bi->backhaul_akm, bi->num_backhaul_akms, buf, buf_len);
+    } else {
+        fill_akms_allowed(bi->fronthaul_akm, bi->num_fronthaul_akms, buf, buf_len);
     }
 }
 
@@ -6314,12 +6487,12 @@ bus_error_t dm_easy_mesh_ctrl_t::ssid_get_inner(char *event_name, raw_data_t *p_
     if (strcmp(param, "SSID") == 0) {
         rc = dm_ctrl->raw_data_set(p_data, si->ssid);
     } else if (strcmp(param, "Band") == 0) {
-        dm_ctrl->fill_comma_sep(si->band, ARRAY_SIZE(si->band), val_str);
+        dm_ctrl->fill_comma_sep(si->band, std::min(static_cast<size_t>(si->num_bands), ARRAY_SIZE(si->band)), val_str);
         rc = dm_ctrl->raw_data_set(p_data, val_str);
     } else if (strcmp(param, "Enable") == 0) {
         rc = dm_ctrl->raw_data_set(p_data, si->enable);
     } else if (strcmp(param, "AKMsAllowed") == 0) {
-        dm_ctrl->fill_comma_sep(si->akm, ARRAY_SIZE(si->akm), val_str);
+        dm_ctrl->fill_comma_sep(si->akm, std::min(static_cast<size_t>(si->num_akms), ARRAY_SIZE(si->akm)), val_str);
         rc = dm_ctrl->raw_data_set(p_data, val_str);
     } else if (strcmp(param, "SuiteSelector") == 0) {
         rc = dm_ctrl->raw_data_set(p_data, si->suite_select);
@@ -6371,11 +6544,11 @@ bus_error_t dm_easy_mesh_ctrl_t::ssid_tget_inner(char *event_name, raw_data_t *p
 
         dm_ctrl->property_append_tail(&property, root, idx, "SSID", si->ssid);
         memset(val_str, 0, sizeof(val_str));
-        dm_ctrl->fill_comma_sep(si->band, ARRAY_SIZE(si->band), val_str);
+        dm_ctrl->fill_comma_sep(si->band, std::min(static_cast<size_t>(si->num_bands), ARRAY_SIZE(si->band)), val_str);
         dm_ctrl->property_append_tail(&property, root, idx, "Band", val_str);
         dm_ctrl->property_append_tail(&property, root, idx, "Enable", si->enable);
         memset(val_str, 0, sizeof(val_str));
-        dm_ctrl->fill_comma_sep(si->akm, ARRAY_SIZE(si->akm), val_str);
+        dm_ctrl->fill_comma_sep(si->akm, std::min(static_cast<size_t>(si->num_akms), ARRAY_SIZE(si->akm)), val_str);
         dm_ctrl->property_append_tail(&property, root, idx, "AKMsAllowed", val_str);
         dm_ctrl->property_append_tail(&property, root, idx, "SuiteSelector", si->suite_select);
         dm_ctrl->property_append_tail(&property, root, idx, "AdvertisementEnabled", si->advertisement);
@@ -7981,10 +8154,10 @@ bus_error_t dm_easy_mesh_ctrl_t::bss_get_inner(char *event_name, raw_data_t *p_d
     } else if (strcmp(param, "TransmittedBSSID") == 0) {
         rc = dm_ctrl->raw_data_set(p_data, bi->transmitted_bssid);
     } else if (strcmp(param, "FronthaulAKMsAllowed") == 0) {
-        dm_ctrl->fill_comma_sep(bi->fronthaul_akm, ARRAY_SIZE(bi->fronthaul_akm), val_str);
+        dm_ctrl->fill_bss_akms_allowed(dm, bi, false, val_str, sizeof(val_str));
         rc = dm_ctrl->raw_data_set(p_data, val_str);
     } else if (strcmp(param, "BackhaulAKMsAllowed") == 0) {
-        dm_ctrl->fill_comma_sep(bi->backhaul_akm, ARRAY_SIZE(bi->backhaul_akm), val_str);
+        dm_ctrl->fill_bss_akms_allowed(dm, bi, true, val_str, sizeof(val_str));
         rc = dm_ctrl->raw_data_set(p_data, val_str);
     } else if (strcmp(param, "QMDescriptor") == 0) {
         //rc = dm_ctrl->raw_data_set(p_data, bi->);
@@ -8079,11 +8252,11 @@ bus_error_t dm_easy_mesh_ctrl_t::bss_tget_params(dm_easy_mesh_t *dm, const char 
         dm_ctrl->property_append_tail(property, root, idx, "BackhaulUse", (bi->id.haul_type == em_haul_type_backhaul));
         dm_ctrl->property_append_tail(property, root, idx, "FronthaulUse", (bi->id.haul_type == em_haul_type_fronthaul));
         memset(val_str, 0, sizeof(val_str));
-        dm_ctrl->fill_comma_sep(bi->fronthaul_akm, ARRAY_SIZE(bi->fronthaul_akm), val_str);
+        dm_ctrl->fill_bss_akms_allowed(dm, bi, false, val_str, sizeof(val_str));
         dm_ctrl->property_append_tail(property, root, idx, "FronthaulAKMsAllowed", val_str);
         dm_ctrl->property_append_tail(property, root, idx, "FronthaulSuiteSelector", 0U);
         memset(val_str, 0, sizeof(val_str));
-        dm_ctrl->fill_comma_sep(bi->backhaul_akm, ARRAY_SIZE(bi->backhaul_akm), val_str);
+        dm_ctrl->fill_bss_akms_allowed(dm, bi, true, val_str, sizeof(val_str));
         dm_ctrl->property_append_tail(property, root, idx, "BackhaulAKMsAllowed", val_str);
         dm_ctrl->property_append_tail(property, root, idx, "BackhaulSuiteSelector", 0U);
         dm_ctrl->property_append_tail(property, root, idx, "STANumberOfEntries", bi->numberofsta);

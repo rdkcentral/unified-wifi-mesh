@@ -59,6 +59,15 @@ extern "C"
 #define EM_CTRL_CAP_SZ  8
 #define MIN_MAC_LEN 12
 #define MAX_EM_BUFF_SZ  1024
+/* Largest frame a message builder produces, Ethernet header included. AL SAP:
+ * one SDU fragment (SOCKET_MTU - PACKET_HEADER_SIZE) plus the header that
+ * send_frame() strips; raw socket: one Ethernet frame. */
+#ifdef AL_SAP
+#define EM_MAX_MSG_SZ   65531
+#else
+#define EM_MAX_MSG_SZ   1514
+#endif
+#define EM_MAX_TLV_VALUE_SZ 65535
 #define EM_MAX_FRAME_BODY_LEN	512
 #define MAX_VENDOR_INFO 5
 #define EM_MAX_BEACON_MEASUREMENT_LEN  400
@@ -3795,7 +3804,7 @@ typedef struct {
 
 static const SecurityTypeMap securityTypeMap[] = {
     { "Open",            EM_AUTH_OPEN },
-    { "WPA2 Personal",   EM_AUTH_WPA2 },
+    { "WPA2 Personal",   EM_AUTH_WPA2PSK },
     { "Enhanced Open",   EM_AUTH_ENHANCED_OPEN },
     { "WPA3 Personal",   EM_AUTH_WPA3_PERSONAL },
     { "WPA3 Transition", EM_AUTH_WPA3_TRANSITION }
