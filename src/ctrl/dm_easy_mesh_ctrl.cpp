@@ -3838,16 +3838,16 @@ int dm_easy_mesh_ctrl_t::analyze_set_policy(em_bus_event_t *evt, em_cmd_t *pcmd[
 
         radio = m_data_model_list.get_first_radio(dm.m_network.m_net_info.id, dm.m_device.m_device_info.intf.mac);
         while (radio != NULL) {
-            if (dm.m_num_radios >= EM_MAX_RADIO_PER_AGENT) {
+            if (dm.m_num_radios >= EM_MAX_BANDS) {
                 em_printfout("[SetPolicy] Radio overflow guard. dev=%s num_radios=%u max=%u",
-                    mac_str, dm.m_num_radios, EM_MAX_RADIO_PER_AGENT);
+                    mac_str, dm.m_num_radios, EM_MAX_BANDS);
                 break;
             }
             memcpy(dm.m_radio[dm.m_num_radios].m_radio_info.intf.mac,
                 radio->m_radio_info.intf.mac, sizeof(mac_address_t));
             em_printfout("[SetPolicy] Attached radio[%u]=%s to command dm",
                 dm.m_num_radios, util::mac_to_string(radio->m_radio_info.intf.mac).c_str());
-            dm.m_num_radios++;
+            dm.set_num_radios(dm.m_num_radios + 1);
             radio = m_data_model_list.get_next_radio(dm.m_network.m_net_info.id,
                 dm.m_device.m_device_info.intf.mac, radio);
         }
@@ -4184,6 +4184,8 @@ int dm_easy_mesh_ctrl_t::analyze_set_radio(em_bus_event_t *evt, em_cmd_t *pcmd[]
 			return 0;
 		}
 
+		tgt.set_num_radios(0);
+
 		//Copy the networlk information to target
 		tgt.m_network = dm.m_network;
 		tgt.m_device = dm.m_device;
@@ -4202,15 +4204,19 @@ int dm_easy_mesh_ctrl_t::analyze_set_radio(em_bus_event_t *evt, em_cmd_t *pcmd[]
 				if (memcmp(radio->m_radio_info.intf.mac, pradio->m_radio_info.intf.mac, sizeof(mac_address_t)) == 0) {
 					if (radio->m_radio_info.enabled != pradio->m_radio_info.enabled) {
 						em_printfout("Radio: %s changed, adding to target", mac_str);
+						if (tgt.m_num_radios >= EM_MAX_BANDS) {
+							em_printfout("Radio target overflow guard. num_radios=%u max=%u", tgt.m_num_radios, EM_MAX_BANDS);
+							break;
+						}
 						tgt.m_radio[tgt.m_num_radios] = dm.m_radio[j];
-						tgt.m_num_radios++;	
+						tgt.set_num_radios(tgt.m_num_radios + 1);
 					} else {
 						dm_easy_mesh_t::macbytes_to_string(radio->m_radio_info.intf.mac, mac_str);
 						em_printfout("Radio: %s hasn't changed, not adding", mac_str);
 					}
 				}
 			}
-		}	
+		}
 
         pcmd[num] = new em_cmd_set_radio_t(evt->params, tgt);
         tmp = pcmd[num];

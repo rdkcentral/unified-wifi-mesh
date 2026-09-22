@@ -1840,7 +1840,7 @@ public:
 	 *
 	 * @returns The number of radios.
 	 */
-	unsigned int get_num_radios() { return m_num_radios; }
+	unsigned int get_num_radios() { return (m_num_radios > EM_MAX_BANDS) ? EM_MAX_BANDS : m_num_radios; }
     
 	/**!
 	 * @brief Retrieves the number of radios.
@@ -1857,11 +1857,12 @@ public:
 	/**!
 	 * @brief Sets the number of radios.
 	 *
-	 * This function assigns the given number to the member variable m_num_radios.
+	 * This function assigns the given number to m_num_radios, clamping values
+	 * greater than EM_MAX_BANDS to EM_MAX_BANDS.
 	 *
-	 * @param[in] num The number of radios to be set.
+	 * @param[in] num The requested number of radios to be set.
 	 */
-	void set_num_radios(unsigned int num) { m_num_radios = num; }
+	void set_num_radios(unsigned int num) { m_num_radios = (num > EM_MAX_BANDS) ? EM_MAX_BANDS : num; }
     
 	/**!
 	 * @brief Sets the number of radios in the mesh network.
