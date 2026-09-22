@@ -136,8 +136,12 @@ dm_easy_mesh_t& dm_easy_mesh_t::operator = (dm_easy_mesh_t const& obj)
 
     if (obj.m_ap_mld_map != NULL && m_ap_mld_map != NULL) {
         dm_ap_mld_t *ap_mld = static_cast<dm_ap_mld_t *> (hash_map_get_first(obj.m_ap_mld_map));
+        em_long_string_t key;
         while (ap_mld != NULL) {
-            update_ap_mld_info(ap_mld->get_ap_mld_info());
+            dm_ap_mld_t *copy = new dm_ap_mld_t(*ap_mld);
+            dm_easy_mesh_t::get_ap_mld_key(get_agent_al_interface_mac(),
+                copy->m_ap_mld_info.haul_type, key, sizeof(key));
+            hash_map_put(m_ap_mld_map, strdup(key), copy);
             ap_mld = static_cast<dm_ap_mld_t *> (hash_map_get_next(obj.m_ap_mld_map, ap_mld));
         }
     }
