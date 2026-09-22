@@ -3208,6 +3208,7 @@ typedef enum {
     em_bus_event_type_sta_cap_update,
     em_bus_event_type_sta_mld_update,
     em_bus_event_type_topo_publish,
+    em_bus_event_type_metrics_updated,
 
     em_bus_event_type_max
 } em_bus_event_type_t;
@@ -3405,6 +3406,10 @@ typedef struct {
     mac_address_t dev;
     em_assoc_sta_mld_info_t info;
 } em_bus_event_type_sta_mld_update_params_t;
+
+typedef struct {
+    mac_address_t dev;
+} em_bus_event_type_metrics_updated_params_t;
 
 typedef struct {
     mac_address_t   radio;
