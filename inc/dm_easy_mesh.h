@@ -1628,6 +1628,18 @@ public:
 	}
 
 	/**!
+	 * @brief Retrieves an AP MLD by its owning AL MAC and haul type.
+	 */
+	dm_ap_mld_t *get_ap_mld(mac_address_t al_mac, em_haul_type_t haul_type) {
+		em_long_string_t key;
+		if (m_ap_mld_map == NULL || al_mac == NULL) {
+			return NULL;
+		}
+		get_ap_mld_key(al_mac, haul_type, key, sizeof(key));
+		return static_cast<dm_ap_mld_t *>(hash_map_get(m_ap_mld_map, key));
+	}
+
+	/**!
 	 * @brief Retrieves the first AP MLD in the AP MLD hash map.
 	 *
 	 * @returns A pointer to the first `dm_ap_mld_t` entry, or NULL if the map is empty/unallocated.
