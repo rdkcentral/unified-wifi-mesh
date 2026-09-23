@@ -55,9 +55,13 @@
 
 #ifdef AL_SAP
 #include "al_service_access_point.h"
+#include "al_service_utils.h"
 
 extern AlServiceAccessPoint* g_sap;
 extern MacAddress g_al_mac_sap;
+
+static_assert(EM_MAX_MSG_SZ - sizeof(em_raw_hdr_t) <= SOCKET_MTU - PACKET_HEADER_SIZE,
+    "EM_MAX_MSG_SZ exceeds the AL SAP SDU size");
 #endif
 
 ec_manager_t &em_t::get_ec_mgr()
@@ -132,7 +136,10 @@ void em_t::orch_execute(em_cmd_t *pcmd)
 
             uint8_t cce_ind_msg_buff[MAX_EM_BUFF_SZ] = {0};
             int msg_size = create_cce_ind_msg(cce_ind_msg_buff, true);
-            if (send_frame(cce_ind_msg_buff, static_cast<unsigned int>(msg_size)) < 0) {
+            if (msg_size <= 0) {
+                em_printfout("Error: Failed to create DPP CCE Indication message (size=%d)", msg_size);
+
+            } else if (send_frame(cce_ind_msg_buff, static_cast<unsigned int>(msg_size)) < 0) {
                 em_printfout("Failed to send DPP CCE Indication message!");
             }
 
@@ -239,16 +246,20 @@ void em_t::orch_execute(em_cmd_t *pcmd)
             m_sm.set_state(em_state_ctrl_ap_mld_config_pending);
             break;
 
-        case em_cmd_type_beacon_report:
-            m_sm.set_state(em_state_agent_beacon_report_pending);
-            break;
-
         case em_cmd_type_bsta_cap:
             m_sm.set_state(em_state_ctrl_bsta_cap_pending);
             break;
 
         case em_cmd_type_get_link_quality_report:
             m_sm.set_state(em_state_agent_link_quality_report_pending);
+            break;
+
+        case em_cmd_type_beacon_report:
+            m_sm.set_state(em_state_beacon_report_pending);
+            break;
+
+        case em_cmd_type_client_assoc_ctrl_req:
+            m_sm.set_state(em_state_ctrl_client_assoc_ctrl_req_pending);
             break;
 
         case em_cmd_type_unassoc_sta_query:
@@ -313,6 +324,7 @@ void em_t::proto_process(unsigned char *data, unsigned int len)
         case em_msg_type_client_cap_query:
         case em_msg_type_client_cap_rprt:
             em_capability_t::process_msg(data, len);
+            em_metrics_t::process_msg(data, len);
             break;
 
         case em_msg_type_channel_pref_query:
@@ -332,7 +344,7 @@ void em_t::proto_process(unsigned char *data, unsigned int len)
         case em_msg_type_beacon_metrics_rsp:
         case em_msg_type_ap_metrics_rsp:
         case em_msg_type_topo_vendor:
-	case em_msg_type_unassoc_sta_link_metrics_query: 
+	    case em_msg_type_unassoc_sta_link_metrics_query: 
         case em_msg_type_unassoc_sta_link_metrics_rsp:	    
             em_metrics_t::process_msg(data, len);
             break;
@@ -361,13 +373,13 @@ void em_t::proto_process(unsigned char *data, unsigned int len)
         case em_msg_type_1905_ack:
             if (m_sm.get_state() == em_state_ctrl_ap_mld_configured) {
                 em_configuration_t::process_msg(data, len);
-            } else if (m_sm.get_state() == em_state_ctrl_sta_steer_pending) {
-                em_steering_t::process_msg(data, len);
             } else if (m_sm.get_state() == em_state_ctrl_unassoc_sta_link_metrics_pending) {
                 em_metrics_t::process_msg(data, len);		    
             } else {
                 em_policy_cfg_t::process_msg(data, len);
                 em_channel_t::process_msg(data, len);
+                em_metrics_t::process_msg(data, len);
+                em_steering_t::process_msg(data, len);
             }
             break;
 
@@ -485,7 +497,7 @@ void em_t::handle_agent_state()
 			break;
 
         case em_cmd_type_beacon_report:
-            if (m_sm.get_state() == em_state_agent_beacon_report_pending) {
+            if (m_sm.get_state() == em_state_beacon_report_pending) {
                 em_metrics_t::process_agent_state();
             }
             break;
@@ -579,6 +591,10 @@ void em_t::handle_ctrl_state()
             em_metrics_t::process_ctrl_state();
             break;
 
+        case em_cmd_type_client_assoc_ctrl_req:
+            em_steering_t::process_ctrl_state();
+            break;
+
         default:
             break;
     }
@@ -605,15 +621,13 @@ void em_t::proto_run()
     int rc;
     em_event_t *evt;
     struct timespec time_to_wait;
-    struct timeval tm;
 
     pthread_mutex_lock(&m_iq.lock);
     while (m_exit == false) {
         rc = 0;
 
-        gettimeofday(&tm, NULL);
-        time_to_wait.tv_sec = tm.tv_sec;
-        time_to_wait.tv_nsec = tm.tv_usec * 1000;
+        /* m_iq.cond is CLOCK_MONOTONIC (util::monotonic_cond_init) */
+        util::monotonic_now(&time_to_wait);
         time_to_wait.tv_sec += m_iq.timeout;
 
         if (queue_count(m_iq.queue) == 0) {
@@ -960,6 +974,30 @@ em_event_t *em_t::pop_from_queue()
     return reinterpret_cast<em_event_t *>(queue_pop(m_iq.queue));
 }
 
+dm_bss_t *em_t::find_bss(bssid_t bssid)
+{
+    dm_bss_t *bss;
+    em_bss_info_t *bss_info;
+
+    bss_info = get_data_model()->get_bss_info_with_mac(bssid);
+    if (bss_info == NULL) {
+        return NULL;
+    }
+
+    // Get the BSS object from the data model
+    bss = get_data_model()->get_bss(bss_info->ruid.mac, bssid);
+    if (bss == NULL) {
+        return NULL;
+    }
+
+    // the bss can be from a different radio
+    if (memcmp(bss_info->ruid.mac, get_radio_interface_mac(), sizeof(mac_address_t)) == 0) {
+        return bss;
+    }
+
+    return NULL;
+}
+
 dm_sta_t *em_t::find_sta(mac_address_t sta_mac, bssid_t bssid)
 {
     dm_sta_t *sta;
@@ -1092,11 +1130,16 @@ int em_t::create_akm_suite_cap_tlv(uint8_t *buff)
         em_bss_info_t *bss_info = dm->get_bss_info(i);
         if (bss_info == NULL) continue;
 
-        for (int i = 0; i < bss_info->num_fronthaul_akms; i++) {
-            fh_akms.insert(bss_info->fronthaul_akm[i]);
+        /* A BSS with no AKM reports one empty entry; keep it out of the sets. */
+        for (int j = 0; j < bss_info->num_fronthaul_akms && j < EM_MAX_AKMS; j++) {
+            if (bss_info->fronthaul_akm[j][0] != '\0') {
+                fh_akms.insert(bss_info->fronthaul_akm[j]);
+            }
         }
-        for (int i = 0; i < bss_info->num_backhaul_akms; i++) {
-            bh_akms.insert(bss_info->backhaul_akm[i]);
+        for (int j = 0; j < bss_info->num_backhaul_akms && j < EM_MAX_AKMS; j++) {
+            if (bss_info->backhaul_akm[j][0] != '\0') {
+                bh_akms.insert(bss_info->backhaul_akm[j]);
+            }
         }
     }
 
@@ -2007,7 +2050,6 @@ short em_t::create_def_8021q_settings_policy_tlv(unsigned char *buff)
 {
     size_t len = 0;
     dm_easy_mesh_t *dm;
-    unsigned int i;
 
     if (get_current_cmd()->get_type() == em_cmd_type_set_policy) {
         dm = get_current_cmd()->get_data_model();
@@ -2015,8 +2057,9 @@ short em_t::create_def_8021q_settings_policy_tlv(unsigned char *buff)
         dm = get_data_model();
     }
 
-    for (i = 0; i < dm->get_num_policy(); i++) {
-        dm_policy_t *policy = &dm->m_policy[i];
+    for (dm_policy_t *policy = dm->m_policy_map ? static_cast<dm_policy_t *>(hash_map_get_first(dm->m_policy_map)) : NULL;
+         policy != NULL;
+         policy = static_cast<dm_policy_t *>(hash_map_get_next(dm->m_policy_map, policy))) {
         if (policy->m_policy.id.type != em_policy_id_type_default_8021q_settings) {
             continue;
         }
@@ -2804,11 +2847,29 @@ int em_t::init()
     // initialize the ingress queue
     m_iq.queue = queue_create();
     pthread_mutex_init(&m_iq.lock, NULL);
-    pthread_cond_init(&m_iq.cond, NULL);
+    int rc = util::monotonic_cond_init(&m_iq.cond);
+    if (rc != 0) {
+        em_printfout("Failed to initialize ingress queue condition variable, err:%d", rc);
+        pthread_mutex_destroy(&m_iq.lock);
+        queue_destroy(m_iq.queue);
+        if (is_al_interface_em()) {
+            close(m_fd);
+        }
+        return -1;
+    }
     m_iq.timeout = EM_PROTO_TOUT;
 
     // initialize the crypto
-    m_crypto.init();
+    if (m_crypto.init() != 0) {
+        em_printfout("Error: Failed to initialize crypto");
+        queue_destroy(m_iq.queue);
+        pthread_mutex_destroy(&m_iq.lock);
+        pthread_cond_destroy(&m_iq.cond);
+        if (is_al_interface_em()) {
+            close(m_fd);
+        }
+        return -1;
+    }
 
     size_t stack_size = 0x800000; /* 8MB */
     pthread_attr_t attr;
@@ -2821,14 +2882,16 @@ int em_t::init()
     // leading to stack overflow.
     ret = pthread_attr_setstacksize(&attr, stack_size);
     if (ret != 0) {
-        printf("%s:%d pthread_attr_setstacksize failed for size:%ld ret:%d\n",
-                __func__, __LINE__, stack_size, ret);
+        em_printfout("Error: pthread_attr_setstacksize failed for size:%ld ret:%d", stack_size, ret);
     }
     pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
 
     if (pthread_create(&m_tid, attrp, em_t::em_func, this) != 0) {
-        printf("%s:%d: Failed to start em thread\n", __func__, __LINE__);
-        close(m_fd);
+        em_printfout("Error: Failed to start em thread");
+        queue_destroy(m_iq.queue);
+        if (is_al_interface_em()) {
+            close(m_fd);
+        }
         pthread_mutex_destroy(&m_iq.lock);
         pthread_cond_destroy(&m_iq.cond);
         if(attrp != NULL) {
@@ -2896,7 +2959,6 @@ const char *em_t::state_2_str(em_state_t state)
         EM_STATE_2S(em_state_agent_client_cap_report)
         EM_STATE_2S(em_state_agent_channel_pref_query)
         EM_STATE_2S(em_state_agent_sta_link_metrics_pending)
-        EM_STATE_2S(em_state_agent_beacon_report_pending)
         EM_STATE_2S(em_state_agent_channel_select_configuration_pending)
 	EM_STATE_2S(em_state_agent_unassoc_sta_metrics_report_pending)
         EM_STATE_2S(em_state_max)

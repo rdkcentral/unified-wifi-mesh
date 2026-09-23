@@ -126,7 +126,7 @@ int dm_policy_t::decode(const cJSON *obj, void *parent_id, em_policy_id_type_t t
 		}
 	} else if (type == em_policy_id_type_backhaul_bss_config) {
         if ((tmp = cJSON_GetObjectItem(obj, "BSSID")) != NULL) {
-			if (m_policy.num_backhaul_bss_config < EM_MAX_BSS_PER_RADIO) {
+			if (m_policy.num_backhaul_bss_config < EM_MAX_BSSS) {
 				unsigned int slot = m_policy.num_backhaul_bss_config;
 				dm_easy_mesh_t::string_to_macbytes(cJSON_GetStringValue(tmp), m_policy.backhaul_bss_config[slot].bssid);
 				if ((tmp = cJSON_GetObjectItem(obj, "Profile-1 bSTA Disallowed")) != NULL) {

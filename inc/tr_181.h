@@ -94,6 +94,9 @@ static const yang_to_tr181_map g_yang_map[] = {
 #define TR181_CHLIST_MAX_LEN       128
 #define TR181_BSSID_MAX_LEN        32
 #define TR181_REQMODE_MAX_LEN      24
+#define TR181_STALIST_MAX_LEN      128
+#define TR181_CHITEM_MAX_CNT       8
+#define TR181_STAMAC_MAX_CNT       16
 
 #define MAX_INSTANCE_LEN        32
 #define MAX_CAPS_STR_LEN        32
@@ -104,6 +107,12 @@ static const yang_to_tr181_map g_yang_map[] = {
 #define MAX_TIMESTAMP_STRLEN    64
 #define MAX_STDLEN              64
 #define ARRAY_SIZE(a)           (sizeof(a) / sizeof(a[0]))
+
+typedef struct {
+    int channel;
+    unsigned int sta_cnt;
+    mac_addr_str_t sta_macs[TR181_STAMAC_MAX_CNT];
+} tr181_unassoc_ch_item_t;
 
 /* Device.WiFi.DataElements.Network */
 #define DE_NETWORK_ID           DATAELEMS_NETWORK       "ID"
@@ -172,6 +181,17 @@ static const yang_to_tr181_map g_yang_map[] = {
 #define DE_DEVICE_RADIONOE      DE_NETWORK_DEVICE       "RadioNumberOfEntries"
 #define DE_DEVICE_CACSTATNOE    DE_NETWORK_DEVICE       "CACStatusNumberOfEntries"
 #define DE_DEVICE_BHDOWNNOE     DE_NETWORK_DEVICE       "BackhaulDownNumberOfEntries"
+#define DE_DEVICE_UNASSOCSTALMQ DE_NETWORK_DEVICE       "X_AIRTIES_UnassociatedStaLinkMetricsQuery()"
+#define DE_DEVICE_XAIRTIES_DEVICEINFO        DE_NETWORK_DEVICE                    "X_AIRTIES_DeviceInfo."
+#define DE_DEVICE_XAIRTIES_UPTIME            DE_DEVICE_XAIRTIES_DEVICEINFO        "Uptime"
+#define DE_DEVICE_XAIRTIES_MEMORYSTATUS      DE_DEVICE_XAIRTIES_DEVICEINFO        "MemoryStatus."
+#define DE_DEVICE_XAIRTIES_TOTAL             DE_DEVICE_XAIRTIES_MEMORYSTATUS      "Total"
+#define DE_DEVICE_XAIRTIES_FREE              DE_DEVICE_XAIRTIES_MEMORYSTATUS      "Free"
+#define DE_DEVICE_XAIRTIES_CACHED            DE_DEVICE_XAIRTIES_MEMORYSTATUS      "Cached"
+#define DE_DEVICE_XAIRTIES_PROCESSSTATUS     DE_DEVICE_XAIRTIES_DEVICEINFO        "ProcessStatus."
+#define DE_DEVICE_XAIRTIES_CPUUSAGE          DE_DEVICE_XAIRTIES_PROCESSSTATUS     "CPUUsage"
+#define DE_DEVICE_XAIRTIES_CPUTEMPERATURE    DE_DEVICE_XAIRTIES_PROCESSSTATUS     "CPUTemperature"
+
 /* Device.WiFi.DataElements.Network.Device.CACStatus */
 #define DE_DEVICE_CACSTAT       DE_NETWORK_DEVICE       "CACStatus.{i}."
 #define DE_CACSTAT_TABLE        DE_NETWORK_DEVICE       "CACStatus.{i}"
@@ -221,6 +241,8 @@ static const yang_to_tr181_map g_yang_map[] = {
 #define DE_RADIO_CHSCANREQ      DE_DEVICE_RADIO         "ChannelScanRequest()"
 #define DE_RADIO_CHSELREQ       DE_DEVICE_RADIO         "ChannelSelectionRequest()"
 #define DE_RADIO_XAIRTIES_OPERSTANDARDS DE_DEVICE_RADIO "X_AIRTIES_OperatingStandards"
+#define DE_RADIO_XAIRTIES_TEMP DE_DEVICE_RADIO          "X_AIRTIES_Temperature"
+
 /* Device.WiFi.DataElements.Network.Device.Radio.BackhaulSta */
 #define DE_RADIO_BHSTA          DE_DEVICE_RADIO         "BackhaulSta."
 #define DE_BHSTA_MACADDR        DE_RADIO_BHSTA          "MACAddress"
@@ -356,6 +378,7 @@ static const yang_to_tr181_map g_yang_map[] = {
 #define DE_BSS_FH_SUITE         DE_RADIO_BSS            "FronthaulSuiteSelector"
 #define DE_BSS_BH_SUITE         DE_RADIO_BSS            "BackhaulSuiteSelector"
 #define DE_BSS_STANOE           DE_RADIO_BSS            "STANumberOfEntries"
+#define DE_BSS_CLIENTASSOCCTRL  DE_RADIO_BSS            "X_AIRTIES_ClientAssocControl()"
 /* Device.WiFi.DataElements.Network.Device.Radio.BSS.STA */
 #define DE_BSS_STA              DE_RADIO_BSS            "STA.{i}."
 #define DE_STA_TABLE            DE_RADIO_BSS            "STA.{i}"
@@ -603,6 +626,27 @@ public:
         bus_data_prop_t *output_data, void *async_handle);
 
     /**!
+     * @brief Handles the RBUS X_AIRTIES_UnassociatedStaLinkMetricsQuery method invocation.
+     *
+     * This function extracts X_AIRTIES_UnassociatedStaLinkMetricsQuery properties from the raw
+     * input payload, forwards them to the EasyMesh controller, and optionally writes response
+     * properties to the output raw buffer for RBUS callers.
+     *
+     * @param method_name RBUS method name, expected to match X_AIRTIES_UnassociatedStaLinkMetricsQuery.
+     * @param input_data Input containing a chained list of bus_data_prop_t entries.
+     * @param output_data Output populated with response properties when provided.
+     * @param async_handle RBUS async handle when the call is asynchronous (may be null).
+     *
+     * @returns bus_error_t
+     * @retval bus_error_none on successful X_AIRTIES_UnassociatedStaLinkMetricsQuery handling.
+     * @retval bus_error_failed on validation or controller execution failure.
+     *
+     * @note Ownership of input and output buffers remains with the caller.
+     */
+    static bus_error_t unassocstalinkmetricsquery_handler(const char *method_name,
+        bus_data_prop_t *input_data, bus_data_prop_t *output_data, void *async_handle);
+
+    /**!
      * @brief Handles the RBUS SteerWiFiBackhaul method invocation.
      *
      * This function extracts SteerWiFiBackhaul properties from the raw input payload, forwards
@@ -663,6 +707,31 @@ public:
      * @note Ownership of input and output buffers remains with the caller.
      */
     static bus_error_t channelselect_handler(const char *method_name, bus_data_prop_t *input_data,
+        bus_data_prop_t *output_data, void *async_handle);
+
+    /**!
+     * @brief Handles the RBUS X_AIRTIES_ClientAssocControl method invocation.
+     *
+     * This function extracts X_AIRTIES_ClientAssocControl properties from the raw input
+     * payload, forwards them to the EasyMesh controller, and optionally writes response
+     * properties to the output raw buffer for RBUS callers.
+     *
+     * @param method_name RBUS method name, expected to match X_AIRTIES_ClientAssocControl().
+     * @param input_data Input containing a chained list of bus_data_prop_t entries.
+     * @param output_data Output populated with response properties when provided.
+     * @param async_handle RBUS async handle when the call is asynchronous (may be null).
+     *
+     * @returns bus_error_t
+     * @retval bus_error_success on successful X_AIRTIES_ClientAssocControl handling.
+     * @retval bus_error_invalid_input on validation failure.
+     * @retval bus_error_invalid_method if the method name does not match.
+     * @retval bus_error_invalid_namespace if requested instance of an object does not exist.
+     * @retval bus_error_out_of_resources on memory allocation failure.
+     * @retval bus_error_general if mandatory objects do not exist.
+     *
+     * @note Ownership of input and output buffers remains with the caller.
+     */
+    static bus_error_t clientassocctrlrequest_handler(const char *method_name, bus_data_prop_t *input_data,
         bus_data_prop_t *output_data, void *async_handle);
 
     /**!
@@ -766,6 +835,18 @@ public:
     static const char *akms_to_auth_type(const char *akms_val);
 
     /**!
+     * @brief Map an AKMsAllowed list to the internal NetworkSSID AuthType.
+     *
+     * @param akms_arr AKMsAllowed array; an empty array means that no AKM is
+     * offered, which is an open BSS.
+     *
+     * @returns const char*
+     * @retval AuthType string (securityTypeMap name) on success.
+     * @retval null for unsupported values.
+     */
+    static const char *akms_array_to_auth_type(const cJSON *akms_arr);
+
+    /**!
      * @brief Format the HaulType array as a comma-separated string.
      *
      * @param item JSON object expected to contain a "HaulType" array.
@@ -777,6 +858,30 @@ public:
      *  @note Returns 0 on invalid input or when no HaulType value is formatted.
      */
     static size_t format_haultype_list(const cJSON *item, char *out, size_t out_len);
+
+    /**!
+     * @brief Extract object index from string buffer, eg. n from "ABC.n".
+     *
+     * @param name Input value expected to contain name string.
+     * @param index Output, will contain index of the object, if successful.
+     *
+     * @returns bool Result of the operation.
+     *
+     * @note Returns false on invalid input or when index is not present.
+     */
+    static bool parse_object_index(const char *name, int *index);
+
+    /**!
+     * @brief Parse the channel object of unassociated sta link metrics query from property.
+     *
+     * @param prop Input, property expected to contain a valid name and value pair.
+     * @param ch_item Output, channel object of unassociated sta link metrics query.
+     *
+     * @returns bool Result of the operation.
+     *
+     * @note Returns false on invalid input.
+     */
+    static bool parse_unassoc_ch_obj(const bus_data_prop_t *prop, tr181_unassoc_ch_item_t *ch_item);
 
      /**!
      * @brief Allocate a bus_data_prop_t with a string value.

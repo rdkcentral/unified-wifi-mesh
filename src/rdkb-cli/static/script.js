@@ -3565,48 +3565,9 @@ async handleWebSocketMessage(data) {
       }
 
       const data = await res.json();
-      if (!Array.isArray(data?.options) || !Array.isArray(data?.ssidHaulConfig)) {
-        this.showNotification("Could not received the wifi reset tree from controller, \nPlease check the controller or try again after sometime.");
+      if (!Array.isArray(data?.ssidHaulConfig)) {
+        this.showNotification("Could not receive the wifi reset tree from controller, \nPlease check the controller or try again after sometime.");
         return;
-      }
-
-      const select = document.getElementById("almac-select");
-      select.innerHTML = '<option value="">Choose AL MAC Address</option>';
-
-      data.options.forEach(mac => {
-        const option = document.createElement("option");
-        option.value = mac;
-        option.textContent = mac;
-        // parse only the AL MAC
-        const alMac = mac.split(" ")[0];
-        if (alMac === data.selectedOption) {
-          option.selected = true;
-        }
-        select.appendChild(option);
-      });
-
-      // Add "Other" option
-      const otherOption = document.createElement("option");
-      otherOption.value = "Other";
-      otherOption.textContent = "Other (Enter manually)";
-      select.appendChild(otherOption);
-
-      // Manual MAC input toggle
-      const manualMacContainer = document.getElementById("manual-almac-container");
-      if (select && manualMacContainer) {
-        select.addEventListener("change", function () {
-          const isOtherSelected = this.value === "Other";
-          manualMacContainer.style.display = isOtherSelected ? "block" : "none";
-
-          const manualInput = document.getElementById("manual-almac");
-          if (!isOtherSelected && manualInput) {
-            manualInput.value = "";
-          }
-        });
-
-        // Trigger change event in case "Other" is pre-selected
-        const event = new Event("change");
-        select.dispatchEvent(event);
       }
 
       // Populate HaulType dropdown
@@ -4418,20 +4379,6 @@ function getMacList(tbodySelector) {
 
 
   function collectResetPayload() {
-    const select = document.getElementById("almac-select");
-    const manualInput = document.getElementById("manual-almac");
-
-    let selectedMac = select.value;
-
-    if (selectedMac === "Other") {
-      selectedMac = manualInput.value.trim();
-      if (!selectedMac) {
-        alert("Please enter a valid AL MAC address.");
-        throw new Error("Manual AL MAC address is required.");
-      }
-    }
-
-
     const haulTypes = Array.from(document.querySelectorAll("input[name='haulType']:checked")).map(checkbox => {
       const haulType = checkbox.value;
       const ssid = document.getElementById(`ssid-${haulType}`)?.value || "";
@@ -4444,7 +4391,7 @@ function getMacList(tbodySelector) {
       };
     });
 
-    return { selectedMac, haulTypes };
+    return { haulTypes };
   }
 
   async function sendResetPayload(payload) {
