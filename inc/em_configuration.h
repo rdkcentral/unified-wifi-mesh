@@ -1857,9 +1857,11 @@ public:
 	 * @param[in] uuid Pointer to the UUID array.
 	 * @param[in] len Length of the UUID array.
 	 *
+	 * @returns false if the pointer is null or the length is invalid.
+	 *
 	 * @note Ensure that the UUID array is properly initialized before calling this function.
 	 */
-	void set_e_uuid(unsigned char *uuid, unsigned int len) { m_crypto.set_e_uuid(uuid, len); }
+	bool set_e_uuid(unsigned char *uuid, unsigned int len) { return m_crypto.set_e_uuid(uuid, len); }
     
 	/**!
 	 * @brief Sets the UUID for the cryptographic module.
@@ -1870,10 +1872,12 @@ public:
 	 * @param[in] uuid Pointer to the UUID data.
 	 * @param[in] len Length of the UUID data.
 	 *
+	 * @returns false if the pointer is null or the length is invalid.
+	 *
 	 * @note Ensure that the UUID is valid and the length is correct before calling
 	 * this function.
 	 */
-	void set_r_uuid(unsigned char *uuid, unsigned int len) { m_crypto.set_r_uuid(uuid, len); }
+	bool set_r_uuid(unsigned char *uuid, unsigned int len) { return m_crypto.set_r_uuid(uuid, len); }
     
 	/**!
 	 * @brief Sets the encryption nonce.
@@ -1883,9 +1887,11 @@ public:
 	 * @param[in] nonce Pointer to the nonce data.
 	 * @param[in] len Length of the nonce data.
 	 *
+	 * @returns false if the pointer is null or the length is invalid.
+	 *
 	 * @note This function directly interacts with the m_crypto object to set the nonce.
 	 */
-	void set_e_nonce(unsigned char *nonce, unsigned int len) { m_crypto.set_e_nonce(nonce, len); }
+	bool set_e_nonce(unsigned char *nonce, unsigned int len) { return m_crypto.set_e_nonce(nonce, len); }
     
 	/**!
 	 * @brief Sets the R nonce value for cryptographic operations.
@@ -1896,10 +1902,12 @@ public:
 	 * @param[in] nonce Pointer to the nonce value to be set.
 	 * @param[in] len Length of the nonce value.
 	 *
+	 * @returns false if the pointer is null or the length is invalid.
+	 *
 	 * @note Ensure that the nonce is unique for each operation to
 	 * maintain security.
 	 */
-	void set_r_nonce(unsigned char *nonce, unsigned int len) { m_crypto.set_r_nonce(nonce, len); }	
+	bool set_r_nonce(unsigned char *nonce, unsigned int len) { return m_crypto.set_r_nonce(nonce, len); }
 
     
 	/**!
@@ -1990,9 +1998,11 @@ public:
 	 * @param[in] pub Pointer to the public key data.
 	 * @param[in] len Length of the public key data.
 	 *
+	 * @returns false if the pointer is null or the length is invalid.
+	 *
 	 * @note Ensure that the public key data is valid and the length is correctly specified.
 	 */
-	void set_e_public(unsigned char *pub, unsigned int len) { m_crypto.set_e_public(pub, len); }
+	bool set_e_public(unsigned char *pub, unsigned int len) { return m_crypto.set_e_public(pub, len); }
     
 	/**!
 	 * @brief Sets the public key.
@@ -2002,9 +2012,11 @@ public:
 	 * @param[in] pub Pointer to the byte array containing the public key.
 	 * @param[in] len Length of the public key byte array.
 	 *
+	 * @returns false if the pointer is null or the length is invalid.
+	 *
 	 * @note Ensure that the byte array is properly initialized and the length is correct.
 	 */
-	void set_r_public(unsigned char *pub, unsigned int len) { m_crypto.set_r_public(pub, len); }
+	bool set_r_public(unsigned char *pub, unsigned int len) { return m_crypto.set_r_public(pub, len); }
 
     
 	/**!

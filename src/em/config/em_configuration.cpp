@@ -4361,9 +4361,13 @@ int em_configuration_t::handle_wsc_m2(unsigned char *buff, unsigned int len, uns
                 return -1;
             }
         } else if (id == attr_id_registrar_nonce) {
-            set_r_nonce(attr->val, htons(attr->len));
+            if(!set_r_nonce(attr->val, htons(attr->len))) {
+			    return -1;
+			}
         } else if (id == attr_id_public_key) {
-            set_r_public(attr->val, htons(attr->len));
+            if(!set_r_public(attr->val, htons(attr->len))) {
+			    return -1;
+			}
         } else if (id == attr_id_encrypted_settings) {
             memcpy(&m_m2_encrypted_settings[index][0], attr->val, htons(attr->len));
             m_m2_encrypted_settings_len[index] = htons(attr->len);
@@ -4423,17 +4427,23 @@ int em_configuration_t::handle_wsc_m1(unsigned char *buff, unsigned int len)
                 return -1;
             }
         } else if (id == attr_id_uuid_e) {
-            set_e_uuid(attr->val, htons(attr->len));
+            if(!set_e_uuid(attr->val, htons(attr->len))) {
+			    return -1;
+			}
             //printf("%s:%d: enrollee uuid length:%d\n", __func__, __LINE__, htons(attr->len));
         } else if (id == attr_id_mac_address) {
             set_e_mac(attr->val);
             dm_easy_mesh_t::macbytes_to_string(attr->val, mac_str);
             //printf("%s:%d: enrollee mac address:%s\n", __func__, __LINE__, mac_str);
         } else if (id == attr_id_enrollee_nonce) {
-            set_e_nonce(attr->val, htons(attr->len));
+            if(!set_e_nonce(attr->val, htons(attr->len))) {
+			    return -1;
+			}
             //printf("%s:%d: enrollee nonce length:%d\n", __func__, __LINE__, htons(attr->len));
         } else if (id == attr_id_public_key) {
-            set_e_public(attr->val, htons(attr->len));
+            if(!set_e_public(attr->val, htons(attr->len))) {
+			    return -1;
+			}
             //printf("%s:%d: enrollee public key length:%d\n", __func__, __LINE__, htons(attr->len));
         } else if (id == attr_id_auth_type_flags) {
             uint16_t auth_flags = 0;

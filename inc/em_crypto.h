@@ -972,9 +972,18 @@ public:
 	 * @param[in] uuid Pointer to the UUID to be set.
 	 * @param[in] len Length of the UUID.
 	 *
+	 * @returns false if the pointer is null or the length is invalid.
+	 *
 	 * @note Ensure that the length of the UUID does not exceed the size of e_uuid in m_crypto_info.
 	 */
-	inline void set_e_uuid(unsigned char *uuid, unsigned int len) { memcpy(reinterpret_cast<unsigned char *>(&m_crypto_info.e_uuid), uuid, len); }
+	inline bool set_e_uuid(unsigned char *uuid, unsigned int len) {
+	    if ((uuid == nullptr) || (len != sizeof(uuid_t))) {
+                return false;
+            }
+
+	    memcpy(reinterpret_cast<unsigned char *>(&m_crypto_info.e_uuid), uuid, len);
+		return true;
+	}
     
 	/**!
 	 * @brief Sets the UUID for the crypto information.
@@ -984,9 +993,18 @@ public:
 	 * @param[in] uuid Pointer to the UUID to be set.
 	 * @param[in] len Length of the UUID.
 	 *
+	 * @returns false if the pointer is null or the length is invalid.
+	 *
 	 * @note Ensure that the length of the UUID does not exceed the allocated space in the internal structure.
 	 */
-	inline void set_r_uuid(unsigned char *uuid, unsigned int len) { memcpy(reinterpret_cast<unsigned char *>(&m_crypto_info.r_uuid), uuid, len); }
+	inline bool set_r_uuid(unsigned char *uuid, unsigned int len) {
+            if ((uuid == nullptr) || (len != sizeof(uuid_t))) {
+                return false;
+            }
+
+	    memcpy(reinterpret_cast<unsigned char *>(&m_crypto_info.r_uuid), uuid, len);
+		return true;
+	}
     
 	/**!
 	 * @brief Sets the encryption nonce.
@@ -996,9 +1014,17 @@ public:
 	 * @param[in] nonce Pointer to the nonce data to be set.
 	 * @param[in] len Length of the nonce data.
 	 *
+	 * @returns false if the pointer is null or the length is invalid.
+	 *
 	 * @note Ensure that the nonce data is of the correct length before calling this function.
 	 */
-	inline void set_e_nonce(unsigned char *nonce, unsigned int len) { memcpy(reinterpret_cast<unsigned char *>(&m_crypto_info.e_nonce), nonce, len); }
+	inline bool set_e_nonce(unsigned char *nonce, unsigned int len) {
+            if ((nonce == nullptr) || (len != sizeof(em_nonce_t))) {
+                return false;
+            }
+	    memcpy(reinterpret_cast<unsigned char *>(&m_crypto_info.e_nonce), nonce, len);
+		return true;
+	}
     
 	/**!
 	 * @brief Sets the r_nonce value.
@@ -1008,9 +1034,17 @@ public:
 	 * @param[in] nonce Pointer to the nonce data to be set.
 	 * @param[in] len Length of the nonce data.
 	 *
+	 * @returns false if the pointer is null or the length is invalid.
+	 *
 	 * @note Ensure that the nonce data is valid and the length is appropriate before calling this function.
 	 */
-	inline void set_r_nonce(unsigned char *nonce, unsigned int len) { memcpy(reinterpret_cast<unsigned char *>(&m_crypto_info.r_nonce), nonce, len); }
+	inline bool set_r_nonce(unsigned char *nonce, unsigned int len) {
+            if ((nonce == nullptr) || (len != sizeof(em_nonce_t))) {
+                return false;
+            }
+	    memcpy(reinterpret_cast<unsigned char *>(&m_crypto_info.r_nonce), nonce, len);
+		return true;
+	}
 
     
 	/**!
@@ -1102,9 +1136,17 @@ public:
 	 * @param[in] pub Pointer to the public key data.
 	 * @param[in] len Length of the public key data.
 	 *
+	 * @returns false if the pointer is null or the length is invalid.
+	 *
 	 * @note Ensure that the length of the public key data does not exceed the allocated space.
 	 */
-	inline void set_e_public(unsigned char *pub, unsigned int len) { memcpy(m_crypto_info.e_pub, pub, len); }
+	inline bool set_e_public(unsigned char *pub, unsigned int len) {
+            if ((pub == nullptr) || (len != DH_KEY_SZ)) {
+                return false;
+            }
+	    memcpy(m_crypto_info.e_pub, pub, len);
+		return true;
+	}
     
 	/**!
 	 * @brief Sets the public key.
@@ -1114,9 +1156,17 @@ public:
 	 * @param[in] pub Pointer to the public key data.
 	 * @param[in] len Length of the public key data.
 	 *
+	 * @returns false if the pointer is null or the length is invalid.
+	 *
 	 * @note Ensure that the length of the public key does not exceed the buffer size.
 	 */
-	inline void set_r_public(unsigned char *pub, unsigned int len) { memcpy(m_crypto_info.r_pub, pub, len); }
+	inline bool set_r_public(unsigned char *pub, unsigned int len) {
+            if ((pub == nullptr) || (len != DH_KEY_SZ)) {
+               return false;
+            }
+	    memcpy(m_crypto_info.r_pub, pub, len);
+		return true;
+	}
 
     
 	/**!

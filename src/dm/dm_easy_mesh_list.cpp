@@ -635,6 +635,10 @@ void dm_easy_mesh_list_t::put_bss(const char *key, const dm_bss_t *bss)
 	}
 
 	if ((pbss = dm->find_matching_bss(&id)) == NULL) {
+		if (dm->m_num_bss >= EM_MAX_BSSS) {
+			printf("%s:%d: Maximum BSS limit reached (%u)\n", __func__, __LINE__, EM_MAX_BSSS);
+			return;
+		}
 		pbss = &dm->m_bss[dm->m_num_bss];
 		dm->m_num_bss++;
 	}	
