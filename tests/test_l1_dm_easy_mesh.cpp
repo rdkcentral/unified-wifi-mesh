@@ -7326,8 +7326,10 @@ TEST(dm_easy_mesh_t, get_ap_mld_valid_index_zero_configured)
     unsigned char bssid[] = {0x20, 0x21, 0x22, 0x23, 0x24, 0x25};
     memcpy(input.affiliated_ap[0].mac_addr, bssid, sizeof(bssid));
     meshObj.update_ap_mld_info(&input);
-    std::cout << "Invoking get_ap_mld_frm_bssid()" << std::endl;
-    em_ap_mld_info_t* info = meshObj.get_ap_mld_frm_bssid(bssid);
+    std::cout << "Invoking get_ap_mld() with AL MAC and haul type" << std::endl;
+    dm_ap_mld_t* apMld = meshObj.get_ap_mld(
+        meshObj.get_agent_al_interface_mac(), input.haul_type);
+    em_ap_mld_info_t* info = apMld == nullptr ? nullptr : apMld->get_ap_mld_info();
     if(info != nullptr)
     {
         std::cout << "Retrieved AP MLD info: " << std::endl;
