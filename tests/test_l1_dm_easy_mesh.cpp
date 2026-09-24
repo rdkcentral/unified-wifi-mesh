@@ -7401,6 +7401,11 @@ TEST(dm_easy_mesh_t, get_ap_mld_index_out_of_range)
     em_ap_mld_info_t input{};
     input.haul_type = em_haul_type_fronthaul;
     input.mac_addr_valid = true;
+    input.str = false;
+    input.emlsr = true;
+    memcpy(input.ssid, "TestSSID", sizeof("TestSSID"));
+    unsigned char valid_mac[] = {0x10, 0x11, 0x23, 0x3D, 0x4D, 0x5E};
+    memcpy(input.mac_addr, valid_mac, sizeof(valid_mac));
     meshObj.update_ap_mld_info(&input);
     EXPECT_EQ(meshObj.get_num_ap_mld(), 1u);
     dm_ap_mld_t* apMldPtr = meshObj.get_ap_mld(
@@ -7447,9 +7452,6 @@ TEST(dm_easy_mesh_t, get_ap_mld_by_ref_valid_index_zero_configured)
     memcpy(input.ssid, "TestSSID", sizeof("TestSSID"));
     unsigned char valid_mac[] = {0x10, 0x11, 0x23, 0x3D, 0x4D, 0x5E};
     memcpy(input.mac_addr, valid_mac, sizeof(valid_mac));
-    input.num_affiliated_ap = 1;
-    input.affiliated_ap[0].mac_addr_valid = true;
-    memcpy(input.affiliated_ap[0].mac_addr, valid_mac, sizeof(valid_mac));
     meshObj.update_ap_mld_info(&input);
     dm_ap_mld_t* apMld = meshObj.get_ap_mld(
         meshObj.get_agent_al_interface_mac(), em_haul_type_fronthaul);
@@ -7534,9 +7536,11 @@ TEST(dm_easy_mesh_t, get_ap_mld_by_ref_index_out_of_range)
     em_ap_mld_info_t input{};
     input.haul_type = em_haul_type_fronthaul;
     input.mac_addr_valid = true;
-    input.num_affiliated_ap = 1;
-    input.affiliated_ap[0].mac_addr_valid = true;
-    input.affiliated_ap[0].mac_addr[5] = 1;
+    input.str = false;
+    input.emlsr = true;
+    memcpy(input.ssid, "TestSSID", sizeof("TestSSID"));
+    unsigned char valid_mac[] = {0x10, 0x11, 0x23, 0x3D, 0x4D, 0x5E};
+    memcpy(input.mac_addr, valid_mac, sizeof(valid_mac));
     meshObj.update_ap_mld_info(&input);
     EXPECT_EQ(meshObj.get_num_ap_mld(), 1u);
     dm_ap_mld_t* apMld = meshObj.get_ap_mld(
@@ -13183,8 +13187,6 @@ TEST(dm_easy_mesh_t, get_num_ap_mld_ValidNonZeroValue)
     em_ap_mld_info_t input{};
     for (unsigned int i = 0; i < 3; i++) {
         input.haul_type = static_cast<em_haul_type_t>(i);
-        input.mac_addr_valid = true;
-        input.mac_addr[5] = static_cast<unsigned char>(i + 1);
         mesh.update_ap_mld_info(&input);
     }
     std::cout << "Invoking get_num_ap_mld()" << std::endl;
@@ -13490,8 +13492,6 @@ TEST(dm_easy_mesh_t, static_get_num_ap_mld_ValidNonZeroValue)
     em_ap_mld_info_t input{};
     for (unsigned int i = 0; i < 3; i++) {
         input.haul_type = static_cast<em_haul_type_t>(i);
-        input.mac_addr_valid = true;
-        input.mac_addr[5] = static_cast<unsigned char>(i + 1);
         mesh.update_ap_mld_info(&input);
     }
     std::cout << "Invoking get_num_ap_mld(&mesh)" << std::endl;
@@ -22441,7 +22441,7 @@ TEST(dm_easy_mesh_t, UpdateApMldInfo_negative_MaxMldLimitReached)
  * |       01       | Initialize dm_easy_mesh_t instance and call init method                                   | dm_easy_mesh_t dm                                                                                   | dm is properly initialized                                                                                                   | Should be successful |
  * |       02       | Populate em_ap_mld_info_t structure with valid SSID and MAC address values                 | input.mac_addr_valid = true, input.ssid = "StaticCallSSID", input.mac_addr = [20,21,22,23,24,25]      | Input structure is populated with valid data                                                                               | Should be successful |
  * |       03       | Invoke the static API update_ap_mld_info with the dm object and input structure            | dm pointer, input pointer                                                                            | dm.m_num_ap_mld is updated to 1                                                                                                | Should Pass     |
- * |       04       | Validate the stored SSID in the dm structure using EXPECT_STREQ assertion                  | stored AP MLD info is selected through its affiliated BSSID | The stored SSID exactly matches "StaticCallSSID"                                                                             | Should Pass     |
+ * |       04       | Validate the stored SSID in the dm structure using EXPECT_STREQ assertion                  | stored AP MLD info is selected by AL interface MAC and haul type | The stored SSID exactly matches "StaticCallSSID"                                                                     | Should Pass     |
  */
 TEST(dm_easy_mesh_t, UpdateApMldInfo_positive_StaticWrapperInvocation)
 {
@@ -22455,9 +22455,6 @@ TEST(dm_easy_mesh_t, UpdateApMldInfo_positive_StaticWrapperInvocation)
     for (int i = 0; i < 6; i++) {
         input.mac_addr[i] = static_cast<uint8_t>(20 + i);
     }
-    input.num_affiliated_ap = 1;
-    input.affiliated_ap[0].mac_addr_valid = true;
-    memcpy(input.affiliated_ap[0].mac_addr, input.mac_addr, sizeof(mac_address_t));
     std::cout << "Invoking static update_ap_mld_info(&dm, &input)" << std::endl;
     dm_easy_mesh_t::update_ap_mld_info(&dm, &input);
     EXPECT_EQ(dm.get_num_ap_mld(), 1u);
