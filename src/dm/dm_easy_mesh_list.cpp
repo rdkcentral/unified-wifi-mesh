@@ -390,8 +390,13 @@ if (dm == NULL) {
 
     if ((pradio = get_radio(key)) == NULL) {
         //em_printfout("Current Number of Radios: %d", dm->get_num_radios());
-        dm->set_num_radios(dm->get_num_radios() + 1);
-        pradio = dm->get_radio(dm->get_num_radios() - 1);
+        unsigned int radio_index = dm->get_num_radios();
+        if (radio_index >= EM_MAX_BANDS) {
+            em_printfout("Error: Cannot add radio key %s: maximum radios limit reached (%d)", key, EM_MAX_BANDS);
+            return;
+        }
+        dm->set_num_radios(radio_index + 1);
+        pradio = dm->get_radio(radio_index);
     }
     *pradio = *radio;
 
