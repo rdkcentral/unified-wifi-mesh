@@ -1495,7 +1495,7 @@ int dm_easy_mesh_t::decode_config_set_ssid(em_subdoc_info_t *subdoc, const char 
 
 	m_num_net_ssids = arr_size;
 
-    cJSON_free(parent_obj);
+    cJSON_Delete(parent_obj);
 	
 	// now validate
 	for (i = 0; i < arr_size; i++) {
