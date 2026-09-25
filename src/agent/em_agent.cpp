@@ -1653,8 +1653,36 @@ void em_agent_t::input_listener()
 
     load_em_plus_cfg();
 
+    if (desc->bus_event_subs_fn(&m_bus_hdl, WIFI_EM_TX_POWER_READY,
+            reinterpret_cast<void *>(&em_agent_t::tx_power_ready_cb), this, 0) != 0) {
+        em_printfout("Error: Failed to subscribe to '%s'", WIFI_EM_TX_POWER_READY);
+        return;
+    }
+
+    em_printfout("Waiting for transmit power ready event");
+    raw_data_t ready_data = {};
+    bus_error_t ready_status = desc->bus_data_get_fn(&m_bus_hdl,
+        WIFI_EM_TX_POWER_READY_STATUS, &ready_data);
+    if (ready_status == bus_error_success && ready_data.raw_data.u32 != 0) {
+        std::lock_guard<std::mutex> lock(m_tx_power_ready_mutex);
+        m_tx_power_ready = true;
+        em_printfout("Transmit power ready state was already set");
+    } else if (ready_status != bus_error_success) {
+        em_printfout("Transmit power ready state query failed: %d", ready_status);
+    }
+
+    {
+        std::unique_lock<std::mutex> lock(m_tx_power_ready_mutex);
+        if (!m_tx_power_ready) {
+            em_printfout("Waiting for transmit power ready event before DML retrieval");
+            m_tx_power_ready_cv.wait(lock, [this]() { return m_tx_power_ready; });
+        }
+    }
+    em_printfout("Starting DML retrieval after readiness synchronization");
+
     memset(&data, 0, sizeof(raw_data_t));
 
+    em_printfout("Starting DML retrieval for %s", WIFI_WEBCONFIG_INIT_DML_DATA);
     while ((bus_error_val = desc->bus_data_get_fn(&m_bus_hdl, WIFI_WEBCONFIG_INIT_DML_DATA, &data)) != bus_error_success) {
         em_printfout("Error: bus get failed, error: %d", bus_error_val);
 		usleep(RETRY_SLEEP_INTERVAL_IN_MS * 1000);
@@ -1670,6 +1698,7 @@ void em_agent_t::input_listener()
         }
     }
     em_printfout("Received data:\r\n%s\r\n", reinterpret_cast<char *>(data.raw_data.bytes));
+    em_printfout("Retrieved transmit power values from DML");
 
     g_agent.io_process(em_bus_event_type_dev_init, reinterpret_cast<unsigned char *>(data.raw_data.bytes), data.raw_data_len);
     free(data.raw_data.bytes);
@@ -1734,6 +1763,25 @@ void em_agent_t::input_listener()
     }
 
     io(NULL);
+}
+
+int em_agent_t::tx_power_ready_cb(char *event_name, bus_data_prop_t *data, void *userData)
+{
+    (void)event_name;
+    (void)data;
+
+    em_agent_t *agent = static_cast<em_agent_t *>(userData);
+    if (agent == nullptr) {
+        return -1;
+    }
+
+    {
+        std::lock_guard<std::mutex> lock(agent->m_tx_power_ready_mutex);
+        agent->m_tx_power_ready = true;
+    }
+    agent->m_tx_power_ready_cv.notify_all();
+    em_printfout("Received transmit power ready event");
+    return 1;
 }
 
 int em_agent_t::unassoc_sta_link_metrics_cb(char *event_name, bus_data_prop_t *data, void *userData)
