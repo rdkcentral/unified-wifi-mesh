@@ -26,7 +26,9 @@
 
 class em_cmd_t;
 class em_mgr_t;
+class em_metrics_t;
 class em_configuration_t {
+	friend class em_metrics_t;
 
     
 	/**!

@@ -43,6 +43,7 @@
 #include "em_cmd.h"
 #include "util.h"
 #include "em.h"
+#include "em_mgr.h"
 #include "em_cmd_exec.h"
 #include "dm_easy_mesh_agent.h"
 #include "em_cmd_unassoc_sta_query.h"
@@ -987,8 +988,15 @@ int em_metrics_t::handle_ap_metrics_response(unsigned char *buff, unsigned int l
 
     dm = get_data_model();
 
-    if (em_msg_t(em_msg_type_ap_metrics_rsp, get_profile_type(), buff, len).validate(errors) == 0) {
-        printf("%s:%d: AP Metrics metrics response msg validation failed\n", __func__, __LINE__);
+    em_profile_type_t validation_profile = get_profile_type();
+    em_mgr_t *mgr = get_mgr();
+    em_t *al_node = (mgr != nullptr) ? mgr->get_al_node() : nullptr;
+    if (al_node != nullptr && al_node->get_peer_profile() != em_profile_type_reserved) {
+        validation_profile = al_node->get_peer_profile();
+    }
+
+    if (em_msg_t(em_msg_type_ap_metrics_rsp, validation_profile, buff, len).validate(errors) == 0) {
+        em_printfout("%s:%d: AP Metrics metrics response msg validation failed\n", __func__, __LINE__);
         return -1;
     }
 
@@ -2907,7 +2915,12 @@ void em_metrics_t::process_msg(unsigned char *data, unsigned int len)
             break;
 
         case em_msg_type_ap_metrics_rsp:
-            handle_ap_metrics_response(data, len);
+            em_radios.clear();
+            get_mgr()->get_all_em_for_al_mac(hdr->src, em_radios);
+            for (auto &em : em_radios) {
+                em->handle_ap_metrics_response(data, len);
+                break;
+            }
             break;
         case em_msg_type_topo_vendor:
             handle_vendor_msg(data, len);
