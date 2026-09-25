@@ -205,7 +205,12 @@ public:
     static bus_error_t bstacfg_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
 
 private:
-    db_client_t m_db_client;
+    // Bound at init() time via db_client_t::create(), based on the requested
+    // db_client_type_t (local/cloud/none). Every dm_*_list_t table class
+    // only ever sees this through the db_client_t& interface, so which
+    // concrete backend is behind it is invisible to them.
+    db_client_t     *m_db_client;
+    db_client_type_t m_db_client_type;
     bool	m_initialized;
     bool	m_network_initialized;
 
@@ -301,7 +306,11 @@ public:
 	 * and initializing the manager structure.
 	 *
 	 * @param[in] data_model_path The file path to the data model configuration.
+	 * Ignored by backends that need no connection info (e.g. db_client_type_none).
 	 * @param[out] mgr Pointer to the Easy Mesh manager structure to be initialized.
+	 * @param[in] db_type Which persistence backend to bind to. Defaults to
+	 * db_client_type_local, preserving existing (MariaDB-backed) behavior
+	 * for callers that don't pass this explicitly.
 	 *
 	 * @returns int
 	 * @retval 0 on success
@@ -309,7 +318,7 @@ public:
 	 *
 	 * @note Ensure that the data model path is valid and accessible before calling this function.
 	 */
-	int init(const char *data_model_path, em_mgr_t *mgr);
+	int init(const char *data_model_path, em_mgr_t *mgr, db_client_type_t db_type = db_client_type_local);
 
     
 	/**!
@@ -1152,6 +1161,18 @@ public:
 	 * @note Ensure that the network identifier and interface are valid before calling this function.
 	 */
 	dm_easy_mesh_t	*create_data_model(const char *net_id, const em_interface_t *al_intf, em_profile_type_t profile);    
+
+	/**!
+	 * @brief Synthesizes the controller's network entry and data model from the AL-SAP MAC.
+	 *
+	 * Used only during init() for --db-type=none (and future cloud) backends, where no
+	 * persisted network entry exists yet to load.
+	 *
+	 * @returns int Status code.
+	 * @retval 0 on success.
+	 * @retval -1 if no AL-SAP MAC is available yet.
+	 */
+	int bootstrap_controller_network();
 
 	
 	/**!

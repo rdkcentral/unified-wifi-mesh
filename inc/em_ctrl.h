@@ -38,10 +38,17 @@ class em_ctrl_t : public em_mgr_t {
 
     static em_ctrl_t *s_em_ctrl;
 
-    dm_easy_mesh_ctrl_t m_data_model;
+    dm_easy_mesh_ctrl_t m_ctrl_data_model;
     em_cmd_ctrl_t   *m_ctrl_cmd;
     em_orch_ctrl_t *m_orch;
 	em_dev_test_t dev_test;
+
+    // Persistence backend resolved from the process's command-line
+    // arguments in main() (see set_db_type()/parse_db_type_arg()), read by
+    // data_model_init() when it calls dm_easy_mesh_ctrl_t::init(). Defaults
+    // to db_client_type_local so existing invocations without the new flag
+    // keep today's behavior unchanged.
+    db_client_type_t m_db_type;
 
 	/**!
 	 * @brief Handles a bus event.
@@ -69,7 +76,7 @@ public:
 
     static em_ctrl_t *get_em_ctrl_instance();
 
-	dm_easy_mesh_ctrl_t *get_dm_ctrl() { return &m_data_model; }
+	dm_easy_mesh_ctrl_t *get_dm_ctrl() { return &m_ctrl_data_model; }
 
 	em_orch_t *get_orch() override { return m_orch; }
     
@@ -98,13 +105,38 @@ public:
 	 * @note Ensure the path is valid and accessible.
 	 */
 	int data_model_init(const char *data_model_path);
+
+	db_client_type_t get_db_type() { return m_db_type; }
+
+	/**!
+	 * @brief Sets which persistence backend data_model_init() will bind
+	 * the controller's data model to. Must be called (if at all) before
+	 * data_model_init()/init() runs; otherwise db_client_type_local
+	 * (today's existing behavior) is used.
+	 *
+	 * @param[in] type The backend to use (local/cloud/none).
+	 */
+	void set_db_type(db_client_type_t type) { m_db_type = type; }
+
+	/**!
+	 * @brief Parses a "--db-type=local|cloud|none" style argument out of
+	 * argv, mirroring the "--interface="/"--start-dpp-onboard" flags this
+	 * process already accepts. Unrecognized/absent values resolve to
+	 * db_client_type_local via db_client_factory_t::type_from_string().
+	 *
+	 * @param[in] argc Argument count, as passed to main().
+	 * @param[in] argv Argument vector, as passed to main().
+	 *
+	 * @returns The resolved db_client_type_t.
+	 */
+	static db_client_type_t parse_db_type_arg(int argc, const char *argv[]);
     
 	/**!
 	 * @brief Checks if the data model is initialized.
 	 *
 	 * @returns True if the data model is initialized, false otherwise.
 	 */
-	bool is_data_model_initialized() { return m_data_model.is_initialized(); }
+	bool is_data_model_initialized() { return m_ctrl_data_model.is_initialized(); }
     
 	/**!
 	 * @brief Checks if the network topology is initialized.
@@ -113,7 +145,7 @@ public:
 	 *
 	 * @returns True if the network topology is initialized, false otherwise.
 	 */
-	bool is_network_topology_initialized() { return m_data_model.is_network_initialized(); }
+	bool is_network_topology_initialized() { return m_ctrl_data_model.is_network_initialized(); }
 
 	
 	/**!
@@ -516,24 +548,24 @@ public:
 	 *
 	 * @note This function does not take any parameters and does not return any value.
 	 */
-	void init_network_topology() { m_data_model.init_network_topology(); }
+	void init_network_topology() { m_ctrl_data_model.init_network_topology(); }
 	
 	/**!
 	 * @brief Updates the network topology using the data model.
 	 *
-	 * This function calls the `update_network_topology` method on the `m_data_model` object
+	 * This function calls the `update_network_topology` method on the `m_ctrl_data_model` object
 	 * to refresh or modify the current network topology.
 	 *
-	 * @note Ensure that `m_data_model` is properly initialized before calling this function.
+	 * @note Ensure that `m_ctrl_data_model` is properly initialized before calling this function.
 	 */
-	void update_network_topology() { m_data_model.update_network_topology(); }
+	void update_network_topology() { m_ctrl_data_model.update_network_topology(); }
 
 	/**!
 	 * @brief Publish the network topology using the data model.
 	 *
 	 * This function publishes the current network topology over the bus.
 	 *
-	 * @note Ensure that `m_data_model` is properly updated before calling this function.
+	 * @note Ensure that `m_ctrl_data_model` is properly updated before calling this function.
 	 */
 	void publish_network_topology();
 
@@ -542,7 +574,7 @@ public:
 	 *
 	 * @returns A pointer to the first `dm_easy_mesh_t` data model, or nullptr if no dms are available.
 	 */
-	dm_easy_mesh_t *get_first_dm() override { return m_data_model.get_first_dm(); }
+	dm_easy_mesh_t *get_first_dm() override { return m_ctrl_data_model.get_first_dm(); }
 
 	/**!
 	 * @brief Retrieves the next data model in the agent list.
@@ -551,7 +583,7 @@ public:
 	 *
 	 * @returns A pointer to the next `dm_easy_mesh_t` data model, or nullptr if there are no more dms.
 	 */
-	dm_easy_mesh_t *get_next_dm(dm_easy_mesh_t *dm) override { return m_data_model.get_next_dm(dm); }
+	dm_easy_mesh_t *get_next_dm(dm_easy_mesh_t *dm) override { return m_ctrl_data_model.get_next_dm(dm); }
 
 	/**!
 	 * @brief Retrieves the data model for a given network ID and optional AL MAC address.
@@ -565,7 +597,7 @@ public:
 	 * @returns A pointer to the `dm_easy_mesh_t` data model associated with the given network ID.
 	 * @note If the AL MAC address is not provided, the function will use a default value.
 	 */
-	dm_easy_mesh_t *get_data_model(const char *net_id, const unsigned char *al_mac = NULL) { return m_data_model.get_data_model(net_id, al_mac); }
+	dm_easy_mesh_t *get_data_model(const char *net_id, const unsigned char *al_mac = NULL) { return m_ctrl_data_model.get_data_model(net_id, al_mac); }
     
 	/**!
 	 * @brief Creates a data model for the specified network ID and interface.
@@ -581,7 +613,7 @@ public:
 	 *
 	 * @note Ensure that the network ID and interface are valid before calling this function.
 	 */
-	dm_easy_mesh_t *create_data_model(const char *net_id, const em_interface_t *al_intf, em_profile_type_t profile = em_profile_type_3) { return m_data_model.create_data_model(net_id, al_intf, profile); }
+	dm_easy_mesh_t *create_data_model(const char *net_id, const em_interface_t *al_intf, em_profile_type_t profile = em_profile_type_3) { return m_ctrl_data_model.create_data_model(net_id, al_intf, profile); }
     
 	/**!
 	 * @brief Deletes the data model associated with the given network ID and AL MAC address.
@@ -593,18 +625,18 @@ public:
 	 *
 	 * @note Ensure that the network ID and AL MAC address are valid and correspond to an existing data model entry.
 	 */
-	void delete_data_model(const char *net_id, const unsigned char *al_mac) { m_data_model.delete_data_model(net_id, al_mac); }
+	void delete_data_model(const char *net_id, const unsigned char *al_mac) { m_ctrl_data_model.delete_data_model(net_id, al_mac); }
     
 	/**!
 	 * @brief Deletes all data models.
 	 *
-	 * This function calls the delete_all_data_models method on the m_data_model object,
+	 * This function calls the delete_all_data_models method on the m_ctrl_data_model object,
 	 * effectively removing all data models managed by it.
 	 *
 	 * @note Ensure that any necessary data is backed up before calling this function,
 	 * as it will remove all data models without the possibility of recovery.
 	 */
-	void delete_all_data_models() { m_data_model.delete_all_data_models(); }
+	void delete_all_data_models() { m_ctrl_data_model.delete_all_data_models(); }
     
 	/**!
 	 * @brief Updates the tables in the data model.
@@ -619,7 +651,7 @@ public:
 	 *
 	 * @note Ensure that the dm pointer is valid and properly initialized before calling this function.
 	 */
-	int update_tables(dm_easy_mesh_t *dm) { return m_data_model.update_tables(dm); }
+	int update_tables(dm_easy_mesh_t *dm) { return m_ctrl_data_model.update_tables(dm); }
     
 	/**!
 	 * @brief Loads the network SSID table.
@@ -632,16 +664,16 @@ public:
 	 *
 	 * @note Ensure that the data model is properly initialized before calling this function.
 	 */
-	int load_net_ssid_table() { return m_data_model.load_net_ssid_table(); }
+	int load_net_ssid_table() { return m_ctrl_data_model.load_net_ssid_table(); }
     
 	/**!
 	 * @brief Debugs the probe using the data model.
 	 *
-	 * This function calls the debug_probe method on the m_data_model object.
+	 * This function calls the debug_probe method on the m_ctrl_data_model object.
 	 *
-	 * @note Ensure that m_data_model is properly initialized before calling this function.
+	 * @note Ensure that m_ctrl_data_model is properly initialized before calling this function.
 	 */
-	void debug_probe() { m_data_model.debug_probe(); }
+	void debug_probe() { m_ctrl_data_model.debug_probe(); }
 
     
 	/**!

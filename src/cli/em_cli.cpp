@@ -66,10 +66,10 @@ em_network_node_t *em_cli_t::get_reset_tree(char *platform)
 
 	snprintf(dbg_str, sizeof(em_long_string_t), "Interface Name: %s Media: %d", intf->name, intf->media);	
     g_cli.dump_lib_dbg(dbg_str);
-    dm.set_ctrl_al_interface_mac(intf->mac);
-    dm.set_ctrl_al_interface_name(intf->name);
-	dm.set_controller_id(intf->mac);
-	dm.set_controller_intf_media(intf->media);
+    /* Controller ID must come from the AL-SAP MAC only. */
+    // dm.set_ctrl_al_interface_mac(intf->mac);
+    // dm.set_ctrl_al_interface_name(intf->name);
+	// dm.set_controller_intf_media(intf->media);
             
     //dm.print_config();
 
