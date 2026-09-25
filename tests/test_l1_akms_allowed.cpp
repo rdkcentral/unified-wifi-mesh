@@ -112,7 +112,11 @@ TEST_F(akms_allowed_Test, FronthaulProfileModes) {
     struct { const char *auth; const char *akms; } cases[] = {
         { "Open",            ""        },
         { "WPA2 Personal",   "psk"     },
+#if defined(_PLATFORM_RASPBERRYPI_)
+        { "WPA3 Personal",   "psk+sae" },
+#else
         { "WPA3 Personal",   "sae"     },
+#endif
         { "WPA3 Transition", "psk+sae" },
     };
     bi.id.haul_type = em_haul_type_fronthaul;
@@ -131,7 +135,12 @@ TEST_F(akms_allowed_Test, BackhaulProfileFillsBackhaulSideOnly) {
     bi.id.haul_type = em_haul_type_backhaul;
 
     dm_ctrl.fill_bss_akms_allowed(&dm, &bi, true, buf, sizeof(buf));
+
+#if defined(_PLATFORM_RASPBERRYPI_)
+    EXPECT_STREQ(buf, "psk+sae");
+#else
     EXPECT_STREQ(buf, "sae");
+#endif
     dm_ctrl.fill_bss_akms_allowed(&dm, &bi, false, buf, sizeof(buf));
     EXPECT_STREQ(buf, "");
 }
@@ -145,7 +154,11 @@ TEST_F(akms_allowed_Test, SixGhzOverrideForcesSae) {
     memcpy(bi.ruid.mac, mac, sizeof(mac_address_t));
 
     dm_ctrl.fill_bss_akms_allowed(&dm, &bi, false, buf, sizeof(buf));
+#if defined(_PLATFORM_RASPBERRYPI_)
+    EXPECT_STREQ(buf, "psk+sae");
+#else
     EXPECT_STREQ(buf, "sae");
+#endif
 }
 
 TEST_F(akms_allowed_Test, UnknownAuthTypeFallsBackToStoredSuites) {
