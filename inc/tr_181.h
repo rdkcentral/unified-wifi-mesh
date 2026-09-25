@@ -36,6 +36,7 @@
 #define DEVICE_WIFI_DATAELEMENTS_NETWORK_NODE_CFG_POLICY    "Device.WiFi.DataElements.Network.NodeConfigurePolicy"
 #define DEVICE_WIFI_DATAELEMENTS_NETWORK_NODE_LINKSTATS_ALARM    "Device.WiFi.DataElements.Network.NodeLinkStatsAlarm"
 #define DEVICE_WIFI_DATAELEMENTS_FAILED_CONNECTION               "Device.WiFi.DataElements.FailedConnectionEvent.FailedConnection!"
+#define DEVICE_WIFI_DATAELEMENTS_DISASSOCIATION                  "Device.WiFi.DataElements.DisassociationEvent.Disassociated!"
 
 #define LIST_OF_DEFINITION_NAME "List_Of_Def"
 #define MAX_NUM_OF_OBJECTS_NAME "Num_Of_Objects"
@@ -896,6 +897,33 @@ public:
      * @note Caller owns the returned property and must free it.
      */
     static bus_data_prop_t *tr181_alloc_string_prop(const char *name, const char *value);
+
+    /**!
+     * @brief Create a uint32 property with the given name and value.
+     *
+     * @note Caller owns the returned property and must free it.
+     */
+    static bus_data_prop_t *tr181_alloc_uint32_prop(const char *name, uint32_t value);
+
+    /**!
+     * @brief Create a uint64 property with the given name and value.
+     *
+     * @note Caller owns the returned property and must free it.
+     */
+    static bus_data_prop_t *tr181_alloc_uint64_prop(const char *name, uint64_t value);
+
+    /**!
+     * @brief Append a property to the tail of a property list.
+     *
+     * @param[in,out] list Head of the list, null for an empty list.
+     * @param[in] prop Property to append, null is ignored.
+     */
+    static void tr181_prop_append(bus_data_prop_t **list, bus_data_prop_t *prop);
+
+    /* Allocate a property and append it to the list; see tr181_prop_append(). */
+    static void tr181_append_string_prop(bus_data_prop_t **list, const char *name, const char *value);
+    static void tr181_append_uint32_prop(bus_data_prop_t **list, const char *name, uint32_t value);
+    static void tr181_append_uint64_prop(bus_data_prop_t **list, const char *name, uint64_t value);
 
     /**!
      * @brief Build a "Status" output property.

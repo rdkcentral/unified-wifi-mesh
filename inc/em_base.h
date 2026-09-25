@@ -328,6 +328,10 @@ static const mac_address_t EM_GLOBAL_MAC_ADDRESS = {0xff, 0xff, 0xff, 0xff, 0xff
 #define WIFI_EM_FAILED_CONNECTION             "Device.WiFi.EM.FailedConnection"
 #endif
 
+#ifndef WIFI_EM_CLIENT_DISASSOC_STATS
+#define WIFI_EM_CLIENT_DISASSOC_STATS         "Device.WiFi.EM.ClientDisassocStats"
+#endif
+
 #ifndef WIFI_EM_CLIENT_ASSOC_CTRL_REQ
 #define WIFI_EM_CLIENT_ASSOC_CTRL_REQ        "Device.WiFi.EM.ClientAssocCtrlRequest"
 #endif
@@ -3153,6 +3157,7 @@ typedef enum {
     em_bus_event_type_unassoc_sta_link_metrics_query,
     em_bus_event_type_unassoc_sta_result,
     em_bus_event_type_failed_conn,
+    em_bus_event_type_client_disassoc_stats,
 
     em_bus_event_type_max
 } em_bus_event_type_t;
@@ -3506,6 +3511,7 @@ typedef struct {
 typedef enum {
     em_cmd_event_type_ap_metrics_report,
     em_cmd_event_type_failed_connection,
+    em_cmd_event_type_client_disassoc_stats,
 
     em_cmd_event_type_max
 } em_cmd_event_type_t;
@@ -3518,6 +3524,20 @@ typedef struct {
     unsigned short  reason_code;
     bool            reason_code_present;
 } em_connection_status_evt_data_t;
+
+/* Decoded OneWifi ClientDisassocStats event */
+typedef struct {
+    mac_address_t   sta_mac;
+    bssid_t         bssid;
+    unsigned short  reason_code;
+    unsigned int    bytes_sent;
+    unsigned int    bytes_recv;
+    unsigned int    packets_sent;
+    unsigned int    packets_recv;
+    unsigned int    tx_packets_errors;
+    unsigned int    rx_packets_errors;
+    unsigned int    retrans_count;
+} em_client_disassoc_stats_evt_data_t;
 
 typedef struct {
     em_cmd_event_type_t type;

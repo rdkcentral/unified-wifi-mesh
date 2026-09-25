@@ -218,6 +218,14 @@ class em_agent_t : public em_mgr_t {
 	 */
 	void handle_recv_failed_conn(em_bus_event_t *event);
 
+	/**
+	 * @brief Handles the OneWifi ClientDisassocStats event: queues a Client Disassociation
+	 * Stats message on the radio EM of the BSS the client left.
+	 *
+	 * @param event The event containing the JSON payload (BSSID, STA MacAddress, Reason Code, Traffic Stats)
+	 */
+	void handle_recv_client_disassoc_stats(em_bus_event_t *event);
+
 	/**!
 	 * @brief Handles the BTM response action frame.
 	 *
@@ -1071,6 +1079,16 @@ public:
 	 * @return int 1 on success, otherwise -1
 	 */
 	static int failed_conn_cb(char *event_name, bus_data_prop_t *data, void *userData);
+
+	/**
+	 * @brief Bus callback for the OneWifi ClientDisassocStats event
+	 *
+	 * @param event_name The name of the event
+	 * @param data The raw event data
+	 * @param userData Optional user-provided callback data
+	 * @return int 1 on success, otherwise -1
+	 */
+	static int client_disassoc_stats_cb(char *event_name, bus_data_prop_t *data, void *userData);
 
 	/**
 	 * @brief Callback for BSS scan events

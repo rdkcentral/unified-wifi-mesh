@@ -25,6 +25,11 @@
 #include "em_orch_ctrl.h"
 #include "bus.h"
 #include "em_dev_test_ctrl.h"
+#include <map>
+#include <mutex>
+#include <string>
+
+#define EM_RECENT_DISASSOC_MAX_AGE_SEC 30
 
 #ifdef AL_SAP
 #define DATA_SOCKET_PATH "/tmp/al_data_socket"
@@ -41,6 +46,15 @@ class em_ctrl_t : public em_mgr_t {
     dm_easy_mesh_ctrl_t m_data_model;
     em_cmd_ctrl_t   *m_ctrl_cmd;
     em_orch_ctrl_t *m_orch;
+
+    /* BSS a STA last left, keyed by agent AL MAC and STA MAC. Client Disassociation Stats carries no BSSID. */
+    typedef struct {
+        bssid_t bssid;
+        mac_address_t radiomac;
+        struct timespec ts;
+    } em_recent_disassoc_t;
+    std::map<std::string, em_recent_disassoc_t> m_recent_disassoc;
+    std::mutex m_recent_disassoc_lock;
 	em_dev_test_t dev_test;
 
 	/**!
@@ -480,6 +494,30 @@ public:
 
 	void handle_link_stats_alarm_report(em_bus_event_t *evt);
 	void handle_failed_conn_msg(unsigned char *data, unsigned int len) override;
+	void handle_client_disassoc_stats_msg(unsigned char *data, unsigned int len) override;
+
+	/**!
+	 * @brief Remembers the BSS a client left (Topology Notification), forgets it when the
+	 * client associates again.
+	 *
+	 * @param[in] dm Data model of the reporting device
+	 * @param[in] assoc Client Association Event TLV of the notification
+	 */
+	void record_client_disassoc(dm_easy_mesh_t *dm, const em_client_assoc_event_t *assoc);
+
+	/**!
+	 * @brief BSSID and radio for a Client Disassociation Stats message: the recorded
+	 * disassociation if recent, otherwise the BSS the STA is still associated with (the
+	 * message may arrive before the Topology Notification).
+	 *
+	 * @param[in] dm Data model of the reporting device
+	 * @param[in] sta_mac STA MAC address
+	 * @param[out] bssid BSSID the STA left
+	 * @param[out] radiomac Radio of that BSS
+	 *
+	 * @returns true if resolved, false if the STA is unknown
+	 */
+	bool resolve_client_disassoc(dm_easy_mesh_t *dm, mac_address_t sta_mac, bssid_t bssid, mac_address_t radiomac);
 
 	/**!
 	 * @brief Handles an Unassociated STA Link Metrics Query event.
