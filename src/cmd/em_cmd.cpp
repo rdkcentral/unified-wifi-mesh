@@ -535,6 +535,8 @@ const char *em_cmd_t::get_bus_event_type_str(em_bus_event_type_t type)
 	BUS_EVENT_TYPE_2S(em_bus_event_type_unassoc_sta_result)
 	BUS_EVENT_TYPE_2S(em_bus_event_type_failed_conn)
         BUS_EVENT_TYPE_2S(em_bus_event_type_client_assoc_ctrl_req)
+        BUS_EVENT_TYPE_2S(em_bus_event_type_start_sta_timer)
+        BUS_EVENT_TYPE_2S(em_bus_event_type_disassoc_timer_expired)
        
         default:
            break;
@@ -615,6 +617,7 @@ const char *em_cmd_t::get_orch_op_str(dm_orch_type_t type)
         ORCH_TYPE_2S(dm_orch_type_unassoc_sta_link_req_query)
 	ORCH_TYPE_2S(dm_orch_type_unassoc_sta_result)
         ORCH_TYPE_2S(dm_orch_type_client_assoc)
+        ORCH_TYPE_2S(dm_orch_type_sta_steer_opp_complete)
 
         default:
            break;
@@ -674,6 +677,7 @@ const char *em_cmd_t::get_cmd_type_str(em_cmd_type_t type)
         CMD_TYPE_2S(em_cmd_type_unassoc_sta_query)
 	CMD_TYPE_2S(em_cmd_type_unassoc_sta_result)
         CMD_TYPE_2S(em_cmd_type_client_assoc_ctrl_req)
+        CMD_TYPE_2S(em_cmd_type_steer_opp_complete)
 
         default:
            break;
@@ -834,6 +838,11 @@ em_cmd_type_t em_cmd_t::bus_2_cmd_type(em_bus_event_type_t etype)
 
         case em_bus_event_type_client_assoc_ctrl_req:
             type = em_cmd_type_client_assoc_ctrl_req;
+            break;
+
+        case em_bus_event_type_start_sta_timer:
+        case em_bus_event_type_disassoc_timer_expired:
+            type = em_cmd_type_none;
             break;
 
         default:

@@ -1477,9 +1477,29 @@ struct ieee80211_duration {
 #define __bitwise
 
 typedef uint16_t __bitwise be16;
-typedef uint8_t le16[2];
+typedef uint16_t __bitwise le16;
 
 #define WLAN_SA_QUERY_TR_ID_LEN 2
+
+#define WLAN_FC_TYPE_MGMT		0
+#define WLAN_FC_TYPE_CTRL		1
+#define WLAN_FC_TYPE_DATA		2
+#define WLAN_FC_TYPE_EXT		3
+
+/* management */
+#define WLAN_FC_STYPE_ASSOC_REQ	0
+#define WLAN_FC_STYPE_ASSOC_RESP	1
+#define WLAN_FC_STYPE_REASSOC_REQ	2
+#define WLAN_FC_STYPE_REASSOC_RESP	3
+#define WLAN_FC_STYPE_PROBE_REQ	4
+#define WLAN_FC_STYPE_PROBE_RESP	5
+#define WLAN_FC_STYPE_BEACON		8
+#define WLAN_FC_STYPE_ATIM		9
+#define WLAN_FC_STYPE_DISASSOC		10
+#define WLAN_FC_STYPE_AUTH		11
+#define WLAN_FC_STYPE_DEAUTH		12
+#define WLAN_FC_STYPE_ACTION		13
+#define WLAN_FC_STYPE_ACTION_NO_ACK	14
 
 /* Action frame categories (IEEE Std 802.11-2016, 9.4.1.11, Table 9-76) */
 #define WLAN_ACTION_SPECTRUM_MGMT 0
@@ -1550,6 +1570,8 @@ typedef uint8_t le16[2];
 #define WLAN_WNM_BTM_QUERY 6
 #define WLAN_WNM_BTM_REQUEST 7
 #define WLAN_WNM_BTM_RESPONSE 8
+
+#define IEEE80211_FC(type, stype) ((le16)(type << 2) | (stype << 4))
 
 struct ieee80211_hdr {
     le16 frame_control;

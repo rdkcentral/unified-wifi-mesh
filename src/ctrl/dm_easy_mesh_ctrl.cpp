@@ -2011,9 +2011,9 @@ bus_error_t em_ctrl_t::cmd_clientsteer(const char *method_name, const bus_data_p
     bool bridged = false, bridged_set = false;
     bool link = false, link_set = false;
     int opportunity = -1;
-    int timer = -1;
-    int op_class = -1;
-    int channel = -1;
+    int timer = 0;
+    int op_class = 0;
+    int channel = 0;
     em_subdoc_info_t *subdoc = NULL;
     unsigned char buff[sizeof(em_subdoc_info_t) + EM_IO_BUFF_SZ];
     cJSON *root = NULL, *json = NULL, *net_obj = NULL;
@@ -2158,11 +2158,11 @@ invalid:
         }
     }
     /* Mandatory parameters: TargetBSSID, RequestMode, BTMDisassociationImminent, BTMAbridged,
-     *   BTMDisassociationTimer, TargetBSSOperatingClass, TargetBSSChannel and
+     *   BTMDisassociationTimer if RequestMode is Steering_Mandate and
      *   SteeringOpportunityWindow if RequestMode is Steering_Opportunity */
     if (!target[0] || !requestmode[0] || !imminent_set || !bridged_set ||
-        timer < 0  || op_class < 0    || channel < 0   ||
-        (strcasecmp(requestmode, "Steering_Opportunity") == 0 && opportunity < 0)) {
+        (strcasecmp(requestmode, "Steering_Mandate") == 0 && timer <= 0) ||
+        (strcasecmp(requestmode, "Steering_Opportunity") == 0 && opportunity <= 0)) {
         em_printfout("Mandatory parameters missing");
         if (output_params) {
             *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
@@ -2170,6 +2170,13 @@ invalid:
         return bus_error_invalid_input;
     }
 
+    if(!util::str_is_mac_address(target) || (strcasecmp(requestmode, "Steering_Opportunity") != 0 && strcasecmp(requestmode, "Steering_Mandate") != 0)) {
+        em_printfout("Invalid TargetBSSID or RequestMode");
+        if (output_params) {
+            *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
+        }
+        return bus_error_invalid_input;
+    }
     /* Prepare subdoc to be processed with command */
     subdoc = reinterpret_cast<em_subdoc_info_t *>(buff);
     memset(subdoc, 0, sizeof(em_subdoc_info_t));
@@ -2740,6 +2747,78 @@ cleanup:
     return rc;
 }
 
+int dm_easy_mesh_ctrl_t::build_steer_cac_block_params(const em_cmd_steer_params_t &steer, em_cmd_t *pcmd[], int start_num)
+{
+    dm_device_t *device;
+    dm_bss_t *bss;
+    dm_easy_mesh_t *pdm;
+    em_bss_info_t *src_bss = NULL;
+    ssid_t source_ssid = {0};
+    bool limit_reached = false;
+    int num = start_num;
+    int disassoc_num = 0;
+    dm_easy_mesh_t dm = *this;
+
+    pdm = m_data_model_list.get_first_dm();
+    while (pdm != NULL) {
+        src_bss = pdm->get_bss_info_with_mac((unsigned char *)steer.source);
+        if (src_bss != NULL) {
+            memcpy(source_ssid, src_bss->ssid, sizeof(ssid_t));
+            break;
+        }
+        pdm = m_data_model_list.get_next_dm(pdm);
+    }
+
+    if (src_bss == NULL) {
+        em_printfout("Source BSS %s not found in topology", util::mac_to_string(steer.source).c_str());
+        return 0;
+    }
+
+    device = m_data_model_list.get_first_device();
+    while (device != NULL && limit_reached == false) {
+        bss = m_data_model_list.get_first_bss(device->m_device_info.intf.mac);
+        while (bss != NULL) {
+            em_bss_info_t *bi = &bss->m_bss_info;
+            em_cmd_client_assoc_params_t assoc_param;
+
+            if (memcmp(bi->ssid, source_ssid, sizeof(ssid_t)) != 0) {
+                bss = m_data_model_list.get_next_bss(device->m_device_info.intf.mac, bss);
+                continue;
+            }
+
+            if (memcmp(bi->bssid.mac, steer.target, sizeof(bssid_t)) == 0 || memcmp(bi->bssid.mac, steer.source, sizeof(bssid_t)) == 0) {
+                bss = m_data_model_list.get_next_bss(device->m_device_info.intf.mac, bss);
+                continue;
+            }
+
+            if (disassoc_num >= MAX_STA_TO_DISASSOC || num >= EM_MAX_CMD) {
+                em_printfout("Steer CAC block limit reached for STA %s", util::mac_to_string(steer.sta_mac).c_str());
+                limit_reached = true;
+                break;
+            }
+
+            memset(&assoc_param, 0, sizeof(em_cmd_client_assoc_params_t));
+            memcpy(assoc_param.bssid, bi->bssid.mac, sizeof(bssid_t));
+            assoc_param.assoc_control = ASSOC_CONTROL_BLOCK;
+            assoc_param.validity_period = EM_CAC_REQ_VALIDITY_PERIOD;
+            assoc_param.sta_count = 1;
+            memcpy(assoc_param.sta_list[0], steer.sta_mac, sizeof(mac_address_t));
+
+            pcmd[num] = new em_cmd_client_assoc_ctrl_req_t(assoc_param, dm);
+            num++;
+            disassoc_num++;
+
+            em_printfout("Steer CAC block STA %s on BSSID %s", util::mac_to_string(steer.sta_mac).c_str(),
+                util::mac_to_string(bi->bssid.mac).c_str());
+
+            bss = m_data_model_list.get_next_bss(device->m_device_info.intf.mac, bss);
+        }
+        device = m_data_model_list.get_next_device(device);
+    }
+
+    return disassoc_num;
+}
+
 int dm_easy_mesh_ctrl_t::analyze_unassoc_sta_metrics_query(em_bus_event_t *evt, em_cmd_t *pcmd[])
 {
     int num = 0;
@@ -3236,6 +3315,7 @@ int dm_easy_mesh_ctrl_t::analyze_sta_steer(em_cmd_steer_params_t &params, em_cmd
     int num = 0;
     em_cmd_t *tmp;
 
+    /* Steer first, then block STA on other same-SSID BSSIDs via Client Assoc Control */
     pcmd[num] = new em_cmd_sta_steer_t(params);
     tmp = pcmd[num];
     num++;
@@ -3244,6 +3324,8 @@ int dm_easy_mesh_ctrl_t::analyze_sta_steer(em_cmd_steer_params_t &params, em_cmd
         tmp = pcmd[num];
         num++;
     }
+
+    num += build_steer_cac_block_params(params, pcmd, num);
 
     return num;
 }
@@ -3355,7 +3437,7 @@ int dm_easy_mesh_ctrl_t::analyze_command_steer(em_bus_event_t *evt, em_cmd_t *cm
                     channel_obj = cJSON_GetObjectItem(steer_obj, "TargetBSSChannel");
                     steer_param.target_channel = static_cast<unsigned int> (cJSON_GetNumberValue(channel_obj));
 
-                    num += analyze_sta_steer(steer_param, cmd);
+                    num += analyze_sta_steer(steer_param, &cmd[num]);
                 }
             }
         }
