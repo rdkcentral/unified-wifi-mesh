@@ -950,6 +950,100 @@ void em_ctrl_t::publish_network_topology()
 #endif
 }
 
+void em_ctrl_t::publish_metrics_updated(dm_easy_mesh_t *dm)
+{
+    wifi_bus_desc_t *desc;
+    raw_data_t raw;
+    mac_addr_str_t mac_str;
+    struct timespec ts;
+    cJSON *obj, *radios, *stas, *sta_mlds, *o;
+    char *str;
+    dm_sta_t *sta;
+    unsigned int i;
+    int num_radios, num_stas, num_sta_mlds;
+    bus_error_t rc;
+
+    if (dm == NULL) {
+        return;
+    }
+
+    if ((desc = get_bus_descriptor()) == NULL) {
+        em_printfout("Bus descriptor is null");
+        return;
+    }
+
+    if ((obj = cJSON_CreateObject()) == NULL) {
+        return;
+    }
+
+    if ((radios = cJSON_AddArrayToObject(obj, "Radios")) == NULL ||
+            (stas = cJSON_AddArrayToObject(obj, "STAs")) == NULL ||
+            (sta_mlds = cJSON_AddArrayToObject(obj, "STAMLDs")) == NULL) {
+        cJSON_Delete(obj);
+        return;
+    }
+
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    dm_easy_mesh_t::macbytes_to_string(dm->get_agent_al_interface_mac(), mac_str);
+    cJSON_AddStringToObject(obj, "DeviceID", mac_str);
+    cJSON_AddNumberToObject(obj, "TimeStamp", static_cast<double>(ts.tv_sec) * 1000.0 + ts.tv_nsec / 1000000.0);
+
+    for (i = 0; i < dm->get_num_radios(); i++) {
+        if ((o = cJSON_CreateObject()) != NULL) {
+            dm->get_radio(i)->encode_metrics(o);
+            cJSON_AddItemToArray(radios, o);
+        }
+    }
+
+    /* Same stations the STA.{i}. table reports: associated, and on a BSS this device has.
+     * A station whose BSSID matches no BSS is not in the data model, so a subscriber has
+     * nowhere to put its metrics. */
+    sta = static_cast<dm_sta_t *> (hash_map_get_first(dm->m_sta_map));
+    while (sta != NULL) {
+        em_sta_info_t *si = sta->get_sta_info();
+        if (si->associated && dm->get_bss_info_with_mac(si->bssid) != NULL &&
+                (o = cJSON_CreateObject()) != NULL) {
+            sta->encode_metrics(o);
+            cJSON_AddItemToArray(stas, o);
+        }
+        sta = static_cast<dm_sta_t *> (hash_map_get_next(dm->m_sta_map, sta));
+    }
+
+    /* Same MLDs the STAMLD.{i}. table reports: the ones an AP MLD of this device owns. */
+    for (i = 0; i < dm->get_num_assoc_sta_mld(); i++) {
+        if (dm->is_ap_mld_mac(dm->m_assoc_sta_mld[i].m_assoc_sta_mld_info.ap_mld_mac_addr) &&
+                (o = cJSON_CreateObject()) != NULL) {
+            dm->m_assoc_sta_mld[i].encode_metrics(o, dm->m_sta_map);
+            cJSON_AddItemToArray(sta_mlds, o);
+        }
+    }
+
+    num_radios = cJSON_GetArraySize(radios);
+    num_stas = cJSON_GetArraySize(stas);
+    num_sta_mlds = cJSON_GetArraySize(sta_mlds);
+
+    str = cJSON_PrintUnformatted(obj);
+    cJSON_Delete(obj);
+    if (str == NULL) {
+        return;
+    }
+
+    memset(&raw, 0, sizeof(raw));
+    raw.data_type = bus_data_type_string;
+    raw.raw_data.bytes = reinterpret_cast<unsigned char *> (str);
+    raw.raw_data_len = static_cast<unsigned int> (strlen(str));
+
+    em_printfout("MetricsUpdated: %s radios=%d stas=%d mlds=%d len=%u", mac_str,
+        num_radios, num_stas, num_sta_mlds, raw.raw_data_len);
+
+    rc = desc->bus_event_publish_fn(m_data_model.get_bus_hdl(), DEVICE_WIFI_DATAELEMENTS_NETWORK_METRICS_UPDATED, &raw);
+    if (rc != bus_error_success && rc != bus_error_nosubscribers) {
+        em_printfout("MetricsUpdated publish failed: %d", rc);
+    }
+
+    cJSON_free(str);
+}
+
 int em_ctrl_t::data_model_init(const char *data_model_path)
 {
     em_t *em = NULL;
@@ -1315,6 +1409,9 @@ void em_ctrl_t::start_complete()
             { NULL, NULL , NULL, NULL, NULL, NULL }, slow_speed, ZERO_TABLE,
             { bus_data_type_string, false, 0, 0, 0, NULL } },
         { const_cast<char*>(DEVICE_WIFI_DATAELEMENTS_FAILED_CONNECTION), bus_element_type_event,
+            { NULL, NULL , NULL, NULL, NULL, NULL }, slow_speed, ZERO_TABLE,
+            { bus_data_type_string, false, 0, 0, 0, NULL } },
+        { const_cast<char*>(DEVICE_WIFI_DATAELEMENTS_NETWORK_METRICS_UPDATED), bus_element_type_event,
             { NULL, NULL , NULL, NULL, NULL, NULL }, slow_speed, ZERO_TABLE,
             { bus_data_type_string, false, 0, 0, 0, NULL } },
         { const_cast<char*>(DEVICE_WIFI_DATAELEMENTS_NETWORK_SETSSID_CMD), bus_element_type_method,

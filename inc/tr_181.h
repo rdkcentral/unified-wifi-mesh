@@ -36,6 +36,7 @@
 #define DEVICE_WIFI_DATAELEMENTS_NETWORK_NODE_CFG_POLICY    "Device.WiFi.DataElements.Network.NodeConfigurePolicy"
 #define DEVICE_WIFI_DATAELEMENTS_NETWORK_NODE_LINKSTATS_ALARM    "Device.WiFi.DataElements.Network.NodeLinkStatsAlarm"
 #define DEVICE_WIFI_DATAELEMENTS_FAILED_CONNECTION               "Device.WiFi.DataElements.FailedConnectionEvent.FailedConnection!"
+#define DEVICE_WIFI_DATAELEMENTS_NETWORK_METRICS_UPDATED         "Device.WiFi.DataElements.Network.X_AIRTIES_MetricsUpdated!"
 
 #define LIST_OF_DEFINITION_NAME "List_Of_Def"
 #define MAX_NUM_OF_OBJECTS_NAME "Num_Of_Objects"
