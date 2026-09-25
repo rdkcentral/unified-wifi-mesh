@@ -984,6 +984,7 @@ int dm_easy_mesh_t::decode_config_set_radio(em_subdoc_info_t *subdoc, const char
 		m_num_radios++;
 			
 	}
+    cJSON_Delete(parent_obj);
     return 0;
 }
 
