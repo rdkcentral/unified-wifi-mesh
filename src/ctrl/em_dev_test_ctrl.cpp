@@ -177,7 +177,8 @@ void em_dev_test_t:: decode(em_subdoc_info_t *subdoc, hash_map_t *m_em_map, cons
 	for (i = 0; i < arr_size; i++) {
 		if ((obj = cJSON_GetArrayItem(dev_test_obj, i)) == NULL) {
 		   printf("%s:%d: Type: Dev Test has no memebers\n", __func__, __LINE__);
-		   return;
+                   cJSON_Delete(parent_obj);
+                   return;
 		}
 		if ((tmp = cJSON_GetObjectItem(obj, "Test_type")) != NULL) {
 		   snprintf(str_type, sizeof(str_type), "%s", cJSON_GetStringValue(tmp));
@@ -240,7 +241,8 @@ void em_dev_test_t:: decode(em_subdoc_info_t *subdoc, hash_map_t *m_em_map, cons
 				dev_test_info.freq_band =  (em_freq_band_t) (tmp->valuedouble);
 		}
 */
-	}
+        }
+        cJSON_Delete(parent_obj);
 }
 
 void em_dev_test_t:: analyze_set_dev_test(em_bus_event_t *evt, hash_map_t *m_em_map)
