@@ -17,7 +17,11 @@ ARGS1="-f ieee1905::al_sap=trace,ieee1905::cmdu_handler=trace,ieee1905::cmdu_pro
 # Process 2 configuration
 PROG2="/usr/bin/onewifi_em_ctrl"
 PIDFILE2="/tmp/em_ctrl.pid"
-ARGS2="bpi@root"
+EASYMESH_DB_DIR="${EASYMESH_DB_DIR:-/var/lib/unified-wifi-mesh}"
+EASYMESH_DB_FILE="${EASYMESH_DB_FILE:-$EASYMESH_DB_DIR/unified_wifi_mesh.db}"
+EASYMESH_DB_MARKER="${EASYMESH_DB_MARKER:-/nvram/sqlite_db_data_exists}"
+export EASYMESH_DB_DIR EASYMESH_DB_FILE EASYMESH_DB_MARKER
+ARGS2="$EASYMESH_DB_FILE"
 
 #Helper function for logging with timestamp
 log_message() {
@@ -42,8 +46,8 @@ start_service() {
         log_message "Running controller setup_veth_for_em.sh..."
         cd /banana-pi
         ./setup_veth_for_em.sh $BRIDGE_NAME $VETH_BASE_IFACE true >> /tmp/em_ctrl_log.txt
-        log_message "Initializing mysql, running setup_mysql_db.sh..."
-        ./setup_mysql_db.sh
+        log_message "Initializing SQLite database..."
+        ./setup_sqlite_db.sh
     fi
 
     # Use procd to manage the ieee1905 process and em_controller process
