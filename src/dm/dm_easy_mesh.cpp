@@ -3608,6 +3608,33 @@ em_ap_mld_info_t *dm_easy_mesh_t::get_ap_mld_frm_bssid(mac_address_t bss_id)
     return NULL;
 }
 
+unsigned int dm_easy_mesh_t::get_num_ap_mld(void *dm)
+{
+    if (dm == NULL) {
+        return 0;
+    }
+
+    return static_cast<dm_easy_mesh_t *>(dm)->get_num_ap_mld();
+}
+
+em_ap_mld_info_t *dm_easy_mesh_t::get_ap_mld_frm_bssid(void *dm, mac_address_t bss_id)
+{
+    if (dm == NULL || bss_id == NULL) {
+        return NULL;
+    }
+
+    return static_cast<dm_easy_mesh_t *>(dm)->get_ap_mld_frm_bssid(bss_id);
+}
+
+void dm_easy_mesh_t::update_ap_mld_info(void *dm, em_ap_mld_info_t *ap_mld_info)
+{
+    if (dm == NULL) {
+        throw std::invalid_argument("dm must not be NULL");
+    }
+
+    static_cast<dm_easy_mesh_t *>(dm)->update_ap_mld_info(ap_mld_info);
+}
+
 bool dm_easy_mesh_t::is_ap_mld_mac(const mac_address_t mac)
 {
     dm_ap_mld_t *dm_ap_mld;
@@ -4005,7 +4032,7 @@ void dm_easy_mesh_t::reset()
         }
     }
     m_num_bss = 0;
-    if (m_ap_mld_map != NULL) {
+    if (m_ap_mld_map == NULL || bss_id == NULL) {
         dm_ap_mld_t *ap_mld = static_cast<dm_ap_mld_t *> (hash_map_get_first(m_ap_mld_map));
         while (ap_mld != NULL) {
             dm_ap_mld_t *tmp_ap_mld = ap_mld;
