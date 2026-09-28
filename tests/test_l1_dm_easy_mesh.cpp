@@ -25,8 +25,27 @@
 #include "dm_easy_mesh.h"
 #include <iomanip>
 
+#ifdef AL_SAP
+#include "al_service_access_point.h"
+extern MacAddress g_al_mac_sap;
+#endif
+
 extern "C" const char* __asan_default_options() {
     return "detect_leaks=0";
+}
+
+static void SetApMldTestAlMac(dm_easy_mesh_t &mesh, unsigned char *mac)
+{
+    mesh.set_agent_al_interface_mac(mac);
+#ifdef AL_SAP
+    memcpy(g_al_mac_sap.data(), mac, sizeof(mac_address_t));
+#endif
+}
+
+static void SetApMldTestAlMac(dm_easy_mesh_t &mesh)
+{
+    unsigned char dummy_al_mac[] = {0x10, 0x11, 0x23, 0x3D, 0x4D, 0x5E};
+    SetApMldTestAlMac(mesh, dummy_al_mac);
 }
 
 // Helper: Print hash map contents
@@ -7325,6 +7344,7 @@ TEST(dm_easy_mesh_t, get_ap_mld_valid_index_zero_configured)
     input.affiliated_ap[0].mac_addr_valid = true;
     unsigned char bssid[] = {0x20, 0x21, 0x22, 0x23, 0x24, 0x25};
     memcpy(input.affiliated_ap[0].mac_addr, bssid, sizeof(bssid));
+    SetApMldTestAlMac(meshObj);
     meshObj.update_ap_mld_info(&input);
     std::cout << "Invoking get_ap_mld() with AL MAC and haul type" << std::endl;
     dm_ap_mld_t* apMld = meshObj.get_ap_mld(
@@ -7406,6 +7426,7 @@ TEST(dm_easy_mesh_t, get_ap_mld_index_out_of_range)
     memcpy(input.ssid, "TestSSID", sizeof("TestSSID"));
     unsigned char valid_mac[] = {0x10, 0x11, 0x23, 0x3D, 0x4D, 0x5E};
     memcpy(input.mac_addr, valid_mac, sizeof(valid_mac));
+    SetApMldTestAlMac(meshObj);
     meshObj.update_ap_mld_info(&input);
     EXPECT_EQ(meshObj.get_num_ap_mld(), 1u);
     dm_ap_mld_t* apMldPtr = meshObj.get_ap_mld(
@@ -7444,6 +7465,7 @@ TEST(dm_easy_mesh_t, get_ap_mld_by_ref_valid_index_zero_configured)
     std::cout << "Entering get_ap_mld_by_ref_valid_index_zero_configured test" << std::endl;
     dm_easy_mesh_t meshObj;
     meshObj.init();
+    SetApMldTestAlMac(meshObj);
     em_ap_mld_info_t input{};
     input.haul_type = em_haul_type_fronthaul;
     input.mac_addr_valid = true;
@@ -7497,6 +7519,7 @@ TEST(dm_easy_mesh_t, get_ap_mld_by_ref_valid_index_zero_no_ap_configured)
     std::cout << "Entering get_ap_mld_by_ref_valid_index_zero_no_ap_configured test" << std::endl;
     dm_easy_mesh_t meshObj;
     meshObj.init();
+    SetApMldTestAlMac(meshObj);
     em_ap_mld_info_t input{};
     input.haul_type = em_haul_type_fronthaul;
     meshObj.update_ap_mld_info(&input);
@@ -7533,6 +7556,7 @@ TEST(dm_easy_mesh_t, get_ap_mld_by_ref_index_out_of_range)
     std::cout << "Entering get_ap_mld_by_ref_index_out_of_range test" << std::endl;
     dm_easy_mesh_t meshObj;
     meshObj.init();
+    SetApMldTestAlMac(meshObj);
     em_ap_mld_info_t input{};
     input.haul_type = em_haul_type_fronthaul;
     input.mac_addr_valid = true;
@@ -7582,6 +7606,7 @@ TEST(dm_easy_mesh_t, get_ap_mld_frm_bssid_valid_ap_mld_info_retrieval)
     unsigned char other_bssid[6]  = {0x11, 0x22, 0x33, 0x44, 0x55, 0x66};
     memcpy(info.affiliated_ap[0].mac_addr, other_bssid, sizeof(mac_address_t));
     memcpy(info.affiliated_ap[1].mac_addr, target_bssid, sizeof(mac_address_t));
+    SetApMldTestAlMac(instance);
     instance.update_ap_mld_info(&info);
     std::cout << "Configured AP MLD with 2 affiliated APs" << std::endl;
     std::cout << "Invoking get_ap_mld_frm_bssid" << std::endl;
@@ -7628,6 +7653,7 @@ TEST(dm_easy_mesh_t, get_ap_mld_frm_bssid_non_existent_bssid_returns_null)
     info.num_affiliated_ap = 1;
     unsigned char existing_bssid[6] = {0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF};
     memcpy(info.affiliated_ap[0].mac_addr, existing_bssid, sizeof(mac_address_t));
+    SetApMldTestAlMac(instance);
     instance.update_ap_mld_info(&info);
     unsigned char search_bssid[6] = {0x10, 0x20, 0x30, 0x40, 0x50, 0x60};
     std::cout << "Invoking get_ap_mld_frm_bssid with non-matching BSSID" << std::endl;
@@ -7699,6 +7725,7 @@ TEST(dm_easy_mesh_t, get_ap_mld_frm_bssid_null_bssid_input)
     info.num_affiliated_ap = 1;
     unsigned char existing_bssid[6] = {0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF};
     memcpy(info.affiliated_ap[0].mac_addr, existing_bssid, sizeof(mac_address_t));
+    SetApMldTestAlMac(instance);
     instance.update_ap_mld_info(&info);
     std::cout << "Invoking get_ap_mld_frm_bssid with NULL bssid pointer" << std::endl;
     em_ap_mld_info_t *result = instance.get_ap_mld_frm_bssid(nullptr);
@@ -7736,6 +7763,7 @@ TEST(dm_easy_mesh_t, static_get_ap_mld_frm_bssid_valid_match)
     info.num_affiliated_ap = 1;
     unsigned char bssid[6] = {0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF};
     memcpy(info.affiliated_ap[0].mac_addr, bssid, sizeof(mac_address_t));
+    SetApMldTestAlMac(instance);
     instance.update_ap_mld_info(&info);
     std::cout << "Invoking static get_ap_mld_frm_bssid with valid dm and matching bssid" << std::endl;
     em_ap_mld_info_t *result = dm_easy_mesh_t::get_ap_mld_frm_bssid(static_cast<void *>(&instance), bssid);
@@ -7779,6 +7807,7 @@ TEST(dm_easy_mesh_t, static_get_ap_mld_frm_bssid_no_match)
     unsigned char stored_bssid[6] = {0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF};
     unsigned char lookup_bssid[6] = {0x11, 0x22, 0x33, 0x44, 0x55, 0x66};
     memcpy(info.affiliated_ap[0].mac_addr, stored_bssid, sizeof(mac_address_t));
+    SetApMldTestAlMac(instance);
     instance.update_ap_mld_info(&info);
     std::cout << "Invoking static get_ap_mld_frm_bssid with non-matching bssid" << std::endl;
     em_ap_mld_info_t *result = dm_easy_mesh_t::get_ap_mld_frm_bssid(static_cast<void *>(&instance), lookup_bssid);
@@ -7875,6 +7904,7 @@ TEST(dm_easy_mesh_t, static_get_ap_mld_frm_bssid_null_bssid)
     info.num_affiliated_ap = 1;
     unsigned char valid_bssid[6] = {0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF};
     memcpy(info.affiliated_ap[0].mac_addr, valid_bssid, sizeof(mac_address_t));
+    SetApMldTestAlMac(instance);
     instance.update_ap_mld_info(&info);
     std::cout << "Invoking static get_ap_mld_frm_bssid with NULL bssid pointer" << std::endl;
     em_ap_mld_info_t *result = dm_easy_mesh_t::get_ap_mld_frm_bssid(static_cast<void *>(&instance), nullptr);
@@ -13184,6 +13214,7 @@ TEST(dm_easy_mesh_t, get_num_ap_mld_ValidNonZeroValue)
     std::cout << "Entering get_num_ap_mld_ValidNonZeroValue test" << std::endl;
     dm_easy_mesh_t mesh {};
     mesh.init();
+    SetApMldTestAlMac(mesh);
     em_ap_mld_info_t input{};
     for (unsigned int i = 0; i < 3; i++) {
         input.haul_type = static_cast<em_haul_type_t>(i);
@@ -13489,6 +13520,7 @@ TEST(dm_easy_mesh_t, static_get_num_ap_mld_ValidNonZeroValue)
     std::cout << "Entering static_get_num_ap_mld_ValidNonZeroValue test" << std::endl;
     dm_easy_mesh_t mesh {};
     mesh.init();
+    SetApMldTestAlMac(mesh);
     em_ap_mld_info_t input{};
     for (unsigned int i = 0; i < 3; i++) {
         input.haul_type = static_cast<em_haul_type_t>(i);
@@ -22254,6 +22286,7 @@ TEST(dm_easy_mesh_t, UpdateApMldInfo_positive_CreateNewMld)
     std::cout << "Entering UpdateApMldInfo_positive_CreateNewMld test" << std::endl;
     dm_easy_mesh_t dm;
     dm.init();
+    SetApMldTestAlMac(dm);
     em_ap_mld_info_t input{};
     input.haul_type = em_haul_type_fronthaul;
     input.mac_addr_valid = true;
@@ -22322,6 +22355,7 @@ TEST(dm_easy_mesh_t, UpdateApMldInfo_positive_UpdateExistingMld)
     std::cout << "Entering UpdateApMldInfo_positive_UpdateExistingMld test" << std::endl;
     dm_easy_mesh_t dm;
     dm.init();
+    SetApMldTestAlMac(dm);
     em_ap_mld_info_t first{};
     first.haul_type = em_haul_type_fronthaul;
     first.mac_addr_valid = true;
@@ -22391,7 +22425,7 @@ TEST(dm_easy_mesh_t, UpdateApMldInfo_negative_MaxMldLimitReached)
     dm_easy_mesh_t dm;
     dm.init();
     em_ap_mld_info_t input{};
-    mac_address_t al_mac = {0, 0, 0, 0, 0, 0};
+    mac_address_t al_mac = {0x10, 0x11, 0x23, 0x3D, 0, 0};
     const em_haul_type_t haul_types[] = {
         em_haul_type_fronthaul, em_haul_type_backhaul, em_haul_type_iot,
         em_haul_type_configurator, em_haul_type_hotspot
@@ -22400,7 +22434,7 @@ TEST(dm_easy_mesh_t, UpdateApMldInfo_negative_MaxMldLimitReached)
         memset(&input, 0, sizeof(input));
         al_mac[4] = static_cast<unsigned char>(i / 5);
         al_mac[5] = static_cast<unsigned char>(i % 5);
-        memcpy(dm.m_device.m_device_info.intf.mac, al_mac, sizeof(mac_address_t));
+        SetApMldTestAlMac(dm, al_mac);
         input.haul_type = haul_types[i % 5];
         input.mac_addr_valid = true;
         input.mac_addr[5] = static_cast<uint8_t>(i + 1);
@@ -22410,7 +22444,7 @@ TEST(dm_easy_mesh_t, UpdateApMldInfo_negative_MaxMldLimitReached)
               << std::endl;
     al_mac[4] = static_cast<unsigned char>(EM_MAX_AP_MLD / 5);
     al_mac[5] = static_cast<unsigned char>(EM_MAX_AP_MLD % 5);
-    memcpy(dm.m_device.m_device_info.intf.mac, al_mac, sizeof(mac_address_t));
+    SetApMldTestAlMac(dm, al_mac);
     input.haul_type = em_haul_type_fronthaul;
     dm.update_ap_mld_info(&input);
     std::cout << "AP MLD count after call: " << dm.get_num_ap_mld() << std::endl;
@@ -22448,6 +22482,7 @@ TEST(dm_easy_mesh_t, UpdateApMldInfo_positive_StaticWrapperInvocation)
     std::cout << "Entering UpdateApMldInfo_positive_StaticWrapperInvocation test" << std::endl;
     dm_easy_mesh_t dm;
     dm.init();
+    SetApMldTestAlMac(dm);
     em_ap_mld_info_t input{};
     input.haul_type = em_haul_type_fronthaul;
     input.mac_addr_valid = true;
