@@ -3590,7 +3590,7 @@ em_ap_mld_info_t *dm_easy_mesh_t::get_ap_mld_frm_bssid(mac_address_t bss_id)
     em_ap_mld_info_t *ap_mld_info = NULL;
     unsigned int j;
 
-    if (m_ap_mld_map == NULL) {
+    if (m_ap_mld_map == NULL || bss_id == NULL) {
         return NULL;
     }
 

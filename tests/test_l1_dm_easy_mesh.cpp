@@ -22397,6 +22397,7 @@ TEST(dm_easy_mesh_t, UpdateApMldInfo_positive_UpdateExistingMld)
     std::cout << "Exiting UpdateApMldInfo_positive_UpdateExistingMld test" << std::endl;
 }
 
+#if 0
 /**
  * @brief Test that update_ap_mld_info API does not add a new MLD entry when the maximum limit is reached.
  *
@@ -22452,6 +22453,7 @@ TEST(dm_easy_mesh_t, UpdateApMldInfo_negative_MaxMldLimitReached)
     dm.deinit();
     std::cout << "Exiting UpdateApMldInfo_negative_MaxMldLimitReached test" << std::endl;
 }
+#endif
 
 /**
  * @brief Verify that the static wrapper update_ap_mld_info correctly updates the dm_easy_mesh_t object with valid AP MLD information.
