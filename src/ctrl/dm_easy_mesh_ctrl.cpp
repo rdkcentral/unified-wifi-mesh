@@ -8591,6 +8591,11 @@ dm_ap_mld_t *dm_easy_mesh_ctrl_t::get_dm_ap_mld(dm_easy_mesh_t *dm, char *instan
     dm_ap_mld_t *ap_mld;
     em_long_string_t key;
     unsigned int haul_type, num_hauls = em_haul_type_max;
+
+    if (dm == NULL || instance == NULL) {
+        return NULL;
+    }
+
     if (is_num) {
         unsigned int idx = static_cast<unsigned int>(atoi(instance));
         unsigned int cnt = 0;

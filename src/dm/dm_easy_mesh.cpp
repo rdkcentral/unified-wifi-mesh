@@ -3617,6 +3617,19 @@ unsigned int dm_easy_mesh_t::get_num_ap_mld(void *dm)
     return static_cast<dm_easy_mesh_t *>(dm)->get_num_ap_mld();
 }
 
+void dm_easy_mesh_t::get_ap_mld_key(mac_address_t al_mac, em_haul_type_t haul_type, char *key, size_t sz)
+{
+    if (key == NULL || sz == 0) {
+        return;
+    }
+
+    mac_addr_str_t al_mac_str;
+    em_string_t haul_str;
+    dm_easy_mesh_t::macbytes_to_string(al_mac, al_mac_str);
+    dm_network_ssid_t::haul_type_to_string(haul_type, haul_str);
+    snprintf(key, sz, "%s@%s", al_mac_str, haul_str);
+}
+
 em_ap_mld_info_t *dm_easy_mesh_t::get_ap_mld_frm_bssid(void *dm, mac_address_t bss_id)
 {
     if (dm == NULL || bss_id == NULL) {
@@ -3628,8 +3641,8 @@ em_ap_mld_info_t *dm_easy_mesh_t::get_ap_mld_frm_bssid(void *dm, mac_address_t b
 
 void dm_easy_mesh_t::update_ap_mld_info(void *dm, em_ap_mld_info_t *ap_mld_info)
 {
-    if (dm == NULL) {
-        throw std::invalid_argument("dm must not be NULL");
+    if (dm == NULL || ap_mld_info == NULL) {
+        throw std::invalid_argument("dm and ap_mld_info must not be NULL");
     }
 
     static_cast<dm_easy_mesh_t *>(dm)->update_ap_mld_info(ap_mld_info);

@@ -1619,13 +1619,7 @@ public:
 	 * @param[out] key Buffer to receive the key string.
 	 * @param[in] sz Size of the key buffer.
 	 */
-	static void get_ap_mld_key(mac_address_t al_mac, em_haul_type_t haul_type, char *key, size_t sz) {
-		mac_addr_str_t al_mac_str;
-		em_string_t haul_str;
-		dm_easy_mesh_t::macbytes_to_string(al_mac, al_mac_str);
-		dm_network_ssid_t::haul_type_to_string(haul_type, haul_str);
-		snprintf(key, sz, "%s@%s", al_mac_str, haul_str);
-	}
+	static void get_ap_mld_key(mac_address_t al_mac, em_haul_type_t haul_type, char *key, size_t sz);
 
 	/**!
 	 * @brief Retrieves an AP MLD by its owning AL MAC and haul type.
