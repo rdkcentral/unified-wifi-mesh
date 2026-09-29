@@ -22318,7 +22318,8 @@ TEST(dm_easy_mesh_t, UpdateApMldInfo_positive_CreateNewMld)
     std::cout << "Stored nstr: " << stored.nstr << std::endl;
     std::cout << "Stored emlsr: " << stored.emlsr << std::endl;
     std::cout << "Stored emlmr: " << stored.emlmr << std::endl;
-    std::cout << "Stored num_affiliated_ap: " << stored.num_affiliated_ap << std::endl;
+    std::cout << "Stored num_affiliated_ap: "
+              << static_cast<unsigned int>(stored.num_affiliated_ap) << std::endl;
     EXPECT_TRUE(stored.mac_addr_valid);
     EXPECT_STREQ(stored.ssid, "TestSSID");
     EXPECT_EQ(stored.num_affiliated_ap, 1);
@@ -22387,9 +22388,10 @@ TEST(dm_easy_mesh_t, UpdateApMldInfo_positive_UpdateExistingMld)
     ASSERT_NE(stored_mld, nullptr);
     em_ap_mld_info_t &stored = *stored_mld->get_ap_mld_info();
     std::cout << "Updated ssid: " << stored.ssid << std::endl;
-    std::cout << "Affiliated AP count: " << stored.num_affiliated_ap << std::endl;
+    std::cout << "Affiliated AP count: "
+              << static_cast<unsigned int>(stored.num_affiliated_ap) << std::endl;
     std::cout << "Affiliated AP link_id: "
-              << stored.affiliated_ap[0].link_id << std::endl;
+              << static_cast<unsigned int>(stored.affiliated_ap[0].link_id) << std::endl;
     EXPECT_STREQ(stored.ssid, "SSID_UPDATED");
     EXPECT_EQ(stored.num_affiliated_ap, 1);
     EXPECT_EQ(stored.affiliated_ap[0].link_id, 42);
