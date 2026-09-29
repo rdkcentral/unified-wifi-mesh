@@ -4032,7 +4032,7 @@ void dm_easy_mesh_t::reset()
         }
     }
     m_num_bss = 0;
-    if (m_ap_mld_map == NULL || bss_id == NULL) {
+    if (m_ap_mld_map != NULL) {
         dm_ap_mld_t *ap_mld = static_cast<dm_ap_mld_t *> (hash_map_get_first(m_ap_mld_map));
         while (ap_mld != NULL) {
             dm_ap_mld_t *tmp_ap_mld = ap_mld;
