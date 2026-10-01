@@ -59,3 +59,26 @@ em_cmd_sta_steer_t::em_cmd_sta_steer_t(em_cmd_steer_params_t params)
     m_data_model.set_cmd_ctx(&ctx);
 }
 
+em_cmd_sta_steer_t::em_cmd_sta_steer_t(em_cmd_params_t params, em_cmd_type_t cmd_type)
+{
+    em_cmd_ctx_t ctx;
+    dm_easy_mesh_t dm;
+
+    m_type = cmd_type;
+    memcpy(&m_param.u.args, &params.u.args, sizeof(em_cmd_args_t));
+
+    memset(reinterpret_cast<unsigned char *> (&m_orch_desc[0]), 0, EM_MAX_CMD*sizeof(em_orch_desc_t));
+
+    m_orch_op_idx = 0;
+    m_num_orch_desc = 1;
+    m_orch_desc[0].op = dm_orch_type_sta_steer_opp_complete;
+    m_orch_desc[0].submit = true;
+
+    strncpy(m_name, "steer_opp_complete", strlen("steer_opp_complete") + 1);
+    m_svc = em_service_type_agent;
+    init(dm);
+
+    memset(&ctx, 0, sizeof(em_cmd_ctx_t));
+    ctx.type = m_orch_desc[0].op;
+    m_data_model.set_cmd_ctx(&ctx);
+}
