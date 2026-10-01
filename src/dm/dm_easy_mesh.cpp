@@ -3719,32 +3719,8 @@ void dm_easy_mesh_t::update_ap_mld_info(em_ap_mld_info_t *ap_mld_info)
 	return;
     }
 
-    mac_address_t key_al_mac;
-    mac_addr_str_t agent_al_mac_str;
-    mac_addr_str_t key_al_mac_str;
-    dm_easy_mesh_t::macbytes_to_string(get_agent_al_interface_mac(), agent_al_mac_str);
-    if (is_controller()) {
-        memcpy(key_al_mac, get_agent_al_interface_mac(), sizeof(mac_address_t));
-        em_printfout("AP MLD key AL MAC selection: controller agent AL MAC=%s", agent_al_mac_str);
-    } else {
-#ifdef AL_SAP
-        mac_addr_str_t sap_al_mac_str;
-        mac_address_t zero_mac = {0};
-        dm_easy_mesh_t::macbytes_to_string(g_al_mac_sap.data(), sap_al_mac_str);
-        em_printfout("AP MLD key AL MAC selection: agent=%s, SAP=%s", agent_al_mac_str, sap_al_mac_str);
-        if (memcmp(g_al_mac_sap.data(), zero_mac, sizeof(mac_address_t)) != 0) {
-            memcpy(key_al_mac, g_al_mac_sap.data(), sizeof(mac_address_t));
-        } else {
-            memcpy(key_al_mac, get_agent_al_interface_mac(), sizeof(mac_address_t));
-        }
-#else
-        memcpy(key_al_mac, get_agent_al_interface_mac(), sizeof(mac_address_t));
-        em_printfout("AP MLD key AL MAC selection: using agent AL MAC=%s", agent_al_mac_str);
-#endif
-    }
-    dm_easy_mesh_t::macbytes_to_string(key_al_mac, key_al_mac_str);
-    dm_easy_mesh_t::get_ap_mld_key(key_al_mac, ap_mld_info->haul_type, key, sizeof(key));
-
+    dm_easy_mesh_t::get_ap_mld_key(get_agent_al_interface_mac(), ap_mld_info->haul_type, key, sizeof(key));
+    em_printfout("AP MLD hashmap key=%s", key);
     // Find existing MLD by key (AL MAC + haul type)
     dm_ap_mld = static_cast<dm_ap_mld_t *> (hash_map_get(m_ap_mld_map, key));
     if (dm_ap_mld != NULL) {
