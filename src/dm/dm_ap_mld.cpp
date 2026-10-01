@@ -57,6 +57,7 @@ void dm_ap_mld_t::operator = (const dm_ap_mld_t& obj)
     this->m_ap_mld_info.nstr = obj.m_ap_mld_info.nstr;
     this->m_ap_mld_info.emlsr = obj.m_ap_mld_info.emlsr;
     this->m_ap_mld_info.emlmr = obj.m_ap_mld_info.emlmr;
+    this->m_ap_mld_info.haul_type = obj.m_ap_mld_info.haul_type;
     this->m_ap_mld_info.num_affiliated_ap = obj.m_ap_mld_info.num_affiliated_ap;
     for(unsigned int i = 0; i < this->m_ap_mld_info.num_affiliated_ap; i++) {
         memcpy(&this->m_ap_mld_info.affiliated_ap[i].ruid.mac, &obj.m_ap_mld_info.affiliated_ap[i].ruid.mac, sizeof(mac_address_t));
@@ -79,6 +80,7 @@ bool dm_ap_mld_t::operator == (const dm_ap_mld_t& obj)
     ret += !(this->m_ap_mld_info.nstr == obj.m_ap_mld_info.nstr);
     ret += !(this->m_ap_mld_info.emlsr == obj.m_ap_mld_info.emlsr);
     ret += !(this->m_ap_mld_info.emlmr == obj.m_ap_mld_info.emlmr);
+    ret += !(this->m_ap_mld_info.haul_type == obj.m_ap_mld_info.haul_type);
     ret += !(this->m_ap_mld_info.num_affiliated_ap == obj.m_ap_mld_info.num_affiliated_ap);
     ret += (memcmp(&this->m_ap_mld_info.affiliated_ap,&obj.m_ap_mld_info.affiliated_ap,sizeof(em_affiliated_ap_info_t)) != 0);
 

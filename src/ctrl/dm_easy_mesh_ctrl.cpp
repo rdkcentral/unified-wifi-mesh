@@ -43,6 +43,7 @@
 #include "tr_181.h"
 #include "util.h"
 #include "em_crypto.h"
+#include "em_base.h"
 #include <cjson/cJSON.h>
 #include "em_cmd_exec.h"
 #include "em_cmd_reset.h"
@@ -9315,23 +9316,34 @@ bus_error_t dm_easy_mesh_ctrl_t::sta_tget_params(dm_easy_mesh_t *dm, const char 
 
 dm_ap_mld_t *dm_easy_mesh_ctrl_t::get_dm_ap_mld(dm_easy_mesh_t *dm, char *instance, bool is_num)
 {
-    dm_ap_mld_t *ap_mld = NULL;
+    dm_ap_mld_t *ap_mld;
+    em_long_string_t key;
+    unsigned int haul_type, num_hauls = em_haul_type_max;
 
-    if (is_num) {
-        unsigned int idx = static_cast<unsigned int>(atoi(instance) - 1);
-        if (idx >= dm->get_num_ap_mld()) {
-            return NULL;
-        }
-        ap_mld = dm->get_ap_mld(idx);
-        return ap_mld;
+    if (dm == NULL || instance == NULL) {
+        return NULL;
     }
 
-    for (unsigned int i = 0; i < dm->get_num_ap_mld(); i++) {
-        char mac_str[18];
-        ap_mld = dm->get_ap_mld(i);
-        if (ap_mld == NULL) {
-            continue;
+    if (is_num) {
+        unsigned int idx = static_cast<unsigned int>(atoi(instance));
+        unsigned int cnt = 0;
+        for (haul_type = 0; haul_type < num_hauls; haul_type++) {
+            dm_easy_mesh_t::get_ap_mld_key(dm->get_agent_al_interface_mac(), static_cast<em_haul_type_t>(haul_type), key, sizeof(key));
+            ap_mld = (dm->m_ap_mld_map != NULL) ? static_cast<dm_ap_mld_t *> (hash_map_get(dm->m_ap_mld_map, key)) : NULL;
+            if (ap_mld == NULL) {
+                /* This haul type has no AP MLD entry; skip without consuming an instance number */
+                continue;
+            }
+            if (++cnt == idx) {
+                return ap_mld;
+            }
         }
+        return NULL;
+    }
+
+    /* MAC-based alias lookup is unaffected by ordering — match is by content, not position */
+    for (ap_mld = dm->get_first_ap_mld(); ap_mld != NULL; ap_mld = dm->get_next_ap_mld(ap_mld)) {
+        char mac_str[18];
         em_ap_mld_info_t *ami = ap_mld->get_ap_mld_info();
         dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *> (ami->mac_addr), mac_str);
         if (strcmp(instance, mac_str) == 0) {
@@ -9339,7 +9351,7 @@ dm_ap_mld_t *dm_easy_mesh_ctrl_t::get_dm_ap_mld(dm_easy_mesh_t *dm, char *instan
         }
     }
 
-    return ap_mld;
+    return NULL;
 }
 
 bus_error_t dm_easy_mesh_ctrl_t::apmld_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
@@ -9439,14 +9451,21 @@ bus_error_t dm_easy_mesh_ctrl_t::apmld_tget_params(dm_easy_mesh_t *dm, const cha
 {
     char path[512];
     bus_error_t rc = bus_error_success;
+    em_long_string_t key;
     dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
 
-    for (unsigned int idx = 1; idx <= dm->get_num_ap_mld(); idx++) {
-        /* Get ap_mld dm object for numeric instance */
-        dm_ap_mld_t *ap_mld = dm->get_ap_mld(idx - 1);
+    /* Enumerate in the same canonical haul-type order as get_dm_ap_mld() so the
+     * instance numbers listed here match single-instance gets. Only entries that
+     * exist in the map consume an instance number. */
+    unsigned int idx = 0;
+    unsigned int haul_type, num_hauls = em_haul_type_max;
+    for (haul_type = 0; haul_type < num_hauls; haul_type++) {
+        dm_easy_mesh_t::get_ap_mld_key(dm->get_agent_al_interface_mac(), static_cast<em_haul_type_t>(haul_type), key, sizeof(key));
+        dm_ap_mld_t *ap_mld = (dm->m_ap_mld_map != NULL) ? static_cast<dm_ap_mld_t *> (hash_map_get(dm->m_ap_mld_map, key)) : NULL;
         if (ap_mld == NULL) {
             continue;
         }
+        idx++;
         /* Get info structure for ap_mld object */
         em_ap_mld_info_t *ami = ap_mld->get_ap_mld_info();
 

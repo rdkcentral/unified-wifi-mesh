@@ -48,6 +48,11 @@
 #include "em_cmd_ap_cap.h"
 #include "em_cmd_client_cap.h"
 
+#ifdef AL_SAP
+#include "al_service_access_point.h"
+extern MacAddress g_al_mac_sap;
+#endif
+
 std::atomic<int> dm_easy_mesh_t::s_counter{0};
 
 dm_easy_mesh_t& dm_easy_mesh_t::operator = (dm_easy_mesh_t const& obj)
@@ -106,6 +111,7 @@ dm_easy_mesh_t& dm_easy_mesh_t::operator = (dm_easy_mesh_t const& obj)
         }
     }
 
+
     if (obj.m_policy_map != NULL && m_policy_map != NULL) {
         dm_policy_t *policy = static_cast<dm_policy_t *> (hash_map_get_first(obj.m_policy_map));
         while (policy != NULL) {
@@ -114,9 +120,30 @@ dm_easy_mesh_t& dm_easy_mesh_t::operator = (dm_easy_mesh_t const& obj)
         }
     }
 
-    m_num_ap_mld = obj.m_num_ap_mld;
-    for (unsigned int i = 0; i < EM_MAX_AP_MLD; i++) {
-        m_ap_mld[i] = obj.m_ap_mld[i];
+    // Replace AP MLD map contents with a deep copy from obj
+    if (m_ap_mld_map == NULL) {
+        m_ap_mld_map = hash_map_create();
+    } else {
+        dm_ap_mld_t *ap_mld = static_cast<dm_ap_mld_t *> (hash_map_get_first(m_ap_mld_map));
+        while (ap_mld != NULL) {
+            dm_ap_mld_t *next = static_cast<dm_ap_mld_t *> (hash_map_get_next(m_ap_mld_map, ap_mld));
+            em_long_string_t key;
+            dm_easy_mesh_t::get_ap_mld_key(get_agent_al_interface_mac(), ap_mld->m_ap_mld_info.haul_type, key, sizeof(key));
+            delete static_cast<dm_ap_mld_t *> (hash_map_remove(m_ap_mld_map, key));
+            ap_mld = next;
+        }
+    }
+
+    if (obj.m_ap_mld_map != NULL && m_ap_mld_map != NULL) {
+        dm_ap_mld_t *ap_mld = static_cast<dm_ap_mld_t *> (hash_map_get_first(obj.m_ap_mld_map));
+        em_long_string_t key;
+        while (ap_mld != NULL) {
+            dm_ap_mld_t *copy = new dm_ap_mld_t(*ap_mld);
+            dm_easy_mesh_t::get_ap_mld_key(get_agent_al_interface_mac(),
+                copy->m_ap_mld_info.haul_type, key, sizeof(key));
+            hash_map_put(m_ap_mld_map, strdup(key), copy);
+            ap_mld = static_cast<dm_ap_mld_t *> (hash_map_get_next(obj.m_ap_mld_map, ap_mld));
+        }
     }
 
     m_num_assoc_sta_mld = obj.m_num_assoc_sta_mld;
@@ -284,13 +311,19 @@ int dm_easy_mesh_t::commit_config(dm_easy_mesh_t& dm, em_commit_target_t target)
 			}
 		}
 
-		em_printfout("Number of AP MLDs to commit : %d", dm.m_num_ap_mld);
-		for (i = 0; i < dm.m_num_ap_mld; i++) {
-			em_ap_mld_info_t *src_mld_info = dm.m_ap_mld[i].get_ap_mld_info();
-			if (src_mld_info->num_affiliated_ap > 0) {
-				update_ap_mld_info(src_mld_info);
-			} else {
-				em_printfout("Skipping MLD[%d] as no affiliated APs found", i);
+		em_printfout("Number of AP MLDs to commit : %d", dm.get_num_ap_mld());
+		if (dm.m_ap_mld_map != NULL) {
+			unsigned int mld_idx = 0;
+			dm_ap_mld_t *src_ap_mld = static_cast<dm_ap_mld_t *> (hash_map_get_first(dm.m_ap_mld_map));
+			while (src_ap_mld != NULL) {
+				em_ap_mld_info_t *src_mld_info = src_ap_mld->get_ap_mld_info();
+				if (src_mld_info->num_affiliated_ap > 0) {
+					update_ap_mld_info(src_mld_info);
+				} else {
+					em_printfout("Skipping MLD[%d] as no affiliated APs found", mld_idx);
+				}
+				mld_idx++;
+				src_ap_mld = static_cast<dm_ap_mld_t *> (hash_map_get_next(dm.m_ap_mld_map, src_ap_mld));
 			}
 		}
 
@@ -2818,6 +2851,26 @@ em_network_ssid_info_t *dm_easy_mesh_t::get_network_ssid_info_by_haul_type(em_ha
     return (found == true) ? info:NULL;
 }
 
+bool dm_easy_mesh_t::get_haul_type_from_ssid(const ssid_t ssid, em_haul_type_t *haul_type)
+{
+    em_network_ssid_info_t *info;
+    unsigned int i;
+
+    if (haul_type == NULL) {
+        return false;
+    }
+
+    for (i = 0; i < m_num_net_ssids; i++) {
+        info = &m_network_ssid[i].m_network_ssid_info;
+        if ((strncmp(info->ssid, ssid, sizeof(ssid_t)) == 0) && (info->num_hauls > 0)) {
+            *haul_type = info->haul_type[0];
+            return true;
+        }
+    }
+
+    return false;
+}
+
 dm_bss_t *dm_easy_mesh_t::get_bss(mac_address_t radio_mac, mac_address_t bss_mac)
 {
     unsigned int i;
@@ -3252,6 +3305,20 @@ void dm_easy_mesh_t::deinit()
 	    m_policy_map = NULL;
     }
 
+    //destroy elements of m_ap_mld_map
+    if (m_ap_mld_map != NULL) {
+        dm_ap_mld_t *ap_mld = static_cast<dm_ap_mld_t *> (hash_map_get_first(m_ap_mld_map));
+        while (ap_mld != NULL) {
+            dm_ap_mld_t *tmp_ap_mld = ap_mld;
+            ap_mld = static_cast<dm_ap_mld_t *> (hash_map_get_next(m_ap_mld_map, ap_mld));
+
+            dm_easy_mesh_t::get_ap_mld_key(get_agent_al_interface_mac(), tmp_ap_mld->m_ap_mld_info.haul_type, key, sizeof(key));
+            delete static_cast<dm_ap_mld_t *> (hash_map_remove(m_ap_mld_map, key));
+        }
+        hash_map_destroy(m_ap_mld_map);
+        m_ap_mld_map = NULL;
+    }
+
     if (m_sta_assoc_map != NULL) {
         sta = static_cast<dm_sta_t *> (hash_map_get_first(m_sta_assoc_map));
         while (sta != NULL)
@@ -3523,37 +3590,84 @@ void dm_easy_mesh_t::update_scan_results(em_scan_result_t *scan_result)
 
 em_ap_mld_info_t *dm_easy_mesh_t::get_ap_mld_frm_bssid(mac_address_t bss_id)
 {
-    unsigned int i, j;
+    dm_ap_mld_t *dm_ap_mld;
     em_ap_mld_info_t *ap_mld_info = NULL;
+    unsigned int j;
 
-    for (i = 0; i < m_num_ap_mld; i++) {
-        ap_mld_info = &m_ap_mld[i].m_ap_mld_info;
+    if (m_ap_mld_map == NULL || bss_id == NULL) {
+        return NULL;
+    }
+
+    dm_ap_mld = static_cast<dm_ap_mld_t *> (hash_map_get_first(m_ap_mld_map));
+    while (dm_ap_mld != NULL) {
+        ap_mld_info = &dm_ap_mld->m_ap_mld_info;
         for (j = 0; j < ap_mld_info->num_affiliated_ap; ++j) {
             if (memcmp(ap_mld_info->affiliated_ap[j].mac_addr, bss_id, sizeof(mac_address_t)) == 0) {
                 return ap_mld_info;
             }
         }
+        dm_ap_mld = static_cast<dm_ap_mld_t *> (hash_map_get_next(m_ap_mld_map, dm_ap_mld));
     }
 
     return NULL;
 }
 
+unsigned int dm_easy_mesh_t::get_num_ap_mld(void *dm)
+{
+    if (dm == NULL) {
+        return 0;
+    }
+
+    return static_cast<dm_easy_mesh_t *>(dm)->get_num_ap_mld();
+}
+
+void dm_easy_mesh_t::get_ap_mld_key(mac_address_t al_mac, em_haul_type_t haul_type, char *key, size_t sz)
+{
+    if (key == NULL || sz == 0) {
+        return;
+    }
+
+    mac_addr_str_t al_mac_str;
+    em_string_t haul_str;
+    dm_easy_mesh_t::macbytes_to_string(al_mac, al_mac_str);
+    dm_network_ssid_t::haul_type_to_string(haul_type, haul_str);
+    snprintf(key, sz, "%s@%s", al_mac_str, haul_str);
+}
+
+em_ap_mld_info_t *dm_easy_mesh_t::get_ap_mld_frm_bssid(void *dm, mac_address_t bss_id)
+{
+    if (dm == NULL || bss_id == NULL) {
+        return NULL;
+    }
+
+    return static_cast<dm_easy_mesh_t *>(dm)->get_ap_mld_frm_bssid(bss_id);
+}
+
+void dm_easy_mesh_t::update_ap_mld_info(void *dm, em_ap_mld_info_t *ap_mld_info)
+{
+    if (dm == NULL || ap_mld_info == NULL) {
+        throw std::invalid_argument("dm and ap_mld_info must not be NULL");
+    }
+
+    static_cast<dm_easy_mesh_t *>(dm)->update_ap_mld_info(ap_mld_info);
+}
+
 bool dm_easy_mesh_t::is_ap_mld_mac(const mac_address_t mac)
 {
-    const em_ap_mld_info_t *ap_mld_info = NULL;
+    dm_ap_mld_t *dm_ap_mld;
+    const em_ap_mld_info_t *ap_mld_info;
 
-    if (mac == NULL) {
+    if ((mac == NULL) || (m_ap_mld_map == NULL)) {
         return false;
     }
 
-    for (unsigned int i = 0; i < m_num_ap_mld; i++) {
-        ap_mld_info = &m_ap_mld[i].m_ap_mld_info;
-        if (!ap_mld_info->mac_addr_valid) {
-            continue;
-        }
-        if (memcmp(ap_mld_info->mac_addr, mac, sizeof(mac_address_t)) == 0) {
+    dm_ap_mld = static_cast<dm_ap_mld_t *> (hash_map_get_first(m_ap_mld_map));
+    while (dm_ap_mld != NULL) {
+        ap_mld_info = &dm_ap_mld->m_ap_mld_info;
+        if (ap_mld_info->mac_addr_valid && (memcmp(ap_mld_info->mac_addr, mac, sizeof(mac_address_t)) == 0)) {
             return true;
         }
+        dm_ap_mld = static_cast<dm_ap_mld_t *> (hash_map_get_next(m_ap_mld_map, dm_ap_mld));
     }
 
     return false;
@@ -3561,31 +3675,29 @@ bool dm_easy_mesh_t::is_ap_mld_mac(const mac_address_t mac)
 
 bool dm_easy_mesh_t::resolve_ap_mld_to_fallback_ruid(const mac_address_t ap_mld_mac, mac_address_t fallback_ruid)
 {
-    em_ap_mld_info_t *ap_mld_info = NULL;
-    unsigned int i, j;
+    dm_ap_mld_t *dm_ap_mld;
+    em_ap_mld_info_t *ap_mld_info;
+    unsigned int j;
 
-    if ((ap_mld_mac == NULL) || (fallback_ruid == NULL)) {
+    if ((ap_mld_mac == NULL) || (fallback_ruid == NULL) || (m_ap_mld_map == NULL)) {
         return false;
     }
 
-    for (i = 0; i < m_num_ap_mld; i++) {
-        ap_mld_info = &m_ap_mld[i].m_ap_mld_info;
-        if (!ap_mld_info->mac_addr_valid) {
-            continue;
-        }
-        if (memcmp(ap_mld_info->mac_addr, ap_mld_mac, sizeof(mac_address_t)) != 0) {
-            continue;
-        }
-
-        // Use the first valid affiliated AP's RUID as fallback.
-        for (j = 0; j < ap_mld_info->num_affiliated_ap; j++) {
-            if (!ap_mld_info->affiliated_ap[j].mac_addr_valid) {
-                continue;
+    dm_ap_mld = static_cast<dm_ap_mld_t *> (hash_map_get_first(m_ap_mld_map));
+    while (dm_ap_mld != NULL) {
+        ap_mld_info = &dm_ap_mld->m_ap_mld_info;
+        if (ap_mld_info->mac_addr_valid && (memcmp(ap_mld_info->mac_addr, ap_mld_mac, sizeof(mac_address_t)) == 0)) {
+            // Use the first valid affiliated AP's RUID as fallback.
+            for (j = 0; j < ap_mld_info->num_affiliated_ap; j++) {
+                if (!ap_mld_info->affiliated_ap[j].mac_addr_valid) {
+                    continue;
+                }
+                memcpy(fallback_ruid, ap_mld_info->affiliated_ap[j].ruid.mac, sizeof(mac_address_t));
+                return true;
             }
-            memcpy(fallback_ruid, ap_mld_info->affiliated_ap[j].ruid.mac, sizeof(mac_address_t));
-            return true;
+            return false;
         }
-        return false;
+        dm_ap_mld = static_cast<dm_ap_mld_t *> (hash_map_get_next(m_ap_mld_map, dm_ap_mld));
     }
 
     return false;
@@ -3593,40 +3705,51 @@ bool dm_easy_mesh_t::resolve_ap_mld_to_fallback_ruid(const mac_address_t ap_mld_
 
 void dm_easy_mesh_t::update_ap_mld_info(em_ap_mld_info_t *ap_mld_info)
 {
+    dm_ap_mld_t *dm_ap_mld;
+    em_ap_mld_info_t *target_mld;
+    em_long_string_t key;
 
-    em_ap_mld_info_t *target_mld = NULL;
-
-    // Find existing MLD by MAC
-    em_printfout("m_num_ap_mld %d", m_num_ap_mld);
-    for (unsigned int i = 0; i < m_num_ap_mld; i++) {
-        if (memcmp(m_ap_mld[i].m_ap_mld_info.mac_addr, ap_mld_info->mac_addr, sizeof(mac_address_t)) == 0) {
-            target_mld = &m_ap_mld[i].m_ap_mld_info;
-            em_printfout("Found existing MLD at index %d", i);
-            break;
-        }
+    if (ap_mld_info == NULL) {
+        em_printfout("Null ap_mld_info");
+        return;
     }
 
-    // If not found, create new entry
-    if (!target_mld) {
-        if (m_num_ap_mld >= EM_MAX_AP_MLD) {
+    if (m_ap_mld_map == NULL) {
+        em_printfout("AP-mld map is null\n");
+	return;
+    }
+
+    dm_easy_mesh_t::get_ap_mld_key(get_agent_al_interface_mac(), ap_mld_info->haul_type, key, sizeof(key));
+    em_printfout("AP MLD hashmap key=%s", key);
+    // Find existing MLD by key (AL MAC + haul type)
+    dm_ap_mld = static_cast<dm_ap_mld_t *> (hash_map_get(m_ap_mld_map, key));
+    if (dm_ap_mld != NULL) {
+        em_printfout("Found existing MLD for key %s", key);
+    } else {
+        if (hash_map_count(m_ap_mld_map) >= EM_MAX_AP_MLD) {
             em_printfout("Max MLD entries reached");
             return;
         }
 
-        target_mld = &m_ap_mld[m_num_ap_mld].m_ap_mld_info;
-        memset(target_mld, 0, sizeof(em_ap_mld_info_t));
-        em_printfout("Created new MLD at index %d", m_num_ap_mld);
-        m_num_ap_mld++;
+        dm_ap_mld = new dm_ap_mld_t();
+        hash_map_put(m_ap_mld_map, strdup(key), dm_ap_mld);
+        em_printfout("Created new MLD for key %s", key);
     }
+
+    target_mld = &dm_ap_mld->m_ap_mld_info;
 
     // Update MLD fields
     target_mld->mac_addr_valid = ap_mld_info->mac_addr_valid;
+    target_mld->haul_type = ap_mld_info->haul_type;
     strncpy(target_mld->ssid, ap_mld_info->ssid, sizeof(ssid_t));
     memcpy(target_mld->mac_addr, ap_mld_info->mac_addr, sizeof(mac_address_t));
     target_mld->str = ap_mld_info->str;
     target_mld->nstr = ap_mld_info->nstr;
     target_mld->emlsr = ap_mld_info->emlsr;
     target_mld->emlmr = ap_mld_info->emlmr;
+
+    em_printfout("Processing %d affiliated APs for MLD key=%s (existing count=%d)",
+        ap_mld_info->num_affiliated_ap, key, target_mld->num_affiliated_ap);
 
     // Loop through all affiliated APs
     for (int j = 0; j < ap_mld_info->num_affiliated_ap; j++) {
@@ -3638,20 +3761,20 @@ void dm_easy_mesh_t::update_ap_mld_info(em_ap_mld_info_t *ap_mld_info)
             if (memcmp(target_mld->affiliated_ap[k].mac_addr, input_ap->mac_addr, sizeof(mac_address_t)) == 0) {
                 target_aff_ap = &target_mld->affiliated_ap[k];
                 aff_ap_found = true;
-                em_printfout("Found existing affiliated AP at index %d", k);
+                em_printfout("Found existing affiliated AP: input index=%d existing index=%d", j, k);
                 break;
             }
         }
 
         if (!aff_ap_found) {
             if (target_mld->num_affiliated_ap >= EM_MAX_AP_MLD) {
-                em_printfout("Max affiliated APs reached for MLD");
+                em_printfout("Max affiliated APs reached for MLD key=%s; dropping input index=%d", key, j);
                 continue;
             }
 
             target_aff_ap = &target_mld->affiliated_ap[target_mld->num_affiliated_ap];
             memset(target_aff_ap, 0, sizeof(em_affiliated_ap_info_t));
-            em_printfout("Added new affiliated AP at index %d",target_mld->num_affiliated_ap);
+            em_printfout("Added new affiliated AP: input index=%d target index=%d", j, target_mld->num_affiliated_ap);
             target_mld->num_affiliated_ap++;
         }
 
@@ -3663,8 +3786,10 @@ void dm_easy_mesh_t::update_ap_mld_info(em_ap_mld_info_t *ap_mld_info)
         target_aff_ap->link_id = input_ap->link_id;
     }
 
-    em_printfout("Updated MLD with %d affiliated APs", target_mld->num_affiliated_ap);
+    em_printfout("Updated MLD key=%s (haul_type=%d ssid=%s) with %d affiliated APs", key,
+         target_mld->haul_type, target_mld->ssid, target_mld->num_affiliated_ap);
 }
+
 
 void dm_easy_mesh_t::update_bsta_mld_info(em_bsta_mld_info_t *bsta_mld_info)
 {
@@ -3863,6 +3988,7 @@ int dm_easy_mesh_t::init()
     m_sta_map = hash_map_create();
     m_sta_assoc_map = hash_map_create();
     m_sta_dassoc_map = hash_map_create();
+    m_ap_mld_map = hash_map_create();
     m_wifi_data = static_cast<webconfig_subdoc_data_t*> (malloc(sizeof(webconfig_subdoc_data_t)));
     memset(&m_db_cfg_param, 0, sizeof(em_db_cfg_param_t));
     return 0;
@@ -3887,7 +4013,16 @@ void dm_easy_mesh_t::reset()
         }
     }
     m_num_bss = 0;
-    m_num_ap_mld = 0;
+    if (m_ap_mld_map != NULL) {
+        dm_ap_mld_t *ap_mld = static_cast<dm_ap_mld_t *> (hash_map_get_first(m_ap_mld_map));
+        while (ap_mld != NULL) {
+            dm_ap_mld_t *tmp_ap_mld = ap_mld;
+            ap_mld = static_cast<dm_ap_mld_t *> (hash_map_get_next(m_ap_mld_map, ap_mld));
+            em_long_string_t ap_mld_key;
+            dm_easy_mesh_t::get_ap_mld_key(get_agent_al_interface_mac(), tmp_ap_mld->m_ap_mld_info.haul_type, ap_mld_key, sizeof(ap_mld_key));
+            delete static_cast<dm_ap_mld_t *> (hash_map_remove(m_ap_mld_map, ap_mld_key));
+        }
+    }
     m_num_assoc_sta_mld = 0;
     m_db_cfg_param.db_cfg_type = db_cfg_type_none;
     m_colocated = false;
@@ -3921,7 +4056,6 @@ dm_easy_mesh_t::dm_easy_mesh_t()
     m_num_radios = 0;
     m_num_opclass = 0;
     m_num_bss = 0;
-    m_num_ap_mld = 0;
     m_num_net_ssids = 0;
     m_num_assoc_sta_mld = 0;
     m_db_cfg_param.db_cfg_type = db_cfg_type_none;
