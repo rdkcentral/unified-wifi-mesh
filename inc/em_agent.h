@@ -29,6 +29,8 @@
 #include "bus.h"
 
 #include <string>
+#include <condition_variable>
+#include <mutex>
 
 #ifdef AL_SAP
 #define DATA_SOCKET_PATH "/tmp/al_data_socket"
@@ -45,6 +47,9 @@ class em_agent_t : public em_mgr_t {
     em_short_string_t   m_data_model_path;
     em_cmd_agent_t  *m_agent_cmd;
 	em_simulator_t	m_simulator;
+	bool m_tx_power_ready = false;
+	std::mutex m_tx_power_ready_mutex;
+	std::condition_variable m_tx_power_ready_cv;
 
 	
 	/**!
@@ -1071,6 +1076,7 @@ public:
 	 * @return int 1 on success, otherwise -1
 	 */
 	static int failed_conn_cb(char *event_name, bus_data_prop_t *data, void *userData);
+	static int tx_power_ready_cb(char *event_name, bus_data_prop_t *data, void *userData);
 
 	/**
 	 * @brief Callback for BSS scan events
