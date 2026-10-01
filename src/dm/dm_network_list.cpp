@@ -161,7 +161,7 @@ int dm_network_list_t::update_db(db_client_t& db_client, dm_orch_type_t op, void
     mac_addr_str_t agent_str, ctrl_str;
     em_network_info_t *info = static_cast<em_network_info_t *> (data);
 
-    printf("dm_network_list_t:%s:%d: Operation: %s\n", __func__, __LINE__, em_cmd_t::get_orch_op_str(op));
+    em_printfout("dm_network_list_t:%s:%d: Operation: %s\n", __func__, __LINE__, em_cmd_t::get_orch_op_str(op));
 	switch (op) {
 		case dm_orch_type_db_insert:
 			ret = insert_row(db_client, info->id, 
