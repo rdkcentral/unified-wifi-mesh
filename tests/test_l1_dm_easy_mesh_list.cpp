@@ -134,8 +134,9 @@ protected:
 
     void TearDown() override {
         if (skip_teardown) {
+            __lsan_enable();
             return;
-		}
+        }
         if (dm1->m_wifi_data != NULL) {
             free(dm1->m_wifi_data);
             dm1->m_wifi_data = nullptr;
@@ -160,7 +161,7 @@ protected:
         dm2 = nullptr;
         dm3 = nullptr;
         dm4 = nullptr;
-	    __lsan_enable();
+        __lsan_enable();
     }
 };
 
@@ -340,6 +341,32 @@ TEST_F(dm_easy_mesh_list_tTEST, create_data_model_loop_profile_types) {
         EXPECT_EQ(dm->m_colocated, false);
     }
     std::cout << "Exiting " << testName << " test" << std::endl;
+}
+
+/**
+ * @brief Verify the default Unsuccessful Association Policy of a new data model
+ *
+ * The defaults are a positional initializer, so this guards the values and the field order.
+ */
+TEST_F(dm_easy_mesh_list_tTEST, create_data_model_default_unsuccess_assoc_policy) {
+    dm_policy_t *policy;
+    dm_policy_t *found = nullptr;
+
+    ASSERT_NE(dm1, nullptr);
+    ASSERT_NE(dm1->m_policy_map, nullptr);
+
+    policy = static_cast<dm_policy_t *>(hash_map_get_first(dm1->m_policy_map));
+    while (policy != nullptr) {
+        if (policy->m_policy.id.type == em_policy_id_type_unsuccess_assoc) {
+            found = policy;
+            break;
+        }
+        policy = static_cast<dm_policy_t *>(hash_map_get_next(dm1->m_policy_map, policy));
+    }
+
+    ASSERT_NE(found, nullptr);
+    EXPECT_TRUE(found->m_policy.report_unassoc_sta);
+    EXPECT_EQ(found->m_policy.max_reporting_rate, 30u);
 }
 
 /**
