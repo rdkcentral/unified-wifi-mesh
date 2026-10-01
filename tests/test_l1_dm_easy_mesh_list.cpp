@@ -134,8 +134,9 @@ protected:
 
     void TearDown() override {
         if (skip_teardown) {
+            __lsan_enable();
             return;
-		}
+        }
         if (dm1->m_wifi_data != NULL) {
             free(dm1->m_wifi_data);
             dm1->m_wifi_data = nullptr;
@@ -160,7 +161,7 @@ protected:
         dm2 = nullptr;
         dm3 = nullptr;
         dm4 = nullptr;
-	    __lsan_enable();
+        __lsan_enable();
     }
 };
 
