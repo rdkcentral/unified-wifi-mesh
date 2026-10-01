@@ -100,10 +100,17 @@ em_crypto_t::em_crypto_t()
         }
 
 #if OPENSSL_VERSION_NUMBER >= 0x30000000L
-        if (OSSL_PROVIDER_load(NULL, "default") == NULL) {
+        static OSSL_PROVIDER *default_prov = NULL;
+        default_prov = OSSL_PROVIDER_load(NULL, "default");
+        if (default_prov == NULL) {
             fprintf(stderr, "Failed to load default provider\n");
             exit(1);
         }
+        // Registered after OPENSSL_init_crypto, so it runs before OPENSSL_cleanup
+        atexit([]() {
+            OSSL_PROVIDER_unload(default_prov);
+            default_prov = NULL;
+        });
 #endif
     });
 #endif
@@ -1065,21 +1072,31 @@ uint8_t em_crypto_t::compute_secret_internal(BIGNUM *p, BIGNUM *g, BIGNUM *bn_pr
     int ret = 0;
 
     // Thread-local library context (if needed for thread isolation)
-    static thread_local OSSL_LIB_CTX *libctx = nullptr;
-    if (!libctx) {
-        libctx = OSSL_LIB_CTX_new(); // Create a new thread-local context
-        if (!libctx) {
+    struct thread_libctx_t {
+        OSSL_LIB_CTX *ctx = nullptr;
+        OSSL_PROVIDER *prov = nullptr;
+        ~thread_libctx_t() {
+            if (prov) OSSL_PROVIDER_unload(prov);
+            if (ctx) OSSL_LIB_CTX_free(ctx);
+        }
+    };
+    static thread_local thread_libctx_t tl_ctx;
+    if (!tl_ctx.ctx) {
+        tl_ctx.ctx = OSSL_LIB_CTX_new(); // Create a new thread-local context
+        if (!tl_ctx.ctx) {
             printf("%s:%d Failed to create thread-local context\n", __func__, __LINE__);
             return 0;
         }
         // Load providers into the thread-local context
-        if (!OSSL_PROVIDER_load(libctx, "default")) {
+        tl_ctx.prov = OSSL_PROVIDER_load(tl_ctx.ctx, "default");
+        if (!tl_ctx.prov) {
             printf("%s:%d Failed to load default provider\n", __func__, __LINE__);
-            OSSL_LIB_CTX_free(libctx);
-            libctx = nullptr;
+            OSSL_LIB_CTX_free(tl_ctx.ctx);
+            tl_ctx.ctx = nullptr;
             return 0;
         }
     }
+    OSSL_LIB_CTX *libctx = tl_ctx.ctx;
 
     if (NULL == (ctx = EVP_PKEY_CTX_new_from_pkey(libctx, dh_priv, NULL))){
         printf("%s:%d EVP_PKEY_CTX_new failed\n", __func__, __LINE__);
