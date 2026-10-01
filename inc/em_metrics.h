@@ -759,6 +759,8 @@ public:
 	 */
 	virtual short create_assoc_sta_traffic_stats_tlv(unsigned char *buff, const dm_sta_t *const sta);
 
+	short send_single_beacon_metrics_query_msg();
+
 	short send_beacon_metrics_query(mac_address_t sta_mac, bssid_t bssid);
 
 	/**!
