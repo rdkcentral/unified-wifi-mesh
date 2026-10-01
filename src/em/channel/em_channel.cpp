@@ -221,6 +221,10 @@ short em_channel_t::create_channel_scan_req_tlv(unsigned char *buff)
 		break;
 	}
 
+        if (req->num_op_classes > 0) {
+            req->perform_fresh_scan = 1;
+        }
+
 	return len;
 }
 
@@ -2120,6 +2124,17 @@ int em_channel_t::handle_channel_scan_req(unsigned char *buff, unsigned int len)
 
             req = reinterpret_cast<em_channel_scan_req_t *>(payload);
 
+            if (payload[0] & 0x7F) {
+                em_printfout("%s:%d Invalid reserved bits in Channel Scan Request",__func__, __LINE__);
+                return -1;
+            }
+
+            if (!(payload[0] & 0x80) && req->num_op_classes != 0) {
+                em_printfout("%s:%d Invalid Channel Scan Request:" "num_op_classes=%u when Fresh Scan is 0",
+                             __func__, __LINE__, req->num_op_classes);
+                return -1;
+            }
+
             memcpy(params.ruid, get_radio_interface_mac(), sizeof(mac_address_t));
             params.num_op_classes = req->num_op_classes;
 
@@ -2158,11 +2173,25 @@ int em_channel_t::handle_channel_scan_req(unsigned char *buff, unsigned int len)
                 op_class = reinterpret_cast<em_channel_scan_req_op_class_t *>(reinterpret_cast<unsigned char *>(op_class) +
                                                  sizeof(em_channel_scan_req_op_class_t) + op_class->num_channels);
             }
+
+            unsigned int parsed_len = static_cast<unsigned int>(reinterpret_cast<unsigned char *>(op_class) - payload);
+
+            if (parsed_len != cur_tlv_len) {
+                em_printfout("%s:%d Invalid Channel Scan Request TLV: "  "parsed_len=%u, tlv_len=%u", __func__, __LINE__,
+                             parsed_len, cur_tlv_len);
+                return -1;
+            }
+
         }
 	
 	tlv_len -= static_cast<int>(sizeof(em_tlv_t) + cur_tlv_len);
 
         tlv = reinterpret_cast<em_tlv_t *>(reinterpret_cast<unsigned char *>(tlv) + sizeof(em_tlv_t) + cur_tlv_len);
+    }
+
+    if (tlv_len < static_cast<int>(sizeof(em_tlv_t)) || tlv->type != em_tlv_type_eom || ntohs(tlv->len) != 0) {
+        em_printfout("%s:%d Invalid or incomplete EOM TLV in Channel Scan Request", __func__, __LINE__);
+        return -1;
     }
 
     if (params.num_op_classes > 0) {
