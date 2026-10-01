@@ -321,12 +321,12 @@ unsigned short em_configuration_t::create_client_assoc_event_tlv(unsigned char *
 }
 
 
-int em_configuration_t::send_client_disassoc_stats_msg(const dm_sta_t *dassoc_sta)
+int em_configuration_t::send_client_disassoc_stats_msg(const em_client_disassoc_stats_evt_data_t *evt)
 {
     unsigned short  msg_type = em_msg_type_client_disassoc_stats;
     char *errors[EM_MAX_TLV_MEMBERS] = {0};
     unsigned int i, len = 0;
-    unsigned short sz, stats_sz, tlv_total_len;
+    unsigned short sz, tlv_total_len;
     em_cmdu_t *cmdu;
     em_tlv_t *tlv;
     unsigned char buff[MAX_EM_BUFF_SZ];
@@ -334,30 +334,13 @@ int em_configuration_t::send_client_disassoc_stats_msg(const dm_sta_t *dassoc_st
     unsigned short type = htons(ETH_P_1905);
     dm_easy_mesh_t *dm;
     em_assoc_sta_mld_info_t *mld_info = NULL;
-    dm_sta_t dassoc_stats_sta;
-    em_sta_info_t *dassoc_stats_sta_info;
-    const em_sta_info_t *sta_info;
-    mac_address_t sta_id = {0}, radio_mac = {0};
-    bssid_t bssid = {0};
+    em_assoc_sta_traffic_sts_t *stats;
 
-    dm = get_data_model();
-    if (dassoc_sta == NULL) {
-        em_printfout("Client disassoc stats: input disassoc row is NULL");
+    if (evt == NULL) {
+        em_printfout("Client disassoc stats: NULL event");
         return -1;
     }
-
-    sta_info = &dassoc_sta->m_sta_info;
-    memcpy(sta_id, dassoc_sta->m_sta_info.id, sizeof(mac_address_t));
-    memcpy(bssid, dassoc_sta->m_sta_info.bssid, sizeof(bssid_t));
-    memcpy(radio_mac, dassoc_sta->m_sta_info.radiomac, sizeof(mac_address_t));
-
-    // Resolve stats from the global DM to get the correct values instead of using the input from command.
-    dassoc_stats_sta_info = dm->get_sta_info(sta_id, bssid, radio_mac, em_target_sta_map_disassoc);
-    if (dassoc_stats_sta_info != NULL) {
-        memcpy(&dassoc_stats_sta.m_sta_info, dassoc_stats_sta_info, sizeof(em_sta_info_t));
-        dassoc_sta = &dassoc_stats_sta;
-        sta_info = &dassoc_stats_sta.m_sta_info;
-    }
+    dm = get_data_model();
 
     // Ethernet header: dst (controller AL MAC), src (agent AL MAC), EtherType
     memcpy(tmp, dm->get_ctrl_al_interface_mac(), sizeof(mac_address_t));
@@ -385,7 +368,7 @@ int em_configuration_t::send_client_disassoc_stats_msg(const dm_sta_t *dassoc_st
     // Resolve whether this STA belongs to an MLD client.
     for (i = 0; i < dm->get_num_assoc_sta_mld(); i++) {
         em_assoc_sta_mld_info_t &assoc_sta_mld_info = dm->m_assoc_sta_mld[i].m_assoc_sta_mld_info;
-        if (memcmp(assoc_sta_mld_info.mac_addr, sta_info->id, sizeof(mac_address_t)) == 0) {
+        if (memcmp(assoc_sta_mld_info.mac_addr, evt->sta_mac, sizeof(mac_address_t)) == 0) {
             mld_info = &assoc_sta_mld_info;
             break;
         }
@@ -394,7 +377,7 @@ int em_configuration_t::send_client_disassoc_stats_msg(const dm_sta_t *dassoc_st
     // STA MAC Address Type TLV (17.2.23)
     tlv = reinterpret_cast<em_tlv_t *>(tmp);
     tlv->type = em_tlv_type_sta_mac_addr;
-    memcpy(tlv->value, sta_info->id, sizeof(mac_address_t));
+    memcpy(tlv->value, evt->sta_mac, sizeof(mac_address_t));
     tlv->len = htons(sizeof(mac_address_t));
 
     tmp += (sizeof(em_tlv_t) + sizeof(mac_address_t));
@@ -404,7 +387,7 @@ int em_configuration_t::send_client_disassoc_stats_msg(const dm_sta_t *dassoc_st
     tlv = reinterpret_cast<em_tlv_t *>(tmp);
     tlv->type = em_tlv_type_reason_code;
     em_reason_code_t *rc = reinterpret_cast<em_reason_code_t *>(tlv->value);
-    rc->reason_code = htons(dassoc_sta->m_sta_info.reason_code);
+    rc->reason_code = htons(evt->reason_code);
     sz = static_cast<unsigned short>(sizeof(em_reason_code_t));
     tlv->len = htons(sz);
 
@@ -414,11 +397,20 @@ int em_configuration_t::send_client_disassoc_stats_msg(const dm_sta_t *dassoc_st
     // Associated STA Traffic Stats TLV (17.2.35)
     tlv = reinterpret_cast<em_tlv_t *>(tmp);
     tlv->type = em_tlv_type_assoc_sta_traffic_sts;
-    stats_sz = static_cast<unsigned short>(static_cast<em_t *>(this)->create_assoc_sta_traffic_stats_tlv(tlv->value, dassoc_sta));
-    tlv->len = htons(stats_sz);
-    tlv_total_len = static_cast<unsigned short>(sizeof(em_tlv_t) + stats_sz);
-    tmp += tlv_total_len;
-    len += static_cast<unsigned int>(tlv_total_len);
+    stats = reinterpret_cast<em_assoc_sta_traffic_sts_t *>(tlv->value);
+    memcpy(stats->sta_mac_addr, evt->sta_mac, sizeof(mac_address_t));
+    stats->bytes_sent = htonl(evt->bytes_sent);
+    stats->bytes_recv = htonl(evt->bytes_recv);
+    stats->packets_sent = htonl(evt->packets_sent);
+    stats->packets_recv = htonl(evt->packets_recv);
+    stats->tx_packets_errors = htonl(evt->tx_packets_errors);
+    stats->rx_packets_errors = htonl(evt->rx_packets_errors);
+    stats->retrans_count = htonl(evt->retrans_count);
+    sz = static_cast<unsigned short>(sizeof(em_assoc_sta_traffic_sts_t));
+    tlv->len = htons(sz);
+
+    tmp += (sizeof(em_tlv_t) + sz);
+    len += static_cast<unsigned int>(sizeof(em_tlv_t) + sz);
 
     // Zero or more Affiliated STA Metrics TLVs (17.2.100)
     tlv_total_len = create_affiliated_sta_metrics_tlvs(tmp, dm, mld_info, em_target_sta_map_disassoc);
@@ -443,7 +435,8 @@ int em_configuration_t::send_client_disassoc_stats_msg(const dm_sta_t *dassoc_st
         return -1;
     }
 
-    em_printfout("Client disassoc stats sent");
+    em_printfout("Client disassoc stats sent: sta=%s bssid=%s reason=%u",
+        util::mac_to_string(evt->sta_mac).c_str(), util::mac_to_string(evt->bssid).c_str(), evt->reason_code);
 
     return static_cast<int>(len);
 }
@@ -702,7 +695,6 @@ void em_configuration_t::handle_state_topology_notify()
     dm_easy_mesh_t *dm;
     dm_sta_t *sta;
     int notif_ret;
-    int disassoc_stats_ret;
     std::string sta_str;
 
     dm = get_current_cmd()->get_data_model();
@@ -718,12 +710,7 @@ void em_configuration_t::handle_state_topology_notify()
     while (sta != NULL) {
             sta_str = util::mac_to_string(sta->m_sta_info.id);
             notif_ret = send_topology_notification_by_client(sta->m_sta_info.id, sta->m_sta_info.bssid, false);
-            if (notif_ret >= 0) {
-                disassoc_stats_ret = send_client_disassoc_stats_msg(sta);
-                if (disassoc_stats_ret < 0) {
-                    em_printfout("topo notification: stats send failed for sta=%s", sta_str.c_str());
-                }
-            } else {
+            if (notif_ret < 0) {
                 em_printfout("topo notification: disassoc notif failed for sta=%s", sta_str.c_str());
             }
         sta = static_cast<dm_sta_t *> (hash_map_get_next(dm->m_sta_dassoc_map, sta));

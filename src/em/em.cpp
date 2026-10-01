@@ -367,6 +367,7 @@ void em_t::proto_process(unsigned char *data, unsigned int len)
             break;
 
         case em_msg_type_failed_conn:
+        case em_msg_type_client_disassoc_stats:
             em_metrics_t::process_msg(data, len);
             break;
 
@@ -427,6 +428,18 @@ void em_t::proto_process(em_cmd_event_t *cevt)
                                                failed_conn_evt->reason_code,
                                                failed_conn_evt->reason_code_present);
                 free(failed_conn_evt);
+                cevt->cmd_ptr = NULL;
+            }
+            break;
+        }
+        case em_cmd_event_type_client_disassoc_stats:
+        {
+            em_client_disassoc_stats_evt_data_t *disassoc_evt =
+                static_cast<em_client_disassoc_stats_evt_data_t *>(cevt->cmd_ptr);
+
+            if (disassoc_evt != NULL) {
+                send_client_disassoc_stats_msg(disassoc_evt);
+                free(disassoc_evt);
                 cevt->cmd_ptr = NULL;
             }
             break;
