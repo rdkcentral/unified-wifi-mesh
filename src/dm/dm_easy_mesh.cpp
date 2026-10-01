@@ -3786,8 +3786,8 @@ void dm_easy_mesh_t::update_ap_mld_info(em_ap_mld_info_t *ap_mld_info)
         target_aff_ap->link_id = input_ap->link_id;
     }
 
-    em_printfout("Updated MLD key=%s (key_al_mac=%s haul_type=%d ssid=%s) with %d affiliated APs", key,
-        key_al_mac_str, target_mld->haul_type, target_mld->ssid, target_mld->num_affiliated_ap);
+    em_printfout("Updated MLD key=%s (haul_type=%d ssid=%s) with %d affiliated APs", key,
+         target_mld->haul_type, target_mld->ssid, target_mld->num_affiliated_ap);
 }
 
 
