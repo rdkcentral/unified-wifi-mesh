@@ -6317,6 +6317,180 @@ TEST(em_msg_t, validate_success_optional_only)
     std::cout << "Exiting validate_success_optional_only test" << std::endl;
 }
 /**
+ * @brief Validate that a truncated TLV stops the walk instead of being dereferenced past the buffer.
+ *
+ * This test plants one TLV right after the header whose declared length (60000) claims far more
+ * value bytes than the small backing buffer actually holds, and no EOM follows it. Neither mandatory
+ * TLV of em_msg_type_topo_disc is present, so validate() must walk past this TLV while searching for
+ * them. Before the fix, the walk subtracted the declared length from the remaining length without
+ * checking it fit, underflowed the unsigned remaining-length counter, and then dereferenced a
+ * pointer advanced 60000+ bytes past a 64 byte buffer. The fix must stop the walk at the truncated
+ * TLV and report validation failure, not crash.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 179@n
+ * **Priority:** High@n
+ *
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ *
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01 | Place one TLV header right after the CMDU header, of a type that is not a mandatory member of topo_disc, declaring a value length of 60000 | buffer = 64 bytes zeroed, tlv->type = em_tlv_type_supported_role, tlv->len = htons(60000) | TLV header written, no value bytes or EOM follow | Should be successful |
+ * | 02 | Construct the message and invoke validate() | msg_type = em_msg_type_topo_disc, profile = em_profile_type_1 | validate() returns without crashing | Should Pass |
+ * | 03 | Check the validation result | errors array | validate() returns false, since neither mandatory TLV was found | Should Pass |
+ */
+TEST(em_msg_t, validate_truncated_tlv_does_not_overrun)
+{
+    std::cout << "Entering validate_truncated_tlv_does_not_overrun test" << std::endl;
+    unsigned char buffer[64] = {0};
+    unsigned int len = sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t);
+
+    /* A TLV whose header claims far more value bytes than the buffer actually holds,
+     * simulating a message truncated in transit. Its type is not a mandatory TLV for
+     * topo_disc, so validate() must walk past it while looking for a match.
+     */
+    em_tlv_t *tlv = reinterpret_cast<em_tlv_t *>(buffer + len);
+    tlv->type = em_tlv_type_supported_role;
+    tlv->len = htons(60000);
+    len += static_cast<unsigned int>(sizeof(em_tlv_t));
+
+    std::cout << "Invoking validate(...) on a message with a truncated TLV" << std::endl;
+    em_msg_t msg(em_msg_type_topo_disc, em_profile_type_1, buffer, len);
+    char *errors[EM_MAX_TLV_MEMBERS] = {nullptr};
+    EXPECT_FALSE(msg.validate(errors));
+    std::cout << "Exiting validate_truncated_tlv_does_not_overrun test" << std::endl;
+}
+/**
+ * @brief Validate that a message shorter than the fixed headers does not underflow the TLV walk.
+ *
+ * m_len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)) is computed on every pass of validate()'s
+ * outer loop. Before the fix, a message shorter than the fixed headers made this subtraction wrap
+ * to a huge unsigned value, which passed the while condition and dereferenced tlv->type at
+ * m_buff + header size, past the tiny buffer actually backing the message. The fix clamps the
+ * result to 0 instead of wrapping, so the walk is skipped and the (missing) mandatory TLVs are
+ * correctly reported absent rather than crashing.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 180@n
+ * **Priority:** High@n
+ *
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ *
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01 | Construct a message whose declared length is shorter than sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t) | buffer = 4 bytes zeroed, len = 4 | Message constructed | Should be successful |
+ * | 02 | Invoke validate() on it | msg_type = em_msg_type_topo_disc, profile = em_profile_type_1 | validate() returns without crashing | Should Pass |
+ * | 03 | Check the validation result | errors array | validate() returns false, since neither mandatory TLV can be found in a header-less message | Should Pass |
+ */
+TEST(em_msg_t, validate_message_shorter_than_headers_does_not_underflow)
+{
+    std::cout << "Entering validate_message_shorter_than_headers_does_not_underflow test" << std::endl;
+    unsigned char buffer[4] = {0};
+    unsigned int len = 4;
+    ASSERT_LT(len, sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+
+    std::cout << "Invoking validate(...) on a message shorter than the fixed headers" << std::endl;
+    em_msg_t msg(em_msg_type_topo_disc, em_profile_type_1, buffer, len);
+    char *errors[EM_MAX_TLV_MEMBERS] = {nullptr};
+    EXPECT_FALSE(msg.validate(errors));
+    std::cout << "Exiting validate_message_shorter_than_headers_does_not_underflow test" << std::endl;
+}
+/**
+ * @brief Validate that a mandatory TLV whose declared length does not fit is not accepted as present.
+ *
+ * The walk matched tlv->type against the wanted mandatory type before checking whether the
+ * declared value length actually fit in the remaining bytes. That let a truncated TLV of the
+ * right type be marked present; the later length check then compared the *peer-declared* length
+ * (not the bytes actually available) against the minimum, which the attacker also controls, so a
+ * truncated mandatory TLV could pass validation entirely. This test plants a mandatory
+ * al_mac_address TLV (min length 9) that declares a value length of 100 with no value bytes behind
+ * it, and confirms validate() now reports it missing rather than accepting it.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 181@n
+ * **Priority:** High@n
+ *
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ *
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01 | Place a mandatory-type TLV header right after the CMDU header, declaring a value length of 100 with no value bytes or EOM behind it | buffer = 64 bytes zeroed, tlv->type = em_tlv_type_al_mac_address, tlv->len = htons(100) | TLV header written | Should be successful |
+ * | 02 | Construct the message and invoke validate() | msg_type = em_msg_type_topo_disc, profile = em_profile_type_1 | validate() returns without crashing | Should Pass |
+ * | 03 | Check the validation result | errors array | validate() returns false: the truncated TLV is not accepted as satisfying the mandatory requirement | Should Pass |
+ */
+TEST(em_msg_t, validate_rejects_truncated_mandatory_tlv)
+{
+    std::cout << "Entering validate_rejects_truncated_mandatory_tlv test" << std::endl;
+    unsigned char buffer[64] = {0};
+    unsigned int len = sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t);
+
+    /* A mandatory-type TLV header declaring far more value bytes than are actually present.
+     * em_msg_type_topo_notif has exactly one mandatory member (al_mac_address), so a bug that
+     * marks this truncated TLV present cannot be masked by any other missing mandatory TLV.
+     */
+    em_tlv_t *tlv = reinterpret_cast<em_tlv_t *>(buffer + len);
+    tlv->type = em_tlv_type_al_mac_address;
+    tlv->len = htons(100);
+    len += static_cast<unsigned int>(sizeof(em_tlv_t));
+
+    std::cout << "Invoking validate(...) on a message with a truncated mandatory TLV" << std::endl;
+    em_msg_t msg(em_msg_type_topo_notif, em_profile_type_1, buffer, len);
+    char *errors[EM_MAX_TLV_MEMBERS] = {nullptr};
+    EXPECT_FALSE(msg.validate(errors));
+    std::cout << "Exiting validate_rejects_truncated_mandatory_tlv test" << std::endl;
+}
+/**
+ * @brief Validate that a truncated TLV after all expected TLVs still fails validation.
+ *
+ * Each member's search stops at its first match, so a truncated TLV placed after every member
+ * of the message type is never reached by those searches. The message must still be rejected.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 182@n
+ * **Priority:** High@n
+ *
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ *
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01 | Add valid al_mac_address and client_assoc_event TLVs, then a TLV header declaring 60000 bytes | msg_type = em_msg_type_topo_notif, tlv->len = htons(60000) | Message built | Should be successful |
+ * | 02 | Invoke validate() | errors array | validate() returns false | Should Pass |
+ */
+TEST(em_msg_t, validate_rejects_truncated_tlv_after_all_members)
+{
+    std::cout << "Entering validate_rejects_truncated_tlv_after_all_members test" << std::endl;
+    unsigned char buffer[128] = {0};
+    unsigned int len = sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t);
+    unsigned char al_mac[6] = {0x00, 0x11, 0x22, 0x33, 0x44, 0x55};
+    unsigned char assoc[12] = {0};
+
+    /* topo_notif has exactly these two members, both present before the truncated TLV. */
+    em_msg_t::add_tlv(buffer + len, &len, em_tlv_type_al_mac_address, al_mac, sizeof(al_mac));
+    em_msg_t::add_tlv(buffer + len, &len, em_tlv_type_client_assoc_event, assoc, sizeof(assoc));
+    em_tlv_t *tlv = reinterpret_cast<em_tlv_t *>(buffer + len);
+    tlv->type = em_tlv_type_supported_role;
+    tlv->len = htons(60000);
+    len += static_cast<unsigned int>(sizeof(em_tlv_t));
+
+    std::cout << "Invoking validate(...) on a message with a truncated TLV after all members" << std::endl;
+    em_msg_t msg(em_msg_type_topo_notif, em_profile_type_1, buffer, len);
+    char *errors[EM_MAX_TLV_MEMBERS] = {nullptr};
+    EXPECT_FALSE(msg.validate(errors));
+    std::cout << "Exiting validate_rejects_truncated_tlv_after_all_members test" << std::endl;
+}
+/**
  * @brief Validates that a default constructed em_msg_t object is handled correctly
  *
  * This test verifies that constructing an em_msg_t object using the default constructor does not throw any exceptions.
