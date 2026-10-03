@@ -257,7 +257,21 @@ bool em_msg_t::get_radio_id(mac_address_t *mac)
 	em_ap_op_bss_radio_t    *radio;
 
     tlv = reinterpret_cast<em_tlv_t *> (m_buff); len = m_len;
-    while ((tlv->type != em_tlv_type_eom) && (len > 0)) {
+    while (len > 0) {
+        if (len < sizeof(em_tlv_t)) {
+            return false;
+        }
+        const unsigned int value_len = ntohs(tlv->len);
+        if ((sizeof(em_tlv_t) + value_len) > len) {
+            return false;
+        }
+        if (tlv->type == em_tlv_type_channel_scan_req &&
+            (value_len < 2 || (tlv->value[1] != 0 && value_len < 2 + sizeof(mac_address_t)))) {
+            return false;
+        }
+        if (tlv->type == em_tlv_type_eom) {
+            break;
+        }
         if (tlv->type == em_tlv_type_radio_id) {
             memcpy(mac, tlv->value, sizeof(mac_address_t));
             return true;    
