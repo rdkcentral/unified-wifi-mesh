@@ -329,6 +329,22 @@ static const mac_address_t EM_GLOBAL_MAC_ADDRESS = {0xff, 0xff, 0xff, 0xff, 0xff
 #define WIFI_EM_FAILED_CONNECTION             "Device.WiFi.EM.FailedConnection"
 #endif
 
+#ifndef WIFI_EM_INIT_TX_POWER_READY
+#define WIFI_EM_INIT_TX_POWER_READY           "Device.WiFi.EM.TxPowerReady"
+#endif
+
+#ifndef WIFI_EM_TX_POWER_READY_STATUS
+#define WIFI_EM_TX_POWER_READY_STATUS         "Device.WiFi.EM.TxPowerReadyStatus"
+#endif
+
+#ifndef WIFI_EM_TX_POWER_REQUEST
+#define WIFI_EM_TX_POWER_REQUEST              "Device.WiFi.EM.TxPowerRequest"
+#endif
+
+#ifndef WIFI_EM_TX_POWER_REPORT
+#define WIFI_EM_TX_POWER_REPORT               "Device.WiFi.EM.TxPowerReport"
+#endif
+
 #ifndef WIFI_EM_CLIENT_ASSOC_CTRL_REQ
 #define WIFI_EM_CLIENT_ASSOC_CTRL_REQ        "Device.WiFi.EM.ClientAssocCtrlRequest"
 #endif

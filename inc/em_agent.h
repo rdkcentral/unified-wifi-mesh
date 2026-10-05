@@ -29,6 +29,8 @@
 #include "bus.h"
 
 #include <string>
+#include <condition_variable>
+#include <mutex>
 
 #ifdef AL_SAP
 #define DATA_SOCKET_PATH "/tmp/al_data_socket"
@@ -45,6 +47,17 @@ class em_agent_t : public em_mgr_t {
     em_short_string_t   m_data_model_path;
     em_cmd_agent_t  *m_agent_cmd;
 	em_simulator_t	m_simulator;
+	bool m_tx_power_ready = false;
+	std::mutex m_tx_power_ready_mutex;
+	std::condition_variable m_tx_power_ready_cv;
+	std::mutex m_tx_power_request_mutex;
+	std::mutex m_tx_power_response_mutex;
+	std::condition_variable m_tx_power_response_cv;
+	unsigned int m_tx_power_request_id = 0;
+	unsigned int m_pending_tx_power_request_id = 0;
+	bool m_tx_power_response_ready = false;
+	mac_address_t m_pending_tx_power_ruid = {};
+	int m_runtime_tx_power = 0;
 
 	
 	/**!
@@ -397,6 +410,18 @@ public:
 	 */
 	void input_listener();
 
+	/**!
+	 * @brief Requests and waits for the latest runtime transmit power for a radio.
+	 *
+	 * The request is sent over the OneWifi bus and the agent waits for the matching
+	 * response event before returning the fresh value to the caller.
+	 *
+	 * @param[in] ruid Radio unique identifier for the target radio.
+	 * @param[out] tx_power Output parameter that receives the runtime transmit power value.
+	 *
+	 * @return true if the request completes successfully within the timeout window, false otherwise.
+	 */
+	bool request_runtime_tx_power(const unsigned char *ruid, int *tx_power) override;
 
 	bool is_agent_dpp_onboarding() override {
 		return do_start_dpp_onboarding;
@@ -1071,6 +1096,34 @@ public:
 	 * @return int 1 on success, otherwise -1
 	 */
 	static int failed_conn_cb(char *event_name, bus_data_prop_t *data, void *userData);
+
+	/**!
+	 * @brief Handles the OneWifi transmit-power-ready event.
+	 *
+	 * This callback marks the agent as ready to serve runtime transmit-power requests
+	 * after the underlying driver reports that the current radio power is available.
+	 *
+	 * @param[in] event_name Name of the bus event.
+	 * @param[in] data Event payload (unused for this callback).
+	 * @param[in] userData Agent instance associated with the callback.
+	 *
+	 * @return 1 on success, -1 if the agent instance is invalid.
+	 */
+	static int tx_power_ready_cb(char *event_name, bus_data_prop_t *data, void *userData);
+
+	/**!
+	 * @brief Handles a runtime transmit-power response from OneWifi.
+	 *
+	 * The callback validates the response against the pending request ID and radio UID,
+	 * then stores the fresh transmit power that will be consumed by the calling path.
+	 *
+	 * @param[in] event_name Name of the bus event.
+	 * @param[in] data Response payload containing request ID, radio UID, and runtime value.
+	 * @param[in] userData Agent instance associated with the callback.
+	 *
+	 * @return 1 on success, -1 if the payload or pending request is invalid.
+	 */
+	static int runtime_tx_power_cb(char *event_name, bus_data_prop_t *data, void *userData);
 
 	/**
 	 * @brief Callback for BSS scan events
