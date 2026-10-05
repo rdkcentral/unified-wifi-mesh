@@ -1199,6 +1199,40 @@ int em_channel_t::send_operating_channel_report_msg()
     mac_addr_str_t mac_str;
 
     dm = get_data_model();
+    if (dm == nullptr) {
+        printf("%s:%d: data model unavailable; skipping operating channel report\n", __func__, __LINE__);
+        return -1;
+    }
+
+    em_mgr_t *mgr = get_mgr();
+
+    int tx_power = 0;
+    bool tx_power_refreshed = false;
+    if (mgr != nullptr) {
+        tx_power_refreshed = mgr->request_runtime_tx_power(get_radio_interface_mac(), &tx_power);
+    }
+    if (!tx_power_refreshed) {
+        printf("%s:%d: runtime transmit power refresh failed; using cached value if available\n",
+            __func__, __LINE__);
+    }
+
+    bool updated_tx_power = false;
+    for (unsigned int i = 0; i < dm->m_num_opclass; i++) {
+        dm_op_class_t *op_class = &dm->m_op_class[i];
+        if (memcmp(op_class->m_op_class_info.id.ruid, get_radio_interface_mac(), sizeof(mac_address_t)) == 0 &&
+            op_class->m_op_class_info.id.type == em_op_class_type_current) {
+            if (tx_power_refreshed) {
+                op_class->m_op_class_info.tx_power = tx_power;
+            } else {
+                tx_power = op_class->m_op_class_info.tx_power;
+            }
+            updated_tx_power = true;
+        }
+    }
+    if (!updated_tx_power) {
+        printf("%s:%d: no current operating class found for runtime transmit power\n", __func__, __LINE__);
+        return -1;
+    }
 
     memcpy(tmp, dm->get_ctl_mac(), sizeof(mac_address_t));
     tmp += sizeof(mac_address_t);
@@ -1642,7 +1676,15 @@ int em_channel_t::handle_op_channel_report(unsigned char *buff, unsigned int len
     em_op_channel_rprt_t *rpt = reinterpret_cast<em_op_channel_rprt_t *> (buff);
     mac_address_t ruid;
     mac_addr_str_t ruid_str;
+    int tx_power = 0;
+    unsigned int tx_power_off;
     dm = get_data_model();
+
+    /* the Current Transmit Power EIRP byte follows the operating class list */
+    tx_power_off = sizeof(em_op_channel_rprt_t) + rpt->op_classes_num * sizeof(em_op_class_ch_rprt_t);
+    if (len > tx_power_off) {
+        tx_power = static_cast<int8_t> (buff[tx_power_off]);
+    }
 
     //Update current Operating Channel for RUID
     for (i = 0; i < dm->m_num_opclass; i++) {
@@ -1651,6 +1693,7 @@ int em_channel_t::handle_op_channel_report(unsigned char *buff, unsigned int len
                     (op_class_info->id.type == em_op_class_type_current)) == true) {
             op_class_info->op_class = static_cast<unsigned int> (rpt->op_classes[0].op_class);
             op_class_info->channel = static_cast<unsigned int> (rpt->op_classes[0].channel);
+            op_class_info->tx_power = tx_power;
             found++;
         }
     }
@@ -1661,6 +1704,7 @@ int em_channel_t::handle_op_channel_report(unsigned char *buff, unsigned int len
         op_class_info->op_class = static_cast<unsigned int> (rpt->op_classes[0].op_class);
         op_class_info->id.op_class = op_class_info->op_class;
         op_class_info->channel = static_cast<unsigned int> (rpt->op_classes[0].channel);
+        op_class_info->tx_power = tx_power;
         dm->set_num_op_class(dm->get_num_op_class() + 1);
         dm->set_db_cfg_param(db_cfg_type_op_class_list_update, "");
         dm->set_db_cfg_param(db_cfg_type_radio_list_update, "");
@@ -2452,9 +2496,13 @@ void em_channel_t::process_state()
         		
         case em_state_agent_channel_report_pending:
             if (get_service_type() == em_service_type_agent) {
-                send_operating_channel_report_msg();
-                printf("%s:%d operating_channel_report_msg send\n", __func__, __LINE__);
-                set_state(em_state_agent_configured);
+                if (send_operating_channel_report_msg() > 0) {
+                    printf("%s:%d operating_channel_report_msg send\n", __func__, __LINE__);
+                    set_state(em_state_agent_configured);
+                } else {
+                    printf("%s:%d operating_channel_report_msg was not sent\n", __func__, __LINE__);
+                    return;
+                }
             }
             break;
 
