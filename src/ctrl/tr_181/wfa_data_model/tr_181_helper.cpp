@@ -411,7 +411,7 @@ bool tr_181_t::parse_unassoc_ch_obj(const bus_data_prop_t *prop, tr181_unassoc_c
 
 bool tr_181_t::parse_bmq_ch_rep_obj(const bus_data_prop_t *prop, tr181_bmq_ch_rep_item_t *ch_rep_item)
 {
-     if (!prop || !prop->name || !ch_rep_item) {
+     if (!prop || !ch_rep_item) {
          return false;
      }
 
