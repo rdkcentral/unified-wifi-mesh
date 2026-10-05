@@ -3983,3 +3983,54 @@ TEST(dm_easy_mesh_ctrl_t, get_dm_radio_alias_is_base64_ruid) {
     EXPECT_EQ(dm_ctrl.get_dm_radio(&dm, index, true), dm.get_radio(0u));
     std::cout << "Exiting get_dm_radio_alias_is_base64_ruid test" << std::endl;
 }
+
+/**
+ * @brief Verify that get_dm_bss() numbers the rows the way the BSS table does.
+ *
+ * The BSS table skips a BSS whose BSSID is all zeros, so a numeric BSS instance must be counted over the
+ * radio's BSSs that have a BSSID: with a BSSID-less entry ahead of a valid one, row 1 is the valid one and
+ * a row past the last valid entry resolves to nothing.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 011@n
+ * **Priority:** High@n
+ *
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ *
+ * **Test Procedure:**
+ * | Variation / Step | Description                                                    | Test Data                              | Expected Result                     | Notes       |
+ * | :--------------: | -------------------------------------------------------------- | -------------------------------------- | ----------------------------------- | ----------- |
+ * | 01               | Row 1 of a radio whose first BSS has no BSSID                  | "1", is_num = true                     | Returns dm.get_bss(1)               | Should Pass |
+ * | 02               | Row past the last BSS that has a BSSID                         | "2", is_num = true                     | Returns NULL                        | Should Pass |
+ * | 03               | Look up by BSSID alias                                         | "02:11:22:33:44:77", is_num = false    | Returns dm.get_bss(1)               | Should Pass |
+ */
+TEST(dm_easy_mesh_ctrl_t, get_dm_bss_skips_bss_without_bssid) {
+    std::cout << "Entering get_dm_bss_skips_bss_without_bssid test" << std::endl;
+    dm_easy_mesh_ctrl_t dm_ctrl;
+    dm_easy_mesh_t dm;
+    em_radio_info_t ri;
+    const unsigned char ruid[6] = { 0x02, 0x11, 0x22, 0x33, 0x44, 0x55 };
+    const unsigned char bssid[6] = { 0x02, 0x11, 0x22, 0x33, 0x44, 0x77 };
+    memset(&ri, 0, sizeof(ri));
+    memcpy(ri.id.ruid, ruid, sizeof(ruid));
+    em_bss_info_t *bi0 = dm.get_bss_by_ref(0).get_bss_info();
+    em_bss_info_t *bi1 = dm.get_bss_by_ref(1).get_bss_info();
+    memcpy(bi0->ruid.mac, ruid, sizeof(ruid));
+    memset(bi0->bssid.mac, 0, sizeof(bi0->bssid.mac));
+    memcpy(bi1->ruid.mac, ruid, sizeof(ruid));
+    memcpy(bi1->bssid.mac, bssid, sizeof(bssid));
+    dm.set_num_bss(2);
+
+    char row1[] = "1";
+    std::cout << "Invoking get_dm_bss(...) with instance " << row1 << std::endl;
+    EXPECT_EQ(dm_ctrl.get_dm_bss(&dm, &ri, row1, true), dm.get_bss(1u));
+
+    char row2[] = "2";
+    EXPECT_EQ(dm_ctrl.get_dm_bss(&dm, &ri, row2, true), nullptr);
+
+    char alias[] = "02:11:22:33:44:77";
+    EXPECT_EQ(dm_ctrl.get_dm_bss(&dm, &ri, alias, false), dm.get_bss(1u));
+    std::cout << "Exiting get_dm_bss_skips_bss_without_bssid test" << std::endl;
+}
