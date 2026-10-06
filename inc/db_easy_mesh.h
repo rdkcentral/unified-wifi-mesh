@@ -207,6 +207,26 @@ public:
 	 * @note Ensure that the database client is properly initialized before calling this function.
 	 */
 	int load_table(db_client_t& db_client);
+
+	/**!
+	 * @brief Checks the deployed table's columns against m_columns.
+	 *
+	 * @param[in] db_client Database client to query with.
+	 *
+	 * @returns true if the column names and their order match, false otherwise.
+	 */
+	bool schema_matches(db_client_t& db_client);
+
+	/**!
+	 * @brief Whether load_table() may drop and recreate this table when its schema has changed.
+	 *
+	 * @returns false by default, so an existing table is never discarded unless a derived
+	 * class opts in.
+	 *
+	 * @note Only safe for tables whose contents are re-advertised by the mesh and can be
+	 * rebuilt; anything holding configuration must be migrated instead.
+	 */
+	virtual bool recreate_on_schema_mismatch() const { return false; }
     
 	/**!
 	 * @brief Synchronizes the table with the database client.

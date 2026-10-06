@@ -95,6 +95,19 @@
 
 
 	 /**!
+	  * @brief Execute a statement that returns no result set and report whether it succeeded.
+	  *
+	  * @param[in] query SQL statement to execute (INSERT, UPDATE, DELETE, ...).
+	  *
+	  * @returns true if the statement executed successfully, false otherwise.
+	  *
+	  * @note execute() cannot be used to detect failure for these statements because it
+	  * returns NULL both for a successful non-result statement and for an SQL error.
+	  */
+	 bool execute_non_query(const char *query);
+
+
+	 /**!
 	  * @brief Retrieve the next result from the query execution.
 	  *
 	  * This function checks if there is another result available in the

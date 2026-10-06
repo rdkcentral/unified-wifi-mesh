@@ -37,6 +37,9 @@
 #include <errno.h>
 #include <limits.h>
 #include <vector>
+#include <string>
+#include <array>
+#include <algorithm>
 #include "dm_easy_mesh_ctrl.h"
 #include "dm_easy_mesh.h"
 #include "em_ctrl.h"
@@ -5789,6 +5792,7 @@ void dm_easy_mesh_ctrl_t::init_tables()
 {
     dm_network_list_t::init();
     dm_device_list_t::init();
+    dm_neighbor_list_t::init();
     dm_network_ssid_list_t::init();
     dm_ieee_1905_security_list_t::init();
     dm_radio_cap_list_t::init();
@@ -5813,6 +5817,8 @@ int dm_easy_mesh_ctrl_t::load_tables()
         type = db_cfg_type_network_list_update;
     } else if (dm_device_list_t::load_table(m_db_client) != 0) {
         type = db_cfg_type_device_list_update;
+    } else if (dm_neighbor_list_t::load_table(m_db_client) != 0) {
+        type = db_cfg_type_neighbor_list_update;
     } else if (dm_radio_list_t::load_table(m_db_client) != 0) {
         type = db_cfg_type_radio_list_update;
     } else if (dm_network_ssid_list_t::load_table(m_db_client) != 0) {
@@ -10482,14 +10488,15 @@ int dm_easy_mesh_ctrl_t::init(const char *data_model_path, em_mgr_t *mgr)
     return 0;
 }
 
-dm_easy_mesh_ctrl_t::dm_easy_mesh_ctrl_t()
+dm_easy_mesh_ctrl_t::dm_easy_mesh_ctrl_t() :
+    m_nb_pipe_rd(0),
+    m_nb_pipe_wr(0),
+    m_nb_evt_id(0),
+    m_initialized(false),
+    m_network_initialized(false),
+    m_topology(nullptr),
+    m_neighbor_list(hash_map_create())
 {
-    m_initialized = false;
-    m_network_initialized = false;
-    m_nb_pipe_rd = 0;
-    m_nb_pipe_wr = 0;
-    m_nb_evt_id = 0;
-    m_topology = nullptr;
 }
 
 dm_easy_mesh_ctrl_t::~dm_easy_mesh_ctrl_t()
@@ -10500,4 +10507,126 @@ dm_easy_mesh_ctrl_t::~dm_easy_mesh_ctrl_t()
     if (m_nb_pipe_wr != 0) {
         close(m_nb_pipe_wr);
     }
+
+    dm_neighbor_list_t::delete_list();
+    hash_map_destroy(m_neighbor_list);
+}
+
+dm_neighbor_t *dm_easy_mesh_ctrl_t::get_first_neighbor()
+{
+    return static_cast<dm_neighbor_t *>(hash_map_get_first(m_neighbor_list));
+}
+
+dm_neighbor_t *dm_easy_mesh_ctrl_t::get_next_neighbor(dm_neighbor_t *neighbor)
+{
+    return static_cast<dm_neighbor_t *>(hash_map_get_next(m_neighbor_list, neighbor));
+}
+
+dm_neighbor_t *dm_easy_mesh_ctrl_t::get_neighbor(const char *key)
+{
+    return static_cast<dm_neighbor_t *>(hash_map_get(m_neighbor_list, key));
+}
+
+void dm_easy_mesh_ctrl_t::remove_neighbor(const char *key)
+{
+    // hash_map_remove() frees the strdup'd key and the element; only the value is ours.
+    dm_neighbor_t *neighbor = static_cast<dm_neighbor_t *>(hash_map_remove(m_neighbor_list, key));
+    delete neighbor;
+}
+
+void dm_easy_mesh_ctrl_t::put_neighbor(const char *key, const dm_neighbor_t *neighbor)
+{
+    dm_neighbor_t *existing = get_neighbor(key);
+    if (existing != NULL) {
+        *existing = *neighbor;
+        return;
+    }
+    hash_map_put(m_neighbor_list, strdup(key), new dm_neighbor_t(*neighbor));
+}
+
+int dm_easy_mesh_ctrl_t::update_neighbor_list(const unsigned char *value, unsigned int length,
+    const unsigned char *dev_al_mac, bool is_1905)
+{
+    typedef std::array<unsigned char, sizeof(mac_address_t)> neigh_mac_t;
+
+    const unsigned int header_length = sizeof(mac_address_t);
+    const unsigned int entry_length = is_1905 ? sizeof(em_neigh_entry_t) : sizeof(em_non_1905_neigh_entry_t);
+    const char *list_name = is_1905 ? "1905" : "non-1905";
+    std::vector<neigh_mac_t> reported;
+    std::vector<em_neighbor_info_t> stale;
+    em_neighbor_info_t info;
+    neigh_mac_t mac;
+    em_long_string_t key;
+    unsigned int failures = 0;
+
+    if (value == NULL || dev_al_mac == NULL || length < header_length) {
+        return -1;
+    }
+
+    // Payload is the local interface MAC followed by fixed size entries with no count field,
+    // so a trailing partial entry means the list cannot be trusted to purge stale rows.
+    if (((length - header_length) % entry_length) != 0) {
+        em_printfout("Malformed %s NeighborList from %s, len:%u", list_name,
+            util::mac_to_string(dev_al_mac).c_str(), length);
+        return -1;
+    }
+
+    const unsigned char *entries = value + header_length;
+    const unsigned int entry_count = (length - header_length) / entry_length;
+
+    reported.reserve(entry_count);
+
+    for (unsigned int index = 0; index < entry_count; index++) {
+        memset(&info, 0, sizeof(info));
+        memcpy(info.nbr, entries + (index * entry_length), sizeof(mac_address_t));
+        memcpy(info.local_iface_mac, value, sizeof(mac_address_t));
+        memcpy(info.dev_al_mac, dev_al_mac, sizeof(mac_address_t));
+        // Being named in this TLV means the neighbor is reachable directly over the interface.
+        memcpy(info.next_hop, info.nbr, sizeof(mac_address_t));
+        info.num_hops = 1;
+        info.is_ieee1905neighbor = is_1905;
+
+        memcpy(mac.data(), info.nbr, sizeof(mac_address_t));
+        reported.push_back(mac);
+
+        dm_neighbor_t neighbor(&info);
+        if (dm_neighbor_list_t::set_config(m_db_client, neighbor, NULL) != 0) {
+            dm_neighbor_list_t::make_key(&info, key);
+            em_printfout("Failed to write %s neighbor %s to db", list_name, key);
+            failures++;
+        }
+    }
+
+    // Sorted so the sweep below stays O(log n) per entry; a non-IEEE1905 list can name
+    // every device seen on the interface.
+    std::sort(reported.begin(), reported.end());
+
+    // Anything still held for this interface that the device no longer reports has gone away.
+    for (dm_neighbor_t *neighbor = get_first_neighbor(); neighbor != NULL;
+         neighbor = get_next_neighbor(neighbor)) {
+        const em_neighbor_info_t *existing = neighbor->get_neighbor_info();
+
+        if ((existing->is_ieee1905neighbor != is_1905) ||
+            (memcmp(existing->dev_al_mac, dev_al_mac, sizeof(mac_address_t)) != 0) ||
+            (memcmp(existing->local_iface_mac, value, sizeof(mac_address_t)) != 0)) {
+            continue;
+        }
+
+        memcpy(mac.data(), existing->nbr, sizeof(mac_address_t));
+        if (std::binary_search(reported.begin(), reported.end(), mac) == false) {
+            stale.push_back(*existing);
+        }
+    }
+
+    for (em_neighbor_info_t &gone : stale) {
+        if (dm_neighbor_list_t::update_db(m_db_client, dm_orch_type_db_delete, &gone) != 0) {
+            dm_neighbor_list_t::make_key(&gone, key);
+            em_printfout("Failed to remove stale %s neighbor %s from db", list_name, key);
+            failures++;
+            continue;
+        }
+        dm_neighbor_list_t::update_list(dm_neighbor_t(&gone), dm_orch_type_db_delete);
+    }
+
+    return (failures == 0) ? 0 : -1;
 }

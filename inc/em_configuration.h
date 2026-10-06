@@ -1013,6 +1013,20 @@ class em_configuration_t {
 	 */
 	void handle_ap_vendor_operational_bss(unsigned char *value, unsigned int len);
 
+   /**!
+    * @brief Handles an IEEE1905 or non-IEEE1905 NeighborList TLV from a Topology Response.
+    *
+    * Queues the TLV payload to the manager because db_client_t is not thread safe and
+    * this runs on the per-em_t thread rather than the thread owning the DB connection.
+    *
+    * @param[in] value Pointer to the NeighborList TLV payload.
+    * @param[in] len Length of the data pointed by value.
+    * @param[in] is_1905 true for the IEEE1905 NeighborList TLV, false for non-IEEE1905.
+    * @param[in] src_al_mac AL MAC address of the reporting agent.
+    *
+    * @note Ensure that the value is not null and len is valid to avoid undefined behavior.
+    */
+   void handle_neigh_list(unsigned char *value, unsigned int len, bool is_1905, unsigned char *src_al_mac);
     
 	/**!
 	 * @brief Creates an M1 message.

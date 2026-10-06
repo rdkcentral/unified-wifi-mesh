@@ -482,6 +482,17 @@ public:
 	void handle_failed_conn_msg(unsigned char *data, unsigned int len) override;
 
 	/**!
+	 * @brief Handles deferred IEEE1905/non-IEEE1905 NeighborList DB writes.
+	 *
+	 * Runs on the thread that owns m_db_client, so the per-neighbor SQL never races
+	 * with update_tables() on the same non-thread-safe connection.
+	 *
+	 * @param[in] evt Pointer to the event structure containing the neighbor TLV payload.
+	 * @param[in] is_1905 true for the IEEE1905 neighbor list TLV, false for non-IEEE1905.
+	 */
+	void handle_neigh_list_update(em_bus_event_t *evt, bool is_1905);
+
+	/**!
 	 * @brief Handles an Unassociated STA Link Metrics Query event.
 	 *
 	 * This function processes the Unassociated STA Link Metrics Query

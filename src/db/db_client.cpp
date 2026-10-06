@@ -82,6 +82,29 @@
      return ctx;
  }
 
+ bool db_client_t::execute_non_query(const char *query)
+ {
+     if (!m_con) {
+         printf("%s:%d: Query: %s m_con is NULL, exiting\n", __func__, __LINE__, query);
+         return false;
+     }
+
+     if (mysql_query(m_con, query)) {
+         printf("%s:%d: Query failed: %s\n", __func__, __LINE__, query);
+         printf("%s:%d: Error: %s\n", __func__, __LINE__, mysql_error(m_con));
+         return false;
+     }
+
+     // A statement that unexpectedly produced rows would otherwise leave them pending
+     // on the connection and fail the next query with "commands out of sync".
+     MYSQL_RES *result = mysql_store_result(m_con);
+     if (result != NULL) {
+         mysql_free_result(result);
+     }
+
+     return true;
+ }
+
  bool db_client_t::next_result(void *ctx)
  {
      if (ctx == NULL) {

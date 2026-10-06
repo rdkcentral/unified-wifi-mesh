@@ -22,6 +22,7 @@
 #include "em_base.h"
 #include "dm_network_list.h"
 #include "dm_device_list.h"
+#include "dm_neighbor_list.h"
 #include "dm_network_ssid_list.h"
 #include "dm_ieee_1905_security_list.h"
 #include "dm_radio_list.h"
@@ -45,7 +46,7 @@ class dm_easy_mesh_ctrl_t :
     public dm_network_list_t, public dm_device_list_t, public dm_network_ssid_list_t,
     public dm_ieee_1905_security_list_t, public dm_radio_list_t, public dm_radio_cap_list_t,
     public dm_op_class_list_t, public dm_bss_list_t, public dm_sta_list_t, public dm_policy_list_t,
-	public dm_scan_result_list_t {
+	public dm_scan_result_list_t, public dm_neighbor_list_t {
 
 public:
     int m_nb_pipe_rd;
@@ -55,6 +56,31 @@ public:
     int get_nb_pipe_rd() { return m_nb_pipe_rd; }
     int get_nb_pipe_wr() { return m_nb_pipe_wr; }
     uint32_t get_next_nb_evt_id() { return m_nb_evt_id++; }
+
+	/**!
+	 * @brief Applies a NeighborList TLV payload to the neighbor table.
+	 *
+	 * The TLV is the complete neighbor list for one local interface, so rows for that
+	 * interface that are absent from the payload are deleted.
+	 *
+	 * @param[in] value TLV payload: local interface MAC followed by fixed size entries.
+	 * @param[in] length Length of value in bytes.
+	 * @param[in] dev_al_mac AL MAC of the device that reported the list.
+	 * @param[in] is_1905 true for the IEEE1905 neighbor list, false for non-IEEE1905.
+	 *
+	 * @returns 0 on success, -1 if the payload is malformed or any row could not be written.
+	 *
+	 * @note Must be called on the thread owning m_db_client; db_client_t is not thread safe.
+	 */
+	int update_neighbor_list(const unsigned char *value, unsigned int length, const unsigned char *dev_al_mac, bool is_1905);
+
+	// Neighbor entries are held in a hash map rather than a fixed array because a
+	// non-IEEE1905 list can name every device seen on an interface.
+	dm_neighbor_t *get_first_neighbor() override;
+	dm_neighbor_t *get_next_neighbor(dm_neighbor_t *neighbor) override;
+	dm_neighbor_t *get_neighbor(const char *key) override;
+	void remove_neighbor(const char *key) override;
+	void put_neighbor(const char *key, const dm_neighbor_t *neighbor) override;
 
     bus_error_t bus_get_cb_fwd(char *event_name, raw_data_t *p_data, bus_get_handler_t cb);
     dm_easy_mesh_t *get_dm_easy_mesh(char *instance, bool is_num);
@@ -211,6 +237,7 @@ private:
 
     dm_easy_mesh_list_t	m_data_model_list;
 	em_network_topo_t   *m_topology;
+	hash_map_t *m_neighbor_list;
 
 	/**!
 	 * @brief Sets the device list.

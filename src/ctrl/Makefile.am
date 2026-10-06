@@ -112,6 +112,8 @@ onewifi_em_ctrl_SOURCES =  \
      $(top_srcdir)/src/dm/dm_cac_comp.cpp \
      $(top_srcdir)/src/dm/dm_easy_mesh.cpp \
      $(top_srcdir)/src/dm/dm_network.cpp \
+    $(top_srcdir)/src/dm/dm_neighbor.cpp \
+    $(top_srcdir)/src/dm/dm_neighbor_list.cpp \
      $(top_srcdir)/src/dm/dm_op_class.cpp \
      $(top_srcdir)/src/dm/dm_radio_cap.cpp \
      $(top_srcdir)/src/dm/dm_ssid_2_vid_map.cpp \
