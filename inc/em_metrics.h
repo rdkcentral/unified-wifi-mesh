@@ -25,6 +25,7 @@
 class em_mgr_t;
 class em_metrics_t {
 
+        friend class EmMetricsTest;
     
 	/**!
 	 * @brief Retrieves the data model instance.
