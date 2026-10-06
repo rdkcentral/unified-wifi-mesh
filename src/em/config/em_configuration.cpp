@@ -4392,6 +4392,7 @@ int em_configuration_t::handle_wsc_m1(unsigned char *buff, unsigned int len)
     em_freq_band_t  band;
     dm_radio_t *radio;
     unsigned int found = 0, i  = 0;
+    uint16_t attr_len = 0;
 
 	dm = get_data_model();
 	memset(&dev_info, 0, sizeof(em_device_info_t));
@@ -4465,18 +4466,36 @@ int em_configuration_t::handle_wsc_m1(unsigned char *buff, unsigned int len)
         } else if (id == attr_id_cfg_methods) {
         } else if (id == attr_id_wifi_wsc_state) {
         } else if (id == attr_id_manufacturer) {
-            memcpy(dev_info.manufacturer, attr->val, htons(attr->len));
+            attr_len = htons(attr->len);
+            if (attr_len >= sizeof(dev_info.manufacturer)) {
+                em_printfout("Invalid manufacturer length %u", attr_len);
+                return -1;
+            }
+            memcpy(dev_info.manufacturer, attr->val, attr_len);
+            dev_info.manufacturer[attr_len] = '\0';
             set_manufacturer(dev_info.manufacturer);
             //printf("%s:%d: Manufacturer:%s\n", __func__, __LINE__, dev_info.manufacturer);
             dm->set_db_cfg_param(db_cfg_type_device_list_update, "");
         } else if (id == attr_id_model_name) {
-            memcpy(dev_info.manufacturer_model, attr->val, htons(attr->len));
+            attr_len = htons(attr->len);
+            if (attr_len >= sizeof(dev_info.manufacturer_model)) {
+                em_printfout("Invalid model name length %u", attr_len);
+                return -1;
+            }
+            memcpy(dev_info.manufacturer_model, attr->val, attr_len);
+            dev_info.manufacturer_model[attr_len] = '\0';
             set_manufacturer_model(dev_info.manufacturer_model);
             dm->set_db_cfg_param(db_cfg_type_device_list_update, "");
             //printf("%s:%d: Manufacturer Model:%s\n", __func__, __LINE__, dev_info.manufacturer_model);
         } else if (id == attr_id_model_number) {
         } else if (id == attr_id_serial_num) {
-            memcpy(dev_info.serial_number, attr->val, htons(attr->len));
+            attr_len = htons(attr->len);
+            if (attr_len >= sizeof(dev_info.serial_number)) {
+                em_printfout("Invalid serial number length %u", attr_len);
+                return -1;
+            }
+            memcpy(dev_info.serial_number, attr->val, attr_len);
+            dev_info.serial_number[attr_len] = '\0';
             set_serial_number(dev_info.serial_number);
             //printf("%s:%d: Manufacturer:%s\n", __func__, __LINE__, dev_info.serial_number);
             em_printfout("Updated dm dev_info's backhaul_mac: %s and backhaul_alid: %s",
