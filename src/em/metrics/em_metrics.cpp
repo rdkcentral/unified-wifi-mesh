@@ -453,6 +453,14 @@ int em_metrics_t::handle_unassoc_sta_link_metrics_tlv(unsigned char *buff, unsig
     unsigned char op_class = buff[pos++];
     unsigned char num_sta  = buff[pos++];
 
+    unsigned int expected_len = 2 + (num_sta * sizeof(em_unassoc_sta_metric_t));
+
+    if (tlv_len != expected_len) {
+        em_printfout("%s:%d Malformed Unassoc STA Link Metrics TLV: " "num_sta=%u expected_len=%u actual_len=%u\n", __func__, __LINE__, num_sta, expected_len, tlv_len);
+        return -1;
+    }
+
+
     for (unsigned int i = 0; i < num_sta; i++)
     {
         if (pos + sizeof(em_unassoc_sta_metric_t) > tlv_len) {
