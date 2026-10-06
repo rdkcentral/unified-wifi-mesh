@@ -83,7 +83,12 @@ protected:
     void TearDown() override {
         delete emMetrics;
         emMetrics = nullptr;
-    }        
+    }
+    int call_handle_unassoc_sta_link_metrics_tlv(unsigned char *buff, unsigned int len)
+    {
+        return emMetrics->handle_unassoc_sta_link_metrics_tlv(buff, len);
+    }
+
 };
 
 /**
@@ -283,14 +288,15 @@ TEST_F(EmMetricsTest, destroy_stack_allocated_em_metrics_t) {
 /* Length below 2 */
 TEST_F(EmMetricsTest, UnassocStaLinkMetrics_LengthBelow2)
 {
-    em_easy_mesh_t dm{};
+    dm_easy_mesh_t dm{};
     emMetrics->set_data_model(&dm);
+    dm.m_num_unassoc_sta_metrics = 0;
 
     unsigned char tlv_value[1] = {0x51};
 
     unsigned int metrics_before = dm.m_num_unassoc_sta_metrics;
 
-    int ret = emMetrics->handle_unassoc_sta_link_metrics_tlv(
+    int ret = call_handle_unassoc_sta_link_metrics_tlv(
         tlv_value, 1);
 
     EXPECT_EQ(ret, -1);
@@ -301,8 +307,9 @@ TEST_F(EmMetricsTest, UnassocStaLinkMetrics_LengthBelow2)
 /* Missing STA bytes */
 TEST_F(EmMetricsTest, UnassocStaLinkMetrics_MissingStaBytes)
 {
-    em_easy_mesh_t dm{};
+    dm_easy_mesh_t dm{};
     emMetrics->set_data_model(&dm);
+    dm.m_num_unassoc_sta_metrics = 0;
 
     unsigned char tlv_value[8] = {
         0x51,
@@ -312,7 +319,7 @@ TEST_F(EmMetricsTest, UnassocStaLinkMetrics_MissingStaBytes)
 
     unsigned int metrics_before = dm.m_num_unassoc_sta_metrics;
 
-    int ret = emMetrics->handle_unassoc_sta_link_metrics_tlv(
+    int ret = call_handle_unassoc_sta_link_metrics_tlv(
         tlv_value, 8);
 
     EXPECT_EQ(ret, -1);
@@ -323,8 +330,9 @@ TEST_F(EmMetricsTest, UnassocStaLinkMetrics_MissingStaBytes)
 /* Extra bytes with zero STAs */
 TEST_F(EmMetricsTest, UnassocStaLinkMetrics_ExtraBytesZeroSta)
 {
-    em_easy_mesh_t dm{};
+    dm_easy_mesh_t dm{};
     emMetrics->set_data_model(&dm);
+    dm.m_num_unassoc_sta_metrics = 0;
 
     unsigned char tlv_value[3] = {
         0x51,
@@ -334,7 +342,7 @@ TEST_F(EmMetricsTest, UnassocStaLinkMetrics_ExtraBytesZeroSta)
 
     unsigned int metrics_before = dm.m_num_unassoc_sta_metrics;
 
-    int ret = emMetrics->handle_unassoc_sta_link_metrics_tlv(
+    int ret = call_handle_unassoc_sta_link_metrics_tlv(
         tlv_value, 3);
 
     EXPECT_EQ(ret, -1);
@@ -345,8 +353,9 @@ TEST_F(EmMetricsTest, UnassocStaLinkMetrics_ExtraBytesZeroSta)
 /* Valid zero STA payload */
 TEST_F(EmMetricsTest, UnassocStaLinkMetrics_ValidZeroSta)
 {
-    em_easy_mesh_t dm{};
+    dm_easy_mesh_t dm{};
     emMetrics->set_data_model(&dm);
+    dm.m_num_unassoc_sta_metrics = 0;
 
     unsigned char tlv_value[2] = {
         0x51,
@@ -355,7 +364,7 @@ TEST_F(EmMetricsTest, UnassocStaLinkMetrics_ValidZeroSta)
 
     unsigned int metrics_before = dm.m_num_unassoc_sta_metrics;
 
-    int ret = emMetrics->handle_unassoc_sta_link_metrics_tlv(
+    int ret = call_handle_unassoc_sta_link_metrics_tlv(
         tlv_value, 2);
 
     EXPECT_EQ(ret, 0);
@@ -366,8 +375,9 @@ TEST_F(EmMetricsTest, UnassocStaLinkMetrics_ValidZeroSta)
 /* Valid one STA payload */
 TEST_F(EmMetricsTest, UnassocStaLinkMetrics_ValidOneSta)
 {
-    em_easy_mesh_t dm{};
+    dm_easy_mesh_t dm{};
     emMetrics->set_data_model(&dm);
+    dm.m_num_unassoc_sta_metrics = 0;
 
     unsigned char tlv_value[14] = {
         0x51,
@@ -384,7 +394,7 @@ TEST_F(EmMetricsTest, UnassocStaLinkMetrics_ValidOneSta)
 
     unsigned int metrics_before = dm.m_num_unassoc_sta_metrics;
 
-    int ret = emMetrics->handle_unassoc_sta_link_metrics_tlv(
+    int ret = call_handle_unassoc_sta_link_metrics_tlv(
         tlv_value, 14);
 
     EXPECT_EQ(ret, 0);
@@ -395,8 +405,9 @@ TEST_F(EmMetricsTest, UnassocStaLinkMetrics_ValidOneSta)
 /* Valid multiple STA payload */
 TEST_F(EmMetricsTest, UnassocStaLinkMetrics_ValidMultipleSta)
 {
-    em_easy_mesh_t dm{};
+    dm_easy_mesh_t dm{};
     emMetrics->set_data_model(&dm);
+    dm.m_num_unassoc_sta_metrics = 0;
 
     unsigned char tlv_value[26] = {
         0x51,
@@ -425,7 +436,7 @@ TEST_F(EmMetricsTest, UnassocStaLinkMetrics_ValidMultipleSta)
 
     unsigned int metrics_before = dm.m_num_unassoc_sta_metrics;
 
-    int ret = emMetrics->handle_unassoc_sta_link_metrics_tlv(
+    int ret = call_handle_unassoc_sta_link_metrics_tlv(
         tlv_value, 26);
 
     EXPECT_EQ(ret, 0);
@@ -436,8 +447,9 @@ TEST_F(EmMetricsTest, UnassocStaLinkMetrics_ValidMultipleSta)
 /* One complete STA followed by an incomplete STA.*/
 TEST_F(EmMetricsTest, UnassocStaLinkMetrics_CompleteStaPlusIncompleteSta)
 {
-    em_easy_mesh_t dm{};
+    dm_easy_mesh_t dm{};
     emMetrics->set_data_model(&dm);
+    dm.m_num_unassoc_sta_metrics = 0;
 
     unsigned char tlv_value[20] = {
         0x51,
@@ -461,7 +473,7 @@ TEST_F(EmMetricsTest, UnassocStaLinkMetrics_CompleteStaPlusIncompleteSta)
 
     unsigned int metrics_before = dm.m_num_unassoc_sta_metrics;
 
-    int ret = emMetrics->handle_unassoc_sta_link_metrics_tlv(
+    int ret = call_handle_unassoc_sta_link_metrics_tlv(
         tlv_value, 20);
 
     EXPECT_EQ(ret, -1);
