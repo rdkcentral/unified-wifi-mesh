@@ -283,7 +283,8 @@ TEST_F(EmMetricsTest, destroy_stack_allocated_em_metrics_t) {
 /* Length below 2 */
 TEST_F(EmMetricsTest, UnassocStaLinkMetrics_LengthBelow2)
 {
-    em_easy_mesh_t dm{};
+    dm_easy_mesh_t dm{};
+    dm.m_num_unassoc_sta_metrics = 0;
     emMetrics->set_data_model(&dm);
 
     unsigned char tlv_value[1] = {0x51};
