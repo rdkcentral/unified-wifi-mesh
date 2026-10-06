@@ -18,6 +18,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <strings.h>
 #include <stdlib.h>
 #include <stdarg.h>
 #include <errno.h>
@@ -45,6 +46,16 @@ char *db_easy_mesh_t::get_column_format(db_fmt_t fmt, unsigned int pos)
         case db_data_type_mediumint:
         case db_data_type_bigint:
             snprintf(fmt, sizeof(db_fmt_t), "%s", "%d, ");
+            break;
+
+        case db_data_type_float:
+        case db_data_type_double:
+            snprintf(fmt, sizeof(db_fmt_t), "%s", "%f, ");
+            break;
+
+        case db_data_type_float:
+        case db_data_type_double:
+            snprintf(fmt, sizeof(db_fmt_t), "%s", "%f, ");
             break;
         default:
             break;
@@ -337,6 +348,22 @@ int db_easy_mesh_t::create_table(db_client_t& db_client)
                 snprintf(type_str, sizeof(type_str), "mediumint");
                 break;
 
+            case db_data_type_float:
+                snprintf(type_str, sizeof(type_str), "float");
+                break;
+
+            case db_data_type_double:
+                snprintf(type_str, sizeof(type_str), "double");
+                break;
+
+            case db_data_type_float:
+                snprintf(type_str, sizeof(type_str), "float");
+                break;
+
+            case db_data_type_double:
+                snprintf(type_str, sizeof(type_str), "double");
+                break;
+
             default:
                 assert(0);
                 break;	
@@ -351,6 +378,34 @@ int db_easy_mesh_t::create_table(db_client_t& db_client)
     //printf("%s:%d: Query: %s\n", __func__, __LINE__, query);
 
     return 0;
+}
+
+bool db_easy_mesh_t::schema_matches(db_client_t& db_client)
+{
+    db_query_t    query;
+    db_result_t   result;
+    void *ctx;
+    unsigned int count = 0;
+    bool matched = true;
+
+    memset(query, 0, sizeof(db_query_t));
+    snprintf(query, sizeof(db_query_t), "show columns from %s", m_table_name);
+
+    ctx = db_client.execute(query);
+    if (ctx == NULL) {
+        return false;
+    }
+
+    // Iterated to exhaustion rather than broken out of, so next_result() frees the context.
+    while (db_client.next_result(ctx)) {
+        db_client.get_string(ctx, result, 1);
+        if ((count >= m_num_cols) || (strcasecmp(result, m_columns[count].m_name) != 0)) {
+            matched = false;
+        }
+        count++;
+    }
+
+    return (matched == true) && (count == m_num_cols);
 }
 
 int db_easy_mesh_t::load_table(db_client_t& db_client)
@@ -374,11 +429,29 @@ int db_easy_mesh_t::load_table(db_client_t& db_client)
 
     //printf("%s:%d: Table: %s %s\n", __func__, __LINE__, m_table_name, (present == true) ? "present":"not present");
 
-    if (present == true) {
-        sync_table(db_client);
-    } else {
+    if (present == false) {
         create_table(db_client);
+        return 0;
     }
+
+    // An upgraded device still holds the previous layout; syncing it would read the old
+    // columns through the new indices and later write to columns that do not exist.
+    if ((recreate_on_schema_mismatch() == true) && (schema_matches(db_client) == false)) {
+        printf("%s:%d: Table %s has an outdated schema, recreating it\n",
+                __func__, __LINE__, m_table_name);
+        delete_table(db_client);
+        create_table(db_client);
+
+        // Neither reports status, so confirm rather than sync a table still on the old layout.
+        if (schema_matches(db_client) == false) {
+            printf("%s:%d: Failed to recreate table %s\n", __func__, __LINE__, m_table_name);
+            return -1;
+        }
+
+        return 0;
+    }
+
+    sync_table(db_client);
 
     return 0;
 }

@@ -1378,6 +1378,29 @@ void em_configuration_t::handle_ap_vendor_operational_bss(unsigned char *value, 
 	}
 }
 
+void em_configuration_t::handle_neigh_list(unsigned char *value, unsigned int len, bool is_1905, unsigned char *src_al_mac)
+{
+	const unsigned int hdr_len = static_cast<unsigned int> (sizeof(em_neigh_list_update_evt_t));
+	em_neigh_list_update_evt_t *nl_evt;
+
+	if ((value == NULL) || (src_al_mac == NULL) || (len < sizeof(mac_address_t)) ||
+			(len > EM_MAX_EVENT_DATA_LEN - hdr_len)) {
+		em_printfout("Invalid %s NeighborList TLV (len=%u)", is_1905 ? "IEEE1905" : "non-IEEE1905", len);
+		return;
+	}
+
+	std::vector<unsigned char> evt_buff(hdr_len + len);
+	nl_evt = reinterpret_cast<em_neigh_list_update_evt_t *> (evt_buff.data());
+	memcpy(nl_evt->dev_al_mac, src_al_mac, sizeof(mac_address_t));
+	nl_evt->tlv_len = len;
+	memcpy(nl_evt->tlv_value, value, len);
+
+	// Each em_t runs its own thread, and db_client_t is not thread safe, so the writes
+	// must be queued to the thread that owns m_db_client rather than done inline here.
+	get_mgr()->io_process(is_1905 ? em_bus_event_type_1905_neigh_list_update :
+			em_bus_event_type_non1905_neigh_list_update, evt_buff.data(), hdr_len + len);
+}
+
 int em_configuration_t::create_tid_to_link_map_policy_tlv(unsigned char *buff)
 {
     em_tlv_t *tlv;
@@ -2065,7 +2088,7 @@ int em_configuration_t::handle_topology_notification(unsigned char *buff, unsign
             
         //return -1;
     }       
-        
+
     tlv =  reinterpret_cast<em_tlv_t *> (buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
     tmp_len = len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
         
@@ -2452,6 +2475,30 @@ int em_configuration_t::handle_topology_response(unsigned char *buff, unsigned i
     em_printfout("updated dm dev_info's colocated: %d backhaul_mac: %s and backhaul_alid: %s", dm->get_colocated(),
         util::mac_to_string(dm->m_device.m_device_info.backhaul_mac.mac).c_str(),
         util::mac_to_string(dm->m_device.m_device_info.backhaul_alid.mac).c_str());
+
+    // A Topology Response carries one NeighborList TLV per local interface, so every
+    // matching TLV is handled instead of stopping at the first.
+    tlv =  reinterpret_cast<em_tlv_t *> (buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+    tmp_len = len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+
+    while ((tmp_len >= sizeof(em_tlv_t)) && (tlv->type != em_tlv_type_eom)) {
+        unsigned int tlv_len = ntohs(tlv->len);
+
+        // Stop rather than walk past the end if a peer sends a truncated length.
+        if (tlv_len > tmp_len - sizeof(em_tlv_t)) {
+            em_printfout("Truncated TLV type:%d in topology response, len:%u remaining:%u",
+                    tlv->type, tlv_len, tmp_len);
+            break;
+        }
+
+        if ((tlv->type == em_tlv_type_1905_neigh_list) || (tlv->type == em_tlv_type_non1905_neigh_list)) {
+            handle_neigh_list(tlv->value, tlv_len,
+                    (tlv->type == em_tlv_type_1905_neigh_list), src_al_mac);
+        }
+
+        tmp_len -= static_cast<unsigned int> (sizeof(em_tlv_t) + tlv_len);
+        tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + tlv_len);
+    }
 
 	return ret;
 }

@@ -2796,6 +2796,9 @@ typedef struct {
     mac_address_t   next_hop;
     unsigned int num_hops;
     int path_loss; 
+    mac_address_t   local_iface_mac; // Device.IEEE1905.AL.NetworkTopology.IEEE1905Device.{i}.Interface local MAC (LocalInterface)
+    bool    is_ieee1905neighbor; // true: IEEE1905Device.{i}.Interface.{i}.Neighbor, false: IEEE1905Device.{i}.NonIEEE1905Neighbor
+    mac_address_t   dev_al_mac; // AL MAC of the reporting IEEE1905Device.{i} instance
 } em_neighbor_info_t;
 
 typedef struct {
@@ -3155,9 +3158,17 @@ typedef enum {
     em_bus_event_type_unassoc_sta_link_metrics_query,
     em_bus_event_type_unassoc_sta_result,
     em_bus_event_type_failed_conn,
+    em_bus_event_type_1905_neigh_list_update,
+    em_bus_event_type_non1905_neigh_list_update,
 
     em_bus_event_type_max
 } em_bus_event_type_t;
+
+typedef struct {
+    mac_address_t   dev_al_mac;
+    unsigned int    tlv_len;
+    unsigned char   tlv_value[0];
+} __attribute__((__packed__)) em_neigh_list_update_evt_t;
 
 typedef struct {
     em_subdoc_name_space_t  name;
@@ -3283,6 +3294,7 @@ typedef enum {
 	db_cfg_type_policy_list_delete = (1 << 20),
 	db_cfg_type_scan_result_list_update = (1 << 21),
 	db_cfg_type_scan_result_list_delete = (1 << 22),
+    db_cfg_type_neighbor_list_update = (1 << 23),
 } db_cfg_type_t;
 
 typedef struct {

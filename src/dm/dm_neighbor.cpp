@@ -76,6 +76,20 @@ int dm_neighbor_t::decode(const cJSON *obj, void *parent_id)
         m_neighbor_info.path_loss = tmp->valueint;
     }
 
+    if ((tmp = cJSON_GetObjectItem(obj, "LocalInterface")) != NULL) {
+		snprintf(mac_str, sizeof(mac_str), "%s", cJSON_GetStringValue(tmp));
+		dm_easy_mesh_t::string_to_macbytes(mac_str, m_neighbor_info.local_iface_mac);
+    }
+
+    if ((tmp = cJSON_GetObjectItem(obj, "Is1905Neighbor")) != NULL) {
+        m_neighbor_info.is_ieee1905neighbor = (cJSON_IsTrue(tmp) != 0);
+    }
+
+    if ((tmp = cJSON_GetObjectItem(obj, "DeviceALID")) != NULL) {
+		snprintf(mac_str, sizeof(mac_str), "%s", cJSON_GetStringValue(tmp));
+		dm_easy_mesh_t::string_to_macbytes(mac_str, m_neighbor_info.dev_al_mac);
+    }
+
     return 0;
 
 }
@@ -97,6 +111,13 @@ void dm_neighbor_t::encode(cJSON *obj, bool summary)
     cJSON_AddNumberToObject(obj, "NumHops", m_neighbor_info.num_hops);
     cJSON_AddNumberToObject(obj, "PathLoss", m_neighbor_info.path_loss);
 
+	dm_easy_mesh_t::macbytes_to_string(m_neighbor_info.local_iface_mac, mac_str);
+    cJSON_AddStringToObject(obj, "LocalInterface", mac_str);
+    cJSON_AddBoolToObject(obj, "Is1905Neighbor", m_neighbor_info.is_ieee1905neighbor);
+
+	dm_easy_mesh_t::macbytes_to_string(m_neighbor_info.dev_al_mac, mac_str);
+    cJSON_AddStringToObject(obj, "DeviceALID", mac_str);
+
 }
 
 void dm_neighbor_t::operator = (const dm_neighbor_t& obj)
@@ -110,6 +131,9 @@ void dm_neighbor_t::operator = (const dm_neighbor_t& obj)
 	memcpy(this->m_neighbor_info.next_hop, obj.m_neighbor_info.next_hop, sizeof(mac_address_t));
 	this->m_neighbor_info.num_hops = obj.m_neighbor_info.num_hops;
 	this->m_neighbor_info.path_loss = obj.m_neighbor_info.path_loss;
+	memcpy(this->m_neighbor_info.local_iface_mac, obj.m_neighbor_info.local_iface_mac, sizeof(mac_address_t));
+	this->m_neighbor_info.is_ieee1905neighbor = obj.m_neighbor_info.is_ieee1905neighbor;
+	memcpy(this->m_neighbor_info.dev_al_mac, obj.m_neighbor_info.dev_al_mac, sizeof(mac_address_t));
 
 }
 
@@ -125,6 +149,9 @@ bool dm_neighbor_t::operator == (const dm_neighbor_t& obj)
 	ret += (memcmp(this->m_neighbor_info.next_hop, obj.m_neighbor_info.next_hop, sizeof(mac_address_t)) != 0);
     ret += !(this->m_neighbor_info.num_hops == obj.m_neighbor_info.num_hops);
     ret += !(this->m_neighbor_info.path_loss == obj.m_neighbor_info.path_loss);
+	ret += (memcmp(this->m_neighbor_info.local_iface_mac, obj.m_neighbor_info.local_iface_mac, sizeof(mac_address_t)) != 0);
+    ret += !(this->m_neighbor_info.is_ieee1905neighbor == obj.m_neighbor_info.is_ieee1905neighbor);
+	ret += (memcmp(this->m_neighbor_info.dev_al_mac, obj.m_neighbor_info.dev_al_mac, sizeof(mac_address_t)) != 0);
 
     if (ret > 0)
         return false;

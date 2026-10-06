@@ -114,6 +114,15 @@ static em_cmd_out_status_t status_for_noncmd(int num)
         em_cmd_out_status_no_change : em_cmd_out_status_invalid_input;
 }
 
+void em_ctrl_t::handle_neigh_list_update(em_bus_event_t *evt, bool is_1905)
+{
+    em_neigh_list_update_evt_t *nl_evt = reinterpret_cast<em_neigh_list_update_evt_t *>(evt->u.raw_buff);
+
+    if (m_data_model.update_neighbor_list(nl_evt->tlv_value, nl_evt->tlv_len, nl_evt->dev_al_mac, is_1905) != 0) {
+        em_printfout("Failed to update %s NeighborList", is_1905 ? "IEEE1905" : "non-IEEE1905");
+    }
+}
+
 void em_ctrl_t::handle_client_steer(em_bus_event_t *evt)
 {
     em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
@@ -828,6 +837,14 @@ void em_ctrl_t::handle_bus_event(em_bus_event_t *evt)
 
         case em_bus_event_type_link_quality_report:
            handle_link_stats_alarm_report(evt);
+           break;
+
+        case em_bus_event_type_1905_neigh_list_update:
+           handle_neigh_list_update(evt, true);
+           break;
+
+        case em_bus_event_type_non1905_neigh_list_update:
+           handle_neigh_list_update(evt, false);
            break;
 
 	case em_bus_event_type_unassoc_sta_query:
