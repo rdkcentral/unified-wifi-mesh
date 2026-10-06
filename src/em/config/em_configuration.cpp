@@ -2608,10 +2608,11 @@ int em_configuration_t::handle_ap_mld_config_tlv(unsigned char *buff, unsigned i
     unsigned short ap_mld_len = 0;
     unsigned short affiliated_ap_len = 0;
     dm_bss_t *dm_bss;
+    size_t ssid_len = 0;
 
     dm = get_data_model();
 
-    if(ap_mld_conf->num_ap_mld == 0) {
+    if((ap_mld_conf->num_ap_mld == 0) || (ap_mld_conf->num_ap_mld > EM_MAX_AP_MLD)) {
         em_printfout("Zero AP MLD data");
         return 0;
     }
@@ -2628,7 +2629,12 @@ int em_configuration_t::handle_ap_mld_config_tlv(unsigned char *buff, unsigned i
         }
 
         ap_mld_info->mac_addr_valid = ap_mld->ap_mld_mac_addr_valid;
-        strncpy(ap_mld_info->ssid, ap_mld->ssid, ap_mld->ssid_len);
+		ssid_len = ap_mld->ssid_len;
+        if (ssid_len >= sizeof(ap_mld_info->ssid)) {
+            ssid_len = sizeof(ap_mld_info->ssid) - 1;
+        }
+        strncpy(ap_mld_info->ssid, ap_mld->ssid, ssid_len);
+        ap_mld_info->ssid[ssid_len] = '\0';
 
         memcpy(ap_mld_info->mac_addr, ap_mld->ap_mld_mac_addr, sizeof(mac_address_t));
         ap_mld_info->str = ap_mld->str;
@@ -2636,6 +2642,10 @@ int em_configuration_t::handle_ap_mld_config_tlv(unsigned char *buff, unsigned i
         ap_mld_info->emlsr = ap_mld->emlsr;
         ap_mld_info->emlmr = ap_mld->emlmr;
 
+        if (ap_mld->num_affiliated_ap > EM_MAX_AP_MLD) {
+            em_printfout("Invalid affiliated AP count: %u", ap_mld->num_affiliated_ap);
+            return 0;
+        }
         ap_mld_info->num_affiliated_ap = ap_mld->num_affiliated_ap;
         affiliated_ap_mld = ap_mld->affiliated_ap_mld;
 
