@@ -47,6 +47,34 @@ void dm_assoc_sta_mld_t::encode(cJSON *obj)
     //TODO: needs to be implemnented
 }
 
+void dm_assoc_sta_mld_t::encode_metrics(cJSON *obj, hash_map_t *sta_map)
+{
+    mac_addr_str_t mac_str;
+    em_sta_info_t *si = NULL;
+    dm_sta_t *sta;
+
+    /* Same station as the STAMLD.{i}. getter reports */
+    sta = static_cast<dm_sta_t *> (hash_map_get_first(sta_map));
+    while (sta != NULL) {
+        si = sta->get_sta_info();
+        if (si->associated && memcmp(m_assoc_sta_mld_info.mac_addr, si->id, sizeof(mac_addr_t)) != 0) {
+            break;
+        }
+        sta = static_cast<dm_sta_t *> (hash_map_get_next(sta_map, sta));
+        si = NULL;
+    }
+
+    dm_easy_mesh_t::macbytes_to_string(m_assoc_sta_mld_info.mac_addr, mac_str);
+    cJSON_AddStringToObject(obj, "MLDMACAddress", mac_str);
+    cJSON_AddNumberToObject(obj, "BytesSent", si ? si->bytes_tx : 0);
+    cJSON_AddNumberToObject(obj, "BytesReceived", si ? si->bytes_rx : 0);
+    cJSON_AddNumberToObject(obj, "PacketsSent", si ? si->pkts_tx : 0);
+    cJSON_AddNumberToObject(obj, "PacketsReceived", si ? si->pkts_rx : 0);
+    cJSON_AddNumberToObject(obj, "ErrorsSent", si ? si->errors_tx : 0);
+    cJSON_AddNumberToObject(obj, "ErrorsReceived", si ? si->errors_rx : 0);
+    cJSON_AddNumberToObject(obj, "RetransCount", si ? si->retrans_count : 0);
+}
+
 void dm_assoc_sta_mld_t::operator = (const dm_assoc_sta_mld_t& obj)
 {
     if (this == &obj) { return; }

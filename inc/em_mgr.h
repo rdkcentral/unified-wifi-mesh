@@ -586,6 +586,15 @@ public:
 	 * @note This function does not take any parameters and does not return any value.
 	 */
 	virtual void publish_network_topology() = 0;
+
+	/**!
+	 * @brief Publishes the X_AIRTIES_MetricsUpdated event for a data model.
+	 *
+	 * @param[in] dm The data model an AP Metrics Response was stored in.
+	 *
+	 * @note Only the controller publishes the event; the default does nothing.
+	 */
+	virtual void publish_metrics_updated(dm_easy_mesh_t *dm) { (void) dm; }
     
 	/**!
 	 * @brief Retrieves the first data model from the list.
