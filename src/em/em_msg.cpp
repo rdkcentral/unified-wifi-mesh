@@ -73,14 +73,26 @@ bool em_msg_t::get_al_mac_address(unsigned char *mac)
     em_tlv_t    *tlv;
     unsigned int len;
 
+    if (mac == nullptr) {
+        em_printfout("Error: get_al_mac_address called with null mac");
+        return false;
+    }
+
     tlv = reinterpret_cast<em_tlv_t *> (m_buff); len = m_len;
-    while ((tlv->type != em_tlv_type_eom) && (len > 0)) {
+    while ((tlv->type != em_tlv_type_eom) && (len >= sizeof(em_tlv_t))) {
+        uint16_t tlv_len = htons(tlv->len);
+        if (tlv_len > (len - sizeof(em_tlv_t))) {
+            return false;
+        }
         if (tlv->type == em_tlv_type_al_mac_address) {
-            memcpy(mac, tlv->value, htons(tlv->len));
+            if (tlv_len != sizeof(mac_address_t)) {
+                return false;
+            }
+            memcpy(mac, tlv->value, tlv_len);
             return true;
         }
-        len -= static_cast<unsigned int> (sizeof(em_tlv_t) + htons(tlv->len));
-        tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
+        len -= static_cast<unsigned int> (sizeof(em_tlv_t) + tlv_len);
+        tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + tlv_len);
     }
 
     return false;
@@ -156,13 +168,17 @@ bool em_msg_t::get_profile(em_profile_type_t *profile)
     }
     *profile = em_profile_type_reserved;
     tlv = reinterpret_cast<em_tlv_t *> (m_buff); len = m_len;
-    while ((tlv->type != em_tlv_type_eom) && (len > 0)) {
+    while ((tlv->type != em_tlv_type_eom) && (len >= sizeof(em_tlv_t))) {
+        uint16_t tlv_len = htons(tlv->len);
+        if (tlv_len > (len - sizeof(em_tlv_t))) {
+            return false;
+        }
         if (tlv->type == em_tlv_type_profile) {
             return parse_profile_tlv(tlv->value, ntohs(tlv->len), profile);
         }
 
-        len -= static_cast<unsigned int> (sizeof(em_tlv_t) + htons(tlv->len));
-        tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
+        len -= static_cast<unsigned int> (sizeof(em_tlv_t) + tlv_len);
+        tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + tlv_len);
     }
 
     return false;
@@ -342,12 +358,16 @@ bool em_msg_t::get_profile_type(em_profile_type_t *profile)
     }
     *profile = em_profile_type_reserved;
     tlv = reinterpret_cast<em_tlv_t *> (m_buff); len = m_len;
-    while ((tlv->type != em_tlv_type_eom) && (len > 0)) {
+    while ((tlv->type != em_tlv_type_eom) && (len >= sizeof(em_tlv_t))) {
+        uint16_t tlv_len = htons(tlv->len);
+        if (tlv_len > (len - sizeof(em_tlv_t))) {
+            return false;
+        }
         if (tlv->type == em_tlv_type_profile) {
             return parse_profile_tlv(tlv->value, ntohs(tlv->len), profile);
         }
-        len -= static_cast<unsigned int> (sizeof(em_tlv_t) + htons(tlv->len));
-        tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
+        len -= static_cast<unsigned int> (sizeof(em_tlv_t) + tlv_len);
+        tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + tlv_len);
     }
 
     return false;
