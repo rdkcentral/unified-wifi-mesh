@@ -208,7 +208,7 @@ public:
     static bus_error_t bstacfg_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
 
 private:
-    // Bound at init() time via db_client_create(), based on the requested
+    // Bound at init() time via db_client_t::create(), based on the requested
     // db_client_type_t (local/cloud/none). Every dm_*_list_t table class
     // only ever sees this through the db_client_t& interface, so which
     // concrete backend is behind it is invisible to them.
@@ -300,8 +300,19 @@ private:
 	 */
 	int set_radio_cap_list(cJSON *radio_cap_list_obj, mac_address_t *radio_mac);
 
+	/**!
+	 * @brief Auto-seeds NetworkSSIDList from /nvram/Reset.json for the db-type=none
+	 * backend, so a manual CLI Reset is no longer required to configure agents.
+	 *
+	 * Only the NetworkSSIDList portion of the decoded file is applied; the
+	 * Network entry (and its placeholder ControllerID) is left untouched so it
+	 * can never overwrite the real AL-SAP-derived identity set by
+	 * bootstrap_controller_network().
+	 */
+	void seed_network_ssid_from_reset_file();
+
 public:
-    
+
 	/**!
 	 * @brief Initializes the Easy Mesh Controller with the specified data model path.
 	 *

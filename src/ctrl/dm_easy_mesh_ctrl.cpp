@@ -10742,7 +10742,7 @@ int dm_easy_mesh_ctrl_t::init(const char *data_model_path, em_mgr_t *mgr, db_cli
     m_data_model_list.init(mgr, get_dev_interface());
 
     m_db_client_type = db_type;
-    m_db_client = db_client_create(db_type);
+    m_db_client = db_client_t::create(db_type);
     if (m_db_client == nullptr) {
         em_printfout("%s:%d unknown db client type: %d\n", __func__, __LINE__, static_cast<int>(db_type));
         return -1;
@@ -10831,7 +10831,35 @@ int dm_easy_mesh_ctrl_t::bootstrap_controller_network()
     // create_data_model() not needed here: update_list() -> put_network() already creates it.
     set_initialized();
 
+    // db-type=none has no persisted NetworkSSIDList, so without this the
+    // controller only configures agents after a manual CLI Reset.
+    if (m_db_client_type == db_client_type_none) {
+        seed_network_ssid_from_reset_file();
+    }
+
     return 0;
+}
+
+void dm_easy_mesh_ctrl_t::seed_network_ssid_from_reset_file()
+{
+    dm_easy_mesh_t dm;
+    unsigned char buff[EM_IO_BUFF_SZ];
+    em_subdoc_info_t *subdoc = reinterpret_cast<em_subdoc_info_t *>(buff);
+
+    if (em_cmd_exec_t::load_params_file("/nvram/Reset.json", subdoc->buff) < 0) {
+        em_printfout("%s:%d: /nvram/Reset.json not found, skipping NetworkSSIDList auto-seed", __func__, __LINE__);
+        return;
+    }
+
+    dm.init();
+    dm.decode_config(subdoc, "Reset");
+
+    // Only the SSID list flag is set here; the Network entry from the file
+    // (placeholder ControllerID) is deliberately never applied.
+    dm.set_db_cfg_param(db_cfg_type_network_ssid_list_update, "");
+    set_config(&dm);
+
+    em_printfout("%s:%d: auto-seeded NetworkSSIDList from /nvram/Reset.json for db-type=none", __func__, __LINE__);
 }
 
 dm_easy_mesh_ctrl_t::dm_easy_mesh_ctrl_t()

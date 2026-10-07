@@ -25,17 +25,17 @@
 
 TEST(db_client_backend_Test, ParsesBackendSelection)
 {
-    EXPECT_EQ(db_client_type_from_string(nullptr), db_client_type_local);
-    EXPECT_EQ(db_client_type_from_string("local"), db_client_type_local);
-    EXPECT_EQ(db_client_type_from_string("none"), db_client_type_none);
-    EXPECT_EQ(db_client_type_from_string("NO_DB"), db_client_type_none);
-    EXPECT_EQ(db_client_type_from_string("nodb"), db_client_type_none);
-    EXPECT_EQ(db_client_type_from_string("CLOUD"), db_client_type_cloud);
+    EXPECT_EQ(db_client_t::type_from_string(nullptr), db_client_type_local);
+    EXPECT_EQ(db_client_t::type_from_string("local"), db_client_type_local);
+    EXPECT_EQ(db_client_t::type_from_string("none"), db_client_type_none);
+    EXPECT_EQ(db_client_t::type_from_string("NO_DB"), db_client_type_none);
+    EXPECT_EQ(db_client_t::type_from_string("nodb"), db_client_type_none);
+    EXPECT_EQ(db_client_t::type_from_string("CLOUD"), db_client_type_cloud);
 }
 
 TEST(db_client_backend_Test, LocalBackendPreservesSqliteTransactions)
 {
-    std::unique_ptr<db_client_t> client(db_client_create(db_client_type_local));
+    std::unique_ptr<db_client_t> client(db_client_t::create(db_client_type_local));
     ASSERT_NE(client, nullptr);
     EXPECT_EQ(client->get_type(), db_client_type_local);
     EXPECT_TRUE(client->is_persistent());
@@ -61,7 +61,7 @@ TEST(db_client_backend_Test, LocalBackendPreservesSqliteTransactions)
 
 TEST(db_client_backend_Test, NoDatabaseBackendRemainsInMemoryOnly)
 {
-    std::unique_ptr<db_client_t> client(db_client_create(db_client_type_none));
+    std::unique_ptr<db_client_t> client(db_client_t::create(db_client_type_none));
     ASSERT_NE(client, nullptr);
     EXPECT_EQ(client->get_type(), db_client_type_none);
     EXPECT_FALSE(client->is_persistent());
@@ -77,7 +77,7 @@ TEST(db_client_backend_Test, NoDatabaseBackendRemainsInMemoryOnly)
 
 TEST(db_client_backend_Test, CloudBackendFailsUntilImplemented)
 {
-    std::unique_ptr<db_client_t> client(db_client_create(db_client_type_cloud));
+    std::unique_ptr<db_client_t> client(db_client_t::create(db_client_type_cloud));
     ASSERT_NE(client, nullptr);
     EXPECT_EQ(client->get_type(), db_client_type_cloud);
     EXPECT_NE(client->init(nullptr), 0);

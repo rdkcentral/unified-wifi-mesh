@@ -22,7 +22,7 @@
 #include "db_client_cloud.h"
 #include "db_client_none.h"
 
-db_client_t *db_client_create(db_client_type_t type)
+db_client_t *db_client_t::create(db_client_type_t type)
 {
     switch (type) {
         case db_client_type_local: return new db_client_local_t();
@@ -32,7 +32,7 @@ db_client_t *db_client_create(db_client_type_t type)
     }
 }
 
-db_client_type_t db_client_type_from_string(const char *name)
+db_client_type_t db_client_t::type_from_string(const char *name)
 {
     if (name == nullptr) {
         return db_client_type_local;
