@@ -119,10 +119,9 @@ public:
 	void set_db_type(db_client_type_t type) { m_db_type = type; }
 
 	/**!
-	 * @brief Parses a "--db-type=local|cloud|none" style argument out of
-	 * argv, mirroring the "--interface="/"--start-dpp-onboard" flags this
-	 * process already accepts. Unrecognized/absent values resolve to
-	 * db_client_type_local via db_client_factory_t::type_from_string().
+	 * @brief Scans all of argv for "--db-type=local|cloud|none" or
+	 * "--db-type local|cloud|none" (any position). Absent or unrecognized
+	 * values resolve to db_client_type_local.
 	 *
 	 * @param[in] argc Argument count, as passed to main().
 	 * @param[in] argv Argument vector, as passed to main().
@@ -130,6 +129,17 @@ public:
 	 * @returns The resolved db_client_type_t.
 	 */
 	static db_client_type_t parse_db_type_arg(int argc, const char *argv[]);
+
+	/**!
+	 * @brief Returns the first positional (non-option) argument, used as the
+	 * database path (e.g. "user@password"), skipping "--db-type <value>".
+	 *
+	 * @param[in] argc Argument count, as passed to main().
+	 * @param[in] argv Argument vector, as passed to main().
+	 *
+	 * @returns The data model path, or nullptr if none was given.
+	 */
+	static const char *parse_database_path_arg(int argc, const char *argv[]);
     
 	/**!
 	 * @brief Checks if the data model is initialized.

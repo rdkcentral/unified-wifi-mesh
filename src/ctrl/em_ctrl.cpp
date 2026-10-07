@@ -18,6 +18,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <strings.h>
 #include <stdlib.h>
 #include <errno.h>
 #include <assert.h>
@@ -1510,17 +1511,53 @@ AlServiceAccessPoint* em_ctrl_t::al_sap_register(const std::string& data_socket_
 
 db_client_type_t em_ctrl_t::parse_db_type_arg(int argc, const char *argv[])
 {
-    static const char *prefix = "--db-type=";
-    const size_t prefix_len = strlen(prefix);
+    static const char *opt = "--db-type";
+    const size_t opt_len = strlen(opt);
 
     for (int i = 1; i < argc; i++) {
-        if (argv[i] != nullptr && strncmp(argv[i], prefix, prefix_len) == 0) {
-            return db_client_type_from_string(argv[i] + prefix_len);
+        if (argv[i] == nullptr || strncmp(argv[i], opt, opt_len) != 0) {
+            continue;
         }
+
+        const char *value = nullptr;
+        if (argv[i][opt_len] == '=') {
+            value = argv[i] + opt_len + 1;
+        } else if (argv[i][opt_len] == '\0' && (i + 1) < argc && argv[i + 1] != nullptr &&
+                   argv[i + 1][0] != '-') {
+            value = argv[i + 1];
+        } else {
+            continue;
+        }
+
+        if (strcasecmp(value, "local") != 0 && strcasecmp(value, "cloud") != 0 &&
+            strcasecmp(value, "none") != 0) {
+            em_printfout("Unrecognized --db-type value '%s', defaulting to local", value);
+            return db_client_type_local;
+        }
+        return db_client_type_from_string(value);
     }
 
     // Not passed - keep existing (MariaDB-backed) behavior.
     return db_client_type_local;
+}
+
+const char *em_ctrl_t::parse_database_path_arg(int argc, const char *argv[])
+{
+    for (int i = 1; i < argc; i++) {
+        if (argv[i] == nullptr) {
+            continue;
+        }
+        if (strcmp(argv[i], "--db-type") == 0) {
+            if ((i + 1) < argc && argv[i + 1] != nullptr && argv[i + 1][0] != '-') {
+                i++;
+            }
+            continue;
+        }
+        if (argv[i][0] != '-') {
+            return argv[i];
+        }
+    }
+    return nullptr;
 }
 
 #ifndef TESTING
@@ -1537,19 +1574,20 @@ int main(int argc, const char *argv[])
     }
 #endif
 
-    if ((argc == 2) && (strcmp(argv[1], "--help") == 0 || strcmp(argv[1], "-h") == 0)) {
-        printf("Usage: %s [data-model-path] [--db-type=local|cloud|none]\n", argv[0]);
-        return 0;
+    for (int i = 1; i < argc; i++) {
+        if (argv[i] != nullptr && (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0)) {
+            printf("Usage: %s [data-model-path] [--db-type=local|cloud|none]\n", argv[0]);
+            return 0;
+        }
     }
 
-    // "--db-type=" is optional and can appear anywhere after the program
-    // name (order-independent, same convention em_agent.cpp uses for
-    // "--interface="). Absent or unrecognized values fall back to
-    // db_client_type_local, i.e. today's existing MariaDB-backed behavior.
+    // "--db-type" is optional and can appear anywhere after the program
+    // name, as "--db-type=X" or "--db-type X". Absent or unrecognized values
+    // fall back to db_client_type_local (existing MariaDB-backed behavior).
     em_ctrl->set_db_type(em_ctrl_t::parse_db_type_arg(argc, argv));
 
     em_printf("Database type set to: %d\n", em_ctrl->get_db_type());
-    if (em_ctrl->init(argv[1]) == 0) {
+    if (em_ctrl->init(em_ctrl_t::parse_database_path_arg(argc, argv)) == 0) {
         em_ctrl->start();
     }
     return 0;
