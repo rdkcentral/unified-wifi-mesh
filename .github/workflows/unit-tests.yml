@@ -74,12 +74,11 @@ jobs:
                                 libnl-route-3-dev \
                                 libavro-dev \
                                 uuid-dev \
-                                libmysqlcppconn-dev \
+                                libreadline-dev \
                                 libreadline-dev \
                                 iptables \
-                                mariadb-server \
-                                libmariadb3 \
-                                libmariadb-dev \
+                                libsqlite3-dev \
+                                sqlite3 \
                                 gnupg \
                                 file \
                                 golang
