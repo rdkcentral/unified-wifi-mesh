@@ -2131,6 +2131,19 @@ const char* dm_easy_mesh_t::get_platform()
     return NULL;
 
 }
+
+void dm_easy_mesh_t::set_ctrl_al_interface_mac(unsigned char *mac)
+{
+    m_device.set_dev_interface_mac(mac);
+    m_network.set_controller_id(mac);
+}
+
+void dm_easy_mesh_t::set_ctrl_al_interface_name(char *name)
+{
+    snprintf(m_device.get_dev_interface()->name, sizeof(em_interface_name_t), "%s", name);
+    snprintf(m_network.get_controller_interface()->name, sizeof(em_interface_name_t), "%s", name);
+}
+
 em_interface_t *dm_easy_mesh_t::get_prioritized_interface(const char *platform)
 {
 	unsigned int i;
@@ -2208,6 +2221,9 @@ int dm_easy_mesh_t::get_interfaces_list(em_interface_t interfaces[], unsigned in
 				interfaces[num].media = em_media_type_ieee8023ab;
 			} else if (strstr(tmp->ifa_name, "wlan") != NULL) {
 				interfaces[num].media = em_media_type_ieee80211b_24;
+			} else {
+				// Bridges and other unclassified interfaces (e.g. brlan0) are treated as wired.
+				interfaces[num].media = em_media_type_ieee8023ab;
 			}
 			memcpy(interfaces[num].mac, ll_addr->sll_addr, sizeof(mac_address_t));	
 			num++;
