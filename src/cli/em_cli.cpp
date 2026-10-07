@@ -40,14 +40,11 @@
 #include <readline/history.h>
 em_cli_t g_cli;
 
-em_network_node_t *em_cli_t::get_reset_tree(char *platform)
+em_network_node_t *em_cli_t::get_reset_tree(char *)
 {
 	unsigned int len;
     dm_easy_mesh_t dm; 
-	em_interface_t *intf;
-    //mac_addr_str_t  ctrl_mac, ctrl_al_mac, agent_al_mac;
 	em_subdoc_info_t *subdoc;
-	em_long_string_t	dbg_str;
 	unsigned char buff[EM_IO_BUFF_SZ];
 
 	subdoc = (em_subdoc_info_t *)buff;
@@ -58,19 +55,6 @@ em_network_node_t *em_cli_t::get_reset_tree(char *platform)
 
     dm.init();
     dm.decode_config(subdoc, "Reset");
-
-	// Prioritize the interface list depending on platform
-	if ((intf = dm.get_prioritized_interface(platform)) == NULL) {
-		intf = dm.get_interface_by_index(0);
-	}
-
-	snprintf(dbg_str, sizeof(em_long_string_t), "Interface Name: %s Media: %d", intf->name, intf->media);	
-    g_cli.dump_lib_dbg(dbg_str);
-    dm.set_ctrl_al_interface_mac(intf->mac);
-    dm.set_ctrl_al_interface_name(intf->name);
-	dm.set_controller_id(intf->mac);
-	dm.set_controller_intf_media(intf->media);
-            
     //dm.print_config();
 
     dm.encode_config(subdoc, "Reset");

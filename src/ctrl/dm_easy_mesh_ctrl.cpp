@@ -3708,9 +3708,13 @@ int dm_easy_mesh_ctrl_t::analyze_reset(em_bus_event_t *evt, em_cmd_t *pcmd[])
 
     subdoc = &evt->u.subdoc;
 
-
-    dm.decode_config(subdoc, "Reset");
+    if (dm.decode_config(subdoc, "Reset") < 0) {
+        em_printfout("Failed to decode reset config");
+        return -1;
+    }
     //dm.print_config();
+
+    dm.set_ctrl_al_interface_mac(m_device_info.intf.mac);
 
     dm.set_db_cfg_param(db_cfg_type_network_list_update, "");
     dm.set_db_cfg_param(db_cfg_type_network_ssid_list_update, "");
@@ -5609,36 +5613,46 @@ int dm_easy_mesh_ctrl_t::get_wifi_reset_config(cJSON *parent, char *key)
 {
     cJSON *obj;
     dm_easy_mesh_t dm;
-    em_interface_t *intf;
+    em_interface_t *intf = NULL;
     em_subdoc_info_t *subdoc;
     unsigned char buff[EM_IO_BUFF_SZ];
 
     subdoc = reinterpret_cast<em_subdoc_info_t*>(buff);
 
     if (em_cmd_exec_t::load_params_file("/nvram/Reset.json",  subdoc->buff) < 0) {
-        printf("%s:%d: Failed to load test file\n", __func__, __LINE__);
+        em_printfout("%s:%d: Failed to load test file", __func__, __LINE__);
+        return -1;
+    }
+    dm.init();
+    if (dm.decode_config(subdoc, "Reset") < 0) {
+        em_printfout("Failed to decode reset config");
         return -1;
     }
 
-    dm.init();
-    dm.decode_config(subdoc, "Reset");
-
     const char* platform = dm.get_platform();
 
-    // Prioritize the interface list depending on platform
-    if ((intf = dm.get_prioritized_interface(platform)) == NULL) {
-        intf = dm.get_interface_by_index(0);//Todo: check why index 0 as it is taking brlan0
+    if (platform != NULL) {
+        intf = dm.get_prioritized_interface(platform);
+    }
+    if (intf == NULL && dm.m_num_interfaces > 0) {
+        intf = dm.get_interface_by_index(0);
     }
 
-    dm.set_ctrl_al_interface_mac(intf->mac);
+    /*
+     * Keep the controller ID tied to the AL-SAP MAC only.
+     * Do not overwrite it with the interface-derived MAC from config.
+     */
+    if (intf == NULL) {
+        em_printfout("%s:%d: No valid interface found", __func__, __LINE__);
+        return -1;
+    }
+    dm.set_ctrl_al_interface_mac(m_device_info.intf.mac);
     dm.set_ctrl_al_interface_name(intf->name);
-    dm.set_controller_id(intf->mac);//Should be set to eth0-virt-peer mac
     dm.set_controller_intf_media(intf->media);
 
     //dm.print_config();
 
     dm.encode_config(subdoc, "Reset");
-
 
     if ((obj = cJSON_Parse(subdoc->buff)) == NULL) {
         printf("%s:%d: Failed to load test file\n", __func__, __LINE__);
@@ -10444,7 +10458,7 @@ int dm_easy_mesh_ctrl_t::init(const char *data_model_path, em_mgr_t *mgr)
 {
     int rc;
 
-    m_data_model_list.init(mgr);
+    m_data_model_list.init(mgr, get_dev_interface());
     init_tables();
 
     if (m_db_client.init(data_model_path) != 0) {

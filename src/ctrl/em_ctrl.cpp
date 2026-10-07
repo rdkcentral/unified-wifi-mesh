@@ -988,6 +988,7 @@ int em_ctrl_t::data_model_init(const char *data_model_path)
         return 0;
     }
 
+    // Controller device MAC and network ControllerID are set to the AL-SAP MAC when the entry is created.
     intf = m_data_model.get_ctrl_al_interface(const_cast<char*>(GLOBAL_NET_ID));
 	if (intf == NULL) {
 		printf("%s:%d: data model init failed could not find netid\n", __func__, __LINE__);

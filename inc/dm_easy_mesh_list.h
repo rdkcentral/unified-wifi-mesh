@@ -30,6 +30,7 @@ class dm_easy_mesh_list_t {
     unsigned int m_num_networks;
     hash_map_t  *m_list;
     em_mgr_t *m_mgr;
+	const em_interface_t *m_controller_al_intf;
 
 public:
    
@@ -110,7 +111,7 @@ public:
 	 *
 	 * @note Ensure that the manager structure is properly allocated before calling this function.
 	 */
-	void init(em_mgr_t *mgr);
+	void init(em_mgr_t *mgr, const em_interface_t *controller_al_intf = NULL);
 
     
 	/**!
