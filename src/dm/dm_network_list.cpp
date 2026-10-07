@@ -101,7 +101,8 @@ dm_orch_type_t dm_network_list_t::get_dm_orch_type(db_client_t& db_client, const
         if (entry_exists_in_table(db_client, const_cast<char *> (net.m_net_info.id)) == false) {
             return dm_orch_type_db_insert;
         }
-        if (*pnet == net) {
+        // pnet can be the very same in-memory object as net, so also compare with the stored row.
+        if ((*pnet == net) && (db_row_matches(db_client, net) == true)) {
             printf("%s:%d: Network: %s already in list\n", __func__, __LINE__, net.m_net_info.id);
             return dm_orch_type_none;
         }
@@ -126,7 +127,9 @@ void dm_network_list_t::update_list(const dm_network_t& net, dm_orch_type_t op)
 
         case dm_orch_type_db_update:
             pnet = get_network(net.m_net_info.id);
-            memcpy(&pnet->m_net_info, &net.m_net_info, sizeof(em_network_info_t));
+            if (pnet != &net) {
+                memcpy(&pnet->m_net_info, &net.m_net_info, sizeof(em_network_info_t));
+            }
             break;
 
         case dm_orch_type_db_delete:
@@ -198,6 +201,37 @@ bool dm_network_list_t::search_db(db_client_t& db_client, void *ctx, void *key)
             db_client.free_result(ctx);
             return true;
         }
+    }
+
+    return false;
+}
+
+bool dm_network_list_t::db_row_matches(db_client_t& db_client, const dm_network_t& net)
+{
+    db_query_t query;
+    em_long_string_t net_id;
+    mac_addr_str_t db_ctrl, db_agent, ctrl_str, agent_str;
+    void *ctx;
+
+    snprintf(query, sizeof(db_query_t), "select * from %s", m_table_name);
+    ctx = db_client.execute(query);
+
+    while (db_client.next_result(ctx)) {
+        db_client.get_string(ctx, net_id, 1);
+        if (strcmp(net_id, net.m_net_info.id) != 0) {
+            continue;
+        }
+
+        db_client.get_string(ctx, db_ctrl, 2);
+        db_client.get_string(ctx, db_agent, 3);
+        em_media_type_t db_media = static_cast<em_media_type_t> (db_client.get_number(ctx, 4));
+        db_client.free_result(ctx);
+
+        dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *> (net.m_net_info.ctrl_id.mac), ctrl_str);
+        dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *> (net.m_net_info.colocated_agent_id.mac), agent_str);
+
+        return (strcmp(db_ctrl, ctrl_str) == 0) && (strcmp(db_agent, agent_str) == 0) &&
+            (db_media == net.m_net_info.media);
     }
 
     return false;

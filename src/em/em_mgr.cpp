@@ -135,7 +135,7 @@ void em_mgr_t::proto_process(unsigned char *data, unsigned int len, em_t *al_em)
 
     em = find_em_for_msg_type(data, len, al_em);
     if (em == NULL) {
-        em_printfout("Error: find_em_for_msg_type failed");
+        // em_printfout("Error: find_em_for_msg_type failed");
         return;
     }
 
