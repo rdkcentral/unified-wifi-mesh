@@ -807,7 +807,7 @@ public:
 	 *
 	 * @note Ensure that the MAC address is valid and properly formatted before calling this function.
 	 */
-	void set_ctrl_al_interface_mac(unsigned char *mac) { m_network.set_controller_id(mac); }
+	void set_ctrl_al_interface_mac(unsigned char *mac);
     
 	/**!
 	 * @brief Sets the control AL interface name.
@@ -818,18 +818,7 @@ public:
 	 *
 	 * @note This function modifies the interface name used by the network control agent.
 	 */
-	void set_ctrl_al_interface_name(char *name) { snprintf(m_network.m_net_info.ctrl_id.name, sizeof(m_network.m_net_info.ctrl_id.name), "%s", name); }
-	
-	/**!
-	 * @brief Sets the controller ID for the network.
-	 *
-	 * This function assigns a new controller ID to the network using the provided MAC address.
-	 *
-	 * @param[in] mac Pointer to an unsigned char array representing the MAC address.
-	 *
-	 * @note Ensure that the MAC address is valid and correctly formatted before calling this function.
-	 */
-	void set_controller_id(unsigned char *mac) { m_network.set_controller_id(mac); }
+	void set_ctrl_al_interface_name(char *name);
 	
 	/**!
 	 * @brief Sets the controller interface media type.
@@ -842,7 +831,6 @@ public:
 	 */
 	void set_controller_intf_media(em_media_type_t media) { m_network.set_controller_intf_media(media); }
 
-    
 	/**!
 	 * @brief Retrieves the agent's AL interface.
 	 *
