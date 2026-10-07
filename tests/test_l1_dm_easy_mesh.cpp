@@ -17579,8 +17579,9 @@ TEST(dm_easy_mesh_t, set_controller_id_valid_mac_address_update)
         std::cout << std::hex << static_cast<int>(valid_mac[i]) << " ";
     }
     std::cout << std::dec << std::endl;
-    meshObj.set_controller_id(valid_mac);
+    meshObj.set_ctrl_al_interface_mac(valid_mac);
     EXPECT_EQ(memcmp(meshObj.m_network.m_net_info.ctrl_id.mac, valid_mac, sizeof(valid_mac)), 0);
+    EXPECT_EQ(memcmp(meshObj.m_device.m_device_info.intf.mac, valid_mac, sizeof(valid_mac)), 0);
     std::cout << "Exiting set_controller_id_valid_mac_address_update test" << std::endl;
 }
 
@@ -17608,15 +17609,14 @@ TEST(dm_easy_mesh_t, set_controller_id_null_pointer)
     dm_easy_mesh_t meshObj;
     unsigned char* null_mac = nullptr;
     std::cout << "Invoking set_controller_id with a null pointer." << std::endl;
-    EXPECT_ANY_THROW(meshObj.set_controller_id(null_mac));
+    EXPECT_ANY_THROW(meshObj.set_ctrl_al_interface_mac(null_mac));
     std::cout << "Exiting set_controller_id_null_pointer test" << std::endl;
 }
 
 /**
- * @brief Verify that set_controller_id throws an exception when provided with an incomplete MAC address
+ * @brief Verify that set_controller_id accepts a valid MAC address with a zero first octet
  *
- * This test verifies that the set_controller_id API correctly identifies an invalid MAC address (incomplete or erroneous)
- * and throws an exception. The test ensures that any attempt to set a controller identifier with a faulty MAC address is properly handled.
+ * A zero first octet is valid for a unicast MAC address; the pointer API cannot determine the source array's length.
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 444@n
@@ -17629,17 +17629,16 @@ TEST(dm_easy_mesh_t, set_controller_id_null_pointer)
  * **Test Procedure:**@n
  * | Variation / Step | Description                                                         | Test Data                                                                                   | Expected Result                                           | Notes            |
  * | :--------------: | ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- | --------------------------------------------------------- | ---------------- |
- * | 01               | Create an instance of dm_easy_mesh_t and prepare an invalid MAC array | invalid_mac = 0x00,0x1B,0x2C,0x3D,0x4E,0x5E; object = dm_easy_mesh_t instance created         | Instance is created and invalid MAC address is available  | Should be successful |
- * | 02               | Invoke set_controller_id using the invalid MAC address and verify that an exception is thrown | input: invalid_mac = 0x00,0x1B,0x2C,0x3D,0x4E,0x5E; output: Exception thrown by the API | Exception is thrown by set_controller_id call             | Should Fail      |
+ * | 01               | Set a six-byte MAC address with a zero first octet | 00:1B:2C:3D:4E:5E | The address is copied without throwing | Should Pass |
  */
-TEST(dm_easy_mesh_t, set_controller_id_incomplete_mac_address)
+TEST(dm_easy_mesh_t, set_controller_id_accepts_zero_first_octet)
 {
-    std::cout << "Entering set_controller_id_incomplete_mac_ddress test" << std::endl;
+    std::cout << "Entering set_controller_id_accepts_zero_first_octet test" << std::endl;
     dm_easy_mesh_t meshObj;
-    unsigned char invalid_mac[6] = {0x00, 0x1B, 0x2C, 0x3D, 0x4E, 0x5E};
-    std::cout << "Invoking set_controller_id with an invalid MAC address: 00:1B:2C:3D:4E:5E";
-    EXPECT_ANY_THROW(meshObj.set_controller_id(invalid_mac));
-    std::cout << "Exiting set_controller_id_incomplete_mac_address test" << std::endl;
+    unsigned char mac[6] = {0x00, 0x1B, 0x2C, 0x3D, 0x4E, 0x5E};
+    EXPECT_NO_THROW(meshObj.set_ctrl_al_interface_mac(mac));
+    EXPECT_EQ(memcmp(meshObj.m_network.m_net_info.ctrl_id.mac, mac, sizeof(mac)), 0);
+    std::cout << "Exiting set_controller_id_accepts_zero_first_octet test" << std::endl;
 }
 
 /**
