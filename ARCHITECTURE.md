@@ -245,7 +245,7 @@ flowchart LR
         TableAdapter["db_easy_mesh_t<br/>retained table and row logic"]
         Env["EM_DB_TYPE<br/>local (default) / none / cloud"]
         Type["db_client_type_t"]
-        Factory["db_client_type_from_string()<br/>db_client_create()"]
+        Factory["db_client_t::type_from_string()<br/>db_client_t::create()"]
         Client["db_client_t<br/>abstract interface"]
         Methods["init, execute, next_result,<br/>get_string, get_number, recreate_db"]
         Local["db_client_local_t<br/>on-box SQLite behavior"]
@@ -292,6 +292,9 @@ The local backend accepts a database file path. With no path, it uses
 `EASYMESH_DB_FILE` or `/var/lib/unified-wifi-mesh/unified_wifi_mesh.db`.
 Only the local backend runs `setup_sqlite_db_post.sh` to provision empty tables;
 the no-database backend starts with an empty in-memory model instead.
+The controller CLI requires an explicit database file for `--db-type=local`.
+Without a backend option, a supplied path selects local storage and no path
+selects no-database mode.
 
 Patch-specific files: `no_db.patch`, `inc/db_client*.h`,
 `src/db/db_client.cpp`, `src/db/db_client_{local,none,cloud}.cpp`,
