@@ -43,6 +43,13 @@ class em_ctrl_t : public em_mgr_t {
     em_orch_ctrl_t *m_orch;
 	em_dev_test_t dev_test;
 
+    // Persistence backend resolved from the process's command-line
+    // arguments in main() (see set_db_type()/parse_db_type_arg()), read by
+    // data_model_init() when it calls dm_easy_mesh_ctrl_t::init(). Defaults
+    // to db_client_type_local so existing invocations without the new flag
+    // keep today's behavior unchanged.
+    db_client_type_t m_db_type;
+
 	/**!
 	 * @brief Handles a bus event.
 	 *
@@ -98,6 +105,31 @@ public:
 	 * @note Ensure the path is valid and accessible.
 	 */
 	int data_model_init(const char *data_model_path);
+
+	db_client_type_t get_db_type() { return m_db_type; }
+
+	/**!
+	 * @brief Sets which persistence backend data_model_init() will bind
+	 * the controller's data model to. Must be called (if at all) before
+	 * data_model_init()/init() runs; otherwise db_client_type_local
+	 * (today's existing behavior) is used.
+	 *
+	 * @param[in] type The backend to use (local/cloud/none).
+	 */
+	void set_db_type(db_client_type_t type) { m_db_type = type; }
+
+	/**!
+	 * @brief Parses a "--db-type=local|cloud|none" style argument out of
+	 * argv, mirroring the "--interface="/"--start-dpp-onboard" flags this
+	 * process already accepts. Unrecognized/absent values resolve to
+	 * db_client_type_local via db_client_factory_t::type_from_string().
+	 *
+	 * @param[in] argc Argument count, as passed to main().
+	 * @param[in] argv Argument vector, as passed to main().
+	 *
+	 * @returns The resolved db_client_type_t.
+	 */
+	static db_client_type_t parse_db_type_arg(int argc, const char *argv[]);
     
 	/**!
 	 * @brief Checks if the data model is initialized.
