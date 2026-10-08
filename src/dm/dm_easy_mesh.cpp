@@ -2127,6 +2127,19 @@ const char* dm_easy_mesh_t::get_platform()
     return NULL;
 
 }
+
+void dm_easy_mesh_t::set_ctrl_al_interface_mac(unsigned char *mac)
+{
+    m_device.set_dev_interface_mac(mac);
+    m_network.set_controller_id(mac);
+}
+
+void dm_easy_mesh_t::set_ctrl_al_interface_name(char *name)
+{
+    snprintf(m_device.get_dev_interface()->name, sizeof(em_interface_name_t), "%s", name);
+    snprintf(m_network.get_controller_interface()->name, sizeof(em_interface_name_t), "%s", name);
+}
+
 em_interface_t *dm_easy_mesh_t::get_prioritized_interface(const char *platform)
 {
 	unsigned int i;
