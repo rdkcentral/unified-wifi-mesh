@@ -1966,18 +1966,42 @@ int em_configuration_t::handle_ap_operational_bss(unsigned char *buff, unsigned 
 	unsigned int all_bss_len = 0;
 	char time_date[EM_DATE_TIME_BUFF_SZ];
 
+        if (buff == NULL || len < sizeof(em_tlv_t)) {
+            em_printfout("%s:%d Invalid TLV header length=%u\n", __func__, __LINE__, len);
+            return -1;
+        }
+
+        if (len < sizeof(em_tlv_t) + 1) {
+            em_printfout("%s:%d Missing Number of Radios\n", __func__, __LINE__);
+            return -1;
+        }
+
 	dm = get_data_model();
             
     // first verify that dm has all the radios
-    ap = reinterpret_cast<em_ap_op_bss_t *> (buff);
+    ap = reinterpret_cast<em_ap_op_bss_t *> (buff + sizeof(em_tlv_t));
     radio = const_cast<em_ap_op_bss_radio_t *> (ap->radios);
+
+    unsigned int remaining_len = len - sizeof(em_tlv_t) - 1;
 
 	util::get_date_time_rfc3399(time_date, sizeof(time_date));
 
     for (i = 0; i < ap->radios_num; i++) {
+        if (remaining_len < sizeof(mac_address_t) + 1) {
+            em_printfout("%s:%d Invalid radio data: remaining=%u\n", __func__, __LINE__, remaining_len);
+            return -1;
+        }
+
+        remaining_len -= sizeof(mac_address_t) + 1;
+
         bss = radio->bss;
         all_bss_len = 0;
         for (j = 0; j < radio->bss_num; j++) {
+            if (remaining_len < sizeof(mac_address_t) + 1) {
+                em_printfout("%s:%d Invalid BSS data: remaining=%u\n", __func__, __LINE__, remaining_len);
+                return -1;
+            }
+
             dm_bss = dm->get_bss(radio->ruid, bss->bssid);
 		
 			if (dm_bss == NULL) {
