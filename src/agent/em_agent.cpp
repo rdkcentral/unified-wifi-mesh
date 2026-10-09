@@ -43,6 +43,8 @@
 
 #include <string>
 #include <vector>
+#include <array>
+#include <chrono>
 #ifdef AL_SAP
 #include "al_service_access_point.h"
 #endif
@@ -1653,8 +1655,60 @@ void em_agent_t::input_listener()
 
     load_em_plus_cfg();
 
+    if (desc->bus_event_subs_fn(&m_bus_hdl, WIFI_EM_INIT_TX_POWER_READY,
+            reinterpret_cast<void *>(&em_agent_t::tx_power_ready_cb), this, 0) != 0) {
+        em_printfout("Error: Failed to subscribe to '%s'", WIFI_EM_INIT_TX_POWER_READY);
+        return;
+    }
+
+    if (desc->bus_event_subs_fn(&m_bus_hdl, WIFI_EM_TX_POWER_REPORT,
+            reinterpret_cast<void *>(&em_agent_t::runtime_tx_power_cb), this, 0) != 0) {
+        em_printfout("Error: Failed to subscribe to '%s'", WIFI_EM_TX_POWER_REPORT);
+        return;
+    }
+
+    auto query_tx_power_ready = [this, desc]() {
+        raw_data_t ready_data = {};
+        bus_error_t status = desc->bus_data_get_fn(&m_bus_hdl,
+            WIFI_EM_TX_POWER_READY_STATUS, &ready_data);
+        if (status != bus_error_success) {
+            em_printfout("Transmit power ready state query failed: %d", status);
+            return false;
+        }
+        if (ready_data.raw_data.u32 == 0) {
+            return false;
+        }
+
+        std::lock_guard<std::mutex> lock(m_tx_power_ready_mutex);
+        m_tx_power_ready = true;
+        return true;
+    };
+
+    em_printfout("Checking transmit power readiness");
+    bool tx_power_ready = query_tx_power_ready();
+    if (tx_power_ready) {
+        em_printfout("Transmit power ready state was already set");
+    } else {
+        std::unique_lock<std::mutex> lock(m_tx_power_ready_mutex);
+        if (!m_tx_power_ready) {
+            em_printfout("Waiting up to 5 seconds for transmit power ready event");
+            m_tx_power_ready_cv.wait_for(lock, std::chrono::seconds(5),
+                [this]() { return m_tx_power_ready; });
+        }
+        tx_power_ready = m_tx_power_ready;
+    }
+
+    if (!tx_power_ready) {
+        tx_power_ready = query_tx_power_ready();
+    }
+    if (!tx_power_ready) {
+        em_printfout("Readiness event/status unavailable; proceeding to DML retrieval recovery path");
+    }
+    em_printfout("Starting DML retrieval");
+
     memset(&data, 0, sizeof(raw_data_t));
 
+    em_printfout("Starting DML retrieval for %s", WIFI_WEBCONFIG_INIT_DML_DATA);
     while ((bus_error_val = desc->bus_data_get_fn(&m_bus_hdl, WIFI_WEBCONFIG_INIT_DML_DATA, &data)) != bus_error_success) {
         em_printfout("Error: bus get failed, error: %d", bus_error_val);
 		usleep(RETRY_SLEEP_INTERVAL_IN_MS * 1000);
@@ -1670,6 +1724,7 @@ void em_agent_t::input_listener()
         }
     }
     em_printfout("Received data:\r\n%s\r\n", reinterpret_cast<char *>(data.raw_data.bytes));
+    em_printfout("Retrieved transmit power values from DML");
 
     g_agent.io_process(em_bus_event_type_dev_init, reinterpret_cast<unsigned char *>(data.raw_data.bytes), data.raw_data_len);
     free(data.raw_data.bytes);
@@ -1734,6 +1789,117 @@ void em_agent_t::input_listener()
     }
 
     io(NULL);
+}
+
+int em_agent_t::tx_power_ready_cb(char *event_name, bus_data_prop_t *data, void *userData)
+{
+    (void)event_name;
+    (void)data;
+
+    em_agent_t *agent = static_cast<em_agent_t *>(userData);
+    if (agent == nullptr) {
+        return -1;
+    }
+
+    {
+        std::lock_guard<std::mutex> lock(agent->m_tx_power_ready_mutex);
+        agent->m_tx_power_ready = true;
+    }
+    agent->m_tx_power_ready_cv.notify_all();
+    em_printfout("Received transmit power ready event");
+    return 1;
+}
+
+bool em_agent_t::request_runtime_tx_power(const unsigned char *ruid, int *tx_power)
+{
+    constexpr auto response_timeout = std::chrono::seconds(2);
+    if (ruid == nullptr || tx_power == nullptr) {
+        return false;
+    }
+
+    wifi_bus_desc_t *desc = get_bus_descriptor();
+    if (desc == nullptr) {
+        return false;
+    }
+
+    std::lock_guard<std::mutex> request_lock(m_tx_power_request_mutex);
+    unsigned int request_id = ++m_tx_power_request_id;
+    if (request_id == 0) {
+        request_id = ++m_tx_power_request_id;
+    }
+
+    constexpr size_t request_len = sizeof(unsigned int) + sizeof(mac_address_t);
+    std::array<unsigned char, request_len> request{};
+    memcpy(request.data(), &request_id, sizeof(request_id));
+    memcpy(request.data() + sizeof(request_id), ruid, sizeof(mac_address_t));
+
+    {
+        std::lock_guard<std::mutex> lock(m_tx_power_response_mutex);
+        m_pending_tx_power_request_id = request_id;
+        memset(m_pending_tx_power_ruid, 0, sizeof(m_pending_tx_power_ruid));
+        memcpy(m_pending_tx_power_ruid, ruid, sizeof(mac_address_t));
+        m_tx_power_response_ready = false;
+    }
+
+    raw_data_t request_data = {};
+    request_data.data_type = bus_data_type_bytes;
+    request_data.raw_data.bytes = request.data();
+    request_data.raw_data_len = request.size();
+    if (desc->bus_set_fn(&m_bus_hdl, WIFI_EM_TX_POWER_REQUEST, &request_data) != bus_error_success) {
+        std::lock_guard<std::mutex> lock(m_tx_power_response_mutex);
+        m_pending_tx_power_request_id = 0;
+        memset(m_pending_tx_power_ruid, 0, sizeof(m_pending_tx_power_ruid));
+        m_tx_power_response_ready = false;
+        em_printfout("Failed to request runtime transmit power for %s", util::mac_to_string(ruid).c_str());
+        return false;
+    }
+
+    std::unique_lock<std::mutex> lock(m_tx_power_response_mutex);
+    if (!m_tx_power_response_cv.wait_for(lock, response_timeout, [this]() { return m_tx_power_response_ready; })) {
+        m_pending_tx_power_request_id = 0;
+        memset(m_pending_tx_power_ruid, 0, sizeof(m_pending_tx_power_ruid));
+        em_printfout("Timed out waiting for runtime transmit power for %s", util::mac_to_string(ruid).c_str());
+        return false;
+    }
+
+    *tx_power = m_runtime_tx_power;
+    m_pending_tx_power_request_id = 0;
+    memset(m_pending_tx_power_ruid, 0, sizeof(m_pending_tx_power_ruid));
+    m_tx_power_response_ready = false;
+    em_printfout("Received runtime transmit power %d for %s", *tx_power, util::mac_to_string(ruid).c_str());
+    return true;
+}
+
+int em_agent_t::runtime_tx_power_cb(char *event_name, bus_data_prop_t *data, void *userData)
+{
+    (void)event_name;
+    em_agent_t *agent = static_cast<em_agent_t *>(userData);
+    constexpr size_t response_len = sizeof(unsigned int) + sizeof(mac_address_t) + sizeof(uint32_t);
+    if (agent == nullptr || data == nullptr || data->value.raw_data.bytes == nullptr ||
+        data->value.raw_data_len != response_len) {
+        return -1;
+    }
+
+    const unsigned char *response = reinterpret_cast<const unsigned char *>(data->value.raw_data.bytes);
+    unsigned int request_id;
+    mac_address_t ruid;
+    uint32_t tx_power;
+    memcpy(&request_id, response, sizeof(request_id));
+    memcpy(ruid, response + sizeof(request_id), sizeof(ruid));
+    memcpy(&tx_power, response + sizeof(request_id) + sizeof(ruid), sizeof(tx_power));
+
+    {
+        std::lock_guard<std::mutex> lock(agent->m_tx_power_response_mutex);
+        if (agent->m_pending_tx_power_request_id == 0 ||
+            request_id != agent->m_pending_tx_power_request_id ||
+            memcmp(ruid, agent->m_pending_tx_power_ruid, sizeof(ruid)) != 0) {
+            return -1;
+        }
+        agent->m_runtime_tx_power = static_cast<int>(tx_power);
+        agent->m_tx_power_response_ready = true;
+    }
+    agent->m_tx_power_response_cv.notify_one();
+    return 1;
 }
 
 int em_agent_t::unassoc_sta_link_metrics_cb(char *event_name, bus_data_prop_t *data, void *userData)
