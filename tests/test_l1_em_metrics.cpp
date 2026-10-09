@@ -18,8 +18,15 @@
  */
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>
+#include <arpa/inet.h>
+#include <cstring>
 #include <stdio.h>
+#include <string.h>
+#include <vector>
+#include "collection.h"
+#include "em.h"
 #include "em_metrics.h"
+#include "em_msg.h"
 #include "em_mgr.h"
 #include "em_cmd.h"
 #include "dm_easy_mesh.h"
@@ -72,6 +79,71 @@ private:
     em_profile_type_t m_profile     = em_profile_type_reserved;
     em_state_t        m_state       = em_state_agent_unconfigured;
     em_cmd_t*         m_current_cmd = nullptr;
+};
+
+class MetricsTestEmMgr : public em_mgr_t {
+public:
+    MetricsTestEmMgr() {
+        m_em_map = hash_map_create();
+    }
+
+    ~MetricsTestEmMgr() override {
+        if (m_em_map != nullptr) {
+            hash_map_remove(m_em_map, "radio-1");
+            hash_map_remove(m_em_map, "radio-2");
+            hash_map_destroy(m_em_map);
+        }
+    }
+
+    int add_em(const char *key, em_t *em) {
+        return hash_map_put(m_em_map, strdup(key), em);
+    }
+
+    unsigned short get_next_msg_id() { return 42; }
+    void publish_network_topology() override {}
+    bool is_data_model_initialized() override { return true; }
+    em_t *find_em_for_msg_type(unsigned char *, unsigned int, em_t *) override { return nullptr; }
+    int data_model_init(const char *) override { return 0; }
+    int orch_init() override { return 0; }
+    void input_listener() override {}
+    void start_complete() override {}
+    void handle_event(em_event_t *) override {}
+    void handle_5s_tick() override {}
+    void handle_2s_tick() override {}
+    void handle_1s_tick() override {}
+    void handle_250ms_tick() override {}
+    void update_network_topology() override {}
+    dm_easy_mesh_t *get_first_dm() override { return nullptr; }
+    dm_easy_mesh_t *get_next_dm(dm_easy_mesh_t *) override { return nullptr; }
+    dm_easy_mesh_t *get_data_model(const char *, const unsigned char *) override { return nullptr; }
+    dm_easy_mesh_t *create_data_model(const char *, const em_interface_t *, em_profile_type_t) override { return nullptr; }
+    void delete_data_model(const char *, const unsigned char *) override {}
+    void delete_all_data_models() override {}
+    int update_tables(dm_easy_mesh_t *) override { return 0; }
+    int load_net_ssid_table() override { return 0; }
+    void debug_probe() override {}
+    void io(void *, bool) override {}
+    em_service_type_t get_service_type() override { return em_service_type_ctrl; }
+};
+
+class MetricsTestEm : public em_t {
+public:
+    using em_t::em_t;
+
+    int handle_ap_metrics_response(unsigned char *buff, unsigned int len, em_profile_type_t peer_profile) override {
+        ++response_count;
+        received_peer_profile = peer_profile;
+        last_response_status = em_t::handle_ap_metrics_response(buff, len, peer_profile);
+        if (last_response_status == 0) {
+            ++successful_update_count;
+        }
+        return last_response_status;
+    }
+
+    unsigned int response_count = 0;
+    unsigned int successful_update_count = 0;
+    em_profile_type_t received_peer_profile = em_profile_type_reserved;
+    int last_response_status = -1;
 };
 
 class EmMetricsTest : public ::testing::Test {    
@@ -266,4 +338,74 @@ TEST_F(EmMetricsTest, destroy_stack_allocated_em_metrics_t) {
         std::cout << "Exited inner scope. Destructor for DummyEmMetrics has been called if no exceptions were thrown" << std::endl;
     }
     std::cout << "Exiting destroy_stack_allocated_em_metrics_t test" << std::endl;
+}
+
+TEST(EmMetricsTest, UsesPeerProfileAndUpdatesSharedDataModelOnce) {
+    MetricsTestEmMgr mgr;
+    dm_easy_mesh_t shared_dm;
+    mac_address_t peer_al_mac = {0x02, 0x11, 0x22, 0x33, 0x44, 0x55};
+    shared_dm.get_device()->set_dev_interface_mac(peer_al_mac);
+
+    em_interface_t radio_1_ruid{};
+    em_interface_t radio_2_ruid{};
+    radio_1_ruid.mac[5] = 1;
+    radio_2_ruid.mac[5] = 2;
+    MetricsTestEm radio_1(&radio_1_ruid, em_freq_band_5, &shared_dm, &mgr,
+                          em_profile_type_3, em_service_type_ctrl);
+    MetricsTestEm radio_2(&radio_2_ruid, em_freq_band_5, &shared_dm, &mgr,
+                          em_profile_type_3, em_service_type_ctrl);
+
+    ASSERT_EQ(0, mgr.add_em("radio-1", &radio_1));
+    ASSERT_EQ(0, mgr.add_em("radio-2", &radio_2));
+
+    radio_1.set_state(em_state_ctrl_topo_sync_pending);
+    radio_2.set_state(em_state_ctrl_topo_sync_pending);
+    // Profile 1 is inferred from the absent Profile TLV before required-TLV validation fails.
+    std::vector<unsigned char> topology_response(sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t) + sizeof(em_tlv_t), 0);
+    auto *topology_header = reinterpret_cast<em_raw_hdr_t *>(topology_response.data());
+    std::memcpy(topology_header->src, peer_al_mac, sizeof(peer_al_mac));
+    auto *topology_cmdu = reinterpret_cast<em_cmdu_t *>(topology_response.data() + sizeof(em_raw_hdr_t));
+    topology_cmdu->type = htons(static_cast<unsigned short>(em_msg_type_topo_resp));
+    auto *topology_eom = reinterpret_cast<em_tlv_t *>(topology_response.data() + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+    topology_eom->type = static_cast<unsigned char>(em_tlv_type_eom);
+
+    static_cast<em_configuration_t &>(radio_1).process_msg(
+        topology_response.data(), static_cast<unsigned int>(topology_response.size()));
+    static_cast<em_configuration_t &>(radio_2).process_msg(
+        topology_response.data(), static_cast<unsigned int>(topology_response.size()));
+
+    std::vector<unsigned char> response(sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t) +
+        sizeof(em_tlv_t) + sizeof(em_ap_metric_t) + sizeof(em_tlv_t), 0);
+    auto *raw_header = reinterpret_cast<em_raw_hdr_t *>(response.data());
+    std::memcpy(raw_header->src, peer_al_mac, sizeof(peer_al_mac));
+    auto *cmdu = reinterpret_cast<em_cmdu_t *>(response.data() + sizeof(em_raw_hdr_t));
+    cmdu->type = htons(static_cast<unsigned short>(em_msg_type_ap_metrics_rsp));
+
+    auto *ap_metrics = reinterpret_cast<em_tlv_t *>(response.data() + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+    ap_metrics->type = static_cast<unsigned char>(em_tlv_type_ap_metrics);
+    ap_metrics->len = htons(sizeof(em_ap_metric_t));
+    auto *eom = reinterpret_cast<em_tlv_t *>(ap_metrics->value + sizeof(em_ap_metric_t));
+    eom->type = static_cast<unsigned char>(em_tlv_type_eom);
+    eom->len = 0;
+
+    char *profile_1_errors[EM_MAX_TLV_MEMBERS] = {nullptr};
+    char *profile_3_errors[EM_MAX_TLV_MEMBERS] = {nullptr};
+    EXPECT_NE(0U, em_msg_t(em_msg_type_ap_metrics_rsp, em_profile_type_1,
+                           response.data(), static_cast<unsigned int>(response.size())).validate(profile_1_errors));
+    EXPECT_EQ(0U, em_msg_t(em_msg_type_ap_metrics_rsp, em_profile_type_3,
+                           response.data(), static_cast<unsigned int>(response.size())).validate(profile_3_errors));
+
+    std::vector<em_t *> peer_radios;
+    mgr.get_all_em_for_al_mac(peer_al_mac, peer_radios);
+    ASSERT_EQ(2U, peer_radios.size());
+
+    static_cast<em_metrics_t &>(radio_1).process_msg(response.data(), static_cast<unsigned int>(response.size()));
+
+    EXPECT_EQ(1U, radio_1.response_count + radio_2.response_count);
+    EXPECT_EQ(1U, radio_1.successful_update_count + radio_2.successful_update_count);
+    EXPECT_TRUE(shared_dm.db_cfg_type_is_set(db_cfg_type_sta_metrics_update));
+
+    const MetricsTestEm *handled_radio = (radio_1.response_count == 1) ? &radio_1 : &radio_2;
+    EXPECT_EQ(em_profile_type_1, handled_radio->received_peer_profile);
+    EXPECT_EQ(0, handled_radio->last_response_status);
 }

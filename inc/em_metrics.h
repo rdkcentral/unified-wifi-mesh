@@ -304,6 +304,8 @@ class em_metrics_t {
 	 *
 	 * @param[in] buff Pointer to the buffer containing the response data.
 	 * @param[in] len Length of the data in the buffer.
+	 * @param[in] peer_profile Profile advertised by the peer that sent the response. If this is
+	 * em_profile_type_reserved, validation falls back to this EM's profile from get_profile_type().
 	 *
 	 * @returns int Status code indicating success or failure of the operation.
 	 * @retval 0 on success.
@@ -311,7 +313,9 @@ class em_metrics_t {
 	 *
 	 * @note Ensure that the buffer is properly allocated and the length is correctly specified.
 	 */
-	int handle_ap_metrics_response(unsigned char *buff, unsigned int len, em_profile_type_t peer_profile);
+	protected:
+	virtual int handle_ap_metrics_response(unsigned char *buff, unsigned int len, em_profile_type_t peer_profile);
+	private:
 	int handle_vendor_msg(unsigned char *buff, unsigned int len);
 
   	/**!
