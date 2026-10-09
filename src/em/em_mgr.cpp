@@ -309,6 +309,24 @@ void em_mgr_t::get_all_em_for_al_mac(mac_address_t mac, std::vector<em_t*> &em_r
     //em_printfout("******end*******");
 }
 
+void em_mgr_t::set_peer_profile_for_al_mac(mac_address_t mac, em_profile_type_t profile)
+{
+    std::lock_guard<std::mutex> lock(m_peer_profile_mutex);
+    std::vector<em_t *> em_radios;
+    get_all_em_for_al_mac(mac, em_radios);
+    for (auto *em : em_radios) {
+        em->set_peer_profile(profile);
+    }
+}
+
+em_profile_type_t em_mgr_t::get_peer_profile_for_al_mac(mac_address_t mac)
+{
+    std::lock_guard<std::mutex> lock(m_peer_profile_mutex);
+    std::vector<em_t *> em_radios;
+    get_all_em_for_al_mac(mac, em_radios);
+    return em_radios.empty() ? em_profile_type_reserved : em_radios.front()->get_peer_profile();
+}
+
 
 void *em_mgr_t::mgr_input_listen(void *arg)
 {

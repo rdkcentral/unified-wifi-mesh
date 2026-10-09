@@ -162,6 +162,29 @@ protected:
     }        
 };
 
+static std::vector<unsigned char> make_ap_metrics_response(const unsigned char *source_mac,
+                                                            const unsigned char *bssid,
+                                                            unsigned char channel_util)
+{
+    const unsigned int response_len = sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t) +
+        sizeof(em_tlv_t) + sizeof(em_ap_metric_t) + sizeof(em_tlv_t);
+    std::vector<unsigned char> response(response_len, 0);
+    auto *raw_header = reinterpret_cast<em_raw_hdr_t *>(response.data());
+    std::memcpy(raw_header->src, source_mac, sizeof(mac_address_t));
+    auto *cmdu = reinterpret_cast<em_cmdu_t *>(response.data() + sizeof(em_raw_hdr_t));
+    cmdu->type = htons(static_cast<unsigned short>(em_msg_type_ap_metrics_rsp));
+
+    auto *ap_metrics = reinterpret_cast<em_tlv_t *>(response.data() + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+    ap_metrics->type = static_cast<unsigned char>(em_tlv_type_ap_metrics);
+    ap_metrics->len = htons(sizeof(em_ap_metric_t));
+    auto *ap_metrics_value = reinterpret_cast<em_ap_metric_t *>(ap_metrics->value);
+    std::memcpy(ap_metrics_value->bssid, bssid, sizeof(mac_address_t));
+    ap_metrics_value->channel_util = channel_util;
+    auto *eom = reinterpret_cast<em_tlv_t *>(ap_metrics->value + sizeof(em_ap_metric_t));
+    eom->type = static_cast<unsigned char>(em_tlv_type_eom);
+    return response;
+}
+
 /**
  * @brief Verify construction of DummyEmMetrics object on the stack without exceptions.
  *
@@ -400,24 +423,10 @@ TEST(EmMetricsTest, UsesPeerProfileAndUpdatesSharedDataModelOnce) {
 
     static_cast<em_configuration_t &>(radio_1).process_msg(
         topology_response.data(), static_cast<unsigned int>(topology_response.size()));
+    EXPECT_EQ(em_profile_type_1, radio_1.cached_peer_profile());
     EXPECT_EQ(em_profile_type_1, radio_2.cached_peer_profile());
 
-    std::vector<unsigned char> response(sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t) +
-        sizeof(em_tlv_t) + sizeof(em_ap_metric_t) + sizeof(em_tlv_t), 0);
-    auto *raw_header = reinterpret_cast<em_raw_hdr_t *>(response.data());
-    std::memcpy(raw_header->src, peer_al_mac, sizeof(peer_al_mac));
-    auto *cmdu = reinterpret_cast<em_cmdu_t *>(response.data() + sizeof(em_raw_hdr_t));
-    cmdu->type = htons(static_cast<unsigned short>(em_msg_type_ap_metrics_rsp));
-
-    auto *ap_metrics = reinterpret_cast<em_tlv_t *>(response.data() + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
-    ap_metrics->type = static_cast<unsigned char>(em_tlv_type_ap_metrics);
-    ap_metrics->len = htons(sizeof(em_ap_metric_t));
-    auto *ap_metrics_value = reinterpret_cast<em_ap_metric_t *>(ap_metrics->value);
-    std::memcpy(ap_metrics_value->bssid, bssid, sizeof(bssid));
-    ap_metrics_value->channel_util = 37;
-    auto *eom = reinterpret_cast<em_tlv_t *>(ap_metrics->value + sizeof(em_ap_metric_t));
-    eom->type = static_cast<unsigned char>(em_tlv_type_eom);
-    eom->len = 0;
+    std::vector<unsigned char> response = make_ap_metrics_response(peer_al_mac, bssid, 37);
 
     char *profile_1_errors[EM_MAX_TLV_MEMBERS] = {nullptr};
     char *profile_3_errors[EM_MAX_TLV_MEMBERS] = {nullptr};
@@ -432,14 +441,29 @@ TEST(EmMetricsTest, UsesPeerProfileAndUpdatesSharedDataModelOnce) {
 
     static_cast<em_metrics_t &>(radio_1).process_msg(response.data(), static_cast<unsigned int>(response.size()));
 
-    EXPECT_EQ(0U, radio_1.response_count);
-    EXPECT_EQ(1U, radio_2.response_count);
-    EXPECT_EQ(1U, radio_2.successful_update_count);
+    EXPECT_EQ(1U, radio_1.response_count + radio_2.response_count);
+    EXPECT_EQ(1U, radio_1.successful_update_count + radio_2.successful_update_count);
     EXPECT_TRUE(shared_dm.db_cfg_type_is_set(db_cfg_type_sta_metrics_update));
     auto *updated_bss = shared_dm.get_bss_info_with_mac(bssid);
     ASSERT_NE(nullptr, updated_bss);
     EXPECT_EQ(37, updated_bss->channel_util);
 
-    EXPECT_EQ(em_profile_type_1, radio_2.received_peer_profile);
-    EXPECT_EQ(0, radio_2.last_response_status);
+    const MetricsTestEm *handled_radio = (radio_1.response_count == 1) ? &radio_1 : &radio_2;
+    EXPECT_EQ(em_profile_type_1, handled_radio->received_peer_profile);
+    EXPECT_EQ(0, handled_radio->last_response_status);
+}
+
+TEST(EmMetricsTest, ReservedPeerProfileFallsBackToProfile1) {
+    MetricsTestEmMgr mgr;
+    dm_easy_mesh_t dm;
+    em_interface_t ruid{};
+    MetricsTestEm controller(&ruid, em_freq_band_5, &dm, &mgr,
+                             em_profile_type_3, em_service_type_ctrl);
+    mac_address_t peer_al_mac = {0x02, 0x11, 0x22, 0x33, 0x44, 0x55};
+    mac_address_t bssid = {};
+    std::vector<unsigned char> response = make_ap_metrics_response(peer_al_mac, bssid, 0);
+
+    EXPECT_EQ(0, controller.handle_ap_metrics_response(
+        response.data(), static_cast<unsigned int>(response.size()), em_profile_type_reserved));
+    EXPECT_EQ(1U, controller.successful_update_count);
 }

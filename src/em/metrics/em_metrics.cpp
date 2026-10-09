@@ -996,7 +996,7 @@ int em_metrics_t::handle_ap_metrics_response(unsigned char *buff, unsigned int l
 
     em_profile_type_t validation_profile = peer_profile;
     if (validation_profile == em_profile_type_reserved) {
-        validation_profile = get_profile_type();
+        validation_profile = em_profile_type_1;
     }
 
     if (em_msg_t(em_msg_type_ap_metrics_rsp, validation_profile, buff, len).validate(errors) == 0) {
@@ -2915,12 +2915,17 @@ void em_metrics_t::process_msg(unsigned char *data, unsigned int len)
 
         case em_msg_type_ap_metrics_rsp: {
             em_radios.clear();
-            get_mgr()->get_all_em_for_al_mac(hdr->src, em_radios);
+            em_mgr_t *mgr = get_mgr();
+            if (mgr == nullptr) {
+                break;
+            }
+            em_profile_type_t peer_profile = mgr->get_peer_profile_for_al_mac(hdr->src);
+            mgr->get_all_em_for_al_mac(hdr->src, em_radios);
             std::unordered_set<dm_easy_mesh_t *> processed_data_models;
             for (auto &em : em_radios) {
                 dm_easy_mesh_t *data_model = em->get_data_model();
                 if (data_model != nullptr && processed_data_models.insert(data_model).second) {
-                    em->handle_ap_metrics_response(data, len, em->get_peer_profile());
+                    em->handle_ap_metrics_response(data, len, peer_profile);
                 }
             }
             break;
