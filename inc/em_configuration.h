@@ -19,6 +19,7 @@
 #ifndef EM_CONFIGURATION_H
 #define EM_CONFIGURATION_H
 
+#include <atomic>
 #include "em_base.h"
 #include "em_crypto.h"
 #include "dm_easy_mesh.h"
@@ -26,8 +27,10 @@
 
 class em_cmd_t;
 class em_mgr_t;
+class em_metrics_t;
 class em_configuration_t {
-
+	friend class em_metrics_t;
+        friend class em_mgr_t;
     
 	/**!
 	 * @brief Creates an auto-configuration response message.
@@ -1611,7 +1614,7 @@ class em_configuration_t {
 	virtual em_network_ssid_info_t *get_network_ssid_info_by_haul_type(em_haul_type_t haul_type) = 0;
 
 private:
-    em_profile_type_t   m_peer_profile;
+    std::atomic<em_profile_type_t> m_peer_profile;
     unsigned char m_m1_msg[MAX_EM_BUFF_SZ*EM_MAX_BANDS];
     unsigned char m_m2_msg[MAX_EM_BUFF_SZ*EM_MAX_BANDS];
     size_t m_m1_length;

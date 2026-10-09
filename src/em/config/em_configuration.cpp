@@ -2217,7 +2217,8 @@ int em_configuration_t::handle_topology_notification(unsigned char *buff, unsign
 em_profile_type_t em_configuration_t::get_peer_profile_from_al_em()
 {
     // Use the locally cached profile as a safe fallback for validation.
-    em_profile_type_t fallback = (m_peer_profile == em_profile_type_reserved) ? em_profile_type_1 : m_peer_profile;
+    em_profile_type_t local_profile = get_peer_profile();
+    em_profile_type_t fallback = (local_profile == em_profile_type_reserved) ? em_profile_type_1 : local_profile;
 
     em_mgr_t *mgr = get_mgr();
     if (mgr == nullptr) {
@@ -2279,12 +2280,12 @@ int em_configuration_t::handle_topology_response(unsigned char *buff, unsigned i
     // For backward compatibility with earlier EasyMesh specifications.
     if (found_profile == true && profile != em_profile_type_reserved) {
         m_peer_profile = profile;
-        em_printfout("Topology response received from %s with profile: %d", util::mac_to_string(src_al_mac).c_str(), m_peer_profile);
+        em_printfout("Topology response received from %s with profile: %d", util::mac_to_string(src_al_mac).c_str(), get_peer_profile());
     } else {
         // MultiAP profile TLV is mandatory for profile >= em_profile_type_2.
         // FALL back to profile 1 for backward compatibility with earlier EasyMesh specifications.
         m_peer_profile = em_profile_type_1;
-        em_printfout("Topology response received from %s with no profile TLV, assuming profile: %d", util::mac_to_string(src_al_mac).c_str(), m_peer_profile);
+        em_printfout("Topology response received from %s with no profile TLV, assuming profile: %d", util::mac_to_string(src_al_mac).c_str(), get_peer_profile());
     }
     // Update the peer profile in the AL node
     if (al_em != nullptr) {
@@ -6015,7 +6016,7 @@ int em_configuration_t::handle_autoconfig_search(unsigned char *buff, unsigned i
     } else {
         m_peer_profile = parsed_search_profile;
     }
-    em_printfout("Received autoconfig search with profile type %d", m_peer_profile);
+    em_printfout("Received autoconfig search with profile type %d", get_peer_profile());
     if (em_msg_t(em_msg_type_autoconf_search, m_peer_profile, buff, len).validate(errors) == 0) {
         em_printfout("received autoconfig search msg failed validation");
         return -1;
