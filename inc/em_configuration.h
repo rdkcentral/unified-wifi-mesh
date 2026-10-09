@@ -1222,7 +1222,9 @@ class em_configuration_t {
 	 *
 	 * @returns The cached peer profile.
 	 */
+	protected:
 	em_profile_type_t get_peer_profile() const { return m_peer_profile; }
+	private:
 
 	/**!
 	 * @brief Updates the cached peer profile for this EM instance.
