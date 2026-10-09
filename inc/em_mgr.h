@@ -19,13 +19,12 @@
 #ifndef EM_MGR_H
 #define EM_MGR_H
 
-#include <mutex>
 #include "em.h"
 #include "em_orch.h"
 #include "ieee80211.h"
 
 class em_mgr_t {
-	std::mutex m_peer_profile_mutex;
+   
     pthread_t   m_tid;
     bool m_exit;
     em_queue_t  m_queue;
@@ -234,8 +233,6 @@ public:
 	*
 	*/
 	void get_all_em_for_al_mac(mac_address_t mac, std::vector<em_t*> &em_radios);
-	void set_peer_profile_for_al_mac(mac_address_t mac, em_profile_type_t profile);
-	em_profile_type_t get_peer_profile_for_al_mac(mac_address_t mac);
 
 	/**!
 	 * @brief Listener for node events.

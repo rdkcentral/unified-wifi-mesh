@@ -2278,27 +2278,22 @@ int em_configuration_t::handle_topology_response(unsigned char *buff, unsigned i
     }
 
     // For backward compatibility with earlier EasyMesh specifications.
-    em_profile_type_t peer_profile;
     if (found_profile == true && profile != em_profile_type_reserved) {
-        peer_profile = profile;
+        m_peer_profile = profile;
+        em_printfout("Topology response received from %s with profile: %d", util::mac_to_string(src_al_mac).c_str(), get_peer_profile());
     } else {
         // MultiAP profile TLV is mandatory for profile >= em_profile_type_2.
         // FALL back to profile 1 for backward compatibility with earlier EasyMesh specifications.
-        peer_profile = em_profile_type_1;
+        m_peer_profile = em_profile_type_1;
+        em_printfout("Topology response received from %s with no profile TLV, assuming profile: %d", util::mac_to_string(src_al_mac).c_str(), get_peer_profile());
     }
-    em_printfout("Topology response received from %s with profile: %d", util::mac_to_string(src_al_mac).c_str(), peer_profile);
-    if (em_msg_t(em_msg_type_topo_resp, peer_profile, buff, len).validate(errors) == 0) {
+    // Update the peer profile in the AL node
+    if (al_em != nullptr) {
+        al_em->set_peer_profile(m_peer_profile);
+    }
+    if (em_msg_t(em_msg_type_topo_resp, m_peer_profile, buff, len).validate(errors) == 0) {
         em_printfout("topology response msg validation failed, ignoring message");
         return -1;
-    }
-
-    if (em_mgr_t *mgr = get_mgr()) {
-        mgr->set_peer_profile_for_al_mac(src_al_mac, peer_profile);
-    } else {
-        set_peer_profile(peer_profile);
-    }
-    if (al_em != nullptr) {
-        al_em->set_peer_profile(peer_profile);
     }
         
     tlv =  reinterpret_cast<em_tlv_t *> (buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
@@ -5950,12 +5945,12 @@ int em_configuration_t::handle_autoconfig_resp(unsigned char *buff, unsigned int
                 len - static_cast<unsigned int>(sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_profile_type(&parsed_profile) == false ||
         parsed_profile == em_profile_type_reserved) {
         // For backward compatibility with earlier EasyMesh specifications.
-        set_peer_profile(em_profile_type_1);
+        m_peer_profile =  em_profile_type_1;
     } else {
-        set_peer_profile(parsed_profile);
+        m_peer_profile = parsed_profile;
     }
 
-    if (em_msg_t(em_msg_type_autoconf_resp, get_peer_profile(), buff, len).validate(errors) == 0) {
+    if (em_msg_t(em_msg_type_autoconf_resp, m_peer_profile, buff, len).validate(errors) == 0) {
         printf("received autoconfig resp msg failed validation\n");
 
         return -1;
@@ -6017,13 +6012,12 @@ int em_configuration_t::handle_autoconfig_search(unsigned char *buff, unsigned i
                len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_profile_type(&parsed_search_profile) == false ||
         parsed_search_profile == em_profile_type_reserved) {
         em_printfout("Could not get peer profile type, fallback to profile type 1");
-        set_peer_profile(em_profile_type_1);
+        m_peer_profile = em_profile_type_1;
     } else {
-        set_peer_profile(parsed_search_profile);
+        m_peer_profile = parsed_search_profile;
     }
-    em_profile_type_t peer_profile = get_peer_profile();
-    em_printfout("Received autoconfig search with profile type %d", peer_profile);
-    if (em_msg_t(em_msg_type_autoconf_search, peer_profile, buff, len).validate(errors) == 0) {
+    em_printfout("Received autoconfig search with profile type %d", get_peer_profile());
+    if (em_msg_t(em_msg_type_autoconf_search, m_peer_profile, buff, len).validate(errors) == 0) {
         em_printfout("received autoconfig search msg failed validation");
         return -1;
     }

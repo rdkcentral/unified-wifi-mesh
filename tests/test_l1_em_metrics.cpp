@@ -130,10 +130,6 @@ class MetricsTestEm : public em_t {
 public:
     using em_t::em_t;
 
-    em_profile_type_t cached_peer_profile() const {
-        return get_peer_profile();
-    }
-
     int handle_ap_metrics_response(unsigned char *buff, unsigned int len, em_profile_type_t peer_profile) override {
         ++response_count;
         received_peer_profile = peer_profile;
@@ -423,8 +419,6 @@ TEST(EmMetricsTest, UsesPeerProfileAndUpdatesSharedDataModelOnce) {
 
     static_cast<em_configuration_t &>(radio_1).process_msg(
         topology_response.data(), static_cast<unsigned int>(topology_response.size()));
-    EXPECT_EQ(em_profile_type_1, radio_1.cached_peer_profile());
-    EXPECT_EQ(em_profile_type_1, radio_2.cached_peer_profile());
 
     std::vector<unsigned char> response = make_ap_metrics_response(peer_al_mac, bssid, 37);
 

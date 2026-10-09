@@ -29,9 +29,8 @@ class em_cmd_t;
 class em_mgr_t;
 class em_metrics_t;
 class em_configuration_t {
-        friend class em_metrics_t;
+	friend class em_metrics_t;
         friend class em_mgr_t;
-
     
 	/**!
 	 * @brief Creates an auto-configuration response message.
@@ -1224,16 +1223,14 @@ class em_configuration_t {
 	 *
 	 * @returns The cached peer profile.
 	 */
-	protected:
-	em_profile_type_t get_peer_profile() const { return m_peer_profile.load(std::memory_order_acquire); }
-	private:
+	em_profile_type_t get_peer_profile() const { return m_peer_profile; }
 
 	/**!
 	 * @brief Updates the cached peer profile for this EM instance.
 	 *
 	 * @param[in] profile The peer profile to cache.
 	 */
-	void set_peer_profile(em_profile_type_t profile) { m_peer_profile.store(profile, std::memory_order_release); }
+	void set_peer_profile(em_profile_type_t profile) { m_peer_profile = profile; }
     
 	/**!
 	 * @brief Retrieves the EC Manager instance.
