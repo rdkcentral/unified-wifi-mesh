@@ -344,7 +344,12 @@ TEST(EmMetricsTest, UsesPeerProfileAndUpdatesSharedDataModelOnce) {
     MetricsTestEmMgr mgr;
     dm_easy_mesh_t shared_dm;
     mac_address_t peer_al_mac = {0x02, 0x11, 0x22, 0x33, 0x44, 0x55};
+    mac_address_t bssid = {0x02, 0x11, 0x22, 0x33, 0x44, 0x66};
+    const char *peer_ssid = "peer-mesh";
     shared_dm.get_device()->set_dev_interface_mac(peer_al_mac);
+    auto *network_ssid = shared_dm.get_network_ssid(0)->get_network_ssid_info();
+    std::strncpy(network_ssid->ssid, peer_ssid, sizeof(network_ssid->ssid) - 1);
+    shared_dm.set_num_network_ssid(1);
 
     em_interface_t radio_1_ruid{};
     em_interface_t radio_2_ruid{};
@@ -355,23 +360,41 @@ TEST(EmMetricsTest, UsesPeerProfileAndUpdatesSharedDataModelOnce) {
     MetricsTestEm radio_2(&radio_2_ruid, em_freq_band_5, &shared_dm, &mgr,
                           em_profile_type_3, em_service_type_ctrl);
 
-    ASSERT_EQ(0, mgr.add_em("radio-1", &radio_1));
     ASSERT_EQ(0, mgr.add_em("radio-2", &radio_2));
+    ASSERT_EQ(0, mgr.add_em("radio-1", &radio_1));
 
     radio_1.set_state(em_state_ctrl_topo_sync_pending);
     radio_2.set_state(em_state_ctrl_topo_sync_pending);
-    // Profile 1 is inferred from the absent Profile TLV before required-TLV validation fails.
-    std::vector<unsigned char> topology_response(sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t) + sizeof(em_tlv_t), 0);
+    const unsigned int device_info_len = 16;
+    const unsigned int peer_ssid_len = static_cast<unsigned int>(std::strlen(peer_ssid));
+    const unsigned int operational_bss_len = sizeof(unsigned char) + sizeof(em_ap_op_bss_radio_t) +
+        sizeof(em_ap_operational_bss_t) + peer_ssid_len;
+    const unsigned int topology_tlvs_len = sizeof(em_tlv_t) + device_info_len + sizeof(em_tlv_t) +
+        operational_bss_len + sizeof(em_tlv_t);
+    std::vector<unsigned char> topology_response(sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t) + topology_tlvs_len, 0);
     auto *topology_header = reinterpret_cast<em_raw_hdr_t *>(topology_response.data());
     std::memcpy(topology_header->src, peer_al_mac, sizeof(peer_al_mac));
     auto *topology_cmdu = reinterpret_cast<em_cmdu_t *>(topology_response.data() + sizeof(em_raw_hdr_t));
     topology_cmdu->type = htons(static_cast<unsigned short>(em_msg_type_topo_resp));
-    auto *topology_eom = reinterpret_cast<em_tlv_t *>(topology_response.data() + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+    auto *device_info_tlv = reinterpret_cast<em_tlv_t *>(topology_response.data() + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+    device_info_tlv->type = static_cast<unsigned char>(em_tlv_type_device_info);
+    device_info_tlv->len = htons(device_info_len);
+    auto *operational_bss_tlv = reinterpret_cast<em_tlv_t *>(device_info_tlv->value + device_info_len);
+    operational_bss_tlv->type = static_cast<unsigned char>(em_tlv_type_operational_bss);
+    operational_bss_tlv->len = htons(operational_bss_len);
+    auto *operational_bss = reinterpret_cast<em_ap_op_bss_t *>(operational_bss_tlv->value);
+    operational_bss->radios_num = 1;
+    auto *operational_radio = reinterpret_cast<em_ap_op_bss_radio_t *>(operational_bss->radios);
+    std::memcpy(operational_radio->ruid, radio_1_ruid.mac, sizeof(mac_address_t));
+    operational_radio->bss_num = 1;
+    auto *operational_bss_info = reinterpret_cast<em_ap_operational_bss_t *>(operational_radio->bss);
+    std::memcpy(operational_bss_info->bssid, bssid, sizeof(bssid));
+    operational_bss_info->ssid_len = static_cast<unsigned char>(peer_ssid_len);
+    std::memcpy(operational_bss_info->ssid, peer_ssid, peer_ssid_len);
+    auto *topology_eom = reinterpret_cast<em_tlv_t *>(operational_bss_tlv->value + operational_bss_len);
     topology_eom->type = static_cast<unsigned char>(em_tlv_type_eom);
 
     static_cast<em_configuration_t &>(radio_1).process_msg(
-        topology_response.data(), static_cast<unsigned int>(topology_response.size()));
-    static_cast<em_configuration_t &>(radio_2).process_msg(
         topology_response.data(), static_cast<unsigned int>(topology_response.size()));
 
     std::vector<unsigned char> response(sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t) +
@@ -384,6 +407,9 @@ TEST(EmMetricsTest, UsesPeerProfileAndUpdatesSharedDataModelOnce) {
     auto *ap_metrics = reinterpret_cast<em_tlv_t *>(response.data() + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
     ap_metrics->type = static_cast<unsigned char>(em_tlv_type_ap_metrics);
     ap_metrics->len = htons(sizeof(em_ap_metric_t));
+    auto *ap_metrics_value = reinterpret_cast<em_ap_metric_t *>(ap_metrics->value);
+    std::memcpy(ap_metrics_value->bssid, bssid, sizeof(bssid));
+    ap_metrics_value->channel_util = 37;
     auto *eom = reinterpret_cast<em_tlv_t *>(ap_metrics->value + sizeof(em_ap_metric_t));
     eom->type = static_cast<unsigned char>(em_tlv_type_eom);
     eom->len = 0;
@@ -401,11 +427,14 @@ TEST(EmMetricsTest, UsesPeerProfileAndUpdatesSharedDataModelOnce) {
 
     static_cast<em_metrics_t &>(radio_1).process_msg(response.data(), static_cast<unsigned int>(response.size()));
 
-    EXPECT_EQ(1U, radio_1.response_count + radio_2.response_count);
-    EXPECT_EQ(1U, radio_1.successful_update_count + radio_2.successful_update_count);
+    EXPECT_EQ(0U, radio_1.response_count);
+    EXPECT_EQ(1U, radio_2.response_count);
+    EXPECT_EQ(1U, radio_2.successful_update_count);
     EXPECT_TRUE(shared_dm.db_cfg_type_is_set(db_cfg_type_sta_metrics_update));
+    auto *updated_bss = shared_dm.get_bss_info_with_mac(bssid);
+    ASSERT_NE(nullptr, updated_bss);
+    EXPECT_EQ(37, updated_bss->channel_util);
 
-    const MetricsTestEm *handled_radio = (radio_1.response_count == 1) ? &radio_1 : &radio_2;
-    EXPECT_EQ(em_profile_type_1, handled_radio->received_peer_profile);
-    EXPECT_EQ(0, handled_radio->last_response_status);
+    EXPECT_EQ(em_profile_type_1, radio_2.received_peer_profile);
+    EXPECT_EQ(0, radio_2.last_response_status);
 }
