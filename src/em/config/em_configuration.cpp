@@ -2294,6 +2294,14 @@ int em_configuration_t::handle_topology_response(unsigned char *buff, unsigned i
         em_printfout("topology response msg validation failed, ignoring message");
         return -1;
     }
+
+    if (em_mgr_t *mgr = get_mgr()) {
+        std::vector<em_t *> source_em_radios;
+        mgr->get_all_em_for_al_mac(src_al_mac, source_em_radios);
+        for (auto *source_em : source_em_radios) {
+            source_em->set_peer_profile(m_peer_profile);
+        }
+    }
         
     tlv =  reinterpret_cast<em_tlv_t *> (buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
     tmp_len = len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));

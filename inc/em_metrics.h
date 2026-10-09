@@ -311,7 +311,7 @@ class em_metrics_t {
 	 *
 	 * @note Ensure that the buffer is properly allocated and the length is correctly specified.
 	 */
-	int handle_ap_metrics_response(unsigned char *buff, unsigned int len);
+	int handle_ap_metrics_response(unsigned char *buff, unsigned int len, em_profile_type_t peer_profile);
 	int handle_vendor_msg(unsigned char *buff, unsigned int len);
 
   	/**!
