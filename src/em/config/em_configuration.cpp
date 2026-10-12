@@ -2345,7 +2345,7 @@ int em_configuration_t::handle_topology_response(unsigned char *buff, unsigned i
     }
 
 
-        int rc = handle_ap_operational_bss(tlv->value, tlv->len);
+        int rc = handle_ap_operational_bss(tlv->value, ntohs(tlv->len));
         if (rc != 0) {
             if (rc == -2) {
                 em_printfout("Failed to handle operational BSS due to SSID misconfiguration.");
