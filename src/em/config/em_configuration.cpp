@@ -1992,8 +1992,13 @@ int em_configuration_t::handle_ap_operational_bss(unsigned char *buff, unsigned 
         bss = radio->bss;
         all_bss_len = 0;
         for (j = 0; j < radio->bss_num; j++) {
-            if (remaining_len < sizeof(mac_address_t) + 1) {
+            if (remaining_len < sizeof(em_ap_operational_bss_t)) {
                 em_printfout("%s:%d Invalid BSS data: remaining=%u\n", __func__, __LINE__, remaining_len);
+                return -1;
+            }
+
+            if (remaining_len < sizeof(em_ap_operational_bss_t) + bss->ssid_len) {
+                em_printfout("%s:%d Invalid BSS SSID length=%u remaining=%u\n", __func__, __LINE__, bss->ssid_len, remaining_len);
                 return -1;
             }
 
@@ -2025,7 +2030,7 @@ int em_configuration_t::handle_ap_operational_bss(unsigned char *buff, unsigned 
                 dm_bss->m_bss_info.ssid[sizeof(dm_bss->m_bss_info.ssid) - 1] = '\0';
             } else {
                 // SSID mismatch, stop processing further.
-                em_printfout("%s:%d:SSID mismatch. Stop proceeding. SSID=%s", __func__, __LINE__, bss->ssid);
+                em_printfout("%s:%d:SSID mismatch. Stop proceeding. SSID=%s", __func__, __LINE__, ssid_buf);
                 return -2;
             }
             dm_bss->m_bss_info.enabled = true;
