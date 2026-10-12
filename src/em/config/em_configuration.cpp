@@ -2005,6 +2005,10 @@ int em_configuration_t::handle_ap_operational_bss(unsigned char *buff, unsigned 
             dm_bss = dm->get_bss(radio->ruid, bss->bssid);
 		
 			if (dm_bss == NULL) {
+                                if (dm->m_num_bss >= EM_MAX_BSSS) {
+                                    em_printfout("%s:%d Maximum BSS capacity reached: %u\n", __func__, __LINE__, dm->m_num_bss);
+                                    return -1;
+                                }
 				dm_bss = &dm->m_bss[dm->m_num_bss];
 				dm_bss->init();
 
