@@ -2279,13 +2279,22 @@ int em_configuration_t::handle_topology_response(unsigned char *buff, unsigned i
     tlv =  reinterpret_cast<em_tlv_t *> (buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
     tmp_len = len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
         
-    while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
+    while (tmp_len >= sizeof(em_tlv_t) {
+        if (tlv->type == em_tlv_type_eom) {
+            break;
+        }
+
+        unsigned int tlv_len = ntohs(tlv->len);
+
+        if (tlv_len > tmp_len - sizeof(em_tlv_t)) {
+            em_printfout("Invalid TLV length=%u, remaining=%u\n", tlv_len, tmp_len - sizeof(em_tlv_t));
+            return -1;
+        }
         if (tlv->type != em_tlv_type_profile) {
-            tmp_len -= static_cast<unsigned int> (sizeof(em_tlv_t) + htons(tlv->len));
-            tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
+            tmp_len -= static_cast<unsigned int> (sizeof(em_tlv_t) + tlv_len);
+            tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + tlv_len);
 
             continue;
-
         } else {
             // Validate length and value before assigning profile to avoid invalid enum data.
             if (em_msg_t::parse_profile_tlv(tlv->value, ntohs(tlv->len), &profile)) {
