@@ -133,6 +133,15 @@ jobs:
         
         # Update dynamic linker run-time bindings
         ldconfig
+    - name: Use GCC 10 or newer
+      run: |
+        # OneWifi passes -Werror=enum-conversion, which GCC < 10 rejects
+        if [ "$(gcc -dumpversion | cut -d. -f1)" -lt 10 ]; then
+          sudo apt-get install -y gcc-10 g++-10
+          sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-10 100 --slave /usr/bin/g++ g++ /usr/bin/g++-10
+        fi
+        gcc --version
+
     - name: Setup OneWiFi
       working-directory: easymesh_project/OneWifi
       run: |
