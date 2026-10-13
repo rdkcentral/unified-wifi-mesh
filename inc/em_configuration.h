@@ -69,15 +69,15 @@ class em_configuration_t {
 	 * This function generates a WSC M1 message and stores it in the provided buffer.
 	 *
 	 * @param[out] buff Pointer to the buffer where the message will be stored.
+	 * @param[in] buff_sz Size of buff in bytes, used to bound the optional vendor TLVs.
 	 * @param[in] dst Pointer to the destination address.
 	 *
-	 * @returns int Status code indicating success or failure.
-	 * @retval 0 on success.
-	 * @retval -1 on failure.
+	 * @returns int
+	 * @retval The length of the message written to buff.
 	 *
 	 * @note Ensure the buffer is allocated with sufficient size to hold the message.
 	 */
-	int create_autoconfig_wsc_m1_msg(unsigned char *buff, unsigned char *dst);
+	int create_autoconfig_wsc_m1_msg(unsigned char *buff, size_t buff_sz, unsigned char *dst);
     
 	/**!
 	 * @brief Creates an auto-configuration WSC M2 message.
@@ -223,6 +223,26 @@ class em_configuration_t {
 	 * @note Ensure that the buffer is allocated with sufficient size before calling this function.
 	 */
 	int create_device_info_type_tlv(unsigned char *buff);
+    
+	/**!
+	 * @brief Creates an Airties vendor specific device information TLV (Type-Length-Value) structure.
+	 *
+	 * Serializes the extended device information of the local data model, i.e. the boot id,
+	 * client id, client secret, product class and device role, prefixed by the Airties OUI
+	 * and the Airties TLV identifier.
+	 *
+	 * @param[out] buff Pointer to the value field of the vendor specific TLV the data is written to.
+	 * @param[in] buff_sz Number of bytes available at buff.
+	 *
+	 * @returns int
+	 * @retval The number of bytes written to buff.
+	 * @retval 0 if buff_sz is too small to hold the whole payload, nothing is written in that case.
+	 *
+	 * @note The client id and client secret are written without their NUL terminator, so the
+	 * length varies with their content, up to EMEX_MAX_EXT_DEV_INFO_SZ bytes including the
+	 * enclosing TLV header, i.e. three bytes fewer than that for the value written here.
+	 */
+	int create_airties_device_info_tlv(unsigned char *buff, size_t buff_sz);
     
 	/**!
 	 * @brief Creates a client association event TLV.
@@ -1013,7 +1033,40 @@ class em_configuration_t {
 	 */
 	void handle_ap_vendor_operational_bss(unsigned char *value, unsigned int len);
 
-    
+	/**!
+	 * @brief Handles the Airties device info TLV.
+	 *
+	 * Parses the boot id, client id, client secret, product class and device role out of the
+	 * payload and stores them in the extended device information of the data model, where the
+	 * data model exposes them over TR-181.
+	 *
+	 * @param[in] buff Pointer to the Airties TLV identifier, i.e. the vendor specific TLV value with the OUI stripped.
+	 * @param[in] len Length of the data pointed by buff, i.e. the TLV length minus the OUI size.
+	 *
+	 * @returns int
+	 * @retval 0 on success
+	 * @retval -1 if the payload is malformed or no data model is found
+	 *
+	 * @note The payload is rejected unless its size matches the client id and client secret
+	 * lengths declared inside it exactly, so a truncated or padded TLV is never stored.
+	 */
+	int handle_airties_device_info_tlv(unsigned char *buff, unsigned int len);
+
+	/**!
+	 * @brief Handles the vendor specific TLVs.
+	 *
+	 * Matches the vendor OUI of the payload and dispatches it to the handler of the vendor
+	 * TLV identifier that follows the OUI. TLVs of other vendors, unknown identifiers and
+	 * payloads too short to hold an OUI and an identifier are ignored.
+	 *
+	 * @param[in] buff Pointer to the value field of the vendor specific TLV, starting with the OUI.
+	 * @param[in] len Length of the data pointed by buff.
+	 *
+	 * @returns int
+	 * @retval 0 always, an unhandled or invalid TLV is not an error for the caller
+	 */
+	int handle_vendor_specific_tlv(unsigned char *buff, unsigned int len);
+
 	/**!
 	 * @brief Creates an M1 message.
 	 *
@@ -1191,7 +1244,6 @@ class em_configuration_t {
 	 * em_media_spec_data_t structure before calling this function.
 	 */
 	void fill_media_data(em_media_spec_data_t *spec, dm_bss_t *bss);
-
 	
 	/**!
 	 * @brief Retrieves the manager instance.
