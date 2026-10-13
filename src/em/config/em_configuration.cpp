@@ -2060,7 +2060,7 @@ int em_configuration_t::handle_topology_notification(unsigned char *buff, unsign
 	dm = get_data_model();
 	em_printfout("Topology Notification received, length: %u", len);
 
-	if (em_msg_t(em_msg_type_topo_notif, get_peer_profile_from_al_em(), buff, len).validate(errors) == 0) {
+	if (em_msg_t(em_msg_type_topo_notif, get_peer_profile(reinterpret_cast<em_raw_hdr_t *>(buff)->src), buff, len).validate(errors) == 0) {
         em_printfout("Topology notification msg validation failed");
             
         //return -1;
@@ -2214,24 +2214,25 @@ int em_configuration_t::handle_topology_notification(unsigned char *buff, unsign
 	return 0;
 }
 
-em_profile_type_t em_configuration_t::get_peer_profile_from_al_em()
+dm_easy_mesh_t *em_configuration_t::get_peer_dm(const mac_address_t al_mac)
 {
-    // Use the locally cached profile as a safe fallback for validation.
-    em_profile_type_t local_profile = get_peer_profile();
-    em_profile_type_t fallback = (local_profile == em_profile_type_reserved) ? em_profile_type_1 : local_profile;
-
     em_mgr_t *mgr = get_mgr();
-    if (mgr == nullptr) {
-        return fallback;
-    }
+    dm_easy_mesh_t *dm = (mgr != nullptr) ? mgr->get_data_model(GLOBAL_NET_ID, al_mac) : nullptr;
+    return (dm != nullptr) ? dm : get_data_model();
+}
 
-    em_t *al_em = mgr->get_al_node();
-    if (al_em == nullptr) {
-        return fallback;
-    }
+em_profile_type_t em_configuration_t::get_peer_profile(const mac_address_t al_mac)
+{
+    dm_easy_mesh_t *dm = get_peer_dm(al_mac);
+    em_profile_type_t profile = (dm != nullptr) ? dm->get_device()->get_peer_profile() : em_profile_type_reserved;
+    return (profile == em_profile_type_reserved) ? em_profile_type_1 : profile;
+}
 
-    em_profile_type_t al_profile = al_em->get_peer_profile();
-    return (al_profile == em_profile_type_reserved) ? fallback : al_profile;
+void em_configuration_t::set_peer_profile(const mac_address_t al_mac, em_profile_type_t profile)
+{
+    if (dm_easy_mesh_t *dm = get_peer_dm(al_mac)) {
+        dm->get_device()->set_peer_profile(profile);
+    }
 }
 
 int em_configuration_t::handle_topology_response(unsigned char *buff, unsigned int len)
@@ -2247,14 +2248,10 @@ int em_configuration_t::handle_topology_response(unsigned char *buff, unsigned i
     unsigned int assoc_sta_mld_count = 0;
     em_profile_type_t profile = em_profile_type_reserved;
 	dm_easy_mesh_t *dm;
-    em_t *al_em = nullptr;
     em_raw_hdr_t *hdr = reinterpret_cast<em_raw_hdr_t *>(buff);
     uint8_t *src_al_mac = hdr->src;
     
 	dm = get_data_model();
-    if (em_mgr_t *mgr = get_mgr()) {
-        al_em = mgr->get_al_node();
-    }
 
     tlv =  reinterpret_cast<em_tlv_t *> (buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
     tmp_len = len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
@@ -2279,19 +2276,15 @@ int em_configuration_t::handle_topology_response(unsigned char *buff, unsigned i
 
     // For backward compatibility with earlier EasyMesh specifications.
     if (found_profile == true && profile != em_profile_type_reserved) {
-        m_peer_profile = profile;
-        em_printfout("Topology response received from %s with profile: %d", util::mac_to_string(src_al_mac).c_str(), get_peer_profile());
+        set_peer_profile(src_al_mac, profile);
+        em_printfout("Topology response received from %s with profile: %d", util::mac_to_string(src_al_mac).c_str(), profile);
     } else {
         // MultiAP profile TLV is mandatory for profile >= em_profile_type_2.
         // FALL back to profile 1 for backward compatibility with earlier EasyMesh specifications.
-        m_peer_profile = em_profile_type_1;
-        em_printfout("Topology response received from %s with no profile TLV, assuming profile: %d", util::mac_to_string(src_al_mac).c_str(), get_peer_profile());
+        set_peer_profile(src_al_mac, em_profile_type_1);
+        em_printfout("Topology response received from %s with no profile TLV, assuming profile: %d", util::mac_to_string(src_al_mac).c_str(), em_profile_type_1);
     }
-    // Update the peer profile in the AL node
-    if (al_em != nullptr) {
-        al_em->set_peer_profile(m_peer_profile);
-    }
-    if (em_msg_t(em_msg_type_topo_resp, m_peer_profile, buff, len).validate(errors) == 0) {
+    if (em_msg_t(em_msg_type_topo_resp, get_peer_profile(src_al_mac), buff, len).validate(errors) == 0) {
         em_printfout("topology response msg validation failed, ignoring message");
         return -1;
     }
@@ -4518,7 +4511,7 @@ int em_configuration_t::handle_autoconfig_wsc_m2(unsigned char *buff, unsigned i
     dm_network_t network;
     em_raw_hdr_t *hdr = reinterpret_cast<em_raw_hdr_t *> (buff);
 
-    if (em_msg_t(em_msg_type_autoconf_wsc, get_peer_profile_from_al_em(), buff, len).validate(errors) == 0) {
+    if (em_msg_t(em_msg_type_autoconf_wsc, get_peer_profile(hdr->src), buff, len).validate(errors) == 0) {
         em_printfout("Received wsc m2 msg failed validation");
         return -1;
     }
@@ -5872,7 +5865,7 @@ int em_configuration_t::handle_autoconfig_wsc_m1(unsigned char *buff, unsigned i
     unsigned int tlv_len;
     em_bus_event_type_m2_tx_params_t   raw;
 
-    const em_profile_type_t peer_profile = get_peer_profile_from_al_em();
+    const em_profile_type_t peer_profile = get_peer_profile(reinterpret_cast<em_raw_hdr_t *>(buff)->src);
     em_printfout("Received autoconfig wsc m1 msg len:%u AL MAC: %s radio id %s peer profile %d", len,
         util::mac_to_string(get_peer_mac()).c_str(), util::mac_to_string(get_radio_interface_mac()).c_str(), peer_profile);
     if (em_msg_t(em_msg_type_autoconf_wsc, peer_profile, buff, len).validate(errors) == 0) {
@@ -5945,12 +5938,12 @@ int em_configuration_t::handle_autoconfig_resp(unsigned char *buff, unsigned int
                 len - static_cast<unsigned int>(sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_profile_type(&parsed_profile) == false ||
         parsed_profile == em_profile_type_reserved) {
         // For backward compatibility with earlier EasyMesh specifications.
-        m_peer_profile =  em_profile_type_1;
+        set_peer_profile(hdr->src, em_profile_type_1);
     } else {
-        m_peer_profile = parsed_profile;
+        set_peer_profile(hdr->src, parsed_profile);
     }
 
-    if (em_msg_t(em_msg_type_autoconf_resp, m_peer_profile, buff, len).validate(errors) == 0) {
+    if (em_msg_t(em_msg_type_autoconf_resp, get_peer_profile(hdr->src), buff, len).validate(errors) == 0) {
         printf("received autoconfig resp msg failed validation\n");
 
         return -1;
@@ -6006,18 +5999,19 @@ int em_configuration_t::handle_autoconfig_search(unsigned char *buff, unsigned i
 
     em_freq_band_t  band;
     mac_address_t al_mac;
+    em_raw_hdr_t *hdr = reinterpret_cast<em_raw_hdr_t *> (buff);
 
     em_profile_type_t parsed_search_profile = em_profile_type_reserved;
     if (em_msg_t(buff + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)),
                len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_profile_type(&parsed_search_profile) == false ||
         parsed_search_profile == em_profile_type_reserved) {
         em_printfout("Could not get peer profile type, fallback to profile type 1");
-        m_peer_profile = em_profile_type_1;
+        set_peer_profile(hdr->src, em_profile_type_1);
     } else {
-        m_peer_profile = parsed_search_profile;
+        set_peer_profile(hdr->src, parsed_search_profile);
     }
-    em_printfout("Received autoconfig search with profile type %d", get_peer_profile());
-    if (em_msg_t(em_msg_type_autoconf_search, m_peer_profile, buff, len).validate(errors) == 0) {
+    em_printfout("Received autoconfig search with profile type %d", get_peer_profile(hdr->src));
+    if (em_msg_t(em_msg_type_autoconf_search, get_peer_profile(hdr->src), buff, len).validate(errors) == 0) {
         em_printfout("received autoconfig search msg failed validation");
         return -1;
     }
@@ -6542,7 +6536,6 @@ void em_configuration_t::process_ctrl_state()
 }
 
 em_configuration_t::em_configuration_t() :
-    m_peer_profile(em_profile_type_reserved),
     m_m1_msg{},
     m_m2_msg{},
     m_m1_length(0),

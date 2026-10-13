@@ -2913,13 +2913,8 @@ void em_metrics_t::process_msg(unsigned char *data, unsigned int len)
         case em_msg_type_ap_metrics_rsp: {
             em_radios.clear();
             get_mgr()->get_all_em_for_al_mac(hdr->src, em_radios);
-            em_profile_type_t peer_profile = em_profile_type_reserved;
-            for (auto &em : em_radios) {
-                if (em->get_peer_profile() != em_profile_type_reserved) {
-                    peer_profile = em->get_peer_profile();
-                    break;
-                }
-            }
+            em_profile_type_t peer_profile = em_radios.empty() ? em_profile_type_reserved :
+                em_radios.front()->get_data_model()->get_device()->get_peer_profile();
             std::set<dm_easy_mesh_t *> handled_dms;
             for (auto &em : em_radios) {
                 if (handled_dms.insert(em->get_data_model()).second) {
