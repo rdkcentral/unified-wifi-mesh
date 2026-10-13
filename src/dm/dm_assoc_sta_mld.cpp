@@ -61,8 +61,8 @@ void dm_assoc_sta_mld_t::operator = (const dm_assoc_sta_mld_t& obj)
     for (unsigned int i = 0; i < this->m_assoc_sta_mld_info.num_affiliated_sta; i++) {
         memcpy(&this->m_assoc_sta_mld_info.affiliated_sta[i].bssid,
             &obj.m_assoc_sta_mld_info.affiliated_sta[i].bssid, sizeof(mac_address_t));
-        memcpy(&this->m_assoc_sta_mld_info.affiliated_sta[i].mac_addr,
-            &obj.m_assoc_sta_mld_info.affiliated_sta[i].mac_addr, sizeof(mac_address_t));
+        memcpy(&this->m_assoc_sta_mld_info.affiliated_sta[i].link_addr,
+            &obj.m_assoc_sta_mld_info.affiliated_sta[i].link_addr, sizeof(mac_address_t));
     }
 }
 
@@ -82,8 +82,8 @@ bool dm_assoc_sta_mld_t::operator == (const dm_assoc_sta_mld_t& obj)
     for (unsigned int i = 0; i < num_sta; i++) {
         ret += (memcmp(&this->m_assoc_sta_mld_info.affiliated_sta[i].bssid,
             &obj.m_assoc_sta_mld_info.affiliated_sta[i].bssid, sizeof(mac_address_t)) != 0);
-        ret += (memcmp(&this->m_assoc_sta_mld_info.affiliated_sta[i].mac_addr,
-            &obj.m_assoc_sta_mld_info.affiliated_sta[i].mac_addr, sizeof(mac_address_t)) != 0);
+        ret += (memcmp(&this->m_assoc_sta_mld_info.affiliated_sta[i].link_addr,
+            &obj.m_assoc_sta_mld_info.affiliated_sta[i].link_addr, sizeof(mac_address_t)) != 0);
     }
 
     if (ret > 0)

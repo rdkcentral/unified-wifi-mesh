@@ -106,9 +106,25 @@
 	  *
 	  * @returns True if there is another result available, false otherwise.
 	  *
-	  * @note When this function returns false, it automatically frees the result context.
+	  * @note When this function returns false, it automatically frees the result context,
+	  *       so you don't need to call free_result() manually.
+	  *       If you need to release the result context before fully iterating, use free_result().
 	  */
 	 bool next_result(void *ctx);
+
+
+	 /**!
+	  * @brief Release a result context before it has been drained by next_result().
+	  *
+	  * Callers that stop iterating early (e.g. after finding a match) must use
+	  * this instead of leaving the context to leak.
+ 	  * @note The context is freed automatically when next_result() returns false.
+ 	  *       Do not call free_result() after fully draining results, and do not
+ 	  *       use ctx after next_result() returns false or free_result() is called.
+	  *
+	  * @param[in] ctx Result context obtained from execute(). Safe to call with NULL.
+	  */
+	 void free_result(void *ctx);
 
 
 	 /**!

@@ -100,10 +100,17 @@ em_crypto_t::em_crypto_t()
         }
 
 #if OPENSSL_VERSION_NUMBER >= 0x30000000L
-        if (OSSL_PROVIDER_load(NULL, "default") == NULL) {
+        static OSSL_PROVIDER *default_prov = NULL;
+        default_prov = OSSL_PROVIDER_load(NULL, "default");
+        if (default_prov == NULL) {
             fprintf(stderr, "Failed to load default provider\n");
             exit(1);
         }
+        // Registered after OPENSSL_init_crypto, so it runs before OPENSSL_cleanup
+        atexit([]() {
+            OSSL_PROVIDER_unload(default_prov);
+            default_prov = NULL;
+        });
 #endif
     });
 #endif
@@ -112,6 +119,7 @@ em_crypto_t::em_crypto_t()
 int em_crypto_t::init()
 {
 
+    int ret;
     BIGNUM *priv_key = NULL, *pub_key = NULL;
 
     RAND_bytes(m_crypto_info.e_nonce, sizeof(em_nonce_t));
@@ -147,6 +155,7 @@ int em_crypto_t::init()
     if (DH_set0_pqg(dh, p, NULL, g) != 1) {
         goto bail;
     }
+    p = NULL; g = NULL; /* ownership transferred to dh */
     #endif
 
     /* Obtain key pair */
@@ -195,24 +204,42 @@ int em_crypto_t::init()
 #endif
 
     // now generate the keys
-    BN_bn2bin(pub_key, m_crypto_info.e_pub);
-    BN_bn2bin(priv_key, m_crypto_info.e_priv);
-    m_crypto_info.e_pub_len = static_cast<unsigned int> (BN_num_bytes(pub_key));
-    m_crypto_info.e_priv_len = static_cast<unsigned int> (BN_num_bytes(priv_key));
-    
-    BN_bn2bin(pub_key, m_crypto_info.r_pub);
-    BN_bn2bin(priv_key, m_crypto_info.r_priv);
-    m_crypto_info.r_pub_len = static_cast<unsigned int> (BN_num_bytes(pub_key));
-    m_crypto_info.r_priv_len = static_cast<unsigned int> (BN_num_bytes(priv_key));
-    
+    // Use BN_bn2binpad to ensure the output is always DH_KEY_SZ bytes,
+    // padding with leading zeros if the key value starts with 0x00.
+
+    ret = BN_bn2binpad(pub_key, m_crypto_info.e_pub, DH_KEY_SZ);
+    if (ret != DH_KEY_SZ) {
+        em_printfout("Failed to convert enrollee public key to binary, ret=%d", ret);
+        goto bail;
+    }
+    ret = BN_bn2binpad(priv_key, m_crypto_info.e_priv, DH_KEY_SZ);
+    if (ret != DH_KEY_SZ) {
+        em_printfout("Failed to convert enrollee private key to binary, ret=%d", ret);
+        goto bail;
+    }
+    m_crypto_info.e_pub_len  = DH_KEY_SZ;
+    m_crypto_info.e_priv_len = DH_KEY_SZ;
+
+    ret = BN_bn2binpad(pub_key, m_crypto_info.r_pub, DH_KEY_SZ);
+    if (ret != DH_KEY_SZ) {
+        em_printfout("Failed to convert registrar public key to binary, ret=%d", ret);
+        goto bail;
+    }
+    ret = BN_bn2binpad(priv_key, m_crypto_info.r_priv, DH_KEY_SZ);
+    if (ret != DH_KEY_SZ) {
+        em_printfout("Failed to convert registrar private key to binary, ret=%d", ret);
+        goto bail;
+    }
+    m_crypto_info.r_pub_len  = DH_KEY_SZ;
+    m_crypto_info.r_priv_len = DH_KEY_SZ;
+
     return 0;
 bail:
 
 #if OPENSSL_VERSION_NUMBER < 0x30000000L
     if (dh) {
-        DH_free(dh);
-        cleanup_bignums(NULL, NULL, priv_key, pub_key);
-    }else{
+        DH_free(dh);  // owns p, g (via set0_pqg) and pub_key, priv_key (via generate_key)
+    } else {
         cleanup_bignums(p, g, priv_key, pub_key);
     }
 #else
@@ -1045,21 +1072,31 @@ uint8_t em_crypto_t::compute_secret_internal(BIGNUM *p, BIGNUM *g, BIGNUM *bn_pr
     int ret = 0;
 
     // Thread-local library context (if needed for thread isolation)
-    static thread_local OSSL_LIB_CTX *libctx = nullptr;
-    if (!libctx) {
-        libctx = OSSL_LIB_CTX_new(); // Create a new thread-local context
-        if (!libctx) {
+    struct thread_libctx_t {
+        OSSL_LIB_CTX *ctx = nullptr;
+        OSSL_PROVIDER *prov = nullptr;
+        ~thread_libctx_t() {
+            if (prov) OSSL_PROVIDER_unload(prov);
+            if (ctx) OSSL_LIB_CTX_free(ctx);
+        }
+    };
+    static thread_local thread_libctx_t tl_ctx;
+    if (!tl_ctx.ctx) {
+        tl_ctx.ctx = OSSL_LIB_CTX_new(); // Create a new thread-local context
+        if (!tl_ctx.ctx) {
             printf("%s:%d Failed to create thread-local context\n", __func__, __LINE__);
             return 0;
         }
         // Load providers into the thread-local context
-        if (!OSSL_PROVIDER_load(libctx, "default")) {
+        tl_ctx.prov = OSSL_PROVIDER_load(tl_ctx.ctx, "default");
+        if (!tl_ctx.prov) {
             printf("%s:%d Failed to load default provider\n", __func__, __LINE__);
-            OSSL_LIB_CTX_free(libctx);
-            libctx = nullptr;
+            OSSL_LIB_CTX_free(tl_ctx.ctx);
+            tl_ctx.ctx = nullptr;
             return 0;
         }
     }
+    OSSL_LIB_CTX *libctx = tl_ctx.ctx;
 
     if (NULL == (ctx = EVP_PKEY_CTX_new_from_pkey(libctx, dh_priv, NULL))){
         printf("%s:%d EVP_PKEY_CTX_new failed\n", __func__, __LINE__);
