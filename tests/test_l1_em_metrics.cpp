@@ -115,7 +115,6 @@ public:
     void update_network_topology() override {}
     dm_easy_mesh_t *get_first_dm() override { return nullptr; }
     dm_easy_mesh_t *get_next_dm(dm_easy_mesh_t *) override { return nullptr; }
-    dm_easy_mesh_t *get_data_model(const char *, const unsigned char *) override { return nullptr; }
     dm_easy_mesh_t *get_data_model(const char *, const unsigned char *al_mac) override {
         mac_address_t mac;
         std::memcpy(mac, al_mac, sizeof(mac));
