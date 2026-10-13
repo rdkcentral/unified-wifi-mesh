@@ -2135,6 +2135,11 @@ int em_channel_t::handle_channel_scan_req(unsigned char *buff, unsigned int len)
                 return -1;
             }
 
+            if (req->num_radios != 1) {
+                em_printfout("%s:%d Unsupported number of radios=%u", __func__, __LINE__, req->num_radios);
+                return -1;
+            }
+
             memcpy(params.ruid, get_radio_interface_mac(), sizeof(mac_address_t));
             params.num_op_classes = req->num_op_classes;
 
