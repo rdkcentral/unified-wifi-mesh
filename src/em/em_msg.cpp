@@ -101,7 +101,7 @@ bool em_msg_t::get_supported_service(em_supported_service_t *svc)
             return false;
         }
         if (tlv->type == em_tlv_type_supported_service) {
-             if (tlv_len < 2) {
+             if (tlv_len < 1) {
                  return false;
             }
             unsigned int copy_len = tlv_len - 1;
@@ -109,6 +109,12 @@ bool em_msg_t::get_supported_service(em_supported_service_t *svc)
                 copy_len = EM_MAX_SERVICE;
             }
             svc->num = tlv->value[0];
+            if (tlv_len != 1U + svc->num) {
+                return false;
+            }
+            if (svc->num > EM_MAX_SERVICE) {
+                return false;
+            }
             if (svc->num > copy_len) {
                 svc->num = static_cast<unsigned char>(copy_len);
             }
