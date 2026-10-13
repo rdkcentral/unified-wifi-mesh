@@ -116,7 +116,13 @@ public:
     dm_easy_mesh_t *get_first_dm() override { return nullptr; }
     dm_easy_mesh_t *get_next_dm(dm_easy_mesh_t *) override { return nullptr; }
     dm_easy_mesh_t *get_data_model(const char *, const unsigned char *) override { return nullptr; }
-    dm_easy_mesh_t *create_data_model(const char *, const em_interface_t *, em_profile_type_t) override { return nullptr; }
+    dm_easy_mesh_t *get_data_model(const char *, const unsigned char *al_mac) override {
+        mac_address_t mac;
+        std::memcpy(mac, al_mac, sizeof(mac));
+        std::vector<em_t *> radios;
+        get_all_em_for_al_mac(mac, radios);
+        return radios.empty() ? nullptr : radios.front()->get_data_model();
+    }
     void delete_data_model(const char *, const unsigned char *) override {}
     void delete_all_data_models() override {}
     int update_tables(dm_easy_mesh_t *) override { return 0; }
