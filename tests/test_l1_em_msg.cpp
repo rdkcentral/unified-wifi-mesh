@@ -6496,3 +6496,120 @@ TEST(em_tlv_member_t, em_tlv_member_t_destructor_invoked_valid_instance) {
     std::cout << "Instance went out of scope. Destructor ~em_tlv_member_t() should have been invoked with no errors, memory leaks, or crashes." << std::endl;
     std::cout << "Exiting em_tlv_member_t_destructor_invoked_valid_instance test" << std::endl;
 }
+
+// Test 1: Valid SupportedService TLV with zero services
+TEST(em_msg_t, supported_service_valid_k0)
+{
+    std::cout << "Entering supported_service_valid_k0 test" << std::endl;
+    unsigned char buffer[64] = {0};
+    size_t offset = 0;
+    unsigned char payload[1] = {0x00};
+    write_tlv(buffer + offset, em_tlv_type_supported_service, payload, sizeof(payload));
+    offset += TLV_HEADER_SIZE + sizeof(payload);
+    write_tlv(buffer + offset, em_tlv_type_eom, nullptr, 0);
+    offset += TLV_HEADER_SIZE;
+    em_msg_t msg(em_msg_type_topo_disc, em_profile_type_reserved, buffer, offset);
+    em_supported_service_t svc{};
+    bool result = msg.get_supported_service(&svc);
+    EXPECT_TRUE(result);
+    EXPECT_EQ(svc.num, 0);
+    std::cout << "Exiting supported_service_valid_k0 test" << std::endl;
+}
+
+// Test 2: SupportedService TLV with zero length
+TEST(em_msg_t, supported_service_zero_length)
+{
+    std::cout << "Entering supported_service_zero_length test" << std::endl;
+    unsigned char buffer[64] = {0};
+    size_t offset = 0;
+    write_tlv(buffer + offset, em_tlv_type_supported_service, nullptr, 0);
+    offset += TLV_HEADER_SIZE;
+    write_tlv(buffer + offset, em_tlv_type_eom, nullptr, 0);
+    offset += TLV_HEADER_SIZE;
+    em_msg_t msg(em_msg_type_topo_disc, em_profile_type_reserved, buffer, offset);
+    em_supported_service_t svc{};
+    bool result = msg.get_supported_service(&svc);
+    EXPECT_FALSE(result);
+    std::cout << "Exiting supported_service_zero_length test" << std::endl;
+}
+
+// Test 3: Service count exceeds available service IDs
+TEST(em_msg_t, supported_service_count_exceeds_available_ids)
+{
+    std::cout << "Entering supported_service_count_exceeds_available_ids test" << std::endl;
+    unsigned char buffer[64] = {0};
+    size_t offset = 0;
+    unsigned char payload[2] = {0x05, 0x00};
+    write_tlv(buffer + offset, em_tlv_type_supported_service, payload, sizeof(payload));
+    offset += TLV_HEADER_SIZE + sizeof(payload);
+    write_tlv(buffer + offset, em_tlv_type_eom, nullptr, 0);
+    offset += TLV_HEADER_SIZE;
+    em_msg_t msg(em_msg_type_topo_disc, em_profile_type_reserved, buffer, offset);
+    em_supported_service_t svc{};
+    bool result = msg.get_supported_service(&svc);
+    EXPECT_FALSE(result);
+    std::cout << "Exiting supported_service_count_exceeds_available_ids test" << std::endl;
+}
+
+// Test 4: Service count is smaller than available service IDs
+TEST(em_msg_t, supported_service_count_smaller_than_available_ids)
+{
+    std::cout << "Entering supported_service_count_smaller_than_available_ids test" << std::endl;
+    unsigned char buffer[64] = {0};
+    size_t offset = 0;
+    unsigned char payload[3] = {0x01, 0x00, 0x01};
+    write_tlv(buffer + offset, em_tlv_type_supported_service, payload, sizeof(payload));
+    offset += TLV_HEADER_SIZE + sizeof(payload);
+    write_tlv(buffer + offset, em_tlv_type_eom, nullptr, 0);
+    offset += TLV_HEADER_SIZE;
+    em_msg_t msg(em_msg_type_topo_disc, em_profile_type_reserved, buffer, offset);
+    em_supported_service_t svc{};
+    bool result = msg.get_supported_service(&svc);
+    EXPECT_FALSE(result);
+    std::cout << "Exiting supported_service_count_smaller_than_available_ids test" << std::endl;
+}
+
+// Test 5: Valid SupportedService TLV with maximum supported services
+TEST(em_msg_t, supported_service_valid_max_services)
+{
+    std::cout << "Entering supported_service_valid_max_services test" << std::endl;
+    unsigned char buffer[TLV_HEADER_SIZE + 1 + EM_MAX_SERVICE + TLV_HEADER_SIZE] = {0};
+    size_t offset = 0;
+    unsigned char payload[1 + EM_MAX_SERVICE] = {0};
+    payload[0] = EM_MAX_SERVICE;
+    for (unsigned int i = 0; i < EM_MAX_SERVICE; ++i) {
+        payload[i + 1] = static_cast<unsigned char>(i % 2);
+    }
+    write_tlv(buffer + offset, em_tlv_type_supported_service, payload, sizeof(payload));
+    offset += TLV_HEADER_SIZE + sizeof(payload);
+    write_tlv(buffer + offset, em_tlv_type_eom, nullptr, 0);
+    offset += TLV_HEADER_SIZE;
+    em_msg_t msg(em_msg_type_topo_disc, em_profile_type_reserved, buffer, offset);
+    em_supported_service_t svc{};
+    bool result = msg.get_supported_service(&svc);
+    EXPECT_TRUE(result);
+    EXPECT_EQ(svc.num, EM_MAX_SERVICE);
+    std::cout << "Exiting supported_service_valid_max_services test" << std::endl;
+}
+
+// Test 6: Service count exceeds destination capacity
+TEST(em_msg_t, supported_service_count_exceeds_destination_capacity)
+{
+    std::cout << "Entering supported_service_count_exceeds_destination_capacity test" << std::endl;
+    unsigned char buffer[TLV_HEADER_SIZE + 1 + EM_MAX_SERVICE + 1 + TLV_HEADER_SIZE] = {0};
+    size_t offset = 0;
+    unsigned char payload[1 + EM_MAX_SERVICE + 1] = {0};
+    payload[0] = static_cast<unsigned char>(EM_MAX_SERVICE + 1);
+    for (unsigned int i = 0; i < EM_MAX_SERVICE + 1; ++i) {
+        payload[i + 1] = 0x00;
+    }
+    write_tlv(buffer + offset, em_tlv_type_supported_service, payload, sizeof(payload));
+    offset += TLV_HEADER_SIZE + sizeof(payload);
+    write_tlv(buffer + offset, em_tlv_type_eom, nullptr, 0);
+    offset += TLV_HEADER_SIZE;
+    em_msg_t msg(em_msg_type_topo_disc, em_profile_type_reserved, buffer, offset);
+    em_supported_service_t svc{};
+    bool result = msg.get_supported_service(&svc);
+    EXPECT_FALSE(result);
+    std::cout << "Exiting supported_service_count_exceeds_destination_capacity test" << std::endl;
+}
