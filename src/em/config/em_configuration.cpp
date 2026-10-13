@@ -2218,7 +2218,8 @@ dm_easy_mesh_t *em_configuration_t::get_peer_dm(const mac_address_t al_mac)
 {
     em_mgr_t *mgr = get_mgr();
     dm_easy_mesh_t *dm = (mgr != nullptr) ? mgr->get_data_model(GLOBAL_NET_ID, al_mac) : nullptr;
-    return (dm != nullptr) ? dm : get_data_model();
+    // The controller's own model must not hold a peer's profile; the peer model is created later by dm commit.
+    return (dm != nullptr || get_service_type() == em_service_type_ctrl) ? dm : get_data_model();
 }
 
 em_profile_type_t em_configuration_t::get_peer_profile(const mac_address_t al_mac)
@@ -6010,8 +6011,9 @@ int em_configuration_t::handle_autoconfig_search(unsigned char *buff, unsigned i
     } else {
         set_peer_profile(hdr->src, parsed_search_profile);
     }
-    em_printfout("Received autoconfig search with profile type %d", get_peer_profile(hdr->src));
-    if (em_msg_t(em_msg_type_autoconf_search, get_peer_profile(hdr->src), buff, len).validate(errors) == 0) {
+    const em_profile_type_t search_profile = (parsed_search_profile == em_profile_type_reserved) ? em_profile_type_1 : parsed_search_profile;
+    em_printfout("Received autoconfig search with profile type %d", search_profile);
+    if (em_msg_t(em_msg_type_autoconf_search, search_profile, buff, len).validate(errors) == 0) {
         em_printfout("received autoconfig search msg failed validation");
         return -1;
     }
