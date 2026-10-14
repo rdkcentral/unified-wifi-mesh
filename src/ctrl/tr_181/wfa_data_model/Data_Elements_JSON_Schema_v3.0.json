@@ -805,6 +805,39 @@
                 }
             }
         },
+        "APMLDConfig_g": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+                "EMLMREnabled",
+                "EMLSREnabled",
+                "STREnabled",
+                "NSTREnabled",
+                "TIDLinkMapNegotiation"
+            ],
+            "properties": {
+                "EMLMREnabled": {
+                    "type": "boolean",
+                    "writable": true
+                },
+                "EMLSREnabled": {
+                    "type": "boolean",
+                    "writable": true
+                },
+                "STREnabled": {
+                    "type": "boolean",
+                    "writable": true
+                },
+                "NSTREnabled": {
+                    "type": "boolean",
+                    "writable": true
+                },
+                "TIDLinkMapNegotiation": {
+                    "type": "boolean",
+                    "writable": true
+                }
+            }
+        },
         "WiFi7Capabilities_g": {
             "type": "object",
             "required": [
@@ -1103,7 +1136,7 @@
                     ]
                 },
                 "APMLDConfig": {
-                    "$ref": "#/definitions/WiFi7Config_g"
+                    "$ref": "#/definitions/APMLDConfig_g"
                 }
             }
         },
