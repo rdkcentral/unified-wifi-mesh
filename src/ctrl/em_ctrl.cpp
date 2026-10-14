@@ -704,7 +704,8 @@ void em_ctrl_t::handle_nb_event(em_nb_event_t *evt)
     resp->id = evt->id;
 
     switch (evt->type) {
-        case NB_REQTYPE_GET: {
+        case NB_REQTYPE_GET:
+        case NB_REQTYPE_SET: {
             char *name = evt->u.get.name;
             raw_data_t *property = static_cast<raw_data_t *> (evt->u.get.property);
             bus_get_handler_t cb = reinterpret_cast<bus_get_handler_t>(evt->cb);
@@ -1032,6 +1033,15 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
     em_commit_info_t dm_commit = {};
     em_supported_service_t svc = {};
     uint8_t is_emplus;
+    em_tlv_t    *tlv;
+    unsigned int tmp_len;
+    unsigned int tlv_body_len;
+    unsigned int tlv_total_len;
+    int num_ruids;
+    em_t *return_em;
+    mac_address_t ruids[EM_MAX_RADIO_PER_AGENT];
+    em_ap_radio_basic_cap_t *radio_basic_cap;
+
 
     assert(len > ((sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))));
     if (len < ((sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)))) {
@@ -1136,6 +1146,79 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
                 em_printfout("Could not find radio:%s", mac_str1);
                 return NULL;
             }
+            break;
+
+        case em_msg_type_early_ap_cap_rprt:
+            tlv = reinterpret_cast<em_tlv_t *>(data + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)));
+            tmp_len = len - static_cast<unsigned int>(sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+            num_ruids = 0;
+            return_em = NULL;
+
+            while ((tmp_len >= sizeof(em_tlv_t)) && (tlv->type != em_tlv_type_eom)) {
+                tlv_body_len = static_cast<unsigned int>(htons(tlv->len));
+                tlv_total_len = static_cast<unsigned int>(sizeof(em_tlv_t)) + tlv_body_len;
+
+                if (tlv_total_len > tmp_len) {
+                    em_printfout("Early AP Cap Report: malformed TLV length %u exceeds remaining %u",
+                        tlv_body_len, tmp_len);
+                    return NULL;
+                }
+
+                if (tlv->type == em_tlv_type_ap_radio_basic_cap) {
+                    if (tlv_body_len < sizeof(em_ap_radio_basic_cap_t)) {
+                        em_printfout("Early AP Cap Report: AP Radio Basic Cap TLV too short: %u", tlv_body_len);
+                        return NULL;
+                    }
+
+                    radio_basic_cap = reinterpret_cast<em_ap_radio_basic_cap_t *>(tlv->value);
+                    if (num_ruids < EM_MAX_RADIO_PER_AGENT) {
+                        memcpy(ruids[num_ruids], radio_basic_cap->ruid, sizeof(mac_address_t));
+                        em_printfout("Early AP Cap Report: Found radio RUID %s", util::mac_to_string(ruids[num_ruids]).c_str());
+                        num_ruids++;
+                    }
+                }
+                tmp_len -= tlv_total_len;
+                tlv = reinterpret_cast<em_tlv_t *>(reinterpret_cast<unsigned char *>(tlv) + tlv_total_len);
+            }
+
+            if (num_ruids == 0) {
+                em_printfout("Early AP Cap Report: No radios found in message");
+                return NULL;
+            }
+
+            if ((dm = get_data_model(GLOBAL_NET_ID, const_cast<const unsigned char *>(hdr->src))) == NULL) {
+                em_printfout("Cannot find data model for Early AP Capability Report");
+                return NULL;
+            }
+
+            em_printfout("Number of radios before processing Early AP Capability Report: %u",
+                dm->get_num_radios());
+            dm_easy_mesh_t::macbytes_to_string(hdr->src, mac_str2);
+
+            for (i = 0; i < num_ruids; i++) {
+                dm_easy_mesh_t::macbytes_to_string(ruids[i], mac_str1);
+                em = static_cast<em_t *>(hash_map_get(m_em_map, mac_str1));
+
+                if (em == NULL) {
+                    em_printfout("Creating node for missing radio RUID %s from agent %s",
+                        mac_str1, mac_str2);
+                    memcpy(intf.mac, ruids[i], sizeof(mac_address_t));
+                    if ((em = create_node(&intf, em_freq_band_unknown, dm, false,
+                                            dm->get_device()->m_device_info.profile,
+                                            em_service_type_ctrl)) != NULL) {
+                        em->set_state(em_state_ctrl_wsc_m1_pending);
+                        return_em = em;
+                        em_printfout("Created new em for radio %s", mac_str1);
+                    }
+                } else if (return_em == NULL) {
+                    return_em = em;
+                }
+            }
+
+            em_printfout("Number of radios after processing Early AP Capability Report: %u",
+                dm->get_num_radios());
+
+            em = return_em;
             break;
 
         case em_msg_type_topo_resp:
