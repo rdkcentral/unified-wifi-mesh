@@ -807,10 +807,13 @@ int dm_easy_mesh_agent_t::analyze_btm_request_action_frame(em_bus_event_t *evt, 
     int len = 0;
     mac_addr_str_t mac_str;
     em_steering_req_t *steer_req = reinterpret_cast<em_steering_req_t *> (&evt->u.raw_buff);
+    /* frame_data is written through an ieee80211_mgmt view, so it must also hold the
+       802.11 header that precedes the action body; only the body is sent. */
+    const size_t mgmt_hdr_len = offsetof(struct ieee80211_mgmt, u);
 
     len = sizeof(ieeeframe->u.action.category) + sizeof(ieeeframe->u.action.u.bss_tm_req) \
         + sizeof(em_80211_neighbor_report_t);
-    aframe = static_cast<action_frame_params_t *> (malloc(sizeof(action_frame_params_t) + static_cast<size_t>(len)));
+    aframe = static_cast<action_frame_params_t *> (malloc(sizeof(action_frame_params_t) + mgmt_hdr_len + static_cast<size_t>(len)));
     if (aframe == NULL) {
         em_printfout("Error: Failed to allocate action frame");
         return -1;
