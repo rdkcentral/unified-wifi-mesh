@@ -54,8 +54,8 @@ graph LR
     end
 
     RMGMT  -->|"TR-069 / northbound"| CTRL
-    CLI_USER -->|"Unix socket / SSL/TLS"| CTRL
-    CLI_USER -->|"Unix socket"| AGENT
+    CLI_USER -->|"AF_UNIX with LOCAL_CLI; TCP/SSL otherwise"| CTRL
+    CLI_USER -->|"AF_UNIX with LOCAL_CLI; plain TCP otherwise"| AGENT
 
     AGENT  <-->|"HE-BUS / R-BUS (webconfig subdoc)"| ONEWIFI
     CTRL   <-->|"R-BUS (TR-181 get/set)"| RBUS
@@ -83,7 +83,7 @@ graph LR
 - **DPP / EasyConnect Onboarding**: Implements Wi-Fi EasyMesh DPP bootstrapping and provisioning flows (`ec_configurator`, `ec_enrollee`, `ec_manager`), including GAS and WFA action-frame exchange, AES-SIV encryption, and 1905-layer securing under the `ENABLE_COLOCATED_1905_SECURE` path
 - **AL-SAP Integration (`libalsap`)**: IEEE 1905.1 Abstract Layer Service Access Point library that offloads raw CMDU frame relay to a co-running `ieee1905` daemon over Unix domain sockets
 - **TR-181 Data Model Interface**: Controller exposes a TR-181 Wi-Fi EasyMesh data model (`src/ctrl/tr_181`) over R-BUS, enabling data-model-driven configuration and topology queries via `Device.WiFi.DataElements.Network.*` objects
-- **Network Optimiser (`onewifi_em_network_optimiser`)**: Standalone optimisation process that consumes topology and metrics data to drive channel, band, and steering decisions via R-BUS/HE-BUS. Note: some legacy build targets use the historical misspelling `onewifi_em_network_optimser`.
+- **Network Optimiser (`onewifi_em_network_optimiser`)**: Standalone TR-181 Data Elements integration-test utility (`src/network_optimiser/test_tr181.cpp`) that queries `ControllerID`/`ColocatedAgentID`, invokes `SetSSID`, and subscribes to topology events; it does not consume metrics or implement channel, band, or steering decisions. Note: some legacy build targets use the historical misspelling `onewifi_em_network_optimser`.
 - **Data Model & Persistence**: Shared `dm_easy_mesh_t` hierarchy covering network, device, radio, BSS, STA, op-class, policy, scan result, CAC, AP-MLD, BSTA-MLD, and TID-to-link objects; controller-side state is persisted to MariaDB for recovery across restarts
 - **Command Orchestration Framework**: Type-safe command objects (`em_cmd_*`) submitted to an orchestrator (`em_orch_t`) that serialises and tracks multi-step protocol exchanges across concurrent EM radio threads
 
@@ -96,7 +96,7 @@ The northbound interface is served over two transports depending on deployment: 
 
 The AL-SAP transport layer is conditionally compiled under `AL_SAP`. When enabled, the controller and agent obtain their AL-layer MAC address from the `ieee1905` daemon rather than from the webconfig DML data, and all IEEE 1905.1 CMDU frames are sent and received through the AL-SAP Unix-socket pair (`/tmp/al_em_ctrl_data_socket`, `/tmp/al_em_ctrl_control_socket` for the controller; `/tmp/al_data_socket`, `/tmp/al_control_socket` for the agent). When AL-SAP is not compiled in, the component sends frames directly over raw Ethernet sockets.
 
-Data persistence for the controller is provided by MariaDB. The `db_client_t` class manages all database connections. On non-RDK builds the MariaDB C client header is included as `<mysql/mysql.h>`; on RDK builds it is `<mariadb/mysql.h>`. No syscfg or PSM (Persistent Storage Manager) persistence is used; all persistent topology state lives in MariaDB.
+Data persistence for the controller is provided by MariaDB. The `db_client_t` class manages all database connections. On OpenWRT/RDK-B builds the MariaDB C client header is included as `<mysql/mysql.h>`; on standard non-RDK builds it is `<mariadb/mysql.h>`. No syscfg or PSM (Persistent Storage Manager) persistence is used; all persistent topology state lives in MariaDB.
 
 A Component diagram showing the component's internal structure and dependencies is given below:
 
@@ -170,11 +170,12 @@ graph LR
 
 unified-wifi-mesh uses a multi-threaded architecture separating the IEEE 1905.1 frame I/O loop from the HE-BUS and R-BUS input listener and the per-radio state machines.
 
-- **Threading Architecture**: Multi-threaded — one main manager thread, one dedicated input-listener thread, and one thread per `em_t` radio/AL node
-- **Main Manager Thread** (`em_mgr_t::nodes_listener`): Runs a `select()` loop over raw Ethernet sockets (one per AL-interface `em_t`). Receives and demultiplexes IEEE 1905.1 CMDU frames, dispatches them to the correct `em_t` queue via `proto_process()`, and drives the 250 ms orchestration timeout tick
+- **Threading Architecture**: Multi-threaded — the manager queue/timeout loop (runs on the thread that calls `em_mgr_t::start()`), one dedicated input-listener thread, one dedicated IEEE 1905 node-listener thread, and one thread per `em_t` radio/AL node
+- **Manager Queue / Timeout Loop** (`em_mgr_t::start()`): Dequeues internal events and, once the data model is initialised, calls `handle_timeout()` on each wake, which drives the 250 ms/1 s/2 s/5 s orchestration ticks (`handle_250ms_tick()`, `handle_1s_tick()`, etc.)
+- **IEEE 1905 Node Listener Thread** (`em_mgr_t::nodes_listener`, spawned by `nodes_listen()`): Runs a `select()` loop over raw Ethernet/AL-SAP sockets (one per AL-interface `em_t`), receives and demultiplexes IEEE 1905.1 CMDU frames, and dispatches them to the correct `em_t` queue via `proto_process()`
 - **Input Listener Thread** (`em_mgr_t::mgr_input_listen` → `input_listener()`): Opened with an explicit 8 MB stack (`pthread_attr_setstacksize`). Opens the HE-BUS and R-BUS handles, fetches the initial webconfig DML data, subscribes to OneWifi bus events (`WIFI_WEBCONFIG_DOC_DATA_NORTH`, `WIFI_WEBCONFIG_GET_ASSOC`, `Device.WiFi.EM.STALinkMetricsReport`, channel scan, beacon report, etc.) and pushes incoming events into the shared `em_event_t` queue via `io_process()`
 - **Per-radio / AL-node Threads** (`em_t`): One thread per radio interface or AL interface. Each thread processes its own `em_event_t` queue, runs the per-node IEEE 1905.1 state machine (`em_sm_t`), and calls the appropriate message-construction functions
-- **Synchronization**: `pthread_mutex_t m_mutex` in `em_mgr_t` guards the `m_em_map` hash map during node creation and deletion; condition variables and mutexes in `em_cmd_exec_t` synchronise command completion; atomic operations are not used explicitly — all shared state passes through the event queues
+- **Synchronization**: `pthread_mutex_t m_mutex` in `em_mgr_t` guards the `m_em_map` hash map during node creation and deletion; condition variables and mutexes in `em_cmd_exec_t` synchronise command completion; atomic counters/flags are also used by the data model (`dm_easy_mesh_t::s_counter`), DPP enrollee (`ec_enrollee_t`), and timer classes, while event queues carry protocol and bus events
 
 ### Component State Flow
 
@@ -317,8 +318,8 @@ stateDiagram-v2
     em_state_agent_configured --> em_state_agent_steer_btm_res_pending: Steering Request
     em_state_agent_steer_btm_res_pending --> em_state_agent_configured: Send BTM Report
 
-    em_state_agent_configured --> em_state_agent_beacon_report_pending: Beacon Metrics Query
-    em_state_agent_beacon_report_pending --> em_state_agent_configured: Send Beacon Report
+    em_state_agent_configured --> em_state_beacon_report_pending: Beacon Metrics Query
+    em_state_beacon_report_pending --> em_state_agent_configured: Send Beacon Report
 
     em_state_agent_configured --> em_state_agent_channel_scan_result_pending: Channel Scan Request
     em_state_agent_channel_scan_result_pending --> em_state_agent_configured: Send Scan Report
@@ -486,34 +487,34 @@ The agent reports its selected parent in the Backhaul STA Radio Capabilities TLV
 
 The agent state machine is implemented in `em_configuration_t::process_agent_state()` and processes states through distinct handlers:
 
-| Agent State                                           | Handler Function                         | Trigger Condition                         | Next State Transition                                                                            |
-| ----------------------------------------------------- | ---------------------------------------- | ----------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| `em_state_agent_unconfigured`                         | `handle_state_config_none()`             | Device initialization complete            | → `em_state_agent_autoconfig_rsp_pending` after sending Autoconfig Search                        |
-| `em_state_agent_autoconfig_rsp_pending`               | `handle_state_autoconfig_rsp_pending()`  | Waiting for controller discovery          | → `em_state_agent_wsc_m2_pending` upon receiving Autoconfig Response                             |
-| `em_state_agent_wsc_m2_pending`                       | `handle_state_wsc_m2_pending()`          | WSC M1 sent, waiting for credentials      | → `em_state_agent_owconfig_pending` upon receiving M2                                            |
-| `em_state_agent_owconfig_pending`                     | —                                        | M2 credentials parsed, pushing to OneWifi | → `em_state_agent_onewifi_bssconfig_ind` when OneWifi callback received                          |
-| `em_state_agent_onewifi_bssconfig_ind`                | —                                        | BSS configuration applied by OneWifi      | → `em_state_agent_topo_synchronized` after sending Topology Response                             |
-| `em_state_agent_topo_synchronized`                    | —                                        | Topology synchronized with controller     | Remains in state until capability query received                                                 |
-| `em_state_agent_ap_cap_report`                        | `em_capability_t::process_agent_state()` | AP capability query received              | → `em_state_agent_channel_pref_query` after sending capability report                            |
-| `em_state_agent_channel_pref_query`                   | `em_channel_t::process_agent_state()`    | Channel preference query received         | → `em_state_agent_channel_selection_pending` after sending preference report                     |
-| `em_state_agent_channel_selection_pending`            | `em_channel_t::process_agent_state()`    | Waiting for channel selection request     | → `em_state_agent_channel_select_configuration_pending` upon receiving Channel Selection Request |
-| `em_state_agent_channel_select_configuration_pending` | `em_channel_t::process_agent_state()`    | Applying channel change via OneWifi       | → `em_state_agent_channel_report_pending` after channel change applied                           |
-| `em_state_agent_channel_report_pending`               | `em_channel_t::process_agent_state()`    | Sending operating channel report          | → `em_state_agent_configured` after sending operating channel report                             |
-| `em_state_agent_configured`                           | —                                        | Fully configured and operational          | Transitions to transient states for specific operations                                          |
-| `em_state_agent_autoconfig_renew_pending`             | `handle_state_autoconfig_renew()`        | Autoconfig Renew received from controller | → `em_state_agent_wsc_m2_pending` to restart M1/M2 exchange                                      |
-| `em_state_agent_sta_link_metrics_pending`             | `em_metrics_t::process_agent_state()`    | STA link metrics query received           | → `em_state_agent_configured` after sending metrics response                                     |
-| `em_state_agent_steer_btm_res_pending`                | `em_steering_t::process_agent_state()`   | Client steering request received          | → `em_state_agent_configured` after BTM response sent                                            |
-| `em_state_agent_beacon_report_pending`                | —                                        | Beacon metrics query received             | → `em_state_agent_configured` after beacon report sent                                           |
-| `em_state_agent_channel_scan_result_pending`          | `em_channel_t::process_agent_state()`    | Channel scan request received             | → `em_state_agent_configured` after scan report sent                                             |
+| Agent State                                           | Handler Function                                  | Trigger Condition                         | Next State Transition                                                                            |
+| ----------------------------------------------------- | ------------------------------------------------- | ----------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `em_state_agent_unconfigured`                         | `handle_state_config_none()`                      | Device initialization complete            | → `em_state_agent_autoconfig_rsp_pending` after sending Autoconfig Search                        |
+| `em_state_agent_autoconfig_rsp_pending`               | `handle_state_autoconfig_rsp_pending()`           | Waiting for controller discovery          | → `em_state_agent_wsc_m2_pending` upon receiving Autoconfig Response                             |
+| `em_state_agent_wsc_m2_pending`                       | `handle_state_wsc_m2_pending()`                   | WSC M1 sent, waiting for credentials      | → `em_state_agent_owconfig_pending` upon receiving M2                                            |
+| `em_state_agent_owconfig_pending`                     | —                                                 | M2 credentials parsed, pushing to OneWifi | → `em_state_agent_onewifi_bssconfig_ind` when OneWifi callback received                          |
+| `em_state_agent_onewifi_bssconfig_ind`                | —                                                 | BSS configuration applied by OneWifi      | → `em_state_agent_topo_synchronized` after sending Topology Response                             |
+| `em_state_agent_topo_synchronized`                    | —                                                 | Topology synchronized with controller     | Remains in state until capability query received                                                 |
+| `em_state_agent_ap_cap_report`                        | `em_capability_t::process_agent_state()`          | AP capability query received              | → `em_state_agent_channel_pref_query` after sending capability report                            |
+| `em_state_agent_channel_pref_query`                   | `em_channel_t::process_state()`                   | Channel preference query received         | → `em_state_agent_channel_selection_pending` after sending preference report                     |
+| `em_state_agent_channel_selection_pending`            | `em_channel_t::handle_channel_sel_req()`          | Waiting for channel selection request     | → `em_state_agent_channel_select_configuration_pending` upon receiving Channel Selection Request |
+| `em_state_agent_channel_select_configuration_pending` | `dm_easy_mesh_agent_t::analyze_channel_sel_req()` | Applying channel change via OneWifi       | → `em_state_agent_channel_report_pending` after change applied                                   |
+| `em_state_agent_channel_report_pending`               | `em_channel_t::process_state()`                   | Sending operating channel report          | → `em_state_agent_configured` after sending operating channel report                             |
+| `em_state_agent_configured`                           | —                                                 | Fully configured and operational          | Transitions to transient states for specific operations                                          |
+| `em_state_agent_autoconfig_renew_pending`             | `handle_state_autoconfig_renew()`                 | Autoconfig Renew received from controller | → `em_state_agent_wsc_m2_pending` to restart M1/M2 exchange                                      |
+| `em_state_agent_sta_link_metrics_pending`             | `em_metrics_t::process_agent_state()`             | STA link metrics query received           | → `em_state_agent_configured` after sending metrics response                                     |
+| `em_state_agent_steer_btm_res_pending`                | `em_steering_t::process_agent_state()`            | Client steering request received          | → `em_state_agent_configured` after BTM response sent                                            |
+| `em_state_beacon_report_pending`                      | `em_metrics_t::process_agent_state()`             | Beacon metrics query received             | → `em_state_agent_configured` after beacon report sent                                           |
+| `em_state_agent_channel_scan_result_pending`          | `em_channel_t::process_agent_state()`             | Channel scan request received             | → `em_state_agent_configured` after scan report sent                                             |
 
-The state machine enforces strict ordering: an agent must complete the configuration sequence (`unconfigured` → `autoconfig_rsp_pending` → `wsc_m2_pending` → `owconfig_pending` → `onewifi_bssconfig_ind` → `topo_synchronized` → `ap_cap_report` → `channel_pref_query` → `channel_selection_pending` → `channel_report_pending` → `configured`) before it can handle runtime requests (metrics, steering, scans). Transient states (e.g., `sta_link_metrics_pending`) are entered from `configured` and always return to `configured` upon completion.
+The state sequence is `unconfigured` → `autoconfig_rsp_pending` → `wsc_m2_pending` → `owconfig_pending` → `onewifi_bssconfig_ind` → `topo_synchronized` → `ap_cap_report` → `channel_pref_query` → `channel_selection_pending` → `channel_select_configuration_pending` → `channel_report_pending` → `configured`. Runtime readiness is not uniform: link-quality and beacon-report operations can be accepted once topology synchronization is complete, while most other runtime requests (metrics, steering, scans) require the fully `configured` state. Transient states (e.g., `sta_link_metrics_pending`) are entered from `configured` and always return to `configured` upon completion.
 
 **Key State Machine Behaviors:**
 
 - **Autoconfig Search Retry**: If `em_state_agent_autoconfig_rsp_pending` times out without receiving Autoconfig Response, agent re-sends Autoconfig Search CMDU (multicast) at regular intervals.
 - **M2 Translation**: In `em_state_agent_wsc_m2_pending`, agent parses WSC M2 message and extracts `noofbssconfig` BSS entries (SSID, passphrase, auth type, haul type), translates into `m2ctrl_radioconfig`, and pushes to OneWifi via `refresh_onewifi_subdoc()`.
 - **Topology Synchronization**: Upon entering `em_state_agent_topo_synchronized`, the agent constructs a Topology Response CMDU containing Device Info TLV, Supported Service TLV, Operational BSS TLV, Profile TLV (Profile 3), BSS Configuration Report TLV, Backhaul STA Radio Capabilities TLV (if present), AP MLD Configuration TLV, Backhaul STA MLD Configuration TLV (if present), Associated STA MLD Configuration Report TLVs, TID-to-Link Mapping Policy TLV, and Vendor Operational BSS TLV.
-- **DPP Bootstrapping Integration**: If the agent is remote (`Colocated_mode = false` in `/nvram/EasymeshCfg.json`) and DPP is enabled, `try_start_dpp_onboarding()` is called after device initialization. The agent generates DPP bootstrapping URI (`ec_util::get_dpp_boot_data()`), includes the hash in the DPP Chirp TLV of the Autoconfig Search (extended) CMDU, and transitions to DPP authentication upon receiving a DPP CCE Indication from the controller.
+- **DPP Bootstrapping Integration**: When a remote agent (`Colocated_mode = false` in `/nvram/EasymeshCfg.json`) is started with `--start-dpp-onboard`, `try_start_dpp_onboarding()` runs after device initialization, generates DPP bootstrapping data (`ec_util::get_dpp_boot_data()`), and includes its hash in the DPP Chirp TLV of the extended Autoconfig Search CMDU. A received DPP CCE Indication only toggles CCE advertisement (`pa_cfg_toggle_cce()`) in the agent's beacons/probe responses; it does not itself start DPP authentication.
 - **Backhaul STA Association**: For remote agents (extenders), backhaul STA VAP is created after applying M2 configuration. STA scans for parent BSSID (gateway or upstream extender), performs WPA2/WPA3 4-way handshake, establishes backhaul link, then sends Topology Response.
 - **Channel Change Handling**: When the controller sends a Channel Selection Request, the agent transitions to `em_state_agent_channel_select_configuration_pending`, applies the new operating channel via OneWifi (`bus_set_fn` with radio subdoc), waits for channel change completion, then sends Operating Channel Report CMDU with new op class and channel. If backhaul STA is on the same radio, channel change may cause temporary backhaul disruption and re-association.
 
@@ -527,14 +528,14 @@ During normal operation the component processes HE-BUS and R-BUS events from One
 - Receipt of IEEE 1905.1 `em_msg_type_autoconf_renew` causes the agent to restart the M1/M2 handshake for the affected radio band
 - Controller receives AP Metrics Report or STA Link Metrics Response and dispatches steering evaluation through `em_steering_t`
 - `em_msg_type_channel_sel_req` arrival causes the agent to update the operating class state in the data model and forward the channel change to OneWifi via `bus_set_fn`
-- DPP CCE Indication from the controller triggers the agent `ec_enrollee_t` to begin DPP presence announcement / authentication flows
-- MariaDB disconnect detected by the controller triggers reconnect logic before the next topology commit
+- DPP CCE Indication from the controller only toggles CCE advertisement in the agent's beacons/probe responses (`pa_cfg_toggle_cce()`); it does not start DPP authentication
+- MariaDB connection failures are reported by `db_client_t`; the current component does not automatically reconnect after a dropped connection
 
 **Context Switching Scenarios:**
 
 - **AL MAC change (AL-SAP enabled)**: When `AL_SAP` is defined the agent overwrites the AL MAC address obtained from the DML webconfig with the MAC reported by the `ieee1905` daemon (`g_al_mac_sap`) in `dm_easy_mesh_agent_t::analyze_dev_init()`
-- **Colocated vs. remote mode**: Read from `EasymeshCfg.json` at agent startup. In colocated mode DPP onboarding is suppressed; in remote mode (`Colocated_mode = false`) `try_start_dpp_onboarding()` is called after successful `dev_init`
-- **ieee1905 daemon restart**: AL-SAP Unix socket connection re-establishes on the next frame-send attempt via AL-SAP library error handling
+- **Colocated vs. remote mode**: Read from `EasymeshCfg.json` at agent startup. In colocated mode DPP onboarding is suppressed; in remote mode (`Colocated_mode = false`), `try_start_dpp_onboarding()` is called after successful `dev_init` only when the agent was started with `--start-dpp-onboard`
+- **ieee1905 daemon restart**: AL-SAP socket failures are surfaced as thrown `AlServiceException` errors; the current library does not automatically re-establish the data and control connections
 
 ### Call Flow
 
@@ -640,36 +641,38 @@ The controller implements the WFA Data Elements specification (schema `src/ctrl/
 
 ### Methods and Events Registered on R-BUS
 
-| Path                                                   | Type           | Direction       | Purpose                                           | Source                              |
-| ------------------------------------------------------ | -------------- | --------------- | ------------------------------------------------- | ----------------------------------- |
-| `Device.WiFi.DataElements.Network.ControllerID`        | Property       | Read            | Controller AL MAC address                         | `inc/tr_181.h`                      |
-| `Device.WiFi.DataElements.Network.ColocatedAgentID`    | Property       | Read            | Colocated agent AL MAC address                    | `inc/tr_181.h`                      |
-| `Device.WiFi.DataElements.Network.SetSSID`             | Method         | RPC             | Apply SSID/passphrase/security config to agent(s) | `inc/tr_181.h`, `tr_181_method.cpp` |
-| `Device.WiFi.DataElements.Network.Topology`            | Event / Method | Publish         | Notifies R-BUS subscribers on topology change     | `inc/tr_181.h`, `em_ctrl.cpp`       |
-| `Device.WiFi.DataElements.Network.NodeSynchronize`     | Method         | Get/Set         | Node config synchronization trigger               | `inc/tr_181.h`, `tr_181.cpp`        |
-| `Device.WiFi.DataElements.Network.NodeConfigurePolicy` | Event / Method | Pub + Subscribe | MAP policy distribution to agent nodes            | `inc/tr_181.h`, `em_ctrl.cpp`       |
-| `Device.WiFi.DataElements.Network.NodeLinkStatsAlarm`  | Event          | Publish         | Link quality alarm notification                   | `inc/tr_181.h`, `em_ctrl.cpp`       |
+| Path                                                   | Type     | Direction             | Purpose                                                                                                                                                                           | Source                              |
+| ------------------------------------------------------ | -------- | --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------- |
+| `Device.WiFi.DataElements.Network.ControllerID`        | Property | Read                  | Controller AL MAC address                                                                                                                                                         | `inc/tr_181.h`                      |
+| `Device.WiFi.DataElements.Network.ColocatedAgentID`    | Property | Read                  | Colocated agent AL MAC address                                                                                                                                                    | `inc/tr_181.h`                      |
+| `Device.WiFi.DataElements.Network.SetSSID`             | Method   | RPC                   | Apply SSID/passphrase/security config to agent(s)                                                                                                                                 | `inc/tr_181.h`, `tr_181_method.cpp` |
+| `Device.WiFi.DataElements.Network.Topology`            | Method   | Get + Publish         | Provides topology and publishes topology changes                                                                                                                                  | `em_ctrl.cpp`                       |
+| `Device.WiFi.DataElements.Network.NodeSynchronize`     | Method   | Get/Set + Publish     | Node config synchronization trigger                                                                                                                                               | `tr_181.cpp`, `em_ctrl.cpp`         |
+| `Device.WiFi.DataElements.Network.NodeConfigurePolicy` | Method   | Set + Subscribe       | MAP policy input consumed by the controller; agent-side subscription/self-publish is present only as disabled test code (`#if 0` in `em_ctrl.cpp`, commented out in `tr_181.cpp`) | `tr_181.cpp`, `em_ctrl.cpp`         |
+| `Device.WiFi.DataElements.Network.NodeLinkStatsAlarm`  | Method   | Publish via event API | Link quality alarm notification                                                                                                                                                   | `em_ctrl.cpp`                       |
 
 ### Agent-Side Bus Subscriptions (OneWifi / HE-BUS / R-BUS)
 
-| Bus Path                                              | Direction  | Purpose                                                                | Source         |
-| ----------------------------------------------------- | ---------- | ---------------------------------------------------------------------- | -------------- |
-| `WIFI_WEBCONFIG_INIT_DML_DATA`                        | Get (pull) | Initial DML fetch at startup                                           | `em_agent.cpp` |
-| `WIFI_WEBCONFIG_DOC_DATA_NORTH`                       | Subscribe  | VAP/radio/mesh_sta subdoc change callbacks                             | `em_agent.cpp` |
-| `WIFI_WEBCONFIG_GET_ASSOC`                            | Subscribe  | STA association/disassociation events                                  | `em_agent.cpp` |
-| `Device.WiFi.EM.STALinkMetricsReport`                 | Subscribe  | STA link metrics data from OneWifi                                     | `em_agent.cpp` |
-| `WIFI_EM_CHANNEL_SCAN_REPORT`                         | Subscribe  | Channel scan results                                                   | `em_agent.cpp` |
-| `Device.WiFi.EM.BeaconReport`                         | Subscribe  | 802.11k beacon measurement reports                                     | `em_agent.cpp` |
-| `Device.WiFi.EM.AssociationStatus`                    | Subscribe  | STA association status for DPP enrollee                                | `em_agent.cpp` |
-| `Device.WiFi.EC.BSSInfo`                              | Subscribe  | BSS info for DPP channel list (Reconfiguration Announcement)           | `em_agent.cpp` |
-| `Device.WiFi.EM.APMetricsReport`                      | Subscribe  | AP metrics reports from OneWifi                                        | `em_agent.cpp` |
-| `WIFI_QUALITY_LINKREPORT`                             | Subscribe  | Link quality reports                                                   | `em_agent.cpp` |
-| `Device.WiFi.CSABeaconFrameRecieved`                  | Subscribe  | CSA beacon frames received (legacy API spelling retained as published) | `em_agent.cpp` |
-| `Device.WiFi.AccessPoint.{i}.RawFrame.Mgmt.Action.Rx` | Subscribe  | Management action frames received (per backhaul BSS)                   | `em_agent.cpp` |
-| `Device.WiFi.AccessPoint.{i}.RawFrame.Mgmt.Action.Tx` | Set        | Transmit action frames (DPP, BTM, GAS)                                 | `em_agent.cpp` |
-| `WIFI_EM_CHANNEL_SCAN_REQUEST`                        | Set        | Trigger channel scan                                                   | `em_agent.cpp` |
-| `WIFI_SET_DISCONN_STEADY_STATE`                       | Set        | Set disconnected steady state for DPP                                  | `em_agent.cpp` |
-| `WIFI_SET_DISCONN_SCAN_NONE_STATE`                    | Set        | Set disconnected scan-none state                                       | `em_agent.cpp` |
+| Bus Path                                              | Direction  | Purpose                                                                                                                                                                          | Source         |
+| ----------------------------------------------------- | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
+| `WIFI_WEBCONFIG_INIT_DML_DATA`                        | Get (pull) | Initial DML fetch at startup                                                                                                                                                     | `em_agent.cpp` |
+| `WIFI_WEBCONFIG_DOC_DATA_NORTH`                       | Subscribe  | VAP/radio/mesh_sta subdoc change callbacks                                                                                                                                       | `em_agent.cpp` |
+| `WIFI_WEBCONFIG_GET_ASSOC`                            | Subscribe  | STA association/disassociation events                                                                                                                                            | `em_agent.cpp` |
+| `Device.WiFi.EM.STALinkMetricsReport`                 | Subscribe  | STA link metrics data from OneWifi                                                                                                                                               | `em_agent.cpp` |
+| `WIFI_EM_CHANNEL_SCAN_REPORT`                         | Subscribe  | Channel scan results                                                                                                                                                             | `em_agent.cpp` |
+| `Device.WiFi.EM.BeaconReport`                         | Subscribe  | 802.11k beacon measurement reports                                                                                                                                               | `em_agent.cpp` |
+| `Device.WiFi.EM.AssociationStatus`                    | Subscribe  | STA association status for DPP enrollee                                                                                                                                          | `em_agent.cpp` |
+| `Device.WiFi.EC.BSSInfo`                              | Subscribe  | BSS info for DPP channel list (Reconfiguration Announcement)                                                                                                                     | `em_agent.cpp` |
+| `Device.WiFi.EM.APMetricsReport`                      | Subscribe  | AP metrics reports from OneWifi                                                                                                                                                  | `em_agent.cpp` |
+| `WIFI_QUALITY_LINKREPORT`                             | Subscribe  | Link quality reports                                                                                                                                                             | `em_agent.cpp` |
+| `Device.WiFi.EM.FailedConnection`                     | Subscribe  | Failed connection reports                                                                                                                                                        | `em_agent.cpp` |
+| `Device.WiFi.EM.NaStaResponse`                        | Subscribe  | Unassociated STA link-metrics responses                                                                                                                                          | `em_agent.cpp` |
+| `Device.WiFi.CSABeaconFrameRecieved`                  | Subscribe  | CSA beacon frames received (legacy API spelling retained as published)                                                                                                           | `em_agent.cpp` |
+| `Device.WiFi.AccessPoint.{i}.RawFrame.Mgmt.Action.Rx` | Subscribe  | Management action frames received on the first eligible backhaul AP-mode BSS (the implementation expands `{i}` to a concrete index and subscribes to only one path, then breaks) | `em_agent.cpp` |
+| `Device.WiFi.AccessPoint.{i}.RawFrame.Mgmt.Action.Tx` | Set        | Transmit action frames (DPP, BTM, GAS)                                                                                                                                           | `em_agent.cpp` |
+| `WIFI_EM_CHANNEL_SCAN_REQUEST`                        | Set        | Trigger channel scan                                                                                                                                                             | `em_agent.cpp` |
+| `WIFI_SET_DISCONN_STEADY_STATE`                       | Set        | Set disconnected steady state for DPP                                                                                                                                            | `em_agent.cpp` |
+| `WIFI_SET_DISCONN_SCAN_NONE_STATE`                    | Set        | Set disconnected scan-none state                                                                                                                                                 | `em_agent.cpp` |
 
 ## Internal Modules
 
@@ -699,7 +702,7 @@ unified-wifi-mesh decomposes into the following modules. Most modules are shared
 | **AL-SAP Library**     | Both       | IEEE 1905.1 AL-SAP: Unix-socket based CMDU frame relay to/from `ieee1905` daemon                                                                | `src/al-sap/al_service_access_point.cpp`, `al_service_data_unit.cpp`, `al_service_utils.cpp`                                                                                                                                                                                          |
 | **AES-SIV Crypto**     | Both       | AES-SIV authenticated encryption for DPP and 1905-layer securing                                                                                | `src/util_crypto/aes_siv.c`                                                                                                                                                                                                                                                           |
 | **Utility Libraries**  | Both       | Common utility functions and timer management                                                                                                   | `src/utils/util.cpp`, `timer.cpp`                                                                                                                                                                                                                                                     |
-| **Network Optimiser**  | Standalone | TR-181 Data Elements integration testing and network optimization                                                                               | `src/network_optimiser/test_tr181.cpp`                                                                                                                                                                                                                                                |
+| **Network Optimiser**  | Standalone | TR-181 Data Elements integration-test utility                                                                                                   | `src/network_optimiser/test_tr181.cpp`                                                                                                                                                                                                                                                |
 | **RDK-B CLI**          | Standalone | RDK-B specific CLI interface for EasyMesh management                                                                                            | `src/rdkb-cli/`                                                                                                                                                                                                                                                                       |
 
 ## Component Interactions
@@ -716,12 +719,12 @@ unified-wifi-mesh decomposes into the following modules. Most modules are shared
 
 ### Events Published by unified-wifi-mesh
 
-| Event              | R-BUS Path                                             | Trigger Condition                                          | Subscriber                          |
-| ------------------ | ------------------------------------------------------ | ---------------------------------------------------------- | ----------------------------------- |
-| Topology Change    | `Device.WiFi.DataElements.Network.Topology`            | Topology discovery updates (device add/remove, BSS change) | CcspP&M, network management systems |
-| Node Synchronize   | `Device.WiFi.DataElements.Network.NodeSynchronize`     | Node configuration synchronization requested               | R-BUS subscribers                   |
-| Node Config Policy | `Device.WiFi.DataElements.Network.NodeConfigurePolicy` | MAP policy update to distribute to agents                  | Agent nodes via R-BUS               |
-| Link Stats Alarm   | `Device.WiFi.DataElements.Network.NodeLinkStatsAlarm`  | Link quality threshold crossed                             | Monitoring / analytics services     |
+| Event              | R-BUS Path                                             | Trigger Condition                                                                                                                                             | Subscriber                                         |
+| ------------------ | ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
+| Topology Change    | `Device.WiFi.DataElements.Network.Topology`            | Topology discovery updates (device add/remove, BSS change)                                                                                                    | CcspP&M, network management systems                |
+| Node Synchronize   | `Device.WiFi.DataElements.Network.NodeSynchronize`     | Node configuration synchronization requested                                                                                                                  | R-BUS subscribers                                  |
+| Node Config Policy | `Device.WiFi.DataElements.Network.NodeConfigurePolicy` | Consumed by the controller and forwarded to agents via IEEE 1905.1 (not published by this component; the self-publish path exists only as disabled test code) | External R-BUS client; agent nodes via IEEE 1905.1 |
+| Link Stats Alarm   | `Device.WiFi.DataElements.Network.NodeLinkStatsAlarm`  | Link quality threshold crossed                                                                                                                                | Monitoring / analytics services                    |
 
 ### IPC Flow Patterns
 
@@ -764,24 +767,24 @@ sequenceDiagram
 
 ### Key Implementation Logic
 
-- **CMDU Frame Handling**: Raw Ethernet socket (ETH_P_1905, `0x893a`) per radio/AL interface. `em_mgr_t::find_em_for_msg_type()` dispatches each inbound CMDU to the correct `em_t` instance by message type, destination MAC, radio ID, BSS ID, or frequency band. Unrecognised message types are logged and discarded.
+- **CMDU Frame Handling**: With `AL_SAP` enabled, `g_sap->serviceAccessPointDataIndication()` receives CMDUs over the AL-SAP Unix socket; otherwise the component reads raw `AF_PACKET` sockets filtered for `ETH_P_1905` (`0x893a`), one per radio/AL interface. `em_mgr_t::find_em_for_msg_type()` dispatches each inbound CMDU to the correct `em_t` instance by message type, destination MAC, radio ID, BSS ID, or frequency band. Unrecognised message types are logged and discarded.
 - **Bus / webconfig Integration**: The agent decodes OneWifi webconfig subdocs using `webconfig_easymesh_decode()` from the `libwebconfig` library. Subdoc types `private`, `radio`, `mesh_sta`, `Vap_5G`, `Vap_2.4G`, `Vap_6G`, `radio_5G`, `radio_6G`, `radio_2.4G`, and `mesh backhaul sta` are handled in `onewifi_cb()` in `em_agent.cpp`. The component uses both HE-BUS and R-BUS for communication with OneWifi.
-- **Command Orchestration**: Commands (`em_cmd_t` subclasses) are cloned across all matching radio nodes via `clone_for_next()` and tracked in `em_orch_t`. The orchestrator retries timed-out commands at the 250 ms tick. In-progress check (`is_cmd_type_in_progress()`) prevents duplicate submissions.
-- **DPP Bootstrapping**: On remote agent startup (`Colocated_mode = false`), `try_start_dpp_onboarding()` reads `EasymeshCfg.json`, derives the enrollee MAC from the backhaul BSS, generates or reuses DPP bootstrapping key material (`ec_util::get_dpp_boot_data()`), and starts the enrollee state machine. DPP key files (`DPPURI.pem`, `C-sign-key.pem`, `net-access-key.pem`, `ppk.pem`, `connector.txt`) are stored under `/nvram/` as defined in `inc/ec_base.h`.
+- **Command Orchestration**: Commands (`em_cmd_t` subclasses) are cloned across all matching radio nodes via `clone_for_next()` and tracked in `em_orch_t`. The orchestrator checks active-command timeouts at the 250 ms tick and cancels commands whose TTL is exceeded; it does not generically retry them, though the controller resends the Topology Query every 10 s while recovering from an SSID-mismatch condition. In-progress check (`is_cmd_type_in_progress()`) prevents duplicate submissions.
+- **DPP Bootstrapping**: On remote agent startup (`Colocated_mode = false`) with `--start-dpp-onboard` set, `try_start_dpp_onboarding()` reads `EasymeshCfg.json`, derives the enrollee MAC from the backhaul BSS, generates or reuses DPP bootstrapping key material (`ec_util::get_dpp_boot_data()`), and starts the enrollee state machine. DPP key files (`DPPURI.pem`, `C-sign-key.pem`, `net-access-key.pem`, `ppk.pem`, `connector.txt`) are stored under `/nvram/` as defined in `inc/ec_base.h`.
 - **AL MAC Resolution**: When `AL_SAP=1`, the AL MAC address (`g_al_mac_sap`) returned by the `ieee1905` daemon at connection time overrides the AL MAC decoded from the OneWifi DML data. This is applied in `dm_easy_mesh_agent_t::analyze_dev_init()`.
 - **MariaDB Persistence**: The controller uses `db_client_t` to persist all topology data. On RDK-B, the controller automatically seeds an empty database by invoking `/usr/ccsp/EasyMesh/setup_mysql_db_post.sh` at runtime when `load_tables()` detects no existing tables. No PSM or syscfg persistence is used by this component.
 
 ### Key Configuration Files
 
-| Configuration File                    | Location                          | Purpose                                                                                                                      |
-| ------------------------------------- | --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| `EasymeshCfg.json`                    | `EM_CFG_FILE` (runtime path)      | Agent AL MAC address and colocated mode flag; auto-created with default values if absent when `--interface` flag is provided |
-| `test_cert.crt`                       | `/nvram/test_cert.crt`            | TLS certificate for controller CLI/SSL connections                                                                           |
-| `test_cert.key`                       | `/nvram/test_cert.key`            | TLS private key for controller CLI/SSL connections                                                                           |
-| `Reset.json`                          | `/nvram/Reset.json`               | Controller reset configuration                                                                                               |
-| `DPPURI.pem`                          | `/nvram/DPPURI.pem`               | DPP bootstrapping URI public key                                                                                             |
-| `C-sign-key.pem`                      | `/nvram/C-sign-key.pem`           | DPP Configurator signing key                                                                                                 |
-| `net-access-key.pem`                  | `/nvram/net-access-key.pem`       | DPP network access key                                                                                                       |
-| `ppk.pem`                             | `/nvram/ppk.pem`                  | DPP protocol private key                                                                                                     |
-| `connector.txt`                       | `/nvram/connector.txt`            | DPP Connector (signed network access credential)                                                                             |
-| `Data_Elements_JSON_Schema_v3.0.json` | `src/ctrl/tr_181/wfa_data_model/` | WFA Data Elements JSON schema v3.0 used for TR-181 object definition                                                         |
+| Configuration File                    | Location                                                                                         | Purpose                                                                                                                                                                                               |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `EasymeshCfg.json`                    | `EM_CFG_FILE` (runtime path)                                                                     | Agent AL MAC address and colocated mode flag; auto-created with default values if absent when `--interface` flag is provided                                                                          |
+| `test_cert.crt`                       | `/nvram/test_cert.crt`                                                                           | TLS certificate for controller CLI/SSL connections                                                                                                                                                    |
+| `test_cert.key`                       | `/nvram/test_cert.key`                                                                           | TLS private key for controller CLI/SSL connections                                                                                                                                                    |
+| `Reset.json`                          | `/nvram/Reset.json`                                                                              | Controller reset configuration                                                                                                                                                                        |
+| `DPPURI.pem`                          | `/nvram/DPPURI.pem`                                                                              | DPP bootstrapping key pair (private and public key material, written via `write_keypair_to_pem()`)                                                                                                    |
+| `C-sign-key.pem`                      | `/nvram/C-sign-key.pem`                                                                          | DPP Configurator signing key                                                                                                                                                                          |
+| `net-access-key.pem`                  | `/nvram/net-access-key.pem`                                                                      | DPP network access key                                                                                                                                                                                |
+| `ppk.pem`                             | `/nvram/ppk.pem`                                                                                 | DPP protocol private key                                                                                                                                                                              |
+| `connector.txt`                       | `/nvram/connector.txt`                                                                           | DPP Connector (signed network access credential)                                                                                                                                                      |
+| `Data_Elements_JSON_Schema_v3.0.json` | Source: `src/ctrl/tr_181/wfa_data_model/`; runtime: `/nvram/Data_Elements_JSON_Schema_v3.0.json` | WFA Data Elements JSON schema v3.0; `register_wfa_dml()` reads it from the runtime path, so it must be copied to `/nvram/` before starting the controller (no build/install step currently does this) |
