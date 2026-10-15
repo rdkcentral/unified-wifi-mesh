@@ -99,6 +99,7 @@ void em_ctrl_t::handle_dm_commit(em_bus_event_t *evt)
         em_printfout("data model dev mac: %s and int.mac: %s\n", util::mac_to_string(new_dm.m_device.m_device_info.id.dev_mac).c_str(),
             util::mac_to_string(new_dm.m_device.m_device_info.intf.mac).c_str());
         new_dm.m_device.m_device_info.is_emplus_agent = info->is_emplus_agent;
+        new_dm.m_device.set_peer_profile(info->peer_profile);
         new_dm.set_db_cfg_param(db_cfg_type_device_list_update, "");
         m_data_model.set_config(&new_dm);
     } else {
@@ -1076,6 +1077,7 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
                 memcpy(dm_commit.mac, intf.mac, sizeof(mac_addr_t));
                 strncpy(dm_commit.net_id, GLOBAL_NET_ID, sizeof(dm_commit.net_id));
                 dm_commit.is_emplus_agent = is_emplus;
+                dm_commit.peer_profile = profile;
                 io_process(em_bus_event_type_dm_commit, reinterpret_cast<unsigned char *> (&dm_commit), sizeof(em_commit_info_t));
                 em_printfout("[%s] Creating data model for mac: %s net: %s emplus: %d\n", __func__, mac_str1, GLOBAL_NET_ID, is_emplus);
             } else {
