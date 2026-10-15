@@ -627,17 +627,38 @@ unsigned int em_msg_t::validate(char *errors[])
     unsigned int i, len;
     bool validation = true;
 
-    for (i = 0; i < m_num_tlv; i++) {
-        tlv =  reinterpret_cast<em_tlv_t *> (m_buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
-        len = m_len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+    unsigned int header_sz = static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+    if (m_len < header_sz) {
+        em_printfout("Error: Malformed msg");
+        return false;
+    }
+    tlv = reinterpret_cast<em_tlv_t *> (m_buff + header_sz);
+    len = m_len - header_sz;
+    while ((len >= sizeof(em_tlv_t)) && (tlv->type != em_tlv_type_eom)) {
+        unsigned int tlv_len = static_cast<unsigned int> (sizeof(em_tlv_t) + ntohs(tlv->len));
+        if (len < tlv_len) {
+            em_printfout("Error: Malformed TLV");
+            return false;
+        }
+        len -= tlv_len;
+        tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *>(tlv) + tlv_len);
+    }
+    if (len < sizeof(em_tlv_t)) {   // no room left for an EOM
+        em_printfout("Error: Missing EOM TLV");
+        return false;
+    }
 
-        while ((tlv->type != em_tlv_type_eom) && (len > 0)) {
+    for (i = 0; i < m_num_tlv; i++) {
+        tlv = reinterpret_cast<em_tlv_t *> (m_buff + header_sz);
+        len = m_len - header_sz;
+        while ((len >= sizeof(em_tlv_t)) && (tlv->type != em_tlv_type_eom)) {
+            unsigned int tlv_len = static_cast<unsigned int> (sizeof(em_tlv_t) + ntohs(tlv->len));
             if (tlv->type == m_tlv_member[i].m_type) {
                 m_tlv_member[i].m_present = true;
                 break;
             }
-            len -= static_cast<unsigned int> (sizeof(em_tlv_t) + htons(tlv->len));
-            tlv = reinterpret_cast<em_tlv_t *> ((reinterpret_cast<unsigned char *>(tlv) + sizeof(em_tlv_t) + htons(tlv->len)));
+            len -= tlv_len;
+            tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *>(tlv) + tlv_len);
         }
 
         if ((m_tlv_member[i].m_requirement == mandatory) &&((m_tlv_member[i].m_present == false)||((sizeof(em_tlv_t) + htons(tlv->len)) < static_cast<size_t> (m_tlv_member[i].m_tlv_length)))) {
@@ -645,13 +666,6 @@ unsigned int em_msg_t::validate(char *errors[])
             m_num_errors++;
             errors[m_num_errors - 1] = m_errors[m_num_errors - 1];
             validation = false;
-            if (m_tlv_member[i].m_present == false) { 
-                //printf("%s:%d; TLV not present\n", __func__, __LINE__);
-            }   
-
-            if (((sizeof(em_tlv_t) + htons(tlv->len)) < static_cast<size_t> (m_tlv_member[i].m_tlv_length))) {
-                //printf("%s:%d; TLV type: 0x%04x Length: %d, length validation error\n", __func__, __LINE__, tlv->type, htons(tlv->len));
-            }
         }
 
         if ((m_tlv_member[i].m_requirement == bad) && (m_tlv_member[i].m_present == true)) {
@@ -704,7 +718,7 @@ void em_msg_t::autoconfig_wsc_m1() //M1 from MAP Agent
     m_tlv_member[m_num_tlv++] = em_tlv_member_t(em_tlv_type_wsc, mandatory, "table 8 of WSC v2.0.7", 264);
     m_tlv_member[m_num_tlv++] = em_tlv_member_t(em_tlv_type_profile_2_ap_cap, (m_profile > em_profile_type_1) ? mandatory:bad, "17.2.48 of Wi-Fi Easy Mesh 5.0", 2);
     m_tlv_member[m_num_tlv++] = em_tlv_member_t(em_tlv_type_ap_radio_advanced_cap, (m_profile > em_profile_type_1) ? mandatory:bad, "17.2.52 of Wi-Fi Easy Mesh 5.0", 2);
-
+    m_tlv_member[m_num_tlv++] = em_tlv_member_t(em_tlv_type_vendor_specific, optional, "table 6-7 of IEEE-1905-1", EMEX_MIN_EXT_DEV_INFO_SZ);
 
 }
 

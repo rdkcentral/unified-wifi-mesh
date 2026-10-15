@@ -6939,6 +6939,23 @@ bus_error_t dm_easy_mesh_ctrl_t::device_get_inner(char *event_name, raw_data_t *
         rc = dm_ctrl->raw_data_set(p_data, sec_cap ? sec_cap->integrity_algo : 0);
     } else if (strcmp(param, "EncryptionAlgorithm") == 0) {
         rc = dm_ctrl->raw_data_set(p_data, sec_cap ? sec_cap->encryption_algo : 0);
+    } else if (strcmp(param, "X_AIRTIES_BootID") == 0) {
+        em_ext_device_info_t *edi = &di->extended_info;
+        rc = dm_ctrl->raw_data_set(p_data, edi->received ? edi->boot_id : 0);
+    } else if (strcmp(param, "X_AIRTIES_ClientID") == 0) {
+        em_ext_device_info_t *edi = &di->extended_info;
+        if (edi->received && edi->client_id_len) {
+            rc = dm_ctrl->raw_data_set(p_data, edi->client_id);
+        } else {
+            rc = dm_ctrl->raw_data_set(p_data, "");
+        }
+    } else if (strcmp(param, "X_AIRTIES_ClientSecret") == 0) {
+        em_ext_device_info_t *edi = &di->extended_info;
+        if (edi->received && edi->client_secret_len) {
+            rc = dm_ctrl->raw_data_set(p_data, edi->client_secret);
+        } else {
+            rc = dm_ctrl->raw_data_set(p_data, "");
+        }
     } else {
         em_printfout("Invalid param: %s", param);
         rc = bus_error_invalid_input;
@@ -7079,6 +7096,19 @@ bus_error_t dm_easy_mesh_ctrl_t::device_tget_inner(char *event_name, raw_data_t 
         dm_ctrl->property_append_tail(&property, root, idx, "X_AIRTIES_DeviceInfo.MemoryStatus.Cached", di->cached_mem);
         dm_ctrl->property_append_tail(&property, root, idx, "X_AIRTIES_DeviceInfo.ProcessStatus.CPUUsage", di->cpu_load);
         dm_ctrl->property_append_tail(&property, root, idx, "X_AIRTIES_DeviceInfo.ProcessStatus.CPUTemperature", di->cpu_temp);
+
+        em_ext_device_info_t *edi = &di->extended_info;
+        dm_ctrl->property_append_tail(&property, root, idx, "X_AIRTIES_BootID", edi->received ? edi->boot_id : 0);
+        if (edi->received && edi->client_id_len) {
+            dm_ctrl->property_append_tail(&property, root, idx, "X_AIRTIES_ClientID", edi->client_id);
+        } else {
+            dm_ctrl->property_append_tail(&property, root, idx, "X_AIRTIES_ClientID", "");
+        }
+        if (edi->received && edi->client_secret_len) {
+            dm_ctrl->property_append_tail(&property, root, idx, "X_AIRTIES_ClientSecret", edi->client_secret);
+        } else {
+            dm_ctrl->property_append_tail(&property, root, idx, "X_AIRTIES_ClientSecret", "");
+        }
 
         snprintf(path, sizeof(path) - 1, "%s%d.Radio.", root, idx);
         dm_ctrl->radio_tget_params(dm, path, &property);
@@ -8734,9 +8764,11 @@ dm_bss_t *dm_easy_mesh_ctrl_t::get_dm_bss(dm_easy_mesh_t *dm, em_radio_info_t *r
     for (unsigned int i = 0; i < dm->get_num_bss(); i++) {
         dm_bss_t *bss = dm->get_bss(i);
         em_bss_info_t *bi = bss->get_bss_info();
-        if (memcmp(ri->id.ruid, bi->ruid.mac, sizeof(mac_address_t)) == 0) {
-            ++bcnt;
+        if (memcmp(ri->id.ruid, bi->ruid.mac, sizeof(mac_address_t)) != 0 ||
+            memcmp(bi->bssid.mac, ZERO_MAC_ADDR, sizeof(ZERO_MAC_ADDR)) == 0) {
+            continue;
         }
+        ++bcnt;
         if (is_num) {
             if (bcnt == idx) {
                 return bss;
@@ -8829,12 +8861,17 @@ bus_error_t dm_easy_mesh_ctrl_t::bss_get_inner(char *event_name, raw_data_t *p_d
         bi = dm->get_bss_info(i);
         dm_easy_mesh_t::macbytes_to_string(bi->ruid.mac, bss_str);
         dm_easy_mesh_t::macbytes_to_string(ri->id.ruid, radio_str);
-        if(memcmp(ri->id.ruid, bi->ruid.mac, sizeof(mac_address_t)) == 0) {
+        if(memcmp(ri->id.ruid, bi->ruid.mac, sizeof(mac_address_t)) == 0 &&
+           memcmp(bi->bssid.mac, ZERO_MAC_ADDR, sizeof(ZERO_MAC_ADDR)) != 0) {
             count++;
             if(count == bss_instance) {
                 break;
             }
         }
+    }
+    if (bss_instance < 1 || count != bss_instance) {
+        em_printfout("BSS not found");
+        return bus_error_invalid_namespace;
     }
 
     if (strcmp(param, "BSSID") == 0) {
@@ -8973,6 +9010,7 @@ bus_error_t dm_easy_mesh_ctrl_t::bss_tget_params(dm_easy_mesh_t *dm, const char 
             continue;
         }
         em_bss_info_t *bi = bss->get_bss_info();
+        /* bss_get_inner(), sta_get_inner(), sta_tget_inner() and get_dm_bss() number the rows the same way. */
         if (memcmp(bi->bssid.mac, ZERO_MAC_ADDR, sizeof(ZERO_MAC_ADDR)) == 0 ||
             memcmp(ri->id.ruid, bi->ruid.mac, sizeof(bi->ruid.mac)) != 0) {
             continue;
@@ -9085,12 +9123,17 @@ bus_error_t dm_easy_mesh_ctrl_t::sta_get_inner(char *event_name, raw_data_t *p_d
         bi = dm->get_bss_info(i);
         dm_easy_mesh_t::macbytes_to_string(bi->ruid.mac, bss_str);
         dm_easy_mesh_t::macbytes_to_string(ri->id.ruid, radio_str);
-        if(memcmp(ri->id.ruid, bi->ruid.mac, sizeof(mac_address_t)) == 0) {
+        if(memcmp(ri->id.ruid, bi->ruid.mac, sizeof(mac_address_t)) == 0 &&
+           memcmp(bi->bssid.mac, ZERO_MAC_ADDR, sizeof(ZERO_MAC_ADDR)) != 0) {
             count++;
             if(count == bss_instance) {
                 break;
             }
         }
+    }
+    if (bss_instance < 1 || count != bss_instance) {
+        em_printfout("BSS not found");
+        return bus_error_invalid_namespace;
     }
 
     name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
@@ -9229,12 +9272,17 @@ bus_error_t dm_easy_mesh_ctrl_t::sta_tget_inner(char *event_name, raw_data_t *p_
         bi = dm->get_bss_info(i);
         dm_easy_mesh_t::macbytes_to_string(bi->ruid.mac, bss_str);
         dm_easy_mesh_t::macbytes_to_string(ri->id.ruid, radio_str);
-        if(memcmp(ri->id.ruid, bi->ruid.mac, sizeof(mac_address_t)) == 0) {
+        if(memcmp(ri->id.ruid, bi->ruid.mac, sizeof(mac_address_t)) == 0 &&
+           memcmp(bi->bssid.mac, ZERO_MAC_ADDR, sizeof(ZERO_MAC_ADDR)) != 0) {
             count++;
             if(count == bss_instance) {
                 break;
             }
         }
+    }
+    if (bss_instance < 1 || count != bss_instance) {
+        em_printfout("BSS not found");
+        return bus_error_invalid_namespace;
     }
 
     rc = dm_ctrl->sta_tget_params(dm, root, bi, &property);
