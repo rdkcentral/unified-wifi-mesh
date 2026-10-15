@@ -3201,6 +3201,7 @@ typedef struct {
     em_long_string_t	net_id;
     int sz;
     uint8_t is_emplus_agent;
+    em_profile_type_t peer_profile;
 } __attribute__((__packed__)) em_commit_info_t;
 
 typedef enum {
