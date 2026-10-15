@@ -18,6 +18,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <strings.h>
 #include <stdlib.h>
 #include <errno.h>
 #include <assert.h>
@@ -984,7 +985,12 @@ int em_ctrl_t::data_model_init(const char *data_model_path)
         return 0;
     }
     
-    if (m_data_model.init(data_model_path, this) != 0) {
+    // Persistence backend is selectable via a "--db-type=" command-line
+    // argument to the controller process, resolved in main() and stashed
+    // in m_db_type by parse_db_type_arg()/set_db_type() before this runs.
+    // Defaults to db_client_type_local, preserving existing behavior for
+    // invocations that don't pass the flag.
+    if (m_data_model.init(data_model_path, this, m_db_type) != 0) {
         printf("%s:%d: data model init failed\n", __func__, __LINE__);
         return 0;
     }
@@ -1223,6 +1229,7 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
 
         case em_msg_type_ap_mld_config_resp:
         case em_msg_type_1905_ack:
+            em_printfout("  -------->>>> 1905_ack rcvdddd");
             em = static_cast<em_t *> (hash_map_get_first(m_em_map));
             while(em != NULL) {
                 if ((em->is_al_interface_em() == false)) {
@@ -1230,6 +1237,8 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
                 }
                 em = static_cast<em_t *> (hash_map_get_next(m_em_map, em));
             }
+            em_printfout("1905_ack routing: dispatching to em=%p radio=%s", (void*)em,
+                em ? util::mac_to_string(em->get_radio_interface_mac()).c_str() : "NULL");
             break;
 
         case em_msg_type_beacon_metrics_rsp:
@@ -1450,6 +1459,7 @@ em_ctrl_t *em_ctrl_t::get_em_ctrl_instance()
 
 em_ctrl_t::em_ctrl_t()
 {
+    m_db_type = db_client_type_local;
 }
 
 em_ctrl_t::~em_ctrl_t()
@@ -1501,6 +1511,57 @@ AlServiceAccessPoint* em_ctrl_t::al_sap_register(const std::string& data_socket_
 #endif
 
 
+db_client_type_t em_ctrl_t::parse_db_type_arg(int argc, const char *argv[])
+{
+    static const char *opt = "--db-type";
+    const size_t opt_len = strlen(opt);
+
+    for (int i = 1; i < argc; i++) {
+        if (argv[i] == nullptr || strncmp(argv[i], opt, opt_len) != 0) {
+            continue;
+        }
+
+        const char *value = nullptr;
+        if (argv[i][opt_len] == '=') {
+            value = argv[i] + opt_len + 1;
+        } else if (argv[i][opt_len] == '\0' && (i + 1) < argc && argv[i + 1] != nullptr &&
+                   argv[i + 1][0] != '-') {
+            value = argv[i + 1];
+        } else {
+            continue;
+        }
+
+        if (strcasecmp(value, "local") != 0 && strcasecmp(value, "cloud") != 0 &&
+            strcasecmp(value, "none") != 0) {
+            em_printfout("Unrecognized --db-type value '%s', defaulting to local", value);
+            return db_client_type_local;
+        }
+        return db_client_type_from_string(value);
+    }
+
+    // Not passed - keep existing (MariaDB-backed) behavior.
+    return db_client_type_local;
+}
+
+const char *em_ctrl_t::parse_database_path_arg(int argc, const char *argv[])
+{
+    for (int i = 1; i < argc; i++) {
+        if (argv[i] == nullptr) {
+            continue;
+        }
+        if (strcmp(argv[i], "--db-type") == 0) {
+            if ((i + 1) < argc && argv[i + 1] != nullptr && argv[i + 1][0] != '-') {
+                i++;
+            }
+            continue;
+        }
+        if (argv[i][0] != '-') {
+            return argv[i];
+        }
+    }
+    return nullptr;
+}
+
 #ifndef TESTING
 int main(int argc, const char *argv[])
 {
@@ -1514,7 +1575,21 @@ int main(int argc, const char *argv[])
         return -1;
     }
 #endif
-    if (em_ctrl->init(argv[1]) == 0) {
+
+    for (int i = 1; i < argc; i++) {
+        if (argv[i] != nullptr && (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0)) {
+            printf("Usage: %s [data-model-path] [--db-type=local|cloud|none]\n", argv[0]);
+            return 0;
+        }
+    }
+
+    // "--db-type" is optional and can appear anywhere after the program
+    // name, as "--db-type=X" or "--db-type X". Absent or unrecognized values
+    // fall back to db_client_type_local (existing MariaDB-backed behavior).
+    em_ctrl->set_db_type(em_ctrl_t::parse_db_type_arg(argc, argv));
+
+    em_printf("Database type set to: %d\n", em_ctrl->get_db_type());
+    if (em_ctrl->init(em_ctrl_t::parse_database_path_arg(argc, argv)) == 0) {
         em_ctrl->start();
     }
     return 0;
