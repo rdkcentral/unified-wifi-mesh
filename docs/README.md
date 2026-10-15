@@ -358,7 +358,7 @@ stateDiagram-v2
 ```mermaid
 stateDiagram-v2
     [*] --> GenURI: Generate DPP bootstrap URI
-    GenURI --> SendChirp: Send Autoconfig Search (extended)<br/>with DPP Chirp hash
+    GenURI --> SendChirp: If --ethernet, send extended Autoconfig Search with DPP Chirp hash; otherwise send RF Presence Announcements
     SendChirp --> WaitCCE: Wait for DPP CCE Indication
     WaitCCE --> DPPAuth: Receive CCE Indication<br/>Start DPP authentication
     DPPAuth --> DPPConfig: Auth Request/Response/Confirm
@@ -473,7 +473,7 @@ The EasyMesh network supports two primary multi-hop topologies:
 
 **Topology Selection and Parent Choice:**
 
-Remote agent scans for available backhaul BSSs advertised by the gateway and existing extenders. Parent selection algorithm (vendor-specific) considers:
+Backhaul scanning, association, and parent selection are performed by OneWifi/platform code (via the webconfig `mesh_sta` subdoc), not by unified-wifi-mesh itself; the agent only consumes the resulting association and metric events. No RSSI/throughput/hop-count/load-balancing selection algorithm exists in this repository. Typical platform/vendor-level selection factors include:
 
 1. **Signal Strength (RSSI)**: Prefer parent with strongest signal
 2. **Backhaul Throughput**: Estimate available bandwidth based on parent's backhaul link quality and hop count
@@ -481,7 +481,7 @@ Remote agent scans for available backhaul BSSs advertised by the gateway and exi
 4. **Load Balancing**: Distribute extenders across multiple parent candidates
 5. **Steering History**: Apply hysteresis to prevent re-association loops
 
-The agent reports its selected parent in the Backhaul STA Radio Capabilities TLV (containing `bsta_addr` and `ruid`) and updates the topology via Topology Notification CMDU whenever the backhaul STA re-associates to a different parent.
+The agent reports the platform-selected parent in the Backhaul STA Radio Capabilities TLV (containing `bsta_addr` and `ruid`) and updates the topology via Topology Notification CMDU whenever the backhaul STA re-associates to a different parent.
 
 **Agent State Machine Processing**
 
