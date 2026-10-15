@@ -369,7 +369,7 @@ TEST_F(EmMetricsTest, destroy_stack_allocated_em_metrics_t) {
     std::cout << "Exiting destroy_stack_allocated_em_metrics_t test" << std::endl;
 }
 
-TEST(EmMetricsTest, UsesPeerProfileAndUpdatesSharedDataModelOnce) {
+TEST_F(EmMetricsTest, UsesPeerProfileAndUpdatesSharedDataModelOnce) {
     MetricsTestEmMgr mgr;
     dm_easy_mesh_t shared_dm;
     mac_address_t peer_al_mac = {0x02, 0x11, 0x22, 0x33, 0x44, 0x55};
@@ -453,7 +453,7 @@ TEST(EmMetricsTest, UsesPeerProfileAndUpdatesSharedDataModelOnce) {
     EXPECT_EQ(0, handled_radio->last_response_status);
 }
 
-TEST(EmMetricsTest, ReservedPeerProfileFallsBackToProfile1) {
+TEST_F(EmMetricsTest, ReservedPeerProfileFallsBackToProfile1) {
     MetricsTestEmMgr mgr;
     dm_easy_mesh_t dm;
     em_interface_t ruid{};
