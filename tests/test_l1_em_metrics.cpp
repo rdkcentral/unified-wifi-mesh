@@ -439,7 +439,9 @@ TEST_F(EmMetricsTest, UsesPeerProfileAndUpdatesSharedDataModelOnce) {
     mgr.get_all_em_for_al_mac(peer_al_mac, peer_radios);
     ASSERT_EQ(2U, peer_radios.size());
 
-    static_cast<em_metrics_t &>(radio_1).process_msg(response.data(), static_cast<unsigned int>(response.size()));
+    dm_easy_mesh_t controller_dm;
+    DummyEmMetrics dispatcher(&mgr, &controller_dm, em_profile_type_3);
+    dispatcher.process_msg(response.data(), static_cast<unsigned int>(response.size()));
 
     EXPECT_EQ(1U, radio_1.response_count + radio_2.response_count);
     EXPECT_EQ(1U, radio_1.successful_update_count + radio_2.successful_update_count);
