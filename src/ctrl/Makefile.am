@@ -146,7 +146,7 @@ onewifi_em_ctrl_SOURCES =  \
      $(top_srcdir)/src/utils/timer.cpp
  
  
-onewifi_em_ctrl_LDFLAGS = -lm -lpthread -ldl -luuid -lcjson -lssl -lcrypto -lrbus -lmariadb
+onewifi_em_ctrl_LDFLAGS = -lm -lpthread -ldl -luuid -lcjson -lssl -lcrypto -lrbus -lsqlite3
 if EM_ASAN_CTRL
 onewifi_em_ctrl_LDFLAGS += -fsanitize=address -fsanitize=undefined
 endif
@@ -246,7 +246,7 @@ onewifi_em_ctrl_test_CPPFLAGS = $(onewifi_em_ctrl_CPPFLAGS) \
                                 -DTESTING
 onewifi_em_ctrl_test_CXXFLAGS = $(INCLUDEDIRS) -g -DUNIT_TEST -fno-omit-frame-pointer
 onewifi_em_ctrl_test_CXXFLAGS += -fsanitize=address -fsanitize=undefined
-onewifi_em_ctrl_test_LDFLAGS = -lcjson -lgtest -lgtest_main -lgmock -lpthread -lssl -lcrypto -lm -luuid -lssl -lrbus -lmariadb
+onewifi_em_ctrl_test_LDFLAGS = -lcjson -lgtest -lgtest_main -lgmock -lpthread -lssl -lcrypto -lm -luuid -lssl -lrbus -lsqlite3
 onewifi_em_ctrl_test_LDFLAGS += -fsanitize=address -fsanitize=undefined
 onewifi_em_ctrl_test_LDADD = $(top_builddir)/src/al-sap/libalsap.la
 endif  # EM_UNITTEST
