@@ -985,7 +985,7 @@ int em_agent_t::send_unassoc_sta_query_subdoc(wifi_bus_desc_t *desc, bus_handle_
     bus_data.raw_data.bytes = json_str;
     bus_data.raw_data_len = strlen(json_str);
 
-    if (work->num_opclass == 0) {
+    if (cJSON_GetArraySize(query_list) == 0) {
         em_printfout("%s:%d Unassoc STA query has no operating classes", __func__, __LINE__);
         free(json_str);
         cJSON_Delete(root);
