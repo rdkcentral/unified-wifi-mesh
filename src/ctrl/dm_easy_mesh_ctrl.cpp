@@ -2581,7 +2581,7 @@ invalid:
      * Note: Wi-Fi EasyMesh Specification allows SSID to be omitted via setting SSID Length
      *       field in 17.2.27 to zero (10.3.3), but this implementation mandates SSID to be
      *       specified. */
-    if (op_class < 0 || channel_num < 0 || !ssid[0] ||
+    if (op_class < 0 || op_class > 255 || channel_num < 0 || channel_num > 255 || !ssid[0] ||
         (channel_num == 255 && !ch_rep_cnt) || (rep_detail == 1 && !elem_list[0])) {
         em_printfout("Mandatory parameters missing");
         if (output_params) {
