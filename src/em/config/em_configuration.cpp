@@ -273,6 +273,184 @@ static inline unsigned char get_bss_type_for_haul(em_haul_type_t haul_type)
     return (haul_type == em_haul_type_backhaul) ? EM_MULTI_AP_EXT_BSS_BACKHAUL : EM_MULTI_AP_EXT_BSS_FRONTHAUL;
 }
 
+static bool is_mlo_link_enabled_for_haul(dm_easy_mesh_t *dm, em_haul_type_t haul_type, unsigned int radio_index)
+{
+    dm_radio_t *radio;
+    const em_mlo_policy_t *policy;
+    uint8_t band;
+    bool link_enabled;
+
+    if ((dm == NULL) || (radio_index >= EM_MAX_BANDS)) {
+        return false;
+    }
+
+    if ((haul_type != em_haul_type_fronthaul) && (haul_type != em_haul_type_backhaul)) {
+        return false;
+    }
+
+    radio = dm->get_radio(radio_index);
+    if (radio == NULL) {
+        return false;
+    }
+
+    band = 0;
+    if (radio->m_radio_info.band == em_freq_band_24) {
+        band = EM_RF_24GHZ;
+    } else if (radio->m_radio_info.band == em_freq_band_5) {
+        band = EM_RF_50GHZ;
+    } else if (radio->m_radio_info.band == em_freq_band_6) {
+        band = EM_RF_6GHZ;
+    }
+
+    if (band == 0) {
+        return false;
+    }
+
+    policy = dm->get_mlo_policy(haul_type);
+    if (policy == NULL) {
+        return false;
+    }
+
+    link_enabled = ((policy->band_bitmap & band) != 0);
+
+    em_printfout("MLO link policy for haul=%d radio=%u is %s",
+                 haul_type, radio_index, link_enabled ? "enabled" : "disabled");
+    return link_enabled;
+}
+
+static uint8_t get_supported_mlo_modes(dm_easy_mesh_t *dm, em_haul_type_t haul, bool bsta)
+{
+    uint8_t modes = 0;
+    unsigned int i;
+    em_radio_cap_info_t *radio_cap_info;
+    const em_wifi7_mlo_cap_support_tlv_t *mlo_cap;
+
+    if (dm == NULL) {
+        return 0;
+    }
+
+    for (i = 0; i < dm->get_num_radios(); i++) {
+        if (!is_mlo_link_enabled_for_haul(dm, haul, i)) {
+            continue;
+        }
+
+        radio_cap_info = dm->get_radio_cap_info(i);
+        if (radio_cap_info == NULL || radio_cap_info->ruid.mac[0] == 0) {
+            continue;
+        }
+
+        mlo_cap = &radio_cap_info->wifi7_cap.mlo_cap_support;
+        if (bsta) {
+            modes |= mlo_cap->bsta_str_support ? EM_MLO_MODE_STR : 0;
+            modes |= mlo_cap->bsta_nstr_support ? EM_MLO_MODE_NSTR : 0;
+            modes |= mlo_cap->bsta_emlsr_support ? EM_MLO_MODE_EMLSR : 0;
+            modes |= mlo_cap->bsta_emlmr_support ? EM_MLO_MODE_EMLMR : 0;
+        } else {
+            modes |= mlo_cap->ap_str_support ? EM_MLO_MODE_STR : 0;
+            modes |= mlo_cap->ap_nstr_support ? EM_MLO_MODE_NSTR : 0;
+            modes |= mlo_cap->ap_emlsr_support ? EM_MLO_MODE_EMLSR : 0;
+            modes |= mlo_cap->ap_emlmr_support ? EM_MLO_MODE_EMLMR : 0;
+        }
+    }
+
+    return modes;
+}
+
+static bool update_ap_mld_for_haul(dm_easy_mesh_t *dm, em_haul_type_t haul)
+{
+    const em_mlo_policy_t *policy;
+    const em_network_ssid_info_t *net_ssid_info;
+    em_ap_mld_info_t ap_mld_info;
+    em_ap_mld_info_t *existing_ap_mld;
+    unsigned int i;
+    dm_radio_t *dm_radio;
+    em_affiliated_ap_info_t *aff_ap;
+
+    if ((dm == NULL) || (dm->get_num_radios() == 0)) {
+        return false;
+    }
+
+    if ((haul != em_haul_type_fronthaul) && (haul != em_haul_type_backhaul)) {
+        return false;
+    }
+
+    policy = dm->get_mlo_policy(haul);
+    net_ssid_info = dm->get_network_ssid_info_by_haul_type(haul);
+    if ((net_ssid_info == NULL) || (strlen(net_ssid_info->ssid) == 0)) {
+        em_printfout("Skipping AP MLD policy for haul=%d due to missing SSID", haul);
+        return false;
+    }
+
+    if (policy == NULL) {
+        em_printfout("No MLO policy found for haul=%d; skipping AP MLD TLV participation",
+            haul);
+        return false;
+    }
+
+    if (!policy->use_mld_tlv) {
+        em_printfout("AP MLD disabled for haul=%d", haul);
+        dm->remove_ap_mld_info_by_haul_type(haul);
+        return false;
+    }
+
+    existing_ap_mld = dm->get_ap_mld_frm_haul_type(haul);
+    if (existing_ap_mld != NULL) {
+        if (strncmp(existing_ap_mld->ssid, net_ssid_info->ssid, sizeof(ssid_t)) != 0) {
+            em_printfout("Updating AP MLD SSID for haul=%d from \"%s\" to \"%s\"",
+                haul, existing_ap_mld->ssid, net_ssid_info->ssid);
+            strncpy(existing_ap_mld->ssid, net_ssid_info->ssid, sizeof(ssid_t) - 1);
+            existing_ap_mld->ssid[sizeof(ssid_t) - 1] = '\0';
+        }
+        return true;
+    }
+
+    memset(&ap_mld_info, 0, sizeof(em_ap_mld_info_t));
+    ap_mld_info.haul_type = haul;
+    strncpy(ap_mld_info.ssid, net_ssid_info->ssid, sizeof(ssid_t) - 1);
+    ap_mld_info.ssid[sizeof(ssid_t) - 1] = '\0';
+
+    uint8_t supported_modes = get_supported_mlo_modes(dm, haul, false);
+    ap_mld_info.str = (supported_modes & EM_MLO_MODE_STR) != 0;
+    ap_mld_info.nstr = (supported_modes & EM_MLO_MODE_NSTR) != 0;
+    ap_mld_info.emlsr = (supported_modes & EM_MLO_MODE_EMLSR) != 0;
+    ap_mld_info.emlmr = (supported_modes & EM_MLO_MODE_EMLMR) != 0;
+
+    ap_mld_info.num_affiliated_ap = 0;
+    dm_radio = NULL;
+    aff_ap = NULL;
+    for (i = 0; i < dm->get_num_radios() && i < EM_MAX_AP_MLD; i++) {
+        if (!is_mlo_link_enabled_for_haul(dm, haul, i)) {
+            em_printfout("Skipping affiliated link for haul=%d radio=%u due to link policy disable",
+                haul, i);
+            continue;
+        }
+
+        dm_radio = dm->get_radio(i);
+        if (dm_radio == NULL) {
+            continue;
+        }
+
+        aff_ap = &ap_mld_info.affiliated_ap[ap_mld_info.num_affiliated_ap];
+        memset(aff_ap, 0, sizeof(em_affiliated_ap_info_t));
+
+        memcpy(aff_ap->ruid.mac, dm_radio->m_radio_info.intf.mac, sizeof(mac_address_t));
+        ap_mld_info.num_affiliated_ap++;
+    }
+
+    if (ap_mld_info.num_affiliated_ap == 0) {
+        em_printfout("haul=%d No links are enabled; skipping AP MLD entry",
+            haul);
+        return false;
+    }
+
+    em_printfout("AP MLD policy haul=%d STR=%d NSTR=%d EMLSR=%d EMLMR=%d ssid=\"%s\"",
+        haul, ap_mld_info.str, ap_mld_info.nstr, ap_mld_info.emlsr, ap_mld_info.emlmr, net_ssid_info->ssid);
+
+    dm->update_ap_mld_info(&ap_mld_info);
+
+    return true;
+}
+
 /* Translate WPS RF Band to 1905 AutoFreq Band */
 static int translate_from_rfband_to_band(uint8_t rfband)
 {
@@ -2537,7 +2715,7 @@ int em_configuration_t::handle_topology_response(unsigned char *buff, unsigned i
 
     if (found_ap_mld == true) {
         em_printfout("Found AP MLD details in topology response message");
-        handle_ap_mld_config_tlv(tlv->value, htons(tlv->len));
+        handle_ap_mld_config_tlv(tlv->value, ntohs(tlv->len));
     }
     em_printfout("No of AP MLDs: %d", dm->m_num_ap_mld);
 
@@ -2746,65 +2924,119 @@ int em_configuration_t::handle_assoc_sta_mld_conf_rep_tlv(unsigned char *buff, u
 
 int em_configuration_t::handle_ap_mld_config_tlv(unsigned char *buff, unsigned int len)
 {
-    em_ap_mld_config_t *ap_mld_conf = reinterpret_cast<em_ap_mld_config_t *> (buff);
+    em_ap_mld_config_t *ap_mld_conf;
     em_ap_mld_t *ap_mld;
     em_affiliated_ap_mld_t *affiliated_ap_mld;
     dm_easy_mesh_t  *dm;
     unsigned int i, j;
-    unsigned short ap_mld_len = 0;
-    unsigned short affiliated_ap_len = 0;
+    unsigned int offset;
+    unsigned int affiliated_ap_len;
     dm_bss_t *dm_bss;
+    em_ap_mld_info_t ap_mld_info;
+    em_affiliated_ap_info_t *affiliated_ap_info;
 
-    dm = get_data_model();
+    if ((buff == NULL) || (len < sizeof(em_ap_mld_config_t))) {
+        em_printfout("Invalid AP MLD TLV: buff=%p len=%u", buff, len);
+        return -1;
+    }
 
-    if(ap_mld_conf->num_ap_mld == 0) {
+    ap_mld_conf = reinterpret_cast<em_ap_mld_config_t *>(buff);
+    if (ap_mld_conf->num_ap_mld == 0) {
         em_printfout("Zero AP MLD data");
         return 0;
     }
-    dm->set_num_ap_mld(ap_mld_conf->num_ap_mld);
+    if (ap_mld_conf->num_ap_mld > EM_MAX_AP_MLD) {
+        em_printfout("Malformed AP MLD TLV: count=%u exceeds maximum=%u",
+            ap_mld_conf->num_ap_mld, EM_MAX_AP_MLD);
+        return -1;
+    }
 
-    em_printfout("No of AP MLDs: %d", ap_mld_conf->num_ap_mld);
+    offset = sizeof(em_ap_mld_config_t);
+    ap_mld = ap_mld_conf->ap_mld;
+    for (i = 0; i < ap_mld_conf->num_ap_mld; i++) {
+        if (len - offset < sizeof(em_ap_mld_t)) {
+            em_printfout("Malformed AP MLD TLV: truncated AP MLD header index=%u", i);
+            return -1;
+        }
+        if (ap_mld->ssid_len > sizeof(ssid_t)) {
+            em_printfout("Malformed AP MLD TLV: invalid SSID length=%u index=%u",
+                ap_mld->ssid_len, i);
+            return -1;
+        }
+        if (ap_mld->num_affiliated_ap > EM_MAX_AP_MLD) {
+            em_printfout("Malformed AP MLD TLV: affiliated count=%u index=%u",
+                ap_mld->num_affiliated_ap, i);
+            return -1;
+        }
+        affiliated_ap_len = static_cast<unsigned int>(ap_mld->num_affiliated_ap) *
+            sizeof(em_affiliated_ap_mld_t);
+        if (affiliated_ap_len > len - offset - sizeof(em_ap_mld_t)) {
+            em_printfout("Malformed AP MLD TLV: truncated affiliated AP list index=%u", i);
+            return -1;
+        }
+        offset += sizeof(em_ap_mld_t) + affiliated_ap_len;
+        ap_mld = reinterpret_cast<em_ap_mld_t *>(buff + offset);
+    }
+
+    dm = get_data_model();
     ap_mld = ap_mld_conf->ap_mld;
 
     for (i = 0; i < ap_mld_conf->num_ap_mld; i++) {
-        em_ap_mld_info_t* ap_mld_info = &dm->m_ap_mld[i].m_ap_mld_info;
-        if (ap_mld_info == NULL) {
-           em_printfout("NULL pointer detected in ap_mld_info");
-           return 0;
+        memset(&ap_mld_info, 0, sizeof(ap_mld_info));
+
+        ap_mld_info.mac_addr_valid = ap_mld->ap_mld_mac_addr_valid;
+        memcpy(ap_mld_info.ssid, ap_mld->ssid, ap_mld->ssid_len);
+        ap_mld_info.ssid[sizeof(ssid_t) - 1] = '\0';
+        ap_mld_info.haul_type = em_haul_type_max;
+        if (!dm->get_haul_type_from_ssid(ap_mld_info.ssid, &ap_mld_info.haul_type)) {
+            ap_mld_info.haul_type = em_haul_type_max;
         }
+        em_printfout("Parsed AP MLD SSID=\"%s\" haul=%d resolved=%d",
+            ap_mld_info.ssid, ap_mld_info.haul_type,
+            ap_mld_info.haul_type < em_haul_type_max);
+        memcpy(ap_mld_info.mac_addr, ap_mld->ap_mld_mac_addr, sizeof(mac_address_t));
+        ap_mld_info.str = ap_mld->str;
+        ap_mld_info.nstr = ap_mld->nstr;
+        ap_mld_info.emlsr = ap_mld->emlsr;
+        ap_mld_info.emlmr = ap_mld->emlmr;
+        ap_mld_info.num_affiliated_ap = ap_mld->num_affiliated_ap;
 
-        ap_mld_info->mac_addr_valid = ap_mld->ap_mld_mac_addr_valid;
-        strncpy(ap_mld_info->ssid, ap_mld->ssid, ap_mld->ssid_len);
-
-        memcpy(ap_mld_info->mac_addr, ap_mld->ap_mld_mac_addr, sizeof(mac_address_t));
-        ap_mld_info->str = ap_mld->str;
-        ap_mld_info->nstr = ap_mld->nstr;
-        ap_mld_info->emlsr = ap_mld->emlsr;
-        ap_mld_info->emlmr = ap_mld->emlmr;
-
-        ap_mld_info->num_affiliated_ap = ap_mld->num_affiliated_ap;
         affiliated_ap_mld = ap_mld->affiliated_ap_mld;
+        affiliated_ap_len = 0;
 
         for (j = 0; j < ap_mld->num_affiliated_ap; j++) {
-            em_affiliated_ap_info_t* affiliated_ap_info = &dm->m_ap_mld[i].m_ap_mld_info.affiliated_ap[j];
+            affiliated_ap_info = &ap_mld_info.affiliated_ap[j];
             affiliated_ap_info->mac_addr_valid = affiliated_ap_mld->affiliated_mac_addr_valid;
             affiliated_ap_info->link_id_valid = affiliated_ap_mld->link_id_valid;
             memcpy(affiliated_ap_info->ruid.mac, affiliated_ap_mld->ruid, sizeof(mac_address_t));
-            memcpy(affiliated_ap_info->mac_addr, affiliated_ap_mld->affiliated_mac_addr, sizeof(mac_address_t));
-            memcpy(&affiliated_ap_info->link_id, &affiliated_ap_mld->link_id, sizeof(unsigned char));
+            memcpy(affiliated_ap_info->mac_addr, affiliated_ap_mld->affiliated_mac_addr,
+                   sizeof(mac_address_t));
+            affiliated_ap_info->link_id = affiliated_ap_mld->link_id;
 
-            affiliated_ap_mld = reinterpret_cast<em_affiliated_ap_mld_t *> (reinterpret_cast<unsigned char *> (affiliated_ap_mld) + sizeof(em_affiliated_ap_mld_t));
+            affiliated_ap_mld = reinterpret_cast<em_affiliated_ap_mld_t *>(
+                reinterpret_cast<unsigned char *>(affiliated_ap_mld) + sizeof(em_affiliated_ap_mld_t));
             affiliated_ap_len += sizeof(em_affiliated_ap_mld_t);
+        }
 
+        dm->update_ap_mld_info(&ap_mld_info);
+
+        for (j = 0; j < ap_mld_info.num_affiliated_ap; j++) {
+            affiliated_ap_info = &ap_mld_info.affiliated_ap[j];
             dm_bss = dm->get_bss(affiliated_ap_info->ruid.mac, affiliated_ap_info->mac_addr);
-            if (dm_bss != NULL) {
-                memcpy(dm_bss->m_bss_info.mld_mac, ap_mld_info->mac_addr , sizeof(mac_address_t));
+            if (dm_bss == NULL) {
+                continue;
             }
 
+            if ((ap_mld_info.str == 0) && (ap_mld_info.nstr == 0) &&
+                (ap_mld_info.emlsr == 0) && (ap_mld_info.emlmr == 0)) {
+                em_printfout("AP-MLD STR, NSTR, EMLSR, EMLMR are zero, updating MLD MAC to zero");
+                memset(dm_bss->m_bss_info.mld_mac, 0, sizeof(mac_address_t));
+            } else if (ap_mld_info.mac_addr_valid) {
+                memcpy(dm_bss->m_bss_info.mld_mac, ap_mld_info.mac_addr, sizeof(mac_address_t));
+            }
         }
 
         ap_mld = reinterpret_cast<em_ap_mld_t *> (reinterpret_cast<unsigned char *> (ap_mld) + sizeof(em_ap_mld_t) + affiliated_ap_len);
-        ap_mld_len += static_cast<short unsigned int> (sizeof(em_ap_mld_t) + affiliated_ap_len);
     }
 
     return 0;
@@ -2814,14 +3046,15 @@ int em_configuration_t::handle_ap_mld_config_req(unsigned char *buff, unsigned i
 {
     em_tlv_t    *tlv;
     unsigned int tlv_len;
+    em_cmdu_t *cmdu;
 
     tlv = reinterpret_cast<em_tlv_t *> (buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
     tlv_len = len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
-    em_cmdu_t *cmdu = reinterpret_cast<em_cmdu_t *> (buff + sizeof(em_raw_hdr_t));
+    cmdu = reinterpret_cast<em_cmdu_t *> (buff + sizeof(em_raw_hdr_t));
 
     while ((tlv->type != em_tlv_type_eom) && (len > 0)) {
         if (tlv->type == em_tlv_type_ap_mld_config) {
-            handle_ap_mld_config_tlv(tlv->value, sizeof(em_ap_mld_config_t));
+            handle_ap_mld_config_tlv(tlv->value, ntohs(tlv->len));
         }
         if (tlv->type == em_tlv_eht_operations) {
             handle_eht_operations_tlv(tlv->value, htons(tlv->len));
@@ -4100,8 +4333,12 @@ int em_configuration_t::create_autoconfig_wsc_m2_msg(unsigned char *buff, unsign
     unsigned short sz = 0;
     unsigned short type = htons(ETH_P_1905);
     dm_radio_t *radio;
+    dm_easy_mesh_t *dm;
+    bool add_ap_mld_tlv = false;
 
     radio = get_radio_from_dm();
+
+    dm = get_data_model();
 
     // first compute keys
     if (compute_keys(get_e_public(), static_cast<short unsigned int> (get_e_public_len()), get_r_private(), static_cast<short unsigned int> (get_r_private_len())) != 1) {
@@ -4162,6 +4399,9 @@ int em_configuration_t::create_autoconfig_wsc_m2_msg(unsigned char *buff, unsign
         tlv->len = htons(sz);
         tmp += (sizeof(em_tlv_t) + sz);
         len += static_cast<int> (sizeof(em_tlv_t) + sz);
+        if (update_ap_mld_for_haul(dm, static_cast<em_haul_type_t>(i))) {
+            add_ap_mld_tlv = true;
+        }
     }
 
     if(is_m2_present == false) {
@@ -4171,13 +4411,16 @@ int em_configuration_t::create_autoconfig_wsc_m2_msg(unsigned char *buff, unsign
     }
 
     // ap mld tlv 17.2.96
-    tlv =reinterpret_cast<em_tlv_t *> (tmp);
-    tlv->type = em_tlv_type_ap_mld_config;
-    sz = static_cast<short unsigned int> (create_ap_mld_config_tlv(tlv->value));
-    tlv->len = htons(sz);
+    // Add AP MLD Configuration TLV
+    if (add_ap_mld_tlv) {
+        tlv = reinterpret_cast<em_tlv_t *> (tmp);
+	    tlv->type = em_tlv_type_ap_mld_config;
+	    sz = static_cast<short unsigned int> (create_ap_mld_config_tlv(tlv->value));
+	    tlv->len = htons(sz);
 
-    tmp += (sizeof(em_tlv_t) + sz);
-    len += static_cast<int> (sizeof(em_tlv_t) + sz);
+	    tmp += (sizeof(em_tlv_t) + sz);
+	    len += static_cast<int>(sizeof(em_tlv_t) + sz);
+    }
 
     // End of message
     tlv = reinterpret_cast<em_tlv_t *> (tmp);
@@ -4382,6 +4625,7 @@ int em_configuration_t::create_autoconfig_resp_msg(unsigned char* buff, em_freq_
     tlv->type = em_tlv_type_ctrl_cap;
     tlv->len = htons(sizeof(em_ctrl_cap_t));
     memset(&ctrl_cap, 0, sizeof(em_ctrl_cap_t));;
+    ctrl_cap.early_ap_capability = 1;
     memcpy(tlv->value, &ctrl_cap, sizeof(em_ctrl_cap_t));
 
     tmp += (sizeof(em_tlv_t) + sizeof(em_ctrl_cap_t));
@@ -4677,6 +4921,8 @@ int em_configuration_t::handle_autoconfig_wsc_m2(unsigned char *buff, unsigned i
     dm_easy_mesh_t *dm;
     dm_network_t network;
     em_raw_hdr_t *hdr = reinterpret_cast<em_raw_hdr_t *> (buff);
+    em_tlv_t *ap_mld_tlv = NULL;
+    m2ctrl_radioconfig radioconfig;
 
     /* len must cover the fixed headers, or the subtraction below wraps and the TLV walk overruns. */
     if (len < static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))) {
@@ -4701,8 +4947,9 @@ int em_configuration_t::handle_autoconfig_wsc_m2(unsigned char *buff, unsigned i
         }
 
         if (tlv->type == em_tlv_type_ap_mld_config) {
+            // Deferred until encrypted settings populate the SSID->haul map
             em_printfout("Found AP MLD details in message");
-            handle_ap_mld_config_tlv(tlv->value, val_len);
+            ap_mld_tlv = tlv;
         } else if (tlv->type == em_tlv_type_wsc) {
             em_printfout("Handle wsc TLV, count: %d", wsc_tlv_count);
             //Storing m2 address and length in static variable;
@@ -4737,10 +4984,17 @@ int em_configuration_t::handle_autoconfig_wsc_m2(unsigned char *buff, unsigned i
         return -1;
     }
 
-    if (handle_encrypted_settings(wsc_tlv_count) == -1) {
+    if (handle_encrypted_settings(wsc_tlv_count, radioconfig) != 0) {
         em_printfout("Error in decrypting settings wsc_tlv_count:%d", wsc_tlv_count);
         return -1;
     }
+
+    if (ap_mld_tlv != NULL) {
+        handle_ap_mld_config_tlv(ap_mld_tlv->value, ntohs(ap_mld_tlv->len));
+    }
+
+    get_mgr()->io_process(em_bus_event_type_m2ctrl_configuration, reinterpret_cast<unsigned char *> (&radioconfig), sizeof(radioconfig));
+    set_state(em_state_agent_owconfig_pending);
 
     dm = get_data_model();
     //Commit controller mac address
@@ -4761,16 +5015,19 @@ int em_configuration_t::handle_autoconfig_wsc_m2(unsigned char *buff, unsigned i
     return 0;
 }
 
-int em_configuration_t::handle_encrypted_settings(unsigned int wsc_tlv_count)
+int em_configuration_t::handle_encrypted_settings(unsigned int wsc_tlv_count, m2ctrl_radioconfig& radioconfig)
 {
     data_elem_attr_t    *attr;
-    int tmp_len, ret = 0;
+    int tmp_len;
     unsigned short id;
     char pass[64] = {0};
     unsigned char *plain;
     unsigned short plain_len;
     unsigned short auth_type;
-    m2ctrl_radioconfig radioconfig;
+    dm_easy_mesh_t *dm;
+    unsigned int num, i;
+    em_haul_type_t haul;
+    em_network_ssid_info_t *info;
 
     memset(&radioconfig, 0, sizeof(m2ctrl_radioconfig));
     radioconfig.noofbssconfig = 0;
@@ -4784,7 +5041,7 @@ int em_configuration_t::handle_encrypted_settings(unsigned int wsc_tlv_count)
         // first decrypt the encrypted m2 data
         if ((plain_len = em_crypto_t::platform_aes_128_cbc_decrypt(m_key_wrap_key, &m_m2_encrypted_settings[wsc_index][0], plain, plain_len)) == 0) {
             em_printfout("Platform decrypt failed for wsc_tlv:%d", wsc_index);
-            return 0;
+            return -1;
         }
 
         attr = reinterpret_cast<data_elem_attr_t *> (plain);
@@ -4793,7 +5050,7 @@ int em_configuration_t::handle_encrypted_settings(unsigned int wsc_tlv_count)
         // Set the haultype to the wsc index by default
         if (wsc_index >= em_haul_type_max) {
             em_printfout("wsc_index:%d exceeds max haul types:%d, not proceeding further", wsc_index, em_haul_type_max);
-            return 0;
+            return -1;
         }
         radioconfig.haultype[wsc_index] = static_cast<em_haul_type_t> (wsc_index);
         while (tmp_len > 0) {
@@ -4842,9 +5099,34 @@ int em_configuration_t::handle_encrypted_settings(unsigned int wsc_tlv_count)
     for (unsigned int i = 0; i < radioconfig.noofbssconfig; i++){
         radioconfig.freq[i] = get_band();
     }
-    get_mgr()->io_process(em_bus_event_type_m2ctrl_configuration, reinterpret_cast<unsigned char *> (&radioconfig), sizeof(radioconfig));
-    set_state(em_state_agent_owconfig_pending);
-    return ret;
+
+    // Record SSID->haul mapping so AP MLD TLV SSIDs can be resolved via get_haul_type_from_ssid()
+    if ((dm = get_data_model()) != NULL) {
+        for (i = 0; i < radioconfig.noofbssconfig; i++) {
+            haul = radioconfig.haultype[i];
+
+            if (!radioconfig.enable[i] || (radioconfig.ssid[i][0] == '\0') ||
+                (static_cast<unsigned int>(haul) >= static_cast<unsigned int>(em_haul_type_max))) {
+                continue;
+            }
+            if ((info = dm->get_network_ssid_info_by_haul_type(haul)) == NULL) {
+                num = dm->get_num_network_ssid();
+                if (num >= EM_MAX_NET_SSIDS) {
+                    em_printfout("Network SSID table full, cannot map ssid:%s haul:%d", radioconfig.ssid[i], haul);
+                    continue;
+                }
+                info = dm->get_network_ssid(num)->get_network_ssid_info();
+                memset(info, 0, sizeof(em_network_ssid_info_t));
+                info->num_hauls = 1;
+                info->haul_type[0] = haul;
+                dm->set_num_network_ssid(num + 1);
+            }
+            snprintf(info->ssid, sizeof(ssid_t), "%.*s", static_cast<int>(sizeof(ssid_t) - 1), radioconfig.ssid[i]);
+            info->enable = true;
+            em_printfout("Mapped ssid:%s to haul:%d", info->ssid, haul);
+        }
+    }
+    return 0;
 }
 
 void em_configuration_t::store_akm_suite_cap(dm_easy_mesh_t *dm, unsigned char *buff, unsigned int len, em_mgr_t *mgr)
@@ -5461,7 +5743,7 @@ int em_configuration_t::handle_bss_config_rsp_msg(uint8_t *buff, unsigned int le
                 // Not handled by UWM right now?
                 break;
             case em_tlv_type_ap_mld_config:
-                handle_ap_mld_config_tlv(tlv->value, htons(tlv->len));
+                handle_ap_mld_config_tlv(tlv->value, ntohs(tlv->len));
                 break;
             case em_tlv_type_bsta_mld_config:
                 handle_bsta_mld_config_req(tlv->value, htons(tlv->len));
@@ -5622,7 +5904,7 @@ int em_configuration_t::handle_bss_config_res_msg(uint8_t *buff, unsigned int le
                 handle_bss_configuration_report(tlv->value, htons(tlv->len));
                 break;
             case em_tlv_type_ap_mld_config:
-                handle_ap_mld_config_tlv(tlv->value, htons(tlv->len));
+                handle_ap_mld_config_tlv(tlv->value, ntohs(tlv->len));
                 break;
             case em_tlv_type_bsta_mld_config:
                 // Not handled by UWM right now?
@@ -6053,6 +6335,10 @@ int em_configuration_t::handle_autoconfig_wsc_m1(unsigned char *buff, unsigned i
     em_tlv_t    *tlv;
     unsigned int tlv_len;
     em_bus_event_type_m2_tx_params_t   raw;
+    dm_easy_mesh_t *dm_wait;
+    const unsigned int poll_interval_us = 5000;
+    const unsigned int max_wait_iterations = 10; // ~50ms total
+    unsigned int waited_iterations = 0;
 
     const em_profile_type_t peer_profile = get_peer_profile(reinterpret_cast<em_raw_hdr_t *>(buff)->src);
     em_printfout("Received autoconfig wsc m1 msg len:%u AL MAC: %s radio id %s peer profile %d", len,
@@ -6104,6 +6390,27 @@ int em_configuration_t::handle_autoconfig_wsc_m1(unsigned char *buff, unsigned i
         tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + val_len);
     }
 
+    // M2 needs the Wi-Fi 7 MLO capabilities in the requested Early AP Capability Report.
+    // It may arrive after M1, so wait briefly instead of building M2 with stale data.
+
+    dm_wait = get_data_model();
+
+    if ((dm_wait != NULL) && !dm_wait->get_early_ap_cap_report_received()) {
+        em_printfout("Waiting for Early AP Capability Report before building M2 for radio %s",
+            util::mac_to_string(get_radio_interface_mac()).c_str());
+        while (!dm_wait->get_early_ap_cap_report_received() && (waited_iterations < max_wait_iterations)) {
+            usleep(poll_interval_us);
+            waited_iterations++;
+        }
+        if (!dm_wait->get_early_ap_cap_report_received()) {
+            em_printfout("Early AP Capability Report not received after %ums, proceeding with M2 anyway",
+                (poll_interval_us * max_wait_iterations) / 1000);
+        } else {
+            em_printfout("Early AP Capability Report received after waiting %ums",
+                (poll_interval_us * waited_iterations) / 1000);
+        }
+    }
+
     int ret = create_autoconfig_wsc_m2_msg(msg, ntohs(cmdu->id));
     if (ret <= 0) {
         return -1;
@@ -6142,6 +6449,11 @@ int em_configuration_t::handle_autoconfig_resp(unsigned char *buff, unsigned int
     unsigned char msg[MAX_EM_BUFF_SZ*2];
     unsigned int sz;
     char *errors[EM_MAX_TLV_MEMBERS] = {0};
+    bool early_ap_cap_requested = false;
+    em_tlv_t *ctrl_cap_tlv;
+    const em_ctrl_cap_t *ctrl_cap;
+    int early_cap_len = 0;
+    em_cmdu_t *cmdu = reinterpret_cast<em_cmdu_t *> (buff + sizeof(em_raw_hdr_t));
 
     /* len must cover the fixed headers, or the subtraction/pointer math below overruns. */
     if (len < static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))) {
@@ -6184,6 +6496,27 @@ int em_configuration_t::handle_autoconfig_resp(unsigned char *buff, unsigned int
         memcpy(ec_mgr.get_al_conn_ctx(NULL)->peer_al_mac, hdr->src, sizeof(mac_address_t));
         return get_ec_mgr().start_secure_1905_layer(hdr->src) ? 0 : -1;
     }
+
+    ctrl_cap_tlv = em_msg_t(buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t),
+            len - static_cast<unsigned int>(sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_tlv(em_tlv_type_ctrl_cap);
+    if ((ctrl_cap_tlv != nullptr) && (ntohs(ctrl_cap_tlv->len) >= sizeof(em_ctrl_cap_t))) {
+        ctrl_cap = reinterpret_cast<const em_ctrl_cap_t *>(ctrl_cap_tlv->value);
+        early_ap_cap_requested = (ctrl_cap->early_ap_capability != 0);
+    }
+
+    dm_easy_mesh_t *dm = get_data_model();
+    // Early AP Capability Report is per-agent; each radio's autoconfig response would
+    // otherwise re-trigger it, so send it at most once per agent.
+    em_printfout("checking whether to send early ap capability report. early_ap_cap_requested: %d, dm: %p, early_ap_cap_report_sent: %d", early_ap_cap_requested, dm, (dm != NULL) ? dm->get_early_ap_cap_report_sent() : -1);
+    if (early_ap_cap_requested && (dm != NULL) && !dm->get_early_ap_cap_report_sent()) {
+        early_cap_len = static_cast<em_t *>(this)->send_early_ap_cap_report_msg(buff, ntohs(cmdu->id));
+        if (early_cap_len < 0) {
+            em_printfout("Error: Failed to send Early AP Capability Report message");
+            return -1;
+        }
+        dm->set_early_ap_cap_report_sent(true);
+    }
+
 
     printf("Received resp and validated...creating M1 msg\n");
     int msg_len = create_autoconfig_wsc_m1_msg(msg, sizeof(msg), hdr->src);
