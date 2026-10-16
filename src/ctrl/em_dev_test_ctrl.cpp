@@ -160,7 +160,8 @@ void em_dev_test_t:: decode(em_subdoc_info_t *subdoc, hash_map_t *m_em_map, cons
 
 	if ((dev_test_obj = cJSON_GetObjectItem(test, "dev_test")) == NULL) {
 	printf("%s:%d: wfa-dataelements:SetDevTest not present\n", __func__, __LINE__);
-	cJSON_Delete(parent_obj);
+		printf("%s:%d: wfa-dataelements:SetDevTest not present\n", __func__, __LINE__);
+		cJSON_Delete(parent_obj);
 		return;
 	}
 	if (dev_test_obj == NULL) {
