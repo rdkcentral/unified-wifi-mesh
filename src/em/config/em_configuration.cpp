@@ -2120,21 +2120,49 @@ int em_configuration_t::handle_ap_operational_bss(unsigned char *buff, unsigned 
 	unsigned int all_bss_len = 0;
 	char time_date[EM_DATE_TIME_BUFF_SZ];
 
+        if (buff == NULL || len < 1) {
+            em_printfout("%s:%d Invalid AP Operational BSS payload length=%u\n", __func__, __LINE__, len);
+            return -1;
+        }
+
 	dm = get_data_model();
             
     // first verify that dm has all the radios
     ap = reinterpret_cast<em_ap_op_bss_t *> (buff);
     radio = const_cast<em_ap_op_bss_radio_t *> (ap->radios);
 
+    unsigned int remaining_len = len - 1;
+
 	util::get_date_time_rfc3399(time_date, sizeof(time_date));
 
     for (i = 0; i < ap->radios_num; i++) {
+        if (remaining_len < sizeof(mac_address_t) + 1) {
+            em_printfout("%s:%d Invalid radio data: remaining=%u\n", __func__, __LINE__, remaining_len);
+            return -1;
+        }
+
+        remaining_len -= sizeof(mac_address_t) + 1;
+
         bss = radio->bss;
         all_bss_len = 0;
         for (j = 0; j < radio->bss_num; j++) {
+            if (remaining_len < sizeof(em_ap_operational_bss_t)) {
+                em_printfout("%s:%d Invalid BSS data: remaining=%u\n", __func__, __LINE__, remaining_len);
+                return -1;
+            }
+
+            if (remaining_len < sizeof(em_ap_operational_bss_t) + bss->ssid_len) {
+                em_printfout("%s:%d Invalid BSS SSID length=%u remaining=%u\n", __func__, __LINE__, bss->ssid_len, remaining_len);
+                return -1;
+            }
+
             dm_bss = dm->get_bss(radio->ruid, bss->bssid);
 		
 			if (dm_bss == NULL) {
+                                if (dm->m_num_bss >= EM_MAX_BSSS) {
+                                    em_printfout("%s:%d Maximum BSS capacity reached: %u\n", __func__, __LINE__, dm->m_num_bss);
+                                    return -1;
+                                }
 				dm_bss = &dm->m_bss[dm->m_num_bss];
 				dm_bss->init();
 
@@ -2160,7 +2188,7 @@ int em_configuration_t::handle_ap_operational_bss(unsigned char *buff, unsigned 
                 dm_bss->m_bss_info.ssid[sizeof(dm_bss->m_bss_info.ssid) - 1] = '\0';
             } else {
                 // SSID mismatch, stop processing further.
-                em_printfout("%s:%d:SSID mismatch. Stop proceeding. SSID=%s", __func__, __LINE__, bss->ssid);
+                em_printfout("%s:%d:SSID mismatch. Stop proceeding. SSID=%s", __func__, __LINE__, ssid_buf);
                 return -2;
             }
             dm_bss->m_bss_info.enabled = true;
@@ -2408,13 +2436,22 @@ int em_configuration_t::handle_topology_response(unsigned char *buff, unsigned i
     tlv =  reinterpret_cast<em_tlv_t *> (buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
     tmp_len = len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
         
-    while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
+    while (tmp_len >= sizeof(em_tlv_t) {
+        if (tlv->type == em_tlv_type_eom) {
+            break;
+        }
+
+        unsigned int tlv_len = ntohs(tlv->len);
+
+        if (tlv_len > tmp_len - sizeof(em_tlv_t)) {
+            em_printfout("Invalid TLV length=%u, remaining=%u\n", tlv_len, tmp_len - sizeof(em_tlv_t));
+            return -1;
+        }
         if (tlv->type != em_tlv_type_profile) {
-            tmp_len -= static_cast<unsigned int> (sizeof(em_tlv_t) + htons(tlv->len));
-            tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
+            tmp_len -= static_cast<unsigned int> (sizeof(em_tlv_t) + tlv_len);
+            tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + tlv_len);
 
             continue;
-
         } else {
             // Validate length and value before assigning profile to avoid invalid enum data.
             if (em_msg_t::parse_profile_tlv(tlv->value, ntohs(tlv->len), &profile)) {
@@ -2456,10 +2493,20 @@ int em_configuration_t::handle_topology_response(unsigned char *buff, unsigned i
 	}
 	tlv =  reinterpret_cast<em_tlv_t *> (buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
 	tmp_len = len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)); 
-    while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
+    while (tmp_len >= sizeof(em_tlv_t)) {
+        if (tlv->type == em_tlv_type_eom) {
+            break;
+        }
+
+        unsigned int tlv_len = ntohs(tlv->len);
+
+        if (tlv_len > tmp_len - sizeof(em_tlv_t)) {
+            em_printfout("Invalid TLV length=%u, remaining=%u\n", tlv_len, tmp_len - sizeof(em_tlv_t));
+            return -1;
+        }
         if (tlv->type != em_tlv_type_operational_bss) {
-            tmp_len -= static_cast<unsigned int> (sizeof(em_tlv_t) + htons(tlv->len));
-            tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
+            tmp_len -= static_cast<unsigned int> (sizeof(em_tlv_t) + tlv_len);
+            tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + tlv_len);
 
             continue;
 
@@ -2475,7 +2522,7 @@ int em_configuration_t::handle_topology_response(unsigned char *buff, unsigned i
     }
 
 
-        int rc = handle_ap_operational_bss(tlv->value, tlv->len);
+        int rc = handle_ap_operational_bss(tlv->value, ntohs(tlv->len));
         if (rc != 0) {
             if (rc == -2) {
                 em_printfout("Failed to handle operational BSS due to SSID misconfiguration.");
