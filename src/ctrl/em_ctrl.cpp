@@ -99,6 +99,7 @@ void em_ctrl_t::handle_dm_commit(em_bus_event_t *evt)
         em_printfout("data model dev mac: %s and int.mac: %s\n", util::mac_to_string(new_dm.m_device.m_device_info.id.dev_mac).c_str(),
             util::mac_to_string(new_dm.m_device.m_device_info.intf.mac).c_str());
         new_dm.m_device.m_device_info.is_emplus_agent = info->is_emplus_agent;
+        new_dm.m_device.set_peer_profile(info->peer_profile);
         new_dm.set_db_cfg_param(db_cfg_type_device_list_update, "");
         m_data_model.set_config(&new_dm);
     } else {
@@ -646,6 +647,22 @@ void em_ctrl_t::handle_failed_conn_msg(unsigned char *data, unsigned int len)
 }
 
 
+void em_ctrl_t::handle_beacon_metrics_query(em_bus_event_t *evt)
+{
+    em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
+    int num;
+
+    if (m_orch->is_cmd_type_in_progress(evt) == true) {
+        m_ctrl_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
+    } else if ((num = m_data_model.analyze_beacon_metrics_query(evt, pcmd)) <= 0) {
+        m_ctrl_cmd->send_result(status_for_noncmd(num));
+    } else if (m_orch->submit_commands(pcmd, static_cast<unsigned int> (num)) > 0) {
+        m_ctrl_cmd->send_result(em_cmd_out_status_success);
+    } else {
+        m_ctrl_cmd->send_result(em_cmd_out_status_not_ready);
+    }
+}
+
 void em_ctrl_t::handle_dirty_dm()
 {
 	m_data_model.handle_dirty_dm();
@@ -816,6 +833,10 @@ void em_ctrl_t::handle_bus_event(em_bus_event_t *evt)
 
 	case em_bus_event_type_unassoc_sta_query:
            handle_unassoc_sta_metrics_query(evt);
+           break;
+	
+        case em_bus_event_type_beacon_query:
+           handle_beacon_metrics_query(evt);
            break;
 
         case em_bus_event_type_client_assoc_ctrl_req:
@@ -1056,6 +1077,7 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
                 memcpy(dm_commit.mac, intf.mac, sizeof(mac_addr_t));
                 strncpy(dm_commit.net_id, GLOBAL_NET_ID, sizeof(dm_commit.net_id));
                 dm_commit.is_emplus_agent = is_emplus;
+                dm_commit.peer_profile = profile;
                 io_process(em_bus_event_type_dm_commit, reinterpret_cast<unsigned char *> (&dm_commit), sizeof(em_commit_info_t));
                 em_printfout("[%s] Creating data model for mac: %s net: %s emplus: %d\n", __func__, mac_str1, GLOBAL_NET_ID, is_emplus);
             } else {
@@ -1337,6 +1359,9 @@ void em_ctrl_t::start_complete()
             { bus_data_type_property, false, 0, 0, 0, NULL } },
         { const_cast<char*>(DE_STA_CLIENTSTEER), bus_element_type_method,
             { NULL, NULL , NULL, NULL, NULL, tr_181_t::clientsteer_handler}, slow_speed, ZERO_TABLE,
+            { bus_data_type_property, false, 0, 0, 0, NULL } },
+        { const_cast<char*>(DE_STA_BEACONMETRICSQ), bus_element_type_method,
+            { NULL, NULL , NULL, NULL, NULL, tr_181_t::beaconmetricsquery_handler}, slow_speed, ZERO_TABLE,
             { bus_data_type_property, false, 0, 0, 0, NULL } },
         { const_cast<char*>(DE_STAMAP_DISASSOC), bus_element_type_method,
             { NULL, NULL , NULL, NULL, NULL, tr_181_t::disassociate_handler}, slow_speed, ZERO_TABLE,

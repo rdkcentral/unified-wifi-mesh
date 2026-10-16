@@ -102,6 +102,7 @@ extern "C"
 #define EM_MAX_NEIGHBORS	16
 #define EM_MAX_CHANNEL_SCAN_RPRT_MSG_LEN		166
 #define EM_MAX_CLIENT_MARKER    5
+#define EM_MAX_ELEMENT_IDS      32
 
 #define   EM_MAX_EVENT_DATA_LEN   4096*100
 #define EM_MAX_CHANNELS_IN_LIST  64
@@ -262,6 +263,12 @@ static const mac_address_t EM_GLOBAL_MAC_ADDRESS = {0xff, 0xff, 0xff, 0xff, 0xff
 
 #define EM_MAX_SSID_LEN                33 
 #define EM_MAX_WIFI_PASSWORD_LEN       65 
+
+/* Airties EM Extensions related constants */
+#define EMEX_MIN_EXT_DEV_INFO_SZ       16
+#define EMEX_MAX_EXT_DEV_INFO_SZ       526
+#define EMEX_MAX_CLIENT_ID_LEN         255
+#define EMEX_MAX_CLIENT_SEC_LEN        255
 
 /* WSC Message TLV LENs */
 #define EM_CONN_TYPE_FLAGS_LEN         0x01
@@ -905,6 +912,7 @@ typedef enum {
 } em_tlv_type_t;
 
 typedef enum {
+    em_tlv_type_airties_device_info = 0x0003,
     em_tlv_type_device_metrics = 0x0004,
     em_tlv_type_radio_capability = 0x0013,
 } em_vendor_airties_tlv_type_t;
@@ -1198,7 +1206,7 @@ typedef struct {
 
 typedef struct {
     unsigned char num_element_id;
-    unsigned char element_list[6];
+    unsigned char element_list[EM_MAX_ELEMENT_IDS];
 }__attribute__((__packed__)) em_beacon_element_list_t;
 
 typedef struct {
@@ -2432,6 +2440,7 @@ typedef enum {
     em_cmd_type_avail_spectrum_inquiry,
     em_cmd_type_get_mld_config,
     em_cmd_type_mld_reconfig,
+    em_cmd_type_beacon_query,
     em_cmd_type_beacon_report,
     em_cmd_type_ap_metrics_report,
     em_cmd_type_get_reset,
@@ -2521,6 +2530,30 @@ typedef struct {
 	em_media_type_t	media;	
 } em_device_id_t;
 
+typedef enum {
+    emex_product_class_gw = 0x80,
+} emex_product_class_t;
+
+typedef enum {
+    emex_device_role_controller = 0x80,
+} emex_device_role_t;
+
+/* Airties specific device information. Filled locally on the agent and sent to the
+ * controller in the WSC M1 message. The arrays are one byte longer than the maximum
+ * length they carry on the wire, so that the controller can NUL terminate them and
+ * expose them as strings over TR-181.
+ */
+typedef struct {
+    bool                 received;     /* Set by the controller only, false until an M1 carried the TLV */
+    unsigned int         boot_id;
+    unsigned char        client_id_len;
+    char                 client_id[EMEX_MAX_CLIENT_ID_LEN + 1];
+    unsigned char        client_secret_len;
+    char                 client_secret[EMEX_MAX_CLIENT_SEC_LEN + 1];
+    emex_product_class_t product_class;
+    emex_device_role_t   device_role;
+} em_ext_device_info_t;
+
 typedef struct {
 	em_device_id_t	id;
     em_interface_t	intf;
@@ -2577,6 +2610,7 @@ typedef struct {
     uint32_t cached_mem;
     unsigned char cpu_load;
     unsigned char cpu_temp;
+    em_ext_device_info_t extended_info;
 } em_device_info_t;
 
 typedef struct {
@@ -3169,6 +3203,7 @@ typedef struct {
     em_long_string_t	net_id;
     int sz;
     uint8_t is_emplus_agent;
+    em_profile_type_t peer_profile;
 } __attribute__((__packed__)) em_commit_info_t;
 
 typedef enum {
@@ -3243,6 +3278,7 @@ typedef enum {
     dm_orch_type_sta_disassoc,
     dm_orch_type_policy_cfg,
     dm_orch_type_mld_reconfig,
+    dm_orch_type_beacon_query,
     dm_orch_type_beacon_report,
     dm_orch_type_bsta_cap_query,
     dm_orch_type_link_quality_report,
