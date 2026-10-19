@@ -429,7 +429,8 @@ int tr_181_t::wfa_set_bus_callbackfunc_pointers(const char *full_namespace, bus_
         ELEMENT(DE_APMLDCFG_EMLSR,         CB(.get_handler = apmldcfg_get, .set_handler = apmldcfg_set, NULL, NULL, NULL, NULL)),
         ELEMENT(DE_APMLDCFG_STR,           CB(.get_handler = apmldcfg_get, .set_handler = apmldcfg_set, NULL, NULL, NULL, NULL)),
         ELEMENT(DE_APMLDCFG_NSTR,          CB(.get_handler = apmldcfg_get, .set_handler = apmldcfg_set, NULL, NULL, NULL, NULL)),
-        ELEMENT(DE_AFFAP_TABLE,            CALLBACK_GETTER(affap_tget)),
+        /* AffiliatedAP rows are managed with registerRow/unregisterRow */
+        ELEMENT(DE_AFFAP_TABLE,            CB(NULL, NULL, NULL, NULL, NULL, NULL)),
         ELEMENT(DE_AFFAP_BSSID,            CALLBACK_GETTER(affap_get)),
         ELEMENT(DE_AFFAP_LINKID,           CALLBACK_GETTER(affap_get)),
         ELEMENT(DE_AFFAP_RUID,             CALLBACK_GETTER(affap_get)),
@@ -916,17 +917,6 @@ bus_error_t tr_181_t::affap_get(char *event_name, raw_data_t *p_data, bus_user_d
 
     if (em_ctrl != NULL) {
         return em_ctrl->get_dm_ctrl()->affap_get(event_name, p_data);
-    }
-
-    return bus_error_general;
-}
-
-bus_error_t tr_181_t::affap_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
-{
-    em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
-
-    if (em_ctrl != NULL) {
-        return em_ctrl->get_dm_ctrl()->affap_tget(event_name, p_data);
     }
 
     return bus_error_general;

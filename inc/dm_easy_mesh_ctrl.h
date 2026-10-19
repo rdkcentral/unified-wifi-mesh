@@ -218,11 +218,12 @@ public:
     static bus_error_t apmldcfg_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
     static bus_error_t apmldcfg_set_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
 
+    /* Keys of the AffiliatedAP.{i} rows of an AP MLD (BSSID, else RUID) */
+    static std::vector<std::string> de_keys_affap(em_ap_mld_info_t *ami);
+    /* Name of the APMLD.{i}.AffiliatedAP. table of an AP MLD, empty if it has no row */
+    std::string de_table_affap_path_name(dm_easy_mesh_t *dm, em_ap_mld_info_t *ami);
     bus_error_t affap_get(char *event_name, raw_data_t *p_data);
-    bus_error_t affap_tget(char *event_name, raw_data_t *p_data);
     static bus_error_t affap_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
-    static bus_error_t affap_tget_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
-    static bus_error_t affap_tget_params(dm_easy_mesh_t *dm, const char *root, em_ap_mld_info_t *ami, bus_data_prop_t **property);
 
     /* True if the STA MLD is associated to the AP MLD */
     static bool de_sta_mld_of_ap_mld(em_ap_mld_info_t *ami, em_assoc_sta_mld_info_t *smi);

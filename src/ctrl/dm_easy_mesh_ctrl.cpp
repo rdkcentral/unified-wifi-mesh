@@ -37,6 +37,7 @@
 #include <errno.h>
 #include <limits.h>
 #include <vector>
+#include <algorithm>
 #include "dm_easy_mesh_ctrl.h"
 #include "dm_easy_mesh.h"
 #include "em_ctrl.h"
@@ -6392,6 +6393,14 @@ void dm_easy_mesh_ctrl_t::de_rows_sync(dm_easy_mesh_t *dm)
     }
 
     sync_table_rows(de_table_apmld_path_name(dm).c_str(), de_keys_ap_mld(dm));
+
+    for (unsigned int m = 0; m < dm->get_num_ap_mld(); m++) {
+        em_ap_mld_info_t *ami = dm->get_ap_mld(m)->get_ap_mld_info();
+        std::string table = de_table_affap_path_name(dm, ami);
+        if (!table.empty()) {
+            sync_table_rows(table.c_str(), de_keys_affap(ami));
+        }
+    }
 }
 
 bool dm_easy_mesh_ctrl_t::de_dm_has_rows(dm_easy_mesh_t *dm)
@@ -6713,11 +6722,6 @@ bus_error_t dm_easy_mesh_ctrl_t::apmldcfg_set(char *event_name, raw_data_t *p_da
 bus_error_t dm_easy_mesh_ctrl_t::affap_get(char *event_name, raw_data_t *p_data)
 {
     return bus_get_cb_fwd(event_name, p_data, affap_get_inner);
-}
-
-bus_error_t dm_easy_mesh_ctrl_t::affap_tget(char *event_name, raw_data_t *p_data)
-{
-    return bus_get_cb_fwd(event_name, p_data, affap_tget_inner);
 }
 
 bus_error_t dm_easy_mesh_ctrl_t::stamld_get(char *event_name, raw_data_t *p_data)
@@ -7693,8 +7697,8 @@ bus_error_t dm_easy_mesh_ctrl_t::rcaps_get_inner(char *event_name, raw_data_t *p
     }
 
     if (radio_cap == NULL) {
-        em_printfout("radio_cap is NULL\n");
-        return bus_error_invalid_input;
+        /* Capabilities not received yet */
+        return dm_ctrl->raw_data_set(p_data, "");
     }
     em_radio_cap_info_t *rci = radio_cap->get_radio_cap_info();
 
@@ -8482,15 +8486,15 @@ bus_error_t dm_easy_mesh_ctrl_t::bss_get_inner(char *event_name, raw_data_t *p_d
         dm_ctrl->fill_bss_akms_allowed(dm, bi, true, val_str, sizeof(val_str));
         rc = dm_ctrl->raw_data_set(p_data, val_str);
     } else if (strcmp(param, "QMDescriptor") == 0) {
-        //rc = dm_ctrl->raw_data_set(p_data, bi->);
+        rc = dm_ctrl->raw_data_set(p_data, "");
     } else if (strcmp(param, "STANumberOfEntries") == 0) {
         rc = dm_ctrl->raw_data_set(p_data, dm_ctrl->de_num_sta(dm, bi));
     } else if (strcmp(param, "LinkRemovalImminent") == 0) {
-        //rc = dm_ctrl->raw_data_set(p_data, bi->);
+        rc = dm_ctrl->raw_data_set(p_data, false);
     } else if (strcmp(param, "FronthaulSuiteSelector") == 0) {
-        rc = dm_ctrl->raw_data_set(p_data, 0U);
+        rc = dm_ctrl->raw_data_set(p_data, "");
     } else if (strcmp(param, "BackhaulSuiteSelector") == 0) {
-        rc = dm_ctrl->raw_data_set(p_data, 0U);
+        rc = dm_ctrl->raw_data_set(p_data, "");
     } else {
         em_printfout("Invalid param: %s\n", param);
         rc = bus_error_invalid_input;
@@ -8998,6 +9002,28 @@ bus_error_t dm_easy_mesh_ctrl_t::apmldcfg_set_inner(char *event_name, raw_data_t
     return bus_error_success;
 }
 
+std::vector<std::string> dm_easy_mesh_ctrl_t::de_keys_affap(em_ap_mld_info_t *ami)
+{
+    std::vector<std::string> keys;
+    unsigned int num = std::min<unsigned int>(ami->num_affiliated_ap, EM_MAX_AP_MLD);
+
+    for (unsigned int i = 0; i < num; i++) {
+        em_affiliated_ap_info_t *aai = &ami->affiliated_ap[i];
+        if (aai->mac_addr_valid) {
+            keys.push_back(de_key(aai->mac_addr));
+        } else {
+            keys.push_back(de_key(aai->ruid.mac));
+        }
+    }
+
+    return keys;
+}
+
+std::string dm_easy_mesh_ctrl_t::de_table_affap_path_name(dm_easy_mesh_t *dm, em_ap_mld_info_t *ami)
+{
+    return de_child_table(de_table_apmld_path_name(dm), de_key(ami->mac_addr), "AffiliatedAP.");
+}
+
 bus_error_t dm_easy_mesh_ctrl_t::affap_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
 {
     (void) user_data;
@@ -9041,12 +9067,19 @@ bus_error_t dm_easy_mesh_ctrl_t::affap_get_inner(char *event_name, raw_data_t *p
 
     /* Extract aff_ap instance and get info struct for that aff_ap */
     name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
-    int idx = atoi(instance);
-    if (!is_num || idx <= 0 || idx > ami->num_affiliated_ap) {
+    std::string key = is_num ? dm_ctrl->get_table_row_key(dm_ctrl->de_table_affap_path_name(dm, ami).c_str(), static_cast<uint32_t>(atoi(instance))) : "";
+    std::vector<std::string> keys = de_keys_affap(ami);
+    em_affiliated_ap_info_t *aai = NULL;
+    for (unsigned int i = 0; i < keys.size(); i++) {
+        if (keys[i] == key) {
+            aai = &ami->affiliated_ap[i];
+            break;
+        }
+    }
+    if (aai == NULL) {
         em_printfout("AffiliatedAP not found");
         return bus_error_invalid_namespace;
     }
-    em_affiliated_ap_info_t *aai = &ami->affiliated_ap[idx - 1];
 
     if (strcmp(param, "BSSID") == 0) {
         rc = dm_ctrl->raw_data_set(p_data, aai->mac_addr);
@@ -9075,79 +9108,6 @@ bus_error_t dm_easy_mesh_ctrl_t::affap_get_inner(char *event_name, raw_data_t *p
     } else {
         em_printfout("Invalid param: %s", param);
         rc = bus_error_destination_not_found;
-    }
-
-    return rc;
-}
-
-bus_error_t dm_easy_mesh_ctrl_t::affap_tget_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
-{
-    (void) user_data;
-    const char *name = event_name;
-    const char *root = name;
-    char instance[MAX_INSTANCE_LEN] = { 0 };
-    bool is_num;
-    bus_data_prop_t *property = NULL;
-    bus_error_t rc;
-
-    if (!name || !p_data) {
-        return bus_error_invalid_input;
-    }
-    if (*(name + (strlen(name) - 1)) != '.') {
-        /* Only partial paths are valid */
-        return bus_error_invalid_operation;
-    }
-
-    dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
-
-    /* Extract device instance (numeric or alias) and find the dm object for
-     * that device instance */
-    name += sizeof(DATAELEMS_NETWORK);
-    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
-    dm_easy_mesh_t *dm = dm_ctrl->get_dm_easy_mesh(instance, is_num);
-    if (dm == NULL) {
-        em_printfout("Device not found");
-        return bus_error_invalid_namespace;
-    }
-
-    /* Extract ap_mld instance (numeric or alias), find the ap_mld dm object
-     * for that instance, and finally get info struct for ap_mld dm object */
-    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
-    dm_ap_mld_t *ap_mld = dm_ctrl->get_dm_ap_mld(dm, instance, is_num);
-    if (ap_mld == NULL) {
-        em_printfout("APMLD not found");
-        return bus_error_invalid_namespace;
-    }
-    em_ap_mld_info_t *ami = ap_mld->get_ap_mld_info();
-
-    rc = dm_ctrl->affap_tget_params(dm, root, ami, &property);
-    if (rc == bus_error_success && property) {
-        dm_ctrl->raw_data_set(p_data, property);
-    }
-
-    return rc;
-}
-
-bus_error_t dm_easy_mesh_ctrl_t::affap_tget_params(dm_easy_mesh_t *dm, const char *root, em_ap_mld_info_t *ami, bus_data_prop_t **property)
-{
-    bus_error_t rc = bus_error_success;
-    dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
-
-    for (unsigned int idx = 1; idx <= ami->num_affiliated_ap; idx++) {
-        em_affiliated_ap_info_t *aai = &ami->affiliated_ap[idx - 1];
-
-        dm_ctrl->property_append_tail(property, root, idx, "BSSID", aai->mac_addr);
-        dm_ctrl->property_append_tail(property, root, idx, "LinkID", aai->link_id);
-        dm_ctrl->property_append_tail(property, root, idx, "RUID", aai->ruid.mac);
-        dm_ctrl->property_append_tail(property, root, idx, "PacketsSent", 0);
-        dm_ctrl->property_append_tail(property, root, idx, "PacketsReceived", 0);
-        dm_ctrl->property_append_tail(property, root, idx, "ErrorsSent", 0);
-        dm_ctrl->property_append_tail(property, root, idx, "UnicastBytesSent", 0);
-        dm_ctrl->property_append_tail(property, root, idx, "UnicastBytesReceived", 0);
-        dm_ctrl->property_append_tail(property, root, idx, "MulticastBytesSent", 0);
-        dm_ctrl->property_append_tail(property, root, idx, "MulticastBytesReceived", 0);
-        dm_ctrl->property_append_tail(property, root, idx, "BroadcastBytesSent", 0);
-        dm_ctrl->property_append_tail(property, root, idx, "BroadcastBytesReceived", 0);
     }
 
     return rc;
