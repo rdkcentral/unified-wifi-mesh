@@ -335,7 +335,8 @@ int tr_181_t::wfa_set_bus_callbackfunc_pointers(const char *full_namespace, bus_
         ELEMENT(DE_CUROP_CLASS,            CALLBACK_GETTER(curops_get)),
         ELEMENT(DE_CUROP_CHANNEL,          CALLBACK_GETTER(curops_get)),
         ELEMENT(DE_CUROP_TXPOWER,          CALLBACK_GETTER(curops_get)),
-        ELEMENT(DE_BSS_TABLE,              CALLBACK_GETTER(bss_tget)),
+        /* BSS rows are managed with registerRow/unregisterRow */
+        ELEMENT(DE_BSS_TABLE,              CB(NULL, NULL, NULL, NULL, NULL, NULL)),
         ELEMENT(DE_BSS_BSSID,              CALLBACK_GETTER(bss_get)),
         ELEMENT(DE_BSS_SSID,               CALLBACK_GETTER(bss_get)),
         ELEMENT(DE_BSS_ENABLED,            CALLBACK_GETTER(bss_get)),
@@ -858,17 +859,6 @@ bus_error_t tr_181_t::bss_get(char *event_name, raw_data_t *p_data, bus_user_dat
 
     if (em_ctrl != NULL) {
         return em_ctrl->get_dm_ctrl()->bss_get(event_name, p_data);
-    }
-    
-    return bus_error_general;
-}
-
-bus_error_t tr_181_t::bss_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
-{
-    em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
-
-    if (em_ctrl != NULL) {
-        return em_ctrl->get_dm_ctrl()->bss_tget(event_name, p_data);
     }
     
     return bus_error_general;
