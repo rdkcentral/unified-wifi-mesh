@@ -82,6 +82,9 @@ public:
      */
     void de_rows_sync(dm_easy_mesh_t *dm);
 
+    /* True if the data model is a device data model of the list, that has DataElements rows */
+    bool de_dm_has_rows(dm_easy_mesh_t *dm);
+
     bus_error_t network_get(char *event_name, raw_data_t *p_data);
     static bus_error_t network_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
 
@@ -101,9 +104,6 @@ public:
     static bus_error_t radio_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
     bus_error_t rbhsta_get(char *event_name, raw_data_t *p_data);
     static bus_error_t rbhsta_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
-    bus_error_t curops_tget(char *event_name, raw_data_t *p_data);
-    static bus_error_t curops_tget_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
-    static bus_error_t curops_tget_params(dm_easy_mesh_t *dm, const char *root, em_radio_info_t *ri, bus_data_prop_t **property);
 
     void fill_comma_sep(em_short_string_t str[], size_t max, char *buf);
 
@@ -170,6 +170,14 @@ public:
     static bus_error_t wf7ap_tget_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
     static bus_error_t wf7ap_tget_params(dm_easy_mesh_t *dm, const char *root, em_radio_info_t *ri, bus_data_prop_t **property, unsigned int idx);
 
+    /* Op classes of a given type (CurrentOperatingClassProfile.{i}, ...) of a radio identify their rows */
+    static std::vector<std::string> de_keys_op_class(dm_easy_mesh_t *dm, em_radio_info_t *ri, em_op_class_type_t type);
+    /* Op class of a radio identified by a key of de_keys_op_class() */
+    static dm_op_class_t *de_find_op_class(dm_easy_mesh_t *dm, em_radio_info_t *ri, em_op_class_type_t type, const std::string &key);
+    /* Number of op classes of a given type (CurrentOperatingClassProfile.{i}, ...) of a radio */
+    static unsigned int de_num_op_class(dm_easy_mesh_t *dm, em_radio_info_t *ri, em_op_class_type_t type);
+    /* Name of the Device.{i}.Radio.{i}.CurrentOperatingClassProfile. table of a radio, empty if the radio has no row */
+    std::string de_table_curop_path_name(dm_easy_mesh_t *dm, em_radio_info_t *ri);
     dm_op_class_t* get_dm_curop(dm_easy_mesh_t *dm, dm_radio_t *radio, int instance);
     bus_error_t curops_get(char* event_name, raw_data_t* p_data);
     static bus_error_t curops_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);

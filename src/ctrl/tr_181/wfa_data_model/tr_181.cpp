@@ -328,7 +328,8 @@ int tr_181_t::wfa_set_bus_callbackfunc_pointers(const char *full_namespace, bus_
         ELEMENT(DE_WF7AP_STR,              CALLBACK_GETTER(wf7ap_get)),
         ELEMENT(DE_WF7AP_NSTR,             CALLBACK_GETTER(wf7ap_get)),
         ELEMENT(DE_WF7AP_TID_MAP,          CALLBACK_GETTER(wf7ap_get)),
-        ELEMENT(DE_CUROP_TABLE,            CALLBACK_GETTER(curops_tget)),
+        /* CurrentOperatingClassProfile rows are managed with registerRow/unregisterRow */
+        ELEMENT(DE_CUROP_TABLE,            CB(NULL, NULL, NULL, NULL, NULL, NULL)),
         ELEMENT(DE_CUROP_TIMESTAMP,        CALLBACK_GETTER(curops_get)),
         ELEMENT(DE_CUROP_CLASS,            CALLBACK_GETTER(curops_get)),
         ELEMENT(DE_CUROP_CHANNEL,          CALLBACK_GETTER(curops_get)),
@@ -836,17 +837,6 @@ bus_error_t tr_181_t::curops_get(char *event_name, raw_data_t *p_data, bus_user_
         return em_ctrl->get_dm_ctrl()->curops_get(event_name, p_data);
     }
     
-    return bus_error_general;
-}
-
-bus_error_t tr_181_t::curops_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
-{
-    em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
-
-    if (em_ctrl != NULL) {
-        return em_ctrl->get_dm_ctrl()->curops_tget(event_name, p_data);
-    }
-
     return bus_error_general;
 }
 

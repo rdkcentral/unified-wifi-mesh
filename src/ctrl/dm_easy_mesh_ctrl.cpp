@@ -6349,9 +6349,40 @@ void dm_easy_mesh_ctrl_t::de_rows_sync(dm_easy_mesh_t *dm)
     sync_table_rows(DATAELEMS_NETWORK "Device.", de_keys_device(), true);
     sync_table_rows(DATAELEMS_NETWORK "SSID.", de_keys_ssid());
 
-    if (dm != NULL && !dm->is_controller() && dm->get_id() > 0) {
-        sync_table_rows(de_table_radio_path_name(dm).c_str(), de_keys_radio(dm));
+    // The copies of the data models used by the commands have no rows
+    if (!de_dm_has_rows(dm)) {
+        return;
     }
+
+    sync_table_rows(de_table_radio_path_name(dm).c_str(), de_keys_radio(dm));
+
+    for (unsigned int r = 0; r < dm->get_num_radios(); r++) {
+        dm_radio_t *radio = dm->get_radio(r);
+        if (radio == NULL) {
+            continue;
+        }
+        em_radio_info_t *ri = radio->get_radio_info();
+        std::string table;
+
+        table = de_table_curop_path_name(dm, ri);
+        if (!table.empty()) {
+            sync_table_rows(table.c_str(), de_keys_op_class(dm, ri, em_op_class_type_current));
+        }
+    }
+}
+
+bool dm_easy_mesh_ctrl_t::de_dm_has_rows(dm_easy_mesh_t *dm)
+{
+    if (dm == NULL || dm->is_controller() || dm->get_id() <= 0) {
+        return false;
+    }
+    /* Only the data models of the list have rows (not the copies used by the commands) */
+    for (dm_easy_mesh_t *pdm = get_first_dm(); pdm != NULL; pdm = get_next_dm(pdm)) {
+        if (pdm == dm) {
+            return true;
+        }
+    }
+    return false;
 }
 
 dm_sta_t *dm_easy_mesh_ctrl_t::get_dm_bh_sta(dm_easy_mesh_t *dm, dm_radio_t *radio)
@@ -6624,11 +6655,6 @@ bus_error_t dm_easy_mesh_ctrl_t::wf7ap_tget(char *event_name, raw_data_t *p_data
 bus_error_t dm_easy_mesh_ctrl_t::curops_get(char *event_name, raw_data_t *p_data)
 {
     return bus_get_cb_fwd(event_name, p_data, curops_get_inner);
-}
-
-bus_error_t dm_easy_mesh_ctrl_t::curops_tget(char *event_name, raw_data_t *p_data)
-{
-    return bus_get_cb_fwd(event_name, p_data, curops_tget_inner);
 }
 
 bus_error_t dm_easy_mesh_ctrl_t::capops_get(char *event_name, raw_data_t *p_data)
@@ -7548,22 +7574,7 @@ bus_error_t dm_easy_mesh_ctrl_t::radio_get_inner(char *event_name, raw_data_t *p
     } else if (strcmp(param, "ChipsetVendor") == 0) {
         rc = dm_ctrl->raw_data_set(p_data, ri->chip_vendor);
     } else if (strcmp(param, "CurrentOperatingClassProfileNumberOfEntries") == 0) {
-        unsigned int curop_count = 0;
-        for (unsigned int i = 0; i < dm->get_num_op_class(); i++) {
-            dm_op_class_t *op_class = dm->get_op_class(i);
-            if (op_class == NULL) {
-                continue;
-            }
-            em_op_class_info_t *oci = op_class->get_op_class_info();
-            if (oci->id.type != em_op_class_type_current) {
-                continue;
-            }
-            if (memcmp(ri->id.ruid, oci->id.ruid, sizeof(oci->id.ruid)) != 0) {
-                continue;
-            }
-            curop_count++;
-        }
-        rc = dm_ctrl->raw_data_set(p_data, curop_count);
+        rc = dm_ctrl->raw_data_set(p_data, dm_ctrl->de_num_op_class(dm, ri, em_op_class_type_current));
     } else if (strcmp(param, "BSSNumberOfEntries") == 0) {
         rc = dm_ctrl->raw_data_set(p_data, ri->number_of_bss);
     } else if (strcmp(param, "X_AIRTIES_Temperature") == 0) {
@@ -8090,10 +8101,9 @@ bus_error_t dm_easy_mesh_ctrl_t::wf7ap_tget_params(dm_easy_mesh_t *dm, const cha
     return rc;
 }
 
-dm_op_class_t* dm_easy_mesh_ctrl_t::get_dm_curop(dm_easy_mesh_t *dm, dm_radio_t *radio, int instance)
+std::vector<std::string> dm_easy_mesh_ctrl_t::de_keys_op_class(dm_easy_mesh_t *dm, em_radio_info_t *ri, em_op_class_type_t type)
 {
-    int ocnt = 0;
-    em_radio_info_t *ri = radio->get_radio_info();
+    std::vector<std::string> keys;
 
     for (unsigned int i = 0; i < dm->get_num_op_class(); i++) {
         dm_op_class_t *op_class = dm->get_op_class(i);
@@ -8101,19 +8111,47 @@ dm_op_class_t* dm_easy_mesh_ctrl_t::get_dm_curop(dm_easy_mesh_t *dm, dm_radio_t 
             continue;
         }
         em_op_class_info_t *oci = op_class->get_op_class_info();
-        if (oci->id.type != em_op_class_type_current) {
+        if (oci->id.type == type && memcmp(ri->id.ruid, oci->id.ruid, sizeof(oci->id.ruid)) == 0) {
+            keys.push_back(std::to_string(oci->id.op_class));
+        }
+    }
+
+    return keys;
+}
+
+unsigned int dm_easy_mesh_ctrl_t::de_num_op_class(dm_easy_mesh_t *dm, em_radio_info_t *ri, em_op_class_type_t type)
+{
+    return static_cast<unsigned int>(de_keys_op_class(dm, ri, type).size());
+}
+
+dm_op_class_t *dm_easy_mesh_ctrl_t::de_find_op_class(dm_easy_mesh_t *dm, em_radio_info_t *ri, em_op_class_type_t type, const std::string &key)
+{
+    for (unsigned int i = 0; i < dm->get_num_op_class(); i++) {
+        dm_op_class_t *op_class = dm->get_op_class(i);
+        if (op_class == NULL) {
             continue;
         }
-        if (memcmp(ri->id.ruid, oci->id.ruid, sizeof(oci->id.ruid)) != 0) {
-            continue;
-        }
-        ++ocnt;
-        if (ocnt == instance) {
+        em_op_class_info_t *oci = op_class->get_op_class_info();
+        if (oci->id.type == type && memcmp(ri->id.ruid, oci->id.ruid, sizeof(oci->id.ruid)) == 0 &&
+            std::to_string(oci->id.op_class) == key) {
             return op_class;
         }
     }
 
     return NULL;
+}
+
+std::string dm_easy_mesh_ctrl_t::de_table_curop_path_name(dm_easy_mesh_t *dm, em_radio_info_t *ri)
+{
+    return de_child_table(de_table_radio_path_name(dm), de_key(ri->id.ruid), "CurrentOperatingClassProfile.");
+}
+
+dm_op_class_t* dm_easy_mesh_ctrl_t::get_dm_curop(dm_easy_mesh_t *dm, dm_radio_t *radio, int instance)
+{
+    em_radio_info_t *ri = radio->get_radio_info();
+    std::string key = get_table_row_key(de_table_curop_path_name(dm, ri).c_str(), static_cast<uint32_t>(instance));
+
+    return de_find_op_class(dm, ri, em_op_class_type_current, key);
 }
 
 bus_error_t dm_easy_mesh_ctrl_t::curops_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
@@ -8160,7 +8198,7 @@ bus_error_t dm_easy_mesh_ctrl_t::curops_get_inner(char *event_name, raw_data_t *
     dm_op_class_t *op_class = dm_ctrl->get_dm_curop(dm, radio, curop_class_instance);
     if (op_class == NULL) {
         em_printfout("op_class is NULL\n");
-        return bus_error_invalid_input;
+        return bus_error_invalid_namespace;
     }
     em_op_class_info_t *oci = op_class->get_op_class_info();
 
@@ -8183,80 +8221,6 @@ bus_error_t dm_easy_mesh_ctrl_t::curops_get_inner(char *event_name, raw_data_t *
     } else {
         em_printfout("Invalid param: %s\n", param);
         rc = bus_error_invalid_input;
-    }
-
-    return rc;
-}
-
-bus_error_t dm_easy_mesh_ctrl_t::curops_tget_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
-{
-    (void) user_data;
-    const char *name = event_name;
-    const char *root = name;
-    bus_data_prop_t *property = NULL;
-    char instance[MAX_INSTANCE_LEN] = { 0 };
-    bool is_num;
-    bus_error_t rc;
-
-    if (!name || !p_data) {
-        return bus_error_invalid_input;
-    }
-    if (*(name + (strlen(name) - 1)) != '.') {
-        /* Only partial paths are valid */
-        return bus_error_invalid_operation;
-    }
-
-    dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
-
-    /* Extract device instance (numeric or alias) and find the dm object for
-     * that device instance */
-    name += sizeof(DATAELEMS_NETWORK);
-    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
-    dm_easy_mesh_t *dm = dm_ctrl->get_dm_easy_mesh(instance, is_num);
-    if (dm == NULL) {
-        printf("device not found\n");
-        return bus_error_invalid_namespace;
-    }
-
-    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
-    dm_radio_t *radio = dm_ctrl->get_dm_radio(dm, instance, is_num);
-    if (radio == NULL) {
-        em_printfout("radio is NULL\n");
-        return bus_error_invalid_input;
-    }
-    em_radio_info_t *ri = radio->get_radio_info();
-
-    rc = dm_ctrl->curops_tget_params(dm, root, ri, &property);
-    if (rc == bus_error_success && property) {
-        dm_ctrl->raw_data_set(p_data, property);
-    }
-
-    return rc;
-}
-
-bus_error_t dm_easy_mesh_ctrl_t::curops_tget_params(dm_easy_mesh_t *dm, const char *root, em_radio_info_t *ri, bus_data_prop_t **property)
-{
-    bus_error_t rc = bus_error_success;
-
-    dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
-    unsigned int idx = 0;
-    for (unsigned int i = 0; i < dm->get_num_op_class(); i++) {
-        dm_op_class_t *op_class = dm->get_op_class(i);
-        if (op_class == NULL) {
-            continue;
-        }
-        em_op_class_info_t *oci = op_class->get_op_class_info();
-        if (oci->id.type != em_op_class_type_current) {
-            continue;
-        }
-        if (memcmp(ri->id.ruid, oci->id.ruid, sizeof(oci->id.ruid)) != 0) {
-            continue;
-        }
-        ++idx;
-
-        dm_ctrl->property_append_tail(property, root, idx, "Class", oci->op_class);
-        dm_ctrl->property_append_tail(property, root, idx, "Channel", oci->channel);
-        dm_ctrl->property_append_tail(property, root, idx, "TxPower", oci->tx_power);
     }
 
     return rc;

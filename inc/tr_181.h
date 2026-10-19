@@ -1042,7 +1042,6 @@ public:
     static bus_error_t wf7ap_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
     static bus_error_t wf7ap_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
     static bus_error_t curops_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
-    static bus_error_t curops_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
     static bus_error_t capops_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
     static bus_error_t capops_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
 

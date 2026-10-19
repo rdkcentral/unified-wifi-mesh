@@ -1262,6 +1262,7 @@ int dm_easy_mesh_list_t::put_op_class(const char *key, const dm_op_class_t *op_c
 		//mac_str, pop_class->m_op_class_info.id.type, pop_class->m_op_class_info.id.op_class);
     dm->set_num_op_class(dm->get_num_op_class() + 1);
 	//printf("%s:%d: Number of op classes: %d\n", __func__, __LINE__, dm->get_num_op_class());
+    m_mgr->dm_updated(dm);
     return 0;
 }
 
