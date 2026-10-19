@@ -941,6 +941,8 @@ void dm_easy_mesh_list_t::remove_network_ssid(const char *key)
 
         dm = static_cast<dm_easy_mesh_t *> (hash_map_get_next(m_list, dm));
     }
+
+    m_mgr->dm_updated(static_cast<dm_easy_mesh_t *> (hash_map_get_first(m_list)));
 }
 
 void dm_easy_mesh_list_t::put_network_ssid(const char *key, const dm_network_ssid_t *net_ssid)
@@ -993,6 +995,8 @@ void dm_easy_mesh_list_t::put_network_ssid(const char *key, const dm_network_ssi
         }
         dm = static_cast<dm_easy_mesh_t *> (hash_map_get_next(m_list, dm));
     }
+
+    m_mgr->dm_updated(static_cast<dm_easy_mesh_t *> (hash_map_get_first(m_list)));
 }
 
 dm_op_class_t *dm_easy_mesh_list_t::get_first_op_class()

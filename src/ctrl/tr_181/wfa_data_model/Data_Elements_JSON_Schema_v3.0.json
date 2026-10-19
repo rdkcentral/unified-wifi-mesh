@@ -3132,6 +3132,10 @@
                         "$ref": "#/definitions/macaddr_t"
                     }
                 },
+                "SSIDNumberOfEntries": {
+                    "type": "integer",
+                    "minimum": 0
+                },
                 "NetworkSSIDList": {
                     "type": "array",
                     "items": {

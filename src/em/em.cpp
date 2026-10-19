@@ -407,6 +407,10 @@ void em_t::proto_process(unsigned char *data, unsigned int len)
             break;
     }
 
+    if (m_service_type == em_service_type_ctrl) {
+        get_mgr()->dm_updated(get_data_model());
+    }
+
     free(data);
 }
 

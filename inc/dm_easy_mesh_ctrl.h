@@ -138,11 +138,14 @@ public:
     static bus_error_t bss_tget_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
     static bus_error_t bss_tget_params(dm_easy_mesh_t *dm, const char *root, em_radio_info_t *ri, bus_data_prop_t **property);
 
+    /* Ids of the Network.SSID.{i} rows (network SSIDs are the same in all the data models) */
+    std::vector<std::string> de_keys_ssid();
+    /* Network SSID of the row SSID.{instance} */
+    dm_network_ssid_t *get_dm_ssid(dm_easy_mesh_t *dm, unsigned int instance);
+    /* Number of Network.SSID.{i} rows */
+    unsigned int de_num_ssid();
     bus_error_t ssid_get(char* event_name, raw_data_t* p_data);
     static bus_error_t ssid_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
-    bus_error_t ssid_tget(char* event_name, raw_data_t* p_data);
-    static bus_error_t ssid_tget_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
-    static bus_error_t ssid_tget_params(dm_easy_mesh_t *dm, const char *root, bus_data_prop_t **property);
 
     char* get_ht_caps_str(em_ap_ht_cap_t *ht, char *buf, size_t buf_len);
     char* get_vht_caps_str(em_ap_vht_cap_t *vht, char *buf, size_t buf_len);

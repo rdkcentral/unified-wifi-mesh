@@ -6220,6 +6220,8 @@ int dm_easy_mesh_ctrl_t::update_tables(dm_easy_mesh_t *dm)
         }
     }
 
+    de_rows_sync(dm);
+
     return 0;
 }
 
@@ -6345,6 +6347,7 @@ void dm_easy_mesh_ctrl_t::de_rows_sync(dm_easy_mesh_t *dm)
 {
     // The Device.{i} instance number is the data model id
     sync_table_rows(DATAELEMS_NETWORK "Device.", de_keys_device(), true);
+    sync_table_rows(DATAELEMS_NETWORK "SSID.", de_keys_ssid());
 
     if (dm != NULL && !dm->is_controller() && dm->get_id() > 0) {
         sync_table_rows(de_table_radio_path_name(dm).c_str(), de_keys_radio(dm));
@@ -6570,11 +6573,6 @@ bus_error_t dm_easy_mesh_ctrl_t::network_get(char *event_name, raw_data_t *p_dat
 bus_error_t dm_easy_mesh_ctrl_t::ssid_get(char *event_name, raw_data_t *p_data)
 {
     return bus_get_cb_fwd(event_name, p_data, ssid_get_inner);
-}
-
-bus_error_t dm_easy_mesh_ctrl_t::ssid_tget(char *event_name, raw_data_t *p_data)
-{
-    return bus_get_cb_fwd(event_name, p_data, ssid_tget_inner);
 }
 
 bus_error_t dm_easy_mesh_ctrl_t::device_get(char *event_name, raw_data_t *p_data)
@@ -6817,6 +6815,8 @@ bus_error_t dm_easy_mesh_ctrl_t::network_get_inner(char *event_name, raw_data_t 
             dm = dm_ctrl->get_next_dm(dm);
         }
         rc = dm_ctrl->raw_data_set(p_data, dev_cnt);
+    } else if (strcmp(param, "SSIDNumberOfEntries") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, dm_ctrl->de_num_ssid());
     } else {
         rc = bus_error_invalid_input;
     }
@@ -7113,6 +7113,35 @@ bus_error_t dm_easy_mesh_ctrl_t::policy_get_inner(char *event_name, raw_data_t *
     return rc;
 }
 
+std::vector<std::string> dm_easy_mesh_ctrl_t::de_keys_ssid()
+{
+    std::vector<std::string> keys;
+    dm_easy_mesh_t *dm = get_first_dm();
+
+    for (unsigned int i = 0; dm != NULL && i < dm->get_num_network_ssid(); i++) {
+        keys.push_back(dm->get_network_ssid(i)->get_network_ssid_info()->id);
+    }
+    return keys;
+}
+
+unsigned int dm_easy_mesh_ctrl_t::de_num_ssid()
+{
+    return static_cast<unsigned int>(de_keys_ssid().size());
+}
+
+dm_network_ssid_t *dm_easy_mesh_ctrl_t::get_dm_ssid(dm_easy_mesh_t *dm, unsigned int instance)
+{
+    std::string key = get_table_row_key(DATAELEMS_NETWORK "SSID.", instance);
+
+    for (unsigned int i = 0; i < dm->get_num_network_ssid(); i++) {
+        dm_network_ssid_t *ssid = dm->get_network_ssid(i);
+        if (key == ssid->get_network_ssid_info()->id) {
+            return ssid;
+        }
+    }
+    return NULL;
+}
+
 bus_error_t dm_easy_mesh_ctrl_t::ssid_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
 {
     (void) user_data;
@@ -7139,18 +7168,15 @@ bus_error_t dm_easy_mesh_ctrl_t::ssid_get_inner(char *event_name, raw_data_t *p_
     name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
     ssid_instance = is_num ? static_cast<unsigned int>(atoi(instance)) : 0;
 
+    /* Network SSIDs are the same in all the data models, SSID.{i} is looked up in the first data model */
     dm_easy_mesh_t *dm = dm_ctrl->get_first_dm();
-    if (dm == NULL) {
-        dm = dm_ctrl->get_next_dm(dm);
+    if (dm == NULL || ssid_instance == 0) {
+        return bus_error_invalid_namespace;
     }
 
-    if (ssid_instance > dm->get_num_network_ssid()) {
-        return bus_error_invalid_input;
-    }
-
-    dm_network_ssid_t *ssid = dm->get_network_ssid(ssid_instance - 1);
+    dm_network_ssid_t *ssid = dm_ctrl->get_dm_ssid(dm, ssid_instance);
     if (ssid == NULL) {
-        return bus_error_invalid_input;
+        return bus_error_invalid_namespace;
     }
     em_network_ssid_info_t *si = ssid->get_network_ssid_info();
 
@@ -7175,67 +7201,12 @@ bus_error_t dm_easy_mesh_ctrl_t::ssid_get_inner(char *event_name, raw_data_t *p_
     } else if (strcmp(param, "HaulType") == 0) {
         dm_ctrl->fill_haul_type(si->haul_type, si->num_hauls, val_str);
         rc = dm_ctrl->raw_data_set(p_data, val_str);
-    } else if (strcmp(param, "AuthType") == 0) {
-        rc = dm_ctrl->raw_data_set(p_data, si->auth_type);
-    } else if (strcmp(param, "VLANID") == 0) {
-        rc = dm_ctrl->raw_data_set(p_data, si->vlan_id);
     } else {
         em_printfout("Invalid param: %s\n", param);
         rc = bus_error_invalid_input;
     }
 
     return rc;
-}
-
-bus_error_t dm_easy_mesh_ctrl_t::ssid_tget_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
-{
-    const char *root = event_name;
-    char val_str[MAX_EM_BUFF_SZ] = { 0 };
-    bus_data_prop_t *property = NULL;
-
-    if (*(event_name + (strlen(event_name) - 1)) != '.') {
-        /* Only partial paths are valid */
-        return bus_error_invalid_operation;
-    }
-
-    dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
-    dm_easy_mesh_t *dm = dm_ctrl->get_first_dm();
-    if (dm == NULL) {
-        dm = dm_ctrl->get_next_dm(dm);
-    }
-
-    for (unsigned int idx = 1; idx <= dm->get_num_network_ssid(); idx++) {
-        dm_network_ssid_t *ssid = dm->get_network_ssid(idx - 1);
-        if (ssid == NULL) {
-            em_printfout("SSID is NULL");
-            continue;
-        }
-        em_network_ssid_info_t *si = ssid->get_network_ssid_info();
-
-        dm_ctrl->property_append_tail(&property, root, idx, "SSID", si->ssid);
-        memset(val_str, 0, sizeof(val_str));
-        dm_ctrl->fill_comma_sep(si->band, std::min(static_cast<size_t>(si->num_bands), ARRAY_SIZE(si->band)), val_str);
-        dm_ctrl->property_append_tail(&property, root, idx, "Band", val_str);
-        dm_ctrl->property_append_tail(&property, root, idx, "Enable", si->enable);
-        memset(val_str, 0, sizeof(val_str));
-        dm_ctrl->fill_comma_sep(si->akm, std::min(static_cast<size_t>(si->num_akms), ARRAY_SIZE(si->akm)), val_str);
-        dm_ctrl->property_append_tail(&property, root, idx, "AKMsAllowed", val_str);
-        dm_ctrl->property_append_tail(&property, root, idx, "SuiteSelector", si->suite_select);
-        dm_ctrl->property_append_tail(&property, root, idx, "AdvertisementEnabled", si->advertisement);
-        dm_ctrl->property_append_tail(&property, root, idx, "MFPConfig", si->mfp);
-        dm_ctrl->property_append_tail(&property, root, idx, "MobilityDomain", si->mobility_domain);
-        memset(val_str, 0, sizeof(val_str));
-        dm_ctrl->fill_haul_type(si->haul_type, si->num_hauls, val_str);
-        dm_ctrl->property_append_tail(&property, root, idx, "HaulType", val_str);
-        dm_ctrl->property_append_tail(&property, root, idx, "AuthType", si->auth_type);
-        dm_ctrl->property_append_tail(&property, root, idx, "VLANID", si->vlan_id);
-    }
-
-    if (property) {
-        dm_ctrl->raw_data_set(p_data, property);
-    }
-
-    return bus_error_success;
 }
 
 char* dm_easy_mesh_ctrl_t::get_ht_caps_str(em_ap_ht_cap_t *ht, char *buf, size_t buf_len)
@@ -7520,6 +7491,7 @@ std::vector<std::string> dm_easy_mesh_ctrl_t::de_keys_radio(dm_easy_mesh_t *dm)
     }
     return keys;
 }
+
 bus_error_t dm_easy_mesh_ctrl_t::radio_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
 {
     (void) user_data;

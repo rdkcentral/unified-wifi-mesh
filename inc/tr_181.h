@@ -130,6 +130,7 @@ typedef struct {
 #define DE_NETWORK_COLAGTID     DATAELEMS_NETWORK       "ColocatedAgentID"
 #define DE_NETWORK_DEVNOE       DATAELEMS_NETWORK       "DeviceNumberOfEntries"
 #define DE_NETWORK_TIMESTAMP    DATAELEMS_NETWORK       "TimeStamp"
+#define DE_NETWORK_SSIDNOE      DATAELEMS_NETWORK       "SSIDNumberOfEntries"
 #define DE_NETWORK_SETSSID      DATAELEMS_NETWORK       "SetSSID()"
 /* Device.WiFi.DataElements.Network.SSID */
 #define DE_NETWORK_SSID         DATAELEMS_NETWORK       "SSID.{i}."
@@ -634,7 +635,6 @@ public:
     static bus_error_t network_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
     
     //SSID
-    static bus_error_t ssid_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
     static bus_error_t ssid_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
     static bus_error_t ssid_table_add_row_handler(const char* table_name, const char* alias_name, uint32_t* instance_number);
 
