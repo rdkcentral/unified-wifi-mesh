@@ -52,6 +52,7 @@
 
  void *db_client_t::execute(const char *query)
  {
+     m_last_query_succeeded = false;
      if (!m_con) {
          printf("%s:%d: Query: %s m_con is NULL, exiting\n", __func__, __LINE__, query);
          return NULL;
@@ -62,6 +63,8 @@
          printf("%s:%d: Error: %s\n", __func__, __LINE__, mysql_error(m_con));
          return NULL;
      }
+
+     m_last_query_succeeded = true;
 
      MYSQL_RES *result = mysql_store_result(m_con);
      if (!result) {
@@ -116,6 +119,11 @@
 
  char *db_client_t::get_string(void *ctx, char *str, unsigned int col)
  {
+     return get_string(ctx, str, col, 0);
+ }
+
+ char *db_client_t::get_string(void *ctx, char *str, unsigned int col, unsigned int res_sz)
+ {
      if (ctx == NULL) {
          return NULL;
      }
@@ -135,7 +143,13 @@
          return NULL;
      }
 
-     snprintf(str, lengths[col - 1] + 1, "%s", res_ctx->row[col - 1]);
+     // The field length alone is not a safe bound; a value as wide as the column overruns str
+     unsigned long copy_sz = lengths[col - 1] + 1;
+     if ((res_sz != 0) && (copy_sz > res_sz)) {
+         copy_sz = res_sz;
+     }
+
+     snprintf(str, copy_sz, "%s", res_ctx->row[col - 1]);
      return str;
  }
 
@@ -234,6 +248,7 @@
  db_client_t::db_client_t()
  {
      m_con = NULL;
+     m_last_query_succeeded = false;
  }
 
  db_client_t::~db_client_t()

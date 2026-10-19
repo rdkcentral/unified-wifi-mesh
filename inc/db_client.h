@@ -37,6 +37,7 @@
   */
  class db_client_t {
 	MYSQL *m_con;    ///< MariaDB connection instance
+	bool m_last_query_succeeded;
 
 
 	 /**!
@@ -93,6 +94,8 @@
 	  */
 	 void *execute(const char *query);
 
+	 bool last_query_succeeded() const { return m_last_query_succeeded; }
+
 
 	 /**!
 	  * @brief Retrieve the next result from the query execution.
@@ -142,7 +145,17 @@
 	  */
 	 char *get_string(void *ctx, char *res, unsigned int col);
 
-
+	 /**!
+	  * @brief Retrieve a string value, bounded by the destination buffer size.
+	  *
+	  * @param[in] ctx Result context from which the string is retrieved.
+	  * @param[out] res Buffer to store the retrieved string.
+	  * @param[in] col Column index from which to retrieve the string (1-based).
+	  * @param[in] res_sz Size of res; 0 means bound only by the database field length.
+	  *
+	  * @returns Pointer to the result buffer containing the string, or NULL on error.
+	  */
+	 char *get_string(void *ctx, char *res, unsigned int col, unsigned int res_sz);
 	 /**!
 	  * @brief Retrieve an integer value from the result context.
 	  *

@@ -28,6 +28,104 @@ class dm_easy_mesh_t;
 
 class dm_bss_list_t : public dm_bss_t, public db_easy_mesh_t, virtual public tr_181_t {
 
+    // Dynamic MAC ACL, keyed by "<bss_key>@<sta_mac>" so a BSS can hold any number of STAs
+	hash_map_t  *m_acl_sta_map;
+
+    // BSS whose ACL changed since the last DB write; get_dm_orch_type() cannot detect it
+    // because the stored and the incoming dm_bss_t are the same object.
+	em_2xlong_string_t m_acl_dirty_key;
+
+	/**!
+	 * @brief Returns the ACL map, creating it on first use.
+	 */
+	hash_map_t *get_acl_map();
+
+	void acl_clear();
+
+	/**!
+	 * @brief Flags a BSS as having pending ACL changes to persist.
+	 */
+	void acl_mark_dirty(const char *bss_key);
+
+	/**!
+	 * @brief Builds the ACL map key for a STA on a BSS.
+	 */
+	static void make_acl_key(const char *bss_key, const unsigned char *mac, char *out, unsigned int sz);
+
+public:
+	/** Releases ACL entries and map storage owned by this BSS list. */
+	~dm_bss_list_t();
+
+	/**!
+	 * @brief Applies a Client Association Control Request to the dynamic ACL of a BSS.
+	 *
+	 * Blocked STAs end up on the deny list and unblocked STAs on the allow list.
+	 *
+	 * @param[in] bss_key Composite BSS key ("net_id@dev_mac@ruid@bssid@haul_type").
+	 * @param[in] assoc_control ASSOC_CONTROL_BLOCK or ASSOC_CONTROL_UNBLOCK.
+	 * @param[in] sta_count Number of entries in sta_list.
+	 * @param[in] sta_list STA MAC addresses the request applies to.
+	 * @returns 0 on success, -1 if the input is invalid or an ACL entry cannot be stored.
+	 */
+	int acl_update(const char *bss_key, unsigned char assoc_control,
+			unsigned char sta_count, const mac_address_t *sta_list);
+
+	/**!
+	 * @brief Removes stations from a BSS allow-list.
+	 * @param[in] bss_key Composite key identifying the BSS.
+	 * @param[in] sta_count Number of entries in sta_list.
+	 * @param[in] sta_list Station MAC addresses to remove.
+	 * @returns 0 on success, -1 if the BSS key or station list is invalid.
+	 */
+	int acl_remove_stas(const char *bss_key, unsigned char sta_count,
+			const mac_address_t *sta_list);
+
+	/**!
+	 * @brief Counts the ACL entries of a BSS on one of the two lists.
+	 *
+	 * @param[in] bss_key Composite BSS key.
+	 * @param[in] blocked true for the deny list, false for the allow list.
+	 *
+	 * @returns Number of matching entries.
+	 */
+	unsigned int acl_num_macs(const char *bss_key, bool blocked);
+
+	/**!
+	 * @brief Copies a window of ACL entries of a BSS into a caller supplied array.
+	 *
+	 * Lets the caller send the ACL in chunks that fit the Client Association Control TLV.
+	 *
+	 * @param[in] bss_key Composite BSS key.
+	 * @param[in] blocked true for the deny list, false for the allow list.
+	 * @param[in] skip Number of matching entries to skip.
+	 * @param[in] max Capacity of list.
+	 * @param[out] list Array receiving the MAC addresses.
+	 *
+	 * @returns Number of entries written to list.
+	 */
+	unsigned int acl_get_macs(const char *bss_key, bool blocked, unsigned int skip,
+			unsigned int max, mac_address_t *list);
+
+	/**!
+	 * @brief Serializes the ACL entries of a BSS into a comma separated MAC list for the database.
+	 */
+	void acl_to_string(const char *bss_key, bool blocked, char *str, unsigned int sz);
+
+	/**!
+	 * @brief Rebuilds the ACL entries of a BSS from a comma separated MAC list read from the database.
+	 */
+	void acl_from_string(const char *bss_key, bool blocked, const char *str);
+
+	/**!
+	 * @brief Drops every ACL entry belonging to a BSS.
+	 */
+	void acl_remove(const char *bss_key);
+
+	/**!
+	 * @brief Adds the ACL MAC lists of a BSS to its JSON representation.
+	 */
+	void encode_acl(dm_bss_t *pbss, cJSON *obj);
+
 public:
     
 	/**!
@@ -119,6 +217,7 @@ public:
 	 * @retval non-zero on failure.
 	 *
 	 * @note Ensure that the database client is properly initialized before calling this function.
+	 * @note Invalid BSS rows are deleted from the table and ACL columns are loaded into the dynamic map.
 	 */
 	int sync_db(db_client_t& db_client, void *ctx);
     
@@ -150,6 +249,7 @@ public:
 	 *
 	 * @returns True if the entry is found, false otherwise.
 	 *
+	 * @note Consumes the complete result set so the database result context is released.
 	 * @note Ensure that the database client is properly initialized before calling this function.
 	 */
 	bool search_db(db_client_t& db_client, void *ctx, void *key);
@@ -171,10 +271,24 @@ public:
 	 * @retval 0 Success
 	 * @retval -1 Failure
 	 *
-	 * @note Ensure that the JSON object is properly formatted and that the database
-	 * client is initialized before calling this function.
+	 * @note This overload is retained for interface compatibility; BSSList updates
+	 * require device and radio MAC context and are rejected without it.
 	 */
 	int set_config(db_client_t& db_client, const cJSON *obj, void *parent_id);
+	/**!
+	 * @brief Applies one radio's BSS snapshot and reconciles its persisted rows.
+	 *
+	 * Managed STA VAPs are excluded. Invalid AP entries are ignored and prevent stale-row
+	 * cleanup; stale rows are removed only after a complete non-empty AP snapshot persists.
+	 *
+	 * @param[in] db_client Database client used to persist the snapshot.
+	 * @param[in] obj Array of BSS objects advertised by the radio.
+	 * @param[in] dev_mac Owning agent device MAC.
+	 * @param[in] radio_mac Radio MAC that owns the BSS objects.
+	 * @returns 0 on success, -1 if an update or cleanup failed.
+	 */
+	int set_config(db_client_t& db_client, const cJSON *obj, mac_address_t *dev_mac,
+			mac_address_t *radio_mac);
     
 	/**!
 	 * @brief Sets the configuration for a BSS.
@@ -274,6 +388,10 @@ public:
 	 * @note This is a pure virtual function and must be implemented by derived classes.
 	 */
 	virtual void put_bss(const char *key, const dm_bss_t *bss) = 0;
+
+	dm_bss_list_t() : m_acl_sta_map(NULL) { m_acl_dirty_key[0] = 0; }
+	dm_bss_list_t(const dm_bss_list_t&) = delete;
+	dm_bss_list_t& operator=(const dm_bss_list_t&) = delete;
 
 };
 
