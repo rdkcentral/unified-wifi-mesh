@@ -420,7 +420,8 @@ int tr_181_t::wfa_set_bus_callbackfunc_pointers(const char *full_namespace, bus_
         ELEMENT(DE_STAWF6CAPS_TWTRSP,      CALLBACK_GETTER(sta_get)),
         ELEMENT(DE_STAWF6CAPS_SPATRE,      CALLBACK_GETTER(sta_get)),
         ELEMENT(DE_STAWF6CAPS_ACU,         CALLBACK_GETTER(sta_get)),
-        ELEMENT(DE_APMLD_TABLE,            CALLBACK_GETTER(apmld_tget)),
+        /* APMLD rows are managed with registerRow/unregisterRow */
+        ELEMENT(DE_APMLD_TABLE,            CB(NULL, NULL, NULL, NULL, NULL, NULL)),
         ELEMENT(DE_APMLD_MACADDRESS,       CALLBACK_GETTER(apmld_get)),
         ELEMENT(DE_APMLD_AFFAPNOE,         CALLBACK_GETTER(apmld_get)),
         ELEMENT(DE_APMLD_STAMLDNOE,        CALLBACK_GETTER(apmld_get)),
@@ -882,17 +883,6 @@ bus_error_t tr_181_t::apmld_get(char *event_name, raw_data_t *p_data, bus_user_d
 
     if (em_ctrl != NULL) {
         return em_ctrl->get_dm_ctrl()->apmld_get(event_name, p_data);
-    }
-
-    return bus_error_general;
-}
-
-bus_error_t tr_181_t::apmld_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
-{
-    em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
-
-    if (em_ctrl != NULL) {
-        return em_ctrl->get_dm_ctrl()->apmld_tget(event_name, p_data);
     }
 
     return bus_error_general;

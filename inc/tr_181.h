@@ -1054,7 +1054,6 @@ public:
 
     //APMLD
     static bus_error_t apmld_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
-    static bus_error_t apmld_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
     static bus_error_t apmldcfg_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
     static bus_error_t apmldcfg_set(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
 

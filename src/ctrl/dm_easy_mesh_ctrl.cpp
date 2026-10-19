@@ -6390,6 +6390,8 @@ void dm_easy_mesh_ctrl_t::de_rows_sync(dm_easy_mesh_t *dm)
             }
         }
     }
+
+    sync_table_rows(de_table_apmld_path_name(dm).c_str(), de_keys_ap_mld(dm));
 }
 
 bool dm_easy_mesh_ctrl_t::de_dm_has_rows(dm_easy_mesh_t *dm)
@@ -6696,11 +6698,6 @@ bus_error_t dm_easy_mesh_ctrl_t::sta_get(char *event_name, raw_data_t *p_data)
 bus_error_t dm_easy_mesh_ctrl_t::apmld_get(char *event_name, raw_data_t *p_data)
 {
     return bus_get_cb_fwd(event_name, p_data, apmld_get_inner);
-}
-
-bus_error_t dm_easy_mesh_ctrl_t::apmld_tget(char *event_name, raw_data_t *p_data)
-{
-    return bus_get_cb_fwd(event_name, p_data, apmld_tget_inner);
 }
 
 bus_error_t dm_easy_mesh_ctrl_t::apmldcfg_get(char *event_name, raw_data_t *p_data)
@@ -8690,39 +8687,49 @@ bus_error_t dm_easy_mesh_ctrl_t::sta_get_inner(char *event_name, raw_data_t *p_d
     return rc;
 }
 
+std::string dm_easy_mesh_ctrl_t::de_key_ap_mld(const em_ap_mld_info_t *ami)
+{
+    /* The haul type identifies an AP MLD even when its MLD MAC is not known yet */
+    return std::to_string(static_cast<int>(ami->haul_type));
+}
+
+std::vector<std::string> dm_easy_mesh_ctrl_t::de_keys_ap_mld(dm_easy_mesh_t *dm)
+{
+    std::vector<std::string> keys;
+
+    for (unsigned int i = 0; i < dm->get_num_ap_mld(); i++) {
+        keys.push_back(de_key_ap_mld(dm->get_ap_mld(i)->get_ap_mld_info()));
+    }
+
+    return keys;
+}
+
+std::string dm_easy_mesh_ctrl_t::de_table_apmld_path_name(dm_easy_mesh_t *dm)
+{
+    return std::string(DATAELEMS_NETWORK "Device.") + std::to_string(dm->get_id()) + ".APMLD.";
+}
+
 dm_ap_mld_t *dm_easy_mesh_ctrl_t::get_dm_ap_mld(dm_easy_mesh_t *dm, char *instance, bool is_num)
 {
-    dm_ap_mld_t *ap_mld = NULL;
+    std::string key;
 
     if ((dm == NULL) || (instance == NULL) || (instance[0] == '\0')) {
         return NULL;
     }
 
     if (is_num) {
-        int requested_instance = atoi(instance);
-        if (requested_instance <= 0) {
-            return NULL;
-        }
-        unsigned int idx = static_cast<unsigned int>(requested_instance - 1);
-        if (idx >= dm->get_num_ap_mld()) {
-            return NULL;
-        }
-        ap_mld = dm->get_ap_mld(idx);
-        return ap_mld;
+        key = get_table_row_key(de_table_apmld_path_name(dm).c_str(), static_cast<uint32_t>(atoi(instance)));
+    } else {
+        key = instance;
     }
 
     for (unsigned int i = 0; i < dm->get_num_ap_mld(); i++) {
-        char mac_str[18];
-        ap_mld = dm->get_ap_mld(i);
+        dm_ap_mld_t *ap_mld = dm->get_ap_mld(i);
         if (ap_mld == NULL) {
             continue;
         }
         em_ap_mld_info_t *ami = ap_mld->get_ap_mld_info();
-        if (!ami->mac_addr_valid) {
-            continue;
-        }
-        dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *> (ami->mac_addr), mac_str);
-        if (strcmp(instance, mac_str) == 0) {
+        if (key == de_key_ap_mld(ami) || (ami->mac_addr_valid && key == de_key(ami->mac_addr))) {
             return ap_mld;
         }
     }
@@ -8774,84 +8781,12 @@ bus_error_t dm_easy_mesh_ctrl_t::apmld_get_inner(char *event_name, raw_data_t *p
     if (strcmp(param, "MLDMACAddress") == 0) {
         rc = dm_ctrl->raw_data_set(p_data, ami->mac_addr);
     } else if (strcmp(param, "AffiliatedAPNumberOfEntries") == 0) {
-        rc = dm_ctrl->raw_data_set(p_data, ami->num_affiliated_ap);
+        rc = dm_ctrl->raw_data_set(p_data, static_cast<unsigned int>(ami->num_affiliated_ap));
     } else if (strcmp(param, "STAMLDNumberOfEntries") == 0) {
-        rc = dm_ctrl->raw_data_set(p_data, 0);
+        rc = dm_ctrl->raw_data_set(p_data, dm_ctrl->de_num_sta_mld(dm, ami));
     } else {
         em_printfout("Invalid param: %s", param);
         rc = bus_error_destination_not_found;
-    }
-
-    return rc;
-}
-
-bus_error_t dm_easy_mesh_ctrl_t::apmld_tget_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
-{
-    (void) user_data;
-    const char *name = event_name;
-    const char *root = name;
-    char instance[MAX_INSTANCE_LEN] = { 0 };
-    bool is_num;
-    bus_data_prop_t *property = NULL;
-    bus_error_t rc;
-
-    if (!name || !p_data) {
-        return bus_error_invalid_input;
-    }
-    if (*(name + (strlen(name) - 1)) != '.') {
-        /* Only partial paths are valid */
-        return bus_error_invalid_operation;
-    }
-
-    dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
-
-    /* Extract device instance (numeric or alias) and find the dm object for
-     * that device instance */
-    name += sizeof(DATAELEMS_NETWORK);
-    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
-    dm_easy_mesh_t *dm = dm_ctrl->get_dm_easy_mesh(instance, is_num);
-    if (dm == NULL) {
-        em_printfout("Device not found");
-        return bus_error_invalid_namespace;
-    }
-
-    rc = dm_ctrl->apmld_tget_params(dm, root, &property);
-    if (rc == bus_error_success && property) {
-        dm_ctrl->raw_data_set(p_data, property);
-    }
-
-    return rc;
-}
-
-bus_error_t dm_easy_mesh_ctrl_t::apmld_tget_params(dm_easy_mesh_t *dm, const char *root, bus_data_prop_t **property)
-{
-    char path[512];
-    bus_error_t rc = bus_error_success;
-    dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
-
-    for (unsigned int idx = 1; idx <= dm->get_num_ap_mld(); idx++) {
-        /* Get ap_mld dm object for numeric instance */
-        dm_ap_mld_t *ap_mld = dm->get_ap_mld(idx - 1);
-        if (ap_mld == NULL) {
-            continue;
-        }
-        /* Get info structure for ap_mld object */
-        em_ap_mld_info_t *ami = ap_mld->get_ap_mld_info();
-
-        dm_ctrl->property_append_tail(property, root, idx, "MLDMACAddress", ami->mac_addr);
-        dm_ctrl->property_append_tail(property, root, idx, "AffiliatedAPNumberOfEntries", ami->num_affiliated_ap);
-        dm_ctrl->property_append_tail(property, root, idx, "STAMLDNumberOfEntries", 0);
-
-        dm_ctrl->property_append_tail(property, root, idx, "APMLDConfig.EMLMREnabled", ami->emlmr);
-        dm_ctrl->property_append_tail(property, root, idx, "APMLDConfig.EMLSREnabled", ami->emlsr);
-        dm_ctrl->property_append_tail(property, root, idx, "APMLDConfig.STREnabled", ami->str);
-        dm_ctrl->property_append_tail(property, root, idx, "APMLDConfig.NSTREnabled", ami->nstr);
-
-        snprintf(path, sizeof(path) - 1, "%s%d.AffiliatedAP.", root, idx);
-        dm_ctrl->affap_tget_params(dm, path, ami, property);
-
-        snprintf(path, sizeof(path) - 1, "%s%d.STAMLD.", root, idx);
-        dm_ctrl->stamld_tget_params(dm, path, ami, property);
     }
 
     return rc;
@@ -9216,6 +9151,24 @@ bus_error_t dm_easy_mesh_ctrl_t::affap_tget_params(dm_easy_mesh_t *dm, const cha
     }
 
     return rc;
+}
+
+bool dm_easy_mesh_ctrl_t::de_sta_mld_of_ap_mld(em_ap_mld_info_t *ami, em_assoc_sta_mld_info_t *smi)
+{
+    return memcmp(ami->mac_addr, smi->ap_mld_mac_addr, sizeof(mac_address_t)) == 0;
+}
+
+unsigned int dm_easy_mesh_ctrl_t::de_num_sta_mld(dm_easy_mesh_t *dm, em_ap_mld_info_t *ami)
+{
+    unsigned int count = 0;
+
+    for (unsigned int i = 0; i < dm->get_num_assoc_sta_mld(); i++) {
+        if (de_sta_mld_of_ap_mld(ami, dm->m_assoc_sta_mld[i].get_assoc_sta_mld_info())) {
+            count++;
+        }
+    }
+
+    return count;
 }
 
 dm_assoc_sta_mld_t *dm_easy_mesh_ctrl_t::get_dm_sta_mld(dm_easy_mesh_t *dm, em_ap_mld_info_t *ami, char *instance, bool is_num)
