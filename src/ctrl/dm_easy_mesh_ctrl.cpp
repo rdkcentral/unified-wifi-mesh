@@ -6373,6 +6373,11 @@ void dm_easy_mesh_ctrl_t::de_rows_sync(dm_easy_mesh_t *dm)
         if (!table.empty()) {
             sync_table_rows(table.c_str(), de_keys_op_class(dm, ri, em_op_class_type_capability));
         }
+
+        table = de_table_bss_path_name(dm, ri);
+        if (!table.empty()) {
+            sync_table_rows(table.c_str(), de_keys_bss(dm, ri));
+        }
     }
 }
 
@@ -6670,11 +6675,6 @@ bus_error_t dm_easy_mesh_ctrl_t::capops_get(char *event_name, raw_data_t *p_data
 bus_error_t dm_easy_mesh_ctrl_t::bss_get(char *event_name, raw_data_t *p_data)
 {
     return bus_get_cb_fwd(event_name, p_data, bss_get_inner);
-}
-
-bus_error_t dm_easy_mesh_ctrl_t::bss_tget(char *event_name, raw_data_t *p_data)
-{
-    return bus_get_cb_fwd(event_name, p_data, bss_tget_inner);
 }
 
 bus_error_t dm_easy_mesh_ctrl_t::sta_get(char *event_name, raw_data_t *p_data)
@@ -7576,7 +7576,7 @@ bus_error_t dm_easy_mesh_ctrl_t::radio_get_inner(char *event_name, raw_data_t *p
     } else if (strcmp(param, "CurrentOperatingClassProfileNumberOfEntries") == 0) {
         rc = dm_ctrl->raw_data_set(p_data, dm_ctrl->de_num_op_class(dm, ri, em_op_class_type_current));
     } else if (strcmp(param, "BSSNumberOfEntries") == 0) {
-        rc = dm_ctrl->raw_data_set(p_data, ri->number_of_bss);
+        rc = dm_ctrl->raw_data_set(p_data, dm_ctrl->de_num_bss(dm, ri));
     } else if (strcmp(param, "X_AIRTIES_Temperature") == 0) {
         rc = dm_ctrl->raw_data_set(p_data, ri->radio_temp);
     } else {
@@ -8321,34 +8321,53 @@ bus_error_t dm_easy_mesh_ctrl_t::capops_get_inner(char *event_name, raw_data_t *
     return rc;
 }
 
+bool dm_easy_mesh_ctrl_t::de_bss_of_radio(em_radio_info_t *ri, em_bss_info_t *bi)
+{
+    return memcmp(bi->bssid.mac, ZERO_MAC_ADDR, sizeof(mac_address_t)) != 0 &&
+           memcmp(ri->id.ruid, bi->ruid.mac, sizeof(mac_address_t)) == 0;
+}
+
+std::vector<std::string> dm_easy_mesh_ctrl_t::de_keys_bss(dm_easy_mesh_t *dm, em_radio_info_t *ri)
+{
+    std::vector<std::string> keys;
+
+    for (unsigned int i = 0; i < dm->get_num_bss(); i++) {
+        dm_bss_t *bss = dm->get_bss(i);
+        if (bss != NULL && de_bss_of_radio(ri, bss->get_bss_info())) {
+            keys.push_back(de_key(bss->get_bss_info()->bssid.mac));
+        }
+    }
+
+    return keys;
+}
+
+unsigned int dm_easy_mesh_ctrl_t::de_num_bss(dm_easy_mesh_t *dm, em_radio_info_t *ri)
+{
+    return static_cast<unsigned int>(de_keys_bss(dm, ri).size());
+}
+
+std::string dm_easy_mesh_ctrl_t::de_table_bss_path_name(dm_easy_mesh_t *dm, em_radio_info_t *ri)
+{
+    return de_child_table(de_table_radio_path_name(dm), de_key(ri->id.ruid), "BSS.");
+}
+
 dm_bss_t *dm_easy_mesh_ctrl_t::get_dm_bss(dm_easy_mesh_t *dm, em_radio_info_t *ri, char *instance, bool is_num)
 {
-    unsigned int bcnt = 0;
-    unsigned int idx = 0;
-    mac_address_t mac = { 0 };
+    std::string key;
 
     if (is_num) {
-        idx = static_cast<unsigned int>(atoi(instance));
+        key = get_table_row_key(de_table_bss_path_name(dm, ri).c_str(), static_cast<uint32_t>(atoi(instance)));
     } else {
-        dm_easy_mesh_t::string_to_macbytes(instance, mac);
+        key = instance;
     }
 
     for (unsigned int i = 0; i < dm->get_num_bss(); i++) {
         dm_bss_t *bss = dm->get_bss(i);
-        em_bss_info_t *bi = bss->get_bss_info();
-        if (memcmp(ri->id.ruid, bi->ruid.mac, sizeof(mac_address_t)) != 0 ||
-            memcmp(bi->bssid.mac, ZERO_MAC_ADDR, sizeof(ZERO_MAC_ADDR)) == 0) {
+        if (bss == NULL || !de_bss_of_radio(ri, bss->get_bss_info())) {
             continue;
         }
-        ++bcnt;
-        if (is_num) {
-            if (bcnt == idx) {
-                return bss;
-            }
-        } else {
-            if (memcmp(mac, bi->bssid.mac, sizeof(mac_address_t)) == 0) {
-                return bss;
-            }
+        if (key == de_key(bss->get_bss_info()->bssid.mac)) {
+            return bss;
         }
     }
 
@@ -8387,11 +8406,8 @@ bus_error_t dm_easy_mesh_ctrl_t::bss_get_inner(char *event_name, raw_data_t *p_d
     const char *name = event_name;
     const char *param;
     char val_str[MAX_EM_BUFF_SZ] = { 0 };
-    unsigned int i = 0;
-    int count = 0;
     char instance[MAX_INSTANCE_LEN] = { 0 };
     bool is_num;
-    int bss_instance = 0;
     bus_error_t rc;
 
     if (!name || !p_data) {
@@ -8423,27 +8439,14 @@ bus_error_t dm_easy_mesh_ctrl_t::bss_get_inner(char *event_name, raw_data_t *p_d
         return bus_error_invalid_input;
     }
     em_radio_info_t *ri = radio->get_radio_info();
-    em_bss_info_t *bi;
-    mac_addr_str_t  radio_str, bss_str;
 
     name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
-    bss_instance = is_num ? atoi(instance) : 0;
-    for(i = 0; i < dm->m_num_bss; i++) {
-        bi = dm->get_bss_info(i);
-        dm_easy_mesh_t::macbytes_to_string(bi->ruid.mac, bss_str);
-        dm_easy_mesh_t::macbytes_to_string(ri->id.ruid, radio_str);
-        if(memcmp(ri->id.ruid, bi->ruid.mac, sizeof(mac_address_t)) == 0 &&
-           memcmp(bi->bssid.mac, ZERO_MAC_ADDR, sizeof(ZERO_MAC_ADDR)) != 0) {
-            count++;
-            if(count == bss_instance) {
-                break;
-            }
-        }
-    }
-    if (bss_instance < 1 || count != bss_instance) {
-        em_printfout("BSS not found");
+    dm_bss_t *bss = dm_ctrl->get_dm_bss(dm, ri, instance, is_num);
+    if (bss == NULL) {
+        em_printfout("bss not found");
         return bus_error_invalid_namespace;
     }
+    em_bss_info_t *bi = bss->get_bss_info();
 
     if (strcmp(param, "BSSID") == 0) {
         rc = dm_ctrl->raw_data_set(p_data, bi->bssid.mac);
@@ -8514,96 +8517,6 @@ bus_error_t dm_easy_mesh_ctrl_t::bss_get_inner(char *event_name, raw_data_t *p_d
     } else {
         em_printfout("Invalid param: %s\n", param);
         rc = bus_error_invalid_input;
-    }
-
-    return rc;
-}
-
-bus_error_t dm_easy_mesh_ctrl_t::bss_tget_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
-{
-    (void) user_data;
-    const char *name = event_name;
-    const char *root = name;
-    bus_data_prop_t *property = NULL;
-    char instance[MAX_INSTANCE_LEN] = { 0 };
-    bool is_num;
-    bus_error_t rc;
-
-    if (!name || !p_data) {
-        return bus_error_invalid_input;
-    }
-    if (*(name + (strlen(name) - 1)) != '.') {
-        /* Only partial paths are valid */
-        return bus_error_invalid_operation;
-    }
-
-     dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
-
-    /* Extract device instance (numeric or alias) and find the dm object for
-     * that device instance */
-    name += sizeof(DATAELEMS_NETWORK);
-    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
-    dm_easy_mesh_t *dm = dm_ctrl->get_dm_easy_mesh(instance, is_num);
-    if (dm == NULL) {
-        printf("device not found\n");
-        return bus_error_invalid_namespace;
-    }
-
-    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
-    dm_radio_t *radio = dm_ctrl->get_dm_radio(dm, instance, is_num);
-    if (radio == NULL) {
-        em_printfout("radio is NULL\n");
-        return bus_error_invalid_input;
-    }
-    em_radio_info_t *ri = radio->get_radio_info();
-
-    rc = dm_ctrl->bss_tget_params(dm, root, ri, &property);
-    if (rc == bus_error_success && property) {
-        dm_ctrl->raw_data_set(p_data, property);
-    }
-
-    return rc;
-}
-
-bus_error_t dm_easy_mesh_ctrl_t::bss_tget_params(dm_easy_mesh_t *dm, const char *root, em_radio_info_t *ri, bus_data_prop_t **property)
-{
-    char path[512];
-    char val_str[MAX_EM_BUFF_SZ] = { 0 };
-    bus_error_t rc = bus_error_success;
-
-    dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
-    unsigned int idx = 0;
-    for (unsigned int i = 0; i < dm->get_num_bss(); i++) {
-        dm_bss_t *bss = dm->get_bss(i);
-        if (bss == NULL) {
-            continue;
-        }
-        em_bss_info_t *bi = bss->get_bss_info();
-        /* bss_get_inner(), sta_get_inner(), sta_tget_inner() and get_dm_bss() number the rows the same way. */
-        if (memcmp(bi->bssid.mac, ZERO_MAC_ADDR, sizeof(ZERO_MAC_ADDR)) == 0 ||
-            memcmp(ri->id.ruid, bi->ruid.mac, sizeof(bi->ruid.mac)) != 0) {
-            continue;
-        }
-        ++idx;
-
-        dm_ctrl->property_append_tail(property, root, idx, "BSSID", bi->bssid.mac);
-        dm_ctrl->property_append_tail(property, root, idx, "SSID", bi->ssid);
-        dm_ctrl->property_append_tail(property, root, idx, "Enabled", bi->enabled);
-        dm_ctrl->property_append_tail(property, root, idx, "ByteCounterUnits", bi->byte_counter_units);
-        dm_ctrl->property_append_tail(property, root, idx, "BackhaulUse", (bi->id.haul_type == em_haul_type_backhaul));
-        dm_ctrl->property_append_tail(property, root, idx, "FronthaulUse", (bi->id.haul_type == em_haul_type_fronthaul));
-        memset(val_str, 0, sizeof(val_str));
-        dm_ctrl->fill_bss_akms_allowed(dm, bi, false, val_str, sizeof(val_str));
-        dm_ctrl->property_append_tail(property, root, idx, "FronthaulAKMsAllowed", val_str);
-        dm_ctrl->property_append_tail(property, root, idx, "FronthaulSuiteSelector", 0U);
-        memset(val_str, 0, sizeof(val_str));
-        dm_ctrl->fill_bss_akms_allowed(dm, bi, true, val_str, sizeof(val_str));
-        dm_ctrl->property_append_tail(property, root, idx, "BackhaulAKMsAllowed", val_str);
-        dm_ctrl->property_append_tail(property, root, idx, "BackhaulSuiteSelector", 0U);
-        dm_ctrl->property_append_tail(property, root, idx, "STANumberOfEntries", bi->numberofsta);
-
-        snprintf(path, sizeof(path) - 1, "%s%d.STA.", root, idx);
-        dm_ctrl->sta_tget_params(dm, path, bi, property);
     }
 
     return rc;

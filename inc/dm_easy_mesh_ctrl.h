@@ -131,12 +131,17 @@ public:
      * @param[in] buf_len Size of the output buffer.
      */
     void fill_bss_akms_allowed(dm_easy_mesh_t *dm, em_bss_info_t *bi, bool backhaul, char *buf, size_t buf_len);
+    /* True if the BSS is a BSS.{i} of the radio (BSSs with a zero BSSID are not reported) */
+    static bool de_bss_of_radio(em_radio_info_t *ri, em_bss_info_t *bi);
+    /* BSSIDs of the BSS.{i} rows of a radio */
+    static std::vector<std::string> de_keys_bss(dm_easy_mesh_t *dm, em_radio_info_t *ri);
+    /* Name of the Device.{i}.Radio.{i}.BSS. table of a radio, empty if the radio has no row */
+    std::string de_table_bss_path_name(dm_easy_mesh_t *dm, em_radio_info_t *ri);
+    /* Number of BSS.{i} rows of a radio */
+    static unsigned int de_num_bss(dm_easy_mesh_t *dm, em_radio_info_t *ri);
     dm_bss_t *get_dm_bss(dm_easy_mesh_t *dm, em_radio_info_t *ri, char *instance, bool is_num);
     bus_error_t bss_get(char* event_name, raw_data_t* p_data);
     static bus_error_t bss_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
-    bus_error_t bss_tget(char* event_name, raw_data_t* p_data);
-    static bus_error_t bss_tget_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
-    static bus_error_t bss_tget_params(dm_easy_mesh_t *dm, const char *root, em_radio_info_t *ri, bus_data_prop_t **property);
 
     /* Ids of the Network.SSID.{i} rows (network SSIDs are the same in all the data models) */
     std::vector<std::string> de_keys_ssid();

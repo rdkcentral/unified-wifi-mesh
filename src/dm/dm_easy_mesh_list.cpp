@@ -649,7 +649,9 @@ void dm_easy_mesh_list_t::remove_bss(const char *key)
 
 	for (i = 0; i < dm->m_num_bss; i++) {
 		if (memcmp(dm->m_bss[i].m_bss_info.bssid.mac, id.bssid, sizeof(bssid_t)) == 0) {
-			return dm->remove_bss_by_index(i);
+			dm->remove_bss_by_index(i);
+			m_mgr->dm_updated(dm);
+			return;
 		}
 	}
 }
@@ -677,6 +679,7 @@ void dm_easy_mesh_list_t::put_bss(const char *key, const dm_bss_t *bss)
 	}	
 
 	*pbss = *bss;
+	m_mgr->dm_updated(dm);
 }
 
 dm_sta_t *dm_easy_mesh_list_t::get_first_sta()
