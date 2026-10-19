@@ -34,6 +34,7 @@
 #include <sys/socket.h>
 #include <sys/uio.h>
 #include <sys/time.h>
+#include <sys/stat.h>
 #include <unistd.h>
 #include <unordered_map>
 #include <string>
@@ -239,6 +240,8 @@ int dm_easy_mesh_agent_t::analyze_autoconfig_renew(em_bus_event_t *evt, em_cmd_t
     em_cmd_t *tmp;
     mac_addr_str_t mac_str;
 
+    m_cfg_renew_in_progress = true;
+
     raw = reinterpret_cast<em_bus_event_type_cfg_renew_params_t *>(evt->u.raw_buff);
     memcpy(dm.get_controller_interface_mac(), raw->ctrl_src, sizeof(mac_address_t));
     memcpy(dm.get_radio(index)->get_radio_info()->intf.mac, raw->radio, sizeof(mac_address_t));
@@ -284,6 +287,131 @@ void dm_easy_mesh_agent_t::translate_onewifi_dml_data (char *str)
         
 }
 
+void dm_easy_mesh_agent_t::update_easymesh_cfg_backhaul(const char *ssid, const char *passphrase)
+{
+    FILE *fp = fopen(EM_CFG_FILE, "r");
+    if (fp == NULL) {
+        printf("%s:%d: Failed to open %s for reading\n", __func__, __LINE__, EM_CFG_FILE);
+        return;
+    }
+
+    fseek(fp, 0, SEEK_END);
+    long fsize = ftell(fp);
+    fseek(fp, 0, SEEK_SET);
+
+    char *buf = static_cast<char *>(malloc(static_cast<size_t>(fsize) + 1));
+    if (buf == NULL) {
+        fclose(fp);
+        return;
+    }
+    fread(buf, 1, static_cast<size_t>(fsize), fp);
+    buf[fsize] = '\0';
+    fclose(fp);
+
+    cJSON *root = cJSON_Parse(buf);
+    free(buf);
+    if (root == NULL) {
+        printf("%s:%d: Failed to parse %s\n", __func__, __LINE__, EM_CFG_FILE);
+        return;
+    }
+
+    // Update or add Backhaul_SSID and Backhaul_KeyPassphrase
+    if (cJSON_HasObjectItem(root, "Backhaul_SSID")) {
+        cJSON_ReplaceItemInObject(root, "Backhaul_SSID", cJSON_CreateString(ssid));
+    } else {
+        cJSON_AddStringToObject(root, "Backhaul_SSID", ssid);
+    }
+
+    if (cJSON_HasObjectItem(root, "Backhaul_KeyPassphrase")) {
+        cJSON_ReplaceItemInObject(root, "Backhaul_KeyPassphrase", cJSON_CreateString(passphrase));
+    } else {
+        cJSON_AddStringToObject(root, "Backhaul_KeyPassphrase", passphrase);
+    }
+
+    char *json_str = cJSON_Print(root);
+    cJSON_Delete(root);
+    if (json_str == NULL) {
+        printf("%s:%d: Failed to serialize %s\n", __func__, __LINE__, EM_CFG_FILE);
+        return;
+    }
+
+    struct stat cfg_stat;
+    if (stat(EM_CFG_FILE, &cfg_stat) != 0) {
+        printf("%s:%d: Failed to get permissions for %s: %s\n",
+               __func__, __LINE__, EM_CFG_FILE, strerror(errno));
+        free(json_str);
+        return;
+    }
+
+    const size_t temp_path_len = strlen(EM_CFG_FILE) + sizeof(".XXXXXX");
+    char *temp_path = static_cast<char *>(malloc(temp_path_len));
+    if (temp_path == NULL) {
+        printf("%s:%d: Failed to allocate temporary path for %s\n",
+               __func__, __LINE__, EM_CFG_FILE);
+        free(json_str);
+        return;
+    }
+    snprintf(temp_path, temp_path_len, "%s.XXXXXX", EM_CFG_FILE);
+
+    int temp_fd = mkstemp(temp_path);
+    if (temp_fd == -1) {
+        printf("%s:%d: Failed to create temporary file for %s: %s\n",
+               __func__, __LINE__, EM_CFG_FILE, strerror(errno));
+        free(temp_path);
+        free(json_str);
+        return;
+    }
+
+    bool write_success = true;
+    int write_error = 0;
+    if (fchmod(temp_fd, cfg_stat.st_mode & 07777) != 0) {
+        write_success = false;
+        write_error = errno;
+    }
+
+    fp = write_success ? fdopen(temp_fd, "w") : NULL;
+    if (fp == NULL) {
+        if (write_success) {
+            write_error = errno;
+        }
+        close(temp_fd);
+        write_success = false;
+    } else {
+        if (fputs(json_str, fp) == EOF || fflush(fp) != 0 || fsync(fileno(fp)) != 0) {
+            write_success = false;
+            write_error = errno;
+        }
+        if (fclose(fp) != 0) {
+            if (write_success) {
+                write_error = errno;
+            }
+            write_success = false;
+        }
+    }
+
+    if (!write_success) {
+        printf("%s:%d: Failed to write temporary configuration for %s: %s\n",
+               __func__, __LINE__, EM_CFG_FILE, strerror(write_error));
+        unlink(temp_path);
+        free(temp_path);
+        free(json_str);
+        return;
+    }
+
+    if (rename(temp_path, EM_CFG_FILE) != 0) {
+        printf("%s:%d: Failed to replace %s: %s\n",
+               __func__, __LINE__, EM_CFG_FILE, strerror(errno));
+        unlink(temp_path);
+        free(temp_path);
+        free(json_str);
+        return;
+    }
+
+    printf("%s:%d: Updated %s with Backhaul_SSID=%s\n", __func__, __LINE__, EM_CFG_FILE, ssid);
+    free(temp_path);
+    free(json_str);
+}
+
 int dm_easy_mesh_agent_t::analyze_m2ctrl_configuration(em_bus_event_t *evt, wifi_bus_desc_t *desc,bus_handle_t *bus_hdl)
 {
     m2ctrl_radioconfig *radioconfig;
@@ -303,10 +431,42 @@ int dm_easy_mesh_agent_t::analyze_m2ctrl_configuration(em_bus_event_t *evt, wifi
         memcpy(m2ctrl.dpp_connector[i], radioconfig->dpp_connector[i], sizeof(m2ctrl.dpp_connector[i]));
 		dm_easy_mesh_t::macbytes_to_string(radioconfig->radio_mac[i],mac_str);
 		printf("%s:%d New configuration SSID=%s  passphrase=%s haultype=%d radiomac=%s\n",__func__, __LINE__,m2ctrl.ssid[i], m2ctrl.password[i], m2ctrl.haultype[i],mac_str);
+
+		// Update EasymeshCfg.json when backhaul SSID/passphrase changes via M8
+		if (m2ctrl.haultype[i] == em_haul_type_backhaul) {
+			update_easymesh_cfg_backhaul(m2ctrl.ssid[i], m2ctrl.password[i]);
+		}
 	}
 
-    return refresh_onewifi_subdoc(desc, bus_hdl, "Private", get_subdoc_vap_type_for_freq(radioconfig->freq[0]), &m2ctrl, NULL);
-}    
+    // Push Private subdoc to reconfigure AP-side BSSes.
+    int ret = 0;
+    ret = refresh_onewifi_subdoc(desc, bus_hdl, "Private", get_subdoc_vap_type_for_freq(radioconfig->freq[0]), &m2ctrl, NULL);
+
+    // During BH reconfig cfg_renew (M8 present), update bSTA credentials and
+    // defer mesh_backhaul_sta push to cfg_renew completion in em_orch.cpp.
+    if (m_cfg_renew_in_progress && radioconfig->is_bh_reconfig) {
+        em_bss_info_t *bsta_check = get_bsta_bss_info();
+        bool has_active_bsta = (bsta_check != NULL &&
+            bsta_check->connect_status &&
+            memcmp(bsta_check->bssid.mac, ZERO_MAC_ADDR, sizeof(mac_address_t)) != 0);
+
+        if (has_active_bsta) {
+            for (unsigned int i = 0; i < m2ctrl.noofbssconfig; i++) {
+                if (m2ctrl.haultype[i] == em_haul_type_backhaul) {
+                    memset(bsta_check->ssid, 0, sizeof(bsta_check->ssid));
+                    strncpy(bsta_check->ssid, m2ctrl.ssid[i], sizeof(bsta_check->ssid) - 1);
+                    memset(bsta_check->mesh_sta_passphrase, 0, sizeof(bsta_check->mesh_sta_passphrase));
+                    strncpy(bsta_check->mesh_sta_passphrase, m2ctrl.password[i],
+                            sizeof(bsta_check->mesh_sta_passphrase) - 1);
+                    m_bsta_reconnect_pending = true;
+                    break;
+                }
+            }
+        }
+    }
+
+    return ret;
+}
 
 int dm_easy_mesh_agent_t::analyze_onewifi_vap_cb(em_bus_event_t *evt, em_cmd_t *pcmd[])
 {

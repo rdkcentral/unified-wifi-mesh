@@ -72,6 +72,7 @@ class em_t :
 
 	bool m_is_dpp_onboarding = false;
 	bool m_ssid_mismatch = false;
+	unsigned int m_acl_cfg_retry_count = 0;
 
 	std::map<std::string, peer_1905_security_status> m_1905_layer_peer_security_statuses;
 
@@ -523,6 +524,17 @@ public:
 	 * @note Ensure that the state provided is valid and within the expected range of states.
 	 */
 	void set_state(em_state_t state) {  m_sm.set_state(state); }
+
+	void reset_acl_cfg_retry_count() { m_acl_cfg_retry_count = 0; }
+	bool try_acl_cfg_retry()
+	{
+		if (m_acl_cfg_retry_count >= EM_MAX_ACL_CFG_RETRIES) {
+			return false;
+		}
+		++m_acl_cfg_retry_count;
+		return true;
+	}
+	unsigned int get_acl_cfg_retry_count() const { return m_acl_cfg_retry_count; }
 	
 	/**!
 	 * @brief Retrieves the service type.

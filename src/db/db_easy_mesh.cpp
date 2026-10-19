@@ -24,6 +24,7 @@
 #include <assert.h>
 #include <signal.h>
 #include "db_easy_mesh.h"
+#include "util.h"
 
 char *db_easy_mesh_t::get_column_format(db_fmt_t fmt, unsigned int pos)
 {
@@ -46,6 +47,7 @@ char *db_easy_mesh_t::get_column_format(db_fmt_t fmt, unsigned int pos)
         case db_data_type_bigint:
             snprintf(fmt, sizeof(db_fmt_t), "%s", "%d, ");
             break;
+
         default:
             break;
     }
@@ -146,7 +148,7 @@ int db_easy_mesh_t::insert_row(db_client_t& db_client, ...)
     ctx = db_client.execute(query);
     db_client.free_result(ctx);
 
-    return 0;
+    return db_client.last_query_succeeded() ? 0 : -1;
 }
 
 int db_easy_mesh_t::update_row(db_client_t& db_client, ...)
@@ -182,7 +184,7 @@ int db_easy_mesh_t::update_row(db_client_t& db_client, ...)
     ctx = db_client.execute(query);
     db_client.free_result(ctx);
 
-    return 0;
+    return db_client.last_query_succeeded() ? 0 : -1;
 }
 
 int db_easy_mesh_t::compare_row(db_client_t& db_client, ...)
@@ -239,7 +241,7 @@ int db_easy_mesh_t::delete_row(db_client_t& db_client, ...)
     ctx = db_client.execute(query);
     db_client.free_result(ctx);
 
-    return 0;
+    return db_client.last_query_succeeded() ? 0 : -1;
 }
 
 
@@ -247,13 +249,16 @@ int db_easy_mesh_t::sync_table(db_client_t& db_client)
 {
     db_query_t    query;
     void *ctx;
+    int ret;
 
     memset(query, 0, sizeof(db_query_t));
     snprintf(query, sizeof(db_query_t), "select * from %s", m_table_name);
 
     ctx = db_client.execute(query);
 
-    return sync_db(db_client, ctx);
+    ret = sync_db(db_client, ctx);
+
+    return ret;
 
 }
 
@@ -292,55 +297,7 @@ int db_easy_mesh_t::create_table(db_client_t& db_client)
         snprintf(query + strlen(query), sizeof(query) - strlen(query), "%s", m_columns[i].m_name);
         snprintf(query + strlen(query), sizeof(query) - strlen(query), "%s", " ");
 
-        switch (m_columns[i].m_type) {
-            case db_data_type_char:
-                snprintf(type_str, sizeof(type_str), "char(%d)", m_columns[i].m_type_args);
-                break;
-
-            case db_data_type_varchar:
-                snprintf(type_str, sizeof(type_str), "varchar(%d)", m_columns[i].m_type_args);
-                break;
-
-            case db_data_type_binary:
-                snprintf(type_str, sizeof(type_str), "binary(%d)", m_columns[i].m_type_args);
-                break;
-
-            case db_data_type_varbinary:
-                snprintf(type_str, sizeof(type_str), "varbinary(%d)", m_columns[i].m_type_args);
-                break;
-
-            case db_data_type_text:
-                snprintf(type_str, sizeof(type_str), "text(%d)", m_columns[i].m_type_args);
-                break;
-
-            case db_data_type_integer:
-                snprintf(type_str, sizeof(type_str), "integer");
-                break;
-
-            case db_data_type_int:
-                snprintf(type_str, sizeof(type_str), "int");
-                break;
-
-            case db_data_type_smallint:
-                snprintf(type_str, sizeof(type_str), "smallint");
-                break;
-
-            case db_data_type_bigint:
-                snprintf(type_str, sizeof(type_str), "bigint");
-                break;
-
-            case db_data_type_tinyint:
-                snprintf(type_str, sizeof(type_str), "tinyint");
-                break;
-
-            case db_data_type_mediumint:
-                snprintf(type_str, sizeof(type_str), "mediumint");
-                break;
-
-            default:
-                assert(0);
-                break;	
-        }
+        get_column_type(i, type_str, sizeof(type_str));
         snprintf(query + strlen(query), sizeof(query) - strlen(query), "%s", type_str);
         snprintf(query + strlen(query), sizeof(query) - strlen(query), "%s", ", ");
     }
@@ -349,6 +306,150 @@ int db_easy_mesh_t::create_table(db_client_t& db_client)
     query[strlen(query) - 1] = 0;
     db_client.execute(query);
     //printf("%s:%d: Query: %s\n", __func__, __LINE__, query);
+
+    return 0;
+}
+
+char *db_easy_mesh_t::get_column_type(unsigned int pos, char *type_str, unsigned int sz)
+{
+    switch (m_columns[pos].m_type) {
+        case db_data_type_char:
+            snprintf(type_str, sz, "char(%d)", m_columns[pos].m_type_args);
+            break;
+
+        case db_data_type_varchar:
+            snprintf(type_str, sz, "varchar(%d)", m_columns[pos].m_type_args);
+            break;
+
+        case db_data_type_binary:
+            snprintf(type_str, sz, "binary(%d)", m_columns[pos].m_type_args);
+            break;
+
+        case db_data_type_varbinary:
+            snprintf(type_str, sz, "varbinary(%d)", m_columns[pos].m_type_args);
+            break;
+
+        case db_data_type_text:
+            snprintf(type_str, sz, "text(%d)", m_columns[pos].m_type_args);
+            break;
+
+        case db_data_type_integer:
+            snprintf(type_str, sz, "integer");
+            break;
+
+        case db_data_type_int:
+            snprintf(type_str, sz, "int");
+            break;
+
+        case db_data_type_smallint:
+            snprintf(type_str, sz, "smallint");
+            break;
+
+        case db_data_type_bigint:
+            snprintf(type_str, sz, "bigint");
+            break;
+
+        case db_data_type_tinyint:
+            snprintf(type_str, sz, "tinyint");
+            break;
+
+        case db_data_type_mediumint:
+            snprintf(type_str, sz, "mediumint");
+            break;
+
+        default:
+            // assert() is compiled out in release builds, so never leave type_str uninitialized
+            snprintf(type_str, sz, "%s", "");
+            assert(0);
+            break;
+    }
+
+    return type_str;
+}
+
+int db_easy_mesh_t::align_table_columns(db_client_t& db_client)
+{
+    db_query_t    query;
+    db_result_t   result;
+    char type_str[64];
+    char column_type[64];
+    bool present[EM_MAX_COLS];
+    bool migrate_bss_mac_filter_mode = false;
+    bool migrate_bss_acl_columns = false;
+    bool migrate_bss_acl_validity_period = false;
+    void *ctx;
+    unsigned int i;
+
+    memset(present, 0, sizeof(present));
+
+    memset(query, 0, sizeof(db_query_t));
+    snprintf(query, sizeof(db_query_t), "show columns from %s", m_table_name);
+
+    ctx = db_client.execute(query);
+    while (db_client.next_result(ctx)) {
+        memset(result, 0, sizeof(db_result_t));
+        if (db_client.get_string(ctx, result, 1) == NULL) {
+            continue;
+        }
+        if ((strcmp(m_table_name, "BSSList") == 0) &&
+                (strcmp(result, "MACFilterMode") == 0)) {
+            memset(column_type, 0, sizeof(column_type));
+            db_client.get_string(ctx, column_type, 2, sizeof(column_type));
+            migrate_bss_mac_filter_mode = (strncmp(column_type, "tinyint", 7) == 0);
+        }
+        if ((strcmp(m_table_name, "BSSList") == 0) &&
+                ((strcmp(result, "MACsDisallowed") == 0) || (strcmp(result, "MACsAllowed") == 0))) {
+            memset(column_type, 0, sizeof(column_type));
+            db_client.get_string(ctx, column_type, 2, sizeof(column_type));
+            migrate_bss_acl_columns = migrate_bss_acl_columns ||
+                    (strcmp(column_type, "varchar(512)") == 0);
+        }
+        if ((strcmp(m_table_name, "BSSList") == 0) &&
+                (strcmp(result, "ACLValidityPeriod") == 0)) {
+            memset(column_type, 0, sizeof(column_type));
+            db_client.get_string(ctx, column_type, 2, sizeof(column_type));
+            migrate_bss_acl_validity_period = (strncmp(column_type, "smallint", 8) == 0);
+        }
+        for (i = 0; i < m_num_cols; i++) {
+            if (strcmp(result, m_columns[i].m_name) == 0) {
+                present[i] = true;
+                break;
+            }
+        }
+    }
+
+    for (i = 0; i < m_num_cols; i++) {
+        if (present[i] == true) {
+            continue;
+        }
+
+        get_column_type(i, type_str, sizeof(type_str));
+        memset(query, 0, sizeof(db_query_t));
+        snprintf(query, sizeof(db_query_t), "alter table %s add column %s %s",
+                    m_table_name, m_columns[i].m_name, type_str);
+        db_client.execute(query);
+    }
+
+    if (migrate_bss_mac_filter_mode) {
+        snprintf(query, sizeof(db_query_t), "alter table BSSList modify MACFilterMode char(9)");
+        db_client.execute(query);
+    }
+    if (migrate_bss_acl_columns) {
+        snprintf(query, sizeof(db_query_t), "alter table BSSList modify MACsDisallowed varchar(%d)",
+                EM_MAX_ACL_LIST_CHARS);
+        db_client.execute(query);
+        snprintf(query, sizeof(db_query_t), "alter table BSSList modify MACsAllowed varchar(%d)",
+                EM_MAX_ACL_LIST_CHARS);
+        db_client.execute(query);
+    }
+    if (migrate_bss_acl_validity_period) {
+        snprintf(query, sizeof(db_query_t), "alter table BSSList modify ACLValidityPeriod int");
+        db_client.execute(query);
+        if (!db_client.last_query_succeeded()) {
+            printf("%s:%d: Failed to migrate BSSList.ACLValidityPeriod to int\n", __func__, __LINE__);
+            return -1;
+        }
+    }
 
     return 0;
 }
@@ -375,6 +476,9 @@ int db_easy_mesh_t::load_table(db_client_t& db_client)
     //printf("%s:%d: Table: %s %s\n", __func__, __LINE__, m_table_name, (present == true) ? "present":"not present");
 
     if (present == true) {
+        if (align_table_columns(db_client) != 0) {
+            return -1;
+        }
         sync_table(db_client);
     } else {
         create_table(db_client);

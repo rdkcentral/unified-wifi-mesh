@@ -68,7 +68,8 @@ int em_steering_t::send_client_assoc_ctrl_req_msg()
 
     for (unsigned int j = 0; j < dm->m_num_bss; j++) {
         if ((memcmp(assoc_param->bssid, dm->m_bss[j].m_bss_info.bssid.mac, sizeof(mac_address_t)) == 0) &&
-         (memcmp(dm->m_bss[j].m_bss_info.ruid.mac, get_radio_interface_mac(), sizeof(mac_address_t)) == 0)) {
+         (memcmp(dm->m_bss[j].m_bss_info.ruid.mac, get_radio_interface_mac(), sizeof(mac_address_t)) == 0) &&
+         (dm->m_bss[j].m_bss_info.vap_mode == em_vap_mode_ap)) {
 
             em_client_assoc_ctrl_req_t assoc_ctrl;
             memset(&assoc_ctrl, 0, sizeof(assoc_ctrl));
@@ -87,6 +88,29 @@ int em_steering_t::send_client_assoc_ctrl_req_msg()
     }
 
     return 0;
+}
+
+int em_steering_t::send_persisted_assoc_ctrl_req(const unsigned char *bssid, unsigned char assoc_control,
+            unsigned short validity_period, unsigned char sta_count, const mac_address_t *sta_list)
+{
+    em_client_assoc_ctrl_req_t assoc_ctrl;
+
+    if ((bssid == NULL) || (sta_list == NULL) || (sta_count == 0) || (sta_count > MAX_STA_LIST)) {
+        return -1;
+    }
+
+    if ((assoc_control != ASSOC_CONTROL_BLOCK) && (assoc_control != ASSOC_CONTROL_UNBLOCK)) {
+        return -1;
+    }
+
+    memset(&assoc_ctrl, 0, sizeof(assoc_ctrl));
+    memcpy(assoc_ctrl.bssid, bssid, sizeof(bssid_t));
+    assoc_ctrl.assoc_control = assoc_control;
+    assoc_ctrl.validity_period = htons(validity_period);
+    assoc_ctrl.sta_count = sta_count;
+    memcpy(assoc_ctrl.sta_list, sta_list, static_cast<size_t> (sta_count) * sizeof(mac_address_t));
+
+    return send_client_assoc_ctrl_req_msg(&assoc_ctrl);
 }
 
 int em_steering_t::send_client_assoc_ctrl_req_msg(em_client_assoc_ctrl_req_t *assoc_ctrl)
@@ -707,6 +731,60 @@ int em_steering_t::handle_client_assoc_ctrl_req(unsigned char *buff, unsigned in
     return 0;
 }
 
+int em_steering_t::send_acl_list(const char *bss_key, const unsigned char *bssid,
+            unsigned short validity_period, bool blocked)
+{
+    mac_address_t chunk[MAX_STA_LIST];
+    unsigned int sent = 0, num;
+
+    // The Client Association Control TLV carries at most MAX_STA_LIST STAs, so send in chunks.
+    while ((num = get_mgr()->get_bss_acl_macs(bss_key, blocked, sent, MAX_STA_LIST, chunk)) > 0) {
+        if (send_persisted_assoc_ctrl_req(bssid, blocked ? ASSOC_CONTROL_BLOCK : ASSOC_CONTROL_UNBLOCK,
+                validity_period, static_cast<unsigned char> (num), chunk) <= 0) {
+            em_printfout("Failed sending %s ACL chunk for BSS %s at STA offset %u",
+                    blocked ? "blocked" : "allowed", bss_key, sent);
+            return -1;
+        }
+        sent += num;
+    }
+
+    return 0;
+}
+
+int em_steering_t::send_persisted_acl_cfg()
+{
+    dm_easy_mesh_t *dm = get_data_model();
+    mac_addr_str_t dev_mac_str, radio_mac_str, bss_mac_str;
+    em_2xlong_string_t bss_key;
+
+    if (dm == NULL) {
+        em_printfout("Cannot send persisted ACL configuration: data model is unavailable");
+        return -1;
+    }
+
+    for (unsigned int i = 0; i < dm->m_num_bss; i++) {
+        em_bss_info_t *info = &dm->m_bss[i].m_bss_info;
+
+        if ((memcmp(info->ruid.mac, get_radio_interface_mac(), sizeof(mac_address_t)) != 0) ||
+                (info->vap_mode != em_vap_mode_ap)) {
+            continue;
+        }
+
+        dm_easy_mesh_t::macbytes_to_string(info->id.dev_mac, dev_mac_str);
+        dm_easy_mesh_t::macbytes_to_string(info->ruid.mac, radio_mac_str);
+        dm_easy_mesh_t::macbytes_to_string(info->bssid.mac, bss_mac_str);
+        snprintf(bss_key, sizeof(bss_key), "%s@%s@%s@%s@%d", info->id.net_id, dev_mac_str,
+                radio_mac_str, bss_mac_str, info->id.haul_type);
+
+        if ((send_acl_list(bss_key, info->bssid.mac, info->acl_validity_period, true) != 0) ||
+                (send_acl_list(bss_key, info->bssid.mac, info->acl_validity_period, false) != 0)) {
+            return -1;
+        }
+    }
+
+    return 0;
+}
+
 void em_steering_t::process_ctrl_state()
 {
     switch (get_state()) {
@@ -717,6 +795,16 @@ void em_steering_t::process_ctrl_state()
         case em_state_ctrl_client_assoc_ctrl_req_pending:
             send_client_assoc_ctrl_req_msg();
             break;
+
+        case em_state_ctrl_acl_cfg_pending:
+            if (send_persisted_acl_cfg() != 0) {
+                em_printfout("Persisted ACL configuration failed; orchestration may retry");
+                set_state(em_state_ctrl_acl_cfg_failed);
+                break;
+            }
+            set_state(em_state_ctrl_acl_cfg_configured);
+            break;
+
         default:
             break;
     }

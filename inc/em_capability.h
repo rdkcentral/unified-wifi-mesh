@@ -756,6 +756,9 @@ class em_capability_t {
 	 *
 	 * @param[in] pkt_buff Pointer to the buffer containing the notification data.
 	 * @param[in] pkt_len Length of the data received.
+	 * @returns 0 when the report is processed, or a negative value on failure.
+	 * @post On successful report processing, the controller returns to
+	 * em_state_ctrl_configured so the remaining orchestration can proceed.
 	 *
 	 * @note Ensure that the data pointer is valid and the length is correct before calling this function.
 	 */
