@@ -204,14 +204,17 @@ public:
     bus_error_t sta_get(char* event_name, raw_data_t* p_data);
     static bus_error_t sta_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
 
+    /* Key of a Device.{i}.APMLD.{i} row: the haul type, as the MLD MAC may be unknown */
+    static std::string de_key_ap_mld(const em_ap_mld_info_t *ami);
+    /* Keys of the Device.{i}.APMLD.{i} rows */
+    static std::vector<std::string> de_keys_ap_mld(dm_easy_mesh_t *dm);
+    /* Name of the Device.{i}.APMLD. table of a device data model */
+    std::string de_table_apmld_path_name(dm_easy_mesh_t *dm);
     dm_ap_mld_t *get_dm_ap_mld(dm_easy_mesh_t *dm, char *instance, bool is_num);
     bus_error_t apmld_get(char *event_name, raw_data_t *p_data);
-    bus_error_t apmld_tget(char *event_name, raw_data_t *p_data);
     bus_error_t apmldcfg_get(char *event_name, raw_data_t *p_data);
     bus_error_t apmldcfg_set(char *event_name, raw_data_t *p_data);
     static bus_error_t apmld_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
-    static bus_error_t apmld_tget_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
-    static bus_error_t apmld_tget_params(dm_easy_mesh_t *dm, const char *root, bus_data_prop_t **property);
     static bus_error_t apmldcfg_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
     static bus_error_t apmldcfg_set_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
 
@@ -221,6 +224,10 @@ public:
     static bus_error_t affap_tget_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
     static bus_error_t affap_tget_params(dm_easy_mesh_t *dm, const char *root, em_ap_mld_info_t *ami, bus_data_prop_t **property);
 
+    /* True if the STA MLD is associated to the AP MLD */
+    static bool de_sta_mld_of_ap_mld(em_ap_mld_info_t *ami, em_assoc_sta_mld_info_t *smi);
+    /* Number of STAMLD.{i} rows of an AP MLD */
+    static unsigned int de_num_sta_mld(dm_easy_mesh_t *dm, em_ap_mld_info_t *ami);
     dm_assoc_sta_mld_t *get_dm_sta_mld(dm_easy_mesh_t *dm, em_ap_mld_info_t *ami, char *instance, bool is_num);
     bus_error_t stamld_get(char *event_name, raw_data_t *p_data);
     bus_error_t stamld_tget(char *event_name, raw_data_t *p_data);
