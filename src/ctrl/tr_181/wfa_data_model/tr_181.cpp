@@ -464,7 +464,8 @@ int tr_181_t::wfa_set_bus_callbackfunc_pointers(const char *full_namespace, bus_
         ELEMENT(DE_STAMLDCFG_EMLSR,        CALLBACK_GETTER(stamldcfg_get)),
         ELEMENT(DE_STAMLDCFG_STR,          CALLBACK_GETTER(stamldcfg_get)),
         ELEMENT(DE_STAMLDCFG_NSTR,         CALLBACK_GETTER(stamldcfg_get)),
-        ELEMENT(DE_AFFSTA_TABLE,           CALLBACK_GETTER(affsta_tget)),
+        /* AffiliatedSTA rows are managed with registerRow/unregisterRow */
+        ELEMENT(DE_AFFSTA_TABLE,           CB(NULL, NULL, NULL, NULL, NULL, NULL)),
         ELEMENT(DE_AFFSTA_MACADDR,         CALLBACK_GETTER(affsta_get)),
         ELEMENT(DE_AFFSTA_BSSID,           CALLBACK_GETTER(affsta_get)),
         ELEMENT(DE_AFFSTA_BYTESSNT,        CALLBACK_GETTER(affsta_get)),
@@ -475,7 +476,6 @@ int tr_181_t::wfa_set_bus_callbackfunc_pointers(const char *full_namespace, bus_
         ELEMENT(DE_AFFSTA_SIGNALSTR,       CALLBACK_GETTER(affsta_get)),
         ELEMENT(DE_AFFSTA_ESTMACDRDL,      CALLBACK_GETTER(affsta_get)),
         ELEMENT(DE_AFFSTA_ESTMACDRUL,      CALLBACK_GETTER(affsta_get)),
-        ELEMENT(DE_STAMLD_AFFSTANOE,       CALLBACK_GETTER(affsta_get)),
         ELEMENT(DE_BSTAMLD_MACADDR,        CALLBACK_GETTER(bstamld_get)),
         ELEMENT(DE_BSTAMLD_BSSID,          CALLBACK_GETTER(bstamld_get)),
         ELEMENT(DE_BSTAMLD_AFFBSTAS,       CALLBACK_GETTER(bstamld_get)),
@@ -962,17 +962,6 @@ bus_error_t tr_181_t::affsta_get(char *event_name, raw_data_t *p_data, bus_user_
 
     if (em_ctrl != NULL) {
         return em_ctrl->get_dm_ctrl()->affsta_get(event_name, p_data);
-    }
-
-    return bus_error_general;
-}
-
-bus_error_t tr_181_t::affsta_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
-{
-    em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
-
-    if (em_ctrl != NULL) {
-        return em_ctrl->get_dm_ctrl()->affsta_tget(event_name, p_data);
     }
 
     return bus_error_general;
