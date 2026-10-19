@@ -2567,6 +2567,17 @@
                                                                         "null"
                                                                     ]
                                                                 },
+                                                                "PairwiseAKM": {
+                                                                    "type": "string",
+                                                                    "pattern": "([0-9a-fA-F]{8})"
+                                                                },
+                                                                "PairwiseCipher": {
+                                                                    "type": "string",
+                                                                    "pattern": "([0-9a-fA-F]{8})"
+                                                                },
+                                                                "RSNCapabilities": {
+                                                                    "$ref": "#/definitions/uint16_t"
+                                                                },
                                                                 "VHTCapabilities": {
                                                                     "type": [
                                                                         "string",
