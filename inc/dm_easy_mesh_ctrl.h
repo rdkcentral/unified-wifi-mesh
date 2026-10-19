@@ -193,13 +193,15 @@ public:
     bus_error_t capops_get(char* event_name, raw_data_t* p_data);
     static bus_error_t capops_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
 
-    dm_sta_t* get_dm_sta(dm_easy_mesh_t *dm, em_bss_info_t *bi, int instance);
+    /* MAC addresses of the STA.{i} rows of a BSS (associated STAs) */
+    static std::vector<std::string> de_keys_sta(dm_easy_mesh_t *dm, em_bss_info_t *bi);
+    /* Name of the Device.{i}.Radio.{i}.BSS.{i}.STA. table of a BSS, empty if the BSS has no row */
+    std::string de_table_sta_path_name(dm_easy_mesh_t *dm, em_bss_info_t *bi);
+    /* Number of STA.{i} rows of a BSS (associated STAs) */
+    static unsigned int de_num_sta(dm_easy_mesh_t *dm, em_bss_info_t *bi);
     dm_sta_t *get_dm_sta(dm_easy_mesh_t *dm, em_bss_info_t *bi, char *instance, bool is_num);
     void fill_haul_type(em_haul_type_t hauls[], size_t max, char *buf);
     bus_error_t sta_get(char* event_name, raw_data_t* p_data);
-    bus_error_t sta_tget(char *event_name, raw_data_t *p_data);
-    static bus_error_t sta_tget_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
-    static bus_error_t sta_tget_params(dm_easy_mesh_t *dm, const char *root, em_bss_info_t *bi, bus_data_prop_t **property);
     static bus_error_t sta_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
 
     dm_ap_mld_t *get_dm_ap_mld(dm_easy_mesh_t *dm, char *instance, bool is_num);

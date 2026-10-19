@@ -369,7 +369,8 @@ int tr_181_t::wfa_set_bus_callbackfunc_pointers(const char *full_namespace, bus_
         ELEMENT(DE_BSS_FH_SUITE,           CALLBACK_GETTER(bss_get)),
         ELEMENT(DE_BSS_BH_SUITE,           CALLBACK_GETTER(bss_get)),
         ELEMENT(DE_BSS_STANOE  ,           CALLBACK_GETTER(bss_get)),
-        ELEMENT(DE_STA_TABLE,              CALLBACK_GETTER(sta_tget)),
+        /* STA rows are managed with registerRow/unregisterRow */
+        ELEMENT(DE_STA_TABLE,              CB(NULL, NULL, NULL, NULL, NULL, NULL)),
         ELEMENT(DE_STA_MACADDR,            CALLBACK_GETTER(sta_get)),
         ELEMENT(DE_STA_TIMESTAMP,          CALLBACK_GETTER(sta_get)),
         ELEMENT(DE_STA_HTCAPS,             CALLBACK_GETTER(sta_get)),
@@ -872,17 +873,6 @@ bus_error_t tr_181_t::sta_get(char *event_name, raw_data_t *p_data, bus_user_dat
         return em_ctrl->get_dm_ctrl()->sta_get(event_name, p_data);
     }
     
-    return bus_error_general;
-}
-
-bus_error_t tr_181_t::sta_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
-{
-    em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
-
-    if (em_ctrl != NULL) {
-        return em_ctrl->get_dm_ctrl()->sta_tget(event_name, p_data);
-    }
-
     return bus_error_general;
 }
 
