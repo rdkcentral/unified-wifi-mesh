@@ -1209,7 +1209,7 @@ int em_capability_t::handle_ap_radio_basic_cap(unsigned char *buff, unsigned int
 			op_class_info.id.type = em_op_class_type_capability;
 			op_class_info.op_class = static_cast<unsigned int> (basic_cap_op_class->op_class);
 			op_class_info.id.op_class = op_class_info.op_class;
-			op_class_info.max_tx_power = static_cast<int> (basic_cap_op_class->max_tx_eirp);
+			op_class_info.max_tx_power = static_cast<int8_t> (basic_cap_op_class->max_tx_eirp);
 			op_class_info.num_channels = static_cast<unsigned int> (basic_cap_op_class->num);
 			for (j = 0; j < op_class_info.num_channels; j++) {
 				op_class_info.channels[j] = static_cast<unsigned int> (basic_cap_op_class->channels.channel[j]);

@@ -719,6 +719,20 @@ public:
 	virtual void handle_failed_conn_msg(unsigned char *data, unsigned int len) {}
 
 	/**!
+	 * @brief Requests the latest runtime transmit power for a radio.
+	 *
+	 * This is the default manager hook used by shared channel logic. Agent-specific
+	 * implementations override it to fetch live power from the OneWifi/driver
+	 * stack and return the most recent value to the caller.
+	 *
+	 * @param[in] ruid Radio unique identifier for the target radio.
+	 * @param[out] tx_power Output buffer that receives the latest runtime value.
+	 *
+	 * @return true when a fresh runtime transmit power value is available, false otherwise.
+	 */
+	virtual bool request_runtime_tx_power(const unsigned char *, int *) { return false; }
+
+	/**!
 	 * @brief Processes an event.
 	 *
 	 * This function handles the processing of an event passed to it.
