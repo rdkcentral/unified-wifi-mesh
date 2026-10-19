@@ -7527,7 +7527,6 @@ bus_error_t dm_easy_mesh_ctrl_t::radio_get_inner(char *event_name, raw_data_t *p
     const char *param;
     char instance[MAX_INSTANCE_LEN] = { 0 };
     bool is_num;
-    int radio_instance = 0;
     bus_error_t rc;
 
     if (!name || !p_data) {
@@ -7553,8 +7552,7 @@ bus_error_t dm_easy_mesh_ctrl_t::radio_get_inner(char *event_name, raw_data_t *p
     }
 
     name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
-    radio_instance = is_num ? atoi(instance) : 0;
-    dm_radio_t *radio = &dm->m_radio[radio_instance - 1];
+    dm_radio_t *radio = dm_ctrl->get_dm_radio(dm, instance, is_num);
     if (radio == NULL) {
         em_printfout("radio is NULL\n");
         return bus_error_invalid_input;
@@ -7562,11 +7560,7 @@ bus_error_t dm_easy_mesh_ctrl_t::radio_get_inner(char *event_name, raw_data_t *p
     em_radio_info_t *ri = radio->get_radio_info();
 
     if (strcmp(param, "ID") == 0) {
-        /* Radio ID is the base64 encoded RUID (MAC) per TR-181 DataElements. */
-        char id_str[16] = { 0 };
-        std::string id_b64 = em_crypto_t::base64_encode(ri->id.ruid, sizeof(ri->id.ruid));
-        snprintf(id_str, sizeof(id_str), "%s", id_b64.c_str());
-        rc = dm_ctrl->raw_data_set(p_data, id_str);
+        rc = dm_ctrl->raw_data_set(p_data, ri->id.ruid);
     } else if (strcmp(param, "Enabled") == 0) {
         rc = dm_ctrl->raw_data_set(p_data, ri->enabled);
     } else if (strcmp(param, "Noise") == 0) {
@@ -7617,7 +7611,6 @@ bus_error_t dm_easy_mesh_ctrl_t::rbhsta_get_inner(char *event_name, raw_data_t *
     const char *param;
     char instance[MAX_INSTANCE_LEN] = { 0 };
     bool is_num;
-    int radio_instance = 0;
     bus_error_t rc;
 
     if (!name || !p_data) {
@@ -7643,8 +7636,7 @@ bus_error_t dm_easy_mesh_ctrl_t::rbhsta_get_inner(char *event_name, raw_data_t *
     }
 
     name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
-    radio_instance = is_num ? atoi(instance) : 0;
-    dm_radio_t *radio = &dm->m_radio[radio_instance - 1];
+    dm_radio_t *radio = dm_ctrl->get_dm_radio(dm, instance, is_num);
     if (radio == NULL) {
         em_printfout("radio is NULL\n");
         return bus_error_invalid_input;
@@ -7676,7 +7668,6 @@ bus_error_t dm_easy_mesh_ctrl_t::rcaps_get_inner(char *event_name, raw_data_t *p
     char instance[MAX_INSTANCE_LEN] = { 0 };
     char supported_standards[MAX_STDLEN] = { 0 };
     bool is_num;
-    int radio_instance = 0;
     bus_error_t rc;
 
     if (!name || !p_data) {
@@ -7702,8 +7693,7 @@ bus_error_t dm_easy_mesh_ctrl_t::rcaps_get_inner(char *event_name, raw_data_t *p
     }
 
     name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
-    radio_instance = is_num ? atoi(instance) : 0;
-    dm_radio_t *radio = &dm->m_radio[radio_instance - 1];
+    dm_radio_t *radio = dm_ctrl->get_dm_radio(dm, instance, is_num);
     if (radio == NULL) {
         em_printfout("radio is NULL\n");
         return bus_error_invalid_input;
@@ -7781,10 +7771,7 @@ bus_error_t dm_easy_mesh_ctrl_t::wf6ap_get_inner(char *event_name, raw_data_t *p
     name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
     device_instance = is_num ? atoi(instance) : 0;
 
-    dm_easy_mesh_t *dm = dm_ctrl->get_first_dm();
-    if (dm == NULL || (dm->get_id() != device_instance)) {
-        dm = dm_ctrl->get_next_dm(dm);
-    }
+    dm_easy_mesh_t *dm = dm_ctrl->get_dm_easy_mesh(instance, is_num);
 
     if(dm == NULL) {
         em_printfout("dm is NULL");
@@ -7793,7 +7780,7 @@ bus_error_t dm_easy_mesh_ctrl_t::wf6ap_get_inner(char *event_name, raw_data_t *p
 
     name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
     radio_instance = is_num ? atoi(instance) : 0;
-    dm_radio_t *radio = &dm->m_radio[radio_instance - 1];
+    dm_radio_t *radio = dm_ctrl->get_dm_radio(dm, instance, is_num);
     if (radio == NULL) {
         em_printfout("radio is NULL\n");
         return bus_error_invalid_input;
@@ -7885,7 +7872,7 @@ bus_error_t dm_easy_mesh_ctrl_t::wf6ap_tget_inner(char *event_name, raw_data_t *
     bus_data_prop_t *property = NULL;
     char instance[MAX_INSTANCE_LEN] = { 0 };
     bool is_num;
-    int device_instance = 0, radio_instance = 0;
+    int radio_instance = 0;
     bus_error_t rc;
 
     if (!name || !p_data) {
@@ -7895,12 +7882,8 @@ bus_error_t dm_easy_mesh_ctrl_t::wf6ap_tget_inner(char *event_name, raw_data_t *
     dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
     name += sizeof(DATAELEMS_NETWORK);
     name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
-    device_instance = is_num ? atoi(instance) : 0;
 
-    dm_easy_mesh_t *dm = dm_ctrl->get_first_dm();
-    if (dm == NULL || (dm->get_id() != device_instance)) {
-        dm = dm_ctrl->get_next_dm(dm);
-    }
+    dm_easy_mesh_t *dm = dm_ctrl->get_dm_easy_mesh(instance, is_num);
 
     if(dm == NULL) {
         em_printfout("dm is NULL");
@@ -7909,7 +7892,7 @@ bus_error_t dm_easy_mesh_ctrl_t::wf6ap_tget_inner(char *event_name, raw_data_t *
 
     name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
     radio_instance = is_num ? atoi(instance) : 0;
-    dm_radio_t *radio = &dm->m_radio[radio_instance - 1];
+    dm_radio_t *radio = dm_ctrl->get_dm_radio(dm, instance, is_num);
     if (radio == NULL) {
         em_printfout("radio is NULL\n");
         return bus_error_invalid_input;
@@ -7988,7 +7971,6 @@ bus_error_t dm_easy_mesh_ctrl_t::wf7ap_get_inner(char *event_name, raw_data_t *p
     const char *param;
     char instance[MAX_INSTANCE_LEN] = { 0 };
     bool is_num;
-    int device_instance = 0, radio_instance = 0;
     bus_error_t rc;
     em_wifi7_mlo_cap_support_tlv_t *wifi7_radio = NULL;
 
@@ -8005,12 +7987,8 @@ bus_error_t dm_easy_mesh_ctrl_t::wf7ap_get_inner(char *event_name, raw_data_t *p
     dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
     name += sizeof(DATAELEMS_NETWORK);
     name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
-    device_instance = is_num ? atoi(instance) : 0;
 
-    dm_easy_mesh_t *dm = dm_ctrl->get_first_dm();
-    if (dm == NULL || (dm->get_id() != device_instance)) {
-        dm = dm_ctrl->get_next_dm(dm);
-    }
+    dm_easy_mesh_t *dm = dm_ctrl->get_dm_easy_mesh(instance, is_num);
 
     if(dm == NULL) {
         em_printfout("dm is NULL");
@@ -8018,8 +7996,7 @@ bus_error_t dm_easy_mesh_ctrl_t::wf7ap_get_inner(char *event_name, raw_data_t *p
     }
 
     name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
-    radio_instance = is_num ? atoi(instance) : 0;
-    dm_radio_t *radio = &dm->m_radio[radio_instance - 1];
+    dm_radio_t *radio = dm_ctrl->get_dm_radio(dm, instance, is_num);
     if (radio == NULL) {
         em_printfout("radio is NULL");
         return bus_error_invalid_input;
@@ -8077,7 +8054,7 @@ bus_error_t dm_easy_mesh_ctrl_t::wf7ap_tget_inner(char *event_name, raw_data_t *
     bus_data_prop_t *property = NULL;
     char instance[MAX_INSTANCE_LEN] = { 0 };
     bool is_num;
-    int device_instance = 0, radio_instance = 0;
+    int radio_instance = 0;
     bus_error_t rc;
 
     if (!name || !p_data) {
@@ -8087,12 +8064,8 @@ bus_error_t dm_easy_mesh_ctrl_t::wf7ap_tget_inner(char *event_name, raw_data_t *
     dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
     name += sizeof(DATAELEMS_NETWORK);
     name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
-    device_instance = is_num ? atoi(instance) : 0;
 
-    dm_easy_mesh_t *dm = dm_ctrl->get_first_dm();
-    if (dm == NULL || (dm->get_id() != device_instance)) {
-        dm = dm_ctrl->get_next_dm(dm);
-    }
+    dm_easy_mesh_t *dm = dm_ctrl->get_dm_easy_mesh(instance, is_num);
 
     if(dm == NULL) {
         em_printfout("dm is NULL");
@@ -8101,7 +8074,7 @@ bus_error_t dm_easy_mesh_ctrl_t::wf7ap_tget_inner(char *event_name, raw_data_t *
 
     name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
     radio_instance = is_num ? atoi(instance) : 0;
-    dm_radio_t *radio = &dm->m_radio[radio_instance - 1];
+    dm_radio_t *radio = dm_ctrl->get_dm_radio(dm, instance, is_num);
     if (radio == NULL) {
         em_printfout("radio is NULL\n");
         return bus_error_invalid_input;
@@ -8178,7 +8151,7 @@ bus_error_t dm_easy_mesh_ctrl_t::curops_get_inner(char *event_name, raw_data_t *
     const char *param;
     char instance[MAX_INSTANCE_LEN] = { 0 };
     bool is_num;
-    int radio_instance = 0, curop_class_instance = 0;
+    int curop_class_instance = 0;
     bus_error_t rc;
 
     if (!name || !p_data) {
@@ -8204,8 +8177,7 @@ bus_error_t dm_easy_mesh_ctrl_t::curops_get_inner(char *event_name, raw_data_t *
     }
 
     name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
-    radio_instance = is_num ? atoi(instance) : 0;
-    dm_radio_t *radio = &dm->m_radio[radio_instance - 1];
+    dm_radio_t *radio = dm_ctrl->get_dm_radio(dm, instance, is_num);
     if (radio == NULL) {
         em_printfout("radio is NULL\n");
         return bus_error_invalid_input;
@@ -8252,7 +8224,6 @@ bus_error_t dm_easy_mesh_ctrl_t::curops_tget_inner(char *event_name, raw_data_t 
     bus_data_prop_t *property = NULL;
     char instance[MAX_INSTANCE_LEN] = { 0 };
     bool is_num;
-    int radio_instance = 0;
     bus_error_t rc;
 
     if (!name || !p_data) {
@@ -8276,8 +8247,7 @@ bus_error_t dm_easy_mesh_ctrl_t::curops_tget_inner(char *event_name, raw_data_t 
     }
 
     name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
-    radio_instance = is_num ? atoi(instance) : 0;
-    dm_radio_t *radio = &dm->m_radio[radio_instance - 1];
+    dm_radio_t *radio = dm_ctrl->get_dm_radio(dm, instance, is_num);
     if (radio == NULL) {
         em_printfout("radio is NULL\n");
         return bus_error_invalid_input;
@@ -8376,7 +8346,7 @@ bus_error_t dm_easy_mesh_ctrl_t::capops_get_inner(char *event_name, raw_data_t *
     const char *param;
     char instance[MAX_INSTANCE_LEN] = { 0 };
     bool is_num;
-    int radio_instance = 0, capop_class_instance = 0;
+    int capop_class_instance = 0;
     bus_error_t rc;
 
     if (!name || !p_data) {
@@ -8402,12 +8372,11 @@ bus_error_t dm_easy_mesh_ctrl_t::capops_get_inner(char *event_name, raw_data_t *
     }
 
     name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
-    radio_instance = is_num ? atoi(instance) : 0;
-    if (radio_instance < 1 || static_cast<unsigned int>(radio_instance) > dm->get_num_radios()) {
-        em_printfout("invalid radio instance %d\n", radio_instance);
+    dm_radio_t *radio = dm_ctrl->get_dm_radio(dm, instance, is_num);
+    if (radio == NULL) {
+        em_printfout("radio is NULL\n");
         return bus_error_invalid_input;
     }
-    dm_radio_t *radio = &dm->m_radio[radio_instance - 1];
 
     /* Skip the "Capabilities." segment so the instance is taken from the
      * CapableOperatingClassProfile table and not the Capabilities object. */
@@ -8452,7 +8421,6 @@ bus_error_t dm_easy_mesh_ctrl_t::capops_tget_inner(char *event_name, raw_data_t 
     bus_data_prop_t *property = NULL;
     char instance[MAX_INSTANCE_LEN] = { 0 };
     bool is_num;
-    int radio_instance = 0;
     bus_error_t rc;
 
     if (!name || !p_data) {
@@ -8476,12 +8444,11 @@ bus_error_t dm_easy_mesh_ctrl_t::capops_tget_inner(char *event_name, raw_data_t 
     }
 
     name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
-    radio_instance = is_num ? atoi(instance) : 0;
-    if (radio_instance < 1 || static_cast<unsigned int>(radio_instance) > dm->get_num_radios()) {
-        em_printfout("invalid radio instance %d\n", radio_instance);
+    dm_radio_t *radio = dm_ctrl->get_dm_radio(dm, instance, is_num);
+    if (radio == NULL) {
+        em_printfout("radio is NULL\n");
         return bus_error_invalid_input;
     }
-    dm_radio_t *radio = &dm->m_radio[radio_instance - 1];
     em_radio_info_t *ri = radio->get_radio_info();
 
     rc = dm_ctrl->capops_tget_params(dm, root, ri, &property);
@@ -8596,7 +8563,7 @@ bus_error_t dm_easy_mesh_ctrl_t::bss_get_inner(char *event_name, raw_data_t *p_d
     int count = 0;
     char instance[MAX_INSTANCE_LEN] = { 0 };
     bool is_num;
-    int radio_instance = 0, bss_instance = 0;
+    int bss_instance = 0;
     bus_error_t rc;
 
     if (!name || !p_data) {
@@ -8622,8 +8589,7 @@ bus_error_t dm_easy_mesh_ctrl_t::bss_get_inner(char *event_name, raw_data_t *p_d
     }
 
     name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
-    radio_instance = is_num ? atoi(instance) : 0;
-    dm_radio_t *radio = &dm->m_radio[radio_instance - 1];
+    dm_radio_t *radio = dm_ctrl->get_dm_radio(dm, instance, is_num);
     if (radio == NULL) {
         em_printfout("radio is NULL\n");
         return bus_error_invalid_input;
@@ -8733,7 +8699,6 @@ bus_error_t dm_easy_mesh_ctrl_t::bss_tget_inner(char *event_name, raw_data_t *p_
     bus_data_prop_t *property = NULL;
     char instance[MAX_INSTANCE_LEN] = { 0 };
     bool is_num;
-    int radio_instance = 0;
     bus_error_t rc;
 
     if (!name || !p_data) {
@@ -8757,8 +8722,7 @@ bus_error_t dm_easy_mesh_ctrl_t::bss_tget_inner(char *event_name, raw_data_t *p_
     }
 
     name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
-    radio_instance = is_num ? atoi(instance) : 0;
-    dm_radio_t *radio = &dm->m_radio[radio_instance - 1];
+    dm_radio_t *radio = dm_ctrl->get_dm_radio(dm, instance, is_num);
     if (radio == NULL) {
         em_printfout("radio is NULL\n");
         return bus_error_invalid_input;
@@ -8862,7 +8826,7 @@ bus_error_t dm_easy_mesh_ctrl_t::sta_get_inner(char *event_name, raw_data_t *p_d
     int count = 0;
     char instance[MAX_INSTANCE_LEN] = { 0 };
     bool is_num;
-    int radio_instance = 0, bss_instance = 0, sta_instance = 0;
+    int bss_instance = 0, sta_instance = 0;
     bus_error_t rc;
 
     param = strrchr(name, '.');
@@ -8884,8 +8848,7 @@ bus_error_t dm_easy_mesh_ctrl_t::sta_get_inner(char *event_name, raw_data_t *p_d
     }
 
     name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
-    radio_instance = is_num ? atoi(instance) : 0;
-    dm_radio_t *radio = &dm->m_radio[radio_instance - 1];
+    dm_radio_t *radio = dm_ctrl->get_dm_radio(dm, instance, is_num);
     if (radio == NULL) {
         em_printfout("radio is NULL\n");
         return bus_error_invalid_input;
@@ -9007,7 +8970,7 @@ bus_error_t dm_easy_mesh_ctrl_t::sta_tget_inner(char *event_name, raw_data_t *p_
     bus_data_prop_t *property = NULL;
     char instance[MAX_INSTANCE_LEN] = { 0 };
     bool is_num;
-    int radio_instance = 0, bss_instance = 0;
+    int bss_instance = 0;
     unsigned int i = 0;
     int count = 0;
     bus_error_t rc;
@@ -9033,8 +8996,7 @@ bus_error_t dm_easy_mesh_ctrl_t::sta_tget_inner(char *event_name, raw_data_t *p_
     }
 
     name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
-    radio_instance = is_num ? atoi(instance) : 0;
-    dm_radio_t *radio = &dm->m_radio[radio_instance - 1];
+    dm_radio_t *radio = dm_ctrl->get_dm_radio(dm, instance, is_num);
     if (radio == NULL) {
         em_printfout("radio is NULL\n");
         return bus_error_invalid_input;
