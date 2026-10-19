@@ -618,6 +618,19 @@ void em_configuration_t::handle_failed_connection_event(const mac_address_t sta,
 
 int em_configuration_t::send_topology_notification_by_client(mac_address_t sta, bssid_t bssid, bool assoc)
 {
+    return send_topology_notification_msg(sta, bssid, assoc, true);
+}
+
+int em_configuration_t::send_topology_notification()
+{
+    mac_address_t sta = {0};
+    bssid_t bssid = {0};
+
+    return send_topology_notification_msg(sta, bssid, false, false);
+}
+
+int em_configuration_t::send_topology_notification_msg(mac_address_t sta, bssid_t bssid, bool assoc, bool with_client_event)
+{
     unsigned short  msg_type = em_msg_type_topo_notif;
     char *errors[EM_MAX_TLV_MEMBERS] = {0};
     unsigned int len = 0;
@@ -665,14 +678,16 @@ int em_configuration_t::send_topology_notification_by_client(mac_address_t sta, 
     tmp += (sizeof (em_tlv_t) + sizeof(mac_address_t));
     len += static_cast<unsigned int> (sizeof (em_tlv_t) + sizeof(mac_address_t));
 
-    // Client Association Event  17.2.20
-    tlv = reinterpret_cast<em_tlv_t *> (tmp);
-    tlv->type = em_tlv_type_client_assoc_event;
-    sz = create_client_assoc_event_tlv(tlv->value, sta, bssid, joined);
-    tlv->len =  htons(sz);
+    // Client Association Event  17.2.20, zero or one per 17.1.5
+    if (with_client_event) {
+        tlv = reinterpret_cast<em_tlv_t *> (tmp);
+        tlv->type = em_tlv_type_client_assoc_event;
+        sz = create_client_assoc_event_tlv(tlv->value, sta, bssid, joined);
+        tlv->len =  htons(sz);
 
-    tmp += (sizeof(em_tlv_t) + sz);
-    len += static_cast<unsigned int> (sizeof(em_tlv_t) + sz);
+        tmp += (sizeof(em_tlv_t) + sz);
+        len += static_cast<unsigned int> (sizeof(em_tlv_t) + sz);
+    }
 
     // End of message
     tlv = reinterpret_cast<em_tlv_t *> (tmp);
@@ -860,6 +875,7 @@ int em_configuration_t::send_topology_query_msg()
     cmdu->id = htons(get_mgr()->get_next_msg_id());
     cmdu->last_frag_ind = 1;
     cmdu->relay_ind = 0;
+    m_topo_query_id = ntohs(cmdu->id);
 
     tmp += sizeof(em_cmdu_t);
     len += static_cast<unsigned int> (sizeof(em_cmdu_t));
@@ -1871,8 +1887,11 @@ int em_configuration_t::send_topology_response_msg(unsigned char *dst, unsigned 
         em_printfout("Topology Response send failed, error:%d", errno);
         return -1;
     }
-    em_printfout("setting state to em_state_agent_topo_synchronized");
-    set_state(em_state_agent_topo_synchronized);
+    // Never move an already configured agent node backwards; a refresh query leaves no follow-up messages to restore it
+    if ((get_service_type() != em_service_type_agent) || (get_state() < em_state_agent_topo_synchronized)) {
+        em_printfout("setting state to em_state_agent_topo_synchronized");
+        set_state(em_state_agent_topo_synchronized);
+    }
     return static_cast<int> (len);
 }
 
@@ -2328,6 +2347,7 @@ int em_configuration_t::handle_topology_notification(unsigned char *buff, unsign
     dm_sta_t *sta_row = NULL;
     char *errors[EM_MAX_TLV_MEMBERS] = {0};
     em_bss_info_t *bss_info = NULL;
+    bool client_event_found = false;
 
 	dm = get_data_model();
 	em_printfout("Topology Notification received, length: %u", len);
@@ -2359,6 +2379,7 @@ int em_configuration_t::handle_topology_notification(unsigned char *buff, unsign
 
     while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
         if (tlv->type == em_tlv_type_client_assoc_event) {
+            client_event_found = true;
             assoc_evt_tlv = reinterpret_cast<em_client_assoc_event_t *> (tlv->value);
             assoc_event = assoc_evt_tlv->assoc_event;
 
@@ -2481,6 +2502,15 @@ int em_configuration_t::handle_topology_notification(unsigned char *buff, unsign
             
 		tmp_len -= static_cast<unsigned int> (sizeof(em_tlv_t) + htons(tlv->len));
 		tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
+    }
+
+    // A notification without a Client Association Event signals a local topology change, query the agent
+    if ((client_event_found == false) && (dm != NULL) ) {
+        em_printfout("Topology change notification from agent al mac:%s, sending Topology Query",
+                util::mac_to_string(dev_mac).c_str());
+        if (send_topology_query_msg() >= 0) {
+            m_refresh_topo = true;
+        }
     }
 
 	return 0;
@@ -2682,26 +2712,24 @@ int em_configuration_t::handle_topology_response(unsigned char *buff, unsigned i
         dm->set_db_cfg_param(db_cfg_type_sta_list_update, "");
     }
 
-    // Parse the Airties Ethernet Interface vendor TLV (ID 0x000F)
-    bool eth_if_found = false, eth_if_truncated = false;
+    // Airties Ethernet Interface vendor TLV
+    unsigned char *eth_if_value = NULL;
+    unsigned int eth_if_len = 0;
     tlv = reinterpret_cast<em_tlv_t *>(buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
     tmp_len = len - static_cast<unsigned int>(sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
     while ((tmp_len >= sizeof(em_tlv_t)) && (tlv->type != em_tlv_type_eom)) {
         unsigned int vlen = ntohs(tlv->len);
         if (tmp_len < (sizeof(em_tlv_t) + vlen)) {
-            eth_if_truncated = true;
             break;
         }
-        if ((tlv->type == em_tlv_type_vendor_specific) && (vlen >= (EM_VENDOR_OUI_SIZE + sizeof(uint16_t))) &&
+        if ((tlv->type == em_tlv_type_vendor_specific) &&
+                (vlen >= (EM_VENDOR_OUI_SIZE + sizeof(uint16_t))) &&
                 (memcmp(tlv->value, airties_vendor_oui, EM_VENDOR_OUI_SIZE) == 0)) {
             uint16_t tlv_id;
             memcpy(&tlv_id, tlv->value + EM_VENDOR_OUI_SIZE, sizeof(tlv_id));
             if (ntohs(tlv_id) == em_tlv_type_eth_interface) {
-                eth_if_found = true;
-                if (handle_eth_interface_vendor_tlv(tlv->value + EM_VENDOR_OUI_SIZE + sizeof(tlv_id),
-                        vlen - static_cast<unsigned int>(EM_VENDOR_OUI_SIZE + sizeof(tlv_id))) != 0) {
-                    em_printfout("eth_interface_vendor_tlv failed, skipping TLV");
-                }
+                eth_if_value = tlv->value + EM_VENDOR_OUI_SIZE + sizeof(tlv_id);
+                eth_if_len = vlen - static_cast<unsigned int>(EM_VENDOR_OUI_SIZE + sizeof(uint16_t));
                 break;
             }
         }
@@ -6494,6 +6522,7 @@ void em_configuration_t::process_msg(unsigned char *data, unsigned int len)
     unsigned int tlvs_len;
     std::vector<em_t *> em_radios;
     bool any_al_topo_sync_pending = false;
+    em_t *refresh_topo_em = NULL;
 
     if (len < sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)) {
         em_printfout("Error: Message too short for header, len:%u", len);
@@ -6562,9 +6591,11 @@ void em_configuration_t::process_msg(unsigned char *data, unsigned int len)
                 len = send_topology_response_msg(data, ntohs(cmdu->id));
                 if(len) {
                     for(auto &em : em_radios) {
+                        if ((em->get_service_type() != em_service_type_agent) || (em->get_state() < em_state_agent_topo_synchronized)) {
                             em->set_state(em_state_agent_topo_synchronized);
+                        }
                     }
-                    em_printfout("Sent topology response message, set state to em_state_agent_topo_synchronized");
+                    em_printfout("Sent topology response message");
                 }
                 em_radios.clear();
             }
@@ -6576,14 +6607,22 @@ void em_configuration_t::process_msg(unsigned char *data, unsigned int len)
             // may land on a different radio than the one that sent the query).
             get_mgr()->get_all_em_for_al_mac(get_data_model()->get_agent_al_interface_mac(), em_radios);
             any_al_topo_sync_pending = false;
+            refresh_topo_em = NULL;
             for (auto *radio : em_radios) {
                 if (radio->get_state() == em_state_ctrl_topo_sync_pending) {
                     any_al_topo_sync_pending = true;
-                    break;
+                }
+                // The refresh query may have been sent by another radio of the same AL than the one that gets the response
+                if ((radio->m_refresh_topo == true) && (ntohs(cmdu->id) == radio->m_topo_query_id)) {
+                    refresh_topo_em = radio;
                 }
             }
             if ((get_service_type() == em_service_type_ctrl) &&
                 (get_state() == em_state_ctrl_topo_sync_pending || any_al_topo_sync_pending)) {
+                for (auto *radio : em_radios) {
+                    radio->m_refresh_topo = false;
+                }
+                m_refresh_topo = false;
                 if (handle_topology_response(data, len) == 0) {
                     set_state(em_state_ctrl_topo_synchronized);
                     static_cast<em_t*>(this)->set_ssid_mismatch(false);
@@ -6609,6 +6648,14 @@ void em_configuration_t::process_msg(unsigned char *data, unsigned int len)
                 } else {
                     printf("%s:%d em_msg_type_topo_resp handle failed \n", __func__, __LINE__);
                 }
+            } else if ((get_service_type() == em_service_type_ctrl) && (refresh_topo_em != NULL)) {
+                // The 1905 stack also answers on its own, those responses carry another message id
+                refresh_topo_em->m_refresh_topo = false;
+                if (handle_topology_response(data, len) != 0) {
+                    em_printfout("Refresh Topology Response handle failed");
+                }
+            } else if (get_service_type() == em_service_type_ctrl) {
+                em_printfout("Topology Response ignored, state:%s", em_t::state_2_str(get_state()));
             }
             break;
 
@@ -6942,7 +6989,9 @@ em_configuration_t::em_configuration_t() :
     m_key_wrap_key{},
     m_emsk{},
     m_renew_tx_cnt(0),
-    m_topo_query_tx_cnt(0)
+    m_topo_query_tx_cnt(0),
+    m_refresh_topo(false),
+    m_topo_query_id(0)
 {
 }
 

@@ -35,6 +35,7 @@
 #include <pthread.h>
 #include <cjson/cJSON.h>
 #include "em_agent.h"
+#include "em_eth.h"
 #include "em_msg.h"
 #include "ieee80211.h"
 #include "em_cmd_agent.h"
@@ -1554,7 +1555,13 @@ void em_agent_t::handle_5s_tick()
 
 void em_agent_t::handle_2s_tick()
 {
-
+    if (em_eth_link_changed() == true) {
+        em_t *al_em = get_al_node();
+        if (al_em != NULL) {
+            em_printfout("Ethernet link state changed, sending Topology Notification");
+            al_em->send_topology_notification();
+        }
+    }
 }
 
 void em_agent_t::handle_1s_tick()

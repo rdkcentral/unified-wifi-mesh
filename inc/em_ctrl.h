@@ -681,6 +681,15 @@ public:
 	em_t *find_em_for_msg_type(unsigned char *data, unsigned int len, em_t *al_em);
 
 	/**!
+	 * @brief Finds the EM of the first radio of an agent.
+	 *
+	 * @param[in] agent_al_mac AL MAC address of the agent.
+	 *
+	 * @returns Pointer to the EM, or NULL if the agent or its radios are not known.
+	 */
+	em_t *get_first_radio_em(const unsigned char *agent_al_mac);
+
+	/**!
 	* @brief Callback registered for getting colocated agent ID
 	*
 	* He bus calls this API for Device.WiFi.DataElements.Network.ColocatedAgentID

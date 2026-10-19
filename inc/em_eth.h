@@ -56,4 +56,12 @@ bool em_eth_get_info(const std::string &ifname, em_eth_port_t &port);
  */
 unsigned int em_eth_link_type_to_mbps(uint8_t link_type);
 
+/**!
+ * @brief Tells whether the admin state, carrier, speed or duplex of any Ethernet port changed.
+ *
+ * Compares the current sysfs state of every port against the state seen at the previous call.
+ * The first call only records the state and returns false.
+ */
+bool em_eth_link_changed();
+
 #endif // EM_ETH_H

@@ -497,6 +497,18 @@ class em_configuration_t {
 	int send_topology_notification_by_client(mac_address_t sta, bssid_t bssid, bool assoc);
 
 	/**!
+	 * @brief Builds and sends a Topology Notification, optionally with a Client Association Event TLV.
+	 *
+	 * @param[in] sta The MAC address of the station, ignored without the client event.
+	 * @param[in] bssid The BSSID of the network, ignored without the client event.
+	 * @param[in] assoc Boolean indicating association status, ignored without the client event.
+	 * @param[in] with_client_event Whether to include the Client Association Event TLV.
+	 *
+	 * @returns int Message length on success, -1 on failure.
+	 */
+	int send_topology_notification_msg(mac_address_t sta, bssid_t bssid, bool assoc, bool with_client_event);
+
+	/**!
 	 * @brief Sends a Client Disassociation Stats message as required by EasyMesh spec (17.1.41).
 	 *
 	 * When a client disassociates, this message shall be sent to the Multi-AP Controller
@@ -1076,7 +1088,6 @@ class em_configuration_t {
 	 */
 	int handle_eth_interface_vendor_tlv(unsigned char *value, unsigned int len);
 
-    
 	/**!
 	 * @brief Creates an M1 message.
 	 *
@@ -1772,6 +1783,17 @@ public:
 	* @note Ensure that the system is initialized before calling this function.
 	*/
 	int send_topology_query_msg();
+
+	/**!
+	 * @brief Sends a Topology Notification without a Client Association Event TLV.
+	 *
+	 * Signals a change of the local topology (e.g. an Ethernet link change); the receiving
+	 * Multi-AP Controller is expected to query the topology (17.1.5: the Client Association
+	 * Event TLV is zero or one).
+	 *
+	 * @returns int Message length on success, -1 on failure.
+	 */
+	int send_topology_notification();
     
 	/**!
 	 * @brief Sends an auto-configuration renewal message.
@@ -2314,6 +2336,8 @@ public:
     unsigned char m_emsk[WPS_EMSK_LEN];
     unsigned int m_renew_tx_cnt;
     unsigned int m_topo_query_tx_cnt;
+    bool m_refresh_topo;
+    unsigned short m_topo_query_id;
     
 	/**!
 	 * @brief Constructor for em_configuration_t.
