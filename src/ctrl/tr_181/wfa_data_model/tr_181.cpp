@@ -1316,7 +1316,10 @@ void tr_181_t::handle_property_node(cJSON* root, const std::string& fullPath, cJ
             parse_property_constraints(effective, data_model_value);
             parse_readwrite(effective, data_model_value);
             std::string tr181Path = yang_to_tr181_path(tableName);
-            wfa_set_bus_callbackfunc_pointers(tr181Path.c_str(), &cbTable);
+            if (wfa_set_bus_callbackfunc_pointers(tr181Path.c_str(), &cbTable) != RETURN_OK) {
+                /* Table not implemented: no handler, so it has no rows instead of a fake row 1 */
+                memset(&cbTable, 0, sizeof(cbTable));
+            }
             wfa_bus_register_namespace(const_cast<char*>(tr181Path.c_str()), bus_element_type_table, cbTable, data_model_value, 1);
 
             // expand row children under tableName
