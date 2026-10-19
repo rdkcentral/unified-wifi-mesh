@@ -1067,7 +1067,6 @@ public:
 
     //AffiliatedSTA
     static bus_error_t affsta_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
-    static bus_error_t affsta_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
 
     //bSTAMLD
     static bus_error_t bstamld_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);

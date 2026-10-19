@@ -241,11 +241,12 @@ public:
     static bus_error_t wifi7caps_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
     static bus_error_t stamldcfg_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
 
+    /* Link addresses of the AffiliatedSTA.{i} rows of a STA MLD */
+    static std::vector<std::string> de_keys_affsta(em_assoc_sta_mld_info_t *smi);
+    /* Name of the STAMLD.{i}.AffiliatedSTA. table of a STA MLD, empty if it has no row */
+    std::string de_table_affsta_path_name(dm_easy_mesh_t *dm, em_ap_mld_info_t *ami, em_assoc_sta_mld_info_t *smi);
     bus_error_t affsta_get(char *event_name, raw_data_t *p_data);
-    bus_error_t affsta_tget(char *event_name, raw_data_t *p_data);
     static bus_error_t affsta_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
-    static bus_error_t affsta_tget_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
-    static bus_error_t affsta_tget_params(dm_easy_mesh_t *dm, const char *root, em_assoc_sta_mld_info_t *smi, bus_data_prop_t **property);
 
     bus_error_t bstamld_get(char *event_name, raw_data_t *p_data);
     bus_error_t bstacfg_get(char *event_name, raw_data_t *p_data);

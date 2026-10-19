@@ -6405,6 +6405,17 @@ void dm_easy_mesh_ctrl_t::de_rows_sync(dm_easy_mesh_t *dm)
         if (!table.empty()) {
             sync_table_rows(table.c_str(), de_keys_sta_mld(dm, ami));
         }
+
+        for (unsigned int i = 0; i < dm->get_num_assoc_sta_mld(); i++) {
+            em_assoc_sta_mld_info_t *smi = dm->m_assoc_sta_mld[i].get_assoc_sta_mld_info();
+            if (!de_sta_mld_of_ap_mld(ami, smi)) {
+                continue;
+            }
+            table = de_table_affsta_path_name(dm, ami, smi);
+            if (!table.empty()) {
+                sync_table_rows(table.c_str(), de_keys_affsta(smi));
+            }
+        }
     }
 }
 
@@ -6747,11 +6758,6 @@ bus_error_t dm_easy_mesh_ctrl_t::stamldcfg_get(char *event_name, raw_data_t *p_d
 bus_error_t dm_easy_mesh_ctrl_t::affsta_get(char *event_name, raw_data_t *p_data)
 {
     return bus_get_cb_fwd(event_name, p_data, affsta_get_inner);
-}
-
-bus_error_t dm_easy_mesh_ctrl_t::affsta_tget(char *event_name, raw_data_t *p_data)
-{
-    return bus_get_cb_fwd(event_name, p_data, affsta_tget_inner);
 }
 
 bus_error_t dm_easy_mesh_ctrl_t::bstamld_get(char *event_name, raw_data_t *p_data)
@@ -9392,6 +9398,23 @@ bus_error_t dm_easy_mesh_ctrl_t::stamldcfg_get_inner(char *event_name, raw_data_
     return rc;
 }
 
+std::vector<std::string> dm_easy_mesh_ctrl_t::de_keys_affsta(em_assoc_sta_mld_info_t *smi)
+{
+    std::vector<std::string> keys;
+    unsigned int num = std::min<unsigned int>(smi->num_affiliated_sta, EM_MAX_AP_MLD);
+
+    for (unsigned int i = 0; i < num; i++) {
+        keys.push_back(de_key(smi->affiliated_sta[i].link_addr));
+    }
+
+    return keys;
+}
+
+std::string dm_easy_mesh_ctrl_t::de_table_affsta_path_name(dm_easy_mesh_t *dm, em_ap_mld_info_t *ami, em_assoc_sta_mld_info_t *smi)
+{
+    return de_child_table(de_table_stamld_path_name(dm, ami), de_key(smi->mac_addr), "AffiliatedSTA.");
+}
+
 bus_error_t dm_easy_mesh_ctrl_t::affsta_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
 {
     (void) user_data;
@@ -9446,12 +9469,19 @@ bus_error_t dm_easy_mesh_ctrl_t::affsta_get_inner(char *event_name, raw_data_t *
 
     /* Extract aff_sta instance and get info struct for that aff_sta */
     name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
-    int idx = atoi(instance);
-    if (!is_num || idx <= 0 || idx > smi->num_affiliated_sta) {
+    std::string key = is_num ? dm_ctrl->get_table_row_key(dm_ctrl->de_table_affsta_path_name(dm, ami, smi).c_str(), static_cast<uint32_t>(atoi(instance))) : "";
+    std::vector<std::string> keys = de_keys_affsta(smi);
+    em_affiliated_sta_info_t *asi = NULL;
+    for (unsigned int i = 0; i < keys.size(); i++) {
+        if (keys[i] == key) {
+            asi = &smi->affiliated_sta[i];
+            break;
+        }
+    }
+    if (asi == NULL) {
         em_printfout("AffiliatedSTA not found");
         return bus_error_invalid_namespace;
     }
-    em_affiliated_sta_info_t *asi = &smi->affiliated_sta[idx - 1];
 
     dm_sta_t *sta = static_cast<dm_sta_t *> (hash_map_get_first(dm->m_sta_map));
     em_sta_info_t *si = NULL;
@@ -9487,98 +9517,6 @@ bus_error_t dm_easy_mesh_ctrl_t::affsta_get_inner(char *event_name, raw_data_t *
     } else {
         em_printfout("Invalid param: %s", param);
         rc = bus_error_destination_not_found;
-    }
-
-    return rc;
-}
-
-bus_error_t dm_easy_mesh_ctrl_t::affsta_tget_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
-{
-    (void) user_data;
-    const char *name = event_name;
-    const char *root = name;
-    char instance[MAX_INSTANCE_LEN] = { 0 };
-    bool is_num;
-    bus_data_prop_t *property = NULL;
-    bus_error_t rc;
-
-    if (!name || !p_data) {
-        return bus_error_invalid_input;
-    }
-    if (*(name + (strlen(name) - 1)) != '.') {
-        /* Only partial paths are valid */
-        return bus_error_invalid_operation;
-    }
-
-    dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
-
-    /* Extract device instance (numeric or alias) and find the dm object for
-     * that device instance */
-    name += sizeof(DATAELEMS_NETWORK);
-    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
-    dm_easy_mesh_t *dm = dm_ctrl->get_dm_easy_mesh(instance, is_num);
-    if (dm == NULL) {
-        em_printfout("Device not found");
-        return bus_error_invalid_namespace;
-    }
-
-    /* Extract ap_mld instance (numeric or alias), find the ap_mld dm object
-     * for that instance, and finally get info struct for ap_mld dm object */
-    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
-    dm_ap_mld_t *ap_mld = dm_ctrl->get_dm_ap_mld(dm, instance, is_num);
-    if (ap_mld == NULL) {
-        em_printfout("APMLD not found");
-        return bus_error_invalid_namespace;
-    }
-    em_ap_mld_info_t *ami = ap_mld->get_ap_mld_info();
-
-    /* Extract assoc_sta_mld instance (numeric or alias), find the
-     * assoc_sta_mld dm object for that instance, and finally get info struct
-     * for assoc_sta_mld dm object */
-    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
-    dm_assoc_sta_mld_t *sta_mld = dm_ctrl->get_dm_sta_mld(dm, ami, instance, is_num);
-    if (sta_mld == NULL) {
-        em_printfout("STAMLD not found");
-        return bus_error_invalid_namespace;
-    }
-    em_assoc_sta_mld_info_t *smi = sta_mld->get_assoc_sta_mld_info();
-
-    rc = dm_ctrl->affsta_tget_params(dm, root, smi, &property);
-    if (rc == bus_error_success && property) {
-        dm_ctrl->raw_data_set(p_data, property);
-    }
-
-    return rc;
-}
-
-bus_error_t dm_easy_mesh_ctrl_t::affsta_tget_params(dm_easy_mesh_t *dm, const char *root, em_assoc_sta_mld_info_t *smi, bus_data_prop_t **property)
-{
-    bus_error_t rc = bus_error_success;
-    dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
-
-    for (unsigned int idx = 1; idx <= smi->num_affiliated_sta; idx++) {
-        em_affiliated_sta_info_t *asi = &smi->affiliated_sta[idx - 1];
-        dm_sta_t *sta = static_cast<dm_sta_t *> (hash_map_get_first(dm->m_sta_map));
-        em_sta_info_t *si = NULL;
-        while (sta != NULL) {
-            si = sta->get_sta_info();
-            if (si->associated && memcmp(asi->link_addr, si->id, sizeof(mac_addr_t)) != 0) {
-                break;
-            }
-            sta = static_cast<dm_sta_t *> (hash_map_get_next(dm->m_sta_map, sta));
-            si = NULL;
-        }
-
-        dm_ctrl->property_append_tail(property, root, idx, "MACAddress", asi->link_addr);
-        dm_ctrl->property_append_tail(property, root, idx, "BSSID", asi->bssid);
-        dm_ctrl->property_append_tail(property, root, idx, "BytesSent", si ? si->bytes_tx : 0);
-        dm_ctrl->property_append_tail(property, root, idx, "BytesReceived", si ? si->bytes_rx : 0);
-        dm_ctrl->property_append_tail(property, root, idx, "PacketsSent", si ? si->pkts_tx : 0);
-        dm_ctrl->property_append_tail(property, root, idx, "PacketsReceived", si ? si->pkts_rx : 0);
-        dm_ctrl->property_append_tail(property, root, idx, "ErrorsSent", si ? si->errors_tx : 0);
-        dm_ctrl->property_append_tail(property, root, idx, "SignalStrength", si ? si->rcpi : 0);
-        dm_ctrl->property_append_tail(property, root, idx, "EstMACDataRateDownlink", si ? si->est_dl_rate : 0);
-        dm_ctrl->property_append_tail(property, root, idx, "EstMACDataRateUplink", si ? si->est_ul_rate : 0);
     }
 
     return rc;
