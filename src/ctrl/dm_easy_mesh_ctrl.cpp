@@ -6295,9 +6295,15 @@ dm_radio_t *dm_easy_mesh_ctrl_t::get_dm_radio(dm_easy_mesh_t *dm, char *instance
     dm_radio_t *radio = NULL;
 
     if (is_num) {
-        unsigned int idx = static_cast<unsigned int>(atoi(instance) - 1);
-        radio = dm->get_radio(idx);
-        return radio;
+        std::string key = get_table_row_key(de_table_radio_path_name(dm).c_str(), static_cast<uint32_t>(atoi(instance)));
+
+        for (unsigned int i = 0; i < dm->get_num_radios(); i++) {
+            radio = dm->get_radio(i);
+            if (radio != NULL && key == de_key(radio->get_radio_info()->id.ruid)) {
+                return radio;
+            }
+        }
+        return NULL;
     }
 
     for (unsigned int i = 0; i < dm->get_num_radios(); i++) {
@@ -6316,12 +6322,33 @@ dm_radio_t *dm_easy_mesh_ctrl_t::get_dm_radio(dm_easy_mesh_t *dm, char *instance
     return NULL;
 }
 
+std::string dm_easy_mesh_ctrl_t::de_key(const mac_address_t mac)
+{
+    char mac_str[18];
+
+    dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *> (mac), mac_str);
+    return mac_str;
+}
+
+std::string dm_easy_mesh_ctrl_t::de_child_table(const std::string &parent_table, const std::string &parent_key, const char *child)
+{
+    uint32_t inst = get_table_row_instance(parent_table.c_str(), parent_key);
+
+    // The parent row is not registered
+    if (inst == 0) {
+        return "";
+    }
+    return parent_table + std::to_string(inst) + "." + child;
+}
+
 void dm_easy_mesh_ctrl_t::de_rows_sync(dm_easy_mesh_t *dm)
 {
-    (void) dm;
-
     // The Device.{i} instance number is the data model id
     sync_table_rows(DATAELEMS_NETWORK "Device.", de_keys_device(), true);
+
+    if (dm != NULL && !dm->is_controller() && dm->get_id() > 0) {
+        sync_table_rows(de_table_radio_path_name(dm).c_str(), de_keys_radio(dm));
+    }
 }
 
 dm_sta_t *dm_easy_mesh_ctrl_t::get_dm_bh_sta(dm_easy_mesh_t *dm, dm_radio_t *radio)
@@ -6564,11 +6591,6 @@ bus_error_t dm_easy_mesh_ctrl_t::policy_get(char *event_name, raw_data_t *p_data
 bus_error_t dm_easy_mesh_ctrl_t::radio_get(char *event_name, raw_data_t *p_data)
 {
     return bus_get_cb_fwd(event_name, p_data, radio_get_inner);
-}
-
-bus_error_t dm_easy_mesh_ctrl_t::radio_tget(char *event_name, raw_data_t *p_data)
-{
-    return bus_get_cb_fwd(event_name, p_data, radio_tget_inner);
 }
 
 bus_error_t dm_easy_mesh_ctrl_t::rbhsta_get(char *event_name, raw_data_t *p_data)
@@ -7481,6 +7503,23 @@ char* dm_easy_mesh_ctrl_t::get_supported_standards_str(wifi_ieee80211Variant_t v
     return buf;
 }
 
+std::string dm_easy_mesh_ctrl_t::de_table_radio_path_name(dm_easy_mesh_t *dm)
+{
+    return std::string(DATAELEMS_NETWORK "Device.") + std::to_string(dm->get_id()) + ".Radio.";
+}
+
+std::vector<std::string> dm_easy_mesh_ctrl_t::de_keys_radio(dm_easy_mesh_t *dm)
+{
+    std::vector<std::string> keys;
+
+    for (unsigned int i = 0; i < dm->get_num_radios(); i++) {
+        dm_radio_t *radio = dm->get_radio(i);
+        if (radio != NULL && memcmp(radio->get_radio_info()->id.ruid, ZERO_MAC_ADDR, sizeof(mac_address_t)) != 0) {
+            keys.push_back(de_key(radio->get_radio_info()->id.ruid));
+        }
+    }
+    return keys;
+}
 bus_error_t dm_easy_mesh_ctrl_t::radio_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
 {
     (void) user_data;
@@ -7566,152 +7605,6 @@ bus_error_t dm_easy_mesh_ctrl_t::radio_get_inner(char *event_name, raw_data_t *p
     } else {
         em_printfout("Invalid param: %s\n", param);
         rc = bus_error_invalid_input;
-    }
-
-    return rc;
-}
-
-bus_error_t dm_easy_mesh_ctrl_t::radio_tget_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
-{
-    (void) user_data;
-    const char *name = event_name;
-    const char *root = name;
-    char instance[MAX_INSTANCE_LEN] = { 0 };
-    bool is_num;
-    bus_data_prop_t *property = NULL;
-    bus_error_t rc;
-
-    if (!name || !p_data) {
-        return bus_error_invalid_input;
-    }
-    if (*(name + (strlen(name) - 1)) != '.') {
-        /* Only partial paths are valid */
-        return bus_error_invalid_operation;
-    }
-
-    dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
-
-    /* Extract device instance (numeric or alias) and find the dm object for
-     * that device instance */
-    name += sizeof(DATAELEMS_NETWORK);
-    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
-    dm_easy_mesh_t *dm = dm_ctrl->get_dm_easy_mesh(instance, is_num);
-    if (dm == NULL) {
-        printf("device not found\n");
-        return bus_error_invalid_namespace;
-    }
-
-    rc = dm_ctrl->radio_tget_params(dm, root, &property);
-    if (rc == bus_error_success && property) {
-        dm_ctrl->raw_data_set(p_data, property);
-    }
-
-    return rc;
-}
-
-bus_error_t dm_easy_mesh_ctrl_t::radio_tget_params(dm_easy_mesh_t *dm, const char *root, bus_data_prop_t **property)
-{
-    char path[512];
-    char caps_str[MAX_CAPS_STR_LEN] = { 0 };
-    char supported_standards[MAX_STDLEN] = { 0 };
-    bus_error_t rc = bus_error_success;
-    dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
-
-    for (unsigned int idx = 1; idx <= dm->get_num_radios(); idx++) {
-        dm_radio_t *radio = dm->get_radio(idx - 1);
-        if (radio == NULL) {
-            continue;
-        }
-        em_radio_info_t *ri = radio->get_radio_info();
-        /* Radio ID is the base64 encoded RUID (MAC) per TR-181 DataElements. */
-        char id_str[16] = { 0 };
-        std::string id_b64 = em_crypto_t::base64_encode(ri->id.ruid, sizeof(ri->id.ruid));
-        snprintf(id_str, sizeof(id_str), "%s", id_b64.c_str());
-        dm_ctrl->property_append_tail(property, root, idx, "ID", id_str);
-        dm_ctrl->property_append_tail(property, root, idx, "Enabled", ri->enabled);
-        dm_ctrl->property_append_tail(property, root, idx, "Noise", static_cast<unsigned int> (ri->noise));
-        dm_ctrl->property_append_tail(property, root, idx, "Utilization", static_cast<unsigned int> (ri->utilization));
-        dm_ctrl->property_append_tail(property, root, idx, "Transmit", static_cast<unsigned int> (ri->transmit));
-        dm_ctrl->property_append_tail(property, root, idx, "ReceiveSelf", static_cast<unsigned int> (ri->receive_self));
-        dm_ctrl->property_append_tail(property, root, idx, "ReceiveOther", static_cast<unsigned int> (ri->receive_other));
-        dm_ctrl->property_append_tail(property, root, idx, "ChipsetVendor", ri->chip_vendor);
-        dm_ctrl->property_append_tail(property, root, idx, "X_AIRTIES_Temperature", ri->radio_temp);
-        unsigned int curop_count = 0;
-        for (unsigned int i = 0; i < dm->get_num_op_class(); i++) {
-            dm_op_class_t *op_class = dm->get_op_class(i);
-            if (op_class == NULL) {
-                continue;
-            }
-            em_op_class_info_t *oci = op_class->get_op_class_info();
-            if (oci->id.type != em_op_class_type_current) {
-                continue;
-            }
-            if (memcmp(ri->id.ruid, oci->id.ruid, sizeof(oci->id.ruid)) != 0) {
-                continue;
-            }
-            curop_count++;
-        }
-        dm_ctrl->property_append_tail(property, root, idx, "CurrentOperatingClassProfileNumberOfEntries", curop_count);
-        dm_ctrl->property_append_tail(property, root, idx, "BSSNumberOfEntries", ri->number_of_bss);
-
-        dm_sta_t *bh_sta = dm_ctrl->get_dm_bh_sta(dm, radio);
-        if (bh_sta == NULL) {
-            dm_ctrl->property_append_tail(property, root, idx, "BackhaulSta.MACAddress", "");
-        } else {
-            em_sta_info_t *si = bh_sta->get_sta_info();
-            if (ri->number_of_bss != 4) { /* Very nasty hack, only report backhaulsta for radio with 4 bss */
-                dm_ctrl->property_append_tail(property, root, idx, "BackhaulSta.MACAddress", "");
-            } else {
-                dm_ctrl->property_append_tail(property, root, idx, "BackhaulSta.MACAddress", si->id);
-            }
-        }
-
-        unsigned int capop_count = 0;
-        for (unsigned int i = 0; i < dm->get_num_op_class(); i++) {
-            dm_op_class_t *op_class = dm->get_op_class(i);
-            if (op_class == NULL) {
-                continue;
-            }
-            em_op_class_info_t *oci = op_class->get_op_class_info();
-            if (oci->id.type != em_op_class_type_capability) {
-                continue;
-            }
-            if (memcmp(ri->id.ruid, oci->id.ruid, sizeof(oci->id.ruid)) != 0) {
-                continue;
-            }
-            capop_count++;
-        }
-
-        dm_radio_cap_t *radio_cap = dm->get_radio_cap(ri->id.ruid);
-        if (radio_cap != NULL) {
-            em_radio_cap_info_t *rci = radio_cap->get_radio_cap_info();
-            dm_ctrl->get_supported_standards_str(rci->mode, supported_standards, sizeof(supported_standards));
-            dm_ctrl->property_append_tail(property, root, idx, "X_AIRTIES_OperatingStandards", supported_standards);
-            dm_ctrl->get_ht_caps_str(&rci->ht_cap, caps_str, sizeof(caps_str));
-            dm_ctrl->property_append_tail(property, root, idx, "Capabilities.HTCapabilities", caps_str);
-            dm_ctrl->get_vht_caps_str(&rci->vht_cap, caps_str, sizeof(caps_str));
-            dm_ctrl->property_append_tail(property, root, idx, "Capabilities.VHTCapabilities", caps_str);
-            dm_ctrl->property_append_tail(property, root, idx, "Capabilities.CapableOperatingClassProfileNumberOfEntries", capop_count);
-        } else {
-            dm_ctrl->property_append_tail(property, root, idx, "Capabilities.HTCapabilities", "");
-            dm_ctrl->property_append_tail(property, root, idx, "Capabilities.VHTCapabilities", "");
-            dm_ctrl->property_append_tail(property, root, idx, "Capabilities.CapableOperatingClassProfileNumberOfEntries", capop_count);
-        }
-
-        snprintf(path, sizeof(path) - 1, "%s%d.CurrentOperatingClassProfile.", root, idx);
-        dm_ctrl->curops_tget_params(dm, path, ri, property);
-
-        snprintf(path, sizeof(path) - 1, "%s%d.Capabilities.CapableOperatingClassProfile.", root, idx);
-        dm_ctrl->capops_tget_params(dm, path, ri, property);
-
-        snprintf(path, sizeof(path) - 1, "%s%d.Capabilities.WiFi6APRole.", root, idx);
-        dm_ctrl->wf6ap_tget_params(dm, path, ri, property, idx);
-
-        snprintf(path, sizeof(path) - 1, "%s%d.Capabilities.WiFi7APRole.", root, idx);
-        dm_ctrl->wf7ap_tget_params(dm, path, ri, property, idx);
-
-        snprintf(path, sizeof(path) - 1, "%s%d.BSS.", root, idx);
-        dm_ctrl->bss_tget_params(dm, path, ri, property);
     }
 
     return rc;

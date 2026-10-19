@@ -1034,7 +1034,6 @@ public:
 
     //Radio
     static bus_error_t radio_get(char* event_name, raw_data_t* p_data, struct bus_user_data* user_data);
-    static bus_error_t radio_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
     static bus_error_t rbhsta_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
     static bus_error_t radio_table_add_row_handler(const char* table_name, const char* alias_name, uint32_t* instance_number);
     static bus_error_t rcaps_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);

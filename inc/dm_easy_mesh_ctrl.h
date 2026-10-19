@@ -64,6 +64,12 @@ public:
     dm_sta_t *get_dm_bh_sta(dm_easy_mesh_t *dm, dm_radio_t *radio);
     const char* get_table_instance(const char *src, char *instance, size_t max_len, bool *is_num);
 
+    /* String of a MAC address, which identifies the rows of the tables with such a key */
+    static std::string de_key(const mac_address_t mac);
+    /* Name of the table child (ending with '.') of the row identified by parent_key of parent_table,
+     * empty if this row is not registered */
+    std::string de_child_table(const std::string &parent_table, const std::string &parent_key, const char *child);
+
     /**!
      * @brief Synchronize the DataElements rows with the content of the data models.
      *
@@ -87,11 +93,12 @@ public:
     bus_error_t policy_get(char* event_name, raw_data_t* p_data);
     static bus_error_t policy_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
 
+    /* Name of the Device.{i}.Radio. table of a device data model */
+    std::string de_table_radio_path_name(dm_easy_mesh_t *dm);
+    /* RUIDs of the radios of the data model which are known */
+    static std::vector<std::string> de_keys_radio(dm_easy_mesh_t *dm);
     bus_error_t radio_get(char* event_name, raw_data_t* p_data);
     static bus_error_t radio_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
-    bus_error_t radio_tget(char* event_name, raw_data_t* p_data);
-    static bus_error_t radio_tget_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
-    static bus_error_t radio_tget_params(dm_easy_mesh_t *dm, const char *root, bus_data_prop_t **property);
     bus_error_t rbhsta_get(char *event_name, raw_data_t *p_data);
     static bus_error_t rbhsta_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
     bus_error_t curops_tget(char *event_name, raw_data_t *p_data);

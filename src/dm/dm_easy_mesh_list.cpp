@@ -430,8 +430,11 @@ if (dm == NULL) {
         }
         dm->set_num_radios(radio_index + 1);
         pradio = dm->get_radio(radio_index);
+        *pradio = *radio;
+        m_mgr->dm_updated(dm);
+    } else {
+        *pradio = *radio;
     }
-    *pradio = *radio;
 
     // Create default per-radio policies (radio_metrics_rep and steering_param) for newly discovered radios.
     if (dm != NULL) {

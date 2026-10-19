@@ -274,7 +274,8 @@ int tr_181_t::wfa_set_bus_callbackfunc_pointers(const char *full_namespace, bus_
         ELEMENT(DE_DEVICE_XAIRTIES_CACHED,         CALLBACK_GETTER(device_get)),
         ELEMENT(DE_DEVICE_XAIRTIES_CPUUSAGE,       CALLBACK_GETTER(device_get)),
         ELEMENT(DE_DEVICE_XAIRTIES_CPUTEMPERATURE, CALLBACK_GETTER(device_get)),
-        ELEMENT(DE_RADIO_TABLE,            CALLBACK_GETTER(radio_tget)),
+        /* Radio rows are managed with registerRow/unregisterRow */
+        ELEMENT(DE_RADIO_TABLE,            CB(NULL, NULL, NULL, NULL, NULL, NULL)),
         ELEMENT(DE_RADIO_ID,               CALLBACK_GETTER(radio_get)),
         ELEMENT(DE_RADIO_ENABLED,          CALLBACK_GETTER(radio_get)),
         ELEMENT(DE_RADIO_NOISE,            CALLBACK_GETTER(radio_get)),
@@ -765,17 +766,6 @@ bus_error_t tr_181_t::radio_get(char *event_name, raw_data_t *p_data, bus_user_d
 
     if (em_ctrl != NULL) {
         return em_ctrl->get_dm_ctrl()->radio_get(event_name, p_data);
-    }
-    
-    return bus_error_general;
-}
-
-bus_error_t tr_181_t::radio_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
-{
-    em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
-
-    if (em_ctrl != NULL) {
-        return em_ctrl->get_dm_ctrl()->radio_tget(event_name, p_data);
     }
     
     return bus_error_general;
