@@ -80,6 +80,22 @@ static bool eth_iface_is_wired_hw(const std::string &iface)
     return strstr(resolved, "/devices/virtual/") == NULL;
 }
 
+static std::string eth_iface_read_str(const std::string &iface, const char *attr)
+{
+    std::string path = "/sys/class/net/" + iface + "/" + attr;
+    FILE *fp = fopen(path.c_str(), "r");
+    if (fp == NULL) {
+        return "";
+    }
+    char line[64] = {0};
+    if (fgets(line, sizeof(line), fp) == NULL) {
+        line[0] = '\0';
+    }
+    fclose(fp);
+    line[strcspn(line, "\n")] = '\0';
+    return line;
+}
+
 static std::vector<std::string> list_dir(const std::string &path)
 {
     std::vector<std::string> names;
@@ -383,4 +399,26 @@ bool em_eth_get_info(const std::string &iface, em_eth_port_t &port)
         port.cur_link_type = 0;
     }
     return true;
+}
+
+bool em_eth_link_changed()
+{
+    static std::map<uint8_t, std::string> last;
+    static bool initialized = false;
+    std::map<uint8_t, std::string> cur;
+
+    for (const auto &p : em_eth_get_ports()) {
+        const std::string &ifname = p.first;
+        unsigned long flags = strtoul(eth_iface_read_str(ifname, "flags").c_str(), NULL, 0);
+        bool admin_up = (flags & IFF_UP) != 0;
+        /* carrier, speed and duplex are only readable while the port is admin up */
+        std::string state = std::string(admin_up ? "1" : "0") + "/" + (admin_up ? eth_iface_read_str(ifname, "carrier") : "") +
+            "/" + (admin_up ? eth_iface_read_str(ifname, "speed") : "") + "/" + (admin_up ? eth_iface_read_str(ifname, "duplex") : "");
+        cur[p.second] = state;
+    }
+
+    bool changed = initialized && (cur != last);
+    last = cur;
+    initialized = true;
+    return changed;
 }
