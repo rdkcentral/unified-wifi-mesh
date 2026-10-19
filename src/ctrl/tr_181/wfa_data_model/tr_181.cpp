@@ -220,7 +220,8 @@ int tr_181_t::wfa_set_bus_callbackfunc_pointers(const char *full_namespace, bus_
         ELEMENT(DE_SSID_MFPCONFIG,        CALLBACK_GETTER(ssid_get)),
         ELEMENT(DE_SSID_MOBDOMAIN,        CALLBACK_GETTER(ssid_get)),
         ELEMENT(DE_SSID_HAULTYPE,         CALLBACK_GETTER(ssid_get)),
-        ELEMENT(DE_DEVICE_TABLE,          CALLBACK_GETTER(device_tget)),
+        /* Device rows are managed with registerRow/unregisterRow */
+        ELEMENT(DE_DEVICE_TABLE,          CB(NULL, NULL, NULL, NULL, NULL, NULL)),
         ELEMENT(DE_DEVICE_ID,                     CALLBACK_GETTER(device_get)),
         ELEMENT(DE_DEVICE_MAPCAP,                 CALLBACK_GETTER(device_get)),
         ELEMENT(DE_DEVICE_COLLINT,                CALLBACK_GETTER(device_get)),
@@ -515,7 +516,10 @@ int tr_181_t::wfa_bus_register_namespace(char *full_namespace, bus_element_type_
 
     if (element_type == bus_element_type_table) {
         uint32_t num_of_table_rows;
-        if (wifi_elem_num_of_table_row(full_namespace, &num_of_table_rows) == bus_error_success) {
+        if (cb_table.get_handler == NULL) {
+            /* Rows are registered on demand with registerRow */
+            dataElements.num_of_table_row = 0;
+        } else if (wifi_elem_num_of_table_row(full_namespace, &num_of_table_rows) == bus_error_success) {
             dataElements.num_of_table_row = num_of_table_rows;
         } else {
             dataElements.num_of_table_row = static_cast<uint32_t>(num_of_rows);
@@ -738,17 +742,6 @@ bus_error_t tr_181_t::device_get(char *event_name, raw_data_t *p_data, bus_user_
 
     if (em_ctrl != NULL) {
         return em_ctrl->get_dm_ctrl()->device_get(event_name, p_data);
-    }
-    
-    return bus_error_general;
-}
-
-bus_error_t tr_181_t::device_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
-{
-    em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
-
-    if (em_ctrl != NULL) {
-        return em_ctrl->get_dm_ctrl()->device_tget(event_name, p_data);
     }
     
     return bus_error_general;

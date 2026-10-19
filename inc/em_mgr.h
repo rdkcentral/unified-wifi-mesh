@@ -672,6 +672,15 @@ public:
 	 * @note This is a pure virtual function and must be implemented by derived classes.
 	 */
 	virtual void delete_all_data_models() = 0;
+
+	/**!
+	 * @brief Notifies that the elements of the data models (devices, radios, SSIDs, BSSs, STAs, ...) may have been added or removed.
+	 *
+	 * @param[in] dm Data model that was updated, NULL if a data model was removed.
+	 *
+	 * @note Default implementation does nothing.
+	 */
+	virtual void dm_updated(dm_easy_mesh_t *dm) { (void)dm; }
     
 	/**!
 	 * @brief Updates the tables with the provided Easy Mesh data.

@@ -64,13 +64,25 @@ public:
     dm_sta_t *get_dm_bh_sta(dm_easy_mesh_t *dm, dm_radio_t *radio);
     const char* get_table_instance(const char *src, char *instance, size_t max_len, bool *is_num);
 
+    /**!
+     * @brief Synchronize the DataElements rows with the content of the data models.
+     *
+     * The rows are not registered by the code which adds the elements to the data model: they follow
+     * the data model. Each row is identified by a key of its element (see the de_keys_*() functions):
+     * the rows of the elements which disappeared are unregistered, the elements without row get a row
+     * and the other rows are left untouched. Unregistering a row also unregisters all the rows below it.
+     *
+     * @param[in] dm Data model that was updated, NULL if a data model was removed.
+     */
+    void de_rows_sync(dm_easy_mesh_t *dm);
+
     bus_error_t network_get(char *event_name, raw_data_t *p_data);
     static bus_error_t network_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
 
+    /* Instance numbers (data model ids) of the Device.{i} rows: the data models of the list, except the controller */
+    std::vector<std::string> de_keys_device();
     bus_error_t device_get(char* event_name, raw_data_t* p_data);
     static bus_error_t device_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
-    bus_error_t device_tget(char *event_name, raw_data_t *p_data);
-    static bus_error_t device_tget_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
 
     bus_error_t policy_get(char* event_name, raw_data_t* p_data);
     static bus_error_t policy_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);

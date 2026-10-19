@@ -229,6 +229,7 @@ void dm_easy_mesh_list_t::remove_device(const char *key)
     dm = static_cast<dm_easy_mesh_t *> (hash_map_remove(m_list, key));
 	if (dm != NULL) {
 		delete dm;
+		m_mgr->dm_updated(NULL);
 	}
 }
 
@@ -238,6 +239,7 @@ void dm_easy_mesh_list_t::put_device(const char *key, const dm_device_t *dev)
     dm_device_t *pdev;
     mac_addr_str_t mac_str;
     em_device_id_t	id;
+    dm_easy_mesh_t *new_dm = NULL;
 
     dm_device_t::parse_device_id_from_key(key, &id);
     dm = get_data_model(id.net_id, dev->m_device_info.intf.mac);
@@ -247,14 +249,18 @@ void dm_easy_mesh_list_t::put_device(const char *key, const dm_device_t *dev)
         memcpy(id.dev_mac, pdev->m_device_info.intf.mac, sizeof(mac_address_t));
     } else if ((pdev = get_device(key)) == NULL) {
         em_printfout("device at key: %s not found\n", key);
-        dm = create_data_model(dev->m_device_info.id.net_id, &dev->m_device_info.intf,
+        new_dm = create_data_model(dev->m_device_info.id.net_id, &dev->m_device_info.intf,
             dev->m_device_info.profile);
-        pdev = dm->get_device();
+        pdev = new_dm->get_device();
     }
     dm_easy_mesh_t::macbytes_to_string(id.dev_mac, mac_str);
 
     *pdev = *dev;
     pdev->m_device_info.id = id;
+
+    if (new_dm != NULL) {
+        m_mgr->dm_updated(new_dm);
+    }
 
     if ((dm = get_data_model(id.net_id, id.dev_mac)) == NULL) {
         printf("%s:%d: Could not find data model for network: %s, mac: %s\n", __func__, __LINE__, id.net_id, mac_str);
@@ -1634,6 +1640,8 @@ void dm_easy_mesh_list_t::delete_all_data_models()
 		delete tmp;
     }   
 
+    m_mgr->dm_updated(NULL);
+
 }
 
 void dm_easy_mesh_list_t::delete_data_model(const char *net_id, const unsigned char *al_mac)
@@ -1651,6 +1659,7 @@ void dm_easy_mesh_list_t::delete_data_model(const char *net_id, const unsigned c
     //printf("%s:%d: deleteing data model at key: %s, dm:%p, colocated:%d\n", __func__, __LINE__, key, dm, dm->get_colocated());
     dm->deinit();
     delete dm;
+    m_mgr->dm_updated(NULL);
 }
 
 dm_easy_mesh_t *dm_easy_mesh_list_t::create_data_model(const char *net_id, const em_interface_t *al_intf, em_profile_type_t profile, bool controller)

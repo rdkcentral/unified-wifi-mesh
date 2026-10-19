@@ -621,7 +621,6 @@ public:
     
     //Table callback handlers
     static bus_error_t add_table_row(char const *name, dm_easy_mesh_t *dm);
-    bus_error_t reg_table_row(char *name, int index);
     int find_radio(dm_easy_mesh_t *dm);
 
     // Bus callback handlers
@@ -1027,7 +1026,6 @@ public:
 
     //Device Callbacks
     static bus_error_t device_get(char* event_name, raw_data_t* p_data, struct bus_user_data* user_data);
-    static bus_error_t device_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
     static bus_error_t device_table_add_row_handler(const char* table_name, const char* alias_name, uint32_t* instance_number);
 
     //Policy Callbacks
