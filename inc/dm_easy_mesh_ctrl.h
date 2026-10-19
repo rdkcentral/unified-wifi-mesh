@@ -227,16 +227,17 @@ public:
 
     /* True if the STA MLD is associated to the AP MLD */
     static bool de_sta_mld_of_ap_mld(em_ap_mld_info_t *ami, em_assoc_sta_mld_info_t *smi);
+    /* MAC addresses of the STAMLD.{i} rows of an AP MLD */
+    static std::vector<std::string> de_keys_sta_mld(dm_easy_mesh_t *dm, em_ap_mld_info_t *ami);
+    /* Name of the APMLD.{i}.STAMLD. table of an AP MLD, empty if it has no row */
+    std::string de_table_stamld_path_name(dm_easy_mesh_t *dm, em_ap_mld_info_t *ami);
     /* Number of STAMLD.{i} rows of an AP MLD */
     static unsigned int de_num_sta_mld(dm_easy_mesh_t *dm, em_ap_mld_info_t *ami);
     dm_assoc_sta_mld_t *get_dm_sta_mld(dm_easy_mesh_t *dm, em_ap_mld_info_t *ami, char *instance, bool is_num);
     bus_error_t stamld_get(char *event_name, raw_data_t *p_data);
-    bus_error_t stamld_tget(char *event_name, raw_data_t *p_data);
     bus_error_t wifi7caps_get(char *event_name, raw_data_t *p_data);
     bus_error_t stamldcfg_get(char *event_name, raw_data_t *p_data);
     static bus_error_t stamld_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
-    static bus_error_t stamld_tget_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
-    static bus_error_t stamld_tget_params(dm_easy_mesh_t *dm, const char *root, em_ap_mld_info_t *ami, bus_data_prop_t **property);
     static bus_error_t wifi7caps_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
     static bus_error_t stamldcfg_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
 
