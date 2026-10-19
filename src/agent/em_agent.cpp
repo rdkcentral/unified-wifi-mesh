@@ -1559,7 +1559,10 @@ void em_agent_t::handle_2s_tick()
 
 void em_agent_t::handle_1s_tick()
 {
-
+    if (!m_data_model.m_cfg_renew_in_progress && m_data_model.m_bsta_reconnect_pending &&
+        refresh_onewifi_subdoc("MESH STA CONFIG", webconfig_subdoc_type_mesh_backhaul_sta) > 0) {
+        m_data_model.m_bsta_reconnect_pending = false;
+    }
 }
 
 void em_agent_t::handle_250ms_tick()

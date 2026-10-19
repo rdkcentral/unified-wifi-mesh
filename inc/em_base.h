@@ -51,6 +51,7 @@ extern "C"
 #define EM_MAX_E4_TABLE_CHANNEL 64
 #define EM_DATE_TIME_BUFF_SZ	64
 #define EM_PROTO_TOUT   1
+#define EM_M2_RSP_TOUT  5 // seconds the agent waits for M2 before restarting autoconfig
 #define EM_METRICS_REQ_MULT 5
 #define EM_MGR_TOUT     250 // in milliseconds
 #define EM_1_TOUT_MULT 	(1000 / EM_MGR_TOUT)
@@ -109,6 +110,8 @@ extern "C"
 #define EM_MAX_CMD_GEN_TTL  10
 #define EM_MAX_CMD_EXT_TTL  30
 #define EM_MAX_ACL_CFG_RETRIES  3
+// Seconds to wait for the agent's ACK of a persisted ACL replay, measured from that command's own start
+#define EM_ACL_CFG_ACK_TOUT     EM_MAX_CMD_GEN_TTL
 #define EM_SSID_MISMATCH_TTL  120
 #define EM_MAX_RENEW_TX_THRESH  5
 #define EM_MAX_CAP_QUERY_TX_THRESH  2
@@ -250,6 +253,8 @@ static const mac_address_t EM_GLOBAL_MAC_ADDRESS = {0xff, 0xff, 0xff, 0xff, 0xff
 
 #define EM_CFG_FILE "/nvram/EasymeshCfg.json"
 #define EM_PLUS_FILE "/nvram/EasymeshPlus.json"
+// Present while a backhaul credential reconfiguration is unfinished, so a restarted controller resumes it
+#define EM_BH_RECONFIG_PENDING_FILE "/nvram/EasymeshBhReconfigPending"
 #define EM_VENDOR_OUI_SIZE 3
 
 #define CPU_TEMP_FILE "/sys/devices/virtual/thermal/thermal_zone0/temp"
@@ -932,6 +937,8 @@ typedef enum {
     em_tlv_type_avail_spectrum_inquiry_reg = 0xe8,
     em_tlv_type_avail_spectrum_inquiry_rsp = 0xe9,
     em_tlv_type_vendor_operational_bss = 0xf2,
+    /* Same layout as the operational BSS TLV with the per-BSS ACL mode; older controllers skip it */
+    em_tlv_type_vendor_bss_acl_mode = 0xf3,
 
     em_tlv_type_max
 } em_tlv_type_t;
@@ -1615,6 +1622,15 @@ typedef struct {
     unsigned char   neigh_num;
     em_neigh_entry_t  *neigh;
 } __attribute__((__packed__)) em_neigh_device_list_t;
+
+#define EM_AP_VENDOR_BSS_FORMAT_EXTENDED 0x80
+#define EM_AP_VENDOR_BSS_RADIO_COUNT_MASK 0x7f
+
+typedef struct {
+    mac_address_t bssid;
+    unsigned short haultype;
+    unsigned short vap_mode;
+} __attribute__((__packed__)) em_ap_vendor_operational_bss_legacy_t;
 
 typedef struct {
     mac_address_t bssid;

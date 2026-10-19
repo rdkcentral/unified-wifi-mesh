@@ -616,6 +616,19 @@ uint32_t em_crypto_t::platform_cipher_decrypt(const EVP_CIPHER *cipher_type, uin
 #endif
         return 0;
     }
+
+    // The final block is written to buf, so it has to be copied out before it counts as plaintext
+    if (len < 0 || static_cast<uint32_t>(plen) + static_cast<uint32_t>(len) > data_len) {
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
+        EVP_CIPHER_CTX_cleanup(ctx);
+#else
+        EVP_CIPHER_CTX_free(ctx);
+#endif
+        return 0;
+    }
+    if (len > 0) {
+        memcpy(data + plen, buf, static_cast<size_t>(len));
+    }
     plen += len;
 
     // For non-wrap ciphers, len should be 0 after final

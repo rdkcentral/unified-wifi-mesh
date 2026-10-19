@@ -180,11 +180,10 @@ bus_error_t em_ctrl_t::cmd_setssid(const char *method_name, const bus_data_prop_
     // Determine if this is a backhaul SSID/passphrase change
     bool is_backhaul_change = (HaulType[0] && strcmp(HaulType, "Backhaul") == 0);
     em_printfout("Received set_ssid request: SSID=%s AddRemoveChange=%s Band=%s HaulType=%s\n", ssid, addremove, band, HaulType);
-    const char *json_key = is_backhaul_change ? "wfa-dataelements:SetBhCfg" : "wfa-dataelements:SetSSID";
-    cJSON_AddItemToObject(root, json_key, json);
 
     ssid_list = cJSON_GetObjectItem(json, "NetworkSSIDList");
     if (!ssid_list || !cJSON_IsArray(ssid_list)) {
+        cJSON_Delete(json);
         cJSON_Delete(root);
         if (output_params) *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
         return bus_error_invalid_input;
@@ -195,6 +194,7 @@ bus_error_t em_ctrl_t::cmd_setssid(const char *method_name, const bus_data_prop_
     bool is_remove = (strcmp(addremove, "Remove") == 0);
     bool is_change = (strcmp(addremove, "Change") == 0);
     if (!is_add && !is_remove && !is_change) {
+        cJSON_Delete(json);
         cJSON_Delete(root);
         if (output_params) *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
         return bus_error_invalid_input;
@@ -205,6 +205,7 @@ bus_error_t em_ctrl_t::cmd_setssid(const char *method_name, const bus_data_prop_
     if ((is_add || is_change) && HaulType[0]) {
     haul_arr = tr_181_t::create_haultype_array(HaulType);
         if (!haul_arr) {
+            cJSON_Delete(json);
             cJSON_Delete(root);
             if (output_params) *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
             return bus_error_invalid_input;
@@ -231,6 +232,12 @@ bus_error_t em_ctrl_t::cmd_setssid(const char *method_name, const bus_data_prop_
         }
         ssid_idx++;
     }
+
+    if (is_change && target != NULL && !is_backhaul_change) {
+        is_backhaul_change = tr_181_t::item_matches_haultype(target, "Backhaul");
+    }
+    const char *json_key = is_backhaul_change ? "wfa-dataelements:SetBhCfg" : "wfa-dataelements:SetSSID";
+    cJSON_AddItemToObject(root, json_key, json);
 
     // Perform requested operation on target item.
     // For Add, create new item. For Change/Remove, modify/delete existing item.
@@ -4962,7 +4969,7 @@ int dm_easy_mesh_ctrl_t::analyze_remove_device(em_bus_event_t *evt, em_cmd_t *pc
         }
     }
 
-    if ((num_devs_to_delete * 3 + num_backhaul_blocks) > EM_MAX_CMD) {
+    if ((num_devs_to_delete * 3 + num_backhaul_blocks) >= EM_MAX_CMD) {
         em_printfout("RemoveDevice exceeds command capacity: devices=%d backhaul blocks=%d",
             num_devs_to_delete, num_backhaul_blocks);
         return 0;
@@ -4974,13 +4981,34 @@ int dm_easy_mesh_ctrl_t::analyze_remove_device(em_bus_event_t *evt, em_cmd_t *pc
 		printf("%s:%d: Device: %s should be deleted\n", __func__, __LINE__, mac_str);	
         if ((memcmp(backhaul_bssids[i], ZERO_MAC_ADDR, sizeof(mac_address_t)) != 0) &&
                 (memcmp(backhaul_sta_macs[i], ZERO_MAC_ADDR, sizeof(mac_address_t)) != 0)) {
-            em_cmd_client_assoc_params_t assoc_params = {};
-            memcpy(assoc_params.bssid, backhaul_bssids[i], sizeof(bssid_t));
-            assoc_params.assoc_control = ASSOC_CONTROL_BLOCK;
-            assoc_params.sta_count = 1;
-            memcpy(assoc_params.sta_list[0], backhaul_sta_macs[i], sizeof(mac_address_t));
-            pcmd[num] = new em_cmd_client_assoc_ctrl_req_t(assoc_params, assoc_dm, em_service_type_ctrl);
-            num++;
+            bool parent_is_being_removed = false;
+            for (int delete_index = 0; delete_index < num_devs_to_delete && !parent_is_being_removed;
+                    delete_index++) {
+                dm_easy_mesh_t *delete_dm = m_data_model_list.get_data_model(
+                    devices_to_delete[delete_index]->m_device_info.id.net_id,
+                    devices_to_delete[delete_index]->m_device_info.intf.mac);
+                if (delete_dm == NULL) {
+                    continue;
+                }
+                for (unsigned int bss_index = 0; bss_index < delete_dm->get_num_bss(); bss_index++) {
+                    em_bss_info_t *bss_info = &delete_dm->m_bss[bss_index].m_bss_info;
+                    if ((bss_info->vap_mode == em_vap_mode_ap) &&
+                            (memcmp(bss_info->bssid.mac, backhaul_bssids[i], sizeof(mac_address_t)) == 0)) {
+                        parent_is_being_removed = true;
+                        break;
+                    }
+                }
+            }
+
+            if (!parent_is_being_removed) {
+                em_cmd_client_assoc_params_t assoc_params = {};
+                memcpy(assoc_params.bssid, backhaul_bssids[i], sizeof(bssid_t));
+                assoc_params.assoc_control = ASSOC_CONTROL_BLOCK;
+                assoc_params.sta_count = 1;
+                memcpy(assoc_params.sta_list[0], backhaul_sta_macs[i], sizeof(mac_address_t));
+                pcmd[num] = new em_cmd_client_assoc_ctrl_req_t(assoc_params, assoc_dm, em_service_type_ctrl);
+                num++;
+            }
         }
 
 		dm = m_data_model_list.get_data_model(device->m_device_info.id.net_id, device->m_device_info.intf.mac);
@@ -5372,6 +5400,11 @@ int dm_easy_mesh_ctrl_t::set_device_list(cJSON *dev_list_obj)
     }
 
     return rc;
+}
+
+int dm_easy_mesh_ctrl_t::reconcile_retained_bss_rows(const unsigned char *radio_mac)
+{
+    return dm_bss_list_t::reconcile_retained_bss_rows(m_db_client, radio_mac);
 }
 
 int dm_easy_mesh_ctrl_t::reset_config()
@@ -6145,15 +6178,30 @@ int dm_easy_mesh_ctrl_t::update_tables(dm_easy_mesh_t *dm)
     } 
 
     if (dm->db_cfg_type_is_set(db_cfg_type_bss_list_delete)) {
-        for (i = 0; i < dm->get_num_bss(); i++) {
+        bool preserve_acl = dm->m_preserve_acl_on_bss_delete;
+        // Walk backwards: update_list(db_delete) removes the entry from this array and
+        // shifts the later ones down, so a forward walk would skip every other BSS.
+        for (i = dm->get_num_bss(); i-- > 0;) {
             bss = dm->get_bss_by_ref(i);
 			criteria = dm->db_cfg_type_get_criteria(db_cfg_type_bss_list_delete);
-			if ((bss.match_criteria(criteria) == true) && (dm->get_bss(i)) &&
-					(dm_bss_list_t::update_db(m_db_client, dm_orch_type_db_delete, dm->get_bss(i)->get_bss_info()) != 0)) {
+            if (bss.match_criteria(criteria) != true) {
+                continue;
+            }
+            if (preserve_acl) {
+                // Keep the row and its ACL while the radio is rebuilt; rows whose BSS
+                // does not return are removed by reconcile_retained_bss_rows().
+                if (dm->get_bss(i) != NULL) {
+                    dm_bss_list_t::retain_bss_row(dm->get_bss(i)->get_bss_info());
+                }
+            } else if ((dm->get_bss(i) != NULL) &&
+                    (dm_bss_list_t::update_db(m_db_client, dm_orch_type_db_delete,
+                            dm->get_bss(i)->get_bss_info()) != 0)) {
                 at_least_one_failed = true;
+                continue;
             }
 			dm_bss_list_t::update_list(bss, dm_orch_type_db_delete);
         }
+        dm->m_preserve_acl_on_bss_delete = false;
         if (at_least_one_failed == true) {
             at_least_one_failed = false;
         } else {
@@ -10830,6 +10878,7 @@ bus_error_t dm_easy_mesh_ctrl_t::bus_set_cb_fwd(char *event_name, raw_data_t *p_
 void dm_easy_mesh_ctrl_t::update_network_topology()
 {
     dm_easy_mesh_t *dm;
+    em_network_topo_t *topo;
 
     assert(g_network_topology != NULL);
     em_printfout("-----Updating network topology <start>-------");
@@ -10837,7 +10886,8 @@ void dm_easy_mesh_ctrl_t::update_network_topology()
     while (dm != NULL) {
         if (dm->is_controller() == false) {
             std::string dev_mac_str = util::mac_to_string(dm->m_device.m_device_info.intf.mac);
-            if (g_network_topology->find_topology(dm) == NULL) {
+            topo = g_network_topology->find_topology(dm);
+            if (topo == NULL) {
                 em_printfout("New dev_mac:%s num_bss:%d added in topology.",
                     dev_mac_str.c_str(), dm->get_num_bss());
                 g_network_topology->add(dm);
@@ -10845,11 +10895,16 @@ void dm_easy_mesh_ctrl_t::update_network_topology()
                 //Update the existing topology with the latest information.
                 em_printfout("Update dev_mac:%s num_bss:%d already in topology.",
                     dev_mac_str.c_str(), dm->get_num_bss());
+                bool bh_processed = topo->is_bh_reconfig_complete();
                 em_network_topo_t *child_topos[EM_MAX_NETWORKS];
                 unsigned int num_child_topos = 0;
                 memset(child_topos, 0, sizeof(child_topos));
                 g_network_topology->remove(dm, child_topos, &num_child_topos);
                 g_network_topology->add(dm, child_topos, num_child_topos);
+                topo = g_network_topology->find_topology(dm);
+                if (topo != NULL) {
+                    topo->set_bh_processed(bh_processed);
+                }
             }
         }
         dm = get_next_dm(dm);
@@ -10876,6 +10931,7 @@ void dm_easy_mesh_ctrl_t::init_network_topology()
     assert(m_topology != NULL);
     //Store m_topology in global variable as the root node.
     g_network_topology = m_topology;
+    m_topology->restore_bh_reconfig_pending();
     em_printfout("Root topology dev_mac:%s, num_bss:%d", dev_mac_str, dm->get_num_bss());
 }
 

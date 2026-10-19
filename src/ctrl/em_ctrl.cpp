@@ -42,6 +42,8 @@
 #include <execinfo.h>
 #include "em.h"
 #include "em_msg.h"
+#include <vector>
+#include <string>
 #include "em_ctrl.h"
 #include "em_cmd_ctrl.h"
 #include "dm_easy_mesh.h"
@@ -275,18 +277,79 @@ void em_ctrl_t::handle_config_renew(em_bus_event_t *evt)
     }
 }
 
+bool em_ctrl_t::persist_client_assoc_ctrl_req(const em_cmd_client_assoc_params_t &assoc)
+{
+    bool found = false;
+    bool persisted = false;
+    pthread_mutex_lock(&m_mutex);
+    em_t *em = static_cast<em_t *>(hash_map_get_first(m_em_map));
+    while (em != NULL) {
+        dm_bss_t *bss = (em->is_al_interface_em() == false) ? em->find_bss(const_cast<unsigned char *> (assoc.bssid)) : NULL;
+        if ((bss == NULL) || (bss->m_bss_info.vap_mode != em_vap_mode_ap)) {
+            em = static_cast<em_t *>(hash_map_get_next(m_em_map, em));
+            continue;
+        }
+
+        found = true;
+        const bool backhaul_bss = (bss->m_bss_info.id.haul_type == em_haul_type_backhaul);
+        if ((assoc.validity_period != 0) && !backhaul_bss) {
+            persisted = true;
+            break;
+        }
+
+        mac_addr_str_t dev_mac_str, radio_mac_str, bss_mac_str;
+        em_2xlong_string_t bss_key;
+        dm_easy_mesh_t::macbytes_to_string(bss->m_bss_info.id.dev_mac, dev_mac_str);
+        dm_easy_mesh_t::macbytes_to_string(bss->m_bss_info.ruid.mac, radio_mac_str);
+        dm_easy_mesh_t::macbytes_to_string(bss->m_bss_info.bssid.mac, bss_mac_str);
+        snprintf(bss_key, sizeof(bss_key), "%s@%s@%s@%s@%d", bss->m_bss_info.id.net_id,
+                dev_mac_str, radio_mac_str, bss_mac_str, bss->m_bss_info.id.haul_type);
+
+        bool backhaul_block = backhaul_bss && (assoc.assoc_control == ASSOC_CONTROL_BLOCK);
+        int acl_rc = backhaul_block ? m_data_model.acl_remove_stas(bss_key, assoc.sta_count, assoc.sta_list) :
+            m_data_model.acl_update(bss_key, assoc.assoc_control, assoc.sta_count, assoc.sta_list);
+        dm_easy_mesh_t *mgr_dm = em->get_data_model();
+        if ((acl_rc == 0) && (mgr_dm != NULL)) {
+            bss->m_bss_info.acl_filter_mode =
+                backhaul_bss ? EM_ACL_MODE_WHITELIST : EM_ACL_MODE_BLACKLIST;
+            bss->m_bss_info.acl_validity_period = 0;
+            bss->m_bss_info.acl_revision++;
+            mgr_dm->set_db_cfg_param(db_cfg_type_bss_list_update, "");
+            persisted = (update_tables(mgr_dm) == 0);
+        }
+        break;
+    }
+    pthread_mutex_unlock(&m_mutex);
+
+    if (!found || !persisted) {
+        em_printfout("Could not persist accepted ACL change for BSSID %s",
+                util::mac_to_string(assoc.bssid).c_str());
+    }
+    return found && persisted;
+}
+
 void em_ctrl_t::handle_m2_tx(em_bus_event_t *evt)
 {
-    // During backhaul reconfig, non-colocated agents (WiFi extenders) will
-    // disconnect after receiving new credentials via M2+M8 and automatically
-    // re-onboard.  Skip the em_config command (topology query) only for those
-    // agents.  The colocated agent stays connected and needs em_config.
+    em_bus_event_type_m2_tx_params_t *params =
+        reinterpret_cast<em_bus_event_type_m2_tx_params_t *>(evt->u.raw_buff);
+
+    // Suppress topology sync only for the agent currently receiving SetBhCfg.
     if (g_network_topology != NULL && g_network_topology->is_bh_reconfig_active()) {
-        em_bus_event_type_m2_tx_params_t *params =
-            reinterpret_cast<em_bus_event_type_m2_tx_params_t *>(evt->u.raw_buff);
         dm_network_t *net = m_data_model.get_network(GLOBAL_NET_ID);
         unsigned char *colocated_mac = (net != NULL) ? net->get_colocated_agent_interface_mac() : NULL;
-        if (colocated_mac == NULL || memcmp(params->al, colocated_mac, sizeof(mac_address_t)) != 0) {
+        bool is_colocated = (colocated_mac != NULL &&
+            memcmp(params->al, colocated_mac, sizeof(mac_address_t)) == 0);
+        bool is_bh_reconfig_exchange = false;
+        std::vector<em_t *> radios;
+        get_all_em_for_al_mac(params->al, radios);
+        for (em_t *radio : radios) {
+            em_cmd_t *current_cmd = (radio != NULL) ? radio->get_current_cmd() : NULL;
+            if ((current_cmd != NULL) && (current_cmd->m_type == em_cmd_type_set_bh_cfg)) {
+                is_bh_reconfig_exchange = true;
+                break;
+            }
+        }
+        if (!is_colocated && is_bh_reconfig_exchange) {
             em_printfout("handle_m2_tx: skipping em_config for non-colocated agent during backhaul reconfig");
             return;
         }
@@ -331,7 +394,14 @@ void em_ctrl_t::handle_set_ssid_list(em_bus_event_t *evt)
     em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
     int num, ret;
 
-    if (m_orch->is_cmd_type_in_progress(evt) == true) {
+    /* SetSSID rewrites the same network SSID table the backhaul walk is applying leaf by leaf */
+    if ((g_network_topology != NULL &&
+             (g_network_topology->is_bh_reconfig_active() ||
+              g_network_topology->is_bh_reconfig_incomplete())) ||
+            m_orch->is_cmd_type_queued(em_cmd_type_set_bh_cfg)) {
+        em_printfout("SetSSID rejected: backhaul reconfiguration in progress");
+        m_ctrl_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
+    } else if (m_orch->is_cmd_type_in_progress(evt) == true) {
         m_ctrl_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
     } else if ((ret = m_data_model.analyze_set_ssid(evt, pcmd)) <= 0) {
         if (ret == EM_PARSE_ERR_NO_CHANGE) {
@@ -366,25 +436,60 @@ void em_ctrl_t::handle_set_bh_cfg(em_bus_event_t *evt)
 
     // Re-trigger path: reconfig already active, submit for next phase.
     if (g_network_topology != NULL && g_network_topology->is_bh_reconfig_active()) {
+        if (evt->data_len != 0) {
+            m_ctrl_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
+            return;
+        }
         em_cmd_t *cmd = new em_cmd_set_bh_cfg_t(evt->params, dm);
         m_orch->submit_command(cmd);
         return;
     }
 
+    // A new SetBhCfg must not start while SetSSID is still being applied.
+    if (m_orch->is_cmd_type_queued(em_cmd_type_set_ssid)) {
+        em_printfout("SetBhCfg rejected: SetSSID in progress");
+        m_ctrl_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
+        return;
+    }
+
     // Validate all agents support M8 bSTA reconfiguration.
+    // Every agent must support M8 bSTA reconfiguration, otherwise the request is aborted. The
+    // capability is learned from a live report and is not stored with the device, so after a
+    // restart a device that was validated when the reconfiguration started (recorded in the
+    // pending-reconfiguration file) counts as validated until it reports again.
+    std::vector<std::string> m8_validated;
     dm_easy_mesh_t *agent_dm = m_data_model.get_first_dm();
     while (agent_dm != NULL) {
-        if (agent_dm->is_controller() == false &&
-            agent_dm->m_device.m_device_info.m8_bsta_reconfiguration == false) {
-            em_printfout("SetBhCfg: agent %s lacks M8 bSTA reconfiguration support",
-                util::mac_to_string(agent_dm->m_device.m_device_info.intf.mac).c_str());
-            m_ctrl_cmd->send_result(em_cmd_out_status_not_ready);
-            return;
+        if (agent_dm->is_controller() == false) {
+            std::string agent_mac = util::mac_to_string(agent_dm->m_device.m_device_info.intf.mac);
+            if (agent_dm->m_device.m_device_info.m8_bsta_reconfiguration == false &&
+                    (g_network_topology == NULL || !g_network_topology->is_bh_m8_validated(agent_mac))) {
+                em_printfout("SetBhCfg: agent %s lacks M8 bSTA reconfiguration support", agent_mac.c_str());
+                m_ctrl_cmd->send_result(em_cmd_out_status_not_ready);
+                return;
+            }
+            m8_validated.push_back(agent_mac);
         }
         agent_dm = m_data_model.get_next_dm(agent_dm);
     }
 
     if ((ret = m_data_model.analyze_set_bh_cfg(evt, &dm)) <= 0) {
+        // The credentials are already persisted from an earlier request that stopped part-way.
+        // Resume the traversal for the agents that have not applied them yet.
+        if ((ret == EM_PARSE_ERR_NO_CHANGE) && (g_network_topology != NULL) &&
+                g_network_topology->is_bh_reconfig_incomplete()) {
+            em_printfout("SetBhCfg: resuming incomplete backhaul reconfiguration");
+            g_network_topology->set_bh_reconfig_incomplete(false);
+            g_network_topology->set_bh_reconfig_active(true);
+            g_network_topology->set_bh_m8_validated(m8_validated);
+            em_cmd_t *cmd = new em_cmd_set_bh_cfg_t(evt->params, dm);
+            if (m_orch->submit_command(cmd)) {
+                m_ctrl_cmd->send_result(em_cmd_out_status_success);
+            } else {
+                m_ctrl_cmd->send_result(em_cmd_out_status_not_ready);
+            }
+            return;
+        }
         if (ret == EM_PARSE_ERR_NO_CHANGE) {
             m_ctrl_cmd->send_result(em_cmd_out_status_no_change);
         } else {
@@ -393,9 +498,22 @@ void em_ctrl_t::handle_set_bh_cfg(em_bus_event_t *evt)
         return;
     }
 
+     if (g_network_topology != NULL && g_network_topology->is_bh_reconfig_incomplete()) {
+         em_printfout("SetBhCfg rejected: resume the incomplete backhaul reconfiguration first");
+         m_ctrl_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
+         return;
+     }
+
     if (g_network_topology != NULL) {
+        // Re-trigger path: reconfig already active, submit for next phase.
+        if (g_network_topology->is_bh_reconfig_incomplete()) {
+             em_printfout("SetBhCfg rejected: resume the incomplete credential change first");
+             m_ctrl_cmd->send_result(em_cmd_out_status_not_ready);
+             return;
+         }
         g_network_topology->reset_bh_reconfig();
         g_network_topology->set_bh_reconfig_active(true);
+        g_network_topology->set_bh_m8_validated(m8_validated);
     }
 
     em_cmd_t *cmd = new em_cmd_set_bh_cfg_t(evt->params, dm);
@@ -1544,6 +1662,10 @@ void em_ctrl_t::start_complete()
 		dm->set_db_cfg_param(db_cfg_type_scan_result_list_delete, "");
 		dm->set_db_cfg_param(db_cfg_type_sta_list_delete, "");
 		dm->set_db_cfg_param(db_cfg_type_op_class_list_delete, "");
+		// Startup only rebuilds the BSS list through onboarding: keep the persisted rows and
+		// their ACL, and let reconcile_retained_bss_rows() drop the ones whose BSS never returns.
+		// Actual device removal/reset (dm_orch_type_db_delete) stays destructive.
+		dm->m_preserve_acl_on_bss_delete = true;
 		dm->set_db_cfg_param(db_cfg_type_bss_list_delete, "");
         dm = m_data_model.get_next_dm(dm);
     }
@@ -1678,21 +1800,43 @@ AlServiceAccessPoint* em_ctrl_t::al_sap_register(const std::string& data_socket_
 
 
 #ifndef TESTING
+/* Only async-signal-safe calls here: no stdio, no strsignal, no allocation. backtrace() is
+ * warmed up in main() so that its lazy libgcc load does not happen inside the handler. */
+static void em_ctrl_fatal_write(const char *str)
+{
+    size_t len = strlen(str);
+    while (len > 0) {
+        ssize_t n = write(STDERR_FILENO, str, len);
+        if (n <= 0) {
+            return;
+        }
+        str += n;
+        len -= static_cast<size_t>(n);
+    }
+}
+
 static void em_ctrl_fatal_signal_handler(int signum)
 {
     void *frames[32];
+    char numbuf[16];
+    size_t pos = sizeof(numbuf) - 1;
+    unsigned int val = static_cast<unsigned int>(signum);
+
+    numbuf[pos] = '\0';
+    do {
+        numbuf[--pos] = static_cast<char>('0' + (val % 10));
+        val /= 10;
+    } while (val != 0 && pos > 0);
+
+    em_ctrl_fatal_write("\n==== onewifi_em_ctrl caught signal ");
+    em_ctrl_fatal_write(&numbuf[pos]);
+    em_ctrl_fatal_write(" ====\n");
+
     int num_frames = backtrace(frames, 32);
+    backtrace_symbols_fd(frames, num_frames, STDERR_FILENO);
+    em_ctrl_fatal_write("==== end backtrace ====\n");
 
-    fprintf(stderr, "\n==== onewifi_em_ctrl caught signal %d (%s), %d frames ====\n",
-            signum, strsignal(signum), num_frames);
-    fflush(stderr);
-
-    backtrace_symbols_fd(frames, num_frames, fileno(stderr));
-    fprintf(stderr, "==== end backtrace ====\n");
-    fflush(stderr);
-
-    // Re-raise with the default handler so a core is still produced
-    signal(signum, SIG_DFL);
+    // SA_RESETHAND restored the default action; re-raise so a core is still produced
     raise(signum);
 }
 
@@ -1701,10 +1845,20 @@ int main(int argc, const char *argv[])
     // Block-buffered stdout loses every printf() since the last flush when the process crashes
     setvbuf(stdout, NULL, _IOLBF, 0);
 
-    signal(SIGSEGV, em_ctrl_fatal_signal_handler);
-    signal(SIGABRT, em_ctrl_fatal_signal_handler);
-    signal(SIGBUS, em_ctrl_fatal_signal_handler);
-    signal(SIGFPE, em_ctrl_fatal_signal_handler);
+    {
+        void *warmup[1];
+        struct sigaction sa;
+        const int fatal_signals[] = { SIGSEGV, SIGABRT, SIGBUS, SIGFPE };
+
+        (void)backtrace(warmup, 1);
+        memset(&sa, 0, sizeof(sa));
+        sa.sa_handler = em_ctrl_fatal_signal_handler;
+        sa.sa_flags = SA_RESETHAND | SA_NODEFER;
+        sigemptyset(&sa.sa_mask);
+        for (size_t i = 0; i < sizeof(fatal_signals) / sizeof(fatal_signals[0]); i++) {
+            sigaction(fatal_signals[i], &sa, NULL);
+        }
+    }
 
     em_ctrl_t  *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
 #ifdef AL_SAP

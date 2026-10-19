@@ -110,10 +110,11 @@ int em_steering_t::send_persisted_assoc_ctrl_req(const unsigned char *bssid, uns
     assoc_ctrl.sta_count = sta_count;
     memcpy(assoc_ctrl.sta_list, sta_list, static_cast<size_t> (sta_count) * sizeof(mac_address_t));
 
-    return send_client_assoc_ctrl_req_msg(&assoc_ctrl);
+    return send_client_assoc_ctrl_req_msg(&assoc_ctrl, true);
 }
 
-int em_steering_t::send_client_assoc_ctrl_req_msg(em_client_assoc_ctrl_req_t *assoc_ctrl)
+int em_steering_t::send_client_assoc_ctrl_req_msg(em_client_assoc_ctrl_req_t *assoc_ctrl,
+        bool track_acl_ack)
 {
     unsigned char buff[MAX_EM_BUFF_SZ];
     char *errors[EM_MAX_TLV_MEMBERS] = {0};
@@ -143,9 +144,14 @@ int em_steering_t::send_client_assoc_ctrl_req_msg(em_client_assoc_ctrl_req_t *as
 
     memset(tmp, 0, sizeof(em_cmdu_t));
     cmdu->type = htons(msg_type);
-    cmdu->id = htons(get_mgr()->get_next_msg_id());
+    const unsigned short msg_id = get_mgr()->get_next_msg_id();
+    cmdu->id = htons(msg_id);
     cmdu->last_frag_ind = 1;
     cmdu->relay_ind = 0;
+    m_client_assoc_ctrl_req_msg_id = msg_id;
+    if (track_acl_ack) {
+        add_acl_cfg_pending_msg_id(msg_id);
+    }
 
     tmp += sizeof(em_cmdu_t);
     len += sizeof(em_cmdu_t);
@@ -172,16 +178,21 @@ int em_steering_t::send_client_assoc_ctrl_req_msg(em_client_assoc_ctrl_req_t *as
 
     if (em_msg_t(em_msg_type_client_assoc_ctrl_req, em_profile_type_3, buff, static_cast<unsigned int> (len)).validate(errors) == 0) {
         printf("Client Assoc Control Request msg validation failed\n");
+        if (track_acl_ack) {
+            remove_acl_cfg_pending_msg_id(msg_id);
+        }
         return -1;
     }
 
     if (send_frame(buff, static_cast<unsigned int> (len))  < 0) {
         printf("%s:%d: Client Assoc Control Request msg send failed, error:%d\n", __func__, __LINE__, errno);
+        if (track_acl_ack) {
+            remove_acl_cfg_pending_msg_id(msg_id);
+        }
         return -1;
     }
 
     m_client_assoc_ctrl_req_tx_cnt++;
-    m_client_assoc_ctrl_req_msg_id= ntohs(cmdu->id);
     em_printfout("Client Assoc Control Request (%d) Send Successful, msg_id:%u\n", m_client_assoc_ctrl_req_tx_cnt, m_client_assoc_ctrl_req_msg_id);
 
     return static_cast<int> (len);
@@ -620,9 +631,31 @@ int em_steering_t::handle_client_steering_report(unsigned char *buff, unsigned i
 int em_steering_t::handle_ack_msg(unsigned char *buff, unsigned int len)
 {
     std::vector<em_t *> em_radios;
+    if ((buff == NULL) || (len < sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))) {
+        return -1;
+    }
     em_cmdu_t *cmdu = reinterpret_cast<em_cmdu_t *> (buff + sizeof(em_raw_hdr_t));
     unsigned short response_msg_id = ntohs(cmdu->id);
     em_raw_hdr_t *hdr = reinterpret_cast<em_raw_hdr_t *>(buff);
+    bool has_error_code = false;
+    em_tlv_t *tlv = reinterpret_cast<em_tlv_t *>(buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+    unsigned int remaining = len - static_cast<unsigned int>(sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+
+    while (remaining >= sizeof(em_tlv_t)) {
+        if (tlv->type == em_tlv_type_eom) {
+            break;
+        }
+        unsigned int tlv_len = ntohs(tlv->len);
+        if (remaining < sizeof(em_tlv_t) + tlv_len) {
+            return -1;
+        }
+        if (tlv->type == em_tlv_type_error_code) {
+            has_error_code = true;
+        }
+        remaining -= static_cast<unsigned int>(sizeof(em_tlv_t)) + tlv_len;
+        tlv = reinterpret_cast<em_tlv_t *>(reinterpret_cast<unsigned char *>(tlv) + sizeof(em_tlv_t) + tlv_len);
+    }
+
     get_mgr()->get_all_em_for_al_mac(hdr->src, em_radios);
 
     for (auto &em : em_radios)
@@ -633,8 +666,28 @@ int em_steering_t::handle_ack_msg(unsigned char *buff, unsigned int len)
             continue;
         }
 
-        if ((em->get_state() == em_state_ctrl_client_assoc_ctrl_req_pending) &&
+        bool acl_cfg_complete = false;
+        if ((em->get_state() == em_state_ctrl_acl_cfg_pending) &&
+                em->ack_acl_cfg_pending_msg_id(response_msg_id, has_error_code, &acl_cfg_complete)) {
+            if (has_error_code) {
+                em->set_state(em_state_ctrl_acl_cfg_failed);
+                em_printfout("Persisted ACL chunk rejected by radio:%s",
+                        util::mac_to_string(em->get_radio_interface_mac()).c_str());
+            } else if (acl_cfg_complete) {
+                // The replay thread may still be sending; it completes the replay in that case.
+                em->set_state(em_state_ctrl_acl_cfg_configured);
+                em_printfout("All persisted ACL chunks acknowledged by radio:%s",
+                        util::mac_to_string(em->get_radio_interface_mac()).c_str());
+            }
+        } else if ((em->get_state() == em_state_ctrl_client_assoc_ctrl_req_pending) &&
             (response_msg_id == em->get_client_assoc_ctrl_req_msg_id())) {
+
+            em_cmd_t *current_cmd = em->get_current_cmd();
+            if (!has_error_code && (current_cmd != NULL) &&
+                    (current_cmd->m_type == em_cmd_type_client_assoc_ctrl_req) &&
+                    !get_mgr()->persist_client_assoc_ctrl_req(current_cmd->m_param.u.client_assoc_params)) {
+                em_printfout("Failed to persist accepted client association-control request");
+            }
 
             em->set_state(em_state_ctrl_configured);
             em->clear_client_assoc_ctrl_req_msg_id();
@@ -661,7 +714,6 @@ int em_steering_t::handle_client_assoc_ctrl_req(unsigned char *buff, unsigned in
     em_raw_hdr_t *hdr = reinterpret_cast<em_raw_hdr_t *> (buff);
     em_cmdu_t *cmdu = reinterpret_cast<em_cmdu_t *> (buff + sizeof(em_raw_hdr_t));
     unsigned short msg_id = ntohs(cmdu->id);
-    dm_easy_mesh_t *dm = get_data_model();
 
     if (em_msg_t(em_msg_type_client_assoc_ctrl_req, em_profile_type_3, buff, len).validate(errors) == 0) {
         em_printfout("Client Association Control Request message validation failed");
@@ -684,49 +736,57 @@ int em_steering_t::handle_client_assoc_ctrl_req(unsigned char *buff, unsigned in
             sta_count, assoc_tlv_len, expected_len, MAX_STA_LIST);
         return -1;
     }
-
-    // Collect indices of associated and unassociated STAs
-    std::vector<uint8_t> associated_sta_indices;
-
-    if (assoc_ctrl_req->assoc_control == ASSOC_CONTROL_BLOCK) {
-
-        for (uint8_t i = 0; i < sta_count; i++) {
-            mac_address_t sta_mac;
-            memcpy(sta_mac, assoc_ctrl_req->sta_list[i], sizeof(mac_address_t));
-
-            if (dm->is_sta_associated(assoc_ctrl_req->bssid, sta_mac)) {
-                associated_sta_indices.push_back(i);
-            }
-        }
-
-        if (!associated_sta_indices.empty()) {
-            std::vector<const unsigned char*> list;
-            for (auto idx : associated_sta_indices) {
-                list.push_back(assoc_ctrl_req->sta_list[idx]);
-            }
-            em_printfout("sending ack with error code tlv");
-            send_consolidated_1905_ack_message(list, msg_id, 1, hdr->src);
-            return 0;
-        } else {
-             // No Error Code TLV needed when all requested STAs are unassociated.
-             send_1905_ack_message(assoc_ctrl_req->sta_list[0], msg_id, 0, hdr->src);
-        }
-    } else if (assoc_ctrl_req->assoc_control == ASSOC_CONTROL_UNBLOCK) {
-        std::vector<const unsigned char*> list;
-        for (uint8_t i = 0; i < sta_count; i++) {
-            list.push_back(assoc_ctrl_req->sta_list[i]);
-        }
-
-        send_consolidated_1905_ack_message(list, msg_id, 0, hdr->src);
-    } else {
+    if ((assoc_ctrl_req->assoc_control != ASSOC_CONTROL_BLOCK) &&
+            (assoc_ctrl_req->assoc_control != ASSOC_CONTROL_UNBLOCK)) {
         em_printfout("invalid assoc_control=%u (allowed: 0=Block, 1=Unblock)",
             assoc_ctrl_req->assoc_control);
         return -1;
     }
+
+    dm_easy_mesh_t *dm = get_data_model();
+    em_bss_info_t *target_bss = NULL;
+    if (dm != NULL) {
+        for (unsigned int i = 0; i < dm->m_num_bss; i++) {
+            if (memcmp(dm->m_bss[i].m_bss_info.bssid.mac, assoc_ctrl_req->bssid,
+                    sizeof(mac_address_t)) == 0) {
+                target_bss = &dm->m_bss[i].m_bss_info;
+                break;
+            }
+        }
+    }
+    if (target_bss == NULL) {
+        em_printfout("Client Association Control Request BSSID was not found");
+        return -1;
+    }
+
+    std::vector<const unsigned char *> ack_sta_list;
+    for (uint8_t i = 0; i < sta_count; i++) {
+        ack_sta_list.push_back(assoc_ctrl_req->sta_list[i]);
+    }
+    if ((assoc_ctrl_req->assoc_control == ASSOC_CONTROL_BLOCK) &&
+            (target_bss->id.haul_type != em_haul_type_backhaul)) {
+        // Report the reason-1 Error Code only for STAs that are actually associated.
+        std::vector<const unsigned char *> assoc_sta_list;
+        for (uint8_t i = 0; i < sta_count; i++) {
+            if (dm->get_sta_info(assoc_ctrl_req->sta_list[i], assoc_ctrl_req->bssid,
+                    target_bss->ruid.mac, em_target_sta_map_assoc) != NULL) {
+                em_printfout("Rejecting block of associated fronthaul STA %s",
+                        util::mac_to_string(assoc_ctrl_req->sta_list[i]).c_str());
+                assoc_sta_list.push_back(assoc_ctrl_req->sta_list[i]);
+            }
+        }
+        if (!assoc_sta_list.empty()) {
+            send_consolidated_1905_ack_message(assoc_sta_list, msg_id, 1, hdr->src);
+            return 0;
+        }
+    }
+
     // Send the association control request to OneWifi for HAL enforcement
     uint16_t tlv_len = ntohs(tlv->len);
     get_mgr()->io_process(em_bus_event_type_client_assoc_ctrl_req,
         reinterpret_cast<unsigned char *> (assoc_ctrl_req), tlv_len);
+
+    send_consolidated_1905_ack_message(ack_sta_list, msg_id, 0, hdr->src);
 
     return 0;
 }
@@ -734,18 +794,21 @@ int em_steering_t::handle_client_assoc_ctrl_req(unsigned char *buff, unsigned in
 int em_steering_t::send_acl_list(const char *bss_key, const unsigned char *bssid,
             unsigned short validity_period, bool blocked)
 {
-    mac_address_t chunk[MAX_STA_LIST];
-    unsigned int sent = 0, num;
+    mac_address_t macs[EM_MAX_ACL_JSON_STAS];
+    unsigned int offset = 0;
+    unsigned int num = get_mgr()->get_bss_acl_macs(
+        bss_key, blocked, 0, EM_MAX_ACL_JSON_STAS, macs);
 
-    // The Client Association Control TLV carries at most MAX_STA_LIST STAs, so send in chunks.
-    while ((num = get_mgr()->get_bss_acl_macs(bss_key, blocked, sent, MAX_STA_LIST, chunk)) > 0) {
+    while (offset < num) {
+        unsigned char chunk_count = static_cast<unsigned char>(
+            (num - offset > MAX_STA_LIST) ? MAX_STA_LIST : num - offset);
         if (send_persisted_assoc_ctrl_req(bssid, blocked ? ASSOC_CONTROL_BLOCK : ASSOC_CONTROL_UNBLOCK,
-                validity_period, static_cast<unsigned char> (num), chunk) <= 0) {
+                validity_period, chunk_count, &macs[offset]) <= 0) {
             em_printfout("Failed sending %s ACL chunk for BSS %s at STA offset %u",
-                    blocked ? "blocked" : "allowed", bss_key, sent);
+                    blocked ? "blocked" : "allowed", bss_key, offset);
             return -1;
         }
-        sent += num;
+        offset += chunk_count;
     }
 
     return 0;
@@ -762,11 +825,24 @@ int em_steering_t::send_persisted_acl_cfg()
         return -1;
     }
 
+    if (has_acl_cfg_pending_msg_ids()) {
+        return 0;
+    }
+    // Keep ACK handling from completing the replay until every chunk has been sent.
+    begin_acl_cfg_send();
+
     for (unsigned int i = 0; i < dm->m_num_bss; i++) {
         em_bss_info_t *info = &dm->m_bss[i].m_bss_info;
 
+        // A chunk was rejected, or the ACK timeout fired, while sending; stop and let
+        // orchestration retry.
+        if (is_acl_cfg_rejected() || (get_state() != em_state_ctrl_acl_cfg_pending)) {
+            clear_acl_cfg_pending_msg_ids();
+            return -1;
+        }
+
         if ((memcmp(info->ruid.mac, get_radio_interface_mac(), sizeof(mac_address_t)) != 0) ||
-                (info->vap_mode != em_vap_mode_ap)) {
+                (info->vap_mode != em_vap_mode_ap) || (info->acl_validity_period != 0)) {
             continue;
         }
 
@@ -778,6 +854,7 @@ int em_steering_t::send_persisted_acl_cfg()
 
         if ((send_acl_list(bss_key, info->bssid.mac, info->acl_validity_period, true) != 0) ||
                 (send_acl_list(bss_key, info->bssid.mac, info->acl_validity_period, false) != 0)) {
+            clear_acl_cfg_pending_msg_ids();
             return -1;
         }
     }
@@ -797,12 +874,27 @@ void em_steering_t::process_ctrl_state()
             break;
 
         case em_state_ctrl_acl_cfg_pending:
+            if (has_acl_cfg_pending_msg_ids()) {
+                break;
+            }
             if (send_persisted_acl_cfg() != 0) {
+                end_acl_cfg_send();
                 em_printfout("Persisted ACL configuration failed; orchestration may retry");
                 set_state(em_state_ctrl_acl_cfg_failed);
                 break;
             }
-            set_state(em_state_ctrl_acl_cfg_configured);
+            // Complete here only if every chunk was already acknowledged while sending;
+            // otherwise ACK handling completes the replay.
+            switch (end_acl_cfg_send()) {
+                case acl_cfg_send_done_ok:
+                    set_state(em_state_ctrl_acl_cfg_configured);
+                    break;
+                case acl_cfg_send_done_failed:
+                    set_state(em_state_ctrl_acl_cfg_failed);
+                    break;
+                default:
+                    break;
+            }
             break;
 
         default:

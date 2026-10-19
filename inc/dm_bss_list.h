@@ -20,6 +20,7 @@
 #define DM_BSS_LIST_H
 
 #include <set>
+#include <mutex>
 #include <string>
 
 #include "em_base.h"
@@ -33,12 +34,31 @@ class dm_bss_list_t : public dm_bss_t, public db_easy_mesh_t, virtual public tr_
 
     // Dynamic MAC ACL, keyed by "<bss_key>@<sta_mac>" so a BSS can hold any number of STAs
 	hash_map_t  *m_acl_sta_map;
+	std::recursive_mutex m_acl_mutex;
 
     // BSS keys with ACL changes awaiting database persistence.
 	std::set<std::string> m_pending_acl_persistence_keys;
 
+    // BSSList rows kept (with their ACL) while a radio's BSSs are rebuilt during onboarding.
+    // Rows whose BSS does not return are deleted by reconcile_retained_bss_rows().
+	std::set<std::string> m_retained_bss_keys;
+
+	/**!
+	 * @brief Copies the ACL entries of one BSS key to another.
+	 */
+	int acl_copy(const char *from_key, const char *to_key);
+
+	/**!
+	 * @brief Deletes a BSSList row by key together with its in-memory ACL state.
+	 */
+	int delete_bss_row(db_client_t& db_client, const char *key);
+
 	/**!
 	 * @brief Returns the ACL map, creating it on first use.
+	 *
+	 * @note The returned map is guarded by m_acl_mutex. The pointer is only valid while the caller
+	 * holds that (recursive) mutex, so take it before calling and keep it for as long as the map
+	 * is read or modified. Outside callers should use the acl_*() accessors instead.
 	 */
 	hash_map_t *get_acl_map();
 
@@ -59,6 +79,20 @@ public:
 	~dm_bss_list_t();
 
 	/**!
+	 * @brief Keeps the BSSList row and ACL of a BSS that is removed only to be rebuilt.
+	 */
+	void retain_bss_row(const em_bss_info_t *info);
+
+	/**!
+	 * @brief Deletes the retained BSSList rows of a radio whose BSS did not return.
+	 *
+	 * Call once the radio's BSS list has been rebuilt from the agent.
+	 *
+	 * @returns 0 on success, -1 if a stale row could not be deleted.
+	 */
+	int reconcile_retained_bss_rows(db_client_t& db_client, const unsigned char *radio_mac);
+
+	/**!
 	 * @brief Applies a Client Association Control Request to the dynamic ACL of a BSS.
 	 *
 	 * Blocked STAs end up on the deny list and unblocked STAs on the allow list.
@@ -70,6 +104,8 @@ public:
 	 * @returns 0 on success, -1 if the input is invalid or an ACL entry cannot be stored.
 	 */
 	int acl_update(const char *bss_key, unsigned char assoc_control,
+			unsigned char sta_count, const mac_address_t *sta_list);
+	bool acl_can_update(const char *bss_key, unsigned char assoc_control,
 			unsigned char sta_count, const mac_address_t *sta_list);
 
 	/**!

@@ -33,6 +33,8 @@
 #include <sys/uio.h>
 #include <unistd.h>
 #include <assert.h>
+#include <algorithm>
+#include <vector>
 #include "em_base.h"
 #include "em_cmd.h"
 #include "em_orch.h"
@@ -54,6 +56,11 @@ __attribute__((weak)) em_network_topo_t *g_network_topology = nullptr;
 __attribute__((weak)) void em_network_topo_t::reset_bh_reconfig() {}
 __attribute__((weak)) void em_network_topo_t::send_bh_reconfig_event() {}
 __attribute__((weak)) void em_network_topo_t::mark_bh_leaves_processed() {}
+__attribute__((weak)) void em_network_topo_t::set_bh_processed(bool) {}
+__attribute__((weak)) void em_network_topo_t::set_bh_reconfig_active(bool) {}
+__attribute__((weak)) void em_network_topo_t::set_bh_reconfig_incomplete(bool) {}
+__attribute__((weak)) bool em_network_topo_t::is_bh_reconfig_complete() { return false; }
+__attribute__((weak)) bool em_network_topo_t::is_bh_reconfig_candidate() { return false; }
 __attribute__((weak)) em_network_topo_t *em_network_topo_t::find_topology(dm_easy_mesh_t *) { return nullptr; }
 
 unsigned int em_orch_t::submit_commands(em_cmd_t *pcmd[], unsigned int num)
@@ -155,14 +162,17 @@ bool em_orch_t::submit_command(em_cmd_t *pcmd)
     // Pre-process the submit orch op (e.g. update DB with new SSIDs)
     // before building candidates, so the data model is up-to-date when
     // create_encrypted_settings reads network SSID info for M8.
+    // Preprocessing-only descriptors report false; complete them without queuing.
     if (pre_process_orch_op(pcmd) == false) {
         destroy_command(pcmd);
         return false;
     }
 
-    // Also process any remaining non-submit orch ops (e.g. net_ssid_update)
-    // that would otherwise never execute in the single-command path.
-    {
+    // SetBhCfg is submitted as a single command carrying all its descriptors, so
+    // run its remaining non-submit orch ops (e.g. net_ssid_update) here. Batch
+    // analyzers already clone one command per descriptor via clone_for_next(),
+    // so sweeping those would execute their side effects twice.
+    if (pcmd->get_type() == em_cmd_type_set_bh_cfg) {
         unsigned int saved_idx = pcmd->get_orch_op_index();
         for (unsigned int i = saved_idx + 1; i < pcmd->m_num_orch_desc; i++) {
             pcmd->m_orch_op_idx = i;
@@ -177,7 +187,21 @@ bool em_orch_t::submit_command(em_cmd_t *pcmd)
     if (build_candidates(pcmd) == 0) {
         if (pcmd->get_type() == em_cmd_type_set_bh_cfg && g_network_topology != NULL) {
             g_network_topology->set_bh_reconfig_active(false);
-            g_network_topology->reset_bh_reconfig();
+            if (g_network_topology->is_bh_reconfig_candidate()) {
+                // Only the root is left and it has no radio to configure (controller without a
+                // co-located agent), so there is nothing more to wait for.
+                g_network_topology->set_bh_processed(true);
+            }
+            if (g_network_topology->is_bh_reconfig_complete()) {
+                // Every level has applied the credentials; the walk is done.
+                g_network_topology->reset_bh_reconfig();
+            } else {
+                // No candidates, but devices still lack the new credentials (the request that
+                // started the walk may have found none ready). The credentials are already
+                // persisted, so keep the progress and let a repeated request resume.
+                em_printfout("Backhaul reconfiguration has no candidates but is not complete; keeping it resumable");
+                g_network_topology->set_bh_reconfig_incomplete(true);
+            }
         }
         destroy_command(pcmd);
     } else {
@@ -514,6 +538,15 @@ bool em_orch_t::get_dev_test_status()
 }
 
 
+/* True while any command of this type is pending or active (stats are pushed on submit). */
+bool em_orch_t::is_cmd_type_queued(em_cmd_type_t type)
+{
+    em_short_string_t key;
+
+    snprintf(key, sizeof(em_short_string_t), "%d", type);
+    return hash_map_get(m_cmd_map, key) != NULL;
+}
+
 bool em_orch_t::is_cmd_type_in_progress(em_bus_event_t *evt)
 {
     em_cmd_stats_t *stats;
@@ -599,6 +632,21 @@ void em_orch_t::handle_timeout()
                    // __func__, __LINE__, pcmd->get_cmd_name(), em_cmd_t::get_orch_op_str(pcmd->get_orch_op()));
             
             bool bh_reconfig_next = (pcmd->m_type == em_cmd_type_set_bh_cfg);       
+            bool bh_reconfig_succeeded = true;
+            // Devices with at least one radio that did not reach M2; they stay unprocessed so a
+            // retry targets only them.
+            std::vector<em_network_topo_t *> bh_failed_nodes;
+            if (bh_reconfig_next) {
+                for (j = static_cast<int>(queue_count(pcmd->m_em_candidates)) - 1; j >= 0; j--) {
+                    em = static_cast<em_t *>(queue_peek(pcmd->m_em_candidates, static_cast<unsigned int>(j)));
+                    if (em->get_state() != em_state_ctrl_wsc_m2_sent) {
+                        bh_reconfig_succeeded = false;
+                        if (g_network_topology != NULL) {
+                            bh_failed_nodes.push_back(g_network_topology->find_topology(em->get_data_model()));
+                        }
+                    }
+                }
+            }
 
             queue_remove(m_active, static_cast<unsigned int>(i));
             pop_stats(pcmd);
@@ -607,7 +655,8 @@ void em_orch_t::handle_timeout()
                 em->set_orch_state(em_orch_state_idle);
                  if (bh_reconfig_next && g_network_topology != NULL) {
                     em_network_topo_t *topo = g_network_topology->find_topology(em->get_data_model());
-                    if (topo != NULL) {
+                    if ((topo != NULL) && (std::find(bh_failed_nodes.begin(), bh_failed_nodes.end(), topo) ==
+                            bh_failed_nodes.end())) {
                         topo->set_bh_processed(true);
                     }
                 }
@@ -621,20 +670,20 @@ void em_orch_t::handle_timeout()
                 em_t *first_em = static_cast<em_t *>(queue_peek(pcmd->m_em_candidates, 0));
                 if (first_em != NULL && first_em->get_data_model() != NULL) {
                     first_em->get_data_model()->m_cfg_renew_in_progress = false;
-                    
-                    if (first_em->get_data_model()->m_bsta_reconnect_pending) {
-                        first_em->get_data_model()->m_bsta_reconnect_pending = false;
-                        if (first_em->get_mgr() != NULL) {
-                            first_em->get_mgr()->refresh_onewifi_subdoc(
-                                "MESH STA CONFIG", webconfig_subdoc_type_mesh_backhaul_sta);
-                        }
-                    }
                 }
             }
             destroy_command(pcmd);
             //em->set_state(em_state_agent_config_complete);
             if (bh_reconfig_next && g_network_topology != NULL) {
-                g_network_topology->send_bh_reconfig_event();
+                if (bh_reconfig_succeeded) {
+                    g_network_topology->send_bh_reconfig_event();
+                } else {
+                    // Keep the traversal progress: the new credentials are already persisted and
+                    // the processed devices use them. Repeating the request resumes from here.
+                    em_printfout("Backhaul reconfiguration failed; stopping traversal, repeat the request to retry the remaining agents");
+                    g_network_topology->set_bh_reconfig_active(false);
+                    g_network_topology->set_bh_reconfig_incomplete(true);
+                }
             }
 
         }
