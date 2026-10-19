@@ -182,12 +182,11 @@ public:
     bus_error_t curops_get(char* event_name, raw_data_t* p_data);
     static bus_error_t curops_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
 
+    /* Name of the Device.{i}.Radio.{i}.Capabilities.CapableOperatingClassProfile. table of a radio, empty if the radio has no row */
+    std::string de_table_capop_path_name(dm_easy_mesh_t *dm, em_radio_info_t *ri);
     dm_op_class_t* get_dm_capop(dm_easy_mesh_t *dm, dm_radio_t *radio, int instance);
     bus_error_t capops_get(char* event_name, raw_data_t* p_data);
     static bus_error_t capops_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
-    bus_error_t capops_tget(char *event_name, raw_data_t *p_data);
-    static bus_error_t capops_tget_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
-    static bus_error_t capops_tget_params(dm_easy_mesh_t *dm, const char *root, em_radio_info_t *ri, bus_data_prop_t **property);
 
     dm_sta_t* get_dm_sta(dm_easy_mesh_t *dm, em_bss_info_t *bi, int instance);
     dm_sta_t *get_dm_sta(dm_easy_mesh_t *dm, em_bss_info_t *bi, char *instance, bool is_num);
