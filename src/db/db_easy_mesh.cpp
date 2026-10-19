@@ -123,6 +123,7 @@ int db_easy_mesh_t::insert_row(db_client_t& db_client, ...)
     db_query_t format, query;
     db_fmt_t	col_fmt;
     void *ctx;
+    bool succeeded = false;
 
     snprintf(format, sizeof(db_query_t), "insert into %s (", m_table_name);
     for (i = 0; i < m_num_cols; i++) {
@@ -147,10 +148,10 @@ int db_easy_mesh_t::insert_row(db_client_t& db_client, ...)
 
     //printf("%s:%d: Query: %s\n", __func__, __LINE__, query);
 
-    ctx = db_client.execute(query);
+    ctx = db_client.execute(query, &succeeded);
     db_client.free_result(ctx);
 
-    return db_client.last_query_succeeded() ? 0 : -1;
+    return succeeded ? 0 : -1;
 }
 
 int db_easy_mesh_t::update_row(db_client_t& db_client, ...)
@@ -160,6 +161,7 @@ int db_easy_mesh_t::update_row(db_client_t& db_client, ...)
     va_list list;
     db_fmt_t	col_fmt;
     void *ctx;
+    bool succeeded = false;
 
     snprintf(format, sizeof(db_query_t), "update %s set ", m_table_name);
 
@@ -183,10 +185,10 @@ int db_easy_mesh_t::update_row(db_client_t& db_client, ...)
 
     //printf("%s:%d: Query: %s\n", __func__, __LINE__, query);
 
-    ctx = db_client.execute(query);
+    ctx = db_client.execute(query, &succeeded);
     db_client.free_result(ctx);
 
-    return db_client.last_query_succeeded() ? 0 : -1;
+    return succeeded ? 0 : -1;
 }
 
 int db_easy_mesh_t::compare_row(db_client_t& db_client, ...)
@@ -231,6 +233,7 @@ int db_easy_mesh_t::delete_row(db_client_t& db_client, ...)
     va_list list;
     db_fmt_t	col_fmt;
     void *ctx;
+    bool succeeded = false;
 
     snprintf(format, sizeof(db_query_t), "delete from %s", m_table_name);
     snprintf(tmp, sizeof(db_query_t), " where %s =  ", m_columns[0].m_name);
@@ -245,10 +248,10 @@ int db_easy_mesh_t::delete_row(db_client_t& db_client, ...)
 
     //printf("%s:%d: Query: %s\n", __func__, __LINE__, query);
 
-    ctx = db_client.execute(query);
+    ctx = db_client.execute(query, &succeeded);
     db_client.free_result(ctx);
 
-    return db_client.last_query_succeeded() ? 0 : -1;
+    return succeeded ? 0 : -1;
 }
 
 
@@ -257,11 +260,17 @@ int db_easy_mesh_t::sync_table(db_client_t& db_client)
     db_query_t    query;
     void *ctx;
     int ret;
+    bool succeeded = false;
 
     memset(query, 0, sizeof(db_query_t));
     snprintf(query, sizeof(db_query_t), "select * from %s", m_table_name);
 
-    ctx = db_client.execute(query);
+    // A successful SELECT with no rows returns a NULL context; only a failed query is an error.
+    ctx = db_client.execute(query, &succeeded);
+    if (!succeeded) {
+        db_client.free_result(ctx);
+        return -1;
+    }
 
     ret = sync_db(db_client, ctx);
 
@@ -296,6 +305,7 @@ int db_easy_mesh_t::create_table(db_client_t& db_client)
     db_query_t    query;
     unsigned int i;
     char type_str[64];
+    bool succeeded = false;
 
     memset(query, 0, sizeof(db_query_t));
     snprintf(query, sizeof(db_query_t), "create table %s (", m_table_name);
@@ -304,21 +314,27 @@ int db_easy_mesh_t::create_table(db_client_t& db_client)
         snprintf(query + strlen(query), sizeof(query) - strlen(query), "%s", m_columns[i].m_name);
         snprintf(query + strlen(query), sizeof(query) - strlen(query), "%s", " ");
 
-        get_column_type(i, type_str, sizeof(type_str));
+        if (get_column_type(i, type_str, sizeof(type_str)) == NULL) {
+            return -1;
+        }
         snprintf(query + strlen(query), sizeof(query) - strlen(query), "%s", type_str);
         snprintf(query + strlen(query), sizeof(query) - strlen(query), "%s", ", ");
     }
 
     query[strlen(query) - 2] = ')';
     query[strlen(query) - 1] = 0;
-    db_client.execute(query);
+    db_client.free_result(db_client.execute(query, &succeeded));
     //printf("%s:%d: Query: %s\n", __func__, __LINE__, query);
 
-    return 0;
+    return succeeded ? 0 : -1;
 }
 
 char *db_easy_mesh_t::get_column_type(unsigned int pos, char *type_str, unsigned int sz)
 {
+    if (pos >= m_num_cols || type_str == NULL || sz == 0) {
+        return NULL;
+    }
+
     switch (m_columns[pos].m_type) {
         case db_data_type_char:
             snprintf(type_str, sz, "char(%d)", m_columns[pos].m_type_args);
@@ -341,16 +357,22 @@ char *db_easy_mesh_t::get_column_type(unsigned int pos, char *type_str, unsigned
             break;
 
         case db_data_type_integer:
+        case db_data_type_int:
+        case db_data_type_tinyint:
+        case db_data_type_smallint:
+        case db_data_type_mediumint:
+        case db_data_type_bigint:
             snprintf(type_str, sz, "integer");
             break;
 
-            case db_data_type_tinyint:
-                snprintf(type_str, sizeof(type_str), "integer");
-                break;
+        case db_data_type_datetime:
+            snprintf(type_str, sz, "text");
+            break;
 
-            case db_data_type_datetime:
-                snprintf(type_str, sizeof(type_str), "text");
-                break;
+        default:
+            type_str[0] = '\0';
+            return NULL;
+    }
 
     return type_str;
 }
@@ -360,43 +382,25 @@ int db_easy_mesh_t::align_table_columns(db_client_t& db_client)
     db_query_t    query;
     db_result_t   result;
     char type_str[64];
-    char column_type[64];
     bool present[EM_MAX_COLS];
-    bool migrate_bss_mac_filter_mode = false;
-    bool migrate_bss_acl_columns = false;
-    bool migrate_bss_acl_validity_period = false;
     void *ctx;
     unsigned int i;
+    bool succeeded = false;
 
     memset(present, 0, sizeof(present));
 
     memset(query, 0, sizeof(db_query_t));
-    snprintf(query, sizeof(db_query_t), "show columns from %s", m_table_name);
+    snprintf(query, sizeof(query), "PRAGMA table_info(%s)", m_table_name);
 
-    ctx = db_client.execute(query);
+    ctx = db_client.execute(query, &succeeded);
+    if (!succeeded) {
+        db_client.free_result(ctx);
+        return -1;
+    }
     while (db_client.next_result(ctx)) {
         memset(result, 0, sizeof(db_result_t));
-        if (db_client.get_string(ctx, result, 1) == NULL) {
+        if (db_client.get_string(ctx, result, 2, sizeof(result)) == NULL) {
             continue;
-        }
-        if ((strcmp(m_table_name, "BSSList") == 0) &&
-                (strcmp(result, "MACFilterMode") == 0)) {
-            memset(column_type, 0, sizeof(column_type));
-            db_client.get_string(ctx, column_type, 2, sizeof(column_type));
-            migrate_bss_mac_filter_mode = (strncmp(column_type, "tinyint", 7) == 0);
-        }
-        if ((strcmp(m_table_name, "BSSList") == 0) &&
-                ((strcmp(result, "MACsDisallowed") == 0) || (strcmp(result, "MACsAllowed") == 0))) {
-            memset(column_type, 0, sizeof(column_type));
-            db_client.get_string(ctx, column_type, 2, sizeof(column_type));
-            migrate_bss_acl_columns = migrate_bss_acl_columns ||
-                    (strcmp(column_type, "varchar(512)") == 0);
-        }
-        if ((strcmp(m_table_name, "BSSList") == 0) &&
-                (strcmp(result, "ACLValidityPeriod") == 0)) {
-            memset(column_type, 0, sizeof(column_type));
-            db_client.get_string(ctx, column_type, 2, sizeof(column_type));
-            migrate_bss_acl_validity_period = (strncmp(column_type, "smallint", 8) == 0);
         }
         for (i = 0; i < m_num_cols; i++) {
             if (strcmp(result, m_columns[i].m_name) == 0) {
@@ -410,31 +414,16 @@ int db_easy_mesh_t::align_table_columns(db_client_t& db_client)
         if (present[i] == true) {
             continue;
         }
-
-        get_column_type(i, type_str, sizeof(type_str));
+        if (get_column_type(i, type_str, sizeof(type_str)) == NULL) {
+            return -1;
+        }
         memset(query, 0, sizeof(db_query_t));
         snprintf(query, sizeof(db_query_t), "alter table %s add column %s %s",
                     m_table_name, m_columns[i].m_name, type_str);
-        db_client.execute(query);
-    }
-
-    if (migrate_bss_mac_filter_mode) {
-        snprintf(query, sizeof(db_query_t), "alter table BSSList modify MACFilterMode char(9)");
-        db_client.execute(query);
-    }
-    if (migrate_bss_acl_columns) {
-        snprintf(query, sizeof(db_query_t), "alter table BSSList modify MACsDisallowed varchar(%d)",
-                EM_MAX_ACL_LIST_CHARS);
-        db_client.execute(query);
-        snprintf(query, sizeof(db_query_t), "alter table BSSList modify MACsAllowed varchar(%d)",
-                EM_MAX_ACL_LIST_CHARS);
-        db_client.execute(query);
-    }
-    if (migrate_bss_acl_validity_period) {
-        snprintf(query, sizeof(db_query_t), "alter table BSSList modify ACLValidityPeriod int");
-        db_client.execute(query);
-        if (!db_client.last_query_succeeded()) {
-            printf("%s:%d: Failed to migrate BSSList.ACLValidityPeriod to int\n", __func__, __LINE__);
+        db_client.free_result(db_client.execute(query, &succeeded));
+        if (!succeeded) {
+            printf("%s:%d: Failed to add column %s.%s\n", __func__, __LINE__,
+                    m_table_name, m_columns[i].m_name);
             return -1;
         }
     }
@@ -448,11 +437,16 @@ int db_easy_mesh_t::load_table(db_client_t& db_client)
     db_result_t   result;
     void *ctx;
     bool present = false;
+    bool succeeded = false;
 
     memset(query, 0, sizeof(db_query_t));
     snprintf(query, sizeof(db_query_t), "select name from sqlite_master where type = 'table'");
 
-    ctx = db_client.execute(query);
+    ctx = db_client.execute(query, &succeeded);
+    if (!succeeded) {
+        db_client.free_result(ctx);
+        return -1;
+    }
 
     while (db_client.next_result(ctx)) {
         db_client.get_string(ctx, result, 1);
@@ -467,12 +461,10 @@ int db_easy_mesh_t::load_table(db_client_t& db_client)
         if (align_table_columns(db_client) != 0) {
             return -1;
         }
-        sync_table(db_client);
+        return sync_table(db_client);
     } else {
-        create_table(db_client);
+        return create_table(db_client);
     }
-
-    return 0;
 }
 
 db_easy_mesh_t::db_easy_mesh_t()

@@ -859,6 +859,11 @@ public:
 	 */
 	int reset_config();
 
+	/**!
+	 * @brief Deletes retained BSSList rows of a rebuilt radio whose BSS did not return.
+	 */
+	int reconcile_retained_bss_rows(const unsigned char *radio_mac);
+
     using dm_scan_result_list_t::set_config;
     using dm_scan_result_list_t::get_config;
 

@@ -34,7 +34,6 @@
 sqlite3 *m_con;
 char m_path[512];
 std::mutex m_mutex;
-bool m_last_query_succeeded;
 
 
 	 /**!
@@ -83,23 +82,33 @@ bool m_last_query_succeeded;
 	  * This function takes a SQL query as input and executes it on the connected database.
 	  *
 	  * @param[in] query SQL query to execute. This should be a valid SQL statement.
+	  * @param[out] succeeded Optional. Receives the status of this execution:
+	  *             true when the statement completed (with or without rows),
+	  *             false on preparation or execution errors. The status is
+	  *             specific to this call and is not affected by concurrent queries.
 	  *
-	  * @returns Pointer to result context on success, NULL on failure.
+	  * @returns Pointer to result context when the query returned rows, NULL otherwise.
 	  *
 	  * @note Caller is responsible for handling the returned result context.
 	  *       The context will be automatically freed when next_result() returns false.
 	  */
-	 void *execute(const char *query);
-
-	 bool last_query_succeeded() const { return m_last_query_succeeded; }
+	 void *execute(const char *query, bool *succeeded = NULL);
 
 	 /**
 	  * @brief Escapes a string for use as a quoted SQL value.
 	  *
+	  * SQLite escaping contract: the only character with special meaning inside a single-quoted
+	  * SQLite string literal is the single quote, which is escaped by doubling it (' -> '').
+	  * Nothing else is altered (no backslash escapes). The result must be placed between single
+	  * quotes by the caller; it is not safe for identifiers or unquoted contexts. The source is
+	  * treated as a C string, so embedded NUL bytes end it.
+	  *
 	  * @param[in] src Null-terminated source string.
 	  * @param[out] dst Buffer receiving the escaped string.
 	  * @param[in] dst_size Destination buffer size, including the null terminator.
-	  * @returns true on success, false if the connection or buffer is invalid.
+	  * @returns true on success. false if the connection or buffer is invalid, or the escaped
+	  *          string (plus terminator) does not fit; dst is then set to an empty string and
+	  *          must not be used in a query.
 	  */
 	 bool escape_string(const char *src, char *dst, unsigned int dst_size) const;
 
@@ -158,9 +167,12 @@ bool m_last_query_succeeded;
 	  * @param[in] ctx Result context from which the string is retrieved.
 	  * @param[out] res Buffer to store the retrieved string.
 	  * @param[in] col Column index from which to retrieve the string (1-based).
-	  * @param[in] res_sz Size of res; 0 means bound only by the database field length.
+	  * @param[in] res_sz Size of res in bytes, including the terminator. The value is truncated to
+	  *            res_sz - 1 characters and always NUL-terminated. 0 means the caller guarantees the
+	  *            buffer holds the whole database field plus terminator (unbounded; prefer a size).
 	  *
-	  * @returns Pointer to the result buffer containing the string, or NULL on error.
+	  * @returns Pointer to the result buffer containing the string, or NULL if ctx/res is NULL, col
+	  *          is 0, or the column is NULL (res is left untouched in that case).
 	  */
 	 char *get_string(void *ctx, char *res, unsigned int col, unsigned int res_sz);
 	 /**!

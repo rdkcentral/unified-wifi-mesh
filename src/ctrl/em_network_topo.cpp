@@ -22,6 +22,9 @@
 #include <errno.h>
 #include <assert.h>
 #include <pthread.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <algorithm>
 #include <cjson/cJSON.h>
 #include "em_network_topo.h"
 #include "em.h"
@@ -248,6 +251,9 @@ void em_network_topo_t::add_network_topo(dm_easy_mesh_t *dm, em_network_topo_t *
 		}
 	}
 	m_topology[m_num_topologies] = new em_network_topo_t(dm);
+	if (g_network_topology != NULL) {
+		g_network_topology->apply_restored_bh_progress(m_topology[m_num_topologies]);
+	}
 	em_printfout("Adding new topology for dev_mac:%s parent dev_mac:%s", dev_mac_str.c_str(),
 		util::mac_to_string(m_data_model->m_device.m_device_info.intf.mac).c_str());
 	//Add child topologies if any
@@ -325,14 +331,178 @@ bool em_network_topo_t::remove(dm_easy_mesh_t *dm, em_network_topo_t **child_top
 
 bool em_network_topo_t::is_bh_reconfig_complete()
 {
+	if (m_data_model != NULL && m_data_model->is_controller() &&
+ 			m_data_model->get_num_radios() == 0) {
+ 		for (unsigned int i = 0; i < m_num_topologies; i++) {
+ 			if (!m_topology[i]->is_bh_reconfig_complete()) {
+ 				return false;
+ 			}
+ 		}
+ 		return true;
+ 	}
 	return m_bh_processed;
+}
+
+void em_network_topo_t::reset_bh_state()
+{
+	m_bh_restored.clear();
+	m_bh_m8_validated.clear();
+	m_bh_processed = false;
+	m_bh_reconfig_incomplete = false;
+	for (unsigned int i = 0; i < m_num_topologies; i++) {
+		m_topology[i]->reset_bh_state();
+	}
 }
 
 void em_network_topo_t::reset_bh_reconfig()
 {
-	m_bh_processed = false;
+	reset_bh_state();
+	persist_bh_reconfig_pending();
+}
+
+void em_network_topo_t::set_bh_reconfig_active(bool active)
+{
+	m_bh_reconfig_active = active;
+	persist_bh_reconfig_pending();
+}
+
+void em_network_topo_t::set_bh_reconfig_incomplete(bool incomplete)
+{
+	m_bh_reconfig_incomplete = incomplete;
+	persist_bh_reconfig_pending();
+}
+
+void em_network_topo_t::set_bh_processed(bool processed)
+{
+	m_bh_processed = processed;
+	if (g_network_topology != NULL) {
+		g_network_topology->persist_bh_reconfig_pending();
+	}
+}
+
+void em_network_topo_t::collect_bh_processed(std::string &out)
+{
+	if (m_bh_processed && m_data_model != NULL) {
+		out += "P " + util::mac_to_string(m_data_model->m_device.m_device_info.intf.mac) + "\n";
+	}
 	for (unsigned int i = 0; i < m_num_topologies; i++) {
-		m_topology[i]->reset_bh_reconfig();
+		m_topology[i]->collect_bh_processed(out);
+	}
+}
+
+/* Root only: a file exists exactly while a reconfiguration is running or stopped part-way. It lists
+ * the devices that already applied the credentials, which are already in the database, so after a
+ * restart the same request resumes with only the remaining devices. */
+void em_network_topo_t::persist_bh_reconfig_pending()
+{
+	if (m_bh_reconfig_active || m_bh_reconfig_incomplete) {
+		std::string progress;
+		collect_bh_processed(progress);
+		for (const std::string& mac : m_bh_restored) {
+ 			const std::string record = "P " + mac + "\n";
+ 			if (progress.find(record) == std::string::npos) {
+ 				progress += record;
+ 			}
+ 		}
+		for (const std::string& mac : m_bh_m8_validated) {
+			progress += "M " + mac + "\n";
+		}// Credentials changed: devices that applied the previous set must receive this one too,
+        // so progress is deliberately discarded. An unchanged repeat resumes via the path above.
+		char temp_path[] = EM_BH_RECONFIG_PENDING_FILE ".XXXXXX";
+ 		int fd = mkstemp(temp_path);
+		if (fd < 0) {
+			em_printfout("Failed to create backhaul recovery checkpoint: %s", strerror(errno));
+			return;
+		}
+		int write_error = 0;
+ 		size_t offset = 0;
+ 		while (offset < progress.size()) {
+ 			ssize_t written = write(fd, progress.data() + offset, progress.size() - offset);
+ 			if (written < 0 && errno == EINTR) {
+ 				continue;
+ 			}
+ 			if (written <= 0) {
+ 				write_error = (written < 0) ? errno : EIO;
+ 				break;
+ 			}
+ 			offset += static_cast<size_t>(written);
+		}
+		if (write_error == 0 && fsync(fd) != 0) {
+ 			write_error = errno;
+ 		}
+ 		if (close(fd) != 0 && write_error == 0) {
+ 			write_error = errno;
+ 		}
+ 		if (write_error == 0 && rename(temp_path, EM_BH_RECONFIG_PENDING_FILE) != 0) {
+ 			write_error = errno;
+ 		}
+ 		if (write_error != 0) {
+ 			em_printfout("Failed to persist backhaul recovery checkpoint: %s", strerror(write_error));
+ 			unlink(temp_path);
+ 			return;
+ 		}
+ 		const std::string checkpoint_path = EM_BH_RECONFIG_PENDING_FILE;
+ 		const std::string directory = checkpoint_path.substr(0, checkpoint_path.find_last_of('/'));
+ 		int dir_fd = open(directory.c_str(), O_RDONLY | O_DIRECTORY);
+ 		if (dir_fd < 0) {
+ 			em_printfout("Failed to open backhaul checkpoint directory: %s", strerror(errno));
+ 			return;
+ 		}
+ 		if (fsync(dir_fd) != 0) {
+ 			em_printfout("Failed to sync backhaul checkpoint directory: %s", strerror(errno));
+ 		}
+ 		close(dir_fd);
+	} else if ((unlink(EM_BH_RECONFIG_PENDING_FILE) != 0) && (errno != ENOENT)) {
+		em_printfout("Failed to clear pending backhaul reconfiguration: %s", strerror(errno));
+	}
+}
+
+void em_network_topo_t::restore_bh_reconfig_pending()
+{
+	FILE *fp = fopen(EM_BH_RECONFIG_PENDING_FILE, "r");
+	char line[64];
+
+	if (fp == NULL) {
+		return;
+	}
+	em_printfout("Unfinished backhaul reconfiguration found, a repeated SetBhCfg will resume it");
+	m_bh_reconfig_active = false;
+	m_bh_reconfig_incomplete = true;
+	m_bh_restored.clear();
+	m_bh_m8_validated.clear();
+	while (fgets(line, sizeof(line), fp) != NULL) {
+		line[strcspn(line, "\r\n")] = '\0';
+		if (line[0] == 'M' && line[1] == ' ') {
+			m_bh_m8_validated.push_back(line + 2);
+		} else if (line[0] == 'P' && line[1] == ' ') {
+			m_bh_restored.push_back(line + 2);
+		} else if (line[0] != '\0') {
+			m_bh_restored.push_back(line);
+		}
+	}
+	fclose(fp);
+	apply_restored_bh_progress(this);
+}
+
+void em_network_topo_t::set_bh_m8_validated(const std::vector<std::string>& macs)
+{
+	m_bh_m8_validated = macs;
+	persist_bh_reconfig_pending();
+}
+
+bool em_network_topo_t::is_bh_m8_validated(const std::string& mac)
+{
+	return std::find(m_bh_m8_validated.begin(), m_bh_m8_validated.end(), mac) != m_bh_m8_validated.end();
+}
+
+void em_network_topo_t::apply_restored_bh_progress(em_network_topo_t *node)
+{
+	if (m_bh_restored.empty() || node == NULL || node->m_data_model == NULL) {
+		return;
+	}
+	std::string mac = util::mac_to_string(node->m_data_model->m_device.m_device_info.intf.mac);
+	if (std::find(m_bh_restored.begin(), m_bh_restored.end(), mac) != m_bh_restored.end()) {
+		node->m_bh_processed = true;
 	}
 }
 
@@ -375,6 +545,7 @@ em_network_topo_t::em_network_topo_t(dm_easy_mesh_t *dm)
 	m_data_model = dm;
 	m_bh_processed = false;
 	m_bh_reconfig_active = false;
+	m_bh_reconfig_incomplete = false;
 	memset(m_topology, 0, sizeof(m_topology));
 }
 
@@ -384,6 +555,7 @@ em_network_topo_t::em_network_topo_t()
 	m_num_topologies  = 0;
 	m_bh_processed = false;
 	m_bh_reconfig_active = false;
+	m_bh_reconfig_incomplete = false;
 	memset(m_topology, 0, sizeof(m_topology));
 }
 

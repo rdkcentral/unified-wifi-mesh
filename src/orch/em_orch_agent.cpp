@@ -88,7 +88,8 @@ void em_orch_agent_t::orch_transient(em_cmd_t *pcmd, em_t *em)
         // reconnecting to the new SSID.  Allow extended time for the bSTA to
         // come back up so autoconfig_search can reach the controller.
         if (pcmd->get_type() == em_cmd_type_dev_init &&
-            em->get_state() == em_state_agent_owconfig_pending) {
+            (em->get_state() < em_state_agent_topo_synchronized) &&
+            (em->get_state() != em_state_agent_owconfig_pending)) {
             dm_easy_mesh_t *dm = em->get_data_model();
             if (dm != NULL) {
                 unsigned char *ctrl_mac = dm->get_ctrl_al_interface_mac();
@@ -122,7 +123,11 @@ bool em_orch_agent_t::is_em_ready_for_orch_fini(em_cmd_t *pcmd, em_t *em)
             }
             break;
         case em_cmd_type_onewifi_cb:
-            if (em->get_state() == em_state_agent_topo_synchronized) {
+            // orch_execute() keeps any state from topo_synchronized onward, so every one of
+            // them completes the callback; only the bssconfig_ind path below it must advance.
+            if (((em->get_state() >= em_state_agent_topo_synchronized) &&
+                     (em->get_state() <= em_state_agent_link_quality_report_pending)) ||
+                     (em->get_state() == em_state_beacon_report_complete)) {
                 return true;
             }
             break;

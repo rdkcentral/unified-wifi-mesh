@@ -293,6 +293,7 @@ public:
 	 * @returns True if the command type is in progress, false otherwise.
 	 */
 	bool is_cmd_type_in_progress(em_bus_event_t *evt);
+	bool is_cmd_type_queued(em_cmd_type_t type);
 
 	/**!
 	 * @brief Checks if a command type is currently in progress.

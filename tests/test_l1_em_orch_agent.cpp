@@ -59,6 +59,42 @@ TEST_F(em_orch_agent_t_TEST, OneWifiCallbackPreservesSynchronizedState)
     EXPECT_TRUE(orch->is_em_ready_for_orch_fini(&cmd, &em));
 }
 
+TEST_F(em_orch_agent_t_TEST, OneWifiCallbackPreservesConfiguredState)
+{
+    em_interface_t ruid{};
+    dm_easy_mesh_t dm{};
+    em_t em(&ruid, em_freq_band_5, &dm, &mgr, em_profile_type_1,
+            em_service_type_agent, false);
+    em_cmd_t cmd{};
+    cmd.m_type = em_cmd_type_onewifi_cb;
+    em.set_state(em_state_agent_configured);
+
+    em.orch_execute(&cmd);
+
+    EXPECT_EQ(em.get_state(), em_state_agent_configured);
+    EXPECT_TRUE(orch->is_em_ready_for_orch_fini(&cmd, &em));
+}
+
+TEST_F(em_orch_agent_t_TEST, OneWifiCallbackPreservesEveryStableAgentState)
+{
+    em_interface_t ruid{};
+    dm_easy_mesh_t dm{};
+    em_t em(&ruid, em_freq_band_5, &dm, &mgr, em_profile_type_1,
+            em_service_type_agent, false);
+    em_cmd_t cmd{};
+    cmd.m_type = em_cmd_type_onewifi_cb;
+
+    for (int state = em_state_agent_topo_synchronized;
+            state <= em_state_agent_link_quality_report_pending; state++) {
+        em.set_state(static_cast<em_state_t>(state));
+
+        em.orch_execute(&cmd);
+
+        EXPECT_EQ(em.get_state(), static_cast<em_state_t>(state));
+        EXPECT_TRUE(orch->is_em_ready_for_orch_fini(&cmd, &em)) << "state " << state;
+    }
+}
+
 
 
 /**
