@@ -62,6 +62,146 @@ void tr_181_t::init(void* ptr)
     register_wfa_dml();
 }
 
+uint32_t tr_181_t::add_table_row(const char *table_name, const std::string &key, uint32_t inst)
+{
+    std::lock_guard<std::recursive_mutex> lock(m_rows_lock);
+    std::map<uint32_t, std::string> &rows = m_rows[table_name];
+
+    for (const auto &row : rows) {
+        if (row.second == key) {
+            return row.first;
+        }
+    }
+
+    // Instance numbers of removed rows are not reused
+    uint32_t &next = m_next_inst[table_name];
+    if (inst == 0) {
+        inst = (next == 0) ? 1 : next;
+    }
+
+    bus_error_t rc = get_bus_descriptor()->bus_reg_table_row_fn(&m_bus_handle, table_name, inst, NULL);
+
+    em_printfout("registerRow %s%u. (%s) rc:%d", table_name, inst, key.c_str(), rc);
+    if (rc != bus_error_success) {
+        return 0;
+    }
+
+    if (inst >= next) {
+        next = inst + 1;
+    }
+    rows[inst] = key;
+    return inst;
+}
+
+uint32_t tr_181_t::get_table_row_instance(const char *table_name, const std::string &key)
+{
+    std::lock_guard<std::recursive_mutex> lock(m_rows_lock);
+    auto it = m_rows.find(table_name);
+
+    if (it != m_rows.end()) {
+        for (const auto &row : it->second) {
+            if (row.second == key) {
+                return row.first;
+            }
+        }
+    }
+    return 0;
+}
+
+std::string tr_181_t::get_table_row_key(const char *table_name, uint32_t inst)
+{
+    std::lock_guard<std::recursive_mutex> lock(m_rows_lock);
+    auto it = m_rows.find(table_name);
+
+    if (it != m_rows.end()) {
+        auto row = it->second.find(inst);
+        if (row != it->second.end()) {
+            return row->second;
+        }
+    }
+    return "";
+}
+
+bus_error_t tr_181_t::unreg_table_row(const char *row_name)
+{
+    std::lock_guard<std::recursive_mutex> lock(m_rows_lock);
+    std::string prefix = row_name;
+    std::vector<std::string> sub_tables;
+    bus_error_t rc = bus_error_success;
+
+    // Unregister the rows of the nested tables first, deepest tables first
+    for (auto it = m_rows.lower_bound(prefix); it != m_rows.end() && it->first.compare(0, prefix.size(), prefix) == 0; ++it) {
+        sub_tables.push_back(it->first);
+    }
+    std::sort(sub_tables.begin(), sub_tables.end(), [](const std::string &a, const std::string &b) {
+        return std::count(a.begin(), a.end(), '.') > std::count(b.begin(), b.end(), '.');
+    });
+    for (const std::string &table : sub_tables) {
+        auto table_rows = m_rows.find(table);
+        if (table_rows == m_rows.end()) {
+            continue;
+        }
+        std::vector<uint32_t> instances;
+        for (auto r = table_rows->second.rbegin(); r != table_rows->second.rend(); ++r) {
+            instances.push_back(r->first);
+        }
+        for (uint32_t inst : instances) {
+            std::string row = table + std::to_string(inst) + ".";
+            bus_error_t child_rc = get_bus_descriptor()->bus_unreg_table_row_fn(&m_bus_handle, row.c_str());
+            em_printfout("unregisterRow %s rc:%d", row.c_str(), child_rc);
+            if (child_rc == bus_error_success) {
+                table_rows->second.erase(inst);
+            } else if (rc == bus_error_success) {
+                rc = child_rc;
+            }
+        }
+    }
+
+    bus_error_t row_rc = get_bus_descriptor()->bus_unreg_table_row_fn(&m_bus_handle, row_name);
+    em_printfout("unregisterRow %s rc:%d", row_name, row_rc);
+    if (row_rc != bus_error_success) {
+        if (rc == bus_error_success) {
+            rc = row_rc;
+        }
+        return rc;
+    }
+
+    // row_name is "<table>.<inst>." (final dot included)
+    std::string row_str = row_name;
+    if (row_str.size() > 1) {
+        size_t dot = row_str.rfind('.', row_str.size() - 2);
+        if (dot != std::string::npos) {
+            auto it = m_rows.find(row_str.substr(0, dot + 1));
+            if (it != m_rows.end()) {
+                it->second.erase(static_cast<uint32_t>(strtoul(row_str.c_str() + dot + 1, NULL, 10)));
+            }
+        }
+    }
+    for (const std::string &table : sub_tables) {
+        m_rows.erase(table);
+        m_next_inst.erase(table);
+    }
+    return rc;
+}
+
+void tr_181_t::sync_table_rows(const char *table_name, const std::vector<std::string> &keys, bool key_is_instance)
+{
+    std::lock_guard<std::recursive_mutex> lock(m_rows_lock);
+    std::vector<uint32_t> stale;
+
+    for (const auto &row : m_rows[table_name]) {
+        if (std::find(keys.begin(), keys.end(), row.second) == keys.end()) {
+            stale.push_back(row.first);
+        }
+    }
+    for (uint32_t inst : stale) {
+        unreg_table_row((std::string(table_name) + std::to_string(inst) + ".").c_str());
+    }
+    for (const std::string &key : keys) {
+        add_table_row(table_name, key, key_is_instance ? static_cast<uint32_t>(strtoul(key.c_str(), NULL, 10)) : 0);
+    }
+}
+
 int tr_181_t::wfa_set_bus_callbackfunc_pointers(const char *full_namespace, bus_callback_table_t *cb_table)
 {
     bus_data_cb_func_t bus_data_cb[] = {

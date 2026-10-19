@@ -23,6 +23,9 @@
 #include "dm_easy_mesh.h"
 #include <string>
 #include <memory>
+#include <map>
+#include <vector>
+#include <mutex>
 #include <cjson/cJSON.h>
 #include <unistd.h>
 
@@ -551,11 +554,32 @@ class dm_easy_mesh_ctrl_t;
 class tr_181_t {
 private:
     bus_handle_t m_bus_handle;
+    /* Registered rows: table name (ending with '.') -> instance number -> key identifying the row */
+    std::map<std::string, std::map<uint32_t, std::string>> m_rows;
+    /* Next instance number to allocate in a table */
+    std::map<std::string, uint32_t> m_next_inst;
+    std::recursive_mutex m_rows_lock;
 
 public:
 
     tr_181_t() {}
     virtual ~tr_181_t() {}
+
+    /* Register the row of the table table_name (ending with '.') identified by key and return its instance number.
+     * A row keeps its instance number until it is unregistered: a new row gets a number never used before
+     * in the table (or inst if not 0). Nothing is done if a row with this key is already registered.
+     * Returns 0 if the bus registration fails. */
+    uint32_t add_table_row(const char *table_name, const std::string &key, uint32_t inst = 0);
+    /* Instance number of the row identified by key, 0 if it is not registered */
+    uint32_t get_table_row_instance(const char *table_name, const std::string &key);
+    /* Key of the row with the instance number inst, empty if it is not registered */
+    std::string get_table_row_key(const char *table_name, uint32_t inst);
+    /* Unregister a row (row_name: table name + instance, with final '.', e.g. "Device.1.") and all the rows below it */
+    bus_error_t unreg_table_row(const char *row_name);
+    /* Make the table table_name (ending with '.') hold exactly the rows identified by keys.
+     * The rows already registered keep their instance number. If key_is_instance, the key of a row is its
+     * decimal instance number. */
+    void sync_table_rows(const char *table_name, const std::vector<std::string> &keys, bool key_is_instance = false);
     
     bus_handle_t *get_bus_hdl() { return &m_bus_handle; }
     
