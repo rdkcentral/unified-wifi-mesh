@@ -443,7 +443,8 @@ int tr_181_t::wfa_set_bus_callbackfunc_pointers(const char *full_namespace, bus_
         ELEMENT(DE_AFFAP_MCBYTESRCV,       CALLBACK_GETTER(affap_get)),
         ELEMENT(DE_AFFAP_BCBYTESSNT,       CALLBACK_GETTER(affap_get)),
         ELEMENT(DE_AFFAP_BCBYTESRCV,       CALLBACK_GETTER(affap_get)),
-        ELEMENT(DE_STAMLD_TABLE,           CALLBACK_GETTER(stamld_tget)),
+        /* STAMLD rows are managed with registerRow/unregisterRow */
+        ELEMENT(DE_STAMLD_TABLE,           CB(NULL, NULL, NULL, NULL, NULL, NULL)),
         ELEMENT(DE_STAMLD_MLDMACADDR,      CALLBACK_GETTER(stamld_get)),
         ELEMENT(DE_STAMLD_ISBSTA,          CALLBACK_GETTER(stamld_get)),
         ELEMENT(DE_STAMLD_LASTCONTME,      CALLBACK_GETTER(stamld_get)),
@@ -928,17 +929,6 @@ bus_error_t tr_181_t::stamld_get(char *event_name, raw_data_t *p_data, bus_user_
 
     if (em_ctrl != NULL) {
         return em_ctrl->get_dm_ctrl()->stamld_get(event_name, p_data);
-    }
-
-    return bus_error_general;
-}
-
-bus_error_t tr_181_t::stamld_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
-{
-    em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
-
-    if (em_ctrl != NULL) {
-        return em_ctrl->get_dm_ctrl()->stamld_tget(event_name, p_data);
     }
 
     return bus_error_general;

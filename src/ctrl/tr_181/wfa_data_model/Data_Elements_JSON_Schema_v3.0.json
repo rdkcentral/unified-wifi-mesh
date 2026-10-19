@@ -1053,6 +1053,10 @@
                 },
                 "IsbSTA": {
                     "type": "boolean"
+                },
+                "AffiliatedSTANumberOfEntries": {
+                    "type": "integer",
+                    "minimum": 0
                 }
             }
         },

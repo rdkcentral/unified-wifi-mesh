@@ -6400,6 +6400,11 @@ void dm_easy_mesh_ctrl_t::de_rows_sync(dm_easy_mesh_t *dm)
         if (!table.empty()) {
             sync_table_rows(table.c_str(), de_keys_affap(ami));
         }
+
+        table = de_table_stamld_path_name(dm, ami);
+        if (!table.empty()) {
+            sync_table_rows(table.c_str(), de_keys_sta_mld(dm, ami));
+        }
     }
 }
 
@@ -6727,11 +6732,6 @@ bus_error_t dm_easy_mesh_ctrl_t::affap_get(char *event_name, raw_data_t *p_data)
 bus_error_t dm_easy_mesh_ctrl_t::stamld_get(char *event_name, raw_data_t *p_data)
 {
     return bus_get_cb_fwd(event_name, p_data, stamld_get_inner);
-}
-
-bus_error_t dm_easy_mesh_ctrl_t::stamld_tget(char *event_name, raw_data_t *p_data)
-{
-    return bus_get_cb_fwd(event_name, p_data, stamld_tget_inner);
 }
 
 bus_error_t dm_easy_mesh_ctrl_t::wifi7caps_get(char *event_name, raw_data_t *p_data)
@@ -7697,8 +7697,8 @@ bus_error_t dm_easy_mesh_ctrl_t::rcaps_get_inner(char *event_name, raw_data_t *p
     }
 
     if (radio_cap == NULL) {
-        /* Capabilities not received yet */
-        return dm_ctrl->raw_data_set(p_data, "");
+        em_printfout("radio_cap is NULL\n");
+        return bus_error_invalid_input;
     }
     em_radio_cap_info_t *rci = radio_cap->get_radio_cap_info();
 
@@ -8486,15 +8486,15 @@ bus_error_t dm_easy_mesh_ctrl_t::bss_get_inner(char *event_name, raw_data_t *p_d
         dm_ctrl->fill_bss_akms_allowed(dm, bi, true, val_str, sizeof(val_str));
         rc = dm_ctrl->raw_data_set(p_data, val_str);
     } else if (strcmp(param, "QMDescriptor") == 0) {
-        rc = dm_ctrl->raw_data_set(p_data, "");
+        //rc = dm_ctrl->raw_data_set(p_data, bi->);
     } else if (strcmp(param, "STANumberOfEntries") == 0) {
         rc = dm_ctrl->raw_data_set(p_data, dm_ctrl->de_num_sta(dm, bi));
     } else if (strcmp(param, "LinkRemovalImminent") == 0) {
-        rc = dm_ctrl->raw_data_set(p_data, false);
+        //rc = dm_ctrl->raw_data_set(p_data, bi->);
     } else if (strcmp(param, "FronthaulSuiteSelector") == 0) {
-        rc = dm_ctrl->raw_data_set(p_data, "");
+        rc = dm_ctrl->raw_data_set(p_data, 0U);
     } else if (strcmp(param, "BackhaulSuiteSelector") == 0) {
-        rc = dm_ctrl->raw_data_set(p_data, "");
+        rc = dm_ctrl->raw_data_set(p_data, 0U);
     } else {
         em_printfout("Invalid param: %s\n", param);
         rc = bus_error_invalid_input;
@@ -9118,50 +9118,49 @@ bool dm_easy_mesh_ctrl_t::de_sta_mld_of_ap_mld(em_ap_mld_info_t *ami, em_assoc_s
     return memcmp(ami->mac_addr, smi->ap_mld_mac_addr, sizeof(mac_address_t)) == 0;
 }
 
-unsigned int dm_easy_mesh_ctrl_t::de_num_sta_mld(dm_easy_mesh_t *dm, em_ap_mld_info_t *ami)
+std::vector<std::string> dm_easy_mesh_ctrl_t::de_keys_sta_mld(dm_easy_mesh_t *dm, em_ap_mld_info_t *ami)
 {
-    unsigned int count = 0;
+    std::vector<std::string> keys;
 
     for (unsigned int i = 0; i < dm->get_num_assoc_sta_mld(); i++) {
-        if (de_sta_mld_of_ap_mld(ami, dm->m_assoc_sta_mld[i].get_assoc_sta_mld_info())) {
-            count++;
+        em_assoc_sta_mld_info_t *smi = dm->m_assoc_sta_mld[i].get_assoc_sta_mld_info();
+        if (de_sta_mld_of_ap_mld(ami, smi)) {
+            keys.push_back(de_key(smi->mac_addr));
         }
     }
 
-    return count;
+    return keys;
+}
+
+unsigned int dm_easy_mesh_ctrl_t::de_num_sta_mld(dm_easy_mesh_t *dm, em_ap_mld_info_t *ami)
+{
+    return static_cast<unsigned int>(de_keys_sta_mld(dm, ami).size());
+}
+
+std::string dm_easy_mesh_ctrl_t::de_table_stamld_path_name(dm_easy_mesh_t *dm, em_ap_mld_info_t *ami)
+{
+    return de_child_table(de_table_apmld_path_name(dm), de_key(ami->mac_addr), "STAMLD.");
 }
 
 dm_assoc_sta_mld_t *dm_easy_mesh_ctrl_t::get_dm_sta_mld(dm_easy_mesh_t *dm, em_ap_mld_info_t *ami, char *instance, bool is_num)
 {
-    dm_assoc_sta_mld_t *sta_mld = NULL;
+    std::string key;
 
     if (is_num) {
-        unsigned int cnt = 0;
-        unsigned int idx = static_cast<unsigned int>(atoi(instance) - 1);
-        for (unsigned int i = 0; i < dm->get_num_assoc_sta_mld(); i++) {
-            dm_assoc_sta_mld_t *sta_mld = &dm->m_assoc_sta_mld[i]; /* no getter? */
-            em_assoc_sta_mld_info_t *smi = sta_mld->get_assoc_sta_mld_info();
-            if (memcmp(ami->mac_addr, smi->ap_mld_mac_addr, sizeof(mac_address_t)) != 0) {
-                /* sta_mld does belong to ap_mld */
-                ++cnt;
-                if (cnt == idx) {
-                    return sta_mld;
-                }
-            }
-        }
+        key = get_table_row_key(de_table_stamld_path_name(dm, ami).c_str(), static_cast<uint32_t>(atoi(instance)));
+    } else {
+        key = instance;
     }
 
     for (unsigned int i = 0; i < dm->get_num_assoc_sta_mld(); i++) {
-        char mac_str[18];
-        dm_assoc_sta_mld_t *sta_mld = &dm->m_assoc_sta_mld[i]; /* no getter? */
+        dm_assoc_sta_mld_t *sta_mld = &dm->m_assoc_sta_mld[i];
         em_assoc_sta_mld_info_t *smi = sta_mld->get_assoc_sta_mld_info();
-        dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *> (smi->mac_addr), mac_str);
-        if (strcmp(instance, mac_str) == 0) {
+        if (de_sta_mld_of_ap_mld(ami, smi) && key == de_key(smi->mac_addr)) {
             return sta_mld;
         }
     }
 
-    return sta_mld;
+    return NULL;
 }
 
 bus_error_t dm_easy_mesh_ctrl_t::stamld_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
@@ -9252,111 +9251,6 @@ bus_error_t dm_easy_mesh_ctrl_t::stamld_get_inner(char *event_name, raw_data_t *
     } else {
         em_printfout("Invalid param: %s", param);
         rc = bus_error_destination_not_found;
-    }
-
-    return rc;
-}
-
-bus_error_t dm_easy_mesh_ctrl_t::stamld_tget_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
-{
-    (void) user_data;
-    const char *name = event_name;
-    const char *root = name;
-    char instance[MAX_INSTANCE_LEN] = { 0 };
-    bool is_num;
-    bus_data_prop_t *property = NULL;
-    bus_error_t rc;
-
-    if (!name || !p_data) {
-        return bus_error_invalid_input;
-    }
-    if (*(name + (strlen(name) - 1)) != '.') {
-        /* Only partial paths are valid */
-        return bus_error_invalid_operation;
-    }
-
-    dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
-
-    /* Extract device instance (numeric or alias) and find the dm object for
-     * that device instance */
-    name += sizeof(DATAELEMS_NETWORK);
-    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
-    dm_easy_mesh_t *dm = dm_ctrl->get_dm_easy_mesh(instance, is_num);
-    if (dm == NULL) {
-        em_printfout("Device not found");
-        return bus_error_invalid_namespace;
-    }
-
-    /* Extract ap_mld instance (numeric or alias), find the ap_mld dm object
-     * for that instance, and finally get info struct for ap_mld dm object */
-    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
-    dm_ap_mld_t *ap_mld = dm_ctrl->get_dm_ap_mld(dm, instance, is_num);
-    if (ap_mld == NULL) {
-        em_printfout("APMLD not found");
-        return bus_error_invalid_namespace;
-    }
-    em_ap_mld_info_t *ami = ap_mld->get_ap_mld_info();
-
-    rc = dm_ctrl->stamld_tget_params(dm, root, ami, &property);
-    if (rc == bus_error_success && property) {
-        dm_ctrl->raw_data_set(p_data, property);
-    }
-
-    return rc;
-}
-
-bus_error_t dm_easy_mesh_ctrl_t::stamld_tget_params(dm_easy_mesh_t *dm, const char *root, em_ap_mld_info_t *ami, bus_data_prop_t **property)
-{
-    char path[512];
-    bus_error_t rc = bus_error_success;
-    dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
-
-    unsigned int idx = 0;
-    for (unsigned int cnt = 0; cnt < dm->get_num_assoc_sta_mld(); cnt++) {
-        /* First find assoc_sta_mld for this ap_mld */
-        dm_assoc_sta_mld_t *sta_mld = &dm->m_assoc_sta_mld[cnt]; /* no getter? */
-        em_assoc_sta_mld_info_t *smi = sta_mld->get_assoc_sta_mld_info();
-        if (memcmp(ami->mac_addr, smi->ap_mld_mac_addr, sizeof(mac_address_t)) != 0) {
-            /* sta_mld does not belong to this ap_mld, skip */
-            continue;
-        }
-        /* Now find sta for this assoc_sta_mld */
-        dm_sta_t *sta = static_cast<dm_sta_t *> (hash_map_get_first(dm->m_sta_map));
-        em_sta_info_t *si = NULL;
-        while (sta != NULL) {
-            si = sta->get_sta_info();
-            if (si->associated && memcmp(smi->mac_addr, si->id, sizeof(mac_addr_t)) != 0) {
-                break;
-            }
-            sta = static_cast<dm_sta_t *> (hash_map_get_next(dm->m_sta_map, sta));
-            si = NULL;
-        }
-        ++idx;
-
-        dm_ctrl->property_append_tail(property, root, idx, "MLDMACAddress", smi->mac_addr);
-        dm_ctrl->property_append_tail(property, root, idx, "IsbSTA", 0);
-        dm_ctrl->property_append_tail(property, root, idx, "LastConnectTime", si ? si->last_conn_time : 0);
-        dm_ctrl->property_append_tail(property, root, idx, "BytesReceived", si ? si->bytes_rx : 0);
-        dm_ctrl->property_append_tail(property, root, idx, "BytesSent", si ? si->bytes_tx : 0);
-        dm_ctrl->property_append_tail(property, root, idx, "PacketsReceived", si ? si->pkts_rx : 0);
-        dm_ctrl->property_append_tail(property, root, idx, "PacketsSent", si ? si->pkts_tx : 0);
-        dm_ctrl->property_append_tail(property, root, idx, "ErrorsReceived", si ? si->errors_rx : 0);
-        dm_ctrl->property_append_tail(property, root, idx, "ErrorsSent", si ? si->errors_tx : 0);
-        dm_ctrl->property_append_tail(property, root, idx, "RetransCount", si ? si->retrans_count : 0);
-        dm_ctrl->property_append_tail(property, root, idx, "AffiliatedSTANumberOfEntries", smi->num_affiliated_sta);
-
-        dm_ctrl->property_append_tail(property, root, idx, "STAMLDConfig.EMLMRSupport", smi->emlmr);
-        dm_ctrl->property_append_tail(property, root, idx, "STAMLDConfig.EMLSRSupport", smi->emlsr);
-        dm_ctrl->property_append_tail(property, root, idx, "STAMLDConfig.STRSupport", smi->str);
-        dm_ctrl->property_append_tail(property, root, idx, "STAMLDConfig.NSTRSupport", smi->nstr);
-
-        dm_ctrl->property_append_tail(property, root, idx, "WiFi7Capabilities.EMLMRSupport", smi->emlmr);
-        dm_ctrl->property_append_tail(property, root, idx, "WiFi7Capabilities.EMLSRSupport", smi->emlsr);
-        dm_ctrl->property_append_tail(property, root, idx, "WiFi7Capabilities.STRSupport", smi->str);
-        dm_ctrl->property_append_tail(property, root, idx, "WiFi7Capabilities.NSTRSupport", smi->nstr);
-
-        snprintf(path, sizeof(path) - 1, "%s%d.AffiliatedSTA.", root, idx);
-        dm_ctrl->affsta_tget_params(dm, path, smi, property);
     }
 
     return rc;

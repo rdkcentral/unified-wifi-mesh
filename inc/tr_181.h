@@ -1062,7 +1062,6 @@ public:
 
     //STAMLD
     static bus_error_t stamld_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
-    static bus_error_t stamld_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
     static bus_error_t wifi7caps_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
     static bus_error_t stamldcfg_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
 
