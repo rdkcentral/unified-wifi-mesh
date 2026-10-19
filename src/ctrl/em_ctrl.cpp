@@ -989,6 +989,7 @@ int em_ctrl_t::data_model_init(const char *data_model_path)
         return 0;
     }
 
+    // Controller device MAC and network ControllerID are set to the AL-SAP MAC when the entry is created.
     intf = m_data_model.get_ctrl_al_interface(const_cast<char*>(GLOBAL_NET_ID));
 	if (intf == NULL) {
 		printf("%s:%d: data model init failed could not find netid\n", __func__, __LINE__);
@@ -1474,6 +1475,19 @@ AlServiceAccessPoint* em_ctrl_t::al_sap_register(const std::string& data_socket_
             uint8_t* al_mac_bytes = g_al_mac_sap.data();
             em_printfout("AL SAP registration successful, AL MAC: %s", util::mac_to_string(al_mac_bytes).c_str());
             m_data_model.set_dev_interface_mac(al_mac_bytes);
+
+            em_interface_t intfs[EM_MAX_INTERFACES];
+            unsigned int num_intfs = EM_MAX_INTERFACES;
+            if (dm_easy_mesh_t::get_interfaces_list(intfs, &num_intfs) == 0) {
+                for (unsigned int i = 0; i < num_intfs; i++) {
+                    if (memcmp(intfs[i].mac, al_mac_bytes, sizeof(mac_address_t)) == 0) {
+                        m_data_model.set_dev_interface_name(intfs[i].name);
+                        m_data_model.get_dev_interface()->media = intfs[i].media;
+                        em_printfout("AL interface: %s media: %d", intfs[i].name, intfs[i].media);
+                        break;
+                    }
+                }
+            }
         } else {
             em_printfout("Registration failed with error: %d, data socket: %s, control socket: %s",
                          static_cast<int>(result),
