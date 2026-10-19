@@ -331,6 +331,7 @@ bool em_network_topo_t::is_bh_reconfig_complete()
 void em_network_topo_t::reset_bh_reconfig()
 {
 	m_bh_processed = false;
+	m_bh_reconfig_incomplete = false;
 	for (unsigned int i = 0; i < m_num_topologies; i++) {
 		m_topology[i]->reset_bh_reconfig();
 	}
@@ -375,6 +376,7 @@ em_network_topo_t::em_network_topo_t(dm_easy_mesh_t *dm)
 	m_data_model = dm;
 	m_bh_processed = false;
 	m_bh_reconfig_active = false;
+	m_bh_reconfig_incomplete = false;
 	memset(m_topology, 0, sizeof(m_topology));
 }
 
@@ -384,6 +386,7 @@ em_network_topo_t::em_network_topo_t()
 	m_num_topologies  = 0;
 	m_bh_processed = false;
 	m_bh_reconfig_active = false;
+	m_bh_reconfig_incomplete = false;
 	memset(m_topology, 0, sizeof(m_topology));
 }
 

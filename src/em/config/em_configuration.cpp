@@ -1638,12 +1638,15 @@ int em_configuration_t::create_vendor_operational_bss_tlv(unsigned char *buff)
 	unsigned short tlv_len = 0;
 
 	dm = get_data_model();
+    if ((dm == NULL) || (dm->get_num_radios() > EM_AP_VENDOR_BSS_RADIO_COUNT_MASK)) {
+        return 0;
+    }
 
 	tlv = reinterpret_cast<em_tlv_t *> (tmp);
 	tlv->type = em_tlv_type_vendor_operational_bss;
 	printf("first tlv_len in em_configuration_t::create_custom_operational_bss_tlv = %d\n",tlv_len);
 	ap = reinterpret_cast<em_ap_vendor_op_bss_t *> (tlv->value);
-	ap->radios_num = dm->get_num_radios();
+    ap->radios_num = static_cast<unsigned char>(dm->get_num_radios()) | EM_AP_VENDOR_BSS_FORMAT_EXTENDED;
     /* Include em_ap_vendor_op_bss_t header (radios_num) in TLV payload length. */
     tlv_len = static_cast<unsigned short>(sizeof(em_ap_vendor_op_bss_t));
 	radio = ap->radios;
@@ -1682,8 +1685,9 @@ void em_configuration_t::print_ap_vendor_operational_bss_tlv(unsigned char *valu
 
 	ap = reinterpret_cast<em_ap_vendor_op_bss_t *> (value);
 	radio = ap->radios;
-	em_printfout("Number of radios: %d", ap->radios_num);
-	for (i = 0; i < ap->radios_num; i++) {
+    unsigned int radio_count = ap->radios_num & EM_AP_VENDOR_BSS_RADIO_COUNT_MASK;
+    em_printfout("Number of radios: %d", radio_count);
+    for (i = 0; i < radio_count; i++) {
 		dm_easy_mesh_t::macbytes_to_string(radio->ruid, rd_mac_str);
 		em_printfout("Radio: %s", rd_mac_str);
 		bss = radio->bss;
@@ -1709,55 +1713,101 @@ void em_configuration_t::print_ap_vendor_operational_bss_tlv(unsigned char *valu
 	}
 }
 
-void em_configuration_t::handle_ap_vendor_operational_bss(unsigned char *value, unsigned int len)
+int em_configuration_t::handle_ap_vendor_operational_bss(unsigned char *value, unsigned int len)
 {
-	mac_addr_str_t	rd_mac_str, bss_mac_str;
-	em_ap_vendor_op_bss_radio_t		   *radio;
-	em_ap_vendor_operational_bss_t *bss;
-	em_ap_vendor_op_bss_t *ap;
-	unsigned int i, j, all_bss_len = 0;
-	dm_bss_t *dm_bss;
-	dm_easy_mesh_t  *dm;
-	dm = get_data_model();
-	ap = reinterpret_cast<em_ap_vendor_op_bss_t *> (value);
-	radio = ap->radios;
-	em_printfout("Number of radios: %d", ap->radios_num);
-	for (i = 0; i < ap->radios_num; i++) {
-		dm_easy_mesh_t::macbytes_to_string(radio->ruid, rd_mac_str);
-		em_printfout("Radio: %s", rd_mac_str);
-		bss = radio->bss;
-		em_printfout("Number of bss: %d", radio->bss_num);
-		for (j = 0; j < radio->bss_num; j++) {
-			dm_easy_mesh_t::macbytes_to_string(bss->bssid, bss_mac_str);
-			em_printfout("BSSID=%s haul type=%d vap_mode:%d", bss_mac_str, bss->haultype, bss->vap_mode);
-			dm_bss = dm->get_bss(radio->ruid, bss->bssid);
-			if (dm_bss == NULL) {
-				dm_bss = &dm->m_bss[dm->m_num_bss];
-				dm_bss->init();
-				dm->set_num_bss(dm->get_num_bss() + 1);
-			}
-			// fill up id first
-			strncpy(dm_bss->m_bss_info.id.net_id, dm->m_device.m_device_info.id.net_id, sizeof(em_long_string_t));
-			memcpy(dm_bss->m_bss_info.id.dev_mac, dm->m_device.m_device_info.intf.mac, sizeof(mac_address_t));
-			memcpy(dm_bss->m_bss_info.id.ruid, radio->ruid, sizeof(mac_address_t));
-			memcpy(dm_bss->m_bss_info.id.bssid, bss->bssid, sizeof(mac_address_t));
-			memcpy(dm_bss->m_bss_info.ruid.mac, radio->ruid, sizeof(mac_address_t));
-			memcpy(dm_bss->m_bss_info.bssid.mac, bss->bssid, sizeof(mac_address_t));
-			dm_bss->m_bss_info.id.haul_type = static_cast<em_haul_type_t> (bss->haultype);
-			dm_bss->m_bss_info.vap_mode = static_cast<em_vap_mode_t> (bss->vap_mode);
-            if (dm_bss->m_bss_info.vap_mode == em_vap_mode_ap) {
-                dm_bss->m_bss_info.acl_filter_mode = (bss->mac_filter_mode == EM_ACL_MODE_WHITELIST) ?
-                        EM_ACL_MODE_WHITELIST : EM_ACL_MODE_BLACKLIST;
+    if ((value == NULL) || (len < sizeof(em_ap_vendor_op_bss_t))) {
+        em_printfout("Invalid vendor operational BSS payload length:%u", len);
+        return -1;
+    }
+    dm_easy_mesh_t *dm = get_data_model();
+    if (dm == NULL) {
+        return -1;
+    }
+    const em_ap_vendor_op_bss_t *ap = reinterpret_cast<const em_ap_vendor_op_bss_t *>(value);
+    const bool has_acl_mode = (ap->radios_num & EM_AP_VENDOR_BSS_FORMAT_EXTENDED) != 0;
+    const unsigned int radio_count = ap->radios_num & EM_AP_VENDOR_BSS_RADIO_COUNT_MASK;
+    const unsigned int bss_record_size = has_acl_mode ? sizeof(em_ap_vendor_operational_bss_t) :
+                                                         sizeof(em_ap_vendor_operational_bss_legacy_t);
+    const unsigned char *cursor = value + sizeof(em_ap_vendor_op_bss_t);
+    unsigned int remaining = len - sizeof(em_ap_vendor_op_bss_t);
+
+    if (radio_count > EM_MAX_BANDS) {
+        em_printfout("Invalid vendor operational BSS radio count:%u", radio_count);
+        return -1;
+    }
+
+    for (unsigned int radio_index = 0; radio_index < radio_count; radio_index++) {
+        if (remaining < sizeof(em_ap_vendor_op_bss_radio_t)) {
+            em_printfout("Truncated vendor operational BSS radio header");
+            return -1;
+        }
+        const em_ap_vendor_op_bss_radio_t *radio =
+            reinterpret_cast<const em_ap_vendor_op_bss_radio_t *>(cursor);
+        mac_address_t ruid;
+        memcpy(ruid, radio->ruid, sizeof(ruid));
+        unsigned int bss_count = radio->bss_num;
+        cursor += sizeof(em_ap_vendor_op_bss_radio_t);
+        remaining -= sizeof(em_ap_vendor_op_bss_radio_t);
+        if ((bss_count > EM_MAX_BSS_PER_RADIO) ||
+                (bss_count > (remaining / bss_record_size))) {
+            em_printfout("Invalid vendor operational BSS count:%u", bss_count);
+            return -1;
+        }
+
+        for (unsigned int bss_index = 0; bss_index < bss_count; bss_index++) {
+            mac_address_t bssid;
+            unsigned short haul_type, vap_mode;
+            unsigned char acl_mode = EM_ACL_MODE_UNKNOWN;
+            memcpy(bssid, cursor, sizeof(bssid));
+            memcpy(&haul_type, cursor + sizeof(bssid), sizeof(haul_type));
+            memcpy(&vap_mode, cursor + sizeof(bssid) + sizeof(haul_type), sizeof(vap_mode));
+            if (has_acl_mode) {
+                acl_mode = cursor[sizeof(bssid) + sizeof(haul_type) + sizeof(vap_mode)];
             }
 
-			bss = reinterpret_cast<em_ap_vendor_operational_bss_t *>(reinterpret_cast<unsigned char *> (bss) + sizeof(em_ap_vendor_operational_bss_t));
-			all_bss_len += sizeof(em_ap_vendor_operational_bss_t);
-		}
+                if ((haul_type >= em_haul_type_max) ||
+                    ((vap_mode != em_vap_mode_ap) && (vap_mode != em_vap_mode_sta)) ||
+                    (memcmp(bssid, ZERO_MAC_ADDR, sizeof(bssid)) == 0) ||
+                    (memcmp(ruid, ZERO_MAC_ADDR, sizeof(ruid)) == 0)) {
+                cursor += bss_record_size;
+                remaining -= bss_record_size;
+                continue;
+            }
 
-		radio = reinterpret_cast<em_ap_vendor_op_bss_radio_t *>(reinterpret_cast<unsigned char *> (radio) + sizeof(em_ap_vendor_op_bss_radio_t) + all_bss_len);
-		all_bss_len = 0;
-	}
+            dm_bss_t *dm_bss = dm->get_bss(ruid, bssid);
+            if (dm_bss == NULL) {
+                if (dm->get_num_bss() >= EM_MAX_BSSS) {
+                    em_printfout("Vendor operational BSS list exceeds capacity");
+                    return -1;
+                }
+                dm_bss = &dm->m_bss[dm->get_num_bss()];
+                dm_bss->init();
+                dm->set_num_bss(dm->get_num_bss() + 1);
+            }
+            strncpy(dm_bss->m_bss_info.id.net_id, dm->m_device.m_device_info.id.net_id,
+                    sizeof(dm_bss->m_bss_info.id.net_id) - 1);
+            memcpy(dm_bss->m_bss_info.id.dev_mac, dm->m_device.m_device_info.intf.mac, sizeof(mac_address_t));
+            memcpy(dm_bss->m_bss_info.id.ruid, ruid, sizeof(ruid));
+            memcpy(dm_bss->m_bss_info.id.bssid, bssid, sizeof(bssid));
+            memcpy(dm_bss->m_bss_info.ruid.mac, ruid, sizeof(ruid));
+            memcpy(dm_bss->m_bss_info.bssid.mac, bssid, sizeof(bssid));
+            dm_bss->m_bss_info.id.haul_type = static_cast<em_haul_type_t>(haul_type);
+            dm_bss->m_bss_info.vap_mode = static_cast<em_vap_mode_t>(vap_mode);
+            if (vap_mode == em_vap_mode_ap) {
+                dm_bss->m_bss_info.acl_filter_mode =
+                    ((acl_mode == EM_ACL_MODE_WHITELIST) || (acl_mode == EM_ACL_MODE_BLACKLIST)) ?
+                    acl_mode : EM_ACL_MODE_UNKNOWN;
+            }
+            cursor += bss_record_size;
+            remaining -= bss_record_size;
+        }
+    }
 
+    if (remaining != 0) {
+        em_printfout("Unexpected trailing vendor operational BSS data:%u", remaining);
+        return -1;
+    }
+    return 0;
 }
 
 int em_configuration_t::create_tid_to_link_map_policy_tlv(unsigned char *buff)
@@ -2721,7 +2771,9 @@ int em_configuration_t::handle_topology_response(unsigned char *buff, unsigned i
             tlv = reinterpret_cast<em_tlv_t *>(reinterpret_cast<unsigned char *>(tlv) + sizeof(em_tlv_t) + htons(tlv->len));
             continue;
         }
-        handle_ap_vendor_operational_bss(tlv->value, tlv->len);
+        if (handle_ap_vendor_operational_bss(tlv->value, ntohs(tlv->len)) != 0) {
+            return -1;
+        }
         break;
     }
 
@@ -4920,44 +4972,87 @@ int em_configuration_t::create_autoconfig_search_msg(unsigned char *buff, em_dpp
 
 int em_configuration_t::handle_wsc_m2(unsigned char *buff, unsigned int len, unsigned int index)
 {
-    data_elem_attr_t    *attr;
-    int ret = 0;
-    unsigned int tmp_len;
-    unsigned short id;
+    bool has_version = false;
+    bool has_msg_type = false;
+    bool has_registrar_nonce = false;
+    bool has_public_key = false;
+    bool has_encrypted_settings = false;
+    bool has_authenticator = false;
+    unsigned int offset = 0;
+    unsigned int authenticator_offset = 0;
 
-    em_printfout("Parsing wsc message, index: %d, len: %d", index, len);
-
-    m_m2_length = len - 12;
-    memcpy(m_m2_msg, buff, m_m2_length);
-    
-    attr = reinterpret_cast<data_elem_attr_t *> (buff); tmp_len = len;
-
-    while (tmp_len > 0) {
-
-        id = htons(attr->id);
-
-        if (id == attr_id_version) {
-        } else if (id == attr_id_msg_type) {
-            if (attr->val[0] != em_wsc_msg_type_m2 && attr->val[0] != em_wsc_msg_type_m8) {
-                return -1;
-            }
-        } else if (id == attr_id_registrar_nonce) {
-            set_r_nonce(attr->val, htons(attr->len));
-        } else if (id == attr_id_public_key) {
-            set_r_public(attr->val, htons(attr->len));
-        } else if (id == attr_id_encrypted_settings) {
-            memcpy(&m_m2_encrypted_settings[index][0], attr->val, htons(attr->len));
-            m_m2_encrypted_settings_len[index] = htons(attr->len);
-            //em_printfout("Copied encrypted setting[%d] len:%d", index, htons(attr->len));
-        } else if (id == attr_id_authenticator) {
-            memcpy(m_m2_authenticator[index], attr->val, htons(attr->len));
-        }
-
-        tmp_len -= static_cast<unsigned int> (sizeof(data_elem_attr_t) + htons(attr->len));
-        attr = reinterpret_cast<data_elem_attr_t *>(reinterpret_cast<unsigned char *> (attr) + sizeof(data_elem_attr_t) + htons(attr->len));
+    if ((buff == NULL) || (index >= em_haul_type_max) || (len > sizeof(m_m2_msg))) {
+        em_printfout("Invalid WSC message buffer, index:%u len:%u", index, len);
+        return -1;
     }
 
-    return ret;
+    while (offset < len) {
+        data_elem_attr_t *attr;
+        unsigned int attr_len;
+        unsigned short id;
+
+        if (len - offset < sizeof(data_elem_attr_t)) {
+            em_printfout("Truncated WSC attribute header at offset:%u", offset);
+            return -1;
+        }
+        attr = reinterpret_cast<data_elem_attr_t *>(buff + offset);
+        attr_len = ntohs(attr->len);
+        if (attr_len > len - offset - sizeof(data_elem_attr_t)) {
+            em_printfout("Truncated WSC attribute id:%u len:%u", ntohs(attr->id), attr_len);
+            return -1;
+        }
+        id = ntohs(attr->id);
+
+        if (id == attr_id_version) {
+            if (has_version || (attr_len != 1)) return -1;
+            has_version = true;
+        } else if (id == attr_id_msg_type) {
+            if (has_msg_type || (attr_len != 1) ||
+                    ((attr->val[0] != em_wsc_msg_type_m2) && (attr->val[0] != em_wsc_msg_type_m8))) {
+                return -1;
+            }
+            has_msg_type = true;
+        } else if (id == attr_id_registrar_nonce) {
+            if (has_registrar_nonce || (attr_len != sizeof(em_nonce_t))) return -1;
+            set_r_nonce(attr->val, attr_len);
+            has_registrar_nonce = true;
+        } else if (id == attr_id_public_key) {
+            if (has_public_key || (attr_len != DH_KEY_SZ)) return -1;
+            set_r_public(attr->val, attr_len);
+            has_public_key = true;
+        } else if (id == attr_id_encrypted_settings) {
+            if (has_encrypted_settings || (attr_len <= AES_BLOCK_SIZE) ||
+                    (attr_len > sizeof(m_m2_encrypted_settings[index])) ||
+                    ((attr_len - AES_BLOCK_SIZE) % AES_BLOCK_SIZE != 0)) {
+                return -1;
+            }
+            memcpy(m_m2_encrypted_settings[index], attr->val, attr_len);
+            m_m2_encrypted_settings_len[index] = attr_len;
+            has_encrypted_settings = true;
+        } else if (id == attr_id_authenticator) {
+            if (has_authenticator || (attr_len != AUTHENTICATOR_LEN) ||
+                    (offset + sizeof(data_elem_attr_t) + attr_len != len)) {
+                return -1;
+            }
+            memcpy(m_m2_authenticator[index], attr->val, AUTHENTICATOR_LEN);
+            m_m2_authenticator_len[index] = attr_len;
+            authenticator_offset = offset;
+            has_authenticator = true;
+        }
+
+        offset += static_cast<unsigned int>(sizeof(data_elem_attr_t)) + attr_len;
+    }
+
+    if (!has_version || !has_msg_type || !has_registrar_nonce || !has_public_key ||
+            !has_encrypted_settings || !has_authenticator) {
+        em_printfout("WSC message is missing a required attribute");
+        return -1;
+    }
+
+    m_m2_length = authenticator_offset;
+    memcpy(m_m2_msg, buff, m_m2_length);
+    em_printfout("Parsed WSC message, index:%u len:%u", index, len);
+    return 0;
 
 }
 
@@ -5092,6 +5187,7 @@ int em_configuration_t::handle_autoconfig_wsc_m8(unsigned char *buff, unsigned i
     em_tlv_t *tlv;
     int tmp_len;
     unsigned int wsc_tlv_count = 0;
+    bool found_eom = false;
     char *errors[EM_MAX_TLV_MEMBERS] = {0};
     dm_easy_mesh_t *dm;
     dm_network_t network;
@@ -5109,9 +5205,22 @@ int em_configuration_t::handle_autoconfig_wsc_m8(unsigned char *buff, unsigned i
     tlv = reinterpret_cast<em_tlv_t *>(buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
     tmp_len = static_cast<int>(len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)));
 
-    while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
+    while (tmp_len >= static_cast<int>(sizeof(em_tlv_t))) {
+        if (tlv->type == em_tlv_type_eom) {
+            if ((ntohs(tlv->len) != 0) || (tmp_len != static_cast<int>(sizeof(em_tlv_t)))) {
+                em_printfout("Malformed end-of-message TLV in M8 message");
+                return -1;
+            }
+            found_eom = true;
+            break;
+        }
+        unsigned int tlv_len = ntohs(tlv->len);
+        if (static_cast<unsigned int>(tmp_len) < sizeof(em_tlv_t) + tlv_len) {
+            em_printfout("Truncated TLV in M8 message");
+            return -1;
+        }
         if (tlv->type == em_tlv_type_wsc) {
-            em_wsc_msg_type_t wsc_type = get_wsc_blob_msg_type(tlv->value, htons(tlv->len));
+            em_wsc_msg_type_t wsc_type = get_wsc_blob_msg_type(tlv->value, tlv_len);
 
             if (wsc_type == em_wsc_msg_type_m8) {
                 em_printfout("Found M8 WSC TLV for backhaul SSID reconfiguration");
@@ -5122,21 +5231,32 @@ int em_configuration_t::handle_autoconfig_wsc_m8(unsigned char *buff, unsigned i
                 }
 
                 set_e_mac(get_radio_interface_mac());
-                handle_wsc_m2(tlv->value, htons(tlv->len), wsc_tlv_count);
+                if (handle_wsc_m2(tlv->value, tlv_len, wsc_tlv_count) != 0) {
+                    em_printfout("M8 WSC attributes are invalid");
+                    return -1;
+                }
 
                 if (compute_keys(get_r_public(), static_cast<unsigned short>(get_r_public_len()),
                         get_e_private(), static_cast<unsigned short>(get_e_private_len())) != 1) {
                     em_printfout("M8: Keys computation failed");
                     return -1;
                 }
+                unsigned char expected_authenticator[SHA256_MAC_LEN];
+                if ((create_authenticator(expected_authenticator) != AUTHENTICATOR_LEN) ||
+                        (m_m2_authenticator_len[wsc_tlv_count] != AUTHENTICATOR_LEN) ||
+                        (memcmp(m_m2_authenticator[wsc_tlv_count], expected_authenticator,
+                            AUTHENTICATOR_LEN) != 0)) {
+                    em_printfout("M8 authenticator validation failed");
+                    return -1;
+                }
                 wsc_tlv_count++;
             }
         }
-        tmp_len -= static_cast<int>(sizeof(em_tlv_t) + htons(tlv->len));
-        tlv = reinterpret_cast<em_tlv_t *>(reinterpret_cast<unsigned char *>(tlv) + sizeof(em_tlv_t) + htons(tlv->len));
+        tmp_len -= static_cast<int>(sizeof(em_tlv_t) + tlv_len);
+        tlv = reinterpret_cast<em_tlv_t *>(reinterpret_cast<unsigned char *>(tlv) + sizeof(em_tlv_t) + tlv_len);
     }
 
-    if (wsc_tlv_count == 0) {
+    if (!found_eom || (wsc_tlv_count == 0)) {
         em_printfout("No M8 WSC TLVs found");
         return -1;
     }
@@ -5216,7 +5336,7 @@ int em_configuration_t::handle_autoconfig_wsc_m2(unsigned char *buff, unsigned i
         /* Never hand a peer-declared length to a parser before confirming it fits. */
         if (static_cast<unsigned int> (tmp_len) < static_cast<unsigned int> (sizeof(em_tlv_t)) + val_len) {
             em_printfout("Truncated TLV: type %d declares %u bytes, %d remaining", tlv->type, val_len, tmp_len);
-            break;
+            return -1;
         }
 
         if (tlv->type == em_tlv_type_ap_mld_config) {
@@ -5240,7 +5360,10 @@ int em_configuration_t::handle_autoconfig_wsc_m2(unsigned char *buff, unsigned i
                 continue;
             }
             set_e_mac(get_radio_interface_mac());
-            handle_wsc_m2(tlv->value, val_len, wsc_tlv_count);
+            if (handle_wsc_m2(tlv->value, val_len, wsc_tlv_count) != 0) {
+                em_printfout("M2 WSC attributes are invalid");
+                return -1;
+            }
 
             // first compute keys
             if (compute_keys(get_r_public(), static_cast<short unsigned int> (get_r_public_len()), get_e_private(), static_cast<short unsigned int> (get_e_private_len())) != 1) {
@@ -5248,17 +5371,17 @@ int em_configuration_t::handle_autoconfig_wsc_m2(unsigned char *buff, unsigned i
                 return -1;
             }
 
-            if (create_authenticator(hash) == -1) {
+            if (create_authenticator(hash) != AUTHENTICATOR_LEN) {
                 em_printfout("Authenticator create failed");
                 return -1;
-            } else {
-                em_printfout("Authenticator verification succeeded");
             }
 
-            if (memcmp(m_m2_authenticator[wsc_tlv_count], hash, AUTHENTICATOR_LEN) != 0) {
+            if ((m_m2_authenticator_len[wsc_tlv_count] != AUTHENTICATOR_LEN) ||
+                    (memcmp(m_m2_authenticator[wsc_tlv_count], hash, AUTHENTICATOR_LEN) != 0)) {
                 em_printfout("Authenticator validation failed");
-                //return -1;
+                return -1;
             }
+            em_printfout("Authenticator verification succeeded");
             wsc_tlv_count++;
         }
         tmp_len -= static_cast<int> (sizeof(em_tlv_t) + val_len);
@@ -5270,7 +5393,6 @@ int em_configuration_t::handle_autoconfig_wsc_m2(unsigned char *buff, unsigned i
         return -1;
     }
 
-    if (handle_encrypted_settings(wsc_tlv_count, has_m8) == -1) {
     if (handle_encrypted_settings(wsc_tlv_count, radioconfig) != 0) {
         em_printfout("Error in decrypting settings wsc_tlv_count:%d", wsc_tlv_count);
         return -1;
@@ -5300,16 +5422,33 @@ int em_configuration_t::handle_autoconfig_wsc_m2(unsigned char *buff, unsigned i
         }
     }
 
+    if (has_m8 && (handle_autoconfig_wsc_m8(buff, len) != 0)) {
+        em_printfout("Failed to process M8 credentials appended to M2");
+        return -1;
+    }
+
     return 0;
 }
 
 int em_configuration_t::handle_encrypted_settings(unsigned int wsc_tlv_count, bool is_bh_reconfig)
+{
+    m2ctrl_radioconfig radioconfig = {};
+    if (handle_encrypted_settings(wsc_tlv_count, radioconfig) != 0) {
+        return -1;
+    }
+
+    radioconfig.is_bh_reconfig = is_bh_reconfig;
+    get_mgr()->io_process(em_bus_event_type_m2ctrl_configuration,
+        reinterpret_cast<unsigned char *>(&radioconfig), sizeof(radioconfig));
+    set_state(em_state_agent_owconfig_pending);
+    return 0;
+}
+
 int em_configuration_t::handle_encrypted_settings(unsigned int wsc_tlv_count, m2ctrl_radioconfig& radioconfig)
 {
     data_elem_attr_t    *attr;
     int tmp_len;
     unsigned short id;
-    char pass[64] = {0};
     unsigned char *plain;
     unsigned short plain_len;
     unsigned short auth_type;
@@ -5342,12 +5481,18 @@ int em_configuration_t::handle_encrypted_settings(unsigned int wsc_tlv_count, m2
             return -1;
         }
         radioconfig.haultype[wsc_index] = static_cast<em_haul_type_t> (wsc_index);
-        while (tmp_len > 0) {
+        bool has_ssid = false;
+        while (tmp_len >= static_cast<int>(sizeof(data_elem_attr_t))) {
+            unsigned int attr_len = ntohs(attr->len);
+            if (attr_len > static_cast<unsigned int>(tmp_len) - sizeof(data_elem_attr_t)) {
+                em_printfout("Truncated decrypted WSC attribute");
+                return -1;
+            }
             id = htons(attr->id);
             if (id == attr_id_vendor_ext) {
                 // Handle only em_vendor_oui
-                unsigned short attr_len = htons(attr->len);
-                if ((attr_len > EM_VENDOR_OUI_SIZE) && (memcmp(attr->val, em_vendor_oui, EM_VENDOR_OUI_SIZE) == 0)) {
+                if (attr_len >= EM_VENDOR_OUI_SIZE + 2 &&
+                        (memcmp(attr->val, em_vendor_oui, EM_VENDOR_OUI_SIZE) == 0)) {
                     unsigned char vendor_attr_id = attr->val[EM_VENDOR_OUI_SIZE];
                     if (vendor_attr_id == vendor_ext_attr_id_haul_type) {
                         radioconfig.haultype[wsc_index] = static_cast<em_haul_type_t> (attr->val[EM_VENDOR_OUI_SIZE + 1]);
@@ -5355,31 +5500,53 @@ int em_configuration_t::handle_encrypted_settings(unsigned int wsc_tlv_count, m2
                     }
                 }
             } else if (id == attr_id_ssid) {
-                //If controller does not support no of haultype parameter
-                memcpy(radioconfig.ssid[wsc_index], attr->val, sizeof(radioconfig.ssid[wsc_index]));
+                if ((attr_len == 0) || (attr_len >= sizeof(radioconfig.ssid[wsc_index]))) {
+                    em_printfout("Invalid WSC SSID length:%u", attr_len);
+                    return -1;
+                }
+                memcpy(radioconfig.ssid[wsc_index], attr->val, attr_len);
                 radioconfig.enable[wsc_index] = true;
+                has_ssid = true;
                 em_printfout("##ssid attrib[%d]: %s", wsc_index, radioconfig.ssid[wsc_index]);
                 memcpy(radioconfig.radio_mac[wsc_index], get_radio_interface_mac(), sizeof(mac_address_t));
             } else if (id == attr_id_auth_type) {
-                memcpy(reinterpret_cast<char *> (&auth_type), reinterpret_cast<unsigned char *> (attr->val), htons(attr->len));
+                if (attr_len != sizeof(auth_type)) {
+                    em_printfout("Invalid WSC authentication type length:%u", attr_len);
+                    return -1;
+                }
+                memcpy(reinterpret_cast<char *> (&auth_type), reinterpret_cast<unsigned char *> (attr->val), attr_len);
                 auth_type = ntohs(auth_type);
                 radioconfig.authtype[wsc_index] = static_cast<unsigned int>(auth_type);
                 em_printfout("##authtype[%d]: %x", wsc_index, radioconfig.authtype[wsc_index]);
             } else if (id == attr_id_encryption_type) {
                 em_printfout("##encr type attrib for wsc_index:%d", wsc_index);
             } else if (id == attr_id_network_key) {
-                memcpy(pass, attr->val, htons(attr->len));
-                memcpy(radioconfig.password[wsc_index], attr->val, htons(attr->len));
-                em_printfout("##network key[%d]: %s", wsc_index, pass);
+                if (attr_len >= sizeof(radioconfig.password[wsc_index])) {
+                    em_printfout("WSC network key exceeds destination capacity");
+                    return -1;
+                }
+                memcpy(radioconfig.password[wsc_index], attr->val, attr_len);
             } else if (id == attr_id_mac_address) {
+                if (attr_len != sizeof(mac_address_t)) {
+                    em_printfout("Invalid WSC MAC address length:%u", attr_len);
+                    return -1;
+                }
                 memcpy(radioconfig.radio_mac[wsc_index], attr->val, sizeof(mac_address_t));
                 em_printfout("##mac address[%d]: %s", wsc_index, util::mac_to_string(radioconfig.radio_mac[wsc_index]).c_str());
             } else if (id == attr_id_key_wrap_authenticator) {
+                if (attr_len != EM_KEY_WRAP_TLV_LEN) {
+                    em_printfout("Invalid WSC key-wrap authenticator length:%u", attr_len);
+                    return -1;
+                }
                 radioconfig.key_wrap_authenticator[wsc_index] = attr->val[0];
                 em_printfout("##key wrap auth[%d]: %u", wsc_index, radioconfig.key_wrap_authenticator[wsc_index]);
             }
-            tmp_len -= static_cast<int> (sizeof(data_elem_attr_t) + htons(attr->len));
-            attr = reinterpret_cast<data_elem_attr_t *> (reinterpret_cast<unsigned char *>(attr) + sizeof(data_elem_attr_t) + htons(attr->len));
+            tmp_len -= static_cast<int>(sizeof(data_elem_attr_t) + attr_len);
+            attr = reinterpret_cast<data_elem_attr_t *>(reinterpret_cast<unsigned char *>(attr) + sizeof(data_elem_attr_t) + attr_len);
+        }
+        if ((tmp_len != 0) || !has_ssid) {
+            em_printfout("Malformed decrypted WSC settings: remaining:%d has_ssid:%d", tmp_len, has_ssid);
+            return -1;
         }
         radioconfig.noofbssconfig++;
     }
@@ -5388,10 +5555,6 @@ int em_configuration_t::handle_encrypted_settings(unsigned int wsc_tlv_count, m2
     for (unsigned int i = 0; i < radioconfig.noofbssconfig; i++){
         radioconfig.freq[i] = get_band();
     }
-    radioconfig.is_bh_reconfig = is_bh_reconfig;
-    get_mgr()->io_process(em_bus_event_type_m2ctrl_configuration, reinterpret_cast<unsigned char *> (&radioconfig), sizeof(radioconfig));
-    set_state(em_state_agent_owconfig_pending);
-    return ret;
 
     // Record SSID->haul mapping so AP MLD TLV SSIDs can be resolved via get_haul_type_from_ssid()
     if ((dm = get_data_model()) != NULL) {
@@ -6107,7 +6270,6 @@ int em_configuration_t::handle_bss_config_rsp_msg(uint8_t *buff, unsigned int le
             if (!is_enabled) continue;
             printf("\t\t\tHaul Type: %d\n", config.haultype[i]);
             printf("\t\t\tSSID: %s\n", config.ssid[i]);
-            printf("\t\t\tPassword: %s\n", config.password[i]);
             printf("\t\t\tAuth Type: %u\n", config.authtype[i]);
             printf("\t\t\tRadio MAC: " MACSTRFMT "\n", MAC2STR(config.radio_mac[i]));
             printf("\t\t\tBSSID (expected empty): " MACSTRFMT "\n", MAC2STR(config.bssid_mac[i]));
@@ -6316,7 +6478,7 @@ int em_configuration_t::create_encrypted_settings(unsigned char *buff, em_haul_t
         em_printfout("Could not find network ssid information for haul type %d", haul_type);
         return 0;
     }
-    em_printfout("ssid: %s, passphrase: %s, Auth Type: %s\n", net_ssid_info->ssid, net_ssid_info->pass_phrase, net_ssid_info->auth_type);
+    em_printfout("ssid: %s, Auth Type: %s\n", net_ssid_info->ssid, net_ssid_info->auth_type);
 
     auth_type = get_Auth_type_hex(net_ssid_info->auth_type);
 
@@ -6802,6 +6964,7 @@ int em_configuration_t::handle_autoconfig_resp(unsigned char *buff, unsigned int
         return -1;
     }
     em_printfout("autoconfig wsc m1 send success, len:%d", sz);
+    start_m2_wait_timer();
     set_state(em_state_agent_wsc_m2_pending);
 
     return 0;   
@@ -7186,6 +7349,7 @@ void em_configuration_t::handle_state_autoconfig_renew()
         return ;
     }
     em_printfout("autoconfig wsc m1 send success");
+    start_m2_wait_timer();
     set_state(em_state_agent_wsc_m2_pending);
 
     return ;
@@ -7202,11 +7366,30 @@ void em_configuration_t::handle_state_wsc_m1_pending()
     assert(get_service_type() == em_service_type_ctrl);
 }
 
+void em_configuration_t::start_m2_wait_timer()
+{
+    struct timespec ts_now;
+
+    util::monotonic_now(&ts_now);
+    m_m2_wait_start = ts_now.tv_sec;
+}
+
 void em_configuration_t::handle_state_wsc_m2_pending()
 {
+    struct timespec ts_now;
+
     assert(get_service_type() == em_service_type_agent);
-    // M1 may have been lost in transit. Retry by re-sending autoconfig_search
+
+    // M2 is only accepted in this state, so keep waiting for a delayed M2 until
+    // the response window expires instead of restarting on the first tick.
+    util::monotonic_now(&ts_now);
+    if ((ts_now.tv_sec - m_m2_wait_start) < EM_M2_RSP_TOUT) {
+        return;
+    }
+
+    // M1 or M2 may have been lost in transit. Retry by re-sending autoconfig_search
     // which restarts the autoconfig_resp → M1 → M2 sequence.
+    em_printfout("No M2 received within %d seconds, restarting autoconfig search", EM_M2_RSP_TOUT);
     handle_state_config_none();
 }
 
@@ -7405,7 +7588,8 @@ em_configuration_t::em_configuration_t() :
     m_key_wrap_key{},
     m_emsk{},
     m_renew_tx_cnt(0),
-    m_topo_query_tx_cnt(0)
+    m_topo_query_tx_cnt(0),
+    m_m2_wait_start(0)
 {
 }
 

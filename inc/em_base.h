@@ -51,6 +51,7 @@ extern "C"
 #define EM_MAX_E4_TABLE_CHANNEL 64
 #define EM_DATE_TIME_BUFF_SZ	64
 #define EM_PROTO_TOUT   1
+#define EM_M2_RSP_TOUT  5 // seconds the agent waits for M2 before restarting autoconfig
 #define EM_METRICS_REQ_MULT 5
 #define EM_MGR_TOUT     250 // in milliseconds
 #define EM_1_TOUT_MULT 	(1000 / EM_MGR_TOUT)
@@ -1615,6 +1616,15 @@ typedef struct {
     unsigned char   neigh_num;
     em_neigh_entry_t  *neigh;
 } __attribute__((__packed__)) em_neigh_device_list_t;
+
+#define EM_AP_VENDOR_BSS_FORMAT_EXTENDED 0x80
+#define EM_AP_VENDOR_BSS_RADIO_COUNT_MASK 0x7f
+
+typedef struct {
+    mac_address_t bssid;
+    unsigned short haultype;
+    unsigned short vap_mode;
+} __attribute__((__packed__)) em_ap_vendor_operational_bss_legacy_t;
 
 typedef struct {
     mac_address_t bssid;

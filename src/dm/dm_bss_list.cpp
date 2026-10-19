@@ -70,6 +70,7 @@ static int persist_bss_ssid_if_changed(db_client_t& db_client, const char *bss_k
     em_short_string_t stored_ssid;
     db_query_t query;
     void *ctx;
+    bool succeeded = false;
 
     if (!db_client.escape_string(bss_key, escaped_key, sizeof(escaped_key)) ||
             !db_client.escape_string(ssid, escaped_ssid, sizeof(escaped_ssid))) {
@@ -78,8 +79,8 @@ static int persist_bss_ssid_if_changed(db_client_t& db_client, const char *bss_k
     }
 
     snprintf(query, sizeof(query), "SELECT SSID FROM BSSList WHERE ID = '%s'", escaped_key);
-    ctx = db_client.execute(query);
-    if ((ctx == NULL) || !db_client.last_query_succeeded()) {
+    ctx = db_client.execute(query, &succeeded);
+    if (!succeeded) {
         db_client.free_result(ctx);
         em_printfout("Failed to read current SSID for BSSList key %s", bss_key);
         return -1;
@@ -101,9 +102,9 @@ static int persist_bss_ssid_if_changed(db_client_t& db_client, const char *bss_k
 
     snprintf(query, sizeof(query), "UPDATE BSSList SET SSID = '%s' WHERE ID = '%s'",
             escaped_ssid, escaped_key);
-    ctx = db_client.execute(query);
+    ctx = db_client.execute(query, &succeeded);
     db_client.free_result(ctx);
-    if (!db_client.last_query_succeeded()) {
+    if (!succeeded) {
         em_printfout("Failed to update SSID for BSSList key %s", bss_key);
         return -1;
     }
@@ -120,6 +121,7 @@ dm_bss_list_t::~dm_bss_list_t()
 
 void dm_bss_list_t::encode_acl(dm_bss_t *pbss, cJSON *obj)
 {
+    std::lock_guard<std::recursive_mutex> lock(m_acl_mutex);
     mac_addr_str_t dev_mac_str, radio_mac_str, bss_mac_str, mac_str;
     em_2xlong_string_t key;
     mac_address_t macs[EM_MAX_ACL_JSON_STAS];
@@ -185,15 +187,14 @@ int dm_bss_list_t::get_config(cJSON *obj_arr, void *parent, bool summary)
 
 int dm_bss_list_t::set_config(db_client_t& db_client, dm_bss_t& bss, void *parent_id)
 {
+    std::lock_guard<std::recursive_mutex> lock(m_acl_mutex);
     dm_orch_type_t op;  
     int rc;
     em_2xlong_string_t new_key, old_key;
     mac_addr_str_t dev_mac_str, radio_mac_str, bss_mac_str;
-    mac_address_t blocked_macs[EM_MAX_ACL_JSON_STAS];
-    mac_address_t allowed_macs[EM_MAX_ACL_JSON_STAS];
-    unsigned int blocked_count, allowed_count, offset;
     std::vector<dm_bss_t> stale_bsses;
     std::vector<std::string> stale_bss_keys;
+    std::vector<std::string> stale_retained_keys;
     dm_bss_t *existing_bss;
     em_bss_info_t *existing_info;
     mac_address_t zero_mac = {0};
@@ -229,27 +230,30 @@ int dm_bss_list_t::set_config(db_client_t& db_client, dm_bss_t& bss, void *paren
             snprintf(old_key, sizeof(old_key), "%s@%s@%s@%s@%d", existing_info->id.net_id,
                     dev_mac_str, radio_mac_str, bss_mac_str, existing_info->id.haul_type);
 
-            blocked_count = acl_get_macs(old_key, true, 0, EM_MAX_ACL_JSON_STAS, blocked_macs);
-            allowed_count = acl_get_macs(old_key, false, 0, EM_MAX_ACL_JSON_STAS, allowed_macs);
             stale_bsses.emplace_back(*existing_bss);
             stale_bss_keys.emplace_back(old_key);
 
-            for (offset = 0; offset < blocked_count; offset += MAX_STA_LIST) {
-                unsigned char count = static_cast<unsigned char>(
-                        (blocked_count - offset > MAX_STA_LIST) ? MAX_STA_LIST : blocked_count - offset);
-                if (acl_update(new_key, ASSOC_CONTROL_BLOCK, count, &blocked_macs[offset]) != 0) {
-                    em_printfout("Failed to migrate blocked ACL entries from %s to %s", old_key, new_key);
-                    return -1;
-                }
+            if (acl_copy(old_key, new_key) != 0) {
+                return -1;
             }
-            for (offset = 0; offset < allowed_count; offset += MAX_STA_LIST) {
-                unsigned char count = static_cast<unsigned char>(
-                        (allowed_count - offset > MAX_STA_LIST) ? MAX_STA_LIST : allowed_count - offset);
-                if (acl_update(new_key, ASSOC_CONTROL_UNBLOCK, count, &allowed_macs[offset]) != 0) {
-                    em_printfout("Failed to migrate allowed ACL entries from %s to %s", old_key, new_key);
-                    return -1;
-                }
-            }
+    }
+
+    // The same applies to a retained row (removed from the list for rebuilding) of this
+    // interface that comes back with a different haul type.
+    for (const std::string& retained_key : m_retained_bss_keys) {
+        em_bss_id_t retained_id;
+        if ((retained_key == new_key) ||
+                (dm_bss_t::parse_bss_id_from_key(retained_key.c_str(), &retained_id) != 0) ||
+                (strcmp(retained_id.net_id, bss.m_bss_info.id.net_id) != 0) ||
+                (memcmp(retained_id.dev_mac, bss.m_bss_info.id.dev_mac, sizeof(mac_address_t)) != 0) ||
+                (memcmp(retained_id.ruid, bss.m_bss_info.id.ruid, sizeof(mac_address_t)) != 0) ||
+                (memcmp(retained_id.bssid, bss.m_bss_info.id.bssid, sizeof(mac_address_t)) != 0)) {
+            continue;
+        }
+        if (acl_copy(retained_key.c_str(), new_key) != 0) {
+            return -1;
+        }
+        stale_retained_keys.push_back(retained_key);
     }
 
     op = get_dm_orch_type(db_client, bss);
@@ -268,7 +272,17 @@ int dm_bss_list_t::set_config(db_client_t& db_client, dm_bss_t& bss, void *paren
     if (acl_persistence_pending) {
         m_pending_acl_persistence_keys.erase(bss_key);
     }
+    // The BSS returned, so its row is no longer a reconciliation candidate.
+    m_retained_bss_keys.erase(bss_key);
     update_list(bss, op);
+
+    for (const std::string& retained_key : stale_retained_keys) {
+        if (delete_bss_row(db_client, retained_key.c_str()) != 0) {
+            em_printfout("Failed to delete retained BSSList key %s after persisting replacement %s",
+                    retained_key.c_str(), new_key);
+            rc = -1;
+        }
+    }
 
     for (size_t stale_index = 0; stale_index < stale_bsses.size(); stale_index++) {
         dm_bss_t& stale_bss = stale_bsses[stale_index];
@@ -286,6 +300,7 @@ int dm_bss_list_t::set_config(db_client_t& db_client, dm_bss_t& bss, void *paren
 
 int dm_bss_list_t::update_ssid_if_changed(db_client_t& db_client, dm_bss_t& bss, void *parent_id)
 {
+    std::lock_guard<std::recursive_mutex> lock(m_acl_mutex);
     em_2xlong_string_t bss_key;
     mac_address_t zero_mac = {0};
     int rc;
@@ -327,6 +342,7 @@ int dm_bss_list_t::set_config(db_client_t& db_client, const cJSON *obj_arr, void
 int dm_bss_list_t::set_config(db_client_t& db_client, const cJSON *obj_arr,
 		mac_address_t *dev_mac, mac_address_t *radio_mac)
 {
+    std::lock_guard<std::recursive_mutex> lock(m_acl_mutex);
     cJSON *obj;
     int size;
     dm_bss_t bss;
@@ -387,7 +403,8 @@ int dm_bss_list_t::set_config(db_client_t& db_client, const cJSON *obj_arr,
         for (existing_bss = get_first_bss(); existing_bss != NULL; existing_bss = next_bss) {
             next_bss = get_next_bss(existing_bss);
             existing_info = existing_bss->get_bss_info();
-            if ((strcmp(existing_info->id.net_id, GLOBAL_NET_ID) != 0) ||
+                if ((existing_info->vap_mode != em_vap_mode_ap) ||
+                    (strcmp(existing_info->id.net_id, GLOBAL_NET_ID) != 0) ||
                     (memcmp(existing_info->id.dev_mac, *dev_mac, sizeof(mac_address_t)) != 0) ||
                     (memcmp(existing_info->id.ruid, *radio_mac, sizeof(mac_address_t)) != 0)) {
                 continue;
@@ -506,7 +523,12 @@ void dm_bss_list_t::delete_list()
 
         remove_bss(key);
     }
-}   
+
+    // Reset must not leave whitelist state behind for BSSIDs that onboard again.
+    std::lock_guard<std::recursive_mutex> lock(m_acl_mutex);
+    acl_clear();
+    m_retained_bss_keys.clear();
+}
 
 
 bool dm_bss_list_t::operator == (const db_easy_mesh_t& obj)
@@ -516,6 +538,7 @@ bool dm_bss_list_t::operator == (const db_easy_mesh_t& obj)
 
 hash_map_t *dm_bss_list_t::get_acl_map()
 {
+    std::lock_guard<std::recursive_mutex> lock(m_acl_mutex);
     if (m_acl_sta_map == NULL) {
         m_acl_sta_map = hash_map_create();
     }
@@ -525,6 +548,7 @@ hash_map_t *dm_bss_list_t::get_acl_map()
 
 void dm_bss_list_t::acl_clear()
 {
+    std::lock_guard<std::recursive_mutex> lock(m_acl_mutex);
     hash_map_t *map = m_acl_sta_map;
     em_acl_sta_t *entry, *next;
     em_3xlong_string_t acl_key;
@@ -552,8 +576,121 @@ void dm_bss_list_t::make_acl_key(const char *bss_key, const unsigned char *mac, 
     snprintf(out, sz, "%s@%s", bss_key, mac_str);
 }
 
+int dm_bss_list_t::acl_copy(const char *from_key, const char *to_key)
+{
+    std::lock_guard<std::recursive_mutex> lock(m_acl_mutex);
+    mac_address_t macs[EM_MAX_ACL_JSON_STAS];
+    unsigned int count, offset;
+    const bool lists[] = {true, false};
+
+    for (bool blocked : lists) {
+        count = acl_get_macs(from_key, blocked, 0, EM_MAX_ACL_JSON_STAS, macs);
+        for (offset = 0; offset < count; offset += MAX_STA_LIST) {
+            unsigned char chunk = static_cast<unsigned char>(
+                    (count - offset > MAX_STA_LIST) ? MAX_STA_LIST : count - offset);
+            if (acl_update(to_key, blocked ? ASSOC_CONTROL_BLOCK : ASSOC_CONTROL_UNBLOCK,
+                    chunk, &macs[offset]) != 0) {
+                em_printfout("Failed to migrate %s ACL entries from %s to %s",
+                        blocked ? "blocked" : "allowed", from_key, to_key);
+                return -1;
+            }
+        }
+    }
+
+    return 0;
+}
+
+int dm_bss_list_t::delete_bss_row(db_client_t& db_client, const char *key)
+{
+    std::lock_guard<std::recursive_mutex> lock(m_acl_mutex);
+
+    if (delete_row(db_client, key) != 0) {
+        return -1;
+    }
+    acl_remove(key);
+    m_pending_acl_persistence_keys.erase(key);
+    m_retained_bss_keys.erase(key);
+
+    return 0;
+}
+
+void dm_bss_list_t::retain_bss_row(const em_bss_info_t *info)
+{
+    std::lock_guard<std::recursive_mutex> lock(m_acl_mutex);
+    mac_addr_str_t dev_mac_str, radio_mac_str, bss_mac_str;
+    em_2xlong_string_t key;
+
+    if (info == NULL) {
+        return;
+    }
+    dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *> (info->id.dev_mac), dev_mac_str);
+    dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *> (info->ruid.mac), radio_mac_str);
+    dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *> (info->bssid.mac), bss_mac_str);
+    snprintf(key, sizeof(key), "%s@%s@%s@%s@%d", info->id.net_id, dev_mac_str,
+            radio_mac_str, bss_mac_str, info->id.haul_type);
+    m_retained_bss_keys.insert(key);
+}
+
+int dm_bss_list_t::reconcile_retained_bss_rows(db_client_t& db_client, const unsigned char *radio_mac)
+{
+    std::lock_guard<std::recursive_mutex> lock(m_acl_mutex);
+    std::vector<std::string> keys(m_retained_bss_keys.begin(), m_retained_bss_keys.end());
+    em_bss_id_t id;
+    int rc = 0;
+
+    for (const std::string& key : keys) {
+        if ((dm_bss_t::parse_bss_id_from_key(key.c_str(), &id) != 0) ||
+                (memcmp(id.ruid, radio_mac, sizeof(mac_address_t)) != 0)) {
+            continue;
+        }
+        if (get_bss(key.c_str()) != NULL) {
+            // Rebuilt under the same key; its row was already rewritten.
+            m_retained_bss_keys.erase(key);
+            continue;
+        }
+        // The same BSSID may have returned under another haul type without its row having
+        // been rewritten (for example set_config failed earlier). Persist the live entry now:
+        // set_config moves this retained key's ACL onto it and deletes the retained row.
+        bool returned = false;
+        for (int haul = 0; haul < em_haul_type_max; haul++) {
+            em_2xlong_string_t live_key;
+            char *haul_sep;
+            dm_bss_t *live_bss;
+
+            if (haul == id.haul_type) {
+                continue;
+            }
+            snprintf(live_key, sizeof(live_key), "%s", key.c_str());
+            if ((haul_sep = strrchr(live_key, '@')) == NULL) {
+                break;
+            }
+            snprintf(haul_sep + 1, sizeof(live_key) - static_cast<size_t>(haul_sep + 1 - live_key), "%d", haul);
+            if ((live_bss = get_bss(live_key)) != NULL) {
+                dm_bss_t live_copy(*live_bss);
+                returned = true;
+                if (set_config(db_client, live_copy, live_key) != 0) {
+                    em_printfout("Failed to persist BSSList row %s replacing retained %s", live_key, key.c_str());
+                    rc = -1;
+                }
+                break;
+            }
+        }
+        if (returned) {
+            continue;
+        }
+        em_printfout("Deleting BSSList row %s: BSS did not return after reconfiguration", key.c_str());
+        if (delete_bss_row(db_client, key.c_str()) != 0) {
+            em_printfout("Failed to delete stale BSSList row %s", key.c_str());
+            rc = -1;
+        }
+    }
+
+    return rc;
+}
+
 void dm_bss_list_t::acl_mark_dirty(const char *bss_key)
 {
+    std::lock_guard<std::recursive_mutex> lock(m_acl_mutex);
     if (bss_key != NULL) {
         m_pending_acl_persistence_keys.insert(bss_key);
     }
@@ -562,6 +699,7 @@ void dm_bss_list_t::acl_mark_dirty(const char *bss_key)
 int dm_bss_list_t::acl_update(const char *bss_key, unsigned char assoc_control,
             unsigned char sta_count, const mac_address_t *sta_list)
 {
+    std::lock_guard<std::recursive_mutex> lock(m_acl_mutex);
     hash_map_t *map = get_acl_map();
     em_3xlong_string_t acl_key;
     em_acl_sta_t *entry;
@@ -638,9 +776,51 @@ int dm_bss_list_t::acl_update(const char *bss_key, unsigned char assoc_control,
     return 0;
 }
 
+bool dm_bss_list_t::acl_can_update(const char *bss_key, unsigned char assoc_control,
+            unsigned char sta_count, const mac_address_t *sta_list)
+{
+    std::lock_guard<std::recursive_mutex> lock(m_acl_mutex);
+    em_3xlong_string_t acl_key;
+    std::set<std::string> updated_stas;
+    unsigned int blocked_count;
+    unsigned int allowed_count;
+    const bool blocked = (assoc_control == ASSOC_CONTROL_BLOCK);
+
+    if ((bss_key == NULL) || (sta_list == NULL) || (sta_count == 0) ||
+            ((assoc_control != ASSOC_CONTROL_BLOCK) && (assoc_control != ASSOC_CONTROL_UNBLOCK))) {
+        return false;
+    }
+
+    blocked_count = acl_num_macs(bss_key, true);
+    allowed_count = acl_num_macs(bss_key, false);
+    for (unsigned char i = 0; i < sta_count; i++) {
+        make_acl_key(bss_key, sta_list[i], acl_key, sizeof(acl_key));
+        if (!updated_stas.insert(acl_key).second) {
+            continue;
+        }
+        em_acl_sta_t *entry = static_cast<em_acl_sta_t *>(
+            (m_acl_sta_map != NULL) ? hash_map_get(m_acl_sta_map, acl_key) : NULL);
+        if (entry == NULL) {
+            blocked ? ++blocked_count : ++allowed_count;
+        } else if (entry->blocked != blocked) {
+            if (entry->blocked) {
+                --blocked_count;
+                ++allowed_count;
+            } else {
+                --allowed_count;
+                ++blocked_count;
+            }
+        }
+    }
+
+    return (blocked_count <= EM_MAX_ACL_JSON_STAS) &&
+        (allowed_count <= EM_MAX_ACL_JSON_STAS);
+}
+
 int dm_bss_list_t::acl_remove_stas(const char *bss_key, unsigned char sta_count,
             const mac_address_t *sta_list)
 {
+    std::lock_guard<std::recursive_mutex> lock(m_acl_mutex);
     hash_map_t *map = m_acl_sta_map;
     em_3xlong_string_t acl_key;
 
@@ -665,12 +845,14 @@ int dm_bss_list_t::acl_remove_stas(const char *bss_key, unsigned char sta_count,
 
 unsigned int dm_bss_list_t::acl_num_macs(const char *bss_key, bool blocked)
 {
+    std::lock_guard<std::recursive_mutex> lock(m_acl_mutex);
     return acl_get_macs(bss_key, blocked, 0, 0xFFFFFFFFU, NULL);
 }
 
 unsigned int dm_bss_list_t::acl_get_macs(const char *bss_key, bool blocked, unsigned int skip,
             unsigned int max, mac_address_t *list)
 {
+    std::lock_guard<std::recursive_mutex> lock(m_acl_mutex);
     hash_map_t *map = m_acl_sta_map;
     em_acl_sta_t *entry;
     unsigned int matched = 0, copied = 0;
@@ -698,6 +880,7 @@ unsigned int dm_bss_list_t::acl_get_macs(const char *bss_key, bool blocked, unsi
 
 void dm_bss_list_t::acl_to_string(const char *bss_key, bool blocked, char *str, unsigned int sz)
 {
+    std::lock_guard<std::recursive_mutex> lock(m_acl_mutex);
     hash_map_t *map = m_acl_sta_map;
     em_acl_sta_t *entry;
     mac_addr_str_t mac_str;
@@ -723,6 +906,7 @@ void dm_bss_list_t::acl_to_string(const char *bss_key, bool blocked, char *str, 
 
 void dm_bss_list_t::acl_from_string(const char *bss_key, bool blocked, const char *str)
 {
+    std::lock_guard<std::recursive_mutex> lock(m_acl_mutex);
     char copy[EM_MAX_ACL_LIST_CHARS + 1];
     mac_address_t mac;
     char *save = NULL, *token;
@@ -747,6 +931,7 @@ void dm_bss_list_t::acl_from_string(const char *bss_key, bool blocked, const cha
 
 void dm_bss_list_t::acl_remove(const char *bss_key)
 {
+    std::lock_guard<std::recursive_mutex> lock(m_acl_mutex);
     hash_map_t *map = m_acl_sta_map;
     em_acl_sta_t *entry, *tmp;
     em_3xlong_string_t acl_key;
@@ -769,6 +954,7 @@ void dm_bss_list_t::acl_remove(const char *bss_key)
 
 int dm_bss_list_t::update_db(db_client_t& db_client, dm_orch_type_t op, void *data)
 {
+    std::lock_guard<std::recursive_mutex> lock(m_acl_mutex);
     mac_addr_str_t dev_mac_str, bss_mac_str, radio_mac_str;
     em_bss_info_t *info = static_cast<em_bss_info_t *> (data);
     int ret = 0;
@@ -862,6 +1048,7 @@ bool dm_bss_list_t::search_db(db_client_t& db_client, void *ctx, void *key)
 
 int dm_bss_list_t::sync_db(db_client_t& db_client, void *ctx)
 {
+    std::lock_guard<std::recursive_mutex> lock(m_acl_mutex);
     em_bss_info_t info;
     mac_addr_str_t	mac;
     em_long_string_t   str;
@@ -875,11 +1062,7 @@ int dm_bss_list_t::sync_db(db_client_t& db_client, void *ctx)
     int rc = 0;
     unsigned int row = 0;
 
-    if (ctx == NULL) {
-        em_printfout("Failed to synchronize BSSList: database query returned no result context");
-        return -1;
-    }
-
+    // sync_table() reports query failures; a NULL context here is an empty BSSList.
     acl_clear();
 
     while (db_client.next_result(ctx)) {
@@ -949,11 +1132,15 @@ int dm_bss_list_t::sync_db(db_client_t& db_client, void *ctx)
 
         memset(acl_str, 0, sizeof(acl_str));
         db_client.get_string(ctx, acl_str, 24, sizeof(acl_str));
-        acl_from_string(bss_key, true, acl_str);
+        if (info.acl_validity_period == 0) {
+            acl_from_string(bss_key, true, acl_str);
+        }
 
         memset(acl_str, 0, sizeof(acl_str));
         db_client.get_string(ctx, acl_str, 25, sizeof(acl_str));
-        acl_from_string(bss_key, false, acl_str);
+        if (info.acl_validity_period == 0) {
+            acl_from_string(bss_key, false, acl_str);
+        }
 
         update_list(dm_bss_t(&info), dm_orch_type_db_insert);
     }

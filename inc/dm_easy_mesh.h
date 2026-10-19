@@ -2744,6 +2744,7 @@ public:
 
 	bool m_cfg_renew_in_progress = false;
 	bool m_bsta_reconnect_pending = false;
+	bool m_preserve_acl_on_bss_delete = false;
 };
 
 #endif

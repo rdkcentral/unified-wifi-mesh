@@ -34,7 +34,6 @@
 sqlite3 *m_con;
 char m_path[512];
 std::mutex m_mutex;
-bool m_last_query_succeeded;
 
 
 	 /**!
@@ -83,15 +82,17 @@ bool m_last_query_succeeded;
 	  * This function takes a SQL query as input and executes it on the connected database.
 	  *
 	  * @param[in] query SQL query to execute. This should be a valid SQL statement.
+	  * @param[out] succeeded Optional. Receives the status of this execution:
+	  *             true when the statement completed (with or without rows),
+	  *             false on preparation or execution errors. The status is
+	  *             specific to this call and is not affected by concurrent queries.
 	  *
-	  * @returns Pointer to result context on success, NULL on failure.
+	  * @returns Pointer to result context when the query returned rows, NULL otherwise.
 	  *
 	  * @note Caller is responsible for handling the returned result context.
 	  *       The context will be automatically freed when next_result() returns false.
 	  */
-	 void *execute(const char *query);
-
-	 bool last_query_succeeded() const { return m_last_query_succeeded; }
+	 void *execute(const char *query, bool *succeeded = NULL);
 
 	 /**
 	  * @brief Escapes a string for use as a quoted SQL value.

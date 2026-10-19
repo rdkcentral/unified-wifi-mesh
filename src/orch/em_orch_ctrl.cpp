@@ -62,6 +62,21 @@ void em_orch_ctrl_t::orch_transient(em_cmd_t *pcmd, em_t *em)
 
         case em_cmd_type_em_config:
         {
+            // Persisted ACL replay: retry when the agent has not ACKed in time.
+            // Not while chunks are still being sent; that send is checked again next tick.
+            if ((pcmd->get_orch_op() == dm_orch_type_acl_cfg) &&
+                    (stats->time > EM_MAX_CMD_GEN_TTL) &&
+                    (em->get_state() == em_state_ctrl_acl_cfg_pending) &&
+                    !em->is_acl_cfg_sending()) {
+                em_printfout("Persisted ACL ACK timeout for radio:%s; retrying replay",
+                        util::mac_to_string(em->get_radio_interface_mac()).c_str());
+                em->clear_acl_cfg_pending_msg_ids();
+                em->set_state(em_state_ctrl_acl_cfg_failed);
+                pcmd->set_start_time();
+                stats->time = 0;
+                break;
+            }
+
             dm_easy_mesh_t *dm = em->get_data_model();
             std::vector<em_t *> all_em_radios;
             em->get_mgr()->get_all_em_for_al_mac(dm->get_agent_al_interface_mac(), all_em_radios);
@@ -210,10 +225,16 @@ bool em_orch_ctrl_t::is_em_ready_for_orch_fini(em_cmd_t *pcmd, em_t *em)
                     return true;
                 }
                 if (state == em_state_ctrl_acl_cfg_failed) {
+                    // Let an interrupted send unwind before starting the retry.
+                    if (em->is_acl_cfg_sending()) {
+                        return false;
+                    }
                     if (em->try_acl_cfg_retry()) {
                         em_printfout("Persisted ACL replay failed for radio:%s; retry %u of %u",
                                 util::mac_to_string(em->get_radio_interface_mac()).c_str(),
                                 em->get_acl_cfg_retry_count(), EM_MAX_ACL_CFG_RETRIES);
+                        // Drop IDs of chunks sent after a rejection so the retry is not blocked by them.
+                        em->clear_acl_cfg_pending_msg_ids();
                         em->set_state(em_state_ctrl_acl_cfg_pending);
                         return false;
                     }
@@ -221,6 +242,7 @@ bool em_orch_ctrl_t::is_em_ready_for_orch_fini(em_cmd_t *pcmd, em_t *em)
                     em_printfout("Persisted ACL replay failed after %u retries for radio:%s; retaining failed state",
                             EM_MAX_ACL_CFG_RETRIES,
                             util::mac_to_string(em->get_radio_interface_mac()).c_str());
+                        em->set_state(em_state_ctrl_configured);
                     return true;
                 }
                 return false;
@@ -402,10 +424,20 @@ bool em_orch_ctrl_t::is_em_ready_for_orch_exec(em_cmd_t *pcmd, em_t *em)
                     }
                 }
 
-                return (em_state == em_state_ctrl_configured) ||
+                bool ready = (em_state == em_state_ctrl_configured) ||
                         (em_state == em_state_ctrl_acl_cfg_pending) ||
                         (em_state == em_state_ctrl_acl_cfg_configured) ||
                         (em_state == em_state_ctrl_acl_cfg_failed);
+                if (ready) {
+                    // Topology sync has rebuilt this radio's BSS list by now; drop the rows
+                    // kept by bss_delete whose BSS did not return before replaying the ACL.
+                    em_ctrl_t *ctrl = static_cast<em_ctrl_t *>(m_mgr);
+                    if (ctrl->get_dm_ctrl()->reconcile_retained_bss_rows(em->get_radio_interface_mac()) != 0) {
+                        em_printfout("Failed to reconcile retained BSSList rows for radio:%s",
+                                util::mac_to_string(em->get_radio_interface_mac()).c_str());
+                    }
+                }
+                return ready;
             }
                 [[fallthrough]];
 
@@ -625,6 +657,7 @@ bool em_orch_ctrl_t::pre_process_orch_op(em_cmd_t *pcmd)
             if (mgr_dm == NULL) {
                 break;
             }		
+			mgr_dm->m_preserve_acl_on_bss_delete = true;
 			snprintf(criteria, sizeof(em_2xlong_string_t), "radio=%s", pcmd->m_param.u.args.args[0]);
 			mgr_dm->set_db_cfg_param(db_cfg_type_bss_list_delete, criteria);
 			break;
@@ -659,12 +692,9 @@ bool em_orch_ctrl_t::pre_process_orch_op(em_cmd_t *pcmd)
 
         case dm_orch_type_client_assoc:
         {
-            // Persist the ACL carried by the CACR so it survives a controller/agent reboot
             em_cmd_client_assoc_params_t *assoc = &pcmd->m_param.u.client_assoc_params;
-            mac_addr_str_t dev_mac_str, radio_mac_str, bss_mac_str;
-            em_2xlong_string_t bss_key;
             bool bss_found = false;
-            bool acl_update_failed = false;
+            bool acl_update_valid = true;
 
             pthread_mutex_lock(&m_mgr->m_mutex);
             em = static_cast<em_t *>(hash_map_get_first(m_mgr->m_em_map));
@@ -672,46 +702,36 @@ bool em_orch_ctrl_t::pre_process_orch_op(em_cmd_t *pcmd)
                 dm_bss_t *bss = (em->is_al_interface_em() == false) ? em->find_bss(assoc->bssid) : NULL;
                 if ((bss != NULL) && (bss->m_bss_info.vap_mode == em_vap_mode_ap)) {
                     bss_found = true;
+                    const bool backhaul_bss =
+                        (bss->m_bss_info.id.haul_type == em_haul_type_backhaul);
+                    if (assoc->validity_period != 0 && !backhaul_bss) {
+                        pthread_mutex_unlock(&m_mgr->m_mutex);
+                        em_printfout("Temporary association control will not be persisted");
+                        return pcmd->get_orch_submit();
+                    }
+                    if (backhaul_bss) {
+                        assoc->validity_period = 0;
+                    }
+                    mac_addr_str_t dev_mac_str, radio_mac_str, bss_mac_str;
+                    em_2xlong_string_t bss_key;
                     dm_easy_mesh_t::macbytes_to_string(bss->m_bss_info.id.dev_mac, dev_mac_str);
                     dm_easy_mesh_t::macbytes_to_string(bss->m_bss_info.ruid.mac, radio_mac_str);
                     dm_easy_mesh_t::macbytes_to_string(bss->m_bss_info.bssid.mac, bss_mac_str);
                     snprintf(bss_key, sizeof(bss_key), "%s@%s@%s@%s@%d", bss->m_bss_info.id.net_id,
                             dev_mac_str, radio_mac_str, bss_mac_str, bss->m_bss_info.id.haul_type);
-
-                    int acl_rc;
-                    // Backhaul is whitelist-only: block drops the STA from the allow list
-                    if ((bss->m_bss_info.id.haul_type == em_haul_type_backhaul) &&
-                            (assoc->assoc_control == ASSOC_CONTROL_BLOCK)) {
-                        acl_rc = dm_ctrl->acl_remove_stas(bss_key, assoc->sta_count, assoc->sta_list);
-                    } else {
-                        acl_rc = dm_ctrl->acl_update(bss_key, assoc->assoc_control,
-                                assoc->sta_count, assoc->sta_list);
-                    }
-
-                    if (acl_rc != 0) {
-                        em_printfout("Failed to update ACL state for BSS %s; request will not be submitted", bss_key);
-                        acl_update_failed = true;
-                        break;
-                    }
-
-                    // Backhaul APs admit only the listed STAs, fronthaul APs deny them.
-                    bss->m_bss_info.acl_filter_mode =
-                            (bss->m_bss_info.id.haul_type == em_haul_type_backhaul) ?
-                            EM_ACL_MODE_WHITELIST : EM_ACL_MODE_BLACKLIST;
-                    bss->m_bss_info.acl_validity_period = assoc->validity_period;
-                    bss->m_bss_info.acl_revision++;
-
-                    mgr_dm = em->get_data_model();
-                    if (mgr_dm != NULL) {
-                        mgr_dm->set_db_cfg_param(db_cfg_type_bss_list_update, "");
-                        m_mgr->update_tables(mgr_dm);
+                    bool backhaul_block = (bss->m_bss_info.id.haul_type == em_haul_type_backhaul) &&
+                        (assoc->assoc_control == ASSOC_CONTROL_BLOCK);
+                    if (!backhaul_block && !dm_ctrl->acl_can_update(bss_key, assoc->assoc_control,
+                            assoc->sta_count, assoc->sta_list)) {
+                        acl_update_valid = false;
                     }
                     break;
                 }
                 em = static_cast<em_t *>(hash_map_get_next(m_mgr->m_em_map, em));
             }
             pthread_mutex_unlock(&m_mgr->m_mutex);
-            if (acl_update_failed) {
+            if (!acl_update_valid) {
+                em_printfout("ACL capacity validation failed; request will not be submitted");
                 return false;
             }
             if (!bss_found) {

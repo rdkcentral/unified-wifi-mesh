@@ -644,6 +644,7 @@ public:
 	 */
 	virtual unsigned int get_bss_acl_macs(const char *, bool, unsigned int,
 			unsigned int, mac_address_t *) { return 0; }
+	virtual bool persist_client_assoc_ctrl_req(const em_cmd_client_assoc_params_t &) { return false; }
     
 	/**!
 	 * @brief Creates a data model for the specified network ID and interface.

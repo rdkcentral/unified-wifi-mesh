@@ -581,6 +581,7 @@ public:
 
 	unsigned int get_bss_acl_macs(const char *bss_key, bool blocked, unsigned int skip,
 			unsigned int max, mac_address_t *list) { return m_data_model.acl_get_macs(bss_key, blocked, skip, max, list); }
+	bool persist_client_assoc_ctrl_req(const em_cmd_client_assoc_params_t &assoc) override;
     
 	/**!
 	 * @brief Creates a data model for the specified network ID and interface.

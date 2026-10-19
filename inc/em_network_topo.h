@@ -30,6 +30,9 @@ class em_network_topo_t {
 
 	bool m_bh_processed;
 	bool m_bh_reconfig_active;
+	// Set on the root when a backhaul reconfiguration stopped part-way; a repeat of the
+	// same request then resumes the traversal instead of being rejected as no change.
+	bool m_bh_reconfig_incomplete;
 
 public:
 	
@@ -131,6 +134,8 @@ public:
 	bool is_bh_reconfig_active() { return m_bh_reconfig_active; }
 	void set_bh_reconfig_active(bool active) { m_bh_reconfig_active = active; }
 	void set_bh_processed(bool processed) { m_bh_processed = processed; }
+	bool is_bh_reconfig_incomplete() { return m_bh_reconfig_incomplete; }
+	void set_bh_reconfig_incomplete(bool incomplete) { m_bh_reconfig_incomplete = incomplete; }
 
 	void send_bh_reconfig_event();
 	void reset_bh_reconfig();

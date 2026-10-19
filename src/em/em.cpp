@@ -182,6 +182,8 @@ void em_t::orch_execute(em_cmd_t *pcmd)
                      (m_sm.get_state() == em_state_ctrl_acl_cfg_configured) ||
                      (m_sm.get_state() == em_state_ctrl_acl_cfg_failed))) {
                 reset_acl_cfg_retry_count();
+                // Chunks of an earlier replay must not complete or block this one.
+                clear_acl_cfg_pending_msg_ids();
                 m_sm.set_state(em_state_ctrl_acl_cfg_pending);
             }
             break;

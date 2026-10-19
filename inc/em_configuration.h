@@ -1039,7 +1039,7 @@ class em_configuration_t {
 	 *
 	 * @note Ensure that the value is not null and len is valid to avoid undefined behavior.
 	 */
-	void handle_ap_vendor_operational_bss(unsigned char *value, unsigned int len);
+	int handle_ap_vendor_operational_bss(unsigned char *value, unsigned int len);
 
 	/**!
 	 * @brief Handles the Airties device info TLV.
@@ -1240,6 +1240,11 @@ class em_configuration_t {
 	 * function to avoid unexpected behavior.
 	 */
 	void handle_state_wsc_m2_pending();
+
+	/**!
+	 * @brief Records the time at which the agent started waiting for M2.
+	 */
+	void start_m2_wait_timer();
     
 	/**!
 	 * @brief Handles the state topology notification.
@@ -2325,6 +2330,8 @@ public:
     unsigned char m_emsk[WPS_EMSK_LEN];
     unsigned int m_renew_tx_cnt;
     unsigned int m_topo_query_tx_cnt;
+    // Monotonic time (seconds) at which the agent sent M1 and started waiting for M2.
+    time_t m_m2_wait_start;
     
 	/**!
 	 * @brief Constructor for em_configuration_t.

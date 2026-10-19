@@ -33,6 +33,8 @@
 #include <sys/uio.h>
 #include <unistd.h>
 #include <assert.h>
+#include <algorithm>
+#include <vector>
 #include "em_base.h"
 #include "em_cmd.h"
 #include "em_orch.h"
@@ -155,14 +157,17 @@ bool em_orch_t::submit_command(em_cmd_t *pcmd)
     // Pre-process the submit orch op (e.g. update DB with new SSIDs)
     // before building candidates, so the data model is up-to-date when
     // create_encrypted_settings reads network SSID info for M8.
+    // Preprocessing-only descriptors report false; complete them without queuing.
     if (pre_process_orch_op(pcmd) == false) {
         destroy_command(pcmd);
         return false;
     }
 
-    // Also process any remaining non-submit orch ops (e.g. net_ssid_update)
-    // that would otherwise never execute in the single-command path.
-    {
+    // SetBhCfg is submitted as a single command carrying all its descriptors, so
+    // run its remaining non-submit orch ops (e.g. net_ssid_update) here. Batch
+    // analyzers already clone one command per descriptor via clone_for_next(),
+    // so sweeping those would execute their side effects twice.
+    if (pcmd->get_type() == em_cmd_type_set_bh_cfg) {
         unsigned int saved_idx = pcmd->get_orch_op_index();
         for (unsigned int i = saved_idx + 1; i < pcmd->m_num_orch_desc; i++) {
             pcmd->m_orch_op_idx = i;
@@ -599,6 +604,21 @@ void em_orch_t::handle_timeout()
                    // __func__, __LINE__, pcmd->get_cmd_name(), em_cmd_t::get_orch_op_str(pcmd->get_orch_op()));
             
             bool bh_reconfig_next = (pcmd->m_type == em_cmd_type_set_bh_cfg);       
+            bool bh_reconfig_succeeded = true;
+            // Devices with at least one radio that did not reach M2; they stay unprocessed so a
+            // retry targets only them.
+            std::vector<em_network_topo_t *> bh_failed_nodes;
+            if (bh_reconfig_next) {
+                for (j = static_cast<int>(queue_count(pcmd->m_em_candidates)) - 1; j >= 0; j--) {
+                    em = static_cast<em_t *>(queue_peek(pcmd->m_em_candidates, static_cast<unsigned int>(j)));
+                    if (em->get_state() != em_state_ctrl_wsc_m2_sent) {
+                        bh_reconfig_succeeded = false;
+                        if (g_network_topology != NULL) {
+                            bh_failed_nodes.push_back(g_network_topology->find_topology(em->get_data_model()));
+                        }
+                    }
+                }
+            }
 
             queue_remove(m_active, static_cast<unsigned int>(i));
             pop_stats(pcmd);
@@ -607,7 +627,8 @@ void em_orch_t::handle_timeout()
                 em->set_orch_state(em_orch_state_idle);
                  if (bh_reconfig_next && g_network_topology != NULL) {
                     em_network_topo_t *topo = g_network_topology->find_topology(em->get_data_model());
-                    if (topo != NULL) {
+                    if ((topo != NULL) && (std::find(bh_failed_nodes.begin(), bh_failed_nodes.end(), topo) ==
+                            bh_failed_nodes.end())) {
                         topo->set_bh_processed(true);
                     }
                 }
@@ -621,20 +642,20 @@ void em_orch_t::handle_timeout()
                 em_t *first_em = static_cast<em_t *>(queue_peek(pcmd->m_em_candidates, 0));
                 if (first_em != NULL && first_em->get_data_model() != NULL) {
                     first_em->get_data_model()->m_cfg_renew_in_progress = false;
-                    
-                    if (first_em->get_data_model()->m_bsta_reconnect_pending) {
-                        first_em->get_data_model()->m_bsta_reconnect_pending = false;
-                        if (first_em->get_mgr() != NULL) {
-                            first_em->get_mgr()->refresh_onewifi_subdoc(
-                                "MESH STA CONFIG", webconfig_subdoc_type_mesh_backhaul_sta);
-                        }
-                    }
                 }
             }
             destroy_command(pcmd);
             //em->set_state(em_state_agent_config_complete);
             if (bh_reconfig_next && g_network_topology != NULL) {
-                g_network_topology->send_bh_reconfig_event();
+                if (bh_reconfig_succeeded) {
+                    g_network_topology->send_bh_reconfig_event();
+                } else {
+                    // Keep the traversal progress: the new credentials are already persisted and
+                    // the processed devices use them. Repeating the request resumes from here.
+                    em_printfout("Backhaul reconfiguration failed; stopping traversal, repeat the request to retry the remaining agents");
+                    g_network_topology->set_bh_reconfig_active(false);
+                    g_network_topology->set_bh_reconfig_incomplete(true);
+                }
             }
 
         }
