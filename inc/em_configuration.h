@@ -1067,6 +1067,17 @@ class em_configuration_t {
 	int handle_vendor_specific_tlv(unsigned char *buff, unsigned int len);
 
 	/**!
+	 * @brief Parses the Airties Ethernet Interface vendor TLV and stores it in the device info.
+	 *
+	 * @param[in] value Pointer to the TLV payload following the Airties OUI and TLV ID.
+	 * @param[in] len Length of the payload.
+	 *
+	 * @returns int 0 on success, -1 on failure.
+	 */
+	int handle_eth_interface_vendor_tlv(unsigned char *value, unsigned int len);
+
+    
+	/**!
 	 * @brief Creates an M1 message.
 	 *
 	 * This function is responsible for creating an M1 message and storing it in the provided buffer.
@@ -1126,6 +1137,16 @@ class em_configuration_t {
 	 * calling this function.
 	 */
 	int create_vendor_operational_bss_tlv(unsigned char *buff);
+
+	/**!
+	 * @brief Creates the Airties Ethernet Interface vendor TLV (ID 0x000F).
+	 *
+	 * @param[out] buff Buffer where the TLV value is stored.
+	 * @param[in] max_len Space available in buff.
+	 *
+	 * @returns short Size of the TLV value, or 0 if there is nothing to report or it does not fit.
+	 */
+	short create_vendor_eth_interface_tlv(unsigned char *buff, size_t max_len);
 
 	/**
 	 * @brief Creates a Backhaul STA Radio Capabilities TLV (17.2.65)

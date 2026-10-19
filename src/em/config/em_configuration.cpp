@@ -48,6 +48,7 @@
 #include <algorithm>
 #include "em_configuration.h"
 #include "em_mgr.h"
+#include "em_eth.h"
 #include "em_msg.h"
 #include "dm_easy_mesh.h"
 #include "em_cmd.h"
@@ -1411,6 +1412,113 @@ int em_configuration_t::create_assoc_sta_mld_config_report_tlv(unsigned char *bu
     return tlv_len;
 }
 
+short em_configuration_t::create_vendor_eth_interface_tlv(unsigned char *buff, size_t max_len)
+{
+    const size_t fixed_len = EM_VENDOR_OUI_SIZE + sizeof(uint16_t) + 1;
+    em_vendor_specific_v_t *vendor = reinterpret_cast<em_vendor_specific_v_t *> (buff);
+    std::vector<em_eth_port_t> ports;
+    size_t total = fixed_len;
+
+    for (const auto &cfg : em_eth_get_ports()) {
+        em_eth_port_t p;
+        memset(&p, 0, sizeof(p));
+        if (!em_eth_get_info(cfg.first, p)) {
+            em_printfout("Failed to get interface info for %s", cfg.first.c_str());
+            continue;
+        }
+        p.port_id = cfg.second;
+        /* port id + MAC + name length + name + two flag octets */
+        size_t sz = 1 + sizeof(mac_address_t) + 1 + strlen(p.name) + 2;
+        if ((ports.size() >= EM_MAX_ETH_PORTS) || ((total + sz) > max_len)) {
+            break;
+        }
+        total += sz;
+        ports.push_back(p);
+    }
+    if (ports.empty()) {
+        return 0;
+    }
+
+    memcpy(vendor->vendor_oui, airties_vendor_oui, EM_VENDOR_OUI_SIZE);
+    uint16_t tlv_id = htons(static_cast<uint16_t> (em_tlv_type_eth_interface));
+    memcpy(vendor->data, &tlv_id, sizeof(tlv_id));
+
+    unsigned char *ptr = vendor->data + sizeof(tlv_id);
+    *ptr++ = static_cast<unsigned char> (ports.size());
+    for (const auto &p : ports) {
+        size_t name_len = strlen(p.name);
+        *ptr++ = p.port_id;
+        memcpy(ptr, p.mac, sizeof(mac_address_t));
+        ptr += sizeof(mac_address_t);
+        *ptr++ = static_cast<unsigned char> (name_len);
+        memcpy(ptr, p.name, name_len);
+        ptr += name_len;
+        /* bit 7: admin state, bit 6: link state, bit 5: duplex (1 = full) */
+        *ptr++ = static_cast<unsigned char> ((p.admin_up << 7) | (p.link_up << 6) | (p.full_duplex << 5));
+        /* bits 7:4: supported link type, bits 3:0: current link type */
+        *ptr++ = static_cast<unsigned char> ((p.max_link_type << 4) | (p.cur_link_type & 0x0f));
+    }
+
+    return static_cast<short> (total);
+}
+
+int em_configuration_t::handle_eth_interface_vendor_tlv(unsigned char *value, unsigned int len)
+{
+    em_device_info_t *di;
+    em_eth_port_t ports[EM_MAX_ETH_PORTS];
+    unsigned int num = 0;
+
+    if (len < 1) {
+        em_printfout("Invalid Ethernet Interface TLV");
+        return -1;
+    }
+    unsigned int k = value[0];
+    unsigned char *ptr = value + 1;
+    unsigned int remaining = len - 1;
+
+    memset(ports, 0, sizeof(ports));
+    for (unsigned int i = 0; i < k; i++) {
+        /* port id + MAC + name length */
+        if (remaining < (1 + sizeof(mac_address_t) + 1)) {
+            em_printfout("Truncated Ethernet Interface TLV");
+            return -1;
+        }
+        unsigned int name_len = ptr[1 + sizeof(mac_address_t)];
+        size_t entry_len = 1 + sizeof(mac_address_t) + 1 + name_len + 2;
+        if ((name_len >= EM_ETH_IFNAME_LEN) || (remaining < entry_len)) {
+            em_printfout("Invalid Ethernet Interface TLV entry, name_len=%u", name_len);
+            return -1;
+        }
+        if (num >= EM_MAX_ETH_PORTS) {
+            em_printfout("Too many Ethernet ports, dropping port %u", ptr[0]);
+        } else {
+            em_eth_port_t *p = &ports[num++];
+            unsigned char *f = ptr + 1 + sizeof(mac_address_t) + 1 + name_len;
+            p->port_id = ptr[0];
+            memcpy(p->mac, ptr + 1, sizeof(mac_address_t));
+            memcpy(p->name, ptr + 1 + sizeof(mac_address_t) + 1, name_len);
+            p->admin_up = (f[0] >> 7) & 1;
+            p->link_up = (f[0] >> 6) & 1;
+            p->full_duplex = (f[0] >> 5) & 1;
+            p->max_link_type = f[1] >> 4;
+            p->cur_link_type = f[1] & 0x0f;
+        }
+        ptr += entry_len;
+        remaining -= static_cast<unsigned int> (entry_len);
+    }
+
+    dm_easy_mesh_t *dm = get_data_model();
+    di = (dm == NULL) ? NULL : dm->get_device_info();
+    if (di == NULL) {
+        return -1;
+    }
+
+    di->num_eth_ports = static_cast<uint8_t> (num);
+    memcpy(di->eth_ports, ports, sizeof(ports));
+
+    return 0;
+}
+
 int em_configuration_t::create_vendor_operational_bss_tlv(unsigned char *buff)
 {
 	em_tlv_t *tlv;
@@ -1729,6 +1837,19 @@ int em_configuration_t::send_topology_response_msg(unsigned char *dst, unsigned 
 	tlv_len = static_cast<short unsigned int> (create_vendor_operational_bss_tlv(tmp));
 	tmp += (sizeof(em_tlv_t) + tlv_len);
 	len += static_cast<unsigned int> (sizeof(em_tlv_t) + tlv_len);
+
+    // Airties Ethernet Interface vendor TLV; keep room for the TLV header and the EOM TLV
+    const size_t frame_limit = std::min(sizeof(buff), static_cast<size_t> (EM_MAX_MSG_SZ));
+    if ((len + 2 * sizeof(em_tlv_t)) < frame_limit) {
+        tlv = reinterpret_cast<em_tlv_t *> (tmp);
+        tlv->type = em_tlv_type_vendor_specific;
+        short eth_sz = create_vendor_eth_interface_tlv(tlv->value, frame_limit - len - 2 * sizeof(em_tlv_t));
+        if (eth_sz > 0) {
+            tlv->len = htons(static_cast<unsigned short> (eth_sz));
+            tmp += (sizeof(em_tlv_t) + static_cast<size_t> (eth_sz));
+            len += static_cast<unsigned int> (sizeof(em_tlv_t) + static_cast<size_t> (eth_sz));
+        }
+    }
 
     // End of message
     tlv = reinterpret_cast<em_tlv_t *> (tmp);
@@ -2559,6 +2680,47 @@ int em_configuration_t::handle_topology_response(unsigned char *buff, unsigned i
 
     if (handle_assoc_sta_mld_topology_update(dm) == true) {
         dm->set_db_cfg_param(db_cfg_type_sta_list_update, "");
+    }
+
+    // Parse the Airties Ethernet Interface vendor TLV (ID 0x000F)
+    bool eth_if_found = false, eth_if_truncated = false;
+    tlv = reinterpret_cast<em_tlv_t *>(buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+    tmp_len = len - static_cast<unsigned int>(sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+    while ((tmp_len >= sizeof(em_tlv_t)) && (tlv->type != em_tlv_type_eom)) {
+        unsigned int vlen = ntohs(tlv->len);
+        if (tmp_len < (sizeof(em_tlv_t) + vlen)) {
+            eth_if_truncated = true;
+            break;
+        }
+        if ((tlv->type == em_tlv_type_vendor_specific) && (vlen >= (EM_VENDOR_OUI_SIZE + sizeof(uint16_t))) &&
+                (memcmp(tlv->value, airties_vendor_oui, EM_VENDOR_OUI_SIZE) == 0)) {
+            uint16_t tlv_id;
+            memcpy(&tlv_id, tlv->value + EM_VENDOR_OUI_SIZE, sizeof(tlv_id));
+            if (ntohs(tlv_id) == em_tlv_type_eth_interface) {
+                eth_if_found = true;
+                if (handle_eth_interface_vendor_tlv(tlv->value + EM_VENDOR_OUI_SIZE + sizeof(tlv_id),
+                        vlen - static_cast<unsigned int>(EM_VENDOR_OUI_SIZE + sizeof(tlv_id))) != 0) {
+                    em_printfout("eth_interface_vendor_tlv failed, skipping TLV");
+                }
+                break;
+            }
+        }
+        tmp_len -= static_cast<unsigned int>(sizeof(em_tlv_t) + vlen);
+        tlv = reinterpret_cast<em_tlv_t *>(reinterpret_cast<unsigned char *>(tlv) + sizeof(em_tlv_t) + vlen);
+    }
+
+    if (eth_if_value != NULL) {
+        if (handle_eth_interface_vendor_tlv(eth_if_value, eth_if_len) != 0) {
+            em_printfout("eth_interface_vendor_tlv failed, skipping TLV");
+        }
+    } else {
+        // Agent omits the TLV when it has no Ethernet ports left
+        em_printfout("Ethernet Interface TLV absent, dropping the Ethernet ports");
+        em_device_info_t *di = dm->get_device_info();
+        if (di != NULL) {
+            di->num_eth_ports = 0;
+            memset(di->eth_ports, 0, sizeof(di->eth_ports));
+        }
     }
 
     em_printfout("Src al mac: " MACSTRFMT, MAC2STR(src_al_mac));
