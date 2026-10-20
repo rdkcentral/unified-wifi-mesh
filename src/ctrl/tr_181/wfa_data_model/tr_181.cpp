@@ -299,7 +299,6 @@ int tr_181_t::wfa_set_bus_callbackfunc_pointers(const char *full_namespace, bus_
         ELEMENT(DE_CAPOP_MAXTXPOWER,       CALLBACK_GETTER(capops_get)),
         ELEMENT(DE_CAPOP_NONOPERABLE,      CALLBACK_GETTER(capops_get)),
         ELEMENT(DE_CAPOP_NONOPCNT,         CALLBACK_GETTER(capops_get)),
-        ELEMENT(DE_CAPS_WF6AP,             CALLBACK_GETTER(wf6ap_tget)),
         ELEMENT(DE_WF6AP_HE160,            CALLBACK_GETTER(wf6ap_get)),
         ELEMENT(DE_WF6AP_HE8080,           CALLBACK_GETTER(wf6ap_get)),
         ELEMENT(DE_WF6AP_MCSNSS,           CALLBACK_GETTER(wf6ap_get)),
@@ -323,7 +322,6 @@ int tr_181_t::wfa_set_bus_callbackfunc_pointers(const char *full_namespace, bus_
         ELEMENT(DE_WF6AP_TWT_RSP,          CALLBACK_GETTER(wf6ap_get)),
         ELEMENT(DE_WF6AP_SPAT_REUSE,       CALLBACK_GETTER(wf6ap_get)),
         ELEMENT(DE_WF6AP_ANT_CH_USE,       CALLBACK_GETTER(wf6ap_get)),
-        ELEMENT(DE_CAPS_WF7AP,             CALLBACK_GETTER(wf7ap_tget)),
         ELEMENT(DE_WF7AP_EMLMR,            CALLBACK_GETTER(wf7ap_get)),
         ELEMENT(DE_WF7AP_EMLSR,            CALLBACK_GETTER(wf7ap_get)),
         ELEMENT(DE_WF7AP_STR,              CALLBACK_GETTER(wf7ap_get)),
@@ -802,34 +800,12 @@ bus_error_t tr_181_t::wf6ap_get(char *event_name, raw_data_t *p_data, bus_user_d
     return bus_error_general;
 }
 
-bus_error_t tr_181_t::wf6ap_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
-{
-    em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
-
-    if (em_ctrl != NULL) {
-        return em_ctrl->get_dm_ctrl()->wf6ap_tget(event_name, p_data);
-    }
-    
-    return bus_error_general;
-}
-
 bus_error_t tr_181_t::wf7ap_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
 {
     em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
 
     if (em_ctrl != NULL) {
         return em_ctrl->get_dm_ctrl()->wf7ap_get(event_name, p_data);
-    }
-
-    return bus_error_general;
-}
-
-bus_error_t tr_181_t::wf7ap_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
-{
-    em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
-
-    if (em_ctrl != NULL) {
-        return em_ctrl->get_dm_ctrl()->wf7ap_tget(event_name, p_data);
     }
 
     return bus_error_general;

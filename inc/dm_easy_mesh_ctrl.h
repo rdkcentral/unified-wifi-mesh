@@ -162,18 +162,11 @@ public:
     char* get_supported_standards_str(wifi_ieee80211Variant_t variant, char *buf, size_t buf_size);
     bus_error_t rcaps_get(char* event_name, raw_data_t* p_data);
     static bus_error_t rcaps_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
-    static bus_error_t rcaps_tget_inner(dm_easy_mesh_t *dm, const char *root, bus_data_prop_t **property);
     bus_error_t wf6ap_get(char* event_name, raw_data_t* p_data);
-    bus_error_t wf6ap_tget(char* event_name, raw_data_t* p_data);
     static bus_error_t wf6ap_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
-    static bus_error_t wf6ap_tget_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
-    static bus_error_t wf6ap_tget_params(dm_easy_mesh_t *dm, const char *root, em_radio_info_t *ri, bus_data_prop_t **property, unsigned int idx);
 
     bus_error_t wf7ap_get(char* event_name, raw_data_t* p_data);
-    bus_error_t wf7ap_tget(char* event_name, raw_data_t* p_data);
     static bus_error_t wf7ap_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
-    static bus_error_t wf7ap_tget_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
-    static bus_error_t wf7ap_tget_params(dm_easy_mesh_t *dm, const char *root, em_radio_info_t *ri, bus_data_prop_t **property, unsigned int idx);
 
     /* Op classes of a given type (CurrentOperatingClassProfile.{i}, ...) of a radio identify their rows */
     static std::vector<std::string> de_keys_op_class(dm_easy_mesh_t *dm, em_radio_info_t *ri, em_op_class_type_t type);
