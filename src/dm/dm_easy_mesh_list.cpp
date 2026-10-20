@@ -248,7 +248,7 @@ void dm_easy_mesh_list_t::update_device(const char *key, const dm_device_t *dev)
 	dm_easy_mesh_t::macbytes_to_string(id.dev_mac, mac_str);
 
     if ((pdev = get_device(key)) != NULL) {
-        // Runtime-only metrics are updated in-place by the metrics module and are
+        // Runtime-only metrics and Ethernet stats are updated in-place by the metrics module and are
         // never carried by config-driven device objects (e.g. decoded DeviceList
         // JSON); preserve them across a config update instead of letting this
         // memcpy clobber them with zeros.
@@ -258,6 +258,12 @@ void dm_easy_mesh_list_t::update_device(const char *key, const dm_device_t *dev)
         uint32_t cached_mem = pdev->m_device_info.cached_mem;
         unsigned char cpu_load = pdev->m_device_info.cpu_load;
         unsigned char cpu_temp = pdev->m_device_info.cpu_temp;
+        uint8_t num_eth_ports = pdev->m_device_info.num_eth_ports;
+        em_eth_port_t eth_ports[EM_MAX_ETH_PORTS];
+        memcpy(eth_ports, pdev->m_device_info.eth_ports, sizeof(eth_ports));
+        uint8_t num_eth_stats = pdev->m_device_info.num_eth_stats;
+        em_eth_stats_t eth_stats[EM_MAX_ETH_PORTS];
+        memcpy(eth_stats, pdev->m_device_info.eth_stats, sizeof(eth_stats));
 
         memcpy(&pdev->m_device_info, &dev->m_device_info, sizeof(em_device_info_t));
 
@@ -267,6 +273,10 @@ void dm_easy_mesh_list_t::update_device(const char *key, const dm_device_t *dev)
         pdev->m_device_info.cached_mem = cached_mem;
         pdev->m_device_info.cpu_load = cpu_load;
         pdev->m_device_info.cpu_temp = cpu_temp;
+        pdev->m_device_info.num_eth_ports = num_eth_ports;
+        memcpy(pdev->m_device_info.eth_ports, eth_ports, sizeof(eth_ports));
+        pdev->m_device_info.num_eth_stats = num_eth_stats;
+        memcpy(pdev->m_device_info.eth_stats, eth_stats, sizeof(eth_stats));
 
 	    dm = get_data_model(pdev->m_device_info.id.net_id, pdev->m_device_info.id.dev_mac);
         if (dm == NULL) {
