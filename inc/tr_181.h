@@ -1038,9 +1038,7 @@ public:
     static bus_error_t radio_table_add_row_handler(const char* table_name, const char* alias_name, uint32_t* instance_number);
     static bus_error_t rcaps_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
     static bus_error_t wf6ap_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
-    static bus_error_t wf6ap_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
     static bus_error_t wf7ap_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
-    static bus_error_t wf7ap_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
     static bus_error_t curops_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
     static bus_error_t capops_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
 
@@ -1080,9 +1078,6 @@ public:
 
     virtual bus_error_t network_get(char *event_name, raw_data_t *p_data) = 0;
     virtual bus_error_t device_get(char *event_name, raw_data_t *p_data) = 0;
-    // virtual bus_error_t radio_tget_impl(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data) = 0;
-    // virtual bus_error_t bss_tget_impl(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data) = 0;
-    // virtual bus_error_t ssid_tget_impl(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data) = 0;
 
     // Data model access
     bus_error_t wifi_elem_num_of_table_row(char* event_name, uint32_t* table_row_size);
