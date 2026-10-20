@@ -16,15 +16,17 @@
  # SPDX-License-Identifier: Apache-2.0
 ##########################################################################
 
-include ../makefile.inc
+include ./makefile.inc
 
 #
 # program
 #
 
-PROGRAM = $(INSTALLDIR)/bin/onewifi_em_network_optimiser
+PROGRAM = $(INSTALLDIR)/bin/optimizer
 
 INCLUDEDIRS = \
+        -I$(OPTIMIZER_SRC) \
+        -I$(OPTIMIZER_SRC)/web \
         -I$(ONEWIFI_EM_HOME)/inc \
         -I$(ONEWIFI_EM_HOME)/src/utils \
         -I$(ONEWIFI_HAL_INTF_HOME) \
@@ -37,7 +39,11 @@ INCLUDEDIRS = \
         -I$(ONEWIFI_HOME)/source/platform/common \
         -I$(ONEWIFI_HOME)/source/platform/linux/he_bus/inc \
         -I$(ONEWIFI_EM_HOME)/src/util_crypto \
-        -I$(ONEWIFI_HOME)/source/ccsp
+        -I$(ONEWIFI_HOME)/source/ccsp \
+        -I$(RBUS_HOME)/include/rbus \
+        -I$(PARODUS_DIR)/include/libparodus \
+        -I$(PARODUS_DIR)/include
+
 ifeq ($(WITH_SAP), 1)
 INCLUDEDIRS += -I$(AL_SAP_HOME)/include
 endif
@@ -50,12 +56,15 @@ LDFLAGS += $(LIBDIRS) $(LIBS) -fsanitize=address -fsanitize=undefined
 
 LIBDIRS = \
     -L$(INSTALLDIR)/lib \
-    -L$(ONEWIFI_HOME)/install/lib/
+    -L$(ONEWIFI_HOME)/install/lib \
+    -L$(RBUS_HOME)/lib \
+    -L$(PARODUS_DIR)/lib 
+
 ifeq ($(WITH_SAP), 1)
 LIBDIRS += -L$(AL_SAP_HOME)/
 endif
 
-LIBS = -lm -lpthread -ldl -lcjson -luuid -lssl -lcrypto -lwebconfig -lhebus
+LIBS = -lm -lpthread -ldl -lcjson -luuid -lssl -lcrypto -lwebconfig -lhebus -lrbus -llibparodus -lnanomsg -lwrp-c -lmsgpackc -ltrower-base64 -lcimplog
 ifeq ($(WITH_SAP), 1)
 LIBS += -lalsap
 endif
@@ -65,7 +74,9 @@ GENERIC_SOURCES = $(ONEWIFI_HOME)/source/utils/collection.c \
     $(ONEWIFI_HOME)/lib/common/util.c \
     $(ONEWIFI_HOME)/source/platform/linux/bus.c
 
-SOURCES = $(wildcard $(ONEWIFI_EM_SRC)/network_optimiser/*.cpp) \
+SOURCES = $(wildcard $(OPTIMIZER_SRC)/*.cpp) \
+    $(wildcard $(OPTIMIZER_SRC)/web/*.cpp) \
+    $(ONEWIFI_EM_SRC)/utils/util.cpp \
 
 OBJECTS = $(SOURCES:.cpp=.o)
 GENERIC_OBJECTS = $(GENERIC_SOURCES:.c=.o) 

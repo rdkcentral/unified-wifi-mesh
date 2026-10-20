@@ -21,6 +21,7 @@
 #include <stdlib.h>
 #include <errno.h>
 #include <signal.h>
+#if 0
 #include "bus.h"
 #include "bus_common.h"
 #include "tr_181.h"
@@ -197,3 +198,4 @@ int main()
     }
     return 0;
 }
+#endif
