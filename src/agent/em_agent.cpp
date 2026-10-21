@@ -52,6 +52,14 @@
 
 #define RETRY_SLEEP_INTERVAL_IN_MS 1000
 
+// Private/custom extension point: when custom/src/agent/lq_agent_listener.cpp is
+// built (see custom/custom.mk), this binds LQ_STATS_SOCKET_PATH and forwards
+// decoded WEI stats directly into the orchestrator, replacing the legacy
+// OneWifi "Device.WiFi.EM.WEIData" bus-publish mechanism. Weak no-op fallback
+// keeps the open-source build linkable without the private extension.
+extern "C" {
+__attribute__((weak)) void lq_agent_listener_start() { }
+}
 #define EMEX_AIRTIES_CLIENT_ID      "Device.Services.X_AIRTIES_Edge.AuthConfig.ClientID"
 #define EMEX_AIRTIES_CLIENT_SECRET  "Device.Services.X_AIRTIES_Edge.AuthConfig.ClientPassword"
 #define EMEX_FILE_BOOT_ID           "/proc/sys/kernel/random/boot_id"
@@ -1234,7 +1242,7 @@ void em_agent_t::send_beacon_query(em_bus_event_t *evt)
     beacon_req->channel = query_params->channel_num;
 
     // channel_num==0 means current channel; 255 is wildcard (all channels).
-    // Passive mode avoids probe-request transmission on off-channel/DFS channels.
+    // Avoid probe-request transmission on off-channel/DFS channels.
     bool is_off_channel = true;
     if (query_params->channel_num == 0) {
         is_off_channel = false;
@@ -1395,6 +1403,20 @@ void em_agent_t::handle_link_stats_report(em_bus_event_t *evt)
     }
 }
 
+void em_agent_t::handle_wei_app_data(em_bus_event_t *evt)
+{
+    em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
+    unsigned int num;
+
+    /* if (m_orch->is_cmd_type_in_progress(evt) == true) {
+        em_printfout("analyze_wei_app_data in progress");
+    } else */ if ((num = static_cast<unsigned int>(m_data_model.analyze_wei_app_data(evt, pcmd))) == 0) {
+        em_printfout("analyze_wei_app_data failed");
+    } else if (m_orch->submit_commands(pcmd, num) > 0) {
+        em_printfout("Submitted WEI app data cmd for orch");
+    }
+}
+
 void em_agent_t::handle_bus_event(em_bus_event_t *evt)
 {   
 
@@ -1518,6 +1540,10 @@ void em_agent_t::handle_bus_event(em_bus_event_t *evt)
             handle_unassoc_sta_result(evt);
             break;
 
+        case em_bus_event_type_wei_app_data:
+            handle_wei_app_data(evt);
+            break;
+
         default:
             break;
     }    
@@ -1573,6 +1599,85 @@ int em_agent_t::refresh_onewifi_subdoc(const char * log_name, const webconfig_su
     ASSERT_NOT_NULL(desc, false, "%s:%d descriptor is null\n", __func__, __LINE__);
     
     return m_data_model.refresh_onewifi_subdoc(desc, &m_bus_hdl, log_name, type);
+}
+
+bool em_agent_t::refresh_current_radio_data(const unsigned char *ruid)
+{
+    if (ruid == nullptr) {
+        return false;
+    }
+
+    const auto has_current_radio_channel = [this, ruid]() {
+        for (unsigned int index = 0; index < m_data_model.get_num_op_class(); ++index) {
+            em_op_class_info_t *op_class = m_data_model.get_op_class_info(index);
+            if (op_class->id.type == em_op_class_type_current &&
+                memcmp(op_class->id.ruid, ruid, sizeof(mac_address_t)) == 0 &&
+                op_class->op_class != 0 && op_class->channel != 0) {
+                return true;
+            }
+        }
+        return false;
+    };
+
+    if (has_current_radio_channel()) {
+        return true;
+    }
+
+    wifi_bus_desc_t *desc = get_bus_descriptor();
+    raw_data_t data = {};
+    if (desc == nullptr || desc->bus_data_get_fn == nullptr) {
+        return false;
+    }
+
+    bus_error_t status = desc->bus_data_get_fn(&m_bus_hdl, WIFI_WEBCONFIG_INIT_DML_DATA, &data);
+    if (status != bus_error_success || data.raw_data.bytes == nullptr) {
+        em_printfout("Failed to read current OneWifi radio data: %d", status);
+        if (data.raw_data.bytes != nullptr) {
+            if (desc->bus_data_free_fn != nullptr) {
+                desc->bus_data_free_fn(&data);
+            } else {
+                free(data.raw_data.bytes);
+            }
+        }
+        return false;
+    }
+
+    dm_easy_mesh_agent_t radio_snapshot;
+    radio_snapshot.translate_onewifi_dml_data(reinterpret_cast<char *>(data.raw_data.bytes));
+    if (desc->bus_data_free_fn != nullptr) {
+        desc->bus_data_free_fn(&data);
+    } else {
+        free(data.raw_data.bytes);
+    }
+
+    unsigned int num_op_class = m_data_model.get_num_op_class();
+    for (unsigned int index = 0; index < radio_snapshot.get_num_op_class(); ++index) {
+        em_op_class_info_t *snapshot_op_class = radio_snapshot.get_op_class_info(index);
+        if (snapshot_op_class->id.type != em_op_class_type_current ||
+            memcmp(snapshot_op_class->id.ruid, ruid, sizeof(mac_address_t)) != 0 ||
+            snapshot_op_class->op_class == 0 || snapshot_op_class->channel == 0) {
+            continue;
+        }
+
+        unsigned int existing_index = 0;
+        for (; existing_index < num_op_class; ++existing_index) {
+            em_op_class_info_t *existing_op_class = m_data_model.get_op_class_info(existing_index);
+            if (existing_op_class->id.type == em_op_class_type_current &&
+                memcmp(existing_op_class->id.ruid, ruid, sizeof(mac_address_t)) == 0) {
+                break;
+            }
+        }
+
+        if (existing_index == num_op_class) {
+            if (num_op_class >= EM_MAX_OPCLASS) {
+                break;
+            }
+            m_data_model.set_num_op_class(++num_op_class);
+        }
+        *m_data_model.get_op_class_info(existing_index) = *snapshot_op_class;
+    }
+
+    return has_current_radio_channel();
 }
 
 bool em_agent_t::send_backhaul_action_frame(uint8_t dest_mac[ETH_ALEN], uint8_t *action_frame, size_t action_frame_len, unsigned int frequency, unsigned int wait_time_ms) {
@@ -1807,6 +1912,11 @@ void em_agent_t::input_listener()
         return;
     }
 
+    // WEI stats/events are now consumed directly from the LQ UDS socket by
+    // lq_agent_listener_start() (see custom/src/agent/lq_agent_listener.cpp),
+    // superseding the old "Device.WiFi.EM.WEIData" bus subscription.
+    lq_agent_listener_start();
+
     io(NULL);
 }
 
@@ -1878,7 +1988,7 @@ int em_agent_t::association_status_cb(char *event_name, bus_data_prop_t *data, v
         em_printfout("NULL data from OneWiFi callback!");
         return -1;
     }
-    g_agent.io_process(em_bus_event_type_assoc_status, reinterpret_cast<unsigned char *>(data->value.raw_data.bytes), data->value.raw_data_len);
+    //g_agent.io_process(em_bus_event_type_assoc_status, reinterpret_cast<unsigned char *>(data->value.raw_data.bytes), data->value.raw_data_len);
     return 1;
 }
 
@@ -2136,17 +2246,20 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
 
     assert(len > ((sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))));
     if (len < ((sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)))) {
-        return NULL;
+        em_printfout("%s %d len : %u comparision-le  : %u\n", __func__, __LINE__, len, (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)));  
+	return NULL;
     }
    
     hdr = reinterpret_cast<em_raw_hdr_t *>(data);
 
     if (hdr->type != htons(ETH_P_1905)) {
+	 em_printfout("%s %d header type failure\n", __func__, __LINE__);
         return NULL;
     }
    
     cmdu = reinterpret_cast<em_cmdu_t *>(data + sizeof(em_raw_hdr_t));
 
+    em_printfout("%s:%d: FrameType:%d\n", __func__, __LINE__, htons(cmdu->type));
     switch (htons(cmdu->type)) {
 	case em_msg_type_autoconf_resp:
 		found = false;
@@ -2165,7 +2278,8 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
 			if (!(em->is_al_interface_em())) {
 				if (em->is_matching_freq_band(&band) == true) {
 					if ((em->get_state() != em_state_agent_autoconfig_renew_pending) && (em->get_state() !=em_state_agent_wsc_m2_pending) && 
-                        (em->get_state() != em_state_agent_owconfig_pending) && (em->get_state() != em_state_agent_1905_securing)) {
+                        (em->get_state() != em_state_agent_owconfig_pending) && (em->get_state() != em_state_agent_1905_securing) &&
+                        (em->get_state() != em_state_agent_wsc_m2_processed)) {
 						found = true;
 						break;
 					} else {
@@ -2219,7 +2333,9 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
 				if (em->is_matching_freq_band(&band) == true) {
 					/* Accept renew in owconfig_pending too: the apply confirmation
 					 * never arrived and renew is the mechanism to recover that. */
-					if ((em->get_state() != em_state_agent_autoconfig_renew_pending) && (em->get_state() !=em_state_agent_wsc_m2_pending)) {
+					if ((em->get_state() != em_state_agent_autoconfig_renew_pending) &&
+					    (em->get_state() != em_state_agent_wsc_m2_pending) &&
+					    (em->get_state() != em_state_agent_wsc_m2_processed)) {
 						em_printfout("Found matching band %d for autoconfig renew request, received controller AL MAC is %s", band, al_mac_str);
 						found = true;
 						break;
@@ -2239,6 +2355,7 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
 		case em_msg_type_autoconf_wsc:
 			if (em_msg_t(data + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)),
                 	len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_radio_id(&ruid) == false) {
+				em_printfout("%s:%d: Failed here\n", __func__, __LINE__);
 				return NULL;
 			}
 
@@ -2246,6 +2363,7 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
          if ((em = static_cast<em_t *>(hash_map_get(m_em_map, mac_str1))) != NULL) {
             	printf("%s:%d: Found existing radio:%s\n", __func__, __LINE__, mac_str1);
         	} else {
+			         em_printfout("%s:%d: Radio not found%s\n", __func__, __LINE__, mac_str1);
 				return NULL;
 			}
 			break;

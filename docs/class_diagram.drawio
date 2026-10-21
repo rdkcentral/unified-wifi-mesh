@@ -1,0 +1,240 @@
+<mxfile host="app.diagrams.net" version="21.0.0">
+  <diagram name="dm_sta_t Pimpl Class Diagram" id="pimpl-class-diagram">
+    <mxGraphModel dx="1400" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1654" pageHeight="1169" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <!--  SWIM LANE: Public repo                                 -->
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <mxCell id="pub-lane" value="Public repo (unified-wifi-mesh)" style="swimlane;startSize=30;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="30" y="30" width="680" height="900" as="geometry" />
+        </mxCell>
+
+        <!-- em_sta_info_t -->
+        <mxCell id="em-sta-info-title" value="em_sta_info_t" style="swimlane;startSize=26;fillColor=#fff2cc;strokeColor=#d6b656;fontStyle=1;" vertex="1" parent="pub-lane">
+          <mxGeometry x="20" y="60" width="300" height="230" as="geometry" />
+        </mxCell>
+        <mxCell id="em-sta-info-stereotype" value="«C struct — em_base.h»" style="text;html=1;strokeColor=none;fillColor=none;align=center;fontStyle=2;" vertex="1" parent="em-sta-info-title">
+          <mxGeometry x="0" y="26" width="300" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="em-sta-info-fields" value="+mac_address_t id&#xa;+mac_address_t bssid&#xa;+mac_address_t radiomac&#xa;+bool associated&#xa;+unsigned int last_ul_rate&#xa;+unsigned int last_dl_rate&#xa;+unsigned char rcpi&#xa;+em_long_string_t cap&#xa;+em_link_report_t link_stats_report&#xa;+unsigned short reason_code&#xa;... (all public fields)" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=6;" vertex="1" parent="em-sta-info-title">
+          <mxGeometry x="0" y="50" width="300" height="180" as="geometry" />
+        </mxCell>
+
+        <!-- em_vendor_specific_t -->
+        <mxCell id="em-vendor-specific-title" value="em_vendor_specific_t" style="swimlane;startSize=26;fillColor=#f5f5f5;strokeColor=#666666;fontColor=#333333;fontStyle=1;" vertex="1" parent="pub-lane">
+          <mxGeometry x="20" y="330" width="280" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="em-vendor-specific-stereotype" value="«C struct — em_base.h»" style="text;html=1;strokeColor=none;fillColor=none;align=center;fontStyle=2;" vertex="1" parent="em-vendor-specific-title">
+          <mxGeometry x="0" y="26" width="280" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="em-vendor-specific-fields" value="+unsigned char vendor_oui[3]&#xa;+unsigned char num&#xa;+em_vendor_data_t data[]" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=6;" vertex="1" parent="em-vendor-specific-title">
+          <mxGeometry x="0" y="50" width="280" height="70" as="geometry" />
+        </mxCell>
+
+        <!-- em_vendor_data_t -->
+        <mxCell id="em-vendor-data-title" value="em_vendor_data_t" style="swimlane;startSize=26;fillColor=#f5f5f5;strokeColor=#666666;fontColor=#333333;fontStyle=1;" vertex="1" parent="pub-lane">
+          <mxGeometry x="340" y="330" width="270" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="em-vendor-data-stereotype" value="«C struct — em_base.h»" style="text;html=1;strokeColor=none;fillColor=none;align=center;fontStyle=2;" vertex="1" parent="em-vendor-data-title">
+          <mxGeometry x="0" y="26" width="270" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="em-vendor-data-fields" value="+unsigned char attr_id&#xa;+unsigned char vendor_data[]" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=6;" vertex="1" parent="em-vendor-data-title">
+          <mxGeometry x="0" y="50" width="270" height="50" as="geometry" />
+        </mxCell>
+
+        <!-- dm_sta_t -->
+        <mxCell id="dm-sta-title" value="dm_sta_t" style="swimlane;startSize=26;fillColor=#d5e8d4;strokeColor=#82b366;fontStyle=1;" vertex="1" parent="pub-lane">
+          <mxGeometry x="20" y="500" width="620" height="360" as="geometry" />
+        </mxCell>
+        <mxCell id="dm-sta-stereotype" value="«C++ class — dm_sta.h»" style="text;html=1;strokeColor=none;fillColor=none;align=center;fontStyle=2;" vertex="1" parent="dm-sta-title">
+          <mxGeometry x="0" y="26" width="620" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="dm-sta-fields" value="+em_sta_info_t m_sta_info&#xa;-dm_sta_ext_t* m_sta_ext" style="text;html=1;strokeColor=none;fillColor=#ffffcc;align=left;verticalAlign=top;spacingLeft=6;strokeColor=#d6b656;" vertex="1" parent="dm-sta-title">
+          <mxGeometry x="10" y="50" width="600" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="dm-sta-divider" value="" style="line;strokeColor=#82b366;" vertex="1" parent="dm-sta-title">
+          <mxGeometry x="10" y="100" width="600" height="10" as="geometry" />
+        </mxCell>
+        <mxCell id="dm-sta-methods" value="+get_priv() : dm_sta_ext_t*&#xa;+set_priv(dm_sta_ext_t*)&#xa;+get_sta_info() : em_sta_info_t*&#xa;+init() : int&#xa;+decode(cJSON*, void*) : int&#xa;+encode(cJSON*, reason)&#xa;+supports_beacon_measurement() : bool&#xa;+decode_sta_capability(dm_sta_t*) [static]&#xa;+decode_beacon_report(dm_sta_t*) [static]&#xa;+parse_sta_bss_radio_from_key(...) [static]&#xa;+dm_sta_t()&#xa;+dm_sta_t(em_sta_info_t*)&#xa;+dm_sta_t(const dm_sta_t&amp;)&#xa;+~dm_sta_t()" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=6;" vertex="1" parent="dm-sta-title">
+          <mxGeometry x="10" y="110" width="600" height="240" as="geometry" />
+        </mxCell>
+
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <!--  SWIM LANE: Private repo                                -->
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <mxCell id="priv-lane" value="Private repo (custom/)" style="swimlane;startSize=30;fillColor=#ffe6cc;strokeColor=#d79b00;fontStyle=1;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="750" y="30" width="680" height="900" as="geometry" />
+        </mxCell>
+
+        <!-- dm_sta_ext_t -->
+        <mxCell id="dm-sta-priv-title" value="dm_sta_ext_t" style="swimlane;startSize=26;fillColor=#f8cecc;strokeColor=#b85450;fontStyle=1;" vertex="1" parent="priv-lane">
+          <mxGeometry x="20" y="60" width="300" height="230" as="geometry" />
+        </mxCell>
+        <mxCell id="dm-sta-priv-stereotype" value="«struct — custom/inc/dm_sta_ext.h»" style="text;html=1;strokeColor=none;fillColor=none;align=center;fontStyle=2;fontSize=9;" vertex="1" parent="dm-sta-priv-title">
+          <mxGeometry x="0" y="26" width="300" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="dm-sta-priv-fields" value="+unsigned int custom_score&#xa;+bool is_managed_client&#xa;+unsigned int reserved1 … reserved9&#xa;+std::string custom_tag&#xa;&#xa;+dm_sta_ext_t()&#xa;+dm_sta_ext_t(const dm_sta_ext_t&amp;)&#xa;+operator=(const dm_sta_ext_t&amp;)" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=6;" vertex="1" parent="dm-sta-priv-title">
+          <mxGeometry x="0" y="50" width="300" height="180" as="geometry" />
+        </mxCell>
+
+        <!-- vendor_sta_private_wire_t -->
+        <mxCell id="wire-title" value="vendor_sta_private_wire_t" style="swimlane;startSize=26;fillColor=#f5f5f5;strokeColor=#666666;fontColor=#333333;fontStyle=1;" vertex="1" parent="priv-lane">
+          <mxGeometry x="350" y="60" width="300" height="200" as="geometry" />
+        </mxCell>
+        <mxCell id="wire-stereotype" value="«packed struct — custom/inc/vendor_sta_tlv.h»" style="text;html=1;strokeColor=none;fillColor=none;align=center;fontStyle=2;fontSize=9;" vertex="1" parent="wire-title">
+          <mxGeometry x="0" y="26" width="300" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="wire-fields" value="+mac_address_t sta_mac&#xa;+unsigned int custom_score&#xa;+unsigned char is_managed_client&#xa;+unsigned int reserved[9]&#xa;+unsigned char tag_len&#xa;+char tag[64]" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=6;" vertex="1" parent="wire-title">
+          <mxGeometry x="0" y="50" width="300" height="150" as="geometry" />
+        </mxCell>
+
+        <!-- DmStaExt -->
+        <mxCell id="ext-title" value="DmStaExt" style="swimlane;startSize=26;fillColor=#e1d5e7;strokeColor=#9673a6;fontStyle=1;" vertex="1" parent="priv-lane">
+          <mxGeometry x="20" y="330" width="300" height="160" as="geometry" />
+        </mxCell>
+        <mxCell id="ext-stereotype" value="«constructor overrides — custom/src/dm_sta_ext.cpp»" style="text;html=1;strokeColor=none;fillColor=none;align=center;fontStyle=2;fontSize=9;" vertex="1" parent="ext-title">
+          <mxGeometry x="0" y="26" width="300" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="ext-methods" value="+dm_sta_t() — allocates m_sta_ext&#xa;+dm_sta_t(em_sta_info_t*) — allocates m_sta_ext&#xa;+dm_sta_t(const dm_sta_t&amp;) — deep-copies m_sta_ext&#xa;+~dm_sta_t() — delete m_sta_ext" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=6;" vertex="1" parent="ext-title">
+          <mxGeometry x="0" y="50" width="300" height="110" as="geometry" />
+        </mxCell>
+
+        <!-- VendorStaAgent -->
+        <mxCell id="agent-title" value="VendorStaAgent" style="swimlane;startSize=26;fillColor=#d5e8d4;strokeColor=#82b366;fontStyle=1;" vertex="1" parent="priv-lane">
+          <mxGeometry x="20" y="540" width="300" height="160" as="geometry" />
+        </mxCell>
+        <mxCell id="agent-stereotype" value="«free functions — custom/src/vendor_sta_agent.cpp»" style="text;html=1;strokeColor=none;fillColor=none;align=center;fontStyle=2;fontSize=9;" vertex="1" parent="agent-title">
+          <mxGeometry x="0" y="26" width="300" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="agent-methods" value="+vendor_sta_send_private_data(em_metrics_t*) : int&#xa;&#xa;-vendor_sta_create_private_tlv(buff, dm) : short&#xa;  Reads m_sta_ext fields → serializes into&#xa;  vendor_sta_private_wire_t records" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=6;" vertex="1" parent="agent-title">
+          <mxGeometry x="0" y="50" width="300" height="110" as="geometry" />
+        </mxCell>
+
+        <!-- VendorStaCtrl -->
+        <mxCell id="ctrl-title" value="VendorStaCtrl" style="swimlane;startSize=26;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;" vertex="1" parent="priv-lane">
+          <mxGeometry x="350" y="540" width="300" height="180" as="geometry" />
+        </mxCell>
+        <mxCell id="ctrl-stereotype" value="«free functions — custom/src/vendor_sta_ctrl.cpp»" style="text;html=1;strokeColor=none;fillColor=none;align=center;fontStyle=2;fontSize=9;" vertex="1" parent="ctrl-title">
+          <mxGeometry x="0" y="26" width="300" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="ctrl-methods" value="+vendor_sta_handle_topo_vendor(buff, len, dm) : int&#xa;+vendor_sta_parse_tlv(tlv_value, len, dm) : int&#xa;&#xa;  Finds dm_sta_t by MAC → allocates m_sta_ext&#xa;  if needed → populates dm_sta_ext_t fields" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=6;" vertex="1" parent="ctrl-title">
+          <mxGeometry x="0" y="50" width="300" height="130" as="geometry" />
+        </mxCell>
+
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <!--  RELATIONSHIPS                                          -->
+        <!-- ═══════════════════════════════════════════════════════ -->
+
+        <!-- dm_sta_t *-- em_sta_info_t (composition) -->
+        <mxCell id="rel-sta-info" style="edgeStyle=orthogonalEdgeStyle;endArrow=diamondThin;endFill=1;exitX=0.5;exitY=0;exitDx=0;exitDy=0;" edge="1" source="dm-sta-title" target="em-sta-info-title" parent="pub-lane">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="rel-sta-info-lbl" value="1 contains" style="edgeLabel;html=1;align=center;verticalAlign=middle;" vertex="1" connectable="0" parent="rel-sta-info">
+          <mxGeometry relative="0.5" as="geometry" />
+        </mxCell>
+
+        <!-- dm_sta_t o-- dm_sta_ext_t (aggregation across lanes) -->
+        <mxCell id="rel-priv" style="edgeStyle=orthogonalEdgeStyle;endArrow=diamondThin;endFill=0;dashed=1;strokeColor=#b85450;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="530" y="580" />
+              <mxPoint x="530" y="165" />
+              <mxPoint x="790" y="165" />
+            </Array>
+          </mxGeometry>
+          <mxCell id="rel-priv-src" value="" style="points=[[0.9,0.53]];" vertex="1" parent="rel-priv">
+            <mxGeometry relative="0" as="geometry" />
+          </mxCell>
+        </mxCell>
+        <mxCell id="rel-priv-src2" value="m_sta_ext 0..1" style="edgeStyle=orthogonalEdgeStyle;endArrow=diamondThin;endFill=0;dashed=1;strokeColor=#b85450;exitX=1;exitY=0.15;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" source="dm-sta-title" target="dm-sta-priv-title" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- em_vendor_specific_t 1--* em_vendor_data_t -->
+        <mxCell id="rel-vendor" style="edgeStyle=orthogonalEdgeStyle;endArrow=open;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" source="em-vendor-specific-title" target="em-vendor-data-title" parent="pub-lane">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="rel-vendor-lbl" value="data[] 1..*" style="edgeLabel;html=1;align=center;verticalAlign=middle;" vertex="1" connectable="0" parent="rel-vendor">
+          <mxGeometry relative="0.5" as="geometry" />
+        </mxCell>
+
+        <!-- DmStaExt ..> dm_sta_ext_t (allocates) -->
+        <mxCell id="rel-ext-priv" style="edgeStyle=orthogonalEdgeStyle;endArrow=open;dashed=1;strokeColor=#9673a6;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" source="ext-title" target="dm-sta-priv-title" parent="priv-lane">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="rel-ext-priv-lbl" value="allocates/frees" style="edgeLabel;html=1;align=center;verticalAlign=middle;" vertex="1" connectable="0" parent="rel-ext-priv">
+          <mxGeometry relative="0.5" as="geometry" />
+        </mxCell>
+
+        <!-- VendorStaAgent ..> dm_sta_ext_t (reads) -->
+        <mxCell id="rel-agent-priv" style="edgeStyle=orthogonalEdgeStyle;endArrow=open;dashed=1;strokeColor=#82b366;exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=0;entryY=1;entryDx=0;entryDy=0;" edge="1" source="agent-title" target="dm-sta-priv-title" parent="priv-lane">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="rel-agent-priv-lbl" value="reads fields" style="edgeLabel;html=1;align=center;verticalAlign=middle;" vertex="1" connectable="0" parent="rel-agent-priv">
+          <mxGeometry relative="0.5" as="geometry" />
+        </mxCell>
+
+        <!-- VendorStaAgent ..> vendor_sta_private_wire_t (serializes) -->
+        <mxCell id="rel-agent-wire" style="edgeStyle=orthogonalEdgeStyle;endArrow=open;dashed=1;strokeColor=#82b366;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=1;entryDx=0;entryDy=0;" edge="1" source="agent-title" target="wire-title" parent="priv-lane">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="rel-agent-wire-lbl" value="serializes into" style="edgeLabel;html=1;align=center;verticalAlign=middle;" vertex="1" connectable="0" parent="rel-agent-wire">
+          <mxGeometry relative="0.5" as="geometry" />
+        </mxCell>
+
+        <!-- VendorStaCtrl ..> dm_sta_ext_t (populates) -->
+        <mxCell id="rel-ctrl-priv" style="edgeStyle=orthogonalEdgeStyle;endArrow=open;dashed=1;strokeColor=#6c8ebf;exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=1;entryY=1;entryDx=0;entryDy=0;" edge="1" source="ctrl-title" target="dm-sta-priv-title" parent="priv-lane">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="rel-ctrl-priv-lbl" value="populates/allocates" style="edgeLabel;html=1;align=center;verticalAlign=middle;" vertex="1" connectable="0" parent="rel-ctrl-priv">
+          <mxGeometry relative="0.5" as="geometry" />
+        </mxCell>
+
+        <!-- VendorStaCtrl ..> vendor_sta_private_wire_t (deserializes) -->
+        <mxCell id="rel-ctrl-wire" style="edgeStyle=orthogonalEdgeStyle;endArrow=open;dashed=1;strokeColor=#6c8ebf;exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;" edge="1" source="ctrl-title" target="wire-title" parent="priv-lane">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="rel-ctrl-wire-lbl" value="deserializes from" style="edgeLabel;html=1;align=center;verticalAlign=middle;" vertex="1" connectable="0" parent="rel-ctrl-wire">
+          <mxGeometry relative="0.5" as="geometry" />
+        </mxCell>
+
+        <!-- VendorStaAgent ..> em_vendor_specific_t (wraps TLV) — cross-lane -->
+        <mxCell id="rel-agent-vs" style="edgeStyle=orthogonalEdgeStyle;endArrow=open;dashed=1;strokeColor=#82b366;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" edge="1" source="agent-title" target="em-vendor-specific-title" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="rel-agent-vs-lbl" value="wraps in" style="edgeLabel;html=1;align=center;verticalAlign=middle;" vertex="1" connectable="0" parent="rel-agent-vs">
+          <mxGeometry relative="0.5" as="geometry" />
+        </mxCell>
+
+        <!-- em_vendor_data_t --> vendor_sta_private_wire_t (via vendor_data[]) — cross-lane -->
+        <mxCell id="rel-vd-wire" style="edgeStyle=orthogonalEdgeStyle;endArrow=open;dashed=1;strokeColor=#666666;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" source="em-vendor-data-title" target="wire-title" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="rel-vd-wire-lbl" value="vendor_data[]\nattr_id=0x10" style="edgeLabel;html=1;align=center;verticalAlign=middle;" vertex="1" connectable="0" parent="rel-vd-wire">
+          <mxGeometry relative="0.5" as="geometry" />
+        </mxCell>
+
+        <!-- Legend -->
+        <mxCell id="legend" value="Legend" style="swimlane;startSize=22;fillColor=#f5f5f5;strokeColor=#666666;fontColor=#333333;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="30" y="960" width="400" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="leg1" value="─── solid diamond   composition (owns lifecycle)" style="text;html=1;strokeColor=none;fillColor=none;align=left;" vertex="1" parent="legend">
+          <mxGeometry x="10" y="30" width="380" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="leg2" value="- - - open diamond   aggregation (nullable pointer)" style="text;html=1;strokeColor=none;fillColor=none;align=left;" vertex="1" parent="legend">
+          <mxGeometry x="10" y="52" width="380" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="leg3" value="- - - open arrow     dependency / usage" style="text;html=1;strokeColor=none;fillColor=none;align=left;" vertex="1" parent="legend">
+          <mxGeometry x="10" y="74" width="380" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="leg4" value="Yellow highlight in dm_sta_t = Pimpl fields" style="text;html=1;strokeColor=none;fillColor=none;align=left;fontStyle=3;" vertex="1" parent="legend">
+          <mxGeometry x="10" y="96" width="380" height="20" as="geometry" />
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

@@ -41,12 +41,13 @@ public:
     dm_easy_mesh_t  m_data_model;
     struct timeval  m_start_time;
 
-    unsigned int m_orch_op_idx;
+    unsigned int m_orch_op_idx = 0;
     em_orch_desc_t  m_orch_desc[EM_MAX_CMD];
-    unsigned int m_num_orch_desc;
+    unsigned int m_num_orch_desc = 0;
     unsigned int m_rd_op_class;
     unsigned int m_rd_channel;
     unsigned int m_db_cfg_type;
+	bool processed = false;
 
 public:
     
@@ -246,7 +247,11 @@ public:
 	 * memory leaks.
 	 */
 	virtual em_cmd_t *clone_for_next();
-    
+
+	// Returns raw payload bytes if the cmd carries them.
+	// nullptr by default; overridden by em_cmd_type_generic_data.
+	virtual const std::vector<uint8_t> *get_raw_data() const { return nullptr; }
+
 	/**!
 	 * @brief Clones the current em_cmd object.
 	 *

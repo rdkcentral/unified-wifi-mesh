@@ -145,6 +145,14 @@ bool em_orch_agent_t::is_em_ready_for_orch_fini(em_cmd_t *pcmd, em_t *em)
             }
             break;
 
+        case em_cmd_type_generic_data:
+            em_printfout("WEI debug: is_em_ready_for_orch_fini check, em state:%s, processed:%d", em_t::state_2_str(em->get_state()), pcmd->processed);
+            if (pcmd->processed == true) {
+                em_printfout("WEI debug: is_em_ready_for_orch_fini returning true (cmd processed)");
+                return true;
+            }
+            break;
+
         default:
             if ((em->get_state() == em_state_agent_unconfigured) ||
                     (em->get_state() == em_state_agent_configured) ||
@@ -202,6 +210,11 @@ bool em_orch_agent_t::is_em_ready_for_orch_exec(em_cmd_t *pcmd, em_t *em)
     } else if (pcmd->m_type == em_cmd_type_unassoc_sta_result) {
         if ((em->get_state() == em_state_agent_configured) ||
             ((em->get_state() ==em_state_agent_unassoc_sta_metrics_report_pending))) {
+            return true;
+        }
+    } else if (pcmd->m_type == em_cmd_type_generic_data) {
+        if ((em->get_state() == em_state_agent_configured) ||
+            (em->get_state() >= em_state_agent_topo_synchronized)){
             return true;
         }
     }
@@ -322,6 +335,7 @@ bool em_orch_agent_t::pre_process_orch_op(em_cmd_t *pcmd)
         case dm_orch_type_channel_pref:
         case dm_orch_type_op_channel_report:
         case dm_orch_type_beacon_report:
+        case dm_orch_type_wei_data:
             break;
 
         case dm_orch_type_sta_link_metrics:
@@ -362,7 +376,7 @@ unsigned int em_orch_agent_t::build_candidates(em_cmd_t *pcmd)
 	pthread_mutex_lock(&m_mgr->m_mutex);
     em = static_cast<em_t *> (hash_map_get_first(m_mgr->m_em_map));
     while (em != NULL) {
-        switch (pcmd->m_type) {
+	switch (pcmd->m_type) {
             case em_cmd_type_dev_init:
                 radio = pcmd->m_data_model.get_radio(ctx->arr_index);
                 dm_easy_mesh_t::macbytes_to_string(radio->get_radio_interface_mac(), src_mac_str);
@@ -508,6 +522,15 @@ unsigned int em_orch_agent_t::build_candidates(em_cmd_t *pcmd)
                 // avoid queuing additional EMs for the same response.		
                 if (!(em->is_al_interface_em()) && (count == 0)) {
                     queue_push(pcmd->m_em_candidates, em);
+                    count++;
+                }
+                break;
+
+            case em_cmd_type_generic_data:
+                // Vendor data is sent once via the first non-AL EM.
+                if (!(em->is_al_interface_em()) && (count == 0)) {
+                    queue_push(pcmd->m_em_candidates, em);
+                    em_printfout("%s:%d WEi data build candidate pushed [count=%d]\n", __func__, __LINE__, count);
                     count++;
                 }
                 break;

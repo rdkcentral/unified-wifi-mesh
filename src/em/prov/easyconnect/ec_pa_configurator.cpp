@@ -461,7 +461,7 @@ std::vector<ec_gas_comeback_response_frame_t *> ec_pa_configurator_t::fragment_l
     uint8_t frag_id = 0;
 
     while (offset < len) {
-        size_t chunk_size = std::min(WIFI_MTU_SIZE, len - offset);
+        size_t chunk_size = std::min((size_t)WIFI_MTU_SIZE, len - offset);
 
         auto [base_frame, base_len] = ec_util::alloc_gas_frame(dpp_gas_comeback_resp, dialog_token);
         if (!base_frame) {

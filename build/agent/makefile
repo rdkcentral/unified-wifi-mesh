@@ -113,6 +113,9 @@ AGENT_SOURCES = $(wildcard $(ONEWIFI_EM_SRC)/em/*.cpp) \
     $(ONEWIFI_EM_SRC)/utils/util.cpp \
 	$(ONEWIFI_EM_SRC)/utils/timer.cpp \
 
+-include $(ONEWIFI_EM_HOME)/uwm-private-ext/uwm-private-ext.mk
+AGENT_SOURCES += $(UWM_PRIVATE_EXT_AGENT_SOURCES)
+
 AGENT_OBJECTS = $(AGENT_SOURCES:.cpp=.o)
 GENERIC_OBJECTS = $(GENERIC_SOURCES:.c=.o) 
 ALLOBJECTS = $(AGENT_OBJECTS) $(GENERIC_OBJECTS)

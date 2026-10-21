@@ -1,0 +1,120 @@
+<mxfile host="app.diagrams.net" version="21.0.0">
+  <diagram name="Forward Declaration - Pimpl Pattern" id="fwd-decl-diagram">
+    <mxGraphModel dx="1400" dy="800" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1654" pageHeight="1169" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <!-- ══════════════════════════════════════════════════════════ -->
+        <!--  TITLE                                                      -->
+        <!-- ══════════════════════════════════════════════════════════ -->
+        <mxCell id="title" value="Pimpl Forward Declaration — Repo Boundary" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;fontStyle=1;fontSize=16;" vertex="1" parent="1">
+          <mxGeometry x="400" y="20" width="700" height="40" as="geometry" />
+        </mxCell>
+
+        <!-- ══════════════════════════════════════════════════════════ -->
+        <!--  PUBLIC REPO BOX                                           -->
+        <!-- ══════════════════════════════════════════════════════════ -->
+        <mxCell id="pub-box" value="Public repo (unified-wifi-mesh)" style="swimlane;startSize=30;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="60" y="80" width="680" height="720" as="geometry" />
+        </mxCell>
+
+        <!-- dm_sta.h file box -->
+        <mxCell id="hdr-file" value="📄 dm_sta.h" style="swimlane;startSize=26;fillColor=#fff2cc;strokeColor=#d6b656;fontStyle=1;" vertex="1" parent="pub-box">
+          <mxGeometry x="20" y="50" width="640" height="330" as="geometry" />
+        </mxCell>
+
+        <!-- Forward declaration highlight -->
+        <mxCell id="fwd-highlight" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;strokeWidth=2;" vertex="1" parent="hdr-file">
+          <mxGeometry x="15" y="30" width="610" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="fwd-label" value="// Forward declaration only — NO members visible here&#xa;struct dm_sta_ext_t;" style="text;html=1;strokeColor=none;fillColor=none;align=left;fontFamily=Courier New;fontSize=12;fontStyle=1;" vertex="1" parent="hdr-file">
+          <mxGeometry x="25" y="38" width="590" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="fwd-badge" value="← FORWARD DECL ONLY" style="text;html=1;strokeColor=#d79b00;fillColor=#ffe6cc;align=center;fontStyle=1;fontSize=11;" vertex="1" parent="hdr-file">
+          <mxGeometry x="400" y="50" width="210" height="26" as="geometry" />
+        </mxCell>
+
+        <!-- dm_sta_t class body -->
+        <mxCell id="class-body" value="class dm_sta_t {&#xa;public:&#xa;    em_sta_info_t    m_sta_info;    // public C data&#xa;&#xa;private:&#xa;    dm_sta_ext_t *m_sta_ext;       // opaque pointer&#xa;                                    // sizeof = 8 bytes always&#xa;                                    // NO layout knowledge needed&#xa;public:&#xa;    dm_sta_ext_t *get_priv();&#xa;    void              set_priv(dm_sta_ext_t*);" style="text;html=1;strokeColor=#82b366;fillColor=#d5e8d4;align=left;fontFamily=Courier New;fontSize=11;verticalAlign=top;spacingLeft=8;" vertex="1" parent="hdr-file">
+          <mxGeometry x="15" y="120" width="610" height="200" as="geometry" />
+        </mxCell>
+
+        <!-- dm_sta.cpp file box -->
+        <mxCell id="cpp-file" value="📄 dm_sta.cpp" style="swimlane;startSize=26;fillColor=#f5f5f5;strokeColor=#666666;fontColor=#333333;fontStyle=1;" vertex="1" parent="pub-box">
+          <mxGeometry x="20" y="400" width="640" height="200" as="geometry" />
+        </mxCell>
+        <mxCell id="cpp-body" value="// Compiled WITHOUT knowing struct layout&#xa;// m_sta_ext stays nullptr — safe because pointer&#xa;// size is ALWAYS known (8 bytes on 64-bit)&#xa;&#xa;dm_sta_t::dm_sta_t()      : m_sta_ext(nullptr) { memset(&amp;m_sta_info...) }&#xa;dm_sta_t::dm_sta_t(sta*)  : m_sta_ext(nullptr) { memcpy(&amp;m_sta_info...) }&#xa;dm_sta_t::~dm_sta_t()     { /* no delete — private repo overrides */ }" style="text;html=1;strokeColor=none;fillColor=none;align=left;fontFamily=Courier New;fontSize=11;verticalAlign=top;spacingLeft=8;" vertex="1" parent="cpp-file">
+          <mxGeometry x="10" y="32" width="620" height="160" as="geometry" />
+        </mxCell>
+
+        <!-- Compiler note -->
+        <mxCell id="compiler-note" value="✓ Compiles: pointer size is always known even without struct definition" style="text;html=1;strokeColor=#6c8ebf;fillColor=#dae8fc;align=center;fontStyle=2;fontSize=11;" vertex="1" parent="pub-box">
+          <mxGeometry x="20" y="615" width="640" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="compiler-note2" value="✗ Cannot: dereference m_sta_ext, call delete m_sta_ext, or sizeof(dm_sta_ext_t)" style="text;html=1;strokeColor=#b85450;fillColor=#f8cecc;align=center;fontStyle=2;fontSize=11;" vertex="1" parent="pub-box">
+          <mxGeometry x="20" y="655" width="640" height="30" as="geometry" />
+        </mxCell>
+
+        <!-- ══════════════════════════════════════════════════════════ -->
+        <!--  PRIVATE REPO BOX                                          -->
+        <!-- ══════════════════════════════════════════════════════════ -->
+        <mxCell id="priv-box" value="Private repo (custom/)" style="swimlane;startSize=30;fillColor=#ffe6cc;strokeColor=#d79b00;fontStyle=1;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="820" y="80" width="700" height="720" as="geometry" />
+        </mxCell>
+
+        <!-- dm_sta_ext.h file box -->
+        <mxCell id="priv-hdr" value="📄 custom/inc/dm_sta_ext.h" style="swimlane;startSize=26;fillColor=#f8cecc;strokeColor=#b85450;fontStyle=1;" vertex="1" parent="priv-box">
+          <mxGeometry x="20" y="50" width="660" height="310" as="geometry" />
+        </mxCell>
+        <mxCell id="priv-def-label" value="// FULL definition lives here — private repo only" style="text;html=1;strokeColor=none;fillColor=none;align=left;fontFamily=Courier New;fontSize=11;fontStyle=2;" vertex="1" parent="priv-hdr">
+          <mxGeometry x="15" y="32" width="630" height="24" as="geometry" />
+        </mxCell>
+        <mxCell id="priv-def-body" value="struct dm_sta_ext_t {&#xa;    unsigned int   custom_score;        // proprietary score&#xa;    bool           is_managed_client;   // vendor flag&#xa;    unsigned int   reserved1;           // reserved&#xa;    unsigned int   reserved2;&#xa;    ...&#xa;    unsigned int   reserved9;&#xa;    std::string    custom_tag;          // vendor tag&#xa;&#xa;    dm_sta_ext_t();&#xa;    dm_sta_ext_t(const dm_sta_ext_t&amp;) = default;&#xa;};" style="text;html=1;strokeColor=#b85450;fillColor=#fff0ee;align=left;fontFamily=Courier New;fontSize=11;verticalAlign=top;spacingLeft=8;" vertex="1" parent="priv-hdr">
+          <mxGeometry x="10" y="58" width="640" height="240" as="geometry" />
+        </mxCell>
+
+        <!-- dm_sta_ext.cpp file box -->
+        <mxCell id="priv-cpp" value="📄 custom/src/dm_sta_ext.cpp" style="swimlane;startSize=26;fillColor=#f5f5f5;strokeColor=#666666;fontColor=#333333;fontStyle=1;" vertex="1" parent="priv-box">
+          <mxGeometry x="20" y="380" width="660" height="240" as="geometry" />
+        </mxCell>
+        <mxCell id="priv-cpp-body" value="#include &quot;dm_sta.h&quot;&#xa;#include &quot;dm_sta_ext.h&quot;   // NOW has full definition&#xa;&#xa;// Overrides public constructors — allocates m_sta_ext&#xa;dm_sta_t::dm_sta_t()&#xa;    : m_sta_ext(new dm_sta_ext_t{}) {&#xa;    memset(&amp;m_sta_info, 0, sizeof(em_sta_info_t));&#xa;}&#xa;&#xa;// Destructor — can now safely delete&#xa;dm_sta_t::~dm_sta_t() {&#xa;    delete m_sta_ext;   // ✓ definition is visible here&#xa;}" style="text;html=1;strokeColor=none;fillColor=none;align=left;fontFamily=Courier New;fontSize=11;verticalAlign=top;spacingLeft=8;" vertex="1" parent="priv-cpp">
+          <mxGeometry x="10" y="32" width="640" height="200" as="geometry" />
+        </mxCell>
+
+        <!-- Private repo notes -->
+        <mxCell id="priv-note" value="✓ Can: new dm_sta_ext_t, delete m_sta_ext, access all fields" style="text;html=1;strokeColor=#d79b00;fillColor=#ffe6cc;align=center;fontStyle=2;fontSize=11;" vertex="1" parent="priv-box">
+          <mxGeometry x="20" y="635" width="660" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="priv-note2" value="✓ Full layout known — sizeof(dm_sta_ext_t) is available" style="text;html=1;strokeColor=#d79b00;fillColor=#ffe6cc;align=center;fontStyle=2;fontSize=11;" vertex="1" parent="priv-box">
+          <mxGeometry x="20" y="675" width="660" height="30" as="geometry" />
+        </mxCell>
+
+        <!-- ══════════════════════════════════════════════════════════ -->
+        <!--  ARROWS                                                     -->
+        <!-- ══════════════════════════════════════════════════════════ -->
+
+        <!-- Forward decl references full definition -->
+        <mxCell id="arrow-fwd" value="struct name only&#xa;(no members)" style="edgeStyle=orthogonalEdgeStyle;dashed=1;strokeColor=#d79b00;strokeWidth=2;endArrow=open;endFill=0;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.3;entryDx=0;entryDy=0;fontStyle=2;fontSize=11;" edge="1" source="fwd-highlight" target="priv-hdr" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- cpp overridden by priv cpp -->
+        <mxCell id="arrow-override" value="linker override&#xa;(same symbol)" style="edgeStyle=orthogonalEdgeStyle;dashed=0;strokeColor=#9673a6;strokeWidth=2;endArrow=open;endFill=0;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;fontStyle=2;fontSize=11;" edge="1" source="cpp-file" target="priv-cpp" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- ══════════════════════════════════════════════════════════ -->
+        <!--  LEGEND                                                     -->
+        <!-- ══════════════════════════════════════════════════════════ -->
+        <mxCell id="legend-box" value="Key Insight" style="swimlane;startSize=26;fillColor=#f5f5f5;strokeColor=#666666;fontStyle=1;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="60" y="830" width="1460" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="legend-text" value="A forward declaration (struct dm_sta_ext_t;) tells the compiler: &quot;this type exists&quot; — enough to hold a POINTER to it (always 8 bytes on 64-bit).&#xa;The public repo never needs to know the struct layout. The private repo includes the full header, so it can allocate, delete, and access members.&#xa;This is the Pimpl (Pointer to IMPLementation) idiom — the struct definition is physically hidden in a separate repository." style="text;html=1;strokeColor=none;fillColor=none;align=left;fontSize=12;verticalAlign=top;spacingLeft=10;" vertex="1" parent="legend-box">
+          <mxGeometry x="10" y="30" width="1440" height="75" as="geometry" />
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

@@ -34,6 +34,8 @@
 class em_cmd_ctrl_t;
 class AlServiceAccessPoint;
 
+void em_topo_stream_send_topology(const char *topology_json);
+
 class em_ctrl_t : public em_mgr_t {
 
     static em_ctrl_t *s_em_ctrl;

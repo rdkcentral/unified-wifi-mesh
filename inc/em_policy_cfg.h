@@ -241,24 +241,31 @@ short create_backhaul_bss_conf_policy_tlv(unsigned char *buff, const em_backhaul
 short create_qos_mgt_policy_tlv(unsigned char *buff, dm_policy_t *policy, unsigned int qi);
 
 	/**!
-	 * @brief Creates a vendor policy configuration TLV.
-	 *
-	 * This function is responsible for creating a vendor-specific policy
-	 * configuration TLV (Type-Length-Value) structure and storing it in the
-	 * provided buffer.
+	 * @brief Creates a vendor policy TLV for the managed STA marker policy.
 	 *
 	 * @param[out] buff Pointer to the buffer where the TLV will be stored.
 	 *
-	 * @returns A short integer indicating the success or failure of the operation.
-	 * @retval 0 on success.
-	 * @retval -1 on failure.
-	 *
-	 * @note Ensure that the buffer is allocated with sufficient size before
-	 * calling this function.
+	 * @returns short The length of the created TLV value, or 0 if no such policy is set.
 	 */
-	short create_vendor_policy_cfg_tlv(unsigned char *buff);
+	short create_vendor_policy_sta_marker_tlv(unsigned char *buff);
 
+	/**!
+	 * @brief Creates a vendor policy TLV for the link stats alarm threshold policy.
+	 *
+	 * @param[out] buff Pointer to the buffer where the TLV will be stored.
+	 *
+	 * @returns short The length of the created TLV value, or 0 if no such policy is set.
+	 */
 	short create_vendor_policy_cfg_alarm_tlv(unsigned char *buff);
+
+	/**!
+	 * @brief Creates a vendor policy TLV for the client filters policy.
+	 *
+	 * @param[out] buff Pointer to the buffer where the TLV will be stored.
+	 *
+	 * @returns short The length of the created TLV value, or 0 if no such policy is set.
+	 */
+	short create_vendor_policy_client_filter_tlv(unsigned char *buff);
 
 	/**!
 	 * @brief Sends a policy configuration request message.

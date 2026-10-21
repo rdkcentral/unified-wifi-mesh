@@ -620,6 +620,7 @@ const char *em_cmd_t::get_orch_op_str(dm_orch_type_t type)
         ORCH_TYPE_2S(dm_orch_type_topo_publish)
         ORCH_TYPE_2S(dm_orch_type_unassoc_sta_link_req_query)
 	ORCH_TYPE_2S(dm_orch_type_unassoc_sta_result)
+        ORCH_TYPE_2S(dm_orch_type_wei_data)
         ORCH_TYPE_2S(dm_orch_type_client_assoc)
         ORCH_TYPE_2S(dm_orch_type_beacon_query)
 
@@ -680,7 +681,8 @@ const char *em_cmd_t::get_cmd_type_str(em_cmd_type_t type)
         CMD_TYPE_2S(em_cmd_type_get_reset)
         CMD_TYPE_2S(em_cmd_type_get_link_quality_report)
         CMD_TYPE_2S(em_cmd_type_unassoc_sta_query)
-	CMD_TYPE_2S(em_cmd_type_unassoc_sta_result)
+        CMD_TYPE_2S(em_cmd_type_unassoc_sta_result)
+        CMD_TYPE_2S(em_cmd_type_generic_data)
         CMD_TYPE_2S(em_cmd_type_client_assoc_ctrl_req)
 
         default:
@@ -842,6 +844,10 @@ em_cmd_type_t em_cmd_t::bus_2_cmd_type(em_bus_event_type_t etype)
 
         case em_bus_event_type_channel_select:
             type = em_cmd_type_set_channel;
+            break;
+
+        case em_bus_event_type_wei_app_data:
+            type = em_cmd_type_generic_data;
             break;
 
         case em_bus_event_type_client_assoc_ctrl_req:

@@ -79,6 +79,11 @@ void AlServiceDataUnit::deserialize(const std::vector<unsigned char>& data) {
 
     auto data_raw = remove_length_delimited_part(data);
 
+    std::cout << "[deserialize] input size=" << data.size()
+              << ", after length-strip size=" << data_raw.size()
+              << ", expected payload bytes=" << (data_raw.size() >= 15 ? data_raw.size() - 15 : 0)
+              << std::endl;
+
     // Extract MAC addresses
     std::copy(data_raw.begin(), data_raw.begin() + 6, sourceAlMacAddress.begin());
     std::copy(data_raw.begin() + 6, data_raw.begin() + 12, destinationAlMacAddress.begin());
@@ -87,12 +92,12 @@ void AlServiceDataUnit::deserialize(const std::vector<unsigned char>& data) {
     isFragment = static_cast<uint8_t>(data_raw[12]);
     isLastFragment = static_cast<uint8_t>(data_raw[13]);
     fragmentId = static_cast<uint8_t>(data_raw[14]);
-    #ifdef DEBUG_MODE
     // Debugging output to confirm correct interpretation of flags
     std::cout << "Deserialized Fragment Information - isFragment: " << static_cast<int>(isFragment)
               << ", isLastFragment: " << static_cast<int>(isLastFragment)
               << ", fragmentId: " << static_cast<int>(fragmentId) << std::endl;
-    #endif
     // Extract Payload
     payload.assign(data_raw.begin() + 15, data_raw.end());
+    std::cout << "[deserialize] final payload size=" << payload.size() << std::endl;
+
 }

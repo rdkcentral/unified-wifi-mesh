@@ -35,6 +35,8 @@
 #include "dm_easy_mesh_ctrl.h"
 #include "util.h"
 
+#define EM_WEBSOCKET_PUSH 1
+
 int dm_sta_t::decode(const cJSON *obj, void *parent_id)
 {
     cJSON *tmp;
@@ -183,6 +185,13 @@ void dm_sta_t::encode(cJSON *obj, em_get_sta_list_reason_t reason)
         cJSON_AddStringToObject(obj, "ClientType", m_sta_info.sta_client_type);
     }
     cJSON_AddStringToObject(obj, "MACAddress", mac_str);
+#ifdef EM_WEBSOCKET_PUSH
+    if (strlen(m_sta_info.sta_client_type) != 0) {
+        cJSON_AddStringToObject(obj, "deviceModel", m_sta_info.sta_client_type);
+    } else {
+        cJSON_AddStringToObject(obj, "deviceModel", "unknown");
+    }
+#endif
     cJSON_AddBoolToObject(obj, "Associated", m_sta_info.associated);
 
     if (reason == em_get_sta_list_reason_none) {
@@ -353,7 +362,15 @@ void dm_sta_t::operator = (const dm_sta_t& obj)
     this->m_sta_info.errors_tx = obj.m_sta_info.errors_tx;
     this->m_sta_info.errors_rx = obj.m_sta_info.errors_rx;
 
-    memcpy(&this->m_sta_info.frame_body, &obj.m_sta_info.frame_body, obj.m_sta_info.frame_body_len);
+    // Clamp to the destination size: frame_body_len must never exceed the fixed
+    // frame_body[] capacity, otherwise this copy overruns the struct. Also copy
+    // frame_body_len itself so the assigned object stays self-consistent.
+    if (obj.m_sta_info.frame_body_len > sizeof(this->m_sta_info.frame_body)) {
+        this->m_sta_info.frame_body_len = static_cast<unsigned int>(sizeof(this->m_sta_info.frame_body));
+    } else {
+        this->m_sta_info.frame_body_len = obj.m_sta_info.frame_body_len;
+    }
+    memcpy(&this->m_sta_info.frame_body, &obj.m_sta_info.frame_body, this->m_sta_info.frame_body_len);
     this->m_sta_info.num_vendor_infos = obj.m_sta_info.num_vendor_infos;
     memcpy(&this->m_sta_info.ht_cap, &obj.m_sta_info.ht_cap, sizeof(em_long_string_t));
     memcpy(&this->m_sta_info.vht_cap, &obj.m_sta_info.vht_cap, sizeof(em_long_string_t));
@@ -463,11 +480,18 @@ void dm_sta_t::decode_sta_capability(dm_sta_t *sta)
 
     sta->m_sta_info.num_vendor_infos = 0;
 
+    em_printfout("Entering %s\n", __func__);
+    /* The frame_body stores the full 802.11 (Re)Association Request frame body:
+     * capab_info (2B) + listen_interval (2B) + IEs. Skip the fixed fields. */
+    if (sta->m_sta_info.frame_body_len < 4) {
+        em_printfout("Frame body len is lesser\n");
+        return;
+    }
     offset = get_assoc_frame_ie_offset(sta->m_sta_info.frame_body, sta->m_sta_info.frame_body_len);
 
     while (offset < sta->m_sta_info.frame_body_len) {
         if (offset + 2 > sta->m_sta_info.frame_body_len) {
-            printf("%s:%d: Insufficient data for tag header\n", __func__, __LINE__);
+            em_printfout("%s:%d: Insufficient data for tag header\n", __func__, __LINE__);
             return;
         }
 
@@ -475,13 +499,13 @@ void dm_sta_t::decode_sta_capability(dm_sta_t *sta)
         length = sta->m_sta_info.frame_body[offset + 1];
 
         if (offset + 2 + length > sta->m_sta_info.frame_body_len) {
-            printf("%s:%d: Tag length exceeds remaining packet length\n", __func__, __LINE__);
+            em_printfout("%s:%d: Tag length exceeds remaining packet length\n", __func__, __LINE__);
             return;
         }
 
         ieee80211_tagvalue_t *tag = static_cast<ieee80211_tagvalue_t *> (malloc(sizeof(ieee80211_tagvalue_t) + length));
         if (!tag) {
-            printf("%s:%d: Memory allocation failed\n", __func__, __LINE__);
+            em_printfout("%s:%d: Memory allocation failed\n", __func__, __LINE__);
             return;
         }
 
@@ -490,6 +514,7 @@ void dm_sta_t::decode_sta_capability(dm_sta_t *sta)
         memcpy(tag->value, &sta->m_sta_info.frame_body[offset + 2], length);
 
         switch (tag->tag_id) {
+            em_printfout("Tag id is %d\n", tag->tag_id);
             case tag_ssid:
                 memset(sta->m_sta_info.ssid, 0, sizeof(em_long_string_t));
                 memcpy(sta->m_sta_info.ssid, tag->value, tag->length);
@@ -585,7 +610,7 @@ void dm_sta_t::decode_sta_capability(dm_sta_t *sta)
             }
 
             default:
-                printf("%s:%d: Unknown Tag ID: %d\n", __func__, __LINE__, tag->tag_id);
+                em_printfout("%s:%d: Unknown Tag ID: %d\n", __func__, __LINE__, tag->tag_id);
                 break;
         }
     offset += static_cast<unsigned int>(2 + tag->length);
@@ -651,7 +676,11 @@ bool dm_sta_t::supports_beacon_measurement() const
 
 dm_sta_t::dm_sta_t(em_sta_info_t *sta)
 {
-    memcpy(&m_sta_info, sta, sizeof(em_sta_info_t));
+    if (sta) {
+        memcpy(&m_sta_info, sta, sizeof(em_sta_info_t));
+    } else {
+        memset(&m_sta_info, 0, sizeof(em_sta_info_t));
+    }
 }
 
 dm_sta_t::dm_sta_t(const dm_sta_t& sta)
@@ -666,5 +695,4 @@ dm_sta_t::dm_sta_t()
 
 dm_sta_t::~dm_sta_t()
 {
-
 }
