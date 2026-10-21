@@ -182,6 +182,12 @@ public:
     static bus_error_t affap_tget_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
     static bus_error_t affap_tget_params(dm_easy_mesh_t *dm, const char *root, em_ap_mld_info_t *ami, bus_data_prop_t **property);
 
+    bus_error_t ethif_get(char *event_name, raw_data_t *p_data);
+    bus_error_t ethif_tget(char *event_name, raw_data_t *p_data);
+    static bus_error_t ethif_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
+    static bus_error_t ethif_tget_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
+    static bus_error_t ethif_tget_params(const char *root, dm_easy_mesh_t *dm, bus_data_prop_t **property, unsigned int if_idx = 0, int sub = 0, unsigned int nb_idx = 0);
+
     dm_assoc_sta_mld_t *get_dm_sta_mld(dm_easy_mesh_t *dm, em_ap_mld_info_t *ami, char *instance, bool is_num);
     bus_error_t stamld_get(char *event_name, raw_data_t *p_data);
     bus_error_t stamld_tget(char *event_name, raw_data_t *p_data);

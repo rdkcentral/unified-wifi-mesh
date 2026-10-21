@@ -282,6 +282,15 @@ class em_metrics_t {
 
 	int handle_device_metrics_vendor_tlv(unsigned char *buf, unsigned int len);
 
+	/**!
+	 * @brief Parses the Airties Ethernet Stats vendor TLV and stores it in the device info.
+	 *
+	 * @param[in] buf Pointer to the TLV payload following the Airties OUI and TLV ID.
+	 * @param[in] len Length of the payload.
+	 *
+	 * @returns int 0 on success, -1 on failure.
+	 */
+	int handle_eth_stats_vendor_tlv(unsigned char *buf, unsigned int len);
 
   	/**!
 	 * @brief Handles the associated station traffic statistics.
@@ -525,6 +534,16 @@ class em_metrics_t {
 	 * @note Ensure that the buffer is large enough to hold the TLV.
 	 */
 	short create_radio_metrics_tlv(unsigned char *buff, int index);
+
+	/**!
+	 * @brief Creates the Airties Ethernet Stats vendor TLV (ID 0x0010).
+	 *
+	 * @param[out] buff Buffer where the TLV value is stored.
+	 * @param[in] max_len Space available in buff.
+	 *
+	 * @returns short Size of the TLV value, or 0 if there is nothing to report or it does not fit.
+	 */
+	short create_vendor_eth_stats_tlv(unsigned char *buff, size_t max_len);
 
 	/**!
 	 * @brief Creates an association report TLV for a WiFi 6 station.

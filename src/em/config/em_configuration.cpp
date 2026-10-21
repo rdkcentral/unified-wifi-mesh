@@ -48,6 +48,7 @@
 #include <algorithm>
 #include "em_configuration.h"
 #include "em_mgr.h"
+#include "em_eth.h"
 #include "em_msg.h"
 #include "dm_easy_mesh.h"
 #include "em_cmd.h"
@@ -617,6 +618,19 @@ void em_configuration_t::handle_failed_connection_event(const mac_address_t sta,
 
 int em_configuration_t::send_topology_notification_by_client(mac_address_t sta, bssid_t bssid, bool assoc)
 {
+    return send_topology_notification_msg(sta, bssid, assoc, true);
+}
+
+int em_configuration_t::send_topology_notification()
+{
+    mac_address_t sta = {0};
+    bssid_t bssid = {0};
+
+    return send_topology_notification_msg(sta, bssid, false, false);
+}
+
+int em_configuration_t::send_topology_notification_msg(mac_address_t sta, bssid_t bssid, bool assoc, bool with_client_event)
+{
     unsigned short  msg_type = em_msg_type_topo_notif;
     char *errors[EM_MAX_TLV_MEMBERS] = {0};
     unsigned int len = 0;
@@ -664,14 +678,16 @@ int em_configuration_t::send_topology_notification_by_client(mac_address_t sta, 
     tmp += (sizeof (em_tlv_t) + sizeof(mac_address_t));
     len += static_cast<unsigned int> (sizeof (em_tlv_t) + sizeof(mac_address_t));
 
-    // Client Association Event  17.2.20
-    tlv = reinterpret_cast<em_tlv_t *> (tmp);
-    tlv->type = em_tlv_type_client_assoc_event;
-    sz = create_client_assoc_event_tlv(tlv->value, sta, bssid, joined);
-    tlv->len =  htons(sz);
+    // Client Association Event  17.2.20, zero or one per 17.1.5
+    if (with_client_event) {
+        tlv = reinterpret_cast<em_tlv_t *> (tmp);
+        tlv->type = em_tlv_type_client_assoc_event;
+        sz = create_client_assoc_event_tlv(tlv->value, sta, bssid, joined);
+        tlv->len =  htons(sz);
 
-    tmp += (sizeof(em_tlv_t) + sz);
-    len += static_cast<unsigned int> (sizeof(em_tlv_t) + sz);
+        tmp += (sizeof(em_tlv_t) + sz);
+        len += static_cast<unsigned int> (sizeof(em_tlv_t) + sz);
+    }
 
     // End of message
     tlv = reinterpret_cast<em_tlv_t *> (tmp);
@@ -859,6 +875,7 @@ int em_configuration_t::send_topology_query_msg()
     cmdu->id = htons(get_mgr()->get_next_msg_id());
     cmdu->last_frag_ind = 1;
     cmdu->relay_ind = 0;
+    m_topo_query_id = ntohs(cmdu->id);
 
     tmp += sizeof(em_cmdu_t);
     len += static_cast<unsigned int> (sizeof(em_cmdu_t));
@@ -1411,6 +1428,239 @@ int em_configuration_t::create_assoc_sta_mld_config_report_tlv(unsigned char *bu
     return tlv_len;
 }
 
+short em_configuration_t::create_vendor_eth_interface_tlv(unsigned char *buff, size_t max_len)
+{
+    const size_t fixed_len = EM_VENDOR_OUI_SIZE + sizeof(uint16_t) + 1;
+    em_vendor_specific_v_t *vendor = reinterpret_cast<em_vendor_specific_v_t *> (buff);
+    std::vector<em_eth_port_t> ports;
+    size_t total = fixed_len;
+
+    for (const auto &cfg : em_eth_get_ports()) {
+        em_eth_port_t p;
+        memset(&p, 0, sizeof(p));
+        if (!em_eth_get_info(cfg.first, p)) {
+            em_printfout("Failed to get interface info for %s", cfg.first.c_str());
+            continue;
+        }
+        p.port_id = cfg.second;
+        /* port id + MAC + name length + name + two flag octets */
+        size_t sz = 1 + sizeof(mac_address_t) + 1 + strlen(p.name) + 2;
+        if ((ports.size() >= EM_MAX_ETH_PORTS) || ((total + sz) > max_len)) {
+            break;
+        }
+        total += sz;
+        ports.push_back(p);
+    }
+    if (ports.empty()) {
+        return 0;
+    }
+
+    memcpy(vendor->vendor_oui, airties_vendor_oui, EM_VENDOR_OUI_SIZE);
+    uint16_t tlv_id = htons(static_cast<uint16_t> (em_tlv_type_eth_interface));
+    memcpy(vendor->data, &tlv_id, sizeof(tlv_id));
+
+    unsigned char *ptr = vendor->data + sizeof(tlv_id);
+    *ptr++ = static_cast<unsigned char> (ports.size());
+    for (const auto &p : ports) {
+        size_t name_len = strlen(p.name);
+        *ptr++ = p.port_id;
+        memcpy(ptr, p.mac, sizeof(mac_address_t));
+        ptr += sizeof(mac_address_t);
+        *ptr++ = static_cast<unsigned char> (name_len);
+        memcpy(ptr, p.name, name_len);
+        ptr += name_len;
+        /* bit 7: admin state, bit 6: link state, bit 5: duplex (1 = full) */
+        *ptr++ = static_cast<unsigned char> ((p.admin_up << 7) | (p.link_up << 6) | (p.full_duplex << 5));
+        /* bits 7:4: supported link type, bits 3:0: current link type */
+        *ptr++ = static_cast<unsigned char> ((p.max_link_type << 4) | (p.cur_link_type & 0x0f));
+    }
+
+    return static_cast<short> (total);
+}
+
+int em_configuration_t::handle_eth_interface_vendor_tlv(unsigned char *value, unsigned int len)
+{
+    em_device_info_t *di;
+    em_eth_port_t ports[EM_MAX_ETH_PORTS];
+    unsigned int num = 0;
+
+    if (len < 1) {
+        em_printfout("Invalid Ethernet Interface TLV");
+        return -1;
+    }
+    unsigned int k = value[0];
+    unsigned char *ptr = value + 1;
+    unsigned int remaining = len - 1;
+
+    memset(ports, 0, sizeof(ports));
+    for (unsigned int i = 0; i < k; i++) {
+        /* port id + MAC + name length */
+        if (remaining < (1 + sizeof(mac_address_t) + 1)) {
+            em_printfout("Truncated Ethernet Interface TLV");
+            return -1;
+        }
+        unsigned int name_len = ptr[1 + sizeof(mac_address_t)];
+        size_t entry_len = 1 + sizeof(mac_address_t) + 1 + name_len + 2;
+        if ((name_len >= EM_ETH_IFNAME_LEN) || (remaining < entry_len)) {
+            em_printfout("Invalid Ethernet Interface TLV entry, name_len=%u", name_len);
+            return -1;
+        }
+        if (num >= EM_MAX_ETH_PORTS) {
+            em_printfout("Too many Ethernet ports, dropping port %u", ptr[0]);
+        } else {
+            em_eth_port_t *p = &ports[num++];
+            unsigned char *f = ptr + 1 + sizeof(mac_address_t) + 1 + name_len;
+            p->port_id = ptr[0];
+            memcpy(p->mac, ptr + 1, sizeof(mac_address_t));
+            memcpy(p->name, ptr + 1 + sizeof(mac_address_t) + 1, name_len);
+            p->admin_up = (f[0] >> 7) & 1;
+            p->link_up = (f[0] >> 6) & 1;
+            p->full_duplex = (f[0] >> 5) & 1;
+            p->max_link_type = f[1] >> 4;
+            p->cur_link_type = f[1] & 0x0f;
+        }
+        ptr += entry_len;
+        remaining -= static_cast<unsigned int> (entry_len);
+    }
+
+    dm_easy_mesh_t *dm = get_data_model();
+    di = (dm == NULL) ? NULL : dm->get_device_info();
+    if (di == NULL) {
+        return -1;
+    }
+
+    di->num_eth_ports = static_cast<uint8_t> (num);
+    memcpy(di->eth_ports, ports, sizeof(ports));
+
+    return 0;
+}
+
+short em_configuration_t::create_vendor_eth_neigh_tlv(unsigned char *buff, size_t max_len, bool is_1905, const std::vector<em_eth_port_neigh_t> &neighbors)
+{
+    const size_t fixed_len = EM_VENDOR_OUI_SIZE + sizeof(uint16_t) + 1;
+    em_vendor_specific_v_t *vendor = reinterpret_cast<em_vendor_specific_v_t *> (buff);
+    std::vector<em_eth_port_neigh_t> ports;
+    size_t total = fixed_len;
+
+    for (const auto &n : neighbors) {
+        unsigned int num = is_1905 ? n.num_1905 : n.num_non1905;
+        /* port id + neighbor count + neighbors */
+        size_t sz = 2 + num * sizeof(mac_address_t);
+        if (num == 0) {
+            continue;
+        }
+        if ((ports.size() >= EM_MAX_ETH_PORTS) || ((total + sz) > max_len)) {
+            em_printfout("Ethernet %s neighbors of port %u do not fit in the Topology Response, dropping", is_1905 ? "1905" : "non-1905", n.port_id);
+            break;
+        }
+        total += sz;
+        ports.push_back(n);
+    }
+    if (ports.empty()) {
+        return 0;
+    }
+
+    memcpy(vendor->vendor_oui, airties_vendor_oui, EM_VENDOR_OUI_SIZE);
+    uint16_t tlv_id = htons(static_cast<uint16_t> (is_1905 ? em_tlv_type_eth_1905_neigh : em_tlv_type_eth_non1905_neigh));
+    memcpy(vendor->data, &tlv_id, sizeof(tlv_id));
+
+    unsigned char *ptr = vendor->data + sizeof(tlv_id);
+    *ptr++ = static_cast<unsigned char> (ports.size());
+    for (const auto &p : ports) {
+        unsigned int num = is_1905 ? p.num_1905 : p.num_non1905;
+        const mac_address_t *macs = is_1905 ? p.neigh_1905 : p.neigh_non1905;
+        *ptr++ = p.port_id;
+        *ptr++ = static_cast<unsigned char> (num);
+        memcpy(ptr, macs, num * sizeof(mac_address_t));
+        ptr += num * sizeof(mac_address_t);
+    }
+
+    return static_cast<short> (total);
+}
+
+int em_configuration_t::handle_eth_neigh_vendor_tlv(unsigned char *value, unsigned int len, bool is_1905)
+{
+    em_device_info_t *di;
+    dm_easy_mesh_t *dm = get_data_model();
+
+    di = (dm == NULL) ? NULL : dm->get_device_info();
+    if (di == NULL) {
+        return -1;
+    }
+
+    /* The TLV lists every port with neighbors: rebuild this neighbor type aside so a malformed TLV keeps the old state */
+    em_eth_port_neigh_t cur[EM_MAX_ETH_PORTS];
+    unsigned int num_cur = 0;
+    memset(cur, 0, sizeof(cur));
+
+    /* Keep the other neighbor type */
+    for (unsigned int i = 0; i < di->num_eth_neigh; i++) {
+        em_eth_port_neigh_t *dst = &cur[num_cur];
+        dst->port_id = di->eth_neigh[i].port_id;
+        if (is_1905) {
+            dst->num_non1905 = di->eth_neigh[i].num_non1905;
+            memcpy(dst->neigh_non1905, di->eth_neigh[i].neigh_non1905, sizeof(dst->neigh_non1905));
+        } else {
+            dst->num_1905 = di->eth_neigh[i].num_1905;
+            memcpy(dst->neigh_1905, di->eth_neigh[i].neigh_1905, sizeof(dst->neigh_1905));
+        }
+        if ((dst->num_1905 + dst->num_non1905) > 0) {
+            num_cur++;
+        }
+    }
+
+    if (value == NULL) {
+        memcpy(di->eth_neigh, cur, sizeof(cur));
+        di->num_eth_neigh = num_cur;
+        return 0;
+    }
+    if (len < 1) {
+        em_printfout("Invalid Ethernet neighbor TLV");
+        return -1;
+    }
+
+    unsigned int k = value[0];
+    unsigned char *ptr = value + 1;
+    unsigned int remaining = len - 1;
+    for (unsigned int i = 0; i < k; i++) {
+        if (remaining < 2) {
+            em_printfout("Truncated Ethernet neighbor TLV");
+            return -1;
+        }
+        uint8_t port_id = ptr[0];
+        unsigned int l = ptr[1];
+        if (remaining < (2 + l * sizeof(mac_address_t))) {
+            em_printfout("Truncated Ethernet neighbor TLV, port %u", port_id);
+            return -1;
+        }
+
+        em_eth_port_neigh_t *dst = NULL;
+        for (unsigned int j = 0; j < num_cur; j++) {
+            if (cur[j].port_id == port_id) {
+                dst = &cur[j];
+                break;
+            }
+        }
+        if ((dst == NULL) && (num_cur < EM_MAX_ETH_PORTS)) {
+            dst = &cur[num_cur++];
+            dst->port_id = port_id;
+        }
+        if (dst != NULL) {
+            unsigned int max = is_1905 ? EM_MAX_ETH_1905_NEIGH : EM_MAX_ETH_NON1905_NEIGH;
+            uint8_t *num = is_1905 ? &dst->num_1905 : &dst->num_non1905;
+            mac_address_t *macs = is_1905 ? dst->neigh_1905 : dst->neigh_non1905;
+            *num = static_cast<uint8_t> ((l > max) ? max : l);
+            memcpy(macs, ptr + 2, *num * sizeof(mac_address_t));
+        }
+        ptr += 2 + l * sizeof(mac_address_t);
+        remaining -= static_cast<unsigned int> (2 + l * sizeof(mac_address_t));
+    }
+
+    memcpy(di->eth_neigh, cur, sizeof(cur));
+    di->num_eth_neigh = num_cur;
+    return 0;
+}
+
 int em_configuration_t::create_vendor_operational_bss_tlv(unsigned char *buff)
 {
 	em_tlv_t *tlv;
@@ -1730,6 +1980,35 @@ int em_configuration_t::send_topology_response_msg(unsigned char *dst, unsigned 
 	tmp += (sizeof(em_tlv_t) + tlv_len);
 	len += static_cast<unsigned int> (sizeof(em_tlv_t) + tlv_len);
 
+    // Airties Ethernet Interface vendor TLV; keep room for the TLV header and the EOM TLV
+    const size_t frame_limit = std::min(sizeof(buff), static_cast<size_t> (EM_MAX_MSG_SZ));
+    if ((len + 2 * sizeof(em_tlv_t)) < frame_limit) {
+        tlv = reinterpret_cast<em_tlv_t *> (tmp);
+        tlv->type = em_tlv_type_vendor_specific;
+        short eth_sz = create_vendor_eth_interface_tlv(tlv->value, frame_limit - len - 2 * sizeof(em_tlv_t));
+        if (eth_sz > 0) {
+            tlv->len = htons(static_cast<unsigned short> (eth_sz));
+            tmp += (sizeof(em_tlv_t) + static_cast<size_t> (eth_sz));
+            len += static_cast<unsigned int> (sizeof(em_tlv_t) + static_cast<size_t> (eth_sz));
+        }
+    }
+
+    // Airties Ethernet non-1905 / 1905 Neighbor Device List vendor TLVs, both from the same snapshot
+    std::vector<em_eth_port_neigh_t> eth_neighbors = em_eth_get_neighbors();
+    for (int is_1905 = 0; is_1905 < 2; is_1905++) {
+        if ((len + 2 * sizeof(em_tlv_t)) >= frame_limit) {
+            break;
+        }
+        tlv = reinterpret_cast<em_tlv_t *> (tmp);
+        tlv->type = em_tlv_type_vendor_specific;
+        short neigh_sz = create_vendor_eth_neigh_tlv(tlv->value, frame_limit - len - 2 * sizeof(em_tlv_t), is_1905 != 0, eth_neighbors);
+        if (neigh_sz > 0) {
+            tlv->len = htons(static_cast<unsigned short> (neigh_sz));
+            tmp += (sizeof(em_tlv_t) + static_cast<size_t> (neigh_sz));
+            len += static_cast<unsigned int> (sizeof(em_tlv_t) + static_cast<size_t> (neigh_sz));
+        }
+    }
+
     // End of message
     tlv = reinterpret_cast<em_tlv_t *> (tmp);
     tlv->type = em_tlv_type_eom;
@@ -1750,8 +2029,11 @@ int em_configuration_t::send_topology_response_msg(unsigned char *dst, unsigned 
         em_printfout("Topology Response send failed, error:%d", errno);
         return -1;
     }
-    em_printfout("setting state to em_state_agent_topo_synchronized");
-    set_state(em_state_agent_topo_synchronized);
+    // Never move an already configured agent node backwards; a refresh query leaves no follow-up messages to restore it
+    if ((get_service_type() != em_service_type_agent) || (get_state() < em_state_agent_topo_synchronized)) {
+        em_printfout("setting state to em_state_agent_topo_synchronized");
+        set_state(em_state_agent_topo_synchronized);
+    }
     return static_cast<int> (len);
 }
 
@@ -2207,6 +2489,7 @@ int em_configuration_t::handle_topology_notification(unsigned char *buff, unsign
     dm_sta_t *sta_row = NULL;
     char *errors[EM_MAX_TLV_MEMBERS] = {0};
     em_bss_info_t *bss_info = NULL;
+    bool client_event_found = false;
 
 	dm = get_data_model();
 	em_printfout("Topology Notification received, length: %u", len);
@@ -2238,6 +2521,7 @@ int em_configuration_t::handle_topology_notification(unsigned char *buff, unsign
 
     while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
         if (tlv->type == em_tlv_type_client_assoc_event) {
+            client_event_found = true;
             assoc_evt_tlv = reinterpret_cast<em_client_assoc_event_t *> (tlv->value);
             assoc_event = assoc_evt_tlv->assoc_event;
 
@@ -2360,6 +2644,15 @@ int em_configuration_t::handle_topology_notification(unsigned char *buff, unsign
             
 		tmp_len -= static_cast<unsigned int> (sizeof(em_tlv_t) + htons(tlv->len));
 		tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
+    }
+
+    // A notification without a Client Association Event signals a local topology change, query the agent
+    if ((client_event_found == false) && (dm != NULL) ) {
+        em_printfout("Topology change notification from agent al mac:%s, sending Topology Query",
+                util::mac_to_string(dev_mac).c_str());
+        if (send_topology_query_msg() >= 0) {
+            m_refresh_topo = true;
+        }
     }
 
 	return 0;
@@ -2559,6 +2852,62 @@ int em_configuration_t::handle_topology_response(unsigned char *buff, unsigned i
 
     if (handle_assoc_sta_mld_topology_update(dm) == true) {
         dm->set_db_cfg_param(db_cfg_type_sta_list_update, "");
+    }
+
+    // Airties Ethernet Interface vendor TLV
+    unsigned char *eth_if_value = NULL;
+    unsigned int eth_if_len = 0;
+    unsigned char *eth_1905_value = NULL, *eth_non1905_value = NULL;
+    unsigned int eth_1905_len = 0, eth_non1905_len = 0;
+    tlv = reinterpret_cast<em_tlv_t *>(buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+    tmp_len = len - static_cast<unsigned int>(sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+    while ((tmp_len >= sizeof(em_tlv_t)) && (tlv->type != em_tlv_type_eom)) {
+        unsigned int vlen = ntohs(tlv->len);
+        if (tmp_len < (sizeof(em_tlv_t) + vlen)) {
+            break;
+        }
+        if ((tlv->type == em_tlv_type_vendor_specific) &&
+                (vlen >= (EM_VENDOR_OUI_SIZE + sizeof(uint16_t))) &&
+                (memcmp(tlv->value, airties_vendor_oui, EM_VENDOR_OUI_SIZE) == 0)) {
+            uint16_t tlv_id;
+            memcpy(&tlv_id, tlv->value + EM_VENDOR_OUI_SIZE, sizeof(tlv_id));
+            unsigned char *payload = tlv->value + EM_VENDOR_OUI_SIZE + sizeof(tlv_id);
+            unsigned int payload_len = vlen - static_cast<unsigned int>(EM_VENDOR_OUI_SIZE + sizeof(uint16_t));
+            if (ntohs(tlv_id) == em_tlv_type_eth_interface) {
+                eth_if_value = payload;
+                eth_if_len = payload_len;
+            } else if (ntohs(tlv_id) == em_tlv_type_eth_1905_neigh) {
+                eth_1905_value = payload;
+                eth_1905_len = payload_len;
+            } else if (ntohs(tlv_id) == em_tlv_type_eth_non1905_neigh) {
+                eth_non1905_value = payload;
+                eth_non1905_len = payload_len;
+            }
+        }
+        tmp_len -= static_cast<unsigned int>(sizeof(em_tlv_t) + vlen);
+        tlv = reinterpret_cast<em_tlv_t *>(reinterpret_cast<unsigned char *>(tlv) + sizeof(em_tlv_t) + vlen);
+    }
+
+    if (eth_if_value != NULL) {
+        if (handle_eth_interface_vendor_tlv(eth_if_value, eth_if_len) != 0) {
+            em_printfout("eth_interface_vendor_tlv failed, skipping TLV");
+        }
+    } else {
+        // Agent omits the TLV when it has no Ethernet ports left
+        em_printfout("Ethernet Interface TLV absent, dropping the Ethernet ports");
+        em_device_info_t *di = dm->get_device_info();
+        if (di != NULL) {
+            di->num_eth_ports = 0;
+            memset(di->eth_ports, 0, sizeof(di->eth_ports));
+        }
+    }
+
+    // Agent omits the neighbor TLVs when no neighbor is connected to its Ethernet ports
+    if (handle_eth_neigh_vendor_tlv(eth_1905_value, eth_1905_len, true) != 0) {
+        em_printfout("eth_1905_neigh_vendor_tlv failed, skipping TLV");
+    }
+    if (handle_eth_neigh_vendor_tlv(eth_non1905_value, eth_non1905_len, false) != 0) {
+        em_printfout("eth_non1905_neigh_vendor_tlv failed, skipping TLV");
     }
 
     em_printfout("Src al mac: " MACSTRFMT, MAC2STR(src_al_mac));
@@ -6332,6 +6681,7 @@ void em_configuration_t::process_msg(unsigned char *data, unsigned int len)
     unsigned int tlvs_len;
     std::vector<em_t *> em_radios;
     bool any_al_topo_sync_pending = false;
+    em_t *refresh_topo_em = NULL;
 
     if (len < sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)) {
         em_printfout("Error: Message too short for header, len:%u", len);
@@ -6400,9 +6750,11 @@ void em_configuration_t::process_msg(unsigned char *data, unsigned int len)
                 len = send_topology_response_msg(data, ntohs(cmdu->id));
                 if(len) {
                     for(auto &em : em_radios) {
+                        if ((em->get_service_type() != em_service_type_agent) || (em->get_state() < em_state_agent_topo_synchronized)) {
                             em->set_state(em_state_agent_topo_synchronized);
+                        }
                     }
-                    em_printfout("Sent topology response message, set state to em_state_agent_topo_synchronized");
+                    em_printfout("Sent topology response message");
                 }
                 em_radios.clear();
             }
@@ -6414,14 +6766,22 @@ void em_configuration_t::process_msg(unsigned char *data, unsigned int len)
             // may land on a different radio than the one that sent the query).
             get_mgr()->get_all_em_for_al_mac(get_data_model()->get_agent_al_interface_mac(), em_radios);
             any_al_topo_sync_pending = false;
+            refresh_topo_em = NULL;
             for (auto *radio : em_radios) {
                 if (radio->get_state() == em_state_ctrl_topo_sync_pending) {
                     any_al_topo_sync_pending = true;
-                    break;
+                }
+                // The refresh query may have been sent by another radio of the same AL than the one that gets the response
+                if ((radio->m_refresh_topo == true) && (ntohs(cmdu->id) == radio->m_topo_query_id)) {
+                    refresh_topo_em = radio;
                 }
             }
             if ((get_service_type() == em_service_type_ctrl) &&
                 (get_state() == em_state_ctrl_topo_sync_pending || any_al_topo_sync_pending)) {
+                for (auto *radio : em_radios) {
+                    radio->m_refresh_topo = false;
+                }
+                m_refresh_topo = false;
                 if (handle_topology_response(data, len) == 0) {
                     set_state(em_state_ctrl_topo_synchronized);
                     static_cast<em_t*>(this)->set_ssid_mismatch(false);
@@ -6447,6 +6807,14 @@ void em_configuration_t::process_msg(unsigned char *data, unsigned int len)
                 } else {
                     printf("%s:%d em_msg_type_topo_resp handle failed \n", __func__, __LINE__);
                 }
+            } else if ((get_service_type() == em_service_type_ctrl) && (refresh_topo_em != NULL)) {
+                // The 1905 stack also answers on its own, those responses carry another message id
+                refresh_topo_em->m_refresh_topo = false;
+                if (handle_topology_response(data, len) != 0) {
+                    em_printfout("Refresh Topology Response handle failed");
+                }
+            } else if (get_service_type() == em_service_type_ctrl) {
+                em_printfout("Topology Response ignored, state:%s", em_t::state_2_str(get_state()));
             }
             break;
 
@@ -6780,7 +7148,9 @@ em_configuration_t::em_configuration_t() :
     m_key_wrap_key{},
     m_emsk{},
     m_renew_tx_cnt(0),
-    m_topo_query_tx_cnt(0)
+    m_topo_query_tx_cnt(0),
+    m_refresh_topo(false),
+    m_topo_query_id(0)
 {
 }
 
