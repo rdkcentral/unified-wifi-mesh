@@ -238,6 +238,44 @@ class em_steering_t {
 public:
 	
 	/**!
+	 * @brief Sends a Client Association Control Request built from persisted ACL state.
+	 *
+	 * Used to re-apply the MAC ACL stored in the BSSList table to an agent once its
+	 * onboarding orchestration has completed.
+	 *
+	 * @param[in] bssid BSSID the request applies to.
+	 * @param[in] assoc_control ASSOC_CONTROL_BLOCK or ASSOC_CONTROL_UNBLOCK.
+	 * @param[in] validity_period Validity period in seconds.
+	 * @param[in] sta_count Number of STA MAC addresses in sta_list.
+	 * @param[in] sta_list STA MAC addresses to apply the control to.
+	 *
+	 * @returns int Number of bytes sent on success, -1 on failure.
+	 */
+	int send_persisted_assoc_ctrl_req(const unsigned char *bssid, unsigned char assoc_control,
+			unsigned short validity_period, unsigned char sta_count, const mac_address_t *sta_list);
+
+	/**!
+	 * @brief Sends the persisted MAC ACL of every BSS on this radio to the agent.
+	 *
+	 * Runs as the last step of the onboarding orchestration so an agent that rebooted, or every
+	 * agent after a controller reboot, ends up with the ACL stored in the database.
+	 *
+	 * @returns 0 if every ACL chunk was sent, or -1 if a send failed.
+	 */
+	int send_persisted_acl_cfg();
+
+	/**!
+	 * @brief Sends one ACL list of a BSS, chunked to fit the Client Association Control TLV.
+	 * @param[in] bss_key Composite key identifying the BSS ACL.
+	 * @param[in] bssid BSSID receiving the association control request.
+	 * @param[in] validity_period ACL validity period in seconds.
+	 * @param[in] blocked Selects the blocked list when true, otherwise the allowed list.
+	 * @returns 0 if every chunk was sent, or -1 if a send failed.
+	 */
+	int send_acl_list(const char *bss_key, const unsigned char *bssid,
+			unsigned short validity_period, bool blocked);
+
+	/**!
 	 * @brief Retrieves the manager instance.
 	 *
 	 * This function returns a pointer to the manager instance associated with the steering module.

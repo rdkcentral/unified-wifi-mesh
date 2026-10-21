@@ -628,6 +628,22 @@ public:
 	 * @note This is a pure virtual function and must be implemented by derived classes
 	 */
 	virtual dm_easy_mesh_t *get_data_model(const char *net_id, const unsigned char *al_mac = NULL) = 0;
+
+	/**!
+	 * @brief Reads a window of persisted MAC ACL entries of a BSS.
+	 *
+	 * Only the controller keeps an ACL store, so the default implementation reports none.
+	 *
+	 * @param[in] bss_key Composite BSS key ("net_id@dev_mac@ruid@bssid@haul_type").
+	 * @param[in] blocked true for the deny list, false for the allow list.
+	 * @param[in] skip Number of matching entries to skip.
+	 * @param[in] max Capacity of list.
+	 * @param[out] list Array receiving the MAC addresses.
+	 *
+	 * @returns Number of entries written to list.
+	 */
+	virtual unsigned int get_bss_acl_macs(const char *, bool, unsigned int,
+			unsigned int, mac_address_t *) { return 0; }
     
 	/**!
 	 * @brief Creates a data model for the specified network ID and interface.

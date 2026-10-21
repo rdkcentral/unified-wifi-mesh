@@ -28,6 +28,9 @@ class em_network_topo_t {
 	unsigned int m_num_topologies;	
 	em_network_topo_t	*m_topology[EM_MAX_NETWORKS];
 
+	bool m_bh_processed;
+	bool m_bh_reconfig_active;
+
 public:
 	
 	/**!
@@ -112,6 +115,27 @@ public:
 	 * @note Ensure that the returned pointer is not null before using it.
 	 */
 	dm_easy_mesh_t *get_data_model() { return m_data_model; }
+
+	unsigned int get_num_topologies() { return m_num_topologies; }
+
+
+
+	/**!
+	 * @brief Returns true when all topology nodes have been processed (root included).
+	 *
+	 * @returns true if the root node (this) is marked processed, meaning all
+	 *          layers including the co-located agent have been handled.
+	 */
+	bool is_bh_reconfig_complete();
+
+	bool is_bh_reconfig_active() { return m_bh_reconfig_active; }
+	void set_bh_reconfig_active(bool active) { m_bh_reconfig_active = active; }
+	void set_bh_processed(bool processed) { m_bh_processed = processed; }
+
+	void send_bh_reconfig_event();
+	void reset_bh_reconfig();
+	bool is_bh_reconfig_candidate();
+	void mark_bh_leaves_processed();
 	
 	
 	/**!
@@ -194,6 +218,20 @@ public:
 	 */
 	em_network_topo_t();
     
+	/**!
+	 * @brief Checks if the given data model is a direct child of this topology node.
+	 *
+	 * Used to distinguish gateway/co-located agents (direct children of root)
+	 * from remote extenders deeper in the tree. Direct children of the root
+	 * communicate with the controller without traversing a WiFi backhaul link
+	 * and will not disconnect during backhaul reconfiguration.
+	 *
+	 * @param[in] dm Pointer to the data model to check.
+	 *
+	 * @returns true if dm is a direct child of this node, false otherwise.
+	 */
+	bool is_direct_child(dm_easy_mesh_t *dm);
+
 	/**!
 	 * @brief Destructor for the em_network_topo_t class.
 	 *
