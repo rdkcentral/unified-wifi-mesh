@@ -1683,15 +1683,15 @@ void em_agent_t::handle_5s_tick()
 
 void em_agent_t::handle_2s_tick()
 {
-    /* em_eth_link_changed() consumes the change, so remember it until the notification is actually sent */
-    if (em_eth_link_changed() == true) {
-        m_eth_notif_pending = true;
-    }
+    /* The change detectors consume their snapshot, so keep the notification pending until it is sent */
+    bool link_changed = em_eth_link_changed();
+    bool neigh_changed = em_eth_neighbors_changed();
 
-    if (m_eth_notif_pending == true) {
+    m_eth_notif_pending = m_eth_notif_pending || link_changed || neigh_changed;
+    if (m_eth_notif_pending) {
         em_t *al_em = get_al_node();
         if (al_em != NULL) {
-            em_printfout("Ethernet link state changed, sending Topology Notification");
+            em_printfout("Ethernet topology changed, sending Topology Notification");
             if (al_em->send_topology_notification() >= 0) {
                 m_eth_notif_pending = false;
             }
