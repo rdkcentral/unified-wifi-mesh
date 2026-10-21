@@ -916,6 +916,8 @@ typedef enum {
     em_tlv_type_device_metrics = 0x0004,
     em_tlv_type_eth_interface = 0x000F,
     em_tlv_type_eth_stats = 0x0010,
+    em_tlv_type_eth_non1905_neigh = 0x0011,
+    em_tlv_type_eth_1905_neigh = 0x0012,
     em_tlv_type_radio_capability = 0x0013,
 } em_vendor_airties_tlv_type_t;
 
@@ -929,6 +931,16 @@ typedef struct {
 } __attribute__((__packed__)) em_eth_stats_hdr_t;
 
 #define EM_ETH_IFNAME_LEN 64
+#define EM_MAX_ETH_1905_NEIGH 8
+#define EM_MAX_ETH_NON1905_NEIGH 32
+
+typedef struct {
+    uint8_t port_id;
+    uint8_t num_1905;
+    uint8_t num_non1905;
+    mac_address_t neigh_1905[EM_MAX_ETH_1905_NEIGH];
+    mac_address_t neigh_non1905[EM_MAX_ETH_NON1905_NEIGH];
+} __attribute__((__packed__)) em_eth_port_neigh_t;
 
 typedef struct {
     uint8_t  port_id;
@@ -2650,6 +2662,9 @@ typedef struct {
     em_eth_port_t eth_ports[EM_MAX_ETH_PORTS];
     uint8_t num_eth_stats;
     em_eth_stats_t eth_stats[EM_MAX_ETH_PORTS];
+
+    uint8_t num_eth_neigh;
+    em_eth_port_neigh_t eth_neigh[EM_MAX_ETH_PORTS];
 } em_device_info_t;
 
 typedef struct {

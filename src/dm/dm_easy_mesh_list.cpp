@@ -264,6 +264,9 @@ void dm_easy_mesh_list_t::update_device(const char *key, const dm_device_t *dev)
         uint8_t num_eth_stats = pdev->m_device_info.num_eth_stats;
         em_eth_stats_t eth_stats[EM_MAX_ETH_PORTS];
         memcpy(eth_stats, pdev->m_device_info.eth_stats, sizeof(eth_stats));
+        uint8_t num_eth_neigh = pdev->m_device_info.num_eth_neigh;
+        em_eth_port_neigh_t eth_neigh[EM_MAX_ETH_PORTS];
+        memcpy(eth_neigh, pdev->m_device_info.eth_neigh, sizeof(eth_neigh));
 
         memcpy(&pdev->m_device_info, &dev->m_device_info, sizeof(em_device_info_t));
 
@@ -277,7 +280,8 @@ void dm_easy_mesh_list_t::update_device(const char *key, const dm_device_t *dev)
         memcpy(pdev->m_device_info.eth_ports, eth_ports, sizeof(eth_ports));
         pdev->m_device_info.num_eth_stats = num_eth_stats;
         memcpy(pdev->m_device_info.eth_stats, eth_stats, sizeof(eth_stats));
-
+        pdev->m_device_info.num_eth_neigh = num_eth_neigh;
+        memcpy(pdev->m_device_info.eth_neigh, eth_neigh, sizeof(eth_neigh));
 	    dm = get_data_model(pdev->m_device_info.id.net_id, pdev->m_device_info.id.dev_mac);
         if (dm == NULL) {
             em_printfout("Could not find data model for device at key: %s@%s", pdev->m_device_info.id.net_id, mac_str);

@@ -1089,6 +1089,17 @@ class em_configuration_t {
 	int handle_eth_interface_vendor_tlv(unsigned char *value, unsigned int len);
 
 	/**!
+	 * @brief Parses an Airties Ethernet neighbor device list vendor TLV and stores it in the device info.
+	 *
+	 * @param[in] value Pointer to the TLV payload following the Airties OUI and TLV ID, NULL if the TLV is absent.
+	 * @param[in] len Length of the payload.
+	 * @param[in] is_1905 true for the 1905 neighbor list (0x0012), false for the non-1905 neighbor list (0x0011).
+	 *
+	 * @returns int 0 on success, -1 on failure.
+	 */
+	int handle_eth_neigh_vendor_tlv(unsigned char *value, unsigned int len, bool is_1905);
+
+	/**!
 	 * @brief Creates an M1 message.
 	 *
 	 * This function is responsible for creating an M1 message and storing it in the provided buffer.
@@ -1158,6 +1169,18 @@ class em_configuration_t {
 	 * @returns short Size of the TLV value, or 0 if there is nothing to report or it does not fit.
 	 */
 	short create_vendor_eth_interface_tlv(unsigned char *buff, size_t max_len);
+
+	/**!
+	 * @brief Creates an Airties Ethernet neighbor device list vendor TLV.
+	 *
+	 * @param[out] buff Buffer where the TLV value is stored.
+	 * @param[in] max_len Space available in buff.
+	 * @param[in] is_1905 true for the 1905 neighbor list (0x0012), false for the non-1905 neighbor list (0x0011).
+	 * @param[in] neighbors Neighbors per Ethernet port.
+	 *
+	 * @returns short Size of the TLV value, or 0 if there is nothing to report or it does not fit.
+	 */
+	short create_vendor_eth_neigh_tlv(unsigned char *buff, size_t max_len, bool is_1905, const std::vector<em_eth_port_neigh_t> &neighbors);
 
 	/**
 	 * @brief Creates a Backhaul STA Radio Capabilities TLV (17.2.65)

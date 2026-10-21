@@ -2138,6 +2138,42 @@
                                                             "$ref": "#/definitions/uint64_t"
                                                         }
                                                     }
+                                                },
+                                                "DeviceNumberOfEntries": {
+                                                    "$ref": "#/definitions/uint32_t"
+                                                },
+                                                "Device": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "type": "object",
+                                                        "additionalProperties": false,
+                                                        "properties": {
+                                                            "MACAddress": {
+                                                                "$ref": "#/definitions/macaddr_t",
+                                                                "description": "MACAddress of the Ethernet Device"
+                                                            }
+                                                        }
+                                                    }
+                                                },
+                                                "APDeviceNumberOfEntries": {
+                                                    "$ref": "#/definitions/uint32_t"
+                                                },
+                                                "APDevice": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "type": "object",
+                                                        "additionalProperties": false,
+                                                        "properties": {
+                                                            "MACAddress": {
+                                                                "$ref": "#/definitions/macaddr_t",
+                                                                "description": "MACAddress of the Ethernet APDevice"
+                                                            },
+                                                            "Upstream": {
+                                                                "type": "boolean",
+                                                                "description": "Indicates if the APDevice is seen in upstream direction"
+                                                            }
+                                                        }
+                                                    }
                                                 }
                                             }
                                         }

@@ -28,7 +28,14 @@
 #include <linux/ethtool.h>
 #include <linux/sockios.h>
 #include <algorithm>
+#include <array>
+#include <chrono>
 #include <map>
+#include <set>
+#include <thread>
+#include <poll.h>
+#include <netpacket/packet.h>
+#include <arpa/inet.h>
 #include <mutex>
 #include <cjson/cJSON.h>
 #include "em_eth.h"
@@ -415,6 +422,309 @@ bool em_eth_link_changed()
         std::string state = std::string(admin_up ? "1" : "0") + "/" + (admin_up ? eth_iface_read_str(ifname, "carrier") : "") +
             "/" + (admin_up ? eth_iface_read_str(ifname, "speed") : "") + "/" + (admin_up ? eth_iface_read_str(ifname, "duplex") : "");
         cur[p.second] = state;
+    }
+
+    bool changed = initialized && (cur != last);
+    last = cur;
+    initialized = true;
+    return changed;
+}
+
+typedef std::array<uint8_t, 6> eth_mac_t;
+typedef std::chrono::steady_clock eth_clock;
+
+#define ETH_P_LLDP_FRAME 0x88CC
+#define ETH_P_1905_FRAME 0x893A
+/* LLDP is sent every 10s by the 1905 stack, topology discovery every 60s */
+#define EM_ETH_LLDP_TIMEOUT_SEC 35
+#define EM_ETH_DISC_TIMEOUT_SEC 190
+
+static std::mutex g_nb_mtx;
+static std::map<std::string, std::map<eth_mac_t, eth_clock::time_point> > g_lldp; /* port -> chassis (AL MAC) */
+static std::map<eth_mac_t, eth_clock::time_point> g_disc;     /* AL MAC from topology discovery */
+static std::map<eth_mac_t, eth_clock::time_point> g_peer_src; /* source MACs of 1905 frames */
+
+static bool eth_fresh(const eth_clock::time_point &seen, int timeout_sec)
+{
+    return (eth_clock::now() - seen) <= std::chrono::seconds(timeout_sec);
+}
+
+/* Chassis ID TLV of an LLDPDU, MAC address subtype only */
+static bool eth_parse_lldp_chassis(const unsigned char *pdu, size_t len, eth_mac_t &chassis)
+{
+    while (len >= 2) {
+        unsigned int hdr = (pdu[0] << 8) | pdu[1];
+        unsigned int type = hdr >> 9, tlen = hdr & 0x1ff;
+        if ((type == 0) || (len < (2 + tlen))) {
+            return false;
+        }
+        if (type == 1) {
+            if ((tlen != 7) || (pdu[2] != 4)) {
+                return false;
+            }
+            memcpy(chassis.data(), pdu + 3, chassis.size());
+            return true;
+        }
+        pdu += 2 + tlen;
+        len -= 2 + tlen;
+    }
+    return false;
+}
+
+/* AL MAC Address TLV of a Topology Discovery CMDU; 1905 header: version, reserved, type, id, fragment, flags */
+static bool eth_parse_discovery_al_mac(const unsigned char *cmdu, size_t len, eth_mac_t &al_mac)
+{
+    if ((len < 8) || (cmdu[2] != 0) || (cmdu[3] != 0)) {
+        return false;
+    }
+    cmdu += 8;
+    len -= 8;
+    while (len >= 3) {
+        unsigned int tlen = (cmdu[1] << 8) | cmdu[2];
+        if ((cmdu[0] == 0) || (len < (3 + tlen))) {
+            return false;
+        }
+        if ((cmdu[0] == 0x01) && (tlen == 6)) {
+            memcpy(al_mac.data(), cmdu + 3, al_mac.size());
+            return true;
+        }
+        cmdu += 3 + tlen;
+        len -= 3 + tlen;
+    }
+    return false;
+}
+
+static void eth_handle_frame(const unsigned char *frame, size_t len, const std::string &ifname)
+{
+    if (len < 14) {
+        return;
+    }
+    eth_mac_t src, al;
+    memcpy(src.data(), frame + 6, src.size());
+    unsigned int type = (frame[12] << 8) | frame[13];
+    const unsigned char *payload = frame + 14;
+    size_t plen = len - 14;
+    eth_clock::time_point now = eth_clock::now();
+
+    if (type == ETH_P_LLDP_FRAME) {
+        if (eth_parse_lldp_chassis(payload, plen, al)) {
+            std::lock_guard<std::mutex> lock(g_nb_mtx);
+            g_lldp[ifname][al] = now;
+        }
+    } else if (type == ETH_P_1905_FRAME) {
+        if (eth_parse_discovery_al_mac(payload, plen, al)) {
+            std::lock_guard<std::mutex> lock(g_nb_mtx);
+            g_disc[al] = now;
+            g_peer_src[src] = now;
+        }
+    }
+}
+
+static void eth_listener()
+{
+    const int protos[2] = {ETH_P_LLDP_FRAME, ETH_P_1905_FRAME};
+    struct pollfd fds[2];
+    unsigned char buf[2048];
+
+    for (int i = 0; i < 2; i++) {
+        fds[i].fd = socket(AF_PACKET, SOCK_RAW, htons(protos[i]));
+        fds[i].events = POLLIN;
+        if (fds[i].fd < 0) {
+            em_printfout("Failed to open packet socket for ethertype 0x%04x: %s", protos[i], strerror(errno));
+            for (int j = 0; j < i; j++) {
+                close(fds[j].fd);
+            }
+            return;
+        }
+    }
+
+    while (true) {
+        if (poll(fds, 2, -1) < 0) {
+            if (errno == EINTR) {
+                continue;
+            }
+            em_printfout("Ethernet neighbor listener poll failed: %s", strerror(errno));
+            for (int j = 0; j < 2; j++) {
+                close(fds[j].fd);
+            }
+            return;
+        }
+        for (int i = 0; i < 2; i++) {
+            if (!(fds[i].revents & POLLIN)) {
+                continue;
+            }
+            struct sockaddr_ll sll;
+            socklen_t slen = sizeof(sll);
+            ssize_t n = recvfrom(fds[i].fd, buf, sizeof(buf), 0, reinterpret_cast<struct sockaddr *> (&sll), &slen);
+            char ifname[IF_NAMESIZE];
+            if ((n <= 0) || (sll.sll_pkttype == PACKET_OUTGOING) || (if_indextoname(sll.sll_ifindex, ifname) == NULL)) {
+                continue;
+            }
+            eth_handle_frame(buf, static_cast<size_t> (n), ifname);
+        }
+    }
+}
+
+static void eth_start_listener()
+{
+    static std::once_flag once;
+    std::call_once(once, []() { std::thread(eth_listener).detach(); });
+}
+
+static std::string eth_iface_master(const std::string &iface)
+{
+    char target[PATH_MAX];
+    ssize_t n = readlink(("/sys/class/net/" + iface + "/master").c_str(), target, sizeof(target) - 1);
+    if (n <= 0) {
+        return "";
+    }
+    target[n] = '\0';
+    const char *base = strrchr(target, '/');
+    return base ? base + 1 : target;
+}
+
+typedef struct {
+    uint8_t mac[6];
+    uint8_t port_no;
+    uint8_t is_local;
+    uint32_t ageing_timer;
+    uint8_t port_hi;
+    uint8_t pad1;
+    uint16_t pad2;
+} __attribute__((__packed__)) eth_fdb_entry_t;
+
+/* Non-local MACs the bridge learned on the given port */
+static std::vector<eth_mac_t> eth_read_fdb(const std::string &iface)
+{
+    std::vector<eth_mac_t> macs;
+    std::string bridge = eth_iface_master(iface);
+    if (bridge.empty()) {
+        return macs;
+    }
+    unsigned long port_no = strtoul(eth_iface_read_str(bridge + "/brif/" + iface, "port_no").c_str(), NULL, 0);
+    FILE *fp = fopen(("/sys/class/net/" + bridge + "/brforward").c_str(), "r");
+    if (fp == NULL) {
+        return macs;
+    }
+    eth_fdb_entry_t e;
+    while (fread(&e, sizeof(e), 1, fp) == 1) {
+        if (!e.is_local && (static_cast<unsigned long> (e.port_no | (e.port_hi << 8)) == port_no) && !(e.mac[0] & 1)) {
+            eth_mac_t mac;
+            memcpy(mac.data(), e.mac, mac.size());
+            macs.push_back(mac);
+        }
+    }
+    fclose(fp);
+    std::sort(macs.begin(), macs.end());
+    macs.erase(std::unique(macs.begin(), macs.end()), macs.end());
+    return macs;
+}
+
+std::vector<em_eth_port_neigh_t> em_eth_get_neighbors()
+{
+    std::vector<em_eth_port_neigh_t> result;
+    std::map<std::string, std::set<eth_mac_t> > lldp;
+    std::set<eth_mac_t> disc, known_1905;
+
+    eth_start_listener();
+    {
+        std::lock_guard<std::mutex> lock(g_nb_mtx);
+        /* Drop stale entries so the tables do not grow forever */
+        for (auto it = g_disc.begin(); it != g_disc.end();) {
+            if (eth_fresh(it->second, EM_ETH_DISC_TIMEOUT_SEC)) {
+                disc.insert(it->first);
+                known_1905.insert(it->first);
+                ++it;
+            } else {
+                it = g_disc.erase(it);
+            }
+        }
+        for (auto it = g_peer_src.begin(); it != g_peer_src.end();) {
+            if (eth_fresh(it->second, EM_ETH_DISC_TIMEOUT_SEC)) {
+                known_1905.insert(it->first);
+                ++it;
+            } else {
+                it = g_peer_src.erase(it);
+            }
+        }
+        for (auto pit = g_lldp.begin(); pit != g_lldp.end();) {
+            for (auto it = pit->second.begin(); it != pit->second.end();) {
+                if (eth_fresh(it->second, EM_ETH_LLDP_TIMEOUT_SEC)) {
+                    lldp[pit->first].insert(it->first);
+                    if (disc.count(it->first) != 0) {
+                        known_1905.insert(it->first);
+                    }
+                    ++it;
+                } else {
+                    it = pit->second.erase(it);
+                }
+            }
+            pit = pit->second.empty() ? g_lldp.erase(pit) : std::next(pit);
+        }
+    }
+
+    for (const auto &cfg : em_eth_get_ports()) {
+        int carrier = 0;
+        if (!eth_iface_read_int(cfg.first, "carrier", carrier) || (carrier != 1)) {
+            std::lock_guard<std::mutex> lock(g_nb_mtx);
+            g_lldp.erase(cfg.first);
+            continue;
+        }
+
+        em_eth_port_neigh_t n;
+        memset(&n, 0, sizeof(n));
+        n.port_id = cfg.second;
+
+        /* LLDP is never forwarded by a bridge, so a chassis heard here is directly connected */
+        bool full_1905 = false, full_non1905 = false;
+        for (const auto &al : lldp[cfg.first]) {
+            if (disc.count(al) == 0) {
+                continue;
+            }
+            if (n.num_1905 < EM_MAX_ETH_1905_NEIGH) {
+                memcpy(n.neigh_1905[n.num_1905++], al.data(), al.size());
+            } else {
+                full_1905 = true;
+            }
+        }
+        /* Everything learned behind a 1905 neighbor is reported by that neighbor itself */
+        if (n.num_1905 == 0) {
+            for (const auto &mac : eth_read_fdb(cfg.first)) {
+                if (known_1905.count(mac) != 0) {
+                    continue;
+                }
+                if (n.num_non1905 < EM_MAX_ETH_NON1905_NEIGH) {
+                    memcpy(n.neigh_non1905[n.num_non1905++], mac.data(), mac.size());
+                } else {
+                    full_non1905 = true;
+                }
+            }
+        }
+        if (full_1905) {
+            em_printfout("Too many 1905 neighbors on port %s, dropping the excess", cfg.first.c_str());
+        }
+        if (full_non1905) {
+            em_printfout("Too many non-1905 neighbors on port %s, dropping the excess", cfg.first.c_str());
+        }
+        if ((n.num_1905 + n.num_non1905) > 0) {
+            result.push_back(n);
+        }
+    }
+    return result;
+}
+
+bool em_eth_neighbors_changed()
+{
+    static std::string last;
+    static bool initialized = false;
+    std::string cur;
+
+    for (const auto &n : em_eth_get_neighbors()) {
+        cur += std::to_string(n.port_id) + ":";
+        cur.append(reinterpret_cast<const char *> (n.neigh_1905), n.num_1905 * sizeof(mac_address_t));
+        cur += "/";
+        cur.append(reinterpret_cast<const char *> (n.neigh_non1905), n.num_non1905 * sizeof(mac_address_t));
+        cur += ";";
     }
 
     bool changed = initialized && (cur != last);

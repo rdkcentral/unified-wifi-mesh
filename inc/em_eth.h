@@ -64,4 +64,20 @@ unsigned int em_eth_link_type_to_mbps(uint8_t link_type);
  */
 bool em_eth_link_changed();
 
+/**!
+ * @brief Returns the neighbors connected to every Ethernet port, ports without neighbors are omitted.
+ *
+ * 1905 neighbors are devices heard over LLDP on the port (so directly connected) that also sent a
+ * Topology Discovery. Non-1905 neighbors are the other MACs the bridge learned on the port.
+ * The first call starts the thread that listens for LLDP and Topology Discovery frames.
+ */
+std::vector<em_eth_port_neigh_t> em_eth_get_neighbors();
+
+/**!
+ * @brief Tells whether the neighbors of any Ethernet port changed since the previous call.
+ *
+ * The first call only records the neighbors and returns false.
+ */
+bool em_eth_neighbors_changed();
+
 #endif // EM_ETH_H
