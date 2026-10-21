@@ -269,12 +269,13 @@ int dm_device_list_t::sync_db(db_client_t& db_client, void *ctx)
 
     while (db_client.next_result(ctx)) {
         memset(&info, 0, sizeof(em_device_info_t));
+        info.backhaul_media_type = BACKHAUL_MEDIA_UNKNOWN;
 
         db_client.get_string(ctx, str, 1);
         dm_device_t::parse_device_id_from_key(str, &info.id);
-        
-		db_client.get_string(ctx, mac, 2);
-		dm_easy_mesh_t::string_to_macbytes(mac, info.intf.mac);
+
+        db_client.get_string(ctx, mac, 2);
+        dm_easy_mesh_t::string_to_macbytes(mac, info.intf.mac);
 
         info.profile = static_cast<em_profile_type_t> (db_client.get_number(ctx, 3));
         db_client.get_string(ctx, info.multi_ap_cap, 4);
@@ -332,6 +333,7 @@ bool dm_device_list_t::compare_db(db_client_t& db_client, const dm_device_t& sta
 
     while (db_client.next_result(ctx)) {
         memset(&info, 0, sizeof(em_device_info_t));
+        info.backhaul_media_type = BACKHAUL_MEDIA_UNKNOWN;
 
         db_client.get_string(ctx, str, 1);
         dm_device_t::parse_device_id_from_key(str, &info.id);

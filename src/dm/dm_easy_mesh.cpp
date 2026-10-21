@@ -4303,6 +4303,7 @@ void dm_easy_mesh_t::reset()
 
     memset(&m_network.m_net_info, 0, sizeof(em_network_info_t));
     memset(&m_device.m_device_info, 0, sizeof(em_device_info_t));
+    m_device.m_device_info.backhaul_media_type = BACKHAUL_MEDIA_UNKNOWN;
     memset(&m_db_cfg_param, 0, sizeof(em_db_cfg_param_t));
     for (unsigned int i = 0; i < EM_MAX_ASSOC_STA_MLD; i++) {
         m_assoc_sta_mld[i].init();

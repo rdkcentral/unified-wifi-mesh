@@ -2567,6 +2567,31 @@ typedef struct {
     emex_device_role_t   device_role;
 } em_ext_device_info_t;
 
+/**
+ * @brief Backhaul media types, as reported in the IEEE 1905.1 Device Information TLV
+ * (IEEE 1905.1 Table 6-12, as extended by Wi-Fi EasyMesh). Values are the
+ * on-wire media type codes.
+ */
+typedef enum
+{
+    BACKHAUL_MEDIA_ETH_FAST = 0x0000, /**< IEEE 802.3u. */
+    BACKHAUL_MEDIA_ETH_GIGA = 0x0001, /**< IEEE 802.3ab. */
+    BACKHAUL_MEDIA_WIFI_80211B = 0x0100, /**< IEEE 802.11b (2.4 GHz). */
+    BACKHAUL_MEDIA_WIFI_80211G = 0x0101, /**< IEEE 802.11g (2.4 GHz). */
+    BACKHAUL_MEDIA_WIFI_80211A = 0x0102, /**< IEEE 802.11a (5 GHz). */
+    BACKHAUL_MEDIA_WIFI_80211N_2_4 = 0x0103, /**< IEEE 802.11n (2.4 GHz). */
+    BACKHAUL_MEDIA_WIFI_80211N_5 = 0x0104, /**< IEEE 802.11n (5 GHz). */
+    BACKHAUL_MEDIA_WIFI_80211AC = 0x0105, /**< IEEE 802.11ac (5 GHz). */
+    BACKHAUL_MEDIA_WIFI_80211AD = 0x0106, /**< IEEE 802.11ad (60 GHz). */
+    BACKHAUL_MEDIA_WIFI_80211AF = 0x0107, /**< IEEE 802.11af. */
+    BACKHAUL_MEDIA_WIFI_80211AX = 0x0108, /**< IEEE 802.11ax. */
+    BACKHAUL_MEDIA_WIFI_80211BE = 0x0109, /**< IEEE 802.11be. */
+    BACKHAUL_MEDIA_PLC_1901_WAVELET = 0x0200, /**< IEEE 1901 wavelet. */
+    BACKHAUL_MEDIA_PLC_1901_FFT = 0x0201, /**< IEEE 1901 FFT. */
+    BACKHAUL_MEDIA_MOCA_V1_1 = 0x0300, /**< MoCA v1.1. */
+    BACKHAUL_MEDIA_UNKNOWN = 0xFFFF /**< Unknown or not learnt. */
+} wifi_backhaul_mediatype_t;
+
 typedef struct {
 	em_device_id_t	id;
     em_interface_t	intf;
@@ -2597,7 +2622,7 @@ typedef struct {
     em_interface_t   backhaul_mac;
     unsigned char    num_backhaul_down_mac;
     em_string_t      backhaul_down_mac[EM_BACKHAUL_DOWNMAC_ADDR];
-    wifi_ieee80211Variant_t  backhaul_media_type;
+    wifi_backhaul_mediatype_t  backhaul_media_type;
     unsigned int    backhaul_phyrate;
     em_interface_t   backhaul_alid;
     mac_address_t   backhaul_sta;
