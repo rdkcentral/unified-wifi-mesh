@@ -2617,7 +2617,6 @@ typedef struct {
     unsigned char assoc_sta_reporting_int;
     unsigned char max_nummlds;
     unsigned char bstamld_maxlinks;
-    em_string_t   environment;
 
     em_small_string_t    primary_device_type;
     em_small_string_t    secondary_device_type;
