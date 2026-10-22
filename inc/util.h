@@ -388,6 +388,16 @@ namespace util {
 	 */
 	bool set_net_uint16_from_host(const uint16_t host_val, void* const ptr);
 
+	/**
+	 * @brief Checks if a string is a valid MAC address
+	 *
+	 * @param[in] str The string to check
+	 * @return bool true if the string is a valid MAC address, false otherwise
+	 *
+	 * @note The function uses `isxdigit` to check if the string is a valid MAC address.
+	 */
+	bool str_is_mac_address(const char* mac);
+
 } // namespace util
 
 #define __FILENAME__ (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
