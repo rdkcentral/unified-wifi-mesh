@@ -62,10 +62,16 @@ bool db_easy_mesh_t::is_table_empty(db_client_t& db_client)
     snprintf(query, sizeof(db_query_t), "select * from %s", m_table_name);
     ctx = db_client.execute(query);
 
+    if (ctx == NULL) {
+        // Query failed - don't mistake this for an empty table
+        printf("%s:%d: Error: Select query failed for table %s\n", __func__, __LINE__, m_table_name);
+        return ret;
+    }
+
     if (db_client.next_result(ctx) == false) {
         ret = true;
     } else {
-        while (db_client.next_result(ctx) == true);
+        db_client.free_result(ctx);
     }
 
     return ret;
@@ -138,7 +144,7 @@ int db_easy_mesh_t::insert_row(db_client_t& db_client, ...)
     //printf("%s:%d: Query: %s\n", __func__, __LINE__, query);
 
     ctx = db_client.execute(query);
-    while (db_client.next_result(ctx) == true);
+    db_client.free_result(ctx);
 
     return 0;
 }
@@ -174,7 +180,7 @@ int db_easy_mesh_t::update_row(db_client_t& db_client, ...)
     //printf("%s:%d: Query: %s\n", __func__, __LINE__, query);
 
     ctx = db_client.execute(query);
-    while (db_client.next_result(ctx) == true);
+    db_client.free_result(ctx);
 
     return 0;
 }
@@ -231,7 +237,7 @@ int db_easy_mesh_t::delete_row(db_client_t& db_client, ...)
     //printf("%s:%d: Query: %s\n", __func__, __LINE__, query);
 
     ctx = db_client.execute(query);
-    while (db_client.next_result(ctx) == true);
+    db_client.free_result(ctx);
 
     return 0;
 }

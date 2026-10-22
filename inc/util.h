@@ -26,6 +26,8 @@
 #include <stdint.h>
 #include "wifi_hal.h"
 #include <pthread.h>
+#include <time.h>
+#include <sys/time.h>
 #include <string>
 #include <memory>
 #include <vector>
@@ -103,6 +105,37 @@ namespace util {
 	 * @note The function modifies the input timespec structure directly.
 	 */
 	void add_milliseconds(struct timespec *ts, long milliseconds);
+
+	/**!
+	 * @brief Reads the current CLOCK_MONOTONIC time into a timespec.
+	 *
+	 * Use for all elapsed-time / timeout computations: unlike the wall clock,
+	 * CLOCK_MONOTONIC is immune to NTP time steps. The wall clock remains the
+	 * right choice only for calendar data (log stamps, DataElements TimeStamp).
+	 *
+	 * @param[out] ts Pointer to the timespec structure to fill.
+	 */
+	void monotonic_now(struct timespec *ts);
+
+	/**!
+	 * @brief Reads the current CLOCK_MONOTONIC time into a timeval.
+	 *
+	 * @param[out] tv Pointer to the timeval structure to fill.
+	 */
+	void monotonic_now(struct timeval *tv);
+
+	/**!
+	 * @brief Initializes a condition variable on CLOCK_MONOTONIC.
+	 *
+	 * pthread_cond_timedwait() deadlines built from monotonic_now() are then
+	 * interpreted on the same clock.
+	 *
+	 * @param[in,out] cond Pointer to the condition variable to initialize.
+	 *
+	 * @returns 0 on success, otherwise a pthread error code; on failure the
+	 * condition variable is not initialized.
+	 */
+	int monotonic_cond_init(pthread_cond_t *cond);
 
 	/**!
 	 * @brief Retrieves the current date and time in RFC 3399 format.

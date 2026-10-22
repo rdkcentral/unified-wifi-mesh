@@ -173,27 +173,42 @@ bool em_msg_t::get_sta_mac(mac_address_t *mac)
     em_tlv_t    *tlv;
     unsigned int len;
 
-    tlv = reinterpret_cast<em_tlv_t *> (m_buff); len = m_len;
-    while ((tlv->type != em_tlv_type_eom) && (len >= sizeof(em_tlv_t))) {
+    if (mac == nullptr) {
+        em_printfout("Error: NULL mac");
+        return false;
+    }
+
+    tlv = reinterpret_cast<em_tlv_t *> (m_buff);
+    len = m_len;
+
+    while ((len >= sizeof(em_tlv_t)) && (tlv->type != em_tlv_type_eom)) {
+        const uint16_t value_len = ntohs(tlv->len);
+        if (len < (sizeof(em_tlv_t) + value_len)) {
+            em_printfout("Error: Length mismatch");
+            return false;
+        }
+
         if (tlv->type == em_tlv_type_client_info) {
+            if (value_len < (2U * sizeof(mac_address_t))) {
+                em_printfout("Error: TLV data too small");
+                return false;
+            }
             memcpy(mac, tlv->value + sizeof(mac_address_t), sizeof(mac_address_t));
             return true;
-        } else if (tlv->type == em_tlv_type_client_assoc_event) {
-            memcpy(mac, tlv->value, sizeof(mac_address_t));
-            return true;
-        } else if (tlv->type == em_tlv_type_bcon_metric_query) {
-            memcpy(mac, tlv->value, sizeof(mac_address_t));
-            return true;
-        } else if (tlv->type == em_tlv_type_bcon_metric_rsp) {
-            memcpy(mac, tlv->value, sizeof(mac_address_t));
-            return true;
-        } else if (tlv->type == em_tlv_type_assoc_sta_link_metric) {
+        } else if ((tlv->type == em_tlv_type_client_assoc_event) ||
+                   (tlv->type == em_tlv_type_bcon_metric_query) ||
+                   (tlv->type == em_tlv_type_bcon_metric_rsp) ||
+                   (tlv->type == em_tlv_type_assoc_sta_link_metric)) {
+            if (value_len < sizeof(mac_address_t)) {
+                em_printfout("Error: TLV data too small");
+                return false;
+            }
             memcpy(mac, tlv->value, sizeof(mac_address_t));
             return true;
         }
 
-        len -= static_cast<unsigned int> (sizeof(em_tlv_t) + ntohs(tlv->len));
-        tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + ntohs(tlv->len));
+        len -= static_cast<unsigned int> (sizeof(em_tlv_t) + value_len);
+        tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + value_len);
     }
 
     return false;
@@ -210,9 +225,6 @@ bool em_msg_t::get_bss_id(mac_address_t *mac)
             memcpy(mac, tlv->value, sizeof(mac_address_t));
             return true;
         } else if (tlv->type == em_tlv_type_client_assoc_event) {
-            memcpy(mac, tlv->value + sizeof(mac_address_t), sizeof(mac_address_t));
-            return true;
-        } else if (tlv->type == em_tlv_type_client_info) {
             memcpy(mac, tlv->value + sizeof(mac_address_t), sizeof(mac_address_t));
             return true;
         } else if (tlv->type == em_tlv_type_ap_metrics) {
@@ -505,23 +517,148 @@ unsigned char* em_msg_t::add_1905_header(unsigned char *buff, unsigned int *len,
 
     return em_msg_t::add_buff_element(tmp, len, reinterpret_cast<uint8_t *> (&cmdu), sizeof(em_cmdu_t));
 }
+
+thread_local unsigned char em_msg_builder_t::s_tlv_value[EM_MAX_TLV_VALUE_SZ];
+
+em_msg_builder_t::em_msg_builder_t(unsigned int capacity) :
+    m_buff(), m_capacity(capacity), m_len(0), m_msg_type(0), m_failed(false)
+{
+}
+
+bool em_msg_builder_t::fits(unsigned int size)
+{
+    if (size > m_capacity - m_len) {
+        m_failed = true;
+        return false;
+    }
+
+    return true;
+}
+
+em_tlv_t *em_msg_builder_t::append_tlv(em_tlv_type_t tlv_type, unsigned int value_len)
+{
+    if (m_failed) {
+        return NULL;
+    }
+
+    if (value_len > EM_MAX_TLV_VALUE_SZ) {
+        m_failed = true;
+        em_printfout("msg type 0x%04x: TLV 0x%02x value length %u exceeds the TLV limit", m_msg_type, tlv_type, value_len);
+        return NULL;
+    }
+
+    unsigned int size = static_cast<unsigned int>(sizeof(em_tlv_t)) + value_len;
+
+    if (fits(size) == false) {
+        em_printfout("msg type 0x%04x: TLV 0x%02x of %u bytes does not fit, len %u capacity %u", m_msg_type, tlv_type, size, m_len, m_capacity);
+        return NULL;
+    }
+
+    m_buff.resize(m_len + size);
+    em_tlv_t *tlv = reinterpret_cast<em_tlv_t *>(m_buff.data() + m_len);
+    tlv->type = tlv_type;
+    tlv->len = htons(static_cast<unsigned short>(value_len));
+    m_len += size;
+
+    return tlv;
+}
+
+bool em_msg_builder_t::add_1905_header(mac_addr_t dst, mac_addr_t src, em_msg_type_t msg_type, unsigned short msg_id)
+{
+    unsigned int size = static_cast<unsigned int>(sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+
+    if (m_failed) {
+        return false;
+    }
+
+    m_msg_type = msg_type;
+    if (fits(size) == false) {
+        em_printfout("msg type 0x%04x: header does not fit, len %u capacity %u", m_msg_type, m_len, m_capacity);
+        return false;
+    }
+
+    m_buff.resize(m_len + size);
+    em_msg_t::add_1905_header(m_buff.data() + m_len, &m_len, dst, src, msg_type, msg_id);
+
+    return true;
+}
+
+unsigned char *em_msg_builder_t::tlv_value()
+{
+    memset(s_tlv_value, 0, sizeof(s_tlv_value));
+
+    return s_tlv_value;
+}
+
+bool em_msg_builder_t::commit_tlv(em_tlv_type_t tlv_type, int value_len)
+{
+    if (value_len < 0) {
+        m_failed = true;
+        em_printfout("msg type 0x%04x: TLV 0x%02x not created (%d)", m_msg_type, tlv_type, value_len);
+        return false;
+    }
+
+    return add_tlv(tlv_type, s_tlv_value, static_cast<unsigned int>(value_len));
+}
+
+bool em_msg_builder_t::add_tlv(em_tlv_type_t tlv_type, const unsigned char *value, unsigned int value_len)
+{
+    em_tlv_t *tlv = append_tlv(tlv_type, value_len);
+
+    if (tlv == NULL) {
+        return false;
+    }
+
+    if (value_len > 0) {
+        memcpy(tlv->value, value, value_len);
+    }
+
+    return true;
+}
+
+bool em_msg_builder_t::add_eom()
+{
+    return append_tlv(em_tlv_type_eom, 0) != NULL;
+}
+
 unsigned int em_msg_t::validate(char *errors[])
 {
     em_tlv_t *tlv;
     unsigned int i, len;
     bool validation = true;
 
-    for (i = 0; i < m_num_tlv; i++) {
-        tlv =  reinterpret_cast<em_tlv_t *> (m_buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
-        len = m_len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+    unsigned int header_sz = static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+    if (m_len < header_sz) {
+        em_printfout("Error: Malformed msg");
+        return false;
+    }
+    tlv = reinterpret_cast<em_tlv_t *> (m_buff + header_sz);
+    len = m_len - header_sz;
+    while ((len >= sizeof(em_tlv_t)) && (tlv->type != em_tlv_type_eom)) {
+        unsigned int tlv_len = static_cast<unsigned int> (sizeof(em_tlv_t) + ntohs(tlv->len));
+        if (len < tlv_len) {
+            em_printfout("Error: Malformed TLV");
+            return false;
+        }
+        len -= tlv_len;
+        tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *>(tlv) + tlv_len);
+    }
+    if (len < sizeof(em_tlv_t)) {   // no room left for an EOM
+        em_printfout("Error: Missing EOM TLV");
+        return false;
+    }
 
-        while ((tlv->type != em_tlv_type_eom) && (len > 0)) {
+    for (i = 0; i < m_num_tlv; i++) {
+        tlv = reinterpret_cast<em_tlv_t *> (m_buff + header_sz);
+        len = m_len - header_sz;
+        while ((len >= sizeof(em_tlv_t)) && (tlv->type != em_tlv_type_eom)) {
+            unsigned int tlv_len = static_cast<unsigned int> (sizeof(em_tlv_t) + ntohs(tlv->len));
             if (tlv->type == m_tlv_member[i].m_type) {
                 m_tlv_member[i].m_present = true;
                 break;
             }
-            len -= static_cast<unsigned int> (sizeof(em_tlv_t) + htons(tlv->len));
-            tlv = reinterpret_cast<em_tlv_t *> ((reinterpret_cast<unsigned char *>(tlv) + sizeof(em_tlv_t) + htons(tlv->len)));
+            len -= tlv_len;
+            tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *>(tlv) + tlv_len);
         }
 
         if ((m_tlv_member[i].m_requirement == mandatory) &&((m_tlv_member[i].m_present == false)||((sizeof(em_tlv_t) + htons(tlv->len)) < static_cast<size_t> (m_tlv_member[i].m_tlv_length)))) {
@@ -529,13 +666,6 @@ unsigned int em_msg_t::validate(char *errors[])
             m_num_errors++;
             errors[m_num_errors - 1] = m_errors[m_num_errors - 1];
             validation = false;
-            if (m_tlv_member[i].m_present == false) { 
-                //printf("%s:%d; TLV not present\n", __func__, __LINE__);
-            }   
-
-            if (((sizeof(em_tlv_t) + htons(tlv->len)) < static_cast<size_t> (m_tlv_member[i].m_tlv_length))) {
-                //printf("%s:%d; TLV type: 0x%04x Length: %d, length validation error\n", __func__, __LINE__, tlv->type, htons(tlv->len));
-            }
         }
 
         if ((m_tlv_member[i].m_requirement == bad) && (m_tlv_member[i].m_present == true)) {
@@ -588,7 +718,7 @@ void em_msg_t::autoconfig_wsc_m1() //M1 from MAP Agent
     m_tlv_member[m_num_tlv++] = em_tlv_member_t(em_tlv_type_wsc, mandatory, "table 8 of WSC v2.0.7", 264);
     m_tlv_member[m_num_tlv++] = em_tlv_member_t(em_tlv_type_profile_2_ap_cap, (m_profile > em_profile_type_1) ? mandatory:bad, "17.2.48 of Wi-Fi Easy Mesh 5.0", 2);
     m_tlv_member[m_num_tlv++] = em_tlv_member_t(em_tlv_type_ap_radio_advanced_cap, (m_profile > em_profile_type_1) ? mandatory:bad, "17.2.52 of Wi-Fi Easy Mesh 5.0", 2);
-
+    m_tlv_member[m_num_tlv++] = em_tlv_member_t(em_tlv_type_vendor_specific, optional, "table 6-7 of IEEE-1905-1", EMEX_MIN_EXT_DEV_INFO_SZ);
 
 }
 

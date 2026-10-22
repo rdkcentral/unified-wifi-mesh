@@ -137,6 +137,13 @@ type STA struct {
     SSID        string `json:"-"`
 }
 
+type clientAssocCtrlRequest struct {
+    Bssid          string   `json:"Bssid"`
+    AssocControl   int      `json:"AssocControl"`
+    ValidityPeriod int      `json:"ValidityPeriod"`
+    StaMacList     []string `json:"StaMacList"`
+}
+
 type Device struct {
 	MAC             string         `json:"mac"`
 	Role            string         `json:"role"`
@@ -2907,6 +2914,9 @@ func main() {
 	// Unassoc STA 
 	api.HandleFunc("/unassoc_sta_query", unassocStaQueryHandler).Methods("POST")
 
+	//client assoc ctrl request
+	api.HandleFunc("/client_assoc", clientAssocCtrlRequestHandler).Methods("POST")
+
 	// Enable CORS
 	router.Use(corsMiddleware)
 
@@ -3594,6 +3604,105 @@ func unassocStaQueryHandler(w http.ResponseWriter, r *http.Request) {
     }    
 }
 
+/* func: clientAssocCtrlRequestHandler()
+ * Description:
+ * Handles POST /client_assoc requests. Parses the clientAssocCtrlRequest payload
+ * and triggers a 1905 Client Assoc Ctrl Request.
+ */
+func clientAssocCtrlRequestHandler(w http.ResponseWriter, r *http.Request) {
+    if r.Method != http.MethodPost {
+        http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+        return
+    }
+
+    defer r.Body.Close()
+    const maxRequestSize = 64 * 1024 // 64 KB
+    r.Body = http.MaxBytesReader(w, r.Body, maxRequestSize)
+
+    var req clientAssocCtrlRequest
+    if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+        http.Error(w, "Invalid request payload", http.StatusBadRequest)
+        return
+    }
+
+    if req.Bssid == "" {
+        http.Error(w, "BSSID is required", http.StatusBadRequest)
+        return
+    }
+    if !isValidMac(req.Bssid) {
+        http.Error(w, "BSSID must be a valid MAC address (xx:xx:xx:xx:xx:xx)", http.StatusBadRequest)
+        return
+    }
+
+    if req.AssocControl != 0 && req.AssocControl != 1 {
+        http.Error(w, "AssocControl must be 0 (Block) or 1 (Unblock)", http.StatusBadRequest)
+        return
+    }
+
+    if req.ValidityPeriod < 0 || req.ValidityPeriod > 65535 {
+        http.Error(w, "ValidityPeriod must be in range 0..65535", http.StatusBadRequest)
+        return
+    }
+
+    if len(req.StaMacList) == 0 {
+        http.Error(w, "StaMacList cannot be empty", http.StatusBadRequest)
+        return
+    }
+
+    if len(req.StaMacList) > 20 {
+        http.Error(w, "StaMacList exceeds max supported size (20)", http.StatusBadRequest)
+        return
+    }
+
+    for _, mac := range req.StaMacList {
+        if !isValidMac(mac) {
+            http.Error(w, "StaMacList must contain valid MAC addresses (xx:xx:xx:xx:xx:xx)", http.StatusBadRequest)
+            return
+        }
+    }
+    payload := map[string]interface{}{
+        "Bssid":          req.Bssid,
+        "AssocControl":   req.AssocControl,
+        "ValidityPeriod": req.ValidityPeriod,
+        "StaMacList":     req.StaMacList,
+    }
+    jsonBytes, err := json.Marshal(payload)
+    if err != nil {
+        http.Error(w, "Failed to serialize client assoc parameters", http.StatusInternalServerError)
+        return
+    }
+    log.Printf("Client Assoc Ctrl Request prepared (bssid=%s sta_count=%d)", req.Bssid, len(req.StaMacList))
+    cJsonStr := C.CString(string(jsonBytes))
+    defer C.free(unsafe.Pointer(cJsonStr))
+
+    node := C.get_network_tree(cJsonStr)
+    if node == nil {
+        http.Error(w, "Failed to create network tree for client assoc ctrl request", http.StatusInternalServerError)
+        return
+    }
+    defer C.free_network_tree(node)
+
+    cmd := C.CString("client_assoc OneWifiMesh")
+    defer C.free(unsafe.Pointer(cmd))
+
+    result := C.exec(cmd, C.strlen(cmd), node)
+    if result == nil {
+        http.Error(w, "Client Assoc Ctrl Request command failed", http.StatusInternalServerError)
+        return
+    }
+    defer C.free_network_tree(result)
+
+    log.Printf("Client Assoc Ctrl Request sent: bssid=%s assoc_control=%d validity_period=%d sta_mac_list=%v ",
+        req.Bssid, req.AssocControl, req.ValidityPeriod, req.StaMacList )
+
+    w.Header().Set("Content-Type", "application/json")
+    if err := json.NewEncoder(w).Encode(map[string]interface{}{
+        "success": true,
+        "message": "Client Assoc Ctrl Request sent",
+    }); err != nil {
+        log.Printf("[ERROR][HTTP] Failed to encode response: %v", err)
+    }
+}
 
 //------------------------------------------------------------
 //                    Helper Functions

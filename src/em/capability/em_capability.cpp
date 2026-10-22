@@ -1183,12 +1183,17 @@ int em_capability_t::handle_ap_radio_basic_cap(unsigned char *buff, unsigned int
 			break;
 		}
 	}
-	if (radio_exists == false) {
-		em_printfout("Radio does not exist, getting radio at index: %d", dm->get_num_radios());
-		radio = dm->get_radio(dm->get_num_radios());
-		memset(&radio->m_radio_info, 0, sizeof(em_radio_info_t));	
-		dm->set_num_radios(dm->get_num_radios() + 1);
-	}
+    if (radio_exists == false) {
+        unsigned int radio_index = dm->get_num_radios();
+        if (radio_index >= EM_MAX_BANDS) {
+            em_printfout("Error: Cannot add radio %s: maximum radios limit reached (%d)", mac_str, EM_MAX_BANDS);
+            return -1;
+        }
+        em_printfout("Radio does not exist, getting radio at index: %d", radio_index);
+        radio = dm->get_radio(radio_index);
+        memset(&radio->m_radio_info, 0, sizeof(em_radio_info_t));	
+        dm->set_num_radios(radio_index + 1);
+    }
 
 	radio_info = &radio->m_radio_info;
 	memcpy(radio_info->intf.mac, ruid, sizeof(mac_address_t));
@@ -1422,7 +1427,7 @@ int em_capability_t::handle_ap_cap_report(unsigned char *buff, unsigned int len)
             handle_ap_radio_basic_cap(tlv->value, htons(tlv->len));
         } else if (tlv->type == em_tlv_type_akm_suite){
             em_printfout("Received AKM Suite Capabilities TLV");
-            em_configuration_t::store_akm_suite_cap(dm, tlv->value, htons(tlv->len));
+            em_configuration_t::store_akm_suite_cap(dm, tlv->value, htons(tlv->len), get_mgr());
         } else if (tlv->type == em_tlv_type_ht_cap){
             em_printfout("Received HT Capability TLV");
             em_ap_ht_cap_t *ht_cap = reinterpret_cast<em_ap_ht_cap_t *>(tlv->value);

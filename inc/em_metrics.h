@@ -27,6 +27,9 @@ class em_metrics_t {
 
         friend class EmMetricsTest;
     
+    uint64_t m_cpu_idle_prev  = 0;
+    uint64_t m_cpu_total_prev = 1;
+
 	/**!
 	 * @brief Retrieves the data model instance.
 	 *
@@ -278,6 +281,10 @@ class em_metrics_t {
 	 */
 	int handle_beacon_metrics_response(unsigned char *buff, unsigned int len);
 
+
+	int handle_device_metrics_vendor_tlv(unsigned char *buf, unsigned int len);
+
+
   	/**!
 	 * @brief Handles the associated station traffic statistics.
 	 *
@@ -299,6 +306,8 @@ class em_metrics_t {
 	 *
 	 * @param[in] buff Pointer to the buffer containing the response data.
 	 * @param[in] len Length of the data in the buffer.
+	 * @param[in] peer_profile Profile of the peer that sent the response; em_profile_type_reserved
+	 * (unknown) is validated as em_profile_type_1.
 	 *
 	 * @returns int Status code indicating success or failure of the operation.
 	 * @retval 0 on success.
@@ -306,7 +315,7 @@ class em_metrics_t {
 	 *
 	 * @note Ensure that the buffer is properly allocated and the length is correctly specified.
 	 */
-	int handle_ap_metrics_response(unsigned char *buff, unsigned int len);
+	virtual int handle_ap_metrics_response(unsigned char *buff, unsigned int len, em_profile_type_t peer_profile);
 	int handle_vendor_msg(unsigned char *buff, unsigned int len);
 
   	/**!
@@ -537,7 +546,7 @@ class em_metrics_t {
 	 */
 	short create_assoc_wifi6_sta_sta_report_tlv(unsigned char *buff, const dm_sta_t *const sta);
 
-	short create_link_stats_alarm_tlv(unsigned char *buff);
+	int create_link_stats_alarm_tlv(unsigned char *buff);
 
         /*
          * @brief Tracks whether an Unassociated STA Link Metrics Query
@@ -681,6 +690,62 @@ class em_metrics_t {
         */
         void clear_unassoc_sta_query_msg_id() { m_unassoc_sta_query_msg_id = 0; }	
 
+	/**!
+	 * @brief Retrieves the system uptime using a monotonic clock.
+	 *
+	 * @param[out] ts Reference to a timespec structure to store the uptime.
+	 *
+	 * @returns true on success, false on failure.
+	 */
+	bool devicemetrics_get_uptime(struct timespec &ts);
+
+	/**!
+	 * @brief Retrieves the CPU temperature from the thermal sysfs interface.
+	 *
+	 * @param[out] cpu_temp Reference to store the CPU temperature in degrees Celsius.
+	 *
+	 * @returns true on success, false if the thermal zone file cannot be read.
+	 *
+	 * @note Not all platforms expose CPU temperature via sysfs. Returns 0 on unsupported platforms.
+	 */
+	bool devicemetrics_get_cpu_temp(uint8_t &cpu_temp);
+
+	/**!
+	 * @brief Retrieves the current CPU load percentage.
+	 *
+	 * Calculates CPU load as the delta between two consecutive reads of /proc/stat.
+	 *
+	 * @param[out] cpu_load Reference to store the CPU load as a percentage (0-100).
+	 *
+	 * @returns true on success, false if /proc/stat cannot be read or parsed.
+	 */
+	bool devicemetrics_get_cpu_load(uint8_t &cpu_load);
+
+	/**!
+	 * @brief Retrieves memory usage information from /proc/meminfo.
+	 *
+	 * @param[out] memtotal Reference to store total memory in kB.
+	 * @param[out] memfree  Reference to store free memory in kB.
+	 * @param[out] memcached Reference to store cached memory (Cached + Buffers) in kB.
+	 *
+	 * @returns true on success, false if /proc/meminfo cannot be read or required fields are missing.
+	 */
+	bool devicemetrics_get_meminfo(int32_t &memtotal, int32_t &memfree, int32_t &memcached);
+
+	/**!
+	 * @brief Creates a vendor-specific device metrics TLV.
+	 *
+	 * Populates a vendor TLV with device metrics including uptime, CPU load, CPU temperature,
+	 * memory usage, and per-radio information.
+	 *
+	 * @param[out] buff Pointer to the buffer where the TLV will be stored.
+	 *
+	 * @returns short The size of the TLV created, or 0 on failure.
+	 *
+	 * @note Ensure that the buffer is large enough to hold the TLV.
+	 */
+	short create_vendor_device_metrics_tlv(unsigned char *buff);
+
 public:
 
 	/**!
@@ -697,6 +762,8 @@ public:
 	 * @note Ensure that the buffer is large enough to hold the TLV data.
 	 */
 	virtual short create_assoc_sta_traffic_stats_tlv(unsigned char *buff, const dm_sta_t *const sta);
+
+	short send_single_beacon_metrics_query_msg();
 
 	short send_beacon_metrics_query(mac_address_t sta_mac, bssid_t bssid);
 

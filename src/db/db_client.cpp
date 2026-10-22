@@ -92,13 +92,26 @@
      res_ctx->row = mysql_fetch_row(res_ctx->result);
 
      if (res_ctx->row == NULL) {
-         // No more rows - clean up
-         mysql_free_result(res_ctx->result);
-         delete res_ctx;
+         // No more rows
+         free_result(ctx);
          return false;
      }
 
      return true;
+ }
+
+ void db_client_t::free_result(void *ctx)
+ {
+     if (ctx == NULL) {
+         return;
+     }
+
+     result_context_t *res_ctx = static_cast<result_context_t *>(ctx);
+     if (res_ctx->result) {
+         mysql_free_result(res_ctx->result);
+         res_ctx->result = NULL;
+     }
+     delete res_ctx;
  }
 
  char *db_client_t::get_string(void *ctx, char *str, unsigned int col)
@@ -109,7 +122,10 @@
 
      result_context_t *res_ctx = static_cast<result_context_t *>(ctx);
 
-     if (res_ctx->row == NULL || res_ctx->row[col - 1] == NULL) {
+     // col is 1-based; reject 0 and anything beyond the result's field count to avoid underflow/overflow
+     if (res_ctx->row == NULL ||
+         col == 0 || col > mysql_num_fields(res_ctx->result) ||
+         res_ctx->row[col - 1] == NULL) {
          return NULL;
      }
 
@@ -129,7 +145,10 @@
 
      result_context_t *res_ctx = static_cast<result_context_t *>(ctx);
 
-     if (res_ctx->row == NULL || res_ctx->row[col - 1] == NULL) {
+     // col is 1-based; reject 0 and anything beyond the result's field count to avoid underflow/overflow
+     if (res_ctx->row == NULL ||
+         col == 0 || col > mysql_num_fields(res_ctx->result) ||
+         res_ctx->row[col - 1] == NULL) {
          return 0;
      }
 
