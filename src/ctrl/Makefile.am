@@ -22,9 +22,8 @@ AM_CFLAGS += -D_ANSC_LITTLE_ENDIAN_
 ACLOCAL_AMFLAGS = -I m4
 hardware_platform = i686-linux-gnu
 
-# uwm-private-ext.mk expects ONEWIFI_EM_HOME (only set by build/makefile.inc for plain make)
-ONEWIFI_EM_HOME = $(top_srcdir)
-include $(top_srcdir)/uwm-private-ext/uwm-private-ext.mk
+UWM_VENDOR_EXT_DIR = @UWM_VENDOR_EXT_DIR@
+-include $(UWM_VENDOR_EXT_DIR)/vendor-ext.mk
 
 bin_PROGRAMS = onewifi_em_ctrl
 if EM_UNITTEST
@@ -36,7 +35,7 @@ onewifi_em_ctrl_CPPFLAGS = \
     -I$(top_srcdir)/src/utils \
     -I$(top_srcdir)/src/util \
     -I$(top_srcdir)/src/util_crypto\
-    -I$(top_srcdir)/uwm-private-ext/inc
+    -I$(UWM_VENDOR_EXT_INC_DIR)
 
 onewifi_em_ctrl_CXXFLAGS = $(INCLUDEDIRS) -g -Wall -Wextra -pedantic -Wpedantic -Wpointer-arith -Wcast-qual -Wcast-align -Wstrict-aliasing -fno-common -Wctor-dtor-privacy -Wold-style-cast -Woverloaded-virtual -Wsign-promo -Wstrict-null-sentinel -fstack-protector-strong -D_FORTIFY_SOURCE=2 -fPIE -pie -ftrapv -Wformat=2 -Wformat-security -Wuninitialized -Winit-self -Wsign-conversion -Weffc++ -Wno-unused-parameter -std=c++17 -fno-omit-frame-pointer #-Wconversion -Werror -O2
 if EM_ASAN_CTRL
@@ -50,7 +49,6 @@ onewifi_em_ctrl_SOURCES =  \
      $(top_srcdir)/src/em/em_onewifi.cpp \
      $(top_srcdir)/src/em/em_sm.cpp \
      $(top_srcdir)/src/em/em_net_node.cpp \
-     $(top_srcdir)/src/em/em_ctrl_hooks.cpp \
      $(top_srcdir)/src/em/config/em_configuration.cpp \
      $(top_srcdir)/src/em/prov/easyconnect/ec_configurator.cpp \
      $(top_srcdir)/src/em/prov/easyconnect/ec_crypto.cpp \
@@ -152,7 +150,7 @@ onewifi_em_ctrl_SOURCES =  \
      $(top_srcdir)/src/util_crypto/aes_siv.c \
      $(top_srcdir)/src/utils/util.cpp \
      $(top_srcdir)/src/utils/timer.cpp\
-     $(UWM_PRIVATE_EXT_CTRL_SOURCES)
+     $(UWM_VENDOR_EXT_CTRL_SRC_FILES)
  
  
 onewifi_em_ctrl_LDFLAGS = -lm -lpthread -ldl -luuid -lcjson -lssl -lcrypto -lrbus -lmariadb

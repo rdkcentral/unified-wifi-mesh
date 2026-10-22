@@ -15,15 +15,23 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  */
-#ifndef EM_CTRL_HOOKS_H
-#define EM_CTRL_HOOKS_H
-#include <functional>
-#include "bus.h"
 
-#define DEVICE_WIFI_DATAELEMENTS_RCV_WEI_DATA "Device.WiFi.DataElements.Network.RcvWeiData"
+#ifndef EM_CMD_VENDOR_DATA_H
+#define EM_CMD_VENDOR_DATA_H
 
-using em_bus_ready_fn_t = std::function<void(bus_handle_t*, wifi_bus_desc_t*)>;
+#include <vector>
+#include <cstdint>
+#include "em_cmd.h"
 
-void em_register_bus_ready_hook(em_bus_ready_fn_t fn);
-void em_fire_bus_ready_hooks(bus_handle_t*, wifi_bus_desc_t*);
+class em_cmd_vendor_data_t : public em_cmd_t {
+
+public:
+    // Raw stats_arg_t[] payload copied from the rbus event.
+    std::vector<uint8_t> m_raw_data;
+
+    const std::vector<uint8_t> *get_raw_data() const override { return &m_raw_data; }
+
+    em_cmd_vendor_data_t(uint8_t *raw_buff, int len, dm_easy_mesh_t& dm);
+};
+
 #endif

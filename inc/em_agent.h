@@ -299,7 +299,7 @@ class em_agent_t : public em_mgr_t {
 
 	void handle_link_stats_report(em_bus_event_t *evt);
 
-        void handle_wei_app_data(em_bus_event_t *evt);
+	void handle_vendor_data(em_bus_event_t *evt);
         /**!
         * This function processes the Unassociated STA Link Metrics Query
         * received from the controller, parses the requested operating
@@ -416,8 +416,7 @@ public:
 	 */
 	int refresh_onewifi_subdoc(const char *log_name, const webconfig_subdoc_type_t type) override;
 
-    bool refresh_current_radio_data(const unsigned char *ruid) override;
-
+	bool refresh_current_radio_data(const unsigned char *ruid) override;
     
 	/**
 	 * @brief Send an action frame

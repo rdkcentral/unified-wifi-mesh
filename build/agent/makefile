@@ -113,10 +113,16 @@ AGENT_SOURCES = $(wildcard $(ONEWIFI_EM_SRC)/em/*.cpp) \
     $(ONEWIFI_EM_SRC)/utils/util.cpp \
 	$(ONEWIFI_EM_SRC)/utils/timer.cpp \
 
--include $(ONEWIFI_EM_HOME)/uwm-private-ext/uwm-private-ext.mk
-AGENT_SOURCES += $(UWM_PRIVATE_EXT_AGENT_SOURCES)
+ifneq ($(strip $(UWM_VENDOR_EXT_DIR)),)
+-include $(UWM_VENDOR_EXT_DIR)/vendor-ext.mk
+endif
+ifneq ($(strip $(UWM_VENDOR_EXT_AGENT_SRC_FILES)),)
+CXXFLAGS += -I$(UWM_VENDOR_EXT_INC_DIR)
+UWM_VENDOR_EXT_OBJECTS := $(patsubst $(UWM_VENDOR_EXT_DIR)/src/%.cpp,$(OBJDIR)/vendor_ext/%.o,$(UWM_VENDOR_EXT_AGENT_SRC_FILES))
+endif
 
-AGENT_OBJECTS = $(AGENT_SOURCES:.cpp=.o)
+AGENT_CORE_OBJECTS = $(AGENT_SOURCES:.cpp=.o)
+AGENT_OBJECTS = $(AGENT_CORE_OBJECTS) $(UWM_VENDOR_EXT_OBJECTS)
 GENERIC_OBJECTS = $(GENERIC_SOURCES:.c=.o) 
 ALLOBJECTS = $(AGENT_OBJECTS) $(GENERIC_OBJECTS)
 
@@ -199,7 +205,11 @@ $(PROGRAM): $(ALLOBJECTS)
 $(GENERIC_OBJECTS): %.o: %.c
 	$(CC) $(CFLAGS) -o $@ -c $<
 
-$(AGENT_OBJECTS): %.o: %.cpp
+$(AGENT_CORE_OBJECTS): %.o: %.cpp
+	$(CXX) $(CXXFLAGS) -o $@ -c $<
+
+$(OBJDIR)/vendor_ext/%.o: $(UWM_VENDOR_EXT_DIR)/src/%.cpp
+	mkdir -p $(@D)
 	$(CXX) $(CXXFLAGS) -o $@ -c $<
 
 # Clean target: "make -f Makefile.Linux clean" to remove unwanted objects and executables.

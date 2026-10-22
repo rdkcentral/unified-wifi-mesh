@@ -23,9 +23,8 @@ AM_CFLAGS += -D_ANSC_LITTLE_ENDIAN_
 ACLOCAL_AMFLAGS = -I m4
 hardware_platform = i686-linux-gnu
 
-# uwm-private-ext.mk expects ONEWIFI_EM_HOME (only set by build/makefile.inc for plain make)
-ONEWIFI_EM_HOME = $(top_srcdir)
-include $(top_srcdir)/uwm-private-ext/uwm-private-ext.mk
+UWM_VENDOR_EXT_DIR = @UWM_VENDOR_EXT_DIR@
+-include $(UWM_VENDOR_EXT_DIR)/vendor-ext.mk
 
 bin_PROGRAMS = onewifi_em_agent
 if EM_UNITTEST
@@ -37,7 +36,7 @@ onewifi_em_agent_CPPFLAGS = \
     -I$(top_srcdir)/src/utils \
     -I$(top_srcdir)/src/util \
     -I$(top_srcdir)/src/util_crypto \
-    -I$(top_srcdir)/uwm-private-ext/inc
+    -I$(UWM_VENDOR_EXT_INC_DIR)
 
 onewifi_em_agent_CXXFLAGS = $(INCLUDEDIRS) -g -Wall -Wextra -pedantic -Wpedantic -Wpointer-arith -Wcast-qual -Wcast-align -Wstrict-aliasing -fno-common -Wctor-dtor-privacy -Wold-style-cast -Woverloaded-virtual -Wsign-promo -Wstrict-null-sentinel -fstack-protector-strong -D_FORTIFY_SOURCE=2 -fPIE -pie -ftrapv -Wformat=2 -Wformat-security -Wuninitialized -Winit-self -Wsign-conversion -Weffc++ -Wno-unused-parameter -std=c++17 -fno-omit-frame-pointer #-Wconversion -Werror -O2
 if EM_ASAN_AGENT
@@ -106,7 +105,7 @@ onewifi_em_agent_SOURCES =  \
      $(top_srcdir)/src/cmd/em_cmd_beacon_report.cpp \
      $(top_srcdir)/src/cmd/em_cmd_ap_metrics_report.cpp \
      $(top_srcdir)/src/cmd/em_cmd_link_stats_report.cpp \
-     $(top_srcdir)/src/cmd/em_cmd_generic.cpp \
+     $(top_srcdir)/src/cmd/em_cmd_vendor_data.cpp \
      $(top_srcdir)/src/cmd/em_cmd_unassoc_sta_result.cpp \
      $(top_srcdir)/src/agent/dm_easy_mesh_agent.cpp \
      $(top_srcdir)/src/agent/em_agent.cpp \
@@ -135,7 +134,7 @@ onewifi_em_agent_SOURCES =  \
      $(top_srcdir)/src/utils/util.cpp \
      $(top_srcdir)/src/utils/timer.cpp \
      $(top_srcdir)/src/util_crypto/aes_siv.c \
-     $(UWM_PRIVATE_EXT_AGENT_SOURCES)
+     $(UWM_VENDOR_EXT_AGENT_SRC_FILES)
 
 
 onewifi_em_agent_LDFLAGS = -lm -lpthread -ldl -lcjson -luuid -lssl -lcrypto -lwifi_webconfig -lrbus

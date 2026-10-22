@@ -2068,7 +2068,7 @@ typedef struct {
     em_channel_scan_cap_radio_t  radios[EM_MAX_RADIO_PER_AGENT];
 } __attribute__((__packed__))em_channel_scan_cap_t;
 
-/* CAC Method types — Wi-Fi Easy Mesh spec - 17.2.46 Table 16 */
+/* CAC Method types - Wi-Fi Easy Mesh spec - 17.2.46 Table 16 */
 typedef enum {
     em_cac_method_continuous              = 0, /* Continuous CAC */
     em_cac_method_continuous_dedicated    = 1, /* Continuous with dedicated radio */
@@ -2454,7 +2454,7 @@ typedef enum {
     em_cmd_type_get_link_quality_report,
     em_cmd_type_unassoc_sta_query,
     em_cmd_type_unassoc_sta_result,
-    em_cmd_type_generic_data,
+    em_cmd_type_vendor_data,
     em_cmd_type_client_assoc_ctrl_req,
 
     em_cmd_type_max,
@@ -3195,7 +3195,7 @@ typedef enum {
     em_bus_event_type_unassoc_sta_link_metrics_query,
     em_bus_event_type_unassoc_sta_result,
     em_bus_event_type_failed_conn,
-    em_bus_event_type_wei_app_data,
+    em_bus_event_type_vendor_data,
 
     em_bus_event_type_max
 } em_bus_event_type_t;
@@ -3292,8 +3292,7 @@ typedef enum {
     dm_orch_type_unassoc_sta_link_req_query,
     dm_orch_type_unassoc_sta_result,
     dm_orch_type_client_assoc,
-
-    dm_orch_type_wei_data,
+    dm_orch_type_vendor_data,
     
 } dm_orch_type_t;
 

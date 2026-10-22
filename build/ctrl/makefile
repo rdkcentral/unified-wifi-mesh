@@ -17,7 +17,6 @@
 ##########################################################################
 
 include ../makefile.inc
--include ../../uwm-private-ext/uwm-private-ext.mk
 
 #
 # program
@@ -108,9 +107,16 @@ CTRL_SOURCES = $(wildcard $(ONEWIFI_EM_SRC)/em/*.cpp) \
 	$(ONEWIFI_EM_SRC)/utils/util.cpp \
 	$(ONEWIFI_EM_SRC)/utils/timer.cpp \
 
-CTRL_SOURCES += $(UWM_PRIVATE_EXT_CTRL_SOURCES)
+ifneq ($(strip $(UWM_VENDOR_EXT_DIR)),)
+-include $(UWM_VENDOR_EXT_DIR)/vendor-ext.mk
+endif
+ifneq ($(strip $(UWM_VENDOR_EXT_CTRL_SRC_FILES)),)
+CXXFLAGS += -I$(UWM_VENDOR_EXT_INC_DIR)
+UWM_VENDOR_EXT_OBJECTS := $(patsubst $(UWM_VENDOR_EXT_DIR)/src/%.cpp,$(OBJDIR)/vendor_ext/%.o,$(UWM_VENDOR_EXT_CTRL_SRC_FILES))
+endif
 
-CTRL_OBJECTS = $(CTRL_SOURCES:.cpp=.o)
+CTRL_CORE_OBJECTS = $(CTRL_SOURCES:.cpp=.o)
+CTRL_OBJECTS = $(CTRL_CORE_OBJECTS) $(UWM_VENDOR_EXT_OBJECTS)
 GENERIC_OBJECTS = $(GENERIC_SOURCES:.c=.o) 
 ALLOBJECTS = $(CTRL_OBJECTS) $(GENERIC_OBJECTS)
 
@@ -122,8 +128,12 @@ $(PROGRAM): $(ALLOBJECTS)
 $(GENERIC_OBJECTS): %.o: %.c
 	$(CC) $(CFLAGS) -o $@ -c $< 
 
-$(CTRL_OBJECTS): %.o: %.cpp
+$(CTRL_CORE_OBJECTS): %.o: %.cpp
 	$(CXX) $(CXXFLAGS) -o $@ -c $< 
+
+$(OBJDIR)/vendor_ext/%.o: $(UWM_VENDOR_EXT_DIR)/src/%.cpp
+	mkdir -p $(@D)
+	$(CXX) $(CXXFLAGS) -o $@ -c $<
 
 # Make sure $(NVRAM_DIR) exists
 $(NVRAM_DIR):

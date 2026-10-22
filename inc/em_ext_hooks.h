@@ -20,8 +20,10 @@
 #define EM_EXT_HOOKS_H
 
 #include "em_base.h"
+#include "bus.h"
 
 class em_t;
+class em_vendor_ext_interface_t;
 
 /**
  * Extension point for out-of-tree controller and agent behavior.
@@ -46,6 +48,12 @@ public:
     // Provides the final decision on whether an agent-reported BSS SSID is accepted.
     virtual bool accept_bss_ssid(bool matches_network) { return matches_network; }
 
+    // Called once the component has completed its bus setup.
+    virtual void on_bus_ready(bus_handle_t *bus, wifi_bus_desc_t *desc) {}
+
+    // Creates the handler for vendor-specific TLVs; one is owned by each em_vendor_t.
+    // Returns NULL when vendor TLVs are not supported.
+    virtual em_vendor_ext_interface_t *create_vendor_ext() { return NULL; }
 };
 
 inline em_ext_hooks_t *&em_ext_hooks_slot()

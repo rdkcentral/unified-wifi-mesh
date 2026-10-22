@@ -458,9 +458,8 @@ bool em_orch_t::is_cmd_in_progress_by_type(em_bus_event_t *evt)
     return false;
 }
 
-// WEI vendor-data events carry the STA MAC string as the first field of the raw
-// payload; gate per-STA instead of per-type so a report for one STA doesn't
-// block another STA's report from being queued as its own vendor message.
+// Vendor-data events carry the STA MAC string as the first field of the raw
+// payload; gate per-STA so one STA's report does not block another's.
 bool em_orch_t::is_cmd_in_progress_by_sta(em_bus_event_t *evt)
 {
     em_cmd_stats_t *stats;
@@ -542,7 +541,7 @@ bool em_orch_t::is_cmd_type_in_progress(em_bus_event_t *evt)
     } else if ((type == em_cmd_type_em_config) ||
                (type == em_cmd_type_set_policy)) {
         return is_cmd_in_progress_by_type(evt);
-    } else if (type == em_cmd_type_generic_data) {
+    } else if (type == em_cmd_type_vendor_data) {
         return is_cmd_in_progress_by_sta(evt);
     }
     if ((stats = static_cast<em_cmd_stats_t *>(hash_map_get(m_cmd_map, key))) != NULL) {

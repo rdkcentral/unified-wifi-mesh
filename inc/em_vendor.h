@@ -29,7 +29,7 @@ class em_mgr_t;
 
 
 /**
- * Abstract interface for private vendor extensions.
+ * Abstract interface for vendor extensions, created through em_ext_hooks_t::create_vendor_ext().
  */
 class em_vendor_ext_interface_t {
 public:
@@ -49,8 +49,6 @@ public:
 
 };
 
-em_vendor_ext_interface_t* create_em_vendor_ext();
-
 class em_vendor_t {
 private:
     em_vendor_ext_interface_t *m_vendor_ext;
@@ -67,14 +65,12 @@ public:
     // Dispatches to the appropriate handler based on the TLV's attr_id.
     int handle_vendor_msg(unsigned char *buff, unsigned int len);
 
-    // Weak hook for unrecognised attr_ids — overridden by private repo
-    // to parse vendor STA private TLVs and populate dm_sta_ext_t.
+    // Forwards a received vendor-specific TLV to the vendor extension, if any.
     virtual int handle_vendor_tlv_ext(const unsigned char *tlv_value,
                                unsigned int         tlv_len,
                                dm_easy_mesh_t      *dm);
 
-    // Weak hook for building vendor TLV payloads — overridden by private
-    // repo to encode WEI stats as a vendor-specific attribute.
+    // Asks the vendor extension to build the vendor TLV payload, if any.
     virtual int build_vendor_tlv_ext(const unsigned char *raw_data,
                                unsigned int         raw_len,
                                unsigned char       *tlv_value,

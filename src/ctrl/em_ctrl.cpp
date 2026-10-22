@@ -47,7 +47,6 @@
 #include "em_orch_ctrl.h"
 #include "util.h"
 #include "wifi_util.h"
-#include "em_ctrl_hooks.h"
 #include "em_ext_hooks.h"
 
 #ifdef AL_SAP
@@ -1584,7 +1583,7 @@ void em_ctrl_t::start_complete()
         return;
     }
 
-    em_fire_bus_ready_hooks(m_data_model.get_bus_hdl(), desc);
+    em_get_ext_hooks()->on_bus_ready(m_data_model.get_bus_hdl(), desc);
 }
 
 em_ctrl_t *em_ctrl_t::get_em_ctrl_instance()

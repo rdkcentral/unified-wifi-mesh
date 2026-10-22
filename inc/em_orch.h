@@ -320,10 +320,9 @@ public:
 	bool is_cmd_in_progress_by_type(em_bus_event_t *evt);
 
 	/**!
-	 * @brief Checks if a WEI generic-data command is already in progress for the
-	 * same STA the event carries, rather than gating on command type alone. This
-	 * lets concurrent updates for different STAs be queued as separate vendor
-	 * messages instead of being dropped while one STA's command is in flight.
+	 * @brief Checks if a vendor-data command is already in progress for the same
+	 * STA the event carries, rather than gating on command type alone. This lets
+	 * concurrent updates for different STAs be queued separately.
 	 *
 	 * @param[in] evt bus event whose raw payload begins with the STA MAC string.
 	 *

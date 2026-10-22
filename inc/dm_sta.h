@@ -21,19 +21,6 @@
 
 #include "em_base.h"
 
-// Pure Abstract Interface for private vendor extensions.
-// Public code interacts ONLY with this interface.
-// class dm_sta_ext_interface_t {
-// public:
-//     virtual ~dm_sta_ext_interface_t() = default;
-    
-//     // Abstract clone method to support copy-construction of dm_sta_t
-//     virtual dm_sta_ext_interface_t* clone() const = 0;
-// };
-
-// // Factory function declaration (implemented via weak symbol in dm_sta.cpp)
-// dm_sta_ext_interface_t* create_dm_sta_ext();
-
 class dm_sta_t {
 public:
     em_sta_info_t    m_sta_info;
@@ -162,8 +149,6 @@ public:
 	 */
 	static void decode_beacon_report(dm_sta_t *sta);
 
-	//virtual void handle_vendor_ext_tlv(const unsigned char *tlv_value, unsigned int tlv_len, dm_easy_mesh_t *dm) {}
-    
 	/**!
 	 * @brief Creates a dm_sta_t object using the provided em_sta_info_t.
 	 *

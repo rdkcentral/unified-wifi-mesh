@@ -35,6 +35,7 @@
 #include <pthread.h>
 #include <cjson/cJSON.h>
 #include "em_agent.h"
+#include "em_ext_hooks.h"
 #include "em_msg.h"
 #include "ieee80211.h"
 #include "em_cmd_agent.h"
@@ -52,14 +53,6 @@
 
 #define RETRY_SLEEP_INTERVAL_IN_MS 1000
 
-// Private/custom extension point: when custom/src/agent/lq_agent_listener.cpp is
-// built (see custom/custom.mk), this binds LQ_STATS_SOCKET_PATH and forwards
-// decoded WEI stats directly into the orchestrator, replacing the legacy
-// OneWifi "Device.WiFi.EM.WEIData" bus-publish mechanism. Weak no-op fallback
-// keeps the open-source build linkable without the private extension.
-extern "C" {
-__attribute__((weak)) void lq_agent_listener_start() { }
-}
 #define EMEX_AIRTIES_CLIENT_ID      "Device.Services.X_AIRTIES_Edge.AuthConfig.ClientID"
 #define EMEX_AIRTIES_CLIENT_SECRET  "Device.Services.X_AIRTIES_Edge.AuthConfig.ClientPassword"
 #define EMEX_FILE_BOOT_ID           "/proc/sys/kernel/random/boot_id"
@@ -1403,17 +1396,15 @@ void em_agent_t::handle_link_stats_report(em_bus_event_t *evt)
     }
 }
 
-void em_agent_t::handle_wei_app_data(em_bus_event_t *evt)
+void em_agent_t::handle_vendor_data(em_bus_event_t *evt)
 {
     em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
     unsigned int num;
 
-    /* if (m_orch->is_cmd_type_in_progress(evt) == true) {
-        em_printfout("analyze_wei_app_data in progress");
-    } else */ if ((num = static_cast<unsigned int>(m_data_model.analyze_wei_app_data(evt, pcmd))) == 0) {
-        em_printfout("analyze_wei_app_data failed");
+    if ((num = static_cast<unsigned int>(m_data_model.analyze_vendor_data(evt, pcmd))) == 0) {
+        em_printfout("analyze_vendor_data failed");
     } else if (m_orch->submit_commands(pcmd, num) > 0) {
-        em_printfout("Submitted WEI app data cmd for orch");
+        em_printfout("Submitted vendor data cmd for orch");
     }
 }
 
@@ -1540,8 +1531,8 @@ void em_agent_t::handle_bus_event(em_bus_event_t *evt)
             handle_unassoc_sta_result(evt);
             break;
 
-        case em_bus_event_type_wei_app_data:
-            handle_wei_app_data(evt);
+        case em_bus_event_type_vendor_data:
+            handle_vendor_data(evt);
             break;
 
         default:
@@ -1912,10 +1903,7 @@ void em_agent_t::input_listener()
         return;
     }
 
-    // WEI stats/events are now consumed directly from the LQ UDS socket by
-    // lq_agent_listener_start() (see custom/src/agent/lq_agent_listener.cpp),
-    // superseding the old "Device.WiFi.EM.WEIData" bus subscription.
-    lq_agent_listener_start();
+    em_get_ext_hooks()->on_bus_ready(&m_bus_hdl, desc);
 
     io(NULL);
 }

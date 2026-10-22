@@ -23,11 +23,7 @@
 #include "em_msg.h"
 #include "dm_easy_mesh.h"
 #include "em_cmd.h"
-    
-// Weak factory fallback: Returns nullptr if custom extension code is omitted
-__attribute__((weak)) em_vendor_ext_interface_t* create_em_vendor_ext() {
-    return nullptr;
-}
+#include "em_ext_hooks.h"
 
 unsigned int em_vendor_t::get_vendor_id(unsigned char *buff) 
 {
@@ -179,12 +175,12 @@ void em_vendor_t::process_agent_state()
         return;
     }
 
-    em_printfout("WEI debug: process_agent_state entered, cmd type:%d processed:%d", cmd->get_type(), cmd->processed);
+    em_printfout("Vendor data: process_agent_state entered, cmd type:%d processed:%d", cmd->get_type(), cmd->processed);
 
     switch (cmd->get_type()) {
-        case em_cmd_type_generic_data:
+        case em_cmd_type_vendor_data:
             if (cmd->processed == false) {
-                em_printfout("WEI debug: calling send_vendor_msg()");
+                em_printfout("Vendor data: calling send_vendor_msg()");
                 send_vendor_msg();
             }
             break;
@@ -195,7 +191,7 @@ void em_vendor_t::process_agent_state()
 }
 
 em_vendor_t::em_vendor_t()
-    : m_vendor_ext(create_em_vendor_ext())
+    : m_vendor_ext(em_get_ext_hooks()->create_vendor_ext())
 {
     // Base initialization logic here
 }

@@ -259,8 +259,8 @@ void em_t::orch_execute(em_cmd_t *pcmd)
             m_sm.set_state(em_state_agent_link_quality_report_pending);
             break;
 
-        case em_cmd_type_generic_data:
-           em_printfout("WEI debug: orch_execute entered generic_data case, state:%s", em_t::state_2_str(m_sm.get_state()));
+        case em_cmd_type_vendor_data:
+           em_printfout("Vendor data: orch_execute entered vendor-data case, state:%s", em_t::state_2_str(m_sm.get_state()));
            // m_sm.set_state(em_state_agent_vendor_data_pending);
            break;
 
@@ -284,8 +284,8 @@ void em_t::orch_execute(em_cmd_t *pcmd)
             m_sm.set_state(em_state_agent_unassoc_sta_metrics_report_pending);
             break;
 
-        // case em_cmd_type_generic_data:
-        //     m_sm.set_state(em_state_agent_generic_data_pending);
+        // case em_cmd_type_vendor_data:
+        //     m_sm.set_state(em_state_agent_vendor_data_pending);
         //     break;
         
 	default:
@@ -463,8 +463,8 @@ void em_t::handle_agent_state()
 
     // no state handling is allowd if orch state is not in progress
     if (m_orch_state != em_orch_state_progress) {
-        if ((m_cmd != NULL) && (m_cmd->m_type == em_cmd_type_generic_data)) {
-            em_printfout("WEI debug: handle_agent_state skipped, orch_state:%d (not progress) state:%s", m_orch_state, em_t::state_2_str(m_sm.get_state()));
+        if ((m_cmd != NULL) && (m_cmd->m_type == em_cmd_type_vendor_data)) {
+            em_printfout("Vendor data: handle_agent_state skipped, orch_state:%d (not progress) state:%s", m_orch_state, em_t::state_2_str(m_sm.get_state()));
         }
         return;
     }
@@ -531,7 +531,7 @@ void em_t::handle_agent_state()
             }
             break;
 
-        // case em_cmd_type_generic_data:
+        // case em_cmd_type_vendor_data:
         //     if (m_sm.get_state() == em_state_agent_vendor_data_pending) {
         //         em_vendor_t::send_vendor_sta_lq_data();
         //     }
@@ -543,10 +543,10 @@ void em_t::handle_agent_state()
             }
             break;
 
-        case em_cmd_type_generic_data:
-            em_printfout("WEI debug: handle_agent_state generic_data, orch_state:%d state:%s", m_orch_state, em_t::state_2_str(m_sm.get_state()));
+        case em_cmd_type_vendor_data:
+            em_printfout("Vendor data: handle_agent_state, orch_state:%d state:%s", m_orch_state, em_t::state_2_str(m_sm.get_state()));
             if (m_sm.get_state() >= em_state_agent_topo_synchronized) {
-                em_printfout("WEI debug: calling em_vendor_t::process_agent_state()");
+                em_printfout("Vendor data: calling em_vendor_t::process_agent_state()");
                 em_vendor_t::process_agent_state();
             }
             break;
