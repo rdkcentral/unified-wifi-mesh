@@ -204,6 +204,8 @@ public:
     static bus_error_t bstamld_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
     static bus_error_t bstacfg_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
 
+	static bus_error_t ctrl_cmd_client_steer_inner(const char *method_name, bus_data_prop_t *input_data, bus_data_prop_t *output_data, void *async_handle);
+
 private:
     db_client_t m_db_client;
     bool	m_initialized;

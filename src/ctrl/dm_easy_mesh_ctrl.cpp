@@ -2012,9 +2012,9 @@ bus_error_t em_ctrl_t::cmd_clientsteer(const char *method_name, const bus_data_p
     bool bridged = false, bridged_set = false;
     bool link = false, link_set = false;
     int opportunity = -1;
-    int timer = -1;
-    int op_class = -1;
-    int channel = -1;
+    int timer = 0;
+    int op_class = 0;
+    int channel = 0;
     em_subdoc_info_t *subdoc = NULL;
     unsigned char buff[sizeof(em_subdoc_info_t) + EM_IO_BUFF_SZ];
     cJSON *root = NULL, *json = NULL, *net_obj = NULL;
@@ -2159,11 +2159,11 @@ invalid:
         }
     }
     /* Mandatory parameters: TargetBSSID, RequestMode, BTMDisassociationImminent, BTMAbridged,
-     *   BTMDisassociationTimer, TargetBSSOperatingClass, TargetBSSChannel and
+     *   BTMDisassociationTimer if RequestMode is Steering_Mandate and
      *   SteeringOpportunityWindow if RequestMode is Steering_Opportunity */
     if (!target[0] || !requestmode[0] || !imminent_set || !bridged_set ||
-        timer < 0  || op_class < 0    || channel < 0   ||
-        (strcasecmp(requestmode, "Steering_Opportunity") == 0 && opportunity < 0)) {
+        (strcasecmp(requestmode, "Steering_Mandate") == 0 && timer <= 0) ||
+        (strcasecmp(requestmode, "Steering_Opportunity") == 0 && opportunity <= 0)) {
         em_printfout("Mandatory parameters missing");
         if (output_params) {
             *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
@@ -2171,6 +2171,13 @@ invalid:
         return bus_error_invalid_input;
     }
 
+    if(!util::str_is_mac_address(target) || (strcasecmp(requestmode, "Steering_Opportunity") != 0 && strcasecmp(requestmode, "Steering_Mandate") != 0)) {
+        em_printfout("Invalid TargetBSSID or RequestMode");
+        if (output_params) {
+            *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
+        }
+        return bus_error_invalid_input;
+    }
     /* Prepare subdoc to be processed with command */
     subdoc = reinterpret_cast<em_subdoc_info_t *>(buff);
     memset(subdoc, 0, sizeof(em_subdoc_info_t));
@@ -3733,6 +3740,7 @@ int dm_easy_mesh_ctrl_t::analyze_sta_steer(em_cmd_steer_params_t &params, em_cmd
     int num = 0;
     em_cmd_t *tmp;
 
+    /* Steer first, then block STA on other same-SSID BSSIDs via Client Assoc Control */
     pcmd[num] = new em_cmd_sta_steer_t(params);
     tmp = pcmd[num];
     num++;
@@ -3852,7 +3860,7 @@ int dm_easy_mesh_ctrl_t::analyze_command_steer(em_bus_event_t *evt, em_cmd_t *cm
                     channel_obj = cJSON_GetObjectItem(steer_obj, "TargetBSSChannel");
                     steer_param.target_channel = static_cast<unsigned int> (cJSON_GetNumberValue(channel_obj));
 
-                    num += analyze_sta_steer(steer_param, cmd);
+                    num += analyze_sta_steer(steer_param, &cmd[num]);
                 }
             }
         }
