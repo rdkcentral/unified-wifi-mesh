@@ -1371,6 +1371,20 @@ static wifi_ieee80211Variant_t airties_standards_to_variant(uint16_t std) {
 
 int em_capability_t::handle_ap_cap_report(unsigned char *buff, unsigned int len)
 {
+    constexpr unsigned int cac_country_code_len = 2;
+    constexpr unsigned int cac_duration_len = 3;
+    constexpr unsigned int cac_header_len = cac_country_code_len + sizeof(uint8_t);
+    constexpr unsigned int cac_radio_header_len = sizeof(mac_address_t) + sizeof(uint8_t);
+    constexpr unsigned int cac_duration_offset = sizeof(uint8_t);
+    constexpr unsigned int cac_op_class_count_offset = cac_duration_offset + cac_duration_len;
+    constexpr unsigned int cac_method_header_len = cac_op_class_count_offset + sizeof(uint8_t);
+    constexpr unsigned int cac_op_class_header_len = 2 * sizeof(uint8_t);
+
+    if (buff == NULL || len < sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)) {
+        em_printfout("Error: Invalid AP Capability Report header");
+        return -1;
+    }
+
     em_cmdu_t *cmdu = reinterpret_cast<em_cmdu_t *> (buff + sizeof(em_raw_hdr_t));
 
     em_tlv_t *tlv;
@@ -1405,7 +1419,23 @@ int em_capability_t::handle_ap_cap_report(unsigned char *buff, unsigned int len)
         }
     }
 
-    while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
+    while (tmp_len > 0) {
+        if (tmp_len < sizeof(em_tlv_t)) {
+            em_printfout("Error: Truncated AP Capability Report TLV header");
+            return -1;
+        }
+        unsigned int value_len = ntohs(tlv->len);
+        if (value_len > tmp_len - sizeof(em_tlv_t)) {
+            em_printfout("Error: Truncated AP Capability Report TLV type=%u", tlv->type);
+            return -1;
+        }
+        if (tlv->type == em_tlv_type_eom) {
+            if (value_len != 0) {
+                return -1;
+            }
+            break;
+        }
+
         if (tlv->type == em_tlv_type_ap_cap) {
             dm_radio_t *radio = dm->get_radio(get_radio_interface_mac());
             if (radio == NULL) {
@@ -1499,20 +1529,24 @@ int em_capability_t::handle_ap_cap_report(unsigned char *buff, unsigned int len)
         else if (tlv->type == em_tlv_type_1905_layer_security_cap){
         }
         else if (tlv->type == em_tlv_type_cac_cap){
-            em_cac_cap_t *cac = reinterpret_cast<em_cac_cap_t *>(tlv->value);
-            if (cac == nullptr) {
-                em_printfout("Invalid CAC TLV: null pointer");
+            const unsigned char *cursor = tlv->value;
+            unsigned int remaining = value_len;
+            if (remaining < cac_header_len) {
+                em_printfout("Error: Truncated CAC TLV header");
                 return -1;
             }
 
-            if (cac->radios_num > EM_MAX_RADIO_PER_AGENT) {
-                em_printfout("Invalid CAC TLV: radios_num=%u exceeds max=%u", cac->radios_num, EM_MAX_RADIO_PER_AGENT);
+            unsigned int num_radios = cursor[cac_country_code_len];
+            if (num_radios > EM_MAX_RADIO_PER_AGENT) {
+                em_printfout("Error: Invalid CAC TLV: radios_num=%u exceeds max=%u", num_radios, EM_MAX_RADIO_PER_AGENT);
                 return -1;
             }
+            cursor += cac_header_len;
+            remaining -= cac_header_len;
 
             /* Country Code = first 2 ASCII octets of the CAC Capabilities TLV;
                persist it into the reporting device so it surfaces as Device.{i}.CountryCode. */
-            if (ntohs(tlv->len) >= 2) {
+            if (ntohs(tlv->len) >= cac_country_code_len) {
                 const unsigned char *cc = tlv->value;
                 em_device_info_t *dev_info = dm->get_device_info();
                 if ((dev_info != NULL) &&
@@ -1520,20 +1554,71 @@ int em_capability_t::handle_ap_cap_report(unsigned char *buff, unsigned int len)
                     (cc[1] >= 'A') && (cc[1] <= 'Z')) {
                     dev_info->country_code[0] = static_cast<char>(cc[0]);
                     dev_info->country_code[1] = static_cast<char>(cc[1]);
-                    dev_info->country_code[2] = '\0';
+                    dev_info->country_code[cac_country_code_len] = '\0';
                 }
             }
 
-            for (int idx = 0; idx < cac->radios_num; idx++)
-            {
-                dm_radio_cap_t *radio_cap = dm->get_radio_cap(cac->radios[idx].ruid);
-                if (radio_cap != NULL){
+            for (unsigned int radio_index = 0; radio_index < num_radios; radio_index++) {
+                em_cac_cap_radio_t decoded = {};
+                if (remaining < cac_radio_header_len) {
+                    em_printfout("Error: Truncated CAC radio header");
+                    return -1;
+                }
+                memcpy(decoded.ruid, cursor, sizeof(mac_address_t));
+                decoded.cac_methods_num = cursor[sizeof(mac_address_t)];
+                cursor += cac_radio_header_len;
+                remaining -= cac_radio_header_len;
+                if (decoded.cac_methods_num > sizeof(decoded.cac_methods) / sizeof(decoded.cac_methods[0])) {
+                    em_printfout("Error: Invalid CAC method count");
+                    return -1;
+                }
+
+                for (unsigned int method_index = 0; method_index < decoded.cac_methods_num; method_index++) {
+                    em_cac_cap_method_t *method = &decoded.cac_methods[method_index];
+                    if (remaining < cac_method_header_len) {
+                        em_printfout("Error: Truncated CAC method header");
+                        return -1;
+                    }
+                    method->cac_method = cursor[0];
+                    const unsigned char *duration = cursor + cac_duration_offset;
+                    method->cac_duration = (static_cast<unsigned int>(duration[0]) << 16) |
+                                           (static_cast<unsigned int>(duration[1]) << 8) | duration[2];
+                    method->op_classes_num = cursor[cac_op_class_count_offset];
+                    cursor += cac_method_header_len;
+                    remaining -= cac_method_header_len;
+                    if (method->op_classes_num > sizeof(method->op_classes) / sizeof(method->op_classes[0])) {
+                        em_printfout("Error: Invalid CAC operating class count");
+                        return -1;
+                    }
+
+                    for (unsigned int class_index = 0; class_index < method->op_classes_num; class_index++) {
+                        em_cac_op_class_t *op_class = &method->op_classes[class_index];
+                        if (remaining < cac_op_class_header_len) {
+                            em_printfout("Error: Truncated CAC operating class header");
+                            return -1;
+                        }
+                        op_class->op_class = cursor[0];
+                        op_class->num = cursor[1];
+                        cursor += cac_op_class_header_len;
+                        remaining -= cac_op_class_header_len;
+                        if (op_class->num > sizeof(op_class->channels) || op_class->num > remaining) {
+                            em_printfout("Error: Invalid CAC channel list length");
+                            return -1;
+                        }
+                        memcpy(op_class->channels, cursor, op_class->num);
+                        cursor += op_class->num;
+                        remaining -= op_class->num;
+                    }
+                }
+
+                dm_radio_cap_t *radio_cap = dm->get_radio_cap(decoded.ruid);
+                if (radio_cap != NULL) {
                     em_radio_cap_info_t *cap_info = radio_cap->get_radio_cap_info();
-                    if ((cap_info == NULL)){
+                    if (cap_info == NULL) {
                         em_printfout("No data Found");
                         return 0;
                     }
-                    memcpy(&cap_info->cac_cap, &cac->radios[idx], sizeof(cap_info->cac_cap));
+                    memcpy(&cap_info->cac_cap, &decoded, sizeof(decoded));
                 }
             }
         } else if (tlv->type == em_tlv_type_profile_2_ap_cap){
