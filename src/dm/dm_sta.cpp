@@ -392,6 +392,60 @@ void dm_sta_t::parse_sta_bss_radio_from_key(const char *key, mac_address_t sta, 
 
 }
 
+/* A (Re)Association Request opens with the mandatory SSID element followed by
+ * the mandatory Supported Rates element, so a candidate offset has to hold that
+ * pair. Requiring the pair rather than the SSID element alone keeps a Current AP
+ * address such as 00:04:.. from passing as an SSID element. */
+static bool starts_with_ssid_and_rates(const unsigned char *body, unsigned int len, unsigned int off)
+{
+    unsigned int next;
+
+    if ((off + EM_IE_HDR_LEN > len) || (body[off] != EM_EID_SSID) ||
+        (body[off + 1] > (EM_MAX_SSID_LEN - 1))) {
+        return false;
+    }
+    next = off + EM_IE_HDR_LEN + static_cast<unsigned int>(body[off + 1]);
+
+    return ((next + EM_IE_HDR_LEN <= len) && (body[next] == EM_EID_SUPP_RATES));
+}
+
+/* The frame body may carry the 802.11 fixed fields before the IEs, or the IEs
+ * alone. The first pass takes the offset that opens with those two elements and
+ * whose element walk consumes the body exactly. A stored body may be truncated,
+ * in which case no walk ends on the length, so the second pass keeps the same
+ * candidates and drops the exact consumption requirement. Offset 0 is a valid
+ * layout in its own right, hence both a candidate and the final fallback;
+ * callers bound every element read, so an unrecognised body yields no elements
+ * rather than an overread. */
+unsigned int dm_sta_t::get_assoc_frame_ie_offset(const unsigned char *body, unsigned int len)
+{
+    const unsigned int offsets[] = { EM_ASSOC_FIXED_FIELDS_LEN, EM_REASSOC_FIXED_FIELDS_LEN, 0 };
+    unsigned int i, off;
+
+    if (body == NULL) {
+        return 0;
+    }
+    for (i = 0; i < sizeof(offsets) / sizeof(offsets[0]); i++) {
+        off = offsets[i];
+        if (starts_with_ssid_and_rates(body, len, off) == false) {
+            continue;
+        }
+        while (off + EM_IE_HDR_LEN <= len) {
+            off += EM_IE_HDR_LEN + static_cast<unsigned int>(body[off + 1]);
+        }
+        if (off == len) {
+            return offsets[i];
+        }
+    }
+    for (i = 0; i < sizeof(offsets) / sizeof(offsets[0]); i++) {
+        off = offsets[i];
+        if (starts_with_ssid_and_rates(body, len, off) == true) {
+            return off;
+        }
+    }
+    return 0;
+}
+
 void dm_sta_t::decode_sta_capability(dm_sta_t *sta)
 {
     unsigned int offset = 0;
@@ -403,12 +457,7 @@ void dm_sta_t::decode_sta_capability(dm_sta_t *sta)
 
     sta->m_sta_info.num_vendor_infos = 0;
 
-    /* The frame_body stores the full 802.11 (Re)Association Request frame body:
-     * capab_info (2B) + listen_interval (2B) + IEs. Skip the fixed fields. */
-    if (sta->m_sta_info.frame_body_len < 4) {
-        return;
-    }
-    offset = 4;
+    offset = get_assoc_frame_ie_offset(sta->m_sta_info.frame_body, sta->m_sta_info.frame_body_len);
 
     while (offset < sta->m_sta_info.frame_body_len) {
         if (offset + 2 > sta->m_sta_info.frame_body_len) {

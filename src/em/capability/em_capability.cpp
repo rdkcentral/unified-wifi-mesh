@@ -1410,6 +1410,9 @@ int em_capability_t::handle_ap_cap_report(unsigned char *buff, unsigned int len)
         } else if (tlv->type == em_tlv_type_ap_radio_basic_cap){
             em_printfout("Received AP Radio Basic Capability TLV");
             handle_ap_radio_basic_cap(tlv->value, htons(tlv->len));
+        } else if (tlv->type == em_tlv_type_akm_suite){
+            em_printfout("Received AKM Suite Capabilities TLV");
+            em_configuration_t::store_akm_suite_cap(dm, tlv->value, htons(tlv->len));
         } else if (tlv->type == em_tlv_type_ht_cap){
             em_printfout("Received HT Capability TLV");
             em_ap_ht_cap_t *ht_cap = reinterpret_cast<em_ap_ht_cap_t *>(tlv->value);
@@ -1490,6 +1493,20 @@ int em_capability_t::handle_ap_cap_report(unsigned char *buff, unsigned int len)
             if (cac->radios_num > EM_MAX_RADIO_PER_AGENT) {
                 em_printfout("Invalid CAC TLV: radios_num=%u exceeds max=%u", cac->radios_num, EM_MAX_RADIO_PER_AGENT);
                 return -1;
+            }
+
+            /* Country Code = first 2 ASCII octets of the CAC Capabilities TLV;
+               persist it into the reporting device so it surfaces as Device.{i}.CountryCode. */
+            if (ntohs(tlv->len) >= 2) {
+                const unsigned char *cc = tlv->value;
+                em_device_info_t *dev_info = dm->get_device_info();
+                if ((dev_info != NULL) &&
+                    (cc[0] >= 'A') && (cc[0] <= 'Z') &&
+                    (cc[1] >= 'A') && (cc[1] <= 'Z')) {
+                    dev_info->country_code[0] = static_cast<char>(cc[0]);
+                    dev_info->country_code[1] = static_cast<char>(cc[1]);
+                    dev_info->country_code[2] = '\0';
+                }
             }
 
             for (int idx = 0; idx < cac->radios_num; idx++)

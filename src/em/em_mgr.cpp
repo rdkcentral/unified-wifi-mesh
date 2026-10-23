@@ -133,14 +133,26 @@ void em_mgr_t::proto_process(unsigned char *data, unsigned int len, em_t *al_em)
     em_event_t	*evt;
     em_t *em = NULL;
 
-	em = find_em_for_msg_type(data, len, al_em);
-	if (em == NULL) {
-		return;
-	}
+    em = find_em_for_msg_type(data, len, al_em);
+    if (em == NULL) {
+        em_printfout("Error: find_em_for_msg_type failed");
+        return;
+    }
 
     evt = static_cast<em_event_t *>(malloc(sizeof(em_event_t)));
+    if (evt == NULL) {
+        em_printfout("Error: malloc failed for em_event_t structure");
+        return;
+    }
+
     evt->type = em_event_type_frame;
     evt->u.fevt.frame = static_cast<unsigned char *>(malloc(len));
+    if (evt->u.fevt.frame == NULL) {
+        em_printfout("Error: malloc failed for frame buffer (requested size=%u)", len);
+        free(evt);
+        return;
+    }
+
     memcpy(evt->u.fevt.frame, data, len);
     evt->u.fevt.frame_len = len;
     em->push_to_queue(evt);
@@ -434,7 +446,7 @@ void em_mgr_t::nodes_listener()
                         proto_process(buff, static_cast<unsigned int>(len), em);
                     }
                 }
-#endif
+#endif //AL_SAP not defined.
             }
             em = static_cast<em_t *>(hash_map_get_next(m_em_map, em));
         }

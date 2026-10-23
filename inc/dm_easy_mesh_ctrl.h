@@ -101,6 +101,10 @@ public:
 
     char* get_ht_caps_str(em_ap_ht_cap_t *ht, char *buf, size_t buf_len);
     char* get_vht_caps_str(em_ap_vht_cap_t *vht, char *buf, size_t buf_len);
+    char* get_sta_ht_caps_str(char *ht_cap_hex, char *buf, size_t buf_len);
+    char* get_sta_vht_caps_str(char *vht_cap_hex, char *buf, size_t buf_len);
+    bool find_sta_he_caps(em_sta_info_t *si, const unsigned char **mac_caps, const unsigned char **phy_caps);
+    bool sta_wifi6_cap_value(em_sta_info_t *si, const char *param, bool *out);
     char* get_capop_nonoper_str(em_op_class_info_t *oci, char *buf, size_t buf_len);
     char* get_supported_standards_str(wifi_ieee80211Variant_t variant, char *buf, size_t buf_size);
     bus_error_t rcaps_get(char* event_name, raw_data_t* p_data);

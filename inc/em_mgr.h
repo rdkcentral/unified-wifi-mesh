@@ -716,7 +716,8 @@ public:
 	 */
 	virtual em_service_type_t get_service_type() = 0;
 
-	
+	virtual void handle_failed_conn_msg(unsigned char *data, unsigned int len) {}
+
 	/**!
 	 * @brief Processes an event.
 	 *
