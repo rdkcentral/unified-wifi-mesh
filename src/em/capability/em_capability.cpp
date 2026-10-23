@@ -34,6 +34,7 @@
 #include <sys/socket.h>
 #include <sys/uio.h>
 #include <sys/time.h>
+#include <time.h>
 #include <unistd.h>
 #include <pthread.h>
 #include <openssl/rand.h>
@@ -912,6 +913,9 @@ void em_capability_t::queue_cap_update(const em_sta_info_t &info)
     memcpy(update.bssid, info.bssid, sizeof(mac_address_t));
     memcpy(update.radio, info.radiomac, sizeof(mac_address_t));
     update.frame_body_len = info.frame_body_len;
+    memcpy(update.hostname, info.hostname, sizeof(update.hostname));
+    memcpy(update.ipv4_address, info.ipv4_address, sizeof(update.ipv4_address));
+    memcpy(update.ipv6_address, info.ipv6_address, sizeof(update.ipv6_address));
     static_assert(sizeof(update) + EM_MAX_FRAME_BODY_LEN <= EM_MAX_EVENT_DATA_LEN,
         "Station capability updates must fit in the controller queue");
     std::vector<unsigned char> data(sizeof(update) + info.frame_body_len);
@@ -1011,6 +1015,7 @@ int em_capability_t::handle_client_cap_report(unsigned char *buff, unsigned int 
         }
     }
 
+    get_mgr()->sta_host_lookup(&sta_info);
     queue_cap_update(sta_info);
 
     return 0;

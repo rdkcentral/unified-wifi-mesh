@@ -369,11 +369,15 @@ void dm_sta_t::operator = (const dm_sta_t& obj)
     memcpy(&this->m_sta_info.sta_client_type, &obj.m_sta_info.sta_client_type, sizeof(em_string_t));
     memcpy(&this->m_sta_info.bssid, &obj.m_sta_info.bssid, sizeof(mac_address_t));
     memcpy(&this->m_sta_info.radiomac, &obj.m_sta_info.radiomac, sizeof(mac_address_t));
+    memcpy(&this->m_sta_info.hostname, &obj.m_sta_info.hostname, sizeof(em_long_string_t));
+    memcpy(&this->m_sta_info.ipv4_address, &obj.m_sta_info.ipv4_address, sizeof(em_string_t));
+    memcpy(&this->m_sta_info.ipv6_address, &obj.m_sta_info.ipv6_address, sizeof(em_long_string_t));
     this->m_sta_info.last_ul_rate = obj.m_sta_info.last_ul_rate;
     this->m_sta_info.last_dl_rate = obj.m_sta_info.last_dl_rate;
     this->m_sta_info.est_ul_rate = obj.m_sta_info.est_ul_rate;
     this->m_sta_info.est_dl_rate = obj.m_sta_info.est_dl_rate;
     this->m_sta_info.last_conn_time = obj.m_sta_info.last_conn_time;
+    this->m_sta_info.assoc_time = obj.m_sta_info.assoc_time;
     this->m_sta_info.retrans_count = obj.m_sta_info.retrans_count;
     this->m_sta_info.signal_strength = obj.m_sta_info.signal_strength;
     this->m_sta_info.rcpi = obj.m_sta_info.rcpi;

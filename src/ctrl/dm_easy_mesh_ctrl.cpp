@@ -6348,6 +6348,208 @@ static const unsigned char *radio_bsta_mac(dm_easy_mesh_t *dm, dm_radio_t *radio
     return NULL;
 }
 
+static bool hosts_get_string(wifi_bus_desc_t *desc, bus_handle_t *hdl, const char *name, char *out, size_t out_len)
+{
+    raw_data_t data;
+    bool ok = false;
+
+    memset(&data, 0, sizeof(data));
+    if (desc->bus_data_get_fn(hdl, name, &data) == bus_error_success &&
+        data.data_type == bus_data_type_string && data.raw_data.bytes != NULL) {
+        snprintf(out, out_len, "%s", reinterpret_cast<const char *>(data.raw_data.bytes));
+        ok = true;
+    }
+    desc->bus_data_free_fn(&data);
+
+    return ok;
+}
+
+/* Get the first address of a Host; an empty address list is a valid result. */
+static bool hosts_get_address(wifi_bus_desc_t *desc, bus_handle_t *hdl, uint32_t host, const char *family, char *out, size_t out_len)
+{
+    char name[128], addr[sizeof(em_long_string_t)];
+    raw_data_t data;
+    uint32_t num = 0;
+
+    snprintf(name, sizeof(name), "Device.Hosts.Host.%u.%sAddressNumberOfEntries", host, family);
+    memset(&data, 0, sizeof(data));
+    if (desc->bus_data_get_fn(hdl, name, &data) != bus_error_success ||
+            data.data_type != bus_data_type_uint32) {
+        desc->bus_data_free_fn(&data);
+        return false;
+    }
+    num = data.raw_data.u32;
+    desc->bus_data_free_fn(&data);
+
+    if (num == 0) {
+        return true;
+    }
+
+    for (uint32_t j = 1; j <= num; j++) {
+        snprintf(name, sizeof(name), "Device.Hosts.Host.%u.%sAddress.%u.IPAddress", host, family, j);
+        if (!hosts_get_string(desc, hdl, name, addr, sizeof(addr))) {
+            continue;
+        }
+        for (const char *c = addr; *c != '\0'; c++) {
+            if (!isspace(static_cast<unsigned char> (*c))) {
+                snprintf(out, out_len, "%s", addr);
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
+
+bool dm_easy_mesh_ctrl_t::sta_hosts_lookup(em_sta_info_t *si)
+{
+    wifi_bus_desc_t *desc;
+    raw_data_t data;
+    uint32_t num_hosts = 0;
+    std::string sta_mac = util::mac_to_string(si->id);
+
+    if ((desc = get_bus_descriptor()) == NULL) {
+        return false;
+    }
+
+    memset(&data, 0, sizeof(data));
+    if (desc->bus_data_get_fn(get_bus_hdl(), "Device.Hosts.HostNumberOfEntries", &data) == bus_error_success &&
+        data.data_type == bus_data_type_uint32) {
+        num_hosts = data.raw_data.u32;
+    }
+    desc->bus_data_free_fn(&data);
+
+    for (uint32_t i = 1; i <= num_hosts; i++) {
+        char name[128], phys[64];
+
+        snprintf(name, sizeof(name), "Device.Hosts.Host.%u.PhysAddress", i);
+        if (!hosts_get_string(desc, get_bus_hdl(), name, phys, sizeof(phys)) ||
+            strcasecmp(sta_mac.c_str(), phys) != 0) {
+            continue;
+        }
+
+        snprintf(name, sizeof(name), "Device.Hosts.Host.%u.HostName", i);
+        bool hostname_found = hosts_get_string(desc, get_bus_hdl(), name, si->hostname, sizeof(si->hostname));
+        bool ipv4_found = hosts_get_address(desc, get_bus_hdl(), i, "IPv4", si->ipv4_address, sizeof(si->ipv4_address));
+        bool ipv6_found = hosts_get_address(desc, get_bus_hdl(), i, "IPv6", si->ipv6_address, sizeof(si->ipv6_address));
+        return hostname_found && (ipv4_found || ipv6_found);
+    }
+
+    return false;
+}
+
+void dm_easy_mesh_ctrl_t::sta_hosts_pending_add(const mac_address_t sta_mac)
+{
+    std::lock_guard<std::mutex> lock(m_sta_hosts_mutex);
+
+    for (auto &p : m_sta_hosts_pending) {
+        if (memcmp(p.mac, sta_mac, sizeof(mac_address_t)) == 0) {
+            return;
+        }
+    }
+
+    sta_host_pending_t pending;
+    memcpy(pending.mac, sta_mac, sizeof(mac_address_t));
+    pending.retries = 0;
+    m_sta_hosts_pending.push_back(pending);
+}
+
+/* Copy the host data of si in the rows of the STA found in map, true if a row was updated */
+static bool sta_hosts_apply(hash_map_t *map, const em_sta_info_t *si)
+{
+    bool updated = false;
+
+    if (map == NULL) {
+        return false;
+    }
+    for (dm_sta_t *sta = static_cast<dm_sta_t *> (hash_map_get_first(map)); sta != NULL;
+            sta = static_cast<dm_sta_t *> (hash_map_get_next(map, sta))) {
+        em_sta_info_t *row = sta->get_sta_info();
+        if (memcmp(row->id, si->id, sizeof(mac_address_t)) != 0) {
+            continue;
+        }
+        if (si->hostname[0] != '\0') {
+            memcpy(row->hostname, si->hostname, sizeof(row->hostname));
+            updated = true;
+        }
+        if (si->ipv4_address[0] != '\0') {
+            memcpy(row->ipv4_address, si->ipv4_address, sizeof(row->ipv4_address));
+            updated = true;
+        }
+        if (si->ipv6_address[0] != '\0') {
+            memcpy(row->ipv6_address, si->ipv6_address, sizeof(row->ipv6_address));
+            updated = true;
+        }
+    }
+
+    return updated;
+}
+
+void dm_easy_mesh_ctrl_t::sta_hosts_retry()
+{
+    std::list<sta_host_pending_t> todo, kept;
+
+    {
+        std::lock_guard<std::mutex> lock(m_sta_hosts_mutex);
+        todo.swap(m_sta_hosts_pending);
+    }
+
+    for (auto &p : todo) {
+        em_sta_info_t si;
+        bool updated = false;
+
+        memset(&si, 0, sizeof(si));
+        memcpy(si.id, p.mac, sizeof(mac_address_t));
+
+        bool complete = sta_hosts_lookup(&si);
+        for (dm_easy_mesh_t *dm = get_first_dm(); dm != NULL; dm = get_next_dm(dm)) {
+            bool dm_updated = sta_hosts_apply(dm->m_sta_map, &si);
+            dm_updated = sta_hosts_apply(dm->m_sta_assoc_map, &si) || dm_updated;
+            if (dm_updated) {
+                dm->set_db_cfg_param(db_cfg_type_sta_list_update, "");
+                updated = true;
+            }
+        }
+
+        if (complete && updated) {
+            em_printfout("Host of STA %s found: hostname=%s ipv4=%s ipv6=%s, rows updated=%d",
+                util::mac_to_string(p.mac).c_str(), si.hostname, si.ipv4_address, si.ipv6_address, updated);
+        } else if (++p.retries >= EM_STA_HOSTS_MAX_RETRY) {
+            em_printfout("Host metadata for STA %s incomplete or unapplied after %u retries, give up",
+                util::mac_to_string(p.mac).c_str(), p.retries);
+        } else {
+            kept.push_back(p);
+        }
+    }
+
+    if (!kept.empty()) {
+        std::lock_guard<std::mutex> lock(m_sta_hosts_mutex);
+        for (auto &p : kept) {
+            bool queued_again = false;
+            for (auto &q : m_sta_hosts_pending) {
+                if (memcmp(q.mac, p.mac, sizeof(mac_address_t)) == 0) {
+                    queued_again = true;
+                    break;
+                }
+            }
+            if (!queued_again) {
+                m_sta_hosts_pending.push_back(p);
+            }
+        }
+    }
+}
+
+static unsigned int sta_seconds_since_assoc(const em_sta_info_t *si)
+{
+    struct timespec ts;
+
+    if (si->assoc_time == 0) {
+        return si->last_conn_time;
+    }
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (ts.tv_sec > si->assoc_time) ? static_cast<unsigned int>(ts.tv_sec - si->assoc_time) : 0;
+}
+
 dm_sta_t *dm_easy_mesh_ctrl_t::get_dm_bh_sta(dm_easy_mesh_t *dm, dm_radio_t *radio)
 {
     dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
@@ -9759,7 +9961,7 @@ bus_error_t dm_easy_mesh_ctrl_t::sta_get_inner(char *event_name, raw_data_t *p_d
     } else if (strcmp(param, "SignalStrength") == 0) {
         rc = dm_ctrl->raw_data_set(p_data, static_cast<int32_t> (si->rcpi));
     } else if (strcmp(param, "LastConnectTime") == 0) {
-        rc = dm_ctrl->raw_data_set(p_data, si->last_conn_time);
+        rc = dm_ctrl->raw_data_set(p_data, sta_seconds_since_assoc(si));
     } else if (strcmp(param, "BytesSent") == 0) {
         rc = dm_ctrl->raw_data_set(p_data, si->bytes_tx);
     } else if (strcmp(param, "BytesReceived") == 0) {
@@ -9775,11 +9977,11 @@ bus_error_t dm_easy_mesh_ctrl_t::sta_get_inner(char *event_name, raw_data_t *p_d
     } else if (strcmp(param, "RetransCount") == 0) {
         rc = dm_ctrl->raw_data_set(p_data, si->retrans_count);
     } else if (strcmp(param, "IPV4Address") == 0) {
-        rc = dm_ctrl->raw_data_set(p_data, "");
+        rc = dm_ctrl->raw_data_set(p_data, si->ipv4_address);
     } else if (strcmp(param, "IPV6Address") == 0) {
-        rc = dm_ctrl->raw_data_set(p_data, "");
+        rc = dm_ctrl->raw_data_set(p_data, si->ipv6_address);
     } else if (strcmp(param, "Hostname") == 0) {
-        rc = dm_ctrl->raw_data_set(p_data, "");
+        rc = dm_ctrl->raw_data_set(p_data, si->hostname);
     } else if (strcmp(param, "PairwiseAKM") == 0) {
         rc = dm_ctrl->raw_data_set(p_data, 0U);
     } else if (strcmp(param, "PairwiseCipher") == 0) {
@@ -9918,7 +10120,7 @@ bus_error_t dm_easy_mesh_ctrl_t::sta_tget_params(dm_easy_mesh_t *dm, const char 
         dm_ctrl->property_append_tail(property, root, idx, "EstMACDataRateDownlink", si->est_dl_rate);
         dm_ctrl->property_append_tail(property, root, idx, "EstMACDataRateUplink", si->est_ul_rate);
         dm_ctrl->property_append_tail(property, root, idx, "SignalStrength", static_cast<int32_t> (si->rcpi));
-        dm_ctrl->property_append_tail(property, root, idx, "LastConnectTime", si->last_conn_time);
+        dm_ctrl->property_append_tail(property, root, idx, "LastConnectTime", sta_seconds_since_assoc(si));
         dm_ctrl->property_append_tail(property, root, idx, "BytesSent", si->bytes_tx);
         dm_ctrl->property_append_tail(property, root, idx, "BytesReceived", si->bytes_rx);
         dm_ctrl->property_append_tail(property, root, idx, "PacketsSent", si->pkts_tx);
@@ -9926,9 +10128,9 @@ bus_error_t dm_easy_mesh_ctrl_t::sta_tget_params(dm_easy_mesh_t *dm, const char 
         dm_ctrl->property_append_tail(property, root, idx, "ErrorsSent", si->errors_tx);
         dm_ctrl->property_append_tail(property, root, idx, "ErrorsReceived", si->errors_rx);
         dm_ctrl->property_append_tail(property, root, idx, "RetransCount", si->retrans_count);
-        dm_ctrl->property_append_tail(property, root, idx, "IPV4Address", "");
-        dm_ctrl->property_append_tail(property, root, idx, "IPV6Address", "");
-        dm_ctrl->property_append_tail(property, root, idx, "Hostname", "");
+        dm_ctrl->property_append_tail(property, root, idx, "IPV4Address", si->ipv4_address);
+        dm_ctrl->property_append_tail(property, root, idx, "IPV6Address", si->ipv6_address);
+        dm_ctrl->property_append_tail(property, root, idx, "Hostname", si->hostname);
         dm_ctrl->property_append_tail(property, root, idx, "PairwiseAKM", 0U);
         dm_ctrl->property_append_tail(property, root, idx, "PairwiseCipher", 0U);
         dm_ctrl->property_append_tail(property, root, idx, "RSNCapabilities", 0U);
@@ -10548,7 +10750,7 @@ bus_error_t dm_easy_mesh_ctrl_t::stamld_get_inner(char *event_name, raw_data_t *
     } else if (strcmp(param, "IsbSTA") == 0) {
         rc = dm_ctrl->raw_data_set(p_data, 0);
     } else if (strcmp(param, "LastConnectTime") == 0) {
-        rc = dm_ctrl->raw_data_set(p_data, si ? si->last_conn_time : 0);
+        rc = dm_ctrl->raw_data_set(p_data, si ? sta_seconds_since_assoc(si) : 0);
     } else if (strcmp(param, "BytesSent") == 0) {
         rc = dm_ctrl->raw_data_set(p_data, si ? si->bytes_tx : 0);
     } else if (strcmp(param, "BytesReceived") == 0) {
@@ -10651,7 +10853,7 @@ bus_error_t dm_easy_mesh_ctrl_t::stamld_tget_params(dm_easy_mesh_t *dm, const ch
 
         dm_ctrl->property_append_tail(property, root, idx, "MLDMACAddress", smi->mac_addr);
         dm_ctrl->property_append_tail(property, root, idx, "IsbSTA", 0);
-        dm_ctrl->property_append_tail(property, root, idx, "LastConnectTime", si ? si->last_conn_time : 0);
+        dm_ctrl->property_append_tail(property, root, idx, "LastConnectTime", si ? sta_seconds_since_assoc(si) : 0);
         dm_ctrl->property_append_tail(property, root, idx, "BytesReceived", si ? si->bytes_rx : 0);
         dm_ctrl->property_append_tail(property, root, idx, "BytesSent", si ? si->bytes_tx : 0);
         dm_ctrl->property_append_tail(property, root, idx, "PacketsReceived", si ? si->pkts_rx : 0);

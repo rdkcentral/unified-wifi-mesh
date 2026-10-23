@@ -34,6 +34,7 @@
 #include <sys/socket.h>
 #include <sys/uio.h>
 #include <sys/time.h>
+#include <time.h>
 #include <unistd.h>
 #include <vector>
 #include "em_cmd.h"
@@ -316,10 +317,20 @@ void dm_sta_list_t::decode_frame_body_from_hex(db_client_t& db_client, void *ctx
 static bool sta_info_equal(const em_sta_info_t *a, const em_sta_info_t *b)
 {
     em_sta_info_t tmp;
+    em_sta_info_t db_info;
+    memcpy(&tmp, a, sizeof(tmp));
+    memcpy(&db_info, b, sizeof(db_info));
 
-    memcpy(&tmp, a, sizeof(em_sta_info_t));
-    tmp.frame_body = b->frame_body;
-    if (memcmp(&tmp, b, sizeof(em_sta_info_t)) != 0) {
+    tmp.frame_body = db_info.frame_body;
+    memset(tmp.hostname, 0, sizeof(tmp.hostname));
+    memset(db_info.hostname, 0, sizeof(db_info.hostname));
+    memset(tmp.ipv4_address, 0, sizeof(tmp.ipv4_address));
+    memset(db_info.ipv4_address, 0, sizeof(db_info.ipv4_address));
+    memset(tmp.ipv6_address, 0, sizeof(tmp.ipv6_address));
+    memset(db_info.ipv6_address, 0, sizeof(db_info.ipv6_address));
+    tmp.assoc_time = 0;
+    db_info.assoc_time = 0;
+    if (memcmp(&tmp, &db_info, sizeof(em_sta_info_t)) != 0) {
         return false;
     }
 
@@ -485,6 +496,12 @@ int dm_sta_list_t::sync_db(db_client_t& db_client, void *ctx)
         info.est_ul_rate = static_cast<unsigned int>(db_client.get_number(ctx, 7));
         info.est_dl_rate = static_cast<unsigned int>(db_client.get_number(ctx, 8));
         info.last_conn_time = static_cast<unsigned int>(db_client.get_number(ctx, 9));
+        // For STA saved in DB set assoc time to controller start time
+        if (info.associated) {
+            struct timespec ts;
+            clock_gettime(CLOCK_MONOTONIC, &ts);
+            info.assoc_time = ts.tv_sec - static_cast<time_t>(info.last_conn_time);
+        }
         info.retrans_count = static_cast<unsigned int>(db_client.get_number(ctx, 10));
         info.signal_strength = static_cast<signed int> (db_client.get_number(ctx, 11));
         info.rcpi = static_cast<unsigned char> (db_client.get_number(ctx, 12));

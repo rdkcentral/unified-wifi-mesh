@@ -720,7 +720,18 @@ public:
 	 * as it will remove all data models without the possibility of recovery.
 	 */
 	void delete_all_data_models() { m_data_model.delete_all_data_models(); }
-    
+
+	/**!
+	 * @brief Synchronizes the DataElements rows with the elements of the data models.
+	 *
+	 * @param[in] dm Data model that was updated, NULL if a data model was removed.
+	 */
+	void sta_host_lookup(em_sta_info_t *si) override {
+		if (!m_data_model.sta_hosts_lookup(si)) {
+			m_data_model.sta_hosts_pending_add(si->id);
+		}
+	}
+
 	/**!
 	 * @brief Updates the tables in the data model.
 	 *

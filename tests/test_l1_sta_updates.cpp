@@ -106,6 +106,16 @@ TEST_F(StationUpdatesTest, AssociationChangesPreservePendingOnlyStationData)
 TEST_F(StationUpdatesTest, MldUpdateClearsStaleLinkAndPreservesCurrentLinkData)
 {
     seed_station(1500);
+    snprintf(info.hostname, sizeof(info.hostname), "station");
+    snprintf(info.ipv4_address, sizeof(info.ipv4_address), "192.0.2.10");
+    snprintf(info.ipv6_address, sizeof(info.ipv6_address), "2001:db8::10");
+    info.assoc_time = 123;
+    dm_sta_t *original = static_cast<dm_sta_t *>(hash_map_get(dm->m_sta_map, key));
+    ASSERT_NE(original, nullptr);
+    memcpy(original->m_sta_info.hostname, info.hostname, sizeof(info.hostname));
+    memcpy(original->m_sta_info.ipv4_address, info.ipv4_address, sizeof(info.ipv4_address));
+    memcpy(original->m_sta_info.ipv6_address, info.ipv6_address, sizeof(info.ipv6_address));
+    original->m_sta_info.assoc_time = info.assoc_time;
     em_assoc_sta_mld_info_t update = {};
     memcpy(update.mac_addr, info.id, sizeof(mac_address_t));
     update.num_affiliated_sta = 1;
@@ -114,6 +124,7 @@ TEST_F(StationUpdatesTest, MldUpdateClearsStaleLinkAndPreservesCurrentLinkData)
     dm_sta_t *pending = static_cast<dm_sta_t *>(hash_map_get(dm->m_sta_assoc_map, key));
     ASSERT_NE(pending, nullptr);
     EXPECT_TRUE(pending->m_sta_info.associated);
+    EXPECT_GT(pending->m_sta_info.assoc_time, 0);
     EXPECT_EQ(pending->m_sta_info.pkts_tx, 123u);
     ASSERT_EQ(pending->m_sta_info.frame_body_len, 1500u);
     EXPECT_EQ(pending->m_sta_info.frame_body[1499], 0x7f);
@@ -128,6 +139,10 @@ TEST_F(StationUpdatesTest, MldUpdateClearsStaleLinkAndPreservesCurrentLinkData)
         "00:00:00:00:00:02@00:00:00:00:00:04@00:00:00:00:00:01"));
     ASSERT_NE(current, nullptr);
     EXPECT_TRUE(current->m_sta_info.associated);
+    EXPECT_EQ(current->m_sta_info.assoc_time, 123);
+    EXPECT_STREQ(current->m_sta_info.hostname, "station");
+    EXPECT_STREQ(current->m_sta_info.ipv4_address, "192.0.2.10");
+    EXPECT_STREQ(current->m_sta_info.ipv6_address, "2001:db8::10");
     ASSERT_EQ(current->m_sta_info.frame_body_len, 1500u);
     EXPECT_EQ(current->m_sta_info.frame_body[1499], 0x7f);
     EXPECT_EQ(current->m_sta_info.pkts_tx, 0u);
@@ -191,6 +206,38 @@ TEST_F(StationUpdatesTest, CapabilityReplacementSurvivesPendingEntryDeletion)
         }
         EXPECT_EQ(sta->m_sta_info.pkts_tx, 123u);
     }
+}
+
+TEST_F(StationUpdatesTest, CapabilityUpdatesStartAndPreserveAssociationTime)
+{
+    seed_station(0);
+    snprintf(info.hostname, sizeof(info.hostname), "station");
+    snprintf(info.ipv4_address, sizeof(info.ipv4_address), "192.0.2.10");
+    snprintf(info.ipv6_address, sizeof(info.ipv6_address), "2001:db8::10");
+    dm_sta_t *sta = static_cast<dm_sta_t *>(hash_map_get(dm->m_sta_map, key));
+    ASSERT_NE(sta, nullptr);
+    sta->m_sta_info.assoc_time = 123;
+    em_client_assoc_event_t event = {};
+    memcpy(event.cli_mac_address, info.id, sizeof(mac_address_t));
+    memcpy(event.bssid, info.bssid, sizeof(mac_address_t));
+    dm->apply_sta_disassociation(event);
+    EXPECT_EQ(sta->m_sta_info.assoc_time, 0);
+
+    dm->apply_sta_cap_to_maps(key, &info);
+    ASSERT_GT(sta->m_sta_info.assoc_time, 0);
+    const auto assoc_time = sta->m_sta_info.assoc_time;
+    EXPECT_STREQ(sta->m_sta_info.hostname, "station");
+    EXPECT_STREQ(sta->m_sta_info.ipv4_address, "192.0.2.10");
+    EXPECT_STREQ(sta->m_sta_info.ipv6_address, "2001:db8::10");
+
+    memset(info.hostname, 0, sizeof(info.hostname));
+    memset(info.ipv4_address, 0, sizeof(info.ipv4_address));
+    memset(info.ipv6_address, 0, sizeof(info.ipv6_address));
+    dm->apply_sta_cap_to_maps(key, &info);
+    EXPECT_EQ(sta->m_sta_info.assoc_time, assoc_time);
+    EXPECT_STREQ(sta->m_sta_info.hostname, "station");
+    EXPECT_STREQ(sta->m_sta_info.ipv4_address, "192.0.2.10");
+    EXPECT_STREQ(sta->m_sta_info.ipv6_address, "2001:db8::10");
 }
 
 TEST_F(StationUpdatesTest, MetricsSnapshotSurvivesStationDeletion)

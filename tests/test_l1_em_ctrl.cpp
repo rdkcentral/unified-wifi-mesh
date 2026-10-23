@@ -75,6 +75,9 @@ TEST(em_ctrl_t, StationCapabilityUpdatesOwnFrameBodies)
     update.sta[5] = 2;
     update.bssid[5] = 3;
     update.radio[5] = 4;
+    snprintf(update.hostname, sizeof(update.hostname), "station");
+    snprintf(update.ipv4_address, sizeof(update.ipv4_address), "192.0.2.10");
+    snprintf(update.ipv6_address, sizeof(update.ipv6_address), "2001:db8::10");
     const char *key = "00:00:00:00:00:02@00:00:00:00:00:03@00:00:00:00:00:04";
 
     const unsigned int lengths[] = {EM_MAX_FRAME_BODY_LEN, 4, 0};
@@ -106,6 +109,9 @@ TEST(em_ctrl_t, StationCapabilityUpdatesOwnFrameBodies)
             EXPECT_EQ(sta->m_sta_info.frame_body[i], 0x5a);
         }
         EXPECT_TRUE(sta->m_sta_info.associated);
+        EXPECT_STREQ(sta->m_sta_info.hostname, "station");
+        EXPECT_STREQ(sta->m_sta_info.ipv4_address, "192.0.2.10");
+        EXPECT_STREQ(sta->m_sta_info.ipv6_address, "2001:db8::10");
         // Simulate the pending entry being consumed by the DB flush.
         delete static_cast<dm_sta_t *>(hash_map_remove(dm->m_sta_assoc_map, key));
         EXPECT_EQ(ctrl.pop_from_queue(), nullptr);
