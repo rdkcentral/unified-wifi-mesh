@@ -486,7 +486,15 @@ public:
 	 * @note Ensure that the system is initialized before calling this function.
 	 */
 	void ap_cap_rprt();
-    
+
+	/**!
+	 * @brief This function is responsible for handling the early access point capability report.
+	 *
+	 * This function processes the early capability report from the access point and updates the
+	 * validation schema accordingly.
+	 */
+	void early_ap_cap_rprt();
+
 	/**!
 	 * @brief Configures the policy settings.
 	 *

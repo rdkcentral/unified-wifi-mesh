@@ -718,6 +718,22 @@ class em_capability_t {
 	int handle_ap_cap_report(unsigned char *data, unsigned int len);
 
 	/**!
+	 * @brief Handles the early AP capability report.
+	 *
+	 * This function processes the early AP capability report received from an Agent.
+	 *
+	 * @param[in] data Pointer to the data buffer containing the early AP capability report.
+	 * @param[in] len Length of the data buffer.
+	 *
+	 * @returns int Status code indicating success or failure.
+	 * @retval 0 on success.
+	 * @retval -1 on failure.
+	 *
+	 * @note Ensure that the data buffer is valid and the length is correctly specified.
+	 */
+	int handle_early_ap_cap_report(unsigned char *data, unsigned int len);
+
+	/**!
 	 * @brief Handles the client capability report.
 	 *
 	 * This function processes the capability report received from a client.
@@ -848,6 +864,16 @@ public:
 	 * @param[in] cnt The count to set for capability query transmissions.
 	 */
 	void set_cap_query_tx_count(unsigned int cnt) { m_cap_query_tx_cnt = cnt; }
+
+	/**!
+	 * @brief Sends an early AP capability report message.
+	 *
+	 * This function is responsible for sending an early AP capability report message.
+	 *
+	 * @param[in] buff Pointer to the buffer containing the report data.
+	 * @param[in] msg_id The message ID for the report message.
+	 */
+	int send_early_ap_cap_report_msg(unsigned char *buff, unsigned short msg_id);
 
     unsigned int m_cap_query_tx_cnt;
 
