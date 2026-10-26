@@ -91,7 +91,7 @@ bool tr_181_t::parse_object_index(const char *name, int *index)
     return true;
 }
 
-// Create a HaulType array from a single value (Fronthaul/Backhaul only)
+// Create a HaulType array from a single value (any valid em_haul_type_t string)
 cJSON *tr_181_t::create_haultype_array(const char *haul_val)
 {
     if (!haul_val || *haul_val == '\0') return NULL;
@@ -111,8 +111,8 @@ cJSON *tr_181_t::create_haultype_array(const char *haul_val)
         em_printfout("ERROR: HaulType empty after trimming");
         return NULL;
     }
-    if (strcmp(tok_buf, "Fronthaul") != 0 && strcmp(tok_buf, "Backhaul") != 0) {
-        em_printfout("ERROR: Invalid HaulType value '%s' (expected Fronthaul/Backhaul)", tok_buf);
+    if (dm_network_ssid_t::haul_type_from_string(tok_buf) == em_haul_type_max) {
+        em_printfout("ERROR: Invalid HaulType value '%s'", tok_buf);
         return NULL;
     }
     cJSON *arr = cJSON_CreateArray();
@@ -439,4 +439,3 @@ bool tr_181_t::parse_bmq_ch_rep_obj(const bus_data_prop_t *prop, tr181_bmq_ch_re
 
     return true;
 }
-

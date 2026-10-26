@@ -82,6 +82,7 @@ bus_error_t em_ctrl_t::cmd_setssid(const char *method_name, const bus_data_prop_
     char addremove[TR181_ADDREMOVE_MAX_LEN + 1] = {0};
     char HaulType[TR181_HAULTYPE_MAX_LEN + 1] = {0};
     char AKMsAllowed[TR181_AKMS_MAX_LEN + 1] = {0};
+    int enable = -1; /* -1 = not provided */
     bool akms_given = false;
     size_t json_len = 0;
 
@@ -117,6 +118,13 @@ bus_error_t em_ctrl_t::cmd_setssid(const char *method_name, const bus_data_prop_
                 if (output_params) *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
                 return bus_error_invalid_input;
             }
+        } else if (strcmp(prop->name, "Enable") == 0) {
+            char enable_str[4] = {0};
+            tr_181_t::tr181_copy_prop_string(prop, enable_str, sizeof(enable_str));
+            if (strcmp(enable_str, "1") == 0)
+                enable = 1;
+            else if (strcmp(enable_str, "0") == 0)
+                enable = 0;
         }
     }
 
@@ -297,6 +305,9 @@ bus_error_t em_ctrl_t::cmd_setssid(const char *method_name, const bus_data_prop_
                 cJSON_ReplaceItemInObject(target, "AKMsAllowed", akms_arr);
                 cJSON_ReplaceItemInObject(target, "AuthType", auth_item);
             }
+            if (enable >= 0) {
+                cJSON_ReplaceItemInObject(target, "Enable", cJSON_CreateBool(enable));
+            }
         }
     } else if (is_add) {
         target = cJSON_CreateObject();
@@ -359,6 +370,9 @@ bus_error_t em_ctrl_t::cmd_setssid(const char *method_name, const bus_data_prop_
             }
             cJSON_AddItemToObject(target, "AKMsAllowed", akms_arr);
             cJSON_AddItemToObject(target, "AuthType", auth_item);
+        }
+        if (enable >= 0) {
+            cJSON_AddBoolToObject(target, "Enable", enable);
         }
     } else {
         if (haul_arr) cJSON_Delete(haul_arr);
