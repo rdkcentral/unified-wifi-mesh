@@ -33,10 +33,10 @@ void de_services_t::update(de_service_t& svc, unsigned int pos)
     de_service_t *psvc = NULL;
     em_string_t alias = {0};
 
-    snprintf(name, sizeof(em_long_string_t), "%s", DE_SERVICES);
     snprintf(alias, sizeof(em_string_t), "%s.%d", SERVICES, pos);
 
     if ((psvc = (de_service_t *)hash_map_get(m_service_map, alias)) == NULL) {
+        snprintf(name, sizeof(em_long_string_t), "%s", DE_SERVICES);
         rbusTable_addRow(m_bus_handle, name, alias, &inst);
     }
 
@@ -177,17 +177,17 @@ rbusError_t de_services_t::set(rbusHandle_t handle, rbusProperty_t property, rbu
     const char *name, *ptr;
 
     name  = rbusProperty_GetName(property);
-    printf("%s:%d: Property Name: %s\n", __func__, __LINE__, name);
 
     snprintf(key, sizeof(em_string_t), "%s.", DE_SERVICES);
     
     if ((ptr = strstr(name, key)) == NULL) {
         return RBUS_ERROR_INVALID_OPERATION;
     }
-    
+   
+    ptr += strlen(DE_NETWORK); 
     sscanf(ptr, "X_RDK_Services.%d.%s", &inst, str);
     snprintf(key, sizeof(em_string_t), "%s.%d", SERVICES, inst);
-
+        
     if ((svc = (de_service_t *)hash_map_get(m_service_map, key)) == NULL) {
         printf("%s:%d: Could not find object\n", __func__, __LINE__);
         return RBUS_ERROR_INVALID_HANDLE;
@@ -208,66 +208,113 @@ rbusError_t de_services_t::set(rbusHandle_t handle, rbusProperty_t property, rbu
 
 void de_services_t::publish(const char *name)
 {
-    char *ptr;
-    rbusValue_t value;
-    rbusObject_t data;
     int rc, inst;
     de_service_t *svc;
-    em_long_string_t ev_name = {0};
     rbusEvent_t event = {0};
+    rbusValue_t value;
+    rbusObject_t data, row;
 
-    if ((ptr = strstr((char *)name, "X_RDK_Services.*.")) == NULL) {
+    if (strncmp(name, SERVICES, strlen(SERVICES)) != 0) {
         return;
     }
 
-    ptr += strlen("X_RDK_Services.*.");
+    rbusObject_Init(&data, NULL);
 
     svc = (de_service_t *)hash_map_get_first(m_service_map);
     while (svc != NULL) {
-       
-        sscanf(svc->m_key, "X_RDK_Services.%d", &inst); 
-            
+        rbusObject_Init(&row, svc->m_key);
+
         rbusValue_Init(&value);
-        rbusObject_Init(&data, NULL);
-
-        if (strncmp(ptr, "Type", strlen("Type")) == 0) {
-            snprintf(ev_name, sizeof(em_long_string_t), "%s%d.Type", DE_SERVICES, inst);
-            rbusValue_SetUInt32(value, svc->m_type);
-            rbusObject_SetValue(data, "value", value);
-        } else if (strncmp(ptr, "Operator", strlen("Operator")) == 0) {
-            snprintf(ev_name, sizeof(em_long_string_t), "%s%d.Operator", DE_SERVICES, inst);
-            rbusValue_SetString(value, svc->m_operator_name);
-            rbusObject_SetValue(data, "value", value);
-
-        } else if (strncmp(ptr, "URL", strlen("URL")) == 0){
-            snprintf(ev_name, sizeof(em_long_string_t), "%s%d.URL", DE_SERVICES, inst);
-            rbusValue_SetString(value, svc->m_url);
-            rbusObject_SetValue(data, "value", value);
-
-        }
-            
-        event.name = ev_name;;
-        event.data = data;
-        event.type = RBUS_EVENT_GENERAL;
-
-        if ((rc = rbusEvent_Publish(m_bus_handle, &event)) != RBUS_ERROR_SUCCESS) {
-            printf("%s:%d: Failed to publish data for event: %s, err: %d\n", __func__, __LINE__,
-                event.name, rc);
-        } else {
-            printf("%s:%d: Successfully published data for event: %s\n", __func__, __LINE__, event.name);
-        }
-
+        rbusValue_SetUInt32(value, svc->m_type);
+        rbusObject_SetValue(row, "Type", value);
         rbusValue_Release(value);
-        rbusObject_Release(data);
+
+        rbusValue_Init(&value);
+        rbusValue_SetString(value, svc->m_operator_name);
+        rbusObject_SetValue(row, "Operator", value);
+        rbusValue_Release(value);
+
+        rbusValue_Init(&value);
+        rbusValue_SetString(value, svc->m_url);
+        rbusObject_SetValue(row, "URL", value);
+        rbusValue_Release(value);
+
+        rbusValue_Init(&value);
+        rbusValue_SetObject(value, row);
+        rbusObject_Release(row);
+ 
+        rbusObject_SetValue(data, svc->m_key, value);
+        rbusValue_Release(value);
     
         svc = (de_service_t *)hash_map_get_next(m_service_map, svc);
     }
+
+        
+    event.name = name;;
+    event.data = data;
+    event.type = RBUS_EVENT_GENERAL;
+
+    if ((rc = rbusEvent_Publish(m_bus_handle, &event)) != RBUS_ERROR_SUCCESS) {
+        printf("%s:%d: Failed to publish data for event: %s, err: %d\n", __func__, __LINE__,
+            event.name, rc);
+    } else {
+        printf("%s:%d: Successfully published data for event: %s\n", __func__, __LINE__, event.name);
+    }
+
+    rbusObject_Release(data);
        
 }
 
 
 void de_services_t::handler(rbusHandle_t handle, rbusEvent_t const* event, rbusEventSubscription_t* subscription)
 {
+    rbusValue_t value;
+    rbusObject_t row;
+    rbusProperty_t prop;
+    
+    const char *ptr; 
+    de_service_t *svc;
+    
+    if (strncmp(event->name, SERVICES, strlen(SERVICES)) != 0) {
+        printf("%s:%d: Unknown event: %s\n", __func__, __LINE__, event->name);
+        return;
+    }
+
+    prop = rbusObject_GetProperties(event->data);
+    while (prop != NULL) {
+        ptr = rbusProperty_GetName(prop);
+
+        if ((svc = (de_service_t *)hash_map_get(m_service_map, ptr)) == NULL) {
+            svc = new de_service_t();
+            svc->init(ptr);
+            hash_map_put(m_service_map, strdup(ptr), svc);
+        }
+
+        row = rbusProperty_GetObject(prop);
+
+        if ((value = rbusObject_GetValue(row, "Type")) == NULL) {
+            printf("%s:%d: Could not find Type value\n", __func__, __LINE__);
+        } else {
+            svc->m_type = (service_type_t)rbusValue_GetUInt32(value);
+        }
+
+        if ((value = rbusObject_GetValue(row, "Operator")) == NULL) {
+            printf("%s:%d: Could not find Operator value\n", __func__, __LINE__);
+        } else {
+            ptr = rbusValue_GetString(value, NULL);
+            strncpy(svc->m_operator_name, ptr, strlen(ptr) + 1);     
+        }
+
+        if ((value = rbusObject_GetValue(row, "URL")) == NULL) {
+            printf("%s:%d: Could not find URL value\n", __func__, __LINE__);
+        } else {
+            ptr = rbusValue_GetString(value, NULL);
+            strncpy(svc->m_url, ptr, strlen(ptr) + 1);     
+        }
+
+        prop = rbusProperty_GetNext(prop);
+        
+    }
 
 }
 
@@ -275,6 +322,10 @@ int de_services_t::init()
 {
     m_service_map = hash_map_create();
     
+    m_elems[m_num_elems].name = SERVICES;
+    m_elems[m_num_elems].type = RBUS_ELEMENT_TYPE_PROPERTY;
+    m_num_elems++;
+
     m_elems[m_num_elems].name = DE_SERVICES_TABLE;
     m_elems[m_num_elems].type = RBUS_ELEMENT_TYPE_TABLE;
     m_num_elems++;
@@ -291,6 +342,10 @@ int de_services_t::init()
     m_elems[m_num_elems].type = RBUS_ELEMENT_TYPE_PROPERTY;
     m_num_elems++;
 
+    m_subs[m_num_subs].eventName = SERVICES;
+    m_num_subs++;
+
+#ifdef FUTURE
     m_subs[m_num_subs].eventName = DE_SERVICES_ANY_TYPE;
     m_num_subs++;
 
@@ -299,6 +354,7 @@ int de_services_t::init()
 
     m_subs[m_num_subs].eventName = DE_SERVICES_ANY_URL;
     m_num_subs++;
+#endif
 
     return de_t::init();
 }

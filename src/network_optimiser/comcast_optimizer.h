@@ -28,8 +28,16 @@ class comcast_optimizer_t: public optimizer_t {
     void process_event(optimizer_event_t *ev);
     void process_timeout(char *time_str);
 
+    void add_network(cJSON *parent);
+    void add_services(cJSON *parent);
+    void add_devices(cJSON *parent);
+    void add_radios(cJSON *parent, unsigned int dpos);
+    void add_bsss(cJSON *parent, unsigned int dpos, unsigned int rpos);
+    void add_stas(cJSON *parent, unsigned int dpos, unsigned int rpos, unsigned int bpos);
+
 public:
     const char *get_topology(char *buff, unsigned int len);
+    const char *get_de(char *buff, unsigned int len);
 
     comcast_optimizer_t();
     ~comcast_optimizer_t(); 

@@ -35,6 +35,10 @@ const char *comcast_optimizer_web_t::handle_get(optimizer_event_type_t type, cha
             get_topology(buff, len);
             break;
 
+        case optimizer_event_type_get_de:
+            get_de(buff, len);
+            break;
+
         default:
             break;
     }

@@ -27,6 +27,8 @@
 #include "de_service.h"
 #include "de_device.h"
 #include "de_radio.h"
+#include "de_bss.h"
+#include "de_sta.h"
 
 class de_reader_t {
     
@@ -53,6 +55,12 @@ public:
 
     unsigned int get_num_radios(unsigned int pos);
     void update_radio(de_radio_t& radio, unsigned int dpos, unsigned int rpos);
+
+    unsigned int get_num_bsss(unsigned int dpos, unsigned int rpos);
+    void update_bss(de_bss_t& bss, unsigned int dpos, unsigned int rpos, unsigned int bpos);
+
+    unsigned int get_num_stas(unsigned int dpos, unsigned int rpos, unsigned int bpos);
+    void update_sta(de_sta_t& sta, unsigned int dpos, unsigned int rpos, unsigned int bpos, unsigned int spos);
 
     de_reader_t(const char *name);
     ~de_reader_t();

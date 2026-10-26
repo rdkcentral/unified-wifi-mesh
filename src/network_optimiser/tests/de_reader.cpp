@@ -190,8 +190,133 @@ void de_reader_t::update_radio(de_radio_t& radio, unsigned int dpos, unsigned in
     
     elem = cJSON_GetObjectItem(obj, "Enabled");
     radio.m_enabled = cJSON_IsTrue(elem);
+
+    elem = cJSON_GetObjectItem(obj, "Utilization");
+    radio.m_util = static_cast<unsigned int>(cJSON_GetNumberValue(elem));
+
+    elem = cJSON_GetObjectItem(obj, "Noise");
+    radio.m_noise = static_cast<int>(cJSON_GetNumberValue(elem));
 }
 
+unsigned int de_reader_t::get_num_bsss(unsigned int dpos, unsigned int rpos)
+{
+    cJSON *arr;
+
+    if ((arr = get_object_item("wfa-dataelements:Network.DeviceList.{%d}.RadioList.{%d}.BSSList", dpos, rpos)) == NULL) {
+        printf("%s:%d: Could not read devices object from json\n", __func__, __LINE__);
+        return NULL;
+    }
+
+    return cJSON_GetArraySize(arr);;
+}
+
+void de_reader_t::update_bss(de_bss_t& bss, unsigned int dpos, unsigned int rpos, unsigned int bpos)
+{
+    cJSON *obj, *elem;
+    const char *str;
+
+    if ((obj = get_object_item("wfa-dataelements:Network.DeviceList.{%d}.RadioList.{%d}.BSSList.{%d}", dpos, rpos, bpos)) == NULL) {
+        printf("%s:%d: Could not read devices object from json\n", __func__, __LINE__);
+        return;
+    }
+
+    elem = cJSON_GetObjectItem(obj, "BSSID");
+    str = cJSON_GetStringValue(elem);
+    strncpy(bss.m_bssid, str, strlen(str) + 1);
+
+    elem = cJSON_GetObjectItem(obj, "SSID");
+    str = cJSON_GetStringValue(elem);
+    strncpy(bss.m_ssid, str, strlen(str) + 1);
+
+    elem = cJSON_GetObjectItem(obj, "Enabled");
+    bss.m_enabled = cJSON_IsTrue(elem);
+
+    elem = cJSON_GetObjectItem(obj, "TransmittedBSSID");
+    bss.m_broadcast = cJSON_IsTrue(elem);
+
+    elem = cJSON_GetObjectItem(obj, "FronthaulUse");
+    bss.m_fronthaul = cJSON_IsTrue(elem);
+
+    elem = cJSON_GetObjectItem(obj, "BackhaulUse");
+    bss.m_backhaul = cJSON_IsTrue(elem);
+
+}
+
+unsigned int de_reader_t::get_num_stas(unsigned int dpos, unsigned int rpos, unsigned int bpos)
+{
+    cJSON *arr;
+
+    if ((arr = get_object_item("wfa-dataelements:Network.DeviceList.{%d}.RadioList.{%d}.BSSList.{%d}.STAList", dpos, rpos, bpos)) == NULL) {
+        printf("%s:%d: Could not read devices object from json\n", __func__, __LINE__);
+        return NULL;
+    }
+
+    return cJSON_GetArraySize(arr);;
+}
+
+void de_reader_t::update_sta(de_sta_t& sta, unsigned int dpos, unsigned int rpos, unsigned int bpos, unsigned int spos)
+{
+    cJSON *obj, *elem;
+    const char *str;
+
+    if ((obj = get_object_item("wfa-dataelements:Network.DeviceList.{%d}.RadioList.{%d}.BSSList.{%d}.STAList.{%d}", dpos, rpos, bpos, spos)) == NULL) {
+        printf("%s:%d: Could not read devices object from json\n", __func__, __LINE__);
+        return;
+    }
+
+    elem = cJSON_GetObjectItem(obj, "MACAddress");
+    str = cJSON_GetStringValue(elem);
+    snprintf(sta.m_mac, sizeof(sta.m_mac), "%s", (str != NULL) ? str : "");
+
+    elem = cJSON_GetObjectItem(obj, "SignalStrength");
+    sta.m_rssi = static_cast<int>(cJSON_GetNumberValue(elem));
+
+    elem = cJSON_GetObjectItem(obj, "LastDataUplinkRate");
+    sta.m_ul_rate = static_cast<unsigned int>(cJSON_GetNumberValue(elem));
+
+    elem = cJSON_GetObjectItem(obj, "LastDataDownlinkRate");
+    sta.m_dl_rate = static_cast<unsigned int>(cJSON_GetNumberValue(elem));
+
+    elem = cJSON_GetObjectItem(obj, "RetransCount");
+    sta.m_retrans = static_cast<unsigned int>(cJSON_GetNumberValue(elem));
+
+    elem = cJSON_GetObjectItem(obj, "PacketsReceived");
+    sta.m_pkts_rx = static_cast<unsigned int>(cJSON_GetNumberValue(elem));
+
+    elem = cJSON_GetObjectItem(obj, "PacketsSent");
+    sta.m_pkts_tx = static_cast<unsigned int>(cJSON_GetNumberValue(elem));
+
+    elem = cJSON_GetObjectItem(obj, "BytesReceived");
+    sta.m_bytes_rx = static_cast<unsigned int>(cJSON_GetNumberValue(elem));
+
+    elem = cJSON_GetObjectItem(obj, "BytesSent");
+    sta.m_bytes_tx = static_cast<unsigned int>(cJSON_GetNumberValue(elem));
+
+    elem = cJSON_GetObjectItem(obj, "ClientCapabilities");
+    str = cJSON_GetStringValue(elem);
+    snprintf(sta.m_cap, sizeof(sta.m_cap), "%s", (str != NULL) ? str : "");
+
+    //elem = cJSON_GetObjectItem(obj, "WiFi6Capabilities");
+    //str = cJSON_GetStringValue(elem);
+    //strncpy(sta.m_wifi6_cap, str, strlen(str) + 1);
+
+    elem = cJSON_GetObjectItem(obj, "HTCapabilities");
+    str = cJSON_GetStringValue(elem);
+    snprintf(sta.m_ht_cap, sizeof(sta.m_ht_cap), "%s", (str != NULL) ? str : "");
+
+    elem = cJSON_GetObjectItem(obj, "VHTCapabilities");
+    str = cJSON_GetStringValue(elem);
+    snprintf(sta.m_vht_cap, sizeof(sta.m_vht_cap), "%s", (str != NULL) ? str : "");
+
+    elem = cJSON_GetObjectItem(obj, "HECapabilities");
+    str = cJSON_GetStringValue(elem);
+    snprintf(sta.m_he_cap, sizeof(sta.m_he_cap), "%s", (str != NULL) ? str : "");
+
+    elem = cJSON_GetObjectItem(obj, "SecurityAssociation");
+    str = cJSON_GetStringValue(elem);
+    snprintf(sta.m_sec_assoc, sizeof(sta.m_sec_assoc), "%s", (str != NULL) ? str : "");
+
+}
 
 bool de_reader_t::has_modified()
 {
@@ -267,7 +392,9 @@ void de_reader_t::deinit()
 de_reader_t::de_reader_t(const char *name)
 {
     memset(m_name, 0, sizeof(em_long_string_t));
-    strncpy(m_name, name, strlen(name));
+    if (name != NULL) {
+        snprintf(m_name, sizeof(m_name), "%s", name);
+    }
 }
 
 de_reader_t::~de_reader_t()

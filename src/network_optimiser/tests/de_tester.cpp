@@ -26,25 +26,15 @@
 #include "assert.h"
 #include "de_tester.h"
 
-void de_tester_t::update(de_device_t& dev, unsigned int pos)
-{
-    unsigned int num, i;
-    de_radio_t radio;
-
-    num = m_rd->get_num_radios(pos);
-    printf("%s:%d: Number of radios for device at pos: %d is %d\n", __func__, __LINE__, pos, num);
-    for (i = 0; i < num; i++) {
-        m_rd->update_radio(radio, pos, i);
-        m_de_radios->update(radio, pos, i);
-    }
-}
-
 void de_tester_t::update()
 {
-    unsigned int num, i;
+    unsigned int num, i, j, k, l, rcount, bcount, scount;
     de_network_t net;
     de_service_t svc;
     de_device_t dev;
+    de_radio_t rd;
+    de_bss_t bss;
+    de_sta_t sta;
 
     m_rd->update_network(net);
     m_de_network->update(net);
@@ -59,11 +49,22 @@ void de_tester_t::update()
     for (i = 0; i < num; i++) {
         m_rd->update_device(dev, i);
         m_de_devices->update(dev, i);
-
-        //update(dev, i); 
+        rcount = m_rd->get_num_radios(i);
+        for (j = 0; j < rcount; j++) {
+            m_rd->update_radio(rd, i, j);
+            m_de_devices->update(rd, i, j);
+            bcount = m_rd->get_num_bsss(i, j);
+            for (k = 0; k < bcount; k++) {
+                m_rd->update_bss(bss, i, j, k);
+                m_de_devices->update(bss, i, j, k);
+                scount = m_rd->get_num_stas(i, j, k);
+                for (l = 0; l < scount; l++) {
+                    m_rd->update_sta(sta, i, j, k, l);
+                    m_de_devices->update(sta, i, j, k, l);
+                }
+            }
+        }
     }
-
-    
 }
 
 void de_tester_t::process_event(optimizer_event_t *ev)
@@ -75,8 +76,16 @@ void de_tester_t::process_event(optimizer_event_t *ev)
             name = static_cast<const char *>(ev->get_data());
             if ((strcmp(name, DE_NETWORK_ID) == 0) || (strcmp(name, DE_NETWORK_CTRLID) == 0)) {
                 m_de_network->publish(name);
-            } else if (strncmp(name, DE_SERVICES, strlen(DE_SERVICES)) == 0) {
+            } else if (strncmp(name, SERVICES, strlen(SERVICES)) == 0) {
                 m_de_services->publish(name);
+            } else if (strncmp(name, DEVICES, strlen(DEVICES)) == 0) {
+                m_de_devices->publish(name);
+            } else if (strncmp(name, RADIOS, strlen(RADIOS)) == 0) {
+                m_de_devices->publish(name);
+            } else if (strncmp(name, BSSS, strlen(BSSS)) == 0) {
+                m_de_devices->publish(name);
+            } else if (strncmp(name, STAS, strlen(STAS)) == 0) {
+                m_de_devices->publish(name);
             }
             break;
    
@@ -129,16 +138,6 @@ int de_tester_t::init()
         return -1;
     }
 
-/*
-
-    m_de_radios = new de_radios_t(DE_RADIOS, push_to_queue, true);
-    if (m_de_radios->init() != 0) {
-        printf("%s:%d: Radios init failed\n", __func__, __LINE__);
-
-        return -1;
-    }
-*/
-
     update();
     
     return 0;
@@ -146,7 +145,6 @@ int de_tester_t::init()
 
 void de_tester_t::deinit()
 {
-    if (m_de_radios) delete m_de_radios;
     if (m_de_devices) delete m_de_devices;
     if (m_de_services) delete m_de_services;
     if (m_de_network) delete m_de_network;
@@ -164,7 +162,6 @@ de_tester_t::de_tester_t(de_reader_t *rd)
     m_de_network = NULL;
     m_de_services = NULL;
     m_de_devices = NULL;
-    m_de_radios = NULL;
 }
 
 de_tester_t::~de_tester_t()

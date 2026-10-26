@@ -24,18 +24,24 @@
 #include "collection.h"
 #include "de.h"
 #include "de_radio.h"
-#include "de_device.h"
+#include "de_bsss.h"
 
 class de_radios_t : public de_t {
 
 public:
     hash_map_t  *m_radio_map;   
+    de_bsss_t   *m_de_bsss;
+
 public:
 
-    int init();
-    void deinit();
+    int init(rbusHandle_t handle);
+    void deinit(bool bus_close);
 
     void update(de_radio_t& radio, unsigned int dpos, unsigned int rpos);
+    void update(de_bss_t& bss, unsigned int dpos, unsigned int rpos, unsigned int bpos);
+    void update(de_sta_t& sta, unsigned int dpos, unsigned int rpos, unsigned int bpos, unsigned int spos);
+
+    void publish(const char *event_name);
 
     rbusError_t add(rbusHandle_t handle, char const* table_name, char const* alias_name, uint32_t* inst_num);
     rbusError_t remove(rbusHandle_t handle, char const* row_name);
@@ -43,7 +49,7 @@ public:
     rbusError_t get(rbusHandle_t handle, rbusProperty_t property, rbusGetHandlerOptions_t* options);
     void handler(rbusHandle_t handle, rbusEvent_t const* event, rbusEventSubscription_t* subscription);
 
-    de_radios_t(const char *name, bool provider = false);
+    de_radios_t(const char *name, bool provider = false, notifier_t func = notifier_t());
 };
 
 #endif

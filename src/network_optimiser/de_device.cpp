@@ -33,8 +33,9 @@ void de_device_t::update(de_device_t& dev)
     strncpy(m_version, dev.m_version, strlen(dev.m_version) + 1);
 }
 
-int de_device_t::init()
+int de_device_t::init(const char *key)
 {
+    strncpy(m_key, key, strlen(key) + 1);
     return 0;
 }
 
@@ -45,7 +46,12 @@ void de_device_t::deinit()
 
 de_device_t::de_device_t()
 {
-
+    memset(m_key, 0, sizeof(m_key));
+    memset(m_id, 0, sizeof(m_id));
+    memset(m_manufacturer, 0, sizeof(m_manufacturer));
+    memset(m_model, 0, sizeof(m_model));
+    memset(m_serial, 0, sizeof(m_serial));
+    memset(m_version, 0, sizeof(m_version));
 }
 
 de_device_t::~de_device_t()

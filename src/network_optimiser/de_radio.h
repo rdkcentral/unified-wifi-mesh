@@ -24,11 +24,14 @@
 class de_radio_t {
 
 public:
+    em_string_t m_key;
     em_string_t m_id;
+    int m_noise;
+    unsigned int m_util;
     bool m_enabled;
 
 public:
-    int init();
+    int init(const char *key);
     void deinit();
     void update(de_radio_t& radio);
 

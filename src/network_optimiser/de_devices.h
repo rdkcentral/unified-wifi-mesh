@@ -24,17 +24,25 @@
 #include "collection.h"
 #include "de.h"
 #include "de_device.h"
+#include "de_radios.h"
+#include "de_bsss.h"
 
 class de_devices_t : public de_t {
 
 public:
     hash_map_t  *m_device_map;   
+    de_radios_t *m_de_radios;
 public:
 
     int init();
     void deinit();
 
     void update(de_device_t& dev, unsigned int pos);
+    void update(de_radio_t& radio, unsigned int dpos, unsigned int rpos);
+    void update(de_bss_t& bss, unsigned int dpos, unsigned int rpos, unsigned int bpos);
+    void update(de_sta_t& sta, unsigned int dpos, unsigned int rpos, unsigned int bpos, unsigned int spos);
+
+    void publish(const char *event_name);
     de_device_t *get_device(de_device_t& dev); 
 
     rbusError_t add(rbusHandle_t handle, char const* table_name, char const* alias_name, uint32_t* inst_num);

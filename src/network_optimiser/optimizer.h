@@ -26,6 +26,8 @@
 #include "de_devices.h"
 
 class optimizer_t {
+
+public:
     bool m_exit;
     pthread_cond_t  m_cond;
     pthread_mutex_t m_lock;

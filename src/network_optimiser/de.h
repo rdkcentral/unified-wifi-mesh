@@ -26,7 +26,7 @@
 #include "de_defs.h"
 
 
-#define MAX_NUM_ELEMS     10 
+#define MAX_NUM_ELEMS     20 
 
 class optimizer_event_t;
 
@@ -46,8 +46,8 @@ public:
     notifier_t  m_func;
     em_string_t m_name;
 
-    int init();
-    void deinit();
+    int init(rbusHandle_t handle = NULL);
+    void deinit(bool bus_close = true);
 
     int subscribe_events();
     void unsubscribe_events();

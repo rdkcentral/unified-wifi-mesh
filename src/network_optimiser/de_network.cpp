@@ -133,7 +133,24 @@ void de_network_t::publish(const char *name)
 
 void de_network_t::handler(rbusHandle_t handle, rbusEvent_t const* event, rbusEventSubscription_t* subscription)
 {
+    rbusValue_t value;
+    const char *ptr;
 
+    if ((value = rbusObject_GetValue(event->data, "value")) == NULL) {
+        printf("%s:%d: No value in event\n", __func__, __LINE__);
+        return;
+
+    }
+
+    if (strncmp(event->name, DE_NETWORK_CTRLID, strlen(DE_NETWORK_CTRLID)) == 0) {
+        ptr = rbusValue_GetString(value, NULL);
+        strncpy(m_controller_id, ptr, strlen(ptr)); 
+        printf("%s:%d: Controller ID: %s\n", __func__, __LINE__, m_controller_id);
+    } else if (strncmp(event->name, DE_NETWORK_ID, strlen(DE_NETWORK_ID)) == 0) {
+        ptr = rbusValue_GetString(value, NULL);
+        strncpy(m_id, ptr, strlen(ptr)); 
+        printf("%s:%d: Network ID: %s\n", __func__, __LINE__, m_id);
+    }
 }
 
 int de_network_t::init()

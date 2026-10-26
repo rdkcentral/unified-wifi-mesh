@@ -40,6 +40,9 @@ int optimizer_t::run(optimizer_type_t type)
     switch (type) {
         case optimizer_type_comcast:
             opt = new comcast_optimizer_web_t();
+            opt->m_de_network = m_de_network;
+            opt->m_de_services = m_de_services;
+            opt->m_de_devices = m_de_devices;
             m_exit = false;
             break;
 
@@ -51,8 +54,6 @@ int optimizer_t::run(optimizer_type_t type)
         printf("%s:%d: Optimizer for operator (%d) not implemented\n", __func__, __LINE__, type);
         return -1;
     }
-
-    printf("%s:%d: url: %s\n", __func__, __LINE__, get_url());
 
     if (opt->init_optimizer_interface(get_url()) != 0) {
         m_exit = true;
@@ -170,6 +171,9 @@ void optimizer_t::wait_for_de_change()
 optimizer_t::optimizer_t()
 {
     m_optimizer_type = optimizer_type_generic;
+    m_de_network = NULL;
+    m_de_services = NULL;
+    m_de_devices = NULL;
 }
 
 optimizer_t::~optimizer_t()

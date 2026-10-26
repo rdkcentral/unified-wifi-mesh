@@ -24,6 +24,7 @@
 class de_device_t {
 
 public:
+    em_string_t m_key;
     em_string_t m_id;
     em_string_t m_manufacturer;
     em_string_t m_model;
@@ -31,7 +32,7 @@ public:
     em_string_t m_version;
 
 public:
-    int init();
+    int init(const char *key);
     void deinit();
     void update(de_device_t& dev);
 

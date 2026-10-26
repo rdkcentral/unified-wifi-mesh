@@ -25,6 +25,21 @@
 #include "de_devices.h"
 #include "optimizer.h"
 
+void de_devices_t::update(de_radio_t& rd, unsigned int dpos, unsigned int rpos)
+{
+    m_de_radios->update(rd, dpos, rpos);
+}
+
+void de_devices_t::update(de_bss_t& bss, unsigned int dpos, unsigned int rpos, unsigned int bpos)
+{
+    m_de_radios->update(bss, dpos, rpos, bpos);
+}
+
+void de_devices_t::update(de_sta_t& sta, unsigned int dpos, unsigned int rpos, unsigned int bpos, unsigned int spos)
+{
+    m_de_radios->update(sta, dpos, rpos, bpos, spos);
+}
+
 void de_devices_t::update(de_device_t& dev, unsigned int pos)
 {
     rbusValue_t value;
@@ -33,11 +48,10 @@ void de_devices_t::update(de_device_t& dev, unsigned int pos)
     de_device_t *pdev;
     em_string_t alias = {0};
 
-    snprintf(name, sizeof(em_long_string_t), "%s", DE_DEVICES);
     snprintf(alias, sizeof(em_string_t), "%s.%d", DEVICES, pos);
 
-
     if ((pdev = (de_device_t *)hash_map_get(m_device_map, alias)) == NULL) {
+        snprintf(name, sizeof(em_long_string_t), "%s", DE_DEVICES);
         rbusTable_addRow(m_bus_handle, name, alias, &inst);
     }
 
@@ -78,11 +92,14 @@ rbusError_t de_devices_t::add(rbusHandle_t handle, char const* table_name, char 
     unsigned int row;
     de_device_t *dev;
 
-    printf("%s:%d: name: %s, alias: %s\n", __func__, __LINE__, table_name, alias_name);
+    if (strstr(table_name, RADIOS) != NULL) {
+        return m_de_radios->add(handle, table_name, alias_name, inst_num);
+    }
+
     sscanf(alias_name, "DeviceList.%d", &row);
 
     dev = new de_device_t();
-    dev->init();
+    dev->init(alias_name);
 
     hash_map_put(m_device_map, strdup(alias_name), dev);
 
@@ -93,7 +110,9 @@ rbusError_t de_devices_t::add(rbusHandle_t handle, char const* table_name, char 
 
 rbusError_t de_devices_t::remove(rbusHandle_t handle, char const* row_name)
 {
-    printf("%s:%d: name: %s, row: %s\n", __func__, __LINE__, row_name);
+    if (strstr(row_name, RADIOS) != NULL) {
+        return m_de_radios->remove(handle, row_name);
+    }
 
     return RBUS_ERROR_SUCCESS;
 }
@@ -108,6 +127,9 @@ rbusError_t de_devices_t::get(rbusHandle_t handle, rbusProperty_t property, rbus
 
     name  = rbusProperty_GetName(property);
     printf("%s:%d: Property Name: %s\n", __func__, __LINE__, name);
+    if (strstr(name, RADIOS) != NULL) {
+        return m_de_radios->get(handle, property, options);
+    }
 
     snprintf(key, sizeof(em_string_t), "%s.", DE_DEVICES);
 
@@ -149,13 +171,18 @@ rbusError_t de_devices_t::set(rbusHandle_t handle, rbusProperty_t property, rbus
     const char *name, *ptr;
 
     name  = rbusProperty_GetName(property);
-    printf("%s:%d: Property Name: %s\n", __func__, __LINE__, name);
+    if (strstr(name, RADIOS) != NULL) {
+        return m_de_radios->set(handle, property, options);
+    }
+
 
     snprintf(key, sizeof(em_string_t), "%s.", DE_DEVICES);
 
     if ((ptr = strstr(name, key)) == NULL) {
         return RBUS_ERROR_INVALID_OPERATION;
     }
+
+    ptr += strlen(DE_NETWORK);
 
     sscanf(ptr, "DeviceList.%d.%s", &inst, str);
     snprintf(key, sizeof(em_string_t), "%s.%d", DEVICES, inst);
@@ -208,14 +235,154 @@ de_device_t *de_devices_t::get_device(de_device_t& dev)
     return (found == true) ? pd:NULL; 
 }
 
+void de_devices_t::publish(const char *name)
+{
+    int rc, inst;
+    de_device_t *dev;
+    rbusEvent_t event = {0};
+    rbusValue_t value;
+    rbusObject_t data, row;
+
+    if ((strncmp(name, RADIOS, strlen(RADIOS)) == 0) || (strncmp(name, BSSS, strlen(BSSS)) == 0) ||
+            (strncmp(name, STAS, strlen(STAS)) == 0)) {
+        m_de_radios->publish(name);
+        return;
+    } else if (strncmp(name, DEVICES, strlen(DEVICES)) != 0) {
+        printf("%s:%d: Name mismatch, name: %s\n", __func__, __LINE__, name);
+        return;
+    }
+
+    rbusObject_Init(&data, NULL);
+
+    dev = (de_device_t *)hash_map_get_first(m_device_map);
+    while (dev != NULL) {
+        rbusObject_Init(&row, dev->m_key);
+
+        rbusValue_Init(&value);
+        rbusValue_SetString(value, dev->m_id);
+        rbusObject_SetValue(row, "ID", value);
+        rbusValue_Release(value);
+
+        rbusValue_Init(&value);
+        rbusValue_SetString(value, dev->m_manufacturer);
+        rbusObject_SetValue(row, "Manufacturer", value);
+        rbusValue_Release(value);
+
+        rbusValue_Init(&value);
+        rbusValue_SetString(value, dev->m_model);
+        rbusObject_SetValue(row, "ManufacturerModel", value);
+        rbusValue_Release(value);
+
+        rbusValue_Init(&value);
+        rbusValue_SetString(value, dev->m_serial);
+        rbusObject_SetValue(row, "SerialNumber", value);
+        rbusValue_Release(value);
+
+        rbusValue_Init(&value);
+        rbusValue_SetString(value, dev->m_version);
+        rbusObject_SetValue(row, "SoftwareVersion", value);
+        rbusValue_Release(value);
+
+        rbusValue_Init(&value);
+        rbusValue_SetObject(value, row);
+        rbusObject_Release(row);
+
+        rbusObject_SetValue(data, dev->m_key, value);
+        rbusValue_Release(value);
+
+        dev = (de_device_t *)hash_map_get_next(m_device_map, dev);
+    }
+
+    event.name = name;;
+    event.data = data;
+    event.type = RBUS_EVENT_GENERAL;
+
+    if ((rc = rbusEvent_Publish(m_bus_handle, &event)) != RBUS_ERROR_SUCCESS) {
+        printf("%s:%d: Failed to publish data for event: %s, err: %d\n", __func__, __LINE__,
+            event.name, rc);
+    } else {
+        printf("%s:%d: Successfully published data for event: %s\n", __func__, __LINE__, event.name);
+    }
+
+    rbusObject_Release(data);
+
+}
+
+
 void de_devices_t::handler(rbusHandle_t handle, rbusEvent_t const* event, rbusEventSubscription_t* subscription)
 {
+    rbusValue_t value;
+    rbusObject_t row;
+    rbusProperty_t prop;
+
+    const char *ptr;
+    de_device_t *dev;
+
+    if (strncmp(event->name, DEVICES, strlen(DEVICES)) != 0) {
+        printf("%s:%d: Unknown event: %s\n", __func__, __LINE__, event->name);
+        return;
+    }
+
+    prop = rbusObject_GetProperties(event->data);
+    while (prop != NULL) {
+        ptr = rbusProperty_GetName(prop);
+
+        if ((dev = (de_device_t *)hash_map_get(m_device_map, ptr)) == NULL) {
+            dev = new de_device_t();
+            dev->init(ptr);
+            hash_map_put(m_device_map, strdup(ptr), dev);
+        }
+
+        row = rbusProperty_GetObject(prop);
+
+        if ((value = rbusObject_GetValue(row, "ID")) == NULL) {
+            printf("%s:%d: Could not find Type value\n", __func__, __LINE__);
+        } else {
+            ptr = rbusValue_GetString(value, NULL);
+            strncpy(dev->m_id, ptr, strlen(ptr) + 1);
+        }
+
+        if ((value = rbusObject_GetValue(row, "Manufacturer")) == NULL) {
+            printf("%s:%d: Could not find Operator value\n", __func__, __LINE__);
+        } else {
+            ptr = rbusValue_GetString(value, NULL);
+            strncpy(dev->m_manufacturer, ptr, strlen(ptr) + 1);
+        }
+
+        if ((value = rbusObject_GetValue(row, "ManufacturerModel")) == NULL) {
+            printf("%s:%d: Could not find URL value\n", __func__, __LINE__);
+        } else {
+            ptr = rbusValue_GetString(value, NULL);
+            strncpy(dev->m_model, ptr, strlen(ptr) + 1);
+        }
+
+        if ((value = rbusObject_GetValue(row, "SerialNumber")) == NULL) {
+            printf("%s:%d: Could not find URL value\n", __func__, __LINE__);
+        } else {
+            ptr = rbusValue_GetString(value, NULL);
+            strncpy(dev->m_serial, ptr, strlen(ptr) + 1);
+        }
+
+        if ((value = rbusObject_GetValue(row, "SoftwareVersion")) == NULL) {
+            printf("%s:%d: Could not find URL value\n", __func__, __LINE__);
+        } else {
+            ptr = rbusValue_GetString(value, NULL);
+            strncpy(dev->m_version, ptr, strlen(ptr) + 1);
+        }
+
+        prop = rbusProperty_GetNext(prop);
+
+    }
 
 }
 
 int de_devices_t::init()
 {
     m_device_map = hash_map_create();
+
+    m_elems[m_num_elems].name = DEVICES;
+    m_elems[m_num_elems].type = RBUS_ELEMENT_TYPE_PROPERTY;
+    m_num_elems++;
     
     m_elems[m_num_elems].name = DE_DEVICES_TABLE;
     m_elems[m_num_elems].type = RBUS_ELEMENT_TYPE_TABLE;
@@ -241,6 +408,10 @@ int de_devices_t::init()
     m_elems[m_num_elems].type = RBUS_ELEMENT_TYPE_PROPERTY;
     m_num_elems++;
 
+    m_subs[m_num_subs].eventName = DEVICES;
+    m_num_subs++;
+
+#ifdef FUTURE
     m_subs[m_num_subs].eventName = DE_DEVICES_ANY_ID;
     m_num_subs++;
 
@@ -250,19 +421,28 @@ int de_devices_t::init()
     m_subs[m_num_subs].eventName = DE_DEVICES_ANY_MODEL;
     m_num_subs++;
 
-    m_subs[m_num_subs].eventName = DE_DEVICES_ANY_SERIAL;
+    m_subs[m_num_subs].eventName = DE_DEVICES_ANY_IAL;
     m_num_subs++;
 
     m_subs[m_num_subs].eventName = DE_DEVICES_ANY_VERSION;
     m_num_subs++;
+#endif
 
+    if (de_t::init() != 0) {
+        printf("%s:%d: Failed to initialize devices\n", __func__, __LINE__);
+        return -1;
+    }
 
-    return de_t::init();
+    m_de_radios = new de_radios_t(RADIOS, m_provider, m_func);
+
+    return m_de_radios->init(m_bus_handle); 
 }
 
 void de_devices_t::deinit()
 {
+    m_de_radios->deinit(false);
     hash_map_destroy(m_device_map);
+    de_t::deinit();
 }
 
 de_devices_t::de_devices_t(const char *name, bool provider, notifier_t func)

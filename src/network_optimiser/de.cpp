@@ -70,8 +70,6 @@ static rbusError_t set(rbusHandle_t handle, rbusProperty_t property, rbusSetHand
 
 rbusError_t de_t::event(rbusHandle_t handle, rbusEventSubAction_t action, char const* event_name, rbusFilter_t filter, int32_t interval, bool* auto_publish)
 {
-    printf("%s:%d: Name: %s\n", __func__, __LINE__, event_name);
-
     if (action == RBUS_EVENT_ACTION_SUBSCRIBE) {
         *auto_publish = false;
         if (m_func != NULL) {
@@ -99,7 +97,8 @@ void de_t::handler(rbusHandle_t handle, rbusEvent_t const* event, rbusEventSubsc
 
 static void handler(rbusHandle_t handle, rbusEvent_t const* event, rbusEventSubscription_t* subscription)
 {
-    printf("%s:%d: Received event: %s, event type: %d\n", __func__, __LINE__, event->name, event->type);
+    return ((de_t *)subscription->userData)->handler(handle, event, subscription);
+    
 }
 
 int de_t::subscribe_events()
@@ -113,7 +112,7 @@ int de_t::subscribe_events()
     }
     
     if (rbusEvent_SubscribeEx(m_bus_handle, m_subs, m_num_subs, 0) != RBUS_ERROR_SUCCESS) {
-        printf("%s:%d: Failed to subscribe\n", __func__, __LINE__);
+        printf("%s:%d: Failed to subscribe for de: %s(num: %d)\n", __func__, __LINE__, m_name, m_num_subs);
         return -1;
     }
 
@@ -157,20 +156,24 @@ int de_t::register_elements()
     return 0;
 }
 
-int de_t::init()
+int de_t::init(rbusHandle_t handle)
 {
     int ret = 0;
     em_string_t name = {0};
 
     snprintf(name, sizeof(name), "%s-%s", m_name, (m_provider == true)?"Provider":"Consumer");
 
-    if (rbus_open(&m_bus_handle, name) != RBUS_ERROR_SUCCESS) {
-        printf("%s:%d: Failed to open rbus, name: %s\n", __func__, __LINE__, m_name);
-        return -1;
+    if (handle == NULL) {
+        if (rbus_open(&m_bus_handle, name) != RBUS_ERROR_SUCCESS) {
+            printf("%s:%d: Failed to open rbus, name: %s\n", __func__, __LINE__, m_name);
+            return -1;
+        }
+        rbusHandle_SetUserData(m_bus_handle, this);
+    } else {
+        m_bus_handle = handle;
     }
 
     if (m_provider == true) {
-        rbusHandle_SetUserData(m_bus_handle, this);
         ret = register_elements();
     } else {
         ret = subscribe_events();
@@ -179,14 +182,19 @@ int de_t::init()
     return ret;
 }
 
-void de_t::deinit()
+void de_t::deinit(bool bus_close)
 {
     if (m_provider == true) {
         deregister_elements();
     } else {
         unsubscribe_events();
     }
-    rbus_close(m_bus_handle);
+
+    if (bus_close == true) {
+        rbus_close(m_bus_handle);
+    } else {
+        m_bus_handle = NULL;
+    }
 }
 
 de_t::de_t()

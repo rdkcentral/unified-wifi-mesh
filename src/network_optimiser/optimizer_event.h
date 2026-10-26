@@ -23,6 +23,7 @@ typedef enum {
     optimizer_event_type_subscribed,
     optimizer_event_type_de_change,
     optimizer_event_type_get_topology,
+    optimizer_event_type_get_de,
     optimizer_event_type_max
 } optimizer_event_type_t;
 

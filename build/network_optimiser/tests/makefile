@@ -80,6 +80,10 @@ SOURCES = $(wildcard $(OPTIMIZER_SRC)/tests/*.cpp) \
     $(OPTIMIZER_SRC)/de_device.cpp \
     $(OPTIMIZER_SRC)/de_radios.cpp \
     $(OPTIMIZER_SRC)/de_radio.cpp \
+    $(OPTIMIZER_SRC)/de_bsss.cpp \
+    $(OPTIMIZER_SRC)/de_bss.cpp \
+    $(OPTIMIZER_SRC)/de_stas.cpp \
+    $(OPTIMIZER_SRC)/de_sta.cpp \
     $(OPTIMIZER_SRC)/optimizer_event.cpp \
 
 OBJECTS = $(SOURCES:.cpp=.o)

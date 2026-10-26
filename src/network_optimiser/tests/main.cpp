@@ -18,6 +18,11 @@ int main(int argc, const char * argv[]) {
     int rc;
     optimizer_event_t *ev;
 
+    if ((argc != 2) || (argv[1] == NULL) || (argv[1][0] == '\0')) {
+        fprintf(stderr, "Usage: %s <Data_Elements.json>\n", argv[0]);
+        return -1;
+    }
+
     rd = new de_reader_t(argv[1]);
     if (rd->init() != 0) {
         printf("%s:%d: Could not initialize reader\n", __func__, __LINE__);

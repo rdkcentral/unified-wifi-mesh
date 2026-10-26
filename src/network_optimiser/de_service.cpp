@@ -44,7 +44,10 @@ void de_service_t::deinit()
 
 de_service_t::de_service_t()
 {
-
+    m_type = service_type_unknown;
+    memset(m_operator_name, 0, sizeof(m_operator_name));
+    memset(m_url, 0, sizeof(m_url));
+    memset(m_key, 0, sizeof(m_key));
 }
 
 de_service_t::~de_service_t()

@@ -28,10 +28,13 @@ void de_radio_t::update(de_radio_t& radio)
 {
     strncpy(m_id, radio.m_id, strlen(radio.m_id) + 1);
     m_enabled = radio.m_enabled;
+    m_util = radio.m_util;
+    m_noise = radio.m_noise;
 }
 
-int de_radio_t::init()
+int de_radio_t::init(const char *key)
 {
+    strncpy(m_key, key, strlen(key) + 1);
     return 0;
 }
 
@@ -42,7 +45,9 @@ void de_radio_t::deinit()
 
 de_radio_t::de_radio_t()
 {
-
+    m_noise = 0;
+    m_util = 0;
+    m_enabled = false;
 }
 
 de_radio_t::~de_radio_t()

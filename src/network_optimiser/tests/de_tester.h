@@ -23,7 +23,6 @@
 #include "de_network.h"
 #include "de_services.h"
 #include "de_devices.h"
-#include "de_radios.h"
 #include "de_reader.h"
 #include "optimizer_event.h"
 #include "collection.h"
@@ -40,14 +39,12 @@ class de_tester_t {
     de_network_t *m_de_network;    
     de_services_t *m_de_services;
     de_devices_t *m_de_devices;
-    de_radios_t *m_de_radios;
     
 public:
     int init();
     void deinit();
 
     void update();
-    void update(de_device_t& dev, unsigned int pos);
 
     bool should_exit() { return m_exit; }
 

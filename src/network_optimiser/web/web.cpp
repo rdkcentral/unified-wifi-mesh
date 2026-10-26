@@ -276,7 +276,13 @@ void web_t::handle_get(int sock, const char *action_string)
                 buff = (char *)malloc(EM_LONG_IO_BUFF_SZ);
                 send_message(sock, extn_type, false, handle_get(optimizer_event_type_get_topology, buff, EM_LONG_IO_BUFF_SZ));
                 free(buff);
-            } 
+            } else if (strncmp(tmp, "DataElements", strlen("DataElements")) == 0) {
+                printf("%s:%d: Loding data elements ...\n", __func__, __LINE__);
+                buff = (char *)malloc(EM_LONG_IO_BUFF_SZ);
+                send_message(sock, extn_type, false, handle_get(optimizer_event_type_get_de, buff, EM_LONG_IO_BUFF_SZ));
+                free(buff);
+
+            }
         } else {
             //send real file
             strcat(file_name, action_string);
@@ -295,7 +301,7 @@ int web_t::server(int sock)
     char buffer[30000] = {0};
     long valread;
     char *method, *action;
-    
+   
     valread = read(sock, buffer, sizeof(buffer));
     if ((method = parse_method(buffer, " ")) == NULL) {  //Try to get the path which the client ask for
         return NULL;
@@ -337,13 +343,13 @@ int web_t::run()
     size_t stack_size = 1024 * 1024; // Example: 1 MB stack size
     int new_sock;
     int addrlen = sizeof(m_address);
-    
+   
     while (m_exit == false) {
         if ((new_sock = accept(m_server_fd, (struct sockaddr *)&m_address, (socklen_t*)&addrlen))<0) {
             printf("%s:%d: Error in accept: %d\n", __func__, __LINE__, errno);
             return -1;
         }
-        
+    
         args.web = this;
         args.sock = new_sock;
         
