@@ -52,19 +52,21 @@
 static     const unsigned char em_vendor_oui[EM_VENDOR_OUI_SIZE] = {0xd8, 0x9c, 0x8e};
 
 int em_metrics_t::handle_assoc_sta_link_metrics_tlv(unsigned char *buff,
-                                                    unsigned int tlv_len)
+                                                    unsigned int tlv_len, dm_easy_mesh_t *dm)
 {
     em_assoc_sta_link_metrics_t *sta_metrics;
     em_assoc_link_metrics_t *metrics;
     dm_sta_t *sta;
     unsigned int i;
-    dm_easy_mesh_t *dm;
 
     if (buff == NULL || tlv_len == 0 || tlv_len < 7) {
         return -1;
     }
 
-    dm = get_data_model();
+    if (dm == NULL) {
+       em_printfout("Link stats alarm: DM is NULL");
+       return -1;
+    }
 
     sta_metrics = reinterpret_cast<em_assoc_sta_link_metrics_t *>(buff);
 
@@ -118,20 +120,22 @@ int em_metrics_t::handle_assoc_sta_link_metrics_tlv(unsigned char *buff,
     return 0;
 }
 
-int em_metrics_t::handle_assoc_sta_ext_link_metrics_tlv(unsigned char *buff, unsigned int tlv_len)
+int em_metrics_t::handle_assoc_sta_ext_link_metrics_tlv(unsigned char *buff, unsigned int tlv_len, dm_easy_mesh_t *dm)
 {
     em_assoc_sta_ext_link_metrics_t	*sta_metrics;
     em_assoc_ext_link_metrics_t *metrics;
     dm_sta_t *sta;
     unsigned int i;
-    dm_easy_mesh_t  *dm;
 
     if (buff == NULL || tlv_len == 0 || tlv_len < 7) {
             printf("Invalid input: null buffer or invalid tlv_len=%u\n", tlv_len);
             return -1;
     }
 
-    dm = get_data_model();
+    if (dm == NULL) {
+        em_printfout("Link stats alarm: DM is NULL");
+        return -1;
+    }
 
     sta_metrics = reinterpret_cast<em_assoc_sta_ext_link_metrics_t *> (buff);
 
@@ -159,17 +163,20 @@ int em_metrics_t::handle_assoc_sta_ext_link_metrics_tlv(unsigned char *buff, uns
 }
 
 int em_metrics_t::handle_assoc_sta_vendor_link_metrics_tlv(unsigned char *buff,
-                                                           unsigned int len,
+                                                           unsigned int len, dm_easy_mesh_t *dm,
                                                            bool *first_client_type_seen)
 {
     em_vendor_specific_t *vendor_metrics = reinterpret_cast<em_vendor_specific_t *> (buff);
     em_vendor_data_t *vendor_data = vendor_metrics->data;
     em_assoc_sta_vendor_link_metrics_t *sta_metrics;
     dm_sta_t *sta = NULL;
-    dm_easy_mesh_t  *dm;
     size_t client_type_len;
+    
+    if (dm == NULL) {
+        em_printfout("Link stats alarm: DM is NULL");
+        return -1;
+    }
 
-    dm = get_data_model();
     sta_metrics = reinterpret_cast<em_assoc_sta_vendor_link_metrics_t *> (vendor_data->vendor_data);
 
     sta = dm->find_sta(sta_metrics->sta_mac, sta_metrics->bssid);
@@ -244,7 +251,7 @@ int em_metrics_t::handle_associated_sta_link_metrics_resp(unsigned char *buff, u
     while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
         if (tlv->type == em_tlv_type_assoc_sta_link_metric) {
             uint16_t tlv_len = ntohs(tlv->len);
-            handle_assoc_sta_link_metrics_tlv(tlv->value, tlv_len);
+            handle_assoc_sta_link_metrics_tlv(tlv->value, tlv_len, dm);
         }
         tmp_len -= (sizeof(em_tlv_t) + static_cast<size_t> (ntohs(tlv->len)));
         tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + ntohs(tlv->len));
@@ -272,7 +279,7 @@ int em_metrics_t::handle_associated_sta_link_metrics_resp(unsigned char *buff, u
 
     while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
         if (tlv->type == em_tlv_type_assoc_sta_ext_link_metric) {
-            handle_assoc_sta_ext_link_metrics_tlv(tlv->value, ntohs(tlv->len));
+            handle_assoc_sta_ext_link_metrics_tlv(tlv->value, ntohs(tlv->len), dm);
         }
 
         tmp_len -= (sizeof(em_tlv_t) + static_cast<size_t> (ntohs(tlv->len)));
@@ -284,7 +291,7 @@ int em_metrics_t::handle_associated_sta_link_metrics_resp(unsigned char *buff, u
 
     while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
         if (tlv->type == em_tlv_type_vendor_specific) {
-            handle_assoc_sta_vendor_link_metrics_tlv(tlv->value, ntohs(tlv->len),
+            handle_assoc_sta_vendor_link_metrics_tlv(tlv->value, ntohs(tlv->len), dm,
                 &first_client_type_seen);
         }
 
@@ -727,14 +734,13 @@ int em_metrics_t::send_beacon_metrics_ack(unsigned short msg_id)
     return static_cast<int>(msg.get_len());
 }
 
-int em_metrics_t::handle_device_metrics_vendor_tlv(unsigned char *buf, unsigned int len) {
+int em_metrics_t::handle_device_metrics_vendor_tlv(unsigned char *buf, unsigned int len, dm_easy_mesh_t *dm) {
 
     if (len < sizeof(em_radio_device_metrics_vendor_t)) {
         em_printfout("Invalid Radio Device Metrics TLV\n");
         return -1;
     }
     em_radio_device_metrics_vendor_t *device_metrics = reinterpret_cast<em_radio_device_metrics_vendor_t *> (buf);
-    dm_easy_mesh_t  *dm;
     em_device_info_t *device_info = NULL;
     dm_radio_t *radio = NULL;
     em_radio_info_t *em_radio_info = NULL;
@@ -750,7 +756,6 @@ int em_metrics_t::handle_device_metrics_vendor_tlv(unsigned char *buf, unsigned 
         return -1;
     }
 
-    dm = get_data_model();
     if (dm == NULL) {
         return -1;
     }
@@ -781,7 +786,7 @@ int em_metrics_t::handle_device_metrics_vendor_tlv(unsigned char *buf, unsigned 
     return 0;
 }
 
-int em_metrics_t::handle_ap_metrics_tlv(unsigned char *buff, unsigned int tlv_len, bssid_t get_bssid)
+int em_metrics_t::handle_ap_metrics_tlv(unsigned char *buff, unsigned int tlv_len, bssid_t get_bssid, dm_easy_mesh_t *dm)
 {
     em_ap_metric_t *ap_metrics;
     em_bss_info_t *bss;
@@ -799,15 +804,15 @@ int em_metrics_t::handle_ap_metrics_tlv(unsigned char *buff, unsigned int tlv_le
         return 0;
     }
 
-    bss = get_data_model()->get_bss_info_with_mac(ap_metrics->bssid);
+    bss = dm->get_bss_info_with_mac(ap_metrics->bssid);
 
     memcpy(get_bssid, ap_metrics->bssid, sizeof(mac_addr_t));
     if (bss != NULL) {
         bss->numberofsta = htons(ap_metrics->num_sta);
         bss->channel_util = ap_metrics->channel_util;
         /* ruid.mac holds the owning radio's interface MAC, which get_radio() matches. */
-        dm_radio_t *radio = get_data_model()->get_radio(bss->ruid.mac);
-        if (radio != NULL) {
+        dm_radio_t *radio = dm->get_radio(bss->ruid.mac);
+	if (radio != NULL) {
             radio->m_radio_info.utilization = ap_metrics->channel_util;
         }
         dm_easy_mesh_t::macbytes_to_string(ap_metrics->bssid, bss_str);
@@ -819,7 +824,7 @@ int em_metrics_t::handle_ap_metrics_tlv(unsigned char *buff, unsigned int tlv_le
     return 0;
 }
 
-int em_metrics_t::handle_ap_ext_metrics_tlv(unsigned char *buff, unsigned int tlv_len)
+int em_metrics_t::handle_ap_ext_metrics_tlv(unsigned char *buff, unsigned int tlv_len, dm_easy_mesh_t *dm)
 {
     em_ap_ext_metric_t *ap_ext_metrics;
     em_bss_info_t *bss;
@@ -831,7 +836,7 @@ int em_metrics_t::handle_ap_ext_metrics_tlv(unsigned char *buff, unsigned int tl
     }
 
     ap_ext_metrics = reinterpret_cast<em_ap_ext_metric_t *> (buff);
-    bss = get_data_model()->get_bss_info_with_mac(ap_ext_metrics->bssid);
+    bss = dm->get_bss_info_with_mac(ap_ext_metrics->bssid);
     if (bss == NULL) {
         dm_easy_mesh_t::macbytes_to_string(ap_ext_metrics->bssid, bss_str);
         em_printfout("Error: BSS not found: %s", bss_str);
@@ -854,7 +859,7 @@ int em_metrics_t::handle_ap_ext_metrics_tlv(unsigned char *buff, unsigned int tl
     return 0;
 }
 
-int em_metrics_t::handle_radio_metrics_tlv(unsigned char *buff, unsigned int tlv_len)
+int em_metrics_t::handle_radio_metrics_tlv(unsigned char *buff, unsigned int tlv_len, dm_easy_mesh_t *dm)
 {
     em_radio_metric_t *radio_metrics;
     dm_radio_t *radio;
@@ -865,7 +870,7 @@ int em_metrics_t::handle_radio_metrics_tlv(unsigned char *buff, unsigned int tlv
     }
 
     radio_metrics = reinterpret_cast<em_radio_metric_t *> (buff);
-    radio = get_data_model()->get_radio(radio_metrics->ruid);
+    radio = dm->get_radio(radio_metrics->ruid);
     if (radio == NULL) {
         dm_easy_mesh_t::macbytes_to_string(radio_metrics->ruid, radio_str);
         em_printfout("Error: Radio not found: %s", radio_str);
@@ -880,13 +885,16 @@ int em_metrics_t::handle_radio_metrics_tlv(unsigned char *buff, unsigned int tlv
     return 0;
 }
 
-int em_metrics_t::handle_assoc_sta_traffic_stats(unsigned char *buff, bssid_t bssid)
+int em_metrics_t::handle_assoc_sta_traffic_stats(unsigned char *buff, bssid_t bssid, dm_easy_mesh_t *dm)
 {
     em_assoc_sta_traffic_stats_t	*sta_metrics;
     dm_sta_t *sta;
-    dm_easy_mesh_t  *dm;
 
-    dm = get_data_model();
+    if (dm == NULL) {
+      em_printfout("Link stats alarm: DM is NULL");
+      return -1;
+    }
+
     sta_metrics = reinterpret_cast<em_assoc_sta_traffic_stats_t *> (buff);
 
     sta = dm->find_sta(sta_metrics->sta_mac, bssid);
@@ -907,16 +915,18 @@ int em_metrics_t::handle_assoc_sta_traffic_stats(unsigned char *buff, bssid_t bs
     return 0;
 }
 
-int em_metrics_t::handle_link_stats_alarm_rprt_tlv(unsigned char *buff, size_t len)
+int em_metrics_t::handle_link_stats_alarm_rprt_tlv(unsigned char *buff, size_t len, dm_easy_mesh_t *dm)
 {
     em_link_report_t *link_report;
     dm_sta_t *sta;
-    dm_easy_mesh_t  *dm;
     mac_addr_str_t sta_str;
     unsigned char *tmp = buff;
     size_t alarm_offset = 0;
 
-    dm = get_data_model();
+    if (dm == NULL) {
+       em_printfout("Link stats alarm: DM is NULL");
+       return -1;
+    }
 
     em_vendor_specific_t *vendor_data = reinterpret_cast<em_vendor_specific_t *> (tmp);
     em_printfout("vendor_data->num count [%d]", vendor_data->num);
@@ -1013,17 +1023,28 @@ int em_metrics_t::handle_ap_metrics_response(unsigned char *buff, unsigned int l
     bssid_t bssid = {};
     bool first_client_type_seen = false;
 
-    dm = get_data_model();
+    if (buff == NULL) {
+    em_printfout("NULL buffer received");
+    return -1;
+   }
+
+    if (len < sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)) {
+        em_printfout("Frame shorter than the 1905 headers");
+        return -1;
+    }
+
+    // ap_metrics_rsp dispatches to al_em; use the sending agent's DM keyed by src AL MAC.
+    em_raw_hdr_t *hdr = reinterpret_cast<em_raw_hdr_t *>(buff);
+    dm = get_mgr()->get_data_model(GLOBAL_NET_ID, hdr->src);
+    if (dm == NULL) {
+        em_printfout("ap_metrics_rsp: agent DM not found for src MAC");
+        return -1;
+    }
 
     em_profile_type_t validation_profile = (peer_profile == em_profile_type_reserved) ? em_profile_type_1 : peer_profile;
 
     if (em_msg_t(em_msg_type_ap_metrics_rsp, validation_profile, buff, len).validate(errors) == 0) {
         em_printfout("%s:%d: AP Metrics metrics response msg validation failed\n", __func__, __LINE__);
-        return -1;
-    }
-
-    if (len < sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)) {
-        em_printfout("Frame shorter than the 1905 headers");
         return -1;
     }
 
@@ -1044,32 +1065,32 @@ int em_metrics_t::handle_ap_metrics_response(unsigned char *buff, unsigned int l
         switch (tlv->type) {
             case em_tlv_type_ap_metrics:
                 // Update current BSSID context; subsequent per-STA TLVs use this value.
-                if (handle_ap_metrics_tlv(tlv->value, ntohs(tlv->len), bssid) != 0) {
+                if (handle_ap_metrics_tlv(tlv->value, ntohs(tlv->len), bssid, dm) != 0) {
                     em_printfout("ap_metrics_tlv failed, skipping TLV");
                 }
                 break;
             case em_tlv_type_ap_ext_metric:
-                if (handle_ap_ext_metrics_tlv(tlv->value, ntohs(tlv->len)) != 0) {
+                if (handle_ap_ext_metrics_tlv(tlv->value, ntohs(tlv->len), dm) != 0) {
                     em_printfout("ap_ext_metrics_tlv failed, skipping TLV");
                 }
                 break;
             case em_tlv_type_radio_metric:
-                if (handle_radio_metrics_tlv(tlv->value, ntohs(tlv->len)) != 0) {
+                if (handle_radio_metrics_tlv(tlv->value, ntohs(tlv->len), dm) != 0) {
                     em_printfout("radio_metrics_tlv failed, skipping TLV");
                 }
                 break;
             case em_tlv_type_assoc_sta_traffic_sts:
-                if (handle_assoc_sta_traffic_stats(tlv->value, bssid) != 0) {
+                if (handle_assoc_sta_traffic_stats(tlv->value, bssid, dm) != 0) {
                     em_printfout("assoc_sta_traffic_stats failed, skipping TLV");
                 }
                 break;
             case em_tlv_type_assoc_sta_link_metric:
-                if (handle_assoc_sta_link_metrics_tlv(tlv->value, ntohs(tlv->len)) != 0) {
+                if (handle_assoc_sta_link_metrics_tlv(tlv->value, ntohs(tlv->len), dm) != 0) {
                     em_printfout("assoc_sta_link_metrics_tlv failed, skipping TLV");
                 }
                 break;
             case em_tlv_type_assoc_sta_ext_link_metric:
-                if (handle_assoc_sta_ext_link_metrics_tlv(tlv->value, ntohs(tlv->len)) != 0) {
+                if (handle_assoc_sta_ext_link_metrics_tlv(tlv->value, ntohs(tlv->len), dm) != 0) {
                     em_printfout("assoc_sta_ext_link_metrics_tlv failed, skipping TLV");
                 }
                 break;
@@ -1085,14 +1106,14 @@ int em_metrics_t::handle_ap_metrics_response(unsigned char *buff, unsigned int l
                     tlv_id = ntohs(tlv_id);
                     if (tlv_id == em_tlv_type_device_metrics) {
                         len -= sizeof(airties_vendor_oui) + sizeof(tlv_id);
-                        if (handle_device_metrics_vendor_tlv(vendor_tlv->data + sizeof(tlv_id), len) != 0) {
+                        if (handle_device_metrics_vendor_tlv(vendor_tlv->data + sizeof(tlv_id), len, dm) != 0) {
                             em_printfout("device_metrics_vendor_tlv failed, skipping TLV");
                         }
                     } else {
                         em_printfout("unknown Airties vendor tlv_id 0x%04x, skipping TLV", tlv_id);
                     }
                 } else {
-                    if (handle_assoc_sta_vendor_link_metrics_tlv(tlv->value, ntohs(tlv->len),
+                    if (handle_assoc_sta_vendor_link_metrics_tlv(tlv->value, ntohs(tlv->len), dm,
                             &first_client_type_seen) != 0) {
                         em_printfout("assoc_sta_vendor_link_metrics_tlv failed, skipping TLV");
                     }
@@ -1125,6 +1146,14 @@ int em_metrics_t::handle_vendor_msg(unsigned char *buff, unsigned int len)
         return -1;
     }
 
+    em_raw_hdr_t *hdr = reinterpret_cast<em_raw_hdr_t *>(buff);
+    dm_easy_mesh_t *dm =get_mgr()->get_data_model(GLOBAL_NET_ID, hdr->src);
+
+    if (dm == NULL) {
+        em_printfout("No data model for agent AL MAC");
+        return -1;
+    }
+
     tlv_start =  reinterpret_cast<em_tlv_t *> (buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
     base_len = static_cast<size_t> (len) - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
 
@@ -1133,7 +1162,7 @@ int em_metrics_t::handle_vendor_msg(unsigned char *buff, unsigned int len)
 
     while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
         if (tlv->type == em_tlv_type_vendor_specific) {
-            handle_link_stats_alarm_rprt_tlv(tlv->value, ntohs(tlv->len));
+            handle_link_stats_alarm_rprt_tlv(tlv->value, ntohs(tlv->len), dm);
         }
         tmp_len -= (sizeof(em_tlv_t) + static_cast<size_t> (ntohs(tlv->len)));
         tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + ntohs(tlv->len));
