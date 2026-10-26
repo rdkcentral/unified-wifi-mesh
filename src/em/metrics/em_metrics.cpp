@@ -158,20 +158,45 @@ int em_metrics_t::handle_assoc_sta_ext_link_metrics_tlv(unsigned char *buff, uns
     return 0;
 }
 
-int em_metrics_t::handle_assoc_sta_vendor_link_metrics_tlv(unsigned char *buff, unsigned int len)
+int em_metrics_t::handle_assoc_sta_vendor_link_metrics_tlv(unsigned char *buff,
+                                                           unsigned int len,
+                                                           bool notify_topology)
 {
     em_vendor_specific_t *vendor_metrics = reinterpret_cast<em_vendor_specific_t *> (buff);
     em_vendor_data_t *vendor_data = vendor_metrics->data;
     em_assoc_sta_vendor_link_metrics_t *sta_metrics;
     dm_sta_t *sta = NULL;
     dm_easy_mesh_t  *dm;
+    size_t client_type_len;
+    bool first_client_type;
 
     dm = get_data_model();
     sta_metrics = reinterpret_cast<em_assoc_sta_vendor_link_metrics_t *> (vendor_data->vendor_data);
 
     sta = dm->find_sta(sta_metrics->sta_mac, sta_metrics->bssid);
     if (sta != NULL && len >= sizeof(em_assoc_sta_vendor_link_metrics_t)) {
-        strncpy(sta->m_sta_info.sta_client_type, sta_metrics->sta_client_type, sizeof(sta->m_sta_info.sta_client_type));
+        client_type_len = strnlen(sta_metrics->sta_client_type,
+                                  sizeof(sta_metrics->sta_client_type));
+        if (client_type_len == sizeof(sta_metrics->sta_client_type)) {
+            client_type_len--;
+        }
+
+        /* AP metrics repeat periodically; notify only on the first value. */
+        first_client_type = (notify_topology &&
+                             sta->m_sta_info.sta_client_type[0] == '\0' &&
+                             client_type_len > 0);
+        if (client_type_len > 0) {
+            memset(sta->m_sta_info.sta_client_type, 0,
+                   sizeof(sta->m_sta_info.sta_client_type));
+            memcpy(sta->m_sta_info.sta_client_type,
+                   sta_metrics->sta_client_type, client_type_len);
+        }
+        em_printfout("Entering %s %d with client type as %s\n",
+                     __func__, __LINE__, sta->m_sta_info.sta_client_type);
+
+        if (first_client_type) {
+            get_mgr()->publish_network_topology();
+        }
     }
 
     return 0;
@@ -1066,7 +1091,7 @@ int em_metrics_t::handle_ap_metrics_response(unsigned char *buff, unsigned int l
                         em_printfout("unknown Airties vendor tlv_id 0x%04x, skipping TLV", tlv_id);
                     }
                 } else {
-                    if (handle_assoc_sta_vendor_link_metrics_tlv(tlv->value, len) != 0) {
+                    if (handle_assoc_sta_vendor_link_metrics_tlv(tlv->value, ntohs(tlv->len), true) != 0) {
                         em_printfout("assoc_sta_vendor_link_metrics_tlv failed, skipping TLV");
                     }
                 }
