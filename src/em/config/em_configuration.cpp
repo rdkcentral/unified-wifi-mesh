@@ -7082,8 +7082,12 @@ void em_configuration_t::process_ctrl_state()
             break;
 
         case em_state_ctrl_topo_publish_pending:
+            em_printfout("topo_publish_pending: device=%s radio=%s topo_state=%d",
+                util::mac_to_string(dm->get_agent_al_interface_mac()).c_str(),
+                util::mac_to_string(get_radio_interface_mac()).c_str(),
+                static_cast<int>(dm->get_topo_state()));
             if (dm->get_topo_state() == true) {
-                em_printfout("Topology has changed for device: %s", util::mac_to_string(dm->get_agent_al_interface_mac()).c_str());
+                em_printfout("Publishing topology for device: %s", util::mac_to_string(dm->get_agent_al_interface_mac()).c_str());
                 dm->set_topo_state(false);
                 get_mgr()->publish_network_topology();
                 //Send beacon metrics query for the sta assoc case to get the beacon metrics from the STA
@@ -7101,8 +7105,7 @@ void em_configuration_t::process_ctrl_state()
                     }
                 }
             }
-
-            set_state(em_state_ctrl_configured);
+            set_state(em_state_ctrl_topo_published);
             break;
 
         default:

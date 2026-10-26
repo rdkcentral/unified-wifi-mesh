@@ -2404,6 +2404,7 @@ typedef enum {
     em_state_ctrl_bsta_cap_pending,
     em_state_ctrl_topo_publish_pending,
     em_state_ctrl_unassoc_sta_link_metrics_pending,
+    em_state_ctrl_topo_published,
     em_state_ctrl_client_assoc_ctrl_req_pending,
 
     //common states
