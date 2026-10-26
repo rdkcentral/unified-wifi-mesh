@@ -2001,7 +2001,40 @@ int em_capability_t::handle_ap_cap_report(unsigned char *buff, unsigned int len)
         }
         else if (tlv->type == em_tlv_type_metric_cltn_interval){
         } else if (tlv->type == em_tlv_type_device_inventory) {
-            //TBD: Address handling of device inventory TLV appropriately
+            unsigned char *value = tlv->value;
+            uint16_t value_len  = ntohs(tlv->len);
+            em_device_info_t *dev_info = dm->get_device_info();
+
+            if (value_len<1 || dev_info == NULL) {
+                continue;
+            }
+
+            //Skipping the first param processing - Serial Number
+            uint16_t serial_len = *value++;
+            value_len--;
+   
+            if (serial_len > value_len) {
+                continue; 
+            }
+            value += serial_len;
+            value_len -= serial_len;
+
+            if (value_len < 1) {
+                continue;  //Sw version not present
+            }
+
+            //Processing Software Version 
+            uint16_t sw_len = *value++;
+            value_len--;
+
+            if(sw_len > 0 && sw_len <= value_len ) {
+                sw_len=std::min<size_t>(sw_len, sizeof(dev_info->software_ver) - 1);
+                memcpy(dev_info->software_ver, value, sw_len);
+                dev_info->software_ver[sw_len] = '\0';
+                em_printfout("Device inventory: software_ver=%s",dev_info->software_ver);
+                dm->set_db_cfg_param(db_cfg_type_device_list_update, "");
+            }
+
         } else if (tlv->type == em_tlv_type_ap_radio_advanced_cap){
             uint16_t value_len = ntohs(tlv->len);
 
