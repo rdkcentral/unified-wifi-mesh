@@ -2484,6 +2484,7 @@ int em_configuration_t::handle_topology_notification(unsigned char *buff, unsign
                  em_printfout("topo notification disassoc: sta=%s bssid=%s key=%s",
                     sta_mac_str, bssid_str, key);
                 updated_any = false;
+                em_sta_info_t notif_sta_info = sta_info;
 
                 for (mld_i = 0; mld_i < dm->get_num_assoc_sta_mld(); mld_i++) {
                     assoc_info = &dm->m_assoc_sta_mld[mld_i].m_assoc_sta_mld_info;
@@ -2540,6 +2541,18 @@ int em_configuration_t::handle_topology_notification(unsigned char *buff, unsign
                 }
 
 		if (updated_any == false) {
+                    // The MLD loop may have overwritten sta_info with a link's identity;
+                    // start again from the notification's own record so it matches 'key'.
+                    sta_info = notif_sta_info;
+                    sta_row = static_cast<dm_sta_t *>(hash_map_get(dm->m_sta_map, key));
+                    if (sta_row != NULL) {
+                        // Keep the retained station record (caps/metrics); drop only assoc state.
+                        memcpy(&sta_info, &sta_row->m_sta_info, sizeof(em_sta_info_t));
+                        sta_info.associated = false;
+                        sta_info.frame_body_len = 0;
+                        memset(sta_info.frame_body, 0, sizeof(sta_info.frame_body));
+                    }
+
                     assoc_row = static_cast<dm_sta_t *>(hash_map_get(dm->m_sta_assoc_map, key));
                     if (assoc_row != NULL) {
                         assoc_row->m_sta_info.associated = false;
@@ -2549,7 +2562,6 @@ int em_configuration_t::handle_topology_notification(unsigned char *buff, unsign
                         hash_map_put(dm->m_sta_assoc_map, strdup(key), new dm_sta_t(&sta_info));
                     }
 
-                    sta_row = static_cast<dm_sta_t *>(hash_map_get(dm->m_sta_map, key));
                     if (sta_row != NULL) {
                         sta_row->m_sta_info.associated = false;
                         sta_row->m_sta_info.frame_body_len = 0;
