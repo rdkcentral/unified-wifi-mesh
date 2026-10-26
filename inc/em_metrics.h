@@ -205,7 +205,7 @@ class em_metrics_t {
 	 * and 19 bytes per BSSID metrics entry.
 	 * Invalid or partial TLVs are rejected to prevent out-of-bounds access.
 	 */
-	int handle_assoc_sta_link_metrics_tlv(unsigned char *buff, unsigned int tlv_len);
+	int handle_assoc_sta_link_metrics_tlv(unsigned char *buff, unsigned int tlv_len, dm_easy_mesh_t *dm);
     
 	/**!
 	 * @brief Handles the association of station external link metrics TLV.
@@ -228,7 +228,7 @@ class em_metrics_t {
          * - Any deviation from expected length results in rejection to prevent
          *   out-of-bounds memory access
 	 */
-	int handle_assoc_sta_ext_link_metrics_tlv(unsigned char *buff, unsigned int tlv_len);
+	int handle_assoc_sta_ext_link_metrics_tlv(unsigned char *buff, unsigned int tlv_len, dm_easy_mesh_t *dm);
     
 	/**!
 	 * @brief Handles the association of station vendor link metrics TLV.
@@ -245,7 +245,7 @@ class em_metrics_t {
 	 *
 	 * @note Ensure that the buffer is properly allocated and contains valid TLV data.
 	 */
-	int handle_assoc_sta_vendor_link_metrics_tlv(unsigned char *buff, unsigned int len);
+	int handle_assoc_sta_vendor_link_metrics_tlv(unsigned char *buff, unsigned int len, dm_easy_mesh_t *dm);
     
 	/**!
 	 * @brief Handles the beacon metrics query.
@@ -280,7 +280,7 @@ class em_metrics_t {
 	int handle_beacon_metrics_response(unsigned char *buff, unsigned int len);
 
 
-	int handle_device_metrics_vendor_tlv(unsigned char *buf, unsigned int len);
+	int handle_device_metrics_vendor_tlv(unsigned char *buf, unsigned int len, dm_easy_mesh_t *dm);
 
 
   	/**!
@@ -295,7 +295,7 @@ class em_metrics_t {
 	 *
 	 * @note Ensure that the buffer is properly allocated and the BSSID is valid before calling this function.
 	 */
-	int handle_assoc_sta_traffic_stats(unsigned char *buff, bssid_t bssid);
+	int handle_assoc_sta_traffic_stats(unsigned char *buff, bssid_t bssid, dm_easy_mesh_t *dm);
     
 	/**!
 	 * @brief Handles the access point metrics response.
@@ -328,7 +328,7 @@ class em_metrics_t {
 	 *
 	 * @note Ensure that the buffer is properly allocated.
 	 */
-	int handle_ap_metrics_tlv(unsigned char *buff, unsigned int tlv_len, bssid_t bssid);
+	int handle_ap_metrics_tlv(unsigned char *buff, unsigned int tlv_len, bssid_t bssid, dm_easy_mesh_t *dm);
 
 	/**!
 	 * @brief Handles the AP Extended Metrics tlv.
@@ -340,7 +340,7 @@ class em_metrics_t {
 	 *
 	 * @returns int Status code indicating success or failure.
 	 */
-	int handle_ap_ext_metrics_tlv(unsigned char *buff, unsigned int tlv_len);
+	int handle_ap_ext_metrics_tlv(unsigned char *buff, unsigned int tlv_len, dm_easy_mesh_t *dm);
 
 	/**!
 	 * @brief Handles the Radio Metrics tlv.
@@ -352,9 +352,9 @@ class em_metrics_t {
 	 *
 	 * @returns int Status code indicating success or failure.
 	 */
-	int handle_radio_metrics_tlv(unsigned char *buff, unsigned int tlv_len);
+	int handle_radio_metrics_tlv(unsigned char *buff, unsigned int tlv_len, dm_easy_mesh_t *dm);
 
-	int handle_link_stats_alarm_rprt_tlv(unsigned char *buff, size_t len);
+	int handle_link_stats_alarm_rprt_tlv(unsigned char *buff, size_t len, dm_easy_mesh_t *dm);
 
 	/**!
 	 * @brief Creates an association station link metrics TLV.
