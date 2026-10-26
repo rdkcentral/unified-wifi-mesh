@@ -2540,7 +2540,7 @@ int em_configuration_t::handle_topology_notification(unsigned char *buff, unsign
                     break;
                 }
 
-		if (updated_any == false) {
+                if (updated_any == false) {
                     // The MLD loop may have overwritten sta_info with a link's identity;
                     // start again from the notification's own record so it matches 'key'.
                     sta_info = notif_sta_info;
