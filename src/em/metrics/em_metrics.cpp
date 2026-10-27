@@ -158,20 +158,40 @@ int em_metrics_t::handle_assoc_sta_ext_link_metrics_tlv(unsigned char *buff, uns
     return 0;
 }
 
-int em_metrics_t::handle_assoc_sta_vendor_link_metrics_tlv(unsigned char *buff, unsigned int len)
+int em_metrics_t::handle_assoc_sta_vendor_link_metrics_tlv(unsigned char *buff,
+                                                           unsigned int len,
+                                                           bool *first_client_type_seen)
 {
     em_vendor_specific_t *vendor_metrics = reinterpret_cast<em_vendor_specific_t *> (buff);
     em_vendor_data_t *vendor_data = vendor_metrics->data;
     em_assoc_sta_vendor_link_metrics_t *sta_metrics;
     dm_sta_t *sta = NULL;
     dm_easy_mesh_t  *dm;
+    size_t client_type_len;
 
     dm = get_data_model();
     sta_metrics = reinterpret_cast<em_assoc_sta_vendor_link_metrics_t *> (vendor_data->vendor_data);
 
     sta = dm->find_sta(sta_metrics->sta_mac, sta_metrics->bssid);
     if (sta != NULL && len >= sizeof(em_assoc_sta_vendor_link_metrics_t)) {
-        strncpy(sta->m_sta_info.sta_client_type, sta_metrics->sta_client_type, sizeof(sta->m_sta_info.sta_client_type));
+        client_type_len = strnlen(sta_metrics->sta_client_type,
+                                  sizeof(sta_metrics->sta_client_type));
+        if (client_type_len == sizeof(sta_metrics->sta_client_type)) {
+            client_type_len--;
+        }
+
+        if (client_type_len > 0) {
+            /* Metrics repeat periodically; report only the first value for a STA. */
+            if (first_client_type_seen != NULL && sta->m_sta_info.sta_client_type[0] == '\0') {
+                *first_client_type_seen = true;
+            }
+            memset(sta->m_sta_info.sta_client_type, 0,
+                   sizeof(sta->m_sta_info.sta_client_type));
+            memcpy(sta->m_sta_info.sta_client_type,
+                   sta_metrics->sta_client_type, client_type_len);
+        }
+        em_printfout("Entering %s %d with client type as %s\n",
+                     __func__, __LINE__, sta->m_sta_info.sta_client_type);
     }
 
     return 0;
@@ -206,6 +226,7 @@ int em_metrics_t::handle_associated_sta_link_metrics_resp(unsigned char *buff, u
     mac_address_t 	sta_mac;
     dm_easy_mesh_t  *dm;
     char *errors[EM_MAX_TLV_MEMBERS] = {0};
+    bool first_client_type_seen = false;
 
     dm = get_data_model();
 
@@ -263,13 +284,17 @@ int em_metrics_t::handle_associated_sta_link_metrics_resp(unsigned char *buff, u
 
     while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
         if (tlv->type == em_tlv_type_vendor_specific) {
-            handle_assoc_sta_vendor_link_metrics_tlv(tlv->value, ntohs(tlv->len));
+            handle_assoc_sta_vendor_link_metrics_tlv(tlv->value, ntohs(tlv->len),
+                &first_client_type_seen);
         }
 
         tmp_len -= (sizeof(em_tlv_t) + static_cast<size_t> (ntohs(tlv->len)));
         tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + ntohs(tlv->len));
     }
     dm->set_db_cfg_param(db_cfg_type_sta_metrics_update, "");
+    if (first_client_type_seen) {
+        get_mgr()->publish_network_topology();
+    }
     set_state(em_state_ctrl_configured);
 
     return 0;
@@ -986,6 +1011,7 @@ int em_metrics_t::handle_ap_metrics_response(unsigned char *buff, unsigned int l
     dm_easy_mesh_t  *dm;
     char *errors[EM_MAX_TLV_MEMBERS] = {0};
     bssid_t bssid = {};
+    bool first_client_type_seen = false;
 
     dm = get_data_model();
 
@@ -1066,7 +1092,8 @@ int em_metrics_t::handle_ap_metrics_response(unsigned char *buff, unsigned int l
                         em_printfout("unknown Airties vendor tlv_id 0x%04x, skipping TLV", tlv_id);
                     }
                 } else {
-                    if (handle_assoc_sta_vendor_link_metrics_tlv(tlv->value, len) != 0) {
+                    if (handle_assoc_sta_vendor_link_metrics_tlv(tlv->value, ntohs(tlv->len),
+                            &first_client_type_seen) != 0) {
                         em_printfout("assoc_sta_vendor_link_metrics_tlv failed, skipping TLV");
                     }
                 }
@@ -1080,6 +1107,9 @@ int em_metrics_t::handle_ap_metrics_response(unsigned char *buff, unsigned int l
     }
 
     dm->set_db_cfg_param(db_cfg_type_sta_metrics_update, "");
+    if (first_client_type_seen) {
+        get_mgr()->publish_network_topology();
+    }
 
     return 0;
 }
