@@ -74,7 +74,7 @@ ifeq ($(WITH_SAP), 1)
 LIBDIRS += -L$(AL_SAP_HOME)/
 endif
 
-LIBS = -lm -lpthread -ldl -luuid -lcjson -lssl -lcrypto -lhebus `pkg-config --libs sqlite3`
+LIBS = -lm -lpthread -ldl -luuid -lcjson -lssl -lcrypto -lhebus `pkg-config --libs sqlite3` -lstdc++fs
 ifeq ($(WITH_SAP), 1)
 LIBS += -lalsap
 endif
