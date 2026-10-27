@@ -2541,52 +2541,26 @@ int em_configuration_t::handle_topology_notification(unsigned char *buff, unsign
                 }
 
                 if (updated_any == false) {
-                    // The MLD loop may have overwritten sta_info with a link's identity;
-                    // start again from the notification's own record so it matches 'key'.
+                    // Non-MLO client, or MLD with no resolvable link: the MLD loop may have
+                    // overwritten sta_info, so restore the notification's own record to match 'key'.
                     sta_info = notif_sta_info;
                     sta_row = static_cast<dm_sta_t *>(hash_map_get(dm->m_sta_map, key));
                     if (sta_row != NULL) {
                         // Keep the retained station record (caps/metrics); drop only assoc state.
+                        sta_row->m_sta_info.associated = false;
+                        sta_row->m_sta_info.frame_body_len = 0;
                         memcpy(&sta_info, &sta_row->m_sta_info, sizeof(em_sta_info_t));
-                        sta_info.associated = false;
-                        sta_info.frame_body_len = 0;
-                        memset(sta_info.frame_body, 0, sizeof(sta_info.frame_body));
                     }
 
                     assoc_row = static_cast<dm_sta_t *>(hash_map_get(dm->m_sta_assoc_map, key));
                     if (assoc_row != NULL) {
-                        assoc_row->m_sta_info.associated = false;
-                        assoc_row->m_sta_info.frame_body_len = 0;
-                        memset(assoc_row->m_sta_info.frame_body, 0, sizeof(assoc_row->m_sta_info.frame_body));
+                        memcpy(&assoc_row->m_sta_info, &sta_info, sizeof(em_sta_info_t));
                     } else {
                         hash_map_put(dm->m_sta_assoc_map, strdup(key), new dm_sta_t(&sta_info));
                     }
-
-                    if (sta_row != NULL) {
-                        sta_row->m_sta_info.associated = false;
-                        sta_row->m_sta_info.frame_body_len = 0;
-                        memset(sta_row->m_sta_info.frame_body, 0, sizeof(sta_row->m_sta_info.frame_body));
-                    }
-                    updated_any = true;
                 }
 
-                if (updated_any) {
-                    dm->set_db_cfg_param(db_cfg_type_sta_list_update, "");
-                } else {
-                    // Non-MLO client: sta_info is already initialised with the correct
-                    // radio MAC (resolved at the top of this block via get_bss_info_with_mac).
-                    em_printfout("topo notification disassoc: no MLD info for sta=%s, handling as non-MLO",
-                            sta_mac_str);
-                    sta_row = static_cast<dm_sta_t *>(hash_map_get(dm->m_sta_map, key));
-                    if (sta_row != NULL) {
-                        sta_row->m_sta_info.associated = false;
-                        update_sta_map_assoc_row(dm->m_sta_assoc_map, &sta_row->m_sta_info);
-                    } else {
-                        // STA not yet in m_sta_map; write minimal entry with associated=false for DB update
-                        update_sta_map_assoc_row(dm->m_sta_assoc_map, &sta_info);
-                    }
-                    dm->set_db_cfg_param(db_cfg_type_sta_list_update, "");
-                }
+                dm->set_db_cfg_param(db_cfg_type_sta_list_update, "");
             } else {
                 em_printfout("topo notification assoc defer: sta=%s bssid=%s",
                         sta_mac_str, bssid_str);
