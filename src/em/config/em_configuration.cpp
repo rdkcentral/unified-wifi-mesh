@@ -2546,9 +2546,9 @@ int em_configuration_t::handle_topology_notification(unsigned char *buff, unsign
                     sta_info = notif_sta_info;
                     sta_row = static_cast<dm_sta_t *>(hash_map_get(dm->m_sta_map, key));
                     if (sta_row != NULL) {
-                        // Keep the retained station record (caps/metrics); drop only assoc state.
+                        // Keep the retained station record (caps/metrics/assoc frame); clear only
+                        // 'associated'. A reconnect re-requests capabilities via that flag.
                         sta_row->m_sta_info.associated = false;
-                        sta_row->m_sta_info.frame_body_len = 0;
                         memcpy(&sta_info, &sta_row->m_sta_info, sizeof(em_sta_info_t));
                     }
 
