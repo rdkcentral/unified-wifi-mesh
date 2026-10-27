@@ -448,6 +448,7 @@ if (dm == NULL) {
             rm_default.rcpi_hysteresis = 5;
             rm_default.sta_traffic_stats = true;
             rm_default.sta_link_metric = true;
+            rm_default.sta_status = true;
             dm_policy_t rp(rm_default);
             memcpy(rp.m_policy.id.radio_mac, pradio->m_radio_info.intf.mac, sizeof(mac_address_t));
             dm->set_policy(rp);
