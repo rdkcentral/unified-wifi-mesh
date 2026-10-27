@@ -59,12 +59,10 @@
 #include "ec_ctrl_configurator.h"
 
 #include "wifi_util.h"
+#include "em_ext_hooks.h"
 
 // Initialize the static member variables
 unsigned short em_configuration_t::msg_id = 0;
-// OUI value of Comcast
-static const unsigned char em_vendor_oui[EM_VENDOR_OUI_SIZE] = {0xd8, 0x9c, 0x8e};
-
 std::deque<time_t> g_failed_conn_report_timestamps;
 static std::mutex g_failed_conn_report_mutex;
 
@@ -1331,7 +1329,7 @@ int em_configuration_t::create_airties_device_info_tlv(unsigned char *buff, size
         return 0;
     }
 
-    em_vendor_specific_v_t *vendor = reinterpret_cast<em_vendor_specific_v_t *> (buff);
+    em_vendor_specific_t *vendor = reinterpret_cast<em_vendor_specific_t *> (buff);
     memcpy(reinterpret_cast<unsigned char *> (vendor->vendor_oui), airties_vendor_oui, EM_VENDOR_OUI_SIZE);
 
     uint16_t tlv_type = htons(static_cast<uint16_t> (em_tlv_type_airties_device_info));
@@ -1435,7 +1433,7 @@ int em_configuration_t::handle_airties_device_info_tlv(unsigned char *buff, unsi
 
 int em_configuration_t::handle_vendor_specific_tlv(unsigned char *buff, unsigned int len)
 {
-    em_vendor_specific_v_t *vendor = reinterpret_cast<em_vendor_specific_v_t *> (buff);
+    em_vendor_specific_t *vendor = reinterpret_cast<em_vendor_specific_t *> (buff);
 
     if (len >= (EM_VENDOR_OUI_SIZE + sizeof(uint16_t))) {
         /* Check for Airties TLV, OUI(3) + TLV_ID(2) */
@@ -2370,7 +2368,7 @@ int em_configuration_t::handle_ap_operational_bss(unsigned char *buff, unsigned 
             }
             memcpy(ssid_buf, bss->ssid, ssid_len);
             ssid_buf[ssid_len] = '\0';
-            if (dm->is_ssid_match(ssid_buf)) {
+            if (em_get_ext_hooks()->accept_bss_ssid(dm->is_ssid_match(ssid_buf))) {
                 strncpy(dm_bss->m_bss_info.ssid, ssid_buf, sizeof(dm_bss->m_bss_info.ssid) - 1);
                 dm_bss->m_bss_info.ssid[sizeof(dm_bss->m_bss_info.ssid) - 1] = '\0';
             } else {
@@ -4376,6 +4374,7 @@ int em_configuration_t::create_autoconfig_wsc_m2_msg(unsigned char *buff, unsign
     unsigned short type = htons(ETH_P_1905);
     dm_radio_t *radio;
     dm_easy_mesh_t *dm;
+    unsigned int ext_len = 0;
     bool add_ap_mld_tlv = false;
 
     radio = get_radio_from_dm();
@@ -4463,6 +4462,19 @@ int em_configuration_t::create_autoconfig_wsc_m2_msg(unsigned char *buff, unsign
 	    tmp += (sizeof(em_tlv_t) + sz);
 	    len += static_cast<int>(sizeof(em_tlv_t) + sz);
     }
+
+    // Extension may write up to EM_EXT_TLVS_MAX_LEN bytes; make sure that and EOM fit
+    if ((static_cast<size_t> (len) + EM_EXT_TLVS_MAX_LEN + sizeof(em_tlv_t)) > MAX_EM_BUFF_SZ * em_haul_type_max) {
+        em_printfout("No space for extension TLVs, len: %d", len);
+        return -1;
+    }
+    ext_len = em_get_ext_hooks()->append_tlvs(em_msg_type_autoconf_wsc, tmp);
+    if (ext_len > EM_EXT_TLVS_MAX_LEN) {
+        em_printfout("Extension TLVs too long: %u", ext_len);
+        return -1;
+    }
+    tmp += ext_len;
+    len += static_cast<int> (ext_len);
 
     // End of message
     tlv = reinterpret_cast<em_tlv_t *> (tmp);
@@ -4583,6 +4595,7 @@ int em_configuration_t::create_autoconfig_resp_msg(unsigned char* buff, em_freq_
     unsigned short type = htons(ETH_P_1905);
     em_service_type_t   service_type = get_service_type();
     unsigned char registrar = 0;
+    unsigned int ext_len = 0;
 
     memcpy(tmp, const_cast<unsigned char *>(dst), sizeof(mac_address_t));
     tmp += sizeof(mac_address_t);
@@ -4683,6 +4696,19 @@ int em_configuration_t::create_autoconfig_resp_msg(unsigned char* buff, em_freq_
         tmp += (sizeof(em_tlv_t) + sizeof(em_dpp_chirp_value_t) + hash_len);
         len += static_cast<int> (sizeof(em_tlv_t) + sizeof(em_dpp_chirp_value_t) + hash_len);
     }
+
+    // Extension may write up to EM_EXT_TLVS_MAX_LEN bytes; make sure that and EOM fit
+    if ((static_cast<size_t> (len) + EM_EXT_TLVS_MAX_LEN + sizeof(em_tlv_t)) > MAX_EM_BUFF_SZ) {
+        em_printfout("No space for extension TLVs, len: %d", len);
+        return -1;
+    }
+    ext_len = em_get_ext_hooks()->append_tlvs(em_msg_type_autoconf_resp, tmp);
+    if (ext_len > EM_EXT_TLVS_MAX_LEN) {
+        em_printfout("Extension TLVs too long: %u", ext_len);
+        return -1;
+    }
+    tmp += ext_len;
+    len += static_cast<int> (ext_len);
 
     // End of message
     tlv = reinterpret_cast<em_tlv_t *> (tmp);
@@ -5021,6 +5047,8 @@ int em_configuration_t::handle_autoconfig_wsc_m2(unsigned char *buff, unsigned i
                 //return -1;
             }
             wsc_tlv_count++;
+        } else if (tlv->type == em_tlv_type_vendor_specific) {
+            em_get_ext_hooks()->handle_tlv(em_msg_type_autoconf_wsc, tlv->type, tlv->value, static_cast<unsigned short> (val_len));
         }
         tmp_len -= static_cast<int> (sizeof(em_tlv_t) + val_len);
         tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + val_len);
@@ -5040,8 +5068,11 @@ int em_configuration_t::handle_autoconfig_wsc_m2(unsigned char *buff, unsigned i
         handle_ap_mld_config_tlv(ap_mld_tlv->value, ntohs(ap_mld_tlv->len));
     }
 
-    get_mgr()->io_process(em_bus_event_type_m2ctrl_configuration, reinterpret_cast<unsigned char *> (&radioconfig), sizeof(radioconfig));
-    set_state(em_state_agent_owconfig_pending);
+    if (em_get_ext_hooks()->intercept_agent_event(static_cast<em_t *> (this), em_bus_event_type_m2ctrl_configuration,
+            reinterpret_cast<unsigned char *> (&radioconfig), sizeof(radioconfig)) == false) {
+        get_mgr()->io_process(em_bus_event_type_m2ctrl_configuration, reinterpret_cast<unsigned char *> (&radioconfig), sizeof(radioconfig));
+        set_state(em_state_agent_owconfig_pending);
+    }
 
     dm = get_data_model();
     //Commit controller mac address
@@ -5105,7 +5136,7 @@ int em_configuration_t::handle_encrypted_settings(unsigned int wsc_tlv_count, m2
             if (id == attr_id_vendor_ext) {
                 // Handle only em_vendor_oui
                 unsigned short attr_len = htons(attr->len);
-                if ((attr_len > EM_VENDOR_OUI_SIZE) && (memcmp(attr->val, em_vendor_oui, EM_VENDOR_OUI_SIZE) == 0)) {
+                if ((attr_len > EM_VENDOR_OUI_SIZE) && (memcmp(attr->val, comcast_vendor_oui, EM_VENDOR_OUI_SIZE) == 0)) {
                     unsigned char vendor_attr_id = attr->val[EM_VENDOR_OUI_SIZE];
                     if (vendor_attr_id == vendor_ext_attr_id_haul_type) {
                         radioconfig.haultype[wsc_index] = static_cast<em_haul_type_t> (attr->val[EM_VENDOR_OUI_SIZE + 1]);
@@ -5899,8 +5930,11 @@ int em_configuration_t::handle_bss_config_rsp_msg(uint8_t *buff, unsigned int le
         }
         em_printfout("Committing radio configuration to node '" MACSTRFMT "' on band %d with %d BSS configurations", 
                      MAC2STR(em->get_radio_interface_mac()), band_radioconfig->freq[0], band_radioconfig->noofbssconfig);
-        em->get_mgr()->io_process(em_bus_event_type_m2ctrl_configuration, reinterpret_cast<unsigned char *> (band_radioconfig), sizeof(m2ctrl_radioconfig));
-        em->set_state(em_state_agent_owconfig_pending);
+        if (em_get_ext_hooks()->intercept_agent_event(em, em_bus_event_type_m2ctrl_configuration,
+                reinterpret_cast<unsigned char *> (band_radioconfig), sizeof(m2ctrl_radioconfig)) == false) {
+            em->get_mgr()->io_process(em_bus_event_type_m2ctrl_configuration, reinterpret_cast<unsigned char *> (band_radioconfig), sizeof(m2ctrl_radioconfig));
+            em->set_state(em_state_agent_owconfig_pending);
+        }
 
         em = static_cast<em_t *>(hash_map_get_next(em_map, reinterpret_cast<void *>(em)));
     }
@@ -6110,7 +6144,7 @@ int em_configuration_t::create_encrypted_settings(unsigned char *buff, em_haul_t
     attr->id = htons(attr_id_vendor_ext);
     size = EM_VENDOR_OUI_SIZE + sizeof(vendor_ext_attr_id_t) + sizeof(em_haul_type_t);
     attr->len = htons(static_cast<short unsigned int> (size));
-    memcpy(reinterpret_cast<char *> (attr->val), em_vendor_oui, EM_VENDOR_OUI_SIZE);
+    memcpy(reinterpret_cast<char *> (attr->val), comcast_vendor_oui, EM_VENDOR_OUI_SIZE);
     attr->val[EM_VENDOR_OUI_SIZE] = static_cast<unsigned char> (vendor_ext_attr_id_haul_type);
     attr->val[EM_VENDOR_OUI_SIZE + 1] = static_cast<unsigned char> (haul_type);
 
@@ -6509,6 +6543,20 @@ int em_configuration_t::handle_autoconfig_resp(unsigned char *buff, unsigned int
         return get_ec_mgr().handle_autoconf_resp_chirp(reinterpret_cast<em_dpp_chirp_value_t*>(dpp_chirp_tlv->value), SWAP_LITTLE_ENDIAN(dpp_chirp_tlv->len), hdr->src);
     }
 
+    // Offer every TLV to the extension after validating its bounds.
+    em_tlv_t *tlv = reinterpret_cast<em_tlv_t *>(buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+    int tlv_remaining = static_cast<int>(len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)));
+    while (tlv_remaining >= static_cast<int> (sizeof(em_tlv_t))) {
+        unsigned int val_len = ntohs(tlv->len);
+        if ((tlv->type == em_tlv_type_eom) ||
+                (static_cast<unsigned int> (tlv_remaining) < sizeof(em_tlv_t) + val_len)) {
+            break;
+        }
+        em_get_ext_hooks()->handle_tlv(em_msg_type_autoconf_resp, tlv->type, tlv->value, static_cast<unsigned short> (val_len));
+        tlv_remaining -= static_cast<int> (sizeof(em_tlv_t) + val_len);
+        tlv = reinterpret_cast<em_tlv_t *>(reinterpret_cast<unsigned char *>(tlv) + sizeof(em_tlv_t) + val_len);
+    }
+
     if (get_is_dpp_onboarding()) {
         // If DPP onboarding is enabled, we end here and start securing the 1905 layer
         set_state(em_state_agent_1905_securing); // Set state to avoid follow-on autoconf messages
@@ -6741,13 +6789,16 @@ void em_configuration_t::process_msg(unsigned char *data, unsigned int len)
                 std::vector<em_t*> em_radios;
                 get_mgr()->get_all_em_for_al_mac(hdr->dst, em_radios);
                 for (auto &em : em_radios) {
-                    if ((em->get_service_type() == em_service_type_agent) && (em->get_state() < em_state_agent_onewifi_bssconfig_ind)) {
-                        em_printfout("radio %s is not configured, ignoring", util::mac_to_string(em->get_radio_interface_mac()).c_str());
+                    em_state_t state = em->get_state();
+                    if ((em->get_service_type() == em_service_type_agent) &&
+                        (state < em_state_agent_onewifi_bssconfig_ind) &&
+                        (state != em_state_agent_wsc_m2_processed)) {
+                        em_printfout("radio %s is not ready for topology query, ignoring, em state is: [%s]", util::mac_to_string(em->get_radio_interface_mac()).c_str(), em_t::state_2_str(state));
                         em_radios.clear();
                         return;
                     }
                 }
-                em_printfout("All radios are configured for al_mac:%s, sending topology response", util::mac_to_string(hdr->dst).c_str());
+                em_printfout("All radios are ready for topology query for al_mac:%s, sending topology response", util::mac_to_string(hdr->dst).c_str());
                 len = send_topology_response_msg(data, ntohs(cmdu->id));
                 if(len) {
                     for(auto &em : em_radios) {
