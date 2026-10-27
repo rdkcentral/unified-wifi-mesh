@@ -48,7 +48,6 @@ unsigned int em_orch_t::submit_commands(em_cmd_t *pcmd[], unsigned int num)
     if (pcmd == NULL) {
         return 0;
     }
-
     for (i = 0; i < num && i < EM_MAX_CMD; i++) {
         // Skip unset slots (analyze_* may return fewer commands than num)
         if (pcmd[i] == NULL) {
@@ -316,9 +315,9 @@ bool em_orch_t::orchestrate(em_cmd_t *pcmd, em_t *em)
     if (orch_state == em_orch_state_pending) {
         if (is_em_ready_for_orch_exec(pcmd, em) == true) {
             // ask em to execute the command
-            // em_printfout("%s:%d: Start orchestartion:%s(%s), em state:%s\n", __func__, __LINE__, 
-			// 		em_cmd_t::get_orch_op_str(pcmd->get_orch_op()), em_cmd_t::get_cmd_type_str(pcmd->m_type), 
-			// 		em_t::state_2_str(em->get_state()));
+            em_printfout("%s:%d: Start orchestartion:%s(%s), em state:%s\n", __func__, __LINE__, 
+ 		em_cmd_t::get_orch_op_str(pcmd->get_orch_op()), em_cmd_t::get_cmd_type_str(pcmd->m_type), 
+			em_t::state_2_str(em->get_state()));
             em->orch_execute(pcmd);
         } else {
             // em_printfout("%s:%d: skipping orchestration:%s(%s) because of incorrect state, state:%s\n", __func__, __LINE__, 
@@ -459,6 +458,49 @@ bool em_orch_t::is_cmd_in_progress_by_type(em_bus_event_t *evt)
     return false;
 }
 
+// Vendor-data events carry the STA MAC string as the first field of the raw
+// payload; gate per-STA so one STA's report does not block another's.
+bool em_orch_t::is_cmd_in_progress_by_sta(em_bus_event_t *evt)
+{
+    em_cmd_stats_t *stats;
+    em_short_string_t key;
+    em_cmd_type_t type;
+    em_cmd_t *pcmd;
+    const std::vector<uint8_t> *raw;
+    signed int i;
+
+    type = em_cmd_t::bus_2_cmd_type(evt->type);
+    snprintf(key, sizeof(em_short_string_t), "%d", type);
+
+    if ((stats = static_cast<em_cmd_stats_t *>(hash_map_get(m_cmd_map, key))) == NULL) {
+        return false;
+    }
+
+    for (i = static_cast<int>(queue_count(m_pending)) - 1; i >= 0; i--) {
+        pcmd = static_cast<em_cmd_t *>(queue_peek(m_pending, static_cast<unsigned int>(i)));
+        if ((pcmd->m_type == type) && ((raw = pcmd->get_raw_data()) != NULL) &&
+            (raw->size() >= EM_MAC_STR_LEN) &&
+            (memcmp(raw->data(), evt->u.raw_buff, EM_MAC_STR_LEN) == 0)) {
+            em_printfout("Command of type: %s already in progress for sta:%.17s",
+                em_cmd_t::get_cmd_type_str(type), reinterpret_cast<const char *>(evt->u.raw_buff));
+            return true;
+        }
+    }
+
+    for (i = static_cast<int>(queue_count(m_active)) - 1; i >= 0; i--) {
+        pcmd = static_cast<em_cmd_t *>(queue_peek(m_active, static_cast<unsigned int>(i)));
+        if ((pcmd->m_type == type) && ((raw = pcmd->get_raw_data()) != NULL) &&
+            (raw->size() >= EM_MAC_STR_LEN) &&
+            (memcmp(raw->data(), evt->u.raw_buff, EM_MAC_STR_LEN) == 0)) {
+            em_printfout("Command of type: %s already in progress for sta:%.17s",
+                em_cmd_t::get_cmd_type_str(type), reinterpret_cast<const char *>(evt->u.raw_buff));
+            return true;
+        }
+    }
+
+    return false;
+}
+
 bool em_orch_t::get_dev_test_status()
 {
     em_cmd_stats_t *stats;
@@ -499,6 +541,8 @@ bool em_orch_t::is_cmd_type_in_progress(em_bus_event_t *evt)
     } else if ((type == em_cmd_type_em_config) ||
                (type == em_cmd_type_set_policy)) {
         return is_cmd_in_progress_by_type(evt);
+    } else if (type == em_cmd_type_vendor_data) {
+        return is_cmd_in_progress_by_sta(evt);
     }
     if ((stats = static_cast<em_cmd_stats_t *>(hash_map_get(m_cmd_map, key))) != NULL) {
         //em_printfout("Command of type: %d actively executing", type);

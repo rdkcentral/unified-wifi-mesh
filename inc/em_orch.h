@@ -320,6 +320,18 @@ public:
 	bool is_cmd_in_progress_by_type(em_bus_event_t *evt);
 
 	/**!
+	 * @brief Checks if a vendor-data command is already in progress for the same
+	 * STA the event carries, rather than gating on command type alone. This lets
+	 * concurrent updates for different STAs be queued separately.
+	 *
+	 * @param[in] evt bus event whose raw payload begins with the STA MAC string.
+	 *
+	 * @returns True if a pending/active command of the same type already targets
+	 * the same STA MAC.
+	 */
+	bool is_cmd_in_progress_by_sta(em_bus_event_t *evt);
+
+	/**!
 	 * @brief Orchestrates the execution of a command within the em context.
 	 *
 	 * This function takes a command and an em context, performing the necessary operations

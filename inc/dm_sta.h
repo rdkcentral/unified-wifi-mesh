@@ -149,7 +149,6 @@ public:
 	 */
 	static void decode_beacon_report(dm_sta_t *sta);
 
-    
 	/**!
 	 * @brief Creates a dm_sta_t object using the provided em_sta_info_t.
 	 *

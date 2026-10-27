@@ -398,6 +398,9 @@ int dm_sta_list_t::sync_db(db_client_t& db_client, void *ctx)
         info.errors_tx = static_cast<unsigned int> (db_client.get_number(ctx, 19));
         info.errors_rx = static_cast<unsigned int> (db_client.get_number(ctx, 20));
         info.frame_body_len = static_cast<unsigned int> (db_client.get_number(ctx, 21));
+        if (info.frame_body_len > EM_MAX_FRAME_BODY_LEN) {
+            info.frame_body_len = EM_MAX_FRAME_BODY_LEN;
+        }
 
         db_client.get_string(ctx, frame_body, 22);
         dm_easy_mesh_t::unhex(static_cast<unsigned int>(strlen(frame_body)), frame_body, EM_MAX_FRAME_BODY_LEN, info.frame_body);

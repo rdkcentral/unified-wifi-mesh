@@ -47,6 +47,7 @@
 #include "em_orch_ctrl.h"
 #include "util.h"
 #include "wifi_util.h"
+#include "em_ext_hooks.h"
 
 #ifdef AL_SAP
 #include "al_service_access_point.h"
@@ -276,7 +277,6 @@ void em_ctrl_t::handle_m2_tx(em_bus_event_t *evt)
 {
     em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
     int num;
-    
     if ((num = m_data_model.analyze_m2_tx(evt, pcmd)) > 0) {
         m_orch->submit_commands(pcmd, static_cast<unsigned int> (num));
     }
@@ -517,6 +517,7 @@ void em_ctrl_t::handle_link_stats_alarm_report(em_bus_event_t *evt)
         em_printfout("Link Stats Alarm publish fail");
     }
 
+    free(str);
     cJSON_Delete(parent);
 }
 
@@ -907,14 +908,13 @@ void em_ctrl_t::publish_network_topology()
     raw.raw_data_len = static_cast<unsigned int> (strlen(str));
 
     if (desc->bus_event_publish_fn(m_data_model.get_bus_hdl(), const_cast<char*>(DEVICE_WIFI_DATAELEMENTS_NETWORK_TOPOLOGY), &raw)== 0) {
-        printf("%s:%d Topology published successfull\n",__func__, __LINE__);
+        em_printfout("Topology published successfull");
     } else {
-        printf("%s:%d Topology publish fail\n",__func__, __LINE__);
+        em_printfout("Topology publish fail");
     }
 
-    // bus_event_publish_fn copies the payload
+    free(str);
     cJSON_Delete(parent);
-    cJSON_free(str);
 
 #if 0
     //Test code here
@@ -1046,12 +1046,14 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
 
     assert(len > ((sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))));
     if (len < ((sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)))) {
-        return NULL;
+        em_printfout("[%s %d]\n", __func__,__LINE__); 
+	    return NULL;
     }
 
     hdr = reinterpret_cast<em_raw_hdr_t *> (data);
     
     if (hdr->type != htons(ETH_P_1905)) {
+        em_printfout("[%s %d]\n", __func__,__LINE__); 
         return NULL;
     }
     
@@ -1060,10 +1062,12 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
     switch (htons(cmdu->type)) {
         case em_msg_type_autoconf_search:
             if (em_msg_t(data + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)), len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_freq_band(&band) == false) {
+        em_printfout("[%s %d]\n", __func__,__LINE__); 
                 return NULL;
             }
 
             if (em_msg_t(data + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)), len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_al_mac_address(intf.mac) == false) {
+        em_printfout("[%s %d]\n", __func__,__LINE__); 
                 return NULL;
             }
 
@@ -1101,8 +1105,10 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
             break;
 
         case em_msg_type_autoconf_wsc:
-            if (em_msg_t(data + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)),
+#if 0
+	    if (em_msg_t(data + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)),
                 	len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_radio_id(&ruid) == false) {
+        em_printfout("[%s %d]\n", __func__,__LINE__); 
                 return NULL;
             }
 
@@ -1133,7 +1139,56 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
             }
 
             break;
+#endif
+	    dm_easy_mesh_t::macbytes_to_string(hdr->src, mac_str2);
+	    em_printfout("[%s %d] Received WSC M1, frame src mac: %s, len:%u\n", __func__, __LINE__, mac_str2, len);
 
+	    if (em_msg_t(data + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)),
+				    len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_radio_id(&ruid) == false) {
+		    em_printfout("[%s %d] FAILED to extract radio_id (ruid) from M1 TLV\n", __func__, __LINE__);
+		    return NULL;
+	    }
+
+	    dm_easy_mesh_t::macbytes_to_string(ruid, mac_str1);
+	    em_printfout("[%s %d] Extracted ruid from M1: %s\n", __func__, __LINE__, mac_str1);
+
+	    if ((em = static_cast<em_t *> (hash_map_get(m_em_map, mac_str1))) != NULL) {
+		    em_printfout("[%s %d] Found EXISTING radio entry for ruid:%s, current state:%d\n",
+				    __func__, __LINE__, mac_str1, em->get_state());
+
+		    if (em->get_state() != em_state_ctrl_wsc_m2_sent) {
+			    em_printfout("[%s %d] Setting state to em_state_ctrl_wsc_m1_pending for ruid:%s\n",
+					    __func__, __LINE__, mac_str1);
+			    em->set_state(em_state_ctrl_wsc_m1_pending);
+		    } else {
+			    em_printfout("[%s %d] IGNORING M1 - Autoconf wsc msg (M2) already sent for ruid:%s. Incorrect state = (%d)\n",
+					    __func__, __LINE__, mac_str1, em->get_state());
+		    }
+	    } else {
+		    em_printfout("[%s %d] No existing radio entry for ruid:%s, looking up data model by frame src:%s\n",
+				    __func__, __LINE__, mac_str1, mac_str2);
+
+		    if ((dm = get_data_model(GLOBAL_NET_ID, const_cast<const unsigned char *> (hdr->src))) == NULL) {
+			    em_printfout("[%s %d] FAILED - Can not find data model for src mac:%s (ruid:%s dropped here)\n",
+					    __func__, __LINE__, mac_str2, mac_str1);
+			    break;
+		    }
+
+		    em_printfout("[%s %d] Found data model for mac: %s, creating node for ruid: %s\n",
+				    __func__, __LINE__, mac_str2, mac_str1);
+
+		    memcpy(intf.mac, ruid, sizeof(mac_address_t));
+		    if ((em = create_node(&intf, em_freq_band_unknown, dm, false,  dm->get_device()->m_device_info.profile,
+						    em_service_type_ctrl)) != NULL) {
+			    em_printfout("[%s %d] create_node SUCCESS for ruid:%s, setting state em_state_ctrl_wsc_m1_pending\n",
+					    __func__, __LINE__, mac_str1);
+			    em->set_state(em_state_ctrl_wsc_m1_pending);
+		    } else {
+			    em_printfout("[%s %d] create_node FAILED for ruid:%s\n", __func__, __LINE__, mac_str1);
+		    }
+	    }
+
+	    break;
         case em_msg_type_channel_sel_rsp:
         case em_msg_type_op_channel_rprt:
             if (em_msg_t(data + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)),
@@ -1274,12 +1329,14 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
 		case em_msg_type_channel_scan_rprt:
             if (em_msg_t(data + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)),
                 	len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_radio_id(&ruid) == false) {
+        em_printfout("[%s %d]\n", __func__,__LINE__); 
                 return NULL;
             }
 
             dm_easy_mesh_t::macbytes_to_string(ruid, mac_str1);
 
             if ((em = static_cast<em_t *> (hash_map_get(m_em_map, mac_str1))) != NULL) {        
+        em_printfout("[%s %d]\n", __func__,__LINE__); 
                 //printf("%s:%d: Found existing radio:%s\n", __func__, __LINE__, mac_str1);
 			}
             break;
@@ -1288,6 +1345,7 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
             em = static_cast<em_t *> (hash_map_get_first(m_em_map));
             while(em != NULL) {
                 if ((em->is_al_interface_em() == false) && (em->has_at_least_one_associated_sta() == true)) {
+        em_printfout("[%s %d]\n", __func__,__LINE__); 
                     break;
                 }
                 em = static_cast<em_t *> (hash_map_get_next(m_em_map, em));
@@ -1345,6 +1403,7 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
         case em_msg_type_bh_sta_cap_rprt:
             if (em_msg_t(data + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)),
                 len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_radio_id(&ruid) == false) {
+        	em_printfout("[%s %d]\n", __func__,__LINE__); 
                 return NULL;
             }
 
@@ -1357,7 +1416,8 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
         case em_msg_type_topo_vendor:
             em = static_cast<em_t *> (hash_map_get_first(m_em_map));
             while(em != NULL) {
-                if (em->is_al_interface_em() == false) {
+                if ((em->is_al_interface_em() == false) &&
+                    (memcmp(em->get_data_model()->get_agent_al_interface_mac(), hdr->src, sizeof(mac_address_t)) == 0)) {
                     break;
                 }
                 em = static_cast<em_t *> (hash_map_get_next(m_em_map, em));
@@ -1522,6 +1582,8 @@ void em_ctrl_t::start_complete()
         em_printfout("bus subscribe failed");
         return;
     }
+
+    em_get_ext_hooks()->on_bus_ready(m_data_model.get_bus_hdl(), desc);
 }
 
 em_ctrl_t *em_ctrl_t::get_em_ctrl_instance()
@@ -1543,9 +1605,13 @@ em_ctrl_t::~em_ctrl_t()
 #ifdef AL_SAP
 AlServiceAccessPoint* em_ctrl_t::al_sap_register(const std::string& data_socket_path, const std::string& control_socket_path)
 {
-    AlServiceAccessPoint* sap = nullptr;
+    AlServiceAccessPoint* sap = NULL;
     try {
         sap = new AlServiceAccessPoint(data_socket_path.c_str(), control_socket_path.c_str());
+        if (NULL == sap) {
+            em_printfout("%s-%d: Failed to allocate AlServiceAccessPoint", __func__, __LINE__);
+            return NULL;
+        }
 
         AlServiceRegistrationRequest registrationRequest(SAPActivation::SAP_ENABLE, ServiceType::EmController);
         sap->serviceAccessPointRegistrationRequest(registrationRequest);
@@ -1556,6 +1622,11 @@ AlServiceAccessPoint* em_ctrl_t::al_sap_register(const std::string& data_socket_
         if (result == RegistrationResult::SUCCESS) {
             g_al_mac_sap = registrationResponse.getAlMacAddressLocal();
             uint8_t* al_mac_bytes = g_al_mac_sap.data();
+            if (NULL == al_mac_bytes) {
+                em_printfout("%s-%d: AL SAP registration failed with invalid AL MAC: %s", util::mac_to_string(al_mac_bytes).c_str());
+                delete sap;
+                return NULL;
+            }
             em_printfout("AL SAP registration successful, AL MAC: %s", util::mac_to_string(al_mac_bytes).c_str());
             m_data_model.set_dev_interface_mac(al_mac_bytes);
 
@@ -1572,25 +1643,20 @@ AlServiceAccessPoint* em_ctrl_t::al_sap_register(const std::string& data_socket_
                 }
             }
         } else {
-            em_printfout("Registration failed with error: %d, data socket: %s, control socket: %s",
-                         static_cast<int>(result),
-                         data_socket_path.c_str(),
-                         control_socket_path.c_str());
+            std::cout << "Registration failed with error: " << static_cast<int>(result) << std::endl;
             delete sap;
-            return nullptr;
+            return NULL;
         }
     }
     catch (const AlServiceException& e) {
-        em_printfout("AL SAP registration exception: %s, data socket: %s, control socket: %s",
-                     e.what(), data_socket_path.c_str(), control_socket_path.c_str());
+        em_printfout("%s-%d: AL SAP registration exception %s", __func__, __LINE__, e.what());
         delete sap;
-        return nullptr;
+        return NULL;
     }
-    catch (const std::exception& e) {
-        em_printfout("Unknown exception: %s during AL SAP registration, data socket: %s, control socket: %s",
-                     e.what(), data_socket_path.c_str(), control_socket_path.c_str());
+    catch (const std::exception e) {
+        em_printfout("%s-%d: Unknown exception %s during AL SAP registration", __func__, __LINE__, e.what());
         delete sap;
-        return nullptr;
+        return NULL;
     }
 
     return sap;
@@ -1602,16 +1668,37 @@ AlServiceAccessPoint* em_ctrl_t::al_sap_register(const std::string& data_socket_
 int main(int argc, const char *argv[])
 {
     em_ctrl_t  *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
+    const char *data_model_path = NULL;
+
+    if (em_get_ext_hooks()->process_cli_args(&argc, argv) == false) {
+        return -1;
+    }
+
+    for (int i = 1; i < argc; i++) {
+        data_model_path = argv[i];
+    }
+
 #ifdef AL_SAP
     const char* data_socket_path = "/tmp/al_em_ctrl_data_socket";
     const char* control_socket_path = "/tmp/al_em_ctrl_control_socket";
-    g_sap = em_ctrl->al_sap_register(data_socket_path, control_socket_path);
-    if (nullptr == g_sap) {
-        em_printfout("Error in AL SAP registration, exiting");
+
+    if(0 == access(data_socket_path, F_OK) && 0 == access(control_socket_path, F_OK)) {
+        g_sap = em_ctrl->al_sap_register(data_socket_path, control_socket_path);
+        if (NULL == g_sap) {
+            em_printfout("%s-%d: Error in AL SAP registration, exiting", __func__, __LINE__);
+            return -1;
+        }
+    }
+    else {
+        em_printfout("%s-%d: Data Socket: %s, Control Socket: %s", __func__, __FILE__,
+	              access(data_socket_path, F_OK) == 0 ? "present" : "missing",
+                      access(control_socket_path, F_OK) == 0 ? "present" : "missing");
+        em_printfout("%s-%d: Required AL SAP socket(s) not available, exiting", __func__, __LINE__);
         return -1;
     }
 #endif
-    if (em_ctrl->init(argv[1]) == 0) {
+
+    if (em_ctrl->init(data_model_path) == 0) {
         em_ctrl->start();
     }
     return 0;

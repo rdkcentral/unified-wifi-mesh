@@ -556,9 +556,18 @@ short em_capability_t::create_client_cap_tlv(unsigned char *buff, mac_address_t 
     len += static_cast<short> (sizeof(unsigned char));
 
     //frame_body
-    memcpy(tmp, &dm_sta->get_sta_info()->frame_body, dm_sta->get_sta_info()->frame_body_len);
-    tmp += dm_sta->get_sta_info()->frame_body_len;
-    len += static_cast<short> (dm_sta->get_sta_info()->frame_body_len);
+    // Guard against a corrupted/oversized frame_body_len: frame_body is only
+    // EM_MAX_FRAME_BODY_LEN bytes and this TLV is built inside a fixed stack
+    // buffer, so an unbounded copy here smashes the caller's stack.
+    unsigned int frame_body_len = dm_sta->get_sta_info()->frame_body_len;
+    if (frame_body_len > sizeof(dm_sta->get_sta_info()->frame_body)) {
+        em_printfout("frame_body_len %u exceeds max %zu, clamping", frame_body_len,
+            sizeof(dm_sta->get_sta_info()->frame_body));
+        frame_body_len = static_cast<unsigned int> (sizeof(dm_sta->get_sta_info()->frame_body));
+    }
+    memcpy(tmp, &dm_sta->get_sta_info()->frame_body, frame_body_len);
+    tmp += frame_body_len;
+    len += static_cast<short> (frame_body_len);
 
     return len;
 }
@@ -1027,8 +1036,22 @@ int em_capability_t::handle_client_cap_report(unsigned char *buff, unsigned int 
                 return -1;
             }
             sta_info.associated = true;
-            sta_info.frame_body_len = static_cast<unsigned int>(htons(tlv->len) - 1);
-            memcpy(sta_info.frame_body, &tlv->value[1], static_cast<size_t>(sta_info.frame_body_len));
+            // The reported frame body is copied into a fixed EM_MAX_FRAME_BODY_LEN
+            // buffer (sta_info is on the stack), and tlv->len is attacker/peer
+            // controlled. Guard the 0-length underflow (htons(len)-1 wrapping to a
+            // huge unsigned value) and clamp to the destination size.
+            {
+                unsigned short cap_report_len = htons(tlv->len);
+                unsigned int fb_len = (cap_report_len > 0) ?
+                    static_cast<unsigned int>(cap_report_len - 1) : 0;
+                if (fb_len > sizeof(sta_info.frame_body)) {
+                    em_printfout("client cap report frame_body_len %u exceeds max %zu, clamping",
+                        fb_len, sizeof(sta_info.frame_body));
+                    fb_len = static_cast<unsigned int>(sizeof(sta_info.frame_body));
+                }
+                sta_info.frame_body_len = fb_len;
+                memcpy(sta_info.frame_body, &tlv->value[1], static_cast<size_t>(fb_len));
+            }
 
             found_cap_report = true;
             break;
@@ -1105,6 +1128,9 @@ int em_capability_t::handle_client_cap_report(unsigned char *buff, unsigned int 
         dm->apply_sta_cap_to_maps(key, &sta_info);
     }
 
+    // Re-arm the publish flag so this client's topo_publish isn't skipped: in the
+    // serialized multi-client flow a prior client's topo_publish already cleared it.
+    dm->set_topo_state(true);
     dm->set_db_cfg_param(db_cfg_type_sta_list_update, "");
     return 0;
 }
@@ -1370,6 +1396,7 @@ int em_capability_t::handle_ap_radio_basic_cap(unsigned char *buff, unsigned int
 
 	memcpy(ruid, radio_basic_cap->ruid, sizeof(mac_address_t));
 	dm_easy_mesh_t::macbytes_to_string(ruid, mac_str);
+	em_printfout("AP Radio Basic Capability TLV ruid: %s op_class_num: %d", mac_str, radio_basic_cap->op_class_num);
 	for (i = 0; i < dm->get_num_radios(); i++) {
 		radio = dm->get_radio(i);
 		if (memcmp(radio->m_radio_info.intf.mac, ruid, sizeof(mac_address_t)) == 0) {
@@ -1764,7 +1791,7 @@ int em_capability_t::handle_early_ap_cap_report(unsigned char *buff, unsigned in
                 adv += sizeof(em_ap_radio_advanced_cap_t);
             }
         } else if (tlv->type == em_tlv_type_vendor_specific) {
-            em_vendor_specific_v_t *vendor_tlv = reinterpret_cast<em_vendor_specific_v_t *> (tlv->value);
+            em_vendor_specific_t *vendor_tlv = reinterpret_cast<em_vendor_specific_t *> (tlv->value);
             uint16_t value_len = ntohs(tlv->len);
             dm_easy_mesh_t  *dm;
             dm = get_data_model();
@@ -1774,7 +1801,7 @@ int em_capability_t::handle_early_ap_cap_report(unsigned char *buff, unsigned in
                 memcpy(&tlv_id, vendor_tlv->data, sizeof(tlv_id));
                 tlv_id = ntohs(tlv_id);
                 if (tlv_id == em_tlv_type_radio_capability) {
-                    if (value_len < sizeof(em_radio_capability_vendor_t) + sizeof(tlv_id) + sizeof(em_vendor_specific_v_t)) {
+                    if (value_len < sizeof(em_radio_capability_vendor_t) + sizeof(tlv_id) + sizeof(em_vendor_specific_t)) {
                         em_printfout("Invalid TLV length for em_radio_capability_vendor_t");
                         return -1;
                     }
@@ -2031,7 +2058,7 @@ int em_capability_t::handle_ap_cap_report(unsigned char *buff, unsigned int len)
                 adv += sizeof(em_ap_radio_advanced_cap_t);
             }
         } else if (tlv->type == em_tlv_type_vendor_specific) {
-            em_vendor_specific_v_t *vendor_tlv = reinterpret_cast<em_vendor_specific_v_t *> (tlv->value);
+            em_vendor_specific_t *vendor_tlv = reinterpret_cast<em_vendor_specific_t *> (tlv->value);
             uint16_t value_len = ntohs(tlv->len);
             dm_easy_mesh_t  *dm;
             dm = get_data_model();
@@ -2041,7 +2068,7 @@ int em_capability_t::handle_ap_cap_report(unsigned char *buff, unsigned int len)
                 memcpy(&tlv_id, vendor_tlv->data, sizeof(tlv_id));
                 tlv_id = ntohs(tlv_id);
                 if (tlv_id == em_tlv_type_radio_capability) {
-                    if (value_len < sizeof(em_radio_capability_vendor_t) + sizeof(tlv_id) + sizeof(em_vendor_specific_v_t)) {
+                    if (value_len < sizeof(em_radio_capability_vendor_t) + sizeof(tlv_id) + sizeof(em_vendor_specific_t)) {
                         em_printfout("Invalid TLV length for em_radio_capability_vendor_t");
                         return -1;
                     }

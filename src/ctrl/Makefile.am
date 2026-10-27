@@ -21,6 +21,10 @@ AM_CFLAGS += -D_ANSC_LITTLE_ENDIAN_
  
 ACLOCAL_AMFLAGS = -I m4
 hardware_platform = i686-linux-gnu
+
+UWM_VENDOR_EXT_DIR = @UWM_VENDOR_EXT_DIR@
+-include $(UWM_VENDOR_EXT_DIR)/vendor-ext.mk
+
 bin_PROGRAMS = onewifi_em_ctrl
 if EM_UNITTEST
 bin_PROGRAMS += onewifi_em_ctrl_test
@@ -30,7 +34,8 @@ onewifi_em_ctrl_CPPFLAGS = \
     -I$(top_srcdir)/inc \
     -I$(top_srcdir)/src/utils \
     -I$(top_srcdir)/src/util \
-    -I$(top_srcdir)/src/util_crypto
+    -I$(top_srcdir)/src/util_crypto\
+    -I$(UWM_VENDOR_EXT_INC_DIR)
 
 onewifi_em_ctrl_CXXFLAGS = $(INCLUDEDIRS) -g -Wall -Wextra -pedantic -Wpedantic -Wpointer-arith -Wcast-qual -Wcast-align -Wstrict-aliasing -fno-common -Wctor-dtor-privacy -Wold-style-cast -Woverloaded-virtual -Wsign-promo -Wstrict-null-sentinel -fstack-protector-strong -D_FORTIFY_SOURCE=2 -fPIE -pie -ftrapv -Wformat=2 -Wformat-security -Wuninitialized -Winit-self -Wsign-conversion -Weffc++ -Wno-unused-parameter -std=c++17 -fno-omit-frame-pointer #-Wconversion -Werror -O2
 if EM_ASAN_CTRL
@@ -58,6 +63,7 @@ onewifi_em_ctrl_SOURCES =  \
      $(top_srcdir)/src/em/channel/em_channel.cpp  \
      $(top_srcdir)/src/em/capability/em_capability.cpp \
      $(top_srcdir)/src/em/metrics/em_metrics.cpp \
+     $(top_srcdir)/src/em/em_vendor.cpp \
      $(top_srcdir)/src/em/steering/em_steering.cpp \
      $(top_srcdir)/src/em/policy_cfg/em_policy_cfg.cpp \
      $(top_srcdir)/src/em/crypto/em_crypto.cpp \
@@ -143,7 +149,8 @@ onewifi_em_ctrl_SOURCES =  \
      $(top_srcdir)/src/orch/em_orch_ctrl.cpp \
      $(top_srcdir)/src/util_crypto/aes_siv.c \
      $(top_srcdir)/src/utils/util.cpp \
-     $(top_srcdir)/src/utils/timer.cpp
+     $(top_srcdir)/src/utils/timer.cpp\
+     $(UWM_VENDOR_EXT_CTRL_SRC_FILES)
  
  
 onewifi_em_ctrl_LDFLAGS = -lm -lpthread -ldl -luuid -lcjson -lssl -lcrypto -lrbus -lmariadb

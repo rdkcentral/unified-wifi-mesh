@@ -43,6 +43,7 @@
 #include "em_msg.h"
 #include "em_cmd_exec.h"
 #include "util.h"
+#include "em_ext_hooks.h"
 
 /*
  * Bit mask for BSS Color + BSS Load Present field in Channel Scan Report Message.
@@ -1644,6 +1645,9 @@ int em_channel_t::handle_op_channel_report(unsigned char *buff, unsigned int len
     mac_addr_str_t ruid_str;
     dm = get_data_model();
 
+    em_printfout("Operating Channel Report ruid: %s op_class: %d channel: %d",
+        util::mac_to_string(rpt->ruid).c_str(), rpt->op_classes[0].op_class, rpt->op_classes[0].channel);
+
     //Update current Operating Channel for RUID
     for (i = 0; i < dm->m_num_opclass; i++) {
         op_class_info = &dm->m_op_class[i].m_op_class_info;
@@ -1671,7 +1675,9 @@ int em_channel_t::handle_op_channel_report(unsigned char *buff, unsigned int len
     dm_easy_mesh_t::macbytes_to_string(ruid, ruid_str);
     em_t *radio_em = reinterpret_cast<em_t *>(hash_map_get(get_mgr()->m_em_map, ruid_str));
     if (radio_em) {
-        if(radio_em->get_state() == em_state_ctrl_channel_selected){
+        // An OCR may arrive while channel selection is still pending.
+        if (radio_em->get_state() == em_state_ctrl_channel_selected ||
+            radio_em->get_state() == em_state_ctrl_channel_select_pending) {
             radio_em->set_state(em_state_ctrl_configured);
             em_printfout("Set em_state_ctrl_configured for radio %s", ruid_str);
         }
@@ -1942,7 +1948,7 @@ int em_channel_t::handle_channel_pref_query(unsigned char *buff, unsigned int le
     em_cmdu_t *cmdu = reinterpret_cast<em_cmdu_t *> (buff + sizeof(em_raw_hdr_t));
 
     params.msg_id = ntohs(cmdu->id);
-   
+
 	get_mgr()->io_process(em_bus_event_type_channel_pref_query, reinterpret_cast<unsigned char *> (&params), sizeof(em_bus_event_type_channel_pref_query_params_t)); 
 
 	return 0;
@@ -1972,7 +1978,12 @@ int em_channel_t::handle_channel_sel_req(unsigned char *buff, unsigned int len)
     }
 
 	op_class.freq_band = get_band();
-   
+
+    if (em_get_ext_hooks()->intercept_agent_event(static_cast<em_t *> (this), em_bus_event_type_channel_sel_req,
+            reinterpret_cast<unsigned char *> (&op_class), sizeof(op_class_channel_sel))) {
+        return 0;
+    }
+
 	get_mgr()->io_process(em_bus_event_type_channel_sel_req, reinterpret_cast<unsigned char *> (&op_class), sizeof(op_class_channel_sel));
     
 	printf("%s:%d Received channel selection request \n",__func__, __LINE__);
@@ -2532,4 +2543,3 @@ em_channel_t::em_channel_t()
 em_channel_t::~em_channel_t()
 {
 }
-
