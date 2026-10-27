@@ -4694,7 +4694,10 @@ int em_configuration_t::create_autoconfig_resp_msg(unsigned char* buff, em_freq_
 bool em_configuration_t::send_autoconf_search_resp_ext_chirp(em_dpp_chirp_value_t *chirp, size_t len, uint8_t dest_mac[ETH_ALEN], unsigned short msg_id, bool peer_is_emplus)
 {
     uint8_t buff[4096] = {0};
-    int msg_len = create_autoconfig_resp_msg(buff, get_band(), dest_mac, msg_id, chirp, len, peer_is_emplus);
+    // `len` is the total allocation size of `chirp` (sizeof(em_dpp_chirp_value_t) + hash payload).
+    // create_autoconfig_resp_msg expects only the hash payload length, so strip the header.
+    size_t hash_len = (len > sizeof(em_dpp_chirp_value_t)) ? (len - sizeof(em_dpp_chirp_value_t)) : 0;
+    int msg_len = create_autoconfig_resp_msg(buff, get_band(), dest_mac, msg_id, chirp, hash_len, peer_is_emplus);
     if (msg_len < 0) {
         em_printfout("Failed to create Autoconf Search Response (extended)");
         return false;
@@ -4712,8 +4715,10 @@ bool em_configuration_t::send_autoconf_search_ext_chirp(em_dpp_chirp_value_t *ch
 {
     unsigned char buff[4096] = {0};
     int len = 0;
-
-    len = create_autoconfig_search_msg(buff, chirp, hash_len);
+    /* hash_len arg is actually the full chirp TLV-value size from ec_util::create_dpp_chirp_tlv */
+    size_t chirp_hash_len = chirp ? ((hash_len > sizeof(em_dpp_chirp_value_t))
+                                     ? (hash_len - sizeof(em_dpp_chirp_value_t)) : 0): 0;
+    len = create_autoconfig_search_msg(buff, chirp, chirp_hash_len);
     if (len < 0) {
         em_printfout("Failed to create autoconf search ext chirp msg");
         return false;
