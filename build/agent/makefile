@@ -58,7 +58,7 @@ endif
 CXXFLAGS += $(INCLUDEDIRS) -g $(CXX_COMMON_FLAGS) $(CXX_SPECIFIC_FLAGS)
 CFLAGS += $(INCLUDEDIRS) -g $(CXX_COMMON_FLAGS)
 
-LDFLAGS += $(LIBDIRS) $(LIBS) -fsanitize=address -fsanitize=undefined -lmariadb -L$(STAGING_DIR)/usr/lib
+LDFLAGS += $(LIBDIRS) $(LIBS) -fsanitize=address -fsanitize=undefined -lsqlite3 -L$(STAGING_DIR)/usr/lib
 
 LIBDIRS = \
 	-L$(INSTALLDIR)/lib \
@@ -67,7 +67,7 @@ ifeq ($(WITH_SAP), 1)
 LIBDIRS += -L$(AL_SAP_HOME)/
 endif
 
-LIBS = -lm -lpthread -ldl -lcjson -luuid -lssl -lcrypto -lwebconfig -lhebus -lmariadb
+LIBS = -lm -lpthread -ldl -lcjson -luuid -lssl -lcrypto -lwebconfig -lhebus -lsqlite3
 ifeq ($(WITH_SAP), 1)
 LIBS += -lalsap
 endif

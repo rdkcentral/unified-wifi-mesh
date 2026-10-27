@@ -49,7 +49,8 @@ AM_PROG_CC_C_O
 AM_PROG_LIBTOOL(libtool)
  
 # Checks for header files.
-AC_CHECK_HEADERS([stdlib.h string.h unistd.h])
+AC_CHECK_HEADERS([stdlib.h string.h unistd.h sqlite3.h])
+AC_CHECK_LIB([sqlite3], [sqlite3_open], [], [AC_MSG_ERROR([SQLite3 library is required])])
  
 # Checks for typedefs, structures, and compiler characteristics.
 AC_HEADER_STDBOOL
