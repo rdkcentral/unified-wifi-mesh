@@ -51,6 +51,172 @@
  */
 constexpr unsigned char BSS_COLOR_BSS_LOAD_PRESENT = 0x80;
 
+typedef struct {
+    unsigned int op_class;
+    unsigned int num_channels;
+    unsigned char channels[EM_MAX_CHANNELS_IN_LIST];
+} dfs_op_class_entry;
+
+constexpr dfs_op_class_entry dfs_table[] = {
+    {118, 4,  {52, 56, 60, 64}},
+    {119, 2,  {52, 60}},
+    {120, 2,  {56, 64}},
+    {121, 12, {100,104,108,112,116,120,124,128,132,136,140,144}},
+    {122, 6,  {100,108,116,124,132,140}},
+    {123, 6,  {104,112,120,128,136,144}},
+    {128, 4,  {58,106,122,138}},
+    {129, 2,  {50,114}},
+    {130, 4,  {58,106,122,138}}
+};
+
+constexpr unsigned int dfs_table_size = sizeof(dfs_table) / sizeof(dfs_table[0]);
+
+bool em_channel_t::is_dfs_channel(unsigned int op_class, unsigned int channel)
+{
+    for (unsigned int i = 0; i < dfs_table_size; ++i) {
+        if (dfs_table[i].op_class != op_class) {
+            continue;
+        }
+
+        for (unsigned int j = 0; j < dfs_table[i].num_channels; ++j) {
+            if (dfs_table[i].channels[j] == channel) {
+                return true;
+            }
+        }
+        // Channel not found in the OPCLASS entry of DFS Table
+        return false;
+    }
+    // OPCLASS entry is not found in the DFS Table
+    return false;
+}
+
+short em_channel_t::remove_dfs_channels_from_noop_pref_in_dm(dm_easy_mesh_t *dm, const mac_address_t ruid)
+{
+    if (!dm) {
+         return -1;
+    }
+    unsigned int num_opclass = dm->get_num_op_class();
+
+    for (unsigned int i = 0; i < num_opclass; i++) {
+        em_op_class_info_t *info = dm->get_op_class_info(i);
+        if (!info) continue;
+
+        if (info->id.type != em_op_class_type_preference || memcmp(info->id.ruid, ruid, sizeof(mac_address_t)) != 0) {
+            continue;
+        }
+
+        unsigned int write_idx = 0;
+        for (unsigned int read_idx = 0; read_idx < info->num_channels; ++read_idx) {
+            unsigned char channel = info->channels[read_idx];
+            // Retain only non-DFS channels
+            if (!is_dfs_channel(info->op_class, channel)) {
+                info->channels[write_idx] = channel;
+                info->channel_pref[write_idx] = info->channel_pref[read_idx];
+                ++write_idx;
+            }
+        }
+
+        info->num_channels = write_idx;
+        info->pref_valid = write_idx > 0;
+    }
+    return 0;
+}
+
+bool em_channel_t::add_channel_if_missing(em_op_class_info_t *info, unsigned char channel)
+{
+    if (info->num_channels >= EM_MAX_CHANNELS_IN_LIST) {
+        return false;
+    }
+
+    // Check if the channel is already present in the list
+    for (unsigned int i = 0; i < info->num_channels; ++i) {
+        if (info->channels[i] == channel) {
+            return false;
+        }
+    }
+
+    // Add the new channel at the next available index
+    unsigned int idx = info->num_channels++;
+    info->channels[idx] = channel;
+    info->channel_pref[idx] = 0x00;
+    return true;
+}
+
+short em_channel_t::check_dfs_flag_and_update_noop_channels(const mac_address_t ruid)
+{
+    dm_easy_mesh_t *dm = get_data_model();
+    if (!dm) {
+        return -1;
+    }
+
+    em_device_info_t *device = dm->get_device_info();
+    if (!device) {
+        return -1;
+    }
+
+    unsigned int num_opclass = dm->get_num_op_class();
+    if (device->dfs_enable) {
+        short rc = remove_dfs_channels_from_noop_pref_in_dm(dm, ruid);
+        return (rc < 0) ? rc : static_cast<short>(num_opclass);
+    }
+
+    // Build lookup: op_class -> preference entry
+    std::map<unsigned int, dm_op_class_t*> pref_map;
+
+    for (unsigned int i = 0; i < num_opclass; ++i) {
+        dm_op_class_t *entry = dm->get_op_class(i);
+        if (!entry) {
+            continue;
+        }
+
+        em_op_class_info_t *info = &entry->m_op_class_info;
+
+        if (info->id.type == em_op_class_type_preference &&
+            memcmp(info->id.ruid, ruid, sizeof(mac_address_t)) == 0) {
+
+            pref_map[info->op_class] = entry;
+        }
+    }
+
+    for (const auto &entry : dfs_table) {
+        dm_op_class_t *op = nullptr;
+
+        auto it = pref_map.find(entry.op_class);
+        if (it != pref_map.end()) {
+            op = it->second;
+        }
+
+        // If not found, create a new entry
+        if (!op) {
+            if (num_opclass >= EM_MAX_OPCLASS) {
+                continue;
+            }
+
+            op = &dm->m_op_class[num_opclass];
+            *op = dm_op_class_t{};
+
+            em_op_class_info_t *info = &op->m_op_class_info;
+            memcpy(info->id.ruid, ruid, sizeof(mac_address_t));
+            info->id.type = em_op_class_type_preference;
+            info->id.op_class = entry.op_class;
+            info->op_class = entry.op_class;
+
+            pref_map[entry.op_class] = op;
+            ++num_opclass;
+        }
+
+        // Populate DFS channels into the preference entry
+        em_op_class_info_t *info = &op->m_op_class_info;
+        for (unsigned int j = 0; j < entry.num_channels; ++j) {
+            add_channel_if_missing(info, entry.channels[j]);
+        }
+        info->pref_valid = true;
+    }
+
+    dm->set_num_op_class(num_opclass);
+    return static_cast<short>(num_opclass);
+}
+
 short em_channel_t::create_channel_pref_tlv_agent(unsigned char *buff, unsigned int index)
 {
     short len = 0;
@@ -76,7 +242,7 @@ short em_channel_t::create_channel_pref_tlv_agent(unsigned char *buff, unsigned 
     for (i = 0; i < dm->m_num_opclass; i++) {
 	op_class = &dm->m_op_class[i];
     if (((memcmp(op_class->m_op_class_info.id.ruid, pref->ruid, sizeof(mac_address_t)) == 0) &&
-         (op_class->m_op_class_info.id.type == em_op_class_type_preference)) == false) {
+         (op_class->m_op_class_info.id.type == em_op_class_type_preference) && (op_class->m_op_class_info.pref_valid)) == false) {
         continue;
     }
 
@@ -1495,8 +1661,16 @@ int em_channel_t::send_channel_pref_report_msg()
     tmp += sizeof(em_cmdu_t);
     len += sizeof(em_cmdu_t);
 
+    mac_address_t ruid;
     // Zero or more Channel Preference TLVs (see section 17.2.13).
     for (radio_index = 0; radio_index < dm->get_num_radios(); radio_index++) {
+        dm_radio_t& radio = dm->get_radio_by_ref(radio_index);
+        em_freq_band_t band = radio.get_radio_info()->band;
+        memcpy(ruid, radio.get_radio_interface_mac(), sizeof(mac_address_t));
+        if(band == em_freq_band_5) {
+               check_dfs_flag_and_update_noop_channels(ruid);
+        }
+
         tlv = reinterpret_cast<em_tlv_t *> (tmp);
         tlv->type = em_tlv_type_channel_pref;
         sz = create_channel_pref_tlv_agent(tlv->value, radio_index);
