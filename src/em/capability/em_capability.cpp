@@ -1822,7 +1822,7 @@ int em_capability_t::handle_ap_cap_report(unsigned char *buff, unsigned int len)
     constexpr unsigned int cac_country_code_len = 2;
     constexpr unsigned int cac_duration_len = 3;
     constexpr unsigned int cac_header_len = cac_country_code_len + sizeof(uint8_t);
-    constexpr unsigned int cac_radio_header_len = sizeof(mac_address_t) + sizeof(uint8_t);
+    constexpr unsigned int cac_radio_header_len = ETH_ALEN + sizeof(uint8_t);
     constexpr unsigned int cac_duration_offset = sizeof(uint8_t);
     constexpr unsigned int cac_op_class_count_offset = cac_duration_offset + cac_duration_len;
     constexpr unsigned int cac_method_header_len = cac_op_class_count_offset + sizeof(uint8_t);
@@ -1879,6 +1879,7 @@ int em_capability_t::handle_ap_cap_report(unsigned char *buff, unsigned int len)
         }
         if (tlv->type == em_tlv_type_eom) {
             if (value_len != 0) {
+                em_printfout("Error: Unexpected AP Capability Report EOM TLV length=%u (expected 0)", value_len);
                 return -1;
             }
             break;
@@ -1994,7 +1995,7 @@ int em_capability_t::handle_ap_cap_report(unsigned char *buff, unsigned int len)
 
             /* Country Code = first 2 ASCII octets of the CAC Capabilities TLV;
                persist it into the reporting device so it surfaces as Device.{i}.CountryCode. */
-            if (ntohs(tlv->len) >= cac_country_code_len) {
+            if (value_len >= cac_country_code_len) {
                 const unsigned char *cc = tlv->value;
                 em_device_info_t *dev_info = dm->get_device_info();
                 if ((dev_info != NULL) &&
@@ -2012,8 +2013,8 @@ int em_capability_t::handle_ap_cap_report(unsigned char *buff, unsigned int len)
                     em_printfout("Error: Truncated CAC radio header");
                     return -1;
                 }
-                memcpy(decoded.ruid, cursor, sizeof(mac_address_t));
-                decoded.cac_methods_num = cursor[sizeof(mac_address_t)];
+                memcpy(decoded.ruid, cursor, ETH_ALEN);
+                decoded.cac_methods_num = cursor[ETH_ALEN];
                 cursor += cac_radio_header_len;
                 remaining -= cac_radio_header_len;
                 if (decoded.cac_methods_num > sizeof(decoded.cac_methods) / sizeof(decoded.cac_methods[0])) {
@@ -2066,7 +2067,8 @@ int em_capability_t::handle_ap_cap_report(unsigned char *buff, unsigned int len)
                         em_printfout("No data Found");
                         return 0;
                     }
-                    memcpy(&cap_info->cac_cap, &decoded, sizeof(decoded));
+                    static_assert(sizeof(cap_info->cac_cap) == sizeof(decoded), "CAC capability size mismatch");
+                    memcpy(&cap_info->cac_cap, &decoded, sizeof(cap_info->cac_cap));
                 }
             }
         } else if (tlv->type == em_tlv_type_profile_2_ap_cap){
