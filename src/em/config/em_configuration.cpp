@@ -2484,6 +2484,7 @@ int em_configuration_t::handle_topology_notification(unsigned char *buff, unsign
                  em_printfout("topo notification disassoc: sta=%s bssid=%s key=%s",
                     sta_mac_str, bssid_str, key);
                 updated_any = false;
+                em_sta_info_t notif_sta_info = sta_info;
 
                 for (mld_i = 0; mld_i < dm->get_num_assoc_sta_mld(); mld_i++) {
                     assoc_info = &dm->m_assoc_sta_mld[mld_i].m_assoc_sta_mld_info;
@@ -2539,23 +2540,27 @@ int em_configuration_t::handle_topology_notification(unsigned char *buff, unsign
                     break;
                 }
 
-                if (updated_any) {
-                    dm->set_db_cfg_param(db_cfg_type_sta_list_update, "");
-                } else {
-                    // Non-MLO client: sta_info is already initialised with the correct
-                    // radio MAC (resolved at the top of this block via get_bss_info_with_mac).
-                    em_printfout("topo notification disassoc: no MLD info for sta=%s, handling as non-MLO",
-                            sta_mac_str);
+                if (updated_any == false) {
+                    // Non-MLO client, or MLD with no resolvable link: the MLD loop may have
+                    // overwritten sta_info, so restore the notification's own record to match 'key'.
+                    sta_info = notif_sta_info;
                     sta_row = static_cast<dm_sta_t *>(hash_map_get(dm->m_sta_map, key));
                     if (sta_row != NULL) {
+                        // Keep the retained station record (caps/metrics/assoc frame); clear only
+                        // 'associated'. A reconnect re-requests capabilities via that flag.
                         sta_row->m_sta_info.associated = false;
-                        update_sta_map_assoc_row(dm->m_sta_assoc_map, &sta_row->m_sta_info);
-                    } else {
-                        // STA not yet in m_sta_map; write minimal entry with associated=false for DB update
-                        update_sta_map_assoc_row(dm->m_sta_assoc_map, &sta_info);
+                        memcpy(&sta_info, &sta_row->m_sta_info, sizeof(em_sta_info_t));
                     }
-                    dm->set_db_cfg_param(db_cfg_type_sta_list_update, "");
+
+                    assoc_row = static_cast<dm_sta_t *>(hash_map_get(dm->m_sta_assoc_map, key));
+                    if (assoc_row != NULL) {
+                        memcpy(&assoc_row->m_sta_info, &sta_info, sizeof(em_sta_info_t));
+                    } else {
+                        hash_map_put(dm->m_sta_assoc_map, strdup(key), new dm_sta_t(&sta_info));
+                    }
                 }
+
+                dm->set_db_cfg_param(db_cfg_type_sta_list_update, "");
             } else {
                 em_printfout("topo notification assoc defer: sta=%s bssid=%s",
                         sta_mac_str, bssid_str);
