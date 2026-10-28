@@ -1828,13 +1828,21 @@ void em_agent_t::input_listener()
     raw_data_t ready_data = {};
     while ((bus_error_val = desc->bus_data_get_fn(&m_bus_hdl, WIFI_EM_INIT_TX_POWER_READY,
                 &ready_data)) != bus_error_success) {
+        if (ready_data.raw_data.bytes != nullptr) {
+            desc->bus_data_free_fn(&ready_data);
+        }
+        ready_data = {};
         em_printfout("Transmit power GET failed for %s, error: %d; retrying",
             WIFI_EM_INIT_TX_POWER_READY, bus_error_val);
         usleep(RETRY_SLEEP_INTERVAL_IN_MS * 1000);
     }
-    if (ready_data.data_type != bus_data_type_uint32 || ready_data.raw_data.u32 != 1) {
-        em_printfout("Invalid transmit power readiness response for %s",
-            WIFI_EM_INIT_TX_POWER_READY);
+    em_tx_power_response_t tx_power_response = {};
+    bool tx_power_ready = get_tx_power_snapshot(ready_data, &tx_power_response);
+    if (ready_data.raw_data.bytes != nullptr) {
+        desc->bus_data_free_fn(&ready_data);
+    }
+    if (!tx_power_ready) {
+        em_printfout("Invalid transmit power snapshot from %s", WIFI_EM_INIT_TX_POWER_READY);
         return;
     }
 
@@ -1923,6 +1931,98 @@ void em_agent_t::input_listener()
     em_get_ext_hooks()->on_bus_ready(&m_bus_hdl, desc);
 
     io(NULL);
+}
+
+bool em_agent_t::request_runtime_tx_power(const unsigned char *ruid, int *tx_power)
+{
+    if (ruid == nullptr || tx_power == nullptr) {
+        return false;
+    }
+
+    wifi_bus_desc_t *desc = get_bus_descriptor();
+    if (desc == nullptr || desc->bus_data_get_fn == nullptr ||
+        desc->bus_data_free_fn == nullptr) {
+        em_printfout("Cannot GET refreshed transmit power: bus descriptor unavailable");
+        return false;
+    }
+
+    if (pthread_mutex_lock(&m_tx_power_mutex) != 0) {
+        em_printfout("Failed to lock transmit power GET mutex");
+        return false;
+    }
+
+    raw_data_t data = {};
+    bus_error_t status = desc->bus_data_get_fn(&m_bus_hdl, WIFI_EM_INIT_TX_POWER_READY, &data);
+    if (pthread_mutex_unlock(&m_tx_power_mutex) != 0) {
+        if (data.raw_data.bytes != nullptr) {
+            desc->bus_data_free_fn(&data);
+        }
+        em_printfout("Failed to unlock transmit power GET mutex");
+        return false;
+    }
+
+    if (status != bus_error_success) {
+        em_printfout("Transmit power GET failed for %s, error: %d",
+            WIFI_EM_INIT_TX_POWER_READY, status);
+        if (data.raw_data.bytes != nullptr) {
+            desc->bus_data_free_fn(&data);
+        }
+        return false;
+    }
+
+    em_tx_power_response_t tx_power_response = {};
+    bool response_valid = get_tx_power_snapshot(data, &tx_power_response);
+    if (data.raw_data.bytes != nullptr) {
+        desc->bus_data_free_fn(&data);
+    }
+    if (!response_valid) {
+        em_printfout("Transmit power snapshot from %s is invalid", WIFI_EM_INIT_TX_POWER_READY);
+        return false;
+    }
+
+    for (uint32_t i = 0; i < tx_power_response.radio_count; i++) {
+        if (memcmp(tx_power_response.radios[i].ruid, ruid, sizeof(mac_address_t)) == 0) {
+            *tx_power = static_cast<int>(tx_power_response.radios[i].tx_power);
+            return true;
+        }
+    }
+
+    em_printfout("Transmit power snapshot from %s does not include %s",
+        WIFI_EM_INIT_TX_POWER_READY, util::mac_to_string(ruid).c_str());
+    return false;
+
+}
+
+bool em_agent_t::get_tx_power_snapshot(const raw_data_t &data, em_tx_power_response_t *response)
+{
+
+    if (response == nullptr || data.data_type != bus_data_type_bytes ||
+        data.raw_data.bytes == nullptr ||
+        data.raw_data_len < offsetof(em_tx_power_response_t, radios)) {
+        return false;
+    }
+
+    uint32_t radio_count = 0;
+    memcpy(&radio_count, data.raw_data.bytes, sizeof(radio_count));
+    if (radio_count == 0 || radio_count > EM_MAX_RADIO_PER_AGENT) {
+        return false;
+    }
+    size_t response_len = offsetof(em_tx_power_response_t, radios) +
+        radio_count * sizeof(response->radios[0]);
+    if (data.raw_data_len != response_len) {
+        return false;
+    }
+
+    memset(response, 0, sizeof(*response));
+    memcpy(response, data.raw_data.bytes, response_len);
+    for (uint32_t i = 0; i < response->radio_count; i++) {
+        if (response->radios[i].tx_power < INT8_MIN ||
+            response->radios[i].tx_power > INT8_MAX) {
+            return false;
+        }
+    }
+
+    return true;
 }
 
 int em_agent_t::unassoc_sta_link_metrics_cb(char *event_name, bus_data_prop_t *data, void *userData)
@@ -2889,7 +2989,9 @@ em_agent_t::em_agent_t()
 
 em_agent_t::~em_agent_t()
 {
-
+    if (pthread_mutex_destroy(&m_tx_power_mutex) != 0) {
+        em_printfout("Failed to destroy transmit power GET mutex");
+    }
 }
 #ifdef AL_SAP
 AlServiceAccessPoint* em_agent_t::al_sap_register(const std::string& data_socket_path, const std::string& control_socket_path)

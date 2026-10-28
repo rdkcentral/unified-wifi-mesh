@@ -40,6 +40,7 @@ class AlServiceAccessPoint;
 
 class em_agent_t : public em_mgr_t {
 
+    pthread_mutex_t m_tx_power_mutex = PTHREAD_MUTEX_INITIALIZER;
     em_orch_agent_t *m_orch;
     dm_easy_mesh_agent_t m_data_model;
     em_short_string_t   m_data_model_path;
@@ -379,6 +380,8 @@ class em_agent_t : public em_mgr_t {
 	bool send_action_frame(uint8_t dest_mac[ETH_ALEN], uint8_t *action_frame, size_t action_frame_len, uint8_t vap_idx, unsigned int frequency=0, unsigned int wait_time_ms=0);
 
 	void send_beacon_query(em_bus_event_t *evt);
+
+	static bool get_tx_power_snapshot(const raw_data_t &data, em_tx_power_response_t *snapshot);
 public:
 
     bus_handle_t m_bus_hdl;
@@ -399,6 +402,18 @@ public:
 	 */
 	void input_listener();
 
+	/**!
+         * @brief Gets refreshed transmit power for a radio from OneWifi.
+	 *
+         * The OneWifi property returns a snapshot containing the RUID and transmit
+         * power for every radio.
+	 *
+         * @param[in] ruid Radio unique identifier.
+         * @param[out] tx_power Refreshed transmit power for the requested radio.
+	 *
+         * @return true when a valid snapshot contains the requested radio.
+	 */
+	bool request_runtime_tx_power(const unsigned char *ruid, int *tx_power) override;
 
 	bool is_agent_dpp_onboarding() override {
 		return do_start_dpp_onboarding;

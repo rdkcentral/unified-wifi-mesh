@@ -1201,6 +1201,40 @@ int em_channel_t::send_operating_channel_report_msg()
     mac_addr_str_t mac_str;
 
     dm = get_data_model();
+    if (dm == nullptr) {
+        printf("%s:%d: data model unavailable; skipping operating channel report\n", __func__, __LINE__);
+        return -1;
+    }
+
+    em_mgr_t *mgr = get_mgr();
+
+    int tx_power = 0;
+    bool tx_power_refreshed = false;
+    if (mgr != nullptr) {
+        tx_power_refreshed = mgr->request_runtime_tx_power(get_radio_interface_mac(), &tx_power);
+    }
+    if (!tx_power_refreshed) {
+        printf("%s:%d: runtime transmit power refresh failed; using cached value if available\n",
+            __func__, __LINE__);
+    }
+
+    bool updated_tx_power = false;
+    for (unsigned int i = 0; i < dm->m_num_opclass; i++) {
+        dm_op_class_t *op_class = &dm->m_op_class[i];
+        if (memcmp(op_class->m_op_class_info.id.ruid, get_radio_interface_mac(), sizeof(mac_address_t)) == 0 &&
+            op_class->m_op_class_info.id.type == em_op_class_type_current) {
+            if (tx_power_refreshed) {
+                op_class->m_op_class_info.tx_power = tx_power;
+            } else {
+                tx_power = op_class->m_op_class_info.tx_power;
+            }
+            updated_tx_power = true;
+        }
+    }
+    if (!updated_tx_power) {
+        printf("%s:%d: no current operating class found for runtime transmit power\n", __func__, __LINE__);
+        return -1;
+    }
 
     memcpy(tmp, dm->get_ctl_mac(), sizeof(mac_address_t));
     tmp += sizeof(mac_address_t);
@@ -1229,6 +1263,12 @@ int em_channel_t::send_operating_channel_report_msg()
     tlv = reinterpret_cast<em_tlv_t *> (tmp);
     tlv->type = em_tlv_type_op_channel_report;
     sz = create_operating_channel_report_tlv(tlv->value);
+    if (tx_power_refreshed) {
+        int8_t curr_txpwr_dbm = static_cast<int8_t>(tx_power);
+        // Transmit power is the final field in the Operating Channel Report TLV.
+        memcpy(tlv->value + static_cast<size_t>(sz) - sizeof(curr_txpwr_dbm),
+            &curr_txpwr_dbm, sizeof(curr_txpwr_dbm));
+    }
     tlv->len = htons(static_cast<short unsigned int> (sz));
 
     tmp += sizeof(em_tlv_t) + static_cast<short unsigned int> (sz);
@@ -1644,7 +1684,19 @@ int em_channel_t::handle_op_channel_report(unsigned char *buff, unsigned int len
     em_op_channel_rprt_t *rpt = reinterpret_cast<em_op_channel_rprt_t *> (buff);
     mac_address_t ruid;
     mac_addr_str_t ruid_str;
+    int tx_power = 0;
+    unsigned int tx_power_off;
     dm = get_data_model();
+
+    if (len < sizeof(em_op_channel_rprt_t) || rpt->op_classes_num == 0) {
+        return -1;
+    }
+    /* the Current Transmit Power EIRP byte follows the operating class list */
+    tx_power_off = sizeof(em_op_channel_rprt_t) + rpt->op_classes_num * sizeof(em_op_class_ch_rprt_t);
+    if (len <= tx_power_off) {
+        return -1;
+    }
+    tx_power = static_cast<int8_t> (buff[tx_power_off]);
 
     //Update current Operating Channel for RUID
     for (i = 0; i < dm->m_num_opclass; i++) {
@@ -1653,6 +1705,7 @@ int em_channel_t::handle_op_channel_report(unsigned char *buff, unsigned int len
                     (op_class_info->id.type == em_op_class_type_current)) == true) {
             op_class_info->op_class = static_cast<unsigned int> (rpt->op_classes[0].op_class);
             op_class_info->channel = static_cast<unsigned int> (rpt->op_classes[0].channel);
+            op_class_info->tx_power = tx_power;
             found++;
         }
     }
@@ -1665,6 +1718,7 @@ int em_channel_t::handle_op_channel_report(unsigned char *buff, unsigned int len
         op_class_info->op_class = static_cast<unsigned int> (rpt->op_classes[0].op_class);
         op_class_info->id.op_class = op_class_info->op_class;
         op_class_info->channel = static_cast<unsigned int> (rpt->op_classes[0].channel);
+        op_class_info->tx_power = tx_power;
         dm->set_num_op_class(dm->get_num_op_class() + 1);
         dm->set_db_cfg_param(db_cfg_type_op_class_list_update, "");
         dm->set_db_cfg_param(db_cfg_type_radio_list_update, "");
@@ -2038,24 +2092,27 @@ int em_channel_t::handle_operating_channel_rprt(unsigned char *buff, unsigned in
     em_tlv_t    *tlv;
     int tlv_len;
 
+    if (len < sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)) {
+        return -1;
+    }
+
     em_cmdu_t *cmdu = reinterpret_cast<em_cmdu_t *> (buff + sizeof(em_raw_hdr_t));
 
     tlv = reinterpret_cast<em_tlv_t *> (buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
     tlv_len = static_cast<int> (len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)));
 
     while ((tlv_len > 0) && (tlv_len >= static_cast<int>(sizeof(em_tlv_t)))) {
+        int current_tlv_size = sizeof(em_tlv_t) + ntohs(tlv->len);
+        if (tlv_len < current_tlv_size) {
+            break;
+        }
+
         if (tlv->type == em_tlv_type_eom) {
             break;
         }
 
         if (tlv->type == em_tlv_type_op_channel_report) {
             handle_op_channel_report(tlv->value, ntohs(tlv->len));
-        }
-
-        // Ensure we have enough buffer for the complete TLV before advancing
-        int current_tlv_size = sizeof(em_tlv_t) + htons(tlv->len);
-        if (tlv_len < current_tlv_size) {
-            break;
         }
 
         tlv_len -= current_tlv_size;
@@ -2466,9 +2523,13 @@ void em_channel_t::process_state()
         		
         case em_state_agent_channel_report_pending:
             if (get_service_type() == em_service_type_agent) {
-                send_operating_channel_report_msg();
-                printf("%s:%d operating_channel_report_msg send\n", __func__, __LINE__);
-                set_state(em_state_agent_configured);
+                if (send_operating_channel_report_msg() > 0) {
+                    printf("%s:%d operating_channel_report_msg send\n", __func__, __LINE__);
+                    set_state(em_state_agent_configured);
+                } else {
+                    printf("%s:%d operating_channel_report_msg was not sent\n", __func__, __LINE__);
+                    return;
+                }
             }
             break;
 
