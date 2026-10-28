@@ -1811,6 +1811,7 @@ public:
 	 * before calling this function.
 	 */
 	int handle_encrypted_settings(unsigned int wsc_tlv_count, bool is_bh_reconfig = false);
+	int handle_encrypted_settings(unsigned int wsc_tlv_count, m2ctrl_radioconfig& radioconfig);
     
 	/**!
 	 * @brief Creates encrypted settings based on the provided buffer and haul type.

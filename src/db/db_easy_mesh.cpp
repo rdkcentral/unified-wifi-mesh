@@ -62,12 +62,14 @@ bool db_easy_mesh_t::is_table_empty(db_client_t& db_client)
     bool ret = false;
 
     snprintf(query, sizeof(db_query_t), "select * from %s", m_table_name);
+
     ctx = db_client.execute(query);
 
     if (ctx == NULL) {
-        // Query failed - don't mistake this for an empty table
-        printf("%s:%d: Error: Select query failed for table %s\n", __func__, __LINE__, m_table_name);
-        return ret;
+        // A failed check requires the same initialization recovery as an empty table.
+        printf("%s:%d: Error: Select query failed for table %s; requesting database initialization\n",
+               __func__, __LINE__, m_table_name);
+        return true;
     }
 
     if (db_client.next_result(ctx) == false) {
@@ -190,6 +192,7 @@ int db_easy_mesh_t::update_row(db_client_t& db_client, ...)
 int db_easy_mesh_t::compare_row(db_client_t& db_client, ...)
 {
     unsigned int i;
+    va_list list;
     db_query_t tmp, format, query;
     db_fmt_t col_fmt;
     void *ctx;
@@ -206,6 +209,10 @@ int db_easy_mesh_t::compare_row(db_client_t& db_client, ...)
             snprintf(format + strlen(format), sizeof(format) - strlen(format), " and ");
         }
     }
+
+    va_start(list, db_client);
+    (void) vsnprintf(query, sizeof(db_query_t), format, list);
+    va_end(list);
 
     ctx = db_client.execute(query);
     bool comparison_success = false;
@@ -337,32 +344,13 @@ char *db_easy_mesh_t::get_column_type(unsigned int pos, char *type_str, unsigned
             snprintf(type_str, sz, "integer");
             break;
 
-        case db_data_type_int:
-            snprintf(type_str, sz, "int");
-            break;
+            case db_data_type_tinyint:
+                snprintf(type_str, sizeof(type_str), "integer");
+                break;
 
-        case db_data_type_smallint:
-            snprintf(type_str, sz, "smallint");
-            break;
-
-        case db_data_type_bigint:
-            snprintf(type_str, sz, "bigint");
-            break;
-
-        case db_data_type_tinyint:
-            snprintf(type_str, sz, "tinyint");
-            break;
-
-        case db_data_type_mediumint:
-            snprintf(type_str, sz, "mediumint");
-            break;
-
-        default:
-            // assert() is compiled out in release builds, so never leave type_str uninitialized
-            snprintf(type_str, sz, "%s", "");
-            assert(0);
-            break;
-    }
+            case db_data_type_datetime:
+                snprintf(type_str, sizeof(type_str), "text");
+                break;
 
     return type_str;
 }
@@ -462,7 +450,7 @@ int db_easy_mesh_t::load_table(db_client_t& db_client)
     bool present = false;
 
     memset(query, 0, sizeof(db_query_t));
-    snprintf(query, sizeof(db_query_t), "show tables");
+    snprintf(query, sizeof(db_query_t), "select name from sqlite_master where type = 'table'");
 
     ctx = db_client.execute(query);
 

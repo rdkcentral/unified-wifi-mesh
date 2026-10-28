@@ -124,6 +124,11 @@ dm_easy_mesh_t& dm_easy_mesh_t::operator = (dm_easy_mesh_t const& obj)
         m_assoc_sta_mld[i] = obj.m_assoc_sta_mld[i];
     }
 
+
+    for (unsigned int i = 0; i < EM_MLO_POLICY_HAUL_COUNT; i++) {
+        m_mlo_policy[i] = obj.m_mlo_policy[i];
+    }
+
     if (m_sta_map == NULL) {
         m_sta_map = hash_map_create();
     }
@@ -1058,6 +1063,7 @@ int dm_easy_mesh_t::decode_config_set_radio(em_subdoc_info_t *subdoc, const char
         set_num_radios(m_num_radios + 1);
 
 	}
+    cJSON_Delete(parent_obj);
     return 0;
 }
 
@@ -2134,6 +2140,19 @@ const char* dm_easy_mesh_t::get_platform()
     return NULL;
 
 }
+
+void dm_easy_mesh_t::set_ctrl_al_interface_mac(unsigned char *mac)
+{
+    m_device.set_dev_interface_mac(mac);
+    m_network.set_controller_id(mac);
+}
+
+void dm_easy_mesh_t::set_ctrl_al_interface_name(char *name)
+{
+    snprintf(m_device.get_dev_interface()->name, sizeof(em_interface_name_t), "%s", name);
+    snprintf(m_network.get_controller_interface()->name, sizeof(em_interface_name_t), "%s", name);
+}
+
 em_interface_t *dm_easy_mesh_t::get_prioritized_interface(const char *platform)
 {
 	unsigned int i;
@@ -2211,6 +2230,9 @@ int dm_easy_mesh_t::get_interfaces_list(em_interface_t interfaces[], unsigned in
 				interfaces[num].media = em_media_type_ieee8023ab;
 			} else if (strstr(tmp->ifa_name, "wlan") != NULL) {
 				interfaces[num].media = em_media_type_ieee80211b_24;
+			} else {
+				// Bridges and other unclassified interfaces (e.g. brlan0) are treated as wired.
+				interfaces[num].media = em_media_type_ieee8023ab;
 			}
 			memcpy(interfaces[num].mac, ll_addr->sll_addr, sizeof(mac_address_t));	
 			num++;
@@ -2509,6 +2531,10 @@ bool dm_easy_mesh_t::operator==(dm_easy_mesh_t const& obj)
     }
     ret += this->m_num_radios == obj.m_num_radios;
     ret += this->m_num_opclass == obj.m_num_opclass;
+    ret += this->m_num_ap_mld != obj.m_num_ap_mld;
+    for (unsigned int i = 0; i < this->m_num_ap_mld && i < EM_MAX_AP_MLD; i++) {
+        ret += !(this->m_ap_mld[i] == obj.m_ap_mld[i]);
+    }
     for (unsigned int i = 0; i < EM_MAX_BSSS; i++) {
         ret += memcmp(&this->m_bss[i], &obj.m_bss[i], sizeof(dm_bss_t));
     }
@@ -2824,6 +2850,26 @@ em_network_ssid_info_t *dm_easy_mesh_t::get_network_ssid_info_by_haul_type(em_ha
     }
 
     return (found == true) ? info:NULL;
+}
+
+bool dm_easy_mesh_t::get_haul_type_from_ssid(const ssid_t ssid, em_haul_type_t *haul_type)
+{
+    em_network_ssid_info_t *info;
+    unsigned int i;
+
+    if ((ssid == NULL) || (ssid[0] == '\0') || (haul_type == NULL)) {
+        return false;
+    }
+
+    for (i = 0; i < m_num_net_ssids; i++) {
+        info = &m_network_ssid[i].m_network_ssid_info;
+        if ((strncmp(info->ssid, ssid, sizeof(ssid_t)) == 0) && (info->num_hauls > 0)) {
+            *haul_type = info->haul_type[0];
+            return true;
+        }
+    }
+
+    return false;
 }
 
 dm_bss_t *dm_easy_mesh_t::get_bss(mac_address_t radio_mac, mac_address_t bss_mac)
@@ -3529,17 +3575,26 @@ void dm_easy_mesh_t::update_scan_results(em_scan_result_t *scan_result)
     }
 }
 
-em_ap_mld_info_t *dm_easy_mesh_t::get_ap_mld_frm_bssid(mac_address_t bss_id)
+const em_mlo_policy_t *dm_easy_mesh_t::get_mlo_policy(em_haul_type_t haul) const
 {
-    unsigned int i, j;
-    em_ap_mld_info_t *ap_mld_info = NULL;
+    if ((haul != em_haul_type_fronthaul) && (haul != em_haul_type_backhaul)) {
+        return NULL;
+    }
+
+    return &m_mlo_policy[haul];
+}
+
+em_ap_mld_info_t *dm_easy_mesh_t::get_ap_mld_frm_haul_type(em_haul_type_t haul_type)
+{
+    unsigned int i;
+
+    if (haul_type >= em_haul_type_max) {
+        return NULL;
+    }
 
     for (i = 0; i < m_num_ap_mld; i++) {
-        ap_mld_info = &m_ap_mld[i].m_ap_mld_info;
-        for (j = 0; j < ap_mld_info->num_affiliated_ap; ++j) {
-            if (memcmp(ap_mld_info->affiliated_ap[j].mac_addr, bss_id, sizeof(mac_address_t)) == 0) {
-                return ap_mld_info;
-            }
+        if (m_ap_mld[i].m_ap_mld_info.haul_type == haul_type) {
+            return &m_ap_mld[i].m_ap_mld_info;
         }
     }
 
@@ -3549,12 +3604,13 @@ em_ap_mld_info_t *dm_easy_mesh_t::get_ap_mld_frm_bssid(mac_address_t bss_id)
 bool dm_easy_mesh_t::is_ap_mld_mac(const mac_address_t mac)
 {
     const em_ap_mld_info_t *ap_mld_info = NULL;
+    unsigned int i;
 
     if (mac == NULL) {
         return false;
     }
 
-    for (unsigned int i = 0; i < m_num_ap_mld; i++) {
+    for (i = 0; i < m_num_ap_mld; i++) {
         ap_mld_info = &m_ap_mld[i].m_ap_mld_info;
         if (!ap_mld_info->mac_addr_valid) {
             continue;
@@ -3601,15 +3657,27 @@ bool dm_easy_mesh_t::resolve_ap_mld_to_fallback_ruid(const mac_address_t ap_mld_
 
 void dm_easy_mesh_t::update_ap_mld_info(em_ap_mld_info_t *ap_mld_info)
 {
+    em_ap_mld_info_t *target_mld;
+    em_ap_mld_info_t *candidate;
+    em_affiliated_ap_info_t *input_ap;
+    em_affiliated_ap_info_t *target_aff_ap;
+    bool aff_ap_found;
+    unsigned int i, j, k;
 
-    em_ap_mld_info_t *target_mld = NULL;
+    if (ap_mld_info->haul_type >= em_haul_type_max) {
+        em_printfout("%s: Invalid AP MLD haul type=%d", __func__, ap_mld_info->haul_type);
+        return;
+    }
 
-    // Find existing MLD by MAC
-    em_printfout("m_num_ap_mld %d", m_num_ap_mld);
-    for (unsigned int i = 0; i < m_num_ap_mld; i++) {
-        if (memcmp(m_ap_mld[i].m_ap_mld_info.mac_addr, ap_mld_info->mac_addr, sizeof(mac_address_t)) == 0) {
-            target_mld = &m_ap_mld[i].m_ap_mld_info;
-            em_printfout("Found existing MLD at index %d", i);
+    target_mld = NULL;
+    // AP MLD entries are identified exclusively by haul type.
+    for (i = 0; i < m_num_ap_mld; i++) {
+        candidate = &m_ap_mld[i].m_ap_mld_info;
+
+        if (candidate->haul_type == ap_mld_info->haul_type) {
+            target_mld = candidate;
+            em_printfout("Found existing AP MLD by haul=%d at index=%u",
+                ap_mld_info->haul_type, i);
             break;
         }
     }
@@ -3627,27 +3695,54 @@ void dm_easy_mesh_t::update_ap_mld_info(em_ap_mld_info_t *ap_mld_info)
         m_num_ap_mld++;
     }
 
-    // Update MLD fields
-    target_mld->mac_addr_valid = ap_mld_info->mac_addr_valid;
-    strncpy(target_mld->ssid, ap_mld_info->ssid, sizeof(ssid_t));
-    memcpy(target_mld->mac_addr, ap_mld_info->mac_addr, sizeof(mac_address_t));
+    if (memcmp(target_mld, ap_mld_info, sizeof(*target_mld)) == 0) {
+        em_printfout("AP-MLD information is unchanged");
+        return;
+    }
+
+    // Update MLD fields — only overwrite a field when the incoming value is valid;
+    // preserve existing good data when the incoming placeholder has invalid/zero values.
+    if (ap_mld_info->mac_addr_valid) {
+        target_mld->mac_addr_valid = true;
+        memcpy(target_mld->mac_addr, ap_mld_info->mac_addr, sizeof(mac_address_t));
+        em_printfout("Updating AP-MLD MAC to %s",
+                     util::mac_to_string(ap_mld_info->mac_addr).c_str());
+    }
+    if (ap_mld_info->ssid[0] != '\0') {
+        strncpy(target_mld->ssid, ap_mld_info->ssid, sizeof(ssid_t) - 1);
+        target_mld->ssid[sizeof(ssid_t) - 1] = '\0';
+    }
+    target_mld->haul_type = ap_mld_info->haul_type;
+
     target_mld->str = ap_mld_info->str;
     target_mld->nstr = ap_mld_info->nstr;
     target_mld->emlsr = ap_mld_info->emlsr;
     target_mld->emlmr = ap_mld_info->emlmr;
 
     // Loop through all affiliated APs
-    for (int j = 0; j < ap_mld_info->num_affiliated_ap; j++) {
-        em_affiliated_ap_info_t *input_ap = &ap_mld_info->affiliated_ap[j];
-        em_affiliated_ap_info_t *target_aff_ap = NULL;
-        bool aff_ap_found = false;
+    for (j = 0; j < ap_mld_info->num_affiliated_ap; j++) {
+        input_ap = &ap_mld_info->affiliated_ap[j];
+        target_aff_ap = NULL;
+        aff_ap_found = false;
 
-        for (int k = 0; k < target_mld->num_affiliated_ap; k++) {
-            if (memcmp(target_mld->affiliated_ap[k].mac_addr, input_ap->mac_addr, sizeof(mac_address_t)) == 0) {
-                target_aff_ap = &target_mld->affiliated_ap[k];
-                aff_ap_found = true;
-                em_printfout("Found existing affiliated AP at index %d", k);
-                break;
+        for (k = 0; k < target_mld->num_affiliated_ap; k++) {
+            // First try to match by link MAC when both sides have a valid one.
+            if (input_ap->mac_addr_valid && target_mld->affiliated_ap[k].mac_addr_valid) {
+                if (memcmp(target_mld->affiliated_ap[k].mac_addr, input_ap->mac_addr, sizeof(mac_address_t)) == 0) {
+                    target_aff_ap = &target_mld->affiliated_ap[k];
+                    aff_ap_found = true;
+                    em_printfout("Found existing affiliated AP by link MAC at index %d", k);
+                    break;
+                }
+            } else {
+                // If either side has an invalid link MAC, fall back to matching by RUID.
+                // During initial onboarding AP MAC may not be available
+                if (memcmp(target_mld->affiliated_ap[k].ruid.mac, input_ap->ruid.mac, sizeof(mac_address_t)) == 0) {
+                    target_aff_ap = &target_mld->affiliated_ap[k];
+                    aff_ap_found = true;
+                    em_printfout("Found existing affiliated AP by RUID at index %d", k);
+                    break;
+                }
             }
         }
 
@@ -3663,15 +3758,23 @@ void dm_easy_mesh_t::update_ap_mld_info(em_ap_mld_info_t *ap_mld_info)
             target_mld->num_affiliated_ap++;
         }
 
-        // Update affiliated AP fields
-        target_aff_ap->mac_addr_valid = input_ap->mac_addr_valid;
-        target_aff_ap->link_id_valid = input_ap->link_id_valid;
+        // Update affiliated AP fields — only overwrite link MAC / link-id when the
+        // incoming data marks them valid; preserve existing values otherwise.
         target_aff_ap->ruid = input_ap->ruid;
-        memcpy(target_aff_ap->mac_addr, input_ap->mac_addr, sizeof(mac_address_t));
-        target_aff_ap->link_id = input_ap->link_id;
+        if (input_ap->mac_addr_valid) {
+            target_aff_ap->mac_addr_valid = true;
+            memcpy(target_aff_ap->mac_addr, input_ap->mac_addr, sizeof(mac_address_t));
+            em_printfout("Updating aff link MAC to %s",
+                         util::mac_to_string(input_ap->mac_addr).c_str());
+        }
+        if (input_ap->link_id_valid) {
+            target_aff_ap->link_id_valid = true;
+            target_aff_ap->link_id = input_ap->link_id;
+        }
     }
 
     em_printfout("Updated MLD with %d affiliated APs", target_mld->num_affiliated_ap);
+
 }
 
 void dm_easy_mesh_t::update_bsta_mld_info(em_bsta_mld_info_t *bsta_mld_info)
@@ -3746,6 +3849,36 @@ void dm_easy_mesh_t::update_assoc_sta_mld_info(em_assoc_sta_mld_info_t *assoc_st
         memcpy(target_aff_sta->bssid, input_sta->bssid, sizeof(mac_address_t));
         memcpy(target_aff_sta->link_addr, input_sta->link_addr, sizeof(mac_address_t));
     }
+}
+
+void dm_easy_mesh_t::remove_ap_mld_info_by_haul_type(em_haul_type_t haul_type)
+{
+    unsigned int found_idx = m_num_ap_mld;
+    unsigned int i;
+
+    if (haul_type >= em_haul_type_max) {
+        return;
+    }
+
+    for (i = 0; i < m_num_ap_mld; i++) {
+        if (m_ap_mld[i].m_ap_mld_info.haul_type == haul_type) {
+            found_idx = i;
+            break;
+        }
+    }
+
+    if (found_idx == m_num_ap_mld) {
+        return; // not found
+    }
+
+    // Compact the array: shift entries after found_idx one position left.
+    for (i = found_idx; i < m_num_ap_mld - 1; i++) {
+        m_ap_mld[i] = m_ap_mld[i + 1];
+    }
+
+    // Zero out the vacated last slot and decrement count.
+    m_ap_mld[m_num_ap_mld - 1].init();
+    m_num_ap_mld--;
 }
 
 void dm_easy_mesh_t::remove_assoc_sta_mld_info(mac_address_t sta_mld_mac)
@@ -3873,6 +4006,14 @@ int dm_easy_mesh_t::init()
     m_sta_dassoc_map = hash_map_create();
     m_wifi_data = static_cast<webconfig_subdoc_data_t*> (malloc(sizeof(webconfig_subdoc_data_t)));
     memset(&m_db_cfg_param, 0, sizeof(em_db_cfg_param_t));
+
+    // Initialize MLO policy for both fronthaul and backhaul
+    m_mlo_policy[em_haul_type_fronthaul].use_mld_tlv = true;
+    m_mlo_policy[em_haul_type_fronthaul].band_bitmap = EM_MLO_DEFAULT_BAND_BITMAP;
+
+    m_mlo_policy[em_haul_type_backhaul].use_mld_tlv = false;
+    m_mlo_policy[em_haul_type_backhaul].band_bitmap = EM_MLO_DEFAULT_BAND_BITMAP;
+
     return 0;
 }
 
@@ -3907,6 +4048,12 @@ void dm_easy_mesh_t::reset()
     for (unsigned int i = 0; i < EM_MAX_ASSOC_STA_MLD; i++) {
         m_assoc_sta_mld[i].init();
     }
+
+    m_mlo_policy[em_haul_type_fronthaul].use_mld_tlv = true;
+    m_mlo_policy[em_haul_type_fronthaul].band_bitmap = EM_MLO_DEFAULT_BAND_BITMAP;
+
+    m_mlo_policy[em_haul_type_backhaul].use_mld_tlv = false;
+    m_mlo_policy[em_haul_type_backhaul].band_bitmap = EM_MLO_DEFAULT_BAND_BITMAP;
 }
 
 dm_easy_mesh_t::dm_easy_mesh_t(const dm_network_t& net)
