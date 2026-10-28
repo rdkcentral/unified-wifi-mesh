@@ -39,6 +39,7 @@
 #include <openssl/rand.h>
 #include <set>
 #include "em_metrics.h"
+#include "em_eth.h"
 #include "em_msg.h"
 #include "dm_easy_mesh.h"
 #include "em_cmd.h"
@@ -48,6 +49,9 @@
 #include "em_cmd_exec.h"
 #include "dm_easy_mesh_agent.h"
 #include "em_cmd_unassoc_sta_query.h"
+#include <algorithm>
+#include <string>
+#include <vector>
 
 static     const unsigned char em_vendor_oui[EM_VENDOR_OUI_SIZE] = {0xd8, 0x9c, 0x8e};
 
@@ -1088,6 +1092,11 @@ int em_metrics_t::handle_ap_metrics_response(unsigned char *buff, unsigned int l
                         if (handle_device_metrics_vendor_tlv(vendor_tlv->data + sizeof(tlv_id), len) != 0) {
                             em_printfout("device_metrics_vendor_tlv failed, skipping TLV");
                         }
+                    } else if (tlv_id == em_tlv_type_eth_stats) {
+                        len -= sizeof(airties_vendor_oui) + sizeof(tlv_id);
+                        if (handle_eth_stats_vendor_tlv(vendor_tlv->data + sizeof(tlv_id), static_cast<unsigned int> (len)) != 0) {
+                            em_printfout("eth_stats_vendor_tlv failed, skipping TLV");
+                        }
                     } else {
                         em_printfout("unknown Airties vendor tlv_id 0x%04x, skipping TLV", tlv_id);
                     }
@@ -1558,6 +1567,15 @@ int em_metrics_t::send_ap_metrics_response()
         msg.commit_tlv(em_tlv_type_vendor_specific, vendor_sz);
     }
 
+    //Ethernet Stats vendor TLV (Airties): omitted when the device has no Ethernet ports
+    /* Keep room for this TLV's header and the EOM TLV, an overflow would fail the whole frame */
+    unsigned int eth_used = msg.get_len() + static_cast<unsigned int> (2 * sizeof(em_tlv_t));
+    size_t eth_room = (eth_used < EM_MAX_MSG_SZ) ? (EM_MAX_MSG_SZ - eth_used) : 0;
+    short eth_sz = create_vendor_eth_stats_tlv(msg.tlv_value(), eth_room);
+    if (eth_sz > 0) {
+        msg.commit_tlv(em_tlv_type_vendor_specific, eth_sz);
+    }
+
     if (msg.add_eom() == false) {
         em_printfout("AP Metrics Response build failed for agent:%s",
             util::mac_to_string(dm->get_agent_al_interface_mac()).c_str());
@@ -2023,6 +2041,149 @@ short em_metrics_t::create_ap_ext_metrics_tlv(unsigned char *buff, dm_bss_t &dm_
     len = static_cast<size_t> (sizeof(em_ap_ext_metric_t));
 
     return static_cast<short> (len);
+}
+
+static void eth_put_be48(unsigned char *p, uint64_t v)
+{
+    for (int i = EM_ETH_STATS_COUNTER_SZ - 1; i >= 0; i--) {
+        p[i] = static_cast<unsigned char> (v & 0xff);
+        v >>= 8;
+    }
+}
+
+static unsigned int eth_count_set_bits(uint16_t mask)
+{
+    unsigned int n = 0;
+    for (; mask != 0; mask >>= 1) {
+        n += mask & 1;
+    }
+    return n;
+}
+
+static uint64_t eth_get_be48(const unsigned char *p)
+{
+    uint64_t v = 0;
+    for (int i = 0; i < EM_ETH_STATS_COUNTER_SZ; i++) {
+        v = (v << 8) | p[i];
+    }
+    return v;
+}
+
+short em_metrics_t::create_vendor_eth_stats_tlv(unsigned char *buff, size_t max_len)
+{
+    const size_t fixed_len = EM_VENDOR_OUI_SIZE + sizeof(uint16_t) + sizeof(em_eth_stats_hdr_t);
+    /* port id + 6 mandatory counters + McastPacketsReceived */
+    const size_t port_len = 1 + 7 * EM_ETH_STATS_COUNTER_SZ;
+    em_vendor_specific_v_t *vendor = reinterpret_cast<em_vendor_specific_v_t *> (buff);
+    std::vector<em_eth_stats_t> ports;
+
+    for (const auto &port : em_eth_get_ports()) {
+        em_eth_stats_t st;
+        memset(&st, 0, sizeof(st));
+        if (!em_eth_get_stats(port.first, st)) {
+            em_printfout("Failed to get net dev stats for %s", port.first.c_str());
+            continue;
+        }
+        st.port_id = port.second;
+        ports.push_back(st);
+    }
+
+    if (ports.size() > EM_MAX_ETH_PORTS) {
+        ports.resize(EM_MAX_ETH_PORTS);
+    }
+    while (!ports.empty() && (fixed_len + ports.size() * port_len) > max_len) {
+        ports.pop_back();
+    }
+    if (ports.empty()) {
+        return 0;
+    }
+
+    memcpy(vendor->vendor_oui, airties_vendor_oui, EM_VENDOR_OUI_SIZE);
+    uint16_t tlv_id = htons(static_cast<uint16_t> (em_tlv_type_eth_stats));
+    memcpy(vendor->data, &tlv_id, sizeof(tlv_id));
+
+    em_eth_stats_hdr_t *hdr = reinterpret_cast<em_eth_stats_hdr_t *> (vendor->data + sizeof(tlv_id));
+    hdr->supported_stats = htons(EM_ETH_STATS_MCAST_PKTS_RX_PRESENT);
+    hdr->num_ports = static_cast<uint8_t> (ports.size());
+
+    unsigned char *ptr = reinterpret_cast<unsigned char *> (hdr) + sizeof(*hdr);
+    for (const auto &st : ports) {
+        *ptr++ = st.port_id;
+        const uint64_t counters[] = {st.bytes_sent, st.bytes_recv, st.packets_sent, st.packets_recv,
+            st.tx_errors, st.rx_errors, st.mcast_packets_recv};
+        for (uint64_t c : counters) {
+            eth_put_be48(ptr, c);
+            ptr += EM_ETH_STATS_COUNTER_SZ;
+        }
+    }
+
+    return static_cast<short> (fixed_len + ports.size() * port_len);
+}
+
+int em_metrics_t::handle_eth_stats_vendor_tlv(unsigned char *buf, unsigned int len)
+{
+    if (len < sizeof(em_eth_stats_hdr_t)) {
+        em_printfout("Invalid Ethernet Stats TLV");
+        return -1;
+    }
+
+    uint16_t supported;
+    memcpy(&supported, buf, sizeof(supported));
+    supported = ntohs(supported);
+    unsigned int num_ports = buf[sizeof(supported)];
+    unsigned char *ptr = buf + sizeof(em_eth_stats_hdr_t);
+    len -= static_cast<unsigned int> (sizeof(em_eth_stats_hdr_t));
+
+    /* Six counters are mandatory, one more per set bit; bits 7:0 are future extensions to skip */
+    unsigned int num_optional = eth_count_set_bits(supported);
+    unsigned int num_counters = 6 + num_optional;
+    size_t port_len = 1 + static_cast<size_t> (num_counters) * EM_ETH_STATS_COUNTER_SZ;
+
+    if (num_ports == 0 || len < static_cast<size_t> (num_ports) * port_len) {
+        em_printfout("Invalid Ethernet Stats TLV: ports=%u len=%u", num_ports, len);
+        return -1;
+    }
+
+    dm_easy_mesh_t *dm = get_data_model();
+    em_device_info_t *di = (dm == NULL) ? NULL : dm->get_device_info();
+    if (di == NULL) {
+        return -1;
+    }
+
+    /* The TLV lists every port: rebuild the whole stats table from it */
+    em_eth_stats_t stats[EM_MAX_ETH_PORTS];
+    unsigned int num = 0;
+
+    memset(stats, 0, sizeof(stats));
+    for (unsigned int i = 0; i < num_ports; i++, ptr += port_len) {
+        const unsigned char *c = ptr + 1;
+
+        if (num >= EM_MAX_ETH_PORTS) {
+            em_printfout("Too many Ethernet ports, dropping port %u", ptr[0]);
+            continue;
+        }
+        em_eth_stats_t *st = &stats[num++];
+        st->port_id = ptr[0];
+
+        /* The TLV carries KiB; the controller exposes byte counters in bytes to upper layers */
+        st->bytes_sent = eth_get_be48(c + 0 * EM_ETH_STATS_COUNTER_SZ) * 1024;
+        st->bytes_recv = eth_get_be48(c + 1 * EM_ETH_STATS_COUNTER_SZ) * 1024;
+        st->packets_sent = eth_get_be48(c + 2 * EM_ETH_STATS_COUNTER_SZ);
+        st->packets_recv = eth_get_be48(c + 3 * EM_ETH_STATS_COUNTER_SZ);
+        st->tx_errors = eth_get_be48(c + 4 * EM_ETH_STATS_COUNTER_SZ);
+        st->rx_errors = eth_get_be48(c + 5 * EM_ETH_STATS_COUNTER_SZ);
+
+        /* Optional counters follow in bit order 15..8; locate McastPacketsReceived (bit 8) */
+        if (supported & EM_ETH_STATS_MCAST_PKTS_RX_PRESENT) {
+            unsigned int idx = 6 + eth_count_set_bits(static_cast<uint16_t> (supported & 0xfe00));
+            st->mcast_packets_recv = eth_get_be48(c + idx * EM_ETH_STATS_COUNTER_SZ);
+        }
+    }
+
+    di->num_eth_stats = static_cast<uint8_t> (num);
+    memcpy(di->eth_stats, stats, sizeof(stats));
+
+    return 0;
 }
 
 short em_metrics_t::create_radio_metrics_tlv(unsigned char *buff, int index)

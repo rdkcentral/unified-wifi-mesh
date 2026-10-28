@@ -930,8 +930,55 @@ typedef enum {
 typedef enum {
     em_tlv_type_airties_device_info = 0x0003,
     em_tlv_type_device_metrics = 0x0004,
+    em_tlv_type_eth_interface = 0x000F,
+    em_tlv_type_eth_stats = 0x0010,
+    em_tlv_type_eth_non1905_neigh = 0x0011,
+    em_tlv_type_eth_1905_neigh = 0x0012,
     em_tlv_type_radio_capability = 0x0013,
 } em_vendor_airties_tlv_type_t;
+
+#define EM_MAX_ETH_PORTS 8
+#define EM_ETH_STATS_MCAST_PKTS_RX_PRESENT 0x0100
+#define EM_ETH_STATS_COUNTER_SZ 6
+
+typedef struct {
+    uint16_t supported_stats;
+    uint8_t  num_ports;
+} __attribute__((__packed__)) em_eth_stats_hdr_t;
+
+#define EM_ETH_IFNAME_LEN 64
+#define EM_MAX_ETH_1905_NEIGH 8
+#define EM_MAX_ETH_NON1905_NEIGH 32
+
+typedef struct {
+    uint8_t port_id;
+    uint8_t num_1905;
+    uint8_t num_non1905;
+    mac_address_t neigh_1905[EM_MAX_ETH_1905_NEIGH];
+    mac_address_t neigh_non1905[EM_MAX_ETH_NON1905_NEIGH];
+} __attribute__((__packed__)) em_eth_port_neigh_t;
+
+typedef struct {
+    uint8_t  port_id;
+    mac_address_t mac;
+    char     name[EM_ETH_IFNAME_LEN];
+    uint8_t  admin_up;
+    uint8_t  link_up;
+    uint8_t  full_duplex;
+    uint8_t  max_link_type;
+    uint8_t  cur_link_type;
+} em_eth_port_t;
+
+typedef struct {
+    uint8_t  port_id;
+    uint64_t bytes_sent;
+    uint64_t bytes_recv;
+    uint64_t packets_sent;
+    uint64_t packets_recv;
+    uint64_t tx_errors;
+    uint64_t rx_errors;
+    uint64_t mcast_packets_recv;
+} em_eth_stats_t;
 
 typedef enum {
     em_channel_pref_reason_unspecified = 0x00,
@@ -2627,6 +2674,13 @@ typedef struct {
     unsigned char cpu_load;
     unsigned char cpu_temp;
     em_ext_device_info_t extended_info;
+    uint8_t num_eth_ports;
+    em_eth_port_t eth_ports[EM_MAX_ETH_PORTS];
+    uint8_t num_eth_stats;
+    em_eth_stats_t eth_stats[EM_MAX_ETH_PORTS];
+
+    uint8_t num_eth_neigh;
+    em_eth_port_neigh_t eth_neigh[EM_MAX_ETH_PORTS];
 } em_device_info_t;
 
 typedef struct {

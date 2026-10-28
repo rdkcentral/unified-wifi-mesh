@@ -37,6 +37,9 @@
 #include <errno.h>
 #include <limits.h>
 #include <vector>
+#include <array>
+#include <map>
+#include "em_eth.h"
 #include "dm_easy_mesh_ctrl.h"
 #include "dm_easy_mesh.h"
 #include "em_ctrl.h"
@@ -6631,6 +6634,16 @@ bus_error_t dm_easy_mesh_ctrl_t::apmld_tget(char *event_name, raw_data_t *p_data
     return bus_get_cb_fwd(event_name, p_data, apmld_tget_inner);
 }
 
+bus_error_t dm_easy_mesh_ctrl_t::ethif_get(char *event_name, raw_data_t *p_data)
+{
+    return bus_get_cb_fwd(event_name, p_data, ethif_get_inner);
+}
+
+bus_error_t dm_easy_mesh_ctrl_t::ethif_tget(char *event_name, raw_data_t *p_data)
+{
+    return bus_get_cb_fwd(event_name, p_data, ethif_tget_inner);
+}
+
 bus_error_t dm_easy_mesh_ctrl_t::apmldcfg_get(char *event_name, raw_data_t *p_data)
 {
     return bus_get_cb_fwd(event_name, p_data, apmldcfg_get_inner);
@@ -6968,6 +6981,8 @@ bus_error_t dm_easy_mesh_ctrl_t::device_get_inner(char *event_name, raw_data_t *
         rc = dm_ctrl->raw_data_set(p_data, di->cpu_load);
     } else if (strcmp(param, "CPUTemperature") == 0) {
         rc = dm_ctrl->raw_data_set(p_data, di->cpu_temp);
+    } else if (strcmp(param, "InterfaceNumberOfEntries") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, static_cast<uint32_t>(di->num_eth_ports));
     } else if (strcmp(param, "OnboardingProtocol") == 0) {
         rc = dm_ctrl->raw_data_set(p_data, sec_cap ? sec_cap->onboarding_proto : 0);
     } else if (strcmp(param, "IntegrityAlgorithm") == 0) {
@@ -7144,6 +7159,10 @@ bus_error_t dm_easy_mesh_ctrl_t::device_tget_inner(char *event_name, raw_data_t 
         } else {
             dm_ctrl->property_append_tail(&property, root, idx, "X_AIRTIES_ClientSecret", "");
         }
+
+        dm_ctrl->property_append_tail(&property, root, idx, "X_AIRTIES_Ethernet.InterfaceNumberOfEntries", static_cast<uint32_t>(di->num_eth_ports));
+        snprintf(path, sizeof(path) - 1, "%s%d.X_AIRTIES_Ethernet.Interface.", root, idx);
+        dm_ctrl->ethif_tget_params(path, dm, &property);
 
         snprintf(path, sizeof(path) - 1, "%s%d.Radio.", root, idx);
         dm_ctrl->radio_tget_params(dm, path, &property);
@@ -9922,6 +9941,362 @@ bus_error_t dm_easy_mesh_ctrl_t::affap_tget_params(dm_easy_mesh_t *dm, const cha
     }
 
     return rc;
+}
+
+static em_eth_stats_t eth_find_stats(const em_device_info_t *di, uint8_t port_id)
+{
+    em_eth_stats_t none;
+    unsigned int num = (di->num_eth_stats < EM_MAX_ETH_PORTS) ? di->num_eth_stats : EM_MAX_ETH_PORTS;
+
+    memset(&none, 0, sizeof(none));
+    for (unsigned int i = 0; i < num; i++) {
+        if (di->eth_stats[i].port_id == port_id) {
+            return di->eth_stats[i];
+        }
+    }
+    return none;
+}
+
+typedef std::array<unsigned char, 6> ethif_mac_t;
+typedef std::map<ethif_mac_t, unsigned int> ethif_depth_t;
+
+static ethif_depth_t ethif_build_depths()
+{
+    typedef ethif_mac_t mac_t;
+    em_ctrl_t *ctrl = em_ctrl_t::get_em_ctrl_instance();
+    std::map<mac_t, std::vector<mac_t> > edges;
+    ethif_depth_t depth;
+    mac_t root = {};
+    bool have_root = false;
+
+    for (dm_easy_mesh_t *dm = ctrl->get_first_dm(); dm != NULL; dm = ctrl->get_next_dm(dm)) {
+        mac_t self;
+        memcpy(self.data(), dm->get_agent_al_interface_mac(), self.size());
+        if (!have_root) {
+            memcpy(root.data(), dm->get_ctrl_al_interface_mac(), root.size());
+            have_root = true;
+        }
+        if (dm->get_colocated() && (self != root)) {
+            edges[root].push_back(self);
+            edges[self].push_back(root);
+        }
+        em_device_info_t *di = dm->get_device()->get_device_info();
+        for (unsigned int i = 0; i < di->num_eth_neigh; i++) {
+            for (unsigned int j = 0; j < di->eth_neigh[i].num_1905; j++) {
+                mac_t n;
+                memcpy(n.data(), di->eth_neigh[i].neigh_1905[j], n.size());
+                edges[self].push_back(n);
+                edges[n].push_back(self);
+            }
+        }
+        if ((di->backhaul_mac.media != em_media_type_ieee8023ab) &&
+            (memcmp(di->backhaul_mac.mac, ZERO_MAC_ADDR, sizeof(ZERO_MAC_ADDR)) != 0)) {
+            dm_device_t *bhdev = ctrl->get_dm_ctrl()->get_dm_dev(di->id.dev_mac, di->backhaul_mac.mac);
+            if (bhdev != NULL) {
+                mac_t bh;
+                memcpy(bh.data(), bhdev->get_device_info()->id.dev_mac, bh.size());
+                edges[self].push_back(bh);
+                edges[bh].push_back(self);
+            }
+        }
+    }
+    if (!have_root) {
+        return depth;
+    }
+
+    std::vector<mac_t> queue(1, root);
+    depth[root] = 0;
+    for (size_t head = 0; head < queue.size(); head++) {
+        for (const auto &next : edges[queue[head]]) {
+            if (depth.find(next) == depth.end()) {
+                depth[next] = depth[queue[head]] + 1;
+                queue.push_back(next);
+            }
+        }
+    }
+
+    return depth;
+}
+
+static bool ethif_is_upstream(const ethif_depth_t &depth, const unsigned char *dev_al_mac, const unsigned char *neigh_al_mac)
+{
+    ethif_mac_t dev, neigh;
+
+    memcpy(dev.data(), dev_al_mac, dev.size());
+    memcpy(neigh.data(), neigh_al_mac, neigh.size());
+
+    ethif_depth_t::const_iterator d = depth.find(dev), n = depth.find(neigh);
+    return (d != depth.end()) && (n != depth.end()) && (n->second < d->second);
+}
+
+bus_error_t dm_easy_mesh_ctrl_t::ethif_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
+{
+    (void) user_data;
+    const char *name = event_name;
+    const char *param;
+    char instance[MAX_INSTANCE_LEN] = { 0 };
+    bool is_num;
+    bus_error_t rc;
+
+    if (!name || !p_data) {
+        return bus_error_invalid_input;
+    }
+
+    param = strrchr(name, '.');
+    if (param == NULL) {
+        return bus_error_invalid_input;
+    }
+    ++param;
+
+    dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
+
+    /* Extract device instance (numeric or alias) and find the dm object for
+     * that device instance */
+    name += sizeof(DATAELEMS_NETWORK);
+    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    dm_easy_mesh_t *dm = dm_ctrl->get_dm_easy_mesh(instance, is_num);
+    if (dm == NULL) {
+        em_printfout("Device not found");
+        return bus_error_invalid_namespace;
+    }
+    em_device_info_t *di = dm->get_device()->get_device_info();
+
+    /* Skip the X_AIRTIES_Ethernet object, then extract the numeric Interface instance */
+    name = strchr(name, '.');
+    if (name == NULL) {
+        return bus_error_invalid_input;
+    }
+    ++name;
+    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    int idx = atoi(instance);
+    if (!is_num || idx <= 0 || idx > di->num_eth_ports || idx > EM_MAX_ETH_PORTS) {
+        em_printfout("Ethernet Interface not found");
+        return bus_error_invalid_namespace;
+    }
+    em_eth_port_t port = di->eth_ports[idx - 1];
+    em_eth_port_t *st = &port;
+    em_eth_stats_t stats = eth_find_stats(di, port.port_id);
+
+    const em_eth_port_neigh_t *nb = NULL;
+    for (unsigned int i = 0; i < di->num_eth_neigh; i++) {
+        if (di->eth_neigh[i].port_id == st->port_id) {
+            nb = &di->eth_neigh[i];
+            break;
+        }
+    }
+
+    /* Device.{i}. and APDevice.{i}. sub-tables of the interface */
+    bool is_ap_dev = (strncmp(name, "APDevice.", strlen("APDevice.")) == 0);
+    if (is_ap_dev || (strncmp(name, "Device.", strlen("Device.")) == 0)) {
+        unsigned int num = (nb == NULL) ? 0 : (is_ap_dev ? nb->num_1905 : nb->num_non1905);
+        name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+        int sidx = atoi(instance);
+        if (!is_num || sidx <= 0 || static_cast<unsigned int>(sidx) > num) {
+            em_printfout("Ethernet neighbor not found");
+            return bus_error_invalid_namespace;
+        }
+        const unsigned char *mac = is_ap_dev ? nb->neigh_1905[sidx - 1] : nb->neigh_non1905[sidx - 1];
+        if (strcmp(param, "MACAddress") == 0) {
+            rc = dm_ctrl->raw_data_set(p_data, const_cast<unsigned char *>(mac));
+        } else if (is_ap_dev && (strcmp(param, "Upstream") == 0)) {
+            rc = dm_ctrl->raw_data_set(p_data, ethif_is_upstream(ethif_build_depths(), dm->get_agent_al_interface_mac(), mac));
+        } else {
+            em_printfout("Invalid param: %s", param);
+            rc = bus_error_destination_not_found;
+        }
+        return rc;
+    }
+
+    if (strcmp(param, "DeviceNumberOfEntries") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, static_cast<uint32_t>(nb == NULL ? 0 : nb->num_non1905));
+    } else if (strcmp(param, "APDeviceNumberOfEntries") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, static_cast<uint32_t>(nb == NULL ? 0 : nb->num_1905));
+    } else if (strcmp(param, "PortID") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, st->port_id);
+    } else if (strcmp(param, "Name") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, static_cast<const char *>(st->name));
+    } else if (strcmp(param, "MACAddress") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, st->mac);
+    } else if (strcmp(param, "Enable") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, static_cast<bool>(st->admin_up));
+    } else if (strcmp(param, "Status") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, st->link_up ? "Up" : "Down");
+    } else if (strcmp(param, "DuplexMode") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, st->full_duplex ? "Full" : "Half");
+    } else if (strcmp(param, "MaxBitRate") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, static_cast<uint32_t>(em_eth_link_type_to_mbps(st->max_link_type)));
+    } else if (strcmp(param, "CurrentBitRate") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, static_cast<uint32_t>(em_eth_link_type_to_mbps(st->cur_link_type)));
+    } else if (strcmp(param, "BytesSent") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, static_cast<uint64_t>(stats.bytes_sent));
+    } else if (strcmp(param, "BytesReceived") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, static_cast<uint64_t>(stats.bytes_recv));
+    } else if (strcmp(param, "PacketsSent") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, static_cast<uint64_t>(stats.packets_sent));
+    } else if (strcmp(param, "PacketsReceived") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, static_cast<uint64_t>(stats.packets_recv));
+    } else if (strcmp(param, "ErrorsSent") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, static_cast<uint64_t>(stats.tx_errors));
+    } else if (strcmp(param, "ErrorsReceived") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, static_cast<uint64_t>(stats.rx_errors));
+    } else if (strcmp(param, "MulticastPacketsReceived") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, static_cast<uint64_t>(stats.mcast_packets_recv));
+    } else {
+        em_printfout("Invalid param: %s", param);
+        rc = bus_error_destination_not_found;
+    }
+
+    return rc;
+}
+
+bus_error_t dm_easy_mesh_ctrl_t::ethif_tget_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
+{
+    (void) user_data;
+    const char *name = event_name;
+    const char *root = name;
+    char instance[MAX_INSTANCE_LEN] = { 0 };
+    bool is_num;
+    bus_data_prop_t *property = NULL;
+    bus_error_t rc;
+
+    if (!name || !p_data) {
+        return bus_error_invalid_input;
+    }
+    if (*(name + (strlen(name) - 1)) != '.') {
+        /* Only partial paths are valid */
+        return bus_error_invalid_operation;
+    }
+
+    dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
+
+    name += sizeof(DATAELEMS_NETWORK);
+    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    dm_easy_mesh_t *dm = dm_ctrl->get_dm_easy_mesh(instance, is_num);
+    if (dm == NULL) {
+        em_printfout("Device not found");
+        return bus_error_invalid_namespace;
+    }
+
+    /* "<dev>.X_AIRTIES_Ethernet.Interface.", optionally followed by "<n>.Device." or "<n>.APDevice." */
+    char if_root[sizeof(bus_name_string_t)] = { 0 };
+    unsigned int if_idx = 0;
+    int sub = 0;
+    unsigned int nb_idx = 0;
+    const char *tbl = strstr(name, "Interface.");
+    if (tbl == NULL) {
+        return bus_error_invalid_namespace;
+    }
+    tbl += strlen("Interface.");
+    snprintf(if_root, sizeof(if_root) - 1, "%.*s", static_cast<int>(tbl - root), root);
+    if (*tbl != '\0') {
+        name = dm_ctrl->get_table_instance(tbl - 1, instance, MAX_INSTANCE_LEN, &is_num);
+        if_idx = static_cast<unsigned int>(atoi(instance));
+        if (!is_num || (if_idx == 0)) {
+            return bus_error_invalid_namespace;
+        }
+        sub = (strncmp(name, "APDevice.", strlen("APDevice.")) == 0) ? 2 : ((strncmp(name, "Device.", strlen("Device.")) == 0) ? 1 : 0);
+        if (sub != 0) {
+            /* Optional neighbor instance after Device. / APDevice. */
+            dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+            if (instance[0] != '\0') {
+                nb_idx = static_cast<unsigned int>(atoi(instance));
+                if (!is_num || (nb_idx == 0)) {
+                    return bus_error_invalid_namespace;
+                }
+            }
+        }
+    }
+
+    rc = dm_ctrl->ethif_tget_params(if_root, dm, &property, if_idx, sub, nb_idx);
+    if (rc == bus_error_success && property) {
+        dm_ctrl->raw_data_set(p_data, property);
+    }
+
+    return rc;
+}
+
+bus_error_t dm_easy_mesh_ctrl_t::ethif_tget_params(const char *root, dm_easy_mesh_t *dm, bus_data_prop_t **property, unsigned int if_idx, int sub, unsigned int nb_idx)
+{
+    dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
+    em_device_info_t *di = dm->get_device()->get_device_info();
+
+    unsigned int num = (di->num_eth_ports < EM_MAX_ETH_PORTS) ? di->num_eth_ports : EM_MAX_ETH_PORTS;
+    if (if_idx > num) {
+        return bus_error_invalid_namespace;
+    }
+    ethif_depth_t depth;
+    if (sub != 1) {
+        depth = ethif_build_depths();
+    }
+    for (unsigned int idx = 1; idx <= num; idx++) {
+        em_eth_port_t port = di->eth_ports[idx - 1];
+        em_eth_port_t *st = &port;
+        const em_eth_port_neigh_t *nb = NULL;
+        char sub_root[sizeof(bus_name_string_t)] = { 0 };
+        em_eth_stats_t stats = eth_find_stats(di, st->port_id);
+
+        if ((if_idx != 0) && (idx != if_idx)) {
+            continue;
+        }
+        for (unsigned int i = 0; i < di->num_eth_neigh; i++) {
+            if (di->eth_neigh[i].port_id == st->port_id) {
+                nb = &di->eth_neigh[i];
+                break;
+            }
+        }
+        if (nb_idx != 0) {
+            unsigned int cnt = (nb == NULL) ? 0 : ((sub == 2) ? nb->num_1905 : nb->num_non1905);
+            if (nb_idx > cnt) {
+                return bus_error_invalid_namespace;
+            }
+        }
+
+        if (sub == 0) {
+            dm_ctrl->property_append_tail(property, root, idx, "PortID", st->port_id);
+            dm_ctrl->property_append_tail(property, root, idx, "Name", static_cast<const char *>(st->name));
+            dm_ctrl->property_append_tail(property, root, idx, "MACAddress", st->mac);
+            dm_ctrl->property_append_tail(property, root, idx, "Enable", static_cast<bool>(st->admin_up));
+            dm_ctrl->property_append_tail(property, root, idx, "Status", st->link_up ? "Up" : "Down");
+            dm_ctrl->property_append_tail(property, root, idx, "DuplexMode", st->full_duplex ? "Full" : "Half");
+            dm_ctrl->property_append_tail(property, root, idx, "MaxBitRate", static_cast<uint32_t>(em_eth_link_type_to_mbps(st->max_link_type)));
+            dm_ctrl->property_append_tail(property, root, idx, "CurrentBitRate", static_cast<uint32_t>(em_eth_link_type_to_mbps(st->cur_link_type)));
+            dm_ctrl->property_append_tail(property, root, idx, "Stats.BytesSent", static_cast<uint64_t>(stats.bytes_sent));
+            dm_ctrl->property_append_tail(property, root, idx, "Stats.BytesReceived", static_cast<uint64_t>(stats.bytes_recv));
+            dm_ctrl->property_append_tail(property, root, idx, "Stats.PacketsSent", static_cast<uint64_t>(stats.packets_sent));
+            dm_ctrl->property_append_tail(property, root, idx, "Stats.PacketsReceived", static_cast<uint64_t>(stats.packets_recv));
+            dm_ctrl->property_append_tail(property, root, idx, "Stats.ErrorsSent", static_cast<uint64_t>(stats.tx_errors));
+            dm_ctrl->property_append_tail(property, root, idx, "Stats.ErrorsReceived", static_cast<uint64_t>(stats.rx_errors));
+            dm_ctrl->property_append_tail(property, root, idx, "Stats.MulticastPacketsReceived", static_cast<uint64_t>(stats.mcast_packets_recv));
+            dm_ctrl->property_append_tail(property, root, idx, "DeviceNumberOfEntries", static_cast<uint32_t>(nb == NULL ? 0 : nb->num_non1905));
+            dm_ctrl->property_append_tail(property, root, idx, "APDeviceNumberOfEntries", static_cast<uint32_t>(nb == NULL ? 0 : nb->num_1905));
+        }
+        if (nb == NULL) {
+            continue;
+        }
+
+        if ((sub == 0) || (sub == 1)) {
+            snprintf(sub_root, sizeof(sub_root) - 1, "%s%u.Device.", root, idx);
+            for (unsigned int j = 0; j < nb->num_non1905; j++) {
+                if ((nb_idx != 0) && (j + 1 != nb_idx)) {
+                    continue;
+                }
+                dm_ctrl->property_append_tail(property, sub_root, j + 1, "MACAddress", const_cast<unsigned char *>(nb->neigh_non1905[j]));
+            }
+        }
+        if ((sub == 0) || (sub == 2)) {
+            snprintf(sub_root, sizeof(sub_root) - 1, "%s%u.APDevice.", root, idx);
+            for (unsigned int j = 0; j < nb->num_1905; j++) {
+                if ((nb_idx != 0) && (j + 1 != nb_idx)) {
+                    continue;
+                }
+                dm_ctrl->property_append_tail(property, sub_root, j + 1, "MACAddress", const_cast<unsigned char *>(nb->neigh_1905[j]));
+                dm_ctrl->property_append_tail(property, sub_root, j + 1, "Upstream",
+                    ethif_is_upstream(depth, dm->get_agent_al_interface_mac(), nb->neigh_1905[j]));
+            }
+        }
+    }
+
+    return bus_error_success;
 }
 
 dm_assoc_sta_mld_t *dm_easy_mesh_ctrl_t::get_dm_sta_mld(dm_easy_mesh_t *dm, em_ap_mld_info_t *ami, char *instance, bool is_num)

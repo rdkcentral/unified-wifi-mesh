@@ -5,6 +5,11 @@
     "type": "object",
     "description": "The schema for entities implementing Wi-Fi Alliance DataElements Certification",
     "definitions": {
+        "uint64_t": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 18446744073709551615
+        },
         "uint32_t": {
             "type": "integer",
             "minimum": 0,
@@ -2058,6 +2063,118 @@
                                             },
                                             "CPUTemperature": {
                                                 "$ref": "#/definitions/uint8_t"
+                                            }
+                                        }
+                                    }
+                                }
+                            },
+                            "X_AIRTIES_Ethernet": {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "properties": {
+                                    "InterfaceNumberOfEntries": {
+                                        "$ref": "#/definitions/uint32_t"
+                                    },
+                                    "Interface": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "object",
+                                            "additionalProperties": false,
+                                            "properties": {
+                                                "PortID": {
+                                                    "$ref": "#/definitions/uint8_t"
+                                                },
+                                                "Name": {
+                                                    "type": "string",
+                                                    "description": "Ethernet interface name"
+                                                },
+                                                "MACAddress": {
+                                                    "$ref": "#/definitions/macaddr_t"
+                                                },
+                                                "Enable": {
+                                                    "type": "boolean",
+                                                    "description": "Admin state of the Ethernet port"
+                                                },
+                                                "Status": {
+                                                    "type": "string",
+                                                    "description": "Link state of the Ethernet port",
+                                                    "enum": ["Up", "Down"]
+                                                },
+                                                "DuplexMode": {
+                                                    "type": "string",
+                                                    "enum": ["Full", "Half"]
+                                                },
+                                                "MaxBitRate": {
+                                                    "$ref": "#/definitions/uint32_t",
+                                                    "description": "Maximum supported link speed in Mbit/s, 0 if undefined"
+                                                },
+                                                "CurrentBitRate": {
+                                                    "$ref": "#/definitions/uint32_t",
+                                                    "description": "Negotiated link speed in Mbit/s, 0 if link is down or undefined"
+                                                },
+                                                "Stats": {
+                                                    "type": "object",
+                                                    "additionalProperties": false,
+                                                    "properties": {
+                                                        "BytesSent": {
+                                                            "$ref": "#/definitions/uint64_t"
+                                                        },
+                                                        "BytesReceived": {
+                                                            "$ref": "#/definitions/uint64_t"
+                                                        },
+                                                        "PacketsSent": {
+                                                            "$ref": "#/definitions/uint64_t"
+                                                        },
+                                                        "PacketsReceived": {
+                                                            "$ref": "#/definitions/uint64_t"
+                                                        },
+                                                        "ErrorsSent": {
+                                                            "$ref": "#/definitions/uint64_t"
+                                                        },
+                                                        "ErrorsReceived": {
+                                                            "$ref": "#/definitions/uint64_t"
+                                                        },
+                                                        "MulticastPacketsReceived": {
+                                                            "$ref": "#/definitions/uint64_t"
+                                                        }
+                                                    }
+                                                },
+                                                "DeviceNumberOfEntries": {
+                                                    "$ref": "#/definitions/uint32_t"
+                                                },
+                                                "Device": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "type": "object",
+                                                        "additionalProperties": false,
+                                                        "properties": {
+                                                            "MACAddress": {
+                                                                "$ref": "#/definitions/macaddr_t",
+                                                                "description": "MACAddress of the Ethernet Device"
+                                                            }
+                                                        }
+                                                    }
+                                                },
+                                                "APDeviceNumberOfEntries": {
+                                                    "$ref": "#/definitions/uint32_t"
+                                                },
+                                                "APDevice": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "type": "object",
+                                                        "additionalProperties": false,
+                                                        "properties": {
+                                                            "MACAddress": {
+                                                                "$ref": "#/definitions/macaddr_t",
+                                                                "description": "MACAddress of the Ethernet APDevice"
+                                                            },
+                                                            "Upstream": {
+                                                                "type": "boolean",
+                                                                "description": "Indicates if the APDevice is seen in upstream direction"
+                                                            }
+                                                        }
+                                                    }
+                                                }
                                             }
                                         }
                                     }
