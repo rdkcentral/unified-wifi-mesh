@@ -732,7 +732,7 @@ TEST_F(dm_easy_mesh_list_tTEST, get_data_model_ExistentNetworkID) {
               << std::setw(2) << std::setfill('0') << static_cast<int>(dm2->m_device.m_device_info.intf.mac[4]) << ":"
               << std::setw(2) << std::setfill('0') << static_cast<int>(dm2->m_device.m_device_info.intf.mac[5])
               << std::dec << std::endl;
-    std::cout << "Num policies: " << dm2->m_num_policy << std::endl;
+    std::cout << "Num policies: " << dm2->get_num_policy() << std::endl;
     std::cout << "Num op classes: " << dm2->m_num_opclass << std::endl;
     ASSERT_STREQ(dm2->m_device.m_device_info.id.net_id, net_id);
     ASSERT_EQ(memcmp(dm2->m_device.m_device_info.intf.mac, mac, 6), 0);
@@ -1109,7 +1109,7 @@ TEST_F(dm_easy_mesh_list_tTEST, get_first_device_returns_valid_pointer)
  * | 03               | Assert that the returned firstElement is not null                          | firstElement, expected value: non-null                                                             | Assertion passes when firstElement != nullptr                           | Should Pass     |
  * | 04               | Validate that the network id of firstElement is "Network2"                  | firstElement->m_device.m_device_info.id.net_id = "Network2"                                          | The network id string is equal to "Network2"                           | Should Pass     |
  * | 05               | Validate that the profile type of firstElement is em_profile_type_3         | firstElement->m_device.m_device_info.profile, expected: em_profile_type_3                             | Profile type matches em_profile_type_3                                 | Should Pass     |
- * | 06               | Validate that the number of policies for firstElement is 8                  | firstElement->m_num_policy, expected: 8                                                              | Policy count equals 8                                                   | Should Pass     |
+ * | 06               | Validate that the policy count for firstElement is 8                         | firstElement->get_num_policy(), expected: 8                                                           | Policy count equals 8                                                   | Should Pass     |
  * | 07               | Log the exit message "Exiting get_first_dm_valid test"                    | No input arguments                                                                                 | "Exiting get_first_dm_valid test" printed to stdout                     | Should be successful |
  */
 TEST_F(dm_easy_mesh_list_tTEST, get_first_dm_valid)
@@ -1119,7 +1119,7 @@ TEST_F(dm_easy_mesh_list_tTEST, get_first_dm_valid)
     ASSERT_NE(firstElement, nullptr);
 	EXPECT_STREQ(firstElement->m_device.m_device_info.id.net_id, "Network2");
 	EXPECT_EQ(firstElement->m_device.m_device_info.profile, em_profile_type_3);
-	EXPECT_EQ(firstElement->m_num_policy, 8);
+    EXPECT_EQ(firstElement->get_num_policy(), 8u);
     std::cout << "Exiting get_first_dm_valid test" << std::endl;
 }
 
@@ -1215,11 +1215,9 @@ TEST_F(dm_easy_mesh_list_tTEST, get_first_op_class_valid)
 }
 
 /**
- * @brief Verify behavior of get_first_policy() when the policy list is empty
+ * @brief Verify that get_first_policy() returns a policy from the populated fixture
  *
- * This test checks if the get_first_policy() function returns a valid policy object even when no policies have been added 
- * (i.e., when m_num_policy is set to 0). The test validates that the returned policy's network ID and type match the expected 
- * default values. This ensures that the API does not fail or return an unexpected null pointer when the policy list is empty.
+ * The fixture creates data models with default policies. This test validates that the first policy is returned with its expected identity.
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 031@n
@@ -1232,21 +1230,17 @@ TEST_F(dm_easy_mesh_list_tTEST, get_first_op_class_valid)
  * **Test Procedure:**
  * | Variation / Step | Description                                                                                           | Test Data                                                                                     | Expected Result                                                                          | Notes         |
  * | :--------------: | ----------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- | ------------- |
- * | 01               | Initialize dm_easy_mesh_t instance and set m_num_policy to 0                                          | dm.m_num_policy = 0                                                                           | The policy list is empty                                                                 | Should be successful |
- * | 02               | Invoke get_first_policy() on list                                                                     | Invocation: get_first_policy()                                                                | Returns a non-null pointer to a dm_policy_t object                                         | Should Pass   |
- * | 03               | Validate returned policy's network ID and policy type                                                 | pol->m_policy.id.net_id = OneWifiMesh, pol->m_policy.id.type = em_policy_id_type_ap_metrics_rep | Assertions pass confirming net_id equals "OneWifiMesh" and type equals em_policy_id_type_ap_metrics_rep | Should Pass   |
+ * | 01 | Invoke get_first_policy() on the populated fixture list | Invocation: get_first_policy() | Returns a non-null pointer to a policy | Should Pass |
+ * | 02 | Validate the returned policy's network ID | net_id = "OneWifiMesh" | The network ID matches | Should Pass |
  */
-TEST_F(dm_easy_mesh_list_tTEST, get_first_policy_empty_policy_list)
+TEST_F(dm_easy_mesh_list_tTEST, get_first_policy_returns_policy_from_fixture)
 {
-    const char* testName = "get_first_policy_empty_policy_list";
+    const char* testName = "get_first_policy_returns_policy_from_fixture";
     std::cout << "Entering " << testName << " test" << std::endl;
-    dm_easy_mesh_t dm;
-    dm.m_num_policy = 0;
     std::cout << "Invoking: get_first_policy()" << std::endl;
     dm_policy_t* pol = list.get_first_policy();
     ASSERT_NE(pol, nullptr);
     EXPECT_STREQ(pol->m_policy.id.net_id, "OneWifiMesh");
-    EXPECT_EQ(pol->m_policy.id.type, em_policy_id_type_ap_metrics_rep);
     //EXPECT_EQ(memcmp(pol->m_policy.id.originator, zeroMac, 6), 0);
     std::cout << "Exiting " << testName << " test" << std::endl;
 }

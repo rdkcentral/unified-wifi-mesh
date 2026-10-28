@@ -751,7 +751,7 @@ TEST_F(db_client_t_Test, RecreateDatabaseWithValidConnection) {
 /**
  * @brief Test the recreation of the database with an invalid connection path.
  *
- * This test verifies that the database client correctly handles the scenario where the database is attempted to be recreated with an invalid connection path. It ensures that the initialization fails and the recreation of the database also fails.
+ * This test verifies that initialization fails when the database path's parent is not a directory, and that recreation fails without an active connection.
  *
  * **Test Group ID:** Basic: 01
  * **Test Case ID:** 020
@@ -764,18 +764,16 @@ TEST_F(db_client_t_Test, RecreateDatabaseWithValidConnection) {
  * **Test Procedure:**@n
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Set up the db_client_t instance | None | None | Done by Pre-requisite SetUp function |
- * | 02 | Initialize the database client with an invalid path | invalid_path!@# | Non-zero return value | Should Fail |
- * | 03 | Attempt to recreate the database | None | return value: -1 | Should Fail |
- * | 04 | Tear down the db_client_t instance | None | None | Done by Pre-requisite TearDown function |
+ * | 01 | Construct a db_client_t instance | None | Client has no active connection | Should Pass |
+ * | 02 | Initialize with a database path under the device file /dev/null | /dev/null/unified-wifi-mesh.db | Non-zero return value | Should Fail |
+ * | 03 | Attempt to recreate the database without a connection | None | Return value: -1 | Should Fail |
+ * | 04 | Leave scope and destroy the client | None | Client resources are released | Should Pass |
  */
 TEST(db_client_tTest, RecreateDatabaseWithInvalidConnection) {
     std::cout << "Entering RecreateDatabaseWithInvalidConnection test" << std::endl;
-    db_client_t* dbClient = new db_client_t();
-    EXPECT_NE(dbClient->init("invalid_path!@#"), 0);
-    int result = dbClient->recreate_db();
-    EXPECT_EQ(result, -1);
-    delete dbClient;
+    db_client_t dbClient;
+    EXPECT_NE(dbClient.init("/dev/null/unified-wifi-mesh.db"), 0);
+    EXPECT_EQ(dbClient.recreate_db(), -1);
     std::cout << "Exiting RecreateDatabaseWithInvalidConnection test" << std::endl;
 }
 

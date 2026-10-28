@@ -1701,6 +1701,8 @@ public:
 
 	em_ap_mld_info_t *get_ap_mld_frm_haul_type(em_haul_type_t haul_type);
 	static em_ap_mld_info_t *get_ap_mld_frm_haul_type(void *dm, em_haul_type_t haul_type) { return (static_cast<dm_easy_mesh_t *>(dm))->get_ap_mld_frm_haul_type(haul_type); }
+	em_ap_mld_info_t *get_ap_mld_frm_bssid(mac_address_t bssid);
+	static em_ap_mld_info_t *get_ap_mld_frm_bssid(void *dm, mac_address_t bssid) { return (dm != NULL) ? static_cast<dm_easy_mesh_t *>(dm)->get_ap_mld_frm_bssid(bssid) : NULL; }
 
 	void remove_ap_mld_info_by_haul_type(em_haul_type_t haul_type);
 
