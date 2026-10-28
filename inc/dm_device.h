@@ -20,14 +20,21 @@
 #define DM_DEVICE_H
 
 #include "em_base.h"
+#include <atomic>
 #include <cstring>
 
 class dm_device_t {
 public:
     em_device_info_t    m_device_info;
 
+    /* Runtime only, not persisted: profile last reported by the peer this device's data model talks to. */
+    std::atomic<em_profile_type_t> m_peer_profile;
+
 public:
     
+	em_profile_type_t get_peer_profile() const { return m_peer_profile; }
+	void set_peer_profile(em_profile_type_t profile) { m_peer_profile = profile; }
+
 	/**!
 	 * @brief Initializes the device information structure.
 	 *

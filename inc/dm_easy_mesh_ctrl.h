@@ -57,6 +57,7 @@ public:
     uint32_t get_next_nb_evt_id() { return m_nb_evt_id++; }
 
     bus_error_t bus_get_cb_fwd(char *event_name, raw_data_t *p_data, bus_get_handler_t cb);
+    bus_error_t bus_set_cb_fwd(char *event_name, raw_data_t *p_data, bus_set_handler_t cb);
     dm_easy_mesh_t *get_dm_easy_mesh(char *instance, bool is_num);
     dm_device_t *get_dm_dev(mac_address_t dev_mac, mac_address_t bmac);
     dm_radio_t *get_dm_radio(dm_easy_mesh_t *dm, char *instance, bool is_num);
@@ -171,10 +172,12 @@ public:
     bus_error_t apmld_get(char *event_name, raw_data_t *p_data);
     bus_error_t apmld_tget(char *event_name, raw_data_t *p_data);
     bus_error_t apmldcfg_get(char *event_name, raw_data_t *p_data);
+    bus_error_t apmldcfg_set(char *event_name, raw_data_t *p_data);
     static bus_error_t apmld_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
     static bus_error_t apmld_tget_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
     static bus_error_t apmld_tget_params(dm_easy_mesh_t *dm, const char *root, bus_data_prop_t **property);
     static bus_error_t apmldcfg_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
+    static bus_error_t apmldcfg_set_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
 
     bus_error_t affap_get(char *event_name, raw_data_t *p_data);
     bus_error_t affap_tget(char *event_name, raw_data_t *p_data);
@@ -806,6 +809,24 @@ public:
          *       EasyMesh specification.
          */
          int analyze_unassoc_sta_metrics_query(em_bus_event_t *evt, em_cmd_t *pcmd[]);
+
+	/**!
+	 * @brief Analyzes the beacon metrics query command.
+	 *
+	 * This function processes the beacon metrics query command provided in the
+	 * em_cmd_t structure array.
+	 *
+	 * @param[in] evt Pointer to the event structure containing event details.
+	 * @param[in] pcmd Array of command structures to be analyzed.
+	 *
+	 * @returns int Number of commands generated into pcmd[]
+	 * @retval 0 No command generated / parse failure
+	 * @retval >0 Number of generated commands
+	 *
+	 * @note Ensure that the pcmd array is properly initialized before calling
+	 * this function.
+	 */
+	int analyze_beacon_metrics_query(em_bus_event_t *evt, em_cmd_t *pcmd[]);
 
 	/**!
 	 * @brief Resets the configuration to its default state.
