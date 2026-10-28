@@ -161,8 +161,12 @@ em_network_topo_t *em_network_topo_t::find_topology_by_bh_associated(dm_easy_mes
 		em_printfout("bss mac is zero, return NULL");
 		return NULL;
 	}
-	// Now search for the topology containing this bss mac address.
-        return g_network_topology->find_topology_by_bss_mac(bss_mac);
+	em_network_topo_t *parent = g_network_topology->find_topology_by_ap_bssid(bss_mac);
+	if (parent != NULL && parent->get_data_model()->get_colocated() &&
+		g_network_topology->get_data_model()->is_controller()) {
+		return g_network_topology;
+	}
+	return parent;
 }
 
 em_network_topo_t *em_network_topo_t::find_topology_by_bss_mac(mac_address_t bss_mac)

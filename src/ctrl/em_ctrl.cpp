@@ -1108,7 +1108,7 @@ int em_ctrl_t::data_model_init(const char *data_model_path)
 
     m_ctrl_cmd = new em_cmd_ctrl_t();
     if (m_ctrl_cmd->init() != 0) {
-        printf("%s:%d: ctrl command init failed\n", __func__, __LINE__);
+        em_printfout("Error: ctrl command init failed");
         return 0;
     }
     
@@ -1118,7 +1118,7 @@ int em_ctrl_t::data_model_init(const char *data_model_path)
     // Defaults to db_client_type_local, preserving existing behavior for
     // invocations that don't pass the flag.
     if (m_data_model.init(data_model_path, this, m_db_type) != 0) {
-        printf("%s:%d: data model init failed\n", __func__, __LINE__);
+        em_printfout("Error: data model init failed");
         return -1;
     }
 

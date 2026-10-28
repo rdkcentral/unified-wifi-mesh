@@ -1251,6 +1251,12 @@ TEST(em_network_topo_t, find_topology_by_bh_associated_empty_root) {
     std::cout << "Exiting find_topology_by_bh_associated_empty_root test" << std::endl;
 }
 
+/**
+ * @brief Select the associated bSTA and resolve its upstream AP owner.
+ *
+ * With an unassociated bSTA before an associated one, verify that the latter's
+ * upstream AP identifies the parent and sets the device's wireless backhaul media.
+ */
 TEST(em_network_topo_t, find_topology_by_bh_associated_prefers_associated_bss_and_sets_wireless_media)
 {
     dm_easy_mesh_t dm{};
@@ -1312,6 +1318,13 @@ TEST(em_network_topo_t, find_topology_by_bh_associated_prefers_associated_bss_an
     EXPECT_TRUE(topo_root.remove(&parent_dm, nullptr, nullptr));
 }
 
+/**
+ * @brief Return the controller root when the upstream AP owner is colocated.
+ *
+ * Place the AP BSS on a colocated child of the controller. Resolve an associated
+ * agent's upstream BSSID and verify that the controller, not the colocated node,
+ * is selected as its parent.
+ */
 TEST(em_network_topo_t, find_topology_by_bh_associated_reparents_colocated_child_to_controller)
 {
     dm_easy_mesh_t controller_dm{};
@@ -1347,6 +1360,12 @@ TEST(em_network_topo_t, find_topology_by_bh_associated_reparents_colocated_child
     EXPECT_TRUE(controller_topology.remove(&colocated_dm, nullptr, nullptr));
 }
 
+/**
+ * @brief Preserve a non-colocated AP owner as the associated agent's parent.
+ *
+ * Verify that resolving the upstream AP BSSID returns its owning child topology
+ * rather than redirecting to the controller root.
+ */
 TEST(em_network_topo_t, find_topology_by_bh_associated_preserves_non_colocated_parent)
 {
     dm_easy_mesh_t controller_dm{};
@@ -1387,6 +1406,13 @@ TEST(em_network_topo_t, find_topology_by_bh_associated_preserves_non_colocated_p
     EXPECT_TRUE(controller_topology.remove(&parent_dm, nullptr, nullptr));
 }
 
+/**
+ * @brief Ignore sibling STA records when resolving the upstream AP owner.
+ *
+ * Add a sibling bSTA recording the upstream BSSID before its AP owner. Verify
+ * that lookup skips the sibling and returns the AP owner. After removing that
+ * owner, lookup must return null rather than fall back to the sibling.
+ */
 TEST(em_network_topo_t, find_topology_by_bh_associated_skips_sibling_sta_before_ap_owner)
 {
     dm_easy_mesh_t controller_dm{};
