@@ -20,6 +20,8 @@
 #include <gmock/gmock.h>
 #include <arpa/inet.h>
 #include <cstring>
+#include <functional>
+#include <string>
 #include <stdio.h>
 #include <string.h>
 #include <vector>
@@ -468,4 +470,237 @@ TEST_F(EmMetricsTest, ReservedPeerProfileFallsBackToProfile1) {
     EXPECT_EQ(0, controller.handle_ap_metrics_response(
         response.data(), static_cast<unsigned int>(response.size()), em_profile_type_reserved));
     EXPECT_EQ(1U, controller.successful_update_count);
+}
+
+class TopologyCountingEmMgr : public MetricsTestEmMgr {
+public:
+    void publish_network_topology() override {
+        ++publish_count;
+        if (on_publish) {
+            on_publish();
+        }
+    }
+
+    unsigned int publish_count = 0;
+    std::function<void()> on_publish;
+};
+
+struct ClientTypeEntry {
+    mac_address_t sta_mac;
+    bssid_t bssid;
+    std::string client_type;
+};
+
+static ClientTypeEntry make_client_type_entry(unsigned char sta_id, const char *client_type)
+{
+    ClientTypeEntry entry = {};
+    entry.sta_mac[0] = 0x02;
+    entry.sta_mac[5] = sta_id;
+    entry.bssid[0] = 0x0a;
+    entry.bssid[5] = 0x01;
+    entry.client_type = client_type;
+    return entry;
+}
+
+static dm_sta_t *add_metrics_sta(dm_easy_mesh_t &dm, const ClientTypeEntry &entry)
+{
+    em_sta_info_t info;
+    std::memset(&info, 0, sizeof(info));
+    std::memcpy(info.id, entry.sta_mac, sizeof(mac_address_t));
+    std::memcpy(info.bssid, entry.bssid, sizeof(mac_address_t));
+
+    mac_addr_str_t sta_str, bssid_str, radio_str;
+    em_long_string_t key;
+    dm_easy_mesh_t::macbytes_to_string(info.id, sta_str);
+    dm_easy_mesh_t::macbytes_to_string(info.bssid, bssid_str);
+    dm_easy_mesh_t::macbytes_to_string(info.radiomac, radio_str);
+    snprintf(key, sizeof(key), "%s@%s@%s", sta_str, bssid_str, radio_str);
+
+    auto *sta = new dm_sta_t(&info);
+    hash_map_put(dm.m_sta_map, strdup(key), sta);
+    return sta;
+}
+
+static void append_tlv(std::vector<unsigned char> &msg, unsigned char type,
+                       const std::vector<unsigned char> &value)
+{
+    em_tlv_t tlv_header = {};
+    tlv_header.type = type;
+    tlv_header.len = htons(static_cast<unsigned short>(value.size()));
+    const auto *header_bytes = reinterpret_cast<const unsigned char *>(&tlv_header);
+    msg.insert(msg.end(), header_bytes, header_bytes + sizeof(em_tlv_t));
+    msg.insert(msg.end(), value.begin(), value.end());
+}
+
+static std::vector<unsigned char> make_client_type_vendor_value(const ClientTypeEntry &entry)
+{
+    // vendor OUI (not Airties), number of attributes, attribute id, then the STA metrics
+    std::vector<unsigned char> value = {0x00, 0x00, 0x00, 0x01, 0x00};
+    em_assoc_sta_vendor_link_metrics_t metrics;
+    std::memset(&metrics, 0, sizeof(metrics));
+    std::memcpy(metrics.sta_mac, entry.sta_mac, sizeof(mac_address_t));
+    std::memcpy(metrics.bssid, entry.bssid, sizeof(mac_address_t));
+    std::strncpy(metrics.sta_client_type, entry.client_type.c_str(), sizeof(metrics.sta_client_type) - 1);
+    const auto *metrics_bytes = reinterpret_cast<const unsigned char *>(&metrics);
+    value.insert(value.end(), metrics_bytes, metrics_bytes + sizeof(metrics));
+    return value;
+}
+
+static std::vector<unsigned char> make_client_type_response(em_msg_type_t msg_type,
+                                                             const std::vector<ClientTypeEntry> &entries)
+{
+    std::vector<unsigned char> msg(sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t), 0);
+    auto *cmdu = reinterpret_cast<em_cmdu_t *>(msg.data() + sizeof(em_raw_hdr_t));
+    cmdu->type = htons(static_cast<unsigned short>(msg_type));
+
+    if (msg_type == em_msg_type_ap_metrics_rsp) {
+        append_tlv(msg, static_cast<unsigned char>(em_tlv_type_ap_metrics),
+                   std::vector<unsigned char>(sizeof(em_ap_metric_t), 0));
+    }
+    for (const auto &entry : entries) {
+        append_tlv(msg, static_cast<unsigned char>(em_tlv_type_vendor_specific),
+                   make_client_type_vendor_value(entry));
+    }
+    append_tlv(msg, static_cast<unsigned char>(em_tlv_type_eom), {});
+    return msg;
+}
+
+class ClientTypeTopologyTest : public ::testing::Test {
+protected:
+    void SetUp() override {
+        dm.init();
+        metrics = new DummyEmMetrics(&mgr, &dm, em_profile_type_3);
+    }
+
+    void TearDown() override {
+        delete metrics;
+        metrics = nullptr;
+    }
+
+    int send_ap_response(const std::vector<ClientTypeEntry> &entries) {
+        auto msg = make_client_type_response(em_msg_type_ap_metrics_rsp, entries);
+        return metrics->handle_ap_metrics_response(msg.data(), static_cast<unsigned int>(msg.size()),
+                                                   em_profile_type_1);
+    }
+
+    int send_assoc_sta_response(const std::vector<ClientTypeEntry> &entries) {
+        auto msg = make_client_type_response(em_msg_type_assoc_sta_link_metrics_rsp, entries);
+        return metrics->handle_associated_sta_link_metrics_resp(msg.data(), static_cast<unsigned int>(msg.size()));
+    }
+
+    TopologyCountingEmMgr mgr;
+    dm_easy_mesh_t dm;
+    DummyEmMetrics *metrics = nullptr;
+};
+
+TEST_F(ClientTypeTopologyTest, ApMetricsPublishesOnlyForFirstNonEmptyClientType) {
+    ClientTypeEntry sta = make_client_type_entry(1, "");
+    dm_sta_t *dm_sta = add_metrics_sta(dm, sta);
+    std::vector<std::string> published_client_types;
+    mgr.on_publish = [&]() { published_client_types.push_back(dm_sta->m_sta_info.sta_client_type); };
+
+    EXPECT_EQ(0, send_ap_response({sta}));
+    EXPECT_EQ(0U, mgr.publish_count);
+    EXPECT_STREQ("", dm_sta->m_sta_info.sta_client_type);
+
+    sta.client_type = "phone";
+    EXPECT_EQ(0, send_ap_response({sta}));
+    EXPECT_EQ(1U, mgr.publish_count);
+    ASSERT_EQ(1U, published_client_types.size());
+    EXPECT_EQ("phone", published_client_types[0]);
+    EXPECT_STREQ("phone", dm_sta->m_sta_info.sta_client_type);
+
+    EXPECT_EQ(0, send_ap_response({sta}));
+    EXPECT_EQ(1U, mgr.publish_count);
+
+    sta.client_type = "";
+    EXPECT_EQ(0, send_ap_response({sta}));
+    EXPECT_EQ(1U, mgr.publish_count);
+    EXPECT_STREQ("phone", dm_sta->m_sta_info.sta_client_type);
+}
+
+TEST_F(ClientTypeTopologyTest, ApMetricsPublishesOnceForMultipleFirstClientTypes) {
+    ClientTypeEntry sta_1 = make_client_type_entry(1, "phone");
+    ClientTypeEntry sta_2 = make_client_type_entry(2, "laptop");
+    dm_sta_t *dm_sta_1 = add_metrics_sta(dm, sta_1);
+    dm_sta_t *dm_sta_2 = add_metrics_sta(dm, sta_2);
+    std::vector<std::string> published_client_types;
+    mgr.on_publish = [&]() {
+        published_client_types.push_back(dm_sta_1->m_sta_info.sta_client_type);
+        published_client_types.push_back(dm_sta_2->m_sta_info.sta_client_type);
+    };
+
+    EXPECT_EQ(0, send_ap_response({sta_1, sta_2}));
+
+    EXPECT_EQ(1U, mgr.publish_count);
+    ASSERT_EQ(2U, published_client_types.size());
+    EXPECT_EQ("phone", published_client_types[0]);
+    EXPECT_EQ("laptop", published_client_types[1]);
+}
+
+TEST_F(ClientTypeTopologyTest, AssocStaLinkMetricsPublishesOnlyForFirstNonEmptyClientType) {
+    ClientTypeEntry sta = make_client_type_entry(1, "");
+    dm_sta_t *dm_sta = add_metrics_sta(dm, sta);
+    std::vector<std::string> published_client_types;
+    mgr.on_publish = [&]() { published_client_types.push_back(dm_sta->m_sta_info.sta_client_type); };
+
+    EXPECT_EQ(0, send_assoc_sta_response({sta}));
+    EXPECT_EQ(0U, mgr.publish_count);
+
+    sta.client_type = "phone";
+    EXPECT_EQ(0, send_assoc_sta_response({sta}));
+    EXPECT_EQ(1U, mgr.publish_count);
+    ASSERT_EQ(1U, published_client_types.size());
+    EXPECT_EQ("phone", published_client_types[0]);
+
+    EXPECT_EQ(0, send_assoc_sta_response({sta}));
+    EXPECT_EQ(1U, mgr.publish_count);
+
+    sta.client_type = "";
+    EXPECT_EQ(0, send_assoc_sta_response({sta}));
+    EXPECT_EQ(1U, mgr.publish_count);
+    EXPECT_STREQ("phone", dm_sta->m_sta_info.sta_client_type);
+}
+
+TEST_F(ClientTypeTopologyTest, ClientTypeSeenByOneResponsePathDoesNotRepublishOnTheOther) {
+    ClientTypeEntry sta = make_client_type_entry(1, "phone");
+    add_metrics_sta(dm, sta);
+
+    EXPECT_EQ(0, send_assoc_sta_response({sta}));
+    EXPECT_EQ(1U, mgr.publish_count);
+
+    EXPECT_EQ(0, send_ap_response({sta}));
+    EXPECT_EQ(1U, mgr.publish_count);
+}
+
+TEST_F(ClientTypeTopologyTest, VendorTlvHelperReportsFirstClientTypeOnlyWhenFlagProvided) {
+    ClientTypeEntry sta = make_client_type_entry(1, "");
+    dm_sta_t *dm_sta = add_metrics_sta(dm, sta);
+    std::vector<unsigned char> value = make_client_type_vendor_value(sta);
+    bool first_seen = false;
+
+    EXPECT_EQ(0, metrics->handle_assoc_sta_vendor_link_metrics_tlv(
+        value.data(), static_cast<unsigned int>(value.size()), &first_seen));
+    EXPECT_FALSE(first_seen);
+
+    sta.client_type = "phone";
+    value = make_client_type_vendor_value(sta);
+    EXPECT_EQ(0, metrics->handle_assoc_sta_vendor_link_metrics_tlv(
+        value.data(), static_cast<unsigned int>(value.size()), &first_seen));
+    EXPECT_TRUE(first_seen);
+    EXPECT_STREQ("phone", dm_sta->m_sta_info.sta_client_type);
+
+    first_seen = false;
+    EXPECT_EQ(0, metrics->handle_assoc_sta_vendor_link_metrics_tlv(
+        value.data(), static_cast<unsigned int>(value.size()), &first_seen));
+    EXPECT_FALSE(first_seen);
+
+    // Without a flag the value is still stored and nothing is published.
+    ClientTypeEntry other = make_client_type_entry(2, "laptop");
+    dm_sta_t *other_sta = add_metrics_sta(dm, other);
+    value = make_client_type_vendor_value(other);
+    EXPECT_EQ(0, metrics->handle_assoc_sta_vendor_link_metrics_tlv(
+        value.data(), static_cast<unsigned int>(value.size())));
+    EXPECT_STREQ("laptop", other_sta->m_sta_info.sta_client_type);
+    EXPECT_EQ(0U, mgr.publish_count);
 }
