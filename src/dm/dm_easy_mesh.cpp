@@ -3598,6 +3598,31 @@ em_ap_mld_info_t *dm_easy_mesh_t::get_ap_mld_frm_haul_type(em_haul_type_t haul_t
     return NULL;
 }
 
+em_ap_mld_info_t *dm_easy_mesh_t::get_ap_mld_frm_bssid(mac_address_t bssid)
+{
+    if (bssid == NULL) {
+        return NULL;
+    }
+
+    for (unsigned int i = 0; i < m_num_ap_mld && i < EM_MAX_AP_MLD; i++) {
+        em_ap_mld_info_t *ap_mld_info = &m_ap_mld[i].m_ap_mld_info;
+        unsigned int affiliated_ap_count = ap_mld_info->num_affiliated_ap;
+        if (affiliated_ap_count > EM_MAX_AP_MLD) {
+            affiliated_ap_count = EM_MAX_AP_MLD;
+        }
+
+        for (unsigned int j = 0; j < affiliated_ap_count; j++) {
+            const em_affiliated_ap_info_t *affiliated_ap = &ap_mld_info->affiliated_ap[j];
+            if (affiliated_ap->mac_addr_valid &&
+                memcmp(affiliated_ap->mac_addr, bssid, sizeof(mac_address_t)) == 0) {
+                return ap_mld_info;
+            }
+        }
+    }
+
+    return NULL;
+}
+
 bool dm_easy_mesh_t::is_ap_mld_mac(const mac_address_t mac)
 {
     const em_ap_mld_info_t *ap_mld_info = NULL;
