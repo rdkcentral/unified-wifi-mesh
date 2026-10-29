@@ -202,6 +202,27 @@ typedef struct {
 #define DE_DEVICE_XAIRTIES_CPUUSAGE          DE_DEVICE_XAIRTIES_PROCESSSTATUS     "CPUUsage"
 #define DE_DEVICE_XAIRTIES_CPUTEMPERATURE    DE_DEVICE_XAIRTIES_PROCESSSTATUS     "CPUTemperature"
 
+/* Device.WiFi.DataElements.Network.Device.X_AIRTIES_Ethernet */
+#define DE_DEVICE_XAIRTIES_ETH  DE_NETWORK_DEVICE       "X_AIRTIES_Ethernet."
+#define DE_XETH_IFNOE           DE_DEVICE_XAIRTIES_ETH  "InterfaceNumberOfEntries"
+#define DE_XETH_IF              DE_DEVICE_XAIRTIES_ETH  "Interface.{i}."
+#define DE_XETH_IF_TABLE        DE_DEVICE_XAIRTIES_ETH  "Interface.{i}"
+#define DE_XETH_IF_PORTID       DE_XETH_IF              "PortID"
+#define DE_XETH_IF_NAME         DE_XETH_IF              "Name"
+#define DE_XETH_IF_MACADDR      DE_XETH_IF              "MACAddress"
+#define DE_XETH_IF_ENABLE       DE_XETH_IF              "Enable"
+#define DE_XETH_IF_STATUS       DE_XETH_IF              "Status"
+#define DE_XETH_IF_DUPLEX       DE_XETH_IF              "DuplexMode"
+#define DE_XETH_IF_MAXBITRATE   DE_XETH_IF              "MaxBitRate"
+#define DE_XETH_IF_CURBITRATE   DE_XETH_IF              "CurrentBitRate"
+#define DE_XETH_IF_STATS        DE_XETH_IF              "Stats."
+#define DE_XETH_IF_BYTESSNT     DE_XETH_IF_STATS        "BytesSent"
+#define DE_XETH_IF_BYTESRCV     DE_XETH_IF_STATS        "BytesReceived"
+#define DE_XETH_IF_PCKTSSNT     DE_XETH_IF_STATS        "PacketsSent"
+#define DE_XETH_IF_PCKTSRCV     DE_XETH_IF_STATS        "PacketsReceived"
+#define DE_XETH_IF_ERRSSNT      DE_XETH_IF_STATS        "ErrorsSent"
+#define DE_XETH_IF_ERRSRCV      DE_XETH_IF_STATS        "ErrorsReceived"
+#define DE_XETH_IF_MCPCKTSRCV   DE_XETH_IF_STATS        "MulticastPacketsReceived"
 /* Device.WiFi.DataElements.Network.Device.CACStatus */
 #define DE_DEVICE_CACSTAT       DE_NETWORK_DEVICE       "CACStatus.{i}."
 #define DE_CACSTAT_TABLE        DE_NETWORK_DEVICE       "CACStatus.{i}"
@@ -579,6 +600,7 @@ public:
     bus_error_t raw_data_set(raw_data_t *p_data, uint8_t u);
     bus_error_t raw_data_set(raw_data_t *p_data, uint16_t u);
     bus_error_t raw_data_set(raw_data_t *p_data, uint32_t u);
+    bus_error_t raw_data_set(raw_data_t *p_data, uint64_t u);
     bus_error_t raw_data_set(raw_data_t *p_data, const char *str);
     bus_error_t raw_data_set(raw_data_t *p_data, mac_address_t mac);
     bus_error_t raw_data_set(raw_data_t *p_data, wifi_ieee80211Variant_t var);
@@ -1044,6 +1066,10 @@ public:
     //AffiliatedAP
     static bus_error_t affap_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
     static bus_error_t affap_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
+
+    //X_AIRTIES_Ethernet.Interface
+    static bus_error_t ethif_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
+    static bus_error_t ethif_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
 
     //STAMLD
     static bus_error_t stamld_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);

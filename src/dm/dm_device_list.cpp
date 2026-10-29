@@ -375,6 +375,12 @@ bool dm_device_list_t::compare_db(db_client_t& db_client, const dm_device_t& sta
         info.cached_mem = sta.m_device_info.cached_mem;
         info.cpu_load = sta.m_device_info.cpu_load;
         info.cpu_temp = sta.m_device_info.cpu_temp;
+        // Runtime-only Ethernet stats are never persisted to the DB; copy them from sta
+        // so they do not cause a spurious mismatch and an unnecessary db_update.
+        info.num_eth_ports = sta.m_device_info.num_eth_ports;
+        memcpy(info.eth_ports, sta.m_device_info.eth_ports, sizeof(info.eth_ports));
+        info.num_eth_stats = sta.m_device_info.num_eth_stats;
+        memcpy(info.eth_stats, sta.m_device_info.eth_stats, sizeof(info.eth_stats));
 
         if (memcmp(static_cast<const void*>(&sta.m_device_info), static_cast<const void*>(&info), sizeof(em_device_info_t)) == 0) {
             db_client.free_result(ctx);
