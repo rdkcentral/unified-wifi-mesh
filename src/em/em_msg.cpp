@@ -648,13 +648,6 @@ unsigned int em_msg_t::validate(char *errors[])
         return false;
     }
 
-        while (((len > 0) && (len >= sizeof(em_tlv_t)) && tlv && (tlv->type != em_tlv_type_eom))) {
-
-            if ((sizeof(em_tlv_t) + ntohs(tlv->len)) > len) {
-                validation = false;
-                break;
-            }
-
     for (i = 0; i < m_num_tlv; i++) {
         tlv = reinterpret_cast<em_tlv_t *> (m_buff + header_sz);
         len = m_len - header_sz;
