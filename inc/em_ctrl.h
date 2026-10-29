@@ -275,6 +275,7 @@ public:
 	 * @note Ensure that the event structure is properly initialized before calling this function.
 	 */
 	void handle_set_ssid_list(em_bus_event_t *evt);
+	void handle_set_bh_cfg(em_bus_event_t *evt);
     
 	/**!
 	 * @brief Handles channel selection events.
@@ -577,6 +578,10 @@ public:
 	 * @note If the AL MAC address is not provided, the function will use a default value.
 	 */
 	dm_easy_mesh_t *get_data_model(const char *net_id, const unsigned char *al_mac = NULL) { return m_data_model.get_data_model(net_id, al_mac); }
+
+	unsigned int get_bss_acl_macs(const char *bss_key, bool blocked, unsigned int skip,
+			unsigned int max, mac_address_t *list) { return m_data_model.acl_get_macs(bss_key, blocked, skip, max, list); }
+	bool persist_client_assoc_ctrl_req(const em_cmd_client_assoc_params_t &assoc) override;
     
 	/**!
 	 * @brief Creates a data model for the specified network ID and interface.

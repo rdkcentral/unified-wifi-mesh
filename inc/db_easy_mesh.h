@@ -191,6 +191,26 @@ public:
 	 *       this function.
 	 */
 	int create_table(db_client_t& db_client);
+
+	/**!
+	 * @brief Adds any column that is missing from an already existing table.
+	 *
+	 * Keeps a database created by an older build usable after new columns are introduced.
+	 *
+	 * @param[in] db_client Reference to the database client object.
+	 */
+	int align_table_columns(db_client_t& db_client);
+
+	/**!
+	 * @brief Builds the SQL type declaration for the column at the given position.
+	 *
+	 * @param[in] pos Column index.
+	 * @param[out] type_str Buffer receiving the type declaration.
+	 * @param[in] sz Size of type_str.
+	 *
+	 * @returns Pointer to type_str.
+	 */
+	char *get_column_type(unsigned int pos, char *type_str, unsigned int sz);
     
 	/**!
 	 * @brief Loads a table using the provided database client.

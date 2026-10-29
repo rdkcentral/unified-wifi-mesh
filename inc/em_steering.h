@@ -20,12 +20,21 @@
 #define EM_STEERING_H
 
 #include "em_base.h"
+#include <mutex>
+#include <set>
 #include <vector>
 
 class em_steering_t {
 
     unsigned int m_client_steering_req_tx_cnt;
     unsigned int m_client_assoc_ctrl_req_tx_cnt;
+	std::set<unsigned short> m_acl_cfg_pending_msg_ids;
+	// Replay progress, guarded by the mutex below: chunks are still being sent, and a chunk
+	// was rejected. Success or failure is decided under that mutex so the replay thread and
+	// ACK handling cannot reach different outcomes.
+	bool m_acl_cfg_sending = false;
+	bool m_acl_cfg_rejected = false;
+	mutable std::mutex m_acl_cfg_pending_msg_ids_mutex;
 
     
 	/**!
@@ -68,7 +77,8 @@ class em_steering_t {
 	 *
 	 * @note Ensure that the assoc_ctrl structure is properly initialized before calling this function.
 	 */
-	int send_client_assoc_ctrl_req_msg(em_client_assoc_ctrl_req_t *assoc_ctrl);
+	int send_client_assoc_ctrl_req_msg(em_client_assoc_ctrl_req_t *assoc_ctrl,
+		bool track_acl_ack = false);
     
 	/**!
 	 * @brief Sends a BTM report message.
@@ -237,6 +247,109 @@ class em_steering_t {
 
 public:
 	
+	/**!
+	 * @brief Sends a Client Association Control Request built from persisted ACL state.
+	 *
+	 * Used to re-apply the MAC ACL stored in the BSSList table to an agent once its
+	 * onboarding orchestration has completed.
+	 *
+	 * @param[in] bssid BSSID the request applies to.
+	 * @param[in] assoc_control ASSOC_CONTROL_BLOCK or ASSOC_CONTROL_UNBLOCK.
+	 * @param[in] validity_period Validity period in seconds.
+	 * @param[in] sta_count Number of STA MAC addresses in sta_list.
+	 * @param[in] sta_list STA MAC addresses to apply the control to.
+	 *
+	 * @returns int Number of bytes sent on success, -1 on failure.
+	 */
+	int send_persisted_assoc_ctrl_req(const unsigned char *bssid, unsigned char assoc_control,
+			unsigned short validity_period, unsigned char sta_count, const mac_address_t *sta_list);
+	void clear_acl_cfg_pending_msg_ids() {
+		std::lock_guard<std::mutex> lock(m_acl_cfg_pending_msg_ids_mutex);
+		m_acl_cfg_pending_msg_ids.clear();
+	}
+	void add_acl_cfg_pending_msg_id(unsigned short msg_id) {
+		std::lock_guard<std::mutex> lock(m_acl_cfg_pending_msg_ids_mutex);
+		m_acl_cfg_pending_msg_ids.insert(msg_id);
+	}
+	bool remove_acl_cfg_pending_msg_id(unsigned short msg_id) {
+		std::lock_guard<std::mutex> lock(m_acl_cfg_pending_msg_ids_mutex);
+		return m_acl_cfg_pending_msg_ids.erase(msg_id) != 0;
+	}
+	/**
+	 * @brief Records the ACK of an ACL chunk.
+	 *
+	 * @param[in] rejected The ACK carried an Error Code TLV.
+	 * @param[out] complete Set when this was the last outstanding chunk, all chunks have been
+	 *             sent and none was rejected.
+	 * @returns true if msg_id was pending.
+	 */
+	bool ack_acl_cfg_pending_msg_id(unsigned short msg_id, bool rejected, bool *complete) {
+		std::lock_guard<std::mutex> lock(m_acl_cfg_pending_msg_ids_mutex);
+		bool removed = (m_acl_cfg_pending_msg_ids.erase(msg_id) != 0);
+		if (removed && rejected) {
+			m_acl_cfg_pending_msg_ids.clear();
+			m_acl_cfg_rejected = true;
+		}
+		*complete = removed && !m_acl_cfg_rejected && !m_acl_cfg_sending &&
+				m_acl_cfg_pending_msg_ids.empty();
+		return removed;
+	}
+	void begin_acl_cfg_send() {
+		std::lock_guard<std::mutex> lock(m_acl_cfg_pending_msg_ids_mutex);
+		m_acl_cfg_pending_msg_ids.clear();
+		m_acl_cfg_sending = true;
+		m_acl_cfg_rejected = false;
+	}
+	typedef enum {
+		acl_cfg_send_waiting,	// chunks still awaiting ACK
+		acl_cfg_send_done_ok,	// every chunk sent and acknowledged
+		acl_cfg_send_done_failed	// a chunk was rejected
+	} acl_cfg_send_result_t;
+	/**
+	 * @brief Marks the end of sending and reports the replay outcome known so far.
+	 */
+	acl_cfg_send_result_t end_acl_cfg_send() {
+		std::lock_guard<std::mutex> lock(m_acl_cfg_pending_msg_ids_mutex);
+		m_acl_cfg_sending = false;
+		if (m_acl_cfg_rejected) {
+			return acl_cfg_send_done_failed;
+		}
+		return m_acl_cfg_pending_msg_ids.empty() ? acl_cfg_send_done_ok : acl_cfg_send_waiting;
+	}
+	bool is_acl_cfg_rejected() const {
+		std::lock_guard<std::mutex> lock(m_acl_cfg_pending_msg_ids_mutex);
+		return m_acl_cfg_rejected;
+	}
+	bool is_acl_cfg_sending() const {
+		std::lock_guard<std::mutex> lock(m_acl_cfg_pending_msg_ids_mutex);
+		return m_acl_cfg_sending;
+	}
+	bool has_acl_cfg_pending_msg_ids() const {
+		std::lock_guard<std::mutex> lock(m_acl_cfg_pending_msg_ids_mutex);
+		return !m_acl_cfg_pending_msg_ids.empty();
+	}
+
+	/**!
+	 * @brief Sends the persisted MAC ACL of every BSS on this radio to the agent.
+	 *
+	 * Runs as the last step of the onboarding orchestration so an agent that rebooted, or every
+	 * agent after a controller reboot, ends up with the ACL stored in the database.
+	 *
+	 * @returns 0 if every ACL chunk was sent, or -1 if a send failed.
+	 */
+	int send_persisted_acl_cfg();
+
+	/**!
+	 * @brief Sends one ACL list of a BSS, chunked to fit the Client Association Control TLV.
+	 * @param[in] bss_key Composite key identifying the BSS ACL.
+	 * @param[in] bssid BSSID receiving the association control request.
+	 * @param[in] validity_period ACL validity period in seconds.
+	 * @param[in] blocked Selects the blocked list when true, otherwise the allowed list.
+	 * @returns 0 if every chunk was sent, or -1 if a send failed.
+	 */
+	int send_acl_list(const char *bss_key, const unsigned char *bssid,
+			unsigned short validity_period, bool blocked);
+
 	/**!
 	 * @brief Retrieves the manager instance.
 	 *

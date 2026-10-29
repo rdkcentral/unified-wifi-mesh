@@ -43,6 +43,38 @@ public:
     }
 };
 
+TEST_F(em_orch_agent_t_TEST, OneWifiCallbackPreservesSynchronizedState)
+{
+    em_interface_t ruid{};
+    dm_easy_mesh_t dm{};
+    em_t em(&ruid, em_freq_band_5, &dm, &mgr, em_profile_type_1,
+            em_service_type_agent, false);
+    em_cmd_t cmd{};
+    cmd.m_type = em_cmd_type_onewifi_cb;
+    em.set_state(em_state_agent_topo_synchronized);
+
+    em.orch_execute(&cmd);
+
+    EXPECT_EQ(em.get_state(), em_state_agent_topo_synchronized);
+    EXPECT_TRUE(orch->is_em_ready_for_orch_fini(&cmd, &em));
+}
+
+TEST_F(em_orch_agent_t_TEST, OneWifiCallbackPreservesConfiguredState)
+{
+    em_interface_t ruid{};
+    dm_easy_mesh_t dm{};
+    em_t em(&ruid, em_freq_band_5, &dm, &mgr, em_profile_type_1,
+            em_service_type_agent, false);
+    em_cmd_t cmd{};
+    cmd.m_type = em_cmd_type_onewifi_cb;
+    em.set_state(em_state_agent_configured);
+
+    em.orch_execute(&cmd);
+
+    EXPECT_EQ(em.get_state(), em_state_agent_configured);
+    EXPECT_TRUE(orch->is_em_ready_for_orch_fini(&cmd, &em));
+}
+
 
 
 /**

@@ -51,6 +51,7 @@ extern "C"
 #define EM_MAX_E4_TABLE_CHANNEL 64
 #define EM_DATE_TIME_BUFF_SZ	64
 #define EM_PROTO_TOUT   1
+#define EM_M2_RSP_TOUT  5 // seconds the agent waits for M2 before restarting autoconfig
 #define EM_METRICS_REQ_MULT 5
 #define EM_MGR_TOUT     250 // in milliseconds
 #define EM_1_TOUT_MULT 	(1000 / EM_MGR_TOUT)
@@ -108,6 +109,7 @@ extern "C"
 #define EM_MAX_CHANNELS_IN_LIST  64
 #define EM_MAX_CMD_GEN_TTL  10
 #define EM_MAX_CMD_EXT_TTL  30
+#define EM_MAX_ACL_CFG_RETRIES  3
 #define EM_SSID_MISMATCH_TTL  120
 #define EM_MAX_RENEW_TX_THRESH  5
 #define EM_MAX_CAP_QUERY_TX_THRESH  2
@@ -397,6 +399,14 @@ static const mac_address_t EM_GLOBAL_MAC_ADDRESS = {0xff, 0xff, 0xff, 0xff, 0xff
 #define ASSOC_CONTROL_BLOCK 0x00
 #define ASSOC_CONTROL_UNBLOCK 0x01
 
+// MAC ACL mode the BSS operates in; fronthaul APs deny listed STAs, backhaul APs admit only listed STAs
+#define EM_ACL_MODE_BLACKLIST 0x00
+#define EM_ACL_MODE_WHITELIST 0x01
+#define EM_ACL_MODE_UNKNOWN 0xFF
+// Maximum ACL station entries per list and per BSS in persistence/JSON output
+#define EM_MAX_ACL_JSON_STAS  256
+// 17 MAC characters plus one delimiter per entry, excluding the final terminator
+#define EM_MAX_ACL_LIST_CHARS ((EM_MAX_ACL_JSON_STAS * 18) - 1)
 #define EM_MLO_POLICY_HAUL_COUNT 2
 #define EM_MLO_DEFAULT_BAND_BITMAP (EM_RF_24GHZ | EM_RF_50GHZ | EM_RF_6GHZ)
 
@@ -1607,10 +1617,20 @@ typedef struct {
     em_neigh_entry_t  *neigh;
 } __attribute__((__packed__)) em_neigh_device_list_t;
 
+#define EM_AP_VENDOR_BSS_FORMAT_EXTENDED 0x80
+#define EM_AP_VENDOR_BSS_RADIO_COUNT_MASK 0x7f
+
 typedef struct {
     mac_address_t bssid;
     unsigned short haultype;
     unsigned short vap_mode;
+} __attribute__((__packed__)) em_ap_vendor_operational_bss_legacy_t;
+
+typedef struct {
+    mac_address_t bssid;
+    unsigned short haultype;
+    unsigned short vap_mode;
+    unsigned char mac_filter_mode;
 } __attribute__((__packed__)) em_ap_vendor_operational_bss_t;
 
 typedef struct {
@@ -2405,6 +2425,9 @@ typedef enum {
     em_state_ctrl_topo_publish_pending,
     em_state_ctrl_unassoc_sta_link_metrics_pending,
     em_state_ctrl_client_assoc_ctrl_req_pending,
+    em_state_ctrl_acl_cfg_pending,
+    em_state_ctrl_acl_cfg_configured,
+    em_state_ctrl_acl_cfg_failed,
 
     //common states
     em_state_beacon_report_pending,
@@ -2465,6 +2488,7 @@ typedef enum {
     em_cmd_type_unassoc_sta_query,
     em_cmd_type_unassoc_sta_result,
     em_cmd_type_client_assoc_ctrl_req,
+    em_cmd_type_set_bh_cfg,
 
     em_cmd_type_max,
 } em_cmd_type_t;
@@ -2617,6 +2641,7 @@ typedef struct {
     em_small_string_t    primary_device_type;
     em_small_string_t    secondary_device_type;
     ieee_1905_security_t    sec_1905;
+    bool    m8_bsta_reconfiguration;
     
     uint8_t is_emplus_agent;
 
@@ -2834,7 +2859,21 @@ typedef struct {
     unsigned char vendor_elements[WIFI_AP_MAX_VENDOR_IE_LEN];
     size_t vendor_elements_len;
     bool    connect_status;
+
+    // MAC ACL state applied through Client Association Control Requests. The STA addresses
+    // themselves live in the dm_bss_list_t ACL map; this struct stays a plain copyable POD.
+    unsigned char   acl_filter_mode;
+    unsigned short  acl_validity_period;
+    // Bumped on every CACR so an ACL-only change is still seen as a row update
+    unsigned int    acl_revision;
 } em_bss_info_t;
+
+// One entry of the dynamic per-BSS MAC ACL held in dm_bss_list_t
+typedef struct {
+    em_2xlong_string_t  bss_key;
+    mac_address_t   mac;
+    bool    blocked;
+} em_acl_sta_t;
 
 typedef struct {
     mac_address_t   nbr;
@@ -3199,6 +3238,7 @@ typedef enum {
     em_bus_event_type_recv_csa_beacon_frame,
     em_bus_event_type_bsta_cap_req,
     em_bus_event_type_link_quality_report,
+    em_bus_event_type_set_bh_cfg,
     em_bus_event_type_client_assoc_ctrl_req,
     em_bus_event_type_unassoc_sta_query,
     em_bus_event_type_unassoc_sta_link_metrics_query,
@@ -3299,7 +3339,8 @@ typedef enum {
     dm_orch_type_link_quality_report,
     dm_orch_type_unassoc_sta_link_req_query,
     dm_orch_type_unassoc_sta_result,
-    dm_orch_type_client_assoc
+    dm_orch_type_client_assoc,
+    dm_orch_type_acl_cfg
 
 } dm_orch_type_t;
 
@@ -3333,6 +3374,7 @@ typedef enum {
 	db_cfg_type_policy_list_delete = (1 << 20),
 	db_cfg_type_scan_result_list_update = (1 << 21),
 	db_cfg_type_scan_result_list_delete = (1 << 22),
+	db_cfg_type_bss_ssid_update = (1 << 23),
 } db_cfg_type_t;
 
 typedef struct {
@@ -3352,6 +3394,7 @@ typedef struct{
 	em_haul_type_t haultype[EM_MAX_BSS_PER_RADIO];
 	mac_address_t radio_mac[EM_MAX_BSS_PER_RADIO];
     em_4xlong_string_t dpp_connector[EM_MAX_BSS_PER_RADIO];
+	bool is_bh_reconfig;
 } m2ctrl_radioconfig;
 
 typedef struct{
@@ -3618,7 +3661,7 @@ typedef unsigned int db_data_type_args_t;
 typedef unsigned char em_advertise_cce_t;
 typedef unsigned char em_eapol_frame_payload_t[0];
 
-typedef char db_query_t[2048];
+typedef char db_query_t[12288];
 typedef char db_result_t[2048];
 typedef char db_fmt_t[8];
 

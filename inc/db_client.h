@@ -35,6 +35,7 @@ sqlite3 *m_con;
 char m_path[512];
 std::mutex m_mutex;
 
+
 	 /**!
 	  * @brief Establish a connection to the database.
 	  *
@@ -81,13 +82,27 @@ std::mutex m_mutex;
 	  * This function takes a SQL query as input and executes it on the connected database.
 	  *
 	  * @param[in] query SQL query to execute. This should be a valid SQL statement.
+	  * @param[out] succeeded Optional. Receives the status of this execution:
+	  *             true when the statement completed (with or without rows),
+	  *             false on preparation or execution errors. The status is
+	  *             specific to this call and is not affected by concurrent queries.
 	  *
-	  * @returns Pointer to result context on success, NULL on failure.
+	  * @returns Pointer to result context when the query returned rows, NULL otherwise.
 	  *
 	  * @note Caller is responsible for handling the returned result context.
 	  *       The context will be automatically freed when next_result() returns false.
 	  */
-	 void *execute(const char *query);
+	 void *execute(const char *query, bool *succeeded = NULL);
+
+	 /**
+	  * @brief Escapes a string for use as a quoted SQL value.
+	  *
+	  * @param[in] src Null-terminated source string.
+	  * @param[out] dst Buffer receiving the escaped string.
+	  * @param[in] dst_size Destination buffer size, including the null terminator.
+	  * @returns true on success, false if the connection or buffer is invalid.
+	  */
+	 bool escape_string(const char *src, char *dst, unsigned int dst_size) const;
 
 
 	 /**!
@@ -138,7 +153,17 @@ std::mutex m_mutex;
 	  */
 	 char *get_string(void *ctx, char *res, unsigned int col);
 
-
+	 /**!
+	  * @brief Retrieve a string value, bounded by the destination buffer size.
+	  *
+	  * @param[in] ctx Result context from which the string is retrieved.
+	  * @param[out] res Buffer to store the retrieved string.
+	  * @param[in] col Column index from which to retrieve the string (1-based).
+	  * @param[in] res_sz Size of res; 0 means bound only by the database field length.
+	  *
+	  * @returns Pointer to the result buffer containing the string, or NULL on error.
+	  */
+	 char *get_string(void *ctx, char *res, unsigned int col, unsigned int res_sz);
 	 /**!
 	  * @brief Retrieve an integer value from the result context.
 	  *

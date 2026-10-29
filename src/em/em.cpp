@@ -102,6 +102,7 @@ void em_t::orch_execute(em_cmd_t *pcmd)
 			break;
 
         case em_cmd_type_set_ssid:
+        case em_cmd_type_set_bh_cfg:
         case em_cmd_type_set_radio:
 	    if (m_service_type == em_service_type_ctrl) {
 	        set_renew_tx_count(0);
@@ -166,12 +167,24 @@ void em_t::orch_execute(em_cmd_t *pcmd)
                 m_sm.set_state(em_state_ctrl_channel_query_pending);
             } else if ((pcmd->get_orch_op() == dm_orch_type_policy_cfg) && (m_sm.get_state() == em_state_ctrl_channel_queried)) {
                 m_sm.set_state(em_state_ctrl_set_policy_pending);
-            } else if ((pcmd->get_orch_op() == dm_orch_type_channel_sel) && (m_sm.get_state() == em_state_ctrl_configured)) {
+            } else if ((pcmd->get_orch_op() == dm_orch_type_channel_sel) &&
+                    (m_sm.get_state() == em_state_ctrl_configured)) {
                 m_sm.set_state(em_state_ctrl_channel_select_pending);
-            } else if ((pcmd->get_orch_op() == dm_orch_type_channel_scan_req) && (m_sm.get_state() == em_state_ctrl_configured)) {
+            } else if ((pcmd->get_orch_op() == dm_orch_type_channel_scan_req) &&
+                    (m_sm.get_state() == em_state_ctrl_configured)) {
                 m_sm.set_state(em_state_ctrl_channel_scan_pending);
-            } else if ((pcmd->get_orch_op() == dm_orch_type_topo_publish) && (m_sm.get_state() == em_state_ctrl_configured)) {
+            } else if ((pcmd->get_orch_op() == dm_orch_type_topo_publish) &&
+                    (m_sm.get_state() == em_state_ctrl_configured)) {
                 m_sm.set_state(em_state_ctrl_topo_publish_pending);
+            } else if ((pcmd->get_orch_op() == dm_orch_type_acl_cfg) &&
+                    ((m_sm.get_state() == em_state_ctrl_configured) ||
+                     (m_sm.get_state() == em_state_ctrl_acl_cfg_pending) ||
+                     (m_sm.get_state() == em_state_ctrl_acl_cfg_configured) ||
+                     (m_sm.get_state() == em_state_ctrl_acl_cfg_failed))) {
+                reset_acl_cfg_retry_count();
+                // Chunks of an earlier replay must not complete or block this one.
+                clear_acl_cfg_pending_msg_ids();
+                m_sm.set_state(em_state_ctrl_acl_cfg_pending);
             }
             break;
 
@@ -179,12 +192,16 @@ void em_t::orch_execute(em_cmd_t *pcmd)
             m_sm.set_state(em_state_ctrl_channel_query_pending);
             break;
         case em_cmd_type_onewifi_cb:
-            m_sm.set_state(em_state_agent_onewifi_bssconfig_ind);
+            if (m_sm.get_state() < em_state_agent_topo_synchronized) {
+                m_sm.set_state(em_state_agent_onewifi_bssconfig_ind);
+            }
             break;
         case em_cmd_type_sta_assoc:
-            if ((pcmd->get_orch_op() == dm_orch_type_topo_sync) && (m_sm.get_state() == em_state_ctrl_configured)) {
+            if ((pcmd->get_orch_op() == dm_orch_type_topo_sync) &&
+                    (m_sm.get_state() == em_state_ctrl_configured)) {
                 m_sm.set_state(em_state_ctrl_topo_sync_pending);
-            } else if ((pcmd->get_orch_op() == dm_orch_type_sta_cap) && (m_sm.get_state() == em_state_ctrl_configured)) {
+            } else if ((pcmd->get_orch_op() == dm_orch_type_sta_cap) &&
+                    (m_sm.get_state() == em_state_ctrl_configured)) {
                 m_sm.set_state(em_state_ctrl_sta_cap_pending);
             } else if (pcmd->get_orch_op() == dm_orch_type_topo_publish) {
                 m_sm.set_state(em_state_ctrl_topo_publish_pending);
@@ -536,11 +553,17 @@ void em_t::handle_ctrl_state()
 
     assert(m_cmd != NULL);
 
+    if (get_state() == em_state_ctrl_acl_cfg_pending) {
+        em_steering_t::process_ctrl_state();
+        return;
+    }
+
     //printf("%s:%d: Cmd: %s State: %s\n", __func__, __LINE__,
         //em_cmd_t::get_cmd_type_str(m_cmd->m_type), em_t::state_2_str(get_state()));
     cmd_type = m_cmd->m_type;
     switch (cmd_type) {
         case em_cmd_type_set_ssid:
+        case em_cmd_type_set_bh_cfg:
         case em_cmd_type_set_radio:
         case em_cmd_type_cfg_renew:
             em_configuration_t::process_ctrl_state();
@@ -987,23 +1010,33 @@ dm_bss_t *em_t::find_bss(bssid_t bssid)
 {
     dm_bss_t *bss;
     em_bss_info_t *bss_info;
+    mac_addr_str_t bssid_str, ruid_str, radio_str;
+
+    dm_easy_mesh_t::macbytes_to_string(bssid, bssid_str);
+    dm_easy_mesh_t::macbytes_to_string(get_radio_interface_mac(), radio_str);
 
     bss_info = get_data_model()->get_bss_info_with_mac(bssid);
     if (bss_info == NULL) {
+        em_printfout("find_bss: BSSID %s not found in DM for radio %s", bssid_str, radio_str);
         return NULL;
     }
+
+    dm_easy_mesh_t::macbytes_to_string(bss_info->ruid.mac, ruid_str);
 
     // Get the BSS object from the data model
     bss = get_data_model()->get_bss(bss_info->ruid.mac, bssid);
     if (bss == NULL) {
+        em_printfout("find_bss: get_bss returned NULL for BSSID %s RUID %s", bssid_str, ruid_str);
         return NULL;
     }
 
     // the bss can be from a different radio
     if (memcmp(bss_info->ruid.mac, get_radio_interface_mac(), sizeof(mac_address_t)) == 0) {
+        em_printfout("find_bss: BSSID %s RUID %s matches radio %s", bssid_str, ruid_str, radio_str);
         return bss;
     }
 
+    em_printfout("find_bss: BSSID %s RUID %s != radio %s, skipping", bssid_str, ruid_str, radio_str);
     return NULL;
 }
 
@@ -1138,7 +1171,7 @@ short em_t::create_ap_cap_tlv(unsigned char *buff)
     ap_cap->unassociated_client_link_metrics_non_op_channels = radio_info->unassociated_sta_link_mterics_nonopclass_inclusion_policy;
     ap_cap->unassociated_client_link_metrics_op_channels =  radio_info->unassociated_sta_link_mterics_opclass_inclusion_policy;
     ap_cap->rcpi_steering = radio_info->support_rcpi_steering;
-    // ap_cap->reserved - Future implementation
+    ap_cap->m8_bsta_reconfiguration = 1;
     len = sizeof(em_ap_capability_t);
     return len;
 }
@@ -3005,6 +3038,9 @@ const char *em_t::state_2_str(em_state_t state)
         EM_STATE_2S(em_state_ctrl_avail_spectrum_inquiry_pending)
         EM_STATE_2S(em_state_ctrl_bsta_cap_pending)
         EM_STATE_2S(em_state_ctrl_topo_publish_pending)
+        EM_STATE_2S(em_state_ctrl_acl_cfg_pending)
+        EM_STATE_2S(em_state_ctrl_acl_cfg_configured)
+        EM_STATE_2S(em_state_ctrl_acl_cfg_failed)
 	EM_STATE_2S(em_state_ctrl_unassoc_sta_link_metrics_pending)
         EM_STATE_2S(em_state_agent_unconfigured)
         EM_STATE_2S(em_state_agent_autoconfig_rsp_pending)
