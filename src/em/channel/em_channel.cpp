@@ -50,6 +50,9 @@
  * internal implementation detail.
  */
 constexpr unsigned char BSS_COLOR_BSS_LOAD_PRESENT = 0x80;
+constexpr unsigned char CHANNEL_SCAN_RESERVED_BITS_MASK = 0x7F;
+constexpr unsigned char CHANNEL_SCAN_FRESH_SCAN_MASK = 0x80;
+constexpr unsigned char CHANNEL_SCAN_SUPPORTED_RADIO_COUNT = 1;
 
 short em_channel_t::create_channel_pref_tlv_agent(unsigned char *buff, unsigned int index)
 {
@@ -2124,18 +2127,18 @@ int em_channel_t::handle_channel_scan_req(unsigned char *buff, unsigned int len)
 
             req = reinterpret_cast<em_channel_scan_req_t *>(payload);
 
-            if (payload[0] & 0x7F) {
+            if (payload[0] & CHANNEL_SCAN_RESERVED_BITS_MASK) {
                 em_printfout("%s:%d Invalid reserved bits in Channel Scan Request",__func__, __LINE__);
                 return -1;
             }
 
-            if (!(payload[0] & 0x80) && req->num_op_classes != 0) {
+            if (!(payload[0] & CHANNEL_SCAN_FRESH_SCAN_MASK) && req->num_op_classes != 0) {
                 em_printfout("%s:%d Invalid Channel Scan Request:" "num_op_classes=%u when Fresh Scan is 0",
                              __func__, __LINE__, req->num_op_classes);
                 return -1;
             }
 
-            if (req->num_radios != 1) {
+            if (req->num_radios != CHANNEL_SCAN_SUPPORTED_RADIO_COUNT) {
                 em_printfout("%s:%d Unsupported number of radios=%u", __func__, __LINE__, req->num_radios);
                 return -1;
             }
