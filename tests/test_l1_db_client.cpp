@@ -20,13 +20,77 @@
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>
 #include <stdio.h>
-#include "db_client.h"
+#include <memory>
+#include "db_client_local.h"
+
+TEST(db_client_backend_Test, ParsesBackendSelection)
+{
+    EXPECT_EQ(db_client_t::type_from_string(nullptr), db_client_type_local);
+    EXPECT_EQ(db_client_t::type_from_string("local"), db_client_type_local);
+    EXPECT_EQ(db_client_t::type_from_string("none"), db_client_type_none);
+    EXPECT_EQ(db_client_t::type_from_string("NO_DB"), db_client_type_none);
+    EXPECT_EQ(db_client_t::type_from_string("nodb"), db_client_type_none);
+    EXPECT_EQ(db_client_t::type_from_string("CLOUD"), db_client_type_cloud);
+}
+
+TEST(db_client_backend_Test, LocalBackendPreservesSqliteTransactions)
+{
+    std::unique_ptr<db_client_t> client(db_client_t::create(db_client_type_local));
+    ASSERT_NE(client, nullptr);
+    EXPECT_EQ(client->get_type(), db_client_type_local);
+    EXPECT_TRUE(client->is_persistent());
+    ASSERT_EQ(client->init(":memory:"), 0);
+    client->execute("CREATE TABLE rebase_test (value INTEGER)");
+    ASSERT_EQ(client->begin_transaction(), 0);
+    client->execute("INSERT INTO rebase_test VALUES (42)");
+    ASSERT_EQ(client->commit(), 0);
+    ASSERT_EQ(client->begin_transaction(), 0);
+    client->execute("INSERT INTO rebase_test VALUES (99)");
+    ASSERT_EQ(client->rollback(), 0);
+
+    void *result = client->execute("SELECT value FROM rebase_test");
+    ASSERT_NE(result, nullptr);
+    ASSERT_TRUE(client->next_result(result));
+    EXPECT_EQ(client->get_number(result, 1), 42);
+    EXPECT_FALSE(client->next_result(result));
+    ASSERT_EQ(client->recreate_db(), 0);
+    result = client->execute("SELECT name FROM sqlite_master WHERE type = 'table'");
+    EXPECT_EQ(result, nullptr);
+    client->free_result(result);
+}
+
+TEST(db_client_backend_Test, NoDatabaseBackendRemainsInMemoryOnly)
+{
+    std::unique_ptr<db_client_t> client(db_client_t::create(db_client_type_none));
+    ASSERT_NE(client, nullptr);
+    EXPECT_EQ(client->get_type(), db_client_type_none);
+    EXPECT_FALSE(client->is_persistent());
+    EXPECT_EQ(client->init("/dev/null/not-a-database.db"), 0);
+    EXPECT_EQ(client->execute("SELECT 1"), nullptr);
+    EXPECT_FALSE(client->next_result(nullptr));
+    EXPECT_EQ(client->begin_transaction(), 0);
+    EXPECT_EQ(client->commit(), 0);
+    EXPECT_EQ(client->rollback(), 0);
+    EXPECT_EQ(client->recreate_db(), 0);
+    client->free_result(nullptr);
+}
+
+TEST(db_client_backend_Test, CloudBackendFailsUntilImplemented)
+{
+    std::unique_ptr<db_client_t> client(db_client_t::create(db_client_type_cloud));
+    ASSERT_NE(client, nullptr);
+    EXPECT_EQ(client->get_type(), db_client_type_cloud);
+    EXPECT_NE(client->init(nullptr), 0);
+    EXPECT_NE(client->begin_transaction(), 0);
+    EXPECT_NE(client->commit(), 0);
+    EXPECT_NE(client->rollback(), 0);
+}
 
 class db_client_t_Test : public ::testing::Test {
 protected:
-    db_client_t* dbClient;
+    db_client_local_t* dbClient;
     void SetUp() override {
-        dbClient = new db_client_t();
+        dbClient = new db_client_local_t();
         dbClient->init("/tmp/unified-wifi-mesh-client-test.db");
     }
     void TearDown() override {
@@ -38,7 +102,7 @@ class db_client_crud_Test : public ::testing::Test {
 protected:
     db_client_t* dbClient;
     void SetUp() override {
-        dbClient = new db_client_t();
+        dbClient = new db_client_local_t();
         dbClient->init("/tmp/unified-wifi-mesh-test.db");
         // Step 1: Create table
         dbClient->free_result(dbClient->execute(
@@ -84,7 +148,7 @@ protected:
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
  * | 01 | Define a valid Select query to be executed. | Query is defined. | Should be successful |
- * | 02 | Execute the defined query using the db_client_t instance. | execute should pass. | Should Pass |
+ * | 02 | Execute the defined query using the db_client_local_t instance. | execute should pass. | Should Pass |
  * | 03 | Verify the result of select query execution. | result should not be null | Assertion passes. | Should Pass |
  */
 TEST_F(db_client_crud_Test, ExecuteValidSelectQuery) {
@@ -113,7 +177,7 @@ TEST_F(db_client_crud_Test, ExecuteValidSelectQuery) {
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
  * | 01 | Define an empty query string. | query = "" | Empty query string is defined | Should be successful |
- * | 02 | Execute the empty query using the db_client_t instance. | query = "" | Result is nullptr | Should Pass |
+ * | 02 | Execute the empty query using the db_client_local_t instance. | query = "" | Result is nullptr | Should Pass |
  * | 03 | Assert that the result of the empty query execution is nullptr. | result = nullptr | Assertion passes | Should Pass |
  */
 TEST_F(db_client_t_Test, ExecuteEmptyQuery) {
@@ -433,7 +497,7 @@ TEST_F(db_client_t_Test, RetrieveStringWithNullResultAndNullContext) {
 /**
  * @brief Test the connection to a database with a valid database path.
  *
- * This test verifies that the db_client_t class can successfully initialize a connection to a database when provided with a valid database path. It ensures that the init function returns 0, indicating a successful connection.
+ * This test verifies that the db_client_local_t class can successfully initialize a connection to a database when provided with a valid database path. It ensures that the init function returns 0, indicating a successful connection.
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 012@n
@@ -451,7 +515,7 @@ TEST_F(db_client_t_Test, RetrieveStringWithNullResultAndNullContext) {
  */
 TEST(db_client_tTest, ConnectWithValidDatabasePath) {
     std::cout << "Entering ConnectWithValidDatabasePath test" << std::endl;
-    db_client_t* dbClient = new db_client_t();
+    db_client_t* dbClient = new db_client_local_t();
     int result = dbClient->init("/tmp/unified-wifi-mesh-valid.db");
     EXPECT_EQ(result, 0);
     delete dbClient;
@@ -459,9 +523,9 @@ TEST(db_client_tTest, ConnectWithValidDatabasePath) {
 }
 
 /**
- * @brief Test to verify the behavior of db_client_t::init with an empty path
+ * @brief Test to verify the behavior of db_client_local_t::init with an empty path
  *
- * This test checks the behavior of the db_client_t::init function when provided with an empty string as the path. The expected behavior is that the function should return an error code, specifically -1, indicating that the initialization failed due to the invalid input.
+ * This test checks the behavior of the db_client_local_t::init function when provided with an empty string as the path. The expected behavior is that the function should return an error code, specifically -1, indicating that the initialization failed due to the invalid input.
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 013@n
@@ -474,12 +538,12 @@ TEST(db_client_tTest, ConnectWithValidDatabasePath) {
  * **Test Procedure:**@n
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Call db_client_t::init with an empty path | path = "" | result = -1 | Should Pass |
+ * | 01 | Call db_client_local_t::init with an empty path | path = "" | result = -1 | Should Pass |
  * | 02 | Verify the result of the init function | result = -1 | EXPECT_EQ(result, -1) | Should be successful |
  */
 TEST(db_client_tTest, ConnectWithEmptyPath) {
     std::cout << "Entering ConnectWithEmptyPath test" << std::endl;
-    db_client_t* dbClient = new db_client_t();
+    db_client_local_t* dbClient = new db_client_local_t();
     int result = dbClient->init("");
     EXPECT_EQ(result, 0);
     delete dbClient;
@@ -507,7 +571,7 @@ TEST(db_client_tTest, ConnectWithEmptyPath) {
  */
 TEST(db_client_tTest, ConnectWithPathContainingSpecialCharacters) {
     std::cout << "Entering ConnectWithPathContainingSpecialCharacters test" << std::endl;
-    db_client_t* dbClient = new db_client_t();
+    db_client_local_t* dbClient = new db_client_local_t();
     int result = dbClient->init("bpi@root@#$.db");
     EXPECT_EQ(result, 0);
     delete dbClient;
@@ -672,7 +736,7 @@ TEST_F(db_client_crud_Test, NextResultInvalidContext) {
 /**
  * @brief Test to verify the behavior of next_result when the context is null
  *
- * This test checks the behavior of the db_client_t::next_result method when a null context is passed. 
+ * This test checks the behavior of the db_client_local_t::next_result method when a null context is passed. 
  * It ensures that the method returns false, indicating that the operation cannot proceed with a null context.
  *
  * **Test Group ID:** Basic: 01@n
@@ -764,14 +828,14 @@ TEST_F(db_client_t_Test, RecreateDatabaseWithValidConnection) {
  * **Test Procedure:**@n
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Set up the db_client_t instance | None | None | Done by Pre-requisite SetUp function |
+ * | 01 | Set up the db_client_local_t instance | None | None | Done by Pre-requisite SetUp function |
  * | 02 | Initialize the database client with an invalid path | invalid_path!@# | Non-zero return value | Should Fail |
  * | 03 | Attempt to recreate the database | None | return value: -1 | Should Fail |
- * | 04 | Tear down the db_client_t instance | None | None | Done by Pre-requisite TearDown function |
+ * | 04 | Tear down the db_client_local_t instance | None | None | Done by Pre-requisite TearDown function |
  */
 TEST(db_client_tTest, RecreateDatabaseWithInvalidConnection) {
     std::cout << "Entering RecreateDatabaseWithInvalidConnection test" << std::endl;
-    db_client_t* dbClient = new db_client_t();
+    db_client_local_t* dbClient = new db_client_local_t();
     EXPECT_NE(dbClient->init("invalid_path!@#"), 0);
     int result = dbClient->recreate_db();
     EXPECT_EQ(result, -1);
@@ -780,9 +844,9 @@ TEST(db_client_tTest, RecreateDatabaseWithInvalidConnection) {
 }
 
 /**
- * @brief Verify that the default construction of db_client_t initializes its internal members to NULL
+ * @brief Verify that the default construction of db_client_local_t initializes its internal members to NULL
  *
- * This test invokes the default constructor of db_client_t and verifies that its internal members (m_driver and m_con) are set to NULL. The test ensures that no exceptions are thrown during construction and that pointer arithmetic confirms the internal state.
+ * This test invokes the default constructor of db_client_local_t and verifies that its internal members (m_driver and m_con) are set to NULL. The test ensures that no exceptions are thrown during construction and that pointer arithmetic confirms the internal state.
  *
  * **Test Group ID:** Basic: 01
  * **Test Case ID:** 021@n
@@ -795,23 +859,23 @@ TEST(db_client_tTest, RecreateDatabaseWithInvalidConnection) {
  * **Test Procedure:**
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Invoke the default constructor of db_client_t and access internal members (m_driver, m_con) via pointer arithmetic | constructor = default | db_client_t instance is created with m_driver == nullptr and m_con == nullptr; assertions (EXPECT_EQ) pass without exceptions | Should Pass |
+ * | 01 | Invoke the default constructor of db_client_local_t and access internal members (m_driver, m_con) via pointer arithmetic | constructor = default | db_client_local_t instance is created with m_driver == nullptr and m_con == nullptr; assertions (EXPECT_EQ) pass without exceptions | Should Pass |
  */
 TEST(db_client_tTest, DefaultConstruction)
 {
     std::cout << "Entering DefaultConstruction test" << std::endl;
     // Invoking the default constructor and ensuring no exception is thrown.
     EXPECT_NO_THROW({
-        db_client_t client;
-        std::cout << "Invoked db_client_t::db_client_t() constructor." << std::endl;
+        db_client_local_t client;
+        std::cout << "Invoked db_client_local_t::db_client_local_t() constructor." << std::endl;
     });
     std::cout << "Exiting DefaultConstruction test" << std::endl;
 }
 
 /**
- * @brief Verify that db_client_t destructor correctly releases allocated database resources
+ * @brief Verify that db_client_local_t destructor correctly releases allocated database resources
  *
- * This test ensures that when a db_client_t object goes out of scope, its destructor is invoked automatically and effectively releases the internal database resources without throwing any exceptions. The test verifies that the internal state modifications related to m_driver and m_con are properly handled.
+ * This test ensures that when a db_client_local_t object goes out of scope, its destructor is invoked automatically and effectively releases the internal database resources without throwing any exceptions. The test verifies that the internal state modifications related to m_driver and m_con are properly handled.
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 022@n
@@ -824,17 +888,17 @@ TEST(db_client_tTest, DefaultConstruction)
  * **Test Procedure:**@n
  * | Variation / Step | Description                                                                                   | Test Data                                   | Expected Result                                                                                           | Notes       |
  * | :--------------: | --------------------------------------------------------------------------------------------- | ------------------------------------------- | --------------------------------------------------------------------------------------------------------- | ----------- |
- * | 01               | Invoke the default constructor of db_client_t and allow the object to go out of scope triggering the destructor | constructor = default, scope = automatic    | Destructor should release database resources without throwing an exception; internal state changes occur as expected | Should Pass |
+ * | 01               | Invoke the default constructor of db_client_local_t and allow the object to go out of scope triggering the destructor | constructor = default, scope = automatic    | Destructor should release database resources without throwing an exception; internal state changes occur as expected | Should Pass |
  */
 TEST(db_client_tTest, DestructorReleasesDatabaseResourcesCorrectly) {
     std::cout << "Entering Destructor releases database resources correctly test" << std::endl;
     EXPECT_NO_THROW({
-        std::cout << "Invoking db_client_t default constructor." << std::endl;
+        std::cout << "Invoking db_client_local_t default constructor." << std::endl;
         {
-            db_client_t client;
-            std::cout << "db_client_t object created successfully." << std::endl;
+            db_client_local_t client;
+            std::cout << "db_client_local_t object created successfully." << std::endl;
         }
-        std::cout << "db_client_t object went out of scope; destructor should have been invoked automatically." << std::endl;
+        std::cout << "db_client_local_t object went out of scope; destructor should have been invoked automatically." << std::endl;
     });
     std::cout << "Exiting Destructor releases database resources correctly test" << std::endl;
 }

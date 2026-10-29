@@ -18,6 +18,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <strings.h>
 #include <stdlib.h>
 #include <errno.h>
 #include <assert.h>
@@ -987,7 +988,12 @@ int em_ctrl_t::data_model_init(const char *data_model_path)
         return 0;
     }
     
-    if (m_data_model.init(data_model_path, this) != 0) {
+    // Persistence backend is selectable via "--db-type" in the controller
+    // arguments, resolved in main() and stashed in m_db_type by
+    // set_db_type() before this runs.
+    // Defaults to db_client_type_local, preserving existing behavior for
+    // invocations that don't pass the flag.
+    if (m_data_model.init(data_model_path, this, m_db_type) != 0) {
         printf("%s:%d: data model init failed\n", __func__, __LINE__);
         return 0;
     }
@@ -1309,6 +1315,7 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
 
         case em_msg_type_ap_mld_config_resp:
         case em_msg_type_1905_ack:
+            em_printfout("  -------->>>> 1905_ack rcvdddd");
             em = static_cast<em_t *> (hash_map_get_first(m_em_map));
             while(em != NULL) {
                 if ((em->is_al_interface_em() == false)) {
@@ -1316,6 +1323,8 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
                 }
                 em = static_cast<em_t *> (hash_map_get_next(m_em_map, em));
             }
+            em_printfout("1905_ack routing: dispatching to em=%p radio=%s", (void*)em,
+                em ? util::mac_to_string(em->get_radio_interface_mac()).c_str() : "NULL");
             break;
 
         case em_msg_type_beacon_metrics_rsp:
@@ -1539,6 +1548,7 @@ em_ctrl_t *em_ctrl_t::get_em_ctrl_instance()
 
 em_ctrl_t::em_ctrl_t()
 {
+    m_db_type = db_client_type_local;
 }
 
 em_ctrl_t::~em_ctrl_t()
@@ -1607,14 +1617,9 @@ AlServiceAccessPoint* em_ctrl_t::al_sap_register(const std::string& data_socket_
 int main(int argc, const char *argv[])
 {
     em_ctrl_t  *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
-    const char *data_model_path = NULL;
 
     if (em_get_ext_hooks()->process_cli_args(&argc, argv) == false) {
         return -1;
-    }
-
-    if (argc > 1) {
-        data_model_path = argv[1];
     }
 
 #ifdef AL_SAP
@@ -1627,7 +1632,58 @@ int main(int argc, const char *argv[])
     }
 #endif
 
-    if (em_ctrl->init(data_model_path) == 0) {
+    const char *database_path = nullptr;
+    bool db_type_given = false;
+
+    // Options and the database path may appear in any order. Unknown options
+    // are ignored. To add an option, add one branch below.
+    for (int i = 1; i < argc; i++) {
+        std::string arg = argv[i];
+
+        if (arg == "--help" || arg == "-h") {
+            printf("Usage: %s [data-model-path] [--db-type=local|cloud|none]\n"
+                   "  data-model-path is required for --db-type=local (a SQLite database file)\n"
+                   "  and ignored otherwise. Without --db-type: local if a path is given, none if not.\n",
+                argv[0]);
+            return 0;
+        }
+        if (arg.find("--db-type=") == 0) {
+            std::string value = arg.substr(strlen("--db-type="));
+            db_client_type_t type = db_client_t::type_from_string(value.c_str());
+            if (value.empty() || (type == db_client_type_local && strcasecmp(value.c_str(), "local") != 0)) {
+                em_printfout("Invalid --db-type '%s', using local", value.c_str());
+            }
+            em_ctrl->set_db_type(type);
+            db_type_given = true;
+            continue;
+        }
+        if (arg[0] == '-') {
+            continue;
+        }
+        if (database_path == nullptr) {
+            database_path = argv[i];
+        }
+    }
+
+    if (!db_type_given && database_path == nullptr) {
+        em_ctrl->set_db_type(db_client_type_none);
+    }
+
+    if (em_ctrl->get_db_type() == db_client_type_local) {
+        if (database_path == nullptr) {
+            em_printfout("--db-type=local requires a data-model-path (a SQLite database file)");
+            return -1;
+        }
+    } else if (database_path != nullptr) {
+        em_printfout("Ignoring data-model-path '%s', not used with this --db-type", database_path);
+        database_path = nullptr;
+    }
+
+    em_printf("Database type set to: %d\n", em_ctrl->get_db_type());
+    if (em_ctrl->get_db_type() == db_client_type_none) {
+        em_printfout("Starting without a database (--db-type=none): nothing will be persisted");
+    }
+    if (em_ctrl->init(database_path) == 0) {
         em_ctrl->start();
     }
     return 0;
