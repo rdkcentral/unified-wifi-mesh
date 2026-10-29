@@ -143,7 +143,7 @@ TEST(em_cmd_remove_device_t, em_cmd_remove_device_t_max_params)
         memset(longId, 'X', sizeof(longId)-1);
         longId[127] = '\0';
         if(i == 0) {
-            strncpy(longId, "MAX_DEVICE", 10);
+            strncpy(longId, "MAX_DEVICE", sizeof(longId) - 1);
         }
         strncpy(params.u.args.args[i], longId, sizeof(params.u.args.args[i])-1);
     }

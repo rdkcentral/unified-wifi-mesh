@@ -49,6 +49,48 @@ void tr_181_t::tr181_trim_whitespace(char *str)
     str[len] = '\0';
 }
 
+bool tr_181_t::parse_object_index(const char *name, int *index)
+{
+    if (!name || !index) {
+        em_printfout("name or index invalid");
+        return false;
+    }
+
+    const char *src = strchr(name, '.');
+    if (!src || !*(src + 1)) {
+        em_printfout("invalid name format");
+        return false;
+    }
+
+    ++src;
+    char instance[MAX_INSTANCE_LEN] = { 0 };
+    size_t len = 0;
+    while (src[len] && src[len] != '.' && len < sizeof(instance) - 1) {
+        if (!isdigit(static_cast<unsigned char> (src[len]))) {
+            em_printfout("invalid name format");
+            return false;
+        }
+        instance[len] = src[len];
+        ++len;
+    }
+
+    if ((len == 0) || (src[len] && (src[len] != '.'))) {
+        em_printfout("invalid name format");
+        return false;
+    }
+
+    char *ep = NULL;
+    long val = strtol(instance, &ep, 10);
+    if (!ep || *ep != '\0' || val <= 0 || val > UINT8_MAX) {
+        em_printfout("invalid name format");
+        return false;
+    }
+
+    *index = static_cast<int>(val);
+
+    return true;
+}
+
 // Create a HaulType array from a single value (Fronthaul/Backhaul only)
 cJSON *tr_181_t::create_haultype_array(const char *haul_val)
 {
@@ -217,3 +259,184 @@ bool tr_181_t::tr181_copy_prop_string(const bus_data_prop_t *prop, char *dst, si
     dst[len] = '\0';
     return true;
 }
+
+bool tr_181_t::tr181_get_prop_int(const bus_data_prop_t *prop, int *value)
+{
+    if (!prop || !value) {
+        return false;
+    }
+
+    if (prop->value.data_type == bus_data_type_int8) {
+        *value = static_cast<int>(prop->value.raw_data.i8);
+    } else if (prop->value.data_type == bus_data_type_uint8) {
+        *value = static_cast<int>(prop->value.raw_data.u8);
+    } else if (prop->value.data_type == bus_data_type_int16) {
+        *value = static_cast<int>(prop->value.raw_data.i16);
+    } else if (prop->value.data_type == bus_data_type_uint16) {
+        *value = static_cast<int>(prop->value.raw_data.u16);
+    } else if (prop->value.data_type == bus_data_type_int32) {
+        *value = prop->value.raw_data.i32;
+    } else if (prop->value.data_type == bus_data_type_uint32) {
+        *value = static_cast<int>(prop->value.raw_data.u32);
+    } else {
+        return false;
+    }
+
+    return true;
+}
+
+bool tr_181_t::tr181_get_prop_bool(const bus_data_prop_t *prop, bool *value)
+{
+    if (!prop || !value) {
+        return false;
+    }
+
+    if (prop->value.data_type == bus_data_type_boolean) {
+        *value = prop->value.raw_data.b;
+    } else {
+        return false;
+    }
+
+    return true;
+}
+
+cJSON *tr_181_t::create_akms_array(const char *akms_val)
+{
+    if (!akms_val) return NULL;
+    /* An empty list is the way TR-181 expresses that no AKM is offered. */
+    if (*akms_val == '\0') return cJSON_CreateArray();
+    if (strchr(akms_val, ',')) {
+        em_printfout("ERROR: AKMsAllowed must be a single value (no commas): '%s'", akms_val);
+        return NULL;
+    }
+    char tok_buf[TR181_AKMS_MAX_LEN + 1];
+    size_t val_len = strnlen(akms_val, sizeof(tok_buf));
+    if (val_len >= sizeof(tok_buf)) {
+        em_printfout("ERROR: AKMsAllowed too long");
+        return NULL;
+    }
+    memcpy(tok_buf, akms_val, val_len + 1);
+    tr181_trim_whitespace(tok_buf);
+    if (*tok_buf == '\0') {
+        em_printfout("ERROR: AKMsAllowed empty after trimming");
+        return NULL;
+    }
+    /* akm_t enum values that map to a WSC M2 auth type on this stack. */
+    if (strcmp(tok_buf, "psk") != 0 && strcmp(tok_buf, "sae") != 0 &&
+        strcmp(tok_buf, "psk+sae") != 0) {
+        em_printfout("ERROR: Invalid/unsupported AKMsAllowed value '%s' (expected psk/sae/psk+sae)", tok_buf);
+        return NULL;
+    }
+    cJSON *arr = cJSON_CreateArray();
+    if (!arr) {
+        return NULL;
+    }
+    cJSON *val = cJSON_CreateString(tok_buf);
+    if (!val) {
+        cJSON_Delete(arr);
+        return NULL;
+    }
+    cJSON_AddItemToArray(arr, val);
+    return arr;
+}
+
+const char *tr_181_t::akms_to_auth_type(const char *akms_val)
+{
+    if (akms_val == NULL) {
+        return NULL;
+    }
+    if (strcmp(akms_val, "psk") == 0) return "WPA2 Personal";
+    if (strcmp(akms_val, "sae") == 0) return "WPA3 Personal";
+    if (strcmp(akms_val, "psk+sae") == 0) return "WPA3 Transition";
+    return NULL;
+}
+
+const char *tr_181_t::akms_array_to_auth_type(const cJSON *akms_arr)
+{
+    if (akms_arr == NULL) {
+        return NULL;
+    }
+    if (cJSON_GetArraySize(const_cast<cJSON *>(akms_arr)) == 0) {
+        return "Open";
+    }
+    return akms_to_auth_type(cJSON_GetStringValue(cJSON_GetArrayItem(const_cast<cJSON *>(akms_arr), 0)));
+}
+
+bool tr_181_t::parse_unassoc_ch_obj(const bus_data_prop_t *prop, tr181_unassoc_ch_item_t *ch_item)
+{
+     if (!prop || !ch_item) {
+         return false;
+     }
+
+    const char *name = prop->name;
+    int sta_idx;
+
+    /* Channel.{i}.Channel or Channel.{i}.STA.{j}.MAC */
+    name += sizeof("Channel");
+    name  = strstr(name, ".");
+    if (!name) {
+        return false;
+    }
+
+    ++name;
+    if (strcmp(name, "Channel") == 0) {
+        if (!tr_181_t::tr181_get_prop_int(prop, &ch_item->channel)) {
+            return false;
+        }
+    } else if (strncmp(name, "STA.", sizeof("STA.") - 1) == 0) {
+        const char *next_dot = strchr(name + sizeof("STA.") - 1, '.');
+        const char *last_dot = strrchr(name, '.');
+        if (!last_dot || next_dot != last_dot || strcmp(last_dot + 1, "MAC") != 0) {
+            return false;
+        }
+        if (!tr_181_t::parse_object_index(name, &sta_idx)) {
+            return false;
+        }
+        if (sta_idx < 1 || sta_idx > TR181_STAMAC_MAX_CNT) {
+            return false;
+        }
+        if (sta_idx > static_cast<int> (ch_item->sta_cnt)) {
+            ch_item->sta_cnt = static_cast<unsigned int> (sta_idx);
+        }
+        --sta_idx;
+        if (!tr_181_t::tr181_copy_prop_string(prop, ch_item->sta_macs[sta_idx], sizeof(mac_addr_str_t))) {
+            return false;
+        }
+    } else {
+        return false;
+    }
+
+    return true;
+}
+
+bool tr_181_t::parse_bmq_ch_rep_obj(const bus_data_prop_t *prop, tr181_bmq_ch_rep_item_t *ch_rep_item)
+{
+     if (!prop || !ch_rep_item) {
+         return false;
+     }
+
+    const char *name = prop->name;
+
+    /* APChannelReport.{i}.OperatingClass or APChannelReport.{i}.ChannelList */
+    name += sizeof("APChannelReport");
+    name  = strstr(name, ".");
+    if (!name) {
+        return false;
+    }
+
+    ++name;
+    if (strcmp(name, "OperatingClass") == 0) {
+        if (!tr_181_t::tr181_get_prop_int(prop, &ch_rep_item->op_class)) {
+            return false;
+        }
+    } else if (strcmp(name, "ChannelList") == 0) {
+        if (!tr_181_t::tr181_copy_prop_string(prop, ch_rep_item->ch_list, sizeof(ch_rep_item->ch_list))) {
+            return false;
+        }
+    } else {
+        return false;
+    }
+
+    return true;
+}
+

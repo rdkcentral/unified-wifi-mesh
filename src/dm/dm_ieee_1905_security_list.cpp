@@ -205,6 +205,7 @@ int dm_ieee_1905_security_list_t::update_db(db_client_t& db_client, dm_orch_type
 
 bool dm_ieee_1905_security_list_t::search_db(db_client_t& db_client, void *ctx, void *key)
 {
+    db_client.free_result(ctx);
     return false;
 }
 

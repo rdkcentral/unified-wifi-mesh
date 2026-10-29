@@ -26,6 +26,8 @@
 #include <stdint.h>
 #include "wifi_hal.h"
 #include <pthread.h>
+#include <time.h>
+#include <sys/time.h>
 #include <string>
 #include <memory>
 #include <vector>
@@ -103,6 +105,37 @@ namespace util {
 	 * @note The function modifies the input timespec structure directly.
 	 */
 	void add_milliseconds(struct timespec *ts, long milliseconds);
+
+	/**!
+	 * @brief Reads the current CLOCK_MONOTONIC time into a timespec.
+	 *
+	 * Use for all elapsed-time / timeout computations: unlike the wall clock,
+	 * CLOCK_MONOTONIC is immune to NTP time steps. The wall clock remains the
+	 * right choice only for calendar data (log stamps, DataElements TimeStamp).
+	 *
+	 * @param[out] ts Pointer to the timespec structure to fill.
+	 */
+	void monotonic_now(struct timespec *ts);
+
+	/**!
+	 * @brief Reads the current CLOCK_MONOTONIC time into a timeval.
+	 *
+	 * @param[out] tv Pointer to the timeval structure to fill.
+	 */
+	void monotonic_now(struct timeval *tv);
+
+	/**!
+	 * @brief Initializes a condition variable on CLOCK_MONOTONIC.
+	 *
+	 * pthread_cond_timedwait() deadlines built from monotonic_now() are then
+	 * interpreted on the same clock.
+	 *
+	 * @param[in,out] cond Pointer to the condition variable to initialize.
+	 *
+	 * @returns 0 on success, otherwise a pthread error code; on failure the
+	 * condition variable is not initialized.
+	 */
+	int monotonic_cond_init(pthread_cond_t *cond);
 
 	/**!
 	 * @brief Retrieves the current date and time in RFC 3399 format.
@@ -299,7 +332,6 @@ namespace util {
 	 */
 	std::pair<uint8_t, uint8_t> em_freq_to_chan(unsigned int frequency, const std::string& region="");
 
-
 	/**
 	 * @brief Translate an AKM literal to its OUI representation case-insensitively.
 	 *
@@ -360,22 +392,22 @@ namespace util {
 
 #define __FILENAME__ (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 
-#define em_printf(format, ...)  util::em_util_print(EM_LOG_LVL_INFO, EM_AGENT, __func__, __LINE__, format, ##__VA_ARGS__)// general log
-#define em_printfout(format, ...)  util::em_util_print(EM_LOG_LVL_INFO, EM_STDOUT, __FILENAME__, __LINE__, format, ##__VA_ARGS__)// general log
-#define em_util_dbg_print(module, format, ...)  util::em_util_print(EM_LOG_LVL_DEBUG, module, __func__, __LINE__, format, ##__VA_ARGS__)
-#define em_util_info_print(module, format, ...)  util::em_util_print(EM_LOG_LVL_INFO, module, __func__, __LINE__, format, ##__VA_ARGS__)
-#define em_util_error_print(module, format, ...)  util::em_util_print(EM_LOG_LVL_ERROR, module, __func__, __LINE__, format, ##__VA_ARGS__)
+#define em_printf(...)  util::em_util_print(EM_LOG_LVL_INFO, EM_AGENT, __func__, __LINE__, __VA_ARGS__)// general log
+#define em_printfout(...)  util::em_util_print(EM_LOG_LVL_INFO, EM_STDOUT, __FILENAME__, __LINE__, __VA_ARGS__)// general log
+#define em_util_dbg_print(module, ...)  util::em_util_print(EM_LOG_LVL_DEBUG, module, __func__, __LINE__, __VA_ARGS__)
+#define em_util_info_print(module, ...)  util::em_util_print(EM_LOG_LVL_INFO, module, __func__, __LINE__, __VA_ARGS__)
+#define em_util_error_print(module, ...)  util::em_util_print(EM_LOG_LVL_ERROR, module, __func__, __LINE__, __VA_ARGS__)
 
 
 // Used to avoid many many if-not-null checks
-#define EM_ASSERT_MSG_FALSE(x, ret, errMsg, ...) \
+#define EM_ASSERT_MSG_FALSE(x, ret, ...) \
     if(x) { \
-        em_printfout(errMsg, ## __VA_ARGS__); \
+        em_printfout(__VA_ARGS__); \
         return ret; \
     }
 
-#define EM_ASSERT_MSG_TRUE(x, ret, errMsg, ...) EM_ASSERT_MSG_FALSE(!(x), ret, errMsg, ## __VA_ARGS__)
-#define EM_ASSERT_NOT_NULL(x, ret, errMsg, ...) EM_ASSERT_MSG_FALSE(x == NULL, ret, errMsg, ## __VA_ARGS__)
+#define EM_ASSERT_MSG_TRUE(x, ret, ...) EM_ASSERT_MSG_FALSE(!(x), ret, __VA_ARGS__)
+#define EM_ASSERT_NOT_NULL(x, ret, ...) EM_ASSERT_MSG_FALSE(x == NULL, ret, __VA_ARGS__)
 
 /**
  * @brief Asserts that a pointer is not NULL, and if it is, frees up to 3 pointers and returns a value
@@ -384,13 +416,12 @@ namespace util {
  * @param ptr1 First pointer to free (can be NULL)
  * @param ptr2 Second pointer to free (can be NULL) 
  * @param ptr3 Third pointer to free (can be NULL)
- * @param errMsg Format string for error message
- * @param ... Additional arguments for the format string
+ * @param ... Format string and additional arguments for the error message
  */
-#define EM_ASSERT_NOT_NULL_FREE3(x, ret, ptr1, ptr2, ptr3, errMsg, ...) \
+#define EM_ASSERT_NOT_NULL_FREE3(x, ret, ptr1, ptr2, ptr3, ...) \
     do { \
         if(x == NULL) { \
-            em_printfout(errMsg, ## __VA_ARGS__); \
+            em_printfout(__VA_ARGS__); \
             void *_tmp1 = (ptr1); \
             void *_tmp2 = (ptr2); \
             void *_tmp3 = (ptr3); \
@@ -410,19 +441,19 @@ namespace util {
 /**
  * @brief Asserts that a pointer is not NULL, and if it is, frees up to 2 pointers and returns a value
  */
-#define EM_ASSERT_NOT_NULL_FREE2(x, ret, ptr1, ptr2, errMsg, ...) \
-    EM_ASSERT_NOT_NULL_FREE3(x, ret, ptr1, ptr2, NULL, errMsg, ## __VA_ARGS__)
+#define EM_ASSERT_NOT_NULL_FREE2(x, ret, ptr1, ptr2, ...) \
+    EM_ASSERT_NOT_NULL_FREE3(x, ret, ptr1, ptr2, NULL, __VA_ARGS__)
 
 /**
  * @brief Asserts that a pointer is not NULL, and if it is, frees one pointer and returns a value
  */
-#define EM_ASSERT_NOT_NULL_FREE(x, ret, ptr1, errMsg, ...) \
-    EM_ASSERT_NOT_NULL_FREE2(x, ret, ptr1, NULL, errMsg, ## __VA_ARGS__)
+#define EM_ASSERT_NOT_NULL_FREE(x, ret, ptr1, ...) \
+    EM_ASSERT_NOT_NULL_FREE2(x, ret, ptr1, NULL, __VA_ARGS__)
 
 
-#define EM_ASSERT_NULL(x, ret, errMsg, ...) EM_ASSERT_MSG_TRUE(x == 0, ret, errMsg, ## __VA_ARGS__)
-#define EM_ASSERT_EQUALS(x, y, ret, errMsg, ...) EM_ASSERT_MSG_TRUE(x == y, ret, errMsg, ## __VA_ARGS__)
-#define EM_ASSERT_NOT_EQUALS(x, y, ret, errMsg, ...) EM_ASSERT_MSG_FALSE(x == y, ret, errMsg, ## __VA_ARGS__)
+#define EM_ASSERT_NULL(x, ret, ...) EM_ASSERT_MSG_TRUE(x == 0, ret, __VA_ARGS__)
+#define EM_ASSERT_EQUALS(x, y, ret, ...) EM_ASSERT_MSG_TRUE(x == y, ret, __VA_ARGS__)
+#define EM_ASSERT_NOT_EQUALS(x, y, ret, ...) EM_ASSERT_MSG_FALSE(x == y, ret, __VA_ARGS__)
 
 /**
  * @brief Asserts that a std::optional has a value, and if it doesn't, frees up to 3 pointers and returns a value
@@ -431,13 +462,12 @@ namespace util {
  * @param ptr1 First pointer to free (can be NULL)
  * @param ptr2 Second pointer to free (can be NULL) 
  * @param ptr3 Third pointer to free (can be NULL)
- * @param errMsg Format string for error message
- * @param ... Additional arguments for the format string
+ * @param ... Format string and additional arguments for the error message
  */
-#define EM_ASSERT_OPT_HAS_VALUE_FREE3(x, ret, ptr1, ptr2, ptr3, errMsg, ...) \
+#define EM_ASSERT_OPT_HAS_VALUE_FREE3(x, ret, ptr1, ptr2, ptr3, ...) \
     do { \
         if(!x.has_value()) { \
-            em_printfout(errMsg, ## __VA_ARGS__); \
+            em_printfout(__VA_ARGS__); \
             void *_tmp1 = (ptr1); \
             void *_tmp2 = (ptr2); \
             void *_tmp3 = (ptr3); \
@@ -460,30 +490,27 @@ namespace util {
  * @param ret The value to return if x is nullopt
  * @param ptr1 First pointer to free (can be NULL)
  * @param ptr2 Second pointer to free (can be NULL) 
- * @param errMsg Format string for error message
- * @param ... Additional arguments for the format string
+ * @param ... Format string and additional arguments for the error message
  */
-#define EM_ASSERT_OPT_HAS_VALUE_FREE2(x, ret, ptr1, ptr2, errMsg, ...) \
-    EM_ASSERT_OPT_HAS_VALUE_FREE3(x, ret, ptr1, ptr2, NULL, errMsg, ## __VA_ARGS__)
+#define EM_ASSERT_OPT_HAS_VALUE_FREE2(x, ret, ptr1, ptr2, ...) \
+    EM_ASSERT_OPT_HAS_VALUE_FREE3(x, ret, ptr1, ptr2, NULL, __VA_ARGS__)
 
 /**
  * @brief Asserts that a std::optional has a value, and if it doesn't, frees a pointer and returns a value
  * @param x The std::optional to check for a value
  * @param ret The value to return if x is nullopt
  * @param ptr1 First pointer to free (can be NULL)
- * @param errMsg Format string for error message
- * @param ... Additional arguments for the format string
+ * @param ... Format string and additional arguments for the error message
  */
-#define EM_ASSERT_OPT_HAS_VALUE_FREE(x, ret, ptr1, errMsg, ...) \
-    EM_ASSERT_OPT_HAS_VALUE_FREE2(x, ret, ptr1, NULL, errMsg, ## __VA_ARGS__)
+#define EM_ASSERT_OPT_HAS_VALUE_FREE(x, ret, ptr1, ...) \
+    EM_ASSERT_OPT_HAS_VALUE_FREE2(x, ret, ptr1, NULL, __VA_ARGS__)
 
 /**
  * @brief Asserts that a std::optional has a value, and returns a value if it doesn't
  * @param x The std::optional to check for a value
  * @param ret The value to return if x is nullopt
- * @param errMsg Format string for error message
- * @param ... Additional arguments for the format string
+ * @param ... Format string and additional arguments for the error message
  */
-#define EM_ASSERT_OPT_HAS_VALUE(x, ret, errMsg, ...) EM_ASSERT_MSG_TRUE(x.has_value(), ret, errMsg, ## __VA_ARGS__)
+#define EM_ASSERT_OPT_HAS_VALUE(x, ret, ...) EM_ASSERT_MSG_TRUE(x.has_value(), ret, __VA_ARGS__)
 
 #endif

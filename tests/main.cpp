@@ -165,7 +165,6 @@ int main(int argc, char **argv) {
     "AlServiceRegistrationRequest.getSAPActivationStatus_invalidSAPActivation:"
     "AlServiceRegistrationRequest.SetServiceType_Invalid:"
     "AlServiceRegistrationResponseTest.SerializeRegistrationResponseWithInvalidMacAddress:"
-    "AlServiceRegistrationResponseTest.SerializeRegistrationResponseWithEmptyMessageIdRange:"
     "AlServiceRegistrationResponseTest.SerializeRegistrationResponseWithAllNullMacAddress:"
     "dm_radio_t_Test.NullJsonObject:"
     "dm_radio_t_Test.NullParentID:"
@@ -246,6 +245,7 @@ int main(int argc, char **argv) {
     "db_client_crud_Test.NextResultValidContextHasRows:"
     "db_client_crud_Test.NextResultNoMoreRows:"
     "db_client_crud_Test.NextResultInvalidContext:"
+    "db_client_crud_Test.FreeResultEarlyExitAllowsSubsequentQueries:"
     "db_client_t_Test.RecreateDatabaseWithValidConnection:"
     "db_client_tTest.ConnectWithValidDatabasePath:"
     "db_client_t_Test.ExecuteNullQuery:"
@@ -286,7 +286,7 @@ int main(int argc, char **argv) {
     "EmOrchTest.NullCommandStructurePointerTest:"
     "EmOrchTest.NullInput_update_stats:"
     "EmOrchTest.HandleNullEventPointer:"
-    "EmOrchTest.is_cmd_type_renew_in_progress_null:"
+    "EmOrchTest.is_cmd_type_in_progress_null:"
     "EmOrchTest.NullEmTest:"
     "EmOrchTest.SubmitCommandWithNullPointer:"
     "EmOrchTest.NullCommandsPointer:"
@@ -365,7 +365,7 @@ int main(int argc, char **argv) {
     "em_orch_ctrl_t_TEST.NullCommandStructurePointerTest:"
     "em_orch_ctrl_t_TEST.NullInput_update_stats:"
     "em_orch_ctrl_t_TEST.HandleNullEventPointer:"
-    "em_orch_ctrl_t_TEST.is_cmd_type_renew_in_progress_null:"
+    "em_orch_ctrl_t_TEST.is_cmd_type_in_progress_null:"
     "em_orch_ctrl_t_TEST.NullEmTest:"
     "em_orch_ctrl_t_TEST.SubmitCommandWithNullPointer:"
     "em_orch_ctrl_t_TEST.NullCommandsPointer:"
@@ -418,7 +418,7 @@ int main(int argc, char **argv) {
     "em_orch_agent_t_TEST.DestroyNullCommand:"
     "em_orch_agent_t_TEST.eligible_for_active_NullPointer:"
     "em_orch_agent_t_TEST.HandleNullEventPointer:"
-    "em_orch_agent_t_TEST.is_cmd_type_renew_in_progress_null:"
+    "em_orch_agent_t_TEST.is_cmd_type_in_progress_null:"
     "em_orch_agent_t_TEST.NullEmTest:"
     "em_orch_agent_t_TEST.pop_stats_NullPointer:"
     "em_orch_agent_t_TEST.NullCommandStructurePointerTest:"
@@ -711,6 +711,9 @@ int main(int argc, char **argv) {
     "ec_manager_t.handle_recv_ec_action_frame_invalid_frame:"
     "ec_manager_t.handle_recv_ec_action_frame_invalid_MAC:"
     "ec_manager_t.handle_recv_gas_pub_action_frame_null_MAC:"
-    "ec_manager_t.process_direct_encap_dpp_msg_enrollee_null_src_mac";
+    "ec_manager_t.process_direct_encap_dpp_msg_enrollee_null_src_mac:"
+    "em_ctrl_t_Test.input_listen_default:"
+    "em_ctrl_t_Test.delete_nodes_valid:"
+    "em_ctrl_t_Test.delete_node_existing_ieee80211n_24";
     return RUN_ALL_TESTS();
 }

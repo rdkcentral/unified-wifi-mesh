@@ -1030,6 +1030,7 @@ TEST(em_network_topo_t, find_topology_by_bh_associated_sta_in_root) {
     hash_map_remove(root_dm->m_sta_map, sta_key);
     delete sta;
     hash_map_destroy(root_dm->m_sta_map);
+    root_dm->m_sta_map = NULL;
     delete root_dm;
     std::cout << "Exiting find_topology_by_bh_associated_sta_in_root test" << std::endl;
 }
@@ -1085,6 +1086,7 @@ TEST(em_network_topo_t, find_topology_by_bh_associated_sta_in_child) {
     hash_map_remove(child_dm->m_sta_map, sta_key);
     delete sta;
     hash_map_destroy(child_dm->m_sta_map);
+    child_dm->m_sta_map = NULL;
     topo_root->remove(child_dm, nullptr, nullptr);
     delete child_dm;
     delete topo_root;
@@ -1151,6 +1153,7 @@ TEST(em_network_topo_t, find_topology_by_bh_associated_sta_in_grandchild) {
     hash_map_remove(grandchild_dm->m_sta_map, sta_key);
     delete sta;
     hash_map_destroy(grandchild_dm->m_sta_map);
+    grandchild_dm->m_sta_map = NULL;
     topo_root->remove(child_dm, nullptr, nullptr); // removes child and grandchild
     delete grandchild_topo;
     delete grandchild_dm;
@@ -1285,6 +1288,7 @@ TEST(em_network_topo_t, find_topology_by_bh_associated_root) {
     hash_map_remove(root_dm->m_sta_map, sta_key);
     delete sta;
     hash_map_destroy(root_dm->m_sta_map);
+    root_dm->m_sta_map = NULL;
     delete root_dm;
     delete topo_root;
     std::cout << "Exiting find_topology_by_bh_associated_root test" << std::endl;
@@ -2178,7 +2182,7 @@ TEST(em_network_topo_t, remove_nonexistent_dm)
  */
 TEST(em_network_topo_t, destructor_releases_resources_for_valid_dm_pointer) {
     std::cout << "Entering destructor_releases_resources_for_valid_dm_pointer test" << std::endl;
-    dm_easy_mesh_t* dm;
+    dm_easy_mesh_t* dm = nullptr;
     em_network_topo_t* instance;
     EXPECT_NO_THROW({
         instance = new em_network_topo_t(dm);

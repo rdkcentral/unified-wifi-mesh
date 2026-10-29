@@ -38,7 +38,7 @@
  * **Test Procedure:**
  * | Variation / Step | Description                                                                | Test Data                                                                                                                                                                                                                          | Expected Result                                                                                                                                                                     | Notes      |
  * | :--------------: | -------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
- * | 01               | Initialize parameters and environment, then invoke em_cmd_set_channel_t API with fixed_args set to "6" | input: param.u.args.fixed_args = "6", dm_easy_mesh_t instance; output: cmd.m_type, cmd.m_name, cmd.m_param.u.args.fixed_args, cmd.m_param.u.args.num_args, cmd.m_svc, cmd.m_num_orch_desc, cmd.m_orch_desc[0].op, cmd.m_orch_desc[0].submit | Command object has m_type equal to em_cmd_type_set_channel, m_name equal to "set_channel", fixed_args equal to "6", num_args equal to 0, m_svc equal to em_service_type_ctrl, m_num_orch_desc equal to 2, orch_desc[0].op equal to dm_orch_type_channel_sel, orch_desc[0].submit equal to true | Should Pass |
+ * | 01               | Initialize parameters and environment, then invoke em_cmd_set_channel_t API with fixed_args set to "6" | input: param.u.args.fixed_args = "6", dm_easy_mesh_t instance; output: cmd.m_type, cmd.m_name, cmd.m_param.u.args.fixed_args, cmd.m_param.u.args.num_args, cmd.m_svc, cmd.m_num_orch_desc, cmd.m_orch_desc[0].op, cmd.m_orch_desc[0].submit | Command object has m_type equal to em_cmd_type_set_channel, m_name equal to "set_channel", fixed_args equal to "6", num_args equal to 0, m_svc equal to em_service_type_ctrl, m_num_orch_desc equal to 1, orch_desc[0].op equal to dm_orch_type_channel_sel, orch_desc[0].submit equal to true | Should Pass |
  */
 TEST(em_cmd_set_channel_t, em_cmd_set_channel_t_valid_channel_6) {
     std::cout << "Entering em_cmd_set_channel_t_valid_channel_6 test" << std::endl;
@@ -53,7 +53,7 @@ TEST(em_cmd_set_channel_t, em_cmd_set_channel_t_valid_channel_6) {
     EXPECT_STREQ(cmd.m_param.u.args.fixed_args, "6");
     EXPECT_EQ(cmd.m_param.u.args.num_args, 0);
     EXPECT_EQ(cmd.m_svc, em_service_type_ctrl);
-    EXPECT_EQ(cmd.m_num_orch_desc, 2);
+    EXPECT_EQ(cmd.m_num_orch_desc, 1);
     EXPECT_EQ(cmd.m_orch_desc[0].op, dm_orch_type_channel_sel);
     EXPECT_TRUE(cmd.m_orch_desc[0].submit);
     cmd.deinit();
@@ -75,7 +75,7 @@ TEST(em_cmd_set_channel_t, em_cmd_set_channel_t_valid_channel_6) {
  * **Test Procedure:**
  * | Variation / Step | Description                                                                                          | Test Data                                                                                        | Expected Result                                                                                                                                         | Notes      |
  * | :--------------: | ---------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
- * | 01               | Initialize the command parameters with fixed_args set to "11", invoke em_cmd_set_channel_t, and verify property values | param.u.args.fixed_args = "11", dm_easy_mesh_t dm = default, output: m_type, m_name, fixed_args, m_svc, m_num_orch_desc, m_orch_desc[0].op, m_orch_desc[0].submit | m_type equals em_cmd_type_set_channel, m_name equals "set_channel", fixed_args equals "11", m_svc equals em_service_type_ctrl, m_num_orch_desc equals 2, m_orch_desc[0].op equals dm_orch_type_channel_sel, m_orch_desc[0].submit is true | Should Pass |
+ * | 01               | Initialize the command parameters with fixed_args set to "11", invoke em_cmd_set_channel_t, and verify property values | param.u.args.fixed_args = "11", dm_easy_mesh_t dm = default, output: m_type, m_name, fixed_args, m_svc, m_num_orch_desc, m_orch_desc[0].op, m_orch_desc[0].submit | m_type equals em_cmd_type_set_channel, m_name equals "set_channel", fixed_args equals "11", m_svc equals em_service_type_ctrl, m_num_orch_desc equals 1, m_orch_desc[0].op equals dm_orch_type_channel_sel, m_orch_desc[0].submit is true | Should Pass |
  */
 TEST(em_cmd_set_channel_t, em_cmd_set_channel_t_valid_channel_11) {
     std::cout << "Entering em_cmd_set_channel_t_valid_channel_11 test" << std::endl;
@@ -89,7 +89,7 @@ TEST(em_cmd_set_channel_t, em_cmd_set_channel_t_valid_channel_11) {
     EXPECT_STREQ(cmd.m_name, "set_channel");
     EXPECT_STREQ(cmd.m_param.u.args.fixed_args, "11");
     EXPECT_EQ(cmd.m_svc, em_service_type_ctrl);
-    EXPECT_EQ(cmd.m_num_orch_desc, 2);
+    EXPECT_EQ(cmd.m_num_orch_desc, 1);
     EXPECT_EQ(cmd.m_orch_desc[0].op, dm_orch_type_channel_sel);
     EXPECT_TRUE(cmd.m_orch_desc[0].submit);
     cmd.deinit();
@@ -116,7 +116,7 @@ TEST(em_cmd_set_channel_t, em_cmd_set_channel_t_valid_channel_11) {
  * | Variation / Step | Description | Test Data | Expected Result |Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
  * | 01 | Initialize input parameters with empty channel string and default dm object | param.u.args.fixed_args[0] = '\0', param.u.args.fixed_args[last] = '\0', dm = default constructed dm_easy_mesh_t | Parameters initialized without errors; no output produced | Should be successful |
- * | 02 | Call em_cmd_set_channel_t constructor with the prepared parameters | input: param (with empty fixed_args), dm object | cmd.m_type equals em_cmd_type_set_channel, cmd.m_name equals "set_channel", cmd.m_param.u.args.fixed_args equals empty string, cmd.m_svc equals em_service_type_ctrl, cmd.m_num_orch_desc equals 2, cmd.m_orch_desc[0].op equals dm_orch_type_channel_sel, cmd.m_orch_desc[0].submit equals true | Should Pass |
+ * | 02 | Call em_cmd_set_channel_t constructor with the prepared parameters | input: param (with empty fixed_args), dm object | cmd.m_type equals em_cmd_type_set_channel, cmd.m_name equals "set_channel", cmd.m_param.u.args.fixed_args equals empty string, cmd.m_svc equals em_service_type_ctrl, cmd.m_num_orch_desc equals 1, cmd.m_orch_desc[0].op equals dm_orch_type_channel_sel, cmd.m_orch_desc[0].submit equals true | Should Pass |
  * | 03 | Deinitialize the command object | API call: cmd.deinit() | Resources associated with cmd are freed successfully | Should be successful |
  */
 TEST(em_cmd_set_channel_t, em_cmd_set_channel_t_empty_channel_input) {
@@ -131,7 +131,7 @@ TEST(em_cmd_set_channel_t, em_cmd_set_channel_t_empty_channel_input) {
     EXPECT_STREQ(cmd.m_name, "set_channel");
     EXPECT_STREQ(cmd.m_param.u.args.fixed_args, "");
     EXPECT_EQ(cmd.m_svc, em_service_type_ctrl);
-    EXPECT_EQ(cmd.m_num_orch_desc, 2);
+    EXPECT_EQ(cmd.m_num_orch_desc, 1);
     EXPECT_EQ(cmd.m_orch_desc[0].op, dm_orch_type_channel_sel);
     EXPECT_TRUE(cmd.m_orch_desc[0].submit);
     cmd.deinit();
@@ -153,7 +153,7 @@ TEST(em_cmd_set_channel_t, em_cmd_set_channel_t_empty_channel_input) {
  * **Test Procedure:**
  * | Variation / Step | Description                                                                                                          | Test Data                                                                                                                                                 | Expected Result                                                                                                                                                    | Notes      |
  * | :--------------: | -------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
- * | 01               | Invoke em_cmd_set_channel_t with fixed_args set to a non-numeric string "abc".                                       | input: fixed_args = "abc", dm_easy_mesh_t = default, output: m_type = em_cmd_type_set_channel, m_name = "set_channel", m_param.u.args.fixed_args = "abc", m_svc = em_service_type_ctrl, m_num_orch_desc = 2, m_orch_desc[0].op = dm_orch_type_channel_sel, m_orch_desc[0].submit = true | The command object should be initialized correctly; all EXPECT assertions in the test should pass confirming the expected behavior when a non-numeric channel is provided. | Should Pass |
+ * | 01               | Invoke em_cmd_set_channel_t with fixed_args set to a non-numeric string "abc".                                       | input: fixed_args = "abc", dm_easy_mesh_t = default, output: m_type = em_cmd_type_set_channel, m_name = "set_channel", m_param.u.args.fixed_args = "abc", m_svc = em_service_type_ctrl, m_num_orch_desc = 1, m_orch_desc[0].op = dm_orch_type_channel_sel, m_orch_desc[0].submit = true | The command object should be initialized correctly; all EXPECT assertions in the test should pass confirming the expected behavior when a non-numeric channel is provided. | Should Pass |
  */
 TEST(em_cmd_set_channel_t, em_cmd_set_channel_t_non_numeric_channel_input) {
     std::cout << "Entering em_cmd_set_channel_t_non_numeric_channel_input test" << std::endl;
@@ -167,7 +167,7 @@ TEST(em_cmd_set_channel_t, em_cmd_set_channel_t_non_numeric_channel_input) {
     EXPECT_STREQ(cmd.m_name, "set_channel");
     EXPECT_STREQ(cmd.m_param.u.args.fixed_args, "abc");
     EXPECT_EQ(cmd.m_svc, em_service_type_ctrl);
-    EXPECT_EQ(cmd.m_num_orch_desc, 2);
+    EXPECT_EQ(cmd.m_num_orch_desc, 1);
     EXPECT_EQ(cmd.m_orch_desc[0].op, dm_orch_type_channel_sel);
     EXPECT_TRUE(cmd.m_orch_desc[0].submit);
     cmd.deinit();

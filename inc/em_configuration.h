@@ -27,7 +27,6 @@
 class em_cmd_t;
 class em_mgr_t;
 class em_configuration_t {
-
     
 	/**!
 	 * @brief Creates an auto-configuration response message.
@@ -46,7 +45,7 @@ class em_configuration_t {
 	 *
 	 * @note Ensure that the buffer is adequately sized to hold the response message.
 	 */
-	int create_autoconfig_resp_msg(unsigned char *buff, em_freq_band_t band, unsigned char *dst, unsigned short msg_id, em_dpp_chirp_value_t *chirp = nullptr, size_t hash_len = 0);
+	int create_autoconfig_resp_msg(unsigned char *buff, em_freq_band_t band, unsigned char *dst, unsigned short msg_id, em_dpp_chirp_value_t *chirp = nullptr, size_t hash_len = 0, bool peer_is_emplus = false);
     
 	/**!
 	 * @brief Creates an auto-configuration search message.
@@ -69,15 +68,15 @@ class em_configuration_t {
 	 * This function generates a WSC M1 message and stores it in the provided buffer.
 	 *
 	 * @param[out] buff Pointer to the buffer where the message will be stored.
+	 * @param[in] buff_sz Size of buff in bytes, used to bound the optional vendor TLVs.
 	 * @param[in] dst Pointer to the destination address.
 	 *
-	 * @returns int Status code indicating success or failure.
-	 * @retval 0 on success.
-	 * @retval -1 on failure.
+	 * @returns int
+	 * @retval The length of the message written to buff.
 	 *
 	 * @note Ensure the buffer is allocated with sufficient size to hold the message.
 	 */
-	int create_autoconfig_wsc_m1_msg(unsigned char *buff, unsigned char *dst);
+	int create_autoconfig_wsc_m1_msg(unsigned char *buff, size_t buff_sz, unsigned char *dst);
     
 	/**!
 	 * @brief Creates an auto-configuration WSC M2 message.
@@ -223,6 +222,26 @@ class em_configuration_t {
 	 * @note Ensure that the buffer is allocated with sufficient size before calling this function.
 	 */
 	int create_device_info_type_tlv(unsigned char *buff);
+    
+	/**!
+	 * @brief Creates an Airties vendor specific device information TLV (Type-Length-Value) structure.
+	 *
+	 * Serializes the extended device information of the local data model, i.e. the boot id,
+	 * client id, client secret, product class and device role, prefixed by the Airties OUI
+	 * and the Airties TLV identifier.
+	 *
+	 * @param[out] buff Pointer to the value field of the vendor specific TLV the data is written to.
+	 * @param[in] buff_sz Number of bytes available at buff.
+	 *
+	 * @returns int
+	 * @retval The number of bytes written to buff.
+	 * @retval 0 if buff_sz is too small to hold the whole payload, nothing is written in that case.
+	 *
+	 * @note The client id and client secret are written without their NUL terminator, so the
+	 * length varies with their content, up to EMEX_MAX_EXT_DEV_INFO_SZ bytes including the
+	 * enclosing TLV header, i.e. three bytes fewer than that for the value written here.
+	 */
+	int create_airties_device_info_tlv(unsigned char *buff, size_t buff_sz);
     
 	/**!
 	 * @brief Creates a client association event TLV.
@@ -424,6 +443,8 @@ class em_configuration_t {
 	 */
 	virtual short create_ap_radio_advanced_cap_tlv(unsigned char *buff) = 0;
 
+	virtual short create_def_8021q_settings_policy_tlv(unsigned char *buff) = 0;
+
 	/**!
 	 * @brief Creates a list of enrollee BSTA.
 	 *
@@ -474,7 +495,43 @@ class em_configuration_t {
 	 * @note Ensure that the MAC address and BSSID are valid before calling this function.
 	 */
 	int send_topology_notification_by_client(mac_address_t sta, bssid_t bssid, bool assoc);
-    
+
+	/**!
+	 * @brief Sends a Client Disassociation Stats message as required by EasyMesh spec (17.1.41).
+	 *
+	 * When a client disassociates, this message shall be sent to the Multi-AP Controller
+	 * including STA MAC Address Type TLV, Reason Code TLV, Associated STA Traffic Stats TLV,
+	 * and zero or more Affiliated STA Metrics TLVs (for MLD clients).
+	 *
+	 * @param[in] dassoc_sta Pointer to the disassociated sta
+	 *
+	 * @returns int
+	 * @retval message length on success
+	 * @retval -1 on failure
+	 */
+	int send_client_disassoc_stats_msg(const dm_sta_t *dassoc_sta);
+
+	/**!
+	 * @brief Sends a Failed Connection message
+	 *
+	 * Message content:
+	 * - One BSSID TLV
+	 * - One STA MAC Address Type TLV
+	 * - One Status Code TLV
+	 * - Zero or one Reason Code TLV
+	 *
+	 * @param[in] sta MAC address of the STA that attempted to connect.
+	 * @param[in] bssid BSSID to which the connection attempt was made.
+	 * @param[in] status_code IEEE 802.11 status code. If non-zero, reason TLV is omitted.
+	 * @param[in] reason_code IEEE 802.11 reason code used when status_code is zero.
+	 *
+	 * @returns int
+	 * @retval message length on success
+	 * @retval -1 on failure
+	 */
+	int send_failed_connection_msg(mac_address_t sta, bssid_t bssid,
+								   unsigned short status_code, unsigned short reason_code);
+
 	/**!
 	 * @brief Sends a BSTA MLD configuration request message.
 	 *
@@ -804,6 +861,7 @@ class em_configuration_t {
 	 */
 	int handle_topology_notification(unsigned char *buff, unsigned int len);
 	int handle_bsta_radio_cap(unsigned char *buff, unsigned int len);
+	int handle_assoc_sta_mld_conf_rep_tlv(unsigned char *buff, unsigned int len);
 
 	/**!
 	 * @brief Handles the operational BSS for the access point.
@@ -928,7 +986,7 @@ class em_configuration_t {
 	 *
 	 * @note Ensure the buffer is properly allocated and contains valid TLV data before calling this function.
 	 */
-	int handle_eht_operations_tlv(unsigned char *buff);
+	virtual int handle_eht_operations_tlv(unsigned char *buff, unsigned short len) = 0;
     
 	/**!
 	 * @brief Handles the Access Point MLD (Multi-Link Device) configuration request.
@@ -974,7 +1032,40 @@ class em_configuration_t {
 	 */
 	void handle_ap_vendor_operational_bss(unsigned char *value, unsigned int len);
 
-    
+	/**!
+	 * @brief Handles the Airties device info TLV.
+	 *
+	 * Parses the boot id, client id, client secret, product class and device role out of the
+	 * payload and stores them in the extended device information of the data model, where the
+	 * data model exposes them over TR-181.
+	 *
+	 * @param[in] buff Pointer to the Airties TLV identifier, i.e. the vendor specific TLV value with the OUI stripped.
+	 * @param[in] len Length of the data pointed by buff, i.e. the TLV length minus the OUI size.
+	 *
+	 * @returns int
+	 * @retval 0 on success
+	 * @retval -1 if the payload is malformed or no data model is found
+	 *
+	 * @note The payload is rejected unless its size matches the client id and client secret
+	 * lengths declared inside it exactly, so a truncated or padded TLV is never stored.
+	 */
+	int handle_airties_device_info_tlv(unsigned char *buff, unsigned int len);
+
+	/**!
+	 * @brief Handles the vendor specific TLVs.
+	 *
+	 * Matches the vendor OUI of the payload and dispatches it to the handler of the vendor
+	 * TLV identifier that follows the OUI. TLVs of other vendors, unknown identifiers and
+	 * payloads too short to hold an OUI and an identifier are ignored.
+	 *
+	 * @param[in] buff Pointer to the value field of the vendor specific TLV, starting with the OUI.
+	 * @param[in] len Length of the data pointed by buff.
+	 *
+	 * @returns int
+	 * @retval 0 always, an unhandled or invalid TLV is not an error for the caller
+	 */
+	int handle_vendor_specific_tlv(unsigned char *buff, unsigned int len);
+
 	/**!
 	 * @brief Creates an M1 message.
 	 *
@@ -1000,20 +1091,7 @@ class em_configuration_t {
 	 */
 	unsigned short create_m2_msg(unsigned char *buff, em_haul_type_t haul_type);
     
-	/**!
-	 * @brief Creates a traffic separation policy.
-	 *
-	 * This function is responsible for creating a traffic separation policy using the provided buffer.
-	 *
-	 * @param[in] buff A pointer to an unsigned char buffer that contains the data required for creating the policy.
-	 *
-	 * @returns An unsigned short value indicating the result of the policy creation.
-	 * @retval 0 on success.
-	 * @retval non-zero error code on failure.
-	 *
-	 * @note Ensure that the buffer is properly initialized before calling this function.
-	 */
-	unsigned short create_traffic_separation_policy(unsigned char *buff);
+	virtual unsigned short create_traffic_separation_policy_tlv(unsigned char *buff) = 0;
     
 	/**!
 	 * @brief Creates an error code TLV.
@@ -1165,7 +1243,6 @@ class em_configuration_t {
 	 * em_media_spec_data_t structure before calling this function.
 	 */
 	void fill_media_data(em_media_spec_data_t *spec, dm_bss_t *bss);
-
 	
 	/**!
 	 * @brief Retrieves the manager instance.
@@ -1177,6 +1254,23 @@ class em_configuration_t {
 	 * @note This function does not take any parameters and returns a pointer to the manager.
 	 */
 	virtual em_mgr_t *get_mgr() = 0;
+
+	/**!
+	 * @brief Retrieves the profile reported by the device with the given AL MAC.
+	 *
+	 * Reads from the data model of that device, falling back to this EM's data model
+	 * when the device has none (e.g. an agent talking to the controller).
+	 *
+	 * @returns The cached profile, treating an unknown profile as em_profile_type_1.
+	 */
+	em_profile_type_t get_peer_profile(const mac_address_t al_mac);
+
+	/**!
+	 * @brief Caches the profile reported by the device with the given AL MAC in its data model.
+	 */
+	void set_peer_profile(const mac_address_t al_mac, em_profile_type_t profile);
+
+	dm_easy_mesh_t *get_peer_dm(const mac_address_t al_mac);
     
 	/**!
 	 * @brief Retrieves the EC Manager instance.
@@ -1560,7 +1654,6 @@ class em_configuration_t {
 	virtual em_network_ssid_info_t *get_network_ssid_info_by_haul_type(em_haul_type_t haul_type) = 0;
 
 private:
-    em_profile_type_t   m_peer_profile;
     unsigned char m_m1_msg[MAX_EM_BUFF_SZ*EM_MAX_BANDS];
     unsigned char m_m2_msg[MAX_EM_BUFF_SZ*EM_MAX_BANDS];
     size_t m_m1_length;
@@ -1573,12 +1666,33 @@ private:
 
 public:
 
+	/* Parse a received AKM Suite Capabilities TLV and store per-BSS AKMs derived
+	 * from the profile assigned to each BSS's haul type (resolved from dm, then from
+	 * mgr's other data model instances); the advertised agent wide union is only the
+	 * no-profile fallback. Wire format:
+	 * [bh_count][bh_suite*4][fh_count][fh_suite*4], each suite OUI[3] + type[1]. */
+	static void store_akm_suite_cap(dm_easy_mesh_t *dm, unsigned char *buff, unsigned int len, em_mgr_t *mgr = NULL);
+
 	bool send_autoconf_search_ext_chirp(em_dpp_chirp_value_t *chirp, size_t hash_len);
 
-	bool send_autoconf_search_resp_ext_chirp(em_dpp_chirp_value_t *chirp, size_t len, uint8_t dest_mac[ETH_ALEN], unsigned short msg_id);
+	bool send_autoconf_search_resp_ext_chirp(em_dpp_chirp_value_t *chirp, size_t len, uint8_t dest_mac[ETH_ALEN], unsigned short msg_id, bool peer_is_emplus);
 
 	bool send_bss_config_req_msg(uint8_t dest_al_mac[ETH_ALEN]);
-    
+
+	/**!
+	 * @brief Evaluates Unsuccessful Association Policy and sends a Failed Connection message if permitted.
+	 *
+	 * Checks report_unsuccess_assocs and rate-limiting before calling send_failed_connection_msg.
+	 *
+	 * @param[in] sta MAC address of the STA that attempted to connect.
+	 * @param[in] bssid BSSID to which the connection attempt was made.
+	 * @param[in] status_code IEEE 802.11 status code.
+	 * @param[in] reason_code IEEE 802.11 reason code.
+	 * @param[in] reason_code_present Indicates whether reason_code is valid in the event payload.
+	 */
+	void handle_failed_connection_event(const mac_address_t sta, const bssid_t bssid,
+									 unsigned short status_code, unsigned short reason_code,
+									 bool reason_code_present);
 	/**!
 	 * @brief Processes a message with the given data and length.
 	 *
@@ -1665,7 +1779,7 @@ public:
 	 * @note Ensure that the encryption keys are properly initialized
 	 * before calling this function.
 	 */
-	int handle_encrypted_settings(unsigned int wsc_tlv_count);
+	int handle_encrypted_settings(unsigned int wsc_tlv_count, m2ctrl_radioconfig& radioconfig);
     
 	/**!
 	 * @brief Creates encrypted settings based on the provided buffer and haul type.

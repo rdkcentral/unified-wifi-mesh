@@ -37,24 +37,13 @@
 #include <sys/un.h>
 #include <unistd.h>
 #include <pthread.h>
-#include <cjson/cJSON.h>
 #include "em_agent.h"
 #include "em_cmd_agent.h"
 
-em_cmd_t em_cmd_agent_t::m_client_cmd_spec[] = {
-    em_cmd_t(em_cmd_type_none,em_cmd_params_t{0, {"", "", "", "", ""}, "none"}),
-    em_cmd_t(em_cmd_type_dev_init,em_cmd_params_t{1, {"", "", "", "", ""}, "wfa-dataelements:Network"}),
-    em_cmd_t(em_cmd_type_cfg_renew, em_cmd_params_t{1, {"", "", "", "", ""}, "wfa-dataelements:Renew"}),
-    em_cmd_t(em_cmd_type_vap_config,em_cmd_params_t{1, {"", "", "", "", ""}, "wfa-dataelements:BssConfig"}),
-    em_cmd_t(em_cmd_type_sta_list,em_cmd_params_t{1, {"", "", "", "", ""}, "wfa-dataelements:StaList"}),
-    em_cmd_t(em_cmd_type_ap_cap_query,em_cmd_params_t{1, {"", "", "", "", ""}, "wfa-dataelements:CapReport"}),
-    em_cmd_t(em_cmd_type_max,em_cmd_params_t{0, {"", "", "", "", ""}, "max"}),
-};
-
 int em_cmd_agent_t::execute(em_long_string_t result)
 {
-    int ret, lsock, dsock;
-    unsigned int sz = EM_MAX_EVENT_DATA_LEN, i, offset, iter;
+    int ret, lsock;
+    unsigned int sz = EM_MAX_EVENT_DATA_LEN;
     unsigned char *tmp;
 
     m_cmd.reset();
@@ -65,7 +54,8 @@ int em_cmd_agent_t::execute(em_long_string_t result)
     }
 
     if ((ret = listen(lsock, 20)) == -1) {
-        printf("%s:%d: listen error on socket, err:%d\n", __func__, __LINE__, errno);
+        em_printfout("%s:%d: listen error on socket, err:%d\n", __func__, __LINE__, errno);
+        close_listener_socket(lsock, em_service_type_agent);
         return -1;
     }
     while (1) {
@@ -81,10 +71,11 @@ int em_cmd_agent_t::execute(em_long_string_t result)
 
         printf("%s:%d: Connection accepted from client\n", __func__, __LINE__);
 
-        tmp = (unsigned char *)get_event();
+        tmp = reinterpret_cast<unsigned char *>(get_event());
 
         if ((ret = recv(m_dsock, tmp, sizeof(em_event_t) + EM_MAX_EVENT_DATA_LEN, 0)) <= 0) {
             printf("%s:%d: listen error on socket, err:%d\n", __func__, __LINE__, errno);
+            close(m_dsock);
             break;
         }
 
@@ -102,7 +93,7 @@ int em_cmd_agent_t::execute(em_long_string_t result)
 
     }
 
-	close_listener_socket(lsock, get_svc());
+	close_listener_socket(lsock, em_service_type_agent);
 
     return 0;
 }
@@ -113,7 +104,7 @@ int em_cmd_agent_t::send_result(em_cmd_out_status_t status)
     em_status_string_t str;
     unsigned char *tmp;
 
-    tmp = (unsigned char *)m_cmd.status_to_string(status, str);
+    tmp = reinterpret_cast<unsigned char *>(m_cmd.status_to_string(status, str));
 
     if ((ret = send(m_dsock, tmp, sizeof(em_status_string_t), 0)) <= 0) {
         printf("%s:%d: write error on socket, err:%d\n", __func__, __LINE__, errno);
@@ -124,97 +115,12 @@ int em_cmd_agent_t::send_result(em_cmd_out_status_t status)
     return 0;
 }
 
-em_event_t *em_cmd_agent_t::create_event(char *buff)
-{
-    // here is the entry point of RBUS subdocuments
-    em_cmd_type_t   type = em_cmd_type_none;
-    cJSON *obj, *child_obj;
-    char *tmp;
-    em_cmd_t    *cmd;
-    unsigned int idx;
-    em_event_t *evt;
-    em_bus_event_t *bevt;
-
-    if ((obj = cJSON_Parse(buff)) == NULL) {
-        printf("%s:%d: Failed to parse JSON object\n", __func__, __LINE__);
-        return NULL;
-    }
-
-    idx = 0; type = em_cmd_agent_t::m_client_cmd_spec[idx].get_type();
-    cmd = &em_cmd_agent_t::m_client_cmd_spec[idx];
-    while (type != em_cmd_type_max) {
-        //cmd = &em_cmd_agent_t::m_client_cmd_spec[idx];
-
-        if (cmd->get_svc() != em_service_type_agent) {
-            idx++;
-            cmd = &em_cmd_agent_t::m_client_cmd_spec[idx];
-            type = em_cmd_agent_t::m_client_cmd_spec[idx].get_type(); continue;
-        }
-
-        tmp = (char *)cmd->get_arg();
-
-        if ((child_obj = cJSON_GetObjectItem(obj, tmp)) != NULL) {
-            break;
-        }
-
-        idx++;
-        type = em_cmd_agent_t::m_client_cmd_spec[idx].get_type();
-        cmd = &em_cmd_agent_t::m_client_cmd_spec[idx];
-    }
-
-    cJSON_Delete(obj);
-
-    if ((type == em_cmd_type_none) || (type >= em_cmd_type_max)) {
-        printf("%s:%d: type invalid=%d\n", __func__, __LINE__,type);
-        return NULL;
-    }
-
-    evt = (em_event_t *)malloc(sizeof(em_event_t));
-    evt->type = em_event_type_bus;
-    bevt = &evt->u.bevt;
-
-    switch (type) {
-        case em_cmd_type_dev_init:  
-            bevt->type = em_bus_event_type_dev_init;
-            break;
-
-        case em_cmd_type_sta_list:
-            bevt->type = em_bus_event_type_sta_list;
-            break;
-
-        case em_cmd_type_ap_cap_query:
-            bevt->type = em_bus_event_type_ap_cap_query;
-            break;
-
-	    case em_cmd_type_client_cap_query:
-	        bevt->type = em_bus_event_type_client_cap_query;
-	        break;
-
-        case em_cmd_type_cfg_renew:
-            bevt->type = em_bus_event_type_cfg_renew;
-            break;
-       
-         default:
-            break;
-    }
-
-    memcpy(&bevt->params, &cmd->m_param, sizeof(em_cmd_params_t));
-    memcpy(&bevt->u.subdoc.buff, buff, EM_MAX_EVENT_DATA_LEN);
-    bevt->data_len = strlen(buff) + 1;   
-    return evt;
-}
-
-em_cmd_agent_t::em_cmd_agent_t(em_cmd_t& obj)
+em_cmd_agent_t::em_cmd_agent_t(em_cmd_t& obj) : m_dsock(-1)
 {
     memcpy(&m_cmd.m_param, &obj.m_param, sizeof(em_cmd_params_t));
 }
 
-em_cmd_agent_t::em_cmd_agent_t(em_cmd_type_t type)
-{
-    memcpy(&m_cmd.m_param, &em_cmd_agent_t::m_client_cmd_spec[type].m_param, sizeof(em_cmd_params_t));
-}
-
-em_cmd_agent_t::em_cmd_agent_t()
+em_cmd_agent_t::em_cmd_agent_t() : m_dsock(-1)
 {
 
 }

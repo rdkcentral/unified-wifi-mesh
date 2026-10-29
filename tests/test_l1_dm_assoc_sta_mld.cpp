@@ -918,8 +918,8 @@ TEST(dm_assoc_sta_mld_t_Test, AssigningDefaultObject) {
  * | Variation / Step | Description | Test Data |Expected Result |Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
  * | 01| Create an object of dm_assoc_sta_mld_t and assign maximum values to its members | obj1.m_assoc_sta_mld_info.str = true, obj1.m_assoc_sta_mld_info.num_affiliated_sta = 255 | Values should be assigned correctly | Should be successful |
- * | 02| Assign obj1 to another object obj2 using the assignment operator | obj2 = obj1 | obj2 should have the same values as obj1 | Should Pass |
- * | 03| Verify the values of obj2 | obj2.m_assoc_sta_mld_info.str, obj2.m_assoc_sta_mld_info.num_affiliated_sta | obj2.m_assoc_sta_mld_info.str == obj1.m_assoc_sta_mld_info.str, obj2.m_assoc_sta_mld_info.num_affiliated_sta == obj1.m_assoc_sta_mld_info.num_affiliated_sta | Should Pass |
+ * | 02| Assign obj1 to another object obj2 using the assignment operator | obj2 = obj1 | obj2.str should equal obj1.str; obj2.num_affiliated_sta should be clamped to EM_MAX_AP_MLD (not copied verbatim from obj1) | Should Pass |
+ * | 03| Verify the values of obj2 | obj2.m_assoc_sta_mld_info.str, obj2.m_assoc_sta_mld_info.num_affiliated_sta | obj2.m_assoc_sta_mld_info.str == obj1.m_assoc_sta_mld_info.str, obj2.m_assoc_sta_mld_info.num_affiliated_sta == EM_MAX_AP_MLD | Should Pass |
  */
 TEST(dm_assoc_sta_mld_t_Test, AssigningMaxValues) {
     std::cout << "Entering AssigningMaxValues" << std::endl;
@@ -931,7 +931,7 @@ TEST(dm_assoc_sta_mld_t_Test, AssigningMaxValues) {
     obj1.m_assoc_sta_mld_info.num_affiliated_sta = 255;
     obj2 = obj1;
     ASSERT_EQ(obj2.m_assoc_sta_mld_info.str, obj1.m_assoc_sta_mld_info.str);
-    ASSERT_EQ(obj2.m_assoc_sta_mld_info.num_affiliated_sta, obj1.m_assoc_sta_mld_info.num_affiliated_sta);
+    ASSERT_EQ(obj2.m_assoc_sta_mld_info.num_affiliated_sta, static_cast<unsigned char>(EM_MAX_AP_MLD));
     std::cout << "Exiting AssigningMaxValues" << std::endl;
 }
 
@@ -1008,9 +1008,9 @@ TEST(dm_assoc_sta_mld_t_Test, ValidAPMLDInformation) {
     ap_mld_info.emlmr = true;
     ap_mld_info.num_affiliated_sta = 2;
     memcpy(ap_mld_info.affiliated_sta[0].bssid, bssid1, 6);
-    memcpy(ap_mld_info.affiliated_sta[0].mac_addr, sta_mac1, 6);
+    memcpy(ap_mld_info.affiliated_sta[0].link_addr, sta_mac1, 6);
     memcpy(ap_mld_info.affiliated_sta[1].bssid, bssid2, 6);
-    memcpy(ap_mld_info.affiliated_sta[1].mac_addr, sta_mac2, 6);
+    memcpy(ap_mld_info.affiliated_sta[1].link_addr, sta_mac2, 6);
     // Create instance with initialized data
     dm_assoc_sta_mld_t assoc_sta_mld(&ap_mld_info);
     std::cout << "Exiting ValidAPMLDInformation test";
@@ -1253,22 +1253,22 @@ TEST(dm_assoc_sta_mld_t_Test, CopyConstructorWithInvalidMacAddressInput) {
  * | Variation / Step | Description | Test Data |Expected Result |Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
  * | 01| Initialize original object with maximum affiliated stations | original.m_assoc_sta_mld_info.num_affiliated_sta = EM_MAX_AP_MLD | Should be successful | |
- * | 02| Set MAC addresses for each affiliated station in the original object | original.m_assoc_sta_mld_info.affiliated_sta[i].mac_addr[0] = i (for i from 0 to EM_MAX_AP_MLD-1) | Should be successful | |
+ * | 02| Set MAC addresses for each affiliated station in the original object | original.m_assoc_sta_mld_info.affiliated_sta[i].link_addr[0] = i (for i from 0 to EM_MAX_AP_MLD-1) | Should be successful | |
  * | 03| Invoke copy constructor to create a new object from the original | dm_assoc_sta_mld_t copy(original) | Should be successful | Should Pass |
  * | 04| Verify the number of affiliated stations in the copied object | copy.m_assoc_sta_mld_info.num_affiliated_sta == original.m_assoc_sta_mld_info.num_affiliated_sta | Should be equal | Should Pass |
- * | 05| Verify the MAC addresses of each affiliated station in the copied object | copy.m_assoc_sta_mld_info.affiliated_sta[i].mac_addr[0] == original.m_assoc_sta_mld_info.affiliated_sta[i].mac_addr[0] (for i from 0 to EM_MAX_AP_MLD-1) | Should be equal | Should Pass |
+ * | 05| Verify the MAC addresses of each affiliated station in the copied object | copy.m_assoc_sta_mld_info.affiliated_sta[i].link_addr[0] == original.m_assoc_sta_mld_info.affiliated_sta[i].link_addr[0] (for i from 0 to EM_MAX_AP_MLD-1) | Should be equal | Should Pass |
  */
 TEST(dm_assoc_sta_mld_t_Test, CopyConstructorWithMaxAffiliatedStations) {
     std::cout << "Entering CopyConstructorWithMaxAffiliatedStations" << std::endl;
     dm_assoc_sta_mld_t original;
     original.m_assoc_sta_mld_info.num_affiliated_sta = EM_MAX_AP_MLD;
     for (size_t i = 0; i < EM_MAX_AP_MLD; ++i) {
-        original.m_assoc_sta_mld_info.affiliated_sta[i].mac_addr[0] = static_cast<unsigned char>(i);
+        original.m_assoc_sta_mld_info.affiliated_sta[i].link_addr[0] = static_cast<unsigned char>(i);
     }
     dm_assoc_sta_mld_t copy(original);
     EXPECT_EQ(copy.m_assoc_sta_mld_info.num_affiliated_sta, original.m_assoc_sta_mld_info.num_affiliated_sta);
     for (size_t i = 0; i < EM_MAX_AP_MLD; ++i) {
-        EXPECT_EQ(copy.m_assoc_sta_mld_info.affiliated_sta[i].mac_addr[0], original.m_assoc_sta_mld_info.affiliated_sta[i].mac_addr[0]);
+        EXPECT_EQ(copy.m_assoc_sta_mld_info.affiliated_sta[i].link_addr[0], original.m_assoc_sta_mld_info.affiliated_sta[i].link_addr[0]);
     }
     std::cout << "Exiting CopyConstructorWithMaxAffiliatedStations" << std::endl;
 }

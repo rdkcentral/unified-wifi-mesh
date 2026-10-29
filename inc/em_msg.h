@@ -19,6 +19,7 @@
 #ifndef EM_MSG_H
 #define EM_MSG_H
 #include "em_base.h"
+#include <vector>
 
 #define EM_MAX_TLV_MEMBERS 64
 
@@ -98,6 +99,22 @@ public:
 	static unsigned char* add_buff_element(unsigned char *buff, unsigned int *len, unsigned char *element, unsigned int element_len);
 
     
+	/**
+	 * @brief Parses a Profile TLV payload into a valid em_profile_type_t.
+	 *
+	 * Validates both the TLV length and the value range so an out-of-range byte
+	 * (e.g. corrupted/malformed input) can never be reinterpreted as an
+	 * em_profile_type_t, which is undefined behavior.
+	 *
+	 * @param[in] value Pointer to the TLV value bytes.
+	 * @param[in] value_len Length of the TLV value in bytes (host byte order).
+	 * @param[out] profile Set to the parsed profile only when the TLV is valid.
+	 *
+	 * @returns true if value_len is exactly 1 byte and the byte is a valid profile; false otherwise.
+	 */
+	static bool parse_profile_tlv(const unsigned char *value, uint16_t value_len, em_profile_type_t *profile);
+
+
 	/**
 	 * @brief Add a TLV to the message.
 	 *
@@ -236,7 +253,20 @@ public:
 	 * @note Ensure that the mac pointer is valid and points to a properly allocated mac_address_t structure.
 	 */
 	bool get_bss_id(mac_address_t *mac);
-    
+
+	/**!
+	 * @brief Retrieves the STA MAC address.
+	 *
+	 * This function fetches the STA MAC address and stores it in the provided MAC address structure.
+	 *
+	 * @param[out] mac Pointer to a mac_address_t structure where the STA MAC address will be stored.
+	 *
+	 * @returns true if the STA MAC address was successfully retrieved, false otherwise.
+	 *
+	 * @note Ensure that the mac pointer is valid and points to a properly allocated mac_address_t structure.
+	 */
+	bool get_sta_mac(mac_address_t *mac);
+
 	/**!
 	* @brief Retrieves the profile information.
 	*
@@ -249,7 +279,8 @@ public:
 	* @note Ensure that the profile pointer is valid before calling this function.
 	*/
 	bool get_profile(em_profile_type_t *profile);
-    
+	bool get_supported_service(em_supported_service_t *svc);
+
 	/**!
 	 * @brief Retrieves the frequency band.
 	 *
@@ -455,7 +486,15 @@ public:
 	 * @note Ensure that the system is initialized before calling this function.
 	 */
 	void ap_cap_rprt();
-    
+
+	/**!
+	 * @brief This function is responsible for handling the early access point capability report.
+	 *
+	 * This function processes the early capability report from the access point and updates the
+	 * validation schema accordingly.
+	 */
+	void early_ap_cap_rprt();
+
 	/**!
 	 * @brief Configures the policy settings.
 	 *
@@ -1055,5 +1094,97 @@ public:
 	 * @note Ensure that all resources are properly released before the object is destroyed.
 	 */
 	~em_msg_t();
+};
+
+/**
+ * @brief Builds one 1905 frame (raw header, CMDU header, TLVs) in a heap
+ * buffer that grows with the frame up to the capacity given at construction,
+ * EM_MAX_MSG_SZ by default.
+ *
+ * Every append is capacity checked. The first append that does not fit, or
+ * a TLV the producer failed to create, marks the frame failed: that append
+ * and every later one are dropped and add_eom() returns false, so the caller
+ * never sends a truncated frame. Fragmentation is left to the IEEE 1905
+ * layer.
+ */
+class em_msg_builder_t {
+    static thread_local unsigned char s_tlv_value[EM_MAX_TLV_VALUE_SZ];
+
+    std::vector<unsigned char> m_buff;
+    unsigned int m_capacity;
+    unsigned int m_len;
+    unsigned int m_msg_type;
+    bool m_failed;
+
+    bool fits(unsigned int size);
+    em_tlv_t *append_tlv(em_tlv_type_t tlv_type, unsigned int value_len);
+
+public:
+	/**
+	 * @brief Create a builder for one frame.
+	 *
+	 * @param[in] capacity Maximum frame length in bytes.
+	 */
+	explicit em_msg_builder_t(unsigned int capacity = EM_MAX_MSG_SZ);
+
+	/**
+	 * @brief Append the raw Ethernet header and the CMDU header.
+	 *
+	 * @param[in] dst Destination AL MAC address.
+	 * @param[in] src Source AL MAC address.
+	 * @param[in] msg_type CMDU message type; also selects the relay indicator.
+	 * @param[in] msg_id CMDU message id.
+	 *
+	 * @return true if the header was appended, false if it does not fit.
+	 */
+	bool add_1905_header(mac_addr_t dst, mac_addr_t src, em_msg_type_t msg_type, unsigned short msg_id);
+
+	/**
+	 * @brief Scratch area for the value of the next TLV.
+	 *
+	 * A TLV producer may write up to EM_MAX_TLV_VALUE_SZ bytes here. The
+	 * area is per thread and reused by every builder on that thread, so the
+	 * value must be handed to commit_tlv() before another TLV is produced.
+	 * It is zeroed before it is returned, so fields a producer leaves
+	 * untouched go out as zeros.
+	 *
+	 * @return Pointer to the scratch area.
+	 */
+	unsigned char *tlv_value();
+
+	/**
+	 * @brief Append the TLV whose value was written at tlv_value().
+	 *
+	 * @param[in] tlv_type TLV type.
+	 * @param[in] value_len Value length returned by the producer. A negative
+	 * value means the producer failed and marks the frame failed.
+	 *
+	 * @return true if the TLV was appended, false if it does not fit, is
+	 * negative or exceeds EM_MAX_TLV_VALUE_SZ.
+	 */
+	bool commit_tlv(em_tlv_type_t tlv_type, int value_len);
+
+	/**
+	 * @brief Append a TLV by copying its value.
+	 *
+	 * @param[in] tlv_type TLV type.
+	 * @param[in] value Value bytes.
+	 * @param[in] value_len Value length.
+	 *
+	 * @return true if the TLV was appended, false if it does not fit or exceeds
+	 * EM_MAX_TLV_VALUE_SZ.
+	 */
+	bool add_tlv(em_tlv_type_t tlv_type, const unsigned char *value, unsigned int value_len);
+
+	/**
+	 * @brief Append the End Of Message TLV.
+	 *
+	 * @return true if the frame is complete, false if any append failed; the
+	 * frame must not be sent in that case.
+	 */
+	bool add_eom();
+
+	unsigned char *get_buff() { return m_buff.data(); }
+	unsigned int get_len() const { return m_len; }
 };
 #endif

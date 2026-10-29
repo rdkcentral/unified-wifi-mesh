@@ -17,7 +17,7 @@ jobs:
             container: 'ubuntu:20.04'
             setup-cmd: 'apt-get update && apt-get install -y libssl1.1 libssl-dev'
           - openssl-version: '3.0'
-            container: 'ubuntu:latest'
+            container: 'ubuntu:20.04'
             setup-cmd: 'apt-get update && apt-get install -y libssl-dev'
       # Add this to continue jobs even if one matrix job fails
       fail-fast: false
@@ -76,12 +76,10 @@ jobs:
                                 libnl-route-3-dev \
                                 libavro-dev \
                                 uuid-dev \
-                                libmysqlcppconn-dev \
                                 libreadline-dev \
                                 iptables \
-                                mariadb-server \
-                                libmariadb3 \
-                                libmariadb-dev \
+                                libsqlite3-dev \
+                                sqlite3 \
                                 gnupg \
                                 file \
                                 pkg-config \
@@ -91,6 +89,17 @@ jobs:
         # Steps for ucode installation required for hostapd compilation
         git clone https://github.com/jow-/ucode.git ucode
         cd ucode
+        # Pin ucode: PR#398 (LibFFI module) merged to master 2026-08-27 and broke the bpi
+        # build (ucode's unconditional `#define unused __attribute__((unused))` re-expands
+        # the `unused` identifier where libhostap (hostapd/wpa_supplicant) uses it as a
+        # plain parameter/variable name, producing a parse error; libhostap's own helper
+        # for this is the properly namespaced `__maybe_unused`, which doesn't collide).
+        # 655ca6d = a0ca7b1^1 = last master BEFORE the FFI merge = last known-good state
+        # (it is literally what the last green build cloned). The colliding `unused` macro
+        # was added by abb80c6 ON the PR#398 branch, so any commit on that branch -- incl.
+        # 19ffa8a, the earlier (wrong) pin -- still ships the poisoned util.h. Use first-
+        # parent (a0ca7b1^1), NOT plain `git log`, when moving this pin; bump deliberately.
+        git checkout 655ca6d
         mkdir build && cd build
         cmake -DUBUS_SUPPORT=OFF -DUCI_SUPPORT=OFF -DULOOP_SUPPORT=OFF ..
         make -j$(nproc)
@@ -122,6 +131,15 @@ jobs:
         
         # Update dynamic linker run-time bindings
         ldconfig
+    - name: Use GCC 10 or newer
+      run: |
+        # OneWifi passes -Werror=enum-conversion, which GCC < 10 rejects
+        if [ "$(gcc -dumpversion | cut -d. -f1)" -lt 10 ]; then
+          sudo apt-get install -y gcc-10 g++-10
+          sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-10 100 --slave /usr/bin/g++ g++ /usr/bin/g++-10
+        fi
+        gcc --version
+
     - name: Setup OneWiFi
       working-directory: easymesh_project/OneWifi
       run: |

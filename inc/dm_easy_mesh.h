@@ -73,9 +73,8 @@ public:
     em_cmd_ctx_t    m_cmd_ctx;
     unsigned int 	m_num_opclass;    
     dm_op_class_t m_op_class[EM_MAX_OPCLASS];
-	unsigned int	m_num_policy;
-	dm_policy_t	m_policy[EM_MAX_POLICIES];
-	hash_map_t		*m_scan_result_map = NULL;
+    hash_map_t	*m_policy_map = NULL;
+    hash_map_t		*m_scan_result_map = NULL;
     hash_map_t  	*m_sta_map = NULL;
     hash_map_t      *m_sta_assoc_map = NULL;
     hash_map_t      *m_sta_dassoc_map = NULL;
@@ -91,6 +90,12 @@ public:
     unsigned int    m_num_assoc_sta_mld;
     dm_assoc_sta_mld_t m_assoc_sta_mld[EM_MAX_ASSOC_STA_MLD];
     dm_tid_to_link_t m_tid_to_link;
+    em_unassoc_sta_metrics_rsp_t    m_unassoc_sta_metrics_rsp;
+    em_unassoc_query_list_t m_unassoc_query_list;
+
+    unsigned int m_num_unassoc_sta_metrics;
+    em_unassoc_sta_metric_entry_t  m_unassoc_sta_metrics[EM_MAX_UNASSOC_STA];
+    em_mlo_policy_t m_mlo_policy[EM_MLO_POLICY_HAUL_COUNT];
 
 public:
 
@@ -102,8 +107,8 @@ public:
 	unsigned int get_ssid_mismatch_check_time() const { return ssid_mismatch_check_time; }
 	void set_last_topo_query_sent_time(unsigned int time) { last_topo_query_sent_time = time; }
 	unsigned int get_last_topo_query_sent_time() const { return last_topo_query_sent_time; }
-
-	static em_e4_table_t m_e4_table[];
+        static em_e4_table_t m_e4_table[];
+        static const size_t m_e4_table_size;
 
        /**!
         * @brief Retrieves the beacon channel based on center channel and bandwidth.
@@ -803,7 +808,7 @@ public:
 	 *
 	 * @note Ensure that the MAC address is valid and properly formatted before calling this function.
 	 */
-	void set_ctrl_al_interface_mac(unsigned char *mac) { m_network.set_controller_id(mac); }
+	void set_ctrl_al_interface_mac(unsigned char *mac);
     
 	/**!
 	 * @brief Sets the control AL interface name.
@@ -814,18 +819,7 @@ public:
 	 *
 	 * @note This function modifies the interface name used by the network control agent.
 	 */
-	void set_ctrl_al_interface_name(char *name) { m_network.set_controller_id(reinterpret_cast<unsigned char*>(name)); }
-	
-	/**!
-	 * @brief Sets the controller ID for the network.
-	 *
-	 * This function assigns a new controller ID to the network using the provided MAC address.
-	 *
-	 * @param[in] mac Pointer to an unsigned char array representing the MAC address.
-	 *
-	 * @note Ensure that the MAC address is valid and correctly formatted before calling this function.
-	 */
-	void set_controller_id(unsigned char *mac) { m_network.set_controller_id(mac); }
+	void set_ctrl_al_interface_name(char *name);
 	
 	/**!
 	 * @brief Sets the controller interface media type.
@@ -838,7 +832,6 @@ public:
 	 */
 	void set_controller_intf_media(em_media_type_t media) { m_network.set_controller_intf_media(media); }
 
-    
 	/**!
 	 * @brief Retrieves the agent's AL interface.
 	 *
@@ -1202,6 +1195,8 @@ public:
 	 */
 	em_network_ssid_info_t *get_network_ssid_info_by_haul_type(em_haul_type_t haul_type);
 
+	bool get_haul_type_from_ssid(const ssid_t ssid, em_haul_type_t *haul_type);
+
 	/**!
      * @brief Checks whether the given SSID matches.
      *
@@ -1350,7 +1345,7 @@ public:
 	 *
 	 * @note Ensure that the index is within the valid range of BSS entries.
 	 */
-	static em_bss_info_t *get_bss_info(void *dm, unsigned int index) { return (static_cast<dm_easy_mesh_t *>(dm))->get_bss_info(index); }
+	static em_bss_info_t *get_bss_info(void *dm, unsigned int index) { if (dm == nullptr) return NULL; return (static_cast<dm_easy_mesh_t *>(dm))->get_bss_info(index); }
 
 	/**!
 	 * @brief Retrieves the `em_bss_info_t` for the bSTA.
@@ -1479,48 +1474,25 @@ public:
 	 *
 	 * @returns The number of policies as an unsigned integer.
 	 */
-	unsigned int get_num_policy() { return m_num_policy; }
-	
-	/**!
-	 * @brief Sets the number policy.
-	 *
-	 * This function assigns the provided number to the member variable `m_num_policy`.
-	 *
-	 * @param[in] num The number to set as the policy.
-	 */
-	void set_num_policy(unsigned int num) { m_num_policy = num; }
-	
-	/**!
-	 * @brief Retrieves the policy at the specified index.
-	 *
-	 * This function returns a pointer to the policy object located at the given index
-	 * within the policy array.
-	 *
-	 * @param[in] index The index of the policy to retrieve.
-	 *
-	 * @returns A pointer to the policy object at the specified index.
-	 * @retval nullptr If the index is out of bounds.
-	 *
-	 * @note Ensure that the index is within the valid range of the policy array.
-	 */
-	dm_policy_t *get_policy(unsigned int index) { return &m_policy[index]; }
-    
-	/**!
-	 * @brief Retrieves a reference to the policy at the specified index.
-	 *
-	 * This function returns a reference to the policy object stored at the given index
-	 * within the policy array. It is used to access and modify the policy directly.
-	 *
-	 * @param[in] index The index of the policy to retrieve.
-	 *
-	 * @returns A reference to the policy object at the specified index.
-	 *
-	 * @note Ensure that the index is within the bounds of the policy array to avoid
-	 * undefined behavior.
-	 */
-	dm_policy_t& get_policy_by_ref(unsigned int index) { return m_policy[index]; }
+	unsigned int get_num_policy() { return (m_policy_map != NULL) ? hash_map_count(m_policy_map) : 0; }
 
-	
+	/**
+	 * @brief Builds the hash map key for a policy from its identity.
+	 *
+	 * @param[in] id The policy identity (net_id, dev_mac, radio_mac, type).
+	 * @param[out] key Buffer to receive the key string.
+	 * @param[in] sz Size of the key buffer.
+	 */
+	static void get_policy_key(const em_policy_id_t& id, char *key, size_t sz);
+
+	/**
+	 * @brief Checks whether this data model contains a policy of the given type.
+	 *
+	 * @param[in] type The policy ID type to search for.
+	 * @returns true if at least one policy with the given type exists, false otherwise.
+	 */
+	bool has_policy_type(em_policy_id_type_t type) const;
+
 	/**!
 	 * @brief Finds a matching scan result based on the provided scan result ID.
 	 *
@@ -1596,7 +1568,8 @@ public:
 	 */
 	static void update_scan_results(void *dm, em_scan_result_t *scan_result) { (static_cast<dm_easy_mesh_t *> (dm))->update_scan_results(scan_result); }
 
-    
+	const em_mlo_policy_t *get_mlo_policy(em_haul_type_t haul) const;
+
 	/**!
 	 * @brief Retrieves the number of AP MLDs.
 	 *
@@ -1726,8 +1699,10 @@ public:
 	 */
 	static unsigned int get_num_assoc_sta_mld(void *dm) { return (static_cast<dm_easy_mesh_t *>(dm))->get_num_assoc_sta_mld(); }
 
-	em_ap_mld_info_t *get_ap_mld_frm_bssid(mac_address_t bss_id);
-	static em_ap_mld_info_t *get_ap_mld_frm_bssid(void *dm, mac_address_t bss_id) { return (static_cast<dm_easy_mesh_t *>(dm))->get_ap_mld_frm_bssid(bss_id); }
+	em_ap_mld_info_t *get_ap_mld_frm_haul_type(em_haul_type_t haul_type);
+	static em_ap_mld_info_t *get_ap_mld_frm_haul_type(void *dm, em_haul_type_t haul_type) { return (static_cast<dm_easy_mesh_t *>(dm))->get_ap_mld_frm_haul_type(haul_type); }
+
+	void remove_ap_mld_info_by_haul_type(em_haul_type_t haul_type);
 
 	void update_ap_mld_info(em_ap_mld_info_t *ap_mld_info);
 	static void update_ap_mld_info(void *dm, em_ap_mld_info_t *ap_mld_info) { (static_cast<dm_easy_mesh_t *>(dm))->update_ap_mld_info(ap_mld_info); }
@@ -1738,8 +1713,13 @@ public:
 	void update_assoc_sta_mld_info(em_assoc_sta_mld_info_t *assoc_sta_mld_info);
 	static void update_assoc_sta_mld_info(void *dm, em_assoc_sta_mld_info_t *assoc_sta_mld_info) { (static_cast<dm_easy_mesh_t *>(dm))->update_assoc_sta_mld_info(assoc_sta_mld_info); }
 
-	em_radio_cap_info_t *get_radio_cap_info(int index);
-	static em_radio_cap_info_t *get_radio_cap_info(void *dm, int index) { return (static_cast<dm_easy_mesh_t *>(dm))->get_radio_cap_info(index); }
+	void remove_assoc_sta_mld_info(mac_address_t sta_mld_mac);
+	void apply_sta_cap_to_maps(const char *key, em_sta_info_t *info);
+	bool is_ap_mld_mac(const mac_address_t mac);
+	bool resolve_ap_mld_to_fallback_ruid(const mac_address_t ap_mld_mac, mac_address_t fallback_ruid);
+
+	em_radio_cap_info_t *get_radio_cap_info(unsigned int index);
+	static em_radio_cap_info_t *get_radio_cap_info(void *dm, unsigned int index) { return (static_cast<dm_easy_mesh_t *>(dm))->get_radio_cap_info(index); }
 
 	/**!
 	 * @brief Retrieves the Data Model DPP object.
@@ -1854,7 +1834,7 @@ public:
 	 *
 	 * @returns The number of radios.
 	 */
-	unsigned int get_num_radios() { return m_num_radios; }
+	unsigned int get_num_radios() { return (m_num_radios > EM_MAX_BANDS) ? EM_MAX_BANDS : m_num_radios; }
     
 	/**!
 	 * @brief Retrieves the number of radios.
@@ -1871,11 +1851,12 @@ public:
 	/**!
 	 * @brief Sets the number of radios.
 	 *
-	 * This function assigns the given number to the member variable m_num_radios.
+	 * This function assigns the given number to m_num_radios, clamping values
+	 * greater than EM_MAX_BANDS to EM_MAX_BANDS.
 	 *
-	 * @param[in] num The number of radios to be set.
+	 * @param[in] num The requested number of radios to be set.
 	 */
-	void set_num_radios(unsigned int num) { m_num_radios = num; }
+	void set_num_radios(unsigned int num) { m_num_radios = (num > EM_MAX_BANDS) ? EM_MAX_BANDS : num; }
     
 	/**!
 	 * @brief Sets the number of radios in the mesh network.
@@ -1916,7 +1897,7 @@ public:
 	 * @note Ensure that the MAC address provided is valid and registered in the system.
 	 */
 	dm_radio_cap_t *get_radio_cap(mac_address_t mac);
-	dm_radio_cap_t *get_radio_cap(int index);
+	dm_radio_cap_t *get_radio_cap(unsigned int index);
 
     
 	/**!
@@ -2040,6 +2021,10 @@ public:
 	void set_primary_device_type(char *type) { m_device.set_primary_device_type(type); }
     //void operator =(dm_easy_mesh_t const& obj);
     dm_easy_mesh_t& operator =(dm_easy_mesh_t const& obj);
+    // deleted: prevents the compiler's shallow, member-wise copy constructor
+    // (which would share raw hash-map pointers between two live objects and
+    // double-free them); use operator= on a default/init()'d object instead
+    dm_easy_mesh_t(dm_easy_mesh_t const& obj) = delete;
     bool operator ==(dm_easy_mesh_t const& obj);
     
 	/**!
@@ -2136,7 +2121,7 @@ public:
 	 * @note Ensure that the `info` pointer is valid and points to a properly initialized `em_sta_info_t` structure.
 	 */
 	void put_sta_info(em_sta_info_t *info, em_target_sta_map_t target);
-    
+
 	/**!
 	 * @brief Retrieves the first station information.
 	 *
@@ -2198,7 +2183,28 @@ public:
 	 */
 	static void put_sta_info(void *dm, em_sta_info_t *info, em_target_sta_map_t target) { (static_cast<dm_easy_mesh_t *>(dm))->put_sta_info(info, target); }
 
-    
+	/**!
+	 * @brief Checks whether a station (STA) is currently associated with a given BSSID.
+	 *
+	 * This function determines if the station identified by @p sta_mac is
+	 * presently associated with the basic service set identified by @p bssid
+	 * in the EasyMesh data model.
+	 *
+	 * @param[in] bssid    The BSSID of the access point/BSS to check against.
+	 *                     The association check is performed specifically for
+	 *                     this BSSID and does not search across other BSSIDs.
+	 * @param[in] sta_mac  The MAC address of the station whose association
+	 *                     state is being queried.
+	 *
+	 * @returns true if the station is recorded as associated with the given
+	 *          BSSID, false otherwise.
+	 *
+	 * @note Callers are expected to provide valid, normalized MAC addresses
+	 *       for both @p bssid and @p sta_mac that correspond to entities
+	 *       known to the EasyMesh instance.
+	 */
+	bool is_sta_associated(bssid_t bssid, mac_address_t sta_mac);
+
 	/**!
 	 * @brief Finds a station (STA) based on its MAC address and BSSID.
 	 *
@@ -2216,6 +2222,8 @@ public:
 	 *       the network's configuration.
 	 */
 	dm_sta_t *find_sta(mac_address_t sta_mac, bssid_t bssid);
+
+	dm_sta_t *find_sta(mac_address_t sta_mac);
     
 	/**!
 	 * @brief Retrieves the first station associated with the given MAC address.
@@ -2269,7 +2277,8 @@ public:
 	 */
 	int get_num_bss_for_associated_sta(mac_address_t sta_mac);
     
-    
+    bool is_sta_mld(mac_address_t sta_mac);
+
 	/**!
 	 * @brief Converts a byte array to a hexadecimal string representation.
 	 *

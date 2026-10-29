@@ -69,6 +69,8 @@ em_cmd_params_t spec_params[] = {
     {.u = {.args = {2, {"", "", "", "", ""}, "MLDConfig"}}},
     {.u = {.args = {2, {"", "", "", "", ""}, "MLDReconfig"}}},
     {.u = {.args = {2, {"", "", "", "", ""}, "WifiReset"}}},
+    {.u = {.args = {2, {"", "", "", "", ""}, "UnassocSTAQuery.json"}}},
+    {.u = {.args = {2, {"", "", "", "", ""}, "ClientAssocCtrlRequest.json"}}},
 	{.u = {.args = {0, {"", "", "", "", ""}, "max"}}},
 };
 
@@ -103,7 +105,9 @@ em_cmd_t em_cmd_cli_t::m_client_cmd_spec[] = {
     em_cmd_t(em_cmd_type_get_mld_config, spec_params[26]),
     em_cmd_t(em_cmd_type_mld_reconfig, spec_params[27]),
     em_cmd_t(em_cmd_type_get_reset, spec_params[28]),
-    em_cmd_t(em_cmd_type_max, spec_params[29]),
+    em_cmd_t(em_cmd_type_unassoc_sta_query, spec_params[29]),
+    em_cmd_t(em_cmd_type_client_assoc_ctrl_req, spec_params[30]),
+    em_cmd_t(em_cmd_type_max, spec_params[31]),
 };
 
 int em_cmd_cli_t::get_edited_node(em_network_node_t *node, const char *header, char *buff)
@@ -454,6 +458,35 @@ int em_cmd_cli_t::execute(char *result)
             snprintf(info->name, sizeof(info->name), "%s", param->u.args.fixed_args);
             break;
 
+       case em_cmd_type_unassoc_sta_query:
+
+           bevt->type = em_bus_event_type_unassoc_sta_query;
+           info = &bevt->u.subdoc;
+
+           strncpy(info->name, param->u.args.fixed_args, sizeof(info->name) - 1);
+           info->name[sizeof(info->name) - 1] = '\0';
+
+           if ((bevt->data_len = get_edited_node(m_cmd.m_param.net_node, "UnassocSTAQuery", info->buff)) < 0) {
+               em_printfout("%s:%d: failed to get UnassocSTAQuery node\n", __func__, __LINE__);
+               return -1;
+           }
+           break;
+	   
+        case em_cmd_type_client_assoc_ctrl_req:
+            bevt->type = em_bus_event_type_client_assoc_ctrl_req;
+            info = &bevt->u.subdoc;
+            snprintf(info->name, sizeof(info->name), "%s", param->u.args.fixed_args);
+            if (m_cmd.m_param.net_node != NULL) {
+                bevt->data_len = get_edited_node(m_cmd.m_param.net_node, "ClientAssocCtrlRequest", info->buff);
+            } else {
+                bevt->data_len = load_params_file(m_cmd.m_param.u.args.fixed_args, info->buff);
+            }
+            if (bevt->data_len < 0) {
+                printf("%s:%d: failed to load client assoc ctrl req parameters\n", __func__, __LINE__);
+                return -1;
+            }
+            break;
+
         default:
             break;
     }
@@ -466,7 +499,7 @@ int em_cmd_cli_t::execute(char *result)
     SSL_CTX_use_certificate_file(ctx, EM_CERT_FILE, SSL_FILETYPE_PEM);
  
 	if ((ssl = get_ep_for_dst_svc(ctx, em_service_type_ctrl)) == NULL) {
-		printf("%s:%d: Can not get socket for service\n", __func__, __LINE__);
+        em_printfout("Can not get socket for service");
 		snprintf(result, sizeof(em_long_string_t), "%s:%d: connect error on socket, err:%d\n", __func__, __LINE__, errno);
 		SSL_CTX_free(ctx);
 		return -1;

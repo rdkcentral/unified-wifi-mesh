@@ -56,7 +56,7 @@ void em_orch_agent_t::orch_transient(em_cmd_t *pcmd, em_t *em)
         if (al_node != NULL && al_node->m_ec_manager && al_node->get_is_dpp_onboarding()) {
             // If the enrollee is still onboarding, we need to wait for it to finish before timing out
             // Lets reset the timeout
-            gettimeofday(&pcmd->m_start_time, NULL);
+            pcmd->set_start_time();
             stats->time = 0;
         }
     }
@@ -128,12 +128,18 @@ bool em_orch_agent_t::is_em_ready_for_orch_fini(em_cmd_t *pcmd, em_t *em)
             break;
 
         case em_cmd_type_beacon_report:
-            if (em->get_state() == em_state_agent_configured) {
+            if (em->get_state() == em_state_beacon_report_complete) {
                 return true;
             }
             break;
 
         case em_cmd_type_get_link_quality_report:
+            if (em->get_state() == em_state_agent_configured) {
+                return true;
+            }
+            break;
+
+        case em_cmd_type_unassoc_sta_result:
             if (em->get_state() == em_state_agent_configured) {
                 return true;
             }
@@ -183,13 +189,19 @@ bool em_orch_agent_t::is_em_ready_for_orch_exec(em_cmd_t *pcmd, em_t *em)
 			return true;
 		}
 	} else if (pcmd->m_type == em_cmd_type_beacon_report) {
-        if ((em->get_state() == em_state_agent_configured) ||
-            ((em->get_state() == em_state_agent_beacon_report_pending))) {
+        if ((em->get_state() == em_state_beacon_report_pending) ||
+            (em->get_state() == em_state_agent_configured) ||
+            (em->get_state() >= em_state_agent_topo_synchronized)) {
             return true;
         }
     } else if (pcmd->m_type == em_cmd_type_get_link_quality_report) {
         if ((em->get_state() >= em_state_agent_topo_synchronized) ||
             ((em->get_state() == em_state_agent_link_quality_report_pending))) {
+            return true;
+        }
+    } else if (pcmd->m_type == em_cmd_type_unassoc_sta_result) {
+        if ((em->get_state() == em_state_agent_configured) ||
+            ((em->get_state() ==em_state_agent_unassoc_sta_metrics_report_pending))) {
             return true;
         }
     }
@@ -284,19 +296,21 @@ bool em_orch_agent_t::pre_process_orch_op(em_cmd_t *pcmd)
 
             sta = static_cast<dm_sta_t *> (hash_map_get_first(pcmd->get_data_model()->m_sta_dassoc_map));
             while(sta != NULL) {
+                dm_sta_t *next_sta = static_cast<dm_sta_t *>(hash_map_get_next(pcmd->get_data_model()->m_sta_dassoc_map, sta));
                 dm_easy_mesh_t::macbytes_to_string(sta->m_sta_info.id, sta_mac_str);
                 dm_easy_mesh_t::macbytes_to_string(sta->m_sta_info.bssid, bss_mac_str);
                 dm_easy_mesh_t::macbytes_to_string(sta->m_sta_info.radiomac, radio_mac_str);
                 snprintf(key, sizeof(em_long_string_t), "%s@%s@%s", sta_mac_str, bss_mac_str, radio_mac_str);
 
-                em_sta_info_t *em_sta = dm->get_sta_info(sta->get_sta_info()->id, sta->get_sta_info()->bssid, sta->get_sta_info()->radiomac, em_target_sta_map_consolidated);
-                sta = static_cast<dm_sta_t *>(hash_map_get_next(pcmd->get_data_model()->m_sta_dassoc_map, sta));
+                em_sta_info_t *em_sta = dm->get_sta_info(sta->m_sta_info.id, sta->m_sta_info.bssid, sta->m_sta_info.radiomac, em_target_sta_map_consolidated);
                 if (em_sta != NULL) {
-                    printf("Consolidated Map removed with key: %s\n", key);
-                    dm_sta_t *tmp = sta;
-                    tmp = static_cast<dm_sta_t *>(hash_map_remove(dm->m_sta_map, key));
-                    delete tmp;
+                    dm_sta_t *removed_sta;
+
+                    em_printfout("Consolidated Map removed with key: %s, updating em_target_sta_map_disassoc entry", key);
+                    removed_sta = static_cast<dm_sta_t *>(hash_map_remove(dm->m_sta_map, key));
+                    delete removed_sta;
                 }
+                sta = next_sta;
             }
             break;
         case dm_orch_type_sta_insert:
@@ -476,7 +490,7 @@ unsigned int em_orch_agent_t::build_candidates(em_cmd_t *pcmd)
                 sta = em->find_sta(mac1, mac2);
                 if (sta != NULL) {
                     queue_push(pcmd->m_em_candidates, em);
-                    printf("%s:%d Beacon report build candidate pushed\n", __func__, __LINE__);
+                    em_printfout("Beacon report build candidate pushed");
                     count++;
                 }
                 break;
@@ -488,7 +502,17 @@ unsigned int em_orch_agent_t::build_candidates(em_cmd_t *pcmd)
                 }
                 break;
 
-			default:
+            case em_cmd_type_unassoc_sta_result:
+                // Unassociated STA metrics response is processed only once.
+                // Select the first non-AL EM instance as the candidate and
+                // avoid queuing additional EMs for the same response.		
+                if (!(em->is_al_interface_em()) && (count == 0)) {
+                    queue_push(pcmd->m_em_candidates, em);
+                    count++;
+                }
+                break;
+
+            default:
                 break;
         }
         em = static_cast<em_t *> (hash_map_get_next(m_mgr->m_em_map, em));	

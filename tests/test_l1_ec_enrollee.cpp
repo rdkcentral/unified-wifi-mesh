@@ -551,7 +551,7 @@ TEST(ECEnrollee_t, HandleGasComebackResponse_ZeroFrameLength)
     ec_ops_t ops = make_dummy_ops();
     ec_enrollee_t ec_enrollee("02:11:22:33:44:55", ops);
     uint8_t frame_buf[sizeof(ec_gas_comeback_response_frame_t)] = {0};
-    ec_gas_comeback_response_frame_t* frame = (ec_gas_comeback_response_frame_t*)frame_buf;
+    ec_gas_comeback_response_frame_t* frame = reinterpret_cast<ec_gas_comeback_response_frame_t*>(frame_buf);
     uint8_t dummy_mac[6] = {0};
     bool result = ec_enrollee.handle_gas_comeback_response(frame, 0, dummy_mac);
     EXPECT_FALSE(result);

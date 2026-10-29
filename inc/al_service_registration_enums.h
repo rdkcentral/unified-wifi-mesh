@@ -19,8 +19,7 @@ enum class ServiceType : uint8_t {
 enum class RegistrationResult : uint8_t {
     UNKNOWN = 0x00,
     SUCCESS = 0x01,
-    NO_RANGES_AVAILABLE = 0x02,
-    SERVICE_NOT_SUPPORTED = 0x03,
+    SERVICE_NOT_SUPPORTED = 0x02,
 };
 
 #endif // AL_SERVICE_REGISTRATION_ENUMS_H

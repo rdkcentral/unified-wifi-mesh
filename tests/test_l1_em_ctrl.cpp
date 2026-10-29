@@ -20,7 +20,9 @@
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>
 #include <stdio.h>
+#include <cstring>
 #include "em_ctrl.h"
+#include "em_crypto.h"
 
 class em_ctrl_t_Test : public ::testing::Test {
 protected:
@@ -218,8 +220,9 @@ TEST_F(em_ctrl_t_Test, is_network_topology_initialized_valid)
     unsigned char mac[6] = {0x11,0x22,0x33,0x04,0x05,0x01};
     setup_interface(intf, "eth0", mac);
     dm_easy_mesh_t* dm = ctrl.create_data_model("Network2", &intf, em_profile_type_1);
-    dm->m_colocated = true;
     ASSERT_NE(dm, nullptr);
+    dm->m_colocated = true;
+    dm->set_controller(true);
     ctrl.init_network_topology();
     EXPECT_TRUE(ctrl.is_network_topology_initialized());
     std::cout << "Exiting is_network_topology_initialized_valid test" << std::endl;
@@ -313,9 +316,9 @@ TEST_F(em_ctrl_t_Test, orch_init_default)
     std::cout << "Exiting orch_init_default test" << std::endl;
 }
 /**
- * @brief Verifies that handle_500ms_tick() executes without throwing an exception.
+ * @brief Verifies that handle_250ms_tick() executes without throwing an exception.
  *
- * This test verifies that the em_ctrl_t object's handle_500ms_tick() method does not throw any exceptions when invoked.
+ * This test verifies that the em_ctrl_t object's handle_250ms_tick() method does not throw any exceptions when invoked.
  * It ensures that the periodic tick processing in the control module is handled correctly under normal operating conditions.
  *
  * **Test Group ID:** Basic: 01
@@ -329,12 +332,12 @@ TEST_F(em_ctrl_t_Test, orch_init_default)
  * **Test Procedure:**
  * | Variation / Step | Description                                                           | Test Data                                              | Expected Result                                  | Notes      |
  * | :--------------: | --------------------------------------------------------------------- | ------------------------------------------------------ | ----------------------------------------------- | ---------- |
- * | 01               | Invoke handle_500ms_tick() method of the em_ctrl_t object.             | ctrl.handle_500ms_tick() with default internal state   | EXPECT_NO_THROW passes, no exception thrown     | Should Pass |
+ * | 01               | Invoke handle_250ms_tick() method of the em_ctrl_t object.             | ctrl.handle_250ms_tick() with default internal state   | EXPECT_NO_THROW passes, no exception thrown     | Should Pass |
  */
-TEST_F(em_ctrl_t_Test, handle_500ms_tick_default) {
-    std::cout << "Entering handle_500ms_tick_default test" << std::endl;
-    EXPECT_NO_THROW(ctrl.handle_500ms_tick());
-    std::cout << "Exiting handle_500ms_tick_default test" << std::endl;
+TEST_F(em_ctrl_t_Test, handle_250ms_tick_default) {
+    std::cout << "Entering handle_250ms_tick_default test" << std::endl;
+    EXPECT_NO_THROW(ctrl.handle_250ms_tick());
+    std::cout << "Exiting handle_250ms_tick_default test" << std::endl;
 }
 /**
  * @brief Validate the execution of handle_dirty_dm for a single data model instance.
@@ -3928,4 +3931,106 @@ TEST_F(em_ctrl_t_Test, io_process_invalid_event_type)
     EXPECT_FALSE(ret);
     free(evt);
     std::cout << "Exiting io_process_invalid_event_type test" << std::endl;
+}
+
+/**
+ * @brief Verify that get_dm_radio() resolves a Radio.{i} alias as base64(RUID) and returns NULL otherwise.
+ *
+ * Radio.{i} aliases are published as base64(RUID) by radio_get_inner(). The lookup must select the radio
+ * whose RUID encodes to the alias, must not match the MAC-string form of the RUID that the old comparison
+ * used, and must return NULL instead of another radio when nothing matches. The numeric instance path
+ * is checked as well.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 010@n
+ * **Priority:** High@n
+ *
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ *
+ * **Test Procedure:**
+ * | Variation / Step | Description                                                    | Test Data                              | Expected Result                     | Notes       |
+ * | :--------------: | -------------------------------------------------------------- | -------------------------------------- | ----------------------------------- | ----------- |
+ * | 01               | Look up the second radio by its base64(RUID) alias             | alias = base64(ruid1), is_num = false  | Returns dm.get_radio(1)             | Should Pass |
+ * | 02               | Look up with the MAC string of the same RUID                   | "02:11:22:33:44:66", is_num = false    | Returns NULL                        | Should Pass |
+ * | 03               | Look up with an alias that matches no radio                    | "AAAAAAAA", is_num = false             | Returns NULL                        | Should Pass |
+ * | 04               | Look up by numeric instance                                    | "1", is_num = true                     | Returns dm.get_radio(0)             | Should Pass |
+ */
+TEST(dm_easy_mesh_ctrl_t, get_dm_radio_alias_is_base64_ruid) {
+    std::cout << "Entering get_dm_radio_alias_is_base64_ruid test" << std::endl;
+    dm_easy_mesh_ctrl_t dm_ctrl;
+    dm_easy_mesh_t dm;
+    const unsigned char ruid0[6] = { 0x02, 0x11, 0x22, 0x33, 0x44, 0x55 };
+    const unsigned char ruid1[6] = { 0x02, 0x11, 0x22, 0x33, 0x44, 0x66 };
+    memcpy(dm.get_radio_by_ref(0).get_radio_info()->id.ruid, ruid0, sizeof(ruid0));
+    memcpy(dm.get_radio_by_ref(1).get_radio_info()->id.ruid, ruid1, sizeof(ruid1));
+    dm.set_num_radios(2);
+
+    std::string alias = em_crypto_t::base64_encode(ruid1, sizeof(ruid1));
+    char instance[64];
+    snprintf(instance, sizeof(instance), "%s", alias.c_str());
+    std::cout << "Invoking get_dm_radio(...) with alias " << instance << std::endl;
+    EXPECT_EQ(dm_ctrl.get_dm_radio(&dm, instance, false), dm.get_radio(1u));
+
+    char mac_str[] = "02:11:22:33:44:66";
+    EXPECT_EQ(dm_ctrl.get_dm_radio(&dm, mac_str, false), nullptr);
+
+    char unknown[] = "AAAAAAAA";
+    EXPECT_EQ(dm_ctrl.get_dm_radio(&dm, unknown, false), nullptr);
+
+    char index[] = "1";
+    EXPECT_EQ(dm_ctrl.get_dm_radio(&dm, index, true), dm.get_radio(0u));
+    std::cout << "Exiting get_dm_radio_alias_is_base64_ruid test" << std::endl;
+}
+
+/**
+ * @brief Verify that get_dm_bss() numbers the rows the way the BSS table does.
+ *
+ * The BSS table skips a BSS whose BSSID is all zeros, so a numeric BSS instance must be counted over the
+ * radio's BSSs that have a BSSID: with a BSSID-less entry ahead of a valid one, row 1 is the valid one and
+ * a row past the last valid entry resolves to nothing.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 011@n
+ * **Priority:** High@n
+ *
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ *
+ * **Test Procedure:**
+ * | Variation / Step | Description                                                    | Test Data                              | Expected Result                     | Notes       |
+ * | :--------------: | -------------------------------------------------------------- | -------------------------------------- | ----------------------------------- | ----------- |
+ * | 01               | Row 1 of a radio whose first BSS has no BSSID                  | "1", is_num = true                     | Returns dm.get_bss(1)               | Should Pass |
+ * | 02               | Row past the last BSS that has a BSSID                         | "2", is_num = true                     | Returns NULL                        | Should Pass |
+ * | 03               | Look up by BSSID alias                                         | "02:11:22:33:44:77", is_num = false    | Returns dm.get_bss(1)               | Should Pass |
+ */
+TEST(dm_easy_mesh_ctrl_t, get_dm_bss_skips_bss_without_bssid) {
+    std::cout << "Entering get_dm_bss_skips_bss_without_bssid test" << std::endl;
+    dm_easy_mesh_ctrl_t dm_ctrl;
+    dm_easy_mesh_t dm;
+    em_radio_info_t ri;
+    const unsigned char ruid[6] = { 0x02, 0x11, 0x22, 0x33, 0x44, 0x55 };
+    const unsigned char bssid[6] = { 0x02, 0x11, 0x22, 0x33, 0x44, 0x77 };
+    memset(&ri, 0, sizeof(ri));
+    memcpy(ri.id.ruid, ruid, sizeof(ruid));
+    em_bss_info_t *bi0 = dm.get_bss_by_ref(0).get_bss_info();
+    em_bss_info_t *bi1 = dm.get_bss_by_ref(1).get_bss_info();
+    memcpy(bi0->ruid.mac, ruid, sizeof(ruid));
+    memset(bi0->bssid.mac, 0, sizeof(bi0->bssid.mac));
+    memcpy(bi1->ruid.mac, ruid, sizeof(ruid));
+    memcpy(bi1->bssid.mac, bssid, sizeof(bssid));
+    dm.set_num_bss(2);
+
+    char row1[] = "1";
+    std::cout << "Invoking get_dm_bss(...) with instance " << row1 << std::endl;
+    EXPECT_EQ(dm_ctrl.get_dm_bss(&dm, &ri, row1, true), dm.get_bss(1u));
+
+    char row2[] = "2";
+    EXPECT_EQ(dm_ctrl.get_dm_bss(&dm, &ri, row2, true), nullptr);
+
+    char alias[] = "02:11:22:33:44:77";
+    EXPECT_EQ(dm_ctrl.get_dm_bss(&dm, &ri, alias, false), dm.get_bss(1u));
+    std::cout << "Exiting get_dm_bss_skips_bss_without_bssid test" << std::endl;
 }

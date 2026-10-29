@@ -3,11 +3,9 @@
 
 #include "al_service_registration_enums.h"
 #include <array>
-#include <utility>
 #include <vector>
 
 using MacAddress = std::array<uint8_t, 6>;
-using MessageIdRange = std::pair<uint16_t, uint16_t>;
 
 // Class used to manage a registration response from the IEEE1905 applicatoin
 class AlServiceRegistrationResponse {
@@ -26,14 +24,13 @@ public:
 	/**!
 	 * @brief Constructor for AlServiceRegistrationResponse class.
 	 *
-	 * This constructor initializes the AlServiceRegistrationResponse object with the given MAC address,
-	 * message ID range, and registration result.
+	 * This constructor initializes the AlServiceRegistrationResponse object with the given MAC address
+	 * and registration result.
 	 *
 	 * @param[in] macAddress The MAC address associated with the service registration.
-	 * @param[in] range The range of message IDs for the service registration.
 	 * @param[in] result The result of the service registration process.
 	 */
-	AlServiceRegistrationResponse(const MacAddress& macAddress, MessageIdRange range, RegistrationResult result);
+	AlServiceRegistrationResponse(const MacAddress& macAddress, RegistrationResult result);
 
     // Setters and getters for local AL MAC address
     
@@ -56,28 +53,6 @@ public:
 	 * @returns A constant reference to the local MAC address.
 	 */
 	const MacAddress& getAlMacAddressLocal() const;
-
-    // Setters and getters for message ID range assigned from the IEEE1905 agent
-    
-	/**!
-	 * @brief Sets the message ID range.
-	 *
-	 * This function assigns a range of message IDs to be used.
-	 *
-	 * @param[in] range The range of message IDs to set.
-	 */
-	void setMessageIdRange(const MessageIdRange& range);
-    
-	/**!
-	 * @brief Retrieves the range of message IDs.
-	 *
-	 * This function returns the range of message IDs that are currently registered.
-	 *
-	 * @returns MessageIdRange The range of message IDs.
-	 *
-	 * @note This function does not modify any member variables.
-	 */
-	MessageIdRange getMessageIdRange() const;
 
     // Setters and getters for registration result
     
@@ -124,7 +99,6 @@ public:
 
 private:
     MacAddress alMacAddressLocal;
-    MessageIdRange messageIdRange;
     RegistrationResult result;
 };
 

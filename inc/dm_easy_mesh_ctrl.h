@@ -35,6 +35,7 @@
 #include "db_client.h"
 #include "dm_easy_mesh_list.h"
 #include "em_network_topo.h"
+#include "dm_easy_mesh.h"
 
 class em_cmd_t;
 class dm_easy_mesh_t;
@@ -56,6 +57,7 @@ public:
     uint32_t get_next_nb_evt_id() { return m_nb_evt_id++; }
 
     bus_error_t bus_get_cb_fwd(char *event_name, raw_data_t *p_data, bus_get_handler_t cb);
+    bus_error_t bus_set_cb_fwd(char *event_name, raw_data_t *p_data, bus_set_handler_t cb);
     dm_easy_mesh_t *get_dm_easy_mesh(char *instance, bool is_num);
     dm_device_t *get_dm_dev(mac_address_t dev_mac, mac_address_t bmac);
     dm_radio_t *get_dm_radio(dm_easy_mesh_t *dm, char *instance, bool is_num);
@@ -85,6 +87,32 @@ public:
     static bus_error_t curops_tget_params(dm_easy_mesh_t *dm, const char *root, em_radio_info_t *ri, bus_data_prop_t **property);
 
     void fill_comma_sep(em_short_string_t str[], size_t max, char *buf);
+
+    /**!
+     * @brief Format stored WSC AKM suite names as TR-181 akm_t values.
+     *
+     * @param[in] akms AKM suites stored for the BSS.
+     * @param[in] num_akms Number of entries in akms.
+     * @param[out] buf Output buffer for the formatted value.
+     * @param[in] buf_len Size of the output buffer.
+     */
+    void fill_akms_allowed(em_short_string_t akms[], unsigned char num_akms, char *buf, size_t buf_len);
+
+    /**!
+     * @brief Format a BSS's AKMsAllowed from the profile assigned to its haul type.
+     *
+     * Derived at read time, mirroring the band and platform overrides the M2
+     * build applies; the stored BSS row is only the fallback when the haul type
+     * has no profile or the profile's auth type is not known.
+     *
+     * @param[in] dm Data model the BSS belongs to.
+     * @param[in] bi BSS whose AKMsAllowed is read.
+     * @param[in] backhaul true for BackhaulAKMsAllowed, false for FronthaulAKMsAllowed.
+     * @param[out] buf Output buffer for the formatted value.
+     * @param[in] buf_len Size of the output buffer.
+     */
+    void fill_bss_akms_allowed(dm_easy_mesh_t *dm, em_bss_info_t *bi, bool backhaul, char *buf, size_t buf_len);
+    dm_bss_t *get_dm_bss(dm_easy_mesh_t *dm, em_radio_info_t *ri, char *instance, bool is_num);
     bus_error_t bss_get(char* event_name, raw_data_t* p_data);
     static bus_error_t bss_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
     bus_error_t bss_tget(char* event_name, raw_data_t* p_data);
@@ -99,6 +127,12 @@ public:
 
     char* get_ht_caps_str(em_ap_ht_cap_t *ht, char *buf, size_t buf_len);
     char* get_vht_caps_str(em_ap_vht_cap_t *vht, char *buf, size_t buf_len);
+    char* get_sta_ht_caps_str(char *ht_cap_hex, char *buf, size_t buf_len);
+    char* get_sta_vht_caps_str(char *vht_cap_hex, char *buf, size_t buf_len);
+    bool find_sta_he_caps(em_sta_info_t *si, const unsigned char **mac_caps, const unsigned char **phy_caps);
+    bool sta_wifi6_cap_value(em_sta_info_t *si, const char *param, bool *out);
+    char* get_capop_nonoper_str(em_op_class_info_t *oci, char *buf, size_t buf_len);
+    char* get_supported_standards_str(wifi_ieee80211Variant_t variant, char *buf, size_t buf_size);
     bus_error_t rcaps_get(char* event_name, raw_data_t* p_data);
     static bus_error_t rcaps_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
     static bus_error_t rcaps_tget_inner(dm_easy_mesh_t *dm, const char *root, bus_data_prop_t **property);
@@ -118,7 +152,15 @@ public:
     bus_error_t curops_get(char* event_name, raw_data_t* p_data);
     static bus_error_t curops_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
 
+    dm_op_class_t* get_dm_capop(dm_easy_mesh_t *dm, dm_radio_t *radio, int instance);
+    bus_error_t capops_get(char* event_name, raw_data_t* p_data);
+    static bus_error_t capops_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
+    bus_error_t capops_tget(char *event_name, raw_data_t *p_data);
+    static bus_error_t capops_tget_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
+    static bus_error_t capops_tget_params(dm_easy_mesh_t *dm, const char *root, em_radio_info_t *ri, bus_data_prop_t **property);
+
     dm_sta_t* get_dm_sta(dm_easy_mesh_t *dm, em_bss_info_t *bi, int instance);
+    dm_sta_t *get_dm_sta(dm_easy_mesh_t *dm, em_bss_info_t *bi, char *instance, bool is_num);
     void fill_haul_type(em_haul_type_t hauls[], size_t max, char *buf);
     bus_error_t sta_get(char* event_name, raw_data_t* p_data);
     bus_error_t sta_tget(char *event_name, raw_data_t *p_data);
@@ -130,10 +172,12 @@ public:
     bus_error_t apmld_get(char *event_name, raw_data_t *p_data);
     bus_error_t apmld_tget(char *event_name, raw_data_t *p_data);
     bus_error_t apmldcfg_get(char *event_name, raw_data_t *p_data);
+    bus_error_t apmldcfg_set(char *event_name, raw_data_t *p_data);
     static bus_error_t apmld_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
     static bus_error_t apmld_tget_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
     static bus_error_t apmld_tget_params(dm_easy_mesh_t *dm, const char *root, bus_data_prop_t **property);
     static bus_error_t apmldcfg_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
+    static bus_error_t apmldcfg_set_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
 
     bus_error_t affap_get(char *event_name, raw_data_t *p_data);
     bus_error_t affap_tget(char *event_name, raw_data_t *p_data);
@@ -354,6 +398,23 @@ public:
 	 */
 	int analyze_set_radio(em_bus_event_t *evt, em_cmd_t *cmd[]);
     
+	/**!
+	 * @brief Analyzes the channel selection based on the provided event and command.
+	 *
+	 * This function processes the event and command to determine the appropriate channel selection.
+	 *
+	 * @param[in] evt Pointer to the event structure containing channel selection data.
+	 * @param[in] cmd Array of pointers to command structures for processing.
+	 *
+	 * @returns int Number of generated commands (>0) on success.
+	 * @retval 0 No-op (nothing to do).
+	 * @retval EM_PARSE_ERR_NO_CHANGE No config changes detected.
+	 * @retval <0 Negative parse/validation error code.
+	 * @note Ensure that the event and command structures are properly initialized
+	 * before calling this function.
+	 */
+	int analyze_channel_select(em_bus_event_t *evt, em_cmd_t *pcmd[]);
+
 	/**!
 	 * @brief Analyzes and sets the channel based on the provided event and command.
 	 *
@@ -725,6 +786,47 @@ public:
 	 * this function.
 	 */
 	int analyze_bsta_cap_req(em_bus_event_t *evt, em_cmd_t *pcmd[]);
+
+	/**!
+         * @brief Analyzes the Unassociated STA Link Metrics Query event.
+         *
+         * This function processes the Unassociated STA Link Metrics Query
+         * received from the controller, validates the query parameters,
+         * and prepares the corresponding internal command structures for
+         * agent-side handling and RCPI measurement collection.
+         *
+         * @param[in] evt Pointer to the event structure containing the
+         *                Unassociated STA Link Metrics Query payload.
+         * @param[in] pcmd Array of pointers to command structures used
+         *                 for internal processing.
+         *
+         * @returns int Status code indicating success or failure.
+         * @retval 0 on success.
+         * @retval Non-zero error code on failure.
+         *
+         * @note The query may contain one or more operating classes,
+         *       channels, and STA MAC entries as defined by the
+         *       EasyMesh specification.
+         */
+         int analyze_unassoc_sta_metrics_query(em_bus_event_t *evt, em_cmd_t *pcmd[]);
+
+	/**!
+	 * @brief Analyzes the beacon metrics query command.
+	 *
+	 * This function processes the beacon metrics query command provided in the
+	 * em_cmd_t structure array.
+	 *
+	 * @param[in] evt Pointer to the event structure containing event details.
+	 * @param[in] pcmd Array of command structures to be analyzed.
+	 *
+	 * @returns int Number of commands generated into pcmd[]
+	 * @retval 0 No command generated / parse failure
+	 * @retval >0 Number of generated commands
+	 *
+	 * @note Ensure that the pcmd array is properly initialized before calling
+	 * this function.
+	 */
+	int analyze_beacon_metrics_query(em_bus_event_t *evt, em_cmd_t *pcmd[]);
 
 	/**!
 	 * @brief Resets the configuration to its default state.

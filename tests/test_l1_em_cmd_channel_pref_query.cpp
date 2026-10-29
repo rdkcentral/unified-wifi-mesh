@@ -98,7 +98,7 @@ TEST(em_cmd_channel_pref_query_t, em_cmd_channel_pref_query_t_em_service_type_ag
             sizeof(param.u.args.fixed_args) - 1);
     dm_easy_mesh_t dm{};
     em_cmd_channel_pref_query_t query(service, param, dm);
-    std::cout << "Constructed with service type (after override): " << query.get_svc() << std::endl;
+    std::cout << "Constructed with service type (after override): " << static_cast<int>(query.get_svc()) << std::endl;
     std::cout << "Fixed args passed: " << param.u.args.fixed_args << std::endl;
     EXPECT_EQ(query.m_type, em_cmd_type_channel_pref_query);
     EXPECT_STREQ(query.m_name, "channel_pref_query");
@@ -140,7 +140,7 @@ TEST(em_cmd_channel_pref_query_t, em_cmd_channel_pref_query_t_em_service_type_cl
             sizeof(param.u.args.fixed_args) - 1);
     dm_easy_mesh_t dm{};
     em_cmd_channel_pref_query_t query(service, param, dm);
-    std::cout << "Constructed with service type (after override): " << query.get_svc() << std::endl;
+    std::cout << "Constructed with service type (after override): " << static_cast<int>(query.get_svc()) << std::endl;
     std::cout << "Fixed args passed: " << param.u.args.fixed_args << std::endl;
     EXPECT_EQ(query.m_type, em_cmd_type_channel_pref_query);
     EXPECT_STREQ(query.m_name, "channel_pref_query");

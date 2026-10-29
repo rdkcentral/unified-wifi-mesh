@@ -210,7 +210,14 @@ class em_agent_t : public em_mgr_t {
 	 * @param event The event containing the `rdk_sta_data_t` info which includes the association status along with other information
 	 */
 	void handle_recv_assoc_status(em_bus_event_t *event);
-    
+
+	/**
+	 * @brief Handles the reception of a failed connection event from OneWifi
+	 *
+	 * @param event The event containing the JSON failed-connection payload (bssid, sta_mac, status, reason)
+	 */
+	void handle_recv_failed_conn(em_bus_event_t *event);
+
 	/**!
 	 * @brief Handles the BTM response action frame.
 	 *
@@ -292,6 +299,67 @@ class em_agent_t : public em_mgr_t {
 
 	void handle_link_stats_report(em_bus_event_t *evt);
 
+       /**!
+        * @brief Handles an Unassociated STA Link Metrics Query event.
+        *
+        * This function processes the Unassociated STA Link Metrics Query
+        * received from the controller, parses the requested operating
+        * classes, channels and STA MAC addresses, and triggers the
+        * agent-side measurement workflow.
+        *
+        * @param[in] evt Pointer to the event structure containing the
+        *                Unassociated STA Query payload.
+        */
+       void handle_unassoc_sta_link_metrics_qry(em_bus_event_t *evt);
+
+       /**!
+        * @brief Handles the Unassociated STA Link Metrics Result event.
+        *
+        * This function processes the collected Unassociated STA RCPI
+        * measurements and prepares them for transmission back to the
+        * controller in one or more Unassociated STA Link Metrics
+        * Response messages.
+        *
+        * @param[in] evt Pointer to the event structure containing the
+        *                Unassociated STA Metrics result payload.
+        */
+       void handle_unassoc_sta_result(em_bus_event_t *evt);
+
+       /**!
+        * @brief Sends the Unassociated STA Query subdocument.
+        *
+        * This function constructs and publishes the Unassociated STA
+        * Query subdocument to the OneWiFi subsystem for RCPI measurement
+        * collection on the requested operating classes and channels.
+        *
+        * @param[in] desc Pointer to the WiFi bus descriptor.
+        * @param[in] bus_hdl Pointer to the bus handle used for communication.
+        * @param[in] work Pointer to the internal work list containing
+        *                 opclass, channel and STA information.
+        *
+        * @returns int Status code indicating success or failure.
+        * @retval 0 on success.
+        * @retval Non-zero error code on failure.
+        */
+       int send_unassoc_sta_query_subdoc(wifi_bus_desc_t *desc, bus_handle_t *bus_hdl, em_unassoc_work_list_t *work);
+
+       /**!
+        * @brief Callback invoked on receiving Unassociated STA Link Metrics results.
+        *
+        * This callback processes asynchronous Unassociated STA RCPI
+        * measurement results received from the OneWiFi subsystem and
+        * forwards them into the EasyMesh agent processing pipeline.
+        *
+        * @param[in] event_name Name of the event triggering the callback.
+        * @param[in] data Pointer to the raw event payload.
+        * @param[in] userData Pointer to user-specific callback context.
+        *
+        * @returns int Status code indicating success or failure.
+        * @retval 0 on success.
+        * @retval Non-zero error code on failure.
+        */
+       static int unassoc_sta_link_metrics_cb(char *event_name, bus_data_prop_t  *data, void *userData);
+
 	/**
 	 * @brief Send an action frame
 	 *
@@ -308,6 +376,7 @@ class em_agent_t : public em_mgr_t {
 	 */
 	bool send_action_frame(uint8_t dest_mac[ETH_ALEN], uint8_t *action_frame, size_t action_frame_len, uint8_t vap_idx, unsigned int frequency=0, unsigned int wait_time_ms=0);
 
+	void send_beacon_query(em_bus_event_t *evt);
 public:
 
     bus_handle_t m_bus_hdl;
@@ -433,7 +502,25 @@ public:
 	 */
 	bool try_create_default_em_cfg(std::string interface);
 
-    
+	void load_em_plus_cfg();
+
+	/**!
+	 * @brief Fills the extended device information of the local data model.
+	 *
+	 * Assigns the boot id by hashing the kernel's per-boot UUID from
+	 * `/proc/sys/kernel/random/boot_id`, and reads the cloud client id and client
+	 * secret over the bus. A field that cannot be retrieved is left zeroed and logged, the
+	 * remaining ones are still filled.
+	 *
+	 * @returns int
+	 * @retval 0 on success
+	 * @retval -1 if no bus descriptor is available
+	 *
+	 * @note Must be called after the bus is open, since the credentials are fetched with the
+	 * bus handle of the agent. The filled data is sent to the controller in the WSC M1 message.
+	 */
+	int fill_extended_device_info();
+
 	/**!
 	* @brief Attempts to start DPP onboarding process.
 	*
@@ -639,6 +726,20 @@ public:
 	 */
 	void handle_onewifi_radio_cb(em_bus_event_t *evt);
     
+	/**!
+	 * @brief Handles the client association control request event.
+	 *
+	 * This function processes the client association control request event received
+	 * through the event bus and applies the necessary blocking/unblocking actions.
+	 *
+	 * @param[in] evt Pointer to the event structure containing the client association
+	 * control request details.
+	 *
+	 * @note Ensure that the event structure is properly initialized before
+	 * calling this function.
+	 */
+	void handle_client_assoc_ctrl_req(em_bus_event_t *evt);
+
 	/**!
 	 * @brief Handles the M2 control configuration event.
 	 *
@@ -977,6 +1078,16 @@ public:
 	 * @return int 1 on success, otherwise -1
 	 */
 	static int association_status_cb(char *event_name, bus_data_prop_t *data, void *userData);
+
+	/**
+	 * @brief Callback for failed-connection event
+	 *
+	 * @param event_name The name of the event
+	 * @param data The raw event data
+	 * @param userData Optional user-provided callback data
+	 * @return int 1 on success, otherwise -1
+	 */
+	static int failed_conn_cb(char *event_name, bus_data_prop_t *data, void *userData);
 
 	/**
 	 * @brief Callback for BSS scan events

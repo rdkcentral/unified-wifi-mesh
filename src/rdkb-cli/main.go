@@ -88,7 +88,6 @@ type HaulTypeVisual struct {
 
 //structure of the incoming wifireset payload
 type WifiResetPayload struct {
-    SelectedMac string       `json:"selectedMac"`
     HaulTypes   []HaulConfig `json:"haulTypes"`
 }
 
@@ -136,6 +135,13 @@ type STA struct {
     ClientType  string `json:"clientType"`
     Associated  bool   `json:"Associated"`
     SSID        string `json:"-"`
+}
+
+type clientAssocCtrlRequest struct {
+    Bssid          string   `json:"Bssid"`
+    AssocControl   int      `json:"AssocControl"`
+    ValidityPeriod int      `json:"ValidityPeriod"`
+    StaMacList     []string `json:"StaMacList"`
 }
 
 type Device struct {
@@ -490,6 +496,22 @@ type Default802_1Q_Settings struct {
 	DefaultPCP      int     `json:"defaultPCP"`
 }
 
+type UnsuccessfulAssociation struct {
+	ReportUnsuccessAssoc bool `json:"reportUnsuccessAssoc"`
+	MaxReportingRate  int  `json:"maxReportingRate"`
+}
+
+type BackhaulBSSConfig struct {
+    BSSID                  string `json:"bssid"`
+    Profile1bSTADisallowed bool   `json:"profile1bSTADisallowed"`
+    Profile2bSTADisallowed bool   `json:"profile2bSTADisallowed"`
+}
+
+type QoSManagementPolicy struct {
+    MSCSDisallowedSTAList []string `json:"mscsDisallowedSTAList"`
+    SCSDisallowedSTAList  []string `json:"scsDisallowedSTAList"`
+}
+
 type RadioSpecificMetrics struct {
 	ID                      string   `json:"id"`
 	STARCPIThreshold        int      `json:"starCPIThreshold"`
@@ -513,8 +535,11 @@ type wifiPolicyConfig struct {
 	APMetricReportingPolicy        APMetricReporting       `json:"apMetricReportingPolicy,omitempty"`
 	LocalSteeringDisallowed        []string                `json:"localSteeringDisallowed"`
 	BTMSteeringDisallowed          []string                `json:"btmSteeringDisallowed"`
-	ReportIndependentChannelScans  int                    `json:"reportIndependentChannelScans"`
+	ReportIndependentChannelScans  int                     `json:"reportIndependentChannelScans"`
 	Default802_1Q_SettingsPolicy   Default802_1Q_Settings  `json:"default802_1Q_SettingsPolicy"`
+	UnsuccessfulAssocPolicy        UnsuccessfulAssociation   `json:"unsuccessfulAssocPolicy"`
+	BackhaulBSSConfigPolicy        []BackhaulBSSConfig       `json:"backhaulBssConfigPolicy,omitempty"`
+	QoSManagementPolicy            QoSManagementPolicy       `json:"qosManagementPolicy,omitempty"`
 	RadioSpecificMetricsPolicy     []RadioSpecificMetrics    `json:"radioSpecificMetricsPolicy,omitempty"`
 	RadioSteeringParametersPolicy  []RadioSteeringParameters `json:"radioSteeringParametersPolicy,omitempty"`
 }
@@ -614,6 +639,22 @@ type Obstacle struct {
 	Points      []Point2D `json:"points"`
 	Attenuation float64   `json:"attenuation_db"` // Signal loss in dB
 	Material    string    `json:"material,omitempty"`
+}
+
+// Holds parameters for Unassociated STA Link Metrics Query
+type unassocStaChannel struct {
+        Channel     int      `json:"channel"`
+        StaMacList  []string `json:"sta_macs"`
+}
+
+type unassocStaOpClass struct {
+        OpClass int                  `json:"opclass"`
+        Channels []unassocStaChannel `json:"channels"`
+}
+
+type unassocStaQueryRequest struct {
+        AlMac string                  `json:"AlMac"`
+        QueryList []unassocStaOpClass `json:"UnassocStaQueryList"`
 }
 
 //ckp cov end
@@ -2870,6 +2911,12 @@ func main() {
 	//system setting Wifi Reset
 	api.HandleFunc("/wifireset", WifiResetHandler).Methods("GET", "POST")
 
+	// Unassoc STA 
+	api.HandleFunc("/unassoc_sta_query", unassocStaQueryHandler).Methods("POST")
+
+	//client assoc ctrl request
+	api.HandleFunc("/client_assoc", clientAssocCtrlRequestHandler).Methods("POST")
+
 	// Enable CORS
 	router.Use(corsMiddleware)
 
@@ -3393,27 +3440,19 @@ func WifiResetHandler(w http.ResponseWriter, r *http.Request) {
     switch r.Method {
         case http.MethodGet:
             log.Println("Received GET request for wifireset")
-            controllerValue := getTreeValue(resetTree, "ControllerID")
-
-            // Interface MACs
-            interfacesList := C.get_network_tree_by_key(resetTree, C.CString("List"))
-            macOptions := getInterfacePrefence(interfacesList)
 
             // Parse NetworkSSIDList
             ssidHaulConfig := getConfiguredHauls(resetTree)
 
-            type MacResponse struct {
-                Options         []string `json:"options"`
-                SelectedOption  string   `json:"selectedOption"`
+            type WiFiResetResponse struct {
                 SSIDHaulConfig  []HaulConfig `json:"ssidHaulConfig"`
             }
 
-            response := MacResponse{
-                Options:        macOptions,
-                SelectedOption: controllerValue,
+            response := WiFiResetResponse{
                 SSIDHaulConfig: ssidHaulConfig,
             }
 
+            w.Header().Set("Content-Type", "application/json")
             json.NewEncoder(w).Encode(response)
 
         case http.MethodPost:
@@ -3425,19 +3464,6 @@ func WifiResetHandler(w http.ResponseWriter, r *http.Request) {
             if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
                 http.Error(w, "Invalid request payload", http.StatusBadRequest)
                 return
-            }
-
-            if payload.SelectedMac != "" {
-                selectedMac := strings.Split(payload.SelectedMac, " ")[0]
-
-                // update the ControllerID in reset tree
-                if err := updateControllerID(resetTree, selectedMac); err != nil {
-                    msg := fmt.Sprintf("Update failed for AL_MAC Interface: %v", err)
-                    errorsList = append(errorsList, msg)
-                }
-            } else {
-                msg := fmt.Sprintf("Received empty value for AL MAC")
-                errorsList = append(errorsList, msg)
             }
 
             for _, haul := range payload.HaulTypes {
@@ -3481,6 +3507,203 @@ func WifiResetHandler(w http.ResponseWriter, r *http.Request) {
     }
 }
 
+
+/*
+ * func: unassocStaQueryHandler()
+ *
+ * Description:
+ * Handles POST /unassoc_sta_query requests.
+ * Parses payload and triggers Unassociated STA Link Metrics Query.
+ */
+func unassocStaQueryHandler(w http.ResponseWriter, r *http.Request) {
+    if r.Method != http.MethodPost {
+        http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+        return
+    }
+
+    defer r.Body.Close()
+    
+    const maxRequestSize = 64 * 1024 // 64 KB
+    r.Body = http.MaxBytesReader(w, r.Body, maxRequestSize)
+
+    var req unassocStaQueryRequest
+    log.Printf("[DEBUG][HTTP] Received unassoc STA query request")
+
+    if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+        http.Error(w, "Invalid request payload", http.StatusBadRequest)
+        return
+    }
+
+    if req.AlMac == "" {
+        http.Error(w, "AlMac required", http.StatusBadRequest)
+        return
+    }
+
+    if len(req.QueryList) == 0 {
+        http.Error(w, "UnassocStaQueryList required", http.StatusBadRequest)
+        return
+    }
+
+    for _, op := range req.QueryList {
+
+        if len(op.Channels) == 0 {
+            http.Error(w, "Each opclass must contain channels", http.StatusBadRequest)
+            return
+        }
+
+        for _, ch := range op.Channels {
+
+            if len(ch.StaMacList) == 0 {
+                http.Error(w, "Each channel must contain STA list", http.StatusBadRequest)
+                return
+            }
+        }
+    }
+
+    for i, op := range req.QueryList {
+        log.Printf("[DEBUG][HTTP] OpClass[%d]=%d Channels=%d", i, op.OpClass, len(op.Channels))
+
+        for j, ch := range op.Channels {
+            log.Printf("[DEBUG][HTTP]   Channel[%d]=%d STA Count=%d", j, ch.Channel, len(ch.StaMacList))
+        }
+    }
+
+    jsonBytes, err := json.Marshal(req)
+    if err != nil {
+        log.Printf("[ERROR][HTTP] Failed to marshal request: %v", err)
+        http.Error(w, "Failed to process request", http.StatusInternalServerError)
+        return
+    }
+
+    cJsonStr := C.CString(string(jsonBytes))
+    defer C.free(unsafe.Pointer(cJsonStr))
+
+    node := C.get_network_tree(cJsonStr)
+    if node == nil {
+        http.Error(w, "Failed to create network tree", http.StatusInternalServerError)
+        return
+    }
+    defer C.free_network_tree(node)
+
+    cmd := C.CString("unassoc_sta_query OneWifiMesh")
+    defer C.free(unsafe.Pointer(cmd))
+    result := C.exec(cmd, C.strlen(cmd), node)
+
+    if result == nil {
+        http.Error(w, "Command execution failed", http.StatusInternalServerError)
+        return
+    }
+    defer C.free_network_tree(result)
+
+    //log.Printf("[CLI] Unassoc STA Query sent: %+v", req)
+
+    w.Header().Set("Content-Type", "application/json")
+
+    if err := json.NewEncoder(w).Encode(map[string]interface{}{"success": true, "message": "Unassoc STA Query sent",}); err != nil {
+        log.Printf("[ERROR][HTTP] Failed to encode response: %v", err)
+    }    
+}
+
+/* func: clientAssocCtrlRequestHandler()
+ * Description:
+ * Handles POST /client_assoc requests. Parses the clientAssocCtrlRequest payload
+ * and triggers a 1905 Client Assoc Ctrl Request.
+ */
+func clientAssocCtrlRequestHandler(w http.ResponseWriter, r *http.Request) {
+    if r.Method != http.MethodPost {
+        http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+        return
+    }
+
+    defer r.Body.Close()
+    const maxRequestSize = 64 * 1024 // 64 KB
+    r.Body = http.MaxBytesReader(w, r.Body, maxRequestSize)
+
+    var req clientAssocCtrlRequest
+    if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+        http.Error(w, "Invalid request payload", http.StatusBadRequest)
+        return
+    }
+
+    if req.Bssid == "" {
+        http.Error(w, "BSSID is required", http.StatusBadRequest)
+        return
+    }
+    if !isValidMac(req.Bssid) {
+        http.Error(w, "BSSID must be a valid MAC address (xx:xx:xx:xx:xx:xx)", http.StatusBadRequest)
+        return
+    }
+
+    if req.AssocControl != 0 && req.AssocControl != 1 {
+        http.Error(w, "AssocControl must be 0 (Block) or 1 (Unblock)", http.StatusBadRequest)
+        return
+    }
+
+    if req.ValidityPeriod < 0 || req.ValidityPeriod > 65535 {
+        http.Error(w, "ValidityPeriod must be in range 0..65535", http.StatusBadRequest)
+        return
+    }
+
+    if len(req.StaMacList) == 0 {
+        http.Error(w, "StaMacList cannot be empty", http.StatusBadRequest)
+        return
+    }
+
+    if len(req.StaMacList) > 20 {
+        http.Error(w, "StaMacList exceeds max supported size (20)", http.StatusBadRequest)
+        return
+    }
+
+    for _, mac := range req.StaMacList {
+        if !isValidMac(mac) {
+            http.Error(w, "StaMacList must contain valid MAC addresses (xx:xx:xx:xx:xx:xx)", http.StatusBadRequest)
+            return
+        }
+    }
+    payload := map[string]interface{}{
+        "Bssid":          req.Bssid,
+        "AssocControl":   req.AssocControl,
+        "ValidityPeriod": req.ValidityPeriod,
+        "StaMacList":     req.StaMacList,
+    }
+    jsonBytes, err := json.Marshal(payload)
+    if err != nil {
+        http.Error(w, "Failed to serialize client assoc parameters", http.StatusInternalServerError)
+        return
+    }
+    log.Printf("Client Assoc Ctrl Request prepared (bssid=%s sta_count=%d)", req.Bssid, len(req.StaMacList))
+    cJsonStr := C.CString(string(jsonBytes))
+    defer C.free(unsafe.Pointer(cJsonStr))
+
+    node := C.get_network_tree(cJsonStr)
+    if node == nil {
+        http.Error(w, "Failed to create network tree for client assoc ctrl request", http.StatusInternalServerError)
+        return
+    }
+    defer C.free_network_tree(node)
+
+    cmd := C.CString("client_assoc OneWifiMesh")
+    defer C.free(unsafe.Pointer(cmd))
+
+    result := C.exec(cmd, C.strlen(cmd), node)
+    if result == nil {
+        http.Error(w, "Client Assoc Ctrl Request command failed", http.StatusInternalServerError)
+        return
+    }
+    defer C.free_network_tree(result)
+
+    log.Printf("Client Assoc Ctrl Request sent: bssid=%s assoc_control=%d validity_period=%d sta_mac_list=%v ",
+        req.Bssid, req.AssocControl, req.ValidityPeriod, req.StaMacList )
+
+    w.Header().Set("Content-Type", "application/json")
+    if err := json.NewEncoder(w).Encode(map[string]interface{}{
+        "success": true,
+        "message": "Client Assoc Ctrl Request sent",
+    }); err != nil {
+        log.Printf("[ERROR][HTTP] Failed to encode response: %v", err)
+    }
+}
+
 //------------------------------------------------------------
 //                    Helper Functions
 //--------------------------------------------------------------
@@ -3490,7 +3713,7 @@ func WifiResetHandler(w http.ResponseWriter, r *http.Request) {
  * Returns: Array of HaulConfig
  */
 func getConfiguredHauls(tree *C.em_network_node_t) []HaulConfig {
-    var haulConfigs []HaulConfig
+    haulConfigs := []HaulConfig{}
     networkssidListNode := C.get_network_tree_by_key(tree, C.CString("NetworkSSIDList"))
     if networkssidListNode == nil {
         return haulConfigs
@@ -3547,37 +3770,6 @@ func getConfiguredHauls(tree *C.em_network_node_t) []HaulConfig {
     }
 
     return haulConfigs
-}
-
-/* func: updateControllerID
- * Description:
- * updates the ControllerID value in the given reset configuration tree
- * based on the selected or manually entered MAC address, validates its format,
- * and executes the reset command to apply the updated configuration.
- * Return: true or false
- */
-func updateControllerID(resetTree *C.em_network_node_t, selectedMac string) error {
-    if !isValidMac(selectedMac) {
-        return fmt.Errorf("invalid MAC address: %s", selectedMac)
-    }
-
-    cMac := C.CString(selectedMac)
-    cKey := C.CString("ControllerID")
-    defer C.free(unsafe.Pointer(cMac))
-    defer C.free(unsafe.Pointer(cKey))
-
-    node := C.get_network_tree_by_key(resetTree, cKey)
-    if node == nil {
-        return fmt.Errorf("ControllerID node not found in reset tree")
-    }
-
-    buf := (*[256]byte)(unsafe.Pointer(&node.value_str[0]))
-    for i := range buf {
-        buf[i] = 0
-    }
-    copy(buf[:], selectedMac)
-
-    return nil
 }
 
 /* func: updateNetworkSSIDList()
@@ -3781,6 +3973,7 @@ func loadTopologyFromDeviceTree(w  http.ResponseWriter) {
     // Helper to create STA list with circular layout
     createSTAList := func(deviceX, deviceY float32, radioList []Radio) []map[string]interface{} {
         var staList []map[string]interface{}
+        uniqueSTASet := make(map[string]struct{})
 
         for _, radio := range radioList {
             for _, bss := range radio.BSSList {
@@ -3791,6 +3984,13 @@ func loadTopologyFromDeviceTree(w  http.ResponseWriter) {
                     if bss.HaulType == "Backhaul" && bss.SSID == sta.SSID {
                        continue
                     }
+                    staIdentity := sta.MACAddress + "_" + sta.MLDAddr
+                    // Ignore duplicate STA entries which associated on another MLD Links
+                    if _, exists := uniqueSTASet[staIdentity]; exists {
+                        continue
+                    }
+                    uniqueSTASet[staIdentity] = struct{}{}
+
                     staList = append(staList, map[string]interface{}{
                         "staMAC":     sta.MACAddress,
                         "clientType": sta.ClientType,
@@ -3935,10 +4135,25 @@ func loadTopologyFromStaticJSON(w http.ResponseWriter) {
     // Helper to create STA list with circular layout
     createSTAList := func(deviceX, deviceY float32, radioList []Radio) []map[string]interface{} {
         var staList []map[string]interface{}
+        uniqueSTASet := make(map[string]struct{})
 
         for _, radio := range radioList {
             for _, bss := range radio.BSSList {
                 for _, sta := range bss.STAList {
+                    if !sta.Associated {
+                        continue
+                    }
+                    if bss.HaulType == "Backhaul" {
+                        continue
+                    }
+
+                    staIdentity := sta.MACAddress + "_" + sta.MLDAddr
+                    // Ignore duplicate STA entries which associated on another MLD Links
+                    if _, exists := uniqueSTASet[staIdentity]; exists {
+                        continue
+                    }
+                    uniqueSTASet[staIdentity] = struct{}{}
+
                     staList = append(staList, map[string]interface{}{
                         "staMAC":     sta.MACAddress,
                         "clientType": sta.ClientType,
@@ -4310,7 +4525,7 @@ func getPolicyConfiguration(deviceListTree *C.em_network_node_t) []wifiPolicyCon
             cDisallowed := C.CString("Disallowed STA")
             defer C.free(unsafe.Pointer(cDisallowed))
             disallowedNode := C.get_network_tree_by_key(localSteeringNode, cDisallowed)
-            localDisallowedMACs = parseDisallowedSTAMACs(disallowedNode)
+            localDisallowedMACs = parseMACList(disallowedNode)
         }
 
         // BTM Steering Disallowed Policy
@@ -4322,7 +4537,7 @@ func getPolicyConfiguration(deviceListTree *C.em_network_node_t) []wifiPolicyCon
             cDisallowed := C.CString("Disallowed STA")
             defer C.free(unsafe.Pointer(cDisallowed))
             disallowedNode := C.get_network_tree_by_key(btmSteeringNode, cDisallowed)
-            btmDisallowedMACs = parseDisallowedSTAMACs(disallowedNode)
+            btmDisallowedMACs = parseMACList(disallowedNode)
         }
 
         // Channel Scan Reporting Policy
@@ -4343,6 +4558,65 @@ func getPolicyConfiguration(deviceListTree *C.em_network_node_t) []wifiPolicyCon
         dot1qSetting := Default802_1Q_Settings{
             PrimaryVLANID: getKeyIntValue(dot1qSettingNode, "Primary VLAN ID"),
             DefaultPCP:    getKeyIntValue(dot1qSettingNode, "Default PCP"),
+        }
+
+        // Unsuccessful Association Policy
+        cUnsuccAssoc := C.CString("Unsuccessful Association Policy")
+        defer C.free(unsafe.Pointer(cUnsuccAssoc))
+        unSuccesfullAssociation := UnsuccessfulAssociation{}
+        unsuccAssocNode := C.get_network_tree_by_key(policyNode, cUnsuccAssoc)
+        if(unsuccAssocNode != nil) {
+            unSuccesfullAssociation.ReportUnsuccessAssoc = getTreeValue(unsuccAssocNode, "Report Unsuccessful Associations") == "true"
+            unSuccesfullAssociation.MaxReportingRate = getKeyIntValue(unsuccAssocNode, "Maximum Reporting Rate")
+		}
+
+        // Backhaul BSS Config Policy
+        backhaulBssConfigList := []BackhaulBSSConfig{}
+        cBackhaulBssConfig := C.CString("Backhaul BSS Configuration Policy")
+        backhaulBssConfigNode := C.get_network_tree_by_key(policyNode, cBackhaulBssConfig)
+        C.free(unsafe.Pointer(cBackhaulBssConfig))
+        if backhaulBssConfigNode != nil {
+            for j := 0; j < int(backhaulBssConfigNode.num_children); j++ {
+                child := backhaulBssConfigNode.child[j]
+                if child == nil {
+                    continue
+                }
+                bssid := strings.ToUpper(getTreeValue(child, "BSSID"))
+                if bssid == "" || bssid == "00:00:00:00:00:00" {
+                    continue
+                }
+
+                entry := BackhaulBSSConfig{
+                    BSSID: bssid,
+                    Profile1bSTADisallowed: getTreeValue(child, "Profile-1 bSTA Disallowed") == "true",
+                    Profile2bSTADisallowed: getTreeValue(child, "Profile-2 bSTA Disallowed") == "true",
+                }
+                backhaulBssConfigList = append(backhaulBssConfigList, entry)
+            }
+        }
+
+        // QoS Management Policy
+        cQoS := C.CString("QoS Management Policy")
+        defer C.free(unsafe.Pointer(cQoS))
+        qosPolicy := QoSManagementPolicy{
+			MSCSDisallowedSTAList: []string{},
+			SCSDisallowedSTAList:  []string{},
+		}
+        qosNode := C.get_network_tree_by_key(policyNode, cQoS)
+        if qosNode != nil {
+			cMSCS := C.CString("MSCS Disallowed STA List")
+			defer C.free(unsafe.Pointer(cMSCS))
+			mscsNode := C.get_network_tree_by_key(qosNode, cMSCS)
+			if mscsNode != nil {
+				qosPolicy.MSCSDisallowedSTAList = parseMACList(mscsNode)
+			}
+
+            cSCS := C.CString("SCS Disallowed STA List")
+			defer C.free(unsafe.Pointer(cSCS))
+			scsNode := C.get_network_tree_by_key(qosNode, cSCS)
+			if scsNode != nil {
+				qosPolicy.SCSDisallowedSTAList = parseMACList(scsNode)
+			}
         }
 
         // Radio Specific Metrics Policy
@@ -4391,6 +4665,9 @@ func getPolicyConfiguration(deviceListTree *C.em_network_node_t) []wifiPolicyCon
             BTMSteeringDisallowed: btmDisallowedMACs,
             ReportIndependentChannelScans: getKeyIntValue(channelScanReportingNode, "Report Independent Channel Scans"),
             Default802_1Q_SettingsPolicy: dot1qSetting,
+            UnsuccessfulAssocPolicy: unSuccesfullAssociation,
+            BackhaulBSSConfigPolicy: backhaulBssConfigList,
+            QoSManagementPolicy: qosPolicy,
             RadioSpecificMetricsPolicy: radioMetricsArr,
             RadioSteeringParametersPolicy: radioSteeringArr,
         }
@@ -4437,15 +4714,14 @@ func updatePolicySettings(deviceListTree *C.em_network_node_t, policyConfig wifi
         defer C.free(unsafe.Pointer(cLocalSteering))
         localSteeringNode := C.get_network_tree_by_key(policyNode, cLocalSteering)
         if localSteeringNode != nil {
-            updateDisallowedSTAStruct(localSteeringNode, "Disallowed STA", policyConfig.LocalSteeringDisallowed)
+            updateNodeArray(localSteeringNode, "Disallowed STA", normalizeMACArrayString(policyConfig.LocalSteeringDisallowed))
         }
-
         // BTM Steering Disallowed Policy
         cBTMSteering := C.CString("BTM Steering Disallowed Policy")
         defer C.free(unsafe.Pointer(cBTMSteering))
         btmSteeringNode := C.get_network_tree_by_key(policyNode, cBTMSteering)
         if btmSteeringNode != nil {
-            updateDisallowedSTAStruct(btmSteeringNode, "Disallowed STA", policyConfig.BTMSteeringDisallowed)
+            updateNodeArray(btmSteeringNode, "Disallowed STA", normalizeMACArrayString(policyConfig.BTMSteeringDisallowed))
         }
 
         // Channel Scan Reporting Policy
@@ -4463,6 +4739,64 @@ func updatePolicySettings(deviceListTree *C.em_network_node_t, policyConfig wifi
         if (dot1qSettingNode != nil) {
             updateNodeInt(dot1qSettingNode, "Primary VLAN ID", policyConfig.Default802_1Q_SettingsPolicy.PrimaryVLANID)
             updateNodeInt(dot1qSettingNode, "Default PCP", policyConfig.Default802_1Q_SettingsPolicy.DefaultPCP)
+        }
+
+        // "Unsuccessful Association Policy
+        cUnsuccAssoc := C.CString("Unsuccessful Association Policy")
+        defer C.free(unsafe.Pointer(cUnsuccAssoc))
+        unsuccAssocNode := C.get_network_tree_by_key(policyNode, cUnsuccAssoc)
+        if unsuccAssocNode != nil {
+            updateNodeBool(unsuccAssocNode, "Report Unsuccessful Associations", policyConfig.UnsuccessfulAssocPolicy.ReportUnsuccessAssoc)
+            updateNodeInt(unsuccAssocNode, "Maximum Reporting Rate", policyConfig.UnsuccessfulAssocPolicy.MaxReportingRate)
+        }
+
+        // Backhaul BSS Configuration Policy
+        cBackhaul := C.CString("Backhaul BSS Configuration Policy")
+        backhaulNode := C.get_network_tree_by_key(policyNode, cBackhaul)
+        C.free(unsafe.Pointer(cBackhaul))
+        if backhaulNode != nil {
+            for _, entry := range policyConfig.BackhaulBSSConfigPolicy {
+                if entry.BSSID == "" || entry.BSSID == "00:00:00:00:00:00" {
+                    continue
+                }
+                reqBSSID := strings.ToUpper(entry.BSSID)
+                for j := 0; j < int(backhaulNode.num_children); j++ {
+                    child := backhaulNode.child[j]
+                    if child == nil {
+                        continue
+                    }
+                    treeBSSID := strings.ToUpper(getTreeValue(child, "BSSID"))
+                    if treeBSSID == reqBSSID {
+                        updateNodeBool(child,"Profile-1 bSTA Disallowed",entry.Profile1bSTADisallowed)
+                        updateNodeBool(child,"Profile-2 bSTA Disallowed",entry.Profile2bSTADisallowed)
+                        break
+                    }
+                }
+            }
+        }
+
+        // QoS Management Policy
+        cQoS := C.CString("QoS Management Policy")
+        defer C.free(unsafe.Pointer(cQoS))
+        qosNode := C.get_network_tree_by_key(policyNode, cQoS)
+        if qosNode != nil {
+            // MSCS Disallowed STA List
+            cMSCS := C.CString("MSCS Disallowed STA List")
+            defer C.free(unsafe.Pointer(cMSCS))
+            mscsNode := C.get_network_tree_by_key(qosNode, cMSCS)
+            if mscsNode != nil {
+                mscsArray := normalizeMACArrayString(policyConfig.QoSManagementPolicy.MSCSDisallowedSTAList)
+                updateNodeArray(mscsNode, "MSCS Disallowed STA List", mscsArray)
+            }
+
+            // SCS Disallowed STA List
+            cSCS := C.CString("SCS Disallowed STA List")
+            defer C.free(unsafe.Pointer(cSCS))
+            scsNode := C.get_network_tree_by_key(qosNode, cSCS)
+            if scsNode != nil {
+                scsArray := normalizeMACArrayString(policyConfig.QoSManagementPolicy.SCSDisallowedSTAList)
+                updateNodeArray(scsNode, "SCS Disallowed STA List", scsArray)
+            }
         }
 
         // Radio Specific Metrics Policy
@@ -4620,29 +4954,64 @@ func reconcileChildrenToCount(parent *C.em_network_node_t, newChildCount int) in
     return current
 }
 
-/* func: parseDisallowedSTAMACs()
+/* func: parseMACList()
  * Description:
- * Parse the Disallowed STA MAC from policy list
- * returns: array of disallowed stat mac.
+ * Parse the array of MAC from policy list
+ * returns: array of mac address.
  */
-func parseDisallowedSTAMACs(disallowedNode *C.em_network_node_t) []string {
+func parseMACList(node *C.em_network_node_t) []string {
     macs := []string{}
-    if disallowedNode == nil {
+    if node == nil {
         return macs
     }
 
-    count := int(disallowedNode.num_children)
+    count := int(node.num_children)
     for i := 0; i < count; i++ {
-        elem := disallowedNode.child[i]
+        elem := node.child[i]
         if elem == nil {
             continue
         }
-        mac := getTreeValue(elem, "MAC")
+
+        mac := C.GoString(&elem.value_str[0])
+
         if mac != "" && mac != "00:00:00:00:00:00" {
             macs = append(macs, mac)
         }
     }
+
     return macs
+}
+
+/* func: normalizeMACArrayString()
+ * Description:
+ * Processes a list of MAC addresses by cleaning and standardizing them.
+ * returns: A string containing normalized, unique MAC addresses in bracketed comma-separated format.
+ */
+func normalizeMACArrayString(macs []string) string {
+    // Deduplicate + normalize to uppercase
+    seen := make(map[string]struct{}, len(macs))
+
+    for _, mac := range macs {
+        m := strings.ToUpper(strings.TrimSpace(mac))
+
+        // Skip invalid/default values
+        if m == "" || m == "00:00:00:00:00:00" {
+            continue
+        }
+
+        seen[m] = struct{}{}
+    }
+
+    // Convert map keys to slice
+    normalized := make([]string, 0, len(seen))
+    for k := range seen {
+        normalized = append(normalized, k)
+    }
+
+    // sort alphabetically
+    sort.Strings(normalized)
+
+    return "[" + strings.Join(normalized, ", ") + "]"
 }
 
 /* func: applyWifiPolicyConfig()

@@ -43,8 +43,7 @@ public:
     void handle_5s_tick() override {}
     void handle_2s_tick() override {}
     void handle_1s_tick() override {}
-    void handle_500ms_tick() override {}
-    void io(void*, bool) override {}
+    void handle_250ms_tick() override {}
     void update_network_topology() override {}
     dm_easy_mesh_t *get_first_dm() override { return nullptr; }
     dm_easy_mesh_t *get_next_dm(dm_easy_mesh_t*) override { return nullptr; }
@@ -55,6 +54,7 @@ public:
     int update_tables(dm_easy_mesh_t*) override { return 0; }
     int load_net_ssid_table() override { return 0; }
     void debug_probe() override {}
+    void io(void*, bool) override {}
     em_service_type_t get_service_type() override { return em_service_type_t(); }
 };
 

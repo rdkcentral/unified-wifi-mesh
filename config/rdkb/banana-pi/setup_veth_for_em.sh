@@ -19,10 +19,14 @@ ip link del $VETH_END 2>/dev/null
 echo "Cleanup complete."
 
 # --- Create the Bridge ---
-echo "Creating bridge $BRIDGE_NAME..."
-ip link add name $BRIDGE_NAME type bridge
-ip link set dev $BRIDGE_NAME up
-echo "Bridge $BRIDGE_NAME created and brought up."
+if ip link show "$BRIDGE_NAME" >/dev/null 2>&1; then
+    echo "Bridge $BRIDGE_NAME already exists."
+else
+    echo "Creating bridge $BRIDGE_NAME..."
+    ip link add name $BRIDGE_NAME type bridge
+    ip link set dev $BRIDGE_NAME up
+    echo "Bridge $BRIDGE_NAME created and brought up."
+fi
 
 # --- Create veth pair and add one end to the bridge ---
 echo "Creating veth pair ($VETH_END <-> $VETH_PEER)..."

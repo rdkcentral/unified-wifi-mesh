@@ -42,12 +42,16 @@
 int dm_policy_list_t::get_config(cJSON *parent_obj, void *parent, bool summary)
 {
     dm_policy_t *policy;
-	cJSON *obj, *radio_metrics_arr_obj, *radio_steer_arr_obj;
+	cJSON *obj, *radio_metrics_arr_obj, *radio_steer_arr_obj, *steering_policies_obj;
 	mac_addr_str_t radio_mac_str;
 	mac_address_t dev_mac;
 	mac_address_t null_mac = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 
 	dm_easy_mesh_t::string_to_macbytes(static_cast<char *>(parent), dev_mac);
+
+	// Create the Steering Policies wrapper up front so it can be populated in both loops.
+	steering_policies_obj = cJSON_CreateObject();
+	cJSON_AddItemToObject(parent_obj, "Steering Policies", steering_policies_obj);
 
 	// first report the global policies for the device, for global the radio id will be NULL
     policy = static_cast<dm_policy_t *>(get_first_policy());
@@ -66,10 +70,10 @@ int dm_policy_list_t::get_config(cJSON *parent_obj, void *parent, bool summary)
 
 		if (policy->m_policy.id.type == em_policy_id_type_steering_local) {
 			policy->encode(obj, em_policy_id_type_steering_local);
-			cJSON_AddItemToObject(parent_obj, "Local Steering Disallowed Policy", obj);
+			cJSON_AddItemToObject(steering_policies_obj, "Local Steering Disallowed Policy", obj);
 		} else if (policy->m_policy.id.type == em_policy_id_type_steering_btm) {
 			policy->encode(obj, em_policy_id_type_steering_btm);
-			cJSON_AddItemToObject(parent_obj, "BTM Steering Disallowed Policy", obj);
+			cJSON_AddItemToObject(steering_policies_obj, "BTM Steering Disallowed Policy", obj);
 		} else if (policy->m_policy.id.type == em_policy_id_type_ap_metrics_rep) {
 			policy->encode(obj, em_policy_id_type_ap_metrics_rep);
 			cJSON_AddItemToObject(parent_obj, "AP Metrics Reporting Policy", obj);
@@ -79,9 +83,36 @@ int dm_policy_list_t::get_config(cJSON *parent_obj, void *parent, bool summary)
         } else if (policy->m_policy.id.type == em_policy_id_type_channel_scan) {
 			policy->encode(obj, em_policy_id_type_channel_scan);
 			cJSON_AddItemToObject(parent_obj, "Channel Scan Reporting Policy", obj);
+		} else if (policy->m_policy.id.type == em_policy_id_type_unsuccess_assoc) {
+			policy->encode(obj, em_policy_id_type_unsuccess_assoc);
+			cJSON_AddItemToObject(parent_obj, "Unsuccessful Association Policy", obj);
 		} else if (policy->m_policy.id.type == em_policy_id_type_backhaul_bss_config) {
-			policy->encode(obj, em_policy_id_type_backhaul_bss_config);
-			cJSON_AddItemToObject(parent_obj, "Backhaul BSS Configuration Policy", obj);
+			dm_easy_mesh_ctrl_t *ctrl = dynamic_cast<dm_easy_mesh_ctrl_t *>(this);
+			dm_easy_mesh_t *dev_dm = ctrl ? ctrl->get_data_model(GLOBAL_NET_ID, dev_mac) : nullptr;
+			if (dev_dm != nullptr) {
+				policy->m_policy.num_backhaul_bss_config = 0;
+				for (unsigned int bi = 0; bi < dev_dm->m_num_bss && policy->m_policy.num_backhaul_bss_config < EM_MAX_BSSS; bi++) {
+					em_bss_info_t *bss_info = dev_dm->m_bss[bi].get_bss_info();
+					if (bss_info == nullptr || bss_info->id.haul_type != em_haul_type_backhaul) {
+						continue;
+					}
+					if (memcmp(bss_info->bssid.mac, null_mac, sizeof(mac_address_t)) == 0) {
+						continue;
+					}
+
+					unsigned int cnt = policy->m_policy.num_backhaul_bss_config;
+					memcpy(policy->m_policy.backhaul_bss_config[cnt].bssid, bss_info->bssid.mac, sizeof(mac_address_t));
+					policy->m_policy.backhaul_bss_config[cnt].b_profile_1_sta_disallowed = bss_info->r1_disallowed;
+					policy->m_policy.backhaul_bss_config[cnt].b_profile_2_sta_disallowed = bss_info->r2_disallowed;
+					policy->m_policy.num_backhaul_bss_config++;
+				}
+			}
+			cJSON *arr = cJSON_CreateArray();
+			policy->encode(arr, em_policy_id_type_backhaul_bss_config);
+			cJSON_AddItemToObject(parent_obj, "Backhaul BSS Configuration Policy", arr);
+		} else if (policy->m_policy.id.type == em_policy_id_type_qos_mgt) {
+			policy->encode(obj, em_policy_id_type_qos_mgt);
+			cJSON_AddItemToObject(parent_obj, "QoS Management Policy", obj);
 		} else if (policy->m_policy.id.type == em_policy_id_type_alarm_threshold) {
             policy->encode(obj, em_policy_id_type_alarm_threshold);
             cJSON_AddItemToObject(parent_obj, "Algorithm Run Policy", obj);
@@ -92,11 +123,10 @@ int dm_policy_list_t::get_config(cJSON *parent_obj, void *parent, bool summary)
     }
 
 	// then report the policies of the radios of this device
-	
 	radio_metrics_arr_obj = cJSON_CreateArray();
 	cJSON_AddItemToObject(parent_obj, "Radio Specific Metrics Policy", radio_metrics_arr_obj);
 	radio_steer_arr_obj = cJSON_CreateArray();
-	cJSON_AddItemToObject(parent_obj, "Radio Steering Parameters", radio_steer_arr_obj);
+	cJSON_AddItemToObject(steering_policies_obj, "Radio Steering Parameters", radio_steer_arr_obj);
 
     policy = static_cast<dm_policy_t *>(get_first_policy());
     while (policy != NULL) {
@@ -105,6 +135,7 @@ int dm_policy_list_t::get_config(cJSON *parent_obj, void *parent, bool summary)
 	    	continue;
 		}
 
+		// Skip policies with null radio_mac — they are device-global, not radio-specific.
 		if (memcmp(policy->m_policy.id.radio_mac, null_mac, sizeof(mac_address_t)) == 0) {
 	    	policy = get_next_policy(policy);
 	    	continue;
@@ -119,7 +150,7 @@ int dm_policy_list_t::get_config(cJSON *parent_obj, void *parent, bool summary)
 			cJSON_AddItemToArray(radio_steer_arr_obj, obj);
 		} else if (policy->m_policy.id.type == em_policy_id_type_radio_metrics_rep) {
 			policy->encode(obj, em_policy_id_type_radio_metrics_rep);
-			cJSON_AddItemToArray(radio_metrics_arr_obj, obj);
+            cJSON_AddItemToArray(radio_metrics_arr_obj, obj);
 		}
 
 		policy = get_next_policy(policy);
@@ -151,7 +182,6 @@ int dm_policy_list_t::set_config(db_client_t& db_client, const cJSON *obj_arr, v
 int dm_policy_list_t::set_config(db_client_t& db_client, dm_policy_t& policy, void *parent_id)
 {
     dm_orch_type_t op;
-    parse_dev_radio_mac_from_key(static_cast<char *>(parent_id), &policy.m_policy.id);
     update_db(db_client, (op = get_dm_orch_type(db_client, policy)), policy.get_policy());
     update_list(policy, op);
 
@@ -175,12 +205,13 @@ dm_orch_type_t dm_policy_list_t::get_dm_orch_type(db_client_t& db_client, const 
             return dm_orch_type_db_insert;
         }
 
-        if (*ppolicy == policy) {
-            return dm_orch_type_db_update;
-        }
-
         return dm_orch_type_db_update;
     }  
+
+    // Not in memory — still check if the DB already has this row to avoid duplicates.
+    if (entry_exists_in_table(db_client, key) == true) {
+        return dm_orch_type_db_update;
+    }
 
     return dm_orch_type_db_insert;
 }
@@ -204,6 +235,10 @@ void dm_policy_list_t::update_list(const dm_policy_t& policy, dm_orch_type_t op)
 
         case dm_orch_type_db_update:
             ppolicy = get_policy(key);
+            if (ppolicy == NULL) {
+                put_policy(key, &policy);
+                break;
+            }
             memcpy(&ppolicy->m_policy, &policy.m_policy, sizeof(em_policy_t));
             break;
 
@@ -304,6 +339,7 @@ bool dm_policy_list_t::search_db(db_client_t& db_client, void *ctx, void *key)
 		//printf("%s:%d: Comparing source: %s target: %s\n", __func__, __LINE__, str, (char *)key);
 
         if (strncmp(str, static_cast<char *>(key), strlen(static_cast<char *>(key))) == 0) {
+            db_client.free_result(ctx);
             return true;
         }
     }
@@ -323,9 +359,11 @@ int dm_policy_list_t::sync_db(db_client_t& db_client, void *ctx)
 
     while (db_client.next_result(ctx)) {
         memset(&policy, 0, sizeof(em_policy_t));
+        memset(&id, 0, sizeof(id));
 
         db_client.get_string(ctx, str, 1);
 		dm_policy_t::parse_dev_radio_mac_from_key(str, &id);
+		strncpy(policy.id.net_id, id.net_id, sizeof(policy.id.net_id));
 		memcpy(policy.id.dev_mac, id.dev_mac, sizeof(mac_address_t));
 		memcpy(policy.id.radio_mac, id.radio_mac, sizeof(mac_address_t));
         policy.id.type = static_cast<em_policy_id_type_t>(db_client.get_number(ctx, 2));

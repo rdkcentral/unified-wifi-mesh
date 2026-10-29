@@ -22,12 +22,18 @@
 #include "em_base.h"
 #include "em_ctrl.h"
 #include <sys/time.h>
+#include <cstring>
+#include <type_traits>
 #include "dm_easy_mesh.h"
+
+namespace util {
+	void monotonic_now(struct timeval *tv);
+}
 
 class em_cmd_t {
 public:
     em_cmd_type_t   m_type;
-    em_service_type_t   m_svc;
+    em_service_type_t   m_svc = em_service_type_none;
     em_cmd_params_t m_param;
     em_event_t  *m_evt;
     em_string_t m_name;
@@ -104,7 +110,13 @@ public:
 	 *
 	 * @returns The current service type.
 	 */
-	em_service_type_t get_svc() { return m_svc; }
+	em_service_type_t get_svc() {
+        using U = std::underlying_type_t<em_service_type_t>;
+        U raw;
+        std::memcpy(&raw, &m_svc, sizeof(raw));
+        return (raw > static_cast<U>(em_service_type_none))
+               ? em_service_type_none : m_svc;
+    }
     
 	/**!
 	 * @brief Retrieves the current event.
@@ -484,14 +496,14 @@ public:
 
     
 	/**!
-	 * @brief Sets the start time using the current time of day.
+	 * @brief Sets the command start time from the monotonic clock.
 	 *
-	 * This function initializes the start time by retrieving the current time
-	 * of day and storing it in the member variable `m_start_time`.
+	 * This function initializes the start time by reading CLOCK_MONOTONIC
+	 * and storing it in the member variable `m_start_time`.
 	 *
 	 * @note This function does not take any parameters and does not return any value.
 	 */
-	void set_start_time() { gettimeofday(&m_start_time, NULL);}
+	void set_start_time() { util::monotonic_now(&m_start_time); }
 
     
 	/**!
@@ -547,6 +559,10 @@ public:
 	 */
 	void reset_cmd_ctx() { m_data_model.reset_cmd_ctx(); }
 
+	virtual bool supports_retry_state() const { return false; }
+	virtual time_t get_query_tx_time() const { return 0; }
+	virtual void set_query_tx_time(time_t tx_time) { (void)tx_time; }
+	virtual void clear_query_tx_time() {}
     
 	/**!
 	 * @brief Retrieves the database configuration type.

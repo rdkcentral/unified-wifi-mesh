@@ -72,6 +72,7 @@ libemcli_la_SOURCES = \
  $(top_srcdir)/src/cmd/em_cmd_btm_report.cpp \
  $(top_srcdir)/src/cmd/em_cmd_get_mld_config.cpp \
  $(top_srcdir)/src/cmd/em_cmd_mld_reconfig.cpp \
+ $(top_srcdir)/src/cmd/em_cmd_unassoc_sta_query.cpp \
  $(top_srcdir)/src/dm/dm_device.cpp \
  $(top_srcdir)/src/dm/dm_ieee_1905_security.cpp \
  $(top_srcdir)/src/dm/dm_easy_mesh.cpp  \
@@ -95,6 +96,4 @@ libemcli_la_SOURCES = \
  $(top_srcdir)/src/utils/util.cpp \
  $(top_srcdir)/src/em/prov/easyconnect/ec_util.cpp \
  $(top_srcdir)/src/em/prov/easyconnect/ec_crypto.cpp \
- $(top_srcdir)/src/util_crypto/aes_siv.c \
- $(top_srcdir)/OneWifi/source/utils/collection.c
-
+ $(top_srcdir)/src/util_crypto/aes_siv.c

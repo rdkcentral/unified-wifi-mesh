@@ -50,7 +50,7 @@ INDLUDEDIRS += -I$(WIFI_CJSON)
 CXX_COMMON_FLAGS = -Wall -Wextra -Wpointer-arith -Wcast-qual -Wcast-align -Wstrict-aliasing -fno-common -fstack-protector-strong -D_FORTIFY_SOURCE=2 -fPIE -pie -ftrapv -Wformat=2 -Wformat-security -Wuninitialized -Winit-self -Wsign-conversion -Wno-unused-parameter -fsanitize=address -fsanitize=undefined -Werror #-Wconversion -O2 -Weffc++
 CXX_SPECIFIC_FLAGS = -Wctor-dtor-privacy -Wold-style-cast -Woverloaded-virtual -Wsign-promo -Wstrict-null-sentinel -std=c++17
 
-CXXFLAGS += $(INCLUDEDIRS) -g $(CXX_COMMON_FLAGS) $(CXX_SPECIFIC_FLAGS) `mariadb_config --include`
+CXXFLAGS += $(INCLUDEDIRS) -g $(CXX_COMMON_FLAGS) $(CXX_SPECIFIC_FLAGS) `pkg-config --cflags sqlite3`
 CFLAGS += $(INCLUDEDIRS) -g $(CXX_COMMON_FLAGS)
 
 ifeq ($(WITH_SAP), 1)
@@ -74,7 +74,7 @@ ifeq ($(WITH_SAP), 1)
 LIBDIRS += -L$(AL_SAP_HOME)/
 endif
 
-LIBS = -lm -lpthread -ldl -luuid -lcjson -lssl -lcrypto -lhebus `mariadb_config --libs`
+LIBS = -lm -lpthread -ldl -luuid -lcjson -lssl -lcrypto -lhebus `pkg-config --libs sqlite3` -lstdc++fs
 ifeq ($(WITH_SAP), 1)
 LIBS += -lalsap
 endif
@@ -150,6 +150,7 @@ TEST_EXEC = $(INSTALLDIR)/bin/onewifi_em_ctrl_test
 EXCLUDE_TESTS = \
     $(TEST_DIR)/test_l1_al%.cpp \
     $(TEST_DIR)/test_l1_em_simulator.cpp \
+    $(TEST_DIR)/test_l1_em_orch_agent.cpp \
     $(TEST_DIR)/test_l1_em_cmd_scan_result.cpp \
     $(TEST_DIR)/test_l1_em_cmd_ap_metrics_report.cpp \
     $(TEST_DIR)/test_l1_em_cmd_btm_report.cpp

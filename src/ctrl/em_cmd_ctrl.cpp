@@ -59,12 +59,14 @@ int em_cmd_ctrl_t::execute(char *result)
 
     if ((ret = listen(lsock, 20)) == -1) {
         printf("%s:%d: listen error on socket, err:%d\n", __func__, __LINE__, errno);
+        close_listener_socket(lsock, em_service_type_ctrl);
         return -1;
     }
 
     if (em_ctrl == NULL) {
         em_printfout("em_ctrl is NULL");
-        return -1;        
+        close_listener_socket(lsock, em_service_type_ctrl);
+        return -1;
     }
 
     while (1) {
@@ -86,6 +88,7 @@ int em_cmd_ctrl_t::execute(char *result)
 
         if (SSL_accept(m_ssl) <= 0) {
             SSL_free(m_ssl);
+            m_ssl = NULL;
             close(dsock);
             continue;
         }
@@ -96,7 +99,7 @@ int em_cmd_ctrl_t::execute(char *result)
 
         //printf("%s:%d: Read bytes: %d Size: %d Name: %s Buff: %s\n", __func__, __LINE__, ret, 
         	//get_event()->u.bevt.data_len, get_event()->u.bevt.u.subdoc.name, get_event()->u.bevt.u.subdoc.buff);
-        
+
         switch (get_event()->type) {
 
             case em_event_type_bus:
@@ -126,7 +129,7 @@ int em_cmd_ctrl_t::execute(char *result)
 
     }
 
-	close_listener_socket(lsock, get_svc());
+	close_listener_socket(lsock, em_service_type_ctrl);
 
     return 0;
 }
@@ -156,6 +159,7 @@ int em_cmd_ctrl_t::send_result(em_cmd_out_status_t status)
 	sd = SSL_get_fd(m_ssl);
 	SSL_shutdown(m_ssl);
 	SSL_free(m_ssl);
+	m_ssl = NULL;
 	close(sd);
 
 	free(str);

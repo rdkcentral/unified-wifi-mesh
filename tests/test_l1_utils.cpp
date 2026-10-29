@@ -47,11 +47,6 @@ std::ostream& operator<<(std::ostream& os, const MacAddress& mac) {
     return os;
 }
 
-std::ostream& operator<<(std::ostream& os, const MessageIdRange& range) {
-    os << "[" << range.first << ", " << range.second << "]";
-    return os;
-}
-
 std::ostream& operator<<(std::ostream& os, const SAPActivation& op) {
     switch (op) {
         case SAPActivation::SAP_ENABLE:

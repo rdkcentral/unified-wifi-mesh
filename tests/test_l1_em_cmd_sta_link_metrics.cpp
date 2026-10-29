@@ -56,7 +56,7 @@ TEST(em_cmd_sta_link_metrics_t, DefaultConstruction)
     std::cout << "Invoking em_cmd_sta_link_metrics_t(default_dm)" << std::endl;
     em_cmd_sta_link_metrics_t cmd(default_dm);
     EXPECT_EQ(cmd.get_type(), em_cmd_type_sta_link_metrics);
-    std::cout << "Verified command type: " << cmd.get_type() << std::endl;
+    std::cout << "Verified command type: " << static_cast<int>(cmd.get_type()) << std::endl;
     EXPECT_EQ(cmd.m_num_orch_desc, 1);
     EXPECT_EQ(cmd.m_orch_op_idx, 0);
     EXPECT_EQ(cmd.m_orch_desc[0].op, dm_orch_type_sta_link_metrics);
@@ -107,7 +107,7 @@ TEST(em_cmd_sta_link_metrics_t, CustomNetworkConfiguration)
     std::cout << "Invoking em_cmd_sta_link_metrics_t(custom_dm)" << std::endl;
     em_cmd_sta_link_metrics_t cmd(custom_dm);
     EXPECT_EQ(cmd.get_type(), em_cmd_type_sta_link_metrics);
-    std::cout << "Verified command type: " << cmd.get_type() << std::endl;
+    std::cout << "Verified command type: " << static_cast<int>(cmd.get_type()) << std::endl;
     EXPECT_EQ(cmd.m_num_orch_desc, 1);
     EXPECT_EQ(cmd.m_orch_op_idx, 0);
     EXPECT_EQ(cmd.m_orch_desc[0].op, dm_orch_type_sta_link_metrics);

@@ -1549,3 +1549,186 @@ TEST(dm_sta_t_Test, dm_sta_t_destructor_default_constructor) {
     });
     std::cout << "Exiting dm_sta_t::~dm_sta_t()_end test" << std::endl;
 }
+
+/**
+ * @brief Verify that the IE offset of an Association Request frame body is the fixed field length.
+ *
+ * This test verifies that a body carrying the capability information and listen interval ahead of the elements resolves to the association request offset.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 047@n
+ * **Priority:** High@n
+ *
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ *
+ * **Test Procedure:**
+ * | Variation / Step | Description                                                            | Test Data                                       | Expected Result                       | Notes       |
+ * | :--------------: | ---------------------------------------------------------------------- | ----------------------------------------------- | ------------------------------------- | ----------- |
+ * | 01               | Prepare a frame body from the association fixed fields and the elements | body = capability info, listen interval, SSID and supported rates elements | Frame body is prepared | Should be successful |
+ * | 02               | Invoke get_assoc_frame_ie_offset with the frame body and its length     | body = prepared frame body, len = body length   | Offset is EM_ASSOC_FIXED_FIELDS_LEN   | Should Pass |
+ */
+TEST(dm_sta_t_Test, GetAssocFrameIeOffsetAssocLayout) {
+    std::cout << "Entering GetAssocFrameIeOffsetAssocLayout test" << std::endl;
+    unsigned char body[] = {
+        0x31, 0x04, 0x0a, 0x00,                /* capability info + listen interval */
+        0x00, 0x04, 't', 'e', 's', 't',        /* SSID */
+        0x01, 0x04, 0x02, 0x04, 0x0b, 0x16     /* supported rates */
+    };
+    EXPECT_EQ(dm_sta_t::get_assoc_frame_ie_offset(body, sizeof(body)),
+        static_cast<unsigned int>(EM_ASSOC_FIXED_FIELDS_LEN));
+    std::cout << "Exiting GetAssocFrameIeOffsetAssocLayout test" << std::endl;
+}
+
+/**
+ * @brief Verify that the Current AP address of a Reassociation Request is not taken for an SSID element.
+ *
+ * This test verifies that a reassociation request body whose Current AP address starts with 0x00 resolves to the reassociation request offset rather than the association one.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 048@n
+ * **Priority:** High@n
+ *
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ *
+ * **Test Procedure:**
+ * | Variation / Step | Description                                                        | Test Data                                     | Expected Result                       | Notes       |
+ * | :--------------: | ------------------------------------------------------------------ | --------------------------------------------- | ------------------------------------- | ----------- |
+ * | 01               | Prepare a frame body whose Current AP address starts with 0x00      | body = association fixed fields, Current AP address, SSID and supported rates elements | Frame body is prepared | Should be successful |
+ * | 02               | Invoke get_assoc_frame_ie_offset with the frame body and its length | body = prepared frame body, len = body length | Offset is EM_REASSOC_FIXED_FIELDS_LEN | Should Pass |
+ */
+TEST(dm_sta_t_Test, GetAssocFrameIeOffsetReassocLayout) {
+    std::cout << "Entering GetAssocFrameIeOffsetReassocLayout test" << std::endl;
+    unsigned char body[] = {
+        0x31, 0x04, 0x0a, 0x00,                      /* capability info + listen interval */
+        0x00, 0x11, 0x22, 0x33, 0x44, 0x55,          /* Current AP address, first octet 0x00 */
+        0x00, 0x04, 't', 'e', 's', 't',              /* SSID */
+        0x01, 0x04, 0x02, 0x04, 0x0b, 0x16           /* supported rates */
+    };
+    EXPECT_EQ(dm_sta_t::get_assoc_frame_ie_offset(body, sizeof(body)),
+        static_cast<unsigned int>(EM_REASSOC_FIXED_FIELDS_LEN));
+    std::cout << "Exiting GetAssocFrameIeOffsetReassocLayout test" << std::endl;
+}
+
+/**
+ * @brief Verify that a Current AP address that looks like an SSID element is not taken for one.
+ *
+ * This test verifies that a reassociation request body whose Current AP address starts with 00:04, i.e. an element id of zero and a length that consumes the rest of the address, still resolves to the reassociation request offset.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 049@n
+ * **Priority:** High@n
+ *
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ *
+ * **Test Procedure:**
+ * | Variation / Step | Description                                                        | Test Data                                     | Expected Result                       | Notes       |
+ * | :--------------: | ------------------------------------------------------------------ | --------------------------------------------- | ------------------------------------- | ----------- |
+ * | 01               | Prepare a frame body whose Current AP address starts with 00:04     | body = association fixed fields, Current AP address, SSID and supported rates elements | Frame body is prepared | Should be successful |
+ * | 02               | Invoke get_assoc_frame_ie_offset with the frame body and its length | body = prepared frame body, len = body length | Offset is EM_REASSOC_FIXED_FIELDS_LEN | Should Pass |
+ */
+TEST(dm_sta_t_Test, GetAssocFrameIeOffsetApAddressLooksLikeSsid) {
+    std::cout << "Entering GetAssocFrameIeOffsetApAddressLooksLikeSsid test" << std::endl;
+    unsigned char body[] = {
+        0x31, 0x04, 0x0a, 0x00,                      /* capability info + listen interval */
+        0x00, 0x04, 0x22, 0x33, 0x44, 0x55,          /* Current AP address, reads as element 0 of length 4 */
+        0x00, 0x04, 't', 'e', 's', 't',              /* SSID */
+        0x01, 0x04, 0x02, 0x04, 0x0b, 0x16           /* supported rates */
+    };
+    EXPECT_EQ(dm_sta_t::get_assoc_frame_ie_offset(body, sizeof(body)),
+        static_cast<unsigned int>(EM_REASSOC_FIXED_FIELDS_LEN));
+    std::cout << "Exiting GetAssocFrameIeOffsetApAddressLooksLikeSsid test" << std::endl;
+}
+
+/**
+ * @brief Verify that a frame body carrying the elements alone resolves to offset zero.
+ *
+ * This test verifies that a body stored without any fixed fields is parsed from its first octet.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 050@n
+ * **Priority:** High@n
+ *
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ *
+ * **Test Procedure:**
+ * | Variation / Step | Description                                                       | Test Data                                     | Expected Result | Notes       |
+ * | :--------------: | ----------------------------------------------------------------- | --------------------------------------------- | --------------- | ----------- |
+ * | 01               | Invoke get_assoc_frame_ie_offset with a body holding only elements | body = SSID and supported rates elements, len = body length | Offset is 0 | Should Pass |
+ */
+TEST(dm_sta_t_Test, GetAssocFrameIeOffsetIeOnlyLayout) {
+    std::cout << "Entering GetAssocFrameIeOffsetIeOnlyLayout test" << std::endl;
+    unsigned char body[] = {
+        0x00, 0x04, 't', 'e', 's', 't',        /* SSID */
+        0x01, 0x04, 0x02, 0x04, 0x0b, 0x16     /* supported rates */
+    };
+    EXPECT_EQ(dm_sta_t::get_assoc_frame_ie_offset(body, sizeof(body)), 0u);
+    std::cout << "Exiting GetAssocFrameIeOffsetIeOnlyLayout test" << std::endl;
+}
+
+/**
+ * @brief Verify that a truncated frame body still resolves to its own offset.
+ *
+ * This test verifies that a body whose last element is cut short resolves to the reassociation request offset instead of falling back to zero.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 051@n
+ * **Priority:** High@n
+ *
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ *
+ * **Test Procedure:**
+ * | Variation / Step | Description                                                        | Test Data                                     | Expected Result                       | Notes       |
+ * | :--------------: | ------------------------------------------------------------------ | --------------------------------------------- | ------------------------------------- | ----------- |
+ * | 01               | Prepare a reassociation frame body whose last element is cut short  | last element declares four octets and carries two | Frame body is prepared            | Should be successful |
+ * | 02               | Invoke get_assoc_frame_ie_offset with the frame body and its length | body = prepared frame body, len = body length | Offset is EM_REASSOC_FIXED_FIELDS_LEN | Should Pass |
+ */
+TEST(dm_sta_t_Test, GetAssocFrameIeOffsetTruncatedBody) {
+    std::cout << "Entering GetAssocFrameIeOffsetTruncatedBody test" << std::endl;
+    unsigned char body[] = {
+        0x31, 0x04, 0x0a, 0x00,                      /* capability info + listen interval */
+        0x00, 0x11, 0x22, 0x33, 0x44, 0x55,          /* Current AP address, first octet 0x00 */
+        0x00, 0x04, 't', 'e', 's', 't',              /* SSID */
+        0x01, 0x04, 0x02, 0x04                       /* supported rates, two of four octets */
+    };
+    EXPECT_EQ(dm_sta_t::get_assoc_frame_ie_offset(body, sizeof(body)),
+        static_cast<unsigned int>(EM_REASSOC_FIXED_FIELDS_LEN));
+    std::cout << "Exiting GetAssocFrameIeOffsetTruncatedBody test" << std::endl;
+}
+
+/**
+ * @brief Verify that frame bodies matching no layout resolve to offset zero.
+ *
+ * This test verifies that a body holding no valid element, and a null body, are both reported as starting at offset zero.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 052@n
+ * **Priority:** High@n
+ *
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ *
+ * **Test Procedure:**
+ * | Variation / Step | Description                                                      | Test Data                   | Expected Result | Notes       |
+ * | :--------------: | ---------------------------------------------------------------- | --------------------------- | --------------- | ----------- |
+ * | 01               | Invoke get_assoc_frame_ie_offset with a body holding no element   | body = 0xff filled, len = 8 | Offset is 0     | Should Pass |
+ * | 02               | Invoke get_assoc_frame_ie_offset with a null body                 | body = nullptr, len = 32    | Offset is 0     | Should Pass |
+ */
+TEST(dm_sta_t_Test, GetAssocFrameIeOffsetUnrecognisedBody) {
+    std::cout << "Entering GetAssocFrameIeOffsetUnrecognisedBody test" << std::endl;
+    unsigned char body[8];
+    memset(body, 0xff, sizeof(body));
+    EXPECT_EQ(dm_sta_t::get_assoc_frame_ie_offset(body, sizeof(body)), 0u);
+    EXPECT_EQ(dm_sta_t::get_assoc_frame_ie_offset(nullptr, 32), 0u);
+    std::cout << "Exiting GetAssocFrameIeOffsetUnrecognisedBody test" << std::endl;
+}

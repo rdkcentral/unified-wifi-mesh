@@ -327,6 +327,28 @@ public:
 	int analyze_ap_metrics_report(em_bus_event_t *evt, em_cmd_t *pcmd[]);
 	int analyze_link_report(em_bus_event_t *evt, em_cmd_t *pcmd[]);
 
+        /**!
+         * @brief Analyzes the Unassociated STA Link Metrics Result.
+         *
+         * This function processes the Unassociated STA Link Metrics
+         * Response received from the agent, extracts RCPI measurements,
+         * and populates the corresponding internal command structures.
+         *
+         * @param[in] evt Pointer to the event structure containing the
+         *                Unassociated STA Metrics Response.
+         * @param[in] pcmd Array of pointers to command structures used
+         *                 for further processing.
+         *
+         * @returns int Status code indicating success or failure.
+         * @retval 0 on success.
+         * @retval Non-zero error code on failure.
+         *
+         * @note The response may contain zero STA entries as per the
+         *       EasyMesh specification when no RCPI measurements could
+         *       be collected within the implementation-specific timeout.
+         */
+        int analyze_unassoc_sta_result(em_bus_event_t *evt, em_cmd_t *pcmd[]);
+
 	/**!
 	 * @brief Refreshes the OneWiFi subdocument.
 	 *
