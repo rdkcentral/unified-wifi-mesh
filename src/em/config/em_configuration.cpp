@@ -2232,27 +2232,48 @@ int em_configuration_t::handle_ap_operational_bss(unsigned char *buff, unsigned 
     radio = const_cast<em_ap_op_bss_radio_t *> (ap->radios);
 
 	util::get_date_time_rfc3399(time_date, sizeof(time_date));
-
+    em_2xlong_string_t criteria = {0};
+    bool first = true;
     for (i = 0; i < ap->radios_num; i++) {
+        /* Validate all incoming BSS entries before deleting existing ones */
+        bss = radio->bss;
+        all_bss_len = 0;
+        for (j = 0; j < radio->bss_num; j++) {
+            ssid_t ssid_buf = {0};
+            size_t ssid_len = bss->ssid_len;
+            if (ssid_len >= sizeof(ssid_buf))
+	        ssid_len = sizeof(ssid_buf) - 1;
+            memcpy(ssid_buf, bss->ssid, ssid_len);
+            ssid_buf[ssid_len] = '\0';
+            if (!em_get_ext_hooks()->accept_bss_ssid(dm->is_ssid_match(ssid_buf))) {
+                em_printfout("%s:%d: SSID validation failed [%s]",__func__,__LINE__,ssid_buf);
+                return -2;
+            }
+            all_bss_len += sizeof(em_ap_operational_bss_t) + bss->ssid_len;
+            bss = reinterpret_cast<em_ap_operational_bss_t *>(reinterpret_cast<unsigned char *>(bss) + sizeof(em_ap_operational_bss_t) + bss->ssid_len);
+        }
+        /* Mark all BSS on this radio as stale */
+        for (unsigned int k = 0; k < dm->m_num_bss; k++) {
+            if (memcmp(dm->m_bss[k].m_bss_info.id.ruid,radio->ruid,sizeof(mac_address_t)) == 0) {
+                dm->m_bss[k].m_bss_info.enabled = false;
+            }
+        }
         bss = radio->bss;
         all_bss_len = 0;
         for (j = 0; j < radio->bss_num; j++) {
             dm_bss = dm->get_bss(radio->ruid, bss->bssid);
-		
-			if (dm_bss == NULL) {
-				dm_bss = &dm->m_bss[dm->m_num_bss];
-				dm_bss->init();
+            if (dm_bss == NULL) {
+                dm_bss = &dm->m_bss[dm->m_num_bss];
+                dm_bss->init();
 
-				// fill up id first
-				strncpy(dm_bss->m_bss_info.id.net_id, dm->m_device.m_device_info.id.net_id, sizeof(em_long_string_t));
-				memcpy(dm_bss->m_bss_info.id.dev_mac, dm->m_device.m_device_info.intf.mac, sizeof(mac_address_t));
-				memcpy(dm_bss->m_bss_info.id.ruid, radio->ruid, sizeof(mac_address_t));
-				memcpy(dm_bss->m_bss_info.id.bssid, bss->bssid, sizeof(mac_address_t));
-	
+                snprintf(dm_bss->m_bss_info.id.net_id, sizeof(em_long_string_t), "%s", dm->m_device.m_device_info.id.net_id);
+                memcpy(dm_bss->m_bss_info.id.dev_mac, dm->m_device.m_device_info.intf.mac, sizeof(mac_address_t));
+                memcpy(dm_bss->m_bss_info.id.ruid, radio->ruid, sizeof(mac_address_t));
+                memcpy(dm_bss->m_bss_info.id.bssid, bss->bssid, sizeof(mac_address_t));
                 memcpy(dm_bss->m_bss_info.bssid.mac, bss->bssid, sizeof(mac_address_t));
                 memcpy(dm_bss->m_bss_info.ruid.mac, radio->ruid, sizeof(mac_address_t));
                 dm->set_num_bss(dm->get_num_bss() + 1);
-			}
+            }
             ssid_t ssid_buf;
             size_t ssid_len = bss->ssid_len;
             if (ssid_len >= sizeof(ssid_buf)) {
@@ -2260,14 +2281,8 @@ int em_configuration_t::handle_ap_operational_bss(unsigned char *buff, unsigned 
             }
             memcpy(ssid_buf, bss->ssid, ssid_len);
             ssid_buf[ssid_len] = '\0';
-            if (em_get_ext_hooks()->accept_bss_ssid(dm->is_ssid_match(ssid_buf))) {
-                strncpy(dm_bss->m_bss_info.ssid, ssid_buf, sizeof(dm_bss->m_bss_info.ssid) - 1);
-                dm_bss->m_bss_info.ssid[sizeof(dm_bss->m_bss_info.ssid) - 1] = '\0';
-            } else {
-                // SSID mismatch, stop processing further.
-                em_printfout("%s:%d:SSID mismatch. Stop proceeding. SSID=%s", __func__, __LINE__, bss->ssid);
-                return -2;
-            }
+            strncpy(dm_bss->m_bss_info.ssid,ssid_buf,sizeof(dm_bss->m_bss_info.ssid) - 1);
+            dm_bss->m_bss_info.ssid[sizeof(dm_bss->m_bss_info.ssid) - 1] = '\0';
             dm_bss->m_bss_info.enabled = true;
             strncpy(dm_bss->m_bss_info.timestamp, time_date, sizeof(em_long_string_t));
 
@@ -2276,10 +2291,22 @@ int em_configuration_t::handle_ap_operational_bss(unsigned char *buff, unsigned 
 			all_bss_len += static_cast<unsigned int> (sizeof(em_ap_operational_bss_t) + bss->ssid_len);
 			bss = reinterpret_cast<em_ap_operational_bss_t *> (reinterpret_cast<unsigned char *> (bss) + sizeof(em_ap_operational_bss_t) + bss->ssid_len);
         }
-
+        /* Collect stale BSSes */
+        for (unsigned int k = 0; k < dm->m_num_bss; k++) {
+            if ((dm->m_bss[k].m_bss_info.enabled == false) &&(memcmp(dm->m_bss[k].m_bss_info.id.ruid,radio->ruid,sizeof(mac_address_t)) == 0)) {
+                mac_addr_str_t bssid_str;
+                dm_easy_mesh_t::macbytes_to_string(dm->m_bss[k].m_bss_info.id.bssid,bssid_str);
+                snprintf(criteria + strlen(criteria),sizeof(criteria) -strlen(criteria),"%s%s",first ? "bssid=" : ",",bssid_str);
+                first = false;
+            }
+        }
         radio = reinterpret_cast<em_ap_op_bss_radio_t *> (reinterpret_cast<unsigned char *> (radio) + sizeof(em_ap_op_bss_radio_t) + all_bss_len);
 
     }
+    if (!first) {
+        em_printfout("%s:%d stale BSS criteria=%s", __func__,__LINE__,criteria);
+        dm->set_db_cfg_param(db_cfg_type_bss_list_delete,criteria);
+   }
 
 	if (updated_at_least_one_bss == true) {
 		dm->set_db_cfg_param(db_cfg_type_bss_list_update, "");

@@ -387,7 +387,12 @@ bool dm_bss_t::match_criteria(char *criteria)
 			return false;
 		}
 	}
-
+        if ((tmp = strstr(criteria, "bssid=")) != NULL) {
+            tmp += strlen("bssid=");
+            mac_addr_str_t bssid_str;
+            dm_easy_mesh_t::macbytes_to_string(m_bss_info.id.bssid,bssid_str);
+            return (strstr(tmp, bssid_str) != NULL);
+        }
 	return true;	
 }
 
