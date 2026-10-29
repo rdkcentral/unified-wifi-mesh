@@ -6016,7 +6016,30 @@ int dm_easy_mesh_ctrl_t::update_tables(dm_easy_mesh_t *dm)
         } else {
             dm->reset_db_cfg_type(db_cfg_type_bss_list_delete);
         }
-    } 
+    }
+    if (dm->db_cfg_type_is_set(db_cfg_type_bss_list_stale_delete)) {
+        criteria = dm->db_cfg_type_get_criteria(db_cfg_type_bss_list_stale_delete);
+        for (int id = static_cast<int>(dm->get_num_bss()) - 1; id >= 0; id--) {
+            dm_bss_t *dm_bss = dm->get_bss(static_cast<unsigned int>(id));
+            if (dm_bss == NULL) {
+                continue;
+            }
+            bss = dm->get_bss_by_ref(static_cast<unsigned int>(id));
+            if ((dm_bss->match_criteria(criteria) == true) && (dm_bss->m_bss_info.enabled == false)) {
+                if (dm_bss_list_t::update_db(*m_db_client, dm_orch_type_db_delete, dm_bss->get_bss_info()) != 0) {
+                    at_least_one_failed = true;
+                    continue;
+                }
+                dm_bss_list_t::update_list(bss, dm_orch_type_db_delete);
+            }
+        }
+        if (at_least_one_failed == true) {
+            at_least_one_failed = false;
+        }
+        else {
+            dm->reset_db_cfg_type(db_cfg_type_bss_list_stale_delete);
+        }
+    }
 
 	if (dm->db_cfg_type_is_set(db_cfg_type_op_class_list_update)) {
         for (i = 0; i < dm->get_num_op_class(); i++) {
