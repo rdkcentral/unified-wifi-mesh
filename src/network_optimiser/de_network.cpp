@@ -40,6 +40,32 @@ void de_network_t::update(de_network_t& net)
     rbusValue_Release(value);
 }
 
+rbusError_t de_network_t::add(rbusHandle_t handle, char const* table_name, char const* alias_name, uint32_t* inst_num)
+{
+    if (strstr(table_name, DEVICES) != NULL) {
+        return m_de_devices->add(handle, table_name, alias_name, inst_num);
+    } else if (strstr(table_name, SERVICES) != NULL) {
+        return m_de_services->add(handle, table_name, alias_name, inst_num);
+    } else if (strstr(table_name, NET_SSIDS) != NULL) {
+        return m_de_net_ssids->add(handle, table_name, alias_name, inst_num);
+    }
+
+    return RBUS_ERROR_SUCCESS;
+}
+
+rbusError_t de_network_t::remove(rbusHandle_t handle, char const* row_name)
+{
+    if (strstr(row_name, DEVICES) != NULL) {
+        return m_de_devices->remove(handle, row_name);
+    } else if (strstr(row_name, SERVICES) != NULL) {
+        return m_de_services->remove(handle, row_name);
+    } else if (strstr(row_name, NET_SSIDS) != NULL) {
+        return m_de_net_ssids->remove(handle, row_name);
+    }
+
+    return RBUS_ERROR_SUCCESS;
+}
+
 rbusError_t de_network_t::get(rbusHandle_t handle, rbusProperty_t property, rbusGetHandlerOptions_t* options)
 {
     const char *name, *ptr;
@@ -47,7 +73,13 @@ rbusError_t de_network_t::get(rbusHandle_t handle, rbusProperty_t property, rbus
     name  = rbusProperty_GetName(property);
     printf("%s:%d: Property Name: %s\n", __func__, __LINE__, name);
 
-    if ((ptr = strstr(name, "Network.")) == NULL) {
+    if ((ptr = strstr(name, SERVICES)) != NULL) {
+        return m_de_services->get(handle, property, options);
+    } else if ((ptr = strstr(name, DEVICES)) != NULL) {
+        return m_de_devices->get(handle, property, options);
+    } else if ((ptr = strstr(name, NET_SSIDS)) != NULL) {
+        return m_de_net_ssids->get(handle, property, options);
+    } else if ((ptr = strstr(name, "Network.")) == NULL) {
         return RBUS_ERROR_INVALID_OPERATION;
     }
 
@@ -70,7 +102,13 @@ rbusError_t de_network_t::set(rbusHandle_t handle, rbusProperty_t property, rbus
     name  = rbusProperty_GetName(property);
     printf("%s:%d: Property Name: %s\n", __func__, __LINE__, name);
 
-    if ((ptr = strstr(name, "Network.")) == NULL) {
+    if ((ptr = strstr(name, SERVICES)) != NULL) {
+        return m_de_services->set(handle, property, options);
+    } else if ((ptr = strstr(name, DEVICES)) != NULL) {
+        return m_de_devices->set(handle, property, options);
+    } else if ((ptr = strstr(name, NET_SSIDS)) != NULL) {
+        return m_de_net_ssids->set(handle, property, options);
+    } else if ((ptr = strstr(name, "Network.")) == NULL) {
         return RBUS_ERROR_INVALID_OPERATION;
     }
     
@@ -94,6 +132,23 @@ void de_network_t::publish(const char *name)
     rbusObject_t data;
     int rc;
     rbusEvent_t event = {0};
+
+    printf("%s:%d: Name: %s\n", __func__, __LINE__, name);
+    if ((strncmp(name, DEVICES, strlen(DEVICES)) == 0) || (strncmp(name, RADIOS, strlen(RADIOS)) == 0) || 
+            (strncmp(name, BSSS, strlen(BSSS)) == 0) || (strncmp(name, STAS, strlen(STAS)) == 0) ||
+            (strncmp(name, CURR_OP_CLASSES, strlen(CURR_OP_CLASSES)) == 0) ||
+            (strncmp(name, CAPS, strlen(CAPS)) == 0) || (strncmp(name, OP_CLASSES, strlen(OP_CLASSES)) == 0)) {
+        m_de_devices->publish(name);
+        return;
+
+    } else if (strncmp(name, SERVICES, strlen(SERVICES)) == 0) {
+        m_de_services->publish(name);
+        return;
+    } else if (strncmp(name, NET_SSIDS, strlen(NET_SSIDS)) == 0) {
+        m_de_net_ssids->publish(name);
+        return;
+    }
+
 
     if ((ptr = strstr((char *)name, "Network.")) == NULL) {
         return;
@@ -136,17 +191,20 @@ void de_network_t::handler(rbusHandle_t handle, rbusEvent_t const* event, rbusEv
     rbusValue_t value;
     const char *ptr;
 
-    if ((value = rbusObject_GetValue(event->data, "value")) == NULL) {
-        printf("%s:%d: No value in event\n", __func__, __LINE__);
-        return;
-
-    }
-
-    if (strncmp(event->name, DE_NETWORK_CTRLID, strlen(DE_NETWORK_CTRLID)) == 0) {
+    printf("%s:%d: Event Name: %s\n", __func__, __LINE__, subscription->eventName);
+    if (strncmp(subscription->eventName, DE_NETWORK_CTRLID, strlen(DE_NETWORK_CTRLID)) == 0) {
+        if ((value = rbusObject_GetValue(event->data, "value")) == NULL) {
+            printf("%s:%d: No value in event\n", __func__, __LINE__);
+            return;
+        }
         ptr = rbusValue_GetString(value, NULL);
         strncpy(m_controller_id, ptr, strlen(ptr)); 
         printf("%s:%d: Controller ID: %s\n", __func__, __LINE__, m_controller_id);
-    } else if (strncmp(event->name, DE_NETWORK_ID, strlen(DE_NETWORK_ID)) == 0) {
+    } else if (strncmp(subscription->eventName, DE_NETWORK_ID, strlen(DE_NETWORK_ID)) == 0) {
+        if ((value = rbusObject_GetValue(event->data, "value")) == NULL) {
+            printf("%s:%d: No value in event\n", __func__, __LINE__);
+            return;
+        }
         ptr = rbusValue_GetString(value, NULL);
         strncpy(m_id, ptr, strlen(ptr)); 
         printf("%s:%d: Network ID: %s\n", __func__, __LINE__, m_id);
@@ -169,12 +227,45 @@ int de_network_t::init()
     m_subs[m_num_subs].eventName = DE_NETWORK_CTRLID;
     m_num_subs++;
 
-    return de_t::init();
+    if (de_t::init() != 0) {
+        printf("%s:%d: Failed to initialize network\n", __func__, __LINE__);
+        return -1;
+    }
+
+    m_de_services = new de_services_t(SERVICES, m_provider, m_func);
+    if (m_de_services->init(m_bus_handle) != 0) {
+        printf("%s:%d: Failed to initialize services\n", __func__, __LINE__);
+        return -1;
+    }
+    
+    m_de_devices = new de_devices_t(DEVICES, m_provider, m_func);
+    if (m_de_devices->init(m_bus_handle) != 0) {
+        printf("%s:%d: Failed to initialize devices\n", __func__, __LINE__);
+        return -1;
+    }
+    
+    m_de_net_ssids = new de_net_ssids_t(NET_SSIDS, m_provider, m_func);
+    if (m_de_net_ssids->init(m_bus_handle) != 0) {
+        printf("%s:%d: Failed to initialize net ssids\n", __func__, __LINE__);
+        return -1;
+    }
+
+    return 0;
 }
 
 void de_network_t::deinit()
 {
+    if (m_de_net_ssids != NULL) {
+        m_de_net_ssids->deinit(false);
+    }
+    if (m_de_devices != NULL) {
+        m_de_devices->deinit(false);
+    }
+    if (m_de_services != NULL) {
+        m_de_services->deinit(false);
+    }
 
+    de_t::deinit();
 }
 
 de_network_t::de_network_t(const char *name, bool provider, notifier_t func)
@@ -184,11 +275,16 @@ de_network_t::de_network_t(const char *name, bool provider, notifier_t func)
     memset(m_controller_id, 0, sizeof(em_string_t));
     m_provider = provider;
     m_func = func;
+    m_de_services = NULL;
+    m_de_devices = NULL;
+    m_de_net_ssids = NULL;
 }
 
 de_network_t::de_network_t()
 {
-
+    m_de_services = NULL;
+    m_de_devices = NULL;
+    m_de_net_ssids = NULL;
 }
 
 de_network_t::~de_network_t()

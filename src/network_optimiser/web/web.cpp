@@ -293,22 +293,51 @@ void web_t::handle_get(int sock, const char *action_string)
     
 void web_t::handle_post(int sock, const char *action_string, char *buffer)
 {
-    
+    char *body;
+    char *response;
+
+    body = strstr(buffer, "\r\n\r\n");
+    if (body == NULL) {
+        send_message(sock, web_data_extn_type_json, false, "{\"error\":\"Invalid HTTP request\"}");
+        return;
+    }
+    body += 4;
+
+    response = (char *)malloc(EM_LONG_IO_BUFF_SZ);
+    if (response == NULL) {
+        send_message(sock, web_data_extn_type_json, false, "{\"error\":\"Unable to allocate response\"}");
+        return;
+    }
+
+    send_message(sock, web_data_extn_type_json, false,
+        handle_post_request(action_string, body, response, EM_LONG_IO_BUFF_SZ));
+    free(response);
+}
+
+const char *web_t::handle_post_request(const char *action, const char *body, char *buff, unsigned int len)
+{
+    snprintf(buff, len, "{\"error\":\"Unsupported POST endpoint\"}");
+    return buff;
 }
 
 int web_t::server(int sock)
 {
     char buffer[30000] = {0};
-    long valread;
+    long valread, content_length = 0, body_length;
     char *method, *action;
    
-    valread = read(sock, buffer, sizeof(buffer));
+    valread = read(sock, buffer, sizeof(buffer) - 1);
+    if (valread <= 0) {
+        return -1;
+    }
+    buffer[valread] = '\0';
+
     if ((method = parse_method(buffer, " ")) == NULL) {  //Try to get the path which the client ask for
-        return NULL;
+        return -1;
     }
 
     if ((action = parse(buffer, " ")) == NULL) {
-        return NULL;
+        return -1;
     }
     
     printf("%s:%d: Method: %s\tString: %s\n", __func__, __LINE__, method, action);
@@ -316,6 +345,38 @@ int web_t::server(int sock)
     if (strncmp(method, "GET", strlen("GET")) == 0) {
         handle_get(sock, action);
     } else if (strncmp(method, "POST", strlen("POST")) == 0) {
+        char *content_length_header = strstr(buffer, "Content-Length:");
+        char *body = strstr(buffer, "\r\n\r\n");
+        if ((content_length_header == NULL) || (body == NULL) ||
+            (sscanf(content_length_header, "Content-Length: %ld", &content_length) != 1) ||
+            (content_length < 0)) {
+            send_message(sock, web_data_extn_type_json, false, "{\"error\":\"Invalid Content-Length\"}");
+            close(sock);
+            return -1;
+        }
+
+        body += 4;
+        body_length = valread - (body - buffer);
+        if ((content_length >= static_cast<long>(sizeof(buffer))) ||
+            ((body - buffer) + content_length >= static_cast<long>(sizeof(buffer)))) {
+            send_message(sock, web_data_extn_type_json, false, "{\"error\":\"Request body is too large\"}");
+            close(sock);
+            return -1;
+        }
+
+        while (body_length < content_length) {
+            long bytes_read = read(sock, buffer + valread,
+                sizeof(buffer) - static_cast<size_t>(valread) - 1);
+            if (bytes_read <= 0) {
+                send_message(sock, web_data_extn_type_json, false, "{\"error\":\"Incomplete request body\"}");
+                close(sock);
+                return -1;
+            }
+            valread += bytes_read;
+            body_length += bytes_read;
+            buffer[valread] = '\0';
+        }
+        body[content_length] = '\0';
         handle_post(sock, action, buffer);
     }
     close(sock);
@@ -445,4 +506,3 @@ web_t::~web_t()
 {
     
 }
-

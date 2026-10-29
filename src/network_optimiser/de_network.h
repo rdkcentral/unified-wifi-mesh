@@ -23,12 +23,18 @@
 #include "em_base.h"
 #include "collection.h"
 #include "de.h"
+#include "de_services.h"
+#include "de_devices.h"
+#include "de_net_ssids.h"
 
 class de_network_t : public de_t {
 
 public:
     em_string_t m_id;
     em_string_t m_controller_id;
+    de_services_t *m_de_services;
+    de_devices_t *m_de_devices;
+    de_net_ssids_t *m_de_net_ssids;
 
 public:
 
@@ -38,6 +44,8 @@ public:
     void update(de_network_t& net);
     void publish(const char *event_name);
 
+    rbusError_t add(rbusHandle_t handle, char const* table_name, char const* alias_name, uint32_t* inst_num);
+    rbusError_t remove(rbusHandle_t handle, char const* row_name);
     rbusError_t set(rbusHandle_t handle, rbusProperty_t property, rbusSetHandlerOptions_t* options);
     rbusError_t get(rbusHandle_t handle, rbusProperty_t property, rbusGetHandlerOptions_t* options);
 

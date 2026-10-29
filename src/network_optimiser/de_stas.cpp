@@ -375,7 +375,7 @@ void de_stas_t::handler(rbusHandle_t handle, rbusEvent_t const* event, rbusEvent
     const char *ptr;
     de_sta_t *sta;
 
-    if (strncmp(event->name, STAS, strlen(STAS)) != 0) {
+    if (strncmp(subscription->eventName, STAS, strlen(STAS)) != 0) {
         printf("%s:%d: Unknown event: %s\n", __func__, __LINE__, event->name);
         return;
     }
@@ -576,7 +576,9 @@ int de_stas_t::init(rbusHandle_t handle)
 
 void de_stas_t::deinit(bool bus_close)
 {
-    hash_map_destroy(m_sta_map);
+    if (m_sta_map != NULL) {
+        hash_map_destroy(m_sta_map);
+    }
     de_t::deinit(false);
 }
 
@@ -585,4 +587,5 @@ de_stas_t::de_stas_t(const char *name, bool provider, notifier_t func)
     m_provider = provider;
     strncpy(m_name, name, strlen(name));
     m_func = func;
+    m_sta_map = NULL;
 }

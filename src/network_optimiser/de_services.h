@@ -31,8 +31,8 @@ public:
     hash_map_t  *m_service_map;   
 public:
 
-    int init();
-    void deinit();
+    int init(rbusHandle_t handle);
+    void deinit(bool bus_close);
 
     optimizer_type_t get_operator_type();
     char *get_url();

@@ -31,6 +31,7 @@ class comcast_optimizer_web_t: public comcast_optimizer_t, public web_t {
 public:
 
     const char *handle_get(optimizer_event_type_t type, char *buff, unsigned int len);
+    const char *handle_post_request(const char *action, const char *body, char *buff, unsigned int len);
 
     comcast_optimizer_web_t();
     ~comcast_optimizer_web_t(); 

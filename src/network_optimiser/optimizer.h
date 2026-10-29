@@ -21,9 +21,7 @@
 
 #include "em_base.h"
 #include "optimizer_event.h"
-#include "de_services.h"
 #include "de_network.h"
-#include "de_devices.h"
 
 class optimizer_t {
 
@@ -34,8 +32,6 @@ public:
     queue_t *m_queue;
     optimizer_type_t    m_optimizer_type;
     de_network_t    *m_de_network; 
-    de_services_t   *m_de_services;
-    de_devices_t   *m_de_devices;
 
     virtual int init_optimizer_interface(const char *url) { printf("Default optimizer does not connect to cloud\n"); return -1; }
     virtual void deinit_optimizer_interface() { printf("Default optimizer does not connect to cloud\n"); }
@@ -57,8 +53,8 @@ public:
 
     void set_optimizer_type(optimizer_type_t type) { m_optimizer_type = type; }
 
-    optimizer_type_t get_operator_type() { return m_de_services->get_operator_type(); }
-    char *get_url() { return m_de_services->get_url(); }
+    optimizer_type_t get_operator_type() { return m_de_network->m_de_services->get_operator_type(); }
+    char *get_url() { return m_de_network->m_de_services->get_url(); }
 
     void wait_for_de_change();
     

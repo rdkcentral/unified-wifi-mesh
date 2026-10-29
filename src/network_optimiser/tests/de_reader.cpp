@@ -242,6 +242,86 @@ void de_reader_t::update_bss(de_bss_t& bss, unsigned int dpos, unsigned int rpos
 
 }
 
+unsigned int de_reader_t::get_num_curr_op_classes(unsigned int dpos, unsigned int rpos)
+{
+    cJSON *arr;
+
+    if ((arr = get_object_item("wfa-dataelements:Network.DeviceList.{%d}.RadioList.{%d}.CurrentOperatingClasses", dpos, rpos)) == NULL) {
+        printf("%s:%d: Could not read devices object from json\n", __func__, __LINE__);
+        return 0;
+    }
+
+    return cJSON_GetArraySize(arr);
+}
+
+void de_reader_t::update_curr_op_class(de_curr_op_class_t& curr_op_class, unsigned int dpos, unsigned int rpos, unsigned int opos)
+{
+    cJSON *obj, *elem;
+
+    if ((obj = get_object_item("wfa-dataelements:Network.DeviceList.{%d}.RadioList.{%d}.CurrentOperatingClasses.{%d}", dpos, rpos, opos)) == NULL) {
+        printf("%s:%d: Could not read devices object from json\n", __func__, __LINE__);
+        return;
+    }
+
+    elem = cJSON_GetObjectItem(obj, "Class");
+    curr_op_class.m_class = static_cast<unsigned int>(cJSON_GetNumberValue(elem));
+
+    elem = cJSON_GetObjectItem(obj, "TxPower");
+    curr_op_class.m_tx_power = static_cast<unsigned int>(cJSON_GetNumberValue(elem));
+
+    elem = cJSON_GetObjectItem(obj, "Channel");
+    curr_op_class.m_channel = static_cast<unsigned int>(cJSON_GetNumberValue(elem));
+}
+
+void de_reader_t::update_cap(de_cap_t& cap, unsigned int dpos, unsigned int rpos)
+{
+    cJSON *obj, *elem;
+    const char *str;
+
+    if ((obj = get_object_item("wfa-dataelements:Network.DeviceList.{%d}.RadioList.{%d}.Capabilities", dpos, rpos)) == NULL) {
+        printf("%s:%d: Could not read capabilities object from json\n", __func__, __LINE__);
+        return;
+    }
+
+    elem = cJSON_GetObjectItem(obj, "NumberOfOpClass");
+    cap.m_num_op_class = static_cast<unsigned int>(cJSON_GetNumberValue(elem));
+
+    elem = cJSON_GetObjectItem(obj, "HTCapabilities");
+    str = cJSON_GetStringValue(elem);
+    snprintf(cap.m_ht_cap, sizeof(cap.m_ht_cap), "%s", (str != NULL) ? str : "");
+}
+
+unsigned int de_reader_t::get_num_op_classes(unsigned int dpos, unsigned int rpos)
+{
+    cJSON *arr;
+
+    if ((arr = get_object_item("wfa-dataelements:Network.DeviceList.{%d}.RadioList.{%d}.Capabilities.OperatingClasses", dpos, rpos)) == NULL) {
+        printf("%s:%d: Could not read operating classes object from json\n", __func__, __LINE__);
+        return 0;
+    }
+
+    return cJSON_GetArraySize(arr);
+}
+
+void de_reader_t::update_op_class(de_op_class_t& op_class, unsigned int dpos, unsigned int rpos, unsigned int opos)
+{
+    cJSON *obj, *elem;
+
+    if ((obj = get_object_item("wfa-dataelements:Network.DeviceList.{%d}.RadioList.{%d}.Capabilities.OperatingClasses.{%d}", dpos, rpos, opos)) == NULL) {
+        printf("%s:%d: Could not read operating class object from json\n", __func__, __LINE__);
+        return;
+    }
+
+    elem = cJSON_GetObjectItem(obj, "Class");
+    op_class.m_class = static_cast<unsigned int>(cJSON_GetNumberValue(elem));
+
+    elem = cJSON_GetObjectItem(obj, "MaxTxPower");
+    op_class.m_max_tx_power = static_cast<int>(cJSON_GetNumberValue(elem));
+
+    elem = cJSON_GetObjectItem(obj, "NumberOfNonOperChan");
+    op_class.m_num_non_oper_chan = static_cast<unsigned int>(cJSON_GetNumberValue(elem));
+}
+
 unsigned int de_reader_t::get_num_stas(unsigned int dpos, unsigned int rpos, unsigned int bpos)
 {
     cJSON *arr;
@@ -318,6 +398,48 @@ void de_reader_t::update_sta(de_sta_t& sta, unsigned int dpos, unsigned int rpos
 
 }
 
+unsigned int de_reader_t::get_num_net_ssids()
+{
+    cJSON *arr;
+
+    if ((arr = get_object_item("wfa-dataelements:Network.NetworkSSIDList")) == NULL) {
+        printf("%s:%d: Could not read network object from json\n", __func__, __LINE__);
+        return 0;
+    }
+
+    return cJSON_GetArraySize(arr);
+}
+
+void de_reader_t::update_net_ssid(de_net_ssid_t& net_ssid, unsigned int pos)
+{
+    cJSON *obj, *elem;
+    const char *str;
+
+    if ((obj = get_object_item("wfa-dataelements:Network.NetworkSSIDList.{%d}", pos)) == NULL) {
+        printf("%s:%d: Could not read network object from json\n", __func__, __LINE__);
+        return;
+    }
+
+    elem = cJSON_GetObjectItem(obj, "SSID");
+    str = cJSON_GetStringValue(elem);
+    strncpy(net_ssid.m_ssid, str, strlen(str) + 1);
+
+    elem = cJSON_GetObjectItem(obj, "Enable");
+    net_ssid.m_enabled = cJSON_IsTrue(elem);
+
+    elem = cJSON_GetObjectItem(obj, "AdvertisementEnabled");
+    net_ssid.m_advertisement = cJSON_IsTrue(elem);
+
+    elem = cJSON_GetObjectItem(obj, "MFPConfig");
+    str = cJSON_GetStringValue(elem);
+    strncpy(net_ssid.m_mfp_config, str, strlen(str) + 1);
+
+    elem = cJSON_GetObjectItem(obj, "MobilityDomain");
+    str = cJSON_GetStringValue(elem);
+    strncpy(net_ssid.m_mob_domain, str, strlen(str) + 1);
+}
+
+
 bool de_reader_t::has_modified()
 {
     int fd;
@@ -349,6 +471,7 @@ int de_reader_t::init()
 {
     int fd;
     char *buff;
+    ssize_t bytes_read;
 
     if ((fd = open(m_name, O_RDONLY)) == -1) {
         printf("%s:%d: Could not open data elements file\n", __func__, __LINE__);
@@ -362,15 +485,22 @@ int de_reader_t::init()
     }
         
        
-    buff = (char *)malloc(m_info.st_size + 1);
-
-    if (read(fd, buff, m_info.st_size) <= 0) {
-        free(buff);
+    buff = (char *)malloc(static_cast<size_t>(m_info.st_size) + 1);
+    if (buff == NULL) {
         close(fd);
-        printf("%s:%d: Failed to read data elments file\n", __func__, __LINE__);
+        printf("%s:%d: Failed to allocate data elements buffer\n", __func__, __LINE__);
         return -1;
     }
-    
+
+    bytes_read = read(fd, buff, static_cast<size_t>(m_info.st_size));
+    if (bytes_read != m_info.st_size) {
+        free(buff);
+        close(fd);
+        printf("%s:%d: Failed to read complete data elements file\n", __func__, __LINE__);
+        return -1;
+    }
+
+    buff[bytes_read] = '\0';
     if ((m_obj = cJSON_Parse(buff)) == NULL) {
         free(buff);
         close(fd);
@@ -387,10 +517,13 @@ int de_reader_t::init()
 void de_reader_t::deinit()
 {
     cJSON_Delete(m_obj);
+    m_obj = NULL;
 }
 
 de_reader_t::de_reader_t(const char *name)
 {
+    m_obj = NULL;
+    memset(&m_info, 0, sizeof(m_info));
     memset(m_name, 0, sizeof(em_long_string_t));
     if (name != NULL) {
         snprintf(m_name, sizeof(m_name), "%s", name);

@@ -36,6 +36,21 @@ void de_radios_t::update(de_bss_t& bss, unsigned int dpos, unsigned int rpos, un
     m_de_bsss->update(bss, dpos, rpos, bpos);
 }
 
+void de_radios_t::update(de_curr_op_class_t& curr_op_class, unsigned int dpos, unsigned int rpos, unsigned int opos)
+{
+    m_de_curr_op_classes->update(curr_op_class, dpos, rpos, opos);
+}
+
+void de_radios_t::update(de_cap_t& cap, unsigned int dpos, unsigned int rpos)
+{
+    m_de_caps->update(cap, dpos, rpos);
+}
+
+void de_radios_t::update(de_op_class_t& op_class, unsigned int dpos, unsigned int rpos, unsigned int opos)
+{
+    m_de_caps->update(op_class, dpos, rpos, opos);
+}
+
 void de_radios_t::update(de_radio_t& radio, unsigned int dpos, unsigned int rpos)
 {
     rbusValue_t value;
@@ -87,6 +102,14 @@ rbusError_t de_radios_t::add(rbusHandle_t handle, char const* table_name, char c
     unsigned int dpos, rpos;
     de_radio_t *radio;
 
+    if (strstr(table_name, CURR_OP_CLASSES) != NULL) {
+        return m_de_curr_op_classes->add(handle, table_name, alias_name, inst_num);
+    }
+
+    if (strstr(table_name, CAPS) != NULL) {
+        return m_de_caps->add(handle, table_name, alias_name, inst_num);
+    }
+
     if (strstr(table_name, BSSS) != NULL) {
         return m_de_bsss->add(handle, table_name, alias_name, inst_num);
     }
@@ -107,6 +130,14 @@ rbusError_t de_radios_t::add(rbusHandle_t handle, char const* table_name, char c
 
 rbusError_t de_radios_t::remove(rbusHandle_t handle, char const* row_name)
 {
+    if (strstr(row_name, CURR_OP_CLASSES) != NULL) {
+        return m_de_curr_op_classes->remove(handle, row_name);
+    }
+
+    if (strstr(row_name, CAPS) != NULL) {
+        return m_de_caps->remove(handle, row_name);
+    }
+
     if (strstr(row_name, BSSS) != NULL) {
         return m_de_bsss->remove(handle, row_name);
     }
@@ -116,6 +147,21 @@ rbusError_t de_radios_t::remove(rbusHandle_t handle, char const* row_name)
 
 rbusError_t de_radios_t::get(rbusHandle_t handle, rbusProperty_t property, rbusGetHandlerOptions_t* options)
 {
+    const char *name;
+
+    name = rbusProperty_GetName(property);
+    if (strstr(name, CURR_OP_CLASSES) != NULL) {
+        return m_de_curr_op_classes->get(handle, property, options);
+    }
+
+    if (strstr(name, CAPS) != NULL) {
+        return m_de_caps->get(handle, property, options);
+    }
+
+    if (strstr(name, BSSS) != NULL) {
+        return m_de_bsss->get(handle, property, options);
+    }
+
     return RBUS_ERROR_SUCCESS;
 }
 
@@ -128,6 +174,14 @@ rbusError_t de_radios_t::set(rbusHandle_t handle, rbusProperty_t property, rbusS
     const char *name, *ptr;
 
     name  = rbusProperty_GetName(property);
+    if (strstr(name, CURR_OP_CLASSES) != NULL) {
+        return m_de_curr_op_classes->set(handle, property, options);
+    }
+
+    if (strstr(name, CAPS) != NULL) {
+        return m_de_caps->set(handle, property, options);
+    }
+
     if (strstr(name, BSSS) != NULL) {
         return m_de_bsss->set(handle, property, options);
     }
@@ -172,6 +226,12 @@ void de_radios_t::publish(const char *name)
 
     if ((strncmp(name, BSSS, strlen(BSSS)) == 0) || (strncmp(name, STAS, strlen(STAS)) == 0)) {
         m_de_bsss->publish(name);
+        return;
+    } else if (strncmp(name, CURR_OP_CLASSES, strlen(CURR_OP_CLASSES)) == 0) {
+        m_de_curr_op_classes->publish(name);
+        return;
+    } else if ((strncmp(name, CAPS, strlen(CAPS)) == 0) || (strncmp(name, OP_CLASSES, strlen(OP_CLASSES)) == 0)) {
+        m_de_caps->publish(name);
         return;
     } else if (strncmp(name, RADIOS, strlen(RADIOS)) != 0) {
         return;
@@ -236,7 +296,7 @@ void de_radios_t::handler(rbusHandle_t handle, rbusEvent_t const* event, rbusEve
     const char *ptr;
     de_radio_t *rd;
 
-    if (strncmp(event->name, RADIOS, strlen(RADIOS)) != 0) {
+    if (strncmp(subscription->eventName, RADIOS, strlen(RADIOS)) != 0) {
         printf("%s:%d: Unknown event: %s\n", __func__, __LINE__, event->name);
         return;
     }
@@ -312,14 +372,36 @@ int de_radios_t::init(rbusHandle_t handle)
     }
 
     m_de_bsss = new de_bsss_t(BSSS, m_provider, m_func);
+    if (m_de_bsss->init(handle) != 0) {
+        printf("%s:%d: Failed to initialize bsss\n", __func__, __LINE__);
+        return -1;
+    }
 
-    return m_de_bsss->init(handle);
+    m_de_curr_op_classes = new de_curr_op_classes_t(CURR_OP_CLASSES, m_provider, m_func);
+    if (m_de_curr_op_classes->init(handle) != 0) {
+        printf("%s:%d: Failed to initialize curr op classes\n", __func__, __LINE__);
+        return -1;
+    }
+
+    m_de_caps = new de_caps_t(CAPS, m_provider, m_func);
+
+    return m_de_caps->init(handle);
 }
 
 void de_radios_t::deinit(bool bus_close)
 {
-    m_de_bsss->deinit(false);
-    hash_map_destroy(m_radio_map);
+    if (m_de_caps != NULL) {
+        m_de_caps->deinit(false);
+    }
+    if (m_de_curr_op_classes != NULL) {
+        m_de_curr_op_classes->deinit(false);
+    }
+    if (m_de_bsss != NULL) {
+        m_de_bsss->deinit(false);
+    }
+    if (m_radio_map != NULL) {
+        hash_map_destroy(m_radio_map);
+    }
     de_t::deinit(false);
 }
 
@@ -328,4 +410,8 @@ de_radios_t::de_radios_t(const char *name, bool provider, notifier_t func)
     m_provider = provider;
     strncpy(m_name, name, strlen(name));
     m_func = func;
+    m_radio_map = NULL;
+    m_de_bsss = NULL;
+    m_de_curr_op_classes = NULL;
+    m_de_caps = NULL;
 }

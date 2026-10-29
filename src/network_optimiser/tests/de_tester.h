@@ -21,8 +21,6 @@
 
 #include "em_base.h"
 #include "de_network.h"
-#include "de_services.h"
-#include "de_devices.h"
 #include "de_reader.h"
 #include "optimizer_event.h"
 #include "collection.h"
@@ -37,8 +35,6 @@ class de_tester_t {
     queue_t *m_queue;
 
     de_network_t *m_de_network;    
-    de_services_t *m_de_services;
-    de_devices_t *m_de_devices;
     
 public:
     int init();

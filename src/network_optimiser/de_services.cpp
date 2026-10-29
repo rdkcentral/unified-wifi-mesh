@@ -49,6 +49,7 @@ void de_services_t::update(de_service_t& svc, unsigned int pos)
     snprintf(name, sizeof(em_long_string_t), "%s%d.Operator", DE_SERVICES, pos);
     rbusValue_Init(&value);
     rbusValue_SetString(value, svc.m_operator_name);
+    printf("%s:%d: Operator: %s\n", __func__, __LINE__, svc.m_operator_name);
     rbus_set(m_bus_handle, name, value, NULL);
     rbusValue_Release(value);
     
@@ -66,7 +67,7 @@ optimizer_type_t de_services_t::get_operator_type()
 
     svc = (de_service_t *)hash_map_get_first(m_service_map);
     while (svc != NULL) {
-
+        printf("%s:%d: Service: %d, Operator: %s\n", __func__, __LINE__, svc->m_type, svc->m_operator_name);
         if (svc->m_type == service_type_optimizer) {
             if (strncasecmp(svc->m_operator_name, "comcast", strlen("comcast")) == 0) {
                 type = optimizer_type_comcast;
@@ -83,7 +84,7 @@ optimizer_type_t de_services_t::get_operator_type()
         svc = (de_service_t *)hash_map_get_next(m_service_map, svc);
     }
 
-    printf("%s:%d: Operator Type: %d\n", __func__, __LINE__, type);
+    printf("%s:%d: Operator Type: %d, count: %d\n", __func__, __LINE__, type, hash_map_count(m_service_map));
 
     return type; 
 }
@@ -192,7 +193,7 @@ rbusError_t de_services_t::set(rbusHandle_t handle, rbusProperty_t property, rbu
         printf("%s:%d: Could not find object\n", __func__, __LINE__);
         return RBUS_ERROR_INVALID_HANDLE;
     }
- 
+
     if (strncmp(str, "Type", strlen("Type")) == 0) {
         svc->m_type = (service_type_t)rbusProperty_GetUInt32(property);
     } else if (strncmp(str, "Operator", strlen("Operator")) == 0) {
@@ -274,13 +275,15 @@ void de_services_t::handler(rbusHandle_t handle, rbusEvent_t const* event, rbusE
     
     const char *ptr; 
     de_service_t *svc;
-    
-    if (strncmp(event->name, SERVICES, strlen(SERVICES)) != 0) {
+
+
+    if (strncmp(subscription->eventName, SERVICES, strlen(SERVICES)) != 0) {
         printf("%s:%d: Unknown event: %s\n", __func__, __LINE__, event->name);
         return;
     }
 
     prop = rbusObject_GetProperties(event->data);
+    printf("%s:%d: Event Name: %s, prop: %p\n", __func__, __LINE__, subscription->eventName, prop);
     while (prop != NULL) {
         ptr = rbusProperty_GetName(prop);
 
@@ -318,7 +321,7 @@ void de_services_t::handler(rbusHandle_t handle, rbusEvent_t const* event, rbusE
 
 }
 
-int de_services_t::init()
+int de_services_t::init(rbusHandle_t handle)
 {
     m_service_map = hash_map_create();
     
@@ -356,12 +359,15 @@ int de_services_t::init()
     m_num_subs++;
 #endif
 
-    return de_t::init();
+    return de_t::init(handle);
 }
 
-void de_services_t::deinit()
+void de_services_t::deinit(bool bus_close)
 {
-    hash_map_destroy(m_service_map);
+    if (m_service_map != NULL) {
+        hash_map_destroy(m_service_map);
+    }
+    de_t::deinit(bus_close);
 }
 
 de_services_t::de_services_t(const char *name, bool provider, notifier_t func)
@@ -369,4 +375,5 @@ de_services_t::de_services_t(const char *name, bool provider, notifier_t func)
     strncpy(m_name, name, strlen(name));
     m_provider = provider; 
     m_func = func;
+    m_service_map = NULL;
 }

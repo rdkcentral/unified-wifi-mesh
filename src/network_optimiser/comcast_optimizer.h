@@ -32,8 +32,12 @@ class comcast_optimizer_t: public optimizer_t {
     void add_services(cJSON *parent);
     void add_devices(cJSON *parent);
     void add_radios(cJSON *parent, unsigned int dpos);
+    void add_curr_op_classes(cJSON *parent, unsigned int dpos, unsigned int rpos);
+    void add_capabilities(cJSON *parent, unsigned int dpos, unsigned int rpos);
+    void add_op_classes(cJSON *parent, unsigned int dpos, unsigned int rpos);
     void add_bsss(cJSON *parent, unsigned int dpos, unsigned int rpos);
     void add_stas(cJSON *parent, unsigned int dpos, unsigned int rpos, unsigned int bpos);
+    void add_net_ssids(cJSON *parent);
 
 public:
     const char *get_topology(char *buff, unsigned int len);

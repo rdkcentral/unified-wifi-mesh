@@ -35,6 +35,21 @@ void de_devices_t::update(de_bss_t& bss, unsigned int dpos, unsigned int rpos, u
     m_de_radios->update(bss, dpos, rpos, bpos);
 }
 
+void de_devices_t::update(de_curr_op_class_t& curr_op_class, unsigned int dpos, unsigned int rpos, unsigned int opos)
+{
+    m_de_radios->update(curr_op_class, dpos, rpos, opos);
+}
+
+void de_devices_t::update(de_cap_t& cap, unsigned int dpos, unsigned int rpos)
+{
+    m_de_radios->update(cap, dpos, rpos);
+}
+
+void de_devices_t::update(de_op_class_t& op_class, unsigned int dpos, unsigned int rpos, unsigned int opos)
+{
+    m_de_radios->update(op_class, dpos, rpos, opos);
+}
+
 void de_devices_t::update(de_sta_t& sta, unsigned int dpos, unsigned int rpos, unsigned int bpos, unsigned int spos)
 {
     m_de_radios->update(sta, dpos, rpos, bpos, spos);
@@ -244,7 +259,8 @@ void de_devices_t::publish(const char *name)
     rbusObject_t data, row;
 
     if ((strncmp(name, RADIOS, strlen(RADIOS)) == 0) || (strncmp(name, BSSS, strlen(BSSS)) == 0) ||
-            (strncmp(name, STAS, strlen(STAS)) == 0)) {
+            (strncmp(name, STAS, strlen(STAS)) == 0) || (strncmp(name, CURR_OP_CLASSES, strlen(CURR_OP_CLASSES)) == 0) ||
+            (strncmp(name, CAPS, strlen(CAPS)) == 0) || (strncmp(name, OP_CLASSES, strlen(OP_CLASSES)) == 0)) {
         m_de_radios->publish(name);
         return;
     } else if (strncmp(name, DEVICES, strlen(DEVICES)) != 0) {
@@ -318,7 +334,7 @@ void de_devices_t::handler(rbusHandle_t handle, rbusEvent_t const* event, rbusEv
     const char *ptr;
     de_device_t *dev;
 
-    if (strncmp(event->name, DEVICES, strlen(DEVICES)) != 0) {
+    if (strncmp(subscription->eventName, DEVICES, strlen(DEVICES)) != 0) {
         printf("%s:%d: Unknown event: %s\n", __func__, __LINE__, event->name);
         return;
     }
@@ -376,7 +392,7 @@ void de_devices_t::handler(rbusHandle_t handle, rbusEvent_t const* event, rbusEv
 
 }
 
-int de_devices_t::init()
+int de_devices_t::init(rbusHandle_t handle)
 {
     m_device_map = hash_map_create();
 
@@ -428,21 +444,25 @@ int de_devices_t::init()
     m_num_subs++;
 #endif
 
-    if (de_t::init() != 0) {
+    if (de_t::init(handle) != 0) {
         printf("%s:%d: Failed to initialize devices\n", __func__, __LINE__);
         return -1;
     }
 
     m_de_radios = new de_radios_t(RADIOS, m_provider, m_func);
 
-    return m_de_radios->init(m_bus_handle); 
+    return m_de_radios->init(handle); 
 }
 
-void de_devices_t::deinit()
+void de_devices_t::deinit(bool bus_close)
 {
-    m_de_radios->deinit(false);
-    hash_map_destroy(m_device_map);
-    de_t::deinit();
+    if (m_de_radios != NULL) {
+        m_de_radios->deinit(false);
+    }
+    if (m_device_map != NULL) {
+        hash_map_destroy(m_device_map);
+    }
+    de_t::deinit(bus_close);
 }
 
 de_devices_t::de_devices_t(const char *name, bool provider, notifier_t func)
@@ -450,4 +470,6 @@ de_devices_t::de_devices_t(const char *name, bool provider, notifier_t func)
     m_provider = provider;
     strncpy(m_name, name, strlen(name));
     m_func = func;
+    m_device_map = NULL;
+    m_de_radios = NULL;
 }

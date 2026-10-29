@@ -65,6 +65,30 @@
 #define DE_RADIOS_ANY_ID        DE_RADIOS_ANY     "ID"
 #define DE_RADIOS_ANY_ENABLED        DE_RADIOS_ANY     "Enabled"
 
+#define CURR_OP_CLASSES                 "CurrentOperatingClasses"
+#define DE_CURR_OP_CLASSES             DE_RADIOS_TABLE  "CurrentOperatingClasses."
+#define DE_CURR_OP_CLASSES_TABLE       DE_CURR_OP_CLASSES "{i}."
+#define DE_CURR_OP_CLASSES_ANY         DE_CURR_OP_CLASSES "*."
+#define DE_CURR_OP_CLASSES_CLASS       DE_CURR_OP_CLASSES_TABLE     "Class"
+#define DE_CURR_OP_CLASSES_TXPOWER     DE_CURR_OP_CLASSES_TABLE     "TxPower"
+#define DE_CURR_OP_CLASSES_CHANNEL     DE_CURR_OP_CLASSES_TABLE     "Channel"
+#define DE_CURR_OP_CLASSES_ANY_CLASS       DE_CURR_OP_CLASSES_ANY     "Class"
+#define DE_CURR_OP_CLASSES_ANY_TXPOWER     DE_CURR_OP_CLASSES_ANY     "TxPower"
+#define DE_CURR_OP_CLASSES_ANY_CHANNEL     DE_CURR_OP_CLASSES_ANY     "Channel"
+
+#define CAPS                           "Capabilities"
+#define DE_CAPS                        DE_RADIOS_TABLE  "Capabilities."
+#define DE_CAPS_NUM_OP_CLASS           DE_CAPS     "NumberOfOpClass"
+#define DE_CAPS_HT_CAP                 DE_CAPS     "HTCapabilities"
+
+#define OP_CLASSES                     "OperatingClasses"
+#define DE_OP_CLASSES                  DE_CAPS  "OperatingClasses."
+#define DE_OP_CLASSES_TABLE            DE_OP_CLASSES "{i}."
+#define DE_OP_CLASSES_ANY              DE_OP_CLASSES "*."
+#define DE_OP_CLASSES_CLASS            DE_OP_CLASSES_TABLE     "Class"
+#define DE_OP_CLASSES_MAX_TX_POWER     DE_OP_CLASSES_TABLE     "MaxTxPower"
+#define DE_OP_CLASSES_NUM_NON_OP       DE_OP_CLASSES_TABLE     "NumberOfNonOperChan"
+
 #define BSSS                 "BSSList"
 #define DE_BSSS               DE_RADIOS_TABLE  "BSSList."
 #define DE_BSSS_TABLE         DE_BSSS "{i}."
@@ -97,6 +121,16 @@
 #define DE_STAS_VHT_CAP           DE_STAS_TABLE     "VHTCapabilities"
 #define DE_STAS_HE_CAP           DE_STAS_TABLE     "HECapabilities"
 #define DE_STAS_SEC_ASSOC           DE_STAS_TABLE     "SecurityAssociation"
+
+#define NET_SSIDS           "NetworkSSIDList"
+#define DE_NET_SSIDS          DE_NETWORK  "NetworkSSIDList."
+#define DE_NET_SSIDS_TABLE         DE_NET_SSIDS "{i}."
+#define DE_NET_SSIDS_ANY           DE_NET_SSIDS "*."
+#define DE_NET_SSIDS_SSID          DE_NET_SSIDS_TABLE     "SSID"
+#define DE_NET_SSIDS_ENABLED          DE_NET_SSIDS_TABLE     "Enable"
+#define DE_NET_SSIDS_ADV_ENABLED          DE_NET_SSIDS_TABLE     "AdvertisementEnabled"
+#define DE_NET_SSIDS_MFP          DE_NET_SSIDS_TABLE     "MFPConfig"
+#define DE_NET_SSIDS_MOB_DOM          DE_NET_SSIDS_TABLE     "MobilityDomain"
 
 typedef enum {
     optimizer_type_comcast,

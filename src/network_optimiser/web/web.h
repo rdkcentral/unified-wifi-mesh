@@ -57,6 +57,7 @@ public:
     void handle_post(int sock, const char *action_string, char *buff);
 
     virtual const char *handle_get(optimizer_event_type_t type, char *buff, unsigned int len) { return ""; }
+    virtual const char *handle_post_request(const char *action, const char *body, char *buff, unsigned int len);
     
     char* parse(char line[], const char symbol[]);
     char* parse_method(char line[], const char symbol[]);

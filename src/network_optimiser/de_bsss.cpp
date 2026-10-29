@@ -261,7 +261,7 @@ void de_bsss_t::handler(rbusHandle_t handle, rbusEvent_t const* event, rbusEvent
     const char *ptr;
     de_bss_t *bss;
 
-    if (strncmp(event->name, BSSS, strlen(BSSS)) != 0) {
+    if (strncmp(subscription->eventName, BSSS, strlen(BSSS)) != 0) {
         printf("%s:%d: Unknown event: %s\n", __func__, __LINE__, event->name);
         return;
     }
@@ -374,8 +374,12 @@ int de_bsss_t::init(rbusHandle_t handle)
 
 void de_bsss_t::deinit(bool bus_close)
 {
-    m_de_stas->deinit(false);
-    hash_map_destroy(m_bss_map);
+    if (m_de_stas != NULL) {
+        m_de_stas->deinit(false);
+    }
+    if (m_bss_map != NULL) {
+        hash_map_destroy(m_bss_map);
+    }
     de_t::deinit(false);
 }
 
@@ -384,4 +388,6 @@ de_bsss_t::de_bsss_t(const char *name, bool provider, notifier_t func)
     m_provider = provider;
     strncpy(m_name, name, strlen(name));
     m_func = func;
+    m_bss_map = NULL;
+    m_de_stas = NULL;
 }

@@ -41,8 +41,6 @@ int optimizer_t::run(optimizer_type_t type)
         case optimizer_type_comcast:
             opt = new comcast_optimizer_web_t();
             opt->m_de_network = m_de_network;
-            opt->m_de_services = m_de_services;
-            opt->m_de_devices = m_de_devices;
             m_exit = false;
             break;
 
@@ -129,20 +127,6 @@ int optimizer_t::init()
         return -1;
     }
 
-    // Services 
-    m_de_services = new de_services_t(SERVICES); 
-    if (m_de_services->init() != 0) {
-        printf("%s:%d: South Bound Data Elements Interface init failed\n", __func__, __LINE__);
-        return -1;
-    }
-
-    // Devices 
-    m_de_devices = new de_devices_t(DEVICES); 
-    if (m_de_devices->init() != 0) {
-        printf("%s:%d: South Bound Data Elements Interface init failed\n", __func__, __LINE__);
-        return -1;
-    }
-
     return 0;
 }
 
@@ -172,8 +156,6 @@ optimizer_t::optimizer_t()
 {
     m_optimizer_type = optimizer_type_generic;
     m_de_network = NULL;
-    m_de_services = NULL;
-    m_de_devices = NULL;
 }
 
 optimizer_t::~optimizer_t()

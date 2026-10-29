@@ -110,7 +110,7 @@ int de_t::subscribe_events()
         m_subs[i].userData = this;
         m_subs[i].publishOnSubscribe = true;
     }
-    
+
     if (rbusEvent_SubscribeEx(m_bus_handle, m_subs, m_num_subs, 0) != RBUS_ERROR_SUCCESS) {
         printf("%s:%d: Failed to subscribe for de: %s(num: %d)\n", __func__, __LINE__, m_name, m_num_subs);
         return -1;
@@ -150,8 +150,6 @@ int de_t::register_elements()
         rbus_close(m_bus_handle);
         return -1;
     }
-
-    printf("%s:%d registration: %s successful\n", __func__, __LINE__, m_elems[0].name);
 
     return 0;
 }

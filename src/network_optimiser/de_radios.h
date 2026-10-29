@@ -25,12 +25,16 @@
 #include "de.h"
 #include "de_radio.h"
 #include "de_bsss.h"
+#include "de_curr_op_classes.h"
+#include "de_caps.h"
 
 class de_radios_t : public de_t {
 
 public:
     hash_map_t  *m_radio_map;   
     de_bsss_t   *m_de_bsss;
+    de_curr_op_classes_t   *m_de_curr_op_classes;
+    de_caps_t   *m_de_caps;
 
 public:
 
@@ -40,6 +44,9 @@ public:
     void update(de_radio_t& radio, unsigned int dpos, unsigned int rpos);
     void update(de_bss_t& bss, unsigned int dpos, unsigned int rpos, unsigned int bpos);
     void update(de_sta_t& sta, unsigned int dpos, unsigned int rpos, unsigned int bpos, unsigned int spos);
+    void update(de_curr_op_class_t& curr_op_class, unsigned int dpos, unsigned int rpos, unsigned int opos);
+    void update(de_cap_t& cap, unsigned int dpos, unsigned int rpos);
+    void update(de_op_class_t& op_class, unsigned int dpos, unsigned int rpos, unsigned int opos);
 
     void publish(const char *event_name);
 
