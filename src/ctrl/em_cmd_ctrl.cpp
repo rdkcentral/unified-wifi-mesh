@@ -99,7 +99,7 @@ int em_cmd_ctrl_t::execute(char *result)
 
         //printf("%s:%d: Read bytes: %d Size: %d Name: %s Buff: %s\n", __func__, __LINE__, ret, 
         	//get_event()->u.bevt.data_len, get_event()->u.bevt.u.subdoc.name, get_event()->u.bevt.u.subdoc.buff);
-        
+
         switch (get_event()->type) {
 
             case em_event_type_bus:

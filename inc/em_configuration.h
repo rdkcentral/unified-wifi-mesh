@@ -27,7 +27,6 @@
 class em_cmd_t;
 class em_mgr_t;
 class em_configuration_t {
-
     
 	/**!
 	 * @brief Creates an auto-configuration response message.
@@ -1257,29 +1256,21 @@ class em_configuration_t {
 	virtual em_mgr_t *get_mgr() = 0;
 
 	/**!
-	 * @brief Retrieves the peer profile from the AL-node EM instance.
+	 * @brief Retrieves the profile reported by the device with the given AL MAC.
 	 *
-	 * The AL-node EM instance is treated as the source of truth for
-	 * the peer profile during message handling when available.
+	 * Reads from the data model of that device, falling back to this EM's data model
+	 * when the device has none (e.g. an agent talking to the controller).
 	 *
-	 * @returns The AL-node cached peer profile if set; otherwise the local cached profile
-	 * (treating em_profile_type_reserved as em_profile_type_1).
+	 * @returns The cached profile, treating an unknown profile as em_profile_type_1.
 	 */
-	em_profile_type_t get_peer_profile_from_al_em();
+	em_profile_type_t get_peer_profile(const mac_address_t al_mac);
 
 	/**!
-	 * @brief Retrieves the cached peer profile for this EM instance.
-	 *
-	 * @returns The cached peer profile.
+	 * @brief Caches the profile reported by the device with the given AL MAC in its data model.
 	 */
-	em_profile_type_t get_peer_profile() const { return m_peer_profile; }
+	void set_peer_profile(const mac_address_t al_mac, em_profile_type_t profile);
 
-	/**!
-	 * @brief Updates the cached peer profile for this EM instance.
-	 *
-	 * @param[in] profile The peer profile to cache.
-	 */
-	void set_peer_profile(em_profile_type_t profile) { m_peer_profile = profile; }
+	dm_easy_mesh_t *get_peer_dm(const mac_address_t al_mac);
     
 	/**!
 	 * @brief Retrieves the EC Manager instance.
@@ -1663,7 +1654,6 @@ class em_configuration_t {
 	virtual em_network_ssid_info_t *get_network_ssid_info_by_haul_type(em_haul_type_t haul_type) = 0;
 
 private:
-    em_profile_type_t   m_peer_profile;
     unsigned char m_m1_msg[MAX_EM_BUFF_SZ*EM_MAX_BANDS];
     unsigned char m_m2_msg[MAX_EM_BUFF_SZ*EM_MAX_BANDS];
     size_t m_m1_length;
@@ -1789,7 +1779,7 @@ public:
 	 * @note Ensure that the encryption keys are properly initialized
 	 * before calling this function.
 	 */
-	int handle_encrypted_settings(unsigned int wsc_tlv_count);
+	int handle_encrypted_settings(unsigned int wsc_tlv_count, m2ctrl_radioconfig& radioconfig);
     
 	/**!
 	 * @brief Creates encrypted settings based on the provided buffer and haul type.

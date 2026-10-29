@@ -397,6 +397,9 @@ static const mac_address_t EM_GLOBAL_MAC_ADDRESS = {0xff, 0xff, 0xff, 0xff, 0xff
 #define ASSOC_CONTROL_BLOCK 0x00
 #define ASSOC_CONTROL_UNBLOCK 0x01
 
+#define EM_MLO_POLICY_HAUL_COUNT 2
+#define EM_MLO_DEFAULT_BAND_BITMAP (EM_RF_24GHZ | EM_RF_50GHZ | EM_RF_6GHZ)
+
 typedef char em_interface_name_t[32];
 typedef unsigned char em_nonce_t[16];
 typedef unsigned char em_dh5_key_t[192];    // because this is DH group 5 (1536 bits)
@@ -495,6 +498,18 @@ typedef enum {
     em_freq_band_6,     // Extended for 6GHz Band
     em_freq_band_unknown
 } em_freq_band_t;
+
+typedef enum {
+    EM_MLO_MODE_STR   = 0x1,
+    EM_MLO_MODE_NSTR  = 0x2,
+    EM_MLO_MODE_EMLSR = 0x4,
+    EM_MLO_MODE_EMLMR = 0x8
+} em_mlo_mode_bitmap_t;
+
+typedef struct {
+	bool use_mld_tlv;
+	uint8_t band_bitmap;
+} em_mlo_policy_t;
 
 typedef struct {
     unsigned char   channel[0];
@@ -740,7 +755,8 @@ typedef enum {
     em_msg_type_agent_list = 0x8035,
     em_msg_type_anticipated_channel_usage_rprt,
     em_msg_type_qos_mgmt_notif,
-    em_msg_type_ap_mld_config_req = 0x8044,
+    em_msg_type_early_ap_cap_rprt = 0x8043,
+    em_msg_type_ap_mld_config_req,
     em_msg_type_ap_mld_config_resp,
     em_msg_type_bsta_mld_config_req,
     em_msg_type_bsta_mld_config_resp,
@@ -2846,6 +2862,7 @@ typedef struct {
     bool  nstr;
     bool  emlsr;
     bool  emlmr;
+    em_haul_type_t  haul_type;
     unsigned char  num_affiliated_ap;
     em_affiliated_ap_info_t  affiliated_ap[EM_MAX_AP_MLD];
 } em_ap_mld_info_t;
@@ -3201,6 +3218,7 @@ typedef struct {
     em_long_string_t	net_id;
     int sz;
     uint8_t is_emplus_agent;
+    em_profile_type_t peer_profile;
 } __attribute__((__packed__)) em_commit_info_t;
 
 typedef enum {
@@ -3513,6 +3531,7 @@ typedef struct {
 
 typedef enum {
     NB_REQTYPE_GET,
+    NB_REQTYPE_SET,
     NB_REQTYPE_METHOD,
 } nb_req_type_e;
 
