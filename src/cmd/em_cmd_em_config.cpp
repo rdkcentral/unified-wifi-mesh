@@ -50,20 +50,20 @@ em_cmd_em_config_t::em_cmd_em_config_t(em_cmd_params_t param, dm_easy_mesh_t& dm
     m_orch_desc[0].submit = false;
     m_orch_desc[1].op = dm_orch_type_topo_sync;
     m_orch_desc[1].submit = true;
-    m_orch_desc[2].op = dm_orch_type_ap_cap_query;
-    m_orch_desc[2].submit = true;
-    m_orch_desc[3].op = dm_orch_type_channel_pref;
+    m_orch_desc[2].op = dm_orch_type_topo_update;
+    m_orch_desc[2].submit = false;
+    m_orch_desc[3].op = dm_orch_type_topo_publish;
     m_orch_desc[3].submit = true;
-    //sending policy_cfg req before channel selection, since policy_cfg is per device
-    m_orch_desc[4].op = dm_orch_type_policy_cfg;
+    m_orch_desc[4].op = dm_orch_type_ap_cap_query;
     m_orch_desc[4].submit = true;
-    m_orch_desc[5].op = dm_orch_type_channel_sel;
+    m_orch_desc[5].op = dm_orch_type_channel_pref;
     m_orch_desc[5].submit = true;
-    m_orch_desc[6].op = dm_orch_type_channel_scan_req;
+    //sending policy_cfg req before channel selection, since policy_cfg is per device
+    m_orch_desc[6].op = dm_orch_type_policy_cfg;
     m_orch_desc[6].submit = true;
-    m_orch_desc[7].op = dm_orch_type_topo_update;
-    m_orch_desc[7].submit = false;
-    m_orch_desc[8].op = dm_orch_type_topo_publish;
+    m_orch_desc[7].op = dm_orch_type_channel_sel;
+    m_orch_desc[7].submit = true;
+    m_orch_desc[8].op = dm_orch_type_channel_scan_req;
     m_orch_desc[8].submit = true;
 
     strncpy(m_name, "em_config", strlen("em_config") + 1);
