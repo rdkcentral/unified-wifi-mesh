@@ -302,7 +302,9 @@ bool tr_181_t::tr181_get_prop_bool(const bus_data_prop_t *prop, bool *value)
 
 cJSON *tr_181_t::create_akms_array(const char *akms_val)
 {
-    if (!akms_val || *akms_val == '\0') return NULL;
+    if (!akms_val) return NULL;
+    /* An empty list is the way TR-181 expresses that no AKM is offered. */
+    if (*akms_val == '\0') return cJSON_CreateArray();
     if (strchr(akms_val, ',')) {
         em_printfout("ERROR: AKMsAllowed must be a single value (no commas): '%s'", akms_val);
         return NULL;
@@ -349,6 +351,17 @@ const char *tr_181_t::akms_to_auth_type(const char *akms_val)
     return NULL;
 }
 
+const char *tr_181_t::akms_array_to_auth_type(const cJSON *akms_arr)
+{
+    if (akms_arr == NULL) {
+        return NULL;
+    }
+    if (cJSON_GetArraySize(const_cast<cJSON *>(akms_arr)) == 0) {
+        return "Open";
+    }
+    return akms_to_auth_type(cJSON_GetStringValue(cJSON_GetArrayItem(const_cast<cJSON *>(akms_arr), 0)));
+}
+
 bool tr_181_t::parse_unassoc_ch_obj(const bus_data_prop_t *prop, tr181_unassoc_ch_item_t *ch_item)
 {
      if (!prop || !ch_item) {
@@ -387,6 +400,37 @@ bool tr_181_t::parse_unassoc_ch_obj(const bus_data_prop_t *prop, tr181_unassoc_c
         }
         --sta_idx;
         if (!tr_181_t::tr181_copy_prop_string(prop, ch_item->sta_macs[sta_idx], sizeof(mac_addr_str_t))) {
+            return false;
+        }
+    } else {
+        return false;
+    }
+
+    return true;
+}
+
+bool tr_181_t::parse_bmq_ch_rep_obj(const bus_data_prop_t *prop, tr181_bmq_ch_rep_item_t *ch_rep_item)
+{
+     if (!prop || !ch_rep_item) {
+         return false;
+     }
+
+    const char *name = prop->name;
+
+    /* APChannelReport.{i}.OperatingClass or APChannelReport.{i}.ChannelList */
+    name += sizeof("APChannelReport");
+    name  = strstr(name, ".");
+    if (!name) {
+        return false;
+    }
+
+    ++name;
+    if (strcmp(name, "OperatingClass") == 0) {
+        if (!tr_181_t::tr181_get_prop_int(prop, &ch_rep_item->op_class)) {
+            return false;
+        }
+    } else if (strcmp(name, "ChannelList") == 0) {
+        if (!tr_181_t::tr181_copy_prop_string(prop, ch_rep_item->ch_list, sizeof(ch_rep_item->ch_list))) {
             return false;
         }
     } else {

@@ -262,6 +262,7 @@ dm_orch_type_t dm_device_t::get_dm_orch_type(const dm_device_t& device)
 void dm_device_t::operator = (const dm_device_t& obj) {
 
     if (this == &obj) { return; }
+    m_peer_profile = obj.m_peer_profile.load();
     memcpy(&this->m_device_info.intf.mac ,&obj.m_device_info.intf.mac,sizeof(mac_address_t));
     memcpy(&this->m_device_info.intf.name,&obj.m_device_info.intf.name,sizeof(em_interface_name_t));
     memcpy(&this->m_device_info.id.net_id,&obj.m_device_info.id.net_id,sizeof(em_long_string_t));
@@ -276,7 +277,6 @@ void dm_device_t::operator = (const dm_device_t& obj) {
     memcpy(&this->m_device_info.software_ver,&obj.m_device_info.software_ver,sizeof(em_string_t));
     memcpy(&this->m_device_info.exec_env,&obj.m_device_info.exec_env,sizeof(em_string_t));
     memcpy(&this->m_device_info.country_code,&obj.m_device_info.country_code,sizeof(em_tiny_string_t));
-    //this->m_device_info.country_code = obj.m_device_info.country_code;
     this->m_device_info.traffic_sep_allowed = obj.m_device_info.traffic_sep_allowed;
     this->m_device_info.svc_prio_allowed = obj.m_device_info.svc_prio_allowed;
     this->m_device_info.dfs_enable = obj.m_device_info.dfs_enable;
@@ -286,14 +286,20 @@ void dm_device_t::operator = (const dm_device_t& obj) {
     memcpy(&this->m_device_info.backhaul_mac.mac ,&obj.m_device_info.backhaul_mac.mac,sizeof(mac_address_t));
     memcpy(&this->m_device_info.backhaul_mac.name,&obj.m_device_info.backhaul_mac.name,sizeof(em_interface_name_t));
     memcpy(&this->m_device_info.backhaul_media_type,&obj.m_device_info.backhaul_media_type,sizeof(wifi_ieee80211Variant_t));
-    this->m_device_info.backhaul_media_type = obj.m_device_info.backhaul_media_type;
     memcpy(&this->m_device_info.backhaul_alid.mac ,&obj.m_device_info.backhaul_alid.mac,sizeof(mac_address_t));
     memcpy(&this->m_device_info.backhaul_alid.name,&obj.m_device_info.backhaul_alid.name,sizeof(em_interface_name_t));
     this->m_device_info.traffic_sep_cap = obj.m_device_info.traffic_sep_cap;
     this->m_device_info.easy_conn_cap = obj.m_device_info.easy_conn_cap;
     this->m_device_info.test_cap = obj.m_device_info.test_cap;
+    this->m_device_info.apmld_maxlinks = obj.m_device_info.apmld_maxlinks;
+    this->m_device_info.tidlink_map = obj.m_device_info.tidlink_map;
+    this->m_device_info.assoc_sta_reporting_int = obj.m_device_info.assoc_sta_reporting_int;
+    this->m_device_info.max_nummlds = obj.m_device_info.max_nummlds;
+    this->m_device_info.bstamld_maxlinks = obj.m_device_info.bstamld_maxlinks;
     memcpy(&this->m_device_info.primary_device_type,&obj.m_device_info.primary_device_type,sizeof(em_small_string_t));
-    memcpy(&this->m_device_info.backhaul_media_type,&obj.m_device_info.secondary_device_type,sizeof(em_small_string_t));
+    memcpy(&this->m_device_info.secondary_device_type,&obj.m_device_info.secondary_device_type,sizeof(em_small_string_t));
+    this->m_device_info.is_emplus_agent = obj.m_device_info.is_emplus_agent;
+    memcpy(&this->m_device_info.extended_info,&obj.m_device_info.extended_info,sizeof(em_ext_device_info_t));
 }
 
 bool dm_device_t::operator == (const dm_device_t& obj)
@@ -327,6 +333,11 @@ bool dm_device_t::operator == (const dm_device_t& obj)
     ret += !(this->m_device_info.traffic_sep_cap == obj.m_device_info.traffic_sep_cap);
     ret += !(this->m_device_info.easy_conn_cap == obj.m_device_info.easy_conn_cap);
     ret += !(this->m_device_info.test_cap == obj.m_device_info.test_cap);
+    ret += !(this->m_device_info.apmld_maxlinks == obj.m_device_info.apmld_maxlinks);
+    ret += !(this->m_device_info.tidlink_map == obj.m_device_info.tidlink_map);
+    ret += !(this->m_device_info.assoc_sta_reporting_int == obj.m_device_info.assoc_sta_reporting_int);
+    ret += !(this->m_device_info.max_nummlds == obj.m_device_info.max_nummlds);
+    ret += !(this->m_device_info.bstamld_maxlinks == obj.m_device_info.bstamld_maxlinks);
     ret += (memcmp(&this->m_device_info.primary_device_type,&obj.m_device_info.primary_device_type,sizeof(em_small_string_t)) != 0);;
     ret += (memcmp(&this->m_device_info.secondary_device_type,&obj.m_device_info.secondary_device_type,sizeof(em_small_string_t)) != 0);
 
@@ -400,7 +411,8 @@ int dm_device_t::update_easymesh_json_cfg(bool colocated_mode)
 	return 0;
 }
 
-dm_device_t::dm_device_t(em_device_info_t *dev)
+dm_device_t::dm_device_t(em_device_info_t *dev) :
+    m_peer_profile(em_profile_type_reserved)
 {
     memset(&m_device_info, 0, sizeof(em_device_info_t));
     if ( dev == nullptr ) {
@@ -410,12 +422,14 @@ dm_device_t::dm_device_t(em_device_info_t *dev)
     memcpy(&m_device_info, dev, sizeof(em_device_info_t));
 }
 
-dm_device_t::dm_device_t(const dm_device_t& dev)
+dm_device_t::dm_device_t(const dm_device_t& dev) :
+    m_peer_profile(dev.m_peer_profile.load())
 {
 	memcpy(&m_device_info, &dev.m_device_info, sizeof(em_device_info_t));
 }
 
-dm_device_t::dm_device_t()
+dm_device_t::dm_device_t() :
+    m_peer_profile(em_profile_type_reserved)
 {
     memset(&m_device_info, 0, sizeof(em_device_info_t));
 }
