@@ -2310,7 +2310,10 @@ int em_configuration_t::handle_topology_response(unsigned char *buff, unsigned i
             } else {
                 em_printfout("Error: Invalid Profile TLV in topology response");
             }
-            break;
+            tmp_len -= static_cast<unsigned int>(sizeof(em_tlv_t) + tlv_len);
+            tlv = reinterpret_cast<em_tlv_t *>(
+                  reinterpret_cast<unsigned char *>(tlv) + sizeof(em_tlv_t) + tlv_len);
+            continue;
         }
     }
 
