@@ -2283,7 +2283,7 @@ int em_configuration_t::handle_topology_response(unsigned char *buff, unsigned i
     tlv =  reinterpret_cast<em_tlv_t *> (buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
     tmp_len = len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
         
-    while (tmp_len >= sizeof(em_tlv_t) {
+    while (tmp_len >= sizeof(em_tlv_t)) {
         if (tlv->type == em_tlv_type_eom) {
             break;
         }
