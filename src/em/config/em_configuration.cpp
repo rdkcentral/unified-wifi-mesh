@@ -2344,25 +2344,28 @@ int em_configuration_t::handle_ap_operational_bss(unsigned char *buff, unsigned 
 	util::get_date_time_rfc3399(time_date, sizeof(time_date));
 
     for (i = 0; i < ap->radios_num; i++) {
+        // Clear all existing BSS entries for this radio to prevent stale entries from being retained.
+        unsigned int bss_idx = 0;
+        while (bss_idx < dm->m_num_bss) {
+            if (memcmp(dm->m_bss[bss_idx].m_bss_info.id.ruid, radio->ruid, sizeof(mac_address_t)) == 0)
+                dm->remove_bss_by_index(bss_idx);
+            else
+                bss_idx++;
+        }
+
         bss = radio->bss;
         all_bss_len = 0;
         for (j = 0; j < radio->bss_num; j++) {
-            dm_bss = dm->get_bss(radio->ruid, bss->bssid);
-		
-			if (dm_bss == NULL) {
-				dm_bss = &dm->m_bss[dm->m_num_bss];
-				dm_bss->init();
+            dm_bss = &dm->m_bss[dm->m_num_bss];
+            dm_bss->init();
 
-				// fill up id first
-				strncpy(dm_bss->m_bss_info.id.net_id, dm->m_device.m_device_info.id.net_id, sizeof(em_long_string_t));
-				memcpy(dm_bss->m_bss_info.id.dev_mac, dm->m_device.m_device_info.intf.mac, sizeof(mac_address_t));
-				memcpy(dm_bss->m_bss_info.id.ruid, radio->ruid, sizeof(mac_address_t));
-				memcpy(dm_bss->m_bss_info.id.bssid, bss->bssid, sizeof(mac_address_t));
-	
-                memcpy(dm_bss->m_bss_info.bssid.mac, bss->bssid, sizeof(mac_address_t));
-                memcpy(dm_bss->m_bss_info.ruid.mac, radio->ruid, sizeof(mac_address_t));
-                dm->set_num_bss(dm->get_num_bss() + 1);
-			}
+            snprintf(dm_bss->m_bss_info.id.net_id, sizeof(em_long_string_t), "%s", dm->m_device.m_device_info.id.net_id);
+            memcpy(dm_bss->m_bss_info.id.dev_mac, dm->m_device.m_device_info.intf.mac, sizeof(mac_address_t));
+            memcpy(dm_bss->m_bss_info.id.ruid, radio->ruid, sizeof(mac_address_t));
+            memcpy(dm_bss->m_bss_info.id.bssid, bss->bssid, sizeof(mac_address_t));
+            memcpy(dm_bss->m_bss_info.bssid.mac, bss->bssid, sizeof(mac_address_t));
+            memcpy(dm_bss->m_bss_info.ruid.mac, radio->ruid, sizeof(mac_address_t));
+            dm->set_num_bss(dm->get_num_bss() + 1);
             ssid_t ssid_buf;
             size_t ssid_len = bss->ssid_len;
             if (ssid_len >= sizeof(ssid_buf)) {
