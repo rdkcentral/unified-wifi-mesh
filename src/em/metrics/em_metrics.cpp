@@ -48,8 +48,7 @@
 #include "em_cmd_exec.h"
 #include "dm_easy_mesh_agent.h"
 #include "em_cmd_unassoc_sta_query.h"
-
-static     const unsigned char em_vendor_oui[EM_VENDOR_OUI_SIZE] = {0xd8, 0x9c, 0x8e};
+#include <vector>
 
 int em_metrics_t::handle_assoc_sta_link_metrics_tlv(unsigned char *buff,
                                                     unsigned int tlv_len)
@@ -163,17 +162,23 @@ int em_metrics_t::handle_assoc_sta_vendor_link_metrics_tlv(unsigned char *buff,
                                                            bool *first_client_type_seen)
 {
     em_vendor_specific_t *vendor_metrics = reinterpret_cast<em_vendor_specific_t *> (buff);
-    em_vendor_data_t *vendor_data = vendor_metrics->data;
+    // vendor_metrics->data layout: [attr_id (1 byte)][vendor_data...]
+    unsigned char *vendor_data = vendor_metrics->data + sizeof(unsigned char);
     em_assoc_sta_vendor_link_metrics_t *sta_metrics;
     dm_sta_t *sta = NULL;
     dm_easy_mesh_t  *dm;
     size_t client_type_len;
 
+    if ((len < EM_VENDOR_OUI_SIZE + sizeof(unsigned char) + sizeof(em_assoc_sta_vendor_link_metrics_t)) ||
+        (memcmp(vendor_metrics->vendor_oui, comcast_vendor_oui, EM_VENDOR_OUI_SIZE) != 0)) {
+        return 0;
+    }
+
     dm = get_data_model();
-    sta_metrics = reinterpret_cast<em_assoc_sta_vendor_link_metrics_t *> (vendor_data->vendor_data);
+    sta_metrics = reinterpret_cast<em_assoc_sta_vendor_link_metrics_t *> (vendor_data);
 
     sta = dm->find_sta(sta_metrics->sta_mac, sta_metrics->bssid);
-    if (sta != NULL && len >= sizeof(em_assoc_sta_vendor_link_metrics_t)) {
+    if (sta != NULL) {
         client_type_len = strnlen(sta_metrics->sta_client_type,
                                   sizeof(sta_metrics->sta_client_type));
         if (client_type_len == sizeof(sta_metrics->sta_client_type)) {
@@ -919,17 +924,22 @@ int em_metrics_t::handle_link_stats_alarm_rprt_tlv(unsigned char *buff, size_t l
     dm = get_data_model();
 
     em_vendor_specific_t *vendor_data = reinterpret_cast<em_vendor_specific_t *> (tmp);
-    em_printfout("vendor_data->num count [%d]", vendor_data->num);
 
-    em_vendor_data_t *vendor_data_ptr = vendor_data->data;
-    em_printfout("vendor_data->attri [%d]", vendor_data_ptr->attr_id);
-
-    if (vendor_data_ptr->attr_id != vendor_ext_attr_id_link_report) {
+    if ((len <= EM_VENDOR_OUI_SIZE) ||
+        (memcmp(vendor_data->vendor_oui, comcast_vendor_oui, EM_VENDOR_OUI_SIZE) != 0)) {
         return 0;
     }
 
-    tmp += sizeof(vendor_data->num) + EM_VENDOR_OUI_SIZE + sizeof(vendor_data_ptr->attr_id);
-    len -= static_cast<unsigned int>( sizeof(vendor_data->num) + EM_VENDOR_OUI_SIZE ) + sizeof(vendor_data_ptr->attr_id);
+    // vendor_data->data layout: [attr_id (1 byte)][payload...]
+    unsigned char attr_id = vendor_data->data[0];
+    em_printfout("vendor_data->attri [%d]", attr_id);
+
+    if (attr_id != vendor_ext_attr_id_link_report) {
+        return 0;
+    }
+
+    tmp += EM_VENDOR_OUI_SIZE + sizeof(attr_id);
+    len -= static_cast<unsigned int>(EM_VENDOR_OUI_SIZE) + sizeof(attr_id);
 
     link_report = reinterpret_cast<em_link_report_t *> (tmp);
 
@@ -1077,7 +1087,7 @@ int em_metrics_t::handle_ap_metrics_response(unsigned char *buff, unsigned int l
                 /* future implementation */
                 break;
             case em_tlv_type_vendor_specific: {
-                em_vendor_specific_v_t *vendor_tlv = reinterpret_cast<em_vendor_specific_v_t *> (tlv->value);
+                em_vendor_specific_t *vendor_tlv = reinterpret_cast<em_vendor_specific_t *> (tlv->value);
                 size_t len = ntohs(tlv->len);
                 uint16_t tlv_id;
                 if ((len >= sizeof(airties_vendor_oui) + sizeof(tlv_id)) && (memcmp(vendor_tlv->vendor_oui, airties_vendor_oui, sizeof(airties_vendor_oui)) == 0)) {
@@ -1677,18 +1687,16 @@ short em_metrics_t::create_assoc_vendor_sta_link_metrics_tlv(unsigned char *buff
     size_t len = 0;
     em_assoc_sta_vendor_link_metrics_t *assoc_sta_metrics = NULL;
     em_vendor_specific_t *vendor_metrics = reinterpret_cast<em_vendor_specific_t *> (buff);
-    em_vendor_data_t *vendor_data = vendor_metrics->data;
+    // vendor_metrics->data layout: [attr_id (1 byte)][vendor_data...]
+    unsigned char *vendor_data = vendor_metrics->data + sizeof(unsigned char);
 
-    assoc_sta_metrics = reinterpret_cast<em_assoc_sta_vendor_link_metrics_t *> (vendor_data->vendor_data);
+    assoc_sta_metrics = reinterpret_cast<em_assoc_sta_vendor_link_metrics_t *> (vendor_data);
 
-    memcpy(vendor_metrics->vendor_oui, em_vendor_oui, sizeof(vendor_metrics->vendor_oui));
+    memcpy(vendor_metrics->vendor_oui, comcast_vendor_oui, sizeof(vendor_metrics->vendor_oui));
     len += sizeof(vendor_metrics->vendor_oui);
 
-    vendor_metrics->num = 1;
-    len += sizeof(vendor_metrics->num);
-
-    vendor_data->attr_id = vendor_ext_attr_id_client_type;
-    len += sizeof(vendor_data->attr_id);
+    vendor_metrics->data[0] = static_cast<unsigned char> (vendor_ext_attr_id_client_type);
+    len += sizeof(unsigned char);
 
     if (sta == NULL) {
         memcpy(&assoc_sta_metrics->sta_mac, &sta_mac, sizeof(assoc_sta_metrics->sta_mac));
@@ -2195,7 +2203,7 @@ short em_metrics_t::create_vendor_device_metrics_tlv(unsigned char *buff)
     struct timespec ts;
     uint8_t cpu_load, cpu_temp;
     int32_t total_mem, free_mem, cached_mem;
-    em_vendor_specific_v_t *vendor = reinterpret_cast<em_vendor_specific_v_t *>(buff);
+    em_vendor_specific_t *vendor = reinterpret_cast<em_vendor_specific_t *>(buff);
 
     memcpy(reinterpret_cast<unsigned char *> (vendor->vendor_oui), airties_vendor_oui, EM_VENDOR_OUI_SIZE);
     len += EM_VENDOR_OUI_SIZE;
@@ -2310,18 +2318,17 @@ int em_metrics_t::create_link_stats_alarm_tlv(unsigned char *buff)
     size_t record_len = 0;
 
     em_vendor_specific_t *vendor_data = reinterpret_cast<em_vendor_specific_t *> (buff);
-    memcpy(reinterpret_cast<char *> (vendor_data->vendor_oui), em_vendor_oui, EM_VENDOR_OUI_SIZE);
+    memcpy(reinterpret_cast<char *> (vendor_data->vendor_oui), comcast_vendor_oui, EM_VENDOR_OUI_SIZE);
 
-    vendor_data->num = 1;
+    tmp += EM_VENDOR_OUI_SIZE;
+    len += EM_VENDOR_OUI_SIZE;
 
-    tmp += sizeof(vendor_data->num) + EM_VENDOR_OUI_SIZE;
-    len += sizeof(vendor_data->num) + EM_VENDOR_OUI_SIZE;
+    // vendor_data->data layout: [attr_id (1 byte)][payload...]
+    unsigned char *attr_id = vendor_data->data;
 
-    em_vendor_data_t *data = vendor_data->data;
-
-    data->attr_id = static_cast<unsigned char> (vendor_ext_attr_id_link_report);
-    len += sizeof(data->attr_id);
-    tmp += sizeof(data->attr_id);
+    *attr_id = static_cast<unsigned char> (vendor_ext_attr_id_link_report);
+    len += sizeof(unsigned char);
+    tmp += sizeof(unsigned char);
 
     sta = static_cast<dm_sta_t *> (hash_map_get_first(dm->m_sta_map));
     while (sta != NULL) {

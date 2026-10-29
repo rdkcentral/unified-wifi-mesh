@@ -47,6 +47,7 @@
 #include "em_orch_ctrl.h"
 #include "util.h"
 #include "wifi_util.h"
+#include "em_ext_hooks.h"
 
 #ifdef AL_SAP
 #include "al_service_access_point.h"
@@ -517,6 +518,7 @@ void em_ctrl_t::handle_link_stats_alarm_report(em_bus_event_t *evt)
         em_printfout("Link Stats Alarm publish fail");
     }
 
+    cJSON_free(str);
     cJSON_Delete(parent);
 }
 
@@ -1357,7 +1359,8 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
         case em_msg_type_topo_vendor:
             em = static_cast<em_t *> (hash_map_get_first(m_em_map));
             while(em != NULL) {
-                if (em->is_al_interface_em() == false) {
+                if ((em->is_al_interface_em() == false) &&
+                    (memcmp(em->get_data_model()->get_agent_al_interface_mac(), hdr->src, sizeof(mac_address_t)) == 0)) {
                     break;
                 }
                 em = static_cast<em_t *> (hash_map_get_next(m_em_map, em));
@@ -1522,6 +1525,8 @@ void em_ctrl_t::start_complete()
         em_printfout("bus subscribe failed");
         return;
     }
+
+    em_get_ext_hooks()->on_bus_ready(m_data_model.get_bus_hdl(), desc);
 }
 
 em_ctrl_t *em_ctrl_t::get_em_ctrl_instance()
@@ -1602,6 +1607,16 @@ AlServiceAccessPoint* em_ctrl_t::al_sap_register(const std::string& data_socket_
 int main(int argc, const char *argv[])
 {
     em_ctrl_t  *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
+    const char *data_model_path = NULL;
+
+    if (em_get_ext_hooks()->process_cli_args(&argc, argv) == false) {
+        return -1;
+    }
+
+    if (argc > 1) {
+        data_model_path = argv[1];
+    }
+
 #ifdef AL_SAP
     const char* data_socket_path = "/tmp/al_em_ctrl_data_socket";
     const char* control_socket_path = "/tmp/al_em_ctrl_control_socket";
@@ -1611,7 +1626,8 @@ int main(int argc, const char *argv[])
         return -1;
     }
 #endif
-    if (em_ctrl->init(argv[1]) == 0) {
+
+    if (em_ctrl->init(data_model_path) == 0) {
         em_ctrl->start();
     }
     return 0;
