@@ -238,6 +238,9 @@ class em_metrics_t {
 	 *
 	 * @param[in] buff Pointer to the buffer containing the TLV data.
 	 * @param[in] len Length of the data in the buffer.
+	 * @param[out] first_client_type_seen Optional; set to true when this TLV provides
+	 *             a client's type for the first time. The caller publishes the topology
+	 *             once after processing the whole response.
 	 *
 	 * @returns int Status code indicating success or failure.
 	 * @retval 0 on success.
@@ -245,7 +248,8 @@ class em_metrics_t {
 	 *
 	 * @note Ensure that the buffer is properly allocated and contains valid TLV data.
 	 */
-	int handle_assoc_sta_vendor_link_metrics_tlv(unsigned char *buff, unsigned int len);
+	int handle_assoc_sta_vendor_link_metrics_tlv(unsigned char *buff, unsigned int len,
+		bool *first_client_type_seen = NULL);
     
 	/**!
 	 * @brief Handles the beacon metrics query.
