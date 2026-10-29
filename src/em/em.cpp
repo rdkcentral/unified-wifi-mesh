@@ -348,10 +348,15 @@ void em_t::proto_process(unsigned char *data, unsigned int len)
         case em_msg_type_beacon_metrics_query:
         case em_msg_type_beacon_metrics_rsp:
         case em_msg_type_ap_metrics_rsp:
-        case em_msg_type_topo_vendor:
-	    case em_msg_type_unassoc_sta_link_metrics_query: 
-        case em_msg_type_unassoc_sta_link_metrics_rsp:	    
+        case em_msg_type_unassoc_sta_link_metrics_query:
+        case em_msg_type_unassoc_sta_link_metrics_rsp:
             em_metrics_t::process_msg(data, len);
+            break;
+
+        case em_msg_type_topo_vendor:
+            // Link reports are handled in metrics; other vendor attributes go to the extension
+            em_metrics_t::process_msg(data, len);
+            em_vendor_t::handle_vendor_msg(data, len);
             break;
 
         case em_msg_type_dpp_cce_ind:
@@ -516,6 +521,12 @@ void em_t::handle_agent_state()
         case em_cmd_type_unassoc_sta_result:
             if (m_sm.get_state() == em_state_agent_unassoc_sta_metrics_report_pending) {
                 em_metrics_t::process_agent_state();
+            }
+            break;
+
+        case em_cmd_type_vendor_data:
+            if (m_sm.get_state() >= em_state_agent_topo_synchronized) {
+                em_vendor_t::process_agent_state();
             }
             break;
 
@@ -1334,7 +1345,7 @@ short em_t::create_airties_radio_capability_tlv(unsigned char *buff)
             return 0;
         }
         uint16_t supported_standards = htons(variant_to_airties_standards(cap_info->mode));
-        em_vendor_specific_v_t *vendor = reinterpret_cast<em_vendor_specific_v_t *>(buff);
+        em_vendor_specific_t *vendor = reinterpret_cast<em_vendor_specific_t *>(buff);
         if (vendor == NULL) {
             em_printfout("No data Found");
             return 0;
@@ -3006,9 +3017,11 @@ const char *em_t::state_2_str(em_state_t state)
         EM_STATE_2S(em_state_ctrl_bsta_cap_pending)
         EM_STATE_2S(em_state_ctrl_topo_publish_pending)
 	EM_STATE_2S(em_state_ctrl_unassoc_sta_link_metrics_pending)
+        EM_STATE_2S(em_state_ctrl_client_assoc_ctrl_req_pending)
         EM_STATE_2S(em_state_agent_unconfigured)
         EM_STATE_2S(em_state_agent_autoconfig_rsp_pending)
         EM_STATE_2S(em_state_agent_wsc_m2_pending)
+        EM_STATE_2S(em_state_agent_wsc_m2_processed)
         EM_STATE_2S(em_state_agent_steer_btm_res_pending)
         EM_STATE_2S(em_state_agent_owconfig_pending)
         EM_STATE_2S(em_state_agent_onewifi_bssconfig_ind)
