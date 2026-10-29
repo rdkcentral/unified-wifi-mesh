@@ -29,6 +29,8 @@
 #include "bus.h"
 
 #include <string>
+#include <condition_variable>
+#include <mutex>
 
 #ifdef AL_SAP
 #define DATA_SOCKET_PATH "/tmp/al_data_socket"
@@ -46,6 +48,9 @@ class em_agent_t : public em_mgr_t {
     em_cmd_agent_t  *m_agent_cmd;
 	em_simulator_t	m_simulator;
 
+       bool m_tx_power_ready = false;
+       std::mutex m_tx_power_ready_mutex;
+       std::condition_variable m_tx_power_ready_cv;
 	
 	/**!
 	 * @brief Starts the completion process.
@@ -1088,6 +1093,20 @@ public:
 	 * @return int 1 on success, otherwise -1
 	 */
 	static int failed_conn_cb(char *event_name, bus_data_prop_t *data, void *userData);
+
+        /**!
+         * @brief Handles the OneWifi transmit-power-ready event.
+         *
+         * This callback marks the agent as ready to serve runtime transmit-power requests
+         * after the underlying driver reports that the current radio power is available.
+         *
+         * @param[in] event_name Name of the bus event.
+         * @param[in] data Event payload (unused for this callback).
+         * @param[in] userData Agent instance associated with the callback.
+         *
+         * @return 1 on success, -1 if the agent instance is invalid.
+         */
+        static int tx_power_ready_cb(char *event_name, bus_data_prop_t *data, void *userData);
 
 	/**
 	 * @brief Callback for BSS scan events

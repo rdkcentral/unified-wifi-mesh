@@ -1727,7 +1727,27 @@ void em_agent_t::input_listener()
     load_em_plus_cfg();
     fill_extended_device_info();
 
+    if (desc->bus_event_subs_fn(&m_bus_hdl, WIFI_EM_INIT_TX_POWER_READY,
+            reinterpret_cast<void *>(&em_agent_t::tx_power_ready_cb), this, 0) != 0) {
+        em_printfout("Error: Failed to subscribe to '%s'", WIFI_EM_INIT_TX_POWER_READY);
+        return;
+    }
+
     memset(&data, 0, sizeof(raw_data_t));
+
+    {
+        std::unique_lock<std::mutex> lock(m_tx_power_ready_mutex);
+        if (!m_tx_power_ready) {
+            em_printfout("Waiting up to 5 seconds for transmit power ready event");
+            m_tx_power_ready_cv.wait_for(lock, std::chrono::seconds(5),
+                [this]() { return m_tx_power_ready; });
+        }
+        if (!m_tx_power_ready) {
+            em_printfout("Transmit power ready event unavailable; DML retrieval will validate power");
+        }
+    }
+
+    em_printfout("Starting DML retrieval for %s", WIFI_WEBCONFIG_INIT_DML_DATA);
 
     while ((bus_error_val = desc->bus_data_get_fn(&m_bus_hdl, WIFI_WEBCONFIG_INIT_DML_DATA, &data)) != bus_error_success) {
         em_printfout("Error: bus get failed, error: %d", bus_error_val);
@@ -1808,6 +1828,25 @@ void em_agent_t::input_listener()
     }
 
     io(NULL);
+}
+
+int em_agent_t::tx_power_ready_cb(char *event_name, bus_data_prop_t *data, void *userData)
+{
+    (void)event_name;
+    (void)data;
+
+    em_agent_t *agent = static_cast<em_agent_t *>(userData);
+    if (agent == nullptr) {
+        return -1;
+    }
+
+    {
+        std::lock_guard<std::mutex> lock(agent->m_tx_power_ready_mutex);
+        agent->m_tx_power_ready = true;
+    }
+    agent->m_tx_power_ready_cv.notify_all();
+    em_printfout("Received transmit power ready event");
+    return 1;
 }
 
 int em_agent_t::unassoc_sta_link_metrics_cb(char *event_name, bus_data_prop_t *data, void *userData)
