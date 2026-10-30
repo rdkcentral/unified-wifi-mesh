@@ -802,6 +802,9 @@ em_cmd_type_t em_cmd_t::bus_2_cmd_type(em_bus_event_type_t etype)
 	        break;
 
         case em_bus_event_type_topo_sync:
+            type = em_cmd_type_topo_sync;
+            break;
+
         case em_bus_event_type_m2_tx:
             type = em_cmd_type_em_config;
             break;
@@ -876,6 +879,10 @@ em_bus_event_type_t em_cmd_t::cmd_2_bus_event_type(em_cmd_type_t ctype)
 
         case em_cmd_type_set_ssid:
             type = em_bus_event_type_set_ssid;;
+            break;
+
+        case em_cmd_type_topo_sync:
+            type = em_bus_event_type_topo_sync;
             break;
 
         case em_cmd_type_em_config:

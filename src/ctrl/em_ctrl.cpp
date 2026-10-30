@@ -293,6 +293,16 @@ void em_ctrl_t::handle_sta_assoc_event(em_bus_event_t *evt)
     }
 }
 
+void em_ctrl_t::handle_topo_sync_event(em_bus_event_t *evt)
+{
+    em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
+    int num;
+
+    if ((num = m_data_model.analyze_topo_sync_event(evt, pcmd)) > 0) {
+        m_orch->submit_commands(pcmd, static_cast<unsigned int>(num));
+    }
+}
+
 void em_ctrl_t::handle_set_radio(em_bus_event_t *evt)
 {
     em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
@@ -821,6 +831,10 @@ void em_ctrl_t::handle_bus_event(em_bus_event_t *evt)
 		case em_bus_event_type_sta_assoc:
 			handle_sta_assoc_event(evt);
 			break;
+
+       case em_bus_event_type_topo_sync:
+            handle_topo_sync_event(evt);
+            break;
 
         case em_bus_event_type_mld_reconfig:
 			handle_mld_reconfig(evt);
