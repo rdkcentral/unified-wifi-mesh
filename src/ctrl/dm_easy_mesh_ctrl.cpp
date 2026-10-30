@@ -3635,6 +3635,69 @@ int dm_easy_mesh_ctrl_t::analyze_sta_assoc_event(em_bus_event_t *evt, em_cmd_t *
     return num;
 }
 
+int dm_easy_mesh_ctrl_t::analyze_topo_sync_event(em_bus_event_t *evt, em_cmd_t *pcmd[])
+{
+    em_cmd_t *tmp = NULL;
+    int num = 0;
+    dm_easy_mesh_t *pdm = NULL;
+    em_tlv_t *tlv = NULL;
+    unsigned int tmp_len = 0U;
+    mac_address_t dev_mac = {0};
+    bool found_dev_mac = false;
+
+    if (evt == NULL) {
+        em_printfout("analyze_topo_sync_event: NULL event");
+        return -1;
+    }
+    if (evt->data_len < (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))) {
+        em_printfout("analyze_topo_sync_event: buffer too small (%u)", evt->data_len);
+        return -1;
+    }
+
+    tlv = reinterpret_cast<em_tlv_t *>(evt->u.raw_buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+    tmp_len = evt->data_len - static_cast<unsigned int>(sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+
+    while ((tmp_len >= sizeof(em_tlv_t)) && (tlv->type != em_tlv_type_eom)) {
+        unsigned short tl = ntohs(tlv->len);
+        if (tmp_len < (sizeof(em_tlv_t) + tl)) {
+            break;
+        }
+        if (tlv->type == em_tlv_type_al_mac_address && tl >= sizeof(mac_address_t)) {
+            memcpy(dev_mac, tlv->value, sizeof(mac_address_t));
+            found_dev_mac = true;
+            break;
+        }
+        tmp_len -= static_cast<unsigned int>(sizeof(em_tlv_t) + tl);
+        tlv = reinterpret_cast<em_tlv_t *>(reinterpret_cast<unsigned char *>(tlv) + sizeof(em_tlv_t) + tl);
+    }
+
+    if (found_dev_mac == false) {
+        em_printfout("analyze_topo_sync_event: Could not find AL MAC TLV in event");
+        return -1;
+    }
+
+    pdm = get_first_dm();
+    while (pdm != NULL) {
+        if (memcmp(pdm->get_agent_al_interface_mac(), dev_mac, sizeof(mac_address_t)) == 0) {
+            break;
+        }
+        pdm = get_next_dm(pdm);
+    }
+    if (pdm == NULL) {
+        em_printfout("analyze_topo_sync_event: Could not find data model for device %s", util::mac_to_string(dev_mac).c_str());
+        return -1;
+    }
+
+    tmp = new em_cmd_topo_sync_t(evt->params, *pdm);
+    if (tmp == NULL) {
+        em_printfout("analyze_topo_sync_event: Failed to create em_cmd_topo_sync_t");
+        return -1;
+    }
+    pcmd[num] = tmp;
+    num++;
+    return num;
+}
+
 int dm_easy_mesh_ctrl_t::analyze_m2_tx(em_bus_event_t *evt, em_cmd_t *pcmd[])
 {
     mac_addr_str_t  radio_str, al_str;

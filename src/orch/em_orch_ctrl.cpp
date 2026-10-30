@@ -206,7 +206,12 @@ bool em_orch_ctrl_t::is_em_ready_for_orch_fini(em_cmd_t *pcmd, em_t *em)
                     //em_cmd_t::get_orch_op_str(pcmd->get_orch_op()), em_cmd_t::get_cmd_type_str(pcmd->m_type), 
 					//em_t::state_2_str(em->get_state()));
             break;
-        
+        case em_cmd_type_topo_sync:
+            if (em->get_state() == em_state_ctrl_topo_synchronized) {
+                em->set_state(em_state_ctrl_configured);
+                return true;
+            }
+            break;
         case em_cmd_type_set_channel:
             if (em->get_state() == em_state_ctrl_configured) {
                 return true;
@@ -350,6 +355,12 @@ bool em_orch_ctrl_t::is_em_ready_for_orch_exec(em_cmd_t *pcmd, em_t *em)
             } else if (em->get_state() == em_state_ctrl_configured) {
                 return true;
             } else if (em->get_state() == em_state_ctrl_misconfigured) {
+                return true;
+            }
+            break;
+
+        case em_cmd_type_topo_sync:
+            if (em->get_state() == em_state_ctrl_configured) {
                 return true;
             }
             break;
@@ -605,6 +616,18 @@ unsigned int em_orch_ctrl_t::build_candidates(em_cmd_t *pcmd)
         m_mgr->get_all_em_for_al_mac(dm->get_agent_al_interface_mac(), em_radios);
         if (!em_radios.empty()) {
             em_printfout("Set Policy: %s pushed to queue", util::mac_to_string(em_radios.front()->get_radio_interface_mac()).c_str());
+            queue_push(pcmd->m_em_candidates, em_radios.front());
+            count++;
+        }
+        return count;
+    }
+
+    if (pcmd->m_type == em_cmd_type_topo_sync) {
+        dm = pcmd->get_data_model();
+        std::vector<em_t *> em_radios;
+        m_mgr->get_all_em_for_al_mac(dm->get_agent_al_interface_mac(), em_radios);
+        if (!em_radios.empty()) {
+            em_printfout("Topo_Sync: %s pushed to queue", util::mac_to_string(em_radios.front()->get_radio_interface_mac()).c_str());
             queue_push(pcmd->m_em_candidates, em_radios.front());
             count++;
         }

@@ -455,7 +455,18 @@ public:
 	 * @note Ensure that the event structure is properly initialized before passing it to this function.
 	 */
 	void handle_sta_assoc_event(em_bus_event_t *evt);
-    
+
+       /**!
+        * @brief Handles the topology sync event.
+        *
+        * This function processes the event when a topology sync is requested for an agent.
+        *
+        * @param[in] evt Pointer to the event structure containing the AL MAC address of the agent to sync.
+        *
+        * @note Ensure that the event structure is properly initialized before passing it to this function.
+        */
+       void handle_topo_sync_event(em_bus_event_t *evt);
+
 	/**!
 	 * @brief Handles the MLD reconfiguration event.
 	 *

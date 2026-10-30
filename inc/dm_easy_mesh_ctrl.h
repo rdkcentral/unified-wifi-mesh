@@ -657,7 +657,21 @@ public:
 	 * @note Ensure that the event structure is properly initialized before calling this function.
 	 */
 	int analyze_sta_assoc_event(em_bus_event_t *evt, em_cmd_t *cmd[]);
-    
+          /**!
+         * @brief Analyzes the topology sync event.
+         *
+         * This function processes the event related to topology synchronization for an agent and updates the command list accordingly.
+         *
+         * @param[in] evt Pointer to the event structure containing the AL MAC address of the agent to sync.
+         * @param[out] cmd Array of command structures to be updated based on the event analysis.
+         *
+         * @returns int Status code indicating the success or failure of the operation.
+         * @retval 0 on success.
+         * @retval -1 on failure.
+         *
+         * @note Ensure that the event structure is properly initialized before calling this function.
+         */
+       int analyze_topo_sync_event(em_bus_event_t *evt, em_cmd_t *cmd[]);
 	/**!
 	 * @brief Analyzes the client association event and command.
 	 *

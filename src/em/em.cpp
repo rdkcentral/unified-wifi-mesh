@@ -273,6 +273,9 @@ void em_t::orch_execute(em_cmd_t *pcmd)
         case em_cmd_type_unassoc_sta_result:
             m_sm.set_state(em_state_agent_unassoc_sta_metrics_report_pending);
             break;
+        case em_cmd_type_topo_sync:
+            m_sm.set_state(em_state_ctrl_topo_sync_pending);
+            break;
         
 	default:
             break;
@@ -614,6 +617,9 @@ void em_t::handle_ctrl_state()
         case em_cmd_type_beacon_query:
             em_metrics_t::process_ctrl_state();
             break;
+
+        case em_cmd_type_topo_sync:
+            em_configuration_t::process_ctrl_state();
 
         default:
             break;
