@@ -186,6 +186,7 @@ short em_channel_t::create_channel_scan_req_tlv(unsigned char *buff)
 	dm = get_data_model();
 
 	req = reinterpret_cast<em_channel_scan_req_t *> (buff);
+	req->reserved = 0;
 	req->perform_fresh_scan = 0;
 
 	req->num_radios = 1;
