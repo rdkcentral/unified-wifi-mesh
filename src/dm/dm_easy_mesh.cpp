@@ -2917,6 +2917,26 @@ em_bss_info_t* dm_easy_mesh_t::get_bsta_bss_info()
     return NULL;
 }
 
+em_bss_info_t* dm_easy_mesh_t::get_associated_bsta_bss_info()
+{
+    for (unsigned int i = 0; i < m_num_bss; i++) {
+        em_bss_info_t *bsta_info = this->get_bss_info(i);
+        if (!bsta_info) continue;
+        if (bsta_info->id.haul_type != em_haul_type_backhaul || bsta_info->vap_mode != em_vap_mode_sta) {
+            continue;
+        }
+        if (memcmp(bsta_info->bssid.mac, ZERO_MAC_ADDR, sizeof(mac_address_t)) == 0) {
+            continue;
+        }
+        auto radio = this->get_radio(bsta_info->ruid.mac);
+        if (!radio || !radio->m_radio_info.enabled || !bsta_info->enabled) {
+            continue;
+        }
+        return bsta_info;
+    }
+    return get_bsta_bss_info();
+}
+
 em_bss_info_t* dm_easy_mesh_t::get_backhaul_bss_info()
 {
     for (unsigned int i = 0; i < m_num_bss; i++) {
