@@ -3916,7 +3916,7 @@ void dm_easy_mesh_t::apply_sta_cap_to_maps(const char *key, em_sta_info_t *info)
         hash_map_put(m_sta_assoc_map, strdup(key), new dm_sta_t(info));
         em_printfout("Client cap assoc_map new: %s len=%u assoc=%d", key, info->frame_body_len, info->associated);
     } else {
-        memcpy(&entry->m_sta_info, info, sizeof(em_sta_info_t));
+        dm_sta_t::copy_sta_info(&entry->m_sta_info, info);
         em_printfout("Client cap assoc_map update: %s len=%u assoc=%d", key, info->frame_body_len, info->associated);
     }
 
@@ -3924,8 +3924,7 @@ void dm_easy_mesh_t::apply_sta_cap_to_maps(const char *key, em_sta_info_t *info)
     // caps in the current session without waiting for a DB sync.
     dm_sta_t *map_sta = static_cast<dm_sta_t *>(hash_map_get(m_sta_map, key));
     if (map_sta != NULL) {
-        map_sta->m_sta_info.frame_body_len = info->frame_body_len;
-        memcpy(map_sta->m_sta_info.frame_body, info->frame_body, info->frame_body_len);
+        dm_sta_t::set_frame_body(&map_sta->m_sta_info, info->frame_body, info->frame_body_len);
         dm_sta_t::decode_sta_capability(map_sta);
     }
 }

@@ -529,6 +529,12 @@ int em_capability_t::send_client_cap_query()
     return static_cast<int> (len);
 }
 
+// Room kept in a single message for the 1905 header and the TLVs around the client capability TLV
+#define EM_CLIENT_CAP_RPT_OVERHEAD    256
+#define EM_CLIENT_CAP_FIT_SZ          (EM_MAX_MSG_SZ - EM_CLIENT_CAP_RPT_OVERHEAD)
+// create_client_cap_tlv() returns a short and the data model never stores more than EM_MAX_FRAME_BODY_LEN
+#define EM_CLIENT_CAP_MAX_FRAME_BODY  ((EM_CLIENT_CAP_FIT_SZ < EM_MAX_FRAME_BODY_LEN) ? EM_CLIENT_CAP_FIT_SZ : EM_MAX_FRAME_BODY_LEN)
+
 short em_capability_t::create_client_cap_tlv(unsigned char *buff, mac_address_t sta, bssid_t bssid)
 {
     short len = 0;
@@ -556,9 +562,22 @@ short em_capability_t::create_client_cap_tlv(unsigned char *buff, mac_address_t 
     len += static_cast<short> (sizeof(unsigned char));
 
     //frame_body
-    memcpy(tmp, &dm_sta->get_sta_info()->frame_body, dm_sta->get_sta_info()->frame_body_len);
-    tmp += dm_sta->get_sta_info()->frame_body_len;
-    len += static_cast<short> (dm_sta->get_sta_info()->frame_body_len);
+    // The frame body is variable length, but the report is sent as a single frame,
+    // so it is limited to what fits next to the other TLVs of the message.
+    unsigned int frame_body_len = dm_sta->get_sta_info()->frame_body_len;
+    if (dm_sta->get_sta_info()->frame_body == NULL) {
+        frame_body_len = 0;
+    }
+    if (frame_body_len > EM_CLIENT_CAP_MAX_FRAME_BODY) {
+        em_printfout("frame_body_len %u exceeds max %u that fits the report, clamping", frame_body_len,
+            static_cast<unsigned int> (EM_CLIENT_CAP_MAX_FRAME_BODY));
+        frame_body_len = EM_CLIENT_CAP_MAX_FRAME_BODY;
+    }
+    if (frame_body_len > 0) {
+        memcpy(tmp, dm_sta->get_sta_info()->frame_body, frame_body_len);
+    }
+    tmp += frame_body_len;
+    len += static_cast<short> (frame_body_len);
 
     return len;
 }
@@ -640,81 +659,34 @@ int em_capability_t::create_bsta_radio_cap_tlv(uint8_t *buff)
 
 int em_capability_t::send_client_cap_report_msg(mac_address_t sta, bssid_t bss, unsigned short msg_id)
 {
-    unsigned char buff[MAX_EM_BUFF_SZ];
+    em_msg_builder_t msg;
     char *errors[EM_MAX_TLV_MEMBERS] = {0};
-    unsigned short  msg_type = em_msg_type_client_cap_rprt;
-    size_t len = 0;
-    em_cmdu_t *cmdu;
-    em_tlv_t *tlv;
-    unsigned char *tmp = buff;
-    short sz = 0;
-    unsigned short type = htons(ETH_P_1905);
     dm_easy_mesh_t *dm = get_data_model();
     mac_addr_str_t mac_str;
 
-    memcpy(tmp, dm->get_ctl_mac(), sizeof(mac_address_t));
-    tmp += sizeof(mac_address_t);
-    len += sizeof(mac_address_t);
-
-    memcpy(tmp, dm->get_agent_al_interface_mac(), sizeof(mac_address_t));
-    tmp += sizeof(mac_address_t);
-    len += sizeof(mac_address_t);
-
-    memcpy(tmp, reinterpret_cast<unsigned char *> (&type), sizeof(unsigned short));
-    tmp += sizeof(unsigned short);
-    len += sizeof(unsigned short);
-
-    cmdu = reinterpret_cast<em_cmdu_t *> (tmp);
-
-    memset(tmp, 0, sizeof(em_cmdu_t));
-    cmdu->type = htons(msg_type);
-    cmdu->id = htons(msg_id);
-    cmdu->last_frag_ind = 1;
-
-    tmp += sizeof(em_cmdu_t);
-    len += sizeof(em_cmdu_t);
+    msg.add_1905_header(dm->get_ctl_mac(), dm->get_agent_al_interface_mac(), em_msg_type_client_cap_rprt, msg_id);
 
     //Client Info  TLV 17.2.18
-    tlv = reinterpret_cast<em_tlv_t *> (tmp);
-    tlv->type = em_tlv_type_client_info;
-    sz = create_client_info_tlv(tlv->value, sta, bss);
-    tlv->len = htons(static_cast<uint16_t> (sz));
-
-    tmp += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
-    len += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+    msg.commit_tlv(em_tlv_type_client_info, create_client_info_tlv(msg.tlv_value(), sta, bss));
 
     //Client Capability Report TLV 17.2.19
-    tlv = reinterpret_cast<em_tlv_t *> (tmp);
-    tlv->type = em_tlv_type_client_cap_report;
-    sz = create_client_cap_tlv(tlv->value, sta, bss);
-    tlv->len = htons(static_cast<uint16_t> (sz));
-
-    tmp += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
-    len += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+    msg.commit_tlv(em_tlv_type_client_cap_report, create_client_cap_tlv(msg.tlv_value(), sta, bss));
 
     //Error code  TLV 17.2.36
-    tlv = reinterpret_cast<em_tlv_t *> (tmp);
-    tlv->type = em_tlv_type_error_code;
-    sz = create_error_code_tlv(tlv->value, sta, bss);
-    tlv->len = htons(static_cast<uint16_t> (sz));
+    msg.commit_tlv(em_tlv_type_error_code, create_error_code_tlv(msg.tlv_value(), sta, bss));
 
-    tmp += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
-    len += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+    if (msg.add_eom() == false) {
+        em_printfout("Error: Client Capability Report build failed for sta: %s",
+            util::mac_to_string(sta).c_str());
+        return -1;
+    }
 
-    // End of message
-    tlv = reinterpret_cast<em_tlv_t *> (tmp);
-    tlv->type = em_tlv_type_eom;
-    tlv->len = 0;
-
-    tmp += (sizeof (em_tlv_t));
-    len += (sizeof (em_tlv_t));
-
-    if (em_msg_t(em_msg_type_client_cap_rprt, em_profile_type_3, buff, static_cast<unsigned int> (len)).validate(errors) == 0) {
+    if (em_msg_t(em_msg_type_client_cap_rprt, em_profile_type_3, msg.get_buff(), msg.get_len()).validate(errors) == 0) {
         em_printfout("Error: Client Capability Report msg validation failed in tnx end");
         return -1;
     }
 
-    if (send_frame(buff, static_cast<unsigned int> (len))  < 0) {
+    if (send_frame(msg.get_buff(), msg.get_len())  < 0) {
         em_printfout("Error: Client Capability Report msg send failed, error: %d", errno);
         return -1;
     }
@@ -722,7 +694,7 @@ int em_capability_t::send_client_cap_report_msg(mac_address_t sta, bssid_t bss, 
     dm_easy_mesh_t::macbytes_to_string(sta, mac_str);
     em_printfout("Client Capability Report msg sent successfully for sta: %s", mac_str);
 
-    return static_cast<int> (len);
+    return static_cast<int> (msg.get_len());
 }
 
 int em_capability_t::send_ap_cap_query_msg()
@@ -935,14 +907,14 @@ int em_capability_t::handle_client_cap_report(unsigned char *buff, unsigned int 
 {
     unsigned int tmp_len;
     em_tlv_t *tlv;
-    em_sta_info_t sta_info;
+    em_sta_info_t sta_info = {};
     mac_addr_str_t sta_mac_str, bssid_str, radio_mac_str;
     mac_addr_str_t link_bssid_str, link_radio_str;
     em_long_string_t	key;
     dm_easy_mesh_t  *dm;
     em_assoc_sta_mld_info_t *assoc_info = NULL;
     dm_bss_t *aff_bss = NULL;
-    em_sta_info_t link_sta_info;
+    em_sta_info_t link_sta_info = {};
     em_long_string_t link_key;
     bool found_client_info = false;
     bool found_cap_report = false;
@@ -1027,8 +999,22 @@ int em_capability_t::handle_client_cap_report(unsigned char *buff, unsigned int 
                 return -1;
             }
             sta_info.associated = true;
-            sta_info.frame_body_len = static_cast<unsigned int>(htons(tlv->len) - 1);
-            memcpy(sta_info.frame_body, &tlv->value[1], static_cast<size_t>(sta_info.frame_body_len));
+            // The frame body is variable length: use the whole TLV value after the
+            // result code. sta_info only borrows it from the received frame, the
+            // data model copies it when the info is applied. Guard the zero-length
+            // underflow of htons(len) - 1 and bound what a peer can make us store.
+            {
+                unsigned short cap_report_len = htons(tlv->len);
+                unsigned int fb_len = (cap_report_len > 0) ?
+                    static_cast<unsigned int>(cap_report_len - 1) : 0;
+                if (fb_len > EM_MAX_FRAME_BODY_LEN) {
+                    em_printfout("client cap report frame_body_len %u exceeds max %u, clamping",
+                        fb_len, EM_MAX_FRAME_BODY_LEN);
+                    fb_len = EM_MAX_FRAME_BODY_LEN;
+                }
+                sta_info.frame_body = (fb_len > 0) ? &tlv->value[1] : NULL;
+                sta_info.frame_body_len = fb_len;
+            }
 
             found_cap_report = true;
             break;

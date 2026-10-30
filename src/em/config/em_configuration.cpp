@@ -106,7 +106,7 @@ static bool update_sta_map_assoc_row(hash_map_t *sta_assoc_map, em_sta_info_t *r
         hash_map_put(sta_assoc_map, strdup(row_key), new dm_sta_t(row));
         em_printfout("sta_map add: %s", row_key);
     } else {
-        memcpy(&existing_row->m_sta_info, row, sizeof(em_sta_info_t));
+        dm_sta_t::copy_sta_info(&existing_row->m_sta_info, row);
         em_printfout("sta_map update: %s", row_key);
     }
 
@@ -182,7 +182,7 @@ static bool handle_assoc_sta_mld_topology_update(dm_easy_mesh_t *dm)
     unsigned int i, j, r;
     em_assoc_sta_mld_info_t *assoc_info;
     dm_bss_t *aff_bss;
-    em_sta_info_t sta_info;
+    em_sta_info_t sta_info = {};
     mac_addr_str_t s_str, b_str_tmp, r_str_tmp;
     em_long_string_t exist_key;
     dm_sta_t *existing_sta;
@@ -568,7 +568,7 @@ int em_configuration_t::send_client_disassoc_stats_msg(const dm_sta_t *dassoc_st
     // Resolve stats from the global DM to get the correct values instead of using the input from command.
     dassoc_stats_sta_info = dm->get_sta_info(sta_id, bssid, radio_mac, em_target_sta_map_disassoc);
     if (dassoc_stats_sta_info != NULL) {
-        memcpy(&dassoc_stats_sta.m_sta_info, dassoc_stats_sta_info, sizeof(em_sta_info_t));
+        dm_sta_t::copy_sta_info(&dassoc_stats_sta.m_sta_info, dassoc_stats_sta_info);
         dassoc_sta = &dassoc_stats_sta;
         sta_info = &dassoc_stats_sta.m_sta_info;
     }
@@ -2407,7 +2407,7 @@ int em_configuration_t::handle_topology_notification(unsigned char *buff, unsign
     dm_easy_mesh_t  *dm;
     bool found_dev_mac = false;
     em_client_assoc_event_t *assoc_evt_tlv;
-    em_sta_info_t sta_info;
+    em_sta_info_t sta_info = {};
     em_bus_event_type_client_assoc_params_t    raw;
     bool updated_any = false;
     bool assoc_event;
@@ -2527,7 +2527,7 @@ int em_configuration_t::handle_topology_notification(unsigned char *buff, unsign
 
                         assoc_row = static_cast<dm_sta_t *>(hash_map_get(dm->m_sta_assoc_map, link_key));
                         if (assoc_row != NULL) {
-                            memcpy(&assoc_row->m_sta_info, &sta_info, sizeof(em_sta_info_t));
+                            dm_sta_t::copy_sta_info(&assoc_row->m_sta_info, &sta_info);
                         } else {
                             hash_map_put(dm->m_sta_assoc_map, strdup(link_key), new dm_sta_t(&sta_info));
                         }
@@ -2552,7 +2552,7 @@ int em_configuration_t::handle_topology_notification(unsigned char *buff, unsign
 
                     assoc_row = static_cast<dm_sta_t *>(hash_map_get(dm->m_sta_assoc_map, key));
                     if (assoc_row != NULL) {
-                        memcpy(&assoc_row->m_sta_info, &sta_info, sizeof(em_sta_info_t));
+                        dm_sta_t::copy_sta_info(&assoc_row->m_sta_info, &sta_info);
                     } else {
                         hash_map_put(dm->m_sta_assoc_map, strdup(key), new dm_sta_t(&sta_info));
                     }

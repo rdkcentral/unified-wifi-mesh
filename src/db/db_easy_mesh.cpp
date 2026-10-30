@@ -23,6 +23,7 @@
 #include <errno.h>
 #include <assert.h>
 #include <signal.h>
+#include <vector>
 #include "db_easy_mesh.h"
 
 char *db_easy_mesh_t::get_column_format(db_fmt_t fmt, unsigned int pos)
@@ -117,8 +118,10 @@ int db_easy_mesh_t::get_strings_by_token(char *parent, int token, unsigned int a
 int db_easy_mesh_t::insert_row(db_client_t& db_client, ...)
 {
     unsigned int i;
-    va_list list;
-    db_query_t format, query;
+    va_list list, list_copy;
+    db_query_t format;
+    std::vector<char> query;
+    int query_len;
     db_fmt_t	col_fmt;
     void *ctx;
 
@@ -139,13 +142,23 @@ int db_easy_mesh_t::insert_row(db_client_t& db_client, ...)
     format[strlen(format) - 1] = 0;
 
 
+    // Values such as a frame body have no fixed size, so size the query to fit them
     va_start(list, db_client);
-    (void) vsnprintf(query, sizeof(db_query_t), format, list);
+    va_copy(list_copy, list);
+    query_len = vsnprintf(NULL, 0, format, list_copy);
+    va_end(list_copy);
+    if (query_len < 0) {
+        va_end(list);
+        printf("%s:%d: Failed to format insert query for %s\n", __func__, __LINE__, m_table_name);
+        return -1;
+    }
+    query.resize(static_cast<size_t>(query_len) + 1);
+    (void) vsnprintf(query.data(), query.size(), format, list);
     va_end(list);
 
-    //printf("%s:%d: Query: %s\n", __func__, __LINE__, query);
+    //printf("%s:%d: Query: %s\n", __func__, __LINE__, query.data());
 
-    ctx = db_client.execute(query);
+    ctx = db_client.execute(query.data());
     db_client.free_result(ctx);
 
     return 0;

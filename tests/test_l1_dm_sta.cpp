@@ -18,6 +18,7 @@
  */
      
 #include <gtest/gtest.h>
+#include <vector>
 #include <gmock/gmock.h>
 #include <stdio.h>
 #include <climits>
@@ -540,9 +541,9 @@ TEST(dm_sta_t_Test, CopyConstructor_MaxMinValues) {
 * **Test Procedure:**@n
 * | Variation / Step | Description | Test Data |Expected Result |Notes |
 * | :----: | --------- | ---------- |-------------- | ----- |
-* | 01| Initialize original dm_sta_t object with invalid values | original.frame_body_len=EM_MAX_FRAME_BODY_LEN+1, original.id = {0xAA, 0xBB, 0xCC, 0x00, 0x00, 0x00} | Object initialized with given values | Should be successful |
-* | 02| Copy construct dm_sta_t object from original | original | Copy object should have same values as original | Should Pass |
-* | 03| Verify copied values for id and frame_body_len | copy.frame_body_len=EM_MAX_FRAME_BODY_LEN+1, copy.id = {0xAA, 0xBB, 0xCC, 0x00, 0x00, 0x00} | Values should be equal | Should Pass |
+* | 01| Initialize original dm_sta_t object with a length but no frame body | original.frame_body_len=EM_MAX_FRAME_BODY_LEN+1, original.id = {0xAA, 0xBB, 0xCC, 0x00, 0x00, 0x00} | Object initialized with given values | Should be successful |
+* | 02| Copy construct dm_sta_t object from original | original | Copy object should have the same id | Should Pass |
+* | 03| Verify copied values | copy.id = {0xAA, 0xBB, 0xCC, 0x00, 0x00, 0x00}, copy.frame_body_len = 0, copy.frame_body = NULL | A length without a frame body is not copied | Should Pass |
 */
 TEST(dm_sta_t_Test, CopyConstructor_InvalidValues) {
     std::cout << "Entering CopyConstructor_InvalidValues test";
@@ -555,7 +556,8 @@ TEST(dm_sta_t_Test, CopyConstructor_InvalidValues) {
     original.m_sta_info.id[4] = 0x00;
     original.m_sta_info.id[5] = 0x00;
     dm_sta_t copy(original);
-    EXPECT_EQ(copy.m_sta_info.frame_body_len, original.m_sta_info.frame_body_len);
+    EXPECT_EQ(copy.m_sta_info.frame_body_len, 0u);
+    EXPECT_EQ(copy.m_sta_info.frame_body, nullptr);
     EXPECT_EQ(copy.m_sta_info.id[0], original.m_sta_info.id[0]);
     EXPECT_EQ(copy.m_sta_info.id[1], original.m_sta_info.id[1]);
     EXPECT_EQ(copy.m_sta_info.id[2], original.m_sta_info.id[2]);
@@ -563,6 +565,92 @@ TEST(dm_sta_t_Test, CopyConstructor_InvalidValues) {
     EXPECT_EQ(copy.m_sta_info.id[4], original.m_sta_info.id[4]);
     EXPECT_EQ(copy.m_sta_info.id[5], original.m_sta_info.id[5]);
     std::cout << "Exiting CopyConstructor_InvalidValues test";
+}
+
+/**
+* @brief Test that a frame body of any length is deep copied by the copy constructor and assignment
+*
+* **Test Group ID:** Basic: 01@n
+* **Test Case ID:** 016a@n
+* **Priority:** High@n
+* @n
+* **Test Procedure:**@n
+* | Variation / Step | Description | Test Data |Expected Result |Notes |
+* | :----: | --------- | ---------- |-------------- | ----- |
+* | 01| Store frame bodies larger than the old fixed 512 byte buffer | 1500 bytes | Stored in full | Should Pass |
+* | 02| Copy construct and assign | original | Copies hold equal bytes in their own buffers | Should Pass |
+* | 03| Modify the original after copying | original | Copies are not affected | Should Pass |
+*/
+TEST(dm_sta_t_Test, FrameBody_VariableLengthDeepCopy) {
+    std::vector<unsigned char> body(1500);
+    for (size_t i = 0; i < body.size(); i++) {
+        body[i] = static_cast<unsigned char>(i * 7);
+    }
+
+    dm_sta_t original;
+    EXPECT_TRUE(dm_sta_t::set_frame_body(&original.m_sta_info, body.data(), static_cast<unsigned int>(body.size())));
+    ASSERT_EQ(original.m_sta_info.frame_body_len, body.size());
+    ASSERT_NE(original.m_sta_info.frame_body, nullptr);
+    EXPECT_EQ(memcmp(original.m_sta_info.frame_body, body.data(), body.size()), 0);
+
+    dm_sta_t copy(original);
+    dm_sta_t assigned;
+    assigned = original;
+
+    for (dm_sta_t *c : {&copy, &assigned}) {
+        ASSERT_EQ(c->m_sta_info.frame_body_len, body.size());
+        ASSERT_NE(c->m_sta_info.frame_body, nullptr);
+        EXPECT_NE(c->m_sta_info.frame_body, original.m_sta_info.frame_body);
+        EXPECT_EQ(memcmp(c->m_sta_info.frame_body, body.data(), body.size()), 0);
+    }
+
+    original.m_sta_info.frame_body[0] ^= 0xFF;
+    EXPECT_EQ(copy.m_sta_info.frame_body[0], body[0]);
+    EXPECT_EQ(assigned.m_sta_info.frame_body[0], body[0]);
+}
+
+/**
+* @brief Test the frame body ownership helpers
+*
+* **Test Group ID:** Basic: 01@n
+* **Test Case ID:** 016b@n
+* **Priority:** High@n
+* @n
+* **Test Procedure:**@n
+* | Variation / Step | Description | Test Data |Expected Result |Notes |
+* | :----: | --------- | ---------- |-------------- | ----- |
+* | 01| Replace a frame body with bytes taken from itself | frame_body[4..] | Content preserved | Should Pass |
+* | 02| Replace a frame body with a longer one | EM_MAX_FRAME_BODY_LEN + 10 bytes | Clamped to EM_MAX_FRAME_BODY_LEN, reported as incomplete | Should Pass |
+* | 03| Clear the frame body | NULL, 0 | Length 0, no buffer | Should Pass |
+* | 04| copy_sta_info with a source sharing the destination buffer | same struct | Unchanged | Should Pass |
+*/
+TEST(dm_sta_t_Test, FrameBody_SetAndCopyHelpers) {
+    dm_sta_t sta;
+    unsigned char data[16];
+    for (unsigned char i = 0; i < sizeof(data); i++) {
+        data[i] = i;
+    }
+
+    EXPECT_TRUE(dm_sta_t::set_frame_body(&sta.m_sta_info, data, sizeof(data)));
+    EXPECT_TRUE(dm_sta_t::set_frame_body(&sta.m_sta_info, sta.m_sta_info.frame_body + 4, 8));
+    ASSERT_EQ(sta.m_sta_info.frame_body_len, 8u);
+    EXPECT_EQ(sta.m_sta_info.frame_body[0], 4);
+    EXPECT_EQ(sta.m_sta_info.frame_body[7], 11);
+
+    std::vector<unsigned char> big(EM_MAX_FRAME_BODY_LEN + 10, 0x5A);
+    EXPECT_FALSE(dm_sta_t::set_frame_body(&sta.m_sta_info, big.data(), static_cast<unsigned int>(big.size())));
+    EXPECT_EQ(sta.m_sta_info.frame_body_len, static_cast<unsigned int>(EM_MAX_FRAME_BODY_LEN));
+
+    em_sta_info_t shared = sta.m_sta_info;
+    dm_sta_t::copy_sta_info(&sta.m_sta_info, &sta.m_sta_info);
+    EXPECT_EQ(sta.m_sta_info.frame_body, shared.frame_body);
+
+    EXPECT_TRUE(dm_sta_t::set_frame_body(&sta.m_sta_info, nullptr, 0));
+    EXPECT_EQ(sta.m_sta_info.frame_body_len, 0u);
+    EXPECT_EQ(sta.m_sta_info.frame_body, nullptr);
+
+    sta.init();
+    EXPECT_EQ(sta.m_sta_info.frame_body, nullptr);
 }
 
 /**

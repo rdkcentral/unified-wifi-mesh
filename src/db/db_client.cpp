@@ -203,6 +203,26 @@ char *db_client_t::get_string(void *ctx, char *str, unsigned int col)
     return str;
 }
 
+unsigned int db_client_t::get_length(void *ctx, unsigned int col)
+{
+    if (ctx == NULL)
+    {
+        return 0;
+    }
+
+    result_context_t *res_ctx = static_cast<result_context_t *>(ctx);
+
+    std::lock_guard<std::mutex> lock(m_mutex);
+
+    assert(col > 0);
+    // sqlite3_column_bytes() is only reliable once the value has been read as text
+    if (sqlite3_column_text(res_ctx->statement, static_cast<int>(col - 1)) == NULL)
+    {
+        return 0;
+    }
+    return static_cast<unsigned int>(sqlite3_column_bytes(res_ctx->statement, static_cast<int>(col - 1)));
+}
+
 int db_client_t::get_number(void *ctx, unsigned int col)
 {
     assert(ctx != NULL);

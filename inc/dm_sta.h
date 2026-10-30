@@ -34,7 +34,7 @@ public:
 	 *
 	 * @returns 0 on successful initialization.
 	 */
-	int init() { memset(&m_sta_info, 0, sizeof(em_sta_info_t)); return 0; }
+	int init() { free_frame_body(&m_sta_info); memset(&m_sta_info, 0, sizeof(em_sta_info_t)); return 0; }
     
 	/**!
 	 * @brief Retrieves the station information.
@@ -46,6 +46,38 @@ public:
 	 * @note Ensure that the returned pointer is not null before accessing its members.
 	 */
 	em_sta_info_t *get_sta_info() { return &m_sta_info; }
+
+	/**!
+	 * @brief Frees the heap allocated frame body of a station info and clears its length.
+	 *
+	 * @param[in] info Station info that owns its frame body.
+	 */
+	static void free_frame_body(em_sta_info_t *info);
+
+	/**!
+	 * @brief Replaces the frame body of a station info with a copy of the given bytes.
+	 *
+	 * The bytes may alias the current frame body. A length above EM_MAX_FRAME_BODY_LEN is
+	 * clamped; on allocation failure the frame body is left empty.
+	 *
+	 * @param[in] info Station info that owns its frame body.
+	 * @param[in] body Frame body bytes to copy, may be NULL.
+	 * @param[in] len Number of bytes in body.
+	 *
+	 * @returns true if the stored frame body holds all of the requested bytes.
+	 */
+	static bool set_frame_body(em_sta_info_t *info, const unsigned char *body, unsigned int len);
+
+	/**!
+	 * @brief Deep copies a station info, including its frame body, into a struct that owns its frame body.
+	 *
+	 * The previous frame body of dst is released. Use this instead of memcpy() whenever dst is
+	 * the m_sta_info of a dm_sta_t.
+	 *
+	 * @param[in,out] dst Destination, owns its frame body.
+	 * @param[in] src Source, its frame body is only read.
+	 */
+	static void copy_sta_info(em_sta_info_t *dst, const em_sta_info_t *src);
     
 	/**!
 	 * @brief Decodes a JSON object and associates it with a parent ID.

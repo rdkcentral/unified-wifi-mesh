@@ -302,7 +302,7 @@ bool em_orch_agent_t::pre_process_orch_op(em_cmd_t *pcmd)
                 em_sta_info_t *em_sta = dm->get_sta_info(sta->get_sta_info()->id, sta->get_sta_info()->bssid, sta->get_sta_info()->radiomac, em_target_sta_map_consolidated);
                 if (em_sta != NULL) {
                     printf("Consolidated Map, sta exists; updating with key: %s\n", key);
-                    memcpy(em_sta, sta->get_sta_info(), sizeof(em_sta_info_t));
+                    dm_sta_t::copy_sta_info(em_sta, sta->get_sta_info());
                 } else {
                     printf("Consolidated map new addition with key: %s\n", key);
                     hash_map_put(dm->m_sta_map, strdup(key), new dm_sta_t(*sta));
@@ -352,7 +352,7 @@ bool em_orch_agent_t::pre_process_orch_op(em_cmd_t *pcmd)
             while(sta != NULL) {
                 em_sta_info_t *em_sta = dm->get_sta_info(sta->get_sta_info()->id, sta->get_sta_info()->bssid, sta->get_sta_info()->radiomac, em_target_sta_map_consolidated);
                 if (em_sta != NULL) {
-                    memcpy(em_sta, &sta->m_sta_info, sizeof(em_sta_info_t));
+                    dm_sta_t::copy_sta_info(em_sta, &sta->m_sta_info);
                 }
                 sta = static_cast<dm_sta_t *> (hash_map_get_next(pcmd->get_data_model()->m_sta_assoc_map, sta));
             }
