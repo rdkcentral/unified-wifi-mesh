@@ -252,6 +252,10 @@ bool em_msg_t::get_radio_id(mac_address_t *mac)
         if ((sizeof(em_tlv_t) + ntohs(tlv->len)) > len) {
             return false;
         }
+	if (tlv->type == em_tlv_type_channel_scan_req &&
+            ntohs(tlv->len) < sizeof(em_channel_scan_req_t)) {
+            return false;
+        }
         if (tlv->type == em_tlv_type_eom) {
             break;
         }
