@@ -2580,6 +2580,14 @@ int em_configuration_t::handle_topology_notification(unsigned char *buff, unsign
 		tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
     }
 
+    // No client association event - pure VAP/BSS list change (e.g. 6GHz BSSes
+    // coming up late after CSA). ieee1905-rs runs in passive mode and will not
+    // send a Topology Query on its own. Send the query here to refresh the BSS
+    // list without disturbing any in-progress config sequence on the radios.
+    if (!updated_any && get_state() > em_state_ctrl_wsc_m2_sent && get_state() != em_state_ctrl_misconfigured) {
+         em_printfout("topo_notif: no client event, sending topology query for BSS update");
+        get_mgr()->io_process(em_bus_event_type_topo_sync, buff, len);
+    }
 	return 0;
 }
 
@@ -7089,7 +7097,7 @@ void em_configuration_t::process_ctrl_state()
             /* This is needed as for cases like sta_assoc where we send out topo query and client cap query which is per device
             and not per radio. So we need to allow single radio topo query for sta_assoc case */
             allow_single_radio_topo_query = (get_current_cmd() != NULL &&
-                get_current_cmd()->m_type == em_cmd_type_sta_assoc);
+                ((get_current_cmd()->m_type == em_cmd_type_sta_assoc) || (get_current_cmd()->m_type == em_cmd_type_topo_sync)));
             get_mgr()->get_all_em_for_al_mac(dm->get_agent_al_interface_mac(), em_radios);
 
             // Evaluate SSID mismatch across this AL's radios only.
