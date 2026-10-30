@@ -1979,6 +1979,32 @@ int em_configuration_t::handle_ap_operational_bss(unsigned char *buff, unsigned 
 
     unsigned int remaining_len = len - 1;
 
+    /* Validate the complete payload before modifying the data model */
+    em_ap_op_bss_radio_t *chk_radio = radio;
+    em_ap_operational_bss_t *chk_bss;
+    unsigned int chk_len = len - 1;
+
+    for (i = 0; i < ap->radios_num; i++) {
+        if (chk_len < sizeof(em_ap_op_bss_radio_t)) {
+            em_printfout("%s:%d Invalid radio data: remaining=%u\n", __func__, __LINE__, chk_len);
+            return -1;
+        }
+        chk_len -= static_cast<unsigned int> (sizeof(em_ap_op_bss_radio_t));
+
+        chk_bss = chk_radio->bss;
+        for (j = 0; j < chk_radio->bss_num; j++) {
+            if (chk_len < sizeof(em_ap_operational_bss_t) ||
+                chk_len < sizeof(em_ap_operational_bss_t) + chk_bss->ssid_len) {
+                em_printfout("%s:%d Invalid BSS data: remaining=%u\n", __func__, __LINE__, chk_len);
+                return -1;
+            }
+            chk_len -= static_cast<unsigned int> (sizeof(em_ap_operational_bss_t) + chk_bss->ssid_len);
+            chk_bss = reinterpret_cast<em_ap_operational_bss_t *> (reinterpret_cast<unsigned char *> (chk_bss) +
+                        sizeof(em_ap_operational_bss_t) + chk_bss->ssid_len);
+        }
+        chk_radio = reinterpret_cast<em_ap_op_bss_radio_t *> (chk_bss);
+    }
+
 	util::get_date_time_rfc3399(time_date, sizeof(time_date));
 
     for (i = 0; i < ap->radios_num; i++) {
