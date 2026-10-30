@@ -284,6 +284,7 @@ bool dm_scan_result_list_t::search_db(db_client_t& db_client, void *ctx, void *k
 		//printf("%s:%d: Comparing source: %s target: %s\n", __func__, __LINE__, str, (char *)key);
 
 		if (strncmp(str, static_cast<char *>(key), strlen(static_cast<char *>(key))) == 0) {
+            db_client.free_result(ctx);
             return true;
         }
     }

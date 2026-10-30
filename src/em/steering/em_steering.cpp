@@ -37,6 +37,7 @@
 #include <unistd.h>
 #include <pthread.h>
 #include <openssl/rand.h>
+#include <vector>
 #include "em.h"
 #include "em_msg.h"
 #include "em_cmd.h"
@@ -50,37 +51,41 @@ int em_steering_t::send_client_assoc_ctrl_req_msg()
     if (!pcmd || !dm)
         return -1;
 
-    for (unsigned int i = 0; i < pcmd->m_param.u.disassoc_params.num; i++) {
-        em_disassoc_params_t *disassoc_param = &pcmd->m_param.u.disassoc_params.params[i];
+    em_cmd_client_assoc_params_t *assoc_param = &pcmd->m_param.u.client_assoc_params;
 
-        for (unsigned int j = 0; j < dm->m_num_bss; j++) {
-            if ((memcmp(disassoc_param->bssid, dm->m_bss[j].m_bss_info.bssid.mac, sizeof(bssid_t)) == 0) &&
-                (memcmp(dm->m_bss[j].m_bss_info.ruid.mac, get_radio_interface_mac(), sizeof(mac_address_t)) == 0)) {
+    if (assoc_param->sta_count == 0 || assoc_param->sta_count > MAX_STA_LIST) {
+        em_printfout("ERROR: Invalid sta_count=%u (max %u)", assoc_param->sta_count, MAX_STA_LIST);
+        set_state(em_state_ctrl_configured);
+        return -1;
+    }
 
-                em_client_assoc_ctrl_req_t assoc_ctrl;
-                memset(&assoc_ctrl, 0, sizeof(assoc_ctrl));
+    if (assoc_param->assoc_control != ASSOC_CONTROL_BLOCK && assoc_param->assoc_control != ASSOC_CONTROL_UNBLOCK) {
+        em_printfout("ERROR: Invalid assoc_control=%u. Allowed: 0 (Block), 1 (Unblock)",
+                 assoc_param->assoc_control);
+        set_state(em_state_ctrl_configured);
+        return -1;  // Reject request
+    }
 
-                memcpy(&assoc_ctrl.bssid, &disassoc_param->bssid, sizeof(bssid_t));
-                //Current Implementation for One Sta Per Message
-                assoc_ctrl.count = 1;
-                memcpy(&assoc_ctrl.sta_mac, &disassoc_param->sta_mac, sizeof(mac_address_t));
+    for (unsigned int j = 0; j < dm->m_num_bss; j++) {
+        if ((memcmp(assoc_param->bssid, dm->m_bss[j].m_bss_info.bssid.mac, sizeof(mac_address_t)) == 0) &&
+         (memcmp(dm->m_bss[j].m_bss_info.ruid.mac, get_radio_interface_mac(), sizeof(mac_address_t)) == 0)) {
 
-                if (disassoc_param->disassoc_time > 0) {
-                    // BLOCK
-                    assoc_ctrl.assoc_control  = 0x00;
-                    assoc_ctrl.validity_period = htons(static_cast<uint16_t>(disassoc_param->disassoc_time));
-                } else {
-                    // UNBLOCK
-                    assoc_ctrl.assoc_control  = 0x01;
-                    assoc_ctrl.validity_period = 0;
-                }
+            em_client_assoc_ctrl_req_t assoc_ctrl;
+            memset(&assoc_ctrl, 0, sizeof(assoc_ctrl));
 
-                send_client_assoc_ctrl_req_msg(&assoc_ctrl);
+            memcpy(&assoc_ctrl.bssid, &assoc_param->bssid, sizeof(bssid_t));
+
+            assoc_ctrl.assoc_control  = assoc_param->assoc_control;
+            assoc_ctrl.validity_period = htons(assoc_param->validity_period);
+            assoc_ctrl.sta_count = assoc_param->sta_count;
+            for (uint8_t i = 0; i < assoc_param->sta_count; i++) {
+                memcpy(&assoc_ctrl.sta_list[i], &assoc_param->sta_list[i], sizeof(mac_address_t));
             }
+            send_client_assoc_ctrl_req_msg(&assoc_ctrl);
+            break;
         }
     }
 
-    set_state(em_state_ctrl_configured);
     return 0;
 }
 
@@ -124,12 +129,9 @@ int em_steering_t::send_client_assoc_ctrl_req_msg(em_client_assoc_ctrl_req_t *as
     tlv = reinterpret_cast<em_tlv_t *> (tmp);
     tlv->type = em_tlv_type_client_assoc_ctrl_req;
 
-    if (assoc_ctrl->count != 1) {
-        em_printfout("assoc_ctrl count=%d unsupported", assoc_ctrl->count);
-        return -1;
-    }
+    size_t tlv_value_len = sizeof(bssid_t) + sizeof(unsigned char) + sizeof(unsigned short) + sizeof(unsigned char) +
+         (static_cast<size_t>(assoc_ctrl->sta_count) * sizeof(mac_address_t));
 
-    size_t tlv_value_len = sizeof(em_client_assoc_ctrl_req_t);
     memcpy(tlv->value, assoc_ctrl, tlv_value_len);
     tlv->len = htons(tlv_value_len);
 
@@ -155,7 +157,8 @@ int em_steering_t::send_client_assoc_ctrl_req_msg(em_client_assoc_ctrl_req_t *as
     }
 
     m_client_assoc_ctrl_req_tx_cnt++;
-    printf("%s:%d: Client Assoc Control Request (%d) Send Successful\n", __func__, __LINE__, m_client_assoc_ctrl_req_tx_cnt);
+    m_client_assoc_ctrl_req_msg_id= ntohs(cmdu->id);
+    em_printfout("Client Assoc Control Request (%d) Send Successful, msg_id:%u\n", m_client_assoc_ctrl_req_tx_cnt, m_client_assoc_ctrl_req_msg_id);
 
     return static_cast<int> (len);
 }
@@ -374,6 +377,95 @@ int em_steering_t::send_1905_ack_message(mac_addr_t sta_mac, unsigned short msg_
     return static_cast<int> (len);
 }
 
+int em_steering_t::send_consolidated_1905_ack_message(const std::vector<const unsigned char*>& sta_list,
+    unsigned short msg_id, unsigned char reason, unsigned char *dst)
+{
+    unsigned char buff[MAX_EM_BUFF_SZ];
+    char *errors[EM_MAX_TLV_MEMBERS] = {0};
+    unsigned short  msg_type = em_msg_type_1905_ack;
+    size_t len = 0;
+    em_cmdu_t *cmdu;
+    em_tlv_t *tlv;
+    unsigned char *tmp = buff;
+    short sz = 0;
+    unsigned short type = htons(ETH_P_1905);
+    dm_easy_mesh_t *dm = get_data_model();
+    mac_address_t zero_mac = {0};
+
+    if (sta_list.empty()) {
+        em_printfout("%s:%d: Empty STA list provided", __func__, __LINE__);
+        return -1;
+    }
+
+    if (memcmp(dm->get_ctrl_al_interface_mac(), zero_mac, sizeof(mac_address_t)) != 0) {
+        memcpy(tmp, dm->get_ctrl_al_interface_mac(), sizeof(mac_address_t));
+    } else if (dst != nullptr) {
+        memcpy(tmp, const_cast<unsigned char *> (dst), sizeof(mac_address_t));
+    } else {
+        em_printfout("%s:%d: no valid destination MAC address available", __func__, __LINE__);
+        return 0;
+    }
+    tmp += sizeof(mac_address_t);
+    len += sizeof(mac_address_t);
+
+    memcpy(tmp, dm->get_agent_al_interface_mac(), sizeof(mac_address_t));
+    tmp += sizeof(mac_address_t);
+    len += sizeof(mac_address_t);
+
+    memcpy(tmp, reinterpret_cast<unsigned char *> (&type), sizeof(unsigned short));
+    tmp += sizeof(unsigned short);
+    len += sizeof(unsigned short);
+
+    cmdu = reinterpret_cast<em_cmdu_t *> (tmp);
+
+    memset(tmp, 0, sizeof(em_cmdu_t));
+    cmdu->type = htons(msg_type);
+    cmdu->id = htons(msg_id);
+    cmdu->last_frag_ind = 1;
+
+    tmp += sizeof(em_cmdu_t);
+    len += sizeof(em_cmdu_t);
+
+    // Add Error Code TLVs (only needed when reason != 0)
+    if (reason != 0) {
+        for (const auto *sta_mac : sta_list) {
+            const short err_sz = static_cast<short>(sizeof(unsigned char) + sizeof(mac_address_t));
+            if (len + sizeof(em_tlv_t) + static_cast<size_t>(err_sz) + sizeof(em_tlv_t) > MAX_EM_BUFF_SZ) {
+               em_printfout("%s:%d: Buffer overflow - too many STAs in single message", __func__, __LINE__);
+               return -1;
+            }
+            // 17.2.36 Error Code TLV format
+            tlv = reinterpret_cast<em_tlv_t *>(tmp);
+            tlv->type = em_tlv_type_error_code;
+            sz = create_error_code_tlv(tlv->value, reason, sta_mac);
+            tlv->len = htons(static_cast<short unsigned int>(sz));
+            tmp += (sizeof(em_tlv_t) + static_cast<size_t>(sz));
+            len += (sizeof(em_tlv_t) + static_cast<size_t>(sz));
+        }
+    }
+
+    // End of message
+    tlv = reinterpret_cast<em_tlv_t *> (tmp);
+    tlv->type = em_tlv_type_eom;
+    tlv->len = 0;
+
+    tmp += (sizeof(em_tlv_t));
+    len += (sizeof(em_tlv_t));
+
+    if (em_msg_t(em_msg_type_1905_ack, em_profile_type_3, buff, static_cast<unsigned int> (len)).validate(errors) == 0) {
+        em_printfout("%s:%d: Consolidated 1905 ACK validation failed", __func__, __LINE__);
+        return -1;
+    }
+
+    if (send_frame(buff, static_cast<unsigned int> (len))  < 0) {
+        em_printfout("%s:%d: Consolidated 1905 ACK send failed, error:%d", __func__, __LINE__, errno);
+        return -1;
+    }
+    em_printfout("%s:%d: Consolidated 1905 ACK send success for %zu STAs", __func__, __LINE__, sta_list.size());
+
+    return static_cast<int> (len);
+}
+
 short em_steering_t::create_btm_request_tlv(unsigned char *buff)
 {
     size_t len = 0;
@@ -432,7 +524,7 @@ short em_steering_t::create_btm_report_tlv(unsigned char *buff)
     return len;
 }
 
-short em_steering_t::create_error_code_tlv(unsigned char *buff, int val, mac_addr_t sta_mac)
+short em_steering_t::create_error_code_tlv(unsigned char *buff, int val, const mac_addr_t sta_mac)
 {
     short len = 0;
     unsigned char *tmp = buff;
@@ -503,13 +595,40 @@ int em_steering_t::handle_client_steering_report(unsigned char *buff, unsigned i
 
 int em_steering_t::handle_ack_msg(unsigned char *buff, unsigned int len)
 {
-    set_state(em_state_ctrl_steer_btm_req_ack_rcvd);
+    std::vector<em_t *> em_radios;
+    em_cmdu_t *cmdu = reinterpret_cast<em_cmdu_t *> (buff + sizeof(em_raw_hdr_t));
+    unsigned short response_msg_id = ntohs(cmdu->id);
+    em_raw_hdr_t *hdr = reinterpret_cast<em_raw_hdr_t *>(buff);
+    get_mgr()->get_all_em_for_al_mac(hdr->src, em_radios);
+
+    for (auto &em : em_radios)
+    {
+        //check for null em pointer in vector
+        if (em == NULL) {
+            em_printfout("Warning: Null em pointer in vector, skipping");
+            continue;
+        }
+
+        if ((em->get_state() == em_state_ctrl_client_assoc_ctrl_req_pending) &&
+            (response_msg_id == em->get_client_assoc_ctrl_req_msg_id())) {
+
+            em->set_state(em_state_ctrl_configured);
+            em->clear_client_assoc_ctrl_req_msg_id();
+            em_printfout("CACR ACK handled for radio %s", util::mac_to_string(em->get_radio_interface_mac()).c_str());
+
+        } else if (em->get_state() == em_state_ctrl_sta_steer_pending) {
+
+            em->set_state(em_state_ctrl_steer_btm_req_ack_rcvd);
+            em_printfout("Steering ACK handled for radio %s", util::mac_to_string(em->get_radio_interface_mac()).c_str());
+       }
+    }
+    em_radios.clear();
     return 0;
 }
 
 int em_steering_t::handle_client_assoc_ctrl_req(unsigned char *buff, unsigned int len)
 {
-    em_printfout("%s:%d: Received Client Assoc Control Request from Controller", __func__, __LINE__);
+    em_printfout("Received Client Assoc Control Request from Controller");
 
     em_tlv_t *tlv;
     char *errors[EM_MAX_TLV_MEMBERS] = {0};
@@ -521,27 +640,65 @@ int em_steering_t::handle_client_assoc_ctrl_req(unsigned char *buff, unsigned in
     dm_easy_mesh_t *dm = get_data_model();
 
     if (em_msg_t(em_msg_type_client_assoc_ctrl_req, em_profile_type_3, buff, len).validate(errors) == 0) {
-        em_printfout("%s:%d: Client Association Control Request message validation failed", __func__, __LINE__);
+        em_printfout("Client Association Control Request message validation failed");
         return -1;
     }
 
     tlv = reinterpret_cast<em_tlv_t *> (buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
-    assoc_ctrl_req = reinterpret_cast<em_client_assoc_ctrl_req_t *> (&tlv->value);
+    assoc_ctrl_req = reinterpret_cast<em_client_assoc_ctrl_req_t *>(tlv->value);
 
-    if (assoc_ctrl_req->assoc_control == 0x00) {  // Block
-        mac_address_t sta_mac;
-        memcpy(sta_mac, assoc_ctrl_req->sta_mac, sizeof(mac_address_t));
-        // Check for associated STAs if blocking
-        if (dm->is_sta_associated(assoc_ctrl_req->bssid, sta_mac)) {
-            // Send Ack with error
-            em_printfout("%s:%d: Sending ack with Error Code TLV", __func__, __LINE__);
-            send_1905_ack_message(sta_mac, msg_id, 1, hdr->src);
-            return 0;
-        }
+    const uint16_t assoc_tlv_len = ntohs(tlv->len);
+    const size_t fixed_len = sizeof(bssid_t) + sizeof(unsigned char) + sizeof(unsigned short) + sizeof(unsigned char);
+    if (assoc_tlv_len < fixed_len) {
+        em_printfout("invalid ClientAssocCtrlRequest TLV (tlv_len=%u expected_min=%zu)", assoc_tlv_len, fixed_len);
+        return -1;
+    }
+    const uint8_t sta_count = assoc_ctrl_req->sta_count;
+    const size_t expected_len = fixed_len + (static_cast<size_t>(sta_count) * sizeof(mac_address_t));
+    if (sta_count == 0 || sta_count > MAX_STA_LIST || assoc_tlv_len < expected_len) {
+        em_printfout("invalid ClientAssocCtrlRequest TLV (sta_count=%u tlv_len=%u expected_min=%zu max=%u)",
+            sta_count, assoc_tlv_len, expected_len, MAX_STA_LIST);
+        return -1;
     }
 
-    send_1905_ack_message(assoc_ctrl_req->sta_mac, msg_id, 0, hdr->src);
+    // Collect indices of associated and unassociated STAs
+    std::vector<uint8_t> associated_sta_indices;
 
+    if (assoc_ctrl_req->assoc_control == ASSOC_CONTROL_BLOCK) {
+
+        for (uint8_t i = 0; i < sta_count; i++) {
+            mac_address_t sta_mac;
+            memcpy(sta_mac, assoc_ctrl_req->sta_list[i], sizeof(mac_address_t));
+
+            if (dm->is_sta_associated(assoc_ctrl_req->bssid, sta_mac)) {
+                associated_sta_indices.push_back(i);
+            }
+        }
+
+        if (!associated_sta_indices.empty()) {
+            std::vector<const unsigned char*> list;
+            for (auto idx : associated_sta_indices) {
+                list.push_back(assoc_ctrl_req->sta_list[idx]);
+            }
+            em_printfout("sending ack with error code tlv");
+            send_consolidated_1905_ack_message(list, msg_id, 1, hdr->src);
+            return 0;
+        } else {
+             // No Error Code TLV needed when all requested STAs are unassociated.
+             send_1905_ack_message(assoc_ctrl_req->sta_list[0], msg_id, 0, hdr->src);
+        }
+    } else if (assoc_ctrl_req->assoc_control == ASSOC_CONTROL_UNBLOCK) {
+        std::vector<const unsigned char*> list;
+        for (uint8_t i = 0; i < sta_count; i++) {
+            list.push_back(assoc_ctrl_req->sta_list[i]);
+        }
+
+        send_consolidated_1905_ack_message(list, msg_id, 0, hdr->src);
+    } else {
+        em_printfout("invalid assoc_control=%u (allowed: 0=Block, 1=Unblock)",
+            assoc_ctrl_req->assoc_control);
+        return -1;
+    }
     // Send the association control request to OneWifi for HAL enforcement
     uint16_t tlv_len = ntohs(tlv->len);
     get_mgr()->io_process(em_bus_event_type_client_assoc_ctrl_req,
@@ -557,10 +714,9 @@ void em_steering_t::process_ctrl_state()
             send_client_steering_req_msg();
             break;
 
-        case em_state_ctrl_sta_disassoc_pending:
+        case em_state_ctrl_client_assoc_ctrl_req_pending:
             send_client_assoc_ctrl_req_msg();
             break;
-
         default:
             break;
     }
@@ -597,6 +753,7 @@ void em_steering_t::process_msg(unsigned char *data, unsigned int len)
 
         case em_msg_type_1905_ack:
             handle_ack_msg(data, len);
+            break;
 
         default:
             break;

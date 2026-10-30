@@ -4374,7 +4374,7 @@ TEST(em_cmd_t, get_rd_channel_max_unsigned_int_value)
 /**
  * @brief Verify that calling set_start_time() correctly updates the object's start timestamp.
  *
- * This test case validates that the set_start_time() method of the em_cmd_t class updates the internal m_start_time member variable to a value that falls between the system time captured immediately before and after the method invocation. The test ensures that no exceptions are thrown during the operation and that the recorded timestamp is within an acceptable range (with a tolerance of 1 second).
+ * This test case validates that the set_start_time() method of the em_cmd_t class updates the internal m_start_time member variable to a value that falls between the monotonic time captured immediately before and after the method invocation. The test ensures that no exceptions are thrown during the operation and that the recorded timestamp is within an acceptable range (with a tolerance of 1 second).
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 104@n
@@ -4387,32 +4387,32 @@ TEST(em_cmd_t, get_rd_channel_max_unsigned_int_value)
  * **Test Procedure:**
  * | Variation / Step | Description                                                                     | Test Data                                                                                               | Expected Result                                                                                          | Notes            |
  * | :--------------: | -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- | ---------------- |
- * | 01               | Capture the system time before invoking set_start_time()                        | system_time_before: captured current system time                                                        | system_time_before is successfully captured with current system time                                     | Should be successful |
+ * | 01               | Capture the monotonic time before invoking set_start_time()                        | monotonic_time_before: captured current monotonic time                                                        | monotonic_time_before is successfully captured with current monotonic time                                     | Should be successful |
  * | 02               | Invoke the set_start_time() method on the cmd_obj instance                        | cmd_obj instance, API: set_start_time()                                                                  | Method executes without throwing any exception                                                           | Should Pass      |
- * | 03               | Capture the system time after calling set_start_time()                           | system_time_after: captured current system time                                                          | system_time_after is successfully captured with current system time                                      | Should be successful |
- * | 04               | Retrieve m_start_time from cmd_obj and verify it falls within the captured range   | obj_time = cmd_obj.m_start_time, system_time_before, system_time_after (with tolerance of +1 second)       | m_start_time is set such that system_time_before <= m_start_time <= system_time_after + 1 (tolerance)      | Should Pass      |
+ * | 03               | Capture the monotonic time after calling set_start_time()                           | monotonic_time_after: captured current monotonic time                                                          | monotonic_time_after is successfully captured with current monotonic time                                      | Should be successful |
+ * | 04               | Retrieve m_start_time from cmd_obj and verify it falls within the captured range   | obj_time = cmd_obj.m_start_time, monotonic_time_before, monotonic_time_after (with tolerance of +1 second)       | m_start_time is set such that monotonic_time_before <= m_start_time <= monotonic_time_after + 1 (tolerance)      | Should Pass      |
  */
 TEST(em_cmd_t, set_start_time_VerifyTimestampUpdated)
 {
     std::cout << "Entering set_start_time_VerifyTimestampUpdated test" << std::endl;
     em_cmd_t cmd_obj;
-    // Capture system time before invoking set_start_time()
-    struct timeval system_time_before {0, 0};
-    gettimeofday(&system_time_before, nullptr);
-    std::cout << "Before invocation, system time (tv_sec): " << system_time_before.tv_sec << ", (tv_usec): " << system_time_before.tv_usec << std::endl;
+    // Capture monotonic time before invoking set_start_time()
+    struct timeval monotonic_time_before {0, 0};
+    util::monotonic_now(&monotonic_time_before);
+    std::cout << "Before invocation, monotonic time (tv_sec): " << monotonic_time_before.tv_sec << ", (tv_usec): " << monotonic_time_before.tv_usec << std::endl;
     std::cout << "Invoking set_start_time()" << std::endl;
     EXPECT_NO_THROW(cmd_obj.set_start_time());
-    // Capture system time after the call
-    struct timeval system_time_after {0, 0};
-    gettimeofday(&system_time_after, nullptr);
-    std::cout << "After invocation, system time (tv_sec): " << system_time_after.tv_sec << ", (tv_usec): " << system_time_after.tv_usec << std::endl;
+    // Capture monotonic time after the call
+    struct timeval monotonic_time_after {0, 0};
+    util::monotonic_now(&monotonic_time_after);
+    std::cout << "After invocation, monotonic time (tv_sec): " << monotonic_time_after.tv_sec << ", (tv_usec): " << monotonic_time_after.tv_usec << std::endl;
     // Retrieve the object's m_start_time
     struct timeval obj_time = cmd_obj.m_start_time;
     std::cout << "Command object start time (tv_sec): " << obj_time.tv_sec << ", (tv_usec): " << obj_time.tv_usec << std::endl;
-    // Check that the object's start time is within the system times captured
+    // Check that the object's start time is within the monotonic times captured
     // Allow a tolerance of 1 second
     bool time_within_range = false;
-    if ((obj_time.tv_sec >= system_time_before.tv_sec) && (obj_time.tv_sec <= system_time_after.tv_sec + 1)) {
+    if ((obj_time.tv_sec >= monotonic_time_before.tv_sec) && (obj_time.tv_sec <= monotonic_time_after.tv_sec + 1)) {
         time_within_range = true;
     }
     EXPECT_TRUE(time_within_range);

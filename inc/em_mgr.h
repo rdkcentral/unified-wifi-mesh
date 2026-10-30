@@ -333,6 +333,11 @@ public:
         return -2;
     }
 
+	virtual bool refresh_current_radio_data(const unsigned char *) {
+		em_printfout("refresh_current_radio_data not implemented");
+		return false;
+	}
+
     
 	/**
 	 * @brief Send an action frame. Optional to implement.

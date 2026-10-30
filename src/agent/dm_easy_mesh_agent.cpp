@@ -52,6 +52,7 @@
 #include "em_cmd_sta_link_metrics.h"
 #include "em_cmd_ap_metrics_report.h"
 #include "em_cmd_link_stats_report.h"
+#include "em_cmd_vendor_data.h"
 #include "em_cmd_unassoc_sta_result.h"
 
 #ifdef AL_SAP
@@ -231,7 +232,9 @@ int dm_easy_mesh_agent_t::analyze_sta_list(em_bus_event_t *evt, em_cmd_t *pcmd[]
 int dm_easy_mesh_agent_t::analyze_autoconfig_renew(em_bus_event_t *evt, em_cmd_t *pcmd[])
 {
     em_bus_event_type_cfg_renew_params_t *raw;
-    dm_easy_mesh_agent_t  dm = *this;
+    dm_easy_mesh_agent_t  dm;
+    dm.init();
+    dm = *this;
     int num = 0;
     unsigned int index = 0;
     em_cmd_t *tmp;
@@ -263,7 +266,7 @@ void dm_easy_mesh_agent_t::translate_onewifi_dml_data (char *str)
             get_num_op_class, set_num_op_class, get_num_bss, set_num_bss,
             get_device_info, get_network_info, get_radio_info, get_ieee_1905_security_info, get_bss_info, get_op_class_info, 
             get_first_sta_info, get_next_sta_info, get_sta_info, put_sta_info, get_bss_info_with_mac, update_scan_results,
-            update_ap_mld_info, update_bsta_mld_info, update_assoc_sta_mld_info, get_ap_mld_frm_bssid, get_radio_cap_info);
+            update_ap_mld_info, update_bsta_mld_info, update_assoc_sta_mld_info, get_ap_mld_frm_haul_type, get_radio_cap_info);
     
     config.initializer = webconfig_initializer_onewifi;
     config.apply_data =  webconfig_dummy_apply;
@@ -325,7 +328,7 @@ int dm_easy_mesh_agent_t::analyze_onewifi_vap_cb(em_bus_event_t *evt, em_cmd_t *
             get_num_op_class, set_num_op_class, get_num_bss, set_num_bss,
             get_device_info, get_network_info, get_radio_info, get_ieee_1905_security_info, get_bss_info, 
             get_op_class_info, get_first_sta_info, get_next_sta_info, get_sta_info, put_sta_info, get_bss_info_with_mac,
-            update_scan_results, update_ap_mld_info, update_bsta_mld_info, update_assoc_sta_mld_info, get_ap_mld_frm_bssid, get_radio_cap_info);
+            update_scan_results, update_ap_mld_info, update_bsta_mld_info, update_assoc_sta_mld_info, get_ap_mld_frm_haul_type, get_radio_cap_info);
     config.initializer = webconfig_initializer_onewifi;
     config.apply_data =  webconfig_dummy_apply;
     if (webconfig_init(&config) != webconfig_error_none) {
@@ -401,7 +404,7 @@ int dm_easy_mesh_agent_t::analyze_onewifi_radio_cb(em_bus_event_t *evt, em_cmd_t
             get_num_op_class, set_num_op_class, get_num_bss, set_num_bss,
             get_device_info, get_network_info, get_radio_info, get_ieee_1905_security_info, get_bss_info, get_op_class_info, 
             get_first_sta_info, get_next_sta_info, get_sta_info, put_sta_info, get_bss_info_with_mac, update_scan_results,
-            update_ap_mld_info, update_bsta_mld_info, update_assoc_sta_mld_info, get_ap_mld_frm_bssid, get_radio_cap_info);
+            update_ap_mld_info, update_bsta_mld_info, update_assoc_sta_mld_info, get_ap_mld_frm_haul_type, get_radio_cap_info);
 
     config.initializer = webconfig_initializer_onewifi;
     config.apply_data =  webconfig_dummy_apply;
@@ -662,7 +665,9 @@ int dm_easy_mesh_agent_t::analyze_channel_sel_req(em_bus_event_t *evt, wifi_bus_
 
 int dm_easy_mesh_agent_t::analyze_csa_beacon_frame(em_bus_event_t *evt, wifi_bus_desc_t *desc, bus_handle_t *bus_hdl)
 {
-    dm_easy_mesh_agent_t dm = *this;
+    dm_easy_mesh_agent_t dm;
+    dm.init();
+    dm = *this;
 
     bool found_mesh_sta = false;
     bool csa_found = false;
@@ -803,10 +808,13 @@ int dm_easy_mesh_agent_t::analyze_btm_request_action_frame(em_bus_event_t *evt, 
     int len = 0;
     mac_addr_str_t mac_str;
     em_steering_req_t *steer_req = reinterpret_cast<em_steering_req_t *> (&evt->u.raw_buff);
+    /* frame_data is written through an ieee80211_mgmt view, so it must also hold the
+       802.11 header that precedes the action body; only the body is sent. */
+    const size_t mgmt_hdr_len = offsetof(struct ieee80211_mgmt, u);
 
     len = sizeof(ieeeframe->u.action.category) + sizeof(ieeeframe->u.action.u.bss_tm_req) \
         + sizeof(em_80211_neighbor_report_t);
-    aframe = static_cast<action_frame_params_t *> (malloc(sizeof(action_frame_params_t) + static_cast<size_t>(len)));
+    aframe = static_cast<action_frame_params_t *> (malloc(sizeof(action_frame_params_t) + mgmt_hdr_len + static_cast<size_t>(len)));
     if (aframe == NULL) {
         em_printfout("Error: Failed to allocate action frame");
         return -1;
@@ -903,11 +911,9 @@ int dm_easy_mesh_agent_t::analyze_unassoc_sta_result(em_bus_event_t *evt, em_cmd
     unsigned int num = 0;
 
     cJSON *json;
-    cJSON *resp_array;
+    cJSON *resp_obj;
 
     em_unassoc_sta_metrics_rsp_t *rsp;
-
-    translate_and_decode_onewifi_subdoc((char *)evt->u.raw_buff, webconfig_subdoc_type_nasta_query, "Unassoc STA Metrics Response");
 
     json = cJSON_Parse((const char *)evt->u.raw_buff);
 
@@ -916,76 +922,56 @@ int dm_easy_mesh_agent_t::analyze_unassoc_sta_result(em_bus_event_t *evt, em_cmd
         return 0;
     }
 
-    resp_array = cJSON_GetObjectItemCaseSensitive(json, "UnassocStaLinkMetricsResponse");
+    resp_obj = cJSON_GetObjectItemCaseSensitive(json, "UnassociatedSTALinkMetricsResponse");
 
-    if ((resp_array == NULL) || (!cJSON_IsArray(resp_array))) {
-        em_printfout("%s:%d UnassocStaLinkMetricsResponse missing", __func__, __LINE__);
+    if ((resp_obj == NULL) || (!cJSON_IsObject(resp_obj))) {
+        em_printfout("%s:%d UnassociatedSTALinkMetricsResponse missing", __func__, __LINE__);
         cJSON_Delete(json);
         return 0;
     }
 
     rsp = &m_unassoc_sta_metrics_rsp;
     memset(rsp, 0, sizeof(*rsp));
+
     unsigned int entry_idx = 0;
-    cJSON *opclass_obj = NULL;
 
-    cJSON_ArrayForEach(opclass_obj, resp_array)
+    cJSON *sta_list = cJSON_GetObjectItemCaseSensitive(resp_obj, "sta_list");
+
+    if ((sta_list == NULL) || (!cJSON_IsArray(sta_list))) {
+        em_printfout("%s:%d sta_list missing", __func__, __LINE__);
+        cJSON_Delete(json);
+        return 0;
+    }
+
+    cJSON *sta_obj = NULL;
+
+    cJSON_ArrayForEach(sta_obj, sta_list)
     {
-        cJSON *opclass_json = cJSON_GetObjectItemCaseSensitive(opclass_obj, "opclass");
+        if (entry_idx >= EM_MAX_UNASSOC_STA) {
+            break;
+        }
 
-        if ((opclass_json == NULL) || (!cJSON_IsNumber(opclass_json))) {
+        cJSON *mac_json = cJSON_GetObjectItemCaseSensitive(sta_obj, "sta_mac");
+        cJSON *channel_json = cJSON_GetObjectItemCaseSensitive(sta_obj, "channel");
+        cJSON *opclass_json = cJSON_GetObjectItemCaseSensitive(sta_obj, "op_class");
+        cJSON *rcpi_json = cJSON_GetObjectItemCaseSensitive(sta_obj, "rcpi");
+
+        if ((mac_json == NULL) || (!cJSON_IsString(mac_json)) ||
+            (channel_json == NULL) || (!cJSON_IsNumber(channel_json)) ||
+            (opclass_json == NULL) || (!cJSON_IsNumber(opclass_json)) ||
+            (rcpi_json == NULL) || (!cJSON_IsNumber(rcpi_json))) {
             continue;
         }
+        dm_easy_mesh_t::string_to_macbytes(mac_json->valuestring, rsp->entry[entry_idx].sta_mac);
 
-        unsigned char op_class = (unsigned char)opclass_json->valueint;
+        rsp->entry[entry_idx].channel = (unsigned char)channel_json->valueint;
+        rsp->entry[entry_idx].op_class = (unsigned char)opclass_json->valueint;
+        rsp->entry[entry_idx].rcpi = (unsigned char)rcpi_json->valueint;
+        rsp->entry[entry_idx].time_delta = 0;
 
-        cJSON *channels = cJSON_GetObjectItemCaseSensitive(opclass_obj, "channels");
-        if ((channels == NULL) || (!cJSON_IsArray(channels))) {
-            continue;
-        }
-
-        cJSON *channel_obj = NULL;
-
-        cJSON_ArrayForEach(channel_obj, channels)
-        {
-            cJSON *channel_json = cJSON_GetObjectItemCaseSensitive(channel_obj, "channel");
-
-            if ((channel_json == NULL) || (!cJSON_IsNumber(channel_json))) {
-                continue;
-            }
-
-            unsigned char channel = (unsigned char)channel_json->valueint;
-
-            cJSON *sta_list = cJSON_GetObjectItemCaseSensitive(channel_obj, "sta_list");
-            if ((sta_list == NULL) || (!cJSON_IsArray(sta_list))) {
-                continue;
-            }
-
-            cJSON *sta_obj = NULL;
-
-            cJSON_ArrayForEach(sta_obj, sta_list)
-            {
-                if (entry_idx >= EM_MAX_UNASSOC_STA) {
-                    break;
-                }
-
-                cJSON *mac_json = cJSON_GetObjectItemCaseSensitive(sta_obj, "sta_mac");
-
-                cJSON *rcpi_json = cJSON_GetObjectItemCaseSensitive(sta_obj, "rcpi");
-
-                if ((mac_json == NULL) || (!cJSON_IsString(mac_json)) || (rcpi_json == NULL) || (!cJSON_IsNumber(rcpi_json))) {
-                    continue;
-                }
-
-                dm_easy_mesh_t::string_to_macbytes(mac_json->valuestring, rsp->entry[entry_idx].sta_mac);
-                rsp->entry[entry_idx].channel = channel;
-                rsp->entry[entry_idx].op_class = op_class;
-                rsp->entry[entry_idx].rcpi = (unsigned char)rcpi_json->valueint;
-                rsp->entry[entry_idx].time_delta = 0;
-                em_printfout("Parsed STA[%u] opclass=%u channel=%u rcpi=%u", entry_idx, op_class, channel, (unsigned char)rcpi_json->valueint);
-                entry_idx++;
-            }
-        }
+        em_printfout("Parsed STA[%u] opclass=%u channel=%u rcpi=%u", entry_idx, rsp->entry[entry_idx].op_class,
+                                    rsp->entry[entry_idx].channel, rsp->entry[entry_idx].rcpi);
+        entry_idx++;
     }
 
     rsp->num_entries = entry_idx;
@@ -1011,7 +997,9 @@ int dm_easy_mesh_agent_t::analyze_unassoc_sta_result(em_bus_event_t *evt, em_cmd
 int dm_easy_mesh_agent_t::analyze_scan_result(em_bus_event_t *evt, em_cmd_t *pcmd[])
 {
     unsigned int num = 0;
-    dm_easy_mesh_agent_t  dm = *this;
+    // operate directly on the live agent object instead of a local copy: a
+    // shallow-copied dm here would share m_scan_result_map with *this, and its
+    // destructor would later free memory *this still points to
     em_cmd_t *tmp;
     cJSON *json, *scanner_mac_obj;
 
@@ -1019,11 +1007,11 @@ int dm_easy_mesh_agent_t::analyze_scan_result(em_bus_event_t *evt, em_cmd_t *pcm
     webconfig_external_easymesh_t ext;
     webconfig_subdoc_type_t type = webconfig_subdoc_type_em_channel_stats;
 
-    webconfig_proto_easymesh_init(&ext, &dm, NULL, NULL, get_num_radios, set_num_radios,
+    webconfig_proto_easymesh_init(&ext, this, NULL, NULL, get_num_radios, set_num_radios,
             get_num_op_class, set_num_op_class, get_num_bss, set_num_bss,
             get_device_info, get_network_info, get_radio_info, get_ieee_1905_security_info, get_bss_info, get_op_class_info,
             get_first_sta_info, get_next_sta_info, get_sta_info, put_sta_info, get_bss_info_with_mac, update_scan_results,
-            update_ap_mld_info, update_bsta_mld_info, update_assoc_sta_mld_info, get_ap_mld_frm_bssid, get_radio_cap_info);
+            update_ap_mld_info, update_bsta_mld_info, update_assoc_sta_mld_info, get_ap_mld_frm_haul_type, get_radio_cap_info);
 
     config.initializer = webconfig_initializer_onewifi;
     config.apply_data =  webconfig_dummy_apply;
@@ -1053,7 +1041,7 @@ int dm_easy_mesh_agent_t::analyze_scan_result(em_bus_event_t *evt, em_cmd_t *pcm
 
     dm_easy_mesh_t::string_to_macbytes(scanner_mac_obj->valuestring, evt->params.u.scan_params.ruid);
 
-    pcmd[num] = new em_cmd_scan_result_t(evt->params, dm);
+    pcmd[num] = new em_cmd_scan_result_t(evt->params, *this);
     tmp = pcmd[num];
     num++;
     
@@ -1191,6 +1179,16 @@ int dm_easy_mesh_agent_t::analyze_ap_metrics_report(em_bus_event_t *evt, em_cmd_
     return static_cast<int>(num);
 }
 
+int dm_easy_mesh_agent_t::analyze_vendor_data(em_bus_event_t *evt, em_cmd_t *pcmd[])
+{
+    unsigned int num = 0;
+
+    pcmd[num] = new em_cmd_vendor_data_t(evt->u.raw_buff, static_cast<int>(evt->data_len), *(this));
+    num++;
+    em_printfout("Analyzing vendor data [num=%u], raw buffer length: %u", num, evt->data_len);
+    return static_cast<int>(num);
+}
+
 int dm_easy_mesh_agent_t::analyze_link_report(em_bus_event_t *evt, em_cmd_t *pcmd[])
 {
     dm_sta_t *sta = NULL;
@@ -1255,7 +1253,7 @@ void dm_easy_mesh_agent_t::translate_and_decode_onewifi_subdoc(char *str, webcon
         get_num_op_class, set_num_op_class, get_num_bss, set_num_bss,
         get_device_info, get_network_info, get_radio_info, get_ieee_1905_security_info, get_bss_info, get_op_class_info,
         get_first_sta_info, get_next_sta_info, get_sta_info, put_sta_info, get_bss_info_with_mac, update_scan_results,
-        update_ap_mld_info, update_bsta_mld_info, update_assoc_sta_mld_info, get_ap_mld_frm_bssid, get_radio_cap_info);
+        update_ap_mld_info, update_bsta_mld_info, update_assoc_sta_mld_info, get_ap_mld_frm_haul_type, get_radio_cap_info);
 
     config.initializer = webconfig_initializer_onewifi;
     config.apply_data =  webconfig_dummy_apply;
@@ -1278,7 +1276,7 @@ int dm_easy_mesh_agent_t::refresh_onewifi_subdoc(wifi_bus_desc_t *desc, bus_hand
         get_num_op_class, set_num_op_class, get_num_bss, set_num_bss,
         get_device_info, get_network_info, get_radio_info, get_ieee_1905_security_info, get_bss_info, get_op_class_info,
         get_first_sta_info, get_next_sta_info, get_sta_info, put_sta_info, get_bss_info_with_mac, update_scan_results,
-        update_ap_mld_info, update_bsta_mld_info, update_assoc_sta_mld_info, get_ap_mld_frm_bssid, get_radio_cap_info);
+        update_ap_mld_info, update_bsta_mld_info, update_assoc_sta_mld_info, get_ap_mld_frm_haul_type, get_radio_cap_info);
 
     webconfig_t config;
     config.initializer = webconfig_initializer_onewifi;
