@@ -19,6 +19,7 @@
 #include <gtest/gtest.h>
 #include <string.h>
 #include <vector>
+#include <arpa/inet.h>
 #include "em.h"
 #include "dm_easy_mesh.h"
 
@@ -85,6 +86,70 @@ protected:
         payload.insert(payload.end(), bssid, bssid + sizeof(bssid));
         payload.push_back(static_cast<unsigned char>(ssid_len));
         payload.insert(payload.end(), ssid, ssid + ssid_len);
+    }
+
+    em_profile_type_t get_peer_profile()
+    {
+        return static_cast<em_configuration_t *>(em)->get_peer_profile();
+    }
+
+    int handle_topology_response(std::vector<unsigned char> &frame)
+    {
+        return static_cast<em_configuration_t *>(em)->handle_topology_response(frame.data(),
+                    static_cast<unsigned int>(frame.size()));
+    }
+
+    /* Ethernet header and CMDU header of a Topology Response, without TLVs */
+    static std::vector<unsigned char> topology_response_header()
+    {
+        std::vector<unsigned char> frame(sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t), 0);
+        em_raw_hdr_t *hdr = reinterpret_cast<em_raw_hdr_t *>(frame.data());
+        em_cmdu_t *cmdu = reinterpret_cast<em_cmdu_t *>(frame.data() + sizeof(em_raw_hdr_t));
+        unsigned char src[6] = {0x02, 0x00, 0x00, 0x00, 0x00, 0x01};
+        unsigned char dst[6] = {0x02, 0x00, 0x00, 0x00, 0x00, 0x02};
+
+        memcpy(hdr->dst, dst, sizeof(dst));
+        memcpy(hdr->src, src, sizeof(src));
+        hdr->type = htons(ETH_P_1905);
+        cmdu->type = htons(em_msg_type_topo_resp);
+        cmdu->id = htons(1);
+        cmdu->last_frag_ind = 1;
+
+        return frame;
+    }
+
+    /* TLV header with the declared length, followed by the given value bytes */
+    static void add_tlv(std::vector<unsigned char> &frame, unsigned char type, unsigned short declared_len,
+                        const std::vector<unsigned char> &value)
+    {
+        frame.push_back(type);
+        frame.push_back(static_cast<unsigned char>(declared_len >> 8));
+        frame.push_back(static_cast<unsigned char>(declared_len & 0xff));
+        frame.insert(frame.end(), value.begin(), value.end());
+    }
+
+    static void add_tlv(std::vector<unsigned char> &frame, unsigned char type, const std::vector<unsigned char> &value)
+    {
+        add_tlv(frame, type, static_cast<unsigned short>(value.size()), value);
+    }
+
+    /* Device Information TLV value: AL MAC and one IEEE 802.3 interface */
+    static std::vector<unsigned char> device_info_value()
+    {
+        return {0x02, 0x00, 0x00, 0x00, 0x00, 0x01,
+                0x01,
+                0x02, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00};
+    }
+
+    /* AP Operational BSS TLV value: one radio with one BSS using a configured SSID */
+    static std::vector<unsigned char> op_bss_value()
+    {
+        std::vector<unsigned char> value = {0x01};
+
+        add_radio(value, 0x55, 1);
+        add_bss(value, 0x01, "TEST");
+
+        return value;
     }
 };
 
@@ -243,4 +308,83 @@ TEST_F(em_configuration_ap_op_bss_test_t, valid_one_radio_two_bss)
 
     EXPECT_EQ(handle_ap_operational_bss(payload), 0);
     EXPECT_EQ(dm.get_num_bss(), 2u);
+}
+
+/**
+ * @brief Topology Response with only one byte of a TLV header after the CMDU header is rejected.
+ */
+TEST_F(em_configuration_ap_op_bss_test_t, topology_response_one_byte_tlv_header_rejected)
+{
+    std::vector<unsigned char> frame = topology_response_header();
+
+    frame.push_back(em_tlv_type_device_info);
+
+    EXPECT_EQ(handle_topology_response(frame), -1);
+    EXPECT_EQ(dm.get_num_bss(), 0u);
+}
+
+/**
+ * @brief Topology Response with only two bytes of a TLV header after the CMDU header is rejected.
+ */
+TEST_F(em_configuration_ap_op_bss_test_t, topology_response_two_byte_tlv_header_rejected)
+{
+    std::vector<unsigned char> frame = topology_response_header();
+
+    frame.push_back(em_tlv_type_device_info);
+    frame.push_back(0x00);
+
+    EXPECT_EQ(handle_topology_response(frame), -1);
+    EXPECT_EQ(dm.get_num_bss(), 0u);
+}
+
+/**
+ * @brief AP Operational BSS TLV placed before the Profile TLV declares more bytes
+ *        than the received frame contains: rejected before any data is used.
+ */
+TEST_F(em_configuration_ap_op_bss_test_t, topology_response_op_bss_len_exceeds_frame_before_profile_rejected)
+{
+    std::vector<unsigned char> frame = topology_response_header();
+
+    add_tlv(frame, em_tlv_type_device_info, device_info_value());
+    add_tlv(frame, em_tlv_type_operational_bss, 200, op_bss_value());
+    add_tlv(frame, em_tlv_type_profile, {em_profile_type_2});
+    add_tlv(frame, em_tlv_type_eom, {});
+
+    EXPECT_EQ(handle_topology_response(frame), -1);
+    EXPECT_EQ(dm.get_num_bss(), 0u);
+}
+
+/**
+ * @brief AP Operational BSS TLV placed after the Profile TLV declares more bytes
+ *        than the received frame contains: rejected before any data is used.
+ */
+TEST_F(em_configuration_ap_op_bss_test_t, topology_response_op_bss_len_exceeds_frame_after_profile_rejected)
+{
+    std::vector<unsigned char> frame = topology_response_header();
+
+    add_tlv(frame, em_tlv_type_device_info, device_info_value());
+    add_tlv(frame, em_tlv_type_profile, {em_profile_type_2});
+    add_tlv(frame, em_tlv_type_operational_bss, 200, op_bss_value());
+
+    EXPECT_EQ(handle_topology_response(frame), -1);
+    EXPECT_EQ(dm.get_num_bss(), 0u);
+}
+
+/**
+ * @brief Valid Topology Response is accepted. The TLV lengths are encoded in network
+ *        byte order, so this also verifies the ntohs() conversion before the length checks.
+ */
+TEST_F(em_configuration_ap_op_bss_test_t, topology_response_valid)
+{
+    std::vector<unsigned char> frame = topology_response_header();
+
+    add_tlv(frame, em_tlv_type_device_info, device_info_value());
+    add_tlv(frame, em_tlv_type_profile, {em_profile_type_2});
+    add_tlv(frame, em_tlv_type_operational_bss, op_bss_value());
+    add_tlv(frame, em_tlv_type_eom, {});
+
+    EXPECT_EQ(handle_topology_response(frame), 0);
+    EXPECT_EQ(get_peer_profile(), em_profile_type_2);
+    ASSERT_EQ(dm.get_num_bss(), 1u);
+    EXPECT_STREQ(dm.m_bss[0].m_bss_info.ssid, "TEST");
 }
