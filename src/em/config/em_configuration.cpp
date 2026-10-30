@@ -2357,7 +2357,22 @@ int em_configuration_t::handle_topology_notification(unsigned char *buff, unsign
 		tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
     }
 
-	return 0;
+    std::vector<em_t *> em_radios;
+    em_radios.clear();
+    get_mgr()->get_all_em_for_al_mac(dev_mac, em_radios);
+    for (auto *get_em : em_radios) {
+        if ((get_em->get_state() == em_state_ctrl_misconfigured) ||
+        (get_em->get_state() <= em_state_ctrl_wsc_m2_sent)) {
+            em_printfout("topo_notif: radio=%s state=%s(%d)",
+                util::mac_to_string(get_em->get_radio_interface_mac()).c_str(), em_t::state_2_str(get_em->get_state()), get_em->get_state());
+                return 0;
+        }
+    }
+
+    em_printfout("Sending topology query for BSS update");
+    get_mgr()->io_process(em_bus_event_type_topo_sync, buff, len);
+
+    return 0;
 }
 
 dm_easy_mesh_t *em_configuration_t::get_peer_dm(const mac_address_t al_mac)
@@ -6870,7 +6885,7 @@ void em_configuration_t::process_ctrl_state()
             /* This is needed as for cases like sta_assoc where we send out topo query and client cap query which is per device
             and not per radio. So we need to allow single radio topo query for sta_assoc case */
             allow_single_radio_topo_query = (get_current_cmd() != NULL &&
-                get_current_cmd()->m_type == em_cmd_type_sta_assoc);
+                ((get_current_cmd()->m_type == em_cmd_type_sta_assoc) || (get_current_cmd()->m_type == em_cmd_type_topo_sync)));
             get_mgr()->get_all_em_for_al_mac(dm->get_agent_al_interface_mac(), em_radios);
 
             // Evaluate SSID mismatch across this AL's radios only.
