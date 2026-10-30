@@ -25,6 +25,8 @@
 class em_mgr_t;
 class em_metrics_t {
 
+        friend class EmMetricsTest;
+    
     uint64_t m_cpu_idle_prev  = 0;
     uint64_t m_cpu_total_prev = 1;
 
