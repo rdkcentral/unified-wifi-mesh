@@ -42,6 +42,7 @@ int dm_sta_t::decode(const cJSON *obj, void *parent_id)
 
     mac_address_t *bssid = static_cast<mac_address_t *>(parent_id);
 
+    free_frame_body(&m_sta_info);
     memset(&m_sta_info, 0, sizeof(em_sta_info_t));
     memcpy(&m_sta_info.bssid,bssid,sizeof(mac_address_t));
 
@@ -353,7 +354,7 @@ void dm_sta_t::operator = (const dm_sta_t& obj)
     this->m_sta_info.errors_tx = obj.m_sta_info.errors_tx;
     this->m_sta_info.errors_rx = obj.m_sta_info.errors_rx;
 
-    memcpy(&this->m_sta_info.frame_body, &obj.m_sta_info.frame_body, obj.m_sta_info.frame_body_len);
+    set_frame_body(&this->m_sta_info, obj.m_sta_info.frame_body, obj.m_sta_info.frame_body_len);
     this->m_sta_info.num_vendor_infos = obj.m_sta_info.num_vendor_infos;
     memcpy(&this->m_sta_info.ht_cap, &obj.m_sta_info.ht_cap, sizeof(em_long_string_t));
     memcpy(&this->m_sta_info.vht_cap, &obj.m_sta_info.vht_cap, sizeof(em_long_string_t));
@@ -463,6 +464,9 @@ void dm_sta_t::decode_sta_capability(dm_sta_t *sta)
 
     sta->m_sta_info.num_vendor_infos = 0;
 
+    if (sta->m_sta_info.frame_body == NULL) {
+        return;
+    }
     offset = get_assoc_frame_ie_offset(sta->m_sta_info.frame_body, sta->m_sta_info.frame_body_len);
 
     while (offset < sta->m_sta_info.frame_body_len) {
@@ -649,14 +653,91 @@ bool dm_sta_t::supports_beacon_measurement() const
     return (byte0 & 0x70) != 0;
 }
 
+void dm_sta_t::free_frame_body(em_sta_info_t *info)
+{
+    free(info->frame_body);
+    info->frame_body = NULL;
+    info->frame_body_len = 0;
+}
+
+bool dm_sta_t::set_frame_body(em_sta_info_t *info, const unsigned char *body, unsigned int len)
+{
+    unsigned char *new_body = NULL;
+    unsigned char *old_body = info->frame_body;
+    bool complete = true;
+
+    if (len > EM_MAX_FRAME_BODY_LEN) {
+        em_printfout("frame_body_len %u exceeds max %u, clamping", len, EM_MAX_FRAME_BODY_LEN);
+        len = EM_MAX_FRAME_BODY_LEN;
+        complete = false;
+    }
+
+    if ((body != NULL) && (len > 0)) {
+        new_body = static_cast<unsigned char *> (malloc(len));
+        if (new_body == NULL) {
+            em_printfout("Failed to allocate %u bytes for frame_body", len);
+            len = 0;
+            complete = false;
+        } else {
+            memcpy(new_body, body, len);
+        }
+    } else {
+        len = 0;
+    }
+
+    // body may point into the old frame body, so release it only after the copy
+    info->frame_body = new_body;
+    info->frame_body_len = len;
+    free(old_body);
+
+    return complete;
+}
+
+void dm_sta_t::copy_sta_info(em_sta_info_t *dst, const em_sta_info_t *src)
+{
+    unsigned char *old_body;
+    unsigned char *new_body = NULL;
+    unsigned int len = src->frame_body_len;
+
+    if (dst == src) {
+        return;
+    }
+
+    if (len > EM_MAX_FRAME_BODY_LEN) {
+        len = EM_MAX_FRAME_BODY_LEN;
+    }
+
+    if ((src->frame_body != NULL) && (len > 0)) {
+        new_body = static_cast<unsigned char *> (malloc(len));
+        if (new_body == NULL) {
+            em_printfout("Failed to allocate %u bytes for frame_body", len);
+            len = 0;
+        } else {
+            memcpy(new_body, src->frame_body, len);
+        }
+    } else {
+        len = 0;
+    }
+
+    old_body = dst->frame_body;
+    memcpy(dst, src, sizeof(em_sta_info_t));
+    dst->frame_body = new_body;
+    dst->frame_body_len = len;
+    free(old_body);
+}
+
 dm_sta_t::dm_sta_t(em_sta_info_t *sta)
 {
-    memcpy(&m_sta_info, sta, sizeof(em_sta_info_t));
+    memset(&m_sta_info, 0, sizeof(em_sta_info_t));
+    if (sta != NULL) {
+        copy_sta_info(&m_sta_info, sta);
+    }
 }
 
 dm_sta_t::dm_sta_t(const dm_sta_t& sta)
 {
-    memcpy(&m_sta_info, &sta.m_sta_info, sizeof(em_sta_info_t));
+    memset(&m_sta_info, 0, sizeof(em_sta_info_t));
+    copy_sta_info(&m_sta_info, &sta.m_sta_info);
 }
 
 dm_sta_t::dm_sta_t()
@@ -666,5 +747,5 @@ dm_sta_t::dm_sta_t()
 
 dm_sta_t::~dm_sta_t()
 {
-
+    free_frame_body(&m_sta_info);
 }

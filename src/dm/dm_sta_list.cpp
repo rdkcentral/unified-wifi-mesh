@@ -35,6 +35,7 @@
 #include <sys/uio.h>
 #include <sys/time.h>
 #include <unistd.h>
+#include <vector>
 #include "em_cmd.h"
 #include "dm_sta_list.h"
 #include "dm_easy_mesh.h"
@@ -158,7 +159,7 @@ void dm_sta_list_t::update_list(const dm_sta_t& sta, dm_orch_type_t op)
 
         case dm_orch_type_db_update:
 			psta = get_sta(key);
-            memcpy(&psta->m_sta_info, &sta.m_sta_info, sizeof(em_sta_info_t));
+            dm_sta_t::copy_sta_info(&psta->m_sta_info, &sta.m_sta_info);
             break;
 
         case dm_orch_type_db_delete:
@@ -197,8 +198,10 @@ bool dm_sta_list_t::operator == (const db_easy_mesh_t& obj)
 int dm_sta_list_t::update_row(db_client_t& db_client, ...)
 {
     unsigned int i;
-    db_query_t  tmp, format, query;
-    va_list list;
+    db_query_t  tmp, format;
+    std::vector<char> query;
+    va_list list, list_copy;
+    int query_len;
     db_fmt_t    col_fmt;
     void *ctx;
 
@@ -229,16 +232,98 @@ int dm_sta_list_t::update_row(db_client_t& db_client, ...)
         em_printfout("update_row called for DB update other than STAList table updation");
     }
 
+    // The frame body column has no fixed size, so size the query to fit the formatted values
     va_start(list, db_client);
-    (void) vsnprintf(query, sizeof(db_query_t), format, list);
+    va_copy(list_copy, list);
+    query_len = vsnprintf(NULL, 0, format, list_copy);
+    va_end(list_copy);
+    if (query_len < 0) {
+        va_end(list);
+        em_printfout("Failed to format update query for %s", m_table_name);
+        return -1;
+    }
+    query.resize(static_cast<size_t>(query_len) + 1);
+    (void) vsnprintf(query.data(), query.size(), format, list);
     va_end(list);
 
-    //printf("%s:%d: Query: %s\n", __func__, __LINE__, query);
+    //printf("%s:%d: Query: %s\n", __func__, __LINE__, query.data());
 
-    ctx = db_client.execute(query);
+    ctx = db_client.execute(query.data());
     db_client.free_result(ctx);
 
     return 0;
+}
+
+// Hex encodes the frame body, which has no fixed size, into a NUL terminated string
+static bool encode_frame_body(em_sta_info_t *info, unsigned int *len, std::vector<char>& hex_str)
+{
+    *len = info->frame_body_len;
+    if (info->frame_body == NULL) {
+        *len = 0;
+    }
+    if (*len > EM_MAX_FRAME_BODY_LEN) {
+        em_printfout("frame_body_len %u exceeds max %u, clamping", *len, EM_MAX_FRAME_BODY_LEN);
+        *len = EM_MAX_FRAME_BODY_LEN;
+    }
+
+    // hex() needs 2 chars per byte plus the terminating NUL
+    hex_str.assign(2 * static_cast<size_t>(*len) + 1, '\0');
+    if (*len == 0) {
+        return true;
+    }
+
+    if (dm_easy_mesh_t::hex(*len, info->frame_body, static_cast<unsigned int>(hex_str.size()), hex_str.data()) == NULL) {
+        em_printfout("Failed to hex encode frame_body of %u bytes", *len);
+        return false;
+    }
+
+    return true;
+}
+
+// Reads and decodes the hex encoded frame body column, whatever its length
+static void decode_frame_body(db_client_t& db_client, void *ctx, unsigned int col, std::vector<unsigned char>& body)
+{
+    unsigned int hex_len = db_client.get_length(ctx, col);
+
+    body.clear();
+    if (hex_len == 0) {
+        return;
+    }
+
+    std::vector<char> hex_str(static_cast<size_t>(hex_len) + 1, '\0');
+    if (db_client.get_string(ctx, hex_str.data(), col) == NULL) {
+        return;
+    }
+
+    if (hex_len / 2 > EM_MAX_FRAME_BODY_LEN) {
+        em_printfout("frame_body of %u bytes in DB exceeds max %u, clamping", hex_len / 2, EM_MAX_FRAME_BODY_LEN);
+        hex_len = EM_MAX_FRAME_BODY_LEN * 2;
+    }
+
+    body.resize(hex_len / 2);
+    if (dm_easy_mesh_t::unhex(hex_len, hex_str.data(), static_cast<unsigned int>(body.size()), body.data()) == NULL) {
+        em_printfout("Failed to decode frame_body from DB, ignoring it");
+        body.clear();
+    }
+}
+
+// Compares two station infos, comparing the frame body contents rather than the pointers
+static bool sta_info_equal(const em_sta_info_t *a, const em_sta_info_t *b)
+{
+    em_sta_info_t tmp;
+
+    memcpy(&tmp, a, sizeof(em_sta_info_t));
+    tmp.frame_body = b->frame_body;
+    if (memcmp(&tmp, b, sizeof(em_sta_info_t)) != 0) {
+        return false;
+    }
+
+    if (a->frame_body_len == 0) {
+        return true;
+    }
+
+    return (a->frame_body != NULL) && (b->frame_body != NULL) &&
+        (memcmp(a->frame_body, b->frame_body, a->frame_body_len) == 0);
 }
 
 int dm_sta_list_t::update_db(db_client_t& db_client, dm_orch_type_t op, void *data)
@@ -246,13 +331,16 @@ int dm_sta_list_t::update_db(db_client_t& db_client, dm_orch_type_t op, void *da
     mac_addr_str_t sta_mac_str, bssid_mac_str, radio_mac_str;
     em_sta_info_t *info = static_cast<em_sta_info_t *>(data);
     int ret = 0;
-    char frame_body[EM_MAX_FRAME_BODY_LEN*2];
+    std::vector<char> frame_body;
+    unsigned int frame_body_len = 0;
 
     //printf("dm_sta_list_t:%s:%d: Operation: %s\n", __func__, __LINE__, em_cmd_t::get_orch_op_str(op));
 
 	switch (op) {
 		case dm_orch_type_db_insert:
-			dm_easy_mesh_t::hex(info->frame_body_len, info->frame_body, EM_MAX_FRAME_BODY_LEN*2, frame_body);
+			if (encode_frame_body(info, &frame_body_len, frame_body) == false) {
+				return -1;
+			}
 			ret = insert_row(db_client, dm_easy_mesh_t::macbytes_to_string(info->id, sta_mac_str),
 						dm_easy_mesh_t::macbytes_to_string(info->bssid, bssid_mac_str),
 						dm_easy_mesh_t::macbytes_to_string(info->radiomac, radio_mac_str),
@@ -260,19 +348,21 @@ int dm_sta_list_t::update_db(db_client_t& db_client, dm_orch_type_t op, void *da
 						info->est_ul_rate, info->est_dl_rate, info->last_conn_time, info->retrans_count,
 						info->signal_strength, info->rcpi, info->util_tx, info->util_rx, info->pkts_tx, info->pkts_rx,
 						info->bytes_tx, info->bytes_rx, info->errors_tx, info->errors_rx,
-						info->frame_body_len, frame_body);
+						frame_body_len, frame_body.data());
 							
 			break;
 
 		case dm_orch_type_db_update:
-			dm_easy_mesh_t::hex(info->frame_body_len, info->frame_body, EM_MAX_FRAME_BODY_LEN*2, frame_body);
+			if (encode_frame_body(info, &frame_body_len, frame_body) == false) {
+				return -1;
+			}
 			ret = update_row(db_client, dm_easy_mesh_t::macbytes_to_string(info->bssid, bssid_mac_str), 
 						dm_easy_mesh_t::macbytes_to_string(info->radiomac, radio_mac_str),
 						info->associated, info->last_ul_rate, info->last_dl_rate,
 						info->est_ul_rate, info->est_dl_rate, info->last_conn_time, info->retrans_count,
 						info->signal_strength, info->rcpi, info->util_tx, info->util_rx, info->pkts_tx, info->pkts_rx,
 						info->bytes_tx, info->bytes_rx, info->errors_tx, info->errors_rx,
-						info->frame_body_len, frame_body,
+						frame_body_len, frame_body.data(),
 						dm_easy_mesh_t::macbytes_to_string(info->id, sta_mac_str),
 						dm_easy_mesh_t::macbytes_to_string(info->bssid, bssid_mac_str));
 			break;
@@ -306,9 +396,9 @@ bool dm_sta_list_t::search_db(db_client_t& db_client, void *ctx, void *key)
 
 bool dm_sta_list_t::compare_db(db_client_t& db_client, const dm_sta_t& sta)
 {
-    em_sta_info_t info;
+    em_sta_info_t info = {};
     mac_addr_str_t mac;
-    char frame_body[EM_MAX_FRAME_BODY_LEN*2];
+    std::vector<unsigned char> frame_body;
 
     db_query_t    query;
     void *ctx;
@@ -347,12 +437,13 @@ bool dm_sta_list_t::compare_db(db_client_t& db_client, const dm_sta_t& sta)
         info.bytes_rx = static_cast<unsigned char> (db_client.get_number(ctx, 18));
         info.errors_tx = static_cast<unsigned char> (db_client.get_number(ctx, 19));
         info.errors_rx = static_cast<unsigned char> (db_client.get_number(ctx, 20));
-        info.frame_body_len = static_cast<unsigned char> (db_client.get_number(ctx, 21));
 
-        db_client.get_string(ctx, frame_body, 22);
-        dm_easy_mesh_t::unhex(static_cast<unsigned int>(strlen(frame_body)), frame_body, EM_MAX_FRAME_BODY_LEN, info.frame_body);
+        // info only borrows the decoded frame body for the comparison
+        decode_frame_body(db_client, ctx, 22, frame_body);
+        info.frame_body = frame_body.empty() ? NULL : frame_body.data();
+        info.frame_body_len = static_cast<unsigned int>(frame_body.size());
 
-        if (memcmp(static_cast<const void*>(&sta.m_sta_info), static_cast<const void*>(&info), sizeof(em_sta_info_t)) == 0) {
+        if (sta_info_equal(&sta.m_sta_info, &info)) {
             db_client.free_result(ctx);
             return true;
         }
@@ -363,10 +454,10 @@ bool dm_sta_list_t::compare_db(db_client_t& db_client, const dm_sta_t& sta)
 
 int dm_sta_list_t::sync_db(db_client_t& db_client, void *ctx)
 {
-    em_sta_info_t info;
+    em_sta_info_t info = {};
     mac_addr_str_t	mac;
     int rc = 0;
-    char frame_body[EM_MAX_FRAME_BODY_LEN*2];
+    std::vector<unsigned char> frame_body;
 
     while (db_client.next_result(ctx)) {
         memset(&info, 0, sizeof(em_sta_info_t));
@@ -397,10 +488,11 @@ int dm_sta_list_t::sync_db(db_client_t& db_client, void *ctx)
         info.bytes_rx = static_cast<unsigned int> (db_client.get_number(ctx, 18));
         info.errors_tx = static_cast<unsigned int> (db_client.get_number(ctx, 19));
         info.errors_rx = static_cast<unsigned int> (db_client.get_number(ctx, 20));
-        info.frame_body_len = static_cast<unsigned int> (db_client.get_number(ctx, 21));
 
-        db_client.get_string(ctx, frame_body, 22);
-        dm_easy_mesh_t::unhex(static_cast<unsigned int>(strlen(frame_body)), frame_body, EM_MAX_FRAME_BODY_LEN, info.frame_body);
+        // info only borrows the decoded frame body, dm_sta_t copies it
+        decode_frame_body(db_client, ctx, 22, frame_body);
+        info.frame_body = frame_body.empty() ? NULL : frame_body.data();
+        info.frame_body_len = static_cast<unsigned int>(frame_body.size());
 
         update_list(dm_sta_t(&info), dm_orch_type_db_insert);
     }

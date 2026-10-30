@@ -68,7 +68,9 @@ extern "C"
 #define EM_MAX_MSG_SZ   1514
 #endif
 #define EM_MAX_TLV_VALUE_SZ 65535
-#define EM_MAX_FRAME_BODY_LEN	512
+/* Upper bound accepted for a stored association frame body. The body itself is
+ * heap allocated to its real length; this only limits what a peer or the DB can ask for. */
+#define EM_MAX_FRAME_BODY_LEN	16384
 #define MAX_VENDOR_INFO 5
 #define EM_MAX_BEACON_MEASUREMENT_LEN  400
 #define EM_MAX_BEACON_REPORTS_PER_SCAN 10
@@ -2722,7 +2724,10 @@ typedef struct {
     unsigned int    errors_tx;
     unsigned int    errors_rx;
     unsigned int 	frame_body_len;
-    unsigned char	frame_body[EM_MAX_FRAME_BODY_LEN];
+    /* Heap allocated, frame_body_len bytes, NULL when empty. Owned by the dm_sta_t holding this
+     * struct: copy into an owning struct only with dm_sta_t::copy_sta_info() or
+     * dm_sta_t::set_frame_body(); plain copies share the pointer and must not outlive the owner. */
+    unsigned char	*frame_body;
     unsigned int    num_vendor_infos;
     bool            multi_band_cap;
     time_t          beacon_query_sent_time;

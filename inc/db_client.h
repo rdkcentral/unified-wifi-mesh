@@ -138,6 +138,19 @@ std::mutex m_mutex;
 	  */
 	 char *get_string(void *ctx, char *res, unsigned int col);
 
+	 /**!
+	  * @brief Retrieve the length in bytes of a string value in the result context.
+	  *
+	  * Use it to size the buffer passed to get_string() for values without a fixed size.
+	  *
+	  * @param[in] ctx Result context from which the length is retrieved.
+	  * @param[in] col Column index of the string (1-based).
+	  *
+	  * @returns Length of the string in bytes, excluding the terminating NUL, or 0 for a NULL
+	  * column or a NULL context.
+	  */
+	 unsigned int get_length(void *ctx, unsigned int col);
+
 
 	 /**!
 	  * @brief Retrieve an integer value from the result context.
