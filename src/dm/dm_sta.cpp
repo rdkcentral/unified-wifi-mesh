@@ -150,6 +150,30 @@ int dm_sta_t::decode(const cJSON *obj, void *parent_id)
 
 }
 
+void dm_sta_t::encode_metrics(cJSON *obj)
+{
+    mac_addr_str_t mac_str;
+
+    dm_easy_mesh_t::macbytes_to_string(m_sta_info.id, mac_str);
+    cJSON_AddStringToObject(obj, "MACAddress", mac_str);
+    dm_easy_mesh_t::macbytes_to_string(m_sta_info.bssid, mac_str);
+    cJSON_AddStringToObject(obj, "BSSID", mac_str);
+    cJSON_AddNumberToObject(obj, "LastDataDownlinkRate", m_sta_info.last_dl_rate);
+    cJSON_AddNumberToObject(obj, "LastDataUplinkRate", m_sta_info.last_ul_rate);
+    cJSON_AddNumberToObject(obj, "UtilizationReceive", m_sta_info.util_rx);
+    cJSON_AddNumberToObject(obj, "UtilizationTransmit", m_sta_info.util_tx);
+    cJSON_AddNumberToObject(obj, "EstMACDataRateDownlink", m_sta_info.est_dl_rate);
+    cJSON_AddNumberToObject(obj, "EstMACDataRateUplink", m_sta_info.est_ul_rate);
+    cJSON_AddNumberToObject(obj, "SignalStrength", m_sta_info.rcpi);
+    cJSON_AddNumberToObject(obj, "BytesSent", m_sta_info.bytes_tx);
+    cJSON_AddNumberToObject(obj, "BytesReceived", m_sta_info.bytes_rx);
+    cJSON_AddNumberToObject(obj, "PacketsSent", m_sta_info.pkts_tx);
+    cJSON_AddNumberToObject(obj, "PacketsReceived", m_sta_info.pkts_rx);
+    cJSON_AddNumberToObject(obj, "ErrorsSent", m_sta_info.errors_tx);
+    cJSON_AddNumberToObject(obj, "ErrorsReceived", m_sta_info.errors_rx);
+    cJSON_AddNumberToObject(obj, "RetransCount", m_sta_info.retrans_count);
+}
+
 void dm_sta_t::encode(cJSON *obj, em_get_sta_list_reason_t reason)
 {
     mac_addr_str_t  mac_str;

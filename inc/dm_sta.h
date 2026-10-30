@@ -75,6 +75,13 @@ public:
 	 * @note Ensure that the cJSON object is properly initialized before calling this function.
 	 */
 	void encode(cJSON *obj, em_get_sta_list_reason_t reson = em_get_sta_list_reason_none);
+
+	/**!
+	 * @brief Encodes the metrics an AP Metrics Response updates.
+	 *
+	 * @param[in] obj The JSON object to add the metrics to.
+	 */
+	void encode_metrics(cJSON *obj);
 	
 	/**!
 	 * @brief Encodes a beacon report into a JSON object.
