@@ -27,6 +27,9 @@
 class em_cmd_t;
 class em_mgr_t;
 class em_configuration_t {
+
+	friend class em_configuration_ap_op_bss_test_t;
+
     
 	/**!
 	 * @brief Creates an auto-configuration response message.
