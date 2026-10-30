@@ -43,7 +43,9 @@ protected:
         add_network_ssid("TEST");
         add_network_ssid("BSS1");
 
-        em = new em_t(&ruid, em_freq_band_24, &dm, nullptr, em_profile_type_3, em_service_type_ctrl, false);
+        // Agent service type: with no manager, get_peer_dm() falls back to this dm,
+        // so the peer profile received in a Topology Response is stored and used.
+        em = new em_t(&ruid, em_freq_band_24, &dm, nullptr, em_profile_type_3, em_service_type_agent, false);
     }
 
     void TearDown() override
@@ -58,6 +60,20 @@ protected:
         memset(info, 0, sizeof(em_network_ssid_info_t));
         strncpy(info->ssid, ssid, sizeof(info->ssid) - 1);
         dm.m_num_net_ssids++;
+    }
+
+    /* Fill the data model with existing BSS entries that do not match any BSS used by the tests */
+    void add_existing_bss(unsigned int count)
+    {
+        for (unsigned int i = 0; i < count; i++) {
+            em_bss_info_t *info = &dm.m_bss[dm.m_num_bss].m_bss_info;
+
+            memset(info->bssid.mac, 0, sizeof(mac_address_t));
+            memset(info->ruid.mac, 0, sizeof(mac_address_t));
+            info->bssid.mac[0] = 0x10;
+            info->bssid.mac[5] = static_cast<unsigned char>(i);
+            dm.m_num_bss++;
+        }
     }
 
     int handle_ap_operational_bss(unsigned char *buff, unsigned int len)
@@ -90,7 +106,8 @@ protected:
 
     em_profile_type_t get_peer_profile()
     {
-        return static_cast<em_configuration_t *>(em)->get_peer_profile();
+        const mac_address_t src_al_mac = {0x02, 0x00, 0x00, 0x00, 0x00, 0x01};
+        return static_cast<em_configuration_t *>(em)->get_peer_profile(src_al_mac);
     }
 
     int handle_topology_response(std::vector<unsigned char> &frame)
@@ -387,4 +404,38 @@ TEST_F(em_configuration_ap_op_bss_test_t, topology_response_valid)
     EXPECT_EQ(get_peer_profile(), em_profile_type_2);
     ASSERT_EQ(dm.get_num_bss(), 1u);
     EXPECT_STREQ(dm.m_bss[0].m_bss_info.ssid, "TEST");
+}
+
+/**
+ * @brief Two new BSSs when only one free BSS entry is left: rejected before
+ *        any BSS is inserted, so no partial update remains in the data model.
+ */
+TEST_F(em_configuration_ap_op_bss_test_t, bss_capacity_exceeded_no_partial_update)
+{
+    std::vector<unsigned char> payload = {0x01};
+
+    add_existing_bss(EM_MAX_BSSS - 1);
+    add_radio(payload, 0x55, 2);
+    add_bss(payload, 0x01, "TEST");
+    add_bss(payload, 0x02, "BSS1");
+
+    EXPECT_EQ(handle_ap_operational_bss(payload), -1);
+    EXPECT_EQ(dm.get_num_bss(), static_cast<unsigned int>(EM_MAX_BSSS - 1));
+    EXPECT_EQ(dm.m_db_cfg_param.db_cfg_type, db_cfg_type_none);
+}
+
+/**
+ * @brief The same new BSS reported twice needs only one free BSS entry, so it is accepted.
+ */
+TEST_F(em_configuration_ap_op_bss_test_t, bss_capacity_repeated_bss_counted_once)
+{
+    std::vector<unsigned char> payload = {0x01};
+
+    add_existing_bss(EM_MAX_BSSS - 1);
+    add_radio(payload, 0x55, 2);
+    add_bss(payload, 0x01, "TEST");
+    add_bss(payload, 0x01, "TEST");
+
+    EXPECT_EQ(handle_ap_operational_bss(payload), 0);
+    EXPECT_EQ(dm.get_num_bss(), static_cast<unsigned int>(EM_MAX_BSSS));
 }

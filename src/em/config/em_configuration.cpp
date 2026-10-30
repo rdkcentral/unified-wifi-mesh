@@ -1954,6 +1954,32 @@ int em_configuration_t::handle_bsta_radio_cap(unsigned char *buff, unsigned int 
     return 0;
 }
 
+/* Returns true if the same radio/BSSID pair appears earlier in the (already validated) payload */
+static bool is_bss_repeated_in_payload(em_ap_op_bss_t *ap, em_ap_op_bss_radio_t *cur_radio, em_ap_operational_bss_t *cur_bss)
+{
+    em_ap_op_bss_radio_t *radio = const_cast<em_ap_op_bss_radio_t *> (ap->radios);
+    em_ap_operational_bss_t *bss;
+    unsigned int i, j;
+
+    for (i = 0; i < ap->radios_num; i++) {
+        bss = radio->bss;
+        for (j = 0; j < radio->bss_num; j++) {
+            if (bss == cur_bss) {
+                return false;
+            }
+            if ((memcmp(radio->ruid, cur_radio->ruid, sizeof(mac_address_t)) == 0) &&
+                (memcmp(bss->bssid, cur_bss->bssid, sizeof(mac_address_t)) == 0)) {
+                return true;
+            }
+            bss = reinterpret_cast<em_ap_operational_bss_t *> (reinterpret_cast<unsigned char *> (bss) +
+                        sizeof(em_ap_operational_bss_t) + bss->ssid_len);
+        }
+        radio = reinterpret_cast<em_ap_op_bss_radio_t *> (bss);
+    }
+
+    return false;
+}
+
 int em_configuration_t::handle_ap_operational_bss(unsigned char *buff, unsigned int len)
 {
 	dm_easy_mesh_t	*dm;
@@ -1983,6 +2009,7 @@ int em_configuration_t::handle_ap_operational_bss(unsigned char *buff, unsigned 
     em_ap_op_bss_radio_t *chk_radio = radio;
     em_ap_operational_bss_t *chk_bss;
     unsigned int chk_len = len - 1;
+    unsigned int new_bss_count = 0;
 
     for (i = 0; i < ap->radios_num; i++) {
         if (chk_len < sizeof(em_ap_op_bss_radio_t)) {
@@ -1999,10 +2026,21 @@ int em_configuration_t::handle_ap_operational_bss(unsigned char *buff, unsigned 
                 return -1;
             }
             chk_len -= static_cast<unsigned int> (sizeof(em_ap_operational_bss_t) + chk_bss->ssid_len);
+
+	    if ((dm->get_bss(chk_radio->ruid, chk_bss->bssid) == NULL) &&
+                (is_bss_repeated_in_payload(ap, chk_radio, chk_bss) == false)) {
+                new_bss_count++;
+            }
+
             chk_bss = reinterpret_cast<em_ap_operational_bss_t *> (reinterpret_cast<unsigned char *> (chk_bss) +
                         sizeof(em_ap_operational_bss_t) + chk_bss->ssid_len);
         }
         chk_radio = reinterpret_cast<em_ap_op_bss_radio_t *> (chk_bss);
+    }
+
+    if (dm->get_num_bss() + new_bss_count > EM_MAX_BSSS) {
+        em_printfout("%s:%d Maximum BSS capacity exceeded: current=%u new=%u\n", __func__, __LINE__, dm->get_num_bss(), new_bss_count);
+        return -1;
     }
 
 	util::get_date_time_rfc3399(time_date, sizeof(time_date));
