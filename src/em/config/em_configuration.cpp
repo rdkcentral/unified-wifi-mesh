@@ -66,6 +66,15 @@ unsigned short em_configuration_t::msg_id = 0;
 std::deque<time_t> g_failed_conn_report_timestamps;
 static std::mutex g_failed_conn_report_mutex;
 
+inline bool validate_tlv_length(uint16_t tlv_len, unsigned int tmp_len)
+{
+    if (tmp_len < sizeof(em_tlv_t) || tlv_len > (tmp_len - sizeof(em_tlv_t))) {
+        em_printfout("Invalid TLV length %u", tlv_len);
+        return false;
+    }
+    return true;
+}
+
 static bool allow_failed_conn_report(unsigned short max_reports_per_min)
 {
     if (max_reports_per_min == 0) {
@@ -2620,6 +2629,7 @@ int em_configuration_t::handle_topology_response(unsigned char *buff, unsigned i
 	dm_easy_mesh_t *dm;
     em_raw_hdr_t *hdr = reinterpret_cast<em_raw_hdr_t *>(buff);
     uint8_t *src_al_mac = hdr->src;
+    uint16_t tlv_len = 0;
     
 	dm = get_data_model();
 
@@ -2627,9 +2637,13 @@ int em_configuration_t::handle_topology_response(unsigned char *buff, unsigned i
     tmp_len = len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
         
     while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
+        tlv_len = htons(tlv->len);
+        if (!validate_tlv_length(tlv_len, tmp_len)) {
+            return -1;
+        }
         if (tlv->type != em_tlv_type_profile) {
-            tmp_len -= static_cast<unsigned int> (sizeof(em_tlv_t) + htons(tlv->len));
-            tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
+            tmp_len -= static_cast<unsigned int> (sizeof(em_tlv_t) + tlv_len);
+            tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + tlv_len);
 
             continue;
 
@@ -2663,9 +2677,13 @@ int em_configuration_t::handle_topology_response(unsigned char *buff, unsigned i
     tmp_len = len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
 
 	while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
+        tlv_len = htons(tlv->len);
+        if (!validate_tlv_length(tlv_len, tmp_len)) {
+            return -1;
+        }
 		if (tlv->type != em_tlv_type_vendor_operational_bss) {
-			tmp_len -= static_cast<unsigned int> (sizeof(em_tlv_t) + htons(tlv->len));
-			tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
+			tmp_len -= static_cast<unsigned int> (sizeof(em_tlv_t) + tlv_len);
+			tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + tlv_len);
 			continue;
 		} else {
 			handle_ap_vendor_operational_bss(tlv->value, tlv->len);
@@ -2675,9 +2693,13 @@ int em_configuration_t::handle_topology_response(unsigned char *buff, unsigned i
 	tlv =  reinterpret_cast<em_tlv_t *> (buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
 	tmp_len = len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)); 
     while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
+        tlv_len = htons(tlv->len);
+        if (!validate_tlv_length(tlv_len, tmp_len)) {
+            return -1;
+        }
         if (tlv->type != em_tlv_type_operational_bss) {
-            tmp_len -= static_cast<unsigned int> (sizeof(em_tlv_t) + htons(tlv->len));
-            tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
+            tmp_len -= static_cast<unsigned int> (sizeof(em_tlv_t) + tlv_len);
+            tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + tlv_len);
 
             continue;
 
@@ -2706,9 +2728,13 @@ int em_configuration_t::handle_topology_response(unsigned char *buff, unsigned i
 
 
     while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
+        tlv_len = htons(tlv->len);
+        if (!validate_tlv_length(tlv_len, tmp_len)) {
+            return -1;
+        }
         if (tlv->type != em_tlv_type_bss_conf_rep) {
-            tmp_len -= static_cast<unsigned int> (sizeof(em_tlv_t) + htons(tlv->len));
-            tlv = reinterpret_cast <em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
+            tmp_len -= static_cast<unsigned int> (sizeof(em_tlv_t) + tlv_len);
+            tlv = reinterpret_cast <em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + tlv_len);
 
             continue;
 
@@ -2730,9 +2756,13 @@ int em_configuration_t::handle_topology_response(unsigned char *buff, unsigned i
     }
 
     while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
+        tlv_len = htons(tlv->len);
+        if (!validate_tlv_length(tlv_len, tmp_len)) {
+            return -1;
+        }
         if (tlv->type != em_tlv_type_bh_sta_radio_cap) {
-            tmp_len -= static_cast<unsigned int> (sizeof(em_tlv_t) + htons(tlv->len));
-            tlv = reinterpret_cast <em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
+            tmp_len -= static_cast<unsigned int> (sizeof(em_tlv_t) + tlv_len);
+            tlv = reinterpret_cast <em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + tlv_len);
             continue;
         } else {
             handle_bsta_radio_cap(tlv->value, tlv->len);
@@ -2741,9 +2771,13 @@ int em_configuration_t::handle_topology_response(unsigned char *buff, unsigned i
     }
 
     while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
+        tlv_len = htons(tlv->len);
+        if (!validate_tlv_length(tlv_len, tmp_len)) {
+            return -1;
+        }
         if (tlv->type != em_tlv_type_ap_mld_config) {
             tmp_len -= static_cast<unsigned int> (sizeof(em_tlv_t) + htons(tlv->len));
-            tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
+            tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + tlv_len);
 
             continue;
 
@@ -2764,13 +2798,17 @@ int em_configuration_t::handle_topology_response(unsigned char *buff, unsigned i
     tmp_len = len - static_cast<unsigned int>(sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
     assoc_sta_mld_count = 0;
     while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
+        tlv_len = htons(tlv->len);
+        if (!validate_tlv_length(tlv_len, tmp_len)) {
+            return -1;
+        }
         if (tlv->type == em_tlv_type_assoc_sta_mld_conf_rep) {
             em_printfout("Found Assoc STA MLD Configuration Report TLV #%u", assoc_sta_mld_count);
-            handle_assoc_sta_mld_conf_rep_tlv(tlv->value, htons(tlv->len));
+            handle_assoc_sta_mld_conf_rep_tlv(tlv->value, tlv_len);
             assoc_sta_mld_count++;
         }
-        tmp_len -= static_cast<unsigned int>(sizeof(em_tlv_t) + htons(tlv->len));
-        tlv = reinterpret_cast<em_tlv_t *>(reinterpret_cast<unsigned char *>(tlv) + sizeof(em_tlv_t) + htons(tlv->len));
+        tmp_len -= static_cast<unsigned int>(sizeof(em_tlv_t) + tlv_len);
+        tlv = reinterpret_cast<em_tlv_t *>(reinterpret_cast<unsigned char *>(tlv) + sizeof(em_tlv_t) + tlv_len);
     }
     em_printfout("Total Assoc STA MLD TLVs parsed: %u, m_num_assoc_sta_mld=%u",
         assoc_sta_mld_count, dm->m_num_assoc_sta_mld);
