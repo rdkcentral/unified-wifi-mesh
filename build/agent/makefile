@@ -58,7 +58,7 @@ endif
 CXXFLAGS += $(INCLUDEDIRS) -g $(CXX_COMMON_FLAGS) $(CXX_SPECIFIC_FLAGS)
 CFLAGS += $(INCLUDEDIRS) -g $(CXX_COMMON_FLAGS)
 
-LDFLAGS += $(LIBDIRS) $(LIBS) -fsanitize=address -fsanitize=undefined -lmariadb -L$(STAGING_DIR)/usr/lib
+LDFLAGS += $(LIBDIRS) $(LIBS) -fsanitize=address -fsanitize=undefined -lsqlite3 -L$(STAGING_DIR)/usr/lib
 
 LIBDIRS = \
 	-L$(INSTALLDIR)/lib \
@@ -67,7 +67,7 @@ ifeq ($(WITH_SAP), 1)
 LIBDIRS += -L$(AL_SAP_HOME)/
 endif
 
-LIBS = -lm -lpthread -ldl -lcjson -luuid -lssl -lcrypto -lwebconfig -lhebus -lmariadb
+LIBS = -lm -lpthread -ldl -lcjson -luuid -lssl -lcrypto -lwebconfig -lhebus -lsqlite3
 ifeq ($(WITH_SAP), 1)
 LIBS += -lalsap
 endif
@@ -113,7 +113,16 @@ AGENT_SOURCES = $(wildcard $(ONEWIFI_EM_SRC)/em/*.cpp) \
     $(ONEWIFI_EM_SRC)/utils/util.cpp \
 	$(ONEWIFI_EM_SRC)/utils/timer.cpp \
 
-AGENT_OBJECTS = $(AGENT_SOURCES:.cpp=.o)
+ifneq ($(strip $(UWM_VENDOR_EXT_DIR)),)
+-include $(UWM_VENDOR_EXT_DIR)/vendor-ext.mk
+endif
+ifneq ($(strip $(UWM_VENDOR_EXT_AGENT_SRC_FILES)),)
+CXXFLAGS += -I$(UWM_VENDOR_EXT_INC_DIR)
+UWM_VENDOR_EXT_OBJECTS := $(patsubst $(UWM_VENDOR_EXT_DIR)/src/%.cpp,$(OBJDIR)/vendor_ext/%.o,$(UWM_VENDOR_EXT_AGENT_SRC_FILES))
+endif
+
+AGENT_CORE_OBJECTS = $(AGENT_SOURCES:.cpp=.o)
+AGENT_OBJECTS = $(AGENT_CORE_OBJECTS) $(UWM_VENDOR_EXT_OBJECTS)
 GENERIC_OBJECTS = $(GENERIC_SOURCES:.c=.o) 
 ALLOBJECTS = $(AGENT_OBJECTS) $(GENERIC_OBJECTS)
 
@@ -196,7 +205,11 @@ $(PROGRAM): $(ALLOBJECTS)
 $(GENERIC_OBJECTS): %.o: %.c
 	$(CC) $(CFLAGS) -o $@ -c $<
 
-$(AGENT_OBJECTS): %.o: %.cpp
+$(AGENT_CORE_OBJECTS): %.o: %.cpp
+	$(CXX) $(CXXFLAGS) -o $@ -c $<
+
+$(OBJDIR)/vendor_ext/%.o: $(UWM_VENDOR_EXT_DIR)/src/%.cpp
+	mkdir -p $(@D)
 	$(CXX) $(CXXFLAGS) -o $@ -c $<
 
 # Clean target: "make -f Makefile.Linux clean" to remove unwanted objects and executables.

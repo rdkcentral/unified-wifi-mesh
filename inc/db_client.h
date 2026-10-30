@@ -19,13 +19,8 @@
 #ifndef DB_CLIENT_H
 #define DB_CLIENT_H
 
-#if defined(OPENWRT_BUILD) || defined(RDKB_BUILD)
-// MariaDB C client header for cross-compiled builds (OpenWRT / RDKB), where headers are under <mysql/>
-#include <mysql/mysql.h>
-#else
-// MariaDB C client header for a standard Linux install (Debian)
-#include <mariadb/mysql.h>
-#endif
+#include <sqlite3.h>
+#include <mutex>
 
  /**!
   * @brief Database client class to manage database connections and queries.
@@ -36,8 +31,9 @@
   * @note This class is not thread-safe.
   */
  class db_client_t {
-	MYSQL *m_con;    ///< MariaDB connection instance
-
+sqlite3 *m_con;
+char m_path[512];
+std::mutex m_mutex;
 
 	 /**!
 	  * @brief Establish a connection to the database.
@@ -68,7 +64,7 @@
 	  * specified by the given path. It must be called before any other database
 	  * operations are performed.
 	  *
-	  * @param[in] path Path to the database in the format "username@password".
+	  * @param[in] path Path to the SQLite database file. When null or empty, the default deployment path is used.
 	  *
 	  * @returns 0 on success, non-zero on failure.
 	  * @retval 0 Initialization successful.
@@ -106,9 +102,25 @@
 	  *
 	  * @returns True if there is another result available, false otherwise.
 	  *
-	  * @note When this function returns false, it automatically frees the result context.
+	  * @note When this function returns false, it automatically frees the result context,
+	  *       so you don't need to call free_result() manually.
+	  *       If you need to release the result context before fully iterating, use free_result().
 	  */
 	 bool next_result(void *ctx);
+
+
+	 /**!
+	  * @brief Release a result context before it has been drained by next_result().
+	  *
+	  * Callers that stop iterating early (e.g. after finding a match) must use
+	  * this instead of leaving the context to leak.
+ 	  * @note The context is freed automatically when next_result() returns false.
+ 	  *       Do not call free_result() after fully draining results, and do not
+ 	  *       use ctx after next_result() returns false or free_result() is called.
+	  *
+	  * @param[in] ctx Result context obtained from execute(). Safe to call with NULL.
+	  */
+	 void free_result(void *ctx);
 
 
 	 /**!
@@ -150,6 +162,10 @@
 	  * @note Use with caution as this will erase all existing data.
 	  */
 	 int recreate_db();
+
+	 int begin_transaction();
+	 int commit();
+	 int rollback();
 
 
 	 /**!

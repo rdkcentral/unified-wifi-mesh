@@ -6317,6 +6317,180 @@ TEST(em_msg_t, validate_success_optional_only)
     std::cout << "Exiting validate_success_optional_only test" << std::endl;
 }
 /**
+ * @brief Validate that a truncated TLV stops the walk instead of being dereferenced past the buffer.
+ *
+ * This test plants one TLV right after the header whose declared length (60000) claims far more
+ * value bytes than the small backing buffer actually holds, and no EOM follows it. Neither mandatory
+ * TLV of em_msg_type_topo_disc is present, so validate() must walk past this TLV while searching for
+ * them. Before the fix, the walk subtracted the declared length from the remaining length without
+ * checking it fit, underflowed the unsigned remaining-length counter, and then dereferenced a
+ * pointer advanced 60000+ bytes past a 64 byte buffer. The fix must stop the walk at the truncated
+ * TLV and report validation failure, not crash.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 179@n
+ * **Priority:** High@n
+ *
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ *
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01 | Place one TLV header right after the CMDU header, of a type that is not a mandatory member of topo_disc, declaring a value length of 60000 | buffer = 64 bytes zeroed, tlv->type = em_tlv_type_supported_role, tlv->len = htons(60000) | TLV header written, no value bytes or EOM follow | Should be successful |
+ * | 02 | Construct the message and invoke validate() | msg_type = em_msg_type_topo_disc, profile = em_profile_type_1 | validate() returns without crashing | Should Pass |
+ * | 03 | Check the validation result | errors array | validate() returns false, since neither mandatory TLV was found | Should Pass |
+ */
+TEST(em_msg_t, validate_truncated_tlv_does_not_overrun)
+{
+    std::cout << "Entering validate_truncated_tlv_does_not_overrun test" << std::endl;
+    unsigned char buffer[64] = {0};
+    unsigned int len = sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t);
+
+    /* A TLV whose header claims far more value bytes than the buffer actually holds,
+     * simulating a message truncated in transit. Its type is not a mandatory TLV for
+     * topo_disc, so validate() must walk past it while looking for a match.
+     */
+    em_tlv_t *tlv = reinterpret_cast<em_tlv_t *>(buffer + len);
+    tlv->type = em_tlv_type_supported_role;
+    tlv->len = htons(60000);
+    len += static_cast<unsigned int>(sizeof(em_tlv_t));
+
+    std::cout << "Invoking validate(...) on a message with a truncated TLV" << std::endl;
+    em_msg_t msg(em_msg_type_topo_disc, em_profile_type_1, buffer, len);
+    char *errors[EM_MAX_TLV_MEMBERS] = {nullptr};
+    EXPECT_FALSE(msg.validate(errors));
+    std::cout << "Exiting validate_truncated_tlv_does_not_overrun test" << std::endl;
+}
+/**
+ * @brief Validate that a message shorter than the fixed headers does not underflow the TLV walk.
+ *
+ * m_len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)) is computed on every pass of validate()'s
+ * outer loop. Before the fix, a message shorter than the fixed headers made this subtraction wrap
+ * to a huge unsigned value, which passed the while condition and dereferenced tlv->type at
+ * m_buff + header size, past the tiny buffer actually backing the message. The fix clamps the
+ * result to 0 instead of wrapping, so the walk is skipped and the (missing) mandatory TLVs are
+ * correctly reported absent rather than crashing.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 180@n
+ * **Priority:** High@n
+ *
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ *
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01 | Construct a message whose declared length is shorter than sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t) | buffer = 4 bytes zeroed, len = 4 | Message constructed | Should be successful |
+ * | 02 | Invoke validate() on it | msg_type = em_msg_type_topo_disc, profile = em_profile_type_1 | validate() returns without crashing | Should Pass |
+ * | 03 | Check the validation result | errors array | validate() returns false, since neither mandatory TLV can be found in a header-less message | Should Pass |
+ */
+TEST(em_msg_t, validate_message_shorter_than_headers_does_not_underflow)
+{
+    std::cout << "Entering validate_message_shorter_than_headers_does_not_underflow test" << std::endl;
+    unsigned char buffer[4] = {0};
+    unsigned int len = 4;
+    ASSERT_LT(len, sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+
+    std::cout << "Invoking validate(...) on a message shorter than the fixed headers" << std::endl;
+    em_msg_t msg(em_msg_type_topo_disc, em_profile_type_1, buffer, len);
+    char *errors[EM_MAX_TLV_MEMBERS] = {nullptr};
+    EXPECT_FALSE(msg.validate(errors));
+    std::cout << "Exiting validate_message_shorter_than_headers_does_not_underflow test" << std::endl;
+}
+/**
+ * @brief Validate that a mandatory TLV whose declared length does not fit is not accepted as present.
+ *
+ * The walk matched tlv->type against the wanted mandatory type before checking whether the
+ * declared value length actually fit in the remaining bytes. That let a truncated TLV of the
+ * right type be marked present; the later length check then compared the *peer-declared* length
+ * (not the bytes actually available) against the minimum, which the attacker also controls, so a
+ * truncated mandatory TLV could pass validation entirely. This test plants a mandatory
+ * al_mac_address TLV (min length 9) that declares a value length of 100 with no value bytes behind
+ * it, and confirms validate() now reports it missing rather than accepting it.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 181@n
+ * **Priority:** High@n
+ *
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ *
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01 | Place a mandatory-type TLV header right after the CMDU header, declaring a value length of 100 with no value bytes or EOM behind it | buffer = 64 bytes zeroed, tlv->type = em_tlv_type_al_mac_address, tlv->len = htons(100) | TLV header written | Should be successful |
+ * | 02 | Construct the message and invoke validate() | msg_type = em_msg_type_topo_disc, profile = em_profile_type_1 | validate() returns without crashing | Should Pass |
+ * | 03 | Check the validation result | errors array | validate() returns false: the truncated TLV is not accepted as satisfying the mandatory requirement | Should Pass |
+ */
+TEST(em_msg_t, validate_rejects_truncated_mandatory_tlv)
+{
+    std::cout << "Entering validate_rejects_truncated_mandatory_tlv test" << std::endl;
+    unsigned char buffer[64] = {0};
+    unsigned int len = sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t);
+
+    /* A mandatory-type TLV header declaring far more value bytes than are actually present.
+     * em_msg_type_topo_notif has exactly one mandatory member (al_mac_address), so a bug that
+     * marks this truncated TLV present cannot be masked by any other missing mandatory TLV.
+     */
+    em_tlv_t *tlv = reinterpret_cast<em_tlv_t *>(buffer + len);
+    tlv->type = em_tlv_type_al_mac_address;
+    tlv->len = htons(100);
+    len += static_cast<unsigned int>(sizeof(em_tlv_t));
+
+    std::cout << "Invoking validate(...) on a message with a truncated mandatory TLV" << std::endl;
+    em_msg_t msg(em_msg_type_topo_notif, em_profile_type_1, buffer, len);
+    char *errors[EM_MAX_TLV_MEMBERS] = {nullptr};
+    EXPECT_FALSE(msg.validate(errors));
+    std::cout << "Exiting validate_rejects_truncated_mandatory_tlv test" << std::endl;
+}
+/**
+ * @brief Validate that a truncated TLV after all expected TLVs still fails validation.
+ *
+ * Each member's search stops at its first match, so a truncated TLV placed after every member
+ * of the message type is never reached by those searches. The message must still be rejected.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 182@n
+ * **Priority:** High@n
+ *
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ *
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01 | Add valid al_mac_address and client_assoc_event TLVs, then a TLV header declaring 60000 bytes | msg_type = em_msg_type_topo_notif, tlv->len = htons(60000) | Message built | Should be successful |
+ * | 02 | Invoke validate() | errors array | validate() returns false | Should Pass |
+ */
+TEST(em_msg_t, validate_rejects_truncated_tlv_after_all_members)
+{
+    std::cout << "Entering validate_rejects_truncated_tlv_after_all_members test" << std::endl;
+    unsigned char buffer[128] = {0};
+    unsigned int len = sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t);
+    unsigned char al_mac[6] = {0x00, 0x11, 0x22, 0x33, 0x44, 0x55};
+    unsigned char assoc[12] = {0};
+
+    /* topo_notif has exactly these two members, both present before the truncated TLV. */
+    em_msg_t::add_tlv(buffer + len, &len, em_tlv_type_al_mac_address, al_mac, sizeof(al_mac));
+    em_msg_t::add_tlv(buffer + len, &len, em_tlv_type_client_assoc_event, assoc, sizeof(assoc));
+    em_tlv_t *tlv = reinterpret_cast<em_tlv_t *>(buffer + len);
+    tlv->type = em_tlv_type_supported_role;
+    tlv->len = htons(60000);
+    len += static_cast<unsigned int>(sizeof(em_tlv_t));
+
+    std::cout << "Invoking validate(...) on a message with a truncated TLV after all members" << std::endl;
+    em_msg_t msg(em_msg_type_topo_notif, em_profile_type_1, buffer, len);
+    char *errors[EM_MAX_TLV_MEMBERS] = {nullptr};
+    EXPECT_FALSE(msg.validate(errors));
+    std::cout << "Exiting validate_rejects_truncated_tlv_after_all_members test" << std::endl;
+}
+/**
  * @brief Validates that a default constructed em_msg_t object is handled correctly
  *
  * This test verifies that constructing an em_msg_t object using the default constructor does not throw any exceptions.
@@ -6652,3 +6826,214 @@ TEST(em_msg_t, get_radio_id_channel_scan_req_valid)
     std::cout << "Exiting get_radio_id_channel_scan_req_valid" << std::endl;
 }
                                 
+
+/**
+ * @brief Build a frame with a header, a copied TLV, a produced TLV and the EOM TLV and verify its layout.
+ *
+ * **Test Procedure:**
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01 | add_1905_header, add_tlv (copy), tlv_value + commit_tlv (produce), add_eom | dst, src, msg_id = 0x1234, 6 byte value, 2 byte produced value | every call returns true, length and TLV fields match | Should Pass |
+ */
+TEST(em_msg_builder_t, builds_header_tlvs_and_eom) {
+    std::cout << "Entering builds_header_tlvs_and_eom test" << std::endl;
+    em_msg_builder_t msg;
+    unsigned char dst[6] = {0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF};
+    unsigned char src[6] = {0x11, 0x22, 0x33, 0x44, 0x55, 0x66};
+    unsigned char value[6] = {0x01, 0x02, 0x03, 0x04, 0x05, 0x06};
+    const unsigned int hdr_len = sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t);
+
+    EXPECT_TRUE(msg.add_1905_header(dst, src, em_msg_type_ap_metrics_rsp, 0x1234));
+    EXPECT_EQ(msg.get_len(), hdr_len);
+    EXPECT_TRUE(msg.add_tlv(em_tlv_type_sta_mac_addr, value, sizeof(value)));
+
+    unsigned char *produced = msg.tlv_value();
+    produced[0] = 0x7A;
+    produced[1] = 0x7B;
+    EXPECT_TRUE(msg.commit_tlv(em_tlv_type_ap_metrics, 2));
+    EXPECT_TRUE(msg.add_eom());
+
+    const unsigned int expected_len = hdr_len + (sizeof(em_tlv_t) + 6) + (sizeof(em_tlv_t) + 2) + sizeof(em_tlv_t);
+    EXPECT_EQ(msg.get_len(), expected_len);
+
+    unsigned char *buff = msg.get_buff();
+    EXPECT_EQ(std::memcmp(buff, dst, sizeof(mac_address_t)), 0);
+    EXPECT_EQ(std::memcmp(buff + sizeof(mac_address_t), src, sizeof(mac_address_t)), 0);
+    em_cmdu_t *cmdu = reinterpret_cast<em_cmdu_t *>(buff + sizeof(em_raw_hdr_t));
+    EXPECT_EQ(ntohs(cmdu->type), em_msg_type_ap_metrics_rsp);
+    EXPECT_EQ(ntohs(cmdu->id), 0x1234);
+    EXPECT_EQ(cmdu->relay_ind, 0);
+    EXPECT_EQ(cmdu->last_frag_ind, 1);
+
+    em_tlv_t *tlv = reinterpret_cast<em_tlv_t *>(buff + hdr_len);
+    EXPECT_EQ(tlv->type, em_tlv_type_sta_mac_addr);
+    EXPECT_EQ(ntohs(tlv->len), 6u);
+    EXPECT_EQ(std::memcmp(tlv->value, value, sizeof(value)), 0);
+
+    tlv = reinterpret_cast<em_tlv_t *>(buff + hdr_len + sizeof(em_tlv_t) + 6);
+    EXPECT_EQ(tlv->type, em_tlv_type_ap_metrics);
+    EXPECT_EQ(ntohs(tlv->len), 2u);
+    EXPECT_EQ(tlv->value[0], 0x7A);
+    EXPECT_EQ(tlv->value[1], 0x7B);
+
+    tlv = reinterpret_cast<em_tlv_t *>(buff + msg.get_len() - sizeof(em_tlv_t));
+    EXPECT_EQ(tlv->type, em_tlv_type_eom);
+    EXPECT_EQ(ntohs(tlv->len), 0u);
+    std::cout << "Exiting builds_header_tlvs_and_eom test" << std::endl;
+}
+
+/**
+ * @brief Verify that commit_tlv() with a negative producer result leaves the frame unchanged and marks it failed.
+ *
+ * **Test Procedure:**
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01 | add_1905_header, commit_tlv(-1), add_eom | value_len = -1 | commit_tlv and add_eom return false, length unchanged | Should Pass |
+ */
+TEST(em_msg_builder_t, commit_tlv_rejects_negative_length) {
+    std::cout << "Entering commit_tlv_rejects_negative_length test" << std::endl;
+    em_msg_builder_t msg;
+    unsigned char dst[6] = {0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF};
+    unsigned char src[6] = {0x11, 0x22, 0x33, 0x44, 0x55, 0x66};
+
+    EXPECT_TRUE(msg.add_1905_header(dst, src, em_msg_type_ap_metrics_rsp, 1));
+    unsigned int len = msg.get_len();
+    EXPECT_FALSE(msg.commit_tlv(em_tlv_type_ap_metrics, -1));
+    EXPECT_FALSE(msg.add_eom());
+    EXPECT_EQ(msg.get_len(), len);
+    std::cout << "Exiting commit_tlv_rejects_negative_length test" << std::endl;
+}
+
+/**
+ * @brief Verify that the first append that does not fit is dropped, later appends are dropped too and add_eom() fails.
+ *
+ * **Test Procedure:**
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01 | Builder with capacity for header + one 8 byte TLV + EOM; add header and one 8 byte TLV | capacity = 22 + 11 + 3 | both appends return true | Should Pass |
+ * | 02 | Append a second 8 byte TLV | 11 bytes needed, 3 left | returns false, length unchanged | Should Pass |
+ * | 03 | Append an empty TLV that would fit, then add_eom | value_len = 0 | both return false, length unchanged | Should Pass |
+ */
+TEST(em_msg_builder_t, overflow_is_sticky_and_fails_eom) {
+    std::cout << "Entering overflow_is_sticky_and_fails_eom test" << std::endl;
+    const unsigned int hdr_len = sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t);
+    em_msg_builder_t msg(hdr_len + (sizeof(em_tlv_t) + 8) + sizeof(em_tlv_t));
+    unsigned char dst[6] = {0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF};
+    unsigned char src[6] = {0x11, 0x22, 0x33, 0x44, 0x55, 0x66};
+    unsigned char value[8] = {0};
+
+    EXPECT_TRUE(msg.add_1905_header(dst, src, em_msg_type_ap_metrics_rsp, 1));
+    EXPECT_TRUE(msg.add_tlv(em_tlv_type_ap_metrics, value, sizeof(value)));
+    unsigned int len = msg.get_len();
+
+    EXPECT_FALSE(msg.add_tlv(em_tlv_type_ap_metrics, value, sizeof(value)));
+    EXPECT_EQ(msg.get_len(), len);
+
+    EXPECT_FALSE(msg.add_tlv(em_tlv_type_ap_metrics, value, 0));
+    EXPECT_FALSE(msg.add_eom());
+    EXPECT_EQ(msg.get_len(), len);
+    std::cout << "Exiting overflow_is_sticky_and_fails_eom test" << std::endl;
+}
+
+/**
+ * @brief Verify that a frame larger than the former MAX_EM_BUFF_SZ stack buffer is built without error.
+ *
+ * **Test Procedure:**
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01 | add_1905_header, six 200 byte TLVs, add_eom | 22 + 6 * 203 + 3 = 1243 bytes | every call returns true, length is 1243 and above MAX_EM_BUFF_SZ | Should Pass |
+ */
+TEST(em_msg_builder_t, exceeds_legacy_stack_buffer) {
+    std::cout << "Entering exceeds_legacy_stack_buffer test" << std::endl;
+    em_msg_builder_t msg;
+    unsigned char dst[6] = {0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF};
+    unsigned char src[6] = {0x11, 0x22, 0x33, 0x44, 0x55, 0x66};
+    unsigned char value[200] = {0};
+    const unsigned int hdr_len = sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t);
+
+    EXPECT_TRUE(msg.add_1905_header(dst, src, em_msg_type_ap_metrics_rsp, 1));
+    for (int i = 0; i < 6; i++) {
+        EXPECT_TRUE(msg.add_tlv(em_tlv_type_ap_metrics, value, sizeof(value)));
+    }
+    EXPECT_TRUE(msg.add_eom());
+    EXPECT_EQ(msg.get_len(), hdr_len + 6 * (sizeof(em_tlv_t) + sizeof(value)) + sizeof(em_tlv_t));
+    EXPECT_GT(msg.get_len(), static_cast<unsigned int>(MAX_EM_BUFF_SZ));
+    std::cout << "Exiting exceeds_legacy_stack_buffer test" << std::endl;
+}
+
+/**
+ * @brief Verify that a producer may write a maximum size TLV value at tlv_value() and that the commit is refused when it does not fit.
+ *
+ * **Test Procedure:**
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01 | add_1905_header, memset EM_MAX_TLV_VALUE_SZ bytes at tlv_value(), commit_tlv, add_eom | value_len = EM_MAX_TLV_VALUE_SZ | write stays inside the scratch area, commit_tlv and add_eom return false, length unchanged | Should Pass |
+ */
+TEST(em_msg_builder_t, tlv_value_holds_max_tlv) {
+    std::cout << "Entering tlv_value_holds_max_tlv test" << std::endl;
+    em_msg_builder_t msg;
+    unsigned char dst[6] = {0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF};
+    unsigned char src[6] = {0x11, 0x22, 0x33, 0x44, 0x55, 0x66};
+
+    EXPECT_TRUE(msg.add_1905_header(dst, src, em_msg_type_ap_metrics_rsp, 1));
+    unsigned int len = msg.get_len();
+    memset(msg.tlv_value(), 0xAB, EM_MAX_TLV_VALUE_SZ);
+    EXPECT_FALSE(msg.commit_tlv(em_tlv_type_ap_metrics, EM_MAX_TLV_VALUE_SZ));
+    EXPECT_FALSE(msg.add_eom());
+    EXPECT_EQ(msg.get_len(), len);
+    std::cout << "Exiting tlv_value_holds_max_tlv test" << std::endl;
+}
+
+/**
+ * @brief Verify that a value longer than the 16-bit TLV length field is refused even when it would fit in the frame.
+ *
+ * **Test Procedure:**
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01 | Builder with room for two maximum size TLVs, so only the length check can refuse; add_1905_header, commit_tlv(EM_MAX_TLV_VALUE_SZ) | value_len = 65535 | commit_tlv returns true | Should Pass |
+ * | 02 | add_tlv with EM_MAX_TLV_VALUE_SZ + 1 bytes, add_eom | value_len = 65536 | add_tlv and add_eom return false, length unchanged | Should Pass |
+ */
+TEST(em_msg_builder_t, refuses_value_above_tlv_limit) {
+    std::cout << "Entering refuses_value_above_tlv_limit test" << std::endl;
+    em_msg_builder_t msg(3 * EM_MAX_TLV_VALUE_SZ);
+    unsigned char dst[6] = {0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF};
+    unsigned char src[6] = {0x11, 0x22, 0x33, 0x44, 0x55, 0x66};
+    std::vector<unsigned char> value(EM_MAX_TLV_VALUE_SZ + 1, 0xCD);
+
+    EXPECT_TRUE(msg.add_1905_header(dst, src, em_msg_type_ap_metrics_rsp, 1));
+    memset(msg.tlv_value(), 0xAB, EM_MAX_TLV_VALUE_SZ);
+    EXPECT_TRUE(msg.commit_tlv(em_tlv_type_ap_metrics, EM_MAX_TLV_VALUE_SZ));
+    unsigned int len = msg.get_len();
+
+    EXPECT_FALSE(msg.add_tlv(em_tlv_type_ap_metrics, value.data(), static_cast<unsigned int>(value.size())));
+    EXPECT_FALSE(msg.add_eom());
+    EXPECT_EQ(msg.get_len(), len);
+    std::cout << "Exiting refuses_value_above_tlv_limit test" << std::endl;
+}
+
+/**
+ * @brief Verify that tlv_value() hands out zeroed memory after a committed TLV and after an uncommitted write.
+ *
+ * **Test Procedure:**
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01 | Write 8 bytes at tlv_value(), commit_tlv(8), call tlv_value() again | value 0xCD x 8 | the 8 bytes read back as zero | Should Pass |
+ * | 02 | Write 16 bytes at tlv_value() without committing, call tlv_value() again | value 0xCD x 16 | the 16 bytes read back as zero | Should Pass |
+ */
+TEST(em_msg_builder_t, tlv_value_is_zeroed) {
+    std::cout << "Entering tlv_value_is_zeroed test" << std::endl;
+    em_msg_builder_t msg;
+    unsigned char dst[6] = {0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF};
+    unsigned char src[6] = {0x11, 0x22, 0x33, 0x44, 0x55, 0x66};
+    unsigned char zeros[16] = {0};
+
+    EXPECT_TRUE(msg.add_1905_header(dst, src, em_msg_type_ap_metrics_rsp, 1));
+
+    memset(msg.tlv_value(), 0xCD, 8);
+    EXPECT_TRUE(msg.commit_tlv(em_tlv_type_ap_metrics, 8));
+    EXPECT_EQ(std::memcmp(msg.tlv_value(), zeros, 8), 0);
+
+    memset(msg.tlv_value(), 0xCD, 16);
+    EXPECT_EQ(std::memcmp(msg.tlv_value(), zeros, 16), 0);
+    std::cout << "Exiting tlv_value_is_zeroed test" << std::endl;
+}
