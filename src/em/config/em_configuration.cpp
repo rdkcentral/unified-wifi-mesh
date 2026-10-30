@@ -1732,6 +1732,7 @@ void em_configuration_t::handle_ap_vendor_operational_bss(unsigned char *value, 
 			memcpy(dm_bss->m_bss_info.bssid.mac, bss->bssid, sizeof(mac_address_t));
 			dm_bss->m_bss_info.id.haul_type = static_cast<em_haul_type_t> (bss->haultype);
 			dm_bss->m_bss_info.vap_mode = static_cast<em_vap_mode_t> (bss->vap_mode);
+			dm_bss->m_bss_info.enabled = true;
 
 			bss = reinterpret_cast<em_ap_vendor_operational_bss_t *>(reinterpret_cast<unsigned char *> (bss) + sizeof(em_ap_vendor_operational_bss_t));
 			all_bss_len += sizeof(em_ap_vendor_operational_bss_t);
