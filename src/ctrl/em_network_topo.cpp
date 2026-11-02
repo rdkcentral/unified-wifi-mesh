@@ -331,6 +331,9 @@ bool em_network_topo_t::remove(dm_easy_mesh_t *dm, em_network_topo_t **child_top
 
 bool em_network_topo_t::is_bh_reconfig_complete()
 {
+	if ((this == g_network_topology) && has_unreached_bh_targets()) {
+		return false;
+	}
 	if (m_data_model != NULL && m_data_model->is_controller() &&
  			m_data_model->get_num_radios() == 0) {
  		for (unsigned int i = 0; i < m_num_topologies; i++) {
@@ -370,6 +373,38 @@ void em_network_topo_t::set_bh_reconfig_incomplete(bool incomplete)
 {
 	m_bh_reconfig_incomplete = incomplete;
 	persist_bh_reconfig_pending();
+}
+
+bool em_network_topo_t::has_bh_progress()
+{
+	std::string progress;
+
+	if (!m_bh_restored.empty()) {
+		return true;
+	}
+	collect_bh_processed(progress);
+	return !progress.empty();
+}
+
+bool em_network_topo_t::has_unreached_bh_targets()
+{
+	dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
+
+	// Every known device has a data model loaded from the database, even before it reconnects.
+	for (dm_easy_mesh_t *dm = dm_ctrl->get_first_dm(); dm != NULL; dm = dm_ctrl->get_next_dm(dm)) {
+		if (dm->is_controller()) {
+			continue;
+		}
+		std::string mac = util::mac_to_string(dm->m_device.m_device_info.intf.mac);
+		if (std::find(m_bh_restored.begin(), m_bh_restored.end(), mac) != m_bh_restored.end()) {
+			continue;
+		}
+		if (find_topology(dm) == NULL) {
+			em_printfout("Backhaul reconfiguration waiting for agent %s to join the topology", mac.c_str());
+			return true;
+		}
+	}
+	return false;
 }
 
 void em_network_topo_t::set_bh_processed(bool processed)

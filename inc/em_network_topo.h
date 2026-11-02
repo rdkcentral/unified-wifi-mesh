@@ -149,6 +149,19 @@ public:
 	void set_bh_reconfig_incomplete(bool incomplete);
 
 	/**!
+	 * @brief Returns true if any device has applied the credentials of the current reconfiguration,
+	 *        either in this run or as restored from the pending-reconfiguration file.
+	 */
+	bool has_bh_progress();
+
+	/**!
+	 * @brief Root only: returns true while a known agent that has not applied the credentials is
+	 *        missing from the topology tree, e.g. after a restart before it reconnected. The walk
+	 *        must not select candidates or finish until every such agent is in the tree.
+	 */
+	bool has_unreached_bh_targets();
+
+	/**!
 	 * @brief Marks the reconfiguration as unfinished again if the controller stopped while one was
 	 *        running, so the repeated request resumes it. Call once on the root after construction.
 	 */

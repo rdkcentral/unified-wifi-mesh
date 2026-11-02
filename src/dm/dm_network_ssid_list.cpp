@@ -117,7 +117,11 @@ int dm_network_ssid_list_t::set_config(db_client_t& db_client, dm_network_ssid_t
     
     //printf("%s:%d: Enter: Network SSID: %s\n", __func__, __LINE__, (char *)parent_id);
     
-    update_db(db_client, (op = get_dm_orch_type(net_ssid)), net_ssid.get_network_ssid_info());
+    // Keep the in-memory list in step with the database: a row that failed to store is not applied.
+    if (update_db(db_client, (op = get_dm_orch_type(net_ssid)), net_ssid.get_network_ssid_info()) != 0) {
+        printf("%s:%d: Failed to store network SSID: %s\n", __func__, __LINE__, net_ssid.m_network_ssid_info.id);
+        return -1;
+    }
     update_list(net_ssid, op);
     //printf("%s:%d: Exit: Network SSID: %s\n", __func__, __LINE__, (char *)parent_id);
     return 0;

@@ -276,6 +276,7 @@ public:
 	 */
 	void handle_set_ssid_list(em_bus_event_t *evt);
 	void handle_set_bh_cfg(em_bus_event_t *evt);
+	void stop_bh_reconfig_after_rejected_submit(bool keep_resumable);
     
 	/**!
 	 * @brief Handles channel selection events.

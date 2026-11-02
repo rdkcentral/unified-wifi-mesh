@@ -1820,21 +1820,9 @@ typedef struct {
 } __attribute__((__packed__)) em_1905_mac_addr_t;
 
 typedef struct {
-    // this is of type vendor_ext_attr_id_t for vendor specific attributes
-    unsigned char attr_id;
-    unsigned char  vendor_data[0];
-} __attribute__((__packed__)) em_vendor_data_t;
-
-typedef struct {
-    unsigned char  vendor_oui[3];
-    unsigned char num;
-    em_vendor_data_t  data[0];
-} __attribute__((__packed__)) em_vendor_specific_t;
-
-typedef struct {
     unsigned char  vendor_oui[3];
     unsigned char  data[0];
-} __attribute__((__packed__)) em_vendor_specific_v_t;
+} __attribute__((__packed__)) em_vendor_specific_t;
 
 typedef struct {
     mac_address_t interface_mac;
@@ -2106,7 +2094,7 @@ typedef struct {
     em_channel_scan_cap_radio_t  radios[EM_MAX_RADIO_PER_AGENT];
 } __attribute__((__packed__))em_channel_scan_cap_t;
 
-/* CAC Method types — Wi-Fi Easy Mesh spec - 17.2.46 Table 16 */
+/* CAC Method types - Wi-Fi Easy Mesh spec - 17.2.46 Table 16 */
 typedef enum {
     em_cac_method_continuous              = 0, /* Continuous CAC */
     em_cac_method_continuous_dedicated    = 1, /* Continuous with dedicated radio */
@@ -2378,6 +2366,7 @@ typedef enum {
     em_state_agent_1905_securing,
     em_state_agent_autoconfig_rsp_pending,
     em_state_agent_wsc_m2_pending,
+    em_state_agent_wsc_m2_processed,
     em_state_agent_owconfig_pending,
     em_state_agent_onewifi_bssconfig_ind,
 	em_state_agent_autoconfig_renew_pending,
@@ -2493,6 +2482,7 @@ typedef enum {
     em_cmd_type_get_link_quality_report,
     em_cmd_type_unassoc_sta_query,
     em_cmd_type_unassoc_sta_result,
+    em_cmd_type_vendor_data,
     em_cmd_type_client_assoc_ctrl_req,
     em_cmd_type_set_bh_cfg,
 
@@ -3250,6 +3240,7 @@ typedef enum {
     em_bus_event_type_unassoc_sta_link_metrics_query,
     em_bus_event_type_unassoc_sta_result,
     em_bus_event_type_failed_conn,
+    em_bus_event_type_vendor_data,
 
     em_bus_event_type_max
 } em_bus_event_type_t;
@@ -3346,7 +3337,8 @@ typedef enum {
     dm_orch_type_unassoc_sta_link_req_query,
     dm_orch_type_unassoc_sta_result,
     dm_orch_type_client_assoc,
-    dm_orch_type_acl_cfg
+    dm_orch_type_acl_cfg,
+    dm_orch_type_vendor_data
 
 } dm_orch_type_t;
 
@@ -3911,6 +3903,7 @@ static const SecurityTypeMap securityTypeMap[] = {
     { "WPA3 Transition", EM_AUTH_WPA3_TRANSITION }
 };
 
+static const unsigned char comcast_vendor_oui[EM_VENDOR_OUI_SIZE] = {0xd8, 0x9c, 0x8e};
 static const unsigned char airties_vendor_oui[EM_VENDOR_OUI_SIZE] = {0x88, 0x41, 0xfc};
 
 #ifndef SSL_KEY

@@ -61,6 +61,7 @@ __attribute__((weak)) void em_network_topo_t::set_bh_reconfig_active(bool) {}
 __attribute__((weak)) void em_network_topo_t::set_bh_reconfig_incomplete(bool) {}
 __attribute__((weak)) bool em_network_topo_t::is_bh_reconfig_complete() { return false; }
 __attribute__((weak)) bool em_network_topo_t::is_bh_reconfig_candidate() { return false; }
+__attribute__((weak)) bool em_network_topo_t::has_unreached_bh_targets() { return false; }
 __attribute__((weak)) em_network_topo_t *em_network_topo_t::find_topology(dm_easy_mesh_t *) { return nullptr; }
 
 unsigned int em_orch_t::submit_commands(em_cmd_t *pcmd[], unsigned int num)
@@ -186,21 +187,27 @@ bool em_orch_t::submit_command(em_cmd_t *pcmd)
     // build em candidates in cmd;
     if (build_candidates(pcmd) == 0) {
         if (pcmd->get_type() == em_cmd_type_set_bh_cfg && g_network_topology != NULL) {
-            g_network_topology->set_bh_reconfig_active(false);
-            if (g_network_topology->is_bh_reconfig_candidate()) {
-                // Only the root is left and it has no radio to configure (controller without a
-                // co-located agent), so there is nothing more to wait for.
+            // Active is cleared last in both branches: the checkpoint is deleted as soon as
+            // neither flag is set, which must only happen once the walk is complete.
+            if (!g_network_topology->has_unreached_bh_targets() &&
+                    g_network_topology->is_bh_reconfig_candidate() &&
+                    g_network_topology->get_data_model() != NULL &&
+                    g_network_topology->get_data_model()->get_num_radios() == 0) {
+                // Every agent is in the tree and processed, and the root has no radio to configure
+                // (controller without a co-located agent), so there is nothing more to wait for.
                 g_network_topology->set_bh_processed(true);
             }
             if (g_network_topology->is_bh_reconfig_complete()) {
                 // Every level has applied the credentials; the walk is done.
                 g_network_topology->reset_bh_reconfig();
+                g_network_topology->set_bh_reconfig_active(false);
             } else {
                 // No candidates, but devices still lack the new credentials (the request that
                 // started the walk may have found none ready). The credentials are already
                 // persisted, so keep the progress and let a repeated request resume.
                 em_printfout("Backhaul reconfiguration has no candidates but is not complete; keeping it resumable");
                 g_network_topology->set_bh_reconfig_incomplete(true);
+                g_network_topology->set_bh_reconfig_active(false);
             }
         }
         destroy_command(pcmd);
@@ -681,8 +688,8 @@ void em_orch_t::handle_timeout()
                     // Keep the traversal progress: the new credentials are already persisted and
                     // the processed devices use them. Repeating the request resumes from here.
                     em_printfout("Backhaul reconfiguration failed; stopping traversal, repeat the request to retry the remaining agents");
-                    g_network_topology->set_bh_reconfig_active(false);
                     g_network_topology->set_bh_reconfig_incomplete(true);
+                    g_network_topology->set_bh_reconfig_active(false);
                 }
             }
 

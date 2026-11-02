@@ -52,6 +52,7 @@
 #include "em_network_topo.h"
 #include "util.h"
 #include "wifi_util.h"
+#include "em_ext_hooks.h"
 
 #ifdef AL_SAP
 #include "al_service_access_point.h"
@@ -441,7 +442,9 @@ void em_ctrl_t::handle_set_bh_cfg(em_bus_event_t *evt)
             return;
         }
         em_cmd_t *cmd = new em_cmd_set_bh_cfg_t(evt->params, dm);
-        m_orch->submit_command(cmd);
+        if (!m_orch->submit_command(cmd)) {
+            stop_bh_reconfig_after_rejected_submit(true);
+        }
         return;
     }
 
@@ -479,13 +482,16 @@ void em_ctrl_t::handle_set_bh_cfg(em_bus_event_t *evt)
         if ((ret == EM_PARSE_ERR_NO_CHANGE) && (g_network_topology != NULL) &&
                 g_network_topology->is_bh_reconfig_incomplete()) {
             em_printfout("SetBhCfg: resuming incomplete backhaul reconfiguration");
-            g_network_topology->set_bh_reconfig_incomplete(false);
+            // Each setter rewrites the checkpoint and both flags clear deletes it, so set the new
+            // flag before clearing the old one.
             g_network_topology->set_bh_reconfig_active(true);
+            g_network_topology->set_bh_reconfig_incomplete(false);
             g_network_topology->set_bh_m8_validated(m8_validated);
             em_cmd_t *cmd = new em_cmd_set_bh_cfg_t(evt->params, dm);
             if (m_orch->submit_command(cmd)) {
                 m_ctrl_cmd->send_result(em_cmd_out_status_success);
             } else {
+                stop_bh_reconfig_after_rejected_submit(true);
                 m_ctrl_cmd->send_result(em_cmd_out_status_not_ready);
             }
             return;
@@ -498,21 +504,21 @@ void em_ctrl_t::handle_set_bh_cfg(em_bus_event_t *evt)
         return;
     }
 
-     if (g_network_topology != NULL && g_network_topology->is_bh_reconfig_incomplete()) {
-         em_printfout("SetBhCfg rejected: resume the incomplete backhaul reconfiguration first");
-         m_ctrl_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
-         return;
-     }
+    // New credentials while an earlier change stopped part-way: once some devices use the earlier
+    // credentials, the earlier change must be finished first. With no progress no device has applied
+    // anything; the checkpoint is written before the credentials reach the database, so a restart in
+    // between leaves exactly this state and the same request must be able to start over.
+    if (g_network_topology != NULL && g_network_topology->is_bh_reconfig_incomplete() &&
+            g_network_topology->has_bh_progress()) {
+        em_printfout("SetBhCfg rejected: resume the incomplete backhaul reconfiguration first");
+        m_ctrl_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
+        return;
+    }
 
     if (g_network_topology != NULL) {
-        // Re-trigger path: reconfig already active, submit for next phase.
-        if (g_network_topology->is_bh_reconfig_incomplete()) {
-             em_printfout("SetBhCfg rejected: resume the incomplete credential change first");
-             m_ctrl_cmd->send_result(em_cmd_out_status_not_ready);
-             return;
-         }
-        g_network_topology->reset_bh_reconfig();
+        // Set active before the reset clears incomplete, so the checkpoint is never deleted here.
         g_network_topology->set_bh_reconfig_active(true);
+        g_network_topology->reset_bh_reconfig();
         g_network_topology->set_bh_m8_validated(m8_validated);
     }
 
@@ -520,8 +526,25 @@ void em_ctrl_t::handle_set_bh_cfg(em_bus_event_t *evt)
     if (m_orch->submit_command(cmd)) {
         m_ctrl_cmd->send_result(em_cmd_out_status_success);
     } else {
+        // Nothing has applied the credentials yet, so there is nothing to resume.
+        stop_bh_reconfig_after_rejected_submit(false);
         m_ctrl_cmd->send_result(em_cmd_out_status_not_ready);
     }
+}
+
+/* submit_command() clears the active flag itself when it finds no candidates. If it is still set,
+ * the command was rejected before the walk could continue (e.g. the credentials could not be stored),
+ * so stop the reconfiguration; otherwise every later SetBhCfg would be refused as in progress. */
+void em_ctrl_t::stop_bh_reconfig_after_rejected_submit(bool keep_resumable)
+{
+    if (g_network_topology == NULL || !g_network_topology->is_bh_reconfig_active()) {
+        return;
+    }
+    em_printfout("SetBhCfg: command rejected, stopping backhaul reconfiguration");
+    if (keep_resumable) {
+        g_network_topology->set_bh_reconfig_incomplete(true);
+    }
+    g_network_topology->set_bh_reconfig_active(false);
 }
 
 void em_ctrl_t::handle_remove_device(em_bus_event_t *evt)
@@ -712,6 +735,7 @@ void em_ctrl_t::handle_link_stats_alarm_report(em_bus_event_t *evt)
         em_printfout("Link Stats Alarm publish fail");
     }
 
+    cJSON_free(str);
     cJSON_Delete(parent);
 }
 
@@ -1554,7 +1578,8 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
         case em_msg_type_topo_vendor:
             em = static_cast<em_t *> (hash_map_get_first(m_em_map));
             while(em != NULL) {
-                if (em->is_al_interface_em() == false) {
+                if ((em->is_al_interface_em() == false) &&
+                    (memcmp(em->get_data_model()->get_agent_al_interface_mac(), hdr->src, sizeof(mac_address_t)) == 0)) {
                     break;
                 }
                 em = static_cast<em_t *> (hash_map_get_next(m_em_map, em));
@@ -1723,6 +1748,8 @@ void em_ctrl_t::start_complete()
         em_printfout("bus subscribe failed");
         return;
     }
+
+    em_get_ext_hooks()->on_bus_ready(m_data_model.get_bus_hdl(), desc);
 }
 
 em_ctrl_t *em_ctrl_t::get_em_ctrl_instance()
@@ -1861,6 +1888,16 @@ int main(int argc, const char *argv[])
     }
 
     em_ctrl_t  *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
+    const char *data_model_path = NULL;
+
+    if (em_get_ext_hooks()->process_cli_args(&argc, argv) == false) {
+        return -1;
+    }
+
+    if (argc > 1) {
+        data_model_path = argv[1];
+    }
+
 #ifdef AL_SAP
     const char* data_socket_path = "/tmp/al_em_ctrl_data_socket";
     const char* control_socket_path = "/tmp/al_em_ctrl_control_socket";
@@ -1870,7 +1907,8 @@ int main(int argc, const char *argv[])
         return -1;
     }
 #endif
-    if (em_ctrl->init(argv[1]) == 0) {
+
+    if (em_ctrl->init(data_model_path) == 0) {
         em_ctrl->start();
     }
     return 0;

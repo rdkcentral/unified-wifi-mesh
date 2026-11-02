@@ -239,6 +239,8 @@ bool em_orch_ctrl_t::is_em_ready_for_orch_fini(em_cmd_t *pcmd, em_t *em)
                                 em->get_acl_cfg_retry_count(), EM_MAX_ACL_CFG_RETRIES);
                         // Drop IDs of chunks sent after a rejection so the retry is not blocked by them.
                         em->clear_acl_cfg_pending_msg_ids();
+                        pcmd->set_start_time();
+                        reset_cmd_time(m_cmd_map, pcmd->get_type());
                         em->set_state(em_state_ctrl_acl_cfg_pending);
                         return false;
                     }
@@ -603,6 +605,13 @@ bool em_orch_ctrl_t::pre_process_orch_op(em_cmd_t *pcmd)
         case dm_orch_type_db_cfg:
             dm_ctrl->set_config(dm);
             dm_ctrl->set_initialized();
+            // update_tables() clears the SSID update bit only once every row is stored. SetBhCfg must
+            // not reload the SSID table or send M8 with credentials the database does not hold.
+            if ((pcmd->get_type() == em_cmd_type_set_bh_cfg) &&
+                    dm->db_cfg_type_is_set(db_cfg_type_network_ssid_list_update)) {
+                em_printfout("SetBhCfg: backhaul credentials could not be stored; request will not be submitted");
+                return false;
+            }
             break;
 
         case dm_orch_type_al_insert:
@@ -790,6 +799,11 @@ unsigned int em_orch_ctrl_t::build_candidates(em_cmd_t *pcmd)
         return count;
     }
 
+    // An agent that is not in the tree yet (e.g. after a restart) cannot be ordered in the walk, and
+    // configuring its parent first would cut it off; select nothing until every agent is present.
+    bool bh_targets_unreached = (pcmd->m_type == em_cmd_type_set_bh_cfg) &&
+        (g_network_topology != NULL) && g_network_topology->has_unreached_bh_targets();
+
     pthread_mutex_lock(&m_mgr->m_mutex);
     em = static_cast<em_t *>(hash_map_get_first(m_mgr->m_em_map));
     while (em != NULL) {
@@ -805,7 +819,8 @@ unsigned int em_orch_ctrl_t::build_candidates(em_cmd_t *pcmd)
                 break;
 
             case em_cmd_type_set_bh_cfg:
-                if (em->is_al_interface_em() == false && g_network_topology != NULL) {
+                if (em->is_al_interface_em() == false && g_network_topology != NULL &&
+                        !bh_targets_unreached) {
                     em_network_topo_t *topo = g_network_topology->find_topology(em->get_data_model());
                     if (topo != NULL && topo->is_bh_reconfig_candidate()) {
                         queue_push(pcmd->m_em_candidates, em);
