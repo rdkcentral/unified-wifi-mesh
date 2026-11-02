@@ -1764,7 +1764,7 @@ int em_capability_t::handle_early_ap_cap_report(unsigned char *buff, unsigned in
                 adv += sizeof(em_ap_radio_advanced_cap_t);
             }
         } else if (tlv->type == em_tlv_type_vendor_specific) {
-            em_vendor_specific_v_t *vendor_tlv = reinterpret_cast<em_vendor_specific_v_t *> (tlv->value);
+            em_vendor_specific_t *vendor_tlv = reinterpret_cast<em_vendor_specific_t *> (tlv->value);
             uint16_t value_len = ntohs(tlv->len);
             dm_easy_mesh_t  *dm;
             dm = get_data_model();
@@ -1774,7 +1774,7 @@ int em_capability_t::handle_early_ap_cap_report(unsigned char *buff, unsigned in
                 memcpy(&tlv_id, vendor_tlv->data, sizeof(tlv_id));
                 tlv_id = ntohs(tlv_id);
                 if (tlv_id == em_tlv_type_radio_capability) {
-                    if (value_len < sizeof(em_radio_capability_vendor_t) + sizeof(tlv_id) + sizeof(em_vendor_specific_v_t)) {
+                    if (value_len < sizeof(em_radio_capability_vendor_t) + sizeof(tlv_id) + sizeof(em_vendor_specific_t)) {
                         em_printfout("Invalid TLV length for em_radio_capability_vendor_t");
                         return -1;
                     }
@@ -2031,7 +2031,7 @@ int em_capability_t::handle_ap_cap_report(unsigned char *buff, unsigned int len)
                 adv += sizeof(em_ap_radio_advanced_cap_t);
             }
         } else if (tlv->type == em_tlv_type_vendor_specific) {
-            em_vendor_specific_v_t *vendor_tlv = reinterpret_cast<em_vendor_specific_v_t *> (tlv->value);
+            em_vendor_specific_t *vendor_tlv = reinterpret_cast<em_vendor_specific_t *> (tlv->value);
             uint16_t value_len = ntohs(tlv->len);
             dm_easy_mesh_t  *dm;
             dm = get_data_model();
@@ -2041,7 +2041,7 @@ int em_capability_t::handle_ap_cap_report(unsigned char *buff, unsigned int len)
                 memcpy(&tlv_id, vendor_tlv->data, sizeof(tlv_id));
                 tlv_id = ntohs(tlv_id);
                 if (tlv_id == em_tlv_type_radio_capability) {
-                    if (value_len < sizeof(em_radio_capability_vendor_t) + sizeof(tlv_id) + sizeof(em_vendor_specific_v_t)) {
+                    if (value_len < sizeof(em_radio_capability_vendor_t) + sizeof(tlv_id) + sizeof(em_vendor_specific_t)) {
                         em_printfout("Invalid TLV length for em_radio_capability_vendor_t");
                         return -1;
                     }

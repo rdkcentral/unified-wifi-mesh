@@ -52,6 +52,7 @@
 #include "em_cmd_sta_link_metrics.h"
 #include "em_cmd_ap_metrics_report.h"
 #include "em_cmd_link_stats_report.h"
+#include "em_cmd_vendor_data.h"
 #include "em_cmd_unassoc_sta_result.h"
 
 #ifdef AL_SAP
@@ -1175,6 +1176,16 @@ int dm_easy_mesh_agent_t::analyze_ap_metrics_report(em_bus_event_t *evt, em_cmd_
     }
 
     cJSON_Delete(json);
+    return static_cast<int>(num);
+}
+
+int dm_easy_mesh_agent_t::analyze_vendor_data(em_bus_event_t *evt, em_cmd_t *pcmd[])
+{
+    unsigned int num = 0;
+
+    pcmd[num] = new em_cmd_vendor_data_t(evt->u.raw_buff, static_cast<int>(evt->data_len), *(this));
+    num++;
+    em_printfout("Analyzing vendor data [num=%u], raw buffer length: %u", num, evt->data_len);
     return static_cast<int>(num);
 }
 

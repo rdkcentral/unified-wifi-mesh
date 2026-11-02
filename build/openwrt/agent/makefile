@@ -25,6 +25,7 @@ PROGRAM = $(INSTALLDIR)/bin/onewifi_em_agent
 
 INCLUDEDIRS = \
 	-I$(ONEWIFI_EM_HOME)/inc \
+	-I$(ONEWIFI_EM_HOME) \
 	-I$(ONEWIFI_EM_HOME)/src/utils \
 	-I$(ONEWIFI_HAL_INTF_HOME) \
 	-I$(ONEWIFI_HOME)/source/utils \
@@ -125,7 +126,16 @@ AGENT_SOURCES = $(wildcard $(ONEWIFI_EM_SRC)/em/*.cpp) \
 	$(ONEWIFI_EM_SRC)/dm/dm_tid_to_link.cpp \
 	$(wildcard $(ONEWIFI_EM_SRC)/utils/*.cpp) \
 
-AGENT_OBJECTS = $(AGENT_SOURCES:.cpp=.o)
+ifneq ($(strip $(UWM_VENDOR_EXT_DIR)),)
+UWM_VENDOR_EXT_TARGET = agent
+-include $(UWM_VENDOR_EXT_DIR)/vendor-ext.mk
+ifneq ($(strip $(UWM_VENDOR_EXT_INC_DIR)),)
+CXXFLAGS += -I$(UWM_VENDOR_EXT_INC_DIR)
+endif
+endif
+
+AGENT_CORE_OBJECTS = $(AGENT_SOURCES:.cpp=.o)
+AGENT_OBJECTS = $(AGENT_CORE_OBJECTS) $(UWM_VENDOR_EXT_OBJECTS)
 GENERIC_OBJECTS = $(GENERIC_SOURCES:.c=.o) 
 ALLOBJECTS = $(AGENT_OBJECTS) $(GENERIC_OBJECTS)
 
@@ -137,7 +147,7 @@ $(PROGRAM): $(ALLOBJECTS)
 $(GENERIC_OBJECTS): %.o: %.c
 	$(CC) $(CXXFLAGS) -o $@ -c $<
 
-$(AGENT_OBJECTS): %.o: %.cpp
+$(AGENT_CORE_OBJECTS): %.o: %.cpp
 	$(CXX) $(CXXFLAGS) -o $@ -c $<
 
 # Clean target: "make -f Makefile.Linux clean" to remove unwanted objects and executables.
