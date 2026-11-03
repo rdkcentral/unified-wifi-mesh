@@ -21,6 +21,8 @@
 
 #include "em_orch.h"
 
+class dm_easy_mesh_ctrl_t;
+
 class em_orch_ctrl_t : public em_orch_t {
 
 public:

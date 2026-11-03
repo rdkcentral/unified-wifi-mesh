@@ -19,6 +19,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <assert.h>
+#include <algorithm>
 #include <filesystem>
 #include <mutex>
 #include <string>
@@ -100,10 +101,15 @@ int db_client_t::rollback()
     return execute("ROLLBACK") == NULL && sqlite3_get_autocommit(m_con) != 0 ? 0 : -1;
 }
 
-void *db_client_t::execute(const char *query)
+void *db_client_t::execute(const char *query, bool *succeeded)
 {
+    if (succeeded != NULL)
+    {
+        *succeeded = false;
+    }
+
     // Ensure the database connection is valid before trying to execute SQL.
-    if (!m_con)
+    if (!m_con || query == NULL)
     {
         printf("%s:%d: Query: %s m_con is NULL, exiting\n", __func__, __LINE__, query);
         return NULL;
@@ -129,6 +135,10 @@ void *db_client_t::execute(const char *query)
     if (rc == SQLITE_DONE)
     {
         sqlite3_finalize(statement);
+        if (succeeded != NULL)
+        {
+            *succeeded = true;
+        }
         return NULL;
     }
 
@@ -145,6 +155,10 @@ void *db_client_t::execute(const char *query)
     result_context_t *ctx = new result_context_t;
     ctx->statement = statement;
     ctx->stepped = false;
+    if (succeeded != NULL)
+    {
+        *succeeded = true;
+    }
 
     return ctx;
 }
@@ -184,7 +198,12 @@ void db_client_t::free_result(void *ctx)
 
 char *db_client_t::get_string(void *ctx, char *str, unsigned int col)
 {
-    if (ctx == NULL)
+    return get_string(ctx, str, col, 0);
+}
+
+char *db_client_t::get_string(void *ctx, char *str, unsigned int col, unsigned int str_size)
+{
+    if (ctx == NULL || str == NULL || col == 0)
     {
         return NULL;
     }
@@ -193,14 +212,42 @@ char *db_client_t::get_string(void *ctx, char *str, unsigned int col)
 
     std::lock_guard<std::mutex> lock(m_mutex);
 
-    assert(col > 0);
     const unsigned char *value = sqlite3_column_text(res_ctx->statement, static_cast<int>(col - 1));
     if (value == NULL)
     {
         return NULL;
     }
-    snprintf(str, static_cast<size_t>(sqlite3_column_bytes(res_ctx->statement, static_cast<int>(col - 1))) + 1, "%s", value);
+    const int value_size = sqlite3_column_bytes(res_ctx->statement, static_cast<int>(col - 1));
+    const size_t capacity = (str_size == 0) ? static_cast<size_t>(value_size) + 1 : str_size;
+    if (capacity == 0) {
+        return NULL;
+    }
+    const size_t copy_size = std::min(static_cast<size_t>(value_size), capacity - 1);
+    memcpy(str, value, copy_size);
+    str[copy_size] = '\0';
     return str;
+}
+
+bool db_client_t::escape_string(const char *src, char *dst, unsigned int dst_size) const
+{
+    if (m_con == NULL || src == NULL || dst == NULL || dst_size == 0) {
+        return false;
+    }
+
+    size_t written = 0;
+    for (const char *current = src; *current != '\0'; current++) {
+        const size_t needed = (*current == '\'') ? 2 : 1;
+        if (written + needed >= dst_size) {
+            dst[0] = '\0';
+            return false;
+        }
+        dst[written++] = *current;
+        if (*current == '\'') {
+            dst[written++] = '\'';
+        }
+    }
+    dst[written] = '\0';
+    return true;
 }
 
 int db_client_t::get_number(void *ctx, unsigned int col)

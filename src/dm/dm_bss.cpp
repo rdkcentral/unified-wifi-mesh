@@ -42,6 +42,8 @@ int dm_bss_t::decode(const cJSON *obj, void *parent_id)
     int i;
 
     memset(&m_bss_info, 0, sizeof(em_bss_info_t));
+    m_bss_info.acl_filter_mode = EM_ACL_MODE_UNKNOWN;
+    m_bss_info.id.haul_type = em_haul_type_max;
     dm_easy_mesh_t::string_to_macbytes(static_cast<char *> (parent_id), m_bss_info.ruid.mac);
 
     if ((tmp = cJSON_GetObjectItem(obj, "BSSID")) != NULL) {
@@ -64,8 +66,32 @@ int dm_bss_t::decode(const cJSON *obj, void *parent_id)
         snprintf(m_bss_info.ssid, sizeof(m_bss_info.ssid), "%s", cJSON_GetStringValue(tmp));
     }
 
+    tmp = cJSON_GetObjectItem(obj, "HaulType");
+    const char *haul_type = cJSON_IsString(tmp) ? cJSON_GetStringValue(tmp) : NULL;
+    if (haul_type != NULL && strcmp(haul_type, "Fronthaul") == 0) {
+        m_bss_info.id.haul_type = em_haul_type_fronthaul;
+    } else if (haul_type != NULL && strcmp(haul_type, "Backhaul") == 0) {
+        m_bss_info.id.haul_type = em_haul_type_backhaul;
+    } else if (haul_type != NULL && strcmp(haul_type, "IoT") == 0) {
+        m_bss_info.id.haul_type = em_haul_type_iot;
+    } else if (haul_type != NULL && strcmp(haul_type, "Configurator") == 0) {
+        m_bss_info.id.haul_type = em_haul_type_configurator;
+    } else if (haul_type != NULL && strcmp(haul_type, "Hotspot") == 0) {
+        m_bss_info.id.haul_type = em_haul_type_hotspot;
+    } else if (strncmp(m_bss_info.ssid, "mesh_backhaul", strlen("mesh_backhaul")) == 0) {
+        m_bss_info.id.haul_type = em_haul_type_backhaul;
+    } else if (strncmp(m_bss_info.ssid, "iot_ssid", strlen("iot_ssid")) == 0) {
+        m_bss_info.id.haul_type = em_haul_type_iot;
+    } else if (strncmp(m_bss_info.ssid, "private_ssid", strlen("private_ssid")) == 0) {
+        m_bss_info.id.haul_type = em_haul_type_fronthaul;
+    }
+
     if ((tmp = cJSON_GetObjectItem(obj, "Enabled")) != NULL) {
         m_bss_info.enabled = cJSON_IsTrue(tmp);
+    }
+
+    if ((tmp = cJSON_GetObjectItem(obj, "VapMode")) != NULL && cJSON_IsNumber(tmp)) {
+        m_bss_info.vap_mode = static_cast<em_vap_mode_t>(tmp->valueint);
     }
 
     if ((tmp = cJSON_GetObjectItem(obj, "LastChange")) != NULL) {
@@ -180,6 +206,17 @@ int dm_bss_t::decode(const cJSON *obj, void *parent_id)
             m_bss_info.vlan_id = static_cast<unsigned short>(tmp->valuedouble);
         }
     }
+
+    if ((tmp = cJSON_GetObjectItem(obj, "MACFilterMode")) != NULL && cJSON_IsNumber(tmp)) {
+        unsigned char mode = static_cast<unsigned char> (tmp->valuedouble);
+        if ((mode == EM_ACL_MODE_BLACKLIST) || (mode == EM_ACL_MODE_WHITELIST)) {
+            m_bss_info.acl_filter_mode = mode;
+        }
+    }
+
+    if ((tmp = cJSON_GetObjectItem(obj, "ACLValidityPeriod")) != NULL) {
+        m_bss_info.acl_validity_period = static_cast<unsigned short> (tmp->valuedouble);
+    }
     return 0;
 
 }
@@ -277,6 +314,13 @@ void dm_bss_t::encode(cJSON *obj, bool summary)
     }
     cJSON_AddStringToObject(obj, "ExtraVendorIEs", vendor_ies);
 
+    if (m_bss_info.acl_filter_mode == EM_ACL_MODE_UNKNOWN) {
+        cJSON_AddNullToObject(obj, "MACFilterMode");
+    } else {
+        cJSON_AddNumberToObject(obj, "MACFilterMode", m_bss_info.acl_filter_mode);
+    }
+    cJSON_AddNumberToObject(obj, "ACLValidityPeriod", m_bss_info.acl_validity_period);
+
 }
 
 void dm_bss_t::operator = (const dm_bss_t& obj)
@@ -320,6 +364,9 @@ void dm_bss_t::operator = (const dm_bss_t& obj)
     this->m_bss_info.vlan_id = obj.m_bss_info.vlan_id;
     memcpy(&this->m_bss_info.mld_mac, &obj.m_bss_info.mld_mac, sizeof(mac_address_t));
     memcpy(&this->m_bss_info.sta_mac, &obj.m_bss_info.sta_mac, sizeof(mac_address_t));
+    this->m_bss_info.acl_filter_mode = obj.m_bss_info.acl_filter_mode;
+    this->m_bss_info.acl_validity_period = obj.m_bss_info.acl_validity_period;
+    this->m_bss_info.acl_revision = obj.m_bss_info.acl_revision;
 }
 
 
@@ -365,6 +412,9 @@ bool dm_bss_t::operator == (const dm_bss_t& obj)
     ret += !(this->m_bss_info.vlan_id == obj.m_bss_info.vlan_id);
     ret += (memcmp(&this->m_bss_info.mld_mac, &obj.m_bss_info.mld_mac, sizeof(mac_address_t)) != 0);
     ret += (memcmp(&this->m_bss_info.sta_mac, &obj.m_bss_info.sta_mac, sizeof(mac_address_t)) != 0);
+    ret += !(this->m_bss_info.acl_filter_mode == obj.m_bss_info.acl_filter_mode);
+    ret += !(this->m_bss_info.acl_validity_period == obj.m_bss_info.acl_validity_period);
+    ret += !(this->m_bss_info.acl_revision == obj.m_bss_info.acl_revision);
 
     if (ret > 0)
         return false;
@@ -397,7 +447,7 @@ int dm_bss_t::parse_bss_id_from_key(const char *key, em_bss_id_t *id)
     char *tmp, *remain;
     unsigned int i = 0;
 
-    strncpy(str, key, strlen(key) + 1);
+    snprintf(str, sizeof(str), "%s", key);
     remain = str;
     while ((tmp = strchr(remain, '@')) != NULL) {
         if (i == 0) {
@@ -503,7 +553,7 @@ dm_bss_t::dm_bss_t(const dm_bss_t& bss)
 dm_bss_t::dm_bss_t()
     : m_bss_info{}
 {
-
+    m_bss_info.acl_filter_mode = EM_ACL_MODE_UNKNOWN;
 }
 
 dm_bss_t::~dm_bss_t()

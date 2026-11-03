@@ -36,7 +36,7 @@ public:
 	 * @returns int
 	 * @retval 0 on successful initialization.
 	 */
-	int init() { memset(&m_bss_info, 0, sizeof(em_bss_info_t)); return 0; }
+	int init() { memset(&m_bss_info, 0, sizeof(em_bss_info_t)); m_bss_info.acl_filter_mode = EM_ACL_MODE_UNKNOWN; return 0; }
     
 	/**!
 	 * @brief Retrieves the BSS information.

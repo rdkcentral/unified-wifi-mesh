@@ -33,17 +33,41 @@
 #include <sys/uio.h>
 #include <unistd.h>
 #include <assert.h>
+#include <algorithm>
+#include <vector>
 #include "em_base.h"
 #include "em_cmd.h"
 #include "em_orch.h"
+#include "em_mgr.h"
+#include "em_network_topo.h"
 #include "util.h"
 #define MAX_CMD_DEV_TEST 2
+
+// Weak definition: overridden by the strong definition in em_ctrl.cpp when
+// linking the ctrl binary. For the agent binary (which doesn't link
+// em_network_topo.o or em_ctrl.o), this provides a NULL pointer so that all
+// the runtime g_network_topology != NULL checks safely skip topology code.
+__attribute__((weak)) em_network_topo_t *g_network_topology = nullptr;
+
+// Weak stubs for em_network_topo_t member functions referenced below.
+// In the ctrl binary, the real implementations from em_network_topo.cpp
+// (strong symbols) override these. In the agent binary these satisfy the
+// linker; they are never called because g_network_topology stays NULL.
+__attribute__((weak)) void em_network_topo_t::reset_bh_reconfig() {}
+__attribute__((weak)) void em_network_topo_t::send_bh_reconfig_event() {}
+__attribute__((weak)) void em_network_topo_t::mark_bh_leaves_processed() {}
+__attribute__((weak)) void em_network_topo_t::set_bh_processed(bool) {}
+__attribute__((weak)) void em_network_topo_t::set_bh_reconfig_active(bool) {}
+__attribute__((weak)) void em_network_topo_t::set_bh_reconfig_incomplete(bool) {}
+__attribute__((weak)) bool em_network_topo_t::is_bh_reconfig_complete() { return false; }
+__attribute__((weak)) bool em_network_topo_t::is_bh_reconfig_candidate() { return false; }
+__attribute__((weak)) bool em_network_topo_t::has_unreached_bh_targets() { return false; }
+__attribute__((weak)) em_network_topo_t *em_network_topo_t::find_topology(dm_easy_mesh_t *) { return nullptr; }
 
 unsigned int em_orch_t::submit_commands(em_cmd_t *pcmd[], unsigned int num)
 {
     unsigned int i;
     unsigned int submitted = 0;
-    bool submit = true;
 
     if (pcmd == NULL) {
         return 0;
@@ -54,14 +78,7 @@ unsigned int em_orch_t::submit_commands(em_cmd_t *pcmd[], unsigned int num)
         if (pcmd[i] == NULL) {
             continue;
         }
-        if ((submit = pre_process_orch_op(pcmd[i])) == false) {
-            // complete the command
-            destroy_command(pcmd[i]);
-            submit = true;
-            continue;
-        } else {
-            submitted += submit_command(pcmd[i]);
-        }
+        submitted += submit_command(pcmd[i]);
     }	
 
     //printf("%s:%d: Submitted commands count:%d\n", __func__, __LINE__, submitted);
@@ -143,9 +160,56 @@ bool em_orch_t::submit_command(em_cmd_t *pcmd)
 {
     bool submitted = false;
 
+    // Pre-process the submit orch op (e.g. update DB with new SSIDs)
+    // before building candidates, so the data model is up-to-date when
+    // create_encrypted_settings reads network SSID info for M8.
+    // Preprocessing-only descriptors report false; complete them without queuing.
+    if (pre_process_orch_op(pcmd) == false) {
+        destroy_command(pcmd);
+        return false;
+    }
+
+    // SetBhCfg is submitted as a single command carrying all its descriptors, so
+    // run its remaining non-submit orch ops (e.g. net_ssid_update) here. Batch
+    // analyzers already clone one command per descriptor via clone_for_next(),
+    // so sweeping those would execute their side effects twice.
+    if (pcmd->get_type() == em_cmd_type_set_bh_cfg) {
+        unsigned int saved_idx = pcmd->get_orch_op_index();
+        for (unsigned int i = saved_idx + 1; i < pcmd->m_num_orch_desc; i++) {
+            pcmd->m_orch_op_idx = i;
+            if (pcmd->get_orch_submit() == false) {
+                pre_process_orch_op(pcmd);
+            }
+        }
+        pcmd->m_orch_op_idx = saved_idx;
+    }
+
     // build em candidates in cmd;
     if (build_candidates(pcmd) == 0) {
-        // if there are no candidates, complete the command
+        if (pcmd->get_type() == em_cmd_type_set_bh_cfg && g_network_topology != NULL) {
+            // Active is cleared last in both branches: the checkpoint is deleted as soon as
+            // neither flag is set, which must only happen once the walk is complete.
+            if (!g_network_topology->has_unreached_bh_targets() &&
+                    g_network_topology->is_bh_reconfig_candidate() &&
+                    g_network_topology->get_data_model() != NULL &&
+                    g_network_topology->get_data_model()->get_num_radios() == 0) {
+                // Every agent is in the tree and processed, and the root has no radio to configure
+                // (controller without a co-located agent), so there is nothing more to wait for.
+                g_network_topology->set_bh_processed(true);
+            }
+            if (g_network_topology->is_bh_reconfig_complete()) {
+                // Every level has applied the credentials; the walk is done.
+                g_network_topology->reset_bh_reconfig();
+                g_network_topology->set_bh_reconfig_active(false);
+            } else {
+                // No candidates, but devices still lack the new credentials (the request that
+                // started the walk may have found none ready). The credentials are already
+                // persisted, so keep the progress and let a repeated request resume.
+                em_printfout("Backhaul reconfiguration has no candidates but is not complete; keeping it resumable");
+                g_network_topology->set_bh_reconfig_incomplete(true);
+                g_network_topology->set_bh_reconfig_active(false);
+            }
+        }
         destroy_command(pcmd);
     } else {
         queue_push(m_pending, pcmd);
@@ -391,6 +455,7 @@ bool em_orch_t::is_cmd_in_progress_by_radio(em_bus_event_t *evt)
 				for (j = static_cast<int>(queue_count(pcmd->m_em_candidates)) - 1; j >= 0; j--) {
 					em = static_cast<em_t *>(queue_peek(pcmd->m_em_candidates, static_cast<unsigned int>(j)));
 					dm_easy_mesh_t::macbytes_to_string(em->get_radio_interface_mac(), mac_str);
+
 					if (memcmp(mac, em->get_radio_interface_mac(), sizeof(mac_address_t)) == 0) {
 						dm_easy_mesh_t::macbytes_to_string(em->get_radio_interface_mac(), mac_str);
                         em_printfout("Command of type: %s and cmd: %s actively executing for %s",
@@ -480,6 +545,15 @@ bool em_orch_t::get_dev_test_status()
 }
 
 
+/* True while any command of this type is pending or active (stats are pushed on submit). */
+bool em_orch_t::is_cmd_type_queued(em_cmd_type_t type)
+{
+    em_short_string_t key;
+
+    snprintf(key, sizeof(em_short_string_t), "%d", type);
+    return hash_map_get(m_cmd_map, key) != NULL;
+}
+
 bool em_orch_t::is_cmd_type_in_progress(em_bus_event_t *evt)
 {
     em_cmd_stats_t *stats;
@@ -563,18 +637,64 @@ void em_orch_t::handle_timeout()
             // means the command is in fini sate 
             //printf("%s:%d: Removing and destroying Command type: %s Orchestration: %s because command is in fini state\n", 
                    // __func__, __LINE__, pcmd->get_cmd_name(), em_cmd_t::get_orch_op_str(pcmd->get_orch_op()));
+            
+            bool bh_reconfig_next = (pcmd->m_type == em_cmd_type_set_bh_cfg);       
+            bool bh_reconfig_succeeded = true;
+            // Devices with at least one radio that did not reach M2; they stay unprocessed so a
+            // retry targets only them.
+            std::vector<em_network_topo_t *> bh_failed_nodes;
+            if (bh_reconfig_next) {
+                for (j = static_cast<int>(queue_count(pcmd->m_em_candidates)) - 1; j >= 0; j--) {
+                    em = static_cast<em_t *>(queue_peek(pcmd->m_em_candidates, static_cast<unsigned int>(j)));
+                    if (em->get_state() != em_state_ctrl_wsc_m2_sent) {
+                        bh_reconfig_succeeded = false;
+                        if (g_network_topology != NULL) {
+                            bh_failed_nodes.push_back(g_network_topology->find_topology(em->get_data_model()));
+                        }
+                    }
+                }
+            }
+
             queue_remove(m_active, static_cast<unsigned int>(i));
             pop_stats(pcmd);
             for (j = static_cast<int>(queue_count(pcmd->m_em_candidates)) - 1; j >= 0; j--) {
                 em = static_cast<em_t *>(queue_peek(pcmd->m_em_candidates, static_cast<unsigned int>(j)));
                 em->set_orch_state(em_orch_state_idle);
+                 if (bh_reconfig_next && g_network_topology != NULL) {
+                    em_network_topo_t *topo = g_network_topology->find_topology(em->get_data_model());
+                    if ((topo != NULL) && (std::find(bh_failed_nodes.begin(), bh_failed_nodes.end(), topo) ==
+                            bh_failed_nodes.end())) {
+                        topo->set_bh_processed(true);
+                    }
+                }
+            }
+
+            // When cfg_renew completes on agent, handle bSTA reconnect if pending.
+            // Push mesh STA subdoc to trigger bSTA reconnection with new credentials.
+            // After bSTA reconnects, OneWifi fires dev_init which triggers
+            // normal reonboarding through orchestration.
+            if (pcmd->m_type == em_cmd_type_cfg_renew) {
+                em_t *first_em = static_cast<em_t *>(queue_peek(pcmd->m_em_candidates, 0));
+                if (first_em != NULL && first_em->get_data_model() != NULL) {
+                    first_em->get_data_model()->m_cfg_renew_in_progress = false;
+                }
             }
             destroy_command(pcmd);
             //em->set_state(em_state_agent_config_complete);
+            if (bh_reconfig_next && g_network_topology != NULL) {
+                if (bh_reconfig_succeeded) {
+                    g_network_topology->send_bh_reconfig_event();
+                } else {
+                    // Keep the traversal progress: the new credentials are already persisted and
+                    // the processed devices use them. Repeating the request resumes from here.
+                    em_printfout("Backhaul reconfiguration failed; stopping traversal, repeat the request to retry the remaining agents");
+                    g_network_topology->set_bh_reconfig_incomplete(true);
+                    g_network_topology->set_bh_reconfig_active(false);
+                }
+            }
+
         }
-
     }
-
 }
 
 em_orch_t::em_orch_t()

@@ -19,6 +19,8 @@
 #ifndef EM_NETWORK_TOPO_H
 #define EM_NETWORK_TOPO_H
 
+#include <string>
+#include <vector>
 #include "em_base.h"
 #include "dm_easy_mesh.h"
 
@@ -27,6 +29,18 @@ class em_network_topo_t {
 	dm_easy_mesh_t	*m_data_model;
 	unsigned int m_num_topologies;	
 	em_network_topo_t	*m_topology[EM_MAX_NETWORKS];
+
+	bool m_bh_processed;
+	bool m_bh_reconfig_active;
+	// Set on the root when a backhaul reconfiguration stopped part-way; a repeat of the
+	// same request then resumes the traversal instead of being rejected as no change.
+	bool m_bh_reconfig_incomplete;
+	// Root only: devices recorded as processed in the pending file before a restart. Topology
+	// nodes are rebuilt from the data model, so they pick their progress up again as they are added.
+	std::vector<std::string> m_bh_restored;
+	// Root only: agents that reported M8 bSTA reconfiguration support when the reconfiguration
+	// started; kept in the pending file so a resume after a restart does not need a fresh report.
+	std::vector<std::string> m_bh_m8_validated;
 
 public:
 	
@@ -112,6 +126,54 @@ public:
 	 * @note Ensure that the returned pointer is not null before using it.
 	 */
 	dm_easy_mesh_t *get_data_model() { return m_data_model; }
+
+	unsigned int get_num_topologies() { return m_num_topologies; }
+
+
+
+	/**!
+	 * @brief Returns true when all topology nodes have been processed (root included).
+	 *
+	 * @returns true if the root node (this) is marked processed, meaning all
+	 *          layers including the co-located agent have been handled.
+	 */
+	bool is_bh_reconfig_complete();
+
+	bool is_bh_reconfig_active() { return m_bh_reconfig_active; }
+	void set_bh_reconfig_active(bool active);
+	void set_bh_processed(bool processed);
+	void apply_restored_bh_progress(em_network_topo_t *node);
+	void set_bh_m8_validated(const std::vector<std::string>& macs);
+	bool is_bh_m8_validated(const std::string& mac);
+	bool is_bh_reconfig_incomplete() { return m_bh_reconfig_incomplete; }
+	void set_bh_reconfig_incomplete(bool incomplete);
+
+	/**!
+	 * @brief Returns true if any device has applied the credentials of the current reconfiguration,
+	 *        either in this run or as restored from the pending-reconfiguration file.
+	 */
+	bool has_bh_progress();
+
+	/**!
+	 * @brief Root only: returns true while a known agent that has not applied the credentials is
+	 *        missing from the topology tree, e.g. after a restart before it reconnected. The walk
+	 *        must not select candidates or finish until every such agent is in the tree.
+	 */
+	bool has_unreached_bh_targets();
+
+	/**!
+	 * @brief Marks the reconfiguration as unfinished again if the controller stopped while one was
+	 *        running, so the repeated request resumes it. Call once on the root after construction.
+	 */
+	void restore_bh_reconfig_pending();
+
+	void send_bh_reconfig_event();
+	void reset_bh_reconfig();
+	void reset_bh_state();
+	void persist_bh_reconfig_pending();
+	void collect_bh_processed(std::string &out);
+	bool is_bh_reconfig_candidate();
+	void mark_bh_leaves_processed();
 	
 	
 	/**!
@@ -194,6 +256,20 @@ public:
 	 */
 	em_network_topo_t();
     
+	/**!
+	 * @brief Checks if the given data model is a direct child of this topology node.
+	 *
+	 * Used to distinguish gateway/co-located agents (direct children of root)
+	 * from remote extenders deeper in the tree. Direct children of the root
+	 * communicate with the controller without traversing a WiFi backhaul link
+	 * and will not disconnect during backhaul reconfiguration.
+	 *
+	 * @param[in] dm Pointer to the data model to check.
+	 *
+	 * @returns true if dm is a direct child of this node, false otherwise.
+	 */
+	bool is_direct_child(dm_easy_mesh_t *dm);
+
 	/**!
 	 * @brief Destructor for the em_network_topo_t class.
 	 *
