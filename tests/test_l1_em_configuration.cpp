@@ -27,11 +27,19 @@
  * AP Operational BSS TLV payload (tlv->value) layout:
  *   radios_num(1) | { ruid(6) bss_num(1) { bssid(6) ssid_len(1) ssid(n) } * bss_num } * radios_num
  */
+class test_em_t : public em_t {
+public:
+    using em_t::em_t;
+    using em_configuration_t::handle_ap_operational_bss;
+    using em_configuration_t::handle_topology_response;
+    using em_configuration_t::get_peer_profile;
+};
+
 class em_configuration_ap_op_bss_test_t : public testing::Test {
 protected:
     em_interface_t ruid{};
     dm_easy_mesh_t dm;
-    em_t *em = nullptr;
+    test_em_t *em = nullptr;
 
     void SetUp() override
     {
@@ -45,7 +53,7 @@ protected:
 
         // Agent service type: with no manager, get_peer_dm() falls back to this dm,
         // so the peer profile received in a Topology Response is stored and used.
-        em = new em_t(&ruid, em_freq_band_24, &dm, nullptr, em_profile_type_3, em_service_type_agent, false);
+        em = new test_em_t(&ruid, em_freq_band_24, &dm, nullptr, em_profile_type_3, em_service_type_agent, false);
     }
 
     void TearDown() override
@@ -78,7 +86,7 @@ protected:
 
     int handle_ap_operational_bss(unsigned char *buff, unsigned int len)
     {
-        return static_cast<em_configuration_t *>(em)->handle_ap_operational_bss(buff, len);
+        return em->handle_ap_operational_bss(buff, len);
     }
 
     int handle_ap_operational_bss(std::vector<unsigned char> &payload)
@@ -107,13 +115,12 @@ protected:
     em_profile_type_t get_peer_profile()
     {
         const mac_address_t src_al_mac = {0x02, 0x00, 0x00, 0x00, 0x00, 0x01};
-        return static_cast<em_configuration_t *>(em)->get_peer_profile(src_al_mac);
+        return em->get_peer_profile(src_al_mac);
     }
 
     int handle_topology_response(std::vector<unsigned char> &frame)
     {
-        return static_cast<em_configuration_t *>(em)->handle_topology_response(frame.data(),
-                    static_cast<unsigned int>(frame.size()));
+        return em->handle_topology_response(frame.data(), static_cast<unsigned int>(frame.size()));
     }
 
     /* Ethernet header and CMDU header of a Topology Response, without TLVs */
