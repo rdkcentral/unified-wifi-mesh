@@ -674,7 +674,7 @@ TEST(dm_sta_t_Test, FrameBody_SetAndCopyHelpers) {
 */
 TEST(dm_sta_t_Test, ValidEmStaInfoStructure) {
     std::cout << "Entering ValidEmStaInfoStructure test";
-    em_sta_info_t valid_sta;
+    em_sta_info_t valid_sta = {};
     valid_sta.associated = true;
     valid_sta.last_ul_rate = UINT_MAX;
     valid_sta.last_dl_rate = 0;
@@ -734,7 +734,7 @@ TEST(dm_sta_t_Test, NullEmStaInfoStructure) {
 */
 TEST(dm_sta_t_Test, InvalidMacAddress) {
     std::cout << "Entering InvalidMacAddress test";
-    em_sta_info_t invalid_mac_sta;
+    em_sta_info_t invalid_mac_sta = {};
     invalid_mac_sta.id[0] = 0xAA;
     invalid_mac_sta.id[1] = 0xBB;
     invalid_mac_sta.id[2] = 0xCC;

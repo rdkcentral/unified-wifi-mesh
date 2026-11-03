@@ -529,11 +529,19 @@ int em_capability_t::send_client_cap_query()
     return static_cast<int> (len);
 }
 
-// Room kept in a single message for the 1905 header and the TLVs around the client capability TLV
-#define EM_CLIENT_CAP_RPT_OVERHEAD    256
-#define EM_CLIENT_CAP_FIT_SZ          (EM_MAX_MSG_SZ - EM_CLIENT_CAP_RPT_OVERHEAD)
+// Bytes of a client capability report other than the frame body, as built by
+// send_client_cap_report_msg(): headers, client info TLV, the result byte and header of the client
+// capability TLV, error code TLV and end of message TLV. The frame body is only cut when the whole
+// report would not fit in EM_MAX_MSG_SZ.
+#define EM_CLIENT_CAP_RPT_OVERHEAD    static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t) + \
+    (sizeof(em_tlv_t) + 2 * sizeof(mac_address_t)) + \
+    (sizeof(em_tlv_t) + sizeof(unsigned char)) + \
+    (sizeof(em_tlv_t) + sizeof(unsigned char) + sizeof(mac_address_t)) + \
+    sizeof(em_tlv_t))
+#define EM_CLIENT_CAP_FIT_SZ          (static_cast<unsigned int> (EM_MAX_MSG_SZ) - EM_CLIENT_CAP_RPT_OVERHEAD)
 // create_client_cap_tlv() returns a short and the data model never stores more than EM_MAX_FRAME_BODY_LEN
-#define EM_CLIENT_CAP_MAX_FRAME_BODY  ((EM_CLIENT_CAP_FIT_SZ < EM_MAX_FRAME_BODY_LEN) ? EM_CLIENT_CAP_FIT_SZ : EM_MAX_FRAME_BODY_LEN)
+#define EM_CLIENT_CAP_MAX_FRAME_BODY  ((EM_CLIENT_CAP_FIT_SZ < static_cast<unsigned int> (EM_MAX_FRAME_BODY_LEN)) ? \
+    EM_CLIENT_CAP_FIT_SZ : static_cast<unsigned int> (EM_MAX_FRAME_BODY_LEN))
 
 short em_capability_t::create_client_cap_tlv(unsigned char *buff, mac_address_t sta, bssid_t bssid)
 {
