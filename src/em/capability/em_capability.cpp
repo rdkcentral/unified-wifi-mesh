@@ -2092,7 +2092,7 @@ int em_capability_t::handle_ap_cap_report(unsigned char *buff, unsigned int len)
             uint16_t value_len  = ntohs(tlv->len);
             em_device_info_t *dev_info = dm->get_device_info();
 
-            if (value_len<1 || dev_info == NULL) {
+            if ((value_len < 1) || (dev_info == NULL)) {
                 continue;
             }
 
