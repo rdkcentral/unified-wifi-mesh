@@ -6786,6 +6786,8 @@ TEST(em_msg_t, supported_service_count_exceeds_destination_capacity)
     bool result = msg.get_supported_service(&svc);
     EXPECT_FALSE(result);
     std::cout << "Exiting supported_service_count_exceeds_destination_capacity test" << std::endl;
+}
+
 /**
  * @brief Build a frame with a header, a copied TLV, a produced TLV and the EOM TLV and verify its layout.
  *
