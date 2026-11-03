@@ -22,6 +22,7 @@
 #include <sanitizer/lsan_interface.h>
 #include "em_ctrl.h"
 #include "dm_easy_mesh_list.h"
+#include "db_client_none.h"
 #include <iomanip>
 
 
@@ -164,6 +165,116 @@ protected:
         __lsan_enable();
     }
 };
+
+class network_ssid_list_test_t : public dm_network_ssid_list_t {
+    dm_easy_mesh_list_t &m_list;
+
+public:
+    explicit network_ssid_list_test_t(dm_easy_mesh_list_t &list) : m_list(list) {}
+
+    dm_network_ssid_t *get_first_network_ssid() override {
+        return m_list.get_first_network_ssid();
+    }
+    dm_network_ssid_t *get_next_network_ssid(dm_network_ssid_t *ssid) override {
+        return m_list.get_next_network_ssid(ssid);
+    }
+    dm_network_ssid_t *get_network_ssid(const char *key) override {
+        return m_list.get_network_ssid(key);
+    }
+    void remove_network_ssid(const char *key) override {
+        m_list.remove_network_ssid(key);
+    }
+    void put_network_ssid(const char *key, const dm_network_ssid_t *ssid) override {
+        m_list.put_network_ssid(key, ssid);
+    }
+    MOCK_METHOD(bus_error_t, bus_get_cb_fwd,
+        (char *, raw_data_t *, bus_get_handler_t), (override));
+    MOCK_METHOD(bus_error_t, network_get, (char *, raw_data_t *), (override));
+    MOCK_METHOD(bus_error_t, device_get, (char *, raw_data_t *), (override));
+};
+
+TEST_F(dm_easy_mesh_list_tTEST, network_ssid_update_without_database_reaches_all_models) {
+    ASSERT_NE(dm1, nullptr);
+    ASSERT_NE(dm2, nullptr);
+    ASSERT_NE(dm3, nullptr);
+    ASSERT_NE(dm4, nullptr);
+    for (dm_easy_mesh_t *dm : {dm1, dm2}) {
+        snprintf(dm->get_network()->m_net_info.id, sizeof(dm->get_network()->m_net_info.id), "Network1");
+    }
+    for (dm_easy_mesh_t *dm : {dm3, dm4}) {
+        snprintf(dm->get_network()->m_net_info.id, sizeof(dm->get_network()->m_net_info.id), "Network2");
+    }
+
+    network_ssid_list_test_t ssids(list);
+    db_client_none_t db;
+    ASSERT_EQ(db.init(nullptr), 0);
+    dm_network_ssid_t ssid;
+    memset(&ssid.m_network_ssid_info, 0, sizeof(ssid.m_network_ssid_info));
+    snprintf(ssid.m_network_ssid_info.id, sizeof(ssid.m_network_ssid_info.id), "Fronthaul@Network1");
+    snprintf(ssid.m_network_ssid_info.ssid, sizeof(ssid.m_network_ssid_info.ssid), "old-ssid");
+    snprintf(ssid.m_network_ssid_info.pass_phrase, sizeof(ssid.m_network_ssid_info.pass_phrase), "old-passphrase");
+    char network_id[] = "Network1";
+    ASSERT_EQ(ssids.set_config(db, ssid, network_id), 0);
+
+    snprintf(ssid.m_network_ssid_info.ssid, sizeof(ssid.m_network_ssid_info.ssid), "new-ssid");
+    snprintf(ssid.m_network_ssid_info.pass_phrase, sizeof(ssid.m_network_ssid_info.pass_phrase), "new-passphrase");
+    ASSERT_EQ(ssids.set_config(db, ssid, network_id), 0);
+
+    for (dm_easy_mesh_t *dm : {dm1, dm2}) {
+        ASSERT_EQ(dm->get_num_network_ssid(), 1u);
+        EXPECT_STREQ(dm->get_network_ssid(0)->m_network_ssid_info.ssid, "new-ssid");
+        EXPECT_STREQ(dm->get_network_ssid(0)->m_network_ssid_info.pass_phrase, "new-passphrase");
+    }
+    EXPECT_EQ(dm3->get_num_network_ssid(), 0u);
+    EXPECT_EQ(dm4->get_num_network_ssid(), 0u);
+}
+
+TEST_F(dm_easy_mesh_list_tTEST, network_ssid_propagation_requires_exact_ids) {
+    ASSERT_NE(dm1, nullptr);
+    ASSERT_NE(dm2, nullptr);
+    ASSERT_NE(dm3, nullptr);
+    ASSERT_NE(dm4, nullptr);
+    for (dm_easy_mesh_t *dm : {dm1, dm2, dm3, dm4}) {
+        const char *network = (dm == dm1 || dm == dm2) ? "Network1" : "Network10";
+        snprintf(dm->get_network()->m_net_info.id, sizeof(dm->get_network()->m_net_info.id), "%s", network);
+        dm->set_num_network_ssid(1);
+        dm_network_ssid_t *ssid = dm->get_network_ssid(0);
+        snprintf(ssid->m_network_ssid_info.id, sizeof(ssid->m_network_ssid_info.id),
+            "Fronthaul@%s", (dm == dm1 || dm == dm2) ? "Network1Extra" : network);
+        snprintf(ssid->m_network_ssid_info.ssid, sizeof(ssid->m_network_ssid_info.ssid), "original");
+        snprintf(ssid->m_network_ssid_info.pass_phrase, sizeof(ssid->m_network_ssid_info.pass_phrase), "original-passphrase");
+    }
+    EXPECT_EQ(list.get_network_ssid("Fronthaul@Network1"), nullptr);
+
+    network_ssid_list_test_t ssids(list);
+    ASSERT_EQ(ssids.init(), 0);
+    db_client_none_t db;
+    ASSERT_EQ(db.init(nullptr), 0);
+    dm_network_ssid_t incoming;
+    snprintf(incoming.m_network_ssid_info.id, sizeof(incoming.m_network_ssid_info.id), "Fronthaul@Network1");
+    snprintf(incoming.m_network_ssid_info.ssid, sizeof(incoming.m_network_ssid_info.ssid), "new-ssid");
+    snprintf(incoming.m_network_ssid_info.pass_phrase, sizeof(incoming.m_network_ssid_info.pass_phrase), "new-passphrase");
+    char network_id[] = "Network1";
+    ASSERT_EQ(ssids.set_config(db, incoming, network_id), 0);
+    snprintf(incoming.m_network_ssid_info.ssid, sizeof(incoming.m_network_ssid_info.ssid), "updated-ssid");
+    ASSERT_EQ(ssids.set_config(db, incoming, network_id), 0);
+
+    for (dm_easy_mesh_t *dm : {dm1, dm2}) {
+        ASSERT_EQ(dm->get_num_network_ssid(), 2u);
+        EXPECT_STREQ(dm->get_network_ssid(0)->m_network_ssid_info.id, "Fronthaul@Network1Extra");
+        EXPECT_STREQ(dm->get_network_ssid(0)->m_network_ssid_info.ssid, "original");
+        EXPECT_STREQ(dm->get_network_ssid(0)->m_network_ssid_info.pass_phrase, "original-passphrase");
+        EXPECT_STREQ(dm->get_network_ssid(1)->m_network_ssid_info.id, "Fronthaul@Network1");
+        EXPECT_STREQ(dm->get_network_ssid(1)->m_network_ssid_info.ssid, "updated-ssid");
+        EXPECT_STREQ(dm->get_network_ssid(1)->m_network_ssid_info.pass_phrase, "new-passphrase");
+    }
+    for (dm_easy_mesh_t *dm : {dm3, dm4}) {
+        ASSERT_EQ(dm->get_num_network_ssid(), 1u);
+        EXPECT_STREQ(dm->get_network_ssid(0)->m_network_ssid_info.id, "Fronthaul@Network10");
+        EXPECT_STREQ(dm->get_network_ssid(0)->m_network_ssid_info.ssid, "original");
+        EXPECT_STREQ(dm->get_network_ssid(0)->m_network_ssid_info.pass_phrase, "original-passphrase");
+    }
+}
 
 
 void setup_valid_interface(em_interface_t &intf, const char* name, const unsigned char mac[6]) {
