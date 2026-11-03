@@ -961,7 +961,8 @@ int em_configuration_t::send_autoconfig_renew_msg()
     mac_addr_str_t mac_str;
     dm = get_data_model();
 
-    memcpy(tmp, dm->get_agent_al_interface_mac(), sizeof(mac_address_t));
+    const unsigned char *dst_mac = dm->get_agent_al_interface_mac();
+    memcpy(tmp, dst_mac, sizeof(mac_address_t));
     tmp += sizeof(mac_address_t);
     len += static_cast<unsigned int> (sizeof(mac_address_t));
 
@@ -979,7 +980,7 @@ int em_configuration_t::send_autoconfig_renew_msg()
     cmdu->type = htons(msg_type);
     cmdu->id = htons(get_mgr()->get_next_msg_id());
     cmdu->last_frag_ind = 1;
-    cmdu->relay_ind = 1;
+    cmdu->relay_ind = (dst_mac[0] & 0x01) ? 1 : 0;
 
     tmp += sizeof(em_cmdu_t);
     len += static_cast<unsigned int> (sizeof(em_cmdu_t));
