@@ -25,8 +25,6 @@
 class em_mgr_t;
 class em_metrics_t {
 
-        friend class EmMetricsTest;
-    
 	/**!
 	 * @brief Retrieves the data model instance.
 	 *
@@ -590,7 +588,9 @@ class em_metrics_t {
         *
         * @return 0 on success.
         */
-        int handle_unassoc_sta_link_metrics_tlv(unsigned char *buff, unsigned int tlv_len);
+        protected:
+	int handle_unassoc_sta_link_metrics_tlv(unsigned char *buff, unsigned int tlv_len);
+	private:
 
        /* 
         * @brief Sends an Unassociated STA Link Metrics Query

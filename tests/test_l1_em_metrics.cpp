@@ -47,6 +47,8 @@ public:
 
     void set_state(em_state_t state) override { m_state = state; }
 
+    using em_metrics_t::handle_unassoc_sta_link_metrics_tlv;
+
     int send_frame(unsigned char* /*buff*/, unsigned int /*len*/, bool /*multicast*/ = false) override {
         // Dummy: do nothing and pretend success. 
         // If your code expects "bytes sent", you could return `len` instead.
