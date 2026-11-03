@@ -19,78 +19,65 @@
 #ifndef DB_CLIENT_H
 #define DB_CLIENT_H
 
-#include <sqlite3.h>
-#include <mutex>
+#include "em_base.h"
 
- /**!
-  * @brief Database client class to manage database connections and queries.
-  *
-  * This class provides methods for initializing, executing queries,
-  * and retrieving results from a database using the MariaDB C client library.
-  *
-  * @note This class is not thread-safe.
-  */
- class db_client_t {
-sqlite3 *m_con;
-char m_path[512];
-std::mutex m_mutex;
+/**!
+ * @brief Abstract persistence-backend interface used by db_easy_mesh_t (and,
+ * transitively, every dm_*_list_t table class) to create/load/sync/mutate
+ * tables.
+ *
+ * This class used to be a concrete SQLite wrapper. It has been turned into
+ * a Strategy interface so the controller can bind to different persistence
+ * backends (see db_client_type_t) without touching a single line of the
+ * dm_*_list_t / db_easy_mesh_t table logic, which only ever depends on this
+ * interface (passed around as db_client_t&).
+ *
+ * Concrete implementations:
+ *   - db_client_local_t (db_client_local.h)  : existing on-box SQLite
+ *   - db_client_cloud_t (db_client_cloud.h)  : reserved for future cloud DB
+ *   - db_client_none_t  (db_client_none.h)   : no-op / in-memory-only backend
+ *
+ * Use db_client_t::create() to obtain the correct implementation for a given
+ * db_client_type_t rather than constructing one directly.
+ *
+ * @note Implementations are not required to be thread-safe.
+ */
+class db_client_t {
 
-	 /**!
-	  * @brief Establish a connection to the database.
-	  *
-	  * This function attempts to establish a connection to the specified database
-	  * using the provided path. It is essential to call this function before
-	  * executing any database queries to ensure a valid connection is established.
-	  *
-	  * @param[in] path A constant character pointer representing the path to the
-	  * database in the format "username@password".
-	  *
-	  * @returns An integer indicating the success or failure of the connection
-	  * attempt.
-	  * @retval 0 Connection successful.
-	  * @retval -1 Connection failed due to invalid path or other errors.
-	  *
-	  * @note Ensure that the database server is running and accessible before
-	  * calling this function. Failure to do so may result in a connection error.
-	  */
-	 int connect(const char *path);
+public:
 
- public:
+    static db_client_t *create(db_client_type_t type);
+    static db_client_type_t type_from_string(const char *name);
 
-	 /**!
-	  * @brief Initialize the database connection.
-	  *
-	  * This function sets up the necessary environment to interact with the database
-	  * specified by the given path. It must be called before any other database
-	  * operations are performed.
-	  *
-	  * @param[in] path Path to the SQLite database file. When null or empty, the default deployment path is used.
-	  *
-	  * @returns 0 on success, non-zero on failure.
-	  * @retval 0 Initialization successful.
-	  * @retval -1 Initialization failed due to an invalid path or other errors.
-	  *
-	  * @note Ensure that the path is correct and accessible by the application.
-	  */
-	 int init(const char *path);
+    /**!
+     * @brief Initialize the database connection/backend.
+     *
+     * This function sets up the necessary environment to interact with the
+     * backend identified by the given path/connection-string. It must be
+     * called before any other database operations are performed.
+     *
+     * @param[in] path Backend-specific connection info (a database file path
+     * for the local SQLite backend). Backends that need no connection info
+     * (such as the no-db backend) ignore this parameter.
+     *
+     * @returns 0 on success, non-zero on failure.
+     */
+    virtual int init(const char *path) = 0;
 
+    /**!
+     * @brief Execute a query/command against the backend.
+     *
+     * @param[in] query Backend-specific query string (SQL for the local/cloud
+     * backends). Backends without a query language (e.g. no-db) may ignore
+     * the content and simply return an empty result context.
+     *
+     * @returns Pointer to an opaque result context on success, NULL on
+     * failure. Callers must not assume anything about the context other than
+     * passing it back into next_result()/get_string()/get_number().
+     */
+    virtual void *execute(const char *query) = 0;
 
-	 /**!
-	  * @brief Execute a SQL query on the database.
-	  *
-	  * This function takes a SQL query as input and executes it on the connected database.
-	  *
-	  * @param[in] query SQL query to execute. This should be a valid SQL statement.
-	  *
-	  * @returns Pointer to result context on success, NULL on failure.
-	  *
-	  * @note Caller is responsible for handling the returned result context.
-	  *       The context will be automatically freed when next_result() returns false.
-	  */
-	 void *execute(const char *query);
-
-
-	 /**!
+    /**!
 	  * @brief Retrieve the next result from the query execution.
 	  *
 	  * This function checks if there is another result available in the
@@ -105,11 +92,10 @@ std::mutex m_mutex;
 	  * @note When this function returns false, it automatically frees the result context,
 	  *       so you don't need to call free_result() manually.
 	  *       If you need to release the result context before fully iterating, use free_result().
-	  */
-	 bool next_result(void *ctx);
+     */
+    virtual bool next_result(void *ctx) = 0;
 
-
-	 /**!
+		 /**!
 	  * @brief Release a result context before it has been drained by next_result().
 	  *
 	  * Callers that stop iterating early (e.g. after finding a match) must use
@@ -120,72 +106,66 @@ std::mutex m_mutex;
 	  *
 	  * @param[in] ctx Result context obtained from execute(). Safe to call with NULL.
 	  */
-	 void free_result(void *ctx);
+    virtual void free_result(void *ctx) = 0;
 
+    /**!
+     * @brief Retrieve a string value from the current result row.
+     *
+     * @param[in] ctx Result context.
+     * @param[out] res Buffer to store the retrieved string.
+     * @param[in] col Column index (1-based).
+     *
+     * @returns Pointer to res, or NULL on error / no data.
+     */
+    virtual char *get_string(void *ctx, char *res, unsigned int col) = 0;
 
-	 /**!
-	  * @brief Retrieve a string value from the result context.
-	  *
-	  * This function extracts a string from a specified column in the result context and stores it in the provided buffer.
-	  *
-	  * @param[in] ctx Result context from which the string is retrieved.
-	  * @param[out] res Buffer to store the retrieved string. The buffer must be pre-allocated and large enough to hold the string.
-	  * @param[in] col Column index from which to retrieve the string (1-based).
-	  *
-	  * @returns Pointer to the result buffer containing the string, or NULL on error.
-	  *
-	  * @note Ensure the buffer size is sufficient to store the retrieved string to avoid buffer overflow.
-	  */
-	 char *get_string(void *ctx, char *res, unsigned int col);
+    /**!
+     * @brief Retrieve an integer value from the current result row.
+     *
+     * @param[in] ctx Result context.
+     * @param[in] col Column index (1-based).
+     *
+     * @returns The integer value, or 0 if there is no data.
+     */
+    virtual int get_number(void *ctx, unsigned int col) = 0;
 
+    /**!
+     * @brief Recreate the backend store, deleting existing data.
+     *
+     * @returns 0 on success, non-zero on failure.
+     *
+     * @note Use with caution as this will erase all existing data. No-op for
+     * backends that hold no persistent data.
+     */
+    virtual int recreate_db() = 0;
 
-	 /**!
-	  * @brief Retrieve an integer value from the result context.
-	  *
-	  * This function extracts an integer from a specified column in the result context.
-	  *
-	  * @param[in] ctx Result context from which the integer is retrieved. It must be a valid pointer.
-	  * @param[in] col Column index from which to retrieve the number (1-based).
-	  *
-	  * @returns The integer value retrieved from the specified column.
-	  *
-	  * @note Ensure the result context is valid before calling this function. Invalid contexts may lead to undefined behavior.
-	  */
-	 int get_number(void *ctx, unsigned int col);
+    virtual int begin_transaction() = 0;
+    virtual int commit() = 0;
+    virtual int rollback() = 0;
 
+    /**!
+     * @brief Identifies which concrete backend this instance implements.
+     * Lets callers make backend-specific decisions (e.g. whether an "empty
+     * table" result at startup should trigger a DB provisioning script)
+     * without needing an RTTI dynamic_cast.
+     *
+     * @returns The db_client_type_t this instance implements.
+     */
+    virtual db_client_type_t get_type() const = 0;
 
-	 /**!
-	  * @brief Recreate the database, deleting existing data and creating a fresh structure.
-	  *
-	  * @returns 0 on success, non-zero on failure.
-	  *
-	  * @note Use with caution as this will erase all existing data.
-	  */
-	 int recreate_db();
+    /**!
+     * @brief Whether this backend actually persists/reads data.
+     *
+     * Callers building query strings (db_easy_mesh_t) use this to skip that
+     * work entirely for backends that would just discard it, without having
+     * to know which concrete backend (present or future) that applies to.
+     *
+     * @returns True if execute()/next_result() do real work, false if they
+     * are no-ops (e.g. db_client_none_t).
+     */
+    virtual bool is_persistent() const { return true; }
 
-	 int begin_transaction();
-	 int commit();
-	 int rollback();
+    virtual ~db_client_t() {}
+};
 
-
-	 /**!
-	  * @brief Constructor that initializes the database client.
-	  *
-	  * Initializes internal members to NULL.
-	  *
-	  * @note The database connection is not established in the constructor.
-	  */
-	 db_client_t();
-
-
-	 /**!
-	  * @brief Destructor that cleans up database resources.
-	  *
-	  * Ensures the connection is properly released.
-	  *
-	  * @note This destructor is automatically called when the db_client_t object goes out of scope.
-	  */
-	 ~db_client_t();
- };
-
- #endif
+#endif

@@ -172,7 +172,9 @@ int dm_policy_list_t::set_config(db_client_t& db_client, const cJSON *obj_arr, v
     for (i = 0; i < size; i++) {
         obj = cJSON_GetArrayItem(obj_arr, i);
         policy.decode(obj, parent_id);
-        update_db(db_client, (op = get_dm_orch_type(db_client, policy)), policy.get_policy());
+        if (update_db(db_client, (op = get_dm_orch_type(db_client, policy)), policy.get_policy()) != 0) {
+            return -1;
+        }
         update_list(policy, op);
     }
 
@@ -182,7 +184,9 @@ int dm_policy_list_t::set_config(db_client_t& db_client, const cJSON *obj_arr, v
 int dm_policy_list_t::set_config(db_client_t& db_client, dm_policy_t& policy, void *parent_id)
 {
     dm_orch_type_t op;
-    update_db(db_client, (op = get_dm_orch_type(db_client, policy)), policy.get_policy());
+    if (update_db(db_client, (op = get_dm_orch_type(db_client, policy)), policy.get_policy()) != 0) {
+        return -1;
+    }
     update_list(policy, op);
 
     return 0;
@@ -290,6 +294,9 @@ int dm_policy_list_t::update_db(db_client_t& db_client, dm_orch_type_t op, void 
     dm_easy_mesh_t::macbytes_to_string(policy->id.radio_mac, radio_mac_str);
 
 	snprintf(key, sizeof(key), "%s@%s@%s@%d", policy->id.net_id, dev_mac_str, radio_mac_str, policy->id.type);
+    if (prepare_db_operation(db_client, op) != 0) {
+        return -1;
+    }
 
 	memset(sta_mac_list_str, 0, sizeof(sta_mac_list_str));
     for (i = 0; i < policy->num_sta; i++) {

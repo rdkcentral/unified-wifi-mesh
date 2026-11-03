@@ -79,7 +79,9 @@ int dm_bss_list_t::set_config(db_client_t& db_client, dm_bss_t& bss, void *paren
     //printf("%s:%d: Parent: %s \n", __func__, __LINE__, (char *)parent_id);
 	parse_bss_id_from_key(static_cast<char *> (parent_id), &bss.m_bss_info.id);
 
-    update_db(db_client, (op = get_dm_orch_type(db_client, bss)), bss.get_bss_info());
+    if (update_db(db_client, (op = get_dm_orch_type(db_client, bss)), bss.get_bss_info()) != 0) {
+        return -1;
+    }
     update_list(bss, op);
                         
     return 0;
@@ -97,7 +99,9 @@ int dm_bss_list_t::set_config(db_client_t& db_client, const cJSON *obj_arr, void
     for (i = 0; i < size; i++) {
         obj = cJSON_GetArrayItem(obj_arr, i);
 		bss.decode(obj, parent_id);
-		update_db(db_client, (op = get_dm_orch_type(db_client, bss)), bss.get_bss_info());
+        if (update_db(db_client, (op = get_dm_orch_type(db_client, bss)), bss.get_bss_info()) != 0) {
+            return -1;
+        }
 		update_list(bss, op);
     }
 
@@ -234,6 +238,9 @@ int dm_bss_list_t::update_db(db_client_t& db_client, dm_orch_type_t op, void *da
         strncat(back_akms, ",", strlen(",") + 1);
     }
 	
+    if (prepare_db_operation(db_client, op) != 0) {
+        return -1;
+    }
 	switch (op) {
 		case dm_orch_type_db_insert:
 			ret = insert_row(db_client, key, dm_easy_mesh_t::macbytes_to_string(info->bssid.mac, bss_mac_str),

@@ -148,7 +148,9 @@ int dm_op_class_list_t::set_config(db_client_t& db_client, const cJSON *obj_arr,
     for (i = 0; i < size; i++) {
         obj = cJSON_GetArrayItem(obj_arr, i);
         op_class.decode(obj, parent_id);
-        update_db(db_client, (op = get_dm_orch_type(db_client, op_class)), op_class.get_op_class_info());
+        if (update_db(db_client, (op = get_dm_orch_type(db_client, op_class)), op_class.get_op_class_info()) != 0) {
+            return -1;
+        }
         update_list(op_class, op);
     }
 
@@ -160,7 +162,9 @@ int dm_op_class_list_t::set_config(db_client_t& db_client, dm_op_class_t& op_cla
     dm_orch_type_t op;
 
     //printf("dm_op_class_list_t::%s:%d: id: %s\n", __func__, __LINE__, (char *)parent_id);
-    update_db(db_client, (op = get_dm_orch_type(db_client, op_class)), op_class.get_op_class_info());
+    if (update_db(db_client, (op = get_dm_orch_type(db_client, op_class)), op_class.get_op_class_info()) != 0) {
+        return -1;
+    }
     update_list(op_class, op);
 
     return 0;
@@ -261,6 +265,9 @@ int dm_op_class_list_t::update_db(db_client_t& db_client, dm_orch_type_t op, voi
 
     dm_easy_mesh_t::macbytes_to_string(info->id.ruid, mac_str);
     snprintf(id, sizeof(id), "%s@%d@%d", mac_str, info->id.type, info->id.op_class);
+    if (prepare_db_operation(db_client, op) != 0) {
+        return -1;
+    }
     //printf("%s:%d: Operation:%d, id:%s\tClass: %d Channel:%d\n", __func__, __LINE__, op, id, info->op_class, info->channel);
     //Storing channels and its preferences as comma separated string in db.
 	for (i = 0; i < info->num_channels; i++) {
