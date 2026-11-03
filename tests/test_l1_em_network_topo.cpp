@@ -1230,6 +1230,53 @@ TEST(em_network_topo_t, find_topology_by_bh_associated_empty_root) {
     delete root_dm;
     std::cout << "Exiting find_topology_by_bh_associated_empty_root test" << std::endl;
 }
+
+TEST(em_network_topo_t, find_topology_by_bh_associated_prefers_associated_bss_and_sets_wireless_media)
+{
+    dm_easy_mesh_t dm{};
+    init_dm_with_mac(&dm, 0x10, 0);
+    dm.m_num_radios = 2;
+    dm.m_num_bss = 3;
+
+    const mac_address_t radio_macs[2] = {
+        {0x02, 0x10, 0x00, 0x00, 0x00, 0x01},
+        {0x02, 0x10, 0x00, 0x00, 0x00, 0x02}
+    };
+    const mac_address_t local_bsta_macs[2] = {
+        {0x02, 0x10, 0x01, 0x00, 0x00, 0x01},
+        {0x02, 0x10, 0x01, 0x00, 0x00, 0x02}
+    };
+    const mac_address_t associated_bssid = {0x02, 0x20, 0x00, 0x00, 0x00, 0x01};
+    const mac_address_t zero_bssid = {};
+
+    for (unsigned int i = 0; i < 2; ++i) {
+        dm.m_radio[i].m_radio_info.enabled = true;
+        memcpy(dm.m_radio[i].m_radio_info.intf.mac, radio_macs[i], sizeof(mac_address_t));
+
+        em_bss_info_t &bss = dm.m_bss[i].m_bss_info;
+        bss.id.haul_type = em_haul_type_backhaul;
+        bss.vap_mode = em_vap_mode_sta;
+        bss.enabled = true;
+        memcpy(bss.id.bssid, local_bsta_macs[i], sizeof(mac_address_t));
+        memcpy(bss.ruid.mac, radio_macs[i], sizeof(mac_address_t));
+        memcpy(bss.bssid.mac, i == 0 ? zero_bssid : associated_bssid, sizeof(mac_address_t));
+    }
+
+    em_bss_info_t &parent_bss = dm.m_bss[2].m_bss_info;
+    parent_bss.id.haul_type = em_haul_type_fronthaul;
+    parent_bss.vap_mode = em_vap_mode_ap;
+    memcpy(parent_bss.bssid.mac, local_bsta_macs[1], sizeof(mac_address_t));
+
+    em_network_topo_t topo_root(&dm);
+    g_network_topology = &topo_root;
+
+    EXPECT_EQ(dm.get_associated_bsta_bss_info(), &dm.m_bss[1].m_bss_info);
+    EXPECT_EQ(topo_root.find_topology_by_bh_associated(&dm), &topo_root);
+    EXPECT_EQ(dm.m_device.m_device_info.backhaul_mac.media, em_media_type_ieee80211ac_5);
+
+    g_network_topology = nullptr;
+}
+
 /**
  * @brief Validate that find_topology_by_bh_associated returns the correct topology
  *
