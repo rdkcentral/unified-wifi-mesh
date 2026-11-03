@@ -1714,6 +1714,12 @@ int em_channel_t::handle_spatial_reuse_report(unsigned char *buff, unsigned int 
 
 int em_channel_t::handle_channel_pref_tlv_ctrl(unsigned char *buff, unsigned int len)
 {
+    if (buff == nullptr || len < sizeof(em_channel_pref_t)) {
+        em_printfout("%s:%d Invalid Channel Preference TLV header",
+                     __func__, __LINE__);
+        return -1;
+    }
+
     em_channel_pref_t *pref = reinterpret_cast<em_channel_pref_t *>(buff);
     unsigned int i = 0, j = 0;
     bool match_found = false;
@@ -1724,9 +1730,44 @@ int em_channel_t::handle_channel_pref_tlv_ctrl(unsigned char *buff, unsigned int
     dm = get_data_model();
 
     // Parse the received TLV
+    if (pref->op_classes_num > EM_MAX_OP_CLASS) {
+        em_printfout("%s:%d Invalid op class count %u (max=%u)",
+                     __func__, __LINE__,
+                     pref->op_classes_num, EM_MAX_OP_CLASS);
+        return -1;
+    }
+
     unsigned char *ptr = reinterpret_cast<unsigned char *>(pref->op_classes);
-    for (i = 0; i < pref->op_classes_num && (i < EM_MAX_OP_CLASS); i++) {
+    unsigned char *end = buff + len;
+
+    for (i = 0; i < pref->op_classes_num; i++) {
+        if (ptr > end ||
+            static_cast<size_t>(end - ptr) <
+                sizeof(em_channel_pref_op_class_t)) {
+            em_printfout("%s:%d Operating class header exceeds TLV boundary",
+                         __func__, __LINE__);
+            return -1;
+        }
+
         em_channel_pref_op_class_t *op_class_hdr = reinterpret_cast<em_channel_pref_op_class_t *>(ptr);
+
+        if (op_class_hdr->num > EM_MAX_CHANNELS_IN_LIST) {
+            em_printfout("%s:%d Invalid channel count %u (max=%u)",
+                         __func__, __LINE__,
+                         op_class_hdr->num,
+                         EM_MAX_CHANNELS_IN_LIST);
+            return -1;
+        }
+
+        const size_t required =
+            sizeof(em_channel_pref_op_class_t) +
+            static_cast<size_t>(op_class_hdr->num) + 1;
+
+        if (static_cast<size_t>(end - ptr) < required) {
+            em_printfout("%s:%d Channel Preference entry exceeds TLV boundary",
+                         __func__, __LINE__);
+            return -1;
+        }
         memset(&op_class_info[i], 0, sizeof(em_op_class_info_t));
         memcpy(op_class_info[i].id.ruid, pref->ruid, sizeof(mac_address_t));
         op_class_info[i].id.type = em_op_class_type_preference;
