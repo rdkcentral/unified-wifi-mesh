@@ -35,6 +35,26 @@ void init_dm_with_mac(dm_easy_mesh_t* dm, int id, int child_index) {
     dm->m_num_bss = 0;
 }
 
+static void configure_backhaul_sta_bss(
+    dm_easy_mesh_t &dm,
+    const mac_address_t local_bsta_mac,
+    const mac_address_t radio_mac,
+    const mac_address_t upstream_bssid)
+{
+    dm.m_num_radios = 1;
+    dm.m_num_bss = 1;
+    dm.m_radio[0].m_radio_info.enabled = true;
+    memcpy(dm.m_radio[0].m_radio_info.intf.mac, radio_mac, sizeof(mac_address_t));
+
+    em_bss_info_t &bss = dm.m_bss[0].m_bss_info;
+    bss.id.haul_type = em_haul_type_backhaul;
+    bss.vap_mode = em_vap_mode_sta;
+    bss.enabled = true;
+    memcpy(bss.id.bssid, local_bsta_mac, sizeof(mac_address_t));
+    memcpy(bss.ruid.mac, radio_mac, sizeof(mac_address_t));
+    memcpy(bss.bssid.mac, upstream_bssid, sizeof(mac_address_t));
+}
+
 /**
  * @brief Verify that adding a valid child device to the network topology does not throw an exception
  *
@@ -1268,13 +1288,89 @@ TEST(em_network_topo_t, find_topology_by_bh_associated_prefers_associated_bss_an
     memcpy(parent_bss.bssid.mac, local_bsta_macs[1], sizeof(mac_address_t));
 
     em_network_topo_t topo_root(&dm);
+    em_network_topo_t *previous_topology = g_network_topology;
     g_network_topology = &topo_root;
 
     EXPECT_EQ(dm.get_associated_bsta_bss_info(), &dm.m_bss[1].m_bss_info);
     EXPECT_EQ(topo_root.find_topology_by_bh_associated(&dm), &topo_root);
     EXPECT_EQ(dm.m_device.m_device_info.backhaul_mac.media, em_media_type_ieee80211ac_5);
 
-    g_network_topology = nullptr;
+    g_network_topology = previous_topology;
+}
+
+TEST(em_network_topo_t, find_topology_by_bh_associated_reparents_colocated_child_to_controller)
+{
+    dm_easy_mesh_t controller_dm{};
+    init_dm_with_mac(&controller_dm, 0x10, 0);
+    controller_dm.set_controller(true);
+
+    dm_easy_mesh_t colocated_dm{};
+    init_dm_with_mac(&colocated_dm, 0x20, 0);
+    colocated_dm.set_colocated(true);
+    colocated_dm.m_num_bss = 1;
+
+    dm_easy_mesh_t associated_dm{};
+    init_dm_with_mac(&associated_dm, 0x30, 0);
+    const mac_address_t local_bsta_mac = {0x02, 0x30, 0x01, 0x00, 0x00, 0x01};
+    const mac_address_t radio_mac = {0x02, 0x30, 0x00, 0x00, 0x00, 0x01};
+    const mac_address_t upstream_bssid = {0x02, 0x20, 0x00, 0x00, 0x00, 0x01};
+    configure_backhaul_sta_bss(associated_dm, local_bsta_mac, radio_mac, upstream_bssid);
+
+    em_bss_info_t &colocated_bss = colocated_dm.m_bss[0].m_bss_info;
+    colocated_bss.id.haul_type = em_haul_type_fronthaul;
+    colocated_bss.vap_mode = em_vap_mode_ap;
+    colocated_bss.enabled = true;
+    memcpy(colocated_bss.bssid.mac, local_bsta_mac, sizeof(mac_address_t));
+
+    em_network_topo_t controller_topology(&controller_dm);
+    controller_topology.add_network_topo(&colocated_dm);
+    em_network_topo_t *previous_topology = g_network_topology;
+    g_network_topology = &controller_topology;
+
+    EXPECT_EQ(controller_topology.find_topology_by_bh_associated(&associated_dm), &controller_topology);
+
+    g_network_topology = previous_topology;
+    EXPECT_TRUE(controller_topology.remove(&colocated_dm, nullptr, nullptr));
+}
+
+TEST(em_network_topo_t, find_topology_by_bh_associated_preserves_non_colocated_parent)
+{
+    dm_easy_mesh_t controller_dm{};
+    init_dm_with_mac(&controller_dm, 0x10, 0);
+    controller_dm.set_controller(true);
+
+    dm_easy_mesh_t parent_dm{};
+    init_dm_with_mac(&parent_dm, 0x20, 0);
+    parent_dm.set_colocated(false);
+    parent_dm.m_num_bss = 1;
+
+    dm_easy_mesh_t associated_dm{};
+    init_dm_with_mac(&associated_dm, 0x30, 0);
+    const mac_address_t local_bsta_mac = {0x02, 0x30, 0x01, 0x00, 0x00, 0x01};
+    const mac_address_t radio_mac = {0x02, 0x30, 0x00, 0x00, 0x00, 0x01};
+    const mac_address_t upstream_bssid = {0x02, 0x20, 0x00, 0x00, 0x00, 0x01};
+    configure_backhaul_sta_bss(associated_dm, local_bsta_mac, radio_mac, upstream_bssid);
+
+    em_bss_info_t &parent_bss = parent_dm.m_bss[0].m_bss_info;
+    parent_bss.id.haul_type = em_haul_type_fronthaul;
+    parent_bss.vap_mode = em_vap_mode_ap;
+    parent_bss.enabled = true;
+    memcpy(parent_bss.bssid.mac, local_bsta_mac, sizeof(mac_address_t));
+
+    em_network_topo_t controller_topology(&controller_dm);
+    controller_topology.add_network_topo(&parent_dm);
+    em_network_topo_t *previous_topology = g_network_topology;
+    g_network_topology = &controller_topology;
+
+    em_network_topo_t *found = controller_topology.find_topology_by_bh_associated(&associated_dm);
+    EXPECT_NE(found, nullptr);
+    if (found != nullptr) {
+        EXPECT_NE(found, &controller_topology);
+        EXPECT_EQ(found->get_data_model(), &parent_dm);
+    }
+
+    g_network_topology = previous_topology;
+    EXPECT_TRUE(controller_topology.remove(&parent_dm, nullptr, nullptr));
 }
 
 /**
