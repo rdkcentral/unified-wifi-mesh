@@ -200,12 +200,12 @@ void dm_network_ssid_t::operator = (const dm_network_ssid_t& obj)
     memcpy(&this->m_network_ssid_info.pass_phrase, &obj.m_network_ssid_info.pass_phrase, sizeof(em_long_string_t));
     this->m_network_ssid_info.num_bands = obj.m_network_ssid_info.num_bands;
     for (int i = 0; i < this->m_network_ssid_info.num_bands; i++) {
-       memcpy(&this->m_network_ssid_info.band[i], &obj.m_network_ssid_info.band[i], sizeof(em_tiny_string_t));
+       memcpy(&this->m_network_ssid_info.band[i], &obj.m_network_ssid_info.band[i], sizeof(this->m_network_ssid_info.band[i]));
     }
     this->m_network_ssid_info.enable = obj.m_network_ssid_info.enable;
     this->m_network_ssid_info.num_akms = obj.m_network_ssid_info.num_akms;
     for (int i = 0; i < this->m_network_ssid_info.num_akms; i++) {
-       memcpy(&this->m_network_ssid_info.akm[i], &obj.m_network_ssid_info.akm[i], sizeof(em_string_t));
+       memcpy(&this->m_network_ssid_info.akm[i], &obj.m_network_ssid_info.akm[i], sizeof(this->m_network_ssid_info.akm[i]));
     }
     memcpy(&this->m_network_ssid_info.suite_select, &obj.m_network_ssid_info.suite_select, sizeof(em_string_t));
     this->m_network_ssid_info.advertisement = obj.m_network_ssid_info.advertisement;

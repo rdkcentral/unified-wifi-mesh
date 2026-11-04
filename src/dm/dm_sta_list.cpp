@@ -87,7 +87,9 @@ int dm_sta_list_t::set_config(db_client_t& db_client, const cJSON *obj_arr, void
     for (i = 0; i < size; i++) {
         obj = cJSON_GetArrayItem(obj_arr, i);
         sta.decode(obj, parent_id);
-        update_db(db_client, (op = get_dm_orch_type(db_client, sta)), sta.get_sta_info());
+        if (update_db(db_client, (op = get_dm_orch_type(db_client, sta)), sta.get_sta_info()) != 0) {
+            return -1;
+        }
         update_list(sta, op);
     }
 
@@ -99,7 +101,9 @@ int dm_sta_list_t::set_config(db_client_t& db_client, dm_sta_t& sta, void *paren
     dm_orch_type_t op;
 
     //printf("dm_op_class_list_t::%s:%d: id: %s\n", __func__, __LINE__, (char *)parent_id);
-    update_db(db_client, (op = get_dm_orch_type(db_client, sta)), sta.get_sta_info());
+    if (update_db(db_client, (op = get_dm_orch_type(db_client, sta)), sta.get_sta_info()) != 0) {
+        return -1;
+    }
     update_list(sta, op);
 
     return 0;
@@ -247,6 +251,9 @@ int dm_sta_list_t::update_db(db_client_t& db_client, dm_orch_type_t op, void *da
     em_sta_info_t *info = static_cast<em_sta_info_t *>(data);
     int ret = 0;
     char frame_body[EM_MAX_FRAME_BODY_LEN*2];
+    if (prepare_db_operation(db_client, op) != 0) {
+        return -1;
+    }
 
     //printf("dm_sta_list_t:%s:%d: Operation: %s\n", __func__, __LINE__, em_cmd_t::get_orch_op_str(op));
 

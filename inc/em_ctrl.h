@@ -43,6 +43,12 @@ class em_ctrl_t : public em_mgr_t {
     em_orch_ctrl_t *m_orch;
 	em_dev_test_t dev_test;
 
+    // Persistence backend resolved from the process's command-line
+    // arguments in main(), read by data_model_init() when it calls
+    // dm_easy_mesh_ctrl_t::init(). Defaults to db_client_type_local so
+    // existing invocations without the --db-type flag keep today's behavior.
+    db_client_type_t m_db_type;
+
 	/**!
 	 * @brief Handles a bus event.
 	 *
@@ -98,7 +104,19 @@ public:
 	 * @note Ensure the path is valid and accessible.
 	 */
 	int data_model_init(const char *data_model_path);
-    
+
+	db_client_type_t get_db_type() { return m_db_type; }
+
+	/**!
+	 * @brief Sets which persistence backend data_model_init() will bind
+	 * the controller's data model to. Must be called (if at all) before
+	 * data_model_init()/init() runs; otherwise db_client_type_local
+	 * (today's existing behavior) is used.
+	 *
+	 * @param[in] type The backend to use (local/cloud/none).
+	 */
+	void set_db_type(db_client_type_t type) { m_db_type = type; }
+
 	/**!
 	 * @brief Checks if the data model is initialized.
 	 *

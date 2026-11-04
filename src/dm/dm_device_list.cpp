@@ -77,7 +77,9 @@ int dm_device_list_t::set_config(db_client_t& db_client, dm_device_t& device, vo
 
 	dm_device_t::parse_device_id_from_key(static_cast<char *> (key), &device.m_device_info.id);
  
-    update_db(db_client, (op = get_dm_orch_type(db_client, device)), device.get_device_info());
+    if (update_db(db_client, (op = get_dm_orch_type(db_client, device)), device.get_device_info()) != 0) {
+        return -1;
+    }
     update_list(device, op);
 
     return 0;
@@ -95,7 +97,9 @@ int dm_device_list_t::set_config(db_client_t& db_client, const cJSON *obj_arr, v
     for (i = 0; i < size; i++) {
         obj = cJSON_GetArrayItem(obj_arr, i);
         device.decode(obj, key);
-        update_db(db_client, (op = get_dm_orch_type(db_client, device)), device.get_device_info());
+        if (update_db(db_client, (op = get_dm_orch_type(db_client, device)), device.get_device_info()) != 0) {
+            return -1;
+        }
         update_list(device, op);
     }
 
@@ -200,6 +204,9 @@ int dm_device_list_t::update_db(db_client_t& db_client, dm_orch_type_t op, void 
 
 	dm_easy_mesh_t::macbytes_to_string(info->id.dev_mac, mac_str);
 	snprintf(key, sizeof(em_2xlong_string_t), "%s@%s@%d", info->id.net_id, mac_str, info->id.media);
+    if (prepare_db_operation(db_client, op) != 0) {
+        return -1;
+    }
     dm_easy_mesh_t::macbytes_to_string(info->backhaul_alid.mac, alid_str);
     dm_easy_mesh_t::macbytes_to_string(info->backhaul_sta, bsta_str);
 
