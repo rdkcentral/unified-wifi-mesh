@@ -4592,45 +4592,129 @@ int em_configuration_t::create_autoconfig_search_msg(unsigned char *buff, em_dpp
 
 int em_configuration_t::handle_wsc_m2(unsigned char *buff, unsigned int len, unsigned int index)
 {
-    data_elem_attr_t    *attr;
-    int ret = 0;
+    data_elem_attr_t *attr;
     unsigned int tmp_len;
-    unsigned short id;
+    const size_t authenticator_attr_len =
+        sizeof(data_elem_attr_t) + AUTHENTICATOR_LEN;
 
-    em_printfout("Parsing m2 message, index: %d, len: %d", index, len);
+    em_printfout("Parsing m2 message, index: %u, len: %u", index, len);
 
-    m_m2_length = len - 12;
+    if (index >= em_haul_type_max) {
+        em_printfout("%s:%d Invalid haul index %u (max=%u)",
+                     __func__, __LINE__,
+                     index,
+                     static_cast<unsigned int>(em_haul_type_max));
+        return -1;
+    }
+
+    if (buff == nullptr || len < authenticator_attr_len) {
+        em_printfout("%s:%d Invalid M2 length %u",
+                     __func__, __LINE__, len);
+        return -1;
+    }
+
+    const size_t m2_copy_len = len - authenticator_attr_len;
+    if (m2_copy_len > sizeof(m_m2_msg)) {
+        em_printfout("%s:%d M2 copy length %zu exceeds buffer %zu",
+                     __func__, __LINE__,
+                     m2_copy_len, sizeof(m_m2_msg));
+        return -1;
+    }
+
+    m_m2_length = m2_copy_len;
     memcpy(m_m2_msg, buff, m_m2_length);
-    
-    attr = reinterpret_cast<data_elem_attr_t *> (buff); tmp_len = len;
 
-    while (tmp_len > 0) {
+    attr = reinterpret_cast<data_elem_attr_t *>(buff);
+    tmp_len = len;
 
-        id = htons(attr->id);
+    while (tmp_len >= sizeof(data_elem_attr_t)) {
+        const unsigned short id = ntohs(attr->id);
+        const unsigned int attr_len =
+            static_cast<unsigned int>(ntohs(attr->len));
+
+        if (attr_len > tmp_len - sizeof(data_elem_attr_t)) {
+            em_printfout(
+                "%s:%d Attribute length %u exceeds remaining payload %u",
+                __func__, __LINE__,
+                attr_len,
+                tmp_len -
+                    static_cast<unsigned int>(sizeof(data_elem_attr_t)));
+            return -1;
+        }
+
+        const unsigned int elem_size =
+            static_cast<unsigned int>(sizeof(data_elem_attr_t)) +
+            attr_len;
 
         if (id == attr_id_version) {
         } else if (id == attr_id_msg_type) {
-            if (attr->val[0] != em_wsc_msg_type_m2) {
+            if (attr_len != 1 ||
+                attr->val[0] != em_wsc_msg_type_m2) {
+                em_printfout("%s:%d Invalid M2 message type attribute",
+                             __func__, __LINE__);
                 return -1;
             }
         } else if (id == attr_id_registrar_nonce) {
-            set_r_nonce(attr->val, htons(attr->len));
+            if (attr_len != sizeof(em_nonce_t)) {
+                em_printfout("%s:%d Invalid registrar nonce length %u",
+                             __func__, __LINE__, attr_len);
+                return -1;
+            }
+            set_r_nonce(attr->val, attr_len);
         } else if (id == attr_id_public_key) {
-            set_r_public(attr->val, htons(attr->len));
+            if (attr_len != DH_KEY_SZ) {
+                em_printfout("%s:%d Invalid registrar public key length %u",
+                             __func__, __LINE__, attr_len);
+                return -1;
+            }
+            set_r_public(attr->val, attr_len);
         } else if (id == attr_id_encrypted_settings) {
-            memcpy(&m_m2_encrypted_settings[index][0], attr->val, htons(attr->len));
-            m_m2_encrypted_settings_len[index] = htons(attr->len);
-            //em_printfout("Copied encrypted setting[%d] len:%d", index, htons(attr->len));
+            if (attr_len > sizeof(m_m2_encrypted_settings[index])) {
+                em_printfout(
+                    "%s:%d Encrypted settings length %u exceeds buffer %zu",
+                    __func__, __LINE__,
+                    attr_len,
+                    sizeof(m_m2_encrypted_settings[index]));
+                return -1;
+            }
+
+            if (attr_len <= AES_BLOCK_SIZE ||
+                ((attr_len - AES_BLOCK_SIZE) % AES_BLOCK_SIZE) != 0) {
+                em_printfout(
+                    "%s:%d Invalid encrypted settings length %u",
+                    __func__, __LINE__, attr_len);
+                return -1;
+            }
+
+            memcpy(m_m2_encrypted_settings[index],
+                   attr->val,
+                   attr_len);
+            m_m2_encrypted_settings_len[index] = attr_len;
         } else if (id == attr_id_authenticator) {
-            memcpy(m_m2_authenticator[index], attr->val, htons(attr->len));
+            if (attr_len != AUTHENTICATOR_LEN) {
+                em_printfout("%s:%d Invalid authenticator length %u",
+                             __func__, __LINE__, attr_len);
+                return -1;
+            }
+
+            memcpy(m_m2_authenticator[index],
+                   attr->val,
+                   attr_len);
+            m_m2_authenticator_len[index] = attr_len;
         }
 
-        tmp_len -= static_cast<unsigned int> (sizeof(data_elem_attr_t) + htons(attr->len));
-        attr = reinterpret_cast<data_elem_attr_t *>(reinterpret_cast<unsigned char *> (attr) + sizeof(data_elem_attr_t) + htons(attr->len));
+        tmp_len -= elem_size;
+        attr = reinterpret_cast<data_elem_attr_t *>(
+            reinterpret_cast<unsigned char *>(attr) + elem_size);
     }
 
-    return ret;
+    if (tmp_len != 0) {
+        em_printfout("%s:%d Trailing incomplete attribute (%u bytes)",
+                     __func__, __LINE__, tmp_len);
+        return -1;
+    }
 
+    return 0;
 }
 
 int em_configuration_t::handle_wsc_m1(unsigned char *buff, unsigned int len)
@@ -4662,6 +4746,15 @@ int em_configuration_t::handle_wsc_m1(unsigned char *buff, unsigned int len)
 		printf("%s:%d Failed to find the radio\n", __func__, __LINE__);
 		return -1;
 	}
+    if (buff == nullptr ||
+        len < sizeof(data_elem_attr_t) ||
+        len > sizeof(m_m1_msg)) {
+        em_printfout("%s:%d Invalid M1 length %u (max=%zu)",
+                     __func__, __LINE__,
+                     len, sizeof(m_m1_msg));
+        return -1;
+    }
+
     m_m1_length = len;
     memcpy(m_m1_msg, buff, m_m1_length);
     
@@ -4802,7 +4895,10 @@ int em_configuration_t::handle_autoconfig_wsc_m2(unsigned char *buff, unsigned i
             em_printfout("Handle wsc TLV, count: %d", wsc_tlv_count);
             //Storing m2 address and length in static variable;
             set_e_mac(get_radio_interface_mac());
-            handle_wsc_m2(tlv->value, val_len, wsc_tlv_count);
+            if (handle_wsc_m2(tlv->value, val_len, wsc_tlv_count) < 0) {
+                em_printfout("Invalid WSC M2 TLV");
+                return -1;
+            }
 
             // first compute keys
             if (compute_keys(get_r_public(), static_cast<short unsigned int> (get_r_public_len()), get_e_private(), static_cast<short unsigned int> (get_e_private_len())) != 1) {
@@ -6236,7 +6332,10 @@ int em_configuration_t::handle_autoconfig_wsc_m1(unsigned char *buff, unsigned i
         if (tlv->type == em_tlv_type_ap_radio_basic_cap) {
             handle_ap_radio_basic_cap(tlv->value, val_len);
         } else if (tlv->type == em_tlv_type_wsc) {
-            handle_wsc_m1(tlv->value, val_len);
+            if (handle_wsc_m1(tlv->value, val_len) < 0) {
+                em_printfout("Invalid WSC M1 TLV");
+                return -1;
+            }
         } else if (tlv->type == em_tlv_type_profile_2_ap_cap) {
         } else if (tlv->type == em_tlv_type_ap_radio_advanced_cap) {
             handle_ap_radio_advanced_cap(tlv->value, val_len);
