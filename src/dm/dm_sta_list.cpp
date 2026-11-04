@@ -294,14 +294,15 @@ static void decode_frame_body(db_client_t& db_client, void *ctx, unsigned int co
         return;
     }
 
-    std::vector<char> hex_str(static_cast<size_t>(hex_len) + 1, '\0');
-    if (db_client.get_string(ctx, hex_str.data(), col) == NULL) {
+    // Reject before allocating, the DB does not enforce the declared column width
+    if (hex_len / 2 > EM_MAX_FRAME_BODY_LEN) {
+        em_printfout("frame_body of %u bytes in DB exceeds max %u, ignoring it", hex_len / 2, EM_MAX_FRAME_BODY_LEN);
         return;
     }
 
-    if (hex_len / 2 > EM_MAX_FRAME_BODY_LEN) {
-        em_printfout("frame_body of %u bytes in DB exceeds max %u, clamping", hex_len / 2, EM_MAX_FRAME_BODY_LEN);
-        hex_len = EM_MAX_FRAME_BODY_LEN * 2;
+    std::vector<char> hex_str(static_cast<size_t>(hex_len) + 1, '\0');
+    if (db_client.get_string(ctx, hex_str.data(), col) == NULL) {
+        return;
     }
 
     body.resize(hex_len / 2);
