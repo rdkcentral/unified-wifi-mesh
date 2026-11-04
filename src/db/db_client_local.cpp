@@ -218,7 +218,7 @@ int db_client_local_t::get_number(void *ctx, unsigned int col)
     return sqlite3_column_int(res_ctx->statement, static_cast<int>(col - 1));
 }
 
-unsigned int db_client_local_t::get_length(void *ctx, unsigned int col)
+unsigned int db_client_local_t::get_string_length(void *ctx, unsigned int col)
 {
     if ((ctx == NULL) || (col == 0))
     {

@@ -63,13 +63,6 @@ int db_client_cloud_t::get_number(void *ctx, unsigned int col)
     return 0;
 }
 
-unsigned int db_client_cloud_t::get_length(void *ctx, unsigned int col)
-{
-    (void) ctx;
-    (void) col;
-    return 0;
-}
-
 int db_client_cloud_t::recreate_db()
 {
     return -1;

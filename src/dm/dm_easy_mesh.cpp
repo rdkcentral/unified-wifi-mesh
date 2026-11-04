@@ -3908,6 +3908,109 @@ void dm_easy_mesh_t::remove_assoc_sta_mld_info(mac_address_t sta_mld_mac)
     m_num_assoc_sta_mld--;
 }
 
+static void apply_sta_association_row(dm_easy_mesh_t *dm, em_sta_info_t info)
+{
+    mac_addr_str_t sta, bssid, radio;
+    em_long_string_t key;
+    dm_easy_mesh_t::macbytes_to_string(info.id, sta);
+    dm_easy_mesh_t::macbytes_to_string(info.bssid, bssid);
+    dm_easy_mesh_t::macbytes_to_string(info.radiomac, radio);
+    snprintf(key, sizeof(key), "%s@%s@%s", sta, bssid, radio);
+
+    dm_sta_t *existing = static_cast<dm_sta_t *>(hash_map_get(dm->m_sta_map, key));
+    if (existing != NULL) {
+        existing->m_sta_info.associated = info.associated;
+        info = existing->m_sta_info;
+    }
+    dm_sta_t *pending = static_cast<dm_sta_t *>(hash_map_get(dm->m_sta_assoc_map, key));
+    if (pending == NULL) {
+        hash_map_put(dm->m_sta_assoc_map, strdup(key), new dm_sta_t(&info));
+    } else {
+        dm_sta_t::copy_sta_info(&pending->m_sta_info, &info);
+    }
+}
+
+void dm_easy_mesh_t::apply_sta_mld_association(const em_assoc_sta_mld_info_t &info)
+{
+    bool updated = false;
+    dm_sta_t *sta = static_cast<dm_sta_t *>(hash_map_get_first(m_sta_map));
+    while (sta != NULL) {
+        if (memcmp(sta->m_sta_info.id, info.mac_addr, sizeof(mac_address_t)) == 0 &&
+                sta->m_sta_info.associated) {
+            em_sta_info_t row = sta->m_sta_info;
+            row.associated = false;
+            apply_sta_association_row(this, row);
+            updated = true;
+        }
+        sta = static_cast<dm_sta_t *>(hash_map_get_next(m_sta_map, sta));
+    }
+    for (unsigned int j = 0; j < info.num_affiliated_sta; j++) {
+        em_sta_info_t row = {};
+        memcpy(row.id, info.mac_addr, sizeof(mac_address_t));
+        memcpy(row.bssid, info.affiliated_sta[j].bssid, sizeof(mac_address_t));
+        for (unsigned int r = 0; r < get_num_radios(); r++) {
+            dm_bss_t *bss = get_bss(get_radio_info(r)->id.ruid, row.bssid);
+            if (bss == NULL) {
+                continue;
+            }
+            memcpy(row.radiomac, bss->m_bss_info.ruid.mac, sizeof(mac_address_t));
+            row.associated = true;
+            apply_sta_association_row(this, row);
+            updated = true;
+            break;
+        }
+    }
+    if (updated) {
+        set_db_cfg_param(db_cfg_type_sta_list_update, "");
+    }
+}
+
+void dm_easy_mesh_t::apply_sta_disassociation(const em_client_assoc_event_t &event)
+{
+    bool updated = false;
+    for (unsigned int i = 0; i < get_num_assoc_sta_mld(); i++) {
+        const em_assoc_sta_mld_info_t &info = m_assoc_sta_mld[i].m_assoc_sta_mld_info;
+        if (memcmp(info.mac_addr, event.cli_mac_address, sizeof(mac_address_t)) != 0) {
+            continue;
+        }
+        for (unsigned int j = 0; j < info.num_affiliated_sta; j++) {
+            bool resolved = false;
+            em_sta_info_t row = {};
+            memcpy(row.id, event.cli_mac_address, sizeof(mac_address_t));
+            memcpy(row.bssid, info.affiliated_sta[j].bssid, sizeof(mac_address_t));
+            for (unsigned int r = 0; r < get_num_radios(); r++) {
+                dm_bss_t *bss = get_bss(get_radio_info(r)->id.ruid, row.bssid);
+                if (bss == NULL) {
+                    continue;
+                }
+                memcpy(row.radiomac, bss->m_bss_info.ruid.mac, sizeof(mac_address_t));
+                apply_sta_association_row(this, row);
+                resolved = true;
+                updated = true;
+                break;
+            }
+            if (!resolved) {
+                em_printfout("Disassociation: unresolved affiliated BSSID %s",
+                    util::mac_to_string(info.affiliated_sta[j].bssid).c_str());
+            }
+        }
+        break;
+    }
+    if (!updated) {
+        em_sta_info_t row = {};
+        memcpy(row.id, event.cli_mac_address, sizeof(mac_address_t));
+        memcpy(row.bssid, event.bssid, sizeof(mac_address_t));
+        em_bss_info_t *bss = get_bss_info_with_mac(row.bssid);
+        if (bss != NULL) {
+            memcpy(row.radiomac, bss->ruid.mac, sizeof(mac_address_t));
+        } else if (is_ap_mld_mac(event.bssid)) {
+            resolve_ap_mld_to_fallback_ruid(event.bssid, row.radiomac);
+        }
+        apply_sta_association_row(this, row);
+    }
+    set_db_cfg_param(db_cfg_type_sta_list_update, "");
+}
+
 void dm_easy_mesh_t::apply_sta_cap_to_maps(const char *key, em_sta_info_t *info)
 {
     // Write to m_sta_assoc_map for DB persistence on the next update_tables() flush.

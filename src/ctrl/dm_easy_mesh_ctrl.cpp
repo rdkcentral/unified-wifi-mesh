@@ -3500,6 +3500,10 @@ int dm_easy_mesh_ctrl_t::analyze_sta_assoc_event(em_bus_event_t *evt, em_cmd_t *
 
     pdm->set_topo_state(true);
 
+    if (params->assoc.assoc_event == false) {
+        pdm->apply_sta_disassociation(params->assoc);
+    }
+
     is_ap_mld = pdm->is_ap_mld_mac(params->assoc.bssid);
 
     if (is_ap_mld == false) {

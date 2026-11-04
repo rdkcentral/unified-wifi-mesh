@@ -21,6 +21,8 @@
 #include <gmock/gmock.h>
 #include <stdio.h>
 #include <memory>
+#include <string>
+#include <vector>
 #include "db_client_local.h"
 #include "db_client_none.h"
 #include "db_easy_mesh.h"
@@ -147,6 +149,45 @@ TEST(db_client_backend_Test, LocalBackendPreservesSqliteTransactions)
     result = client->execute("SELECT name FROM sqlite_master WHERE type = 'table'");
     EXPECT_EQ(result, nullptr);
     client->free_result(result);
+}
+
+TEST(db_client_backend_Test, SqliteLengthBasedStringRetrieval)
+{
+    db_client_local_t client;
+    ASSERT_EQ(client.init(":memory:"), 0);
+    client.execute("CREATE TABLE string_length_test (body TEXT, empty_value TEXT, null_value TEXT)");
+
+    std::string hex;
+    for (unsigned int i = 0; i < 2048; i++) {
+        hex += "0123456789abcdef";
+    }
+    const std::string insert = "INSERT INTO string_length_test VALUES ('" + hex + "', '', NULL)";
+    client.execute(insert.c_str());
+
+    auto free_result = [&client](void *ctx) { client.free_result(ctx); };
+    std::unique_ptr<void, decltype(free_result)> result(
+        client.execute("SELECT body, empty_value, null_value FROM string_length_test"), free_result);
+    ASSERT_NE(result.get(), nullptr);
+    ASSERT_TRUE(client.next_result(result.get()));
+
+    const unsigned int length = client.get_string_length(result.get(), 1);
+    ASSERT_EQ(length, hex.size());
+    std::vector<char> buffer(static_cast<size_t>(length) + 1, 'X');
+    ASSERT_EQ(client.get_string(result.get(), buffer.data(), 1), buffer.data());
+    EXPECT_EQ(std::string(buffer.data(), length), hex);
+    EXPECT_EQ(buffer[length], '\0');
+
+    const unsigned int empty_length = client.get_string_length(result.get(), 2);
+    ASSERT_EQ(empty_length, 0u);
+    std::vector<char> empty_buffer(static_cast<size_t>(empty_length) + 1, 'X');
+    EXPECT_EQ(client.get_string(result.get(), empty_buffer.data(), 2), empty_buffer.data());
+    EXPECT_EQ(empty_buffer[0], '\0');
+
+    const unsigned int null_length = client.get_string_length(result.get(), 3);
+    ASSERT_EQ(null_length, 0u);
+    std::vector<char> null_buffer(static_cast<size_t>(null_length) + 1, 'X');
+    EXPECT_EQ(client.get_string(result.get(), null_buffer.data(), 3), nullptr);
+    EXPECT_EQ(null_buffer[0], 'X');
 }
 
 TEST(db_client_backend_Test, NoDatabaseBackendRemainsInMemoryOnly)

@@ -45,6 +45,16 @@
 #include "em_cmd_exec.h"
 #include "em_cmd_client_cap.h"
 
+// Report headers and TLVs other than the frame body.
+constexpr unsigned int EM_CLIENT_CAP_RPT_OVERHEAD = sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t) +
+    (sizeof(em_tlv_t) + 2 * sizeof(mac_address_t)) +
+    (sizeof(em_tlv_t) + sizeof(unsigned char)) +
+    (sizeof(em_tlv_t) + sizeof(unsigned char) + sizeof(mac_address_t)) +
+    sizeof(em_tlv_t);
+constexpr unsigned int EM_CLIENT_CAP_FIT_SZ = EM_MAX_MSG_SZ - EM_CLIENT_CAP_RPT_OVERHEAD;
+constexpr unsigned int EM_CLIENT_CAP_MAX_FRAME_BODY = (EM_CLIENT_CAP_FIT_SZ < EM_MAX_FRAME_BODY_LEN) ?
+    EM_CLIENT_CAP_FIT_SZ : EM_MAX_FRAME_BODY_LEN;
+
 int em_capability_t::send_ap_cap_report_msg(unsigned char *dst, unsigned short msg_id)
 {
     unsigned char buff[MAX_EM_BUFF_SZ * EM_MAX_RADIO_PER_AGENT] = {0};
@@ -529,20 +539,6 @@ int em_capability_t::send_client_cap_query()
     return static_cast<int> (len);
 }
 
-// Bytes of a client capability report other than the frame body, as built by
-// send_client_cap_report_msg(): headers, client info TLV, the result byte and header of the client
-// capability TLV, error code TLV and end of message TLV. The frame body is only cut when the whole
-// report would not fit in EM_MAX_MSG_SZ.
-#define EM_CLIENT_CAP_RPT_OVERHEAD    static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t) + \
-    (sizeof(em_tlv_t) + 2 * sizeof(mac_address_t)) + \
-    (sizeof(em_tlv_t) + sizeof(unsigned char)) + \
-    (sizeof(em_tlv_t) + sizeof(unsigned char) + sizeof(mac_address_t)) + \
-    sizeof(em_tlv_t))
-#define EM_CLIENT_CAP_FIT_SZ          (static_cast<unsigned int> (EM_MAX_MSG_SZ) - EM_CLIENT_CAP_RPT_OVERHEAD)
-// create_client_cap_tlv() returns a short and the data model never stores more than EM_MAX_FRAME_BODY_LEN
-#define EM_CLIENT_CAP_MAX_FRAME_BODY  ((EM_CLIENT_CAP_FIT_SZ < static_cast<unsigned int> (EM_MAX_FRAME_BODY_LEN)) ? \
-    EM_CLIENT_CAP_FIT_SZ : static_cast<unsigned int> (EM_MAX_FRAME_BODY_LEN))
-
 short em_capability_t::create_client_cap_tlv(unsigned char *buff, mac_address_t sta, bssid_t bssid)
 {
     short len = 0;
@@ -911,19 +907,34 @@ int em_capability_t::send_bsta_cap_report_msg(unsigned short msg_id)
     return static_cast<int> (len);
 }
 
+void em_capability_t::queue_cap_update(const em_sta_info_t &info)
+{
+    em_bus_event_type_sta_cap_update_params_t update = {};
+    memcpy(update.dev, get_data_model()->get_agent_al_interface_mac(), sizeof(mac_address_t));
+    memcpy(update.sta, info.id, sizeof(mac_address_t));
+    memcpy(update.bssid, info.bssid, sizeof(mac_address_t));
+    memcpy(update.radio, info.radiomac, sizeof(mac_address_t));
+    update.frame_body_len = info.frame_body_len;
+    static_assert(sizeof(update) + EM_MAX_FRAME_BODY_LEN <= EM_MAX_EVENT_DATA_LEN,
+        "Station capability updates must fit in the controller queue");
+    std::vector<unsigned char> data(sizeof(update) + info.frame_body_len);
+    memcpy(data.data(), &update, sizeof(update));
+    if (info.frame_body_len > 0) {
+        memcpy(data.data() + sizeof(update), info.frame_body, info.frame_body_len);
+    }
+    get_mgr()->io_process(em_bus_event_type_sta_cap_update, data.data(),
+        static_cast<unsigned int>(data.size()));
+}
+
 int em_capability_t::handle_client_cap_report(unsigned char *buff, unsigned int len)
 {
     unsigned int tmp_len;
     em_tlv_t *tlv;
     em_sta_info_t sta_info = {};
-    mac_addr_str_t sta_mac_str, bssid_str, radio_mac_str;
-    mac_addr_str_t link_bssid_str, link_radio_str;
-    em_long_string_t	key;
     dm_easy_mesh_t  *dm;
     em_assoc_sta_mld_info_t *assoc_info = NULL;
     dm_bss_t *aff_bss = NULL;
     em_sta_info_t link_sta_info = {};
-    em_long_string_t link_key;
     bool found_client_info = false;
     bool found_cap_report = false;
     bool updated_any = false;
@@ -1011,18 +1022,16 @@ int em_capability_t::handle_client_cap_report(unsigned char *buff, unsigned int 
             // result code. sta_info only borrows it from the received frame, the
             // data model copies it when the info is applied. Guard the zero-length
             // underflow of htons(len) - 1 and bound what a peer can make us store.
-            {
-                unsigned short cap_report_len = htons(tlv->len);
-                unsigned int fb_len = (cap_report_len > 0) ?
-                    static_cast<unsigned int>(cap_report_len - 1) : 0;
-                if (fb_len > EM_MAX_FRAME_BODY_LEN) {
-                    em_printfout("client cap report frame_body_len %u exceeds max %u, clamping",
-                        fb_len, EM_MAX_FRAME_BODY_LEN);
-                    fb_len = EM_MAX_FRAME_BODY_LEN;
-                }
-                sta_info.frame_body = (fb_len > 0) ? &tlv->value[1] : NULL;
-                sta_info.frame_body_len = fb_len;
+            unsigned short cap_report_len = htons(tlv->len);
+            unsigned int fb_len = (cap_report_len > 0) ?
+                static_cast<unsigned int>(cap_report_len - 1) : 0;
+            if (fb_len > EM_MAX_FRAME_BODY_LEN) {
+                em_printfout("client cap report frame_body_len %u exceeds max %u, clamping",
+                    fb_len, EM_MAX_FRAME_BODY_LEN);
+                fb_len = EM_MAX_FRAME_BODY_LEN;
             }
+            sta_info.frame_body = (fb_len > 0) ? &tlv->value[1] : NULL;
+            sta_info.frame_body_len = fb_len;
 
             found_cap_report = true;
             break;
@@ -1054,11 +1063,6 @@ int em_capability_t::handle_client_cap_report(unsigned char *buff, unsigned int 
         }
     }
 
-    dm_easy_mesh_t::macbytes_to_string(sta_info.id, sta_mac_str);
-    dm_easy_mesh_t::macbytes_to_string(sta_info.bssid, bssid_str);
-    dm_easy_mesh_t::macbytes_to_string(sta_info.radiomac, radio_mac_str);
-    snprintf(key, sizeof(em_long_string_t), "%s@%s@%s", sta_mac_str, bssid_str, radio_mac_str);
-
     // For MLO STA, update all affiliated link rows.
     for (i = 0; i < dm->get_num_assoc_sta_mld(); i++) {
         assoc_info = &dm->m_assoc_sta_mld[i].m_assoc_sta_mld_info;
@@ -1085,21 +1089,16 @@ int em_capability_t::handle_client_cap_report(unsigned char *buff, unsigned int 
                 continue;
             }
 
-            dm_easy_mesh_t::macbytes_to_string(link_sta_info.bssid, link_bssid_str);
-            dm_easy_mesh_t::macbytes_to_string(link_sta_info.radiomac, link_radio_str);
-            snprintf(link_key, sizeof(em_long_string_t), "%s@%s@%s", sta_mac_str, link_bssid_str, link_radio_str);
-
-            dm->apply_sta_cap_to_maps(link_key, &link_sta_info);
+            queue_cap_update(link_sta_info);
             updated_any = true;
         }
         break;
     }
 
     if (updated_any == false) {
-        dm->apply_sta_cap_to_maps(key, &sta_info);
+        queue_cap_update(sta_info);
     }
 
-    dm->set_db_cfg_param(db_cfg_type_sta_list_update, "");
     return 0;
 }
 

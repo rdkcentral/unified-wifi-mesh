@@ -1714,7 +1714,10 @@ public:
 	static void update_assoc_sta_mld_info(void *dm, em_assoc_sta_mld_info_t *assoc_sta_mld_info) { (static_cast<dm_easy_mesh_t *>(dm))->update_assoc_sta_mld_info(assoc_sta_mld_info); }
 
 	void remove_assoc_sta_mld_info(mac_address_t sta_mld_mac);
+	// Station-map mutations must run on the controller event thread.
 	void apply_sta_cap_to_maps(const char *key, em_sta_info_t *info);
+	void apply_sta_disassociation(const em_client_assoc_event_t &event);
+	void apply_sta_mld_association(const em_assoc_sta_mld_info_t &info);
 	bool is_ap_mld_mac(const mac_address_t mac);
 	bool resolve_ap_mld_to_fallback_ruid(const mac_address_t ap_mld_mac, mac_address_t fallback_ruid);
 

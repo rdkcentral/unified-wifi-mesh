@@ -30,11 +30,11 @@ public:
 	/**!
 	 * @brief Initializes the STA information structure.
 	 *
-	 * This function sets the STA information structure to zero.
+	 * Releases owned frame data and resets the STA information to defaults.
 	 *
 	 * @returns 0 on successful initialization.
 	 */
-	int init() { free_frame_body(&m_sta_info); memset(&m_sta_info, 0, sizeof(em_sta_info_t)); return 0; }
+	int init();
     
 	/**!
 	 * @brief Retrieves the station information.

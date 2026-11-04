@@ -294,6 +294,62 @@ void em_ctrl_t::handle_sta_assoc_event(em_bus_event_t *evt)
     }
 }
 
+void em_ctrl_t::handle_sta_cap_update(em_bus_event_t *evt)
+{
+    em_bus_event_type_sta_cap_update_params_t update;
+    if (evt->data_len < sizeof(update) || evt->data_len > EM_MAX_EVENT_DATA_LEN) {
+        em_printfout("Invalid station capability update length: %u", evt->data_len);
+        return;
+    }
+    memcpy(&update, evt->u.raw_buff, sizeof(update));
+    if (update.frame_body_len > EM_MAX_FRAME_BODY_LEN ||
+            evt->data_len - sizeof(update) != update.frame_body_len) {
+        em_printfout("Invalid station capability update payload");
+        return;
+    }
+    dm_easy_mesh_t *dm = get_data_model(GLOBAL_NET_ID, update.dev);
+    if (dm == NULL) {
+        em_printfout("Discarding station capability update for removed device");
+        return;
+    }
+    mac_addr_str_t sta, bssid, radio;
+    em_long_string_t key;
+    dm_easy_mesh_t::macbytes_to_string(update.sta, sta);
+    dm_easy_mesh_t::macbytes_to_string(update.bssid, bssid);
+    dm_easy_mesh_t::macbytes_to_string(update.radio, radio);
+    snprintf(key, sizeof(key), "%s@%s@%s", sta, bssid, radio);
+    em_sta_info_t info = {};
+    memcpy(info.id, update.sta, sizeof(mac_address_t));
+    memcpy(info.bssid, update.bssid, sizeof(mac_address_t));
+    memcpy(info.radiomac, update.radio, sizeof(mac_address_t));
+    info.associated = true;
+    info.frame_body_len = update.frame_body_len;
+    info.frame_body = update.frame_body_len == 0 ? NULL :
+        evt->u.raw_buff + sizeof(update);
+    dm->apply_sta_cap_to_maps(key, &info);
+    dm->set_db_cfg_param(db_cfg_type_sta_list_update, "");
+}
+
+void em_ctrl_t::handle_sta_mld_update(em_bus_event_t *evt)
+{
+    em_bus_event_type_sta_mld_update_params_t update;
+    if (evt->data_len != sizeof(update)) {
+        em_printfout("Invalid station MLD update length: %u", evt->data_len);
+        return;
+    }
+    memcpy(&update, evt->u.raw_buff, sizeof(update));
+    if (update.info.num_affiliated_sta > EM_MAX_AP_MLD) {
+        em_printfout("Invalid station MLD affiliated count: %u", update.info.num_affiliated_sta);
+        return;
+    }
+    dm_easy_mesh_t *dm = get_data_model(GLOBAL_NET_ID, update.dev);
+    if (dm == NULL) {
+        em_printfout("Discarding station MLD update for removed device");
+        return;
+    }
+    dm->apply_sta_mld_association(update.info);
+}
+
 void em_ctrl_t::handle_set_radio(em_bus_event_t *evt)
 {
     em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
@@ -809,6 +865,14 @@ void em_ctrl_t::handle_bus_event(em_bus_event_t *evt)
 
         case em_bus_event_type_dm_commit:
             handle_dm_commit(evt);
+            break;
+
+        case em_bus_event_type_sta_cap_update:
+            handle_sta_cap_update(evt);
+            break;
+
+        case em_bus_event_type_sta_mld_update:
+            handle_sta_mld_update(evt);
             break;
 
         case em_bus_event_type_m2_tx:

@@ -3200,6 +3200,8 @@ typedef enum {
     em_bus_event_type_unassoc_sta_result,
     em_bus_event_type_failed_conn,
     em_bus_event_type_vendor_data,
+    em_bus_event_type_sta_cap_update,
+    em_bus_event_type_sta_mld_update,
 
     em_bus_event_type_max
 } em_bus_event_type_t;
@@ -3383,6 +3385,20 @@ typedef struct {
     mac_address_t   dev;
     em_client_assoc_event_t   assoc;
 } em_bus_event_type_client_assoc_params_t;
+
+// Owned frame-body bytes follow this pointer-free header.
+typedef struct {
+    mac_address_t dev;
+    mac_address_t sta;
+    mac_address_t bssid;
+    mac_address_t radio;
+    unsigned int frame_body_len;
+} em_bus_event_type_sta_cap_update_params_t;
+
+typedef struct {
+    mac_address_t dev;
+    em_assoc_sta_mld_info_t info;
+} em_bus_event_type_sta_mld_update_params_t;
 
 typedef struct {
     mac_address_t   radio;

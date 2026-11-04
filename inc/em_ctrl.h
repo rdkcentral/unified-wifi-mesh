@@ -473,6 +473,8 @@ public:
 	 * @note Ensure that the event structure is properly initialized before passing it to this function.
 	 */
 	void handle_sta_assoc_event(em_bus_event_t *evt);
+	void handle_sta_cap_update(em_bus_event_t *evt);
+	void handle_sta_mld_update(em_bus_event_t *evt);
     
 	/**!
 	 * @brief Handles the MLD reconfiguration event.

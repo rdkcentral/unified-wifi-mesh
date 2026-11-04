@@ -259,7 +259,7 @@ int dm_sta_list_t::update_row(db_client_t& db_client, ...)
 }
 
 // Hex encodes the frame body, which has no fixed size, into a NUL terminated string
-static bool encode_frame_body(em_sta_info_t *info, unsigned int *len, std::vector<char>& hex_str)
+bool dm_sta_list_t::encode_frame_body_to_hex(em_sta_info_t *info, unsigned int *len, std::vector<char>& hex_str)
 {
     *len = info->frame_body_len;
     if (info->frame_body == NULL) {
@@ -285,9 +285,9 @@ static bool encode_frame_body(em_sta_info_t *info, unsigned int *len, std::vecto
 }
 
 // Reads and decodes the hex encoded frame body column, whatever its length
-static void decode_frame_body(db_client_t& db_client, void *ctx, unsigned int col, std::vector<unsigned char>& body)
+void dm_sta_list_t::decode_frame_body_from_hex(db_client_t& db_client, void *ctx, unsigned int col, std::vector<unsigned char>& body)
 {
-    unsigned int hex_len = db_client.get_length(ctx, col);
+    unsigned int hex_len = db_client.get_string_length(ctx, col);
 
     body.clear();
     if (hex_len == 0) {
@@ -346,7 +346,7 @@ int dm_sta_list_t::update_db(db_client_t& db_client, dm_orch_type_t op, void *da
 
 	switch (op) {
 		case dm_orch_type_db_insert:
-			if (encode_frame_body(info, &frame_body_len, frame_body) == false) {
+			if (dm_sta_list_t::encode_frame_body_to_hex(info, &frame_body_len, frame_body) == false) {
 				return -1;
 			}
 			ret = insert_row(db_client, dm_easy_mesh_t::macbytes_to_string(info->id, sta_mac_str),
@@ -361,7 +361,7 @@ int dm_sta_list_t::update_db(db_client_t& db_client, dm_orch_type_t op, void *da
 			break;
 
 		case dm_orch_type_db_update:
-			if (encode_frame_body(info, &frame_body_len, frame_body) == false) {
+			if (dm_sta_list_t::encode_frame_body_to_hex(info, &frame_body_len, frame_body) == false) {
 				return -1;
 			}
 			ret = update_row(db_client, dm_easy_mesh_t::macbytes_to_string(info->bssid, bssid_mac_str), 
@@ -447,7 +447,7 @@ bool dm_sta_list_t::compare_db(db_client_t& db_client, const dm_sta_t& sta)
         info.errors_rx = static_cast<unsigned char> (db_client.get_number(ctx, 20));
 
         // info only borrows the decoded frame body for the comparison
-        decode_frame_body(db_client, ctx, 22, frame_body);
+        dm_sta_list_t::decode_frame_body_from_hex(db_client, ctx, 22, frame_body);
         info.frame_body = frame_body.empty() ? NULL : frame_body.data();
         info.frame_body_len = static_cast<unsigned int>(frame_body.size());
 
@@ -498,7 +498,7 @@ int dm_sta_list_t::sync_db(db_client_t& db_client, void *ctx)
         info.errors_rx = static_cast<unsigned int> (db_client.get_number(ctx, 20));
 
         // info only borrows the decoded frame body, dm_sta_t copies it
-        decode_frame_body(db_client, ctx, 22, frame_body);
+        dm_sta_list_t::decode_frame_body_from_hex(db_client, ctx, 22, frame_body);
         info.frame_body = frame_body.empty() ? NULL : frame_body.data();
         info.frame_body_len = static_cast<unsigned int>(frame_body.size());
 

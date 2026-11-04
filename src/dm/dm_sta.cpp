@@ -35,6 +35,13 @@
 #include "dm_easy_mesh_ctrl.h"
 #include "util.h"
 
+int dm_sta_t::init()
+{
+    free_frame_body(&m_sta_info);
+    m_sta_info = {};
+    return 0;
+}
+
 int dm_sta_t::decode(const cJSON *obj, void *parent_id)
 {
     cJSON *tmp;
@@ -42,8 +49,7 @@ int dm_sta_t::decode(const cJSON *obj, void *parent_id)
 
     mac_address_t *bssid = static_cast<mac_address_t *>(parent_id);
 
-    free_frame_body(&m_sta_info);
-    memset(&m_sta_info, 0, sizeof(em_sta_info_t));
+    init();
     memcpy(&m_sta_info.bssid,bssid,sizeof(mac_address_t));
 
     if ((tmp = cJSON_GetObjectItem(obj, "MACAddress")) != NULL) {
