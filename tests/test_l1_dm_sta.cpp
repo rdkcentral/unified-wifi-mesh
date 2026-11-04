@@ -1834,3 +1834,59 @@ TEST(dm_sta_t_Test, GetAssocFrameIeOffsetUnrecognisedBody) {
     EXPECT_EQ(dm_sta_t::get_assoc_frame_ie_offset(nullptr, 32), 0u);
     std::cout << "Exiting GetAssocFrameIeOffsetUnrecognisedBody test" << std::endl;
 }
+
+
+/**
+* @brief Verify that dm_sta_t::encode reports the client type as deviceModel.
+*
+* The topology identifies a client by deviceModel, taken from the client type and falling
+* back to "unknown" when it is empty. The old ClientType key must no longer be emitted.
+*
+* **Test Group ID:** Basic: 01@n
+* **Test Case ID:** 053@n
+* **Priority:** High@n
+* @n
+* **Pre-Conditions:** None@n
+* **Dependencies:** None@n
+* **User Interaction:** None@n
+* @n
+* **Test Procedure:**@n
+* | Variation / Step | Description | Test Data | Expected Result | Notes |
+* | :----: | --------- | ---------- |-------------- | ----- |
+* | 01 | Encode a client with a known type for the topology and default reasons | sta_client_type = "Apple iPhone 14" | deviceModel is "Apple iPhone 14", no ClientType key | Should Pass |
+* | 02 | Encode a client with an empty type for the topology and default reasons | sta_client_type = "" | deviceModel is "unknown", no ClientType key | Should Pass |
+*/
+TEST(dm_sta_t_Test, EncodeReportsDeviceModel) {
+    std::cout << "Entering EncodeReportsDeviceModel test" << std::endl;
+    const struct {
+        const char *type;
+        const char *expected;
+    } cases[] = {
+        {"Apple iPhone 14", "Apple iPhone 14"},
+        {"", "unknown"},
+    };
+    const em_get_sta_list_reason_t reasons[] = {
+        em_get_sta_list_reason_topology,
+        em_get_sta_list_reason_none,
+    };
+
+    for (const auto &c : cases) {
+        for (auto reason : reasons) {
+            dm_sta_t dmSta;
+            snprintf(dmSta.m_sta_info.sta_client_type, sizeof(dmSta.m_sta_info.sta_client_type), "%s", c.type);
+
+            cJSON *obj = cJSON_CreateObject();
+            ASSERT_NE(obj, nullptr);
+            dmSta.encode(obj, reason);
+
+            cJSON *model = cJSON_GetObjectItem(obj, "deviceModel");
+            ASSERT_NE(model, nullptr) << "type=" << c.type << " reason=" << static_cast<int>(reason);
+            ASSERT_TRUE(cJSON_IsString(model));
+            EXPECT_STREQ(model->valuestring, c.expected) << "reason=" << static_cast<int>(reason);
+            EXPECT_EQ(cJSON_GetObjectItem(obj, "ClientType"), nullptr);
+            EXPECT_NE(cJSON_GetObjectItem(obj, "MACAddress"), nullptr);
+            cJSON_Delete(obj);
+        }
+    }
+    std::cout << "Exiting EncodeReportsDeviceModel test" << std::endl;
+}
