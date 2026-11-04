@@ -117,6 +117,13 @@ TEST_F(em_ctrl_t_Test, data_model_init_valid_path) {
     EXPECT_EQ(result, 0);
     std::cout << "Exiting data_model_init_valid_path test" << std::endl;
 }
+
+TEST_F(em_ctrl_t_Test, data_model_init_backend_failure) {
+    em_ctrl_t ctrl;
+    ctrl.set_db_type(db_client_type_cloud);
+    EXPECT_NE(ctrl.data_model_init(nullptr), 0);
+}
+
 /**
  * @brief Verify that data_model_init returns an error when a null pointer is provided as the data model path.
  *

@@ -25,6 +25,15 @@
 #include <signal.h>
 #include <vector>
 #include "db_easy_mesh.h"
+#include "util.h"
+
+int db_easy_mesh_t::prepare_db_operation(db_client_t &db_client, dm_orch_type_t &op)
+{
+    if (!db_client.is_persistent()) {
+        op = dm_orch_type_none;
+    }
+    return 0;
+}
 
 char *db_easy_mesh_t::get_column_format(db_fmt_t fmt, unsigned int pos)
 {
@@ -59,6 +68,11 @@ bool db_easy_mesh_t::is_table_empty(db_client_t& db_client)
     db_query_t query;
     void *ctx;
     bool ret = false;
+
+    // no-op backend: nothing is ever persisted, so every table is empty
+    if (!db_client.is_persistent()) {
+        return true;
+    }
 
     snprintf(query, sizeof(db_query_t), "select * from %s", m_table_name);
 
@@ -125,6 +139,13 @@ int db_easy_mesh_t::insert_row(db_client_t& db_client, ...)
     db_fmt_t	col_fmt;
     void *ctx;
 
+    // no-op backend: skip query construction, there is nothing to execute against
+    if (!db_client.is_persistent()) {
+        return 0;
+    }
+
+    em_printfout(" checking insert row ---->>>> ");
+
     snprintf(format, sizeof(db_query_t), "insert into %s (", m_table_name);
     for (i = 0; i < m_num_cols; i++) {
         snprintf(format + strlen(format), sizeof(format) - strlen(format), "%s", m_columns[i].m_name);
@@ -171,6 +192,11 @@ int db_easy_mesh_t::update_row(db_client_t& db_client, ...)
     va_list list;
     db_fmt_t	col_fmt;
     void *ctx;
+
+    // no-op backend: skip query construction, there is nothing to execute against
+    if (!db_client.is_persistent()) {
+        return 0;
+    }
 
     snprintf(format, sizeof(db_query_t), "update %s set ", m_table_name);
 
@@ -243,6 +269,11 @@ int db_easy_mesh_t::delete_row(db_client_t& db_client, ...)
     db_fmt_t	col_fmt;
     void *ctx;
 
+    // no-op backend: skip query construction, there is nothing to execute against
+    if (!db_client.is_persistent()) {
+        return 0;
+    }
+
     snprintf(format, sizeof(db_query_t), "delete from %s", m_table_name);
     snprintf(tmp, sizeof(db_query_t), " where %s =  ", m_columns[0].m_name);
     snprintf(format + strlen(format), sizeof(format) - strlen(format), "%s", tmp);
@@ -268,6 +299,11 @@ int db_easy_mesh_t::sync_table(db_client_t& db_client)
     db_query_t    query;
     void *ctx;
 
+    // no-op backend: skip query construction, there is nothing to execute against
+    if (!db_client.is_persistent()) {
+        return 0;
+    }
+
     memset(query, 0, sizeof(db_query_t));
     snprintf(query, sizeof(db_query_t), "select * from %s", m_table_name);
 
@@ -281,7 +317,12 @@ bool db_easy_mesh_t::entry_exists_in_table(db_client_t& db_client, void *key)
 {
     db_query_t    query;
     void *ctx;
-    
+
+    // With no persistence requirement, existing callers must not force reinsertion.
+    if (!db_client.is_persistent()) {
+        return true;
+    }
+
     memset(query, 0, sizeof(db_query_t));
     snprintf(query, sizeof(db_query_t), "select * from %s", m_table_name);
 
@@ -294,6 +335,11 @@ void db_easy_mesh_t::delete_table(db_client_t& db_client)
 {
     db_query_t    query;
 
+    // no-op backend: no table was ever created, nothing to drop
+    if (!db_client.is_persistent()) {
+        return;
+    }
+
     memset(query, 0, sizeof(db_query_t));
     snprintf(query, sizeof(db_query_t), "drop table %s", m_table_name);
     db_client.execute(query);
@@ -304,6 +350,11 @@ int db_easy_mesh_t::create_table(db_client_t& db_client)
     db_query_t    query;
     unsigned int i;
     char type_str[64];
+
+    // no-op backend: nothing persisted, no table to create
+    if (!db_client.is_persistent()) {
+        return 0;
+    }
 
     memset(query, 0, sizeof(db_query_t));
     snprintf(query, sizeof(db_query_t), "create table %s (", m_table_name);
@@ -383,6 +434,11 @@ int db_easy_mesh_t::load_table(db_client_t& db_client)
     db_result_t   result;
     void *ctx;
     bool present = false;
+
+    // no-op backend: nothing persisted, so there is no schema to discover/sync
+    if (!db_client.is_persistent()) {
+        return 0;
+    }
 
     memset(query, 0, sizeof(db_query_t));
     snprintf(query, sizeof(db_query_t), "select name from sqlite_master where type = 'table'");
