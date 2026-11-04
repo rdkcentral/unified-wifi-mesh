@@ -335,7 +335,8 @@ int dm_sta_list_t::update_db(db_client_t& db_client, dm_orch_type_t op, void *da
     mac_addr_str_t sta_mac_str, bssid_mac_str, radio_mac_str;
     em_sta_info_t *info = static_cast<em_sta_info_t *>(data);
     int ret = 0;
-    char frame_body[EM_MAX_FRAME_BODY_LEN*2];
+    std::vector<char> frame_body;
+    unsigned int frame_body_len = 0;
     if (prepare_db_operation(db_client, op) != 0) {
         return -1;
     }
