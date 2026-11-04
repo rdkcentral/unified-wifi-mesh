@@ -20,6 +20,7 @@
 #define DM_EM_H
 #include <vector>
 #include <atomic>
+#include <mutex>
 #include "em_base.h"
 #include "wifi_webconfig.h"
 #include "dm_device.h"
@@ -52,6 +53,8 @@ class dm_easy_mesh_t {
     unsigned int ssid_mismatch_check_time = 0;
     unsigned int last_topo_query_sent_time = 0;
     bool m_is_ctlr = false;
+    // Guards m_sta_map between the agent manager thread (writers) and radio threads (readers).
+    std::mutex m_sta_map_mutex;
 
 public:
     webconfig_subdoc_data_t *m_wifi_data;
@@ -1718,6 +1721,11 @@ public:
 	void apply_sta_cap_to_maps(const char *key, em_sta_info_t *info);
 	void apply_sta_disassociation(const em_client_assoc_event_t &event);
 	void apply_sta_mld_association(const em_assoc_sta_mld_info_t &info);
+
+	// Agent station-map access shared between manager and radio threads; each call takes the map lock.
+	void merge_assoc_sta_updates(dm_easy_mesh_t &src);
+	void merge_sta_link_metrics(dm_easy_mesh_t &src);
+	bool copy_sta_frame_body(const mac_address_t sta, std::vector<unsigned char> &frame_body);
 	bool is_ap_mld_mac(const mac_address_t mac);
 	bool resolve_ap_mld_to_fallback_ruid(const mac_address_t ap_mld_mac, mac_address_t fallback_ruid);
 

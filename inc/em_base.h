@@ -68,9 +68,10 @@ extern "C"
 #define EM_MAX_MSG_SZ   1514
 #endif
 #define EM_MAX_TLV_VALUE_SZ 65535
-/* Upper bound accepted for a stored association frame body. The body itself is
- * heap allocated to its real length; this only limits what a peer or the DB can ask for. */
-#define EM_MAX_FRAME_BODY_LEN	16384
+/* Fixed storage cap based on the largest VHT MPDU option in IEEE 802.11-2020
+ * Table 9-25 (11454 octets), less the shortest management header (24 octets)
+ * and FCS (4 octets) per 9.3.3.1. */
+#define EM_MAX_FRAME_BODY_LEN	(11454 - 24 - 4)
 #define MAX_VENDOR_INFO 5
 #define EM_MAX_BEACON_MEASUREMENT_LEN  400
 #define EM_MAX_BEACON_REPORTS_PER_SCAN 10

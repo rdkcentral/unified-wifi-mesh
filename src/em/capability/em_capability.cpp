@@ -545,19 +545,11 @@ short em_capability_t::create_client_cap_tlv(unsigned char *buff, mac_address_t 
     unsigned char *tmp = buff;
     unsigned char res = 0;
     dm_easy_mesh_t *dm;
-    dm_sta_t *dm_sta;
+    std::vector<unsigned char> frame_body;
 
     dm = get_data_model();
 
-    dm_sta = reinterpret_cast<dm_sta_t *> (hash_map_get_first(dm->m_sta_map));
-    while(dm_sta != NULL) {
-        if (memcmp(dm_sta->get_sta_info()->id, sta, sizeof(mac_address_t)) == 0) {
-            break;
-        }
-        dm_sta = reinterpret_cast<dm_sta_t *> (hash_map_get_next(dm->m_sta_map, dm_sta));
-    }
-
-    if(dm_sta == NULL) {
+    if (!dm->copy_sta_frame_body(sta, frame_body)) {
         return 0;
     }
 
@@ -568,17 +560,14 @@ short em_capability_t::create_client_cap_tlv(unsigned char *buff, mac_address_t 
     //frame_body
     // The frame body is variable length, but the report is sent as a single frame,
     // so it is limited to what fits next to the other TLVs of the message.
-    unsigned int frame_body_len = dm_sta->get_sta_info()->frame_body_len;
-    if (dm_sta->get_sta_info()->frame_body == NULL) {
-        frame_body_len = 0;
-    }
+    unsigned int frame_body_len = static_cast<unsigned int>(frame_body.size());
     if (frame_body_len > EM_CLIENT_CAP_MAX_FRAME_BODY) {
         em_printfout("frame_body_len %u exceeds max %u that fits the report, clamping", frame_body_len,
             static_cast<unsigned int> (EM_CLIENT_CAP_MAX_FRAME_BODY));
         frame_body_len = EM_CLIENT_CAP_MAX_FRAME_BODY;
     }
     if (frame_body_len > 0) {
-        memcpy(tmp, dm_sta->get_sta_info()->frame_body, frame_body_len);
+        memcpy(tmp, frame_body.data(), frame_body_len);
     }
     tmp += frame_body_len;
     len += static_cast<short> (frame_body_len);

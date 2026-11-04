@@ -4080,6 +4080,81 @@ char *dm_easy_mesh_t::db_cfg_type_get_criteria(db_cfg_type_t cfg_type)
 	return m_db_cfg_param.db_cfg_criteria[num];
 }
 
+void dm_easy_mesh_t::merge_assoc_sta_updates(dm_easy_mesh_t &src)
+{
+    dm_sta_t *sta;
+    em_long_string_t key;
+    mac_addr_str_t sta_mac_str, bss_mac_str, radio_mac_str;
+
+    std::lock_guard<std::mutex> lock(m_sta_map_mutex);
+
+    sta = static_cast<dm_sta_t *> (hash_map_get_first(src.m_sta_assoc_map));
+    while (sta != NULL) {
+        dm_easy_mesh_t::macbytes_to_string(sta->m_sta_info.id, sta_mac_str);
+        dm_easy_mesh_t::macbytes_to_string(sta->m_sta_info.bssid, bss_mac_str);
+        dm_easy_mesh_t::macbytes_to_string(sta->m_sta_info.radiomac, radio_mac_str);
+        snprintf(key, sizeof(em_long_string_t), "%s@%s@%s", sta_mac_str, bss_mac_str, radio_mac_str);
+
+        em_sta_info_t *em_sta = get_sta_info(sta->m_sta_info.id, sta->m_sta_info.bssid, sta->m_sta_info.radiomac, em_target_sta_map_consolidated);
+        if (em_sta != NULL) {
+            em_printfout("Consolidated Map, sta exists; updating with key: %s", key);
+            dm_sta_t::copy_sta_info(em_sta, &sta->m_sta_info);
+        } else {
+            em_printfout("Consolidated map new addition with key: %s", key);
+            hash_map_put(m_sta_map, strdup(key), new dm_sta_t(*sta));
+        }
+        sta = static_cast<dm_sta_t *> (hash_map_get_next(src.m_sta_assoc_map, sta));
+    }
+
+    sta = static_cast<dm_sta_t *> (hash_map_get_first(src.m_sta_dassoc_map));
+    while (sta != NULL) {
+        dm_sta_t *next_sta = static_cast<dm_sta_t *> (hash_map_get_next(src.m_sta_dassoc_map, sta));
+        dm_easy_mesh_t::macbytes_to_string(sta->m_sta_info.id, sta_mac_str);
+        dm_easy_mesh_t::macbytes_to_string(sta->m_sta_info.bssid, bss_mac_str);
+        dm_easy_mesh_t::macbytes_to_string(sta->m_sta_info.radiomac, radio_mac_str);
+        snprintf(key, sizeof(em_long_string_t), "%s@%s@%s", sta_mac_str, bss_mac_str, radio_mac_str);
+
+        if (get_sta_info(sta->m_sta_info.id, sta->m_sta_info.bssid, sta->m_sta_info.radiomac, em_target_sta_map_consolidated) != NULL) {
+            em_printfout("Consolidated Map removed with key: %s, updating em_target_sta_map_disassoc entry", key);
+            delete static_cast<dm_sta_t *> (hash_map_remove(m_sta_map, key));
+        }
+        sta = next_sta;
+    }
+}
+
+void dm_easy_mesh_t::merge_sta_link_metrics(dm_easy_mesh_t &src)
+{
+    std::lock_guard<std::mutex> lock(m_sta_map_mutex);
+
+    dm_sta_t *sta = static_cast<dm_sta_t *> (hash_map_get_first(src.m_sta_assoc_map));
+    while (sta != NULL) {
+        em_sta_info_t *em_sta = get_sta_info(sta->m_sta_info.id, sta->m_sta_info.bssid, sta->m_sta_info.radiomac, em_target_sta_map_consolidated);
+        if (em_sta != NULL) {
+            dm_sta_t::copy_sta_info(em_sta, &sta->m_sta_info);
+        }
+        sta = static_cast<dm_sta_t *> (hash_map_get_next(src.m_sta_assoc_map, sta));
+    }
+}
+
+bool dm_easy_mesh_t::copy_sta_frame_body(const mac_address_t sta_mac, std::vector<unsigned char> &frame_body)
+{
+    std::lock_guard<std::mutex> lock(m_sta_map_mutex);
+
+    frame_body.clear();
+    dm_sta_t *sta = static_cast<dm_sta_t *> (hash_map_get_first(m_sta_map));
+    while (sta != NULL) {
+        if (memcmp(sta->m_sta_info.id, sta_mac, sizeof(mac_address_t)) == 0) {
+            if (sta->m_sta_info.frame_body != NULL && sta->m_sta_info.frame_body_len > 0) {
+                frame_body.assign(sta->m_sta_info.frame_body, sta->m_sta_info.frame_body + sta->m_sta_info.frame_body_len);
+            }
+            return true;
+        }
+        sta = static_cast<dm_sta_t *> (hash_map_get_next(m_sta_map, sta));
+    }
+
+    return false;
+}
+
 int dm_easy_mesh_t::init()
 {
     unsigned int i;
@@ -4189,5 +4264,4 @@ dm_easy_mesh_t::~dm_easy_mesh_t()
 {
     deinit();
 }
-
 

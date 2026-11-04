@@ -702,13 +702,20 @@ TEST(dm_sta_t_Test, ValidEmStaInfoStructure) {
 * **Test Procedure:**@n
 * | Variation / Step | Description | Test Data |Expected Result |Notes |
 * | :----: | --------- | ---------- |-------------- | ----- |
-* | 01| Initialize dm_sta_t with null pointer | null_sta = nullptr | Exception should be thrown.| Should fail |
+* | 01| Initialize dm_sta_t with null pointer | null_sta = nullptr | Successful construction with empty station state | Should Pass |
 */
 TEST(dm_sta_t_Test, NullEmStaInfoStructure) {
     std::cout << "Entering NullEmStaInfoStructure test";
     em_sta_info_t *null_sta = nullptr;
-    EXPECT_ANY_THROW({
+    EXPECT_NO_THROW({
         dm_sta_t sta_obj(null_sta);
+        const mac_address_t zero_mac = {};
+        EXPECT_EQ(memcmp(sta_obj.m_sta_info.id, zero_mac, sizeof(zero_mac)), 0);
+        EXPECT_EQ(memcmp(sta_obj.m_sta_info.bssid, zero_mac, sizeof(zero_mac)), 0);
+        EXPECT_EQ(memcmp(sta_obj.m_sta_info.radiomac, zero_mac, sizeof(zero_mac)), 0);
+        EXPECT_FALSE(sta_obj.m_sta_info.associated);
+        EXPECT_EQ(sta_obj.m_sta_info.frame_body, nullptr);
+        EXPECT_EQ(sta_obj.m_sta_info.frame_body_len, 0u);
     });
     std::cout << "Exiting NullEmStaInfoStructure test";
 }
@@ -763,13 +770,20 @@ TEST(dm_sta_t_Test, InvalidMacAddress) {
 * **Test Procedure:**@n
 * | Variation / Step | Description | Test Data | Expected Result | Notes |
 * | :----: | --------- | ---------- |-------------- | ----- |
-* | 01| Initialize `em_sta_info_t` with null pointer | em_sta_info_t *null_sta = nullptr, dm_sta_t sta_obj(null_sta) | Exception should be thrown.| Should Fail|
+* | 01| Initialize `em_sta_info_t` with null pointer | em_sta_info_t *null_sta = nullptr, dm_sta_t sta_obj(null_sta) | Successful construction with empty station state | Should Pass |
 */
 TEST(dm_sta_t_Test, InitializeWithNullpointer) {
     std::cout << "Entering InitializeWithNullpointer test";
     em_sta_info_t *null_sta = nullptr;
-    EXPECT_ANY_THROW({
+    EXPECT_NO_THROW({
         dm_sta_t sta_obj(null_sta);
+        const mac_address_t zero_mac = {};
+        EXPECT_EQ(memcmp(sta_obj.m_sta_info.id, zero_mac, sizeof(zero_mac)), 0);
+        EXPECT_EQ(memcmp(sta_obj.m_sta_info.bssid, zero_mac, sizeof(zero_mac)), 0);
+        EXPECT_EQ(memcmp(sta_obj.m_sta_info.radiomac, zero_mac, sizeof(zero_mac)), 0);
+        EXPECT_FALSE(sta_obj.m_sta_info.associated);
+        EXPECT_EQ(sta_obj.m_sta_info.frame_body, nullptr);
+        EXPECT_EQ(sta_obj.m_sta_info.frame_body_len, 0u);
     });
     std::cout << "Exiting InitializeWithNullpointer test";
 }

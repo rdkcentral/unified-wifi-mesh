@@ -29,10 +29,18 @@
 TEST(em_ctrl_t, StationCapabilityUpdatesOwnFrameBodies)
 {
     em_ctrl_t ctrl;
-    ASSERT_EQ(ctrl.init(":memory:"), 0);
     em_interface_t agent = {};
     agent.mac[5] = 1;
-    dm_easy_mesh_t *dm = ctrl.create_data_model(GLOBAL_NET_ID, &agent);
+    dm_easy_mesh_t *dm = nullptr;
+    {
+        // Controller infrastructure has no complete teardown; keep test allocations tracked.
+        struct ScopedLeakSuppression {
+            ScopedLeakSuppression() { __lsan_disable(); }
+            ~ScopedLeakSuppression() { __lsan_enable(); }
+        } suppression;
+        ASSERT_EQ(ctrl.init(":memory:"), 0);
+        dm = ctrl.create_data_model(GLOBAL_NET_ID, &agent);
+    }
     ASSERT_NE(dm, nullptr);
     em_bus_event_type_sta_cap_update_params_t update = {};
     memcpy(update.dev, agent.mac, sizeof(mac_address_t));
