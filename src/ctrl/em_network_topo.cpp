@@ -162,7 +162,7 @@ em_network_topo_t *em_network_topo_t::find_topology_by_bh_associated(dm_easy_mes
 		return NULL;
 	}
 	// Now search for the topology containing this bss mac address.
-	em_network_topo_t *topo = g_network_topology->find_topology_by_bss_mac(bss_mac);
+	em_network_topo_t *topo = g_network_topology->find_topology_by_ap_bssid(bss_mac);
 	if ((topo != NULL) && (topo->m_data_model != NULL) && (topo->m_data_model->get_colocated() == true)) {
 		// The colocated agent shares the physical device with the controller, so a device
 		// associated to its BSS is a sibling of the colocated agent, not its child.
@@ -197,6 +197,27 @@ em_network_topo_t *em_network_topo_t::find_topology_by_bss_mac(mac_address_t bss
 		}
 	}
 	em_printfout("Could not find bss mac: %s in all topologies, return NULL", bss_mac_str.c_str());
+	return NULL;
+}
+
+em_network_topo_t *em_network_topo_t::find_topology_by_ap_bssid(mac_address_t ap_bssid)
+{
+	unsigned int i;
+	em_network_topo_t *topo;
+
+	for (i = 0; i < m_data_model->m_num_bss; i++) {
+		em_bss_info_t *bss = &m_data_model->m_bss[i].m_bss_info;
+		if ((bss->vap_mode == em_vap_mode_ap) &&
+			(memcmp(bss->bssid.mac, ap_bssid, sizeof(mac_address_t)) == 0)) {
+			return this;
+		}
+	}
+
+	for (i = 0; i < m_num_topologies; i++) {
+		if ((topo = m_topology[i]->find_topology_by_ap_bssid(ap_bssid)) != NULL) {
+			return topo;
+		}
+	}
 	return NULL;
 }
 

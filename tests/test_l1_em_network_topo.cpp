@@ -1387,6 +1387,56 @@ TEST(em_network_topo_t, find_topology_by_bh_associated_preserves_non_colocated_p
     EXPECT_TRUE(controller_topology.remove(&parent_dm, nullptr, nullptr));
 }
 
+TEST(em_network_topo_t, find_topology_by_bh_associated_skips_sibling_sta_before_ap_owner)
+{
+    dm_easy_mesh_t controller_dm{};
+    init_dm_with_mac(&controller_dm, 0x10, 0);
+    controller_dm.set_controller(true);
+
+    const mac_address_t upstream_bssid = {0x02, 0x20, 0x00, 0x00, 0x00, 0x01};
+
+    // The sibling is added first and records the same upstream BSSID on its bSTA.
+    dm_easy_mesh_t sibling_dm{};
+    init_dm_with_mac(&sibling_dm, 0x40, 0);
+    const mac_address_t sibling_bsta_mac = {0x02, 0x40, 0x01, 0x00, 0x00, 0x01};
+    const mac_address_t sibling_radio_mac = {0x02, 0x40, 0x00, 0x00, 0x00, 0x01};
+    configure_backhaul_sta_bss(sibling_dm, sibling_bsta_mac, sibling_radio_mac, upstream_bssid);
+
+    dm_easy_mesh_t parent_dm{};
+    init_dm_with_mac(&parent_dm, 0x20, 0);
+    parent_dm.m_num_bss = 1;
+    em_bss_info_t &parent_bss = parent_dm.m_bss[0].m_bss_info;
+    parent_bss.id.haul_type = em_haul_type_fronthaul;
+    parent_bss.vap_mode = em_vap_mode_ap;
+    parent_bss.enabled = true;
+    memcpy(parent_bss.bssid.mac, upstream_bssid, sizeof(mac_address_t));
+
+    dm_easy_mesh_t new_dm{};
+    init_dm_with_mac(&new_dm, 0x30, 0);
+    const mac_address_t new_bsta_mac = {0x02, 0x30, 0x01, 0x00, 0x00, 0x01};
+    const mac_address_t new_radio_mac = {0x02, 0x30, 0x00, 0x00, 0x00, 0x01};
+    configure_backhaul_sta_bss(new_dm, new_bsta_mac, new_radio_mac, upstream_bssid);
+
+    em_network_topo_t controller_topology(&controller_dm);
+    controller_topology.add_network_topo(&sibling_dm);
+    controller_topology.add_network_topo(&parent_dm);
+    em_network_topo_t *previous_topology = g_network_topology;
+    g_network_topology = &controller_topology;
+
+    em_network_topo_t *found = controller_topology.find_topology_by_bh_associated(&new_dm);
+    EXPECT_NE(found, nullptr);
+    if (found != nullptr) {
+        EXPECT_EQ(found->get_data_model(), &parent_dm);
+    }
+
+    // Without the AP owner, a sibling bSTA record must not be returned as the parent.
+    EXPECT_TRUE(controller_topology.remove(&parent_dm, nullptr, nullptr));
+    EXPECT_EQ(controller_topology.find_topology_by_bh_associated(&new_dm), nullptr);
+
+    g_network_topology = previous_topology;
+    EXPECT_TRUE(controller_topology.remove(&sibling_dm, nullptr, nullptr));
+}
+
 /**
  * @brief Validate that find_topology_by_bh_associated returns the correct topology
  *
@@ -1427,6 +1477,12 @@ TEST(em_network_topo_t, find_topology_by_bh_associated_root) {
     memcpy(root_dm->m_bss[0].m_bss_info.ruid.mac, radio_mac, 6);
     memcpy(root_dm->m_bss[0].m_bss_info.bssid.mac, bssid, 6);
     root_dm->m_bss[0].m_bss_info.vap_mode = em_vap_mode_sta;
+    // Only an AP BSS owning the upstream BSSID is a valid parent
+    root_dm->m_num_bss = 2;
+    root_dm->m_bss[1].m_bss_info.enabled = true;
+    root_dm->m_bss[1].m_bss_info.id.haul_type = em_haul_type_fronthaul;
+    root_dm->m_bss[1].m_bss_info.vap_mode = em_vap_mode_ap;
+    memcpy(root_dm->m_bss[1].m_bss_info.bssid.mac, bssid, sizeof(mac_address_t));
     root_dm->m_sta_map = hash_map_create();
     dm_sta_t* sta = new dm_sta_t();
     mac_address_t sta_mac = {0x02, 0x10, 0x01, 0x00, 0x00, 0x01};
