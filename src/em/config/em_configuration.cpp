@@ -4599,6 +4599,14 @@ int em_configuration_t::handle_wsc_m2(unsigned char *buff, unsigned int len, uns
 
     em_printfout("Parsing m2 message, index: %d, len: %d", index, len);
 
+    if (index >= em_haul_type_max) {
+        em_printfout("Invalid haul index %u", index);
+        return -1;
+    }
+    if (len < 12 || len - 12 > sizeof(m_m2_msg)) {
+        em_printfout("Invalid M2 message length %u", len);
+        return -1;
+    }
     m_m2_length = len - 12;
     memcpy(m_m2_msg, buff, m_m2_length);
     
@@ -4618,8 +4626,14 @@ int em_configuration_t::handle_wsc_m2(unsigned char *buff, unsigned int len, uns
         } else if (id == attr_id_public_key) {
             set_r_public(attr->val, htons(attr->len));
         } else if (id == attr_id_encrypted_settings) {
-            memcpy(&m_m2_encrypted_settings[index][0], attr->val, htons(attr->len));
-            m_m2_encrypted_settings_len[index] = htons(attr->len);
+            unsigned int attr_len = static_cast<unsigned int>(htons(attr->len));
+            if (attr_len > sizeof(m_m2_encrypted_settings[index])) {
+                em_printfout("Encrypted settings length %u exceeds buffer size %u",
+                            attr_len, static_cast<unsigned int>(sizeof(m_m2_encrypted_settings[index])));
+                return -1;
+            }
+            memcpy(&m_m2_encrypted_settings[index][0], attr->val, attr_len);
+            m_m2_encrypted_settings_len[index] = attr_len;
             //em_printfout("Copied encrypted setting[%d] len:%d", index, htons(attr->len));
         } else if (id == attr_id_authenticator) {
             memcpy(m_m2_authenticator[index], attr->val, htons(attr->len));
@@ -4662,6 +4676,10 @@ int em_configuration_t::handle_wsc_m1(unsigned char *buff, unsigned int len)
 		printf("%s:%d Failed to find the radio\n", __func__, __LINE__);
 		return -1;
 	}
+    if (len > sizeof(m_m1_msg)) {
+        em_printfout("Invalid M1 message length %u", len);
+        return -1;
+    }
     m_m1_length = len;
     memcpy(m_m1_msg, buff, m_m1_length);
     
@@ -4802,7 +4820,9 @@ int em_configuration_t::handle_autoconfig_wsc_m2(unsigned char *buff, unsigned i
             em_printfout("Handle wsc TLV, count: %d", wsc_tlv_count);
             //Storing m2 address and length in static variable;
             set_e_mac(get_radio_interface_mac());
-            handle_wsc_m2(tlv->value, val_len, wsc_tlv_count);
+            if (handle_wsc_m2(tlv->value, val_len, wsc_tlv_count) < 0) {
+                return -1;
+            }
 
             // first compute keys
             if (compute_keys(get_r_public(), static_cast<short unsigned int> (get_r_public_len()), get_e_private(), static_cast<short unsigned int> (get_e_private_len())) != 1) {
@@ -6236,7 +6256,9 @@ int em_configuration_t::handle_autoconfig_wsc_m1(unsigned char *buff, unsigned i
         if (tlv->type == em_tlv_type_ap_radio_basic_cap) {
             handle_ap_radio_basic_cap(tlv->value, val_len);
         } else if (tlv->type == em_tlv_type_wsc) {
-            handle_wsc_m1(tlv->value, val_len);
+            if (handle_wsc_m1(tlv->value, val_len) < 0) {
+                return -1;
+            }
         } else if (tlv->type == em_tlv_type_profile_2_ap_cap) {
         } else if (tlv->type == em_tlv_type_ap_radio_advanced_cap) {
             handle_ap_radio_advanced_cap(tlv->value, val_len);
