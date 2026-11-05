@@ -315,9 +315,6 @@ void em_ctrl_t::handle_sta_cap_update(em_bus_event_t *evt)
     mac_addr_str_t sta, bssid, radio;
     em_long_string_t key;
     dm_easy_mesh_t::macbytes_to_string(update.sta, sta);
-    dm_easy_mesh_t::macbytes_to_string(update.bssid, bssid);
-    dm_easy_mesh_t::macbytes_to_string(update.radio, radio);
-    snprintf(key, sizeof(key), "%s@%s@%s", sta, bssid, radio);
     em_sta_info_t info = {};
     memcpy(info.id, update.sta, sizeof(mac_address_t));
     memcpy(info.bssid, update.bssid, sizeof(mac_address_t));
@@ -326,6 +323,62 @@ void em_ctrl_t::handle_sta_cap_update(em_bus_event_t *evt)
     info.frame_body_len = update.frame_body_len;
     info.frame_body = update.frame_body_len == 0 ? NULL :
         evt->u.raw_buff + sizeof(update);
+
+    em_assoc_sta_mld_info_t rows[EM_MAX_ASSOC_STA_MLD];
+    const unsigned int count = dm->copy_assoc_sta_mld_info(rows);
+    for (unsigned int i = 0; i < count; i++) {
+        if (memcmp(rows[i].mac_addr, info.id, sizeof(mac_address_t)) != 0) {
+            continue;
+        }
+        if (rows[i].num_affiliated_sta == 0) {
+            em_printfout("Client cap: skipping MLD STA %s with no current links", sta);
+            return;
+        }
+        bool updated = false;
+        for (unsigned int j = 0; j < rows[i].num_affiliated_sta; j++) {
+            dm_bss_t *link_bss = NULL;
+            for (unsigned int r = 0; r < dm->get_num_radios(); r++) {
+                link_bss = dm->get_bss(dm->get_radio_info(r)->id.ruid, rows[i].affiliated_sta[j].bssid);
+                if (link_bss != NULL) {
+                    break;
+                }
+            }
+            if (link_bss == NULL) {
+                em_printfout("Client cap: unresolved current link BSSID %s for STA %s",
+                    util::mac_to_string(rows[i].affiliated_sta[j].bssid).c_str(), sta);
+                continue;
+            }
+            memcpy(info.bssid, rows[i].affiliated_sta[j].bssid, sizeof(mac_address_t));
+            memcpy(info.radiomac, link_bss->m_bss_info.ruid.mac, sizeof(mac_address_t));
+            dm_easy_mesh_t::macbytes_to_string(info.bssid, bssid);
+            dm_easy_mesh_t::macbytes_to_string(info.radiomac, radio);
+            snprintf(key, sizeof(key), "%s@%s@%s", sta, bssid, radio);
+            dm->apply_sta_cap_to_maps(key, &info);
+            updated = true;
+        }
+        if (updated) {
+            dm->set_db_cfg_param(db_cfg_type_sta_list_update, "");
+        }
+        return;
+    }
+
+    bool radio_found = false;
+    for (unsigned int r = 0; r < dm->get_num_radios(); r++) {
+        dm_bss_t *link_bss = dm->get_bss(dm->get_radio_info(r)->id.ruid, info.bssid);
+        if (link_bss != NULL) {
+            memcpy(info.radiomac, link_bss->m_bss_info.ruid.mac, sizeof(mac_address_t));
+            radio_found = true;
+            break;
+        }
+    }
+    if (!radio_found) {
+        em_printfout("Client cap: unresolved BSSID %s for STA %s, retaining reported radio %s",
+            util::mac_to_string(info.bssid).c_str(), sta,
+            util::mac_to_string(info.radiomac).c_str());
+    }
+    dm_easy_mesh_t::macbytes_to_string(info.bssid, bssid);
+    dm_easy_mesh_t::macbytes_to_string(info.radiomac, radio);
+    snprintf(key, sizeof(key), "%s@%s@%s", sta, bssid, radio);
     dm->apply_sta_cap_to_maps(key, &info);
     dm->set_db_cfg_param(db_cfg_type_sta_list_update, "");
 }
@@ -347,6 +400,7 @@ void em_ctrl_t::handle_sta_mld_update(em_bus_event_t *evt)
         em_printfout("Discarding station MLD update for removed device");
         return;
     }
+    dm->replace_assoc_sta_mld_info(update.info);
     dm->apply_sta_mld_association(update.info);
 }
 
@@ -875,6 +929,10 @@ void em_ctrl_t::handle_bus_event(em_bus_event_t *evt)
             handle_sta_mld_update(evt);
             break;
 
+        case em_bus_event_type_topo_publish:
+            handle_topo_publish(evt);
+            break;
+
         case em_bus_event_type_m2_tx:
             handle_m2_tx(evt);
             break;
@@ -933,55 +991,57 @@ void em_ctrl_t::handle_event(em_event_t *evt)
 
 }
 
-void em_ctrl_t::publish_network_topology()
+void em_ctrl_t::handle_topo_publish(em_bus_event_t *evt)
 {
     assert(g_network_topology != NULL);
 
-	wifi_bus_desc_t *desc = NULL;
-    cJSON *parent = NULL;
-    char *str = NULL;
-    raw_data_t raw;
-    dm_easy_mesh_ctrl_t *dm_ctrl = NULL;
-
-    if((desc = get_bus_descriptor()) == NULL) {
-        printf("%s:%d descriptor is null\n", __func__, __LINE__);
+    wifi_bus_desc_t *desc = get_bus_descriptor();
+    if (desc == NULL) {
+        em_printfout("Topology publish: descriptor is null");
         return;
     }
 
-    parent = cJSON_CreateObject();
+    cJSON *parent = cJSON_CreateObject();
     if (parent == NULL) {
-        printf("%s:%d cJSON_CreateObject failed\n", __func__, __LINE__);
+        em_printfout("Topology publish: cJSON_CreateObject failed");
         return;
     }
-    dm_ctrl = reinterpret_cast<dm_easy_mesh_ctrl_t *>(get_data_model(GLOBAL_NET_ID));
+    dm_easy_mesh_ctrl_t *dm_ctrl =
+        reinterpret_cast<dm_easy_mesh_ctrl_t *>(get_data_model(GLOBAL_NET_ID));
     if (dm_ctrl == NULL) {
-        printf("%s:%d data model is null\n", __func__, __LINE__);
+        em_printfout("Topology publish: data model is null");
         cJSON_Delete(parent);
         return;
     }
-    dm_ctrl->get_network_config(parent, const_cast<char*>(GLOBAL_NET_ID));
+    dm_ctrl->get_network_config(parent, const_cast<char *>(GLOBAL_NET_ID));
 
-    str = cJSON_Print(parent);
+    char *str = cJSON_Print(parent);
     if (str == NULL) {
-        printf("%s:%d cJSON_Print failed\n", __func__, __LINE__);
+        em_printfout("Topology publish: cJSON_Print failed");
         cJSON_Delete(parent);
         return;
     }
-    em_printfout("    ===============Publish Network Topology Json:\n%s\n===============\n",str);
+    em_printfout("    ===============Publish Network Topology Json:\n%s\n===============\n", str);
 
-	raw.data_type    = bus_data_type_string;
-    raw.raw_data.bytes = reinterpret_cast<unsigned char *> (str);
-    raw.raw_data_len = static_cast<unsigned int> (strlen(str));
-
-    if (desc->bus_event_publish_fn(m_data_model.get_bus_hdl(), const_cast<char*>(DEVICE_WIFI_DATAELEMENTS_NETWORK_TOPOLOGY), &raw)== 0) {
-        printf("%s:%d Topology published successfull\n",__func__, __LINE__);
+    raw_data_t raw = {};
+    raw.data_type = bus_data_type_string;
+    raw.raw_data.bytes = reinterpret_cast<unsigned char *>(str);
+    raw.raw_data_len = static_cast<unsigned int>(strlen(str));
+    if (desc->bus_event_publish_fn(m_data_model.get_bus_hdl(),
+            const_cast<char *>(DEVICE_WIFI_DATAELEMENTS_NETWORK_TOPOLOGY), &raw) == 0) {
+        em_printfout("Topology published successfully");
     } else {
-        printf("%s:%d Topology publish fail\n",__func__, __LINE__);
+        em_printfout("Topology publish failed");
     }
 
-    // bus_event_publish_fn copies the payload
+    // bus_event_publish_fn copies the payload.
     cJSON_Delete(parent);
     cJSON_free(str);
+}
+
+void em_ctrl_t::publish_network_topology()
+{
+    io_process(em_bus_event_type_topo_publish, static_cast<unsigned char *>(NULL), 0);
 
 #if 0
     //Test code here

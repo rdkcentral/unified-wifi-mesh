@@ -3173,6 +3173,7 @@ void dm_easy_mesh_t::put_sta_info(em_sta_info_t *sta_info, em_target_sta_map_t t
 
 int dm_easy_mesh_t::get_num_bss_for_associated_sta(mac_address_t sta_mac)
 {
+    std::lock_guard<std::mutex> lock(m_sta_map_mutex);
     dm_sta_t *sta;
     int num_bssids = 0;
 
@@ -3784,6 +3785,7 @@ void dm_easy_mesh_t::update_bsta_mld_info(em_bsta_mld_info_t *bsta_mld_info)
 
 void dm_easy_mesh_t::update_assoc_sta_mld_info(em_assoc_sta_mld_info_t *assoc_sta_mld_info)
 {
+    std::lock_guard<std::mutex> lock(m_sta_map_mutex);
     em_assoc_sta_mld_info_t *target_mld = NULL;
     em_affiliated_sta_info_t *input_sta = NULL;                             
     em_affiliated_sta_info_t *target_aff_sta = NULL;                        
@@ -3880,32 +3882,44 @@ void dm_easy_mesh_t::remove_ap_mld_info_by_haul_type(em_haul_type_t haul_type)
     m_num_ap_mld--;
 }
 
-void dm_easy_mesh_t::remove_assoc_sta_mld_info(mac_address_t sta_mld_mac)
+void dm_easy_mesh_t::replace_assoc_sta_mld_info(const em_assoc_sta_mld_info_t &assoc_sta_mld_info)
 {
-    unsigned int found_idx = m_num_assoc_sta_mld; // sentinel: not found
+    em_assoc_sta_mld_info_t updated_info = assoc_sta_mld_info;
+    if (updated_info.num_affiliated_sta > EM_MAX_AP_MLD) {
+        em_printfout("Affiliated STA count %u exceeds max %u, clamping",
+            updated_info.num_affiliated_sta, EM_MAX_AP_MLD);
+        updated_info.num_affiliated_sta = EM_MAX_AP_MLD;
+    }
+
+    std::lock_guard<std::mutex> lock(m_sta_map_mutex);
     unsigned int i;
 
     for (i = 0; i < m_num_assoc_sta_mld; i++) {
-        if (memcmp(m_assoc_sta_mld[i].m_assoc_sta_mld_info.mac_addr, sta_mld_mac,
+        if (memcmp(m_assoc_sta_mld[i].m_assoc_sta_mld_info.mac_addr, updated_info.mac_addr,
                 sizeof(mac_address_t)) == 0) {
-            found_idx = i;
-            break;
+            m_assoc_sta_mld[i].m_assoc_sta_mld_info = updated_info;
+            return;
         }
     }
 
-    if (found_idx == m_num_assoc_sta_mld) {
-        return; // not found
+    if (m_num_assoc_sta_mld >= EM_MAX_ASSOC_STA_MLD) {
+        em_printfout("Max assoc STA MLD entries reached");
+        return;
     }
 
-    // Compact the array: shift entries after found_idx one position left.
-    for (unsigned int i = found_idx; i < m_num_assoc_sta_mld - 1; i++) {
-        m_assoc_sta_mld[i] = m_assoc_sta_mld[i + 1];
-    }
+    m_assoc_sta_mld[m_num_assoc_sta_mld].m_assoc_sta_mld_info = updated_info;
+    m_num_assoc_sta_mld++;
+}
 
-    // Zero out the vacated last slot and decrement count.
-    //memset(&m_assoc_sta_mld[m_num_assoc_sta_mld - 1], 0, sizeof(dm_assoc_sta_mld_t));
-    m_assoc_sta_mld[m_num_assoc_sta_mld - 1].init();
-    m_num_assoc_sta_mld--;
+unsigned int dm_easy_mesh_t::copy_assoc_sta_mld_info(
+    em_assoc_sta_mld_info_t (&info)[EM_MAX_ASSOC_STA_MLD])
+{
+    std::lock_guard<std::mutex> lock(m_sta_map_mutex);
+
+    for (unsigned int i = 0; i < m_num_assoc_sta_mld; i++) {
+        info[i] = m_assoc_sta_mld[i].m_assoc_sta_mld_info;
+    }
+    return m_num_assoc_sta_mld;
 }
 
 static void apply_sta_association_row(dm_easy_mesh_t *dm, em_sta_info_t info)
@@ -3925,6 +3939,8 @@ static void apply_sta_association_row(dm_easy_mesh_t *dm, em_sta_info_t info)
     dm_sta_t *pending = static_cast<dm_sta_t *>(hash_map_get(dm->m_sta_assoc_map, key));
     if (pending == NULL) {
         hash_map_put(dm->m_sta_assoc_map, strdup(key), new dm_sta_t(&info));
+    } else if (existing == NULL) {
+        pending->m_sta_info.associated = info.associated;
     } else {
         dm_sta_t::copy_sta_info(&pending->m_sta_info, &info);
     }
@@ -3933,6 +3949,22 @@ static void apply_sta_association_row(dm_easy_mesh_t *dm, em_sta_info_t info)
 void dm_easy_mesh_t::apply_sta_mld_association(const em_assoc_sta_mld_info_t &info)
 {
     bool updated = false;
+    dm_sta_t cached;
+    hash_map_t *maps[] = {m_sta_assoc_map, m_sta_map};
+    for (unsigned int i = 0; i < sizeof(maps) / sizeof(maps[0]) &&
+            cached.m_sta_info.frame_body_len == 0; i++) {
+        dm_sta_t *entry = static_cast<dm_sta_t *>(hash_map_get_first(maps[i]));
+        while (entry != NULL) {
+            if (memcmp(entry->m_sta_info.id, info.mac_addr, sizeof(mac_address_t)) == 0 &&
+                    entry->m_sta_info.frame_body != NULL && entry->m_sta_info.frame_body_len > 0) {
+                dm_sta_t::set_frame_body(&cached.m_sta_info,
+                    entry->m_sta_info.frame_body, entry->m_sta_info.frame_body_len);
+                break;
+            }
+            entry = static_cast<dm_sta_t *>(hash_map_get_next(maps[i], entry));
+        }
+    }
+
     dm_sta_t *sta = static_cast<dm_sta_t *>(hash_map_get_first(m_sta_map));
     while (sta != NULL) {
         if (memcmp(sta->m_sta_info.id, info.mac_addr, sizeof(mac_address_t)) == 0 &&
@@ -3955,7 +3987,19 @@ void dm_easy_mesh_t::apply_sta_mld_association(const em_assoc_sta_mld_info_t &in
             }
             memcpy(row.radiomac, bss->m_bss_info.ruid.mac, sizeof(mac_address_t));
             row.associated = true;
+            mac_addr_str_t sta_mac, bssid, radio;
+            em_long_string_t key;
+            macbytes_to_string(row.id, sta_mac);
+            macbytes_to_string(row.bssid, bssid);
+            macbytes_to_string(row.radiomac, radio);
+            snprintf(key, sizeof(key), "%s@%s@%s", sta_mac, bssid, radio);
             apply_sta_association_row(this, row);
+            dm_sta_t *pending = static_cast<dm_sta_t *>(hash_map_get(m_sta_assoc_map, key));
+            if (pending != NULL && pending->m_sta_info.frame_body_len == 0 &&
+                    cached.m_sta_info.frame_body_len > 0) {
+                dm_sta_t::set_frame_body(&pending->m_sta_info,
+                    cached.m_sta_info.frame_body, cached.m_sta_info.frame_body_len);
+            }
             updated = true;
             break;
         }
@@ -3968,11 +4012,16 @@ void dm_easy_mesh_t::apply_sta_mld_association(const em_assoc_sta_mld_info_t &in
 void dm_easy_mesh_t::apply_sta_disassociation(const em_client_assoc_event_t &event)
 {
     bool updated = false;
-    for (unsigned int i = 0; i < get_num_assoc_sta_mld(); i++) {
-        const em_assoc_sta_mld_info_t &info = m_assoc_sta_mld[i].m_assoc_sta_mld_info;
-        if (memcmp(info.mac_addr, event.cli_mac_address, sizeof(mac_address_t)) != 0) {
-            continue;
+    em_assoc_sta_mld_info_t rows[EM_MAX_ASSOC_STA_MLD];
+    const unsigned int count = copy_assoc_sta_mld_info(rows);
+    unsigned int i;
+    for (i = 0; i < count; i++) {
+        if (memcmp(rows[i].mac_addr, event.cli_mac_address, sizeof(mac_address_t)) == 0) {
+            break;
         }
+    }
+    if (i < count) {
+        const em_assoc_sta_mld_info_t &info = rows[i];
         for (unsigned int j = 0; j < info.num_affiliated_sta; j++) {
             bool resolved = false;
             em_sta_info_t row = {};
@@ -3994,7 +4043,6 @@ void dm_easy_mesh_t::apply_sta_disassociation(const em_client_assoc_event_t &eve
                     util::mac_to_string(info.affiliated_sta[j].bssid).c_str());
             }
         }
-        break;
     }
     if (!updated) {
         em_sta_info_t row = {};
@@ -4136,23 +4184,16 @@ void dm_easy_mesh_t::merge_sta_link_metrics(dm_easy_mesh_t &src)
     }
 }
 
-bool dm_easy_mesh_t::copy_sta_frame_body(const mac_address_t sta_mac, std::vector<unsigned char> &frame_body)
+void dm_easy_mesh_t::copy_sta_snapshot(std::vector<dm_sta_t> &stations)
 {
     std::lock_guard<std::mutex> lock(m_sta_map_mutex);
 
-    frame_body.clear();
-    dm_sta_t *sta = static_cast<dm_sta_t *> (hash_map_get_first(m_sta_map));
+    stations.clear();
+    dm_sta_t *sta = static_cast<dm_sta_t *>(hash_map_get_first(m_sta_map));
     while (sta != NULL) {
-        if (memcmp(sta->m_sta_info.id, sta_mac, sizeof(mac_address_t)) == 0) {
-            if (sta->m_sta_info.frame_body != NULL && sta->m_sta_info.frame_body_len > 0) {
-                frame_body.assign(sta->m_sta_info.frame_body, sta->m_sta_info.frame_body + sta->m_sta_info.frame_body_len);
-            }
-            return true;
-        }
-        sta = static_cast<dm_sta_t *> (hash_map_get_next(m_sta_map, sta));
+        stations.emplace_back(*sta);
+        sta = static_cast<dm_sta_t *>(hash_map_get_next(m_sta_map, sta));
     }
-
-    return false;
 }
 
 int dm_easy_mesh_t::init()
@@ -4264,4 +4305,3 @@ dm_easy_mesh_t::~dm_easy_mesh_t()
 {
     deinit();
 }
-

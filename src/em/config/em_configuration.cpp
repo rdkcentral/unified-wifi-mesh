@@ -407,24 +407,24 @@ unsigned short em_configuration_t::create_client_assoc_event_tlv(unsigned char *
     unsigned short len = 0;
     unsigned char *tmp;
     unsigned char joined = (assoc == true)?0x80:0x00;
-    bool found_assoc_sta_mld = false;
-    unsigned int i;
+    em_assoc_sta_mld_info_t rows[EM_MAX_ASSOC_STA_MLD];
 
     tmp = buff;
 
     dm_easy_mesh_t *dm = get_data_model();
 
-    for (i = 0; i < dm->get_num_assoc_sta_mld(); i++) {
-        em_assoc_sta_mld_info_t& assoc_sta_mld_info = dm->m_assoc_sta_mld[i].m_assoc_sta_mld_info;
-        if (memcmp(assoc_sta_mld_info.mac_addr, sta, sizeof(mac_address_t)) == 0) {
-            found_assoc_sta_mld = true;
-            memcpy(tmp, assoc_sta_mld_info.mac_addr, sizeof(mac_address_t));
-            memcpy(tmp + sizeof(mac_address_t), assoc_sta_mld_info.ap_mld_mac_addr, sizeof(mac_address_t));
-            break;        
+    const unsigned int count = dm->copy_assoc_sta_mld_info(rows);
+    unsigned int i;
+    for (i = 0; i < count; i++) {
+        if (memcmp(rows[i].mac_addr, sta, sizeof(mac_address_t)) == 0) {
+            break;
         }
     }
-
-    if (!found_assoc_sta_mld) {
+    if (i < count) {
+        const em_assoc_sta_mld_info_t &assoc_sta_mld_info = rows[i];
+        memcpy(tmp, assoc_sta_mld_info.mac_addr, sizeof(mac_address_t));
+        memcpy(tmp + sizeof(mac_address_t), assoc_sta_mld_info.ap_mld_mac_addr, sizeof(mac_address_t));
+    } else {
         memcpy(tmp, sta, sizeof(mac_address_t));
         memcpy(tmp + sizeof(mac_address_t), bssid, sizeof(bssid_t));
     }
@@ -440,7 +440,7 @@ int em_configuration_t::send_client_disassoc_stats_msg(const dm_sta_t *dassoc_st
 {
     unsigned short  msg_type = em_msg_type_client_disassoc_stats;
     char *errors[EM_MAX_TLV_MEMBERS] = {0};
-    unsigned int i, len = 0;
+    unsigned int len = 0;
     unsigned short sz, stats_sz, tlv_total_len;
     em_cmdu_t *cmdu;
     em_tlv_t *tlv;
@@ -448,6 +448,7 @@ int em_configuration_t::send_client_disassoc_stats_msg(const dm_sta_t *dassoc_st
     unsigned char *tmp = buff;
     unsigned short type = htons(ETH_P_1905);
     dm_easy_mesh_t *dm;
+    em_assoc_sta_mld_info_t mld_info_storage[EM_MAX_ASSOC_STA_MLD];
     em_assoc_sta_mld_info_t *mld_info = NULL;
     dm_sta_t dassoc_stats_sta;
     em_sta_info_t *dassoc_stats_sta_info;
@@ -498,10 +499,10 @@ int em_configuration_t::send_client_disassoc_stats_msg(const dm_sta_t *dassoc_st
     len += static_cast<unsigned int>(sizeof(em_cmdu_t));
 
     // Resolve whether this STA belongs to an MLD client.
-    for (i = 0; i < dm->get_num_assoc_sta_mld(); i++) {
-        em_assoc_sta_mld_info_t &assoc_sta_mld_info = dm->m_assoc_sta_mld[i].m_assoc_sta_mld_info;
-        if (memcmp(assoc_sta_mld_info.mac_addr, sta_info->id, sizeof(mac_address_t)) == 0) {
-            mld_info = &assoc_sta_mld_info;
+    const unsigned int count = dm->copy_assoc_sta_mld_info(mld_info_storage);
+    for (unsigned int i = 0; i < count; i++) {
+        if (memcmp(mld_info_storage[i].mac_addr, sta_info->id, sizeof(mac_address_t)) == 0) {
+            mld_info = &mld_info_storage[i];
             break;
         }
     }
@@ -1477,14 +1478,17 @@ int em_configuration_t::create_assoc_sta_mld_config_report_tlv(unsigned char *bu
     em_assoc_sta_mld_t *assoc_sta_mld;
     em_affiliated_sta_mld_t *affiliated_sta_mld;
     dm_easy_mesh_t *dm;
-    unsigned int i, j;
+    unsigned int j;
     unsigned short assoc_sta_mld_len;
     unsigned short affiliated_sta_len;
     unsigned short tlv_len = 0;
 
     dm = get_data_model();
 
-    for (i = 0; i < dm->get_num_assoc_sta_mld(); i++){
+    em_assoc_sta_mld_info_t assoc_sta_mld_snapshot[EM_MAX_ASSOC_STA_MLD];
+    const unsigned int num_assoc_sta_mld = dm->copy_assoc_sta_mld_info(assoc_sta_mld_snapshot);
+    for (unsigned int i = 0; i < num_assoc_sta_mld; i++) {
+        const em_assoc_sta_mld_info_t &assoc_sta_mld_info = assoc_sta_mld_snapshot[i];
         assoc_sta_mld_len = 0;
         affiliated_sta_len = 0;
 
@@ -1494,7 +1498,6 @@ int em_configuration_t::create_assoc_sta_mld_config_report_tlv(unsigned char *bu
         assoc_sta_mld = reinterpret_cast<em_assoc_sta_mld_t *>(tlv->value);
         memset(assoc_sta_mld, 0, sizeof(em_assoc_sta_mld_t));
 
-        em_assoc_sta_mld_info_t &assoc_sta_mld_info = dm->m_assoc_sta_mld[i].m_assoc_sta_mld_info;
         memcpy(assoc_sta_mld->sta_mld_mac_addr, assoc_sta_mld_info.mac_addr, sizeof(mac_address_t));
         memcpy(assoc_sta_mld->ap_mld_mac_addr, assoc_sta_mld_info.ap_mld_mac_addr, sizeof(mac_address_t));
         assoc_sta_mld->str = assoc_sta_mld_info.str;
@@ -1506,7 +1509,7 @@ int em_configuration_t::create_assoc_sta_mld_config_report_tlv(unsigned char *bu
         affiliated_sta_mld = assoc_sta_mld->affiliated_sta_mld;
 
         for (j = 0; j < assoc_sta_mld->num_affiliated_sta; j++) {
-            em_affiliated_sta_info_t &affiliated_sta_info = assoc_sta_mld_info.affiliated_sta[j];
+            const em_affiliated_sta_info_t &affiliated_sta_info = assoc_sta_mld_info.affiliated_sta[j];
             memset(affiliated_sta_mld, 0, sizeof(em_affiliated_sta_mld_t));
             memcpy(affiliated_sta_mld->bssid, affiliated_sta_info.bssid, sizeof(mac_address_t));
             memcpy(affiliated_sta_mld->affiliated_sta_mac_addr, affiliated_sta_info.link_addr, sizeof(mac_address_t));
@@ -2546,16 +2549,7 @@ int em_configuration_t::handle_topology_response(unsigned char *buff, unsigned i
         tmp_len -= static_cast<unsigned int>(sizeof(em_tlv_t) + htons(tlv->len));
         tlv = reinterpret_cast<em_tlv_t *>(reinterpret_cast<unsigned char *>(tlv) + sizeof(em_tlv_t) + htons(tlv->len));
     }
-    em_printfout("Total Assoc STA MLD TLVs parsed: %u, m_num_assoc_sta_mld=%u",
-        assoc_sta_mld_count, dm->m_num_assoc_sta_mld);
-
-    for (unsigned int i = 0; i < dm->get_num_assoc_sta_mld(); i++) {
-        em_bus_event_type_sta_mld_update_params_t update = {};
-        memcpy(update.dev, dm->get_agent_al_interface_mac(), sizeof(mac_address_t));
-        update.info = dm->m_assoc_sta_mld[i].m_assoc_sta_mld_info;
-        get_mgr()->io_process(em_bus_event_type_sta_mld_update,
-            reinterpret_cast<unsigned char *>(&update), sizeof(update));
-    }
+    em_printfout("Total Assoc STA MLD TLVs parsed: %u", assoc_sta_mld_count);
 
     em_printfout("Src al mac: " MACSTRFMT, MAC2STR(src_al_mac));
 
@@ -2732,11 +2726,14 @@ int em_configuration_t::handle_assoc_sta_mld_conf_rep_tlv(unsigned char *buff, u
         }
     } */
 
-    // Replace existing STA-MLD row to avoid stale affiliated links.
-    dm->remove_assoc_sta_mld_info(assoc_sta_mld_info.mac_addr);
-    dm->update_assoc_sta_mld_info(&assoc_sta_mld_info);
+    em_bus_event_type_sta_mld_update_params_t update = {};
+    memcpy(update.dev, dm->get_agent_al_interface_mac(), sizeof(mac_address_t));
+    update.info = assoc_sta_mld_info;
+    get_mgr()->io_process(em_bus_event_type_sta_mld_update,
+        reinterpret_cast<unsigned char *>(&update), sizeof(update));
 
-    em_printfout("Updated controller DM assoc STA MLD, m_num_assoc_sta_mld=%u", dm->m_num_assoc_sta_mld);
+    em_printfout("Queued controller DM assoc STA MLD update for %s",
+        util::mac_to_string(assoc_sta_mld_info.mac_addr).c_str());
     return 0;
 }
 
@@ -6968,5 +6965,3 @@ em_configuration_t::~em_configuration_t()
 {
 
 }
-
-

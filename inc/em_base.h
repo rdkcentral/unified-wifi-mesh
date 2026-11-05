@@ -3207,6 +3207,7 @@ typedef enum {
     em_bus_event_type_vendor_data,
     em_bus_event_type_sta_cap_update,
     em_bus_event_type_sta_mld_update,
+    em_bus_event_type_topo_publish,
 
     em_bus_event_type_max
 } em_bus_event_type_t;

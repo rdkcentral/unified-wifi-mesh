@@ -144,8 +144,6 @@ int db_easy_mesh_t::insert_row(db_client_t& db_client, ...)
         return 0;
     }
 
-    em_printfout(" checking insert row ---->>>> ");
-
     snprintf(format, sizeof(db_query_t), "insert into %s (", m_table_name);
     for (i = 0; i < m_num_cols; i++) {
         snprintf(format + strlen(format), sizeof(format) - strlen(format), "%s", m_columns[i].m_name);

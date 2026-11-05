@@ -545,11 +545,19 @@ short em_capability_t::create_client_cap_tlv(unsigned char *buff, mac_address_t 
     unsigned char *tmp = buff;
     unsigned char res = 0;
     dm_easy_mesh_t *dm;
-    std::vector<unsigned char> frame_body;
+    std::vector<dm_sta_t> stations;
+    const em_sta_info_t *sta_info = NULL;
 
     dm = get_data_model();
 
-    if (!dm->copy_sta_frame_body(sta, frame_body)) {
+    dm->copy_sta_snapshot(stations);
+    for (const dm_sta_t &station : stations) {
+        if (memcmp(station.m_sta_info.id, sta, sizeof(mac_address_t)) == 0) {
+            sta_info = &station.m_sta_info;
+            break;
+        }
+    }
+    if (sta_info == NULL) {
         return 0;
     }
 
@@ -560,14 +568,14 @@ short em_capability_t::create_client_cap_tlv(unsigned char *buff, mac_address_t 
     //frame_body
     // The frame body is variable length, but the report is sent as a single frame,
     // so it is limited to what fits next to the other TLVs of the message.
-    unsigned int frame_body_len = static_cast<unsigned int>(frame_body.size());
+    unsigned int frame_body_len = sta_info->frame_body_len;
     if (frame_body_len > EM_CLIENT_CAP_MAX_FRAME_BODY) {
         em_printfout("frame_body_len %u exceeds max %u that fits the report, clamping", frame_body_len,
             static_cast<unsigned int> (EM_CLIENT_CAP_MAX_FRAME_BODY));
         frame_body_len = EM_CLIENT_CAP_MAX_FRAME_BODY;
     }
     if (frame_body_len > 0) {
-        memcpy(tmp, frame_body.data(), frame_body_len);
+        memcpy(tmp, sta_info->frame_body, frame_body_len);
     }
     tmp += frame_body_len;
     len += static_cast<short> (frame_body_len);
@@ -920,18 +928,9 @@ int em_capability_t::handle_client_cap_report(unsigned char *buff, unsigned int 
     unsigned int tmp_len;
     em_tlv_t *tlv;
     em_sta_info_t sta_info = {};
-    dm_easy_mesh_t  *dm;
-    em_assoc_sta_mld_info_t *assoc_info = NULL;
-    dm_bss_t *aff_bss = NULL;
-    em_sta_info_t link_sta_info = {};
     bool found_client_info = false;
     bool found_cap_report = false;
-    bool updated_any = false;
-    unsigned int i, j, k;
     char *errors[EM_MAX_TLV_MEMBERS] = {0};
-    dm_bss_t *bss = NULL;
-
-    dm = get_data_model();
 
     if (em_msg_t(em_msg_type_client_cap_rprt, em_profile_type_3, buff, len).validate(errors) == 0) {
         em_printfout("Error: Client Capability Report msg validation failed");
@@ -945,21 +944,6 @@ int em_capability_t::handle_client_cap_report(unsigned char *buff, unsigned int 
             memset(&sta_info, 0, sizeof(em_sta_info_t));
             memcpy(sta_info.bssid, tlv->value, sizeof(mac_address_t));
             memcpy(sta_info.id, tlv->value + sizeof(mac_address_t), sizeof(mac_address_t));
-            // Resolve the radio MAC from the BSSID so the key is correct regardless
-            // of which EM instance handled this message.
-            bool radio_found = false;
-            for (unsigned int r = 0; r < dm->get_num_radios() && !radio_found; r++) {
-                bss = dm->get_bss(dm->get_radio_info(r)->id.ruid, sta_info.bssid);
-                if (bss != NULL) {
-                    memcpy(sta_info.radiomac, bss->m_bss_info.ruid.mac, sizeof(mac_address_t));
-                    radio_found = true;
-                    em_printfout("client_cap_report: resolved radio %s for sta %s bssid %s",
-                        util::mac_to_string(sta_info.radiomac).c_str(),
-                        util::mac_to_string(sta_info.id).c_str(),
-                        util::mac_to_string(sta_info.bssid).c_str());
-                }
-            }
-
             found_client_info = true;
             break;
         }
@@ -971,31 +955,6 @@ int em_capability_t::handle_client_cap_report(unsigned char *buff, unsigned int 
     if (found_client_info == false) {
         em_printfout("Error: Could not find client info");
         return -1;
-    }
-
-    if ((bss == NULL) && dm->is_ap_mld_mac(sta_info.bssid)) {
-        em_printfout("Client cap: STA %s is affiliated with MLD BSSID %s, remapping to affiliated link BSSID",
-            util::mac_to_string(sta_info.id).c_str(), util::mac_to_string(sta_info.bssid).c_str());
-        assoc_info = NULL;
-        for (i = 0; i < dm->get_num_assoc_sta_mld(); i++) {
-            if (memcmp(dm->m_assoc_sta_mld[i].m_assoc_sta_mld_info.mac_addr,
-                       sta_info.id,
-                       sizeof(mac_address_t)) == 0) {
-                assoc_info = &dm->m_assoc_sta_mld[i].m_assoc_sta_mld_info;
-                break;
-            }
-        }
-
-        if (assoc_info != NULL) {
-            for (j = 0; j < assoc_info->num_affiliated_sta; j++) {
-                if (dm->get_bss(get_radio_interface_mac(), assoc_info->affiliated_sta[j].bssid) != NULL) {
-                    memcpy(sta_info.bssid, assoc_info->affiliated_sta[j].bssid, sizeof(mac_address_t));
-                    em_printfout("Client cap: remapped BSSID for STA %s -> %s",
-                        util::mac_to_string(sta_info.id).c_str(), util::mac_to_string(sta_info.bssid).c_str());
-                    break;
-                }
-            }
-        }
     }
 
     tlv = reinterpret_cast<em_tlv_t *> (buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
@@ -1052,41 +1011,7 @@ int em_capability_t::handle_client_cap_report(unsigned char *buff, unsigned int 
         }
     }
 
-    // For MLO STA, update all affiliated link rows.
-    for (i = 0; i < dm->get_num_assoc_sta_mld(); i++) {
-        assoc_info = &dm->m_assoc_sta_mld[i].m_assoc_sta_mld_info;
-        if (memcmp(assoc_info->mac_addr, sta_info.id, sizeof(mac_address_t)) != 0) {
-            continue;
-        }
-
-        for (j = 0; j < assoc_info->num_affiliated_sta; j++) {
-            aff_bss = NULL;
-            link_sta_info = sta_info;
-            memcpy(link_sta_info.bssid, assoc_info->affiliated_sta[j].bssid, sizeof(mac_address_t));
-            for (k = 0; k < dm->get_num_radios(); k++) {
-                aff_bss = dm->get_bss(dm->get_radio_info(k)->id.ruid, link_sta_info.bssid);
-                if (aff_bss != NULL) {
-                    memcpy(link_sta_info.radiomac, aff_bss->m_bss_info.ruid.mac, sizeof(mac_address_t));
-                    break;
-                }
-            }
-
-            if (aff_bss == NULL) {
-                em_printfout("Client cap DB skip link: unresolved BSSID %s for STA %s",
-                    util::mac_to_string(link_sta_info.bssid).c_str(),
-                    util::mac_to_string(link_sta_info.id).c_str());
-                continue;
-            }
-
-            queue_cap_update(link_sta_info);
-            updated_any = true;
-        }
-        break;
-    }
-
-    if (updated_any == false) {
-        queue_cap_update(sta_info);
-    }
+    queue_cap_update(sta_info);
 
     return 0;
 }
