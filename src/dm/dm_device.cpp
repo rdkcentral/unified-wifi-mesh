@@ -184,22 +184,7 @@ void dm_device_t::encode(cJSON *obj, bool summary)
     dm_easy_mesh_t::macbytes_to_string(m_device_info.intf.mac, mac_str);
     cJSON_AddStringToObject(obj, "ID", mac_str);
     if (strlen(m_device_info.manufacturer_model) == 0) {
-        char device_model[32] = {0};
-#ifdef EM_WEBSOCKET_PUSH
-        FILE *model_fp = popen("dmcli eRT getv Device.DeviceInfo.ModelName | grep "
-                               "'value:' | awk -F'value: ' '{print $2}'",
-                               "r");
-        if (model_fp) {
-            if (fgets(device_model, sizeof(device_model), model_fp)) {
-                device_model[strcspn(device_model, "\r\n")] = '\0';
-            }
-            pclose(model_fp);
-        }
-#endif
-        if (device_model[0] == '\0') {
-            snprintf(device_model, sizeof(device_model), "unknown");
-        }
-        cJSON_AddStringToObject(obj, "deviceModel", device_model);
+        cJSON_AddStringToObject(obj, "deviceModel", "unknown");
     } else {
         cJSON_AddStringToObject(obj, "deviceModel", m_device_info.manufacturer_model);
     }
