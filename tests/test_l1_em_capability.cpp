@@ -21,8 +21,9 @@ public:
         em_msg_builder_t msg;
         mac_address_t source = {};
         msg.add_1905_header(source, source, em_msg_type_client_cap_query, 0x1234);
-        memcpy(msg.tlv_value(), bssid, sizeof(bssid_t));
-        memcpy(msg.tlv_value() + sizeof(bssid_t), sta, sizeof(mac_address_t));
+        unsigned char *tlv = msg.tlv_value();
+        memcpy(tlv, bssid, sizeof(bssid_t));
+        memcpy(tlv + sizeof(bssid_t), sta, sizeof(mac_address_t));
         msg.commit_tlv(em_tlv_type_client_info, 2 * sizeof(mac_address_t));
         if (!msg.add_eom()) {
             ADD_FAILURE() << "Failed to build capability query";
@@ -143,7 +144,14 @@ TEST(AgentCapabilityReport, UsesCurrentStationAfterReplacement)
         EXPECT_EQ(capability.state, em_state_agent_configured);
     }
 
+    constexpr unsigned int update_count = 5000;
+    constexpr unsigned int updates_per_checkpoint = 99;
+    constexpr unsigned int checkpoint_count =
+        (update_count + updates_per_checkpoint - 1) / updates_per_checkpoint;
     std::atomic<bool> start(false);
+    std::atomic<bool> writer_done(false);
+    std::atomic<unsigned int> completed_updates(0);
+    std::atomic<unsigned int> completed_queries(0);
     std::thread writer([&]() {
         while (!start.load()) {
             std::this_thread::yield();
@@ -151,9 +159,10 @@ TEST(AgentCapabilityReport, UsesCurrentStationAfterReplacement)
         em_sta_info_t replacement = info;
         dm_easy_mesh_t updates;
         if (updates.init() != 0) {
+            writer_done.store(true);
             return;
         }
-        for (unsigned int i = 0; i < 5000; i++) {
+        for (unsigned int i = 0; i < update_count; i++) {
             std::vector<unsigned char> body(i % 2 == 0 ? 4 : 1400, 0x5a);
             replacement.frame_body = body.data();
             replacement.frame_body_len = static_cast<unsigned int>(body.size());
@@ -166,15 +175,38 @@ TEST(AgentCapabilityReport, UsesCurrentStationAfterReplacement)
             delete static_cast<dm_sta_t *>(hash_map_remove(updates.m_sta_assoc_map, "update"));
             hash_map_put(updates.m_sta_assoc_map, strdup("update"), new dm_sta_t(&replacement));
             dm->merge_assoc_sta_updates(updates);
+            unsigned int updates_finished = i + 1;
+            completed_updates.store(updates_finished);
+            if (updates_finished % updates_per_checkpoint == 0 ||
+                    updates_finished == update_count) {
+                unsigned int checkpoint =
+                    (updates_finished + updates_per_checkpoint - 1) / updates_per_checkpoint;
+                while (completed_queries.load() < checkpoint) {
+                    std::this_thread::yield();
+                }
+            }
         }
         delete static_cast<dm_sta_t *>(hash_map_remove(updates.m_sta_assoc_map, "update"));
+        writer_done.store(true);
     });
     start.store(true);
-    for (unsigned int i = 0; i < 20; i++) {
+    for (unsigned int checkpoint = 1; checkpoint <= checkpoint_count; checkpoint++) {
+        const unsigned int target_updates = checkpoint * updates_per_checkpoint < update_count ?
+            checkpoint * updates_per_checkpoint : update_count;
+        while (completed_updates.load() < target_updates && !writer_done.load()) {
+            std::this_thread::yield();
+        }
+        if (completed_updates.load() < target_updates) {
+            ADD_FAILURE() << "Writer stopped after " << completed_updates.load()
+                << " updates";
+            break;
+        }
         capability.report.clear();
         capability.query(info.id, info.bssid);
-        // The station is absent between the disassociation and re-association merges.
+        completed_queries.store(checkpoint);
         if (capability.report.empty()) {
+            ADD_FAILURE() << "Capability report is empty after " << target_updates
+                << " writer updates";
             continue;
         }
         const size_t cap_offset = sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t) +
@@ -186,7 +218,9 @@ TEST(AgentCapabilityReport, UsesCurrentStationAfterReplacement)
         const em_tlv_t *cap = reinterpret_cast<const em_tlv_t *>(
             capability.report.data() + cap_offset);
         unsigned int cap_len = ntohs(cap->len);
-        if ((cap_len != 5 && cap_len != 1401) ||
+        const unsigned int update_index = target_updates - 1;
+        const unsigned int expected_body_len = update_index % 2 == 0 ? 4 : 1400;
+        if (cap_len != expected_body_len + 1 ||
                 cap_offset + sizeof(em_tlv_t) + cap_len > capability.report.size()) {
             ADD_FAILURE() << "Inconsistent frame snapshot length: " << cap_len;
             continue;
@@ -197,6 +231,8 @@ TEST(AgentCapabilityReport, UsesCurrentStationAfterReplacement)
         }
     }
     writer.join();
+    EXPECT_EQ(completed_updates.load(), update_count);
+    EXPECT_EQ(completed_queries.load(), checkpoint_count);
 
     delete static_cast<dm_sta_t *>(hash_map_remove(src.m_sta_assoc_map, "update"));
     info.frame_body = nullptr;
