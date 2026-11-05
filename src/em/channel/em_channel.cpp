@@ -2257,6 +2257,11 @@ void em_channel_t::fill_scan_result(dm_scan_result_t *scan_res, em_channel_scan_
         memcpy(&bw_len, tmp, sizeof(unsigned char));
         tmp += sizeof(unsigned char);
 
+        if (bw_len >= sizeof(bandwidth)) {
+            em_printfout("%s:%d Invalid bandwidth length %u",
+                        __func__, __LINE__, bw_len);
+            return;
+        }
         memcpy(bandwidth, tmp, bw_len);
         tmp += bw_len;
 
