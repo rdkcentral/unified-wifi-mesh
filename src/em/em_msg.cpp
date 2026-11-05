@@ -211,6 +211,13 @@ bool em_msg_t::get_sta_mac(mac_address_t *mac)
             }
             memcpy(mac, tlv->value, sizeof(mac_address_t));
             return true;
+        } else if (tlv->type == em_tlv_type_sta_mac_addr) {
+            if (value_len < sizeof(mac_address_t)) {
+                em_printfout("Error: TLV data too small");
+                return false;
+            }
+            memcpy(mac, tlv->value, sizeof(mac_address_t));
+            return true;
         }
 
         len -= static_cast<unsigned int> (sizeof(em_tlv_t) + value_len);
