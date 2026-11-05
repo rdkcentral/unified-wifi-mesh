@@ -5135,8 +5135,20 @@ int em_configuration_t::handle_bss_config_req_msg(uint8_t *buff, unsigned int le
     em_printfout("Received BSS Configuration Request message from '" MACSTRFMT "'", MAC2STR(src_al_mac));
 
     //TODO:  Update DM
-    em_tlv_t *tlv_buff = reinterpret_cast<em_tlv_t *>(buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
-    unsigned int tlv_buff_len = static_cast<unsigned int>(len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)));
+    const unsigned int header_len =
+        static_cast<unsigned int>(
+            sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+
+    if (buff == nullptr || len < header_len) {
+        em_printfout(
+            "%s:%d Invalid BSS Configuration Request length %u",
+            __func__, __LINE__, len);
+        return -1;
+    }
+
+    em_tlv_t *tlv_buff =
+        reinterpret_cast<em_tlv_t *>(buff + header_len);
+    const unsigned int tlv_buff_len = len - header_len;
 
     em_tlv_t *tlv = em_msg_t::get_first_tlv(tlv_buff, tlv_buff_len);
     EM_ASSERT_NOT_NULL(tlv, -1, "Failed to get first TLV from BSS Configuration Request message");
@@ -5171,10 +5183,20 @@ int em_configuration_t::handle_bss_config_req_msg(uint8_t *buff, unsigned int le
         }
 
         switch (tlv->type) {
-            case em_tlv_type_profile:
+            case em_tlv_type_profile: {
                 em_printfout("Processing Multi-AP Profile TLV");
-                memcpy(&profile, tlv->value, ntohs(tlv->len));
+
+                const uint16_t profile_len = ntohs(tlv->len);
+                if (!em_msg_t::parse_profile_tlv(
+                        tlv->value, profile_len, &profile) ||
+                    profile == em_profile_type_reserved) {
+                    em_printfout("%s:%d Invalid Profile TLV",
+                                 __func__, __LINE__);
+                    return -1;
+                }
+
                 break;
+            }
             case em_tlv_type_supported_service:
                 em_printfout("Processing Supported Service TLV");
                 memcpy(&service_type, &tlv->value[1], sizeof(em_service_type_t));
