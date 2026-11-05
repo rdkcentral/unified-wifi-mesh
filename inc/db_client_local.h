@@ -48,10 +48,11 @@ class db_client_local_t : public db_client_t {
 public:
 
     int init(const char *path) override;
-    void *execute(const char *query) override;
+    void *execute(const char *query, bool *succeeded = NULL) override;
     bool next_result(void *ctx) override;
     void free_result(void *ctx) override;
     char *get_string(void *ctx, char *res, unsigned int col) override;
+    char *get_string(void *ctx, char *res, unsigned int col, unsigned int res_sz) override;
     int get_number(void *ctx, unsigned int col) override;
     unsigned int get_string_length(void *ctx, unsigned int col) override;
     int recreate_db() override;

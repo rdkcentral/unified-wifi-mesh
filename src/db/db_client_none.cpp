@@ -27,11 +27,14 @@ int db_client_none_t::init(const char *path)
     return 0;
 }
 
-void *db_client_none_t::execute(const char *query)
+void *db_client_none_t::execute(const char *query, bool *succeeded)
 {
     // Nothing to run against; there is never a result set to iterate.
-    em_printfout("No backend to execute query: %s\n", query);
+    // Never log the query itself: a NetworkSSIDList row carries a passphrase
     (void) query;
+    if (succeeded != NULL) {
+        *succeeded = true;
+    }
     return NULL;
 }
 
@@ -55,6 +58,12 @@ char *db_client_none_t::get_string(void *ctx, char *res, unsigned int col)
         res[0] = 0;
     }
     return NULL;
+}
+
+char *db_client_none_t::get_string(void *ctx, char *res, unsigned int col, unsigned int res_sz)
+{
+    (void) res_sz;
+    return get_string(ctx, res, col);
 }
 
 int db_client_none_t::get_number(void *ctx, unsigned int col)

@@ -25,6 +25,9 @@
 #include "webconfig_external_proto.h"
 #include "bus.h"
 
+// analyze_m2ctrl_configuration(): the Private push failed; its configuration is in retry_cfg
+#define EM_M2CTRL_PRIVATE_RETRY 2
+
 class dm_easy_mesh_agent_t : public dm_easy_mesh_t {
 
 public:
@@ -153,8 +156,29 @@ public:
 	 *
 	 * @note Ensure that the event and descriptor are properly initialized before calling this function.
 	 */
-	int analyze_m2ctrl_configuration(em_bus_event_t *evt, wifi_bus_desc_t *desc,bus_handle_t *bus_hdl);
-    
+	int analyze_m2ctrl_configuration(em_bus_event_t *evt, wifi_bus_desc_t *desc,bus_handle_t *bus_hdl,
+			m2ctrl_radioconfig *retry_cfg = NULL, webconfig_subdoc_type_t *retry_type = NULL,
+			bool ap_push_pending = false);
+
+	/**!
+	 * @brief Copies the backhaul credentials of an M2/M8 into every bSTA BSS entry.
+	 *
+	 * @param[in] m2ctrl Decoded radio configuration.
+	 *
+	 * @returns true if a backhaul entry was found and at least one bSTA updated.
+	 */
+	bool update_bsta_credentials(const m2ctrl_radioconfig& m2ctrl);
+
+	/**!
+	 * @brief Updates EasymeshCfg.json with new backhaul SSID and passphrase.
+	 *
+	 * Called after M8 decryption provides new backhaul credentials.
+	 *
+	 * @param[in] ssid The new backhaul SSID.
+	 * @param[in] passphrase The new backhaul passphrase.
+	 */
+	void update_easymesh_cfg_backhaul(const char *ssid, const char *passphrase);
+
 	/**!
 	 * @brief Analyzes the channel preference query.
 	 *
@@ -404,7 +428,13 @@ public:
 	 *
 	 * @note Ensure that all dynamically allocated resources are properly released.
 	 */
-	~dm_easy_mesh_agent_t();  
+	~dm_easy_mesh_agent_t();
+
+	/**!
+	 * @brief Releases one M2 configuration held for the cfg_renew (m_m2ctrl_pending).
+	 */
+	void release_m2ctrl_pending();
+
 };
 
 #endif

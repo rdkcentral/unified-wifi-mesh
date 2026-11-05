@@ -139,13 +139,36 @@ void em_orch_t::reset_cmd_time(hash_map_t *cmd_map, em_cmd_type_t type)
     }
 }
 
+int em_orch_t::preprocess_and_submit_command(em_cmd_t *pcmd)
+{
+    // Pre-process the submit orch op (e.g. update DB with new SSIDs)
+    // before building candidates, so the data model is up-to-date when
+    // create_encrypted_settings reads network SSID info for M8.
+    if (pre_process_orch_op(pcmd) == false) {
+        destroy_command(pcmd);
+        return -1;
+    }
+
+    // Also process any remaining non-submit orch ops (e.g. net_ssid_update)
+    // that would otherwise never execute in the single-command path.
+    unsigned int saved_idx = pcmd->get_orch_op_index();
+    for (unsigned int i = saved_idx + 1; i < pcmd->m_num_orch_desc; i++) {
+        pcmd->m_orch_op_idx = i;
+        if (pcmd->get_orch_submit() == false) {
+            pre_process_orch_op(pcmd);
+        }
+    }
+    pcmd->m_orch_op_idx = saved_idx;
+
+    return submit_command(pcmd) ? 1 : 0;
+}
+
 bool em_orch_t::submit_command(em_cmd_t *pcmd)
 {
     bool submitted = false;
 
     // build em candidates in cmd;
     if (build_candidates(pcmd) == 0) {
-        // if there are no candidates, complete the command
         destroy_command(pcmd);
     } else {
         queue_push(m_pending, pcmd);
@@ -391,6 +414,7 @@ bool em_orch_t::is_cmd_in_progress_by_radio(em_bus_event_t *evt)
 				for (j = static_cast<int>(queue_count(pcmd->m_em_candidates)) - 1; j >= 0; j--) {
 					em = static_cast<em_t *>(queue_peek(pcmd->m_em_candidates, static_cast<unsigned int>(j)));
 					dm_easy_mesh_t::macbytes_to_string(em->get_radio_interface_mac(), mac_str);
+
 					if (memcmp(mac, em->get_radio_interface_mac(), sizeof(mac_address_t)) == 0) {
 						dm_easy_mesh_t::macbytes_to_string(em->get_radio_interface_mac(), mac_str);
                         em_printfout("Command of type: %s and cmd: %s actively executing for %s",
@@ -480,6 +504,14 @@ bool em_orch_t::get_dev_test_status()
 }
 
 
+bool em_orch_t::is_cmd_type_active(em_cmd_type_t type)
+{
+    em_short_string_t key;
+
+    snprintf(key, sizeof(em_short_string_t), "%d", type);
+    return hash_map_get(m_cmd_map, key) != NULL;
+}
+
 bool em_orch_t::is_cmd_type_in_progress(em_bus_event_t *evt)
 {
     em_cmd_stats_t *stats;
@@ -563,18 +595,20 @@ void em_orch_t::handle_timeout()
             // means the command is in fini sate 
             //printf("%s:%d: Removing and destroying Command type: %s Orchestration: %s because command is in fini state\n", 
                    // __func__, __LINE__, pcmd->get_cmd_name(), em_cmd_t::get_orch_op_str(pcmd->get_orch_op()));
+            
             queue_remove(m_active, static_cast<unsigned int>(i));
             pop_stats(pcmd);
             for (j = static_cast<int>(queue_count(pcmd->m_em_candidates)) - 1; j >= 0; j--) {
                 em = static_cast<em_t *>(queue_peek(pcmd->m_em_candidates, static_cast<unsigned int>(j)));
                 em->set_orch_state(em_orch_state_idle);
             }
+
+            // Controller/agent specific follow-up (backhaul reconfig phases, bSTA reconnect)
+            on_cmd_fini(pcmd);
             destroy_command(pcmd);
             //em->set_state(em_state_agent_config_complete);
         }
-
     }
-
 }
 
 em_orch_t::em_orch_t()

@@ -34,6 +34,8 @@
 #include <sys/socket.h>
 #include <sys/uio.h>
 #include <sys/time.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 #include <unistd.h>
 #include <unordered_map>
 #include <string>
@@ -236,6 +238,7 @@ int dm_easy_mesh_agent_t::analyze_autoconfig_renew(em_bus_event_t *evt, em_cmd_t
     unsigned int index = 0;
     em_cmd_t *tmp;
     mac_addr_str_t mac_str;
+    m_cfg_renew_in_progress = true;
 
     raw = reinterpret_cast<em_bus_event_type_cfg_renew_params_t *>(evt->u.raw_buff);
     memcpy(dm.get_controller_interface_mac(), raw->ctrl_src, sizeof(mac_address_t));
@@ -282,7 +285,119 @@ void dm_easy_mesh_agent_t::translate_onewifi_dml_data (char *str)
         
 }
 
-int dm_easy_mesh_agent_t::analyze_m2ctrl_configuration(em_bus_event_t *evt, wifi_bus_desc_t *desc,bus_handle_t *bus_hdl)
+void dm_easy_mesh_agent_t::update_easymesh_cfg_backhaul(const char *ssid, const char *passphrase)
+{
+    FILE *fp = fopen(EM_CFG_FILE, "r");
+    if (fp == NULL) {
+        printf("%s:%d: Failed to open %s for reading\n", __func__, __LINE__, EM_CFG_FILE);
+        return;
+    }
+
+    if (fseek(fp, 0, SEEK_END) != 0) {
+        fclose(fp);
+        return;
+    }
+    long fsize = ftell(fp);
+    if (fsize <= 0 || fseek(fp, 0, SEEK_SET) != 0) {
+        printf("%s:%d: Invalid size for %s, not updating\n", __func__, __LINE__, EM_CFG_FILE);
+        fclose(fp);
+        return;
+    }
+
+    char *buf = static_cast<char *>(malloc(static_cast<size_t>(fsize) + 1));
+    if (buf == NULL) {
+        fclose(fp);
+        return;
+    }
+    size_t nread = fread(buf, 1, static_cast<size_t>(fsize), fp);
+    fclose(fp);
+    if (nread != static_cast<size_t>(fsize)) {
+        printf("%s:%d: Short read on %s, not updating\n", __func__, __LINE__, EM_CFG_FILE);
+        free(buf);
+        return;
+    }
+    buf[fsize] = '\0';
+
+    cJSON *root = cJSON_Parse(buf);
+    free(buf);
+    if (root == NULL) {
+        printf("%s:%d: Failed to parse %s\n", __func__, __LINE__, EM_CFG_FILE);
+        return;
+    }
+
+    // Update or add Backhaul_SSID and Backhaul_KeyPassphrase
+    cJSON_DeleteItemFromObject(root, "Backhaul_SSID");
+    cJSON_DeleteItemFromObject(root, "Backhaul_KeyPassphrase");
+    if ((cJSON_AddStringToObject(root, "Backhaul_SSID", ssid) == NULL) ||
+            (cJSON_AddStringToObject(root, "Backhaul_KeyPassphrase", passphrase) == NULL)) {
+        printf("%s:%d: Failed to update backhaul credentials in %s\n", __func__, __LINE__, EM_CFG_FILE);
+        cJSON_Delete(root);
+        return;
+    }
+
+    char *json_str = cJSON_Print(root);
+    cJSON_Delete(root);
+
+    if (json_str == NULL) {
+        return;
+    }
+
+    // Write to a temp file and rename so a crash never leaves a truncated config behind.
+    char tmp_path[256];
+    snprintf(tmp_path, sizeof(tmp_path), "%s.tmp", EM_CFG_FILE);
+    // The file holds the backhaul passphrase, so its mode is clamped, not copied: an existing
+    // 0644 (e.g. created by a shell redirect under umask 022) would leave the new passphrase
+    // world readable. The owner keeps read/write; group read survives only when the file had it
+    // without world read (a group deliberately set apart from everyone else, e.g. 0640), so a
+    // default 0644 becomes 0600; group write and every world bit are dropped. fchmod is not
+    // masked by the umask.
+    struct stat st;
+    mode_t mode = S_IRUSR | S_IWUSR;
+    if (stat(EM_CFG_FILE, &st) == 0) {
+        if (((st.st_mode & S_IRGRP) != 0) && ((st.st_mode & S_IROTH) == 0)) {
+            mode |= S_IRGRP;
+        }
+        if ((st.st_mode & (S_IWGRP | S_IRWXO)) != 0) {
+            printf("%s:%d: %s had mode %04o, tightening to %04o\n", __func__, __LINE__,
+                EM_CFG_FILE, static_cast<unsigned int>(st.st_mode & 0777),
+                static_cast<unsigned int>(mode));
+        }
+    }
+    int fd = open(tmp_path, O_WRONLY | O_CREAT | O_TRUNC, 0600);
+    if ((fd < 0) || (fchmod(fd, mode) != 0)) {
+        if (fd >= 0) {
+            close(fd);
+            unlink(tmp_path);
+        }
+        printf("%s:%d: Failed to open %s for writing\n", __func__, __LINE__, tmp_path);
+        free(json_str);
+        return;
+    }
+    fp = fdopen(fd, "w");
+    if (fp == NULL) {
+        printf("%s:%d: Failed to open %s for writing\n", __func__, __LINE__, tmp_path);
+        close(fd);
+        unlink(tmp_path);
+        free(json_str);
+        return;
+    }
+    size_t len = strlen(json_str);
+    bool ok = (fwrite(json_str, 1, len, fp) == len) && (fflush(fp) == 0) &&
+        (fsync(fileno(fp)) == 0);
+    ok = (fclose(fp) == 0) && ok;
+    if (!ok || rename(tmp_path, EM_CFG_FILE) != 0) {
+        printf("%s:%d: Failed to update %s\n", __func__, __LINE__, EM_CFG_FILE);
+        unlink(tmp_path);
+        free(json_str);
+        return;
+    }
+
+    printf("%s:%d: Updated %s with Backhaul_SSID=%s\n", __func__, __LINE__, EM_CFG_FILE, ssid);
+    free(json_str);
+}
+
+int dm_easy_mesh_agent_t::analyze_m2ctrl_configuration(em_bus_event_t *evt, wifi_bus_desc_t *desc,bus_handle_t *bus_hdl,
+        m2ctrl_radioconfig *retry_cfg, webconfig_subdoc_type_t *retry_type, bool ap_push_pending)
 {
     m2ctrl_radioconfig *radioconfig;
     m2ctrl_radioconfig m2ctrl;
@@ -290,8 +405,10 @@ int dm_easy_mesh_agent_t::analyze_m2ctrl_configuration(em_bus_event_t *evt, wifi
 
     radioconfig = reinterpret_cast<m2ctrl_radioconfig *> (evt->u.raw_buff);
 
-	m2ctrl.noofbssconfig = radioconfig->noofbssconfig;
-	for (unsigned int i = 0; i < radioconfig->noofbssconfig; i++) {
+	memset(&m2ctrl, 0, sizeof(m2ctrl));
+	m2ctrl.noofbssconfig = (radioconfig->noofbssconfig < EM_MAX_BSS_PER_RADIO) ?
+			radioconfig->noofbssconfig : EM_MAX_BSS_PER_RADIO;
+	for (unsigned int i = 0; i < m2ctrl.noofbssconfig; i++) {
 		memcpy(m2ctrl.ssid[i], radioconfig->ssid[i], sizeof(m2ctrl.ssid[i]));
 		m2ctrl.authtype[i] = radioconfig->authtype[i];
 		memcpy(m2ctrl.password[i], radioconfig->password[i], sizeof(m2ctrl.password[i]));
@@ -300,11 +417,92 @@ int dm_easy_mesh_agent_t::analyze_m2ctrl_configuration(em_bus_event_t *evt, wifi
         // Nothing is done with the dpp_connector as of now but this is here when needed in the future.
         memcpy(m2ctrl.dpp_connector[i], radioconfig->dpp_connector[i], sizeof(m2ctrl.dpp_connector[i]));
 		dm_easy_mesh_t::macbytes_to_string(radioconfig->radio_mac[i],mac_str);
-		printf("%s:%d New configuration SSID=%s  passphrase=%s haultype=%d radiomac=%s\n",__func__, __LINE__,m2ctrl.ssid[i], m2ctrl.password[i], m2ctrl.haultype[i],mac_str);
+		// Never log the passphrase itself
+		printf("%s:%d New configuration SSID=%s  passphrase=%s haultype=%d radiomac=%s\n",__func__, __LINE__,m2ctrl.ssid[i], m2ctrl.password[i][0] ? "<set>" : "<empty>", m2ctrl.haultype[i],mac_str);
+
+		// Update EasymeshCfg.json when backhaul SSID/passphrase changes via M8
+		if (radioconfig->is_bh_reconfig && m2ctrl.haultype[i] == em_haul_type_backhaul) {
+			update_easymesh_cfg_backhaul(m2ctrl.ssid[i], m2ctrl.password[i]);
+		}
 	}
 
-    return refresh_onewifi_subdoc(desc, bus_hdl, "Private", get_subdoc_vap_type_for_freq(radioconfig->freq[0]), &m2ctrl, NULL);
-}    
+    // Push Private subdoc to reconfigure AP-side BSSes; a bSTA-only M8 entry configures no AP
+    int ret = 0;
+    unsigned int num_bss_cfg = m2ctrl.noofbssconfig;
+    if (radioconfig->bsta_only_last && (m2ctrl.noofbssconfig != 0)) {
+        m2ctrl.noofbssconfig--;
+    }
+    webconfig_subdoc_type_t vap_type = get_subdoc_vap_type_for_freq(radioconfig->freq[0]);
+    ret = refresh_onewifi_subdoc(desc, bus_hdl, "Private", vap_type, &m2ctrl, NULL);
+    // Not applied: handed back for a retry (em_agent_t::retry_private_pushes)
+    if ((ret != 1) && (retry_cfg != NULL) && (retry_type != NULL)) {
+        *retry_cfg = m2ctrl;
+        *retry_type = vap_type;
+        ret = EM_M2CTRL_PRIVATE_RETRY;
+    }
+    m2ctrl.noofbssconfig = num_bss_cfg;
+
+    // Backhaul reconfig (M8 present): give every bSTA the new credentials, connected or not, so
+    // the agent can join a reconfigured parent on any band, also after falling back from a wired
+    // backhaul. The MESH STA CONFIG push that applies them waits for the cfg_renew to finish
+    // (em_orch_agent_t::on_cmd_fini), as the other radios' M2s may still come over this bSTA.
+    // Held while this or another band's AP configuration is not applied yet (em_agent_t retries
+    // it): the bSTA would otherwise move to the new credentials ahead of this agent's backhaul APs
+    // and strand the children that already switched. The last retry to end makes it due.
+    if (radioconfig->is_bh_reconfig && update_bsta_credentials(m2ctrl)) {
+        m_bsta_reconnect_pending = true;
+        if (!m_cfg_renew_in_progress && !ap_push_pending && (ret != EM_M2CTRL_PRIVATE_RETRY) &&
+                prepare_bsta_reconnect()) {
+            // No cfg_renew to wait for; a failed push stays pending and is retried
+            bsta_reconnect_push_result(refresh_onewifi_subdoc(desc, bus_hdl, "MESH STA CONFIG",
+                webconfig_subdoc_type_mesh_backhaul_sta) == 1);
+        }
+    }
+
+    return ret;
+}
+
+void dm_easy_mesh_agent_t::release_m2ctrl_pending()
+{
+    unsigned int pending = __atomic_load_n(&m_m2ctrl_pending, __ATOMIC_ACQUIRE);
+    while ((pending != 0) && !__atomic_compare_exchange_n(&m_m2ctrl_pending, &pending,
+            pending - 1, false, __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE)) {
+    }
+}
+
+bool dm_easy_mesh_agent_t::update_bsta_credentials(const m2ctrl_radioconfig& m2ctrl)
+{
+    unsigned int i, updated = 0;
+    bool connected = false;
+
+    for (i = 0; i < m2ctrl.noofbssconfig; i++) {
+        if (m2ctrl.haultype[i] == em_haul_type_backhaul) {
+            break;
+        }
+    }
+    if (i == m2ctrl.noofbssconfig) {
+        return false;
+    }
+
+    // Kept aside until the push (prepare_bsta_reconnect()): on the bSTA rows, a Private push for another
+    // radio would apply them early, and a OneWifi callback could put back only the old SSID.
+    snprintf(m_bsta_new_ssid, sizeof(m_bsta_new_ssid), "%s", m2ctrl.ssid[i]);
+    snprintf(m_bsta_new_passphrase, sizeof(m_bsta_new_passphrase), "%s", m2ctrl.password[i]);
+
+    for (unsigned int j = 0; j < m_num_bss; j++) {
+        em_bss_info_t *bsta = get_bss_info(j);
+        if ((bsta == NULL) || (bsta->id.haul_type != em_haul_type_backhaul) || (bsta->vap_mode != em_vap_mode_sta)) {
+            continue;
+        }
+        connected = connected || (bsta->connect_status &&
+                (memcmp(bsta->bssid.mac, ZERO_MAC_ADDR, sizeof(mac_address_t)) != 0));
+        updated++;
+    }
+    // Only an agent whose backhaul is a bSTA re-onboards after the reconfig
+    m_bsta_reconnect_reonboards = m_bsta_reconnect_reonboards || connected;
+
+    return updated != 0;
+}
 
 int dm_easy_mesh_agent_t::analyze_onewifi_vap_cb(em_bus_event_t *evt, em_cmd_t *pcmd[])
 {
@@ -1287,7 +1485,8 @@ int dm_easy_mesh_agent_t::refresh_onewifi_subdoc(wifi_bus_desc_t *desc, bus_hand
     char *webconfig_easymesh_raw_data_ptr;
 
     if ((webconfig_easymesh_encode(&config, &ext_data, type, &webconfig_easymesh_raw_data_ptr )) == webconfig_error_none) {
-        em_printfout("%s subdoc encode success %s", logname, webconfig_easymesh_raw_data_ptr);
+        // Never log the subdoc itself: it carries passphrases
+        em_printfout("%s subdoc encode success", logname);
     } else {
         em_printfout("%s subdoc encode failure", logname);
         return 0;
@@ -1305,6 +1504,12 @@ int dm_easy_mesh_agent_t::refresh_onewifi_subdoc(wifi_bus_desc_t *desc, bus_hand
 
     if (desc->bus_set_fn(bus_hdl, WIFI_WEBCONFIG_DOC_DATA_SOUTH, &l_bus_data)== 0) {
         em_printfout("%s subdoc send successfull", logname);
+        if (type == webconfig_subdoc_type_mesh_backhaul_sta) {
+            // Applied; from here the rows only hold a copy of OneWifi's key
+            for (unsigned int i = 0; i < m_num_bss; i++) {
+                get_bss_info(i)->mesh_sta_cred_update = false;
+            }
+        }
     }
     else {
         em_printfout("%s subdoc send fail", logname);

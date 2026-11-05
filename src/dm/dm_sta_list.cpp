@@ -36,6 +36,7 @@
 #include <sys/time.h>
 #include <unistd.h>
 #include <vector>
+#include <sqlite3.h>
 #include "em_cmd.h"
 #include "dm_sta_list.h"
 #include "dm_easy_mesh.h"
@@ -203,9 +204,7 @@ int dm_sta_list_t::update_row(db_client_t& db_client, ...)
 {
     unsigned int i;
     db_query_t  tmp, format;
-    std::vector<char> query;
-    va_list list, list_copy;
-    int query_len;
+    va_list list;
     db_fmt_t    col_fmt;
     void *ctx;
 
@@ -236,24 +235,19 @@ int dm_sta_list_t::update_row(db_client_t& db_client, ...)
         em_printfout("update_row called for DB update other than STAList table updation");
     }
 
-    // The frame body column has no fixed size, so size the query to fit the formatted values
+    // The column formats are for sqlite3_vmprintf: it sizes the query to fit (the frame body
+    // column has no fixed size) and %Q escapes the text values
     va_start(list, db_client);
-    va_copy(list_copy, list);
-    query_len = vsnprintf(NULL, 0, format, list_copy);
-    va_end(list_copy);
-    if (query_len < 0) {
-        va_end(list);
-        em_printfout("Failed to format update query for %s", m_table_name);
-        return -1;
-    }
-    query.resize(static_cast<size_t>(query_len) + 1);
-    (void) vsnprintf(query.data(), query.size(), format, list);
+    char *query = sqlite3_vmprintf(format, list);
     va_end(list);
 
-    //printf("%s:%d: Query: %s\n", __func__, __LINE__, query.data());
+    if (query == NULL) {
+        return -1;
+    }
 
-    ctx = db_client.execute(query.data());
+    ctx = db_client.execute(query);
     db_client.free_result(ctx);
+    sqlite3_free(query);
 
     return 0;
 }

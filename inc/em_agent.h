@@ -756,6 +756,39 @@ public:
 	 * calling this function.
 	 */
 	void handle_m2ctrl_configuration(em_bus_event_t *evt);
+
+	// An M2's Private (AP) configuration whose push failed, one per band; it holds its M2 for the
+	// cfg_renew (m_m2ctrl_pending) until applied or out of tries. Kept here, not in the data
+	// model, which is copied into temporaries.
+	typedef struct {
+		bool used;
+		m2ctrl_radioconfig cfg;
+		webconfig_subdoc_type_t vap_type;
+		unsigned int tries_left;
+	} m2ctrl_private_retry_t;
+	m2ctrl_private_retry_t m_private_retry[EM_MAX_BANDS] = {};
+
+	/**!
+	 * @brief The retry slot for this M2's band: the one in use for it, else a free one, else NULL.
+	 */
+	m2ctrl_private_retry_t *get_private_retry_slot(em_bus_event_t *evt);
+
+	/**!
+	 * @brief Pushes the kept Private configurations again (1 s tick) and releases each M2 once
+	 * applied or out of tries.
+	 */
+	void retry_private_pushes();
+
+	/**!
+	 * @brief True while any band's Private configuration is still retried.
+	 */
+	bool private_push_pending();
+
+	/**!
+	 * @brief Once no Private configuration is retried any more, makes a bSTA reconnect held back
+	 * for one due (bsta_reconnect_due_now()).
+	 */
+	void release_held_bsta_reconnect();
     
 	/**!
 	 * @brief Handles the channel preference query event.

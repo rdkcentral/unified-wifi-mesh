@@ -388,7 +388,6 @@ int tr_181_t::wfa_bus_register_namespace(char *full_namespace, bus_element_type_
         em_printfout("bus: bus_regDataElements failed:%s\n", full_namespace);
         return RETURN_ERR;
     }
-    em_printfout("bus: bus_regDataElements success:%s", full_namespace);
 
     return RETURN_OK;
 }
@@ -1080,7 +1079,6 @@ bus_error_t tr_181_t::wifi_elem_num_of_table_row(char* event_name, uint32_t* tab
 std::string tr_181_t::yang_to_tr181_path(const std::string& in)
 {
     std::string out = in;
-    em_printfout("Converting YANG path: %s", in.c_str());
 
     for (int i = 0; g_yang_map[i].yang; ++i) {
         const std::string from = g_yang_map[i].yang;

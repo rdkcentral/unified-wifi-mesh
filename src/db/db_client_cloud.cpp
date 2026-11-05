@@ -29,9 +29,12 @@ int db_client_cloud_t::init(const char *path)
     return -1;
 }
 
-void *db_client_cloud_t::execute(const char *query)
+void *db_client_cloud_t::execute(const char *query, bool *succeeded)
 {
     (void) query;
+    if (succeeded != NULL) {
+        *succeeded = false;
+    }
     return NULL;
 }
 
@@ -54,6 +57,12 @@ char *db_client_cloud_t::get_string(void *ctx, char *res, unsigned int col)
         res[0] = 0;
     }
     return NULL;
+}
+
+char *db_client_cloud_t::get_string(void *ctx, char *res, unsigned int col, unsigned int res_sz)
+{
+    (void) res_sz;
+    return get_string(ctx, res, col);
 }
 
 int db_client_cloud_t::get_number(void *ctx, unsigned int col)

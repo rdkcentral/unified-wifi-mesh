@@ -209,7 +209,24 @@ public:
 	 * @note Ensure that the database client is properly initialized before calling this function.
 	 */
 	int set_config(db_client_t& db_client, dm_network_ssid_t& net_ssid, void *parent_id);
-    
+
+	/**!
+	 * @brief Stores a whole set of network SSIDs as one unit: all of them or none.
+	 *
+	 * Only entries that differ from the in-memory list are written. The writes run in one DB
+	 * transaction; a backend without transactions gets the rows already written put back to their
+	 * previous values instead. The in-memory list changes only once every write is committed, so
+	 * on failure both the DB and the in-memory list keep the previous configuration.
+	 *
+	 * @param[in] db_client Database client.
+	 * @param[in] ssids The network SSIDs to store.
+	 * @param[in] num Number of entries in ssids (at most EM_MAX_NET_SSIDS).
+	 *
+	 * @retval 0 Every entry stored and applied.
+	 * @retval -1 Nothing changed.
+	 */
+	int set_config_all(db_client_t& db_client, dm_network_ssid_t *ssids[], unsigned int num);
+
 	/**!
 	 * @brief Retrieves the configuration settings.
 	 *

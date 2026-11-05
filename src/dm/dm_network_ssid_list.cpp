@@ -117,14 +117,74 @@ int dm_network_ssid_list_t::set_config(db_client_t& db_client, dm_network_ssid_t
 
     em_printfout("SSID_TRACE: NetworkSSIDList set_config: ssid: %s, parent_id: %s", net_ssid.m_network_ssid_info.ssid, static_cast<char *>(parent_id));
 
-    if (update_db(db_client, (op = get_dm_orch_type(net_ssid)), net_ssid.get_network_ssid_info()) != 0) {
-        return -1;
+    int rc = update_db(db_client, (op = get_dm_orch_type(net_ssid)), net_ssid.get_network_ssid_info());
+    if (rc != 0) {
+        return rc;
     }
     update_list(net_ssid, op);
     em_printfout("SSID_TRACE: NetworkSSIDList set_config done: ssid: %s, op: %d", net_ssid.m_network_ssid_info.ssid, op);
     return 0;
 }
 
+
+int dm_network_ssid_list_t::set_config_all(db_client_t& db_client, dm_network_ssid_t *ssids[], unsigned int num)
+{
+    dm_orch_type_t ops[EM_MAX_NET_SSIDS];
+    unsigned int i, written = 0;
+    bool in_txn;
+    int rc = 0;
+
+    if (num > EM_MAX_NET_SSIDS) {
+        em_printfout("NetworkSSIDList: %u entries exceed the maximum of %d", num, EM_MAX_NET_SSIDS);
+        return -1;
+    }
+
+    // Decided against the in-memory list, which stays as it is until everything is committed
+    for (i = 0; i < num; i++) {
+        ops[i] = get_dm_orch_type(*ssids[i]);
+    }
+
+    in_txn = (db_client.begin_transaction() == 0);
+    for (i = 0; i < num; i++) {
+        if (ops[i] == dm_orch_type_none) {
+            continue;
+        }
+        if (update_db(db_client, ops[i], ssids[i]->get_network_ssid_info()) != 0) {
+            em_printfout("NetworkSSIDList: storing %s failed", ssids[i]->m_network_ssid_info.id);
+            rc = -1;
+            break;
+        }
+        written = i + 1;
+    }
+    if ((rc == 0) && in_txn && (db_client.commit() != 0)) {
+        em_printfout("NetworkSSIDList: commit failed");
+        rc = -1;
+    }
+
+    if (rc != 0) {
+        if (in_txn) {
+            (void)db_client.rollback();
+        } else {
+            // No transaction on this backend: put back what was written, from the in-memory list
+            for (i = 0; i < written; i++) {
+                dm_network_ssid_t *prev = get_network_ssid(ssids[i]->m_network_ssid_info.id);
+
+                if ((ops[i] == dm_orch_type_db_update) && (prev != NULL)) {
+                    (void)update_db(db_client, dm_orch_type_db_update, prev->get_network_ssid_info());
+                } else if (ops[i] == dm_orch_type_db_insert) {
+                    (void)update_db(db_client, dm_orch_type_db_delete, ssids[i]->get_network_ssid_info());
+                }
+            }
+        }
+        em_printfout("NetworkSSIDList: update not applied, previous configuration kept");
+        return -1;
+    }
+
+    for (i = 0; i < num; i++) {
+        update_list(*ssids[i], ops[i]);
+    }
+    return 0;
+}
 
 int dm_network_ssid_list_t::set_config(db_client_t& db_client, const cJSON *obj_arr, void *parent_id)
 {

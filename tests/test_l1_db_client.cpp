@@ -51,18 +51,18 @@ public:
 
 class persistence_none_test_t : public db_client_none_t {
 public:
-    MOCK_METHOD(void *, execute, (const char *), (override));
+    MOCK_METHOD(void *, execute, (const char *, bool *), (override));
 };
 
 class persistence_local_test_t : public db_client_local_t {
 public:
-    MOCK_METHOD(void *, execute, (const char *), (override));
+    MOCK_METHOD(void *, execute, (const char *, bool *), (override));
 };
 
 TEST(db_persistence_Test, NoDatabaseSkipsAllPersistenceOperations) {
     persistence_table_test_t table;
     testing::StrictMock<persistence_none_test_t> db;
-    EXPECT_CALL(db, execute(testing::_)).Times(0);
+    EXPECT_CALL(db, execute(testing::_, testing::_)).Times(0);
     for (dm_orch_type_t requested : {dm_orch_type_none, dm_orch_type_db_insert,
             dm_orch_type_db_update, dm_orch_type_db_delete}) {
         dm_orch_type_t op = requested;
@@ -74,7 +74,7 @@ TEST(db_persistence_Test, NoDatabaseSkipsAllPersistenceOperations) {
 TEST(db_persistence_Test, NoDatabaseSatisfiesExistenceCheckWithoutQuery) {
     testing::StrictMock<persistence_table_test_t> table;
     testing::StrictMock<persistence_none_test_t> db;
-    EXPECT_CALL(db, execute(testing::_)).Times(0);
+    EXPECT_CALL(db, execute(testing::_, testing::_)).Times(0);
     char key[] = "device";
     EXPECT_TRUE(table.entry_exists_in_table(db, key));
 }
@@ -106,7 +106,7 @@ TEST(db_persistence_Test, SqlitePreservesExistingExistenceSearch) {
 TEST(db_persistence_Test, SqlitePreservesRequestedOperationWithoutQuery) {
     persistence_table_test_t table;
     testing::StrictMock<persistence_local_test_t> db;
-    EXPECT_CALL(db, execute(testing::_)).Times(0);
+    EXPECT_CALL(db, execute(testing::_, testing::_)).Times(0);
     for (dm_orch_type_t requested : {dm_orch_type_none, dm_orch_type_db_insert,
             dm_orch_type_db_update, dm_orch_type_db_delete}) {
         dm_orch_type_t op = requested;

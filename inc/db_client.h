@@ -70,12 +70,15 @@ public:
      * @param[in] query Backend-specific query string (SQL for the local/cloud
      * backends). Backends without a query language (e.g. no-db) may ignore
      * the content and simply return an empty result context.
+     * @param[out] succeeded Optional; set to true when the statement ran (done or row). A
+     * statement that returns no rows also returns NULL, so this is how a caller tells it from a
+     * failure. It is set under the connection lock, so concurrent queries cannot overwrite it.
      *
      * @returns Pointer to an opaque result context on success, NULL on
      * failure. Callers must not assume anything about the context other than
      * passing it back into next_result()/get_string()/get_number().
      */
-    virtual void *execute(const char *query) = 0;
+    virtual void *execute(const char *query, bool *succeeded = NULL) = 0;
 
     /**!
 	  * @brief Retrieve the next result from the query execution.
@@ -118,6 +121,18 @@ public:
      * @returns Pointer to res, or NULL on error / no data.
      */
     virtual char *get_string(void *ctx, char *res, unsigned int col) = 0;
+
+    /**!
+     * @brief Retrieve a string value, bounded by the destination buffer size.
+     *
+     * @param[in] ctx Result context.
+     * @param[out] res Buffer to store the retrieved string.
+     * @param[in] col Column index (1-based).
+     * @param[in] res_sz Size of res; 0 means bound only by the database field length.
+     *
+     * @returns Pointer to res, or NULL on error / no data.
+     */
+    virtual char *get_string(void *ctx, char *res, unsigned int col, unsigned int res_sz) = 0;
 
     /**!
      * @brief Retrieve an integer value from the current result row.

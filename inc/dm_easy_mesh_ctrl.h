@@ -265,7 +265,7 @@ private:
 	 *
 	 * @note Ensure that the bss_list_obj is properly formatted and radio_mac is valid before calling this function.
 	 */
-	int set_bss_list(cJSON *bss_list_obj, mac_address_t *radio_mac);
+	int set_bss_list(cJSON *bss_list_obj, mac_address_t *dev_mac, mac_address_t *radio_mac);
     
 	/**!
 	 * @brief Sets the operational class list for a given radio MAC address.
@@ -401,6 +401,82 @@ public:
 	 * @note Ensure that the event and command structures are properly initialized before calling this function.
 	 */
 	int analyze_set_ssid(em_bus_event_t *evt, em_cmd_t *cmd[]);
+
+	/**!
+	 * @brief Writes one BSS row, with its current ACL, to the DB (inserted if not there yet).
+	 *
+	 * @param[in] info BSS to write (a copy taken under the em-map lock).
+	 * @param[in] bss_key Row key of the BSS (dm_bss_t::make_bss_key).
+	 *
+	 * @returns 0 on success, non-zero on a DB error.
+	 */
+	int persist_bss_acl(em_bss_info_t *info, char *bss_key) {
+		return dm_bss_list_t::persist_acl(*m_db_client, info, bss_key);
+	}
+
+	/**!
+	 * @brief Plans a BLOCK on every BSS that has an allow entry for a backhaul STA.
+	 *
+	 * @param[in,out] plan The Client Association Control parameters planned so far, one per BSS.
+	 * @param[in] sta The backhaul STA MAC; a zero MAC is ignored.
+	 */
+	void plan_bh_acl_revoke(std::vector<em_cmd_client_assoc_params_t>& plan, const mac_address_t sta);
+
+	/**!
+	 * @brief Applies a Client Association Control request to the ACL state of a BSS.
+	 *
+	 * @param[in,out] info The BSS. Its ACL mode and validity are updated.
+	 * @param[in,out] assoc The request. A backhaul request's validity becomes 0.
+	 * @param[out] bss_key The BSS key.
+	 * @param[in] key_sz The size of bss_key.
+	 * @param[out] undo If not NULL, the STAs' previous ACL state, for acl_restore() when the
+	 *             change cannot be persisted.
+	 *
+	 * @returns 0 on success, otherwise an error code; on error nothing changed.
+	 */
+	int acl_apply_cacr(em_bss_info_t *info, em_cmd_client_assoc_params_t *assoc, char *bss_key, size_t key_sz,
+			em_acl_undo_t *undo = NULL);
+
+	/**!
+	 * @brief Stores a Client Association Control request for a BSS with no em (agent offline).
+	 *
+	 * The controller's ACL state changes so the replay at onboarding is right. Must run only for
+	 * such a BSS: with no em, no thread rewrites its row meanwhile.
+	 *
+	 * @param[in,out] assoc The Client Association Control parameters.
+	 *
+	 * @returns 0 if the change is stored; -1 if the BSS is unknown or the change could not be
+	 *          applied or persisted, in which case the previous state is kept.
+	 */
+	int acl_apply_offline(em_cmd_client_assoc_params_t *assoc);
+
+	/**!
+	 * @brief Analyzes and sets the backhaul configuration based on the provided event and command.
+	 *
+	 * This function processes the event and command to determine the appropriate backhaul configuration settings.
+	 *
+	 * @param[in] evt Pointer to the event structure containing backhaul configuration details.
+	 * @param[out] dm_out Pointer to the dm_easy_mesh_t structure where the backhaul configuration will be updated.
+	 * @param[in] key Request key: "SetBhCfg", or "SetSSID" for a CLI SetSSID that changes the backhaul.
+	 *
+	 * @returns 1 if the config changed and is valid, EM_PARSE_ERR_NO_CHANGE if nothing changed,
+	 * < 0 on a parse or validation error.
+	 */
+	int analyze_set_bh_cfg(em_bus_event_t *evt, dm_easy_mesh_t *dm_out, const char *key = "SetBhCfg");
+
+	/**!
+	 * @brief Decodes a NetworkSSIDList subdoc and compares it with the live network SSIDs.
+	 *
+	 * Shared by SetSSID and SetBhCfg.
+	 *
+	 * @param[in] subdoc Subdoc carrying the request.
+	 * @param[in] key Request key, "SetSSID" or "SetBhCfg".
+	 * @param[out] out Data model receiving the decoded list; marked for a network SSID list update.
+	 *
+	 * @returns 1 if any entry changed, EM_PARSE_ERR_NO_CHANGE if none did, < 0 on a parse error.
+	 */
+	int decode_net_ssid_change(em_subdoc_info_t *subdoc, const char *key, dm_easy_mesh_t *out);
+
     
 	/**!
 	 * @brief Analyzes and sets the radio configuration based on the provided event and command.

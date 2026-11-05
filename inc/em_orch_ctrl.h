@@ -21,6 +21,8 @@
 
 #include "em_orch.h"
 
+class dm_easy_mesh_ctrl_t;
+
 class em_orch_ctrl_t : public em_orch_t {
 
 public:
@@ -107,6 +109,13 @@ public:
 	 */
 	void orch_transient(em_cmd_t *pcmd, em_t *em);
 
+	/**!
+	 * @brief Ends one backhaul reconfig phase: counts agents that got no M2 and starts the next phase.
+	 *
+	 * @param[in] pcmd Pointer to the finished command.
+	 */
+	void on_cmd_fini(em_cmd_t *pcmd);
+
 public:
     
 	/**!
@@ -121,6 +130,29 @@ public:
 	 * @note Ensure that the manager structure is properly initialized before calling this function.
 	 */
 	em_orch_ctrl_t(em_mgr_t *mgr);
+
+	/**!
+	 * @brief Returns, and clears, how many Client Association Control changes since the last call
+	 * were stored for an offline agent only.
+	 *
+	 * Such a change has no candidate, so submit_commands() does not count it, yet it succeeded:
+	 * the agent gets it at its next onboarding (ACL replay).
+	 */
+	unsigned int take_acl_stored_offline() {
+		unsigned int n = m_acl_stored_offline;
+		m_acl_stored_offline = 0;
+		return n;
+	}
+
+private:
+	/**!
+	 * @brief Puts back the previous ACL state of the STAs the agent refused in its ACK to this
+	 * Client Association Control Request, in memory and in the DB (main thread, like the change).
+	 */
+	void undo_refused_acl(em_cmd_t *pcmd, em_t *em);
+
+	// Counted in pre_process_orch_op(); read and cleared by the controller thread that submitted
+	unsigned int m_acl_stored_offline = 0;
 };
 
 #endif

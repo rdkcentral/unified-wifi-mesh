@@ -23,11 +23,14 @@
 #include <assert.h>
 #include <pthread.h>
 #include <cjson/cJSON.h>
+#include <vector>
 #include "em_network_topo.h"
+#include "em.h"
 #include "util.h"
 #include "dm_sta_list.h"
 #include "dm_easy_mesh_ctrl.h"
 #include "em_ctrl.h"
+#include "em_cmd_ctrl.h"
 
 extern em_network_topo_t *g_network_topology;
 
@@ -71,7 +74,7 @@ void em_network_topo_t::encode(cJSON *parent)
 				    cJSON_AddNumberToObject(bss_obj, "VlanID", network_ssid_info->vlan_id);
 				}
 				sta_list_obj = cJSON_AddArrayToObject(bss_obj, "STAList");
-				dm_easy_mesh_ctrl_t *dm_ctrl = reinterpret_cast<dm_easy_mesh_ctrl_t *>(em_ctrl_t::get_em_ctrl_instance()->get_data_model(GLOBAL_NET_ID));
+				dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
 				if (dm_ctrl != NULL) {
 					// Get the Station associated with this bss only if vap mode is ap
 					if (m_data_model->m_bss[j].m_bss_info.vap_mode == em_vap_mode_ap) {
@@ -147,8 +150,19 @@ em_network_topo_t *em_network_topo_t::find_topology_by_bh_associated(dm_easy_mes
 	// bss->id.bssid  = local bSTA interface MAC (used to locate the parent topology node)
 	// bss->bssid.mac = upstream AP BSSID the bSTA is associated to (shown in Backhaul.MACAddress)
 	mac_address_t bss_mac;
+	bool keep_backhaul_mac = false;
 	memcpy(bss_mac, bss->id.bssid, sizeof(mac_address_t));
-	if (dm->is_controller() == false) {
+	// If bSTA BSS bssid is zero (e.g. after M1 BSS rebuild during bhreconfig),
+	// fall back to the device's backhaul_mac which was set during M1 processing.
+	if (memcmp(bss_mac, ZERO_MAC_ADDR, sizeof(mac_address_t)) == 0 &&
+		memcmp(dm->m_device.m_device_info.backhaul_mac.mac, ZERO_MAC_ADDR, sizeof(mac_address_t)) != 0) {
+		memcpy(bss_mac, dm->m_device.m_device_info.backhaul_mac.mac, sizeof(mac_address_t));
+		em_printfout("bSTA BSS bssid is zero, using device backhaul_mac: %s", util::mac_to_string(bss_mac).c_str());
+		// No upstream BSSID yet: overwriting backhaul_mac below would lose the value this
+		// fallback needs on the next lookup and make the agent look wired.
+		keep_backhaul_mac = (memcmp(bss->bssid.mac, ZERO_MAC_ADDR, sizeof(mac_address_t)) == 0);
+	}
+	if ((dm->is_controller() == false) && (keep_backhaul_mac == false)) {
 		// Set BackhaulMACAddress to the upstream AP BSSID, not the local bSTA MAC
 		memcpy(dm->m_device.m_device_info.backhaul_mac.mac, bss->bssid.mac, sizeof(mac_address_t));
 		dm->m_device.m_device_info.backhaul_mac.media = em_media_type_ieee80211ac_5;
@@ -207,14 +221,8 @@ em_network_topo_t *em_network_topo_t::find_topology(dm_easy_mesh_t *dm)
 {
 	unsigned int i;
 	em_network_topo_t *topo;
-	mac_addr_str_t tgt_dev_mac_str, src_dev_mac_str;
-
-	dm_easy_mesh_t::macbytes_to_string(dm->m_device.m_device_info.intf.mac, tgt_dev_mac_str);
-	dm_easy_mesh_t::macbytes_to_string(m_data_model->m_device.m_device_info.intf.mac, src_dev_mac_str);
-	printf("%s:%d: Trying to find topology: %s in branch: %s\n", __func__, __LINE__, tgt_dev_mac_str, src_dev_mac_str);
 
 	if (m_data_model == dm) {
-		printf("%s:%d: Found topology: %s in branch: %s\n", __func__, __LINE__, tgt_dev_mac_str, src_dev_mac_str);
 		return this;
 	}
 
@@ -292,9 +300,15 @@ bool em_network_topo_t::remove(dm_easy_mesh_t *dm, em_network_topo_t **child_top
 		}
 	}
 	if (found == true) {
+		// With nowhere to hand the children to (the node is going for good), they move up here
+		em_network_topo_t *orphans[EM_MAX_NETWORKS];
+		unsigned int num_orphans = 0;
 		if (child_topos != NULL && num_child_topos != NULL) {
 			memcpy(child_topos, m_topology[i]->m_topology, sizeof(m_topology[i]->m_topology));
 			*num_child_topos = m_topology[i]->m_num_topologies;
+		} else {
+			memcpy(orphans, m_topology[i]->m_topology, sizeof(orphans));
+			num_orphans = m_topology[i]->m_num_topologies;
 		}
 		delete m_topology[i];
 		for (i = index; i < m_num_topologies - 1; i++) {
@@ -303,6 +317,27 @@ bool em_network_topo_t::remove(dm_easy_mesh_t *dm, em_network_topo_t **child_top
 		em_printfout("Found and Removed topology of dev_mac:%s in parent dm:%s num_child_topos:%d",
 			dev_mac_str.c_str(), parent_dev_mac_str.c_str(), m_num_topologies);
 		m_num_topologies--;
+		for (i = 0; i < num_orphans; i++) {
+			if (m_num_topologies < EM_MAX_NETWORKS) {
+				m_topology[m_num_topologies++] = orphans[i];
+				continue;
+			}
+			// This level is full: kept, with its whole subtree, under the first node below that
+			// has room (a leaf always has), until a topology update places it again. A backhaul
+			// reconfig still reaches every agent, its children before it.
+			em_network_topo_t *host = find_free_child_slot();
+			if (host == NULL) {
+				em_printfout("No room left for the subtree of %s, dropped",
+					util::mac_to_string(orphans[i]->m_data_model->m_device.m_device_info.intf.mac).c_str());
+				delete orphans[i];
+				continue;
+			}
+			host->m_topology[host->m_num_topologies++] = orphans[i];
+			em_printfout("Subtree of %s kept under %s: no room left under %s",
+				util::mac_to_string(orphans[i]->m_data_model->m_device.m_device_info.intf.mac).c_str(),
+				util::mac_to_string(host->m_data_model->m_device.m_device_info.intf.mac).c_str(),
+				parent_dev_mac_str.c_str());
+		}
 		return found;
 	}
 
@@ -320,10 +355,134 @@ bool em_network_topo_t::remove(dm_easy_mesh_t *dm, em_network_topo_t **child_top
 	return false;
 }
 
+em_network_topo_t *em_network_topo_t::find_free_child_slot()
+{
+	std::vector<em_network_topo_t *> level;
+
+	// Breadth first, so a subtree goes as high up as it can
+	for (unsigned int i = 0; i < m_num_topologies; i++) {
+		level.push_back(m_topology[i]);
+	}
+	for (size_t n = 0; n < level.size(); n++) {
+		em_network_topo_t *node = level[n];
+
+		if (node->m_num_topologies < EM_MAX_NETWORKS) {
+			return node;
+		}
+		for (unsigned int i = 0; i < node->m_num_topologies; i++) {
+			level.push_back(node->m_topology[i]);
+		}
+	}
+	return NULL;
+}
+
+void em_network_topo_t::note_bh_reconfig_failure()
+{
+	if ((m_bh_processed == true) || (m_data_model == NULL)) {
+		return;
+	}
+
+	m_data_model->m_bh_reconfig_fail_count++;
+	if (m_data_model->m_bh_reconfig_fail_count >= EM_BH_RECONFIG_MAX_TRIES) {
+		em_printfout("BH reconfig: agent %s got no M2 in %u phases; continuing without it, it keeps the old backhaul credentials",
+			util::mac_to_string(m_data_model->m_device.m_device_info.intf.mac).c_str(),
+			m_data_model->m_bh_reconfig_fail_count);
+		set_bh_processed(true);
+	} else {
+		em_printfout("BH reconfig: agent %s got no M2 in this phase (try %u of %u), retrying in the next phase",
+			util::mac_to_string(m_data_model->m_device.m_device_info.intf.mac).c_str(),
+			m_data_model->m_bh_reconfig_fail_count, static_cast<unsigned int>(EM_BH_RECONFIG_MAX_TRIES));
+	}
+}
+
+void em_network_topo_t::reset_bh_reconfig()
+{
+	set_bh_processed(false);
+	if (m_data_model != NULL) {
+		m_data_model->m_bh_reconfig_fail_count = 0;
+	}
+	for (unsigned int i = 0; i < m_num_topologies; i++) {
+		m_topology[i]->reset_bh_reconfig();
+	}
+}
+
+void em_network_topo_t::enroll_bh_reconfig()
+{
+	if (m_data_model != NULL) {
+		m_data_model->set_bh_reconfig_enrolled(true);
+	}
+	for (unsigned int i = 0; i < m_num_topologies; i++) {
+		m_topology[i]->enroll_bh_reconfig();
+	}
+}
+
+bool em_network_topo_t::is_bh_reconfig_candidate()
+{
+	if (m_bh_processed) {
+		return false;
+	}
+	// Only agents enrolled at the walk's start: a newcomer's M8 support is not known (see
+	// mark_bh_leaves_processed(), which takes it out of the walk at the next phase)
+	if ((m_data_model != NULL) && !m_data_model->is_bh_reconfig_enrolled()) {
+		return false;
+	}
+
+	for (unsigned int i = 0; i < m_num_topologies; i++) {
+		if (!m_topology[i]->m_bh_processed) {
+			return false;
+		}
+	}
+
+	return true;
+}
+
+void em_network_topo_t::mark_bh_leaves_processed()
+{
+	for (unsigned int i = 0; i < m_num_topologies; i++) {
+		m_topology[i]->mark_bh_leaves_processed();
+	}
+
+	// An agent that joined during the walk is not part of it (its M2 is held until the walk ends,
+	// handle_autoconfig_wsc_m1): it gets no M8 and does not hold its parent back
+	if ((m_data_model != NULL) && !m_bh_processed && !m_data_model->is_bh_reconfig_enrolled()) {
+		em_printfout("BH reconfig: %s joined during the walk, not reconfigured; it onboards after it",
+			util::mac_to_string(m_data_model->m_device.m_device_info.intf.mac).c_str());
+		set_bh_processed(true);
+		return;
+	}
+
+	// Only once its children are done, so post-order is kept for the subtree below it
+	if ((m_data_model == NULL) || !is_bh_reconfig_candidate()) {
+		return;
+	}
+
+	std::vector<em_t *> em_radios;
+	em_ctrl_t *ctrl = em_ctrl_t::get_em_ctrl_instance();
+	if ((ctrl != NULL) && (m_data_model->get_device() != NULL)) {
+		ctrl->get_all_em_for_al_mac(m_data_model->get_device()->get_dev_interface_mac(), em_radios);
+	}
+	if (em_radios.empty()) {
+		em_printfout("BH reconfig: %s has no radio to reconfigure, marking processed",
+			util::mac_to_string(m_data_model->m_device.m_device_info.intf.mac).c_str());
+		set_bh_processed(true);
+	}
+}
+
+void em_network_topo_t::send_bh_reconfig_event()
+{
+	em_ctrl_t *ctrl = em_ctrl_t::get_em_ctrl_instance();
+	em_cmd_params_t params;
+	memset(&params, 0, sizeof(em_cmd_params_t));
+	ctrl->io_process(em_bus_event_type_set_bh_cfg, static_cast<char *>(NULL), 0, &params);
+}
+
 em_network_topo_t::em_network_topo_t(dm_easy_mesh_t *dm)
 {
 	m_num_topologies  = 0;
 	m_data_model = dm;
+	// A node re-created while its agent re-onboards keeps the agent's reconfig progress
+	m_bh_processed = (dm != NULL) ? dm->is_bh_reconfig_processed() : false;
+	m_bh_reconfig_active = false;
 	memset(m_topology, 0, sizeof(m_topology));
 }
 
@@ -331,6 +490,8 @@ em_network_topo_t::em_network_topo_t()
 {
 	m_data_model = NULL;
 	m_num_topologies  = 0;
+	m_bh_processed = false;
+	m_bh_reconfig_active = false;
 	memset(m_topology, 0, sizeof(m_topology));
 }
 

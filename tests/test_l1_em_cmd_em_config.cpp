@@ -43,7 +43,7 @@
  * | :----: | --------- | ---------- |-------------- | ----- |
  * | 01 | Initialize parameters with valid test network and argument values. | fixed_args = "TestNetwork", args[0] = "ArgValue1", args[1] = "ArgValue2", num_args = 2 | Parameters should be correctly stored in the params structure | Should Pass |
  * | 02 | Create an instance of dm_easy_mesh_t and then initialize em_cmd_em_config_t using the parameters. | params as initialized above, dm_easy_mesh_t object | The instance should have m_type set to em_cmd_type_em_config and m_name set to "em_config" along with correct configuration of args. | Should Pass |
- * | 03 | Validate instance member variables using assertions. | m_type, m_name, fixed_args, num_args, args[], m_num_orch_desc, orch_desc[0].op, orch_desc[0].submit, m_svc | All EXPECT_EQ and EXPECT_STREQ assertions pass indicating correct initialization. | Should Pass |
+ * | 03 | Validate instance member variables using assertions. | m_type, m_name, fixed_args, num_args, args[], m_num_orch_desc = 10, orch_desc[0].op, orch_desc[0].submit, orch_desc[9].op = dm_orch_type_acl_cfg, orch_desc[9].submit = true, m_svc | All EXPECT_EQ and EXPECT_STREQ assertions pass indicating correct initialization. | Should Pass |
  * | 04 | Call the deinit() method on the em_cmd_em_config_t instance to cleanup. | Function call: configCmd.deinit() | deinit() executes without errors, releasing or cleaning up resources as expected. | Should be successful |
  */
 TEST(em_cmd_em_config_t, em_cmd_em_config_t_full_valid) {
@@ -65,9 +65,12 @@ TEST(em_cmd_em_config_t, em_cmd_em_config_t_full_valid) {
     EXPECT_EQ(configCmd.m_param.u.args.num_args, 2);
     EXPECT_STREQ(configCmd.m_param.u.args.args[0], arg0);
     EXPECT_STREQ(configCmd.m_param.u.args.args[1], arg1);
-    EXPECT_EQ(configCmd.m_num_orch_desc, 9);
+    EXPECT_EQ(configCmd.m_num_orch_desc, 10);
     EXPECT_EQ(configCmd.m_orch_desc[0].op, dm_orch_type_bss_delete);
     EXPECT_FALSE(configCmd.m_orch_desc[0].submit);
+    // The persisted MAC ACL is replayed last, once the agent is configured
+    EXPECT_EQ(configCmd.m_orch_desc[9].op, dm_orch_type_acl_cfg);
+    EXPECT_TRUE(configCmd.m_orch_desc[9].submit);
     EXPECT_EQ(configCmd.m_svc, em_service_type_ctrl);
     configCmd.deinit();
     std::cout << "Exiting em_cmd_em_config_t_full_valid test\n";
@@ -89,7 +92,7 @@ TEST(em_cmd_em_config_t, em_cmd_em_config_t_full_valid) {
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
  * | 01 | Initialize empty em_cmd_params_t and dm_easy_mesh_t objects, then create an instance of em_cmd_em_config_t using these parameters. | params = {}, dm = {} | Instance is created with m_type set to em_cmd_type_em_config, m_name set to "em_config", fixed_args as an empty string, and num_args as 0. | Should Pass |
- * | 02 | Validate that the orchestration fields are correctly initialized. | m_num_orch_desc = 9, orch_desc[0].op = dm_orch_type_bss_delete, orch_desc[0].submit = false, m_svc = em_service_type_ctrl | All field values match the expected configuration. | Should Pass |
+ * | 02 | Validate that the orchestration fields are correctly initialized. | m_num_orch_desc = 10, orch_desc[0].op = dm_orch_type_bss_delete, orch_desc[0].submit = false, orch_desc[9].op = dm_orch_type_acl_cfg, orch_desc[9].submit = true, m_svc = em_service_type_ctrl | All field values match the expected configuration. | Should Pass |
  * | 03 | Invoke configCmd.deinit() to release resources. | No input | deinit completes without errors. | Should be successful |
  */
 TEST(em_cmd_em_config_t, em_cmd_em_config_t_empty) {
@@ -101,9 +104,12 @@ TEST(em_cmd_em_config_t, em_cmd_em_config_t_empty) {
     EXPECT_STREQ(configCmd.m_name, "em_config");
     EXPECT_STREQ(configCmd.m_param.u.args.fixed_args, "");
     EXPECT_EQ(configCmd.m_param.u.args.num_args, 0);
-    EXPECT_EQ(configCmd.m_num_orch_desc, 9);
+    EXPECT_EQ(configCmd.m_num_orch_desc, 10);
     EXPECT_EQ(configCmd.m_orch_desc[0].op, dm_orch_type_bss_delete);
     EXPECT_FALSE(configCmd.m_orch_desc[0].submit);
+    // The persisted MAC ACL is replayed last, once the agent is configured
+    EXPECT_EQ(configCmd.m_orch_desc[9].op, dm_orch_type_acl_cfg);
+    EXPECT_TRUE(configCmd.m_orch_desc[9].submit);
     EXPECT_EQ(configCmd.m_svc, em_service_type_ctrl);
     configCmd.deinit();
     std::cout << "Exiting em_cmd_em_config_t_empty test\n";
@@ -163,9 +169,12 @@ TEST(em_cmd_em_config_t, em_cmd_em_config_t_max_boundary) {
     EXPECT_EQ(configCmd.m_param.u.args.num_args, 2);
     EXPECT_STREQ(configCmd.m_param.u.args.args[0], maxArg);
     EXPECT_STREQ(configCmd.m_param.u.args.args[1], maxArg);
-    EXPECT_EQ(configCmd.m_num_orch_desc, 9);
+    EXPECT_EQ(configCmd.m_num_orch_desc, 10);
     EXPECT_EQ(configCmd.m_orch_desc[0].op, dm_orch_type_bss_delete);
     EXPECT_FALSE(configCmd.m_orch_desc[0].submit);
+    // The persisted MAC ACL is replayed last, once the agent is configured
+    EXPECT_EQ(configCmd.m_orch_desc[9].op, dm_orch_type_acl_cfg);
+    EXPECT_TRUE(configCmd.m_orch_desc[9].submit);
     EXPECT_EQ(configCmd.m_svc, em_service_type_ctrl);
     configCmd.deinit();
     std::cout << "Exiting em_cmd_em_config_t_max_boundary test\n";

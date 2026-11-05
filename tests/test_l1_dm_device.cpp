@@ -40,7 +40,7 @@ public:
 
 class device_no_db_test_t : public db_client_none_t {
 public:
-    MOCK_METHOD(void *, execute, (const char *), (override));
+    MOCK_METHOD(void *, execute, (const char *, bool *), (override));
 };
 
 TEST(dm_device_list_t_Test, NoDatabaseDoesNotReinsertExistingDevice) {
@@ -55,7 +55,7 @@ TEST(dm_device_list_t_Test, NoDatabaseDoesNotReinsertExistingDevice) {
     char key[] = "Network1@02:00:00:00:00:01@0";
     bool present = false;
 
-    EXPECT_CALL(db, execute(testing::_)).Times(2)
+    EXPECT_CALL(db, execute(testing::_, testing::_)).Times(2)
         .WillRepeatedly(testing::Return(nullptr));
     EXPECT_CALL(devices, get_device(testing::StrEq(key)))
         .Times(4)
