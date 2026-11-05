@@ -102,9 +102,13 @@ void em_t::orch_execute(em_cmd_t *pcmd)
 			break;
 
         case em_cmd_type_set_ssid:
+        case em_cmd_type_set_bh_cfg:
         case em_cmd_type_set_radio:
 	    if (m_service_type == em_service_type_ctrl) {
 	        set_renew_tx_count(0);
+	        if (pcmd->m_type == em_cmd_type_set_bh_cfg) {
+	            m_state_before_bh_cfg = m_sm.get_state();
+	        }
 	    }
             m_sm.set_state(em_state_ctrl_misconfigured);
 			break;
@@ -166,12 +170,19 @@ void em_t::orch_execute(em_cmd_t *pcmd)
                 m_sm.set_state(em_state_ctrl_channel_query_pending);
             } else if ((pcmd->get_orch_op() == dm_orch_type_policy_cfg) && (m_sm.get_state() == em_state_ctrl_channel_queried)) {
                 m_sm.set_state(em_state_ctrl_set_policy_pending);
-            } else if ((pcmd->get_orch_op() == dm_orch_type_channel_sel) && (m_sm.get_state() == em_state_ctrl_configured)) {
+            } else if ((pcmd->get_orch_op() == dm_orch_type_channel_sel) &&
+                    (m_sm.get_state() == em_state_ctrl_configured)) {
                 m_sm.set_state(em_state_ctrl_channel_select_pending);
-            } else if ((pcmd->get_orch_op() == dm_orch_type_channel_scan_req) && (m_sm.get_state() == em_state_ctrl_configured)) {
+            } else if ((pcmd->get_orch_op() == dm_orch_type_channel_scan_req) &&
+                    (m_sm.get_state() == em_state_ctrl_configured)) {
                 m_sm.set_state(em_state_ctrl_channel_scan_pending);
-            } else if ((pcmd->get_orch_op() == dm_orch_type_topo_publish) && (m_sm.get_state() == em_state_ctrl_configured)) {
+            } else if ((pcmd->get_orch_op() == dm_orch_type_topo_publish) &&
+                    (m_sm.get_state() == em_state_ctrl_configured)) {
                 m_sm.set_state(em_state_ctrl_topo_publish_pending);
+            } else if ((pcmd->get_orch_op() == dm_orch_type_acl_cfg) &&
+                    is_ctrl_configured_or_acl(m_sm.get_state())) {
+                em_steering_t::reset_acl_cfg();
+                m_sm.set_state(em_state_ctrl_acl_cfg_pending);
             }
             break;
 
@@ -179,12 +190,16 @@ void em_t::orch_execute(em_cmd_t *pcmd)
             m_sm.set_state(em_state_ctrl_channel_query_pending);
             break;
         case em_cmd_type_onewifi_cb:
-            m_sm.set_state(em_state_agent_onewifi_bssconfig_ind);
+            if (m_sm.get_state() < em_state_agent_topo_synchronized) {
+                m_sm.set_state(em_state_agent_onewifi_bssconfig_ind);
+            }
             break;
         case em_cmd_type_sta_assoc:
-            if ((pcmd->get_orch_op() == dm_orch_type_topo_sync) && (m_sm.get_state() == em_state_ctrl_configured)) {
+            if ((pcmd->get_orch_op() == dm_orch_type_topo_sync) &&
+                    (m_sm.get_state() == em_state_ctrl_configured)) {
                 m_sm.set_state(em_state_ctrl_topo_sync_pending);
-            } else if ((pcmd->get_orch_op() == dm_orch_type_sta_cap) && (m_sm.get_state() == em_state_ctrl_configured)) {
+            } else if ((pcmd->get_orch_op() == dm_orch_type_sta_cap) &&
+                    (m_sm.get_state() == em_state_ctrl_configured)) {
                 m_sm.set_state(em_state_ctrl_sta_cap_pending);
             } else if (pcmd->get_orch_op() == dm_orch_type_topo_publish) {
                 m_sm.set_state(em_state_ctrl_topo_publish_pending);
@@ -247,6 +262,8 @@ void em_t::orch_execute(em_cmd_t *pcmd)
             break;
 
         case em_cmd_type_bsta_cap:
+            // bsta_cap may run between em_config steps; the report puts this state back
+            m_state_before_bsta_cap = m_sm.get_state();
             m_sm.set_state(em_state_ctrl_bsta_cap_pending);
             break;
 
@@ -263,6 +280,8 @@ void em_t::orch_execute(em_cmd_t *pcmd)
             break;
 
         case em_cmd_type_client_assoc_ctrl_req:
+            // A refusal recorded for an earlier request does not belong to this one
+            (void)em_steering_t::take_cacr_refused(NULL);
             m_sm.set_state(em_state_ctrl_client_assoc_ctrl_req_pending);
             break;
 
@@ -547,11 +566,17 @@ void em_t::handle_ctrl_state()
 
     assert(m_cmd != NULL);
 
+    if (get_state() == em_state_ctrl_acl_cfg_pending) {
+        em_steering_t::process_ctrl_state();
+        return;
+    }
+
     //printf("%s:%d: Cmd: %s State: %s\n", __func__, __LINE__,
         //em_cmd_t::get_cmd_type_str(m_cmd->m_type), em_t::state_2_str(get_state()));
     cmd_type = m_cmd->m_type;
     switch (cmd_type) {
         case em_cmd_type_set_ssid:
+        case em_cmd_type_set_bh_cfg:
         case em_cmd_type_set_radio:
         case em_cmd_type_cfg_renew:
             em_configuration_t::process_ctrl_state();
@@ -951,7 +976,8 @@ bool em_t::bsta_connect_bss(const std::string& ssid, const std::string passphras
     memcpy(bsta_info->bssid.mac, bssid, sizeof(bssid_t));
 
     memset(bsta_info->mesh_sta_passphrase, 0, sizeof(bsta_info->mesh_sta_passphrase));
-    strcpy(bsta_info->mesh_sta_passphrase, passphrase.c_str());
+    snprintf(bsta_info->mesh_sta_passphrase, sizeof(bsta_info->mesh_sta_passphrase), "%s", passphrase.c_str());
+    bsta_info->mesh_sta_cred_update = true;
 
     // Kick out of disconnected steady state (will fail if not in that state)
     m_mgr->set_disconnected_scan_none_state();
@@ -1149,7 +1175,7 @@ short em_t::create_ap_cap_tlv(unsigned char *buff)
     ap_cap->unassociated_client_link_metrics_non_op_channels = radio_info->unassociated_sta_link_mterics_nonopclass_inclusion_policy;
     ap_cap->unassociated_client_link_metrics_op_channels =  radio_info->unassociated_sta_link_mterics_opclass_inclusion_policy;
     ap_cap->rcpi_steering = radio_info->support_rcpi_steering;
-    // ap_cap->reserved - Future implementation
+    ap_cap->m8_bsta_reconfiguration = 1;
     len = sizeof(em_ap_capability_t);
     return len;
 }
@@ -2358,7 +2384,10 @@ cJSON *em_t::create_enrollee_bsta_list(uint8_t pa_al_mac[ETH_ALEN])
 em_bss_info_t* get_bss_info(dm_easy_mesh_t* dm, const em_haul_type_t haul_type) {
     em_bss_info_t *bss_info = NULL;
 
-    const em_network_ssid_info_t* network_ssid_info = dm->get_network_ssid_info_by_haul_type(haul_type);
+    // A copy: the controller thread may replace the network SSIDs meanwhile
+    em_network_ssid_info_t network_ssid_copy;
+    const em_network_ssid_info_t* network_ssid_info =
+        dm->copy_network_ssid_info_by_haul_type(haul_type, network_ssid_copy) ? &network_ssid_copy : nullptr;
     EM_ASSERT_NOT_NULL(network_ssid_info, nullptr, "Could not get network SSID info for fronthaul BSS");
 
     em_printfout("Checking %d BSSs for SSID '%s'", dm->get_num_bss(), network_ssid_info->ssid);
@@ -2504,7 +2533,10 @@ existing functionality of DPP as defined in this specification.
     scoped_cjson discovery_object(cJSON_CreateObject());
     ASSERT_NOT_NULL(discovery_object.get(), nullptr, "%s:%d: Could not create Discovery Object for DPP Configuration Object\n", __func__, __LINE__);
 
-    const em_network_ssid_info_t* network_ssid_info = dm->get_network_ssid_info_by_haul_type(haul_type);
+    // A copy: the controller thread may replace the network SSIDs meanwhile
+    em_network_ssid_info_t network_ssid_copy;
+    const em_network_ssid_info_t* network_ssid_info =
+        dm->copy_network_ssid_info_by_haul_type(haul_type, network_ssid_copy) ? &network_ssid_copy : nullptr;
     EM_ASSERT_NOT_NULL(network_ssid_info, nullptr, "Could not get network SSID info for fronthaul BSS");
 
     // XXX: Note: R5 only - R6 introduces MLDs.
@@ -3016,6 +3048,9 @@ const char *em_t::state_2_str(em_state_t state)
         EM_STATE_2S(em_state_ctrl_avail_spectrum_inquiry_pending)
         EM_STATE_2S(em_state_ctrl_bsta_cap_pending)
         EM_STATE_2S(em_state_ctrl_topo_publish_pending)
+        EM_STATE_2S(em_state_ctrl_acl_cfg_pending)
+        EM_STATE_2S(em_state_ctrl_acl_cfg_configured)
+        EM_STATE_2S(em_state_ctrl_acl_cfg_failed)
 	EM_STATE_2S(em_state_ctrl_unassoc_sta_link_metrics_pending)
         EM_STATE_2S(em_state_ctrl_client_assoc_ctrl_req_pending)
         EM_STATE_2S(em_state_agent_unconfigured)

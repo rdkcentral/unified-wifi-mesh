@@ -746,7 +746,7 @@ class em_configuration_t {
 	 * @note Ensure the buffer is properly allocated and the length is correct before calling this function.
 	 */
 	int handle_autoconfig_wsc_m2(unsigned char *buff, unsigned int len);
-    
+
 	/**!
 	 * @brief Handles the WSC M1 message.
 	 *
@@ -1090,6 +1090,28 @@ class em_configuration_t {
 	 * @note Ensure that the buffer is properly allocated and the haul type is valid before calling this function.
 	 */
 	unsigned short create_m2_msg(unsigned char *buff, em_haul_type_t haul_type);
+
+
+	/**!
+	 * @brief Creates an M8 WSC message for backhaul SSID reconfiguration.
+	 *
+	 * Builds a WSC attribute blob with msg_type=M8 containing encrypted
+	 * backhaul SSID and passphrase. Appended as an additional WSC TLV
+	 * in the autoconfig WSC CMDU only during set_bh_cfg commands.
+	 *
+	 * @param[out] buff Buffer where the M8 message will be written.
+	 * @returns Length of the created M8 message, or 0 if backhaul SSID not found.
+	 */
+	unsigned short create_m8_msg(unsigned char *buff);
+
+	/**!
+	 * @brief Returns the WSC message type from a raw WSC attribute blob.
+	 *
+	 * @param[in] buff Pointer to WSC attribute data (inside a WSC TLV value).
+	 * @param[in] len Length of the WSC attribute data.
+	 * @returns The em_wsc_msg_type_t found, or em_wsc_msg_type_none.
+	 */
+	static em_wsc_msg_type_t get_wsc_blob_msg_type(unsigned char *buff, unsigned int len);
     
 	virtual unsigned short create_traffic_separation_policy_tlv(unsigned char *buff) = 0;
     
@@ -1659,12 +1681,36 @@ private:
     size_t m_m1_length;
     size_t m_m2_length;
 
-    unsigned char m_m2_authenticator[em_haul_type_max][SHA256_MAC_LEN];
-    unsigned int m_m2_authenticator_len[em_haul_type_max];
-    unsigned char m_m2_encrypted_settings[em_haul_type_max][MAX_EM_BUFF_SZ];
-    unsigned int m_m2_encrypted_settings_len[em_haul_type_max];
+    // One slot per M2 WSC TLV (at most one per haul type) plus one reserved for the M8, so an M8 is
+    // always decoded and authenticated even when the M2 carries every haul type
+#define EM_M2_WSC_SLOTS (em_haul_type_max + 1)
+    unsigned char m_m2_authenticator[EM_M2_WSC_SLOTS][SHA256_MAC_LEN];
+    unsigned int m_m2_authenticator_len[EM_M2_WSC_SLOTS];
+    unsigned char m_m2_encrypted_settings[EM_M2_WSC_SLOTS][MAX_EM_BUFF_SZ];
+    unsigned int m_m2_encrypted_settings_len[EM_M2_WSC_SLOTS];
+    // last time autoconfig_search was re-sent while waiting for M2 (0 = not yet retried)
+    time_t m_m2_pending_retry_time = 0;
+    // controller: monotonic time (s) the last M2 was sent on this radio
+    time_t m_m2_sent_time = 0;
+    // Set while building an M2 that carries an M8 to an agent that re-onboards by itself
+    // (wireless backhaul); handle_m2_tx then skips em_config for that M2 only
+    bool m_m2_skip_em_config = false;
 
 public:
+    // Controller: radio state when a set_bh_cfg phase started; a radio that got no M2 goes back to
+    // it, so a given-up agent is not left misconfigured (steer, CACR and ACL commands need configured)
+    em_state_t m_state_before_bh_cfg = em_state_ctrl_configured;
+
+	/**!
+	 * @brief Monotonic time (seconds) the last M2 was sent on this radio, 0 if none.
+	 */
+	time_t get_m2_sent_time() { return m_m2_sent_time; }
+
+	/**!
+	 * @brief Enters wsc_m2_sent and records when, which the duplicate M1 guard needs.
+	 */
+	void mark_m2_sent();
+
 
 	/* Parse a received AKM Suite Capabilities TLV and store per-BSS AKMs derived
 	 * from the profile assigned to each BSS's haul type (resolved from dm, then from
@@ -1779,7 +1825,7 @@ public:
 	 * @note Ensure that the encryption keys are properly initialized
 	 * before calling this function.
 	 */
-	int handle_encrypted_settings(unsigned int wsc_tlv_count, m2ctrl_radioconfig& radioconfig);
+	int handle_encrypted_settings(unsigned int wsc_tlv_count, m2ctrl_radioconfig& radioconfig, bool is_bh_reconfig = false);
     
 	/**!
 	 * @brief Creates encrypted settings based on the provided buffer and haul type.

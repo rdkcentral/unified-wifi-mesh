@@ -100,12 +100,16 @@ int db_client_local_t::rollback()
     return execute("ROLLBACK") == NULL && sqlite3_get_autocommit(m_con) != 0 ? 0 : -1;
 }
 
-void *db_client_local_t::execute(const char *query)
+void *db_client_local_t::execute(const char *query, bool *succeeded)
 {
+    if (succeeded != NULL)
+    {
+        *succeeded = false;
+    }
     // Ensure the database connection is valid before trying to execute SQL.
     if (!m_con)
     {
-        printf("%s:%d: Query: %s m_con is NULL, exiting\n", __func__, __LINE__, query);
+        printf("%s:%d: m_con is NULL, exiting\n", __func__, __LINE__);
         return NULL;
     }
 
@@ -117,13 +121,17 @@ void *db_client_local_t::execute(const char *query)
     int rc = sqlite3_prepare_v2(m_con, query, -1, &statement, NULL);
     if (rc != SQLITE_OK)
     {
-        printf("%s:%d: Query failed: %s\n", __func__, __LINE__, query);
-        printf("%s:%d: Error: %s\n", __func__, __LINE__, sqlite3_errmsg(m_con));
+        // Never log the query itself: a NetworkSSIDList row carries a passphrase
+        printf("%s:%d: Query failed: %s\n", __func__, __LINE__, sqlite3_errmsg(m_con));
         return NULL;
     }
 
     // Execute the prepared statement once.
     rc = sqlite3_step(statement);
+    if (succeeded != NULL)
+    {
+        *succeeded = (rc == SQLITE_DONE || rc == SQLITE_ROW);
+    }
 
     // Non-SELECT statements like INSERT/UPDATE/DELETE typically finish with SQLITE_DONE.
     if (rc == SQLITE_DONE)
@@ -184,6 +192,11 @@ void db_client_local_t::free_result(void *ctx)
 
 char *db_client_local_t::get_string(void *ctx, char *str, unsigned int col)
 {
+    return get_string(ctx, str, col, 0);
+}
+
+char *db_client_local_t::get_string(void *ctx, char *str, unsigned int col, unsigned int res_sz)
+{
     if (ctx == NULL)
     {
         return NULL;
@@ -193,13 +206,22 @@ char *db_client_local_t::get_string(void *ctx, char *str, unsigned int col)
 
     std::lock_guard<std::mutex> lock(m_mutex);
 
-    assert(col > 0);
+    // A table created by an older schema has fewer columns than the caller expects
+    if (col == 0 || static_cast<int>(col) > sqlite3_column_count(res_ctx->statement))
+    {
+        return NULL;
+    }
     const unsigned char *value = sqlite3_column_text(res_ctx->statement, static_cast<int>(col - 1));
     if (value == NULL)
     {
         return NULL;
     }
-    snprintf(str, static_cast<size_t>(sqlite3_column_bytes(res_ctx->statement, static_cast<int>(col - 1))) + 1, "%s", value);
+    size_t copy_sz = static_cast<size_t>(sqlite3_column_bytes(res_ctx->statement, static_cast<int>(col - 1))) + 1;
+    if ((res_sz != 0) && (copy_sz > res_sz))
+    {
+        copy_sz = res_sz;
+    }
+    snprintf(str, copy_sz, "%s", value);
     return str;
 }
 
@@ -211,7 +233,8 @@ int db_client_local_t::get_number(void *ctx, unsigned int col)
 
     std::lock_guard<std::mutex> lock(m_mutex);
 
-    if (col == 0 || sqlite3_column_type(res_ctx->statement, static_cast<int>(col - 1)) == SQLITE_NULL)
+    if (col == 0 || static_cast<int>(col) > sqlite3_column_count(res_ctx->statement) ||
+        sqlite3_column_type(res_ctx->statement, static_cast<int>(col - 1)) == SQLITE_NULL)
     {
         return 0;
     }

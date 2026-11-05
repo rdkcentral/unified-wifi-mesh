@@ -1328,6 +1328,14 @@ public:
 	 */
 	static const char *state_2_str(em_state_t state);
 
+	/**!
+	 * @brief Controller: true for configured or one of the ACL replay states that follow it.
+	 */
+	static bool is_ctrl_configured_or_acl(em_state_t state) {
+		return (state == em_state_ctrl_configured) || (state == em_state_ctrl_acl_cfg_pending) ||
+				(state == em_state_ctrl_acl_cfg_configured) || (state == em_state_ctrl_acl_cfg_failed);
+	}
+
 
 	bool get_devteststatus(){return dev_test_enable;}
 	void set_devteststatus(bool enable ) { dev_test_enable = enable;} 

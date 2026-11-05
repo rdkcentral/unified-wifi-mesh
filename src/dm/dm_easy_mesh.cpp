@@ -850,6 +850,9 @@ int dm_easy_mesh_t::decode_config(em_subdoc_info_t *subdoc, const char *str, uns
 	} else if (strncmp(str, "SetSSID", strlen("SetSSID")) == 0) {
         snprintf(key, sizeof(em_long_string_t), "wfa-dataelements:%s", str);
         return decode_config_set_ssid(subdoc, key);
+    } else if (strncmp(str, "SetBhCfg", strlen("SetBhCfg")) == 0) {
+        snprintf(key, sizeof(em_long_string_t), "wfa-dataelements:%s", str);
+        return decode_config_set_ssid(subdoc, key);
     } else if (strncmp(str, "SetAnticipatedChannelPreference", strlen("SetAnticipatedChannelPreference")) == 0) {
         snprintf(key, sizeof(em_long_string_t), "wfa-dataelements:%s", str);
         return decode_config_set_channel(subdoc, key, index, num);
@@ -973,18 +976,18 @@ int dm_easy_mesh_t::decode_config_set_radio(em_subdoc_info_t *subdoc, const char
 
     parent_obj = cJSON_Parse(subdoc->buff);
     if (parent_obj == NULL) {
-        printf("%s:%d: Failed to parse: %s\n", __func__, __LINE__, subdoc->buff);
+        printf("%s:%d: Failed to parse subdoc\n", __func__, __LINE__);
         return EM_PARSE_ERR_GEN;
     }
 
     if ((net_obj = cJSON_GetObjectItem(parent_obj, key)) == NULL) {
-        printf("%s:%d: Failed to parse: %s\n", __func__, __LINE__, subdoc->buff);
+        printf("%s:%d: Failed to parse subdoc\n", __func__, __LINE__);
         cJSON_Delete(parent_obj);
         return EM_PARSE_ERR_GEN;
     }
 
     if ((net_obj = cJSON_GetObjectItem(net_obj, "Network")) == NULL) {
-        printf("%s:%d: Failed to parse: %s\n", __func__, __LINE__, subdoc->buff);
+        printf("%s:%d: Failed to parse subdoc\n", __func__, __LINE__);
         cJSON_Delete(parent_obj);
         return EM_PARSE_ERR_GEN;
     }
@@ -1004,7 +1007,7 @@ int dm_easy_mesh_t::decode_config_set_radio(em_subdoc_info_t *subdoc, const char
     snprintf(m_network.m_net_info.id, sizeof(em_long_string_t), "%s", net_id);
 
     if ((dev_arr_obj = cJSON_GetObjectItem(net_obj, "DeviceList")) == NULL) {
-        printf("%s:%d: Failed to parse: %s\n", __func__, __LINE__, subdoc->buff);
+        printf("%s:%d: Failed to parse subdoc\n", __func__, __LINE__);
         cJSON_Delete(parent_obj);
         return EM_PARSE_ERR_GEN;
     }
@@ -1026,7 +1029,7 @@ int dm_easy_mesh_t::decode_config_set_radio(em_subdoc_info_t *subdoc, const char
     }
 
     if ((dev_obj_id = cJSON_GetObjectItem(dev_obj, "ID")) == NULL) {
-        printf("%s:%d: Failed to parse: %s\n", __func__, __LINE__, subdoc->buff);
+        printf("%s:%d: Failed to parse subdoc\n", __func__, __LINE__);
         cJSON_Delete(parent_obj);
         return EM_PARSE_ERR_GEN;
     }
@@ -1040,14 +1043,14 @@ int dm_easy_mesh_t::decode_config_set_radio(em_subdoc_info_t *subdoc, const char
     dm_easy_mesh_t::string_to_macbytes(dev_mac_str, m_device.m_device_info.intf.mac);
 
 	if ((radio_arr_obj = cJSON_GetObjectItem(dev_obj, "RadioList")) == NULL) {
-       	printf("%s:%d: Failed to parse: %s\n", __func__, __LINE__, subdoc->buff);
+       	printf("%s:%d: Failed to parse subdoc\n", __func__, __LINE__);
        	cJSON_Delete(parent_obj);
        	return EM_PARSE_ERR_GEN;
    	}
 
 	for (i = 0; i < static_cast<unsigned int> (cJSON_GetArraySize(radio_arr_obj)); i++) {
 		if ((radio_obj = cJSON_GetArrayItem(radio_arr_obj, static_cast<int> (i))) == NULL) {
-       		printf("%s:%d: Failed to parse: %s\n", __func__, __LINE__, subdoc->buff);
+       		printf("%s:%d: Failed to parse subdoc\n", __func__, __LINE__);
        		cJSON_Delete(parent_obj);
        		return EM_PARSE_ERR_GEN;
 		}
@@ -1092,9 +1095,7 @@ int dm_easy_mesh_t::decode_config_set_policy(em_subdoc_info_t *subdoc, const cha
         if (tmp) free(tmp);
         net_obj = cJSON_GetObjectItem(wrapper_obj, "Network");
         if (net_obj == NULL) {
-            char *tmp2 = cJSON_PrintUnformatted(wrapper_obj);
-            em_printfout("Wrapper '%s' present but no 'Network' child. Wrapper JSON: %s",key, tmp2 ? tmp2 : "<null>");
-            if (tmp2) free(tmp2);
+            em_printfout("Wrapper '%s' present but no 'Network' child",key);
             cJSON_Delete(parent_obj);
             return EM_PARSE_ERR_GEN;
         }
@@ -1103,9 +1104,7 @@ int dm_easy_mesh_t::decode_config_set_policy(em_subdoc_info_t *subdoc, const cha
         //em_printfout("Found top-level 'Network'. Network: %s",tmp ? tmp : "<null>");
         if (tmp) free(tmp);
     } else {
-        char *tmp = cJSON_PrintUnformatted(parent_obj);
-        em_printfout("Neither wrapper key '%s' nor top-level 'Network' found. Payload: %s",key ? key : "<null>", tmp ? tmp : "<null>");
-        if (tmp) free(tmp);
+        em_printfout("Neither wrapper key '%s' nor top-level 'Network' found",key ? key : "<null>");
         cJSON_Delete(parent_obj);
         return EM_PARSE_ERR_GEN;
     }
@@ -1383,7 +1382,7 @@ int dm_easy_mesh_t::decode_config_set_channel(em_subdoc_info_t *subdoc, const ch
 
     /* Get 'Network' under provided wrapper and extract Network ID */
     if ((wrapper_obj = cJSON_GetObjectItem(parent_obj, key)) == NULL) {
-        em_printfout("Key '%s' not found in buffer: %s", key, subdoc->buff);
+        em_printfout("Key '%s' not found in buffer", key);
         cJSON_Delete(parent_obj);
         return EM_PARSE_ERR_GEN;
     }
@@ -1565,12 +1564,12 @@ int dm_easy_mesh_t::decode_config_set_ssid(em_subdoc_info_t *subdoc, const char 
 
     parent_obj = cJSON_Parse(subdoc->buff);
     if (parent_obj == NULL) {
-        printf("%s:%d: Failed to parse: %s\n", __func__, __LINE__, subdoc->buff);
+        printf("%s:%d: Failed to parse subdoc\n", __func__, __LINE__);
         return EM_PARSE_ERR_GEN;
     }
 
     if ((net_obj = cJSON_GetObjectItem(parent_obj, key)) == NULL) {
-        printf("%s:%d: Failed to parse: %s\n", __func__, __LINE__, subdoc->buff);
+        printf("%s:%d: Failed to parse subdoc\n", __func__, __LINE__);
         cJSON_Delete(parent_obj);
         return EM_PARSE_ERR_GEN;
     }
@@ -2828,6 +2827,32 @@ bool dm_easy_mesh_t::is_ssid_match(const ssid_t &ssid)
     return false;
 }
 
+bool dm_easy_mesh_t::copy_network_ssid_info_by_haul_type(em_haul_type_t haul_type, em_network_ssid_info_t &info)
+{
+    std::lock_guard<std::mutex> lock(m_net_ssid_mutex);
+    em_network_ssid_info_t *found = get_network_ssid_info_by_haul_type(haul_type);
+
+    if (found == NULL) {
+        return false;
+    }
+    info = *found;
+    return true;
+}
+
+void dm_easy_mesh_t::replace_network_ssids(dm_network_ssid_t *const ssids[], unsigned int num)
+{
+    std::lock_guard<std::mutex> lock(m_net_ssid_mutex);
+    unsigned int i;
+
+    if (num > EM_MAX_NET_SSIDS) {
+        num = EM_MAX_NET_SSIDS;
+    }
+    for (i = 0; i < num; i++) {
+        m_network_ssid[i] = *ssids[i];
+    }
+    m_num_net_ssids = num;
+}
+
 em_network_ssid_info_t *dm_easy_mesh_t::get_network_ssid_info_by_haul_type(em_haul_type_t haul_type)
 {
     em_network_ssid_info_t *info;
@@ -2887,6 +2912,89 @@ dm_bss_t *dm_easy_mesh_t::get_bss(mac_address_t radio_mac, mac_address_t bss_mac
     return NULL;
 }
 
+#define EM_BSTA_RECONNECT_RETRY_SECS 5
+
+// Re-applied on every attempt from the stash: between a failed push and its retry a OneWifi
+// callback may have put the old SSID back on the bSTA rows
+bool dm_easy_mesh_t::prepare_bsta_reconnect()
+{
+    if (!m_bsta_reconnect_pending) {
+        return false;
+    }
+    for (unsigned int j = 0; j < m_num_bss; j++) {
+        em_bss_info_t *bsta = get_bss_info(j);
+        if ((bsta == NULL) || (bsta->id.haul_type != em_haul_type_backhaul) || (bsta->vap_mode != em_vap_mode_sta)) {
+            continue;
+        }
+        snprintf(bsta->ssid, sizeof(bsta->ssid), "%s", m_bsta_new_ssid);
+        snprintf(bsta->mesh_sta_passphrase, sizeof(bsta->mesh_sta_passphrase), "%s", m_bsta_new_passphrase);
+        bsta->mesh_sta_cred_update = true;
+    }
+    return true;
+}
+
+void dm_easy_mesh_t::bsta_reconnect_push_result(bool pushed)
+{
+    struct timespec ts_now;
+
+    util::monotonic_now(&ts_now);
+    if (!pushed) {
+        // Kept pending: OneWifi still has the old bSTA credentials, and once the parent switches
+        // this agent would lose its backhaul for good
+        m_bsta_reconnect_retry_at = ts_now.tv_sec + EM_BSTA_RECONNECT_RETRY_SECS;
+        em_printfout("MESH STA CONFIG push failed, retrying in %d s", EM_BSTA_RECONNECT_RETRY_SECS);
+        return;
+    }
+    m_bsta_reconnect_pending = false;
+    m_bsta_reconnect_retry_at = 0;
+    if (m_bsta_reconnect_reonboards) {
+        // The bSTA drops and reconnects with the new credentials, and OneWifi then pushes "dml";
+        // open the "dml" -> dev_init window from here so that push re-runs the onboarding
+        m_bh_reconfig_time = ts_now.tv_sec;
+    }
+    m_bsta_reconnect_reonboards = false;
+}
+
+bool dm_easy_mesh_t::bsta_reconnect_retry_due()
+{
+    struct timespec ts_now;
+
+    if (!m_bsta_reconnect_pending || m_cfg_renew_in_progress || (m_bsta_reconnect_retry_at == 0)) {
+        return false;
+    }
+    util::monotonic_now(&ts_now);
+    return ts_now.tv_sec >= m_bsta_reconnect_retry_at;
+}
+
+void dm_easy_mesh_t::bsta_reconnect_due_now()
+{
+    struct timespec ts_now;
+
+    // A failed push already has its retry time
+    if (!m_bsta_reconnect_pending || (m_bsta_reconnect_retry_at != 0)) {
+        return;
+    }
+    util::monotonic_now(&ts_now);
+    m_bsta_reconnect_retry_at = ts_now.tv_sec;
+}
+
+#define EM_BH_RECONFIG_DEV_INIT_WINDOW_SECS 900
+
+bool dm_easy_mesh_t::bh_reconfig_window_open()
+{
+    struct timespec ts_now;
+
+    if (m_bh_reconfig_time == 0) {
+        return false;
+    }
+    util::monotonic_now(&ts_now);
+    if ((ts_now.tv_sec - m_bh_reconfig_time) > EM_BH_RECONFIG_DEV_INIT_WINDOW_SECS) {
+        m_bh_reconfig_time = 0;
+        return false;
+    }
+    return true;
+}
+
 em_bss_info_t* dm_easy_mesh_t::get_bsta_bss_info()
 {
     std::string dev_mac_str = util::mac_to_string(m_device.m_device_info.intf.mac);
@@ -2907,7 +3015,7 @@ em_bss_info_t* dm_easy_mesh_t::get_bsta_bss_info()
         if (!radio) continue;
         em_printfout("radio_mac:%s backhaul bss_mac:%s radio enabled:%d sta_info enabled:%d",
             util::mac_to_string(bsta_info->ruid.mac).c_str(),
-            util::mac_to_string(bsta_info->id.bssid).c_str(),
+            util::mac_to_string(bsta_info->bssid.mac).c_str(),
             radio->m_radio_info.enabled, bsta_info->enabled);
         if (!radio->m_radio_info.enabled || !bsta_info->enabled) {
             continue;

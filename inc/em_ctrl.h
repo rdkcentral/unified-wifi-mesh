@@ -293,6 +293,37 @@ public:
 	 * @note Ensure that the event structure is properly initialized before calling this function.
 	 */
 	void handle_set_ssid_list(em_bus_event_t *evt);
+
+	/**!
+	 * @brief Starts a backhaul reconfiguration (SetBhCfg), or its next phase for an empty event.
+	 *
+	 * @param[in] evt Bus event; its subdoc holds the NetworkSSIDList.
+	 * @param[in] key Subdoc key: "SetBhCfg", or "SetSSID" for a SetSSID that changes the backhaul.
+	 */
+	void handle_set_bh_cfg(em_bus_event_t *evt, const char *key = "SetBhCfg");
+
+	/**!
+	 * @brief Ends a backhaul reconfiguration: clears the active flag and every node's progress.
+	 */
+	void finish_bh_reconfig();
+
+	/**!
+	 * @brief Checks that every online agent supports M8 bSTA reconfiguration (EasyMesh 5.2.5).
+	 *
+	 * Online means onboarded in this controller run (it has radio nodes); such an agent has sent
+	 * its AP Capability Report. An offline agent is ignored: it gets the new backhaul
+	 * credentials at its next onboarding. Safe from any thread: it walks the ems under m_mutex.
+	 *
+	 * @param[out] blocking_al AL MAC of the first online agent that does not support it.
+	 *
+	 * @returns true if every online agent supports it, false otherwise.
+	 */
+	bool online_agents_support_m8(mac_address_t blocking_al);
+
+	/**!
+	 * @brief True while a backhaul reconfiguration walks the tree.
+	 */
+	bool is_bh_reconfig_active() override;
     
 	/**!
 	 * @brief Handles channel selection events.
@@ -598,6 +629,11 @@ public:
 	 * @note If the AL MAC address is not provided, the function will use a default value.
 	 */
 	dm_easy_mesh_t *get_data_model(const char *net_id, const unsigned char *al_mac = NULL) { return m_data_model.get_data_model(net_id, al_mac); }
+
+	unsigned int get_bss_acl_macs(const char *bss_key, bool blocked, unsigned int skip,
+			unsigned int max, mac_address_t *list, unsigned short *remaining = NULL) {
+		return m_data_model.acl_get_macs(bss_key, blocked, skip, max, list, remaining);
+	}
     
 	/**!
 	 * @brief Creates a data model for the specified network ID and interface.

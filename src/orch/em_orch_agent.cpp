@@ -39,6 +39,17 @@
 #include "em_orch_agent.h"
 #include "em.h"
 
+// True when the controller's AL MAC is a local interface, i.e. this is the co-located agent,
+// which reaches the controller without a bSTA and so needs no extra time after a reconfig
+static bool is_colocated_with_ctrl(dm_easy_mesh_t *dm)
+{
+    unsigned char *ctrl_mac = dm->get_ctrl_al_interface_mac();
+    em_interface_name_t if_name;
+
+    return (ctrl_mac != NULL) &&
+            (dm_easy_mesh_t::name_from_mac_address(reinterpret_cast<const mac_address_t*>(ctrl_mac), if_name) == 0);
+}
+
 void em_orch_agent_t::orch_transient(em_cmd_t *pcmd, em_t *em)
 {
     em_cmd_stats_t *stats;
@@ -62,6 +73,33 @@ void em_orch_agent_t::orch_transient(em_cmd_t *pcmd, em_t *em)
     }
 
     if (stats->time > EM_MAX_CMD_GEN_TTL) {
+        // For cfg_renew on a non-colocated agent (extender): after M8 backhaul
+        // reconfig the bSTA disconnects and reconnects with new credentials.
+        // While disconnected the radio cycles through unconfigured →
+        // autoconfig_rsp_pending → wsc_m2_pending.  Allow extra time for the
+        // bSTA to come back up before canceling.
+        if (pcmd->get_type() == em_cmd_type_cfg_renew &&
+            em->get_state() < em_state_agent_topo_synchronized) {
+            dm_easy_mesh_t *dm = em->get_data_model();
+            // Only once an M8 arrived in this renew, i.e. during a backhaul reconfig
+            if ((dm != NULL) && dm->m_bsta_reconnect_pending && !is_colocated_with_ctrl(dm) &&
+                    (stats->time <= EM_SSID_MISMATCH_TTL)) {
+                return; // keep sending autoconfig_search
+            }
+        }
+         // For dev_init on a non-colocated agent (extender): after cfg_renew
+        // completes, the "dml" subdoc triggers dev_init while the bSTA is still
+        // reconnecting to the new SSID.  Allow extended time for the bSTA to
+        // come back up so autoconfig_search can reach the controller.
+        if (pcmd->get_type() == em_cmd_type_dev_init &&
+            em->get_state() < em_state_agent_topo_synchronized) {
+            dm_easy_mesh_t *dm = em->get_data_model();
+            // Only for the re-onboarding after a backhaul reconfig ("dml" -> dev_init window open)
+            if ((dm != NULL) && dm->bh_reconfig_window_open() && !is_colocated_with_ctrl(dm) &&
+                    (stats->time <= EM_SSID_MISMATCH_TTL)) {
+                return; // keep sending autoconfig_search until bSTA reconnects
+            }
+        }
         em_printfout("Canceling cmd: %s because time limit exceeded\n", pcmd->get_cmd_name());
         cancel_command(pcmd->get_type());
     	if (em->get_state() < em_state_agent_topo_synchronized) {
@@ -86,7 +124,8 @@ bool em_orch_agent_t::is_em_ready_for_orch_fini(em_cmd_t *pcmd, em_t *em)
             }
             break;
         case em_cmd_type_onewifi_cb:
-            if (em->get_state() == em_state_agent_topo_synchronized) {
+            // orch_execute leaves a state at or past topo_synchronized as it is
+            if (em->get_state() >= em_state_agent_topo_synchronized) {
                 return true;
             }
             break;
@@ -95,7 +134,10 @@ bool em_orch_agent_t::is_em_ready_for_orch_fini(em_cmd_t *pcmd, em_t *em)
                 // An extension that intercepts M2 moves to wsc_m2_processed or straight on to topo_synchronized/configured
                 (em->get_state() == em_state_agent_wsc_m2_processed) ||
                 (em->get_state() >= em_state_agent_topo_synchronized)) {
-                return true;
+                // The em thread queues the M2 configuration before moving on; wait until the agent
+                // thread applied it, so on_cmd_fini sees the bSTA credentials of every M8
+                dm_easy_mesh_t *dm = em->get_data_model();
+                return (dm == NULL) || (__atomic_load_n(&dm->m_m2ctrl_pending, __ATOMIC_ACQUIRE) == 0);
             }
             break;
 		case em_cmd_type_channel_pref_query:
@@ -227,6 +269,47 @@ bool em_orch_agent_t::is_em_ready_for_orch_exec(em_cmd_t *pcmd, em_t *em)
 }
 
 
+void em_orch_agent_t::on_cmd_fini(em_cmd_t *pcmd)
+{
+    em_t *first_em = static_cast<em_t *>(queue_peek(pcmd->m_em_candidates, 0));
+    dm_easy_mesh_t *dm = (first_em != NULL) ? first_em->get_data_model() : NULL;
+
+    if (dm == NULL) {
+        return;
+    }
+
+    // When cfg_renew completes on agent, handle bSTA reconnect if pending.
+    // Push mesh STA subdoc to trigger bSTA reconnection with new credentials.
+    // After bSTA reconnects, OneWifi fires dev_init which triggers
+    // normal reonboarding through orchestration.
+    // A cancelled renew (e.g. one radio's M2 never came) ends here too: the bSTAs still get the
+    // credentials the M8s delivered, or the agent keeps the old ones once its parent switches.
+    // A renew cancelled while an M2's AP configuration is still held (retried, or not handled yet)
+    // keeps the bSTA push back: em_agent_t makes it due once that M2 is done.
+    if (pcmd->m_type == em_cmd_type_cfg_renew) {
+        dm->m_cfg_renew_in_progress = false;
+        if ((__atomic_load_n(&dm->m_m2ctrl_pending, __ATOMIC_ACQUIRE) == 0) &&
+                dm->prepare_bsta_reconnect()) {
+            // A failed push (or no manager to push with) stays pending and is retried
+            bool pushed = (first_em->get_mgr() != NULL) &&
+                (first_em->get_mgr()->refresh_onewifi_subdoc("MESH STA CONFIG",
+                    webconfig_subdoc_type_mesh_backhaul_sta) == 1);
+            dm->bsta_reconnect_push_result(pushed);
+        }
+    }
+    // The re-onboarding after a backhaul reconfig is done (M2 received); close the "dml" ->
+    // dev_init window so a later "dml" push does not restart onboarding on a healthy agent.
+    // A dev_init that ended without onboarding (cancel/timeout) keeps the window open, so
+    // a late bSTA reconnect can still trigger the re-onboarding.
+    if (pcmd->m_type == em_cmd_type_dev_init) {
+        if ((first_em->get_state() == em_state_agent_owconfig_pending) ||
+                (first_em->get_state() == em_state_agent_wsc_m2_processed) ||
+                (first_em->get_state() >= em_state_agent_topo_synchronized)) {
+            dm->m_bh_reconfig_time = 0;
+        }
+    }
+}
+
 void em_orch_agent_t::pre_process_cancel(em_cmd_t *pcmd, em_t *em)
 {
 
@@ -320,7 +403,7 @@ bool em_orch_agent_t::pre_process_orch_op(em_cmd_t *pcmd)
 unsigned int em_orch_agent_t::build_candidates(em_cmd_t *pcmd)
 {
     em_t *em;
-    unsigned int count = 0 , num = 0;
+    unsigned int count = 0;
     em_cmd_ctx_t *ctx;
     dm_radio_t *radio;
     mac_addr_str_t	src_mac_str, dst_mac_str;
@@ -345,9 +428,9 @@ unsigned int em_orch_agent_t::build_candidates(em_cmd_t *pcmd)
 				}
 				break;
             case em_cmd_type_cfg_renew:
-		dm_easy_mesh_t::macbytes_to_string(pcmd->get_data_model()->get_radio(num)->get_radio_info()->intf.mac, src_mac_str);
-                if ((memcmp(pcmd->get_data_model()->get_radio(num)->get_radio_info()->intf.mac, em->get_radio_interface_mac(), sizeof(mac_address_t)) == 0) && (!(em->is_al_interface_em()))) {
-		    printf("%s:%d Renew %s added\n", __func__, __LINE__,src_mac_str);
+                if (!(em->is_al_interface_em())) {
+                    dm_easy_mesh_t::macbytes_to_string(em->get_radio_interface_mac(), src_mac_str);
+                    printf("%s:%d Renew %s added\n", __func__, __LINE__, src_mac_str);
                     queue_push(pcmd->m_em_candidates, em);
                     count++;
                 }

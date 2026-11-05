@@ -166,6 +166,15 @@ public:
 	 * @note This is a pure virtual function and must be implemented by derived classes.
 	 */
 	virtual void orch_transient(em_cmd_t *pcmd, em_t *em) = 0;
+
+	/**!
+	 * @brief Controller or agent follow-up of a command that reached fini (or was cancelled).
+	 *
+	 * Called once per command, after its candidates are set idle and before it is destroyed.
+	 *
+	 * @param[in] pcmd Pointer to the finished command; its candidate queue is still intact.
+	 */
+	virtual void on_cmd_fini(em_cmd_t *pcmd) { }
     
 	/**!
 	 * @brief Submits a command for processing.
@@ -182,7 +191,23 @@ public:
 	 * are set before submission.
 	 */
 	bool submit_command(em_cmd_t *pcmd);
-    
+
+	/**!
+	 * @brief Runs the command's orch ops that precede candidate building, then submits it.
+	 *
+	 * For commands that bypass submit_commands() (e.g. set_bh_cfg) and so would otherwise
+	 * never get their submit and non-submit orch ops pre-processed. The command is destroyed
+	 * if pre-processing fails.
+	 *
+	 * @param[in] pcmd Pointer to the command structure to be submitted.
+	 *
+	 * @returns int
+	 * @retval -1 pre-processing failed; nothing was stored.
+	 * @retval 0 pre-processed (e.g. stored) but no candidate, so nothing was submitted.
+	 * @retval 1 submitted.
+	 */
+	int preprocess_and_submit_command(em_cmd_t *pcmd);
+
 	/**!
 	 * @brief Destroys the given command object.
 	 *
@@ -293,6 +318,11 @@ public:
 	 * @returns True if the command type is in progress, false otherwise.
 	 */
 	bool is_cmd_type_in_progress(em_bus_event_t *evt);
+
+	/**!
+	 * @brief True while a command of this type is pending or running.
+	 */
+	bool is_cmd_type_active(em_cmd_type_t type);
 
 	/**!
 	 * @brief Checks if a command type is currently in progress.

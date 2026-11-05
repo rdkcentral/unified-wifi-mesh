@@ -36,7 +36,7 @@ public:
 	 * @returns int
 	 * @retval 0 on successful initialization.
 	 */
-	int init() { memset(&m_bss_info, 0, sizeof(em_bss_info_t)); return 0; }
+	int init() { memset(&m_bss_info, 0, sizeof(em_bss_info_t)); m_bss_info.acl_filter_mode = EM_ACL_MODE_UNKNOWN; return 0; }
     
 	/**!
 	 * @brief Retrieves the BSS information.
@@ -110,6 +110,32 @@ public:
 	 * @note Ensure that the key is valid and the id pointer is not null before calling this function.
 	 */
 	static int parse_bss_id_from_key(const char *key, em_bss_id_t *id);	
+
+	/**!
+	 * @brief Builds the BSSList row key "net_id@dev_mac@ruid@bssid@haul_type" of a BSS.
+	 *
+	 * The BSSList rows, the ACL map and the ACL replay all build the key here, so the same
+	 * BSS always maps to the same key.
+	 *
+	 * @param[in] net_id Network ID.
+	 * @param[in] dev_mac Device AL MAC address.
+	 * @param[in] ruid Radio unique identifier.
+	 * @param[in] bssid BSSID.
+	 * @param[in] haul_type Haul type.
+	 * @param[out] key Buffer receiving the key.
+	 * @param[in] sz Size of key.
+	 */
+	static void make_bss_key(const char *net_id, const unsigned char *dev_mac, const unsigned char *ruid,
+			const unsigned char *bssid, int haul_type, char *key, size_t sz);
+
+	/**!
+	 * @brief Builds the BSSList row key from the BSS's own id.net_id, id.dev_mac, ruid, bssid and id.haul_type.
+	 *
+	 * @param[in] info BSS information.
+	 * @param[out] key Buffer receiving the key.
+	 * @param[in] sz Size of key.
+	 */
+	static void make_bss_key(const em_bss_info_t *info, char *key, size_t sz);
 
     
 	/**!
