@@ -48,7 +48,7 @@
  * | 04 | Set the number of arguments | param.u.args.num_args = 1 | num_args equals 1 | Should be successful |
  * | 05 | Log the API invocation details with fixed_args and argument value | Printed message with param.u.args.fixed_args and param.u.args.args[0] values | Correct invocation message is printed | Should be successful |
  * | 06 | Create the em_cmd_beacon_report_t object with valid parameters | Invocation using: fixed_args = "ValidFixedArguments", args[0] = "Argument1", num_args = 1, dm instance | Object is instantiated with proper member initialization | Should Pass |
- * | 07 | Validate object member values using assertions | Expected: fixed_args = "ValidFixedArguments", num_args = 1, args[0] = "Argument1", m_type = em_cmd_type_beacon_report, m_orch_op_idx = 0, m_num_orch_desc = 1, m_orch_desc[0].submit = true, m_name = "beacon_report", m_orch_desc[0].op = dm_orch_type_beacon_report, m_svc = em_service_type_ctrl, m_data_model.m_cmd_ctx.type = dm_orch_type_beacon_report | All assertions pass confirming correct values | Should Pass |
+ * | 07 | Validate object member values using assertions | Expected: fixed_args = "ValidFixedArguments", num_args = 1, args[0] = "Argument1", m_type = em_cmd_type_beacon_report, m_orch_op_idx = 0, m_num_orch_desc = 1, m_orch_desc[0].submit = true, m_name = "beacon_report", m_orch_desc[0].op = dm_orch_type_beacon_report, m_svc = em_service_type_agent, m_data_model.m_cmd_ctx.type = dm_orch_type_beacon_report | All assertions pass confirming correct values | Should Pass |
  * | 08 | Deinitialize the command object | Call cmd.deinit() | Resources are released and object is deinitialized properly | Should be successful |
  * | 09 | Log the exiting test message | None | "Exiting em_cmd_beacon_report_t_create_valid_parameters test" printed | Should be successful |
  */
@@ -74,7 +74,7 @@ TEST(em_cmd_beacon_report_t, em_cmd_beacon_report_t_create_valid_parameters) {
     EXPECT_TRUE(cmd.m_orch_desc[0].submit);
     EXPECT_STREQ(cmd.m_name, "beacon_report");
     EXPECT_EQ(cmd.m_orch_desc[0].op, dm_orch_type_beacon_report);
-    EXPECT_EQ(cmd.m_svc, em_service_type_ctrl);
+    EXPECT_EQ(cmd.m_svc, em_service_type_agent);
     EXPECT_EQ(cmd.m_data_model.m_cmd_ctx.type, dm_orch_type_beacon_report);
     cmd.deinit();
     std::cout << "Exiting em_cmd_beacon_report_t_create_valid_parameters test" << std::endl;
@@ -99,7 +99,7 @@ TEST(em_cmd_beacon_report_t, em_cmd_beacon_report_t_create_valid_parameters) {
  * | :----: | --------- | ---------- |-------------- | ----- |
  * | 01 | Initialize test parameters by filling fixed_args with 'X' and each argument in args with 'Y', and setting num_args to EM_CLI_MAX_ARGS | fixed_args = 'X' repeated (sizeof(fixed_args)-1), args = 'Y' repeated (sizeof(each args element)-1), num_args = EM_CLI_MAX_ARGS | All parameters are correctly initialized with edge-case lengths | Should be successful |
  * | 02 | Invoke the em_cmd_beacon_report_t constructor with the initialized param and dm instance | Input: param (with fixed_args and args as set above), dm instance | beaconReport instance is created with proper initialization of its internal fields | Should Pass |
- * | 03 | Validate beaconReport fields using assertions (m_type, m_orch_op_idx, m_num_orch_desc, m_name, m_orch_desc, m_svc, m_data_model, and parameter consistency) | Expected: m_type = em_cmd_type_beacon_report, m_orch_op_idx = 0, m_num_orch_desc = 1, m_name = "beacon_report", m_orch_desc[0].submit = true, m_orch_desc[0].op = dm_orch_type_beacon_report, m_svc = em_service_type_ctrl, m_data_model.m_cmd_ctx.type = dm_orch_type_beacon_report, and parameters match input | All member fields satisfy the expected conditions and assertions pass | Should Pass |
+ * | 03 | Validate beaconReport fields using assertions (m_type, m_orch_op_idx, m_num_orch_desc, m_name, m_orch_desc, m_svc, m_data_model, and parameter consistency) | Expected: m_type = em_cmd_type_beacon_report, m_orch_op_idx = 0, m_num_orch_desc = 1, m_name = "beacon_report", m_orch_desc[0].submit = true, m_orch_desc[0].op = dm_orch_type_beacon_report, m_svc = em_service_type_agent, m_data_model.m_cmd_ctx.type = dm_orch_type_beacon_report, and parameters match input | All member fields satisfy the expected conditions and assertions pass | Should Pass |
  * | 04 | Deinitialize the beaconReport instance by calling deinit() | N/A | Resources are properly released without error | Should be successful |
  */
 TEST(em_cmd_beacon_report_t, em_cmd_beacon_report_t_create_edge_case_parameter_lengths) {
@@ -122,7 +122,7 @@ TEST(em_cmd_beacon_report_t, em_cmd_beacon_report_t_create_edge_case_parameter_l
     EXPECT_TRUE(beaconReport.m_orch_desc[0].submit);
     EXPECT_STREQ(beaconReport.m_name, "beacon_report");
     EXPECT_EQ(beaconReport.m_orch_desc[0].op, dm_orch_type_beacon_report);
-    EXPECT_EQ(beaconReport.m_svc, em_service_type_ctrl);
+    EXPECT_EQ(beaconReport.m_svc, em_service_type_agent);
     EXPECT_EQ(beaconReport.m_data_model.m_cmd_ctx.type, dm_orch_type_beacon_report);
     EXPECT_EQ(memcmp(beaconReport.m_param.u.args.fixed_args, param.u.args.fixed_args, sizeof(param.u.args.fixed_args)), 0);
     EXPECT_EQ(beaconReport.m_param.u.args.num_args, maxArgs);
@@ -167,7 +167,7 @@ TEST(em_cmd_beacon_report_t, em_cmd_beacon_report_t_create_edge_case_parameter_l
  * | 10 | Validate that the first orchestrator descriptor is marked for submission. | input: m_orch_desc[0].submit = true | EXPECT_TRUE confirms m_orch_desc[0].submit is true. | Should Pass |
  * | 11 | Validate that the command name is set to "beacon_report". | input: m_name = "beacon_report" | EXPECT_STREQ confirms m_name equals "beacon_report". | Should Pass |
  * | 12 | Validate that the orchestrator operation type is set to dm_orch_type_beacon_report. | input: m_orch_desc[0].op = dm_orch_type_beacon_report | EXPECT_EQ confirms m_orch_desc[0].op matches dm_orch_type_beacon_report. | Should Pass |
- * | 13 | Validate that the service type is set to em_service_type_ctrl. | input: m_svc = em_service_type_ctrl | EXPECT_EQ confirms m_svc equals em_service_type_ctrl. | Should Pass |
+ * | 13 | Validate that the service type is set to em_service_type_agent. | input: m_svc = em_service_type_agent | EXPECT_EQ confirms m_svc equals em_service_type_agent. | Should Pass |
  * | 14 | Validate that the command context type in the data model matches dm_orch_type_beacon_report. | input: m_data_model.m_cmd_ctx.type = dm_orch_type_beacon_report | EXPECT_EQ confirms the type is dm_orch_type_beacon_report. | Should Pass |
  */
 TEST(em_cmd_beacon_report_t, em_cmd_beacon_report_t_create_minimal_valid_parameters) {
@@ -192,7 +192,7 @@ TEST(em_cmd_beacon_report_t, em_cmd_beacon_report_t_create_minimal_valid_paramet
     EXPECT_TRUE(beaconReport.m_orch_desc[0].submit);
     EXPECT_STREQ(beaconReport.m_name, "beacon_report");
     EXPECT_EQ(beaconReport.m_orch_desc[0].op, dm_orch_type_beacon_report);
-    EXPECT_EQ(beaconReport.m_svc, em_service_type_ctrl);
+    EXPECT_EQ(beaconReport.m_svc, em_service_type_agent);
     EXPECT_EQ(beaconReport.m_data_model.m_cmd_ctx.type, dm_orch_type_beacon_report);
     beaconReport.deinit();
     std::cout << "Exiting em_cmd_beacon_report_t_create_minimal_valid_parameters test" << std::endl;
@@ -217,7 +217,7 @@ TEST(em_cmd_beacon_report_t, em_cmd_beacon_report_t_create_minimal_valid_paramet
  * | 01 | Set num_args to 0 and copy an empty string into fixed_args of params. | params.u.args.num_args = 0, params.u.args.fixed_args = "" | params.u.args.fixed_args is empty and num_args is 0 | Should Pass |
  * | 02 | Create a dm_easy_mesh_t object. | dm_easy_mesh_t dm instantiated | dm object is created successfully | Should be successful |
  * | 03 | Construct an em_cmd_beacon_report_t object using params and dm. | params (num_args = 0, fixed_args = ""), dm | em_cmd_beacon_report_t object is constructed and its internal parameters are initialized | Should Pass |
- * | 04 | Validate the internal member values of the constructed object using assertions. | cmd.m_param.u.args.fixed_args = "", cmd.m_param.u.args.num_args = 0, cmd.m_type = em_cmd_type_beacon_report, cmd.m_orch_op_idx = 0, cmd.m_num_orch_desc = 1, cmd.m_orch_desc[0].submit = true, cmd.m_name = "beacon_report", cmd.m_orch_desc[0].op = dm_orch_type_beacon_report, cmd.m_svc = em_service_type_ctrl, cmd.m_data_model.m_cmd_ctx.type = dm_orch_type_beacon_report | All internal members are set as expected | Should Pass |
+ * | 04 | Validate the internal member values of the constructed object using assertions. | cmd.m_param.u.args.fixed_args = "", cmd.m_param.u.args.num_args = 0, cmd.m_type = em_cmd_type_beacon_report, cmd.m_orch_op_idx = 0, cmd.m_num_orch_desc = 1, cmd.m_orch_desc[0].submit = true, cmd.m_name = "beacon_report", cmd.m_orch_desc[0].op = dm_orch_type_beacon_report, cmd.m_svc = em_service_type_agent, cmd.m_data_model.m_cmd_ctx.type = dm_orch_type_beacon_report | All internal members are set as expected | Should Pass |
  * | 05 | Call deinit to release any allocated resources. | cmd.deinit() | Resources are released without error | Should be successful |
  */
 TEST(em_cmd_beacon_report_t, em_cmd_beacon_report_t_empty_fixed_args) {
@@ -239,7 +239,7 @@ TEST(em_cmd_beacon_report_t, em_cmd_beacon_report_t_empty_fixed_args) {
     EXPECT_TRUE(cmd.m_orch_desc[0].submit);
     EXPECT_STREQ(cmd.m_name,  "beacon_report");
     EXPECT_EQ(cmd.m_orch_desc[0].op, dm_orch_type_beacon_report);
-    EXPECT_EQ(cmd.m_svc, em_service_type_ctrl);
+    EXPECT_EQ(cmd.m_svc, em_service_type_agent);
     EXPECT_EQ(cmd.m_data_model.m_cmd_ctx.type, dm_orch_type_beacon_report);
     cmd.deinit();
     std::cout << "Exiting em_cmd_beacon_report_t_empty_fixed_args test" << std::endl;

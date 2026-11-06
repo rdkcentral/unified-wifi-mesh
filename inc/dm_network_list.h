@@ -198,6 +198,20 @@ public:
 	 * @note Ensure that the database client is properly initialized before calling this function.
 	 */
 	bool search_db(db_client_t& db_client, void *ctx, void *key);
+
+	/**!
+	 * @brief Checks whether the stored NetworkList row matches the given network.
+	 *
+	 * Compares ControllerID, ColocatedAgentID and Media of the row with the network's
+	 * ID against @p net, so a change that was only made in memory is still detected.
+	 *
+	 * @param[in] db_client Reference to the database client used for the query.
+	 * @param[in] net Network to compare with the stored row.
+	 *
+	 * @returns True if the row exists and all compared columns are equal, false otherwise.
+	 */
+	bool db_row_matches(db_client_t& db_client, const dm_network_t& net);
+	
     bool operator == (const db_easy_mesh_t& obj);
     
 	/**!

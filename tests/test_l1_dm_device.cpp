@@ -21,6 +21,66 @@
 #include <gmock/gmock.h>
 #include <stdio.h>
 #include "dm_device.h"
+#include "dm_device_list.h"
+#include "db_client_none.h"
+
+class device_list_test_t : public dm_device_list_t {
+public:
+    MOCK_METHOD(dm_device_t *, get_first_device, (), (override));
+    MOCK_METHOD(dm_device_t *, get_next_device, (dm_device_t *), (override));
+    MOCK_METHOD(dm_device_t *, get_device, (const char *), (override));
+    MOCK_METHOD(void, remove_device, (const char *), (override));
+    MOCK_METHOD(void, put_device, (const char *, const dm_device_t *), (override));
+    MOCK_METHOD(void, update_device, (const char *, const dm_device_t *), (override));
+    MOCK_METHOD(bus_error_t, bus_get_cb_fwd,
+        (char *, raw_data_t *, bus_get_handler_t), (override));
+    MOCK_METHOD(bus_error_t, network_get, (char *, raw_data_t *), (override));
+    MOCK_METHOD(bus_error_t, device_get, (char *, raw_data_t *), (override));
+};
+
+class device_no_db_test_t : public db_client_none_t {
+public:
+    MOCK_METHOD(void *, execute, (const char *), (override));
+};
+
+TEST(dm_device_list_t_Test, NoDatabaseDoesNotReinsertExistingDevice) {
+    testing::StrictMock<device_list_test_t> devices;
+    testing::StrictMock<device_no_db_test_t> db;
+    ASSERT_EQ(db.init(nullptr), 0);
+    ASSERT_EQ(devices.init(), 0);
+    dm_device_t incoming;
+    dm_device_t stored;
+    memset(&incoming.m_device_info, 0, sizeof(incoming.m_device_info));
+    memset(&stored.m_device_info, 0, sizeof(stored.m_device_info));
+    char key[] = "Network1@02:00:00:00:00:01@0";
+    bool present = false;
+
+    EXPECT_CALL(db, execute(testing::_)).Times(2)
+        .WillRepeatedly(testing::Return(nullptr));
+    EXPECT_CALL(devices, get_device(testing::StrEq(key)))
+        .Times(4)
+        .WillRepeatedly([&](const char *) -> dm_device_t * {
+            return present ? &stored : nullptr;
+        });
+    EXPECT_CALL(devices, put_device(testing::StrEq(key), testing::_))
+        .WillOnce([&](const char *, const dm_device_t *device) {
+            stored = *device;
+            present = true;
+        });
+    EXPECT_CALL(devices, update_device(testing::StrEq(key), testing::_))
+        .Times(3)
+        .WillRepeatedly([&](const char *, const dm_device_t *device) {
+            stored = *device;
+        });
+
+    ASSERT_EQ(devices.set_config(db, incoming, key), 0);
+    ASSERT_TRUE(present);
+    ASSERT_EQ(devices.set_config(db, incoming, key), 0);
+    incoming.m_device_info.coll_interval = 30;
+    ASSERT_EQ(devices.set_config(db, incoming, key), 0);
+    EXPECT_EQ(stored.m_device_info.coll_interval, 30);
+    ASSERT_EQ(devices.set_config(db, incoming, key), 0);
+}
 
 
 /**

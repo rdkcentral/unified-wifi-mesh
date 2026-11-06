@@ -797,6 +797,7 @@ public:
     unsigned int m_channel_sel_req_tx_cnt;
     //stores Channel request msg_id
     unsigned short m_chan_req_msg_id = 0;
+    bool m_channel_sel_ocr_received = false;
 	
 	/**!
 	 * @brief Retrieves the frequency band.
