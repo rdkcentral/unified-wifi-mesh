@@ -68,7 +68,10 @@ extern "C"
 #define EM_MAX_MSG_SZ   1514
 #endif
 #define EM_MAX_TLV_VALUE_SZ 65535
-#define EM_MAX_FRAME_BODY_LEN	512
+/* Fixed storage cap based on the largest VHT MPDU option in IEEE 802.11-2020
+ * Table 9-25 (11454 octets), less the shortest management header (24 octets)
+ * and FCS (4 octets) per 9.3.3.1. */
+#define EM_MAX_FRAME_BODY_LEN	(11454 - 24 - 4)
 #define MAX_VENDOR_INFO 5
 #define EM_MAX_BEACON_MEASUREMENT_LEN  400
 #define EM_MAX_BEACON_REPORTS_PER_SCAN 10
@@ -2726,7 +2729,10 @@ typedef struct {
     unsigned int    errors_tx;
     unsigned int    errors_rx;
     unsigned int 	frame_body_len;
-    unsigned char	frame_body[EM_MAX_FRAME_BODY_LEN];
+    /* Heap allocated, frame_body_len bytes, NULL when empty. Owned by the dm_sta_t holding this
+     * struct: copy into an owning struct only with dm_sta_t::copy_sta_info() or
+     * dm_sta_t::set_frame_body(); plain copies share the pointer and must not outlive the owner. */
+    unsigned char	*frame_body;
     unsigned int    num_vendor_infos;
     bool            multi_band_cap;
     time_t          beacon_query_sent_time;
@@ -3199,6 +3205,9 @@ typedef enum {
     em_bus_event_type_unassoc_sta_result,
     em_bus_event_type_failed_conn,
     em_bus_event_type_vendor_data,
+    em_bus_event_type_sta_cap_update,
+    em_bus_event_type_sta_mld_update,
+    em_bus_event_type_topo_publish,
 
     em_bus_event_type_max
 } em_bus_event_type_t;
@@ -3382,6 +3391,20 @@ typedef struct {
     mac_address_t   dev;
     em_client_assoc_event_t   assoc;
 } em_bus_event_type_client_assoc_params_t;
+
+// Owned frame-body bytes follow this pointer-free header.
+typedef struct {
+    mac_address_t dev;
+    mac_address_t sta;
+    mac_address_t bssid;
+    mac_address_t radio;
+    unsigned int frame_body_len;
+} em_bus_event_type_sta_cap_update_params_t;
+
+typedef struct {
+    mac_address_t dev;
+    em_assoc_sta_mld_info_t info;
+} em_bus_event_type_sta_mld_update_params_t;
 
 typedef struct {
     mac_address_t   radio;

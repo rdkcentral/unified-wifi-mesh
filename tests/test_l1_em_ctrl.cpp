@@ -23,6 +23,186 @@
 #include <cstring>
 #include "em_ctrl.h"
 #include "em_crypto.h"
+#include <memory>
+#include <vector>
+
+TEST(em_ctrl_t, StationCapabilityUpdatesOwnFrameBodies)
+{
+    em_ctrl_t ctrl;
+    em_interface_t agent = {};
+    agent.mac[5] = 1;
+    dm_easy_mesh_t *dm = nullptr;
+    {
+        // Controller infrastructure has no complete teardown; keep test allocations tracked.
+        struct ScopedLeakSuppression {
+            ScopedLeakSuppression() { __lsan_disable(); }
+            ~ScopedLeakSuppression() { __lsan_enable(); }
+        } suppression;
+        ASSERT_EQ(ctrl.init(":memory:"), 0);
+        dm = ctrl.create_data_model(GLOBAL_NET_ID, &agent);
+    }
+    ASSERT_NE(dm, nullptr);
+    em_bus_event_type_sta_cap_update_params_t update = {};
+    memcpy(update.dev, agent.mac, sizeof(mac_address_t));
+    update.sta[5] = 2;
+    update.bssid[5] = 3;
+    update.radio[5] = 4;
+    const char *key = "00:00:00:00:00:02@00:00:00:00:00:03@00:00:00:00:00:04";
+
+    const unsigned int lengths[] = {EM_MAX_FRAME_BODY_LEN, 4, 0};
+    for (unsigned int length : lengths) {
+        update.frame_body_len = length;
+        std::vector<unsigned char> payload(sizeof(update) + length, 0x5a);
+        memcpy(payload.data(), &update, sizeof(update));
+        ctrl.io_process(em_bus_event_type_sta_cap_update, payload.data(),
+            static_cast<unsigned int>(payload.size()));
+        memset(payload.data(), 0, payload.size());
+        EXPECT_EQ(hash_map_get(dm->m_sta_assoc_map, key), nullptr);
+
+        std::unique_ptr<em_event_t, decltype(&free)> event(ctrl.pop_from_queue(), &free);
+        ASSERT_NE(event, nullptr);
+        ctrl.handle_event(event.get());
+        event.reset();
+        dm_sta_t *sta = static_cast<dm_sta_t *>(hash_map_get(dm->m_sta_assoc_map, key));
+        ASSERT_NE(sta, nullptr);
+        ASSERT_EQ(sta->m_sta_info.frame_body_len, length);
+        for (unsigned int i = 0; i < length; i++) {
+            EXPECT_EQ(sta->m_sta_info.frame_body[i], 0x5a);
+        }
+        EXPECT_TRUE(sta->m_sta_info.associated);
+        // Simulate the pending entry being consumed by the DB flush.
+        delete static_cast<dm_sta_t *>(hash_map_remove(dm->m_sta_assoc_map, key));
+        EXPECT_EQ(ctrl.pop_from_queue(), nullptr);
+    }
+}
+
+TEST(em_ctrl_t, CapabilityLinksResolveAfterQueuedMldReplacement)
+{
+    em_ctrl_t ctrl;
+    em_interface_t agent = {};
+    agent.mac[5] = 1;
+    dm_easy_mesh_t *dm = nullptr;
+    {
+        struct ScopedLeakSuppression {
+            ScopedLeakSuppression() { __lsan_disable(); }
+            ~ScopedLeakSuppression() { __lsan_enable(); }
+        } suppression;
+        ASSERT_EQ(ctrl.init(":memory:"), 0);
+        dm = ctrl.create_data_model(GLOBAL_NET_ID, &agent);
+    }
+    ASSERT_NE(dm, nullptr);
+    dm->set_num_radios(1);
+    dm->get_radio_info(0)->id.ruid[5] = 4;
+    dm->set_num_bss(2);
+    for (unsigned int i = 0; i < 2; i++) {
+        dm->get_bss(i)->m_bss_info.bssid.mac[5] = static_cast<unsigned char>(3 + i);
+        dm->get_bss(i)->m_bss_info.ruid.mac[5] = 4;
+    }
+    em_bus_event_type_sta_mld_update_params_t mld = {};
+    memcpy(mld.dev, agent.mac, sizeof(mac_address_t));
+    mld.info.mac_addr[5] = 2;
+    mld.info.num_affiliated_sta = 1;
+    mld.info.affiliated_sta[0].bssid[5] = 3;
+    dm->replace_assoc_sta_mld_info(mld.info);
+    dm->apply_sta_mld_association(mld.info);
+
+    em_bus_event_type_sta_cap_update_params_t cap = {};
+    memcpy(cap.dev, agent.mac, sizeof(mac_address_t));
+    cap.sta[5] = 2;
+    cap.bssid[5] = 3;
+    cap.frame_body_len = 4;
+    std::vector<unsigned char> payload(sizeof(cap) + cap.frame_body_len, 0x5a);
+    memcpy(payload.data(), &cap, sizeof(cap));
+    for (unsigned char links : {1, 0}) {
+        mld.info.num_affiliated_sta = links;
+        mld.info.affiliated_sta[0].bssid[5] = 4;
+        ctrl.io_process(em_bus_event_type_sta_mld_update,
+            reinterpret_cast<unsigned char *>(&mld), sizeof(mld));
+        ctrl.io_process(em_bus_event_type_sta_cap_update, payload.data(),
+            static_cast<unsigned int>(payload.size()));
+        for (unsigned int i = 0; i < 2; i++) {
+            std::unique_ptr<em_event_t, decltype(&free)> event(ctrl.pop_from_queue(), &free);
+            ASSERT_NE(event, nullptr);
+            ctrl.handle_event(event.get());
+        }
+        dm_sta_t *old_link = static_cast<dm_sta_t *>(hash_map_get(dm->m_sta_assoc_map,
+            "00:00:00:00:00:02@00:00:00:00:00:03@00:00:00:00:00:04"));
+        ASSERT_NE(old_link, nullptr);
+        EXPECT_EQ(old_link->m_sta_info.frame_body_len, 0u);
+        if (links == 1) {
+            dm_sta_t *new_link = static_cast<dm_sta_t *>(hash_map_get(dm->m_sta_assoc_map,
+                "00:00:00:00:00:02@00:00:00:00:00:04@00:00:00:00:00:04"));
+            ASSERT_NE(new_link, nullptr);
+            ASSERT_EQ(new_link->m_sta_info.frame_body_len, 4u);
+            EXPECT_EQ(new_link->m_sta_info.frame_body[3], 0x5a);
+        }
+    }
+}
+
+TEST(em_ctrl_t, StationMldUpdatesApplyOnControllerEventThread)
+{
+    em_ctrl_t ctrl;
+    em_interface_t agent = {};
+    agent.mac[5] = 1;
+    dm_easy_mesh_t *dm = nullptr;
+    {
+        struct ScopedLeakSuppression {
+            ScopedLeakSuppression() { __lsan_disable(); }
+            ~ScopedLeakSuppression() { __lsan_enable(); }
+        } suppression;
+        ASSERT_EQ(ctrl.init(":memory:"), 0);
+        dm = ctrl.create_data_model(GLOBAL_NET_ID, &agent);
+    }
+    ASSERT_NE(dm, nullptr);
+    dm->set_num_radios(1);
+    dm->get_radio_info(0)->id.ruid[5] = 4;
+    dm->set_num_bss(1);
+    dm->get_bss(0)->m_bss_info.bssid.mac[5] = 3;
+    dm->get_bss(0)->m_bss_info.ruid.mac[5] = 4;
+
+    for (unsigned char links : {1, 0}) {
+        em_bus_event_type_sta_mld_update_params_t update = {};
+        memcpy(update.dev, agent.mac, sizeof(mac_address_t));
+        update.info.mac_addr[5] = 2;
+        update.info.num_affiliated_sta = links;
+        update.info.affiliated_sta[0].bssid[5] = 3;
+        ctrl.io_process(em_bus_event_type_sta_mld_update,
+            reinterpret_cast<unsigned char *>(&update), sizeof(update));
+        memset(&update, 0, sizeof(update));
+
+        em_assoc_sta_mld_info_t rows[EM_MAX_ASSOC_STA_MLD];
+        unsigned int count = dm->copy_assoc_sta_mld_info(rows);
+        if (links == 1) {
+            EXPECT_EQ(count, 0u);
+        } else {
+            ASSERT_EQ(count, 1u);
+            EXPECT_EQ(rows[0].num_affiliated_sta, 1);
+        }
+        std::unique_ptr<em_event_t, decltype(&free)> event(ctrl.pop_from_queue(), &free);
+        ASSERT_NE(event, nullptr);
+        ctrl.handle_event(event.get());
+        count = dm->copy_assoc_sta_mld_info(rows);
+        ASSERT_EQ(count, 1u);
+        EXPECT_EQ(rows[0].mac_addr[5], 2);
+        EXPECT_EQ(rows[0].num_affiliated_sta, links);
+        dm_sta_t *sta = static_cast<dm_sta_t *>(hash_map_get(dm->m_sta_map,
+            "00:00:00:00:00:02@00:00:00:00:00:03@00:00:00:00:00:04"));
+        // Association updates may first exist only in the pending persistence map.
+        if (sta == nullptr) {
+            sta = static_cast<dm_sta_t *>(hash_map_get(dm->m_sta_assoc_map,
+                "00:00:00:00:00:02@00:00:00:00:00:03@00:00:00:00:00:04"));
+        }
+        ASSERT_NE(sta, nullptr);
+        if (links == 1) {
+            EXPECT_TRUE(sta->m_sta_info.associated);
+            hash_map_put(dm->m_sta_map, strdup(
+                "00:00:00:00:00:02@00:00:00:00:00:03@00:00:00:00:00:04"),
+                new dm_sta_t(*sta));
+        } else {
+            EXPECT_FALSE(sta->m_sta_info.associated);
+        }
+    }
+}
 
 class em_ctrl_t_Test : public ::testing::Test {
 protected:

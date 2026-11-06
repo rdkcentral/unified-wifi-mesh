@@ -218,6 +218,25 @@ int db_client_local_t::get_number(void *ctx, unsigned int col)
     return sqlite3_column_int(res_ctx->statement, static_cast<int>(col - 1));
 }
 
+unsigned int db_client_local_t::get_string_length(void *ctx, unsigned int col)
+{
+    if ((ctx == NULL) || (col == 0))
+    {
+        return 0;
+    }
+
+    result_context_t *res_ctx = static_cast<result_context_t *>(ctx);
+
+    std::lock_guard<std::mutex> lock(m_mutex);
+
+    // sqlite3_column_bytes() must follow the sqlite3_column_text() call that get_string() uses
+    if (sqlite3_column_text(res_ctx->statement, static_cast<int>(col - 1)) == NULL)
+    {
+        return 0;
+    }
+    return static_cast<unsigned int>(sqlite3_column_bytes(res_ctx->statement, static_cast<int>(col - 1)));
+}
+
 int db_client_local_t::connect(const char *path)
 {
     // Use the caller-provided database path, or fall back to the default location.

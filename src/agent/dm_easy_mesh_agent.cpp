@@ -115,7 +115,6 @@ int dm_easy_mesh_agent_t::analyze_sta_list(em_bus_event_t *evt, em_cmd_t *pcmd[]
     dm_easy_mesh_agent_t  dm;
     dm_sta_t *sta = NULL;
     em_cmd_t *tmp = NULL;
-    mac_address_t sta_mld_mac;
     em_long_string_t key;
     mac_address_t assoc_sta_mld_tracked_macs[EM_MAX_ASSOC_STA_MLD] = {{0}};
     mac_address_t disassoc_sta_mld_tracked_macs[EM_MAX_ASSOC_STA_MLD] = {{0}};
@@ -141,9 +140,7 @@ int dm_easy_mesh_agent_t::analyze_sta_list(em_bus_event_t *evt, em_cmd_t *pcmd[]
         webconfig_subdoc_type_associated_clients, "Assoc clients");
     // Refresh global STA-MLD entries from the latest decoded snapshot.
     for (idx = 0; idx < dm.m_num_assoc_sta_mld; idx++) {
-        memcpy(sta_mld_mac, dm.m_assoc_sta_mld[idx].m_assoc_sta_mld_info.mac_addr, sizeof(mac_address_t));
-        remove_assoc_sta_mld_info(sta_mld_mac);
-        update_assoc_sta_mld_info(&dm.m_assoc_sta_mld[idx].m_assoc_sta_mld_info);
+        replace_assoc_sta_mld_info(dm.m_assoc_sta_mld[idx].m_assoc_sta_mld_info);
     }
 
     for ( i = 0; i < num_radios; i++) {
