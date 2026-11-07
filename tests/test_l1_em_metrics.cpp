@@ -33,6 +33,33 @@
 #include "em_cmd.h"
 #include "dm_easy_mesh.h"
 
+static std::vector<unsigned char> make_unassoc_sta_link_metrics_response(
+    const std::vector<std::vector<unsigned char>>& tlv_values)
+{
+    size_t response_len = sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t) + sizeof(em_tlv_t);
+    for (const auto& value : tlv_values) {
+        response_len += sizeof(em_tlv_t) + value.size();
+    }
+    std::vector<unsigned char> response(response_len, 0);
+    auto *cmdu = reinterpret_cast<em_cmdu_t *>(response.data() + sizeof(em_raw_hdr_t));
+    cmdu->type = htons(static_cast<unsigned short>(em_msg_type_unassoc_sta_link_metrics_rsp));
+
+    size_t offset = sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t);
+    for (const auto& value : tlv_values) {
+        auto *tlv = reinterpret_cast<em_tlv_t *>(response.data() + offset);
+        tlv->type = static_cast<unsigned char>(em_tlv_type_unassoc_sta_link_metric_rsp);
+        tlv->len = htons(static_cast<unsigned short>(value.size()));
+        if (!value.empty()) {
+            std::memcpy(tlv->value, value.data(), value.size());
+        }
+        offset += sizeof(em_tlv_t) + value.size();
+    }
+
+    auto *eom = reinterpret_cast<em_tlv_t *>(response.data() + offset);
+    eom->type = static_cast<unsigned char>(em_tlv_type_eom);
+    return response;
+}
+
 class DummyEmMetrics : public em_metrics_t {
 public:
     // Construct with optional initial dependencies
@@ -163,7 +190,33 @@ protected:
     void TearDown() override {
         delete emMetrics;
         emMetrics = nullptr;
-    }        
+    }
+    void process_unassoc_sta_link_metrics_response(unsigned char *buff, unsigned int len)
+    {
+        auto response = make_unassoc_sta_link_metrics_response({
+            std::vector<unsigned char>(buff, buff + len)
+        });
+        emMetrics->process_msg(response.data(), static_cast<unsigned int>(response.size()));
+    }
+
+    void expect_unassoc_sta_link_metrics_response_stops_after_invalid_tlv(
+        unsigned char *buff, unsigned int len)
+    {
+        auto response = make_unassoc_sta_link_metrics_response({
+            std::vector<unsigned char>(buff, buff + len),
+            {0x51, 0x01, 0x00, 0x11, 0x22, 0x33, 0x44, 0x55,
+             0x06, 0x00, 0x00, 0x03, 0xE8, 0x96}
+        });
+        char *errors[EM_MAX_TLV_MEMBERS] = {};
+        ASSERT_NE(em_msg_t(em_msg_type_unassoc_sta_link_metrics_rsp,
+                          emMetrics->get_profile_type(), response.data(),
+                          static_cast<unsigned int>(response.size())).validate(errors), 0u);
+
+        // A successful parser status would let the following valid TLV add a STA.
+        emMetrics->process_msg(response.data(), static_cast<unsigned int>(response.size()));
+        EXPECT_EQ(emMetrics->get_data_model()->m_num_unassoc_sta_metrics, 0u);
+    }
+
 };
 
 static std::vector<unsigned char> make_ap_metrics_response(const unsigned char *source_mac,
@@ -369,6 +422,216 @@ TEST_F(EmMetricsTest, destroy_stack_allocated_em_metrics_t) {
         std::cout << "Exited inner scope. Destructor for DummyEmMetrics has been called if no exceptions were thrown" << std::endl;
     }
     std::cout << "Exiting destroy_stack_allocated_em_metrics_t test" << std::endl;
+}
+
+/*
+ * Regression tests for Unassociated STA Link Metrics TLV
+ *
+ * The handler expects the TLV value only:
+ *   Operating Class (1 byte)
+ *   Number of STAs  (1 byte)
+ *   STA entries     (12 bytes each)
+ *
+ * Expected TLV value length:
+ *   2 + (num_sta * sizeof(em_unassoc_sta_metric_t))
+ */
+
+/* A one-byte TLV is rejected by response validation before parsing. */
+TEST_F(EmMetricsTest, UnassocStaLinkMetrics_ResponseValidationRejectsShortTlv)
+{
+    dm_easy_mesh_t dm{};
+    emMetrics->set_data_model(&dm);
+    dm.m_num_unassoc_sta_metrics = 1;
+
+    unsigned char tlv_value[1] = {0x51};
+
+    unsigned int metrics_before = dm.m_num_unassoc_sta_metrics;
+
+    process_unassoc_sta_link_metrics_response(tlv_value, sizeof(tlv_value));
+    EXPECT_EQ(dm.m_num_unassoc_sta_metrics, metrics_before);
+}
+
+
+/* Missing STA bytes */
+TEST_F(EmMetricsTest, UnassocStaLinkMetrics_MissingStaBytes)
+{
+    dm_easy_mesh_t dm{};
+    emMetrics->set_data_model(&dm);
+    dm.m_num_unassoc_sta_metrics = 1;
+
+    unsigned char tlv_value[11] = {
+        0x51,
+        0x01,
+        0x00, 0x11, 0x22, 0x33, 0x44, 0x55,
+        0x06, 0x00, 0x00
+    };
+
+    expect_unassoc_sta_link_metrics_response_stops_after_invalid_tlv(
+        tlv_value, sizeof(tlv_value));
+
+    EXPECT_EQ(dm.m_num_unassoc_sta_metrics, 0);
+}
+
+
+/* Extra bytes with zero STAs */
+TEST_F(EmMetricsTest, UnassocStaLinkMetrics_ExtraBytesZeroSta)
+{
+    dm_easy_mesh_t dm{};
+    emMetrics->set_data_model(&dm);
+    dm.m_num_unassoc_sta_metrics = 1;
+
+    unsigned char tlv_value[11] = {
+        0x51,
+        0x00
+    };
+
+    expect_unassoc_sta_link_metrics_response_stops_after_invalid_tlv(
+        tlv_value, sizeof(tlv_value));
+
+    EXPECT_EQ(dm.m_num_unassoc_sta_metrics, 0);
+}
+
+
+/* Extra bytes after one complete STA */
+TEST_F(EmMetricsTest, UnassocStaLinkMetrics_ExtraBytesAfterOneSta)
+{
+    dm_easy_mesh_t dm{};
+    emMetrics->set_data_model(&dm);
+    dm.m_num_unassoc_sta_metrics = 1;
+
+    unsigned char tlv_value[15] = {
+        0x51,
+        0x01,
+        0x00, 0x11, 0x22, 0x33, 0x44, 0x55,
+        0x06,
+        0x00, 0x00, 0x03, 0xE8,
+        0x96,
+        0x00
+    };
+
+    expect_unassoc_sta_link_metrics_response_stops_after_invalid_tlv(
+        tlv_value, sizeof(tlv_value));
+
+    EXPECT_EQ(dm.m_num_unassoc_sta_metrics, 0);
+}
+
+
+/* Valid one STA payload */
+TEST_F(EmMetricsTest, UnassocStaLinkMetrics_ValidOneSta)
+{
+    dm_easy_mesh_t dm{};
+    emMetrics->set_data_model(&dm);
+    dm.m_num_unassoc_sta_metrics = 0;
+
+    unsigned char tlv_value[14] = {
+        0x51,
+        0x01,
+
+        0x00, 0x11, 0x22, 0x33, 0x44, 0x55,
+
+        0x06,
+
+        0x00, 0x00, 0x03, 0xE8,
+
+        0x96
+    };
+
+    unsigned int metrics_before = dm.m_num_unassoc_sta_metrics;
+
+    process_unassoc_sta_link_metrics_response(tlv_value, sizeof(tlv_value));
+
+    EXPECT_EQ(dm.m_num_unassoc_sta_metrics, metrics_before + 1);
+}
+
+
+TEST_F(EmMetricsTest, UnassocStaLinkMetrics_ContinuesAfterValidTlv)
+{
+    dm_easy_mesh_t dm{};
+    emMetrics->set_data_model(&dm);
+    dm.m_num_unassoc_sta_metrics = 0;
+
+    const std::vector<unsigned char> tlv_value = {
+        0x51, 0x01, 0x00, 0x11, 0x22, 0x33, 0x44, 0x55,
+        0x06, 0x00, 0x00, 0x03, 0xE8, 0x96
+    };
+    auto response = make_unassoc_sta_link_metrics_response({tlv_value, tlv_value});
+    emMetrics->process_msg(response.data(), static_cast<unsigned int>(response.size()));
+
+    EXPECT_EQ(dm.m_num_unassoc_sta_metrics, 2u);
+}
+
+
+/* Valid multiple STA payload */
+TEST_F(EmMetricsTest, UnassocStaLinkMetrics_ValidMultipleSta)
+{
+    dm_easy_mesh_t dm{};
+    emMetrics->set_data_model(&dm);
+    dm.m_num_unassoc_sta_metrics = 0;
+
+    unsigned char tlv_value[26] = {
+        0x51,
+        0x02,
+
+        // ================= STA 1 =================
+
+        0x00, 0x11, 0x22, 0x33, 0x44, 0x55,
+
+        0x06,
+
+        0x00, 0x00, 0x03, 0xE8,
+
+        0x96,
+
+        // ================= STA 2 =================
+
+        0x00, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE,
+
+        0x06,
+
+        0x00, 0x00, 0x07, 0xD0,
+
+        0x96
+    };
+
+    unsigned int metrics_before = dm.m_num_unassoc_sta_metrics;
+
+    process_unassoc_sta_link_metrics_response(tlv_value, sizeof(tlv_value));
+
+    EXPECT_EQ(dm.m_num_unassoc_sta_metrics, metrics_before + 2);
+}
+
+
+/* One complete STA followed by an incomplete STA.*/
+TEST_F(EmMetricsTest, UnassocStaLinkMetrics_CompleteStaPlusIncompleteSta)
+{
+    dm_easy_mesh_t dm{};
+    emMetrics->set_data_model(&dm);
+    dm.m_num_unassoc_sta_metrics = 1;
+
+    unsigned char tlv_value[20] = {
+        0x51,
+        0x02,
+
+        // ================= STA 1 =================
+
+        0x00, 0x11, 0x22, 0x33, 0x44, 0x55,
+
+        0x06,
+
+        0x00, 0x00, 0x03, 0xE8,
+
+        0x96,
+
+        // ================= STA 2 =================
+
+        // Incomplete STA - only 6 bytes remain
+        0x00, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE
+    };
+
+    expect_unassoc_sta_link_metrics_response_stops_after_invalid_tlv(
+        tlv_value, sizeof(tlv_value));
+
+    EXPECT_EQ(dm.m_num_unassoc_sta_metrics, 0);
 }
 
 TEST_F(EmMetricsTest, UsesPeerProfileAndUpdatesSharedDataModelOnce) {
