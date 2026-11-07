@@ -27,7 +27,7 @@
 class em_cmd_t;
 class em_mgr_t;
 class em_configuration_t {
-    
+
 	/**!
 	 * @brief Creates an auto-configuration response message.
 	 *
@@ -843,7 +843,9 @@ class em_configuration_t {
 	 *
 	 * @note Ensure the buffer is properly allocated and the length is correct before calling this function.
 	 */
+	protected:
 	int handle_topology_response(unsigned char *buff, unsigned int len);
+	private:
     
 	/**!
 	 * @brief Handles topology notifications.
@@ -879,7 +881,9 @@ class em_configuration_t {
 	 * @note Ensure that the buffer is properly allocated and the length is correctly set
 	 * before calling this function.
 	 */
+	protected:
 	int handle_ap_operational_bss(unsigned char *buff, unsigned int len);
+	private:
     
 	/**!
 	 * @brief Handles the BSS configuration report.
@@ -1263,7 +1267,9 @@ class em_configuration_t {
 	 *
 	 * @returns The cached profile, treating an unknown profile as em_profile_type_1.
 	 */
+	protected:
 	em_profile_type_t get_peer_profile(const mac_address_t al_mac);
+	private:
 
 	/**!
 	 * @brief Caches the profile reported by the device with the given AL MAC in its data model.
