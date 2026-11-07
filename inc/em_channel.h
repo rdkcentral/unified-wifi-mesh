@@ -325,7 +325,75 @@ public:
 	 * @note Ensure that the buffer is properly allocated before calling this function.
 	 */
 	short create_channel_pref_tlv_agent(unsigned char *buff, unsigned int index);
-    
+	
+	/**!
+	 * @brief Adds a channel to the list if it is not already present.
+	 *
+	 * This function checks whether a given channel already exists in the
+	 * channel list. If the channel is not present it adds the channel to
+	 * the list and initializes its preference value.
+	 *
+	 * @param[in,out] info Pointer to the operational class info structure
+	 *                     containing the channel list and related metadata.
+	 * @param[in] channel The channel number to be added.
+	 *
+	 * @returns bool
+	 * @retval true  If the channel was successfully added.
+	 * @retval false If the channel already exists or the list is full.
+	 *
+	 */
+	static bool add_channel_if_missing(em_op_class_info_t *info, unsigned char channel);
+
+	/**!
+	 * @brief Checks whether a given channel belongs to a DFS (Dynamic Frequency Selection) range.
+	 *
+	 * This function searches the DFS table for a matching operating class (op_class).
+	 * If a matching entry is found, it checks whether the specified channel exists
+	 * within that entry's channel list.
+	 *
+	 * @param[in] op_class The operating class to be checked in the DFS table.
+	 * @param[in] channel  The channel number to verify for DFS status.
+	 *
+	 * @returns bool
+	 * @retval true  If the channel is found in the DFS table for the given op_class.
+	 * @retval false If the op_class is not found or the channel does not belong
+	 *               to the DFS list for that op_class.
+	 *
+	 */
+	static bool is_dfs_channel(unsigned int op_class, unsigned int channel);
+
+	/**!
+	 * @brief Removes/filters out the DFS channels from channel preference entries.
+	 *
+	 * This function iterates through all operating class preference entries
+	 * in the data model for the given radio (RUID) and removes DFS channels
+	 * from the list (i.e., entries containing both DFS and non-DFS channels).
+	 *
+	 * @param[in,out] dm Pointer to the EasyMesh data model.
+	 * @param[in] ruid Radio Unique Identifier (MAC address).
+	 *
+	 * @return short
+	 * @retval 0 on success
+	 * @retval -1 on failure
+ 	 */
+	short remove_dfs_channels_from_noop_pref_in_dm(dm_easy_mesh_t *dm, const mac_address_t ruid);
+
+	/**!
+	 * @brief Adds DFS channels to the data model channel preference entries.
+	 *
+	 * This function adds DFS channels to the existing operating class
+	 * preference entries for a given radio (RUID) based on a predefined DFS table based on E-4 table.
+	 *
+	 * @param[in] ruid Radio Unique Identifier (MAC address).
+	 *
+	 * @return short
+	 * @retval >= 0 Number of operating classes after update
+	 * @retval -1 on failure (e.g., invalid data model or device info)
+	 *
+	 * @note This function modifies the data model in-place.
+	 */
+	short check_dfs_flag_and_update_noop_channels(const mac_address_t ruid);
+
 	/**!
 	 * @brief Creates a TLV for transmit power limit.
 	 *
