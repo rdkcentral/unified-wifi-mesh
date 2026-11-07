@@ -1121,6 +1121,8 @@ int em_metrics_t::handle_ap_metrics_response(unsigned char *buff, unsigned int l
         get_mgr()->publish_network_topology();
     }
 
+    get_mgr()->publish_metrics_updated(dm);
+
     return 0;
 }
 

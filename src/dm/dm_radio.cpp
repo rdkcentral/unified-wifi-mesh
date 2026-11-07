@@ -130,6 +130,19 @@ int dm_radio_t::decode(const cJSON *obj, void *parent_id)
     return 0;
 }
 
+void dm_radio_t::encode_metrics(cJSON *obj)
+{
+    mac_addr_str_t mac_str;
+
+    dm_easy_mesh_t::macbytes_to_string(m_radio_info.intf.mac, mac_str);
+    cJSON_AddStringToObject(obj, "ID", mac_str);
+    cJSON_AddNumberToObject(obj, "Noise", m_radio_info.noise);
+    cJSON_AddNumberToObject(obj, "Utilization", m_radio_info.utilization);
+    cJSON_AddNumberToObject(obj, "Transmit", m_radio_info.transmit);
+    cJSON_AddNumberToObject(obj, "ReceiveSelf", m_radio_info.receive_self);
+    cJSON_AddNumberToObject(obj, "ReceiveOther", m_radio_info.receive_other);
+}
+
 void dm_radio_t::encode(cJSON *obj, em_get_radio_list_reason_t reason)
 {
     mac_addr_str_t  mac_str;
