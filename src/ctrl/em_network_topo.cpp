@@ -136,7 +136,7 @@ em_network_topo_t *em_network_topo_t::find_topology_by_bh_associated(dm_easy_mes
 
 	std::string dev_mac_str = util::mac_to_string(dm->m_device.m_device_info.intf.mac);
 	// Obtain the mesh_sta information of this dm.
-	em_bss_info_t *bss = dm->get_bsta_bss_info();
+	em_bss_info_t *bss = dm->get_associated_bsta_bss_info();
 	if (bss == NULL) {
 		em_printfout("Backhaul sta bss not found for dev_mac:%s, return NULL", dev_mac_str.c_str());
 		dm->m_device.m_device_info.backhaul_mac.media = em_media_type_ieee8023ab;
@@ -144,10 +144,10 @@ em_network_topo_t *em_network_topo_t::find_topology_by_bh_associated(dm_easy_mes
 	}
 	// From the bss info obtained, find the appropriate em_network_topo_t containing this bss
 	// and return that topology object.
-	// bss->id.bssid  = local bSTA interface MAC (used to locate the parent topology node)
-	// bss->bssid.mac = upstream AP BSSID the bSTA is associated to (shown in Backhaul.MACAddress)
+	// bss->bssid.mac = upstream AP BSSID the bSTA is associated to (used to locate the parent
+	// topology node and shown in Backhaul.MACAddress)
 	mac_address_t bss_mac;
-	memcpy(bss_mac, bss->id.bssid, sizeof(mac_address_t));
+	memcpy(bss_mac, bss->bssid.mac, sizeof(mac_address_t));
 	if (dm->is_controller() == false) {
 		// Set BackhaulMACAddress to the upstream AP BSSID, not the local bSTA MAC
 		memcpy(dm->m_device.m_device_info.backhaul_mac.mac, bss->bssid.mac, sizeof(mac_address_t));
@@ -162,7 +162,15 @@ em_network_topo_t *em_network_topo_t::find_topology_by_bh_associated(dm_easy_mes
 		return NULL;
 	}
 	// Now search for the topology containing this bss mac address.
-	return g_network_topology->find_topology_by_bss_mac(bss_mac);
+	em_network_topo_t *topo = g_network_topology->find_topology_by_ap_bssid(bss_mac);
+	if ((topo != NULL) && (topo->m_data_model != NULL) && (topo->m_data_model->get_colocated() == true)) {
+		// The colocated agent shares the physical device with the controller, so a device
+		// associated to its BSS is a sibling of the colocated agent, not its child.
+		em_printfout("bss mac %s belongs to colocated agent, attach under controller topology",
+			util::mac_to_string(bss_mac).c_str());
+		return g_network_topology;
+	}
+	return topo;
 }
 
 em_network_topo_t *em_network_topo_t::find_topology_by_bss_mac(mac_address_t bss_mac)
@@ -189,6 +197,27 @@ em_network_topo_t *em_network_topo_t::find_topology_by_bss_mac(mac_address_t bss
 		}
 	}
 	em_printfout("Could not find bss mac: %s in all topologies, return NULL", bss_mac_str.c_str());
+	return NULL;
+}
+
+em_network_topo_t *em_network_topo_t::find_topology_by_ap_bssid(mac_address_t ap_bssid)
+{
+	unsigned int i;
+	em_network_topo_t *topo;
+
+	for (i = 0; i < m_data_model->m_num_bss; i++) {
+		em_bss_info_t *bss = &m_data_model->m_bss[i].m_bss_info;
+		if ((bss->vap_mode == em_vap_mode_ap) &&
+			(memcmp(bss->bssid.mac, ap_bssid, sizeof(mac_address_t)) == 0)) {
+			return this;
+		}
+	}
+
+	for (i = 0; i < m_num_topologies; i++) {
+		if ((topo = m_topology[i]->find_topology_by_ap_bssid(ap_bssid)) != NULL) {
+			return topo;
+		}
+	}
 	return NULL;
 }
 

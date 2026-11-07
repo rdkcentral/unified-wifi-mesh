@@ -9013,6 +9013,71 @@ TEST(dm_easy_mesh_t, static_get_bss_info_with_mac_null_dm)
     std::cout << "Exiting get_bss_info_with_mac_null_dm test" << std::endl;
 }
 
+TEST(dm_easy_mesh_t, get_associated_bsta_bss_info_prefers_associated_bss)
+{
+    dm_easy_mesh_t mesh{};
+    mesh.m_num_bss = 2;
+    mesh.m_num_radios = 2;
+
+    const mac_address_t radio_macs[2] = {
+        {0x02, 0x10, 0x00, 0x00, 0x00, 0x01},
+        {0x02, 0x10, 0x00, 0x00, 0x00, 0x02}
+    };
+    const mac_address_t local_bsta_macs[2] = {
+        {0x02, 0x10, 0x01, 0x00, 0x00, 0x01},
+        {0x02, 0x10, 0x01, 0x00, 0x00, 0x02}
+    };
+    const mac_address_t associated_bssid = {0x02, 0x20, 0x00, 0x00, 0x00, 0x01};
+    const mac_address_t zero_bssid = {};
+
+    for (unsigned int i = 0; i < mesh.m_num_bss; ++i) {
+        mesh.m_radio[i].m_radio_info.enabled = true;
+        memcpy(mesh.m_radio[i].m_radio_info.intf.mac, radio_macs[i], sizeof(mac_address_t));
+
+        em_bss_info_t &bss = mesh.m_bss[i].m_bss_info;
+        bss.id.haul_type = em_haul_type_backhaul;
+        bss.vap_mode = em_vap_mode_sta;
+        bss.enabled = true;
+        memcpy(bss.id.bssid, local_bsta_macs[i], sizeof(mac_address_t));
+        memcpy(bss.ruid.mac, radio_macs[i], sizeof(mac_address_t));
+        memcpy(bss.bssid.mac, i == 0 ? zero_bssid : associated_bssid, sizeof(mac_address_t));
+    }
+
+    EXPECT_EQ(mesh.get_associated_bsta_bss_info(), &mesh.m_bss[1].m_bss_info);
+}
+
+TEST(dm_easy_mesh_t, get_associated_bsta_bss_info_falls_back_when_all_bssids_are_zero)
+{
+    dm_easy_mesh_t mesh{};
+    mesh.m_num_bss = 2;
+    mesh.m_num_radios = 2;
+
+    const mac_address_t radio_macs[2] = {
+        {0x02, 0x10, 0x00, 0x00, 0x00, 0x01},
+        {0x02, 0x10, 0x00, 0x00, 0x00, 0x02}
+    };
+    const mac_address_t local_bsta_macs[2] = {
+        {0x02, 0x10, 0x01, 0x00, 0x00, 0x01},
+        {0x02, 0x10, 0x01, 0x00, 0x00, 0x02}
+    };
+    const mac_address_t zero_bssid = {};
+
+    for (unsigned int i = 0; i < mesh.m_num_bss; ++i) {
+        mesh.m_radio[i].m_radio_info.enabled = true;
+        memcpy(mesh.m_radio[i].m_radio_info.intf.mac, radio_macs[i], sizeof(mac_address_t));
+
+        em_bss_info_t &bss = mesh.m_bss[i].m_bss_info;
+        bss.id.haul_type = em_haul_type_backhaul;
+        bss.vap_mode = em_vap_mode_sta;
+        bss.enabled = true;
+        memcpy(bss.id.bssid, local_bsta_macs[i], sizeof(mac_address_t));
+        memcpy(bss.ruid.mac, radio_macs[i], sizeof(mac_address_t));
+        memcpy(bss.bssid.mac, zero_bssid, sizeof(mac_address_t));
+    }
+
+    EXPECT_EQ(mesh.get_associated_bsta_bss_info(), &mesh.m_bss[0].m_bss_info);
+}
+
 /**
  * @brief Verify that get_bsta_bss_info correctly returns a valid BSS pointer for a configured backhaul STA BSS
  *
