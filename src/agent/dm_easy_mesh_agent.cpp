@@ -521,6 +521,9 @@ int dm_easy_mesh_agent_t::analyze_channel_sel_req(em_bus_event_t *evt, wifi_bus_
             dm_op_class->id.type = em_op_class_type_anticipated;
             dm_op_class->pref_valid = true;
             noofopclass++;
+        } else if (!is_anticipated_invalid_entry_present) {
+            em_printfout("Max limit reached for op class entries in datamodel, cannot add more entries");
+            dm_op_class = &channel_sel->op_class_info[i];
         }
 
         // Check for all channels in the entry to maintian most preferred channel and opclass
@@ -551,15 +554,19 @@ int dm_easy_mesh_agent_t::analyze_channel_sel_req(em_bus_event_t *evt, wifi_bus_
             }
         }
         if (i == noofopclass) {
-            dm_op_class = this->get_op_class_info(i);
-            em_op_class_info_t tmp_op_class_info;
-            memcpy(tmp_op_class_info.id.ruid, channel_sel->op_class_info[0].id.ruid, sizeof(mac_address_t));
-            tmp_op_class_info.id.type = em_op_class_type_current;
-            tmp_op_class_info.id.op_class = most_preferred_opclass;
-            tmp_op_class_info.op_class = most_preferred_opclass;
-            tmp_op_class_info.channel = most_preferred_channel;
-            memcpy(dm_op_class, &tmp_op_class_info, sizeof(em_op_class_info_t));
-            noofopclass++;
+            if (noofopclass >= EM_MAX_OPCLASS) {
+                em_printfout("Max limit reached for op class entries in datamodel, cannot add current channel");
+            } else {
+                dm_op_class = this->get_op_class_info(i);
+                em_op_class_info_t tmp_op_class_info = {};
+                memcpy(tmp_op_class_info.id.ruid, channel_sel->op_class_info[0].id.ruid, sizeof(mac_address_t));
+                tmp_op_class_info.id.type = em_op_class_type_current;
+                tmp_op_class_info.id.op_class = most_preferred_opclass;
+                tmp_op_class_info.op_class = most_preferred_opclass;
+                tmp_op_class_info.channel = most_preferred_channel;
+                memcpy(dm_op_class, &tmp_op_class_info, sizeof(em_op_class_info_t));
+                noofopclass++;
+            }
         }
         this->set_num_op_class(noofopclass);
     }

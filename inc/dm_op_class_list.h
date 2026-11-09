@@ -65,9 +65,11 @@ public:
 	 * @param[in] op_class The operation class to be updated in the list.
 	 * @param[in] op The orchestration type associated with the operation class.
 	 *
+	 * @returns 0 on success, -1 if a new operation class cannot be stored because the table is full.
+	 *
 	 * @note Ensure that the operation class and type are valid before calling this function.
 	 */
-	void update_list(const dm_op_class_t& op_class, dm_orch_type_t op);
+	int update_list(const dm_op_class_t& op_class, dm_orch_type_t op);
     
 	/**!
 	 * @brief Deletes the list.
@@ -163,7 +165,7 @@ public:
 	 *
 	 * @returns int Status code indicating success or failure of the operation.
 	 * @retval 0 Success
-	 * @retval -1 Failure
+	 * @retval -1 Decode failure, op class table full for a new key, or database update failure.
 	 *
 	 * @note Ensure that the JSON object is properly formatted and that the database
 	 * client is initialized before calling this function.
@@ -181,7 +183,7 @@ public:
 	 *
 	 * @returns int Status code indicating success or failure of the configuration.
 	 * @retval 0 Configuration was successful.
-	 * @retval -1 Configuration failed due to invalid parameters.
+	 * @retval -1 Configuration failed: the op class table is full for a new key, or the database update failed.
 	 *
 	 * @note Ensure that the database client and operation class are properly initialized before calling this function.
 	 */
@@ -279,9 +281,11 @@ public:
 	 * @param[in] key The key to associate with the operation class.
 	 * @param[in] op_class The operation class to be associated with the key.
 	 *
+	 * @returns 0 on success, -1 if a new operation class cannot be stored because the table is full.
+	 *
 	 * @note This is a pure virtual function and must be implemented by derived classes.
 	 */
-	virtual void put_op_class(const char *key, const dm_op_class_t *op_class) = 0;
+	virtual int put_op_class(const char *key, const dm_op_class_t *op_class) = 0;
 
 	
 	/**!
