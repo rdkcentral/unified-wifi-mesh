@@ -1271,7 +1271,7 @@ public:
 	 *
 	 * @param[in] num The number of operating classes to set.
 	 */
-	void set_num_op_class(unsigned int num) { m_num_opclass = num; }
+	void set_num_op_class(unsigned int num);
     
 	/**!
 	 * @brief Sets the number of operational classes.

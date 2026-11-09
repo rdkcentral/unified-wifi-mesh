@@ -50,6 +50,15 @@
 
 std::atomic<int> dm_easy_mesh_t::s_counter{0};
 
+void dm_easy_mesh_t::set_num_op_class(unsigned int num)
+{
+    if (num > EM_MAX_OPCLASS) {
+        em_printfout("Op class count %u exceeds maximum %u", num, EM_MAX_OPCLASS);
+        return;
+    }
+    m_num_opclass = num;
+}
+
 dm_easy_mesh_t& dm_easy_mesh_t::operator = (dm_easy_mesh_t const& obj)
 {
     dm_sta_t *sta;
@@ -80,7 +89,11 @@ dm_easy_mesh_t& dm_easy_mesh_t::operator = (dm_easy_mesh_t const& obj)
     }
     m_dpp = obj.m_dpp;
 
-    m_num_opclass = obj.m_num_opclass;
+    if (obj.m_num_opclass > EM_MAX_OPCLASS) {
+        em_printfout("Op class count %u exceeds maximum %u during data model copy",
+            obj.m_num_opclass, EM_MAX_OPCLASS);
+    }
+    m_num_opclass = (obj.m_num_opclass > EM_MAX_OPCLASS) ? EM_MAX_OPCLASS : obj.m_num_opclass;
     for (unsigned int i = 0; i < EM_MAX_OPCLASS; i++) {
         m_op_class[i] = obj.m_op_class[i];
     }
@@ -237,10 +250,10 @@ int dm_easy_mesh_t::commit_config(dm_easy_mesh_t& dm, em_commit_target_t target)
                 em_printfout("New Radio %s configuration created no of radios=%d", target.params, m_num_radios);
             }
 			//Commit op class
-			for (i = 0; i<dm.m_num_opclass; i++) {
+			for (i = 0; i < dm.m_num_opclass && i < EM_MAX_OPCLASS; i++) {
 				if (memcmp(radio->get_radio_info()->intf.mac, dm.m_op_class[i].m_op_class_info.id.ruid, sizeof(mac_address_t)) == 0) {
 					found = 0;
-					for (j = 0; j<m_num_opclass;j++) {
+					for (j = 0; j < m_num_opclass && j < EM_MAX_OPCLASS; j++) {
 						if ((dm.m_op_class[i].m_op_class_info.op_class == m_op_class[j].m_op_class_info.op_class) &&
 							(dm.m_op_class[i].m_op_class_info.id.type == m_op_class[j].m_op_class_info.id.type)) {
 							m_op_class[j].m_op_class_info = dm.m_op_class[i].m_op_class_info;
@@ -258,7 +271,9 @@ int dm_easy_mesh_t::commit_config(dm_easy_mesh_t& dm, em_commit_target_t target)
                            	break;
 						}
 					}
-					if (found == 0) {
+					if ((found == 0) && (m_num_opclass >= EM_MAX_OPCLASS)) {
+						em_printfout("Max limit reached for op class entries in datamodel, cannot add more entries");
+					} else if (found == 0) {
 						//New Op class
 						em_printfout("New op class=%d committing it", dm.m_op_class[i].m_op_class_info.op_class);
 						m_op_class[m_num_opclass].m_op_class_info = dm.m_op_class[i].m_op_class_info;
@@ -1637,6 +1652,11 @@ int dm_easy_mesh_t::decode_config_op_class_array(cJSON *arr_obj, em_op_class_typ
 	em_long_string_t key;
 
 	num_objs = cJSON_GetArraySize(arr_obj);
+	if ((m_num_opclass > EM_MAX_OPCLASS) ||
+			(static_cast<unsigned int>(num_objs) > EM_MAX_OPCLASS - m_num_opclass)) {
+		em_printfout("Op class array exceeds remaining datamodel capacity");
+		return -1;
+	}
 	//printf("%s:%d: Operating Classes for type: %d are: %d\n", __func__, __LINE__, type, num_objs);
 
 	for (i = 0; i < num_objs; i++) {
@@ -1649,7 +1669,9 @@ int dm_easy_mesh_t::decode_config_op_class_array(cJSON *arr_obj, em_op_class_typ
 		snprintf(key, sizeof(em_long_string_t), "%s@%d@%d", mac_str, type, i);
 
 		//printf("%s:%d: Data at m_op_class[%d]\n", __func__, __LINE__, i + m_num_opclass);
-		m_op_class[static_cast<unsigned int> (i) + m_num_opclass].decode(op_obj, key);
+		if (m_op_class[static_cast<unsigned int> (i) + m_num_opclass].decode(op_obj, key) != 0) {
+			return -1;
+		}
 	}
 
 	m_num_opclass += static_cast<unsigned int> (num_objs);

@@ -1656,7 +1656,9 @@ int em_channel_t::handle_op_channel_report(unsigned char *buff, unsigned int len
             found++;
         }
     }
-    if (found == 0) {
+    if ((found == 0) && (dm->get_num_op_class() >= EM_MAX_OPCLASS)) {
+        em_printfout("Max limit reached for op class entries in datamodel, cannot add more entries");
+    } else if (found == 0) {
         op_class_info = &dm->m_op_class[dm->get_num_op_class()].m_op_class_info;
         op_class_info->id.type = em_op_class_type_current;
         memcpy(op_class_info->id.ruid, rpt->ruid, sizeof(mac_address_t));
