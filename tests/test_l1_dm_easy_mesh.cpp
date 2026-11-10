@@ -12887,6 +12887,8 @@ TEST(dm_easy_mesh_t, Positive_AssignmentOperator) {
     src.m_bss[0].m_bss_info.vap_index = 42;
     em_sta_info_t sta{};
     memset(&sta, 0x11, sizeof(sta));
+    sta.frame_body = nullptr;
+    sta.frame_body_len = 0;
     src.put_sta_info(&sta, em_target_sta_map_consolidated);
     std::cout << "Invoking operator=\n";
     dst = src;
@@ -12934,6 +12936,8 @@ TEST(dm_easy_mesh_t, Negative_Assignment_NoSharedStaObjects) {
     dst.init();
     em_sta_info_t sta{};
     memset(&sta, 0x22, sizeof(sta));
+    sta.frame_body = nullptr;
+    sta.frame_body_len = 0;
     src.put_sta_info(&sta, em_target_sta_map_consolidated);
     std::cout << "Invoking operator=\n";
     dst = src;
@@ -21495,7 +21499,7 @@ TEST(dm_easy_mesh_t, put_sta_info_AssocMap_Positive)
     std::cout << "Entering put_sta_info_AssocMap_Positive test" << std::endl;
     dm_easy_mesh_t dm;
     dm.init();
-    em_sta_info_t sta_info;
+    em_sta_info_t sta_info = {};
     unsigned char mac[6] = {0x00,0x11,0x22,0x33,0x44,0x55};
     unsigned char bssid[6] = {0x66,0x77,0x88,0x99,0xAA,0xBB};
     unsigned char radio[6] = {0xCC,0xDD,0xEE,0xFF,0x00,0x11};
@@ -21541,7 +21545,7 @@ TEST(dm_easy_mesh_t, put_sta_info_ConsolidatedMap_Positive)
     std::cout << "Entering put_sta_info_ConsolidatedMap_Positive test" << std::endl;
     dm_easy_mesh_t dm;
     dm.init();
-    em_sta_info_t sta_info;
+    em_sta_info_t sta_info = {};
     unsigned char mac[6] = {0x12,0x34,0x56,0x78,0x9A,0xBC};
     unsigned char bssid[6] = {0xDE,0xAD,0xBE,0xEF,0x01,0x23};
     unsigned char radio[6] = {0x45,0x67,0x89,0xAB,0xCD,0xEF};
@@ -21587,7 +21591,7 @@ TEST(dm_easy_mesh_t, put_sta_info_DuplicateSTA_Negative)
     std::cout << "Entering put_sta_info_DuplicateSTA_Negative test" << std::endl;
     dm_easy_mesh_t dm;
     dm.init();
-    em_sta_info_t sta_info;
+    em_sta_info_t sta_info = {};
     unsigned char mac[6] = {0xAA,0xBB,0xCC,0xDD,0xEE,0xFF};
     unsigned char bssid[6] = {0x11,0x22,0x33,0x44,0x55,0x66};
     unsigned char radio[6] = {0x77,0x88,0x99,0x00,0x11,0x22};

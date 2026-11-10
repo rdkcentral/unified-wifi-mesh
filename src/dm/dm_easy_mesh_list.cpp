@@ -798,7 +798,7 @@ void dm_easy_mesh_list_t::put_sta(const char *key, const dm_sta_t *sta)
     if ((psta = static_cast<dm_sta_t *> (hash_map_get(dm->m_sta_map, key))) != NULL) {
         // em_printfout("%s:%d: STA:%s already present on BSS:%s of radio:%s dm:%p dm_mac:%s\n", __func__, __LINE__,
         //    sta_mac_str, bssid_str, radio_mac_str, dm, util::mac_to_string(dm->m_device.m_device_info.intf.mac).c_str());
-        memcpy(&psta->m_sta_info, &sta->m_sta_info, sizeof(em_sta_info_t));
+        dm_sta_t::copy_sta_info(&psta->m_sta_info, &sta->m_sta_info);
         return;
     }
 
@@ -877,7 +877,7 @@ dm_network_ssid_t *dm_easy_mesh_list_t::get_network_ssid(const char *key)
     while (dm != NULL) {
         for (i = 0;  i < dm->get_num_network_ssid(); i++) {
             net_ssid = dm->get_network_ssid(i);
-            if (strncmp(net_ssid->m_network_ssid_info.id, key, strlen(key)) == 0) {
+            if (strcmp(net_ssid->m_network_ssid_info.id, key) == 0) {
                 found = true;
                 break;
             }
@@ -954,17 +954,18 @@ void dm_easy_mesh_list_t::put_network_ssid(const char *key, const dm_network_ssi
     strncpy(net_id, ptr + 1, strlen(ptr));
     *ptr = 0;
 
+    em_printfout("SSID_TRACE: put_network_ssid: key: %s, net_id: %s, ssid: %s", key, net_id, net_ssid->m_network_ssid_info.ssid);
 
     dm = static_cast<dm_easy_mesh_t *> (hash_map_get_first(m_list));
     while (dm != NULL) {
         net = dm->get_network();
-        if (strncmp(net->m_net_info.id, net_id, strlen(net_id)) != 0) {
+        if (strcmp(net->m_net_info.id, net_id) != 0) {
             dm = static_cast<dm_easy_mesh_t *> (hash_map_get_next(m_list, dm));
             continue;
         }
         for (i = 0;  i < dm->get_num_network_ssid(); i++) {
             pnet_ssid = dm->get_network_ssid(i);
-            if (strncmp(pnet_ssid->m_network_ssid_info.id, key, strlen(key)) == 0) {
+            if (strcmp(pnet_ssid->m_network_ssid_info.id, key) == 0) {
                 found = true;
                 break;
             }
@@ -973,10 +974,13 @@ void dm_easy_mesh_list_t::put_network_ssid(const char *key, const dm_network_ssi
         if (found == true) {
             found = false;
             *pnet_ssid = *net_ssid;
+            em_printfout("SSID_TRACE: put_network_ssid: updated existing ssid: %s on dm(is_controller:%d)", net_ssid->m_network_ssid_info.ssid, dm->is_controller());
         } else {
             pnet_ssid = dm->get_network_ssid(dm->get_num_network_ssid());
             *pnet_ssid = *net_ssid;
             dm->set_num_network_ssid(dm->get_num_network_ssid() + 1);
+            em_printfout("SSID_TRACE: put_network_ssid: inserted new ssid: %s on dm(is_controller:%d), num_network_ssid now: %d",
+                net_ssid->m_network_ssid_info.ssid, dm->is_controller(), dm->get_num_network_ssid());
         }
         dm = static_cast<dm_easy_mesh_t *> (hash_map_get_next(m_list, dm));
     }

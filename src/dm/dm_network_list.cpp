@@ -65,7 +65,9 @@ int dm_network_list_t::set_config(db_client_t& db_client, dm_network_t& net, voi
 
     //printf("%s:%d: Enter: networl: %s controller id:%s\n", __func__, __LINE__, net.m_net_info.id, mac_str);
 
-    update_db(db_client, (op = get_dm_orch_type(db_client, net)), net.get_network_info());
+    if (update_db(db_client, (op = get_dm_orch_type(db_client, net)), net.get_network_info()) != 0) {
+        return -1;
+    }
     update_list(net, op);
 
     return 0;
@@ -83,7 +85,9 @@ int dm_network_list_t::set_config(db_client_t& db_client, const cJSON *obj_arr, 
     for (i = 0; i < size; i++) {
         obj = cJSON_GetArrayItem(obj_arr, i);
         net.decode(obj, parent_id);
-        update_db(db_client, (op = get_dm_orch_type(db_client, net)), net.get_network_info());
+        if (update_db(db_client, (op = get_dm_orch_type(db_client, net)), net.get_network_info()) != 0) {
+            return -1;
+        }
         update_list(net, op);
     }
 
@@ -163,8 +167,11 @@ int dm_network_list_t::update_db(db_client_t& db_client, dm_orch_type_t op, void
     int ret = 0;
     mac_addr_str_t agent_str, ctrl_str;
     em_network_info_t *info = static_cast<em_network_info_t *> (data);
+    if (prepare_db_operation(db_client, op) != 0) {
+        return -1;
+    }
 
-    printf("dm_network_list_t:%s:%d: Operation: %s\n", __func__, __LINE__, em_cmd_t::get_orch_op_str(op));
+    em_printfout("dm_network_list_t:%s:%d: Operation: %s\n", __func__, __LINE__, em_cmd_t::get_orch_op_str(op));
 	switch (op) {
 		case dm_orch_type_db_insert:
 			ret = insert_row(db_client, info->id, 

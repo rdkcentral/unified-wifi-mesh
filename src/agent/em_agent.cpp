@@ -1825,7 +1825,22 @@ void em_agent_t::input_listener()
     load_em_plus_cfg();
     fill_extended_device_info();
 
+    raw_data_t ready_data = {};
+    while ((bus_error_val = desc->bus_data_get_fn(&m_bus_hdl, WIFI_EM_INIT_TX_POWER_READY,
+                &ready_data)) != bus_error_success) {
+        em_printfout("Transmit power GET failed for %s, error: %d; retrying",
+            WIFI_EM_INIT_TX_POWER_READY, bus_error_val);
+        usleep(RETRY_SLEEP_INTERVAL_IN_MS * 1000);
+    }
+    if (ready_data.data_type != bus_data_type_uint32 || ready_data.raw_data.u32 != 1) {
+        em_printfout("Invalid transmit power readiness response for %s",
+            WIFI_EM_INIT_TX_POWER_READY);
+        return;
+    }
+
     memset(&data, 0, sizeof(raw_data_t));
+
+    em_printfout("Starting DML retrieval for %s", WIFI_WEBCONFIG_INIT_DML_DATA);
 
     while ((bus_error_val = desc->bus_data_get_fn(&m_bus_hdl, WIFI_WEBCONFIG_INIT_DML_DATA, &data)) != bus_error_success) {
         em_printfout("Error: bus get failed, error: %d", bus_error_val);
