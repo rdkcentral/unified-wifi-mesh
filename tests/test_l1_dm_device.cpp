@@ -3443,3 +3443,59 @@ TEST(dm_device_t_Test, Destructor_called_on_heap_allocated_object) {
     std::cout << "Destructor invoked successfully on heap allocated object." << std::endl;
     std::cout << "Exiting Destructor_called_on_heap_allocated_object test" << std::endl;
 }
+
+
+/**
+ * @brief Verify that dm_device_t::encode reports the manufacturer model as deviceModel.
+ *
+ * The topology identifies a device by deviceModel, taken from the manufacturer model and
+ * falling back to "unknown" when it is empty. This is checked with the summary flag
+ * enabled and disabled, and the device must still be encoded with its ID and Backhaul.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 108@n
+ * **Priority:** High@n
+ * @n
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ * @n
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01 | Encode a device with a manufacturer model, summary enabled | manufacturer_model = "XB10", summary = true | deviceModel is "XB10" | Should Pass |
+ * | 02 | Encode a device with a manufacturer model, summary disabled | manufacturer_model = "XB10", summary = false | deviceModel is "XB10" | Should Pass |
+ * | 03 | Encode a device with an empty manufacturer model, summary enabled | manufacturer_model = "", summary = true | deviceModel is "unknown" | Should Pass |
+ * | 04 | Encode a device with an empty manufacturer model, summary disabled | manufacturer_model = "", summary = false | deviceModel is "unknown" | Should Pass |
+ */
+TEST(dm_device_t_Test, EncodeReportsDeviceModel) {
+    std::cout << "Entering EncodeReportsDeviceModel test" << std::endl;
+    const struct {
+        const char *model;
+        const char *expected;
+    } cases[] = {
+        {"XB10", "XB10"},
+        {"", "unknown"},
+    };
+
+    for (const auto &c : cases) {
+        for (bool summary : {true, false}) {
+            dm_device_t device;
+            snprintf(device.get_device_info()->manufacturer_model,
+                sizeof(device.get_device_info()->manufacturer_model), "%s", c.model);
+
+            cJSON *obj = cJSON_CreateObject();
+            ASSERT_NE(obj, nullptr);
+            device.encode(obj, summary);
+
+            cJSON *model = cJSON_GetObjectItem(obj, "deviceModel");
+            ASSERT_NE(model, nullptr) << "model=" << c.model << " summary=" << summary;
+            ASSERT_TRUE(cJSON_IsString(model));
+            EXPECT_STREQ(model->valuestring, c.expected) << "summary=" << summary;
+            EXPECT_NE(cJSON_GetObjectItem(obj, "ID"), nullptr);
+            EXPECT_NE(cJSON_GetObjectItem(obj, "Backhaul"), nullptr);
+            cJSON_Delete(obj);
+        }
+    }
+    std::cout << "Exiting EncodeReportsDeviceModel test" << std::endl;
+}

@@ -3500,6 +3500,10 @@ int dm_easy_mesh_ctrl_t::analyze_sta_assoc_event(em_bus_event_t *evt, em_cmd_t *
 
     pdm->set_topo_state(true);
 
+    if (params->assoc.assoc_event == false) {
+        pdm->apply_sta_disassociation(params->assoc);
+    }
+
     is_ap_mld = pdm->is_ap_mld_mac(params->assoc.bssid);
 
     if (is_ap_mld == false) {
@@ -5182,8 +5186,7 @@ int dm_easy_mesh_ctrl_t::analyze_beacon_metrics_query(em_bus_event_t *evt, em_cm
 
 int dm_easy_mesh_ctrl_t::set_op_class_list(cJSON *op_class_list_obj, mac_address_t *radio_mac)
 {
-    dm_op_class_list_t::set_config(*m_db_client, op_class_list_obj, radio_mac);
-    return 0;
+    return dm_op_class_list_t::set_config(*m_db_client, op_class_list_obj, radio_mac);
 }
 
 int dm_easy_mesh_ctrl_t::set_radio_cap_list(cJSON *radio_cap_list_obj, mac_address_t *radio_mac)

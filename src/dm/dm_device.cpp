@@ -183,6 +183,11 @@ void dm_device_t::encode(cJSON *obj, bool summary)
 
     dm_easy_mesh_t::macbytes_to_string(m_device_info.intf.mac, mac_str);
     cJSON_AddStringToObject(obj, "ID", mac_str);
+    if (strlen(m_device_info.manufacturer_model) == 0) {
+        cJSON_AddStringToObject(obj, "deviceModel", "unknown");
+    } else {
+        cJSON_AddStringToObject(obj, "deviceModel", m_device_info.manufacturer_model);
+    }
 
 	bh_obj = cJSON_AddObjectToObject(obj, "Backhaul");
     dm_easy_mesh_t::macbytes_to_string(m_device_info.backhaul_mac.mac, mac_str);

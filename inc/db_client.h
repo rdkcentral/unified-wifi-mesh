@@ -130,6 +130,20 @@ public:
     virtual int get_number(void *ctx, unsigned int col) = 0;
 
     /**!
+     * @brief Retrieve the length, in bytes, of a string value from the current result row.
+     *
+     * Use it to size the buffer passed to get_string(), which needs this length plus one
+     * byte for the terminating NUL.
+     * The default returns 0 for backends without string retrieval.
+     *
+     * @param[in] ctx Result context.
+     * @param[in] col Column index (1-based).
+     *
+     * @returns The length of the value excluding the terminating NUL, or 0 if there is no data.
+     */
+    virtual unsigned int get_string_length(void *, unsigned int) { return 0; }
+
+    /**!
      * @brief Recreate the backend store, deleting existing data.
      *
      * @returns 0 on success, non-zero on failure.

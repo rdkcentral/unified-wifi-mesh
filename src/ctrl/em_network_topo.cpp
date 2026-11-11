@@ -367,4 +367,3 @@ em_network_topo_t::~em_network_topo_t()
 {
 	m_data_model = NULL;
 }
-

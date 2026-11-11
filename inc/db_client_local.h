@@ -53,6 +53,7 @@ public:
     void free_result(void *ctx) override;
     char *get_string(void *ctx, char *res, unsigned int col) override;
     int get_number(void *ctx, unsigned int col) override;
+    unsigned int get_string_length(void *ctx, unsigned int col) override;
     int recreate_db() override;
     int begin_transaction() override;
     int commit() override;

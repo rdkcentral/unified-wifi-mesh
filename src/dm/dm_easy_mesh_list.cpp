@@ -798,7 +798,7 @@ void dm_easy_mesh_list_t::put_sta(const char *key, const dm_sta_t *sta)
     if ((psta = static_cast<dm_sta_t *> (hash_map_get(dm->m_sta_map, key))) != NULL) {
         // em_printfout("%s:%d: STA:%s already present on BSS:%s of radio:%s dm:%p dm_mac:%s\n", __func__, __LINE__,
         //    sta_mac_str, bssid_str, radio_mac_str, dm, util::mac_to_string(dm->m_device.m_device_info.intf.mac).c_str());
-        memcpy(&psta->m_sta_info, &sta->m_sta_info, sizeof(em_sta_info_t));
+        dm_sta_t::copy_sta_info(&psta->m_sta_info, &sta->m_sta_info);
         return;
     }
 
@@ -1174,7 +1174,7 @@ void dm_easy_mesh_list_t::remove_op_class(const char *key)
 
 }
 
-void dm_easy_mesh_list_t::put_op_class(const char *key, const dm_op_class_t *op_class)
+int dm_easy_mesh_list_t::put_op_class(const char *key, const dm_op_class_t *op_class)
 {
 	em_op_class_id_t id;
 	mac_addr_str_t mac_str;
@@ -1223,7 +1223,7 @@ void dm_easy_mesh_list_t::put_op_class(const char *key, const dm_op_class_t *op_
 
     if (found_dm != true) {
         em_printfout("dm for  mac address:%s id.type:%d not found, return...", mac_str, id.type);
-        return;
+        return 0;
     }
 
     // now check if the op class is already there
@@ -1233,8 +1233,13 @@ void dm_easy_mesh_list_t::put_op_class(const char *key, const dm_op_class_t *op_
 					(pop_class->m_op_class_info.id.type == op_class->m_op_class_info.id.type) &&
 					(pop_class->m_op_class_info.id.op_class == op_class->m_op_class_info.id.op_class)) {
         	memcpy(&pop_class->m_op_class_info, &op_class->m_op_class_info, sizeof(em_op_class_info_t));
-        	return;
+            return 0;
         }
+    }
+
+    if (dm->get_num_op_class() >= EM_MAX_OPCLASS) {
+        em_printfout("Max limit reached for op class entries in datamodel, cannot add more entries");
+        return -1;
     }
 
     pop_class = &dm->m_op_class[dm->get_num_op_class()];
@@ -1244,6 +1249,7 @@ void dm_easy_mesh_list_t::put_op_class(const char *key, const dm_op_class_t *op_
 		//mac_str, pop_class->m_op_class_info.id.type, pop_class->m_op_class_info.id.op_class);
     dm->set_num_op_class(dm->get_num_op_class() + 1);
 	//printf("%s:%d: Number of op classes: %d\n", __func__, __LINE__, dm->get_num_op_class());
+    return 0;
 }
 
 dm_policy_t *dm_easy_mesh_list_t::get_first_policy()
