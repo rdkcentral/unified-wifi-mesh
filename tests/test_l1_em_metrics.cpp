@@ -481,3 +481,31 @@ TEST_F(EmMetricsTest, UnassocStaLinkMetrics_CompleteStaPlusIncompleteSta)
     EXPECT_EQ(ret, -1);
     EXPECT_EQ(dm.m_num_unassoc_sta_metrics, metrics_before);
 }
+
+/* Valid zero-STA TLV (5 bytes with header) must pass message validation */
+TEST_F(EmMetricsTest, UnassocStaLinkMetrics_ZeroStaTlvPassesValidation)
+{
+    auto response = make_unassoc_sta_link_metrics_response({ {0x51, 0x00} });
+    char *errors[EM_MAX_TLV_MEMBERS] = {};
+    EXPECT_NE(em_msg_t(em_msg_type_unassoc_sta_link_metrics_rsp,
+                       emMetrics->get_profile_type(), response.data(),
+                       static_cast<unsigned int>(response.size())).validate(errors), 0u);
+}
+
+/* Zero-STA TLV first, then a one-STA TLV: processing must continue */
+TEST_F(EmMetricsTest, UnassocStaLinkMetrics_ZeroStaThenOneSta)
+{
+    dm_easy_mesh_t dm{};
+    emMetrics->set_data_model(&dm);
+    dm.m_num_unassoc_sta_metrics = 0;
+
+    const std::vector<unsigned char> zero_sta = { 0x51, 0x00 };
+    const std::vector<unsigned char> one_sta  = {
+        0x51, 0x01, 0x00, 0x11, 0x22, 0x33, 0x44, 0x55,
+        0x06, 0x00, 0x00, 0x03, 0xE8, 0x96
+    };
+    auto response = make_unassoc_sta_link_metrics_response({ zero_sta, one_sta });
+    emMetrics->process_msg(response.data(), static_cast<unsigned int>(response.size()));
+
+    EXPECT_EQ(dm.m_num_unassoc_sta_metrics, 1u);
+}
