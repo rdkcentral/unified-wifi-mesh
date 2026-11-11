@@ -18,6 +18,7 @@
  */
      
 #include <gtest/gtest.h>
+#include <vector>
 #include <gmock/gmock.h>
 #include <stdio.h>
 #include <climits>
@@ -540,9 +541,9 @@ TEST(dm_sta_t_Test, CopyConstructor_MaxMinValues) {
 * **Test Procedure:**@n
 * | Variation / Step | Description | Test Data |Expected Result |Notes |
 * | :----: | --------- | ---------- |-------------- | ----- |
-* | 01| Initialize original dm_sta_t object with invalid values | original.frame_body_len=EM_MAX_FRAME_BODY_LEN+1, original.id = {0xAA, 0xBB, 0xCC, 0x00, 0x00, 0x00} | Object initialized with given values | Should be successful |
-* | 02| Copy construct dm_sta_t object from original | original | Copy object should have same values as original | Should Pass |
-* | 03| Verify copied values for id and frame_body_len | copy.frame_body_len=EM_MAX_FRAME_BODY_LEN+1, copy.id = {0xAA, 0xBB, 0xCC, 0x00, 0x00, 0x00} | Values should be equal | Should Pass |
+* | 01| Initialize original dm_sta_t object with a length but no frame body | original.frame_body_len=EM_MAX_FRAME_BODY_LEN+1, original.id = {0xAA, 0xBB, 0xCC, 0x00, 0x00, 0x00} | Object initialized with given values | Should be successful |
+* | 02| Copy construct dm_sta_t object from original | original | Copy object should have the same id | Should Pass |
+* | 03| Verify copied values | copy.id = {0xAA, 0xBB, 0xCC, 0x00, 0x00, 0x00}, copy.frame_body_len = 0, copy.frame_body = NULL | A length without a frame body is not copied | Should Pass |
 */
 TEST(dm_sta_t_Test, CopyConstructor_InvalidValues) {
     std::cout << "Entering CopyConstructor_InvalidValues test";
@@ -555,7 +556,8 @@ TEST(dm_sta_t_Test, CopyConstructor_InvalidValues) {
     original.m_sta_info.id[4] = 0x00;
     original.m_sta_info.id[5] = 0x00;
     dm_sta_t copy(original);
-    EXPECT_EQ(copy.m_sta_info.frame_body_len, original.m_sta_info.frame_body_len);
+    EXPECT_EQ(copy.m_sta_info.frame_body_len, 0u);
+    EXPECT_EQ(copy.m_sta_info.frame_body, nullptr);
     EXPECT_EQ(copy.m_sta_info.id[0], original.m_sta_info.id[0]);
     EXPECT_EQ(copy.m_sta_info.id[1], original.m_sta_info.id[1]);
     EXPECT_EQ(copy.m_sta_info.id[2], original.m_sta_info.id[2]);
@@ -563,6 +565,92 @@ TEST(dm_sta_t_Test, CopyConstructor_InvalidValues) {
     EXPECT_EQ(copy.m_sta_info.id[4], original.m_sta_info.id[4]);
     EXPECT_EQ(copy.m_sta_info.id[5], original.m_sta_info.id[5]);
     std::cout << "Exiting CopyConstructor_InvalidValues test";
+}
+
+/**
+* @brief Test that a frame body of any length is deep copied by the copy constructor and assignment
+*
+* **Test Group ID:** Basic: 01@n
+* **Test Case ID:** 016a@n
+* **Priority:** High@n
+* @n
+* **Test Procedure:**@n
+* | Variation / Step | Description | Test Data |Expected Result |Notes |
+* | :----: | --------- | ---------- |-------------- | ----- |
+* | 01| Store frame bodies larger than the old fixed 512 byte buffer | 1500 bytes | Stored in full | Should Pass |
+* | 02| Copy construct and assign | original | Copies hold equal bytes in their own buffers | Should Pass |
+* | 03| Modify the original after copying | original | Copies are not affected | Should Pass |
+*/
+TEST(dm_sta_t_Test, FrameBody_VariableLengthDeepCopy) {
+    std::vector<unsigned char> body(1500);
+    for (size_t i = 0; i < body.size(); i++) {
+        body[i] = static_cast<unsigned char>(i * 7);
+    }
+
+    dm_sta_t original;
+    EXPECT_TRUE(dm_sta_t::set_frame_body(&original.m_sta_info, body.data(), static_cast<unsigned int>(body.size())));
+    ASSERT_EQ(original.m_sta_info.frame_body_len, body.size());
+    ASSERT_NE(original.m_sta_info.frame_body, nullptr);
+    EXPECT_EQ(memcmp(original.m_sta_info.frame_body, body.data(), body.size()), 0);
+
+    dm_sta_t copy(original);
+    dm_sta_t assigned;
+    assigned = original;
+
+    for (dm_sta_t *c : {&copy, &assigned}) {
+        ASSERT_EQ(c->m_sta_info.frame_body_len, body.size());
+        ASSERT_NE(c->m_sta_info.frame_body, nullptr);
+        EXPECT_NE(c->m_sta_info.frame_body, original.m_sta_info.frame_body);
+        EXPECT_EQ(memcmp(c->m_sta_info.frame_body, body.data(), body.size()), 0);
+    }
+
+    original.m_sta_info.frame_body[0] ^= 0xFF;
+    EXPECT_EQ(copy.m_sta_info.frame_body[0], body[0]);
+    EXPECT_EQ(assigned.m_sta_info.frame_body[0], body[0]);
+}
+
+/**
+* @brief Test the frame body ownership helpers
+*
+* **Test Group ID:** Basic: 01@n
+* **Test Case ID:** 016b@n
+* **Priority:** High@n
+* @n
+* **Test Procedure:**@n
+* | Variation / Step | Description | Test Data |Expected Result |Notes |
+* | :----: | --------- | ---------- |-------------- | ----- |
+* | 01| Replace a frame body with bytes taken from itself | frame_body[4..] | Content preserved | Should Pass |
+* | 02| Replace a frame body with a longer one | EM_MAX_FRAME_BODY_LEN + 10 bytes | Clamped to EM_MAX_FRAME_BODY_LEN, reported as incomplete | Should Pass |
+* | 03| Clear the frame body | NULL, 0 | Length 0, no buffer | Should Pass |
+* | 04| copy_sta_info with a source sharing the destination buffer | same struct | Unchanged | Should Pass |
+*/
+TEST(dm_sta_t_Test, FrameBody_SetAndCopyHelpers) {
+    dm_sta_t sta;
+    unsigned char data[16];
+    for (unsigned char i = 0; i < sizeof(data); i++) {
+        data[i] = i;
+    }
+
+    EXPECT_TRUE(dm_sta_t::set_frame_body(&sta.m_sta_info, data, sizeof(data)));
+    EXPECT_TRUE(dm_sta_t::set_frame_body(&sta.m_sta_info, sta.m_sta_info.frame_body + 4, 8));
+    ASSERT_EQ(sta.m_sta_info.frame_body_len, 8u);
+    EXPECT_EQ(sta.m_sta_info.frame_body[0], 4);
+    EXPECT_EQ(sta.m_sta_info.frame_body[7], 11);
+
+    std::vector<unsigned char> big(EM_MAX_FRAME_BODY_LEN + 10, 0x5A);
+    EXPECT_FALSE(dm_sta_t::set_frame_body(&sta.m_sta_info, big.data(), static_cast<unsigned int>(big.size())));
+    EXPECT_EQ(sta.m_sta_info.frame_body_len, static_cast<unsigned int>(EM_MAX_FRAME_BODY_LEN));
+
+    em_sta_info_t shared = sta.m_sta_info;
+    dm_sta_t::copy_sta_info(&sta.m_sta_info, &sta.m_sta_info);
+    EXPECT_EQ(sta.m_sta_info.frame_body, shared.frame_body);
+
+    EXPECT_TRUE(dm_sta_t::set_frame_body(&sta.m_sta_info, nullptr, 0));
+    EXPECT_EQ(sta.m_sta_info.frame_body_len, 0u);
+    EXPECT_EQ(sta.m_sta_info.frame_body, nullptr);
+
+    sta.init();
+    EXPECT_EQ(sta.m_sta_info.frame_body, nullptr);
 }
 
 /**
@@ -586,7 +674,7 @@ TEST(dm_sta_t_Test, CopyConstructor_InvalidValues) {
 */
 TEST(dm_sta_t_Test, ValidEmStaInfoStructure) {
     std::cout << "Entering ValidEmStaInfoStructure test";
-    em_sta_info_t valid_sta;
+    em_sta_info_t valid_sta = {};
     valid_sta.associated = true;
     valid_sta.last_ul_rate = UINT_MAX;
     valid_sta.last_dl_rate = 0;
@@ -614,13 +702,20 @@ TEST(dm_sta_t_Test, ValidEmStaInfoStructure) {
 * **Test Procedure:**@n
 * | Variation / Step | Description | Test Data |Expected Result |Notes |
 * | :----: | --------- | ---------- |-------------- | ----- |
-* | 01| Initialize dm_sta_t with null pointer | null_sta = nullptr | Exception should be thrown.| Should fail |
+* | 01| Initialize dm_sta_t with null pointer | null_sta = nullptr | Successful construction with empty station state | Should Pass |
 */
 TEST(dm_sta_t_Test, NullEmStaInfoStructure) {
     std::cout << "Entering NullEmStaInfoStructure test";
     em_sta_info_t *null_sta = nullptr;
-    EXPECT_ANY_THROW({
+    EXPECT_NO_THROW({
         dm_sta_t sta_obj(null_sta);
+        const mac_address_t zero_mac = {};
+        EXPECT_EQ(memcmp(sta_obj.m_sta_info.id, zero_mac, sizeof(zero_mac)), 0);
+        EXPECT_EQ(memcmp(sta_obj.m_sta_info.bssid, zero_mac, sizeof(zero_mac)), 0);
+        EXPECT_EQ(memcmp(sta_obj.m_sta_info.radiomac, zero_mac, sizeof(zero_mac)), 0);
+        EXPECT_FALSE(sta_obj.m_sta_info.associated);
+        EXPECT_EQ(sta_obj.m_sta_info.frame_body, nullptr);
+        EXPECT_EQ(sta_obj.m_sta_info.frame_body_len, 0u);
     });
     std::cout << "Exiting NullEmStaInfoStructure test";
 }
@@ -646,7 +741,7 @@ TEST(dm_sta_t_Test, NullEmStaInfoStructure) {
 */
 TEST(dm_sta_t_Test, InvalidMacAddress) {
     std::cout << "Entering InvalidMacAddress test";
-    em_sta_info_t invalid_mac_sta;
+    em_sta_info_t invalid_mac_sta = {};
     invalid_mac_sta.id[0] = 0xAA;
     invalid_mac_sta.id[1] = 0xBB;
     invalid_mac_sta.id[2] = 0xCC;
@@ -675,13 +770,20 @@ TEST(dm_sta_t_Test, InvalidMacAddress) {
 * **Test Procedure:**@n
 * | Variation / Step | Description | Test Data | Expected Result | Notes |
 * | :----: | --------- | ---------- |-------------- | ----- |
-* | 01| Initialize `em_sta_info_t` with null pointer | em_sta_info_t *null_sta = nullptr, dm_sta_t sta_obj(null_sta) | Exception should be thrown.| Should Fail|
+* | 01| Initialize `em_sta_info_t` with null pointer | em_sta_info_t *null_sta = nullptr, dm_sta_t sta_obj(null_sta) | Successful construction with empty station state | Should Pass |
 */
 TEST(dm_sta_t_Test, InitializeWithNullpointer) {
     std::cout << "Entering InitializeWithNullpointer test";
     em_sta_info_t *null_sta = nullptr;
-    EXPECT_ANY_THROW({
+    EXPECT_NO_THROW({
         dm_sta_t sta_obj(null_sta);
+        const mac_address_t zero_mac = {};
+        EXPECT_EQ(memcmp(sta_obj.m_sta_info.id, zero_mac, sizeof(zero_mac)), 0);
+        EXPECT_EQ(memcmp(sta_obj.m_sta_info.bssid, zero_mac, sizeof(zero_mac)), 0);
+        EXPECT_EQ(memcmp(sta_obj.m_sta_info.radiomac, zero_mac, sizeof(zero_mac)), 0);
+        EXPECT_FALSE(sta_obj.m_sta_info.associated);
+        EXPECT_EQ(sta_obj.m_sta_info.frame_body, nullptr);
+        EXPECT_EQ(sta_obj.m_sta_info.frame_body_len, 0u);
     });
     std::cout << "Exiting InitializeWithNullpointer test";
 }
@@ -1731,4 +1833,60 @@ TEST(dm_sta_t_Test, GetAssocFrameIeOffsetUnrecognisedBody) {
     EXPECT_EQ(dm_sta_t::get_assoc_frame_ie_offset(body, sizeof(body)), 0u);
     EXPECT_EQ(dm_sta_t::get_assoc_frame_ie_offset(nullptr, 32), 0u);
     std::cout << "Exiting GetAssocFrameIeOffsetUnrecognisedBody test" << std::endl;
+}
+
+
+/**
+* @brief Verify that dm_sta_t::encode reports the client type as deviceModel.
+*
+* The topology identifies a client by deviceModel, taken from the client type and falling
+* back to "unknown" when it is empty. The old ClientType key must no longer be emitted.
+*
+* **Test Group ID:** Basic: 01@n
+* **Test Case ID:** 053@n
+* **Priority:** High@n
+* @n
+* **Pre-Conditions:** None@n
+* **Dependencies:** None@n
+* **User Interaction:** None@n
+* @n
+* **Test Procedure:**@n
+* | Variation / Step | Description | Test Data | Expected Result | Notes |
+* | :----: | --------- | ---------- |-------------- | ----- |
+* | 01 | Encode a client with a known type for the topology and default reasons | sta_client_type = "Apple iPhone 14" | deviceModel is "Apple iPhone 14", no ClientType key | Should Pass |
+* | 02 | Encode a client with an empty type for the topology and default reasons | sta_client_type = "" | deviceModel is "unknown", no ClientType key | Should Pass |
+*/
+TEST(dm_sta_t_Test, EncodeReportsDeviceModel) {
+    std::cout << "Entering EncodeReportsDeviceModel test" << std::endl;
+    const struct {
+        const char *type;
+        const char *expected;
+    } cases[] = {
+        {"Apple iPhone 14", "Apple iPhone 14"},
+        {"", "unknown"},
+    };
+    const em_get_sta_list_reason_t reasons[] = {
+        em_get_sta_list_reason_topology,
+        em_get_sta_list_reason_none,
+    };
+
+    for (const auto &c : cases) {
+        for (auto reason : reasons) {
+            dm_sta_t dmSta;
+            snprintf(dmSta.m_sta_info.sta_client_type, sizeof(dmSta.m_sta_info.sta_client_type), "%s", c.type);
+
+            cJSON *obj = cJSON_CreateObject();
+            ASSERT_NE(obj, nullptr);
+            dmSta.encode(obj, reason);
+
+            cJSON *model = cJSON_GetObjectItem(obj, "deviceModel");
+            ASSERT_NE(model, nullptr) << "type=" << c.type << " reason=" << static_cast<int>(reason);
+            ASSERT_TRUE(cJSON_IsString(model));
+            EXPECT_STREQ(model->valuestring, c.expected) << "reason=" << static_cast<int>(reason);
+            EXPECT_EQ(cJSON_GetObjectItem(obj, "ClientType"), nullptr);
+            EXPECT_NE(cJSON_GetObjectItem(obj, "MACAddress"), nullptr);
+            cJSON_Delete(obj);
+        }
+    }
+    std::cout << "Exiting EncodeReportsDeviceModel test" << std::endl;
 }

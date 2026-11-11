@@ -51,7 +51,9 @@ int dm_neighbor_list_t::set_config(db_client_t& db_client, dm_neighbor_t& nbr, v
 
     //printf("%s:%d: Parent: %s \n", __func__, __LINE__, (char *)parent_id);
 
-    update_db(db_client, (op = get_dm_orch_type(db_client, nbr)), nbr.get_neighbor_info());
+    if (update_db(db_client, (op = get_dm_orch_type(db_client, nbr)), nbr.get_neighbor_info()) != 0) {
+        return -1;
+    }
     update_list(nbr, op);
                         
     return 0;
@@ -69,7 +71,9 @@ int dm_neighbor_list_t::set_config(db_client_t& db_client, const cJSON *obj_arr,
     for (i = 0; i < size; i++) {
         obj = cJSON_GetArrayItem(obj_arr, i);
 		nbr.decode(obj, parent_id);
-		update_db(db_client, (op = get_dm_orch_type(db_client, nbr)), nbr.get_neighbor_info());
+		if (update_db(db_client, (op = get_dm_orch_type(db_client, nbr)), nbr.get_neighbor_info()) != 0) {
+		    return -1;
+		}
 		update_list(nbr, op);
     }
 
@@ -159,6 +163,9 @@ int dm_neighbor_list_t::update_db(db_client_t& db_client, dm_orch_type_t op, voi
         
 	dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *> (info->nbr), nbr_mac_str);
 	dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *> (info->next_hop), next_hop_mac_str);
+    if (prepare_db_operation(db_client, op) != 0) {
+        return -1;
+    }
 
     //printf("dm_neighbor_list_t:%s:%d: Operation: %s\n", __func__, __LINE__, em_cmd_t::get_orch_op_str(op));
 	

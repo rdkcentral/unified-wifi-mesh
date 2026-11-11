@@ -21,6 +21,82 @@
 #include <gmock/gmock.h>
 #include <stdio.h>
 #include "dm_op_class.h"
+#include "dm_op_class_list.h"
+#include "db_client_none.h"
+
+class MockOpClassList : public dm_op_class_list_t {
+public:
+    MOCK_METHOD(dm_op_class_t *, get_first_op_class, (), (override));
+    MOCK_METHOD(dm_op_class_t *, get_next_op_class, (dm_op_class_t *), (override));
+    MOCK_METHOD(dm_op_class_t *, get_op_class, (const char *), (override));
+    MOCK_METHOD(void, remove_op_class, (const char *), (override));
+    MOCK_METHOD(int, put_op_class, (const char *, const dm_op_class_t *), (override));
+    MOCK_METHOD(dm_op_class_t *, get_first_pre_set_op_class_by_type, (em_op_class_type_t), (override));
+    MOCK_METHOD(dm_op_class_t *, get_next_pre_set_op_class_by_type,
+        (em_op_class_type_t, dm_op_class_t *), (override));
+    MOCK_METHOD(int, update_db, (db_client_t&, dm_orch_type_t, void *), (override));
+    MOCK_METHOD(bus_error_t, bus_get_cb_fwd, (char *, raw_data_t *, bus_get_handler_t), (override));
+    MOCK_METHOD(bus_error_t, network_get, (char *, raw_data_t *), (override));
+    MOCK_METHOD(bus_error_t, device_get, (char *, raw_data_t *), (override));
+};
+
+TEST(dm_op_class_t_Test, DecodeNonOperableCapacityBoundary)
+{
+    for (unsigned int count : {0u, static_cast<unsigned int>(EM_MAX_CHANNELS_IN_LIST)}) {
+        cJSON *obj = cJSON_CreateObject();
+        ASSERT_NE(obj, nullptr);
+        cJSON *channels = cJSON_AddArrayToObject(obj, "NonOperable");
+        ASSERT_NE(channels, nullptr);
+        for (unsigned int i = 0; i < count; i++) {
+            cJSON_AddItemToArray(channels, cJSON_CreateNumber(i + 1));
+        }
+        char parent_id[] = "00:11:22:33:44:55@1@81";
+        dm_op_class_t op_class;
+        EXPECT_EQ(op_class.decode(obj, parent_id), 0);
+        EXPECT_EQ(op_class.m_op_class_info.num_channels, count);
+        for (unsigned int i = 0; i < count; i++) {
+            EXPECT_EQ(op_class.m_op_class_info.channels[i], i + 1);
+        }
+        cJSON_Delete(obj);
+    }
+}
+
+TEST(dm_op_class_t_Test, DecodeNonOperableOverflowDoesNotUpdateListOrDatabase)
+{
+    cJSON *config = cJSON_CreateArray();
+    ASSERT_NE(config, nullptr);
+    cJSON *obj = cJSON_CreateObject();
+    ASSERT_NE(obj, nullptr);
+    cJSON_AddItemToArray(config, obj);
+    cJSON *channels = cJSON_AddArrayToObject(obj, "NonOperable");
+    ASSERT_NE(channels, nullptr);
+    for (unsigned int i = 0; i <= EM_MAX_CHANNELS_IN_LIST; i++) {
+        cJSON_AddItemToArray(channels, cJSON_CreateNumber(i + 1));
+    }
+    char parent_id[] = "00:11:22:33:44:55@1@81";
+    dm_op_class_t op_class;
+    op_class.m_op_class_info.num_channels = EM_MAX_CHANNELS_IN_LIST;
+    EXPECT_EQ(op_class.decode(obj, parent_id), -1);
+    EXPECT_EQ(op_class.m_op_class_info.num_channels, 0u);
+
+    testing::StrictMock<MockOpClassList> list;
+    db_client_none_t db_client;
+    EXPECT_EQ(list.set_config(db_client, config, parent_id), -1);
+    cJSON_Delete(config);
+}
+
+TEST(dm_op_class_t_Test, SetConfigFullTableDoesNotUpdateDatabase)
+{
+    char parent_id[] = "00:11:22:33:44:55@1@81";
+    dm_op_class_t op_class;
+    dm_op_class_t::parse_op_class_id_from_key(parent_id, &op_class.m_op_class_info.id);
+
+    testing::StrictMock<MockOpClassList> list;
+    db_client_none_t db_client;
+    EXPECT_CALL(list, get_op_class(testing::_)).WillOnce(testing::Return(nullptr));
+    EXPECT_CALL(list, put_op_class(testing::_, testing::_)).WillOnce(testing::Return(-1));
+    EXPECT_EQ(list.set_config(db_client, op_class, parent_id), -1);
+}
 
 
 class dm_op_class_t_Test : public ::testing::Test {

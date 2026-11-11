@@ -18,6 +18,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <strings.h>
 #include <stdlib.h>
 #include <errno.h>
 #include <assert.h>
@@ -47,6 +48,7 @@
 #include "em_orch_ctrl.h"
 #include "util.h"
 #include "wifi_util.h"
+#include "em_ext_hooks.h"
 
 #ifdef AL_SAP
 #include "al_service_access_point.h"
@@ -292,6 +294,116 @@ void em_ctrl_t::handle_sta_assoc_event(em_bus_event_t *evt)
     }
 }
 
+void em_ctrl_t::handle_sta_cap_update(em_bus_event_t *evt)
+{
+    em_bus_event_type_sta_cap_update_params_t update;
+    if (evt->data_len < sizeof(update) || evt->data_len > EM_MAX_EVENT_DATA_LEN) {
+        em_printfout("Invalid station capability update length: %u", evt->data_len);
+        return;
+    }
+    memcpy(&update, evt->u.raw_buff, sizeof(update));
+    if (update.frame_body_len > EM_MAX_FRAME_BODY_LEN ||
+            evt->data_len - sizeof(update) != update.frame_body_len) {
+        em_printfout("Invalid station capability update payload");
+        return;
+    }
+    dm_easy_mesh_t *dm = get_data_model(GLOBAL_NET_ID, update.dev);
+    if (dm == NULL) {
+        em_printfout("Discarding station capability update for removed device");
+        return;
+    }
+    mac_addr_str_t sta, bssid, radio;
+    em_long_string_t key;
+    dm_easy_mesh_t::macbytes_to_string(update.sta, sta);
+    em_sta_info_t info = {};
+    memcpy(info.id, update.sta, sizeof(mac_address_t));
+    memcpy(info.bssid, update.bssid, sizeof(mac_address_t));
+    memcpy(info.radiomac, update.radio, sizeof(mac_address_t));
+    info.associated = true;
+    info.frame_body_len = update.frame_body_len;
+    info.frame_body = update.frame_body_len == 0 ? NULL :
+        evt->u.raw_buff + sizeof(update);
+
+    em_assoc_sta_mld_info_t rows[EM_MAX_ASSOC_STA_MLD];
+    const unsigned int count = dm->copy_assoc_sta_mld_info(rows);
+    for (unsigned int i = 0; i < count; i++) {
+        if (memcmp(rows[i].mac_addr, info.id, sizeof(mac_address_t)) != 0) {
+            continue;
+        }
+        if (rows[i].num_affiliated_sta == 0) {
+            em_printfout("Client cap: skipping MLD STA %s with no current links", sta);
+            return;
+        }
+        bool updated = false;
+        for (unsigned int j = 0; j < rows[i].num_affiliated_sta; j++) {
+            dm_bss_t *link_bss = NULL;
+            for (unsigned int r = 0; r < dm->get_num_radios(); r++) {
+                link_bss = dm->get_bss(dm->get_radio_info(r)->id.ruid, rows[i].affiliated_sta[j].bssid);
+                if (link_bss != NULL) {
+                    break;
+                }
+            }
+            if (link_bss == NULL) {
+                em_printfout("Client cap: unresolved current link BSSID %s for STA %s",
+                    util::mac_to_string(rows[i].affiliated_sta[j].bssid).c_str(), sta);
+                continue;
+            }
+            memcpy(info.bssid, rows[i].affiliated_sta[j].bssid, sizeof(mac_address_t));
+            memcpy(info.radiomac, link_bss->m_bss_info.ruid.mac, sizeof(mac_address_t));
+            dm_easy_mesh_t::macbytes_to_string(info.bssid, bssid);
+            dm_easy_mesh_t::macbytes_to_string(info.radiomac, radio);
+            snprintf(key, sizeof(key), "%s@%s@%s", sta, bssid, radio);
+            dm->apply_sta_cap_to_maps(key, &info);
+            updated = true;
+        }
+        if (updated) {
+            dm->set_db_cfg_param(db_cfg_type_sta_list_update, "");
+        }
+        return;
+    }
+
+    bool radio_found = false;
+    for (unsigned int r = 0; r < dm->get_num_radios(); r++) {
+        dm_bss_t *link_bss = dm->get_bss(dm->get_radio_info(r)->id.ruid, info.bssid);
+        if (link_bss != NULL) {
+            memcpy(info.radiomac, link_bss->m_bss_info.ruid.mac, sizeof(mac_address_t));
+            radio_found = true;
+            break;
+        }
+    }
+    if (!radio_found) {
+        em_printfout("Client cap: unresolved BSSID %s for STA %s, retaining reported radio %s",
+            util::mac_to_string(info.bssid).c_str(), sta,
+            util::mac_to_string(info.radiomac).c_str());
+    }
+    dm_easy_mesh_t::macbytes_to_string(info.bssid, bssid);
+    dm_easy_mesh_t::macbytes_to_string(info.radiomac, radio);
+    snprintf(key, sizeof(key), "%s@%s@%s", sta, bssid, radio);
+    dm->apply_sta_cap_to_maps(key, &info);
+    dm->set_db_cfg_param(db_cfg_type_sta_list_update, "");
+}
+
+void em_ctrl_t::handle_sta_mld_update(em_bus_event_t *evt)
+{
+    em_bus_event_type_sta_mld_update_params_t update;
+    if (evt->data_len != sizeof(update)) {
+        em_printfout("Invalid station MLD update length: %u", evt->data_len);
+        return;
+    }
+    memcpy(&update, evt->u.raw_buff, sizeof(update));
+    if (update.info.num_affiliated_sta > EM_MAX_AP_MLD) {
+        em_printfout("Invalid station MLD affiliated count: %u", update.info.num_affiliated_sta);
+        return;
+    }
+    dm_easy_mesh_t *dm = get_data_model(GLOBAL_NET_ID, update.dev);
+    if (dm == NULL) {
+        em_printfout("Discarding station MLD update for removed device");
+        return;
+    }
+    dm->replace_assoc_sta_mld_info(update.info);
+    dm->apply_sta_mld_association(update.info);
+}
+
 void em_ctrl_t::handle_set_radio(em_bus_event_t *evt)
 {
     em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
@@ -517,6 +629,7 @@ void em_ctrl_t::handle_link_stats_alarm_report(em_bus_event_t *evt)
         em_printfout("Link Stats Alarm publish fail");
     }
 
+    cJSON_free(str);
     cJSON_Delete(parent);
 }
 
@@ -808,6 +921,18 @@ void em_ctrl_t::handle_bus_event(em_bus_event_t *evt)
             handle_dm_commit(evt);
             break;
 
+        case em_bus_event_type_sta_cap_update:
+            handle_sta_cap_update(evt);
+            break;
+
+        case em_bus_event_type_sta_mld_update:
+            handle_sta_mld_update(evt);
+            break;
+
+        case em_bus_event_type_topo_publish:
+            handle_topo_publish(evt);
+            break;
+
         case em_bus_event_type_m2_tx:
             handle_m2_tx(evt);
             break;
@@ -866,55 +991,57 @@ void em_ctrl_t::handle_event(em_event_t *evt)
 
 }
 
-void em_ctrl_t::publish_network_topology()
+void em_ctrl_t::handle_topo_publish(em_bus_event_t *evt)
 {
     assert(g_network_topology != NULL);
 
-	wifi_bus_desc_t *desc = NULL;
-    cJSON *parent = NULL;
-    char *str = NULL;
-    raw_data_t raw;
-    dm_easy_mesh_ctrl_t *dm_ctrl = NULL;
-
-    if((desc = get_bus_descriptor()) == NULL) {
-        printf("%s:%d descriptor is null\n", __func__, __LINE__);
+    wifi_bus_desc_t *desc = get_bus_descriptor();
+    if (desc == NULL) {
+        em_printfout("Topology publish: descriptor is null");
         return;
     }
 
-    parent = cJSON_CreateObject();
+    cJSON *parent = cJSON_CreateObject();
     if (parent == NULL) {
-        printf("%s:%d cJSON_CreateObject failed\n", __func__, __LINE__);
+        em_printfout("Topology publish: cJSON_CreateObject failed");
         return;
     }
-    dm_ctrl = reinterpret_cast<dm_easy_mesh_ctrl_t *>(get_data_model(GLOBAL_NET_ID));
+    dm_easy_mesh_ctrl_t *dm_ctrl =
+        reinterpret_cast<dm_easy_mesh_ctrl_t *>(get_data_model(GLOBAL_NET_ID));
     if (dm_ctrl == NULL) {
-        printf("%s:%d data model is null\n", __func__, __LINE__);
+        em_printfout("Topology publish: data model is null");
         cJSON_Delete(parent);
         return;
     }
-    dm_ctrl->get_network_config(parent, const_cast<char*>(GLOBAL_NET_ID));
+    dm_ctrl->get_network_config(parent, const_cast<char *>(GLOBAL_NET_ID));
 
-    str = cJSON_Print(parent);
+    char *str = cJSON_Print(parent);
     if (str == NULL) {
-        printf("%s:%d cJSON_Print failed\n", __func__, __LINE__);
+        em_printfout("Topology publish: cJSON_Print failed");
         cJSON_Delete(parent);
         return;
     }
-    em_printfout("    ===============Publish Network Topology Json:\n%s\n===============\n",str);
+    em_printfout("    ===============Publish Network Topology Json:\n%s\n===============\n", str);
 
-	raw.data_type    = bus_data_type_string;
-    raw.raw_data.bytes = reinterpret_cast<unsigned char *> (str);
-    raw.raw_data_len = static_cast<unsigned int> (strlen(str));
-
-    if (desc->bus_event_publish_fn(m_data_model.get_bus_hdl(), const_cast<char*>(DEVICE_WIFI_DATAELEMENTS_NETWORK_TOPOLOGY), &raw)== 0) {
-        printf("%s:%d Topology published successfull\n",__func__, __LINE__);
+    raw_data_t raw = {};
+    raw.data_type = bus_data_type_string;
+    raw.raw_data.bytes = reinterpret_cast<unsigned char *>(str);
+    raw.raw_data_len = static_cast<unsigned int>(strlen(str));
+    if (desc->bus_event_publish_fn(m_data_model.get_bus_hdl(),
+            const_cast<char *>(DEVICE_WIFI_DATAELEMENTS_NETWORK_TOPOLOGY), &raw) == 0) {
+        em_printfout("Topology published successfully");
     } else {
-        printf("%s:%d Topology publish fail\n",__func__, __LINE__);
+        em_printfout("Topology publish failed");
     }
 
-    // bus_event_publish_fn copies the payload
+    // bus_event_publish_fn copies the payload.
     cJSON_Delete(parent);
     cJSON_free(str);
+}
+
+void em_ctrl_t::publish_network_topology()
+{
+    io_process(em_bus_event_type_topo_publish, static_cast<unsigned char *>(NULL), 0);
 
 #if 0
     //Test code here
@@ -985,8 +1112,18 @@ int em_ctrl_t::data_model_init(const char *data_model_path)
         return 0;
     }
     
-    if (m_data_model.init(data_model_path, this) != 0) {
+    // Persistence backend is selectable via "--db-type" in the controller
+    // arguments, resolved in main() and stashed in m_db_type by
+    // set_db_type() before this runs.
+    // Defaults to db_client_type_local, preserving existing behavior for
+    // invocations that don't pass the flag.
+    if (m_data_model.init(data_model_path, this, m_db_type) != 0) {
         printf("%s:%d: data model init failed\n", __func__, __LINE__);
+        return -1;
+    }
+
+    if (m_db_type == db_client_type_local && !m_data_model.is_initialized()) {
+        em_printfout("Local database is unconfigured; controller is available for Reset");
         return 0;
     }
 
@@ -1307,6 +1444,7 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
 
         case em_msg_type_ap_mld_config_resp:
         case em_msg_type_1905_ack:
+            em_printfout("  -------->>>> 1905_ack rcvdddd");
             em = static_cast<em_t *> (hash_map_get_first(m_em_map));
             while(em != NULL) {
                 if ((em->is_al_interface_em() == false)) {
@@ -1314,6 +1452,8 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
                 }
                 em = static_cast<em_t *> (hash_map_get_next(m_em_map, em));
             }
+            em_printfout("1905_ack routing: dispatching to em=%p radio=%s", static_cast<void*>(em),
+                em ? util::mac_to_string(em->get_radio_interface_mac()).c_str() : "NULL");
             break;
 
         case em_msg_type_beacon_metrics_rsp:
@@ -1357,7 +1497,8 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
         case em_msg_type_topo_vendor:
             em = static_cast<em_t *> (hash_map_get_first(m_em_map));
             while(em != NULL) {
-                if (em->is_al_interface_em() == false) {
+                if ((em->is_al_interface_em() == false) &&
+                    (memcmp(em->get_data_model()->get_agent_al_interface_mac(), hdr->src, sizeof(mac_address_t)) == 0)) {
                     break;
                 }
                 em = static_cast<em_t *> (hash_map_get_next(m_em_map, em));
@@ -1522,6 +1663,8 @@ void em_ctrl_t::start_complete()
         em_printfout("bus subscribe failed");
         return;
     }
+
+    em_get_ext_hooks()->on_bus_ready(m_data_model.get_bus_hdl(), desc);
 }
 
 em_ctrl_t *em_ctrl_t::get_em_ctrl_instance()
@@ -1534,6 +1677,7 @@ em_ctrl_t *em_ctrl_t::get_em_ctrl_instance()
 
 em_ctrl_t::em_ctrl_t()
 {
+    m_db_type = db_client_type_local;
 }
 
 em_ctrl_t::~em_ctrl_t()
@@ -1602,6 +1746,53 @@ AlServiceAccessPoint* em_ctrl_t::al_sap_register(const std::string& data_socket_
 int main(int argc, const char *argv[])
 {
     em_ctrl_t  *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
+
+    if (em_get_ext_hooks()->process_cli_args(&argc, argv) == false) {
+        return -1;
+    }
+
+    const char *database_path = nullptr;
+
+    // Options and the database path may appear in any order. Unknown options
+    // are ignored. To add an option, add one branch below.
+    for (int i = 1; i < argc; i++) {
+        std::string arg = argv[i];
+
+        if (arg == "--help" || arg == "-h") {
+            printf("Usage: %s [data-model-path] [--db-type=local|cloud|none]\n"
+                   "  Defaults to local SQLite persistence. data-model-path is optional;\n"
+                   "  if omitted, uses EASYMESH_DB_FILE or the default SQLite database file.\n"
+                   "  The path is ignored for cloud and none. Use --db-type=none to disable persistence.\n",
+                argv[0]);
+            return 0;
+        }
+        if (arg.find("--db-type=") == 0) {
+            std::string value = arg.substr(strlen("--db-type="));
+            db_client_type_t type = db_client_t::type_from_string(value.c_str());
+            if (value.empty() || (type == db_client_type_local && strcasecmp(value.c_str(), "local") != 0)) {
+                em_printfout("Invalid --db-type '%s', using local", value.c_str());
+            }
+            em_ctrl->set_db_type(type);
+            continue;
+        }
+        if (arg[0] == '-') {
+            continue;
+        }
+        if (database_path == nullptr) {
+            database_path = argv[i];
+        }
+    }
+
+    if (em_ctrl->get_db_type() != db_client_type_local && database_path != nullptr) {
+        em_printfout("Ignoring data-model-path '%s', not used with this --db-type", database_path);
+        database_path = nullptr;
+    }
+
+    em_printf("Database type set to: %d\n", em_ctrl->get_db_type());
+    if (em_ctrl->get_db_type() == db_client_type_none) {
+        em_printfout("Starting without a database (--db-type=none): nothing will be persisted");
+    }
+
 #ifdef AL_SAP
     const char* data_socket_path = "/tmp/al_em_ctrl_data_socket";
     const char* control_socket_path = "/tmp/al_em_ctrl_control_socket";
@@ -1611,9 +1802,11 @@ int main(int argc, const char *argv[])
         return -1;
     }
 #endif
-    if (em_ctrl->init(argv[1]) == 0) {
-        em_ctrl->start();
+
+    if (em_ctrl->init(database_path) != 0) {
+        return -1;
     }
+    em_ctrl->start();
     return 0;
 }
 

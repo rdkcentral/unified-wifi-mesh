@@ -50,6 +50,15 @@
 
 std::atomic<int> dm_easy_mesh_t::s_counter{0};
 
+void dm_easy_mesh_t::set_num_op_class(unsigned int num)
+{
+    if (num > EM_MAX_OPCLASS) {
+        em_printfout("Op class count %u exceeds maximum %u", num, EM_MAX_OPCLASS);
+        return;
+    }
+    m_num_opclass = num;
+}
+
 dm_easy_mesh_t& dm_easy_mesh_t::operator = (dm_easy_mesh_t const& obj)
 {
     dm_sta_t *sta;
@@ -80,7 +89,11 @@ dm_easy_mesh_t& dm_easy_mesh_t::operator = (dm_easy_mesh_t const& obj)
     }
     m_dpp = obj.m_dpp;
 
-    m_num_opclass = obj.m_num_opclass;
+    if (obj.m_num_opclass > EM_MAX_OPCLASS) {
+        em_printfout("Op class count %u exceeds maximum %u during data model copy",
+            obj.m_num_opclass, EM_MAX_OPCLASS);
+    }
+    m_num_opclass = (obj.m_num_opclass > EM_MAX_OPCLASS) ? EM_MAX_OPCLASS : obj.m_num_opclass;
     for (unsigned int i = 0; i < EM_MAX_OPCLASS; i++) {
         m_op_class[i] = obj.m_op_class[i];
     }
@@ -237,10 +250,10 @@ int dm_easy_mesh_t::commit_config(dm_easy_mesh_t& dm, em_commit_target_t target)
                 em_printfout("New Radio %s configuration created no of radios=%d", target.params, m_num_radios);
             }
 			//Commit op class
-			for (i = 0; i<dm.m_num_opclass; i++) {
+			for (i = 0; i < dm.m_num_opclass && i < EM_MAX_OPCLASS; i++) {
 				if (memcmp(radio->get_radio_info()->intf.mac, dm.m_op_class[i].m_op_class_info.id.ruid, sizeof(mac_address_t)) == 0) {
 					found = 0;
-					for (j = 0; j<m_num_opclass;j++) {
+					for (j = 0; j < m_num_opclass && j < EM_MAX_OPCLASS; j++) {
 						if ((dm.m_op_class[i].m_op_class_info.op_class == m_op_class[j].m_op_class_info.op_class) &&
 							(dm.m_op_class[i].m_op_class_info.id.type == m_op_class[j].m_op_class_info.id.type)) {
 							m_op_class[j].m_op_class_info = dm.m_op_class[i].m_op_class_info;
@@ -258,7 +271,9 @@ int dm_easy_mesh_t::commit_config(dm_easy_mesh_t& dm, em_commit_target_t target)
                            	break;
 						}
 					}
-					if (found == 0) {
+					if ((found == 0) && (m_num_opclass >= EM_MAX_OPCLASS)) {
+						em_printfout("Max limit reached for op class entries in datamodel, cannot add more entries");
+					} else if (found == 0) {
 						//New Op class
 						em_printfout("New op class=%d committing it", dm.m_op_class[i].m_op_class_info.op_class);
 						m_op_class[m_num_opclass].m_op_class_info = dm.m_op_class[i].m_op_class_info;
@@ -1637,6 +1652,11 @@ int dm_easy_mesh_t::decode_config_op_class_array(cJSON *arr_obj, em_op_class_typ
 	em_long_string_t key;
 
 	num_objs = cJSON_GetArraySize(arr_obj);
+	if ((m_num_opclass > EM_MAX_OPCLASS) ||
+			(static_cast<unsigned int>(num_objs) > EM_MAX_OPCLASS - m_num_opclass)) {
+		em_printfout("Op class array exceeds remaining datamodel capacity");
+		return -1;
+	}
 	//printf("%s:%d: Operating Classes for type: %d are: %d\n", __func__, __LINE__, type, num_objs);
 
 	for (i = 0; i < num_objs; i++) {
@@ -1649,7 +1669,9 @@ int dm_easy_mesh_t::decode_config_op_class_array(cJSON *arr_obj, em_op_class_typ
 		snprintf(key, sizeof(em_long_string_t), "%s@%d@%d", mac_str, type, i);
 
 		//printf("%s:%d: Data at m_op_class[%d]\n", __func__, __LINE__, i + m_num_opclass);
-		m_op_class[static_cast<unsigned int> (i) + m_num_opclass].decode(op_obj, key);
+		if (m_op_class[static_cast<unsigned int> (i) + m_num_opclass].decode(op_obj, key) != 0) {
+			return -1;
+		}
 	}
 
 	m_num_opclass += static_cast<unsigned int> (num_objs);
@@ -3173,6 +3195,7 @@ void dm_easy_mesh_t::put_sta_info(em_sta_info_t *sta_info, em_target_sta_map_t t
 
 int dm_easy_mesh_t::get_num_bss_for_associated_sta(mac_address_t sta_mac)
 {
+    std::lock_guard<std::mutex> lock(m_sta_map_mutex);
     dm_sta_t *sta;
     int num_bssids = 0;
 
@@ -3784,6 +3807,7 @@ void dm_easy_mesh_t::update_bsta_mld_info(em_bsta_mld_info_t *bsta_mld_info)
 
 void dm_easy_mesh_t::update_assoc_sta_mld_info(em_assoc_sta_mld_info_t *assoc_sta_mld_info)
 {
+    std::lock_guard<std::mutex> lock(m_sta_map_mutex);
     em_assoc_sta_mld_info_t *target_mld = NULL;
     em_affiliated_sta_info_t *input_sta = NULL;                             
     em_affiliated_sta_info_t *target_aff_sta = NULL;                        
@@ -3880,32 +3904,181 @@ void dm_easy_mesh_t::remove_ap_mld_info_by_haul_type(em_haul_type_t haul_type)
     m_num_ap_mld--;
 }
 
-void dm_easy_mesh_t::remove_assoc_sta_mld_info(mac_address_t sta_mld_mac)
+void dm_easy_mesh_t::replace_assoc_sta_mld_info(const em_assoc_sta_mld_info_t &assoc_sta_mld_info)
 {
-    unsigned int found_idx = m_num_assoc_sta_mld; // sentinel: not found
+    em_assoc_sta_mld_info_t updated_info = assoc_sta_mld_info;
+    if (updated_info.num_affiliated_sta > EM_MAX_AP_MLD) {
+        em_printfout("Affiliated STA count %u exceeds max %u, clamping",
+            updated_info.num_affiliated_sta, EM_MAX_AP_MLD);
+        updated_info.num_affiliated_sta = EM_MAX_AP_MLD;
+    }
+
+    std::lock_guard<std::mutex> lock(m_sta_map_mutex);
     unsigned int i;
 
     for (i = 0; i < m_num_assoc_sta_mld; i++) {
-        if (memcmp(m_assoc_sta_mld[i].m_assoc_sta_mld_info.mac_addr, sta_mld_mac,
+        if (memcmp(m_assoc_sta_mld[i].m_assoc_sta_mld_info.mac_addr, updated_info.mac_addr,
                 sizeof(mac_address_t)) == 0) {
-            found_idx = i;
-            break;
+            m_assoc_sta_mld[i].m_assoc_sta_mld_info = updated_info;
+            return;
         }
     }
 
-    if (found_idx == m_num_assoc_sta_mld) {
-        return; // not found
+    if (m_num_assoc_sta_mld >= EM_MAX_ASSOC_STA_MLD) {
+        em_printfout("Max assoc STA MLD entries reached");
+        return;
     }
 
-    // Compact the array: shift entries after found_idx one position left.
-    for (unsigned int i = found_idx; i < m_num_assoc_sta_mld - 1; i++) {
-        m_assoc_sta_mld[i] = m_assoc_sta_mld[i + 1];
+    m_assoc_sta_mld[m_num_assoc_sta_mld].m_assoc_sta_mld_info = updated_info;
+    m_num_assoc_sta_mld++;
+}
+
+unsigned int dm_easy_mesh_t::copy_assoc_sta_mld_info(
+    em_assoc_sta_mld_info_t (&info)[EM_MAX_ASSOC_STA_MLD])
+{
+    std::lock_guard<std::mutex> lock(m_sta_map_mutex);
+
+    for (unsigned int i = 0; i < m_num_assoc_sta_mld; i++) {
+        info[i] = m_assoc_sta_mld[i].m_assoc_sta_mld_info;
+    }
+    return m_num_assoc_sta_mld;
+}
+
+static void apply_sta_association_row(dm_easy_mesh_t *dm, em_sta_info_t info)
+{
+    mac_addr_str_t sta, bssid, radio;
+    em_long_string_t key;
+    dm_easy_mesh_t::macbytes_to_string(info.id, sta);
+    dm_easy_mesh_t::macbytes_to_string(info.bssid, bssid);
+    dm_easy_mesh_t::macbytes_to_string(info.radiomac, radio);
+    snprintf(key, sizeof(key), "%s@%s@%s", sta, bssid, radio);
+
+    dm_sta_t *existing = static_cast<dm_sta_t *>(hash_map_get(dm->m_sta_map, key));
+    if (existing != NULL) {
+        existing->m_sta_info.associated = info.associated;
+        info = existing->m_sta_info;
+    }
+    dm_sta_t *pending = static_cast<dm_sta_t *>(hash_map_get(dm->m_sta_assoc_map, key));
+    if (pending == NULL) {
+        hash_map_put(dm->m_sta_assoc_map, strdup(key), new dm_sta_t(&info));
+    } else if (existing == NULL) {
+        pending->m_sta_info.associated = info.associated;
+    } else {
+        dm_sta_t::copy_sta_info(&pending->m_sta_info, &info);
+    }
+}
+
+void dm_easy_mesh_t::apply_sta_mld_association(const em_assoc_sta_mld_info_t &info)
+{
+    bool updated = false;
+    dm_sta_t cached;
+    hash_map_t *maps[] = {m_sta_assoc_map, m_sta_map};
+    for (unsigned int i = 0; i < sizeof(maps) / sizeof(maps[0]) &&
+            cached.m_sta_info.frame_body_len == 0; i++) {
+        dm_sta_t *entry = static_cast<dm_sta_t *>(hash_map_get_first(maps[i]));
+        while (entry != NULL) {
+            if (memcmp(entry->m_sta_info.id, info.mac_addr, sizeof(mac_address_t)) == 0 &&
+                    entry->m_sta_info.frame_body != NULL && entry->m_sta_info.frame_body_len > 0) {
+                dm_sta_t::set_frame_body(&cached.m_sta_info,
+                    entry->m_sta_info.frame_body, entry->m_sta_info.frame_body_len);
+                break;
+            }
+            entry = static_cast<dm_sta_t *>(hash_map_get_next(maps[i], entry));
+        }
     }
 
-    // Zero out the vacated last slot and decrement count.
-    //memset(&m_assoc_sta_mld[m_num_assoc_sta_mld - 1], 0, sizeof(dm_assoc_sta_mld_t));
-    m_assoc_sta_mld[m_num_assoc_sta_mld - 1].init();
-    m_num_assoc_sta_mld--;
+    dm_sta_t *sta = static_cast<dm_sta_t *>(hash_map_get_first(m_sta_map));
+    while (sta != NULL) {
+        if (memcmp(sta->m_sta_info.id, info.mac_addr, sizeof(mac_address_t)) == 0 &&
+                sta->m_sta_info.associated) {
+            em_sta_info_t row = sta->m_sta_info;
+            row.associated = false;
+            apply_sta_association_row(this, row);
+            updated = true;
+        }
+        sta = static_cast<dm_sta_t *>(hash_map_get_next(m_sta_map, sta));
+    }
+    for (unsigned int j = 0; j < info.num_affiliated_sta; j++) {
+        em_sta_info_t row = {};
+        memcpy(row.id, info.mac_addr, sizeof(mac_address_t));
+        memcpy(row.bssid, info.affiliated_sta[j].bssid, sizeof(mac_address_t));
+        for (unsigned int r = 0; r < get_num_radios(); r++) {
+            dm_bss_t *bss = get_bss(get_radio_info(r)->id.ruid, row.bssid);
+            if (bss == NULL) {
+                continue;
+            }
+            memcpy(row.radiomac, bss->m_bss_info.ruid.mac, sizeof(mac_address_t));
+            row.associated = true;
+            mac_addr_str_t sta_mac, bssid, radio;
+            em_long_string_t key;
+            macbytes_to_string(row.id, sta_mac);
+            macbytes_to_string(row.bssid, bssid);
+            macbytes_to_string(row.radiomac, radio);
+            snprintf(key, sizeof(key), "%s@%s@%s", sta_mac, bssid, radio);
+            apply_sta_association_row(this, row);
+            dm_sta_t *pending = static_cast<dm_sta_t *>(hash_map_get(m_sta_assoc_map, key));
+            if (pending != NULL && pending->m_sta_info.frame_body_len == 0 &&
+                    cached.m_sta_info.frame_body_len > 0) {
+                dm_sta_t::set_frame_body(&pending->m_sta_info,
+                    cached.m_sta_info.frame_body, cached.m_sta_info.frame_body_len);
+            }
+            updated = true;
+            break;
+        }
+    }
+    if (updated) {
+        set_db_cfg_param(db_cfg_type_sta_list_update, "");
+    }
+}
+
+void dm_easy_mesh_t::apply_sta_disassociation(const em_client_assoc_event_t &event)
+{
+    bool updated = false;
+    em_assoc_sta_mld_info_t rows[EM_MAX_ASSOC_STA_MLD];
+    const unsigned int count = copy_assoc_sta_mld_info(rows);
+    unsigned int i;
+    for (i = 0; i < count; i++) {
+        if (memcmp(rows[i].mac_addr, event.cli_mac_address, sizeof(mac_address_t)) == 0) {
+            break;
+        }
+    }
+    if (i < count) {
+        const em_assoc_sta_mld_info_t &info = rows[i];
+        for (unsigned int j = 0; j < info.num_affiliated_sta; j++) {
+            bool resolved = false;
+            em_sta_info_t row = {};
+            memcpy(row.id, event.cli_mac_address, sizeof(mac_address_t));
+            memcpy(row.bssid, info.affiliated_sta[j].bssid, sizeof(mac_address_t));
+            for (unsigned int r = 0; r < get_num_radios(); r++) {
+                dm_bss_t *bss = get_bss(get_radio_info(r)->id.ruid, row.bssid);
+                if (bss == NULL) {
+                    continue;
+                }
+                memcpy(row.radiomac, bss->m_bss_info.ruid.mac, sizeof(mac_address_t));
+                apply_sta_association_row(this, row);
+                resolved = true;
+                updated = true;
+                break;
+            }
+            if (!resolved) {
+                em_printfout("Disassociation: unresolved affiliated BSSID %s",
+                    util::mac_to_string(info.affiliated_sta[j].bssid).c_str());
+            }
+        }
+    }
+    if (!updated) {
+        em_sta_info_t row = {};
+        memcpy(row.id, event.cli_mac_address, sizeof(mac_address_t));
+        memcpy(row.bssid, event.bssid, sizeof(mac_address_t));
+        em_bss_info_t *bss = get_bss_info_with_mac(row.bssid);
+        if (bss != NULL) {
+            memcpy(row.radiomac, bss->ruid.mac, sizeof(mac_address_t));
+        } else if (is_ap_mld_mac(event.bssid)) {
+            resolve_ap_mld_to_fallback_ruid(event.bssid, row.radiomac);
+        }
+        apply_sta_association_row(this, row);
+    }
+    set_db_cfg_param(db_cfg_type_sta_list_update, "");
 }
 
 void dm_easy_mesh_t::apply_sta_cap_to_maps(const char *key, em_sta_info_t *info)
@@ -3916,7 +4089,7 @@ void dm_easy_mesh_t::apply_sta_cap_to_maps(const char *key, em_sta_info_t *info)
         hash_map_put(m_sta_assoc_map, strdup(key), new dm_sta_t(info));
         em_printfout("Client cap assoc_map new: %s len=%u assoc=%d", key, info->frame_body_len, info->associated);
     } else {
-        memcpy(&entry->m_sta_info, info, sizeof(em_sta_info_t));
+        dm_sta_t::copy_sta_info(&entry->m_sta_info, info);
         em_printfout("Client cap assoc_map update: %s len=%u assoc=%d", key, info->frame_body_len, info->associated);
     }
 
@@ -3924,8 +4097,7 @@ void dm_easy_mesh_t::apply_sta_cap_to_maps(const char *key, em_sta_info_t *info)
     // caps in the current session without waiting for a DB sync.
     dm_sta_t *map_sta = static_cast<dm_sta_t *>(hash_map_get(m_sta_map, key));
     if (map_sta != NULL) {
-        map_sta->m_sta_info.frame_body_len = info->frame_body_len;
-        memcpy(map_sta->m_sta_info.frame_body, info->frame_body, info->frame_body_len);
+        dm_sta_t::set_frame_body(&map_sta->m_sta_info, info->frame_body, info->frame_body_len);
         dm_sta_t::decode_sta_capability(map_sta);
     }
 }
@@ -3976,6 +4148,74 @@ char *dm_easy_mesh_t::db_cfg_type_get_criteria(db_cfg_type_t cfg_type)
 	}
 
 	return m_db_cfg_param.db_cfg_criteria[num];
+}
+
+void dm_easy_mesh_t::merge_assoc_sta_updates(dm_easy_mesh_t &src)
+{
+    dm_sta_t *sta;
+    em_long_string_t key;
+    mac_addr_str_t sta_mac_str, bss_mac_str, radio_mac_str;
+
+    std::lock_guard<std::mutex> lock(m_sta_map_mutex);
+
+    sta = static_cast<dm_sta_t *> (hash_map_get_first(src.m_sta_assoc_map));
+    while (sta != NULL) {
+        dm_easy_mesh_t::macbytes_to_string(sta->m_sta_info.id, sta_mac_str);
+        dm_easy_mesh_t::macbytes_to_string(sta->m_sta_info.bssid, bss_mac_str);
+        dm_easy_mesh_t::macbytes_to_string(sta->m_sta_info.radiomac, radio_mac_str);
+        snprintf(key, sizeof(em_long_string_t), "%s@%s@%s", sta_mac_str, bss_mac_str, radio_mac_str);
+
+        em_sta_info_t *em_sta = get_sta_info(sta->m_sta_info.id, sta->m_sta_info.bssid, sta->m_sta_info.radiomac, em_target_sta_map_consolidated);
+        if (em_sta != NULL) {
+            em_printfout("Consolidated Map, sta exists; updating with key: %s", key);
+            dm_sta_t::copy_sta_info(em_sta, &sta->m_sta_info);
+        } else {
+            em_printfout("Consolidated map new addition with key: %s", key);
+            hash_map_put(m_sta_map, strdup(key), new dm_sta_t(*sta));
+        }
+        sta = static_cast<dm_sta_t *> (hash_map_get_next(src.m_sta_assoc_map, sta));
+    }
+
+    sta = static_cast<dm_sta_t *> (hash_map_get_first(src.m_sta_dassoc_map));
+    while (sta != NULL) {
+        dm_sta_t *next_sta = static_cast<dm_sta_t *> (hash_map_get_next(src.m_sta_dassoc_map, sta));
+        dm_easy_mesh_t::macbytes_to_string(sta->m_sta_info.id, sta_mac_str);
+        dm_easy_mesh_t::macbytes_to_string(sta->m_sta_info.bssid, bss_mac_str);
+        dm_easy_mesh_t::macbytes_to_string(sta->m_sta_info.radiomac, radio_mac_str);
+        snprintf(key, sizeof(em_long_string_t), "%s@%s@%s", sta_mac_str, bss_mac_str, radio_mac_str);
+
+        if (get_sta_info(sta->m_sta_info.id, sta->m_sta_info.bssid, sta->m_sta_info.radiomac, em_target_sta_map_consolidated) != NULL) {
+            em_printfout("Consolidated Map removed with key: %s, updating em_target_sta_map_disassoc entry", key);
+            delete static_cast<dm_sta_t *> (hash_map_remove(m_sta_map, key));
+        }
+        sta = next_sta;
+    }
+}
+
+void dm_easy_mesh_t::merge_sta_link_metrics(dm_easy_mesh_t &src)
+{
+    std::lock_guard<std::mutex> lock(m_sta_map_mutex);
+
+    dm_sta_t *sta = static_cast<dm_sta_t *> (hash_map_get_first(src.m_sta_assoc_map));
+    while (sta != NULL) {
+        em_sta_info_t *em_sta = get_sta_info(sta->m_sta_info.id, sta->m_sta_info.bssid, sta->m_sta_info.radiomac, em_target_sta_map_consolidated);
+        if (em_sta != NULL) {
+            dm_sta_t::copy_sta_info(em_sta, &sta->m_sta_info);
+        }
+        sta = static_cast<dm_sta_t *> (hash_map_get_next(src.m_sta_assoc_map, sta));
+    }
+}
+
+void dm_easy_mesh_t::copy_sta_snapshot(std::vector<dm_sta_t> &stations)
+{
+    std::lock_guard<std::mutex> lock(m_sta_map_mutex);
+
+    stations.clear();
+    dm_sta_t *sta = static_cast<dm_sta_t *>(hash_map_get_first(m_sta_map));
+    while (sta != NULL) {
+        stations.emplace_back(*sta);
+        sta = static_cast<dm_sta_t *>(hash_map_get_next(m_sta_map, sta));
+    }
 }
 
 int dm_easy_mesh_t::init()
@@ -4087,5 +4327,3 @@ dm_easy_mesh_t::~dm_easy_mesh_t()
 {
     deinit();
 }
-
-

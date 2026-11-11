@@ -41,6 +41,9 @@ AM_CONDITIONAL([EM_ASAN_CTRL], [test "x$EM_ASAN_CTRL" = "xtrue"])
 # Check for ASAN in em_agent
 AM_CONDITIONAL([EM_ASAN_AGENT], [test "x$EM_ASAN_AGENT" = "xtrue"])
 
+AC_ARG_VAR([UWM_VENDOR_EXT_DIR], [path to vendor-provided extension sources])
+AC_SUBST([UWM_VENDOR_EXT_DIR])
+
 # Checks for programs.
 AC_PROG_CC
 AC_PROG_CXX

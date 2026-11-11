@@ -68,7 +68,10 @@ extern "C"
 #define EM_MAX_MSG_SZ   1514
 #endif
 #define EM_MAX_TLV_VALUE_SZ 65535
-#define EM_MAX_FRAME_BODY_LEN	512
+/* Fixed storage cap based on the largest VHT MPDU option in IEEE 802.11-2020
+ * Table 9-25 (11454 octets), less the shortest management header (24 octets)
+ * and FCS (4 octets) per 9.3.3.1. */
+#define EM_MAX_FRAME_BODY_LEN	(11454 - 24 - 4)
 #define MAX_VENDOR_INFO 5
 #define EM_MAX_BEACON_MEASUREMENT_LEN  400
 #define EM_MAX_BEACON_REPORTS_PER_SCAN 10
@@ -333,6 +336,10 @@ static const mac_address_t EM_GLOBAL_MAC_ADDRESS = {0xff, 0xff, 0xff, 0xff, 0xff
 
 #ifndef WIFI_EM_FAILED_CONNECTION
 #define WIFI_EM_FAILED_CONNECTION             "Device.WiFi.EM.FailedConnection"
+#endif
+
+#ifndef WIFI_EM_INIT_TX_POWER_READY
+#define WIFI_EM_INIT_TX_POWER_READY           "Device.WiFi.EM.TxPowerReady"
 #endif
 
 #ifndef WIFI_EM_CLIENT_ASSOC_CTRL_REQ
@@ -1794,21 +1801,9 @@ typedef struct {
 } __attribute__((__packed__)) em_1905_mac_addr_t;
 
 typedef struct {
-    // this is of type vendor_ext_attr_id_t for vendor specific attributes
-    unsigned char attr_id;
-    unsigned char  vendor_data[0];
-} __attribute__((__packed__)) em_vendor_data_t;
-
-typedef struct {
-    unsigned char  vendor_oui[3];
-    unsigned char num;
-    em_vendor_data_t  data[0];
-} __attribute__((__packed__)) em_vendor_specific_t;
-
-typedef struct {
     unsigned char  vendor_oui[3];
     unsigned char  data[0];
-} __attribute__((__packed__)) em_vendor_specific_v_t;
+} __attribute__((__packed__)) em_vendor_specific_t;
 
 typedef struct {
     mac_address_t interface_mac;
@@ -2080,7 +2075,7 @@ typedef struct {
     em_channel_scan_cap_radio_t  radios[EM_MAX_RADIO_PER_AGENT];
 } __attribute__((__packed__))em_channel_scan_cap_t;
 
-/* CAC Method types — Wi-Fi Easy Mesh spec - 17.2.46 Table 16 */
+/* CAC Method types - Wi-Fi Easy Mesh spec - 17.2.46 Table 16 */
 typedef enum {
     em_cac_method_continuous              = 0, /* Continuous CAC */
     em_cac_method_continuous_dedicated    = 1, /* Continuous with dedicated radio */
@@ -2352,6 +2347,7 @@ typedef enum {
     em_state_agent_1905_securing,
     em_state_agent_autoconfig_rsp_pending,
     em_state_agent_wsc_m2_pending,
+    em_state_agent_wsc_m2_processed,
     em_state_agent_owconfig_pending,
     em_state_agent_onewifi_bssconfig_ind,
 	em_state_agent_autoconfig_renew_pending,
@@ -2464,6 +2460,7 @@ typedef enum {
     em_cmd_type_get_link_quality_report,
     em_cmd_type_unassoc_sta_query,
     em_cmd_type_unassoc_sta_result,
+    em_cmd_type_vendor_data,
     em_cmd_type_client_assoc_ctrl_req,
 
     em_cmd_type_max,
@@ -2732,7 +2729,10 @@ typedef struct {
     unsigned int    errors_tx;
     unsigned int    errors_rx;
     unsigned int 	frame_body_len;
-    unsigned char	frame_body[EM_MAX_FRAME_BODY_LEN];
+    /* Heap allocated, frame_body_len bytes, NULL when empty. Owned by the dm_sta_t holding this
+     * struct: copy into an owning struct only with dm_sta_t::copy_sta_info() or
+     * dm_sta_t::set_frame_body(); plain copies share the pointer and must not outlive the owner. */
+    unsigned char	*frame_body;
     unsigned int    num_vendor_infos;
     bool            multi_band_cap;
     time_t          beacon_query_sent_time;
@@ -3204,6 +3204,10 @@ typedef enum {
     em_bus_event_type_unassoc_sta_link_metrics_query,
     em_bus_event_type_unassoc_sta_result,
     em_bus_event_type_failed_conn,
+    em_bus_event_type_vendor_data,
+    em_bus_event_type_sta_cap_update,
+    em_bus_event_type_sta_mld_update,
+    em_bus_event_type_topo_publish,
 
     em_bus_event_type_max
 } em_bus_event_type_t;
@@ -3299,7 +3303,8 @@ typedef enum {
     dm_orch_type_link_quality_report,
     dm_orch_type_unassoc_sta_link_req_query,
     dm_orch_type_unassoc_sta_result,
-    dm_orch_type_client_assoc
+    dm_orch_type_client_assoc,
+    dm_orch_type_vendor_data
 
 } dm_orch_type_t;
 
@@ -3386,6 +3391,20 @@ typedef struct {
     mac_address_t   dev;
     em_client_assoc_event_t   assoc;
 } em_bus_event_type_client_assoc_params_t;
+
+// Owned frame-body bytes follow this pointer-free header.
+typedef struct {
+    mac_address_t dev;
+    mac_address_t sta;
+    mac_address_t bssid;
+    mac_address_t radio;
+    unsigned int frame_body_len;
+} em_bus_event_type_sta_cap_update_params_t;
+
+typedef struct {
+    mac_address_t dev;
+    em_assoc_sta_mld_info_t info;
+} em_bus_event_type_sta_mld_update_params_t;
 
 typedef struct {
     mac_address_t   radio;
@@ -3591,6 +3610,29 @@ typedef struct {
 
 typedef em_long_string_t db_table_name_t;
 typedef em_long_string_t db_column_name_t;
+
+/**!
+ * @brief Identifies which persistence backend the controller's data model
+ * should bind to. This is the "strategy selector" for the db_client_factory_t.
+ *
+ * db_client_type_local - Existing on-box SQLite persistence (default,
+ *                         backward compatible behavior).
+ * db_client_type_cloud - Reserved for a future cloud-hosted database backend.
+ *                        Not implemented yet; factory returns a stub that
+ *                        fails fast so callers notice if it is selected
+ *                        prematurely.
+ * db_client_type_none  - No persistent storage at all. The controller's
+ *                        in-memory data model (dm_*_list_t containers) is
+ *                        authoritative and nothing is written to or read
+ *                        from disk/network. Useful for stateless/ephemeral
+ *                        controller deployments (e.g. containers, test
+ *                        harnesses) where a DB dependency is undesirable.
+ */
+typedef enum {
+    db_client_type_local = 0,
+    db_client_type_cloud,
+    db_client_type_none,
+} db_client_type_t;
 
 typedef enum {
     db_data_type_char,
@@ -3862,6 +3904,7 @@ static const SecurityTypeMap securityTypeMap[] = {
     { "WPA3 Transition", EM_AUTH_WPA3_TRANSITION }
 };
 
+static const unsigned char comcast_vendor_oui[EM_VENDOR_OUI_SIZE] = {0xd8, 0x9c, 0x8e};
 static const unsigned char airties_vendor_oui[EM_VENDOR_OUI_SIZE] = {0x88, 0x41, 0xfc};
 
 #ifndef SSL_KEY
