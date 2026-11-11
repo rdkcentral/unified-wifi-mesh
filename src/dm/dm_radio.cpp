@@ -244,6 +244,7 @@ void dm_radio_t::operator = (const dm_radio_t& obj)
     memcpy(&this->m_radio_info.chip_vendor,&obj.m_radio_info.chip_vendor,sizeof(em_long_string_t));
     //this->m_radio_info.ap_metrics_wifi6 = obj.m_radio_info.ap_metrics_wifi6;
     this->m_radio_info.transmit_power_limit = obj.m_radio_info.transmit_power_limit;
+    memcpy(this->m_radio_info.backhaul_sta, obj.m_radio_info.backhaul_sta, sizeof(mac_address_t));
 }
 
 int dm_radio_t::parse_radio_id_from_key(const char *key, em_radio_id_t *id)

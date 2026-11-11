@@ -6316,6 +6316,38 @@ dm_radio_t *dm_easy_mesh_ctrl_t::get_dm_radio(dm_easy_mesh_t *dm, char *instance
     return NULL;
 }
 
+/* MAC of the backhaul STA on this radio, NULL if there is none */
+static const unsigned char *radio_bsta_mac(dm_easy_mesh_t *dm, dm_radio_t *radio_obj)
+{
+    const unsigned char *ruid = radio_obj->get_radio_info()->id.ruid;
+
+    if (memcmp(radio_obj->get_radio_info()->backhaul_sta, ZERO_MAC_ADDR, sizeof(mac_address_t)) != 0) {
+        return radio_obj->get_radio_info()->backhaul_sta;
+    }
+
+    for (unsigned int i = 0; i < dm->get_num_bss(); i++) {
+        em_bss_info_t *bi = dm->get_bss_info(i);
+
+        if ((bi == NULL) || (bi->vap_mode != em_vap_mode_sta) || (bi->id.haul_type != em_haul_type_backhaul) ||
+            (memcmp(bi->ruid.mac, ruid, sizeof(mac_address_t)) != 0) ||
+            (memcmp(bi->sta_mac, ZERO_MAC_ADDR, sizeof(mac_address_t)) == 0)) {
+            continue;
+        }
+        return bi->sta_mac;
+    }
+
+    /* Legacy fallback */
+    /* Very nasty hack, only report backhaulsta for radio with 4 bss */
+    if (radio_obj->get_radio_info()->number_of_bss == 4) {
+        dm_sta_t *bh_sta = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl()->get_dm_bh_sta(dm, radio_obj);
+        if (bh_sta != NULL) {
+            return bh_sta->get_sta_info()->id;
+        }
+    }
+
+    return NULL;
+}
+
 dm_sta_t *dm_easy_mesh_ctrl_t::get_dm_bh_sta(dm_easy_mesh_t *dm, dm_radio_t *radio)
 {
     dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
@@ -7822,16 +7854,11 @@ bus_error_t dm_easy_mesh_ctrl_t::radio_tget_params(dm_easy_mesh_t *dm, const cha
         dm_ctrl->property_append_tail(property, root, idx, "CurrentOperatingClassProfileNumberOfEntries", curop_count);
         dm_ctrl->property_append_tail(property, root, idx, "BSSNumberOfEntries", ri->number_of_bss);
 
-        dm_sta_t *bh_sta = dm_ctrl->get_dm_bh_sta(dm, radio);
-        if (bh_sta == NULL) {
+        const unsigned char *bsta_mac = radio_bsta_mac(dm, radio);
+        if (bsta_mac == NULL) {
             dm_ctrl->property_append_tail(property, root, idx, "BackhaulSta.MACAddress", "");
         } else {
-            em_sta_info_t *si = bh_sta->get_sta_info();
-            if (ri->number_of_bss != 4) { /* Very nasty hack, only report backhaulsta for radio with 4 bss */
-                dm_ctrl->property_append_tail(property, root, idx, "BackhaulSta.MACAddress", "");
-            } else {
-                dm_ctrl->property_append_tail(property, root, idx, "BackhaulSta.MACAddress", si->id);
-            }
+            dm_ctrl->property_append_tail(property, root, idx, "BackhaulSta.MACAddress", const_cast<unsigned char *>(bsta_mac));
         }
 
         unsigned int capop_count = 0;
@@ -7924,15 +7951,13 @@ bus_error_t dm_easy_mesh_ctrl_t::rbhsta_get_inner(char *event_name, raw_data_t *
         em_printfout("radio is NULL\n");
         return bus_error_invalid_input;
     }
-    dm_sta_t *bh_sta = dm_ctrl->get_dm_bh_sta(dm, radio);
+    const unsigned char *bsta_mac = radio_bsta_mac(dm, radio);
 
     if (strcmp(param, "MACAddress") == 0) {
-        if (bh_sta == NULL || radio->get_radio_info()->number_of_bss != 4) {
-            /* Very nasty hack, only report backhaulsta for radio with 4 bss */
+        if (bsta_mac == NULL) {
             rc = dm_ctrl->raw_data_set(p_data, "");
         } else {
-            em_sta_info_t *si = bh_sta->get_sta_info();
-            rc = dm_ctrl->raw_data_set(p_data, si->id);
+            rc = dm_ctrl->raw_data_set(p_data, const_cast<unsigned char *>(bsta_mac));
         }
     } else {
         em_printfout("Invalid param: %s\n", param);

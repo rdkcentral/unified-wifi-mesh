@@ -163,8 +163,11 @@ void dm_radio_list_t::update_list(const dm_radio_t& radio, dm_orch_type_t op)
                 // JSON); preserve it across a config update instead of letting this
                 // memcpy clobber it with zero.
                 unsigned char radio_temp = pradio->m_radio_info.radio_temp;
+                mac_address_t bsta;
+                memcpy(bsta, pradio->m_radio_info.backhaul_sta, sizeof(mac_address_t));
                 memcpy(&pradio->m_radio_info, &radio.m_radio_info, sizeof(em_radio_info_t));
                 pradio->m_radio_info.radio_temp = radio_temp;
+                memcpy(pradio->m_radio_info.backhaul_sta, bsta, sizeof(mac_address_t));
             }
             break;
 
