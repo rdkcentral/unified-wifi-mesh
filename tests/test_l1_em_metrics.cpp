@@ -22,6 +22,7 @@
 #include "em_metrics.h"
 #include "em_mgr.h"
 #include "em_cmd.h"
+#include "em_msg.h"
 #include "dm_easy_mesh.h"
 
 class DummyEmMetrics : public em_metrics_t {
