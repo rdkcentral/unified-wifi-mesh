@@ -31,7 +31,6 @@
 #include "em_msg.h"
 #include "em_mgr.h"
 #include "em_cmd.h"
-#include "em_msg.h"
 #include "dm_easy_mesh.h"
 
 class DummyEmMetrics : public em_metrics_t {
@@ -586,6 +585,28 @@ TEST_F(EmMetricsTest, UnassocStaLinkMetrics_CompleteStaPlusIncompleteSta)
     EXPECT_EQ(dm.m_num_unassoc_sta_metrics, metrics_before);
 }
 
+static std::vector<unsigned char> make_unassoc_sta_link_metrics_response(
+    const std::vector<std::vector<unsigned char>>& values)
+{
+    std::vector<unsigned char> response(sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t), 0);
+    auto* hdr = reinterpret_cast<em_raw_hdr_t*>(response.data());
+    hdr->type = htons(ETH_P_1905);
+    auto* cmdu = reinterpret_cast<em_cmdu_t*>(response.data() + sizeof(em_raw_hdr_t));
+    cmdu->type = htons(em_msg_type_unassoc_sta_link_metrics_rsp);
+    cmdu->last_frag_ind = 1;
+
+    for (const auto& value : values) {
+        response.push_back(static_cast<unsigned char>(em_tlv_type_unassoc_sta_link_metric_rsp));
+        response.push_back(static_cast<unsigned char>(value.size() >> 8));
+        response.push_back(static_cast<unsigned char>(value.size()));
+        response.insert(response.end(), value.begin(), value.end());
+    }
+    response.push_back(static_cast<unsigned char>(em_tlv_type_eom));
+    response.push_back(0);
+    response.push_back(0);
+    return response;
+}
+
 /* Valid zero-STA TLV (5 bytes with header) must pass message validation */
 TEST_F(EmMetricsTest, UnassocStaLinkMetrics_ZeroStaTlvPassesValidation)
 {
@@ -612,6 +633,8 @@ TEST_F(EmMetricsTest, UnassocStaLinkMetrics_ZeroStaThenOneSta)
     emMetrics->process_msg(response.data(), static_cast<unsigned int>(response.size()));
 
     EXPECT_EQ(dm.m_num_unassoc_sta_metrics, 1u);
+}
+
 TEST_F(EmMetricsTest, UsesPeerProfileAndUpdatesSharedDataModelOnce) {
     MetricsTestEmMgr mgr;
     dm_easy_mesh_t shared_dm;
