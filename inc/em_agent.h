@@ -299,6 +299,8 @@ class em_agent_t : public em_mgr_t {
 
 	void handle_link_stats_report(em_bus_event_t *evt);
 
+	void handle_vendor_data(em_bus_event_t *evt);
+
        /**!
         * @brief Handles an Unassociated STA Link Metrics Query event.
         *
@@ -417,6 +419,7 @@ public:
 	 */
 	int refresh_onewifi_subdoc(const char *log_name, const webconfig_subdoc_type_t type) override;
 
+	bool refresh_current_radio_data(const unsigned char *ruid) override;
     
 	/**
 	 * @brief Send an action frame
@@ -501,8 +504,25 @@ public:
 	 * @return true if successful or if the file already exists, false otherwise.
 	 */
 	bool try_create_default_em_cfg(std::string interface);
+
 	void load_em_plus_cfg();
 
+	/**!
+	 * @brief Fills the extended device information of the local data model.
+	 *
+	 * Assigns the boot id by hashing the kernel's per-boot UUID from
+	 * `/proc/sys/kernel/random/boot_id`, and reads the cloud client id and client
+	 * secret over the bus. A field that cannot be retrieved is left zeroed and logged, the
+	 * remaining ones are still filled.
+	 *
+	 * @returns int
+	 * @retval 0 on success
+	 * @retval -1 if no bus descriptor is available
+	 *
+	 * @note Must be called after the bus is open, since the credentials are fetched with the
+	 * bus handle of the agent. The filled data is sent to the controller in the WSC M1 message.
+	 */
+	int fill_extended_device_info();
 
 	/**!
 	* @brief Attempts to start DPP onboarding process.

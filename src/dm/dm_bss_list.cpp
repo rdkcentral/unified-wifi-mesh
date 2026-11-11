@@ -79,7 +79,9 @@ int dm_bss_list_t::set_config(db_client_t& db_client, dm_bss_t& bss, void *paren
     //printf("%s:%d: Parent: %s \n", __func__, __LINE__, (char *)parent_id);
 	parse_bss_id_from_key(static_cast<char *> (parent_id), &bss.m_bss_info.id);
 
-    update_db(db_client, (op = get_dm_orch_type(db_client, bss)), bss.get_bss_info());
+    if (update_db(db_client, (op = get_dm_orch_type(db_client, bss)), bss.get_bss_info()) != 0) {
+        return -1;
+    }
     update_list(bss, op);
                         
     return 0;
@@ -97,7 +99,9 @@ int dm_bss_list_t::set_config(db_client_t& db_client, const cJSON *obj_arr, void
     for (i = 0; i < size; i++) {
         obj = cJSON_GetArrayItem(obj_arr, i);
 		bss.decode(obj, parent_id);
-		update_db(db_client, (op = get_dm_orch_type(db_client, bss)), bss.get_bss_info());
+        if (update_db(db_client, (op = get_dm_orch_type(db_client, bss)), bss.get_bss_info()) != 0) {
+            return -1;
+        }
 		update_list(bss, op);
     }
 
@@ -163,6 +167,10 @@ void dm_bss_list_t::update_list(const dm_bss_t& bss, dm_orch_type_t op)
 
         case dm_orch_type_db_update:
 			pbss = get_bss(key);
+            if (pbss == NULL) {
+                em_printfout("update_list: BSS not found for update, key=%s", key);
+                break;
+            }
             memcpy(&pbss->m_bss_info, &bss.m_bss_info, sizeof(em_bss_info_t));
             break;
 
@@ -230,6 +238,9 @@ int dm_bss_list_t::update_db(db_client_t& db_client, dm_orch_type_t op, void *da
         strncat(back_akms, ",", strlen(",") + 1);
     }
 	
+    if (prepare_db_operation(db_client, op) != 0) {
+        return -1;
+    }
 	switch (op) {
 		case dm_orch_type_db_insert:
 			ret = insert_row(db_client, key, dm_easy_mesh_t::macbytes_to_string(info->bssid.mac, bss_mac_str),
@@ -269,6 +280,7 @@ bool dm_bss_list_t::search_db(db_client_t& db_client, void *ctx, void *key)
         db_client.get_string(ctx, str, 1);
 
         if (strncmp(str, static_cast<char *> (key), strlen(static_cast<char *> (key))) == 0) {
+            db_client.free_result(ctx);
             return true;
         }
     }

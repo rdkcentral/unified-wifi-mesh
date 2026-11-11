@@ -24,7 +24,12 @@
 #include <sys/time.h>
 #include <cstring>
 #include <type_traits>
+#include <atomic>
 #include "dm_easy_mesh.h"
+
+namespace util {
+	void monotonic_now(struct timeval *tv);
+}
 
 class em_cmd_t {
 public:
@@ -37,12 +42,14 @@ public:
     dm_easy_mesh_t  m_data_model;
     struct timeval  m_start_time;
 
-    unsigned int m_orch_op_idx;
+    unsigned int m_orch_op_idx = 0;
     em_orch_desc_t  m_orch_desc[EM_MAX_CMD];
-    unsigned int m_num_orch_desc;
+    unsigned int m_num_orch_desc = 0;
     unsigned int m_rd_op_class;
     unsigned int m_rd_channel;
     unsigned int m_db_cfg_type;
+    // Set by the per-radio thread, read by the orchestrator thread
+    std::atomic<bool> processed{false};
 
 public:
     
@@ -242,7 +249,10 @@ public:
 	 * memory leaks.
 	 */
 	virtual em_cmd_t *clone_for_next();
-    
+
+	// Returns raw payload bytes if the cmd carries them.
+	virtual const std::vector<uint8_t> *get_raw_data() const { return nullptr; }
+
 	/**!
 	 * @brief Clones the current em_cmd object.
 	 *
@@ -492,14 +502,14 @@ public:
 
     
 	/**!
-	 * @brief Sets the start time using the current time of day.
+	 * @brief Sets the command start time from the monotonic clock.
 	 *
-	 * This function initializes the start time by retrieving the current time
-	 * of day and storing it in the member variable `m_start_time`.
+	 * This function initializes the start time by reading CLOCK_MONOTONIC
+	 * and storing it in the member variable `m_start_time`.
 	 *
 	 * @note This function does not take any parameters and does not return any value.
 	 */
-	void set_start_time() { gettimeofday(&m_start_time, NULL);}
+	void set_start_time() { util::monotonic_now(&m_start_time); }
 
     
 	/**!

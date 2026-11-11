@@ -92,7 +92,9 @@ int dm_scan_result_list_t::set_config(db_client_t& db_client, const cJSON *obj_a
 		for (i = 0; i < scan_result.m_scan_result.num_neighbors; i++) {
 			res.result = scan_result.get_scan_result();
 			res.index = i;
-        	update_db(db_client, (op = get_dm_orch_type(db_client, scan_result, i)), &res);
+            if (update_db(db_client, (op = get_dm_orch_type(db_client, scan_result, i)), &res) != 0) {
+                return -1;
+            }
         	update_list(scan_result, i, op);
 		}
     }
@@ -109,12 +111,16 @@ int dm_scan_result_list_t::set_config(db_client_t& db_client, dm_scan_result_t& 
 	// first update the self with no neighbors
 	res.result = scan_result.get_scan_result();
 	res.index = scan_result_self_index;
-	update_db(db_client, (op = get_dm_orch_type(db_client, scan_result, scan_result_self_index)), &res);
+    if (update_db(db_client, (op = get_dm_orch_type(db_client, scan_result, scan_result_self_index)), &res) != 0) {
+        return -1;
+    }
 
 	for (i = 0; i < scan_result.m_scan_result.num_neighbors; i++) {
 		res.result = scan_result.get_scan_result();
 		res.index = i;
-    	update_db(db_client, (op = get_dm_orch_type(db_client, scan_result, i)), &res);
+        if (update_db(db_client, (op = get_dm_orch_type(db_client, scan_result, i)), &res) != 0) {
+            return -1;
+        }
     	update_list(scan_result, i, op);
 	}
 
@@ -249,6 +255,9 @@ int dm_scan_result_list_t::update_db(db_client_t& db_client, dm_orch_type_t op, 
 					scan_result->id.net_id, dev_mac_str, scanner_mac_str, scan_result->id.op_class, 
 					scan_result->id.channel, scan_result->id.scanner_type, bssid_str);
   
+    if (prepare_db_operation(db_client, op) != 0) {
+        return -1;
+    }
     switch (op) {
         case dm_orch_type_db_insert:
             ret = insert_row(db_client, key, scan_result->scan_status, scan_result->timestamp, scan_result->util, 
@@ -284,6 +293,7 @@ bool dm_scan_result_list_t::search_db(db_client_t& db_client, void *ctx, void *k
 		//printf("%s:%d: Comparing source: %s target: %s\n", __func__, __LINE__, str, (char *)key);
 
 		if (strncmp(str, static_cast<char *>(key), strlen(static_cast<char *>(key))) == 0) {
+            db_client.free_result(ctx);
             return true;
         }
     }

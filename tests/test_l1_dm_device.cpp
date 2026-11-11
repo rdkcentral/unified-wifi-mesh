@@ -21,6 +21,66 @@
 #include <gmock/gmock.h>
 #include <stdio.h>
 #include "dm_device.h"
+#include "dm_device_list.h"
+#include "db_client_none.h"
+
+class device_list_test_t : public dm_device_list_t {
+public:
+    MOCK_METHOD(dm_device_t *, get_first_device, (), (override));
+    MOCK_METHOD(dm_device_t *, get_next_device, (dm_device_t *), (override));
+    MOCK_METHOD(dm_device_t *, get_device, (const char *), (override));
+    MOCK_METHOD(void, remove_device, (const char *), (override));
+    MOCK_METHOD(void, put_device, (const char *, const dm_device_t *), (override));
+    MOCK_METHOD(void, update_device, (const char *, const dm_device_t *), (override));
+    MOCK_METHOD(bus_error_t, bus_get_cb_fwd,
+        (char *, raw_data_t *, bus_get_handler_t), (override));
+    MOCK_METHOD(bus_error_t, network_get, (char *, raw_data_t *), (override));
+    MOCK_METHOD(bus_error_t, device_get, (char *, raw_data_t *), (override));
+};
+
+class device_no_db_test_t : public db_client_none_t {
+public:
+    MOCK_METHOD(void *, execute, (const char *), (override));
+};
+
+TEST(dm_device_list_t_Test, NoDatabaseDoesNotReinsertExistingDevice) {
+    testing::StrictMock<device_list_test_t> devices;
+    testing::StrictMock<device_no_db_test_t> db;
+    ASSERT_EQ(db.init(nullptr), 0);
+    ASSERT_EQ(devices.init(), 0);
+    dm_device_t incoming;
+    dm_device_t stored;
+    memset(&incoming.m_device_info, 0, sizeof(incoming.m_device_info));
+    memset(&stored.m_device_info, 0, sizeof(stored.m_device_info));
+    char key[] = "Network1@02:00:00:00:00:01@0";
+    bool present = false;
+
+    EXPECT_CALL(db, execute(testing::_)).Times(2)
+        .WillRepeatedly(testing::Return(nullptr));
+    EXPECT_CALL(devices, get_device(testing::StrEq(key)))
+        .Times(4)
+        .WillRepeatedly([&](const char *) -> dm_device_t * {
+            return present ? &stored : nullptr;
+        });
+    EXPECT_CALL(devices, put_device(testing::StrEq(key), testing::_))
+        .WillOnce([&](const char *, const dm_device_t *device) {
+            stored = *device;
+            present = true;
+        });
+    EXPECT_CALL(devices, update_device(testing::StrEq(key), testing::_))
+        .Times(3)
+        .WillRepeatedly([&](const char *, const dm_device_t *device) {
+            stored = *device;
+        });
+
+    ASSERT_EQ(devices.set_config(db, incoming, key), 0);
+    ASSERT_TRUE(present);
+    ASSERT_EQ(devices.set_config(db, incoming, key), 0);
+    incoming.m_device_info.coll_interval = 30;
+    ASSERT_EQ(devices.set_config(db, incoming, key), 0);
+    EXPECT_EQ(stored.m_device_info.coll_interval, 30);
+    ASSERT_EQ(devices.set_config(db, incoming, key), 0);
+}
 
 
 /**
@@ -3382,4 +3442,60 @@ TEST(dm_device_t_Test, Destructor_called_on_heap_allocated_object) {
     });
     std::cout << "Destructor invoked successfully on heap allocated object." << std::endl;
     std::cout << "Exiting Destructor_called_on_heap_allocated_object test" << std::endl;
+}
+
+
+/**
+ * @brief Verify that dm_device_t::encode reports the manufacturer model as deviceModel.
+ *
+ * The topology identifies a device by deviceModel, taken from the manufacturer model and
+ * falling back to "unknown" when it is empty. This is checked with the summary flag
+ * enabled and disabled, and the device must still be encoded with its ID and Backhaul.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 108@n
+ * **Priority:** High@n
+ * @n
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ * @n
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01 | Encode a device with a manufacturer model, summary enabled | manufacturer_model = "XB10", summary = true | deviceModel is "XB10" | Should Pass |
+ * | 02 | Encode a device with a manufacturer model, summary disabled | manufacturer_model = "XB10", summary = false | deviceModel is "XB10" | Should Pass |
+ * | 03 | Encode a device with an empty manufacturer model, summary enabled | manufacturer_model = "", summary = true | deviceModel is "unknown" | Should Pass |
+ * | 04 | Encode a device with an empty manufacturer model, summary disabled | manufacturer_model = "", summary = false | deviceModel is "unknown" | Should Pass |
+ */
+TEST(dm_device_t_Test, EncodeReportsDeviceModel) {
+    std::cout << "Entering EncodeReportsDeviceModel test" << std::endl;
+    const struct {
+        const char *model;
+        const char *expected;
+    } cases[] = {
+        {"XB10", "XB10"},
+        {"", "unknown"},
+    };
+
+    for (const auto &c : cases) {
+        for (bool summary : {true, false}) {
+            dm_device_t device;
+            snprintf(device.get_device_info()->manufacturer_model,
+                sizeof(device.get_device_info()->manufacturer_model), "%s", c.model);
+
+            cJSON *obj = cJSON_CreateObject();
+            ASSERT_NE(obj, nullptr);
+            device.encode(obj, summary);
+
+            cJSON *model = cJSON_GetObjectItem(obj, "deviceModel");
+            ASSERT_NE(model, nullptr) << "model=" << c.model << " summary=" << summary;
+            ASSERT_TRUE(cJSON_IsString(model));
+            EXPECT_STREQ(model->valuestring, c.expected) << "summary=" << summary;
+            EXPECT_NE(cJSON_GetObjectItem(obj, "ID"), nullptr);
+            EXPECT_NE(cJSON_GetObjectItem(obj, "Backhaul"), nullptr);
+            cJSON_Delete(obj);
+        }
+    }
+    std::cout << "Exiting EncodeReportsDeviceModel test" << std::endl;
 }

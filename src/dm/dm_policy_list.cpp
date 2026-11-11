@@ -91,7 +91,7 @@ int dm_policy_list_t::get_config(cJSON *parent_obj, void *parent, bool summary)
 			dm_easy_mesh_t *dev_dm = ctrl ? ctrl->get_data_model(GLOBAL_NET_ID, dev_mac) : nullptr;
 			if (dev_dm != nullptr) {
 				policy->m_policy.num_backhaul_bss_config = 0;
-				for (unsigned int bi = 0; bi < dev_dm->m_num_bss && policy->m_policy.num_backhaul_bss_config < EM_MAX_BSS_PER_RADIO; bi++) {
+				for (unsigned int bi = 0; bi < dev_dm->m_num_bss && policy->m_policy.num_backhaul_bss_config < EM_MAX_BSSS; bi++) {
 					em_bss_info_t *bss_info = dev_dm->m_bss[bi].get_bss_info();
 					if (bss_info == nullptr || bss_info->id.haul_type != em_haul_type_backhaul) {
 						continue;
@@ -172,7 +172,9 @@ int dm_policy_list_t::set_config(db_client_t& db_client, const cJSON *obj_arr, v
     for (i = 0; i < size; i++) {
         obj = cJSON_GetArrayItem(obj_arr, i);
         policy.decode(obj, parent_id);
-        update_db(db_client, (op = get_dm_orch_type(db_client, policy)), policy.get_policy());
+        if (update_db(db_client, (op = get_dm_orch_type(db_client, policy)), policy.get_policy()) != 0) {
+            return -1;
+        }
         update_list(policy, op);
     }
 
@@ -182,8 +184,9 @@ int dm_policy_list_t::set_config(db_client_t& db_client, const cJSON *obj_arr, v
 int dm_policy_list_t::set_config(db_client_t& db_client, dm_policy_t& policy, void *parent_id)
 {
     dm_orch_type_t op;
-    parse_dev_radio_mac_from_key(static_cast<char *>(parent_id), &policy.m_policy.id);
-    update_db(db_client, (op = get_dm_orch_type(db_client, policy)), policy.get_policy());
+    if (update_db(db_client, (op = get_dm_orch_type(db_client, policy)), policy.get_policy()) != 0) {
+        return -1;
+    }
     update_list(policy, op);
 
     return 0;
@@ -236,6 +239,10 @@ void dm_policy_list_t::update_list(const dm_policy_t& policy, dm_orch_type_t op)
 
         case dm_orch_type_db_update:
             ppolicy = get_policy(key);
+            if (ppolicy == NULL) {
+                put_policy(key, &policy);
+                break;
+            }
             memcpy(&ppolicy->m_policy, &policy.m_policy, sizeof(em_policy_t));
             break;
 
@@ -287,6 +294,9 @@ int dm_policy_list_t::update_db(db_client_t& db_client, dm_orch_type_t op, void 
     dm_easy_mesh_t::macbytes_to_string(policy->id.radio_mac, radio_mac_str);
 
 	snprintf(key, sizeof(key), "%s@%s@%s@%d", policy->id.net_id, dev_mac_str, radio_mac_str, policy->id.type);
+    if (prepare_db_operation(db_client, op) != 0) {
+        return -1;
+    }
 
 	memset(sta_mac_list_str, 0, sizeof(sta_mac_list_str));
     for (i = 0; i < policy->num_sta; i++) {
@@ -336,6 +346,7 @@ bool dm_policy_list_t::search_db(db_client_t& db_client, void *ctx, void *key)
 		//printf("%s:%d: Comparing source: %s target: %s\n", __func__, __LINE__, str, (char *)key);
 
         if (strncmp(str, static_cast<char *>(key), strlen(static_cast<char *>(key))) == 0) {
+            db_client.free_result(ctx);
             return true;
         }
     }

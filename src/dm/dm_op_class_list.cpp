@@ -147,9 +147,17 @@ int dm_op_class_list_t::set_config(db_client_t& db_client, const cJSON *obj_arr,
 
     for (i = 0; i < size; i++) {
         obj = cJSON_GetArrayItem(obj_arr, i);
-        op_class.decode(obj, parent_id);
-        update_db(db_client, (op = get_dm_orch_type(db_client, op_class)), op_class.get_op_class_info());
-        update_list(op_class, op);
+        if (op_class.decode(obj, parent_id) != 0) {
+            printf("%s:%d: Failed to decode op class at index %d\n", __func__, __LINE__, i);
+            return -1;
+        }
+        op = get_dm_orch_type(db_client, op_class);
+        if (update_list(op_class, op) != 0) {
+            return -1;
+        }
+        if (update_db(db_client, op, op_class.get_op_class_info()) != 0) {
+            return -1;
+        }
     }
 
     return 0;
@@ -160,8 +168,13 @@ int dm_op_class_list_t::set_config(db_client_t& db_client, dm_op_class_t& op_cla
     dm_orch_type_t op;
 
     //printf("dm_op_class_list_t::%s:%d: id: %s\n", __func__, __LINE__, (char *)parent_id);
-    update_db(db_client, (op = get_dm_orch_type(db_client, op_class)), op_class.get_op_class_info());
-    update_list(op_class, op);
+    op = get_dm_orch_type(db_client, op_class);
+    if (update_list(op_class, op) != 0) {
+        return -1;
+    }
+    if (update_db(db_client, op, op_class.get_op_class_info()) != 0) {
+        return -1;
+    }
 
     return 0;
 }
@@ -198,7 +211,7 @@ dm_orch_type_t dm_op_class_list_t::get_dm_orch_type(db_client_t& db_client, cons
     return dm_orch_type_db_insert;
 }
 
-void dm_op_class_list_t::update_list(const dm_op_class_t& op_class, dm_orch_type_t op)
+int dm_op_class_list_t::update_list(const dm_op_class_t& op_class, dm_orch_type_t op)
 {
     dm_op_class_t *pop_class;
     mac_addr_str_t	mac_str;
@@ -209,8 +222,7 @@ void dm_op_class_list_t::update_list(const dm_op_class_t& op_class, dm_orch_type
 
     switch (op) {
         case dm_orch_type_db_insert:
-            put_op_class(key, &op_class);
-            break;
+            return put_op_class(key, &op_class);
 
         case dm_orch_type_db_update:
             pop_class = get_op_class(key);
@@ -224,6 +236,8 @@ void dm_op_class_list_t::update_list(const dm_op_class_t& op_class, dm_orch_type
         default:
             break;
     }
+
+    return 0;
 }
 
 void dm_op_class_list_t::delete_list()
@@ -261,6 +275,9 @@ int dm_op_class_list_t::update_db(db_client_t& db_client, dm_orch_type_t op, voi
 
     dm_easy_mesh_t::macbytes_to_string(info->id.ruid, mac_str);
     snprintf(id, sizeof(id), "%s@%d@%d", mac_str, info->id.type, info->id.op_class);
+    if (prepare_db_operation(db_client, op) != 0) {
+        return -1;
+    }
     //printf("%s:%d: Operation:%d, id:%s\tClass: %d Channel:%d\n", __func__, __LINE__, op, id, info->op_class, info->channel);
     //Storing channels and its preferences as comma separated string in db.
 	for (i = 0; i < info->num_channels; i++) {
@@ -312,6 +329,7 @@ bool dm_op_class_list_t::search_db(db_client_t& db_client, void *ctx, void *key)
 		//printf("%s:%d: Comparing source: %s target: %s\n", __func__, __LINE__, str, (char *)key);
 
         if (strncmp(str, static_cast<char *>(key), strlen(static_cast<char *>(key))) == 0) {
+            db_client.free_result(ctx);
             return true;
         }
     }

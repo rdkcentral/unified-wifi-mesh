@@ -51,6 +51,7 @@ void dm_ap_mld_t::operator = (const dm_ap_mld_t& obj)
 {
     if (this == &obj) { return; }
     this->m_ap_mld_info.mac_addr_valid = obj.m_ap_mld_info.mac_addr_valid;
+    this->m_ap_mld_info.haul_type = obj.m_ap_mld_info.haul_type;
     memcpy(&this->m_ap_mld_info.ssid,&obj.m_ap_mld_info.ssid,sizeof(ssid_t));
     memcpy(&this->m_ap_mld_info.mac_addr ,&obj.m_ap_mld_info.mac_addr,sizeof(mac_address_t));
     this->m_ap_mld_info.str = obj.m_ap_mld_info.str;
@@ -73,6 +74,7 @@ bool dm_ap_mld_t::operator == (const dm_ap_mld_t& obj)
 	int ret = 0;
 
     ret += !(this->m_ap_mld_info.mac_addr_valid == obj.m_ap_mld_info.mac_addr_valid);
+    ret += !(this->m_ap_mld_info.haul_type == obj.m_ap_mld_info.haul_type);
     ret += (memcmp(&this->m_ap_mld_info.ssid,&obj.m_ap_mld_info.ssid,sizeof(ssid_t)) != 0);
     ret += (memcmp(&this->m_ap_mld_info.mac_addr,&obj.m_ap_mld_info.mac_addr,sizeof(mac_address_t)) != 0);
     ret += !(this->m_ap_mld_info.str == obj.m_ap_mld_info.str);
