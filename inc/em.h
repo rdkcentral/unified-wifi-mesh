@@ -563,6 +563,11 @@ public:
 	 * @note Ensure that the returned pointer is not null before using it.
 	 */
 	dm_easy_mesh_t *get_data_model() { return m_data_model; }  
+
+	/**!
+	 * @brief Points this radio node at a different data model.
+	 */
+	void set_data_model(dm_easy_mesh_t *dm) { m_data_model = dm; }
     
 	/**!
 	 * @brief Copies the data model into the member variable.

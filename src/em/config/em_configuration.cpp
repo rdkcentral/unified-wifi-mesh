@@ -5858,7 +5858,8 @@ int em_configuration_t::create_encrypted_settings(unsigned char *buff, em_haul_t
     len = 0;
 
     dm_easy_mesh_t *dm = get_data_model();
-    unsigned int radio_exists, i;
+    unsigned int i;
+    bool radio_exists = false;
     dm_radio_t * radio = NULL;
 
     for (i = 0; i < dm->get_num_radios(); i++) {
