@@ -70,8 +70,6 @@ int dm_easy_mesh_agent_t::analyze_dev_init(em_bus_event_t *evt, em_cmd_t *pcmd[]
 
 	dm.translate_onewifi_dml_data(reinterpret_cast<char *> (evt->u.raw_buff));
 #ifdef AL_SAP
-    // When AL_SAP is enabled the agent and controller AL MAC should be changed
-    // to the mac obtained from al_sap instead of mac from dml
     mac_addr_str_t al_mac_str;
     mac_address_t al_mac;
     int i=0;
@@ -83,6 +81,23 @@ int dm_easy_mesh_agent_t::analyze_dev_init(em_bus_event_t *evt, em_cmd_t *pcmd[]
     printf("%s:%d al_mac = %s\n", __func__, __LINE__,al_mac_str);
     dm.set_ctrl_al_interface_mac(static_cast<unsigned char*>(al_mac));
     dm.set_agent_al_interface_mac(static_cast<unsigned char*>(al_mac));
+    memcpy(dm.get_device_info()->backhaul_alid.mac, al_mac, sizeof(mac_address_t));
+    memcpy(dm.get_network_info()->colocated_agent_id.mac, al_mac, sizeof(mac_address_t));
+    snprintf(dm.get_network_info()->id, sizeof(dm.get_network_info()->id), "%s", al_mac_str);
+    memcpy(dm.get_ieee_1905_security_info()->id, al_mac, sizeof(mac_address_t));
+
+    em_interface_name_t al_ifname = {0};
+    if (dm_easy_mesh_t::name_from_mac_address(&al_mac, al_ifname) != 0) {
+        em_printfout("AL SAP MAC %s has no local interface name", al_mac_str);
+    }
+    dm.set_ctrl_al_interface_name(al_ifname);
+    snprintf(dm.get_device_info()->backhaul_alid.name,
+        sizeof(dm.get_device_info()->backhaul_alid.name), "%s", al_ifname);
+    snprintf(dm.get_network_info()->colocated_agent_id.name,
+        sizeof(dm.get_network_info()->colocated_agent_id.name), "%s", al_ifname);
+#else
+    em_printfout("Device initialization requires AL SAP; OneWifi no longer supplies AL MAC");
+    return 0;
 #endif
 
     dm.print_config();
