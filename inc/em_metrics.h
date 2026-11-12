@@ -592,17 +592,6 @@ class em_metrics_t {
         */
         int handle_unassoc_sta_link_metrics_rsp(unsigned char *buff, unsigned int len);
 
-       /*
-        * @brief Parses and processes an Unassociated STA
-        *        Link Metrics TLV.
-        *
-        * @param buff TLV payload buffer.
-	* @param tlv_len TLV length
-        *
-        * @return 0 on success.
-        */
-        int handle_unassoc_sta_link_metrics_tlv(unsigned char *buff, unsigned int tlv_len);
-
        /* 
         * @brief Sends an Unassociated STA Link Metrics Query
         *        message from Controller to Agent.
@@ -768,6 +757,17 @@ public:
 	short send_single_beacon_metrics_query_msg();
 
 	short send_beacon_metrics_query(mac_address_t sta_mac, bssid_t bssid);
+
+	/**!
+	 * @brief Parses and processes an Unassociated STA
+	 *        Link Metrics TLV.
+	 *
+	 * @param buff TLV payload buffer.
+	 * @param tlv_len TLV length
+	 *
+	 * @return 0 on success.
+	 */
+	int handle_unassoc_sta_link_metrics_tlv(unsigned char *buff, unsigned int tlv_len);
 
 	/**!
 	 * @brief Retrieves the manager instance.
