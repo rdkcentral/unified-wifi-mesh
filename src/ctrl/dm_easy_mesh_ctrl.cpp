@@ -5356,7 +5356,12 @@ const char* dm_easy_mesh_ctrl_t::get_table_instance(const char *src, char *insta
 	char *dst = instance;
 	size_t len = 0;
 
+    if (src == NULL) {
+        return NULL;
+    }
+
     src = strstr(src, ".");
+
     if (src == NULL) {
         return NULL;
     }
@@ -5369,9 +5374,11 @@ const char* dm_easy_mesh_ctrl_t::get_table_instance(const char *src, char *insta
 			*dst++ = *src++;
 		}
 		*dst++ = 0;
-        for (int k = 0; k < 2 && *src; k++) {
-            src++;
+        if (*src != ']' || src[1] != '.') {
+            return NULL;
         }
+        src += 2;
+
 	} else {
 		*is_num = true;
 		while (*src && *src != '.' && ++len < max_len) {
