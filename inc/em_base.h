@@ -3892,6 +3892,17 @@ typedef struct{
 }em_dev_test_info;
 
 typedef struct {
+    uint8_t ruid[EM_MAC_ADDR_LEN];
+    uint8_t reserved[2];
+    int32_t tx_power;
+} em_tx_power_radio_t;
+
+typedef struct {
+    uint32_t radio_count;
+    em_tx_power_radio_t radios[EM_MAX_RADIO_PER_AGENT];
+} em_tx_power_response_t;
+
+typedef struct {
     const char *name;
     uint32_t hex;
 } SecurityTypeMap;

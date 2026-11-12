@@ -447,7 +447,8 @@ public:
         return false;
     }
 
-    
+	virtual bool request_runtime_tx_power(const unsigned char *, int *) {return false;}
+
 	/**!
 	 * @brief Finds the EM for a given message type.
 	 *
