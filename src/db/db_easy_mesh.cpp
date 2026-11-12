@@ -23,7 +23,7 @@
 #include <errno.h>
 #include <assert.h>
 #include <signal.h>
-#include <vector>
+#include <sqlite3.h>
 #include "db_easy_mesh.h"
 #include "util.h"
 
@@ -45,7 +45,8 @@ char *db_easy_mesh_t::get_column_format(db_fmt_t fmt, unsigned int pos)
         case db_data_type_binary:
         case db_data_type_varbinary:
         case db_data_type_text:
-            snprintf(fmt, sizeof(db_fmt_t), "%s", "'%s', ");
+            // %Q (sqlite3_vmprintf) quotes and escapes, so an SSID such as Bob's WiFi is stored as is
+            snprintf(fmt, sizeof(db_fmt_t), "%s", "%Q, ");
             break;
 
         case db_data_type_integer:
@@ -56,6 +57,7 @@ char *db_easy_mesh_t::get_column_format(db_fmt_t fmt, unsigned int pos)
         case db_data_type_bigint:
             snprintf(fmt, sizeof(db_fmt_t), "%s", "%d, ");
             break;
+
         default:
             break;
     }
@@ -76,12 +78,16 @@ bool db_easy_mesh_t::is_table_empty(db_client_t& db_client)
 
     snprintf(query, sizeof(db_query_t), "select * from %s", m_table_name);
 
-    ctx = db_client.execute(query);
+    bool succeeded = false;
+    ctx = db_client.execute(query, &succeeded);
 
     if (ctx == NULL) {
-        // A failed check requires the same initialization recovery as an empty table.
-        printf("%s:%d: Error: Select query failed for table %s; requesting database initialization\n",
-               __func__, __LINE__, m_table_name);
+        // No result context: either the table has no rows, or the query failed. Both need the
+        // same initialization, but only a failed query is an error.
+        if (!succeeded) {
+            printf("%s:%d: Error: Select query failed for table %s; requesting database initialization\n",
+                   __func__, __LINE__, m_table_name);
+        }
         return true;
     }
 
@@ -129,15 +135,30 @@ int db_easy_mesh_t::get_strings_by_token(char *parent, int token, unsigned int a
     return static_cast<int> (num);
 }
 
+// Runs a row query built by sqlite3_vmprintf, which sizes it to fit (a long BSSList ACL is never
+// cut off) and escapes its text values
+static int execute_row_query(db_client_t& db_client, const char *format, va_list list)
+{
+    char *query = sqlite3_vmprintf(format, list);
+    bool succeeded = false;
+
+    if (query == NULL) {
+        return -1;
+    }
+
+    void *ctx = db_client.execute(query, &succeeded);
+    db_client.free_result(ctx);
+    sqlite3_free(query);
+
+    return succeeded ? 0 : -1;
+}
+
 int db_easy_mesh_t::insert_row(db_client_t& db_client, ...)
 {
     unsigned int i;
-    va_list list, list_copy;
+    va_list list;
     db_query_t format;
-    std::vector<char> query;
-    int query_len;
     db_fmt_t	col_fmt;
-    void *ctx;
 
     // no-op backend: skip query construction, there is nothing to execute against
     if (!db_client.is_persistent()) {
@@ -163,33 +184,18 @@ int db_easy_mesh_t::insert_row(db_client_t& db_client, ...)
 
     // Values such as a frame body have no fixed size, so size the query to fit them
     va_start(list, db_client);
-    va_copy(list_copy, list);
-    query_len = vsnprintf(NULL, 0, format, list_copy);
-    va_end(list_copy);
-    if (query_len < 0) {
-        va_end(list);
-        printf("%s:%d: Failed to format insert query for %s\n", __func__, __LINE__, m_table_name);
-        return -1;
-    }
-    query.resize(static_cast<size_t>(query_len) + 1);
-    (void) vsnprintf(query.data(), query.size(), format, list);
+    int ret = execute_row_query(db_client, format, list);
     va_end(list);
 
-    //printf("%s:%d: Query: %s\n", __func__, __LINE__, query.data());
-
-    ctx = db_client.execute(query.data());
-    db_client.free_result(ctx);
-
-    return 0;
+    return ret;
 }
 
 int db_easy_mesh_t::update_row(db_client_t& db_client, ...)
 {
     unsigned int i;
-    db_query_t	tmp, format, query;
+    db_query_t	tmp, format;
     va_list list;
     db_fmt_t	col_fmt;
-    void *ctx;
 
     // no-op backend: skip query construction, there is nothing to execute against
     if (!db_client.is_persistent()) {
@@ -199,7 +205,6 @@ int db_easy_mesh_t::update_row(db_client_t& db_client, ...)
     snprintf(format, sizeof(db_query_t), "update %s set ", m_table_name);
 
     for (i = 1; i < m_num_cols; i++) {
-        memset(tmp, 0, sizeof(db_query_t));
         snprintf(tmp, sizeof(db_query_t), "%s = ", m_columns[i].m_name);
         snprintf(format + strlen(format), sizeof(format) - strlen(format), "%s", tmp);
         snprintf(format + strlen(format), sizeof(format) - strlen(format), "%s", get_column_format(col_fmt, i));
@@ -213,22 +218,17 @@ int db_easy_mesh_t::update_row(db_client_t& db_client, ...)
     format[strlen(format) - 2] = 0;
 
     va_start(list, db_client);
-    (void) vsnprintf(query, sizeof(db_query_t), format, list);
+    int ret = execute_row_query(db_client, format, list);
     va_end(list);
 
-    //printf("%s:%d: Query: %s\n", __func__, __LINE__, query);
-
-    ctx = db_client.execute(query);
-    db_client.free_result(ctx);
-
-    return 0;
+    return ret;
 }
 
 int db_easy_mesh_t::compare_row(db_client_t& db_client, ...)
 {
     unsigned int i;
     va_list list;
-    db_query_t tmp, format, query;
+    db_query_t tmp, format;
     db_fmt_t col_fmt;
     void *ctx;
 
@@ -246,10 +246,15 @@ int db_easy_mesh_t::compare_row(db_client_t& db_client, ...)
     }
 
     va_start(list, db_client);
-    (void) vsnprintf(query, sizeof(db_query_t), format, list);
+    char *query = sqlite3_vmprintf(format, list);
     va_end(list);
 
+    if (query == NULL) {
+        return false;
+    }
+
     ctx = db_client.execute(query);
+    sqlite3_free(query);
     bool comparison_success = false;
 
     while (db_client.next_result(ctx) == true) {
@@ -262,10 +267,9 @@ int db_easy_mesh_t::compare_row(db_client_t& db_client, ...)
 
 int db_easy_mesh_t::delete_row(db_client_t& db_client, ...)
 {
-    db_query_t	tmp, format, query;
+    db_query_t	tmp, format;
     va_list list;
     db_fmt_t	col_fmt;
-    void *ctx;
 
     // no-op backend: skip query construction, there is nothing to execute against
     if (!db_client.is_persistent()) {
@@ -280,15 +284,10 @@ int db_easy_mesh_t::delete_row(db_client_t& db_client, ...)
     format[strlen(format) - 2] = 0;
     
     va_start(list, db_client);
-    (void) vsnprintf(query, sizeof(db_query_t), format, list);
+    int ret = execute_row_query(db_client, format, list);
     va_end(list);
 
-    //printf("%s:%d: Query: %s\n", __func__, __LINE__, query);
-
-    ctx = db_client.execute(query);
-    db_client.free_result(ctx);
-
-    return 0;
+    return ret;
 }
 
 
@@ -296,6 +295,7 @@ int db_easy_mesh_t::sync_table(db_client_t& db_client)
 {
     db_query_t    query;
     void *ctx;
+    int ret;
 
     // no-op backend: skip query construction, there is nothing to execute against
     if (!db_client.is_persistent()) {
@@ -305,9 +305,18 @@ int db_easy_mesh_t::sync_table(db_client_t& db_client)
     memset(query, 0, sizeof(db_query_t));
     snprintf(query, sizeof(db_query_t), "select * from %s", m_table_name);
 
-    ctx = db_client.execute(query);
+    bool succeeded = false;
+    ctx = db_client.execute(query, &succeeded);
 
-    return sync_db(db_client, ctx);
+    // A select on an empty table returns no result context but succeeds; sync_db() sees no rows
+    if (!succeeded) {
+        printf("%s:%d: Error: Select query failed for table %s\n", __func__, __LINE__, m_table_name);
+        return -1;
+    }
+
+    ret = sync_db(db_client, ctx);
+
+    return ret;
 
 }
 
@@ -361,59 +370,7 @@ int db_easy_mesh_t::create_table(db_client_t& db_client)
         snprintf(query + strlen(query), sizeof(query) - strlen(query), "%s", m_columns[i].m_name);
         snprintf(query + strlen(query), sizeof(query) - strlen(query), "%s", " ");
 
-        switch (m_columns[i].m_type) {
-            case db_data_type_char:
-                snprintf(type_str, sizeof(type_str), "char(%d)", m_columns[i].m_type_args);
-                break;
-
-            case db_data_type_varchar:
-                snprintf(type_str, sizeof(type_str), "varchar(%d)", m_columns[i].m_type_args);
-                break;
-
-            case db_data_type_binary:
-                snprintf(type_str, sizeof(type_str), "binary(%d)", m_columns[i].m_type_args);
-                break;
-
-            case db_data_type_varbinary:
-                snprintf(type_str, sizeof(type_str), "varbinary(%d)", m_columns[i].m_type_args);
-                break;
-
-            case db_data_type_text:
-                snprintf(type_str, sizeof(type_str), "text(%d)", m_columns[i].m_type_args);
-                break;
-
-            case db_data_type_integer:
-                snprintf(type_str, sizeof(type_str), "integer");
-                break;
-
-            case db_data_type_int:
-                snprintf(type_str, sizeof(type_str), "int");
-                break;
-
-            case db_data_type_smallint:
-                snprintf(type_str, sizeof(type_str), "smallint");
-                break;
-
-            case db_data_type_bigint:
-                snprintf(type_str, sizeof(type_str), "bigint");
-                break;
-
-            case db_data_type_tinyint:
-                snprintf(type_str, sizeof(type_str), "integer");
-                break;
-
-            case db_data_type_datetime:
-                snprintf(type_str, sizeof(type_str), "text");
-                break;
-
-            case db_data_type_mediumint:
-                snprintf(type_str, sizeof(type_str), "mediumint");
-                break;
-
-            default:
-                assert(0);
-                break;	
-        }
+        get_column_type(i, type_str, sizeof(type_str));
         snprintf(query + strlen(query), sizeof(query) - strlen(query), "%s", type_str);
         snprintf(query + strlen(query), sizeof(query) - strlen(query), "%s", ", ");
     }
@@ -424,6 +381,109 @@ int db_easy_mesh_t::create_table(db_client_t& db_client)
     //printf("%s:%d: Query: %s\n", __func__, __LINE__, query);
 
     return 0;
+}
+
+char *db_easy_mesh_t::get_column_type(unsigned int pos, char *type_str, unsigned int sz)
+{
+    switch (m_columns[pos].m_type) {
+        case db_data_type_char:
+            snprintf(type_str, sz, "char(%d)", m_columns[pos].m_type_args);
+            break;
+
+        case db_data_type_varchar:
+            snprintf(type_str, sz, "varchar(%d)", m_columns[pos].m_type_args);
+            break;
+
+        case db_data_type_binary:
+            snprintf(type_str, sz, "binary(%d)", m_columns[pos].m_type_args);
+            break;
+
+        case db_data_type_varbinary:
+            snprintf(type_str, sz, "varbinary(%d)", m_columns[pos].m_type_args);
+            break;
+
+        case db_data_type_text:
+            snprintf(type_str, sz, "text(%d)", m_columns[pos].m_type_args);
+            break;
+
+        case db_data_type_integer:
+            snprintf(type_str, sz, "integer");
+            break;
+
+        case db_data_type_tinyint:
+            snprintf(type_str, sz, "integer");
+            break;
+
+        case db_data_type_datetime:
+            snprintf(type_str, sz, "text");
+            break;
+
+        case db_data_type_int:
+            snprintf(type_str, sz, "int");
+            break;
+
+        case db_data_type_smallint:
+            snprintf(type_str, sz, "smallint");
+            break;
+
+        case db_data_type_bigint:
+            snprintf(type_str, sz, "bigint");
+            break;
+
+        case db_data_type_mediumint:
+            snprintf(type_str, sz, "mediumint");
+            break;
+
+        default:
+            // assert() is compiled out in release builds, so never leave type_str uninitialized
+            snprintf(type_str, sz, "%s", "");
+            assert(0);
+            break;
+    }
+
+    return type_str;
+}
+
+void db_easy_mesh_t::align_table_columns(db_client_t& db_client)
+{
+    db_query_t    query;
+    db_result_t   result;
+    char type_str[64];
+    bool present[EM_MAX_COLS];
+    void *ctx;
+    unsigned int i;
+
+    memset(present, 0, sizeof(present));
+
+    memset(query, 0, sizeof(db_query_t));
+    snprintf(query, sizeof(db_query_t), "pragma table_info(%s)", m_table_name);
+
+    ctx = db_client.execute(query);
+    while (db_client.next_result(ctx)) {
+        memset(result, 0, sizeof(db_result_t));
+        // table_info columns: cid, name, type, notnull, dflt_value, pk
+        if (db_client.get_string(ctx, result, 2) == NULL) {
+            continue;
+        }
+        for (i = 0; i < m_num_cols; i++) {
+            if (strcmp(result, m_columns[i].m_name) == 0) {
+                present[i] = true;
+                break;
+            }
+        }
+    }
+
+    for (i = 0; i < m_num_cols; i++) {
+        if (present[i] == true) {
+            continue;
+        }
+
+        get_column_type(i, type_str, sizeof(type_str));
+        memset(query, 0, sizeof(db_query_t));
+        snprintf(query, sizeof(db_query_t), "alter table %s add column %s %s",
+                    m_table_name, m_columns[i].m_name, type_str);
+        db_client.execute(query);
+    }
 }
 
 int db_easy_mesh_t::load_table(db_client_t& db_client)
@@ -453,6 +513,7 @@ int db_easy_mesh_t::load_table(db_client_t& db_client)
     //printf("%s:%d: Table: %s %s\n", __func__, __LINE__, m_table_name, (present == true) ? "present":"not present");
 
     if (present == true) {
+        align_table_columns(db_client);
         sync_table(db_client);
     } else {
         create_table(db_client);

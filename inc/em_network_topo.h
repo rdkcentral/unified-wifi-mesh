@@ -22,11 +22,17 @@
 #include "em_base.h"
 #include "dm_easy_mesh.h"
 
+// Phases a backhaul reconfig candidate may go without an M2 before its parent moves on without it
+#define EM_BH_RECONFIG_MAX_TRIES 3
+
 class em_network_topo_t {
 
 	dm_easy_mesh_t	*m_data_model;
 	unsigned int m_num_topologies;	
 	em_network_topo_t	*m_topology[EM_MAX_NETWORKS];
+
+	bool m_bh_processed;
+	bool m_bh_reconfig_active;
 
 public:
 	
@@ -112,6 +118,52 @@ public:
 	 * @note Ensure that the returned pointer is not null before using it.
 	 */
 	dm_easy_mesh_t *get_data_model() { return m_data_model; }
+
+	/**!
+	 * @brief Returns true when this node has taken the new backhaul configuration (or was given up on).
+	 */
+	bool is_bh_processed() { return m_bh_processed; }
+
+	/**!
+	 * @brief Counts one backhaul reconfig phase in which this node's agent got no M2.
+	 *
+	 * The node stays unprocessed, so the next phase retries it while its parent still has the old
+	 * credentials. After EM_BH_RECONFIG_MAX_TRIES phases it is marked processed so the rest of the
+	 * tree can move on; that agent keeps the old credentials.
+	 */
+	void note_bh_reconfig_failure();
+
+	// Atomic: also read on the bus thread (TR-181 SetSSID)
+	bool is_bh_reconfig_active() { return __atomic_load_n(&m_bh_reconfig_active, __ATOMIC_ACQUIRE); }
+	void set_bh_reconfig_active(bool active) { __atomic_store_n(&m_bh_reconfig_active, active, __ATOMIC_RELEASE); }
+	void set_bh_processed(bool processed) {
+		m_bh_processed = processed;
+		if (m_data_model != NULL) {
+			m_data_model->set_bh_reconfig_processed(processed);
+		}
+	}
+
+	void send_bh_reconfig_event();
+	void reset_bh_reconfig();
+	/**!
+	 * @brief Marks the agent of every node in this tree as enrolled in the backhaul reconfig walk.
+	 */
+	void enroll_bh_reconfig();
+
+	/**!
+	 * @brief The first node below this one, breadth first, that can take one more child.
+	 * @returns The node, or NULL if there is none (no node below this one).
+	 */
+	em_network_topo_t *find_free_child_slot();
+	bool is_bh_reconfig_candidate();
+	/**!
+	 * @brief Marks nodes with nothing to reconfigure as processed, bottom-up: no radio em, or an
+	 * agent that joined during the walk (not enrolled; its M2 is held until the walk ends).
+	 *
+	 * Such a node never becomes an orchestration candidate, so without this its parent and
+	 * every ancestor would wait for it forever and keep the old backhaul credentials.
+	 */
+	void mark_bh_leaves_processed();
 	
 	
 	/**!
@@ -193,7 +245,7 @@ public:
 	 * @note This constructor does not take any parameters and does not return any values.
 	 */
 	em_network_topo_t();
-    
+
 	/**!
 	 * @brief Destructor for the em_network_topo_t class.
 	 *

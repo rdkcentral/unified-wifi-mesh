@@ -34,6 +34,7 @@
 #include <unistd.h>
 #include <pthread.h>
 #include <cjson/cJSON.h>
+#include "util.h"
 #include "em_agent.h"
 #include "em_ext_hooks.h"
 #include "em_msg.h"
@@ -254,13 +255,44 @@ void em_agent_t::handle_m2ctrl_configuration(em_bus_event_t *evt)
 
     if((desc = get_bus_descriptor()) == NULL) {
        printf("descriptor is null");
+    } else if (m_orch->is_cmd_type_in_progress(evt) == true) {
+        m_agent_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
+    } else {
+        m2ctrl_private_retry_t *slot = get_private_retry_slot(evt);
+        // Another band's retry counts too; this band's own one is replaced by this M2 either way
+        bool other_pending = false;
+        for (unsigned int i = 0; i < EM_MAX_BANDS; i++) {
+            if (m_private_retry[i].used && (&m_private_retry[i] != slot)) {
+                other_pending = true;
+            }
+        }
+        num = static_cast<unsigned int>(m_data_model.analyze_m2ctrl_configuration(evt, desc, &m_bus_hdl,
+            (slot != NULL) ? &slot->cfg : NULL, (slot != NULL) ? &slot->vap_type : NULL, other_pending));
+        if ((num != EM_M2CTRL_PRIVATE_RETRY) && (slot != NULL) && slot->used) {
+            // This newer M2 for the band went out: the configuration still retried is stale
+            memset(slot, 0, sizeof(*slot));
+            m_data_model.release_m2ctrl_pending();
+            release_held_bsta_reconnect();
+        }
+        if (num == 0) {
+            printf("analyze_onewifi_private_subdoc complete");
+        } else if ((num == EM_M2CTRL_PRIVATE_RETRY) && (slot != NULL)) {
+            // A newer M2 for the band replaces one still retried, which needs no applying any more
+            if (slot->used) {
+                m_data_model.release_m2ctrl_pending();
+            }
+            slot->used = true;
+            slot->tries_left = EM_MAX_RENEW_TX_THRESH;
+            em_printfout("Private subdoc push failed, retrying up to %u times", slot->tries_left);
+            // Held until applied or out of tries (retry_private_pushes)
+            return;
+        }
     }
 
-    if (m_orch->is_cmd_type_in_progress(evt) == true) {
-        m_agent_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
-    } else if ((num = static_cast<unsigned int>(m_data_model.analyze_m2ctrl_configuration(evt, desc, &m_bus_hdl))) == 0) {
-	    printf("analyze_onewifi_private_subdoc complete");
-    }
+    // Queued by the em thread (em_configuration_t::handle_autoconfig_wsc_m2): done with it
+    m_data_model.release_m2ctrl_pending();
+    // A bSTA push a cancelled renew held back for this M2 (em_orch_agent_t::on_cmd_fini)
+    release_held_bsta_reconnect();
 }
 
 void em_agent_t::handle_onewifi_private_cb(em_bus_event_t *evt)
@@ -1408,6 +1440,7 @@ void em_agent_t::handle_vendor_data(em_bus_event_t *evt)
     }
 }
 
+
 void em_agent_t::handle_bus_event(em_bus_event_t *evt)
 {   
 
@@ -1415,6 +1448,18 @@ void em_agent_t::handle_bus_event(em_bus_event_t *evt)
         case em_bus_event_type_dev_init:
             handle_dev_init(evt);
             break;
+        case em_bus_event_type_onewifi_dml_cb: {
+            // After a backhaul reconfig the bSTA reconnects with new credentials and OneWifi pushes
+            // "dml"; that re-runs dev_init so the extender re-onboards. Outside that window a "dml"
+            // push must not restart onboarding on a healthy agent.
+            if (m_data_model.bh_reconfig_window_open()) {
+                evt->type = em_bus_event_type_dev_init;
+                handle_dev_init(evt);
+            } else {
+                em_printfout("Ignoring dml subdoc: no backhaul reconfig in progress");
+            }
+            break;
+        }
         case em_bus_event_type_cfg_renew:
             handle_autoconfig_renew(evt);
             break;
@@ -1574,9 +1619,82 @@ void em_agent_t::handle_2s_tick()
 
 }
 
+em_agent_t::m2ctrl_private_retry_t *em_agent_t::get_private_retry_slot(em_bus_event_t *evt)
+{
+    m2ctrl_radioconfig *radioconfig = reinterpret_cast<m2ctrl_radioconfig *> (evt->u.raw_buff);
+    webconfig_subdoc_type_t vap_type = dm_easy_mesh_t::get_subdoc_vap_type_for_freq(radioconfig->freq[0]);
+    m2ctrl_private_retry_t *free_slot = NULL;
+
+    for (unsigned int i = 0; i < EM_MAX_BANDS; i++) {
+        if (m_private_retry[i].used && (m_private_retry[i].vap_type == vap_type)) {
+            return &m_private_retry[i];
+        }
+        if (!m_private_retry[i].used && (free_slot == NULL)) {
+            free_slot = &m_private_retry[i];
+        }
+    }
+    return free_slot;
+}
+
+void em_agent_t::retry_private_pushes()
+{
+    wifi_bus_desc_t *desc = get_bus_descriptor();
+
+    for (unsigned int i = 0; (desc != NULL) && (i < EM_MAX_BANDS); i++) {
+        m2ctrl_private_retry_t *slot = &m_private_retry[i];
+
+        if (!slot->used) {
+            continue;
+        }
+        bool applied = (m_data_model.refresh_onewifi_subdoc(desc, &m_bus_hdl, "Private", slot->vap_type,
+            &slot->cfg, NULL) == 1);
+        if (!applied && (--slot->tries_left != 0)) {
+            continue;
+        }
+        if (!applied) {
+            // Released anyway, so the agent keeps a backhaul and stays reachable: its next
+            // onboarding brings the AP configuration again
+            em_printfout("Private subdoc push failed after all tries, the AP configuration is not applied");
+        }
+        // Passphrases are not kept longer than needed
+        memset(slot, 0, sizeof(*slot));
+        m_data_model.release_m2ctrl_pending();
+        // Also when out of tries: the bSTA then follows, so the agent keeps a backhaul
+        release_held_bsta_reconnect();
+    }
+}
+
+bool em_agent_t::private_push_pending()
+{
+    for (unsigned int i = 0; i < EM_MAX_BANDS; i++) {
+        if (m_private_retry[i].used) {
+            return true;
+        }
+    }
+    return false;
+}
+
+void em_agent_t::release_held_bsta_reconnect()
+{
+    if (!private_push_pending()) {
+        m_data_model.bsta_reconnect_due_now();
+    }
+}
+
 void em_agent_t::handle_1s_tick()
 {
+    // Retries an M2's AP configuration that failed to push; the cfg_renew waits for it, so the
+    // bSTA does not move to new backhaul credentials ahead of this agent's backhaul APs
+    retry_private_pushes();
 
+    // Retries a MESH STA CONFIG push that failed after a backhaul reconfig (or was held back for a
+    // Private retry): until it succeeds, OneWifi keeps the old bSTA credentials and the agent loses
+    // its backhaul once the parent switches. Not while a Private retry still runs.
+    if (!private_push_pending() && m_data_model.bsta_reconnect_retry_due() &&
+            m_data_model.prepare_bsta_reconnect()) {
+        m_data_model.bsta_reconnect_push_result(
+            refresh_onewifi_subdoc("MESH STA CONFIG", webconfig_subdoc_type_mesh_backhaul_sta) == 1);
+    }
 }
 
 void em_agent_t::handle_250ms_tick()
@@ -1856,7 +1974,8 @@ void em_agent_t::input_listener()
             }
         }
     }
-    em_printfout("Received data:\r\n%s\r\n", reinterpret_cast<char *>(data.raw_data.bytes));
+    // Never log the subdoc itself: it carries passphrases
+    em_printfout("Received data: %u bytes", static_cast<unsigned int>(data.raw_data_len));
 
     g_agent.io_process(em_bus_event_type_dev_init, reinterpret_cast<unsigned char *>(data.raw_data.bytes), data.raw_data_len);
     free(data.raw_data.bytes);
@@ -2193,8 +2312,12 @@ void em_agent_t::onewifi_cb(char *event_name, bus_data_prop_t *data, void *userD
                (strcmp(subdoc_name->valuestring, "mesh backhaul sta") == 0)) {
         g_agent.io_process(em_bus_event_type_onewifi_mesh_sta_cb, reinterpret_cast<unsigned char *>(data->value.raw_data.bytes), data->value.raw_data_len);
 
+    } else if (strcmp(subdoc_name->valuestring, "dml") == 0) {
+        // Checked on the main thread (handle_bus_event), where the reconfig window is opened and closed
+        g_agent.io_process(em_bus_event_type_onewifi_dml_cb, reinterpret_cast<unsigned char *>(data->value.raw_data.bytes), data->value.raw_data_len);
+
     } else {
-        em_printfout("SubDocName (%s) not matching private, mesh_sta, or radio", subdoc_name->valuestring);
+        em_printfout("SubDocName (%s) not matching private, mesh_sta, radio, or dml", subdoc_name->valuestring);
     }
 
     cJSON_Delete(json);

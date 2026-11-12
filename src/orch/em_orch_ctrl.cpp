@@ -33,13 +33,22 @@
 #include <sys/uio.h>
 #include <unistd.h>
 #include <assert.h>
+#include <set>
 #include <vector>
 #include "em_base.h"
 #include "em_cmd.h"
 #include "em_cmd_exec.h"
 #include "em_configuration.h"
 #include "em_orch_ctrl.h"
+#include "em_cmd_client_assoc_ctrl_req.h"
 #include "em_cmd_ctrl.h"
+#include "em_network_topo.h"
+
+extern em_network_topo_t *g_network_topology;
+
+// The ACL replay waits for the agent's other radios to settle (so it does not run while a VAP may
+// still be recreated), but not for longer than this, which stays below the em_config TTL (GEN+EXT)
+#define EM_ACL_CFG_MAX_WAIT_SECS 20
 
 void em_orch_ctrl_t::orch_transient(em_cmd_t *pcmd, em_t *em)
 {
@@ -144,29 +153,111 @@ void em_orch_ctrl_t::orch_transient(em_cmd_t *pcmd, em_t *em)
                     }
                 }
             } else if (stats->time > (EM_MAX_CMD_GEN_TTL + EM_MAX_CMD_EXT_TTL)) {
-                em_printfout("Canceling cmd: %s because time limit exceeded",pcmd->get_cmd_name());
+                em_printfout("Canceling cmd: %s for agent %s because time limit exceeded",
+                    pcmd->get_cmd_name(),
+                    util::mac_to_string(dm->get_agent_al_interface_mac()).c_str());
                 // Reset the mismatch and topo_query_last sent values before canceling
                 dm->set_ssid_mismatch_check_time(0);
                 dm->set_last_topo_query_sent_time(0);
-                cancel_command(pcmd->get_type());
+                // Cancel only this agent's radios, not all em_config commands
+                cancel_command(pcmd->get_type(), all_em_radios);
             }
             break;
         }
 
+        case em_cmd_type_set_bh_cfg:
+            if (stats->time > (EM_MAX_CMD_GEN_TTL + EM_MAX_CMD_EXT_TTL)) {
+                cancel_command(pcmd->get_type());
+            }
+            break;
+
         default:
         if (stats->time > EM_MAX_CMD_GEN_TTL)
         {
-            em_printfout("Canceling cmd: %s because time limit exceeded",pcmd->get_cmd_name());
+            em_printfout("Canceling cmd: %s because time limit exceeded (stats->time=%u)",pcmd->get_cmd_name(), stats->time);
             cancel_command(pcmd->get_type());
         }
         break;
     }
 }
 
+// A set_bh_cfg radio that got no M2 kept its old configuration: put back the state the phase found
+static void restore_state_after_bh_cfg(em_t *em)
+{
+    if ((em->get_state() == em_state_ctrl_misconfigured) ||
+             (em->get_state() == em_state_ctrl_wsc_m1_pending)) {
+        em->set_state(em->m_state_before_bh_cfg);
+    }
+}
+
+// True when this radio hosts a backhaul AP BSS, i.e. child agents' bSTAs connect through it
+static bool em_hosts_backhaul_ap(em_t *em)
+{
+    dm_easy_mesh_t *dm = em->get_data_model();
+
+    for (unsigned int i = 0; (dm != NULL) && (i < dm->get_num_bss()); i++) {
+        em_bss_info_t *bss = dm->get_bss_info(i);
+        if ((bss != NULL) && (bss->id.haul_type == em_haul_type_backhaul) && (bss->vap_mode == em_vap_mode_ap) &&
+                (memcmp(bss->ruid.mac, em->get_radio_interface_mac(), sizeof(mac_address_t)) == 0)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+void em_orch_ctrl_t::undo_refused_acl(em_cmd_t *pcmd, em_t *em)
+{
+    em_ctrl_t *ctrl = static_cast<em_ctrl_t *>(m_mgr);
+    dm_easy_mesh_ctrl_t *dm_ctrl = ctrl->get_dm_ctrl();
+    em_cmd_client_assoc_ctrl_req_t *cacr = static_cast<em_cmd_client_assoc_ctrl_req_t *> (pcmd);
+    em_cmd_client_assoc_params_t *assoc = &pcmd->m_param.u.client_assoc_params;
+    mac_address_t refused[MAX_STA_LIST];
+    em_acl_undo_t restore;
+    em_bss_info_t persist_info;
+    bool persist = false;
+    unsigned int num, i, j;
+
+    num = em->take_cacr_refused(refused);
+    if ((num == 0) || !cacr->m_acl_undo_valid) {
+        return;
+    }
+
+    // Only the refused STAs go back to their previous state; the agent applied the others
+    memset(&restore, 0, sizeof(restore));
+    for (i = 0; i < cacr->m_acl_undo.count; i++) {
+        for (j = 0; j < num; j++) {
+            if (memcmp(cacr->m_acl_undo.sta[i].mac, refused[j], sizeof(mac_address_t)) == 0) {
+                restore.sta[restore.count++] = cacr->m_acl_undo.sta[i];
+                break;
+            }
+        }
+    }
+    if (restore.count == 0) {
+        return;
+    }
+    dm_ctrl->acl_restore(cacr->m_acl_bss_key, &restore);
+
+    pthread_mutex_lock(&m_mgr->m_mutex);
+    dm_bss_t *bss = em->find_bss(assoc->bssid);
+    if ((bss != NULL) && (bss->m_bss_info.vap_mode == em_vap_mode_ap)) {
+        memcpy(&persist_info, &bss->m_bss_info, sizeof(persist_info));
+        persist = true;
+    }
+    pthread_mutex_unlock(&m_mgr->m_mutex);
+
+    em_printfout("Client Association Control: agent refused %u STA(s) on BSS %s, previous ACL kept for them",
+        restore.count, cacr->m_acl_bss_key);
+    if (persist && (dm_ctrl->persist_bss_acl(&persist_info, cacr->m_acl_bss_key) != 0)) {
+        em_printfout("Failed to persist the ACL of BSS %s after the refusal", cacr->m_acl_bss_key);
+    }
+}
+
 bool em_orch_ctrl_t::is_em_ready_for_orch_fini(em_cmd_t *pcmd, em_t *em)
 {
-    // if the command is SetSSID and 5 renews have been sent transition to fini
+    em_state_t state = em->get_state();
+
     switch (pcmd->m_type) {
+        // if the command is SetSSID and 5 renews have been sent transition to fini
         case em_cmd_type_set_ssid:
         case em_cmd_type_cfg_renew:
 		case em_cmd_type_set_radio:
@@ -178,9 +269,47 @@ bool em_orch_ctrl_t::is_em_ready_for_orch_fini(em_cmd_t *pcmd, em_t *em)
                 return true;
 			}
             break;
+   
+        case em_cmd_type_set_bh_cfg:
+            if (em->get_state() == em_state_ctrl_wsc_m2_sent) {
+                // The M2 (with the M8) went out. The agent sends no confirmation beyond its M1, so
+                // this is where the agent counts as reconfigured and its parent may switch next:
+                // once one M2 delivered the M8 and every radio hosting a backhaul AP has its M2
+                // (its children reconnect through those). Marked here, not at destroy time: a
+                // co-located or wired agent moves on into em_config once this command ends.
+                dm_easy_mesh_t *agent_dm = em->get_data_model();
+                if (agent_dm == NULL) {
+                    return true;
+                }
+                if (em_hosts_backhaul_ap(em) && (agent_dm->m_bh_reconfig_bh_radios_left != 0)) {
+                    agent_dm->m_bh_reconfig_bh_radios_left--;
+                }
+                em_network_topo_t *topo = (g_network_topology != NULL) ?
+                        g_network_topology->find_topology(agent_dm) : NULL;
+                if ((topo != NULL) && (agent_dm->m_bh_reconfig_bh_radios_left == 0)) {
+                    topo->set_bh_processed(true);
+                }
+                return true;
+            } else if (em->get_renew_tx_count() >= EM_MAX_RENEW_TX_THRESH) {
+                em->set_renew_tx_count(0);
+                restore_state_after_bh_cfg(em);
+                // Not marked processed: counted as a failed try when the command ends (on_cmd_fini)
+                return true;
+            }
+            break;
 
         case em_cmd_type_em_config:
-            if (em->get_state() == em_state_ctrl_configured) {
+            if (pcmd->get_orch_op() == dm_orch_type_acl_cfg) {
+                if ((state == em_state_ctrl_acl_cfg_configured) ||
+                        (state == em_state_ctrl_acl_cfg_failed)) {
+                    // ACL step is the last em_config op; hand the radio back to the normal
+                    // configured state so other commands (steer, disassoc, ...) can run.
+                    em->set_state(em_state_ctrl_configured);
+                    return true;
+                }
+                return false;
+            }
+                if (state == em_state_ctrl_configured) {
                 em->set_topo_query_tx_count(0);
                 em->set_channel_pref_query_tx_count(0);
 				em->set_channel_sel_req_tx_count(0);
@@ -190,8 +319,6 @@ bool em_orch_ctrl_t::is_em_ready_for_orch_fini(em_cmd_t *pcmd, em_t *em)
             } else if (em->get_state() == em_state_ctrl_topo_synchronized) {
                 return true;
             } else if (em->get_state() == em_state_ctrl_channel_queried) {
-                return true;
-            } else if (em->get_state() == em_state_ctrl_configured) {
                 return true;
             } else if (em->get_state() == em_state_ctrl_wsc_m2_sent) {
                 // A second M1/M2 exchange on 2.4GHz regresses the per band state machine back to em_state_ctrl_m2_sent,
@@ -208,12 +335,12 @@ bool em_orch_ctrl_t::is_em_ready_for_orch_fini(em_cmd_t *pcmd, em_t *em)
             break;
         
         case em_cmd_type_set_channel:
-            if (em->get_state() == em_state_ctrl_configured) {
+            if (state == em_state_ctrl_configured) {
                 return true;
             }
 	    break;
         case em_cmd_type_scan_channel:
-            if (em->get_state() == em_state_ctrl_configured) {                               
+            if (state == em_state_ctrl_configured) {
                 return true;
             }
             break;
@@ -229,13 +356,13 @@ bool em_orch_ctrl_t::is_em_ready_for_orch_fini(em_cmd_t *pcmd, em_t *em)
                 return true;
             } else if (em->get_state() == em_state_ctrl_topo_synchronized) {
                 return true;
-            } else if (em->get_state() == em_state_ctrl_configured) {
+            } else if (state == em_state_ctrl_configured) {
                 return true;
             }
             break;
 
         case em_cmd_type_sta_link_metrics:
-            if (em->get_state() == em_state_ctrl_configured) {
+            if (state == em_state_ctrl_configured) {
                 return true;
             }
             break;
@@ -246,13 +373,14 @@ bool em_orch_ctrl_t::is_em_ready_for_orch_fini(em_cmd_t *pcmd, em_t *em)
                 em->set_state(em_state_ctrl_configured);
                 printf("%s:%d: Maximum client steering req threshold crossed, transitioning to fini\n", __func__, __LINE__);
                 return true;
-            } else if (em->get_state() == em_state_ctrl_configured) {
+            } else if (state == em_state_ctrl_configured) {
                 return true;
             }
             break;
 
         case em_cmd_type_client_assoc_ctrl_req:
-            if (em->get_state() == em_state_ctrl_configured) {
+            if (state == em_state_ctrl_configured) {
+                undo_refused_acl(pcmd, em);
                 return true;
             }
             break;
@@ -263,14 +391,14 @@ bool em_orch_ctrl_t::is_em_ready_for_orch_fini(em_cmd_t *pcmd, em_t *em)
                 em->set_state(em_state_ctrl_configured);
                 printf("%s:%d: Maximum client assoc control req threshold crossed, transitioning to fini\n", __func__, __LINE__);
                 return true;
-            } else if (em->get_state() == em_state_ctrl_configured) {
+            } else if (state == em_state_ctrl_configured) {
                 return true;
             }
 
             break;
 
 		case em_cmd_type_set_policy:
-            if (em->get_state() == em_state_ctrl_configured) {
+        if (state == em_state_ctrl_configured) {
                 // Commit policies from the command DM to the live data model and DB
                 dm_easy_mesh_t *cmd_dm = pcmd->get_data_model();
                 dm_easy_mesh_t *live_dm = em->get_data_model();
@@ -300,13 +428,14 @@ bool em_orch_ctrl_t::is_em_ready_for_orch_fini(em_cmd_t *pcmd, em_t *em)
             return true;
 
         case em_cmd_type_bsta_cap:
-            if (em->get_state() == em_state_ctrl_configured) {
+            // The report handler puts back the state bsta_cap found (configured, or an em_config step)
+            if (state != em_state_ctrl_bsta_cap_pending) {
                 return true;
             }
             break;
 
 	case em_cmd_type_unassoc_sta_query:
-            if (em->get_state() == em_state_ctrl_configured) {
+    if (state == em_state_ctrl_configured) {
                 return true;
             }
             break;
@@ -326,15 +455,52 @@ bool em_orch_ctrl_t::is_em_ready_for_orch_fini(em_cmd_t *pcmd, em_t *em)
 
 bool em_orch_ctrl_t::is_em_ready_for_orch_exec(em_cmd_t *pcmd, em_t *em)
 {
+    em_state_t em_state = em->get_state();
+
     switch (pcmd->m_type) {
         case em_cmd_type_set_ssid:
+        case em_cmd_type_set_bh_cfg:
         case em_cmd_type_set_radio:
         case em_cmd_type_mld_reconfig:
         case em_cmd_type_start_dpp:
             return true;
 
         case em_cmd_type_em_config:
-        case em_cmd_type_cfg_renew:
+            if (pcmd->get_orch_op() == dm_orch_type_acl_cfg) {
+                dm_easy_mesh_t *dm = em->get_data_model();
+                if (dm == NULL) {
+                    return false;
+                }
+
+                std::vector<em_t *> em_radios;
+                m_mgr->get_all_em_for_al_mac(dm->get_agent_al_interface_mac(), em_radios);
+                if (em_radios.empty()) {
+                    return false;
+                }
+
+                // The replay is per radio (only this radio's BSSes). Wait for the other radios so
+                // it does not run while one of them may still recreate VAPs, but do not wait for a
+                // misconfigured radio (it gets no further in this em_config), and cap the wait so
+                // one stuck radio cannot hold back the whitelist of the others.
+                struct timeval now;
+                util::monotonic_now(&now);
+                bool waited_enough = ((now.tv_sec - pcmd->m_start_time.tv_sec) >= EM_ACL_CFG_MAX_WAIT_SECS);
+                for (em_t *radio : em_radios) {
+                    em_state_t radio_state = radio->get_state();
+                    if (em_t::is_ctrl_configured_or_acl(radio_state) ||
+                            (radio_state == em_state_ctrl_misconfigured)) {
+                        continue;
+                    }
+                    if (waited_enough == false) {
+                        return false;
+                    }
+                }
+
+                return em_t::is_ctrl_configured_or_acl(em_state);
+            }
+                [[fallthrough]];
+
+            case em_cmd_type_cfg_renew:
             if (em->get_state() == em_state_ctrl_unconfigured) {
 				return true;
             } else if (em->get_state() == em_state_ctrl_wsc_m2_sent) {
@@ -347,7 +513,7 @@ bool em_orch_ctrl_t::is_em_ready_for_orch_exec(em_cmd_t *pcmd, em_t *em)
                 return true;
             } else if (em->get_state() == em_state_ctrl_channel_selected) {
                 return true;
-            } else if (em->get_state() == em_state_ctrl_configured) {
+            } else if (em_state == em_state_ctrl_configured) {
                 return true;
             } else if (em->get_state() == em_state_ctrl_misconfigured) {
                 return true;
@@ -360,8 +526,11 @@ bool em_orch_ctrl_t::is_em_ready_for_orch_exec(em_cmd_t *pcmd, em_t *em)
             }
             break;
 
+	case em_cmd_type_scan_channel:
+		return em_state == em_state_ctrl_configured;
+
 	case em_cmd_type_set_channel:
-	   if (em->get_state() == em_state_ctrl_configured) {
+    if (em_state == em_state_ctrl_configured) {
                 return true;
             } else if (em->get_state() == em_state_ctrl_misconfigured) {
                 return true;
@@ -369,15 +538,20 @@ bool em_orch_ctrl_t::is_em_ready_for_orch_exec(em_cmd_t *pcmd, em_t *em)
 		return true;
 	    }
 	break;
+    case em_cmd_type_bsta_cap:
+        return (em_state == em_state_ctrl_topo_synchronized) ||
+            (em_state == em_state_ctrl_ap_cap_report_received) ||
+            (em_state == em_state_ctrl_channel_queried) ||
+            (em_state == em_state_ctrl_channel_selected) ||
+            (em_state == em_state_ctrl_misconfigured) ||
+            (em_state == em_state_ctrl_configured);
         case em_cmd_type_sta_steer:
         case em_cmd_type_sta_disassoc:
         case em_cmd_type_sta_link_metrics:
-        case em_cmd_type_scan_channel:
         case em_cmd_type_set_policy:
-        case em_cmd_type_bsta_cap:
 	case em_cmd_type_unassoc_sta_query:
         case em_cmd_type_client_assoc_ctrl_req:
-            if (em->get_state() == em_state_ctrl_configured) {
+            if (em_state == em_state_ctrl_configured) {
                 return true;
             }
             break;
@@ -441,16 +615,55 @@ void em_orch_ctrl_t::pre_process_cancel(em_cmd_t *pcmd, em_t *em)
             em->set_state(em_state_ctrl_configured);
             break;
 
+        case em_cmd_type_set_bh_cfg:
+            em->set_renew_tx_count(0);
+            restore_state_after_bh_cfg(em);
+            break;
+
+        case em_cmd_type_bsta_cap:
+            // No report came: put back the state bsta_cap found, so an interrupted em_config goes on
+            if (em->get_state() == em_state_ctrl_bsta_cap_pending) {
+                em->set_state(em->m_state_before_bsta_cap);
+            }
+            break;
+
         default:
             break;
 	}
+}
+
+void em_orch_ctrl_t::on_cmd_fini(em_cmd_t *pcmd)
+{
+    std::set<em_network_topo_t *> failed;
+    em_t *em;
+
+    if ((pcmd->m_type != em_cmd_type_set_bh_cfg) || (g_network_topology == NULL)) {
+        return;
+    }
+
+    // An agent whose M2 went out was marked processed in is_em_ready_for_orch_fini(). One still
+    // unprocessed here hit the renew limit or the timeout: count one failed try per agent. It stays
+    // a candidate for the next phase while its parent still has the old credentials.
+    for (int j = static_cast<int>(queue_count(pcmd->m_em_candidates)) - 1; j >= 0; j--) {
+        em = static_cast<em_t *>(queue_peek(pcmd->m_em_candidates, static_cast<unsigned int>(j)));
+        em_network_topo_t *topo = g_network_topology->find_topology(em->get_data_model());
+        if ((topo != NULL) && (topo->is_bh_processed() == false)) {
+            failed.insert(topo);
+        }
+    }
+    for (em_network_topo_t *topo : failed) {
+        topo->note_bh_reconfig_failure();
+    }
+
+    // Next phase: the nodes whose children are all done now
+    g_network_topology->send_bh_reconfig_event();
 }
 
 bool em_orch_ctrl_t::pre_process_orch_op(em_cmd_t *pcmd)
 {
     em_t *em;
     em_ctrl_t *ctrl = static_cast<em_ctrl_t *>(m_mgr);
-    dm_easy_mesh_ctrl_t *dm_ctrl = reinterpret_cast<dm_easy_mesh_ctrl_t *>(ctrl->get_data_model(GLOBAL_NET_ID));
+    dm_easy_mesh_ctrl_t *dm_ctrl = ctrl->get_dm_ctrl();
     dm_easy_mesh_t *dm = &pcmd->m_data_model;
     dm_easy_mesh_t *mgr_dm;
     mac_addr_str_t	mac_str;
@@ -469,13 +682,27 @@ bool em_orch_ctrl_t::pre_process_orch_op(em_cmd_t *pcmd)
             break;
 
         case dm_orch_type_em_delete:
-			em = dm->get_em();
-            m_mgr->delete_node(em->get_radio_interface());
+        {
+            // Every radio: an em left behind would point at the data model freed next. An offline
+            // agent after a controller restart has none, and its dm has no em set.
+            std::vector<em_t *> em_radios;
+            m_mgr->get_all_em_for_al_mac(dm->get_device()->get_dev_interface_mac(), em_radios);
+            for (em_t *radio_em : em_radios) {
+                m_mgr->delete_node(radio_em->get_radio_interface());
+            }
             break;
+        }
         
         case dm_orch_type_db_cfg:
             dm_ctrl->set_config(dm);
             dm_ctrl->set_initialized();
+            // The flag stays set when the write failed. Agents would get the old credentials over
+            // a walk that makes each one re-onboard, so report it instead of starting one.
+            if ((pcmd->m_type == em_cmd_type_set_bh_cfg) &&
+                    dm->db_cfg_type_is_set(db_cfg_type_network_ssid_list_update)) {
+                em_printfout("SetBhCfg: storing the new backhaul credentials failed");
+                return false;
+            }
             break;
 
         case dm_orch_type_al_insert:
@@ -508,11 +735,26 @@ bool em_orch_ctrl_t::pre_process_orch_op(em_cmd_t *pcmd)
 
 		case dm_orch_type_dm_delete:
 			printf("%s:%d: Deleting data model\n", __func__, __LINE__);
+			// The topology node points at this data model, and reconfig walks use it
+			if (g_network_topology != NULL) {
+				dm_easy_mesh_t *live_dm = dm_ctrl->get_data_model((dm->get_device())->m_device_info.id.net_id,
+						(dm->get_device())->m_device_info.id.dev_mac);
+				if (live_dm != NULL) {
+					g_network_topology->remove(live_dm, NULL, NULL);
+				}
+			}
 			m_mgr->delete_data_model((dm->get_device())->m_device_info.id.net_id, (dm->get_device())->m_device_info.id.dev_mac);
 			break;
 
 		case dm_orch_type_dm_delete_all:
 			printf("%s:%d: Deleting all data models\n", __func__, __LINE__);
+			if (g_network_topology != NULL) {
+				for (dm_easy_mesh_t *each = dm_ctrl->get_first_dm(); each != NULL; each = dm_ctrl->get_next_dm(each)) {
+					if (each->is_controller() == false) {
+						g_network_topology->remove(each, NULL, NULL);
+					}
+				}
+			}
 			m_mgr->delete_all_data_models();
 			break;
 
@@ -569,9 +811,93 @@ bool em_orch_ctrl_t::pre_process_orch_op(em_cmd_t *pcmd)
 
         case dm_orch_type_topo_publish:
         case dm_orch_type_bsta_cap_query:
-        case dm_orch_type_client_assoc:
         case dm_orch_type_beacon_query:
+        case dm_orch_type_acl_cfg:
 			break;
+
+        case dm_orch_type_client_assoc:
+        {
+            // Persist the ACL carried by the CACR so it survives a controller/agent reboot
+            em_cmd_client_assoc_params_t *assoc = &pcmd->m_param.u.client_assoc_params;
+            em_2xlong_string_t bss_key;
+            em_bss_info_t persist_info;
+            em_acl_undo_t undo;
+            unsigned char prev_mode = 0;
+            unsigned short prev_validity = 0;
+            bool persist = false;
+            bool bss_found = false;
+            bool stored = true;
+
+            pthread_mutex_lock(&m_mgr->m_mutex);
+            em = static_cast<em_t *>(hash_map_get_first(m_mgr->m_em_map));
+            while (em != NULL) {
+                dm_bss_t *bss = (em->is_al_interface_em() == false) ? em->find_bss(assoc->bssid) : NULL;
+                if ((bss != NULL) && (bss->m_bss_info.vap_mode == em_vap_mode_ap)) {
+                    bss_found = true;
+                    prev_mode = bss->m_bss_info.acl_filter_mode;
+                    prev_validity = bss->m_bss_info.acl_validity_period;
+                    // All or nothing (e.g. a full 256-entry list): on failure the ACL is unchanged
+                    if (dm_ctrl->acl_apply_cacr(&bss->m_bss_info, assoc, bss_key, sizeof(bss_key), &undo) != 0) {
+                        em_printfout("Failed to update ACL state for BSS %s", bss_key);
+                        stored = false;
+                        break;
+                    }
+
+                    // Copied under the lock: em threads may rewrite this BSS meanwhile
+                    memcpy(&persist_info, &bss->m_bss_info, sizeof(persist_info));
+                    persist = true;
+                    break;
+                }
+                em = static_cast<em_t *>(hash_map_get_next(m_mgr->m_em_map, em));
+            }
+            pthread_mutex_unlock(&m_mgr->m_mutex);
+
+            // DB I/O outside the em-map lock, so 1905 handling is not held up behind SQLite. Only
+            // this BSS's row changes, so only it is written (from the copy taken under the lock).
+            if (persist && (dm_ctrl->persist_bss_acl(&persist_info, bss_key) != 0)) {
+                em_printfout("Failed to persist ACL state for BSS %s", bss_key);
+                // Not stored, so not kept: the replay at onboarding must match what the agent has
+                dm_ctrl->acl_restore(bss_key, &undo);
+                pthread_mutex_lock(&m_mgr->m_mutex);
+                for (em = static_cast<em_t *>(hash_map_get_first(m_mgr->m_em_map)); em != NULL;
+                        em = static_cast<em_t *>(hash_map_get_next(m_mgr->m_em_map, em))) {
+                    dm_bss_t *bss = (em->is_al_interface_em() == false) ? em->find_bss(assoc->bssid) : NULL;
+                    if ((bss != NULL) && (bss->m_bss_info.vap_mode == em_vap_mode_ap)) {
+                        bss->m_bss_info.acl_filter_mode = prev_mode;
+                        bss->m_bss_info.acl_validity_period = prev_validity;
+                        break;
+                    }
+                }
+                pthread_mutex_unlock(&m_mgr->m_mutex);
+                stored = false;
+            } else if (persist) {
+                // Stored before the agent answers: kept so the STAs its ACK refuses are put back
+                em_cmd_client_assoc_ctrl_req_t *cacr = static_cast<em_cmd_client_assoc_ctrl_req_t *> (pcmd);
+                memcpy(&cacr->m_acl_undo, &undo, sizeof(undo));
+                snprintf(cacr->m_acl_bss_key, sizeof(cacr->m_acl_bss_key), "%s", bss_key);
+                cacr->m_acl_undo_valid = true;
+            }
+
+            // No em hosts this BSS, so the agent is offline and this command has no candidate. The
+            // change is still stored, or the replay would undo it when the agent returns.
+            if (!bss_found) {
+                if (dm_ctrl->acl_apply_offline(assoc) != 0) {
+                    stored = false;
+                } else {
+                    // Applied at the agent's next onboarding: a success, though nothing is sent
+                    m_acl_stored_offline++;
+                }
+            }
+
+            // A change the controller could not store must not reach the agent: it would be lost
+            // at the next replay. Not submitting reports the failure to the requester.
+            if (!stored) {
+                em_printfout("Client Association Control not sent: the ACL change for " MACSTRFMT
+                    " could not be stored", MAC2STR(assoc->bssid));
+                return false;
+            }
+            break;
+        }
 
         default:
             break;
@@ -611,6 +937,13 @@ unsigned int em_orch_ctrl_t::build_candidates(em_cmd_t *pcmd)
         return count;
     }
 
+    // set_bh_cfg: agents whose backhaul state was taken in this phase (once per agent, not per radio)
+    std::set<dm_easy_mesh_t *> bh_agents;
+
+    if ((pcmd->m_type == em_cmd_type_set_bh_cfg) && (g_network_topology != NULL)) {
+        g_network_topology->mark_bh_leaves_processed();
+    }
+
     pthread_mutex_lock(&m_mgr->m_mutex);
     em = static_cast<em_t *>(hash_map_get_first(m_mgr->m_em_map));
     while (em != NULL) {
@@ -622,6 +955,31 @@ unsigned int em_orch_ctrl_t::build_candidates(em_cmd_t *pcmd)
                     //em_printfout("Set SSID: %s push to queue", mac_str);
                     queue_push(pcmd->m_em_candidates, em);
                     count++;
+                }
+                break;
+
+            case em_cmd_type_set_bh_cfg:
+                if (em->is_al_interface_em() == false && g_network_topology != NULL) {
+                    em_network_topo_t *topo = g_network_topology->find_topology(em->get_data_model());
+                    if (topo != NULL && topo->is_bh_reconfig_candidate()) {
+                        // topo != NULL, so the radio has a data model
+                        dm_easy_mesh_t *agent_dm = em->get_data_model();
+                        if (bh_agents.insert(agent_dm).second) {
+                            // A bSTA with an upstream BSSID means a wireless backhaul: the agent
+                            // drops it and re-onboards after the M8. A wired one does not, and
+                            // still gets em_config. An agent already found wireless stays so in a
+                            // later phase, as its bSTA may be down by then.
+                            em_bss_info_t *bsta = agent_dm->get_bsta_bss_info();
+                            agent_dm->set_bh_reconfig_reonboards(agent_dm->is_bh_reconfig_reonboards() ||
+                                    ((bsta != NULL) && (memcmp(bsta->bssid.mac, ZERO_MAC_ADDR, sizeof(mac_address_t)) != 0)));
+                            agent_dm->m_bh_reconfig_bh_radios_left = 0;
+                        }
+                        if (em_hosts_backhaul_ap(em)) {
+                            agent_dm->m_bh_reconfig_bh_radios_left++;
+                        }
+                        queue_push(pcmd->m_em_candidates, em);
+                        count++;
+                    }
                 }
                 break;
 
@@ -674,7 +1032,8 @@ unsigned int em_orch_ctrl_t::build_candidates(em_cmd_t *pcmd)
                 break;
 
             case em_cmd_type_sta_link_metrics:
-                if ((em->is_al_interface_em() == false) && (em->get_state() == em_state_ctrl_configured)  && 
+                if ((em->is_al_interface_em() == false) &&
+                    (em->get_state() == em_state_ctrl_configured) &&
                     (em->has_at_least_one_associated_sta() == true)) {
                     queue_push(pcmd->m_em_candidates, em);
                     count++;
@@ -724,11 +1083,15 @@ unsigned int em_orch_ctrl_t::build_candidates(em_cmd_t *pcmd)
             case em_cmd_type_client_assoc_ctrl_req:
                 if (em->is_al_interface_em() == false) {
                     em_cmd_client_assoc_params_t *assoc = &pcmd->m_param.u.client_assoc_params;
+                    mac_addr_str_t em_mac_str;
+                    dm_easy_mesh_t::macbytes_to_string(em->get_radio_interface_mac(), em_mac_str);
 
-                    if (em->find_bss(assoc->bssid) == NULL) {
-                        em_printfout("Skipping radio (BSSID not owned by this EM)\n");
+                    dm_bss_t *bss = em->find_bss(assoc->bssid);
+                    if (bss == NULL || bss->m_bss_info.vap_mode != em_vap_mode_ap) {
+                        em_printfout("Skipping radio %s (BSSID not AP on this EM)\n", em_mac_str);
                         break;
                     }
+                    em_printfout("Pushing radio %s as candidate for client assoc ctrl\n", em_mac_str);
                     queue_push(pcmd->m_em_candidates, em);
                     count++;
                 }

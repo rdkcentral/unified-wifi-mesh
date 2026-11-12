@@ -46,6 +46,8 @@
 #include "em_cmd_ctrl.h"
 #include "dm_easy_mesh.h"
 #include "em_orch_ctrl.h"
+#include "em_cmd_set_bh_cfg.h"
+#include "em_network_topo.h"
 #include "util.h"
 #include "wifi_util.h"
 #include "em_ext_hooks.h"
@@ -142,10 +144,15 @@ void em_ctrl_t::handle_client_assoc(em_bus_event_t *evt)
         m_ctrl_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
     } else if ((num = m_data_model.analyze_client_assoc(evt, pcmd)) <= 0) {
         m_ctrl_cmd->send_result(status_for_noncmd(num));
-    } else if (m_orch->submit_commands(pcmd, static_cast<unsigned int> (num)) > 0) {
-        m_ctrl_cmd->send_result(em_cmd_out_status_success);
     } else {
-        m_ctrl_cmd->send_result(em_cmd_out_status_not_ready);
+        (void)m_orch->take_acl_stored_offline();
+        unsigned int submitted = m_orch->submit_commands(pcmd, static_cast<unsigned int> (num));
+        // A change stored for an offline agent has no command to run, but it did succeed
+        if ((submitted > 0) || (m_orch->take_acl_stored_offline() > 0)) {
+            m_ctrl_cmd->send_result(em_cmd_out_status_success);
+        } else {
+            m_ctrl_cmd->send_result(em_cmd_out_status_not_ready);
+        }
     }
 }
 
@@ -274,11 +281,29 @@ void em_ctrl_t::handle_config_renew(em_bus_event_t *evt)
     }
 }
 
+// Covers in-flight duplicate M1s only. Well below the agent's 30s M1 retry
+// (EM_M2_PENDING_RETRY_SECS) and a bSTA reconnect after reconfig, so those are still honoured.
+#define EM_M2_SENT_M1_GUARD_SECS 5
+
 void em_ctrl_t::handle_m2_tx(em_bus_event_t *evt)
 {
+    // During backhaul reconfig, an agent on a wireless backhaul whose M2 carried an M8 will drop
+    // its bSTA, reconnect with the new credentials and re-onboard on its own, so skip em_config
+    // (topology query) for that M2 only. The decision was taken when the M2 was built and comes
+    // with this event, so no state is shared with the em thread. Agents that got a plain M2
+    // (co-located, or newly joining during the reconfig) or an M8 over a wired backhaul still
+    // need em_config. Not tied to the reconfig being active: the last phase can finish before
+    // this event arrives, and the agent re-onboards either way.
+    em_bus_event_type_m2_tx_params_t *params =
+        reinterpret_cast<em_bus_event_type_m2_tx_params_t *>(evt->u.raw_buff);
+    if (params->skip_em_config) {
+        em_printfout("handle_m2_tx: skipping em_config for agent that received M8 during backhaul reconfig");
+        return;
+    }
+
     em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
     int num;
-    
+
     if ((num = m_data_model.analyze_m2_tx(evt, pcmd)) > 0) {
         m_orch->submit_commands(pcmd, static_cast<unsigned int> (num));
     }
@@ -409,7 +434,9 @@ void em_ctrl_t::handle_set_radio(em_bus_event_t *evt)
     em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
     int num;
 
-    if (m_orch->is_cmd_type_in_progress(evt) == true) {
+    // A SetRadio during a backhaul reconfig renews every agent at once (see handle_set_ssid_list)
+    if ((m_orch->is_cmd_type_in_progress(evt) == true) ||
+            ((g_network_topology != NULL) && g_network_topology->is_bh_reconfig_active())) {
         m_ctrl_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
     } else if ((num = m_data_model.analyze_set_radio(evt, pcmd)) <= 0) {
         m_ctrl_cmd->send_result(status_for_noncmd(num));
@@ -425,9 +452,16 @@ void em_ctrl_t::handle_set_ssid_list(em_bus_event_t *evt)
     em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
     int num, ret;
 
-    if (m_orch->is_cmd_type_in_progress(evt) == true) {
+    if ((m_orch->is_cmd_type_in_progress(evt) == true) ||
+            ((g_network_topology != NULL) && g_network_topology->is_bh_reconfig_active())) {
+        // A SetSSID during a backhaul reconfig would send every agent an M2 at once, carrying the
+        // new backhaul credentials, and break the leaves-first order of the walk
         m_ctrl_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
-    } else if ((ret = m_data_model.analyze_set_ssid(evt, pcmd)) <= 0) {
+    } else if ((ret = m_data_model.analyze_set_ssid(evt, pcmd)) == EM_PARSE_ERR_BH_CHANGE) {
+        // The backhaul entry changed (CLI SetSSID): same path as the TR-181 SetSSID, which hands
+        // a backhaul change to SetBhCfg (M8 check, leaves first)
+        handle_set_bh_cfg(evt, "SetSSID");
+    } else if (ret <= 0) {
         if (ret == EM_PARSE_ERR_NO_CHANGE) {
         	m_ctrl_cmd->send_result(em_cmd_out_status_no_change);
 		} else {
@@ -441,12 +475,154 @@ void em_ctrl_t::handle_set_ssid_list(em_bus_event_t *evt)
 
 }
 
+bool em_ctrl_t::online_agents_support_m8(mac_address_t blocking_al)
+{
+    bool ok = true;
+
+    pthread_mutex_lock(&m_mutex);
+    for (em_t *em = static_cast<em_t *>(hash_map_get_first(m_em_map)); em != NULL;
+            em = static_cast<em_t *>(hash_map_get_next(m_em_map, em))) {
+        dm_easy_mesh_t *dm = em->get_data_model();
+        if (em->is_al_interface_em() || (dm == NULL) || dm->is_controller()) {
+            continue;
+        }
+        if (dm->m_device.m_device_info.m8_bsta_reconfiguration == false) {
+            memcpy(blocking_al, dm->m_device.m_device_info.intf.mac, sizeof(mac_address_t));
+            ok = false;
+            break;
+        }
+    }
+    pthread_mutex_unlock(&m_mutex);
+
+    return ok;
+}
+
+bool em_ctrl_t::is_bh_reconfig_active()
+{
+    return (g_network_topology != NULL) && g_network_topology->is_bh_reconfig_active();
+}
+
+void em_ctrl_t::finish_bh_reconfig()
+{
+    if (g_network_topology != NULL) {
+        g_network_topology->set_bh_reconfig_active(false);
+        g_network_topology->reset_bh_reconfig();
+    }
+}
+
+/**
+ * @brief Handles the em_bus_event_type_set_bh_cfg bus event.
+ *
+ * Two execution paths:
+ *   1. Initial: checks M8 bSTA capability, validates config, stores it and submits the first phase.
+ *   2. Re-trigger: multi-phase reconfig active, submits next leaf layer directly.
+ */
+void em_ctrl_t::handle_set_bh_cfg(em_bus_event_t *evt, const char *key)
+{
+    int ret;
+    dm_easy_mesh_t dm;
+    mac_address_t blocking_al;
+
+    if (m_orch->is_cmd_type_in_progress(evt) == true) {
+        m_ctrl_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
+        return;
+    }
+
+    // A running SetSSID or SetRadio would build its M2s from the new backhaul credentials, with no
+    // M8 and no leaves-first order
+    if ((evt->data_len != 0) && (m_orch->is_cmd_type_active(em_cmd_type_set_ssid) ||
+            m_orch->is_cmd_type_active(em_cmd_type_set_radio))) {
+        em_printfout("SetBhCfg rejected: a SetSSID or SetRadio is in progress");
+        m_ctrl_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
+        return;
+    }
+
+    // A user SetBhCfg always carries a subdoc; the internal next-phase trigger
+    // (send_bh_reconfig_event) carries none. Do not let a user request be swallowed as a phase.
+    if (g_network_topology != NULL && g_network_topology->is_bh_reconfig_active() && (evt->data_len != 0)) {
+        em_printfout("SetBhCfg rejected: a backhaul reconfiguration is already in progress");
+        m_ctrl_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
+        return;
+    }
+
+    // Re-trigger path: reconfig already active, submit for next phase. Phase 1 already stored the
+    // new SSIDs and loaded them into every data model (data models created later copy them), so
+    // a later phase only needs new candidates.
+    if (g_network_topology != NULL && g_network_topology->is_bh_reconfig_active()) {
+        em_cmd_t *cmd = new em_cmd_set_bh_cfg_t(evt->params, dm);
+        if (m_orch->submit_command(cmd) == false) {
+            // Nothing more to run: the walk is complete. Do not leave the reconfig flag set,
+            // or later SetBhCfg and onboarding would be blocked.
+            em_printfout("SetBhCfg: no agent left to reconfigure, backhaul reconfiguration complete");
+            finish_bh_reconfig();
+        }
+        return;
+    }
+
+    // Every online agent must support M8 bSTA reconfiguration (EasyMesh 5.2.5). An agent that
+    // cannot take the new backhaul credentials would be cut off, so the change is not processed
+    // at all. Offline agents are ignored: they get the new credentials when they onboard again.
+    if (online_agents_support_m8(blocking_al) == false) {
+        em_printfout("SetBhCfg rejected: online agent %s lacks M8 bSTA reconfiguration support",
+            util::mac_to_string(blocking_al).c_str());
+        m_ctrl_cmd->send_result(em_cmd_out_status_not_ready);
+        return;
+    }
+
+    // The topology orders the agents (leaves first); without it nothing can be reconfigured,
+    // so refuse before anything is stored
+    if (g_network_topology == NULL) {
+        em_printfout("SetBhCfg rejected: network topology is not available");
+        m_ctrl_cmd->send_result(em_cmd_out_status_not_ready);
+        return;
+    }
+
+    if ((ret = m_data_model.analyze_set_bh_cfg(evt, &dm, key)) <= 0) {
+        if (ret == EM_PARSE_ERR_NO_CHANGE) {
+            m_ctrl_cmd->send_result(em_cmd_out_status_no_change);
+        } else {
+            m_ctrl_cmd->send_result(em_cmd_out_status_invalid_input);
+        }
+        return;
+    }
+
+    // Clear every agent's progress, including agents currently detached from the tree
+    for (dm_easy_mesh_t *each = m_data_model.get_first_dm(); each != NULL;
+            each = m_data_model.get_next_dm(each)) {
+        each->set_bh_reconfig_processed(false);
+        each->set_bh_reconfig_enrolled(false);
+        each->m_bh_reconfig_fail_count = 0;
+        each->set_bh_reconfig_reonboards(false);
+    }
+    g_network_topology->reset_bh_reconfig();
+    // Only these agents have their M2 held for their phase (handle_autoconfig_wsc_m1)
+    g_network_topology->enroll_bh_reconfig();
+    g_network_topology->set_bh_reconfig_active(true);
+
+    em_cmd_t *cmd = new em_cmd_set_bh_cfg_t(evt->params, dm);
+    int rc = m_orch->preprocess_and_submit_command(cmd);
+    if (rc != 1) {
+        finish_bh_reconfig();
+    }
+    if (rc < 0) {
+        m_ctrl_cmd->send_result(em_cmd_out_status_not_ready);
+    } else {
+        // Stored either way, so report success; with no agent to reconfigure now, agents get
+        // the new backhaul credentials at their next onboarding
+        if (rc == 0) {
+            em_printfout("SetBhCfg: new backhaul configuration stored; no agent to reconfigure now");
+        }
+        m_ctrl_cmd->send_result(em_cmd_out_status_success);
+    }
+}
+
 void em_ctrl_t::handle_remove_device(em_bus_event_t *evt)
 {
     em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
     int num;
 
-    if (m_orch->is_cmd_type_in_progress(evt) == true) {
+    // Deleting an em the walk still holds as a candidate would leave it with a freed pointer
+    if ((m_orch->is_cmd_type_in_progress(evt) == true) || is_bh_reconfig_active()) {
         m_ctrl_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
     } else if ((num = m_data_model.analyze_remove_device(evt, pcmd)) <= 0) {
         m_ctrl_cmd->send_result(status_for_noncmd(num));
@@ -517,7 +693,8 @@ void em_ctrl_t::handle_reset(em_bus_event_t *evt)
     em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
     int num = 0;
 	
-    if (m_orch->is_cmd_type_in_progress(evt) == true) {
+    // As RemoveDevice: a reset frees every em, and the walk still holds them as candidates
+    if ((m_orch->is_cmd_type_in_progress(evt) == true) || is_bh_reconfig_active()) {
         m_ctrl_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
     } else if ((num = m_data_model.analyze_reset(evt, pcmd)) <= 0) {
         m_ctrl_cmd->send_result(status_for_noncmd(num));
@@ -881,6 +1058,10 @@ void em_ctrl_t::handle_bus_event(em_bus_event_t *evt)
             handle_set_ssid_list(evt);  
             break;
 
+        case em_bus_event_type_set_bh_cfg:
+            handle_set_bh_cfg(evt);
+            break;
+
         case em_bus_event_type_remove_device:
             handle_remove_device(evt);
             break;
@@ -931,6 +1112,10 @@ void em_ctrl_t::handle_bus_event(em_bus_event_t *evt)
 
         case em_bus_event_type_topo_publish:
             handle_topo_publish(evt);
+            break;
+
+        case em_bus_event_type_topo_update:
+            update_network_topology();
             break;
 
         case em_bus_event_type_m2_tx:
@@ -1006,8 +1191,7 @@ void em_ctrl_t::handle_topo_publish(em_bus_event_t *evt)
         em_printfout("Topology publish: cJSON_CreateObject failed");
         return;
     }
-    dm_easy_mesh_ctrl_t *dm_ctrl =
-        reinterpret_cast<dm_easy_mesh_ctrl_t *>(get_data_model(GLOBAL_NET_ID));
+    dm_easy_mesh_ctrl_t *dm_ctrl = get_dm_ctrl();
     if (dm_ctrl == NULL) {
         em_printfout("Topology publish: data model is null");
         cJSON_Delete(parent);
@@ -1246,11 +1430,20 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
             dm_easy_mesh_t::macbytes_to_string(ruid, mac_str1);
         
             if ((em = static_cast<em_t *> (hash_map_get(m_em_map, mac_str1))) != NULL) {
-                printf("%s:%d: Found existing radio:%s\n", __func__, __LINE__, mac_str1);
-                if(em->get_state() != em_state_ctrl_wsc_m2_sent)
+                printf("%s:%d: Found existing radio:%s (state=%d)\n", __func__, __LINE__, mac_str1, em->get_state());
+                // An M1 right after our M2 is a duplicate/in-flight retransmission: restarting the
+                // exchange would invalidate the M2 the agent is about to process. Older M2s are
+                // fair game, so the agent's M1 retry and re-onboarding after a backhaul reconfig
+                // still restart the exchange.
+                struct timespec ts_now;
+                util::monotonic_now(&ts_now);
+                if ((em->get_state() == em_state_ctrl_wsc_m2_sent) && (em->get_m2_sent_time() != 0) &&
+                        ((ts_now.tv_sec - em->get_m2_sent_time()) < EM_M2_SENT_M1_GUARD_SECS)) {
+                    printf("%s:%d: Ignoring M1 for radio:%s, M2 sent %ld s ago\n", __func__, __LINE__, mac_str1,
+                            static_cast<long>(ts_now.tv_sec - em->get_m2_sent_time()));
+                } else {
                     em->set_state(em_state_ctrl_wsc_m1_pending);
-                else
-                    printf("%s:%d: Autoconf wsc msg sent already. Incorrect state = (%d)\n", __func__, __LINE__, em->get_state());
+                }
             } else {
                 if ((dm = get_data_model(GLOBAL_NET_ID, const_cast<const unsigned char *> (hdr->src))) == NULL) {
                     printf("%s:%d: Can not find data model\n", __func__, __LINE__);

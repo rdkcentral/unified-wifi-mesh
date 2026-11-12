@@ -273,6 +273,7 @@ static bool update_ap_mld_for_haul(dm_easy_mesh_t *dm, em_haul_type_t haul)
 {
     const em_mlo_policy_t *policy;
     const em_network_ssid_info_t *net_ssid_info;
+    em_network_ssid_info_t net_ssid_copy;
     em_ap_mld_info_t ap_mld_info;
     em_ap_mld_info_t *existing_ap_mld;
     unsigned int i, k;
@@ -291,7 +292,7 @@ static bool update_ap_mld_for_haul(dm_easy_mesh_t *dm, em_haul_type_t haul)
 
     // Drop the entry if the SSID, MLO policy or MLD TLV usage is missing for this haul
     policy = dm->get_mlo_policy(haul);
-    net_ssid_info = dm->get_network_ssid_info_by_haul_type(haul);
+    net_ssid_info = dm->copy_network_ssid_info_by_haul_type(haul, net_ssid_copy) ? &net_ssid_copy : NULL;
     if ((net_ssid_info == NULL) || (strlen(net_ssid_info->ssid) == 0)) {
         em_printfout("Skipping AP MLD policy for haul=%d due to missing SSID", haul);
         dm->remove_ap_mld_info_by_haul_type(haul);
@@ -1591,6 +1592,16 @@ void em_configuration_t::print_ap_vendor_operational_bss_tlv(unsigned char *valu
 		bss = radio->bss;
 		em_printfout("Number of bss: %d", radio->bss_num);
 		for (j = 0; j < radio->bss_num; j++) {
+            if ((bss->vap_mode != em_vap_mode_ap) || (bss->haultype >= em_haul_type_max) ||
+                    (memcmp(bss->bssid, ZERO_MAC_ADDR, sizeof(mac_address_t)) == 0) ||
+                    (memcmp(radio->ruid, ZERO_MAC_ADDR, sizeof(mac_address_t)) == 0)) {
+                em_printfout("Skipping invalid AP BSS in vendor TLV: BSSID=%s haul_type=%u vap_mode=%u",
+                        util::mac_to_string(bss->bssid).c_str(), bss->haultype, bss->vap_mode);
+                bss = reinterpret_cast<em_ap_vendor_operational_bss_t *>(
+                        reinterpret_cast<unsigned char *>(bss) + sizeof(em_ap_vendor_operational_bss_t));
+                all_bss_len += sizeof(em_ap_vendor_operational_bss_t);
+                continue;
+            }
 			dm_easy_mesh_t::macbytes_to_string(bss->bssid, bss_mac_str);
 			em_printfout("BSSID=%s haul type=%d vap_mode:%d", bss_mac_str, bss->haultype, bss->vap_mode);
 			bss = reinterpret_cast<em_ap_vendor_operational_bss_t *> (reinterpret_cast<unsigned char *> (bss) + sizeof(em_ap_vendor_operational_bss_t));
@@ -1601,25 +1612,57 @@ void em_configuration_t::print_ap_vendor_operational_bss_tlv(unsigned char *valu
 	}
 }
 
+// The entries carry no length of their own, so check that the radio and BSS counts fill the TLV
+// exactly before walking it; a short or malformed TLV would otherwise be read past its end.
+static bool vendor_op_bss_len_ok(const unsigned char *value, unsigned int len)
+{
+    unsigned int off = sizeof(em_ap_vendor_op_bss_t);
+
+    if (len < off) {
+        return false;
+    }
+    for (unsigned int i = 0; i < value[0]; i++) {
+        if (off + sizeof(em_ap_vendor_op_bss_radio_t) > len) {
+            return false;
+        }
+        const em_ap_vendor_op_bss_radio_t *radio =
+                reinterpret_cast<const em_ap_vendor_op_bss_radio_t *> (value + off);
+        off += static_cast<unsigned int> (sizeof(em_ap_vendor_op_bss_radio_t)) +
+                static_cast<unsigned int> (radio->bss_num) * static_cast<unsigned int> (sizeof(em_ap_vendor_operational_bss_t));
+        if (off > len) {
+            return false;
+        }
+    }
+
+    return (off == len);
+}
+
 void em_configuration_t::handle_ap_vendor_operational_bss(unsigned char *value, unsigned int len)
 {
 	mac_addr_str_t	rd_mac_str, bss_mac_str;
 	em_ap_vendor_op_bss_radio_t		   *radio;
 	em_ap_vendor_operational_bss_t *bss;
 	em_ap_vendor_op_bss_t *ap;
-	unsigned int i, j, all_bss_len = 0;
+	unsigned int i, j;
 	dm_bss_t *dm_bss;
 	dm_easy_mesh_t  *dm;
 	dm = get_data_model();
+
+	if ((value == NULL) || !vendor_op_bss_len_ok(value, len)) {
+		em_printfout("Vendor operational BSS TLV length %u does not match its BSS count, ignoring", len);
+		return;
+	}
+
 	ap = reinterpret_cast<em_ap_vendor_op_bss_t *> (value);
 	radio = ap->radios;
 	em_printfout("Number of radios: %d", ap->radios_num);
 	for (i = 0; i < ap->radios_num; i++) {
 		dm_easy_mesh_t::macbytes_to_string(radio->ruid, rd_mac_str);
 		em_printfout("Radio: %s", rd_mac_str);
-		bss = radio->bss;
 		em_printfout("Number of bss: %d", radio->bss_num);
 		for (j = 0; j < radio->bss_num; j++) {
+			bss = reinterpret_cast<em_ap_vendor_operational_bss_t *> (reinterpret_cast<unsigned char *> (radio->bss) +
+					j * sizeof(em_ap_vendor_operational_bss_t));
 			dm_easy_mesh_t::macbytes_to_string(bss->bssid, bss_mac_str);
 			em_printfout("BSSID=%s haul type=%d vap_mode:%d", bss_mac_str, bss->haultype, bss->vap_mode);
 			dm_bss = dm->get_bss(radio->ruid, bss->bssid);
@@ -1637,14 +1680,20 @@ void em_configuration_t::handle_ap_vendor_operational_bss(unsigned char *value, 
 			memcpy(dm_bss->m_bss_info.bssid.mac, bss->bssid, sizeof(mac_address_t));
 			dm_bss->m_bss_info.id.haul_type = static_cast<em_haul_type_t> (bss->haultype);
 			dm_bss->m_bss_info.vap_mode = static_cast<em_vap_mode_t> (bss->vap_mode);
-
-			bss = reinterpret_cast<em_ap_vendor_operational_bss_t *>(reinterpret_cast<unsigned char *> (bss) + sizeof(em_ap_vendor_operational_bss_t));
-			all_bss_len += sizeof(em_ap_vendor_operational_bss_t);
+            // The ACL mode follows the haul type, as in CACR persistence: backhaul APs admit only
+            // the listed STAs, fronthaul APs deny them. It is not carried in the TLV, so the
+            // entry layout stays the one older controllers parse.
+            if (dm_bss->m_bss_info.vap_mode == em_vap_mode_ap) {
+                dm_bss->m_bss_info.acl_filter_mode =
+                        (dm_bss->m_bss_info.id.haul_type == em_haul_type_backhaul) ?
+                        EM_ACL_MODE_WHITELIST : EM_ACL_MODE_BLACKLIST;
+            }
 		}
 
-		radio = reinterpret_cast<em_ap_vendor_op_bss_radio_t *>(reinterpret_cast<unsigned char *> (radio) + sizeof(em_ap_vendor_op_bss_radio_t) + all_bss_len);
-		all_bss_len = 0;
+		radio = reinterpret_cast<em_ap_vendor_op_bss_radio_t *>(reinterpret_cast<unsigned char *> (radio) + sizeof(em_ap_vendor_op_bss_radio_t) +
+				radio->bss_num * sizeof(em_ap_vendor_operational_bss_t));
 	}
+
 }
 
 int em_configuration_t::create_tid_to_link_map_policy_tlv(unsigned char *buff)
@@ -2234,6 +2283,7 @@ int em_configuration_t::handle_ap_operational_bss(unsigned char *buff, unsigned 
 	em_ap_operational_bss_t	*bss;
 	dm_bss_t *dm_bss;
 	bool updated_at_least_one_bss = false;;
+	bool ssid_mismatch = false;
 	unsigned int i, j;
 	unsigned int all_bss_len = 0;
 	char time_date[EM_DATE_TIME_BUFF_SZ];
@@ -2273,14 +2323,13 @@ int em_configuration_t::handle_ap_operational_bss(unsigned char *buff, unsigned 
             }
             memcpy(ssid_buf, bss->ssid, ssid_len);
             ssid_buf[ssid_len] = '\0';
-            if (em_get_ext_hooks()->accept_bss_ssid(dm->is_ssid_match(ssid_buf))) {
-                strncpy(dm_bss->m_bss_info.ssid, ssid_buf, sizeof(dm_bss->m_bss_info.ssid) - 1);
-                dm_bss->m_bss_info.ssid[sizeof(dm_bss->m_bss_info.ssid) - 1] = '\0';
-            } else {
-                // SSID mismatch, stop processing further.
-                em_printfout("%s:%d:SSID mismatch. Stop proceeding. SSID=%s", __func__, __LINE__, bss->ssid);
-                return -2;
+            // Record what the agent reports; a mismatch still triggers reconfiguration via the -2 return.
+            if (!em_get_ext_hooks()->accept_bss_ssid(dm->is_ssid_match(ssid_buf))) {
+                em_printfout("SSID mismatch on BSS %s: SSID=%s", util::mac_to_string(bss->bssid).c_str(), ssid_buf);
+                ssid_mismatch = true;
             }
+            strncpy(dm_bss->m_bss_info.ssid, ssid_buf, sizeof(dm_bss->m_bss_info.ssid) - 1);
+            dm_bss->m_bss_info.ssid[sizeof(dm_bss->m_bss_info.ssid) - 1] = '\0';
             dm_bss->m_bss_info.enabled = true;
             strncpy(dm_bss->m_bss_info.timestamp, time_date, sizeof(em_long_string_t));
 
@@ -2298,7 +2347,7 @@ int em_configuration_t::handle_ap_operational_bss(unsigned char *buff, unsigned 
 		dm->set_db_cfg_param(db_cfg_type_bss_list_update, "");
 	}
 
-	return 0;
+	return ssid_mismatch ? -2 : 0;
 
 }
 
@@ -2436,19 +2485,6 @@ int em_configuration_t::handle_topology_response(unsigned char *buff, unsigned i
         return -1;
     }
         
-    tlv =  reinterpret_cast<em_tlv_t *> (buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
-    tmp_len = len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
-
-	while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
-		if (tlv->type != em_tlv_type_vendor_operational_bss) {
-			tmp_len -= static_cast<unsigned int> (sizeof(em_tlv_t) + htons(tlv->len));
-			tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
-			continue;
-		} else {
-			handle_ap_vendor_operational_bss(tlv->value, tlv->len);
-			break;
-		}
-	}
 	tlv =  reinterpret_cast<em_tlv_t *> (buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
 	tmp_len = len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)); 
     while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
@@ -2471,6 +2507,22 @@ int em_configuration_t::handle_topology_response(unsigned char *buff, unsigned i
 
 
         int rc = handle_ap_operational_bss(tlv->value, tlv->len);
+
+        // Scan for the vendor TLV with local cursors so tlv/tmp_len still point at the
+        // operational BSS TLV when the bss_conf_rep scan below resumes from here.
+        {
+            em_tlv_t *vtlv = reinterpret_cast<em_tlv_t *>(buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+            unsigned int vlen = len - static_cast<unsigned int>(sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+            while ((vtlv->type != em_tlv_type_eom) && (vlen > 0)) {
+                if (vtlv->type == em_tlv_type_vendor_operational_bss) {
+                    handle_ap_vendor_operational_bss(vtlv->value, htons(vtlv->len));
+                    break;
+                }
+                vlen -= static_cast<unsigned int>(sizeof(em_tlv_t) + htons(vtlv->len));
+                vtlv = reinterpret_cast<em_tlv_t *>(reinterpret_cast<unsigned char *>(vtlv) + sizeof(em_tlv_t) + htons(vtlv->len));
+            }
+        }
+
         if (rc != 0) {
             if (rc == -2) {
                 em_printfout("Failed to handle operational BSS due to SSID misconfiguration.");
@@ -2480,7 +2532,6 @@ int em_configuration_t::handle_topology_response(unsigned char *buff, unsigned i
             }
             return rc;
         }
-
 
     while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
         if (tlv->type != em_tlv_type_bss_conf_rep) {
@@ -2903,9 +2954,11 @@ unsigned short em_configuration_t::create_m2_msg(unsigned char *buff, em_haul_ty
     char *str;
     int current_band;
     bool isBandEnabled;
-    em_network_ssid_info_t *net_ssid_info;
+    em_network_ssid_info_t net_ssid_copy;
+    em_network_ssid_info_t *net_ssid_info = &net_ssid_copy;
  
-    if ((net_ssid_info = get_network_ssid_info_by_haul_type(haul_type)) == NULL) {
+    // A copy: the controller thread may replace the network SSIDs meanwhile
+    if (!get_data_model()->copy_network_ssid_info_by_haul_type(haul_type, net_ssid_copy)) {
         em_printfout("Could not find network ssid information for haul type %d", haul_type);
         return 0;
     }
@@ -3162,6 +3215,109 @@ unsigned short em_configuration_t::create_m2_msg(unsigned char *buff, em_haul_ty
     
     len += static_cast<unsigned short int> (sizeof(data_elem_attr_t) + size);
     tmp += (sizeof(data_elem_attr_t) + size);
+    return len;
+}
+
+em_wsc_msg_type_t em_configuration_t::get_wsc_blob_msg_type(unsigned char *buff, unsigned int len)
+{
+    data_elem_attr_t *attr = reinterpret_cast<data_elem_attr_t *>(buff);
+    unsigned int tmp_len = len;
+
+    while (tmp_len > sizeof(data_elem_attr_t)) {
+        if (htons(attr->id) == attr_id_msg_type) {
+            return static_cast<em_wsc_msg_type_t>(attr->val[0]);
+        }
+        unsigned int advance = static_cast<unsigned int>(sizeof(data_elem_attr_t) + htons(attr->len));
+        if (advance > tmp_len) break;
+        tmp_len -= advance;
+        attr = reinterpret_cast<data_elem_attr_t *>(reinterpret_cast<unsigned char *>(attr) + advance);
+    }
+    return em_wsc_msg_type_none;
+}
+
+#define EM_M2_PENDING_RETRY_SECS 30
+
+// Upper bound of an M8 (version, type, nonce, DH public key, encrypted backhaul settings,
+// authenticator); create_autoconfig_wsc_m2_msg reserves this much before appending one
+#define EM_M8_MAX_LEN 1024
+
+unsigned short em_configuration_t::create_m8_msg(unsigned char *buff)
+{
+    data_elem_attr_t *attr;
+    unsigned short size, len = 0;
+    unsigned char *tmp = buff;
+    em_network_ssid_info_t net_ssid_copy;
+    em_network_ssid_info_t *net_ssid_info = &net_ssid_copy;
+
+    // M8 only carries backhaul encrypted settings; a copy, as the controller thread may replace the
+    // network SSIDs meanwhile
+    if (!get_data_model()->copy_network_ssid_info_by_haul_type(em_haul_type_backhaul, net_ssid_copy)) {
+        em_printfout("M8: Could not find backhaul network ssid information");
+        return 0;
+    }
+
+    if (net_ssid_info->enable == false) {
+        em_printfout("M8: Backhaul SSID is disabled, skipping");
+        return 0;
+    }
+
+    // version
+    attr = reinterpret_cast<data_elem_attr_t *>(tmp);
+    attr->id = htons(attr_id_version);
+    size = 1;
+    attr->len = htons(size);
+    attr->val[0] = 0x10;
+    len += static_cast<unsigned short>(sizeof(data_elem_attr_t) + size);
+    tmp += (sizeof(data_elem_attr_t) + size);
+
+    // message type — M8
+    attr = reinterpret_cast<data_elem_attr_t *>(tmp);
+    attr->id = htons(attr_id_msg_type);
+    size = 1;
+    attr->len = htons(size);
+    attr->val[0] = em_wsc_msg_type_m8;
+    len += static_cast<unsigned short>(sizeof(data_elem_attr_t) + size);
+    tmp += (sizeof(data_elem_attr_t) + size);
+
+    // registrar nonce (EasyMesh Section 5.2.5)
+    attr = reinterpret_cast<data_elem_attr_t *>(tmp);
+    attr->id = htons(attr_id_registrar_nonce);
+    size = sizeof(em_nonce_t);
+    attr->len = htons(size);
+    get_r_nonce(attr->val);
+    len += static_cast<unsigned short>(sizeof(data_elem_attr_t) + size);
+    tmp += (sizeof(data_elem_attr_t) + size);
+
+    // public key — Diffie-Hellman key of Registrar (EasyMesh Section 5.2.5)
+    attr = reinterpret_cast<data_elem_attr_t *>(tmp);
+    attr->id = htons(attr_id_public_key);
+    size = static_cast<unsigned short>(get_r_public_len());
+    attr->len = htons(size);
+    memcpy(attr->val, get_r_public(), size);
+    len += static_cast<unsigned short>(sizeof(data_elem_attr_t) + size);
+    tmp += (sizeof(data_elem_attr_t) + size);
+
+    // encrypted settings (backhaul SSID + passphrase)
+    attr = reinterpret_cast<data_elem_attr_t *>(tmp);
+    attr->id = htons(attr_id_encrypted_settings);
+    size = static_cast<unsigned short>(create_encrypted_settings(attr->val, em_haul_type_backhaul));
+    attr->len = htons(size);
+    len += static_cast<unsigned short>(sizeof(data_elem_attr_t) + size);
+    tmp += (sizeof(data_elem_attr_t) + size);
+
+    // Save M8 as M2 for authenticator computation (reuses m_m2_msg/m_m2_length)
+    m_m2_length = len;
+    memcpy(m_m2_msg, buff, m_m2_length);
+
+    // authenticator
+    attr = reinterpret_cast<data_elem_attr_t *>(tmp);
+    attr->id = htons(attr_id_authenticator);
+    size = static_cast<unsigned short>(create_authenticator(attr->val));
+    attr->len = htons(size);
+    len += static_cast<unsigned short>(sizeof(data_elem_attr_t) + size);
+    tmp += (sizeof(data_elem_attr_t) + size);
+
+    em_printfout("M8 message created, length: %d, backhaul SSID: %s", len, net_ssid_info->ssid);
     return len;
 }
 
@@ -4155,6 +4311,8 @@ int em_configuration_t::create_autoconfig_wsc_m2_msg(unsigned char *buff, unsign
     radio = get_radio_from_dm();
 
     dm = get_data_model();
+    // Decided per M2 below; carried to the main thread by the M2-TX event once the M2 is sent
+    m_m2_skip_em_config = false;
 
     // first compute keys
     if (compute_keys(get_e_public(), static_cast<short unsigned int> (get_e_public_len()), get_r_private(), static_cast<short unsigned int> (get_r_private_len())) != 1) {
@@ -4226,6 +4384,32 @@ int em_configuration_t::create_autoconfig_wsc_m2_msg(unsigned char *buff, unsign
         return 0;
     }
 
+    // Append M8 WSC TLV for backhaul SSID reconfiguration (bSTA reconfig).
+    em_cmd_t *cur_cmd = get_current_cmd();
+    if (cur_cmd != NULL && cur_cmd->m_type == em_cmd_type_set_bh_cfg &&
+            get_data_model()->get_colocated()) {
+        // The co-located agent has no bSTA, so there is nothing to reconfigure for it.
+        em_printfout("Skipping M8 for co-located agent");
+    } else if (cur_cmd != NULL && cur_cmd->m_type == em_cmd_type_set_bh_cfg) {
+        // The M8 must fit, with the AP MLD TLV and the extension TLVs checked below. Without it this
+        // M2 would hand the new backhaul credentials to the APs but not the bSTA, so send none.
+        if ((static_cast<size_t> (len) + sizeof(em_tlv_t) + EM_M8_MAX_LEN) > MAX_EM_BUFF_SZ * em_haul_type_max) {
+            em_printfout("No space for M8 TLV, len: %d", len);
+            return -1;
+        }
+        tlv =reinterpret_cast<em_tlv_t *>(tmp);
+        tlv->type = em_tlv_type_wsc;
+        sz = create_m8_msg(tlv->value);
+        if (sz > 0) {
+            // Only an agent on a wireless backhaul drops its bSTA and re-onboards by itself; a
+            // wired one keeps its link, so it still needs em_config (and the ACL replay) after this M2
+            m_m2_skip_em_config = get_data_model()->is_bh_reconfig_reonboards();
+            tlv->len = htons(sz);
+            tmp += (sizeof(em_tlv_t) + sz);
+            len += static_cast<int>(sizeof(em_tlv_t) + sz);
+        }
+    }
+    
     // ap mld tlv 17.2.96
     // Add AP MLD Configuration TLV
     if (add_ap_mld_tlv) {
@@ -4597,20 +4781,35 @@ int em_configuration_t::handle_wsc_m2(unsigned char *buff, unsigned int len, uns
     unsigned int tmp_len;
     unsigned short id;
 
-    em_printfout("Parsing m2 message, index: %d, len: %d", index, len);
+    em_printfout("Parsing wsc message, index: %d, len: %d", index, len);
 
-    m_m2_length = len - 12;
+    // Authenticated part: everything before the Authenticator attribute (the sender hashes the same
+    // span). Assumed to be the trailing 12 bytes until the attribute is found below.
+    m_m2_length = (len >= 12) ? (len - 12) : 0;
     memcpy(m_m2_msg, buff, m_m2_length);
-    
+    m_m2_authenticator_len[index] = 0;
+
     attr = reinterpret_cast<data_elem_attr_t *> (buff); tmp_len = len;
 
     while (tmp_len > 0) {
+        unsigned int attr_len;
+
+        // A malformed attribute must not walk past the message or overrun the buffers below
+        if (tmp_len < sizeof(data_elem_attr_t)) {
+            em_printfout("Truncated wsc attribute header, index: %d", index);
+            return -1;
+        }
+        attr_len = htons(attr->len);
+        if (attr_len > (tmp_len - sizeof(data_elem_attr_t))) {
+            em_printfout("wsc attribute 0x%04x overruns the message, index: %d", htons(attr->id), index);
+            return -1;
+        }
 
         id = htons(attr->id);
 
         if (id == attr_id_version) {
         } else if (id == attr_id_msg_type) {
-            if (attr->val[0] != em_wsc_msg_type_m2) {
+            if (attr->val[0] != em_wsc_msg_type_m2 && attr->val[0] != em_wsc_msg_type_m8) {
                 return -1;
             }
         } else if (id == attr_id_registrar_nonce) {
@@ -4618,15 +4817,27 @@ int em_configuration_t::handle_wsc_m2(unsigned char *buff, unsigned int len, uns
         } else if (id == attr_id_public_key) {
             set_r_public(attr->val, htons(attr->len));
         } else if (id == attr_id_encrypted_settings) {
-            memcpy(&m_m2_encrypted_settings[index][0], attr->val, htons(attr->len));
-            m_m2_encrypted_settings_len[index] = htons(attr->len);
+            if (attr_len > sizeof(m_m2_encrypted_settings[index])) {
+                em_printfout("Encrypted settings too long (%u), index: %d", attr_len, index);
+                return -1;
+            }
+            memcpy(&m_m2_encrypted_settings[index][0], attr->val, attr_len);
+            m_m2_encrypted_settings_len[index] = attr_len;
             //em_printfout("Copied encrypted setting[%d] len:%d", index, htons(attr->len));
         } else if (id == attr_id_authenticator) {
-            memcpy(m_m2_authenticator[index], attr->val, htons(attr->len));
+            if ((attr_len != AUTHENTICATOR_LEN) ||
+                     (tmp_len != sizeof(data_elem_attr_t) + attr_len)) {
+                 em_printfout("Authenticator must be the final WSC attribute and have length %d, index: %d",
+                    AUTHENTICATOR_LEN, index);
+                return -1;
+            }
+            memcpy(m_m2_authenticator[index], attr->val, attr_len);
+            m_m2_authenticator_len[index] = attr_len;
+            m_m2_length = static_cast<size_t>(reinterpret_cast<unsigned char *> (attr) - buff);
         }
 
-        tmp_len -= static_cast<unsigned int> (sizeof(data_elem_attr_t) + htons(attr->len));
-        attr = reinterpret_cast<data_elem_attr_t *>(reinterpret_cast<unsigned char *> (attr) + sizeof(data_elem_attr_t) + htons(attr->len));
+        tmp_len -= static_cast<unsigned int> (sizeof(data_elem_attr_t) + attr_len);
+        attr = reinterpret_cast<data_elem_attr_t *>(reinterpret_cast<unsigned char *> (attr) + sizeof(data_elem_attr_t) + attr_len);
     }
 
     return ret;
@@ -4771,6 +4982,9 @@ int em_configuration_t::handle_autoconfig_wsc_m2(unsigned char *buff, unsigned i
     em_raw_hdr_t *hdr = reinterpret_cast<em_raw_hdr_t *> (buff);
     em_tlv_t *ap_mld_tlv = NULL;
     m2ctrl_radioconfig radioconfig;
+    bool has_m8 = false;
+    em_tlv_t *m8_tlv = NULL;
+    int m8_idx = -1;
 
     /* len must cover the fixed headers, or the subtraction below wraps and the TLV walk overruns. */
     if (len < static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))) {
@@ -4782,6 +4996,8 @@ int em_configuration_t::handle_autoconfig_wsc_m2(unsigned char *buff, unsigned i
         return -1;
     }
 
+    // Process all WSC TLVs: M2 TLVs configure AP-side BSSes,
+    // M8 TLVs configure the bSTA (backhaul reconfiguration).
     tlv =  reinterpret_cast<em_tlv_t *> (buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
     tmp_len = static_cast<int> (len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)));
 
@@ -4799,8 +5015,22 @@ int em_configuration_t::handle_autoconfig_wsc_m2(unsigned char *buff, unsigned i
             em_printfout("Found AP MLD details in message");
             ap_mld_tlv = tlv;
         } else if (tlv->type == em_tlv_type_wsc) {
-            em_printfout("Handle wsc TLV, count: %d", wsc_tlv_count);
-            //Storing m2 address and length in static variable;
+            em_wsc_msg_type_t wsc_type = get_wsc_blob_msg_type(tlv->value, htons(tlv->len));
+            if (wsc_type == em_wsc_msg_type_m8) {
+                has_m8 = true;
+                m8_tlv = tlv;
+                em_printfout("Found M8 TLV in M2 message, decoded after the M2 TLVs");
+                tmp_len -= static_cast<int> (sizeof(em_tlv_t) + htons(tlv->len));
+                tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
+                continue;
+            }
+            em_printfout("Handle wsc M2 TLV, count: %d", wsc_tlv_count);
+            if (wsc_tlv_count >= em_haul_type_max) {
+                em_printfout("wsc_tlv_count:%d exceeds em_haul_type_max:%d, skipping", wsc_tlv_count, em_haul_type_max);
+                tmp_len -= static_cast<int> (sizeof(em_tlv_t) + htons(tlv->len));
+                tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
+                continue;
+            }
             set_e_mac(get_radio_interface_mac());
             handle_wsc_m2(tlv->value, val_len, wsc_tlv_count);
 
@@ -4834,22 +5064,87 @@ int em_configuration_t::handle_autoconfig_wsc_m2(unsigned char *buff, unsigned i
         return -1;
     }
 
-    if (handle_encrypted_settings(wsc_tlv_count, radioconfig) != 0) {
+    // Decode the M8 (bSTA backhaul credentials) into one extra slot after the M2 TLVs, so the
+    // bSTA update does not depend on the M2 carrying a backhaul BSS entry.
+    if (m8_tlv != NULL) {
+        // The M2 TLVs use at most em_haul_type_max slots, so the reserved M8 slot is always free;
+        // checked anyway, as an M8 that is not authenticated must never reach the bSTA
+        if (wsc_tlv_count >= EM_M2_WSC_SLOTS) {
+            em_printfout("M8: no slot to decode it (wsc_tlv_count:%d), rejected", wsc_tlv_count);
+            return -1;
+        } else {
+            set_e_mac(get_radio_interface_mac());
+            // The M8 carries the bSTA backhaul credentials that get applied and persisted: it is
+            // used only once parsed cleanly and authenticated, else the whole message is rejected
+            if (handle_wsc_m2(m8_tlv->value, ntohs(m8_tlv->len), wsc_tlv_count) != 0) {
+                em_printfout("M8: malformed WSC message, rejected");
+                return -1;
+            }
+            if (m_m2_authenticator_len[wsc_tlv_count] != AUTHENTICATOR_LEN) {
+                em_printfout("M8: Authenticator missing, rejected");
+                return -1;
+            }
+            if (compute_keys(get_r_public(), static_cast<short unsigned int> (get_r_public_len()), get_e_private(), static_cast<short unsigned int> (get_e_private_len())) != 1) {
+                em_printfout("M8: Keys computation failed");
+                return -1;
+            }
+            if (create_authenticator(hash) != AUTHENTICATOR_LEN) {
+                em_printfout("M8: Authenticator computation failed");
+                return -1;
+            }
+            if (memcmp(m_m2_authenticator[wsc_tlv_count], hash, AUTHENTICATOR_LEN) != 0) {
+                em_printfout("M8: Authenticator verification failed, rejected");
+                return -1;
+            }
+            em_printfout("M8: Authenticator verified");
+            m8_idx = static_cast<int> (wsc_tlv_count);
+            wsc_tlv_count++;
+        }
+    }
+
+    if (handle_encrypted_settings(wsc_tlv_count, radioconfig, has_m8) != 0) {
         em_printfout("Error in decrypting settings wsc_tlv_count:%d", wsc_tlv_count);
         return -1;
+    }
+
+    // The M8 only ever carries backhaul settings. Fold it into the M2 backhaul entry (M8 wins,
+    // it is the authoritative bSTA credential). If the M2 had none, the M8 entry stays as a
+    // bSTA-only entry, so no backhaul AP is created on a radio the controller did not ask for.
+    if ((m8_idx >= 0) && (static_cast<unsigned int> (m8_idx) < radioconfig.noofbssconfig)) {
+        unsigned int m8 = static_cast<unsigned int> (m8_idx);
+        radioconfig.haultype[m8] = em_haul_type_backhaul;
+        radioconfig.bsta_only_last = true;
+        for (unsigned int j = 0; j < m8; j++) {
+            if (radioconfig.haultype[j] != em_haul_type_backhaul) {
+                continue;
+            }
+            memcpy(radioconfig.ssid[j], radioconfig.ssid[m8], sizeof(radioconfig.ssid[j]));
+            memcpy(radioconfig.password[j], radioconfig.password[m8], sizeof(radioconfig.password[j]));
+            radioconfig.authtype[j] = radioconfig.authtype[m8];
+            radioconfig.enable[j] = radioconfig.enable[m8];
+            // drop the now-duplicate M8 slot (it is the last one)
+            radioconfig.noofbssconfig--;
+            radioconfig.bsta_only_last = false;
+            break;
+        }
+        em_printfout("M8 backhaul credentials applied, ssid: %s", radioconfig.ssid[(m8 < radioconfig.noofbssconfig) ? m8 : 0]);
     }
 
     if (ap_mld_tlv != NULL) {
         handle_ap_mld_config_tlv(ap_mld_tlv->value, ntohs(ap_mld_tlv->len));
     }
 
+    dm = get_data_model();
     if (em_get_ext_hooks()->intercept_agent_event(static_cast<em_t *> (this), em_bus_event_type_m2ctrl_configuration,
             reinterpret_cast<unsigned char *> (&radioconfig), sizeof(radioconfig)) == false) {
+        if (dm != NULL) {
+            // Released by the agent thread once it applied the configuration (cfg_renew waits for it)
+            __atomic_add_fetch(&dm->m_m2ctrl_pending, 1, __ATOMIC_ACQ_REL);
+        }
         get_mgr()->io_process(em_bus_event_type_m2ctrl_configuration, reinterpret_cast<unsigned char *> (&radioconfig), sizeof(radioconfig));
         set_state(em_state_agent_owconfig_pending);
     }
 
-    dm = get_data_model();
     //Commit controller mac address
     if ((dm != NULL) && (hdr != NULL)) {
         memcpy(&network.m_net_info.ctrl_id.mac, &hdr->src, sizeof(mac_address_t));
@@ -4865,15 +5160,15 @@ int em_configuration_t::handle_autoconfig_wsc_m2(unsigned char *buff, unsigned i
 #endif
         }
     }
+
     return 0;
 }
 
-int em_configuration_t::handle_encrypted_settings(unsigned int wsc_tlv_count, m2ctrl_radioconfig& radioconfig)
+int em_configuration_t::handle_encrypted_settings(unsigned int wsc_tlv_count, m2ctrl_radioconfig& radioconfig, bool is_bh_reconfig)
 {
     data_elem_attr_t    *attr;
     int tmp_len;
     unsigned short id;
-    char pass[64] = {0};
     unsigned char *plain;
     unsigned short plain_len;
     unsigned short auth_type;
@@ -4884,9 +5179,16 @@ int em_configuration_t::handle_encrypted_settings(unsigned int wsc_tlv_count, m2
 
     memset(&radioconfig, 0, sizeof(m2ctrl_radioconfig));
     radioconfig.noofbssconfig = 0;
+    radioconfig.is_bh_reconfig = is_bh_reconfig;
 
     em_printfout("Total wsc_tlv_count:%d for radio:%s", wsc_tlv_count, util::mac_to_string(get_radio_interface_mac()).c_str());
     for(unsigned int wsc_index = 0;((wsc_index < wsc_tlv_count) && (wsc_index < EM_MAX_BSS_PER_RADIO)); wsc_index++) {
+        // The decode slots: one per haul type for the M2 TLVs, plus the one reserved for the M8
+        if (wsc_index >= EM_M2_WSC_SLOTS) {
+            em_printfout("wsc_index:%d exceeds the WSC decode slots:%d, not proceeding further", wsc_index,
+                EM_M2_WSC_SLOTS);
+            return -1;
+        }
         plain = static_cast<unsigned char *> (m_m2_encrypted_settings[wsc_index]) + AES_BLOCK_SIZE;
         plain_len = static_cast<short unsigned int> (m_m2_encrypted_settings_len[wsc_index]) - AES_BLOCK_SIZE;
         em_printfout("##handle_encrypted_settings wsc_index:%d plain_len: %d", wsc_index, plain_len);
@@ -4900,12 +5202,10 @@ int em_configuration_t::handle_encrypted_settings(unsigned int wsc_tlv_count, m2
         attr = reinterpret_cast<data_elem_attr_t *> (plain);
         tmp_len = plain_len;
 
-        // Set the haultype to the wsc index by default
-        if (wsc_index >= em_haul_type_max) {
-            em_printfout("wsc_index:%d exceeds max haul types:%d, not proceeding further", wsc_index, em_haul_type_max);
-            return -1;
-        }
-        radioconfig.haultype[wsc_index] = static_cast<em_haul_type_t> (wsc_index);
+        // Set the haultype to the wsc index by default. The slot after the M2 TLVs is the M8, which
+        // only ever carries backhaul settings (handle_autoconfig_wsc_m2() sets it so as well).
+        radioconfig.haultype[wsc_index] = (wsc_index < em_haul_type_max) ?
+            static_cast<em_haul_type_t> (wsc_index) : em_haul_type_backhaul;
         while (tmp_len > 0) {
             id = htons(attr->id);
             if (id == attr_id_vendor_ext) {
@@ -4932,9 +5232,14 @@ int em_configuration_t::handle_encrypted_settings(unsigned int wsc_tlv_count, m2
             } else if (id == attr_id_encryption_type) {
                 em_printfout("##encr type attrib for wsc_index:%d", wsc_index);
             } else if (id == attr_id_network_key) {
-                memcpy(pass, attr->val, htons(attr->len));
-                memcpy(radioconfig.password[wsc_index], attr->val, htons(attr->len));
-                em_printfout("##network key[%d]: %s", wsc_index, pass);
+                // The attribute length comes from the message: copy at most what the buffer holds,
+                // leaving room for the terminator
+                size_t key_len = std::min(static_cast<size_t> (htons(attr->len)),
+                        sizeof(radioconfig.password[wsc_index]) - 1);
+                memcpy(radioconfig.password[wsc_index], attr->val, key_len);
+                radioconfig.password[wsc_index][key_len] = '\0';
+                // Never log the network key itself
+                em_printfout("##network key[%d]: %s", wsc_index, (key_len > 0) ? "<set>" : "<empty>");
             } else if (id == attr_id_mac_address) {
                 memcpy(radioconfig.radio_mac[wsc_index], attr->val, sizeof(mac_address_t));
                 em_printfout("##mac address[%d]: %s", wsc_index, util::mac_to_string(radioconfig.radio_mac[wsc_index]).c_str());
@@ -5667,7 +5972,7 @@ int em_configuration_t::handle_bss_config_rsp_msg(uint8_t *buff, unsigned int le
             if (!is_enabled) continue;
             printf("\t\t\tHaul Type: %d\n", config.haultype[i]);
             printf("\t\t\tSSID: %s\n", config.ssid[i]);
-            printf("\t\t\tPassword: %s\n", config.password[i]);
+            printf("\t\t\tPassword: %s\n", config.password[i][0] ? "<set>" : "<empty>");
             printf("\t\t\tAuth Type: %u\n", config.authtype[i]);
             printf("\t\t\tRadio MAC: " MACSTRFMT "\n", MAC2STR(config.radio_mac[i]));
             printf("\t\t\tBSSID (expected empty): " MACSTRFMT "\n", MAC2STR(config.bssid_mac[i]));
@@ -5789,9 +6094,10 @@ int em_configuration_t::handle_bss_config_res_msg(uint8_t *buff, unsigned int le
     // Set to WSC M2 Sent state, which can be used to kick off the rest
     em_bus_event_type_m2_tx_params_t   raw;
 
-    set_state(em_state_ctrl_wsc_m2_sent);
+    mark_m2_sent();
     memcpy(raw.al, src_al_mac, sizeof(mac_address_t));
     memcpy(raw.radio, get_radio_interface_mac(), sizeof(mac_address_t));
+    raw.skip_em_config = false;
 
 	get_mgr()->io_process(em_bus_event_type_m2_tx, reinterpret_cast<unsigned char *> (&raw), sizeof(em_bus_event_type_m2_tx_params_t));
 
@@ -5852,7 +6158,8 @@ int em_configuration_t::create_encrypted_settings(unsigned char *buff, em_haul_t
     unsigned char *keywrap_data_addr[1];
     size_t keywrap_data_length[1];
     const unsigned char wfa_vendor_oui_local[EM_VENDOR_OUI_SIZE] = {0x00, 0x37, 0x2a};
-    em_network_ssid_info_t *net_ssid_info;
+    em_network_ssid_info_t net_ssid_copy;
+    em_network_ssid_info_t *net_ssid_info = &net_ssid_copy;
     memset(plain, 0, MAX_EM_BUFF_SZ);
     tmp = plain;
     len = 0;
@@ -5875,11 +6182,15 @@ int em_configuration_t::create_encrypted_settings(unsigned char *buff, em_haul_t
     em_printfout("radio:%s haul_type=%d radio no of bss=%d",
         util::mac_to_string(get_radio_interface_mac()).c_str(), haul_type, radio->m_radio_info.number_of_bss);
 
-    if ((net_ssid_info = get_network_ssid_info_by_haul_type(haul_type)) == NULL) {
+    // A copy: the controller thread may replace the network SSIDs while this M2 is built, and the
+    // SSID and passphrase must come from the same configuration
+    if (!get_data_model()->copy_network_ssid_info_by_haul_type(haul_type, net_ssid_copy)) {
         em_printfout("Could not find network ssid information for haul type %d", haul_type);
         return 0;
     }
-    em_printfout("ssid: %s, passphrase: %s, Auth Type: %s\n", net_ssid_info->ssid, net_ssid_info->pass_phrase, net_ssid_info->auth_type);
+    // Never log the passphrase itself
+    em_printfout("ssid: %s, passphrase: %s, Auth Type: %s\n", net_ssid_info->ssid,
+        net_ssid_info->pass_phrase[0] ? "<set>" : "<empty>", net_ssid_info->auth_type);
 
     auth_type = get_Auth_type_hex(net_ssid_info->auth_type);
 
@@ -6248,6 +6559,23 @@ int em_configuration_t::handle_autoconfig_wsc_m1(unsigned char *buff, unsigned i
         tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + val_len);
     }
 
+    // During a backhaul reconfig an agent of the walk not reached yet gets its M2 in its own phase.
+    // A plain M2 now would switch its backhaul APs before its children and give its bSTA no new
+    // credentials. Its M1 retry brings it back after the walk if no phase picks it up. An agent
+    // that was not in the topology when the walk started is not part of it and is held until the
+    // walk ends: whether it supports M8 is only known from its AP capability report, after it has
+    // onboarded, so it cannot be admitted to the walk safely. Its M1 retry onboards it afterwards.
+    em_cmd_t *m1_cmd = get_current_cmd();
+    dm_easy_mesh_t *m1_dm = get_data_model();
+    if (get_mgr()->is_bh_reconfig_active() &&
+            (!m1_dm->is_bh_reconfig_enrolled() || !m1_dm->is_bh_reconfig_processed()) &&
+            ((m1_cmd == NULL) || (m1_cmd->m_type != em_cmd_type_set_bh_cfg))) {
+        em_printfout("Holding M2 for radio " MACSTRFMT ": %s", MAC2STR(get_radio_interface_mac()),
+            m1_dm->is_bh_reconfig_enrolled() ? "backhaul reconfig has not reached this agent" :
+            "agent joined during backhaul reconfig, onboarding after it");
+        return 0;
+    }
+
     int ret = create_autoconfig_wsc_m2_msg(msg, ntohs(cmdu->id));
     if (ret <= 0) {
         return -1;
@@ -6270,10 +6598,11 @@ int em_configuration_t::handle_autoconfig_wsc_m1(unsigned char *buff, unsigned i
 	 orch->remove_em_config_cmd_for_em(get_radio_interface_mac());
     }
 
-	set_state(em_state_ctrl_wsc_m2_sent);
+	mark_m2_sent();
 	em_printfout("autoconfig wsc m2 send, len:%u", sz);
     memcpy(raw.al, const_cast<unsigned char *> (get_peer_mac()), sizeof(mac_address_t));
     memcpy(raw.radio, get_radio_interface_mac(), sizeof(mac_address_t));
+    raw.skip_em_config = m_m2_skip_em_config;
 
 	get_mgr()->io_process(em_bus_event_type_m2_tx, reinterpret_cast<unsigned char *> (&raw), sizeof(em_bus_event_type_m2_tx_params_t));
 
@@ -6385,6 +6714,7 @@ int em_configuration_t::handle_autoconfig_resp(unsigned char *buff, unsigned int
         return -1;
     }
     em_printfout("autoconfig wsc m1 send success, len:%d", sz);
+    m_m2_pending_retry_time = 0;
     set_state(em_state_agent_wsc_m2_pending);
 
     return 0;   
@@ -6483,6 +6813,15 @@ int em_configuration_t::handle_autoconfig_search(unsigned char *buff, unsigned i
 
 }
 
+void em_configuration_t::mark_m2_sent()
+{
+    struct timespec ts_now;
+
+    util::monotonic_now(&ts_now);
+    m_m2_sent_time = ts_now.tv_sec;
+    set_state(em_state_ctrl_wsc_m2_sent);
+}
+
 int em_configuration_t::handle_autoconfig_renew(unsigned char *buff, unsigned int len)
 {
     em_raw_hdr_t *hdr;
@@ -6548,11 +6887,11 @@ void em_configuration_t::process_msg(unsigned char *data, unsigned int len)
         case em_msg_type_autoconf_wsc:
             if ((get_wsc_msg_type(tlvs, tlvs_len) == em_wsc_msg_type_m2) &&
                     (get_service_type() == em_service_type_agent) && (get_state() == em_state_agent_wsc_m2_pending)) {
-                        printf("%s:%d: received wsc_m2 len:%d\n", __func__, __LINE__, len);
+                        em_printfout("Received wsc_m2 len:%d\n", len);
                         handle_autoconfig_wsc_m2(data, len);
             } else if ((get_wsc_msg_type(tlvs, tlvs_len) == em_wsc_msg_type_m1) &&
                     (get_service_type() == em_service_type_ctrl) && (get_state() == em_state_ctrl_wsc_m1_pending))  {
-                        printf("%s:%d: received wsc_m1 len:%d\n", __func__, __LINE__, len);
+                        em_printfout("Received wsc_m1 len:%d\n", len);
                         handle_autoconfig_wsc_m1(data, len);
             }
 
@@ -6560,6 +6899,7 @@ void em_configuration_t::process_msg(unsigned char *data, unsigned int len)
 
         case em_msg_type_autoconf_renew:
             if (get_service_type() == em_service_type_agent) {
+                em_printfout("Received autoconf renew message, len:%d\n", len);
                 handle_autoconfig_renew(data, len);
             }
             break;
@@ -6615,16 +6955,25 @@ void em_configuration_t::process_msg(unsigned char *data, unsigned int len)
                         util::mac_to_string(hdr->src).c_str());
                     get_mgr()->get_all_em_for_al_mac(hdr->src, em_radios);
                     for (auto &em : em_radios) {
-                        em->set_state(em_state_ctrl_topo_synchronized);
+                        // Only advance radios that are actually in topo_sync_pending;
+                        // radios in other states (misconfigured, configured) should
+                        // not be blindly transitioned.
                         em->set_ssid_mismatch(false);
-                        printf("%s:%d em_msg_type_topo_resp handle success, state: %s\n", __func__, __LINE__, em_t::state_2_str(em->get_state()));
+                        if (em->get_state() == em_state_ctrl_topo_sync_pending) {
+                            em->set_state(em_state_ctrl_topo_synchronized);
+                            printf("%s:%d em_msg_type_topo_resp handle success, state: %s\n", __func__, __LINE__, em_t::state_2_str(em->get_state()));
+                        }
                     }
                     em_radios.clear();
                     //Reset the mismatch and topo_query_last sent values
                     dm->set_ssid_mismatch_check_time(0);
                     dm->set_last_topo_query_sent_time(0);
-                    // update network topology here
-                    get_mgr()->update_network_topology();
+                    // On the controller thread, like every other user of the tree: it deletes and
+                    // re-creates nodes that a backhaul reconfig is walking
+                    {
+                        unsigned char no_data = 0;
+                        get_mgr()->io_process(em_bus_event_type_topo_update, &no_data, sizeof(no_data));
+                    }
                     dm->set_topo_state(true);
                     dm->set_db_cfg_param(db_cfg_type_device_list_update, "");
                 } else {
@@ -6762,6 +7111,7 @@ void em_configuration_t::handle_state_autoconfig_renew()
         return ;
     }
     em_printfout("autoconfig wsc m1 send success");
+    m_m2_pending_retry_time = 0;
     set_state(em_state_agent_wsc_m2_pending);
 
     return ;
@@ -6781,6 +7131,20 @@ void em_configuration_t::handle_state_wsc_m1_pending()
 void em_configuration_t::handle_state_wsc_m2_pending()
 {
     assert(get_service_type() == em_service_type_agent);
+    // M1 may have been lost in transit. Retry by re-sending autoconfig_search
+    // which restarts the autoconfig_resp → M1 → M2 sequence. Rate-limit the retry so a slow
+    // (not lost) M2 is not invalidated by a new M1/M2 exchange on every state tick.
+    struct timespec ts_now;
+    util::monotonic_now(&ts_now);
+    if (m_m2_pending_retry_time == 0) {
+        m_m2_pending_retry_time = ts_now.tv_sec;
+        return;
+    }
+    if ((ts_now.tv_sec - m_m2_pending_retry_time) < EM_M2_PENDING_RETRY_SECS) {
+        return;
+    }
+    m_m2_pending_retry_time = ts_now.tv_sec;
+    handle_state_config_none();
 }
 
 void em_configuration_t::fill_media_data(em_media_spec_data_t *spec, dm_bss_t *bss)
@@ -6860,8 +7224,14 @@ void em_configuration_t::process_ctrl_state()
     std::vector<em_t *> em_radios;
     bool allow_single_radio_topo_query = false;
     bool ssid_mismatch_present = false;
+    em_state_t state = get_state();
 
-    switch (get_state()) {
+    if (state == em_state_ctrl_topo_publish_pending) {
+        em_printfout("topo_publish dispatch: radio=%s state=%d topo_state=%d",
+            util::mac_to_string(get_radio_interface_mac()).c_str(), state, dm->get_topo_state());
+    }
+
+    switch (state) {
         case em_state_ctrl_misconfigured:
             send_autoconfig_renew_msg();
             break;
@@ -6896,9 +7266,12 @@ void em_configuration_t::process_ctrl_state()
                 // Reset the mismatch and topo_query_last sent values before sending topo query
                 dm->set_ssid_mismatch_check_time(0);
                 dm->set_last_topo_query_sent_time(0);
-                // If all radios are in topo sync pending state, send topo query on one of them, 
-                // ignore sending topo query on other radios
-                if (this == em_radios.front()){
+                // Send topo query on the first radio in topo_sync_pending state;
+                // ignore radios in other states (misconfigured, configured, etc.)
+                auto topo_it = std::find_if(em_radios.begin(), em_radios.end(), [](em_t *em) {
+                    return em->get_state() == em_state_ctrl_topo_sync_pending;
+                });
+                if (topo_it != em_radios.end() && this == *topo_it){
                     em_printfout("Sending the Topology query message to agent al_mac:%s on radio: %s",
                         util::mac_to_string(dm->get_agent_al_interface_mac()).c_str(),
                         util::mac_to_string(get_radio_interface_mac()).c_str());
@@ -6940,10 +7313,15 @@ void em_configuration_t::process_ctrl_state()
             }
 
             set_state(em_state_ctrl_configured);
+            em_printfout("topo_publish complete: radio=%s state=%d",
+                util::mac_to_string(get_radio_interface_mac()).c_str(), get_state());
             break;
 
         default:
-            em_printfout("unhandled state:%s in config state machine.", em_t::state_2_str(get_state()));
+            em_state_t current_state = get_state();
+            em_printfout("unhandled config state: entry=%d(%s) current=%d(%s) radio=%s",
+                state, em_t::state_2_str(state), current_state, em_t::state_2_str(current_state),
+                util::mac_to_string(get_radio_interface_mac()).c_str());
             break;
     }
 

@@ -20,12 +20,38 @@
 #define EM_STEERING_H
 
 #include "em_base.h"
+#include <pthread.h>
 #include <vector>
 
 class em_steering_t {
 
     unsigned int m_client_steering_req_tx_cnt;
     unsigned int m_client_assoc_ctrl_req_tx_cnt;
+
+    // One Client Association Control Request of the persisted ACL replay, kept until the agent
+    // acknowledges it so only an unacknowledged chunk is sent again
+    typedef struct {
+        bssid_t bssid;
+        unsigned char assoc_control;
+        unsigned short validity_period;
+        // Monotonic expiry (s) of a timed block, 0 if not timed: each send carries the time left
+        time_t expiry;
+        unsigned char sta_count;
+        mac_address_t sta_list[MAX_STA_LIST];
+        unsigned short msg_ids[EM_MAX_ACL_CFG_TX_THRESH];  // every CMDU id this chunk went out with
+        unsigned int num_msg_ids;
+        bool acked;
+    } em_acl_cfg_chunk_t;
+
+    std::vector<em_acl_cfg_chunk_t> m_acl_cfg_chunks;
+    unsigned int m_acl_cfg_tx_cnt;  // replay rounds sent
+    bool m_acl_cfg_built;
+    // The ACK is handled on the em thread it is dispatched to, the replay on this radio's thread
+    pthread_mutex_t m_acl_cfg_lock;
+    // Controller: STAs the agent refused (Error Code TLVs) in its ACK to the last Client
+    // Association Control Request, for orch fini to undo; m_acl_cfg_lock
+    mac_address_t m_cacr_refused[MAX_STA_LIST];
+    unsigned int m_cacr_num_refused;
 
     
 	/**!
@@ -238,6 +264,67 @@ class em_steering_t {
 public:
 	
 	/**!
+	 * @brief Sends a Client Association Control Request built from persisted ACL state.
+	 *
+	 * Used to re-apply the MAC ACL stored in the BSSList table to an agent once its
+	 * onboarding orchestration has completed.
+	 *
+	 * @param[in] bssid BSSID the request applies to.
+	 * @param[in] assoc_control ASSOC_CONTROL_BLOCK or ASSOC_CONTROL_UNBLOCK.
+	 * @param[in] validity_period Validity period in seconds.
+	 * @param[in] sta_count Number of STA MAC addresses in sta_list.
+	 * @param[in] sta_list STA MAC addresses to apply the control to.
+	 *
+	 * @returns int Number of bytes sent on success, -1 on failure.
+	 */
+	int send_persisted_assoc_ctrl_req(const unsigned char *bssid, unsigned char assoc_control,
+			unsigned short validity_period, unsigned char sta_count, const mac_address_t *sta_list);
+
+	/**!
+	 * @brief Queues the persisted MAC ACL of every BSS on this radio for replay to the agent.
+	 *
+	 * Runs as the last step of the onboarding orchestration so an agent that rebooted, or every
+	 * agent after a controller reboot, ends up with the ACL stored in the database.
+	 *
+	 * @returns 0 once the ACL is queued, or -1 if the data model is unavailable.
+	 */
+	int queue_persisted_acl_cfg();
+
+	/**!
+	 * @brief Queues one ACL list of a BSS, chunked to fit the Client Association Control TLV.
+	 * @param[in] bss_key Composite key identifying the BSS ACL.
+	 * @param[in] bssid BSSID receiving the association control request.
+	 * @param[in] validity_period ACL validity period in seconds.
+	 * @param[in] blocked Selects the blocked list when true, otherwise the allowed list.
+	 */
+	void queue_acl_list(const char *bss_key, const unsigned char *bssid,
+			unsigned short validity_period, bool blocked);
+
+	/**!
+	 * @brief Sends every queued ACL chunk the agent has not acknowledged yet.
+	 *
+	 * @note Called with m_acl_cfg_lock held.
+	 */
+	void send_unacked_acl_cfg_chunks();
+
+	/**!
+	 * @brief Runs one step of the persisted ACL replay (em_state_ctrl_acl_cfg_pending).
+	 *
+	 * Sends the queued chunks, resends the unacknowledged ones on each step, and moves to
+	 * em_state_ctrl_acl_cfg_configured once all are acknowledged, or to
+	 * em_state_ctrl_acl_cfg_failed after EM_MAX_ACL_CFG_TX_THRESH rounds.
+	 */
+	void process_acl_cfg();
+
+	/**!
+	 * @brief Checks whether a 1905 ACK carries an Error Code TLV.
+	 * @param[in] buff Raw 1905 ACK frame.
+	 * @param[in] len Length of the frame.
+	 * @returns true if an Error Code TLV is present.
+	 */
+	static bool ack_has_error_code(unsigned char *buff, unsigned int len);
+
+	/**!
 	 * @brief Retrieves the manager instance.
 	 *
 	 * This function returns a pointer to the manager instance associated with the steering module.
@@ -387,6 +474,36 @@ public:
 	 * ACK has been received and processed.
 	 */
 	void clear_client_assoc_ctrl_req_msg_id() { m_client_assoc_ctrl_req_msg_id = 0; }
+
+	/**!
+	 * @brief Drops any persisted ACL replay in progress so the next one starts from the database.
+	 *
+	 * Called when the radio enters em_state_ctrl_acl_cfg_pending.
+	 */
+	void reset_acl_cfg();
+
+	/**!
+	 * @brief Marks the persisted ACL chunk sent with msg_id as acknowledged.
+	 * @param[in] msg_id CMDU id of the 1905 ACK.
+	 * @param[in] rejected True if the ACK carries an Error Code TLV (the agent refused the chunk).
+	 * @returns true if msg_id belongs to a chunk of this radio's replay.
+	 */
+	bool handle_acl_cfg_ack(unsigned short msg_id, bool rejected);
+
+	/**!
+	 * @brief Records the STAs a 1905 ACK refuses (Error Code TLVs) for the Client Association
+	 * Control Request it answers, replacing any recorded before.
+	 * @param[in] buff Raw 1905 ACK frame.
+	 * @param[in] len Length of the frame.
+	 */
+	void note_cacr_refused(unsigned char *buff, unsigned int len);
+
+	/**!
+	 * @brief Returns, and clears, the STAs recorded by note_cacr_refused().
+	 * @param[out] macs Room for MAX_STA_LIST addresses.
+	 * @returns The number of addresses written.
+	 */
+	unsigned int take_cacr_refused(mac_address_t *macs);
 
 	/**!
 	 * @brief Processes a message with the given data and length.

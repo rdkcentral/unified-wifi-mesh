@@ -112,6 +112,14 @@ public:
 	 */
 	void orch_transient(em_cmd_t *pcmd, em_t *em);
 
+	/**!
+	 * @brief After a backhaul reconfig cfg_renew, starts the bSTA reconnect; after the
+	 * re-onboarding dev_init, closes the "dml" -> dev_init window.
+	 *
+	 * @param[in] pcmd Pointer to the finished command.
+	 */
+	void on_cmd_fini(em_cmd_t *pcmd);
+
 public:
     
 	/**!

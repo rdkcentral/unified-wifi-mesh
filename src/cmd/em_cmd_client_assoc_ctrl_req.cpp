@@ -28,6 +28,9 @@ em_cmd_client_assoc_ctrl_req_t::em_cmd_client_assoc_ctrl_req_t(em_cmd_client_ass
 
     m_type = em_cmd_type_client_assoc_ctrl_req;
     memcpy(&m_param.u.client_assoc_params, &params, sizeof(em_cmd_client_assoc_params_t));
+    memset(&m_acl_undo, 0, sizeof(m_acl_undo));
+    memset(m_acl_bss_key, 0, sizeof(m_acl_bss_key));
+    m_acl_undo_valid = false;
 
     memset(reinterpret_cast<unsigned char *>(&m_orch_desc[0]), 0, EM_MAX_CMD * sizeof(em_orch_desc_t));
 

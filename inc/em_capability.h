@@ -773,6 +773,12 @@ class em_capability_t {
 	 *
 	 * @param[in] pkt_buff Pointer to the buffer containing the notification data.
 	 * @param[in] pkt_len Length of the data received.
+	 * @returns 0 when the report is processed, or a negative value on failure.
+	 * @post On successful report processing, the controller restores the
+ 	 * pre-command state (e.g., `m_state_before_bsta_cap`). Any further state
+ 	 * transitions/orchestration proceed according to that restored state (and
+ 	 * only transition when appropriate), rather than forcing
+ 	 * `em_state_ctrl_configured`.
 	 *
 	 * @note Ensure that the data pointer is valid and the length is correct before calling this function.
 	 */
@@ -877,6 +883,8 @@ public:
 	int send_early_ap_cap_report_msg(unsigned char *buff, unsigned short msg_id);
 
     unsigned int m_cap_query_tx_cnt;
+    // Controller: radio state when the bsta_cap command started, put back after its report
+    em_state_t m_state_before_bsta_cap = em_state_ctrl_configured;
 
     
 	/**!
