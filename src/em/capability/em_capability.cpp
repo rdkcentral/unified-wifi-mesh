@@ -1246,6 +1246,31 @@ int em_capability_t::handle_bsta_cap_report(unsigned char *pkt_buff, unsigned in
     if (ret < 0)
         em_printfout("Warning: failed to process bh_sta_radio_cap TLV, continuing");
 
+    dm_easy_mesh_t *dm = get_data_model();
+    const unsigned int hdr_len = static_cast<unsigned int>(sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+    if ((dm != NULL) && (pkt_len > hdr_len)) {
+        em_tlv_t *tlvs = reinterpret_cast<em_tlv_t *>(pkt_buff + hdr_len);
+        for (em_tlv_t *tlv = em_msg_t::get_first_tlv(tlvs, pkt_len - hdr_len); (tlv != NULL) && (tlv->type != em_tlv_type_eom);
+             tlv = em_msg_t::get_next_tlv(tlv, tlvs, pkt_len - hdr_len)) {
+            if ((tlv->type != em_tlv_type_bh_sta_radio_cap) || (ntohs(tlv->len) < offsetof(em_bh_sta_radio_cap_t, bsta_addr))) {
+                continue;
+            }
+            const em_bh_sta_radio_cap_t *cap = reinterpret_cast<const em_bh_sta_radio_cap_t *>(tlv->value);
+            dm_radio_t *radio = dm->get_radio(cap->ruid);
+            if (radio == NULL) {
+                continue;
+            }
+            em_radio_info_t *ri = radio->get_radio_info();
+            if (cap->bsta_mac_present && (ntohs(tlv->len) >= sizeof(em_bh_sta_radio_cap_t))) {
+                memcpy(ri->backhaul_sta, cap->bsta_addr, sizeof(mac_address_t));
+            } else {
+                memset(ri->backhaul_sta, 0, sizeof(mac_address_t));
+            }
+            em_printfout("Backhaul STA of radio %s: %s", util::mac_to_string(cap->ruid).c_str(),
+                util::mac_to_string(ri->backhaul_sta).c_str());
+        }
+    }
+
     ret = process_single_tlv_in_1905_message(pkt_buff, pkt_len,
             em_tlv_type_client_info,
             &em_capability_t::handle_client_info);
@@ -1253,8 +1278,10 @@ int em_capability_t::handle_bsta_cap_report(unsigned char *pkt_buff, unsigned in
     if (ret < 0)
         return ret;
 
-    set_state(em_state_ctrl_configured);
-    em_printfout("Cap: Bsta Capability report processed, ctrl configured");
+    if (get_state() == em_state_ctrl_bsta_cap_pending) {
+        set_state(em_state_ctrl_configured);
+        em_printfout("Cap: Bsta Capability report processed, ctrl configured");
+    }
 
     return ret;
 }
@@ -2155,6 +2182,7 @@ void em_capability_t::process_msg(unsigned char *data, unsigned int len)
                         em_printfout("em_msg_type_ap_cap_rprt handle success, state: %s", em_t::state_2_str(em->get_state()));
                     }
                     em_radios.clear();
+                    send_bsta_cap_query_msg();
                 } else {
                     em_printfout("em_msg_type_ap_cap_rprt handle failed");
                 }

@@ -2972,6 +2972,7 @@ typedef struct {
     unsigned char srg_partial_bssid_bitmap[8];
     unsigned char neigh_bss_color_in_use_bitmap[8];
     unsigned char radio_temp;
+    mac_address_t backhaul_sta;
 } em_radio_info_t;
 
 typedef struct {
