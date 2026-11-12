@@ -306,6 +306,16 @@ void em_t::proto_process(unsigned char *data, unsigned int len)
 
 
     dm_easy_mesh_t::macbytes_to_string(get_radio_interface_mac(), mac_str);
+
+    // Agent re-onboarded with a new AL MAC but the same RUID: this radio now belongs to its data model
+    if ((m_service_type == em_service_type_ctrl) && !is_al_interface_em() &&
+        ((htons(cmdu->type) == em_msg_type_autoconf_wsc) || (htons(cmdu->type) == em_msg_type_early_ap_cap_rprt))) {
+        const unsigned char *src = reinterpret_cast<em_raw_hdr_t *>(data)->src;
+        if (memcmp(src, get_peer_mac(), sizeof(mac_address_t)) != 0) {
+            get_mgr()->rebind_node(this, src);
+        }
+    }
+
     switch (htons(cmdu->type)) {
         case em_msg_type_autoconf_search:
         case em_msg_type_autoconf_resp:

@@ -396,7 +396,12 @@ unsigned int em_orch_agent_t::build_candidates(em_cmd_t *pcmd)
                 break;
             case em_cmd_type_onewifi_cb:
 				if (!(em->is_al_interface_em())) {
-                    if (memcmp(pcmd->get_data_model()->get_bss(0)->get_bss_info()->ruid.mac, em->get_radio_interface_mac(), sizeof(mac_address_t)) == 0) {
+                    dm_bss_t *first_bss = pcmd->get_data_model()->get_bss(static_cast<unsigned int> (0));
+                    if (first_bss == NULL) {
+                        em_printfout("onewifi_cb has no BSS in data model, skipping");
+                        break;
+                    }
+                    if (memcmp(first_bss->get_bss_info()->ruid.mac, em->get_radio_interface_mac(), sizeof(mac_address_t)) == 0) {
                         if (em->get_state() == em_state_agent_owconfig_pending) {
                             em_printfout("em candidates created for em_cmd_type_onewifi_cb");
                         	queue_push(pcmd->m_em_candidates, em);
