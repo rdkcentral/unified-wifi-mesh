@@ -162,15 +162,7 @@ em_network_topo_t *em_network_topo_t::find_topology_by_bh_associated(dm_easy_mes
 		return NULL;
 	}
 	// Now search for the topology containing this bss mac address.
-	em_network_topo_t *topo = g_network_topology->find_topology_by_ap_bssid(bss_mac);
-	if ((topo != NULL) && (topo->m_data_model != NULL) && (topo->m_data_model->get_colocated() == true)) {
-		// The colocated agent shares the physical device with the controller, so a device
-		// associated to its BSS is a sibling of the colocated agent, not its child.
-		em_printfout("bss mac %s belongs to colocated agent, attach under controller topology",
-			util::mac_to_string(bss_mac).c_str());
-		return g_network_topology;
-	}
-	return topo;
+        return g_network_topology->find_topology_by_bss_mac(bss_mac);
 }
 
 em_network_topo_t *em_network_topo_t::find_topology_by_bss_mac(mac_address_t bss_mac)
