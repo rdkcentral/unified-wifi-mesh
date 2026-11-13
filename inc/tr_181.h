@@ -554,7 +554,7 @@ private:
 
 public:
 
-    tr_181_t() {}
+    tr_181_t() : m_bus_handle{} {}
     virtual ~tr_181_t() {}
     
     bus_handle_t *get_bus_hdl() { return &m_bus_handle; }
