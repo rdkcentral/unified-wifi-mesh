@@ -24,6 +24,7 @@
 #include <assert.h>
 #include <signal.h>
 #include <fcntl.h>
+#include <limits>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
@@ -1103,30 +1104,49 @@ short em_t::create_ap_radio_basic_cap(unsigned char *buff) {
 		}
 	}
     for (i = 0; i < get_data_model()->get_num_op_class(); i++) {
-        if (memcmp(get_radio_interface_mac(), get_data_model()->get_op_class_info(i)->id.ruid, sizeof(mac_address_t)) == 0) {
-            em_op_class_info_t *op_class_info = get_data_model()->get_op_class_info(i);
-            if ((op_class_info != NULL) && (op_class_info->id.type == em_op_class_type_capability)) {
-                cap->op_class_num++;
-                op_class->op_class = static_cast<unsigned char>(op_class_info->op_class);
-                op_class->max_tx_eirp = static_cast<unsigned char>(op_class_info->max_tx_power);
-                op_class->num = static_cast<unsigned char>(op_class_info->num_channels);
-                len += sizeof(em_op_class_t);
-                if (op_class_info->num_channels != 0) {
-                    channel_list = &op_class->channels;
-                    for (j = 0; j < op_class_info->num_channels; j++) {
-                        memcpy(reinterpret_cast<unsigned char *>(&channel_list->channel), reinterpret_cast<unsigned char *>(&op_class_info->channels[j]), sizeof(unsigned char));
-                        all_channel_len = all_channel_len + sizeof(unsigned char);
-                        channel_list = reinterpret_cast<em_channels_list_t *>(reinterpret_cast<unsigned char *>(channel_list) + sizeof(em_channels_list_t) + sizeof(unsigned char));
-                        len += sizeof(unsigned char);
-                    }
-                }
-                printf("Op Class %d: %d, max_tx_eirp: %d, channels.num: %d\n",
-					   i, op_class_info->op_class, op_class_info->max_tx_power, op_class_info->num_channels);
-                printf(" cap->op_classes[%d].op_class: %d, cap->op_classes[%d].max_tx_eirp %d,	cap->op_classes[%d].channels.num %d\n",
-					   i, cap->op_classes[i].op_class, i, cap->op_classes[i].max_tx_eirp, i, cap->op_classes[i].num);
-            }
-            op_class = reinterpret_cast<em_op_class_t *>(reinterpret_cast<unsigned char *>(op_class) + sizeof(em_op_class_t) + all_channel_len);
-            all_channel_len = 0;
+	    em_op_class_info_t *op_class_info = get_data_model()->get_op_class_info(i);
+
+	    if (op_class_info == nullptr) {
+	        em_util_error_print(EM_AGENT, "AP Radio Basic Cap: missing op-class info at index %u",
+	            i);
+	        continue;
+	    }
+	    if (memcmp(get_radio_interface_mac(), op_class_info->id.ruid, sizeof(mac_address_t)) == 0) {
+	        if (op_class_info->id.type == em_op_class_type_capability) {
+	            cap->op_class_num++;
+	            op_class->op_class = static_cast<unsigned char>(op_class_info->op_class);
+ 	            if (op_class_info->max_tx_power < -127 ||
+ 	                op_class_info->max_tx_power > std::numeric_limits<signed char>::max()) {
+	                em_util_error_print(EM_AGENT,
+	                    "AP Radio Basic Cap: Radio=%s OpClass=%u has invalid MaxTxPower=%d dBm; "
+	                    "encoding 0",
+	                    util::mac_to_string(get_radio_interface_mac()).c_str(),
+	                    op_class_info->op_class, op_class_info->max_tx_power);
+	                op_class->max_tx_eirp = 0;
+	            } else {
+	                op_class->max_tx_eirp =
+	                    static_cast<unsigned char>(op_class_info->max_tx_power);
+	            }
+	            op_class->num = static_cast<unsigned char>(op_class_info->num_channels);
+	            len += sizeof(em_op_class_t);
+	            if (op_class_info->num_channels != 0) {
+	                channel_list = &op_class->channels;
+	                for (j = 0; j < op_class_info->num_channels; j++) {
+	                    memcpy(reinterpret_cast<unsigned char *>(&channel_list->channel), reinterpret_cast<unsigned char *>(&op_class_info->channels[j]), sizeof(unsigned char));
+	                    all_channel_len = all_channel_len + sizeof(unsigned char);
+	                    channel_list = reinterpret_cast<em_channels_list_t *>(reinterpret_cast<unsigned char *>(channel_list) + sizeof(em_channels_list_t) + sizeof(unsigned char));
+	                    len += sizeof(unsigned char);
+	                }
+	            }
+	            em_util_info_print(EM_AGENT,
+	                "AP Radio Basic Cap: Radio=%s OpClass=%u MaxTxPower=%d dBm TLVMaxTxEIRP=%u dBm",
+	                util::mac_to_string(get_radio_interface_mac()).c_str(),
+	                op_class_info->op_class, op_class_info->max_tx_power, op_class->max_tx_eirp);
+	            op_class = reinterpret_cast<em_op_class_t *>(
+	                reinterpret_cast<unsigned char *>(op_class) + sizeof(em_op_class_t) +
+	                all_channel_len);
+	            all_channel_len = 0;
+	        }
         }
     }
     em_printfout("Created AP Radio Basic Cap TLV for Radio:%s, num_bss:%d, op_class_num:%d, len:%d",
