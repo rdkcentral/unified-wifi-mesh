@@ -6662,7 +6662,7 @@ bus_error_t dm_easy_mesh_ctrl_t::wf6ap_get_inner(char *event_name, raw_data_t *p
         num_role = MAP_AP_ROLE_MAX;
     }
 
-    for (i = 0; i < rci->wifi6_cap.num_role; i++) {
+    for (i = 0; i < num_role; i++) {
         char mcsnss_str[256] = { 0 };
         memcpy(&role_temp, &rci->wifi6_cap.roles[i], sizeof(em_wifi6_role_wire_t));
 
