@@ -6613,8 +6613,14 @@ bus_error_t dm_easy_mesh_ctrl_t::wf6ap_get_inner(char *event_name, raw_data_t *p
     ++param;
 
     dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
+    if (strlen(name) < sizeof(DATAELEMS_NETWORK)) {
+        return bus_error_invalid_input;
+    }
     name += sizeof(DATAELEMS_NETWORK);
     name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    if (name == NULL) {
+        return bus_error_invalid_input;
+    }
     device_instance = is_num ? atoi(instance) : 0;
 
     dm_easy_mesh_t *dm = dm_ctrl->get_first_dm();
@@ -6628,7 +6634,14 @@ bus_error_t dm_easy_mesh_ctrl_t::wf6ap_get_inner(char *event_name, raw_data_t *p
     }
 
     name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    if (name == NULL) {
+        return bus_error_invalid_input;
+    }
     radio_instance = is_num ? atoi(instance) : 0;
+    if (radio_instance < 1 || radio_instance > EM_MAX_BANDS) {
+        em_printfout("radio instance %d out of range", radio_instance);
+        return bus_error_invalid_input;
+    }
     dm_radio_t *radio = &dm->m_radio[radio_instance - 1];
     if (radio == NULL) {
         em_printfout("radio is NULL\n");
@@ -6644,6 +6657,10 @@ bus_error_t dm_easy_mesh_ctrl_t::wf6ap_get_inner(char *event_name, raw_data_t *p
     }
     em_radio_cap_info_t *rci = radio_cap->get_radio_cap_info();
     unsigned int i;
+    unsigned int num_role = rci->wifi6_cap.num_role;
+    if (num_role > MAP_AP_ROLE_MAX) {
+        num_role = MAP_AP_ROLE_MAX;
+    }
 
     for (i = 0; i < rci->wifi6_cap.num_role; i++) {
         char mcsnss_str[256] = { 0 };
