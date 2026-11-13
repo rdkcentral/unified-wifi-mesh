@@ -5617,6 +5617,10 @@ bus_error_t dm_easy_mesh_ctrl_t::device_tget_inner(char *event_name, raw_data_t 
     if (!event_name || !p_data) {
         return bus_error_invalid_input;
     }
+    if (*event_name == '\0') {
+        /* empty name: strlen() - 1 below would read the byte in front of the buffer */
+        return bus_error_invalid_operation;
+    }
     if (*(event_name + (strlen(event_name) - 1)) != '.') {
         /* Only partial paths are valid */
         return bus_error_invalid_operation;
@@ -5700,13 +5704,19 @@ bus_error_t dm_easy_mesh_ctrl_t::device_tget_inner(char *event_name, raw_data_t 
         } else {
             dm_ctrl->property_append_tail(&property, root, idx, "BackhaulMACAddress", di->backhaul_mac.mac);
         }
-        const size_t n = static_cast<size_t>(di->num_backhaul_down_mac);
+        size_t n = static_cast<size_t>(di->num_backhaul_down_mac);
+        if (n > EM_BACKHAUL_DOWNMAC_ADDR) {
+            n = EM_BACKHAUL_DOWNMAC_ADDR;
+        }
+
         std::vector<em_short_string_t> tmp(n);
 
         for (size_t i = 0; i < n; i++) {
             std::strncpy(tmp[i], di->backhaul_down_mac[i], sizeof(tmp[i]) - 1);
             tmp[i][sizeof(tmp[i]) - 1] = '\0';
         }
+        val_str[0] = '\0';
+
         dm_ctrl->fill_comma_sep(tmp.data(), n, val_str);
         dm_ctrl->property_append_tail(&property, root, idx, "BackhaulDownMACAddress", val_str);
         if (memcmp(di->backhaul_mac.mac, ZERO_MAC_ADDR, sizeof(ZERO_MAC_ADDR)) == 0) {
