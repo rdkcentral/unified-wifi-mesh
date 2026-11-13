@@ -291,8 +291,14 @@ int em_provisioning_t::send_chirp_notif_msg(em_dpp_chirp_value_t *chirp, size_t 
 
     tmp = em_msg_t::add_1905_header(tmp, &len, dest_al_mac, get_al_interface_mac(), em_msg_type_chirp_notif,
                         get_mgr()->get_next_msg_id());
-
+    if (len > MAX_EM_BUFF_SZ) {
+        return -1;
+    }
     // One DPP Chirp value tlv 17.2.83
+    if (chirp_len > (MAX_EM_BUFF_SZ - len - (2 * sizeof(em_tlv_t)))) {
+        em_printfout("Invalid chirp length %zu", chirp_len);
+        return -1;
+    }
     tmp = em_msg_t::add_tlv(tmp, &len, em_tlv_type_dpp_chirp_value, reinterpret_cast<uint8_t *> (chirp), static_cast<unsigned int> (chirp_len));
 
     tmp = em_msg_t::add_eom_tlv(tmp, &len);
