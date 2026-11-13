@@ -8052,8 +8052,14 @@ bus_error_t dm_easy_mesh_ctrl_t::wf6ap_get_inner(char *event_name, raw_data_t *p
     ++param;
 
     dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
+    if (strlen(name) < sizeof(DATAELEMS_NETWORK)) {
+        return bus_error_invalid_input;
+    }
     name += sizeof(DATAELEMS_NETWORK);
     name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    if (name == NULL) {
+        return bus_error_invalid_input;
+    }
     device_instance = is_num ? atoi(instance) : 0;
 
     dm_easy_mesh_t *dm = dm_ctrl->get_first_dm();
@@ -8067,7 +8073,18 @@ bus_error_t dm_easy_mesh_ctrl_t::wf6ap_get_inner(char *event_name, raw_data_t *p
     }
 
     name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
-    radio_instance = is_num ? atoi(instance) : 0;
+    if (name == NULL) {
+        return bus_error_invalid_input;
+    }
+    char *end = NULL;
+    errno = 0;
+    long parsed_radio_instance = is_num ? strtol(instance, &end, 10) : 0;
+    if (!is_num || end == instance || *end != '\0' || errno == ERANGE ||
+        parsed_radio_instance < 1 || parsed_radio_instance > EM_MAX_BANDS) {
+        em_printfout("invalid radio instance: %s", instance);
+        return bus_error_invalid_input;
+    }
+    radio_instance = static_cast<int>(parsed_radio_instance);
     dm_radio_t *radio = &dm->m_radio[radio_instance - 1];
     if (radio == NULL) {
         em_printfout("radio is NULL\n");
@@ -8083,8 +8100,12 @@ bus_error_t dm_easy_mesh_ctrl_t::wf6ap_get_inner(char *event_name, raw_data_t *p
     }
     em_radio_cap_info_t *rci = radio_cap->get_radio_cap_info();
     unsigned int i;
+    unsigned int num_role = rci->wifi6_cap.num_role;
+    if (num_role > MAP_AP_ROLE_MAX) {
+        num_role = MAP_AP_ROLE_MAX;
+    }
 
-    for (i = 0; i < rci->wifi6_cap.num_role; i++) {
+    for (i = 0; i < num_role; i++) {
         char mcsnss_str[256] = { 0 };
         memcpy(&role_temp, &rci->wifi6_cap.roles[i], sizeof(em_wifi6_role_wire_t));
 
