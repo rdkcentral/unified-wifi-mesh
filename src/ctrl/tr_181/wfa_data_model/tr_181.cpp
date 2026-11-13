@@ -62,6 +62,146 @@ void tr_181_t::init(void* ptr)
     register_wfa_dml();
 }
 
+uint32_t tr_181_t::add_table_row(const char *table_name, const std::string &key, uint32_t inst)
+{
+    std::lock_guard<std::recursive_mutex> lock(m_rows_lock);
+    std::map<uint32_t, std::string> &rows = m_rows[table_name];
+
+    for (const auto &row : rows) {
+        if (row.second == key) {
+            return row.first;
+        }
+    }
+
+    // Instance numbers of removed rows are not reused
+    uint32_t &next = m_next_inst[table_name];
+    if (inst == 0) {
+        inst = (next == 0) ? 1 : next;
+    }
+
+    bus_error_t rc = get_bus_descriptor()->bus_reg_table_row_fn(&m_bus_handle, table_name, inst, NULL);
+
+    em_printfout("registerRow %s%u. (%s) rc:%d", table_name, inst, key.c_str(), rc);
+    if (rc != bus_error_success) {
+        return 0;
+    }
+
+    if (inst >= next) {
+        next = inst + 1;
+    }
+    rows[inst] = key;
+    return inst;
+}
+
+uint32_t tr_181_t::get_table_row_instance(const char *table_name, const std::string &key)
+{
+    std::lock_guard<std::recursive_mutex> lock(m_rows_lock);
+    auto it = m_rows.find(table_name);
+
+    if (it != m_rows.end()) {
+        for (const auto &row : it->second) {
+            if (row.second == key) {
+                return row.first;
+            }
+        }
+    }
+    return 0;
+}
+
+std::string tr_181_t::get_table_row_key(const char *table_name, uint32_t inst)
+{
+    std::lock_guard<std::recursive_mutex> lock(m_rows_lock);
+    auto it = m_rows.find(table_name);
+
+    if (it != m_rows.end()) {
+        auto row = it->second.find(inst);
+        if (row != it->second.end()) {
+            return row->second;
+        }
+    }
+    return "";
+}
+
+bus_error_t tr_181_t::unreg_table_row(const char *row_name)
+{
+    std::lock_guard<std::recursive_mutex> lock(m_rows_lock);
+    std::string prefix = row_name;
+    std::vector<std::string> sub_tables;
+    bus_error_t rc = bus_error_success;
+
+    // Unregister the rows of the nested tables first, deepest tables first
+    for (auto it = m_rows.lower_bound(prefix); it != m_rows.end() && it->first.compare(0, prefix.size(), prefix) == 0; ++it) {
+        sub_tables.push_back(it->first);
+    }
+    std::sort(sub_tables.begin(), sub_tables.end(), [](const std::string &a, const std::string &b) {
+        return std::count(a.begin(), a.end(), '.') > std::count(b.begin(), b.end(), '.');
+    });
+    for (const std::string &table : sub_tables) {
+        auto table_rows = m_rows.find(table);
+        if (table_rows == m_rows.end()) {
+            continue;
+        }
+        std::vector<uint32_t> instances;
+        for (auto r = table_rows->second.rbegin(); r != table_rows->second.rend(); ++r) {
+            instances.push_back(r->first);
+        }
+        for (uint32_t inst : instances) {
+            std::string row = table + std::to_string(inst) + ".";
+            bus_error_t child_rc = get_bus_descriptor()->bus_unreg_table_row_fn(&m_bus_handle, row.c_str());
+            em_printfout("unregisterRow %s rc:%d", row.c_str(), child_rc);
+            if (child_rc == bus_error_success) {
+                table_rows->second.erase(inst);
+            } else if (rc == bus_error_success) {
+                rc = child_rc;
+            }
+        }
+    }
+
+    bus_error_t row_rc = get_bus_descriptor()->bus_unreg_table_row_fn(&m_bus_handle, row_name);
+    em_printfout("unregisterRow %s rc:%d", row_name, row_rc);
+    if (row_rc != bus_error_success) {
+        if (rc == bus_error_success) {
+            rc = row_rc;
+        }
+        return rc;
+    }
+
+    // row_name is "<table>.<inst>." (final dot included)
+    std::string row_str = row_name;
+    if (row_str.size() > 1) {
+        size_t dot = row_str.rfind('.', row_str.size() - 2);
+        if (dot != std::string::npos) {
+            auto it = m_rows.find(row_str.substr(0, dot + 1));
+            if (it != m_rows.end()) {
+                it->second.erase(static_cast<uint32_t>(strtoul(row_str.c_str() + dot + 1, NULL, 10)));
+            }
+        }
+    }
+    for (const std::string &table : sub_tables) {
+        m_rows.erase(table);
+        m_next_inst.erase(table);
+    }
+    return rc;
+}
+
+void tr_181_t::sync_table_rows(const char *table_name, const std::vector<std::string> &keys, bool key_is_instance)
+{
+    std::lock_guard<std::recursive_mutex> lock(m_rows_lock);
+    std::vector<uint32_t> stale;
+
+    for (const auto &row : m_rows[table_name]) {
+        if (std::find(keys.begin(), keys.end(), row.second) == keys.end()) {
+            stale.push_back(row.first);
+        }
+    }
+    for (uint32_t inst : stale) {
+        unreg_table_row((std::string(table_name) + std::to_string(inst) + ".").c_str());
+    }
+    for (const std::string &key : keys) {
+        add_table_row(table_name, key, key_is_instance ? static_cast<uint32_t>(strtoul(key.c_str(), NULL, 10)) : 0);
+    }
+}
+
 int tr_181_t::wfa_set_bus_callbackfunc_pointers(const char *full_namespace, bus_callback_table_t *cb_table)
 {
     bus_data_cb_func_t bus_data_cb[] = {
@@ -70,7 +210,9 @@ int tr_181_t::wfa_set_bus_callbackfunc_pointers(const char *full_namespace, bus_
         ELEMENT(DE_NETWORK_COLAGTID,      CALLBACK_GETTER(network_get)),
         ELEMENT(DE_NETWORK_DEVNOE,        CALLBACK_GETTER(network_get)),
         ELEMENT(DE_NETWORK_TIMESTAMP,     CALLBACK_GETTER(network_get)),
-        ELEMENT(DE_SSID_TABLE,            CALLBACK_GETTER(ssid_tget)),
+        ELEMENT(DE_NETWORK_SSIDNOE,       CALLBACK_GETTER(network_get)),
+        /* SSID rows are managed with registerRow/unregisterRow */
+        ELEMENT(DE_SSID_TABLE,            CB(NULL, NULL, NULL, NULL, NULL, NULL)),
         ELEMENT(DE_SSID_SSID,             CALLBACK_GETTER(ssid_get)),
         ELEMENT(DE_SSID_BAND,             CALLBACK_GETTER(ssid_get)),
         ELEMENT(DE_SSID_ENABLE,           CALLBACK_GETTER(ssid_get)),
@@ -80,7 +222,8 @@ int tr_181_t::wfa_set_bus_callbackfunc_pointers(const char *full_namespace, bus_
         ELEMENT(DE_SSID_MFPCONFIG,        CALLBACK_GETTER(ssid_get)),
         ELEMENT(DE_SSID_MOBDOMAIN,        CALLBACK_GETTER(ssid_get)),
         ELEMENT(DE_SSID_HAULTYPE,         CALLBACK_GETTER(ssid_get)),
-        ELEMENT(DE_DEVICE_TABLE,          CALLBACK_GETTER(device_tget)),
+        /* Device rows are managed with registerRow/unregisterRow */
+        ELEMENT(DE_DEVICE_TABLE,          CB(NULL, NULL, NULL, NULL, NULL, NULL)),
         ELEMENT(DE_DEVICE_ID,                     CALLBACK_GETTER(device_get)),
         ELEMENT(DE_DEVICE_MAPCAP,                 CALLBACK_GETTER(device_get)),
         ELEMENT(DE_DEVICE_COLLINT,                CALLBACK_GETTER(device_get)),
@@ -133,7 +276,8 @@ int tr_181_t::wfa_set_bus_callbackfunc_pointers(const char *full_namespace, bus_
         ELEMENT(DE_DEVICE_XAIRTIES_CACHED,         CALLBACK_GETTER(device_get)),
         ELEMENT(DE_DEVICE_XAIRTIES_CPUUSAGE,       CALLBACK_GETTER(device_get)),
         ELEMENT(DE_DEVICE_XAIRTIES_CPUTEMPERATURE, CALLBACK_GETTER(device_get)),
-        ELEMENT(DE_RADIO_TABLE,            CALLBACK_GETTER(radio_tget)),
+        /* Radio rows are managed with registerRow/unregisterRow */
+        ELEMENT(DE_RADIO_TABLE,            CB(NULL, NULL, NULL, NULL, NULL, NULL)),
         ELEMENT(DE_RADIO_ID,               CALLBACK_GETTER(radio_get)),
         ELEMENT(DE_RADIO_ENABLED,          CALLBACK_GETTER(radio_get)),
         ELEMENT(DE_RADIO_NOISE,            CALLBACK_GETTER(radio_get)),
@@ -149,12 +293,12 @@ int tr_181_t::wfa_set_bus_callbackfunc_pointers(const char *full_namespace, bus_
         ELEMENT(DE_RCAPS_HTCAPS,           CALLBACK_GETTER(rcaps_get)),
         ELEMENT(DE_RCAPS_VHTCAPS,          CALLBACK_GETTER(rcaps_get)),
         ELEMENT(DE_RCAPS_CAPOPNOE,         CALLBACK_GETTER(rcaps_get)),
-        ELEMENT(DE_CAPOP_TABLE,            CALLBACK_GETTER(capops_tget)),
+        /* CapableOperatingClassProfile rows are managed with registerRow/unregisterRow */
+        ELEMENT(DE_CAPOP_TABLE,            CB(NULL, NULL, NULL, NULL, NULL, NULL)),
         ELEMENT(DE_CAPOP_CLASS,            CALLBACK_GETTER(capops_get)),
         ELEMENT(DE_CAPOP_MAXTXPOWER,       CALLBACK_GETTER(capops_get)),
         ELEMENT(DE_CAPOP_NONOPERABLE,      CALLBACK_GETTER(capops_get)),
         ELEMENT(DE_CAPOP_NONOPCNT,         CALLBACK_GETTER(capops_get)),
-        ELEMENT(DE_CAPS_WF6AP,             CALLBACK_GETTER(wf6ap_tget)),
         ELEMENT(DE_WF6AP_HE160,            CALLBACK_GETTER(wf6ap_get)),
         ELEMENT(DE_WF6AP_HE8080,           CALLBACK_GETTER(wf6ap_get)),
         ELEMENT(DE_WF6AP_MCSNSS,           CALLBACK_GETTER(wf6ap_get)),
@@ -178,18 +322,19 @@ int tr_181_t::wfa_set_bus_callbackfunc_pointers(const char *full_namespace, bus_
         ELEMENT(DE_WF6AP_TWT_RSP,          CALLBACK_GETTER(wf6ap_get)),
         ELEMENT(DE_WF6AP_SPAT_REUSE,       CALLBACK_GETTER(wf6ap_get)),
         ELEMENT(DE_WF6AP_ANT_CH_USE,       CALLBACK_GETTER(wf6ap_get)),
-        ELEMENT(DE_CAPS_WF7AP,             CALLBACK_GETTER(wf7ap_tget)),
         ELEMENT(DE_WF7AP_EMLMR,            CALLBACK_GETTER(wf7ap_get)),
         ELEMENT(DE_WF7AP_EMLSR,            CALLBACK_GETTER(wf7ap_get)),
         ELEMENT(DE_WF7AP_STR,              CALLBACK_GETTER(wf7ap_get)),
         ELEMENT(DE_WF7AP_NSTR,             CALLBACK_GETTER(wf7ap_get)),
         ELEMENT(DE_WF7AP_TID_MAP,          CALLBACK_GETTER(wf7ap_get)),
-        ELEMENT(DE_CUROP_TABLE,            CALLBACK_GETTER(curops_tget)),
+        /* CurrentOperatingClassProfile rows are managed with registerRow/unregisterRow */
+        ELEMENT(DE_CUROP_TABLE,            CB(NULL, NULL, NULL, NULL, NULL, NULL)),
         ELEMENT(DE_CUROP_TIMESTAMP,        CALLBACK_GETTER(curops_get)),
         ELEMENT(DE_CUROP_CLASS,            CALLBACK_GETTER(curops_get)),
         ELEMENT(DE_CUROP_CHANNEL,          CALLBACK_GETTER(curops_get)),
         ELEMENT(DE_CUROP_TXPOWER,          CALLBACK_GETTER(curops_get)),
-        ELEMENT(DE_BSS_TABLE,              CALLBACK_GETTER(bss_tget)),
+        /* BSS rows are managed with registerRow/unregisterRow */
+        ELEMENT(DE_BSS_TABLE,              CB(NULL, NULL, NULL, NULL, NULL, NULL)),
         ELEMENT(DE_BSS_BSSID,              CALLBACK_GETTER(bss_get)),
         ELEMENT(DE_BSS_SSID,               CALLBACK_GETTER(bss_get)),
         ELEMENT(DE_BSS_ENABLED,            CALLBACK_GETTER(bss_get)),
@@ -222,7 +367,8 @@ int tr_181_t::wfa_set_bus_callbackfunc_pointers(const char *full_namespace, bus_
         ELEMENT(DE_BSS_FH_SUITE,           CALLBACK_GETTER(bss_get)),
         ELEMENT(DE_BSS_BH_SUITE,           CALLBACK_GETTER(bss_get)),
         ELEMENT(DE_BSS_STANOE  ,           CALLBACK_GETTER(bss_get)),
-        ELEMENT(DE_STA_TABLE,              CALLBACK_GETTER(sta_tget)),
+        /* STA rows are managed with registerRow/unregisterRow */
+        ELEMENT(DE_STA_TABLE,              CB(NULL, NULL, NULL, NULL, NULL, NULL)),
         ELEMENT(DE_STA_MACADDR,            CALLBACK_GETTER(sta_get)),
         ELEMENT(DE_STA_TIMESTAMP,          CALLBACK_GETTER(sta_get)),
         ELEMENT(DE_STA_HTCAPS,             CALLBACK_GETTER(sta_get)),
@@ -272,7 +418,8 @@ int tr_181_t::wfa_set_bus_callbackfunc_pointers(const char *full_namespace, bus_
         ELEMENT(DE_STAWF6CAPS_TWTRSP,      CALLBACK_GETTER(sta_get)),
         ELEMENT(DE_STAWF6CAPS_SPATRE,      CALLBACK_GETTER(sta_get)),
         ELEMENT(DE_STAWF6CAPS_ACU,         CALLBACK_GETTER(sta_get)),
-        ELEMENT(DE_APMLD_TABLE,            CALLBACK_GETTER(apmld_tget)),
+        /* APMLD rows are managed with registerRow/unregisterRow */
+        ELEMENT(DE_APMLD_TABLE,            CB(NULL, NULL, NULL, NULL, NULL, NULL)),
         ELEMENT(DE_APMLD_MACADDRESS,       CALLBACK_GETTER(apmld_get)),
         ELEMENT(DE_APMLD_AFFAPNOE,         CALLBACK_GETTER(apmld_get)),
         ELEMENT(DE_APMLD_STAMLDNOE,        CALLBACK_GETTER(apmld_get)),
@@ -280,7 +427,8 @@ int tr_181_t::wfa_set_bus_callbackfunc_pointers(const char *full_namespace, bus_
         ELEMENT(DE_APMLDCFG_EMLSR,         CB(.get_handler = apmldcfg_get, .set_handler = apmldcfg_set, NULL, NULL, NULL, NULL)),
         ELEMENT(DE_APMLDCFG_STR,           CB(.get_handler = apmldcfg_get, .set_handler = apmldcfg_set, NULL, NULL, NULL, NULL)),
         ELEMENT(DE_APMLDCFG_NSTR,          CB(.get_handler = apmldcfg_get, .set_handler = apmldcfg_set, NULL, NULL, NULL, NULL)),
-        ELEMENT(DE_AFFAP_TABLE,            CALLBACK_GETTER(affap_tget)),
+        /* AffiliatedAP rows are managed with registerRow/unregisterRow */
+        ELEMENT(DE_AFFAP_TABLE,            CB(NULL, NULL, NULL, NULL, NULL, NULL)),
         ELEMENT(DE_AFFAP_BSSID,            CALLBACK_GETTER(affap_get)),
         ELEMENT(DE_AFFAP_LINKID,           CALLBACK_GETTER(affap_get)),
         ELEMENT(DE_AFFAP_RUID,             CALLBACK_GETTER(affap_get)),
@@ -293,7 +441,8 @@ int tr_181_t::wfa_set_bus_callbackfunc_pointers(const char *full_namespace, bus_
         ELEMENT(DE_AFFAP_MCBYTESRCV,       CALLBACK_GETTER(affap_get)),
         ELEMENT(DE_AFFAP_BCBYTESSNT,       CALLBACK_GETTER(affap_get)),
         ELEMENT(DE_AFFAP_BCBYTESRCV,       CALLBACK_GETTER(affap_get)),
-        ELEMENT(DE_STAMLD_TABLE,           CALLBACK_GETTER(stamld_tget)),
+        /* STAMLD rows are managed with registerRow/unregisterRow */
+        ELEMENT(DE_STAMLD_TABLE,           CB(NULL, NULL, NULL, NULL, NULL, NULL)),
         ELEMENT(DE_STAMLD_MLDMACADDR,      CALLBACK_GETTER(stamld_get)),
         ELEMENT(DE_STAMLD_ISBSTA,          CALLBACK_GETTER(stamld_get)),
         ELEMENT(DE_STAMLD_LASTCONTME,      CALLBACK_GETTER(stamld_get)),
@@ -313,7 +462,8 @@ int tr_181_t::wfa_set_bus_callbackfunc_pointers(const char *full_namespace, bus_
         ELEMENT(DE_STAMLDCFG_EMLSR,        CALLBACK_GETTER(stamldcfg_get)),
         ELEMENT(DE_STAMLDCFG_STR,          CALLBACK_GETTER(stamldcfg_get)),
         ELEMENT(DE_STAMLDCFG_NSTR,         CALLBACK_GETTER(stamldcfg_get)),
-        ELEMENT(DE_AFFSTA_TABLE,           CALLBACK_GETTER(affsta_tget)),
+        /* AffiliatedSTA rows are managed with registerRow/unregisterRow */
+        ELEMENT(DE_AFFSTA_TABLE,           CB(NULL, NULL, NULL, NULL, NULL, NULL)),
         ELEMENT(DE_AFFSTA_MACADDR,         CALLBACK_GETTER(affsta_get)),
         ELEMENT(DE_AFFSTA_BSSID,           CALLBACK_GETTER(affsta_get)),
         ELEMENT(DE_AFFSTA_BYTESSNT,        CALLBACK_GETTER(affsta_get)),
@@ -324,7 +474,6 @@ int tr_181_t::wfa_set_bus_callbackfunc_pointers(const char *full_namespace, bus_
         ELEMENT(DE_AFFSTA_SIGNALSTR,       CALLBACK_GETTER(affsta_get)),
         ELEMENT(DE_AFFSTA_ESTMACDRDL,      CALLBACK_GETTER(affsta_get)),
         ELEMENT(DE_AFFSTA_ESTMACDRUL,      CALLBACK_GETTER(affsta_get)),
-        ELEMENT(DE_STAMLD_AFFSTANOE,       CALLBACK_GETTER(affsta_get)),
         ELEMENT(DE_BSTAMLD_MACADDR,        CALLBACK_GETTER(bstamld_get)),
         ELEMENT(DE_BSTAMLD_BSSID,          CALLBACK_GETTER(bstamld_get)),
         ELEMENT(DE_BSTAMLD_AFFBSTAS,       CALLBACK_GETTER(bstamld_get)),
@@ -375,7 +524,10 @@ int tr_181_t::wfa_bus_register_namespace(char *full_namespace, bus_element_type_
 
     if (element_type == bus_element_type_table) {
         uint32_t num_of_table_rows;
-        if (wifi_elem_num_of_table_row(full_namespace, &num_of_table_rows) == bus_error_success) {
+        if (cb_table.get_handler == NULL) {
+            /* Rows are registered on demand with registerRow */
+            dataElements.num_of_table_row = 0;
+        } else if (wifi_elem_num_of_table_row(full_namespace, &num_of_table_rows) == bus_error_success) {
             dataElements.num_of_table_row = num_of_table_rows;
         } else {
             dataElements.num_of_table_row = static_cast<uint32_t>(num_of_rows);
@@ -570,17 +722,6 @@ bus_error_t tr_181_t::network_get(char *event_name, raw_data_t *p_data, bus_user
     return bus_error_general;
 }
 
-bus_error_t tr_181_t::ssid_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
-{
-    em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
-
-    if (em_ctrl != NULL) {
-        return em_ctrl->get_dm_ctrl()->ssid_tget(event_name, p_data);
-    }
-    
-    return bus_error_general;
-}
-
 bus_error_t tr_181_t::ssid_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
 {
     em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
@@ -598,17 +739,6 @@ bus_error_t tr_181_t::device_get(char *event_name, raw_data_t *p_data, bus_user_
 
     if (em_ctrl != NULL) {
         return em_ctrl->get_dm_ctrl()->device_get(event_name, p_data);
-    }
-    
-    return bus_error_general;
-}
-
-bus_error_t tr_181_t::device_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
-{
-    em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
-
-    if (em_ctrl != NULL) {
-        return em_ctrl->get_dm_ctrl()->device_tget(event_name, p_data);
     }
     
     return bus_error_general;
@@ -632,17 +762,6 @@ bus_error_t tr_181_t::radio_get(char *event_name, raw_data_t *p_data, bus_user_d
 
     if (em_ctrl != NULL) {
         return em_ctrl->get_dm_ctrl()->radio_get(event_name, p_data);
-    }
-    
-    return bus_error_general;
-}
-
-bus_error_t tr_181_t::radio_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
-{
-    em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
-
-    if (em_ctrl != NULL) {
-        return em_ctrl->get_dm_ctrl()->radio_tget(event_name, p_data);
     }
     
     return bus_error_general;
@@ -681,34 +800,12 @@ bus_error_t tr_181_t::wf6ap_get(char *event_name, raw_data_t *p_data, bus_user_d
     return bus_error_general;
 }
 
-bus_error_t tr_181_t::wf6ap_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
-{
-    em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
-
-    if (em_ctrl != NULL) {
-        return em_ctrl->get_dm_ctrl()->wf6ap_tget(event_name, p_data);
-    }
-    
-    return bus_error_general;
-}
-
 bus_error_t tr_181_t::wf7ap_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
 {
     em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
 
     if (em_ctrl != NULL) {
         return em_ctrl->get_dm_ctrl()->wf7ap_get(event_name, p_data);
-    }
-
-    return bus_error_general;
-}
-
-bus_error_t tr_181_t::wf7ap_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
-{
-    em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
-
-    if (em_ctrl != NULL) {
-        return em_ctrl->get_dm_ctrl()->wf7ap_tget(event_name, p_data);
     }
 
     return bus_error_general;
@@ -725,34 +822,12 @@ bus_error_t tr_181_t::curops_get(char *event_name, raw_data_t *p_data, bus_user_
     return bus_error_general;
 }
 
-bus_error_t tr_181_t::curops_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
-{
-    em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
-
-    if (em_ctrl != NULL) {
-        return em_ctrl->get_dm_ctrl()->curops_tget(event_name, p_data);
-    }
-
-    return bus_error_general;
-}
-
 bus_error_t tr_181_t::capops_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
 {
     em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
 
     if (em_ctrl != NULL) {
         return em_ctrl->get_dm_ctrl()->capops_get(event_name, p_data);
-    }
-
-    return bus_error_general;
-}
-
-bus_error_t tr_181_t::capops_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
-{
-    em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
-
-    if (em_ctrl != NULL) {
-        return em_ctrl->get_dm_ctrl()->capops_tget(event_name, p_data);
     }
 
     return bus_error_general;
@@ -769,17 +844,6 @@ bus_error_t tr_181_t::bss_get(char *event_name, raw_data_t *p_data, bus_user_dat
     return bus_error_general;
 }
 
-bus_error_t tr_181_t::bss_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
-{
-    em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
-
-    if (em_ctrl != NULL) {
-        return em_ctrl->get_dm_ctrl()->bss_tget(event_name, p_data);
-    }
-    
-    return bus_error_general;
-}
-
 bus_error_t tr_181_t::sta_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
 {
     em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
@@ -791,34 +855,12 @@ bus_error_t tr_181_t::sta_get(char *event_name, raw_data_t *p_data, bus_user_dat
     return bus_error_general;
 }
 
-bus_error_t tr_181_t::sta_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
-{
-    em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
-
-    if (em_ctrl != NULL) {
-        return em_ctrl->get_dm_ctrl()->sta_tget(event_name, p_data);
-    }
-
-    return bus_error_general;
-}
-
 bus_error_t tr_181_t::apmld_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
 {
     em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
 
     if (em_ctrl != NULL) {
         return em_ctrl->get_dm_ctrl()->apmld_get(event_name, p_data);
-    }
-
-    return bus_error_general;
-}
-
-bus_error_t tr_181_t::apmld_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
-{
-    em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
-
-    if (em_ctrl != NULL) {
-        return em_ctrl->get_dm_ctrl()->apmld_tget(event_name, p_data);
     }
 
     return bus_error_general;
@@ -857,34 +899,12 @@ bus_error_t tr_181_t::affap_get(char *event_name, raw_data_t *p_data, bus_user_d
     return bus_error_general;
 }
 
-bus_error_t tr_181_t::affap_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
-{
-    em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
-
-    if (em_ctrl != NULL) {
-        return em_ctrl->get_dm_ctrl()->affap_tget(event_name, p_data);
-    }
-
-    return bus_error_general;
-}
-
 bus_error_t tr_181_t::stamld_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
 {
     em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
 
     if (em_ctrl != NULL) {
         return em_ctrl->get_dm_ctrl()->stamld_get(event_name, p_data);
-    }
-
-    return bus_error_general;
-}
-
-bus_error_t tr_181_t::stamld_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
-{
-    em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
-
-    if (em_ctrl != NULL) {
-        return em_ctrl->get_dm_ctrl()->stamld_tget(event_name, p_data);
     }
 
     return bus_error_general;
@@ -918,17 +938,6 @@ bus_error_t tr_181_t::affsta_get(char *event_name, raw_data_t *p_data, bus_user_
 
     if (em_ctrl != NULL) {
         return em_ctrl->get_dm_ctrl()->affsta_get(event_name, p_data);
-    }
-
-    return bus_error_general;
-}
-
-bus_error_t tr_181_t::affsta_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
-{
-    em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
-
-    if (em_ctrl != NULL) {
-        return em_ctrl->get_dm_ctrl()->affsta_tget(event_name, p_data);
     }
 
     return bus_error_general;
@@ -1283,7 +1292,10 @@ void tr_181_t::handle_property_node(cJSON* root, const std::string& fullPath, cJ
             parse_property_constraints(effective, data_model_value);
             parse_readwrite(effective, data_model_value);
             std::string tr181Path = yang_to_tr181_path(tableName);
-            wfa_set_bus_callbackfunc_pointers(tr181Path.c_str(), &cbTable);
+            if (wfa_set_bus_callbackfunc_pointers(tr181Path.c_str(), &cbTable) != RETURN_OK) {
+                /* Table not implemented: no handler, so it has no rows instead of a fake row 1 */
+                memset(&cbTable, 0, sizeof(cbTable));
+            }
             wfa_bus_register_namespace(const_cast<char*>(tr181Path.c_str()), bus_element_type_table, cbTable, data_model_value, 1);
 
             // expand row children under tableName

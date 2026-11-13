@@ -64,27 +64,46 @@ public:
     dm_sta_t *get_dm_bh_sta(dm_easy_mesh_t *dm, dm_radio_t *radio);
     const char* get_table_instance(const char *src, char *instance, size_t max_len, bool *is_num);
 
+    /* String of a MAC address, which identifies the rows of the tables with such a key */
+    static std::string de_key(const mac_address_t mac);
+    /* Name of the table child (ending with '.') of the row identified by parent_key of parent_table,
+     * empty if this row is not registered */
+    std::string de_child_table(const std::string &parent_table, const std::string &parent_key, const char *child);
+
+    /**!
+     * @brief Synchronize the DataElements rows with the content of the data models.
+     *
+     * The rows are not registered by the code which adds the elements to the data model: they follow
+     * the data model. Each row is identified by a key of its element (see the de_keys_*() functions):
+     * the rows of the elements which disappeared are unregistered, the elements without row get a row
+     * and the other rows are left untouched. Unregistering a row also unregisters all the rows below it.
+     *
+     * @param[in] dm Data model that was updated, NULL if a data model was removed.
+     */
+    void de_rows_sync(dm_easy_mesh_t *dm);
+
+    /* True if the data model is a device data model of the list, that has DataElements rows */
+    bool de_dm_has_rows(dm_easy_mesh_t *dm);
+
     bus_error_t network_get(char *event_name, raw_data_t *p_data);
     static bus_error_t network_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
 
+    /* Instance numbers (data model ids) of the Device.{i} rows: the data models of the list, except the controller */
+    std::vector<std::string> de_keys_device();
     bus_error_t device_get(char* event_name, raw_data_t* p_data);
     static bus_error_t device_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
-    bus_error_t device_tget(char *event_name, raw_data_t *p_data);
-    static bus_error_t device_tget_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
 
     bus_error_t policy_get(char* event_name, raw_data_t* p_data);
     static bus_error_t policy_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
 
+    /* Name of the Device.{i}.Radio. table of a device data model */
+    std::string de_table_radio_path_name(dm_easy_mesh_t *dm);
+    /* RUIDs of the radios of the data model which are known */
+    static std::vector<std::string> de_keys_radio(dm_easy_mesh_t *dm);
     bus_error_t radio_get(char* event_name, raw_data_t* p_data);
     static bus_error_t radio_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
-    bus_error_t radio_tget(char* event_name, raw_data_t* p_data);
-    static bus_error_t radio_tget_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
-    static bus_error_t radio_tget_params(dm_easy_mesh_t *dm, const char *root, bus_data_prop_t **property);
     bus_error_t rbhsta_get(char *event_name, raw_data_t *p_data);
     static bus_error_t rbhsta_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
-    bus_error_t curops_tget(char *event_name, raw_data_t *p_data);
-    static bus_error_t curops_tget_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
-    static bus_error_t curops_tget_params(dm_easy_mesh_t *dm, const char *root, em_radio_info_t *ri, bus_data_prop_t **property);
 
     void fill_comma_sep(em_short_string_t str[], size_t max, char *buf);
 
@@ -112,18 +131,26 @@ public:
      * @param[in] buf_len Size of the output buffer.
      */
     void fill_bss_akms_allowed(dm_easy_mesh_t *dm, em_bss_info_t *bi, bool backhaul, char *buf, size_t buf_len);
+    /* True if the BSS is a BSS.{i} of the radio (BSSs with a zero BSSID are not reported) */
+    static bool de_bss_of_radio(em_radio_info_t *ri, em_bss_info_t *bi);
+    /* BSSIDs of the BSS.{i} rows of a radio */
+    static std::vector<std::string> de_keys_bss(dm_easy_mesh_t *dm, em_radio_info_t *ri);
+    /* Name of the Device.{i}.Radio.{i}.BSS. table of a radio, empty if the radio has no row */
+    std::string de_table_bss_path_name(dm_easy_mesh_t *dm, em_radio_info_t *ri);
+    /* Number of BSS.{i} rows of a radio */
+    static unsigned int de_num_bss(dm_easy_mesh_t *dm, em_radio_info_t *ri);
     dm_bss_t *get_dm_bss(dm_easy_mesh_t *dm, em_radio_info_t *ri, char *instance, bool is_num);
     bus_error_t bss_get(char* event_name, raw_data_t* p_data);
     static bus_error_t bss_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
-    bus_error_t bss_tget(char* event_name, raw_data_t* p_data);
-    static bus_error_t bss_tget_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
-    static bus_error_t bss_tget_params(dm_easy_mesh_t *dm, const char *root, em_radio_info_t *ri, bus_data_prop_t **property);
 
+    /* Ids of the Network.SSID.{i} rows (network SSIDs are the same in all the data models) */
+    std::vector<std::string> de_keys_ssid();
+    /* Network SSID of the row SSID.{instance} */
+    dm_network_ssid_t *get_dm_ssid(dm_easy_mesh_t *dm, unsigned int instance);
+    /* Number of Network.SSID.{i} rows */
+    unsigned int de_num_ssid();
     bus_error_t ssid_get(char* event_name, raw_data_t* p_data);
     static bus_error_t ssid_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
-    bus_error_t ssid_tget(char* event_name, raw_data_t* p_data);
-    static bus_error_t ssid_tget_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
-    static bus_error_t ssid_tget_params(dm_easy_mesh_t *dm, const char *root, bus_data_prop_t **property);
 
     char* get_ht_caps_str(em_ap_ht_cap_t *ht, char *buf, size_t buf_len);
     char* get_vht_caps_str(em_ap_vht_cap_t *vht, char *buf, size_t buf_len);
@@ -135,72 +162,84 @@ public:
     char* get_supported_standards_str(wifi_ieee80211Variant_t variant, char *buf, size_t buf_size);
     bus_error_t rcaps_get(char* event_name, raw_data_t* p_data);
     static bus_error_t rcaps_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
-    static bus_error_t rcaps_tget_inner(dm_easy_mesh_t *dm, const char *root, bus_data_prop_t **property);
     bus_error_t wf6ap_get(char* event_name, raw_data_t* p_data);
-    bus_error_t wf6ap_tget(char* event_name, raw_data_t* p_data);
     static bus_error_t wf6ap_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
-    static bus_error_t wf6ap_tget_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
-    static bus_error_t wf6ap_tget_params(dm_easy_mesh_t *dm, const char *root, em_radio_info_t *ri, bus_data_prop_t **property, unsigned int idx);
 
     bus_error_t wf7ap_get(char* event_name, raw_data_t* p_data);
-    bus_error_t wf7ap_tget(char* event_name, raw_data_t* p_data);
     static bus_error_t wf7ap_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
-    static bus_error_t wf7ap_tget_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
-    static bus_error_t wf7ap_tget_params(dm_easy_mesh_t *dm, const char *root, em_radio_info_t *ri, bus_data_prop_t **property, unsigned int idx);
 
+    /* Op classes of a given type (CurrentOperatingClassProfile.{i}, ...) of a radio identify their rows */
+    static std::vector<std::string> de_keys_op_class(dm_easy_mesh_t *dm, em_radio_info_t *ri, em_op_class_type_t type);
+    /* Op class of a radio identified by a key of de_keys_op_class() */
+    static dm_op_class_t *de_find_op_class(dm_easy_mesh_t *dm, em_radio_info_t *ri, em_op_class_type_t type, const std::string &key);
+    /* Number of op classes of a given type (CurrentOperatingClassProfile.{i}, ...) of a radio */
+    static unsigned int de_num_op_class(dm_easy_mesh_t *dm, em_radio_info_t *ri, em_op_class_type_t type);
+    /* Name of the Device.{i}.Radio.{i}.CurrentOperatingClassProfile. table of a radio, empty if the radio has no row */
+    std::string de_table_curop_path_name(dm_easy_mesh_t *dm, em_radio_info_t *ri);
     dm_op_class_t* get_dm_curop(dm_easy_mesh_t *dm, dm_radio_t *radio, int instance);
     bus_error_t curops_get(char* event_name, raw_data_t* p_data);
     static bus_error_t curops_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
 
+    /* Name of the Device.{i}.Radio.{i}.Capabilities.CapableOperatingClassProfile. table of a radio, empty if the radio has no row */
+    std::string de_table_capop_path_name(dm_easy_mesh_t *dm, em_radio_info_t *ri);
     dm_op_class_t* get_dm_capop(dm_easy_mesh_t *dm, dm_radio_t *radio, int instance);
     bus_error_t capops_get(char* event_name, raw_data_t* p_data);
     static bus_error_t capops_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
-    bus_error_t capops_tget(char *event_name, raw_data_t *p_data);
-    static bus_error_t capops_tget_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
-    static bus_error_t capops_tget_params(dm_easy_mesh_t *dm, const char *root, em_radio_info_t *ri, bus_data_prop_t **property);
 
-    dm_sta_t* get_dm_sta(dm_easy_mesh_t *dm, em_bss_info_t *bi, int instance);
+    /* MAC addresses of the STA.{i} rows of a BSS (associated STAs) */
+    static std::vector<std::string> de_keys_sta(dm_easy_mesh_t *dm, em_bss_info_t *bi);
+    /* Name of the Device.{i}.Radio.{i}.BSS.{i}.STA. table of a BSS, empty if the BSS has no row */
+    std::string de_table_sta_path_name(dm_easy_mesh_t *dm, em_bss_info_t *bi);
+    /* Number of STA.{i} rows of a BSS (associated STAs) */
+    static unsigned int de_num_sta(dm_easy_mesh_t *dm, em_bss_info_t *bi);
     dm_sta_t *get_dm_sta(dm_easy_mesh_t *dm, em_bss_info_t *bi, char *instance, bool is_num);
     void fill_haul_type(em_haul_type_t hauls[], size_t max, char *buf);
     bus_error_t sta_get(char* event_name, raw_data_t* p_data);
-    bus_error_t sta_tget(char *event_name, raw_data_t *p_data);
-    static bus_error_t sta_tget_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
-    static bus_error_t sta_tget_params(dm_easy_mesh_t *dm, const char *root, em_bss_info_t *bi, bus_data_prop_t **property);
     static bus_error_t sta_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
 
+    /* Key of a Device.{i}.APMLD.{i} row: the haul type, as the MLD MAC may be unknown */
+    static std::string de_key_ap_mld(const em_ap_mld_info_t *ami);
+    /* Keys of the Device.{i}.APMLD.{i} rows */
+    static std::vector<std::string> de_keys_ap_mld(dm_easy_mesh_t *dm);
+    /* Name of the Device.{i}.APMLD. table of a device data model */
+    std::string de_table_apmld_path_name(dm_easy_mesh_t *dm);
     dm_ap_mld_t *get_dm_ap_mld(dm_easy_mesh_t *dm, char *instance, bool is_num);
     bus_error_t apmld_get(char *event_name, raw_data_t *p_data);
-    bus_error_t apmld_tget(char *event_name, raw_data_t *p_data);
     bus_error_t apmldcfg_get(char *event_name, raw_data_t *p_data);
     bus_error_t apmldcfg_set(char *event_name, raw_data_t *p_data);
     static bus_error_t apmld_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
-    static bus_error_t apmld_tget_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
-    static bus_error_t apmld_tget_params(dm_easy_mesh_t *dm, const char *root, bus_data_prop_t **property);
     static bus_error_t apmldcfg_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
     static bus_error_t apmldcfg_set_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
 
+    /* Keys of the AffiliatedAP.{i} rows of an AP MLD (BSSID, else RUID) */
+    static std::vector<std::string> de_keys_affap(em_ap_mld_info_t *ami);
+    /* Name of the APMLD.{i}.AffiliatedAP. table of an AP MLD, empty if it has no row */
+    std::string de_table_affap_path_name(dm_easy_mesh_t *dm, em_ap_mld_info_t *ami);
     bus_error_t affap_get(char *event_name, raw_data_t *p_data);
-    bus_error_t affap_tget(char *event_name, raw_data_t *p_data);
     static bus_error_t affap_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
-    static bus_error_t affap_tget_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
-    static bus_error_t affap_tget_params(dm_easy_mesh_t *dm, const char *root, em_ap_mld_info_t *ami, bus_data_prop_t **property);
 
+    /* True if the STA MLD is associated to the AP MLD */
+    static bool de_sta_mld_of_ap_mld(em_ap_mld_info_t *ami, em_assoc_sta_mld_info_t *smi);
+    /* MAC addresses of the STAMLD.{i} rows of an AP MLD */
+    static std::vector<std::string> de_keys_sta_mld(dm_easy_mesh_t *dm, em_ap_mld_info_t *ami);
+    /* Name of the APMLD.{i}.STAMLD. table of an AP MLD, empty if it has no row */
+    std::string de_table_stamld_path_name(dm_easy_mesh_t *dm, em_ap_mld_info_t *ami);
+    /* Number of STAMLD.{i} rows of an AP MLD */
+    static unsigned int de_num_sta_mld(dm_easy_mesh_t *dm, em_ap_mld_info_t *ami);
     dm_assoc_sta_mld_t *get_dm_sta_mld(dm_easy_mesh_t *dm, em_ap_mld_info_t *ami, char *instance, bool is_num);
     bus_error_t stamld_get(char *event_name, raw_data_t *p_data);
-    bus_error_t stamld_tget(char *event_name, raw_data_t *p_data);
     bus_error_t wifi7caps_get(char *event_name, raw_data_t *p_data);
     bus_error_t stamldcfg_get(char *event_name, raw_data_t *p_data);
     static bus_error_t stamld_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
-    static bus_error_t stamld_tget_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
-    static bus_error_t stamld_tget_params(dm_easy_mesh_t *dm, const char *root, em_ap_mld_info_t *ami, bus_data_prop_t **property);
     static bus_error_t wifi7caps_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
     static bus_error_t stamldcfg_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
 
+    /* Link addresses of the AffiliatedSTA.{i} rows of a STA MLD */
+    static std::vector<std::string> de_keys_affsta(em_assoc_sta_mld_info_t *smi);
+    /* Name of the STAMLD.{i}.AffiliatedSTA. table of a STA MLD, empty if it has no row */
+    std::string de_table_affsta_path_name(dm_easy_mesh_t *dm, em_ap_mld_info_t *ami, em_assoc_sta_mld_info_t *smi);
     bus_error_t affsta_get(char *event_name, raw_data_t *p_data);
-    bus_error_t affsta_tget(char *event_name, raw_data_t *p_data);
     static bus_error_t affsta_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
-    static bus_error_t affsta_tget_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
-    static bus_error_t affsta_tget_params(dm_easy_mesh_t *dm, const char *root, em_assoc_sta_mld_info_t *smi, bus_data_prop_t **property);
 
     bus_error_t bstamld_get(char *event_name, raw_data_t *p_data);
     bus_error_t bstacfg_get(char *event_name, raw_data_t *p_data);

@@ -23,6 +23,9 @@
 #include "dm_easy_mesh.h"
 #include <string>
 #include <memory>
+#include <map>
+#include <vector>
+#include <mutex>
 #include <cjson/cJSON.h>
 #include <unistd.h>
 
@@ -127,6 +130,7 @@ typedef struct {
 #define DE_NETWORK_COLAGTID     DATAELEMS_NETWORK       "ColocatedAgentID"
 #define DE_NETWORK_DEVNOE       DATAELEMS_NETWORK       "DeviceNumberOfEntries"
 #define DE_NETWORK_TIMESTAMP    DATAELEMS_NETWORK       "TimeStamp"
+#define DE_NETWORK_SSIDNOE      DATAELEMS_NETWORK       "SSIDNumberOfEntries"
 #define DE_NETWORK_SETSSID      DATAELEMS_NETWORK       "SetSSID()"
 /* Device.WiFi.DataElements.Network.SSID */
 #define DE_NETWORK_SSID         DATAELEMS_NETWORK       "SSID.{i}."
@@ -551,11 +555,32 @@ class dm_easy_mesh_ctrl_t;
 class tr_181_t {
 private:
     bus_handle_t m_bus_handle;
+    /* Registered rows: table name (ending with '.') -> instance number -> key identifying the row */
+    std::map<std::string, std::map<uint32_t, std::string>> m_rows;
+    /* Next instance number to allocate in a table */
+    std::map<std::string, uint32_t> m_next_inst;
+    std::recursive_mutex m_rows_lock;
 
 public:
 
     tr_181_t() {}
     virtual ~tr_181_t() {}
+
+    /* Register the row of the table table_name (ending with '.') identified by key and return its instance number.
+     * A row keeps its instance number until it is unregistered: a new row gets a number never used before
+     * in the table (or inst if not 0). Nothing is done if a row with this key is already registered.
+     * Returns 0 if the bus registration fails. */
+    uint32_t add_table_row(const char *table_name, const std::string &key, uint32_t inst = 0);
+    /* Instance number of the row identified by key, 0 if it is not registered */
+    uint32_t get_table_row_instance(const char *table_name, const std::string &key);
+    /* Key of the row with the instance number inst, empty if it is not registered */
+    std::string get_table_row_key(const char *table_name, uint32_t inst);
+    /* Unregister a row (row_name: table name + instance, with final '.', e.g. "Device.1.") and all the rows below it */
+    bus_error_t unreg_table_row(const char *row_name);
+    /* Make the table table_name (ending with '.') hold exactly the rows identified by keys.
+     * The rows already registered keep their instance number. If key_is_instance, the key of a row is its
+     * decimal instance number. */
+    void sync_table_rows(const char *table_name, const std::vector<std::string> &keys, bool key_is_instance = false);
     
     bus_handle_t *get_bus_hdl() { return &m_bus_handle; }
     
@@ -597,7 +622,6 @@ public:
     
     //Table callback handlers
     static bus_error_t add_table_row(char const *name, dm_easy_mesh_t *dm);
-    bus_error_t reg_table_row(char *name, int index);
     int find_radio(dm_easy_mesh_t *dm);
 
     // Bus callback handlers
@@ -611,7 +635,6 @@ public:
     static bus_error_t network_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
     
     //SSID
-    static bus_error_t ssid_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
     static bus_error_t ssid_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
     static bus_error_t ssid_table_add_row_handler(const char* table_name, const char* alias_name, uint32_t* instance_number);
 
@@ -1003,7 +1026,6 @@ public:
 
     //Device Callbacks
     static bus_error_t device_get(char* event_name, raw_data_t* p_data, struct bus_user_data* user_data);
-    static bus_error_t device_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
     static bus_error_t device_table_add_row_handler(const char* table_name, const char* alias_name, uint32_t* instance_number);
 
     //Policy Callbacks
@@ -1012,48 +1034,37 @@ public:
 
     //Radio
     static bus_error_t radio_get(char* event_name, raw_data_t* p_data, struct bus_user_data* user_data);
-    static bus_error_t radio_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
     static bus_error_t rbhsta_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
     static bus_error_t radio_table_add_row_handler(const char* table_name, const char* alias_name, uint32_t* instance_number);
     static bus_error_t rcaps_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
     static bus_error_t wf6ap_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
-    static bus_error_t wf6ap_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
     static bus_error_t wf7ap_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
-    static bus_error_t wf7ap_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
     static bus_error_t curops_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
-    static bus_error_t curops_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
     static bus_error_t capops_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
-    static bus_error_t capops_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
 
     //BSS
     static bus_error_t bss_get(char* event_name, raw_data_t* p_data, struct bus_user_data* user_data);
-    static bus_error_t bss_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
     static bus_error_t bss_table_add_row_handler(const char* table_name, const char* alias_name, uint32_t* instance_number);
 
     //STA
     static bus_error_t sta_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
-    static bus_error_t sta_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
     static bus_error_t sta_table_add_row_handler(const char* table_name, const char* alias_name, uint32_t* instance_number);
 
     //APMLD
     static bus_error_t apmld_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
-    static bus_error_t apmld_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
     static bus_error_t apmldcfg_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
     static bus_error_t apmldcfg_set(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
 
     //AffiliatedAP
     static bus_error_t affap_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
-    static bus_error_t affap_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
 
     //STAMLD
     static bus_error_t stamld_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
-    static bus_error_t stamld_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
     static bus_error_t wifi7caps_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
     static bus_error_t stamldcfg_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
 
     //AffiliatedSTA
     static bus_error_t affsta_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
-    static bus_error_t affsta_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
 
     //bSTAMLD
     static bus_error_t bstamld_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
@@ -1067,9 +1078,6 @@ public:
 
     virtual bus_error_t network_get(char *event_name, raw_data_t *p_data) = 0;
     virtual bus_error_t device_get(char *event_name, raw_data_t *p_data) = 0;
-    // virtual bus_error_t radio_tget_impl(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data) = 0;
-    // virtual bus_error_t bss_tget_impl(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data) = 0;
-    // virtual bus_error_t ssid_tget_impl(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data) = 0;
 
     // Data model access
     bus_error_t wifi_elem_num_of_table_row(char* event_name, uint32_t* table_row_size);

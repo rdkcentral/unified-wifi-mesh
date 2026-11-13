@@ -297,6 +297,33 @@ void em_t::handle_timeout()
     //printf("%s:%d: em timeout\n", __func__, __LINE__);
 }
 
+
+/* Queries, requests and acks do not modify the data model: no need to synchronize its table rows */
+static bool em_msg_may_change_dm(unsigned int type)
+{
+    switch (type) {
+        case em_msg_type_autoconf_search:
+        case em_msg_type_topo_query:
+        case em_msg_type_ap_cap_query:
+        case em_msg_type_client_cap_query:
+        case em_msg_type_channel_pref_query:
+        case em_msg_type_channel_sel_req:
+        case em_msg_type_avail_spectrum_inquiry:
+        case em_msg_type_channel_scan_req:
+        case em_msg_type_assoc_sta_link_metrics_query:
+        case em_msg_type_beacon_metrics_query:
+        case em_msg_type_unassoc_sta_link_metrics_query:
+        case em_msg_type_client_steering_req:
+        case em_msg_type_client_assoc_ctrl_req:
+        case em_msg_type_map_policy_config_req:
+        case em_msg_type_bh_sta_cap_query:
+        case em_msg_type_1905_ack:
+            return false;
+        default:
+            return true;
+    }
+}
+
 void em_t::proto_process(unsigned char *data, unsigned int len)
 {
     em_cmdu_t *cmdu;
@@ -405,6 +432,15 @@ void em_t::proto_process(unsigned char *data, unsigned int len)
 
         default:
             break;
+    }
+
+    if (m_service_type == em_service_type_ctrl && em_msg_may_change_dm(htons(cmdu->type))) {
+        em_mgr_t *mgr = get_mgr();
+        if (mgr != NULL) {
+            mgr->dm_updated(get_data_model());
+        } else {
+            em_printfout("no manager, data model rows not synchronized");
+        }
     }
 
     free(data);
