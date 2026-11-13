@@ -972,7 +972,8 @@ bus_error_t em_ctrl_t::cmd_channelscan(const char *method_name, const bus_data_p
             *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
         }
         return bus_error_invalid_input;
-    
+    }
+
     dm_radio_t *radio = dm_ctrl->get_dm_radio(dm, instance, is_num);
     if (radio == NULL) {
         em_printfout("Radio not found");
