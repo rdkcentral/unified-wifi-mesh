@@ -2028,6 +2028,13 @@ bus_error_t em_ctrl_t::cmd_clientsteer(const char *method_name, const bus_data_p
     size_t json_len = 0;
     bus_error_t rc;
 
+    if (name == NULL) {
+        if (output_params) {
+            *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
+        }
+        return bus_error_invalid_input;
+    }
+
     param = strrchr(name, '.');
     if (param == NULL) {
         em_printfout("Invalid method name");
@@ -2057,8 +2064,20 @@ bus_error_t em_ctrl_t::cmd_clientsteer(const char *method_name, const bus_data_p
 
     /* Extract device instance (numeric or alias) and find the dm object for
      * that device instance */
+    if (strlen(name) < sizeof(DATAELEMS_NETWORK)) {
+        if (output_params) {
+            *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
+        }
+        return bus_error_invalid_input;
+    }
     name += sizeof(DATAELEMS_NETWORK);
     name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    if (name == NULL) {
+        if (output_params) {
+            *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
+        }
+        return bus_error_invalid_input;
+    }
     dm_easy_mesh_t *dm = dm_ctrl->get_dm_easy_mesh(instance, is_num);
     if (dm == NULL) {
         em_printfout("Device not found");
@@ -2072,6 +2091,12 @@ bus_error_t em_ctrl_t::cmd_clientsteer(const char *method_name, const bus_data_p
     /* Extract radio instance (numeric or alias), find the radio dm object
      * for that instance, and finally get info struct for radio dm object */
     name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    if (name == NULL) {
+        if (output_params) {
+            *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
+        }
+        return bus_error_invalid_input;
+    }
     dm_radio_t *radio = dm_ctrl->get_dm_radio(dm, instance, is_num);
     if (radio == NULL) {
         em_printfout("Radio not found");
@@ -2085,6 +2110,12 @@ bus_error_t em_ctrl_t::cmd_clientsteer(const char *method_name, const bus_data_p
     /* Extract bss instance (numeric or alias), find the bss dm object
      * for that instance, and finally get info struct for bss dm object */
     name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    if (name == NULL) {
+        if (output_params) {
+            *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
+        }
+        return bus_error_invalid_input;
+    }
     dm_bss_t *bss = dm_ctrl->get_dm_bss(dm, ri, instance, is_num);
     if (bss == NULL) {
         em_printfout("BSS not found");
@@ -2098,6 +2129,12 @@ bus_error_t em_ctrl_t::cmd_clientsteer(const char *method_name, const bus_data_p
     /* Extract sta instance (numeric or alias), find the sta dm object
      * for that instance, and finally get info struct for sta dm object */
     name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    if (name == NULL) {
+        if (output_params) {
+            *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
+        }
+        return bus_error_invalid_input;
+    }
     dm_sta_t *sta = dm_ctrl->get_dm_sta(dm, bi, instance, is_num);
     if (sta == NULL) {
         em_printfout("STA not found");
