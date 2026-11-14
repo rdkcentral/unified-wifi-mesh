@@ -22,13 +22,12 @@
 #include <errno.h>
 #include <signal.h>
 #include "optimizer.h"
-#include "comcast_optimizer.h"
-#include "comcast_optimizer_xmidt.h"
-#include "comcast_optimizer_web.h"
+#include "xmidt_optimizer.h"
+#include "xmidt_optimizer_client.h"
 #include "util.h"
 #include "assert.h"
 
-int optimizer_t::run(optimizer_type_t type)
+int optimizer_t::run(optimizer_access_type_t type)
 {
     int rc;
     struct timespec time_to_wait;
@@ -38,9 +37,10 @@ int optimizer_t::run(optimizer_type_t type)
     optimizer_event_t *ev;
 
     switch (type) {
-        case optimizer_type_comcast:
-            opt = new comcast_optimizer_web_t();
+        case optimizer_access_type_xmidt:
+            opt = new xmidt_optimizer_client_t();
             opt->m_de_network = m_de_network;
+            opt->m_de_nbr_nodes = m_de_nbr_nodes;
             m_exit = false;
             break;
 
@@ -55,7 +55,7 @@ int optimizer_t::run(optimizer_type_t type)
 
     if (opt->init_optimizer_interface(get_url()) != 0) {
         m_exit = true;
-        delete (comcast_optimizer_t *)opt;
+        delete (xmidt_optimizer_client_t *)opt;
         return -1;
     }
 
@@ -105,7 +105,7 @@ int optimizer_t::run(optimizer_type_t type)
     pthread_mutex_unlock(&m_lock);
 
     opt->deinit_optimizer_interface();
-    delete (comcast_optimizer_t *)opt;
+    delete (xmidt_optimizer_client_t *)opt;
 
     return 0;
 }
@@ -127,11 +127,21 @@ int optimizer_t::init()
         return -1;
     }
 
+    // Neighbors
+    m_de_nbr_nodes = new de_nbr_nodes_t(NBR_NODES); 
+    if (m_de_nbr_nodes->init() != 0) {
+        printf("%s:%d: South Bound Data Elements Interface init failed\n", __func__, __LINE__);
+        return -1;
+    }
+
+
     return 0;
 }
 
 void optimizer_t::deinit()
 {
+    m_de_nbr_nodes->deinit();
+    m_de_network->deinit();
     queue_destroy(m_queue);
     pthread_mutex_destroy(&m_lock);
     pthread_cond_destroy(&m_cond);
@@ -154,8 +164,9 @@ void optimizer_t::wait_for_de_change()
 
 optimizer_t::optimizer_t()
 {
-    m_optimizer_type = optimizer_type_generic;
+    m_optimizer_access_type = optimizer_access_type_local;
     m_de_network = NULL;
+    m_de_nbr_nodes = NULL;
 }
 
 optimizer_t::~optimizer_t()

@@ -32,6 +32,12 @@ void de_net_ssid_t::update(de_net_ssid_t& net_ssid)
     m_advertisement = net_ssid.m_advertisement;
     strncpy(m_mfp_config, net_ssid.m_mfp_config, strlen(net_ssid.m_mfp_config) + 1);
     strncpy(m_mob_domain, net_ssid.m_mob_domain, strlen(net_ssid.m_mob_domain) + 1);
+    strncpy(m_passphrase, net_ssid.m_passphrase, strlen(net_ssid.m_passphrase) + 1);
+    strncpy(m_band, net_ssid.m_band, strlen(net_ssid.m_band) + 1);
+    strncpy(m_akms_allowed, net_ssid.m_akms_allowed, strlen(net_ssid.m_akms_allowed) + 1);
+    strncpy(m_suite_selector, net_ssid.m_suite_selector, strlen(net_ssid.m_suite_selector) + 1);
+    strncpy(m_haul_type, net_ssid.m_haul_type, strlen(net_ssid.m_haul_type) + 1);
+    strncpy(m_type, net_ssid.m_type, strlen(net_ssid.m_type) + 1);
 }
 
 int de_net_ssid_t::init(const char *key)
@@ -54,6 +60,12 @@ de_net_ssid_t::de_net_ssid_t()
     m_advertisement = false;
     memset(m_mfp_config, 0, sizeof(m_mfp_config));
     memset(m_mob_domain, 0, sizeof(m_mob_domain));
+    memset(m_passphrase, 0, sizeof(m_passphrase));
+    memset(m_band, 0, sizeof(m_band));
+    memset(m_akms_allowed, 0, sizeof(m_akms_allowed));
+    memset(m_suite_selector, 0, sizeof(m_suite_selector));
+    memset(m_haul_type, 0, sizeof(m_haul_type));
+    memset(m_type, 0, sizeof(m_type));
 }
 
 de_net_ssid_t::~de_net_ssid_t()

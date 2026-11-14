@@ -100,7 +100,6 @@ rbusError_t de_network_t::set(rbusHandle_t handle, rbusProperty_t property, rbus
     int len;
 
     name  = rbusProperty_GetName(property);
-    printf("%s:%d: Property Name: %s\n", __func__, __LINE__, name);
 
     if ((ptr = strstr(name, SERVICES)) != NULL) {
         return m_de_services->set(handle, property, options);
@@ -191,24 +190,30 @@ void de_network_t::handler(rbusHandle_t handle, rbusEvent_t const* event, rbusEv
     rbusValue_t value;
     const char *ptr;
 
-    printf("%s:%d: Event Name: %s\n", __func__, __LINE__, subscription->eventName);
     if (strncmp(subscription->eventName, DE_NETWORK_CTRLID, strlen(DE_NETWORK_CTRLID)) == 0) {
         if ((value = rbusObject_GetValue(event->data, "value")) == NULL) {
-            printf("%s:%d: No value in event\n", __func__, __LINE__);
             return;
         }
         ptr = rbusValue_GetString(value, NULL);
         strncpy(m_controller_id, ptr, strlen(ptr)); 
-        printf("%s:%d: Controller ID: %s\n", __func__, __LINE__, m_controller_id);
     } else if (strncmp(subscription->eventName, DE_NETWORK_ID, strlen(DE_NETWORK_ID)) == 0) {
         if ((value = rbusObject_GetValue(event->data, "value")) == NULL) {
-            printf("%s:%d: No value in event\n", __func__, __LINE__);
             return;
         }
         ptr = rbusValue_GetString(value, NULL);
         strncpy(m_id, ptr, strlen(ptr)); 
-        printf("%s:%d: Network ID: %s\n", __func__, __LINE__, m_id);
     }
+}
+
+rbusError_t de_network_t::method(rbusHandle_t handle, char const* name, rbusObject_t in, rbusObject_t out, rbusMethodAsyncHandle_t async)
+{
+    if ((strstr(name, DE_NET_SSID_SET) != NULL) && (m_de_net_ssids != NULL)) {
+        return m_de_net_ssids->method(handle, name, in, out, async);
+    } else if ((strstr(name, DE_DEVICES) != NULL) && (m_de_devices != NULL)) {
+        return m_de_devices->method(handle, name, in, out, async);
+    }
+
+    return RBUS_ERROR_DESTINATION_NOT_FOUND;
 }
 
 int de_network_t::init()

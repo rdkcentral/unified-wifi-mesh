@@ -37,7 +37,6 @@ void de_op_classes_t::update(de_op_class_t& op_class, unsigned int dpos, unsigne
     snprintf(alias, sizeof(em_long_string_t), "%s.%d.%s.%d.%s.%s.%d", DEVICES, dpos, RADIOS, rpos, CAPS, OP_CLASSES, opos);
     if ((poc = (de_op_class_t *)hash_map_get(m_op_class_map, alias)) == NULL) {
         snprintf(name, sizeof(em_long_string_t), "%s%d.%s.%d.%s.%s.", DE_DEVICES, dpos, RADIOS, rpos, CAPS, OP_CLASSES);
-        printf("%s:%d: adding row, name: %s, alias: %s\n", __func__, __LINE__, name, alias);
         rbusTable_addRow(m_bus_handle, name, alias, &inst);
         poc = (de_op_class_t *)hash_map_get(m_op_class_map, alias);
     }
@@ -72,7 +71,6 @@ rbusError_t de_op_classes_t::add(rbusHandle_t handle, char const* table_name, ch
     de_op_class_t *op_class;
 
     sscanf(alias_name, "DeviceList.%d.RadioList.%d.Capabilities.OperatingClasses.%d", &dpos, &rpos, &opos);
-    printf("%s:%d: Name: %s\n", __func__, __LINE__, alias_name);
 
     if ((op_class = (de_op_class_t *)hash_map_get(m_op_class_map, alias_name)) == NULL) {
         op_class = new de_op_class_t();
@@ -208,8 +206,6 @@ void de_op_classes_t::handler(rbusHandle_t handle, rbusEvent_t const* event, rbu
     prop = rbusObject_GetProperties(event->data);
     while (prop != NULL) {
         ptr = rbusProperty_GetName(prop);
-        printf("%s:%d: Name: %s\n", __func__, __LINE__, ptr);
-
         if ((op_class = (de_op_class_t *)hash_map_get(m_op_class_map, ptr)) == NULL) {
             op_class = new de_op_class_t();
             op_class->init(ptr);

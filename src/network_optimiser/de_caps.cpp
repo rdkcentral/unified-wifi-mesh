@@ -205,8 +205,6 @@ void de_caps_t::handler(rbusHandle_t handle, rbusEvent_t const* event, rbusEvent
     prop = rbusObject_GetProperties(event->data);
     while (prop != NULL) {
         ptr = rbusProperty_GetName(prop);
-        printf("%s:%d: Name: %s\n", __func__, __LINE__, ptr);
-
         if ((cap = (de_cap_t *)hash_map_get(m_cap_map, ptr)) == NULL) {
             cap = new de_cap_t();
             cap->init(ptr);

@@ -31,6 +31,12 @@ public:
     bool    m_advertisement;
     em_string_t m_mfp_config;
     em_string_t m_mob_domain;
+    em_string_t m_passphrase;
+    em_string_t m_band;
+    em_string_t m_akms_allowed;
+    em_string_t m_suite_selector;
+    em_string_t m_haul_type;
+    em_string_t m_type;
 
 public:
     int init(const char *key);

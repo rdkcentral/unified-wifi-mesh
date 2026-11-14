@@ -26,11 +26,6 @@
 #include "de_bsss.h"
 #include "optimizer.h"
 
-void de_bsss_t::update(de_sta_t& sta, unsigned int dpos, unsigned int rpos, unsigned int bpos, unsigned int spos)
-{
-    m_de_stas->update(sta, dpos, rpos, bpos, spos);
-}
-
 void de_bsss_t::update(de_bss_t& bss, unsigned int dpos, unsigned int rpos, unsigned int bpos)
 {
     rbusValue_t value;
@@ -42,7 +37,6 @@ void de_bsss_t::update(de_bss_t& bss, unsigned int dpos, unsigned int rpos, unsi
     snprintf(alias, sizeof(em_long_string_t), "%s.%d.%s.%d.%s.%d", DEVICES, dpos, RADIOS, rpos, BSSS, bpos);
     if ((pbss = (de_bss_t *)hash_map_get(m_bss_map, alias)) == NULL) { 
         snprintf(name, sizeof(em_long_string_t), "%s%d.%s.%d.%s.", DE_DEVICES, dpos, RADIOS, rpos, BSSS);
-        printf("%s:%d: adding row, name: %s, alias: %s\n", __func__, __LINE__, name, alias);
         rbusTable_addRow(m_bus_handle, name, alias, &inst);
         pbss = (de_bss_t *)hash_map_get(m_bss_map, alias);
     }
@@ -99,7 +93,6 @@ rbusError_t de_bsss_t::add(rbusHandle_t handle, char const* table_name, char con
     }
     
     sscanf(alias_name, "DeviceList.%d.RadioList.%d.BSSList.%d", &dpos, &rpos, &bpos);
-    printf("%s:%d: Name: %s\n", __func__, __LINE__, alias_name);
 
     if ((bss = (de_bss_t *)hash_map_get(m_bss_map, alias_name)) == NULL) {
         bss = new de_bss_t();
@@ -270,8 +263,6 @@ void de_bsss_t::handler(rbusHandle_t handle, rbusEvent_t const* event, rbusEvent
     prop = rbusObject_GetProperties(event->data);
     while (prop != NULL) {
         ptr = rbusProperty_GetName(prop);
-        printf("%s:%d: Name: %s\n", __func__, __LINE__, ptr);
-
         if ((bss = (de_bss_t *)hash_map_get(m_bss_map, ptr)) == NULL) {
             bss = new de_bss_t();
             bss->init(ptr);

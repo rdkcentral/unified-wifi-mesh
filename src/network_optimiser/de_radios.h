@@ -27,6 +27,7 @@
 #include "de_bsss.h"
 #include "de_curr_op_classes.h"
 #include "de_caps.h"
+#include "de_scan_results.h"
 
 class de_radios_t : public de_t {
 
@@ -35,6 +36,7 @@ public:
     de_bsss_t   *m_de_bsss;
     de_curr_op_classes_t   *m_de_curr_op_classes;
     de_caps_t   *m_de_caps;
+    de_scan_results_t   *m_de_scan_results;
 
 public:
 
@@ -42,10 +44,6 @@ public:
     void deinit(bool bus_close);
 
     void update(de_radio_t& radio, unsigned int dpos, unsigned int rpos);
-    void update(de_bss_t& bss, unsigned int dpos, unsigned int rpos, unsigned int bpos);
-    void update(de_sta_t& sta, unsigned int dpos, unsigned int rpos, unsigned int bpos, unsigned int spos);
-    void update(de_curr_op_class_t& curr_op_class, unsigned int dpos, unsigned int rpos, unsigned int opos);
-    void update(de_cap_t& cap, unsigned int dpos, unsigned int rpos);
     void update(de_op_class_t& op_class, unsigned int dpos, unsigned int rpos, unsigned int opos);
 
     void publish(const char *event_name);
@@ -55,6 +53,8 @@ public:
     rbusError_t set(rbusHandle_t handle, rbusProperty_t property, rbusSetHandlerOptions_t* options);
     rbusError_t get(rbusHandle_t handle, rbusProperty_t property, rbusGetHandlerOptions_t* options);
     void handler(rbusHandle_t handle, rbusEvent_t const* event, rbusEventSubscription_t* subscription);
+    virtual rbusError_t method(rbusHandle_t handle, char const* name, rbusObject_t in, rbusObject_t out, rbusMethodAsyncHandle_t async);
+    virtual rbusError_t invoke_method(char const* name, void *in, void *out);
 
     de_radios_t(const char *name, bool provider = false, notifier_t func = notifier_t());
 };

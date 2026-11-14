@@ -22,6 +22,8 @@
 #include "em_base.h"
 #include "optimizer_event.h"
 #include "de_network.h"
+#include "de_nbr_nodes.h"
+#include "de_scan.h"
 
 class optimizer_t {
 
@@ -30,8 +32,9 @@ public:
     pthread_cond_t  m_cond;
     pthread_mutex_t m_lock;
     queue_t *m_queue;
-    optimizer_type_t    m_optimizer_type;
+    optimizer_access_type_t    m_optimizer_access_type;
     de_network_t    *m_de_network; 
+    de_nbr_nodes_t    *m_de_nbr_nodes; 
 
     virtual int init_optimizer_interface(const char *url) { printf("Default optimizer does not connect to cloud\n"); return -1; }
     virtual void deinit_optimizer_interface() { printf("Default optimizer does not connect to cloud\n"); }
@@ -42,7 +45,7 @@ public:
 
     int init();
     void deinit();
-    int run(optimizer_type_t type);
+    int run(optimizer_access_type_t type);
     void wait() { pthread_mutex_lock(&m_lock); pthread_cond_wait(&m_cond, &m_lock); pthread_mutex_unlock(&m_lock); }
     void signal() { pthread_mutex_lock(&m_lock); pthread_cond_signal(&m_cond); pthread_mutex_unlock(&m_lock); }
     void push_to_queue(optimizer_event_t *ev) { pthread_mutex_lock(&m_lock); queue_push(m_queue, ev); pthread_cond_signal(&m_cond); pthread_mutex_unlock(&m_lock); }
@@ -51,9 +54,9 @@ public:
     queue_t *get_queue() { return m_queue; }
     pthread_mutex_t* get_lock() { return &m_lock; }
 
-    void set_optimizer_type(optimizer_type_t type) { m_optimizer_type = type; }
+    void set_optimizer_access_type(optimizer_access_type_t type) { m_optimizer_access_type = type; }
 
-    optimizer_type_t get_operator_type() { return m_de_network->m_de_services->get_operator_type(); }
+    optimizer_access_type_t get_optimizer_access_type() { return m_de_network->m_de_services->get_optimizer_access_type(); }
     char *get_url() { return m_de_network->m_de_services->get_url(); }
 
     void wait_for_de_change();

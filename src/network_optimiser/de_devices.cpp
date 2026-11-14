@@ -25,34 +25,9 @@
 #include "de_devices.h"
 #include "optimizer.h"
 
-void de_devices_t::update(de_radio_t& rd, unsigned int dpos, unsigned int rpos)
-{
-    m_de_radios->update(rd, dpos, rpos);
-}
-
-void de_devices_t::update(de_bss_t& bss, unsigned int dpos, unsigned int rpos, unsigned int bpos)
-{
-    m_de_radios->update(bss, dpos, rpos, bpos);
-}
-
-void de_devices_t::update(de_curr_op_class_t& curr_op_class, unsigned int dpos, unsigned int rpos, unsigned int opos)
-{
-    m_de_radios->update(curr_op_class, dpos, rpos, opos);
-}
-
-void de_devices_t::update(de_cap_t& cap, unsigned int dpos, unsigned int rpos)
-{
-    m_de_radios->update(cap, dpos, rpos);
-}
-
 void de_devices_t::update(de_op_class_t& op_class, unsigned int dpos, unsigned int rpos, unsigned int opos)
 {
     m_de_radios->update(op_class, dpos, rpos, opos);
-}
-
-void de_devices_t::update(de_sta_t& sta, unsigned int dpos, unsigned int rpos, unsigned int bpos, unsigned int spos)
-{
-    m_de_radios->update(sta, dpos, rpos, bpos, spos);
 }
 
 void de_devices_t::update(de_device_t& dev, unsigned int pos)
@@ -392,6 +367,15 @@ void de_devices_t::handler(rbusHandle_t handle, rbusEvent_t const* event, rbusEv
 
 }
 
+rbusError_t de_devices_t::method(rbusHandle_t handle, char const* name, rbusObject_t in, rbusObject_t out, rbusMethodAsyncHandle_t async)
+{
+    if ((strstr(name, RADIOS) != NULL) && (m_de_radios != NULL)) {
+        return m_de_radios->method(handle, name, in, out, async);
+    }
+
+    return RBUS_ERROR_DESTINATION_NOT_FOUND;
+}
+
 int de_devices_t::init(rbusHandle_t handle)
 {
     m_device_map = hash_map_create();
@@ -426,23 +410,6 @@ int de_devices_t::init(rbusHandle_t handle)
 
     m_subs[m_num_subs].eventName = DEVICES;
     m_num_subs++;
-
-#ifdef FUTURE
-    m_subs[m_num_subs].eventName = DE_DEVICES_ANY_ID;
-    m_num_subs++;
-
-    m_subs[m_num_subs].eventName = DE_DEVICES_ANY_MANUFACTURER;
-    m_num_subs++;
-
-    m_subs[m_num_subs].eventName = DE_DEVICES_ANY_MODEL;
-    m_num_subs++;
-
-    m_subs[m_num_subs].eventName = DE_DEVICES_ANY_IAL;
-    m_num_subs++;
-
-    m_subs[m_num_subs].eventName = DE_DEVICES_ANY_VERSION;
-    m_num_subs++;
-#endif
 
     if (de_t::init(handle) != 0) {
         printf("%s:%d: Failed to initialize devices\n", __func__, __LINE__);

@@ -36,7 +36,7 @@ public:
 public:
     int init(const char *key);
     void deinit();
-    void update(de_bss_t& radio);
+    void update(de_bss_t& bss);
 
     de_bss_t();
     ~de_bss_t();

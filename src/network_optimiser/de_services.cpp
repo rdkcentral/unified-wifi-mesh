@@ -42,14 +42,13 @@ void de_services_t::update(de_service_t& svc, unsigned int pos)
 
     snprintf(name, sizeof(em_long_string_t), "%s%d.Type", DE_SERVICES, pos);
     rbusValue_Init(&value);
-    rbusValue_SetUInt32(value, svc.m_type);
+    rbusValue_SetString(value, svc.m_type);
     rbus_set(m_bus_handle, name, value, NULL);
     rbusValue_Release(value);
 
-    snprintf(name, sizeof(em_long_string_t), "%s%d.Operator", DE_SERVICES, pos);
+    snprintf(name, sizeof(em_long_string_t), "%s%d.Access", DE_SERVICES, pos);
     rbusValue_Init(&value);
-    rbusValue_SetString(value, svc.m_operator_name);
-    printf("%s:%d: Operator: %s\n", __func__, __LINE__, svc.m_operator_name);
+    rbusValue_SetString(value, svc.m_access);
     rbus_set(m_bus_handle, name, value, NULL);
     rbusValue_Release(value);
     
@@ -60,31 +59,26 @@ void de_services_t::update(de_service_t& svc, unsigned int pos)
     rbusValue_Release(value);
 }
 
-optimizer_type_t de_services_t::get_operator_type()
+optimizer_access_type_t de_services_t::get_optimizer_access_type()
 {
     de_service_t *svc = NULL;
-    optimizer_type_t type = optimizer_type_generic;
+    optimizer_access_type_t type = optimizer_access_type_local;
 
     svc = (de_service_t *)hash_map_get_first(m_service_map);
     while (svc != NULL) {
-        printf("%s:%d: Service: %d, Operator: %s\n", __func__, __LINE__, svc->m_type, svc->m_operator_name);
-        if (svc->m_type == service_type_optimizer) {
-            if (strncasecmp(svc->m_operator_name, "comcast", strlen("comcast")) == 0) {
-                type = optimizer_type_comcast;
-            } else if (strncasecmp(svc->m_operator_name, "vodafone", strlen("vodafone")) == 0) {
-                type = optimizer_type_vodafone;
-            } else if (strncasecmp(svc->m_operator_name, "dt", strlen("dt")) == 0) {
-                type = optimizer_type_dt;
+        if (strncasecmp(svc->m_type, "optimizer", strlen("optimizer")) == 0) {
+            if (strncasecmp(svc->m_access, "xmidt", strlen("xmidt")) == 0) {
+                type = optimizer_access_type_xmidt;
+            } else if (strncasecmp(svc->m_access, "usp", strlen("usp")) == 0) {
+                type = optimizer_access_type_usp;
             } else {
-                type = optimizer_type_generic;
+                type = optimizer_access_type_local;
             }
             break;
         }
 
         svc = (de_service_t *)hash_map_get_next(m_service_map, svc);
     }
-
-    printf("%s:%d: Operator Type: %d, count: %d\n", __func__, __LINE__, type, hash_map_count(m_service_map));
 
     return type; 
 }
@@ -97,7 +91,7 @@ char *de_services_t::get_url()
     svc = (de_service_t *)hash_map_get_first(m_service_map);
     while (svc != NULL) {
 
-        if (svc->m_type == service_type_optimizer) {
+        if (strncasecmp(svc->m_type, "optimizer", strlen("optimizer")) == 0) {
             ptr = svc->m_url;
             break;
         }
@@ -114,7 +108,6 @@ rbusError_t de_services_t::add(rbusHandle_t handle, char const* table_name, char
     unsigned int row;
     de_service_t *svc;
     
-    printf("%s:%d: name: %s, alias: %s\n", __func__, __LINE__, table_name, alias_name);
     sscanf(alias_name, "X_RDK_Services.%d", &row);
 
     svc = new de_service_t();
@@ -159,9 +152,9 @@ rbusError_t de_services_t::get(rbusHandle_t handle, rbusProperty_t property, rbu
     }
 
     if (strncmp(str, "Type", strlen("Type")) == 0) {
-        rbusProperty_SetUInt32(property, (uint32_t)svc->m_type);
-    } else if (strncmp(str, "Operator", strlen("Operator")) == 0) {
-        rbusProperty_SetString(property, svc->m_operator_name);
+        rbusProperty_SetString(property, svc->m_type);
+    } else if (strncmp(str, "Access", strlen("Access")) == 0) {
+        rbusProperty_SetString(property, svc->m_access);
     } else if (strncmp(str, "URL", strlen("URL")) == 0) {
         rbusProperty_SetString(property, svc->m_url);
     }
@@ -195,10 +188,11 @@ rbusError_t de_services_t::set(rbusHandle_t handle, rbusProperty_t property, rbu
     }
 
     if (strncmp(str, "Type", strlen("Type")) == 0) {
-        svc->m_type = (service_type_t)rbusProperty_GetUInt32(property);
-    } else if (strncmp(str, "Operator", strlen("Operator")) == 0) {
         ptr = rbusProperty_GetString(property, &len);
-        strncpy(svc->m_operator_name, ptr, len + 1);
+        strncpy(svc->m_type, ptr, len + 1);
+    } else if (strncmp(str, "Access", strlen("Access")) == 0) {
+        ptr = rbusProperty_GetString(property, &len);
+        strncpy(svc->m_access, ptr, len + 1);
     } else if (strncmp(str, "URL", strlen("URL")) == 0) {
         ptr = rbusProperty_GetString(property, &len);
         strncpy(svc->m_url, ptr, len + 1);
@@ -226,13 +220,13 @@ void de_services_t::publish(const char *name)
         rbusObject_Init(&row, svc->m_key);
 
         rbusValue_Init(&value);
-        rbusValue_SetUInt32(value, svc->m_type);
+        rbusValue_SetString(value, svc->m_type);
         rbusObject_SetValue(row, "Type", value);
         rbusValue_Release(value);
 
         rbusValue_Init(&value);
-        rbusValue_SetString(value, svc->m_operator_name);
-        rbusObject_SetValue(row, "Operator", value);
+        rbusValue_SetString(value, svc->m_access);
+        rbusObject_SetValue(row, "Access", value);
         rbusValue_Release(value);
 
         rbusValue_Init(&value);
@@ -283,7 +277,6 @@ void de_services_t::handler(rbusHandle_t handle, rbusEvent_t const* event, rbusE
     }
 
     prop = rbusObject_GetProperties(event->data);
-    printf("%s:%d: Event Name: %s, prop: %p\n", __func__, __LINE__, subscription->eventName, prop);
     while (prop != NULL) {
         ptr = rbusProperty_GetName(prop);
 
@@ -298,14 +291,15 @@ void de_services_t::handler(rbusHandle_t handle, rbusEvent_t const* event, rbusE
         if ((value = rbusObject_GetValue(row, "Type")) == NULL) {
             printf("%s:%d: Could not find Type value\n", __func__, __LINE__);
         } else {
-            svc->m_type = (service_type_t)rbusValue_GetUInt32(value);
+            ptr = rbusValue_GetString(value, NULL);
+            strncpy(svc->m_type, ptr, strlen(ptr) + 1);     
         }
 
-        if ((value = rbusObject_GetValue(row, "Operator")) == NULL) {
-            printf("%s:%d: Could not find Operator value\n", __func__, __LINE__);
+        if ((value = rbusObject_GetValue(row, "Access")) == NULL) {
+            printf("%s:%d: Could not find Access value\n", __func__, __LINE__);
         } else {
             ptr = rbusValue_GetString(value, NULL);
-            strncpy(svc->m_operator_name, ptr, strlen(ptr) + 1);     
+            strncpy(svc->m_access, ptr, strlen(ptr) + 1);     
         }
 
         if ((value = rbusObject_GetValue(row, "URL")) == NULL) {
@@ -337,7 +331,7 @@ int de_services_t::init(rbusHandle_t handle)
     m_elems[m_num_elems].type = RBUS_ELEMENT_TYPE_PROPERTY;
     m_num_elems++;
 
-    m_elems[m_num_elems].name = DE_SERVICES_OPERATOR;
+    m_elems[m_num_elems].name = DE_SERVICES_ACCESS;
     m_elems[m_num_elems].type = RBUS_ELEMENT_TYPE_PROPERTY;
     m_num_elems++;
     
@@ -347,17 +341,6 @@ int de_services_t::init(rbusHandle_t handle)
 
     m_subs[m_num_subs].eventName = SERVICES;
     m_num_subs++;
-
-#ifdef FUTURE
-    m_subs[m_num_subs].eventName = DE_SERVICES_ANY_TYPE;
-    m_num_subs++;
-
-    m_subs[m_num_subs].eventName = DE_SERVICES_ANY_OPERATOR;
-    m_num_subs++;
-
-    m_subs[m_num_subs].eventName = DE_SERVICES_ANY_URL;
-    m_num_subs++;
-#endif
 
     return de_t::init(handle);
 }

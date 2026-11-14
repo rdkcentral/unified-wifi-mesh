@@ -98,7 +98,22 @@ void de_t::handler(rbusHandle_t handle, rbusEvent_t const* event, rbusEventSubsc
 static void handler(rbusHandle_t handle, rbusEvent_t const* event, rbusEventSubscription_t* subscription)
 {
     return ((de_t *)subscription->userData)->handler(handle, event, subscription);
-    
+}
+
+rbusError_t de_t::method(rbusHandle_t handle, char const* name, rbusObject_t in, rbusObject_t out, rbusMethodAsyncHandle_t async)
+{
+    return RBUS_ERROR_SUCCESS;
+}
+
+rbusError_t de_t::invoke_method(char const* name, void *in, void *out)
+{
+    return RBUS_ERROR_SUCCESS;
+}
+
+
+static rbusError_t method(rbusHandle_t handle, char const* name, rbusObject_t in, rbusObject_t out, rbusMethodAsyncHandle_t async)
+{
+    return ((de_t *)rbusHandle_GetUserData(handle))->method(handle, name, in, out, async);
 }
 
 int de_t::subscribe_events()
@@ -111,7 +126,7 @@ int de_t::subscribe_events()
         m_subs[i].publishOnSubscribe = true;
     }
 
-    if (rbusEvent_SubscribeEx(m_bus_handle, m_subs, m_num_subs, 0) != RBUS_ERROR_SUCCESS) {
+    if (m_num_subs && (rbusEvent_SubscribeEx(m_bus_handle, m_subs, m_num_subs, 0) != RBUS_ERROR_SUCCESS)) {
         printf("%s:%d: Failed to subscribe for de: %s(num: %d)\n", __func__, __LINE__, m_name, m_num_subs);
         return -1;
     }
@@ -137,15 +152,17 @@ int de_t::register_elements()
         if (m_elems[i].type == RBUS_ELEMENT_TYPE_TABLE) {
             m_elems[i].cbTable.tableAddRowHandler = ::add;
             m_elems[i].cbTable.tableRemoveRowHandler = ::remove; 
-        } else {
+        } else if (m_elems[i].type == RBUS_ELEMENT_TYPE_PROPERTY) {
             m_elems[i].cbTable.getHandler = ::get; 
             m_elems[i].cbTable.setHandler = ::set; 
+        } else if (m_elems[i].type == RBUS_ELEMENT_TYPE_METHOD) {
+            m_elems[i].cbTable.methodHandler = (void *)::method;
         }
             
         m_elems[i].cbTable.eventSubHandler = ::event;
     } 
 
-    if (rbus_regDataElements(m_bus_handle, m_num_elems, m_elems) != RBUS_ERROR_SUCCESS) {
+    if (m_num_elems && (rbus_regDataElements(m_bus_handle, m_num_elems, m_elems) != RBUS_ERROR_SUCCESS)) {
         printf("%s:%d: Failed to register table elements(%d)\n", __func__, __LINE__, m_num_elems);
         rbus_close(m_bus_handle);
         return -1;

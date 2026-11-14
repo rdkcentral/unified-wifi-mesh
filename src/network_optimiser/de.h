@@ -63,6 +63,8 @@ public:
     virtual rbusError_t set(rbusHandle_t handle, rbusProperty_t property, rbusSetHandlerOptions_t* options);
     virtual rbusError_t event(rbusHandle_t handle, rbusEventSubAction_t action, char const* event_name, rbusFilter_t filter, int32_t interval, bool* auto_publish);
     virtual void handler(rbusHandle_t handle, rbusEvent_t const* event, rbusEventSubscription_t* subscription);
+    virtual rbusError_t method(rbusHandle_t handle, char const* name, rbusObject_t in, rbusObject_t out, rbusMethodAsyncHandle_t async);
+    virtual rbusError_t invoke_method(char const* name, void *in, void *out);
 
     de_t();
     ~de_t(); 

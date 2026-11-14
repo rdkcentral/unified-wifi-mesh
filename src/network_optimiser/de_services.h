@@ -34,7 +34,7 @@ public:
     int init(rbusHandle_t handle);
     void deinit(bool bus_close);
 
-    optimizer_type_t get_operator_type();
+    optimizer_access_type_t get_optimizer_access_type();
     char *get_url();
     char *get_name();
 

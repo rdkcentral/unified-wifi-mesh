@@ -39,7 +39,6 @@ void de_stas_t::update(de_sta_t& sta, unsigned int dpos, unsigned int rpos, unsi
     if ((psta = (de_sta_t *)hash_map_get(m_sta_map, alias)) == NULL) { 
         snprintf(name, sizeof(em_long_string_t), "%s%u.%s.%u.%s.%u.%s.",
             DE_DEVICES, dpos, RADIOS, rpos, BSSS, bpos, STAS);
-        printf("%s:%d: adding row, name: %s, alias: %s\n", __func__, __LINE__, name, alias);
         if (rbusTable_addRow(m_bus_handle, name, alias, &inst) != RBUS_ERROR_SUCCESS) {
             printf("%s:%d: Failed to add STA row, name: %s, alias: %s\n",
                 __func__, __LINE__, name, alias);
@@ -151,7 +150,6 @@ rbusError_t de_stas_t::add(rbusHandle_t handle, char const* table_name, char con
     de_sta_t *sta;
     
     sscanf(alias_name, "DeviceList.%d.RadioList.%d.BSSList.%d.STAList.%d", &dpos, &rpos, &bpos, &spos);
-    printf("%s:%d: Name: %s\n", __func__, __LINE__, alias_name);
 
     if ((sta = (de_sta_t *)hash_map_get(m_sta_map, alias_name)) == NULL) {
         sta = new de_sta_t();
@@ -187,7 +185,6 @@ rbusError_t de_stas_t::set(rbusHandle_t handle, rbusProperty_t property, rbusSet
     const char *name, *ptr;
 
     name  = rbusProperty_GetName(property);
-    printf("%s:%d: Property Name: %s\n", __func__, __LINE__, name);
 
     snprintf(key, sizeof(em_long_string_t), "%s", DE_DEVICES);
 
@@ -384,8 +381,6 @@ void de_stas_t::handler(rbusHandle_t handle, rbusEvent_t const* event, rbusEvent
     prop = rbusObject_GetProperties(event->data);
     while (prop != NULL) {
         ptr = rbusProperty_GetName(prop);
-        printf("%s:%d: Name: %s\n", __func__, __LINE__, ptr);
-
         if ((sta = (de_sta_t *)hash_map_get(m_sta_map, ptr)) == NULL) {
             sta = new de_sta_t();
             sta->init(ptr);

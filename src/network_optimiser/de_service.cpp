@@ -26,8 +26,8 @@
 
 void de_service_t::update(de_service_t& svc)
 {
-    m_type = svc.m_type;
-    strncpy(m_operator_name, svc.m_operator_name, strlen(svc.m_operator_name) + 1);
+    strncpy(m_type, svc.m_type, strlen(svc.m_type) + 1);
+    strncpy(m_access, svc.m_access, strlen(svc.m_access) + 1);
     strncpy(m_url, svc.m_url, strlen(svc.m_url) + 1);
 }
 
@@ -44,8 +44,8 @@ void de_service_t::deinit()
 
 de_service_t::de_service_t()
 {
-    m_type = service_type_unknown;
-    memset(m_operator_name, 0, sizeof(m_operator_name));
+    memset(m_type, 0, sizeof(service_type_t));
+    memset(m_access, 0, sizeof(access_type_t));
     memset(m_url, 0, sizeof(m_url));
     memset(m_key, 0, sizeof(m_key));
 }

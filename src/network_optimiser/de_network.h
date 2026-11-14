@@ -48,8 +48,8 @@ public:
     rbusError_t remove(rbusHandle_t handle, char const* row_name);
     rbusError_t set(rbusHandle_t handle, rbusProperty_t property, rbusSetHandlerOptions_t* options);
     rbusError_t get(rbusHandle_t handle, rbusProperty_t property, rbusGetHandlerOptions_t* options);
-
     void handler(rbusHandle_t handle, rbusEvent_t const* event, rbusEventSubscription_t* subscription);
+    virtual rbusError_t method(rbusHandle_t handle, char const* name, rbusObject_t in, rbusObject_t out, rbusMethodAsyncHandle_t async);
 
     de_network_t(const char *name, bool provider = false, notifier_t func = notifier_t());
     de_network_t();

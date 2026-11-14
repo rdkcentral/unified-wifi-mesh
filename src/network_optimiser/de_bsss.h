@@ -38,7 +38,6 @@ public:
     void deinit(bool bus_close);
 
     void update(de_bss_t& bss, unsigned int dpos, unsigned int rpos, unsigned int bpos);
-    void update(de_sta_t& sta, unsigned int dpos, unsigned int rpos, unsigned int bpos, unsigned int spos);
 
     void publish(const char *event_name);
 

@@ -24,27 +24,8 @@
 #include "util.h"
 #include "de_radios.h"
 #include "de_device.h"
+#include "de_scan.h"
 #include "optimizer.h"
-
-void de_radios_t::update(de_sta_t& sta, unsigned int dpos, unsigned int rpos, unsigned int bpos, unsigned int spos)
-{
-    m_de_bsss->update(sta, dpos, rpos, bpos, spos);
-}
-
-void de_radios_t::update(de_bss_t& bss, unsigned int dpos, unsigned int rpos, unsigned int bpos)
-{
-    m_de_bsss->update(bss, dpos, rpos, bpos);
-}
-
-void de_radios_t::update(de_curr_op_class_t& curr_op_class, unsigned int dpos, unsigned int rpos, unsigned int opos)
-{
-    m_de_curr_op_classes->update(curr_op_class, dpos, rpos, opos);
-}
-
-void de_radios_t::update(de_cap_t& cap, unsigned int dpos, unsigned int rpos)
-{
-    m_de_caps->update(cap, dpos, rpos);
-}
 
 void de_radios_t::update(de_op_class_t& op_class, unsigned int dpos, unsigned int rpos, unsigned int opos)
 {
@@ -62,7 +43,6 @@ void de_radios_t::update(de_radio_t& radio, unsigned int dpos, unsigned int rpos
     snprintf(alias, sizeof(em_string_t), "%s.%d.%s.%d", DEVICES, dpos, RADIOS, rpos);
     if ((prd = (de_radio_t *)hash_map_get(m_radio_map, alias)) == NULL) { 
         snprintf(name, sizeof(em_long_string_t), "%s%d.%s.", DE_DEVICES, dpos, RADIOS);
-        printf("%s:%d: adding row, name: %s, alias: %s\n", __func__, __LINE__, name, alias);
         rbusTable_addRow(m_bus_handle, name, alias, &inst);
         prd = (de_radio_t *)hash_map_get(m_radio_map, alias);
     }
@@ -343,6 +323,67 @@ void de_radios_t::handler(rbusHandle_t handle, rbusEvent_t const* event, rbusEve
 
 }
 
+rbusError_t de_radios_t::method(rbusHandle_t handle, char const* name, rbusObject_t in, rbusObject_t out, rbusMethodAsyncHandle_t async)
+{
+    printf("%s:%d: Enter, name: %s\n", __func__, __LINE__, name);
+    return RBUS_ERROR_SUCCESS; 
+}
+
+rbusError_t de_radios_t::invoke_method(char const* name, void *in, void *out)
+{
+    de_scan_t *scan;
+    rbusObject_t in_obj, out_obj;
+    rbusValue_t value;
+    int rc;
+    const char *ptr;
+
+    scan = (de_scan_t *)in;
+
+    rbusObject_Init(&in_obj, NULL);
+
+    rbusValue_Init(&value);
+    rbusValue_SetString(value, scan->m_band);
+    rbusObject_SetValue(in_obj, "Band", value);
+    rbusValue_Release(value);
+
+    rbusValue_Init(&value);
+    rbusValue_SetUInt32(value, scan->m_dwell_time);
+    rbusObject_SetValue(in_obj, "DwellTime", value);
+    rbusValue_Release(value);
+
+    rbusValue_Init(&value);
+    rbusValue_SetUInt32(value, scan->m_dwell_time);
+    rbusObject_SetValue(in_obj, "DFSDwellTime", value);
+    rbusValue_Release(value);
+
+    rbusValue_Init(&value);
+    rbusValue_SetUInt32(value, scan->m_home_time);
+    rbusObject_SetValue(in_obj, "HomeTime", value);
+    rbusValue_Release(value);
+
+    rbusValue_Init(&value);
+    rbusValue_SetString(value, scan->m_ssid);
+    rbusObject_SetValue(in_obj, "SSID", value);
+    rbusValue_Release(value);
+
+
+    rc = rbusMethod_Invoke(m_bus_handle, name, in_obj, &out_obj);
+
+    rbusObject_Release(in_obj);
+
+    if ((value = rbusObject_GetValue(out_obj, "Status")) == NULL) {
+        printf("%s:%d: Could not find Status value\n", __func__, __LINE__);
+    } else {
+        ptr = rbusValue_GetString(value, NULL);
+        strncpy((char *)out, ptr, strlen(ptr) + 1);
+    }
+
+    rbusObject_Release(out_obj);
+
+
+    return (rbusError_t)rc;
+}
+
 int de_radios_t::init(rbusHandle_t handle)
 {
     m_radio_map = hash_map_create();
@@ -361,6 +402,14 @@ int de_radios_t::init(rbusHandle_t handle)
 
     m_elems[m_num_elems].name = DE_RADIOS_ENABLED;
     m_elems[m_num_elems].type = RBUS_ELEMENT_TYPE_PROPERTY;
+    m_num_elems++;
+
+    m_elems[m_num_elems].name = DE_RADIOS_FULL_SCAN;
+    m_elems[m_num_elems].type = RBUS_ELEMENT_TYPE_METHOD;
+    m_num_elems++;
+
+    m_elems[m_num_elems].name = DE_RADIOS_CHANNEL_SCAN;
+    m_elems[m_num_elems].type = RBUS_ELEMENT_TYPE_METHOD;
     m_num_elems++;
 
     m_subs[m_num_subs].eventName = RADIOS;
@@ -385,23 +434,37 @@ int de_radios_t::init(rbusHandle_t handle)
 
     m_de_caps = new de_caps_t(CAPS, m_provider, m_func);
 
+    m_de_scan_results = new de_scan_results_t(SCAN_RESULT, m_provider, m_func);
+    if (m_de_scan_results->init(handle) != 0) {
+        printf("%s:%d: Failed to initialize scan results\n", __func__, __LINE__);
+        return -1;
+    }
+
     return m_de_caps->init(handle);
 }
 
 void de_radios_t::deinit(bool bus_close)
 {
+    if (m_de_scan_results != NULL) {
+        m_de_scan_results->deinit(false);
+    }
+
     if (m_de_caps != NULL) {
         m_de_caps->deinit(false);
     }
+
     if (m_de_curr_op_classes != NULL) {
         m_de_curr_op_classes->deinit(false);
     }
+
     if (m_de_bsss != NULL) {
         m_de_bsss->deinit(false);
     }
+
     if (m_radio_map != NULL) {
         hash_map_destroy(m_radio_map);
     }
+
     de_t::deinit(false);
 }
 
@@ -414,4 +477,5 @@ de_radios_t::de_radios_t(const char *name, bool provider, notifier_t func)
     m_de_bsss = NULL;
     m_de_curr_op_classes = NULL;
     m_de_caps = NULL;
+    m_de_scan_results = NULL;
 }

@@ -21,19 +21,14 @@
 
 #include "em_base.h"
 
-typedef enum {
-    service_type_unknown,
-    service_type_localize,
-    service_type_sensing,
-    service_type_optimizer,
-    service_type_max
-} service_type_t;
+typedef em_string_t     service_type_t;
+typedef em_string_t     access_type_t;
 
 class de_service_t {
 
 public:
     service_type_t  m_type;
-    em_string_t m_operator_name;
+    access_type_t m_access;
     em_string_t m_url;
     em_string_t m_key; 
 
