@@ -718,7 +718,8 @@ bus_error_t em_ctrl_t::cmd_steerwifibh(const char *method_name, const bus_data_p
 
     /* Extract device instance (numeric or alias) and find the dm object for
      * that device instance */
-    if (strlen(name) < sizeof(DATAELEMS_NETWORK)) {
+    if (strlen(name) < sizeof(DATAELEMS_NETWORK) ||
+        strchr(name + sizeof(DATAELEMS_NETWORK), '.') == NULL) {
         if (output_params) {
             *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
         }
