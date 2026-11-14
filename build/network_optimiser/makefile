@@ -18,6 +18,8 @@
 
 include ./makefile.inc
 
+.DEFAULT_GOAL := all
+
 #
 # program
 #
@@ -48,11 +50,11 @@ ifeq ($(WITH_SAP), 1)
 INCLUDEDIRS += -I$(AL_SAP_HOME)/include
 endif
 
-CXXFLAGS += $(INCLUDEDIRS) -g -DEASY_MESH_NODE -DEM_APP -Wall -Wextra -Wpointer-arith -Wcast-qual -Wcast-align -Wstrict-aliasing -fno-common -Wctor-dtor-privacy -Wold-style-cast -Woverloaded-virtual -Wsign-promo -Wstrict-null-sentinel -fstack-protector-strong -D_FORTIFY_SOURCE=2 -fPIE -pie -ftrapv -Wformat=2 -Wformat-security -Wuninitialized -Winit-self -Wconversion -Wsign-conversion -Weffc++ -Wno-unused-parameter -std=c++17 -fsanitize=address -fsanitize=undefined #-Werror -O2
+CXXFLAGS += $(INCLUDEDIRS) -g -DEASY_MESH_NODE -DEM_APP -Wall -Wextra -Wpointer-arith -Wcast-qual -Wcast-align -Wstrict-aliasing -fno-common -Wctor-dtor-privacy -Wold-style-cast -Woverloaded-virtual -Wsign-promo -Wstrict-null-sentinel -fstack-protector-strong -D_FORTIFY_SOURCE=2 -fPIE -pie -ftrapv -Wformat=2 -Wformat-security -Wuninitialized -Winit-self -Wconversion -Wsign-conversion -Weffc++ -Wno-unused-parameter -std=c++17 -fsanitize=address -fsanitize=undefined -MMD -MP #-Werror -O2
 ifeq ($(WITH_SAP), 1)
 CXXFLAGS += -DAL_SAP
 endif
-LDFLAGS += $(LIBDIRS) $(LIBS) -fsanitize=address -fsanitize=undefined
+LDFLAGS += $(LIBDIRS) -Wl,-rpath,$(PARODUS_DIR)/lib $(LIBS) -fsanitize=address -fsanitize=undefined
 
 LIBDIRS = \
     -L$(INSTALLDIR)/lib \
@@ -75,12 +77,14 @@ GENERIC_SOURCES = $(ONEWIFI_HOME)/source/utils/collection.c \
     $(ONEWIFI_HOME)/source/platform/linux/bus.c
 
 SOURCES = $(wildcard $(OPTIMIZER_SRC)/*.cpp) \
-    $(wildcard $(OPTIMIZER_SRC)/web/*.cpp) \
     $(ONEWIFI_EM_SRC)/utils/util.cpp \
 
 OBJECTS = $(SOURCES:.cpp=.o)
 GENERIC_OBJECTS = $(GENERIC_SOURCES:.c=.o) 
 ALLOBJECTS = $(OBJECTS) $(GENERIC_OBJECTS)
+DEPFILES = $(ALLOBJECTS:.o=.d)
+
+-include $(DEPFILES)
 
 all: $(BUS_LIBRARY) $(PROGRAM)
 
@@ -97,7 +101,7 @@ $(OBJECTS): %.o: %.cpp
 #
 
 clean:
-	$(RM) $(ALLOBJECTS) $(PROGRAM)
+	$(RM) $(ALLOBJECTS) $(DEPFILES) $(PROGRAM)
 
 #
 # Run target: "make -f Makefile.Linux run" to execute the application
@@ -107,4 +111,3 @@ clean:
 
 run:
 	./$(PROGRAM) 
-
