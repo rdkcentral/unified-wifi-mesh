@@ -71,6 +71,41 @@ void de_channel_scans_t::handler(rbusHandle_t handle, rbusEvent_t const* event, 
 
 }
 
+void de_channel_scans_t::serialize(em_long_string_t subkey, rbusObject_t& out)
+{
+    de_channel_scan_t *ch;
+    unsigned int matched = 0;
+    rbusObject_t ob;
+    rbusValue_t value;
+    em_string_t key;
+
+    ch = (de_channel_scan_t *)hash_map_get_first(m_channel_scan_map);
+    while (ch != NULL) {
+        if (strstr(ch->m_key, subkey) == NULL) {
+            ch = (de_channel_scan_t *)hash_map_get_next(m_channel_scan_map, ch);
+            continue;
+        }
+ 
+        snprintf(key, sizeof(key), "ChannelScan.%d.", matched);
+        rbusObject_Init(&ob, key);
+
+        ch->serialize(ob);
+        m_de_nbr_bsss->serialize(subkey, ob);
+
+        rbusValue_Init(&value);
+        rbusValue_SetObject(value, ob);
+        rbusObject_Release(ob);
+
+        rbusObject_SetValue(out, key, value);
+        rbusValue_Release(value);
+
+        matched++;
+
+        ch = (de_channel_scan_t *)hash_map_get_next(m_channel_scan_map, ch);
+    }
+
+}
+
 int de_channel_scans_t::init(rbusHandle_t handle)
 {
     m_channel_scan_map = hash_map_create();

@@ -71,6 +71,41 @@ void de_scan_results_t::handler(rbusHandle_t handle, rbusEvent_t const* event, r
 
 }
 
+void de_scan_results_t::serialize(em_long_string_t subkey, rbusObject_t& out)
+{
+    de_scan_result_t *res;
+    unsigned int matched = 0;
+    rbusObject_t ob;
+    rbusValue_t value;
+    em_string_t key;
+
+    res = (de_scan_result_t *)hash_map_get_first(m_scan_result_map);
+    while (res != NULL) {
+        if (strstr(res->m_key, subkey) == NULL) {
+            res = (de_scan_result_t *)hash_map_get_next(m_scan_result_map, res);
+            continue;
+        }
+            
+        snprintf(key, sizeof(key), "ScanResult.%d.", matched);
+        rbusObject_Init(&ob, key);
+
+        res->serialize(ob);
+        m_de_op_class_scans->serialize(subkey, ob);
+
+        rbusValue_Init(&value);
+        rbusValue_SetObject(value, ob);
+        rbusObject_Release(ob);
+        
+        rbusObject_SetValue(out, key, value);
+        rbusValue_Release(value);
+
+        matched++;
+
+        res = (de_scan_result_t *)hash_map_get_next(m_scan_result_map, res);
+    }
+
+}
+
 int de_scan_results_t::init(rbusHandle_t handle)
 {
     m_scan_result_map = hash_map_create();

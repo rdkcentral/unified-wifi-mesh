@@ -20,6 +20,7 @@
 #define DE_CHANNEL_SCAN_H
 
 #include "em_base.h"
+#include "rbus.h"
 
 class de_channel_scan_t {
 
@@ -36,6 +37,8 @@ public:
     int init(const char *key);
     void deinit();
     void update(de_channel_scan_t& res);
+
+    void serialize(rbusObject_t& ob);
 
     de_channel_scan_t();
     ~de_channel_scan_t();

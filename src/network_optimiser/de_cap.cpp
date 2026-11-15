@@ -30,6 +30,34 @@ void de_cap_t::update(de_cap_t& cap)
     strncpy(m_ht_cap, cap.m_ht_cap, strlen(cap.m_ht_cap) + 1);
 }
 
+void de_cap_t::serialize(rbusObject_t& ob)
+{
+
+}
+
+void de_cap_t::deserialize(rbusObject_t& ob)
+{
+
+}
+
+void de_cap_t::serialize(cJSON *ob)
+{
+
+}
+
+void de_cap_t::deserialize(cJSON *ob)
+{
+    cJSON *elem;
+    const char *str;
+
+    elem = cJSON_GetObjectItem(ob, "NumberOfOpClass");
+    m_num_op_class = static_cast<unsigned int>(cJSON_GetNumberValue(elem));
+
+    elem = cJSON_GetObjectItem(ob, "HTCapabilities");
+    str = cJSON_GetStringValue(elem);
+    snprintf(m_ht_cap, sizeof(m_ht_cap), "%s", (str != NULL) ? str : "");
+}
+
 int de_cap_t::init(const char *key)
 {
     strncpy(m_key, key, strlen(key) + 1);

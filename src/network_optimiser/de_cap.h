@@ -20,6 +20,7 @@
 #define DE_CAP_H
 
 #include "em_base.h"
+#include "rbus.h"
 
 class de_cap_t {
 
@@ -33,6 +34,12 @@ public:
     int init(const char *key);
     void deinit();
     void update(de_cap_t& cap);
+
+    void serialize(rbusObject_t& ob);
+    void deserialize(rbusObject_t& ob);
+
+    void serialize(cJSON *ob);
+    void deserialize(cJSON *ob);
 
     de_cap_t();
     ~de_cap_t();

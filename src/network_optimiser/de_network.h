@@ -51,6 +51,12 @@ public:
     void handler(rbusHandle_t handle, rbusEvent_t const* event, rbusEventSubscription_t* subscription);
     virtual rbusError_t method(rbusHandle_t handle, char const* name, rbusObject_t in, rbusObject_t out, rbusMethodAsyncHandle_t async);
 
+    void serialize(rbusObject_t& ob);
+    void deserialize(rbusObject_t& ob);
+    
+    void serialize(cJSON *ob);
+    void deserialize(cJSON *ob);
+
     de_network_t(const char *name, bool provider = false, notifier_t func = notifier_t());
     de_network_t();
     ~de_network_t();

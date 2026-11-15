@@ -20,6 +20,7 @@
 #define DE_SERVICE_H
 
 #include "em_base.h"
+#include "rbus.h"
 
 typedef em_string_t     service_type_t;
 typedef em_string_t     access_type_t;
@@ -36,6 +37,12 @@ public:
     int init(const char *key);
     void deinit();
     void update(de_service_t& svc);
+
+    void serialize(rbusObject_t& ob);
+    void deserialize(rbusObject_t& ob);
+
+    void serialize(cJSON *ob);
+    void deserialize(cJSON *ob);
 
     de_service_t();
     ~de_service_t();

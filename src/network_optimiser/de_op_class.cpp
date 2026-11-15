@@ -31,6 +31,36 @@ void de_op_class_t::update(de_op_class_t& op_class)
     m_num_non_oper_chan = op_class.m_num_non_oper_chan;
 }
 
+void de_op_class_t::serialize(rbusObject_t& ob)
+{
+
+}
+
+void de_op_class_t::deserialize(rbusObject_t& ob)
+{
+
+}
+
+void de_op_class_t::serialize(cJSON *ob)
+{
+
+}
+
+void de_op_class_t::deserialize(cJSON *ob)
+{
+    cJSON *elem;
+
+    elem = cJSON_GetObjectItem(ob, "Class");
+    m_class = static_cast<unsigned int>(cJSON_GetNumberValue(elem));
+
+    elem = cJSON_GetObjectItem(ob, "MaxTxPower");
+    m_max_tx_power = static_cast<int>(cJSON_GetNumberValue(elem));
+
+    elem = cJSON_GetObjectItem(ob, "NumberOfNonOperChan");
+    m_num_non_oper_chan = static_cast<unsigned int>(cJSON_GetNumberValue(elem));
+
+}
+
 int de_op_class_t::init(const char *key)
 {
     strncpy(m_key, key, strlen(key) + 1);

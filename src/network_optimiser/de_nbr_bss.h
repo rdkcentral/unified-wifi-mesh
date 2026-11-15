@@ -20,6 +20,7 @@
 #define DE_NBR_BSS_H
 
 #include "em_base.h"
+#include "rbus.h"
 
 class de_nbr_bss_t {
 
@@ -50,6 +51,8 @@ public:
     int init(const char *key);
     void deinit();
     void update(de_nbr_bss_t& bss);
+
+    void serialize(rbusObject_t& ob);
 
     de_nbr_bss_t();
     ~de_nbr_bss_t();

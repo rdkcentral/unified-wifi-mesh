@@ -20,6 +20,7 @@
 #define DE_BSS_H
 
 #include "em_base.h"
+#include "rbus.h"
 
 class de_bss_t {
 
@@ -37,6 +38,12 @@ public:
     int init(const char *key);
     void deinit();
     void update(de_bss_t& bss);
+
+    void serialize(rbusObject_t& ob);
+    void deserialize(rbusObject_t& ob);
+
+    void serialize(cJSON *ob);
+    void deserialize(cJSON *ob);
 
     de_bss_t();
     ~de_bss_t();

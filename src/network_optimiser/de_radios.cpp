@@ -260,8 +260,6 @@ void de_radios_t::publish(const char *name)
     if ((rc = rbusEvent_Publish(m_bus_handle, &event)) != RBUS_ERROR_SUCCESS) {
         printf("%s:%d: Failed to publish data for event: %s, err: %d\n", __func__, __LINE__,
             event.name, rc);
-    } else {
-        printf("%s:%d: Successfully published data for event: %s\n", __func__, __LINE__, event.name);
     }
 
     rbusObject_Release(data);
@@ -325,7 +323,61 @@ void de_radios_t::handler(rbusHandle_t handle, rbusEvent_t const* event, rbusEve
 
 rbusError_t de_radios_t::method(rbusHandle_t handle, char const* name, rbusObject_t in, rbusObject_t out, rbusMethodAsyncHandle_t async)
 {
-    printf("%s:%d: Enter, name: %s\n", __func__, __LINE__, name);
+    rbusValue_t value;
+    const char *ptr;
+    de_scan_t scan;
+    unsigned int dpos, rpos;
+    em_long_string_t subkey;
+
+    if ((value = rbusObject_GetValue(in, "Band")) == NULL) {
+        printf("%s:%d: Could not find Band value\n", __func__, __LINE__);
+        strncpy(scan.m_band, "None", strlen("None"));
+    } else {
+        ptr = rbusValue_GetString(value, NULL);
+        strncpy(scan.m_band, ptr, strlen(ptr) + 1);
+    }
+
+    if ((value = rbusObject_GetValue(in, "DwellTime")) == NULL) {
+        printf("%s:%d: Could not find Enable value\n", __func__, __LINE__);
+    } else {
+        scan.m_dwell_time = rbusValue_GetUInt32(value);
+    }
+
+    if ((value = rbusObject_GetValue(in, "DFSDwellTime")) == NULL) {
+        printf("%s:%d: Could not find Enable value\n", __func__, __LINE__);
+    } else {
+        scan.m_dfs_dwell_time = rbusValue_GetUInt32(value);
+    }
+
+    if ((value = rbusObject_GetValue(in, "HomeTime")) == NULL) {
+        printf("%s:%d: Could not find Enable value\n", __func__, __LINE__);
+    } else {
+        scan.m_home_time = rbusValue_GetUInt32(value);
+    }
+
+    if ((value = rbusObject_GetValue(in, "SSID")) == NULL) {
+        printf("%s:%d: Could not find Band value\n", __func__, __LINE__);
+        strncpy(scan.m_ssid, "None", strlen("None"));
+    } else {
+        ptr = rbusValue_GetString(value, NULL);
+        strncpy(scan.m_ssid, ptr, strlen(ptr) + 1);
+    }
+
+    if (sscanf(name, DE_DEVICES "%u." RADIOS ".%u." FULL_SCAN, &dpos, &rpos) != 2) {
+        rbusValue_Init(&value);
+        rbusValue_SetString(value, "Error_Invalid_Input");
+        rbusObject_SetValue(out, "Status", value);
+        rbusValue_Release(value);     
+        return RBUS_ERROR_SUCCESS; 
+    }
+
+    m_de_scan_results->serialize(subkey, out);
+
+    rbusValue_Init(&value);
+    rbusValue_SetString(value, "Error_Invalid_Input");
+    rbusObject_SetValue(out, "Status", value);
+    rbusValue_Release(value);     
+
     return RBUS_ERROR_SUCCESS; 
 }
 

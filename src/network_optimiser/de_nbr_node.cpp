@@ -45,6 +45,244 @@ void de_nbr_node_t::update(de_nbr_node_t& node)
     m_dtim_period = node.m_dtim_period;
 }
 
+void de_nbr_node_t::serialize(rbusObject_t& ob)
+{
+    rbusValue_t value;
+
+    rbusValue_Init(&value);
+    rbusValue_SetString(value, m_radio);
+    rbusObject_SetValue(ob, "Radio", value);
+    rbusValue_Release(value);
+
+    rbusValue_Init(&value);
+    rbusValue_SetString(value, m_ssid);
+    rbusObject_SetValue(ob, "SSID", value);
+    rbusValue_Release(value);
+
+    rbusValue_Init(&value);
+    rbusValue_SetString(value, m_bssid);
+    rbusObject_SetValue(ob, "BSSID", value);
+    rbusValue_Release(value);
+
+    rbusValue_Init(&value);
+    rbusValue_SetString(value, m_mode);
+    rbusObject_SetValue(ob, "Mode", value);
+    rbusValue_Release(value);
+
+    rbusValue_Init(&value);
+    rbusValue_SetUInt32(value, m_channel);
+    rbusObject_SetValue(ob, "Channel", value);
+    rbusValue_Release(value);
+
+    rbusValue_Init(&value);
+    rbusValue_SetInt32(value, m_signal_strength);
+    rbusObject_SetValue(ob, "SignalStrength", value);
+    rbusValue_Release(value);
+
+    rbusValue_Init(&value);
+    rbusValue_SetString(value, m_security_mode_enabled);
+    rbusObject_SetValue(ob, "SecurityModeEnabled", value);
+    rbusValue_Release(value);
+
+    rbusValue_Init(&value);
+    rbusValue_SetString(value, m_encryption_mode);
+    rbusObject_SetValue(ob, "EncryptionMode", value);
+    rbusValue_Release(value);
+
+    rbusValue_Init(&value);
+    rbusValue_SetString(value, m_op_frequency_band);
+    rbusObject_SetValue(ob, "OperatingFrequencyBand", value);
+    rbusValue_Release(value);
+
+    rbusValue_Init(&value);
+    rbusValue_SetString(value, m_supported_standards);
+    rbusObject_SetValue(ob, "SupportedStandards", value);
+    rbusValue_Release(value);
+
+    rbusValue_Init(&value);
+    rbusValue_SetString(value, m_op_standards);
+    rbusObject_SetValue(ob, "OperatingStandards", value);
+    rbusValue_Release(value);
+
+    rbusValue_Init(&value);
+    rbusValue_SetString(value, m_op_channel_bw);
+    rbusObject_SetValue(ob, "OperatingChannelBandwidth", value);
+    rbusValue_Release(value);
+
+    rbusValue_Init(&value);
+    rbusValue_SetUInt32(value, m_beacon_period);
+    rbusObject_SetValue(ob, "BeaconPeriod", value);
+    rbusValue_Release(value);
+
+    rbusValue_Init(&value);
+    rbusValue_SetInt32(value, m_noise);
+    rbusObject_SetValue(ob, "Noise", value);
+    rbusValue_Release(value);
+
+    rbusValue_Init(&value);
+    rbusValue_SetString(value, m_basic_data_tx_rated);
+    rbusObject_SetValue(ob, "BasicDataTransferRates", value);
+    rbusValue_Release(value);
+
+    rbusValue_Init(&value);
+    rbusValue_SetString(value, m_supported_data_tx_rates);
+    rbusObject_SetValue(ob, "SupportedDataTransferRates", value);
+    rbusValue_Release(value);
+
+    rbusValue_Init(&value);
+    rbusValue_SetUInt32(value, m_dtim_period);
+    rbusObject_SetValue(ob, "DTIMPeriod", value);
+    rbusValue_Release(value);
+
+}
+
+void de_nbr_node_t::deserialize(rbusObject_t& ob)
+{
+    rbusValue_t value;
+    const char *ptr;
+
+    if ((value = rbusObject_GetValue(ob, "Radio")) == NULL) {
+        printf("%s:%d: Could not find Radio value\n", __func__, __LINE__);
+    } else {
+        ptr = rbusValue_GetString(value, NULL);
+        strncpy(m_radio, ptr, strlen(ptr) + 1);
+    }
+
+    if ((value = rbusObject_GetValue(ob, "SSID")) == NULL) {
+        printf("%s:%d: Could not find SSID value\n", __func__, __LINE__);
+    } else {
+        ptr = rbusValue_GetString(value, NULL);
+        strncpy(m_ssid, ptr, strlen(ptr) + 1);
+    }
+
+    if ((value = rbusObject_GetValue(ob, "BSSID")) == NULL) {
+        printf("%s:%d: Could not find BSSID value\n", __func__, __LINE__);
+    } else {
+        ptr = rbusValue_GetString(value, NULL);
+        strncpy(m_bssid, ptr, strlen(ptr) + 1);
+    }
+
+    if ((value = rbusObject_GetValue(ob, "Mode")) == NULL) {
+        printf("%s:%d: Could not find Mode value\n", __func__, __LINE__);
+    } else {
+        ptr = rbusValue_GetString(value, NULL);
+        strncpy(m_mode, ptr, strlen(ptr) + 1);
+    }
+
+    if ((value = rbusObject_GetValue(ob, "Channel")) == NULL) {
+        printf("%s:%d: Could not find Channel value\n", __func__, __LINE__);
+    } else {
+        m_channel = rbusValue_GetUInt32(value);
+    }
+
+    if ((value = rbusObject_GetValue(ob, "SignalStrength")) == NULL) {
+        printf("%s:%d: Could not find SignalStrength value\n", __func__, __LINE__);
+    } else {
+        m_signal_strength = rbusValue_GetInt32(value);
+    }
+
+    if ((value = rbusObject_GetValue(ob, "SecurityModeEnabled")) == NULL) {
+        printf("%s:%d: Could not find SecurityModeEnabled value\n", __func__, __LINE__);
+    } else {
+        ptr = rbusValue_GetString(value, NULL);
+        strncpy(m_security_mode_enabled, ptr, strlen(ptr) + 1);
+    }
+
+    if ((value = rbusObject_GetValue(ob, "EncryptionMode")) == NULL) {
+        printf("%s:%d: Could not find EncryptionMode value\n", __func__, __LINE__);
+    } else {
+        ptr = rbusValue_GetString(value, NULL);
+        strncpy(m_encryption_mode, ptr, strlen(ptr) + 1);
+    }
+
+    if ((value = rbusObject_GetValue(ob, "OperatingFrequencyBand")) == NULL) {
+        printf("%s:%d: Could not find OperatingFrequencyBand value\n", __func__, __LINE__);
+    } else {
+        ptr = rbusValue_GetString(value, NULL);
+        strncpy(m_op_frequency_band, ptr, strlen(ptr) + 1);
+    }
+
+    if ((value = rbusObject_GetValue(ob, "SupportedStandards")) == NULL) {
+        printf("%s:%d: Could not find SupportedStandards value\n", __func__, __LINE__);
+    } else {
+        ptr = rbusValue_GetString(value, NULL);
+        strncpy(m_supported_standards, ptr, strlen(ptr) + 1);
+    }
+
+    if ((value = rbusObject_GetValue(ob, "OperatingStandards")) == NULL) {
+        printf("%s:%d: Could not find OperatingStandards value\n", __func__, __LINE__);
+    } else {
+        ptr = rbusValue_GetString(value, NULL);
+        strncpy(m_op_standards, ptr, strlen(ptr) + 1);
+    }
+
+    if ((value = rbusObject_GetValue(ob, "OperatingChannelBandwidth")) == NULL) {
+        printf("%s:%d: Could not find OperatingChannelBandwidth value\n", __func__, __LINE__);
+    } else {
+        ptr = rbusValue_GetString(value, NULL);
+        strncpy(m_op_channel_bw, ptr, strlen(ptr) + 1);
+    }
+
+    if ((value = rbusObject_GetValue(ob, "BeaconPeriod")) == NULL) {
+        printf("%s:%d: Could not find BeaconPeriod value\n", __func__, __LINE__);
+    } else {
+        m_beacon_period = rbusValue_GetUInt32(value);
+    }
+
+    if ((value = rbusObject_GetValue(ob, "Noise")) == NULL) {
+        printf("%s:%d: Could not find Noise value\n", __func__, __LINE__);
+    } else {
+        m_noise = rbusValue_GetInt32(value);
+    }
+
+    if ((value = rbusObject_GetValue(ob, "BasicDataTransferRates")) == NULL) {
+        printf("%s:%d: Could not find BasicDataTransferRates value\n", __func__, __LINE__);
+    } else {
+        ptr = rbusValue_GetString(value, NULL);
+        strncpy(m_basic_data_tx_rated, ptr, strlen(ptr) + 1);
+    }
+
+    if ((value = rbusObject_GetValue(ob, "SupportedDataTransferRates")) == NULL) {
+        printf("%s:%d: Could not find SupportedDataTransferRates value\n", __func__, __LINE__);
+    } else {
+        ptr = rbusValue_GetString(value, NULL);
+        strncpy(m_supported_data_tx_rates, ptr, strlen(ptr) + 1);
+    }
+
+    if ((value = rbusObject_GetValue(ob, "DTIMPeriod")) == NULL) {
+        printf("%s:%d: Could not find DTIMPeriod value\n", __func__, __LINE__);
+    } else {
+        m_dtim_period = rbusValue_GetUInt32(value);
+    }
+
+}
+
+void de_nbr_node_t::serialize(cJSON *ob)
+{
+    cJSON_AddStringToObject(ob, "Radio", m_radio);
+    cJSON_AddStringToObject(ob, "SSID", m_ssid);
+    cJSON_AddStringToObject(ob, "BSSID", m_bssid);
+    cJSON_AddStringToObject(ob, "Mode", m_mode);
+    cJSON_AddNumberToObject(ob, "Channel", m_channel);
+    cJSON_AddNumberToObject(ob, "SignalStrength", m_signal_strength);
+    cJSON_AddStringToObject(ob, "SecurityModeEnabled", m_security_mode_enabled);
+    cJSON_AddStringToObject(ob, "EncryptionMode", m_encryption_mode);
+    cJSON_AddStringToObject(ob, "OperatingFrequencyBand", m_op_frequency_band);
+    cJSON_AddStringToObject(ob, "SupportedStandards", m_supported_standards);
+    cJSON_AddStringToObject(ob, "OperatingStandards", m_op_standards);
+    cJSON_AddStringToObject(ob, "OperatingChannelBandwidth", m_op_channel_bw);
+    cJSON_AddNumberToObject(ob, "BeaconPeriod", m_beacon_period);
+    cJSON_AddNumberToObject(ob, "Noise", m_noise);
+    cJSON_AddStringToObject(ob, "BasicDataTransferRates", m_basic_data_tx_rated);
+    cJSON_AddStringToObject(ob, "SupportedDataTransferRates", m_supported_data_tx_rates);
+    cJSON_AddNumberToObject(ob, "DTIMPeriod", m_dtim_period);
+}
+
+void de_nbr_node_t::deserialize(cJSON *ob)
+{
+
+}
+
 int de_nbr_node_t::init(const char *key)
 {
     strncpy(m_key, key, strlen(key) + 1);

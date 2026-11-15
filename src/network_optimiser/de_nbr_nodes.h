@@ -47,6 +47,8 @@ public:
     virtual rbusError_t method(rbusHandle_t handle, char const* name, rbusObject_t in, rbusObject_t out, rbusMethodAsyncHandle_t async);
     virtual rbusError_t invoke_method(char const* name, void *in, void *out);
 
+    void deserialize(rbusObject_t& ob);
+
     de_nbr_nodes_t(const char *name, bool provider = false, notifier_t func = notifier_t());
 };
 

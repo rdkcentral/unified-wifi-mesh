@@ -69,21 +69,7 @@ void xmidt_optimizer_t::add_stas(cJSON *parent, unsigned int dpos, unsigned int 
         }
         cJSON_AddItemToArray(parent, obj);
 
-        cJSON_AddStringToObject(obj, "MACAddress", sta->m_mac);
-        cJSON_AddNumberToObject(obj, "SignalStrength", sta->m_rssi);
-        cJSON_AddNumberToObject(obj, "LastDataUplinkRate", sta->m_ul_rate);
-        cJSON_AddNumberToObject(obj, "LastDataDownlinkRate", sta->m_dl_rate);
-        cJSON_AddNumberToObject(obj, "RetransCount", sta->m_retrans);
-        cJSON_AddNumberToObject(obj, "PacketsReceived", sta->m_pkts_rx);
-        cJSON_AddNumberToObject(obj, "PacketsSent", sta->m_pkts_tx);
-        cJSON_AddNumberToObject(obj, "BytesReceived", sta->m_bytes_rx);
-        cJSON_AddNumberToObject(obj, "BytesSent", sta->m_bytes_tx);
-        cJSON_AddStringToObject(obj, "ClientCapabilities", sta->m_cap);
-        //cJSON_AddStringToObject(obj, "WiFi6Capabilities", sta->m_wifi6_cap);
-        cJSON_AddStringToObject(obj, "HTCapabilities", sta->m_ht_cap);
-        cJSON_AddStringToObject(obj, "VHTCapabilities", sta->m_vht_cap);
-        cJSON_AddStringToObject(obj, "HECapabilities", sta->m_he_cap);
-        cJSON_AddStringToObject(obj, "SecurityAssociation", sta->m_sec_assoc);
+        sta->serialize(obj);
 
         sta = (de_sta_t *)hash_map_get_next(m_de_network->m_de_devices->m_de_radios->m_de_bsss->m_de_stas->m_sta_map, sta);
     }
@@ -126,12 +112,7 @@ void xmidt_optimizer_t::add_bsss(cJSON *parent, unsigned int dpos, unsigned int 
         }
         cJSON_AddItemToArray(parent, obj);
 
-        cJSON_AddStringToObject(obj, "BSSID", bss->m_bssid);
-        cJSON_AddStringToObject(obj, "SSID", bss->m_ssid);
-        cJSON_AddBoolToObject(obj, "Enabled", bss->m_enabled);
-        cJSON_AddBoolToObject(obj, "TransmittedBSSID", bss->m_broadcast);
-        cJSON_AddBoolToObject(obj, "FronthaulUse", bss->m_fronthaul);
-        cJSON_AddBoolToObject(obj, "BackhaulUse", bss->m_backhaul);
+        bss->serialize(obj);
 
         if (m_de_network->m_de_devices->m_de_radios->m_de_bsss->m_de_stas == NULL) {
             cJSON_AddStringToObject(obj, "Error", "STA data is not initialized");
@@ -284,10 +265,7 @@ void xmidt_optimizer_t::add_radios(cJSON *parent, unsigned int dpos)
         }
         cJSON_AddItemToArray(parent, obj);
 
-        cJSON_AddStringToObject(obj, "ID", rd->m_id);
-        cJSON_AddBoolToObject(obj, "Enabled", rd->m_enabled);
-        cJSON_AddNumberToObject(obj, "Utilization", static_cast<double>(rd->m_util));
-        cJSON_AddNumberToObject(obj, "Noise", static_cast<double>(rd->m_noise));
+        rd->serialize(obj);
 
         if (m_de_network->m_de_devices->m_de_radios->m_de_curr_op_classes == NULL) {
             cJSON_AddStringToObject(obj, "CurrentOperatingClassesError", "Current operating class data is not initialized");
@@ -319,8 +297,8 @@ void xmidt_optimizer_t::add_network(cJSON *parent)
         return;
     }
 
-    cJSON_AddStringToObject(parent, "ID", m_de_network->m_id);
-    cJSON_AddStringToObject(parent, "ControllerID", m_de_network->m_controller_id);
+    m_de_network->serialize(parent);
+
 }
 
 
@@ -346,11 +324,7 @@ void xmidt_optimizer_t::add_devices(cJSON *parent)
             return;
         }
 
-        cJSON_AddStringToObject(obj, "ID", dev->m_id);
-        cJSON_AddStringToObject(obj, "Manufacturer", dev->m_manufacturer);
-        cJSON_AddStringToObject(obj, "ManufacturerModel", dev->m_model);
-        cJSON_AddStringToObject(obj, "SerialNumber", dev->m_serial);
-        cJSON_AddStringToObject(obj, "SoftwareVersion", dev->m_version);
+        dev->serialize(obj);
 
         if (sscanf(dev->m_key, DEVICES ".%u", &dpos) != 1) {
             cJSON_Delete(obj);
@@ -393,9 +367,7 @@ void xmidt_optimizer_t::add_services(cJSON *parent)
             return;
         }
 
-        cJSON_AddStringToObject(obj, "Type", svc->m_type);
-        cJSON_AddStringToObject(obj, "Operator", svc->m_access);
-        cJSON_AddStringToObject(obj, "URL", svc->m_url);
+        svc->serialize(obj);
 
         if (!cJSON_AddItemToArray(arr, obj)) {
             cJSON_Delete(obj);
@@ -433,16 +405,8 @@ void xmidt_optimizer_t::add_net_ssids(cJSON *parent)
         if (sscanf(net_ssid->m_key, NET_SSIDS ".%u", &index) == 1) {
             cJSON_AddNumberToObject(obj, "Index", index);
         }
-        cJSON_AddStringToObject(obj, "SSID", net_ssid->m_ssid);
-        cJSON_AddBoolToObject(obj, "Enable", net_ssid->m_enabled);
-        cJSON_AddBoolToObject(obj, "AdvertisementEnabled", net_ssid->m_advertisement);
-        cJSON_AddStringToObject(obj, "MFPConfig", net_ssid->m_mfp_config);
-        cJSON_AddStringToObject(obj, "MobilityDomain", net_ssid->m_mob_domain);
-        cJSON_AddStringToObject(obj, "Band", net_ssid->m_band);
-        cJSON_AddStringToObject(obj, "AKMsAllowed", net_ssid->m_akms_allowed);
-        cJSON_AddStringToObject(obj, "SuiteSelector", net_ssid->m_suite_selector);
-        cJSON_AddStringToObject(obj, "HaulType", net_ssid->m_haul_type);
-        cJSON_AddStringToObject(obj, "Type", net_ssid->m_type);
+
+        net_ssid->serialize(obj);
 
         if (!cJSON_AddItemToArray(arr, obj)) {
             cJSON_Delete(obj);
@@ -590,9 +554,8 @@ cJSON *xmidt_optimizer_t::channel_scan(cJSON *in)
 
 cJSON *xmidt_optimizer_t::set_ssid(cJSON *in)
 {
-    cJSON *parent, *elem;
+    cJSON *parent;
     de_net_ssid_t net_ssid;
-    const char *str;
     em_string_t status;
 
     if ((parent = cJSON_CreateObject()) == NULL) {
@@ -604,51 +567,7 @@ cJSON *xmidt_optimizer_t::set_ssid(cJSON *in)
         return parent;
     }
 
-    elem = cJSON_GetObjectItem(in, "SSID");
-    str = cJSON_GetStringValue(elem);
-    strncpy(net_ssid.m_ssid, str, strlen(str) + 1);
-
-    elem = cJSON_GetObjectItem(in, "Enable");
-    net_ssid.m_enabled = cJSON_IsTrue(elem);
-
-    elem = cJSON_GetObjectItem(in, "AddRemoveChange");
-    str = cJSON_GetStringValue(elem);
-    strncpy(net_ssid.m_op, str, strlen(str) + 1);
-
-    elem = cJSON_GetObjectItem(in, "PassPhrase");
-    str = cJSON_GetStringValue(elem);
-    strncpy(net_ssid.m_passphrase, str, strlen(str) + 1);
-
-    elem = cJSON_GetObjectItem(in, "Band");
-    str = cJSON_GetStringValue(elem);
-    strncpy(net_ssid.m_band, str, strlen(str) + 1);
-
-    elem = cJSON_GetObjectItem(in, "AKMsAllowed");
-    str = cJSON_GetStringValue(elem);
-    strncpy(net_ssid.m_akms_allowed, str, strlen(str) + 1);
-
-    elem = cJSON_GetObjectItem(in, "SuiteSelector");
-    str = cJSON_GetStringValue(elem);
-    strncpy(net_ssid.m_akms_allowed, str, strlen(str) + 1);
-
-    elem = cJSON_GetObjectItem(in, "AdvertisementEnabled");
-    net_ssid.m_advertisement = cJSON_IsTrue(elem);
-
-    elem = cJSON_GetObjectItem(in, "MFPConfig");
-    str = cJSON_GetStringValue(elem);
-    strncpy(net_ssid.m_mfp_config, str, strlen(str) + 1);
-
-    elem = cJSON_GetObjectItem(in, "MobilityDomain");
-    str = cJSON_GetStringValue(elem);
-    strncpy(net_ssid.m_mob_domain, str, strlen(str) + 1);
-
-    elem = cJSON_GetObjectItem(in, "HaulType");
-    str = cJSON_GetStringValue(elem);
-    strncpy(net_ssid.m_haul_type, str, strlen(str) + 1);
-
-    elem = cJSON_GetObjectItem(in, "Type");
-    str = cJSON_GetStringValue(elem);
-    strncpy(net_ssid.m_type, str, strlen(str) + 1);
+    net_ssid.deserialize(in);
 
     if (m_de_network->m_de_net_ssids->invoke_method(DE_NET_SSID_SET, &net_ssid, status) != 0) {
         cJSON_AddStringToObject(parent, "Status", "Error_Other");
@@ -699,23 +618,7 @@ cJSON *xmidt_optimizer_t::nbr_diagnostics()
         item = cJSON_CreateObject();
         cJSON_AddItemToArray(arr, item);
 
-        cJSON_AddStringToObject(item, "Radio", node->m_radio);
-        cJSON_AddStringToObject(item, "SSID", node->m_ssid);
-        cJSON_AddStringToObject(item, "BSSID", node->m_bssid);
-        cJSON_AddStringToObject(item, "Mode", node->m_mode);
-        cJSON_AddNumberToObject(item, "Channel", node->m_channel);
-        cJSON_AddNumberToObject(item, "SignalStrength", node->m_signal_strength);
-        cJSON_AddStringToObject(item, "SecurityModeEnabled", node->m_security_mode_enabled);
-        cJSON_AddStringToObject(item, "EncryptionMode", node->m_encryption_mode);
-        cJSON_AddStringToObject(item, "OperatingFrequencyBand", node->m_op_frequency_band);
-        cJSON_AddStringToObject(item, "SupportedStandards", node->m_supported_standards);
-        cJSON_AddStringToObject(item, "OperatingStandards", node->m_op_standards);
-        cJSON_AddStringToObject(item, "OperatingChannelBandwidth", node->m_op_channel_bw);
-        cJSON_AddNumberToObject(item, "BeaconPeriod", node->m_beacon_period);
-        cJSON_AddNumberToObject(item, "Noise", node->m_noise);
-        cJSON_AddStringToObject(item, "BasicDataTransferRates", node->m_basic_data_tx_rated);
-        cJSON_AddStringToObject(item, "SupportedDataTransferRates", node->m_supported_data_tx_rates);
-        cJSON_AddNumberToObject(item, "DTIMPeriod", node->m_dtim_period);
+        node->serialize(item);
 
         node = (de_nbr_node_t *)hash_map_get_next(m_de_nbr_nodes->m_nbr_node_map, node); 
     } 

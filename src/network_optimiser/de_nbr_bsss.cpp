@@ -72,6 +72,40 @@ void de_nbr_bsss_t::handler(rbusHandle_t handle, rbusEvent_t const* event, rbusE
 
 }
 
+void de_nbr_bsss_t::serialize(em_long_string_t subkey, rbusObject_t& out)
+{
+    de_nbr_bss_t *bss;
+    unsigned int matched = 0;
+    rbusObject_t ob;
+    rbusValue_t value;
+    em_string_t key;
+
+    bss = (de_nbr_bss_t *)hash_map_get_first(m_nbr_bss_map);
+    while (bss != NULL) {
+        if (strstr(bss->m_key, subkey) == NULL) {
+            bss = (de_nbr_bss_t *)hash_map_get_next(m_nbr_bss_map, bss);
+            continue;
+        }
+        
+        snprintf(key, sizeof(key), "NeighborBSS.%d.", matched);
+        rbusObject_Init(&ob, key);
+        
+        bss->serialize(ob);
+        
+        rbusValue_Init(&value);
+        rbusValue_SetObject(value, ob);
+        rbusObject_Release(ob);
+        
+        rbusObject_SetValue(out, key, value);
+        rbusValue_Release(value);
+        
+        matched++;
+        
+        bss = (de_nbr_bss_t *)hash_map_get_next(m_nbr_bss_map, bss);
+    }
+
+}
+
 int de_nbr_bsss_t::init(rbusHandle_t handle)
 {
     m_nbr_bss_map = hash_map_create();

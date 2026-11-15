@@ -20,16 +20,22 @@
 #define DE_SCAN_RESULT_H
 
 #include "em_base.h"
+#include "rbus.h"
 
 class de_scan_result_t {
 
 public:
     em_long_string_t m_key;    
+    em_long_string_t    m_timestamp;
+    unsigned int    m_agg_scan_dur;
+    bool    m_scan_type;
 
 public:
     int init(const char *key);
     void deinit();
     void update(de_scan_result_t& res);
+
+    void serialize(rbusObject_t& ob);
 
     de_scan_result_t();
     ~de_scan_result_t();

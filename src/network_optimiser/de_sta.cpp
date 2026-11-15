@@ -43,6 +43,95 @@ void de_sta_t::update(de_sta_t& sta)
     strncpy(m_sec_assoc, sta.m_sec_assoc, strlen(sta.m_sec_assoc) + 1);
 }
 
+void de_sta_t::serialize(rbusObject_t& ob)
+{
+
+}
+
+void de_sta_t::deserialize(rbusObject_t& ob)
+{
+
+}
+
+void de_sta_t::serialize(cJSON *ob)
+{
+
+    cJSON_AddStringToObject(ob, "MACAddress", m_mac);
+    cJSON_AddNumberToObject(ob, "SignalStrength", m_rssi);
+    cJSON_AddNumberToObject(ob, "LastDataUplinkRate", m_ul_rate);
+    cJSON_AddNumberToObject(ob, "LastDataDownlinkRate", m_dl_rate);
+    cJSON_AddNumberToObject(ob, "RetransCount", m_retrans);
+    cJSON_AddNumberToObject(ob, "PacketsReceived", m_pkts_rx);
+    cJSON_AddNumberToObject(ob, "PacketsSent", m_pkts_tx);
+    cJSON_AddNumberToObject(ob, "BytesReceived", m_bytes_rx);
+    cJSON_AddNumberToObject(ob, "BytesSent", m_bytes_tx);
+    cJSON_AddStringToObject(ob, "ClientCapabilities", m_cap);
+    //cJSON_AddStringToObject(ob, "WiFi6Capabilities", m_wifi6_cap);
+    cJSON_AddStringToObject(ob, "HTCapabilities", m_ht_cap);
+    cJSON_AddStringToObject(ob, "VHTCapabilities", m_vht_cap);
+    cJSON_AddStringToObject(ob, "HECapabilities", m_he_cap);
+    cJSON_AddStringToObject(ob, "SecurityAssociation", m_sec_assoc);
+
+}
+
+void de_sta_t::deserialize(cJSON *ob)
+{
+    cJSON *elem;
+    const char *str;
+
+    elem = cJSON_GetObjectItem(ob, "MACAddress");
+    str = cJSON_GetStringValue(elem);
+    snprintf(m_mac, sizeof(m_mac), "%s", (str != NULL) ? str : "");
+
+    elem = cJSON_GetObjectItem(ob, "SignalStrength");
+    m_rssi = static_cast<int>(cJSON_GetNumberValue(elem));
+
+    elem = cJSON_GetObjectItem(ob, "LastDataUplinkRate");
+    m_ul_rate = static_cast<unsigned int>(cJSON_GetNumberValue(elem));
+
+    elem = cJSON_GetObjectItem(ob, "LastDataDownlinkRate");
+    m_dl_rate = static_cast<unsigned int>(cJSON_GetNumberValue(elem));
+
+    elem = cJSON_GetObjectItem(ob, "RetransCount");
+    m_retrans = static_cast<unsigned int>(cJSON_GetNumberValue(elem));
+
+    elem = cJSON_GetObjectItem(ob, "PacketsReceived");
+    m_pkts_rx = static_cast<unsigned int>(cJSON_GetNumberValue(elem));
+
+    elem = cJSON_GetObjectItem(ob, "PacketsSent");
+    m_pkts_tx = static_cast<unsigned int>(cJSON_GetNumberValue(elem));
+
+    elem = cJSON_GetObjectItem(ob, "BytesReceived");
+    m_bytes_rx = static_cast<unsigned int>(cJSON_GetNumberValue(elem));
+
+    elem = cJSON_GetObjectItem(ob, "BytesSent");
+    m_bytes_tx = static_cast<unsigned int>(cJSON_GetNumberValue(elem));
+
+    elem = cJSON_GetObjectItem(ob, "ClientCapabilities");
+    str = cJSON_GetStringValue(elem);
+    snprintf(m_cap, sizeof(m_cap), "%s", (str != NULL) ? str : "");
+
+    //elem = cJSON_GetObjectItem(ob, "WiFi6Capabilities");
+    //str = cJSON_GetStringValue(elem);
+    //strncpy(m_wifi6_cap, str, strlen(str) + 1);
+
+    elem = cJSON_GetObjectItem(ob, "HTCapabilities");
+    str = cJSON_GetStringValue(elem);
+    snprintf(m_ht_cap, sizeof(m_ht_cap), "%s", (str != NULL) ? str : "");
+
+    elem = cJSON_GetObjectItem(ob, "VHTCapabilities");
+    str = cJSON_GetStringValue(elem);
+    snprintf(m_vht_cap, sizeof(m_vht_cap), "%s", (str != NULL) ? str : "");
+
+    elem = cJSON_GetObjectItem(ob, "HECapabilities");
+    str = cJSON_GetStringValue(elem);
+    snprintf(m_he_cap, sizeof(m_he_cap), "%s", (str != NULL) ? str : "");
+
+    elem = cJSON_GetObjectItem(ob, "SecurityAssociation");
+    str = cJSON_GetStringValue(elem);
+    snprintf(m_sec_assoc, sizeof(m_sec_assoc), "%s", (str != NULL) ? str : "");
+}
+
 int de_sta_t::init(const char *key)
 {
     strncpy(m_key, key, strlen(key) + 1);

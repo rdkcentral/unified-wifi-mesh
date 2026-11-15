@@ -40,6 +40,90 @@ void de_net_ssid_t::update(de_net_ssid_t& net_ssid)
     strncpy(m_type, net_ssid.m_type, strlen(net_ssid.m_type) + 1);
 }
 
+void de_net_ssid_t::serialize(rbusObject_t& ob)
+{
+
+}
+
+void de_net_ssid_t::deserialize(rbusObject_t& ob)
+{
+
+}
+
+void de_net_ssid_t::serialize(cJSON *ob)
+{
+    cJSON_AddStringToObject(ob, "SSID", m_ssid);
+    cJSON_AddBoolToObject(ob, "Enable", m_enabled);
+    cJSON_AddBoolToObject(ob, "AdvertisementEnabled", m_advertisement);
+    cJSON_AddStringToObject(ob, "MFPConfig", m_mfp_config);
+    cJSON_AddStringToObject(ob, "MobilityDomain", m_mob_domain);
+    cJSON_AddStringToObject(ob, "Band", m_band);
+    cJSON_AddStringToObject(ob, "AKMsAllowed", m_akms_allowed);
+    cJSON_AddStringToObject(ob, "SuiteSelector", m_suite_selector);
+    cJSON_AddStringToObject(ob, "HaulType", m_haul_type);
+    cJSON_AddStringToObject(ob, "Type", m_type);
+}
+
+void de_net_ssid_t::deserialize(cJSON *ob)
+{
+    cJSON *elem;
+    const char *str;
+
+    elem = cJSON_GetObjectItem(ob, "SSID");
+    str = cJSON_GetStringValue(elem);
+    strncpy(m_ssid, str, strlen(str) + 1);
+
+    elem = cJSON_GetObjectItem(ob, "Enable");
+    m_enabled = cJSON_IsTrue(elem);
+
+    elem = cJSON_GetObjectItem(ob, "AdvertisementEnabled");
+    m_advertisement = cJSON_IsTrue(elem);
+
+    elem = cJSON_GetObjectItem(ob, "MFPConfig");
+    str = cJSON_GetStringValue(elem);
+    strncpy(m_mfp_config, str, strlen(str) + 1);
+
+    elem = cJSON_GetObjectItem(ob, "MobilityDomain");
+    str = cJSON_GetStringValue(elem);
+    strncpy(m_mob_domain, str, strlen(str) + 1);
+
+    if ((elem = cJSON_GetObjectItem(ob, "AddRemoveChange")) != NULL) {
+        str = cJSON_GetStringValue(elem);
+        strncpy(m_op, str, strlen(str) + 1);
+    }
+
+    if ((elem = cJSON_GetObjectItem(ob, "PassPhrase")) != NULL) {
+        str = cJSON_GetStringValue(elem);
+        strncpy(m_passphrase, str, strlen(str) + 1);
+    }
+
+    if ((elem = cJSON_GetObjectItem(ob, "Band")) != NULL) {
+        str = cJSON_GetStringValue(elem);
+        strncpy(m_band, str, strlen(str) + 1);
+    }
+
+    if ((elem = cJSON_GetObjectItem(ob, "AKMsAllowed")) != NULL) {
+        str = cJSON_GetStringValue(elem);
+        strncpy(m_akms_allowed, str, strlen(str) + 1);
+    }
+
+    if ((elem = cJSON_GetObjectItem(ob, "SuiteSelector")) != NULL) {
+        str = cJSON_GetStringValue(elem);
+        strncpy(m_akms_allowed, str, strlen(str) + 1);
+    }
+
+    if ((elem = cJSON_GetObjectItem(ob, "HaulType")) != NULL) {
+        str = cJSON_GetStringValue(elem);
+        strncpy(m_haul_type, str, strlen(str) + 1);
+    }
+
+    if ((elem = cJSON_GetObjectItem(ob, "Type")) != NULL) {
+        str = cJSON_GetStringValue(elem);
+        strncpy(m_type, str, strlen(str) + 1);
+    }
+
+}
+
 int de_net_ssid_t::init(const char *key)
 {
     strncpy(m_key, key, strlen(key) + 1);

@@ -102,90 +102,7 @@ rbusError_t de_nbr_nodes_t::method(rbusHandle_t handle, char const* name, rbusOb
         snprintf(key, sizeof(key), "Result.%d.", index); 
         rbusObject_Init(&ob, key);
 
-        rbusValue_Init(&value);
-        rbusValue_SetString(value, node->m_radio);
-        rbusObject_SetValue(ob, "Radio", value);
-        rbusValue_Release(value);
-
-        rbusValue_Init(&value);
-        rbusValue_SetString(value, node->m_ssid);
-        rbusObject_SetValue(ob, "SSID", value);
-        rbusValue_Release(value);
-
-        rbusValue_Init(&value);
-        rbusValue_SetString(value, node->m_bssid);
-        rbusObject_SetValue(ob, "BSSID", value);
-        rbusValue_Release(value);
-
-        rbusValue_Init(&value);
-        rbusValue_SetString(value, node->m_mode);
-        rbusObject_SetValue(ob, "Mode", value);
-        rbusValue_Release(value);
-
-        rbusValue_Init(&value);
-        rbusValue_SetUInt32(value, node->m_channel);
-        rbusObject_SetValue(ob, "Channel", value);
-        rbusValue_Release(value);
-
-        rbusValue_Init(&value);
-        rbusValue_SetInt32(value, node->m_signal_strength);
-        rbusObject_SetValue(ob, "SignalStrength", value);
-        rbusValue_Release(value);
-
-        rbusValue_Init(&value);
-        rbusValue_SetString(value, node->m_security_mode_enabled);
-        rbusObject_SetValue(ob, "SecurityModeEnabled", value);
-        rbusValue_Release(value);
-
-        rbusValue_Init(&value);
-        rbusValue_SetString(value, node->m_encryption_mode);
-        rbusObject_SetValue(ob, "EncryptionMode", value);
-        rbusValue_Release(value);
-
-        rbusValue_Init(&value);
-        rbusValue_SetString(value, node->m_op_frequency_band);
-        rbusObject_SetValue(ob, "OperatingFrequencyBand", value);
-        rbusValue_Release(value);
-
-        rbusValue_Init(&value);
-        rbusValue_SetString(value, node->m_supported_standards);
-        rbusObject_SetValue(ob, "SupportedStandards", value);
-        rbusValue_Release(value);
-
-        rbusValue_Init(&value);
-        rbusValue_SetString(value, node->m_op_standards);
-        rbusObject_SetValue(ob, "OperatingStandards", value);
-        rbusValue_Release(value);
-
-        rbusValue_Init(&value);
-        rbusValue_SetString(value, node->m_op_channel_bw);
-        rbusObject_SetValue(ob, "OperatingChannelBandwidth", value);
-        rbusValue_Release(value);
-
-        rbusValue_Init(&value);
-        rbusValue_SetUInt32(value, node->m_beacon_period);
-        rbusObject_SetValue(ob, "BeaconPeriod", value);
-        rbusValue_Release(value);
-
-        rbusValue_Init(&value);
-        rbusValue_SetInt32(value, node->m_noise);
-        rbusObject_SetValue(ob, "Noise", value);
-        rbusValue_Release(value);
-
-        rbusValue_Init(&value);
-        rbusValue_SetString(value, node->m_basic_data_tx_rated);
-        rbusObject_SetValue(ob, "BasicDataTransferRates", value);
-        rbusValue_Release(value);
-
-        rbusValue_Init(&value);
-        rbusValue_SetString(value, node->m_supported_data_tx_rates);
-        rbusObject_SetValue(ob, "SupportedDataTransferRates", value);
-        rbusValue_Release(value);
-
-        rbusValue_Init(&value);
-        rbusValue_SetUInt32(value, node->m_dtim_period);
-        rbusObject_SetValue(ob, "DTIMPeriod", value);
-        rbusValue_Release(value);
+        node->serialize(ob);
 
         rbusValue_Init(&value);
         rbusValue_SetObject(value, ob);
@@ -222,120 +139,8 @@ rbusError_t de_nbr_nodes_t::invoke_method(char const* name, void *in, void *out)
         }
 
         ob = rbusProperty_GetObject(prop);
-           
-        if ((value = rbusObject_GetValue(ob, "Radio")) == NULL) {
-            printf("%s:%d: Could not find Radio value\n", __func__, __LINE__);
-        } else {
-            ptr = rbusValue_GetString(value, NULL);
-            strncpy(node.m_radio, ptr, strlen(ptr) + 1);
-        }
-        
-        if ((value = rbusObject_GetValue(ob, "SSID")) == NULL) {
-            printf("%s:%d: Could not find SSID value\n", __func__, __LINE__);
-        } else {
-            ptr = rbusValue_GetString(value, NULL);
-            strncpy(node.m_ssid, ptr, strlen(ptr) + 1);
-        }
-        
-        if ((value = rbusObject_GetValue(ob, "BSSID")) == NULL) {
-            printf("%s:%d: Could not find BSSID value\n", __func__, __LINE__);
-        } else {
-            ptr = rbusValue_GetString(value, NULL);
-            strncpy(node.m_bssid, ptr, strlen(ptr) + 1);
-        }
-        
-        if ((value = rbusObject_GetValue(ob, "Mode")) == NULL) {
-            printf("%s:%d: Could not find Mode value\n", __func__, __LINE__);
-        } else {
-            ptr = rbusValue_GetString(value, NULL);
-            strncpy(node.m_mode, ptr, strlen(ptr) + 1);
-        }
-        
-        if ((value = rbusObject_GetValue(ob, "Channel")) == NULL) {
-            printf("%s:%d: Could not find Channel value\n", __func__, __LINE__);
-        } else {
-            node.m_channel = rbusValue_GetUInt32(value);
-        }
-        
-        if ((value = rbusObject_GetValue(ob, "SignalStrength")) == NULL) {
-            printf("%s:%d: Could not find SignalStrength value\n", __func__, __LINE__);
-        } else {
-            node.m_signal_strength = rbusValue_GetInt32(value);
-        }
-        
-        if ((value = rbusObject_GetValue(ob, "SecurityModeEnabled")) == NULL) {
-            printf("%s:%d: Could not find SecurityModeEnabled value\n", __func__, __LINE__);
-        } else {
-            ptr = rbusValue_GetString(value, NULL);
-            strncpy(node.m_security_mode_enabled, ptr, strlen(ptr) + 1);
-        }
-        
-        if ((value = rbusObject_GetValue(ob, "EncryptionMode")) == NULL) {
-            printf("%s:%d: Could not find EncryptionMode value\n", __func__, __LINE__);
-        } else {
-            ptr = rbusValue_GetString(value, NULL);
-            strncpy(node.m_encryption_mode, ptr, strlen(ptr) + 1);
-        }
-        
-        if ((value = rbusObject_GetValue(ob, "OperatingFrequencyBand")) == NULL) {
-            printf("%s:%d: Could not find OperatingFrequencyBand value\n", __func__, __LINE__);
-        } else {
-            ptr = rbusValue_GetString(value, NULL);
-            strncpy(node.m_op_frequency_band, ptr, strlen(ptr) + 1);
-        }
-        
-        if ((value = rbusObject_GetValue(ob, "SupportedStandards")) == NULL) {
-            printf("%s:%d: Could not find SupportedStandards value\n", __func__, __LINE__);
-        } else {
-            ptr = rbusValue_GetString(value, NULL);
-            strncpy(node.m_supported_standards, ptr, strlen(ptr) + 1);
-        }
-        
-        if ((value = rbusObject_GetValue(ob, "OperatingStandards")) == NULL) {
-            printf("%s:%d: Could not find OperatingStandards value\n", __func__, __LINE__);
-        } else {
-            ptr = rbusValue_GetString(value, NULL);
-            strncpy(node.m_op_standards, ptr, strlen(ptr) + 1);
-        }
-        
-        if ((value = rbusObject_GetValue(ob, "OperatingChannelBandwidth")) == NULL) {
-            printf("%s:%d: Could not find OperatingChannelBandwidth value\n", __func__, __LINE__);
-        } else {
-            ptr = rbusValue_GetString(value, NULL);
-            strncpy(node.m_op_channel_bw, ptr, strlen(ptr) + 1);
-        }
-        
-        if ((value = rbusObject_GetValue(ob, "BeaconPeriod")) == NULL) {
-            printf("%s:%d: Could not find BeaconPeriod value\n", __func__, __LINE__);
-        } else {
-            node.m_beacon_period = rbusValue_GetUInt32(value);
-        }
-        
-        if ((value = rbusObject_GetValue(ob, "Noise")) == NULL) {
-            printf("%s:%d: Could not find Noise value\n", __func__, __LINE__);
-        } else {
-            node.m_noise = rbusValue_GetInt32(value);
-        }
-        
-        if ((value = rbusObject_GetValue(ob, "BasicDataTransferRates")) == NULL) {
-            printf("%s:%d: Could not find BasicDataTransferRates value\n", __func__, __LINE__);
-        } else {
-            ptr = rbusValue_GetString(value, NULL);
-            strncpy(node.m_basic_data_tx_rated, ptr, strlen(ptr) + 1);
-        }
-        
-        if ((value = rbusObject_GetValue(ob, "SupportedDataTransferRates")) == NULL) {
-            printf("%s:%d: Could not find SupportedDataTransferRates value\n", __func__, __LINE__);
-        } else {
-            ptr = rbusValue_GetString(value, NULL);
-            strncpy(node.m_supported_data_tx_rates, ptr, strlen(ptr) + 1);
-        }
-        
-        if ((value = rbusObject_GetValue(ob, "DTIMPeriod")) == NULL) {
-            printf("%s:%d: Could not find DTIMPeriod value\n", __func__, __LINE__);
-        } else {
-            node.m_dtim_period = rbusValue_GetUInt32(value);
-        }
+       
+        node.deserialize(ob);    
         
         snprintf(key, sizeof(em_string_t), "%s.%s", node.m_radio, node.m_bssid);
         if ((pnode = (de_nbr_node_t *)hash_map_get(m_nbr_node_map, key)) == NULL) {
@@ -352,6 +157,11 @@ rbusError_t de_nbr_nodes_t::invoke_method(char const* name, void *in, void *out)
     rbusObject_Release(out_obj);
 
     return (rbusError_t)rc;
+}
+
+void de_nbr_nodes_t::deserialize(rbusObject_t& ob)
+{
+
 }
 
 int de_nbr_nodes_t::init()

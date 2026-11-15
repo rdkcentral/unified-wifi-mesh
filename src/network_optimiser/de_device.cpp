@@ -33,6 +33,53 @@ void de_device_t::update(de_device_t& dev)
     strncpy(m_version, dev.m_version, strlen(dev.m_version) + 1);
 }
 
+void de_device_t::serialize(rbusObject_t& ob)
+{
+
+}
+
+void de_device_t::deserialize(rbusObject_t& ob)
+{
+
+}
+
+void de_device_t::serialize(cJSON *ob)
+{
+    cJSON_AddStringToObject(ob, "ID", m_id);
+    cJSON_AddStringToObject(ob, "Manufacturer", m_manufacturer);
+    cJSON_AddStringToObject(ob, "ManufacturerModel", m_model);
+    cJSON_AddStringToObject(ob, "SerialNumber", m_serial);
+    cJSON_AddStringToObject(ob, "SoftwareVersion", m_version);
+}
+
+void de_device_t::deserialize(cJSON *ob)
+{   
+    cJSON *elem;
+    const char *str;
+
+    elem = cJSON_GetObjectItem(ob, "ID");
+    str = cJSON_GetStringValue(elem);
+    strncpy(m_id, str, strlen(str) + 1);
+
+    elem = cJSON_GetObjectItem(ob, "Manufacturer");
+    str = cJSON_GetStringValue(elem);
+    strncpy(m_manufacturer, str, strlen(str) + 1);
+
+    elem = cJSON_GetObjectItem(ob, "ManufacturerModel");
+    str = cJSON_GetStringValue(elem);
+    strncpy(m_model, str, strlen(str) + 1);
+
+    elem = cJSON_GetObjectItem(ob, "SerialNumber");
+    str = cJSON_GetStringValue(elem);
+    strncpy(m_serial, str, strlen(str) + 1);
+
+    elem = cJSON_GetObjectItem(ob, "SoftwareVersion");
+    str = cJSON_GetStringValue(elem);
+    strncpy(m_version, str, strlen(str) + 1);
+    
+}
+
+
 int de_device_t::init(const char *key)
 {
     strncpy(m_key, key, strlen(key) + 1);

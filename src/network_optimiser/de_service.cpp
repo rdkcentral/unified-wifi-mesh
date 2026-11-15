@@ -31,6 +31,43 @@ void de_service_t::update(de_service_t& svc)
     strncpy(m_url, svc.m_url, strlen(svc.m_url) + 1);
 }
 
+void de_service_t::serialize(rbusObject_t& ob)
+{
+
+}
+
+void de_service_t::deserialize(rbusObject_t& ob)
+{
+
+}
+
+void de_service_t::serialize(cJSON *ob)
+{
+    cJSON_AddStringToObject(ob, "Type", m_type);
+    cJSON_AddStringToObject(ob, "Operator", m_access);
+    cJSON_AddStringToObject(ob, "URL", m_url);
+}
+
+void de_service_t::deserialize(cJSON *ob)
+{
+    cJSON *elem;
+    const char *str;
+
+    elem = cJSON_GetObjectItem(ob, "Type");
+    str = cJSON_GetStringValue(elem);
+    strncpy(m_type, str, strlen(str) + 1);
+
+    elem = cJSON_GetObjectItem(ob, "Access");
+    str = cJSON_GetStringValue(elem);
+    strncpy(m_access, str, strlen(str) + 1);
+
+    elem = cJSON_GetObjectItem(ob, "URL");
+    str = cJSON_GetStringValue(elem);
+    strncpy(m_url, str, strlen(str) + 1);
+
+}
+
+
 int de_service_t::init(const char *key)
 {
     strncpy(m_key, key, strlen(key) + 1);

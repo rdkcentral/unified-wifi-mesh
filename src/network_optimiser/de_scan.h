@@ -38,6 +38,8 @@ public:
     void deinit();
     void update(de_scan_t& res);
 
+    void print();
+
     de_scan_t();
     ~de_scan_t();
 };

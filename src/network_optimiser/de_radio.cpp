@@ -32,6 +32,45 @@ void de_radio_t::update(de_radio_t& radio)
     m_noise = radio.m_noise;
 }
 
+void de_radio_t::serialize(rbusObject_t& ob)
+{
+
+}
+
+void de_radio_t::deserialize(rbusObject_t& ob)
+{
+
+}
+
+void de_radio_t::serialize(cJSON *ob)
+{
+    cJSON_AddStringToObject(ob, "ID", m_id);
+    cJSON_AddBoolToObject(ob, "Enabled", m_enabled);
+    cJSON_AddNumberToObject(ob, "Utilization", static_cast<double>(m_util));
+    cJSON_AddNumberToObject(ob, "Noise", static_cast<double>(m_noise));
+}
+
+void de_radio_t::deserialize(cJSON *ob)
+{   
+    cJSON *elem;
+    const char *str;
+
+    elem = cJSON_GetObjectItem(ob, "ID");
+    str = cJSON_GetStringValue(elem);
+    strncpy(m_id, str, strlen(str) + 1);
+
+    elem = cJSON_GetObjectItem(ob, "Enabled");
+    m_enabled = cJSON_IsTrue(elem);
+
+    elem = cJSON_GetObjectItem(ob, "Utilization");
+    m_util = static_cast<unsigned int>(cJSON_GetNumberValue(elem));
+
+    elem = cJSON_GetObjectItem(ob, "Noise");
+    m_noise = static_cast<int>(cJSON_GetNumberValue(elem));
+
+}
+
+
 int de_radio_t::init(const char *key)
 {
     strncpy(m_key, key, strlen(key) + 1);

@@ -34,6 +34,54 @@ void de_bss_t::update(de_bss_t& bss)
     m_backhaul = bss.m_backhaul;
 }
 
+void de_bss_t::serialize(rbusObject_t& ob)
+{
+
+}
+
+void de_bss_t::deserialize(rbusObject_t& ob)
+{
+
+}
+
+void de_bss_t::serialize(cJSON *ob)
+{
+    cJSON_AddStringToObject(ob, "BSSID", m_bssid);
+    cJSON_AddStringToObject(ob, "SSID", m_ssid);
+    cJSON_AddBoolToObject(ob, "Enabled", m_enabled);
+    cJSON_AddBoolToObject(ob, "TransmittedBSSID", m_broadcast);
+    cJSON_AddBoolToObject(ob, "FronthaulUse", m_fronthaul);
+    cJSON_AddBoolToObject(ob, "BackhaulUse", m_backhaul);
+}
+
+void de_bss_t::deserialize(cJSON *ob)
+{
+    cJSON *elem;
+    const char *str;
+
+    elem = cJSON_GetObjectItem(ob, "BSSID");
+    str = cJSON_GetStringValue(elem);
+    strncpy(m_bssid, str, strlen(str) + 1);
+
+    elem = cJSON_GetObjectItem(ob, "SSID");
+    str = cJSON_GetStringValue(elem);
+    strncpy(m_ssid, str, strlen(str) + 1);
+
+    elem = cJSON_GetObjectItem(ob, "Enabled");
+    m_enabled = cJSON_IsTrue(elem);
+
+    elem = cJSON_GetObjectItem(ob, "TransmittedBSSID");
+    m_broadcast = cJSON_IsTrue(elem);
+
+    elem = cJSON_GetObjectItem(ob, "FronthaulUse");
+    m_fronthaul = cJSON_IsTrue(elem);
+
+    elem = cJSON_GetObjectItem(ob, "BackhaulUse");
+    m_backhaul = cJSON_IsTrue(elem);
+
+}
+
+
 int de_bss_t::init(const char *key)
 {
     strncpy(m_key, key, strlen(key) + 1);

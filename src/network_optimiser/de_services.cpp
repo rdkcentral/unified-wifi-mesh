@@ -135,7 +135,6 @@ rbusError_t de_services_t::get(rbusHandle_t handle, rbusProperty_t property, rbu
     const char *name, *ptr;
 
     name  = rbusProperty_GetName(property);
-    printf("%s:%d: Property Name: %s\n", __func__, __LINE__, name);
 
     snprintf(key, sizeof(em_string_t), "%s.", DE_SERVICES);
 
@@ -252,8 +251,6 @@ void de_services_t::publish(const char *name)
     if ((rc = rbusEvent_Publish(m_bus_handle, &event)) != RBUS_ERROR_SUCCESS) {
         printf("%s:%d: Failed to publish data for event: %s, err: %d\n", __func__, __LINE__,
             event.name, rc);
-    } else {
-        printf("%s:%d: Successfully published data for event: %s\n", __func__, __LINE__, event.name);
     }
 
     rbusObject_Release(data);

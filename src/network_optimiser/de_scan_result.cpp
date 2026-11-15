@@ -26,7 +26,30 @@
 
 void de_scan_result_t::update(de_scan_result_t& res)
 {
+    strncpy(m_timestamp, res.m_timestamp, strlen(res.m_timestamp) + 1);
+    m_agg_scan_dur = res.m_agg_scan_dur;
+    m_scan_type = res.m_scan_type;
+}
 
+void de_scan_result_t::serialize(rbusObject_t& ob)
+{
+    rbusValue_t value;
+
+    rbusValue_Init(&value);
+    rbusValue_SetString(value, m_timestamp);
+    rbusObject_SetValue(ob, "TimeStamp", value);
+    rbusValue_Release(value);
+
+    rbusValue_Init(&value);
+    rbusValue_SetUInt32(value, m_agg_scan_dur);
+    rbusObject_SetValue(ob, "AggregateScanDuration", value);
+    rbusValue_Release(value);
+
+    rbusValue_Init(&value);
+    rbusValue_SetBoolean(value, m_scan_type);
+    rbusObject_SetValue(ob, "ScanType", value);
+    rbusValue_Release(value);
+    
 }
 
 int de_scan_result_t::init(const char *key)

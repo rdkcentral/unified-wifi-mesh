@@ -177,8 +177,6 @@ void de_network_t::publish(const char *name)
     if ((rc = rbusEvent_Publish(m_bus_handle, &event)) != RBUS_ERROR_SUCCESS) {
         printf("%s:%d: Failed to publish data for event: %s, err: %d\n", __func__, __LINE__, 
             event.name, rc);
-    } else {
-        printf("%s:%d: Successfully published data for event: %s\n", __func__, __LINE__, event.name);
     }
 
     rbusValue_Release(value);
@@ -214,6 +212,36 @@ rbusError_t de_network_t::method(rbusHandle_t handle, char const* name, rbusObje
     }
 
     return RBUS_ERROR_DESTINATION_NOT_FOUND;
+}
+
+void de_network_t::serialize(rbusObject_t& ob)
+{
+
+}
+
+void de_network_t::deserialize(rbusObject_t& ob)
+{
+
+}
+    
+void de_network_t::serialize(cJSON *ob)
+{
+    cJSON_AddStringToObject(ob, "ID", m_id);
+    cJSON_AddStringToObject(ob, "ControllerID", m_controller_id);
+}
+
+void de_network_t::deserialize(cJSON *ob)
+{
+    cJSON *elem;
+    const char *str;
+
+    elem = cJSON_GetObjectItem(ob, "ID");
+    str = cJSON_GetStringValue(elem);
+    strncpy(m_id, str, strlen(str) + 1);
+
+    elem = cJSON_GetObjectItem(ob, "ControllerID");
+    str = cJSON_GetStringValue(elem);
+    strncpy(m_controller_id, str, strlen(str) + 1);
 }
 
 int de_network_t::init()

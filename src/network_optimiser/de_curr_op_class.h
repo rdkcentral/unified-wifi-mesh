@@ -20,6 +20,7 @@
 #define DE_CURR_OP_CLASS_H
 
 #include "em_base.h"
+#include "rbus.h"
 
 class de_curr_op_class_t {
 
@@ -34,6 +35,13 @@ public:
     int init(const char *key);
     void deinit();
     void update(de_curr_op_class_t& curr_op_class);
+
+    void serialize(rbusObject_t& ob);
+    void deserialize(rbusObject_t& ob);
+
+    void serialize(cJSON *ob);
+    void deserialize(cJSON *ob);
+
 
     de_curr_op_class_t();
     ~de_curr_op_class_t();

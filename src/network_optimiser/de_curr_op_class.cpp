@@ -31,6 +31,35 @@ void de_curr_op_class_t::update(de_curr_op_class_t& curr_op_class)
     m_channel = curr_op_class.m_channel;
 }
 
+void de_curr_op_class_t::serialize(rbusObject_t& ob)
+{
+
+}
+
+void de_curr_op_class_t::deserialize(rbusObject_t& ob)
+{
+
+}
+
+void de_curr_op_class_t::serialize(cJSON *ob)
+{
+
+}
+
+void de_curr_op_class_t::deserialize(cJSON *ob)
+{
+    cJSON *elem;
+
+    elem = cJSON_GetObjectItem(ob, "Class");
+    m_class = static_cast<unsigned int>(cJSON_GetNumberValue(elem));
+
+    elem = cJSON_GetObjectItem(ob, "TxPower");
+    m_tx_power = static_cast<unsigned int>(cJSON_GetNumberValue(elem));
+
+    elem = cJSON_GetObjectItem(ob, "Channel");
+    m_channel = static_cast<unsigned int>(cJSON_GetNumberValue(elem));
+}
+
 int de_curr_op_class_t::init(const char *key)
 {
     strncpy(m_key, key, strlen(key) + 1);

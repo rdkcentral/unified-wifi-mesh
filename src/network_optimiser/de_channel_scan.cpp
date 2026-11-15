@@ -33,6 +33,37 @@ void de_channel_scan_t::update(de_channel_scan_t& channel)
     strncpy(m_status, channel.m_status, strlen(channel.m_status) + 1);
 }
 
+void de_channel_scan_t::serialize(rbusObject_t& ob)
+{
+    rbusValue_t value;
+
+    rbusValue_Init(&value);
+    rbusValue_SetUInt32(value, m_channel);
+    rbusObject_SetValue(ob, "Channel", value);
+    rbusValue_Release(value); 
+    
+    rbusValue_Init(&value);
+    rbusValue_SetString(value, m_timestamp);
+    rbusObject_SetValue(ob, "TimeStamp", value);
+    rbusValue_Release(value); 
+    
+    rbusValue_Init(&value);
+    rbusValue_SetUInt32(value, m_util);
+    rbusObject_SetValue(ob, "Utilization", value);
+    rbusValue_Release(value); 
+    
+    rbusValue_Init(&value);
+    rbusValue_SetInt32(value, m_noise);
+    rbusObject_SetValue(ob, "Noise", value);
+    rbusValue_Release(value); 
+    
+    rbusValue_Init(&value);
+    rbusValue_SetString(value, m_status);
+    rbusObject_SetValue(ob, "ScanStatus", value);
+    rbusValue_Release(value); 
+    
+}
+
 int de_channel_scan_t::init(const char *key)
 {
     strncpy(m_key, key, strlen(key) + 1);

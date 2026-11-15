@@ -29,6 +29,17 @@ void de_op_class_scan_t::update(de_op_class_scan_t& op_class)
     m_op_class = op_class.m_op_class;
 }
 
+void de_op_class_scan_t::serialize(rbusObject_t& ob)
+{
+    rbusValue_t value;
+
+    rbusValue_Init(&value);
+    rbusValue_SetUInt32(value, m_op_class);
+    rbusObject_SetValue(ob, "OperatingClass", value);
+    rbusValue_Release(value);
+
+}
+
 int de_op_class_scan_t::init(const char *key)
 {
     strncpy(m_key, key, strlen(key) + 1);

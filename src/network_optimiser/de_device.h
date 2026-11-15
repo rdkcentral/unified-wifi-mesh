@@ -20,6 +20,7 @@
 #define DE_DEVICE_H
 
 #include "em_base.h"
+#include "rbus.h"
 
 class de_device_t {
 
@@ -35,6 +36,12 @@ public:
     int init(const char *key);
     void deinit();
     void update(de_device_t& dev);
+
+    void serialize(rbusObject_t& ob);
+    void deserialize(rbusObject_t& ob);
+
+    void serialize(cJSON *ob);
+    void deserialize(cJSON *ob);
 
     de_device_t();
     ~de_device_t();

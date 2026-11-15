@@ -48,6 +48,112 @@ void de_nbr_bss_t::update(de_nbr_bss_t& bss)
     m_beacon_period = bss.m_beacon_period; 
 }
 
+void de_nbr_bss_t::serialize(rbusObject_t& ob)
+{
+    rbusValue_t value;
+
+    rbusValue_Init(&value);
+    rbusValue_SetString(value, m_bssid);
+    rbusObject_SetValue(ob, "BSSID", value);
+    rbusValue_Release(value);
+    
+    rbusValue_Init(&value);
+    rbusValue_SetString(value, m_ssid);
+    rbusObject_SetValue(ob, "SSID", value);
+    rbusValue_Release(value);
+    
+    rbusValue_Init(&value);
+    rbusValue_SetInt32(value, m_signal_strength);
+    rbusObject_SetValue(ob, "SignalStrength", value);
+    rbusValue_Release(value);
+
+    rbusValue_Init(&value);
+    rbusValue_SetString(value, m_channel_bw);
+    rbusObject_SetValue(ob, "ChannelBandwidth", value);
+    rbusValue_Release(value);
+
+    rbusValue_Init(&value);
+    rbusValue_SetUInt32(value, m_channel_util);
+    rbusObject_SetValue(ob, "ChannelUtilization", value);
+    rbusValue_Release(value);
+
+    rbusValue_Init(&value);
+    rbusValue_SetUInt32(value, m_sta_count);
+    rbusObject_SetValue(ob, "StationCount", value);
+    rbusValue_Release(value);
+
+    rbusValue_Init(&value);
+    rbusValue_SetString(value, m_mld_mac);
+    rbusObject_SetValue(ob, "MLDMACAddress", value);
+    rbusValue_Release(value);
+
+    rbusValue_Init(&value);
+    rbusValue_SetString(value, m_rep_bssid);
+    rbusObject_SetValue(ob, "ReportingBSSID", value);
+    rbusValue_Release(value);
+
+    rbusValue_Init(&value);
+    rbusValue_SetBoolean(value, m_multi_bssid);
+    rbusObject_SetValue(ob, "MultiBSSID", value);
+    rbusValue_Release(value);
+
+    rbusValue_Init(&value);
+    rbusValue_SetBoolean(value, m_bss_load_elem_present);
+    rbusObject_SetValue(ob, "BSSLoadElementPresent", value);
+    rbusValue_Release(value);
+
+    rbusValue_Init(&value);
+    rbusValue_SetUInt32(value, m_bss_color);
+    rbusObject_SetValue(ob, "BSSColor", value);
+    rbusValue_Release(value);
+
+    rbusValue_Init(&value);
+    rbusValue_SetString(value, m_security_mode_enabled);
+    rbusObject_SetValue(ob, "SecurityModeEnabled", value);
+    rbusValue_Release(value);
+
+    rbusValue_Init(&value);
+    rbusValue_SetString(value, m_encryption_mode);
+    rbusObject_SetValue(ob, "EncryptionMode", value);
+    rbusValue_Release(value);
+
+    rbusValue_Init(&value);
+    rbusValue_SetString(value, m_supp_standards);
+    rbusObject_SetValue(ob, "SupportedStandards", value);
+    rbusValue_Release(value);
+
+    rbusValue_Init(&value);
+    rbusValue_SetString(value, m_op_standards);
+    rbusObject_SetValue(ob, "OperatingStandards", value);
+    rbusValue_Release(value);
+
+    rbusValue_Init(&value);
+    rbusValue_SetString(value, m_basic_data_tx_rates);
+    rbusObject_SetValue(ob, "BasicDataTransferRates", value);
+    rbusValue_Release(value);
+
+    rbusValue_Init(&value);
+    rbusValue_SetString(value, m_supp_data_tx_rates);
+    rbusObject_SetValue(ob, "SupportedDataTransferRates", value);
+    rbusValue_Release(value);
+
+    rbusValue_Init(&value);
+    rbusValue_SetUInt32(value, m_supp_nss);
+    rbusObject_SetValue(ob, "SupportedNSS", value);
+    rbusValue_Release(value);
+
+    rbusValue_Init(&value);
+    rbusValue_SetUInt32(value, m_dtim_period);
+    rbusObject_SetValue(ob, "DTIMPeriod", value);
+    rbusValue_Release(value);
+
+    rbusValue_Init(&value);
+    rbusValue_SetUInt32(value, m_beacon_period);
+    rbusObject_SetValue(ob, "BeaconPeriod", value);
+    rbusValue_Release(value);
+
+}
+
 int de_nbr_bss_t::init(const char *key)
 {
     strncpy(m_key, key, strlen(key) + 1);

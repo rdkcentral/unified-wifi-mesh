@@ -208,7 +208,9 @@ int xmidt_optimizer_server_t::send_device_request(optimizer_event_t *ev_req, opt
         // Create a mock response with empty result and Success status
         const char *mock_response = "{}";
         strcpy((char *)payload, mock_response);
-        *ev_resp = optimizer_event_t(ev_req->get_type(), payload, strlen(mock_response), true);
+        ev_resp->m_type = ev_req->get_type();
+        ev_resp->m_buff.data = payload;
+        ev_resp->m_buff.size = strlen(mock_response);
         return 0;
     }
 
@@ -237,9 +239,9 @@ int xmidt_optimizer_server_t::send_device_request(optimizer_event_t *ev_req, opt
     }
     memcpy(payload, reply->u.req.payload, reply->u.req.payload_size);
     payload[reply->u.req.payload_size] = '\0';
-    free(resp.m_buff.data);
-
-    *ev_resp = optimizer_event_t(ev_req->get_type(), payload, reply->u.req.payload_size, true);
+    ev_resp->m_type = ev_req->get_type();
+    ev_resp->m_buff.data = payload;
+    ev_resp->m_buff.size = reply->u.req.payload_size;
     wrp_free_struct(reply);
 
     return 0;

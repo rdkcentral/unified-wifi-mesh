@@ -20,6 +20,7 @@
 #define DE_RADIO_H
 
 #include "em_base.h"
+#include "rbus.h"
 
 class de_radio_t {
 
@@ -34,6 +35,12 @@ public:
     int init(const char *key);
     void deinit();
     void update(de_radio_t& radio);
+
+    void serialize(rbusObject_t& ob);
+    void deserialize(rbusObject_t& ob);
+
+    void serialize(cJSON *ob);
+    void deserialize(cJSON *ob);
 
     de_radio_t();
     ~de_radio_t();

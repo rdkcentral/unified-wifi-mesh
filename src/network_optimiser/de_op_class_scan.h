@@ -20,6 +20,7 @@
 #define DE_OP_CLASS_SCAN_H
 
 #include "em_base.h"
+#include "rbus.h"
 
 class de_op_class_scan_t {
 
@@ -31,6 +32,8 @@ public:
     int init(const char *key);
     void deinit();
     void update(de_op_class_scan_t& res);
+
+    void serialize(rbusObject_t& ob);
 
     de_op_class_scan_t();
     ~de_op_class_scan_t();
