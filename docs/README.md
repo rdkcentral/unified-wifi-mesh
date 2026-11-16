@@ -602,8 +602,8 @@ sequenceDiagram
     participant Agent as onewifi_em_agent (DPP Enrollee)
     participant OW as OneWifi
 
-    Ctrl->>Agent: DPP CCE Indication CMDU (IEEE 1905.1)
-    Agent->>Agent: ec_enrollee_t::start_onboarding()
+    Ctrl->>Agent: DPP CCE Indication CMDU (enable CCE advertisement)
+    Note over Agent: DPP enrollee onboarding must already have been started separately (for example with --start-dpp-onboard)
     Agent->>OW: bus_set_fn(WIFI_SET_DISCONN_STEADY_STATE)
     Agent->>OW: bus_set_fn(Device.WiFi.AccessPoint.N.RawFrame.Mgmt.Action.Tx)
     Note over Agent: Presence Announcement (public action frame)
