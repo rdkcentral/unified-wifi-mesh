@@ -970,7 +970,7 @@ void em_msg_t::unassoc_sta_link_metrics_query()
 }
 void em_msg_t::unassoc_sta_link_metrics_rsp()
 {
-    m_tlv_member[m_num_tlv++] = em_tlv_member_t(em_tlv_type_unassoc_sta_link_metric_rsp, mandatory, "17.2.26 of Wi-Fi Easy Mesh 5.0", 11);
+    m_tlv_member[m_num_tlv++] = em_tlv_member_t(em_tlv_type_unassoc_sta_link_metric_rsp, mandatory, "17.2.26 of Wi-Fi Easy Mesh 5.0", static_cast<int>(sizeof(em_tlv_t) + 2));
 }
 
 void em_msg_t::beacon_metrics_query()
