@@ -1310,7 +1310,7 @@ int em_capability_t::handle_ap_radio_basic_cap(unsigned char *buff, unsigned int
 			op_class_info.id.type = em_op_class_type_capability;
 			op_class_info.op_class = static_cast<unsigned int> (basic_cap_op_class->op_class);
 			op_class_info.id.op_class = op_class_info.op_class;
-			op_class_info.max_tx_power = static_cast<int> (basic_cap_op_class->max_tx_eirp);
+			op_class_info.max_tx_power = static_cast<int8_t> (basic_cap_op_class->max_tx_eirp);
 			op_class_info.num_channels = static_cast<unsigned int> (basic_cap_op_class->num);
 			for (j = 0; j < op_class_info.num_channels; j++) {
 				op_class_info.channels[j] = static_cast<unsigned int> (basic_cap_op_class->channels.channel[j]);
@@ -1321,7 +1321,9 @@ int em_capability_t::handle_ap_radio_basic_cap(unsigned char *buff, unsigned int
 			// now check if the op_class already exists
 			for (j = 0; j < dm->get_num_op_class(); j++) {
 				op_class_obj = &dm->m_op_class[j];
-				if (*op_class_obj == dm_op_class_t(&op_class_info)) {
+				if ((memcmp(op_class_obj->m_op_class_info.id.ruid, op_class_info.id.ruid, sizeof(mac_address_t)) == 0) &&
+					(op_class_obj->m_op_class_info.id.type == op_class_info.id.type) &&
+					(op_class_obj->m_op_class_info.id.op_class == op_class_info.id.op_class)) {
 					op_class_exists = true;
 					break;
 				}
@@ -1330,6 +1332,10 @@ int em_capability_t::handle_ap_radio_basic_cap(unsigned char *buff, unsigned int
 			if (op_class_exists == true) {
 				op_class_exists = false;
 			} else {
+				if (dm->get_num_op_class() >= EM_MAX_OPCLASS) {
+					em_printfout("Max limit reached for op class entries in datamodel, cannot add more entries");
+					continue;
+				}
 				op_class_obj = &dm->m_op_class[dm->get_num_op_class()];
 				dm->set_num_op_class(dm->get_num_op_class() + 1);
 			}

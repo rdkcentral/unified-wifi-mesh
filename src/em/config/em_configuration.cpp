@@ -936,7 +936,7 @@ int em_configuration_t::send_autoconfig_renew_msg()
     }
 
     m_renew_tx_cnt++;
-    printf("%s:%d: AutoConfig Renew (%d) Send Successful for %s freq band=%d\n", __func__, __LINE__, m_renew_tx_cnt, mac_str, get_band());
+    em_printfout("AutoConfig Renew (%d) Send Successful for %s freq band=%d\n", m_renew_tx_cnt, mac_str, get_band());
 
     return static_cast<int> (len);
 }
@@ -6161,7 +6161,9 @@ int em_configuration_t::handle_ap_radio_basic_cap(unsigned char *buff, unsigned 
 			// now check if the op_class already exists
 			for (j = 0; j < dm->get_num_op_class(); j++) {
 				op_class_obj = &dm->m_op_class[j];
-				if (*op_class_obj == dm_op_class_t(&op_class_info)) {
+				if ((memcmp(op_class_obj->m_op_class_info.id.ruid, op_class_info.id.ruid, sizeof(mac_address_t)) == 0) &&
+					(op_class_obj->m_op_class_info.id.type == op_class_info.id.type) &&
+					(op_class_obj->m_op_class_info.id.op_class == op_class_info.id.op_class)) {
 					op_class_exists = true;
 					break;
 				}
@@ -6170,6 +6172,10 @@ int em_configuration_t::handle_ap_radio_basic_cap(unsigned char *buff, unsigned 
 			if (op_class_exists == true) {
 				op_class_exists = false;
 			} else {
+				if (dm->get_num_op_class() >= EM_MAX_OPCLASS) {
+					em_printfout("Max limit reached for op class entries in datamodel, cannot add more entries");
+					continue;
+				}
 				op_class_obj = &dm->m_op_class[dm->get_num_op_class()];
 				dm->set_num_op_class(dm->get_num_op_class() + 1);
 			}

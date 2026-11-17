@@ -1271,7 +1271,7 @@ public:
 	 *
 	 * @param[in] num The number of operating classes to set.
 	 */
-	void set_num_op_class(unsigned int num) { m_num_opclass = num; }
+	void set_num_op_class(unsigned int num);
     
 	/**!
 	 * @brief Sets the number of operational classes.
@@ -1357,6 +1357,14 @@ public:
 	 *
 	 */
 	em_bss_info_t* get_bsta_bss_info();
+
+	/**!
+	 * @brief Retrieves the enabled bSTA BSS that is associated to an upstream AP (non-zero BSSID).
+	 *        Falls back to get_bsta_bss_info() when none is associated.
+	 *
+	 * @returns A pointer to the em_bss_info_t structure, NULL if no bSTA BSS is found.
+	 */
+	em_bss_info_t* get_associated_bsta_bss_info();
 
 
 	/**!
