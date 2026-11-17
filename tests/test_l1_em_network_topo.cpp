@@ -617,6 +617,64 @@ TEST(em_network_topo_t, encode_one_child) {
     cJSON_Delete(obj);
     std::cout << "Exiting encode_one_child test" << std::endl;
 }
+
+TEST(em_network_topo_t, encode_device_model_for_root_and_child)
+{
+    dm_easy_mesh_t root_dm{};
+    init_dm_with_mac(&root_dm, 0x10, 0);
+    snprintf(root_dm.m_device.m_device_info.manufacturer_model,
+        sizeof(root_dm.m_device.m_device_info.manufacturer_model), "%s", "Controller");
+
+    dm_easy_mesh_t child_dm{};
+    init_dm_with_mac(&child_dm, 0x20, 0);
+    em_network_topo_t topology(&root_dm);
+    topology.add_network_topo(&child_dm);
+
+    em_network_topo_t *previous_topology = g_network_topology;
+    struct topology_restore {
+        em_network_topo_t *previous;
+        ~topology_restore() { g_network_topology = previous; }
+    } restore{previous_topology};
+    g_network_topology = &topology;
+
+    const struct {
+        const char *model;
+        const char *expected;
+    } cases[] = {
+        {"XB10", "XB10"},
+        {"", "unknown"},
+    };
+
+    for (const auto &test_case : cases) {
+        snprintf(child_dm.m_device.m_device_info.manufacturer_model,
+            sizeof(child_dm.m_device.m_device_info.manufacturer_model), "%s", test_case.model);
+
+        cJSON *obj = cJSON_CreateObject();
+        ASSERT_NE(obj, nullptr);
+        topology.encode(obj);
+
+        cJSON *root_device = cJSON_GetObjectItem(obj, "Device");
+        ASSERT_NE(root_device, nullptr);
+        EXPECT_EQ(cJSON_GetObjectItem(root_device, "deviceModel"), nullptr);
+
+        cJSON *backhaul = cJSON_GetObjectItem(root_device, "Backhaul");
+        ASSERT_NE(backhaul, nullptr);
+        cJSON *children = cJSON_GetObjectItem(backhaul, "Child");
+        ASSERT_TRUE(cJSON_IsArray(children));
+        cJSON *child = cJSON_GetArrayItem(children, 0);
+        ASSERT_NE(child, nullptr);
+        cJSON *child_device = cJSON_GetObjectItem(child, "Device");
+        ASSERT_NE(child_device, nullptr);
+        cJSON *child_model = cJSON_GetObjectItem(child_device, "deviceModel");
+        ASSERT_TRUE(cJSON_IsString(child_model));
+        EXPECT_STREQ(child_model->valuestring, test_case.expected);
+
+        cJSON_Delete(obj);
+    }
+    g_network_topology = previous_topology;
+    EXPECT_EQ(g_network_topology, previous_topology);
+}
+
 /**
  * @brief Verify encode() handles a child with a grandchild in the topology correctly
  *
