@@ -663,9 +663,7 @@ TEST(em_network_topo_t, encode_device_model_for_root_and_child)
         ASSERT_TRUE(cJSON_IsArray(children));
         cJSON *child = cJSON_GetArrayItem(children, 0);
         ASSERT_NE(child, nullptr);
-        cJSON *child_device = cJSON_GetObjectItem(child, "Device");
-        ASSERT_NE(child_device, nullptr);
-        cJSON *child_model = cJSON_GetObjectItem(child_device, "deviceModel");
+        cJSON *child_model = cJSON_GetObjectItem(child, "deviceModel");
         ASSERT_TRUE(cJSON_IsString(child_model));
         EXPECT_STREQ(child_model->valuestring, test_case.expected);
 
