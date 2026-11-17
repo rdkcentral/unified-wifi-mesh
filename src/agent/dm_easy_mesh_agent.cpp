@@ -81,7 +81,7 @@ int dm_easy_mesh_agent_t::analyze_dev_init(em_bus_event_t *evt, em_cmd_t *pcmd[]
     printf("%s:%d al_mac = %s\n", __func__, __LINE__,al_mac_str);
     dm.set_ctrl_al_interface_mac(static_cast<unsigned char*>(al_mac));
     dm.set_agent_al_interface_mac(static_cast<unsigned char*>(al_mac));
-    memcpy(dm.get_device_info()->backhaul_alid.mac, al_mac, sizeof(mac_address_t));
+    // memcpy(dm.get_device_info()->backhaul_alid.mac, al_mac, sizeof(mac_address_t));
     memcpy(dm.get_network_info()->colocated_agent_id.mac, al_mac, sizeof(mac_address_t));
     snprintf(dm.get_network_info()->id, sizeof(dm.get_network_info()->id), "%s", al_mac_str);
     memcpy(dm.get_ieee_1905_security_info()->id, al_mac, sizeof(mac_address_t));
