@@ -7809,7 +7809,7 @@ bus_error_t dm_easy_mesh_ctrl_t::radio_tget_params(dm_easy_mesh_t *dm, const cha
         if (num_opclass > EM_MAX_OPCLASS) {
             num_opclass = EM_MAX_OPCLASS;
         }
-        for (unsigned int i = 0; i < dm->get_num_op_class(); i++) {
+        for (unsigned int i = 0; i < num_opclass; i++) {
             dm_op_class_t *op_class = dm->get_op_class(i);
             if (op_class == NULL) {
                 continue;
@@ -7843,7 +7843,7 @@ bus_error_t dm_easy_mesh_ctrl_t::radio_tget_params(dm_easy_mesh_t *dm, const cha
         if (num_opclass > EM_MAX_OPCLASS) {
             num_opclass = EM_MAX_OPCLASS;
         }
-        for (unsigned int i = 0; i < dm->get_num_op_class(); i++) {
+        for (unsigned int i = 0; i < num_opclass; i++) {
             dm_op_class_t *op_class = dm->get_op_class(i);
             if (op_class == NULL) {
                 continue;
