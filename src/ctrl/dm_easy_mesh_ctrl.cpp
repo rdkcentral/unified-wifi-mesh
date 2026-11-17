@@ -7919,7 +7919,6 @@ bus_error_t dm_easy_mesh_ctrl_t::rbhsta_get_inner(char *event_name, raw_data_t *
     const char *param;
     char instance[MAX_INSTANCE_LEN] = { 0 };
     bool is_num;
-    int radio_instance = 0;
     bus_error_t rc;
 
     if (!name || !p_data) {
