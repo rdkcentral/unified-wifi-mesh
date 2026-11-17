@@ -8488,11 +8488,18 @@ bus_error_t dm_easy_mesh_ctrl_t::curops_get_inner(char *event_name, raw_data_t *
     if (name == NULL) {
         return bus_error_invalid_input;
     }
-    radio_instance = is_num ? atoi(instance) : 0;
-    if (radio_instance < 1 || radio_instance > EM_MAX_BANDS) {
-        em_printfout("radio instance %d out of range", radio_instance);
+    if (!is_num) {
         return bus_error_invalid_input;
     }
+    char *end = NULL;
+    errno = 0;
+    long parsed_radio_instance = strtol(instance, &end, 10);
+    if (end == instance || *end != '\0' || errno == ERANGE ||
+        parsed_radio_instance < 1 || parsed_radio_instance > EM_MAX_BANDS) {
+        em_printfout("invalid radio instance: %s", instance);
+        return bus_error_invalid_input;
+    }
+    radio_instance = static_cast<int>(parsed_radio_instance);
     dm_radio_t *radio = &dm->m_radio[radio_instance - 1];
     if (radio == NULL) {
         em_printfout("radio is NULL\n");
