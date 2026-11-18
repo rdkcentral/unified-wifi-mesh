@@ -500,12 +500,25 @@ int em_metrics_t::handle_unassoc_sta_link_metrics_tlv(unsigned char *buff, unsig
         }
         em_unassoc_sta_metric_t *metric = reinterpret_cast<em_unassoc_sta_metric_t *>(buff + pos);
 
-        unsigned int idx = dm->m_num_unassoc_sta_metrics;
-
-        if (idx >= EM_MAX_UNASSOC_STA)
-        {
-            em_printfout("%s:%d Max STA limit reached",__func__, __LINE__);
-            break;
+        // Keep the latest result per STA and operating class, ordered oldest first:
+        // a new result goes to the end and replaces the previous one of the same STA,
+        // or the oldest entry when the store is full.
+        unsigned int idx;
+        for (idx = 0; idx < dm->m_num_unassoc_sta_metrics; idx++) {
+            if ((memcmp(dm->m_unassoc_sta_metrics[idx].sta_mac, metric->sta_mac, sizeof(mac_address_t)) == 0) &&
+                (dm->m_unassoc_sta_metrics[idx].op_class == op_class)) {
+                break;
+            }
+        }
+        if ((idx == dm->m_num_unassoc_sta_metrics) && (idx < EM_MAX_UNASSOC_STA)) {
+            dm->m_num_unassoc_sta_metrics++;
+        } else {
+            if (idx == dm->m_num_unassoc_sta_metrics) {
+                idx = 0;
+            }
+            memmove(&dm->m_unassoc_sta_metrics[idx], &dm->m_unassoc_sta_metrics[idx + 1],
+                (dm->m_num_unassoc_sta_metrics - 1 - idx) * sizeof(dm->m_unassoc_sta_metrics[0]));
+            idx = dm->m_num_unassoc_sta_metrics - 1;
         }
 
         memcpy(dm->m_unassoc_sta_metrics[idx].sta_mac, metric->sta_mac,sizeof(mac_address_t));
@@ -514,8 +527,7 @@ int em_metrics_t::handle_unassoc_sta_link_metrics_tlv(unsigned char *buff, unsig
         dm->m_unassoc_sta_metrics[idx].rcpi = metric->rcpi;
         dm->m_unassoc_sta_metrics[idx].time_delta = ntohl(metric->time_delta);
         dm_easy_mesh_t::macbytes_to_string(metric->sta_mac, mac_str);
-
-        dm->m_num_unassoc_sta_metrics++;
+        em_printfout("Unassoc STA %s op_class=%u channel=%u rcpi=%u", mac_str, op_class, metric->channel, metric->rcpi);
 
         pos += sizeof(em_unassoc_sta_metric_t);
     }
@@ -540,11 +552,6 @@ int em_metrics_t::handle_unassoc_sta_link_metrics_rsp(unsigned char *buff, unsig
         m_unassoc_in_progress = false;
         return -1;
     }
-
-    dm_easy_mesh_t *dm = get_data_model();
-
-    memset(dm->m_unassoc_sta_metrics, 0, sizeof(dm->m_unassoc_sta_metrics));
-    dm->m_num_unassoc_sta_metrics = 0;
 
     tlv = reinterpret_cast<em_tlv_t *>(buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
 
@@ -574,6 +581,13 @@ int em_metrics_t::handle_unassoc_sta_link_metrics_rsp(unsigned char *buff, unsig
     }
 
     m_unassoc_in_progress = false;
+
+    // The command is complete, the orchestrator waits for configured to finish it.
+    // A late response is stored but must not end another command.
+    if (get_state() == em_state_ctrl_unassoc_sta_link_metrics_pending) {
+        m_unassoc_query_sent = false;
+        set_state(em_state_ctrl_configured);
+    }
     return 0;
 }
 
@@ -2757,7 +2771,8 @@ int em_metrics_t::send_unassoc_sta_link_metrics_query_msg()
         return -1;
     }
 
-    unsigned short msg_id = get_mgr()->get_next_msg_id();
+    // A retry of the unacknowledged query keeps its message id, so a late ACK still matches.
+    unsigned short msg_id = (m_unassoc_sta_query_msg_id != 0) ? m_unassoc_sta_query_msg_id : get_mgr()->get_next_msg_id();
 
     msg.add_1905_header(dm->get_agent_al_interface_mac(), dm->get_ctrl_al_interface_mac(), em_msg_type_unassoc_sta_link_metrics_query, msg_id);
 
@@ -2785,6 +2800,7 @@ int em_metrics_t::send_unassoc_sta_link_metrics_query_msg()
     em_printfout("%s:%d: Unassoc Query sent to Agent successfully", __func__, __LINE__);
 
     m_unassoc_sta_query_msg_id = msg_id;
+    m_unassoc_query_sent = true;
     em_printfout("%s:%d Stored query msg_id=%u", __func__, __LINE__, m_unassoc_sta_query_msg_id);
 
     return static_cast<int>(msg.get_len());
@@ -2993,7 +3009,11 @@ void em_metrics_t::process_ctrl_state()
             send_all_associated_sta_link_metrics_msg();
             break;
         case em_state_ctrl_unassoc_sta_link_metrics_pending:
-            send_unassoc_sta_link_metrics_query_msg();
+            // One query per command, repeated only until the agent acknowledges it:
+            // the agent measures on every query it receives.
+            if ((m_unassoc_query_sent == false) || (m_unassoc_sta_query_msg_id != 0)) {
+                send_unassoc_sta_link_metrics_query_msg();
+            }
             break;
 
         case em_state_beacon_report_pending:

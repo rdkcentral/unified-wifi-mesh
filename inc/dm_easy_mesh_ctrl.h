@@ -168,6 +168,12 @@ public:
     static bus_error_t sta_tget_params(dm_easy_mesh_t *dm, const char *root, em_bss_info_t *bi, bus_data_prop_t **property);
     static bus_error_t sta_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
 
+    bus_error_t unassocsta_get(char *event_name, raw_data_t *p_data);
+    bus_error_t unassocsta_tget(char *event_name, raw_data_t *p_data);
+    static bus_error_t unassocsta_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
+    static bus_error_t unassocsta_tget_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
+    static bus_error_t unassocsta_tget_params(dm_easy_mesh_t *dm, const char *root, em_radio_info_t *ri, bus_data_prop_t **property);
+
     dm_ap_mld_t *get_dm_ap_mld(dm_easy_mesh_t *dm, char *instance, bool is_num);
     bus_error_t apmld_get(char *event_name, raw_data_t *p_data);
     bus_error_t apmld_tget(char *event_name, raw_data_t *p_data);

@@ -2246,6 +2246,30 @@ public:
 	bool is_sta_associated(bssid_t bssid, mac_address_t sta_mac);
 
 	/**!
+	 * @brief Checks whether a radio lists an operating class among its capable ones.
+	 *
+	 * @param[in] ruid The radio unique identifier.
+	 * @param[in] op_class The operating class to look for.
+	 *
+	 * @returns true if the radio is capable of the operating class, false otherwise.
+	 */
+	bool has_capable_op_class(const mac_address_t ruid, unsigned char op_class);
+
+	/**!
+	 * @brief Collects the Unassociated STA Link Metrics results of a radio.
+	 *
+	 * The response carries no radio ID, so a result belongs to the radio that is
+	 * capable of the measured operating class.
+	 *
+	 * @param[in] ruid The radio unique identifier.
+	 * @param[out] entries Pointers to the results of the radio.
+	 * @param[in] max The size of the entries array.
+	 *
+	 * @returns The number of entries filled.
+	 */
+	unsigned int get_unassoc_sta_metrics(const mac_address_t ruid, em_unassoc_sta_metric_entry_t *entries[], unsigned int max);
+
+	/**!
 	 * @brief Finds a station (STA) based on its MAC address and BSSID.
 	 *
 	 * This function searches for a station in the network using the provided

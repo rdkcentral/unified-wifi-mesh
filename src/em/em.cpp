@@ -267,6 +267,7 @@ void em_t::orch_execute(em_cmd_t *pcmd)
             break;
 
         case em_cmd_type_unassoc_sta_query:
+            reset_unassoc_query_tx();
             m_sm.set_state(em_state_ctrl_unassoc_sta_link_metrics_pending);
             break;
 
