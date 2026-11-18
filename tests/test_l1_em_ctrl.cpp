@@ -4174,6 +4174,8 @@ TEST_F(em_ctrl_t_Test, handle_failed_conn_msg_valid_duplicates)
     unsigned int len = 0;
     auto buf = build_failed_conn_msg({kBssid, kSta, kStatus, kBssid, kSta, kStatus}, len);
     ctrl.handle_failed_conn_msg(buf.get(), len);
+}
+
 /**
  * @brief Verify that get_dm_radio() resolves a Radio.{i} alias as base64(RUID) and returns NULL otherwise.
  *
