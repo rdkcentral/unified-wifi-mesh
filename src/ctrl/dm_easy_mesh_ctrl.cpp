@@ -7911,10 +7911,14 @@ bus_error_t dm_easy_mesh_ctrl_t::sta_tget_params(dm_easy_mesh_t *dm, const char 
         char vht_caps_str[32] = {0};
         dm_ctrl->get_sta_ht_caps_str(si->ht_cap, ht_caps_str, sizeof(ht_caps_str));
         dm_ctrl->get_sta_vht_caps_str(si->vht_cap, vht_caps_str, sizeof(vht_caps_str));
+        unsigned int frame_body_len = si->frame_body_len;
+        if (frame_body_len > EM_MAX_FRAME_BODY_LEN) {
+            frame_body_len = EM_MAX_FRAME_BODY_LEN;
+        }
 
         std::string client_caps_b64;
-        if (si->frame_body_len > 0) {
-            client_caps_b64 = em_crypto_t::base64_encode(si->frame_body, si->frame_body_len);
+        if (frame_body_len > 0) {
+            client_caps_b64 = em_crypto_t::base64_encode(si->frame_body, frame_body_len);
         }
 
         dm_ctrl->property_append_tail(property, root, idx, "MACAddress", si->id);
