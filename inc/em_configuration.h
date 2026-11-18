@@ -814,23 +814,6 @@ class em_configuration_t {
 	 */
 	int handle_ap_radio_advanced_cap(unsigned char *buff, unsigned int len);
     
-	/**!
-	 * @brief Handles the topology response.
-	 *
-	 * This function processes the topology response received in the buffer.
-	 *
-	 * @param[in] buff Pointer to the buffer containing the topology response data.
-	 * @param[in] len Length of the data in the buffer.
-	 *
-	 * @returns int Status code indicating success or failure.
-	 * @retval 0 on success.
-	 * @retval -1 on failure.
-	 *
-	 * @note Ensure the buffer is properly allocated and the length is correct before calling this function.
-	 */
-	protected:
-	int handle_topology_response(unsigned char *buff, unsigned int len);
-	private:
     
 	/**!
 	 * @brief Handles topology notifications.
@@ -850,25 +833,6 @@ class em_configuration_t {
 	int handle_bsta_radio_cap(unsigned char *buff, unsigned int len);
 	int handle_assoc_sta_mld_conf_rep_tlv(unsigned char *buff, unsigned int len);
 
-	/**!
-	 * @brief Handles the operational BSS for the access point.
-	 *
-	 * This function processes the buffer containing BSS information and performs
-	 * necessary operations based on the data provided.
-	 *
-	 * @param[in] buff Pointer to the buffer containing BSS data.
-	 * @param[in] len Length of the buffer.
-	 *
-	 * @returns int Status code indicating success or failure.
-	 * @retval 0 on success.
-	 * @retval -1 on failure.
-	 *
-	 * @note Ensure that the buffer is properly allocated and the length is correctly set
-	 * before calling this function.
-	 */
-	protected:
-	int handle_ap_operational_bss(unsigned char *buff, unsigned int len);
-	private:
     
 	/**!
 	 * @brief Handles the BSS configuration report.
@@ -1244,17 +1208,6 @@ class em_configuration_t {
 	 */
 	virtual em_mgr_t *get_mgr() = 0;
 
-	/**!
-	 * @brief Retrieves the profile reported by the device with the given AL MAC.
-	 *
-	 * Reads from the data model of that device, falling back to this EM's data model
-	 * when the device has none (e.g. an agent talking to the controller).
-	 *
-	 * @returns The cached profile, treating an unknown profile as em_profile_type_1.
-	 */
-	protected:
-	em_profile_type_t get_peer_profile(const mac_address_t al_mac);
-	private:
 
 	/**!
 	 * @brief Caches the profile reported by the device with the given AL MAC in its data model.
@@ -1656,6 +1609,50 @@ private:
     unsigned int m_m2_encrypted_settings_len[em_haul_type_max];
 
 public:
+
+	/**!
+	 * @brief Handles the topology response.
+	 *
+	 * This function processes the topology response received in the buffer.
+	 *
+	 * @param[in] buff Pointer to the buffer containing the topology response data.
+	 * @param[in] len Length of the data in the buffer.
+	 *
+	 * @returns int Status code indicating success or failure.
+	 * @retval 0 on success.
+	 * @retval -1 on failure.
+	 *
+	 * @note Ensure the buffer is properly allocated and the length is correct before calling this function.
+	 */
+	int handle_topology_response(unsigned char *buff, unsigned int len);
+
+	/**!
+	 * @brief Handles the operational BSS for the access point.
+	 *
+	 * This function processes the buffer containing BSS information and performs
+	 * necessary operations based on the data provided.
+	 *
+	 * @param[in] buff Pointer to the buffer containing BSS data.
+	 * @param[in] len Length of the buffer.
+	 *
+	 * @returns int Status code indicating success or failure.
+	 * @retval 0 on success.
+	 * @retval -1 on failure.
+	 *
+	 * @note Ensure that the buffer is properly allocated and the length is correctly set
+	 * before calling this function.
+	 */
+	int handle_ap_operational_bss(unsigned char *buff, unsigned int len);
+
+	/**!
+	 * @brief Retrieves the profile reported by the device with the given AL MAC.
+	 *
+	 * Reads from the data model of that device, falling back to this EM's data model
+	 * when the device has none (e.g. an agent talking to the controller).
+	 *
+	 * @returns The cached profile, treating an unknown profile as em_profile_type_1.
+	 */
+	em_profile_type_t get_peer_profile(const mac_address_t al_mac);
 
 	/* Parse a received AKM Suite Capabilities TLV and store per-BSS AKMs derived
 	 * from the profile assigned to each BSS's haul type (resolved from dm, then from
