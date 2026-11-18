@@ -1250,6 +1250,7 @@ int em_capability_t::handle_bsta_cap_report(unsigned char *pkt_buff, unsigned in
     const unsigned int hdr_len = static_cast<unsigned int>(sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
     if ((dm != NULL) && (pkt_len > hdr_len)) {
         em_tlv_t *tlvs = reinterpret_cast<em_tlv_t *>(pkt_buff + hdr_len);
+        bool reported[EM_MAX_BANDS] = {false};
         for (em_tlv_t *tlv = em_msg_t::get_first_tlv(tlvs, pkt_len - hdr_len); (tlv != NULL) && (tlv->type != em_tlv_type_eom);
              tlv = em_msg_t::get_next_tlv(tlv, tlvs, pkt_len - hdr_len)) {
             if ((tlv->type != em_tlv_type_bh_sta_radio_cap)) {
@@ -1268,6 +1269,10 @@ int em_capability_t::handle_bsta_cap_report(unsigned char *pkt_buff, unsigned in
                 continue;
             }
             em_radio_info_t *ri = radio->get_radio_info();
+            const ptrdiff_t idx = radio - dm->get_radio(0U);
+            if ((idx >= 0) && (idx < EM_MAX_BANDS)) {
+                reported[idx] = true;
+            }
             if (cap->bsta_mac_present) {
                 memcpy(ri->backhaul_sta, cap->bsta_addr, sizeof(mac_address_t));
             } else {
@@ -1275,6 +1280,12 @@ int em_capability_t::handle_bsta_cap_report(unsigned char *pkt_buff, unsigned in
             }
             em_printfout("Backhaul STA of radio %s: %s", util::mac_to_string(cap->ruid).c_str(),
                 util::mac_to_string(ri->backhaul_sta).c_str());
+        }
+        for (unsigned int i = 0; (i < dm->get_num_radios()) && (i < EM_MAX_BANDS); i++) {
+            dm_radio_t *radio = dm->get_radio(i);
+            if ((radio != NULL) && !reported[i]) {
+                memset(radio->get_radio_info()->backhaul_sta, 0, sizeof(mac_address_t));
+            }
         }
     }
 
