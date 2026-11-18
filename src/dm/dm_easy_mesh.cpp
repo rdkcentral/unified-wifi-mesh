@@ -4270,7 +4270,7 @@ int dm_easy_mesh_t::init()
     m_mlo_policy[em_haul_type_fronthaul].use_mld_tlv = true;
     m_mlo_policy[em_haul_type_fronthaul].band_bitmap = EM_MLO_DEFAULT_BAND_BITMAP;
 
-    m_mlo_policy[em_haul_type_backhaul].use_mld_tlv = false;
+    m_mlo_policy[em_haul_type_backhaul].use_mld_tlv = true;
     m_mlo_policy[em_haul_type_backhaul].band_bitmap = EM_MLO_DEFAULT_BAND_BITMAP;
 
     return 0;
@@ -4311,7 +4311,7 @@ void dm_easy_mesh_t::reset()
     m_mlo_policy[em_haul_type_fronthaul].use_mld_tlv = true;
     m_mlo_policy[em_haul_type_fronthaul].band_bitmap = EM_MLO_DEFAULT_BAND_BITMAP;
 
-    m_mlo_policy[em_haul_type_backhaul].use_mld_tlv = false;
+    m_mlo_policy[em_haul_type_backhaul].use_mld_tlv = true;
     m_mlo_policy[em_haul_type_backhaul].band_bitmap = EM_MLO_DEFAULT_BAND_BITMAP;
 }
 
