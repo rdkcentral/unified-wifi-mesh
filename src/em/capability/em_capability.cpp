@@ -973,7 +973,6 @@ int em_capability_t::handle_client_cap_report(unsigned char *buff, unsigned int 
             }
             sta_info.associated = true;
             sta_info.frame_body_len = static_cast<unsigned int>(cap_tlv_len - 1);
-            memcpy(sta_info.frame_body, &tlv->value[1], static_cast<size_t>(sta_info.frame_body_len));
             // The frame body is variable length: use the whole TLV value after the
             // result code. sta_info only borrows it from the received frame, the
             // data model copies it when the info is applied. Guard the zero-length
