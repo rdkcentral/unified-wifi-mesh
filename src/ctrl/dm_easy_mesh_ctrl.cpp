@@ -7805,11 +7805,7 @@ bus_error_t dm_easy_mesh_ctrl_t::radio_tget_params(dm_easy_mesh_t *dm, const cha
         dm_ctrl->property_append_tail(property, root, idx, "ChipsetVendor", ri->chip_vendor);
         dm_ctrl->property_append_tail(property, root, idx, "X_AIRTIES_Temperature", ri->radio_temp);
         unsigned int curop_count = 0;
-        unsigned int num_opclass = dm->get_num_op_class();
-        if (num_opclass > EM_MAX_OPCLASS) {
-            num_opclass = EM_MAX_OPCLASS;
-        }
-        for (unsigned int i = 0; i < num_opclass; i++) {
+        for (unsigned int i = 0; i < dm->get_num_op_class(); i++) {
             dm_op_class_t *op_class = dm->get_op_class(i);
             if (op_class == NULL) {
                 continue;
@@ -7839,11 +7835,7 @@ bus_error_t dm_easy_mesh_ctrl_t::radio_tget_params(dm_easy_mesh_t *dm, const cha
         }
 
         unsigned int capop_count = 0;
-        num_opclass = dm->get_num_op_class();
-        if (num_opclass > EM_MAX_OPCLASS) {
-            num_opclass = EM_MAX_OPCLASS;
-        }
-        for (unsigned int i = 0; i < num_opclass; i++) {
+        for (unsigned int i = 0; i < dm->get_num_op_class(); i++) {
             dm_op_class_t *op_class = dm->get_op_class(i);
             if (op_class == NULL) {
                 continue;
@@ -8581,11 +8573,7 @@ bus_error_t dm_easy_mesh_ctrl_t::curops_tget_params(dm_easy_mesh_t *dm, const ch
 
     dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
     unsigned int idx = 0;
-    unsigned int num_opclass = dm->get_num_op_class();
-    if (num_opclass > EM_MAX_OPCLASS) {
-        num_opclass = EM_MAX_OPCLASS;
-    }
-    for (unsigned int i = 0; i < num_opclass; i++) {
+    for (unsigned int i = 0; i < dm->get_num_op_class(); i++) {
         dm_op_class_t *op_class = dm->get_op_class(i);
         if (op_class == NULL) {
             continue;
@@ -8634,11 +8622,8 @@ dm_op_class_t* dm_easy_mesh_ctrl_t::get_dm_capop(dm_easy_mesh_t *dm, dm_radio_t 
 {
     int ocnt = 0;
     em_radio_info_t *ri = radio->get_radio_info();
-    unsigned int num_opclass = dm->get_num_op_class();
-    if (num_opclass > EM_MAX_OPCLASS) {
-        num_opclass = EM_MAX_OPCLASS;
-    }
-    for (unsigned int i = 0; i < num_opclass; i++) {
+
+    for (unsigned int i = 0; i < dm->get_num_op_class(); i++) {
         dm_op_class_t *op_class = dm->get_op_class(i);
         if (op_class == NULL) {
             continue;
@@ -8788,11 +8773,7 @@ bus_error_t dm_easy_mesh_ctrl_t::capops_tget_params(dm_easy_mesh_t *dm, const ch
 
     dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
     unsigned int idx = 0;
-    unsigned int num_opclass = dm->get_num_op_class();
-    if (num_opclass > EM_MAX_OPCLASS) {
-        num_opclass = EM_MAX_OPCLASS;
-    }
-    for (unsigned int i = 0; i < num_opclass; i++) {
+    for (unsigned int i = 0; i < dm->get_num_op_class(); i++) {
         dm_op_class_t *op_class = dm->get_op_class(i);
         if (op_class == NULL) {
             continue;
