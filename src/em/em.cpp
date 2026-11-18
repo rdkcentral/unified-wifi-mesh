@@ -721,7 +721,11 @@ void em_t::deinit()
     m_exit = true;
     pthread_cond_destroy(&m_iq.cond);
     pthread_mutex_destroy(&m_iq.lock);
-    close(m_fd);
+    // Only an em that opened a socket has one to close
+    if (m_fd >= 0) {
+        close(m_fd);
+        m_fd = -1;
+    }
 
     queue_destroy(m_iq.queue);
 }
@@ -744,6 +748,7 @@ int em_t::set_bp_filter()
     if (setsockopt(m_fd, SOL_SOCKET, SO_ATTACH_FILTER, &bpf, sizeof(bpf))) {
         printf("%s:%d: Error in attaching filter, err:%d\n", __func__, __LINE__, errno);
         close(m_fd);
+        m_fd = -1;
         return -1;
     }
 
@@ -753,6 +758,7 @@ int em_t::set_bp_filter()
     if (setsockopt(m_fd, SOL_PACKET, PACKET_ADD_MEMBERSHIP, reinterpret_cast<char *>(&mreq), sizeof(mreq))) {
         printf("%s:%d: Error setting promisuous for interface:%s, err:%d\n", __func__, __LINE__, m_ruid.name, errno);
         close(m_fd);
+        m_fd = -1;
         return -1;
     }
 
@@ -789,7 +795,9 @@ int em_t::start_al_interface()
 
     m_fd = sock_fd;
 
-    set_bp_filter();
+    if (set_bp_filter() != 0) {
+        return -1;
+    }
 #endif // AL_SAP
     return 0;
 }
@@ -2942,6 +2950,7 @@ int em_t::init()
         queue_destroy(m_iq.queue);
         if (is_al_interface_em()) {
             close(m_fd);
+            m_fd = -1;
         }
         return -1;
     }
@@ -2955,6 +2964,7 @@ int em_t::init()
         pthread_cond_destroy(&m_iq.cond);
         if (is_al_interface_em()) {
             close(m_fd);
+            m_fd = -1;
         }
         return -1;
     }
@@ -2979,6 +2989,7 @@ int em_t::init()
         queue_destroy(m_iq.queue);
         if (is_al_interface_em()) {
             close(m_fd);
+            m_fd = -1;
         }
         pthread_mutex_destroy(&m_iq.lock);
         pthread_cond_destroy(&m_iq.cond);
@@ -3231,7 +3242,7 @@ void em_t::cfg_1905_handshake_complete_handler(uint8_t peer_al_mac[ETH_ALEN], bo
     set_peer_1905_security_status(peer_al_mac, peer_1905_security_status::PEER_1905_SECURITY_SECURED);
 }
 
-em_t::em_t(em_interface_t *ruid, em_freq_band_t band, dm_easy_mesh_t *dm, em_mgr_t *mgr, em_profile_type_t profile, em_service_type_t type, bool is_al_em): m_data_model(), m_mgr(mgr), m_orch_state(), m_cmd(), m_sm(), m_service_type(), m_fd(0), m_ruid(*ruid), m_band(band), m_profile_type(profile), m_iq(), m_tid(), m_exit(), m_is_al_em(is_al_em)
+em_t::em_t(em_interface_t *ruid, em_freq_band_t band, dm_easy_mesh_t *dm, em_mgr_t *mgr, em_profile_type_t profile, em_service_type_t type, bool is_al_em): m_data_model(), m_mgr(mgr), m_orch_state(), m_cmd(), m_sm(), m_service_type(), m_fd(-1), m_ruid(*ruid), m_band(band), m_profile_type(profile), m_iq(), m_tid(), m_exit(), m_is_al_em(is_al_em)
 {
     memcpy(&m_ruid, ruid, sizeof(em_interface_t));
     m_band = band;
