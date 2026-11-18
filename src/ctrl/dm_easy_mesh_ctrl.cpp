@@ -8906,8 +8906,14 @@ bus_error_t dm_easy_mesh_ctrl_t::bstamld_get_inner(char *event_name, raw_data_t 
 
     /* Extract device instance (numeric or alias) and find the dm object for
      * that device instance */
+    if (strlen(name) < sizeof(DATAELEMS_NETWORK)) {
+        return bus_error_invalid_input;
+    }
     name += sizeof(DATAELEMS_NETWORK);
     name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    if (name == NULL) {
+        return bus_error_invalid_input;
+    }
     dm_easy_mesh_t *dm = dm_ctrl->get_dm_easy_mesh(instance, is_num);
     if (dm == NULL) {
         em_printfout("Device not found");
