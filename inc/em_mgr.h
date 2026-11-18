@@ -333,6 +333,11 @@ public:
         return -2;
     }
 
+	virtual bool refresh_current_radio_data(const unsigned char *) {
+		em_printfout("refresh_current_radio_data not implemented");
+		return false;
+	}
+
     
 	/**
 	 * @brief Send an action frame. Optional to implement.
@@ -442,7 +447,8 @@ public:
         return false;
     }
 
-    
+	virtual bool request_runtime_tx_power(const unsigned char *, int *) {return false;}
+
 	/**!
 	 * @brief Finds the EM for a given message type.
 	 *
