@@ -3930,3 +3930,59 @@ TEST_F(em_ctrl_t_Test, io_process_invalid_event_type)
     free(evt);
     std::cout << "Exiting io_process_invalid_event_type test" << std::endl;
 }
+
+namespace {
+struct fc_tlv_t { unsigned char type; unsigned short len; std::vector<unsigned char> val; };
+
+/* header (raw hdr 14 + CMDU 8) + TLVs + EOM, in an exactly-sized heap buffer so ASan catches reads past the end */
+std::unique_ptr<unsigned char[]> build_failed_conn_msg(const std::vector<fc_tlv_t> &tlvs, unsigned int &len)
+{
+    std::vector<unsigned char> v(22, 0);
+    for (const auto &t : tlvs) {
+        v.push_back(t.type);
+        v.push_back(static_cast<unsigned char>(t.len >> 8));
+        v.push_back(static_cast<unsigned char>(t.len & 0xff));
+        v.insert(v.end(), t.val.begin(), t.val.end());
+    }
+    v.push_back(0); v.push_back(0); v.push_back(0);   /* EOM */
+    len = static_cast<unsigned int>(v.size());
+    std::unique_ptr<unsigned char[]> buf(new unsigned char[len]);
+    memcpy(buf.get(), v.data(), len);
+    return buf;
+}
+const fc_tlv_t kBssid  = {0xb8, 6, {2, 0, 0, 0, 0, 0xaa}};
+const fc_tlv_t kSta    = {0x95, 6, {2, 0, 0, 0, 0, 0xbb}};
+const fc_tlv_t kStatus = {0xc9, 2, {0x00, 0x10}};
+}
+
+/* mandatory TLVs followed by a short duplicate BSSID TLV right in front of the EOM: must not read past the buffer */
+TEST_F(em_ctrl_t_Test, handle_failed_conn_msg_short_duplicate_bssid)
+{
+    unsigned int len = 0;
+    auto buf = build_failed_conn_msg({kBssid, kSta, kStatus, {0xb8, 2, {2, 0}}}, len);
+    ctrl.handle_failed_conn_msg(buf.get(), len);
+}
+
+/* same with a short duplicate STA MAC TLV */
+TEST_F(em_ctrl_t_Test, handle_failed_conn_msg_short_duplicate_sta_mac)
+{
+    unsigned int len = 0;
+    auto buf = build_failed_conn_msg({kBssid, kSta, kStatus, {0x95, 2, {2, 0}}}, len);
+    ctrl.handle_failed_conn_msg(buf.get(), len);
+}
+
+/* same with a short duplicate Status Code TLV */
+TEST_F(em_ctrl_t_Test, handle_failed_conn_msg_short_duplicate_status_code)
+{
+    unsigned int len = 0;
+    auto buf = build_failed_conn_msg({kBssid, kSta, kStatus, {0xc9, 1, {0x00}}}, len);
+    ctrl.handle_failed_conn_msg(buf.get(), len);
+}
+
+/* valid duplicates after the mandatory TLVs: parsing completes without error */
+TEST_F(em_ctrl_t_Test, handle_failed_conn_msg_valid_duplicates)
+{
+    unsigned int len = 0;
+    auto buf = build_failed_conn_msg({kBssid, kSta, kStatus, kBssid, kSta, kStatus}, len);
+    ctrl.handle_failed_conn_msg(buf.get(), len);
+}
