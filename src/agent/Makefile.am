@@ -22,6 +22,12 @@ AM_CFLAGS += -D_ANSC_LITTLE_ENDIAN_
 
 ACLOCAL_AMFLAGS = -I m4
 hardware_platform = i686-linux-gnu
+
+UWM_VENDOR_EXT_DIR = @UWM_VENDOR_EXT_DIR@
+UWM_VENDOR_EXT_TARGET = agent
+OBJDIR = vendor_ext_obj
+UWM_VENDOR_EXT_LOADED := $(if $(strip $(UWM_VENDOR_EXT_DIR)),$(eval -include $(UWM_VENDOR_EXT_DIR)/vendor-ext.mk))
+
 bin_PROGRAMS = onewifi_em_agent
 if EM_UNITTEST
 bin_PROGRAMS += onewifi_em_agent_test
@@ -31,7 +37,8 @@ onewifi_em_agent_CPPFLAGS = \
     -I$(top_srcdir)/inc \
     -I$(top_srcdir)/src/utils \
     -I$(top_srcdir)/src/util \
-    -I$(top_srcdir)/src/util_crypto
+    -I$(top_srcdir)/src/util_crypto \
+    $(if $(strip $(UWM_VENDOR_EXT_INC_DIR)),-I$(UWM_VENDOR_EXT_INC_DIR))
 
 onewifi_em_agent_CXXFLAGS = $(INCLUDEDIRS) -g -Wall -Wextra -pedantic -Wpedantic -Wpointer-arith -Wcast-qual -Wcast-align -Wstrict-aliasing -fno-common -Wctor-dtor-privacy -Wold-style-cast -Woverloaded-virtual -Wsign-promo -Wstrict-null-sentinel -fstack-protector-strong -D_FORTIFY_SOURCE=2 -fPIE -pie -ftrapv -Wformat=2 -Wformat-security -Wuninitialized -Winit-self -Wsign-conversion -Weffc++ -Wno-unused-parameter -std=c++17 -fno-omit-frame-pointer #-Wconversion -Werror -O2
 if EM_ASAN_AGENT
@@ -59,6 +66,7 @@ onewifi_em_agent_SOURCES =  \
      $(top_srcdir)/src/em/channel/em_channel.cpp  \
      $(top_srcdir)/src/em/capability/em_capability.cpp \
      $(top_srcdir)/src/em/metrics/em_metrics.cpp \
+     $(top_srcdir)/src/em/em_vendor.cpp \
      $(top_srcdir)/src/em/steering/em_steering.cpp \
      $(top_srcdir)/src/em/policy_cfg/em_policy_cfg.cpp \
      $(top_srcdir)/src/em/crypto/em_crypto.cpp \
@@ -99,6 +107,7 @@ onewifi_em_agent_SOURCES =  \
      $(top_srcdir)/src/cmd/em_cmd_beacon_report.cpp \
      $(top_srcdir)/src/cmd/em_cmd_ap_metrics_report.cpp \
      $(top_srcdir)/src/cmd/em_cmd_link_stats_report.cpp \
+     $(top_srcdir)/src/cmd/em_cmd_vendor_data.cpp \
      $(top_srcdir)/src/cmd/em_cmd_unassoc_sta_result.cpp \
      $(top_srcdir)/src/agent/dm_easy_mesh_agent.cpp \
      $(top_srcdir)/src/agent/em_agent.cpp \
@@ -134,7 +143,9 @@ if EM_ASAN_AGENT
 onewifi_em_agent_LDFLAGS += -fsanitize=address -fsanitize=undefined
 endif
 
-onewifi_em_agent_LDADD = $(top_builddir)/src/al-sap/libalsap.la
+onewifi_em_agent_LDADD = $(top_builddir)/src/al-sap/libalsap.la $(UWM_VENDOR_EXT_OBJECTS)
+EXTRA_onewifi_em_agent_DEPENDENCIES = $(UWM_VENDOR_EXT_OBJECTS)
+$(UWM_VENDOR_EXT_OBJECTS): CXXFLAGS += $(onewifi_em_agent_CPPFLAGS) $(onewifi_em_agent_CXXFLAGS)
 if EM_UNITTEST
 onewifi_em_agent_test_SOURCES = \
 	$(onewifi_em_agent_SOURCES) \
@@ -194,4 +205,5 @@ onewifi_em_agent_test_CXXFLAGS += -fsanitize=address -fsanitize=undefined
 onewifi_em_agent_test_LDFLAGS = -lcjson -lgtest -lgtest_main -lgmock -lpthread -lssl -lcrypto -lm -luuid -ldl -lwifi_webconfig -lrbus
 onewifi_em_agent_test_LDFLAGS += -fsanitize=address -fsanitize=undefined
 onewifi_em_agent_test_LDADD = $(onewifi_em_agent_LDADD)
+EXTRA_onewifi_em_agent_test_DEPENDENCIES = $(UWM_VENDOR_EXT_OBJECTS)
 endif  #EM_UNITTEST
