@@ -16069,7 +16069,7 @@ TEST(dm_easy_mesh_t, get_radio_cap_invalid_mac)
 TEST(dm_easy_mesh_t, get_radio_cap_count_above_max_not_found)
 {
     dm_easy_mesh_t mesh;
-    mesh.m_num_radios = EM_MAX_BANDS + 1;
+    mesh.set_num_radios(EM_MAX_BANDS + 1);
     for (int i = 0; i < EM_MAX_BANDS; i++) {
         mac_address_t mac = {0x00, 0x11, 0x22, 0x33, 0x44, static_cast<unsigned char>(i)};
         memcpy(mesh.m_radio_cap[i].m_radio_cap_info.ruid.mac, mac, sizeof(mac_address_t));
@@ -16082,7 +16082,7 @@ TEST(dm_easy_mesh_t, get_radio_cap_count_above_max_not_found)
 TEST(dm_easy_mesh_t, get_radio_cap_count_above_max_last_slot_found)
 {
     dm_easy_mesh_t mesh;
-    mesh.m_num_radios = EM_MAX_BANDS + 1;
+    mesh.set_num_radios(EM_MAX_BANDS + 1);
     for (int i = 0; i < EM_MAX_BANDS - 1; i++) {
         mac_address_t mac = {0x00, 0x11, 0x22, 0x33, 0x44, static_cast<unsigned char>(i)};
         memcpy(mesh.m_radio_cap[i].m_radio_cap_info.ruid.mac, mac, sizeof(mac_address_t));

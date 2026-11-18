@@ -2375,7 +2375,7 @@ dm_radio_cap_t *dm_easy_mesh_t::get_radio_cap(mac_address_t mac)
 {
     unsigned int i = 0;
 
-    for (i = 0; i < m_num_radios && i < EM_MAX_BANDS; i++) {
+    for (i = 0; i < get_num_radios(); i++) {
         if (memcmp(m_radio_cap[i].m_radio_cap_info.ruid.mac, mac, sizeof(mac_address_t)) == 0) {
             return &m_radio_cap[i];
         }
