@@ -3163,6 +3163,84 @@ TEST(dm_easy_mesh_t, decode_config_op_class_array_valid_json_array_extra_entries
 }
 
 /**
+ * @brief Verify decode_config_op_class_array accepts an entry that fills the last free op class slot.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 001@n
+ * **Priority:** High@n
+ *
+ * **Test Procedure:**
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01 | Start at EM_MAX_OPCLASS - 1 entries and decode one op class | arr: [{Class: 81, Channel: 6}] | Returns 0, count becomes EM_MAX_OPCLASS and last slot holds the new entry | Should Pass |
+ */
+TEST(dm_easy_mesh_t, decode_config_op_class_array_fills_last_free_slot) {
+    std::cout << "Entering decode_config_op_class_array_fills_last_free_slot test" << std::endl;
+    cJSON *arr = cJSON_CreateArray();
+    cJSON *item = cJSON_CreateObject();
+    cJSON_AddNumberToObject(item, "Class", 81);
+    cJSON_AddNumberToObject(item, "Channel", 6);
+    cJSON_AddItemToArray(arr, item);
+    unsigned char mac[6] = {0x00, 0x11, 0x22, 0x33, 0x44, 0x55};
+    dm_easy_mesh_t obj;
+    obj.m_num_opclass = EM_MAX_OPCLASS - 1;
+    obj.m_op_class[0].m_op_class_info.op_class = 115;
+
+    EXPECT_EQ(obj.decode_config_op_class_array(arr, em_op_class_type_current, mac), 0);
+    EXPECT_EQ(obj.m_num_opclass, static_cast<unsigned int>(EM_MAX_OPCLASS));
+    EXPECT_EQ(obj.m_op_class[EM_MAX_OPCLASS - 1].m_op_class_info.op_class, 81u);
+    EXPECT_EQ(obj.m_op_class[EM_MAX_OPCLASS - 1].m_op_class_info.channel, 6u);
+    EXPECT_EQ(obj.m_op_class[0].m_op_class_info.op_class, 115u);
+    cJSON_Delete(arr);
+    std::cout << "Exiting decode_config_op_class_array_fills_last_free_slot test" << std::endl;
+}
+
+/**
+ * @brief Verify decode_config_op_class_array rejects input exceeding the remaining op class capacity.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 002@n
+ * **Priority:** High@n
+ *
+ * **Test Procedure:**
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01 | Start at EM_MAX_OPCLASS - 1 entries and decode two op classes | arr: [{Class: 81, Channel: 6}, {Class: 115, Channel: 36}] | Returns -1, count and existing entries remain unchanged | Should Fail |
+ */
+TEST(dm_easy_mesh_t, decode_config_op_class_array_exceeds_remaining_capacity) {
+    std::cout << "Entering decode_config_op_class_array_exceeds_remaining_capacity test" << std::endl;
+    cJSON *arr = cJSON_CreateArray();
+    cJSON *item = cJSON_CreateObject();
+    cJSON_AddNumberToObject(item, "Class", 81);
+    cJSON_AddNumberToObject(item, "Channel", 6);
+    cJSON_AddItemToArray(arr, item);
+    item = cJSON_CreateObject();
+    cJSON_AddNumberToObject(item, "Class", 115);
+    cJSON_AddNumberToObject(item, "Channel", 36);
+    cJSON_AddItemToArray(arr, item);
+    unsigned char mac[6] = {0x00, 0x11, 0x22, 0x33, 0x44, 0x55};
+    dm_easy_mesh_t obj;
+    obj.m_num_opclass = EM_MAX_OPCLASS - 1;
+    obj.m_op_class[0].m_op_class_info.op_class = 128;
+    obj.m_op_class[EM_MAX_OPCLASS - 2].m_op_class_info.op_class = 131;
+    obj.m_op_class[EM_MAX_OPCLASS - 1].m_op_class_info.op_class = 134;
+
+    std::vector<em_op_class_info_t> before(EM_MAX_OPCLASS);
+    for (unsigned int i = 0; i < EM_MAX_OPCLASS; i++) {
+        before[i] = obj.m_op_class[i].m_op_class_info;
+    }
+
+    EXPECT_EQ(obj.decode_config_op_class_array(arr, em_op_class_type_current, mac), -1);
+    EXPECT_EQ(obj.m_num_opclass, static_cast<unsigned int>(EM_MAX_OPCLASS - 1));
+    for (unsigned int i = 0; i < EM_MAX_OPCLASS; i++) {
+        EXPECT_EQ(memcmp(&before[i], &obj.m_op_class[i].m_op_class_info, sizeof(em_op_class_info_t)), 0)
+            << "op class entry " << i << " changed";
+    }
+    cJSON_Delete(arr);
+    std::cout << "Exiting decode_config_op_class_array_exceeds_remaining_capacity test" << std::endl;
+}
+
+/**
  * @brief Verify decode_config_reset correctly processes a valid configuration with matching top-level key.
  *
  * This test ensures that the decode_config_reset API successfully decodes a JSON configuration when provided with a matching top-level key ("reset"), including proper parsing of the interfaces and network SSID list. It confirms that the API returns 0 when invoked with valid arguments.
@@ -9013,6 +9091,71 @@ TEST(dm_easy_mesh_t, static_get_bss_info_with_mac_null_dm)
     std::cout << "Exiting get_bss_info_with_mac_null_dm test" << std::endl;
 }
 
+TEST(dm_easy_mesh_t, get_associated_bsta_bss_info_prefers_associated_bss)
+{
+    dm_easy_mesh_t mesh{};
+    mesh.m_num_bss = 2;
+    mesh.m_num_radios = 2;
+
+    const mac_address_t radio_macs[2] = {
+        {0x02, 0x10, 0x00, 0x00, 0x00, 0x01},
+        {0x02, 0x10, 0x00, 0x00, 0x00, 0x02}
+    };
+    const mac_address_t local_bsta_macs[2] = {
+        {0x02, 0x10, 0x01, 0x00, 0x00, 0x01},
+        {0x02, 0x10, 0x01, 0x00, 0x00, 0x02}
+    };
+    const mac_address_t associated_bssid = {0x02, 0x20, 0x00, 0x00, 0x00, 0x01};
+    const mac_address_t zero_bssid = {};
+
+    for (unsigned int i = 0; i < mesh.m_num_bss; ++i) {
+        mesh.m_radio[i].m_radio_info.enabled = true;
+        memcpy(mesh.m_radio[i].m_radio_info.intf.mac, radio_macs[i], sizeof(mac_address_t));
+
+        em_bss_info_t &bss = mesh.m_bss[i].m_bss_info;
+        bss.id.haul_type = em_haul_type_backhaul;
+        bss.vap_mode = em_vap_mode_sta;
+        bss.enabled = true;
+        memcpy(bss.id.bssid, local_bsta_macs[i], sizeof(mac_address_t));
+        memcpy(bss.ruid.mac, radio_macs[i], sizeof(mac_address_t));
+        memcpy(bss.bssid.mac, i == 0 ? zero_bssid : associated_bssid, sizeof(mac_address_t));
+    }
+
+    EXPECT_EQ(mesh.get_associated_bsta_bss_info(), &mesh.m_bss[1].m_bss_info);
+}
+
+TEST(dm_easy_mesh_t, get_associated_bsta_bss_info_falls_back_when_all_bssids_are_zero)
+{
+    dm_easy_mesh_t mesh{};
+    mesh.m_num_bss = 2;
+    mesh.m_num_radios = 2;
+
+    const mac_address_t radio_macs[2] = {
+        {0x02, 0x10, 0x00, 0x00, 0x00, 0x01},
+        {0x02, 0x10, 0x00, 0x00, 0x00, 0x02}
+    };
+    const mac_address_t local_bsta_macs[2] = {
+        {0x02, 0x10, 0x01, 0x00, 0x00, 0x01},
+        {0x02, 0x10, 0x01, 0x00, 0x00, 0x02}
+    };
+    const mac_address_t zero_bssid = {};
+
+    for (unsigned int i = 0; i < mesh.m_num_bss; ++i) {
+        mesh.m_radio[i].m_radio_info.enabled = true;
+        memcpy(mesh.m_radio[i].m_radio_info.intf.mac, radio_macs[i], sizeof(mac_address_t));
+
+        em_bss_info_t &bss = mesh.m_bss[i].m_bss_info;
+        bss.id.haul_type = em_haul_type_backhaul;
+        bss.vap_mode = em_vap_mode_sta;
+        bss.enabled = true;
+        memcpy(bss.id.bssid, local_bsta_macs[i], sizeof(mac_address_t));
+        memcpy(bss.ruid.mac, radio_macs[i], sizeof(mac_address_t));
+        memcpy(bss.bssid.mac, zero_bssid, sizeof(mac_address_t));
+    }
+
+    EXPECT_EQ(mesh.get_associated_bsta_bss_info(), &mesh.m_bss[0].m_bss_info);
+}
+
 /**
  * @brief Verify that get_bsta_bss_info correctly returns a valid BSS pointer for a configured backhaul STA BSS
  *
@@ -12887,6 +13030,8 @@ TEST(dm_easy_mesh_t, Positive_AssignmentOperator) {
     src.m_bss[0].m_bss_info.vap_index = 42;
     em_sta_info_t sta{};
     memset(&sta, 0x11, sizeof(sta));
+    sta.frame_body = nullptr;
+    sta.frame_body_len = 0;
     src.put_sta_info(&sta, em_target_sta_map_consolidated);
     std::cout << "Invoking operator=\n";
     dst = src;
@@ -12934,6 +13079,8 @@ TEST(dm_easy_mesh_t, Negative_Assignment_NoSharedStaObjects) {
     dst.init();
     em_sta_info_t sta{};
     memset(&sta, 0x22, sizeof(sta));
+    sta.frame_body = nullptr;
+    sta.frame_body_len = 0;
     src.put_sta_info(&sta, em_target_sta_map_consolidated);
     std::cout << "Invoking operator=\n";
     dst = src;
@@ -19694,12 +19841,18 @@ TEST(dm_easy_mesh_t, set_num_op_class_zero)
     std::cout << "Exiting set_num_op_class_zero test" << std::endl;
 }
 
+TEST(dm_easy_mesh_t, set_num_op_class_capacity_boundary)
+{
+    dm_easy_mesh_t obj;
+    obj.set_num_op_class(EM_MAX_OPCLASS);
+    ASSERT_EQ(obj.m_num_opclass, EM_MAX_OPCLASS);
+}
+
 /**
- * @brief Test setting operational class to maximum unsigned integer value
+ * @brief Verify that an oversized op-class count is rejected.
  *
- * This test verifies that the set_num_op_class API correctly assigns the maximum
- * value possible for an unsigned integer to the dm_easy_mesh_t object's m_num_opclass member.
- * It ensures that the API handles boundary input correctly without causing any errors.
+ * The requested count is larger than the fixed op-class table, so the setter
+ * must preserve the existing valid count.
  *
  * **Test Group ID:** Basic: 01
  * **Test Case ID:** 507@n
@@ -19713,7 +19866,7 @@ TEST(dm_easy_mesh_t, set_num_op_class_zero)
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
  * | 01 | Instantiate dm_easy_mesh_t object and set maximum unsigned int value | object = dm_easy_mesh_t, value = std::numeric_limits<unsigned int>::max() | Object instantiated and value variable holds the maximum unsigned int value | Should be successful |
- * | 02 | Invoke set_num_op_class() with the maximum value and verify m_num_opclass is updated accordingly | input: value = std::numeric_limits<unsigned int>::max(), output: m_num_opclass = std::numeric_limits<unsigned int>::max() | obj.m_num_opclass equals maximum unsigned int value | Should Pass |
+ * | 02 | Invoke set_num_op_class() with the maximum value and verify it is rejected | input: value = std::numeric_limits<unsigned int>::max() | obj.m_num_opclass remains 0 | Should Pass |
  */
 TEST(dm_easy_mesh_t, set_num_op_class_maximum_value)
 {
@@ -19723,7 +19876,7 @@ TEST(dm_easy_mesh_t, set_num_op_class_maximum_value)
     std::cout << "Invoking set_num_op_class with value: " << value << std::endl;
     obj.set_num_op_class(value);
     std::cout << "Value of m_num_opclass after invocation: " << obj.m_num_opclass << std::endl;
-    ASSERT_EQ(obj.m_num_opclass, value);
+    ASSERT_EQ(obj.m_num_opclass, 0u);
     std::cout << "Exiting set_num_op_class_maximum_value test" << std::endl;
 }
 
@@ -19794,9 +19947,9 @@ TEST(dm_easy_mesh_t, set_num_op_class_valid_zero) {
 }
 
 /**
- * @brief Verify that set_num_op_class function assigns the maximum unsigned integer value correctly.
+ * @brief Verify that the static set_num_op_class API rejects oversized counts.
  *
- * This test validates that the set_num_op_class method of the dm_easy_mesh_t class correctly sets the m_num_opclass member to UINT_MAX when provided with the maximum unsigned integer. It ensures proper handling of boundary input values.
+ * This test validates that an oversized count passed through the static API leaves the valid count unchanged.
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 510@n
@@ -19809,7 +19962,7 @@ TEST(dm_easy_mesh_t, set_num_op_class_valid_zero) {
  * **Test Procedure:**@n
  * | Variation / Step | Description | Test Data | Expected Result |Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Invoke set_num_op_class with UINT_MAX and validate the assignment to the member variable | dmInstance pointer: address of dmInstance, opClassValue = UINT_MAX, expected m_num_opclass = UINT_MAX | dmInstance.m_num_opclass should equal UINT_MAX and the assertion should pass | Should Pass |
+ * | 01 | Invoke set_num_op_class with UINT_MAX and validate that it is rejected | dmInstance pointer: address of dmInstance, opClassValue = UINT_MAX | dmInstance.m_num_opclass should remain 0 | Should Pass |
  */
 TEST(dm_easy_mesh_t, set_num_op_class_valid_max_unsigned) {
     std::cout << "Entering set_num_op_class_valid_max_unsigned test" << std::endl;
@@ -19818,7 +19971,7 @@ TEST(dm_easy_mesh_t, set_num_op_class_valid_max_unsigned) {
     std::cout << "Invoking set_num_op_class with value: " << opClassValue << std::endl;
     dm_easy_mesh_t::set_num_op_class(&dmInstance, opClassValue);
     std::cout << "Value in dmInstance.m_num_opclass after setting: " << dmInstance.m_num_opclass << std::endl;
-    EXPECT_EQ(dmInstance.m_num_opclass, opClassValue);
+    EXPECT_EQ(dmInstance.m_num_opclass, 0u);
     std::cout << "Exiting set_num_op_class_valid_max_unsigned test" << std::endl;
 }
 
@@ -21495,7 +21648,7 @@ TEST(dm_easy_mesh_t, put_sta_info_AssocMap_Positive)
     std::cout << "Entering put_sta_info_AssocMap_Positive test" << std::endl;
     dm_easy_mesh_t dm;
     dm.init();
-    em_sta_info_t sta_info;
+    em_sta_info_t sta_info = {};
     unsigned char mac[6] = {0x00,0x11,0x22,0x33,0x44,0x55};
     unsigned char bssid[6] = {0x66,0x77,0x88,0x99,0xAA,0xBB};
     unsigned char radio[6] = {0xCC,0xDD,0xEE,0xFF,0x00,0x11};
@@ -21541,7 +21694,7 @@ TEST(dm_easy_mesh_t, put_sta_info_ConsolidatedMap_Positive)
     std::cout << "Entering put_sta_info_ConsolidatedMap_Positive test" << std::endl;
     dm_easy_mesh_t dm;
     dm.init();
-    em_sta_info_t sta_info;
+    em_sta_info_t sta_info = {};
     unsigned char mac[6] = {0x12,0x34,0x56,0x78,0x9A,0xBC};
     unsigned char bssid[6] = {0xDE,0xAD,0xBE,0xEF,0x01,0x23};
     unsigned char radio[6] = {0x45,0x67,0x89,0xAB,0xCD,0xEF};
@@ -21587,7 +21740,7 @@ TEST(dm_easy_mesh_t, put_sta_info_DuplicateSTA_Negative)
     std::cout << "Entering put_sta_info_DuplicateSTA_Negative test" << std::endl;
     dm_easy_mesh_t dm;
     dm.init();
-    em_sta_info_t sta_info;
+    em_sta_info_t sta_info = {};
     unsigned char mac[6] = {0xAA,0xBB,0xCC,0xDD,0xEE,0xFF};
     unsigned char bssid[6] = {0x11,0x22,0x33,0x44,0x55,0x66};
     unsigned char radio[6] = {0x77,0x88,0x99,0x00,0x11,0x22};

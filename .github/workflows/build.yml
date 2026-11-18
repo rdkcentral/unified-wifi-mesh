@@ -17,7 +17,7 @@ jobs:
             container: 'ubuntu:20.04'
             setup-cmd: 'apt-get update && apt-get install -y libssl1.1 libssl-dev'
           - openssl-version: '3.0'
-            container: 'ubuntu:20.04'
+            container: 'ubuntu:24.04'
             setup-cmd: 'apt-get update && apt-get install -y libssl-dev'
       # Add this to continue jobs even if one matrix job fails
       fail-fast: false
@@ -102,7 +102,7 @@ jobs:
         git checkout 655ca6d
         mkdir build && cd build
         cmake -DUBUS_SUPPORT=OFF -DUCI_SUPPORT=OFF -DULOOP_SUPPORT=OFF ..
-        make -j$(nproc)
+        make -j $(nproc)
         sudo make install
         sudo ldconfig
 
@@ -159,30 +159,30 @@ jobs:
       continue-on-error: true
       run: |
         make clean
-        make -j all
+        make -j $(nproc) all
         
     - name: Confirm Linking - Controller
       working-directory: easymesh_project/unified-wifi-mesh/build/ctrl
-      run: make -j all
+      run: make -j $(nproc) all
 
     - name: Build - Agent
       working-directory: easymesh_project/unified-wifi-mesh/build/agent
       continue-on-error: true
       run: |
         make clean
-        make -j all
+        make -j $(nproc) all
         
     - name: Confirm Linking - Agent
       working-directory: easymesh_project/unified-wifi-mesh/build/agent
-      run: make -j all
+      run: make -j $(nproc) all
 
     - name: Build - CLI
       working-directory: easymesh_project/unified-wifi-mesh/build/cli
       continue-on-error: true
       run: |
         make clean
-        make -j all
+        make -j $(nproc) all
         
     - name: Confirm Linking - CLI
       working-directory: easymesh_project/unified-wifi-mesh/build/cli
-      run: make -j all
+      run: make -j $(nproc) all

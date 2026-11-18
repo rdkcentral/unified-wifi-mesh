@@ -20,6 +20,7 @@
 #define DM_EM_H
 #include <vector>
 #include <atomic>
+#include <mutex>
 #include "em_base.h"
 #include "wifi_webconfig.h"
 #include "dm_device.h"
@@ -52,6 +53,8 @@ class dm_easy_mesh_t {
     unsigned int ssid_mismatch_check_time = 0;
     unsigned int last_topo_query_sent_time = 0;
     bool m_is_ctlr = false;
+    // Guards station maps and associated-STA-MLD rows shared between manager and radio threads.
+    std::mutex m_sta_map_mutex;
 
 public:
     webconfig_subdoc_data_t *m_wifi_data;
@@ -1268,7 +1271,7 @@ public:
 	 *
 	 * @param[in] num The number of operating classes to set.
 	 */
-	void set_num_op_class(unsigned int num) { m_num_opclass = num; }
+	void set_num_op_class(unsigned int num);
     
 	/**!
 	 * @brief Sets the number of operational classes.
@@ -1354,6 +1357,14 @@ public:
 	 *
 	 */
 	em_bss_info_t* get_bsta_bss_info();
+
+	/**!
+	 * @brief Retrieves the enabled bSTA BSS that is associated to an upstream AP (non-zero BSSID).
+	 *        Falls back to get_bsta_bss_info() when none is associated.
+	 *
+	 * @returns A pointer to the em_bss_info_t structure, NULL if no bSTA BSS is found.
+	 */
+	em_bss_info_t* get_associated_bsta_bss_info();
 
 
 	/**!
@@ -1713,8 +1724,19 @@ public:
 	void update_assoc_sta_mld_info(em_assoc_sta_mld_info_t *assoc_sta_mld_info);
 	static void update_assoc_sta_mld_info(void *dm, em_assoc_sta_mld_info_t *assoc_sta_mld_info) { (static_cast<dm_easy_mesh_t *>(dm))->update_assoc_sta_mld_info(assoc_sta_mld_info); }
 
-	void remove_assoc_sta_mld_info(mac_address_t sta_mld_mac);
+	void replace_assoc_sta_mld_info(const em_assoc_sta_mld_info_t &assoc_sta_mld_info);
+	// Copies the table and returns its count under the same lock.
+	unsigned int copy_assoc_sta_mld_info(em_assoc_sta_mld_info_t (&info)[EM_MAX_ASSOC_STA_MLD]);
+	// Station-map mutations must run on the controller event thread.
 	void apply_sta_cap_to_maps(const char *key, em_sta_info_t *info);
+	void apply_sta_disassociation(const em_client_assoc_event_t &event);
+	void apply_sta_mld_association(const em_assoc_sta_mld_info_t &info);
+
+	// Agent station-map access shared between manager and radio threads; each call takes the map lock.
+	void merge_assoc_sta_updates(dm_easy_mesh_t &src);
+	void merge_sta_link_metrics(dm_easy_mesh_t &src);
+	// Deep copies station rows so readers do not retain live map pointers.
+	void copy_sta_snapshot(std::vector<dm_sta_t> &stations);
 	bool is_ap_mld_mac(const mac_address_t mac);
 	bool resolve_ap_mld_to_fallback_ruid(const mac_address_t ap_mld_mac, mac_address_t fallback_ruid);
 
@@ -2109,6 +2131,21 @@ public:
 	 * @note Ensure that the provided MAC address, BSSID, RUID, and target are valid and correctly formatted.
 	 */
 	em_sta_info_t *get_sta_info(mac_address_t sta, bssid_t bssid, mac_address_t ruid, em_target_sta_map_t target);
+
+	/**!
+	 * @brief Retrieves the information of a station on a radio when its BSSID is not known.
+	 *
+	 * An MLD client is stored under each affiliated BSSID, so a key built from the AP MLD
+	 * address does not match its rows. The first row of the station on the radio is returned.
+	 *
+	 * @param[in] sta The MAC address of the station.
+	 * @param[in] ruid The RUID of the radio.
+	 * @param[in] target The target station map used for searching.
+	 *
+	 * @returns A pointer to the em_sta_info_t structure of the station.
+	 * @retval NULL if the station has no row on the radio.
+	 */
+	em_sta_info_t *get_sta_info_on_radio(const mac_address_t sta, const mac_address_t ruid, em_target_sta_map_t target);
     
 	/**!
 	 * @brief Puts station information into the target station map.

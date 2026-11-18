@@ -447,7 +447,8 @@ public:
         return false;
     }
 
-    
+	virtual bool request_runtime_tx_power(const unsigned char *, int *) {return false;}
+
 	/**!
 	 * @brief Finds the EM for a given message type.
 	 *
@@ -722,6 +723,7 @@ public:
 	virtual em_service_type_t get_service_type() = 0;
 
 	virtual void handle_failed_conn_msg(unsigned char *data, unsigned int len) {}
+	virtual void handle_client_disassoc_stats_msg(unsigned char *data, unsigned int len) {}
 
 	/**!
 	 * @brief Processes an event.

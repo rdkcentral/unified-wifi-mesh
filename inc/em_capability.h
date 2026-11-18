@@ -748,6 +748,7 @@ class em_capability_t {
 	 * @note Ensure that the data buffer is valid and the length is correctly specified.
 	 */
 	int handle_client_cap_report(unsigned char *data, unsigned int len);
+	void queue_cap_update(const em_sta_info_t &info);
 
 	/**!
 	 * @brief Handles the backhaul sta capability query.

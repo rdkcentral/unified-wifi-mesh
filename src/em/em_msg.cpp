@@ -101,7 +101,7 @@ bool em_msg_t::get_supported_service(em_supported_service_t *svc)
             return false;
         }
         if (tlv->type == em_tlv_type_supported_service) {
-             if (tlv_len < 2) {
+             if (tlv_len < 1) {
                  return false;
             }
             unsigned int copy_len = tlv_len - 1;
@@ -109,6 +109,12 @@ bool em_msg_t::get_supported_service(em_supported_service_t *svc)
                 copy_len = EM_MAX_SERVICE;
             }
             svc->num = tlv->value[0];
+            if (tlv_len != 1U + svc->num) {
+                return false;
+            }
+            if (svc->num > EM_MAX_SERVICE) {
+                return false;
+            }
             if (svc->num > copy_len) {
                 svc->num = static_cast<unsigned char>(copy_len);
             }
@@ -205,6 +211,13 @@ bool em_msg_t::get_sta_mac(mac_address_t *mac)
             }
             memcpy(mac, tlv->value, sizeof(mac_address_t));
             return true;
+        } else if (tlv->type == em_tlv_type_sta_mac_addr) {
+            if (value_len < sizeof(mac_address_t)) {
+                em_printfout("Error: TLV data too small");
+                return false;
+            }
+            memcpy(mac, tlv->value, sizeof(mac_address_t));
+            return true;
         }
 
         len -= static_cast<unsigned int> (sizeof(em_tlv_t) + value_len);
@@ -257,7 +270,20 @@ bool em_msg_t::get_radio_id(mac_address_t *mac)
 	em_ap_op_bss_radio_t    *radio;
 
     tlv = reinterpret_cast<em_tlv_t *> (m_buff); len = m_len;
-    while ((tlv->type != em_tlv_type_eom) && (len > 0)) {
+    while (len > 0) {
+        if (len < sizeof(em_tlv_t)) {
+            return false;
+        }
+        if ((sizeof(em_tlv_t) + ntohs(tlv->len)) > len) {
+            return false;
+        }
+        if (tlv->type == em_tlv_type_channel_scan_req &&
+            ntohs(tlv->len) < sizeof(em_channel_scan_req_t)) {
+            return false;
+        }
+        if (tlv->type == em_tlv_type_eom) {
+            break;
+        }
         if (tlv->type == em_tlv_type_radio_id) {
             memcpy(mac, tlv->value, sizeof(mac_address_t));
             return true;    
@@ -964,7 +990,7 @@ void em_msg_t::unassoc_sta_link_metrics_query()
 }
 void em_msg_t::unassoc_sta_link_metrics_rsp()
 {
-    m_tlv_member[m_num_tlv++] = em_tlv_member_t(em_tlv_type_unassoc_sta_link_metric_rsp, mandatory, "17.2.26 of Wi-Fi Easy Mesh 5.0", 11);
+    m_tlv_member[m_num_tlv++] = em_tlv_member_t(em_tlv_type_unassoc_sta_link_metric_rsp, mandatory, "17.2.26 of Wi-Fi Easy Mesh 5.0", static_cast<int>(sizeof(em_tlv_t) + 2));
 }
 
 void em_msg_t::beacon_metrics_query()

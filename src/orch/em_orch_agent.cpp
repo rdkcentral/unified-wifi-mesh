@@ -240,9 +240,6 @@ bool em_orch_agent_t::pre_process_orch_op(em_cmd_t *pcmd)
     mac_addr_str_t	mac_str;
     dm_easy_mesh_t *dm;
     em_commit_target_t config;
-    dm_sta_t *sta;
-    em_long_string_t key;
-    mac_addr_str_t sta_mac_str, bss_mac_str, radio_mac_str;
     em_freq_band_t band;
 
     ctx = pcmd->m_data_model.get_cmd_ctx();
@@ -291,44 +288,7 @@ bool em_orch_agent_t::pre_process_orch_op(em_cmd_t *pcmd)
             if ((dm = m_mgr->get_data_model(GLOBAL_NET_ID, intf->mac)) == NULL) {
                 dm = m_mgr->create_data_model(GLOBAL_NET_ID, intf);
             }
-
-            sta = static_cast<dm_sta_t *> (hash_map_get_first(pcmd->get_data_model()->m_sta_assoc_map));
-            while(sta != NULL) {
-                dm_easy_mesh_t::macbytes_to_string(sta->m_sta_info.id, sta_mac_str);
-                dm_easy_mesh_t::macbytes_to_string(sta->m_sta_info.bssid, bss_mac_str);
-                dm_easy_mesh_t::macbytes_to_string(sta->m_sta_info.radiomac, radio_mac_str);
-                snprintf(key, sizeof(em_long_string_t), "%s@%s@%s", sta_mac_str, bss_mac_str, radio_mac_str);
-
-                em_sta_info_t *em_sta = dm->get_sta_info(sta->get_sta_info()->id, sta->get_sta_info()->bssid, sta->get_sta_info()->radiomac, em_target_sta_map_consolidated);
-                if (em_sta != NULL) {
-                    printf("Consolidated Map, sta exists; updating with key: %s\n", key);
-                    memcpy(em_sta, sta->get_sta_info(), sizeof(em_sta_info_t));
-                } else {
-                    printf("Consolidated map new addition with key: %s\n", key);
-                    hash_map_put(dm->m_sta_map, strdup(key), new dm_sta_t(*sta));
-                }
-
-                sta = static_cast<dm_sta_t *> (hash_map_get_next(pcmd->get_data_model()->m_sta_assoc_map, sta));
-            }
-
-            sta = static_cast<dm_sta_t *> (hash_map_get_first(pcmd->get_data_model()->m_sta_dassoc_map));
-            while(sta != NULL) {
-                dm_sta_t *next_sta = static_cast<dm_sta_t *>(hash_map_get_next(pcmd->get_data_model()->m_sta_dassoc_map, sta));
-                dm_easy_mesh_t::macbytes_to_string(sta->m_sta_info.id, sta_mac_str);
-                dm_easy_mesh_t::macbytes_to_string(sta->m_sta_info.bssid, bss_mac_str);
-                dm_easy_mesh_t::macbytes_to_string(sta->m_sta_info.radiomac, radio_mac_str);
-                snprintf(key, sizeof(em_long_string_t), "%s@%s@%s", sta_mac_str, bss_mac_str, radio_mac_str);
-
-                em_sta_info_t *em_sta = dm->get_sta_info(sta->m_sta_info.id, sta->m_sta_info.bssid, sta->m_sta_info.radiomac, em_target_sta_map_consolidated);
-                if (em_sta != NULL) {
-                    dm_sta_t *removed_sta;
-
-                    em_printfout("Consolidated Map removed with key: %s, updating em_target_sta_map_disassoc entry", key);
-                    removed_sta = static_cast<dm_sta_t *>(hash_map_remove(dm->m_sta_map, key));
-                    delete removed_sta;
-                }
-                sta = next_sta;
-            }
+            dm->merge_assoc_sta_updates(*pcmd->get_data_model());
             break;
         case dm_orch_type_sta_insert:
         case dm_orch_type_sta_update:
@@ -347,15 +307,7 @@ bool em_orch_agent_t::pre_process_orch_op(em_cmd_t *pcmd)
             if ((dm = m_mgr->get_data_model(GLOBAL_NET_ID, intf->mac)) == NULL) {
                 dm = m_mgr->create_data_model(GLOBAL_NET_ID, intf);
             }
-
-            sta = static_cast<dm_sta_t *> (hash_map_get_first(pcmd->get_data_model()->m_sta_assoc_map));
-            while(sta != NULL) {
-                em_sta_info_t *em_sta = dm->get_sta_info(sta->get_sta_info()->id, sta->get_sta_info()->bssid, sta->get_sta_info()->radiomac, em_target_sta_map_consolidated);
-                if (em_sta != NULL) {
-                    memcpy(em_sta, &sta->m_sta_info, sizeof(em_sta_info_t));
-                }
-                sta = static_cast<dm_sta_t *> (hash_map_get_next(pcmd->get_data_model()->m_sta_assoc_map, sta));
-            }
+            dm->merge_sta_link_metrics(*pcmd->get_data_model());
             break;
 
         default:
