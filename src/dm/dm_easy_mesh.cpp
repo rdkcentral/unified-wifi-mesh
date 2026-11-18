@@ -3073,6 +3073,30 @@ bool dm_easy_mesh_t::has_at_least_one_associated_sta()
     return false;
 }
 
+bool dm_easy_mesh_t::has_capable_op_class(const mac_address_t ruid, unsigned char op_class)
+{
+    for (unsigned int i = 0; i < m_num_opclass; i++) {
+        em_op_class_info_t *oci = &m_op_class[i].m_op_class_info;
+        if ((oci->id.type == em_op_class_type_capability) && (oci->op_class == op_class) &&
+                (memcmp(oci->id.ruid, ruid, sizeof(mac_address_t)) == 0)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+unsigned int dm_easy_mesh_t::get_unassoc_sta_metrics(const mac_address_t ruid, em_unassoc_sta_metric_entry_t *entries[], unsigned int max)
+{
+    unsigned int count = 0;
+
+    for (unsigned int i = 0; (i < m_num_unassoc_sta_metrics) && (count < max); i++) {
+        if (has_capable_op_class(ruid, m_unassoc_sta_metrics[i].op_class)) {
+            entries[count++] = &m_unassoc_sta_metrics[i];
+        }
+    }
+    return count;
+}
+
 bool dm_easy_mesh_t::is_sta_associated(bssid_t bssid, mac_address_t sta_mac)
 {
     dm_sta_t *sta = find_sta(sta_mac, bssid);
@@ -4267,6 +4291,7 @@ int dm_easy_mesh_t::init()
 {
     unsigned int i;
     m_num_assoc_sta_mld = 0;
+    m_num_unassoc_sta_metrics = 0;
     m_network.init();
     m_device.init();
     m_ieee_1905_security.init();
@@ -4322,6 +4347,7 @@ void dm_easy_mesh_t::reset()
     m_num_bss = 0;
     m_num_ap_mld = 0;
     m_num_assoc_sta_mld = 0;
+    m_num_unassoc_sta_metrics = 0;
     m_db_cfg_param.db_cfg_type = db_cfg_type_none;
     m_colocated = false;
     m_is_ctlr = false;
@@ -4363,6 +4389,7 @@ dm_easy_mesh_t::dm_easy_mesh_t()
     m_num_ap_mld = 0;
     m_num_net_ssids = 0;
     m_num_assoc_sta_mld = 0;
+    m_num_unassoc_sta_metrics = 0;
     m_db_cfg_param.db_cfg_type = db_cfg_type_none;
     m_colocated = false;
     m_is_ctlr = false;

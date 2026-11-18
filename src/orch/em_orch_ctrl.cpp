@@ -441,6 +441,13 @@ void em_orch_ctrl_t::pre_process_cancel(em_cmd_t *pcmd, em_t *em)
             em->set_state(em_state_ctrl_configured);
             break;
 
+        case em_cmd_type_unassoc_sta_query:
+            em_printfout("Cancel received for Unassociated STA Link Metrics Query command, transitioning to configured state radio: %s",
+                util::mac_to_string(em->get_radio_interface_mac()).c_str());
+            em->reset_unassoc_query_tx();
+            em->set_state(em_state_ctrl_configured);
+            break;
+
         default:
             break;
 	}
