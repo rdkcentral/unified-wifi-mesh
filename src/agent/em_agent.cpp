@@ -35,6 +35,7 @@
 #include <pthread.h>
 #include <cjson/cJSON.h>
 #include "em_agent.h"
+#include "em_ext_hooks.h"
 #include "em_msg.h"
 #include "ieee80211.h"
 #include "em_cmd_agent.h"
@@ -1395,6 +1396,18 @@ void em_agent_t::handle_link_stats_report(em_bus_event_t *evt)
     }
 }
 
+void em_agent_t::handle_vendor_data(em_bus_event_t *evt)
+{
+    em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
+    unsigned int num;
+
+    if ((num = static_cast<unsigned int>(m_data_model.analyze_vendor_data(evt, pcmd))) == 0) {
+        em_printfout("analyze_vendor_data failed");
+    } else if (m_orch->submit_commands(pcmd, num) > 0) {
+        em_printfout("Submitted vendor data cmd for orch");
+    }
+}
+
 void em_agent_t::handle_bus_event(em_bus_event_t *evt)
 {   
 
@@ -1518,6 +1531,10 @@ void em_agent_t::handle_bus_event(em_bus_event_t *evt)
             handle_unassoc_sta_result(evt);
             break;
 
+        case em_bus_event_type_vendor_data:
+            handle_vendor_data(evt);
+            break;
+
         default:
             break;
     }    
@@ -1573,6 +1590,87 @@ int em_agent_t::refresh_onewifi_subdoc(const char * log_name, const webconfig_su
     ASSERT_NOT_NULL(desc, false, "%s:%d descriptor is null\n", __func__, __LINE__);
     
     return m_data_model.refresh_onewifi_subdoc(desc, &m_bus_hdl, log_name, type);
+}
+
+bool em_agent_t::refresh_current_radio_data(const unsigned char *ruid)
+{
+    if (ruid == nullptr) {
+        return false;
+    }
+
+    const auto has_current_radio_channel = [this, ruid]() {
+        for (unsigned int index = 0; index < m_data_model.get_num_op_class(); ++index) {
+            em_op_class_info_t *op_class = m_data_model.get_op_class_info(index);
+            if (op_class->id.type == em_op_class_type_current &&
+                memcmp(op_class->id.ruid, ruid, sizeof(mac_address_t)) == 0 &&
+                op_class->op_class != 0 && op_class->channel != 0) {
+                return true;
+            }
+        }
+        return false;
+    };
+
+    if (has_current_radio_channel()) {
+        return true;
+    }
+
+    wifi_bus_desc_t *desc = get_bus_descriptor();
+    raw_data_t data = {};
+    if (desc == nullptr || desc->bus_data_get_fn == nullptr) {
+        return false;
+    }
+
+    bus_error_t status = desc->bus_data_get_fn(&m_bus_hdl, WIFI_WEBCONFIG_INIT_DML_DATA, &data);
+    if (status != bus_error_success || data.raw_data.bytes == nullptr) {
+        em_printfout("Failed to read current OneWifi radio data: %d", status);
+        if (data.raw_data.bytes != nullptr) {
+            if (desc->bus_data_free_fn != nullptr) {
+                desc->bus_data_free_fn(&data);
+            } else {
+                free(data.raw_data.bytes);
+            }
+        }
+        return false;
+    }
+
+    // Too large for the stack (~800 KB), so allocate it
+    dm_easy_mesh_agent_t *radio_snapshot = new dm_easy_mesh_agent_t();
+    radio_snapshot->translate_onewifi_dml_data(reinterpret_cast<char *>(data.raw_data.bytes));
+    if (desc->bus_data_free_fn != nullptr) {
+        desc->bus_data_free_fn(&data);
+    } else {
+        free(data.raw_data.bytes);
+    }
+
+    unsigned int num_op_class = m_data_model.get_num_op_class();
+    for (unsigned int index = 0; index < radio_snapshot->get_num_op_class(); ++index) {
+        em_op_class_info_t *snapshot_op_class = radio_snapshot->get_op_class_info(index);
+        if (snapshot_op_class->id.type != em_op_class_type_current ||
+            memcmp(snapshot_op_class->id.ruid, ruid, sizeof(mac_address_t)) != 0 ||
+            snapshot_op_class->op_class == 0 || snapshot_op_class->channel == 0) {
+            continue;
+        }
+
+        unsigned int existing_index = 0;
+        for (; existing_index < num_op_class; ++existing_index) {
+            em_op_class_info_t *existing_op_class = m_data_model.get_op_class_info(existing_index);
+            if (existing_op_class->id.type == em_op_class_type_current &&
+                memcmp(existing_op_class->id.ruid, ruid, sizeof(mac_address_t)) == 0) {
+                break;
+            }
+        }
+
+        if (existing_index == num_op_class) {
+            if (num_op_class >= EM_MAX_OPCLASS) {
+                break;
+            }
+            m_data_model.set_num_op_class(++num_op_class);
+        }
+        *m_data_model.get_op_class_info(existing_index) = *snapshot_op_class;
+    }
+
+    delete radio_snapshot;
+    return has_current_radio_channel();
 }
 
 bool em_agent_t::send_backhaul_action_frame(uint8_t dest_mac[ETH_ALEN], uint8_t *action_frame, size_t action_frame_len, unsigned int frequency, unsigned int wait_time_ms) {
@@ -1727,7 +1825,30 @@ void em_agent_t::input_listener()
     load_em_plus_cfg();
     fill_extended_device_info();
 
+    raw_data_t ready_data = {};
+    while ((bus_error_val = desc->bus_data_get_fn(&m_bus_hdl, WIFI_EM_GET_TX_POWER,
+                &ready_data)) != bus_error_success) {
+        if (ready_data.raw_data.bytes != nullptr) {
+            desc->bus_data_free_fn(&ready_data);
+        }
+        ready_data = {};
+        em_printfout("Transmit power GET failed for %s, error: %d; retrying",
+            WIFI_EM_GET_TX_POWER, bus_error_val);
+        usleep(RETRY_SLEEP_INTERVAL_IN_MS * 1000);
+    }
+    em_tx_power_response_t tx_power_response = {};
+    bool tx_power_ready = get_tx_power_snapshot(ready_data, &tx_power_response);
+    if (ready_data.raw_data.bytes != nullptr) {
+        desc->bus_data_free_fn(&ready_data);
+    }
+    if (!tx_power_ready) {
+        em_printfout("Invalid transmit power snapshot from %s", WIFI_EM_GET_TX_POWER);
+        return;
+    }
+
     memset(&data, 0, sizeof(raw_data_t));
+
+    em_printfout("Starting DML retrieval for %s", WIFI_WEBCONFIG_INIT_DML_DATA);
 
     while ((bus_error_val = desc->bus_data_get_fn(&m_bus_hdl, WIFI_WEBCONFIG_INIT_DML_DATA, &data)) != bus_error_success) {
         em_printfout("Error: bus get failed, error: %d", bus_error_val);
@@ -1807,7 +1928,101 @@ void em_agent_t::input_listener()
         return;
     }
 
+    em_get_ext_hooks()->on_bus_ready(&m_bus_hdl, desc);
+
     io(NULL);
+}
+
+bool em_agent_t::request_runtime_tx_power(const unsigned char *ruid, int *tx_power)
+{
+    if (ruid == nullptr || tx_power == nullptr) {
+        return false;
+    }
+
+    wifi_bus_desc_t *desc = get_bus_descriptor();
+    if (desc == nullptr || desc->bus_data_get_fn == nullptr ||
+        desc->bus_data_free_fn == nullptr) {
+        em_printfout("Cannot GET refreshed transmit power: bus descriptor unavailable");
+        return false;
+    }
+
+    if (pthread_mutex_lock(&m_tx_power_mutex) != 0) {
+        em_printfout("Failed to lock transmit power GET mutex");
+        return false;
+    }
+
+    raw_data_t data = {};
+    bus_error_t status = desc->bus_data_get_fn(&m_bus_hdl, WIFI_EM_GET_TX_POWER, &data);
+    if (pthread_mutex_unlock(&m_tx_power_mutex) != 0) {
+        if (data.raw_data.bytes != nullptr) {
+            desc->bus_data_free_fn(&data);
+        }
+        em_printfout("Failed to unlock transmit power GET mutex");
+        return false;
+    }
+
+    if (status != bus_error_success) {
+        em_printfout("Transmit power GET failed for %s, error: %d",
+            WIFI_EM_GET_TX_POWER, status);
+        if (data.raw_data.bytes != nullptr) {
+            desc->bus_data_free_fn(&data);
+        }
+        return false;
+    }
+
+    em_tx_power_response_t tx_power_response = {};
+    bool response_valid = get_tx_power_snapshot(data, &tx_power_response);
+    if (data.raw_data.bytes != nullptr) {
+        desc->bus_data_free_fn(&data);
+    }
+    if (!response_valid) {
+        em_printfout("Transmit power snapshot from %s is invalid", WIFI_EM_GET_TX_POWER);
+        return false;
+    }
+
+    for (uint32_t i = 0; i < tx_power_response.radio_count; i++) {
+        if (memcmp(tx_power_response.radios[i].ruid, ruid, sizeof(mac_address_t)) == 0) {
+            *tx_power = static_cast<int>(tx_power_response.radios[i].tx_power);
+            return true;
+        }
+    }
+
+    em_printfout("Transmit power snapshot from %s does not include %s",
+        WIFI_EM_GET_TX_POWER, util::mac_to_string(ruid).c_str());
+    return false;
+
+}
+
+bool em_agent_t::get_tx_power_snapshot(const raw_data_t &data, em_tx_power_response_t *response)
+{
+
+    if (response == nullptr || data.data_type != bus_data_type_bytes ||
+        data.raw_data.bytes == nullptr ||
+        data.raw_data_len < offsetof(em_tx_power_response_t, radios)) {
+        return false;
+    }
+
+    uint32_t radio_count = 0;
+    memcpy(&radio_count, data.raw_data.bytes, sizeof(radio_count));
+    if (radio_count == 0 || radio_count > EM_MAX_RADIO_PER_AGENT) {
+        return false;
+    }
+    size_t response_len = offsetof(em_tx_power_response_t, radios) +
+        radio_count * sizeof(response->radios[0]);
+    if (data.raw_data_len != response_len) {
+        return false;
+    }
+
+    memset(response, 0, sizeof(*response));
+    memcpy(response, data.raw_data.bytes, response_len);
+    for (uint32_t i = 0; i < response->radio_count; i++) {
+        if (response->radios[i].tx_power < INT8_MIN ||
+            response->radios[i].tx_power > INT8_MAX) {
+            return false;
+        }
+    }
+
+    return true;
 }
 
 int em_agent_t::unassoc_sta_link_metrics_cb(char *event_name, bus_data_prop_t *data, void *userData)
@@ -2165,7 +2380,8 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
 			if (!(em->is_al_interface_em())) {
 				if (em->is_matching_freq_band(&band) == true) {
 					if ((em->get_state() != em_state_agent_autoconfig_renew_pending) && (em->get_state() !=em_state_agent_wsc_m2_pending) && 
-                        (em->get_state() != em_state_agent_owconfig_pending) && (em->get_state() != em_state_agent_1905_securing)) {
+                        (em->get_state() != em_state_agent_owconfig_pending) && (em->get_state() != em_state_agent_1905_securing) &&
+                        (em->get_state() != em_state_agent_wsc_m2_processed)) {
 						found = true;
 						break;
 					} else {
@@ -2219,7 +2435,9 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
 				if (em->is_matching_freq_band(&band) == true) {
 					/* Accept renew in owconfig_pending too: the apply confirmation
 					 * never arrived and renew is the mechanism to recover that. */
-					if ((em->get_state() != em_state_agent_autoconfig_renew_pending) && (em->get_state() !=em_state_agent_wsc_m2_pending)) {
+					if ((em->get_state() != em_state_agent_autoconfig_renew_pending) &&
+					    (em->get_state() != em_state_agent_wsc_m2_pending) &&
+					    (em->get_state() != em_state_agent_wsc_m2_processed)) {
 						em_printfout("Found matching band %d for autoconfig renew request, received controller AL MAC is %s", band, al_mac_str);
 						found = true;
 						break;
@@ -2771,7 +2989,9 @@ em_agent_t::em_agent_t()
 
 em_agent_t::~em_agent_t()
 {
-
+    if (pthread_mutex_destroy(&m_tx_power_mutex) != 0) {
+        em_printfout("Failed to destroy transmit power GET mutex");
+    }
 }
 #ifdef AL_SAP
 AlServiceAccessPoint* em_agent_t::al_sap_register(const std::string& data_socket_path, const std::string& control_socket_path)

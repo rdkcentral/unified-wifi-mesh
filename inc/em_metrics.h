@@ -238,6 +238,9 @@ class em_metrics_t {
 	 *
 	 * @param[in] buff Pointer to the buffer containing the TLV data.
 	 * @param[in] len Length of the data in the buffer.
+	 * @param[out] first_client_type_seen Optional; set to true when this TLV provides
+	 *             a client's type for the first time. The caller publishes the topology
+	 *             once after processing the whole response.
 	 *
 	 * @returns int Status code indicating success or failure.
 	 * @retval 0 on success.
@@ -245,7 +248,8 @@ class em_metrics_t {
 	 *
 	 * @note Ensure that the buffer is properly allocated and contains valid TLV data.
 	 */
-	int handle_assoc_sta_vendor_link_metrics_tlv(unsigned char *buff, unsigned int len);
+	int handle_assoc_sta_vendor_link_metrics_tlv(unsigned char *buff, unsigned int len,
+		bool *first_client_type_seen = NULL);
     
 	/**!
 	 * @brief Handles the beacon metrics query.
@@ -588,17 +592,6 @@ class em_metrics_t {
         */
         int handle_unassoc_sta_link_metrics_rsp(unsigned char *buff, unsigned int len);
 
-       /*
-        * @brief Parses and processes an Unassociated STA
-        *        Link Metrics TLV.
-        *
-        * @param buff TLV payload buffer.
-	* @param tlv_len TLV length
-        *
-        * @return 0 on success.
-        */
-        int handle_unassoc_sta_link_metrics_tlv(unsigned char *buff, unsigned int tlv_len);
-
        /* 
         * @brief Sends an Unassociated STA Link Metrics Query
         *        message from Controller to Agent.
@@ -764,6 +757,17 @@ public:
 	short send_single_beacon_metrics_query_msg();
 
 	short send_beacon_metrics_query(mac_address_t sta_mac, bssid_t bssid);
+
+	/**!
+	 * @brief Parses and processes an Unassociated STA
+	 *        Link Metrics TLV.
+	 *
+	 * @param buff TLV payload buffer.
+	 * @param tlv_len TLV length
+	 *
+	 * @return 0 on success.
+	 */
+	int handle_unassoc_sta_link_metrics_tlv(unsigned char *buff, unsigned int tlv_len);
 
 	/**!
 	 * @brief Retrieves the manager instance.

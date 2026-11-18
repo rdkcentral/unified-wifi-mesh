@@ -129,29 +129,49 @@ void dm_easy_mesh_list_t::remove_network(const char *key)
 void dm_easy_mesh_list_t::put_network(const char *key, const dm_network_t *net)
 {
     dm_easy_mesh_t *dm = NULL;
+    dm_easy_mesh_t *current_dm;
     dm_network_t *pnet;
-    mac_addr_str_t	mac_str;
+    dm_network_t network_data = *net;
+    mac_addr_str_t     mac_str;
     em_network_info_t *net_info;
+    // During startup loading, net carries NetworkList's DB ControllerID.
+    const bool controller_id_mismatch =
+        (m_controller_al_intf != NULL) && (strcmp(key, GLOBAL_NET_ID) == 0) &&
+        (memcmp(m_controller_al_intf->mac, ZERO_MAC_ADDR, sizeof(mac_address_t)) != 0) &&
+        (memcmp(net->m_net_info.ctrl_id.mac, m_controller_al_intf->mac, sizeof(mac_address_t)) != 0);
 
-    net_info = &(const_cast<dm_network_t *> (net))->m_net_info;
+    net_info = &network_data.m_net_info;
+
+    if (controller_id_mismatch) {
+        memcpy(net_info->ctrl_id.mac, m_controller_al_intf->mac, sizeof(mac_address_t));
+    }
+
     dm_easy_mesh_t::macbytes_to_string(net_info->ctrl_id.mac, mac_str);
-			
-    /* try to find any data model with this network, if exists, the colocated dm must be there, otherwise create one */
+
+    /* Normalize the persisted ID to the AL-SAP MAC before creating the controller model. */
     if ((dm = get_data_model(key, net_info->ctrl_id.mac)) == NULL) {
+        em_printfout("Creating data model for net_id:[%s] controller id mac:[%s]", key, mac_str);
 		dm = create_data_model(key, &net_info->ctrl_id, em_profile_type_3, true);
 		pnet = dm->get_network();
-		*pnet = *net;	
+        *pnet = network_data;
 		strncpy(m_network_list[m_num_networks], key, strlen(key));
 		m_num_networks++;
     } else {
-        dm = static_cast<dm_easy_mesh_t *> (hash_map_get_first(m_list));
-        while (dm != NULL) {
-            pnet = dm->get_network();
-            if (strncmp(net->m_net_info.id, key, strlen(key)) == 0) {
-	        	*pnet = *net;	
+        current_dm = static_cast<dm_easy_mesh_t *> (hash_map_get_first(m_list));
+        while (current_dm != NULL) {
+            pnet = current_dm->get_network();
+            if (strncmp(net_info->id, key, strlen(key)) == 0) {
+                *pnet = network_data;
             }
-            dm = static_cast<dm_easy_mesh_t *> (hash_map_get_next(m_list, dm));
+            current_dm = static_cast<dm_easy_mesh_t *> (hash_map_get_next(m_list, current_dm));
         }
+    }
+
+    if (controller_id_mismatch) {
+        // Persist the normalized controller ID in NetworkList.
+        // Preserve all stored fields; dm_network_t::operator= omits media.
+        dm->get_network()->m_net_info = network_data.m_net_info;
+        dm->set_db_cfg_param(db_cfg_type_network_list_update, "");
     }
 }
 
@@ -217,24 +237,31 @@ void dm_easy_mesh_list_t::put_device(const char *key, const dm_device_t *dev)
     dm_easy_mesh_t *dm;
     dm_device_t *pdev;
     mac_addr_str_t mac_str;
-	em_device_id_t	id;
+    em_device_id_t	id;
 
-	dm_device_t::parse_device_id_from_key(key, &id);
-	dm_easy_mesh_t::macbytes_to_string(id.dev_mac, mac_str);
-
-    if ((pdev = get_device(key)) == NULL) {
+    dm_device_t::parse_device_id_from_key(key, &id);
+    dm = get_data_model(id.net_id, dev->m_device_info.intf.mac);
+    // Reuse the controller's device when the MACs match.
+    if ((dm != NULL) && (dm->is_controller() == true) && (dm->get_device() != NULL)) {
+        pdev = dm->get_device();
+        memcpy(id.dev_mac, pdev->m_device_info.intf.mac, sizeof(mac_address_t));
+    } else if ((pdev = get_device(key)) == NULL) {
         em_printfout("device at key: %s not found\n", key);
-	    dm = create_data_model(dev->m_device_info.id.net_id, &dev->m_device_info.intf, dev->m_device_info.profile);
+        dm = create_data_model(dev->m_device_info.id.net_id, &dev->m_device_info.intf,
+            dev->m_device_info.profile);
         pdev = dm->get_device();
     }
+    dm_easy_mesh_t::macbytes_to_string(id.dev_mac, mac_str);
+
     *pdev = *dev;
-	
-	if ((dm = get_data_model(id.net_id, id.dev_mac)) == NULL) {
-		printf("%s:%d: Could not find data model for network: %s, mac: %s\n", __func__, __LINE__, id.net_id, mac_str);
-	} else {
-		printf("%s:%d: Device:%s inserted in network:%s\n", __func__, __LINE__, mac_str, id.net_id);
-		dm->m_network.m_net_info.num_of_devices++;
-	}
+    pdev->m_device_info.id = id;
+
+    if ((dm = get_data_model(id.net_id, id.dev_mac)) == NULL) {
+        printf("%s:%d: Could not find data model for network: %s, mac: %s\n", __func__, __LINE__, id.net_id, mac_str);
+    } else {
+        printf("%s:%d: Device:%s inserted in network:%s\n", __func__, __LINE__, mac_str, id.net_id);
+        dm->m_network.m_net_info.num_of_devices++;
+    }
 }
 
 void dm_easy_mesh_list_t::update_device(const char *key, const dm_device_t *dev)
@@ -421,6 +448,7 @@ if (dm == NULL) {
             rm_default.rcpi_hysteresis = 5;
             rm_default.sta_traffic_stats = true;
             rm_default.sta_link_metric = true;
+            rm_default.sta_status = true;
             dm_policy_t rp(rm_default);
             memcpy(rp.m_policy.id.radio_mac, pradio->m_radio_info.intf.mac, sizeof(mac_address_t));
             dm->set_policy(rp);
@@ -547,8 +575,8 @@ dm_bss_t *dm_easy_mesh_list_t::get_bss(const char *key)
 	dm_easy_mesh_t *dm;
 
 	dm_bss_t::parse_bss_id_from_key(key, &id);
-	dm_easy_mesh_t::macbytes_to_string(id.dev_mac, dev_mac_str);	
-	
+	dm_easy_mesh_t::macbytes_to_string(id.dev_mac, dev_mac_str);
+
 	if ((dm = get_data_model(id.net_id, id.dev_mac)) == NULL) {
 		printf("%s:%d: Could not find data model for Network: %s and dev: %s\n", __func__, __LINE__, id.net_id, dev_mac_str);
 		return NULL;
@@ -770,7 +798,7 @@ void dm_easy_mesh_list_t::put_sta(const char *key, const dm_sta_t *sta)
     if ((psta = static_cast<dm_sta_t *> (hash_map_get(dm->m_sta_map, key))) != NULL) {
         // em_printfout("%s:%d: STA:%s already present on BSS:%s of radio:%s dm:%p dm_mac:%s\n", __func__, __LINE__,
         //    sta_mac_str, bssid_str, radio_mac_str, dm, util::mac_to_string(dm->m_device.m_device_info.intf.mac).c_str());
-        memcpy(&psta->m_sta_info, &sta->m_sta_info, sizeof(em_sta_info_t));
+        dm_sta_t::copy_sta_info(&psta->m_sta_info, &sta->m_sta_info);
         return;
     }
 
@@ -849,7 +877,7 @@ dm_network_ssid_t *dm_easy_mesh_list_t::get_network_ssid(const char *key)
     while (dm != NULL) {
         for (i = 0;  i < dm->get_num_network_ssid(); i++) {
             net_ssid = dm->get_network_ssid(i);
-            if (strncmp(net_ssid->m_network_ssid_info.id, key, strlen(key)) == 0) {
+            if (strcmp(net_ssid->m_network_ssid_info.id, key) == 0) {
                 found = true;
                 break;
             }
@@ -926,17 +954,18 @@ void dm_easy_mesh_list_t::put_network_ssid(const char *key, const dm_network_ssi
     strncpy(net_id, ptr + 1, strlen(ptr));
     *ptr = 0;
 
+    em_printfout("SSID_TRACE: put_network_ssid: key: %s, net_id: %s, ssid: %s", key, net_id, net_ssid->m_network_ssid_info.ssid);
 
     dm = static_cast<dm_easy_mesh_t *> (hash_map_get_first(m_list));
     while (dm != NULL) {
         net = dm->get_network();
-        if (strncmp(net->m_net_info.id, net_id, strlen(net_id)) != 0) {
+        if (strcmp(net->m_net_info.id, net_id) != 0) {
             dm = static_cast<dm_easy_mesh_t *> (hash_map_get_next(m_list, dm));
             continue;
         }
         for (i = 0;  i < dm->get_num_network_ssid(); i++) {
             pnet_ssid = dm->get_network_ssid(i);
-            if (strncmp(pnet_ssid->m_network_ssid_info.id, key, strlen(key)) == 0) {
+            if (strcmp(pnet_ssid->m_network_ssid_info.id, key) == 0) {
                 found = true;
                 break;
             }
@@ -945,10 +974,13 @@ void dm_easy_mesh_list_t::put_network_ssid(const char *key, const dm_network_ssi
         if (found == true) {
             found = false;
             *pnet_ssid = *net_ssid;
+            em_printfout("SSID_TRACE: put_network_ssid: updated existing ssid: %s on dm(is_controller:%d)", net_ssid->m_network_ssid_info.ssid, dm->is_controller());
         } else {
             pnet_ssid = dm->get_network_ssid(dm->get_num_network_ssid());
             *pnet_ssid = *net_ssid;
             dm->set_num_network_ssid(dm->get_num_network_ssid() + 1);
+            em_printfout("SSID_TRACE: put_network_ssid: inserted new ssid: %s on dm(is_controller:%d), num_network_ssid now: %d",
+                net_ssid->m_network_ssid_info.ssid, dm->is_controller(), dm->get_num_network_ssid());
         }
         dm = static_cast<dm_easy_mesh_t *> (hash_map_get_next(m_list, dm));
     }
@@ -1142,7 +1174,7 @@ void dm_easy_mesh_list_t::remove_op_class(const char *key)
 
 }
 
-void dm_easy_mesh_list_t::put_op_class(const char *key, const dm_op_class_t *op_class)
+int dm_easy_mesh_list_t::put_op_class(const char *key, const dm_op_class_t *op_class)
 {
 	em_op_class_id_t id;
 	mac_addr_str_t mac_str;
@@ -1191,7 +1223,7 @@ void dm_easy_mesh_list_t::put_op_class(const char *key, const dm_op_class_t *op_
 
     if (found_dm != true) {
         em_printfout("dm for  mac address:%s id.type:%d not found, return...", mac_str, id.type);
-        return;
+        return 0;
     }
 
     // now check if the op class is already there
@@ -1201,8 +1233,13 @@ void dm_easy_mesh_list_t::put_op_class(const char *key, const dm_op_class_t *op_
 					(pop_class->m_op_class_info.id.type == op_class->m_op_class_info.id.type) &&
 					(pop_class->m_op_class_info.id.op_class == op_class->m_op_class_info.id.op_class)) {
         	memcpy(&pop_class->m_op_class_info, &op_class->m_op_class_info, sizeof(em_op_class_info_t));
-        	return;
+            return 0;
         }
+    }
+
+    if (dm->get_num_op_class() >= EM_MAX_OPCLASS) {
+        em_printfout("Max limit reached for op class entries in datamodel, cannot add more entries");
+        return -1;
     }
 
     pop_class = &dm->m_op_class[dm->get_num_op_class()];
@@ -1212,6 +1249,7 @@ void dm_easy_mesh_list_t::put_op_class(const char *key, const dm_op_class_t *op_
 		//mac_str, pop_class->m_op_class_info.id.type, pop_class->m_op_class_info.id.op_class);
     dm->set_num_op_class(dm->get_num_op_class() + 1);
 	//printf("%s:%d: Number of op classes: %d\n", __func__, __LINE__, dm->get_num_op_class());
+    return 0;
 }
 
 dm_policy_t *dm_easy_mesh_list_t::get_first_policy()
@@ -1681,7 +1719,6 @@ dm_easy_mesh_t *dm_easy_mesh_list_t::create_data_model(const char *net_id, const
     dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *> (al_intf->mac), mac_str);
     snprintf(key, sizeof(em_short_string_t), "%s@%s", net_id, mac_str);
 
-
     dm = new dm_easy_mesh_t();
     dm->init();
 
@@ -1711,7 +1748,7 @@ dm_easy_mesh_t *dm_easy_mesh_list_t::create_data_model(const char *net_id, const
             }
         }
     }
-    em_printfout("Created data model for net_id: %s mac: %s, is_colocated:%d is_controller:%d", net_id, mac_str, colocated, controller);
+    em_printfout("Created data model for net_id:[%s], mac:[%s], is_colocated:%d is_controller:%d", net_id, mac_str, colocated, controller);
 
     dev = dm->get_device();
     memcpy(dev->m_device_info.intf.mac, al_intf->mac, sizeof(mac_address_t));
@@ -1719,7 +1756,7 @@ dm_easy_mesh_t *dm_easy_mesh_list_t::create_data_model(const char *net_id, const
 	if (controller == true) {
 		memcpy(dev->m_device_info.id.dev_mac, al_intf->mac, sizeof(mac_address_t));
 		dev->m_device_info.id.media = dm->m_network.m_net_info.media;
-		//TODO: Monitor Checks
+        //TODO: Monitor Checks
 		//memcpy(dev->m_device_info.backhaul_mac.mac, al_intf->mac, sizeof(mac_address_t));
 		dev->m_device_info.backhaul_mac.media = dm->m_network.m_net_info.media;
 		em_printfout("Backhaul mac updated to :%s device media:%d backhaul media:%d",
@@ -1728,6 +1765,7 @@ dm_easy_mesh_t *dm_easy_mesh_list_t::create_data_model(const char *net_id, const
 		//Update the easymesh configuration file to specify colocated agent as true.
 		dev->update_easymesh_json_cfg(true);
 	} else {
+        em_printfout("Initializing device for data model... with AL-mac: %s", util::mac_to_string(al_intf->mac).c_str());
         dm->set_id();
         em_printfout("dm->get_id():%d", dm->get_id());
     }
@@ -1778,11 +1816,12 @@ dm_easy_mesh_t *dm_easy_mesh_list_t::get_data_model(const char *net_id, const un
     return dm;
 }
 
-void dm_easy_mesh_list_t::init(em_mgr_t *mgr)
+void dm_easy_mesh_list_t::init(em_mgr_t *mgr, const em_interface_t *controller_al_intf)
 {
     m_list = hash_map_create();	
     m_num_networks = 0;
     m_mgr = mgr;
+    m_controller_al_intf = controller_al_intf;
 }
 
 dm_easy_mesh_list_t::dm_easy_mesh_list_t()

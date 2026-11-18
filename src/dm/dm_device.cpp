@@ -174,7 +174,7 @@ int dm_device_t::decode(const cJSON *obj, void *parent_id)
     }
     return 0;
 }
-void dm_device_t::encode(cJSON *obj, bool summary)
+void dm_device_t::encode(cJSON *obj, bool summary, bool skip_model)
 {
 	cJSON *bh_obj;
     mac_addr_str_t  mac_str;
@@ -183,6 +183,13 @@ void dm_device_t::encode(cJSON *obj, bool summary)
 
     dm_easy_mesh_t::macbytes_to_string(m_device_info.intf.mac, mac_str);
     cJSON_AddStringToObject(obj, "ID", mac_str);
+    if (!skip_model) {
+        if (strlen(m_device_info.manufacturer_model) == 0) {
+            cJSON_AddStringToObject(obj, "deviceModel", "unknown");
+        } else {
+            cJSON_AddStringToObject(obj, "deviceModel", m_device_info.manufacturer_model);
+        }
+    }
 
 	bh_obj = cJSON_AddObjectToObject(obj, "Backhaul");
     dm_easy_mesh_t::macbytes_to_string(m_device_info.backhaul_mac.mac, mac_str);
@@ -291,6 +298,11 @@ void dm_device_t::operator = (const dm_device_t& obj) {
     this->m_device_info.traffic_sep_cap = obj.m_device_info.traffic_sep_cap;
     this->m_device_info.easy_conn_cap = obj.m_device_info.easy_conn_cap;
     this->m_device_info.test_cap = obj.m_device_info.test_cap;
+    this->m_device_info.apmld_maxlinks = obj.m_device_info.apmld_maxlinks;
+    this->m_device_info.tidlink_map = obj.m_device_info.tidlink_map;
+    this->m_device_info.assoc_sta_reporting_int = obj.m_device_info.assoc_sta_reporting_int;
+    this->m_device_info.max_nummlds = obj.m_device_info.max_nummlds;
+    this->m_device_info.bstamld_maxlinks = obj.m_device_info.bstamld_maxlinks;
     memcpy(&this->m_device_info.primary_device_type,&obj.m_device_info.primary_device_type,sizeof(em_small_string_t));
     memcpy(&this->m_device_info.secondary_device_type,&obj.m_device_info.secondary_device_type,sizeof(em_small_string_t));
     this->m_device_info.is_emplus_agent = obj.m_device_info.is_emplus_agent;
@@ -328,6 +340,11 @@ bool dm_device_t::operator == (const dm_device_t& obj)
     ret += !(this->m_device_info.traffic_sep_cap == obj.m_device_info.traffic_sep_cap);
     ret += !(this->m_device_info.easy_conn_cap == obj.m_device_info.easy_conn_cap);
     ret += !(this->m_device_info.test_cap == obj.m_device_info.test_cap);
+    ret += !(this->m_device_info.apmld_maxlinks == obj.m_device_info.apmld_maxlinks);
+    ret += !(this->m_device_info.tidlink_map == obj.m_device_info.tidlink_map);
+    ret += !(this->m_device_info.assoc_sta_reporting_int == obj.m_device_info.assoc_sta_reporting_int);
+    ret += !(this->m_device_info.max_nummlds == obj.m_device_info.max_nummlds);
+    ret += !(this->m_device_info.bstamld_maxlinks == obj.m_device_info.bstamld_maxlinks);
     ret += (memcmp(&this->m_device_info.primary_device_type,&obj.m_device_info.primary_device_type,sizeof(em_small_string_t)) != 0);;
     ret += (memcmp(&this->m_device_info.secondary_device_type,&obj.m_device_info.secondary_device_type,sizeof(em_small_string_t)) != 0);
 

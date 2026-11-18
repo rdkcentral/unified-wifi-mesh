@@ -6670,6 +6670,279 @@ TEST(em_tlv_member_t, em_tlv_member_t_destructor_invoked_valid_instance) {
     std::cout << "Instance went out of scope. Destructor ~em_tlv_member_t() should have been invoked with no errors, memory leaks, or crashes." << std::endl;
     std::cout << "Exiting em_tlv_member_t_destructor_invoked_valid_instance test" << std::endl;
 }
+/**
+ * @brief Verify that get_radio_id rejects a buffer holding only 1 byte of a TLV header
+ *
+ * The buffer is sized exactly to the data so any read past it is caught by ASan.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 184@n
+ * **Priority:** High@n
+ *
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ *
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01 | Call get_radio_id on a 1-byte buffer holding only a TLV type | tlvBuffer = {em_tlv_type_radio_id}, len = 1 | API returns false without reading past the buffer | Should Fail |
+ */
+TEST(em_msg_t, get_radio_id_one_byte_tlv_header)
+{
+    std::cout << "Entering get_radio_id_one_byte_tlv_header" << std::endl;
+    std::vector<unsigned char> tlvBuffer = {em_tlv_type_radio_id};
+    em_msg_t msg(tlvBuffer.data(), static_cast<unsigned int>(tlvBuffer.size()));
+    unsigned char mac[6] = {0};
+    bool retVal = msg.get_radio_id(&mac);
+    EXPECT_FALSE(retVal);
+    std::cout << "Exiting get_radio_id_one_byte_tlv_header" << std::endl;
+}
+/**
+ * @brief Verify that get_radio_id rejects a buffer holding only 2 bytes of a TLV header
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 185@n
+ * **Priority:** High@n
+ *
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ *
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01 | Call get_radio_id on a 2-byte buffer holding a TLV type and half of the length field | tlvBuffer = {em_tlv_type_radio_id, 0x00}, len = 2 | API returns false without reading past the buffer | Should Fail |
+ */
+TEST(em_msg_t, get_radio_id_two_byte_tlv_header)
+{
+    std::cout << "Entering get_radio_id_two_byte_tlv_header" << std::endl;
+    std::vector<unsigned char> tlvBuffer = {em_tlv_type_radio_id, 0x00};
+    em_msg_t msg(tlvBuffer.data(), static_cast<unsigned int>(tlvBuffer.size()));
+    unsigned char mac[6] = {0};
+    bool retVal = msg.get_radio_id(&mac);
+    EXPECT_FALSE(retVal);
+    std::cout << "Exiting get_radio_id_two_byte_tlv_header" << std::endl;
+}
+/**
+ * @brief Verify that get_radio_id rejects a TLV whose declared length exceeds the remaining buffer
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 186@n
+ * **Priority:** High@n
+ *
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ *
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01 | Call get_radio_id on a radio_id TLV that declares 6 bytes but carries only 3 | tlvBuffer = radio_id TLV, len field = 6, value = {0x00,0x11,0x22} | API returns false without reading past the buffer | Should Fail |
+ */
+TEST(em_msg_t, get_radio_id_tlv_len_exceeds_buffer)
+{
+    std::cout << "Entering get_radio_id_tlv_len_exceeds_buffer" << std::endl;
+    unsigned char partialMac[3] = {0x00, 0x11, 0x22};
+    std::vector<unsigned char> tlvBuffer(TLV_HEADER_SIZE + sizeof(partialMac));
+    write_tlv(tlvBuffer.data(), em_tlv_type_radio_id, partialMac, sizeof(partialMac));
+    uint16_t declared_len = htons(sizeof(mac_address_t));
+    memcpy(tlvBuffer.data() + 1, &declared_len, 2);
+    em_msg_t msg(tlvBuffer.data(), static_cast<unsigned int>(tlvBuffer.size()));
+    unsigned char mac[6] = {0};
+    bool retVal = msg.get_radio_id(&mac);
+    EXPECT_FALSE(retVal);
+    std::cout << "Exiting get_radio_id_tlv_len_exceeds_buffer" << std::endl;
+}
+/**
+ * @brief Verify that get_radio_id rejects a Channel Scan Request payload shorter than em_channel_scan_req_t
+ *
+ * The 2-byte payload {Fresh Scan, num_radios = 1} has no RUID. The frame ends after the EOM TLV,
+ * so reading the 6-byte RUID would go past the buffer.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 187@n
+ * **Priority:** High@n
+ *
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ *
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01 | Call get_radio_id on an undersized Channel Scan Request TLV followed by EOM | channel_scan_req payload = {0x80, 0x01}, EOM TLV | API returns false without reading the RUID | Should Fail |
+ */
+TEST(em_msg_t, get_radio_id_channel_scan_req_undersized)
+{
+    std::cout << "Entering get_radio_id_channel_scan_req_undersized" << std::endl;
+    unsigned char payload[2] = {0x80, 0x01};
+    std::vector<unsigned char> tlvBuffer(TLV_HEADER_SIZE + sizeof(payload) + TLV_HEADER_SIZE);
+    size_t offset = 0;
+    write_tlv(tlvBuffer.data() + offset, em_tlv_type_channel_scan_req, payload, sizeof(payload));
+    offset += TLV_HEADER_SIZE + sizeof(payload);
+    write_tlv(tlvBuffer.data() + offset, em_tlv_type_eom, nullptr, 0);
+    em_msg_t msg(tlvBuffer.data(), static_cast<unsigned int>(tlvBuffer.size()));
+    unsigned char mac[6] = {0};
+    bool retVal = msg.get_radio_id(&mac);
+    EXPECT_FALSE(retVal);
+    std::cout << "Exiting get_radio_id_channel_scan_req_undersized" << std::endl;
+}
+/**
+ * @brief Verify that get_radio_id extracts the RUID from a valid Channel Scan Request
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 188@n
+ * **Priority:** High@n
+ *
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ *
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01 | Call get_radio_id on a Channel Scan Request with the full fixed header followed by EOM | Fresh Scan = 0, num_radios = 1, ruid = 10:20:30:40:50:60, num_op_classes = 0, EOM TLV | API returns true and extracted MAC equals ruid | Should Pass |
+ */
+TEST(em_msg_t, get_radio_id_channel_scan_req_valid)
+{
+    std::cout << "Entering get_radio_id_channel_scan_req_valid" << std::endl;
+    unsigned char expectedMac[6] = {0x10, 0x20, 0x30, 0x40, 0x50, 0x60};
+    unsigned char payload[sizeof(em_channel_scan_req_t)] = {0};
+    em_channel_scan_req_t *req = reinterpret_cast<em_channel_scan_req_t *>(payload);
+    req->num_radios = 1;
+    memcpy(req->ruid, expectedMac, sizeof(mac_address_t));
+    req->num_op_classes = 0;
+    std::vector<unsigned char> tlvBuffer(TLV_HEADER_SIZE + sizeof(payload) + TLV_HEADER_SIZE);
+    size_t offset = 0;
+    write_tlv(tlvBuffer.data() + offset, em_tlv_type_channel_scan_req, payload, sizeof(payload));
+    offset += TLV_HEADER_SIZE + sizeof(payload);
+    write_tlv(tlvBuffer.data() + offset, em_tlv_type_eom, nullptr, 0);
+    em_msg_t msg(tlvBuffer.data(), static_cast<unsigned int>(tlvBuffer.size()));
+    unsigned char mac[6] = {0};
+    bool retVal = msg.get_radio_id(&mac);
+    EXPECT_TRUE(retVal);
+    EXPECT_EQ(0, std::memcmp(mac, expectedMac, 6));
+    std::cout << "Exiting get_radio_id_channel_scan_req_valid" << std::endl;
+}
+                                
+
+// Test 1: Valid SupportedService TLV with zero services
+TEST(em_msg_t, supported_service_valid_k0)
+{
+    std::cout << "Entering supported_service_valid_k0 test" << std::endl;
+    unsigned char buffer[64] = {0};
+    size_t offset = 0;
+    unsigned char payload[1] = {0x00};
+    write_tlv(buffer + offset, em_tlv_type_supported_service, payload, sizeof(payload));
+    offset += TLV_HEADER_SIZE + sizeof(payload);
+    write_tlv(buffer + offset, em_tlv_type_eom, nullptr, 0);
+    offset += TLV_HEADER_SIZE;
+    em_msg_t msg(em_msg_type_topo_disc, em_profile_type_reserved, buffer, offset);
+    em_supported_service_t svc{};
+    bool result = msg.get_supported_service(&svc);
+    EXPECT_TRUE(result);
+    EXPECT_EQ(svc.num, 0);
+    std::cout << "Exiting supported_service_valid_k0 test" << std::endl;
+}
+
+// Test 2: SupportedService TLV with zero length
+TEST(em_msg_t, supported_service_zero_length)
+{
+    std::cout << "Entering supported_service_zero_length test" << std::endl;
+    unsigned char buffer[64] = {0};
+    size_t offset = 0;
+    write_tlv(buffer + offset, em_tlv_type_supported_service, nullptr, 0);
+    offset += TLV_HEADER_SIZE;
+    write_tlv(buffer + offset, em_tlv_type_eom, nullptr, 0);
+    offset += TLV_HEADER_SIZE;
+    em_msg_t msg(em_msg_type_topo_disc, em_profile_type_reserved, buffer, offset);
+    em_supported_service_t svc{};
+    bool result = msg.get_supported_service(&svc);
+    EXPECT_FALSE(result);
+    std::cout << "Exiting supported_service_zero_length test" << std::endl;
+}
+
+// Test 3: Service count exceeds available service IDs
+TEST(em_msg_t, supported_service_count_exceeds_available_ids)
+{
+    std::cout << "Entering supported_service_count_exceeds_available_ids test" << std::endl;
+    unsigned char buffer[64] = {0};
+    size_t offset = 0;
+    unsigned char payload[2] = {0x05, 0x00};
+    write_tlv(buffer + offset, em_tlv_type_supported_service, payload, sizeof(payload));
+    offset += TLV_HEADER_SIZE + sizeof(payload);
+    write_tlv(buffer + offset, em_tlv_type_eom, nullptr, 0);
+    offset += TLV_HEADER_SIZE;
+    em_msg_t msg(em_msg_type_topo_disc, em_profile_type_reserved, buffer, offset);
+    em_supported_service_t svc{};
+    bool result = msg.get_supported_service(&svc);
+    EXPECT_FALSE(result);
+    std::cout << "Exiting supported_service_count_exceeds_available_ids test" << std::endl;
+}
+
+// Test 4: Service count is smaller than available service IDs
+TEST(em_msg_t, supported_service_count_smaller_than_available_ids)
+{
+    std::cout << "Entering supported_service_count_smaller_than_available_ids test" << std::endl;
+    unsigned char buffer[64] = {0};
+    size_t offset = 0;
+    unsigned char payload[3] = {0x01, 0x00, 0x01};
+    write_tlv(buffer + offset, em_tlv_type_supported_service, payload, sizeof(payload));
+    offset += TLV_HEADER_SIZE + sizeof(payload);
+    write_tlv(buffer + offset, em_tlv_type_eom, nullptr, 0);
+    offset += TLV_HEADER_SIZE;
+    em_msg_t msg(em_msg_type_topo_disc, em_profile_type_reserved, buffer, offset);
+    em_supported_service_t svc{};
+    bool result = msg.get_supported_service(&svc);
+    EXPECT_FALSE(result);
+    std::cout << "Exiting supported_service_count_smaller_than_available_ids test" << std::endl;
+}
+
+// Test 5: Valid SupportedService TLV with maximum supported services
+TEST(em_msg_t, supported_service_valid_max_services)
+{
+    std::cout << "Entering supported_service_valid_max_services test" << std::endl;
+    unsigned char buffer[TLV_HEADER_SIZE + 1 + EM_MAX_SERVICE + TLV_HEADER_SIZE] = {0};
+    size_t offset = 0;
+    unsigned char payload[1 + EM_MAX_SERVICE] = {0};
+    payload[0] = EM_MAX_SERVICE;
+    for (unsigned int i = 0; i < EM_MAX_SERVICE; ++i) {
+        payload[i + 1] = static_cast<unsigned char>(i % 2);
+    }
+    write_tlv(buffer + offset, em_tlv_type_supported_service, payload, sizeof(payload));
+    offset += TLV_HEADER_SIZE + sizeof(payload);
+    write_tlv(buffer + offset, em_tlv_type_eom, nullptr, 0);
+    offset += TLV_HEADER_SIZE;
+    em_msg_t msg(em_msg_type_topo_disc, em_profile_type_reserved, buffer, offset);
+    em_supported_service_t svc{};
+    bool result = msg.get_supported_service(&svc);
+    EXPECT_TRUE(result);
+    EXPECT_EQ(svc.num, EM_MAX_SERVICE);
+    std::cout << "Exiting supported_service_valid_max_services test" << std::endl;
+}
+
+// Test 6: Service count exceeds destination capacity
+TEST(em_msg_t, supported_service_count_exceeds_destination_capacity)
+{
+    std::cout << "Entering supported_service_count_exceeds_destination_capacity test" << std::endl;
+    unsigned char buffer[TLV_HEADER_SIZE + 1 + EM_MAX_SERVICE + 1 + TLV_HEADER_SIZE] = {0};
+    size_t offset = 0;
+    unsigned char payload[1 + EM_MAX_SERVICE + 1] = {0};
+    payload[0] = static_cast<unsigned char>(EM_MAX_SERVICE + 1);
+    for (unsigned int i = 0; i < EM_MAX_SERVICE + 1; ++i) {
+        payload[i + 1] = 0x00;
+    }
+    write_tlv(buffer + offset, em_tlv_type_supported_service, payload, sizeof(payload));
+    offset += TLV_HEADER_SIZE + sizeof(payload);
+    write_tlv(buffer + offset, em_tlv_type_eom, nullptr, 0);
+    offset += TLV_HEADER_SIZE;
+    em_msg_t msg(em_msg_type_topo_disc, em_profile_type_reserved, buffer, offset);
+    em_supported_service_t svc{};
+    bool result = msg.get_supported_service(&svc);
+    EXPECT_FALSE(result);
+    std::cout << "Exiting supported_service_count_exceeds_destination_capacity test" << std::endl;
+}
 
 /**
  * @brief Build a frame with a header, a copied TLV, a produced TLV and the EOM TLV and verify its layout.

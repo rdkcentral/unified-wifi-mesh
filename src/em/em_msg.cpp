@@ -101,7 +101,7 @@ bool em_msg_t::get_supported_service(em_supported_service_t *svc)
             return false;
         }
         if (tlv->type == em_tlv_type_supported_service) {
-             if (tlv_len < 2) {
+             if (tlv_len < 1) {
                  return false;
             }
             unsigned int copy_len = tlv_len - 1;
@@ -109,6 +109,12 @@ bool em_msg_t::get_supported_service(em_supported_service_t *svc)
                 copy_len = EM_MAX_SERVICE;
             }
             svc->num = tlv->value[0];
+            if (tlv_len != 1U + svc->num) {
+                return false;
+            }
+            if (svc->num > EM_MAX_SERVICE) {
+                return false;
+            }
             if (svc->num > copy_len) {
                 svc->num = static_cast<unsigned char>(copy_len);
             }
@@ -257,7 +263,20 @@ bool em_msg_t::get_radio_id(mac_address_t *mac)
 	em_ap_op_bss_radio_t    *radio;
 
     tlv = reinterpret_cast<em_tlv_t *> (m_buff); len = m_len;
-    while ((tlv->type != em_tlv_type_eom) && (len > 0)) {
+    while (len > 0) {
+        if (len < sizeof(em_tlv_t)) {
+            return false;
+        }
+        if ((sizeof(em_tlv_t) + ntohs(tlv->len)) > len) {
+            return false;
+        }
+        if (tlv->type == em_tlv_type_channel_scan_req &&
+            ntohs(tlv->len) < sizeof(em_channel_scan_req_t)) {
+            return false;
+        }
+        if (tlv->type == em_tlv_type_eom) {
+            break;
+        }
         if (tlv->type == em_tlv_type_radio_id) {
             memcpy(mac, tlv->value, sizeof(mac_address_t));
             return true;    
@@ -815,6 +834,25 @@ void em_msg_t::ap_cap_rprt()
     m_tlv_member[m_num_tlv++] = em_tlv_member_t(em_tlv_type_ap_radio_advanced_cap, optional, "17.2.52 of Wi-Fi Easy Mesh 5.0", 9);
 }
 
+void em_msg_t::early_ap_cap_rprt()
+{
+    m_tlv_member[m_num_tlv++] = em_tlv_member_t(em_tlv_type_ap_cap, mandatory, "17.2.6 of Wi-Fi Easy Mesh 5.0", 3);
+    m_tlv_member[m_num_tlv++] = em_tlv_member_t(em_tlv_type_ap_radio_basic_cap, mandatory, "17.2.7 of Wi-Fi Easy Mesh 5.0", 15);
+    m_tlv_member[m_num_tlv++] = em_tlv_member_t(em_tlv_type_akm_suite, mandatory, "17.2.78 of Wi-Fi Easy Mesh 5.0", 5);
+    m_tlv_member[m_num_tlv++] = em_tlv_member_t(em_tlv_type_ht_cap, optional, "17.2.8 of Wi-Fi Easy Mesh 5.0", 9);
+    m_tlv_member[m_num_tlv++] = em_tlv_member_t(em_tlv_type_vht_cap, optional, "17.2.9 of Wi-Fi Easy Mesh 5.0", 13);
+    m_tlv_member[m_num_tlv++] = em_tlv_member_t(em_tlv_type_he_cap, optional, "17.2.10 of Wi-Fi Easy Mesh 5.0", 10);
+    m_tlv_member[m_num_tlv++] = em_tlv_member_t(em_tlv_type_ap_wifi6_cap, (m_profile > em_profile_type_2) ? optional:bad, "17.2.72 of Wi-Fi Easy Mesh 5.0", 24);
+    m_tlv_member[m_num_tlv++] = em_tlv_member_t(em_tlv_type_wifi7_agent_cap, (m_profile > em_profile_type_2) ? optional:bad, "17.2.95 of Wi-Fi Easy Mesh 6.0", 4);
+    m_tlv_member[m_num_tlv++] = em_tlv_member_t(em_tlv_eht_operations, (m_profile > em_profile_type_2) ? optional:bad, "17.2.103 of Wi-Fi Easy Mesh 6.0", 4);
+    m_tlv_member[m_num_tlv++] = em_tlv_member_t(em_tlv_type_1905_layer_security_cap, (m_profile > em_profile_type_2) ? mandatory:bad, "17.2.67 of Wi-Fi Easy Mesh 5.0", 6);
+    m_tlv_member[m_num_tlv++] = em_tlv_member_t(em_tlv_type_cac_cap, optional, "17.2.46 of Wi-Fi Easy Mesh 5.0", 21);
+    m_tlv_member[m_num_tlv++] = em_tlv_member_t(em_tlv_type_profile_2_ap_cap, (m_profile > em_profile_type_1) ? mandatory:bad, "17.2.48 of Wi-Fi Easy Mesh 5.0", 6);
+    m_tlv_member[m_num_tlv++] = em_tlv_member_t(em_tlv_type_metric_cltn_interval, (m_profile > em_profile_type_1) ? optional:bad, "17.2.59 of Wi-Fi Easy Mesh 5.0", 7);
+    m_tlv_member[m_num_tlv++] = em_tlv_member_t(em_tlv_type_device_inventory, optional, "17.2.76 of Wi-Fi Easy Mesh 5.0", 270);
+    m_tlv_member[m_num_tlv++] = em_tlv_member_t(em_tlv_type_ap_radio_advanced_cap, optional, "17.2.52 of Wi-Fi Easy Mesh 5.0", 9);
+}
+
 void em_msg_t::policy_config_req()
 {
     m_tlv_member[m_num_tlv++] = em_tlv_member_t(em_tlv_type_steering_policy, optional, "17.2.11 of Wi-Fi Easy Mesh 5.0", 27);
@@ -945,7 +983,7 @@ void em_msg_t::unassoc_sta_link_metrics_query()
 }
 void em_msg_t::unassoc_sta_link_metrics_rsp()
 {
-    m_tlv_member[m_num_tlv++] = em_tlv_member_t(em_tlv_type_unassoc_sta_link_metric_rsp, mandatory, "17.2.26 of Wi-Fi Easy Mesh 5.0", 11);
+    m_tlv_member[m_num_tlv++] = em_tlv_member_t(em_tlv_type_unassoc_sta_link_metric_rsp, mandatory, "17.2.26 of Wi-Fi Easy Mesh 5.0", static_cast<int>(sizeof(em_tlv_t) + 2));
 }
 
 void em_msg_t::beacon_metrics_query()
@@ -1206,6 +1244,10 @@ em_msg_t::em_msg_t(em_msg_type_t type, em_profile_type_t profile, unsigned char 
 
         case em_msg_type_ap_cap_rprt:
             ap_cap_rprt();
+            break;
+
+        case em_msg_type_early_ap_cap_rprt:
+            early_ap_cap_rprt();
             break;
 
         case em_msg_type_map_policy_config_req:

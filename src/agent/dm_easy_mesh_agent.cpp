@@ -52,6 +52,7 @@
 #include "em_cmd_sta_link_metrics.h"
 #include "em_cmd_ap_metrics_report.h"
 #include "em_cmd_link_stats_report.h"
+#include "em_cmd_vendor_data.h"
 #include "em_cmd_unassoc_sta_result.h"
 
 #ifdef AL_SAP
@@ -115,7 +116,6 @@ int dm_easy_mesh_agent_t::analyze_sta_list(em_bus_event_t *evt, em_cmd_t *pcmd[]
     dm_easy_mesh_agent_t  dm;
     dm_sta_t *sta = NULL;
     em_cmd_t *tmp = NULL;
-    mac_address_t sta_mld_mac;
     em_long_string_t key;
     mac_address_t assoc_sta_mld_tracked_macs[EM_MAX_ASSOC_STA_MLD] = {{0}};
     mac_address_t disassoc_sta_mld_tracked_macs[EM_MAX_ASSOC_STA_MLD] = {{0}};
@@ -141,9 +141,7 @@ int dm_easy_mesh_agent_t::analyze_sta_list(em_bus_event_t *evt, em_cmd_t *pcmd[]
         webconfig_subdoc_type_associated_clients, "Assoc clients");
     // Refresh global STA-MLD entries from the latest decoded snapshot.
     for (idx = 0; idx < dm.m_num_assoc_sta_mld; idx++) {
-        memcpy(sta_mld_mac, dm.m_assoc_sta_mld[idx].m_assoc_sta_mld_info.mac_addr, sizeof(mac_address_t));
-        remove_assoc_sta_mld_info(sta_mld_mac);
-        update_assoc_sta_mld_info(&dm.m_assoc_sta_mld[idx].m_assoc_sta_mld_info);
+        replace_assoc_sta_mld_info(dm.m_assoc_sta_mld[idx].m_assoc_sta_mld_info);
     }
 
     for ( i = 0; i < num_radios; i++) {
@@ -266,7 +264,7 @@ void dm_easy_mesh_agent_t::translate_onewifi_dml_data (char *str)
             get_num_op_class, set_num_op_class, get_num_bss, set_num_bss,
             get_device_info, get_network_info, get_radio_info, get_ieee_1905_security_info, get_bss_info, get_op_class_info, 
             get_first_sta_info, get_next_sta_info, get_sta_info, put_sta_info, get_bss_info_with_mac, update_scan_results,
-            update_ap_mld_info, update_bsta_mld_info, update_assoc_sta_mld_info, get_ap_mld_frm_bssid, get_radio_cap_info);
+            update_ap_mld_info, update_bsta_mld_info, update_assoc_sta_mld_info, get_ap_mld_frm_haul_type, get_radio_cap_info);
     
     config.initializer = webconfig_initializer_onewifi;
     config.apply_data =  webconfig_dummy_apply;
@@ -329,7 +327,7 @@ int dm_easy_mesh_agent_t::analyze_onewifi_vap_cb(em_bus_event_t *evt, em_cmd_t *
             get_num_op_class, set_num_op_class, get_num_bss, set_num_bss,
             get_device_info, get_network_info, get_radio_info, get_ieee_1905_security_info, get_bss_info, 
             get_op_class_info, get_first_sta_info, get_next_sta_info, get_sta_info, put_sta_info, get_bss_info_with_mac,
-            update_scan_results, update_ap_mld_info, update_bsta_mld_info, update_assoc_sta_mld_info, get_ap_mld_frm_bssid, get_radio_cap_info);
+            update_scan_results, update_ap_mld_info, update_bsta_mld_info, update_assoc_sta_mld_info, get_ap_mld_frm_haul_type, get_radio_cap_info);
     config.initializer = webconfig_initializer_onewifi;
     config.apply_data =  webconfig_dummy_apply;
     if (webconfig_init(&config) != webconfig_error_none) {
@@ -406,7 +404,7 @@ int dm_easy_mesh_agent_t::analyze_onewifi_radio_cb(em_bus_event_t *evt, em_cmd_t
             get_num_op_class, set_num_op_class, get_num_bss, set_num_bss,
             get_device_info, get_network_info, get_radio_info, get_ieee_1905_security_info, get_bss_info, get_op_class_info, 
             get_first_sta_info, get_next_sta_info, get_sta_info, put_sta_info, get_bss_info_with_mac, update_scan_results,
-            update_ap_mld_info, update_bsta_mld_info, update_assoc_sta_mld_info, get_ap_mld_frm_bssid, get_radio_cap_info);
+            update_ap_mld_info, update_bsta_mld_info, update_assoc_sta_mld_info, get_ap_mld_frm_haul_type, get_radio_cap_info);
 
     config.initializer = webconfig_initializer_onewifi;
     config.apply_data =  webconfig_dummy_apply;
@@ -526,6 +524,9 @@ int dm_easy_mesh_agent_t::analyze_channel_sel_req(em_bus_event_t *evt, wifi_bus_
             dm_op_class->id.type = em_op_class_type_anticipated;
             dm_op_class->pref_valid = true;
             noofopclass++;
+        } else if (!is_anticipated_invalid_entry_present) {
+            em_printfout("Max limit reached for op class entries in datamodel, cannot add more entries");
+            dm_op_class = &channel_sel->op_class_info[i];
         }
 
         // Check for all channels in the entry to maintian most preferred channel and opclass
@@ -556,15 +557,19 @@ int dm_easy_mesh_agent_t::analyze_channel_sel_req(em_bus_event_t *evt, wifi_bus_
             }
         }
         if (i == noofopclass) {
-            dm_op_class = this->get_op_class_info(i);
-            em_op_class_info_t tmp_op_class_info;
-            memcpy(tmp_op_class_info.id.ruid, channel_sel->op_class_info[0].id.ruid, sizeof(mac_address_t));
-            tmp_op_class_info.id.type = em_op_class_type_current;
-            tmp_op_class_info.id.op_class = most_preferred_opclass;
-            tmp_op_class_info.op_class = most_preferred_opclass;
-            tmp_op_class_info.channel = most_preferred_channel;
-            memcpy(dm_op_class, &tmp_op_class_info, sizeof(em_op_class_info_t));
-            noofopclass++;
+            if (noofopclass >= EM_MAX_OPCLASS) {
+                em_printfout("Max limit reached for op class entries in datamodel, cannot add current channel");
+            } else {
+                dm_op_class = this->get_op_class_info(i);
+                em_op_class_info_t tmp_op_class_info = {};
+                memcpy(tmp_op_class_info.id.ruid, channel_sel->op_class_info[0].id.ruid, sizeof(mac_address_t));
+                tmp_op_class_info.id.type = em_op_class_type_current;
+                tmp_op_class_info.id.op_class = most_preferred_opclass;
+                tmp_op_class_info.op_class = most_preferred_opclass;
+                tmp_op_class_info.channel = most_preferred_channel;
+                memcpy(dm_op_class, &tmp_op_class_info, sizeof(em_op_class_info_t));
+                noofopclass++;
+            }
         }
         this->set_num_op_class(noofopclass);
     }
@@ -1013,7 +1018,7 @@ int dm_easy_mesh_agent_t::analyze_scan_result(em_bus_event_t *evt, em_cmd_t *pcm
             get_num_op_class, set_num_op_class, get_num_bss, set_num_bss,
             get_device_info, get_network_info, get_radio_info, get_ieee_1905_security_info, get_bss_info, get_op_class_info,
             get_first_sta_info, get_next_sta_info, get_sta_info, put_sta_info, get_bss_info_with_mac, update_scan_results,
-            update_ap_mld_info, update_bsta_mld_info, update_assoc_sta_mld_info, get_ap_mld_frm_bssid, get_radio_cap_info);
+            update_ap_mld_info, update_bsta_mld_info, update_assoc_sta_mld_info, get_ap_mld_frm_haul_type, get_radio_cap_info);
 
     config.initializer = webconfig_initializer_onewifi;
     config.apply_data =  webconfig_dummy_apply;
@@ -1181,6 +1186,16 @@ int dm_easy_mesh_agent_t::analyze_ap_metrics_report(em_bus_event_t *evt, em_cmd_
     return static_cast<int>(num);
 }
 
+int dm_easy_mesh_agent_t::analyze_vendor_data(em_bus_event_t *evt, em_cmd_t *pcmd[])
+{
+    unsigned int num = 0;
+
+    pcmd[num] = new em_cmd_vendor_data_t(evt->u.raw_buff, static_cast<int>(evt->data_len), *(this));
+    num++;
+    em_printfout("Analyzing vendor data [num=%u], raw buffer length: %u", num, evt->data_len);
+    return static_cast<int>(num);
+}
+
 int dm_easy_mesh_agent_t::analyze_link_report(em_bus_event_t *evt, em_cmd_t *pcmd[])
 {
     dm_sta_t *sta = NULL;
@@ -1245,7 +1260,7 @@ void dm_easy_mesh_agent_t::translate_and_decode_onewifi_subdoc(char *str, webcon
         get_num_op_class, set_num_op_class, get_num_bss, set_num_bss,
         get_device_info, get_network_info, get_radio_info, get_ieee_1905_security_info, get_bss_info, get_op_class_info,
         get_first_sta_info, get_next_sta_info, get_sta_info, put_sta_info, get_bss_info_with_mac, update_scan_results,
-        update_ap_mld_info, update_bsta_mld_info, update_assoc_sta_mld_info, get_ap_mld_frm_bssid, get_radio_cap_info);
+        update_ap_mld_info, update_bsta_mld_info, update_assoc_sta_mld_info, get_ap_mld_frm_haul_type, get_radio_cap_info);
 
     config.initializer = webconfig_initializer_onewifi;
     config.apply_data =  webconfig_dummy_apply;
@@ -1268,7 +1283,7 @@ int dm_easy_mesh_agent_t::refresh_onewifi_subdoc(wifi_bus_desc_t *desc, bus_hand
         get_num_op_class, set_num_op_class, get_num_bss, set_num_bss,
         get_device_info, get_network_info, get_radio_info, get_ieee_1905_security_info, get_bss_info, get_op_class_info,
         get_first_sta_info, get_next_sta_info, get_sta_info, put_sta_info, get_bss_info_with_mac, update_scan_results,
-        update_ap_mld_info, update_bsta_mld_info, update_assoc_sta_mld_info, get_ap_mld_frm_bssid, get_radio_cap_info);
+        update_ap_mld_info, update_bsta_mld_info, update_assoc_sta_mld_info, get_ap_mld_frm_haul_type, get_radio_cap_info);
 
     webconfig_t config;
     config.initializer = webconfig_initializer_onewifi;
