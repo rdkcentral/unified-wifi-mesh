@@ -538,14 +538,26 @@ void em_ctrl_t::handle_failed_conn_msg(unsigned char *data, unsigned int len)
 
         switch (tlv->type) {
             case em_tlv_type_bssid:
+                if (tlv_len < sizeof(mac_address_t)) {
+                    em_printfout("Failed Connection message malformed BSSID TLV (len=%u)", static_cast<unsigned int>(tlv_len));
+                    break;
+                }
                 memcpy(bssid, tlv->value, sizeof(mac_address_t));
                 has_bssid = true;
                 break;
             case em_tlv_type_sta_mac_addr:
+		if (tlv_len < sizeof(mac_address_t)) {
+                    em_printfout("Failed Connection message malformed STA MAC TLV (len=%u)", static_cast<unsigned int>(tlv_len));
+                    break;
+                }
                 memcpy(sta_mac, tlv->value, sizeof(mac_address_t));
                 has_sta = true;
                 break;
             case em_tlv_type_status_code: {
+                if (tlv_len < sizeof(em_status_code_t)) {
+                    em_printfout("Failed Connection message malformed Status Code TLV (len=%u)", static_cast<unsigned int>(tlv_len));
+                    break;
+                }
                 em_status_code_t *sc = reinterpret_cast<em_status_code_t *>(tlv->value);
                 status_code = ntohs(sc->status_code);
                 has_status = true;
