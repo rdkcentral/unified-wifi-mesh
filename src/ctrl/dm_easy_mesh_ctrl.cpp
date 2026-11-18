@@ -8910,6 +8910,9 @@ bus_error_t dm_easy_mesh_ctrl_t::bstamld_get_inner(char *event_name, raw_data_t 
         return bus_error_invalid_input;
     }
     name += sizeof(DATAELEMS_NETWORK);
+    if (strchr(name, '.') == NULL) {
+        return bus_error_invalid_input;
+    }
     name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
     if (name == NULL) {
         return bus_error_invalid_input;
