@@ -2131,6 +2131,21 @@ public:
 	 * @note Ensure that the provided MAC address, BSSID, RUID, and target are valid and correctly formatted.
 	 */
 	em_sta_info_t *get_sta_info(mac_address_t sta, bssid_t bssid, mac_address_t ruid, em_target_sta_map_t target);
+
+	/**!
+	 * @brief Retrieves the information of a station on a radio when its BSSID is not known.
+	 *
+	 * An MLD client is stored under each affiliated BSSID, so a key built from the AP MLD
+	 * address does not match its rows. The first row of the station on the radio is returned.
+	 *
+	 * @param[in] sta The MAC address of the station.
+	 * @param[in] ruid The RUID of the radio.
+	 * @param[in] target The target station map used for searching.
+	 *
+	 * @returns A pointer to the em_sta_info_t structure of the station.
+	 * @retval NULL if the station has no row on the radio.
+	 */
+	em_sta_info_t *get_sta_info_on_radio(const mac_address_t sta, const mac_address_t ruid, em_target_sta_map_t target);
     
 	/**!
 	 * @brief Puts station information into the target station map.
