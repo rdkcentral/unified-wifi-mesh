@@ -19,6 +19,8 @@
 #ifndef DM_STA_LIST_H
 #define DM_STA_LIST_H
 
+#include <vector>
+
 #include "em_base.h"
 #include "dm_sta.h"
 #include "db_easy_mesh.h"
@@ -337,6 +339,10 @@ public:
 	 * @note This is a pure virtual function and must be implemented by derived classes.
 	 */
 	virtual void put_sta(const char *key, const dm_sta_t *sta) = 0;
+
+private:
+	static bool encode_frame_body_to_hex(em_sta_info_t *info, unsigned int *len, std::vector<char>& hex_str);
+	static void decode_frame_body_from_hex(db_client_t& db_client, void *ctx, unsigned int col, std::vector<unsigned char>& body);
 
 };
 

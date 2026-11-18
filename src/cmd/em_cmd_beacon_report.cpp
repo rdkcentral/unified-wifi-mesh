@@ -50,7 +50,7 @@ em_cmd_beacon_report_t::em_cmd_beacon_report_t(em_cmd_params_t param, dm_easy_me
     m_orch_desc[0].submit = true;
 
     strncpy(m_name, "beacon_report", strlen("beacon_report") + 1);
-    m_svc = em_service_type_ctrl;
+    m_svc = em_service_type_agent;
     init(dm);
 
     memset(&ctx, 0, sizeof(em_cmd_ctx_t));

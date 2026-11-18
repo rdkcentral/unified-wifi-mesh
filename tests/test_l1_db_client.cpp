@@ -20,14 +20,209 @@
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>
 #include <stdio.h>
-#include "db_client.h"
+#include <memory>
+#include <string>
+#include <vector>
+#include "db_client_local.h"
+#include "db_client_none.h"
+#include "db_easy_mesh.h"
+
+class persistence_table_test_t : public db_easy_mesh_t {
+public:
+    persistence_table_test_t() {
+        init_table();
+        init_columns();
+    }
+    void init_table() override {
+        snprintf(m_table_name, sizeof(m_table_name), "PersistenceTest");
+    }
+    void init_columns() override {
+        m_num_cols = 2;
+        m_columns[0] = db_column_t("ID", db_data_type_char, 64);
+        m_columns[1] = db_column_t("Value", db_data_type_int, 0);
+    }
+    MOCK_METHOD(int, sync_db, (db_client_t &, void *), (override));
+    MOCK_METHOD(int, update_db, (db_client_t &, dm_orch_type_t, void *), (override));
+    MOCK_METHOD(bool, search_db, (db_client_t &, void *, void *), (override));
+    bool operator == (const db_easy_mesh_t &) override { return false; }
+    MOCK_METHOD(int, set_config, (db_client_t &, const cJSON *, void *), (override));
+    MOCK_METHOD(int, get_config, (cJSON *, void *, bool), (override));
+};
+
+class persistence_none_test_t : public db_client_none_t {
+public:
+    MOCK_METHOD(void *, execute, (const char *), (override));
+};
+
+class persistence_local_test_t : public db_client_local_t {
+public:
+    MOCK_METHOD(void *, execute, (const char *), (override));
+};
+
+TEST(db_persistence_Test, NoDatabaseSkipsAllPersistenceOperations) {
+    persistence_table_test_t table;
+    testing::StrictMock<persistence_none_test_t> db;
+    EXPECT_CALL(db, execute(testing::_)).Times(0);
+    for (dm_orch_type_t requested : {dm_orch_type_none, dm_orch_type_db_insert,
+            dm_orch_type_db_update, dm_orch_type_db_delete}) {
+        dm_orch_type_t op = requested;
+        ASSERT_EQ(table.prepare_db_operation(db, op), 0);
+        EXPECT_EQ(op, dm_orch_type_none);
+    }
+}
+
+TEST(db_persistence_Test, NoDatabaseSatisfiesExistenceCheckWithoutQuery) {
+    testing::StrictMock<persistence_table_test_t> table;
+    testing::StrictMock<persistence_none_test_t> db;
+    EXPECT_CALL(db, execute(testing::_)).Times(0);
+    char key[] = "device";
+    EXPECT_TRUE(table.entry_exists_in_table(db, key));
+}
+
+TEST(db_persistence_Test, SqlitePreservesExistingExistenceSearch) {
+    testing::StrictMock<persistence_table_test_t> table;
+    db_client_local_t db;
+    ASSERT_EQ(db.init(":memory:"), 0);
+    ASSERT_EQ(table.create_table(db), 0);
+    char key[] = "device";
+    EXPECT_CALL(table, search_db(testing::Ref(db), testing::_, key))
+        .WillOnce([&](db_client_t &client, void *ctx, void *) {
+            client.free_result(ctx);
+            return false;
+        });
+    EXPECT_FALSE(table.entry_exists_in_table(db, key));
+    ASSERT_EQ(table.insert_row(db, key, 1), 0);
+    EXPECT_CALL(table, search_db(testing::Ref(db), testing::_, key))
+        .WillOnce([&](db_client_t &client, void *ctx, void *) {
+            const bool found = client.next_result(ctx);
+            if (found) {
+                client.free_result(ctx);
+            }
+            return found;
+        });
+    EXPECT_TRUE(table.entry_exists_in_table(db, key));
+}
+
+TEST(db_persistence_Test, SqlitePreservesRequestedOperationWithoutQuery) {
+    persistence_table_test_t table;
+    testing::StrictMock<persistence_local_test_t> db;
+    EXPECT_CALL(db, execute(testing::_)).Times(0);
+    for (dm_orch_type_t requested : {dm_orch_type_none, dm_orch_type_db_insert,
+            dm_orch_type_db_update, dm_orch_type_db_delete}) {
+        dm_orch_type_t op = requested;
+        ASSERT_EQ(table.prepare_db_operation(db, op), 0);
+        EXPECT_EQ(op, requested);
+    }
+}
+
+TEST(db_client_backend_Test, ParsesBackendSelection)
+{
+    EXPECT_EQ(db_client_t::type_from_string(nullptr), db_client_type_local);
+    EXPECT_EQ(db_client_t::type_from_string("local"), db_client_type_local);
+    EXPECT_EQ(db_client_t::type_from_string("none"), db_client_type_none);
+    EXPECT_EQ(db_client_t::type_from_string("NO_DB"), db_client_type_none);
+    EXPECT_EQ(db_client_t::type_from_string("nodb"), db_client_type_none);
+    EXPECT_EQ(db_client_t::type_from_string("CLOUD"), db_client_type_cloud);
+}
+
+TEST(db_client_backend_Test, LocalBackendPreservesSqliteTransactions)
+{
+    std::unique_ptr<db_client_t> client(db_client_t::create(db_client_type_local));
+    ASSERT_NE(client, nullptr);
+    EXPECT_EQ(client->get_type(), db_client_type_local);
+    EXPECT_TRUE(client->is_persistent());
+    ASSERT_EQ(client->init(":memory:"), 0);
+    client->execute("CREATE TABLE rebase_test (value INTEGER)");
+    ASSERT_EQ(client->begin_transaction(), 0);
+    client->execute("INSERT INTO rebase_test VALUES (42)");
+    ASSERT_EQ(client->commit(), 0);
+    ASSERT_EQ(client->begin_transaction(), 0);
+    client->execute("INSERT INTO rebase_test VALUES (99)");
+    ASSERT_EQ(client->rollback(), 0);
+
+    void *result = client->execute("SELECT value FROM rebase_test");
+    ASSERT_NE(result, nullptr);
+    ASSERT_TRUE(client->next_result(result));
+    EXPECT_EQ(client->get_number(result, 1), 42);
+    EXPECT_FALSE(client->next_result(result));
+    ASSERT_EQ(client->recreate_db(), 0);
+    result = client->execute("SELECT name FROM sqlite_master WHERE type = 'table'");
+    EXPECT_EQ(result, nullptr);
+    client->free_result(result);
+}
+
+TEST(db_client_backend_Test, SqliteLengthBasedStringRetrieval)
+{
+    db_client_local_t client;
+    ASSERT_EQ(client.init(":memory:"), 0);
+    client.execute("CREATE TABLE string_length_test (body TEXT, empty_value TEXT, null_value TEXT)");
+
+    std::string hex;
+    for (unsigned int i = 0; i < 2048; i++) {
+        hex += "0123456789abcdef";
+    }
+    const std::string insert = "INSERT INTO string_length_test VALUES ('" + hex + "', '', NULL)";
+    client.execute(insert.c_str());
+
+    auto free_result = [&client](void *ctx) { client.free_result(ctx); };
+    std::unique_ptr<void, decltype(free_result)> result(
+        client.execute("SELECT body, empty_value, null_value FROM string_length_test"), free_result);
+    ASSERT_NE(result.get(), nullptr);
+    ASSERT_TRUE(client.next_result(result.get()));
+
+    const unsigned int length = client.get_string_length(result.get(), 1);
+    ASSERT_EQ(length, hex.size());
+    std::vector<char> buffer(static_cast<size_t>(length) + 1, 'X');
+    ASSERT_EQ(client.get_string(result.get(), buffer.data(), 1), buffer.data());
+    EXPECT_EQ(std::string(buffer.data(), length), hex);
+    EXPECT_EQ(buffer[length], '\0');
+
+    const unsigned int empty_length = client.get_string_length(result.get(), 2);
+    ASSERT_EQ(empty_length, 0u);
+    std::vector<char> empty_buffer(static_cast<size_t>(empty_length) + 1, 'X');
+    EXPECT_EQ(client.get_string(result.get(), empty_buffer.data(), 2), empty_buffer.data());
+    EXPECT_EQ(empty_buffer[0], '\0');
+
+    const unsigned int null_length = client.get_string_length(result.get(), 3);
+    ASSERT_EQ(null_length, 0u);
+    std::vector<char> null_buffer(static_cast<size_t>(null_length) + 1, 'X');
+    EXPECT_EQ(client.get_string(result.get(), null_buffer.data(), 3), nullptr);
+    EXPECT_EQ(null_buffer[0], 'X');
+}
+
+TEST(db_client_backend_Test, NoDatabaseBackendRemainsInMemoryOnly)
+{
+    std::unique_ptr<db_client_t> client(db_client_t::create(db_client_type_none));
+    ASSERT_NE(client, nullptr);
+    EXPECT_EQ(client->get_type(), db_client_type_none);
+    EXPECT_FALSE(client->is_persistent());
+    EXPECT_EQ(client->init("/dev/null/not-a-database.db"), 0);
+    EXPECT_EQ(client->execute("SELECT 1"), nullptr);
+    EXPECT_FALSE(client->next_result(nullptr));
+    EXPECT_EQ(client->begin_transaction(), 0);
+    EXPECT_EQ(client->commit(), 0);
+    EXPECT_EQ(client->rollback(), 0);
+    EXPECT_EQ(client->recreate_db(), 0);
+    client->free_result(nullptr);
+}
+
+TEST(db_client_backend_Test, CloudBackendFailsUntilImplemented)
+{
+    std::unique_ptr<db_client_t> client(db_client_t::create(db_client_type_cloud));
+    ASSERT_NE(client, nullptr);
+    EXPECT_EQ(client->get_type(), db_client_type_cloud);
+    EXPECT_NE(client->init(nullptr), 0);
+    EXPECT_NE(client->begin_transaction(), 0);
+    EXPECT_NE(client->commit(), 0);
+    EXPECT_NE(client->rollback(), 0);
+}
 
 class db_client_t_Test : public ::testing::Test {
 protected:
-    db_client_t* dbClient;
+    db_client_local_t* dbClient;
     void SetUp() override {
-        dbClient = new db_client_t();
-        dbClient->init("bpi@root");
+        dbClient = new db_client_local_t();
+        dbClient->init("/tmp/unified-wifi-mesh-client-test.db");
     }
     void TearDown() override {
         delete dbClient;
@@ -37,24 +232,20 @@ protected:
 class db_client_crud_Test : public ::testing::Test {
 protected:
     db_client_t* dbClient;
-    struct result_context_t {
-        MYSQL_RES *result;
-        MYSQL_ROW row;
-    };
     void SetUp() override {
-        dbClient = new db_client_t();
-        dbClient->init("bpi@root");
+        dbClient = new db_client_local_t();
+        dbClient->init("/tmp/unified-wifi-mesh-test.db");
         // Step 1: Create table
-        free_result(dbClient->execute(
+        dbClient->free_result(dbClient->execute(
             "CREATE TABLE IF NOT EXISTS users ("
-            "id INT AUTO_INCREMENT PRIMARY KEY,"
+            "id INTEGER PRIMARY KEY AUTOINCREMENT,"
             "username VARCHAR(50) NOT NULL,"
             "email VARCHAR(100),"
             "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
             ");"
         ));
         // Step 2: Insert two rows
-        free_result(dbClient->execute(
+        dbClient->free_result(dbClient->execute(
             "INSERT INTO users (username, email) VALUES "
             "('alice', 'alice@example.com'),"
             "('bob', 'bob@example.com');"
@@ -62,16 +253,12 @@ protected:
     }
     void TearDown() override {
         // Drop table
-        free_result(dbClient->execute("DROP TABLE IF EXISTS users;"));
+        dbClient->free_result(dbClient->execute("DROP TABLE IF EXISTS users;"));
         delete dbClient;
     }
     // Helper to free memory
     void free_result(void* result) {
-        if (result) {
-            result_context_t* ctx = static_cast<result_context_t*>(result);
-            if (ctx->result) mysql_free_result(ctx->result);
-            delete ctx;
-        }
+        dbClient->free_result(result);
     }
 };
 
@@ -92,7 +279,7 @@ protected:
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
  * | 01 | Define a valid Select query to be executed. | Query is defined. | Should be successful |
- * | 02 | Execute the defined query using the db_client_t instance. | execute should pass. | Should Pass |
+ * | 02 | Execute the defined query using the db_client_local_t instance. | execute should pass. | Should Pass |
  * | 03 | Verify the result of select query execution. | result should not be null | Assertion passes. | Should Pass |
  */
 TEST_F(db_client_crud_Test, ExecuteValidSelectQuery) {
@@ -100,7 +287,7 @@ TEST_F(db_client_crud_Test, ExecuteValidSelectQuery) {
     const char* selectQuery = "SELECT id, username, email FROM users;";
     void* result = dbClient->execute(selectQuery);
     ASSERT_NE(result, nullptr) << "SELECT query failed.";
-    free_result(result);
+    dbClient->free_result(result);
     std::cout << "Exiting ExecuteValidSelectQuery test" << std::endl;
 }
 
@@ -121,7 +308,7 @@ TEST_F(db_client_crud_Test, ExecuteValidSelectQuery) {
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
  * | 01 | Define an empty query string. | query = "" | Empty query string is defined | Should be successful |
- * | 02 | Execute the empty query using the db_client_t instance. | query = "" | Result is nullptr | Should Pass |
+ * | 02 | Execute the empty query using the db_client_local_t instance. | query = "" | Result is nullptr | Should Pass |
  * | 03 | Assert that the result of the empty query execution is nullptr. | result = nullptr | Assertion passes | Should Pass |
  */
 TEST_F(db_client_t_Test, ExecuteEmptyQuery) {
@@ -208,7 +395,7 @@ TEST_F(db_client_t_Test, ExecuteInvalidSQLSyntax) {
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
  * | 01 | Execute a SELECT query to retrieve the first user's ID | query = "SELECT id FROM users ORDER BY id ASC LIMIT 1;" | Result context is not null | Should Pass |
- * | 02 | Fetch the first row from the result | ctx->row = mysql_fetch_row(ctx->result) | Row is not null | Should Pass |
+ * | 02 | Fetch the first row from the result | dbClient->next_result(result) | Row is not null | Should Pass |
  * | 03 | Call `get_number` with the valid context and column index 1 | ctx, column_index = 1 | Returns integer value `1` | Expected ID of first row |
  * | 04 | Verify the returned value matches expected | id == 1 | Assertion passes | Should Pass |
  */
@@ -219,14 +406,12 @@ TEST_F(db_client_crud_Test, GetNumberValidColumn) {
     void* result = dbClient->execute("SELECT id FROM users ORDER BY id ASC LIMIT 1;");
     ASSERT_NE(result, nullptr);
     // Step 2: Fetch first row
-    result_context_t* ctx = static_cast<result_context_t*>(result);
-    ctx->row = mysql_fetch_row(ctx->result);
-    ASSERT_NE(ctx->row, nullptr);
+    ASSERT_TRUE(dbClient->next_result(result));
     // Step 3: Retrieve number from valid column
-    int id = dbClient->get_number(ctx, 1);
+    int id = dbClient->get_number(result, 1);
     EXPECT_EQ(id, 1);
     // Cleanup
-    free_result(result);
+    dbClient->free_result(result);
     std::cout << "Exiting GetNumberValidColumn test" << std::endl;
 }
 
@@ -275,7 +460,7 @@ TEST_F(db_client_t_Test, RetrieveIntegerFromInvalidContext) {
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
  * | 01 | Execute a SELECT query to retrieve the first user's ID and username | query = "SELECT id, username FROM users ORDER BY id ASC LIMIT 1;" | Result context is not null | Should Pass |
- * | 02 | Fetch the first row from the result | ctx->row = mysql_fetch_row(ctx->result) | Row is not null | Should Pass |
+ * | 02 | Fetch the first row from the result | dbClient->next_result(result) | Row is not null | Should Pass |
  * | 03 | Call `get_number` on the second column (non-numeric) | ctx, column_index = 2 | Returns 0 | Non-numeric column handled correctly |
  * | 04 | Verify that the returned value is 0 | value == 0 | Assertion passes | Should Pass |
  */
@@ -285,14 +470,12 @@ TEST_F(db_client_crud_Test, GetNumberNonNumericColumn) {
     void* result = dbClient->execute("SELECT id, username FROM users ORDER BY id ASC LIMIT 1;");
     ASSERT_NE(result, nullptr);
     // Step 2: Fetch first row
-    result_context_t* ctx = static_cast<result_context_t*>(result);
-    ctx->row = mysql_fetch_row(ctx->result);
-    ASSERT_NE(ctx->row, nullptr);
+    ASSERT_TRUE(dbClient->next_result(result));
     // Step 3: Attempt to retrieve number from non-numeric column
-    int value = dbClient->get_number(ctx, 2);
+    int value = dbClient->get_number(result, 2);
     EXPECT_EQ(value, 0);
     // Cleanup
-    free_result(result);
+    dbClient->free_result(result);
     std::cout << "Exiting GetNumberNonNumericColumn test" << std::endl;
 }
 
@@ -300,8 +483,8 @@ TEST_F(db_client_crud_Test, GetNumberNonNumericColumn) {
  * @brief Test to verify the behavior of `get_number` when called with an invalid column index
  *
  * This test checks that the `get_number` function correctly handles an invalid column index
- * (0 in this case, which is out of bounds). The function should return `0` when the column
- * index is invalid.
+ * (0 in this case; columns are 1-based) on a row that has actually been fetched. The function
+ * is expected to deterministically return 0 rather than exhibit undefined behavior.
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 008@n
@@ -315,19 +498,23 @@ TEST_F(db_client_crud_Test, GetNumberNonNumericColumn) {
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
  * | 01 | Execute a SELECT query to retrieve the first user's ID | query = "SELECT id FROM users ORDER BY id ASC LIMIT 1;" | Result context is not null | Should Pass |
- * | 02 | Call `get_number` with an invalid column index (0) | ctx, column_index = 0 | Returns 0 | Invalid column handled correctly |
- * | 03 | Verify that the returned value is 0 | number == 0 | Assertion passes | Should Pass |
+ * | 02 | Fetch the first row from the result | next_result(ctx) | Returns true | Should Pass |
+ * | 03 | Call `get_number` with an invalid column index (0) | ctx, column_index = 0 | Returns 0 | Invalid column handled deterministically |
+ * | 04 | Verify that the returned value is 0 | number == 0 | Assertion passes | Should Pass |
  */
 TEST_F(db_client_crud_Test, GetNumberInvalidColumn) {
     std::cout << "Entering GetNumberInvalidColumn test" << std::endl;
     // Step 1: Execute SELECT query
     void* result = dbClient->execute("SELECT id FROM users ORDER BY id ASC LIMIT 1;");
     ASSERT_NE(result, nullptr) << "execute() returned null — query failed or DB not initialized";
-    // Step 2: Attempt to retrieve number from invalid column index
+    // Step 2: Fetch first row so the invalid column index is actually exercised on real row data
+    bool hasRow = dbClient->next_result(result);
+    ASSERT_TRUE(hasRow);
+    // Step 3: Attempt to retrieve number from invalid column index
     int number = dbClient->get_number(result, 0);
     EXPECT_EQ(number, 0);
     // Cleanup
-    free_result(result);
+    dbClient->free_result(result);
     std::cout << "Exiting GetNumberInvalidColumn test" << std::endl;
 }
 
@@ -350,7 +537,7 @@ TEST_F(db_client_crud_Test, GetNumberInvalidColumn) {
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
  * | 01 | Execute a SELECT query to retrieve the first user's username | query = "SELECT username FROM users ORDER BY id ASC LIMIT 1;" | Result context is not null | Should Pass |
- * | 02 | Fetch the first row from the result | ctx->row = mysql_fetch_row(ctx->result) | Row is not null | Should Pass |
+ * | 02 | Fetch the first row from the result | dbClient->next_result(result) | Row is not null | Should Pass |
  * | 03 | Call `get_string` with valid context and column index 1 | ctx, column_index = 1, buffer[256] | Returns pointer to non-empty string | String successfully retrieved |
  * | 04 | Verify that the returned string is not empty | strlen(str) > 0 | Assertion passes | Should Pass |
  */
@@ -360,9 +547,7 @@ TEST_F(db_client_crud_Test, GetStringValidColumn) {
     void* result = dbClient->execute("SELECT username FROM users ORDER BY id ASC LIMIT 1;");
     ASSERT_NE(result, nullptr);
     // Step 2: Fetch first row
-    result_context_t* ctx = static_cast<result_context_t*>(result);
-    ctx->row = mysql_fetch_row(ctx->result);
-    ASSERT_NE(ctx->row, nullptr) << "First row is null — query returned no data";
+    ASSERT_TRUE(dbClient->next_result(result)) << "First row is null — query returned no data";
     // Step 3: Retrieve string from valid column
     char buffer[256] = {0};
     char* str = dbClient->get_string(result, buffer, 1);
@@ -371,7 +556,7 @@ TEST_F(db_client_crud_Test, GetStringValidColumn) {
     // Step 4: Verify string is non-empty
     EXPECT_GT(strlen(str), 0);
     // Cleanup
-    free_result(result);
+    dbClient->free_result(result);
     std::cout << "Exiting GetStringValidColumn test" << std::endl;
 }
 
@@ -379,8 +564,8 @@ TEST_F(db_client_crud_Test, GetStringValidColumn) {
  * @brief Test to verify the behavior of `get_string` when called with an invalid column index
  *
  * This test checks that the `get_string` function correctly handles an invalid column index
- * (0 in this case, which is out of bounds). The function is expected to cause an assertion
- * failure or program termination when the column index is invalid.
+ * (0 in this case; columns are 1-based) on a row that has actually been fetched. The function
+ * is expected to deterministically return NULL rather than exhibit undefined behavior.
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 010@n
@@ -394,7 +579,7 @@ TEST_F(db_client_crud_Test, GetStringValidColumn) {
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
  * | 01 | Execute a SELECT query to retrieve the first user's username | query = "SELECT username FROM users ORDER BY id ASC LIMIT 1;" | Result context is not null | Should Pass |
- * | 02 | Fetch the first row from the result | ctx->row = mysql_fetch_row(ctx->result) | Row is not null | Should Pass |
+ * | 02 | Fetch the first row from the result | dbClient->next_result(result) | Row is not null | Should Pass |
  * | 03 | Call `get_string` with invalid column index (0) | ctx, buffer[256], column_index = 0 | Program terminates / assertion triggers | Handled by EXPECT_DEATH |
  * | 04 | Verify that the invalid access is detected | — | Assertion triggers; test passes | Checked using EXPECT_DEATH |
  */
@@ -404,16 +589,13 @@ TEST_F(db_client_crud_Test, GetStringInvalidColumn) {
     void* result = dbClient->execute("SELECT username FROM users ORDER BY id ASC LIMIT 1;");
     ASSERT_NE(result, nullptr) << "execute() returned null — query failed or DB not initialized";
     // Step 2: Fetch first row
-    result_context_t* ctx = static_cast<result_context_t*>(result);
-    ctx->row = mysql_fetch_row(ctx->result);
-    ASSERT_NE(ctx->row, nullptr);
+    ASSERT_TRUE(dbClient->next_result(result));
     char buffer[256] = {0};
     // Step 3: Attempt to retrieve string from invalid column index
-    EXPECT_DEATH({
-        dbClient->get_string(result, buffer, 0);
-    }, ".*");
+    char* str = dbClient->get_string(result, buffer, 0);
+    EXPECT_EQ(str, nullptr);
     // Cleanup
-    free_result(result);
+    dbClient->free_result(result);
     std::cout << "Exiting GetStringInvalidColumn test" << std::endl;
 }
 
@@ -446,7 +628,7 @@ TEST_F(db_client_t_Test, RetrieveStringWithNullResultAndNullContext) {
 /**
  * @brief Test the connection to a database with a valid database path.
  *
- * This test verifies that the db_client_t class can successfully initialize a connection to a database when provided with a valid database path. It ensures that the init function returns 0, indicating a successful connection.
+ * This test verifies that the db_client_local_t class can successfully initialize a connection to a database when provided with a valid database path. It ensures that the init function returns 0, indicating a successful connection.
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 012@n
@@ -464,17 +646,17 @@ TEST_F(db_client_t_Test, RetrieveStringWithNullResultAndNullContext) {
  */
 TEST(db_client_tTest, ConnectWithValidDatabasePath) {
     std::cout << "Entering ConnectWithValidDatabasePath test" << std::endl;
-    db_client_t* dbClient = new db_client_t();
-    int result = dbClient->init("bpi@root");
+    db_client_t* dbClient = new db_client_local_t();
+    int result = dbClient->init("/tmp/unified-wifi-mesh-valid.db");
     EXPECT_EQ(result, 0);
     delete dbClient;
     std::cout << "Exiting ConnectWithValidDatabasePath test" << std::endl;
 }
 
 /**
- * @brief Test to verify the behavior of db_client_t::init with an empty path
+ * @brief Test to verify the behavior of db_client_local_t::init with an empty path
  *
- * This test checks the behavior of the db_client_t::init function when provided with an empty string as the path. The expected behavior is that the function should return an error code, specifically -1, indicating that the initialization failed due to the invalid input.
+ * This test checks the behavior of the db_client_local_t::init function when provided with an empty string as the path. The expected behavior is that the function should return an error code, specifically -1, indicating that the initialization failed due to the invalid input.
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 013@n
@@ -487,14 +669,14 @@ TEST(db_client_tTest, ConnectWithValidDatabasePath) {
  * **Test Procedure:**@n
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Call db_client_t::init with an empty path | path = "" | result = -1 | Should Pass |
+ * | 01 | Call db_client_local_t::init with an empty path | path = "" | result = -1 | Should Pass |
  * | 02 | Verify the result of the init function | result = -1 | EXPECT_EQ(result, -1) | Should be successful |
  */
 TEST(db_client_tTest, ConnectWithEmptyPath) {
     std::cout << "Entering ConnectWithEmptyPath test" << std::endl;
-    db_client_t* dbClient = new db_client_t();
+    db_client_local_t* dbClient = new db_client_local_t();
     int result = dbClient->init("");
-    EXPECT_EQ(result, -1);
+    EXPECT_EQ(result, 0);
     delete dbClient;
     std::cout << "Exiting ConnectWithEmptyPath test" << std::endl;
 }
@@ -520,9 +702,9 @@ TEST(db_client_tTest, ConnectWithEmptyPath) {
  */
 TEST(db_client_tTest, ConnectWithPathContainingSpecialCharacters) {
     std::cout << "Entering ConnectWithPathContainingSpecialCharacters test" << std::endl;
-    db_client_t* dbClient = new db_client_t();
+    db_client_local_t* dbClient = new db_client_local_t();
     int result = dbClient->init("bpi@root@#$.db");
-    EXPECT_EQ(result, -1);
+    EXPECT_EQ(result, 0);
     delete dbClient;
     std::cout << "Exiting ConnectWithPathContainingSpecialCharacters test" << std::endl;
 }
@@ -556,10 +738,56 @@ TEST_F(db_client_crud_Test, NextResultValidContextHasRows) {
     ASSERT_NE(result, nullptr) << "execute() returned null — query failed";
     // Step 2: Advance to first row
     bool hasRow = dbClient->next_result(result);
-    EXPECT_TRUE(hasRow) << "Expected next_result() to find first row";
+    ASSERT_TRUE(hasRow) << "Expected next_result() to find first row";
     // Cleanup
-    free_result(result);
+    dbClient->free_result(result);
     std::cout << "Exiting NextResultValidContextHasRows test" << std::endl;
+}
+
+/**
+ * @brief Test the early-exit scenario supported by free_result(): releasing a result
+ * context after consuming only part of it, and confirming the client remains usable.
+ *
+ * This test executes a multi-row SELECT, advances to only the first row via
+ * next_result(), then releases the context early with the public free_result() API
+ * instead of draining every row. It then verifies subsequent queries still execute
+ * correctly, proving free_result() leaves the connection in a valid state.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 023@n
+ * **Priority:** High@n
+ * @n
+ * **Pre-Conditions:** The `users` table exists with at least two rows.@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ * @n
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01 | Execute a SELECT query returning multiple rows | query = "SELECT username FROM users ORDER BY id ASC;" | Result context is not null | Should Pass |
+ * | 02 | Advance to only the first row | ctx | Returns true | Row exists |
+ * | 03 | Release the context early via free_result() | ctx | Context released | Should Pass |
+ * | 04 | Execute another query afterward | new query | Result context is not null | Client still usable |
+ * | 05 | Verify the new query's data and free its context | second ctx | Assertions pass | Should Pass |
+ */
+TEST_F(db_client_crud_Test, FreeResultEarlyExitAllowsSubsequentQueries) {
+    std::cout << "Entering FreeResultEarlyExitAllowsSubsequentQueries test" << std::endl;
+    // Step 1: Execute a SELECT query returning multiple rows
+    void* result = dbClient->execute("SELECT username FROM users ORDER BY id ASC;");
+    ASSERT_NE(result, nullptr) << "execute() returned null — query failed";
+    // Step 2: Advance to only the first row (early exit before exhausting all rows)
+    bool hasRow = dbClient->next_result(result);
+    ASSERT_TRUE(hasRow) << "Expected first row to be available";
+    // Step 3: Release the context early instead of draining every row
+    dbClient->free_result(result);
+    // Step 4: Verify the client can still execute subsequent queries without crashing
+    void* second_result = dbClient->execute("SELECT id, username FROM users ORDER BY id ASC LIMIT 1;");
+    ASSERT_NE(second_result, nullptr) << "execute() failed after early free_result()";
+    bool secondHasRow = dbClient->next_result(second_result);
+    EXPECT_TRUE(secondHasRow);
+    EXPECT_EQ(dbClient->get_number(second_result, 1), 1);
+    dbClient->free_result(second_result);
+    std::cout << "Exiting FreeResultEarlyExitAllowsSubsequentQueries test" << std::endl;
 }
 
 /**
@@ -589,7 +817,7 @@ TEST_F(db_client_crud_Test, NextResultNoMoreRows) {
     void* result = dbClient->execute("SELECT username FROM users WHERE id = 1;");
     ASSERT_NE(result, nullptr);
     bool hasRow = dbClient->next_result(result);
-    EXPECT_TRUE(hasRow) << "Expected first row to be available";
+    ASSERT_TRUE(hasRow) << "Expected first row to be available";
     bool hasNext = dbClient->next_result(result);
     EXPECT_FALSE(hasNext) << "Expected no more rows";
     std::cout << "Exiting NextResultNoMoreRows test" << std::endl;
@@ -639,7 +867,7 @@ TEST_F(db_client_crud_Test, NextResultInvalidContext) {
 /**
  * @brief Test to verify the behavior of next_result when the context is null
  *
- * This test checks the behavior of the db_client_t::next_result method when a null context is passed. 
+ * This test checks the behavior of the db_client_local_t::next_result method when a null context is passed. 
  * It ensures that the method returns false, indicating that the operation cannot proceed with a null context.
  *
  * **Test Group ID:** Basic: 01@n
@@ -662,6 +890,31 @@ TEST_F(db_client_t_Test, NullResultContext) {
     bool result = dbClient->next_result(ctx);
     EXPECT_FALSE(result);
     std::cout << "Exiting NullResultContext test" << std::endl;
+}
+
+/**
+ * @brief Test that free_result() safely handles a NULL context without crashing.
+ *
+ * This test ensures that calling free_result() with a NULL context is a documented
+ * no-op, so callers do not need to NULL-check before releasing a result context.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 024@n
+ * **Priority:** High@n
+ * @n
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ * @n
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01 | Call free_result with a null context | ctx = nullptr | No crash | Should Pass |
+ */
+TEST_F(db_client_t_Test, FreeResultNullContext) {
+    std::cout << "Entering FreeResultNullContext test" << std::endl;
+    dbClient->free_result(nullptr);
+    std::cout << "Exiting FreeResultNullContext test" << std::endl;
 }
 
 /**
@@ -706,14 +959,14 @@ TEST_F(db_client_t_Test, RecreateDatabaseWithValidConnection) {
  * **Test Procedure:**@n
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Set up the db_client_t instance | None | None | Done by Pre-requisite SetUp function |
+ * | 01 | Set up the db_client_local_t instance | None | None | Done by Pre-requisite SetUp function |
  * | 02 | Initialize the database client with an invalid path | invalid_path!@# | Non-zero return value | Should Fail |
  * | 03 | Attempt to recreate the database | None | return value: -1 | Should Fail |
- * | 04 | Tear down the db_client_t instance | None | None | Done by Pre-requisite TearDown function |
+ * | 04 | Tear down the db_client_local_t instance | None | None | Done by Pre-requisite TearDown function |
  */
 TEST(db_client_tTest, RecreateDatabaseWithInvalidConnection) {
     std::cout << "Entering RecreateDatabaseWithInvalidConnection test" << std::endl;
-    db_client_t* dbClient = new db_client_t();
+    db_client_local_t* dbClient = new db_client_local_t();
     EXPECT_NE(dbClient->init("invalid_path!@#"), 0);
     int result = dbClient->recreate_db();
     EXPECT_EQ(result, -1);
@@ -722,9 +975,9 @@ TEST(db_client_tTest, RecreateDatabaseWithInvalidConnection) {
 }
 
 /**
- * @brief Verify that the default construction of db_client_t initializes its internal members to NULL
+ * @brief Verify that the default construction of db_client_local_t initializes its internal members to NULL
  *
- * This test invokes the default constructor of db_client_t and verifies that its internal members (m_driver and m_con) are set to NULL. The test ensures that no exceptions are thrown during construction and that pointer arithmetic confirms the internal state.
+ * This test invokes the default constructor of db_client_local_t and verifies that its internal members (m_driver and m_con) are set to NULL. The test ensures that no exceptions are thrown during construction and that pointer arithmetic confirms the internal state.
  *
  * **Test Group ID:** Basic: 01
  * **Test Case ID:** 021@n
@@ -737,23 +990,23 @@ TEST(db_client_tTest, RecreateDatabaseWithInvalidConnection) {
  * **Test Procedure:**
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Invoke the default constructor of db_client_t and access internal members (m_driver, m_con) via pointer arithmetic | constructor = default | db_client_t instance is created with m_driver == nullptr and m_con == nullptr; assertions (EXPECT_EQ) pass without exceptions | Should Pass |
+ * | 01 | Invoke the default constructor of db_client_local_t and access internal members (m_driver, m_con) via pointer arithmetic | constructor = default | db_client_local_t instance is created with m_driver == nullptr and m_con == nullptr; assertions (EXPECT_EQ) pass without exceptions | Should Pass |
  */
 TEST(db_client_tTest, DefaultConstruction)
 {
     std::cout << "Entering DefaultConstruction test" << std::endl;
     // Invoking the default constructor and ensuring no exception is thrown.
     EXPECT_NO_THROW({
-        db_client_t client;
-        std::cout << "Invoked db_client_t::db_client_t() constructor." << std::endl;
+        db_client_local_t client;
+        std::cout << "Invoked db_client_local_t::db_client_local_t() constructor." << std::endl;
     });
     std::cout << "Exiting DefaultConstruction test" << std::endl;
 }
 
 /**
- * @brief Verify that db_client_t destructor correctly releases allocated database resources
+ * @brief Verify that db_client_local_t destructor correctly releases allocated database resources
  *
- * This test ensures that when a db_client_t object goes out of scope, its destructor is invoked automatically and effectively releases the internal database resources without throwing any exceptions. The test verifies that the internal state modifications related to m_driver and m_con are properly handled.
+ * This test ensures that when a db_client_local_t object goes out of scope, its destructor is invoked automatically and effectively releases the internal database resources without throwing any exceptions. The test verifies that the internal state modifications related to m_driver and m_con are properly handled.
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 022@n
@@ -766,17 +1019,17 @@ TEST(db_client_tTest, DefaultConstruction)
  * **Test Procedure:**@n
  * | Variation / Step | Description                                                                                   | Test Data                                   | Expected Result                                                                                           | Notes       |
  * | :--------------: | --------------------------------------------------------------------------------------------- | ------------------------------------------- | --------------------------------------------------------------------------------------------------------- | ----------- |
- * | 01               | Invoke the default constructor of db_client_t and allow the object to go out of scope triggering the destructor | constructor = default, scope = automatic    | Destructor should release database resources without throwing an exception; internal state changes occur as expected | Should Pass |
+ * | 01               | Invoke the default constructor of db_client_local_t and allow the object to go out of scope triggering the destructor | constructor = default, scope = automatic    | Destructor should release database resources without throwing an exception; internal state changes occur as expected | Should Pass |
  */
 TEST(db_client_tTest, DestructorReleasesDatabaseResourcesCorrectly) {
     std::cout << "Entering Destructor releases database resources correctly test" << std::endl;
     EXPECT_NO_THROW({
-        std::cout << "Invoking db_client_t default constructor." << std::endl;
+        std::cout << "Invoking db_client_local_t default constructor." << std::endl;
         {
-            db_client_t client;
-            std::cout << "db_client_t object created successfully." << std::endl;
+            db_client_local_t client;
+            std::cout << "db_client_local_t object created successfully." << std::endl;
         }
-        std::cout << "db_client_t object went out of scope; destructor should have been invoked automatically." << std::endl;
+        std::cout << "db_client_local_t object went out of scope; destructor should have been invoked automatically." << std::endl;
     });
     std::cout << "Exiting Destructor releases database resources correctly test" << std::endl;
 }

@@ -563,6 +563,35 @@ TEST(dm_network_t_Test, EncodeWithValidCJsonObjectAndSummaryFalse) {
     std::cout << "Exiting EncodeWithValidCJsonObjectAndSummaryFalse" << std::endl;
 }
 
+TEST(dm_network_t_Test, EncodeMediaTypeBoundaries) {
+    struct MediaTypeTest {
+        em_media_type_t media;
+        const char* expected;
+    };
+    const MediaTypeTest media_types[] = {
+        {em_media_type_ieee8023ab, "Ethernet"},
+        {em_media_type_ieee80211b_24, "Wireless"},
+        {em_media_type_ieee80211ac_5, "Wireless"},
+        {em_media_type_ieee80211af, "Wireless"},
+        {em_media_type_max, "Unknown"},
+    };
+
+    for (const auto& test : media_types) {
+        dm_network_t network{};
+        network.m_net_info.media = test.media;
+        cJSON* obj = cJSON_CreateObject();
+        ASSERT_NE(obj, nullptr);
+
+        network.encode(obj, false);
+
+        cJSON* media_type = cJSON_GetObjectItem(obj, "MediaType");
+        ASSERT_NE(media_type, nullptr);
+        ASSERT_TRUE(cJSON_IsString(media_type));
+        EXPECT_STREQ(media_type->valuestring, test.expected);
+        cJSON_Delete(obj);
+    }
+}
+
 
 /**
 * @brief Test the encoding of a cJSON object with multiple children and summary set to true.
@@ -992,11 +1021,20 @@ TEST(dm_network_t_Test, AssigningValidObject) {
     std::cout << "Entering AssigningValidObject" << std::endl;
     dm_network_t obj1{};
     dm_network_t obj2{};
+    obj1.m_net_info.media = em_media_type_ieee80211b_24;
+    obj1.m_net_info.ctrl_id.media = em_media_type_ieee80211a_5;
+    obj1.m_net_info.colocated_agent_id.media = em_media_type_ieee80211g_24;
+    obj2.m_net_info.media = em_media_type_ieee80211n_24;
+    obj2.m_net_info.ctrl_id.media = em_media_type_ieee80211ac_5;
+    obj2.m_net_info.colocated_agent_id.media = em_media_type_ieee80211n_5;
     obj2.m_net_info.num_of_devices = 5;
     memcpy(obj2.m_net_info.id, "NetworkID", strlen("NetworkID") + 1);
     obj1 = obj2;
     EXPECT_EQ(obj1.m_net_info.num_of_devices, obj2.m_net_info.num_of_devices);
     EXPECT_STREQ(obj1.m_net_info.id, obj2.m_net_info.id);
+    EXPECT_EQ(obj1.m_net_info.media, obj2.m_net_info.media);
+    EXPECT_EQ(obj1.m_net_info.ctrl_id.media, obj2.m_net_info.ctrl_id.media);
+    EXPECT_EQ(obj1.m_net_info.colocated_agent_id.media, obj2.m_net_info.colocated_agent_id.media);
     std::cout << "Exiting AssigningValidObject" << std::endl;
 }
 
