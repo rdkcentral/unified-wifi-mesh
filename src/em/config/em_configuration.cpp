@@ -1382,12 +1382,12 @@ int em_configuration_t::create_ap_mld_config_tlv(unsigned char *buff)
     tlv_len = static_cast<short unsigned int> (sizeof(em_ap_mld_config_t));
 
     ap_mld = ap_mld_conf->ap_mld;
-    memset(ap_mld, 0, sizeof(em_ap_mld_t));
 
     ap_mld_conf->num_ap_mld = static_cast<unsigned char> (dm->get_num_ap_mld());
 
     for (i = 0; i < dm->get_num_ap_mld(); i++) {
         em_ap_mld_info_t& ap_mld_info = dm->m_ap_mld[i].m_ap_mld_info;
+        memset(ap_mld, 0, sizeof(em_ap_mld_t));
         ap_mld->ap_mld_mac_addr_valid = ap_mld_info.mac_addr_valid;
 
         ap_mld->ssid_len = static_cast<unsigned char>(sizeof(ssid_t));
