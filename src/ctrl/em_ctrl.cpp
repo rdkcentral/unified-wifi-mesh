@@ -1360,6 +1360,19 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
             break;
 
         case em_msg_type_topo_resp:
+	    em = NULL;
+            if (em_msg_t(data + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)),
+                    len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_radio_id(&ruid) == true) {
+                dm_easy_mesh_t::macbytes_to_string(ruid, mac_str1);
+                em = static_cast<em_t *> (hash_map_get(m_em_map, mac_str1));
+            }
+            if (em == NULL) {
+                dm_easy_mesh_t::macbytes_to_string(hdr->src, mac_str1);
+                em_printfout("Topology Response from %s has no resolvable radio, routing to the AL",
+                    mac_str1);
+                em = al_em;
+            }
+            break;
         case em_msg_type_ap_cap_rprt:
         case em_msg_type_channel_pref_rprt:
             if ((dm = get_data_model(GLOBAL_NET_ID, const_cast<const unsigned char *>(hdr->src))) == NULL) {

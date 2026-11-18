@@ -2237,8 +2237,17 @@ typedef enum {
     em_media_type_ieee80211ac_5,
     em_media_type_ieee80211ad_60,
     em_media_type_ieee80211af,
+    em_media_type_ieee80211ax,
+    em_media_type_ieee80211be,
     em_media_type_max,
 } em_media_type_t;
+
+#define EM_MAX_BH_STA_CANDIDATES 4
+typedef struct {
+    mac_address_t    sta_mac;    // the interface's own radio MAC
+    mac_address_t    bssid;      // network_memb: upstream AP BSSID it's associated to
+    em_media_type_t  media_type; // media_type reported alongside it
+} em_bh_sta_candidate_t;
 
 typedef struct {
     uint8_t reserved : 6;     // Bits 5-0: Reserved

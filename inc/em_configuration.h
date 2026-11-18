@@ -861,6 +861,7 @@ class em_configuration_t {
 	 */
 	int handle_topology_notification(unsigned char *buff, unsigned int len);
 	int handle_bsta_radio_cap(unsigned char *buff, unsigned int len);
+	int handle_device_info_type(unsigned char *buff, unsigned int len);
 	int handle_assoc_sta_mld_conf_rep_tlv(unsigned char *buff, unsigned int len);
 
 	/**!
