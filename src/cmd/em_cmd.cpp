@@ -539,6 +539,7 @@ const char *em_cmd_t::get_bus_event_type_str(em_bus_event_type_t type)
 	BUS_EVENT_TYPE_2S(em_bus_event_type_unassoc_sta_link_metrics_query)
 	BUS_EVENT_TYPE_2S(em_bus_event_type_unassoc_sta_result)
 	BUS_EVENT_TYPE_2S(em_bus_event_type_failed_conn)
+	BUS_EVENT_TYPE_2S(em_bus_event_type_client_disassoc_stats)
         BUS_EVENT_TYPE_2S(em_bus_event_type_client_assoc_ctrl_req)
         BUS_EVENT_TYPE_2S(em_bus_event_type_beacon_query)
        
