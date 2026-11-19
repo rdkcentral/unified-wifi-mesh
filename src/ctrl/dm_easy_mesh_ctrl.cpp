@@ -668,6 +668,24 @@ cleanup:
     return rc;
 }
 
+bool dm_easy_mesh_ctrl_t::is_valid_instance_token(const char *instance, bool is_num)
+{
+    if (!is_num) {
+        return true;    /* alias token: looked up by MAC string */
+    }
+    if (instance == NULL || *instance == '\0') {
+        return false;
+    }
+    for (const char *p = instance; *p != '\0'; p++) {
+        if (*p < '0' || *p > '9') {
+            return false;
+        }
+    }
+    errno = 0;
+    long v = strtol(instance, NULL, 10);
+    return errno != ERANGE && v >= 1 && v <= INT_MAX;
+}
+
 bus_error_t em_ctrl_t::cmd_steerwifibh(const char *method_name, const bus_data_prop_t *input_params, bus_data_prop_t **output_params, void *async_handle)
 {
     (void)async_handle;
@@ -734,8 +752,7 @@ bus_error_t em_ctrl_t::cmd_steerwifibh(const char *method_name, const bus_data_p
     }
     name += sizeof(DATAELEMS_NETWORK);
     name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
-    if (name == NULL || instance[0] == '\0' ||
-        (is_num && strspn(instance, "0123456789") != strlen(instance))) {
+    if (name == NULL || !dm_easy_mesh_ctrl_t::is_valid_instance_token(instance, is_num)) {
         if (output_params) {
             *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
         }
