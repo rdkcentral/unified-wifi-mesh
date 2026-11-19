@@ -927,6 +927,7 @@ int em_configuration_t::create_bss_config_rprt_tlv(unsigned char *buff)
             	continue;
         	}
         	bss_rprt_len += sizeof(em_bss_rprt_t);
+                bss_rprt->desc = 0;
         	memcpy(bss_rprt->bssid, dm->m_bss[j].m_bss_info.bssid.mac, sizeof(bssid_t));
         	bss_rprt->ssid_len = static_cast<unsigned char> (strlen(dm->m_bss[j].m_bss_info.ssid) + 1);
             strncpy(bss_rprt->ssid, dm->m_bss[j].m_bss_info.ssid, sizeof(ssid_t));
@@ -1944,6 +1945,103 @@ void em_configuration_t::print_ap_operational_bss_tlv(unsigned char *value, unsi
 
 int em_configuration_t::handle_bss_configuration_report(unsigned char *buff, unsigned int len)
 {
+	const unsigned char bss_rprt_backhaul = 0x80;
+	const unsigned char bss_rprt_fronthaul = 0x40;
+	const unsigned char bss_rprt_r1_disallowed = 0x20;
+	const unsigned char bss_rprt_r2_disallowed = 0x10;
+	const unsigned char bss_rprt_multiple_bssid_set = 0x08;
+	const unsigned char bss_rprt_transmitted_bssid = 0x04;
+
+	dm_easy_mesh_t *dm;
+	em_bss_config_rprt_t *rprt;
+	em_radio_rprt_t *rd_rprt;
+	em_bss_rprt_t *bss_rprt;
+	dm_bss_t *dm_bss;
+	bool updated_at_least_one_bss = false;
+	unsigned int i, j;
+	unsigned int all_bss_len = 0;
+	mac_addr_str_t rd_mac_str, bss_mac_str;
+
+	dm = get_data_model();
+        unsigned char *end = buff + len;
+        if (len < sizeof(em_bss_config_rprt_t)) {
+            em_printfout("%s:%d Invalid BSS Configuration Report length",__func__, __LINE__);
+            return -1;
+        }
+	rprt = reinterpret_cast<em_bss_config_rprt_t *> (buff);
+	rd_rprt = rprt->radio_rprt;
+
+	for (i = 0; i < rprt->num_radios; i++) {
+                if ((unsigned char *)rd_rprt + sizeof(em_radio_rprt_t) > end) {
+                    em_printfout("%s:%d Truncated radio report",__func__, __LINE__);
+                    return -1;
+                }
+		bss_rprt = rd_rprt->bss_rprt;
+		all_bss_len = 0;
+
+		for (j = 0; j < rd_rprt->num_bss; j++) {
+                        if ((unsigned char *)bss_rprt + sizeof(em_bss_rprt_t) > end) {
+                            em_printfout("%s:%d Truncated BSS report",__func__, __LINE__);
+                            return -1;
+                        }
+                        if ((unsigned char *)bss_rprt +sizeof(em_bss_rprt_t) +bss_rprt->ssid_len > end) {
+                            em_printfout("%s:%d Invalid SSID length", __func__, __LINE__);
+                            return -1;
+                        }
+			dm_bss = dm->get_bss(rd_rprt->ruid, bss_rprt->bssid);
+			if (dm_bss == NULL) {
+                                if (dm->get_num_bss() >= EM_MAX_BSSS) {
+                                    em_printfout("%s:%d BSS table full",__func__, __LINE__);
+                                    return -1;
+                                }
+				dm_bss = &dm->m_bss[dm->m_num_bss];
+				dm_bss->init();
+
+				// fill up id first
+                                //strlcpy(dm_bss->m_bss_info.id.net_id, dm->m_device.m_device_info.id.net_id, sizeof(em_long_string_t));
+                                strncpy(dm_bss->m_bss_info.id.net_id,dm->m_device.m_device_info.id.net_id,sizeof(dm_bss->m_bss_info.id.net_id) - 1);
+                                dm_bss->m_bss_info.id.net_id[sizeof(dm_bss->m_bss_info.id.net_id) - 1] = '\0';
+				memcpy(dm_bss->m_bss_info.id.dev_mac, dm->m_device.m_device_info.intf.mac, sizeof(mac_address_t));
+				memcpy(dm_bss->m_bss_info.id.ruid, rd_rprt->ruid, sizeof(mac_address_t));
+				memcpy(dm_bss->m_bss_info.id.bssid, bss_rprt->bssid, sizeof(mac_address_t));
+				memcpy(dm_bss->m_bss_info.ruid.mac, rd_rprt->ruid, sizeof(mac_address_t));
+				memcpy(dm_bss->m_bss_info.bssid.mac, bss_rprt->bssid, sizeof(mac_address_t));
+
+				dm->set_num_bss(dm->get_num_bss() + 1);
+			}
+
+			if ((bss_rprt->desc & bss_rprt_backhaul) != 0) {
+				dm_bss->m_bss_info.id.haul_type = em_haul_type_backhaul;
+			} else if ((bss_rprt->desc & bss_rprt_fronthaul) != 0) {
+				dm_bss->m_bss_info.id.haul_type = em_haul_type_fronthaul;
+			}
+
+			dm_bss->m_bss_info.r1_disallowed = (bss_rprt->desc & bss_rprt_r1_disallowed) != 0;
+			dm_bss->m_bss_info.r2_disallowed = (bss_rprt->desc & bss_rprt_r2_disallowed) != 0;
+			dm_bss->m_bss_info.multi_bssid = (bss_rprt->desc & bss_rprt_multiple_bssid_set) != 0;
+			dm_bss->m_bss_info.transmitted_bssid = (bss_rprt->desc & bss_rprt_transmitted_bssid) != 0;
+
+			dm_easy_mesh_t::macbytes_to_string(rd_rprt->ruid, rd_mac_str);
+			dm_easy_mesh_t::macbytes_to_string(bss_rprt->bssid, bss_mac_str);
+			em_printfout("BSS Configuration Report: radio: %s bssid: %s desc: 0x%02x haul_type: %d "
+				"r1_disallowed: %d r2_disallowed: %d multi_bssid: %d transmitted_bssid: %d",
+				rd_mac_str, bss_mac_str, bss_rprt->desc, dm_bss->m_bss_info.id.haul_type,
+				dm_bss->m_bss_info.r1_disallowed, dm_bss->m_bss_info.r2_disallowed,
+				dm_bss->m_bss_info.multi_bssid, dm_bss->m_bss_info.transmitted_bssid);
+
+			updated_at_least_one_bss = true;
+
+			all_bss_len += static_cast<unsigned int> (sizeof(em_bss_rprt_t) + bss_rprt->ssid_len);
+			bss_rprt = reinterpret_cast<em_bss_rprt_t *> (reinterpret_cast<unsigned char *> (bss_rprt) + sizeof(em_bss_rprt_t) + bss_rprt->ssid_len);
+		}
+
+		rd_rprt = reinterpret_cast<em_radio_rprt_t *> (reinterpret_cast<unsigned char *> (rd_rprt) + sizeof(em_radio_rprt_t) + all_bss_len);
+	}
+
+	if (updated_at_least_one_bss == true) {
+		dm->set_db_cfg_param(db_cfg_type_bss_list_update, "");
+	}
+
 	return 0;
 }
 
@@ -2224,28 +2322,27 @@ int em_configuration_t::handle_topology_response(unsigned char *buff, unsigned i
         
     tlv =  reinterpret_cast<em_tlv_t *> (buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
     tmp_len = len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
-
-	while ((tmp_len >= sizeof(em_tlv_t)) && (tlv->type != em_tlv_type_eom)) {
-        tlv_len = static_cast<unsigned int>(htons(tlv->len));
-        if (!validate_tlv_length(tlv_len, tmp_len)) {
-            return -1;
-        }
-		if (tlv->type != em_tlv_type_vendor_operational_bss) {
-			tmp_len -= static_cast<unsigned int> (sizeof(em_tlv_t) + tlv_len);
-			tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + tlv_len);
-			continue;
-		} else {
-			handle_ap_vendor_operational_bss(tlv->value, tlv->len);
-			break;
-		}
-	}
-	tlv =  reinterpret_cast<em_tlv_t *> (buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
-	tmp_len = len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)); 
+         while ((tmp_len >= sizeof(em_tlv_t)) && (tlv->type != em_tlv_type_eom)) {
+         tlv_len = static_cast<unsigned int>(htons(tlv->len));
+         if (!validate_tlv_length(tlv_len, tmp_len)) {
+             return -1;
+         }
+                 if (tlv->type != em_tlv_type_vendor_operational_bss) {
+                         tmp_len -= static_cast<unsigned int> (sizeof(em_tlv_t) + tlv_len);
+                         tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + tlv_len);
+                         continue;
+                 } else {
+                         handle_ap_vendor_operational_bss(tlv->value, tlv->len);
+                         break;
+                 }
+         }
+         tlv =  reinterpret_cast<em_tlv_t *> (buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+         tmp_len = len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
     while ((tmp_len >= sizeof(em_tlv_t)) && (tlv->type != em_tlv_type_eom)) {
         tlv_len = static_cast<unsigned int>(htons(tlv->len));
-        if (!validate_tlv_length(tlv_len, tmp_len)) {
-            return -1;
-        }
+	if (!validate_tlv_length(tlv_len, tmp_len)) {
+             return -1;
+         }
         if (tlv->type != em_tlv_type_operational_bss) {
             tmp_len -= static_cast<unsigned int> (sizeof(em_tlv_t) + tlv_len);
             tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + tlv_len);
@@ -2291,12 +2388,33 @@ int em_configuration_t::handle_topology_response(unsigned char *buff, unsigned i
         }
     }
 
+    // bss_conf_rep is optional
     if (found_bss_config_rprt) {
         if (handle_bss_configuration_report(tlv->value, tlv->len) != 0) {
             em_printfout("BSS Configuration Report handling failed");
             return -1;
         }
     }
+
+    // Vendor Operational BSS TLV takes precedence over the BSS Configuration Report TLV fo
+    // HaulType. Parse it last (after the BSS Configuration Report TLV above) so that, when
+    // present, its HaulType overwrites the value handle_bss_configuration_report() just set.
+    tlv = reinterpret_cast<em_tlv_t *> (buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+    tmp_len = len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+    while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
+        if (tlv->type != em_tlv_type_vendor_operational_bss) {
+            tmp_len -= static_cast<unsigned int> (sizeof(em_tlv_t) + htons(tlv->len));
+            tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
+            continue;
+        } else {
+             handle_ap_vendor_operational_bss(tlv->value, tlv->len);
+             break;
+        }
+    }
+
+    // optional TLVs are searched independently: always restart from the first TLV
+    tlv = reinterpret_cast<em_tlv_t *>(buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+    tmp_len = len - static_cast<unsigned int>(sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
 
     // optional TLVs are searched independently: always restart from the first TLV
     tlv = reinterpret_cast<em_tlv_t *>(buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
@@ -2317,11 +2435,11 @@ int em_configuration_t::handle_topology_response(unsigned char *buff, unsigned i
             break;
         }
     }
-
-    // optional TLVs are searched independently: always restart from the first TLV
+    
+    // reset cursor for the subsequent TLV searches below (bh_sta_radio_cap, ap_mld_config)
     tlv = reinterpret_cast<em_tlv_t *>(buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
     tmp_len = len - static_cast<unsigned int>(sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
-
+    
     while ((tmp_len >= sizeof(em_tlv_t)) && (tlv->type != em_tlv_type_eom)) {
         tlv_len = static_cast<unsigned int>(htons(tlv->len));
         if (!validate_tlv_length(tlv_len, tmp_len)) {
