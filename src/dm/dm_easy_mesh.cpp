@@ -3180,6 +3180,31 @@ em_sta_info_t *dm_easy_mesh_t::get_sta_info(mac_address_t sta_mac, bssid_t bssid
     return &sta->m_sta_info;
 }
 
+em_sta_info_t *dm_easy_mesh_t::get_sta_info_on_radio(const mac_address_t sta_mac, const mac_address_t ruid, em_target_sta_map_t target)
+{
+    hash_map_t *map;
+    dm_sta_t *sta;
+
+    if (target == em_target_sta_map_assoc) {
+        map = m_sta_assoc_map;
+    } else if (target == em_target_sta_map_disassoc) {
+        map = m_sta_dassoc_map;
+    } else {
+        map = m_sta_map;
+    }
+
+    sta = static_cast<dm_sta_t *> (hash_map_get_first(map));
+    while (sta != NULL) {
+        if ((memcmp(sta->m_sta_info.id, sta_mac, sizeof(mac_address_t)) == 0) &&
+            (memcmp(sta->m_sta_info.radiomac, ruid, sizeof(mac_address_t)) == 0)) {
+            return &sta->m_sta_info;
+        }
+        sta = static_cast<dm_sta_t *> (hash_map_get_next(map, sta));
+    }
+
+    return NULL;
+}
+
 void dm_easy_mesh_t::put_sta_info(em_sta_info_t *sta_info, em_target_sta_map_t target)
 {
     hash_map_t *map;
@@ -4270,7 +4295,7 @@ int dm_easy_mesh_t::init()
     m_mlo_policy[em_haul_type_fronthaul].use_mld_tlv = true;
     m_mlo_policy[em_haul_type_fronthaul].band_bitmap = EM_MLO_DEFAULT_BAND_BITMAP;
 
-    m_mlo_policy[em_haul_type_backhaul].use_mld_tlv = false;
+    m_mlo_policy[em_haul_type_backhaul].use_mld_tlv = true;
     m_mlo_policy[em_haul_type_backhaul].band_bitmap = EM_MLO_DEFAULT_BAND_BITMAP;
 
     return 0;
@@ -4311,7 +4336,7 @@ void dm_easy_mesh_t::reset()
     m_mlo_policy[em_haul_type_fronthaul].use_mld_tlv = true;
     m_mlo_policy[em_haul_type_fronthaul].band_bitmap = EM_MLO_DEFAULT_BAND_BITMAP;
 
-    m_mlo_policy[em_haul_type_backhaul].use_mld_tlv = false;
+    m_mlo_policy[em_haul_type_backhaul].use_mld_tlv = true;
     m_mlo_policy[em_haul_type_backhaul].band_bitmap = EM_MLO_DEFAULT_BAND_BITMAP;
 }
 
