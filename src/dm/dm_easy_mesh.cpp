@@ -2585,9 +2585,20 @@ bool dm_easy_mesh_t::operator==(dm_easy_mesh_t const& obj)
     }
     ret += this->m_num_radios == obj.m_num_radios;
     ret += this->m_num_opclass == obj.m_num_opclass;
-    ret += this->m_num_ap_mld != obj.m_num_ap_mld;
-    for (unsigned int i = 0; i < this->m_num_ap_mld && i < EM_MAX_AP_MLD; i++) {
-        ret += !(this->m_ap_mld[i] == obj.m_ap_mld[i]);
+    {
+        unsigned int this_num = (this->m_ap_mld_map != NULL) ? hash_map_count(this->m_ap_mld_map) : 0;
+        unsigned int obj_num = (obj.m_ap_mld_map != NULL) ? hash_map_count(obj.m_ap_mld_map) : 0;
+        ret += this_num != obj_num;
+        if ((this_num == obj_num) && (this_num > 0)) {
+            em_long_string_t key;
+            dm_ap_mld_t *ap_mld = static_cast<dm_ap_mld_t *> (hash_map_get_first(this->m_ap_mld_map));
+            while (ap_mld != NULL) {
+                dm_easy_mesh_t::get_ap_mld_key(get_agent_al_interface_mac(), ap_mld->m_ap_mld_info.haul_type, key, sizeof(key));
+                dm_ap_mld_t *obj_ap_mld = static_cast<dm_ap_mld_t *> (hash_map_get(obj.m_ap_mld_map, key));
+                ret += (obj_ap_mld == NULL) || !(*ap_mld == *obj_ap_mld);
+                ap_mld = static_cast<dm_ap_mld_t *> (hash_map_get_next(this->m_ap_mld_map, ap_mld));
+            }
+        }
     }
     for (unsigned int i = 0; i < EM_MAX_BSSS; i++) {
         ret += memcmp(&this->m_bss[i], &obj.m_bss[i], sizeof(dm_bss_t));
@@ -3746,15 +3757,6 @@ dm_ap_mld_t *dm_easy_mesh_t::get_ap_mld(mac_address_t al_mac, em_haul_type_t hau
     return static_cast<dm_ap_mld_t *>(hash_map_get(m_ap_mld_map, key));
 }
 
-em_ap_mld_info_t *dm_easy_mesh_t::get_ap_mld_frm_bssid(void *dm, mac_address_t bss_id)
-{
-    if (dm == NULL || bss_id == NULL) {
-        return NULL;
-    }
-
-    return static_cast<dm_easy_mesh_t *>(dm)->get_ap_mld_frm_bssid(bss_id);
-}
-
 void dm_easy_mesh_t::update_ap_mld_info(void *dm, em_ap_mld_info_t *ap_mld_info)
 {
     if (dm == NULL || ap_mld_info == NULL) {
@@ -4022,32 +4024,14 @@ void dm_easy_mesh_t::update_assoc_sta_mld_info(em_assoc_sta_mld_info_t *assoc_st
 
 void dm_easy_mesh_t::remove_ap_mld_info_by_haul_type(em_haul_type_t haul_type)
 {
-    unsigned int found_idx = m_num_ap_mld;
-    unsigned int i;
+    em_long_string_t key;
 
-    if (haul_type >= em_haul_type_max) {
+    if ((haul_type >= em_haul_type_max) || (m_ap_mld_map == NULL)) {
         return;
     }
 
-    for (i = 0; i < m_num_ap_mld; i++) {
-        if (m_ap_mld[i].m_ap_mld_info.haul_type == haul_type) {
-            found_idx = i;
-            break;
-        }
-    }
-
-    if (found_idx == m_num_ap_mld) {
-        return; // not found
-    }
-
-    // Compact the array: shift entries after found_idx one position left.
-    for (i = found_idx; i < m_num_ap_mld - 1; i++) {
-        m_ap_mld[i] = m_ap_mld[i + 1];
-    }
-
-    // Zero out the vacated last slot and decrement count.
-    m_ap_mld[m_num_ap_mld - 1].init();
-    m_num_ap_mld--;
+    dm_easy_mesh_t::get_ap_mld_key(get_agent_al_interface_mac(), haul_type, key, sizeof(key));
+    delete static_cast<dm_ap_mld_t *> (hash_map_remove(m_ap_mld_map, key));
 }
 
 void dm_easy_mesh_t::replace_assoc_sta_mld_info(const em_assoc_sta_mld_info_t &assoc_sta_mld_info)
