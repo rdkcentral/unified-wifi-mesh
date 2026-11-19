@@ -20,7 +20,189 @@
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>
 #include <stdio.h>
+#include <cstring>
 #include "em_ctrl.h"
+#include "em_crypto.h"
+#include <memory>
+#include <vector>
+
+TEST(em_ctrl_t, StationCapabilityUpdatesOwnFrameBodies)
+{
+    em_ctrl_t ctrl;
+    em_interface_t agent = {};
+    agent.mac[5] = 1;
+    dm_easy_mesh_t *dm = nullptr;
+    {
+        // Controller infrastructure has no complete teardown; keep test allocations tracked.
+        struct ScopedLeakSuppression {
+            ScopedLeakSuppression() { __lsan_disable(); }
+            ~ScopedLeakSuppression() { __lsan_enable(); }
+        } suppression;
+        ASSERT_EQ(ctrl.init(":memory:"), 0);
+        dm = ctrl.create_data_model(GLOBAL_NET_ID, &agent);
+    }
+    ASSERT_NE(dm, nullptr);
+    em_bus_event_type_sta_cap_update_params_t update = {};
+    memcpy(update.dev, agent.mac, sizeof(mac_address_t));
+    update.sta[5] = 2;
+    update.bssid[5] = 3;
+    update.radio[5] = 4;
+    const char *key = "00:00:00:00:00:02@00:00:00:00:00:03@00:00:00:00:00:04";
+
+    const unsigned int lengths[] = {EM_MAX_FRAME_BODY_LEN, 4, 0};
+    for (unsigned int length : lengths) {
+        update.frame_body_len = length;
+        std::vector<unsigned char> payload(sizeof(update) + length, 0x5a);
+        memcpy(payload.data(), &update, sizeof(update));
+        ctrl.io_process(em_bus_event_type_sta_cap_update, payload.data(),
+            static_cast<unsigned int>(payload.size()));
+        memset(payload.data(), 0, payload.size());
+        EXPECT_EQ(hash_map_get(dm->m_sta_assoc_map, key), nullptr);
+
+        std::unique_ptr<em_event_t, decltype(&free)> event(ctrl.pop_from_queue(), &free);
+        ASSERT_NE(event, nullptr);
+        ctrl.handle_event(event.get());
+        event.reset();
+        dm_sta_t *sta = static_cast<dm_sta_t *>(hash_map_get(dm->m_sta_assoc_map, key));
+        ASSERT_NE(sta, nullptr);
+        ASSERT_EQ(sta->m_sta_info.frame_body_len, length);
+        for (unsigned int i = 0; i < length; i++) {
+            EXPECT_EQ(sta->m_sta_info.frame_body[i], 0x5a);
+        }
+        EXPECT_TRUE(sta->m_sta_info.associated);
+        // Simulate the pending entry being consumed by the DB flush.
+        delete static_cast<dm_sta_t *>(hash_map_remove(dm->m_sta_assoc_map, key));
+        EXPECT_EQ(ctrl.pop_from_queue(), nullptr);
+    }
+}
+
+TEST(em_ctrl_t, CapabilityLinksResolveAfterQueuedMldReplacement)
+{
+    em_ctrl_t ctrl;
+    em_interface_t agent = {};
+    agent.mac[5] = 1;
+    dm_easy_mesh_t *dm = nullptr;
+    {
+        struct ScopedLeakSuppression {
+            ScopedLeakSuppression() { __lsan_disable(); }
+            ~ScopedLeakSuppression() { __lsan_enable(); }
+        } suppression;
+        ASSERT_EQ(ctrl.init(":memory:"), 0);
+        dm = ctrl.create_data_model(GLOBAL_NET_ID, &agent);
+    }
+    ASSERT_NE(dm, nullptr);
+    dm->set_num_radios(1);
+    dm->get_radio_info(0)->id.ruid[5] = 4;
+    dm->set_num_bss(2);
+    for (unsigned int i = 0; i < 2; i++) {
+        dm->get_bss(i)->m_bss_info.bssid.mac[5] = static_cast<unsigned char>(3 + i);
+        dm->get_bss(i)->m_bss_info.ruid.mac[5] = 4;
+    }
+    em_bus_event_type_sta_mld_update_params_t mld = {};
+    memcpy(mld.dev, agent.mac, sizeof(mac_address_t));
+    mld.info.mac_addr[5] = 2;
+    mld.info.num_affiliated_sta = 1;
+    mld.info.affiliated_sta[0].bssid[5] = 3;
+    dm->replace_assoc_sta_mld_info(mld.info);
+    dm->apply_sta_mld_association(mld.info);
+
+    em_bus_event_type_sta_cap_update_params_t cap = {};
+    memcpy(cap.dev, agent.mac, sizeof(mac_address_t));
+    cap.sta[5] = 2;
+    cap.bssid[5] = 3;
+    cap.frame_body_len = 4;
+    std::vector<unsigned char> payload(sizeof(cap) + cap.frame_body_len, 0x5a);
+    memcpy(payload.data(), &cap, sizeof(cap));
+    for (unsigned char links : {1, 0}) {
+        mld.info.num_affiliated_sta = links;
+        mld.info.affiliated_sta[0].bssid[5] = 4;
+        ctrl.io_process(em_bus_event_type_sta_mld_update,
+            reinterpret_cast<unsigned char *>(&mld), sizeof(mld));
+        ctrl.io_process(em_bus_event_type_sta_cap_update, payload.data(),
+            static_cast<unsigned int>(payload.size()));
+        for (unsigned int i = 0; i < 2; i++) {
+            std::unique_ptr<em_event_t, decltype(&free)> event(ctrl.pop_from_queue(), &free);
+            ASSERT_NE(event, nullptr);
+            ctrl.handle_event(event.get());
+        }
+        dm_sta_t *old_link = static_cast<dm_sta_t *>(hash_map_get(dm->m_sta_assoc_map,
+            "00:00:00:00:00:02@00:00:00:00:00:03@00:00:00:00:00:04"));
+        ASSERT_NE(old_link, nullptr);
+        EXPECT_EQ(old_link->m_sta_info.frame_body_len, 0u);
+        if (links == 1) {
+            dm_sta_t *new_link = static_cast<dm_sta_t *>(hash_map_get(dm->m_sta_assoc_map,
+                "00:00:00:00:00:02@00:00:00:00:00:04@00:00:00:00:00:04"));
+            ASSERT_NE(new_link, nullptr);
+            ASSERT_EQ(new_link->m_sta_info.frame_body_len, 4u);
+            EXPECT_EQ(new_link->m_sta_info.frame_body[3], 0x5a);
+        }
+    }
+}
+
+TEST(em_ctrl_t, StationMldUpdatesApplyOnControllerEventThread)
+{
+    em_ctrl_t ctrl;
+    em_interface_t agent = {};
+    agent.mac[5] = 1;
+    dm_easy_mesh_t *dm = nullptr;
+    {
+        struct ScopedLeakSuppression {
+            ScopedLeakSuppression() { __lsan_disable(); }
+            ~ScopedLeakSuppression() { __lsan_enable(); }
+        } suppression;
+        ASSERT_EQ(ctrl.init(":memory:"), 0);
+        dm = ctrl.create_data_model(GLOBAL_NET_ID, &agent);
+    }
+    ASSERT_NE(dm, nullptr);
+    dm->set_num_radios(1);
+    dm->get_radio_info(0)->id.ruid[5] = 4;
+    dm->set_num_bss(1);
+    dm->get_bss(0)->m_bss_info.bssid.mac[5] = 3;
+    dm->get_bss(0)->m_bss_info.ruid.mac[5] = 4;
+
+    for (unsigned char links : {1, 0}) {
+        em_bus_event_type_sta_mld_update_params_t update = {};
+        memcpy(update.dev, agent.mac, sizeof(mac_address_t));
+        update.info.mac_addr[5] = 2;
+        update.info.num_affiliated_sta = links;
+        update.info.affiliated_sta[0].bssid[5] = 3;
+        ctrl.io_process(em_bus_event_type_sta_mld_update,
+            reinterpret_cast<unsigned char *>(&update), sizeof(update));
+        memset(&update, 0, sizeof(update));
+
+        em_assoc_sta_mld_info_t rows[EM_MAX_ASSOC_STA_MLD];
+        unsigned int count = dm->copy_assoc_sta_mld_info(rows);
+        if (links == 1) {
+            EXPECT_EQ(count, 0u);
+        } else {
+            ASSERT_EQ(count, 1u);
+            EXPECT_EQ(rows[0].num_affiliated_sta, 1);
+        }
+        std::unique_ptr<em_event_t, decltype(&free)> event(ctrl.pop_from_queue(), &free);
+        ASSERT_NE(event, nullptr);
+        ctrl.handle_event(event.get());
+        count = dm->copy_assoc_sta_mld_info(rows);
+        ASSERT_EQ(count, 1u);
+        EXPECT_EQ(rows[0].mac_addr[5], 2);
+        EXPECT_EQ(rows[0].num_affiliated_sta, links);
+        dm_sta_t *sta = static_cast<dm_sta_t *>(hash_map_get(dm->m_sta_map,
+            "00:00:00:00:00:02@00:00:00:00:00:03@00:00:00:00:00:04"));
+        // Association updates may first exist only in the pending persistence map.
+        if (sta == nullptr) {
+            sta = static_cast<dm_sta_t *>(hash_map_get(dm->m_sta_assoc_map,
+                "00:00:00:00:00:02@00:00:00:00:00:03@00:00:00:00:00:04"));
+        }
+        ASSERT_NE(sta, nullptr);
+        if (links == 1) {
+            EXPECT_TRUE(sta->m_sta_info.associated);
+            hash_map_put(dm->m_sta_map, strdup(
+                "00:00:00:00:00:02@00:00:00:00:00:03@00:00:00:00:00:04"),
+                new dm_sta_t(*sta));
+        } else {
+            EXPECT_FALSE(sta->m_sta_info.associated);
+        }
+    }
+}
 
 class em_ctrl_t_Test : public ::testing::Test {
 protected:
@@ -115,6 +297,13 @@ TEST_F(em_ctrl_t_Test, data_model_init_valid_path) {
     EXPECT_EQ(result, 0);
     std::cout << "Exiting data_model_init_valid_path test" << std::endl;
 }
+
+TEST_F(em_ctrl_t_Test, data_model_init_backend_failure) {
+    em_ctrl_t ctrl;
+    ctrl.set_db_type(db_client_type_cloud);
+    EXPECT_NE(ctrl.data_model_init(nullptr), 0);
+}
+
 /**
  * @brief Verify that data_model_init returns an error when a null pointer is provided as the data model path.
  *
@@ -3929,4 +4118,106 @@ TEST_F(em_ctrl_t_Test, io_process_invalid_event_type)
     EXPECT_FALSE(ret);
     free(evt);
     std::cout << "Exiting io_process_invalid_event_type test" << std::endl;
+}
+
+/**
+ * @brief Verify that get_dm_radio() resolves a Radio.{i} alias as base64(RUID) and returns NULL otherwise.
+ *
+ * Radio.{i} aliases are published as base64(RUID) by radio_get_inner(). The lookup must select the radio
+ * whose RUID encodes to the alias, must not match the MAC-string form of the RUID that the old comparison
+ * used, and must return NULL instead of another radio when nothing matches. The numeric instance path
+ * is checked as well.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 010@n
+ * **Priority:** High@n
+ *
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ *
+ * **Test Procedure:**
+ * | Variation / Step | Description                                                    | Test Data                              | Expected Result                     | Notes       |
+ * | :--------------: | -------------------------------------------------------------- | -------------------------------------- | ----------------------------------- | ----------- |
+ * | 01               | Look up the second radio by its base64(RUID) alias             | alias = base64(ruid1), is_num = false  | Returns dm.get_radio(1)             | Should Pass |
+ * | 02               | Look up with the MAC string of the same RUID                   | "02:11:22:33:44:66", is_num = false    | Returns NULL                        | Should Pass |
+ * | 03               | Look up with an alias that matches no radio                    | "AAAAAAAA", is_num = false             | Returns NULL                        | Should Pass |
+ * | 04               | Look up by numeric instance                                    | "1", is_num = true                     | Returns dm.get_radio(0)             | Should Pass |
+ */
+TEST(dm_easy_mesh_ctrl_t, get_dm_radio_alias_is_base64_ruid) {
+    std::cout << "Entering get_dm_radio_alias_is_base64_ruid test" << std::endl;
+    dm_easy_mesh_ctrl_t dm_ctrl;
+    dm_easy_mesh_t dm;
+    const unsigned char ruid0[6] = { 0x02, 0x11, 0x22, 0x33, 0x44, 0x55 };
+    const unsigned char ruid1[6] = { 0x02, 0x11, 0x22, 0x33, 0x44, 0x66 };
+    memcpy(dm.get_radio_by_ref(0).get_radio_info()->id.ruid, ruid0, sizeof(ruid0));
+    memcpy(dm.get_radio_by_ref(1).get_radio_info()->id.ruid, ruid1, sizeof(ruid1));
+    dm.set_num_radios(2);
+
+    std::string alias = em_crypto_t::base64_encode(ruid1, sizeof(ruid1));
+    char instance[64];
+    snprintf(instance, sizeof(instance), "%s", alias.c_str());
+    std::cout << "Invoking get_dm_radio(...) with alias " << instance << std::endl;
+    EXPECT_EQ(dm_ctrl.get_dm_radio(&dm, instance, false), dm.get_radio(1u));
+
+    char mac_str[] = "02:11:22:33:44:66";
+    EXPECT_EQ(dm_ctrl.get_dm_radio(&dm, mac_str, false), nullptr);
+
+    char unknown[] = "AAAAAAAA";
+    EXPECT_EQ(dm_ctrl.get_dm_radio(&dm, unknown, false), nullptr);
+
+    char index[] = "1";
+    EXPECT_EQ(dm_ctrl.get_dm_radio(&dm, index, true), dm.get_radio(0u));
+    std::cout << "Exiting get_dm_radio_alias_is_base64_ruid test" << std::endl;
+}
+
+/**
+ * @brief Verify that get_dm_bss() numbers the rows the way the BSS table does.
+ *
+ * The BSS table skips a BSS whose BSSID is all zeros, so a numeric BSS instance must be counted over the
+ * radio's BSSs that have a BSSID: with a BSSID-less entry ahead of a valid one, row 1 is the valid one and
+ * a row past the last valid entry resolves to nothing.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 011@n
+ * **Priority:** High@n
+ *
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ *
+ * **Test Procedure:**
+ * | Variation / Step | Description                                                    | Test Data                              | Expected Result                     | Notes       |
+ * | :--------------: | -------------------------------------------------------------- | -------------------------------------- | ----------------------------------- | ----------- |
+ * | 01               | Row 1 of a radio whose first BSS has no BSSID                  | "1", is_num = true                     | Returns dm.get_bss(1)               | Should Pass |
+ * | 02               | Row past the last BSS that has a BSSID                         | "2", is_num = true                     | Returns NULL                        | Should Pass |
+ * | 03               | Look up by BSSID alias                                         | "02:11:22:33:44:77", is_num = false    | Returns dm.get_bss(1)               | Should Pass |
+ */
+TEST(dm_easy_mesh_ctrl_t, get_dm_bss_skips_bss_without_bssid) {
+    std::cout << "Entering get_dm_bss_skips_bss_without_bssid test" << std::endl;
+    dm_easy_mesh_ctrl_t dm_ctrl;
+    dm_easy_mesh_t dm;
+    em_radio_info_t ri;
+    const unsigned char ruid[6] = { 0x02, 0x11, 0x22, 0x33, 0x44, 0x55 };
+    const unsigned char bssid[6] = { 0x02, 0x11, 0x22, 0x33, 0x44, 0x77 };
+    memset(&ri, 0, sizeof(ri));
+    memcpy(ri.id.ruid, ruid, sizeof(ruid));
+    em_bss_info_t *bi0 = dm.get_bss_by_ref(0).get_bss_info();
+    em_bss_info_t *bi1 = dm.get_bss_by_ref(1).get_bss_info();
+    memcpy(bi0->ruid.mac, ruid, sizeof(ruid));
+    memset(bi0->bssid.mac, 0, sizeof(bi0->bssid.mac));
+    memcpy(bi1->ruid.mac, ruid, sizeof(ruid));
+    memcpy(bi1->bssid.mac, bssid, sizeof(bssid));
+    dm.set_num_bss(2);
+
+    char row1[] = "1";
+    std::cout << "Invoking get_dm_bss(...) with instance " << row1 << std::endl;
+    EXPECT_EQ(dm_ctrl.get_dm_bss(&dm, &ri, row1, true), dm.get_bss(1u));
+
+    char row2[] = "2";
+    EXPECT_EQ(dm_ctrl.get_dm_bss(&dm, &ri, row2, true), nullptr);
+
+    char alias[] = "02:11:22:33:44:77";
+    EXPECT_EQ(dm_ctrl.get_dm_bss(&dm, &ri, alias, false), dm.get_bss(1u));
+    std::cout << "Exiting get_dm_bss_skips_bss_without_bssid test" << std::endl;
 }
