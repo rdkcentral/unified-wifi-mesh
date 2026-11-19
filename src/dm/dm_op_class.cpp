@@ -64,7 +64,13 @@ int dm_op_class_t::decode(const cJSON *obj, void *parent_id)
     
     m_op_class_info.num_channels = 0;
     if ((non_op_array = cJSON_GetObjectItem(obj, "NonOperable")) != NULL) {
-        m_op_class_info.num_channels = static_cast<unsigned int>(cJSON_GetArraySize(non_op_array));
+        unsigned int num_channels = static_cast<unsigned int>(cJSON_GetArraySize(non_op_array));
+        if (num_channels > EM_MAX_CHANNELS_IN_LIST) {
+            printf("%s:%d: NonOperable channel count %u exceeds maximum %u\n",
+                __func__, __LINE__, num_channels, EM_MAX_CHANNELS_IN_LIST);
+            return -1;
+        }
+        m_op_class_info.num_channels = num_channels;
         for (i = 0; i < m_op_class_info.num_channels; i++) {
             if ((tmp = cJSON_GetArrayItem(non_op_array, static_cast<int>(i))) != NULL) {
                 m_op_class_info.channels[i] = static_cast<unsigned int>(tmp->valuedouble);
