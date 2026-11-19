@@ -1200,19 +1200,6 @@ public:
 
 	bool get_haul_type_from_ssid(const ssid_t ssid, em_haul_type_t *haul_type);
 
-	/**!
-	 * @brief Reverse of get_network_ssid_info_by_haul_type(): resolves the haul type for a given SSID.
-	 *
-	 * Used by callers that decode AP MLD info off the wire (e.g. the AP MLD Configuration TLV),
-	 * where haul type is not carried on the wire. Callers that already know the haul type
-	 * (e.g. OneWifi, from the VAP name) should set it directly instead of calling this.
-	 *
-	 * @param[in] ssid The SSID to look up.
-	 * @param[out] haul_type Set to the resolved haul type on success.
-	 *
-	 * @returns true if a matching network SSID entry was found, false otherwise.
-	 */
-	bool get_haul_type_from_ssid(const ssid_t ssid, em_haul_type_t *haul_type);
 
 	/**!
      * @brief Checks whether the given SSID matches.
