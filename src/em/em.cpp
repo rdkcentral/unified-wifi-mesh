@@ -2668,12 +2668,45 @@ cJSON *em_t::create_ieee1905_response_obj()
     return dpp_configuration_object.release();
 }
 
-int em_t::handle_wifi6_cap_tlv(unsigned char *buff)
+int em_t::handle_wifi6_cap_tlv(unsigned char *buff, unsigned int len)
 {
     mac_address_t ruid;
     dm_easy_mesh_t *dm = get_data_model();
     short offset = 0;
     em_radio_wifi6_cap_data_t *em_wifi6_cap = NULL;
+
+    if (buff == NULL || dm == NULL || len < sizeof(mac_address_t) + sizeof(unsigned char)) {
+        em_printfout("Error: Invalid Wi-Fi 6 capability TLV length=%u", len);
+        return -1;
+    }
+
+    // Validate every role before following its embedded MCS count.
+    size_t validated_offset = sizeof(mac_address_t);
+    unsigned int roles_num = buff[validated_offset++];
+    if (roles_num > MAP_AP_ROLE_MAX) {
+        em_printfout("Error: Invalid Wi-Fi 6 role count %u", roles_num);
+        return -1;
+    }
+    for (unsigned int role = 0; role < roles_num; role++) {
+        if (len - validated_offset < sizeof(em_wifi6_cap_role_head_tlv_t)) {
+            em_printfout("Error: Truncated Wi-Fi 6 role head %u", role);
+            return -1;
+        }
+        const em_wifi6_cap_role_head_tlv_t *head =
+            reinterpret_cast<const em_wifi6_cap_role_head_tlv_t *>(buff + validated_offset);
+        unsigned int mcs_num = head->mcs_nss_num / EM_MIN_HE_MCS_LEN;
+        if (mcs_num > MAX_MCS) {
+            em_printfout("Error: Invalid Wi-Fi 6 MCS count %u", mcs_num);
+            return -1;
+        }
+        validated_offset += sizeof(em_wifi6_cap_role_head_tlv_t);
+        size_t body_len = mcs_num * sizeof(em_ap_he_mcs_maps_t) + sizeof(em_wifi6_cap_role_tail_tlv_t);
+        if (len - validated_offset < body_len) {
+            em_printfout("Error: Truncated Wi-Fi 6 role body %u", role);
+            return -1;
+        }
+        validated_offset += body_len;
+    }
 
     memcpy(ruid, buff, sizeof(mac_address_t));
     offset += static_cast<short>(sizeof(mac_address_t));
