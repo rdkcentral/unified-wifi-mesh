@@ -8029,6 +8029,24 @@ bus_error_t dm_easy_mesh_ctrl_t::rcaps_get_inner(char *event_name, raw_data_t *p
     return rc;
 }
 
+bool dm_easy_mesh_ctrl_t::parse_radio_instance(const char *instance, bool is_num, int *radio_instance)
+{
+    char *end = NULL;
+    errno = 0;
+    long parsed = is_num ? strtol(instance, &end, 10) : 0;
+    if (!is_num || end == instance || *end != '\0' || errno == ERANGE ||
+        parsed < 1 || parsed > EM_MAX_BANDS) {
+        return false;
+    }
+    *radio_instance = static_cast<int>(parsed);
+    return true;
+}
+
+unsigned int dm_easy_mesh_ctrl_t::wifi6_role_count(unsigned int num_role)
+{
+    return (num_role > MAP_AP_ROLE_MAX) ? MAP_AP_ROLE_MAX : num_role;
+}
+
 bus_error_t dm_easy_mesh_ctrl_t::wf6ap_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
 {
     (void) user_data;
@@ -8076,15 +8094,10 @@ bus_error_t dm_easy_mesh_ctrl_t::wf6ap_get_inner(char *event_name, raw_data_t *p
     if (name == NULL) {
         return bus_error_invalid_input;
     }
-    char *end = NULL;
-    errno = 0;
-    long parsed_radio_instance = is_num ? strtol(instance, &end, 10) : 0;
-    if (!is_num || end == instance || *end != '\0' || errno == ERANGE ||
-        parsed_radio_instance < 1 || parsed_radio_instance > EM_MAX_BANDS) {
+    if (!parse_radio_instance(instance, is_num, &radio_instance)) {
         em_printfout("invalid radio instance: %s", instance);
         return bus_error_invalid_input;
     }
-    radio_instance = static_cast<int>(parsed_radio_instance);
     dm_radio_t *radio = &dm->m_radio[radio_instance - 1];
     if (radio == NULL) {
         em_printfout("radio is NULL\n");
@@ -8100,10 +8113,7 @@ bus_error_t dm_easy_mesh_ctrl_t::wf6ap_get_inner(char *event_name, raw_data_t *p
     }
     em_radio_cap_info_t *rci = radio_cap->get_radio_cap_info();
     unsigned int i;
-    unsigned int num_role = rci->wifi6_cap.num_role;
-    if (num_role > MAP_AP_ROLE_MAX) {
-        num_role = MAP_AP_ROLE_MAX;
-    }
+    unsigned int num_role = wifi6_role_count(rci->wifi6_cap.num_role);
 
     for (i = 0; i < num_role; i++) {
         char mcsnss_str[256] = { 0 };
