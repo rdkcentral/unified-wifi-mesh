@@ -734,7 +734,8 @@ bus_error_t em_ctrl_t::cmd_steerwifibh(const char *method_name, const bus_data_p
     }
     name += sizeof(DATAELEMS_NETWORK);
     name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
-    if (name == NULL) {
+    if (name == NULL || instance[0] == '\0' ||
+        (is_num && strspn(instance, "0123456789") != strlen(instance))) {
         if (output_params) {
             *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
         }
