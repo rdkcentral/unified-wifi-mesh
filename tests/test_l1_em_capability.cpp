@@ -4,6 +4,7 @@
 #include <atomic>
 #include <cstring>
 #include <memory>
+#include <utility>
 #include <vector>
 #include <thread>
 #include "dm_easy_mesh.h"
@@ -15,6 +16,15 @@ public:
     dm_easy_mesh_t *dm = nullptr;
     em_state_t state = em_state_agent_configured;
     std::vector<unsigned char> report;
+    mac_address_t radio_mac = {};
+    bool radio_mac_available = false;
+
+#if 0 // Re-enable after providing a test seam for this private handler.
+    int early_ap_cap_report(unsigned char *buff, unsigned int len)
+    {
+        return handle_early_ap_cap_report(buff, len);
+    }
+#endif
 
     void query(mac_address_t sta, bssid_t bssid)
     {
@@ -45,7 +55,10 @@ public:
     em_service_type_t get_service_type() override { return em_service_type_agent; }
     em_profile_type_t get_profile_type() override { return em_profile_type_3; }
     void set_profile_type(em_profile_type_t) override {}
-    unsigned char *get_radio_interface_mac() override { return nullptr; }
+    unsigned char *get_radio_interface_mac() override
+    {
+        return radio_mac_available ? &radio_mac[0] : nullptr;
+    }
     em_interface_t *get_radio_interface() override { return nullptr; }
     unsigned char *get_al_interface_mac() override { return nullptr; }
     rdk_wifi_radio_t *get_radio_data(em_interface_t *) override { return nullptr; }
@@ -75,6 +88,174 @@ public:
     short create_cac_cap_tlv(unsigned char *) override { return 0; }
     int handle_eht_operations_tlv(unsigned char *, unsigned short) override { return 0; }
 };
+
+#if 0 // These parser regressions call a private handler directly.
+using CapabilityTlv = std::pair<unsigned char, std::vector<unsigned char>>;
+
+static std::vector<unsigned char> make_early_ap_cap_report(
+    const std::vector<CapabilityTlv> &tlvs)
+{
+    const size_t header_len = sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t);
+    size_t frame_len = header_len + sizeof(em_tlv_t);
+    for (const auto &tlv : tlvs) {
+        frame_len += sizeof(em_tlv_t) + tlv.second.size();
+    }
+    std::vector<unsigned char> frame(frame_len, 0);
+    unsigned char *cursor = frame.data() + header_len;
+    for (const auto &tlv_value : tlvs) {
+        auto *tlv = reinterpret_cast<em_tlv_t *>(cursor);
+        tlv->type = tlv_value.first;
+        tlv->len = htons(static_cast<unsigned short>(tlv_value.second.size()));
+        if (!tlv_value.second.empty()) {
+            memcpy(tlv->value, tlv_value.second.data(), tlv_value.second.size());
+        }
+        cursor += sizeof(em_tlv_t) + tlv_value.second.size();
+    }
+    auto *eom = reinterpret_cast<em_tlv_t *>(cursor);
+    eom->type = em_tlv_type_eom;
+    eom->len = 0;
+    return frame;
+}
+
+static std::vector<unsigned char> make_early_ap_cap_report(
+    unsigned char tlv_type, const std::vector<unsigned char> &value)
+{
+    return make_early_ap_cap_report({{tlv_type, value}});
+}
+
+TEST(AgentCapabilityReport, RejectsTruncatedTlvInRadioDiscoveryPass)
+{
+    std::unique_ptr<dm_easy_mesh_t> dm(new dm_easy_mesh_t());
+    ASSERT_EQ(dm->init(), 0);
+
+    CapabilityReportTest capability;
+    capability.dm = dm.get();
+
+    const size_t header_len = sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t);
+    std::vector<unsigned char> frame(header_len + sizeof(em_tlv_t), 0);
+    auto *tlv = reinterpret_cast<em_tlv_t *>(frame.data() + header_len);
+    tlv->type = em_tlv_type_ap_radio_basic_cap;
+    tlv->len = htons(1);
+
+    EXPECT_EQ(capability.early_ap_cap_report(
+        frame.data(), static_cast<unsigned int>(frame.size())), -1);
+}
+
+TEST(AgentCapabilityReport, RejectsTruncatedApCapabilityValue)
+{
+    std::unique_ptr<dm_easy_mesh_t> dm(new dm_easy_mesh_t());
+    ASSERT_EQ(dm->init(), 0);
+    const mac_address_t radio_mac = {0x02, 0x00, 0x00, 0x00, 0x00, 0x01};
+    memcpy(dm->m_radio[0].m_radio_info.intf.mac, radio_mac, sizeof(mac_address_t));
+    dm->set_num_radios(1);
+
+    CapabilityReportTest capability;
+    capability.dm = dm.get();
+    memcpy(capability.radio_mac, radio_mac, sizeof(mac_address_t));
+    capability.radio_mac_available = true;
+
+    std::vector<unsigned char> frame = make_early_ap_cap_report(
+        em_tlv_type_ap_cap, {});
+    EXPECT_EQ(capability.early_ap_cap_report(
+        frame.data(), static_cast<unsigned int>(frame.size())), -1);
+}
+
+TEST(AgentCapabilityReport, IgnoresShortUnknownVendorSpecificTlv)
+{
+    std::unique_ptr<dm_easy_mesh_t> dm(new dm_easy_mesh_t());
+    ASSERT_EQ(dm->init(), 0);
+    const mac_address_t radio_mac = {0x02, 0x00, 0x00, 0x00, 0x00, 0x01};
+    memcpy(dm->m_radio[0].m_radio_info.intf.mac, radio_mac, sizeof(mac_address_t));
+    memcpy(dm->m_radio_cap[0].m_radio_cap_info.ruid.mac, radio_mac, sizeof(mac_address_t));
+    dm->set_num_radios(1);
+
+    CapabilityReportTest capability;
+    capability.dm = dm.get();
+    memcpy(capability.radio_mac, radio_mac, sizeof(mac_address_t));
+    capability.radio_mac_available = true;
+
+    std::vector<unsigned char> frame = make_early_ap_cap_report(
+        em_tlv_type_vendor_specific, {0x00, 0x01, 0x02});
+    EXPECT_EQ(capability.early_ap_cap_report(
+        frame.data(), static_cast<unsigned int>(frame.size())), 0);
+}
+
+TEST(AgentCapabilityReport, RejectsTruncatedRadioBasicCapabilityCount)
+{
+    std::unique_ptr<dm_easy_mesh_t> dm(new dm_easy_mesh_t());
+    ASSERT_EQ(dm->init(), 0);
+
+    std::vector<unsigned char> value(sizeof(em_ap_radio_basic_cap_t), 0);
+    auto *basic_cap = reinterpret_cast<em_ap_radio_basic_cap_t *>(value.data());
+    basic_cap->op_class_num = 1;
+    std::vector<unsigned char> frame = make_early_ap_cap_report(
+        em_tlv_type_ap_radio_basic_cap, value);
+
+    CapabilityReportTest capability;
+    capability.dm = dm.get();
+    EXPECT_EQ(capability.early_ap_cap_report(
+        frame.data(), static_cast<unsigned int>(frame.size())), -1);
+}
+
+TEST(AgentCapabilityReport, AcceptsCompactHeCapabilityValues)
+{
+    mac_address_t radio_mac = {0x02, 0x00, 0x00, 0x00, 0x00, 0x01};
+    constexpr size_t he_prefix_len = sizeof(mac_address_t) + sizeof(uint8_t);
+    constexpr size_t he_maps_len = MAX_MCS * sizeof(em_ap_he_mcs_maps_t);
+    constexpr size_t he_suffix_len =
+        sizeof(em_ap_he_cap_t) - he_prefix_len - he_maps_len;
+    const unsigned char map_bytes[] = {0x12, 0x34, 0x56, 0x78,
+        0x9a, 0xbc, 0xde, 0xf0};
+
+    for (unsigned int map_count : {1U, 2U}) {
+        SCOPED_TRACE(map_count);
+        std::unique_ptr<dm_easy_mesh_t> dm(new dm_easy_mesh_t());
+        ASSERT_EQ(dm->init(), 0);
+        memcpy(dm->m_radio[0].m_radio_info.intf.mac, radio_mac, sizeof(mac_address_t));
+        memcpy(dm->m_radio_cap[0].m_radio_cap_info.ruid.mac, radio_mac, sizeof(mac_address_t));
+        dm->set_num_radios(1);
+
+        CapabilityReportTest capability;
+        capability.dm = dm.get();
+        memcpy(capability.radio_mac, radio_mac, sizeof(mac_address_t));
+        capability.radio_mac_available = true;
+
+        std::vector<unsigned char> ap_cap(sizeof(em_ap_capability_t), 0);
+        const size_t mcs_len = map_count * sizeof(em_ap_he_mcs_maps_t);
+        std::vector<unsigned char> he_value(he_prefix_len + mcs_len + he_suffix_len, 0);
+        memcpy(he_value.data(), radio_mac, sizeof(mac_address_t));
+        he_value[sizeof(mac_address_t)] = static_cast<unsigned char>(mcs_len);
+        memcpy(he_value.data() + he_prefix_len, map_bytes, mcs_len);
+        he_value[he_value.size() - he_suffix_len] = 0x01;
+        he_value[he_value.size() - 1] = 0x05;
+
+        em_ap_radio_advanced_cap_t advanced_cap = {};
+        memcpy(advanced_cap.ruid, radio_mac, sizeof(mac_address_t));
+        advanced_cap.qm_scs_traffic_description = 1;
+        std::vector<unsigned char> advanced_value(sizeof(advanced_cap), 0);
+        memcpy(advanced_value.data(), &advanced_cap, sizeof(advanced_cap));
+
+        std::vector<unsigned char> frame = make_early_ap_cap_report({
+            {em_tlv_type_ap_cap, ap_cap},
+            {em_tlv_type_he_cap, he_value},
+            {em_tlv_type_ap_radio_advanced_cap, advanced_value}});
+        ASSERT_EQ(capability.early_ap_cap_report(
+            frame.data(), static_cast<unsigned int>(frame.size())), 0);
+
+        dm_radio_cap_t *radio_cap = dm->get_radio_cap(radio_mac);
+        ASSERT_NE(radio_cap, nullptr);
+        em_radio_cap_info_t *cap_info = radio_cap->get_radio_cap_info();
+        ASSERT_NE(cap_info, nullptr);
+        EXPECT_EQ(cap_info->he_cap.sprt_mcs_len, mcs_len);
+        EXPECT_EQ(memcmp(reinterpret_cast<const unsigned char *>(&cap_info->he_cap) +
+                he_prefix_len, map_bytes, mcs_len), 0);
+        EXPECT_EQ(cap_info->he_cap.sprt_160mhz, 1);
+        EXPECT_EQ(cap_info->he_cap.dl_ofdma_cap, 1);
+        EXPECT_EQ(cap_info->he_cap.dl_mimo_ofdma_cap, 1);
+        EXPECT_EQ(memcmp(&cap_info->radio_ad_cap, &advanced_cap, sizeof(advanced_cap)), 0);
+    }
+}
+#endif
 
 TEST(AgentCapabilityReport, UsesCurrentStationAfterReplacement)
 {
