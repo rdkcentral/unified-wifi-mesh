@@ -57,6 +57,7 @@ public:
     uint32_t get_next_nb_evt_id() { return m_nb_evt_id++; }
 
     bus_error_t bus_get_cb_fwd(char *event_name, raw_data_t *p_data, bus_get_handler_t cb);
+    bus_error_t bus_set_cb_fwd(char *event_name, raw_data_t *p_data, bus_set_handler_t cb);
     dm_easy_mesh_t *get_dm_easy_mesh(char *instance, bool is_num);
     dm_device_t *get_dm_dev(mac_address_t dev_mac, mac_address_t bmac);
     dm_radio_t *get_dm_radio(dm_easy_mesh_t *dm, char *instance, bool is_num);
@@ -86,6 +87,31 @@ public:
     static bus_error_t curops_tget_params(dm_easy_mesh_t *dm, const char *root, em_radio_info_t *ri, bus_data_prop_t **property);
 
     void fill_comma_sep(em_short_string_t str[], size_t max, char *buf);
+
+    /**!
+     * @brief Format stored WSC AKM suite names as TR-181 akm_t values.
+     *
+     * @param[in] akms AKM suites stored for the BSS.
+     * @param[in] num_akms Number of entries in akms.
+     * @param[out] buf Output buffer for the formatted value.
+     * @param[in] buf_len Size of the output buffer.
+     */
+    void fill_akms_allowed(em_short_string_t akms[], unsigned char num_akms, char *buf, size_t buf_len);
+
+    /**!
+     * @brief Format a BSS's AKMsAllowed from the profile assigned to its haul type.
+     *
+     * Derived at read time, mirroring the band and platform overrides the M2
+     * build applies; the stored BSS row is only the fallback when the haul type
+     * has no profile or the profile's auth type is not known.
+     *
+     * @param[in] dm Data model the BSS belongs to.
+     * @param[in] bi BSS whose AKMsAllowed is read.
+     * @param[in] backhaul true for BackhaulAKMsAllowed, false for FronthaulAKMsAllowed.
+     * @param[out] buf Output buffer for the formatted value.
+     * @param[in] buf_len Size of the output buffer.
+     */
+    void fill_bss_akms_allowed(dm_easy_mesh_t *dm, em_bss_info_t *bi, bool backhaul, char *buf, size_t buf_len);
     dm_bss_t *get_dm_bss(dm_easy_mesh_t *dm, em_radio_info_t *ri, char *instance, bool is_num);
     bus_error_t bss_get(char* event_name, raw_data_t* p_data);
     static bus_error_t bss_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
@@ -146,10 +172,12 @@ public:
     bus_error_t apmld_get(char *event_name, raw_data_t *p_data);
     bus_error_t apmld_tget(char *event_name, raw_data_t *p_data);
     bus_error_t apmldcfg_get(char *event_name, raw_data_t *p_data);
+    bus_error_t apmldcfg_set(char *event_name, raw_data_t *p_data);
     static bus_error_t apmld_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
     static bus_error_t apmld_tget_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
     static bus_error_t apmld_tget_params(dm_easy_mesh_t *dm, const char *root, bus_data_prop_t **property);
     static bus_error_t apmldcfg_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
+    static bus_error_t apmldcfg_set_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
 
     bus_error_t affap_get(char *event_name, raw_data_t *p_data);
     bus_error_t affap_tget(char *event_name, raw_data_t *p_data);
@@ -180,7 +208,12 @@ public:
     static bus_error_t bstacfg_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
 
 private:
-    db_client_t m_db_client;
+    // Bound at init() time via db_client_t::create(), based on the requested
+    // db_client_type_t (local/cloud/none). Every dm_*_list_t table class
+    // only ever sees this through the db_client_t& interface, so which
+    // concrete backend is behind it is invisible to them.
+    db_client_t     *m_db_client;
+    db_client_type_t m_db_client_type;
     bool	m_initialized;
     bool	m_network_initialized;
 
@@ -267,8 +300,19 @@ private:
 	 */
 	int set_radio_cap_list(cJSON *radio_cap_list_obj, mac_address_t *radio_mac);
 
+	/**!
+	 * @brief Auto-seeds NetworkSSIDList from /nvram/Reset.json for the db-type=none
+	 * backend, so a manual CLI Reset is no longer required to configure agents.
+	 *
+	 * Only the NetworkSSIDList portion of the decoded file is applied; the
+	 * Network entry (and its placeholder ControllerID) is left untouched so it
+	 * can never overwrite the real AL-SAP-derived identity set by
+	 * bootstrap_controller_network().
+	 */
+	void config_network_ssid_from_reset_file();
+
 public:
-    
+
 	/**!
 	 * @brief Initializes the Easy Mesh Controller with the specified data model path.
 	 *
@@ -276,7 +320,11 @@ public:
 	 * and initializing the manager structure.
 	 *
 	 * @param[in] data_model_path The file path to the data model configuration.
+	 * Ignored by backends that need no connection info (e.g. db_client_type_none).
 	 * @param[out] mgr Pointer to the Easy Mesh manager structure to be initialized.
+	 * @param[in] db_type Which persistence backend to bind to. Defaults to
+	 * db_client_type_local, preserving existing (SQLite-backed) behavior
+	 * for callers that don't pass this explicitly.
 	 *
 	 * @returns int
 	 * @retval 0 on success
@@ -284,7 +332,7 @@ public:
 	 *
 	 * @note Ensure that the data model path is valid and accessible before calling this function.
 	 */
-	int init(const char *data_model_path, em_mgr_t *mgr);
+	int init(const char *data_model_path, em_mgr_t *mgr, db_client_type_t db_type = db_client_type_local);
 
     
 	/**!
@@ -783,6 +831,24 @@ public:
          int analyze_unassoc_sta_metrics_query(em_bus_event_t *evt, em_cmd_t *pcmd[]);
 
 	/**!
+	 * @brief Analyzes the beacon metrics query command.
+	 *
+	 * This function processes the beacon metrics query command provided in the
+	 * em_cmd_t structure array.
+	 *
+	 * @param[in] evt Pointer to the event structure containing event details.
+	 * @param[in] pcmd Array of command structures to be analyzed.
+	 *
+	 * @returns int Number of commands generated into pcmd[]
+	 * @retval 0 No command generated / parse failure
+	 * @retval >0 Number of generated commands
+	 *
+	 * @note Ensure that the pcmd array is properly initialized before calling
+	 * this function.
+	 */
+	int analyze_beacon_metrics_query(em_bus_event_t *evt, em_cmd_t *pcmd[]);
+
+	/**!
 	 * @brief Resets the configuration to its default state.
 	 *
 	 * This function is responsible for resetting all configuration settings
@@ -1127,6 +1193,18 @@ public:
 	 * @note Ensure that the network identifier and interface are valid before calling this function.
 	 */
 	dm_easy_mesh_t	*create_data_model(const char *net_id, const em_interface_t *al_intf, em_profile_type_t profile);    
+
+	/**!
+	 * @brief Synthesizes the controller's network entry and data model from the AL-SAP MAC.
+	 *
+	 * Used only during init() for --db-type=none (and future cloud) backends, where no
+	 * persisted network entry exists yet to load.
+	 *
+	 * @returns int Status code.
+	 * @retval 0 on success.
+	 * @retval -1 if no AL-SAP MAC is available yet.
+	 */
+	int bootstrap_controller_network();
 
 	
 	/**!
@@ -1528,7 +1606,7 @@ public:
 	 *
 	 * @note Ensure that the key and op_class are valid and properly initialized before calling this function.
 	 */
-	void put_op_class(const char *key, const dm_op_class_t *op_class) { m_data_model_list.put_op_class(key, op_class); }
+	int put_op_class(const char *key, const dm_op_class_t *op_class) { return m_data_model_list.put_op_class(key, op_class); }
 	
 	/**!
 	 * @brief Retrieves the first pre-set operational class by type.

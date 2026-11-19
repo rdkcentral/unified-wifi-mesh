@@ -77,7 +77,9 @@ int dm_device_list_t::set_config(db_client_t& db_client, dm_device_t& device, vo
 
 	dm_device_t::parse_device_id_from_key(static_cast<char *> (key), &device.m_device_info.id);
  
-    update_db(db_client, (op = get_dm_orch_type(db_client, device)), device.get_device_info());
+    if (update_db(db_client, (op = get_dm_orch_type(db_client, device)), device.get_device_info()) != 0) {
+        return -1;
+    }
     update_list(device, op);
 
     return 0;
@@ -95,7 +97,9 @@ int dm_device_list_t::set_config(db_client_t& db_client, const cJSON *obj_arr, v
     for (i = 0; i < size; i++) {
         obj = cJSON_GetArrayItem(obj_arr, i);
         device.decode(obj, key);
-        update_db(db_client, (op = get_dm_orch_type(db_client, device)), device.get_device_info());
+        if (update_db(db_client, (op = get_dm_orch_type(db_client, device)), device.get_device_info()) != 0) {
+            return -1;
+        }
         update_list(device, op);
     }
 
@@ -200,6 +204,9 @@ int dm_device_list_t::update_db(db_client_t& db_client, dm_orch_type_t op, void 
 
 	dm_easy_mesh_t::macbytes_to_string(info->id.dev_mac, mac_str);
 	snprintf(key, sizeof(em_2xlong_string_t), "%s@%s@%d", info->id.net_id, mac_str, info->id.media);
+    if (prepare_db_operation(db_client, op) != 0) {
+        return -1;
+    }
     dm_easy_mesh_t::macbytes_to_string(info->backhaul_alid.mac, alid_str);
     dm_easy_mesh_t::macbytes_to_string(info->backhaul_sta, bsta_str);
 
@@ -245,6 +252,7 @@ bool dm_device_list_t::search_db(db_client_t& db_client, void *ctx, void *key)
         db_client.get_string(ctx, str, 1);
 
         if (strncmp(str, static_cast<char *> (key), strlen(static_cast<char *> (key))) == 0) {
+            db_client.free_result(ctx);
             return true;
         }
     }
@@ -365,10 +373,18 @@ bool dm_device_list_t::compare_db(db_client_t& db_client, const dm_device_t& sta
         info.easy_conn_cap = db_client.get_number(ctx, 26);
         info.test_cap = static_cast<unsigned char> (db_client.get_number(ctx, 27));
 
+        // Runtime-only metrics (uptime, memory, cpu) are never persisted to the DB,
+        // so they must not affect this comparison; copy them from sta to avoid a
+        // spurious mismatch that would trigger an unnecessary db_update.
+        info.uptime = sta.m_device_info.uptime;
+        info.total_mem = sta.m_device_info.total_mem;
+        info.free_mem = sta.m_device_info.free_mem;
+        info.cached_mem = sta.m_device_info.cached_mem;
+        info.cpu_load = sta.m_device_info.cpu_load;
+        info.cpu_temp = sta.m_device_info.cpu_temp;
+
         if (memcmp(static_cast<const void*>(&sta.m_device_info), static_cast<const void*>(&info), sizeof(em_device_info_t)) == 0) {
-            // drain remaining rows; next_result() frees the context
-            // when it returns false
-            while (db_client.next_result(ctx) == true);
+            db_client.free_result(ctx);
             return true;
         }
     }
