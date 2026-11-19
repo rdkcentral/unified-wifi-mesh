@@ -50,7 +50,7 @@ INDLUDEDIRS += -I$(WIFI_CJSON)
 CXX_COMMON_FLAGS = -Wall -Wextra -Wpointer-arith -Wcast-qual -Wcast-align -Wstrict-aliasing -fno-common -fstack-protector-strong -D_FORTIFY_SOURCE=2 -fPIE -pie -ftrapv -Wformat=2 -Wformat-security -Wuninitialized -Winit-self -Wsign-conversion -Wno-unused-parameter -fsanitize=address -fsanitize=undefined -Werror #-Wconversion -O2 -Weffc++
 CXX_SPECIFIC_FLAGS = -Wctor-dtor-privacy -Wold-style-cast -Woverloaded-virtual -Wsign-promo -Wstrict-null-sentinel -std=c++17
 
-CXXFLAGS += $(INCLUDEDIRS) -g $(CXX_COMMON_FLAGS) $(CXX_SPECIFIC_FLAGS) `mariadb_config --include`
+CXXFLAGS += $(INCLUDEDIRS) -g $(CXX_COMMON_FLAGS) $(CXX_SPECIFIC_FLAGS) `pkg-config --cflags sqlite3`
 CFLAGS += $(INCLUDEDIRS) -g $(CXX_COMMON_FLAGS)
 
 ifeq ($(WITH_SAP), 1)
@@ -74,7 +74,7 @@ ifeq ($(WITH_SAP), 1)
 LIBDIRS += -L$(AL_SAP_HOME)/
 endif
 
-LIBS = -lm -lpthread -ldl -luuid -lcjson -lssl -lcrypto -lhebus `mariadb_config --libs`
+LIBS = -lm -lpthread -ldl -luuid -lcjson -lssl -lcrypto -lhebus `pkg-config --libs sqlite3` -lstdc++fs
 ifeq ($(WITH_SAP), 1)
 LIBS += -lalsap
 endif
@@ -107,7 +107,16 @@ CTRL_SOURCES = $(wildcard $(ONEWIFI_EM_SRC)/em/*.cpp) \
 	$(ONEWIFI_EM_SRC)/utils/util.cpp \
 	$(ONEWIFI_EM_SRC)/utils/timer.cpp \
 
-CTRL_OBJECTS = $(CTRL_SOURCES:.cpp=.o)
+ifneq ($(strip $(UWM_VENDOR_EXT_DIR)),)
+-include $(UWM_VENDOR_EXT_DIR)/vendor-ext.mk
+endif
+ifneq ($(strip $(UWM_VENDOR_EXT_CTRL_SRC_FILES)),)
+CXXFLAGS += -I$(UWM_VENDOR_EXT_INC_DIR)
+UWM_VENDOR_EXT_OBJECTS := $(patsubst $(UWM_VENDOR_EXT_DIR)/src/%.cpp,$(OBJDIR)/vendor_ext/%.o,$(UWM_VENDOR_EXT_CTRL_SRC_FILES))
+endif
+
+CTRL_CORE_OBJECTS = $(CTRL_SOURCES:.cpp=.o)
+CTRL_OBJECTS = $(CTRL_CORE_OBJECTS) $(UWM_VENDOR_EXT_OBJECTS)
 GENERIC_OBJECTS = $(GENERIC_SOURCES:.c=.o) 
 ALLOBJECTS = $(CTRL_OBJECTS) $(GENERIC_OBJECTS)
 
@@ -119,8 +128,12 @@ $(PROGRAM): $(ALLOBJECTS)
 $(GENERIC_OBJECTS): %.o: %.c
 	$(CC) $(CFLAGS) -o $@ -c $< 
 
-$(CTRL_OBJECTS): %.o: %.cpp
+$(CTRL_CORE_OBJECTS): %.o: %.cpp
 	$(CXX) $(CXXFLAGS) -o $@ -c $< 
+
+$(OBJDIR)/vendor_ext/%.o: $(UWM_VENDOR_EXT_DIR)/src/%.cpp
+	mkdir -p $(@D)
+	$(CXX) $(CXXFLAGS) -o $@ -c $<
 
 # Make sure $(NVRAM_DIR) exists
 $(NVRAM_DIR):

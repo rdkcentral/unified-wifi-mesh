@@ -4,6 +4,9 @@
 #include <vector>
 #include <arpa/inet.h>
 #include <cstring>
+#include <cerrno>
+#include <ctime>
+#include <pthread.h>
 #include "util.h"
 
 using namespace util;
@@ -587,4 +590,55 @@ TEST(UtilTest, set_net_uint16_from_host_negative_nullptr) {
     EXPECT_FALSE(ok);
     std::cout << "Returned bool=" << ok << std::endl;
     std::cout << "Exiting set_net_uint16_from_host_negative_nullptr test" << std::endl;
+}
+
+/**
+ * @brief Verify that a condition variable from monotonic_cond_init() waits against a CLOCK_MONOTONIC deadline.
+ *
+ * pthread_cond_timedwait() reads the deadline on the clock the condition variable was created with. If the
+ * clock attribute is lost, a deadline built from monotonic_now() (seconds since boot) is already in the past
+ * on CLOCK_REALTIME and the wait returns at once. The test builds a 200 ms deadline with monotonic_now() and
+ * checks that the wait ends with ETIMEDOUT no earlier than that; only the lower bound is checked so a slow
+ * host cannot fail it.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 021@n
+ * **Priority:** High@n
+ *
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ *
+ * **Test Procedure:**
+ * | Variation / Step | Description                                                              | Test Data                           | Expected Result                                          | Notes       |
+ * | :--------------: | ------------------------------------------------------------------------ | ----------------------------------- | -------------------------------------------------------- | ----------- |
+ * | 01               | Create the condition variable with monotonic_cond_init                   | cond                                | Returns 0                                                | Should Pass |
+ * | 02               | Wait on it with a deadline of monotonic_now() + 200 ms                   | deadline = now + 200 ms             | pthread_cond_timedwait returns ETIMEDOUT                 | Should Pass |
+ * | 03               | Measure the elapsed CLOCK_MONOTONIC time                                 | start, end                          | elapsed >= 200 ms                                        | Should Pass |
+ */
+TEST(UtilTest, monotonic_cond_init_timedwait_uses_monotonic_clock) {
+    std::cout << "Entering monotonic_cond_init_timedwait_uses_monotonic_clock test" << std::endl;
+    pthread_cond_t cond;
+    pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
+    ASSERT_EQ(monotonic_cond_init(&cond), 0);
+
+    struct timespec start, deadline, end;
+    monotonic_now(&start);
+    deadline = start;
+    add_milliseconds(&deadline, 200);
+
+    std::cout << "Invoking pthread_cond_timedwait(...) with a 200 ms CLOCK_MONOTONIC deadline" << std::endl;
+    pthread_mutex_lock(&lock);
+    int rc = pthread_cond_timedwait(&cond, &lock, &deadline);
+    pthread_mutex_unlock(&lock);
+    monotonic_now(&end);
+
+    long elapsed_ms = (end.tv_sec - start.tv_sec) * 1000 + (end.tv_nsec - start.tv_nsec) / 1000000;
+    EXPECT_EQ(rc, ETIMEDOUT);
+    EXPECT_GE(elapsed_ms, 200);
+    std::cout << "Returned rc=" << rc << " elapsed_ms=" << elapsed_ms << std::endl;
+
+    pthread_cond_destroy(&cond);
+    pthread_mutex_destroy(&lock);
+    std::cout << "Exiting monotonic_cond_init_timedwait_uses_monotonic_clock test" << std::endl;
 }
