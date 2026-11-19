@@ -4366,4 +4366,3 @@ TEST(em_ctrl_t, parse_failed_conn_tlvs_missing_mandatory_tlv)
     EXPECT_FALSE(parse_failed_conn({kSta, kStatus}).ok);
     EXPECT_FALSE(parse_failed_conn({kBssid, kSta, {0xc9, 1, {0x00}}}).ok);   /* only a short status code */
 }
-~           
