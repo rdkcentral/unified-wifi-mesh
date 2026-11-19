@@ -42,7 +42,8 @@ void em_network_topo_t::encode(cJSON *parent)
 	}
 
 	dev_obj = cJSON_AddObjectToObject(parent, "Device");
-	m_data_model->m_device.encode(dev_obj, true);
+	// Root (controller) node has no model of its own; the collocated agent child reports it.
+	m_data_model->m_device.encode(dev_obj, true, this == g_network_topology);
 
 	radio_list_obj = cJSON_AddArrayToObject(dev_obj, "RadioList");
 	for (i = 0; i < m_data_model->m_num_radios; i++) {

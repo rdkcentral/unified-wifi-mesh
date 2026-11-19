@@ -519,6 +519,113 @@ void em_agent_t::handle_recv_failed_conn(em_bus_event_t *event)
     em->push_to_queue(qevt);
 }
 
+void em_agent_t::handle_recv_client_disassoc_stats(em_bus_event_t *event)
+{
+    em_bss_info_t *target_bss = nullptr;
+    em_t *em = nullptr;
+    em_event_t *qevt = nullptr;
+    em_client_disassoc_stats_evt_data_t *evt_copy = nullptr;
+    std::string ruid_str;
+
+    if (event == nullptr) {
+        em_printfout("NULL event!");
+        return;
+    }
+    if (event->u.raw_buff == nullptr || event->data_len == 0) {
+        em_printfout("NULL client disassoc stats payload!");
+        return;
+    }
+
+    // Fixed-length copy of the bus payload, not guaranteed to be NUL-terminated.
+    std::vector<char> payload(event->data_len + 1, '\0');
+    memcpy(payload.data(), event->u.raw_buff, event->data_len);
+
+    cJSON *obj = cJSON_Parse(payload.data());
+    if (obj == nullptr) {
+        em_printfout("Client disassoc stats JSON parse failed, raw: %s", payload.data());
+        return;
+    }
+
+    cJSON *bssid_item = cJSON_GetObjectItem(obj, "BSSID");
+    cJSON *sta_item = cJSON_GetObjectItem(obj, "STA MacAddress");
+    cJSON *reason_item = cJSON_GetObjectItem(obj, "Reason Code");
+    cJSON *stats_item = cJSON_GetObjectItem(obj, "Traffic Stats");
+
+    if (!cJSON_IsString(bssid_item) || !cJSON_IsString(sta_item) || !cJSON_IsNumber(reason_item) ||
+        !cJSON_IsObject(stats_item)) {
+        em_printfout("Client disassoc stats JSON missing/invalid fields (BSSID/STA MacAddress/Reason Code/Traffic Stats), raw: %s",
+            payload.data());
+        cJSON_Delete(obj);
+        return;
+    }
+
+    evt_copy = static_cast<em_client_disassoc_stats_evt_data_t *>(calloc(1, sizeof(em_client_disassoc_stats_evt_data_t)));
+    if (evt_copy == nullptr) {
+        em_printfout("Failed to alloc client disassoc stats payload");
+        cJSON_Delete(obj);
+        return;
+    }
+
+    dm_easy_mesh_t::string_to_macbytes(bssid_item->valuestring, evt_copy->bssid);
+    dm_easy_mesh_t::string_to_macbytes(sta_item->valuestring, evt_copy->sta_mac);
+    evt_copy->reason_code = static_cast<unsigned short>(reason_item->valueint);
+
+    const struct {
+        const char *name;
+        unsigned int *dst;
+    } counters[] = {
+        { "BytesSent", &evt_copy->bytes_sent },
+        { "BytesReceived", &evt_copy->bytes_recv },
+        { "PacketsSent", &evt_copy->packets_sent },
+        { "PacketsReceived", &evt_copy->packets_recv },
+        { "TxPacketsErrors", &evt_copy->tx_packets_errors },
+        { "RxPacketsErrors", &evt_copy->rx_packets_errors },
+        { "RetransmissionCount", &evt_copy->retrans_count },
+    };
+    for (const auto &c : counters) {
+        cJSON *item = cJSON_GetObjectItem(stats_item, c.name);
+        if (!cJSON_IsNumber(item)) {
+            em_printfout("Client disassoc stats JSON missing/invalid Traffic Stats.%s, raw: %s", c.name, payload.data());
+            cJSON_Delete(obj);
+            free(evt_copy);
+            return;
+        }
+        // The TLV counters are 32-bit; OneWifi reports 64-bit values.
+        *c.dst = static_cast<unsigned int>(static_cast<unsigned long long>(item->valuedouble));
+    }
+    cJSON_Delete(obj);
+
+    target_bss = m_data_model.get_bss_info_with_mac(evt_copy->bssid);
+    if (target_bss == nullptr) {
+        em_printfout("No BSS for bssid=%s, drop", util::mac_to_string(evt_copy->bssid).c_str());
+        free(evt_copy);
+        return;
+    }
+    ruid_str = util::mac_to_string(target_bss->ruid.mac);
+    em = static_cast<em_t *>(hash_map_get(g_agent.m_em_map, ruid_str.c_str()));
+    if (em == nullptr) {
+        em_printfout("No radio EM for bssid=%s, drop", util::mac_to_string(evt_copy->bssid).c_str());
+        free(evt_copy);
+        return;
+    }
+
+    qevt = static_cast<em_event_t *>(calloc(1, sizeof(em_event_t)));
+    if (qevt == nullptr) {
+        em_printfout("Failed to alloc client disassoc stats event");
+        free(evt_copy);
+        return;
+    }
+    qevt->type = em_event_type_cmd;
+    qevt->u.cevt.type = em_cmd_event_type_client_disassoc_stats;
+    qevt->u.cevt.cmd_ptr = evt_copy;
+
+    em_printfout("Queue client disassoc stats: sta=%s bssid=%s reason=%u",
+                 util::mac_to_string(evt_copy->sta_mac).c_str(),
+                 util::mac_to_string(evt_copy->bssid).c_str(),
+                 evt_copy->reason_code);
+    em->push_to_queue(qevt);
+}
+
 void em_agent_t::handle_bss_info(em_bus_event_t *event)
 {
     if (event == nullptr) {
@@ -1511,6 +1618,10 @@ void em_agent_t::handle_bus_event(em_bus_event_t *evt)
             handle_recv_failed_conn(evt);
             break;
 
+        case em_bus_event_type_client_disassoc_stats:
+            handle_recv_client_disassoc_stats(evt);
+            break;
+
         case em_bus_event_type_ap_metrics_report:
             handle_ap_metrics_report(evt);
             break;
@@ -1826,15 +1937,23 @@ void em_agent_t::input_listener()
     fill_extended_device_info();
 
     raw_data_t ready_data = {};
-    while ((bus_error_val = desc->bus_data_get_fn(&m_bus_hdl, WIFI_EM_INIT_TX_POWER_READY,
+    while ((bus_error_val = desc->bus_data_get_fn(&m_bus_hdl, WIFI_EM_GET_TX_POWER,
                 &ready_data)) != bus_error_success) {
+        if (ready_data.raw_data.bytes != nullptr) {
+            desc->bus_data_free_fn(&ready_data);
+        }
+        ready_data = {};
         em_printfout("Transmit power GET failed for %s, error: %d; retrying",
-            WIFI_EM_INIT_TX_POWER_READY, bus_error_val);
+            WIFI_EM_GET_TX_POWER, bus_error_val);
         usleep(RETRY_SLEEP_INTERVAL_IN_MS * 1000);
     }
-    if (ready_data.data_type != bus_data_type_uint32 || ready_data.raw_data.u32 != 1) {
-        em_printfout("Invalid transmit power readiness response for %s",
-            WIFI_EM_INIT_TX_POWER_READY);
+    em_tx_power_response_t tx_power_response = {};
+    bool tx_power_ready = get_tx_power_snapshot(ready_data, &tx_power_response);
+    if (ready_data.raw_data.bytes != nullptr) {
+        desc->bus_data_free_fn(&ready_data);
+    }
+    if (!tx_power_ready) {
+        em_printfout("Invalid transmit power snapshot from %s", WIFI_EM_GET_TX_POWER);
         return;
     }
 
@@ -1895,6 +2014,10 @@ void em_agent_t::input_listener()
         em_printfout("Warning: Failed to subscribe to '" WIFI_EM_FAILED_CONNECTION "', Failed Connection reporting unavailable");
     }
 
+    if (desc->bus_event_subs_fn(&m_bus_hdl, WIFI_EM_CLIENT_DISASSOC_STATS, reinterpret_cast<void *>(&em_agent_t::client_disassoc_stats_cb), nullptr, 0) != 0) {
+        em_printfout("Warning: Failed to subscribe to '" WIFI_EM_CLIENT_DISASSOC_STATS "', Client Disassociation Stats reporting unavailable");
+    }
+
     if (desc->bus_event_subs_fn(&m_bus_hdl, "Device.WiFi.EC.BSSInfo", reinterpret_cast<void *>(&em_agent_t::bss_info_cb), nullptr, 0) != 0) {
         em_printfout("Error: Failed to subscribe to 'Device.WiFi.EC.BSSInfo', dynamic DPP channel list for Reconfiguration Announcement is not available");
         // This is fine, not a fatal error
@@ -1923,6 +2046,98 @@ void em_agent_t::input_listener()
     em_get_ext_hooks()->on_bus_ready(&m_bus_hdl, desc);
 
     io(NULL);
+}
+
+bool em_agent_t::request_runtime_tx_power(const unsigned char *ruid, int *tx_power)
+{
+    if (ruid == nullptr || tx_power == nullptr) {
+        return false;
+    }
+
+    wifi_bus_desc_t *desc = get_bus_descriptor();
+    if (desc == nullptr || desc->bus_data_get_fn == nullptr ||
+        desc->bus_data_free_fn == nullptr) {
+        em_printfout("Cannot GET refreshed transmit power: bus descriptor unavailable");
+        return false;
+    }
+
+    if (pthread_mutex_lock(&m_tx_power_mutex) != 0) {
+        em_printfout("Failed to lock transmit power GET mutex");
+        return false;
+    }
+
+    raw_data_t data = {};
+    bus_error_t status = desc->bus_data_get_fn(&m_bus_hdl, WIFI_EM_GET_TX_POWER, &data);
+    if (pthread_mutex_unlock(&m_tx_power_mutex) != 0) {
+        if (data.raw_data.bytes != nullptr) {
+            desc->bus_data_free_fn(&data);
+        }
+        em_printfout("Failed to unlock transmit power GET mutex");
+        return false;
+    }
+
+    if (status != bus_error_success) {
+        em_printfout("Transmit power GET failed for %s, error: %d",
+            WIFI_EM_GET_TX_POWER, status);
+        if (data.raw_data.bytes != nullptr) {
+            desc->bus_data_free_fn(&data);
+        }
+        return false;
+    }
+
+    em_tx_power_response_t tx_power_response = {};
+    bool response_valid = get_tx_power_snapshot(data, &tx_power_response);
+    if (data.raw_data.bytes != nullptr) {
+        desc->bus_data_free_fn(&data);
+    }
+    if (!response_valid) {
+        em_printfout("Transmit power snapshot from %s is invalid", WIFI_EM_GET_TX_POWER);
+        return false;
+    }
+
+    for (uint32_t i = 0; i < tx_power_response.radio_count; i++) {
+        if (memcmp(tx_power_response.radios[i].ruid, ruid, sizeof(mac_address_t)) == 0) {
+            *tx_power = static_cast<int>(tx_power_response.radios[i].tx_power);
+            return true;
+        }
+    }
+
+    em_printfout("Transmit power snapshot from %s does not include %s",
+        WIFI_EM_GET_TX_POWER, util::mac_to_string(ruid).c_str());
+    return false;
+
+}
+
+bool em_agent_t::get_tx_power_snapshot(const raw_data_t &data, em_tx_power_response_t *response)
+{
+
+    if (response == nullptr || data.data_type != bus_data_type_bytes ||
+        data.raw_data.bytes == nullptr ||
+        data.raw_data_len < offsetof(em_tx_power_response_t, radios)) {
+        return false;
+    }
+
+    uint32_t radio_count = 0;
+    memcpy(&radio_count, data.raw_data.bytes, sizeof(radio_count));
+    if (radio_count == 0 || radio_count > EM_MAX_RADIO_PER_AGENT) {
+        return false;
+    }
+    size_t response_len = offsetof(em_tx_power_response_t, radios) +
+        radio_count * sizeof(response->radios[0]);
+    if (data.raw_data_len != response_len) {
+        return false;
+    }
+
+    memset(response, 0, sizeof(*response));
+    memcpy(response, data.raw_data.bytes, response_len);
+    for (uint32_t i = 0; i < response->radio_count; i++) {
+        if (response->radios[i].tx_power < INT8_MIN ||
+            response->radios[i].tx_power > INT8_MAX) {
+            return false;
+        }
+    }
+
+    return true;
 }
 
 int em_agent_t::unassoc_sta_link_metrics_cb(char *event_name, bus_data_prop_t *data, void *userData)
@@ -2004,6 +2219,21 @@ int em_agent_t::failed_conn_cb(char *event_name, bus_data_prop_t *data, void *us
         return -1;
     }
     g_agent.io_process(em_bus_event_type_failed_conn, reinterpret_cast<unsigned char *>(data->value.raw_data.bytes), data->value.raw_data_len);
+    return 1;
+}
+
+int em_agent_t::client_disassoc_stats_cb(char *event_name, bus_data_prop_t *data, void *userData)
+{
+    if (data == nullptr || data->value.raw_data.bytes == nullptr) {
+        em_printfout("NULL data from OneWiFi client disassoc stats callback!");
+        return -1;
+    }
+    /* io_process() copies the payload into an event buffer of EM_MAX_EVENT_DATA_LEN bytes. */
+    if (data->value.raw_data_len == 0 || data->value.raw_data_len > EM_MAX_EVENT_DATA_LEN) {
+        em_printfout("Client disassoc stats payload of %u bytes dropped", data->value.raw_data_len);
+        return -1;
+    }
+    g_agent.io_process(em_bus_event_type_client_disassoc_stats, reinterpret_cast<unsigned char *>(data->value.raw_data.bytes), data->value.raw_data_len);
     return 1;
 }
 
@@ -2889,7 +3119,9 @@ em_agent_t::em_agent_t()
 
 em_agent_t::~em_agent_t()
 {
-
+    if (pthread_mutex_destroy(&m_tx_power_mutex) != 0) {
+        em_printfout("Failed to destroy transmit power GET mutex");
+    }
 }
 #ifdef AL_SAP
 AlServiceAccessPoint* em_agent_t::al_sap_register(const std::string& data_socket_path, const std::string& control_socket_path)
