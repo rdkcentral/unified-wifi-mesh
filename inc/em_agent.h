@@ -46,6 +46,7 @@ class em_agent_t : public em_mgr_t {
     em_short_string_t   m_data_model_path;
     em_cmd_agent_t  *m_agent_cmd;
 	em_simulator_t	m_simulator;
+	bool m_assoc_clients_synced = false;
 
 	
 	/**!
@@ -104,6 +105,14 @@ class em_agent_t : public em_mgr_t {
 	 * @note Ensure that this function is called regularly to maintain system timing.
 	 */
 	void handle_2s_tick();
+
+	/**!
+	 * @brief Reads the associated clients from OneWifi once all radios are configured.
+	 *
+	 * OneWifi does not publish again a client that associated before the agent subscribed.
+	 * A failed read is tried again on the next tick.
+	 */
+	void sync_associated_clients();
     
 	/**!
 	 * @brief Handles the 1-second tick event.
