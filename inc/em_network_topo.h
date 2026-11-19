@@ -51,8 +51,10 @@ public:
 	 * @brief Finds the network topology associated with a given data model.
 	 *
 	 * This function searches within the data model, the associated backhaul
-	 * sta and returns the network topology of the corresponding bssID which is
-	 * associated with that sta. This is required when the AL_SAP define is
+	 * sta and returns the network topology whose AP BSS owns the upstream BSSID.
+	 * STA BSS records are ignored. If the AP owner is colocated and the root is
+	 * the controller, the controller topology is returned instead.
+	 * This is required when the AL_SAP define is
 	 * enabled as the al_interface is associated with a virtual MAC address
 	 *
 	 * @param[in] dm The data model for which the network topology is to be found.

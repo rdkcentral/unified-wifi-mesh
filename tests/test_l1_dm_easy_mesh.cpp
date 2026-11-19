@@ -5408,8 +5408,8 @@ TEST(dm_easy_mesh_t, decode_num_devices_null_pointer_input) {
  * **Test Procedure:**
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Invoke the default constructor dm_easy_mesh_t() to create an object. | Constructor call: dm_easy_mesh_t() with no parameters | An object dm is created with all member variables set to their default values (m_num_preferences = 0, m_num_interfaces = 0, m_num_radios = 0, m_num_opclass = 0, m_num_policy = 0, m_num_bss = 0, m_num_ap_mld = 0, m_num_net_ssids = 0, m_db_cfg_param.db_cfg_type = db_cfg_type_none, m_colocated = false). | Should Pass |
- * | 02 | Verify that each member of the object dm has the correct default value using assertion checks. | Assertion checks: input: dm, expected outputs: m_num_preferences = 0, m_num_interfaces = 0, m_num_radios = 0, m_num_opclass = 0, m_num_policy = 0, m_num_bss = 0, m_num_ap_mld = 0, m_num_net_ssids = 0, m_db_cfg_param.db_cfg_type = db_cfg_type_none, m_colocated = false | All assertions succeed confirming correct default initialization. | Should Pass |
+ * | 01 | Invoke the default constructor dm_easy_mesh_t() to create an object. | Constructor call: dm_easy_mesh_t() with no parameters | An object dm is created with default member values, including an empty policy map. | Should Pass |
+ * | 02 | Verify the initialized member values using assertions. | Expected: zero counts, get_num_policy() = 0, db_cfg_type_none, m_colocated = false | All assertions succeed confirming correct default initialization. | Should Pass |
  */
 TEST(dm_easy_mesh_t, dm_easy_mesh_t_default_construction_initializes_all_members_correctly) {
     std::cout << "Entering dm_easy_mesh_t_default_construction_initializes_all_members_correctly test" << std::endl;
@@ -5419,7 +5419,7 @@ TEST(dm_easy_mesh_t, dm_easy_mesh_t_default_construction_initializes_all_members
     EXPECT_EQ(dm.m_num_interfaces, 0u);
     EXPECT_EQ(dm.m_num_radios, 0u);
     EXPECT_EQ(dm.m_num_opclass, 0u);
-    EXPECT_EQ(dm.m_num_policy, 0u);
+    EXPECT_EQ(dm.get_num_policy(), 0u);
     EXPECT_EQ(dm.m_num_bss, 0u);
     EXPECT_EQ(dm.m_num_ap_mld, 0u);
     EXPECT_EQ(dm.m_num_net_ssids, 0u);
@@ -7614,9 +7614,9 @@ TEST(dm_easy_mesh_t, get_ap_mld_by_ref_index_out_of_range)
 }
 
 /**
- * @brief Validates retrieval of AP MLD info using a valid BSSID
+ * @brief Retrieve the AP MLD identified by its haul type.
  *
- * This test validates that the function get_ap_mld_frm_bssid correctly retrieves the AP MLD information when provided with a valid BSSID. It configures a mesh instance with one AP MLD entry containing two affiliated APs, one of which matches the target BSSID.
+ * Configure backhaul and fronthaul entries in that order. Query fronthaul and verify the exact second entry and its affiliated AP count; lookup must not depend on BSSID data.
  *
  * **Test Group ID:** Basic: 01
  * **Test Case ID:** 170@n
@@ -7628,39 +7628,31 @@ TEST(dm_easy_mesh_t, get_ap_mld_by_ref_index_out_of_range)
  *
  * **Test Procedure:**
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
- * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Initialize dm_easy_mesh_t instance, set m_num_ap_mld to 1, and configure AP MLD info with 2 affiliated APs. | instance.m_num_ap_mld = 1, info.num_affiliated_ap = 2, affiliated_ap[0].mac_addr = {0x11,0x22,0x33,0x44,0x55,0x66}, affiliated_ap[1].mac_addr = {0xAA,0xBB,0xCC,0xDD,0xEE,0xFF} | Instance is correctly configured with one AP MLD and two affiliated AP entries. | Should be successful |
- * | 02 | Invoke get_ap_mld_frm_bssid with target_bssid that matches one of the affiliated AP addresses. | target_bssid = {0xAA,0xBB,0xCC,0xDD,0xEE,0xFF} | Returned pointer is not null. | Should Pass |
- * | 03 | Validate the retrieved AP MLD info for the correct number of affiliated APs. | result->num_affiliated_ap expected = 2 | The number of affiliated APs equals 2. | Should Pass |
+ * | :----: | ----------- | --------- | -------------- | ----- |
+ * | 01 | Configure two AP MLD entries with different haul types. | Entry 0: backhaul; entry 1: fronthaul with two affiliated APs | Both entries are available for lookup. | Should be successful |
+ * | 02 | Query get_ap_mld_frm_haul_type() for fronthaul. | em_haul_type_fronthaul | The exact second entry is returned and num_affiliated_ap equals 2. | Should Pass |
+ * | 03 | Query get_ap_mld_frm_haul_type() for backhaul. | em_haul_type_backhaul | The exact first entry is returned. | Should Pass |
  */
-TEST(dm_easy_mesh_t, get_ap_mld_frm_bssid_valid_ap_mld_info_retrieval)
+TEST(dm_easy_mesh_t, get_ap_mld_frm_haul_type_valid_ap_mld_info_retrieval)
 {
-    std::cout << "Entering get_ap_mld_frm_bssid_valid_ap_mld_info_retrieval test" << std::endl;
     dm_easy_mesh_t instance{};
-    instance.m_num_ap_mld = 1;
-    em_ap_mld_info_t &info = instance.m_ap_mld[0].m_ap_mld_info;
+    instance.m_num_ap_mld = 2;
+    instance.m_ap_mld[0].m_ap_mld_info.haul_type = em_haul_type_backhaul;
+    em_ap_mld_info_t &info = instance.m_ap_mld[1].m_ap_mld_info;
+    info.haul_type = em_haul_type_fronthaul;
     info.num_affiliated_ap = 2;
-    unsigned char target_bssid[6] = {0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF};
-    unsigned char other_bssid[6]  = {0x11, 0x22, 0x33, 0x44, 0x55, 0x66};
-    memcpy(info.affiliated_ap[0].mac_addr, other_bssid, sizeof(mac_address_t));
-    memcpy(info.affiliated_ap[1].mac_addr, target_bssid, sizeof(mac_address_t));
-    std::cout << "Configured AP MLD with 2 affiliated APs" << std::endl;
-    std::cout << "Invoking get_ap_mld_frm_bssid" << std::endl;
-    em_ap_mld_info_t *result = instance.get_ap_mld_frm_bssid(target_bssid);
-    EXPECT_NE(result, nullptr);
-    if (result) {
-        std::cout << "Returned non-null AP MLD info" << std::endl;
-        EXPECT_EQ(result->num_affiliated_ap, 2);
-    }
-    std::cout << "Exiting get_ap_mld_frm_bssid_valid_ap_mld_info_retrieval test" << std::endl;
+
+    em_ap_mld_info_t *result = instance.get_ap_mld_frm_haul_type(em_haul_type_fronthaul);
+    ASSERT_EQ(result, &info);
+    EXPECT_EQ(result->num_affiliated_ap, 2);
+    EXPECT_EQ(instance.get_ap_mld_frm_haul_type(em_haul_type_backhaul),
+              &instance.m_ap_mld[0].m_ap_mld_info);
 }
 
 /**
- * @brief Verify that get_ap_mld_frm_bssid returns a null pointer for a non-existent BSSID
+ * @brief Return null when no AP MLD has the requested haul type.
  *
- * This test verifies that when get_ap_mld_frm_bssid is invoked with a BSSID that does not match any
- * of the affiliated AP MAC addresses stored in the instance, the function correctly returns a null pointer.
- * This behavior ensures that the API properly handles cases where no valid AP MLD information is found.
+ * Configure one fronthaul AP MLD, query backhaul, and verify that no entry is returned.
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 171@n
@@ -7671,35 +7663,24 @@ TEST(dm_easy_mesh_t, get_ap_mld_frm_bssid_valid_ap_mld_info_retrieval)
  * **User Interaction:** None@n
  *
  * **Test Procedure:**@n
- * | Variation / Step | Description                                                                                          | Test Data                                                                                                              | Expected Result                                                                               | Notes            |
- * | :--------------: | ---------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- | ---------------- |
- * | 01               | Initialize dm_easy_mesh_t instance and set one AP MLD with an affiliated AP having an existing BSSID   | m_num_ap_mld = 1, num_affiliated_ap = 1, existing_bssid = 0xAA,0xBB,0xCC,0xDD,0xEE,0xFF                                   | Instance initializes with proper AP MLD configuration                                          | Should be successful |
- * | 02               | Define a non-existent BSSID that does not match the existing BSSID                                     | search_bssid = 0x10,0x20,0x30,0x40,0x50,0x60                                                                              | Non-existent BSSID is set correctly                                                            | Should be successful |
- * | 03               | Invoke get_ap_mld_frm_bssid with the non-existent BSSID and capture the result                         | Input: search_bssid = 0x10,0x20,0x30,0x40,0x50,0x60; Output: result pointer                                               | The function returns a null pointer indicating no matching AP data                             | Should Pass      |
- * | 04               | Verify the returned result using an assertion                                                        | result pointer as returned by the API                                                                                  | EXPECT_EQ(result, nullptr) assertion passes                                                    | Should be successful |
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |
+ * | :----: | ----------- | --------- | -------------- | ----- |
+ * | 01 | Configure one fronthaul AP MLD entry. | m_num_ap_mld = 1, haul_type = em_haul_type_fronthaul | No backhaul entry exists. | Should be successful |
+ * | 02 | Query get_ap_mld_frm_haul_type() for backhaul. | em_haul_type_backhaul | The returned pointer is nullptr. | Should Pass |
  */
-TEST(dm_easy_mesh_t, get_ap_mld_frm_bssid_non_existent_bssid_returns_null)
+TEST(dm_easy_mesh_t, get_ap_mld_frm_haul_type_non_existent_haul_type_returns_null)
 {
-    std::cout << "Entering get_ap_mld_frm_bssid_non_existent_bssid_returns_null test" << std::endl;
     dm_easy_mesh_t instance{};
     instance.m_num_ap_mld = 1;
-    em_ap_mld_info_t &info = instance.m_ap_mld[0].m_ap_mld_info;
-    info.num_affiliated_ap = 1;
-    unsigned char existing_bssid[6] = {0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF};
-    memcpy(info.affiliated_ap[0].mac_addr, existing_bssid, sizeof(mac_address_t));
-    unsigned char search_bssid[6] = {0x10, 0x20, 0x30, 0x40, 0x50, 0x60};
-    std::cout << "Invoking get_ap_mld_frm_bssid with non-matching BSSID" << std::endl;
-    em_ap_mld_info_t *result = instance.get_ap_mld_frm_bssid(search_bssid);
-    EXPECT_EQ(result, nullptr);
-    std::cout << "Returned NULL as expected" << std::endl;
-    std::cout << "Exiting get_ap_mld_frm_bssid_non_existent_bssid_returns_null test" << std::endl;
+    instance.m_ap_mld[0].m_ap_mld_info.haul_type = em_haul_type_fronthaul;
+
+    EXPECT_EQ(instance.get_ap_mld_frm_haul_type(em_haul_type_backhaul), nullptr);
 }
 
 /**
- * @brief Test that verifies get_ap_mld_frm_bssid returns nullptr when AP MLD data is absent.
+ * @brief Return null for a haul-type lookup with no AP MLD data.
  *
- * This test checks the behavior of the get_ap_mld_frm_bssid API when the device instance is not populated with any AP MLD data.
- * It ensures that when a valid BSSID is provided and the AP MLD list is empty, the API correctly returns a nullptr.
+ * Leave the AP MLD list empty and verify that a fronthaul lookup returns null.
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 172@n
@@ -7710,29 +7691,23 @@ TEST(dm_easy_mesh_t, get_ap_mld_frm_bssid_non_existent_bssid_returns_null)
  * **User Interaction:** None@n
  *
  * **Test Procedure:**
- * | Variation / Step | Description                                                                                       | Test Data                                                          | Expected Result                                                      | Notes       |
- * | :--------------: | ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ | -------------------------------------------------------------------- | ----------- |
- * | 01               | Initialize dm_easy_mesh_t instance and set m_num_ap_mld to 0                                     | m_num_ap_mld = 0                                                   | Instance created with no AP MLD data                                 | Should be successful |
- * | 02               | Define the BSSID and invoke get_ap_mld_frm_bssid on the instance with an empty AP MLD list         | any_bssid = {0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC}, instance.m_num_ap_mld = 0 | Returned value is nullptr and EXPECT_EQ check passes                 | Should Pass |
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |
+ * | :----: | ----------- | --------- | -------------- | ----- |
+ * | 01 | Create a mesh instance with no AP MLD entries. | m_num_ap_mld = 0 | The AP MLD list is empty. | Should be successful |
+ * | 02 | Query get_ap_mld_frm_haul_type() for fronthaul. | em_haul_type_fronthaul | The returned pointer is nullptr. | Should Pass |
  */
-TEST(dm_easy_mesh_t, get_ap_mld_frm_bssid_default_instance_without_ap_mld_data)
+TEST(dm_easy_mesh_t, get_ap_mld_frm_haul_type_no_ap_mld_configured)
 {
-    std::cout << "Entering get_ap_mld_frm_bssid_default_instance_without_ap_mld_data test" << std::endl;
     dm_easy_mesh_t instance{};
     instance.m_num_ap_mld = 0;
-    unsigned char any_bssid[6] = {0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC};
-    std::cout << "Invoking get_ap_mld_frm_bssid with empty AP MLD list" << std::endl;
-    em_ap_mld_info_t *result = instance.get_ap_mld_frm_bssid(any_bssid);
-    EXPECT_EQ(result, nullptr);
-    std::cout << "Returned NULL as expected" << std::endl;
-    std::cout << "Exiting get_ap_mld_frm_bssid_default_instance_without_ap_mld_data test" << std::endl;
+
+    EXPECT_EQ(instance.get_ap_mld_frm_haul_type(em_haul_type_fronthaul), nullptr);
 }
 
 /**
- * @brief Test get_ap_mld_frm_bssid function with NULL bssid input to ensure proper handling of invalid argument
+ * @brief Reject the invalid haul-type sentinel.
  *
- * This test verifies that the get_ap_mld_frm_bssid API returns a null pointer when provided with a NULL bssid input.
- * It confirms that the function correctly detects an invalid input and behaves as expected without crashing or returning unexpected data.
+ * Configure a fronthaul AP MLD and query em_haul_type_max. Verify a null result. This replaces the removed BSSID API null-input case and retains its default exclusion.
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 173@n
@@ -7743,29 +7718,24 @@ TEST(dm_easy_mesh_t, get_ap_mld_frm_bssid_default_instance_without_ap_mld_data)
  * **User Interaction:** None@n
  *
  * **Test Procedure:**
- * | Variation / Step | Description                                                                                                 | Test Data                                                                                                                        | Expected Result                                            | Notes      |
- * | :--------------: | ----------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- | ---------- |
- * | 01               | Create a dm_easy_mesh_t instance, set up valid AP MLD info, and invoke get_ap_mld_frm_bssid with NULL input. | instance.m_num_ap_mld = 1, info.num_affiliated_ap = 1, affiliated_ap[0].mac_addr = 0xAA,0xBB,0xCC,0xDD,0xEE,0xFF; bssid = nullptr | API returns a nullptr; Assertion: EXPECT_EQ(result, nullptr) | Should Pass |
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |
+ * | :----: | ----------- | --------- | -------------- | ----- |
+ * | 01 | Configure one fronthaul AP MLD entry. | m_num_ap_mld = 1, haul_type = em_haul_type_fronthaul | A valid entry exists. | Should be successful |
+ * | 02 | Query get_ap_mld_frm_haul_type() with the invalid sentinel. | em_haul_type_max | The returned pointer is nullptr. | Should Pass |
  */
-TEST(dm_easy_mesh_t, get_ap_mld_frm_bssid_null_bssid_input)
+TEST(dm_easy_mesh_t, get_ap_mld_frm_haul_type_invalid_haul_type)
 {
-    std::cout << "Entering get_ap_mld_frm_bssid_null_bssid_input test" << std::endl;
     dm_easy_mesh_t instance{};
     instance.m_num_ap_mld = 1;
-    em_ap_mld_info_t &info = instance.m_ap_mld[0].m_ap_mld_info;
-    info.num_affiliated_ap = 1;
-    unsigned char existing_bssid[6] = {0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF};
-    memcpy(info.affiliated_ap[0].mac_addr, existing_bssid, sizeof(mac_address_t));
-    std::cout << "Invoking get_ap_mld_frm_bssid with NULL bssid pointer" << std::endl;
-    em_ap_mld_info_t *result = instance.get_ap_mld_frm_bssid(nullptr);
-    EXPECT_EQ(result, nullptr);
-    std::cout << "Exiting get_ap_mld_frm_bssid_null_bssid_input test" << std::endl;
+    instance.m_ap_mld[0].m_ap_mld_info.haul_type = em_haul_type_fronthaul;
+
+    EXPECT_EQ(instance.get_ap_mld_frm_haul_type(em_haul_type_max), nullptr);
 }
 
 /**
- * @brief Validate that get_ap_mld_frm_bssid returns valid AP MLD info for matching BSSID
+ * @brief Retrieve an AP MLD through the static haul-type wrapper.
  *
- * This test verifies that when a dm_easy_mesh_t instance is properly configured with a single AP MLD and its affiliated AP's MAC address matches the provided BSSID, the static method get_ap_mld_frm_bssid correctly returns a non-null pointer with matching MAC address data.
+ * Configure a backhaul AP MLD and invoke the callback wrapper with the model pointer. Verify that it returns the exact configured entry.
  *
  * **Test Group ID:** Basic: 01
  * **Test Case ID:** 174@n
@@ -7776,36 +7746,26 @@ TEST(dm_easy_mesh_t, get_ap_mld_frm_bssid_null_bssid_input)
  * **User Interaction:** None
  *
  * **Test Procedure:**
- * | Variation / Step | Description                                                                                         | Test Data                                                                               | Expected Result                                                                                                 | Notes             |
- * | :--------------: | --------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- | ----------------- |
- * | 01               | Initialize dm_easy_mesh_t instance and configure a single AP MLD with a matching affiliated AP BSSID. | instance.m_num_ap_mld = 1, info.num_affiliated_ap = 1, bssid = {0xAA,0xBB,0xCC,0xDD,0xEE,0xFF} | Instance is created with valid AP MLD info and the affiliated AP MAC address is set to the expected BSSID.       | Should be successful |
- * | 02               | Invoke get_ap_mld_frm_bssid API and validate that the returned pointer is non-null and contains matching MAC address. | API call: get_ap_mld_frm_bssid(static_cast<void *>(&instance), bssid)                      | The API returns a non-null pointer, and memcmp of the affiliated AP MAC address with the provided BSSID equals 0.   | Should Pass       |
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |
+ * | :----: | ----------- | --------- | -------------- | ----- |
+ * | 01 | Configure one backhaul AP MLD entry. | m_num_ap_mld = 1, haul_type = em_haul_type_backhaul | A matching entry exists. | Should be successful |
+ * | 02 | Invoke the static get_ap_mld_frm_haul_type() wrapper. | Model pointer: &instance; haul type: em_haul_type_backhaul | The exact configured entry is returned. | Should Pass |
  */
-TEST(dm_easy_mesh_t, static_get_ap_mld_frm_bssid_valid_match)
+TEST(dm_easy_mesh_t, static_get_ap_mld_frm_haul_type_valid_match)
 {
-    std::cout << "Entering static_get_ap_mld_frm_bssid_valid_match test" << std::endl;
     dm_easy_mesh_t instance{};
     instance.m_num_ap_mld = 1;
     em_ap_mld_info_t &info = instance.m_ap_mld[0].m_ap_mld_info;
-    info.num_affiliated_ap = 1;
-    unsigned char bssid[6] = {0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF};
-    memcpy(info.affiliated_ap[0].mac_addr, bssid, sizeof(mac_address_t));
-    std::cout << "Invoking static get_ap_mld_frm_bssid with valid dm and matching bssid" << std::endl;
-    em_ap_mld_info_t *result = dm_easy_mesh_t::get_ap_mld_frm_bssid(static_cast<void *>(&instance), bssid);
-    EXPECT_NE(result, nullptr);
-    if (result) {
-        EXPECT_EQ(
-            memcmp(result->affiliated_ap[0].mac_addr, bssid, sizeof(mac_address_t)),
-            0
-        );
-    }
-    std::cout << "Exiting static_get_ap_mld_frm_bssid_valid_match test" << std::endl;
+    info.haul_type = em_haul_type_backhaul;
+
+    EXPECT_EQ(dm_easy_mesh_t::get_ap_mld_frm_haul_type(
+                  static_cast<void *>(&instance), em_haul_type_backhaul), &info);
 }
 
 /**
- * @brief Test static_get_ap_mld_frm_bssid API for handling non-matching BSSID
+ * @brief Return null through the static wrapper for an unmatched haul type.
  *
- * This test verifies that when the lookup BSSID does not match any stored affiliated AP BSSID in the dm_easy_mesh_t instance, the API returns a nullptr. This ensures that the function correctly identifies non-existent matches.
+ * Configure a fronthaul AP MLD and query backhaul through the callback wrapper. Verify a null result.
  *
  * **Test Group ID:** Basic: 01
  * **Test Case ID:** 175@n
@@ -7816,30 +7776,25 @@ TEST(dm_easy_mesh_t, static_get_ap_mld_frm_bssid_valid_match)
  * **User Interaction:** None
  *
  * **Test Procedure:**
- * | Variation / Step | Description                                                                                      | Test Data                                                                                     | Expected Result                                          | Notes       |
- * | :---------------:| ------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------- | -------------------------------------------------------- | ----------- |
- * | 01               | Initialize dm_easy_mesh_t with one AP MLD and set its affiliated AP's BSSID to AA,BB,CC,DD,EE,FF; invoke static_get_ap_mld_frm_bssid with lookup BSSID 11,22,33,44,55,66 | instance.m_num_ap_mld=1, info.num_affiliated_ap=1, stored_bssid=AA,BB,CC,DD,EE,FF, lookup_bssid=11,22,33,44,55,66 | API returns nullptr and EXPECT_EQ(result, nullptr) passes | Should Pass |
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |
+ * | :----: | ----------- | --------- | -------------- | ----- |
+ * | 01 | Configure one fronthaul AP MLD entry. | m_num_ap_mld = 1, haul_type = em_haul_type_fronthaul | No backhaul entry exists. | Should be successful |
+ * | 02 | Invoke the static get_ap_mld_frm_haul_type() wrapper for backhaul. | Model pointer: &instance; haul type: em_haul_type_backhaul | The returned pointer is nullptr. | Should Pass |
  */
-TEST(dm_easy_mesh_t, static_get_ap_mld_frm_bssid_no_match)
+TEST(dm_easy_mesh_t, static_get_ap_mld_frm_haul_type_no_match)
 {
-    std::cout << "Entering static_get_ap_mld_frm_bssid_no_match test" << std::endl;
     dm_easy_mesh_t instance{};
     instance.m_num_ap_mld = 1;
-    em_ap_mld_info_t &info = instance.m_ap_mld[0].m_ap_mld_info;
-    info.num_affiliated_ap = 1;
-    unsigned char stored_bssid[6] = {0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF};
-    unsigned char lookup_bssid[6] = {0x11, 0x22, 0x33, 0x44, 0x55, 0x66};
-    memcpy(info.affiliated_ap[0].mac_addr, stored_bssid, sizeof(mac_address_t));
-    std::cout << "Invoking static get_ap_mld_frm_bssid with non-matching bssid" << std::endl;
-    em_ap_mld_info_t *result = dm_easy_mesh_t::get_ap_mld_frm_bssid(static_cast<void *>(&instance), lookup_bssid);
-    EXPECT_EQ(result, nullptr);
-    std::cout << "Exiting static_get_ap_mld_frm_bssid_no_match test" << std::endl;
+    instance.m_ap_mld[0].m_ap_mld_info.haul_type = em_haul_type_fronthaul;
+
+    EXPECT_EQ(dm_easy_mesh_t::get_ap_mld_frm_haul_type(
+                  static_cast<void *>(&instance), em_haul_type_backhaul), nullptr);
 }
 
 /**
- * @brief Verify that get_ap_mld_frm_bssid returns nullptr when no AP MLD is configured
+ * @brief Return null through the static wrapper for an empty AP MLD list.
  *
- * This test case checks the behavior of the get_ap_mld_frm_bssid API in the scenario where no AP MLD configuration is present. It creates an instance with m_num_ap_mld set to 0, sets up a BSSID array, then invokes the API and verifies that a nullptr is returned. This ensures that the API correctly handles the absence of AP MLD configuration.
+ * Leave the AP MLD list empty and query backhaul through the callback wrapper. Verify a null result.
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 176@n
@@ -7850,26 +7805,24 @@ TEST(dm_easy_mesh_t, static_get_ap_mld_frm_bssid_no_match)
  * **User Interaction:** None@n
  *
  * **Test Procedure:**@n
- * | Variation / Step | Description                                                                                                     | Test Data                                                                  | Expected Result                                         | Notes       |
- * | :--------------: | ---------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- | ------------------------------------------------------- | ----------- |
- * | 01               | Create an instance of dm_easy_mesh_t, set m_num_ap_mld to 0, define BSSID array, invoke get_ap_mld_frm_bssid | instance.m_num_ap_mld = 0, bssid = {0x10, 0x20, 0x30, 0x40, 0x50, 0x60} | API returns nullptr and EXPECT_EQ check passes          | Should Pass |
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |
+ * | :----: | ----------- | --------- | -------------- | ----- |
+ * | 01 | Create a mesh instance with no AP MLD entries. | m_num_ap_mld = 0 | The AP MLD list is empty. | Should be successful |
+ * | 02 | Invoke the static get_ap_mld_frm_haul_type() wrapper for backhaul. | Model pointer: &instance; haul type: em_haul_type_backhaul | The returned pointer is nullptr. | Should Pass |
  */
-TEST(dm_easy_mesh_t, static_get_ap_mld_frm_bssid_no_ap_mld_configured)
+TEST(dm_easy_mesh_t, static_get_ap_mld_frm_haul_type_no_ap_mld_configured)
 {
-    std::cout << "Entering static_get_ap_mld_frm_bssid_no_ap_mld_configured test" << std::endl;
     dm_easy_mesh_t instance{};
     instance.m_num_ap_mld = 0;
-    unsigned char bssid[6] = {0x10, 0x20, 0x30, 0x40, 0x50, 0x60};
-    std::cout << "Invoking static get_ap_mld_frm_bssid with no AP MLD configured" << std::endl;
-    em_ap_mld_info_t *result = dm_easy_mesh_t::get_ap_mld_frm_bssid(static_cast<void *>(&instance), bssid);
-    EXPECT_EQ(result, nullptr);
-    std::cout << "Exiting static_get_ap_mld_frm_bssid_no_ap_mld_configured test" << std::endl;
+
+    EXPECT_EQ(dm_easy_mesh_t::get_ap_mld_frm_haul_type(
+                  static_cast<void *>(&instance), em_haul_type_backhaul), nullptr);
 }
 
 /**
- * @brief Test static_get_ap_mld_frm_bssid API with a NULL dm pointer
+ * @brief Document the static haul-type wrapper requirement for a non-null model.
  *
- * This test verifies that the static_get_ap_mld_frm_bssid function behaves correctly when provided with a NULL dm pointer. It ensures that the function returns a NULL pointer as expected when the dm pointer is invalid.
+ * The callback wrapper dereferences its model pointer without a null guard. Expect process termination for a null model; this unsupported-input case retains its default exclusion.
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 177@n
@@ -7880,26 +7833,20 @@ TEST(dm_easy_mesh_t, static_get_ap_mld_frm_bssid_no_ap_mld_configured)
  * **User Interaction:** None@n
  *
  * **Test Procedure:**@n
- * | Variation / Step | Description                                                                                  | Test Data                                                           | Expected Result                                           | Notes      |
- * | :--------------: | -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- | --------------------------------------------------------- | ---------- |
- * | 01               | Invoke get_ap_mld_frm_bssid with dm pointer set to nullptr and a valid bssid array            | dm pointer = nullptr, bssid = 0xAA,0xBB,0xCC,0xDD,0xEE,0xFF        | API returns nullptr and EXPECT_EQ(result, nullptr) passes | Should Pass |
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |
+ * | :----: | ----------- | --------- | -------------- | ----- |
+ * | 01 | Invoke the static get_ap_mld_frm_haul_type() wrapper inside EXPECT_DEATH. | Model pointer: nullptr; haul type: em_haul_type_backhaul | The child process terminates because the wrapper requires a non-null model. | Excluded from the default run |
  */
-TEST(dm_easy_mesh_t, static_get_ap_mld_frm_bssid_null_dm_pointer)
+TEST(dm_easy_mesh_t, static_get_ap_mld_frm_haul_type_null_dm_pointer)
 {
-    std::cout << "Entering static_get_ap_mld_frm_bssid_null_dm_pointer test" << std::endl;
-    unsigned char bssid[6] = {0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF};
-    std::cout << "Invoking static get_ap_mld_frm_bssid with NULL dm pointer" << std::endl;
-    em_ap_mld_info_t *result = dm_easy_mesh_t::get_ap_mld_frm_bssid(nullptr, bssid);
-    EXPECT_EQ(result, nullptr);
-    std::cout << "Exiting static_get_ap_mld_frm_bssid_null_dm_pointer test" << std::endl;
+    EXPECT_DEATH((void)dm_easy_mesh_t::get_ap_mld_frm_haul_type(
+                     nullptr, em_haul_type_backhaul), "");
 }
 
 /**
- * @brief Verify that get_ap_mld_frm_bssid returns nullptr when provided with a NULL bssid pointer.
+ * @brief Reject the invalid haul-type sentinel through the static wrapper.
  *
- * This test case verifies that the API dm_easy_mesh_t::get_ap_mld_frm_bssid correctly handles the scenario
- * where a NULL bssid pointer is passed. The function is expected to return a nullptr when the second parameter is NULL,
- * ensuring that the implementation properly checks for invalid input.
+ * Configure a backhaul AP MLD and query em_haul_type_max through the callback wrapper. Verify a null result. This replaces the removed BSSID API null-input case and retains its default exclusion.
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 178@n
@@ -7911,23 +7858,18 @@ TEST(dm_easy_mesh_t, static_get_ap_mld_frm_bssid_null_dm_pointer)
  *
  * **Test Procedure:**
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
- * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Initialize dm_easy_mesh_t instance and configure ap_mld information with a valid MAC address. | instance.m_num_ap_mld = 1, info.num_affiliated_ap = 1, valid_bssid = {0xAA,0xBB,0xCC,0xDD,0xEE,0xFF} copied into info.affiliated_ap[0].mac_addr | Instance is configured correctly with m_num_ap_mld set to 1 and ap_mld information having a valid MAC address. | Should be successful |
- * | 02 | Invoke static get_ap_mld_frm_bssid with a NULL bssid pointer. | instance pointer = address of instance, bssid = nullptr | API returns a nullptr indicating that the invalid NULL bssid pointer is handled appropriately. | Should Pass |
+ * | :----: | ----------- | --------- | -------------- | ----- |
+ * | 01 | Configure one backhaul AP MLD entry. | m_num_ap_mld = 1, haul_type = em_haul_type_backhaul | A valid entry exists. | Should be successful |
+ * | 02 | Invoke the static get_ap_mld_frm_haul_type() wrapper with the invalid sentinel. | Model pointer: &instance; haul type: em_haul_type_max | The returned pointer is nullptr. | Should Pass |
  */
-TEST(dm_easy_mesh_t, static_get_ap_mld_frm_bssid_null_bssid)
+TEST(dm_easy_mesh_t, static_get_ap_mld_frm_haul_type_invalid_haul_type)
 {
-    std::cout << "Entering static_get_ap_mld_frm_bssid_null_bssid test" << std::endl;
     dm_easy_mesh_t instance{};
     instance.m_num_ap_mld = 1;
-    em_ap_mld_info_t &info = instance.m_ap_mld[0].m_ap_mld_info;
-    info.num_affiliated_ap = 1;
-    unsigned char valid_bssid[6] = {0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF};
-    memcpy(info.affiliated_ap[0].mac_addr, valid_bssid, sizeof(mac_address_t));
-    std::cout << "Invoking static get_ap_mld_frm_bssid with NULL bssid pointer" << std::endl;
-    em_ap_mld_info_t *result = dm_easy_mesh_t::get_ap_mld_frm_bssid(static_cast<void *>(&instance), nullptr);
-    EXPECT_EQ(result, nullptr);
-    std::cout << "Exiting static_get_ap_mld_frm_bssid_null_bssid test" << std::endl;
+    instance.m_ap_mld[0].m_ap_mld_info.haul_type = em_haul_type_backhaul;
+
+    EXPECT_EQ(dm_easy_mesh_t::get_ap_mld_frm_haul_type(
+                  static_cast<void *>(&instance), em_haul_type_max), nullptr);
 }
 
 /**
@@ -14606,9 +14548,9 @@ TEST(dm_easy_mesh_t, get_num_policy_default) {
 }
 
 /**
- * @brief Verify that get_num_policy returns the correct value when m_num_policy is set to 3
+ * @brief Verify that get_num_policy returns the number of inserted policies
  *
- * This test confirms that when the m_num_policy member of dm_easy_mesh_t is set to 3, the get_num_policy function returns the correct value. The test validates the internal state of the object and ensures the API correctly reflects the assigned member value.
+ * This test inserts three policies with distinct network IDs through set_policy() and verifies that the map-backed policy count is three.
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 359@n
@@ -14621,12 +14563,17 @@ TEST(dm_easy_mesh_t, get_num_policy_default) {
  * **Test Procedure:**
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :--------------: | ----------- | --------- | -------------- | ----- |
- * | 01 | Create an instance of dm_easy_mesh_t, set m_num_policy to 3, and invoke get_num_policy | m_num_policy = 3, retVal (output) should match m_num_policy value | Returns 3 and assertion (EXPECT_EQ) passes  | Should Pass |
+ * | 01 | Insert three distinct policies through set_policy() and invoke get_num_policy() | Three unique policy keys | Returns 3 and the EXPECT_EQ assertion passes | Should Pass |
  */
 TEST(dm_easy_mesh_t, get_num_policy_returns_correct_value_3) {
     std::cout << "Entering get_num_policy_returns_correct_value_3 test" << std::endl;
     dm_easy_mesh_t obj;
-    obj.m_num_policy = 3;
+    for (unsigned int i = 0; i < 3; i++) {
+        dm_policy_t policy{};
+        snprintf(policy.m_policy.id.net_id, sizeof(policy.m_policy.id.net_id), "policy%u", i);
+        policy.m_policy.id.type = em_policy_id_type_steering_local;
+        obj.set_policy(policy);
+    }
     std::cout << "Invoking get_num_policy()" << std::endl;
     unsigned int retVal = obj.get_num_policy();
     std::cout << "Returned value from get_num_policy(): " << retVal << std::endl;
@@ -14635,9 +14582,9 @@ TEST(dm_easy_mesh_t, get_num_policy_returns_correct_value_3) {
 }
 
 /**
- * @brief Test to verify that get_num_policy() returns UINT_MAX when m_num_policy is set to UINT_MAX
+ * @brief Verify that set_policy() enforces the maximum policy count
  *
- * This test case ensures that when the m_num_policy member variable of dm_easy_mesh_t is set to UINT_MAX, the method get_num_policy() properly returns UINT_MAX. This test validates the functionality of the getter method in successfully retrieving the maximum unsigned integer value.
+ * This test inserts more than EM_MAX_POLICIES unique policies and verifies that the map-backed policy count is capped at EM_MAX_POLICIES.
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 360@n
@@ -14650,32 +14597,26 @@ TEST(dm_easy_mesh_t, get_num_policy_returns_correct_value_3) {
  * **Test Procedure:**@n
  * | Variation / Step | Description                                                       | Test Data                                                           | Expected Result                                  | Notes          |
  * | :--------------: | ----------------------------------------------------------------- | ------------------------------------------------------------------- | ------------------------------------------------ | -------------- |
- * | 01               | Print entering message                                            | No input, no output                                                  | "Entering get_num_policy_returns_UINT_MAX test" is printed | Should be successful |
- * | 02               | Create an instance of dm_easy_mesh_t                              | dm_easy_mesh_t object is constructed                                 | Object is created                                | Should be successful |
- * | 03               | Set m_num_policy to UINT_MAX                                        | m_num_policy = UINT_MAX                                               | m_num_policy is set to UINT_MAX                  | Should Pass    |
- * | 04               | Print the set m_num_policy value                                    | No direct input; object.m_num_policy = UINT_MAX                       | Printed message shows m_num_policy equals UINT_MAX| Should be successful |
- * | 05               | Call get_num_policy()                                               | Invoking get_num_policy()                                             | Returns UINT_MAX                                 | Should Pass    |
- * | 06               | Verify the returned value using EXPECT_EQ                           | retVal = UINT_MAX, expected = UINT_MAX                                | EXPECT_EQ passes verifying UINT_MAX is returned  | Should Pass    |
- * | 07               | Print exiting message                                               | No input, no output                                                  | "Exiting get_num_policy_returns_UINT_MAX test" is printed | Should be successful |
+ * | 01 | Insert EM_MAX_POLICIES + 1 uniquely keyed policies | Unique network IDs and policy type | The count remains EM_MAX_POLICIES | Should Pass |
+ * | 02 | Verify the policy count | get_num_policy() | EXPECT_EQ passes with EM_MAX_POLICIES | Should Pass |
  */
-TEST(dm_easy_mesh_t, get_num_policy_returns_UINT_MAX) {
-    std::cout << "Entering get_num_policy_returns_UINT_MAX test" << std::endl;
+TEST(dm_easy_mesh_t, get_num_policy_is_limited_to_max_policies) {
+    std::cout << "Entering get_num_policy_is_limited_to_max_policies test" << std::endl;
     dm_easy_mesh_t obj;
-    obj.m_num_policy = UINT_MAX;
-    std::cout << "Set m_num_policy to: " << obj.m_num_policy << std::endl;
-    std::cout << "Invoking get_num_policy()" << std::endl;
-    unsigned int retVal = obj.get_num_policy();
-    std::cout << "Returned value from get_num_policy(): " << retVal << std::endl;
-    EXPECT_EQ(retVal, UINT_MAX);
-    std::cout << "Exiting get_num_policy_returns_UINT_MAX test" << std::endl;
+    for (unsigned int i = 0; i <= EM_MAX_POLICIES; i++) {
+        dm_policy_t policy{};
+        snprintf(policy.m_policy.id.net_id, sizeof(policy.m_policy.id.net_id), "policy%u", i);
+        policy.m_policy.id.type = em_policy_id_type_steering_local;
+        obj.set_policy(policy);
+    }
+    EXPECT_EQ(obj.get_num_policy(), EM_MAX_POLICIES);
+    std::cout << "Exiting get_num_policy_is_limited_to_max_policies test" << std::endl;
 }
 
 /**
  * @brief Test the functionality of get_num_policy() for a set value
  *
- * This test verifies that the get_num_policy() method correctly returns the value
- * stored in the m_num_policy member variable when it is set to 5. The test ensures that
- * the API functions as expected for a basic scenario.
+ * This test inserts five policies with distinct network IDs and verifies that get_num_policy() reports five entries.
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 361@n
@@ -14688,16 +14629,17 @@ TEST(dm_easy_mesh_t, get_num_policy_returns_UINT_MAX) {
  * **Test Procedure:**
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Initialize dm_easy_mesh_t object. | None | Object is instantiated successfully | Should be successful |
- * | 02 | Set m_num_policy to 5. | m_num_policy = 5 | m_num_policy member set to 5 | Should be successful |
- * | 03 | Invoke get_num_policy() method. | Function call: retVal = obj.get_num_policy() | The API returns the value 5 | Should Pass |
- * | 04 | Validate the return value using EXPECT_EQ. | retVal = returned value | EXPECT_EQ(retVal, 5u) assertion passes | Should Pass |
+ * | 01 | Insert five uniquely keyed policies with set_policy() | Five unique network IDs | get_num_policy() returns 5 | Should Pass |
  */
 TEST(dm_easy_mesh_t, get_num_policy_returns_correct_value_5) {
     std::cout << "Entering get_num_policy_returns_correct_value_5 test" << std::endl;
     dm_easy_mesh_t obj;
-    obj.m_num_policy = 5;
-    std::cout << "Set m_num_policy to: " << obj.m_num_policy << std::endl;
+    for (unsigned int i = 0; i < 5; i++) {
+        dm_policy_t policy{};
+        snprintf(policy.m_policy.id.net_id, sizeof(policy.m_policy.id.net_id), "policy%u", i);
+        policy.m_policy.id.type = em_policy_id_type_steering_local;
+        obj.set_policy(policy);
+    }
     std::cout << "Invoking get_num_policy()" << std::endl;
     unsigned int retVal = obj.get_num_policy();
     std::cout << "Returned value from get_num_policy(): " << retVal << std::endl;
@@ -15558,10 +15500,9 @@ TEST(dm_easy_mesh_t, get_platform_valid_default_instance) {
 }
 
 /**
- * @brief Verify that get_policy returns the correct policy for a valid index
+ * @brief Verify that has_policy_type detects a stored policy type
  *
- * This test verifies that when a valid index is provided to the get_policy method, the corresponding policy is correctly retrieved.
- * The mesh is initialized with two policies, where the second policy's type is set to em_policy_id_type_traffic_separation.
+ * This test inserts a traffic-separation policy and confirms that its type is present while an uninserted type is absent.
  *
  * **Test Group ID:** Basic: 01
  * **Test Case ID:** 385@n
@@ -15574,32 +15515,27 @@ TEST(dm_easy_mesh_t, get_platform_valid_default_instance) {
  * **Test Procedure:**
  * | Variation / Step | Description                                                                                  | Test Data                                                                                                                                                             | Expected Result                                                                                                  | Notes            |
  * | :--------------: | -------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- | ---------------- |
- * | 01               | Initialize dm_easy_mesh_t object with two policies and assign the policy types accordingly.    | mesh.m_num_policy = 2, m_policy[0].m_policy.id.type = em_policy_id_type_steering_local, m_policy[1].m_policy.id.type = em_policy_id_type_traffic_separation | Mesh object should be initialized with the two policies set with the correct types.                              | Should be successful |
- * | 02               | Invoke get_policy with valid index 1 to retrieve the second policy.                          | index = 1, API call: get_policy(1)                                                                                                                                     | The API returns a pointer to the policy whose type is em_policy_id_type_traffic_separation.                       | Should Pass      |
- * | 03               | Validate the retrieved policy's type using EXPECT_EQ assertion.                              | output1 = policy->m_policy.id.type, expected = em_policy_id_type_traffic_separation                                                                                   | The retrieved policy type should equal em_policy_id_type_traffic_separation and the assertion should pass.         | Should Pass      |
+ * | 01 | Insert a traffic-separation policy with set_policy() | Policy type: em_policy_id_type_traffic_separation | Policy is stored | Should Pass |
+ * | 02 | Query for stored and absent policy types | Traffic separation and steering local | Returns true for the stored type and false for the absent type | Should Pass |
  */
-TEST(dm_easy_mesh_t, get_policy_valid_index)
+TEST(dm_easy_mesh_t, has_policy_type_matches_stored_policy)
 {
-    const char* testName = "get_policy_valid_index";
+    const char* testName = "has_policy_type_matches_stored_policy";
     std::cout << "Entering " << testName << " test" << std::endl;
     dm_easy_mesh_t mesh;
-    mesh.m_num_policy = 2;
-    mesh.m_policy[0].m_policy.id.type = em_policy_id_type_steering_local;
-    mesh.m_policy[1].m_policy.id.type = em_policy_id_type_traffic_separation;
-    unsigned int index = 1;
-    std::cout << "Invoking get_policy(" << index << ")" << std::endl;
-    dm_policy_t* policy = mesh.get_policy(index);
-    std::cout << "Retrieved policy type = " << static_cast<unsigned int>(policy->m_policy.id.type) << std::endl;
-    EXPECT_EQ(policy->m_policy.id.type, em_policy_id_type_traffic_separation);
+    dm_policy_t policy{};
+    strncpy(policy.m_policy.id.net_id, "policy", sizeof(policy.m_policy.id.net_id) - 1);
+    policy.m_policy.id.type = em_policy_id_type_traffic_separation;
+    mesh.set_policy(policy);
+    EXPECT_TRUE(mesh.has_policy_type(em_policy_id_type_traffic_separation));
+    EXPECT_FALSE(mesh.has_policy_type(em_policy_id_type_steering_local));
     std::cout << "Exiting " << testName << " test" << std::endl;
 }
 
 /**
- * @brief Test get_policy API with an invalid index
+ * @brief Verify that has_policy_type returns false for an empty policy map
  *
- * This test verifies that the get_policy function of the dm_easy_mesh_t class returns a nullptr
- * when an invalid index, which is out of the range of available policies, is provided. This ensures
- * that the API handles boundary conditions correctly.
+ * This test confirms that a type query on a default-constructed mesh does not report a policy that has not been inserted.
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 386@n
@@ -15612,29 +15548,21 @@ TEST(dm_easy_mesh_t, get_policy_valid_index)
  * **Test Procedure:**
  * | Variation / Step | Description                                             | Test Data                                                  | Expected Result                                                | Notes          |
  * | :--------------: | ------------------------------------------------------- | ---------------------------------------------------------- | -------------------------------------------------------------- | -------------- |
- * | 01               | Setup dm_easy_mesh_t instance and assign num_policy     | mesh.m_num_policy = 1                                      | Instance created with m_num_policy set to 1                     | Should be successful |
- * | 02               | Invoke get_policy with an invalid index                 | index = 5, call: dm_policy_t* policy = mesh.get_policy(5)    | get_policy returns nullptr; EXPECT_EQ(policy, nullptr) passes     | Should Pass    |
+ * | 01 | Query has_policy_type() on an empty policy map | Traffic-separation policy type | Returns false | Should Pass |
  */
-TEST(dm_easy_mesh_t, get_policy_invalid_index)
+TEST(dm_easy_mesh_t, has_policy_type_returns_false_for_empty_map)
 {
-    const char* testName = "get_policy_invalid_index";
+    const char* testName = "has_policy_type_returns_false_for_empty_map";
     std::cout << "Entering " << testName << " test" << std::endl;
     dm_easy_mesh_t mesh;
-    mesh.m_num_policy = 1;
-    unsigned int index = 5;
-    std::cout << "Invoking get_policy(" << index << ")" << std::endl;
-    dm_policy_t* policy = mesh.get_policy(index);
-    EXPECT_EQ(policy, nullptr);
+    EXPECT_FALSE(mesh.has_policy_type(em_policy_id_type_traffic_separation));
     std::cout << "Exiting " << testName << " test" << std::endl;
 }
 
 /**
- * @brief Test get_policy_by_ref with a valid index.
+ * @brief Verify that has_policy_type recognizes a policy inserted with set_policy().
  *
- * This test verifies that the dm_easy_mesh_t::get_policy_by_ref API correctly returns a reference to the
- * policy at the specified valid index. The test sets up a mesh instance with one policy, assigns the policy type,
- * and then calls the API using index 0. The returned policy's type is checked against the expected value to ensure
- * correctness of the method.
+ * This test inserts a steering-BTM policy and confirms that the mesh reports its type as present.
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 387@n
@@ -15647,22 +15575,19 @@ TEST(dm_easy_mesh_t, get_policy_invalid_index)
  * **Test Procedure:**@n
  * | Variation / Step | Description | Test Data | Expected Result |Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Initialize dm_easy_mesh_t instance, set m_num_policy to 1, and assign policy type to em_policy_id_type_steering_btm | mesh.m_num_policy = 1, mesh.m_policy[0].m_policy.id.type = em_policy_id_type_steering_btm | Mesh initialization is successful | Should be successful |
- * | 02 | Invoke get_policy_by_ref with index 0 | index = 0 | Function returns a reference to the policy with m_policy.id.type equal to em_policy_id_type_steering_btm | Should Pass |
- * | 03 | Verify that the returned policy type matches em_policy_id_type_steering_btm | output: policy.m_policy.id.type = em_policy_id_type_steering_btm | EXPECT_EQ passes confirming the correct policy type is retrieved | Should Pass |
+ * | 01 | Insert a steering-BTM policy using set_policy() | Policy type: em_policy_id_type_steering_btm | Policy is stored | Should Pass |
+ * | 02 | Query has_policy_type() for that type | em_policy_id_type_steering_btm | Returns true | Should Pass |
  */
-TEST(dm_easy_mesh_t, get_policy_by_ref_valid_index)
+TEST(dm_easy_mesh_t, has_policy_type_accepts_policy_added_by_set_policy)
 {
-    const char* testName = "get_policy_by_ref_valid_index";
+    const char* testName = "has_policy_type_accepts_policy_added_by_set_policy";
     std::cout << "Entering " << testName << " test" << std::endl;
     dm_easy_mesh_t mesh;
-    mesh.m_num_policy = 1;
-    mesh.m_policy[0].m_policy.id.type = em_policy_id_type_steering_btm;
-    unsigned int index = 0;
-    std::cout << "Invoking get_policy_by_ref(" << index << ")" << std::endl;
-    dm_policy_t& policy = mesh.get_policy_by_ref(index);
-    std::cout << "Retrieved policy type = " << static_cast<unsigned int>(policy.m_policy.id.type) << std::endl;
-    EXPECT_EQ(policy.m_policy.id.type, em_policy_id_type_steering_btm);
+    dm_policy_t policy{};
+    strncpy(policy.m_policy.id.net_id, "policy", sizeof(policy.m_policy.id.net_id) - 1);
+    policy.m_policy.id.type = em_policy_id_type_steering_btm;
+    mesh.set_policy(policy);
+    EXPECT_TRUE(mesh.has_policy_type(em_policy_id_type_steering_btm));
     std::cout << "Exiting " << testName << " test" << std::endl;
 }
 
@@ -19052,9 +18977,9 @@ TEST(dm_easy_mesh_t, set_num_network_ssid_max_boundary)
 }
 
 /**
- * @brief Verify that set_num_policy correctly assigns a zero value to m_num_policy.
+ * @brief Verify that a default mesh reports zero policies.
  *
- * This test checks if the set_num_policy method correctly updates the internal state (m_num_policy) of a dm_easy_mesh_t object when provided with a zero value. The objective is to ensure that the method handles a boundary input of zero appropriately.
+ * This test confirms that get_num_policy() returns zero when the policy map is empty.
  *
  * **Test Group ID:** Basic: 01
  * **Test Case ID:** 484@n
@@ -19067,24 +18992,20 @@ TEST(dm_easy_mesh_t, set_num_network_ssid_max_boundary)
  * **Test Procedure:**
  * | Variation / Step | Description                                                                                          | Test Data                                  | Expected Result                                               | Notes       |
  * | :--------------: | ---------------------------------------------------------------------------------------------------- | ------------------------------------------ | ------------------------------------------------------------- | ----------- |
- * | 01               | Initialize dm_easy_mesh_t object, set policy_val to 0, invoke set_num_policy, then validate m_num_policy. | policy_val = 0, m_num_policy expected = 0  | m_num_policy equals 0 and assertion EXPECT_EQ passes.         | Should Pass |
+ * | 01 | Construct a default dm_easy_mesh_t and query get_num_policy() | Empty policy map | Returns zero | Should Pass |
  */
-TEST(dm_easy_mesh_t, set_num_policy_set_policy_with_zero_value)
+TEST(dm_easy_mesh_t, get_num_policy_zero_by_default)
 {
-    std::cout << "Entering set_num_policy_set_policy_with_zero_value test" << std::endl;
+    std::cout << "Entering get_num_policy_zero_by_default test" << std::endl;
     dm_easy_mesh_t mesh_obj;
-    unsigned int policy_val = 0;
-    std::cout << "Invoking set_num_policy with value: " << policy_val << std::endl;
-    mesh_obj.set_num_policy(policy_val);
-    std::cout << "m_num_policy after invocation: " << mesh_obj.m_num_policy << std::endl;
-    EXPECT_EQ(mesh_obj.m_num_policy, policy_val);
-    std::cout << "Exiting set_num_policy_set_policy_with_zero_value test" << std::endl;
+    EXPECT_EQ(mesh_obj.get_num_policy(), 0u);
+    std::cout << "Exiting get_num_policy_zero_by_default test" << std::endl;
 }
 
 /**
- * @brief Verifies that set_num_policy correctly updates the m_num_policy attribute with a positive value.
+ * @brief Verify that get_num_policy reflects a policy inserted with set_policy().
  *
- * This test is designed to ensure that when a positive policy value is provided to the set_num_policy method, the internal m_num_policy attribute of the dm_easy_mesh_t object is updated accordingly. This helps verify the proper functioning of the policy setting mechanism.
+ * This test inserts one policy and checks that the map-backed policy count becomes one.
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 485@n
@@ -19097,24 +19018,24 @@ TEST(dm_easy_mesh_t, set_num_policy_set_policy_with_zero_value)
  * **Test Procedure:**@n
  * | Variation / Step | Description                                                                                                              | Test Data                           | Expected Result                                                   | Notes      |
  * | :----:           | -----------                                                                                                              | ----------                          | --------------                                                  | -----      |
- * | 01               | Create a dm_easy_mesh_t object, invoke set_num_policy with a positive value (100), and verify m_num_policy is updated.   | policy_val = 100, m_num_policy = 100| m_num_policy is equal to 100; EXPECT_EQ assertion passes          | Should Pass|
+ * | 01 | Insert one policy with set_policy() and query get_num_policy() | One policy entry | Returns one | Should Pass |
  */
-TEST(dm_easy_mesh_t, set_num_policy_set_policy_with_positive_value)
+TEST(dm_easy_mesh_t, get_num_policy_reflects_added_policy)
 {
-    std::cout << "Entering set_num_policy_set_policy_with_positive_value test" << std::endl;
+    std::cout << "Entering get_num_policy_reflects_added_policy test" << std::endl;
     dm_easy_mesh_t mesh_obj;
-    unsigned int policy_val = 100;
-    std::cout << "Invoking set_num_policy with value: " << policy_val << std::endl;
-    mesh_obj.set_num_policy(policy_val);
-    std::cout << "m_num_policy after invocation: " << mesh_obj.m_num_policy << std::endl;
-    EXPECT_EQ(mesh_obj.m_num_policy, policy_val);
-    std::cout << "Exiting set_num_policy_set_policy_with_positive_value test" << std::endl;
+    dm_policy_t policy{};
+    strncpy(policy.m_policy.id.net_id, "policy", sizeof(policy.m_policy.id.net_id) - 1);
+    policy.m_policy.id.type = em_policy_id_type_steering_local;
+    mesh_obj.set_policy(policy);
+    EXPECT_EQ(mesh_obj.get_num_policy(), 1u);
+    std::cout << "Exiting get_num_policy_reflects_added_policy test" << std::endl;
 }
 
 /**
- * @brief Verify that dm_easy_mesh_t::set_num_policy correctly sets m_num_policy to the maximum unsigned int value.
+ * @brief Verify that policy insertion is limited to EM_MAX_POLICIES.
  *
- * This test case verifies that when the API set_num_policy is invoked with the maximum unsigned int value, it correctly updates the object's m_num_policy field.
+ * This test attempts to insert one more than the supported maximum and checks that excess policies are not counted.
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 486@n
@@ -19127,22 +19048,21 @@ TEST(dm_easy_mesh_t, set_num_policy_set_policy_with_positive_value)
  * **Test Procedure:**@n
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Log entry message for test start | None | Message indicating the start of the test is printed | Should be successful |
- * | 02 | Create an instance of dm_easy_mesh_t | None | Instance of dm_easy_mesh_t is created | Should be successful |
- * | 03 | Set policy value to maximum unsigned int and invoke set_num_policy | policy_val = std::numeric_limits<unsigned int>::max() | m_num_policy is updated to policy_val | Should Pass |
- * | 04 | Verify m_num_policy matches the policy_val | input: mesh_obj.m_num_policy, expected: policy_val | m_num_policy equals policy_val (assertion passes) | Should Pass |
- * | 05 | Log exit message for test finish | None | Message indicating the test exit is printed | Should be successful |
+ * | 01 | Insert EM_MAX_POLICIES + 1 uniquely keyed policies | Unique network IDs | The policy count remains capped at EM_MAX_POLICIES | Should Pass |
+ * | 02 | Verify get_num_policy() | Expected count: EM_MAX_POLICIES | The assertion passes | Should Pass |
  */
-TEST(dm_easy_mesh_t, set_num_policy_set_policy_with_max_value)
+TEST(dm_easy_mesh_t, get_num_policy_obeys_policy_capacity)
 {
-    std::cout << "Entering set_num_policy_set_policy_with_max_value test" << std::endl;
+    std::cout << "Entering get_num_policy_obeys_policy_capacity test" << std::endl;
     dm_easy_mesh_t mesh_obj;
-    unsigned int policy_val = std::numeric_limits<unsigned int>::max();
-    std::cout << "Invoking set_num_policy with value: " << policy_val << std::endl;
-    mesh_obj.set_num_policy(policy_val);
-    std::cout << "m_num_policy after invocation: " << mesh_obj.m_num_policy << std::endl;
-    EXPECT_EQ(mesh_obj.m_num_policy, policy_val);
-    std::cout << "Exiting set_num_policy_set_policy_with_max_value test" << std::endl;
+    for (unsigned int i = 0; i <= EM_MAX_POLICIES; i++) {
+        dm_policy_t policy{};
+        snprintf(policy.m_policy.id.net_id, sizeof(policy.m_policy.id.net_id), "policy%u", i);
+        policy.m_policy.id.type = em_policy_id_type_steering_local;
+        mesh_obj.set_policy(policy);
+    }
+    EXPECT_EQ(mesh_obj.get_num_policy(), EM_MAX_POLICIES);
+    std::cout << "Exiting get_num_policy_obeys_policy_capacity test" << std::endl;
 }
 
 /**
@@ -19164,8 +19084,8 @@ TEST(dm_easy_mesh_t, set_num_policy_set_policy_with_max_value)
  * | :----: | --------- | ---------- |-------------- | ----- |
  * | 01 | Initialize dm_easy_mesh_t object and device MAC address. | device_mac = {0xAA,0xBB,0xCC,0xDD,0xEE,0xFF} | Mesh object is successfully initialized and device MAC is set. | Should be successful |
  * | 02 | Setup dm_policy_t policy with defined network ID and radio MAC address. | policy.m_policy.id.net_id = "net1", policy.m_policy.id.type = em_policy_id_type_steering_local, radio_mac = {1,2,3,4,5,6}, dev_mac = {0xAA,0xBB,0xCC,0xDD,0xEE,0xFF} | Policy structure is correctly populated. | Should be successful |
- * | 03 | Call set_policy to add the new policy to the mesh. | policy object | Mesh.m_num_policy becomes 1 after API call. | Should Pass |
- * | 04 | Verify policy count and policy attributes using assertions. | mesh.m_num_policy, mesh.m_policy[0].m_policy.id.net_id = "net1" | EXPECT_EQ verifies m_num_policy equals 1 and EXPECT_STREQ verifies net_id equals "net1". | Should Pass |
+ * | 03 | Call set_policy() to add the new policy. | Policy key includes net ID, device MAC, radio MAC, and type | The policy is stored in the policy map | Should Pass |
+ * | 04 | Verify the count, type, and stored network ID. | get_num_policy(), has_policy_type(), and lookup by policy key | All assertions pass for the inserted policy | Should Pass |
  */
 TEST(dm_easy_mesh_t, set_policy_AddNewPolicy)
 {
@@ -19182,9 +19102,14 @@ TEST(dm_easy_mesh_t, set_policy_AddNewPolicy)
     memcpy(policy.m_policy.id.dev_mac, device_mac, 6);
     std::cout << "Invoking set_policy with em_policy_id_type_steering_local policy type" << std::endl;
     mesh.set_policy(policy);
-    EXPECT_EQ(mesh.m_num_policy, 1u);
+    EXPECT_EQ(mesh.get_num_policy(), 1u);
+    EXPECT_TRUE(mesh.has_policy_type(em_policy_id_type_steering_local));
+    em_2xlong_string_t key;
+    dm_easy_mesh_t::get_policy_key(policy.m_policy.id, key, sizeof(key));
+    auto *stored_policy = static_cast<dm_policy_t *>(hash_map_get(mesh.m_policy_map, key));
+    ASSERT_NE(stored_policy, nullptr);
+    EXPECT_STREQ(stored_policy->m_policy.id.net_id, "net1");
     mesh.deinit();
-    EXPECT_STREQ(mesh.m_policy[0].m_policy.id.net_id, "net1");
     std::cout << "Exiting set_policy_AddNewPolicy test" << std::endl;
 }
 
@@ -19209,7 +19134,7 @@ TEST(dm_easy_mesh_t, set_policy_AddNewPolicy)
  * | 01               | Initialize mesh and assign device MAC address.                                             | Call: mesh.init(), device_mac = 0x10,0x20,0x30,0x40,0x50,0x60                                                                                                       | Mesh is initialized with the given device MAC assigned.        | Should be successful |
  * | 02               | Set initial policy p1 with net_id "netA", radio MAC, and device MAC.                         | p1: net_id = "netA", type = em_policy_id_type_channel_scan, radio_mac = 0x11,0x22,0x33,0x44,0x55,0x66, dev_mac = device_mac, interval = 0                           | Policy p1 is set and policy count becomes 1.                     | Should Pass   |
  * | 03               | Replace existing policy with new policy p2 having modified interval 123.                     | p2: copied from p1 with modification: interval = 123                                                                                                                | Existing policy is replaced with p2, updating the interval to 123. | Should Pass   |
- * | 04               | Validate the policy count and verify the updated interval in the mesh policy array.            | Assert: mesh.m_num_policy == 1, mesh.m_policy[0].m_policy.interval == 123                                                                                             | Both assertions pass confirming only one policy with interval 123. | Should Pass   |
+ * | 04               | Validate the policy count and updated interval in the policy map.                                | get_num_policy() == 1 and the entry found by policy key has interval 123 | Both assertions pass, confirming replacement updated the existing entry. | Should Pass   |
  */
 TEST(dm_easy_mesh_t, set_policy_ReplaceExistingPolicy)
 {
@@ -19230,9 +19155,13 @@ TEST(dm_easy_mesh_t, set_policy_ReplaceExistingPolicy)
     p2.m_policy.interval = 123;
     std::cout << "Invoking set_policy with interval as 123" << std::endl;
     mesh.set_policy(p2);
-    EXPECT_EQ(mesh.m_num_policy, 1u);
+    EXPECT_EQ(mesh.get_num_policy(), 1u);
+    em_2xlong_string_t key;
+    dm_easy_mesh_t::get_policy_key(p1.m_policy.id, key, sizeof(key));
+    auto *stored_policy = static_cast<dm_policy_t *>(hash_map_get(mesh.m_policy_map, key));
+    ASSERT_NE(stored_policy, nullptr);
+    EXPECT_EQ(stored_policy->m_policy.interval, 123);
     mesh.deinit();
-    EXPECT_EQ(mesh.m_policy[0].m_policy.interval, 123);
     std::cout << "Exiting set_policy_ReplaceExistingPolicy test" << std::endl;
 }
 
@@ -19258,7 +19187,7 @@ TEST(dm_easy_mesh_t, set_policy_ReplaceExistingPolicy)
  * | 02 | Set device MAC address for the mesh device info | device_mac = {1,1,1,1,1,1}, call: memcpy(mesh.m_device.m_device_info.intf.mac, device_mac, 6) | Mesh's device MAC is correctly set | Should be successful |
  * | 03 | Create policy p1 with net_id "net1" and initialize attributes | p1.m_policy.id.net_id = "net1", p1.m_policy.id.type = em_policy_id_type_qos_mgt, p1.m_policy.id.dev_mac = {1,1,1,1,1,1} | Policy p1 is correctly populated with net_id "net1" | Should be successful |
  * | 04 | Create policy p2 as a copy of p1 and update its net_id to "net2" | p2 copied from p1, p2.m_policy.id.net_id = "net2" | Policy p2 contains net_id "net2", distinct from p1 | Should be successful |
- * | 05 | Invoke set_policy API with both policies and verify policy count | Call: mesh.set_policy(p1) then mesh.set_policy(p2), Expectation: mesh.m_num_policy = 2 | mesh.m_num_policy equals 2, indicating both policies were added | Should Pass |
+ * | 05 | Insert both policies and verify the count | Call set_policy() for net IDs "net1" and "net2" | get_num_policy() returns 2 | Should Pass |
  */
 TEST(dm_easy_mesh_t, set_policy_DifferentNetIdAddsNewPolicy)
 {
@@ -19277,8 +19206,8 @@ TEST(dm_easy_mesh_t, set_policy_DifferentNetIdAddsNewPolicy)
     mesh.set_policy(p1);
     std::cout << "Invoking set_policy with net_id net2" << std::endl;
     mesh.set_policy(p2);
+    EXPECT_EQ(mesh.get_num_policy(), 2u);
     mesh.deinit();
-    EXPECT_EQ(mesh.m_num_policy, 2u);
     std::cout << "Exiting set_policy_DifferentNetIdAddsNewPolicy test" << std::endl;
 }
 
@@ -19300,7 +19229,7 @@ TEST(dm_easy_mesh_t, set_policy_DifferentNetIdAddsNewPolicy)
  * | :--------------: | ---------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ | ------------- |
  * | 01               | Initialize the dm_easy_mesh_t instance and set the device MAC address                      | mesh.init(), device_mac = 0xFF,0xEE,0xDD,0xCC,0xBB,0xAA                                                                            | Mesh initialization and MAC assignment complete                    | Should be successful |
  * | 02               | Create the first policy (p1) with net_id "netX" and type em_policy_id_type_channel_scan       | p1: net_id = "netX", type = em_policy_id_type_channel_scan, device_mac = 0xFF,0xEE,0xDD,0xCC,0xBB,0xAA                                | p1 is set and stored in mesh through set_policy() call               | Should Pass   |
- * | 03               | Create the second policy (p2) as a copy of p1 but change the policy type to traffic_separation | p2: net_id = "netX", type = em_policy_id_type_traffic_separation, device_mac = 0xFF,0xEE,0xDD,0xCC,0xBB,0xAA                        | p2 is set and mesh.m_num_policy increments to 2 after second set_policy() call | Should Pass   |
+ * | 03               | Create and insert p2 with the same network ID but a different policy type                       | p2: net_id = "netX", type = em_policy_id_type_traffic_separation | Both distinct policy keys are stored; get_num_policy() returns 2 | Should Pass   |
  */
 TEST(dm_easy_mesh_t, set_policy_SameIdsDifferentTypeAddsNewPolicy)
 {
@@ -19319,8 +19248,8 @@ TEST(dm_easy_mesh_t, set_policy_SameIdsDifferentTypeAddsNewPolicy)
     mesh.set_policy(p1);
     std::cout << "Invoking set_policy with em_policy_id_type_traffic_separation type" << std::endl;
     mesh.set_policy(p2);
+    EXPECT_EQ(mesh.get_num_policy(), 2u);
     mesh.deinit();
-    EXPECT_EQ(mesh.m_num_policy, 2u);
     std::cout << "Exiting set_policy_SameIdsDifferentTypeAddsNewPolicy test" << std::endl;
 }
 
