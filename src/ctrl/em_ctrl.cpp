@@ -676,27 +676,12 @@ bool em_ctrl_t::publish_event(const char *event, bus_data_prop_t *args)
     return ok;
 }
 
-void em_ctrl_t::handle_failed_conn_msg(unsigned char *data, unsigned int len)
+bool em_ctrl_t::parse_failed_conn_tlvs(unsigned char *tmp, unsigned int remaining, mac_address_t bssid, mac_address_t sta_mac,
+    unsigned short *status_code, unsigned short *reason_code)
 {
-    char *errors[EM_MAX_TLV_MEMBERS] = {0};
-
-    if (em_msg_t(em_msg_type_failed_conn, em_profile_type_3, data, len).validate(errors) == 0) {
-        em_printfout("Failed Connection message validation failed");
-        return;
-    }
-
-    unsigned int hdr_size = static_cast<unsigned int>(sizeof(em_raw_hdr_t)) + static_cast<unsigned int>(sizeof(em_cmdu_t));
-    if (len <= hdr_size) {
-        em_printfout("Failed Connection message too short");
-        return;
-    }
-    unsigned char *tmp = data + hdr_size;
-    unsigned int remaining = len - hdr_size;
-    mac_address_t bssid = {0};
-    mac_address_t sta_mac = {0};
-    unsigned short status_code = 0;
-    unsigned short reason_code = 0;
     bool has_bssid = false, has_sta = false, has_status = false;
+    *status_code = 0;
+    *reason_code = 0;
 
     while (remaining >= sizeof(em_tlv_t)) {
         em_tlv_t *tlv = reinterpret_cast<em_tlv_t *>(tmp);
@@ -719,7 +704,7 @@ void em_ctrl_t::handle_failed_conn_msg(unsigned char *data, unsigned int len)
                 has_bssid = true;
                 break;
             case em_tlv_type_sta_mac_addr:
-		if (tlv_len < sizeof(mac_address_t)) {
+                if (tlv_len < sizeof(mac_address_t)) {
                     em_printfout("Failed Connection message malformed STA MAC TLV (len=%u)", static_cast<unsigned int>(tlv_len));
                     break;
                 }
@@ -732,7 +717,7 @@ void em_ctrl_t::handle_failed_conn_msg(unsigned char *data, unsigned int len)
                     break;
                 }
                 em_status_code_t *sc = reinterpret_cast<em_status_code_t *>(tlv->value);
-                status_code = ntohs(sc->status_code);
+                *status_code = ntohs(sc->status_code);
                 has_status = true;
                 break;
             }
@@ -742,7 +727,7 @@ void em_ctrl_t::handle_failed_conn_msg(unsigned char *data, unsigned int len)
                     break;
                 }
                 em_reason_code_t *rc = reinterpret_cast<em_reason_code_t *>(tlv->value);
-                reason_code = ntohs(rc->reason_code);
+                *reason_code = ntohs(rc->reason_code);
                 break;
             }
             default:
@@ -753,7 +738,31 @@ void em_ctrl_t::handle_failed_conn_msg(unsigned char *data, unsigned int len)
         remaining -= static_cast<unsigned int>(sizeof(em_tlv_t)) + tlv_len;
     }
 
-    if (!has_bssid || !has_sta || !has_status) {
+    return has_bssid && has_sta && has_status;
+}
+
+void em_ctrl_t::handle_failed_conn_msg(unsigned char *data, unsigned int len)
+{
+    char *errors[EM_MAX_TLV_MEMBERS] = {0};
+
+    if (em_msg_t(em_msg_type_failed_conn, em_profile_type_3, data, len).validate(errors) == 0) {
+        em_printfout("Failed Connection message validation failed");
+        return;
+    }
+
+    unsigned int hdr_size = static_cast<unsigned int>(sizeof(em_raw_hdr_t)) + static_cast<unsigned int>(sizeof(em_cmdu_t));
+    if (len <= hdr_size) {
+        em_printfout("Failed Connection message too short");
+        return;
+    }
+    unsigned char *tmp = data + hdr_size;
+    unsigned int remaining = len - hdr_size;
+    mac_address_t bssid = {0};
+    mac_address_t sta_mac = {0};
+    unsigned short status_code = 0;
+    unsigned short reason_code = 0;
+
+    if (!parse_failed_conn_tlvs(tmp, remaining, bssid, sta_mac, &status_code, &reason_code)) {
         em_printfout("Failed Connection message missing mandatory TLVs");
         return;
     }

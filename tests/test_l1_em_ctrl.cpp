@@ -4277,3 +4277,93 @@ TEST(dm_easy_mesh_ctrl_t, get_dm_bss_skips_bss_without_bssid) {
     EXPECT_EQ(dm_ctrl.get_dm_bss(&dm, &ri, alias, false), dm.get_bss(1u));
     std::cout << "Exiting get_dm_bss_skips_bss_without_bssid test" << std::endl;
 }
+
+namespace {
+struct fc_parsed_t {
+    bool ok;
+    mac_address_t bssid;
+    mac_address_t sta;
+    unsigned short status;
+    unsigned short reason;
+};
+
+/* parse the TLVs (everything after the 22 byte header) of an exactly-sized message */
+fc_parsed_t parse_failed_conn(const std::vector<fc_tlv_t> &tlvs)
+{
+    fc_parsed_t r;
+    memset(&r, 0, sizeof(r));
+    unsigned int len = 0;
+    auto buf = build_failed_conn_msg(tlvs, len);
+    r.ok = em_ctrl_t::parse_failed_conn_tlvs(buf.get() + 22, len - 22, r.bssid, r.sta, &r.status, &r.reason);
+    return r;
+}
+}
+
+/* the parsed values (not just "no crash") are asserted: a short duplicate TLV must be ignored and keep the valid value */
+TEST(em_ctrl_t, parse_failed_conn_tlvs_valid_message)
+{
+    fc_parsed_t r = parse_failed_conn({kBssid, kSta, kStatus});
+    EXPECT_TRUE(r.ok);
+    EXPECT_EQ(r.bssid[5], 0xaa);
+    EXPECT_EQ(r.sta[5], 0xbb);
+    EXPECT_EQ(r.status, 0x10);
+    EXPECT_EQ(r.reason, 0);
+}
+
+TEST(em_ctrl_t, parse_failed_conn_tlvs_short_duplicate_bssid_is_ignored)
+{
+    for (unsigned short l : {0, 1, 2, 5}) {
+        fc_parsed_t r = parse_failed_conn({kBssid, kSta, kStatus, {0xb8, l, std::vector<unsigned char>(l, 0x77)}});
+        EXPECT_TRUE(r.ok) << l;
+        EXPECT_EQ(r.bssid[0], 2) << l;
+        EXPECT_EQ(r.bssid[5], 0xaa) << l;
+    }
+}
+
+TEST(em_ctrl_t, parse_failed_conn_tlvs_short_duplicate_sta_mac_is_ignored)
+{
+    for (unsigned short l : {0, 1, 2, 5}) {
+        fc_parsed_t r = parse_failed_conn({kBssid, kSta, kStatus, {0x95, l, std::vector<unsigned char>(l, 0x77)}});
+        EXPECT_TRUE(r.ok) << l;
+        EXPECT_EQ(r.sta[0], 2) << l;
+        EXPECT_EQ(r.sta[5], 0xbb) << l;
+    }
+}
+
+/* without the length check a 1 byte Status Code reads the first EOM byte (still inside the buffer, so ASan stays quiet)
+ * and overwrites 0x0010 with 0x0000; only the parsed value shows it */
+TEST(em_ctrl_t, parse_failed_conn_tlvs_short_duplicate_status_code_is_ignored)
+{
+    fc_parsed_t r1 = parse_failed_conn({kBssid, kSta, kStatus, {0xc9, 1, {0x7f}}});
+    EXPECT_TRUE(r1.ok);
+    EXPECT_EQ(r1.status, 0x10);
+    fc_parsed_t r0 = parse_failed_conn({kBssid, kSta, kStatus, {0xc9, 0, {}}});
+    EXPECT_TRUE(r0.ok);
+    EXPECT_EQ(r0.status, 0x10);
+}
+
+TEST(em_ctrl_t, parse_failed_conn_tlvs_short_reason_code_is_ignored)
+{
+    fc_parsed_t r = parse_failed_conn({kBssid, kSta, kStatus, {0xca, 0x0002, {0x00, 0x05}}, {0xca, 1, {0x7f}}});
+    EXPECT_TRUE(r.ok);
+    EXPECT_EQ(r.reason, 5);
+}
+
+TEST(em_ctrl_t, parse_failed_conn_tlvs_valid_duplicates_overwrite)
+{
+    fc_parsed_t r = parse_failed_conn({kBssid, kSta, kStatus,
+        {0xb8, 6, {2, 0, 0, 0, 0, 0xcc}}, {0x95, 6, {2, 0, 0, 0, 0, 0xdd}}, {0xc9, 2, {0x00, 0x20}}});
+    EXPECT_TRUE(r.ok);
+    EXPECT_EQ(r.bssid[5], 0xcc);
+    EXPECT_EQ(r.sta[5], 0xdd);
+    EXPECT_EQ(r.status, 0x20);
+}
+
+TEST(em_ctrl_t, parse_failed_conn_tlvs_missing_mandatory_tlv)
+{
+    EXPECT_FALSE(parse_failed_conn({kBssid, kSta}).ok);
+    EXPECT_FALSE(parse_failed_conn({kBssid, kStatus}).ok);
+    EXPECT_FALSE(parse_failed_conn({kSta, kStatus}).ok);
+    EXPECT_FALSE(parse_failed_conn({kBssid, kSta, {0xc9, 1, {0x00}}}).ok);   /* only a short status code */
+}
+~           
