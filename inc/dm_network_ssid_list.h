@@ -62,6 +62,8 @@ public:
 	 * @brief Updates the network SSID list with the specified operation.
 	 *
 	 * This function modifies the list of network SSIDs based on the operation type provided.
+	 * Inserts and updates are propagated to every in-memory model in the network,
+	 * independently of database persistence.
 	 *
 	 * @param[in] net_ssid The network SSID to be updated in the list.
 	 * @param[in] op The operation type to be performed on the network SSID list.
