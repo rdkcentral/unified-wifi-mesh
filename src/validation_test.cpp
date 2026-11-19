@@ -1264,6 +1264,16 @@ int em_testValidation_t::test_bh_steering_req(unsigned char *buff,int i,unsigned
 
 }
 
+static inline uint16_t get_client_assoc_ctrl_req_len(uint8_t sta_count)
+{
+    if (sta_count > MAX_STA_LIST) {
+        sta_count = MAX_STA_LIST;
+    }
+
+    return static_cast<uint16_t>(
+        sizeof(em_client_assoc_ctrl_req_t) -
+        ((MAX_STA_LIST - sta_count) * sizeof(mac_address_t)));
+}
 int em_testValidation_t::test_client_assoc_ctrl_req(unsigned char *buff,int i,unsigned int len)
 {
 
@@ -1271,22 +1281,24 @@ int em_testValidation_t::test_client_assoc_ctrl_req(unsigned char *buff,int i,un
     unsigned short  msg_id = em_msg_type_client_assoc_ctrl_req;
     unsigned char *tmp = (buff+len);
 
-    if(i==0){
-        // Client Association Control Request TLV
-        tlv = (em_tlv_t *)tmp;
-        tlv->type = em_tlv_type_client_assoc_ctrl_req;
-        tlv->len = htons(sizeof(em_client_assoc_ctrl_req_t));
+    if (i == 0) {
+        em_tlv_t *tlv = reinterpret_cast<em_tlv_t *>(tmp);
 
-        tmp += (sizeof(em_tlv_t) + sizeof(em_client_assoc_ctrl_req_t));
-        len += (sizeof(em_tlv_t) + sizeof(em_client_assoc_ctrl_req_t));
+        const uint8_t sta_count = 1; // test STA count
+        const uint16_t tlv_len = get_client_assoc_ctrl_req_len(sta_count);
+
+        tlv->type = em_tlv_type_client_assoc_ctrl_req;
+        tlv->len  = htons(tlv_len);
+
+        tmp += sizeof(em_tlv_t) + tlv_len;
+        len += sizeof(em_tlv_t) + tlv_len;
     }
 
     // End of message
-    tlv = (em_tlv_t *)tmp;
+    em_tlv_t *tlv = reinterpret_cast<em_tlv_t *>(tmp);
     tlv->type = em_tlv_type_eom;
     tlv->len = 0;
 
-    tmp += (sizeof (em_tlv_t));
     len += (sizeof (em_tlv_t));
 
     printf("\nTest validation of client_assoc_ctrl_req message\n");
