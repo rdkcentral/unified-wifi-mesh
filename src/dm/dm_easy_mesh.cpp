@@ -3734,6 +3734,18 @@ void dm_easy_mesh_t::get_ap_mld_key(mac_address_t al_mac, em_haul_type_t haul_ty
     snprintf(key, sz, "%s@%s", al_mac_str, haul_str);
 }
 
+dm_ap_mld_t *dm_easy_mesh_t::get_ap_mld(mac_address_t al_mac, em_haul_type_t haul_type)
+{
+    em_long_string_t key;
+
+    if (m_ap_mld_map == NULL || al_mac == NULL) {
+        return NULL;
+    }
+
+    get_ap_mld_key(al_mac, haul_type, key, sizeof(key));
+    return static_cast<dm_ap_mld_t *>(hash_map_get(m_ap_mld_map, key));
+}
+
 em_ap_mld_info_t *dm_easy_mesh_t::get_ap_mld_frm_bssid(void *dm, mac_address_t bss_id)
 {
     if (dm == NULL || bss_id == NULL) {
