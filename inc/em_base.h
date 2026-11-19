@@ -342,6 +342,10 @@ static const mac_address_t EM_GLOBAL_MAC_ADDRESS = {0xff, 0xff, 0xff, 0xff, 0xff
 #define WIFI_EM_GET_TX_POWER           "Device.WiFi.EM.CurrentTransmitPower"
 #endif
 
+#ifndef WIFI_EM_MONITOR_DONE
+#define WIFI_EM_MONITOR_DONE           "Device.WiFi.EM.MonitorDone"
+#endif
+
 #ifndef WIFI_EM_CLIENT_DISASSOC_STATS
 #define WIFI_EM_CLIENT_DISASSOC_STATS         "Device.WiFi.EM.ClientDisassocStats"
 #endif
