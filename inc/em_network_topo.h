@@ -81,6 +81,20 @@ public:
 	em_network_topo_t *find_topology_by_bss_mac(mac_address_t bss_mac);
 
 	/**!
+	 * @brief Finds the topology whose AP (not STA) BSS owns the given BSSID.
+	 *
+	 * Unlike find_topology_by_bss_mac(), backhaul STA entries that merely record the
+	 * same upstream BSSID are ignored, so a sibling associated to the same AP is never
+	 * returned as the parent. The search continues recursively past such entries.
+	 *
+	 * @param[in] ap_bssid The BSSID of the AP BSS.
+	 *
+	 * @returns A pointer to the topology owning the AP BSS.
+	 * @retval NULL if no topology owns an AP BSS with this BSSID.
+	 */
+	em_network_topo_t *find_topology_by_ap_bssid(mac_address_t ap_bssid);
+
+	/**!
 	 * @brief Prints the network topology tree.
 	 *
 	 * This function recursively prints the network topology tree, starting from the
