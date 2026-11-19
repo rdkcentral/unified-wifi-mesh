@@ -1080,7 +1080,21 @@ void em_ctrl_t::handle_1s_tick()
 void em_ctrl_t::handle_250ms_tick()
 {
     handle_dirty_dm();
+    replay_held_events();
     m_orch->handle_timeout();
+}
+
+void em_ctrl_t::handle_orch_kick()
+{
+    unsigned int i;
+
+    /* One pass ends the completed command, the next frees its radio, the third starts the
+     * command that waited for it. */
+    for (i = 0; i < 3; i++) {
+        handle_dirty_dm();
+        replay_held_events();
+        m_orch->handle_timeout();
+    }
 }
 
 void em_ctrl_t::input_listener()
@@ -1263,11 +1277,98 @@ void em_ctrl_t::handle_bus_event(em_bus_event_t *evt)
     }
 }
 
+bool em_ctrl_t::is_cmd_event(em_bus_event_type_t type)
+{
+    switch (type) {
+        case em_bus_event_type_reset:
+        case em_bus_event_type_set_dev_test:
+        case em_bus_event_type_set_radio:
+        case em_bus_event_type_set_ssid:
+        case em_bus_event_type_remove_device:
+        case em_bus_event_type_set_channel:
+        case em_bus_event_type_channel_select:
+        case em_bus_event_type_scan_channel:
+        case em_bus_event_type_set_policy:
+        case em_bus_event_type_start_dpp:
+        case em_bus_event_type_steer_sta:
+        case em_bus_event_type_disassoc_sta:
+        case em_bus_event_type_btm_sta:
+        case em_bus_event_type_mld_reconfig:
+        case em_bus_event_type_unassoc_sta_query:
+        case em_bus_event_type_beacon_query:
+        case em_bus_event_type_client_assoc_ctrl_req:
+            return true;
+
+        default:
+            return false;
+    }
+}
+
+bool em_ctrl_t::hold_event(em_event_t *evt)
+{
+    const size_t evt_sz = sizeof(em_event_t) + EM_MAX_EVENT_DATA_LEN;
+    em_bus_event_t *bevt = &evt->u.bevt;
+    em_held_event_t held;
+    bool in_progress;
+
+    if (is_cmd_event(bevt->type) == false) {
+        return false;
+    }
+
+    in_progress = m_orch->is_cmd_type_in_progress(bevt);
+    if ((in_progress == false) && (m_held_evts.empty() == true)) {
+        return false;
+    }
+
+    if (m_held_evts.size() >= EM_MAX_HELD_EVTS) {
+        em_printfout("%s rejected, %zu already waiting", em_cmd_t::get_bus_event_type_str(bevt->type), m_held_evts.size());
+        m_ctrl_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
+        return true;
+    }
+
+    if ((held.evt = static_cast<em_event_t *>(malloc(evt_sz))) == NULL) {
+        em_printfout("%s rejected, out of memory", em_cmd_t::get_bus_event_type_str(bevt->type));
+        m_ctrl_cmd->send_result(em_cmd_out_status_prev_cmd_in_progress);
+        return true;
+    }
+    memcpy(held.evt, evt, evt_sz);
+    util::monotonic_now(&held.since);
+    m_held_evts.push_back(held);
+    em_printfout("%s held behind %s, %zu waiting", em_cmd_t::get_bus_event_type_str(bevt->type),
+        in_progress ? "the command of its type in progress" : "an older event", m_held_evts.size());
+
+    return true;
+}
+
+void em_ctrl_t::replay_held_events()
+{
+    em_held_event_t held;
+    struct timespec now;
+
+    while (m_held_evts.empty() == false) {
+        held = m_held_evts.front();
+        if (m_orch->is_cmd_type_in_progress(&held.evt->u.bevt) == true) {
+            // the younger events wait behind it, whatever their type
+            return;
+        }
+
+        m_held_evts.pop_front();
+        util::monotonic_now(&now);
+        em_printfout("Handling held %s after %ld ms, %zu waiting", em_cmd_t::get_bus_event_type_str(held.evt->u.bevt.type),
+            (now.tv_sec - held.since.tv_sec) * 1000 + (now.tv_nsec - held.since.tv_nsec) / 1000000, m_held_evts.size());
+        handle_bus_event(&held.evt->u.bevt);
+        free(held.evt);
+    }
+}
+
 void em_ctrl_t::handle_event(em_event_t *evt)
 {
     switch(evt->type) {
         case em_event_type_bus:
-            handle_bus_event(&evt->u.bevt);
+            if (hold_event(evt) == false) {
+                handle_bus_event(&evt->u.bevt);
+                handle_orch_kick();
+            }
             break;
 
         case em_event_type_nb:
