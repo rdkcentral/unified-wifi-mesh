@@ -100,6 +100,15 @@ void util::monotonic_now(struct timespec *ts)
     clock_gettime(CLOCK_MONOTONIC, ts);
 }
 
+bool util::monotonic_reached(const struct timespec *deadline)
+{
+    struct timespec now;
+
+    clock_gettime(CLOCK_MONOTONIC, &now);
+    return (now.tv_sec > deadline->tv_sec) ||
+        ((now.tv_sec == deadline->tv_sec) && (now.tv_nsec >= deadline->tv_nsec));
+}
+
 void util::monotonic_now(struct timeval *tv)
 {
     struct timespec ts;

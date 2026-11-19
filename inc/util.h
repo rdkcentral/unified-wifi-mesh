@@ -118,6 +118,15 @@ namespace util {
 	void monotonic_now(struct timespec *ts);
 
 	/**!
+	 * @brief Tells whether a CLOCK_MONOTONIC deadline has been reached.
+	 *
+	 * @param[in] deadline Pointer to the deadline, as filled by monotonic_now().
+	 *
+	 * @returns True if the current time is at or past the deadline.
+	 */
+	bool monotonic_reached(const struct timespec *deadline);
+
+	/**!
 	 * @brief Reads the current CLOCK_MONOTONIC time into a timeval.
 	 *
 	 * @param[out] tv Pointer to the timeval structure to fill.

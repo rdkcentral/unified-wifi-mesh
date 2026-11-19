@@ -69,6 +69,8 @@ class em_t :
     em_queue_t  m_iq;
     pthread_t   m_tid;
     bool    m_exit;
+    /* A command waits to be sent. Guarded by m_iq.lock. */
+    bool    m_cmd_wake;
     bool m_is_al_em;
     bool dev_test_enable;
 
