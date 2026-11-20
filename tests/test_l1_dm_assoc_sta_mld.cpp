@@ -21,6 +21,7 @@
 #include <gmock/gmock.h>
 #include <stdio.h>
 #include "dm_assoc_sta_mld.h"
+#include "dm_sta.h"
 
 /**
  * @brief Test the decode function with a valid JSON object and a valid parent ID.
@@ -1360,4 +1361,120 @@ TEST(dm_assoc_sta_mld_t_Test, Destructor_DefaultConstructor) {
         std::cout << "dm_assoc_sta_mld_t object is going out of scope, destructor should now be invoked" << std::endl;
     }
     std::cout << "Exiting Destructor_DefaultConstructor test" << std::endl;
+}
+
+/**
+ * @brief Test that encode_metrics takes the counters from the associated station of the MLD
+ *
+ * This test puts the associated station of the MLD and a station of another client into a station map,
+ * encodes the MLD with encode_metrics and checks that the MLD MAC address and the counters of its own
+ * station land in the JSON object.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 043@n
+ * **Priority:** High@n
+ * @n
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ * @n
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01 | Put an associated dm_sta_t of another client into a hash map | id = 00:11:22:33:44:55, bytes_tx = 999 | Map holds the station | Should be successful |
+ * | 02 | Put the associated dm_sta_t of the MLD into the map | id = MLD MAC, bytes_tx = 123456, retrans_count = 7 | Map holds both stations | Should be successful |
+ * | 03 | Call encode_metrics for the MLD with the map | obj = cJSON_CreateObject() | Object holds MLDMACAddress and the counters of the MLD's station | Should Pass |
+ */
+TEST(dm_assoc_sta_mld_t_Test, EncodeMetricsTakesCountersFromAssociatedStation) {
+    std::cout << "Entering EncodeMetricsTakesCountersFromAssociatedStation test" << std::endl;
+    unsigned char other_mac[] = {0x00, 0x11, 0x22, 0x33, 0x44, 0x55};
+    unsigned char mld_mac[] = {0x00, 0x11, 0x22, 0x33, 0x44, 0x66};
+    hash_map_t *sta_map = hash_map_create();
+
+    em_sta_info_t other_info;
+    memset(&other_info, 0, sizeof(other_info));
+    memcpy(other_info.id, other_mac, sizeof(mac_address_t));
+    other_info.associated = true;
+    other_info.bytes_tx = 999;
+    dm_sta_t other(&other_info);
+    const char *other_key = "00:11:22:33:44:55@aa:bb:cc:dd:ee:ff@02:08:22:33:44:55";
+    hash_map_put(sta_map, strdup(other_key), &other);
+
+    em_sta_info_t sta_info;
+    memset(&sta_info, 0, sizeof(sta_info));
+    memcpy(sta_info.id, mld_mac, sizeof(mac_address_t));
+    sta_info.associated = true;
+    sta_info.bytes_tx = 123456;
+    sta_info.bytes_rx = 654321;
+    sta_info.pkts_tx = 1000;
+    sta_info.pkts_rx = 2000;
+    sta_info.errors_tx = 3;
+    sta_info.errors_rx = 4;
+    sta_info.retrans_count = 7;
+    dm_sta_t sta(&sta_info);
+    const char *key = "00:11:22:33:44:66@aa:bb:cc:dd:ee:ff@02:08:22:33:44:55";
+    hash_map_put(sta_map, strdup(key), &sta);
+
+    em_assoc_sta_mld_info_t mld_info;
+    memset(&mld_info, 0, sizeof(mld_info));
+    memcpy(mld_info.mac_addr, mld_mac, sizeof(mac_address_t));
+    dm_assoc_sta_mld_t mld(&mld_info);
+
+    cJSON *obj = cJSON_CreateObject();
+    mld.encode_metrics(obj, sta_map);
+    EXPECT_STREQ(cJSON_GetStringValue(cJSON_GetObjectItem(obj, "MLDMACAddress")), "00:11:22:33:44:66");
+    EXPECT_EQ(cJSON_GetNumberValue(cJSON_GetObjectItem(obj, "BytesSent")), 123456);
+    EXPECT_EQ(cJSON_GetNumberValue(cJSON_GetObjectItem(obj, "BytesReceived")), 654321);
+    EXPECT_EQ(cJSON_GetNumberValue(cJSON_GetObjectItem(obj, "PacketsSent")), 1000);
+    EXPECT_EQ(cJSON_GetNumberValue(cJSON_GetObjectItem(obj, "PacketsReceived")), 2000);
+    EXPECT_EQ(cJSON_GetNumberValue(cJSON_GetObjectItem(obj, "ErrorsSent")), 3);
+    EXPECT_EQ(cJSON_GetNumberValue(cJSON_GetObjectItem(obj, "ErrorsReceived")), 4);
+    EXPECT_EQ(cJSON_GetNumberValue(cJSON_GetObjectItem(obj, "RetransCount")), 7);
+    cJSON_Delete(obj);
+    hash_map_remove(sta_map, key);   /* the map owns the keys; the stations are on the stack */
+    hash_map_remove(sta_map, other_key);
+    hash_map_destroy(sta_map);
+    std::cout << "Exiting EncodeMetricsTakesCountersFromAssociatedStation test" << std::endl;
+}
+
+/**
+ * @brief Test that encode_metrics reports zero counters when the MLD has no associated station
+ *
+ * This test encodes an MLD against an empty station map and checks that the MLD MAC address is reported
+ * and every counter is zero.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 044@n
+ * **Priority:** High@n
+ * @n
+ * **Pre-Conditions:** None@n
+ * **Dependencies:** None@n
+ * **User Interaction:** None@n
+ * @n
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01 | Create an empty hash map | hash_map_create() | Map is empty | Should be successful |
+ * | 02 | Call encode_metrics for an MLD with the empty map | obj = cJSON_CreateObject() | Object holds MLDMACAddress and zero counters | Should Pass |
+ */
+TEST(dm_assoc_sta_mld_t_Test, EncodeMetricsWithoutAssociatedStationReportsZero) {
+    std::cout << "Entering EncodeMetricsWithoutAssociatedStationReportsZero test" << std::endl;
+    hash_map_t *sta_map = hash_map_create();
+    em_assoc_sta_mld_info_t mld_info;
+    memset(&mld_info, 0, sizeof(mld_info));
+    unsigned char mld_mac[] = {0x00, 0x11, 0x22, 0x33, 0x44, 0x66};
+    memcpy(mld_info.mac_addr, mld_mac, sizeof(mac_address_t));
+    dm_assoc_sta_mld_t mld(&mld_info);
+
+    cJSON *obj = cJSON_CreateObject();
+    mld.encode_metrics(obj, sta_map);
+    EXPECT_STREQ(cJSON_GetStringValue(cJSON_GetObjectItem(obj, "MLDMACAddress")), "00:11:22:33:44:66");
+    EXPECT_EQ(cJSON_GetNumberValue(cJSON_GetObjectItem(obj, "BytesSent")), 0);
+    EXPECT_EQ(cJSON_GetNumberValue(cJSON_GetObjectItem(obj, "BytesReceived")), 0);
+    EXPECT_EQ(cJSON_GetNumberValue(cJSON_GetObjectItem(obj, "PacketsSent")), 0);
+    EXPECT_EQ(cJSON_GetNumberValue(cJSON_GetObjectItem(obj, "PacketsReceived")), 0);
+    EXPECT_EQ(cJSON_GetNumberValue(cJSON_GetObjectItem(obj, "RetransCount")), 0);
+    cJSON_Delete(obj);
+    hash_map_destroy(sta_map);
+    std::cout << "Exiting EncodeMetricsWithoutAssociatedStationReportsZero test" << std::endl;
 }
