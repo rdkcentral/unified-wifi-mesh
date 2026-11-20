@@ -184,6 +184,17 @@ public:
 	 * @note Ensure that the interface is valid and initialized before calling this function.
 	 */
 	void delete_node(em_interface_t* ruid);
+
+	/**!
+	 * @brief Moves a controller radio node to the data model of the agent AL MAC now reporting it.
+	 *
+	 * Used when an agent re-onboards with a new AL MAC but the same RUIDs. The old data model
+	 * is left in place, since other threads may still reference it.
+	 *
+	 * @param[in] em Radio node to move.
+	 * @param[in] al_mac AL MAC of the agent that now owns the radio.
+	 */
+	void rebind_node(em_t *em, const unsigned char *al_mac);
     
 	/**!
 	 * @brief Deletes nodes from the data structure.
