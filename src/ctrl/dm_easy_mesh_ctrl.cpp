@@ -3838,9 +3838,21 @@ int dm_easy_mesh_ctrl_t::analyze_remove_device(em_bus_event_t *evt, em_cmd_t *pc
         return 0;
 	}
 
+	if (cJSON_GetArraySize(dev_list_obj) > 32) {
+        printf("%s:%d: DeviceList has more than 32 devices\n", __func__, __LINE__);
+        cJSON_Delete(obj);
+        return 0;
+        }
+
 	for (i = 0; i < cJSON_GetArraySize(dev_list_obj); i++) {
 		id_obj = cJSON_GetObjectItem(cJSON_GetArrayItem(dev_list_obj, i), "ID");
 		tmp = cJSON_GetStringValue(id_obj);
+		if (tmp == NULL) {
+                printf("%s:%d: DeviceList entry %d has no ID string\n", __func__, __LINE__, i);
+                cJSON_Delete(obj);
+                return 0;
+                }
+
 		dm_easy_mesh_t::string_to_macbytes(tmp, dev_mac_to_keep[i]);
 	}
 
@@ -3860,6 +3872,9 @@ int dm_easy_mesh_ctrl_t::analyze_remove_device(em_bus_event_t *evt, em_cmd_t *pc
 		if (keep == true) {
 			keep = false;
 		} else {
+			if (num_devs_to_delete >= 32) {
+                            break;
+                        }
 			devices_to_delete[num_devs_to_delete] = device;
 			num_devs_to_delete++;
 		}
@@ -3872,11 +3887,14 @@ int dm_easy_mesh_ctrl_t::analyze_remove_device(em_bus_event_t *evt, em_cmd_t *pc
 		printf("%s:%d: Device: %s should be deleted\n", __func__, __LINE__, mac_str);	
 		dm = m_data_model_list.get_data_model(device->m_device_info.id.net_id, device->m_device_info.intf.mac);
 		if (dm != NULL) {
+                if (num >= EM_MAX_CMD - 1) {
+                    break;
+                }
     		pcmd[num] = new em_cmd_remove_device_t(evt->params, *dm);
     		tmp_cmd = pcmd[num];
     		num++;
 
-    		while ((pcmd[num] = tmp_cmd->clone_for_next()) != NULL) {
+    		while ((num < EM_MAX_CMD) && ((pcmd[num] = tmp_cmd->clone_for_next()) != NULL)) {
         		tmp_cmd = pcmd[num];
         		num++;
     		}
