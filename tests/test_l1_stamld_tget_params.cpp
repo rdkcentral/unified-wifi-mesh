@@ -38,13 +38,18 @@ protected:
     em_ap_mld_info_t ami;
     const char *root = "Device.WiFi.DataElements.Network.Device.1.APMLD.1.STAMLD.";
 
+    /* The data model is built and torn down with leak checking suspended (its own infrastructure has no
+     * complete teardown); the properties the handler returns are checked, so rows_and_free() must release
+     * everything it is given. */
     void SetUp() override {
         __lsan_disable();
         dm = new dm_easy_mesh_t;
         dm->init();
+        __lsan_enable();
         memset(&ami, 0, sizeof(ami));           /* AP MLD address 00:00:00:00:00:00 */
     }
     void TearDown() override {
+        __lsan_disable();
         delete dm;
         __lsan_enable();
     }
@@ -61,7 +66,8 @@ protected:
         dm->m_num_assoc_sta_mld = stored_count;
     }
 
-    /* counts the "<n>.MLDMACAddress" properties and frees the list */
+    /* counts the "<n>.MLDMACAddress" properties and frees the list, including the string value that
+     * tr_181_t::raw_data_set() allocates for each MAC / string property */
     static unsigned int rows_and_free(bus_data_prop_t *prop) {
         unsigned int rows = 0;
         const std::string suffix = ".MLDMACAddress";
@@ -70,6 +76,9 @@ protected:
             std::string n = prop->name;
             if (n.size() >= suffix.size() && n.compare(n.size() - suffix.size(), suffix.size(), suffix) == 0) {
                 rows++;
+            }
+            if (prop->value.data_type == bus_data_type_string) {
+                free(prop->value.raw_data.bytes);
             }
             free(prop);
             prop = next;
