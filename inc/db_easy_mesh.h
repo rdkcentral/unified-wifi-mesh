@@ -32,7 +32,13 @@ public:
     db_column_t     m_columns[EM_MAX_COLS];  
 
 public:
-    
+	/**
+	 * Disable persistence operations for nonpersistent backends.
+	 * Persistent backends retain the requested operation without a query.
+	 * Returns 0.
+	 */
+	int prepare_db_operation(db_client_t &db_client, dm_orch_type_t &op);
+
 	/**!
 	 * @brief Initializes the table.
 	 *
@@ -74,6 +80,8 @@ public:
 	 * @brief Updates the database with the given operation type and data.
 	 *
 	 * This function is responsible for updating the database using the provided client, operation type, and data.
+	 * Implementations use prepare_db_operation() to disable writes for
+	 * nonpersistent backends while preserving existing persistent operations.
 	 *
 	 * @param[in] db_client Reference to the database client used for the update.
 	 * @param[in] op The type of operation to perform on the database.
@@ -251,6 +259,8 @@ public:
 	 *
 	 * This function determines whether a specific entry, identified by the given key,
 	 * exists within the database table managed by the provided database client.
+	 * Nonpersistent backends return true to satisfy the persistence prerequisite
+	 * without forcing existing in-memory entries through the insertion path.
 	 *
 	 * @param[in] db_client Reference to the database client managing the table.
 	 * @param[in] key Pointer to the key used to identify the entry in the table.

@@ -51,8 +51,10 @@ public:
 	 * @brief Finds the network topology associated with a given data model.
 	 *
 	 * This function searches within the data model, the associated backhaul
-	 * sta and returns the network topology of the corresponding bssID which is
-	 * associated with that sta. This is required when the AL_SAP define is
+	 * sta and returns the network topology whose AP BSS owns the upstream BSSID.
+	 * STA BSS records are ignored. If the AP owner is colocated and the root is
+	 * the controller, the controller topology is returned instead.
+	 * This is required when the AL_SAP define is
 	 * enabled as the al_interface is associated with a virtual MAC address
 	 *
 	 * @param[in] dm The data model for which the network topology is to be found.
@@ -79,6 +81,20 @@ public:
 	 *       within the network.
 	 */
 	em_network_topo_t *find_topology_by_bss_mac(mac_address_t bss_mac);
+
+	/**!
+	 * @brief Finds the topology whose AP (not STA) BSS owns the given BSSID.
+	 *
+	 * Unlike find_topology_by_bss_mac(), backhaul STA entries that merely record the
+	 * same upstream BSSID are ignored, so a sibling associated to the same AP is never
+	 * returned as the parent. The search continues recursively past such entries.
+	 *
+	 * @param[in] ap_bssid The BSSID of the AP BSS.
+	 *
+	 * @returns A pointer to the topology owning the AP BSS.
+	 * @retval NULL if no topology owns an AP BSS with this BSSID.
+	 */
+	em_network_topo_t *find_topology_by_ap_bssid(mac_address_t ap_bssid);
 
 	/**!
 	 * @brief Prints the network topology tree.
