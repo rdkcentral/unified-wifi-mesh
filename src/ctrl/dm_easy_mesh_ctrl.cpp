@@ -4848,7 +4848,7 @@ int dm_easy_mesh_ctrl_t::analyze_remove_device(em_bus_event_t *evt, em_cmd_t *pc
 	if (cJSON_GetArraySize(dev_list_obj) > 32) {
         printf("%s:%d: DeviceList has more than 32 devices\n", __func__, __LINE__);
         cJSON_Delete(obj);
-        return 0;
+        return EM_PARSE_ERR_CONFIG;
         }
 
 	for (i = 0; i < cJSON_GetArraySize(dev_list_obj); i++) {
@@ -4857,7 +4857,7 @@ int dm_easy_mesh_ctrl_t::analyze_remove_device(em_bus_event_t *evt, em_cmd_t *pc
 		if (tmp == NULL) {
                 printf("%s:%d: DeviceList entry %d has no ID string\n", __func__, __LINE__, i);
                 cJSON_Delete(obj);
-                return 0;
+                return EM_PARSE_ERR_CONFIG;
                 }
 
 		dm_easy_mesh_t::string_to_macbytes(tmp, dev_mac_to_keep[i]);
