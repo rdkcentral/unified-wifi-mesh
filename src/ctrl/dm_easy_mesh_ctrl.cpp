@@ -9552,7 +9552,12 @@ bus_error_t dm_easy_mesh_ctrl_t::apmld_tget_params(dm_easy_mesh_t *dm, const cha
     bus_error_t rc = bus_error_success;
     dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
 
-    for (unsigned int idx = 1; idx <= dm->get_num_ap_mld(); idx++) {
+    if (!dm || !property) {
+        return bus_error_invalid_input;
+    }
+
+    unsigned int num_ap_mld = std::min(dm->get_num_ap_mld(), static_cast<unsigned int>(EM_MAX_AP_MLD));
+    for (unsigned int idx = 1; idx <= num_ap_mld; idx++) {
         /* Get ap_mld dm object for numeric instance */
         dm_ap_mld_t *ap_mld = dm->get_ap_mld(idx - 1);
         if (ap_mld == NULL) {
