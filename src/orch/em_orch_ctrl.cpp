@@ -189,6 +189,8 @@ bool em_orch_ctrl_t::is_em_ready_for_orch_fini(em_cmd_t *pcmd, em_t *em)
                 return true;
             } else if (em->get_state() == em_state_ctrl_topo_synchronized) {
                 return true;
+            } else if (em->get_state() == em_state_ctrl_topo_published) {
+                return true;
             } else if (em->get_state() == em_state_ctrl_channel_queried) {
                 return true;
             } else if (em->get_state() == em_state_ctrl_configured) {
@@ -225,6 +227,12 @@ bool em_orch_ctrl_t::is_em_ready_for_orch_fini(em_cmd_t *pcmd, em_t *em)
                 em->set_state(em_state_ctrl_configured);
                 return true;
             } else if (em->get_state() == em_state_ctrl_sta_cap_confirmed) {
+                em->set_state(em_state_ctrl_configured);
+                return true;
+            } else if (em->get_state() == em_state_ctrl_topo_published) {
+                // topo_publish sub-command is done; return to configured so a sta_assoc
+                // queued for another STA on this radio can run (otherwise the radio stays
+                // busy and the next client's capability query is never sent).
                 em->set_state(em_state_ctrl_configured);
                 return true;
             } else if (em->get_state() == em_state_ctrl_topo_synchronized) {
@@ -342,6 +350,8 @@ bool em_orch_ctrl_t::is_em_ready_for_orch_exec(em_cmd_t *pcmd, em_t *em)
             } else if (em->get_state() == em_state_ctrl_ap_cap_report_received){
                 return true;
             } else if (em->get_state() == em_state_ctrl_topo_synchronized) {
+                return true;
+            } else if (em->get_state() == em_state_ctrl_topo_published) {
                 return true;
             } else if (em->get_state() == em_state_ctrl_channel_queried) {
                 return true;
