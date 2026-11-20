@@ -740,6 +740,12 @@ class em_metrics_t {
 public:
 
 	/**!
+	 * @brief Forgets the outstanding Unassociated STA Link Metrics Query, so that the
+	 * next command sends a new one.
+	 */
+	void reset_unassoc_query_tx() { m_unassoc_query_sent = false; m_unassoc_sta_query_msg_id = 0; }
+
+	/**!
 	 * @brief Creates an associated station traffic statistics TLV.
 	 *
 	 * This function generates a TLV (Type-Length-Value) structure for the traffic statistics

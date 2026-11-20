@@ -143,6 +143,7 @@ int tr_181_t::wfa_set_bus_callbackfunc_pointers(const char *full_namespace, bus_
         ELEMENT(DE_RADIO_RECEIVEOTHER,     CALLBACK_GETTER(radio_get)),
         ELEMENT(DE_RADIO_CHIPVENDOR,       CALLBACK_GETTER(radio_get)),
         ELEMENT(DE_RADIO_CURROPNOE,        CALLBACK_GETTER(radio_get)),
+        ELEMENT(DE_RADIO_NOUNASSCSTA,      CALLBACK_GETTER(radio_get)),
         ELEMENT(DE_RADIO_BSSNOE,           CALLBACK_GETTER(radio_get)),
         ELEMENT(DE_RADIO_XAIRTIES_OPERSTANDARDS,  CALLBACK_GETTER(rcaps_get)),
         ELEMENT(DE_RADIO_XAIRTIES_TEMP,           CALLBACK_GETTER(radio_get)),
@@ -272,6 +273,11 @@ int tr_181_t::wfa_set_bus_callbackfunc_pointers(const char *full_namespace, bus_
         ELEMENT(DE_STAWF6CAPS_TWTRSP,      CALLBACK_GETTER(sta_get)),
         ELEMENT(DE_STAWF6CAPS_SPATRE,      CALLBACK_GETTER(sta_get)),
         ELEMENT(DE_STAWF6CAPS_ACU,         CALLBACK_GETTER(sta_get)),
+        ELEMENT(DE_UNASSOCSTA_TABLE,       CALLBACK_GETTER(unassocsta_tget)),
+        ELEMENT(DE_UNASSOCSTA_MACADDR,     CALLBACK_GETTER(unassocsta_get)),
+        ELEMENT(DE_UNASSOCSTA_SGNLSTR,     CALLBACK_GETTER(unassocsta_get)),
+        ELEMENT(DE_UNASSOCSTA_OPCLASS,     CALLBACK_GETTER(unassocsta_get)),
+        ELEMENT(DE_UNASSOCSTA_CHANNEL,     CALLBACK_GETTER(unassocsta_get)),
         ELEMENT(DE_APMLD_TABLE,            CALLBACK_GETTER(apmld_tget)),
         ELEMENT(DE_APMLD_MACADDRESS,       CALLBACK_GETTER(apmld_get)),
         ELEMENT(DE_APMLD_AFFAPNOE,         CALLBACK_GETTER(apmld_get)),
@@ -797,6 +803,28 @@ bus_error_t tr_181_t::sta_tget(char *event_name, raw_data_t *p_data, bus_user_da
 
     if (em_ctrl != NULL) {
         return em_ctrl->get_dm_ctrl()->sta_tget(event_name, p_data);
+    }
+
+    return bus_error_general;
+}
+
+bus_error_t tr_181_t::unassocsta_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
+{
+    em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
+
+    if (em_ctrl != NULL) {
+        return em_ctrl->get_dm_ctrl()->unassocsta_get(event_name, p_data);
+    }
+
+    return bus_error_general;
+}
+
+bus_error_t tr_181_t::unassocsta_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
+{
+    em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
+
+    if (em_ctrl != NULL) {
+        return em_ctrl->get_dm_ctrl()->unassocsta_tget(event_name, p_data);
     }
 
     return bus_error_general;
