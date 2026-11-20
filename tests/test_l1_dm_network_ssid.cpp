@@ -22,6 +22,56 @@
 #include <stdio.h>
 #include "dm_network_ssid.h"
 
+TEST(dm_network_ssid_t_Test, AssignmentCopiesCompleteAkmEntries) {
+    dm_network_ssid_t source;
+    dm_network_ssid_t destination;
+    source.m_network_ssid_info.num_akms = 2;
+    for (int i = 0; i < source.m_network_ssid_info.num_akms; i++) {
+        memset(source.m_network_ssid_info.akm[i], 'a' + i, sizeof(source.m_network_ssid_info.akm[i]) - 1);
+        source.m_network_ssid_info.akm[i][sizeof(source.m_network_ssid_info.akm[i]) - 1] = '\0';
+        memset(destination.m_network_ssid_info.akm[i], 'z', sizeof(destination.m_network_ssid_info.akm[i]));
+    }
+
+    destination = source;
+
+    EXPECT_EQ(destination.m_network_ssid_info.num_akms, 2);
+    for (int i = 0; i < source.m_network_ssid_info.num_akms; i++) {
+        EXPECT_STREQ(destination.m_network_ssid_info.akm[i], source.m_network_ssid_info.akm[i]);
+        EXPECT_EQ(memcmp(destination.m_network_ssid_info.akm[i], source.m_network_ssid_info.akm[i],
+            sizeof(source.m_network_ssid_info.akm[i])), 0);
+    }
+
+    memset(source.m_network_ssid_info.akm[0], 0, sizeof(source.m_network_ssid_info.akm[0]));
+    snprintf(source.m_network_ssid_info.akm[0], sizeof(source.m_network_ssid_info.akm[0]), "sae");
+    destination = source;
+    EXPECT_EQ(memcmp(destination.m_network_ssid_info.akm[0], source.m_network_ssid_info.akm[0],
+        sizeof(source.m_network_ssid_info.akm[0])), 0);
+}
+
+TEST(dm_network_ssid_t_Test, AssignmentCopiesCompleteBandEntries) {
+    dm_network_ssid_t source;
+    dm_network_ssid_t destination;
+    source.m_network_ssid_info.num_bands = 2;
+    snprintf(source.m_network_ssid_info.band[0], sizeof(source.m_network_ssid_info.band[0]), "5_UNII_1");
+    memset(source.m_network_ssid_info.band[1], 'x', sizeof(source.m_network_ssid_info.band[1]) - 1);
+    source.m_network_ssid_info.band[1][sizeof(source.m_network_ssid_info.band[1]) - 1] = '\0';
+    snprintf(destination.m_network_ssid_info.band[0], sizeof(destination.m_network_ssid_info.band[0]), "2.4");
+    memset(destination.m_network_ssid_info.band[1], 'y', sizeof(destination.m_network_ssid_info.band[1]));
+
+    destination = source;
+
+    EXPECT_EQ(destination.m_network_ssid_info.num_bands, 2);
+    EXPECT_STREQ(destination.m_network_ssid_info.band[0], "5_UNII_1");
+    for (int i = 0; i < source.m_network_ssid_info.num_bands; i++) {
+        EXPECT_EQ(memcmp(destination.m_network_ssid_info.band[i], source.m_network_ssid_info.band[i],
+            sizeof(source.m_network_ssid_info.band[i])), 0);
+    }
+
+    snprintf(source.m_network_ssid_info.band[0], sizeof(source.m_network_ssid_info.band[0]), "2.4");
+    destination = source;
+    EXPECT_STREQ(destination.m_network_ssid_info.band[0], "2.4");
+}
+
 /**
  * @brief Test decoding of a valid JSON object with a valid parent ID
  *

@@ -123,6 +123,13 @@ public:
 	 */
 	void encode(cJSON *obj, em_get_radio_list_reason_t reason = em_get_radio_list_reason_none);
 
+	/**!
+	 * @brief Encodes the metrics an AP Metrics Response updates.
+	 *
+	 * @param[in] obj The JSON object to add the metrics to.
+	 */
+	void encode_metrics(cJSON *obj);
+
     bool operator == (const dm_radio_t& obj);
     void operator = (const dm_radio_t& obj);
     

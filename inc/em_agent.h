@@ -40,6 +40,7 @@ class AlServiceAccessPoint;
 
 class em_agent_t : public em_mgr_t {
 
+    pthread_mutex_t m_tx_power_mutex = PTHREAD_MUTEX_INITIALIZER;
     em_orch_agent_t *m_orch;
     dm_easy_mesh_agent_t m_data_model;
     em_short_string_t   m_data_model_path;
@@ -218,6 +219,14 @@ class em_agent_t : public em_mgr_t {
 	 */
 	void handle_recv_failed_conn(em_bus_event_t *event);
 
+	/**
+	 * @brief Handles the OneWifi ClientDisassocStats event: queues a Client Disassociation
+	 * Stats message on the radio EM of the BSS the client left.
+	 *
+	 * @param event The event containing the JSON payload (BSSID, STA MacAddress, Reason Code, Traffic Stats)
+	 */
+	void handle_recv_client_disassoc_stats(em_bus_event_t *event);
+
 	/**!
 	 * @brief Handles the BTM response action frame.
 	 *
@@ -299,6 +308,8 @@ class em_agent_t : public em_mgr_t {
 
 	void handle_link_stats_report(em_bus_event_t *evt);
 
+	void handle_vendor_data(em_bus_event_t *evt);
+
        /**!
         * @brief Handles an Unassociated STA Link Metrics Query event.
         *
@@ -377,6 +388,8 @@ class em_agent_t : public em_mgr_t {
 	bool send_action_frame(uint8_t dest_mac[ETH_ALEN], uint8_t *action_frame, size_t action_frame_len, uint8_t vap_idx, unsigned int frequency=0, unsigned int wait_time_ms=0);
 
 	void send_beacon_query(em_bus_event_t *evt);
+
+	static bool get_tx_power_snapshot(const raw_data_t &data, em_tx_power_response_t *snapshot);
 public:
 
     bus_handle_t m_bus_hdl;
@@ -397,6 +410,18 @@ public:
 	 */
 	void input_listener();
 
+	/**!
+	 * @brief Gets refreshed transmit power for a radio from OneWifi.
+	 *
+	 * The OneWifi property returns a snapshot containing the RUID and transmit
+	 * power for every radio.
+	 *
+	 * @param[in] ruid Radio unique identifier.
+	 * @param[out] tx_power Refreshed transmit power for the requested radio.
+	 *
+	 * @return true when a valid snapshot contains the requested radio.
+	 */
+	bool request_runtime_tx_power(const unsigned char *ruid, int *tx_power) override;
 
 	bool is_agent_dpp_onboarding() override {
 		return do_start_dpp_onboarding;
@@ -417,6 +442,7 @@ public:
 	 */
 	int refresh_onewifi_subdoc(const char *log_name, const webconfig_subdoc_type_t type) override;
 
+	bool refresh_current_radio_data(const unsigned char *ruid) override;
     
 	/**
 	 * @brief Send an action frame
@@ -1088,6 +1114,16 @@ public:
 	 * @return int 1 on success, otherwise -1
 	 */
 	static int failed_conn_cb(char *event_name, bus_data_prop_t *data, void *userData);
+
+	/**
+	 * @brief Bus callback for the OneWifi ClientDisassocStats event
+	 *
+	 * @param event_name The name of the event
+	 * @param data The raw event data
+	 * @param userData Optional user-provided callback data
+	 * @return int 1 on success, otherwise -1
+	 */
+	static int client_disassoc_stats_cb(char *event_name, bus_data_prop_t *data, void *userData);
 
 	/**
 	 * @brief Callback for BSS scan events

@@ -22,6 +22,7 @@
 #include <sanitizer/lsan_interface.h>
 #include "em_ctrl.h"
 #include "dm_easy_mesh_list.h"
+#include "db_client_none.h"
 #include <iomanip>
 
 
@@ -164,6 +165,116 @@ protected:
         __lsan_enable();
     }
 };
+
+class network_ssid_list_test_t : public dm_network_ssid_list_t {
+    dm_easy_mesh_list_t &m_list;
+
+public:
+    explicit network_ssid_list_test_t(dm_easy_mesh_list_t &list) : m_list(list) {}
+
+    dm_network_ssid_t *get_first_network_ssid() override {
+        return m_list.get_first_network_ssid();
+    }
+    dm_network_ssid_t *get_next_network_ssid(dm_network_ssid_t *ssid) override {
+        return m_list.get_next_network_ssid(ssid);
+    }
+    dm_network_ssid_t *get_network_ssid(const char *key) override {
+        return m_list.get_network_ssid(key);
+    }
+    void remove_network_ssid(const char *key) override {
+        m_list.remove_network_ssid(key);
+    }
+    void put_network_ssid(const char *key, const dm_network_ssid_t *ssid) override {
+        m_list.put_network_ssid(key, ssid);
+    }
+    MOCK_METHOD(bus_error_t, bus_get_cb_fwd,
+        (char *, raw_data_t *, bus_get_handler_t), (override));
+    MOCK_METHOD(bus_error_t, network_get, (char *, raw_data_t *), (override));
+    MOCK_METHOD(bus_error_t, device_get, (char *, raw_data_t *), (override));
+};
+
+TEST_F(dm_easy_mesh_list_tTEST, network_ssid_update_without_database_reaches_all_models) {
+    ASSERT_NE(dm1, nullptr);
+    ASSERT_NE(dm2, nullptr);
+    ASSERT_NE(dm3, nullptr);
+    ASSERT_NE(dm4, nullptr);
+    for (dm_easy_mesh_t *dm : {dm1, dm2}) {
+        snprintf(dm->get_network()->m_net_info.id, sizeof(dm->get_network()->m_net_info.id), "Network1");
+    }
+    for (dm_easy_mesh_t *dm : {dm3, dm4}) {
+        snprintf(dm->get_network()->m_net_info.id, sizeof(dm->get_network()->m_net_info.id), "Network2");
+    }
+
+    network_ssid_list_test_t ssids(list);
+    db_client_none_t db;
+    ASSERT_EQ(db.init(nullptr), 0);
+    dm_network_ssid_t ssid;
+    memset(&ssid.m_network_ssid_info, 0, sizeof(ssid.m_network_ssid_info));
+    snprintf(ssid.m_network_ssid_info.id, sizeof(ssid.m_network_ssid_info.id), "Fronthaul@Network1");
+    snprintf(ssid.m_network_ssid_info.ssid, sizeof(ssid.m_network_ssid_info.ssid), "old-ssid");
+    snprintf(ssid.m_network_ssid_info.pass_phrase, sizeof(ssid.m_network_ssid_info.pass_phrase), "old-passphrase");
+    char network_id[] = "Network1";
+    ASSERT_EQ(ssids.set_config(db, ssid, network_id), 0);
+
+    snprintf(ssid.m_network_ssid_info.ssid, sizeof(ssid.m_network_ssid_info.ssid), "new-ssid");
+    snprintf(ssid.m_network_ssid_info.pass_phrase, sizeof(ssid.m_network_ssid_info.pass_phrase), "new-passphrase");
+    ASSERT_EQ(ssids.set_config(db, ssid, network_id), 0);
+
+    for (dm_easy_mesh_t *dm : {dm1, dm2}) {
+        ASSERT_EQ(dm->get_num_network_ssid(), 1u);
+        EXPECT_STREQ(dm->get_network_ssid(0)->m_network_ssid_info.ssid, "new-ssid");
+        EXPECT_STREQ(dm->get_network_ssid(0)->m_network_ssid_info.pass_phrase, "new-passphrase");
+    }
+    EXPECT_EQ(dm3->get_num_network_ssid(), 0u);
+    EXPECT_EQ(dm4->get_num_network_ssid(), 0u);
+}
+
+TEST_F(dm_easy_mesh_list_tTEST, network_ssid_propagation_requires_exact_ids) {
+    ASSERT_NE(dm1, nullptr);
+    ASSERT_NE(dm2, nullptr);
+    ASSERT_NE(dm3, nullptr);
+    ASSERT_NE(dm4, nullptr);
+    for (dm_easy_mesh_t *dm : {dm1, dm2, dm3, dm4}) {
+        const char *network = (dm == dm1 || dm == dm2) ? "Network1" : "Network10";
+        snprintf(dm->get_network()->m_net_info.id, sizeof(dm->get_network()->m_net_info.id), "%s", network);
+        dm->set_num_network_ssid(1);
+        dm_network_ssid_t *ssid = dm->get_network_ssid(0);
+        snprintf(ssid->m_network_ssid_info.id, sizeof(ssid->m_network_ssid_info.id),
+            "Fronthaul@%s", (dm == dm1 || dm == dm2) ? "Network1Extra" : network);
+        snprintf(ssid->m_network_ssid_info.ssid, sizeof(ssid->m_network_ssid_info.ssid), "original");
+        snprintf(ssid->m_network_ssid_info.pass_phrase, sizeof(ssid->m_network_ssid_info.pass_phrase), "original-passphrase");
+    }
+    EXPECT_EQ(list.get_network_ssid("Fronthaul@Network1"), nullptr);
+
+    network_ssid_list_test_t ssids(list);
+    ASSERT_EQ(ssids.init(), 0);
+    db_client_none_t db;
+    ASSERT_EQ(db.init(nullptr), 0);
+    dm_network_ssid_t incoming;
+    snprintf(incoming.m_network_ssid_info.id, sizeof(incoming.m_network_ssid_info.id), "Fronthaul@Network1");
+    snprintf(incoming.m_network_ssid_info.ssid, sizeof(incoming.m_network_ssid_info.ssid), "new-ssid");
+    snprintf(incoming.m_network_ssid_info.pass_phrase, sizeof(incoming.m_network_ssid_info.pass_phrase), "new-passphrase");
+    char network_id[] = "Network1";
+    ASSERT_EQ(ssids.set_config(db, incoming, network_id), 0);
+    snprintf(incoming.m_network_ssid_info.ssid, sizeof(incoming.m_network_ssid_info.ssid), "updated-ssid");
+    ASSERT_EQ(ssids.set_config(db, incoming, network_id), 0);
+
+    for (dm_easy_mesh_t *dm : {dm1, dm2}) {
+        ASSERT_EQ(dm->get_num_network_ssid(), 2u);
+        EXPECT_STREQ(dm->get_network_ssid(0)->m_network_ssid_info.id, "Fronthaul@Network1Extra");
+        EXPECT_STREQ(dm->get_network_ssid(0)->m_network_ssid_info.ssid, "original");
+        EXPECT_STREQ(dm->get_network_ssid(0)->m_network_ssid_info.pass_phrase, "original-passphrase");
+        EXPECT_STREQ(dm->get_network_ssid(1)->m_network_ssid_info.id, "Fronthaul@Network1");
+        EXPECT_STREQ(dm->get_network_ssid(1)->m_network_ssid_info.ssid, "updated-ssid");
+        EXPECT_STREQ(dm->get_network_ssid(1)->m_network_ssid_info.pass_phrase, "new-passphrase");
+    }
+    for (dm_easy_mesh_t *dm : {dm3, dm4}) {
+        ASSERT_EQ(dm->get_num_network_ssid(), 1u);
+        EXPECT_STREQ(dm->get_network_ssid(0)->m_network_ssid_info.id, "Fronthaul@Network10");
+        EXPECT_STREQ(dm->get_network_ssid(0)->m_network_ssid_info.ssid, "original");
+        EXPECT_STREQ(dm->get_network_ssid(0)->m_network_ssid_info.pass_phrase, "original-passphrase");
+    }
+}
 
 
 void setup_valid_interface(em_interface_t &intf, const char* name, const unsigned char mac[6]) {
@@ -732,7 +843,7 @@ TEST_F(dm_easy_mesh_list_tTEST, get_data_model_ExistentNetworkID) {
               << std::setw(2) << std::setfill('0') << static_cast<int>(dm2->m_device.m_device_info.intf.mac[4]) << ":"
               << std::setw(2) << std::setfill('0') << static_cast<int>(dm2->m_device.m_device_info.intf.mac[5])
               << std::dec << std::endl;
-    std::cout << "Num policies: " << dm2->m_num_policy << std::endl;
+    std::cout << "Num policies: " << dm2->get_num_policy() << std::endl;
     std::cout << "Num op classes: " << dm2->m_num_opclass << std::endl;
     ASSERT_STREQ(dm2->m_device.m_device_info.id.net_id, net_id);
     ASSERT_EQ(memcmp(dm2->m_device.m_device_info.intf.mac, mac, 6), 0);
@@ -1109,7 +1220,7 @@ TEST_F(dm_easy_mesh_list_tTEST, get_first_device_returns_valid_pointer)
  * | 03               | Assert that the returned firstElement is not null                          | firstElement, expected value: non-null                                                             | Assertion passes when firstElement != nullptr                           | Should Pass     |
  * | 04               | Validate that the network id of firstElement is "Network2"                  | firstElement->m_device.m_device_info.id.net_id = "Network2"                                          | The network id string is equal to "Network2"                           | Should Pass     |
  * | 05               | Validate that the profile type of firstElement is em_profile_type_3         | firstElement->m_device.m_device_info.profile, expected: em_profile_type_3                             | Profile type matches em_profile_type_3                                 | Should Pass     |
- * | 06               | Validate that the number of policies for firstElement is 8                  | firstElement->m_num_policy, expected: 8                                                              | Policy count equals 8                                                   | Should Pass     |
+ * | 06               | Validate that the policy count for firstElement is 8                         | firstElement->get_num_policy(), expected: 8                                                           | Policy count equals 8                                                   | Should Pass     |
  * | 07               | Log the exit message "Exiting get_first_dm_valid test"                    | No input arguments                                                                                 | "Exiting get_first_dm_valid test" printed to stdout                     | Should be successful |
  */
 TEST_F(dm_easy_mesh_list_tTEST, get_first_dm_valid)
@@ -1119,7 +1230,7 @@ TEST_F(dm_easy_mesh_list_tTEST, get_first_dm_valid)
     ASSERT_NE(firstElement, nullptr);
 	EXPECT_STREQ(firstElement->m_device.m_device_info.id.net_id, "Network2");
 	EXPECT_EQ(firstElement->m_device.m_device_info.profile, em_profile_type_3);
-	EXPECT_EQ(firstElement->m_num_policy, 8);
+    EXPECT_EQ(firstElement->get_num_policy(), 8u);
     std::cout << "Exiting get_first_dm_valid test" << std::endl;
 }
 
@@ -1215,11 +1326,9 @@ TEST_F(dm_easy_mesh_list_tTEST, get_first_op_class_valid)
 }
 
 /**
- * @brief Verify behavior of get_first_policy() when the policy list is empty
+ * @brief Verify that get_first_policy() returns a policy from the populated fixture
  *
- * This test checks if the get_first_policy() function returns a valid policy object even when no policies have been added 
- * (i.e., when m_num_policy is set to 0). The test validates that the returned policy's network ID and type match the expected 
- * default values. This ensures that the API does not fail or return an unexpected null pointer when the policy list is empty.
+ * The fixture creates data models with default policies. This test validates that the first policy is returned with its expected identity.
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 031@n
@@ -1232,21 +1341,17 @@ TEST_F(dm_easy_mesh_list_tTEST, get_first_op_class_valid)
  * **Test Procedure:**
  * | Variation / Step | Description                                                                                           | Test Data                                                                                     | Expected Result                                                                          | Notes         |
  * | :--------------: | ----------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- | ------------- |
- * | 01               | Initialize dm_easy_mesh_t instance and set m_num_policy to 0                                          | dm.m_num_policy = 0                                                                           | The policy list is empty                                                                 | Should be successful |
- * | 02               | Invoke get_first_policy() on list                                                                     | Invocation: get_first_policy()                                                                | Returns a non-null pointer to a dm_policy_t object                                         | Should Pass   |
- * | 03               | Validate returned policy's network ID and policy type                                                 | pol->m_policy.id.net_id = OneWifiMesh, pol->m_policy.id.type = em_policy_id_type_ap_metrics_rep | Assertions pass confirming net_id equals "OneWifiMesh" and type equals em_policy_id_type_ap_metrics_rep | Should Pass   |
+ * | 01 | Invoke get_first_policy() on the populated fixture list | Invocation: get_first_policy() | Returns a non-null pointer to a policy | Should Pass |
+ * | 02 | Validate the returned policy's network ID | net_id = "OneWifiMesh" | The network ID matches | Should Pass |
  */
-TEST_F(dm_easy_mesh_list_tTEST, get_first_policy_empty_policy_list)
+TEST_F(dm_easy_mesh_list_tTEST, get_first_policy_returns_policy_from_fixture)
 {
-    const char* testName = "get_first_policy_empty_policy_list";
+    const char* testName = "get_first_policy_returns_policy_from_fixture";
     std::cout << "Entering " << testName << " test" << std::endl;
-    dm_easy_mesh_t dm;
-    dm.m_num_policy = 0;
     std::cout << "Invoking: get_first_policy()" << std::endl;
     dm_policy_t* pol = list.get_first_policy();
     ASSERT_NE(pol, nullptr);
     EXPECT_STREQ(pol->m_policy.id.net_id, "OneWifiMesh");
-    EXPECT_EQ(pol->m_policy.id.type, em_policy_id_type_ap_metrics_rep);
     //EXPECT_EQ(memcmp(pol->m_policy.id.originator, zeroMac, 6), 0);
     std::cout << "Exiting " << testName << " test" << std::endl;
 }

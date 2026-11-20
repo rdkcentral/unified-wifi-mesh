@@ -27,6 +27,7 @@ PROGRAM = $(INSTALLDIR)/bin/onewifi_em_ctrl
 
 INCLUDEDIRS = \
 	-I$(ONEWIFI_EM_HOME)/inc \
+	-I$(ONEWIFI_EM_HOME) \
 	-I$(ONEWIFI_HAL_INTF_HOME)/ \
 	-I$(ONEWIFI_HOME)/source/utils \
 	-I$(ONEWIFI_HOME)/include \
@@ -114,7 +115,16 @@ CTRL_SOURCES = $(wildcard $(ONEWIFI_EM_SRC)/em/*.cpp) \
 	$(ONEWIFI_EM_SRC)/orch/em_orch_ctrl.cpp \
 	$(wildcard $(ONEWIFI_EM_SRC)/utils/*.cpp) \
 
-CTRL_OBJECTS = $(CTRL_SOURCES:.cpp=.o)
+ifneq ($(strip $(UWM_VENDOR_EXT_DIR)),)
+UWM_VENDOR_EXT_TARGET = ctrl
+-include $(UWM_VENDOR_EXT_DIR)/vendor-ext.mk
+ifneq ($(strip $(UWM_VENDOR_EXT_INC_DIR)),)
+CXXFLAGS += -I$(UWM_VENDOR_EXT_INC_DIR)
+endif
+endif
+
+CTRL_CORE_OBJECTS = $(CTRL_SOURCES:.cpp=.o)
+CTRL_OBJECTS = $(CTRL_CORE_OBJECTS) $(UWM_VENDOR_EXT_OBJECTS)
 GENERIC_OBJECTS = $(GENERIC_SOURCES:.c=.o) 
 ALLOBJECTS = $(CTRL_OBJECTS) $(GENERIC_OBJECTS)
 
@@ -126,7 +136,7 @@ $(PROGRAM): $(ALLOBJECTS)
 $(GENERIC_OBJECTS): %.o: %.c
 	$(CC) $(CXXFLAGS) -o $@ -c $<
 
-$(CTRL_OBJECTS): %.o: %.cpp
+$(CTRL_CORE_OBJECTS): %.o: %.cpp
 	$(CXX) $(CXXFLAGS) -o $@ -c $<
 
 # Clean everything

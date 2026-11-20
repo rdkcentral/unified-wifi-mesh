@@ -21,6 +21,12 @@ AM_CFLAGS += -D_ANSC_LITTLE_ENDIAN_
  
 ACLOCAL_AMFLAGS = -I m4
 hardware_platform = i686-linux-gnu
+
+UWM_VENDOR_EXT_DIR = @UWM_VENDOR_EXT_DIR@
+UWM_VENDOR_EXT_TARGET = ctrl
+OBJDIR = vendor_ext_obj
+UWM_VENDOR_EXT_LOADED := $(if $(strip $(UWM_VENDOR_EXT_DIR)),$(eval -include $(UWM_VENDOR_EXT_DIR)/vendor-ext.mk))
+
 bin_PROGRAMS = onewifi_em_ctrl
 if EM_UNITTEST
 bin_PROGRAMS += onewifi_em_ctrl_test
@@ -30,7 +36,8 @@ onewifi_em_ctrl_CPPFLAGS = \
     -I$(top_srcdir)/inc \
     -I$(top_srcdir)/src/utils \
     -I$(top_srcdir)/src/util \
-    -I$(top_srcdir)/src/util_crypto
+    -I$(top_srcdir)/src/util_crypto\
+    $(if $(strip $(UWM_VENDOR_EXT_INC_DIR)),-I$(UWM_VENDOR_EXT_INC_DIR))
 
 onewifi_em_ctrl_CXXFLAGS = $(INCLUDEDIRS) -g -Wall -Wextra -pedantic -Wpedantic -Wpointer-arith -Wcast-qual -Wcast-align -Wstrict-aliasing -fno-common -Wctor-dtor-privacy -Wold-style-cast -Woverloaded-virtual -Wsign-promo -Wstrict-null-sentinel -fstack-protector-strong -D_FORTIFY_SOURCE=2 -fPIE -pie -ftrapv -Wformat=2 -Wformat-security -Wuninitialized -Winit-self -Wsign-conversion -Weffc++ -Wno-unused-parameter -std=c++17 -fno-omit-frame-pointer #-Wconversion -Werror -O2
 if EM_ASAN_CTRL
@@ -58,6 +65,7 @@ onewifi_em_ctrl_SOURCES =  \
      $(top_srcdir)/src/em/channel/em_channel.cpp  \
      $(top_srcdir)/src/em/capability/em_capability.cpp \
      $(top_srcdir)/src/em/metrics/em_metrics.cpp \
+     $(top_srcdir)/src/em/em_vendor.cpp \
      $(top_srcdir)/src/em/steering/em_steering.cpp \
      $(top_srcdir)/src/em/policy_cfg/em_policy_cfg.cpp \
      $(top_srcdir)/src/em/crypto/em_crypto.cpp \
@@ -106,6 +114,9 @@ onewifi_em_ctrl_SOURCES =  \
      $(top_srcdir)/src/ctrl/tr_181/wfa_data_model/tr_181_method.cpp \
      $(top_srcdir)/src/ctrl/tr_181/wfa_data_model/tr_181_helper.cpp\
      $(top_srcdir)/src/db/db_client.cpp \
+     $(top_srcdir)/src/db/db_client_local.cpp \
+     $(top_srcdir)/src/db/db_client_cloud.cpp \
+     $(top_srcdir)/src/db/db_client_none.cpp \
      $(top_srcdir)/src/db/db_column.cpp \
      $(top_srcdir)/src/db/db_easy_mesh.cpp \
      $(top_srcdir)/src/dm/dm_ap_mld.cpp \
@@ -151,7 +162,9 @@ if EM_ASAN_CTRL
 onewifi_em_ctrl_LDFLAGS += -fsanitize=address -fsanitize=undefined
 endif
 
-onewifi_em_ctrl_LDADD = $(top_builddir)/src/al-sap/libalsap.la
+onewifi_em_ctrl_LDADD = $(top_builddir)/src/al-sap/libalsap.la $(UWM_VENDOR_EXT_OBJECTS)
+EXTRA_onewifi_em_ctrl_DEPENDENCIES = $(UWM_VENDOR_EXT_OBJECTS)
+$(UWM_VENDOR_EXT_OBJECTS): CXXFLAGS += $(onewifi_em_ctrl_CPPFLAGS) $(onewifi_em_ctrl_CXXFLAGS)
 if EM_UNITTEST
 onewifi_em_ctrl_test_SOURCES = $(onewifi_em_ctrl_SOURCES) \
 	$(top_srcdir)/tests/main.cpp \
@@ -173,6 +186,7 @@ onewifi_em_ctrl_test_SOURCES = $(onewifi_em_ctrl_SOURCES) \
 	$(top_srcdir)/tests/test_l1_dm_radio.cpp \
 	$(top_srcdir)/tests/test_l1_dm_radio_cap.cpp \
 	$(top_srcdir)/tests/test_l1_dm_sta.cpp \
+	$(top_srcdir)/tests/test_l1_sta_updates.cpp \
 	$(top_srcdir)/tests/test_l1_em_discovery.cpp \
 	$(top_srcdir)/tests/test_l1_dm_dpp.cpp \
 	$(top_srcdir)/tests/test_l1_dm_tid_to_link.cpp \
@@ -181,6 +195,7 @@ onewifi_em_ctrl_test_SOURCES = $(onewifi_em_ctrl_SOURCES) \
 	$(top_srcdir)/tests/test_l1_em_onewifi.cpp \
 	$(top_srcdir)/tests/test_l1_db_client.cpp \
 	$(top_srcdir)/tests/test_l1_em_metrics.cpp \
+	$(top_srcdir)/tests/test_l1_em_capability.cpp \
 	$(top_srcdir)/tests/test_l1_em_orch.cpp \
 	$(top_srcdir)/tests/test_l1_em_provisioning.cpp \
 	$(top_srcdir)/tests/test_l1_dm_scan_result.cpp \
@@ -248,5 +263,6 @@ onewifi_em_ctrl_test_CXXFLAGS = $(INCLUDEDIRS) -g -DUNIT_TEST -fno-omit-frame-po
 onewifi_em_ctrl_test_CXXFLAGS += -fsanitize=address -fsanitize=undefined
 onewifi_em_ctrl_test_LDFLAGS = -lcjson -lgtest -lgtest_main -lgmock -lpthread -lssl -lcrypto -lm -luuid -lssl -lrbus -lsqlite3 -lstdc++fs
 onewifi_em_ctrl_test_LDFLAGS += -fsanitize=address -fsanitize=undefined
-onewifi_em_ctrl_test_LDADD = $(top_builddir)/src/al-sap/libalsap.la
+onewifi_em_ctrl_test_LDADD = $(onewifi_em_ctrl_LDADD)
+EXTRA_onewifi_em_ctrl_test_DEPENDENCIES = $(UWM_VENDOR_EXT_OBJECTS)
 endif  # EM_UNITTEST

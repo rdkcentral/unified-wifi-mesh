@@ -107,7 +107,16 @@ CTRL_SOURCES = $(wildcard $(ONEWIFI_EM_SRC)/em/*.cpp) \
 	$(ONEWIFI_EM_SRC)/utils/util.cpp \
 	$(ONEWIFI_EM_SRC)/utils/timer.cpp \
 
-CTRL_OBJECTS = $(CTRL_SOURCES:.cpp=.o)
+ifneq ($(strip $(UWM_VENDOR_EXT_DIR)),)
+-include $(UWM_VENDOR_EXT_DIR)/vendor-ext.mk
+endif
+ifneq ($(strip $(UWM_VENDOR_EXT_CTRL_SRC_FILES)),)
+CXXFLAGS += -I$(UWM_VENDOR_EXT_INC_DIR)
+UWM_VENDOR_EXT_OBJECTS := $(patsubst $(UWM_VENDOR_EXT_DIR)/src/%.cpp,$(OBJDIR)/vendor_ext/%.o,$(UWM_VENDOR_EXT_CTRL_SRC_FILES))
+endif
+
+CTRL_CORE_OBJECTS = $(CTRL_SOURCES:.cpp=.o)
+CTRL_OBJECTS = $(CTRL_CORE_OBJECTS) $(UWM_VENDOR_EXT_OBJECTS)
 GENERIC_OBJECTS = $(GENERIC_SOURCES:.c=.o) 
 ALLOBJECTS = $(CTRL_OBJECTS) $(GENERIC_OBJECTS)
 
@@ -119,8 +128,12 @@ $(PROGRAM): $(ALLOBJECTS)
 $(GENERIC_OBJECTS): %.o: %.c
 	$(CC) $(CFLAGS) -o $@ -c $< 
 
-$(CTRL_OBJECTS): %.o: %.cpp
+$(CTRL_CORE_OBJECTS): %.o: %.cpp
 	$(CXX) $(CXXFLAGS) -o $@ -c $< 
+
+$(OBJDIR)/vendor_ext/%.o: $(UWM_VENDOR_EXT_DIR)/src/%.cpp
+	mkdir -p $(@D)
+	$(CXX) $(CXXFLAGS) -o $@ -c $<
 
 # Make sure $(NVRAM_DIR) exists
 $(NVRAM_DIR):
@@ -174,7 +187,7 @@ ifeq ($(WITH_SAP), 1)
 endif
 	@$(MAKE) $(ALLOBJECTS) TESTING=1
 	@echo "Building test executable with same link order as main build..."
-	$(CXX) -o $(TEST_EXEC) $(TEST_OBJECTS) $(ALLOBJECTS) $(LIBDIRS) $(LIBS) -lgtest -lgtest_main -pthread -fsanitize=address -fsanitize=undefined
+	$(CXX) -o $(TEST_EXEC) $(TEST_OBJECTS) $(ALLOBJECTS) $(LIBDIRS) $(LIBS) -lgmock -lgtest -lgtest_main -pthread -fsanitize=address -fsanitize=undefined
 	@echo "Running tests..."
 	@cd $(TEST_DIR) && \
 	$(TEST_EXEC)
