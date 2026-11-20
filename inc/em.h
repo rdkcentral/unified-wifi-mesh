@@ -28,6 +28,7 @@
 #include "em_channel.h"
 #include "em_capability.h"
 #include "em_metrics.h"
+#include "em_vendor.h"
 #include "em_steering.h"
 #include "em_policy_cfg.h"
 #include "dm_easy_mesh.h"
@@ -51,7 +52,8 @@ class em_t :
     public em_configuration_t, public em_discovery_t, 
     public em_provisioning_t, public em_channel_t,
     public em_capability_t, public em_metrics_t,
-    public em_steering_t, public em_policy_cfg_t  {
+    public em_steering_t, public em_policy_cfg_t,
+    public em_vendor_t  {
     
     dm_easy_mesh_t*  m_data_model;
 	em_mgr_t	*m_mgr;
@@ -769,6 +771,36 @@ public:
 	 */
 	dm_sta_t *find_sta(mac_address_t sta_mac, bssid_t bssid);
 
+	/**!
+	 * @brief Finds a station based on its MAC address.
+	 *
+	 * This function searches for a station in the network using the provided
+	 * MAC address, and returns a pointer to the station information if found.
+	 *
+	 * @param[in] sta_mac The MAC address of the station to find.
+	 *
+	 * @returns A pointer to the station information (dm_sta_t) if the station
+	 * is found, or NULL if the station is not found.
+	 *
+	 * @note Ensure that the MAC address is valid.
+	 */
+	dm_sta_t *find_sta(mac_address_t sta_mac);
+
+	/**!
+	 * @brief Finds a BSS based on its BSSID.
+	 *
+	 * This function searches for a BSS (Basic Service Set) in the network using
+	 * the provided BSSID, and returns a pointer to the BSS information if found.
+	 *
+	 * @param[in] bssid The BSSID of the BSS to find.
+	 *
+	 * @returns A pointer to the BSS information (dm_bss_t) if the BSS is found,
+	 * or NULL if the BSS is not found or belongs to a different radio.
+	 *
+	 * @note Ensure that the BSSID is valid and corresponds to a BSS on the
+	 * current radio interface.
+	 */
+	dm_bss_t *find_bss(bssid_t bssid);
     
 	/**!
 	 * @brief Pushes an event to the queue.
