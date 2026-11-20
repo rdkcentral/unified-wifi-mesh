@@ -7809,6 +7809,8 @@ bus_error_t dm_easy_mesh_ctrl_t::radio_tget_inner(char *event_name, raw_data_t *
     return rc;
 }
 
+static void scanres_append_scanresult(const char *root, dm_easy_mesh_t *dm, em_radio_info_t *ri, bus_data_prop_t **property);
+
 bus_error_t dm_easy_mesh_ctrl_t::radio_tget_params(dm_easy_mesh_t *dm, const char *root, bus_data_prop_t **property)
 {
     char path[512];
@@ -7907,6 +7909,9 @@ bus_error_t dm_easy_mesh_ctrl_t::radio_tget_params(dm_easy_mesh_t *dm, const cha
 
         snprintf(path, sizeof(path) - 1, "%s%d.BSS.", root, idx);
         dm_ctrl->bss_tget_params(dm, path, ri, property);
+
+        snprintf(path, sizeof(path) - 1, "%s%d.ScanResult.", root, idx);
+        scanres_append_scanresult(path, dm, ri, property);
     }
 
     return rc;
@@ -8616,6 +8621,503 @@ bus_error_t dm_easy_mesh_ctrl_t::curops_tget_params(dm_easy_mesh_t *dm, const ch
     }
 
     return rc;
+}
+
+
+/* Scan results of a radio are exposed as ScanResult.1, with the op classes, the channels of an
+ * op class and the neighbors of a channel as instances in ascending order. */
+#define SCANRES_MAX_OPCLASSES   32
+#define SCANRES_MAX_CHANNELS    96
+
+typedef struct {
+    dm_easy_mesh_t *dm;
+    em_radio_info_t *ri;
+    unsigned int level;     /* 1 ScanResult, 2 OpClassScan, 3 ChannelScan, 4 NeighborBSS */
+    unsigned int idx[4];    /* instance number of each level */
+    const char *param;      /* leaf name, for get */
+} scanres_path_t;
+
+/* the instances a path resolves to, filled in as deep as requested */
+typedef struct {
+    unsigned char opcs[SCANRES_MAX_OPCLASSES];
+    unsigned int num_opcs;
+    dm_scan_result_t *chans[SCANRES_MAX_CHANNELS];  /* channels of op class idx[1] */
+    unsigned int num_chans;
+    dm_scan_result_t *sr;                           /* channel idx[2] */
+    em_neighbor_t *nbrs[EM_MAX_NEIGHBORS];          /* neighbors of channel idx[2] */
+    unsigned int num_nbrs;
+} scanres_view_t;
+
+static bool scanres_is_radio_result(dm_scan_result_t *sr, em_radio_info_t *ri)
+{
+    em_scan_result_id_t *id = &sr->get_scan_result()->id;
+
+    return (id->scanner_type == em_scanner_type_radio) &&
+            (memcmp(id->scanner_mac, ri->id.ruid, sizeof(mac_address_t)) == 0);
+}
+
+static const char *scanres_bw_str(wifi_channelBandwidth_t bw)
+{
+    switch (bw) {
+    case WIFI_CHANNELBANDWIDTH_20MHZ:
+        return "20";
+    case WIFI_CHANNELBANDWIDTH_40MHZ:
+        return "40";
+    case WIFI_CHANNELBANDWIDTH_80MHZ:
+        return "80";
+    case WIFI_CHANNELBANDWIDTH_160MHZ:
+        return "160";
+    case WIFI_CHANNELBANDWIDTH_80_80MHZ:
+        return "80+80";
+    case WIFI_CHANNELBANDWIDTH_320MHZ:
+        return "320";
+    default:
+        return "";
+    }
+}
+
+/* latest timestamp of the channel scans of the radio */
+static const char *scanres_get_timestamp(dm_easy_mesh_t *dm, em_radio_info_t *ri)
+{
+    const char *ts = "";
+
+    for (dm_scan_result_t *sr = static_cast<dm_scan_result_t *> (hash_map_get_first(dm->m_scan_result_map));
+            sr != NULL; sr = static_cast<dm_scan_result_t *> (hash_map_get_next(dm->m_scan_result_map, sr))) {
+        if (scanres_is_radio_result(sr, ri) && strcmp(sr->get_scan_result()->timestamp, ts) > 0) {
+            ts = sr->get_scan_result()->timestamp;
+        }
+    }
+
+    return ts;
+}
+
+static unsigned int scanres_get_opclasses(dm_easy_mesh_t *dm, em_radio_info_t *ri, unsigned char *opcs, unsigned int max)
+{
+    unsigned int n = 0;
+    bool truncated = false;
+
+    for (dm_scan_result_t *sr = static_cast<dm_scan_result_t *> (hash_map_get_first(dm->m_scan_result_map));
+            sr != NULL; sr = static_cast<dm_scan_result_t *> (hash_map_get_next(dm->m_scan_result_map, sr))) {
+        unsigned char op_class = sr->get_scan_result()->id.op_class;
+        unsigned int i;
+
+        if (!scanres_is_radio_result(sr, ri)) {
+            continue;
+        }
+        for (i = 0; i < n; i++) {
+            if (opcs[i] == op_class) {
+                break;
+            }
+        }
+        if (i < n) {
+            continue;
+        }
+        if (n >= max) {
+            truncated = true;
+            continue;
+        }
+        for (i = n; i > 0 && opcs[i - 1] > op_class; i--) {
+            opcs[i] = opcs[i - 1];
+        }
+        opcs[i] = op_class;
+        n++;
+    }
+
+    if (truncated) {
+        em_printfout("Scan result op classes truncated to %u\n", max);
+    }
+
+    return n;
+}
+
+static unsigned int scanres_get_channels(dm_easy_mesh_t *dm, em_radio_info_t *ri, unsigned char op_class, dm_scan_result_t **out, unsigned int max)
+{
+    unsigned int n = 0;
+    bool truncated = false;
+
+    for (dm_scan_result_t *sr = static_cast<dm_scan_result_t *> (hash_map_get_first(dm->m_scan_result_map));
+            sr != NULL; sr = static_cast<dm_scan_result_t *> (hash_map_get_next(dm->m_scan_result_map, sr))) {
+        unsigned int i;
+
+        if (!scanres_is_radio_result(sr, ri) || sr->get_scan_result()->id.op_class != op_class) {
+            continue;
+        }
+        if (n >= max) {
+            truncated = true;
+            continue;
+        }
+        for (i = n; i > 0 && out[i - 1]->get_scan_result()->id.channel > sr->get_scan_result()->id.channel; i--) {
+            out[i] = out[i - 1];
+        }
+        out[i] = sr;
+        n++;
+    }
+
+    if (truncated) {
+        em_printfout("Scan result channels of op class %u truncated to %u\n", op_class, max);
+    }
+
+    return n;
+}
+
+static unsigned int scanres_get_neighbors(dm_scan_result_t *sr, em_neighbor_t **out, unsigned int max)
+{
+    em_scan_result_t *res = sr->get_scan_result();
+    mac_address_t null_mac = { 0 };
+    unsigned int n = 0;
+
+    if (res->num_neighbors > EM_MAX_NEIGHBORS) {
+        em_printfout("Scan result neighbors truncated to %d\n", EM_MAX_NEIGHBORS);
+    }
+
+    for (unsigned int i = 0; i < res->num_neighbors && i < EM_MAX_NEIGHBORS && n < max; i++) {
+        if (memcmp(res->neighbor[i].bssid, null_mac, sizeof(mac_address_t)) == 0) {
+            continue;
+        }
+        out[n++] = &res->neighbor[i];
+    }
+
+    return n;
+}
+
+static bus_error_t scanres_parse_path(char *event_name, bool is_table, scanres_path_t *sp)
+{
+    static const char *tables[] = { "ScanResult.", "OpClassScan.", "ChannelScan.", "NeighborBSS." };
+    const char *name = event_name;
+    char instance[MAX_INSTANCE_LEN] = { 0 };
+    bool is_num;
+
+    memset(sp, 0, sizeof(*sp));
+
+    if (is_table && *(name + (strlen(name) - 1)) != '.') {
+        return bus_error_invalid_operation;
+    }
+
+    dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
+
+    name += sizeof(DATAELEMS_NETWORK);
+    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    sp->dm = dm_ctrl->get_dm_easy_mesh(instance, is_num);
+    if (sp->dm == NULL) {
+        em_printfout("Device not found");
+        return bus_error_invalid_namespace;
+    }
+
+    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    dm_radio_t *radio = dm_ctrl->get_dm_radio(sp->dm, instance, is_num);
+    if (radio == NULL) {
+        em_printfout("Radio not found");
+        return bus_error_invalid_namespace;
+    }
+    sp->ri = radio->get_radio_info();
+
+    for (unsigned int d = 1; d <= 4; d++) {
+        size_t len = strlen(tables[d - 1]);
+
+        if (strncmp(name, tables[d - 1], len) != 0) {
+            return bus_error_invalid_input;
+        }
+        if (is_table && name[len] == '\0') {
+            sp->level = d;
+            return bus_error_success;
+        }
+
+        name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+        sp->idx[d - 1] = static_cast<unsigned int> (atoi(instance));
+        if (sp->idx[d - 1] == 0) {
+            return bus_error_invalid_input;
+        }
+
+        if (d < 4 && strncmp(name, tables[d], strlen(tables[d])) == 0) {
+            continue;
+        }
+        if (is_table) {
+            return bus_error_invalid_input;
+        }
+        sp->level = d;
+        sp->param = name;
+        return bus_error_success;
+    }
+
+    return bus_error_invalid_input;
+}
+
+/* Resolve the first 'depth' instances of the path. v->opcs and v->num_opcs have to be filled in. */
+static bus_error_t scanres_resolve(const scanres_path_t *sp, unsigned int depth, scanres_view_t *v)
+{
+    v->num_chans = 0;
+    v->num_nbrs = 0;
+    v->sr = NULL;
+
+    if (depth < 2) {
+        return bus_error_success;
+    }
+    if (sp->idx[1] > v->num_opcs) {
+        return bus_error_invalid_namespace;
+    }
+    v->num_chans = scanres_get_channels(sp->dm, sp->ri, v->opcs[sp->idx[1] - 1], v->chans, SCANRES_MAX_CHANNELS);
+
+    if (depth < 3) {
+        return bus_error_success;
+    }
+    if (sp->idx[2] > v->num_chans) {
+        return bus_error_invalid_namespace;
+    }
+    v->sr = v->chans[sp->idx[2] - 1];
+    v->num_nbrs = scanres_get_neighbors(v->sr, v->nbrs, EM_MAX_NEIGHBORS);
+
+    if (depth < 4) {
+        return bus_error_success;
+    }
+    if (sp->idx[3] > v->num_nbrs) {
+        return bus_error_invalid_namespace;
+    }
+
+    return bus_error_success;
+}
+
+/* The tget functions below write their own table and also the tables below it, like bss_tget_params
+ * does for the STAs, so that one get on a table returns the whole subtree. 'root' is the path of the
+ * table, ending in '.'. */
+static void scanres_append_neighbors(const char *root, dm_scan_result_t *sr, bus_data_prop_t **property)
+{
+    dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
+    em_neighbor_t *nbrs[EM_MAX_NEIGHBORS];
+    unsigned int num_nbrs = scanres_get_neighbors(sr, nbrs, EM_MAX_NEIGHBORS);
+
+    for (unsigned int k = 0; k < num_nbrs; k++) {
+        mac_addr_str_t bssid_str;
+        dm_easy_mesh_t::macbytes_to_string(nbrs[k]->bssid, bssid_str);
+        dm_ctrl->property_append_tail(property, root, k + 1, "BSSID", static_cast<const char *> (bssid_str));
+        dm_ctrl->property_append_tail(property, root, k + 1, "SSID", static_cast<const char *> (nbrs[k]->ssid));
+        dm_ctrl->property_append_tail(property, root, k + 1, "SignalStrength", static_cast<uint32_t> (static_cast<unsigned char> (nbrs[k]->signal_strength)));
+        dm_ctrl->property_append_tail(property, root, k + 1, "ChannelBandwidth", scanres_bw_str(nbrs[k]->bandwidth));
+        dm_ctrl->property_append_tail(property, root, k + 1, "ChannelUtilization", static_cast<uint32_t> (nbrs[k]->channel_util));
+        dm_ctrl->property_append_tail(property, root, k + 1, "StationCount", static_cast<uint32_t> (nbrs[k]->sta_count));
+    }
+}
+
+static void scanres_append_channels(const char *root, dm_easy_mesh_t *dm, em_radio_info_t *ri, unsigned char op_class, bus_data_prop_t **property)
+{
+    dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
+    dm_scan_result_t *chans[SCANRES_MAX_CHANNELS];
+    em_neighbor_t *nbrs[EM_MAX_NEIGHBORS];
+    unsigned int num_chans = scanres_get_channels(dm, ri, op_class, chans, SCANRES_MAX_CHANNELS);
+    char path[512];
+
+    for (unsigned int j = 0; j < num_chans; j++) {
+        em_scan_result_t *res = chans[j]->get_scan_result();
+        unsigned int num_nbrs = scanres_get_neighbors(chans[j], nbrs, EM_MAX_NEIGHBORS);
+
+        dm_ctrl->property_append_tail(property, root, j + 1, "ScanStatus", static_cast<uint32_t> (res->scan_status));
+        dm_ctrl->property_append_tail(property, root, j + 1, "Channel", static_cast<uint32_t> (res->id.channel));
+        dm_ctrl->property_append_tail(property, root, j + 1, "TimeStamp", static_cast<const char *> (res->timestamp));
+        dm_ctrl->property_append_tail(property, root, j + 1, "Utilization", static_cast<uint32_t> (res->util));
+        dm_ctrl->property_append_tail(property, root, j + 1, "Noise", static_cast<uint32_t> (res->noise));
+        dm_ctrl->property_append_tail(property, root, j + 1, "NeighborBSSNumberOfEntries", static_cast<uint32_t> (num_nbrs));
+
+        snprintf(path, sizeof(path), "%s%u.NeighborBSS.", root, j + 1);
+        scanres_append_neighbors(path, chans[j], property);
+    }
+}
+
+static void scanres_append_opclasses(const char *root, dm_easy_mesh_t *dm, em_radio_info_t *ri, bus_data_prop_t **property)
+{
+    dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
+    unsigned char opcs[SCANRES_MAX_OPCLASSES];
+    dm_scan_result_t *chans[SCANRES_MAX_CHANNELS];
+    unsigned int num_opcs = scanres_get_opclasses(dm, ri, opcs, SCANRES_MAX_OPCLASSES);
+    char path[512];
+
+    for (unsigned int i = 0; i < num_opcs; i++) {
+        unsigned int num_chans = scanres_get_channels(dm, ri, opcs[i], chans, SCANRES_MAX_CHANNELS);
+
+        dm_ctrl->property_append_tail(property, root, i + 1, "OperatingClass", static_cast<uint32_t> (opcs[i]));
+        dm_ctrl->property_append_tail(property, root, i + 1, "ChannelScanNumberOfEntries", static_cast<uint32_t> (num_chans));
+
+        snprintf(path, sizeof(path), "%s%u.ChannelScan.", root, i + 1);
+        scanres_append_channels(path, dm, ri, opcs[i], property);
+    }
+}
+
+static void scanres_append_scanresult(const char *root, dm_easy_mesh_t *dm, em_radio_info_t *ri, bus_data_prop_t **property)
+{
+    dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
+    unsigned char opcs[SCANRES_MAX_OPCLASSES];
+    unsigned int num_opcs = scanres_get_opclasses(dm, ri, opcs, SCANRES_MAX_OPCLASSES);
+    char path[512];
+
+    if (num_opcs == 0) {
+        return;
+    }
+
+    dm_ctrl->property_append_tail(property, root, 1, "TimeStamp", scanres_get_timestamp(dm, ri));
+    dm_ctrl->property_append_tail(property, root, 1, "OpClassScanNumberOfEntries", static_cast<uint32_t> (num_opcs));
+
+    snprintf(path, sizeof(path), "%s1.OpClassScan.", root);
+    scanres_append_opclasses(path, dm, ri, property);
+}
+
+static bus_error_t scanres_tget_params(const char *root, scanres_path_t *sp, bus_data_prop_t **property)
+{
+    scanres_view_t v = {};
+    bus_error_t rc;
+
+    v.num_opcs = scanres_get_opclasses(sp->dm, sp->ri, v.opcs, SCANRES_MAX_OPCLASSES);
+    if (v.num_opcs == 0 || sp->idx[0] > 1) {
+        return bus_error_success;
+    }
+
+    /* a table path has one instance less than its level */
+    rc = scanres_resolve(sp, sp->level - 1, &v);
+    if (rc != bus_error_success) {
+        return rc;
+    }
+
+    switch (sp->level) {
+    case 1:
+        scanres_append_scanresult(root, sp->dm, sp->ri, property);
+        break;
+    case 2:
+        scanres_append_opclasses(root, sp->dm, sp->ri, property);
+        break;
+    case 3:
+        scanres_append_channels(root, sp->dm, sp->ri, v.opcs[sp->idx[1] - 1], property);
+        break;
+    case 4:
+        scanres_append_neighbors(root, v.sr, property);
+        break;
+    default:
+        return bus_error_invalid_input;
+    }
+
+    return bus_error_success;
+}
+
+bus_error_t dm_easy_mesh_ctrl_t::scanres_tget_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
+{
+    (void) user_data;
+    scanres_path_t sp;
+    bus_data_prop_t *property = NULL;
+    bus_error_t rc;
+
+    if (!event_name || !p_data) {
+        return bus_error_invalid_input;
+    }
+
+    rc = scanres_parse_path(event_name, true, &sp);
+    if (rc != bus_error_success) {
+        return rc;
+    }
+
+    dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
+    rc = scanres_tget_params(event_name, &sp, &property);
+    if (rc == bus_error_success && property) {
+        dm_ctrl->raw_data_set(p_data, property);
+    }
+
+    return rc;
+}
+
+bus_error_t dm_easy_mesh_ctrl_t::scanres_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
+{
+    (void) user_data;
+    scanres_path_t sp;
+    scanres_view_t v = {};
+    bus_error_t rc;
+
+    if (!event_name || !p_data) {
+        return bus_error_invalid_input;
+    }
+
+    rc = scanres_parse_path(event_name, false, &sp);
+    if (rc != bus_error_success) {
+        return rc;
+    }
+
+    dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
+    const char *param = sp.param;
+
+    v.num_opcs = scanres_get_opclasses(sp.dm, sp.ri, v.opcs, SCANRES_MAX_OPCLASSES);
+    if (sp.idx[0] != 1 || v.num_opcs == 0) {
+        return bus_error_invalid_namespace;
+    }
+
+    rc = scanres_resolve(&sp, sp.level, &v);
+    if (rc != bus_error_success) {
+        return rc;
+    }
+
+    if (sp.level == 1) {
+        if (strcmp(param, "OpClassScanNumberOfEntries") == 0) {
+            return dm_ctrl->raw_data_set(p_data, static_cast<uint32_t> (v.num_opcs));
+        } else if (strcmp(param, "TimeStamp") == 0) {
+            return dm_ctrl->raw_data_set(p_data, scanres_get_timestamp(sp.dm, sp.ri));
+        }
+        em_printfout("Invalid param: %s\n", param);
+        return bus_error_invalid_input;
+    }
+
+    if (sp.level == 2) {
+        if (strcmp(param, "OperatingClass") == 0) {
+            return dm_ctrl->raw_data_set(p_data, static_cast<uint32_t> (v.opcs[sp.idx[1] - 1]));
+        } else if (strcmp(param, "ChannelScanNumberOfEntries") == 0) {
+            return dm_ctrl->raw_data_set(p_data, static_cast<uint32_t> (v.num_chans));
+        }
+        em_printfout("Invalid param: %s\n", param);
+        return bus_error_invalid_input;
+    }
+
+    em_scan_result_t *res = v.sr->get_scan_result();
+
+    if (sp.level == 3) {
+        if (strcmp(param, "ScanStatus") == 0) {
+            return dm_ctrl->raw_data_set(p_data, static_cast<uint32_t> (res->scan_status));
+        } else if (strcmp(param, "Channel") == 0) {
+            return dm_ctrl->raw_data_set(p_data, static_cast<uint32_t> (res->id.channel));
+        } else if (strcmp(param, "TimeStamp") == 0) {
+            return dm_ctrl->raw_data_set(p_data, static_cast<const char *> (res->timestamp));
+        } else if (strcmp(param, "Utilization") == 0) {
+            return dm_ctrl->raw_data_set(p_data, static_cast<uint32_t> (res->util));
+        } else if (strcmp(param, "Noise") == 0) {
+            return dm_ctrl->raw_data_set(p_data, static_cast<uint32_t> (res->noise));
+        } else if (strcmp(param, "NeighborBSSNumberOfEntries") == 0) {
+            return dm_ctrl->raw_data_set(p_data, static_cast<uint32_t> (v.num_nbrs));
+        }
+        em_printfout("Invalid param: %s\n", param);
+        return bus_error_invalid_input;
+    }
+
+    em_neighbor_t *nbr = v.nbrs[sp.idx[3] - 1];
+
+    if (strcmp(param, "BSSID") == 0) {
+        mac_addr_str_t bssid_str;
+        dm_easy_mesh_t::macbytes_to_string(nbr->bssid, bssid_str);
+        return dm_ctrl->raw_data_set(p_data, static_cast<const char *> (bssid_str));
+    } else if (strcmp(param, "SSID") == 0) {
+        return dm_ctrl->raw_data_set(p_data, static_cast<const char *> (nbr->ssid));
+    } else if (strcmp(param, "SignalStrength") == 0) {
+        return dm_ctrl->raw_data_set(p_data, static_cast<uint32_t> (static_cast<unsigned char> (nbr->signal_strength)));
+    } else if (strcmp(param, "ChannelBandwidth") == 0) {
+        return dm_ctrl->raw_data_set(p_data, scanres_bw_str(nbr->bandwidth));
+    } else if (strcmp(param, "ChannelUtilization") == 0) {
+        return dm_ctrl->raw_data_set(p_data, static_cast<uint32_t> (nbr->channel_util));
+    } else if (strcmp(param, "StationCount") == 0) {
+        return dm_ctrl->raw_data_set(p_data, static_cast<uint32_t> (nbr->sta_count));
+    }
+
+    em_printfout("Invalid param: %s\n", param);
+    return bus_error_invalid_input;
+}
+
+bus_error_t dm_easy_mesh_ctrl_t::scanres_get(char *event_name, raw_data_t *p_data)
+{
+    return bus_get_cb_fwd(event_name, p_data, scanres_get_inner);
+}
+
+bus_error_t dm_easy_mesh_ctrl_t::scanres_tget(char *event_name, raw_data_t *p_data)
+{
+    return bus_get_cb_fwd(event_name, p_data, scanres_tget_inner);
 }
 
 /* Build a comma-separated list string of the non-operable channels of a
