@@ -8,7 +8,7 @@ Name=onewifi_em_agent
 VETH_BASE_IFACE="eth1" # Base interface for veth pair
 VETH_AGENT_PEER="${VETH_BASE_IFACE}_virt_peer" # Peer interface for veth pair
 BRIDGE_NAME="br-lan"
-DELAY_BEFORE_AGENT_START=30 #Delay in seconds
+DELAY_BEFORE_AGENT_START=0 #Delay in seconds
 
 # Process 2 configuration
 PROG="/usr/bin/onewifi_em_agent"

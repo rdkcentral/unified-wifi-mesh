@@ -1936,26 +1936,25 @@ void em_agent_t::input_listener()
     load_em_plus_cfg();
     fill_extended_device_info();
 
-    raw_data_t ready_data = {};
-    while ((bus_error_val = desc->bus_data_get_fn(&m_bus_hdl, WIFI_EM_GET_TX_POWER,
-                &ready_data)) != bus_error_success) {
-        if (ready_data.raw_data.bytes != nullptr) {
-            desc->bus_data_free_fn(&ready_data);
+    // OneWifi serves Init_dml before its monitor is up; wait for it to avoid an empty radio/BSS config
+    int monitor_retry = 0;
+    while (true) {
+        raw_data_t monitor_data = {};
+        bus_error_val = desc->bus_data_get_fn(&m_bus_hdl, WIFI_EM_MONITOR_DONE, &monitor_data);
+        bool monitor_done = (bus_error_val == bus_error_success) &&
+            (monitor_data.data_type == bus_data_type_boolean) && monitor_data.raw_data.b;
+        if (bus_error_val == bus_error_success && monitor_data.data_type != bus_data_type_boolean &&
+            monitor_data.raw_data.bytes != nullptr) {
+            desc->bus_data_free_fn(&monitor_data);
         }
-        ready_data = {};
-        em_printfout("Transmit power GET failed for %s, error: %d; retrying",
-            WIFI_EM_GET_TX_POWER, bus_error_val);
+        if (monitor_done) {
+            break;
+        }
+        monitor_retry++;
+        em_printfout("OneWifi monitor not ready (err: %d), retrying %d", bus_error_val, monitor_retry);
         usleep(RETRY_SLEEP_INTERVAL_IN_MS * 1000);
     }
-    em_tx_power_response_t tx_power_response = {};
-    bool tx_power_ready = get_tx_power_snapshot(ready_data, &tx_power_response);
-    if (ready_data.raw_data.bytes != nullptr) {
-        desc->bus_data_free_fn(&ready_data);
-    }
-    if (!tx_power_ready) {
-        em_printfout("Invalid transmit power snapshot from %s", WIFI_EM_GET_TX_POWER);
-        return;
-    }
+    em_printfout("OneWifi monitor is ready");
 
     memset(&data, 0, sizeof(raw_data_t));
 
