@@ -100,6 +100,7 @@ int xmidt_optimizer_client_t::reply_to_request(const wrp_msg_t *request)
                 status = "Failed";
             } else {
                 rsp_obj = full_scan(in_params);
+                printf("%s\n", cJSON_Print(rsp_obj));
                 status = "Complete";
             }
             break;

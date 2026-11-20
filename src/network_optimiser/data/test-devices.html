@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Device Loading</title>
+</head>
+<body>
+    <h1>Device Loading Test</h1>
+    <button onclick="testFetch()">Test Fetch devices.json</button>
+    <div id="result"></div>
+
+    <script>
+        async function testFetch() {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = '<p>Testing...</p>';
+            
+            try {
+                console.log('Fetching devices.json...');
+                const response = await fetch('devices.json');
+                console.log('Response status:', response.status);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP Error: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                console.log('Data received:', data);
+                
+                resultDiv.innerHTML = `
+                    <h2>Success! Loaded ${data.length} devices</h2>
+                    <pre>${JSON.stringify(data, null, 2).substring(0, 500)}...</pre>
+                `;
+            } catch (error) {
+                console.error('Error:', error);
+                resultDiv.innerHTML = `<h2 style="color: red;">Error: ${error.message}</h2>`;
+            }
+        }
+    </script>
+</body>
+</html>

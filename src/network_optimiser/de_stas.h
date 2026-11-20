@@ -36,6 +36,7 @@ public:
 
     void update(de_sta_t& sta, unsigned int dpos, unsigned int rpos, unsigned int bpos, unsigned int spos);
 
+    void publish_stalist();
     void publish(const char *event_name);
 
     rbusError_t add(rbusHandle_t handle, char const* table_name, char const* alias_name, uint32_t* inst_num);

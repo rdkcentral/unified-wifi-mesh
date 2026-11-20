@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WirelessScan Debug</title>
+    <style>
+        body { font-family: Arial; margin: 20px; }
+        .log { background: #f0f0f0; padding: 10px; margin: 10px 0; border-radius: 5px; font-family: monospace; }
+        .success { color: green; }
+        .error { color: red; }
+        button { padding: 10px 20px; margin: 10px 0; }
+    </style>
+</head>
+<body>
+    <h1>WirelessScan Debug Console</h1>
+    
+    <div>
+        <h2>Tests</h2>
+        <button onclick="testFetch()">Test Fetch devices.json</button>
+        <button onclick="testDOM()">Test DOM Elements</button>
+        <button onclick="clearLogs()">Clear Logs</button>
+    </div>
+
+    <div id="logs"></div>
+
+    <script>
+        const logs = [];
+        
+        function log(message) {
+            logs.push(message);
+            updateDisplay();
+            console.log(message);
+        }
+        
+        function updateDisplay() {
+            const logsDiv = document.getElementById('logs');
+            logsDiv.innerHTML = logs.map(msg => {
+                const isError = msg.includes('ERROR') || msg.includes('Failed');
+                return `<div class="log ${isError ? 'error' : ''}">${msg}</div>`;
+            }).join('');
+        }
+        
+        function clearLogs() {
+            logs.length = 0;
+            updateDisplay();
+        }
+        
+        async function testFetch() {
+            log('🧪 Starting fetch test...');
+            try {
+                log('Fetching devices.json...');
+                const response = await fetch('devices.json');
+                log(`✓ Response status: ${response.status}`);
+                
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                
+                const data = await response.json();
+                log(`✓ JSON parsed successfully`);
+                log(`✓ Found ${data.length} devices`);
+                
+                data.forEach((device, i) => {
+                    log(`  Device ${i+1}: ${device.vendor} (${device.mac})`);
+                });
+            } catch (error) {
+                log(`❌ ERROR: ${error.message}`);
+            }
+        }
+        
+        function testDOM() {
+            log('🧪 Starting DOM test...');
+            
+            const deviceSelect = document.getElementById('wireless-scan-device');
+            if (deviceSelect) {
+                log(`✓ Found device select element`);
+                log(`  Current options: ${deviceSelect.options.length}`);
+                for (let i = 0; i < deviceSelect.options.length; i++) {
+                    log(`    [${i}]: "${deviceSelect.options[i].text}"`);
+                }
+            } else {
+                log(`❌ ERROR: device select element not found`);
+            }
+            
+            const radioSelect = document.getElementById('wireless-scan-radio');
+            if (radioSelect) {
+                log(`✓ Found radio select element`);
+                log(`  Disabled: ${radioSelect.disabled}`);
+            } else {
+                log(`❌ ERROR: radio select element not found`);
+            }
+            
+            if (window.WirelessScanHandler) {
+                log(`✓ WirelessScanHandler exists`);
+                log(`  Devices loaded: ${window.WirelessScanHandler.devices.length}`);
+            } else {
+                log(`❌ ERROR: WirelessScanHandler not found`);
+            }
+        }
+        
+        // Capture console logs
+        const originalLog = console.log;
+        const originalError = console.error;
+        
+        console.log = function(...args) {
+            originalLog(...args);
+            const msg = args.map(a => typeof a === 'string' ? a : JSON.stringify(a)).join(' ');
+            if (msg.includes('[WirelessScanHandler]')) {
+                log(msg);
+            }
+        };
+        
+        console.error = function(...args) {
+            originalError(...args);
+            const msg = args.map(a => typeof a === 'string' ? a : JSON.stringify(a)).join(' ');
+            log(`❌ ${msg}`);
+        };
+        
+        log('Debug console ready');
+        
+        // Auto-run tests after page loads
+        setTimeout(() => {
+            log('');
+            log('=== AUTO-RUNNING TESTS ===');
+            testDOM();
+            setTimeout(() => testFetch(), 500);
+        }, 1000);
+    </script>
+</body>
+</html>

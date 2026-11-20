@@ -42,11 +42,156 @@ void de_net_ssid_t::update(de_net_ssid_t& net_ssid)
 
 void de_net_ssid_t::serialize(rbusObject_t& ob)
 {
+    rbusValue_t value;
+
+    rbusValue_Init(&value);
+    rbusValue_SetString(value, m_ssid);
+    rbusObject_SetValue(ob, "SSID", value);
+    rbusValue_Release(value);
+
+    rbusValue_Init(&value);
+    rbusValue_SetBoolean(value, m_enabled);
+    rbusObject_SetValue(ob, "Enable", value);
+    rbusValue_Release(value);
+
+    rbusValue_Init(&value);
+    rbusValue_SetString(value, m_op);
+    rbusObject_SetValue(ob, "AddRemoveChange", value);
+    rbusValue_Release(value);
+
+    rbusValue_Init(&value);
+    rbusValue_SetString(value, m_passphrase);
+    rbusObject_SetValue(ob, "PassPhrase", value);
+    rbusValue_Release(value);
+
+    rbusValue_Init(&value);
+    rbusValue_SetString(value, m_band);
+    rbusObject_SetValue(ob, "Band", value);
+    rbusValue_Release(value);
+
+    rbusValue_Init(&value);
+    rbusValue_SetString(value, m_akms_allowed);
+    rbusObject_SetValue(ob, "AKMsAllowed", value);
+    rbusValue_Release(value);
+
+    rbusValue_Init(&value);
+    rbusValue_SetString(value, m_suite_selector);
+    rbusObject_SetValue(ob, "SuiteSelector", value);
+    rbusValue_Release(value);
+
+    rbusValue_Init(&value);
+    rbusValue_SetBoolean(value, m_advertisement);
+    rbusObject_SetValue(ob, "AdvertisementEnabled", value);
+    rbusValue_Release(value);
+
+    rbusValue_Init(&value);
+    rbusValue_SetString(value, m_mfp_config);
+    rbusObject_SetValue(ob, "MFPConfig", value);
+    rbusValue_Release(value);
+
+    rbusValue_Init(&value);
+    rbusValue_SetString(value, m_mob_domain);
+    rbusObject_SetValue(ob, "MobilityDomain", value);
+    rbusValue_Release(value);
+
+    rbusValue_Init(&value);
+    rbusValue_SetString(value, m_haul_type);
+    rbusObject_SetValue(ob, "HaulType", value);
+    rbusValue_Release(value);
+
+    rbusValue_Init(&value);
+    rbusValue_SetString(value, m_type);
+    rbusObject_SetValue(ob, "Type", value);
+    rbusValue_Release(value);
 
 }
 
 void de_net_ssid_t::deserialize(rbusObject_t& ob)
 {
+    rbusValue_t value;
+    const char *ptr;
+
+    if ((value = rbusObject_GetValue(ob, "SSID")) == NULL) {
+        printf("%s:%d: Could not find SSID value\n", __func__, __LINE__);
+    } else {
+        ptr = rbusValue_GetString(value, NULL);
+        strncpy(m_ssid, ptr, strlen(ptr) + 1);
+    }
+
+    if ((value = rbusObject_GetValue(ob, "Enable")) == NULL) {
+        printf("%s:%d: Could not find Enable value\n", __func__, __LINE__);
+    } else {
+        m_enabled = rbusValue_GetBoolean(value);
+    }
+
+    if ((value = rbusObject_GetValue(ob, "AddRemoveChange")) == NULL) {
+        printf("%s:%d: Could not find AddRemoveChange value\n", __func__, __LINE__);
+    } else {
+        ptr = rbusValue_GetString(value, NULL);
+        strncpy(m_op, ptr, strlen(ptr) + 1);
+    }
+
+    if ((value = rbusObject_GetValue(ob, "PassPhrase")) == NULL) {
+        printf("%s:%d: Could not find PassPhrase value\n", __func__, __LINE__);
+    } else {
+        ptr = rbusValue_GetString(value, NULL);
+        strncpy(m_passphrase, ptr, strlen(ptr) + 1);
+    }
+
+    if ((value = rbusObject_GetValue(ob, "Band")) == NULL) {
+        printf("%s:%d: Could not find Band value\n", __func__, __LINE__);
+    } else {
+        ptr = rbusValue_GetString(value, NULL);
+        strncpy(m_band, ptr, strlen(ptr) + 1);
+    }
+
+    if ((value = rbusObject_GetValue(ob, "AKMsAllowed")) == NULL) {
+        printf("%s:%d: Could not find AKMsAllowed value\n", __func__, __LINE__);
+    } else {
+        ptr = rbusValue_GetString(value, NULL);
+        strncpy(m_akms_allowed, ptr, strlen(ptr) + 1);
+    }
+
+    if ((value = rbusObject_GetValue(ob, "SuiteSelector")) == NULL) {
+        printf("%s:%d: Could not find SuiteSelector value\n", __func__, __LINE__);
+    } else {
+        ptr = rbusValue_GetString(value, NULL);
+        strncpy(m_suite_selector, ptr, strlen(ptr) + 1);
+    }
+
+    if ((value = rbusObject_GetValue(ob, "AdvertisementEnabled")) == NULL) {
+        printf("%s:%d: Could not find AdvertisementEnabled value\n", __func__, __LINE__);
+    } else {
+        m_advertisement = rbusValue_GetBoolean(value);
+    }
+
+    if ((value = rbusObject_GetValue(ob, "MFPConfig")) == NULL) {
+        printf("%s:%d: Could not find MFPConfig value\n", __func__, __LINE__);
+    } else {
+        ptr = rbusValue_GetString(value, NULL);
+        strncpy(m_mfp_config, ptr, strlen(ptr) + 1);
+    }
+
+    if ((value = rbusObject_GetValue(ob, "MobilityDomain")) == NULL) {
+        printf("%s:%d: Could not find MobilityDomain value\n", __func__, __LINE__);
+    } else {
+        ptr = rbusValue_GetString(value, NULL);
+        strncpy(m_mob_domain, ptr, strlen(ptr) + 1);
+    }
+
+    if ((value = rbusObject_GetValue(ob, "HaulType")) == NULL) {
+        printf("%s:%d: Could not find HaulType value\n", __func__, __LINE__);
+    } else {
+        ptr = rbusValue_GetString(value, NULL);
+        strncpy(m_haul_type, ptr, strlen(ptr) + 1);
+    }
+
+    if ((value = rbusObject_GetValue(ob, "Type")) == NULL) {
+        printf("%s:%d: Could not find Type value\n", __func__, __LINE__);
+    } else {
+        ptr = rbusValue_GetString(value, NULL);
+        strncpy(m_type, ptr, strlen(ptr) + 1);
+    }
 
 }
 

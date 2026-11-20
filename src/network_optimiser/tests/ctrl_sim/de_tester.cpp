@@ -133,18 +133,37 @@ void de_tester_t::update()
 
 void de_tester_t::process_event(optimizer_event_t *ev)
 {
+    const char *name;
+
     switch (ev->get_type()) {
-        case optimizer_event_type_subscribed: {
-            const char *name = static_cast<const char *>(ev->get_data());
-            if ((name == NULL) || (ev->get_len() == 0) ||
-                (name[ev->get_len() - 1] != '\0')) {
+        case optimizer_event_type_subscribed:
+            name = static_cast<const char *>(ev->get_data()); 
+            if ((name == NULL) || (ev->get_len() == 0) || (name[ev->get_len() - 1] != '\0')) {
                 printf("%s:%d: Invalid subscribed event name\n", __func__, __LINE__);
-                break;
+            } else {
+                if (strncmp(name, DE_ASSOC, strlen(name)) == 0) {
+                    set_assoc_subscribed(true);
+                }
+                m_de_network->publish(name);
             }
-            m_de_network->publish(name);
             break;
-        }
-   
+
+        case optimizer_event_type_timeout:
+            if ((get_assoc_subscribed() == true) &&
+                    (m_de_network != NULL) && (m_de_network->m_de_devices != NULL) &&
+                    (m_de_network->m_de_devices->m_de_radios != NULL) &&
+                    (m_de_network->m_de_devices->m_de_radios->m_de_bsss != NULL)) {
+                if (get_assoc_sent() == false) {
+                    m_de_network->m_de_devices->m_de_radios->m_de_bsss->publish(DE_ASSOC);
+                    set_assoc_sent(true);
+                } else {
+                    m_de_network->m_de_devices->m_de_radios->m_de_bsss->publish(DE_DISASSOC);
+                    set_assoc_sent(false);
+                }
+            }
+
+            break;
+ 
         default:
             break;                 
     }
@@ -213,6 +232,7 @@ de_tester_t::de_tester_t(de_reader_t *rd)
     m_queue = NULL;
     m_de_network = NULL;
     m_de_nbr_nodes = NULL;
+    m_subscribed = false;
 }
 
 de_tester_t::~de_tester_t()

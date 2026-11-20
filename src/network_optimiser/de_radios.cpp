@@ -329,14 +329,6 @@ rbusError_t de_radios_t::method(rbusHandle_t handle, char const* name, rbusObjec
     unsigned int dpos, rpos;
     em_long_string_t subkey;
 
-    if ((value = rbusObject_GetValue(in, "Band")) == NULL) {
-        printf("%s:%d: Could not find Band value\n", __func__, __LINE__);
-        strncpy(scan.m_band, "None", strlen("None"));
-    } else {
-        ptr = rbusValue_GetString(value, NULL);
-        strncpy(scan.m_band, ptr, strlen(ptr) + 1);
-    }
-
     if ((value = rbusObject_GetValue(in, "DwellTime")) == NULL) {
         printf("%s:%d: Could not find Enable value\n", __func__, __LINE__);
     } else {
@@ -371,10 +363,11 @@ rbusError_t de_radios_t::method(rbusHandle_t handle, char const* name, rbusObjec
         return RBUS_ERROR_SUCCESS; 
     }
 
+    snprintf(subkey, sizeof(subkey), "%s.%d.%s.%d", DEVICES, dpos, RADIOS, rpos);
     m_de_scan_results->serialize(subkey, out);
 
     rbusValue_Init(&value);
-    rbusValue_SetString(value, "Error_Invalid_Input");
+    rbusValue_SetString(value, "Success");
     rbusObject_SetValue(out, "Status", value);
     rbusValue_Release(value);     
 
@@ -386,17 +379,21 @@ rbusError_t de_radios_t::invoke_method(char const* name, void *in, void *out)
     de_scan_t *scan;
     rbusObject_t in_obj, out_obj;
     rbusValue_t value;
-    int rc;
+    rbusError_t rc;
+    unsigned int dpos, rpos;
     const char *ptr;
+    em_long_string_t subkey;
+
+    if (sscanf(name, DE_DEVICES "%u." RADIOS ".%u." FULL_SCAN, &dpos, &rpos) != 2) {
+        printf("%s:%d: Invalid device and radio positions\n", __func__, __LINE__);
+
+        return RBUS_ERROR_DESTINATION_NOT_FOUND;
+    }
+    snprintf(subkey, sizeof(subkey), "%s.%d.%s.%d", DEVICES, dpos, RADIOS, rpos);
 
     scan = (de_scan_t *)in;
 
     rbusObject_Init(&in_obj, NULL);
-
-    rbusValue_Init(&value);
-    rbusValue_SetString(value, scan->m_band);
-    rbusObject_SetValue(in_obj, "Band", value);
-    rbusValue_Release(value);
 
     rbusValue_Init(&value);
     rbusValue_SetUInt32(value, scan->m_dwell_time);
@@ -418,22 +415,26 @@ rbusError_t de_radios_t::invoke_method(char const* name, void *in, void *out)
     rbusObject_SetValue(in_obj, "SSID", value);
     rbusValue_Release(value);
 
-
     rc = rbusMethod_Invoke(m_bus_handle, name, in_obj, &out_obj);
 
     rbusObject_Release(in_obj);
 
     if ((value = rbusObject_GetValue(out_obj, "Status")) == NULL) {
         printf("%s:%d: Could not find Status value\n", __func__, __LINE__);
-    } else {
-        ptr = rbusValue_GetString(value, NULL);
-        strncpy((char *)out, ptr, strlen(ptr) + 1);
+        rbusObject_Release(out_obj);
+
+        return rc;
     }
+        
+    ptr = rbusValue_GetString(value, NULL);
+    strncpy((char *)out, ptr, strlen(ptr) + 1);
+
+    m_de_scan_results->deserialize(subkey, out_obj);
 
     rbusObject_Release(out_obj);
 
 
-    return (rbusError_t)rc;
+    return rc;
 }
 
 int de_radios_t::init(rbusHandle_t handle)

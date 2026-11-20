@@ -48,6 +48,7 @@ public:
     void handler(rbusHandle_t handle, rbusEvent_t const* event, rbusEventSubscription_t* subscription);
 
     void serialize(em_long_string_t subkey, rbusObject_t& out);
+    void deserialize(const char *subkey, rbusObject_t& out);
 
     de_op_class_scans_t(const char *name, bool provider = false, notifier_t func = notifier_t());
 };

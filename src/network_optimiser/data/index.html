@@ -1,0 +1,2953 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content=
+        "width=device-width, initial-scale=1.0">
+    <title>RDK Mesh Optimizer</title>
+	<link rel="stylesheet" href="main.css">
+	<script src="https://cdn.plot.ly/plotly-2.31.1.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #f7fafb;
+            color: #263238;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            overflow: hidden;
+        }
+
+        .json-viewer {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        .json-header {
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            gap: 16px;
+            padding: 16px 24px 0;
+            border-bottom: 1px solid #d7e0e3;
+            background: #ffffff;
+        }
+
+        .json-header h1 { margin: 0; }
+
+        .json-header p {
+            margin: 6px 0 14px;
+            color: #607d8b;
+            font-size: 0.9rem;
+        }
+
+        .json-status {
+            color: #607d8b;
+            font-size: 0.9rem;
+        }
+
+        /* JSON Syntax Highlighting */
+        .json-key {
+            color: #9cdcfe;
+            font-weight: bold;
+        }
+
+        .json-string {
+            color: #ce9178;
+        }
+
+        .json-number {
+            color: #b5cea8;
+        }
+
+        .json-boolean {
+            color: #569cd6;
+        }
+
+        .json-null {
+            color: #569cd6;
+        }
+
+        /* JSON Tree Styles */
+        .json-tree-node {
+            margin-left: 0;
+        }
+
+        .json-tree-header {
+            cursor: pointer;
+            user-select: none;
+            margin-bottom: 4px;
+        }
+
+        .json-tree-header:hover {
+            opacity: 0.8;
+        }
+
+        .json-tree-toggle {
+            background: none;
+            border: none;
+            color: #d4d4d4;
+            cursor: pointer;
+            padding: 0;
+            margin-right: 4px;
+            font-size: 12px;
+            width: 16px;
+            height: 16px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            transition: transform 0.2s;
+        }
+
+        .json-tree-toggle.expanded {
+            transform: rotate(90deg);
+        }
+
+        .json-tree-count {
+            color: #a0a0a0;
+            margin-left: 4px;
+            font-size: 0.9em;
+        }
+
+        .json-tree-content {
+            margin-left: 16px;
+            border-left: 1px solid #3a3a3a;
+            padding-left: 8px;
+            margin-top: 4px;
+            display: block;
+        }
+
+        .json-tree-item {
+            margin-bottom: 2px;
+            padding: 2px 0;
+        }
+
+        .json-tree-footer {
+            margin-left: -16px;
+            color: #d4d4d4;
+            margin-top: 4px;
+        }
+
+        .main-menu {
+            display: flex;
+            gap: 4px;
+            padding: 0 24px;
+            border-bottom: 1px solid #d7e0e3;
+            background: #ffffff;
+        }
+
+        .main-menu a {
+            padding: 12px 16px 10px;
+            border-bottom: 3px solid transparent;
+            color: #546e7a;
+            font-weight: 600;
+            text-decoration: none;
+        }
+
+        .main-menu a:hover,
+        .main-menu a:focus-visible {
+            color: #1565c0;
+            background: #f5f9fc;
+            outline: none;
+        }
+
+        .main-menu a[aria-current="page"] {
+            border-bottom-color: #1565c0;
+            color: #1565c0;
+        }
+
+        .settings-dialog {
+            width: min(1200px, calc(100vw - 32px));
+            max-height: calc(100vh - 48px);
+            padding: 0;
+            border: 0;
+            border-radius: 10px;
+            box-shadow: 0 18px 48px rgba(38, 50, 56, 0.3);
+            color: #263238;
+        }
+
+        .settings-dialog::backdrop {
+            background: rgba(38, 50, 56, 0.55);
+        }
+
+        .settings-dialog-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            padding: 18px 20px;
+            border-bottom: 1px solid #d7e0e3;
+        }
+
+        .settings-dialog-header h2 {
+            margin: 0;
+            font-size: 1.2rem;
+        }
+
+        .dialog-close {
+            width: 36px;
+            height: 36px;
+            border: 0;
+            border-radius: 50%;
+            background: transparent;
+            color: #546e7a;
+            cursor: pointer;
+            font-size: 1.5rem;
+            line-height: 1;
+        }
+
+        .dialog-close:hover,
+        .dialog-close:focus-visible {
+            background: #eceff1;
+            color: #263238;
+            outline: 2px solid #90caf9;
+        }
+
+        .settings-tabs {
+            display: flex;
+            padding: 0 12px;
+            border-bottom: 1px solid #d7e0e3;
+            overflow-x: auto;
+        }
+
+        .settings-tab {
+            flex: 0 0 auto;
+            padding: 14px 16px 11px;
+            border: 0;
+            border-bottom: 3px solid transparent;
+            background: transparent;
+            color: #546e7a;
+            cursor: pointer;
+            font: inherit;
+            font-weight: 600;
+        }
+
+        .settings-tab:hover,
+        .settings-tab:focus-visible {
+            color: #1565c0;
+            background: #f5f9fc;
+            outline: none;
+        }
+
+        .settings-tab[aria-selected="true"] {
+            border-bottom-color: #1565c0;
+            color: #1565c0;
+        }
+
+        .settings-tab-panel {
+            min-height: 260px;
+            padding: 24px;
+            overflow: auto;
+        }
+
+        .settings-tab-panel[hidden] {
+            display: none;
+        }
+
+        .settings-tab-panel h3 {
+            margin-top: 0;
+        }
+
+        .settings-tab-panel p {
+            color: #607d8b;
+        }
+
+        .settings-table-container {
+            max-width: 100%;
+            border: 1px solid #d7e0e3;
+            border-radius: 6px;
+            overflow: auto;
+        }
+
+        .settings-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: #ffffff;
+            font-size: 0.9rem;
+            text-align: left;
+        }
+
+        .settings-table th,
+        .settings-table td {
+            padding: 8px;
+            border-bottom: 1px solid #e7edef;
+            vertical-align: top;
+            white-space: nowrap;
+        }
+
+        .settings-table th {
+            position: sticky;
+            top: 0;
+            z-index: 1;
+            background: #edf4f5;
+            color: #37474f;
+        }
+
+        .settings-table tbody tr:last-child td {
+            border-bottom: 0;
+        }
+
+        .settings-table tbody tr:hover {
+            background: #f7fafb;
+        }
+
+        .settings-table td:last-child {
+            display: flex;
+            gap: 8px;
+        }
+
+        .metrics-table td:last-child {
+            display: table-cell;
+        }
+
+        .settings-table input,
+        .settings-table select {
+            box-sizing: border-box;
+            min-width: 120px;
+            width: 100%;
+            padding: 7px 8px;
+            border: 1px solid #b0bec5;
+            border-radius: 4px;
+            background: #ffffff;
+            color: #263238;
+            font: inherit;
+        }
+
+        .settings-table input[type="checkbox"] {
+            min-width: 18px;
+            width: 18px;
+            height: 18px;
+        }
+
+        .settings-table input:focus,
+        .settings-table select:focus {
+            border-color: #1565c0;
+            outline: 2px solid #bbdefb;
+        }
+
+        .settings-actions,
+        .dialog-actions {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .settings-actions {
+            justify-content: space-between;
+            margin-bottom: 12px;
+        }
+
+        .dialog-actions {
+            justify-content: flex-end;
+            margin-top: 16px;
+        }
+
+        .settings-button {
+            padding: 8px 16px;
+            border: 1px solid #90a4ae;
+            border-radius: 5px;
+            background: #ffffff;
+            color: #37474f;
+            cursor: pointer;
+            font: inherit;
+            font-weight: 600;
+        }
+
+        .settings-button:hover,
+        .settings-button:focus-visible {
+            background: #eceff1;
+            outline: 2px solid #bbdefb;
+        }
+
+        .settings-button-primary {
+            border-color: #1565c0;
+            background: #1565c0;
+            color: #ffffff;
+        }
+
+        .settings-button-primary:hover,
+        .settings-button-primary:focus-visible {
+            background: #0d47a1;
+        }
+
+        .settings-button-danger {
+            border-color: #c62828;
+            color: #c62828;
+        }
+
+        .settings-form-status {
+            min-height: 1.25em;
+            margin: 0;
+            font-size: 0.9rem;
+        }
+
+        .metrics-table-container {
+            max-height: calc(100vh - 260px);
+        }
+
+        .table-empty {
+            margin: 0;
+            padding: 24px;
+            color: #607d8b;
+            text-align: center;
+        }
+
+        .content-grid {
+            display: grid;
+            grid-template-columns: minmax(280px, 30%) 1px minmax(0, 1fr);
+            flex: 1;
+            min-height: 0;
+        }
+
+        .resize-handle {
+            background: #d7e0e3;
+            cursor: col-resize;
+            user-select: none;
+            transition: background 0.2s;
+        }
+
+        .resize-handle:hover {
+            background: #90caf9;
+        }
+
+        .resize-handle.dragging {
+            background: #42a5f5;
+        }
+
+        .json-tree-section {
+            display: flex;
+            min-width: 0;
+            min-height: 0;
+            flex-direction: column;
+            gap: 8px;
+            padding: 16px;
+            border-right: 1px solid #d7e0e3;
+        }
+
+        .json-tree-section h2,
+        .topology-section h2 {
+            margin: 0;
+            color: #37474f;
+            font-size: 1rem;
+        }
+
+        .json-tree-panel {
+            flex: 1;
+            min-height: 0;
+            border: 1px solid #d7e0e3;
+            border-radius: 6px;
+            background: #ffffff;
+            padding: 16px 20px;
+            overflow: auto;
+        }
+
+        .topology-section {
+            display: flex;
+            min-width: 0;
+            min-height: 0;
+            flex-direction: column;
+            gap: 8px;
+            padding: 16px;
+        }
+
+        .topology-heading {
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            gap: 16px;
+        }
+
+        .topology-actions {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        #topologyGraph {
+            flex: 1;
+            min-height: 0;
+            border: 1px solid #d7e0e3;
+            border-radius: 6px;
+            background: #ffffff;
+            overflow: hidden;
+        }
+
+        .json-tree,
+        .json-tree ul {
+            list-style: none;
+            margin: 0;
+            padding-left: 22px;
+        }
+
+        .json-tree {
+            padding-left: 0;
+        }
+
+        .json-tree details > summary {
+            cursor: pointer;
+            padding: 4px 0;
+            font-weight: 600;
+        }
+
+        .json-tree details > summary::marker {
+            color: #78909c;
+        }
+
+        .json-key {
+            color: #1565c0;
+        }
+
+        .json-count {
+            color: #78909c;
+            font-size: 0.82rem;
+            font-weight: 400;
+        }
+
+        .json-leaf {
+            padding: 4px 0;
+            font-family: "SFMono-Regular", Consolas, monospace;
+            font-size: 0.9rem;
+        }
+
+        .json-value-string { color: #2e7d32; }
+        .json-value-number { color: #ad1457; }
+        .json-value-boolean { color: #ef6c00; }
+        .json-value-null { color: #78909c; font-style: italic; }
+
+        @media (max-width: 760px) {
+            body { overflow: auto; }
+            .json-viewer { min-height: 100vh; height: auto; }
+            .json-header { display: block; }
+            .main-menu {
+                padding: 0 8px;
+                overflow-x: auto;
+            }
+            .main-menu a {
+                flex: 0 0 auto;
+                padding: 12px;
+            }
+            .content-grid {
+                grid-template-columns: 1fr;
+                grid-template-rows: 45vh 70vh;
+            }
+            .json-tree-section {
+                border-right: 0;
+                border-bottom: 1px solid #d7e0e3;
+            }
+        }
+
+        /* Scan Sections Styling */
+        .scan-section {
+            margin-bottom: 24px;
+            padding: 16px;
+            border: 1px solid #d7e0e3;
+            border-radius: 8px;
+            background: #ffffff;
+        }
+
+        .scan-section h4 {
+            margin-top: 0;
+            margin-bottom: 4px;
+            color: #263238;
+            font-size: 1rem;
+        }
+
+        .scan-section p {
+            margin: 4px 0 12px;
+            font-size: 0.9rem;
+            color: #607d8b;
+        }
+
+        .scan-form {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 12px;
+            margin-bottom: 12px;
+            align-items: end;
+        }
+
+        .scan-form .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .scan-form label {
+            font-weight: 600;
+            color: #263238;
+            font-size: 0.9rem;
+        }
+
+        .scan-form .settings-input {
+            padding: 8px 12px;
+            border: 1px solid #d7e0e3;
+            border-radius: 4px;
+            font-size: 0.9rem;
+            color: #263238;
+        }
+
+        .scan-form .settings-input:focus {
+            outline: none;
+            border-color: #1565c0;
+            box-shadow: 0 0 0 2px rgba(21, 101, 192, 0.1);
+        }
+
+        .scan-results-container {
+            background: #f5f9fc;
+            border: 1px solid #d7e0e3;
+            border-radius: 6px;
+            padding: 12px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .scan-results-container h5 {
+            margin-top: 0;
+            margin-bottom: 12px;
+            color: #263238;
+            font-size: 0.95rem;
+        }
+
+        .metrics-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.9rem;
+        }
+
+        .metrics-table thead {
+            background: #eceff1;
+            position: sticky;
+            top: 0;
+        }
+
+        .metrics-table th {
+            padding: 8px;
+            text-align: left;
+            color: #263238;
+            font-weight: 600;
+            border-bottom: 1px solid #d7e0e3;
+        }
+
+        .metrics-table td {
+            padding: 8px;
+            border-bottom: 1px solid #eceff1;
+            color: #546e7a;
+        }
+
+        .metrics-table tbody tr:hover {
+            background: #f5f9fc;
+        }
+
+        .scan-params-summary {
+            background: #eceff1;
+            border-left: 3px solid #1565c0;
+            padding: 8px 12px;
+            border-radius: 4px;
+            margin-top: 8px;
+            margin-bottom: 8px;
+        }
+
+        .scan-params-summary small {
+            line-height: 1.5;
+        }
+    </style>
+</head>
+
+<body>
+    <main class="json-viewer">
+        <div class="json-header">
+            <div>
+                <h1>RDK Mesh Optimizer &amp; Algorithms</h1>
+            </div>
+            <span id="jsonStatus" role="status">Loading ...</span>
+        </div>
+
+        <nav class="main-menu" aria-label="Main menu">
+            <a href="#home" aria-current="page">Home</a>
+            <a id="networkSettingsMenu" href="#network-settings">Network Settings</a>
+            <a id="metricsMenu" href="#metrics">Metrics</a>
+            <a id="toolsMenu" href="#tools">Tools</a>
+        </nav>
+
+        <div id="home" class="content-grid">
+            <section class="json-tree-section" aria-labelledby="data-elements-title" data-json-file="DataElements.json">
+                <h2 id="data-elements-title">Data Elements</h2>
+                <div class="json-tree-panel">
+                    <span class="json-status" role="status">Loading ...</span>
+                    <ul class="json-tree"></ul>
+                </div>
+            </section>
+            <div class="resize-handle" id="resizeHandle" role="separator" aria-label="Resize Data Elements panel"></div>
+            <section class="topology-section" aria-labelledby="topology-title">
+                <div class="topology-heading">
+                    <h2 id="topology-title">Network Topology</h2>
+                    <div class="topology-actions">
+                        <span id="topologyStatus" class="json-status" role="status">Select Refresh to load topology.</span>
+                        <button id="refreshTopology" class="settings-button" type="button">Refresh</button>
+                    </div>
+                </div>
+                <div id="topologyGraph" aria-label="Interactive 3-D network topology graph"></div>
+            </section>
+        </div>
+    </main>
+
+    <dialog id="networkSettingsDialog" class="settings-dialog" aria-labelledby="network-settings-title">
+        <div class="settings-dialog-header">
+            <h2 id="network-settings-title">Network Settings</h2>
+            <button id="closeNetworkSettings" class="dialog-close" type="button"
+                aria-label="Close network settings">&times;</button>
+        </div>
+        <div class="settings-tabs" role="tablist" aria-label="Network settings categories">
+            <button id="network-names-tab" class="settings-tab" type="button" role="tab"
+                aria-selected="true" aria-controls="network-names-panel" tabindex="0">
+                Network Names
+            </button>
+            <button id="traffic-policies-tab" class="settings-tab" type="button" role="tab"
+                aria-selected="false" aria-controls="traffic-policies-panel" tabindex="-1">
+                Traffic Separation Policies
+            </button>
+            <button id="preferred-backhauls-tab" class="settings-tab" type="button" role="tab"
+                aria-selected="false" aria-controls="preferred-backhauls-panel" tabindex="-1">
+                Preferred Backhauls
+            </button>
+        </div>
+        <section id="network-names-panel" class="settings-tab-panel" role="tabpanel"
+            aria-labelledby="network-names-tab">
+            <h3>Network Names</h3>
+            <div class="settings-actions">
+                <p id="networkNamesStatus" class="settings-form-status" role="status"></p>
+                <button id="addNetworkName" class="settings-button" type="button">Add Network Name</button>
+            </div>
+            <div id="networkNamesTable" class="settings-table-container" aria-live="polite">
+                <p class="table-empty">Loading network names ...</p>
+            </div>
+            <div class="dialog-actions">
+                <button id="cancelNetworkNames" class="settings-button" type="button">Cancel</button>
+            </div>
+        </section>
+        <section id="traffic-policies-panel" class="settings-tab-panel" role="tabpanel"
+            aria-labelledby="traffic-policies-tab" hidden>
+            <h3>Traffic Separation Policies</h3>
+            <p>Configure traffic separation policies for the mesh network.</p>
+        </section>
+        <section id="preferred-backhauls-panel" class="settings-tab-panel" role="tabpanel"
+            aria-labelledby="preferred-backhauls-tab" hidden>
+            <h3>Preferred Backhauls</h3>
+            <p>Configure preferred backhaul connections for mesh devices.</p>
+        </section>
+    </dialog>
+
+    <dialog id="metricsDialog" class="settings-dialog" aria-labelledby="metrics-title">
+        <div class="settings-dialog-header">
+            <h2 id="metrics-title">Metrics</h2>
+            <button id="closeMetrics" class="dialog-close" type="button"
+                aria-label="Close metrics">&times;</button>
+        </div>
+        <div class="settings-tabs" role="tablist" aria-label="Metrics categories">
+            <button id="neighbor-wifi-nodes-tab" class="settings-tab" type="button" role="tab"
+                aria-selected="true" aria-controls="neighbor-wifi-nodes-panel" tabindex="0">
+                Neighbor Wi-Fi Nodes
+            </button>
+            <button id="client-devices-tab" class="settings-tab" type="button" role="tab"
+                aria-selected="false" aria-controls="client-devices-panel" tabindex="-1">
+                Client Devices
+            </button>
+        </div>
+        <section id="neighbor-wifi-nodes-panel" class="settings-tab-panel" role="tabpanel"
+            aria-labelledby="neighbor-wifi-nodes-tab">
+            <div class="settings-actions">
+                <h3>Neighbor Wi-Fi Nodes</h3>
+                <div class="topology-actions">
+                    <span id="neighborWifiStatus" class="settings-form-status" role="status">
+                        Select Refresh to run the diagnostic.
+                    </span>
+                    <button id="refreshNeighborWifi" class="settings-button" type="button">Refresh</button>
+                </div>
+            </div>
+            <div id="neighborWifiTable"
+                class="settings-table-container metrics-table-container"
+                aria-live="polite">
+                <p class="table-empty">No diagnostic results loaded.</p>
+            </div>
+        </section>
+        <section id="client-devices-panel" class="settings-tab-panel" role="tabpanel"
+            aria-labelledby="client-devices-tab" hidden>
+            <h3>Client Devices</h3>
+            <p>Client device metrics will be displayed here.</p>
+        </section>
+    </dialog>
+
+    <dialog id="toolsDialog" class="settings-dialog" aria-labelledby="tools-title">
+        <div class="settings-dialog-header">
+            <h2 id="tools-title">Tools</h2>
+            <button id="closeTools" class="dialog-close" type="button"
+                aria-label="Close tools">&times;</button>
+        </div>
+        <div class="settings-tabs" role="tablist" aria-label="Tools">
+            <button id="wireless-scan-tab" class="settings-tab" type="button" role="tab"
+                aria-selected="true" aria-controls="wireless-scan-panel" tabindex="0">
+                Wireless Scan
+            </button>
+            <button id="event-logs-tab" class="settings-tab" type="button" role="tab"
+                aria-selected="false" aria-controls="event-logs-panel" tabindex="-1">
+                Event Logs
+            </button>
+            <button id="localizer-tab" class="settings-tab" type="button" role="tab"
+                aria-selected="false" aria-controls="localizer-panel" tabindex="-1">
+                Localizer
+            </button>
+        </div>
+        <section id="wireless-scan-panel" class="settings-tab-panel" role="tabpanel"
+            aria-labelledby="wireless-scan-tab">
+            <div class="settings-actions">
+                <h3>Wireless Scan</h3>
+                <p>Scan for available wireless networks and analyze channel usage.</p>
+            </div>
+
+            <!-- Device and Radio Selection Section -->
+            <div class="scan-section" style="border: 2px solid #4caf50; background-color: rgba(76, 175, 80, 0.02);">
+                <h4 style="margin-top: 0; color: #4caf50;">Select Device and Radio</h4>
+                <div class="scan-form">
+                    <div class="form-group">
+                        <label for="wireless-scan-device">Device:</label>
+                        <select id="wireless-scan-device" class="settings-input">
+                            <option value="">-- Loading Devices --</option>
+                        </select>
+                        <small style="color: #607d8b; font-style: italic;">Select a device from your mesh network</small>
+                    </div>
+                    <div class="form-group">
+                        <label for="wireless-scan-radio">Radio:</label>
+                        <select id="wireless-scan-radio" class="settings-input" disabled>
+                            <option value="">-- Choose a radio --</option>
+                        </select>
+                        <small style="color: #607d8b; font-style: italic;">Available radios for the selected device</small>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Common Scan Parameters Section -->
+            <div class="scan-section" style="border: 2px solid #1565c0; background-color: rgba(21, 101, 192, 0.02);">
+                <h4 style="margin-top: 0; color: #1565c0;">Common Scan Parameters</h4>
+                <div class="scan-form">
+                    <div class="form-group">
+                        <label for="scanSSID">SSID (Optional):</label>
+                        <input id="scanSSID" type="text" class="settings-input" 
+                            placeholder="Leave empty to scan all networks" />
+                    </div>
+                    <div class="form-group">
+                        <label for="scanDwellTime">DwellTime (ms):</label>
+                        <input id="scanDwellTime" type="number" class="settings-input" 
+                            placeholder="Time per channel (default: 100)" value="100" min="0" max="4294967295" step="1" required />
+                    </div>
+                    <div class="form-group">
+                        <label for="scanDFSDwellTime">DFSDwellTime (ms):</label>
+                        <input id="scanDFSDwellTime" type="number" class="settings-input" 
+                            placeholder="DFS channels dwell time (default: 250)" value="250" min="0" max="4294967295" step="1" required />
+                    </div>
+                    <div class="form-group">
+                        <label for="scanHomeTime">HomeTime (ms, Optional):</label>
+                        <input id="scanHomeTime" type="number" class="settings-input" 
+                            placeholder="Time on home channel (default: 50)" value="50" min="0" max="4294967295" step="1" />
+                    </div>
+                </div>
+                <div class="scan-params-summary">
+                    <small style="color: #607d8b;">
+                        <strong>Parameters:</strong> 
+                        DwellTime = Time to scan each channel, 
+                        DFSDwellTime = Time for DFS (regulatory) channels, 
+                        HomeTime = Time to return to home channel
+                    </small>
+                </div>
+            </div>
+
+            <!-- Sub-tabs for Full Scan and Channel Scan -->
+            <div class="settings-tabs" role="tablist" aria-label="Scan Types" style="margin-top: 20px; border-top: 2px solid #e0e0e0; padding-top: 15px;">
+                <button id="full-scan-tab" class="settings-tab" type="button" role="tab"
+                    aria-selected="true" aria-controls="full-scan-panel" tabindex="0">
+                    Full Scan
+                </button>
+                <button id="channel-scan-tab" class="settings-tab" type="button" role="tab"
+                    aria-selected="false" aria-controls="channel-scan-panel" tabindex="-1">
+                    Channel Scan
+                </button>
+            </div>
+
+            <!-- Full Scan Panel -->
+            <section id="full-scan-panel" class="settings-tab-panel" role="tabpanel"
+                aria-labelledby="full-scan-tab">
+                <div class="scan-section">
+                    <h4 style="margin-top: 0;">Full Scan</h4>
+                    <p style="font-size: 0.9rem; color: #607d8b; margin-top: 0;">Based on TR-181 Device.WiFi.Radio.FullScan</p>
+                    <div style="margin-top: 12px;">
+                        <button id="startFullScan" class="settings-button" type="button">Start Full Scan</button>
+                    </div>
+                    <div id="fullScanResults" class="scan-results-container" style="display: none; margin-top: 12px;">
+                        <h5>Full Scan Results</h5>
+                        <table class="metrics-table">
+                            <thead>
+                                <tr>
+                                    <th>SSID</th>
+                                    <th>BSSID (MAC)</th>
+                                    <th>Channel</th>
+                                    <th>Signal Strength (dBm)</th>
+                                    <th>Channel BW</th>
+                                    <th>Channel Util (%)</th>
+                                    <th>Stations</th>
+                                    <th>Operating Std</th>
+                                    <th>Security</th>
+                                    <th>Encryption</th>
+                                    <th>Supported NSS</th>
+                                    <th>DTIM Period</th>
+                                    <th>Beacon Period</th>
+                                </tr>
+                            </thead>
+                            <tbody id="fullScanResultsBody">
+                                <tr><td colspan="13" style="text-align: center; padding: 20px;">Scanning...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Channel Scan Panel -->
+            <section id="channel-scan-panel" class="settings-tab-panel" role="tabpanel"
+                aria-labelledby="channel-scan-tab" hidden>
+                <div class="scan-section" id="scanChannelsSection">
+                    <h4 style="margin-top: 0;">Scan Channels (ChannelScan)</h4>
+                    <p style="font-size: 0.9rem; color: #607d8b; margin-top: 0;">Based on TR-181 Device.WiFi.Radio.ChannelScan</p>
+                    <div class="scan-form">
+                        <div class="form-group">
+                            <label for="channelScanOperatingClass">Operating Class:</label>
+                            <input id="channelScanOperatingClass" type="number" class="settings-input"
+                                placeholder="e.g., 81 (2.4GHz), 115 (5GHz), 131 (6GHz)"
+                                min="0" max="255" step="1" required />
+                        </div>
+                        <div class="form-group">
+                            <label for="channelScanChannel">Channel:</label>
+                            <input id="channelScanChannel" type="text" class="settings-input" 
+                                placeholder="e.g., 1,6,11 or 36,40,44..." />
+                        </div>
+                    </div>
+                    <p style="font-size: 0.9rem; color: #607d8b;">Channels must belong to the selected operating class.
+                        For 2.4GHz and 5GHz, use a 20MHz operating class.</p>
+                    <div style="margin-top: 12px;">
+                        <button id="startChannelScan" class="settings-button" type="button">Start Channel Scan</button>
+                    </div>
+                    <div id="channelScanResults" class="scan-results-container" style="display: none; margin-top: 12px;">
+                        <h5>Channel Scan Results</h5>
+                        <table class="metrics-table">
+                            <thead>
+                                <tr>
+                                    <th>SSID</th>
+                                    <th>BSSID (MAC)</th>
+                                    <th>Channel</th>
+                                    <th>Signal Strength (dBm)</th>
+                                    <th>Channel Bandwidth</th>
+                                    <th>Signal-to-Noise Ratio</th>
+                                </tr>
+                            </thead>
+                            <tbody id="channelScanResultsBody">
+                                <tr><td colspan="6" style="text-align: center; padding: 20px;">Ready to scan...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+        </section>
+        <section id="event-logs-panel" class="settings-tab-panel" role="tabpanel"
+            aria-labelledby="event-logs-tab" hidden>
+            <div class="settings-actions">
+                <h3>Event Logs</h3>
+                <p>View all device responses and notifications in real-time.</p>
+            </div>
+            <div class="scan-section">
+                <div style="margin-bottom: 15px;">
+                    <button id="clearEventLogs" class="settings-button" type="button" style="margin-right: 10px;">Clear Logs</button>
+                    <button id="toggleAutoScroll" class="settings-button" type="button" style="background-color: #4caf50;">Auto-scroll: ON</button>
+                </div>
+                <div id="eventLogsContainer" class="settings-table-container metrics-table-container" style="max-height: 400px; overflow-y: auto; border: 1px solid #ddd; padding: 10px;">
+                    <table class="metrics-table" id="eventLogsTable">
+                        <thead>
+                            <tr>
+                                <th style="width: 150px;">Timestamp</th>
+                                <th style="width: 120px;">Category</th>
+                                <th>Type</th>
+                                <th style="width: 80px;">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="eventLogsBody">
+                            <tr><td colspan="4" style="text-align: center; padding: 20px; color: #999;">No events logged yet...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+        <section id="localizer-panel" class="settings-tab-panel" role="tabpanel"
+            aria-labelledby="localizer-tab" hidden>
+            <div class="settings-actions">
+                <h3>Localizer</h3>
+                <p>Locate and track device positions within your network coverage area.</p>
+                <button id="startLocalizer" class="settings-button" type="button">Start Localization</button>
+            </div>
+            <div id="localizerResults"
+                class="settings-table-container metrics-table-container"
+                aria-live="polite" style="display: none;">
+                <h4>Device Locations</h4>
+                <p class="table-empty">Locating devices...</p>
+            </div>
+        </section>
+    </dialog>
+
+    <script>
+        function isBranch(value) {
+            return value !== null && typeof value === "object";
+        }
+
+        function formatValue(value) {
+            if (typeof value === "string") {
+                return '"' + value + '"';
+            }
+            if (value === null) {
+                return "null";
+            }
+            return String(value);
+        }
+
+        function createTreeNode(label, value, open) {
+            const item = document.createElement("li");
+
+            if (isBranch(value)) {
+                const details = document.createElement("details");
+                details.open = open;
+
+                const summary = document.createElement("summary");
+                const key = document.createElement("span");
+                key.className = "json-key";
+                key.textContent = label;
+                const count = document.createElement("span");
+                count.className = "json-count";
+                const size = Array.isArray(value) ? value.length : Object.keys(value).length;
+                count.textContent = "  " + (Array.isArray(value) ? "[" + size + " items]" : "{" + size + " keys}");
+                summary.append(key, count);
+
+                const children = document.createElement("ul");
+                Object.entries(value).forEach(([childLabel, childValue]) => {
+                    children.appendChild(createTreeNode(childLabel, childValue, false));
+                });
+                details.append(summary, children);
+                item.appendChild(details);
+                return item;
+            }
+
+            const leaf = document.createElement("div");
+            leaf.className = "json-leaf";
+            const key = document.createElement("span");
+            key.className = "json-key";
+            key.textContent = label + ": ";
+            const valueElement = document.createElement("span");
+            valueElement.className = "json-value-" + (value === null ? "null" : typeof value);
+            valueElement.textContent = formatValue(value);
+            leaf.append(key, valueElement);
+            item.appendChild(leaf);
+            return item;
+        }
+
+        function loadTree(panel) {
+            const section = panel.closest(".json-tree-section");
+            const jsonFile = section.dataset.jsonFile;
+            const tree = panel.querySelector(".json-tree");
+            const status = panel.querySelector(".json-status");
+
+            return fetch(jsonFile)
+                .then((response) => {
+                    if (!response.ok) {
+                        throw new Error("HTTP " + response.status);
+                    }
+                    return response.json();
+                })
+                .then((data) => {
+                    Object.entries(data).forEach(([label, value], index) => {
+                        tree.appendChild(createTreeNode(label, value, index === 0));
+                    });
+                    status.textContent = "Loaded " + jsonFile;
+                    renderNetworkNames(data);
+                    return data;
+                })
+                .catch((error) => {
+                    status.textContent = "Unable to load JSON: " + error.message;
+                    status.style.color = "#c62828";
+                    showNetworkNamesMessage("Unable to load network names: " + error.message);
+                });
+        }
+
+        function findProperty(value, propertyName) {
+            if (!isBranch(value)) {
+                return null;
+            }
+            if (Object.prototype.hasOwnProperty.call(value, propertyName)) {
+                return value[propertyName];
+            }
+            for (const child of Object.values(value)) {
+                const result = findProperty(child, propertyName);
+                if (result !== null) {
+                    return result;
+                }
+            }
+            return null;
+        }
+
+        function showNetworkNamesMessage(message) {
+            const container = document.getElementById("networkNamesTable");
+            container.replaceChildren();
+            const empty = document.createElement("p");
+            empty.className = "table-empty";
+            empty.textContent = message;
+            container.appendChild(empty);
+        }
+
+        const setSSIDFields = [
+            { name: "SSID", type: "text", required: true },
+            { name: "Enable", type: "checkbox", defaultValue: true },
+            { name: "PassPhrase", type: "password" },
+            { name: "Band", type: "text", defaultValue: "All", placeholder: "All, 2.4, 5, 6" },
+            { name: "AKMsAllowed", type: "text", placeholder: "psk, sae, dpp" },
+            { name: "SuiteSelector", type: "text", placeholder: "506F9A02", pattern: "[0-9A-Fa-f]{8}" },
+            { name: "AdvertisementEnabled", type: "checkbox", defaultValue: true },
+            { name: "MFPConfig", type: "select", options: ["Disabled", "Optional", "Required"], defaultValue: "Optional" },
+            { name: "MobilityDomain", type: "text", placeholder: "00:11:22:33:44:55" },
+            { name: "HaulType", type: "text", placeholder: "Fronthaul, Backhaul" },
+            { name: "Type", type: "text", placeholder: "Primary, Guest, Backhaul" }
+        ];
+        let networkNamesOriginal = [];
+        let networkNamesWorking = [];
+        let networkNamesRequestPending = false;
+        const networkNamesRequestTimeout = 30000;
+        const neighboringWifiFields = [
+            "Radio",
+            "SSID",
+            "BSSID",
+            "Mode",
+            "Channel",
+            "SignalStrength",
+            "SecurityModeEnabled",
+            "EncryptionMode",
+            "OperatingFrequencyBand",
+            "SupportedStandards",
+            "OperatingStandards",
+            "OperatingChannelBandwidth",
+            "BeaconPeriod",
+            "Noise",
+            "BasicDataTransferRates",
+            "SupportedDataTransferRates",
+            "DTIMPeriod"
+        ];
+
+        function normalizeNetworkName(record, index) {
+            const normalized = { Index: record.Index ?? index };
+            setSSIDFields.forEach((field) => {
+                normalized[field.name] = record[field.name] ?? field.defaultValue ?? (field.type === "checkbox" ? false : "");
+            });
+            normalized.AddRemoveChange = record.AddRemoveChange ?? "Change";
+            return normalized;
+        }
+
+        function formatMetricValue(value) {
+            if (Array.isArray(value)) {
+                return value.join(", ");
+            }
+            if (value === null || value === undefined) {
+                return "";
+            }
+            return String(value);
+        }
+
+        function renderNeighborWifiResults(data) {
+            const container = document.getElementById("neighborWifiTable");
+            const result = findProperty(data, "Results") ?? findProperty(data, "Result");
+            let rows = [];
+
+            if (Array.isArray(result)) {
+                rows = result;
+            } else if (isBranch(result)) {
+                rows = Object.values(result).filter(isBranch);
+                if (!rows.length && neighboringWifiFields.some((field) => field in result)) {
+                    rows = [result];
+                }
+            }
+
+            container.replaceChildren();
+            if (!rows.length) {
+                const empty = document.createElement("p");
+                empty.className = "table-empty";
+                empty.textContent = "The diagnostic returned no neighboring Wi-Fi nodes.";
+                container.appendChild(empty);
+                return;
+            }
+
+            const table = document.createElement("table");
+            table.className = "settings-table metrics-table";
+            const head = document.createElement("thead");
+            const headerRow = document.createElement("tr");
+            neighboringWifiFields.forEach((field) => {
+                const header = document.createElement("th");
+                header.scope = "col";
+                header.textContent = field;
+                headerRow.appendChild(header);
+            });
+            head.appendChild(headerRow);
+
+            const body = document.createElement("tbody");
+            rows.forEach((record) => {
+                const row = document.createElement("tr");
+                neighboringWifiFields.forEach((field) => {
+                    const cell = document.createElement("td");
+                    cell.textContent = formatMetricValue(record[field]);
+                    row.appendChild(cell);
+                });
+                body.appendChild(row);
+            });
+            table.append(head, body);
+            container.appendChild(table);
+        }
+
+        async function loadNeighborWifiDiagnostic() {
+            const refreshButton = document.getElementById("refreshNeighborWifi");
+            const status = document.getElementById("neighborWifiStatus");
+            refreshButton.disabled = true;
+            status.textContent = "Loading ...";
+            status.style.color = "";
+
+            try {
+                const response = await fetch("NeighboringWiFiDiagnostic.json");
+                if (!response.ok) {
+                    throw new Error("HTTP " + response.status);
+                }
+                const data = await response.json();
+                if (data.Status && data.Status !== "Complete") {
+                    throw new Error(data.Status);
+                }
+                renderNeighborWifiResults(data);
+                status.textContent = "Diagnostic complete.";
+                status.style.color = "#2e7d32";
+            } catch (error) {
+                status.textContent = "Unable to load neighboring Wi-Fi nodes: " + error.message;
+                status.style.color = "#c62828";
+            } finally {
+                refreshButton.disabled = false;
+            }
+        }
+
+        function cloneRecords(records) {
+            return records.map((record) => ({ ...record }));
+        }
+
+        function setNetworkNamesStatus(message, error = false) {
+            const status = document.getElementById("networkNamesStatus");
+            status.textContent = message;
+            status.style.color = error ? "#c62828" : "#2e7d32";
+        }
+
+        function renderNetworkNames(data) {
+            const networkSSIDList = findProperty(data, "NetworkSSIDList");
+            const records = Array.isArray(networkSSIDList)
+                ? networkSSIDList
+                : (isBranch(networkSSIDList) ? Object.values(networkSSIDList) : []);
+
+            networkNamesOriginal = records
+                .filter((record) => isBranch(record))
+                .map(normalizeNetworkName);
+            networkNamesWorking = cloneRecords(networkNamesOriginal);
+            renderNetworkNamesEditor();
+        }
+
+        function createNetworkNameInput(field, value, rowIndex) {
+            const input = document.createElement(field.type === "select" ? "select" : "input");
+            input.dataset.field = field.name;
+            input.dataset.rowIndex = String(rowIndex);
+
+            if (field.type === "select") {
+                field.options.forEach((optionValue) => {
+                    const option = document.createElement("option");
+                    option.value = optionValue;
+                    option.textContent = optionValue;
+                    input.appendChild(option);
+                });
+                input.value = String(value);
+            } else {
+                input.type = field.type;
+                if (field.type === "checkbox") {
+                    input.checked = Boolean(value);
+                } else {
+                    input.value = value === null || value === undefined ? "" : String(value);
+                }
+            }
+
+            input.required = Boolean(field.required);
+            if (field.placeholder) {
+                input.placeholder = field.placeholder;
+            }
+            if (field.pattern) {
+                input.pattern = field.pattern;
+            }
+            input.setAttribute("aria-label", field.name + " for row " + (rowIndex + 1));
+            return input;
+        }
+
+        function renderNetworkNamesEditor() {
+            const container = document.getElementById("networkNamesTable");
+            if (!networkNamesWorking.length) {
+                showNetworkNamesMessage("No network names are configured. Select Add Network Name to create one.");
+                setNetworkNamesPending(networkNamesRequestPending);
+                return;
+            }
+
+            const table = document.createElement("table");
+            table.className = "settings-table";
+
+            const head = document.createElement("thead");
+            const headingRow = document.createElement("tr");
+            ["Index", ...setSSIDFields.map((field) => field.name), "Actions"].forEach((column) => {
+                const heading = document.createElement("th");
+                heading.scope = "col";
+                heading.textContent = column;
+                headingRow.appendChild(heading);
+            });
+            head.appendChild(headingRow);
+
+            const body = document.createElement("tbody");
+            networkNamesWorking.forEach((record, rowIndex) => {
+                const row = document.createElement("tr");
+                const indexCell = document.createElement("td");
+                indexCell.textContent = String(record.Index);
+                row.appendChild(indexCell);
+
+                setSSIDFields.forEach((field) => {
+                    const cell = document.createElement("td");
+                    cell.appendChild(createNetworkNameInput(field, record[field.name], rowIndex));
+                    row.appendChild(cell);
+                });
+
+                const actionCell = document.createElement("td");
+                const updateButton = document.createElement("button");
+                updateButton.type = "button";
+                updateButton.className = "settings-button settings-button-primary";
+                updateButton.dataset.updateRow = String(rowIndex);
+                updateButton.textContent = "Update";
+                const removeButton = document.createElement("button");
+                removeButton.type = "button";
+                removeButton.className = "settings-button settings-button-danger";
+                removeButton.dataset.removeRow = String(rowIndex);
+                removeButton.textContent = "Remove";
+                actionCell.append(updateButton, removeButton);
+                row.appendChild(actionCell);
+                body.appendChild(row);
+            });
+
+            table.append(head, body);
+            container.replaceChildren(table);
+            setNetworkNamesPending(networkNamesRequestPending);
+        }
+
+        function updateNetworkName(event) {
+            const input = event.target.closest("[data-field]");
+            if (!input) {
+                return;
+            }
+            const rowIndex = Number(input.dataset.rowIndex);
+            const value = input.type === "checkbox" ? input.checked : input.value;
+            networkNamesWorking[rowIndex][input.dataset.field] = value;
+            if (input.dataset.field !== "AddRemoveChange" &&
+                networkNamesWorking[rowIndex].AddRemoveChange !== "Add") {
+                networkNamesWorking[rowIndex].AddRemoveChange = "Change";
+            }
+            setNetworkNamesStatus("");
+        }
+
+        function addNetworkName() {
+            const nextIndex = networkNamesWorking.reduce(
+                (maximum, record) => Math.max(maximum, Number(record.Index) || 0), -1) + 1;
+            networkNamesWorking.push(normalizeNetworkName({ Index: nextIndex, AddRemoveChange: "Add" }, nextIndex));
+            renderNetworkNamesEditor();
+            setNetworkNamesStatus("New network name added. Complete the row and select Update.");
+        }
+
+        function setNetworkNamesPending(pending) {
+            networkNamesRequestPending = pending;
+            document.querySelectorAll(
+                "#network-names-panel input, #network-names-panel select, #network-names-panel button"
+            ).forEach((control) => {
+                control.disabled = pending;
+            });
+        }
+
+        function validateNetworkName(rowIndex) {
+            const allowedBands = new Set([
+                "All", "2.4", "5", "6", "5_UNII_1", "5_UNII_2", "5_UNII_3", "5_UNII_4",
+                "6_UNII_5", "6_UNII_6", "6_UNII_7", "6_UNII_8"
+            ]);
+            const allowedAKMs = new Set(["psk", "dpp", "sae", "psk+sae", "dpp+sae", "dpp+psk+sae", "SuiteSelector"]);
+            const allowedHaulTypes = new Set(["Fronthaul", "Backhaul"]);
+            const macAddress = /^[0-9a-f]{2}(?::[0-9a-f]{2}){5}$/i;
+            const inputs = document.querySelectorAll(
+                '#networkNamesTable [data-row-index="' + rowIndex + '"]'
+            );
+            for (const input of inputs) {
+                if (!input.reportValidity()) {
+                    return false;
+                }
+            }
+
+            const record = networkNamesWorking[rowIndex];
+            const ssid = String(record.SSID).trim();
+            if (networkNamesWorking.some((candidate, index) =>
+                index !== rowIndex && String(candidate.SSID).trim() === ssid)) {
+                setNetworkNamesStatus("Each SSID must be unique.", true);
+                return false;
+            }
+
+            const bands = String(record.Band).split(",").map((value) => value.trim()).filter(Boolean);
+            if (!bands.length || bands.some((value) => !allowedBands.has(value))) {
+                setNetworkNamesStatus("Band contains an unsupported value.", true);
+                return false;
+            }
+
+            const akms = String(record.AKMsAllowed).split(",").map((value) => value.trim()).filter(Boolean);
+            if (akms.some((value) => !allowedAKMs.has(value))) {
+                setNetworkNamesStatus("AKMsAllowed contains an unsupported value.", true);
+                return false;
+            }
+            if (akms.includes("SuiteSelector") && !/^[0-9a-f]{8}$/i.test(record.SuiteSelector)) {
+                setNetworkNamesStatus("SuiteSelector must contain exactly 8 hexadecimal characters.", true);
+                return false;
+            }
+
+            const haulTypes = String(record.HaulType).split(",").map((value) => value.trim()).filter(Boolean);
+            if (haulTypes.some((value) => !allowedHaulTypes.has(value))) {
+                setNetworkNamesStatus("HaulType must contain Fronthaul, Backhaul, or both.", true);
+                return false;
+            }
+
+            const mobilityDomains = String(record.MobilityDomain)
+                .split(",").map((value) => value.trim()).filter(Boolean);
+            if (mobilityDomains.some((value) => !macAddress.test(value))) {
+                setNetworkNamesStatus("MobilityDomain must contain comma-separated MAC addresses.", true);
+                return false;
+            }
+            return true;
+        }
+
+        async function submitNetworkName(record, action) {
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), networkNamesRequestTimeout);
+            setNetworkNamesPending(true);
+            setNetworkNamesStatus(action + " request pending ...");
+            try {
+                const response = await fetch("SetSSID", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(record),
+                    signal: controller.signal
+                });
+                if (!response.ok) {
+                    throw new Error("HTTP " + response.status);
+                }
+                const result = await response.json();
+                if (result.Status !== "Complete") {
+                    throw new Error(result.Status || "SetSSID operation failed");
+                }
+                return true;
+            } catch (error) {
+                const message = error.name === "AbortError"
+                    ? "Request timed out after 30 seconds."
+                    : error.message;
+                setNetworkNamesStatus("Unable to " + action.toLowerCase() + " network name: " + message, true);
+                return false;
+            } finally {
+                clearTimeout(timeout);
+                setNetworkNamesPending(false);
+            }
+        }
+
+        async function updateNetworkNameRow(rowIndex) {
+            if (!validateNetworkName(rowIndex)) {
+                return;
+            }
+            const record = {
+                ...networkNamesWorking[rowIndex],
+                AddRemoveChange: networkNamesWorking[rowIndex].AddRemoveChange === "Add" ? "Add" : "Change"
+            };
+            if (!await submitNetworkName(record, "Update")) {
+                return;
+            }
+            record.AddRemoveChange = "Change";
+            networkNamesWorking[rowIndex] = { ...record };
+            const originalIndex = networkNamesOriginal.findIndex((item) => item.Index === record.Index);
+            if (originalIndex < 0) {
+                networkNamesOriginal.push({ ...record });
+            } else {
+                networkNamesOriginal[originalIndex] = { ...record };
+            }
+            renderNetworkNamesEditor();
+            setNetworkNamesStatus("Operation Succeeded");
+        }
+
+        async function removeNetworkName(rowIndex) {
+            const record = networkNamesWorking[rowIndex];
+            if (record.AddRemoveChange !== "Add" &&
+                !await submitNetworkName({ ...record, AddRemoveChange: "Remove" }, "Remove")) {
+                return;
+            }
+            networkNamesWorking.splice(rowIndex, 1);
+            networkNamesOriginal = networkNamesOriginal.filter((item) => item.Index !== record.Index);
+            renderNetworkNamesEditor();
+            setNetworkNamesStatus("Operation Succeeded");
+        }
+
+        function findGraphData(value) {
+            if (!isBranch(value)) {
+                return null;
+            }
+            if (Array.isArray(value.nodes) && Array.isArray(value.edges)) {
+                return value;
+            }
+            for (const child of Object.values(value)) {
+                const result = findGraphData(child);
+                if (result) {
+                    return result;
+                }
+            }
+            return null;
+        }
+
+        function normalizeTopology(data) {
+            const graphData = findGraphData(data);
+            if (graphData) {
+                const nodes = graphData.nodes.map((node, index) => ({
+                    id: String(node.id ?? node.ID ?? index),
+                    label: String(node.label ?? node.name ?? node.id ?? node.ID ?? "Node " + (index + 1)),
+                    type: String(node.type ?? node.kind ?? "Device"),
+                    x: Number(node.x),
+                    y: Number(node.y),
+                    z: Number(node.z)
+                }));
+                const edges = graphData.edges.map((edge) => ({
+                    from: String(edge.from ?? edge.source),
+                    to: String(edge.to ?? edge.target)
+                }));
+                return { nodes, edges };
+            }
+
+            const root = data.Result?.Device ?? data.Device ?? data.Result ?? data;
+            const roots = Array.isArray(root) ? root : [root];
+            const nodes = [];
+            const edges = [];
+            const nodeIds = new Set();
+
+            function addNode(id, label, type, depth) {
+                const normalizedId = String(id);
+                if (!nodeIds.has(normalizedId)) {
+                    nodeIds.add(normalizedId);
+                    nodes.push({ id: normalizedId, label: String(label), type, depth });
+                }
+                return normalizedId;
+            }
+
+            function addClients(device, deviceId, depth) {
+                (device.RadioList ?? []).forEach((radio) => {
+                    (radio.BSSList ?? []).forEach((bss) => {
+                        (bss.STAList ?? []).forEach((station, index) => {
+                            const id = station.MACAddress ?? station.ID ?? deviceId + "-client-" + index;
+                            const label = station.ClientType
+                                ? station.ClientType + "<br>" + id
+                                : id;
+                            const clientId = addNode(id, label, "Client", depth + 1);
+                            edges.push({ from: deviceId, to: clientId });
+                        });
+                    });
+                });
+            }
+
+            function walkDevice(device, parentId, depth, index) {
+                if (!isBranch(device)) {
+                    return;
+                }
+                const id = device.ID ?? device.id ?? device.MACAddress ?? "device-" + depth + "-" + index;
+                const deviceId = addNode(id, id, depth === 0 ? "Controller" : "Mesh device", depth);
+                if (parentId) {
+                    edges.push({ from: parentId, to: deviceId });
+                }
+                addClients(device, deviceId, depth);
+                const children = device.Backhaul?.Child ?? device.Child ?? device.children ?? [];
+                (Array.isArray(children) ? children : [children]).forEach((child, childIndex) => {
+                    walkDevice(child, deviceId, depth + 1, childIndex);
+                });
+            }
+
+            roots.forEach((device, index) => walkDevice(device, null, 0, index));
+            return { nodes, edges };
+        }
+
+        function assignPositions(nodes) {
+            const levels = new Map();
+            nodes.forEach((node) => {
+                if (Number.isFinite(node.x) && Number.isFinite(node.y) && Number.isFinite(node.z)) {
+                    return;
+                }
+                const depth = node.depth ?? 0;
+                const level = levels.get(depth) ?? [];
+                level.push(node);
+                levels.set(depth, level);
+            });
+
+            levels.forEach((level, depth) => {
+                level.forEach((node, index) => {
+                    const angle = (2 * Math.PI * index) / Math.max(level.length, 1);
+                    const radius = Math.max(1, level.length) * 0.8;
+                    node.x = radius * Math.cos(angle);
+                    node.y = radius * Math.sin(angle);
+                    node.z = -depth * 2;
+                });
+            });
+        }
+
+        function renderTopology(data) {
+            const topology = normalizeTopology(data);
+            if (!topology.nodes.length) {
+                throw new Error("Topology.json contains no recognizable nodes");
+            }
+
+            assignPositions(topology.nodes);
+            const byId = new Map(topology.nodes.map((node) => [node.id, node]));
+            const edgeCoordinates = { x: [], y: [], z: [] };
+            topology.edges.forEach((edge) => {
+                const from = byId.get(edge.from);
+                const to = byId.get(edge.to);
+                if (from && to) {
+                    edgeCoordinates.x.push(from.x, to.x, null);
+                    edgeCoordinates.y.push(from.y, to.y, null);
+                    edgeCoordinates.z.push(from.z, to.z, null);
+                }
+            });
+
+            const colors = {
+                "Controller": "#d32f2f",
+                "Mesh device": "#1565c0",
+                "Client": "#2e7d32",
+                "Device": "#1565c0"
+            };
+            const traces = [{
+                type: "scatter3d",
+                mode: "lines",
+                x: edgeCoordinates.x,
+                y: edgeCoordinates.y,
+                z: edgeCoordinates.z,
+                hoverinfo: "skip",
+                line: { color: "#90a4ae", width: 4 }
+            }, {
+                type: "scatter3d",
+                mode: "markers+text",
+                x: topology.nodes.map((node) => node.x),
+                y: topology.nodes.map((node) => node.y),
+                z: topology.nodes.map((node) => node.z),
+                text: topology.nodes.map((node) => node.label),
+                hovertext: topology.nodes.map((node) => node.type + ": " + node.label.replace("<br>", " ")),
+                hoverinfo: "text",
+                textposition: "top center",
+                marker: {
+                    color: topology.nodes.map((node) => colors[node.type] ?? "#6a1b9a"),
+                    size: topology.nodes.map((node) => node.type === "Client" ? 6 : 10),
+                    line: { color: "#ffffff", width: 1 }
+                }
+            }];
+
+            Plotly.newPlot("topologyGraph", traces, {
+                autosize: true,
+                margin: { l: 0, r: 0, t: 0, b: 0 },
+                paper_bgcolor: "#ffffff",
+                showlegend: false,
+                scene: {
+                    aspectmode: "data",
+                    xaxis: { title: "", showticklabels: false, showgrid: false, zeroline: false },
+                    yaxis: { title: "", showticklabels: false, showgrid: false, zeroline: false },
+                    zaxis: { title: "", showticklabels: false, showgrid: false, zeroline: false }
+                }
+            }, {
+                responsive: true,
+                displaylogo: false
+            });
+
+            return topology.nodes.length + " nodes, " + topology.edges.length + " links";
+        }
+
+        const treeLoad = loadTree(document.querySelector(".json-tree-panel"));
+        const topologyStatus = document.getElementById("topologyStatus");
+        const refreshTopologyButton = document.getElementById("refreshTopology");
+
+        async function loadTopology() {
+            refreshTopologyButton.disabled = true;
+            topologyStatus.textContent = "Loading ...";
+            topologyStatus.style.color = "";
+
+            try {
+                const response = await fetch("Topology.json");
+                if (!response.ok) {
+                    throw new Error("HTTP " + response.status);
+                }
+                topologyStatus.textContent = renderTopology(await response.json());
+            } catch (error) {
+                topologyStatus.textContent = "Unable to load topology: " + error.message;
+                topologyStatus.style.color = "#c62828";
+            } finally {
+                refreshTopologyButton.disabled = false;
+            }
+        }
+
+        refreshTopologyButton.addEventListener("click", loadTopology);
+
+        treeLoad.finally(() => {
+            document.getElementById("jsonStatus").textContent = "Last updated " + new Date().toLocaleTimeString();
+        });
+
+        const settingsDialog = document.getElementById("networkSettingsDialog");
+        const settingsTabList = settingsDialog.querySelector('[aria-label="Network settings categories"]');
+        const settingsTabs = Array.from(settingsTabList.querySelectorAll('[role="tab"]'));
+
+        function selectSettingsTab(selectedTab) {
+            settingsTabs.forEach((tab) => {
+                const selected = tab === selectedTab;
+                tab.setAttribute("aria-selected", String(selected));
+                tab.tabIndex = selected ? 0 : -1;
+                document.getElementById(tab.getAttribute("aria-controls")).hidden = !selected;
+            });
+            selectedTab.focus();
+        }
+
+        document.getElementById("networkSettingsMenu").addEventListener("click", (event) => {
+            event.preventDefault();
+            settingsDialog.showModal();
+        });
+
+        document.getElementById("closeNetworkSettings").addEventListener("click", () => {
+            settingsDialog.close();
+        });
+
+        settingsDialog.addEventListener("click", (event) => {
+            if (event.target === settingsDialog) {
+                settingsDialog.close();
+            }
+        });
+
+        settingsTabs.forEach((tab, index) => {
+            tab.addEventListener("click", () => selectSettingsTab(tab));
+            tab.addEventListener("keydown", (event) => {
+                if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) {
+                    return;
+                }
+                event.preventDefault();
+                let nextIndex = index;
+                if (event.key === "ArrowLeft") {
+                    nextIndex = (index - 1 + settingsTabs.length) % settingsTabs.length;
+                } else if (event.key === "ArrowRight") {
+                    nextIndex = (index + 1) % settingsTabs.length;
+                } else if (event.key === "Home") {
+                    nextIndex = 0;
+                } else if (event.key === "End") {
+                    nextIndex = settingsTabs.length - 1;
+                }
+                selectSettingsTab(settingsTabs[nextIndex]);
+            });
+        });
+
+        document.getElementById("networkNamesTable").addEventListener("input", updateNetworkName);
+        document.getElementById("networkNamesTable").addEventListener("change", updateNetworkName);
+        document.getElementById("networkNamesTable").addEventListener("click", (event) => {
+            const updateButton = event.target.closest("[data-update-row]");
+            if (updateButton) {
+                updateNetworkNameRow(Number(updateButton.dataset.updateRow));
+                return;
+            }
+            const removeButton = event.target.closest("[data-remove-row]");
+            if (removeButton) {
+                removeNetworkName(Number(removeButton.dataset.removeRow));
+            }
+        });
+        document.getElementById("addNetworkName").addEventListener("click", addNetworkName);
+        document.getElementById("cancelNetworkNames").addEventListener("click", () => {
+            networkNamesWorking = cloneRecords(networkNamesOriginal);
+            renderNetworkNamesEditor();
+            setNetworkNamesStatus("");
+            settingsDialog.close();
+        });
+
+        const metricsDialog = document.getElementById("metricsDialog");
+        const metricsTabList = metricsDialog.querySelector('[aria-label="Metrics categories"]');
+        const metricsTabs = Array.from(metricsTabList.querySelectorAll('[role="tab"]'));
+
+        function selectMetricsTab(selectedTab) {
+            metricsTabs.forEach((tab) => {
+                const selected = tab === selectedTab;
+                tab.setAttribute("aria-selected", String(selected));
+                tab.tabIndex = selected ? 0 : -1;
+                document.getElementById(tab.getAttribute("aria-controls")).hidden = !selected;
+            });
+            selectedTab.focus();
+        }
+
+        document.getElementById("metricsMenu").addEventListener("click", (event) => {
+            event.preventDefault();
+            metricsDialog.showModal();
+        });
+
+        document.getElementById("closeMetrics").addEventListener("click", () => {
+            metricsDialog.close();
+        });
+
+        metricsDialog.addEventListener("click", (event) => {
+            if (event.target === metricsDialog) {
+                metricsDialog.close();
+            }
+        });
+
+        metricsTabs.forEach((tab, index) => {
+            tab.addEventListener("click", () => selectMetricsTab(tab));
+            tab.addEventListener("keydown", (event) => {
+                if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) {
+                    return;
+                }
+                event.preventDefault();
+                let nextIndex = index;
+                if (event.key === "ArrowLeft") {
+                    nextIndex = (index - 1 + metricsTabs.length) % metricsTabs.length;
+                } else if (event.key === "ArrowRight") {
+                    nextIndex = (index + 1) % metricsTabs.length;
+                } else if (event.key === "Home") {
+                    nextIndex = 0;
+                } else if (event.key === "End") {
+                    nextIndex = metricsTabs.length - 1;
+                }
+                selectMetricsTab(metricsTabs[nextIndex]);
+            });
+        });
+
+        document.getElementById("refreshNeighborWifi").addEventListener("click", loadNeighborWifiDiagnostic);
+
+        // Tools Dialog Initialization
+        const toolsDialog = document.getElementById("toolsDialog");
+        const toolsTabList = toolsDialog.querySelector('[aria-label="Tools"]');
+        const toolsTabs = Array.from(toolsTabList.querySelectorAll('[role="tab"]'));
+
+        function selectToolsTab(selectedTab) {
+            toolsTabs.forEach((tab) => {
+                const selected = tab === selectedTab;
+                tab.setAttribute("aria-selected", String(selected));
+                tab.tabIndex = selected ? 0 : -1;
+                document.getElementById(tab.getAttribute("aria-controls")).hidden = !selected;
+            });
+            selectedTab.focus();
+        }
+
+        document.getElementById("toolsMenu").addEventListener("click", (event) => {
+            event.preventDefault();
+            toolsDialog.showModal();
+        });
+
+        document.getElementById("closeTools").addEventListener("click", () => {
+            toolsDialog.close();
+        });
+
+        toolsDialog.addEventListener("click", (event) => {
+            if (event.target === toolsDialog) {
+                toolsDialog.close();
+            }
+        });
+
+        toolsTabs.forEach((tab, index) => {
+            tab.addEventListener("click", () => selectToolsTab(tab));
+            tab.addEventListener("keydown", (event) => {
+                if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) {
+                    return;
+                }
+                event.preventDefault();
+                let nextIndex = index;
+                if (event.key === "ArrowLeft") {
+                    nextIndex = (index - 1 + toolsTabs.length) % toolsTabs.length;
+                } else if (event.key === "ArrowRight") {
+                    nextIndex = (index + 1) % toolsTabs.length;
+                } else if (event.key === "Home") {
+                    nextIndex = 0;
+                } else if (event.key === "End") {
+                    nextIndex = toolsTabs.length - 1;
+                }
+                selectToolsTab(toolsTabs[nextIndex]);
+            });
+        });
+
+        // Scan Type Sub-tabs (Full Scan vs Channel Scan)
+        const scanTypeTabs = Array.from(document.querySelectorAll('[aria-label="Scan Types"] [role="tab"]'));
+
+        function selectScanTypeTab(selectedTab) {
+            scanTypeTabs.forEach((tab) => {
+                const selected = tab === selectedTab;
+                tab.setAttribute("aria-selected", String(selected));
+                tab.tabIndex = selected ? 0 : -1;
+                const panel = document.getElementById(tab.getAttribute("aria-controls"));
+                if (panel) {
+                    panel.hidden = !selected;
+                }
+            });
+            selectedTab.focus();
+        }
+
+        scanTypeTabs.forEach((tab, index) => {
+            tab.addEventListener("click", () => selectScanTypeTab(tab));
+            tab.addEventListener("keydown", (event) => {
+                if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) {
+                    return;
+                }
+                event.preventDefault();
+                let nextIndex = index;
+                if (event.key === "ArrowLeft") {
+                    nextIndex = (index - 1 + scanTypeTabs.length) % scanTypeTabs.length;
+                } else if (event.key === "ArrowRight") {
+                    nextIndex = (index + 1) % scanTypeTabs.length;
+                } else if (event.key === "Home") {
+                    nextIndex = 0;
+                } else if (event.key === "End") {
+                    nextIndex = scanTypeTabs.length - 1;
+                }
+                selectScanTypeTab(scanTypeTabs[nextIndex]);
+            });
+        });
+
+        function scanUnsignedInput(id) {
+            const field = document.getElementById(id);
+            if (!field.reportValidity()) {
+                throw new Error(field.validationMessage);
+            }
+            return field.value === "" ? undefined : Number(field.value);
+        }
+
+        function scanInput() {
+            const input = {
+                DwellTime: scanUnsignedInput("scanDwellTime"),
+                DFSDwellTime: scanUnsignedInput("scanDFSDwellTime")
+            };
+            const homeTime = scanUnsignedInput("scanHomeTime");
+            if (homeTime !== undefined) {
+                input.HomeTime = homeTime;
+            }
+            const ssid = document.getElementById("scanSSID").value;
+            if (ssid !== "") {
+                input.SSID = ssid;
+            }
+            return input;
+        }
+
+        function showScanMessage(prefix, columns, message) {
+            document.getElementById(prefix + "Results").style.display = "block";
+            const body = document.getElementById(prefix + "ResultsBody");
+            const cell = document.createElement("td");
+            cell.colSpan = columns;
+            cell.style.whiteSpace = "pre-wrap";
+            cell.textContent = message;
+            const row = document.createElement("tr");
+            row.appendChild(cell);
+            body.replaceChildren(row);
+        }
+
+        function populateFullScanResults(data) {
+            const resultsDiv = document.getElementById("fullScanResults");
+            const tbody = document.getElementById("fullScanResultsBody");
+            
+            // The response structure is: { Status, Data: { Status, ScanResult } }
+            // OR just: { Status, ScanResult }
+            // Try both
+            let scanResults = data?.ScanResult;
+            if (!scanResults && data?.Data?.ScanResult) {
+                scanResults = data.Data.ScanResult;
+            }
+            
+            if (!scanResults || !Array.isArray(scanResults)) {
+                const debugMsg = "No scan results found or invalid response format.";
+                showScanMessage("fullScan", 13, debugMsg);
+                return;
+            }
+
+            // Extract all networks from the nested structure
+            const networks = [];
+            scanResults.forEach(scanResult => {
+                if (scanResult.OpClassScan && Array.isArray(scanResult.OpClassScan)) {
+                    scanResult.OpClassScan.forEach(opClass => {
+                        if (opClass.ChannelScan && Array.isArray(opClass.ChannelScan)) {
+                            opClass.ChannelScan.forEach(channelScan => {
+                                const channel = channelScan.Channel;
+                                if (channelScan.NeighborBSS && Array.isArray(channelScan.NeighborBSS)) {
+                                    channelScan.NeighborBSS.forEach(bss => {
+                                        networks.push({ ...bss, Channel: channel });
+                                    });
+                                }
+                            });
+                        }
+                    });
+                }
+            });
+
+            if (networks.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="13" style="text-align: center; padding: 20px;">No networks found.</td></tr>';
+                resultsDiv.style.display = "block";
+                return;
+            }
+
+            resultsDiv.style.display = "block";
+            tbody.innerHTML = "";
+
+            networks.forEach(network => {
+                const row = document.createElement("tr");
+                
+                const ssidCell = document.createElement("td");
+                ssidCell.textContent = network.SSID || "(Hidden)";
+                row.appendChild(ssidCell);
+                
+                const bssidCell = document.createElement("td");
+                bssidCell.textContent = network.BSSID || "N/A";
+                row.appendChild(bssidCell);
+                
+                const channelCell = document.createElement("td");
+                channelCell.textContent = network.Channel !== undefined ? network.Channel : "N/A";
+                row.appendChild(channelCell);
+                
+                const signalCell = document.createElement("td");
+                signalCell.textContent = network.SignalStrength !== undefined ? network.SignalStrength + " dBm" : "N/A";
+                row.appendChild(signalCell);
+                
+                const bandwidthCell = document.createElement("td");
+                bandwidthCell.textContent = network.ChannelBandwidth || "N/A";
+                row.appendChild(bandwidthCell);
+                
+                const utilizationCell = document.createElement("td");
+                utilizationCell.textContent = network.ChannelUtilization !== undefined ? network.ChannelUtilization + "%" : "N/A";
+                row.appendChild(utilizationCell);
+                
+                const stationsCell = document.createElement("td");
+                stationsCell.textContent = network.StationCount !== undefined ? network.StationCount : "N/A";
+                row.appendChild(stationsCell);
+                
+                const operatingStdCell = document.createElement("td");
+                operatingStdCell.textContent = network.OperatingStandards || "N/A";
+                row.appendChild(operatingStdCell);
+                
+                const securityCell = document.createElement("td");
+                let securityStr = "N/A";
+                if (network.SecurityModeEnabled) {
+                    if (Array.isArray(network.SecurityModeEnabled)) {
+                        securityStr = network.SecurityModeEnabled.join(", ");
+                    } else {
+                        securityStr = network.SecurityModeEnabled;
+                    }
+                }
+                securityCell.textContent = securityStr;
+                row.appendChild(securityCell);
+                
+                const encryptionCell = document.createElement("td");
+                encryptionCell.textContent = network.EncryptionMode || "N/A";
+                row.appendChild(encryptionCell);
+                
+                const nssCell = document.createElement("td");
+                nssCell.textContent = network.SupportedNSS !== undefined ? network.SupportedNSS : "N/A";
+                row.appendChild(nssCell);
+                
+                const dtimCell = document.createElement("td");
+                dtimCell.textContent = network.DTIMPeriod !== undefined ? network.DTIMPeriod : "N/A";
+                row.appendChild(dtimCell);
+                
+                const beaconCell = document.createElement("td");
+                beaconCell.textContent = network.BeaconPeriod !== undefined ? network.BeaconPeriod : "N/A";
+                row.appendChild(beaconCell);
+                
+                tbody.appendChild(row);
+            });
+        }
+
+        async function submitScan(command, payload, prefix, columns, button) {
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 30000);
+            button.disabled = true;
+            showScanMessage(prefix, columns, command + " request pending...");
+            try {
+                const response = await fetch(command, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(payload),
+                    signal: controller.signal
+                });
+                if (!response.ok) {
+                    throw new Error("HTTP " + response.status);
+                }
+                const result = await response.json();
+                
+                // Check for success status
+                if (!result) {
+                    throw new Error("Empty response");
+                }
+                
+                // Handle different response formats
+                // Format 1: Status at root level with ScanResult (FullScan)
+                // Format 2: Status at root with Data object containing Status
+                const isSuccess = result.Status === "Success" || 
+                                result.Status === "Complete" || 
+                                result.Status === "Accepted";
+                
+                if (!isSuccess) {
+                    throw new Error(result?.error || result?.Status || "Invalid scan response");
+                }
+                
+                // Check Data.Status if it exists
+                if (result.Data?.Status && result.Data.Status !== "Success") {
+                    throw new Error(result.Data.Status);
+                }
+                
+                // For Full Scan, parse and display results in table format
+                if (command === "FullScan") {
+                    // Pass the full result for FullScan (which may have ScanResult at root or in Data)
+                    populateFullScanResults(result);
+                } else {
+                    // For other scans, show JSON
+                    showScanMessage(prefix, columns, command + " response:\n" + JSON.stringify(result, null, 2));
+                }
+            } catch (error) {
+                const message = error.name === "AbortError"
+                    ? "Request timed out after 30 seconds."
+                    : error.message;
+                showScanMessage(prefix, columns, command + " failed: " + message);
+            } finally {
+                clearTimeout(timeout);
+                button.disabled = false;
+            }
+        }
+
+        document.getElementById("startFullScan").addEventListener("click", async (event) => {
+            try {
+                const deviceId = document.getElementById("wireless-scan-device").value;
+                if (!deviceId) {
+                    throw new Error("Please select a device to scan.");
+                }
+                const radioId = document.getElementById("wireless-scan-radio").value;
+                if (!radioId) {
+                    throw new Error("Please select a radio to scan.");
+                }
+                
+                // Build flat JSON payload
+                const payload = {
+                    Device: deviceId,
+                    Radio: radioId,
+                    DwellTime: scanUnsignedInput("scanDwellTime"),
+                    DFSDwellTime: scanUnsignedInput("scanDFSDwellTime")
+                };
+                
+                // Add optional parameters if provided
+                const homeTime = scanUnsignedInput("scanHomeTime");
+                if (homeTime !== undefined) {
+                    payload.HomeTime = homeTime;
+                }
+                const ssid = document.getElementById("scanSSID").value;
+                payload.SSID = ssid || "";
+                
+                await submitScan("FullScan", payload,
+                    "fullScan", 5, event.currentTarget);
+            } catch (error) {
+                showScanMessage("fullScan", 5, error.message);
+            }
+        });
+
+        document.getElementById("startChannelScan").addEventListener("click", async (event) => {
+            try {
+                const input = scanInput();
+                const operatingClass = scanUnsignedInput("channelScanOperatingClass");
+                const values = document.getElementById("channelScanChannel").value.split(",")
+                    .map(value => value.trim());
+                if (values.some(value => !/^\d+$/.test(value) || Number(value) > 255)) {
+                    throw new Error("Enter comma-separated channel numbers from 0 to 255.");
+                }
+                input.OpClass = [{
+                    OperatingClass: operatingClass,
+                    Channel: [...new Set(values.map(Number))].map(channel => ({ Channel: channel }))
+                }];
+                await submitScan("ChannelScan", { Input: input }, "channelScan", 6, event.currentTarget);
+            } catch (error) {
+                showScanMessage("channelScan", 6, error.message);
+            }
+        });
+
+        // -------- Wireless Scan Handler --------
+        class WirelessScanHandler {
+            constructor() {
+                this.devices = [];
+                this.selectedDevice = null;
+                this.selectedRadio = null;
+                console.log('[WirelessScanHandler] Constructor called');
+                this.init();
+            }
+
+            init() {
+                console.log('[WirelessScanHandler] Init called');
+                this.setupEventListeners();
+                this.loadDevices();
+            }
+
+            setupEventListeners() {
+                const deviceSelect = document.getElementById('wireless-scan-device');
+                const radioSelect = document.getElementById('wireless-scan-radio');
+
+                if (deviceSelect) {
+                    deviceSelect.addEventListener('change', (e) => this.onDeviceChange(e));
+                }
+
+                if (radioSelect) {
+                    radioSelect.addEventListener('change', (e) => this.onRadioChange(e));
+                }
+            }
+
+            loadDevices() {
+                // Load from devices.json in same directory as index.html
+                console.log('[WirelessScanHandler] loadDevices called');
+                fetch('DataElements.json')
+                    .then(response => {
+                        console.log('[WirelessScanHandler] Fetch response status:', response.status);
+                        return response.json();
+                    })
+                    .then(data => {
+                        console.log('[WirelessScanHandler] Response received, extracting devices...');
+                        // Extract devices from DataElements structure
+                        const deviceList = data?.Data?.Device?.WiFI?.DataElements?.Network?.DeviceList || [];
+                        console.log('[WirelessScanHandler] Devices loaded:', deviceList.length, 'devices');
+                        this.devices = deviceList;
+                        this.populateDeviceSelect();
+                    })
+                    .catch(error => {
+                        console.error('[WirelessScanHandler] Error loading devices:', error);
+                        this.showError('Failed to load devices');
+                    });
+            }
+
+            populateDeviceSelect() {
+                console.log('[WirelessScanHandler] populateDeviceSelect called with', this.devices.length, 'devices');
+                const deviceSelect = document.getElementById('wireless-scan-device');
+                if (!deviceSelect) {
+                    console.error('[WirelessScanHandler] deviceSelect element not found!');
+                    return;
+                }
+
+                while (deviceSelect.options.length > 1) {
+                    deviceSelect.remove(1);
+                }
+
+                this.devices.forEach(device => {
+                    const option = document.createElement('option');
+                    option.value = device.ID;  // Use ID instead of mac
+                    const manufacturer = device.Manufacturer || 'Device';
+                    const deviceId = device.ID || 'Unknown';
+                    const model = device.ManufacturerModel || '';
+                    option.textContent = `${manufacturer} - ${deviceId}${model ? ' (' + model + ')' : ''}`;
+                    deviceSelect.appendChild(option);
+                    console.log('[WirelessScanHandler] Added device:', option.textContent);
+                });
+                console.log('[WirelessScanHandler] populateDeviceSelect completed');
+            }
+
+            onDeviceChange(event) {
+                const deviceId = event.target.value;
+                this.selectedDevice = deviceId;
+                this.selectedRadio = null;
+                
+                const radioSelect = document.getElementById('wireless-scan-radio');
+                
+                if (!deviceId) {
+                    if (radioSelect) {
+                        radioSelect.innerHTML = '<option value="">-- Choose a radio --</option>';
+                        radioSelect.disabled = true;
+                    }
+                    return;
+                }
+
+                const selectedDevice = this.devices.find(d => d.ID === deviceId);
+                console.log('[WirelessScanHandler] Selected device:', selectedDevice);
+                
+                if (selectedDevice && selectedDevice.RadioList) {
+                    this.populateRadioSelect(selectedDevice.RadioList);
+                    if (radioSelect) {
+                        radioSelect.disabled = false;
+                    }
+                } else {
+                    console.log('[WirelessScanHandler] No radios found for device');
+                    if (radioSelect) {
+                        radioSelect.innerHTML = '<option value="">No radios available</option>';
+                        radioSelect.disabled = true;
+                    }
+                }
+            }
+
+            populateRadioSelect(radios) {
+                const radioSelect = document.getElementById('wireless-scan-radio');
+                if (!radioSelect) return;
+
+                radioSelect.innerHTML = '<option value="">-- Choose a radio --</option>';
+
+                radios.forEach((radio, index) => {
+                    const option = document.createElement('option');
+                    option.value = radio.ID;
+                    option.textContent = `${radio.ID}`;
+                    radioSelect.appendChild(option);
+                    console.log('[WirelessScanHandler] Added radio:', option.textContent);
+                });
+                console.log('[WirelessScanHandler] populateRadioSelect completed with', radios.length, 'radios');
+            }
+
+            onRadioChange(event) {
+                const radioValue = event.target.value;
+                
+                if (!radioValue) {
+                    this.selectedRadio = null;
+                    return;
+                }
+
+                this.selectedRadio = radioValue;
+                console.log('Selected Radio:', this.selectedRadio);
+            }
+
+            showError(message) {
+                console.error(message);
+            }
+        }
+
+        // Initialize WirelessScanHandler - simple and direct
+        function initializeResizeHandle() {
+            const resizeHandle = document.getElementById('resizeHandle');
+            const contentGrid = document.getElementById('home');
+            const leftPanel = contentGrid.querySelector('.json-tree-section');
+            
+            if (!resizeHandle || !contentGrid || !leftPanel) return;
+
+            let isResizing = false;
+            let startX = 0;
+            let startWidth = 0;
+
+            // Load saved width from localStorage
+            const savedWidth = localStorage.getItem('dataElementsWidth');
+            if (savedWidth) {
+                leftPanel.style.width = savedWidth;
+                contentGrid.style.gridTemplateColumns = `${savedWidth} 1px 1fr`;
+            }
+
+            resizeHandle.addEventListener('mousedown', (e) => {
+                isResizing = true;
+                startX = e.clientX;
+                startWidth = leftPanel.offsetWidth;
+                resizeHandle.classList.add('dragging');
+                document.body.style.cursor = 'col-resize';
+                document.body.style.userSelect = 'none';
+            });
+
+            document.addEventListener('mousemove', (e) => {
+                if (!isResizing) return;
+
+                const diff = e.clientX - startX;
+                const newWidth = Math.max(280, startWidth + diff); // Min width 280px
+                const contentWidth = contentGrid.offsetWidth;
+                const maxWidth = contentWidth - 300; // Leave at least 300px for right panel
+
+                if (newWidth <= maxWidth) {
+                    leftPanel.style.width = newWidth + 'px';
+                    contentGrid.style.gridTemplateColumns = `${newWidth}px 1px 1fr`;
+                }
+            });
+
+            document.addEventListener('mouseup', () => {
+                if (isResizing) {
+                    isResizing = false;
+                    resizeHandle.classList.remove('dragging');
+                    document.body.style.cursor = 'default';
+                    document.body.style.userSelect = 'auto';
+                    // Save the width to localStorage
+                    localStorage.setItem('dataElementsWidth', leftPanel.style.width);
+                }
+            });
+        }
+
+        function initializeWirelessScanHandler() {
+            console.log('[Init] Attempting to initialize WirelessScanHandler');
+            if (window.WirelessScanHandler) {
+                console.log('[Init] WirelessScanHandler already initialized');
+                return;
+            }
+            
+            try {
+                window.WirelessScanHandler = new WirelessScanHandler();
+                console.log('[Init] WirelessScanHandler initialized successfully');
+            } catch (error) {
+                console.error('[Init] Failed to initialize WirelessScanHandler:', error);
+            }
+        }
+
+        // Try multiple initialization strategies to ensure it runs
+        // Strategy 1: DOMContentLoaded
+        if (document.addEventListener) {
+            document.addEventListener('DOMContentLoaded', function() {
+                console.log('[Init] DOMContentLoaded fired');
+                initializeResizeHandle();
+                initializeWirelessScanHandler();
+            });
+        }
+
+        // Strategy 2: If already loaded
+        if (document.readyState === 'complete' || document.readyState === 'interactive') {
+            console.log('[Init] Document already ready, initializing now');
+            setTimeout(() => {
+                initializeResizeHandle();
+                initializeWirelessScanHandler();
+            }, 100);
+        }
+
+        // Strategy 3: Fallback initialization
+        setTimeout(function() {
+            if (!window.WirelessScanHandler) {
+                console.log('[Init] Fallback initialization triggered');
+                initializeResizeHandle();
+                initializeWirelessScanHandler();
+            }
+        }, 500);
+
+        document.getElementById("startLocalizer").addEventListener("click", () => {
+            const resultsDiv = document.getElementById("localizerResults");
+            resultsDiv.style.display = "block";
+            resultsDiv.innerHTML = `
+                <h4>Device Locations</h4>
+                <table class="metrics-table">
+                    <thead>
+                        <tr>
+                            <th>Device Name</th>
+                            <th>Position (X, Y)</th>
+                            <th>Distance</th>
+                            <th>Signal Quality</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Device 1</td>
+                            <td>(10.2, 15.5)</td>
+                            <td>8.3m</td>
+                            <td>Excellent</td>
+                        </tr>
+                        <tr>
+                            <td>Device 2</td>
+                            <td>(20.1, 25.8)</td>
+                            <td>15.2m</td>
+                            <td>Good</td>
+                        </tr>
+                        <tr>
+                            <td>Device 3</td>
+                            <td>(5.7, 30.2)</td>
+                            <td>12.1m</td>
+                            <td>Good</td>
+                        </tr>
+                    </tbody>
+                </table>
+            `;
+        });
+
+        // Event Logs Management
+        class EventLogger {
+            constructor() {
+                this.maxLogs = 1000;
+                this.autoScroll = true;
+                this.logs = [];
+                // Event type mapping (optimizer_events_map_t)
+                this.eventTypeMap = {
+                    'DataElements': 'DataElements',
+                    'Subscribed': 'Subscribed',
+                    'Topology': 'Topology',
+                    'SetSSID': 'SetSSID',
+                    'NeighboringWiFiDiagnostic': 'NeighboringWiFiDiagnostic',
+                    'FullScan': 'FullScan',
+                    'ChannelScan': 'ChannelScan',
+                    'Hello': 'Hello',
+                    'Unknown': 'Unknown',
+                    'None': 'None'
+                };
+                this.init();
+            }
+
+            init() {
+                this.clearButton = document.getElementById('clearEventLogs');
+                this.autoScrollButton = document.getElementById('toggleAutoScroll');
+                this.eventLogsBody = document.getElementById('eventLogsBody');
+                this.eventLogsContainer = document.getElementById('eventLogsContainer');
+
+                if (!this.clearButton || !this.autoScrollButton || !this.eventLogsBody) {
+                    console.warn('[EventLogger] Required elements not found');
+                    return;
+                }
+
+                this.clearButton.addEventListener('click', () => this.clearLogs());
+                this.autoScrollButton.addEventListener('click', () => this.toggleAutoScroll());
+
+                console.log('[EventLogger] Initialized successfully');
+            }
+
+            getEventTypeLabel(eventType) {
+                // Try to map the event type to a human-readable label
+                // Check if it's already a valid key
+                if (this.eventTypeMap.hasOwnProperty(eventType)) {
+                    return this.eventTypeMap[eventType];
+                }
+                // Try to match from API URLs
+                if (eventType.includes('DataElements')) return 'DataElements';
+                if (eventType.includes('Topology')) return 'Topology';
+                if (eventType.includes('FullScan')) return 'FullScan';
+                if (eventType.includes('ChannelScan')) return 'ChannelScan';
+                // Default to Unknown
+                return 'Unknown';
+            }
+
+            extractCategory(jsonData) {
+                if (!jsonData || typeof jsonData !== 'object') {
+                    return 'Event';
+                }
+
+                // Check jsonData.type field
+                if (jsonData.type) {
+                    const type = jsonData.type.toLowerCase();
+                    if (type === 'request') return 'Request';
+                    if (type === 'response') return 'Response';
+                }
+
+                // Check if data exists and has Response field
+                if (jsonData.data && jsonData.data.Response) {
+                    return 'Response';
+                }
+
+                // Default to Event
+                return 'Event';
+            }
+
+            extractResponseType(jsonData) {
+                if (!jsonData || typeof jsonData !== 'object') {
+                    return 'Unknown';
+                }
+
+                // Get the Response field value
+                if (jsonData.data && jsonData.data.Response) {
+                    return jsonData.data.Response;
+                }
+
+                // If no Response field, return the type or Unknown
+                return 'Unknown';
+            }
+
+            addLog(eventType, status = 'Info', jsonData = null) {
+                const timestamp = new Date().toLocaleTimeString('en-US', {
+                    hour12: false,
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit',
+                    fractionalSecondDigits: 3
+                });
+
+                const mappedType = this.getEventTypeLabel(eventType);
+                const category = this.extractCategory(jsonData);
+                const responseType = this.extractResponseType(jsonData);
+                const displayType = responseType !== 'Unknown' ? responseType : mappedType;
+
+                const logEntry = {
+                    timestamp,
+                    type: mappedType,
+                    category,
+                    displayType,
+                    status,
+                    jsonData: jsonData || {}
+                };
+
+                this.logs.unshift(logEntry);
+
+                if (this.logs.length > this.maxLogs) {
+                    this.logs.pop();
+                }
+
+                this.renderLog(logEntry);
+            }
+
+            renderLog(logEntry) {
+                const row = document.createElement('tr');
+                const statusClass = logEntry.status === 'Success' ? 'status-success' : 
+                                   logEntry.status === 'Error' ? 'status-error' : 'status-info';
+
+                row.innerHTML = `
+                    <td>${this.escapeHtml(logEntry.timestamp)}</td>
+                    <td>${this.escapeHtml(logEntry.category)}</td>
+                    <td>${this.escapeHtml(logEntry.displayType)}</td>
+                    <td><span class="${statusClass}">${this.escapeHtml(logEntry.status)}</span></td>
+                `;
+
+                // Add double-click handler to show JSON data
+                row.style.cursor = 'pointer';
+                row.addEventListener('dblclick', () => this.showJsonModal(logEntry));
+
+                if (this.eventLogsBody.querySelector('tr td[colspan="4"]')) {
+                    this.eventLogsBody.innerHTML = '';
+                }
+
+                this.eventLogsBody.insertBefore(row, this.eventLogsBody.firstChild);
+
+                if (this.autoScroll) {
+                    this.eventLogsContainer.scrollTop = 0;
+                }
+            }
+
+            syntaxHighlightJson(json) {
+                json = json.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                return json.replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, (match) => {
+                    let cls = 'number';
+                    if (/^"/.test(match)) {
+                        if (/:$/.test(match)) {
+                            cls = 'key';
+                        } else {
+                            cls = 'string';
+                        }
+                    } else if (/true|false/.test(match)) {
+                        cls = 'boolean';
+                    } else if (/null/.test(match)) {
+                        cls = 'null';
+                    }
+                    return `<span class="json-${cls}">${match}</span>`;
+                });
+            }
+
+            jsonToTreeHtml(obj, expanded = true) {
+                if (obj === null) {
+                    return '<span class="json-null">null</span>';
+                }
+                if (typeof obj === 'boolean') {
+                    return `<span class="json-boolean">${obj}</span>`;
+                }
+                if (typeof obj === 'number') {
+                    return `<span class="json-number">${obj}</span>`;
+                }
+                if (typeof obj === 'string') {
+                    return `<span class="json-string">"${this.escapeHtml(obj)}"</span>`;
+                }
+
+                const isArray = Array.isArray(obj);
+                const keys = isArray ? obj.map((_, i) => i) : Object.keys(obj);
+
+                if (keys.length === 0) {
+                    return isArray ? '[]' : '{}';
+                }
+
+                const id = 'node-' + Math.random().toString(36).substr(2, 9);
+                let html = `<div class="json-tree-node">`;
+                html += `<div class="json-tree-header">`;
+                html += `<button class="json-tree-toggle ${expanded ? 'expanded' : ''}" data-expanded="${expanded}" data-target="${id}-content">▶</button>`;
+                html += isArray ? '[' : '{';
+                html += `<span class="json-tree-count">${keys.length}</span>`;
+                html += isArray ? ']' : '}';
+                html += `</div>`;
+
+                html += `<div id="${id}-content" class="json-tree-content" style="display: ${expanded ? 'block' : 'none'};">`;
+
+                keys.forEach((key, index) => {
+                    const value = isArray ? obj[key] : obj[key];
+                    const isLast = index === keys.length - 1;
+
+                    html += `<div class="json-tree-item">`;
+                    if (!isArray) {
+                        html += `<span class="json-key">"${this.escapeHtml(key)}"</span>: `;
+                    }
+
+                    if (typeof value === 'object' && value !== null) {
+                        html += this.jsonToTreeHtml(value, false);
+                    } else {
+                        if (value === null) {
+                            html += '<span class="json-null">null</span>';
+                        } else if (typeof value === 'boolean') {
+                            html += `<span class="json-boolean">${value}</span>`;
+                        } else if (typeof value === 'number') {
+                            html += `<span class="json-number">${value}</span>`;
+                        } else if (typeof value === 'string') {
+                            html += `<span class="json-string">"${this.escapeHtml(value)}"</span>`;
+                        }
+                    }
+
+                    html += !isLast ? '<span style="color: #d4d4d4;">,</span>' : '';
+                    html += `</div>`;
+                });
+
+                html += `</div>`;
+                html += `<div class="json-tree-footer">`;
+                html += isArray ? ']' : '}';
+                html += `</div>`;
+                html += `</div>`;
+
+                return html;
+            }
+
+            extractResponseData(jsonData) {
+                // If jsonData has a data property with Response field, extract from there
+                if (jsonData && jsonData.data && jsonData.data.Response) {
+                    // Create a new object starting from the Response field
+                    const responseData = {
+                        'Response': jsonData.data.Response,
+                        'Status': jsonData.data.Status,
+                        'Data': jsonData.data.Data
+                    };
+                    return responseData;
+                }
+                // Otherwise return the full jsonData
+                return jsonData;
+            }
+
+            showJsonModal(logEntry) {
+                // Create modal if it doesn't exist
+                let modal = document.getElementById('jsonDataModal');
+                if (!modal) {
+                    modal = document.createElement('div');
+                    modal.id = 'jsonDataModal';
+                    modal.style.cssText = `
+                        position: fixed;
+                        top: 0;
+                        left: 0;
+                        width: 100%;
+                        height: 100%;
+                        background-color: rgba(0, 0, 0, 0.7);
+                        display: none;
+                        z-index: 10000;
+                        justify-content: center;
+                        align-items: center;
+                    `;
+                    // Append to the tools dialog to ensure it appears above
+                    const toolsDialog = document.getElementById('toolsDialog');
+                    if (toolsDialog) {
+                        toolsDialog.appendChild(modal);
+                    } else {
+                        document.body.appendChild(modal);
+                    }
+                }
+
+                // Create or update modal content
+                let content = modal.querySelector('.json-modal-content');
+                if (!content) {
+                    content = document.createElement('div');
+                    content.className = 'json-modal-content';
+                    modal.appendChild(content);
+                }
+
+                const jsonString = JSON.stringify(logEntry, null, 2);
+                const responseData = this.extractResponseData(logEntry.jsonData);
+                const treeHtml = this.jsonToTreeHtml(responseData, true);
+                content.innerHTML = `
+                    <div style="background: white; border-radius: 8px; padding: 20px; max-width: 1200px; max-height: 80vh; overflow: auto; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); display: flex; flex-direction: column;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; flex-shrink: 0;">
+                            <h3 style="margin: 0; color: #333;">Event Data - ${this.escapeHtml(logEntry.displayType)} (${this.escapeHtml(logEntry.timestamp)})</h3>
+                            <button class="json-modal-close" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #666; flex-shrink: 0;">&times;</button>
+                        </div>
+                        <div style="border: 1px solid #ddd; background: #1e1e1e; padding: 15px; border-radius: 4px; font-family: 'Monaco', 'Courier New', monospace; font-size: 13px; color: #d4d4d4; overflow: auto; flex: 1; line-height: 1.6;">
+                            ${treeHtml}
+                        </div>
+                        <div style="margin-top: 15px; display: flex; gap: 10px; flex-shrink: 0;">
+                            <button class="json-modal-close" style="padding: 8px 16px; background: #2196F3; color: white; border: none; border-radius: 4px; cursor: pointer;">Close</button>
+                            <button class="json-modal-copy" style="padding: 8px 16px; background: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer;">Copy JSON</button>
+                        </div>
+                    </div>
+                `;
+
+                // Remove old event listeners and add new ones
+                const closeButtons = content.querySelectorAll('.json-modal-close');
+                const copyButton = content.querySelector('.json-modal-copy');
+
+                closeButtons.forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        modal.style.display = 'none';
+                    });
+                });
+
+                copyButton.addEventListener('click', () => {
+                    navigator.clipboard.writeText(jsonString).then(() => {
+                        alert('Copied to clipboard!');
+                    });
+                });
+
+                // Add event listeners for tree toggle buttons
+                const toggleButtons = content.querySelectorAll('.json-tree-toggle');
+                toggleButtons.forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        const targetId = btn.getAttribute('data-target');
+                        const contentDiv = document.getElementById(targetId);
+                        const isExpanded = btn.getAttribute('data-expanded') === 'true';
+                        btn.setAttribute('data-expanded', !isExpanded);
+                        btn.classList.toggle('expanded');
+                        if (contentDiv) {
+                            contentDiv.style.display = isExpanded ? 'none' : 'block';
+                        }
+                    });
+                });
+
+                modal.style.display = 'flex';
+
+                // Close modal when clicking outside
+                modal.addEventListener('click', (e) => {
+                    if (e.target === modal) {
+                        modal.style.display = 'none';
+                    }
+                });
+            }
+
+            clearLogs() {
+                this.logs = [];
+                this.eventLogsBody.innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 20px; color: #999;">No events logged yet...</td></tr>';
+            }
+
+            toggleAutoScroll() {
+                this.autoScroll = !this.autoScroll;
+                this.autoScrollButton.textContent = `Auto-scroll: ${this.autoScroll ? 'ON' : 'OFF'}`;
+                this.autoScrollButton.style.backgroundColor = this.autoScroll ? '#4caf50' : '#ff9800';
+            }
+
+            escapeHtml(text) {
+                const div = document.createElement('div');
+                div.textContent = text;
+                return div.innerHTML;
+            }
+        }
+
+        const eventLogger = new EventLogger();
+
+        // Intercept all fetch calls to log API requests and responses
+        const originalFetch = window.fetch;
+        window.fetch = function(...args) {
+            const [resource, config] = args;
+            const method = (config?.method || 'GET').toUpperCase();
+            const url = typeof resource === 'string' ? resource : resource.url;
+            
+            // Extract event type from URL
+            let eventType = 'Unknown';
+            if (url.includes('DataElements')) eventType = 'DataElements';
+            else if (url.includes('Topology')) eventType = 'Topology';
+            else if (url.includes('FullScan')) eventType = 'FullScan';
+            else if (url.includes('ChannelScan')) eventType = 'ChannelScan';
+            
+            // Log request start
+            const requestData = {
+                method: method,
+                url: url,
+                type: 'request',
+                timestamp: new Date().toISOString()
+            };
+            eventLogger.addLog(eventType, 'Info', requestData);
+
+            return originalFetch.apply(this, args)
+                .then(response => {
+                    const status = response.status;
+                    const statusClass = status >= 200 && status < 300 ? 'Success' : 
+                                       status >= 400 ? 'Error' : 'Info';
+                    
+                    // Clone response to read the body
+                    const responseClone = response.clone();
+                    return responseClone.json()
+                        .then(jsonData => {
+                            const responseData = {
+                                method: method,
+                                url: url,
+                                type: 'response',
+                                status: status,
+                                statusText: response.statusText,
+                                data: jsonData,
+                                timestamp: new Date().toISOString()
+                            };
+                            eventLogger.addLog(eventType, statusClass, responseData);
+                            return response;
+                        })
+                        .catch(() => {
+                            // If response is not JSON, log as text
+                            const responseData = {
+                                method: method,
+                                url: url,
+                                type: 'response',
+                                status: status,
+                                statusText: response.statusText,
+                                timestamp: new Date().toISOString()
+                            };
+                            eventLogger.addLog(eventType, statusClass, responseData);
+                            return response;
+                        });
+                })
+                .catch(error => {
+                    const errorData = {
+                        method: method,
+                        url: url,
+                        type: 'error',
+                        error: error.message,
+                        timestamp: new Date().toISOString()
+                    };
+                    eventLogger.addLog(eventType, 'Error', errorData);
+                    throw error;
+                });
+        };
+
+        // Add styles for status indicators
+        const style = document.createElement('style');
+        style.textContent = `
+            .status-success {
+                color: #4caf50;
+                font-weight: 600;
+            }
+            .status-error {
+                color: #c62828;
+                font-weight: 600;
+            }
+            .status-info {
+                color: #1565c0;
+                font-weight: 600;
+            }
+        `;
+        document.head.appendChild(style);
+
+        // Hook into existing scan operations to log events
+        // Store original methods for Full Scan and Channel Scan
+        const originalFullScanFunction = window.performFullScan;
+        const originalChannelScanFunction = window.performChannelScan;
+
+        if (originalFullScanFunction) {
+            window.performFullScan = async function(...args) {
+                try {
+                    eventLogger.addLog('FullScan', 'Info');
+                    const result = await originalFullScanFunction.apply(this, args);
+                    eventLogger.addLog('FullScan', 'Success');
+                    return result;
+                } catch (error) {
+                    eventLogger.addLog('FullScan', 'Error');
+                    throw error;
+                }
+            };
+        }
+
+        if (originalChannelScanFunction) {
+            window.performChannelScan = async function(...args) {
+                try {
+                    eventLogger.addLog('ChannelScan', 'Info');
+                    const result = await originalChannelScanFunction.apply(this, args);
+                    eventLogger.addLog('ChannelScan', 'Success');
+                    return result;
+                } catch (error) {
+                    eventLogger.addLog('ChannelScan', 'Error');
+                    throw error;
+                }
+            };
+        }
+
+        // Make eventLogger global for external logging
+        window.eventLogger = eventLogger;
+    </script>
+
+</body>
+</html>

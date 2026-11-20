@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Simple Device Dropdown Test</title>
+    <style>
+        body { font-family: Arial; margin: 20px; }
+        select { padding: 8px; min-width: 300px; }
+        .status { margin: 20px 0; padding: 10px; border: 1px solid #ccc; }
+    </style>
+</head>
+<body>
+    <h1>Simple Device Dropdown Test</h1>
+    
+    <div class="status" id="status">Loading...</div>
+    
+    <label for="device-select">Select a Device:</label>
+    <select id="device-select">
+        <option value="">-- Loading Devices --</option>
+    </select>
+
+    <script>
+        async function loadDevices() {
+            try {
+                const response = await fetch('devices.json');
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                
+                const devices = await response.json();
+                const select = document.getElementById('device-select');
+                
+                // Clear existing options except first
+                while (select.options.length > 1) {
+                    select.remove(1);
+                }
+                
+                // Add device options
+                devices.forEach(device => {
+                    const option = document.createElement('option');
+                    option.value = device.mac;
+                    option.text = `${device.vendor} - ${device.mac} (${device.model})`;
+                    select.appendChild(option);
+                });
+                
+                document.getElementById('status').innerHTML = `✓ Loaded ${devices.length} devices successfully`;
+            } catch (error) {
+                document.getElementById('status').innerHTML = `✗ Error: ${error.message}`;
+            }
+        }
+        
+        // Load devices when page loads
+        window.addEventListener('load', loadDevices);
+    </script>
+</body>
+</html>

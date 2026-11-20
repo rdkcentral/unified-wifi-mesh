@@ -157,6 +157,8 @@ int de_t::register_elements()
             m_elems[i].cbTable.setHandler = ::set; 
         } else if (m_elems[i].type == RBUS_ELEMENT_TYPE_METHOD) {
             m_elems[i].cbTable.methodHandler = (void *)::method;
+        } else if (m_elems[i].type == RBUS_ELEMENT_TYPE_EVENT) {
+            m_elems[i].cbTable.eventSubHandler = ::event;
         }
             
         m_elems[i].cbTable.eventSubHandler = ::event;

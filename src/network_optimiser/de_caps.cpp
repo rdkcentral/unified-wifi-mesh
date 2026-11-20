@@ -181,8 +181,6 @@ void de_caps_t::publish(const char *name)
     if ((rc = rbusEvent_Publish(m_bus_handle, &event)) != RBUS_ERROR_SUCCESS) {
         printf("%s:%d: Failed to publish data for event: %s, err: %d\n", __func__, __LINE__,
             event.name, rc);
-    } else {
-        printf("%s:%d: Successfully published data for event: %s\n", __func__, __LINE__, event.name);
     }
 
     rbusObject_Release(data);

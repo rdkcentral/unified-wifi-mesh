@@ -40,6 +40,30 @@ void de_op_class_scan_t::serialize(rbusObject_t& ob)
 
 }
 
+void de_op_class_scan_t::deserialize(rbusObject_t& ob)
+{
+    rbusValue_t value;
+
+    if ((value = rbusObject_GetValue(ob, "OperatingClass")) == NULL) {
+        printf("%s:%d: Could not find OperatingClass  value\n", __func__, __LINE__);
+    } else {
+        m_op_class = rbusValue_GetUInt32(value);
+    }
+}
+
+void de_op_class_scan_t::serialize(cJSON *ob)
+{
+    cJSON_AddNumberToObject(ob, "OperatingClass", m_op_class);
+}
+
+void de_op_class_scan_t::deserialize(cJSON *ob)
+{
+    cJSON *elem;
+
+    elem = cJSON_GetObjectItem(ob, "Channel");
+    m_op_class = cJSON_GetNumberValue(elem);
+}
+
 int de_op_class_scan_t::init(const char *key)
 {
     strncpy(m_key, key, strlen(key) + 1);

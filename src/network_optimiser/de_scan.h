@@ -27,7 +27,6 @@ public:
     em_long_string_t m_key;
     em_string_t m_device;
     em_string_t m_radio;
-    em_string_t m_band;
     unsigned int m_dwell_time;
     unsigned int   m_dfs_dwell_time;
     unsigned int m_home_time;

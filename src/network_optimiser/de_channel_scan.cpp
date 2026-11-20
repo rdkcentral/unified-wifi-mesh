@@ -64,6 +64,78 @@ void de_channel_scan_t::serialize(rbusObject_t& ob)
     
 }
 
+void de_channel_scan_t::deserialize(rbusObject_t& ob)
+{
+    rbusValue_t value;
+    const char *ptr;
+
+    if ((value = rbusObject_GetValue(ob, "Channel")) == NULL) {
+        printf("%s:%d: Could not find Channel  value\n", __func__, __LINE__);
+    } else {
+        m_channel = rbusValue_GetUInt32(value);
+    }
+
+    if ((value = rbusObject_GetValue(ob, "TimeStamp")) == NULL) {
+        printf("%s:%d: Could not find TimeStamp value\n", __func__, __LINE__);
+    } else {
+        ptr = rbusValue_GetString(value, NULL);
+        strncpy(m_timestamp, ptr, strlen(ptr) + 1);
+    }
+
+    if ((value = rbusObject_GetValue(ob, "Utilization")) == NULL) {
+        printf("%s:%d: Could not find Utilization  value\n", __func__, __LINE__);
+    } else {
+        m_util = rbusValue_GetUInt32(value);
+    }
+
+    if ((value = rbusObject_GetValue(ob, "Noise")) == NULL) {
+        printf("%s:%d: Could not find Noise  value\n", __func__, __LINE__);
+    } else {
+        m_noise = rbusValue_GetInt32(value);
+    }
+
+    if ((value = rbusObject_GetValue(ob, "ScanStatus")) == NULL) {
+        printf("%s:%d: Could not find ScanStatus value\n", __func__, __LINE__);
+    } else {
+        ptr = rbusValue_GetString(value, NULL);
+        strncpy(m_status, ptr, strlen(ptr) + 1);
+    }
+}
+
+void de_channel_scan_t::serialize(cJSON *ob)
+{
+    cJSON_AddNumberToObject(ob, "Channel", m_channel);
+    cJSON_AddStringToObject(ob, "TimeStamp", m_timestamp);
+    cJSON_AddNumberToObject(ob, "Utilization", m_util);
+    cJSON_AddNumberToObject(ob, "Noise", m_noise);
+    cJSON_AddStringToObject(ob, "ScanStatus", m_status);
+}
+
+void de_channel_scan_t::deserialize(cJSON *ob)
+{
+    cJSON *elem;
+    const char *str;
+
+    elem = cJSON_GetObjectItem(ob, "Channel");
+    m_channel = cJSON_GetNumberValue(elem);
+
+    elem = cJSON_GetObjectItem(ob, "TimeStamp");
+    str = cJSON_GetStringValue(elem);
+    strncpy(m_timestamp, str, strlen(str) + 1);
+
+    elem = cJSON_GetObjectItem(ob, "Utilization");
+    m_util = cJSON_GetNumberValue(elem);
+
+    elem = cJSON_GetObjectItem(ob, "Noise");
+    m_noise = cJSON_GetNumberValue(elem);
+
+    elem = cJSON_GetObjectItem(ob, "ScanStatus");
+    str = cJSON_GetStringValue(elem);
+    strncpy(m_status, str, strlen(str) + 1);
+
+}
+
+
 int de_channel_scan_t::init(const char *key)
 {
     strncpy(m_key, key, strlen(key) + 1);

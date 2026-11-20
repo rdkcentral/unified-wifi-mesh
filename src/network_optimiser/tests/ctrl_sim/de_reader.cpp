@@ -532,7 +532,7 @@ unsigned int de_reader_t::get_num_scan_results(unsigned int dpos, unsigned int r
     cJSON *arr;
 
     if ((arr = get_object_item("Device.WiFi.DataElements.Network.DeviceList.{%d}.RadioList.{%d}.ScanResult", dpos, rpos)) == NULL) {
-        printf("%s:%d: Could not read scan result object from json\n", __func__, __LINE__);
+        printf("%s:%d: Could not read scan result object from json for %d and %d\n", __func__, __LINE__, dpos, rpos);
         return 0;
     }
 

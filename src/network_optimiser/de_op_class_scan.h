@@ -34,6 +34,10 @@ public:
     void update(de_op_class_scan_t& res);
 
     void serialize(rbusObject_t& ob);
+    void deserialize(rbusObject_t& ob);
+
+    void serialize(cJSON *ob);
+    void deserialize(cJSON *ob);
 
     de_op_class_scan_t();
     ~de_op_class_scan_t();

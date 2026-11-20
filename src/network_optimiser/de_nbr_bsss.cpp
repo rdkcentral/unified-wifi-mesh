@@ -78,7 +78,7 @@ void de_nbr_bsss_t::serialize(em_long_string_t subkey, rbusObject_t& out)
     unsigned int matched = 0;
     rbusObject_t ob;
     rbusValue_t value;
-    em_string_t key;
+    em_long_string_t key;
 
     bss = (de_nbr_bss_t *)hash_map_get_first(m_nbr_bss_map);
     while (bss != NULL) {
@@ -87,7 +87,7 @@ void de_nbr_bsss_t::serialize(em_long_string_t subkey, rbusObject_t& out)
             continue;
         }
         
-        snprintf(key, sizeof(key), "NeighborBSS.%d.", matched);
+        snprintf(key, sizeof(key), "%s.%s.%d", subkey, m_name, matched);
         rbusObject_Init(&ob, key);
         
         bss->serialize(ob);
@@ -105,6 +105,36 @@ void de_nbr_bsss_t::serialize(em_long_string_t subkey, rbusObject_t& out)
     }
 
 }
+
+void de_nbr_bsss_t::deserialize(const char *subkey, rbusObject_t& in)
+{
+    rbusProperty_t prop;
+    rbusObject_t ob;
+    em_long_string_t key;
+    const char *name;
+    de_nbr_bss_t *pbss;
+
+    prop = rbusObject_GetProperties(in);
+    while (prop != NULL) {
+        if ((ob = rbusProperty_GetObject(prop)) == NULL) {
+            prop = rbusProperty_GetNext(prop);
+            continue;
+        }
+
+        name = rbusProperty_GetName(prop);
+        snprintf(key, sizeof(key), "%s.%s", subkey, m_name);
+        if (strstr(name, key) != NULL) {
+            if ((pbss = (de_nbr_bss_t *)hash_map_get(m_nbr_bss_map, name)) == NULL) {
+                pbss = new de_nbr_bss_t();
+                hash_map_put(m_nbr_bss_map, strdup(name), pbss);
+            }
+
+            pbss->deserialize(ob);
+        }
+        prop = rbusProperty_GetNext(prop);
+    }
+}
+
 
 int de_nbr_bsss_t::init(rbusHandle_t handle)
 {

@@ -39,6 +39,10 @@ public:
     void update(de_channel_scan_t& res);
 
     void serialize(rbusObject_t& ob);
+    void deserialize(rbusObject_t& ob);
+
+    void serialize(cJSON *ob);
+    void deserialize(cJSON *ob);
 
     de_channel_scan_t();
     ~de_channel_scan_t();

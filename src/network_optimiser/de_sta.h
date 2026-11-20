@@ -48,7 +48,7 @@ public:
     void deinit();
     void update(de_sta_t& sta);
 
-    void serialize(rbusObject_t& ob);
+    void serialize(rbusObject_t& ob, bool assoc = false);
     void deserialize(rbusObject_t& ob);
 
     void serialize(cJSON *ob);

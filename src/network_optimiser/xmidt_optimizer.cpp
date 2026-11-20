@@ -462,6 +462,7 @@ cJSON *xmidt_optimizer_t::get_de()
 cJSON *xmidt_optimizer_t::full_scan(cJSON *in)
 {
     cJSON *parent, *elem;
+    cJSON *scan_res_arr, *op_class_arr, *ch_scan_arr, *nbr_bss_arr;
     de_scan_t scan;
     const char *str;
     em_string_t status; 
@@ -469,6 +470,19 @@ cJSON *xmidt_optimizer_t::full_scan(cJSON *in)
     de_device_t *dev;
     de_radio_t *radio;
     bool found = false;
+    de_devices_t *devs;
+    de_radios_t *radios;
+    de_scan_results_t *ress;
+    de_scan_result_t *res;
+    de_op_class_scans_t *op_scans;
+    de_op_class_scan_t *op_scan;
+    de_channel_scans_t *ch_scans;
+    de_channel_scan_t *ch_scan;
+    de_nbr_bsss_t *nbr_bsss;
+    de_nbr_bss_t *nbr_bss;
+
+    devs  = m_de_network->m_de_devices;
+    radios = m_de_network->m_de_devices->m_de_radios;
 
     if ((parent = cJSON_CreateObject()) == NULL) {
         return NULL;
@@ -487,10 +501,6 @@ cJSON *xmidt_optimizer_t::full_scan(cJSON *in)
     str = cJSON_GetStringValue(elem);
     strncpy(scan.m_radio, str, strlen(str) + 1);
 
-    elem = cJSON_GetObjectItem(in, "Band");
-    str = cJSON_GetStringValue(elem);
-    strncpy(scan.m_band, str, strlen(str) + 1);
-
     elem = cJSON_GetObjectItem(in, "DwellTime");
     scan.m_dwell_time = cJSON_GetNumberValue(elem);
     
@@ -504,13 +514,13 @@ cJSON *xmidt_optimizer_t::full_scan(cJSON *in)
     str = cJSON_GetStringValue(elem);
     strncpy(scan.m_ssid, str, strlen(str) + 1);
 
-    dev = (de_device_t *)hash_map_get_first(m_de_network->m_de_devices->m_device_map); 
+    dev = (de_device_t *)hash_map_get_first(devs->m_device_map); 
     while (dev != NULL) {
         if (strncmp(dev->m_id, scan.m_device, strlen(scan.m_device)) == 0) {
             found = true;
             break;
         }
-        dev = (de_device_t *)hash_map_get_next(m_de_network->m_de_devices->m_device_map, dev);
+        dev = (de_device_t *)hash_map_get_next(devs->m_device_map, dev);
     }
 
     if (found == false) {
@@ -520,14 +530,14 @@ cJSON *xmidt_optimizer_t::full_scan(cJSON *in)
 
     found = false;
 
-    radio = (de_radio_t *)hash_map_get_first(m_de_network->m_de_devices->m_de_radios->m_radio_map);
+    radio = (de_radio_t *)hash_map_get_first(radios->m_radio_map);
     while (radio != NULL) {
         if (strncmp(radio->m_id, scan.m_radio, strlen(scan.m_radio)) == 0) {
             found = true;
             break;
         }
         
-        radio = (de_radio_t *)hash_map_get_next(m_de_network->m_de_devices->m_de_radios->m_radio_map, radio);
+        radio = (de_radio_t *)hash_map_get_next(radios->m_radio_map, radio);
     }
 
     if (found == false) {
@@ -537,12 +547,75 @@ cJSON *xmidt_optimizer_t::full_scan(cJSON *in)
 
     snprintf(method_name, sizeof(method_name), "%s%s.%s", DE_NETWORK, radio->m_key, FULL_SCAN);
 
-    if (m_de_network->m_de_devices->m_de_radios->invoke_method(method_name, &scan, status) != 0) {
+    if (radios->invoke_method(method_name, &scan, status) != 0) {
         cJSON_AddStringToObject(parent, "Status", "Error_Other");
         return parent;
     }
 
     cJSON_AddStringToObject(parent, "Status", status);
+  
+    ress = radios->m_de_scan_results; 
+    op_scans = ress->m_de_op_class_scans;
+    ch_scans = op_scans->m_de_channel_scans;
+    nbr_bsss = ch_scans->m_de_nbr_bsss;
+    
+    scan_res_arr = cJSON_AddArrayToObject(parent, "ScanResult");
+
+    res = (de_scan_result_t *)hash_map_get_first(ress->m_scan_result_map);
+    while (res != NULL) {
+        elem = cJSON_CreateObject();
+        cJSON_AddItemToArray(scan_res_arr, elem);
+        res->serialize(elem);
+
+        op_class_arr = cJSON_AddArrayToObject(elem, "OpClassScan");
+        op_scan = (de_op_class_scan_t *)hash_map_get_first(op_scans->m_op_class_map);
+        while (op_scan != NULL) {
+            if (strstr(op_scan->m_key, res->m_key) == NULL) {
+                op_scan = (de_op_class_scan_t *)hash_map_get_next(op_scans->m_op_class_map, op_scan);
+                continue;
+            }
+
+            elem = cJSON_CreateObject();
+            cJSON_AddItemToArray(op_class_arr, elem);
+            op_scan->serialize(elem);
+
+            ch_scan_arr = cJSON_AddArrayToObject(elem, "ChannelScan");
+            ch_scan = (de_channel_scan_t *)hash_map_get_first(ch_scans->m_channel_scan_map);
+            while (ch_scan != NULL) {
+                if (strstr(op_scan->m_key, res->m_key) == NULL) {
+                    ch_scan = (de_channel_scan_t *)hash_map_get_next(ch_scans->m_channel_scan_map, ch_scan);
+                    continue;
+                } 
+
+                elem = cJSON_CreateObject();
+                cJSON_AddItemToArray(ch_scan_arr, elem);
+                ch_scan->serialize(elem);
+
+                nbr_bss_arr = cJSON_AddArrayToObject(elem, "NeighborBSS");
+                nbr_bss = (de_nbr_bss_t *)hash_map_get_first(nbr_bsss->m_nbr_bss_map);
+                while (nbr_bss != NULL) {
+                    if (strstr(op_scan->m_key, res->m_key) == NULL) {
+                        nbr_bss = (de_nbr_bss_t *)hash_map_get_next(nbr_bsss->m_nbr_bss_map, nbr_bss);
+                        continue;
+                    } 
+
+                    elem = cJSON_CreateObject();
+                    cJSON_AddItemToArray(nbr_bss_arr, elem);
+                    nbr_bss->serialize(elem);
+
+                
+                    nbr_bss = (de_nbr_bss_t *)hash_map_get_next(nbr_bsss->m_nbr_bss_map, nbr_bss);
+                }
+            
+                ch_scan = (de_channel_scan_t *)hash_map_get_next(ch_scans->m_channel_scan_map, ch_scan);
+            }
+
+        
+            op_scan = (de_op_class_scan_t *)hash_map_get_next(op_scans->m_op_class_map, op_scan);
+        } 
+         
+        res = (de_scan_result_t *)hash_map_get_next(ress->m_scan_result_map, res);
+    }
 
     return parent;
 }

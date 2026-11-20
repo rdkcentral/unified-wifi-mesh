@@ -26,6 +26,8 @@ typedef enum {
     optimizer_event_type_hello,
     optimizer_event_type_subscribed,
     optimizer_event_type_de_change,
+    optimizer_event_type_assoc,
+    optimizer_event_type_disassoc,
     optimizer_event_type_notification_max = 16,
     optimizer_event_type_get_topology,
     optimizer_event_type_get_de,
@@ -33,6 +35,7 @@ typedef enum {
     optimizer_event_type_nbr_wifi_diag,
     optimizer_event_type_full_scan,
     optimizer_event_type_channel_scan,
+    optimizer_event_type_timeout,
     optimizer_event_type_unknown,
     optimizer_event_type_max
 } optimizer_event_type_t;

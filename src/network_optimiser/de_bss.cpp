@@ -36,11 +36,82 @@ void de_bss_t::update(de_bss_t& bss)
 
 void de_bss_t::serialize(rbusObject_t& ob)
 {
+    rbusValue_t value;
+        
+    rbusValue_Init(&value);
+    rbusValue_SetString(value, m_bssid);
+    rbusObject_SetValue(ob, "BSSID", value);
+    rbusValue_Release(value);
+
+    rbusValue_Init(&value);
+    rbusValue_SetString(value, m_ssid);
+    rbusObject_SetValue(ob, "SSID", value);
+    rbusValue_Release(value);
+
+    rbusValue_Init(&value);
+    rbusValue_SetBoolean(value, m_enabled);
+    rbusObject_SetValue(ob, "Enabled", value);
+    rbusValue_Release(value);
+
+    rbusValue_Init(&value);
+    rbusValue_SetBoolean(value, m_broadcast);
+    rbusObject_SetValue(ob, "TransmittedBSSID", value);
+    rbusValue_Release(value);
+
+    rbusValue_Init(&value);
+    rbusValue_SetBoolean(value, m_fronthaul);
+    rbusObject_SetValue(ob, "FronthaulUse", value);
+    rbusValue_Release(value);
+
+    rbusValue_Init(&value);
+    rbusValue_SetBoolean(value, m_backhaul);
+    rbusObject_SetValue(ob, "BackhaulUse", value);
+    rbusValue_Release(value);
 
 }
 
 void de_bss_t::deserialize(rbusObject_t& ob)
 {
+    rbusValue_t value;
+    const char *ptr;
+
+    if ((value = rbusObject_GetValue(ob, "BSSID")) == NULL) {
+        printf("%s:%d: Could not find Type value\n", __func__, __LINE__);
+    } else {
+        ptr = rbusValue_GetString(value, NULL);
+        strncpy(m_bssid, ptr, strlen(ptr) + 1);
+    }
+
+    if ((value = rbusObject_GetValue(ob, "SSID")) == NULL) {
+        printf("%s:%d: Could not find Type value\n", __func__, __LINE__);
+    } else {
+        ptr = rbusValue_GetString(value, NULL);
+        strncpy(m_ssid, ptr, strlen(ptr) + 1);
+    }
+
+    if ((value = rbusObject_GetValue(ob, "Enabled")) == NULL) {
+        printf("%s:%d: Could not find Enabled value\n", __func__, __LINE__);
+    } else {
+        m_enabled = rbusValue_GetBoolean(value);
+    }
+
+    if ((value = rbusObject_GetValue(ob, "TransmittedBSSID")) == NULL) {
+        printf("%s:%d: Could not find TransmittedBSSID value\n", __func__, __LINE__);
+    } else {
+        m_broadcast = rbusValue_GetBoolean(value);
+    }
+
+    if ((value = rbusObject_GetValue(ob, "FronthaulUse")) == NULL) {
+        printf("%s:%d: Could not find FronthaulUse value\n", __func__, __LINE__);
+    } else {
+        m_fronthaul = rbusValue_GetBoolean(value);
+    }
+
+    if ((value = rbusObject_GetValue(ob, "BackhaulUse")) == NULL) {
+        printf("%s:%d: Could not find BackhaulUse value\n", __func__, __LINE__);
+    } else {
+        m_backhaul = rbusValue_GetBoolean(value);
+    }
 
 }
 

@@ -116,7 +116,7 @@ rbusError_t de_devices_t::get(rbusHandle_t handle, rbusProperty_t property, rbus
     const char *name, *ptr;
 
     name  = rbusProperty_GetName(property);
-    printf("%s:%d: Property Name: %s\n", __func__, __LINE__, name);
+    
     if (strstr(name, RADIOS) != NULL) {
         return m_de_radios->get(handle, property, options);
     }

@@ -104,6 +104,10 @@
 #define DE_STAS_VHT_CAP           DE_STAS_TABLE     "VHTCapabilities"
 #define DE_STAS_HE_CAP           DE_STAS_TABLE     "HECapabilities"
 #define DE_STAS_SEC_ASSOC           DE_STAS_TABLE     "SecurityAssociation"
+#define ASSOC                   "AssociationEvent"
+#define DE_ASSOC                DE  ASSOC
+#define DISASSOC                   "DisassociationEvent"
+#define DE_DISASSOC                DE  DISASSOC
 
 #define NET_SSIDS           "NetworkSSIDList"
 #define DE_NET_SSID_SET          DE_NETWORK  "SetSSID()"

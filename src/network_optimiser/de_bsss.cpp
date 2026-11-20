@@ -170,7 +170,103 @@ rbusError_t de_bsss_t::set(rbusHandle_t handle, rbusProperty_t property, rbusSet
     return RBUS_ERROR_SUCCESS;
 }
 
-void de_bsss_t::publish(const char *name)
+void de_bsss_t::publish_assoc()
+{
+    int rc;
+    de_sta_t *sta;
+    de_bss_t *bss;
+    bool found = false;
+    rbusEvent_t event = {0};
+    rbusValue_t value;
+    rbusObject_t data;
+    
+    sta = (de_sta_t *)hash_map_get_first(m_de_stas->m_sta_map);
+   
+    bss = (de_bss_t *)hash_map_get_first(m_bss_map);
+    while (bss != NULL) {
+        if (strstr(sta->m_key, bss->m_key) != NULL) {
+            found = true;
+            break;
+        } 
+        bss = (de_bss_t *)hash_map_get_next(m_bss_map, bss);
+    } 
+
+    if (found == false) {
+        printf("%s:%d: Entry of bss not found for station ley: %s\n", __func__, __LINE__, sta->m_key);
+        return;
+    }
+
+    rbusObject_Init(&data, NULL);
+
+    rbusValue_Init(&value);
+    rbusValue_SetString(value, bss->m_bssid);
+    rbusObject_SetValue(data, "BSSID", value);
+    rbusValue_Release(value);
+
+    sta->serialize(data, true);
+
+    event.name = DE_ASSOC;
+    event.data = data;
+    event.type = RBUS_EVENT_GENERAL;
+
+    if ((rc = rbusEvent_Publish(m_bus_handle, &event)) != RBUS_ERROR_SUCCESS) {
+        printf("%s:%d: Failed to publish data for event: %s, err: %d\n", __func__, __LINE__,
+            event.name, rc);
+    }
+
+    rbusObject_Release(data);
+    
+}
+
+void de_bsss_t::publish_disassoc()
+{
+    int rc;
+    de_sta_t *sta;
+    de_bss_t *bss;
+    bool found = false;
+    rbusEvent_t event = {0};
+    rbusValue_t value;
+    rbusObject_t data;
+
+    sta = (de_sta_t *)hash_map_get_first(m_de_stas->m_sta_map);
+
+    bss = (de_bss_t *)hash_map_get_first(m_bss_map);
+    while (bss != NULL) {
+        if (strstr(sta->m_key, bss->m_key) != NULL) {
+            found = true;
+            break;
+        }
+        bss = (de_bss_t *)hash_map_get_next(m_bss_map, bss);
+    }
+
+    if (found == false) {
+        printf("%s:%d: Entry of bss not found for station ley: %s\n", __func__, __LINE__, sta->m_key);
+        return;
+    }
+
+    rbusObject_Init(&data, NULL);
+
+    rbusValue_Init(&value);
+    rbusValue_SetString(value, bss->m_bssid);
+    rbusObject_SetValue(data, "BSSID", value);
+    rbusValue_Release(value);
+
+    sta->serialize(data);
+
+    event.name = DE_DISASSOC;
+    event.data = data;
+    event.type = RBUS_EVENT_GENERAL;
+
+    if ((rc = rbusEvent_Publish(m_bus_handle, &event)) != RBUS_ERROR_SUCCESS) {
+        printf("%s:%d: Failed to publish data for event: %s, err: %d\n", __func__, __LINE__,
+            event.name, rc);
+    }
+
+    rbusObject_Release(data);
+
+}
+
+void de_bsss_t::publish_bsslist()
 {
     int rc, inst;
     de_bss_t *bss;
@@ -178,48 +274,13 @@ void de_bsss_t::publish(const char *name)
     rbusValue_t value;
     rbusObject_t data, row;
 
-    if (strncmp(name, STAS, strlen(STAS)) == 0) { 
-        m_de_stas->publish(name);
-        return;
-    } else if (strncmp(name, BSSS, strlen(BSSS)) != 0) {
-        return;
-    }
-
     rbusObject_Init(&data, NULL);
 
     bss = (de_bss_t *)hash_map_get_first(m_bss_map);
     while (bss != NULL) {
         rbusObject_Init(&row, bss->m_key);
 
-        rbusValue_Init(&value);
-        rbusValue_SetString(value, bss->m_bssid);
-        rbusObject_SetValue(row, "BSSID", value);
-        rbusValue_Release(value);
-
-        rbusValue_Init(&value);
-        rbusValue_SetString(value, bss->m_ssid);
-        rbusObject_SetValue(row, "SSID", value);
-        rbusValue_Release(value);
-
-        rbusValue_Init(&value);
-        rbusValue_SetBoolean(value, bss->m_enabled);
-        rbusObject_SetValue(row, "Enabled", value);
-        rbusValue_Release(value);
-
-        rbusValue_Init(&value);
-        rbusValue_SetBoolean(value, bss->m_broadcast);
-        rbusObject_SetValue(row, "TransmittedBSSID", value);
-        rbusValue_Release(value);
-
-        rbusValue_Init(&value);
-        rbusValue_SetBoolean(value, bss->m_fronthaul);
-        rbusObject_SetValue(row, "FronthaulUse", value);
-        rbusValue_Release(value);
-
-        rbusValue_Init(&value);
-        rbusValue_SetBoolean(value, bss->m_backhaul);
-        rbusObject_SetValue(row, "BackhaulUse", value);
-        rbusValue_Release(value);
+        bss->serialize(row);
 
         rbusValue_Init(&value);
         rbusValue_SetObject(value, row);
@@ -231,7 +292,7 @@ void de_bsss_t::publish(const char *name)
         bss = (de_bss_t *)hash_map_get_next(m_bss_map, bss);
     }
 
-    event.name = name;;
+    event.name = BSSS;;
     event.data = data;
     event.type = RBUS_EVENT_GENERAL;
 
@@ -243,20 +304,25 @@ void de_bsss_t::publish(const char *name)
     rbusObject_Release(data);
 }
 
-void de_bsss_t::handler(rbusHandle_t handle, rbusEvent_t const* event, rbusEventSubscription_t* subscription)
+void de_bsss_t::publish(const char *name)
 {
-    rbusValue_t value;
+    if (strncmp(name, STAS, strlen(STAS)) == 0) {
+        m_de_stas->publish(name);
+    } else if (strncmp(name, BSSS, strlen(BSSS)) == 0) {
+        publish_bsslist();
+    } else if (strncmp(name, DE_ASSOC, strlen(DE_ASSOC)) == 0) {
+        publish_assoc();
+    } else if (strncmp(name, DE_DISASSOC, strlen(DE_DISASSOC)) == 0) {
+        publish_disassoc();
+    }
+}
+
+void de_bsss_t::handle_bsslist(rbusEvent_t const* event)
+{
     rbusObject_t row;
     rbusProperty_t prop;
-
-    const char *ptr;
     de_bss_t *bss;
-
-    if (strncmp(subscription->eventName, BSSS, strlen(BSSS)) != 0) {
-        printf("%s:%d: Unknown event: %s\n", __func__, __LINE__, event->name);
-        return;
-    }
-
+    const char *ptr;
 
     prop = rbusObject_GetProperties(event->data);
     while (prop != NULL) {
@@ -266,50 +332,34 @@ void de_bsss_t::handler(rbusHandle_t handle, rbusEvent_t const* event, rbusEvent
             bss->init(ptr);
             hash_map_put(m_bss_map, strdup(ptr), bss);
         }
-
+        
         row = rbusProperty_GetObject(prop);
-
-        if ((value = rbusObject_GetValue(row, "BSSID")) == NULL) {
-            printf("%s:%d: Could not find Type value\n", __func__, __LINE__);
-        } else {
-            ptr = rbusValue_GetString(value, NULL);
-            strncpy(bss->m_bssid, ptr, strlen(ptr) + 1);
-        }
-
-        if ((value = rbusObject_GetValue(row, "SSID")) == NULL) {
-            printf("%s:%d: Could not find Type value\n", __func__, __LINE__);
-        } else {
-            ptr = rbusValue_GetString(value, NULL);
-            strncpy(bss->m_ssid, ptr, strlen(ptr) + 1);
-        }
-
-        if ((value = rbusObject_GetValue(row, "Enabled")) == NULL) {
-            printf("%s:%d: Could not find Enabled value\n", __func__, __LINE__);
-        } else {
-            bss->m_enabled = rbusValue_GetBoolean(value);
-        }
-
-        if ((value = rbusObject_GetValue(row, "TransmittedBSSID")) == NULL) {
-            printf("%s:%d: Could not find TransmittedBSSID value\n", __func__, __LINE__);
-        } else {
-            bss->m_broadcast = rbusValue_GetBoolean(value);
-        }
-
-        if ((value = rbusObject_GetValue(row, "FronthaulUse")) == NULL) {
-            printf("%s:%d: Could not find FronthaulUse value\n", __func__, __LINE__);
-        } else {
-            bss->m_fronthaul = rbusValue_GetBoolean(value);
-        }
-
-        if ((value = rbusObject_GetValue(row, "BackhaulUse")) == NULL) {
-            printf("%s:%d: Could not find BackhaulUse value\n", __func__, __LINE__);
-        } else {
-            bss->m_backhaul = rbusValue_GetBoolean(value);
-        }
-
+        bss->deserialize(row);
+    
         prop = rbusProperty_GetNext(prop);
     }
 
+}
+
+void de_bsss_t::handle_assoc(rbusEvent_t const* event)
+{
+
+}
+
+void de_bsss_t::handle_disassoc(rbusEvent_t const* event)
+{
+
+}
+
+void de_bsss_t::handler(rbusHandle_t handle, rbusEvent_t const* event, rbusEventSubscription_t* subscription)
+{
+    if (strncmp(subscription->eventName, BSSS, strlen(BSSS)) == 0) {
+        handle_bsslist(event);
+    } else if (strncmp(subscription->eventName, DE_ASSOC, strlen(DE_ASSOC)) == 0) {
+        handle_assoc(event);
+    } else if (strncmp(subscription->eventName, DE_DISASSOC, strlen(DE_DISASSOC)) == 0) {
+        handle_disassoc(event);
+    }
 }
 
 int de_bsss_t::init(rbusHandle_t handle)
@@ -348,7 +398,21 @@ int de_bsss_t::init(rbusHandle_t handle)
     m_elems[m_num_elems].type = RBUS_ELEMENT_TYPE_PROPERTY;
     m_num_elems++;
 
+    m_elems[m_num_elems].name = DE_ASSOC;
+    m_elems[m_num_elems].type = RBUS_ELEMENT_TYPE_EVENT;
+    m_num_elems++;
+
+    m_elems[m_num_elems].name = DE_DISASSOC;
+    m_elems[m_num_elems].type = RBUS_ELEMENT_TYPE_EVENT;
+    m_num_elems++;
+
     m_subs[m_num_subs].eventName = BSSS;
+    m_num_subs++;
+
+    m_subs[m_num_subs].eventName = DE_ASSOC;
+    m_num_subs++;
+
+    m_subs[m_num_subs].eventName = DE_DISASSOC;
     m_num_subs++;
 
     if (de_t::init(handle) != 0) { 

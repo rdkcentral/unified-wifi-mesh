@@ -31,6 +31,8 @@ class de_tester_t {
     de_reader_t *m_rd;
 
     bool m_exit;
+    bool m_subscribed;
+    bool m_assoc_sent;
     pthread_cond_t  m_cond;
     pthread_mutex_t m_lock;
     queue_t *m_queue;
@@ -45,6 +47,10 @@ public:
     void update();
 
     bool should_exit() { return m_exit; }
+    void set_assoc_subscribed(bool b) { m_subscribed = b; }
+    bool get_assoc_subscribed() { return m_subscribed; }
+    void set_assoc_sent(bool b) { m_assoc_sent = b; }
+    bool get_assoc_sent() { return m_assoc_sent; }
 
     unsigned int queue_count() { return ::queue_count(m_queue); }
     optimizer_event_t *queue_pop() { optimizer_event_t *ev = static_cast<optimizer_event_t *>(::queue_pop(m_queue)); return ev; }

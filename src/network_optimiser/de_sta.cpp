@@ -43,13 +43,190 @@ void de_sta_t::update(de_sta_t& sta)
     strncpy(m_sec_assoc, sta.m_sec_assoc, strlen(sta.m_sec_assoc) + 1);
 }
 
-void de_sta_t::serialize(rbusObject_t& ob)
+void de_sta_t::serialize(rbusObject_t& ob, bool assoc)
 {
+    rbusValue_t value;
 
+    rbusValue_Init(&value);
+    rbusValue_SetString(value, m_mac);
+    rbusObject_SetValue(ob, "MACAddress", value);
+    rbusValue_Release(value);
+
+    if (assoc == true) {
+        rbusValue_Init(&value);
+        rbusValue_SetInt32(value, m_rssi);
+        rbusObject_SetValue(ob, "SignalStrength", value);
+        rbusValue_Release(value);
+
+        rbusValue_Init(&value);
+        rbusValue_SetUInt32(value, m_ul_rate);
+        rbusObject_SetValue(ob, "LastDataUplinkRate", value);
+        rbusValue_Release(value);
+
+        rbusValue_Init(&value);
+        rbusValue_SetUInt32(value, m_dl_rate);
+        rbusObject_SetValue(ob, "LastDataDownlinkRate", value);
+        rbusValue_Release(value);
+
+        rbusValue_Init(&value);
+        rbusValue_SetUInt32(value, m_retrans);
+        rbusObject_SetValue(ob, "RetransCount", value);
+        rbusValue_Release(value);
+
+        rbusValue_Init(&value);
+        rbusValue_SetUInt32(value, m_pkts_rx);
+        rbusObject_SetValue(ob, "PacketsReceived", value);
+        rbusValue_Release(value);
+
+        rbusValue_Init(&value);
+        rbusValue_SetUInt32(value, m_pkts_tx);
+        rbusObject_SetValue(ob, "PacketsSent", value);
+        rbusValue_Release(value);
+
+        rbusValue_Init(&value);
+        rbusValue_SetUInt32(value, m_bytes_rx);
+        rbusObject_SetValue(ob, "BytesReceived", value);
+        rbusValue_Release(value);
+
+        rbusValue_Init(&value);
+        rbusValue_SetUInt32(value, m_bytes_tx);
+        rbusObject_SetValue(ob, "BytesSent", value);
+        rbusValue_Release(value);
+    }
+
+    rbusValue_Init(&value);
+    rbusValue_Init(&value);
+    rbusValue_SetString(value, m_cap);
+    rbusObject_SetValue(ob, "ClientCapabilities", value);
+    rbusValue_Release(value);
+
+    //rbusValue_Init(&value);
+    //rbusValue_SetString(value, m_wifi6_cap);
+    //rbusObject_SetValue(ob, "WiFi6Capabilities", value);
+    //rbusValue_Release(value);
+
+    rbusValue_Init(&value);
+    rbusValue_SetString(value, m_ht_cap);
+    rbusObject_SetValue(ob, "HTCapabilities", value);
+    rbusValue_Release(value);
+
+    rbusValue_Init(&value);
+    rbusValue_SetString(value, m_vht_cap);
+    rbusObject_SetValue(ob, "VHTCapabilities", value);
+    rbusValue_Release(value);
+
+    rbusValue_Init(&value);
+    rbusValue_SetString(value, m_he_cap);
+    rbusObject_SetValue(ob, "HECapabilities", value);
+    rbusValue_Release(value);
+
+    rbusValue_Init(&value);
+    rbusValue_SetString(value, m_sec_assoc);
+    rbusObject_SetValue(ob, "SecurityAssociation", value);
+    rbusValue_Release(value);
 }
 
 void de_sta_t::deserialize(rbusObject_t& ob)
 {
+    rbusValue_t value;
+    const char *ptr;
+
+    if ((value = rbusObject_GetValue(ob, "MACAddress")) == NULL) {
+        printf("%s:%d: Could not find mac address value\n", __func__, __LINE__);
+    } else {
+        ptr = rbusValue_GetString(value, NULL);
+        strncpy(m_mac, ptr, strlen(ptr) + 1);
+    }
+
+    if ((value = rbusObject_GetValue(ob, "SignalStrength")) == NULL) {
+        printf("%s:%d: Could not find Signal Strength value\n", __func__, __LINE__);
+    } else {
+        m_rssi = rbusValue_GetInt32(value);
+    }
+
+    if ((value = rbusObject_GetValue(ob, "LastDataUplinkRate")) == NULL) {
+        printf("%s:%d: Could not find Last Uplink Rate value\n", __func__, __LINE__);
+    } else {
+        m_ul_rate = rbusValue_GetUInt32(value);
+    }
+
+    if ((value = rbusObject_GetValue(ob, "LastDataDownlinkRate")) == NULL) {
+        printf("%s:%d: Could not find Last Downlink Rate value\n", __func__, __LINE__);
+    } else {
+        m_dl_rate = rbusValue_GetUInt32(value);
+    }
+
+    if ((value = rbusObject_GetValue(ob, "RetransCount")) == NULL) {
+        printf("%s:%d: Could not find RetransCount value\n", __func__, __LINE__);
+    } else {
+        m_retrans = rbusValue_GetUInt32(value);
+    }
+
+    if ((value = rbusObject_GetValue(ob, "PacketsReceived")) == NULL) {
+       printf("%s:%d: Could not find PacketsReceived value\n", __func__, __LINE__);
+    } else {
+       m_pkts_rx = rbusValue_GetUInt32(value);
+    }
+
+    if ((value = rbusObject_GetValue(ob, "PacketsSent")) == NULL) {
+        printf("%s:%d: Could not find PacketsSent value\n", __func__, __LINE__);
+    } else {
+        m_pkts_tx = rbusValue_GetUInt32(value);
+    }
+
+    if ((value = rbusObject_GetValue(ob, "BytesReceived")) == NULL) {
+        printf("%s:%d: Could not find BytesReceived value\n", __func__, __LINE__);
+    } else {
+        m_bytes_rx = rbusValue_GetUInt32(value);
+    }
+
+    if ((value = rbusObject_GetValue(ob, "BytesSent")) == NULL) {
+        printf("%s:%d: Could not find BytesSent value\n", __func__, __LINE__);
+    } else {
+        m_bytes_tx = rbusValue_GetUInt32(value);
+    }
+
+    if ((value = rbusObject_GetValue(ob, "ClientCapabilities")) == NULL) {
+        printf("%s:%d: Could not find Capabilities value\n", __func__, __LINE__);
+    } else {
+        ptr = rbusValue_GetString(value, NULL);
+        strncpy(m_cap, ptr, strlen(ptr) + 1);
+    }
+
+    //if ((value = rbusObject_GetValue(ob, "WiFi6Capabilities")) == NULL) {
+    //    printf("%s:%d: Could not find WiFi6 Capabilities value\n", __func__, __LINE__);
+    //} else {
+    //    ptr = rbusValue_GetString(value, NULL);
+    //    strncpy(m_wifi6_cap, ptr, strlen(ptr) + 1);
+    //}
+
+    if ((value = rbusObject_GetValue(ob, "HTCapabilities")) == NULL) {
+        printf("%s:%d: Could not find HT Capabilities value\n", __func__, __LINE__);
+    } else {
+        ptr = rbusValue_GetString(value, NULL);
+        strncpy(m_ht_cap, ptr, strlen(ptr) + 1);
+    }
+
+    if ((value = rbusObject_GetValue(ob, "VHTCapabilities")) == NULL) {
+        printf("%s:%d: Could not find VHT Capabilities value\n", __func__, __LINE__);
+    } else {
+        ptr = rbusValue_GetString(value, NULL);
+        strncpy(m_vht_cap, ptr, strlen(ptr) + 1);
+    }
+
+    if ((value = rbusObject_GetValue(ob, "HECapabilities")) == NULL) {
+        printf("%s:%d: Could not find HE Capabilities value\n", __func__, __LINE__);
+    } else {
+        ptr = rbusValue_GetString(value, NULL);
+        strncpy(m_he_cap, ptr, strlen(ptr) + 1);
+    }
+
+    if ((value = rbusObject_GetValue(ob, "SecurityAssociation")) == NULL) {
+        printf("%s:%d: Could not find Security Association value\n", __func__, __LINE__);
+    } else {
+        ptr = rbusValue_GetString(value, NULL);
+        strncpy(m_sec_assoc, ptr, strlen(ptr) + 1);
+    }
 
 }
 

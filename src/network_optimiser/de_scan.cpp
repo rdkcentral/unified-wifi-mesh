@@ -45,8 +45,8 @@ void de_scan_t::deinit()
 
 void de_scan_t::print()
 {
-    printf("%s:%d: Dwell Time: %d\tDFS Dwell Time: %d\tHome Time: %d\tBand: %s\tSSID: %s\n", __func__, __LINE__,
-        m_dwell_time, m_dfs_dwell_time, m_home_time, m_band, m_ssid);
+    printf("%s:%d: Dwell Time: %d\tDFS Dwell Time: %d\tHome Time: %d\tSSID: %s\n", __func__, __LINE__,
+        m_dwell_time, m_dfs_dwell_time, m_home_time, m_ssid);
 }
 
 de_scan_t::de_scan_t()

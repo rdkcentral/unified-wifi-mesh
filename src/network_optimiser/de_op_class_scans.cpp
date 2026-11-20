@@ -77,7 +77,7 @@ void de_op_class_scans_t::serialize(em_long_string_t subkey, rbusObject_t& out)
     unsigned int matched = 0;
     rbusObject_t ob;
     rbusValue_t value;
-    em_string_t key;
+    em_long_string_t key;
 
     op = (de_op_class_scan_t *)hash_map_get_first(m_op_class_map);
     while (op != NULL) {
@@ -86,11 +86,11 @@ void de_op_class_scans_t::serialize(em_long_string_t subkey, rbusObject_t& out)
             continue;
         }   
             
-        snprintf(key, sizeof(key), "OpClassScan.%d.", matched);
+        snprintf(key, sizeof(key), "%s.%s.%d", subkey, m_name, matched);
         rbusObject_Init(&ob, key);
             
         op->serialize(ob);
-        m_de_channel_scans->serialize(subkey, ob);
+        m_de_channel_scans->serialize(key, ob);
             
         rbusValue_Init(&value);
         rbusValue_SetObject(value, ob);
@@ -105,6 +105,37 @@ void de_op_class_scans_t::serialize(em_long_string_t subkey, rbusObject_t& out)
     }
 
 }
+
+void de_op_class_scans_t::deserialize(const char *subkey, rbusObject_t& in)
+{
+    rbusProperty_t prop;
+    rbusObject_t ob;
+    em_long_string_t key;
+    const char *name;
+    de_op_class_scan_t *pop;
+
+    prop = rbusObject_GetProperties(in);
+    while (prop != NULL) {
+        if ((ob = rbusProperty_GetObject(prop)) == NULL) {
+            prop = rbusProperty_GetNext(prop);
+            continue;
+        }
+
+        name = rbusProperty_GetName(prop);
+        snprintf(key, sizeof(key), "%s.%s", subkey, m_name);
+        if (strstr(name, key) != NULL) {
+            if ((pop = (de_op_class_scan_t *)hash_map_get(m_op_class_map, name)) == NULL) {
+                pop = new de_op_class_scan_t();
+                hash_map_put(m_op_class_map, strdup(name), pop);
+            }
+
+            pop->deserialize(ob);
+            m_de_channel_scans->deserialize(name, ob);
+        } 
+        prop = rbusProperty_GetNext(prop);
+    }
+}
+
 
 int de_op_class_scans_t::init(rbusHandle_t handle)
 {

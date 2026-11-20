@@ -36,6 +36,10 @@ public:
     void update(de_scan_result_t& res);
 
     void serialize(rbusObject_t& ob);
+    void deserialize(rbusObject_t& ob);
+
+    void serialize(cJSON *ob);
+    void deserialize(cJSON *ob);
 
     de_scan_result_t();
     ~de_scan_result_t();

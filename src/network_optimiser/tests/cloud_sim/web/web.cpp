@@ -288,6 +288,12 @@ void web_t::handle_get(int sock, const char *action_string)
         }
     }
 }
+
+void web_t::async_event(optimizer_event_t *ev)
+{
+    //printf("%s:%d: Received event: %s\n", __func__, __LINE__, optimizer_event_t::optimizer_event_type_2_string(ev->get_type()));
+    push_event(ev);
+}
     
 namespace {
 bool is_scan_uint(const cJSON *value, double maximum = 4294967295.0)
@@ -504,7 +510,8 @@ int web_t::start()
 
 void web_t::deinit()
 {
-    
+    pthread_mutex_destroy(&m_lock);
+    queue_destroy(m_events);
 }
 
 int web_t::init(const char *path)
@@ -519,6 +526,9 @@ int web_t::init(const char *path)
     m_address.sin_port = htons(PORT);
 
     memset(m_address.sin_zero, '\0', sizeof m_address.sin_zero);
+
+    m_events = queue_create();
+    pthread_mutex_init(&m_lock, NULL);
     
     return 0;
 }

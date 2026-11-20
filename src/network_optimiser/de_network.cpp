@@ -71,7 +71,6 @@ rbusError_t de_network_t::get(rbusHandle_t handle, rbusProperty_t property, rbus
     const char *name, *ptr;
 
     name  = rbusProperty_GetName(property);
-    printf("%s:%d: Property Name: %s\n", __func__, __LINE__, name);
 
     if ((ptr = strstr(name, SERVICES)) != NULL) {
         return m_de_services->get(handle, property, options);
@@ -132,7 +131,6 @@ void de_network_t::publish(const char *name)
     int rc;
     rbusEvent_t event = {0};
 
-    printf("%s:%d: Name: %s\n", __func__, __LINE__, name);
     if ((strncmp(name, DEVICES, strlen(DEVICES)) == 0) || (strncmp(name, RADIOS, strlen(RADIOS)) == 0) || 
             (strncmp(name, BSSS, strlen(BSSS)) == 0) || (strncmp(name, STAS, strlen(STAS)) == 0) ||
             (strncmp(name, CURR_OP_CLASSES, strlen(CURR_OP_CLASSES)) == 0) ||

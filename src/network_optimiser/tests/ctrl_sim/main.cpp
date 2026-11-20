@@ -54,6 +54,11 @@ int main(int argc, const char * argv[]) {
                 printf("%s:%d: Data Elements have changed, re-initializing\n", __func__, __LINE__);
                 rd->reinit();
             }
+
+            ev = new optimizer_event_t(optimizer_event_type_timeout);
+            dt->process_event(ev);
+            delete ev; 
+            
             dt->lock();
         } else if ((rc == 0)  || (dt->queue_count() != 0)) {
             dt->unlock();

@@ -53,6 +53,10 @@ public:
     void update(de_nbr_bss_t& bss);
 
     void serialize(rbusObject_t& ob);
+    void deserialize(rbusObject_t& ob);
+
+    void serialize(cJSON *ob);
+    void deserialize(cJSON *ob);
 
     de_nbr_bss_t();
     ~de_nbr_bss_t();

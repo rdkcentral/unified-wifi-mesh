@@ -104,7 +104,7 @@ void xmidt_optimizer_server_t::listener()
             send(client, response, sizeof(response) - 1, 0);
             if (body != NULL) {
                 ev = new optimizer_event_t(body + 4);
-                printf("%s:%d: Received event: %s\n", __func__, __LINE__, optimizer_event_t::optimizer_event_type_2_string(ev->get_type()));
+                async_event(ev);
                 delete ev;
             }
         } else {

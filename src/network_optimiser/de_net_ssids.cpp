@@ -137,7 +137,6 @@ rbusError_t de_net_ssids_t::get(rbusHandle_t handle, rbusProperty_t property, rb
     const char *name, *ptr;
 
     name  = rbusProperty_GetName(property);
-    printf("%s:%d: Property Name: %s\n", __func__, __LINE__, name);
 
     snprintf(key, sizeof(key), "%s", DE_NET_SSIDS);
 
@@ -355,91 +354,9 @@ void de_net_ssids_t::handler(rbusHandle_t handle, rbusEvent_t const* event, rbus
 rbusError_t de_net_ssids_t::method(rbusHandle_t handle, char const* name, rbusObject_t in, rbusObject_t out, rbusMethodAsyncHandle_t async)
 {
     rbusValue_t value;
-    const char *ptr;
     de_net_ssid_t net_ssid;
 
-    if ((value = rbusObject_GetValue(in, "SSID")) == NULL) {
-        printf("%s:%d: Could not find SSID value\n", __func__, __LINE__);
-    } else {
-        ptr = rbusValue_GetString(value, NULL);
-        strncpy(net_ssid.m_ssid, ptr, strlen(ptr) + 1);
-    }
-
-    if ((value = rbusObject_GetValue(in, "Enable")) == NULL) {
-        printf("%s:%d: Could not find Enable value\n", __func__, __LINE__);
-    } else {
-        net_ssid.m_enabled = rbusValue_GetBoolean(value);
-    }
-
-    if ((value = rbusObject_GetValue(in, "AddRemoveChange")) == NULL) {
-        printf("%s:%d: Could not find AddRemoveChange value\n", __func__, __LINE__);
-    } else {
-        ptr = rbusValue_GetString(value, NULL);
-        strncpy(net_ssid.m_op, ptr, strlen(ptr) + 1);
-    }
-
-    if ((value = rbusObject_GetValue(in, "PassPhrase")) == NULL) {
-        printf("%s:%d: Could not find PassPhrase value\n", __func__, __LINE__);
-    } else {
-        ptr = rbusValue_GetString(value, NULL);
-        strncpy(net_ssid.m_passphrase, ptr, strlen(ptr) + 1);
-    }
-
-    if ((value = rbusObject_GetValue(in, "Band")) == NULL) {
-        printf("%s:%d: Could not find Band value\n", __func__, __LINE__);
-    } else {
-        ptr = rbusValue_GetString(value, NULL);
-        strncpy(net_ssid.m_band, ptr, strlen(ptr) + 1);
-    }
-
-    if ((value = rbusObject_GetValue(in, "AKMsAllowed")) == NULL) {
-        printf("%s:%d: Could not find AKMsAllowed value\n", __func__, __LINE__);
-    } else {
-        ptr = rbusValue_GetString(value, NULL);
-        strncpy(net_ssid.m_akms_allowed, ptr, strlen(ptr) + 1);
-    }
-
-    if ((value = rbusObject_GetValue(in, "SuiteSelector")) == NULL) {
-        printf("%s:%d: Could not find SuiteSelector value\n", __func__, __LINE__);
-    } else {
-        ptr = rbusValue_GetString(value, NULL);
-        strncpy(net_ssid.m_suite_selector, ptr, strlen(ptr) + 1);
-    }
-
-    if ((value = rbusObject_GetValue(in, "AdvertisementEnabled")) == NULL) {
-        printf("%s:%d: Could not find AdvertisementEnabled value\n", __func__, __LINE__);
-    } else {
-        net_ssid.m_advertisement = rbusValue_GetBoolean(value);
-    }
-
-    if ((value = rbusObject_GetValue(in, "MFPConfig")) == NULL) {
-        printf("%s:%d: Could not find MFPConfig value\n", __func__, __LINE__);
-    } else {
-        ptr = rbusValue_GetString(value, NULL);
-        strncpy(net_ssid.m_mfp_config, ptr, strlen(ptr) + 1);
-    }
-
-    if ((value = rbusObject_GetValue(in, "MobilityDomain")) == NULL) {
-        printf("%s:%d: Could not find MobilityDomain value\n", __func__, __LINE__);
-    } else {
-        ptr = rbusValue_GetString(value, NULL);
-        strncpy(net_ssid.m_mob_domain, ptr, strlen(ptr) + 1);
-    }
-
-    if ((value = rbusObject_GetValue(in, "HaulType")) == NULL) {
-        printf("%s:%d: Could not find HaulType value\n", __func__, __LINE__);
-    } else {
-        ptr = rbusValue_GetString(value, NULL);
-        strncpy(net_ssid.m_haul_type, ptr, strlen(ptr) + 1);
-    }
-
-    if ((value = rbusObject_GetValue(in, "Type")) == NULL) {
-        printf("%s:%d: Could not find Type value\n", __func__, __LINE__);
-    } else {
-        ptr = rbusValue_GetString(value, NULL);
-        strncpy(net_ssid.m_type, ptr, strlen(ptr) + 1);
-    }
-
+    net_ssid.deserialize(in);
 
     rbusValue_Init(&value);
     rbusValue_SetString(value, "Success");
@@ -461,65 +378,7 @@ rbusError_t de_net_ssids_t::invoke_method(char const* name, void *in, void *out)
 
     rbusObject_Init(&in_obj, NULL);
 
-    rbusValue_Init(&value);
-    rbusValue_SetString(value, net_ssid->m_ssid);
-    rbusObject_SetValue(in_obj, "SSID", value);
-    rbusValue_Release(value);
-
-    rbusValue_Init(&value);
-    rbusValue_SetBoolean(value, net_ssid->m_enabled);
-    rbusObject_SetValue(in_obj, "Enable", value);
-    rbusValue_Release(value);
-
-    rbusValue_Init(&value);
-    rbusValue_SetString(value, net_ssid->m_op);
-    rbusObject_SetValue(in_obj, "AddRemoveChange", value);
-    rbusValue_Release(value);
-
-    rbusValue_Init(&value);
-    rbusValue_SetString(value, net_ssid->m_passphrase);
-    rbusObject_SetValue(in_obj, "PassPhrase", value);
-    rbusValue_Release(value);
-
-    rbusValue_Init(&value);
-    rbusValue_SetString(value, net_ssid->m_band);
-    rbusObject_SetValue(in_obj, "Band", value);
-    rbusValue_Release(value);
-
-    rbusValue_Init(&value);
-    rbusValue_SetString(value, net_ssid->m_akms_allowed);
-    rbusObject_SetValue(in_obj, "AKMsAllowed", value);
-    rbusValue_Release(value);
-
-    rbusValue_Init(&value);
-    rbusValue_SetString(value, net_ssid->m_suite_selector);
-    rbusObject_SetValue(in_obj, "SuiteSelector", value);
-    rbusValue_Release(value);
-
-    rbusValue_Init(&value);
-    rbusValue_SetBoolean(value, net_ssid->m_advertisement);
-    rbusObject_SetValue(in_obj, "AdvertisementEnabled", value);
-    rbusValue_Release(value);
-
-    rbusValue_Init(&value);
-    rbusValue_SetString(value, net_ssid->m_mfp_config);
-    rbusObject_SetValue(in_obj, "MFPConfig", value);
-    rbusValue_Release(value);
-
-    rbusValue_Init(&value);
-    rbusValue_SetString(value, net_ssid->m_mob_domain);
-    rbusObject_SetValue(in_obj, "MobilityDomain", value);
-    rbusValue_Release(value);
-
-    rbusValue_Init(&value);
-    rbusValue_SetString(value, net_ssid->m_haul_type);
-    rbusObject_SetValue(in_obj, "HaulType", value);
-    rbusValue_Release(value);
-
-    rbusValue_Init(&value);
-    rbusValue_SetString(value, net_ssid->m_type);
-    rbusObject_SetValue(in_obj, "Type", value);
-    rbusValue_Release(value);
+    net_ssid->serialize(in_obj);
 
     rc = rbusMethod_Invoke(m_bus_handle, DE_NET_SSID_SET, in_obj, &out_obj);
 

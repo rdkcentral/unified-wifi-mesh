@@ -52,6 +52,55 @@ void de_scan_result_t::serialize(rbusObject_t& ob)
     
 }
 
+void de_scan_result_t::deserialize(rbusObject_t& ob)
+{
+    rbusValue_t value;
+    const char *ptr;
+
+    if ((value = rbusObject_GetValue(ob, "TimeStamp")) == NULL) {
+        printf("%s:%d: Could not find TimeStamp value\n", __func__, __LINE__);
+    } else {
+        ptr = rbusValue_GetString(value, NULL);
+        strncpy(m_timestamp, ptr, strlen(ptr) + 1);
+    }
+
+    if ((value = rbusObject_GetValue(ob, "AggregateScanDuration")) == NULL) {
+        printf("%s:%d: Could not find AggregateScanDuration  value\n", __func__, __LINE__);
+    } else {
+        m_agg_scan_dur = rbusValue_GetUInt32(value);
+    }
+
+    if ((value = rbusObject_GetValue(ob, "ScanType")) == NULL) {
+        printf("%s:%d: Could not find ScanType  value\n", __func__, __LINE__);
+    } else {
+        m_scan_type = rbusValue_GetBoolean(value);
+    }
+}
+
+void de_scan_result_t::serialize(cJSON *ob)
+{
+    cJSON_AddStringToObject(ob, "TimeStamp", m_timestamp);
+    cJSON_AddNumberToObject(ob, "AggregateScanDuration", m_agg_scan_dur);
+    cJSON_AddBoolToObject(ob, "ScanType", m_scan_type);
+}
+
+void de_scan_result_t::deserialize(cJSON *ob)
+{
+    cJSON *elem;
+    const char *str;
+
+    elem = cJSON_GetObjectItem(ob, "TimeStamp");
+    str = cJSON_GetStringValue(elem);
+    strncpy(m_timestamp, str, strlen(str) + 1);
+
+    elem = cJSON_GetObjectItem(ob, "AggregateScanDuration");
+    m_agg_scan_dur = cJSON_GetNumberValue(elem);
+    
+    elem = cJSON_GetObjectItem(ob, "ScanType");
+    m_scan_type = cJSON_IsTrue(elem);
+}
+
+
 int de_scan_result_t::init(const char *key)
 {
     strncpy(m_key, key, strlen(key) + 1);

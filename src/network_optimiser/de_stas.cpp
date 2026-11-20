@@ -245,7 +245,7 @@ rbusError_t de_stas_t::set(rbusHandle_t handle, rbusProperty_t property, rbusSet
     return RBUS_ERROR_SUCCESS;
 }
 
-void de_stas_t::publish(const char *name)
+void de_stas_t::publish_stalist()
 {
     int rc, inst;
     de_sta_t *sta;
@@ -253,92 +253,14 @@ void de_stas_t::publish(const char *name)
     rbusValue_t value;
     rbusObject_t data, row;
 
-    if (strncmp(name, STAS, strlen(STAS)) != 0) {
-        return;
-    }
-
     rbusObject_Init(&data, NULL);
 
     sta = (de_sta_t *)hash_map_get_first(m_sta_map);
     while (sta != NULL) {
         rbusObject_Init(&row, sta->m_key);
-
-        rbusValue_Init(&value);
-        rbusValue_SetString(value, sta->m_mac);
-        rbusObject_SetValue(row, "MACAddress", value);
-        rbusValue_Release(value);
-
-        rbusValue_Init(&value);
-        rbusValue_SetInt32(value, sta->m_rssi);
-        rbusObject_SetValue(row, "SignalStrength", value);
-        rbusValue_Release(value);
-
-        rbusValue_Init(&value);
-        rbusValue_SetUInt32(value, sta->m_ul_rate);
-        rbusObject_SetValue(row, "LastDataUplinkRate", value);
-        rbusValue_Release(value);
-
-        rbusValue_Init(&value);
-        rbusValue_SetUInt32(value, sta->m_dl_rate);
-        rbusObject_SetValue(row, "LastDataDownlinkRate", value);
-        rbusValue_Release(value);
-
-        rbusValue_Init(&value);
-        rbusValue_SetUInt32(value, sta->m_retrans);
-        rbusObject_SetValue(row, "RetransCount", value);
-        rbusValue_Release(value);
-
-        rbusValue_Init(&value);
-        rbusValue_SetUInt32(value, sta->m_pkts_rx);
-        rbusObject_SetValue(row, "PacketsReceived", value);
-        rbusValue_Release(value);
-
-        rbusValue_Init(&value);
-        rbusValue_SetUInt32(value, sta->m_pkts_tx);
-        rbusObject_SetValue(row, "PacketsSent", value);
-        rbusValue_Release(value);
-
-        rbusValue_Init(&value);
-        rbusValue_SetUInt32(value, sta->m_bytes_rx);
-        rbusObject_SetValue(row, "BytesReceived", value);
-        rbusValue_Release(value);
-
-        rbusValue_Init(&value);
-        rbusValue_SetUInt32(value, sta->m_bytes_tx);
-        rbusObject_SetValue(row, "BytesSent", value);
-        rbusValue_Release(value);
-
-        rbusValue_Init(&value);
-        rbusValue_Init(&value);
-        rbusValue_SetString(value, sta->m_cap);
-        rbusObject_SetValue(row, "ClientCapabilities", value);
-        rbusValue_Release(value);
-
-        //rbusValue_Init(&value);
-        //rbusValue_SetString(value, sta->m_wifi6_cap);
-        //rbusObject_SetValue(row, "WiFi6Capabilities", value);
-        //rbusValue_Release(value);
-
-        rbusValue_Init(&value);
-        rbusValue_SetString(value, sta->m_ht_cap);
-        rbusObject_SetValue(row, "HTCapabilities", value);
-        rbusValue_Release(value);
-
-        rbusValue_Init(&value);
-        rbusValue_SetString(value, sta->m_vht_cap);
-        rbusObject_SetValue(row, "VHTCapabilities", value);
-        rbusValue_Release(value);
-
-        rbusValue_Init(&value);
-        rbusValue_SetString(value, sta->m_he_cap);
-        rbusObject_SetValue(row, "HECapabilities", value);
-        rbusValue_Release(value);
-
-        rbusValue_Init(&value);
-        rbusValue_SetString(value, sta->m_sec_assoc);
-        rbusObject_SetValue(row, "SecurityAssociation", value);
-        rbusValue_Release(value);
-
+    
+        sta->serialize(row);
+        
         rbusValue_Init(&value);
         rbusValue_SetObject(value, row);
         rbusObject_Release(row);
@@ -349,7 +271,7 @@ void de_stas_t::publish(const char *name)
         sta = (de_sta_t *)hash_map_get_next(m_sta_map, sta);
     }
 
-    event.name = name;;
+    event.name = STAS;
     event.data = data;
     event.type = RBUS_EVENT_GENERAL;
 
@@ -361,9 +283,15 @@ void de_stas_t::publish(const char *name)
     rbusObject_Release(data);
 }
 
+void de_stas_t::publish(const char *name)
+{
+    if (strncmp(name, STAS, strlen(STAS)) == 0) {
+        publish_stalist();
+    }
+}
+
 void de_stas_t::handler(rbusHandle_t handle, rbusEvent_t const* event, rbusEventSubscription_t* subscription)
 {
-    rbusValue_t value;
     rbusObject_t row;
     rbusProperty_t prop;
 
@@ -386,103 +314,7 @@ void de_stas_t::handler(rbusHandle_t handle, rbusEvent_t const* event, rbusEvent
         }
 
         row = rbusProperty_GetObject(prop);
-
-        if ((value = rbusObject_GetValue(row, "MACAddress")) == NULL) {
-            printf("%s:%d: Could not find mac address value\n", __func__, __LINE__);
-        } else {
-            ptr = rbusValue_GetString(value, NULL);
-            strncpy(sta->m_mac, ptr, strlen(ptr) + 1);
-        }
-
-        if ((value = rbusObject_GetValue(row, "SignalStrength")) == NULL) {
-            printf("%s:%d: Could not find Signal Strength value\n", __func__, __LINE__);
-        } else {
-            sta->m_rssi = rbusValue_GetInt32(value);
-        }
-
-        if ((value = rbusObject_GetValue(row, "LastDataUplinkRate")) == NULL) {
-            printf("%s:%d: Could not find Last Uplink Rate value\n", __func__, __LINE__);
-        } else {
-            sta->m_ul_rate = rbusValue_GetUInt32(value);
-        }
-
-        if ((value = rbusObject_GetValue(row, "LastDataDownlinkRate")) == NULL) {
-            printf("%s:%d: Could not find Last Downlink Rate value\n", __func__, __LINE__);
-        } else {
-            sta->m_dl_rate = rbusValue_GetUInt32(value);
-        }
-
-        if ((value = rbusObject_GetValue(row, "RetransCount")) == NULL) {
-            printf("%s:%d: Could not find RetransCount value\n", __func__, __LINE__);
-        } else {
-            sta->m_retrans = rbusValue_GetUInt32(value);
-        }
-
-        if ((value = rbusObject_GetValue(row, "PacketsReceived")) == NULL) {
-            printf("%s:%d: Could not find PacketsReceived value\n", __func__, __LINE__);
-        } else {
-            sta->m_pkts_rx = rbusValue_GetUInt32(value);
-        }
-
-        if ((value = rbusObject_GetValue(row, "PacketsSent")) == NULL) {
-            printf("%s:%d: Could not find PacketsSent value\n", __func__, __LINE__);
-        } else {
-            sta->m_pkts_tx = rbusValue_GetUInt32(value);
-        }
-
-        if ((value = rbusObject_GetValue(row, "BytesReceived")) == NULL) {
-            printf("%s:%d: Could not find BytesReceived value\n", __func__, __LINE__);
-        } else {
-            sta->m_bytes_rx = rbusValue_GetUInt32(value);
-        }
-
-        if ((value = rbusObject_GetValue(row, "BytesSent")) == NULL) {
-            printf("%s:%d: Could not find BytesSent value\n", __func__, __LINE__);
-        } else {
-            sta->m_bytes_tx = rbusValue_GetUInt32(value);
-        }
-
-        if ((value = rbusObject_GetValue(row, "ClientCapabilities")) == NULL) {
-            printf("%s:%d: Could not find Capabilities value\n", __func__, __LINE__);
-        } else {
-            ptr = rbusValue_GetString(value, NULL);
-            strncpy(sta->m_cap, ptr, strlen(ptr) + 1);
-        }
-
-        //if ((value = rbusObject_GetValue(row, "WiFi6Capabilities")) == NULL) {
-        //    printf("%s:%d: Could not find WiFi6 Capabilities value\n", __func__, __LINE__);
-        //} else {
-        //    ptr = rbusValue_GetString(value, NULL);
-        //    strncpy(sta->m_wifi6_cap, ptr, strlen(ptr) + 1);
-        //}
-
-        if ((value = rbusObject_GetValue(row, "HTCapabilities")) == NULL) {
-            printf("%s:%d: Could not find HT Capabilities value\n", __func__, __LINE__);
-        } else {
-            ptr = rbusValue_GetString(value, NULL);
-            strncpy(sta->m_ht_cap, ptr, strlen(ptr) + 1);
-        }
-
-        if ((value = rbusObject_GetValue(row, "VHTCapabilities")) == NULL) {
-            printf("%s:%d: Could not find VHT Capabilities value\n", __func__, __LINE__);
-        } else {
-            ptr = rbusValue_GetString(value, NULL);
-            strncpy(sta->m_vht_cap, ptr, strlen(ptr) + 1);
-        }
-
-        if ((value = rbusObject_GetValue(row, "HECapabilities")) == NULL) {
-            printf("%s:%d: Could not find HE Capabilities value\n", __func__, __LINE__);
-        } else {
-            ptr = rbusValue_GetString(value, NULL);
-            strncpy(sta->m_he_cap, ptr, strlen(ptr) + 1);
-        }
-
-        if ((value = rbusObject_GetValue(row, "SecurityAssociation")) == NULL) {
-            printf("%s:%d: Could not find Security Association value\n", __func__, __LINE__);
-        } else {
-            ptr = rbusValue_GetString(value, NULL);
-            strncpy(sta->m_sec_assoc, ptr, strlen(ptr) + 1);
-        }
+        sta->deserialize(row);
 
         prop = rbusProperty_GetNext(prop);
     }

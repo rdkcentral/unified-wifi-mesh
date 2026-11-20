@@ -40,12 +40,19 @@ public:
     void update(de_bss_t& bss, unsigned int dpos, unsigned int rpos, unsigned int bpos);
 
     void publish(const char *event_name);
+    void publish_bsslist();
+    void publish_assoc();
+    void publish_disassoc();
 
     rbusError_t add(rbusHandle_t handle, char const* table_name, char const* alias_name, uint32_t* inst_num);
     rbusError_t remove(rbusHandle_t handle, char const* row_name);
     rbusError_t set(rbusHandle_t handle, rbusProperty_t property, rbusSetHandlerOptions_t* options);
     rbusError_t get(rbusHandle_t handle, rbusProperty_t property, rbusGetHandlerOptions_t* options);
     void handler(rbusHandle_t handle, rbusEvent_t const* event, rbusEventSubscription_t* subscription);
+    
+    void handle_bsslist(rbusEvent_t const* event);
+    void handle_assoc(rbusEvent_t const* event);
+    void handle_disassoc(rbusEvent_t const* event);
 
     de_bsss_t(const char *name, bool provider = false, notifier_t func = notifier_t());
 };

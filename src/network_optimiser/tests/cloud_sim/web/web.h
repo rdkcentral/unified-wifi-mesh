@@ -21,6 +21,7 @@
 
 #include "common_defs.h"
 #include "optimizer_event.h"
+#include "collection.h"
 
 typedef enum {
     web_data_extn_type_js,
@@ -41,6 +42,8 @@ class web_t {
     char m_head[PATH_NAME_SZ];
     struct sockaddr_in m_address;
     int m_server_fd;
+    pthread_mutex_t m_lock;
+    queue_t *m_events;
     
 public:
     int init(const char *path);
@@ -57,6 +60,11 @@ public:
     void handle_post(int sock, const char *action_string, char *buff);
 
     virtual const char *device_request(optimizer_event_t *req, optimizer_event_t *rsp) { return ""; }
+    void async_event(optimizer_event_t *ev);
+
+    unsigned int events_count() { pthread_mutex_lock(&m_lock); queue_count(m_events); pthread_mutex_unlock(&m_lock); }
+    void push_event(optimizer_event_t *ev) { pthread_mutex_lock(&m_lock); queue_push(m_events, ev); pthread_mutex_unlock(&m_lock); }
+    optimizer_event_t *pop_event() { optimizer_event_t *ev; pthread_mutex_lock(&m_lock); ev = (optimizer_event_t *)queue_pop(m_events); pthread_mutex_unlock(&m_lock); return ev; }
     
     char* parse(char line[], const char symbol[]);
     char* parse_method(char line[], const char symbol[]);
