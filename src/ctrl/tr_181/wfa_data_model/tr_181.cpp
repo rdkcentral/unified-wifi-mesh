@@ -189,6 +189,26 @@ int tr_181_t::wfa_set_bus_callbackfunc_pointers(const char *full_namespace, bus_
         ELEMENT(DE_CUROP_CLASS,            CALLBACK_GETTER(curops_get)),
         ELEMENT(DE_CUROP_CHANNEL,          CALLBACK_GETTER(curops_get)),
         ELEMENT(DE_CUROP_TXPOWER,          CALLBACK_GETTER(curops_get)),
+        ELEMENT(DE_SCANRES_TABLE        , CALLBACK_GETTER(scanres_tget)),
+        ELEMENT(DE_SCANRES_TIMESTAMP    , CALLBACK_GETTER(scanres_get)),
+        ELEMENT(DE_SCANRES_OPCLSNOE     , CALLBACK_GETTER(scanres_get)),
+        ELEMENT(DE_OPCLS_TABLE          , CALLBACK_GETTER(scanres_tget)),
+        ELEMENT(DE_OPCLS_CLASS          , CALLBACK_GETTER(scanres_get)),
+        ELEMENT(DE_OPCLS_CHSCANNOE      , CALLBACK_GETTER(scanres_get)),
+        ELEMENT(DE_CHSCAN_TABLE         , CALLBACK_GETTER(scanres_tget)),
+        ELEMENT(DE_CHSCAN_STATUS        , CALLBACK_GETTER(scanres_get)),
+        ELEMENT(DE_CHSCAN_CHANNEL       , CALLBACK_GETTER(scanres_get)),
+        ELEMENT(DE_CHSCAN_TIMESTAMP     , CALLBACK_GETTER(scanres_get)),
+        ELEMENT(DE_CHSCAN_UTIL          , CALLBACK_GETTER(scanres_get)),
+        ELEMENT(DE_CHSCAN_NOISE         , CALLBACK_GETTER(scanres_get)),
+        ELEMENT(DE_CHSCAN_NBRNOE        , CALLBACK_GETTER(scanres_get)),
+        ELEMENT(DE_NBR_TABLE            , CALLBACK_GETTER(scanres_tget)),
+        ELEMENT(DE_NBR_BSSID            , CALLBACK_GETTER(scanres_get)),
+        ELEMENT(DE_NBR_SSID             , CALLBACK_GETTER(scanres_get)),
+        ELEMENT(DE_NBR_BW               , CALLBACK_GETTER(scanres_get)),
+        ELEMENT(DE_NBR_STACNT           , CALLBACK_GETTER(scanres_get)),
+        ELEMENT(DE_NBR_SIGSTR           , CALLBACK_GETTER(scanres_get)),
+        ELEMENT(DE_NBR_CHUTIL           , CALLBACK_GETTER(scanres_get)),
         ELEMENT(DE_BSS_TABLE,              CALLBACK_GETTER(bss_tget)),
         ELEMENT(DE_BSS_BSSID,              CALLBACK_GETTER(bss_get)),
         ELEMENT(DE_BSS_SSID,               CALLBACK_GETTER(bss_get)),
@@ -731,6 +751,28 @@ bus_error_t tr_181_t::curops_tget(char *event_name, raw_data_t *p_data, bus_user
 
     if (em_ctrl != NULL) {
         return em_ctrl->get_dm_ctrl()->curops_tget(event_name, p_data);
+    }
+
+    return bus_error_general;
+}
+
+bus_error_t tr_181_t::scanres_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
+{
+    em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
+
+    if (em_ctrl != NULL) {
+        return em_ctrl->get_dm_ctrl()->scanres_get(event_name, p_data);
+    }
+
+    return bus_error_general;
+}
+
+bus_error_t tr_181_t::scanres_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
+{
+    em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
+
+    if (em_ctrl != NULL) {
+        return em_ctrl->get_dm_ctrl()->scanres_tget(event_name, p_data);
     }
 
     return bus_error_general;
