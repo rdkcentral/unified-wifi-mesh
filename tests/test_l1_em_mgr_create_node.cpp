@@ -69,12 +69,17 @@ class em_mgr_create_node_Test : public ::testing::Test {
 protected:
     CreateNodeTestMgr mgr;
     em_interface_t ruid;
+    dm_easy_mesh_t dm;
 
     void SetUp() override {
         memset(&ruid, 0, sizeof(ruid));
         snprintf(ruid.name, sizeof(ruid.name), "wlan0");
         ruid.mac[0] = 0x02;
         ruid.mac[5] = 0x01;
+    }
+    void TearDown() override {
+        /* removes a node created by a test (stops it, removes the map entry, deletes it); no-op when absent */
+        mgr.delete_node(&ruid);
     }
 };
 
@@ -101,4 +106,29 @@ TEST_F(em_mgr_create_node_Test, CreationCanBeRetriedAfterAFailure) {
 
 TEST_F(em_mgr_create_node_Test, NullRuidIsRejected) {
     EXPECT_EQ(mgr.create_node(nullptr, em_freq_band_24, nullptr, true, em_profile_type_1, em_service_type_ctrl), nullptr);
+}
+
+/* Success path: a radio (non-AL) node is built once, initialised and registered under its MAC. */
+TEST_F(em_mgr_create_node_Test, SuccessfulCreationReturnsTheRegisteredNode) {
+    em_t *node = mgr.create_node(&ruid, em_freq_band_24, &dm, false, em_profile_type_1, em_service_type_ctrl);
+    ASSERT_NE(node, nullptr);
+    EXPECT_TRUE(mgr.has_node("02:00:00:00:00:01"));
+    EXPECT_FALSE(mgr.has_node("02:00:00:00:00:01_al"));
+}
+
+TEST_F(em_mgr_create_node_Test, CreatingTheSameNodeAgainReturnsTheExistingNode) {
+    em_t *first = mgr.create_node(&ruid, em_freq_band_24, &dm, false, em_profile_type_1, em_service_type_ctrl);
+    ASSERT_NE(first, nullptr);
+    EXPECT_EQ(mgr.create_node(&ruid, em_freq_band_24, &dm, false, em_profile_type_1, em_service_type_ctrl), first);
+}
+
+/* A constructor failure must not leave the manager unusable: the next creation succeeds. */
+TEST_F(em_mgr_create_node_Test, NodeCanBeCreatedAfterAConstructorFailure) {
+    EXPECT_EQ(mgr.create_node(&ruid, em_freq_band_24, nullptr, true, em_profile_type_1, em_service_type_ctrl), nullptr);
+    EXPECT_FALSE(mgr.has_node("02:00:00:00:00:01_al"));
+
+    em_t *node = mgr.create_node(&ruid, em_freq_band_24, &dm, false, em_profile_type_1, em_service_type_ctrl);
+    ASSERT_NE(node, nullptr);
+    EXPECT_TRUE(mgr.has_node("02:00:00:00:00:01"));
+    EXPECT_FALSE(mgr.has_node("02:00:00:00:00:01_al"));
 }
