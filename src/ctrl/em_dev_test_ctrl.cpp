@@ -210,7 +210,7 @@ void em_dev_test_t:: decode(em_subdoc_info_t *subdoc, hash_map_t *m_em_map, cons
 
 		}
 
-		if ((tmp = cJSON_GetObjectItem(obj, "Test_status")) != NULL) {
+		if (((tmp = cJSON_GetObjectItem(obj, "Test_status")) != NULL) && (cJSON_IsString(tmp) == true) && (tmp->valuestring != NULL)) {
 			if(strncmp(tmp->valuestring, "Inprogress", sizeof("Inprogress")) == 0) {
 				dev_test_info.test_status[index] = em_dev_test_status_inprogess;
 			} else if(strncmp(tmp->valuestring, "Complete", sizeof("Complete")) == 0) {
