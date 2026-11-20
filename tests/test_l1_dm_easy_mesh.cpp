@@ -22751,3 +22751,50 @@ TEST(dm_easy_mesh_t, UpdateScanResults_negative_Static_NullScanResult)
     });
     std::cout << "Exiting UpdateScanResults_negative_Static_NullScanResult test" << std::endl;
 }
+
+/**
+ * @brief Verify string_to_macbytes() ignores NULL arguments instead of dereferencing them.
+ *
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |
+ * | :----: | --------- | ---------- |-------------- | ----- |
+ * | 01 | NULL key with a valid destination | key = NULL, bmac = sentinel 0xA5 x6 | Returns without crashing, destination unchanged | Should be successful |
+ * | 02 | Valid key with a NULL destination | key = "AA:BB:CC:DD:EE:01", bmac = NULL | Returns without crashing | Should be successful |
+ * | 03 | Both arguments NULL | key = NULL, bmac = NULL | Returns without crashing | Should be successful |
+ * | 04 | Valid key (colon and plain forms) with a valid destination | "AA:BB:CC:DD:EE:01", "aabbccddee01" | Destination holds AA BB CC DD EE 01 | Should be successful |
+ */
+TEST(dm_easy_mesh_t, string_to_macbytes_null_key_leaves_destination_unchanged)
+{
+    mac_address_t bmac;
+    memset(bmac, 0xA5, sizeof(bmac));
+    dm_easy_mesh_t::string_to_macbytes(nullptr, bmac);
+    for (size_t i = 0; i < sizeof(mac_address_t); i++) {
+        EXPECT_EQ(bmac[i], 0xA5) << "byte " << i;
+    }
+}
+
+TEST(dm_easy_mesh_t, string_to_macbytes_null_destination_is_ignored)
+{
+    char key[] = "AA:BB:CC:DD:EE:01";
+    EXPECT_NO_FATAL_FAILURE(dm_easy_mesh_t::string_to_macbytes(key, nullptr));
+}
+
+TEST(dm_easy_mesh_t, string_to_macbytes_both_null_is_ignored)
+{
+    EXPECT_NO_FATAL_FAILURE(dm_easy_mesh_t::string_to_macbytes(nullptr, nullptr));
+}
+
+TEST(dm_easy_mesh_t, string_to_macbytes_valid_key_still_converts)
+{
+    const unsigned char expected[6] = { 0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0x01 };
+    char colon[] = "AA:BB:CC:DD:EE:01";
+    char plain[] = "aabbccddee01";
+    mac_address_t bmac;
+
+    memset(bmac, 0, sizeof(bmac));
+    dm_easy_mesh_t::string_to_macbytes(colon, bmac);
+    EXPECT_EQ(memcmp(bmac, expected, sizeof(expected)), 0);
+
+    memset(bmac, 0, sizeof(bmac));
+    dm_easy_mesh_t::string_to_macbytes(plain, bmac);
+    EXPECT_EQ(memcmp(bmac, expected, sizeof(expected)), 0);
+}
