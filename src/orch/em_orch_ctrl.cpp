@@ -356,6 +356,8 @@ bool em_orch_ctrl_t::is_em_ready_for_orch_exec(em_cmd_t *pcmd, em_t *em)
 
         case em_cmd_type_sta_assoc:
             if (em->get_state() >= em_state_ctrl_topo_synchronized) {
+                // Count only the Client Capability Queries of this command
+                em->set_cap_query_tx_count(0);
                 return true;
             }
             break;
