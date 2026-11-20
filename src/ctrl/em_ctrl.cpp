@@ -1982,7 +1982,6 @@ void em_ctrl_t::start_complete()
         { const_cast<char*>(DEVICE_WIFI_DATAELEMENTS_NETWORK_METRICS_UPDATED), bus_element_type_event,
             { NULL, NULL , NULL, NULL, NULL, NULL }, slow_speed, ZERO_TABLE,
             { bus_data_type_string, false, 0, 0, 0, NULL } },
-            { bus_data_type_property, false, 0, 0, 0, NULL } },
         { const_cast<char*>(DEVICE_WIFI_DATAELEMENTS_DISASSOCIATION), bus_element_type_event,
             { NULL, NULL , NULL, NULL, NULL, NULL }, slow_speed, ZERO_TABLE,
             { bus_data_type_property, false, 0, 0, 0, NULL } },
