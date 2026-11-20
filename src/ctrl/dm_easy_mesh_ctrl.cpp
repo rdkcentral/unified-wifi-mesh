@@ -7444,7 +7444,7 @@ char* dm_easy_mesh_ctrl_t::get_sta_ht_caps_str(char *ht_cap_hex, char *buf, size
     if ((ht_cap_hex == NULL) || (ht_cap_hex[0] == '\0')) {
         return buf;
     }
-    hex_len = static_cast<unsigned int>(strlen(ht_cap_hex));
+    hex_len = static_cast<unsigned int>(strnlen(ht_cap_hex, 2 * sizeof(ie) + 1));
     if ((hex_len < 32) || (hex_len & 1) || (hex_len > 2 * sizeof(ie)) ||
         (dm_easy_mesh_t::unhex(hex_len, ht_cap_hex, sizeof(ie), ie) == NULL)) {
         return buf;
