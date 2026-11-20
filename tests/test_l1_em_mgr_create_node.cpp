@@ -31,11 +31,15 @@
 
 class CreateNodeTestMgr : public em_mgr_t {
 public:
-    CreateNodeTestMgr() { m_em_map = hash_map_create(); }
+    CreateNodeTestMgr() {
+        pthread_mutex_init(&m_mutex, nullptr);
+        m_em_map = hash_map_create();
+    }
     ~CreateNodeTestMgr() override {
         if (m_em_map != nullptr) {
             hash_map_destroy(m_em_map);
         }
+        pthread_mutex_destroy(&m_mutex);
     }
     bool has_node(const char *key) { return hash_map_get(m_em_map, key) != nullptr; }
 
