@@ -14367,11 +14367,11 @@ TEST(dm_easy_mesh_t, get_num_op_class_positive_non_zero) {
 }
 
 /**
- * @brief Validate that get_num_op_class() returns the maximum unsigned int value
+ * @brief Validate that get_num_op_class() clamps an oversized count to EM_MAX_OPCLASS
  *
  * This test verifies that when the m_num_opclass member of a dm_easy_mesh_t object is set to UINT_MAX,
- * invoking get_num_op_class() returns UINT_MAX. This confirms that the API correctly handles the edge
- * scenario where the operation class value is at its maximum.
+ * invoking get_num_op_class() returns EM_MAX_OPCLASS. This confirms that the getter bounds the count
+   to the size of the m_op_class[] array.
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 353@n
@@ -14384,7 +14384,7 @@ TEST(dm_easy_mesh_t, get_num_op_class_positive_non_zero) {
  * **Test Procedure:**@n
  * | Variation / Step | Description | Test Data | Expected Result | Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Instantiate dm_easy_mesh_t, set m_num_opclass to UINT_MAX, and invoke get_num_op_class() | m_num_opclass = UINT_MAX, invoke get_num_op_class(), result variable | get_num_op_class() returns UINT_MAX and EXPECT_EQ(UINT_MAX, result) passes | Should Pass |
+ * | 01 | Instantiate dm_easy_mesh_t, set m_num_opclass to UINT_MAX, and invoke get_num_op_class() | m_num_opclass = UINT_MAX, invoke get_num_op_class(), result variable | get_num_op_class() returns EM_MAX_OPCLASS and EXPECT_EQ(EM_MAX_OPCLASS, result) passes | Should Pass |
  */
 TEST(dm_easy_mesh_t, get_num_op_class_max_value) {
     std::cout << "Entering get_num_op_class_max_value test" << std::endl;
@@ -14393,7 +14393,7 @@ TEST(dm_easy_mesh_t, get_num_op_class_max_value) {
     std::cout << "Invoking get_num_op_class() on object with m_num_opclass = " << obj.m_num_opclass << std::endl;
     unsigned int result = obj.get_num_op_class();
     std::cout << "get_num_op_class() returned: " << result << std::endl;
-    EXPECT_EQ(UINT_MAX, result);
+    EXPECT_EQ(static_cast<unsigned int>(EM_MAX_OPCLASS), result);
     std::cout << "Exiting get_num_op_class_max_value test" << std::endl;
 }
 
@@ -14462,7 +14462,7 @@ TEST(dm_easy_mesh_t, get_num_op_class_configured)
 /**
  * @brief Tests the retrieval of the maximum operational class value for dm_easy_mesh_t.
  *
- * Tests whether the dm_easy_mesh_t::get_num_op_class function correctly retrieves the maximum value from the dm_easy_mesh_t instance when its m_num_opclass is set to the maximum unsigned integer value.
+ *Tests whether the dm_easy_mesh_t::get_num_op_class function returns EM_MAX_OPCLASS when the dm_easy_mesh_t instance has its m_num_opclass set to the maximum unsigned integer value.
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 356@n
@@ -14475,7 +14475,7 @@ TEST(dm_easy_mesh_t, get_num_op_class_configured)
  * **Test Procedure:**
  * | Variation / Step | Description                                                                              | Test Data                                                                                       | Expected Result                                                                          | Notes      |
  * | :--------------: | ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------- | ---------- |
- * | 01               | Initialize a dm_easy_mesh_t instance, set m_num_opclass to maximum unsigned int value, and call get_num_op_class | mesh pointer: m_num_opclass = std::numeric_limits<unsigned int>::max()                           | Returned value equals std::numeric_limits<unsigned int>::max() and EXPECT_EQ assertion passes | Should Pass |
+ * | 01               | Initialize a dm_easy_mesh_t instance, set m_num_opclass to maximum unsigned int value, and call get_num_op_class | mesh pointer: m_num_opclass = std::numeric_limits<unsigned int>::max()                           |  Returned value equals EM_MAX_OPCLASS and EXPECT_EQ assertion passes | Should Pass |
  */
 TEST(dm_easy_mesh_t, get_num_op_class_boundary_max)
 {
@@ -14486,7 +14486,7 @@ TEST(dm_easy_mesh_t, get_num_op_class_boundary_max)
     std::cout << "Invoking get_num_op_class(&mesh)" << std::endl;
     unsigned int result = dm_easy_mesh_t::get_num_op_class(&mesh);
     std::cout << "Retrieved num_op_class = " << result << std::endl;
-    EXPECT_EQ(result, std::numeric_limits<unsigned int>::max());
+    EXPECT_EQ(result, static_cast<unsigned int>(EM_MAX_OPCLASS));
     std::cout << "Exiting " << testName << " test" << std::endl;
 }
 
