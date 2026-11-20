@@ -535,24 +535,31 @@ int em_mgr_t::start()
 {
     int rc;
     em_event_t *evt;;
-    struct timespec time_to_wait;
+    struct timespec tick;
 	bool started = false;
     input_listen();
     nodes_listen();
     pthread_mutex_lock(&m_queue.lock);
+    /* m_queue.cond is CLOCK_MONOTONIC (util::monotonic_cond_init) */
+    util::monotonic_now(&tick);
+    util::add_milliseconds(&tick, m_queue.timeout);
     while (m_exit == false) {
         rc = 0;
 
-        /* m_queue.cond is CLOCK_MONOTONIC (util::monotonic_cond_init) */
-        util::monotonic_now(&time_to_wait);
-		util::add_milliseconds(&time_to_wait, m_queue.timeout);
-
-        if (queue_count(m_queue.queue) == 0) {
-            rc = pthread_cond_timedwait(&m_queue.cond, &m_queue.lock, &time_to_wait);
+        if ((queue_count(m_queue.queue) == 0) && (m_orch_kick == false)) {
+            rc = pthread_cond_timedwait(&m_queue.cond, &m_queue.lock, &tick);
+        }
+        if (m_orch_kick == true) {
+            m_orch_kick = false;
+            pthread_mutex_unlock(&m_queue.lock);
+            if (is_data_model_initialized() == true) {
+                handle_orch_kick();
+            }
+            pthread_mutex_lock(&m_queue.lock);
         }
         if ((rc == 0) || (queue_count(m_queue.queue) != 0)) {
-            // dequeue data
-            while (queue_count(m_queue.queue)) {
+            // dequeue data, a pending kick or tick is served first
+            while (queue_count(m_queue.queue) && (m_orch_kick == false) && (util::monotonic_reached(&tick) == false)) {
                 evt = static_cast<em_event_t *>(queue_pop(m_queue.queue));
                 if (evt == NULL) {
                     continue;
@@ -569,9 +576,15 @@ int em_mgr_t::start()
                 free(evt);
                 pthread_mutex_lock(&m_queue.lock);
             }
-        } else if (rc == ETIMEDOUT) {
+        } else if (rc != ETIMEDOUT) {
+            printf("%s:%d em exited with rc - %d\n",__func__,__LINE__, rc);
             pthread_mutex_unlock(&m_queue.lock);
-            //printf("%s:%d: Timeout secs: %d\n", __func__, __LINE__, time_to_wait.tv_sec);
+            return -1;
+        }
+
+        /* The tick is due at a fixed time, whether or not events kept the thread busy. */
+        if (util::monotonic_reached(&tick) == true) {
+            pthread_mutex_unlock(&m_queue.lock);
             if (is_data_model_initialized() == true) {
 				if (started == false) {
 					start_complete();
@@ -580,10 +593,8 @@ int em_mgr_t::start()
                 handle_timeout();
             }
             pthread_mutex_lock(&m_queue.lock);
-        } else {
-            printf("%s:%d em exited with rc - %d\n",__func__,__LINE__, rc);
-            pthread_mutex_unlock(&m_queue.lock);
-            return -1;
+            util::monotonic_now(&tick);
+            util::add_milliseconds(&tick, m_queue.timeout);
         }
     }
     pthread_mutex_unlock(&m_queue.lock);
@@ -594,6 +605,14 @@ void em_mgr_t::push_to_queue(em_event_t *evt)
 {
     pthread_mutex_lock(&m_queue.lock);
     queue_push(m_queue.queue, evt);
+    pthread_cond_signal(&m_queue.cond);
+    pthread_mutex_unlock(&m_queue.lock);
+}
+
+void em_mgr_t::kick_orch()
+{
+    pthread_mutex_lock(&m_queue.lock);
+    m_orch_kick = true;
     pthread_cond_signal(&m_queue.cond);
     pthread_mutex_unlock(&m_queue.lock);
 }
@@ -632,6 +651,7 @@ int em_mgr_t::init(const char *data_model_path)
 em_mgr_t::em_mgr_t()
 {
     m_exit = false;
+    m_orch_kick = false;
     m_timeout = EM_MGR_TOUT;
 	m_tick_demultiplex = 0;
 }

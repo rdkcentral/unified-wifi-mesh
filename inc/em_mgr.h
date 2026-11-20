@@ -28,6 +28,8 @@ class em_mgr_t {
     pthread_t   m_tid;
     bool m_exit;
     em_queue_t  m_queue;
+    /* A radio processed a message. Guarded by m_queue.lock. */
+    bool m_orch_kick;
 	unsigned int m_tick_demultiplex;
 	unsigned short m_msg_id;
 
@@ -100,6 +102,20 @@ public:
 	 * @note Ensure that the event pointer is not null before calling this function.
 	 */
 	void push_to_queue(em_event_t *evt);
+
+	/**!
+	 * @brief Asks the manager thread to run handle_orch_kick() without waiting for the tick.
+	 *
+	 * Called by a radio thread after it processed a message from the peer.
+	 */
+	void kick_orch();
+
+	/**!
+	 * @brief Advances the orchestration after a radio processed a message.
+	 *
+	 * Runs in the manager thread. The default does nothing, the tick advances the commands.
+	 */
+	virtual void handle_orch_kick() { }
     
 	/**!
 	 * @brief Pops an event from the queue.

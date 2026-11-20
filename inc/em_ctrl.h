@@ -25,10 +25,12 @@
 #include "em_orch_ctrl.h"
 #include "bus.h"
 #include "em_dev_test_ctrl.h"
+#include <deque>
 #include <map>
 #include <string>
 
 #define EM_RECENT_DISASSOC_MAX_AGE_SEC 30
+#define EM_MAX_HELD_EVTS 32
 
 #ifdef AL_SAP
 #define DATA_SOCKET_PATH "/tmp/al_data_socket"
@@ -53,6 +55,44 @@ class em_ctrl_t : public em_mgr_t {
         struct timespec ts;
     } em_recent_disassoc_t;
     std::map<std::string, em_recent_disassoc_t> m_recent_disassoc;
+
+    typedef struct {
+        em_event_t *evt;
+        struct timespec since;
+    } em_held_event_t;
+
+    /* Northbound events waiting to be handled, in arrival order.
+     * Read and written on the controller event thread only. */
+    std::deque<em_held_event_t> m_held_evts;
+
+	/**!
+	 * @brief Tells whether the handler of an event submits a command.
+	 *
+	 * @param[in] type Type of the bus event.
+	 *
+	 * @returns True if the event is rejected while a command of its type is in progress.
+	 */
+	static bool is_cmd_event(em_bus_event_type_t type);
+
+	/**!
+	 * @brief Holds a northbound event that cannot be handled yet.
+	 *
+	 * An event is held while a command of its type is in progress and while any older
+	 * event is held, so that the commands run in the order they were requested.
+	 *
+	 * @param[in] evt Event taken from the input queue. It is copied, the caller keeps ownership.
+	 *
+	 * @returns True if the event was held or rejected because too many are held, false if the
+	 * caller must handle it now.
+	 */
+	bool hold_event(em_event_t *evt);
+
+	/**!
+	 * @brief Handles the held events in arrival order.
+	 *
+	 * Stops at the first event that meets a command of its type in progress.
+	 */
+	void replay_held_events();
 	em_dev_test_t dev_test;
 
     // Persistence backend resolved from the process's command-line
@@ -205,6 +245,13 @@ public:
 	 * @note Ensure that this function executes quickly to avoid delays in the tick handling.
 	 */
 	void handle_250ms_tick();
+
+	/**!
+	 * @brief Advances the commands as soon as a radio processed a message.
+	 *
+	 * Runs the passes that end a completed command, free its radio and start the next command.
+	 */
+	void handle_orch_kick() override;
 
     
 	/**!
