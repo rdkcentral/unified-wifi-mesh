@@ -221,7 +221,13 @@ em_t *em_mgr_t::create_node(em_interface_t *ruid, em_freq_band_t band, dm_easy_m
         return em;
     }
 
-    em = new em_t(ruid, band, dm, this, profile, type, is_al_mac);
+    try {
+        em = new em_t(ruid, band, dm, this, profile, type, is_al_mac);
+    } catch (const std::exception &e) {
+        printf("%s:%d: failed to create node for key:%s: %s\n", __func__, __LINE__, mac_str, e.what());
+        return NULL;
+    }
+
     em->set_is_dpp_onboarding(is_agent_dpp_onboarding());
     if (em->init() != 0) {
         delete em;
