@@ -34,18 +34,26 @@
  * removed returns 0.
  */
 
+/* Initialises only the data model (in-memory SQLite). em_ctrl_t::data_model_init() also sets up the
+ * certificate-backed command listener, which needs /nvram/test_cert.crt and /nvram/test_cert.key. */
+class RemoveDeviceTestController : public em_ctrl_t {
+public:
+    int data_model_init(const char *path) override {
+        return get_dm_ctrl()->init(path, this, db_client_type_local);
+    }
+};
+
 class analyze_remove_device_Test : public ::testing::Test {
 protected:
-    em_ctrl_t ctrl;
+    RemoveDeviceTestController ctrl;
     dm_easy_mesh_ctrl_t *dm_ctrl = NULL;
     int next_mac = 0;
 
     void SetUp() override {
         __lsan_disable();
-        ctrl.init("/tmp/test_config.db");
-        ctrl.orch_init();
+        ASSERT_EQ(ctrl.init(":memory:"), 0);
         dm_ctrl = ctrl.get_dm_ctrl();
-        /* HARNESS_SETUP */
+        ASSERT_NE(dm_ctrl, nullptr);
     }
     void TearDown() override {
         __lsan_enable();
