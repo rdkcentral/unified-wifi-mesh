@@ -187,7 +187,7 @@ ifeq ($(WITH_SAP), 1)
 endif
 	@$(MAKE) $(ALLOBJECTS) TESTING=1
 	@echo "Building test executable with same link order as main build..."
-	$(CXX) -o $(TEST_EXEC) $(TEST_OBJECTS) $(ALLOBJECTS) $(LIBDIRS) $(LIBS) -lgtest -lgtest_main -pthread -fsanitize=address -fsanitize=undefined
+	$(CXX) -o $(TEST_EXEC) $(TEST_OBJECTS) $(ALLOBJECTS) $(LIBDIRS) $(LIBS) -lgmock -lgtest -lgtest_main -pthread -fsanitize=address -fsanitize=undefined
 	@echo "Running tests..."
 	@cd $(TEST_DIR) && \
 	$(TEST_EXEC)
