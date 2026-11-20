@@ -7673,8 +7673,14 @@ bus_error_t dm_easy_mesh_ctrl_t::radio_get_inner(char *event_name, raw_data_t *p
 
     /* Extract device instance (numeric or alias) and find the dm object for
      * that device instance */
+    if (strlen(name) < sizeof(DATAELEMS_NETWORK)) {
+        return bus_error_invalid_input;
+    }
     name += sizeof(DATAELEMS_NETWORK);
     name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    if (name == NULL) {
+        return bus_error_invalid_input;
+    }
     dm_easy_mesh_t *dm = dm_ctrl->get_dm_easy_mesh(instance, is_num);
     if (dm == NULL) {
         printf("device not found\n");
@@ -7682,7 +7688,18 @@ bus_error_t dm_easy_mesh_ctrl_t::radio_get_inner(char *event_name, raw_data_t *p
     }
 
     name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
-    radio_instance = is_num ? atoi(instance) : 0;
+    if (name == NULL) {
+        return bus_error_invalid_input;
+    }
+    char *end = NULL;
+    errno = 0;
+    long parsed_instance = is_num ? strtol(instance, &end, 10) : 0;
+    if (!is_num || end == instance || *end != '\0' || errno == ERANGE ||
+        parsed_instance < 1 || parsed_instance > EM_MAX_BANDS) {
+        em_printfout("invalid radio instance '%s'", instance);
+        return bus_error_invalid_input;
+    }
+    radio_instance = static_cast<int>(parsed_instance);
     dm_radio_t *radio = &dm->m_radio[radio_instance - 1];
     if (radio == NULL) {
         em_printfout("radio is NULL\n");
@@ -7709,10 +7726,16 @@ bus_error_t dm_easy_mesh_ctrl_t::radio_get_inner(char *event_name, raw_data_t *p
     } else if (strcmp(param, "ReceiveOther") == 0) {
         rc = dm_ctrl->raw_data_set(p_data, static_cast<unsigned int> (ri->receive_other));
     } else if (strcmp(param, "ChipsetVendor") == 0) {
-        rc = dm_ctrl->raw_data_set(p_data, ri->chip_vendor);
+        char vendor[sizeof(ri->chip_vendor)];
+        snprintf(vendor, sizeof(vendor), "%.*s", (int)(sizeof(ri->chip_vendor) - 1), ri->chip_vendor);
+        rc = dm_ctrl->raw_data_set(p_data, vendor);
     } else if (strcmp(param, "CurrentOperatingClassProfileNumberOfEntries") == 0) {
         unsigned int curop_count = 0;
-        for (unsigned int i = 0; i < dm->get_num_op_class(); i++) {
+	unsigned int num_oc = dm->get_num_op_class();
+        if (num_oc > EM_MAX_OPCLASS) {
+            num_oc = EM_MAX_OPCLASS;
+        }
+        for (unsigned int i = 0; i < num_oc; i++) {
             dm_op_class_t *op_class = dm->get_op_class(i);
             if (op_class == NULL) {
                 continue;
