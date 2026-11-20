@@ -1053,6 +1053,10 @@
                 },
                 "IsbSTA": {
                     "type": "boolean"
+                },
+                "AffiliatedSTANumberOfEntries": {
+                    "type": "integer",
+                    "minimum": 0
                 }
             }
         },
@@ -1069,6 +1073,14 @@
             "properties": {
                 "MLDMACAddress": {
                     "$ref": "#/definitions/macaddr_t"
+                },
+                "AffiliatedAPNumberOfEntries": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "STAMLDNumberOfEntries": {
+                    "type": "integer",
+                    "minimum": 0
                 },
                 "TIDLinkMap": {
                     "oneOf": [
@@ -2567,6 +2579,17 @@
                                                                         "null"
                                                                     ]
                                                                 },
+                                                                "PairwiseAKM": {
+                                                                    "type": "string",
+                                                                    "pattern": "([0-9a-fA-F]{8})"
+                                                                },
+                                                                "PairwiseCipher": {
+                                                                    "type": "string",
+                                                                    "pattern": "([0-9a-fA-F]{8})"
+                                                                },
+                                                                "RSNCapabilities": {
+                                                                    "$ref": "#/definitions/uint16_t"
+                                                                },
                                                                 "VHTCapabilities": {
                                                                     "type": [
                                                                         "string",
@@ -3131,6 +3154,10 @@
                     "items": {
                         "$ref": "#/definitions/macaddr_t"
                     }
+                },
+                "SSIDNumberOfEntries": {
+                    "type": "integer",
+                    "minimum": 0
                 },
                 "NetworkSSIDList": {
                     "type": "array",
