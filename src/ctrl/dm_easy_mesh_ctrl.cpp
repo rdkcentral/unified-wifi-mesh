@@ -9637,67 +9637,6 @@ bus_error_t dm_easy_mesh_ctrl_t::apmldcfg_get_inner(char *event_name, raw_data_t
     return rc;
 }
 
-static uint8_t ap_mld_mode_bit_from_param(const char *param)
-{
-    if (strcmp(param, "EMLMREnabled") == 0) return EM_MLO_MODE_EMLMR;
-    if (strcmp(param, "EMLSREnabled") == 0) return EM_MLO_MODE_EMLSR;
-    if (strcmp(param, "STREnabled") == 0) return EM_MLO_MODE_STR;
-    if (strcmp(param, "NSTREnabled") == 0) return EM_MLO_MODE_NSTR;
-    return 0;
-}
-
-static bool ap_mld_mode_is_supported(dm_easy_mesh_t *dm, const em_ap_mld_info_t *ami,
-    uint8_t mode_bit, bool *capability_ready)
-{
-    bool supported = true;
-    bool ready = false;
-    bool mode_supported;
-    unsigned int i;
-    unsigned int radio;
-    em_radio_cap_info_t *capability;
-    em_radio_cap_info_t *candidate;
-    const em_wifi7_mlo_cap_support_tlv_t *mlo_cap;
-
-    if (capability_ready != NULL) {
-        *capability_ready = false;
-    }
-    if ((dm == NULL) || (ami == NULL) || (ami->num_affiliated_ap == 0)) {
-        return false;
-    }
-
-    for (i = 0; i < ami->num_affiliated_ap; i++) {
-        capability = NULL;
-        for (radio = 0; radio < dm->get_num_radios(); radio++) {
-            candidate = dm->get_radio_cap_info(radio);
-            if ((candidate != NULL) &&
-                (memcmp(candidate->ruid.mac, ami->affiliated_ap[i].ruid.mac,
-                    sizeof(mac_address_t)) == 0)) {
-                capability = candidate;
-                break;
-            }
-        }
-
-        if (capability == NULL) {
-            supported = false;
-            continue;
-        }
-        ready = true;
-
-        mlo_cap = &capability->wifi7_cap.mlo_cap_support;
-        mode_supported = false;
-        if (mode_bit == EM_MLO_MODE_STR) mode_supported = mlo_cap->ap_str_support;
-        else if (mode_bit == EM_MLO_MODE_NSTR) mode_supported = mlo_cap->ap_nstr_support;
-        else if (mode_bit == EM_MLO_MODE_EMLSR) mode_supported = mlo_cap->ap_emlsr_support;
-        else if (mode_bit == EM_MLO_MODE_EMLMR) mode_supported = mlo_cap->ap_emlmr_support;
-        supported = supported && mode_supported;
-    }
-
-    if (capability_ready != NULL) {
-        *capability_ready = ready;
-    }
-    return ready && supported;
-}
-
 bus_error_t dm_easy_mesh_ctrl_t::apmldcfg_set_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
 {
     (void) user_data;
@@ -9752,14 +9691,56 @@ bus_error_t dm_easy_mesh_ctrl_t::apmldcfg_set_inner(char *event_name, raw_data_t
         return bus_error_invalid_namespace;
     }
     ami = ap_mld->get_ap_mld_info();
-    mode_bit = ap_mld_mode_bit_from_param(param);
+    if (strcmp(param, "EMLMREnabled") == 0) mode_bit = EM_MLO_MODE_EMLMR;
+    else if (strcmp(param, "EMLSREnabled") == 0) mode_bit = EM_MLO_MODE_EMLSR;
+    else if (strcmp(param, "STREnabled") == 0) mode_bit = EM_MLO_MODE_STR;
+    else if (strcmp(param, "NSTREnabled") == 0) mode_bit = EM_MLO_MODE_NSTR;
+    else mode_bit = 0;
     if (mode_bit == 0) {
         em_printfout("Invalid param: %s", param);
         return bus_error_destination_not_found;
     }
 
     capability_ready = false;
-    mode_supported = ap_mld_mode_is_supported(dm, ami, mode_bit, &capability_ready);
+    mode_supported = true;
+    if ((ami == NULL) || (ami->num_affiliated_ap == 0)) {
+        mode_supported = false;
+    } else {
+        bool all_capabilities_found = true;
+        bool mode_supported_by_radio;
+        em_radio_cap_info_t *capability;
+        em_radio_cap_info_t *candidate;
+        const em_wifi7_mlo_cap_support_tlv_t *mlo_cap;
+
+        for (unsigned int i = 0; i < ami->num_affiliated_ap; i++) {
+            capability = NULL;
+            for (unsigned int radio = 0; radio < dm->get_num_radios(); radio++) {
+                candidate = dm->get_radio_cap_info(radio);
+                if ((candidate != NULL) &&
+                    (memcmp(candidate->ruid.mac, ami->affiliated_ap[i].ruid.mac,
+                        sizeof(mac_address_t)) == 0)) {
+                    capability = candidate;
+                    break;
+                }
+            }
+
+            if (capability == NULL) {
+                all_capabilities_found = false;
+                mode_supported = false;
+                continue;
+            }
+            capability_ready = true;
+
+            mlo_cap = &capability->wifi7_cap.mlo_cap_support;
+            if (mode_bit == EM_MLO_MODE_STR) mode_supported_by_radio = mlo_cap->ap_str_support;
+            else if (mode_bit == EM_MLO_MODE_NSTR) mode_supported_by_radio = mlo_cap->ap_nstr_support;
+            else if (mode_bit == EM_MLO_MODE_EMLSR) mode_supported_by_radio = mlo_cap->ap_emlsr_support;
+            else mode_supported_by_radio = mlo_cap->ap_emlmr_support;
+            mode_supported = mode_supported && mode_supported_by_radio;
+        }
+
+        mode_supported = capability_ready && all_capabilities_found && mode_supported;
+    }
     if (value && !capability_ready) {
         em_printfout("AP-MLD %s rejected: device capabilities are not available", param);
         return bus_error_invalid_operation;

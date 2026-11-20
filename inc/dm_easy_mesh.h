@@ -1739,6 +1739,9 @@ public:
 	void copy_sta_snapshot(std::vector<dm_sta_t> &stations);
 	bool is_ap_mld_mac(const mac_address_t mac);
 	bool resolve_ap_mld_to_fallback_ruid(const mac_address_t ap_mld_mac, mac_address_t fallback_ruid);
+	bool is_mlo_link_enabled_for_haul(em_haul_type_t haul_type, unsigned int radio_index);
+	uint8_t get_supported_mlo_modes(em_haul_type_t haul, bool bsta);
+	bool update_ap_mld_for_haul(em_haul_type_t haul);
 
 	em_radio_cap_info_t *get_radio_cap_info(unsigned int index);
 	static em_radio_cap_info_t *get_radio_cap_info(void *dm, unsigned int index) { return (static_cast<dm_easy_mesh_t *>(dm))->get_radio_cap_info(index); }
