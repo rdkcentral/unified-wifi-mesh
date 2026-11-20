@@ -73,17 +73,12 @@ class em_mgr_create_node_Test : public ::testing::Test {
 protected:
     CreateNodeTestMgr mgr;
     em_interface_t ruid;
-    dm_easy_mesh_t dm;
 
     void SetUp() override {
         memset(&ruid, 0, sizeof(ruid));
         snprintf(ruid.name, sizeof(ruid.name), "wlan0");
         ruid.mac[0] = 0x02;
         ruid.mac[5] = 0x01;
-    }
-    void TearDown() override {
-        /* removes a node created by a test (stops it, removes the map entry, deletes it); no-op when absent */
-        mgr.delete_node(&ruid);
     }
 };
 
@@ -112,27 +107,68 @@ TEST_F(em_mgr_create_node_Test, NullRuidIsRejected) {
     EXPECT_EQ(mgr.create_node(nullptr, em_freq_band_24, nullptr, true, em_profile_type_1, em_service_type_ctrl), nullptr);
 }
 
-/* Success path: a radio (non-AL) node is built once, initialised and registered under its MAC. */
-TEST_F(em_mgr_create_node_Test, SuccessfulCreationReturnsTheRegisteredNode) {
-    em_t *node = mgr.create_node(&ruid, em_freq_band_24, &dm, false, em_profile_type_1, em_service_type_ctrl);
+/*
+ * Success path. em_t::init() starts a detached worker thread (em_t::em_func -> proto_run) that keeps using the
+ * node, its ingress queue / mutex / condition variable and the manager and data model they point to. There is no
+ * way to join it, and em_t::stop() only signals it, so deleting the node (delete_node()) or destroying the manager
+ * or data model while it may still run is a use-after-free. These tests therefore never tear the node down: the
+ * manager, data model and node are heap objects that are intentionally kept alive until the process exits
+ * (marked for LeakSanitizer), so the worker can never touch freed memory.
+ */
+#if defined(__SANITIZE_ADDRESS__)
+#include <sanitizer/lsan_interface.h>
+#define KEEP_ALIVE(p) __lsan_ignore_object(p)
+#else
+#define KEEP_ALIVE(p) ((void)(p))
+#endif
+
+class em_mgr_create_node_Running_Test : public ::testing::Test {
+protected:
+    CreateNodeTestMgr *mgr = nullptr;
+    dm_easy_mesh_t *dm = nullptr;
+    em_interface_t ruid;
+
+    void SetUp() override {
+        mgr = new CreateNodeTestMgr();
+        dm = new dm_easy_mesh_t();
+        KEEP_ALIVE(mgr);
+        KEEP_ALIVE(dm);
+        memset(&ruid, 0, sizeof(ruid));
+        snprintf(ruid.name, sizeof(ruid.name), "wlan0");
+        ruid.mac[0] = 0x02;
+        ruid.mac[5] = 0x01;
+    }
+    /* intentionally no TearDown: see the comment above */
+    em_t *create(bool is_al, dm_easy_mesh_t *d) {
+        em_t *node = mgr->create_node(&ruid, em_freq_band_24, d, is_al, em_profile_type_1, em_service_type_ctrl);
+        if (node != nullptr) {
+            KEEP_ALIVE(node);
+        }
+        return node;
+    }
+};
+
+/* A radio (non-AL) node is built once, initialised and registered under its MAC. */
+TEST_F(em_mgr_create_node_Running_Test, SuccessfulCreationReturnsTheRegisteredNode) {
+    em_t *node = create(false, dm);
     ASSERT_NE(node, nullptr);
-    EXPECT_TRUE(mgr.has_node("02:00:00:00:00:01"));
-    EXPECT_FALSE(mgr.has_node("02:00:00:00:00:01_al"));
+    EXPECT_TRUE(mgr->has_node("02:00:00:00:00:01"));
+    EXPECT_FALSE(mgr->has_node("02:00:00:00:00:01_al"));
 }
 
-TEST_F(em_mgr_create_node_Test, CreatingTheSameNodeAgainReturnsTheExistingNode) {
-    em_t *first = mgr.create_node(&ruid, em_freq_band_24, &dm, false, em_profile_type_1, em_service_type_ctrl);
+TEST_F(em_mgr_create_node_Running_Test, CreatingTheSameNodeAgainReturnsTheExistingNode) {
+    em_t *first = create(false, dm);
     ASSERT_NE(first, nullptr);
-    EXPECT_EQ(mgr.create_node(&ruid, em_freq_band_24, &dm, false, em_profile_type_1, em_service_type_ctrl), first);
+    EXPECT_EQ(create(false, dm), first);
 }
 
 /* A constructor failure must not leave the manager unusable: the next creation succeeds. */
-TEST_F(em_mgr_create_node_Test, NodeCanBeCreatedAfterAConstructorFailure) {
-    EXPECT_EQ(mgr.create_node(&ruid, em_freq_band_24, nullptr, true, em_profile_type_1, em_service_type_ctrl), nullptr);
-    EXPECT_FALSE(mgr.has_node("02:00:00:00:00:01_al"));
+TEST_F(em_mgr_create_node_Running_Test, NodeCanBeCreatedAfterAConstructorFailure) {
+    EXPECT_EQ(create(true, nullptr), nullptr);
+    EXPECT_FALSE(mgr->has_node("02:00:00:00:00:01_al"));
 
-    em_t *node = mgr.create_node(&ruid, em_freq_band_24, &dm, false, em_profile_type_1, em_service_type_ctrl);
+    em_t *node = create(false, dm);
     ASSERT_NE(node, nullptr);
-    EXPECT_TRUE(mgr.has_node("02:00:00:00:00:01"));
-    EXPECT_FALSE(mgr.has_node("02:00:00:00:00:01_al"));
+    EXPECT_TRUE(mgr->has_node("02:00:00:00:00:01"));
+    EXPECT_FALSE(mgr->has_node("02:00:00:00:00:01_al"));
 }
