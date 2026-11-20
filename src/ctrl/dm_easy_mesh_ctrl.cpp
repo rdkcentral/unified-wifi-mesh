@@ -7489,7 +7489,7 @@ char* dm_easy_mesh_ctrl_t::get_sta_vht_caps_str(char *vht_cap_hex, char *buf, si
     if ((vht_cap_hex == NULL) || (vht_cap_hex[0] == '\0')) {
         return buf;
     }
-    hex_len = static_cast<unsigned int>(strlen(vht_cap_hex));
+    hex_len = static_cast<unsigned int>(strnlen(vht_cap_hex, 2 * sizeof(ie) + 1));
     if ((hex_len < 24) || (hex_len & 1) || (hex_len > 2 * sizeof(ie)) ||
         (dm_easy_mesh_t::unhex(hex_len, vht_cap_hex, sizeof(ie), ie) == NULL)) {
         return buf;
