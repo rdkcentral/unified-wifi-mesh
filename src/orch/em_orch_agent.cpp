@@ -73,7 +73,7 @@ void em_orch_agent_t::orch_transient(em_cmd_t *pcmd, em_t *em)
 
     if (stats->time > EM_MAX_CMD_GEN_TTL) {
         em_printfout("Canceling cmd: %s because time limit exceeded\n", pcmd->get_cmd_name());
-        cancel_command(pcmd->get_type());
+        cancel_active_command(pcmd->get_type());
     	if (em->get_state() < em_state_agent_topo_synchronized) {
 	    	em->set_state(em_state_agent_unconfigured);
 		} else {
