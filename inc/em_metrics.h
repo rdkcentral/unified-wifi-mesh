@@ -293,7 +293,7 @@ class em_metrics_t {
 	 * This function processes the traffic statistics for a given associated station.
 	 *
 	 * @param[in] buff Pointer to the buffer containing traffic data.
-	 * @param[in] bssid The BSSID of the associated station.
+	 * @param[in] bssid BSSID of the last AP Metrics TLV read, tried first.
 	 *
 	 * @returns int Status code indicating success or failure.
 	 *
@@ -466,9 +466,11 @@ class em_metrics_t {
 	 * @retval 0 on success
 	 * @retval -1 on failure
 	 *
+	 * @param[in] cmd The AP metrics report to send.
+	 *
 	 * @note Ensure that the network connection is established before calling this function.
 	 */
-	int send_ap_metrics_response();
+	int send_ap_metrics_response(em_cmd_t *cmd);
 
 	int send_link_quality_report();
 
@@ -494,12 +496,13 @@ class em_metrics_t {
 	 *
 	 * @param[out] buff Pointer to the buffer where the TLV will be stored.
 	 * @param[in] buff Reference to dm_bss_t object whose data gets packed for the message.
+	 * @param[in] params Parameters of the AP metrics report.
 	 *
 	 * @returns short The length of the created TLV.
 	 *
 	 * @note Ensure the buffer is large enough to hold the TLV.
 	 */
-	short create_ap_metrics_tlv(unsigned char *buff, dm_bss_t &dm_bss);
+	short create_ap_metrics_tlv(unsigned char *buff, dm_bss_t &dm_bss, em_cmd_ap_metrics_rprt_params_t *params);
     
 	/**!
 	 * @brief Creates an AP extension metrics TLV.
@@ -508,6 +511,7 @@ class em_metrics_t {
 	 *
 	 * @param[out] buff Pointer to the buffer where the TLV will be stored.
 	 * @param[in] buff Reference to dm_bss_t object whose data gets packed for the message.
+	 * @param[in] params Parameters of the AP metrics report.
 	 *
 	 * @returns A short integer indicating the success or failure of the operation.
 	 * @retval 0 on success.
@@ -515,7 +519,7 @@ class em_metrics_t {
 	 *
 	 * @note Ensure the buffer is allocated with sufficient space before calling this function.
 	 */
-	short create_ap_ext_metrics_tlv(unsigned char *buff, dm_bss_t &dm_bss);
+	short create_ap_ext_metrics_tlv(unsigned char *buff, dm_bss_t &dm_bss, em_cmd_ap_metrics_rprt_params_t *params);
     
 	/**!
 	 * @brief Creates a radio metrics TLV.
@@ -523,12 +527,14 @@ class em_metrics_t {
 	 * This function generates a radio metrics TLV (Type-Length-Value) and stores it in the provided buffer.
 	 *
 	 * @param[out] buff Pointer to the buffer where the TLV will be stored.
+	 * @param[in] index Index of the radio in the report parameters.
+	 * @param[in] params Parameters of the AP metrics report.
 	 *
 	 * @returns short The size of the TLV created.
 	 *
 	 * @note Ensure that the buffer is large enough to hold the TLV.
 	 */
-	short create_radio_metrics_tlv(unsigned char *buff, int index);
+	short create_radio_metrics_tlv(unsigned char *buff, int index, em_cmd_ap_metrics_rprt_params_t *params);
 
 	/**!
 	 * @brief Creates an association report TLV for a WiFi 6 station.
@@ -730,12 +736,13 @@ class em_metrics_t {
 	 * memory usage, and per-radio information.
 	 *
 	 * @param[out] buff Pointer to the buffer where the TLV will be stored.
+	 * @param[in] params Parameters of the AP metrics report.
 	 *
 	 * @returns short The size of the TLV created, or 0 on failure.
 	 *
 	 * @note Ensure that the buffer is large enough to hold the TLV.
 	 */
-	short create_vendor_device_metrics_tlv(unsigned char *buff);
+	short create_vendor_device_metrics_tlv(unsigned char *buff, em_cmd_ap_metrics_rprt_params_t *params);
 
 public:
 
@@ -809,7 +816,13 @@ public:
 	 * @note This function does not take any parameters and does not return any value.
 	 */
 	void process_agent_state();
-	void process_agent_state(em_cmd_event_type_t type);
+	/**!
+	 * @brief Processes an agent event that is not the current command.
+	 *
+	 * @param[in] type Event type.
+	 * @param[in] cmd Command of the event.
+	 */
+	void process_agent_state(em_cmd_event_type_t type, em_cmd_t *cmd);
 
     
 	/**!
