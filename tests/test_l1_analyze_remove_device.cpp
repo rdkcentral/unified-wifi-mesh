@@ -69,14 +69,18 @@ protected:
     std::vector<std::string> add_devices(int n) {
         std::vector<std::string> macs;
         for (int i = 0; i < n; i++) {
-            em_interface_t intf;
-            memset(&intf, 0, sizeof(intf));
-            snprintf(intf.name, sizeof(intf.name), "eth%d", next_mac);
             unsigned char m[6] = { 0x02, 0x00, 0x00, 0x00, static_cast<unsigned char>((next_mac + 1) >> 8),
                                    static_cast<unsigned char>((next_mac + 1) & 0xff) };
-            memcpy(intf.mac, m, sizeof(m));
             next_mac++;
-            EXPECT_NE(ctrl.create_data_model("Network1", &intf, em_profile_type_1), nullptr);
+            /* agent model through put_device(): em_ctrl_t::create_data_model() creates a controller model,
+             * which writes /nvram/EasymeshCfg.json */
+            dm_device_t device;
+            memcpy(device.m_device_info.intf.mac, m, sizeof(m));
+            snprintf(device.m_device_info.id.net_id, sizeof(device.m_device_info.id.net_id), "Network1");
+            device.m_device_info.profile = em_profile_type_1;
+            std::string key = "Network1@" + mac_str(m) + "@0";     /* <net_id>@<al mac>@<media> */
+            dm_ctrl->put_device(key.c_str(), &device);
+            EXPECT_NE(ctrl.get_data_model("Network1", m), nullptr);
             macs.push_back(mac_str(m));
         }
         return macs;
