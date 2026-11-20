@@ -2309,7 +2309,13 @@ void em_channel_t::fill_scan_result(dm_scan_result_t *scan_res, em_channel_scan_
 	    return;
 	}
 
-	strncpy(scan_res->m_scan_result.timestamp, res->timestamp, static_cast<size_t>(res->timestamp_len + 1));
+	/* the timestamp in the TLV has no terminator, the byte after it is the utilization */
+	size_t ts_len = res->timestamp_len;
+	if (ts_len > sizeof(scan_res->m_scan_result.timestamp) - 1) {
+		ts_len = sizeof(scan_res->m_scan_result.timestamp) - 1;
+	}
+	memcpy(scan_res->m_scan_result.timestamp, res->timestamp, ts_len);
+	scan_res->m_scan_result.timestamp[ts_len] = '\0';
 	tmp = reinterpret_cast<unsigned char *> (res) + sizeof(em_channel_scan_result_t) + res->timestamp_len;
 
 	memcpy(&scan_res->m_scan_result.util, tmp, sizeof(unsigned char));
@@ -2351,13 +2357,20 @@ void em_channel_t::fill_scan_result(dm_scan_result_t *scan_res, em_channel_scan_
         memcpy(&bw_len, tmp, sizeof(unsigned char));
         tmp += sizeof(unsigned char);
 
+        unsigned char original_bw_len = bw_len;
+        if (bw_len > static_cast<unsigned char>(sizeof(bandwidth) - 1)) {
+            bw_len = static_cast<unsigned char>(sizeof(bandwidth) - 1);
+        }
+        memset(bandwidth, 0, sizeof(bandwidth));
         memcpy(bandwidth, tmp, bw_len);
-        tmp += bw_len;
+        tmp += original_bw_len;
 
         if (strncmp(bandwidth, "20", strlen("20")) == 0) {
             nbr->bandwidth = WIFI_CHANNELBANDWIDTH_20MHZ;
         } else if (strncmp(bandwidth, "40", strlen("40")) == 0) {
             nbr->bandwidth = WIFI_CHANNELBANDWIDTH_40MHZ;
+        } else if (bw_len == strlen("80+80") && strncmp(bandwidth, "80+80", strlen("80+80")) == 0) {
+            nbr->bandwidth = WIFI_CHANNELBANDWIDTH_80_80MHZ;
         } else if (strncmp(bandwidth, "80", strlen("80")) == 0) {
             nbr->bandwidth = WIFI_CHANNELBANDWIDTH_80MHZ;
         } else if (strncmp(bandwidth, "160", strlen("160")) == 0) {

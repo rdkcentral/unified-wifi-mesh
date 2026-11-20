@@ -2836,11 +2836,8 @@
                                             ]
                                         },
                                         "ScanResultList": {
-                                            "oneOf": [
-                                                {
-                                                    "type": "null"
-                                                },
-                                                {
+                                            "type": "array",
+                                            "items": {
                                                     "type": "object",
                                                     "additionalProperties": false,
                                                     "required": [
@@ -2992,7 +2989,6 @@
                                                         }
                                                     }
                                                 }
-                                            ]
                                         },
                                         "TrafficSeparationCombinedFronthaul": {
                                             "type": "boolean"
