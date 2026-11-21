@@ -367,7 +367,7 @@ int em_mgr_t::reset_listeners()
 	pthread_mutex_lock(&m_mutex);
     em = static_cast<em_t *>(hash_map_get_first(m_em_map));
     while (em != NULL) {
-        if (em->is_al_interface_em() == true) {
+        if (em->is_al_interface_em() == true && em->get_fd() >= 0 && em->get_fd() < FD_SETSIZE) {
             FD_SET(em->get_fd(), &m_rset);
             num++;
             highest_fd = (em->get_fd() > highest_fd) ? em->get_fd():highest_fd;
@@ -435,14 +435,14 @@ void em_mgr_t::nodes_listener()
 #else
                 unsigned char buff[MAX_EM_BUFF_SZ*EM_MAX_BANDS];
                 pthread_mutex_lock(&m_mutex);
-                int ret = FD_ISSET(em->get_fd(), &m_rset);
+                int ret = (em->get_fd() >= 0 && em->get_fd() < FD_SETSIZE) ? FD_ISSET(em->get_fd(), &m_rset) : 0;
                 pthread_mutex_unlock(&m_mutex);
                 if (ret)
                 {
                     // receive data from this interface
                     memset(buff, 0, MAX_EM_BUFF_SZ*EM_MAX_BANDS);
                     ssize_t len = read(em->get_fd(), buff, MAX_EM_BUFF_SZ*EM_MAX_BANDS);
-                    if (len) {
+                    if (len > 0) {
                         proto_process(buff, static_cast<unsigned int>(len), em);
                     }
                 }
