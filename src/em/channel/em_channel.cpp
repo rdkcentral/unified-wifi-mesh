@@ -2351,7 +2351,12 @@ void em_channel_t::fill_scan_result(dm_scan_result_t *scan_res, em_channel_scan_
         memcpy(&bw_len, tmp, sizeof(unsigned char));
         tmp += sizeof(unsigned char);
 
-        memcpy(bandwidth, tmp, bw_len);
+        if (bw_len >= sizeof(bandwidth)) {
+            em_printfout("Truncating oversized bandwidth length %u", bw_len);
+            memcpy(bandwidth, tmp, sizeof(bandwidth) - 1);
+        } else {
+            memcpy(bandwidth, tmp, bw_len);
+        }
         tmp += bw_len;
 
         if (strncmp(bandwidth, "20", strlen("20")) == 0) {
