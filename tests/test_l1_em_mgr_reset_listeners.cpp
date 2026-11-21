@@ -20,7 +20,9 @@
 #include <algorithm>
 #include <climits>
 #include <cstdlib>
+#include <chrono>
 #include <cstring>
+#include <fcntl.h>
 #include <functional>
 #include <iostream>
 #include <map>
@@ -34,15 +36,14 @@
 #include <vector>
 #include <pthread.h>
 #include <sys/select.h>
+#include <unistd.h>
 
-/* em_t keeps its socket descriptor in a private member (m_fd) that only start_al_interface() sets, and that needs a
- * raw socket. This file is the only one that opens access, so the descriptor of a node can be set to the values under test. */
-#define private public
 #include "em.h"
-#undef private
 #include "em_mgr.h"
 
 /*
+ * em_t::set_fd() (test accessor) sets the descriptor a node listens on; normally only start_al_interface() does, with a raw socket.
+ *
  * em_mgr_t::reset_listeners(): only AL nodes whose descriptor is a valid fd_set index (0 .. FD_SETSIZE - 1) are put in
  * the read set and counted for highest_fd. FD_SET() of -1 or FD_SETSIZE writes outside the fd_set.
  */
@@ -50,6 +51,8 @@
 class ResetListenersTestMgr : public em_mgr_t {
 public:
     std::vector<std::pair<std::string, em_t *> > owned;
+    std::mutex lens_lock;
+    std::vector<unsigned int> lens;          /* length of every frame nodes_listener() handed to proto_process() */
 
     ResetListenersTestMgr() {
         pthread_mutex_init(&m_mutex, nullptr);
@@ -67,7 +70,12 @@ public:
     }
 
     bool is_data_model_initialized() override { return true; }
-    em_t *find_em_for_msg_type(unsigned char *, unsigned int, em_t *) override { return nullptr; }
+    /* proto_process() calls this first and returns when it gets NULL, so it records the frames without parsing them */
+    em_t *find_em_for_msg_type(unsigned char *, unsigned int len, em_t *) override {
+        std::lock_guard<std::mutex> g(lens_lock);
+        lens.push_back(len);
+        return nullptr;
+    }
     int data_model_init(const char *) override { return 0; }
     int orch_init() override { return 0; }
     void input_listener() override {}
@@ -103,10 +111,12 @@ static void add_em(ResetListenersTestMgr &mgr, const char *key, int fd, bool al)
     ruid.mac[5] = static_cast<unsigned char>(mgr.owned.size() + 1);
     em_t *em = new em_t(&ruid, em_freq_band_24, &dm, &mgr, em_profile_type_1, em_service_type_ctrl, false);
     em->set_al_type(al);
-    em->m_fd = fd;
+    em->set_fd(fd);
     mgr.owned.push_back(std::make_pair(std::string(key), em));
     hash_map_put(mgr.m_em_map, strdup(key), em);
 }
+static size_t frames_parsed(ResetListenersTestMgr &mgr) { std::lock_guard<std::mutex> g(mgr.lens_lock); return mgr.lens.size(); }
+static long first_frame_len(ResetListenersTestMgr &mgr) { std::lock_guard<std::mutex> g(mgr.lens_lock); return mgr.lens.empty() ? -1 : static_cast<long>(mgr.lens[0]); }
 
 class em_mgr_reset_listeners_Test : public ::testing::Test {
 protected:
@@ -205,3 +215,55 @@ TEST_F(em_mgr_reset_listeners_Test, NonAlNodeIsExcludedEvenWithAValidDescriptor)
     EXPECT_TRUE(FD_ISSET(6, &mgr.m_rset));
     EXPECT_EQ(bits_set(), 1);
 }
+
+#ifndef AL_SAP
+/*
+ * nodes_listener() reads a frame from every ready AL descriptor and hands it to proto_process() only when read() returned
+ * a positive length: -1 (error) converted to unsigned would be a 4 GB frame, 0 means end of file. The nodes listen on real
+ * descriptors whose read() result is known: a directory (read fails with EISDIR), /dev/null (read returns 0) and a pipe with
+ * 5 bytes (read returns 5). select() reports all of them ready. The loop only ends when select() fails, so the listener
+ * runs on a thread and the descriptors are closed after it had time to iterate.
+ */
+class em_mgr_nodes_listener_Test : public ::testing::Test {
+protected:
+    ResetListenersTestMgr mgr;
+
+    void SetUp() override { mgr.m_timeout = 10; }
+
+    void run_listener(const std::vector<int> &fds_to_close) {
+        std::thread t([this]() { mgr.nodes_listener(); });
+        std::this_thread::sleep_for(std::chrono::milliseconds(300));
+        for (int fd : fds_to_close) {
+            close(fd);
+        }
+        t.join();
+    }
+};
+
+TEST_F(em_mgr_nodes_listener_Test, ReadErrorDoesNotReachTheParser) {
+    int fd = open("/", O_RDONLY);
+    ASSERT_GE(fd, 0);
+    add_em(mgr, "al-1", fd, true);
+    run_listener({ fd });
+    EXPECT_EQ(frames_parsed(mgr), 0u) << "first frame length " << first_frame_len(mgr);
+}
+
+TEST_F(em_mgr_nodes_listener_Test, EndOfFileDoesNotReachTheParser) {
+    int fd = open("/dev/null", O_RDONLY);
+    ASSERT_GE(fd, 0);
+    add_em(mgr, "al-1", fd, true);
+    run_listener({ fd });
+    EXPECT_EQ(frames_parsed(mgr), 0u);
+}
+
+TEST_F(em_mgr_nodes_listener_Test, PositiveReadReachesTheParserWithItsLength) {
+    int p[2];
+    ASSERT_EQ(pipe(p), 0);
+    ASSERT_EQ(write(p[1], "hello", 5), 5);
+    add_em(mgr, "al-1", p[0], true);
+    run_listener({ p[0] });
+    close(p[1]);
+    EXPECT_EQ(frames_parsed(mgr), 1u);
+    EXPECT_EQ(first_frame_len(mgr), 5);
+}
+#endif
