@@ -1762,8 +1762,6 @@ dm_easy_mesh_t *dm_easy_mesh_list_t::create_data_model(const char *net_id, const
 		em_printfout("Backhaul mac updated to :%s device media:%d backhaul media:%d",
 			util::mac_to_string(dev->m_device_info.backhaul_mac.mac).c_str(),
 			dev->m_device_info.id.media, dev->m_device_info.backhaul_mac.media);
-		//Update the easymesh configuration file to specify colocated agent as true.
-		dev->update_easymesh_json_cfg(true);
 	} else {
         em_printfout("Initializing device for data model... with AL-mac: %s", util::mac_to_string(al_intf->mac).c_str());
         dm->set_id();

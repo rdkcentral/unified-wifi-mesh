@@ -2760,63 +2760,6 @@ TEST(dm_device_t_Test, SetSoftwareVersion_MaxLengthVersionString) {
 }
 
 /**
- * @brief Test the UpdateEasyMeshJsonCfg function with Colocated Mode Enabled
- *
- * This test verifies that the update_easymesh_json_cfg function correctly handles the case when colocated mode is enabled.
- *
- * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 087@n
- * **Priority:** High@n
- * @n
- * **Pre-Conditions:** None@n
- * **Dependencies:** None@n
- * **User Interaction:** None@n
- * @n
- * **Test Procedure:**@n
- * | Variation / Step | Description | Test Data | Expected Result | Notes |
- * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Enable colocated mode and call update_easymesh_json_cfg | colocated_mode = true | result = 0 | Should Pass |
- * | 02 | Verify the result is as expected | result = 0 | EXPECT_EQ(result, 0) | Should be successful |
- */
-TEST(dm_device_t_Test, UpdateEasyMeshJsonCfg_ColocatedModeEnabled) {
-    std::cout << "Entering UpdateEasyMeshJsonCfg_ColocatedModeEnabled";
-    bool colocated_mode = true;
-    dm_device_t device;
-    int result = device.update_easymesh_json_cfg(colocated_mode);
-    EXPECT_EQ(result, 0);
-    std::cout << "Exiting UpdateEasyMeshJsonCfg_ColocatedModeEnabled";
-}
-
-/**
- * @brief Test the UpdateEasyMeshJsonCfg function with colocated mode disabled.
- *
- * This test verifies that the update_easymesh_json_cfg function correctly handles the case when the colocated mode is disabled. 
- * It ensures that the function returns 0, indicating success.
- *
- * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 088@n
- * **Priority:** High@n
- * @n
- * **Pre-Conditions:** None@n
- * **Dependencies:** None@n
- * **User Interaction:** None@n
- * @n
- * **Test Procedure:**@n
- * | Variation / Step | Description | Test Data | Expected Result | Notes |
- * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Call the update_easymesh_json_cfg function with colocated_mode set to false. | colocated_mode = false | result = 0 | Should Pass |
- * | 02 | Verify that the result is 0 using EXPECT_EQ. | result = 0 | Assertion should pass | Should be successful |
- */
-TEST(dm_device_t_Test, UpdateEasyMeshJsonCfg_ColocatedModeDisabled) {
-    std::cout << "Entering UpdateEasyMeshJsonCfg_ColocatedModeDisabled";
-    bool colocated_mode = false;
-    dm_device_t device;
-    int result = device.update_easymesh_json_cfg(colocated_mode);
-    EXPECT_EQ(result, 0);
-    std::cout << "Exiting UpdateEasyMeshJsonCfg_ColocatedModeDisabled";
-}
-
-/**
  * @brief Test to verify that two devices with identical information are considered equal.
  *
  * This test checks if two `dm_device_t` objects with identical device information are considered equal by the equality operator. This is important to ensure that the equality operator works correctly for device comparison.
