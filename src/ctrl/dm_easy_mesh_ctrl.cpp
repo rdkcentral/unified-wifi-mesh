@@ -10125,8 +10125,13 @@ bus_error_t dm_easy_mesh_ctrl_t::stamld_tget_params(dm_easy_mesh_t *dm, const ch
     bus_error_t rc = bus_error_success;
     dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
 
+    if (!dm || !ami || !property) {
+        return bus_error_invalid_input;
+    }
+
     unsigned int idx = 0;
-    for (unsigned int cnt = 0; cnt < dm->get_num_assoc_sta_mld(); cnt++) {
+    unsigned int num_sta_mld = std::min(dm->get_num_assoc_sta_mld(), static_cast<unsigned int>(EM_MAX_ASSOC_STA_MLD));
+    for (unsigned int cnt = 0; cnt < num_sta_mld; cnt++) {
         /* First find assoc_sta_mld for this ap_mld */
         dm_assoc_sta_mld_t *sta_mld = &dm->m_assoc_sta_mld[cnt]; /* no getter? */
         em_assoc_sta_mld_info_t *smi = sta_mld->get_assoc_sta_mld_info();
