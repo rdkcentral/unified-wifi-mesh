@@ -1523,17 +1523,21 @@ int em_capability_t::handle_early_ap_cap_report(unsigned char *buff, unsigned in
     tmp_len = len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
     em_printfout("Early AP Capability report message rcvd");
 
-    if (dm->get_num_radios() == 0) {
-        em_printfout("handle_early_ap_cap_report: no radios in DM, processing ap_radio_basic_cap TLVs first");
-        em_tlv_t *pre_tlv = tlv;
-        unsigned int pre_len = tmp_len;
-        while ((pre_len >= sizeof(em_tlv_t)) && (pre_tlv->type != em_tlv_type_eom)) {
-            if (pre_tlv->type == em_tlv_type_ap_radio_basic_cap) {
-                handle_ap_radio_basic_cap(pre_tlv->value, htons(pre_tlv->len));
-            }
-            pre_len -= static_cast<unsigned int> (sizeof(em_tlv_t) + htons(pre_tlv->len));
-            pre_tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (pre_tlv) + sizeof(em_tlv_t) + htons(pre_tlv->len));
+    em_printfout("handle_early_ap_cap_report: processing ap_radio_basic_cap TLVs first");
+    em_tlv_t *pre_tlv = tlv;
+    unsigned int pre_len = tmp_len;
+    unsigned int tlv_total;
+    while ((pre_len >= sizeof(em_tlv_t)) && (pre_tlv->type != em_tlv_type_eom)) {
+        tlv_total = static_cast<unsigned int> (sizeof(em_tlv_t)) + htons(pre_tlv->len);
+        if (tlv_total > pre_len) {
+            em_printfout("Early AP cap report: TLV length exceeds remaining buffer");
+            break;
         }
+        if (pre_tlv->type == em_tlv_type_ap_radio_basic_cap) {
+            handle_ap_radio_basic_cap(pre_tlv->value, htons(pre_tlv->len));
+        }
+        pre_len -= tlv_total;
+        pre_tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (pre_tlv) + tlv_total);
     }
 
     dm_radio_cap_t *dm_radio_cap = dm->get_radio_cap(get_radio_interface_mac());

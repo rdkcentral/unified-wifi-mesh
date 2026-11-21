@@ -2241,26 +2241,23 @@ int em_configuration_t::handle_topology_response(unsigned char *buff, unsigned i
         return -1;
     }
 
-
-        int rc = handle_ap_operational_bss(tlv->value, tlv->len);
-        if (rc != 0) {
-            if (rc == -2) {
-                em_printfout("Failed to handle operational BSS due to SSID misconfiguration.");
-                static_cast<em_t*>(this)->set_ssid_mismatch(true);
-            } else {
-                em_printfout("Operational BSS handling failed rc=%d", rc);
-            }
-            return rc;
+    int rc = handle_ap_operational_bss(tlv->value, tlv->len);
+    if (rc != 0) {
+        if (rc == -2) {
+            em_printfout("Failed to handle operational BSS due to SSID misconfiguration.");
+            static_cast<em_t*>(this)->set_ssid_mismatch(true);
+        } else {
+            em_printfout("Operational BSS handling failed rc=%d", rc);
         }
+        return rc;
+    }
 
 
     while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
         if (tlv->type != em_tlv_type_bss_conf_rep) {
             tmp_len -= static_cast<unsigned int> (sizeof(em_tlv_t) + htons(tlv->len));
             tlv = reinterpret_cast <em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
-
             continue;
-
         } else {
             found_bss_config_rprt = true;
             break;
@@ -2272,11 +2269,11 @@ int em_configuration_t::handle_topology_response(unsigned char *buff, unsigned i
             em_printfout("BSS Configuration Report handling failed");
             return -1;
         }
-    } else {
-        // bss_conf_rep is optional; reset cursor so subsequent TLV searches still run
-        tlv = reinterpret_cast<em_tlv_t *>(buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
-        tmp_len = len - static_cast<unsigned int>(sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
     }
+
+    // optional TLVs are searched independently: always restart from the first TLV
+    tlv = reinterpret_cast<em_tlv_t *>(buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+    tmp_len = len - static_cast<unsigned int>(sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
 
     while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
         if (tlv->type != em_tlv_type_bh_sta_radio_cap) {
@@ -2289,13 +2286,15 @@ int em_configuration_t::handle_topology_response(unsigned char *buff, unsigned i
         }
     }
 
+    // optional TLVs are searched independently: always restart from the first TLV
+    tlv = reinterpret_cast<em_tlv_t *>(buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+    tmp_len = len - static_cast<unsigned int>(sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+
     while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
         if (tlv->type != em_tlv_type_ap_mld_config) {
             tmp_len -= static_cast<unsigned int> (sizeof(em_tlv_t) + htons(tlv->len));
             tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
-
             continue;
-
         } else {
             found_ap_mld = true;
             break;
