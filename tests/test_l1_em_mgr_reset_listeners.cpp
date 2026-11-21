@@ -24,6 +24,7 @@
 #include <cstring>
 #include <fcntl.h>
 #include <functional>
+#include <future>
 #include <iostream>
 #include <map>
 #include <memory>
@@ -116,7 +117,7 @@ static void add_em(ResetListenersTestMgr &mgr, const char *key, int fd, bool al)
     hash_map_put(mgr.m_em_map, strdup(key), em);
 }
 static size_t frames_parsed(ResetListenersTestMgr &mgr) { std::lock_guard<std::mutex> g(mgr.lens_lock); return mgr.lens.size(); }
-static long first_frame_len(ResetListenersTestMgr &mgr) { std::lock_guard<std::mutex> g(mgr.lens_lock); return mgr.lens.empty() ? -1 : static_cast<long>(mgr.lens[0]); }
+static std::vector<unsigned int> frame_lens(ResetListenersTestMgr &mgr) { std::lock_guard<std::mutex> g(mgr.lens_lock); return mgr.lens; }
 
 class em_mgr_reset_listeners_Test : public ::testing::Test {
 protected:
@@ -220,50 +221,120 @@ TEST_F(em_mgr_reset_listeners_Test, NonAlNodeIsExcludedEvenWithAValidDescriptor)
 /*
  * nodes_listener() reads a frame from every ready AL descriptor and hands it to proto_process() only when read() returned
  * a positive length: -1 (error) converted to unsigned would be a 4 GB frame, 0 means end of file. The nodes listen on real
- * descriptors whose read() result is known: a directory (read fails with EISDIR), /dev/null (read returns 0) and a pipe with
- * 5 bytes (read returns 5). select() reports all of them ready. The loop only ends when select() fails, so the listener
- * runs on a thread and the descriptors are closed after it had time to iterate.
+ * descriptors whose read() result is known: a directory (read fails with EISDIR), /dev/null (read returns 0) and a pipe
+ * (read returns what was written). select() reports the directory and /dev/null ready all the time.
+ *
+ * The loop only ends when select() fails, so the listener runs on a thread and the descriptors are closed to stop it.
+ * Nothing is timed: the test writes to the pipe and waits until the frame arrives at proto_process(). The silent node is
+ * visited in every pass of the loop, so once a second frame (written after the first was seen) arrives, a complete pass
+ * has read the silent descriptor. Waits and the shutdown are bounded.
  */
 class em_mgr_nodes_listener_Test : public ::testing::Test {
 protected:
-    ResetListenersTestMgr mgr;
+    ResetListenersTestMgr *mgr = nullptr;
+    std::thread worker;
+    std::future<void> done;
+    bool hung = false;
+    std::vector<int> fds;
 
-    void SetUp() override { mgr.m_timeout = 10; }
-
-    void run_listener(const std::vector<int> &fds_to_close) {
-        std::thread t([this]() { mgr.nodes_listener(); });
-        std::this_thread::sleep_for(std::chrono::milliseconds(300));
-        for (int fd : fds_to_close) {
+    void SetUp() override {
+        mgr = new ResetListenersTestMgr();
+        mgr->m_timeout = 10;
+    }
+    void TearDown() override {
+        stop_listener();
+        for (int fd : fds) {
             close(fd);
         }
-        t.join();
+        fds.clear();
+        if (!hung) {
+            delete mgr;      /* a listener that did not stop still uses it: leave it alone (the test already failed) */
+        }
+    }
+
+    int track(int fd) { fds.push_back(fd); return fd; }
+
+    /* reset_listeners() excludes a descriptor outside the fd_set, and closing it could then not end the loop */
+    ::testing::AssertionResult usable(int fd) {
+        if (fd < 0 || fd >= FD_SETSIZE) {
+            return ::testing::AssertionFailure() << "descriptor " << fd << " cannot be used by the listener";
+        }
+        return ::testing::AssertionSuccess();
+    }
+
+    void start_listener() {
+        auto p = std::make_shared<std::promise<void> >();
+        done = p->get_future();
+        worker = std::thread([this, p]() { mgr->nodes_listener(); p->set_value(); });
+    }
+    bool wait_for_frames(size_t n) {
+        for (int i = 0; i < 1000; i++) {
+            if (frames_parsed(*mgr) >= n) {
+                return true;
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(5));
+        }
+        return false;
+    }
+    /* closing the descriptors makes select() fail, which ends the loop */
+    void stop_listener() {
+        if (!worker.joinable()) {
+            return;
+        }
+        for (int fd : fds) {
+            close(fd);
+        }
+        fds.clear();
+        if (done.wait_for(std::chrono::seconds(5)) == std::future_status::timeout) {
+            hung = true;
+            ADD_FAILURE() << "nodes_listener() did not stop";
+            worker.detach();
+        } else {
+            worker.join();
+        }
+    }
+
+    /* silent_fd (>= 0): a node whose read() never gives a positive length; plus a pipe node that carries 5 and then 3 bytes */
+    void check_only_positive_reads(int silent_fd) {
+        int p[2];
+        ASSERT_EQ(pipe(p), 0);
+        track(p[0]);
+        track(p[1]);
+        ASSERT_TRUE(usable(p[0]));
+        if (silent_fd >= 0) {
+            track(silent_fd);
+            ASSERT_TRUE(usable(silent_fd));
+            add_em(*mgr, "al-silent", silent_fd, true);
+        }
+        add_em(*mgr, "al-pipe", p[0], true);
+
+        start_listener();
+        ASSERT_EQ(write(p[1], "hello", 5), 5);
+        ASSERT_TRUE(wait_for_frames(1));
+        ASSERT_EQ(write(p[1], "abc", 3), 3);
+        ASSERT_TRUE(wait_for_frames(2));
+        stop_listener();
+
+        std::vector<unsigned int> expected;
+        expected.push_back(5);
+        expected.push_back(3);
+        EXPECT_EQ(frame_lens(*mgr), expected);
     }
 };
 
 TEST_F(em_mgr_nodes_listener_Test, ReadErrorDoesNotReachTheParser) {
-    int fd = open("/", O_RDONLY);
+    int fd = open("/", O_RDONLY);       /* read() fails with EISDIR */
     ASSERT_GE(fd, 0);
-    add_em(mgr, "al-1", fd, true);
-    run_listener({ fd });
-    EXPECT_EQ(frames_parsed(mgr), 0u) << "first frame length " << first_frame_len(mgr);
+    check_only_positive_reads(fd);
 }
 
 TEST_F(em_mgr_nodes_listener_Test, EndOfFileDoesNotReachTheParser) {
-    int fd = open("/dev/null", O_RDONLY);
+    int fd = open("/dev/null", O_RDONLY);       /* read() returns 0 */
     ASSERT_GE(fd, 0);
-    add_em(mgr, "al-1", fd, true);
-    run_listener({ fd });
-    EXPECT_EQ(frames_parsed(mgr), 0u);
+    check_only_positive_reads(fd);
 }
 
-TEST_F(em_mgr_nodes_listener_Test, PositiveReadReachesTheParserWithItsLength) {
-    int p[2];
-    ASSERT_EQ(pipe(p), 0);
-    ASSERT_EQ(write(p[1], "hello", 5), 5);
-    add_em(mgr, "al-1", p[0], true);
-    run_listener({ p[0] });
-    close(p[1]);
-    EXPECT_EQ(frames_parsed(mgr), 1u);
-    EXPECT_EQ(first_frame_len(mgr), 5);
+TEST_F(em_mgr_nodes_listener_Test, PositiveReadsReachTheParserWithTheirLength) {
+    check_only_positive_reads(-1);
 }
 #endif
