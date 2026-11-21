@@ -4211,6 +4211,41 @@ TEST_F(em_ctrl_t_Test, io_process_invalid_event_type)
     std::cout << "Exiting io_process_invalid_event_type test" << std::endl;
 }
 
+/* NULL method name is rejected with invalid_input and must not reach strrchr() */
+TEST(em_ctrl_t, cmd_channelscan_null_method_name)
+{
+    bus_data_prop_t *out = nullptr;
+    EXPECT_EQ(em_ctrl_t::cmd_channelscan(nullptr, nullptr, &out, nullptr), bus_error_invalid_input);
+    if (out) { free(out->value.raw_data.bytes); free(out); }
+}
+
+/* method name shorter than the Network prefix must be rejected without reading past its terminator */
+TEST(em_ctrl_t, cmd_channelscan_short_method_name)
+{
+    bus_data_prop_t *out = nullptr;
+    const std::string name("X.ChannelScanRequest()");   /* heap copy sized to the string, so ASan sees an over-read */
+    std::unique_ptr<char[]> buf(new char[name.size() + 1]);
+    memcpy(buf.get(), name.c_str(), name.size() + 1);
+    EXPECT_EQ(em_ctrl_t::cmd_channelscan(buf.get(), nullptr, &out, nullptr), bus_error_invalid_input);
+    if (out) { free(out->value.raw_data.bytes); free(out); }
+}
+
+/* unknown method name is rejected with invalid_method */
+TEST(em_ctrl_t, cmd_channelscan_wrong_method)
+{
+    bus_data_prop_t *out = nullptr;
+    EXPECT_EQ(em_ctrl_t::cmd_channelscan("Device.WiFi.DataElements.Network.Device.1.Radio.1.Foo()", nullptr, &out, nullptr),
+              bus_error_invalid_method);
+    if (out) { free(out->value.raw_data.bytes); free(out); }
+}
+
+/* a NULL output_params must not be written on a rejection path */
+TEST(em_ctrl_t, cmd_channelscan_null_output_params_on_rejection)
+{
+    EXPECT_EQ(em_ctrl_t::cmd_channelscan(nullptr, nullptr, nullptr, nullptr), bus_error_invalid_input);
+    EXPECT_EQ(em_ctrl_t::cmd_channelscan("X.ChannelScanRequest()", nullptr, nullptr, nullptr), bus_error_invalid_input);
+}
+
 /**
  * @brief Verify that get_dm_radio() resolves a Radio.{i} alias as base64(RUID) and returns NULL otherwise.
  *
