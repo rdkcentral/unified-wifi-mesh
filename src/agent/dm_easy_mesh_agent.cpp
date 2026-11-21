@@ -123,8 +123,15 @@ int dm_easy_mesh_agent_t::analyze_sta_list(em_bus_event_t *evt, em_cmd_t *pcmd[]
     bool is_tracked_sta_mld = false;
     mac_addr_str_t radio_str;
     mac_addr_str_t  sta_mac_str, bss_mac_str, radio_mac_str;
+    std::vector<dm_sta_t> known_stas;
+    bool known = false;
+    // A full list holds every associated STA, an add/remove list the STAs that changed
+    bool full_list = (strstr(reinterpret_cast<char *>(evt->u.raw_buff), "\"WiFiAssociatedClients\"") != NULL);
 
     dm.init();
+    if (full_list == true) {
+        copy_sta_snapshot(known_stas);
+    }
 
     num_radios = m_num_radios;
     for (unsigned int i = 0; i < m_num_radios; i++) {
@@ -159,6 +166,25 @@ int dm_easy_mesh_agent_t::analyze_sta_list(em_bus_event_t *evt, em_cmd_t *pcmd[]
 
             dm_easy_mesh_t::macbytes_to_string(sta->m_sta_info.id, sta_mac_str);
             dm_easy_mesh_t::macbytes_to_string(sta->m_sta_info.radiomac, radio_mac_str);
+            dm_easy_mesh_t::macbytes_to_string(sta->m_sta_info.bssid, bss_mac_str);
+            snprintf(key, sizeof(em_long_string_t), "%s@%s@%s", sta_mac_str, bss_mac_str, radio_mac_str);
+
+            // From a full list only the STAs the agent does not have as associated are notified
+            known = false;
+            for (const dm_sta_t &known_sta : known_stas) {
+                if ((known_sta.m_sta_info.associated == true) &&
+                    (memcmp(known_sta.m_sta_info.id, sta->m_sta_info.id, sizeof(mac_address_t)) == 0) &&
+                    (memcmp(known_sta.m_sta_info.bssid, sta->m_sta_info.bssid, sizeof(bssid_t)) == 0) &&
+                    (memcmp(known_sta.m_sta_info.radiomac, sta->m_sta_info.radiomac, sizeof(mac_address_t)) == 0)) {
+                    known = true;
+                    break;
+                }
+            }
+            if (known == true) {
+                sta = static_cast<dm_sta_t *> (hash_map_get_next(dm.m_sta_assoc_map, sta));
+                continue;
+            }
+
             is_tracked_sta_mld = false;
             for (k = 0; k < assoc_sta_mld_tracked_count; k++) {
                 if (memcmp(assoc_sta_mld_tracked_macs[k], sta->m_sta_info.id, sizeof(mac_address_t)) == 0) {
@@ -175,8 +201,6 @@ int dm_easy_mesh_agent_t::analyze_sta_list(em_bus_event_t *evt, em_cmd_t *pcmd[]
                 assoc_sta_mld_tracked_count++;
             }
 
-            dm_easy_mesh_t::macbytes_to_string(sta->m_sta_info.bssid, bss_mac_str);
-            snprintf(key, sizeof(em_long_string_t), "%s@%s@%s", sta_mac_str, bss_mac_str, radio_mac_str);
             hash_map_put(pcmd[num]->m_data_model.m_sta_assoc_map, strdup(key), new dm_sta_t(*sta));
             sta = static_cast<dm_sta_t *> (hash_map_get_next(dm.m_sta_assoc_map, sta));
         }
