@@ -2070,6 +2070,9 @@ char *dm_easy_mesh_t::macbytes_to_string(mac_address_t mac, char* string)
 void dm_easy_mesh_t::string_to_macbytes(char *key, mac_address_t bmac)
 {
     unsigned char mac[6];
+    if (key == NULL || bmac == NULL) {
+        return;
+    }
     if(strlen(key) > MIN_MAC_LEN)
         sscanf(key, "%02hhx:%02hhx:%02hhx:%02hhx:%02hhx:%02hhx",
                 &mac[0], &mac[1], &mac[2], &mac[3], &mac[4], &mac[5]);
