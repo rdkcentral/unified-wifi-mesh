@@ -139,6 +139,8 @@ public:
     bus_error_t wf6ap_get(char* event_name, raw_data_t* p_data);
     bus_error_t wf6ap_tget(char* event_name, raw_data_t* p_data);
     static bus_error_t wf6ap_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
+    static bool parse_radio_instance(const char *instance, bool is_num, int *radio_instance);
+    static unsigned int wifi6_role_count(unsigned int num_role);
     static bus_error_t wf6ap_tget_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
     static bus_error_t wf6ap_tget_params(dm_easy_mesh_t *dm, const char *root, em_radio_info_t *ri, bus_data_prop_t **property, unsigned int idx);
 
