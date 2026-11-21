@@ -15990,6 +15990,33 @@ TEST(dm_easy_mesh_t, get_radio_cap_invalid_mac)
     std::cout << "Exiting " << testName << " test" << std::endl;
 }
 
+/* m_num_radios above EM_MAX_BANDS: a MAC that is not present must return NULL without reading past m_radio_cap[] */
+TEST(dm_easy_mesh_t, get_radio_cap_count_above_max_not_found)
+{
+    dm_easy_mesh_t mesh;
+    mesh.m_num_radios = EM_MAX_BANDS + 1;
+    for (int i = 0; i < EM_MAX_BANDS; i++) {
+        mac_address_t mac = {0x00, 0x11, 0x22, 0x33, 0x44, static_cast<unsigned char>(i)};
+        memcpy(mesh.m_radio_cap[i].m_radio_cap_info.ruid.mac, mac, sizeof(mac_address_t));
+    }
+    mac_address_t searchMac = {0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF};
+    EXPECT_TRUE(mesh.get_radio_cap(searchMac) == nullptr);
+}
+
+/* m_num_radios above EM_MAX_BANDS: a MAC in the last valid slot must still be found */
+TEST(dm_easy_mesh_t, get_radio_cap_count_above_max_last_slot_found)
+{
+    dm_easy_mesh_t mesh;
+    mesh.m_num_radios = EM_MAX_BANDS + 1;
+    for (int i = 0; i < EM_MAX_BANDS - 1; i++) {
+        mac_address_t mac = {0x00, 0x11, 0x22, 0x33, 0x44, static_cast<unsigned char>(i)};
+        memcpy(mesh.m_radio_cap[i].m_radio_cap_info.ruid.mac, mac, sizeof(mac_address_t));
+    }
+    mac_address_t lastMac = {0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF};
+    memcpy(mesh.m_radio_cap[EM_MAX_BANDS - 1].m_radio_cap_info.ruid.mac, lastMac, sizeof(mac_address_t));
+    EXPECT_TRUE(mesh.get_radio_cap(lastMac) == &mesh.m_radio_cap[EM_MAX_BANDS - 1]);
+}
+
 /**
  * @brief Validates that get_radio_data returns the correct radio data for a valid interface.
  *
