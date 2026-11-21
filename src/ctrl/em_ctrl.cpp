@@ -676,6 +676,71 @@ bool em_ctrl_t::publish_event(const char *event, bus_data_prop_t *args)
     return ok;
 }
 
+bool em_ctrl_t::parse_failed_conn_tlvs(unsigned char *tmp, unsigned int remaining, mac_address_t bssid, mac_address_t sta_mac,
+    unsigned short *status_code, unsigned short *reason_code)
+{
+    bool has_bssid = false, has_sta = false, has_status = false;
+    *status_code = 0;
+    *reason_code = 0;
+
+    while (remaining >= sizeof(em_tlv_t)) {
+        em_tlv_t *tlv = reinterpret_cast<em_tlv_t *>(tmp);
+        unsigned short tlv_len = ntohs(tlv->len);
+
+        if (tlv->type == em_tlv_type_eom) {
+            break;
+        }
+        if (remaining < sizeof(em_tlv_t) + tlv_len) {
+            break;
+        }
+
+        switch (tlv->type) {
+            case em_tlv_type_bssid:
+                if (tlv_len < sizeof(mac_address_t)) {
+                    em_printfout("Failed Connection message malformed BSSID TLV (len=%u)", static_cast<unsigned int>(tlv_len));
+                    break;
+                }
+                memcpy(bssid, tlv->value, sizeof(mac_address_t));
+                has_bssid = true;
+                break;
+            case em_tlv_type_sta_mac_addr:
+                if (tlv_len < sizeof(mac_address_t)) {
+                    em_printfout("Failed Connection message malformed STA MAC TLV (len=%u)", static_cast<unsigned int>(tlv_len));
+                    break;
+                }
+                memcpy(sta_mac, tlv->value, sizeof(mac_address_t));
+                has_sta = true;
+                break;
+            case em_tlv_type_status_code: {
+                if (tlv_len < sizeof(em_status_code_t)) {
+                    em_printfout("Failed Connection message malformed Status Code TLV (len=%u)", static_cast<unsigned int>(tlv_len));
+                    break;
+                }
+                em_status_code_t *sc = reinterpret_cast<em_status_code_t *>(tlv->value);
+                *status_code = ntohs(sc->status_code);
+                has_status = true;
+                break;
+            }
+            case em_tlv_type_reason_code: {
+                if (tlv_len < sizeof(em_reason_code_t)) {
+                    em_printfout("Failed Connection message malformed Reason Code TLV (len=%u)", static_cast<unsigned int>(tlv_len));
+                    break;
+                }
+                em_reason_code_t *rc = reinterpret_cast<em_reason_code_t *>(tlv->value);
+                *reason_code = ntohs(rc->reason_code);
+                break;
+            }
+            default:
+                break;
+        }
+
+        tmp += sizeof(em_tlv_t) + tlv_len;
+        remaining -= static_cast<unsigned int>(sizeof(em_tlv_t)) + tlv_len;
+    }
+
+    return has_bssid && has_sta && has_status;
+}
+
 void em_ctrl_t::handle_failed_conn_msg(unsigned char *data, unsigned int len)
 {
     char *errors[EM_MAX_TLV_MEMBERS] = {0};
@@ -696,52 +761,8 @@ void em_ctrl_t::handle_failed_conn_msg(unsigned char *data, unsigned int len)
     mac_address_t sta_mac = {0};
     unsigned short status_code = 0;
     unsigned short reason_code = 0;
-    bool has_bssid = false, has_sta = false, has_status = false;
 
-    while (remaining >= sizeof(em_tlv_t)) {
-        em_tlv_t *tlv = reinterpret_cast<em_tlv_t *>(tmp);
-        unsigned short tlv_len = ntohs(tlv->len);
-
-        if (tlv->type == em_tlv_type_eom) {
-            break;
-        }
-        if (remaining < sizeof(em_tlv_t) + tlv_len) {
-            break;
-        }
-
-        switch (tlv->type) {
-            case em_tlv_type_bssid:
-                memcpy(bssid, tlv->value, sizeof(mac_address_t));
-                has_bssid = true;
-                break;
-            case em_tlv_type_sta_mac_addr:
-                memcpy(sta_mac, tlv->value, sizeof(mac_address_t));
-                has_sta = true;
-                break;
-            case em_tlv_type_status_code: {
-                em_status_code_t *sc = reinterpret_cast<em_status_code_t *>(tlv->value);
-                status_code = ntohs(sc->status_code);
-                has_status = true;
-                break;
-            }
-            case em_tlv_type_reason_code: {
-                if (tlv_len < sizeof(em_reason_code_t)) {
-                    em_printfout("Failed Connection message malformed Reason Code TLV (len=%u)", static_cast<unsigned int>(tlv_len));
-                    break;
-                }
-                em_reason_code_t *rc = reinterpret_cast<em_reason_code_t *>(tlv->value);
-                reason_code = ntohs(rc->reason_code);
-                break;
-            }
-            default:
-                break;
-        }
-
-        tmp += sizeof(em_tlv_t) + tlv_len;
-        remaining -= static_cast<unsigned int>(sizeof(em_tlv_t)) + tlv_len;
-    }
-
-    if (!has_bssid || !has_sta || !has_status) {
+    if (!parse_failed_conn_tlvs(tmp, remaining, bssid, sta_mac, &status_code, &reason_code)) {
         em_printfout("Failed Connection message missing mandatory TLVs");
         return;
     }

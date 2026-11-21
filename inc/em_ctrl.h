@@ -522,6 +522,8 @@ public:
 
 	void handle_link_stats_alarm_report(em_bus_event_t *evt);
 	void handle_failed_conn_msg(unsigned char *data, unsigned int len) override;
+	static bool parse_failed_conn_tlvs(unsigned char *tmp, unsigned int remaining, mac_address_t bssid, mac_address_t sta_mac,
+            unsigned short *status_code, unsigned short *reason_code);
 	/**!
 	 * @brief Validates and decodes a Client Disassociation Stats message on the radio thread
 	 * and queues it as a client_disassoc_stats bus event for the controller thread.
