@@ -939,7 +939,20 @@ int em_capability_t::handle_client_cap_report(unsigned char *buff, unsigned int 
 
     tlv = reinterpret_cast<em_tlv_t *> (buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
     tmp_len = len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
-    while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
+    while ((tmp_len >= sizeof(em_tlv_t)) && (tlv->type != em_tlv_type_eom)) {
+        if (tmp_len < sizeof(em_tlv_t)) {
+            em_printfout("Error: Truncated TLV header, remaining bytes %u < required %zu",
+                         tmp_len, sizeof(em_tlv_t));
+            return -1;
+        }
+        unsigned short tlv_len = htons(tlv->len);
+
+        if (tmp_len < sizeof(em_tlv_t) + tlv_len) {
+            em_printfout("Error: Truncated TLV, remaining bytes %u < required %zu",
+                         tmp_len, sizeof(em_tlv_t) + tlv_len);
+            return -1;
+        }
+
         if (tlv->type == em_tlv_type_client_info) {
             memset(&sta_info, 0, sizeof(em_sta_info_t));
             memcpy(sta_info.bssid, tlv->value, sizeof(mac_address_t));
@@ -948,8 +961,8 @@ int em_capability_t::handle_client_cap_report(unsigned char *buff, unsigned int 
             break;
         }
 
-        tmp_len -= static_cast<unsigned int> (sizeof(em_tlv_t) + htons(tlv->len));
-        tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
+        tmp_len -= static_cast<unsigned int> (sizeof(em_tlv_t) + tlv_len);
+        tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + tlv_len);
     }
 
     if (found_client_info == false) {
@@ -959,7 +972,15 @@ int em_capability_t::handle_client_cap_report(unsigned char *buff, unsigned int 
 
     tlv = reinterpret_cast<em_tlv_t *> (buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
     tmp_len = len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
-    while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
+    while ((tmp_len >= sizeof(em_tlv_t)) && (tlv->type != em_tlv_type_eom)) {
+        unsigned short tlv_len = htons(tlv->len);
+
+        if (tmp_len < sizeof(em_tlv_t) + tlv_len) {
+            em_printfout("Error: Truncated TLV, remaining bytes %u < required %zu",
+                         tmp_len, sizeof(em_tlv_t) + tlv_len);
+            return -1;
+        }
+
         if (tlv->type == em_tlv_type_client_cap_report) {
             if (tlv->value[0] != 0) {
                 printf("%s:%d: result code: failure\n", __func__, __LINE__);
@@ -970,7 +991,7 @@ int em_capability_t::handle_client_cap_report(unsigned char *buff, unsigned int 
             // result code. sta_info only borrows it from the received frame, the
             // data model copies it when the info is applied. Guard the zero-length
             // underflow of htons(len) - 1 and bound what a peer can make us store.
-            unsigned short cap_report_len = htons(tlv->len);
+            unsigned short cap_report_len = tlv_len;
             unsigned int fb_len = (cap_report_len > 0) ?
                 static_cast<unsigned int>(cap_report_len - 1) : 0;
             if (fb_len > EM_MAX_FRAME_BODY_LEN) {
@@ -985,8 +1006,8 @@ int em_capability_t::handle_client_cap_report(unsigned char *buff, unsigned int 
             break;
         }
 
-        tmp_len -= static_cast<unsigned int> (sizeof(em_tlv_t) + htons(tlv->len));
-        tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
+        tmp_len -= static_cast<unsigned int> (sizeof(em_tlv_t) + tlv_len);
+        tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + tlv_len);
     }
 
     if (found_cap_report == false) {
@@ -1046,11 +1067,12 @@ void em_capability_t::handle_client_cap_query(unsigned char *buff, unsigned int 
     tlv = reinterpret_cast<em_tlv_t *> (buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
 
     tmp_len = len - static_cast<unsigned int>(sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
-    while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
+    while ((tmp_len >= sizeof(em_tlv_t)) && (tlv->type != em_tlv_type_eom)) {
         if (tlv->type == em_tlv_type_client_info) {
             break;
         }
-        tlv_sz = static_cast<unsigned int>(sizeof(em_tlv_t) + htons(tlv->len));
+        unsigned short tlv_len = htons(tlv->len);
+        tlv_sz = static_cast<unsigned int>(sizeof(em_tlv_t) + tlv_len);
         if (tmp_len < tlv_sz) {
             em_printfout("Client cap query: malformed tlv chain");
             return;
@@ -1059,7 +1081,7 @@ void em_capability_t::handle_client_cap_query(unsigned char *buff, unsigned int 
         tlv = reinterpret_cast<em_tlv_t *>(reinterpret_cast<unsigned char *>(tlv) + tlv_sz);
     }
 
-    if (tlv->type != em_tlv_type_client_info) {
+    if ((tmp_len < sizeof(em_tlv_t)) || (tlv->type != em_tlv_type_client_info)) {
         em_printfout("Client cap query: client_info tlv not found");
         return;
     }
@@ -1295,6 +1317,38 @@ int em_capability_t::handle_bsta_cap_report(unsigned char *pkt_buff, unsigned in
 
 int em_capability_t::handle_ap_radio_basic_cap(unsigned char *buff, unsigned int len)
 {
+    if (buff == NULL || len < sizeof(em_ap_radio_basic_cap_t)) {
+        em_printfout("Error: Invalid AP Radio Basic Capability TLV length=%u", len);
+        return -1;
+    }
+
+    const auto *radio_basic_cap = reinterpret_cast<const em_ap_radio_basic_cap_t *>(buff);
+    if (radio_basic_cap->op_class_num > EM_MAX_OPCLASS) {
+        em_printfout("Error: Invalid AP Radio Basic Capability op_class_num=%u",
+            radio_basic_cap->op_class_num);
+        return -1;
+    }
+
+    const unsigned char *op_class_data = buff + sizeof(em_ap_radio_basic_cap_t);
+    unsigned int remaining = len - sizeof(em_ap_radio_basic_cap_t);
+    for (unsigned int i = 0; i < radio_basic_cap->op_class_num; i++) {
+        if (remaining < sizeof(em_op_class_t)) {
+            em_printfout("Error: Truncated AP Radio Basic Capability op class header");
+            return -1;
+        }
+
+        const auto *op_class = reinterpret_cast<const em_op_class_t *>(op_class_data);
+        unsigned int op_class_len = static_cast<unsigned int>(sizeof(em_op_class_t)) + op_class->num;
+        if (op_class->num > EM_MAX_CHANNELS_IN_LIST || remaining < op_class_len) {
+            em_printfout("Error: Invalid AP Radio Basic Capability channel list length=%u",
+                op_class->num);
+            return -1;
+        }
+
+        op_class_data += op_class_len;
+        remaining -= op_class_len;
+    }
+
 	dm_radio_t * radio;
 	mac_address_t	ruid;
 	unsigned int i, j;
@@ -1302,12 +1356,15 @@ int em_capability_t::handle_ap_radio_basic_cap(unsigned char *buff, unsigned int
 	bool radio_exists = false;
 	bool op_class_exists = false;
 	mac_addr_str_t mac_str;
-	em_ap_radio_basic_cap_t *radio_basic_cap = reinterpret_cast<em_ap_radio_basic_cap_t *> (buff);
-	em_op_class_t *basic_cap_op_class;
+    const em_op_class_t *basic_cap_op_class;
 	em_op_class_info_t	op_class_info;
 	dm_op_class_t *op_class_obj;
 
-	dm_easy_mesh_t *dm = get_data_model();
+    dm_easy_mesh_t *dm = get_data_model();
+    if (dm == NULL) {
+        em_printfout("Error: AP Radio Basic Capability: No data model");
+        return -1;
+    }
 
 	memcpy(ruid, radio_basic_cap->ruid, sizeof(mac_address_t));
 	dm_easy_mesh_t::macbytes_to_string(ruid, mac_str);
@@ -1349,7 +1406,9 @@ int em_capability_t::handle_ap_radio_basic_cap(unsigned char *buff, unsigned int
 			for (j = 0; j < op_class_info.num_channels; j++) {
 				op_class_info.channels[j] = static_cast<unsigned int> (basic_cap_op_class->channels.channel[j]);
 			}
-			basic_cap_op_class = reinterpret_cast<em_op_class_t *>(reinterpret_cast<unsigned char *> (basic_cap_op_class) + sizeof(em_op_class_t) + op_class_info.num_channels);
+            basic_cap_op_class = reinterpret_cast<const em_op_class_t *>(
+                reinterpret_cast<const unsigned char *>(basic_cap_op_class) +
+                sizeof(em_op_class_t) + op_class_info.num_channels);
  			op_class_obj = &dm->m_op_class[0];
 			op_class_obj = &dm->m_op_class[0];
 			// now check if the op_class already exists
@@ -1512,6 +1571,11 @@ static wifi_ieee80211Variant_t airties_standards_to_variant(uint16_t std) {
 
 int em_capability_t::handle_early_ap_cap_report(unsigned char *buff, unsigned int len)
 {
+    if (buff == NULL || len < sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)) {
+        em_printfout("Error: handle_early_ap_cap_report: Invalid message header length=%u", len);
+        return -1;
+    }
+
     em_cmdu_t *cmdu = reinterpret_cast<em_cmdu_t *> (buff + sizeof(em_raw_hdr_t));
     em_tlv_t *tlv;
     unsigned int tmp_len;
@@ -1523,16 +1587,115 @@ int em_capability_t::handle_early_ap_cap_report(unsigned char *buff, unsigned in
     tmp_len = len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
     em_printfout("Early AP Capability report message rcvd");
 
+    if (dm == NULL) {
+        em_printfout("Error: handle_early_ap_cap_report: No data model");
+        return -1;
+    }
+
+    const auto validate_wifi6_cap = [](const unsigned char *value, unsigned int value_len) {
+        size_t offset = sizeof(mac_address_t);
+        if (value == NULL || value_len < offset + sizeof(uint8_t)) {
+            return false;
+        }
+
+        unsigned int roles_num = value[offset++];
+        if (roles_num > MAP_AP_ROLE_MAX) {
+            return false;
+        }
+
+        for (unsigned int role = 0; role < roles_num; role++) {
+            if (value_len - offset < sizeof(em_wifi6_cap_role_head_tlv_t)) {
+                return false;
+            }
+
+            const auto *role_head =
+                reinterpret_cast<const em_wifi6_cap_role_head_tlv_t *>(value + offset);
+            unsigned int mcs_count = role_head->mcs_nss_num / EM_MIN_HE_MCS_LEN;
+            if (mcs_count > MAX_MCS) {
+                return false;
+            }
+            offset += sizeof(em_wifi6_cap_role_head_tlv_t);
+
+            size_t mcs_bytes = mcs_count * sizeof(em_ap_he_mcs_maps_t);
+            if (value_len - offset < mcs_bytes + sizeof(em_wifi6_cap_role_tail_tlv_t)) {
+                return false;
+            }
+            offset += mcs_bytes + sizeof(em_wifi6_cap_role_tail_tlv_t);
+        }
+
+        return true;
+    };
+
+    const auto validate_wifi7_cap = [dm](const unsigned char *value, unsigned int value_len) {
+        const size_t header_len = sizeof(em_wifi7_cap_link_info_tlv_t) + sizeof(uint8_t);
+        if (value == NULL || value_len < header_len || dm == NULL) {
+            return false;
+        }
+
+        unsigned int radios_num = value[sizeof(em_wifi7_cap_link_info_tlv_t)];
+        if (radios_num > EM_MAX_RADIO_PER_AGENT) {
+            return false;
+        }
+        if (radios_num > dm->get_num_radios()) {
+            radios_num = dm->get_num_radios();
+        }
+
+        size_t offset = header_len;
+        for (unsigned int radio = 0; radio < radios_num; radio++) {
+            if (value_len - offset < sizeof(em_wifi7_mlo_cap_support_tlv_t)) {
+                return false;
+            }
+            offset += sizeof(em_wifi7_mlo_cap_support_tlv_t);
+
+            for (unsigned int list = 0; list < 8; list++) {
+                if (value_len - offset < sizeof(uint8_t)) {
+                    return false;
+                }
+                unsigned int records_num = value[offset++];
+                if (records_num > EM_MAX_FREQ_RECORDS_PER_RADIO) {
+                    return false;
+                }
+
+                size_t records_len = records_num * sizeof(em_wifi7_freq_record_tlv_t);
+                if (value_len - offset < records_len) {
+                    return false;
+                }
+                offset += records_len;
+            }
+        }
+
+        return true;
+    };
+
     if (dm->get_num_radios() == 0) {
         em_printfout("handle_early_ap_cap_report: no radios in DM, processing ap_radio_basic_cap TLVs first");
         em_tlv_t *pre_tlv = tlv;
         unsigned int pre_len = tmp_len;
-        while ((pre_len >= sizeof(em_tlv_t)) && (pre_tlv->type != em_tlv_type_eom)) {
-            if (pre_tlv->type == em_tlv_type_ap_radio_basic_cap) {
-                handle_ap_radio_basic_cap(pre_tlv->value, htons(pre_tlv->len));
+        while (pre_len >= sizeof(em_tlv_t)) {
+            if (pre_tlv->type == em_tlv_type_eom) {
+                break;
             }
-            pre_len -= static_cast<unsigned int> (sizeof(em_tlv_t) + htons(pre_tlv->len));
-            pre_tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (pre_tlv) + sizeof(em_tlv_t) + htons(pre_tlv->len));
+
+            unsigned int pre_tlv_len = htons(pre_tlv->len);
+            if (pre_tlv_len > pre_len - sizeof(em_tlv_t)) {
+                em_printfout("Error: handle_early_ap_cap_report: Truncated TLV in radio discovery pass");
+                return -1;
+            }
+
+            if (pre_tlv->type == em_tlv_type_ap_radio_basic_cap) {
+                if (handle_ap_radio_basic_cap(pre_tlv->value, pre_tlv_len) < 0) {
+                    return -1;
+                }
+            }
+
+            unsigned int pre_total_len = static_cast<unsigned int>(sizeof(em_tlv_t)) + pre_tlv_len;
+            pre_len -= pre_total_len;
+            pre_tlv = reinterpret_cast<em_tlv_t *>(
+                reinterpret_cast<unsigned char *>(pre_tlv) + pre_total_len);
+        }
+        if (pre_len > 0 && pre_len < sizeof(em_tlv_t)) {
+            em_printfout("Error: handle_early_ap_cap_report: Truncated TLV header in radio discovery pass");
+            return -1;
         }
     }
 
@@ -1553,11 +1716,31 @@ int em_capability_t::handle_early_ap_cap_report(unsigned char *buff, unsigned in
             return 0;
         }
     }
-    while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
+    while (tmp_len >= sizeof(em_tlv_t)) {
+        if (tlv->type == em_tlv_type_eom) {
+            if (htons(tlv->len) != 0) {
+                em_printfout("Error: handle_early_ap_cap_report: Invalid EOM TLV length");
+                return -1;
+            }
+            break;
+        }
+
+        unsigned short tlv_len = htons(tlv->len);
+
+        if (tlv_len > tmp_len - sizeof(em_tlv_t)) {
+            em_printfout("Error: handle_early_ap_cap_report: Truncated TLV, remaining bytes %u < required %zu",
+                         tmp_len, sizeof(em_tlv_t) + tlv_len);
+            return -1;
+        }
+
         if (tlv->type == em_tlv_type_ap_cap) {
+            if (tlv_len < sizeof(em_ap_capability_t)) {
+                em_printfout("Error: Invalid AP Capability TLV length=%u", tlv_len);
+                return -1;
+            }
             dm_radio_t *radio = dm->get_radio(get_radio_interface_mac());
             if (radio == NULL) {
-                em_printfout("Radio[%s] not found", util::mac_to_string(get_radio_interface_mac()).c_str());
+                em_printfout("Error: Radio[%s] not found", util::mac_to_string(get_radio_interface_mac()).c_str());
                 return -1;
                 //continue;
             }
@@ -1565,7 +1748,7 @@ int em_capability_t::handle_early_ap_cap_report(unsigned char *buff, unsigned in
             em_ap_capability_t *ap_cap = reinterpret_cast<em_ap_capability_t *>(tlv->value);
 
             if ((ap_cap == NULL) || (radio_info == NULL)){
-                em_printfout("No data Found");
+                em_printfout("Error: No data Found");
                 return -1;
             }
 
@@ -1574,18 +1757,25 @@ int em_capability_t::handle_early_ap_cap_report(unsigned char *buff, unsigned in
             radio_info->support_rcpi_steering = ap_cap->rcpi_steering;
         } else if (tlv->type == em_tlv_type_ap_radio_basic_cap){
             em_printfout("Received AP Radio Basic Capability TLV");
-            handle_ap_radio_basic_cap(tlv->value, htons(tlv->len));
+            if (handle_ap_radio_basic_cap(tlv->value, tlv_len) < 0) {
+                return -1;
+            }
         } else if (tlv->type == em_tlv_type_ht_cap){
             em_printfout("Received HT Capability TLV");
+            if (tlv_len < sizeof(em_ap_ht_cap_t)) {
+                em_printfout("Error: Invalid HT Capability TLV length=%u", tlv_len);
+                return -1;
+            }
             em_ap_ht_cap_t *ht_cap = reinterpret_cast<em_ap_ht_cap_t *>(tlv->value);
             dm_radio_cap_t *radio_cap = dm->get_radio_cap(ht_cap->ruid);
 
-            if ((ht_cap != NULL) && (radio_cap != NULL)){
+            if (radio_cap != NULL){
                 em_radio_cap_info_t *cap_info = radio_cap->get_radio_cap_info();
                 if ((cap_info == NULL)){
-                    em_printfout("No data Found");
+                    em_printfout("Error: No data Found");
+                    return -1;
                 }
-              memcpy(&cap_info->ht_cap, ht_cap, sizeof(em_ap_ht_cap_t));
+                memcpy(&cap_info->ht_cap, ht_cap, sizeof(em_ap_ht_cap_t));
 
                 em_printfout("HT Capabilities MCS Set for RUID %s",
                     util::mac_to_string(ht_cap->ruid).c_str());
@@ -1602,12 +1792,16 @@ int em_capability_t::handle_early_ap_cap_report(unsigned char *buff, unsigned in
         }
         else if (tlv->type == em_tlv_type_vht_cap){
             em_printfout("Received VHT Capability TLV");
+            if (tlv_len < sizeof(em_ap_vht_cap_t)) {
+                em_printfout("Error: Invalid VHT Capability TLV length=%u", tlv_len);
+                return -1;
+            }
             em_ap_vht_cap_t *vht_cap = reinterpret_cast<em_ap_vht_cap_t *>(tlv->value);
             dm_radio_cap_t *radio_cap = dm->get_radio_cap(vht_cap->ruid);
-            if ((vht_cap != NULL) && (radio_cap != NULL)){
+            if (radio_cap != NULL){
                 em_radio_cap_info_t *cap_info = radio_cap->get_radio_cap_info();
                 if ((cap_info == NULL)){
-                    em_printfout("No data Found");
+                    em_printfout("Error: No data Found");
                     return 0;
                 }
                 memcpy(&cap_info->vht_cap, vht_cap, sizeof(em_ap_vht_cap_t));
@@ -1615,57 +1809,175 @@ int em_capability_t::handle_early_ap_cap_report(unsigned char *buff, unsigned in
         }
         else if (tlv->type == em_tlv_type_he_cap){
             em_printfout("Received HE Capability TLV");
-            em_ap_he_cap_t *he_cap = reinterpret_cast<em_ap_he_cap_t *>(tlv->value);
+            constexpr size_t he_prefix_len = sizeof(mac_address_t) + sizeof(uint8_t);
+            constexpr size_t he_maps_len = MAX_MCS * sizeof(em_ap_he_mcs_maps_t);
+            constexpr size_t he_suffix_len =
+                sizeof(em_ap_he_cap_t) - he_prefix_len - he_maps_len;
+            if (tlv_len < he_prefix_len + he_suffix_len) {
+                em_printfout("Error: Invalid HE Capability TLV length=%u", tlv_len);
+                return -1;
+            }
+
+            const unsigned int mcs_len = tlv->value[sizeof(mac_address_t)];
+            if (mcs_len > he_maps_len ||
+                    mcs_len % sizeof(em_ap_he_mcs_maps_t) != 0 ||
+                    tlv_len < he_prefix_len + mcs_len + he_suffix_len) {
+                em_printfout("Error: Invalid HE Capability TLV length=%u", tlv_len);
+                return -1;
+            }
+
+            em_ap_he_cap_t decoded = {};
+            memcpy(&decoded, tlv->value, he_prefix_len + mcs_len);
+            const unsigned char *flags = tlv->value + he_prefix_len + mcs_len;
+            decoded.sprt_160mhz = flags[0] & 0x01;
+            decoded.sprt_80_80_mhz = (flags[0] >> 1) & 0x01;
+            decoded.max_sprt_rx_streams = (flags[0] >> 2) & 0x07;
+            decoded.max_sprt_tx_streams = (flags[0] >> 5) & 0x07;
+            decoded.dl_ofdma_cap = flags[1] & 0x01;
+            decoded.ul_ofdma_cap = (flags[1] >> 1) & 0x01;
+            decoded.dl_mimo_ofdma_cap = (flags[1] >> 2) & 0x01;
+            decoded.ul_mimo_ofdma_cap = (flags[1] >> 3) & 0x01;
+            decoded.ul_mimo_cap = (flags[1] >> 4) & 0x01;
+            decoded.mu_beamformer_cap = (flags[1] >> 5) & 0x01;
+            decoded.su_beamformer_cap = (flags[1] >> 6) & 0x01;
+            em_ap_he_cap_t *he_cap = &decoded;
             dm_radio_cap_t *radio_cap = dm->get_radio_cap(he_cap->ruid);
 
-            if ((he_cap != NULL) && (radio_cap != NULL)){
+            if (radio_cap != NULL){
                 em_radio_cap_info_t *cap_info = radio_cap->get_radio_cap_info();
 
                 if ((cap_info == NULL)){
-                    em_printfout("No data Found");
+                    em_printfout("Error: No data Found");
                     return 0;
                 }
-                em_printfout("HE Capabilities size of em_ap_he_cap_t: %zu tlv len %u", sizeof(em_ap_he_cap_t), ntohs(tlv->len));
+                em_printfout("HE Capabilities size of em_ap_he_cap_t: %zu tlv len %u", sizeof(em_ap_he_cap_t), tlv_len);
                 memcpy(&cap_info->he_cap, he_cap, sizeof(em_ap_he_cap_t));
             }
         }
         else if (tlv->type == em_tlv_type_ap_wifi6_cap){
             em_printfout("Received wifi6 Capability TLV");
-            handle_wifi6_cap_tlv(tlv->value);
+            if (!validate_wifi6_cap(tlv->value, tlv_len)) {
+                em_printfout("Error: Invalid WiFi 6 Capability TLV length=%u", tlv_len);
+                return -1;
+            }
+            if (handle_wifi6_cap_tlv(tlv->value) < 0) {
+                return -1;
+            }
         }
         else if (tlv->type == em_tlv_type_wifi7_agent_cap){
             em_printfout("Received wifi7 Capability TLV");
-            handle_wifi7_agent_cap_tlv(tlv->value);
+            if (!validate_wifi7_cap(tlv->value, tlv_len)) {
+                em_printfout("Error: Invalid WiFi 7 Capability TLV length or count=%u", tlv_len);
+                return -1;
+            }
+            if (handle_wifi7_agent_cap_tlv(tlv->value) < 0) {
+                return -1;
+            }
         }
         else if (tlv->type == em_tlv_eht_operations){
-            handle_eht_operations_tlv(tlv->value, ntohs(tlv->len));
+            if (handle_eht_operations_tlv(tlv->value, tlv_len) < 0) {
+                return -1;
+            }
         }
        else if (tlv->type == em_tlv_type_1905_layer_security_cap){
         }
         else if (tlv->type == em_tlv_type_cac_cap){
-            em_cac_cap_t *cac = reinterpret_cast<em_cac_cap_t *>(tlv->value);
-            if (cac == nullptr) {
-                em_printfout("Invalid CAC TLV: null pointer");
-                return -1;
-            }
-            if (cac->radios_num > EM_MAX_RADIO_PER_AGENT) {
-                em_printfout("Invalid CAC TLV: radios_num=%u exceeds max=%u", cac->radios_num, EM_MAX_RADIO_PER_AGENT);
+            constexpr unsigned int cac_country_code_len = 2;
+            constexpr unsigned int cac_header_len = cac_country_code_len + sizeof(uint8_t);
+            constexpr unsigned int cac_radio_header_len = ETH_ALEN + sizeof(uint8_t);
+            constexpr unsigned int cac_method_header_len = 1 + 3 + 1;
+            constexpr unsigned int cac_op_class_header_len = 2;
+            const unsigned char *cursor = tlv->value;
+            unsigned int remaining = tlv_len;
+
+            if (remaining < cac_header_len) {
+                em_printfout("Error: Invalid CAC TLV: truncated header");
                 return -1;
             }
 
-            for (int idx = 0; idx < cac->radios_num; idx++)
-            {
-                dm_radio_cap_t *radio_cap = dm->get_radio_cap(cac->radios[idx].ruid);
-                if (radio_cap != NULL){
-                    em_radio_cap_info_t *cap_info = radio_cap->get_radio_cap_info();
-                    if ((cap_info == NULL)){
-                        em_printfout("No data Found");
-                        return 0;
+            unsigned int radios_num = cursor[cac_country_code_len];
+            if (radios_num > EM_MAX_RADIO_PER_AGENT) {
+                em_printfout("Error: Invalid CAC TLV: radios_num=%u exceeds max=%u",
+                    radios_num, EM_MAX_RADIO_PER_AGENT);
+                return -1;
+            }
+            cursor += cac_header_len;
+            remaining -= cac_header_len;
+
+            for (unsigned int radio_idx = 0; radio_idx < radios_num; radio_idx++) {
+                em_cac_cap_radio_t decoded = {};
+                if (remaining < cac_radio_header_len) {
+                    em_printfout("Error: Invalid CAC TLV: truncated radio header");
+                    return -1;
+                }
+                memcpy(decoded.ruid, cursor, ETH_ALEN);
+                decoded.cac_methods_num = cursor[ETH_ALEN];
+                cursor += cac_radio_header_len;
+                remaining -= cac_radio_header_len;
+                if (decoded.cac_methods_num >
+                        sizeof(decoded.cac_methods) / sizeof(decoded.cac_methods[0])) {
+                    em_printfout("Error: Invalid CAC TLV: method count exceeds maximum");
+                    return -1;
+                }
+
+                for (unsigned int method_idx = 0;
+                        method_idx < decoded.cac_methods_num; method_idx++) {
+                    em_cac_cap_method_t *method = &decoded.cac_methods[method_idx];
+                    if (remaining < cac_method_header_len) {
+                        em_printfout("Error: Invalid CAC TLV: truncated method header");
+                        return -1;
                     }
-                    memcpy(&cap_info->cac_cap, &cac->radios[idx], sizeof(cap_info->cac_cap));
+
+                    method->cac_method = cursor[0];
+                    method->cac_duration = (static_cast<unsigned int>(cursor[1]) << 16) |
+                        (static_cast<unsigned int>(cursor[2]) << 8) | cursor[3];
+                    method->op_classes_num = cursor[4];
+                    cursor += cac_method_header_len;
+                    remaining -= cac_method_header_len;
+                    if (method->op_classes_num >
+                            sizeof(method->op_classes) / sizeof(method->op_classes[0])) {
+                        em_printfout("Error: Invalid CAC TLV: operating class count exceeds maximum");
+                        return -1;
+                    }
+
+                    for (unsigned int class_idx = 0;
+                            class_idx < method->op_classes_num; class_idx++) {
+                        em_cac_op_class_t *op_class = &method->op_classes[class_idx];
+                        if (remaining < cac_op_class_header_len) {
+                            em_printfout("Error: Invalid CAC TLV: truncated operating class header");
+                            return -1;
+                        }
+                        op_class->op_class = cursor[0];
+                        op_class->num = cursor[1];
+                        cursor += cac_op_class_header_len;
+                        remaining -= cac_op_class_header_len;
+
+                        if (op_class->num > sizeof(op_class->channels) ||
+                                op_class->num > remaining) {
+                            em_printfout("Error: Invalid CAC TLV: channel list length exceeds remaining data");
+                            return -1;
+                        }
+                        memcpy(op_class->channels, cursor, op_class->num);
+                        cursor += op_class->num;
+                        remaining -= op_class->num;
+                    }
+                }
+
+                dm_radio_cap_t *radio_cap = dm->get_radio_cap(decoded.ruid);
+                if (radio_cap != NULL) {
+                    em_radio_cap_info_t *cap_info = radio_cap->get_radio_cap_info();
+                    if (cap_info == NULL) {
+                        em_printfout("Error: Invalid CAC TLV: radio capability data unavailable");
+                        return -1;
+                    }
+                    memcpy(&cap_info->cac_cap, &decoded, sizeof(cap_info->cac_cap));
                 }
             }
         } else if (tlv->type == em_tlv_type_profile_2_ap_cap){
+            if (tlv_len < sizeof(em_profile_2_ap_cap_t)) {
+                em_printfout("Error: Invalid Profile 2 AP Capability TLV length=%u", tlv_len);
+                return -1;
+            }
             em_profile_2_ap_cap_t *prof = reinterpret_cast<em_profile_2_ap_cap_t *>(tlv->value);
             dm_radio_cap_t *radio_cap = dm->get_radio_cap(get_radio_interface_mac());
             if (radio_cap != NULL){
@@ -1711,18 +2023,28 @@ int em_capability_t::handle_early_ap_cap_report(unsigned char *buff, unsigned in
                 adv += sizeof(em_ap_radio_advanced_cap_t);
             }
         } else if (tlv->type == em_tlv_type_vendor_specific) {
+            constexpr unsigned int vendor_id_len = sizeof(uint16_t);
+            if (tlv_len < sizeof(em_vendor_specific_t)) {
+                em_printfout("Error: Invalid vendor-specific TLV length=%u", tlv_len);
+                return -1;
+            }
             em_vendor_specific_t *vendor_tlv = reinterpret_cast<em_vendor_specific_t *> (tlv->value);
-            uint16_t value_len = ntohs(tlv->len);
+            uint16_t value_len = tlv_len;
             dm_easy_mesh_t  *dm;
             dm = get_data_model();
 
             if (memcmp(vendor_tlv->vendor_oui, airties_vendor_oui, sizeof(airties_vendor_oui)) == 0) {
+                if (tlv_len < sizeof(em_vendor_specific_t) + vendor_id_len) {
+                    em_printfout("Error: Invalid AirTies vendor-specific TLV length=%u", tlv_len);
+                    return -1;
+                }
                 uint16_t tlv_id;
                 memcpy(&tlv_id, vendor_tlv->data, sizeof(tlv_id));
                 tlv_id = ntohs(tlv_id);
                 if (tlv_id == em_tlv_type_radio_capability) {
-                    if (value_len < sizeof(em_radio_capability_vendor_t) + sizeof(tlv_id) + sizeof(em_vendor_specific_t)) {
-                        em_printfout("Invalid TLV length for em_radio_capability_vendor_t");
+                    if (value_len < sizeof(em_radio_capability_vendor_t) +
+                            sizeof(tlv_id) + sizeof(em_vendor_specific_t)) {
+                        em_printfout("Error: Invalid TLV length for em_radio_capability_vendor_t");
                         return -1;
                     }
                     em_printfout("Received Radio Capability TLV");
@@ -1750,8 +2072,14 @@ int em_capability_t::handle_early_ap_cap_report(unsigned char *buff, unsigned in
             }
         }
 
-        tmp_len -= static_cast<unsigned int> (sizeof(em_tlv_t) + htons(tlv->len));
-        tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
+        unsigned int total_tlv_len = static_cast<unsigned int>(sizeof(em_tlv_t)) + tlv_len;
+        tmp_len -= total_tlv_len;
+        tlv = reinterpret_cast<em_tlv_t *>(
+            reinterpret_cast<unsigned char *>(tlv) + total_tlv_len);
+    }
+    if (tmp_len > 0 && tmp_len < sizeof(em_tlv_t)) {
+        em_printfout("Error: handle_early_ap_cap_report: Truncated TLV header");
+        return -1;
     }
 
     /*if (em_msg_t(em_msg_type_ap_cap_rprt, em_profile_type_3, buff, len).validate(errors) == 0) {
