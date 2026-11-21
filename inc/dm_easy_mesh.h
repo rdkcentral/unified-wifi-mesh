@@ -64,6 +64,8 @@ public:
 	em_interface_t	m_interfaces[EM_MAX_INTERFACES];
     dm_network_t    m_network;
     dm_device_t     m_device;
+    em_bh_sta_candidate_t m_backhaul_sta_candidates[EM_MAX_BH_STA_CANDIDATES];
+    unsigned char   m_num_backhaul_sta_candidates = 0;
     dm_ieee_1905_security_t m_ieee_1905_security;
     unsigned int	m_num_net_ssids;
     dm_network_ssid_t   m_network_ssid[EM_MAX_NET_SSIDS];

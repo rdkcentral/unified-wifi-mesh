@@ -139,6 +139,29 @@ em_network_topo_t *em_network_topo_t::find_topology_by_bh_associated(dm_easy_mes
 	// Obtain the mesh_sta information of this dm.
 	em_bss_info_t *bss = dm->get_associated_bsta_bss_info();
 	if (bss == NULL) {
+               /* get_bsta_bss_info() only returns non-NULL if the agent populated a STA-mode BSS entry via the vendor-specific Operational BSS TLV (0xF2).
+                * spec-compliant third-party agent has no reason to send that proprietary TLV, so this path is always NULL for such agents
+                * Fall back to the upstream bssid reported via the mandatory Device Info TLV (0x03, table 6-10 of IEEE-1905-1)
+                * independent of the vendor TLV, and resolve it the exact same way the vendor-TLV path below does.
+                */
+               for (unsigned char i = 0; i < dm->m_num_backhaul_sta_candidates; i++) {
+                       em_bh_sta_candidate_t *cand = &dm->m_backhaul_sta_candidates[i];
+                       if (memcmp(cand->bssid, ZERO_MAC_ADDR, sizeof(mac_address_t)) == 0) {
+                               continue;
+                       }
+                       em_network_topo_t *bh_topo = g_network_topology->find_topology_by_bss_mac(cand->bssid);
+                       em_bss_info_t *bh_bss = (bh_topo != NULL) ? bh_topo->get_data_model()->get_bss_info_with_mac(cand->bssid) : NULL;
+                       if ((bh_bss != NULL) && (bh_bss->vap_mode == em_vap_mode_ap)) {
+                               if (dm->is_controller() == false) {
+                                       memcpy(dm->m_device.m_device_info.backhaul_mac.mac, cand->bssid, sizeof(mac_address_t));
+                                       dm->m_device.m_device_info.backhaul_mac.media = cand->media_type;
+                               }
+                               em_printfout("No vendor operational bss for dev_mac:%s, using Device Info TLV sta_mac:%s bssid: %s instead",
+                                       dev_mac_str.c_str(), util::mac_to_string(cand->sta_mac).c_str(), util::mac_to_string(cand->bssid).c_str());
+                               return bh_topo;
+                       }
+               }
+
 		em_printfout("Backhaul sta bss not found for dev_mac:%s, return NULL", dev_mac_str.c_str());
 		dm->m_device.m_device_info.backhaul_mac.media = em_media_type_ieee8023ab;
 		return NULL;
