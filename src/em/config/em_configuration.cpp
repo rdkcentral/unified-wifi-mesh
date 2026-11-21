@@ -5871,8 +5871,85 @@ int em_configuration_t::handle_ap_radio_advanced_cap(unsigned char *buff, unsign
     return 0;
 }
 
+static int validate_configuration_ap_radio_basic_cap(
+    const unsigned char *buff,
+    unsigned int len)
+{
+    const size_t fixed_len = sizeof(em_ap_radio_basic_cap_t);
+
+    if (buff == nullptr || len < fixed_len) {
+        em_printfout(
+            "%s:%d Invalid AP Radio Basic Capability length %u",
+            __func__, __LINE__, len);
+        return -1;
+    }
+
+    const em_ap_radio_basic_cap_t *radio_basic_cap =
+        reinterpret_cast<const em_ap_radio_basic_cap_t *>(buff);
+
+    if (radio_basic_cap->op_class_num > EM_MAX_OPCLASS) {
+        em_printfout(
+            "%s:%d Invalid operating class count %u (max %u)",
+            __func__, __LINE__,
+            radio_basic_cap->op_class_num,
+            static_cast<unsigned int>(EM_MAX_OPCLASS));
+        return -1;
+    }
+
+    const unsigned char *cursor = buff + fixed_len;
+    size_t remaining = len - fixed_len;
+
+    for (unsigned int index = 0;
+         index < radio_basic_cap->op_class_num;
+         index++) {
+        if (remaining < sizeof(em_op_class_t)) {
+            em_printfout(
+                "%s:%d Truncated operating class header "
+                "(index %u, remaining %zu)",
+                __func__, __LINE__, index, remaining);
+            return -1;
+        }
+
+        const em_op_class_t *op_class =
+            reinterpret_cast<const em_op_class_t *>(cursor);
+
+        const unsigned int channel_count =
+            static_cast<unsigned int>(op_class->num);
+
+        if (channel_count > EM_MAX_CHANNELS_IN_LIST) {
+            em_printfout(
+                "%s:%d Invalid channel count %u (max %u)",
+                __func__, __LINE__,
+                channel_count,
+                static_cast<unsigned int>(EM_MAX_CHANNELS_IN_LIST));
+            return -1;
+        }
+
+        const size_t entry_len =
+            sizeof(em_op_class_t) + channel_count;
+
+        if (remaining < entry_len) {
+            em_printfout(
+                "%s:%d Channel list exceeds remaining TLV "
+                "(index %u, required %zu, remaining %zu)",
+                __func__, __LINE__,
+                index, entry_len, remaining);
+            return -1;
+        }
+
+        cursor += entry_len;
+        remaining -= entry_len;
+    }
+
+    return 0;
+}
+
 int em_configuration_t::handle_ap_radio_basic_cap(unsigned char *buff, unsigned int len)
 {
+        if (validate_configuration_ap_radio_basic_cap(buff, len) != 0) {
+                return -1;
+        }
+
 	dm_radio_t * radio;
 	mac_address_t	ruid;
 	unsigned int i, j;
@@ -5924,6 +6001,13 @@ int em_configuration_t::handle_ap_radio_basic_cap(unsigned char *buff, unsigned 
 			op_class_info.id.op_class = op_class_info.op_class;
 			op_class_info.max_tx_power = static_cast<int> (basic_cap_op_class->max_tx_eirp);
 			op_class_info.num_channels = static_cast<unsigned int> (basic_cap_op_class->num);
+			if (op_class_info.num_channels > EM_MAX_CHANNELS_IN_LIST) {
+			        em_printfout("%s:%d Invalid channel count %u (max %u)",
+			                __func__, __LINE__,
+			                op_class_info.num_channels,
+			                static_cast<unsigned int>(EM_MAX_CHANNELS_IN_LIST));
+			        return -1;
+			}
 			for (j = 0; j < op_class_info.num_channels; j++) {
 				op_class_info.channels[j] = static_cast<unsigned int> (basic_cap_op_class->channels.channel[j]);
 			}
@@ -5945,8 +6029,10 @@ int em_configuration_t::handle_ap_radio_basic_cap(unsigned char *buff, unsigned 
 				op_class_exists = false;
 			} else {
 				if (dm->get_num_op_class() >= EM_MAX_OPCLASS) {
-					em_printfout("Max limit reached for op class entries in datamodel, cannot add more entries");
-					continue;
+				        em_printfout("%s:%d Operating class table full (%u entries)",
+				                __func__, __LINE__,
+				                dm->get_num_op_class());
+				        return -1;
 				}
 				op_class_obj = &dm->m_op_class[dm->get_num_op_class()];
 				dm->set_num_op_class(dm->get_num_op_class() + 1);
