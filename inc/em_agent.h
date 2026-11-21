@@ -44,6 +44,7 @@ class em_agent_t : public em_mgr_t {
     em_orch_agent_t *m_orch;
     dm_easy_mesh_agent_t m_data_model;
     em_short_string_t   m_data_model_path;
+    bool m_eth_notif_pending = false;
     em_cmd_agent_t  *m_agent_cmd;
 	em_simulator_t	m_simulator;
 
