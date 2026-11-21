@@ -3861,13 +3861,21 @@ func updateNodeValue(parent *C.em_network_node_t, key, newVal string) {
     }
 
     // Safely zero out and copy string into fixed-size buffer
-    const bufSize = 256
+    const bufSize = 128
     buf := (*[bufSize]byte)(unsafe.Pointer(&node.value_str[0]))
+
+    maxLen := len(buf) - 1
+    if len(newVal) > maxLen {
+        log.Printf("Value for key '%s' too long (%d > %d)",
+            key, len(newVal), maxLen)
+        return
+    }
 
     for i := range buf {
         buf[i] = 0
     }
     copy(buf[:], newVal)
+    buf[len(newVal)] = 0
 }
 
 /* func: updateNodeBool()
