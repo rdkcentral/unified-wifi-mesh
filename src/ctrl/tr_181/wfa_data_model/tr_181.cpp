@@ -133,6 +133,23 @@ int tr_181_t::wfa_set_bus_callbackfunc_pointers(const char *full_namespace, bus_
         ELEMENT(DE_DEVICE_XAIRTIES_CACHED,         CALLBACK_GETTER(device_get)),
         ELEMENT(DE_DEVICE_XAIRTIES_CPUUSAGE,       CALLBACK_GETTER(device_get)),
         ELEMENT(DE_DEVICE_XAIRTIES_CPUTEMPERATURE, CALLBACK_GETTER(device_get)),
+        ELEMENT(DE_XETH_IFNOE,                    CALLBACK_GETTER(device_get)),
+        ELEMENT(DE_XETH_IF_TABLE,                 CALLBACK_GETTER(ethif_tget)),
+        ELEMENT(DE_XETH_IF_PORTID,                CALLBACK_GETTER(ethif_get)),
+        ELEMENT(DE_XETH_IF_NAME,                  CALLBACK_GETTER(ethif_get)),
+        ELEMENT(DE_XETH_IF_MACADDR,               CALLBACK_GETTER(ethif_get)),
+        ELEMENT(DE_XETH_IF_ENABLE,                CALLBACK_GETTER(ethif_get)),
+        ELEMENT(DE_XETH_IF_STATUS,                CALLBACK_GETTER(ethif_get)),
+        ELEMENT(DE_XETH_IF_DUPLEX,                CALLBACK_GETTER(ethif_get)),
+        ELEMENT(DE_XETH_IF_MAXBITRATE,            CALLBACK_GETTER(ethif_get)),
+        ELEMENT(DE_XETH_IF_CURBITRATE,            CALLBACK_GETTER(ethif_get)),
+        ELEMENT(DE_XETH_IF_BYTESSNT,              CALLBACK_GETTER(ethif_get)),
+        ELEMENT(DE_XETH_IF_BYTESRCV,              CALLBACK_GETTER(ethif_get)),
+        ELEMENT(DE_XETH_IF_PCKTSSNT,              CALLBACK_GETTER(ethif_get)),
+        ELEMENT(DE_XETH_IF_PCKTSRCV,              CALLBACK_GETTER(ethif_get)),
+        ELEMENT(DE_XETH_IF_ERRSSNT,               CALLBACK_GETTER(ethif_get)),
+        ELEMENT(DE_XETH_IF_ERRSRCV,               CALLBACK_GETTER(ethif_get)),
+        ELEMENT(DE_XETH_IF_MCPCKTSRCV,            CALLBACK_GETTER(ethif_get)),
         ELEMENT(DE_RADIO_TABLE,            CALLBACK_GETTER(radio_tget)),
         ELEMENT(DE_RADIO_ID,               CALLBACK_GETTER(radio_get)),
         ELEMENT(DE_RADIO_ENABLED,          CALLBACK_GETTER(radio_get)),
@@ -425,6 +442,13 @@ bus_error_t tr_181_t::raw_data_set(raw_data_t *p_data, uint32_t u)
 {
     p_data->data_type = bus_data_type_uint32;
     p_data->raw_data.u32 = u;
+    return bus_error_success;
+}
+
+bus_error_t tr_181_t::raw_data_set(raw_data_t *p_data, uint64_t u)
+{
+    p_data->data_type = bus_data_type_uint64;
+    p_data->raw_data.u64 = u;
     return bus_error_success;
 }
 
@@ -863,6 +887,28 @@ bus_error_t tr_181_t::affap_tget(char *event_name, raw_data_t *p_data, bus_user_
 
     if (em_ctrl != NULL) {
         return em_ctrl->get_dm_ctrl()->affap_tget(event_name, p_data);
+    }
+
+    return bus_error_general;
+}
+
+bus_error_t tr_181_t::ethif_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
+{
+    em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
+
+    if (em_ctrl != NULL) {
+        return em_ctrl->get_dm_ctrl()->ethif_get(event_name, p_data);
+    }
+
+    return bus_error_general;
+}
+
+bus_error_t tr_181_t::ethif_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
+{
+    em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
+
+    if (em_ctrl != NULL) {
+        return em_ctrl->get_dm_ctrl()->ethif_tget(event_name, p_data);
     }
 
     return bus_error_general;
