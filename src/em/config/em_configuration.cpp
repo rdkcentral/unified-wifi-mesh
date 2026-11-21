@@ -4697,16 +4697,69 @@ int em_configuration_t::handle_encrypted_settings(unsigned int wsc_tlv_count, m2
                 em_printfout("##ssid attrib[%d]: %s", wsc_index, radioconfig.ssid[wsc_index]);
                 memcpy(radioconfig.radio_mac[wsc_index], get_radio_interface_mac(), sizeof(mac_address_t));
             } else if (id == attr_id_auth_type) {
-                memcpy(reinterpret_cast<char *> (&auth_type), reinterpret_cast<unsigned char *> (attr->val), htons(attr->len));
+                const unsigned int attr_len =
+                    static_cast<unsigned int>(ntohs(attr->len));
+
+                if (attr_len != sizeof(auth_type)) {
+                    em_printfout("%s:%d Invalid auth_type length %u",
+                                 __func__, __LINE__, attr_len);
+                    return -1;
+                }
+
+                memcpy(&auth_type, attr->val, sizeof(auth_type));
                 auth_type = ntohs(auth_type);
-                radioconfig.authtype[wsc_index] = static_cast<unsigned int>(auth_type);
-                em_printfout("##authtype[%d]: %x", wsc_index, radioconfig.authtype[wsc_index]);
+                radioconfig.authtype[wsc_index] =
+                    static_cast<unsigned int>(auth_type);
+                em_printfout("##authtype[%u]: %x",
+                             wsc_index,
+                             radioconfig.authtype[wsc_index]);
             } else if (id == attr_id_encryption_type) {
                 em_printfout("##encr type attrib for wsc_index:%d", wsc_index);
             } else if (id == attr_id_network_key) {
-                memcpy(pass, attr->val, htons(attr->len));
-                memcpy(radioconfig.password[wsc_index], attr->val, htons(attr->len));
-                em_printfout("##network key[%d]: %s", wsc_index, pass);
+                const unsigned int attr_len =
+                    static_cast<unsigned int>(ntohs(attr->len));
+
+                if (attr_len == 0 ||
+                    attr_len > sizeof(pass) ||
+                    attr_len >
+                        sizeof(radioconfig.password[wsc_index])) {
+                    em_printfout("%s:%d Invalid network key length %u",
+                                 __func__, __LINE__, attr_len);
+                    return -1;
+                }
+
+                /*
+                 * A full 64-byte value is safe only when its final byte
+                 * already provides string termination.
+                 */
+                if (attr_len == sizeof(pass) &&
+                    attr->val[attr_len - 1] != '\0') {
+                    em_printfout("%s:%d Network key is not terminated",
+                                 __func__, __LINE__);
+                    return -1;
+                }
+
+                memset(pass, 0, sizeof(pass));
+                memcpy(pass, attr->val, attr_len);
+
+                memset(radioconfig.password[wsc_index],
+                       0,
+                       sizeof(radioconfig.password[wsc_index]));
+                memcpy(radioconfig.password[wsc_index],
+                       attr->val,
+                       attr_len);
+
+                if (attr_len < sizeof(pass)) {
+                    pass[attr_len] = '\0';
+                }
+
+                if (attr_len <
+                    sizeof(radioconfig.password[wsc_index])) {
+                    radioconfig.password[wsc_index][attr_len] = '\0';
+                }
+
+                em_printfout("##network key[%u] accepted, length:%u",
+                             wsc_index, attr_len);
             } else if (id == attr_id_mac_address) {
                 memcpy(radioconfig.radio_mac[wsc_index], attr->val, sizeof(mac_address_t));
                 em_printfout("##mac address[%d]: %s", wsc_index, util::mac_to_string(radioconfig.radio_mac[wsc_index]).c_str());
