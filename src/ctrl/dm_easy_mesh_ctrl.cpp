@@ -9079,7 +9079,11 @@ bus_error_t dm_easy_mesh_ctrl_t::bss_tget_params(dm_easy_mesh_t *dm, const char 
 
     dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
     unsigned int idx = 0;
-    for (unsigned int i = 0; i < dm->get_num_bss(); i++) {
+    unsigned int num_bss = dm->get_num_bss();
+    if (num_bss > EM_MAX_BSSS) {
+        num_bss = EM_MAX_BSSS;
+    }
+    for (unsigned int i = 0; i < num_bss; i++) {
         dm_bss_t *bss = dm->get_bss(i);
         if (bss == NULL) {
             continue;
