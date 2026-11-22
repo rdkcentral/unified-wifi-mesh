@@ -419,13 +419,22 @@ bool dm_sta_list_t::compare_db(db_client_t& db_client, const dm_sta_t& sta)
     while (db_client.next_result(ctx)) {
         memset(&info, 0, sizeof(em_sta_info_t));
 
-        db_client.get_string(ctx, mac, 1);
+	mac[0] = '\0';
+        if (db_client.get_string_length(ctx, 1) < sizeof(mac)) {
+            db_client.get_string(ctx, mac, 1);
+        }
         dm_easy_mesh_t::string_to_macbytes(mac, info.id);
 
-        db_client.get_string(ctx, mac, 2);
+        mac[0] = '\0';
+        if (db_client.get_string_length(ctx, 2) < sizeof(mac)) {
+            db_client.get_string(ctx, mac, 2);
+        }
         dm_easy_mesh_t::string_to_macbytes(mac, info.bssid);
 
-        db_client.get_string(ctx, mac, 3);
+        mac[0] = '\0';
+        if (db_client.get_string_length(ctx, 3) < sizeof(mac)) {
+            db_client.get_string(ctx, mac, 3);
+        }
         dm_easy_mesh_t::string_to_macbytes(mac, info.radiomac);
 
         info.associated = db_client.get_number(ctx, 4);
