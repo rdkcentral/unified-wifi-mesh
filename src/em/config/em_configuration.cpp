@@ -1947,6 +1947,60 @@ int em_configuration_t::handle_bsta_mld_config_req(unsigned char *buff, unsigned
 	return 0;
 }
 
+static inline bool em_media_type_is_wireless(unsigned short media_type)
+{
+    return (media_type >= em_media_type_ieee80211b_24) && (media_type < em_media_type_max);
+}
+
+// interface: 0x00 = AP, 0x40 = non-AP non-PCP STA.
+#define EM_MEDIA_SPEC_ROLE_NON_AP_STA 0x40
+
+int em_configuration_t::handle_device_info_type(unsigned char *buff, unsigned int len)
+{
+    dm_easy_mesh_t *dm = get_data_model();
+    if ((buff == NULL) || (dm == NULL) || (len < sizeof(em_device_info_type_t))) {
+        em_printfout("Invalid Device Info TLV: buff:%p dm:%p len:%u", buff, dm, len);
+        return -1;
+    }
+    em_device_info_type_t *dev_info = reinterpret_cast<em_device_info_type_t *>(buff);
+    unsigned char *ptr = reinterpret_cast<unsigned char *>(dev_info->local_interface);
+    unsigned char *end = buff + len;
+    dm->m_num_backhaul_sta_candidates = 0;
+    memset(dm->m_backhaul_sta_candidates, 0, sizeof(dm->m_backhaul_sta_candidates));
+
+    // Find the interface reporting a non-AP STA role over 802.11 -- that's this agent's backhaul STA MAC.
+    for (unsigned char i = 0; i < dev_info->local_interface_num && dm->m_num_backhaul_sta_candidates < EM_MAX_BH_STA_CANDIDATES; i++) {
+        if ((ptr + sizeof(mac_address_t) + sizeof(unsigned short) + sizeof(unsigned char)) > end) {
+            break;
+        }
+        em_local_interface_t *local_if = reinterpret_cast<em_local_interface_t *>(ptr);
+        unsigned short media_type = ntohs(local_if->media_data.media_type);
+        unsigned char media_spec_size = local_if->media_data.media_spec_size;
+        unsigned char *media_spec_start = ptr + sizeof(mac_address_t) + sizeof(unsigned short) + sizeof(unsigned char);
+
+        if ((media_spec_start + media_spec_size) > end) {
+           break;
+        }
+
+        if (em_media_type_is_wireless(media_type) && media_spec_size >= (sizeof(em_media_spec_data_t) - sizeof(unsigned short) - sizeof(unsigned char))) {
+            if (local_if->media_data.role == EM_MEDIA_SPEC_ROLE_NON_AP_STA) {
+                unsigned char idx = dm->m_num_backhaul_sta_candidates;
+                em_bh_sta_candidate_t *cand = &dm->m_backhaul_sta_candidates[idx];
+                memcpy(cand->sta_mac, local_if->mac_addr, sizeof(mac_address_t));
+                memcpy(cand->bssid, local_if->media_data.network_memb, sizeof(mac_address_t));
+                cand->media_type = static_cast<em_media_type_t>(media_type);
+                dm->m_num_backhaul_sta_candidates++;
+                em_printfout("Device Info TLV: found non-AP STA role interface[%u] mac:%s media_type:0x%04x "
+                        "network_memb(bssid):%s, adding as backhaul sta candidate",
+                        idx, util::mac_to_string(cand->sta_mac).c_str(), media_type,util::mac_to_string(cand->bssid).c_str());
+            }
+        }
+        ptr = media_spec_start + media_spec_size;
+    }
+
+    return 0;
+}
+
 int em_configuration_t::handle_bsta_radio_cap(unsigned char *buff, unsigned int len)
 {
     dm_easy_mesh_t *dm = get_data_model();
@@ -2167,6 +2221,7 @@ int em_configuration_t::handle_topology_response(unsigned char *buff, unsigned i
     unsigned int assoc_sta_mld_count = 0;
     em_profile_type_t profile = em_profile_type_reserved;
 	dm_easy_mesh_t *dm;
+    em_t *al_em = nullptr;
     em_raw_hdr_t *hdr = reinterpret_cast<em_raw_hdr_t *>(buff);
     uint8_t *src_al_mac = hdr->src;
     
@@ -2207,7 +2262,7 @@ int em_configuration_t::handle_topology_response(unsigned char *buff, unsigned i
         em_printfout("topology response msg validation failed, ignoring message");
         return -1;
     }
-        
+
     tlv =  reinterpret_cast<em_tlv_t *> (buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
     tmp_len = len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
 
@@ -2253,7 +2308,28 @@ int em_configuration_t::handle_topology_response(unsigned char *buff, unsigned i
             return rc;
         }
 
+    // Device Info TLV (0x03) is mandatory -- parse it to obtain non-AP STA candidates
+    // for backhaul resolution when the agent doesn't send the vendor Operational BSS TLV.
+    tlv = reinterpret_cast<em_tlv_t *> (buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+    tmp_len = len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+    while (tmp_len >= sizeof(em_tlv_t)) {
+        unsigned short cur_tlv_len = ntohs(tlv->len);
+        if (((tmp_len - sizeof(em_tlv_t)) < cur_tlv_len) || tlv->type == em_tlv_type_eom) {
+            break;
+        }
 
+        if (tlv->type != em_tlv_type_device_info) {
+            tmp_len -= static_cast<unsigned int> (sizeof(em_tlv_t) + htons(tlv->len));
+            tlv = reinterpret_cast <em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
+            continue;
+        } else {
+            handle_device_info_type(tlv->value, htons(tlv->len));
+            break;
+        }
+    }
+
+    tlv = reinterpret_cast<em_tlv_t *> (buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+    tmp_len = len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
     while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
         if (tlv->type != em_tlv_type_bss_conf_rep) {
             tmp_len -= static_cast<unsigned int> (sizeof(em_tlv_t) + htons(tlv->len));
@@ -2278,6 +2354,9 @@ int em_configuration_t::handle_topology_response(unsigned char *buff, unsigned i
         tmp_len = len - static_cast<unsigned int>(sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
     }
 
+    tlv = reinterpret_cast<em_tlv_t *> (buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+    tmp_len = len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+
     while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
         if (tlv->type != em_tlv_type_bh_sta_radio_cap) {
             tmp_len -= static_cast<unsigned int> (sizeof(em_tlv_t) + htons(tlv->len));
@@ -2289,6 +2368,8 @@ int em_configuration_t::handle_topology_response(unsigned char *buff, unsigned i
         }
     }
 
+    tlv = reinterpret_cast<em_tlv_t *> (buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+    tmp_len = len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
     while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
         if (tlv->type != em_tlv_type_ap_mld_config) {
             tmp_len -= static_cast<unsigned int> (sizeof(em_tlv_t) + htons(tlv->len));
