@@ -419,7 +419,7 @@ bool dm_sta_list_t::compare_db(db_client_t& db_client, const dm_sta_t& sta)
     while (db_client.next_result(ctx)) {
         memset(&info, 0, sizeof(em_sta_info_t));
 
-	/ A MAC column that does not fit mac[] is not a valid MAC: skip the whole row (string_to_macbytes() would copy
+        // A MAC column that does not fit mac[] is not a valid MAC: skip the whole row (string_to_macbytes() would copy
         // uninitialised bytes into the comparison data for an empty string)
         if ((db_client.get_string_length(ctx, 1) >= sizeof(mac)) ||
             (db_client.get_string_length(ctx, 2) >= sizeof(mac)) ||
