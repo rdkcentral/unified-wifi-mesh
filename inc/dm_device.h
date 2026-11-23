@@ -87,7 +87,7 @@ public:
 	 *
 	 * @note Ensure the cJSON object is properly initialized before calling this function.
 	 */
-	void encode(cJSON *obj, bool summary = false);
+	void encode(cJSON *obj, bool summary = false, bool skip_model = false);
 
     
 	/**!

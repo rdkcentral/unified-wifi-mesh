@@ -620,9 +620,11 @@ public:
 	 * @param[in] key A string representing the key associated with the operational class.
 	 * @param[in] op_class A pointer to a dm_op_class_t structure containing the operational class data.
 	 *
+	 * @returns 0 on success, -1 if a new operational class cannot be stored because the table is full.
+	 *
 	 * @note Ensure that the key is unique to avoid overwriting existing operational class data.
 	 */
-	void put_op_class(const char *key, const dm_op_class_t *op_class);
+	int put_op_class(const char *key, const dm_op_class_t *op_class);
 	
 	/**!
 	* @brief Retrieves the first pre-set operation class of a specified type.

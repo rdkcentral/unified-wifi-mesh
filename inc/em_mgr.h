@@ -447,7 +447,8 @@ public:
         return false;
     }
 
-    
+	virtual bool request_runtime_tx_power(const unsigned char *, int *) {return false;}
+
 	/**!
 	 * @brief Finds the EM for a given message type.
 	 *
@@ -591,6 +592,15 @@ public:
 	 * @note This function does not take any parameters and does not return any value.
 	 */
 	virtual void publish_network_topology() = 0;
+
+	/**!
+	 * @brief Requests the X_AIRTIES_MetricsUpdated event for a data model.
+	 *
+	 * @param[in] dm The data model an AP Metrics Response was stored in.
+	 *
+	 * @note Only the controller publishes the event; the default does nothing.
+	 */
+	virtual void publish_metrics_updated(dm_easy_mesh_t *dm) { (void) dm; }
     
 	/**!
 	 * @brief Retrieves the first data model from the list.
@@ -722,6 +732,7 @@ public:
 	virtual em_service_type_t get_service_type() = 0;
 
 	virtual void handle_failed_conn_msg(unsigned char *data, unsigned int len) {}
+	virtual void handle_client_disassoc_stats_msg(unsigned char *data, unsigned int len) {}
 
 	/**!
 	 * @brief Processes an event.

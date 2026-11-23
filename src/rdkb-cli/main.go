@@ -4019,7 +4019,7 @@ func loadTopologyFromDeviceTree(w  http.ResponseWriter) {
             return
         }
 
-        radioList := parseRadioList(deviceNode.child[2])
+        radioList := parseRadioList(getChildByKey(deviceNode, "RadioList"))
         haulTypes := buildHaulTypes(radioList)
 
         backhaulMacAddr := getTreeValue(backhaulTree, "MACAddress")
@@ -4079,7 +4079,7 @@ func loadTopologyFromDeviceTree(w  http.ResponseWriter) {
             channel := 0
 
             // parse the band with extender connected
-            band, channel = getBandAndChannelFromRadioTree(child.child[2])
+            band, channel = getBandAndChannelFromRadioTree(getChildByKey(child, "RadioList"))
 
            edges = append(edges, map[string]interface{}{
                 "from":     deviceID,
@@ -4331,6 +4331,9 @@ func parseRadioList(tree *C.em_network_node_t) []Radio {
  * returns: band
  */
 func getBandAndChannelFromRadioTree(node *C.em_network_node_t) (int, int) {
+    if node == nil {
+        return -1, 0
+    }
 
     // Iterate through the radiolist child
     for i := 0; i < int(node.num_children); i++ {
@@ -4407,6 +4410,26 @@ func buildHaulTypes(radioList []Radio) []HaulTypeVisual {
     return haulTypes
 }
 
+/* func: getChildByKey()
+ * Description:
+ * returns the direct child of the node with exactly the given key, so the lookup
+ * does not depend on the position of the key or descend into other devices.
+ * returns: child node, nil if there is no such child
+ */
+func getChildByKey(node *C.em_network_node_t, key string) *C.em_network_node_t {
+    if node == nil {
+        return nil
+    }
+
+    for i := 0; i < int(node.num_children); i++ {
+        child := node.child[i]
+        if child != nil && C.GoString(&child.key[0]) == key {
+            return child
+        }
+    }
+    return nil
+}
+
 /* func: parseSTA()
  * Description:
  * this function Parse the necessary info from STA node and set the STA struct
@@ -4420,10 +4443,20 @@ func parseSTA(node *C.em_network_node_t) STA {
     } else {
         associated =  false
     }
+
+    // The controller reports the client type as deviceModel, "unknown" when it is not known
+    clientType := getTreeValue(node, "deviceModel")
+    if clientType == "unknown" {
+        clientType = ""
+    }
+    if clientType == "" {
+        clientType = getTreeValue(node, "ClientType")
+    }
+
     return STA{
         MACAddress: getTreeValue(node, "MACAddress"),
         MLDAddr:    getTreeValue(node, "MLDAddr"),
-        ClientType: getTreeValue(node, "ClientType"),
+        ClientType: clientType,
         SSID:       getTreeValue(node, "SSID"),
         Associated: associated,
     }

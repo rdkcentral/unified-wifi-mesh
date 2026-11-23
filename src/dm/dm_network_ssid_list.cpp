@@ -114,12 +114,14 @@ int dm_network_ssid_list_t::analyze_config(const cJSON *obj_arr, void *parent_id
 int dm_network_ssid_list_t::set_config(db_client_t& db_client, dm_network_ssid_t& net_ssid, void *parent_id)
 {
     dm_orch_type_t op;
-    
-    //printf("%s:%d: Enter: Network SSID: %s\n", __func__, __LINE__, (char *)parent_id);
-    
-    update_db(db_client, (op = get_dm_orch_type(net_ssid)), net_ssid.get_network_ssid_info());
+
+    em_printfout("SSID_TRACE: NetworkSSIDList set_config: ssid: %s, parent_id: %s", net_ssid.m_network_ssid_info.ssid, static_cast<char *>(parent_id));
+
+    if (update_db(db_client, (op = get_dm_orch_type(net_ssid)), net_ssid.get_network_ssid_info()) != 0) {
+        return -1;
+    }
     update_list(net_ssid, op);
-    //printf("%s:%d: Exit: Network SSID: %s\n", __func__, __LINE__, (char *)parent_id);
+    em_printfout("SSID_TRACE: NetworkSSIDList set_config done: ssid: %s, op: %d", net_ssid.m_network_ssid_info.ssid, op);
     return 0;
 }
 
@@ -133,11 +135,16 @@ int dm_network_ssid_list_t::set_config(db_client_t& db_client, const cJSON *obj_
 
     size = cJSON_GetArraySize(obj_arr);
 
+    em_printfout("SSID_TRACE: NetworkSSIDList set_config from JSON: %d ssid entries for parent_id: %s", size, static_cast<char *>(parent_id));
+
     for (i = 0; i < size; i++) {
         obj = cJSON_GetArrayItem(obj_arr, i);
 		network_ssid.decode(obj, parent_id);
-		update_db(db_client, (op = get_dm_orch_type(network_ssid)), network_ssid.get_network_ssid_info());
+        if (update_db(db_client, (op = get_dm_orch_type(network_ssid)), network_ssid.get_network_ssid_info()) != 0) {
+            return -1;
+        }
 		update_list(network_ssid, op);
+		em_printfout("SSID_TRACE: NetworkSSIDList[%d] ssid: %s, op: %d", i, network_ssid.m_network_ssid_info.ssid, op);
     }
 
     return 0;
@@ -166,18 +173,14 @@ dm_orch_type_t dm_network_ssid_list_t::get_dm_orch_type(const dm_network_ssid_t&
 
 void dm_network_ssid_list_t::update_list(const dm_network_ssid_t& net_ssid, dm_orch_type_t op)
 {
-	dm_network_ssid_t *pnet_ssid;
+	em_printfout("SSID_TRACE: NetworkSSIDList update_list: id: %s, ssid: %s, op: %d", net_ssid.m_network_ssid_info.id, net_ssid.m_network_ssid_info.ssid, op);
 
 	switch (op) {
 		case dm_orch_type_db_insert:
+		case dm_orch_type_db_update:
             put_network_ssid(net_ssid.m_network_ssid_info.id, &net_ssid);
             break;
 
-		case dm_orch_type_db_update:
-            pnet_ssid = get_network_ssid(net_ssid.m_network_ssid_info.id);
-            memcpy(&pnet_ssid->m_network_ssid_info, &net_ssid.m_network_ssid_info, sizeof(em_network_ssid_info_t));
-			break;
-		
 		case dm_orch_type_db_delete:
             remove_network_ssid(net_ssid.m_network_ssid_info.id);
             break;
@@ -325,6 +328,9 @@ int dm_network_ssid_list_t::update_db(db_client_t& db_client, dm_orch_type_t op,
 {
     mac_addr_str_t mac_str;
     em_network_ssid_info_t *info = static_cast<em_network_ssid_info_t *> (data);
+    if (prepare_db_operation(db_client, op) != 0) {
+        return -1;
+    }
 	int ret = 0;
 	em_long_string_t	bands, hauls, akms;
     em_string_t	haul_str;
