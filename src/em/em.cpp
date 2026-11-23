@@ -2765,20 +2765,25 @@ int em_t::handle_wifi6_cap_tlv(unsigned char *buff)
     return 0;
 }
 
-int em_t::handle_wifi7_agent_cap_tlv(unsigned char *buff)
+int em_t::handle_wifi7_agent_cap_tlv(unsigned char *buff, unsigned int len)
 {
     unsigned char *tmp = buff;
-    short offset = 0;
+    size_t offset = 0;
     dm_easy_mesh_t *dm = get_data_model();
     em_wifi7_mlo_cap_support_tlv_t *mlo_support = NULL;
     unsigned char *num_records = NULL;
     em_wifi7_freq_record_tlv_t *record = NULL;
     em_wifi7_agent_cap_t *em_wifi7_cap = NULL;
+    size_t validated_offset, records_size;
+    unsigned int cap_idx, group, count, record_idx;
+    dm_radio_t *radio = NULL;
+    em_radio_cap_info_t *cap_info = NULL;
 
     em_wifi7_cap_link_info_tlv_t *link_info = reinterpret_cast<em_wifi7_cap_link_info_tlv_t *>(tmp);
-    if ((link_info == NULL)) {
-        em_printfout("No data Found");
-        return 0;
+    if (link_info == NULL || dm == NULL ||
+        len < sizeof(em_wifi7_cap_link_info_tlv_t) + sizeof(unsigned char)) {
+        em_printfout("Invalid Wi-Fi 7 capability TLV");
+        return -1;
     }
 
     offset += static_cast<short>(sizeof(em_wifi7_cap_link_info_tlv_t));
@@ -2790,23 +2795,66 @@ int em_t::handle_wifi7_agent_cap_tlv(unsigned char *buff)
     offset += static_cast<short>(sizeof(unsigned char));
 
     if (dm != NULL) {
-        unsigned int dm_num_radios = dm->get_num_radios();
         if (num_radios > EM_MAX_RADIO_PER_AGENT) {
             em_printfout("Clamping num_radios from %u to EM_MAX_RADIO_PER_AGENT (%d)", num_radios, EM_MAX_RADIO_PER_AGENT);
             num_radios = EM_MAX_RADIO_PER_AGENT;
         }
-        if (num_radios > dm_num_radios) {
-            em_printfout("Clamping num_radios from %u to dm->get_num_radios() (%u)", num_radios, dm_num_radios);
-            num_radios = dm_num_radios;
+    }
+
+    // Validate the records before following their embedded lengths.
+    validated_offset = offset;
+    for (unsigned int idx = 0; idx < num_radios; idx++) {
+        if (len - validated_offset < sizeof(em_wifi7_mlo_cap_support_tlv_t)) {
+            em_printfout("Truncated Wi-Fi 7 MLO support record %u", idx);
+            return -1;
+        }
+        validated_offset += sizeof(em_wifi7_mlo_cap_support_tlv_t);
+        for (group = 0; group < 8; group++) {
+            if (validated_offset >= len) {
+                em_printfout("Missing Wi-Fi 7 frequency record count for radio %u", idx);
+                return -1;
+            }
+            count = buff[validated_offset++];
+            records_size = static_cast<size_t>(count) * sizeof(em_wifi7_freq_record_tlv_t);
+            if (count > EM_MAX_FREQ_RECORDS_PER_RADIO || records_size > len - validated_offset) {
+                em_printfout("Invalid Wi-Fi 7 frequency records for radio %u", idx);
+                return -1;
+            }
+            validated_offset += records_size;
         }
     }
 
     for (unsigned int idx = 0; idx < num_radios; idx++) {
-        em_wifi7_cap = &dm->get_radio_cap_info(idx)->wifi7_cap;
-        em_printfout("Updating wifi7 cap for radio[%u]:%s", idx, util::mac_to_string(dm->get_radio_cap_info(idx)->ruid.mac).c_str());
-
-        // Extract MLO support info
         mlo_support = reinterpret_cast<em_wifi7_mlo_cap_support_tlv_t *>(buff + offset);
+
+        // Bind this record to the radio named by its embedded RUID, not by report order.
+        for (cap_idx = 0; cap_idx < dm->get_num_radios(); cap_idx++) {
+            radio = dm->get_radio(cap_idx);
+            if (radio != NULL &&
+                memcmp(radio->m_radio_info.intf.mac, mlo_support->ruid, sizeof(mac_address_t)) == 0) {
+                break;
+            }
+        }
+        if (cap_idx == dm->get_num_radios()) {
+            em_printfout("Skipping wifi7 capability record %u: unknown RUID %s", idx,
+                util::mac_to_string(mlo_support->ruid).c_str());
+            offset += static_cast<short>(sizeof(em_wifi7_mlo_cap_support_tlv_t));
+            for (record_idx = 0; record_idx < 8; record_idx++) {
+                num_records = reinterpret_cast<unsigned char *>(buff + offset);
+                offset += sizeof(unsigned char) +
+                    *num_records * sizeof(em_wifi7_freq_record_tlv_t);
+            }
+            continue;
+        }
+        cap_info = dm->get_radio_cap_info(cap_idx);
+        if (cap_info == NULL) {
+            em_printfout("No radio cap slot for wifi7 record %u", idx);
+            return -1;
+        }
+        memcpy(cap_info->ruid.mac, mlo_support->ruid, sizeof(mac_address_t));
+        em_wifi7_cap = &cap_info->wifi7_cap;
+        em_printfout("Updating wifi7 cap for radio[%u]:%s", cap_idx, util::mac_to_string(cap_info->ruid.mac).c_str());
+
         memcpy(&em_wifi7_cap->mlo_cap_support, mlo_support, sizeof(em_wifi7_mlo_cap_support_tlv_t));
         offset += static_cast<short>(sizeof(em_wifi7_mlo_cap_support_tlv_t));
 

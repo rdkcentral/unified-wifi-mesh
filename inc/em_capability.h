@@ -338,7 +338,7 @@ class em_capability_t {
 	virtual short create_airties_radio_capability_tlv(unsigned char *buff) = 0;
 
 	virtual int handle_wifi6_cap_tlv(unsigned char *buff) = 0;
-	virtual int handle_wifi7_agent_cap_tlv(unsigned char *buff) = 0;
+	virtual int handle_wifi7_agent_cap_tlv(unsigned char *buff, unsigned int len) = 0;
     
 	/**!
 	 * @brief Creates a WiFi 7 TLV (Type-Length-Value) structure.

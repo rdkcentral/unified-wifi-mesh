@@ -1142,7 +1142,7 @@ public:
 	short create_airties_radio_capability_tlv(unsigned char *buff);
 
 	int handle_wifi6_cap_tlv(unsigned char *buff);
-	int handle_wifi7_agent_cap_tlv(unsigned char *buff);
+	int handle_wifi7_agent_cap_tlv(unsigned char *buff, unsigned int len);
 
 	/**!
 	 * @brief Retrieves the manufacturer information.

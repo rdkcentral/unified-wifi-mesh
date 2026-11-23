@@ -1635,7 +1635,9 @@ int em_capability_t::handle_early_ap_cap_report(unsigned char *buff, unsigned in
         }
         else if (tlv->type == em_tlv_type_wifi7_agent_cap){
             em_printfout("Received wifi7 Capability TLV");
-            handle_wifi7_agent_cap_tlv(tlv->value);
+            if (handle_wifi7_agent_cap_tlv(tlv->value, ntohs(tlv->len)) < 0) {
+                return -1;
+            }
         }
         else if (tlv->type == em_tlv_eht_operations){
             handle_eht_operations_tlv(tlv->value, ntohs(tlv->len));
@@ -1988,7 +1990,9 @@ int em_capability_t::handle_ap_cap_report(unsigned char *buff, unsigned int len)
         }
         else if (tlv->type == em_tlv_type_wifi7_agent_cap){
             em_printfout("Received wifi7 Capability TLV");
-            handle_wifi7_agent_cap_tlv(tlv->value);
+            if (handle_wifi7_agent_cap_tlv(tlv->value, ntohs(tlv->len)) < 0) {
+                return -1;
+            }
         }
         else if (tlv->type == em_tlv_eht_operations){
             handle_eht_operations_tlv(tlv->value, ntohs(tlv->len));
