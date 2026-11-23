@@ -2869,6 +2869,7 @@ typedef struct {
     bool  nstr;
     bool  emlsr;
     bool  emlmr;
+    // Haul type of this MLD's SSID; part of the AP MLD hash map key (AL MAC + haul type).
     em_haul_type_t  haul_type;
     unsigned char  num_affiliated_ap;
     em_affiliated_ap_info_t  affiliated_ap[EM_MAX_AP_MLD];
