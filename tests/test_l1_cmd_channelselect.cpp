@@ -40,6 +40,9 @@ protected:
     static void SetUpTestSuite() {
         __lsan_disable();
         em_ctrl_t *ctrl = em_ctrl_t::get_em_ctrl_instance();
+        /* the no-DB init() bootstraps the controller network from the AL MAC, which is all zero on a fresh controller */
+        static const unsigned char al_mac[6] = { 0x02, 0x00, 0x00, 0x00, 0x00, 0xf0 };
+        memcpy(ctrl->get_dm_ctrl()->get_dev_interface()->mac, al_mac, sizeof(al_mac));
         ASSERT_EQ(ctrl->get_dm_ctrl()->init(":memory:", ctrl, db_client_type_none), 0);
         unsigned char mac[6] = { 0x02, 0x00, 0x00, 0x00, 0x00, 0x0a };
         dm_device_t device;
