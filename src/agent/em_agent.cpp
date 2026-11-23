@@ -2823,6 +2823,11 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
             em_printfout("Sending Unassoc STA Link Metrics response");
             break;
 
+        case em_msg_type_link_metric_resp:
+            /* Forwarded by the 1905 stack to every application, only the controller consumes it */
+            em = NULL;
+            break;
+
         default:
             em_printfout("Frame: %d not handled in agent", htons(cmdu->type));
             em = NULL;

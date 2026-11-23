@@ -1763,6 +1763,7 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
             break;
 
         case em_msg_type_topo_resp:
+        case em_msg_type_link_metric_resp:
         case em_msg_type_ap_cap_rprt:
         case em_msg_type_channel_pref_rprt:
             if ((dm = get_data_model(GLOBAL_NET_ID, const_cast<const unsigned char *>(hdr->src))) == NULL) {

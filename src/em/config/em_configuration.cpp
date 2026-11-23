@@ -2163,6 +2163,273 @@ void em_configuration_t::set_peer_profile(const mac_address_t al_mac, em_profile
     }
 }
 
+static unsigned long link_now_sec()
+{
+    struct timespec ts;
+
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return static_cast<unsigned long>(ts.tv_sec);
+}
+
+int em_configuration_t::handle_link_metric_response(unsigned char *buff, unsigned int len)
+{
+    const unsigned int hdr_len = static_cast<unsigned int>(sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+    const unsigned int tlv_hdr_len = 2 * static_cast<unsigned int>(sizeof(mac_address_t));
+    em_raw_hdr_t *hdr = reinterpret_cast<em_raw_hdr_t *>(buff);
+    em_device_info_t *di = &get_data_model()->m_device.m_device_info;
+    em_link_pair_t pairs[EM_MAX_LINK_PAIRS];
+    unsigned int num_pairs = 0;
+    unsigned int tmp_len;
+    em_tlv_t *tlv;
+
+    if (len <= hdr_len) {
+        em_printfout("Link metric response too short, len:%u", len);
+        return -1;
+    }
+
+    tlv = reinterpret_cast<em_tlv_t *>(buff + hdr_len);
+    tmp_len = len - hdr_len;
+
+    while ((tmp_len >= sizeof(em_tlv_t)) && (tlv->type != em_tlv_type_eom)) {
+        unsigned int tlv_len = ntohs(tlv->len);
+
+        if (tlv_len + sizeof(em_tlv_t) > tmp_len) {
+            em_printfout("Link metric response has a truncated TLV, type:%d len:%u", tlv->type, tlv_len);
+            return -1;
+        }
+
+        if (tlv->type == em_tlv_type_transmitter_link_metric) {
+            if ((tlv_len < tlv_hdr_len) || (((tlv_len - tlv_hdr_len) % sizeof(em_tx_link_metric_entry_t)) != 0)) {
+                em_printfout("Invalid transmitter link metric TLV length:%u, skipping", tlv_len);
+            } else {
+                unsigned char *neigh_al = tlv->value + sizeof(mac_address_t);
+                unsigned char *entry = tlv->value + tlv_hdr_len;
+                unsigned int num_entries = (tlv_len - tlv_hdr_len) / static_cast<unsigned int>(sizeof(em_tx_link_metric_entry_t));
+
+                for (unsigned int i = 0; (i < num_entries) && (num_pairs < EM_MAX_LINK_PAIRS); i++) {
+                    em_tx_link_metric_entry_t e;
+                    memcpy(&e, entry + i * sizeof(em_tx_link_metric_entry_t), sizeof(e));
+
+                    memcpy(pairs[num_pairs].neigh_al_mac, neigh_al, sizeof(mac_address_t));
+                    memcpy(pairs[num_pairs].local_if_mac, e.local_interface_addr, sizeof(mac_address_t));
+                    memcpy(pairs[num_pairs].neigh_if_mac, e.neigh_interface_addr, sizeof(mac_address_t));
+                    pairs[num_pairs].intf_type = ntohs(e.intf_type);
+
+                    em_printfout("Link of %s: neigh_al:%s local_if:%s neigh_if:%s intf_type:0x%04x",
+                        util::mac_to_string(hdr->src).c_str(), util::mac_to_string(pairs[num_pairs].neigh_al_mac).c_str(),
+                        util::mac_to_string(pairs[num_pairs].local_if_mac).c_str(),
+                        util::mac_to_string(pairs[num_pairs].neigh_if_mac).c_str(), pairs[num_pairs].intf_type);
+                    num_pairs++;
+                }
+            }
+        }
+
+        tmp_len -= static_cast<unsigned int>(sizeof(em_tlv_t)) + tlv_len;
+        tlv = reinterpret_cast<em_tlv_t *>(reinterpret_cast<unsigned char *>(tlv) + sizeof(em_tlv_t) + tlv_len);
+    }
+
+    memcpy(di->link_pairs, pairs, num_pairs * sizeof(em_link_pair_t));
+    di->num_link_pairs = static_cast<unsigned char>(num_pairs);
+    di->link_pairs_time = link_now_sec();
+
+    build_link_topology(get_mgr());
+
+    return 0;
+}
+
+void em_configuration_t::build_link_topology(em_mgr_t *mgr)
+{
+    // alias: the colocated agent's data model, same 1905 device as the controller
+    struct node_t {
+        dm_easy_mesh_t *dm;
+        dm_easy_mesh_t *alias;
+        int depth;
+    };
+    struct edge_t {
+        int a;
+        int b;
+        mac_address_t a_al;
+        mac_address_t b_al;
+        mac_address_t a_if;
+        mac_address_t b_if;
+        unsigned short intf_type;
+        int reporter;
+    };
+    std::vector<node_t> nodes;
+    std::vector<edge_t> edges;
+    std::vector<int> queue;
+    dm_easy_mesh_t *colocated_dm = NULL;
+    int root = -1;
+
+    if (mgr == NULL) {
+        return;
+    }
+
+    auto find_node = [&nodes](const unsigned char *al_mac) -> int {
+        for (size_t i = 0; i < nodes.size(); i++) {
+            if ((memcmp(nodes[i].dm->get_agent_al_interface_mac(), al_mac, sizeof(mac_address_t)) == 0) ||
+                ((nodes[i].alias != NULL) && (memcmp(nodes[i].alias->get_agent_al_interface_mac(), al_mac, sizeof(mac_address_t)) == 0))) {
+                return static_cast<int>(i);
+            }
+        }
+        return -1;
+    };
+
+    for (dm_easy_mesh_t *dm = mgr->get_first_dm(); dm != NULL; dm = mgr->get_next_dm(dm)) {
+        if (dm->get_colocated()) {
+            colocated_dm = dm;
+            continue;
+        }
+        if (find_node(dm->get_agent_al_interface_mac()) >= 0) {
+            continue;
+        }
+        if (dm->is_controller()) {
+            root = static_cast<int>(nodes.size());
+        }
+        nodes.push_back({dm, NULL, -1});
+    }
+
+    if (root < 0) {
+        em_printfout("Controller data model not found, skipping link topology");
+        return;
+    }
+    nodes[root].alias = colocated_dm;
+
+    unsigned long now = link_now_sec();
+    for (size_t i = 0; i < nodes.size(); i++) {
+        dm_easy_mesh_t *reporters[2] = {nodes[i].dm, nodes[i].alias};
+
+        for (dm_easy_mesh_t *reporter : reporters) {
+            if (reporter == NULL) {
+                continue;
+            }
+            em_device_info_t *di = &reporter->m_device.m_device_info;
+
+            // Drop link pairs of agents that stopped answering
+            if ((di->num_link_pairs > 0) && (now - di->link_pairs_time > EM_LINK_PAIRS_MAX_AGE)) {
+                em_printfout("Link pairs of %s are stale, dropping them",
+                    util::mac_to_string(reporter->get_agent_al_interface_mac()).c_str());
+                di->num_link_pairs = 0;
+            }
+
+            for (unsigned int k = 0; k < di->num_link_pairs; k++) {
+                em_link_pair_t *p = &di->link_pairs[k];
+                int j = find_node(p->neigh_al_mac);
+                if ((j < 0) || (j == static_cast<int>(i))) {
+                    continue;
+                }
+
+                edge_t fwd = {static_cast<int>(i), j, {0}, {0}, {0}, {0}, p->intf_type, static_cast<int>(i)};
+                memcpy(fwd.a_al, reporter->get_agent_al_interface_mac(), sizeof(mac_address_t));
+                memcpy(fwd.b_al, p->neigh_al_mac, sizeof(mac_address_t));
+                memcpy(fwd.a_if, p->local_if_mac, sizeof(mac_address_t));
+                memcpy(fwd.b_if, p->neigh_if_mac, sizeof(mac_address_t));
+                edges.push_back(fwd);
+
+                edge_t rev = {j, static_cast<int>(i), {0}, {0}, {0}, {0}, p->intf_type, static_cast<int>(i)};
+                memcpy(rev.a_al, p->neigh_al_mac, sizeof(mac_address_t));
+                memcpy(rev.b_al, reporter->get_agent_al_interface_mac(), sizeof(mac_address_t));
+                memcpy(rev.a_if, p->neigh_if_mac, sizeof(mac_address_t));
+                memcpy(rev.b_if, p->local_if_mac, sizeof(mac_address_t));
+                edges.push_back(rev);
+            }
+        }
+    }
+
+    nodes[root].depth = 0;
+    queue.push_back(root);
+    for (size_t head = 0; head < queue.size(); head++) {
+        int u = queue[head];
+        for (const edge_t &e : edges) {
+            if ((e.a == u) && (nodes[e.b].depth < 0)) {
+                nodes[e.b].depth = nodes[u].depth + 1;
+                queue.push_back(e.b);
+            }
+        }
+    }
+
+    for (node_t &n : nodes) {
+        em_device_info_t *di = &n.dm->m_device.m_device_info;
+        di->num_link_children = 0;
+    }
+
+    for (size_t v = 0; v < nodes.size(); v++) {
+        em_device_info_t *di = &nodes[v].dm->m_device.m_device_info;
+        const edge_t *best = NULL;
+        int best_score = -1;
+
+        for (const edge_t &e : edges) {
+            if ((e.b != static_cast<int>(v)) || (nodes[e.a].depth < 0) || (nodes[e.a].depth != nodes[v].depth - 1)) {
+                continue;
+            }
+
+            int score = 0;
+            if ((di->link_has_parent == true) && (memcmp(di->link_parent_alid, e.a_al, sizeof(mac_address_t)) == 0)) {
+                score += 2;
+            }
+            // Prefer Ethernet, then the previous parent
+            if (e.intf_type <= 0x0001) {
+                score += 4;
+            }
+            if ((best == NULL) || (score > best_score) ||
+                ((score == best_score) && (memcmp(e.a_al, best->a_al, sizeof(mac_address_t)) < 0))) {
+                best = &e;
+                best_score = score;
+            }
+        }
+
+        if (best == NULL) {
+            di->link_has_parent = false;
+            continue;
+        }
+
+        em_device_info_t *parent_di = &nodes[best->a].dm->m_device.m_device_info;
+
+        // A reporter only knows its own interface, the neighbor's is a guess: use each end's own report
+        mac_address_t parent_if, child_if;
+        memcpy(parent_if, best->a_if, sizeof(mac_address_t));
+        memcpy(child_if, best->b_if, sizeof(mac_address_t));
+        for (const edge_t &e : edges) {
+            if ((e.a != best->a) || (e.b != static_cast<int>(v)) ||
+                ((e.intf_type <= 0x0001) != (best->intf_type <= 0x0001))) {
+                continue;
+            }
+            if (e.reporter == e.a) {
+                memcpy(parent_if, e.a_if, sizeof(mac_address_t));
+            } else if (e.reporter == e.b) {
+                memcpy(child_if, e.b_if, sizeof(mac_address_t));
+            }
+        }
+
+        di->link_has_parent = true;
+        memcpy(di->link_parent_alid, best->a_al, sizeof(mac_address_t));
+        memcpy(di->link_parent_if, parent_if, sizeof(mac_address_t));
+        memcpy(di->link_local_if, child_if, sizeof(mac_address_t));
+        di->link_intf_type = best->intf_type;
+
+        if (parent_di->num_link_children < EM_BACKHAUL_DOWNMAC_ADDR) {
+            em_link_child_t *child = &parent_di->link_children[parent_di->num_link_children++];
+            memcpy(child->alid, best->b_al, sizeof(mac_address_t));
+            memcpy(child->if_mac, child_if, sizeof(mac_address_t));
+        }
+
+        em_printfout("Link topology: %s -> parent %s parent_if:%s local_if:%s intf_type:0x%04x depth:%d",
+            util::mac_to_string(best->b_al).c_str(),
+            util::mac_to_string(di->link_parent_alid).c_str(), util::mac_to_string(di->link_parent_if).c_str(),
+            util::mac_to_string(di->link_local_if).c_str(), di->link_intf_type, nodes[v].depth);
+    }
+
+    // Children of the root are also exposed through the colocated agent
+    if (nodes[root].alias != NULL) {
+        em_device_info_t *root_di = &nodes[root].dm->m_device.m_device_info;
+        em_device_info_t *alias_di = &nodes[root].alias->m_device.m_device_info;
+
+        alias_di->num_link_children = root_di->num_link_children;
+        memcpy(alias_di->link_children, root_di->link_children, sizeof(alias_di->link_children));
+        alias_di->link_has_parent = false;
+    }
+}
+
 int em_configuration_t::handle_topology_response(unsigned char *buff, unsigned int len)
 {
     em_tlv_t *tlv;
@@ -6473,6 +6740,12 @@ void em_configuration_t::process_msg(unsigned char *data, unsigned int len)
                     get_em->handle_topology_notification(data, len);
                     break;
                 }
+            }
+            break;
+
+        case em_msg_type_link_metric_resp:
+            if (get_service_type() == em_service_type_ctrl) {
+                handle_link_metric_response(data, len);
             }
             break;
 
