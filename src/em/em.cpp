@@ -377,6 +377,7 @@ void em_t::proto_process(unsigned char *data, unsigned int len)
             break;
 
         case em_msg_type_failed_conn:
+        case em_msg_type_client_disassoc_stats:
             em_metrics_t::process_msg(data, len);
             break;
 
@@ -437,6 +438,18 @@ void em_t::proto_process(em_cmd_event_t *cevt)
                                                failed_conn_evt->reason_code,
                                                failed_conn_evt->reason_code_present);
                 free(failed_conn_evt);
+                cevt->cmd_ptr = NULL;
+            }
+            break;
+        }
+        case em_cmd_event_type_client_disassoc_stats:
+        {
+            em_client_disassoc_stats_evt_data_t *disassoc_evt =
+                static_cast<em_client_disassoc_stats_evt_data_t *>(cevt->cmd_ptr);
+
+            if (disassoc_evt != NULL) {
+                send_client_disassoc_stats_msg(disassoc_evt);
+                free(disassoc_evt);
                 cevt->cmd_ptr = NULL;
             }
             break;
@@ -1835,13 +1848,13 @@ short em_t::create_device_inventory_tlv(unsigned char *buff)
     len += (1 + data_len);
 
     // 3. Environment
-    slen = (info) ? strlen(info->environment) : 0;
-    if (slen > sizeof(info->environment) - 1) slen = sizeof(info->environment) - 1;
+    slen = (info) ? strlen(info->exec_env) : 0;
+    if (slen > sizeof(info->exec_env) - 1) slen = sizeof(info->exec_env) - 1;
     if (slen > EM_INVENTORY_STR_MAX) slen = EM_INVENTORY_STR_MAX;
     data_len = static_cast<unsigned char>(slen);
     *tmp++ = data_len;
     if (data_len > 0) {
-        memcpy(tmp, info->environment, data_len);
+        memcpy(tmp, info->exec_env, data_len);
         tmp += data_len;
     }
     len += (1 + data_len);

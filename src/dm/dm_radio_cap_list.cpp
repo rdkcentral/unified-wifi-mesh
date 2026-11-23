@@ -73,7 +73,9 @@ int dm_radio_cap_list_t::set_config(db_client_t& db_client, const cJSON *obj_arr
     for (i = 0; i < size; i++) {
         obj = cJSON_GetArrayItem(obj_arr, i);
 	radio_cap.decode(obj, parent_id);
-	update_db(db_client, (op = get_dm_orch_type(db_client, radio_cap)), radio_cap.get_radio_cap_info());
+        if (update_db(db_client, (op = get_dm_orch_type(db_client, radio_cap)), radio_cap.get_radio_cap_info()) != 0) {
+            return -1;
+        }
 	update_list(radio_cap, op);
     }
 
@@ -160,6 +162,10 @@ int dm_radio_cap_list_t::update_db(db_client_t& db_client, dm_orch_type_t op, vo
 {
     mac_addr_str_t mac_str;
     em_radio_cap_info_t *info = static_cast<em_radio_cap_info_t *>(data);
+    dm_easy_mesh_t::macbytes_to_string(info->ruid.mac, mac_str);
+    if (prepare_db_operation(db_client, op) != 0) {
+        return -1;
+    }
     int ret = 0;
 
     char wifi7_str[256] = {0};

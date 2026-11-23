@@ -45,6 +45,16 @@
 #include "em_cmd_exec.h"
 #include "em_cmd_client_cap.h"
 
+// Report headers and TLVs other than the frame body.
+constexpr unsigned int EM_CLIENT_CAP_RPT_OVERHEAD = sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t) +
+    (sizeof(em_tlv_t) + 2 * sizeof(mac_address_t)) +
+    (sizeof(em_tlv_t) + sizeof(unsigned char)) +
+    (sizeof(em_tlv_t) + sizeof(unsigned char) + sizeof(mac_address_t)) +
+    sizeof(em_tlv_t);
+constexpr unsigned int EM_CLIENT_CAP_FIT_SZ = EM_MAX_MSG_SZ - EM_CLIENT_CAP_RPT_OVERHEAD;
+constexpr unsigned int EM_CLIENT_CAP_MAX_FRAME_BODY = (EM_CLIENT_CAP_FIT_SZ < EM_MAX_FRAME_BODY_LEN) ?
+    EM_CLIENT_CAP_FIT_SZ : EM_MAX_FRAME_BODY_LEN;
+
 int em_capability_t::send_ap_cap_report_msg(unsigned char *dst, unsigned short msg_id)
 {
     unsigned char buff[MAX_EM_BUFF_SZ * EM_MAX_RADIO_PER_AGENT] = {0};
@@ -535,19 +545,19 @@ short em_capability_t::create_client_cap_tlv(unsigned char *buff, mac_address_t 
     unsigned char *tmp = buff;
     unsigned char res = 0;
     dm_easy_mesh_t *dm;
-    dm_sta_t *dm_sta;
+    std::vector<dm_sta_t> stations;
+    const em_sta_info_t *sta_info = NULL;
 
     dm = get_data_model();
 
-    dm_sta = reinterpret_cast<dm_sta_t *> (hash_map_get_first(dm->m_sta_map));
-    while(dm_sta != NULL) {
-        if (memcmp(dm_sta->get_sta_info()->id, sta, sizeof(mac_address_t)) == 0) {
+    dm->copy_sta_snapshot(stations);
+    for (const dm_sta_t &station : stations) {
+        if (memcmp(station.m_sta_info.id, sta, sizeof(mac_address_t)) == 0) {
+            sta_info = &station.m_sta_info;
             break;
         }
-        dm_sta = reinterpret_cast<dm_sta_t *> (hash_map_get_next(dm->m_sta_map, dm_sta));
     }
-
-    if(dm_sta == NULL) {
+    if (sta_info == NULL) {
         return 0;
     }
 
@@ -556,9 +566,19 @@ short em_capability_t::create_client_cap_tlv(unsigned char *buff, mac_address_t 
     len += static_cast<short> (sizeof(unsigned char));
 
     //frame_body
-    memcpy(tmp, &dm_sta->get_sta_info()->frame_body, dm_sta->get_sta_info()->frame_body_len);
-    tmp += dm_sta->get_sta_info()->frame_body_len;
-    len += static_cast<short> (dm_sta->get_sta_info()->frame_body_len);
+    // The frame body is variable length, but the report is sent as a single frame,
+    // so it is limited to what fits next to the other TLVs of the message.
+    unsigned int frame_body_len = sta_info->frame_body_len;
+    if (frame_body_len > EM_CLIENT_CAP_MAX_FRAME_BODY) {
+        em_printfout("frame_body_len %u exceeds max %u that fits the report, clamping", frame_body_len,
+            static_cast<unsigned int> (EM_CLIENT_CAP_MAX_FRAME_BODY));
+        frame_body_len = EM_CLIENT_CAP_MAX_FRAME_BODY;
+    }
+    if (frame_body_len > 0) {
+        memcpy(tmp, sta_info->frame_body, frame_body_len);
+    }
+    tmp += frame_body_len;
+    len += static_cast<short> (frame_body_len);
 
     return len;
 }
@@ -640,81 +660,34 @@ int em_capability_t::create_bsta_radio_cap_tlv(uint8_t *buff)
 
 int em_capability_t::send_client_cap_report_msg(mac_address_t sta, bssid_t bss, unsigned short msg_id)
 {
-    unsigned char buff[MAX_EM_BUFF_SZ];
+    em_msg_builder_t msg;
     char *errors[EM_MAX_TLV_MEMBERS] = {0};
-    unsigned short  msg_type = em_msg_type_client_cap_rprt;
-    size_t len = 0;
-    em_cmdu_t *cmdu;
-    em_tlv_t *tlv;
-    unsigned char *tmp = buff;
-    short sz = 0;
-    unsigned short type = htons(ETH_P_1905);
     dm_easy_mesh_t *dm = get_data_model();
     mac_addr_str_t mac_str;
 
-    memcpy(tmp, dm->get_ctl_mac(), sizeof(mac_address_t));
-    tmp += sizeof(mac_address_t);
-    len += sizeof(mac_address_t);
-
-    memcpy(tmp, dm->get_agent_al_interface_mac(), sizeof(mac_address_t));
-    tmp += sizeof(mac_address_t);
-    len += sizeof(mac_address_t);
-
-    memcpy(tmp, reinterpret_cast<unsigned char *> (&type), sizeof(unsigned short));
-    tmp += sizeof(unsigned short);
-    len += sizeof(unsigned short);
-
-    cmdu = reinterpret_cast<em_cmdu_t *> (tmp);
-
-    memset(tmp, 0, sizeof(em_cmdu_t));
-    cmdu->type = htons(msg_type);
-    cmdu->id = htons(msg_id);
-    cmdu->last_frag_ind = 1;
-
-    tmp += sizeof(em_cmdu_t);
-    len += sizeof(em_cmdu_t);
+    msg.add_1905_header(dm->get_ctl_mac(), dm->get_agent_al_interface_mac(), em_msg_type_client_cap_rprt, msg_id);
 
     //Client Info  TLV 17.2.18
-    tlv = reinterpret_cast<em_tlv_t *> (tmp);
-    tlv->type = em_tlv_type_client_info;
-    sz = create_client_info_tlv(tlv->value, sta, bss);
-    tlv->len = htons(static_cast<uint16_t> (sz));
-
-    tmp += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
-    len += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+    msg.commit_tlv(em_tlv_type_client_info, create_client_info_tlv(msg.tlv_value(), sta, bss));
 
     //Client Capability Report TLV 17.2.19
-    tlv = reinterpret_cast<em_tlv_t *> (tmp);
-    tlv->type = em_tlv_type_client_cap_report;
-    sz = create_client_cap_tlv(tlv->value, sta, bss);
-    tlv->len = htons(static_cast<uint16_t> (sz));
-
-    tmp += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
-    len += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+    msg.commit_tlv(em_tlv_type_client_cap_report, create_client_cap_tlv(msg.tlv_value(), sta, bss));
 
     //Error code  TLV 17.2.36
-    tlv = reinterpret_cast<em_tlv_t *> (tmp);
-    tlv->type = em_tlv_type_error_code;
-    sz = create_error_code_tlv(tlv->value, sta, bss);
-    tlv->len = htons(static_cast<uint16_t> (sz));
+    msg.commit_tlv(em_tlv_type_error_code, create_error_code_tlv(msg.tlv_value(), sta, bss));
 
-    tmp += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
-    len += (sizeof(em_tlv_t) + static_cast<size_t> (sz));
+    if (msg.add_eom() == false) {
+        em_printfout("Error: Client Capability Report build failed for sta: %s",
+            util::mac_to_string(sta).c_str());
+        return -1;
+    }
 
-    // End of message
-    tlv = reinterpret_cast<em_tlv_t *> (tmp);
-    tlv->type = em_tlv_type_eom;
-    tlv->len = 0;
-
-    tmp += (sizeof (em_tlv_t));
-    len += (sizeof (em_tlv_t));
-
-    if (em_msg_t(em_msg_type_client_cap_rprt, em_profile_type_3, buff, static_cast<unsigned int> (len)).validate(errors) == 0) {
+    if (em_msg_t(em_msg_type_client_cap_rprt, em_profile_type_3, msg.get_buff(), msg.get_len()).validate(errors) == 0) {
         em_printfout("Error: Client Capability Report msg validation failed in tnx end");
         return -1;
     }
 
-    if (send_frame(buff, static_cast<unsigned int> (len))  < 0) {
+    if (send_frame(msg.get_buff(), msg.get_len())  < 0) {
         em_printfout("Error: Client Capability Report msg send failed, error: %d", errno);
         return -1;
     }
@@ -722,7 +695,7 @@ int em_capability_t::send_client_cap_report_msg(mac_address_t sta, bssid_t bss, 
     dm_easy_mesh_t::macbytes_to_string(sta, mac_str);
     em_printfout("Client Capability Report msg sent successfully for sta: %s", mac_str);
 
-    return static_cast<int> (len);
+    return static_cast<int> (msg.get_len());
 }
 
 int em_capability_t::send_ap_cap_query_msg()
@@ -931,27 +904,33 @@ int em_capability_t::send_bsta_cap_report_msg(unsigned short msg_id)
     return static_cast<int> (len);
 }
 
+void em_capability_t::queue_cap_update(const em_sta_info_t &info)
+{
+    em_bus_event_type_sta_cap_update_params_t update = {};
+    memcpy(update.dev, get_data_model()->get_agent_al_interface_mac(), sizeof(mac_address_t));
+    memcpy(update.sta, info.id, sizeof(mac_address_t));
+    memcpy(update.bssid, info.bssid, sizeof(mac_address_t));
+    memcpy(update.radio, info.radiomac, sizeof(mac_address_t));
+    update.frame_body_len = info.frame_body_len;
+    static_assert(sizeof(update) + EM_MAX_FRAME_BODY_LEN <= EM_MAX_EVENT_DATA_LEN,
+        "Station capability updates must fit in the controller queue");
+    std::vector<unsigned char> data(sizeof(update) + info.frame_body_len);
+    memcpy(data.data(), &update, sizeof(update));
+    if (info.frame_body_len > 0) {
+        memcpy(data.data() + sizeof(update), info.frame_body, info.frame_body_len);
+    }
+    get_mgr()->io_process(em_bus_event_type_sta_cap_update, data.data(),
+        static_cast<unsigned int>(data.size()));
+}
+
 int em_capability_t::handle_client_cap_report(unsigned char *buff, unsigned int len)
 {
     unsigned int tmp_len;
     em_tlv_t *tlv;
-    em_sta_info_t sta_info;
-    mac_addr_str_t sta_mac_str, bssid_str, radio_mac_str;
-    mac_addr_str_t link_bssid_str, link_radio_str;
-    em_long_string_t	key;
-    dm_easy_mesh_t  *dm;
-    em_assoc_sta_mld_info_t *assoc_info = NULL;
-    dm_bss_t *aff_bss = NULL;
-    em_sta_info_t link_sta_info;
-    em_long_string_t link_key;
+    em_sta_info_t sta_info = {};
     bool found_client_info = false;
     bool found_cap_report = false;
-    bool updated_any = false;
-    unsigned int i, j, k;
     char *errors[EM_MAX_TLV_MEMBERS] = {0};
-    dm_bss_t *bss = NULL;
-
-    dm = get_data_model();
 
     if (em_msg_t(em_msg_type_client_cap_rprt, em_profile_type_3, buff, len).validate(errors) == 0) {
         em_printfout("Error: Client Capability Report msg validation failed");
@@ -965,21 +944,6 @@ int em_capability_t::handle_client_cap_report(unsigned char *buff, unsigned int 
             memset(&sta_info, 0, sizeof(em_sta_info_t));
             memcpy(sta_info.bssid, tlv->value, sizeof(mac_address_t));
             memcpy(sta_info.id, tlv->value + sizeof(mac_address_t), sizeof(mac_address_t));
-            // Resolve the radio MAC from the BSSID so the key is correct regardless
-            // of which EM instance handled this message.
-            bool radio_found = false;
-            for (unsigned int r = 0; r < dm->get_num_radios() && !radio_found; r++) {
-                bss = dm->get_bss(dm->get_radio_info(r)->id.ruid, sta_info.bssid);
-                if (bss != NULL) {
-                    memcpy(sta_info.radiomac, bss->m_bss_info.ruid.mac, sizeof(mac_address_t));
-                    radio_found = true;
-                    em_printfout("client_cap_report: resolved radio %s for sta %s bssid %s",
-                        util::mac_to_string(sta_info.radiomac).c_str(),
-                        util::mac_to_string(sta_info.id).c_str(),
-                        util::mac_to_string(sta_info.bssid).c_str());
-                }
-            }
-
             found_client_info = true;
             break;
         }
@@ -993,31 +957,6 @@ int em_capability_t::handle_client_cap_report(unsigned char *buff, unsigned int 
         return -1;
     }
 
-    if ((bss == NULL) && dm->is_ap_mld_mac(sta_info.bssid)) {
-        em_printfout("Client cap: STA %s is affiliated with MLD BSSID %s, remapping to affiliated link BSSID",
-            util::mac_to_string(sta_info.id).c_str(), util::mac_to_string(sta_info.bssid).c_str());
-        assoc_info = NULL;
-        for (i = 0; i < dm->get_num_assoc_sta_mld(); i++) {
-            if (memcmp(dm->m_assoc_sta_mld[i].m_assoc_sta_mld_info.mac_addr,
-                       sta_info.id,
-                       sizeof(mac_address_t)) == 0) {
-                assoc_info = &dm->m_assoc_sta_mld[i].m_assoc_sta_mld_info;
-                break;
-            }
-        }
-
-        if (assoc_info != NULL) {
-            for (j = 0; j < assoc_info->num_affiliated_sta; j++) {
-                if (dm->get_bss(get_radio_interface_mac(), assoc_info->affiliated_sta[j].bssid) != NULL) {
-                    memcpy(sta_info.bssid, assoc_info->affiliated_sta[j].bssid, sizeof(mac_address_t));
-                    em_printfout("Client cap: remapped BSSID for STA %s -> %s",
-                        util::mac_to_string(sta_info.id).c_str(), util::mac_to_string(sta_info.bssid).c_str());
-                    break;
-                }
-            }
-        }
-    }
-
     tlv = reinterpret_cast<em_tlv_t *> (buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
     tmp_len = len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
     while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
@@ -1027,8 +966,20 @@ int em_capability_t::handle_client_cap_report(unsigned char *buff, unsigned int 
                 return -1;
             }
             sta_info.associated = true;
-            sta_info.frame_body_len = static_cast<unsigned int>(htons(tlv->len) - 1);
-            memcpy(sta_info.frame_body, &tlv->value[1], static_cast<size_t>(sta_info.frame_body_len));
+            // The frame body is variable length: use the whole TLV value after the
+            // result code. sta_info only borrows it from the received frame, the
+            // data model copies it when the info is applied. Guard the zero-length
+            // underflow of htons(len) - 1 and bound what a peer can make us store.
+            unsigned short cap_report_len = htons(tlv->len);
+            unsigned int fb_len = (cap_report_len > 0) ?
+                static_cast<unsigned int>(cap_report_len - 1) : 0;
+            if (fb_len > EM_MAX_FRAME_BODY_LEN) {
+                em_printfout("client cap report frame_body_len %u exceeds max %u, clamping",
+                    fb_len, EM_MAX_FRAME_BODY_LEN);
+                fb_len = EM_MAX_FRAME_BODY_LEN;
+            }
+            sta_info.frame_body = (fb_len > 0) ? &tlv->value[1] : NULL;
+            sta_info.frame_body_len = fb_len;
 
             found_cap_report = true;
             break;
@@ -1060,52 +1011,8 @@ int em_capability_t::handle_client_cap_report(unsigned char *buff, unsigned int 
         }
     }
 
-    dm_easy_mesh_t::macbytes_to_string(sta_info.id, sta_mac_str);
-    dm_easy_mesh_t::macbytes_to_string(sta_info.bssid, bssid_str);
-    dm_easy_mesh_t::macbytes_to_string(sta_info.radiomac, radio_mac_str);
-    snprintf(key, sizeof(em_long_string_t), "%s@%s@%s", sta_mac_str, bssid_str, radio_mac_str);
+    queue_cap_update(sta_info);
 
-    // For MLO STA, update all affiliated link rows.
-    for (i = 0; i < dm->get_num_assoc_sta_mld(); i++) {
-        assoc_info = &dm->m_assoc_sta_mld[i].m_assoc_sta_mld_info;
-        if (memcmp(assoc_info->mac_addr, sta_info.id, sizeof(mac_address_t)) != 0) {
-            continue;
-        }
-
-        for (j = 0; j < assoc_info->num_affiliated_sta; j++) {
-            aff_bss = NULL;
-            link_sta_info = sta_info;
-            memcpy(link_sta_info.bssid, assoc_info->affiliated_sta[j].bssid, sizeof(mac_address_t));
-            for (k = 0; k < dm->get_num_radios(); k++) {
-                aff_bss = dm->get_bss(dm->get_radio_info(k)->id.ruid, link_sta_info.bssid);
-                if (aff_bss != NULL) {
-                    memcpy(link_sta_info.radiomac, aff_bss->m_bss_info.ruid.mac, sizeof(mac_address_t));
-                    break;
-                }
-            }
-
-            if (aff_bss == NULL) {
-                em_printfout("Client cap DB skip link: unresolved BSSID %s for STA %s",
-                    util::mac_to_string(link_sta_info.bssid).c_str(),
-                    util::mac_to_string(link_sta_info.id).c_str());
-                continue;
-            }
-
-            dm_easy_mesh_t::macbytes_to_string(link_sta_info.bssid, link_bssid_str);
-            dm_easy_mesh_t::macbytes_to_string(link_sta_info.radiomac, link_radio_str);
-            snprintf(link_key, sizeof(em_long_string_t), "%s@%s@%s", sta_mac_str, link_bssid_str, link_radio_str);
-
-            dm->apply_sta_cap_to_maps(link_key, &link_sta_info);
-            updated_any = true;
-        }
-        break;
-    }
-
-    if (updated_any == false) {
-        dm->apply_sta_cap_to_maps(key, &sta_info);
-    }
-
-    dm->set_db_cfg_param(db_cfg_type_sta_list_update, "");
     return 0;
 }
 
@@ -1339,6 +1246,38 @@ int em_capability_t::handle_bsta_cap_report(unsigned char *pkt_buff, unsigned in
     if (ret < 0)
         em_printfout("Warning: failed to process bh_sta_radio_cap TLV, continuing");
 
+    dm_easy_mesh_t *dm = get_data_model();
+    const unsigned int hdr_len = static_cast<unsigned int>(sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+    if ((dm != NULL) && (pkt_len > hdr_len)) {
+        em_tlv_t *tlvs = reinterpret_cast<em_tlv_t *>(pkt_buff + hdr_len);
+        for (em_tlv_t *tlv = em_msg_t::get_first_tlv(tlvs, pkt_len - hdr_len); (tlv != NULL) && (tlv->type != em_tlv_type_eom);
+             tlv = em_msg_t::get_next_tlv(tlv, tlvs, pkt_len - hdr_len)) {
+            if ((tlv->type != em_tlv_type_bh_sta_radio_cap)) {
+                continue;
+            }
+            const unsigned int cap_len = ntohs(tlv->len);
+            if ((cap_len != offsetof(em_bh_sta_radio_cap_t, bsta_addr)) && (cap_len != sizeof(em_bh_sta_radio_cap_t))) {
+                continue;
+            }
+            const em_bh_sta_radio_cap_t *cap = reinterpret_cast<const em_bh_sta_radio_cap_t *>(tlv->value);
+            if ((cap->bsta_mac_present != 0) != (cap_len == sizeof(em_bh_sta_radio_cap_t))) {
+                continue;
+            }
+            dm_radio_t *radio = dm->get_radio(cap->ruid);
+            if (radio == NULL) {
+                continue;
+            }
+            em_radio_info_t *ri = radio->get_radio_info();
+            if (cap->bsta_mac_present) {
+                memcpy(ri->backhaul_sta, cap->bsta_addr, sizeof(mac_address_t));
+            } else {
+                memset(ri->backhaul_sta, 0, sizeof(mac_address_t));
+            }
+            em_printfout("Backhaul STA of radio %s: %s", util::mac_to_string(cap->ruid).c_str(),
+                util::mac_to_string(ri->backhaul_sta).c_str());
+        }
+    }
+
     ret = process_single_tlv_in_1905_message(pkt_buff, pkt_len,
             em_tlv_type_client_info,
             &em_capability_t::handle_client_info);
@@ -1346,8 +1285,10 @@ int em_capability_t::handle_bsta_cap_report(unsigned char *pkt_buff, unsigned in
     if (ret < 0)
         return ret;
 
-    set_state(em_state_ctrl_configured);
-    em_printfout("Cap: Bsta Capability report processed, ctrl configured");
+    if (get_state() == em_state_ctrl_bsta_cap_pending) {
+        set_state(em_state_ctrl_configured);
+        em_printfout("Cap: Bsta Capability report processed, ctrl configured");
+    }
 
     return ret;
 }
@@ -1403,7 +1344,7 @@ int em_capability_t::handle_ap_radio_basic_cap(unsigned char *buff, unsigned int
 			op_class_info.id.type = em_op_class_type_capability;
 			op_class_info.op_class = static_cast<unsigned int> (basic_cap_op_class->op_class);
 			op_class_info.id.op_class = op_class_info.op_class;
-			op_class_info.max_tx_power = static_cast<int> (basic_cap_op_class->max_tx_eirp);
+			op_class_info.max_tx_power = static_cast<int8_t> (basic_cap_op_class->max_tx_eirp);
 			op_class_info.num_channels = static_cast<unsigned int> (basic_cap_op_class->num);
 			for (j = 0; j < op_class_info.num_channels; j++) {
 				op_class_info.channels[j] = static_cast<unsigned int> (basic_cap_op_class->channels.channel[j]);
@@ -1414,7 +1355,9 @@ int em_capability_t::handle_ap_radio_basic_cap(unsigned char *buff, unsigned int
 			// now check if the op_class already exists
 			for (j = 0; j < dm->get_num_op_class(); j++) {
 				op_class_obj = &dm->m_op_class[j];
-				if (*op_class_obj == dm_op_class_t(&op_class_info)) {
+				if ((memcmp(op_class_obj->m_op_class_info.id.ruid, op_class_info.id.ruid, sizeof(mac_address_t)) == 0) &&
+					(op_class_obj->m_op_class_info.id.type == op_class_info.id.type) &&
+					(op_class_obj->m_op_class_info.id.op_class == op_class_info.id.op_class)) {
 					op_class_exists = true;
 					break;
 				}
@@ -1423,6 +1366,10 @@ int em_capability_t::handle_ap_radio_basic_cap(unsigned char *buff, unsigned int
 			if (op_class_exists == true) {
 				op_class_exists = false;
 			} else {
+				if (dm->get_num_op_class() >= EM_MAX_OPCLASS) {
+					em_printfout("Max limit reached for op class entries in datamodel, cannot add more entries");
+					continue;
+				}
 				op_class_obj = &dm->m_op_class[dm->get_num_op_class()];
 				dm->set_num_op_class(dm->get_num_op_class() + 1);
 			}
@@ -1817,6 +1764,81 @@ int em_capability_t::handle_early_ap_cap_report(unsigned char *buff, unsigned in
     return 0;
 }
 
+int em_capability_t::handle_device_inventory_tlv(unsigned char *buff, unsigned int len)
+{
+    /* Device Inventory TLV (17.2.76): lsn, serial number, lsv, software version,
+       lee, execution environment, ... */
+    const unsigned char *str[3] = {NULL, NULL, NULL};
+    unsigned int str_len[3] = {0, 0, 0};
+    unsigned int off = 0;
+    unsigned int i;
+
+    for (i = 0; i < 3; i++) {
+        if (off >= len || off + 1 + buff[off] > len) {
+            break;
+        }
+        str_len[i] = buff[off];
+        str[i] = &buff[off + 1];
+        off += 1 + str_len[i];
+    }
+
+    if (i != 3 || off >= len) {
+        em_printfout("Invalid Device Inventory TLV: wrong length");
+        return -1;
+    }
+
+    char serial[sizeof(em_long_string_t)] = {0};
+    size_t serial_len = (str_len[0] < sizeof(serial)) ? str_len[0] : sizeof(serial) - 1;
+    memcpy(serial, str[0], serial_len);
+    get_data_model()->set_serial_number(serial);
+
+    char sw_ver[sizeof(em_string_t)] = {0};
+    size_t copy_len = (str_len[1] < sizeof(sw_ver)) ? str_len[1] : sizeof(sw_ver) - 1;
+    memcpy(sw_ver, str[1], copy_len);
+    get_data_model()->set_software_version(sw_ver);
+
+    if (i == 3) {
+        em_device_info_t *dev_info = get_data_model()->get_device_info();
+        if (dev_info != NULL) {
+            copy_len = (str_len[2] < sizeof(dev_info->exec_env)) ? str_len[2] : sizeof(dev_info->exec_env) - 1;
+            memset(dev_info->exec_env, 0, sizeof(dev_info->exec_env));
+            memcpy(dev_info->exec_env, str[2], copy_len);
+        }
+
+        /* Radios: number of radios, then for each RUID, lcv and chipset vendor */
+        if (off < len) {
+            unsigned int num_radios = buff[off++];
+
+            for (unsigned int r = 0; r < num_radios; r++) {
+                if (off + sizeof(mac_address_t) + 1 > len) {
+                    em_printfout("Invalid Device Inventory TLV: chipset vendor exceeds TLV length");
+                    return -1;
+                }
+                const unsigned char *ruid = &buff[off];
+                unsigned int lcv = buff[off + sizeof(mac_address_t)];
+                off += sizeof(mac_address_t) + 1;
+                if (off + lcv > len) {
+                    em_printfout("Invalid Device Inventory TLV: chipset vendor exceeds TLV length");
+                    return -1;
+                }
+
+                dm_radio_t *radio = get_data_model()->get_radio(ruid);
+                if (radio != NULL) {
+                    em_radio_info_t *radio_info = radio->get_radio_info();
+                    copy_len = (lcv < sizeof(radio_info->chip_vendor)) ? lcv : sizeof(radio_info->chip_vendor) - 1;
+                    memset(radio_info->chip_vendor, 0, sizeof(radio_info->chip_vendor));
+                    memcpy(radio_info->chip_vendor, &buff[off], copy_len);
+                }
+                off += lcv;
+            }
+            get_data_model()->set_db_cfg_param(db_cfg_type_radio_list_update, "");
+        }
+    }
+    get_data_model()->set_db_cfg_param(db_cfg_type_device_list_update, "");
+
+    return 0;
+}
+
 int em_capability_t::handle_ap_cap_report(unsigned char *buff, unsigned int len)
 {
     constexpr unsigned int cac_country_code_len = 2;
@@ -2088,40 +2110,9 @@ int em_capability_t::handle_ap_cap_report(unsigned char *buff, unsigned int len)
         }
         else if (tlv->type == em_tlv_type_metric_cltn_interval){
         } else if (tlv->type == em_tlv_type_device_inventory) {
-            unsigned char *value = tlv->value;
-            uint16_t value_len  = ntohs(tlv->len);
-            em_device_info_t *dev_info = dm->get_device_info();
-
-            if ((value_len < 1) || (dev_info == NULL)) {
-                continue;
+            if (handle_device_inventory_tlv(tlv->value, ntohs(tlv->len)) != 0) {
+               return -1;
             }
-
-            //Skipping the first param processing - Serial Number
-            uint16_t serial_len = *value++;
-            value_len--;
-   
-            if (serial_len > value_len) {
-                continue; 
-            }
-            value += serial_len;
-            value_len -= serial_len;
-
-            if (value_len < 1) {
-                continue;  //Sw version not present
-            }
-
-            //Processing Software Version 
-            uint16_t sw_len = *value++;
-            value_len--;
-
-            if(sw_len > 0 && sw_len <= value_len ) {
-                sw_len=std::min<size_t>(sw_len, sizeof(dev_info->software_ver) - 1);
-                memcpy(dev_info->software_ver, value, sw_len);
-                dev_info->software_ver[sw_len] = '\0';
-                em_printfout("Device inventory: software_ver=%s",dev_info->software_ver);
-                dm->set_db_cfg_param(db_cfg_type_device_list_update, "");
-            }
-
         } else if (tlv->type == em_tlv_type_ap_radio_advanced_cap){
             uint16_t value_len = ntohs(tlv->len);
 
@@ -2242,6 +2233,7 @@ void em_capability_t::process_msg(unsigned char *data, unsigned int len)
                         em_printfout("em_msg_type_ap_cap_rprt handle success, state: %s", em_t::state_2_str(em->get_state()));
                     }
                     em_radios.clear();
+                    send_bsta_cap_query_msg();
                 } else {
                     em_printfout("em_msg_type_ap_cap_rprt handle failed");
                 }

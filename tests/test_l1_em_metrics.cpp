@@ -56,6 +56,8 @@ public:
 
     void set_state(em_state_t state) override { m_state = state; }
 
+    using em_metrics_t::handle_unassoc_sta_link_metrics_tlv;
+
     int send_frame(unsigned char* /*buff*/, unsigned int /*len*/, bool /*multicast*/ = false) override {
         // Dummy: do nothing and pretend success. 
         // If your code expects "bytes sent", you could return `len` instead.
@@ -138,20 +140,14 @@ class MetricsTestEm : public em_t {
 public:
     using em_t::em_t;
 
-    int handle_ap_metrics_response(unsigned char *buff, unsigned int len, em_profile_type_t peer_profile) override {
+    int handle_ap_metrics_response(unsigned char *, unsigned int, em_profile_type_t peer_profile) override {
         ++response_count;
         received_peer_profile = peer_profile;
-        last_response_status = em_t::handle_ap_metrics_response(buff, len, peer_profile);
-        if (last_response_status == 0) {
-            ++successful_update_count;
-        }
-        return last_response_status;
+        return 0;
     }
 
     unsigned int response_count = 0;
-    unsigned int successful_update_count = 0;
     em_profile_type_t received_peer_profile = em_profile_type_reserved;
-    int last_response_status = -1;
 };
 
 class EmMetricsTest : public ::testing::Test {    
@@ -163,7 +159,12 @@ protected:
     void TearDown() override {
         delete emMetrics;
         emMetrics = nullptr;
-    }        
+    }
+    int call_handle_unassoc_sta_link_metrics_tlv(unsigned char *buff, unsigned int len)
+    {
+        return emMetrics->handle_unassoc_sta_link_metrics_tlv(buff, len);
+    }
+
 };
 
 static std::vector<unsigned char> make_ap_metrics_response(const unsigned char *source_mac,
@@ -371,6 +372,286 @@ TEST_F(EmMetricsTest, destroy_stack_allocated_em_metrics_t) {
     std::cout << "Exiting destroy_stack_allocated_em_metrics_t test" << std::endl;
 }
 
+/*
+ * Regression tests for Unassociated STA Link Metrics TLV
+ *
+ * The handler expects the TLV value only:
+ *   Operating Class (1 byte)
+ *   Number of STAs  (1 byte)
+ *   STA entries     (12 bytes each)
+ *
+ * Expected TLV value length:
+ *   2 + (num_sta * sizeof(em_unassoc_sta_metric_t))
+ */
+
+/* Length below 2 */
+TEST_F(EmMetricsTest, UnassocStaLinkMetrics_LengthBelow2)
+{
+    dm_easy_mesh_t dm{};
+    emMetrics->set_data_model(&dm);
+    dm.m_num_unassoc_sta_metrics = 0;
+
+    unsigned char tlv_value[1] = {0x51};
+
+    unsigned int metrics_before = dm.m_num_unassoc_sta_metrics;
+
+    int ret = call_handle_unassoc_sta_link_metrics_tlv(
+        tlv_value, 1);
+
+    EXPECT_EQ(ret, -1);
+    EXPECT_EQ(dm.m_num_unassoc_sta_metrics, metrics_before);
+}
+
+
+/* Missing STA bytes */
+TEST_F(EmMetricsTest, UnassocStaLinkMetrics_MissingStaBytes)
+{
+    dm_easy_mesh_t dm{};
+    emMetrics->set_data_model(&dm);
+    dm.m_num_unassoc_sta_metrics = 0;
+
+    unsigned char tlv_value[8] = {
+        0x51,
+        0x01,
+        0x00, 0x11, 0x22, 0x33, 0x44, 0x55
+    };
+
+    unsigned int metrics_before = dm.m_num_unassoc_sta_metrics;
+
+    int ret = call_handle_unassoc_sta_link_metrics_tlv(
+        tlv_value, 8);
+
+    EXPECT_EQ(ret, -1);
+    EXPECT_EQ(dm.m_num_unassoc_sta_metrics, metrics_before);
+}
+
+
+/* Extra bytes with zero STAs */
+TEST_F(EmMetricsTest, UnassocStaLinkMetrics_ExtraBytesZeroSta)
+{
+    dm_easy_mesh_t dm{};
+    emMetrics->set_data_model(&dm);
+    dm.m_num_unassoc_sta_metrics = 0;
+
+    unsigned char tlv_value[3] = {
+        0x51,
+        0x00,
+        0x00
+    };
+
+    unsigned int metrics_before = dm.m_num_unassoc_sta_metrics;
+
+    int ret = call_handle_unassoc_sta_link_metrics_tlv(
+        tlv_value, 3);
+
+    EXPECT_EQ(ret, -1);
+    EXPECT_EQ(dm.m_num_unassoc_sta_metrics, metrics_before);
+}
+
+
+/* Valid zero STA payload */
+TEST_F(EmMetricsTest, UnassocStaLinkMetrics_ValidZeroSta)
+{
+    dm_easy_mesh_t dm{};
+    emMetrics->set_data_model(&dm);
+    dm.m_num_unassoc_sta_metrics = 0;
+
+    unsigned char tlv_value[2] = {
+        0x51,
+        0x00
+    };
+
+    unsigned int metrics_before = dm.m_num_unassoc_sta_metrics;
+
+    int ret = call_handle_unassoc_sta_link_metrics_tlv(
+        tlv_value, 2);
+
+    EXPECT_EQ(ret, 0);
+    EXPECT_EQ(dm.m_num_unassoc_sta_metrics, metrics_before);
+}
+
+
+/* Valid one STA payload */
+TEST_F(EmMetricsTest, UnassocStaLinkMetrics_ValidOneSta)
+{
+    dm_easy_mesh_t dm{};
+    emMetrics->set_data_model(&dm);
+    dm.m_num_unassoc_sta_metrics = 0;
+
+    unsigned char tlv_value[14] = {
+        0x51,
+        0x01,
+
+        0x00, 0x11, 0x22, 0x33, 0x44, 0x55,
+
+        0x06,
+
+        0x00, 0x00, 0x03, 0xE8,
+
+        0x96
+    };
+
+    unsigned int metrics_before = dm.m_num_unassoc_sta_metrics;
+
+    int ret = call_handle_unassoc_sta_link_metrics_tlv(
+        tlv_value, 14);
+
+    EXPECT_EQ(ret, 0);
+    EXPECT_EQ(dm.m_num_unassoc_sta_metrics, metrics_before + 1);
+}
+
+
+/* Valid multiple STA payload */
+TEST_F(EmMetricsTest, UnassocStaLinkMetrics_ValidMultipleSta)
+{
+    dm_easy_mesh_t dm{};
+    emMetrics->set_data_model(&dm);
+    dm.m_num_unassoc_sta_metrics = 0;
+
+    unsigned char tlv_value[26] = {
+        0x51,
+        0x02,
+
+        // ================= STA 1 =================
+
+        0x00, 0x11, 0x22, 0x33, 0x44, 0x55,
+
+        0x06,
+
+        0x00, 0x00, 0x03, 0xE8,
+
+        0x96,
+
+        // ================= STA 2 =================
+
+        0x00, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE,
+
+        0x06,
+
+        0x00, 0x00, 0x07, 0xD0,
+
+        0x96
+    };
+
+    unsigned int metrics_before = dm.m_num_unassoc_sta_metrics;
+
+    int ret = call_handle_unassoc_sta_link_metrics_tlv(
+        tlv_value, 26);
+
+    EXPECT_EQ(ret, 0);
+    EXPECT_EQ(dm.m_num_unassoc_sta_metrics, metrics_before + 2);
+}
+
+
+/* One complete STA followed by an incomplete STA.*/
+TEST_F(EmMetricsTest, UnassocStaLinkMetrics_CompleteStaPlusIncompleteSta)
+{
+    dm_easy_mesh_t dm{};
+    emMetrics->set_data_model(&dm);
+    dm.m_num_unassoc_sta_metrics = 0;
+
+    unsigned char tlv_value[20] = {
+        0x51,
+        0x02,
+
+        // ================= STA 1 =================
+
+        0x00, 0x11, 0x22, 0x33, 0x44, 0x55,
+
+        0x06,
+
+        0x00, 0x00, 0x03, 0xE8,
+
+        0x96,
+
+        // ================= STA 2 =================
+
+        // Incomplete STA - only 6 bytes remain
+        0x00, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE
+    };
+
+    unsigned int metrics_before = dm.m_num_unassoc_sta_metrics;
+
+    int ret = call_handle_unassoc_sta_link_metrics_tlv(
+        tlv_value, 20);
+
+    EXPECT_EQ(ret, -1);
+    EXPECT_EQ(dm.m_num_unassoc_sta_metrics, metrics_before);
+}
+
+static std::vector<unsigned char> make_unassoc_sta_link_metrics_response(
+    const std::vector<std::vector<unsigned char>>& values)
+{
+    std::vector<unsigned char> response(sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t), 0);
+    auto* hdr = reinterpret_cast<em_raw_hdr_t*>(response.data());
+    hdr->type = htons(ETH_P_1905);
+    auto* cmdu = reinterpret_cast<em_cmdu_t*>(response.data() + sizeof(em_raw_hdr_t));
+    cmdu->type = htons(em_msg_type_unassoc_sta_link_metrics_rsp);
+    cmdu->last_frag_ind = 1;
+
+    for (const auto& value : values) {
+        response.push_back(static_cast<unsigned char>(em_tlv_type_unassoc_sta_link_metric_rsp));
+        response.push_back(static_cast<unsigned char>(value.size() >> 8));
+        response.push_back(static_cast<unsigned char>(value.size()));
+        response.insert(response.end(), value.begin(), value.end());
+    }
+    response.push_back(static_cast<unsigned char>(em_tlv_type_eom));
+    response.push_back(0);
+    response.push_back(0);
+    return response;
+}
+
+/* Valid zero-STA TLV (5 bytes with header) must pass message validation */
+TEST_F(EmMetricsTest, UnassocStaLinkMetrics_ZeroStaTlvPassesValidation)
+{
+    auto response = make_unassoc_sta_link_metrics_response({ {0x51, 0x00} });
+    char *errors[EM_MAX_TLV_MEMBERS] = {};
+    EXPECT_NE(em_msg_t(em_msg_type_unassoc_sta_link_metrics_rsp,
+                       emMetrics->get_profile_type(), response.data(),
+                       static_cast<unsigned int>(response.size())).validate(errors), 0u);
+}
+
+/* Zero-STA TLV first, then a one-STA TLV: processing must continue */
+TEST_F(EmMetricsTest, UnassocStaLinkMetrics_ZeroStaThenOneSta)
+{
+    dm_easy_mesh_t dm{};
+    emMetrics->set_data_model(&dm);
+    dm.m_num_unassoc_sta_metrics = 0;
+
+    const std::vector<unsigned char> zero_sta = { 0x51, 0x00 };
+    const std::vector<unsigned char> one_sta  = {
+        0x51, 0x01, 0x00, 0x11, 0x22, 0x33, 0x44, 0x55,
+        0x06, 0x00, 0x00, 0x03, 0xE8, 0x96
+    };
+    auto response = make_unassoc_sta_link_metrics_response({ zero_sta, one_sta });
+    emMetrics->process_msg(response.data(), static_cast<unsigned int>(response.size()));
+
+    EXPECT_EQ(dm.m_num_unassoc_sta_metrics, 1u);
+}
+
+/**
+ * @brief Verify peer-profile routing once per shared data model and real AP metrics processing.
+ *
+ * Dispatch an AP metrics response to two routing spies sharing a data model and verify
+ * that only one receives it, with the peer's Profile 1 rather than the local Profile 3.
+ * Separately dispatch through a real radio and verify the STA metrics update flag and
+ * BSS channel utilization. Both checks use the public process_msg() entry point.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 007@n
+ * **Priority:** High@n
+ *
+ * **Pre-Conditions:** Two registered radio spies share a data model with a Profile 1 peer and an operational BSS.@n
+ * **Dependencies:** MetricsTestEmMgr, MetricsTestEm, DummyEmMetrics, em_t, dm_easy_mesh_t, em_msg_t.@n
+ * **User Interaction:** None@n
+ *
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |@n
+ * | :----: | --------- | ---------- | -------------- | ----- |@n
+ * | 01 | Process a topology response and validate the AP response against both profiles. | Peer Profile 1, local Profile 3, channel utilization 37 | AP response passes Profile 1 validation and fails Profile 3 validation. | Should Pass |@n
+ * | 02 | Dispatch the AP response to two radio spies sharing a data model. | Same peer AL MAC and shared data model | Exactly one spy receives the response with peer Profile 1. | Should Pass |@n
+ * | 03 | Dispatch the response through a separately registered real radio. | Same AP response and shared data model | STA metrics update flag is set and BSS channel utilization is 37. | Should Pass |
+ */
 TEST_F(EmMetricsTest, UsesPeerProfileAndUpdatesSharedDataModelOnce) {
     MetricsTestEmMgr mgr;
     dm_easy_mesh_t shared_dm;
@@ -446,30 +727,62 @@ TEST_F(EmMetricsTest, UsesPeerProfileAndUpdatesSharedDataModelOnce) {
     dispatcher.process_msg(response.data(), static_cast<unsigned int>(response.size()));
 
     EXPECT_EQ(1U, radio_1.response_count + radio_2.response_count);
-    EXPECT_EQ(1U, radio_1.successful_update_count + radio_2.successful_update_count);
+    const MetricsTestEm *handled_radio = (radio_1.response_count == 1) ? &radio_1 : &radio_2;
+    EXPECT_EQ(em_profile_type_1, handled_radio->received_peer_profile);
+
+    MetricsTestEmMgr processing_mgr;
+    em_t processing_radio(&radio_1_ruid, em_freq_band_5, &shared_dm, &processing_mgr,
+                          em_profile_type_3, em_service_type_ctrl);
+    ASSERT_EQ(0, processing_mgr.add_em("radio-1", &processing_radio));
+    DummyEmMetrics processing_dispatcher(&processing_mgr, &controller_dm, em_profile_type_3);
+    processing_dispatcher.process_msg(response.data(), static_cast<unsigned int>(response.size()));
+
     EXPECT_TRUE(shared_dm.db_cfg_type_is_set(db_cfg_type_sta_metrics_update));
     auto *updated_bss = shared_dm.get_bss_info_with_mac(bssid);
     ASSERT_NE(nullptr, updated_bss);
     EXPECT_EQ(37, updated_bss->channel_util);
-
-    const MetricsTestEm *handled_radio = (radio_1.response_count == 1) ? &radio_1 : &radio_2;
-    EXPECT_EQ(em_profile_type_1, handled_radio->received_peer_profile);
-    EXPECT_EQ(0, handled_radio->last_response_status);
 }
 
+/**
+ * @brief Verify that an unknown peer profile permits Profile 1 AP metrics processing.
+ *
+ * Register a real radio with a reserved peer profile and dispatch a Profile 1 AP
+ * metrics response through process_msg(). Verify that processing sets the previously
+ * clear STA metrics update flag without requiring the local Profile 3 TLVs.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 008@n
+ * **Priority:** High@n
+ *
+ * **Pre-Conditions:** A real radio is registered with a reserved peer profile and local Profile 3.@n
+ * **Dependencies:** MetricsTestEmMgr, DummyEmMetrics, em_t, dm_easy_mesh_t.@n
+ * **User Interaction:** None@n
+ *
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |@n
+ * | :----: | --------- | ---------- | -------------- | ----- |@n
+ * | 01 | Verify the initial STA metrics update flag. | Initialized data model | STA metrics update flag is clear. | Should Pass |@n
+ * | 02 | Dispatch a Profile 1 AP metrics response through process_msg(). | Reserved peer profile, local Profile 3 | Response is processed using the Profile 1 fallback and the STA metrics update flag is set. | Should Pass |
+ */
 TEST_F(EmMetricsTest, ReservedPeerProfileFallsBackToProfile1) {
     MetricsTestEmMgr mgr;
     dm_easy_mesh_t dm;
+    dm.init();
     em_interface_t ruid{};
-    MetricsTestEm controller(&ruid, em_freq_band_5, &dm, &mgr,
-                             em_profile_type_3, em_service_type_ctrl);
+    ruid.mac[5] = 1;
+    em_t controller(&ruid, em_freq_band_5, &dm, &mgr,
+                     em_profile_type_3, em_service_type_ctrl);
     mac_address_t peer_al_mac = {0x02, 0x11, 0x22, 0x33, 0x44, 0x55};
+    dm.get_device()->set_dev_interface_mac(peer_al_mac);
+    dm.get_device()->set_peer_profile(em_profile_type_reserved);
+    ASSERT_EQ(0, mgr.add_em("radio-1", &controller));
     mac_address_t bssid = {};
     std::vector<unsigned char> response = make_ap_metrics_response(peer_al_mac, bssid, 0);
 
-    EXPECT_EQ(0, controller.handle_ap_metrics_response(
-        response.data(), static_cast<unsigned int>(response.size()), em_profile_type_reserved));
-    EXPECT_EQ(1U, controller.successful_update_count);
+    EXPECT_FALSE(dm.db_cfg_type_is_set(db_cfg_type_sta_metrics_update));
+    DummyEmMetrics dispatcher(&mgr, &dm, em_profile_type_3);
+    dispatcher.process_msg(response.data(), static_cast<unsigned int>(response.size()));
+    EXPECT_TRUE(dm.db_cfg_type_is_set(db_cfg_type_sta_metrics_update));
 }
 
 class TopologyCountingEmMgr : public MetricsTestEmMgr {
@@ -534,8 +847,9 @@ static void append_tlv(std::vector<unsigned char> &msg, unsigned char type,
 
 static std::vector<unsigned char> make_client_type_vendor_value(const ClientTypeEntry &entry)
 {
-    // vendor OUI (not Airties), number of attributes, attribute id, then the STA metrics
-    std::vector<unsigned char> value = {0x00, 0x00, 0x00, 0x01, 0x00};
+    std::vector<unsigned char> value(comcast_vendor_oui,
+                                     comcast_vendor_oui + sizeof(comcast_vendor_oui));
+    value.push_back(static_cast<unsigned char>(vendor_ext_attr_id_client_type));
     em_assoc_sta_vendor_link_metrics_t metrics;
     std::memset(&metrics, 0, sizeof(metrics));
     std::memcpy(metrics.sta_mac, entry.sta_mac, sizeof(mac_address_t));
@@ -569,56 +883,121 @@ class ClientTypeTopologyTest : public ::testing::Test {
 protected:
     void SetUp() override {
         dm.init();
+        dm.get_device()->set_dev_interface_mac(peer_al_mac);
+        dm.get_device()->set_peer_profile(em_profile_type_1);
+        radio_interface.mac[5] = 1;
+        radio = new em_t(&radio_interface, em_freq_band_5, &dm, &mgr,
+                  em_profile_type_3, em_service_type_ctrl);
         metrics = new DummyEmMetrics(&mgr, &dm, em_profile_type_3);
+        ASSERT_EQ(0, mgr.add_em("radio-1", radio));
     }
 
     void TearDown() override {
         delete metrics;
         metrics = nullptr;
+        delete radio;
+        radio = nullptr;
     }
 
-    int send_ap_response(const std::vector<ClientTypeEntry> &entries) {
+    void send_ap_response(const std::vector<ClientTypeEntry> &entries) {
         auto msg = make_client_type_response(em_msg_type_ap_metrics_rsp, entries);
-        return metrics->handle_ap_metrics_response(msg.data(), static_cast<unsigned int>(msg.size()),
-                                                   em_profile_type_1);
+        auto *header = reinterpret_cast<em_raw_hdr_t *>(msg.data());
+        std::memcpy(header->src, peer_al_mac, sizeof(mac_address_t));
+        dm.reset_db_cfg_type(db_cfg_type_sta_metrics_update);
+        metrics->process_msg(msg.data(), static_cast<unsigned int>(msg.size()));
+        EXPECT_TRUE(dm.db_cfg_type_is_set(db_cfg_type_sta_metrics_update));
     }
 
-    int send_assoc_sta_response(const std::vector<ClientTypeEntry> &entries) {
+    void send_assoc_sta_response(const std::vector<ClientTypeEntry> &entries) {
         auto msg = make_client_type_response(em_msg_type_assoc_sta_link_metrics_rsp, entries);
-        return metrics->handle_associated_sta_link_metrics_resp(msg.data(), static_cast<unsigned int>(msg.size()));
+        dm.reset_db_cfg_type(db_cfg_type_sta_metrics_update);
+        metrics->process_msg(msg.data(), static_cast<unsigned int>(msg.size()));
+        EXPECT_EQ(em_state_ctrl_configured, metrics->get_state());
+        EXPECT_TRUE(dm.db_cfg_type_is_set(db_cfg_type_sta_metrics_update));
     }
 
     TopologyCountingEmMgr mgr;
     dm_easy_mesh_t dm;
+    mac_address_t peer_al_mac = {0x02, 0x11, 0x22, 0x33, 0x44, 0x55};
+    em_interface_t radio_interface{};
+    em_t *radio = nullptr;
     DummyEmMetrics *metrics = nullptr;
 };
 
+/**
+ * @brief Verify that AP metrics publish topology only for a STA's first nonempty client type.
+ *
+ * Dispatch AP responses through process_msg() with an empty, first nonempty, repeated,
+ * and subsequent empty client type. Before each dispatch, clear the STA metrics update
+ * flag and verify that the current response sets it. Also verify one publication after
+ * the first nonempty value is stored, and no republish for later empty values.
+ * Vendor TLVs use the Comcast OUI followed by the client-type attribute ID and
+ * STA metrics, with no attribute-count byte.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 009@n
+ * **Priority:** High@n
+ *
+ * **Pre-Conditions:** A registered radio and a STA with an empty client type exist in the fixture data model.@n
+ * **Dependencies:** ClientTypeTopologyTest, TopologyCountingEmMgr, public process_msg() dispatch.@n
+ * **User Interaction:** None@n
+ *
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |@n
+ * | :----: | --------- | ---------- | -------------- | ----- |@n
+ * | 01 | Dispatch an AP response with an empty client type. | Client type: empty | Current response sets the flag; no publication occurs and the stored type remains empty. | Should Pass |@n
+ * | 02 | Dispatch an AP response with the first nonempty client type. | Client type: phone | Current response sets the flag; client type is stored before exactly one publication. | Should Pass |@n
+ * | 03 | Repeat the nonempty response, then dispatch an empty client type. | Client types: phone, empty | Each response sets the flag; publication count remains one and the stored type remains phone. | Should Pass |
+ */
 TEST_F(ClientTypeTopologyTest, ApMetricsPublishesOnlyForFirstNonEmptyClientType) {
     ClientTypeEntry sta = make_client_type_entry(1, "");
     dm_sta_t *dm_sta = add_metrics_sta(dm, sta);
     std::vector<std::string> published_client_types;
     mgr.on_publish = [&]() { published_client_types.push_back(dm_sta->m_sta_info.sta_client_type); };
 
-    EXPECT_EQ(0, send_ap_response({sta}));
+    send_ap_response({sta});
     EXPECT_EQ(0U, mgr.publish_count);
     EXPECT_STREQ("", dm_sta->m_sta_info.sta_client_type);
 
     sta.client_type = "phone";
-    EXPECT_EQ(0, send_ap_response({sta}));
+    send_ap_response({sta});
     EXPECT_EQ(1U, mgr.publish_count);
     ASSERT_EQ(1U, published_client_types.size());
     EXPECT_EQ("phone", published_client_types[0]);
     EXPECT_STREQ("phone", dm_sta->m_sta_info.sta_client_type);
 
-    EXPECT_EQ(0, send_ap_response({sta}));
+    send_ap_response({sta});
     EXPECT_EQ(1U, mgr.publish_count);
 
     sta.client_type = "";
-    EXPECT_EQ(0, send_ap_response({sta}));
+    send_ap_response({sta});
     EXPECT_EQ(1U, mgr.publish_count);
     EXPECT_STREQ("phone", dm_sta->m_sta_info.sta_client_type);
 }
 
+/**
+ * @brief Verify one topology publication for multiple first client types in an AP response.
+ *
+ * Dispatch one AP metrics response containing two new STA client types through
+ * process_msg(). Verify that the response sets the STA metrics update flag, topology
+ * is published once, and both values are already stored when the callback runs.
+ * Each vendor TLV uses the Comcast OUI and client-type attribute ID directly
+ * followed by STA metrics, without an attribute-count byte.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 010@n
+ * **Priority:** High@n
+ *
+ * **Pre-Conditions:** A registered radio and two STAs with empty client types exist in the fixture data model.@n
+ * **Dependencies:** ClientTypeTopologyTest, TopologyCountingEmMgr, public process_msg() dispatch.@n
+ * **User Interaction:** None@n
+ *
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |@n
+ * | :----: | --------- | ---------- | -------------- | ----- |@n
+ * | 01 | Dispatch one AP response containing two first client types. | STA 1: phone; STA 2: laptop | Current response sets the flag and exactly one topology publication occurs. | Should Pass |@n
+ * | 02 | Verify client types captured by the publication callback. | Captured STA client types | Both phone and laptop are stored before publication. | Should Pass |
+ */
 TEST_F(ClientTypeTopologyTest, ApMetricsPublishesOnceForMultipleFirstClientTypes) {
     ClientTypeEntry sta_1 = make_client_type_entry(1, "phone");
     ClientTypeEntry sta_2 = make_client_type_entry(2, "laptop");
@@ -630,7 +1009,7 @@ TEST_F(ClientTypeTopologyTest, ApMetricsPublishesOnceForMultipleFirstClientTypes
         published_client_types.push_back(dm_sta_2->m_sta_info.sta_client_type);
     };
 
-    EXPECT_EQ(0, send_ap_response({sta_1, sta_2}));
+    send_ap_response({sta_1, sta_2});
 
     EXPECT_EQ(1U, mgr.publish_count);
     ASSERT_EQ(2U, published_client_types.size());
@@ -638,69 +1017,133 @@ TEST_F(ClientTypeTopologyTest, ApMetricsPublishesOnceForMultipleFirstClientTypes
     EXPECT_EQ("laptop", published_client_types[1]);
 }
 
+/**
+ * @brief Verify that associated-STA metrics publish only for the first nonempty client type.
+ *
+ * Dispatch associated-STA link metrics responses through process_msg() with empty,
+ * first nonempty, repeated, and subsequent empty client types. Before each dispatch,
+ * clear the STA metrics update flag and verify the current response sets it. Also
+ * verify one publication and preservation of the first nonempty value afterward.
+ * Vendor TLVs use the Comcast OUI and client-type attribute ID directly followed
+ * by STA metrics, without an attribute-count byte.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 011@n
+ * **Priority:** High@n
+ *
+ * **Pre-Conditions:** A STA with an empty client type exists in the fixture data model.@n
+ * **Dependencies:** ClientTypeTopologyTest, TopologyCountingEmMgr, public process_msg() dispatch.@n
+ * **User Interaction:** None@n
+ *
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |@n
+ * | :----: | --------- | ---------- | -------------- | ----- |@n
+ * | 01 | Dispatch an associated-STA response with an empty client type. | Client type: empty | Current response sets the flag; no topology publication occurs. | Should Pass |@n
+ * | 02 | Dispatch an associated-STA response with the first nonempty client type. | Client type: phone | Current response sets the flag; client type is stored before exactly one publication. | Should Pass |@n
+ * | 03 | Repeat the nonempty response, then dispatch an empty client type. | Client types: phone, empty | Each response sets the flag; publication count remains one and the stored type remains phone. | Should Pass |
+ */
 TEST_F(ClientTypeTopologyTest, AssocStaLinkMetricsPublishesOnlyForFirstNonEmptyClientType) {
     ClientTypeEntry sta = make_client_type_entry(1, "");
     dm_sta_t *dm_sta = add_metrics_sta(dm, sta);
     std::vector<std::string> published_client_types;
     mgr.on_publish = [&]() { published_client_types.push_back(dm_sta->m_sta_info.sta_client_type); };
 
-    EXPECT_EQ(0, send_assoc_sta_response({sta}));
+    send_assoc_sta_response({sta});
     EXPECT_EQ(0U, mgr.publish_count);
 
     sta.client_type = "phone";
-    EXPECT_EQ(0, send_assoc_sta_response({sta}));
+    send_assoc_sta_response({sta});
     EXPECT_EQ(1U, mgr.publish_count);
     ASSERT_EQ(1U, published_client_types.size());
     EXPECT_EQ("phone", published_client_types[0]);
 
-    EXPECT_EQ(0, send_assoc_sta_response({sta}));
+    send_assoc_sta_response({sta});
     EXPECT_EQ(1U, mgr.publish_count);
 
     sta.client_type = "";
-    EXPECT_EQ(0, send_assoc_sta_response({sta}));
+    send_assoc_sta_response({sta});
     EXPECT_EQ(1U, mgr.publish_count);
     EXPECT_STREQ("phone", dm_sta->m_sta_info.sta_client_type);
 }
 
+/**
+ * @brief Verify that AP metrics do not republish a client type learned from associated-STA metrics.
+ *
+ * Dispatch an associated-STA link metrics response followed by an AP metrics response
+ * containing the same STA client type through process_msg(). Verify that each response
+ * sets the flag after it is cleared, the first response publishes topology, and the
+ * second does not publish it again.
+ * Both response paths carry the same Comcast client-type vendor TLV layout:
+ * OUI, attribute ID, then STA metrics, without an attribute-count byte.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 012@n
+ * **Priority:** High@n
+ *
+ * **Pre-Conditions:** A registered radio and a STA with an empty client type exist in the fixture data model.@n
+ * **Dependencies:** ClientTypeTopologyTest, TopologyCountingEmMgr, public process_msg() dispatch.@n
+ * **User Interaction:** None@n
+ *
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |@n
+ * | :----: | --------- | ---------- | -------------- | ----- |@n
+ * | 01 | Dispatch an associated-STA response with the first nonempty client type. | Client type: phone | Current response sets the flag and exactly one topology publication occurs. | Should Pass |@n
+ * | 02 | Dispatch an AP response for the same STA and client type. | Same STA, client type: phone | Current response sets the flag; publication count remains one. | Should Pass |
+ */
 TEST_F(ClientTypeTopologyTest, ClientTypeSeenByOneResponsePathDoesNotRepublishOnTheOther) {
     ClientTypeEntry sta = make_client_type_entry(1, "phone");
     add_metrics_sta(dm, sta);
 
-    EXPECT_EQ(0, send_assoc_sta_response({sta}));
+    send_assoc_sta_response({sta});
     EXPECT_EQ(1U, mgr.publish_count);
 
-    EXPECT_EQ(0, send_ap_response({sta}));
+    send_ap_response({sta});
     EXPECT_EQ(1U, mgr.publish_count);
 }
 
-TEST_F(ClientTypeTopologyTest, VendorTlvHelperReportsFirstClientTypeOnlyWhenFlagProvided) {
-    ClientTypeEntry sta = make_client_type_entry(1, "");
-    dm_sta_t *dm_sta = add_metrics_sta(dm, sta);
-    std::vector<unsigned char> value = make_client_type_vendor_value(sta);
-    bool first_seen = false;
+/**
+ * @brief Verify one topology publication for multiple first client types in an associated-STA response.
+ *
+ * Dispatch an associated-STA link metrics response containing two new client types
+ * through process_msg(). Verify that each response sets the flag after it is cleared,
+ * both values are stored before the single publication, and repeating the response
+ * does not trigger another publication.
+ * Each vendor TLV uses the Comcast OUI and client-type attribute ID directly
+ * followed by STA metrics, without an attribute-count byte.
+ *
+ * **Test Group ID:** Basic: 01@n
+ * **Test Case ID:** 013@n
+ * **Priority:** High@n
+ *
+ * **Pre-Conditions:** Two STAs with empty client types exist in the fixture data model.@n
+ * **Dependencies:** ClientTypeTopologyTest, TopologyCountingEmMgr, public process_msg() dispatch.@n
+ * **User Interaction:** None@n
+ *
+ * **Test Procedure:**@n
+ * | Variation / Step | Description | Test Data | Expected Result | Notes |@n
+ * | :----: | --------- | ---------- | -------------- | ----- |@n
+ * | 01 | Dispatch one associated-STA response containing two first client types. | STA 1: phone; STA 2: laptop | Current response sets the flag and exactly one topology publication occurs. | Should Pass |@n
+ * | 02 | Verify client types captured by the publication callback. | Captured STA client types | Both phone and laptop are stored before publication. | Should Pass |@n
+ * | 03 | Dispatch the same response again. | Same two STAs and client types | Current response sets the flag; publication count remains one. | Should Pass |
+ */
+TEST_F(ClientTypeTopologyTest, AssocStaLinkMetricsPublishesOnceForMultipleFirstClientTypes) {
+    ClientTypeEntry sta_1 = make_client_type_entry(1, "phone");
+    ClientTypeEntry sta_2 = make_client_type_entry(2, "laptop");
+    dm_sta_t *dm_sta_1 = add_metrics_sta(dm, sta_1);
+    dm_sta_t *dm_sta_2 = add_metrics_sta(dm, sta_2);
+    std::vector<std::string> published_client_types;
+    mgr.on_publish = [&]() {
+        published_client_types.push_back(dm_sta_1->m_sta_info.sta_client_type);
+        published_client_types.push_back(dm_sta_2->m_sta_info.sta_client_type);
+    };
 
-    EXPECT_EQ(0, metrics->handle_assoc_sta_vendor_link_metrics_tlv(
-        value.data(), static_cast<unsigned int>(value.size()), &first_seen));
-    EXPECT_FALSE(first_seen);
+    send_assoc_sta_response({sta_1, sta_2});
 
-    sta.client_type = "phone";
-    value = make_client_type_vendor_value(sta);
-    EXPECT_EQ(0, metrics->handle_assoc_sta_vendor_link_metrics_tlv(
-        value.data(), static_cast<unsigned int>(value.size()), &first_seen));
-    EXPECT_TRUE(first_seen);
-    EXPECT_STREQ("phone", dm_sta->m_sta_info.sta_client_type);
+    EXPECT_EQ(1U, mgr.publish_count);
+    ASSERT_EQ(2U, published_client_types.size());
+    EXPECT_EQ("phone", published_client_types[0]);
+    EXPECT_EQ("laptop", published_client_types[1]);
 
-    first_seen = false;
-    EXPECT_EQ(0, metrics->handle_assoc_sta_vendor_link_metrics_tlv(
-        value.data(), static_cast<unsigned int>(value.size()), &first_seen));
-    EXPECT_FALSE(first_seen);
-
-    // Without a flag the value is still stored and nothing is published.
-    ClientTypeEntry other = make_client_type_entry(2, "laptop");
-    dm_sta_t *other_sta = add_metrics_sta(dm, other);
-    value = make_client_type_vendor_value(other);
-    EXPECT_EQ(0, metrics->handle_assoc_sta_vendor_link_metrics_tlv(
-        value.data(), static_cast<unsigned int>(value.size())));
-    EXPECT_STREQ("laptop", other_sta->m_sta_info.sta_client_type);
-    EXPECT_EQ(0U, mgr.publish_count);
+    send_assoc_sta_response({sta_1, sta_2});
+    EXPECT_EQ(1U, mgr.publish_count);
 }
