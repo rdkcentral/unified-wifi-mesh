@@ -25,7 +25,7 @@
 
 /*
  * em_ctrl_t::cmd_channelselect() method name and path validation. The handler uses the controller singleton
- * (em_ctrl_t::get_em_ctrl_instance()), so its data model is initialised once for the suite with in-memory SQLite
+ * (em_ctrl_t::get_em_ctrl_instance()), so its data model is initialised once for the suite with the no-DB client (db_client_type_none)
  * (no certificate-backed command listener) and one agent device added with put_device() (em_ctrl_t::create_data_model()
  * creates a controller model, which writes /nvram/EasymeshCfg.json and never assigns an instance id). The device has
  * radios 1..EM_MAX_BANDS. Every rejected request must return its error and set the "Failure" status output.
@@ -40,7 +40,7 @@ protected:
     static void SetUpTestSuite() {
         __lsan_disable();
         em_ctrl_t *ctrl = em_ctrl_t::get_em_ctrl_instance();
-        ASSERT_EQ(ctrl->get_dm_ctrl()->init(":memory:", ctrl, db_client_type_local), 0);
+        ASSERT_EQ(ctrl->get_dm_ctrl()->init(":memory:", ctrl, db_client_type_none), 0);
         unsigned char mac[6] = { 0x02, 0x00, 0x00, 0x00, 0x00, 0x0a };
         dm_device_t device;
         memcpy(device.m_device_info.intf.mac, mac, sizeof(mac));
