@@ -67,7 +67,7 @@ protected:
             em_op_class_info_t *oci = dm->get_op_class_by_ref(i).get_op_class_info();
             memcpy(oci->id.ruid, ruid1, sizeof(ruid1));
             oci->id.type = em_op_class_type_current;
-            oci->op_class = 115 + static_cast<int>(i);
+            oci->op_class = 115u + i;
             oci->channel = 36;
             oci->tx_power = 20;
         }

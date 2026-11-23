@@ -255,7 +255,9 @@ onewifi_em_ctrl_test_SOURCES = $(onewifi_em_ctrl_SOURCES) \
 	$(top_srcdir)/tests/test_l1_em_ctrl.cpp \
 	$(top_srcdir)/tests/test_l1_dm_easy_mesh_list.cpp \
 	$(top_srcdir)/tests/test_l1_akms_allowed.cpp \
-	$(top_srcdir)/tests/test_l1_curops_get_inner.cpp
+	$(top_srcdir)/tests/test_l1_curops_get_inner.cpp \
+	$(top_srcdir)/tests/test_l1_get_table_instance.cpp \
+	$(top_srcdir)/tests/test_l1_cmd_channelselect.cpp
 
 onewifi_em_ctrl_test_CPPFLAGS = $(onewifi_em_ctrl_CPPFLAGS) \
                                 -I$(PKG_CONFIG_SYSROOT_DIR)$(includedir)/gtest \

@@ -1848,13 +1848,13 @@ short em_t::create_device_inventory_tlv(unsigned char *buff)
     len += (1 + data_len);
 
     // 3. Environment
-    slen = (info) ? strlen(info->environment) : 0;
-    if (slen > sizeof(info->environment) - 1) slen = sizeof(info->environment) - 1;
+    slen = (info) ? strlen(info->exec_env) : 0;
+    if (slen > sizeof(info->exec_env) - 1) slen = sizeof(info->exec_env) - 1;
     if (slen > EM_INVENTORY_STR_MAX) slen = EM_INVENTORY_STR_MAX;
     data_len = static_cast<unsigned char>(slen);
     *tmp++ = data_len;
     if (data_len > 0) {
-        memcpy(tmp, info->environment, data_len);
+        memcpy(tmp, info->exec_env, data_len);
         tmp += data_len;
     }
     len += (1 + data_len);
