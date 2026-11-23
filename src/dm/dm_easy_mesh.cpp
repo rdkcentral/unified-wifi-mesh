@@ -514,7 +514,7 @@ int dm_easy_mesh_t::encode_config_reset(em_subdoc_info_t *subdoc, const char *ke
 		interface_obj = cJSON_CreateObject();
 		cJSON_AddItemToArray(interface_arr_obj, interface_obj);
 		dm_easy_mesh_t::macbytes_to_string(m_interfaces[i].mac, mac_str);
-		snprintf(interface_str, sizeof(em_long_string_t), "%s (%s)", mac_str, m_interfaces[i].name);
+		snprintf(interface_str, sizeof(em_long_string_t), "%s (%.*s)", mac_str, static_cast<int>(sizeof(m_interfaces[i].name)), m_interfaces[i].name);
 		cJSON_AddStringToObject(interface_obj, preference[i], interface_str);
 	}
 
@@ -531,7 +531,8 @@ int dm_easy_mesh_t::encode_config_reset(em_subdoc_info_t *subdoc, const char *ke
         return -1;
     }
 
-	for (i = 0; i < m_num_net_ssids; i++) {
+        unsigned int num_net_ssids = m_num_net_ssids > EM_MAX_NET_SSIDS ? EM_MAX_NET_SSIDS : m_num_net_ssids;
+	for (i = 0; i < num_net_ssids; i++) {
 		if ((ssid_obj = cJSON_CreateObject()) == NULL) {	
         	printf("%s:%d: Could not create ssid object\n", __func__, __LINE__);
         	cJSON_Delete(parent_obj);
