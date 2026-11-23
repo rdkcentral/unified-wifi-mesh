@@ -37,6 +37,18 @@
 #include "em_network_topo.h"
 #include "dm_easy_mesh.h"
 
+/* Device.WiFi.DataElements.Network.ProvisionedDPP.{i}. (TR-181 2.19) entry */
+#define EM_MAX_PROVISIONED_DPP          16
+#define EM_PROVISIONED_DPP_ALIAS_LEN    64
+#define EM_PROVISIONED_DPP_URI_LEN      2048
+
+typedef struct {
+    bool        in_use;
+    uint32_t    instance;
+    char        alias[EM_PROVISIONED_DPP_ALIAS_LEN + 1];
+    char        dpp_uri[EM_PROVISIONED_DPP_URI_LEN + 1];
+} em_provisioned_dpp_info_t;
+
 class em_cmd_t;
 class dm_easy_mesh_t;
 class em_mgr_t;
@@ -125,6 +137,25 @@ public:
     static bus_error_t ssid_tget_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
     static bus_error_t ssid_tget_params(dm_easy_mesh_t *dm, const char *root, bus_data_prop_t **property);
 
+    /* ProvisionedDPP: bus thread entry points forward to the controller
+     * thread (bus_get_cb_fwd / bus_set_cb_fwd), *_inner do the work. */
+    bus_error_t provdpp_get(char *event_name, raw_data_t *p_data);
+    static bus_error_t provdpp_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
+    bus_error_t provdpp_tget(char *event_name, raw_data_t *p_data);
+    static bus_error_t provdpp_tget_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
+    bus_error_t provdpp_set(char *event_name, raw_data_t *p_data);
+    static bus_error_t provdpp_set_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
+    bus_error_t provdpp_add_row(const char *table_name, const char *alias_name, uint32_t *instance_number);
+    static bus_error_t provdpp_add_row_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
+    bus_error_t provdpp_remove_row(const char *row_name);
+    static bus_error_t provdpp_remove_row_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
+    unsigned int get_num_provisioned_dpp();
+    em_provisioned_dpp_info_t *find_provisioned_dpp(uint32_t instance);
+    void load_provisioned_dpp();
+    void save_provisioned_dpp();
+    void start_provisioned_dpp(em_provisioned_dpp_info_t *entry);
+    void resume_provisioned_dpp();
+
     char* get_ht_caps_str(em_ap_ht_cap_t *ht, char *buf, size_t buf_len);
     char* get_vht_caps_str(em_ap_vht_cap_t *vht, char *buf, size_t buf_len);
     char* get_sta_ht_caps_str(char *ht_cap_hex, char *buf, size_t buf_len);
@@ -208,6 +239,9 @@ public:
     static bus_error_t bstacfg_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
 
 private:
+    em_provisioned_dpp_info_t m_provisioned_dpp[EM_MAX_PROVISIONED_DPP];
+    uint32_t        m_provisioned_dpp_next_inst;
+
     // Bound at init() time via db_client_t::create(), based on the requested
     // db_client_type_t (local/cloud/none). Every dm_*_list_t table class
     // only ever sees this through the db_client_t& interface, so which

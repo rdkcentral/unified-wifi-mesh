@@ -80,6 +80,8 @@ static const yang_to_tr181_map g_yang_map[] = {
     { "ChannelScanList", "ChannelScan" },
     { "NeighborList", "NeighborBSS" },
     { "NetworkSSIDList", "SSID" },
+    { "NumberOfProvisionedDPP", "ProvisionedDPPNumberOfEntries" },
+    { "ProvisionedDPPList", "ProvisionedDPP" },
 
     { nullptr, nullptr } // Default case
 };
@@ -142,6 +144,18 @@ typedef struct {
 #define DE_SSID_MFPCONFIG       DE_NETWORK_SSID         "MFPConfig"
 #define DE_SSID_MOBDOMAIN       DE_NETWORK_SSID         "MobilityDomain"
 #define DE_SSID_HAULTYPE        DE_NETWORK_SSID         "HaulType"
+/* Device.WiFi.DataElements.Network.ProvisionedDPP (TR-181 2.19)
+ * DPP bootstrapping URIs provisioned on the Controller for onboarding new
+ * Multi-AP Agents (Wi-Fi Easy Connect 5.2.1). Writing DPPURI starts DPP
+ * onboarding for that enrollee (same path as the CLI "start_dpp" command). */
+#define DE_NETWORK_PROVDPPNOE   DATAELEMS_NETWORK       "ProvisionedDPPNumberOfEntries"
+#define DE_NETWORK_PROVDPP      DATAELEMS_NETWORK       "ProvisionedDPP.{i}."
+#define DE_PROVDPP_TABLE        DATAELEMS_NETWORK       "ProvisionedDPP.{i}"
+#define DE_PROVDPP_ROW_PREFIX   DATAELEMS_NETWORK       "ProvisionedDPP."
+#define DE_PROVDPP_TABLE_NAME   "ProvisionedDPP"
+#define DE_PROVDPP_ALIAS        DE_NETWORK_PROVDPP      "Alias"
+#define DE_PROVDPP_DPPURI       DE_NETWORK_PROVDPP      "DPPURI"
+#define TR181_PROVDPP_STORE_FILE       "/nvram/ProvisionedDPP.json"
 /* Device.WiFi.DataElements.Network.Device */
 #define DE_NETWORK_DEVICE       DATAELEMS_NETWORK       "Device.{i}."
 #define DE_DEVICE_TABLE         DATAELEMS_NETWORK       "Device.{i}"
@@ -616,6 +630,13 @@ public:
     static bus_error_t ssid_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
     static bus_error_t ssid_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
     static bus_error_t ssid_table_add_row_handler(const char* table_name, const char* alias_name, uint32_t* instance_number);
+
+    //ProvisionedDPP (Device.WiFi.DataElements.Network.ProvisionedDPP.{i}.)
+    static bus_error_t provdpp_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
+    static bus_error_t provdpp_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
+    static bus_error_t provdpp_set(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
+    static bus_error_t provdpp_table_add_row_handler(const char* table_name, const char* alias_name, uint32_t* instance_number);
+    static bus_error_t provdpp_table_remove_row_handler(const char* row_name);
 
     /**!
      * @brief Handles the RBUS SetSSID method invocation.
