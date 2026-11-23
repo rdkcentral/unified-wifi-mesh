@@ -21,11 +21,13 @@
 #include <cstdlib>
 #include <cstring>
 #include <string>
+#include <unistd.h>
 #include "em_ctrl.h"
 
 /*
  * em_ctrl_t::cmd_channelselect() method name and path validation. The handler uses the controller singleton
- * (em_ctrl_t::get_em_ctrl_instance()), so its data model is initialised once for the suite with the no-DB client (db_client_type_none)
+ * (em_ctrl_t::get_em_ctrl_instance()), so its data model is initialised once for the suite with in-memory SQLite (skipped on a machine that has the on-box
+ * database setup script, which init() would run for an empty database)
  * (no certificate-backed command listener) and one agent device added with put_device() (em_ctrl_t::create_data_model()
  * creates a controller model, which writes /nvram/EasymeshCfg.json and never assigns an instance id). The device has
  * radios 1..EM_MAX_BANDS. Every rejected request must return its error and set the "Failure" status output.
@@ -35,15 +37,25 @@
 
 class cmd_channelselect_Test : public ::testing::Test {
 protected:
+    static bool usable_;
     static std::string dev;                       /* device instance (the data model id) */
+
+    void SetUp() override {
+        if (!usable_) {
+            GTEST_SKIP() << "the on-box EasyMesh database setup script is installed";
+        }
+    }
 
     static void SetUpTestSuite() {
         __lsan_disable();
+        /* init() of an empty local database runs this on-box recovery script when it is installed, and the script
+         * seeds the real database: such a machine skips these tests */
+        if (access("/usr/ccsp/EasyMesh/setup_sqlite_db_post.sh", X_OK) == 0) {
+            usable_ = false;
+            return;
+        }
         em_ctrl_t *ctrl = em_ctrl_t::get_em_ctrl_instance();
-        /* the no-DB init() bootstraps the controller network from the AL MAC, which is all zero on a fresh controller */
-        static const unsigned char al_mac[6] = { 0x02, 0x00, 0x00, 0x00, 0x00, 0xf0 };
-        memcpy(ctrl->get_dm_ctrl()->get_dev_interface()->mac, al_mac, sizeof(al_mac));
-        ASSERT_EQ(ctrl->get_dm_ctrl()->init(":memory:", ctrl, db_client_type_none), 0);
+        ASSERT_EQ(ctrl->get_dm_ctrl()->init(":memory:", ctrl, db_client_type_local), 0);
         unsigned char mac[6] = { 0x02, 0x00, 0x00, 0x00, 0x00, 0x0a };
         dm_device_t device;
         memcpy(device.m_device_info.intf.mac, mac, sizeof(mac));
@@ -102,6 +114,7 @@ protected:
     static bus_error_t call(const std::string &ev) { return call(ev.c_str()); }
 };
 
+bool cmd_channelselect_Test::usable_ = true;
 std::string cmd_channelselect_Test::dev;
 
 TEST_F(cmd_channelselect_Test, NullMethodNameIsRejected) {
