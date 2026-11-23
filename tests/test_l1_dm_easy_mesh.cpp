@@ -22751,3 +22751,157 @@ TEST(dm_easy_mesh_t, UpdateScanResults_negative_Static_NullScanResult)
     });
     std::cout << "Exiting UpdateScanResults_negative_Static_NullScanResult test" << std::endl;
 }
+/*
+ * dm_easy_mesh_t::encode_config_reset(): interface name formatting and NetworkSSIDList count limit.
+ *
+ * Each case encodes into a heap subdoc, parses the produced JSON and checks it, so a name read that runs into the
+ * neighbouring fields, or an SSID list longer than EM_MAX_NET_SSIDS, shows up as a wrong string or entry count.
+ */
+namespace {
+const char kResetKey[] = "wfa-dataelements:Reset";
+
+class ResetEncoding {
+public:
+    dm_easy_mesh_t *dm;
+    em_subdoc_info_t *subdoc;
+    cJSON *root;
+    int ret;
+
+    ResetEncoding() : dm(new dm_easy_mesh_t()), subdoc(NULL), root(NULL), ret(-1) {
+        subdoc = static_cast<em_subdoc_info_t *>(calloc(1, sizeof(em_subdoc_info_t) + EM_IO_BUFF_SZ));
+    }
+    ~ResetEncoding() {
+        cJSON_Delete(root);
+        free(subdoc);
+        delete dm;
+    }
+
+    void encode() {
+        ASSERT_NE(subdoc, nullptr);
+        ret = dm->encode_config_reset(subdoc, kResetKey);
+        root = cJSON_Parse(subdoc->buff);
+    }
+    cJSON *network() const { return root ? cJSON_GetObjectItem(root, kResetKey) : NULL; }
+    cJSON *interface_list() const {
+        cJSON *net = network();
+        cJSON *interfaces = net ? cJSON_GetObjectItem(net, "Interfaces") : NULL;
+        return interfaces ? cJSON_GetObjectItem(interfaces, "List") : NULL;
+    }
+    cJSON *ssid_list() const {
+        cJSON *net = network();
+        return net ? cJSON_GetObjectItem(net, "NetworkSSIDList") : NULL;
+    }
+
+    void set_interface(unsigned int index, const char *name_bytes, size_t name_len, const unsigned char mac[6]) {
+        em_interface_t *intf = &dm->m_interfaces[index];
+        memset(intf, 0, sizeof(*intf));
+        memcpy(intf->name, name_bytes, name_len);
+        memcpy(intf->mac, mac, 6);
+    }
+    void set_ssids(unsigned int declared_count) {
+        for (unsigned int i = 0; i < EM_MAX_NET_SSIDS; i++) {
+            char ssid[16];
+            snprintf(ssid, sizeof(ssid), "ssid%u", i);
+            strncpy(dm->m_network_ssid[i].get_network_ssid_info()->ssid, ssid,
+                    sizeof(dm->m_network_ssid[i].get_network_ssid_info()->ssid) - 1);
+        }
+        dm->m_num_net_ssids = declared_count;
+    }
+};
+
+/* the value of the first object member of interface entry `index` ("First Preference", "Second Preference", ...) */
+std::string interface_entry(cJSON *list, int index) {
+    cJSON *entry = cJSON_GetArrayItem(list, index);
+    if (entry == NULL || entry->child == NULL || !cJSON_IsString(entry->child)) {
+        return "<missing>";
+    }
+    return entry->child->valuestring;
+}
+}  // namespace
+
+TEST(dm_easy_mesh_t, encode_config_reset_interfaceNameWithTerminator) {
+    ResetEncoding enc;
+    const unsigned char mac[6] = { 0x02, 0x00, 0x00, 0x00, 0x00, 0x01 };
+    enc.set_interface(0, "eth0", 4, mac);
+    enc.dm->m_num_interfaces = 1;
+    enc.encode();
+    ASSERT_EQ(enc.ret, 0);
+    cJSON *list = enc.interface_list();
+    ASSERT_NE(list, nullptr);
+    ASSERT_EQ(cJSON_GetArraySize(list), 1);
+    EXPECT_EQ(interface_entry(list, 0), "02:00:00:00:00:01 (eth0)");
+    cJSON *first = cJSON_GetArrayItem(list, 0);
+    EXPECT_STREQ(first->child->string, "First Preference");
+}
+
+/* the name fills all 32 bytes without a terminator, the bytes behind it (the MAC) are printable and non-zero */
+TEST(dm_easy_mesh_t, encode_config_reset_interfaceNameWithoutTerminator) {
+    ResetEncoding enc;
+    const unsigned char mac[6] = { 'B', 'C', 'D', 'E', 'F', 'G' };
+    char name[sizeof(enc.dm->m_interfaces[0].name)];
+    memset(name, 'A', sizeof(name));
+    enc.set_interface(0, name, sizeof(name), mac);
+    enc.dm->m_num_interfaces = 1;
+    enc.encode();
+    ASSERT_EQ(enc.ret, 0);
+    cJSON *list = enc.interface_list();
+    ASSERT_NE(list, nullptr);
+    ASSERT_EQ(cJSON_GetArraySize(list), 1);
+    std::string expected = "42:43:44:45:46:47 (" + std::string(sizeof(name), 'A') + ")";
+    EXPECT_EQ(interface_entry(list, 0), expected);
+}
+
+TEST(dm_easy_mesh_t, encode_config_reset_allInterfacesWithoutTerminator) {
+    ResetEncoding enc;
+    const unsigned char mac[6] = { 'B', 'C', 'D', 'E', 'F', 'G' };
+    char name[sizeof(enc.dm->m_interfaces[0].name)];
+    memset(name, 'A', sizeof(name));
+    for (unsigned int i = 0; i < EM_MAX_INTERFACES; i++) {
+        enc.set_interface(i, name, sizeof(name), mac);
+    }
+    enc.dm->m_num_interfaces = EM_MAX_INTERFACES;
+    enc.encode();
+    ASSERT_EQ(enc.ret, 0);
+    cJSON *list = enc.interface_list();
+    ASSERT_NE(list, nullptr);
+    ASSERT_EQ(cJSON_GetArraySize(list), static_cast<int>(EM_MAX_INTERFACES));
+    std::string expected = "42:43:44:45:46:47 (" + std::string(sizeof(name), 'A') + ")";
+    for (int i = 0; i < cJSON_GetArraySize(list); i++) {
+        EXPECT_EQ(interface_entry(list, i), expected) << "interface " << i;
+    }
+}
+
+/* declared SSID counts: valid, equal to the array size, one above it and far above it; the encoder must stop at EM_MAX_NET_SSIDS */
+TEST(dm_easy_mesh_t, encode_config_reset_ssidCountWithinLimit) {
+    for (unsigned int count : { 0u, 1u, 3u, static_cast<unsigned int>(EM_MAX_NET_SSIDS) }) {
+        ResetEncoding enc;
+        enc.set_ssids(count);
+        enc.encode();
+        ASSERT_EQ(enc.ret, 0) << "count " << count;
+        cJSON *list = enc.ssid_list();
+        ASSERT_NE(list, nullptr) << "count " << count;
+        ASSERT_EQ(cJSON_GetArraySize(list), static_cast<int>(count)) << "count " << count;
+        for (unsigned int i = 0; i < count; i++) {
+            cJSON *ssid = cJSON_GetObjectItem(cJSON_GetArrayItem(list, static_cast<int>(i)), "SSID");
+            ASSERT_NE(ssid, nullptr);
+            EXPECT_STREQ(ssid->valuestring, ("ssid" + std::to_string(i)).c_str());
+        }
+    }
+}
+
+TEST(dm_easy_mesh_t, encode_config_reset_ssidCountAboveLimitIsClamped) {
+    for (unsigned int count : { static_cast<unsigned int>(EM_MAX_NET_SSIDS) + 1u, 100u, 0xFFFFFFFFu }) {
+        ResetEncoding enc;
+        enc.set_ssids(count);
+        enc.encode();
+        ASSERT_EQ(enc.ret, 0) << "count " << count;
+        cJSON *list = enc.ssid_list();
+        ASSERT_NE(list, nullptr) << "count " << count;
+        ASSERT_EQ(cJSON_GetArraySize(list), static_cast<int>(EM_MAX_NET_SSIDS)) << "count " << count;
+        for (int i = 0; i < static_cast<int>(EM_MAX_NET_SSIDS); i++) {
+            cJSON *ssid = cJSON_GetObjectItem(cJSON_GetArrayItem(list, i), "SSID");
+            ASSERT_NE(ssid, nullptr);
+            EXPECT_STREQ(ssid->valuestring, ("ssid" + std::to_string(i)).c_str());
+        }
+    }
+}
