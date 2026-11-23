@@ -485,6 +485,13 @@ int em_metrics_t::handle_unassoc_sta_link_metrics_tlv(unsigned char *buff, unsig
     unsigned char op_class = buff[pos++];
     unsigned char num_sta  = buff[pos++];
 
+    unsigned int expected_len = static_cast<unsigned int>(2 + (num_sta * sizeof(em_unassoc_sta_metric_t)));
+
+    if (tlv_len != expected_len) {
+        em_printfout("%s:%d Malformed Unassoc STA Link Metrics TLV: " "num_sta=%u expected_len=%u actual_len=%u\n", __func__, __LINE__, num_sta, expected_len, tlv_len);
+        return -1;
+    }
+
     for (unsigned int i = 0; i < num_sta; i++)
     {
         if (pos + sizeof(em_unassoc_sta_metric_t) > tlv_len) {
@@ -1121,6 +1128,8 @@ int em_metrics_t::handle_ap_metrics_response(unsigned char *buff, unsigned int l
         get_mgr()->publish_network_topology();
     }
 
+    get_mgr()->publish_metrics_updated(dm);
+
     return 0;
 }
 
@@ -1490,9 +1499,10 @@ int em_metrics_t::send_ap_metrics_response()
     em_msg_builder_t msg;
     char *errors[EM_MAX_TLV_MEMBERS] = {0};
     dm_easy_mesh_t *dm = get_data_model();
-    dm_sta_t *sta;
+    std::vector<dm_sta_t> stations;
     int bss_index = 0;
 
+    dm->copy_sta_snapshot(stations);
     msg.add_1905_header(dm->get_ctl_mac(), dm->get_agent_al_interface_mac(), em_msg_type_ap_metrics_rsp, get_mgr()->get_next_msg_id());
 
     //AP Metrics Response 17.1.17
@@ -1518,10 +1528,9 @@ int em_metrics_t::send_ap_metrics_response()
         }
 
         //now search if this sta is associated to this
-        sta = reinterpret_cast<dm_sta_t *> (hash_map_get_first(dm->m_sta_map));
-        while(sta != NULL) {
+        for (dm_sta_t &station : stations) {
+            dm_sta_t *sta = &station;
             if (memcmp(sta->get_sta_info()->bssid, dm->m_bss[bss_index].m_bss_info.bssid.mac, sizeof(mac_address_t)) != 0) {
-                sta = static_cast<dm_sta_t *>(hash_map_get_next(dm->m_sta_map, sta));
                 continue;
             }
             //Associated STA Traffic Stats TLV (17.2.35)
@@ -1544,7 +1553,6 @@ int em_metrics_t::send_ap_metrics_response()
             //assoc vendor link metrics
             msg.commit_tlv(em_tlv_type_vendor_specific, create_assoc_vendor_sta_link_metrics_tlv(msg.tlv_value(), sta->m_sta_info.id, sta));
 
-            sta = reinterpret_cast<dm_sta_t *> (hash_map_get_next(dm->m_sta_map, sta));
         }
     }
 
@@ -1593,13 +1601,8 @@ int em_metrics_t::send_ap_metrics_response()
 short em_metrics_t::create_assoc_sta_link_metrics_tlv(unsigned char *buff, mac_address_t sta_mac, const dm_sta_t *const sta)
 {
     size_t len = 0;
-    dm_easy_mesh_t *dm;
-    int num_bssids = 0;
     em_assoc_sta_link_metrics_t *assoc_sta_metrics = reinterpret_cast<em_assoc_sta_link_metrics_t*> (buff);
     em_assoc_link_metrics_t *metrics;
-
-    dm = get_data_model();
-    num_bssids = dm->get_num_bss_for_associated_sta(sta_mac);
 
     if (sta == NULL) {
         memcpy(&assoc_sta_metrics->sta_mac, &sta_mac, sizeof(assoc_sta_metrics->sta_mac));
@@ -1615,7 +1618,7 @@ short em_metrics_t::create_assoc_sta_link_metrics_tlv(unsigned char *buff, mac_a
             memcpy(&assoc_sta_metrics->sta_mac, &sta->m_sta_info.id, sizeof(assoc_sta_metrics->sta_mac));
             len += sizeof(assoc_sta_metrics->sta_mac);
 
-            assoc_sta_metrics->num_bssids = static_cast<unsigned char> (num_bssids);
+            assoc_sta_metrics->num_bssids = 1;
             len += sizeof(assoc_sta_metrics->num_bssids);
 
             memcpy(&metrics->bssid, &sta->m_sta_info.bssid, sizeof(metrics->bssid));
@@ -1640,11 +1643,8 @@ short em_metrics_t::create_assoc_sta_link_metrics_tlv(unsigned char *buff, mac_a
 short em_metrics_t::create_assoc_ext_sta_link_metrics_tlv(unsigned char *buff, mac_address_t sta_mac, const dm_sta_t *const sta)
 {
     size_t len = 0;
-    dm_easy_mesh_t *dm;
     em_assoc_sta_ext_link_metrics_t *assoc_sta_metrics = reinterpret_cast<em_assoc_sta_ext_link_metrics_t*> (buff);
     em_assoc_ext_link_metrics_t *metrics;
-
-    dm = get_data_model();
 
     if (sta == NULL) {
         memcpy(&assoc_sta_metrics->sta_mac, &sta_mac, sizeof(assoc_sta_metrics->sta_mac));
@@ -1660,7 +1660,7 @@ short em_metrics_t::create_assoc_ext_sta_link_metrics_tlv(unsigned char *buff, m
             memcpy(assoc_sta_metrics->sta_mac, sta->m_sta_info.id, sizeof(assoc_sta_metrics->sta_mac));
             len += sizeof(assoc_sta_metrics->sta_mac);
 
-            assoc_sta_metrics->num_bssids = static_cast<unsigned char> (dm->get_num_bss_for_associated_sta(sta_mac));
+            assoc_sta_metrics->num_bssids = 1;
             len += sizeof(assoc_sta_metrics->num_bssids);
 
             memcpy(metrics->bssid, sta->m_sta_info.bssid, sizeof(metrics->bssid));
@@ -2975,6 +2975,10 @@ void em_metrics_t::process_msg(unsigned char *data, unsigned int len)
 
         case em_msg_type_failed_conn:
             get_mgr()->handle_failed_conn_msg(data, len);
+            break;
+
+        case em_msg_type_client_disassoc_stats:
+            get_mgr()->handle_client_disassoc_stats_msg(data, len);
             break;
 
         default:

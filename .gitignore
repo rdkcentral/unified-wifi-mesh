@@ -6,3 +6,5 @@ install/bin/
 *.log
 DPPURI_sendable.json
 *.a
+*.rej
+*.orig

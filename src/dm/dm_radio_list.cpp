@@ -78,7 +78,9 @@ int dm_radio_list_t::set_config(db_client_t& db_client, dm_radio_t& radio, void 
     
     dm_radio_t::parse_radio_id_from_key(static_cast<char *>(parent_id), &radio.m_radio_info.id);
   
-    update_db(db_client, (op = get_dm_orch_type(db_client, radio)), radio.get_radio_info());
+    if (update_db(db_client, (op = get_dm_orch_type(db_client, radio)), radio.get_radio_info()) != 0) {
+        return -1;
+    }
     update_list(radio, op);
     
     return 0;
@@ -98,7 +100,9 @@ int dm_radio_list_t::set_config(db_client_t& db_client, const cJSON *obj_arr, vo
 		radio.decode(obj, parent_id);
         em_printfout("Number of BSS configured on Radio:%s is %d",
             util::mac_to_string(radio.m_radio_info.id.ruid).c_str(), radio.m_radio_info.number_of_bss);
-		update_db(db_client, (op = get_dm_orch_type(db_client, radio)), radio.get_radio_info());
+		if (update_db(db_client, (op = get_dm_orch_type(db_client, radio)), radio.get_radio_info()) != 0) {
+		    return -1;
+		}
 		update_list(radio, op);
     }
 
@@ -159,8 +163,11 @@ void dm_radio_list_t::update_list(const dm_radio_t& radio, dm_orch_type_t op)
                 // JSON); preserve it across a config update instead of letting this
                 // memcpy clobber it with zero.
                 unsigned char radio_temp = pradio->m_radio_info.radio_temp;
+                mac_address_t bsta;
+                memcpy(bsta, pradio->m_radio_info.backhaul_sta, sizeof(mac_address_t));
                 memcpy(&pradio->m_radio_info, &radio.m_radio_info, sizeof(em_radio_info_t));
                 pradio->m_radio_info.radio_temp = radio_temp;
+                memcpy(pradio->m_radio_info.backhaul_sta, bsta, sizeof(mac_address_t));
             }
             break;
 
@@ -204,6 +211,9 @@ int dm_radio_list_t::update_db(db_client_t& db_client, dm_orch_type_t op, void *
     dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *>(info->id.dev_mac), dev_mac_str);
     dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *>(info->id.ruid), radio_mac_str);
 	snprintf(key, sizeof(key), "%s@%s@%s", info->id.net_id, dev_mac_str, radio_mac_str);
+    if (prepare_db_operation(db_client, op) != 0) {
+        return -1;
+    }
 
     switch (op) {
 		case dm_orch_type_db_insert:

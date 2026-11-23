@@ -89,8 +89,10 @@ int dm_ieee_1905_security_list_t::set_config(db_client_t& db_client, const cJSON
 
 		ieee_1905_security.decode(obj);		
 
-		update_db(db_client, (op = get_dm_orch_type(db_client, ieee_1905_security)), 
-						ieee_1905_security.get_ieee_1905_security_info());
+        if (update_db(db_client, (op = get_dm_orch_type(db_client, ieee_1905_security)),
+                ieee_1905_security.get_ieee_1905_security_info()) != 0) {
+            return -1;
+        }
 		update_list(ieee_1905_security, op);
 	}
 
@@ -177,6 +179,10 @@ int dm_ieee_1905_security_list_t::update_db(db_client_t& db_client, dm_orch_type
 {
     mac_addr_str_t mac_str;
     em_ieee_1905_security_info_t *info = static_cast<em_ieee_1905_security_info_t *> (data);
+    dm_easy_mesh_t::macbytes_to_string(info->id, mac_str);
+    if (prepare_db_operation(db_client, op) != 0) {
+        return -1;
+    }
 	int ret = 0;
 
 	//printf("%s:%d: Opeartion:%d\n", __func__, __LINE__, op);
