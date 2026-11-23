@@ -79,8 +79,6 @@ int main(int argc, char **argv) {
     "dm_device_t_Test.SetPrimaryDeviceType_ExceedingBufferSize:"
     "dm_device_t_Test.SetSoftwareVersion_NullVersionString:"
     "dm_device_t_Test.SetDeviceInterfaceNameWithNullPointer:"
-    "dm_device_t_Test.UpdateEasyMeshJsonCfg_ColocatedModeEnabled:"
-    "dm_device_t_Test.UpdateEasyMeshJsonCfg_ColocatedModeDisabled:"
     "dm_device_t_Test.DifferentDevMac:"
     "dm_device_t_Test.DifferentMediaType:"
     "dm_device_t_Test.DifferentProfiles:"
