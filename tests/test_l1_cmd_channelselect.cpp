@@ -83,6 +83,15 @@ protected:
         free(name);
         if (expect_status) {
             EXPECT_NE(out, nullptr) << "no status output for " << (ev ? ev : "(null)");
+            if (out != nullptr) {
+                /* the output must be the Status property carrying "Failure", not just any property */
+                EXPECT_STREQ(out->name, "Status") << (ev ? ev : "(null)");
+                EXPECT_EQ(out->value.data_type, bus_data_type_string) << (ev ? ev : "(null)");
+                EXPECT_NE(out->value.raw_data.bytes, nullptr) << (ev ? ev : "(null)");
+                if (out->value.raw_data.bytes != nullptr) {
+                    EXPECT_STREQ(static_cast<const char *>(out->value.raw_data.bytes), "Failure") << (ev ? ev : "(null)");
+                }
+            }
         }
         if (out != nullptr) {
             free(out->value.raw_data.bytes);
