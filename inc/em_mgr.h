@@ -194,6 +194,15 @@ public:
 	 * @note Ensure that the data structure is not in use before calling this function.
 	 */
 	void delete_nodes();
+
+	/**!
+	 * @brief Deletes every radio node that uses the given data model.
+	 *
+	 * Must run before the data model is deleted, a node would keep pointing at it otherwise.
+	 *
+	 * @param[in] dm Data model of the agent whose nodes are deleted.
+	 */
+	void delete_nodes_of_dm(dm_easy_mesh_t *dm);
     
 	/**!
 	 * @brief Retrieves a node based on the specified frequency band.

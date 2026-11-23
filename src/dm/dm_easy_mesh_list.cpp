@@ -1650,6 +1650,10 @@ void dm_easy_mesh_list_t::delete_data_model(const char *net_id, const unsigned c
     //printf("%s:%d: Putting data model at key: %s\n", __func__, __LINE__, key);
 
     dm = static_cast<dm_easy_mesh_t *> (hash_map_remove(m_list, key));
+    if (dm == NULL) {
+        em_printfout("Can not find data model at key: %s, nothing to delete", key);
+        return;
+    }
 
     //printf("%s:%d: deleteing data model at key: %s, dm:%p, colocated:%d\n", __func__, __LINE__, key, dm, dm->get_colocated());
     dm->deinit();

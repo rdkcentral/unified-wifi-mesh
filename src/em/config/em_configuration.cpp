@@ -630,6 +630,23 @@ void em_configuration_t::handle_state_topology_notify()
 
 int em_configuration_t::send_autoconfig_renew_msg()
 {
+    mac_addr_str_t mac_str;
+    int len;
+
+    len = send_autoconfig_renew_msg(get_data_model()->get_agent_al_interface_mac(), get_band());
+    if (len < 0) {
+        return -1;
+    }
+
+    dm_easy_mesh_t::macbytes_to_string (get_radio_interface_mac(), mac_str);
+    m_renew_tx_cnt++;
+    em_printfout("AutoConfig Renew (%d) Send Successful for %s freq band=%d\n", m_renew_tx_cnt, mac_str, get_band());
+
+    return len;
+}
+
+int em_configuration_t::send_autoconfig_renew_msg(const unsigned char *agent_al_mac, em_freq_band_t band)
+{
     unsigned char buff[MAX_EM_BUFF_SZ];
     char *errors[EM_MAX_TLV_MEMBERS] = {0};
     unsigned short  msg_type = em_msg_type_autoconf_renew;
@@ -641,11 +658,9 @@ int em_configuration_t::send_autoconfig_renew_msg()
     dm_easy_mesh_t *dm;
     unsigned char registrar = 0;
     em_freq_band_t freq_band;
-    mac_addr_str_t mac_str;
     dm = get_data_model();
 
-    const unsigned char *dst_mac = dm->get_agent_al_interface_mac();
-    memcpy(tmp, dst_mac, sizeof(mac_address_t));
+    memcpy(tmp, agent_al_mac, sizeof(mac_address_t));
     tmp += sizeof(mac_address_t);
     len += static_cast<unsigned int> (sizeof(mac_address_t));
 
@@ -663,7 +678,7 @@ int em_configuration_t::send_autoconfig_renew_msg()
     cmdu->type = htons(msg_type);
     cmdu->id = htons(get_mgr()->get_next_msg_id());
     cmdu->last_frag_ind = 1;
-    cmdu->relay_ind = (dst_mac[0] & 0x01) ? 1 : 0;
+    cmdu->relay_ind = (agent_al_mac[0] & 0x01) ? 1 : 0;
 
     tmp += sizeof(em_cmdu_t);
     len += static_cast<unsigned int> (sizeof(em_cmdu_t));
@@ -690,7 +705,7 @@ int em_configuration_t::send_autoconfig_renew_msg()
     tlv = reinterpret_cast<em_tlv_t *> (tmp);
     tlv->type = em_tlv_type_supported_freq_band;
     tlv->len = htons(sizeof(unsigned char));
-    freq_band = static_cast<em_freq_band_t> (get_band());
+    freq_band = band;
     memcpy(&tlv->value, &freq_band, sizeof(unsigned char));
 
     tmp += (sizeof (em_tlv_t) + 1);
@@ -710,14 +725,11 @@ int em_configuration_t::send_autoconfig_renew_msg()
         return -1;
     }
 
-    dm_easy_mesh_t::macbytes_to_string (get_radio_interface_mac(), mac_str);
     if (send_frame(buff, len)  < 0) {
-        printf("%s:%d: Autoconfig Renew send failed, error:%d for %s\n", __func__, __LINE__, errno, mac_str);
+        em_printfout("Autoconfig Renew send failed, error:%d for agent %s band %d", errno,
+            util::mac_to_string(agent_al_mac).c_str(), band);
         return -1;
     }
-
-    m_renew_tx_cnt++;
-    em_printfout("AutoConfig Renew (%d) Send Successful for %s freq band=%d\n", m_renew_tx_cnt, mac_str, get_band());
 
     return static_cast<int> (len);
 }
@@ -2254,6 +2266,7 @@ void em_configuration_t::build_link_topology(em_mgr_t *mgr)
         mac_address_t b_if;
         unsigned short intf_type;
         int reporter;
+        bool assoc;
     };
     std::vector<node_t> nodes;
     std::vector<edge_t> edges;
@@ -2336,6 +2349,95 @@ void em_configuration_t::build_link_topology(em_mgr_t *mgr)
         }
     }
 
+    // A backhaul STA associated to a BSS of another agent is a link too, and it is known when
+    // the association is reported. The 1905 link metrics show a new link up to a minute later
+    // and keep the link it replaced as long: an extender that moved from Ethernet to Wi-Fi was
+    // published on Ethernet, then without a link, then on Wi-Fi.
+    for (size_t c = 0; c < nodes.size(); c++) {
+        dm_easy_mesh_t *child = nodes[c].dm;
+        em_device_info_t *cdi = &child->m_device.m_device_info;
+
+        if (static_cast<int>(c) == root) {
+            continue;
+        }
+        for (unsigned int r = 0; r < child->get_num_radios(); r++) {
+            static const mac_address_t zero_mac = {0};
+            em_radio_info_t *cri = child->get_radio_info(r);
+            const unsigned char *bsta = cri->backhaul_sta;
+            bool reported = true;
+
+            // An agent on Ethernet does not report its backhaul STA. The MAC it reported for
+            // this radio before still tells whose backhaul STA an associating STA is.
+            if (memcmp(bsta, zero_mac, sizeof(mac_address_t)) == 0) {
+                bsta = cri->known_backhaul_sta;
+                reported = false;
+            }
+            if (memcmp(bsta, zero_mac, sizeof(mac_address_t)) == 0) {
+                continue;
+            }
+
+            // The media type the link metrics gave this agent's Wi-Fi link before, so that the
+            // published link does not change when they report it again
+            unsigned short intf_type = cdi->link_wifi_intf_type;
+            if (intf_type <= 0x0001) {
+                intf_type = em_media_type_ieee80211ac_5;
+            }
+
+            for (size_t p = 0; p < nodes.size(); p++) {
+                dm_easy_mesh_t *parents[2] = {nodes[p].dm, nodes[p].alias};
+
+                if (p == c) {
+                    continue;
+                }
+                for (dm_easy_mesh_t *parent : parents) {
+                    if (parent == NULL) {
+                        continue;
+                    }
+                    for (unsigned int b = 0; b < parent->get_num_bss(); b++) {
+                        em_bss_info_t *bi = parent->get_bss_info(b);
+                        std::string key = util::mac_to_string(bsta) + "@" + util::mac_to_string(bi->bssid.mac) +
+                            "@" + util::mac_to_string(bi->ruid.mac);
+                        // m_sta_assoc_map has the STA as soon as it associates, m_sta_map once
+                        // the association command has run
+                        dm_sta_t *sta = static_cast<dm_sta_t *>(hash_map_get(parent->m_sta_map, key.c_str()));
+                        if ((sta == NULL) || (sta->m_sta_info.associated == false)) {
+                            sta = static_cast<dm_sta_t *>(hash_map_get(parent->m_sta_assoc_map, key.c_str()));
+                        }
+                        if ((sta == NULL) || (sta->m_sta_info.associated == false)) {
+                            continue;
+                        }
+                        if (reported == false) {
+                            // The backhaul STA is in use again, publish it for the radio as
+                            // the agent's own report will
+                            memcpy(cri->backhaul_sta, bsta, sizeof(mac_address_t));
+                            bsta = cri->backhaul_sta;
+                            reported = true;
+                            em_printfout("Backhaul STA %s of radio %s is associated to %s before its agent reported it",
+                                util::mac_to_string(bsta).c_str(), util::mac_to_string(cri->id.ruid).c_str(),
+                                util::mac_to_string(bi->bssid.mac).c_str());
+                        }
+
+                        edge_t fwd = {static_cast<int>(p), static_cast<int>(c), {0}, {0}, {0}, {0}, intf_type,
+                            static_cast<int>(p), true};
+                        memcpy(fwd.a_al, parent->get_agent_al_interface_mac(), sizeof(mac_address_t));
+                        memcpy(fwd.b_al, child->get_agent_al_interface_mac(), sizeof(mac_address_t));
+                        memcpy(fwd.a_if, bi->bssid.mac, sizeof(mac_address_t));
+                        memcpy(fwd.b_if, bsta, sizeof(mac_address_t));
+                        edges.push_back(fwd);
+
+                        edge_t rev = {static_cast<int>(c), static_cast<int>(p), {0}, {0}, {0}, {0}, intf_type,
+                            static_cast<int>(p), true};
+                        memcpy(rev.a_al, child->get_agent_al_interface_mac(), sizeof(mac_address_t));
+                        memcpy(rev.b_al, parent->get_agent_al_interface_mac(), sizeof(mac_address_t));
+                        memcpy(rev.a_if, bsta, sizeof(mac_address_t));
+                        memcpy(rev.b_if, bi->bssid.mac, sizeof(mac_address_t));
+                        edges.push_back(rev);
+                    }
+                }
+            }
+        }
+    }
+
     nodes[root].depth = 0;
     queue.push_back(root);
     for (size_t head = 0; head < queue.size(); head++) {
@@ -2353,10 +2455,38 @@ void em_configuration_t::build_link_topology(em_mgr_t *mgr)
         di->num_link_children = 0;
     }
 
+    // Whether the link metrics, not only an association, connect the agent: remove_lost_devices()
+    // goes by them, an association record outlives a powered-off agent by minutes
+    std::vector<bool> metric_link(nodes.size(), false);
+
     for (size_t v = 0; v < nodes.size(); v++) {
         em_device_info_t *di = &nodes[v].dm->m_device.m_device_info;
         const edge_t *best = NULL;
         int best_score = -1;
+        bool eth_present = false, assoc_present = false;
+
+        for (const edge_t &e : edges) {
+            if ((e.b != static_cast<int>(v)) || (nodes[e.a].depth < 0) || (nodes[e.a].depth != nodes[v].depth - 1)) {
+                continue;
+            }
+            if (e.assoc == true) {
+                assoc_present = true;
+                continue;
+            }
+            metric_link[v] = true;
+            if (e.intf_type <= 0x0001) {
+                eth_present = true;
+            } else {
+                di->link_wifi_intf_type = e.intf_type;
+            }
+        }
+        di->link_eth_since = (eth_present == false) ? 0 : ((di->link_eth_since != 0) ? di->link_eth_since : now);
+        di->link_assoc_since = (assoc_present == false) ? 0 : ((di->link_assoc_since != 0) ? di->link_assoc_since : now);
+
+        // An agent has one backhaul. With an Ethernet link and an association both present, the
+        // one that appeared later is the one it moved to; the other is on its way out
+        bool prefer_eth = !((eth_present == true) && (assoc_present == true) &&
+            (di->link_assoc_since > di->link_eth_since));
 
         for (const edge_t &e : edges) {
             if ((e.b != static_cast<int>(v)) || (nodes[e.a].depth < 0) || (nodes[e.a].depth != nodes[v].depth - 1)) {
@@ -2367,8 +2497,8 @@ void em_configuration_t::build_link_topology(em_mgr_t *mgr)
             if ((di->link_has_parent == true) && (memcmp(di->link_parent_alid, e.a_al, sizeof(mac_address_t)) == 0)) {
                 score += 2;
             }
-            // Prefer Ethernet, then the previous parent
-            if (e.intf_type <= 0x0001) {
+            // Prefer the current medium, then the previous parent
+            if ((e.intf_type <= 0x0001) == prefer_eth) {
                 score += 4;
             }
             if ((best == NULL) || (score > best_score) ||
@@ -2400,6 +2530,16 @@ void em_configuration_t::build_link_topology(em_mgr_t *mgr)
                 memcpy(child_if, e.b_if, sizeof(mac_address_t));
             }
         }
+        // An association names both ends exactly: the BSS and the backhaul STA
+        if (best->intf_type > 0x0001) {
+            for (const edge_t &e : edges) {
+                if ((e.assoc == true) && (e.a == best->a) && (e.b == static_cast<int>(v))) {
+                    memcpy(parent_if, e.a_if, sizeof(mac_address_t));
+                    memcpy(child_if, e.b_if, sizeof(mac_address_t));
+                    break;
+                }
+            }
+        }
 
         di->link_has_parent = true;
         memcpy(di->link_parent_alid, best->a_al, sizeof(mac_address_t));
@@ -2428,6 +2568,80 @@ void em_configuration_t::build_link_topology(em_mgr_t *mgr)
         memcpy(alias_di->link_children, root_di->link_children, sizeof(alias_di->link_children));
         alias_di->link_has_parent = false;
     }
+
+    std::vector<dm_easy_mesh_t *> lost;
+    for (size_t v = 0; v < nodes.size(); v++) {
+        em_device_info_t *di = &nodes[v].dm->m_device.m_device_info;
+
+        if (static_cast<int>(v) == root) {
+            continue;
+        }
+        // An agent that still sends anything (AP metrics, topology notifications) is alive even
+        // while its link pairs are missing, e.g. right after it re-onboards and before the 1905
+        // stacks have re-learned the link; only an agent silent for longer than the link pairs
+        // live is lost
+        if ((metric_link[v] == true) ||
+            ((di->last_rx_sec != 0) && ((now - di->last_rx_sec) <= EM_LINK_PAIRS_MAX_AGE))) {
+            di->link_lost_since = 0;
+            continue;
+        }
+
+        if (di->link_lost_since == 0) {
+            em_printfout("Agent %s has no link to the controller and is silent, removing it in %d seconds",
+                util::mac_to_string(nodes[v].dm->get_agent_al_interface_mac()).c_str(), EM_LINK_LOST_GRACE);
+            di->link_lost_since = now;
+            continue;
+        }
+        if ((now - di->link_lost_since) < EM_LINK_LOST_GRACE) {
+            continue;
+        }
+        // Removing an agent takes three commands and one event has room for EM_MAX_CMD of
+        // them: the agents beyond that are removed on a later pass
+        if (lost.size() >= EM_MAX_LOST_PER_REMOVE) {
+            continue;
+        }
+        di->link_lost_since = now;
+        lost.push_back(nodes[v].dm);
+    }
+
+    if (lost.empty() == false) {
+        remove_lost_devices(mgr, lost);
+    }
+}
+
+void em_configuration_t::remove_lost_devices(em_mgr_t *mgr, const std::vector<dm_easy_mesh_t *> &lost)
+{
+    char buff[4096];
+    size_t off = 0;
+    unsigned int num_keep = 0;
+    mac_addr_str_t mac_str;
+    em_cmd_params_t params;
+
+    memset(&params, 0, sizeof(params));
+    off += static_cast<size_t>(snprintf(buff + off, sizeof(buff) - off,
+        "{\"wfa-dataelements:RemoveDevice\":{\"Network\":{\"DeviceList\":["));
+
+    // RemoveDevice takes the devices to keep, every other one is deleted
+    for (dm_easy_mesh_t *dm = mgr->get_first_dm(); dm != NULL; dm = mgr->get_next_dm(dm)) {
+        if (std::find(lost.begin(), lost.end(), dm) != lost.end()) {
+            continue;
+        }
+        if (num_keep >= EM_MAX_KEEP_DEVICES) {
+            em_printfout("Too many devices to keep (%u), not removing lost agents", num_keep);
+            return;
+        }
+        dm_easy_mesh_t::macbytes_to_string(dm->m_device.m_device_info.intf.mac, mac_str);
+        off += static_cast<size_t>(snprintf(buff + off, sizeof(buff) - off, "%s{\"ID\":\"%s\"}",
+            (num_keep == 0) ? "" : ",", mac_str));
+        num_keep++;
+    }
+    snprintf(buff + off, sizeof(buff) - off, "]}}}");
+
+    for (dm_easy_mesh_t *dm : lost) {
+        em_printfout("Agent %s has no link to the controller, removing it",
+            util::mac_to_string(dm->get_agent_al_interface_mac()).c_str());
+    }
+    mgr->io_process(em_bus_event_type_remove_device, buff, static_cast<unsigned int>(strlen(buff) + 1), &params);
 }
 
 int em_configuration_t::handle_topology_response(unsigned char *buff, unsigned int len)

@@ -40,6 +40,9 @@
 #include "em_configuration.h"
 #include "em_orch_ctrl.h"
 #include "em_cmd_ctrl.h"
+#include "em_network_topo.h"
+
+extern em_network_topo_t *g_network_topology;
 
 void em_orch_ctrl_t::orch_transient(em_cmd_t *pcmd, em_t *em)
 {
@@ -471,8 +474,10 @@ bool em_orch_ctrl_t::pre_process_orch_op(em_cmd_t *pcmd)
             break;
 
         case dm_orch_type_em_delete:
-			em = dm->get_em();
-            m_mgr->delete_node(em->get_radio_interface());
+            mgr_dm = m_mgr->get_data_model((dm->get_device())->m_device_info.id.net_id, (dm->get_device())->m_device_info.intf.mac);
+            if (mgr_dm != NULL) {
+                m_mgr->delete_nodes_of_dm(mgr_dm);
+            }
             break;
         
         case dm_orch_type_db_cfg:
@@ -510,7 +515,12 @@ bool em_orch_ctrl_t::pre_process_orch_op(em_cmd_t *pcmd)
 
 		case dm_orch_type_dm_delete:
 			printf("%s:%d: Deleting data model\n", __func__, __LINE__);
+			mgr_dm = m_mgr->get_data_model((dm->get_device())->m_device_info.id.net_id, (dm->get_device())->m_device_info.intf.mac);
+			if ((mgr_dm != NULL) && (g_network_topology != NULL)) {
+				g_network_topology->remove(mgr_dm, NULL, NULL);
+			}
 			m_mgr->delete_data_model((dm->get_device())->m_device_info.id.net_id, (dm->get_device())->m_device_info.id.dev_mac);
+			m_mgr->update_network_topology();
 			break;
 
 		case dm_orch_type_dm_delete_all:

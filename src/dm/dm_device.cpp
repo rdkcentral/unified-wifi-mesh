@@ -280,6 +280,9 @@ void dm_device_t::operator = (const dm_device_t& obj) {
     memcpy(&this->m_device_info.intf.mac ,&obj.m_device_info.intf.mac,sizeof(mac_address_t));
     memcpy(&this->m_device_info.intf.name,&obj.m_device_info.intf.name,sizeof(em_interface_name_t));
     memcpy(&this->m_device_info.id.net_id,&obj.m_device_info.id.net_id,sizeof(em_long_string_t));
+    if (memcmp(obj.m_device_info.id.dev_mac, ZERO_MAC_ADDR, sizeof(mac_address_t)) != 0) {
+        memcpy(&this->m_device_info.id.dev_mac,&obj.m_device_info.id.dev_mac,sizeof(mac_address_t));
+    }
     memcpy(&this->m_device_info.multi_ap_cap,&obj.m_device_info.multi_ap_cap,sizeof(em_long_string_t));
     this->m_device_info.coll_interval = obj.m_device_info.coll_interval;
     this->m_device_info.report_unsuccess_assocs = obj.m_device_info.report_unsuccess_assocs;

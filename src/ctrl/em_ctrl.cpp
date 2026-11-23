@@ -1558,6 +1558,83 @@ int em_ctrl_t::orch_init()
     return 0;
 }
 
+static unsigned long em_rx_now_sec()
+{
+    struct timespec ts;
+
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return static_cast<unsigned long>(ts.tv_sec);
+}
+
+void em_ctrl_t::remember_backhaul_stas(em_known_agent_t &agent, dm_easy_mesh_t *dm)
+{
+    static const mac_address_t zero_mac = {0};
+
+    for (unsigned int r = 0; r < dm->get_num_radios(); r++) {
+        em_radio_info_t *ri = dm->get_radio_info(r);
+        unsigned int k;
+
+        for (k = 0; k < agent.num_bsta; k++) {
+            if (memcmp(agent.bsta[k].ruid, ri->id.ruid, sizeof(mac_address_t)) == 0) {
+                break;
+            }
+        }
+        if (memcmp(ri->backhaul_sta, zero_mac, sizeof(mac_address_t)) != 0) {
+            // Reported by the agent: this is the value to remember
+            if ((k == agent.num_bsta) && (agent.num_bsta < EM_MAX_KNOWN_BSTA)) {
+                memcpy(agent.bsta[k].ruid, ri->id.ruid, sizeof(mac_address_t));
+                agent.num_bsta++;
+            }
+            if (k < agent.num_bsta) {
+                memcpy(agent.bsta[k].sta, ri->backhaul_sta, sizeof(mac_address_t));
+            }
+        }
+        if (k < agent.num_bsta) {
+            memcpy(ri->known_backhaul_sta, agent.bsta[k].sta, sizeof(mac_address_t));
+        }
+    }
+}
+
+void em_ctrl_t::renew_forgotten_agent(const unsigned char *al_mac, dm_easy_mesh_t *dm, em_t *al_em)
+{
+    std::string key = util::mac_to_string(al_mac);
+    unsigned long now = em_rx_now_sec();
+    em_commit_info_t dm_commit = {};
+
+    auto it = m_known_agents.find(key);
+    if (it == m_known_agents.end()) {
+        // Never configured by this controller: it has to search for one
+        return;
+    }
+    em_known_agent_t &agent = it->second;
+
+    if (dm == NULL) {
+        if ((agent.commit_sec != 0) && ((now - agent.commit_sec) < EM_AGENT_RENEW_PERIOD)) {
+            return;
+        }
+        agent.commit_sec = now;
+        memcpy(dm_commit.mac, al_mac, sizeof(mac_addr_t));
+        strncpy(dm_commit.net_id, GLOBAL_NET_ID, sizeof(dm_commit.net_id));
+        dm_commit.is_emplus_agent = agent.is_emplus_agent;
+        dm_commit.peer_profile = agent.profile;
+        io_process(em_bus_event_type_dm_commit, reinterpret_cast<unsigned char *> (&dm_commit), sizeof(em_commit_info_t));
+        em_printfout("Agent %s reports without a data model, creating it again", key.c_str());
+        return;
+    }
+
+    if ((dm->get_num_radios() != 0) || (al_em == NULL)) {
+        return;
+    }
+    if ((agent.renew_sec != 0) && ((now - agent.renew_sec) < EM_AGENT_RENEW_PERIOD)) {
+        return;
+    }
+    agent.renew_sec = now;
+    al_em->send_autoconfig_renew_msg(al_mac, em_freq_band_24);
+    al_em->send_autoconfig_renew_msg(al_mac, em_freq_band_5);
+    al_em->send_autoconfig_renew_msg(al_mac, em_freq_band_6);
+    em_printfout("Agent %s has no radio in the data model, sent it an Autoconfig Renew", key.c_str());
+}
+
 em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_t *al_em)
 {
     em_raw_hdr_t *hdr;
@@ -1596,6 +1673,28 @@ em_t *em_ctrl_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em_
     }
     
     cmdu = reinterpret_cast<em_cmdu_t *> (data + sizeof(em_raw_hdr_t));
+
+    // Any message from an agent proves it alive: build_link_topology() keeps such an agent
+    // even while its link pairs are missing, e.g. right after it re-onboards
+    if (((dm = get_data_model(GLOBAL_NET_ID, const_cast<const unsigned char *> (hdr->src))) != NULL) &&
+        (dm->get_colocated() == false) && (dm->is_controller() == false)) {
+        dm->m_device.m_device_info.last_rx_sec = em_rx_now_sec();
+        // Remember a configured agent, renew_forgotten_agent() needs this once its data model is gone
+        if (dm->get_num_radios() != 0) {
+            std::string key = util::mac_to_string(hdr->src);
+            if ((m_known_agents.count(key) != 0) || (m_known_agents.size() < EM_MAX_KEEP_DEVICES)) {
+                em_known_agent_t &agent = m_known_agents[key];
+                agent.profile = dm->m_device.get_peer_profile();
+                agent.is_emplus_agent = dm->get_device_info()->is_emplus_agent;
+                remember_backhaul_stas(agent, dm);
+            }
+        }
+    }
+    // An agent that searches or sends an M1 is onboarding by itself
+    if ((htons(cmdu->type) != em_msg_type_autoconf_search) && (htons(cmdu->type) != em_msg_type_autoconf_wsc) &&
+        ((dm == NULL) || ((dm->get_colocated() == false) && (dm->is_controller() == false)))) {
+        renew_forgotten_agent(hdr->src, dm, al_em);
+    }
 
     switch (htons(cmdu->type)) {
         case em_msg_type_autoconf_search:
