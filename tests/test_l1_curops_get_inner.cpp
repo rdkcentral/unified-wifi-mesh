@@ -26,7 +26,7 @@
 /*
  * dm_easy_mesh_ctrl_t::curops_get_inner() path validation. The handler uses the controller singleton
  * (em_ctrl_t::get_em_ctrl_instance()), so its data model is initialised once for the suite with
- * in-memory SQLite (no certificate-backed command listener). The device is added as an agent model
+ * the no-DB client (db_client_type_none: nothing is read from or written to disk, and the on-box recovery script of the local client is never run; no certificate-backed command listener). The device is added as an agent model
  * with put_device() (em_ctrl_t::create_data_model() creates a controller model, which writes
  * /nvram/EasymeshCfg.json and never assigns an instance id). The model holds one device with
  * radios 1..EM_MAX_BANDS and two current operating classes on radio 1.
@@ -43,7 +43,7 @@ protected:
     static void SetUpTestSuite() {
         __lsan_disable();
         em_ctrl_t *ctrl = em_ctrl_t::get_em_ctrl_instance();
-        ASSERT_EQ(ctrl->get_dm_ctrl()->init(":memory:", ctrl, db_client_type_local), 0);
+        ASSERT_EQ(ctrl->get_dm_ctrl()->init(":memory:", ctrl, db_client_type_none), 0);
         unsigned char mac[6] = { 0x02, 0x00, 0x00, 0x00, 0x00, 0x01 };
         dm_device_t device;
         memcpy(device.m_device_info.intf.mac, mac, sizeof(mac));
