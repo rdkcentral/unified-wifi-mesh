@@ -444,7 +444,7 @@ bool dm_sta_list_t::compare_db(db_client_t& db_client, const dm_sta_t& sta)
             continue;
         }
         dm_easy_mesh_t::string_to_macbytes(mac, info.radiomac);
-	info.associated = db_client.get_number(ctx, 4);
+        info.associated = db_client.get_number(ctx, 4);
         info.last_ul_rate = static_cast<unsigned int>(db_client.get_number(ctx, 5));
         info.last_dl_rate = static_cast<unsigned int>(db_client.get_number(ctx, 6));
         info.est_ul_rate = static_cast<unsigned int>(db_client.get_number(ctx, 7));
