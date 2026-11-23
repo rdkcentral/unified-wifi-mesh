@@ -2575,13 +2575,12 @@ invalid:
             return bus_error_invalid_input;
         }
     }
-    /* Mandatory parameters: OperatingClass, Channel, SSID,
+    /* Mandatory parameters: OperatingClass, Channel,
      *                       APChannelReport if Channel is 255 and
-     *                       ElementIDList if ReportingDetail is 1
-     * Note: Wi-Fi EasyMesh Specification allows SSID to be omitted via setting SSID Length
-     *       field in 17.2.27 to zero (10.3.3), but this implementation mandates SSID to be
-     *       specified. */
-    if (op_class < 0 || channel_num < 0 || !ssid[0] ||
+     *                       ElementIDList if ReportingDetail is 1.
+     * SSID is optional: an empty SSID goes out as SSID Length 0 (Wi-Fi EasyMesh 17.2.27),
+     * so no SSID subelement is put in the Beacon request (wildcard SSID). */
+    if (op_class < 0 || channel_num < 0 ||
         (channel_num == 255 && !ch_rep_cnt) || (rep_detail == 1 && !elem_list[0])) {
         em_printfout("Mandatory parameters missing");
         if (output_params) {
@@ -9151,6 +9150,28 @@ dm_sta_t *dm_easy_mesh_ctrl_t::get_dm_sta(dm_easy_mesh_t *dm, em_bss_info_t *bi,
     return NULL;
 }
 
+/* Data Elements STA.MeasurementReport: the Measurement Report elements of the STA's last
+ * beacon report, each base64 encoded, as a comma-separated list. */
+std::string dm_easy_mesh_ctrl_t::get_sta_measurement_report_str(const em_sta_info_t *si)
+{
+    std::string list;
+    const unsigned char *ie = si->beacon_report_elem;
+    const unsigned char *end = si->beacon_report_elem + si->beacon_report_len;
+
+    for (unsigned int i = 0; i < si->num_beacon_meas_report; i++) {
+        if ((ie + 2 > end) || (ie + 2 + ie[1] > end)) {
+            break;
+        }
+        if (!list.empty()) {
+            list += ",";
+        }
+        list += em_crypto_t::base64_encode(ie, 2U + ie[1]);
+        ie += 2 + ie[1];
+    }
+
+    return list;
+}
+
 bus_error_t dm_easy_mesh_ctrl_t::sta_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
 {
     (void) user_data;
@@ -9284,6 +9305,8 @@ bus_error_t dm_easy_mesh_ctrl_t::sta_get_inner(char *event_name, raw_data_t *p_d
         rc = dm_ctrl->raw_data_set(p_data, 0U);
     } else if (strcmp(param, "RSNCapabilities") == 0) {
         rc = dm_ctrl->raw_data_set(p_data, 0U);
+    } else if (strcmp(param, "MeasurementReport") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, get_sta_measurement_report_str(si).c_str());
     } else {
         bool wifi6_val = false;
         if (dm_ctrl->sta_wifi6_cap_value(si, param, &wifi6_val)) {
@@ -9430,6 +9453,7 @@ bus_error_t dm_easy_mesh_ctrl_t::sta_tget_params(dm_easy_mesh_t *dm, const char 
         dm_ctrl->property_append_tail(property, root, idx, "PairwiseAKM", 0U);
         dm_ctrl->property_append_tail(property, root, idx, "PairwiseCipher", 0U);
         dm_ctrl->property_append_tail(property, root, idx, "RSNCapabilities", 0U);
+        dm_ctrl->property_append_tail(property, root, idx, "MeasurementReport", get_sta_measurement_report_str(si).c_str());
         sta = static_cast<dm_sta_t *> (hash_map_get_next(dm->m_sta_map, sta));
     }
 

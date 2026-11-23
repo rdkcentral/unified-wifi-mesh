@@ -120,7 +120,8 @@ typedef struct {
 
 typedef struct {
     int op_class;
-    char ch_list[EM_MAX_CHANNELS_IN_LIST];
+    /* Up to EM_MAX_CHANNELS_IN_LIST channels of at most three digits, comma-separated */
+    char ch_list[EM_MAX_CHANNELS_IN_LIST * 4];
 } tr181_bmq_ch_rep_item_t;
 
 /* Device.WiFi.DataElements.Network */
@@ -420,6 +421,7 @@ typedef struct {
 #define DE_STA_PAIRWSAKM        DE_BSS_STA              "PairwiseAKM"
 #define DE_STA_PAIRWSCIPHER     DE_BSS_STA              "PairwiseCipher"
 #define DE_STA_RSNCAPS          DE_BSS_STA              "RSNCapabilities"
+#define DE_STA_MEASUREMENTREPORT DE_BSS_STA             "MeasurementReport"
 #define DE_STA_CLIENTSTEER      DE_BSS_STA              "ClientSteer()"
 #define DE_STA_BEACONMETRICSQ   DE_BSS_STA              "X_AIRTIES_BeaconMetricsQuery()"
 /* Device.WiFi.DataElements.Network.Device.Radio.BSS.STA.WiFi6Capabilities */

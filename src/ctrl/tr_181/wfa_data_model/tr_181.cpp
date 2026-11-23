@@ -249,6 +249,7 @@ int tr_181_t::wfa_set_bus_callbackfunc_pointers(const char *full_namespace, bus_
         ELEMENT(DE_STA_PAIRWSAKM,          CALLBACK_GETTER(sta_get)),
         ELEMENT(DE_STA_PAIRWSCIPHER,       CALLBACK_GETTER(sta_get)),
         ELEMENT(DE_STA_RSNCAPS,            CALLBACK_GETTER(sta_get)),
+        ELEMENT(DE_STA_MEASUREMENTREPORT,  CALLBACK_GETTER(sta_get)),
         ELEMENT(DE_STAWF6CAPS_HE160,       CALLBACK_GETTER(sta_get)),
         ELEMENT(DE_STAWF6CAPS_HE8080,      CALLBACK_GETTER(sta_get)),
         ELEMENT(DE_STAWF6CAPS_MCSNSS,      CALLBACK_GETTER(sta_get)),

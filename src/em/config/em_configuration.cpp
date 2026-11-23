@@ -6755,20 +6755,6 @@ void em_configuration_t::process_ctrl_state()
                 em_printfout("Topology has changed for device: %s", util::mac_to_string(dm->get_agent_al_interface_mac()).c_str());
                 dm->set_topo_state(false);
                 get_mgr()->publish_network_topology();
-                //Send beacon metrics query for the sta assoc case to get the beacon metrics from the STA
-                if (get_current_cmd() != NULL && get_current_cmd()->m_type == em_cmd_type_sta_assoc) {
-                    em_cmd_params_t *evt_param = &get_current_cmd()->m_param;
-                    // args[3] is "Assoc" or "Disassoc" - skip beacon query on disassociation
-                    if (strncmp(evt_param->u.args.args[3], "Assoc", 5) == 0) {
-                        mac_address_t sta_mac, bssid;
-                        dm_easy_mesh_t::string_to_macbytes(evt_param->u.args.args[2], sta_mac);
-                        dm_easy_mesh_t::string_to_macbytes(evt_param->u.args.args[1], bssid);
-                        em_printfout("Sending beacon metrics query for sta:%s bssid:%s",
-                            evt_param->u.args.args[2], evt_param->u.args.args[1]);
-                        static_cast<em_t*>(this)->send_beacon_metrics_query(sta_mac, bssid);
-                        break;
-                    }
-                }
             }
 
             set_state(em_state_ctrl_configured);

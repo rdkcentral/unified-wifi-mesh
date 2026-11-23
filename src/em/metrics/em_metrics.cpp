@@ -672,31 +672,31 @@ int em_metrics_t::handle_beacon_metrics_response(unsigned char *buff, unsigned i
         }
     }
 
+    // The data model keeps an entry per BSS the STA has been seen on; the report
+    // belongs to its current association, the entry the query and the getters use.
     sta = dm->get_first_sta(response->sta_mac_addr);
-    while (sta != NULL) {
-        if (memcmp(sta->m_sta_info.id, response->sta_mac_addr, sizeof(mac_address_t)) == 0) {
-            break;
-        }
+    while (sta != NULL && sta->m_sta_info.associated == false) {
         sta = dm->get_next_sta(response->sta_mac_addr, sta);
     }
 
-    if(sta == NULL)
-    {
-        em_printfout("Beacon Metrics Response: sta not found in controller data model");
-        return -1;
+    if (sta == NULL) {
+        // The STA left while the query was in flight; the report is dropped, the
+        // response is still acknowledged and the command completed below.
+        em_printfout("Beacon Metrics Response: no associated entry for sta:%s in controller data model",
+            util::mac_to_string(response->sta_mac_addr).c_str());
+    } else {
+        sta->m_sta_info.num_beacon_meas_report = response->meas_rprt_count;
+        sta->m_sta_info.beacon_report_len = report_len;
+        memcpy(sta->m_sta_info.beacon_report_elem, response->meas_reports, static_cast<size_t> (report_len));
+        dm_sta_t::decode_beacon_report(sta);
+
+        // Clear the timestamp so new queries can be sent immediately after a response
+        sta->m_sta_info.beacon_query_sent_time = 0;
+
+        em_printfout("Beacon Metrics Response rcvd for sta:%s reports:%u len:%u",
+            util::mac_to_string(sta->m_sta_info.id).c_str(),
+            sta->m_sta_info.num_beacon_meas_report, sta->m_sta_info.beacon_report_len);
     }
-
-    sta->m_sta_info.num_beacon_meas_report = response->meas_rprt_count;
-    sta->m_sta_info.beacon_report_len = report_len;
-    memcpy(sta->m_sta_info.beacon_report_elem, response->meas_reports, static_cast<size_t> (report_len));
-    dm_sta_t::decode_beacon_report(sta);
-
-    // Clear the timestamp so new queries can be sent immediately after a response
-    sta->m_sta_info.beacon_query_sent_time = 0;
-
-    em_printfout("Beacon Metrics Response rcvd for sta:%s reports:%u len:%u",
-        util::mac_to_string(sta->m_sta_info.id).c_str(),
-        sta->m_sta_info.num_beacon_meas_report, sta->m_sta_info.beacon_report_len);
 
     // Reset controller state on the radio that actually owns this in-flight query
     // (found above), rather than "this" or "which radio owns the STA".
@@ -708,7 +708,7 @@ int em_metrics_t::handle_beacon_metrics_response(unsigned char *buff, unsigned i
     em_cmdu_t *cmdu = reinterpret_cast<em_cmdu_t *>(buff + sizeof(em_raw_hdr_t));
     send_beacon_metrics_ack(ntohs(cmdu->id));
 
-    return 0;
+    return (sta != NULL) ? 0 : -1;
 }
 
 int em_metrics_t::send_beacon_metrics_ack(unsigned short msg_id)

@@ -1345,30 +1345,13 @@ void em_agent_t::send_beacon_query(em_bus_event_t *evt)
     beacon_req->opClass = query_params->op_class;
     beacon_req->channel = query_params->channel_num;
 
-    // channel_num==0 means current channel; 255 is wildcard (all channels).
-    // Passive mode avoids probe-request transmission on off-channel/DFS channels.
-    bool is_off_channel = true;
-    if (query_params->channel_num == 0) {
-        is_off_channel = false;
-    } else if (query_params->channel_num != 255) {
-        em_bss_info_t *bss_info = m_data_model.get_bss_info_with_mac(query_params->bssid);
-        if (bss_info != NULL) {
-            for (unsigned int i = 0; i < m_data_model.m_num_opclass; i++) {
-                em_op_class_info_t *oc = &m_data_model.m_op_class[i].m_op_class_info;
-                if (memcmp(oc->id.ruid, bss_info->ruid.mac, sizeof(mac_address_t)) == 0 &&
-                        oc->id.type == em_op_class_type_current && oc->channel != 0) {
-                    is_off_channel = (query_params->channel_num != static_cast<unsigned char>(oc->channel));
-                    break;
-                }
-            }
-        }
-    }
-    // Measurement mode: 0=Passive, 1=Active
-    beacon_req->mode = is_off_channel ? 0 : 1;
-    em_printfout("Beacon Query: channel=%u is_off_channel=%d mode=%u",
-        query_params->channel_num, (int)is_off_channel, beacon_req->mode);
+    // The Beacon Metrics Query TLV carries neither the measurement mode nor the duration.
+    // An active measurement of 20 TU is requested on every channel.
+    beacon_req->mode = 1;           // Active
+    beacon_req->duration = 20;      // TU
+    em_printfout("Beacon Query: channel=%u mode=%u duration=%u",
+        query_params->channel_num, beacon_req->mode, beacon_req->duration);
 
-    beacon_req->duration = 200;
     memcpy(beacon_req->bssid, query_params->bssid, sizeof(mac_address_t));
     beacon_req->ssidPresent = (query_params->ssid_len > 0);
     if (beacon_req->ssidPresent) {
