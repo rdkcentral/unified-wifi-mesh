@@ -247,20 +247,20 @@ int web_t::send_message(int fd, web_data_extn_type_t data_type, bool file, const
     
     return 0;
 }
-    
+
 void web_t::handle_get(int sock, const char *action_string)
 {
     web_data_extn_type_t extn_type;
     char file_name[PATH_NAME_SZ] = {0};
     char *tmp;
     const char *ptr;
-    optimizer_event_t rsp;
+    optimizer_event_t rsp, *ev;
     optimizer_event_type_t type;
-    
+
     strncpy(file_name, m_head, strlen(m_head) + 1);
-            
+
     //printf("%s:%d: action string: %s\n", __func__, __LINE__, action_string); 
-    
+
     if (strlen(action_string) <= 1) {
         strcat(file_name, "/index.html");
         send_message(sock, web_data_extn_type_html, true, file_name);
@@ -268,19 +268,33 @@ void web_t::handle_get(int sock, const char *action_string)
         tmp++;
         extn_type = get_file_extension(tmp);
         if (extn_type == web_data_extn_type_none) {
-            printf("%s:%d: Unknown file extension\n", __func__, __LINE__); 
-            
+            printf("%s:%d: Unknown file extension\n", __func__, __LINE__);
+
         } else if (extn_type == web_data_extn_type_json) {
-            if (strncmp(tmp, "Topology", strlen("Topology")) == 0) {
-                type = optimizer_event_type_get_topology;
-            } else if (strncmp(tmp, "DataElements", strlen("DataElements")) == 0) {
-                type = optimizer_event_type_get_de;
-            } else if (strncmp(tmp, "NeighboringWiFiDiagnostic", strlen("NeighboringWiFiDiagnostic")) == 0) {
-                type = optimizer_event_type_nbr_wifi_diag;
+            if (strncmp(tmp, "Notifications", strlen("Notifications")) == 0) {
+                cJSON *arr = cJSON_CreateArray();
+                while (messages_count() > 0) {
+                    ev = dequeue_message();
+                    cJSON_AddItemToArray(arr, cJSON_Parse((char *)ev->get_data()));
+                    delete ev; 
+                }
+                
+                send_message(sock, extn_type, false, ptr = cJSON_Print(arr));
+                //printf("%s\n", ptr);
+                cJSON_Delete(arr);
+
+            } else {
+                if (strncmp(tmp, "Topology", strlen("Topology")) == 0) {
+                    type = optimizer_event_type_get_topology;
+                } else if (strncmp(tmp, "DataElements", strlen("DataElements")) == 0) {
+                    type = optimizer_event_type_get_de;
+                } else if (strncmp(tmp, "NeighboringWiFiDiagnostic", strlen("NeighboringWiFiDiagnostic")) == 0) {
+                    type = optimizer_event_type_nbr_wifi_diag;
+                }
+
+                optimizer_event_t req(type);
+                send_message(sock, extn_type, false, device_request(&req, &rsp));
             }
-            
-            optimizer_event_t req(type);    
-            send_message(sock, extn_type, false, device_request(&req, &rsp));
         } else {
             //send real file
             strcat(file_name, action_string);
@@ -289,12 +303,6 @@ void web_t::handle_get(int sock, const char *action_string)
     }
 }
 
-void web_t::async_event(optimizer_event_t *ev)
-{
-    //printf("%s:%d: Received event: %s\n", __func__, __LINE__, optimizer_event_t::optimizer_event_type_2_string(ev->get_type()));
-    push_event(ev);
-}
-    
 namespace {
 bool is_scan_uint(const cJSON *value, double maximum = 4294967295.0)
 {
@@ -396,7 +404,6 @@ void web_t::handle_post(int sock, const char *action_string, char *buffer)
     if (result == NULL) {
         send_message(sock, web_data_extn_type_json, false, "{\"Status\":\"Error_Other\"}");
     } else {
-        printf("%s:%d: Result: %s\n", __func__, __LINE__, result);
         send_message(sock, web_data_extn_type_json, false, result);
     }
 }
@@ -444,8 +451,11 @@ int web_t::server(int sock)
         }
 
         while (body_length < content_length) {
-            long bytes_read = read(sock, buffer + valread,
-                sizeof(buffer) - static_cast<size_t>(valread) - 1);
+            long bytes_to_read = content_length - body_length;
+            long max_read = static_cast<long>(sizeof(buffer)) - valread - 1;
+            bytes_to_read = (bytes_to_read < max_read) ? bytes_to_read : max_read;
+            
+            long bytes_read = read(sock, buffer + valread, bytes_to_read);
             if (bytes_read <= 0) {
                 send_message(sock, web_data_extn_type_json, false, "{\"error\":\"Incomplete request body\"}");
                 close(sock);
@@ -511,7 +521,7 @@ int web_t::start()
 void web_t::deinit()
 {
     pthread_mutex_destroy(&m_lock);
-    queue_destroy(m_events);
+    queue_destroy(m_messages);
 }
 
 int web_t::init(const char *path)
@@ -527,7 +537,7 @@ int web_t::init(const char *path)
 
     memset(m_address.sin_zero, '\0', sizeof m_address.sin_zero);
 
-    m_events = queue_create();
+    m_messages = queue_create();
     pthread_mutex_init(&m_lock, NULL);
     
     return 0;

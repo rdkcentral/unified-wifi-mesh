@@ -68,7 +68,7 @@ int optimizer_t::run(optimizer_access_type_t type)
         time_to_wait.tv_sec = tm_now.tv_sec;
         time_to_wait.tv_nsec = tm_now.tv_usec*1000;
 
-        time_to_wait.tv_sec += 2;
+        time_to_wait.tv_sec += 5;
 
         rc = pthread_cond_timedwait(&m_cond, &m_lock, &time_to_wait);
         if ((rc == 0)  || (queue_count(m_queue) != 0)) {
@@ -114,6 +114,7 @@ int optimizer_t::init()
 {
     em_long_string_t key = {0};
     rbusHandle_t handle;
+    de_t::notifier_t notifier = [this](optimizer_event_t *event) { push_to_queue(event); };
 
     m_exit = false;
     pthread_cond_init(&m_cond, NULL);
@@ -121,7 +122,7 @@ int optimizer_t::init()
     m_queue = queue_create();
  
     // Network
-    m_de_network = new de_network_t(NETWORK); 
+    m_de_network = new de_network_t(NETWORK, false, notifier); 
     if (m_de_network->init() != 0) {
         printf("%s:%d: South Bound Data Elements Interface init failed\n", __func__, __LINE__);
         return -1;

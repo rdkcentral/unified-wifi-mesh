@@ -31,7 +31,9 @@ optimizer_events_map_t e2smap[] = {
     {optimizer_event_type_nbr_wifi_diag, "NeighboringWiFiDiagnostic"},
     {optimizer_event_type_full_scan, "FullScan"},
     {optimizer_event_type_channel_scan, "ChannelScan"},
-    {optimizer_event_type_hello, "Hello"},
+    {optimizer_event_type_keep_alive, "KeepAlive"},
+    {optimizer_event_type_assoc, "Association"},
+    {optimizer_event_type_disassoc, "Disassociation"},
     {optimizer_event_type_unknown, "Unknown"},
     {optimizer_event_type_max, "None"}
 };
@@ -63,9 +65,33 @@ optimizer_event_type_t optimizer_event_t::optimizer_string_2_event_type(const ch
     return optimizer_event_type_max;
 }
 
+
+optimizer_event_t *optimizer_event_t::clone()
+{
+    optimizer_event_t *ev = new optimizer_event_t();
+  
+    ev->m_buff.size = m_buff.size; 
+    ev->m_buff.data = (unsigned char *)malloc(m_buff.size);
+   
+    memcpy(ev->m_buff.data, m_buff.data, m_buff.size); 
+    strncpy(ev->m_timestamp, m_timestamp, strlen(m_timestamp) + 1);
+
+    ev->m_copy = m_copy;
+    ev->m_type = m_type; 
+ 
+    return ev;
+}
+
 void optimizer_event_t::init(optimizer_event_type_t type, const char *data, const char *status)
 {
     cJSON *obj;
+    struct timeval tv;
+    struct tm tm_info;
+    
+    gettimeofday(&tv, NULL);
+    localtime_r(&tv.tv_sec, &tm_info);
+
+    strftime(m_timestamp, sizeof(m_timestamp), "%Y-%m-%d %H:%M:%S", &tm_info);
 
     m_type = type;
     m_copy = true;
@@ -74,14 +100,20 @@ void optimizer_event_t::init(optimizer_event_type_t type, const char *data, cons
     m_buff.size = (data == NULL) ? sizeof(em_long_string_t):strlen(data) + sizeof(em_long_string_t);
     m_buff.data = (unsigned char *)malloc(m_buff.size);
 
+    cJSON_AddStringToObject(obj, "Timestamp", m_timestamp);
+
     if (data == NULL) {
-        // Event or Get
-        cJSON_AddStringToObject(obj, is_notification_event(type) ? "Event":"Request", optimizer_event_type_2_string(type));
+        // Get
+        cJSON_AddStringToObject(obj, "Request", optimizer_event_type_2_string(type));
 
     } else {
         if (status == NULL) {
-            // Post
-            cJSON_AddStringToObject(obj, "Request", optimizer_event_type_2_string(type));
+            // Post or Notification
+            if (is_notification_event(type)) {
+                cJSON_AddStringToObject(obj, "Notification", optimizer_event_type_2_string(type));
+            } else {
+                cJSON_AddStringToObject(obj, "Request", optimizer_event_type_2_string(type));
+            }
 
         } else {
             // Response
@@ -101,6 +133,13 @@ optimizer_event_t::optimizer_event_t(optimizer_event_type_t type, const cJSON *d
 {
     cJSON *obj;
     char *serialized;
+    struct timeval tv;
+    struct tm tm_info;
+
+    gettimeofday(&tv, NULL);
+    localtime_r(&tv.tv_sec, &tm_info);
+
+    strftime(m_timestamp, sizeof(m_timestamp), "%Y-%m-%d %H:%M:%S", &tm_info);
 
     m_type = type;
     m_copy = true;
@@ -112,14 +151,20 @@ optimizer_event_t::optimizer_event_t(optimizer_event_type_t type, const cJSON *d
         return;
     }
 
+    cJSON_AddStringToObject(obj, "Timestamp", m_timestamp);
+
     if (data == NULL) {
-        // Event or Get
-        cJSON_AddStringToObject(obj, is_notification_event(type) ? "Event":"Request", optimizer_event_type_2_string(type));
+        // Notification or Get
+        cJSON_AddStringToObject(obj, "Request", optimizer_event_type_2_string(type));
 
     } else {
         if (status == NULL) {
-            // Post
-            cJSON_AddStringToObject(obj, "Request", optimizer_event_type_2_string(type));
+            // Post or Notification
+            if (is_notification_event(type)) {
+                cJSON_AddStringToObject(obj, "Notification", optimizer_event_type_2_string(type));
+            } else {
+                cJSON_AddStringToObject(obj, "Request", optimizer_event_type_2_string(type));
+            }
 
         } else {
             // Response
@@ -148,6 +193,13 @@ optimizer_event_t::optimizer_event_t(optimizer_event_type_t type, const char *da
 {
     cJSON *obj;
     char *serialized;
+    struct timeval tv;
+    struct tm tm_info;
+
+    gettimeofday(&tv, NULL);
+    localtime_r(&tv.tv_sec, &tm_info);
+
+    strftime(m_timestamp, sizeof(m_timestamp), "%Y-%m-%d %H:%M:%S", &tm_info);
 
     m_type = type;
     m_copy = true;
@@ -158,15 +210,20 @@ optimizer_event_t::optimizer_event_t(optimizer_event_type_t type, const char *da
     if (obj == NULL) {
         return;
     }
+    cJSON_AddStringToObject(obj, "Timestamp", m_timestamp);
 
     if (data == NULL) {
-        // Event or Get
-        cJSON_AddStringToObject(obj, is_notification_event(type) ? "Event":"Request", optimizer_event_type_2_string(type));
+        // Get
+        cJSON_AddStringToObject(obj, "Request", optimizer_event_type_2_string(type));
 
     } else {
         if (status == NULL) {
-            // Post
-            cJSON_AddStringToObject(obj, "Request", optimizer_event_type_2_string(type));
+            // Post or Notification
+            if (is_notification_event(type)) {
+                cJSON_AddStringToObject(obj, "Notification", optimizer_event_type_2_string(type));
+            } else {
+                cJSON_AddStringToObject(obj, "Request", optimizer_event_type_2_string(type));
+            }
 
         } else {
             // Response
@@ -199,7 +256,15 @@ optimizer_event_t::optimizer_event_t(optimizer_event_type_t type, const char *da
 
 optimizer_event_t::optimizer_event_t(optimizer_event_type_t type, void *data, unsigned int len, bool zero_cp)
 {
+    struct timeval tv;
+    struct tm tm_info;
+
+    gettimeofday(&tv, NULL);
+    localtime_r(&tv.tv_sec, &tm_info);
+
+    strftime(m_timestamp, sizeof(m_timestamp), "%Y-%m-%d %H:%M:%S", &tm_info);
     m_type = type;
+
     m_copy = !zero_cp;
     if (zero_cp == false) {
         m_buff.data = (unsigned char *)malloc(len);
@@ -220,7 +285,7 @@ optimizer_event_t::optimizer_event_t(const char *data)
 
     if ((obj = cJSON_Parse(data)) == NULL) {
         m_type = optimizer_event_type_unknown;
-    } else if ((ptr = cJSON_GetStringValue(cJSON_GetObjectItem(obj, "Event"))) != NULL) {
+    } else if ((ptr = cJSON_GetStringValue(cJSON_GetObjectItem(obj, "Notification"))) != NULL) {
         m_type = optimizer_string_2_event_type(ptr, strlen(ptr));
     } else if ((ptr = cJSON_GetStringValue(cJSON_GetObjectItem(obj, "Request"))) != NULL) {
         m_type = optimizer_string_2_event_type(ptr, strlen(ptr));
@@ -228,6 +293,10 @@ optimizer_event_t::optimizer_event_t(const char *data)
         m_type = optimizer_string_2_event_type(ptr, strlen(ptr));
     } else {
         m_type = optimizer_event_type_unknown;
+    }
+
+    if ((obj != NULL) && (cJSON_GetObjectItem(obj, "Timestamp") != NULL)) {
+        strncpy(m_timestamp, ptr = cJSON_GetStringValue(cJSON_GetObjectItem(obj, "Timestamp")), strlen(ptr) + 1);
     }
 
     m_buff.size = strlen(data) + 1;
@@ -238,9 +307,17 @@ optimizer_event_t::optimizer_event_t(const char *data)
 
 optimizer_event_t::optimizer_event_t()
 {
+    struct timeval tv;
+    struct tm tm_info;
+
+    gettimeofday(&tv, NULL);
+    localtime_r(&tv.tv_sec, &tm_info);
+
+    strftime(m_timestamp, sizeof(m_timestamp), "%Y-%m-%d %H:%M:%S", &tm_info);
     m_copy = true;
     m_buff.data = NULL;
     m_buff.size = 0;
+
 }
 
 optimizer_event_t::~optimizer_event_t()

@@ -47,6 +47,9 @@ public:
     void update(de_op_class_t& op_class, unsigned int dpos, unsigned int rpos, unsigned int opos);
 
     void publish(const char *event_name);
+    void publish_radiolist();
+    void publish_assoc();
+    void publish_disassoc();
 
     rbusError_t add(rbusHandle_t handle, char const* table_name, char const* alias_name, uint32_t* inst_num);
     rbusError_t remove(rbusHandle_t handle, char const* row_name);
@@ -55,6 +58,10 @@ public:
     void handler(rbusHandle_t handle, rbusEvent_t const* event, rbusEventSubscription_t* subscription);
     virtual rbusError_t method(rbusHandle_t handle, char const* name, rbusObject_t in, rbusObject_t out, rbusMethodAsyncHandle_t async);
     virtual rbusError_t invoke_method(char const* name, void *in, void *out);
+
+    void handle_radiolist(rbusEvent_t const* event);
+    void handle_assoc(rbusEvent_t const* event);
+    void handle_disassoc(rbusEvent_t const* event);
 
     de_radios_t(const char *name, bool provider = false, notifier_t func = notifier_t());
 };

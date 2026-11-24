@@ -52,6 +52,9 @@ const char *xmidt_optimizer_server_t::device_request(optimizer_event_t *req, opt
         rsp->init(req->get_type(), "", "Failed");
     }
 
+    queue_message(req->clone());
+    queue_message(rsp->clone());
+
     return (const char *)rsp->get_data();
 }
 
@@ -104,8 +107,7 @@ void xmidt_optimizer_server_t::listener()
             send(client, response, sizeof(response) - 1, 0);
             if (body != NULL) {
                 ev = new optimizer_event_t(body + 4);
-                async_event(ev);
-                delete ev;
+                queue_message(ev);
             }
         } else {
             printf("%s:%d: http req error\n", __func__, __LINE__);
@@ -241,7 +243,7 @@ int xmidt_optimizer_server_t::send_device_request(optimizer_event_t *ev_req, opt
     payload[reply->u.req.payload_size] = '\0';
     ev_resp->m_type = ev_req->get_type();
     ev_resp->m_buff.data = payload;
-    ev_resp->m_buff.size = reply->u.req.payload_size;
+    ev_resp->m_buff.size = reply->u.req.payload_size + 1;
     wrp_free_struct(reply);
 
     return 0;

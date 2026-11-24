@@ -1,0 +1,21 @@
+[
+  {
+    "Notification": "KeepAlive",
+    "Data": {
+      "KeepAlive": "Hello"
+    }
+  },
+  {
+    "Notification": "DeviceConnected",
+    "Data": {
+      "DeviceName": "Device1",
+      "MAC": "00:11:22:33:44:55"
+    }
+  },
+  {
+    "Notification": "NetworkUpdate",
+    "Data": {
+      "Status": "Updated"
+    }
+  }
+]

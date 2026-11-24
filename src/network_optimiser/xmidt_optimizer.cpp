@@ -701,12 +701,22 @@ cJSON *xmidt_optimizer_t::nbr_diagnostics()
 
 void xmidt_optimizer_t::process_event(optimizer_event_t *ev)
 {
+    switch (ev->get_type()) {
+        case optimizer_event_type_assoc:
+            send_event(ev);
+            break;
 
+        case optimizer_event_type_disassoc:
+            break; 
+
+        default:
+            break;
+    }
 }
 
 void xmidt_optimizer_t::process_timeout(char *time_str)
 {
-
+    keep_alive();
 }
 
 xmidt_optimizer_t::xmidt_optimizer_t()

@@ -42,12 +42,14 @@ class xmidt_optimizer_client_t: public xmidt_optimizer_t {
     void deinit_optimizer_interface();
 
     int reply_to_request(const wrp_msg_t *request);
-    int send_event(optimizer_event_type_t type);
 
     static void *listener(void *arg);
     void listener();
 
 public:
+
+    virtual void keep_alive();
+    virtual int send_event(optimizer_event_t *ev);
 
     xmidt_optimizer_client_t();
     ~xmidt_optimizer_client_t(); 

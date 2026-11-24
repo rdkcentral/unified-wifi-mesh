@@ -27,18 +27,17 @@
 #include "xmidt_optimizer_client.h"
 #include "util.h"
 
-int xmidt_optimizer_client_t::send_event(optimizer_event_type_t type)
+int xmidt_optimizer_client_t::send_event(optimizer_event_t *ev)
 {
     wrp_msg_t message;
-    optimizer_event_t ev(type);
 
     memset(&message, 0, sizeof(message));
     message.msg_type = WRP_MSG_TYPE__EVENT;
     message.u.event.source = DEVICE_ID "/" SERVICE_NAME;
     message.u.event.dest = "event:" SERVICE_NAME "/" DEVICE_ID;
     message.u.event.content_type = CONTENT_TYPE_JSON;
-    message.u.event.payload = (void *)ev.get_data();
-    message.u.event.payload_size = strlen((char *)message.u.event.payload);
+    message.u.event.payload = (void *)ev->get_data();
+    message.u.event.payload_size = strlen((char *)message.u.event.payload) + 1;
 
     if (libparodus_send(m_instance, &message) != 0) {
         printf("%s:%d: Unable to send event\n", __func__, __LINE__);
@@ -74,7 +73,6 @@ int xmidt_optimizer_client_t::reply_to_request(const wrp_msg_t *request)
 
         case optimizer_event_type_nbr_wifi_diag:
             rsp_obj = nbr_diagnostics();
-            printf("%s\n", cJSON_Print(rsp_obj));
             status = "Complete";
             break;
 
@@ -100,7 +98,6 @@ int xmidt_optimizer_client_t::reply_to_request(const wrp_msg_t *request)
                 status = "Failed";
             } else {
                 rsp_obj = full_scan(in_params);
-                printf("%s\n", cJSON_Print(rsp_obj));
                 status = "Complete";
             }
             break;
@@ -172,9 +169,6 @@ void xmidt_optimizer_client_t::listener()
         if (message != NULL && message->msg_type == WRP_MSG_TYPE__REQ &&
             strcmp(message->u.req.source,
                    "dns:local-server/" SERVICE_NAME) == 0) {
-            printf("Received request: %.*s\n",
-                   (int)message->u.req.payload_size,
-                   (const char *)message->u.req.payload);
             reply_to_request(message);
         } else if (message != NULL && message->msg_type == WRP_MSG_TYPE__REQ) {
             printf("Ignoring request from %s\n", message->u.req.source);
@@ -193,6 +187,12 @@ void *xmidt_optimizer_client_t::listener(void *arg)
 
     opt->listener();
     return NULL;
+}
+
+void xmidt_optimizer_client_t::keep_alive()
+{
+    optimizer_event_t ev(optimizer_event_type_keep_alive, "{\"KeepAlive\": \"Hello\"}");
+    send_event(&ev);
 }
 
 int xmidt_optimizer_client_t::init_optimizer_interface(const char *url)
@@ -221,12 +221,14 @@ int xmidt_optimizer_client_t::init_optimizer_interface(const char *url)
     } 
 
     printf("%s:%d: parodus init successful\n", __func__, __LINE__);
-    if (send_event(optimizer_event_type_hello) != 0) {
+
+    optimizer_event_t ev(optimizer_event_type_keep_alive, "{\"KeepAlive\": \"Hello\"}");
+    if (send_event(&ev) != 0) {
         libparodus_close_receiver(m_instance);
         libparodus_shutdown(&m_instance);
         return -1;
     }
-
+        
     if (pthread_create(&m_tid, NULL, xmidt_optimizer_client_t::listener, this) != 0) {
         printf("%s:%d: Failed to start em mgr thread\n", __func__, __LINE__);
         libparodus_close_receiver(m_instance);

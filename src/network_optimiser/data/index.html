@@ -965,7 +965,9 @@
             <div class="scan-section">
                 <div style="margin-bottom: 15px;">
                     <button id="clearEventLogs" class="settings-button" type="button" style="margin-right: 10px;">Clear Logs</button>
-                    <button id="toggleAutoScroll" class="settings-button" type="button" style="background-color: #4caf50;">Auto-scroll: ON</button>
+                    <button id="toggleAutoScroll" class="settings-button" type="button" style="margin-right: 10px; background-color: #4caf50;">Auto-scroll: ON</button>
+                    <button id="refreshEventLogs" class="settings-button" type="button" style="margin-right: 10px; background-color: #2196F3;">Refresh</button>
+                    <button id="saveEventLogs" class="settings-button" type="button" style="background-color: #ff9800;">Save</button>
                 </div>
                 <div id="eventLogsContainer" class="settings-table-container metrics-table-container" style="max-height: 400px; overflow-y: auto; border: 1px solid #ddd; padding: 10px;">
                     <table class="metrics-table" id="eventLogsTable">
@@ -973,12 +975,13 @@
                             <tr>
                                 <th style="width: 150px;">Timestamp</th>
                                 <th style="width: 120px;">Category</th>
-                                <th>Type</th>
-                                <th style="width: 80px;">Status</th>
+                                <th style="width: 150px;">Type</th>
+                                <th style="width: 100px;">Status</th>
+                                <th>Data</th>
                             </tr>
                         </thead>
                         <tbody id="eventLogsBody">
-                            <tr><td colspan="4" style="text-align: center; padding: 20px; color: #999;">No events logged yet...</td></tr>
+                            <tr><td colspan="5" style="text-align: center; padding: 20px; color: #999;">No events logged yet...</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -998,6 +1001,21 @@
                 <p class="table-empty">Locating devices...</p>
             </div>
         </section>
+    </dialog>
+
+    <dialog id="fileNameDialog" class="settings-dialog" aria-labelledby="file-name-title">
+        <div class="settings-dialog-header">
+            <h2 id="file-name-title">Save Event Logs</h2>
+            <button id="closeFileNameDialog" class="dialog-close" type="button" aria-label="Close dialog">✕</button>
+        </div>
+        <div style="padding: 20px;">
+            <label for="fileNameInput" style="display: block; margin-bottom: 10px; font-weight: 500;">File name (without extension):</label>
+            <input id="fileNameInput" type="text" placeholder="event_logs" style="width: 100%; padding: 8px; margin-bottom: 20px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px;">
+            <div class="dialog-actions">
+                <button id="saveFileNameBtn" class="settings-button" type="button" style="background-color: #4caf50; margin-right: 10px;">Save</button>
+                <button id="cancelFileNameBtn" class="settings-button" type="button">Cancel</button>
+            </div>
+        </div>
     </dialog>
 
     <script>
@@ -2459,9 +2477,10 @@
         // Event Logs Management
         class EventLogger {
             constructor() {
-                this.maxLogs = 1000;
                 this.autoScroll = true;
-                this.logs = [];
+                this.logs = []; // Session-based cache (cleared when dialog is closed/reopened)
+                this.hasLoadedOnce = false; // Track if we've loaded for this dialog session
+                this.rawNotificationsData = []; // Store the raw JSON array from Notifications.json for saving
                 // Event type mapping (optimizer_events_map_t)
                 this.eventTypeMap = {
                     'DataElements': 'DataElements',
@@ -2481,18 +2500,237 @@
             init() {
                 this.clearButton = document.getElementById('clearEventLogs');
                 this.autoScrollButton = document.getElementById('toggleAutoScroll');
+                this.refreshButton = document.getElementById('refreshEventLogs');
+                this.saveButton = document.getElementById('saveEventLogs');
                 this.eventLogsBody = document.getElementById('eventLogsBody');
                 this.eventLogsContainer = document.getElementById('eventLogsContainer');
 
-                if (!this.clearButton || !this.autoScrollButton || !this.eventLogsBody) {
-                    console.warn('[EventLogger] Required elements not found');
+                if (!this.clearButton || !this.autoScrollButton || !this.refreshButton || !this.eventLogsBody) {
+                    console.warn('[EventLogger] Required elements not found', {
+                        clearButton: !!this.clearButton,
+                        autoScrollButton: !!this.autoScrollButton,
+                        refreshButton: !!this.refreshButton,
+                        eventLogsBody: !!this.eventLogsBody
+                    });
                     return;
                 }
 
                 this.clearButton.addEventListener('click', () => this.clearLogs());
                 this.autoScrollButton.addEventListener('click', () => this.toggleAutoScroll());
+                this.refreshButton.addEventListener('click', () => {
+                    console.log('[EventLogger] Refresh button clicked');
+                    this.fetchQueuedEvents();
+                });
+                
+                if (this.saveButton) {
+                    this.saveButton.addEventListener('click', () => {
+                        console.log('[EventLogger] Save button clicked');
+                        this.saveLogsToFile();
+                    });
+                }
+
+                // Set up observer for Event Logs tab activation
+                this.setupEventLogsTabObserver();
 
                 console.log('[EventLogger] Initialized successfully');
+            }
+
+            setupEventLogsTabObserver() {
+                const eventLogsTab = document.getElementById('event-logs-tab');
+                if (!eventLogsTab) {
+                    console.warn('[EventLogger] Event Logs tab not found');
+                    return;
+                }
+
+                console.log('[EventLogger] Setting up Event Logs tab observer');
+                
+                eventLogsTab.addEventListener('click', () => {
+                    console.log('[EventLogger] Event Logs tab clicked');
+                    setTimeout(() => this.fetchQueuedEvents(), 100);
+                });
+
+                // Also watch for tab panel visibility
+                const eventLogsPanel = document.getElementById('event-logs-panel');
+                if (eventLogsPanel) {
+                    console.log('[EventLogger] Setting up panel visibility observer');
+                    const observer = new MutationObserver((mutations) => {
+                        mutations.forEach((mutation) => {
+                            if (mutation.attributeName === 'hidden') {
+                                const isHidden = eventLogsPanel.hasAttribute('hidden');
+                                console.log('[EventLogger] Panel hidden status changed:', isHidden);
+                                if (!isHidden) {
+                                    // Panel is now visible - fetch events
+                                    console.log('[EventLogger] Panel is now visible, fetching events');
+                                    this.fetchQueuedEvents();
+                                } else {
+                                    // Panel is hidden - reset session flag so we reload fresh on next open
+                                    console.log('[EventLogger] Panel is hidden, resetting session flag');
+                                    this.hasLoadedOnce = false;
+                                }
+                            }
+                        });
+                    });
+
+                    observer.observe(eventLogsPanel, { attributes: true, attributeFilter: ['hidden'] });
+                } else {
+                    console.warn('[EventLogger] Event Logs panel not found');
+                }
+            }
+
+            fetchQueuedEvents() {
+                console.log('[EventLogger] fetchQueuedEvents called, hasLoadedOnce:', this.hasLoadedOnce);
+                
+                // On first load of this dialog session, clear the display and cache to show fresh data
+                // But don't clear on subsequent refreshes within the same session
+                if (!this.hasLoadedOnce) {
+                    this.eventLogsBody.innerHTML = '';
+                    this.logs = [];
+                    this.rawNotificationsData = [];
+                    this.hasLoadedOnce = true;
+                    console.log('[EventLogger] First load - cleared cache');
+                }
+                
+                console.log('[EventLogger] Fetching Notifications.json...');
+                fetch('Notifications.json')
+                    .then(response => {
+                        console.log('[EventLogger] Fetch response status:', response.status);
+                        if (!response.ok) {
+                            throw new Error('HTTP ' + response.status);
+                        }
+                        return response.json();
+                    })
+                    .then(data => {
+                        console.log('[EventLogger] Fetched data:', data, 'length:', Array.isArray(data) ? data.length : 'not array');
+                        if (Array.isArray(data)) {
+                            console.log('[EventLogger] Fetched ' + data.length + ' queued notifications');
+                            // Store the raw data for saving
+                            this.rawNotificationsData = data;
+                            if (data.length === 0 && this.logs.length === 0) {
+                                console.log('[EventLogger] No data, showing empty message');
+                                this.eventLogsBody.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 20px; color: #999;">No events logged yet...</td></tr>';
+                            } else {
+                                console.log('[EventLogger] Processing ' + data.length + ' notifications');
+                                data.forEach((notification, index) => {
+                                    console.log('[EventLogger] Processing notification', index, notification);
+                                    this.addNotificationLog(notification);
+                                });
+                            }
+                        } else {
+                            console.error('[EventLogger] Data is not an array:', data);
+                        }
+                    })
+                    .catch(error => {
+                        console.error('[EventLogger] Failed to fetch queued events:', error);
+                        this.eventLogsBody.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 20px; color: #999;">Error loading events: ' + this.escapeHtml(error.message) + '</td></tr>';
+                    });
+            }
+
+            addNotificationLog(notification) {
+                console.log('[EventLogger] addNotificationLog called with:', notification);
+                
+                // Extract timestamp (required)
+                const timestamp = notification.Timestamp || new Date().toLocaleTimeString('en-US', {
+                    hour12: false,
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit',
+                    fractionalSecondDigits: 3
+                });
+
+                // Extract category and type from the notification structure
+                // Category can be 'Request', 'Response', or 'Notification'
+                // Type is the value of that key
+                let category = null;
+                let type = null;
+
+                // Check for Request, Response, or Notification keys (after Timestamp)
+                const keys = Object.keys(notification);
+                console.log('[EventLogger] Notification keys:', keys);
+                
+                for (const key of keys) {
+                    console.log('[EventLogger] Checking key:', key);
+                    if (key !== 'Timestamp' && key !== 'Status' && key !== 'Data') {
+                        if (['Request', 'Response', 'Notification'].includes(key)) {
+                            category = key;
+                            type = notification[key];
+                            console.log('[EventLogger] Found category:', category, 'type:', type);
+                            break;
+                        }
+                    }
+                }
+
+                // Default fallback
+                if (!category || !type) {
+                    category = 'Notification';
+                    type = 'Unknown';
+                    console.log('[EventLogger] Using fallback - category:', category, 'type:', type);
+                }
+
+                // Extract optional Status and Data
+                const status = notification.Status || null;
+                const dataObj = notification.Data || null;
+
+                const logEntry = {
+                    timestamp,
+                    category,
+                    type,
+                    status,
+                    data: dataObj
+                };
+
+                console.log('[EventLogger] Created logEntry:', logEntry);
+                
+                // Store in session cache
+                this.logs.unshift(logEntry);
+                this.renderNotificationLog(logEntry);
+            }
+
+            renderNotificationLog(logEntry) {
+                console.log('[EventLogger] renderNotificationLog called with entry:', logEntry);
+                
+                const row = document.createElement('tr');
+                const statusClass = logEntry.status === 'Success' ? 'status-success' : 
+                                   logEntry.status === 'Error' ? 'status-error' : 'status-info';
+
+                // Format data as JSON string or display as object
+                let dataDisplay = '';
+                if (logEntry.data) {
+                    if (typeof logEntry.data === 'object') {
+                        dataDisplay = JSON.stringify(logEntry.data).substring(0, 100);
+                        if (JSON.stringify(logEntry.data).length > 100) {
+                            dataDisplay += '...';
+                        }
+                    } else {
+                        dataDisplay = String(logEntry.data);
+                    }
+                }
+
+                row.innerHTML = `
+                    <td>${this.escapeHtml(logEntry.timestamp)}</td>
+                    <td>${this.escapeHtml(logEntry.category)}</td>
+                    <td>${this.escapeHtml(logEntry.type)}</td>
+                    <td>${logEntry.status ? `<span class="${statusClass}">${this.escapeHtml(logEntry.status)}</span>` : '—'}</td>
+                    <td style="cursor: pointer; color: #2196F3; text-decoration: underline;" title="Click to view full data">${dataDisplay || '—'}</td>
+                `;
+
+                // Add double-click handler to show full JSON data
+                if (logEntry.data) {
+                    row.style.cursor = 'pointer';
+                    row.addEventListener('dblclick', () => this.showJsonModal(logEntry));
+                }
+
+                if (this.eventLogsBody.querySelector('tr td[colspan="5"]')) {
+                    console.log('[EventLogger] Clearing empty message');
+                    this.eventLogsBody.innerHTML = '';
+                }
+
+                this.eventLogsBody.insertBefore(row, this.eventLogsBody.firstChild);
+
+                if (this.autoScroll) {
+                    this.eventLogsContainer.scrollTop = 0;
+                }
+                
+                console.log('[EventLogger] Row rendered and inserted, eventLogsBody now has', this.eventLogsBody.children.length, 'rows');
             }
 
             getEventTypeLabel(eventType) {
@@ -2508,100 +2746,6 @@
                 if (eventType.includes('ChannelScan')) return 'ChannelScan';
                 // Default to Unknown
                 return 'Unknown';
-            }
-
-            extractCategory(jsonData) {
-                if (!jsonData || typeof jsonData !== 'object') {
-                    return 'Event';
-                }
-
-                // Check jsonData.type field
-                if (jsonData.type) {
-                    const type = jsonData.type.toLowerCase();
-                    if (type === 'request') return 'Request';
-                    if (type === 'response') return 'Response';
-                }
-
-                // Check if data exists and has Response field
-                if (jsonData.data && jsonData.data.Response) {
-                    return 'Response';
-                }
-
-                // Default to Event
-                return 'Event';
-            }
-
-            extractResponseType(jsonData) {
-                if (!jsonData || typeof jsonData !== 'object') {
-                    return 'Unknown';
-                }
-
-                // Get the Response field value
-                if (jsonData.data && jsonData.data.Response) {
-                    return jsonData.data.Response;
-                }
-
-                // If no Response field, return the type or Unknown
-                return 'Unknown';
-            }
-
-            addLog(eventType, status = 'Info', jsonData = null) {
-                const timestamp = new Date().toLocaleTimeString('en-US', {
-                    hour12: false,
-                    hour: '2-digit',
-                    minute: '2-digit',
-                    second: '2-digit',
-                    fractionalSecondDigits: 3
-                });
-
-                const mappedType = this.getEventTypeLabel(eventType);
-                const category = this.extractCategory(jsonData);
-                const responseType = this.extractResponseType(jsonData);
-                const displayType = responseType !== 'Unknown' ? responseType : mappedType;
-
-                const logEntry = {
-                    timestamp,
-                    type: mappedType,
-                    category,
-                    displayType,
-                    status,
-                    jsonData: jsonData || {}
-                };
-
-                this.logs.unshift(logEntry);
-
-                if (this.logs.length > this.maxLogs) {
-                    this.logs.pop();
-                }
-
-                this.renderLog(logEntry);
-            }
-
-            renderLog(logEntry) {
-                const row = document.createElement('tr');
-                const statusClass = logEntry.status === 'Success' ? 'status-success' : 
-                                   logEntry.status === 'Error' ? 'status-error' : 'status-info';
-
-                row.innerHTML = `
-                    <td>${this.escapeHtml(logEntry.timestamp)}</td>
-                    <td>${this.escapeHtml(logEntry.category)}</td>
-                    <td>${this.escapeHtml(logEntry.displayType)}</td>
-                    <td><span class="${statusClass}">${this.escapeHtml(logEntry.status)}</span></td>
-                `;
-
-                // Add double-click handler to show JSON data
-                row.style.cursor = 'pointer';
-                row.addEventListener('dblclick', () => this.showJsonModal(logEntry));
-
-                if (this.eventLogsBody.querySelector('tr td[colspan="4"]')) {
-                    this.eventLogsBody.innerHTML = '';
-                }
-
-                this.eventLogsBody.insertBefore(row, this.eventLogsBody.firstChild);
-
-                if (this.autoScroll) {
-                    this.eventLogsContainer.scrollTop = 0;
-                }
             }
 
             syntaxHighlightJson(json) {
@@ -2741,13 +2885,12 @@
                     modal.appendChild(content);
                 }
 
-                const jsonString = JSON.stringify(logEntry, null, 2);
-                const responseData = this.extractResponseData(logEntry.jsonData);
-                const treeHtml = this.jsonToTreeHtml(responseData, true);
+                const dataToDisplay = logEntry.data || {};
+                const treeHtml = this.jsonToTreeHtml(dataToDisplay, true);
                 content.innerHTML = `
                     <div style="background: white; border-radius: 8px; padding: 20px; max-width: 1200px; max-height: 80vh; overflow: auto; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); display: flex; flex-direction: column;">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; flex-shrink: 0;">
-                            <h3 style="margin: 0; color: #333;">Event Data - ${this.escapeHtml(logEntry.displayType)} (${this.escapeHtml(logEntry.timestamp)})</h3>
+                            <h3 style="margin: 0; color: #333;">Event Data - ${this.escapeHtml(logEntry.type)} (${this.escapeHtml(logEntry.timestamp)})</h3>
                             <button class="json-modal-close" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #666; flex-shrink: 0;">&times;</button>
                         </div>
                         <div style="border: 1px solid #ddd; background: #1e1e1e; padding: 15px; border-radius: 4px; font-family: 'Monaco', 'Courier New', monospace; font-size: 13px; color: #d4d4d4; overflow: auto; flex: 1; line-height: 1.6;">
@@ -2804,7 +2947,7 @@
 
             clearLogs() {
                 this.logs = [];
-                this.eventLogsBody.innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 20px; color: #999;">No events logged yet...</td></tr>';
+                this.eventLogsBody.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 20px; color: #999;">No events logged yet...</td></tr>';
             }
 
             toggleAutoScroll() {
@@ -2813,10 +2956,99 @@
                 this.autoScrollButton.style.backgroundColor = this.autoScroll ? '#4caf50' : '#ff9800';
             }
 
+            addLog(eventType, status, data) {
+                // Legacy method for backward compatibility with fetch wrapper
+                // Converts old-style logs to new Notification format
+                console.log('[EventLogger] addLog called:', { eventType, status, data });
+                
+                const timestamp = new Date().toLocaleTimeString('en-US', {
+                    hour12: false,
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit',
+                    fractionalSecondDigits: 3
+                });
+
+                const logEntry = {
+                    timestamp,
+                    category: 'Request',  // Logs from fetch wrapper are requests
+                    type: eventType || 'Unknown',
+                    status: status || null,
+                    data: data || null
+                };
+
+                console.log('[EventLogger] Created logEntry from addLog:', logEntry);
+                
+                this.logs.unshift(logEntry);
+                this.renderNotificationLog(logEntry);
+            }
+
             escapeHtml(text) {
                 const div = document.createElement('div');
                 div.textContent = text;
                 return div.innerHTML;
+            }
+
+            saveLogsToFile() {
+                const fileNameDialog = document.getElementById('fileNameDialog');
+                const fileNameInput = document.getElementById('fileNameInput');
+                const closeFileNameDialog = document.getElementById('closeFileNameDialog');
+                const saveFileNameBtn = document.getElementById('saveFileNameBtn');
+                const cancelFileNameBtn = document.getElementById('cancelFileNameBtn');
+
+                // Clear previous input
+                fileNameInput.value = '';
+                fileNameInput.focus();
+
+                // Show dialog
+                fileNameDialog.showModal();
+
+                // Handle save button click
+                const handleSave = () => {
+                    const fileName = fileNameInput.value.trim();
+                    if (!fileName) {
+                        alert('Please enter a file name');
+                        return;
+                    }
+
+                    const sanitizedFileName = fileName.replace(/[^a-zA-Z0-9_-]/g, '_');
+                    const dataToSave = JSON.stringify(this.logs, null, 2);
+                    const blob = new Blob([dataToSave], { type: 'text/plain' });
+                    const url = URL.createObjectURL(blob);
+                    const link = document.createElement('a');
+                    link.href = url;
+                    link.download = `${sanitizedFileName}.txt`;
+                    link.click();
+                    URL.revokeObjectURL(url);
+
+                    fileNameDialog.close();
+                    
+                    // Clean up event listeners
+                    saveFileNameBtn.removeEventListener('click', handleSave);
+                    cancelFileNameBtn.removeEventListener('click', handleCancel);
+                    closeFileNameDialog.removeEventListener('click', handleCancel);
+                };
+
+                const handleCancel = () => {
+                    fileNameDialog.close();
+                    
+                    // Clean up event listeners
+                    saveFileNameBtn.removeEventListener('click', handleSave);
+                    cancelFileNameBtn.removeEventListener('click', handleCancel);
+                    closeFileNameDialog.removeEventListener('click', handleCancel);
+                };
+
+                // Handle Enter key
+                fileNameInput.addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') {
+                        handleSave();
+                    }
+                });
+
+                // Set up button handlers
+                saveFileNameBtn.addEventListener('click', handleSave);
+                cancelFileNameBtn.addEventListener('click', handleCancel);
+                closeFileNameDialog.addEventListener('click', handleCancel);
             }
         }
 
@@ -2829,6 +3061,9 @@
             const method = (config?.method || 'GET').toUpperCase();
             const url = typeof resource === 'string' ? resource : resource.url;
             
+            // Skip logging for Notifications.json (only display actual notification events)
+            const skipLogging = url.includes('Notifications.json');
+            
             // Extract event type from URL
             let eventType = 'Unknown';
             if (url.includes('DataElements')) eventType = 'DataElements';
@@ -2836,14 +3071,16 @@
             else if (url.includes('FullScan')) eventType = 'FullScan';
             else if (url.includes('ChannelScan')) eventType = 'ChannelScan';
             
-            // Log request start
-            const requestData = {
-                method: method,
-                url: url,
-                type: 'request',
-                timestamp: new Date().toISOString()
-            };
-            eventLogger.addLog(eventType, 'Info', requestData);
+            // Log request start (skip for Notifications.json)
+            if (!skipLogging) {
+                const requestData = {
+                    method: method,
+                    url: url,
+                    type: 'request',
+                    timestamp: new Date().toISOString()
+                };
+                eventLogger.addLog(eventType, 'Info', requestData);
+            }
 
             return originalFetch.apply(this, args)
                 .then(response => {
@@ -2855,41 +3092,49 @@
                     const responseClone = response.clone();
                     return responseClone.json()
                         .then(jsonData => {
-                            const responseData = {
-                                method: method,
-                                url: url,
-                                type: 'response',
-                                status: status,
-                                statusText: response.statusText,
-                                data: jsonData,
-                                timestamp: new Date().toISOString()
-                            };
-                            eventLogger.addLog(eventType, statusClass, responseData);
+                            // Log response (skip for Notifications.json)
+                            if (!skipLogging) {
+                                const responseData = {
+                                    method: method,
+                                    url: url,
+                                    type: 'response',
+                                    status: status,
+                                    statusText: response.statusText,
+                                    data: jsonData,
+                                    timestamp: new Date().toISOString()
+                                };
+                                eventLogger.addLog(eventType, statusClass, responseData);
+                            }
                             return response;
                         })
                         .catch(() => {
-                            // If response is not JSON, log as text
-                            const responseData = {
-                                method: method,
-                                url: url,
-                                type: 'response',
-                                status: status,
-                                statusText: response.statusText,
-                                timestamp: new Date().toISOString()
-                            };
-                            eventLogger.addLog(eventType, statusClass, responseData);
+                            // If response is not JSON, log as text (skip for Notifications.json)
+                            if (!skipLogging) {
+                                const responseData = {
+                                    method: method,
+                                    url: url,
+                                    type: 'response',
+                                    status: status,
+                                    statusText: response.statusText,
+                                    timestamp: new Date().toISOString()
+                                };
+                                eventLogger.addLog(eventType, statusClass, responseData);
+                            }
                             return response;
                         });
                 })
                 .catch(error => {
-                    const errorData = {
-                        method: method,
-                        url: url,
-                        type: 'error',
-                        error: error.message,
-                        timestamp: new Date().toISOString()
-                    };
-                    eventLogger.addLog(eventType, 'Error', errorData);
+                    // Log error (skip for Notifications.json)
+                    if (!skipLogging) {
+                        const errorData = {
+                            method: method,
+                            url: url,
+                            type: 'error',
+                            error: error.message,
+                            timestamp: new Date().toISOString()
+                        };
+                        eventLogger.addLog(eventType, 'Error', errorData);
+                    }
                     throw error;
                 });
         };

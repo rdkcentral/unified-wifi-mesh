@@ -46,6 +46,12 @@ public:
     cJSON *nbr_diagnostics();
     cJSON *full_scan(cJSON *in);
     cJSON *channel_scan(cJSON *in);
+    
+    void assoc_event_notify(cJSON *out);
+    void disassoc_event_notify(cJSON *out);
+
+    virtual void keep_alive() {}
+    virtual int send_event(optimizer_event_t *ev) {}
 
     xmidt_optimizer_t();
     ~xmidt_optimizer_t(); 

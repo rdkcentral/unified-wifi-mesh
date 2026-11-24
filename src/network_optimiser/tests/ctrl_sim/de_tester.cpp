@@ -154,10 +154,10 @@ void de_tester_t::process_event(optimizer_event_t *ev)
                     (m_de_network->m_de_devices->m_de_radios != NULL) &&
                     (m_de_network->m_de_devices->m_de_radios->m_de_bsss != NULL)) {
                 if (get_assoc_sent() == false) {
-                    m_de_network->m_de_devices->m_de_radios->m_de_bsss->publish(DE_ASSOC);
+                    m_de_network->m_de_devices->m_de_radios->publish(DE_ASSOC);
                     set_assoc_sent(true);
                 } else {
-                    m_de_network->m_de_devices->m_de_radios->m_de_bsss->publish(DE_DISASSOC);
+                    m_de_network->m_de_devices->m_de_radios->publish(DE_DISASSOC);
                     set_assoc_sent(false);
                 }
             }

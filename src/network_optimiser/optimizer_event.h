@@ -20,10 +20,11 @@
 #define OPTIMIZER_EVENT_H
 
 #include <stddef.h>
+#include "em_base.h"
 #include <cjson/cJSON.h>
 
 typedef enum {
-    optimizer_event_type_hello,
+    optimizer_event_type_keep_alive,
     optimizer_event_type_subscribed,
     optimizer_event_type_de_change,
     optimizer_event_type_assoc,
@@ -55,6 +56,7 @@ public:
     ev_buffer_t   m_buff;
     bool m_copy;
     optimizer_event_type_t  m_type;
+    em_long_string_t m_timestamp;
 
 public:
     optimizer_event_type_t get_type() { return m_type; }
@@ -66,6 +68,8 @@ public:
     bool is_notification_event(optimizer_event_type_t type) { return (type < optimizer_event_type_notification_max) ? true:false; }
 
     void init(optimizer_event_type_t type, const char *data, const char *status);
+
+    optimizer_event_t *clone();
 
     optimizer_event_t();
     optimizer_event_t(const char *data);

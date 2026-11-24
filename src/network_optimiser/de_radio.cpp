@@ -34,11 +34,58 @@ void de_radio_t::update(de_radio_t& radio)
 
 void de_radio_t::serialize(rbusObject_t& ob)
 {
+    rbusValue_t value;
 
+    rbusValue_Init(&value);
+    rbusValue_SetString(value, m_id);
+    rbusObject_SetValue(ob, "ID", value);
+    rbusValue_Release(value);
+
+    rbusValue_Init(&value);
+    rbusValue_SetBoolean(value, m_enabled);
+    rbusObject_SetValue(ob, "Enabled", value);
+    rbusValue_Release(value);
+
+    rbusValue_Init(&value);
+    rbusValue_SetUInt32(value, m_util);
+    rbusObject_SetValue(ob, "Utilization", value);
+    rbusValue_Release(value);
+
+    rbusValue_Init(&value);
+    rbusValue_SetInt32(value, m_noise);
+    rbusObject_SetValue(ob, "Noise", value);
+    rbusValue_Release(value);
 }
 
 void de_radio_t::deserialize(rbusObject_t& ob)
 {
+    rbusValue_t value;
+    const char *ptr;
+
+    if ((value = rbusObject_GetValue(ob, "ID")) == NULL) {
+        printf("%s:%d: Could not find Type value\n", __func__, __LINE__);
+    } else {
+        ptr = rbusValue_GetString(value, NULL);
+        strncpy(m_id, ptr, strlen(ptr) + 1);
+    }
+
+    if ((value = rbusObject_GetValue(ob, "Enabled")) == NULL) {
+        printf("%s:%d: Could not find Operator value\n", __func__, __LINE__);
+    } else {
+       m_enabled = rbusValue_GetBoolean(value);
+    }
+
+    if ((value = rbusObject_GetValue(ob, "Utilization")) == NULL) {
+        printf("%s:%d: Could not find Utilization value\n", __func__, __LINE__);
+    } else {
+        m_util = rbusValue_GetUInt32(value);
+    }
+
+    if ((value = rbusObject_GetValue(ob, "Noise")) == NULL) {
+       printf("%s:%d: Could not find Noise value\n", __func__, __LINE__);
+    } else {
+       m_noise = rbusValue_GetInt32(value);
+    }
 
 }
 

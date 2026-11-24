@@ -52,7 +52,7 @@ void de_sta_t::serialize(rbusObject_t& ob, bool assoc)
     rbusObject_SetValue(ob, "MACAddress", value);
     rbusValue_Release(value);
 
-    if (assoc == true) {
+    if (assoc == false) {
         rbusValue_Init(&value);
         rbusValue_SetInt32(value, m_rssi);
         rbusObject_SetValue(ob, "SignalStrength", value);

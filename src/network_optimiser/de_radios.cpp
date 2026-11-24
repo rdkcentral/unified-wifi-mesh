@@ -25,6 +25,7 @@
 #include "de_radios.h"
 #include "de_device.h"
 #include "de_scan.h"
+#include "de_assoc_event.h"
 #include "optimizer.h"
 
 void de_radios_t::update(de_op_class_t& op_class, unsigned int dpos, unsigned int rpos, unsigned int opos)
@@ -196,7 +197,133 @@ rbusError_t de_radios_t::set(rbusHandle_t handle, rbusProperty_t property, rbusS
     return RBUS_ERROR_SUCCESS;
 }
 
-void de_radios_t::publish(const char *name)
+void de_radios_t::publish_assoc()
+{
+    int rc;
+    de_sta_t *sta;
+    de_bss_t *bss;
+    bool found = false;
+    rbusEvent_t event = {0};
+    rbusValue_t value;
+    rbusObject_t data;
+    struct timeval tv;
+    struct tm tm_info;
+    em_long_string_t    timestamp;
+
+    gettimeofday(&tv, NULL);
+    localtime_r(&tv.tv_sec, &tm_info);
+
+    strftime(timestamp, sizeof(timestamp), "%Y-%m-%d %H:%M:%S", &tm_info);
+
+    sta = (de_sta_t *)hash_map_get_first(m_de_bsss->m_de_stas->m_sta_map);
+
+    bss = (de_bss_t *)hash_map_get_first(m_de_bsss->m_bss_map);
+    while (bss != NULL) {
+        if (strstr(sta->m_key, bss->m_key) != NULL) {
+            found = true;
+            break;
+        }
+        bss = (de_bss_t *)hash_map_get_next(m_de_bsss->m_bss_map, bss);
+    }
+
+    if (found == false) {
+        printf("%s:%d: Entry of bss not found for station ley: %s\n", __func__, __LINE__, sta->m_key);
+        return;
+    }
+
+    found = false;
+
+    rbusObject_Init(&data, NULL);
+
+    rbusValue_Init(&value);
+    rbusValue_SetString(value, timestamp);
+    rbusObject_SetValue(data, "Timestamp", value);
+    rbusValue_Release(value);
+
+    rbusValue_Init(&value);
+    rbusValue_SetString(value, bss->m_bssid);
+    rbusObject_SetValue(data, "BSSID", value);
+    rbusValue_Release(value);
+
+    sta->serialize(data, true);
+
+    rbusValue_Init(&value);
+    rbusValue_SetUInt32(value, 0);
+    rbusObject_SetValue(data, "StatusCode", value);
+    rbusValue_Release(value);
+
+    rbusValue_Init(&value);
+    rbusValue_SetUInt32(value, 0);
+    rbusObject_SetValue(data, "OpClass", value);
+    rbusValue_Release(value);
+
+    rbusValue_Init(&value);
+    rbusValue_SetUInt32(value, 0);
+    rbusObject_SetValue(data, "Channel", value);
+    rbusValue_Release(value);
+
+    event.name = DE_ASSOC;
+    event.data = data;
+    event.type = RBUS_EVENT_GENERAL;
+
+    if ((rc = rbusEvent_Publish(m_bus_handle, &event)) != RBUS_ERROR_SUCCESS) {
+        printf("%s:%d: Failed to publish data for event: %s, err: %d\n", __func__, __LINE__,
+            event.name, rc);
+    }
+
+    rbusObject_Release(data);
+
+}
+
+void de_radios_t::publish_disassoc()
+{
+    int rc;
+    de_sta_t *sta;
+    de_bss_t *bss;
+    bool found = false;
+    rbusEvent_t event = {0};
+    rbusValue_t value;
+    rbusObject_t data;
+
+    sta = (de_sta_t *)hash_map_get_first(m_de_bsss->m_de_stas->m_sta_map);
+
+    bss = (de_bss_t *)hash_map_get_first(m_de_bsss->m_bss_map);
+    while (bss != NULL) {
+        if (strstr(sta->m_key, bss->m_key) != NULL) {
+            found = true;
+            break;
+        }
+        bss = (de_bss_t *)hash_map_get_next(m_de_bsss->m_bss_map, bss);
+    }
+
+    if (found == false) {
+        printf("%s:%d: Entry of bss not found for station ley: %s\n", __func__, __LINE__, sta->m_key);
+        return;
+    }
+
+    rbusObject_Init(&data, NULL);
+
+    rbusValue_Init(&value);
+    rbusValue_SetString(value, bss->m_bssid);
+    rbusObject_SetValue(data, "BSSID", value);
+    rbusValue_Release(value);
+
+    sta->serialize(data);
+
+    event.name = DE_DISASSOC;
+    event.data = data;
+    event.type = RBUS_EVENT_GENERAL;
+
+    if ((rc = rbusEvent_Publish(m_bus_handle, &event)) != RBUS_ERROR_SUCCESS) {
+        printf("%s:%d: Failed to publish data for event: %s, err: %d\n", __func__, __LINE__,
+            event.name, rc);
+    }
+
+    rbusObject_Release(data);
+
+}
+
+void de_radios_t::publish_radiolist()
 {
     int rc, inst;
     de_radio_t *rd;
@@ -204,44 +331,13 @@ void de_radios_t::publish(const char *name)
     rbusValue_t value;
     rbusObject_t data, row;
 
-    if ((strncmp(name, BSSS, strlen(BSSS)) == 0) || (strncmp(name, STAS, strlen(STAS)) == 0)) {
-        m_de_bsss->publish(name);
-        return;
-    } else if (strncmp(name, CURR_OP_CLASSES, strlen(CURR_OP_CLASSES)) == 0) {
-        m_de_curr_op_classes->publish(name);
-        return;
-    } else if ((strncmp(name, CAPS, strlen(CAPS)) == 0) || (strncmp(name, OP_CLASSES, strlen(OP_CLASSES)) == 0)) {
-        m_de_caps->publish(name);
-        return;
-    } else if (strncmp(name, RADIOS, strlen(RADIOS)) != 0) {
-        return;
-    }
-
     rbusObject_Init(&data, NULL);
 
     rd = (de_radio_t *)hash_map_get_first(m_radio_map);
     while (rd != NULL) {
         rbusObject_Init(&row, rd->m_key);
 
-        rbusValue_Init(&value);
-        rbusValue_SetString(value, rd->m_id);
-        rbusObject_SetValue(row, "ID", value);
-        rbusValue_Release(value);
-
-        rbusValue_Init(&value);
-        rbusValue_SetBoolean(value, rd->m_enabled);
-        rbusObject_SetValue(row, "Enabled", value);
-        rbusValue_Release(value);
-
-        rbusValue_Init(&value);
-        rbusValue_SetUInt32(value, rd->m_util);
-        rbusObject_SetValue(row, "Utilization", value);
-        rbusValue_Release(value);
-
-        rbusValue_Init(&value);
-        rbusValue_SetInt32(value, rd->m_noise);
-        rbusObject_SetValue(row, "Noise", value);
-        rbusValue_Release(value);
+        rd->serialize(row);
 
         rbusValue_Init(&value);
         rbusValue_SetObject(value, row);
@@ -253,7 +349,7 @@ void de_radios_t::publish(const char *name)
         rd = (de_radio_t *)hash_map_get_next(m_radio_map, rd);
     }
 
-    event.name = name;;
+    event.name = RADIOS;
     event.data = data;
     event.type = RBUS_EVENT_GENERAL;
 
@@ -265,19 +361,55 @@ void de_radios_t::publish(const char *name)
     rbusObject_Release(data);
 }
 
-void de_radios_t::handler(rbusHandle_t handle, rbusEvent_t const* event, rbusEventSubscription_t* subscription)
+void de_radios_t::publish(const char *name)
 {
-    rbusValue_t value;
+    if ((strncmp(name, BSSS, strlen(BSSS)) == 0) || (strncmp(name, STAS, strlen(STAS)) == 0)) {
+        m_de_bsss->publish(name);
+    } else if (strncmp(name, CURR_OP_CLASSES, strlen(CURR_OP_CLASSES)) == 0) {
+        m_de_curr_op_classes->publish(name);
+    } else if ((strncmp(name, CAPS, strlen(CAPS)) == 0) || (strncmp(name, OP_CLASSES, strlen(OP_CLASSES)) == 0)) {
+        m_de_caps->publish(name);
+    } else if (strncmp(name, RADIOS, strlen(RADIOS)) == 0) {
+        publish_radiolist();
+    } else if (strncmp(name, DE_ASSOC, strlen(DE_ASSOC)) == 0) {
+        publish_assoc();
+    } else if (strncmp(name, DE_DISASSOC, strlen(DE_DISASSOC)) == 0) {
+        publish_disassoc();
+    }
+}
+
+void de_radios_t::handle_assoc(rbusEvent_t const* event)
+{
+    de_assoc_event_t assoc;
+    cJSON *obj;
+    rbusObject_t ob = event->data;
+
+    obj = cJSON_CreateObject();
+
+    assoc.deserialize(ob); 
+    assoc.serialize(obj);
+
+    //printf("%s\n", cJSON_Print(obj));
+ 
+    if (m_func != NULL) {
+        m_func(new optimizer_event_t(optimizer_event_type_assoc, obj));
+    } else {
+        printf("%s:%d: Notifier not found\n", __func__, __LINE__);
+    } 
+    cJSON_Delete(obj);
+}
+
+void de_radios_t::handle_disassoc(rbusEvent_t const* event)
+{
+
+}
+
+void de_radios_t::handle_radiolist(rbusEvent_t const* event)
+{
     rbusObject_t row;
     rbusProperty_t prop;
-
     const char *ptr;
     de_radio_t *rd;
-
-    if (strncmp(subscription->eventName, RADIOS, strlen(RADIOS)) != 0) {
-        printf("%s:%d: Unknown event: %s\n", __func__, __LINE__, event->name);
-        return;
-    }
 
     prop = rbusObject_GetProperties(event->data);
     while (prop != NULL) {
@@ -290,35 +422,22 @@ void de_radios_t::handler(rbusHandle_t handle, rbusEvent_t const* event, rbusEve
         }
 
         row = rbusProperty_GetObject(prop);
-
-        if ((value = rbusObject_GetValue(row, "ID")) == NULL) {
-            printf("%s:%d: Could not find Type value\n", __func__, __LINE__);
-        } else {
-            ptr = rbusValue_GetString(value, NULL);
-            strncpy(rd->m_id, ptr, strlen(ptr) + 1);
-        }
-
-        if ((value = rbusObject_GetValue(row, "Enabled")) == NULL) {
-            printf("%s:%d: Could not find Operator value\n", __func__, __LINE__);
-        } else {
-            rd->m_enabled = rbusValue_GetBoolean(value);
-        }
-
-        if ((value = rbusObject_GetValue(row, "Utilization")) == NULL) {
-            printf("%s:%d: Could not find Utilization value\n", __func__, __LINE__);
-        } else {
-            rd->m_util = rbusValue_GetUInt32(value);
-        }
-
-        if ((value = rbusObject_GetValue(row, "Noise")) == NULL) {
-            printf("%s:%d: Could not find Noise value\n", __func__, __LINE__);
-        } else {
-            rd->m_noise = rbusValue_GetInt32(value);
-        }
+        rd->deserialize(row);
 
         prop = rbusProperty_GetNext(prop);
     }
 
+}
+
+void de_radios_t::handler(rbusHandle_t handle, rbusEvent_t const* event, rbusEventSubscription_t* subscription)
+{
+    if (strncmp(subscription->eventName, RADIOS, strlen(RADIOS)) == 0) {
+        handle_radiolist(event);
+    } else if (strncmp(subscription->eventName, DE_ASSOC, strlen(DE_ASSOC)) == 0) {
+        handle_assoc(event);
+    } else if (strncmp(subscription->eventName, DE_DISASSOC, strlen(DE_DISASSOC)) == 0) {
+        handle_disassoc(event);
+    }
 }
 
 rbusError_t de_radios_t::method(rbusHandle_t handle, char const* name, rbusObject_t in, rbusObject_t out, rbusMethodAsyncHandle_t async)
@@ -465,7 +584,21 @@ int de_radios_t::init(rbusHandle_t handle)
     m_elems[m_num_elems].type = RBUS_ELEMENT_TYPE_METHOD;
     m_num_elems++;
 
+    m_elems[m_num_elems].name = DE_ASSOC;
+    m_elems[m_num_elems].type = RBUS_ELEMENT_TYPE_EVENT;
+    m_num_elems++;
+
+    m_elems[m_num_elems].name = DE_DISASSOC;
+    m_elems[m_num_elems].type = RBUS_ELEMENT_TYPE_EVENT;
+    m_num_elems++;
+
     m_subs[m_num_subs].eventName = RADIOS;
+    m_num_subs++;
+
+    m_subs[m_num_subs].eventName = DE_ASSOC;
+    m_num_subs++;
+
+    m_subs[m_num_subs].eventName = DE_DISASSOC;
     m_num_subs++;
 
     if (de_t::init(handle) != 0) {
@@ -526,6 +659,7 @@ de_radios_t::de_radios_t(const char *name, bool provider, notifier_t func)
     m_provider = provider;
     strncpy(m_name, name, strlen(name));
     m_func = func;
+    printf("%s:%d: func: %p\n", __func__, __LINE__, func);
     m_radio_map = NULL;
     m_de_bsss = NULL;
     m_de_curr_op_classes = NULL;

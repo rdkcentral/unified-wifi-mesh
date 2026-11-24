@@ -123,7 +123,7 @@ int de_t::subscribe_events()
     for (i = 0; i < m_num_subs; i++) {
         m_subs[i].handler = (void *)::handler;
         m_subs[i].userData = this;
-        m_subs[i].publishOnSubscribe = true;
+        m_subs[i].publishOnSubscribe = false;
     }
 
     if (m_num_subs && (rbusEvent_SubscribeEx(m_bus_handle, m_subs, m_num_subs, 0) != RBUS_ERROR_SUCCESS)) {
