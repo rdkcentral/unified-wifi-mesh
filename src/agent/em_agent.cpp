@@ -18,6 +18,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <strings.h>
 #include <stdlib.h>
 #include <errno.h>
 #include <signal.h>
@@ -30,6 +31,7 @@
 #include <sys/ioctl.h>
 #include <sys/socket.h>
 #include <sys/uio.h>
+#include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
 #include <pthread.h>
@@ -52,6 +54,8 @@
 #endif
 
 #define RETRY_SLEEP_INTERVAL_IN_MS 1000
+#define EM_CFG_FILE_WAIT_RETRIES 60
+#define EM_CFG_DIR "/nvram"
 
 #define EMEX_AIRTIES_CLIENT_ID      "Device.Services.X_AIRTIES_Edge.AuthConfig.ClientID"
 #define EMEX_AIRTIES_CLIENT_SECRET  "Device.Services.X_AIRTIES_Edge.AuthConfig.ClientPassword"
@@ -1970,7 +1974,7 @@ void em_agent_t::input_listener()
             if (access(EM_CFG_FILE, F_OK) != -1) {
                 em_printfout("Check that OneWifi is running.");
             } else {
-                em_printfout("EasymeshCfg.json does not exist. Generate via the unified-wifi-mesh CLI/TUI (if co-located) or by adding the `--interface` flag to the agent (if not)");
+                em_printfout("%s does not exist; it is created by the platform service start-up script", EM_CFG_FILE);
             }
         }
     }
@@ -2850,72 +2854,123 @@ void em_agent_t::start_complete()
 
 }
 
-bool em_agent_t::try_create_default_em_cfg(std::string interface)
+bool em_agent_t::update_em_cfg(const mac_address_t al_mac)
 {
+    static const mac_address_t zero_mac = {0};
+    if (memcmp(al_mac, zero_mac, sizeof(mac_address_t)) == 0) {
+        em_printfout("Not updating %s, AL MAC is all zeros", EM_CFG_FILE);
+        return false;
+    }
+    const std::string mac_str = util::mac_to_string(al_mac);
 
-    std::string em_cfg_file_path = EM_CFG_FILE;
+    // The file is created by the platform service start-up script, which runs
+    // independently of the agent, so wait for it instead of failing at once.
+    FILE *fp = fopen(EM_CFG_FILE, "r");
+    for (unsigned int retry = 0; (fp == NULL) && (errno == ENOENT) && (retry < EM_CFG_FILE_WAIT_RETRIES); retry++) {
+        em_printfout("Waiting for %s to be created by the start-up script, retry %u", EM_CFG_FILE, retry + 1);
+        usleep(RETRY_SLEEP_INTERVAL_IN_MS * 1000);
+        fp = fopen(EM_CFG_FILE, "r");
+    }
+    if (fp == NULL) {
+        em_util_error_print(EM_STDOUT, "Could not open %s: %s, it is created by the platform service start-up script\n",
+            EM_CFG_FILE, strerror(errno));
+        return false;
+    }
+    std::string content;
+    char buf[256];
+    size_t n;
+    while ((n = fread(buf, 1, sizeof(buf), fp)) > 0) {
+        content.append(buf, n);
+    }
 
-    
-    if (access(em_cfg_file_path.c_str(), F_OK) == 0) {
-        // EM_CFG_FILE already exists
-        printf("%s:%d: EasymeshCfg.json already exists, not overriding.\n", __func__, __LINE__);
+    cJSON *root = cJSON_Parse(content.c_str());
+    if (!cJSON_IsObject(root)) {
+        em_util_error_print(EM_STDOUT, "Could not parse %s as a JSON object, not overwriting it\n", EM_CFG_FILE);
+        cJSON_Delete(root);
+        fclose(fp);
+        return false;
+    }
+
+    cJSON *cur = cJSON_GetObjectItem(root, "AL_MAC_ADDR");
+    if (!cJSON_IsString(cur)) {
+        em_util_error_print(EM_STDOUT, "%s has no AL_MAC_ADDR string, not updating it\n", EM_CFG_FILE);
+        cJSON_Delete(root);
+        fclose(fp);
+        return false;
+    }
+    if ((cur->valuestring != NULL) && (strcasecmp(cur->valuestring, mac_str.c_str()) == 0)) {
+        cJSON_Delete(root);
+        fclose(fp);
         return true;
     }
 
-    printf("%s:%d: Creating default EasymeshCfg.json for interface: %s\n", __func__, __LINE__, interface.c_str());
-    mac_address_t if_mac = {0};
-    if (dm_easy_mesh_t::mac_address_from_name(interface.c_str(), if_mac) < 0){
-        printf("%s:%d: Failed to get MAC address for interface: %s\n", __func__, __LINE__, interface.c_str());
-        return false;
-    }
-
-    mac_addr_str_t mac_str;
-    if (!dm_easy_mesh_t::macbytes_to_string(if_mac, mac_str)){
-        printf("%s:%d: Failed to convert MAC address to string\n", __func__, __LINE__);
-        return false;
-    }
-    printf("%s:%d: Interface MAC address: %s\n", __func__, __LINE__, mac_str);
-
-    FILE *fp = fopen(em_cfg_file_path.c_str(), "w");
-    if (fp == NULL) {
-        printf("%s:%d: Failed to create default EasymeshCfg.json\n", __func__, __LINE__);
-        return false;
-    }
-
-    cJSON *root = cJSON_CreateObject();
-    if (root == NULL) {
-        printf("%s:%d: Failed to create root JSON object\n", __func__, __LINE__);
-        fclose(fp);
-        return false;
-    }
-    cJSON *al_mac = cJSON_CreateString(mac_str);
-    if (al_mac == NULL) {
-        printf("%s:%d: Failed to create AL_MAC_ADDR JSON object\n", __func__, __LINE__);
-        fclose(fp);
+    cJSON *val = cJSON_CreateString(mac_str.c_str());
+    if (val == NULL) {
         cJSON_Delete(root);
-        return false;
-    }
-    cJSON *colocated_mode = cJSON_CreateNumber(0);
-    if (colocated_mode == NULL) {
-        printf("%s:%d: Failed to create Colocated_mode JSON object\n", __func__, __LINE__);
         fclose(fp);
-        cJSON_Delete(root);
         return false;
     }
-
-    cJSON_AddItemToObject(root, "AL_MAC_ADDR", al_mac);
-    cJSON_AddItemToObject(root, "Colocated_mode", colocated_mode);
+    cJSON_ReplaceItemInObject(root, "AL_MAC_ADDR", val);
 
     char *json_str = cJSON_Print(root);
-    fprintf(fp, "%s", json_str);
-    fclose(fp);
     cJSON_Delete(root);
+    if (json_str == NULL) {
+        fclose(fp);
+        return false;
+    }
 
-    printf("%s:%d: Created default EasymeshCfg.json for interface: %s\n", __func__, __LINE__, interface.c_str());
-    printf("%s\n", json_str);
-
+    // Publish a complete replacement with an atomic rename so readers never see a
+    // partial file and a failed update leaves the old file intact.
+    std::string out = std::string(json_str) + "\n";
     free(json_str);
 
+    struct stat st;
+    if (fstat(fileno(fp), &st) != 0) {
+        em_util_error_print(EM_STDOUT, "Could not stat %s: %s\n", EM_CFG_FILE, strerror(errno));
+        fclose(fp);
+        return false;
+    }
+    fclose(fp);
+
+    char tmp_path[] = EM_CFG_FILE ".XXXXXX";
+    int fd = mkstemp(tmp_path);
+    if (fd < 0) {
+        em_util_error_print(EM_STDOUT, "Could not create temp file for %s: %s\n", EM_CFG_FILE, strerror(errno));
+        return false;
+    }
+
+    const char *p = out.c_str();
+    size_t left = out.size();
+    bool ok = true;
+    while (ok && (left > 0)) {
+        ssize_t w = write(fd, p, left);
+        if (w < 0) {
+            if (errno == EINTR) {
+                continue;
+            }
+            ok = false;
+        } else {
+            p += w;
+            left -= static_cast<size_t>(w);
+        }
+    }
+    ok = ok && (fchmod(fd, st.st_mode & 07777) == 0) && (fchown(fd, st.st_uid, st.st_gid) == 0);
+    ok = ok && (fsync(fd) == 0);
+    ok = (close(fd) == 0) && ok;
+    ok = ok && (rename(tmp_path, EM_CFG_FILE) == 0);
+    if (!ok) {
+        em_util_error_print(EM_STDOUT, "Failed to update %s: %s\n", EM_CFG_FILE, strerror(errno));
+        unlink(tmp_path);
+        return false;
+    }
+
+    int dir_fd = open(EM_CFG_DIR, O_RDONLY | O_DIRECTORY);
+    if (dir_fd >= 0) {
+        fsync(dir_fd);
+        close(dir_fd);
+    }
+
+    em_printfout("Updated %s with AL_MAC_ADDR %s", EM_CFG_FILE, mac_str.c_str());
     return true;
 }
 
@@ -3140,8 +3195,18 @@ AlServiceAccessPoint* em_agent_t::al_sap_register(const std::string& data_socket
             std::cout << std::hex << static_cast<int>(byte) << " ";
         }
         std::cout << std::dec << std::endl;
+
+        mac_address_t al_mac;
+        memcpy(al_mac, g_al_mac_sap.data(), sizeof(mac_address_t));
+        if (!update_em_cfg(al_mac)) {
+            em_printfout("Failed to store the AL MAC in %s", EM_CFG_FILE);
+            delete sap;
+            return nullptr;
+        }
     } else {
         std::cout << "Registration failed with error: " << static_cast<int>(result) << std::endl;
+        delete sap;
+        return nullptr;
     }
 
     return sap;
@@ -3157,28 +3222,13 @@ int main(int argc, const char *argv[])
     }
 
     if ((args.size() == 1) && (args[0] == "--help" || args[0] == "-h")) {
-        printf("Usage: %s [data-model-path] [--interface=al_mac_iface] [--start-dpp-onboard] [--regen-dpp-uri]\n", argv[0]);
+        printf("Usage: %s [data-model-path] [--start-dpp-onboard] [--regen-dpp-uri]\n", argv[0]);
         return 0;
     }
 
     std::string data_model_path = "";
 
-    bool interface_found = false;
-
     for (auto arg : args) {
-        if (arg.find("--interface=") != std::string::npos && !interface_found) {
-            std::string interface = arg.substr(strlen("--interface="));
-            if (interface.empty()) {
-                printf("Invalid interface name\n");
-                return -1;
-            }
-            if (!g_agent.try_create_default_em_cfg(interface)) {
-                printf("Failed to create default EasymeshCfg.json\n");
-                return -1;
-            }
-            interface_found = true;
-            continue;
-        }
         if (arg == "--start-dpp-onboard") {
             g_agent.do_start_dpp_onboarding = true;
             continue;
@@ -3206,6 +3256,10 @@ int main(int argc, const char *argv[])
     if (g_agent.init(data_model_path.empty() ? NULL : data_model_path.c_str()) == 0) {
 #ifdef AL_SAP
     g_sap = g_agent.al_sap_register();
+    if (nullptr == g_sap) {
+        em_printfout("AL SAP registration failed, exiting");
+        return -1;
+    }
 #endif
         g_agent.start();
     }

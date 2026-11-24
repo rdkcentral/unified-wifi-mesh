@@ -66,6 +66,15 @@ unsigned short em_configuration_t::msg_id = 0;
 std::deque<time_t> g_failed_conn_report_timestamps;
 static std::mutex g_failed_conn_report_mutex;
 
+static inline bool validate_tlv_length(unsigned int tlv_len, unsigned int buff_len)
+{
+    if (buff_len < (tlv_len + static_cast<unsigned int>(sizeof(em_tlv_t)))) {
+        em_printfout("Mismatch between available buffer and TLV length");
+        return false;
+    }
+    return true;
+}
+
 static bool allow_failed_conn_report(unsigned short max_reports_per_min)
 {
     if (max_reports_per_min == 0) {
@@ -2188,16 +2197,21 @@ int em_configuration_t::handle_topology_response(unsigned char *buff, unsigned i
 	dm_easy_mesh_t *dm;
     em_raw_hdr_t *hdr = reinterpret_cast<em_raw_hdr_t *>(buff);
     uint8_t *src_al_mac = hdr->src;
+    unsigned int tlv_len = 0;
     
 	dm = get_data_model();
 
     tlv =  reinterpret_cast<em_tlv_t *> (buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
     tmp_len = len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
         
-    while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
+    while ((tmp_len >= sizeof(em_tlv_t)) && (tlv->type != em_tlv_type_eom)) {
+        tlv_len = static_cast<unsigned int>(htons(tlv->len));
+        if (!validate_tlv_length(tlv_len, tmp_len)) {
+            return -1;
+        }
         if (tlv->type != em_tlv_type_profile) {
-            tmp_len -= static_cast<unsigned int> (sizeof(em_tlv_t) + htons(tlv->len));
-            tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
+            tmp_len -= static_cast<unsigned int> (sizeof(em_tlv_t) + tlv_len);
+            tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + tlv_len);
 
             continue;
 
@@ -2230,10 +2244,14 @@ int em_configuration_t::handle_topology_response(unsigned char *buff, unsigned i
     tlv =  reinterpret_cast<em_tlv_t *> (buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
     tmp_len = len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
 
-	while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
+	while ((tmp_len >= sizeof(em_tlv_t)) && (tlv->type != em_tlv_type_eom)) {
+        tlv_len = static_cast<unsigned int>(htons(tlv->len));
+        if (!validate_tlv_length(tlv_len, tmp_len)) {
+            return -1;
+        }
 		if (tlv->type != em_tlv_type_vendor_operational_bss) {
-			tmp_len -= static_cast<unsigned int> (sizeof(em_tlv_t) + htons(tlv->len));
-			tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
+			tmp_len -= static_cast<unsigned int> (sizeof(em_tlv_t) + tlv_len);
+			tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + tlv_len);
 			continue;
 		} else {
 			handle_ap_vendor_operational_bss(tlv->value, tlv->len);
@@ -2242,10 +2260,14 @@ int em_configuration_t::handle_topology_response(unsigned char *buff, unsigned i
 	}
 	tlv =  reinterpret_cast<em_tlv_t *> (buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
 	tmp_len = len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)); 
-    while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
+    while ((tmp_len >= sizeof(em_tlv_t)) && (tlv->type != em_tlv_type_eom)) {
+        tlv_len = static_cast<unsigned int>(htons(tlv->len));
+        if (!validate_tlv_length(tlv_len, tmp_len)) {
+            return -1;
+        }
         if (tlv->type != em_tlv_type_operational_bss) {
-            tmp_len -= static_cast<unsigned int> (sizeof(em_tlv_t) + htons(tlv->len));
-            tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
+            tmp_len -= static_cast<unsigned int> (sizeof(em_tlv_t) + tlv_len);
+            tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + tlv_len);
 
             continue;
 
@@ -2273,10 +2295,14 @@ int em_configuration_t::handle_topology_response(unsigned char *buff, unsigned i
         }
 
 
-    while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
+    while ((tmp_len >= sizeof(em_tlv_t)) && (tlv->type != em_tlv_type_eom)) {
+        tlv_len = static_cast<unsigned int>(htons(tlv->len));
+        if (!validate_tlv_length(tlv_len, tmp_len)) {
+            return -1;
+        }
         if (tlv->type != em_tlv_type_bss_conf_rep) {
-            tmp_len -= static_cast<unsigned int> (sizeof(em_tlv_t) + htons(tlv->len));
-            tlv = reinterpret_cast <em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
+            tmp_len -= static_cast<unsigned int> (sizeof(em_tlv_t) + tlv_len);
+            tlv = reinterpret_cast <em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + tlv_len);
 
             continue;
 
@@ -2297,10 +2323,14 @@ int em_configuration_t::handle_topology_response(unsigned char *buff, unsigned i
         tmp_len = len - static_cast<unsigned int>(sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
     }
 
-    while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
+    while ((tmp_len >= sizeof(em_tlv_t)) && (tlv->type != em_tlv_type_eom)) {
+        tlv_len = static_cast<unsigned int>(htons(tlv->len));
+        if (!validate_tlv_length(tlv_len, tmp_len)) {
+            return -1;
+        }
         if (tlv->type != em_tlv_type_bh_sta_radio_cap) {
-            tmp_len -= static_cast<unsigned int> (sizeof(em_tlv_t) + htons(tlv->len));
-            tlv = reinterpret_cast <em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
+            tmp_len -= static_cast<unsigned int> (sizeof(em_tlv_t) + tlv_len);
+            tlv = reinterpret_cast <em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + tlv_len);
             continue;
         } else {
             handle_bsta_radio_cap(tlv->value, tlv->len);
@@ -2308,10 +2338,14 @@ int em_configuration_t::handle_topology_response(unsigned char *buff, unsigned i
         }
     }
 
-    while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
+    while ((tmp_len >= sizeof(em_tlv_t)) && (tlv->type != em_tlv_type_eom)) {
+        tlv_len = static_cast<unsigned int>(htons(tlv->len));
+        if (!validate_tlv_length(tlv_len, tmp_len)) {
+            return -1;
+        }
         if (tlv->type != em_tlv_type_ap_mld_config) {
             tmp_len -= static_cast<unsigned int> (sizeof(em_tlv_t) + htons(tlv->len));
-            tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
+            tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + tlv_len);
 
             continue;
 
@@ -2331,14 +2365,18 @@ int em_configuration_t::handle_topology_response(unsigned char *buff, unsigned i
     tlv = reinterpret_cast<em_tlv_t *>(buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
     tmp_len = len - static_cast<unsigned int>(sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
     assoc_sta_mld_count = 0;
-    while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
+    while ((tmp_len >= sizeof(em_tlv_t)) && (tlv->type != em_tlv_type_eom)) {
+        tlv_len = static_cast<unsigned int>(htons(tlv->len));
+        if (!validate_tlv_length(tlv_len, tmp_len)) {
+            return -1;
+        }
         if (tlv->type == em_tlv_type_assoc_sta_mld_conf_rep) {
             em_printfout("Found Assoc STA MLD Configuration Report TLV #%u", assoc_sta_mld_count);
-            handle_assoc_sta_mld_conf_rep_tlv(tlv->value, htons(tlv->len));
+            handle_assoc_sta_mld_conf_rep_tlv(tlv->value, tlv_len);
             assoc_sta_mld_count++;
         }
-        tmp_len -= static_cast<unsigned int>(sizeof(em_tlv_t) + htons(tlv->len));
-        tlv = reinterpret_cast<em_tlv_t *>(reinterpret_cast<unsigned char *>(tlv) + sizeof(em_tlv_t) + htons(tlv->len));
+        tmp_len -= static_cast<unsigned int>(sizeof(em_tlv_t) + tlv_len);
+        tlv = reinterpret_cast<em_tlv_t *>(reinterpret_cast<unsigned char *>(tlv) + sizeof(em_tlv_t) + tlv_len);
     }
     em_printfout("Total Assoc STA MLD TLVs parsed: %u", assoc_sta_mld_count);
 
@@ -4436,6 +4474,7 @@ int em_configuration_t::handle_wsc_m1(unsigned char *buff, unsigned int len)
     em_freq_band_t  band;
     dm_radio_t *radio;
     unsigned int found = 0, i  = 0;
+    uint16_t attr_len = 0;
 
 	dm = get_data_model();
 	memset(&dev_info, 0, sizeof(em_device_info_t));
@@ -4509,18 +4548,36 @@ int em_configuration_t::handle_wsc_m1(unsigned char *buff, unsigned int len)
         } else if (id == attr_id_cfg_methods) {
         } else if (id == attr_id_wifi_wsc_state) {
         } else if (id == attr_id_manufacturer) {
-            memcpy(dev_info.manufacturer, attr->val, htons(attr->len));
+            attr_len = htons(attr->len);
+            if (attr_len >= sizeof(dev_info.manufacturer)) {
+                em_printfout("Invalid manufacturer length %u", attr_len);
+                return -1;
+            }
+            memcpy(dev_info.manufacturer, attr->val, attr_len);
+            dev_info.manufacturer[attr_len] = '\0';
             set_manufacturer(dev_info.manufacturer);
             //printf("%s:%d: Manufacturer:%s\n", __func__, __LINE__, dev_info.manufacturer);
             dm->set_db_cfg_param(db_cfg_type_device_list_update, "");
         } else if (id == attr_id_model_name) {
-            memcpy(dev_info.manufacturer_model, attr->val, htons(attr->len));
+            attr_len = htons(attr->len);
+            if (attr_len >= sizeof(dev_info.manufacturer_model)) {
+                em_printfout("Invalid model name length %u", attr_len);
+                return -1;
+            }
+            memcpy(dev_info.manufacturer_model, attr->val, attr_len);
+            dev_info.manufacturer_model[attr_len] = '\0';
             set_manufacturer_model(dev_info.manufacturer_model);
             dm->set_db_cfg_param(db_cfg_type_device_list_update, "");
             //printf("%s:%d: Manufacturer Model:%s\n", __func__, __LINE__, dev_info.manufacturer_model);
         } else if (id == attr_id_model_number) {
         } else if (id == attr_id_serial_num) {
-            memcpy(dev_info.serial_number, attr->val, htons(attr->len));
+            attr_len = htons(attr->len);
+            if (attr_len >= sizeof(dev_info.serial_number)) {
+                em_printfout("Invalid serial number length %u", attr_len);
+                return -1;
+            }
+            memcpy(dev_info.serial_number, attr->val, attr_len);
+            dev_info.serial_number[attr_len] = '\0';
             set_serial_number(dev_info.serial_number);
             //printf("%s:%d: Manufacturer:%s\n", __func__, __LINE__, dev_info.serial_number);
             em_printfout("Updated dm dev_info's backhaul_mac: %s and backhaul_alid: %s",
@@ -5941,7 +5998,7 @@ int em_configuration_t::handle_ap_radio_basic_cap(unsigned char *buff, unsigned 
 			op_class_info.id.type = em_op_class_type_capability;
 			op_class_info.op_class = static_cast<unsigned int> (basic_cap_op_class->op_class);
 			op_class_info.id.op_class = op_class_info.op_class;
-			op_class_info.max_tx_power = static_cast<int> (basic_cap_op_class->max_tx_eirp);
+			op_class_info.max_tx_power = static_cast<int8_t> (basic_cap_op_class->max_tx_eirp);
 			op_class_info.num_channels = static_cast<unsigned int> (basic_cap_op_class->num);
 			for (j = 0; j < op_class_info.num_channels; j++) {
 				op_class_info.channels[j] = static_cast<unsigned int> (basic_cap_op_class->channels.channel[j]);
@@ -6027,7 +6084,10 @@ int em_configuration_t::handle_autoconfig_wsc_m1(unsigned char *buff, unsigned i
         if (tlv->type == em_tlv_type_ap_radio_basic_cap) {
             handle_ap_radio_basic_cap(tlv->value, val_len);
         } else if (tlv->type == em_tlv_type_wsc) {
-            handle_wsc_m1(tlv->value, val_len);
+            if (handle_wsc_m1(tlv->value, val_len) != 0) {
+                em_printfout("handle_wsc_m1 message failed");
+                return -1;
+            }
         } else if (tlv->type == em_tlv_type_profile_2_ap_cap) {
         } else if (tlv->type == em_tlv_type_ap_radio_advanced_cap) {
             handle_ap_radio_advanced_cap(tlv->value, val_len);
