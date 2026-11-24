@@ -106,6 +106,7 @@ SOURCES = $(wildcard $(OPTIMIZER_SRC)/tests/ctrl_sim/*.cpp) \
     $(OPTIMIZER_SRC)/de_nbr_bss.cpp \
     $(OPTIMIZER_SRC)/optimizer_event.cpp \
     $(OPTIMIZER_SRC)/de_scan.cpp \
+    $(OPTIMIZER_SRC)/de_assoc_event.cpp \
 
 OBJECTS = $(SOURCES:.cpp=.o)
 GENERIC_OBJECTS = $(GENERIC_SOURCES:.c=.o) 
