@@ -3740,6 +3740,10 @@ void dm_easy_mesh_t::get_ap_mld_key(mac_address_t al_mac, em_haul_type_t haul_ty
 
     mac_addr_str_t al_mac_str;
     em_string_t haul_str;
+    if (al_mac == NULL || haul_type < em_haul_type_fronthaul || haul_type >= em_haul_type_max) {
+        key[0] = '\0';
+        return;
+    }
     dm_easy_mesh_t::macbytes_to_string(al_mac, al_mac_str);
     dm_network_ssid_t::haul_type_to_string(haul_type, haul_str);
     snprintf(key, sz, "%s@%s", al_mac_str, haul_str);
