@@ -2153,7 +2153,15 @@ em_profile_type_t em_configuration_t::get_peer_profile(const mac_address_t al_ma
 {
     dm_easy_mesh_t *dm = get_peer_dm(al_mac);
     em_profile_type_t profile = (dm != nullptr) ? dm->get_device()->get_peer_profile() : em_profile_type_reserved;
-    return (profile == em_profile_type_reserved) ? em_profile_type_1 : profile;
+    if(profile != em_profile_type_reserved) {
+       return profile;
+    }
+
+    em_profile_type_t dm_profile = (dm != nullptr) ? dm->get_device_info()->profile : em_profile_type_reserved;
+    if(dm_profile != em_profile_type_reserved) {
+       return dm_profile;
+    }
+    return em_profile_type_1;
 }
 
 void em_configuration_t::set_peer_profile(const mac_address_t al_mac, em_profile_type_t profile)
