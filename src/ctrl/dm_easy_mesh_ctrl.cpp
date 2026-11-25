@@ -6670,6 +6670,16 @@ bus_error_t dm_easy_mesh_ctrl_t::sta_tget(char *event_name, raw_data_t *p_data)
     return bus_get_cb_fwd(event_name, p_data, sta_tget_inner);
 }
 
+bus_error_t dm_easy_mesh_ctrl_t::unassocsta_get(char *event_name, raw_data_t *p_data)
+{
+    return bus_get_cb_fwd(event_name, p_data, unassocsta_get_inner);
+}
+
+bus_error_t dm_easy_mesh_ctrl_t::unassocsta_tget(char *event_name, raw_data_t *p_data)
+{
+    return bus_get_cb_fwd(event_name, p_data, unassocsta_tget_inner);
+}
+
 bus_error_t dm_easy_mesh_ctrl_t::apmld_get(char *event_name, raw_data_t *p_data)
 {
     return bus_get_cb_fwd(event_name, p_data, apmld_get_inner);
@@ -7761,6 +7771,9 @@ bus_error_t dm_easy_mesh_ctrl_t::radio_get_inner(char *event_name, raw_data_t *p
         rc = dm_ctrl->raw_data_set(p_data, curop_count);
     } else if (strcmp(param, "BSSNumberOfEntries") == 0) {
         rc = dm_ctrl->raw_data_set(p_data, ri->number_of_bss);
+    } else if (strcmp(param, "UnassociatedSTANumberOfEntries") == 0) {
+        em_unassoc_sta_metric_entry_t *entries[EM_MAX_UNASSOC_STA];
+        rc = dm_ctrl->raw_data_set(p_data, dm->get_unassoc_sta_metrics(ri->id.ruid, entries, EM_MAX_UNASSOC_STA));
     } else if (strcmp(param, "X_AIRTIES_Temperature") == 0) {
         rc = dm_ctrl->raw_data_set(p_data, ri->radio_temp);
     } else {
@@ -7853,6 +7866,9 @@ bus_error_t dm_easy_mesh_ctrl_t::radio_tget_params(dm_easy_mesh_t *dm, const cha
         }
         dm_ctrl->property_append_tail(property, root, idx, "CurrentOperatingClassProfileNumberOfEntries", curop_count);
         dm_ctrl->property_append_tail(property, root, idx, "BSSNumberOfEntries", ri->number_of_bss);
+        em_unassoc_sta_metric_entry_t *unassoc_entries[EM_MAX_UNASSOC_STA];
+        dm_ctrl->property_append_tail(property, root, idx, "UnassociatedSTANumberOfEntries",
+            dm->get_unassoc_sta_metrics(ri->id.ruid, unassoc_entries, EM_MAX_UNASSOC_STA));
 
         const unsigned char *bsta_mac = radio_bsta_mac(dm, radio);
         if (bsta_mac == NULL) {
@@ -7907,6 +7923,9 @@ bus_error_t dm_easy_mesh_ctrl_t::radio_tget_params(dm_easy_mesh_t *dm, const cha
 
         snprintf(path, sizeof(path) - 1, "%s%d.BSS.", root, idx);
         dm_ctrl->bss_tget_params(dm, path, ri, property);
+
+        snprintf(path, sizeof(path) - 1, "%s%d.UnassociatedSTA.", root, idx);
+        dm_ctrl->unassocsta_tget_params(dm, path, ri, property);
     }
 
     return rc;
@@ -9434,6 +9453,143 @@ bus_error_t dm_easy_mesh_ctrl_t::sta_tget_params(dm_easy_mesh_t *dm, const char 
     }
 
     return rc;
+}
+
+bus_error_t dm_easy_mesh_ctrl_t::unassocsta_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
+{
+    (void) user_data;
+    const char *name = event_name;
+    const char *param;
+    char instance[MAX_INSTANCE_LEN] = { 0 };
+    bool is_num;
+    int sta_instance = 0;
+    em_unassoc_sta_metric_entry_t *entries[EM_MAX_UNASSOC_STA];
+    unsigned int count;
+    bus_error_t rc;
+
+    if (!name || !p_data) {
+        return bus_error_invalid_input;
+    }
+    param = strrchr(name, '.');
+    if (param == NULL) {
+        return bus_error_invalid_input;
+    }
+    ++param;
+
+    dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
+
+    /* Extract device instance (numeric or alias) and find the dm object for
+     * that device instance */
+    name += sizeof(DATAELEMS_NETWORK);
+    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    dm_easy_mesh_t *dm = dm_ctrl->get_dm_easy_mesh(instance, is_num);
+    if (dm == NULL) {
+        em_printfout("device not found");
+        return bus_error_invalid_namespace;
+    }
+
+    /* Radio instance is a number or the base64(RUID) alias */
+    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    if (is_num && ((atoi(instance) < 1) || (static_cast<unsigned int>(atoi(instance)) > dm->get_num_radios()))) {
+        em_printfout("radio not found");
+        return bus_error_invalid_namespace;
+    }
+    dm_radio_t *radio = dm_ctrl->get_dm_radio(dm, instance, is_num);
+    if (radio == NULL) {
+        em_printfout("radio not found");
+        return bus_error_invalid_namespace;
+    }
+    em_radio_info_t *ri = radio->get_radio_info();
+
+    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    sta_instance = is_num ? atoi(instance) : 0;
+    count = dm->get_unassoc_sta_metrics(ri->id.ruid, entries, EM_MAX_UNASSOC_STA);
+    if ((sta_instance < 1) || (static_cast<unsigned int>(sta_instance) > count)) {
+        em_printfout("unassociated STA not found");
+        return bus_error_invalid_namespace;
+    }
+    em_unassoc_sta_metric_entry_t *entry = entries[sta_instance - 1];
+
+    if (strcmp(param, "MACAddress") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, entry->sta_mac);
+    } else if (strcmp(param, "SignalStrength") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, static_cast<int32_t>(entry->rcpi));
+    } else if (strcmp(param, "OperatingClass") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, static_cast<unsigned int>(entry->op_class));
+    } else if (strcmp(param, "Channel") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, static_cast<unsigned int>(entry->channel));
+    } else {
+        em_printfout("Invalid param: %s", param);
+        rc = bus_error_invalid_input;
+    }
+    return rc;
+}
+
+bus_error_t dm_easy_mesh_ctrl_t::unassocsta_tget_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
+{
+    (void) user_data;
+    const char *name = event_name;
+    const char *root = name;
+    char instance[MAX_INSTANCE_LEN] = { 0 };
+    bool is_num;
+    bus_data_prop_t *property = NULL;
+    bus_error_t rc;
+
+    if (!name || !p_data) {
+        return bus_error_invalid_input;
+    }
+    if (*(name + (strlen(name) - 1)) != '.') {
+        /* Only partial paths are valid */
+        return bus_error_invalid_operation;
+    }
+
+    dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
+
+    name += sizeof(DATAELEMS_NETWORK);
+    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    dm_easy_mesh_t *dm = dm_ctrl->get_dm_easy_mesh(instance, is_num);
+    if (dm == NULL) {
+        em_printfout("device not found");
+        return bus_error_invalid_namespace;
+    }
+
+    /* Radio instance is a number or the base64(RUID) alias */
+    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    if (is_num && ((atoi(instance) < 1) || (static_cast<unsigned int>(atoi(instance)) > dm->get_num_radios()))) {
+        em_printfout("radio not found");
+        return bus_error_invalid_namespace;
+    }
+    dm_radio_t *radio = dm_ctrl->get_dm_radio(dm, instance, is_num);
+    if (radio == NULL) {
+        em_printfout("radio not found");
+        return bus_error_invalid_namespace;
+    }
+    em_radio_info_t *ri = radio->get_radio_info();
+
+    rc = dm_ctrl->unassocsta_tget_params(dm, root, ri, &property);
+    if (rc == bus_error_success && property) {
+        dm_ctrl->raw_data_set(p_data, property);
+    }
+    return rc;
+}
+
+bus_error_t dm_easy_mesh_ctrl_t::unassocsta_tget_params(dm_easy_mesh_t *dm, const char *root, em_radio_info_t *ri, bus_data_prop_t **property)
+{
+    em_unassoc_sta_metric_entry_t *entries[EM_MAX_UNASSOC_STA];
+    unsigned int count;
+    dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
+
+    count = dm->get_unassoc_sta_metrics(ri->id.ruid, entries, EM_MAX_UNASSOC_STA);
+    for (unsigned int i = 0; i < count; i++) {
+        em_unassoc_sta_metric_entry_t *entry = entries[i];
+        unsigned int idx = i + 1;
+
+        dm_ctrl->property_append_tail(property, root, idx, "MACAddress", entry->sta_mac);
+        dm_ctrl->property_append_tail(property, root, idx, "SignalStrength", static_cast<int32_t>(entry->rcpi));
+        dm_ctrl->property_append_tail(property, root, idx, "OperatingClass", static_cast<unsigned int>(entry->op_class));
+        dm_ctrl->property_append_tail(property, root, idx, "Channel", static_cast<unsigned int>(entry->channel));
+    }
+    return bus_error_success;
 }
 
 dm_ap_mld_t *dm_easy_mesh_ctrl_t::get_dm_ap_mld(dm_easy_mesh_t *dm, char *instance, bool is_num)

@@ -1064,6 +1064,10 @@ public:
     static bus_error_t sta_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
     static bus_error_t sta_table_add_row_handler(const char* table_name, const char* alias_name, uint32_t* instance_number);
 
+    //UnassociatedSTA
+    static bus_error_t unassocsta_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
+    static bus_error_t unassocsta_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
+
     //APMLD
     static bus_error_t apmld_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
     static bus_error_t apmld_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
