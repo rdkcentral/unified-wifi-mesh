@@ -24,6 +24,8 @@
 #include "em_cmd.h"
 #include "dm_easy_mesh.h"
 #include <iomanip>
+#include <memory>
+#include <string>
 
 extern "C" const char* __asan_default_options() {
     return "detect_leaks=0";
@@ -22751,8 +22753,6 @@ TEST(dm_easy_mesh_t, UpdateScanResults_negative_Static_NullScanResult)
     });
     std::cout << "Exiting UpdateScanResults_negative_Static_NullScanResult test" << std::endl;
 }
-#include <memory>
-#include <string>
 
 /*
  * dm_easy_mesh_t::print_config(): every count the function loops over is limited to its array capacity.
