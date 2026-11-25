@@ -13889,11 +13889,11 @@ TEST(dm_easy_mesh_t, get_num_bss_zero_value)
 }
 
 /**
- * @brief Verify that get_num_bss returns the maximum BSS value when set to UINT_MAX
+ * @brief Verify that get_num_bss clamps an oversized BSS count to EM_MAX_BSSS
  *
  * This test sets the m_num_bss member of the dm_easy_mesh_t instance to UINT_MAX and verifies that the static
- * method get_num_bss correctly returns this maximum value. It ensures that the API properly handles and returns the
- * maximum unsigned integer value without any overflow or reset.
+ * method get_num_bss returns EM_MAX_BSSS, the capacity of the BSS array, instead of the raw count. It ensures that
+ * callers which iterate up to the returned count cannot read past the array.
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 338@n
@@ -13907,8 +13907,8 @@ TEST(dm_easy_mesh_t, get_num_bss_zero_value)
  * | Variation / Step | Description                                                                       | Test Data                                            | Expected Result                                          | Notes         |
  * | :--------------: | --------------------------------------------------------------------------------- | ---------------------------------------------------- | -------------------------------------------------------- | ------------- |
  * | 01               | Initialize the dm_easy_mesh_t instance and set m_num_bss to UINT_MAX              | dmInstance.m_num_bss = UINT_MAX                        | dmInstance created with m_num_bss initialized to UINT_MAX | Should be successful |
- * | 02               | Invoke the get_num_bss API with the instance pointer                              | Input: pointer = &dmInstance                           | API returns UINT_MAX                                     | Should Pass   |
- * | 03               | Validate the returned value using EXPECT_EQ                                       | Input: returnedValue = result from get_num_bss, expected UINT_MAX | EXPECT_EQ asserts returned value equals UINT_MAX         | Should Pass   |
+ * | 02               | Invoke the get_num_bss API with the instance pointer                              | Input: pointer = &dmInstance                           | API returns EM_MAX_BSSS                                  | Should Pass   |
+ * | 03               | Validate the returned value using EXPECT_EQ                                       | Input: returnedValue = result from get_num_bss, expected EM_MAX_BSSS | EXPECT_EQ asserts returned value equals EM_MAX_BSSS      | Should Pass   |
  */
 TEST(dm_easy_mesh_t, get_num_bss_max_value)
 {
@@ -13918,7 +13918,7 @@ TEST(dm_easy_mesh_t, get_num_bss_max_value)
     std::cout << "Invoking get_num_bss with m_num_bss set to: " << dmInstance.m_num_bss << std::endl;
     unsigned int returnedValue = dm_easy_mesh_t::get_num_bss(static_cast<void*>(&dmInstance));
     std::cout << "Returned value from get_num_bss: " << returnedValue << std::endl;
-    EXPECT_EQ(returnedValue, UINT_MAX);
+    EXPECT_EQ(returnedValue, static_cast<unsigned int>(EM_MAX_BSSS));
     std::cout << "Exiting get_num_bss_max_value test" << std::endl;
 }
 
