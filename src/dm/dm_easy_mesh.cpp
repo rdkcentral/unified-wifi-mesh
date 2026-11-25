@@ -2455,7 +2455,7 @@ void dm_easy_mesh_t::print_config()
     }
 
     em_printfout("No of BSS=%d No of Radios=%d", m_num_bss, m_num_radios);
-    for (i = 0; i < num_bss; i++) {
+    for (i = 0; i < get_num_bss(); i++) {
         em_printfout("Radio Mac : %s and BSSID : %s", util::mac_to_string(get_bss(i)->get_bss_info()->ruid.mac).c_str(),
             util::mac_to_string(get_bss(i)->get_bss_info()->bssid.mac).c_str());
     }
