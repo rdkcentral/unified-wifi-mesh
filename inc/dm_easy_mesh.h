@@ -88,6 +88,8 @@ public:
     bool    m_colocated;
     // Key: AL MAC + haul type (see get_ap_mld_key()).
     hash_map_t      *m_ap_mld_map = NULL;
+    // Guards m_ap_mld_map and its entries: radio em_t threads and the bus thread share each model.
+    mutable std::recursive_mutex m_ap_mld_mutex;
     bool    m_bsta_mld_present;
     dm_bsta_mld_t   m_bsta_mld;
     unsigned int    m_num_assoc_sta_mld;
@@ -1587,7 +1589,10 @@ public:
 	 *
 	 * @returns The number of AP MLDs currently stored in the AP MLD hash map.
 	 */
-	unsigned int get_num_ap_mld() { return (m_ap_mld_map != NULL) ? hash_map_count(m_ap_mld_map) : 0; }
+	unsigned int get_num_ap_mld() {
+		std::lock_guard<std::recursive_mutex> lock(m_ap_mld_mutex);
+		return (m_ap_mld_map != NULL) ? hash_map_count(m_ap_mld_map) : 0;
+	}
     
 	/**!
 	 * @brief Retrieves the number of AP MLDs.
@@ -1617,11 +1622,23 @@ public:
 	dm_ap_mld_t *get_ap_mld(mac_address_t al_mac, em_haul_type_t haul_type);
 
 	/**!
+	 * @brief Locks the AP MLD map for the lifetime of the returned lock.
+	 *
+	 * Hold this lock while using any dm_ap_mld_t / em_ap_mld_info_t pointer obtained from
+	 * get_ap_mld(), get_ap_mld_frm_haul_type() or get_first_ap_mld()/get_next_ap_mld(),
+	 * because other threads may update or remove entries. The lock is recursive.
+	 *
+	 * @returns A lock that owns m_ap_mld_mutex.
+	 */
+	std::unique_lock<std::recursive_mutex> lock_ap_mld() const { return std::unique_lock<std::recursive_mutex>(m_ap_mld_mutex); }
+
+	/**!
 	 * @brief Retrieves the first AP MLD in the AP MLD hash map.
 	 *
 	 * @returns A pointer to the first `dm_ap_mld_t` entry, or NULL if the map is empty/unallocated.
 	 */
 	dm_ap_mld_t *get_first_ap_mld() {
+		std::lock_guard<std::recursive_mutex> lock(m_ap_mld_mutex);
 		return (m_ap_mld_map != NULL) ? static_cast<dm_ap_mld_t *> (hash_map_get_first(m_ap_mld_map)) : NULL;
 	}
 
@@ -1633,6 +1650,7 @@ public:
 	 * @returns A pointer to the next `dm_ap_mld_t` entry, or NULL if there is none.
 	 */
 	dm_ap_mld_t *get_next_ap_mld(dm_ap_mld_t *ap_mld) {
+		std::lock_guard<std::recursive_mutex> lock(m_ap_mld_mutex);
 		return (m_ap_mld_map != NULL) ? static_cast<dm_ap_mld_t *> (hash_map_get_next(m_ap_mld_map, ap_mld)) : NULL;
 	}
 

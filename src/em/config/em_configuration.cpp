@@ -1165,6 +1165,9 @@ int em_configuration_t::create_ap_mld_config_tlv(unsigned char *buff)
         return -1;
     }
 
+    // Entries are read through raw pointers below; keep them alive for the whole TLV build.
+    std::unique_lock<std::recursive_mutex> ap_mld_lock = dm->lock_ap_mld();
+
     ap_mld_conf = reinterpret_cast<em_ap_mld_config_t *> (buff);
     memset(ap_mld_conf, 0, sizeof(em_ap_mld_config_t));
 

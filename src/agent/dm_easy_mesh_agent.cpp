@@ -338,6 +338,7 @@ int dm_easy_mesh_agent_t::analyze_onewifi_vap_cb(em_bus_event_t *evt, em_cmd_t *
     const char *json_data = reinterpret_cast<char *> (evt->u.raw_buff);
     dm.init();
     dm = *this;
+    dm.set_num_bss(0);
     webconfig_proto_easymesh_init(&ext, &dm, NULL, NULL, get_num_radios, set_num_radios,
             get_num_op_class, set_num_op_class, get_num_bss, set_num_bss,
             get_device_info, get_network_info, get_radio_info, get_ieee_1905_security_info, get_bss_info, 

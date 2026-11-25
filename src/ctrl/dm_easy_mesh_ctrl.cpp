@@ -9447,6 +9447,8 @@ dm_ap_mld_t *dm_easy_mesh_ctrl_t::get_dm_ap_mld(dm_easy_mesh_t *dm, char *instan
         return NULL;
     }
 
+    std::unique_lock<std::recursive_mutex> ap_mld_lock = dm->lock_ap_mld();
+
     if (is_num) {
         unsigned int idx = static_cast<unsigned int>(atoi(instance));
         unsigned int cnt = 0;
@@ -9514,6 +9516,7 @@ bus_error_t dm_easy_mesh_ctrl_t::apmld_get_inner(char *event_name, raw_data_t *p
     /* Extract ap_mld instance (numeric or alias), find the ap_mld dm object
      * for that instance, and finally get info struct for ap_mld dm object */
     name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    std::unique_lock<std::recursive_mutex> ap_mld_lock = dm->lock_ap_mld();
     dm_ap_mld_t *ap_mld = dm_ctrl->get_dm_ap_mld(dm, instance, is_num);
     if (ap_mld == NULL) {
         em_printfout("APMLD not found");
@@ -9580,6 +9583,7 @@ bus_error_t dm_easy_mesh_ctrl_t::apmld_tget_params(dm_easy_mesh_t *dm, const cha
     em_long_string_t key;
     dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
 
+    std::unique_lock<std::recursive_mutex> ap_mld_lock = dm->lock_ap_mld();
     /* Enumerate in the same canonical haul-type order as get_dm_ap_mld() so the
      * instance numbers listed here match single-instance gets. Only entries that
      * exist in the map consume an instance number. */
@@ -9648,6 +9652,7 @@ bus_error_t dm_easy_mesh_ctrl_t::apmldcfg_get_inner(char *event_name, raw_data_t
     /* Extract ap_mld instance (numeric or alias), find the ap_mld dm object
      * for that instance, and finally get info struct for ap_mld dm object */
     name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    std::unique_lock<std::recursive_mutex> ap_mld_lock = dm->lock_ap_mld();
     dm_ap_mld_t *ap_mld = dm_ctrl->get_dm_ap_mld(dm, instance, is_num);
     if (ap_mld == NULL) {
         em_printfout("APMLD not found");
@@ -9719,6 +9724,7 @@ bus_error_t dm_easy_mesh_ctrl_t::apmldcfg_set_inner(char *event_name, raw_data_t
     /* Extract ap_mld instance (numeric or alias), find the ap_mld dm object
      * for that instance, and finally get info struct for ap_mld dm object */
     name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    std::unique_lock<std::recursive_mutex> ap_mld_lock = dm->lock_ap_mld();
     ap_mld = dm_ctrl->get_dm_ap_mld(dm, instance, is_num);
     if (ap_mld == NULL) {
         em_printfout("APMLD not found");
@@ -9835,6 +9841,7 @@ bus_error_t dm_easy_mesh_ctrl_t::affap_get_inner(char *event_name, raw_data_t *p
     /* Extract ap_mld instance (numeric or alias), find the ap_mld dm object
      * for that instance, and finally get info struct for ap_mld dm object */
     name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    std::unique_lock<std::recursive_mutex> ap_mld_lock = dm->lock_ap_mld();
     dm_ap_mld_t *ap_mld = dm_ctrl->get_dm_ap_mld(dm, instance, is_num);
     if (ap_mld == NULL) {
         em_printfout("APMLD not found");
@@ -9916,6 +9923,7 @@ bus_error_t dm_easy_mesh_ctrl_t::affap_tget_inner(char *event_name, raw_data_t *
     /* Extract ap_mld instance (numeric or alias), find the ap_mld dm object
      * for that instance, and finally get info struct for ap_mld dm object */
     name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    std::unique_lock<std::recursive_mutex> ap_mld_lock = dm->lock_ap_mld();
     dm_ap_mld_t *ap_mld = dm_ctrl->get_dm_ap_mld(dm, instance, is_num);
     if (ap_mld == NULL) {
         em_printfout("APMLD not found");
@@ -10023,6 +10031,7 @@ bus_error_t dm_easy_mesh_ctrl_t::stamld_get_inner(char *event_name, raw_data_t *
     /* Extract ap_mld instance (numeric or alias), find the ap_mld dm object
      * for that instance, and finally get info struct for ap_mld dm object */
     name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    std::unique_lock<std::recursive_mutex> ap_mld_lock = dm->lock_ap_mld();
     dm_ap_mld_t *ap_mld = dm_ctrl->get_dm_ap_mld(dm, instance, is_num);
     if (ap_mld == NULL) {
         em_printfout("APMLD not found");
@@ -10115,6 +10124,7 @@ bus_error_t dm_easy_mesh_ctrl_t::stamld_tget_inner(char *event_name, raw_data_t 
     /* Extract ap_mld instance (numeric or alias), find the ap_mld dm object
      * for that instance, and finally get info struct for ap_mld dm object */
     name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    std::unique_lock<std::recursive_mutex> ap_mld_lock = dm->lock_ap_mld();
     dm_ap_mld_t *ap_mld = dm_ctrl->get_dm_ap_mld(dm, instance, is_num);
     if (ap_mld == NULL) {
         em_printfout("APMLD not found");
@@ -10221,6 +10231,7 @@ bus_error_t dm_easy_mesh_ctrl_t::wifi7caps_get_inner(char *event_name, raw_data_
     /* Extract ap_mld instance (numeric or alias), find the ap_mld dm object
      * for that instance, and finally get info struct for ap_mld dm object */
     name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    std::unique_lock<std::recursive_mutex> ap_mld_lock = dm->lock_ap_mld();
     dm_ap_mld_t *ap_mld = dm_ctrl->get_dm_ap_mld(dm, instance, is_num);
     if (ap_mld == NULL) {
         em_printfout("APMLD not found");
@@ -10289,6 +10300,7 @@ bus_error_t dm_easy_mesh_ctrl_t::stamldcfg_get_inner(char *event_name, raw_data_
     /* Extract ap_mld instance (numeric or alias), find the ap_mld dm object
      * for that instance, and finally get info struct for ap_mld dm object */
     name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    std::unique_lock<std::recursive_mutex> ap_mld_lock = dm->lock_ap_mld();
     dm_ap_mld_t *ap_mld = dm_ctrl->get_dm_ap_mld(dm, instance, is_num);
     if (ap_mld == NULL) {
         em_printfout("APMLD not found");
@@ -10357,6 +10369,7 @@ bus_error_t dm_easy_mesh_ctrl_t::affsta_get_inner(char *event_name, raw_data_t *
     /* Extract ap_mld instance (numeric or alias), find the ap_mld dm object
      * for that instance, and finally get info struct for ap_mld dm object */
     name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    std::unique_lock<std::recursive_mutex> ap_mld_lock = dm->lock_ap_mld();
     dm_ap_mld_t *ap_mld = dm_ctrl->get_dm_ap_mld(dm, instance, is_num);
     if (ap_mld == NULL) {
         em_printfout("APMLD not found");
@@ -10456,6 +10469,7 @@ bus_error_t dm_easy_mesh_ctrl_t::affsta_tget_inner(char *event_name, raw_data_t 
     /* Extract ap_mld instance (numeric or alias), find the ap_mld dm object
      * for that instance, and finally get info struct for ap_mld dm object */
     name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    std::unique_lock<std::recursive_mutex> ap_mld_lock = dm->lock_ap_mld();
     dm_ap_mld_t *ap_mld = dm_ctrl->get_dm_ap_mld(dm, instance, is_num);
     if (ap_mld == NULL) {
         em_printfout("APMLD not found");
