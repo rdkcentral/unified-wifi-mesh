@@ -480,13 +480,18 @@ bool tr_181_t::parse_unassoc_ch_obj(const bus_data_prop_t *prop, tr181_unassoc_c
 
 bool tr_181_t::parse_bmq_ch_rep_obj(const bus_data_prop_t *prop, tr181_bmq_ch_rep_item_t *ch_rep_item)
 {
-     if (!prop || !ch_rep_item) {
+     if (!prop || !prop->name || !ch_rep_item) {
          return false;
      }
 
     const char *name = prop->name;
+    // Room for EM_MAX_CHANNELS_IN_LIST channels separated by a comma and a space
+    char list_str[EM_MAX_CHANNELS_IN_LIST * 5 + 1] = { 0 };
+    char *saveptr = NULL;
+    int channel;
+    int ch_idx;
 
-    /* APChannelReport.{i}.OperatingClass or APChannelReport.{i}.ChannelList */
+    /* APChannelReport.{i}.OperatingClass or APChannelReport.{i}.Channel.{j}.Channel */
     name += sizeof("APChannelReport");
     name  = strstr(name, ".");
     if (!name) {
@@ -495,15 +500,71 @@ bool tr_181_t::parse_bmq_ch_rep_obj(const bus_data_prop_t *prop, tr181_bmq_ch_re
 
     ++name;
     if (strcmp(name, "OperatingClass") == 0) {
-        if (!tr_181_t::tr181_get_prop_int(prop, &ch_rep_item->op_class)) {
-            return false;
-        }
-    } else if (strcmp(name, "ChannelList") == 0) {
-        if (!tr_181_t::tr181_copy_prop_string(prop, ch_rep_item->ch_list, sizeof(ch_rep_item->ch_list))) {
-            return false;
-        }
-    } else {
+        return tr_181_t::tr181_get_prop_int(prop, &ch_rep_item->op_class);
+    }
+    if (strncmp(name, "Channel.", sizeof("Channel.") - 1) != 0) {
         return false;
+    }
+
+    /* Channel.{j}.Channel: a channel number, or a list of them per TR-106 list syntax
+     * (the same shape as Class.{i}.Channel.{j}.Channel of ChannelSelectionRequest()) */
+    const char *next_dot = strchr(name + sizeof("Channel.") - 1, '.');
+    const char *last_dot = strrchr(name, '.');
+    if (!last_dot || next_dot != last_dot || strcmp(last_dot + 1, "Channel") != 0) {
+        return false;
+    }
+    if (!tr_181_t::parse_object_index(name, &ch_idx) || ch_idx < 1) {
+        return false;
+    }
+    if (tr_181_t::tr181_get_prop_int(prop, &channel)) {
+        snprintf(list_str, sizeof(list_str), "%d", channel);
+    } else if (!tr_181_t::tr181_copy_prop_string(prop, list_str, sizeof(list_str))) {
+        return false;
+    } else {
+        // tr181_copy_prop_string() truncates silently; the copy must be the whole value.
+        const char *list_src = static_cast<const char *> (prop->value.raw_data.bytes);
+        size_t list_len = prop->value.raw_data_len;
+        if (list_len > 0 && list_src[list_len - 1] == '\0') {
+            list_len--;
+        } else if (list_len == 0) {
+            list_len = strnlen(list_src, sizeof(list_str));
+        }
+        if (strlen(list_str) != list_len) {
+            em_printfout("Channel list in '%s' is too long or not a plain string", prop->name);
+            return false;
+        }
+    }
+
+    unsigned int count = 0;
+    for (const char *c = ch_rep_item->ch_list; *c != '\0'; ++c) {
+        if (c == ch_rep_item->ch_list || *c == ',') {
+            ++count;
+        }
+    }
+
+    for (char *item = strtok_r(list_str, ",", &saveptr); item != NULL; item = strtok_r(NULL, ",", &saveptr)) {
+        char *end = NULL;
+        size_t used = strlen(ch_rep_item->ch_list);
+
+        while (*item == ' ') {
+            ++item;
+        }
+        long value = strtol(item, &end, 10);
+        while (*end == ' ') {
+            ++end;
+        }
+        if (end == item || *end != '\0' || value < 1 || value > 255) {
+            em_printfout("Invalid channel '%s' in '%s'", item, prop->name);
+            return false;
+        }
+        channel = static_cast<int> (value);
+        if (++count > EM_MAX_CHANNELS_IN_LIST ||
+                snprintf(ch_rep_item->ch_list + used, sizeof(ch_rep_item->ch_list) - used, "%s%d",
+                used ? "," : "", channel) >= static_cast<int> (sizeof(ch_rep_item->ch_list) - used)) {
+            em_printfout("Too many channels in '%s'", prop->name);
+            ch_rep_item->ch_list[used] = '\0';
+            return false;
+        }
     }
 
     return true;

@@ -131,6 +131,7 @@ public:
     char* get_sta_vht_caps_str(char *vht_cap_hex, char *buf, size_t buf_len);
     bool find_sta_he_caps(em_sta_info_t *si, const unsigned char **mac_caps, const unsigned char **phy_caps);
     bool sta_wifi6_cap_value(em_sta_info_t *si, const char *param, bool *out);
+    static std::string get_sta_measurement_report_str(const em_sta_info_t *si);
     char* get_capop_nonoper_str(em_op_class_info_t *oci, char *buf, size_t buf_len);
     char* get_supported_standards_str(wifi_ieee80211Variant_t variant, char *buf, size_t buf_size);
     bus_error_t rcaps_get(char* event_name, raw_data_t* p_data);
