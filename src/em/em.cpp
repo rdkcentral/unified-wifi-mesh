@@ -416,15 +416,13 @@ void em_t::proto_process(em_cmd_event_t *cevt)
     switch (cevt->type) {
         case em_cmd_event_type_ap_metrics_report:
         {
-            em_cmd_t *saved_cmd = m_cmd;
             em_cmd_t *ap_cmd = static_cast<em_cmd_t*>(cevt->cmd_ptr);
-            m_cmd = ap_cmd;
-            em_metrics_t::process_agent_state(em_cmd_event_type_ap_metrics_report);
+            // m_cmd belongs to the orchestrator thread, the report is passed as an argument
             if (ap_cmd != NULL) {
+                em_metrics_t::process_agent_state(em_cmd_event_type_ap_metrics_report, ap_cmd);
                 ap_cmd->deinit();
             }
             delete ap_cmd;
-            m_cmd = saved_cmd;
             break;
         }
         case em_cmd_event_type_failed_connection:
