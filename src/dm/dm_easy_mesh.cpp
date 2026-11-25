@@ -2439,9 +2439,9 @@ void dm_easy_mesh_t::print_config()
     em_printfout("Manufacturer:%s\tManufacturere Model:%s\tSoftwareVersion:%s\n",
             get_manufacturer(), get_manufacturer_model(), get_software_version());
 
-    unsigned int num_net_ssids = m_num_net_ssids > EM_MAX_NET_SSIDS ? EM_MAX_NET_SSIDS : m_num_net_ssids;
-    unsigned int num_bss = m_num_bss > EM_MAX_BSSS ? EM_MAX_BSSS : m_num_bss;
-    unsigned int num_radios = m_num_radios > EM_MAX_BANDS ? EM_MAX_BANDS : m_num_radios;
+    unsigned int num_net_ssids = get_num_network_ssid();
+    unsigned int num_bss = get_num_bss();
+    unsigned int num_radios = get_num_radios();
 
     for (i = 0; i < num_net_ssids; i++) {
         em_printfout("Data Model SSID[%d]: %s\n", i, m_network_ssid[i].m_network_ssid_info.ssid);

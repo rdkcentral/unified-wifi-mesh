@@ -1142,7 +1142,7 @@ public:
 	 *
 	 * @returns The number of network SSIDs.
 	 */
-	unsigned int get_num_network_ssid() { return m_num_net_ssids; }
+	unsigned int get_num_network_ssid() { return (m_num_net_ssids > EM_MAX_NET_SSIDS) ? EM_MAX_NET_SSIDS : m_num_net_ssids; }
     
 	/**!
 	 * @brief Sets the number of network SSIDs.
@@ -1382,7 +1382,7 @@ public:
 	 *
 	 * @returns The number of BSS.
 	 */
-	unsigned int get_num_bss() { return m_num_bss; }
+	unsigned int get_num_bss() { return (m_num_bss > EM_MAX_BSSS) ? EM_MAX_BSSS : m_num_bss; }
     
 	/**!
 	 * @brief Retrieves the number of BSS (Basic Service Set) from the given Easy Mesh instance.
