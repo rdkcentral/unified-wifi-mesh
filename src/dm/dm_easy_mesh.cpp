@@ -2460,7 +2460,7 @@ void dm_easy_mesh_t::print_config()
             util::mac_to_string(get_bss(i)->get_bss_info()->bssid.mac).c_str());
     }
 
-    for (i = 0;i < num_radios; i++) {
+    for (i = 0;i <get_num_radios(); i++) {
         transmit_power_limit = m_radio[i].get_radio_info()->transmit_power_limit;
         em_printfout("Radio Mac: %s, Band: %d, TransmitPowerLimit: %d", util::mac_to_string(m_radio[i].get_radio_info()->intf.mac).c_str(),
             m_radio[i].get_radio_info()->band, transmit_power_limit);
