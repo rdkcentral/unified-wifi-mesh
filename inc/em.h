@@ -69,6 +69,10 @@ class em_t :
     em_queue_t  m_iq;
     pthread_t   m_tid;
     bool    m_exit;
+    /* A command waits to be sent. Guarded by m_iq.lock. */
+    bool    m_cmd_wake;
+    /* orch_execute() ran and the thread is not woken yet. Orchestrator thread only. */
+    bool    m_cmd_wake_req;
     bool m_is_al_em;
     bool dev_test_enable;
 
@@ -479,6 +483,16 @@ public:
 	 * @note Ensure that `pcmd` is properly initialized before calling this function.
 	 */
 	void orch_execute(em_cmd_t *pcmd);
+
+	/**!
+	 * @brief Wakes the thread of the node to send the message of a command it was given.
+	 *
+	 * Does nothing unless orch_execute() ran since the last call.
+	 *
+	 * @note Called once every node of the command has run orch_execute(), because a
+	 * node sends a message for all the radios of a device only when they are all ready.
+	 */
+	void wake_for_cmd();
     
 	/**!
 	 * @brief Retrieves the current orchestration state.

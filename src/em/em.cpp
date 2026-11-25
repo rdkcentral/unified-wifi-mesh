@@ -278,6 +278,22 @@ void em_t::orch_execute(em_cmd_t *pcmd)
             break;
 
     }
+
+    m_cmd_wake_req = true;
+}
+
+void em_t::wake_for_cmd()
+{
+    if (m_cmd_wake_req == false) {
+        return;
+    }
+    m_cmd_wake_req = false;
+
+    /* Send the message of the command without waiting for the tick. */
+    pthread_mutex_lock(&m_iq.lock);
+    m_cmd_wake = true;
+    pthread_cond_signal(&m_iq.cond);
+    pthread_mutex_unlock(&m_iq.lock);
 }
 
 void em_t::set_orch_state(em_orch_state_t state)
@@ -409,6 +425,9 @@ void em_t::proto_process(unsigned char *data, unsigned int len)
     }
 
     free(data);
+    if (m_service_type == em_service_type_ctrl) {
+        m_mgr->kick_orch();
+    }
 }
 
 void em_t::proto_process(em_cmd_event_t *cevt)
@@ -651,22 +670,33 @@ void em_t::proto_run()
 {
     int rc;
     em_event_t *evt;
-    struct timespec time_to_wait;
+    struct timespec tick;
 
     pthread_mutex_lock(&m_iq.lock);
+    /* m_iq.cond is CLOCK_MONOTONIC (util::monotonic_cond_init) */
+    util::monotonic_now(&tick);
+    tick.tv_sec += m_iq.timeout;
     while (m_exit == false) {
         rc = 0;
 
-        /* m_iq.cond is CLOCK_MONOTONIC (util::monotonic_cond_init) */
-        util::monotonic_now(&time_to_wait);
-        time_to_wait.tv_sec += m_iq.timeout;
-
-        if (queue_count(m_iq.queue) == 0) {
-            rc = pthread_cond_timedwait(&m_iq.cond, &m_iq.lock, &time_to_wait);
+        if ((queue_count(m_iq.queue) == 0) && (m_cmd_wake == false)) {
+            rc = pthread_cond_timedwait(&m_iq.cond, &m_iq.lock, &tick);
+        }
+        if (m_cmd_wake == true) {
+            m_cmd_wake = false;
+            rc = 0;
+            pthread_mutex_unlock(&m_iq.lock);
+            proto_timeout();
+            pthread_mutex_lock(&m_iq.lock);
+            util::monotonic_now(&tick);
+            tick.tv_sec += m_iq.timeout;
         }
         if ((rc == 0) || (queue_count(m_iq.queue) != 0)) {
-            // dequeue data
-            while (queue_count(m_iq.queue)) {
+            // dequeue data; after the first event a pending command or tick is served first
+            bool served = false;
+            while (queue_count(m_iq.queue) && ((served == false) ||
+                    ((m_cmd_wake == false) && (util::monotonic_reached(&tick) == false)))) {
+                served = true;
                 evt = static_cast<em_event_t *>(queue_pop(m_iq.queue));
                 if (evt == NULL) {
                     continue;
@@ -685,14 +715,21 @@ void em_t::proto_run()
                 free(evt);
                 pthread_mutex_lock(&m_iq.lock);
             }
-        } else if (rc == ETIMEDOUT) {
-            pthread_mutex_unlock(&m_iq.lock);
-            proto_timeout();
-            pthread_mutex_lock(&m_iq.lock);
-        } else {
+        } else if (rc != ETIMEDOUT) {
             printf("%s:%d em exited with rc - %d\n",__func__,__LINE__,rc);
             pthread_mutex_unlock(&m_iq.lock);
             return;
+        }
+
+        /* The tick is due at a fixed time, whether or not events kept the thread busy. */
+        if (util::monotonic_reached(&tick) == true) {
+            // the tick sends for a command that is waiting too
+            m_cmd_wake = false;
+            pthread_mutex_unlock(&m_iq.lock);
+            proto_timeout();
+            pthread_mutex_lock(&m_iq.lock);
+            util::monotonic_now(&tick);
+            tick.tv_sec += m_iq.timeout;
         }
     }
     pthread_mutex_unlock(&m_iq.lock);
@@ -2985,6 +3022,8 @@ int em_t::init()
     }
 
     m_exit = false;
+    m_cmd_wake = false;
+    m_cmd_wake_req = false;
 
     // initialize the ingress queue
     m_iq.queue = queue_create();

@@ -558,6 +558,10 @@ void em_orch_t::handle_timeout()
             em = static_cast<em_t *>(queue_peek(pcmd->m_em_candidates, static_cast<unsigned int>(j)));
             ret &= orchestrate(pcmd, em);
         }
+        for (j = static_cast<int>(queue_count(pcmd->m_em_candidates)) - 1; j >= 0; j--) {
+            em = static_cast<em_t *>(queue_peek(pcmd->m_em_candidates, static_cast<unsigned int>(j)));
+            em->wake_for_cmd();
+        }
 
         if (ret == true) {
             // means the command is in fini sate 
