@@ -2526,8 +2526,7 @@ void dm_easy_mesh_t::print_config()
             m_radio_cap[i].get_radio_cap_info()->ch_scan.min_scan_interval,
             m_radio_cap[i].get_radio_cap_info()->ch_scan.scan_impact
         );
-	size_t op_classes_num = m_radio_cap[i].get_radio_cap_info()->ch_scan.op_classes_num > EM_MAX_OPCLASS ? EM_MAX_OPCLASS : m_radio_cap[i].get_radio_cap_info()->ch_scan.op_classes_num;
-        for (size_t k = 0; k < op_classes_num; k++) {
+        for (size_t k = 0; k < m_radio_cap[i].get_radio_cap_info()->ch_scan.op_classes_num && (k < EM_MAX_OPCLASS); k++) {
             const em_scan_cap_op_class_info_t *oc = &m_radio_cap[i].get_radio_cap_info()->ch_scan.op_classes[k];
             char ch_buf[256] = {0};
             int  ch_buf_pos  = 0;
