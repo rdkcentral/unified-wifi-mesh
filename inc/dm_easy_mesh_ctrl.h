@@ -86,7 +86,8 @@ public:
     static bus_error_t curops_tget_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
     static bus_error_t curops_tget_params(dm_easy_mesh_t *dm, const char *root, em_radio_info_t *ri, bus_data_prop_t **property);
 
-    void fill_comma_sep(em_short_string_t str[], size_t max, char *buf);
+    void fill_comma_sep(em_short_string_t str[], size_t max, char *buf, size_t buf_sz);
+    void fill_backhaul_down_macs(const em_device_info_t *di, char *buf, size_t buf_sz);
 
     /**!
      * @brief Format stored WSC AKM suite names as TR-181 akm_t values.
