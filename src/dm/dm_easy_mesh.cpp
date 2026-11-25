@@ -2443,7 +2443,7 @@ void dm_easy_mesh_t::print_config()
     unsigned int num_bss = get_num_bss();
     unsigned int num_radios = get_num_radios();
 
-    for (i = 0; i < num_net_ssids; i++) {
+    for (i = 0; i < get_num_network_ssid(); i++) {
         em_printfout("Data Model SSID[%d]: %s\n", i, m_network_ssid[i].m_network_ssid_info.ssid);
     }
 
