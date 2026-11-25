@@ -1684,9 +1684,66 @@ void em_agent_t::handle_5s_tick()
 #endif
 }
 
+void em_agent_t::sync_associated_clients()
+{
+    wifi_bus_desc_t *desc;
+    raw_data_t data;
+    bus_error_t rc;
+    unsigned int num_radios = 0;
+    unsigned int events;
+    em_t *em;
+
+    em = static_cast<em_t *>(hash_map_get_first(m_em_map));
+    while (em != NULL) {
+        if (em->is_al_interface_em() == false) {
+            if (em->get_state() != em_state_agent_configured) {
+                return;
+            }
+            num_radios++;
+        }
+        em = static_cast<em_t *>(hash_map_get_next(m_em_map, em));
+    }
+
+    if ((num_radios == 0) || ((desc = get_bus_descriptor()) == NULL)) {
+        return;
+    }
+
+    pthread_mutex_lock(&m_sta_list_mutex);
+    events = m_sta_list_events;
+    pthread_mutex_unlock(&m_sta_list_mutex);
+
+    memset(&data, 0, sizeof(raw_data_t));
+    if ((rc = desc->bus_data_get_fn(&m_bus_hdl, WIFI_WEBCONFIG_GET_ASSOC, &data)) != bus_error_success) {
+        em_printfout("Associated clients read failed, error: %d, trying again", rc);
+        return;
+    }
+
+    pthread_mutex_lock(&m_sta_list_mutex);
+    if (events != m_sta_list_events) {
+        // a list published during the read is newer than the list read and is queued before it
+        em_printfout("Associated clients changed during the read, trying again");
+    } else if ((data.raw_data.bytes == NULL) || (data.raw_data_len == 0) || (data.raw_data_len > EM_MAX_EVENT_DATA_LEN)) {
+        m_assoc_clients_synced = true;
+        em_printfout("Associated clients read from OneWifi cannot be used, len: %u", data.raw_data_len);
+    } else {
+        m_assoc_clients_synced = true;
+        em_printfout("Associated clients read from OneWifi, len: %u", data.raw_data_len);
+        io_process(em_bus_event_type_sta_list, reinterpret_cast<unsigned char *>(data.raw_data.bytes), data.raw_data_len);
+    }
+    pthread_mutex_unlock(&m_sta_list_mutex);
+
+    if (desc->bus_data_free_fn != NULL) {
+        desc->bus_data_free_fn(&data);
+    } else {
+        free(data.raw_data.bytes);
+    }
+}
+
 void em_agent_t::handle_2s_tick()
 {
-
+    if (m_assoc_clients_synced == false) {
+        sync_associated_clients();
+    }
 }
 
 void em_agent_t::handle_1s_tick()
@@ -2391,7 +2448,10 @@ void em_agent_t::sta_cb(char *event_name, bus_data_prop_t *data, void *userData)
 {
     (void)userData;
     //printf("%s:%d Recv data from onewifi:\r\n%s\r\n", __func__, __LINE__, reinterpret_cast<char *>(data->value.raw_data.bytes));
+    pthread_mutex_lock(&g_agent.m_sta_list_mutex);
+    g_agent.m_sta_list_events++;
     g_agent.io_process(em_bus_event_type_sta_list, reinterpret_cast<unsigned char *>(data->value.raw_data.bytes), data->value.raw_data_len);
+    pthread_mutex_unlock(&g_agent.m_sta_list_mutex);
 
 }
 
