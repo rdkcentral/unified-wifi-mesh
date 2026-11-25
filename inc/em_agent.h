@@ -518,15 +518,19 @@ public:
 
     
 	/**
-	 * @brief Try to create a default EasymeshCfg.json file if one does not exist.
+	 * @brief Store the AL SAP registration results in EasymeshCfg.json.
 	 *
-	 * A default EasymeshCfg.json file only contains the `AL_MAC_ADDR` and `Colocated_mode` fields.
+	 * Only the existing `AL_MAC_ADDR` string is updated; all other fields are preserved. The file is
+	 * never created: it must already exist (the OneWifi start-up script creates it) and contain
+	 * `AL_MAC_ADDR`. The file is left untouched, and false is returned, when it is missing, cannot be
+	 * parsed as a JSON object, has no `AL_MAC_ADDR` string, or the MAC is all zeros. It is also left
+	 * untouched, returning true, when it already holds the MAC.
 	 *
-	 * @param[in] interface The interface to use for filling the `AL_MAC_ADDR` field.
+	 * @param[in] al_mac The AL MAC returned by the AL SAP registration.
 	 *
-	 * @return true if successful or if the file already exists, false otherwise.
+	 * @return true if the file holds the expected values after the call, false otherwise.
 	 */
-	bool try_create_default_em_cfg(std::string interface);
+	bool update_em_cfg(const mac_address_t al_mac);
 
 	void load_em_plus_cfg();
 

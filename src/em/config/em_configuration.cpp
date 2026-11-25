@@ -66,6 +66,15 @@ unsigned short em_configuration_t::msg_id = 0;
 std::deque<time_t> g_failed_conn_report_timestamps;
 static std::mutex g_failed_conn_report_mutex;
 
+static inline bool validate_tlv_length(unsigned int tlv_len, unsigned int buff_len)
+{
+    if (buff_len < (tlv_len + static_cast<unsigned int>(sizeof(em_tlv_t)))) {
+        em_printfout("Mismatch between available buffer and TLV length");
+        return false;
+    }
+    return true;
+}
+
 static bool allow_failed_conn_report(unsigned short max_reports_per_min)
 {
     if (max_reports_per_min == 0) {
@@ -170,221 +179,6 @@ static inline void _EnB(uint8_t **packet_ppointer, void *memory_pointer, uint32_
 static inline unsigned char get_bss_type_for_haul(em_haul_type_t haul_type)
 {
     return (haul_type == em_haul_type_backhaul) ? EM_MULTI_AP_EXT_BSS_BACKHAUL : EM_MULTI_AP_EXT_BSS_FRONTHAUL;
-}
-
-/* Returns true if the MLO policy of the haul type enables the band of the given radio as an MLD link. */
-static bool is_mlo_link_enabled_for_haul(dm_easy_mesh_t *dm, em_haul_type_t haul_type, unsigned int radio_index)
-{
-    dm_radio_t *radio;
-    const em_mlo_policy_t *policy;
-    uint8_t band;
-    bool link_enabled;
-
-    if ((dm == NULL) || (radio_index >= EM_MAX_BANDS)) {
-        return false;
-    }
-
-    if ((haul_type != em_haul_type_fronthaul) && (haul_type != em_haul_type_backhaul)) {
-        return false;
-    }
-
-    radio = dm->get_radio(radio_index);
-    if (radio == NULL) {
-        return false;
-    }
-
-    band = 0;
-    if (radio->m_radio_info.band == em_freq_band_24) {
-        band = EM_RF_24GHZ;
-    } else if (radio->m_radio_info.band == em_freq_band_5) {
-        band = EM_RF_50GHZ;
-    } else if (radio->m_radio_info.band == em_freq_band_6) {
-        band = EM_RF_6GHZ;
-    }
-
-    if (band == 0) {
-        return false;
-    }
-
-    // Check the band against the policy band bitmap
-    policy = dm->get_mlo_policy(haul_type);
-    if (policy == NULL) {
-        return false;
-    }
-    link_enabled = ((policy->band_bitmap & band) != 0);
-
-    em_printfout("MLO link policy for haul=%d radio=%u is %s",
-                 haul_type, radio_index, link_enabled ? "enabled" : "disabled");
-    return link_enabled;
-}
-
-/* Returns the MLO modes supported by every policy-enabled radio (the AP MLD affiliates). */
-static uint8_t get_supported_mlo_modes(dm_easy_mesh_t *dm, em_haul_type_t haul, bool bsta)
-{
-    uint8_t common_modes = EM_MLO_MODE_STR | EM_MLO_MODE_NSTR | EM_MLO_MODE_EMLSR | EM_MLO_MODE_EMLMR;
-    unsigned int i;
-    unsigned int num_checked = 0;
-    em_radio_cap_info_t *radio_cap_info;
-    const em_wifi7_mlo_cap_support_tlv_t *mlo_cap;
-    const mac_address_t zero_mac = {0};
-
-    if (dm == NULL) {
-        return 0;
-    }
-
-    // Walk every radio that will be an affiliate of the MLD
-    for (i = 0; i < dm->get_num_radios(); i++) {
-        if (!is_mlo_link_enabled_for_haul(dm, haul, i)) {
-            continue;
-        }
-
-        radio_cap_info = dm->get_radio_cap_info(i);
-        if (radio_cap_info == NULL ||
-            memcmp(radio_cap_info->ruid.mac, zero_mac, sizeof(mac_address_t)) == 0) {
-            em_printfout("MLO capability missing for haul=%d radio=%u; no common modes", haul, i);
-            return 0;
-        }
-
-        // Collect the modes this radio supports (AP or bSTA side)
-        mlo_cap = &radio_cap_info->wifi7_cap.mlo_cap_support;
-        uint8_t radio_modes = 0;
-        if (bsta) {
-            radio_modes |= mlo_cap->bsta_str_support ? EM_MLO_MODE_STR : 0;
-            radio_modes |= mlo_cap->bsta_nstr_support ? EM_MLO_MODE_NSTR : 0;
-            radio_modes |= mlo_cap->bsta_emlsr_support ? EM_MLO_MODE_EMLSR : 0;
-            radio_modes |= mlo_cap->bsta_emlmr_support ? EM_MLO_MODE_EMLMR : 0;
-        } else {
-            radio_modes |= mlo_cap->ap_str_support ? EM_MLO_MODE_STR : 0;
-            radio_modes |= mlo_cap->ap_nstr_support ? EM_MLO_MODE_NSTR : 0;
-            radio_modes |= mlo_cap->ap_emlsr_support ? EM_MLO_MODE_EMLSR : 0;
-            radio_modes |= mlo_cap->ap_emlmr_support ? EM_MLO_MODE_EMLMR : 0;
-        }
-        // Keep only the modes supported by all radios so far
-        common_modes &= radio_modes;
-        num_checked++;
-    }
-
-    return (num_checked == 0) ? 0 : common_modes;
-}
-
-/* Builds or refreshes the AP MLD entry of a haul type in the data model and
-   returns true if it should be sent in the AP MLD TLV. */
-static bool update_ap_mld_for_haul(dm_easy_mesh_t *dm, em_haul_type_t haul)
-{
-    const em_mlo_policy_t *policy;
-    const em_network_ssid_info_t *net_ssid_info;
-    em_ap_mld_info_t ap_mld_info;
-    em_ap_mld_info_t *existing_ap_mld;
-    unsigned int i, k;
-    uint8_t supported_modes = 0;
-    bool found;
-    dm_radio_t *dm_radio;
-    em_affiliated_ap_info_t *aff_ap;
-
-    if ((dm == NULL) || (dm->get_num_radios() == 0)) {
-        return false;
-    }
-
-    if ((haul != em_haul_type_fronthaul) && (haul != em_haul_type_backhaul)) {
-        return false;
-    }
-
-    // Drop the entry if the SSID, MLO policy or MLD TLV usage is missing for this haul
-    policy = dm->get_mlo_policy(haul);
-    net_ssid_info = dm->get_network_ssid_info_by_haul_type(haul);
-    if ((net_ssid_info == NULL) || (strlen(net_ssid_info->ssid) == 0)) {
-        em_printfout("Skipping AP MLD policy for haul=%d due to missing SSID", haul);
-        dm->remove_ap_mld_info_by_haul_type(haul);
-        return false;
-    }
-
-    if (policy == NULL) {
-        em_printfout("No MLO policy found for haul=%d; skipping AP MLD TLV participation",
-            haul);
-        dm->remove_ap_mld_info_by_haul_type(haul);
-        return false;
-    }
-
-    if (!policy->use_mld_tlv) {
-        em_printfout("AP MLD disabled for haul=%d", haul);
-        dm->remove_ap_mld_info_by_haul_type(haul);
-        return false;
-    }
-
-    // Reuse the full existing entry, or derive modes from the common radio capabilities for a new one
-    existing_ap_mld = dm->get_ap_mld_frm_haul_type(haul);
-    if (existing_ap_mld != NULL) {
-        memcpy(&ap_mld_info, existing_ap_mld, sizeof(em_ap_mld_info_t));
-    } else {
-        supported_modes = get_supported_mlo_modes(dm, haul, false);
-        if (supported_modes == 0) {
-            em_printfout("haul=%d No MLO mode common to all affiliated radios; skipping AP MLD entry", haul);
-            return false;
-        }
-        memset(&ap_mld_info, 0, sizeof(em_ap_mld_info_t));
-        ap_mld_info.haul_type = haul;
-        ap_mld_info.str = (supported_modes & EM_MLO_MODE_STR) != 0;
-        ap_mld_info.nstr = (supported_modes & EM_MLO_MODE_NSTR) != 0;
-        ap_mld_info.emlsr = (supported_modes & EM_MLO_MODE_EMLSR) != 0;
-        ap_mld_info.emlmr = (supported_modes & EM_MLO_MODE_EMLMR) != 0;
-    }
-
-    // Refresh the SSID from the network configuration
-    strncpy(ap_mld_info.ssid, net_ssid_info->ssid, sizeof(ssid_t) - 1);
-    ap_mld_info.ssid[sizeof(ssid_t) - 1] = '\0';
-
-    // Append policy-enabled radios that are not yet affiliated
-    for (i = 0; i < dm->get_num_radios(); i++) {
-        if (!is_mlo_link_enabled_for_haul(dm, haul, i)) {
-            em_printfout("Skipping affiliated link for haul=%d radio=%u due to link policy disable",
-                haul, i);
-            continue;
-        }
-
-        dm_radio = dm->get_radio(i);
-        if (dm_radio == NULL) {
-            continue;
-        }
-
-        found = false;
-        for (k = 0; k < ap_mld_info.num_affiliated_ap; k++) {
-            if (memcmp(ap_mld_info.affiliated_ap[k].ruid.mac, dm_radio->m_radio_info.intf.mac,
-                    sizeof(mac_address_t)) == 0) {
-                found = true;
-                break;
-            }
-        }
-        if (found) {
-            continue;
-        }
-        if (ap_mld_info.num_affiliated_ap >= EM_MAX_AP_MLD) {
-            em_printfout("haul=%d AP MLD affiliated list full; cannot add radio %s", haul,
-                util::mac_to_string(dm_radio->m_radio_info.intf.mac).c_str());
-            break;
-        }
-
-        // New link: only RUID is known; link MAC / link ID stay zero with valid flags false.
-        aff_ap = &ap_mld_info.affiliated_ap[ap_mld_info.num_affiliated_ap];
-        memset(aff_ap, 0, sizeof(em_affiliated_ap_info_t));
-        memcpy(aff_ap->ruid.mac, dm_radio->m_radio_info.intf.mac, sizeof(mac_address_t));
-        ap_mld_info.num_affiliated_ap++;
-        em_printfout("AP MLD haul=%d new link ruid=%s", haul,
-            util::mac_to_string(aff_ap->ruid.mac).c_str());
-    }
-
-    if (ap_mld_info.num_affiliated_ap == 0) {
-        em_printfout("haul=%d No links are enabled; skipping AP MLD entry",
-            haul);
-        return false;
-    }
-
-    em_printfout("AP MLD policy haul=%d STR=%d NSTR=%d EMLSR=%d EMLMR=%d links=%u ssid=\"%s\"",
-        haul, ap_mld_info.str, ap_mld_info.nstr, ap_mld_info.emlsr, ap_mld_info.emlmr,
-        ap_mld_info.num_affiliated_ap, net_ssid_info->ssid);
-
-    dm->update_ap_mld_info(&ap_mld_info);
-
-    return true;
 }
 
 /* Translate WPS RF Band to 1905 AutoFreq Band */
@@ -2384,16 +2178,21 @@ int em_configuration_t::handle_topology_response(unsigned char *buff, unsigned i
 	dm_easy_mesh_t *dm;
     em_raw_hdr_t *hdr = reinterpret_cast<em_raw_hdr_t *>(buff);
     uint8_t *src_al_mac = hdr->src;
+    unsigned int tlv_len = 0;
     
 	dm = get_data_model();
 
     tlv =  reinterpret_cast<em_tlv_t *> (buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
     tmp_len = len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
         
-    while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
+    while ((tmp_len >= sizeof(em_tlv_t)) && (tlv->type != em_tlv_type_eom)) {
+        tlv_len = static_cast<unsigned int>(htons(tlv->len));
+        if (!validate_tlv_length(tlv_len, tmp_len)) {
+            return -1;
+        }
         if (tlv->type != em_tlv_type_profile) {
-            tmp_len -= static_cast<unsigned int> (sizeof(em_tlv_t) + htons(tlv->len));
-            tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
+            tmp_len -= static_cast<unsigned int> (sizeof(em_tlv_t) + tlv_len);
+            tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + tlv_len);
 
             continue;
 
@@ -2426,10 +2225,14 @@ int em_configuration_t::handle_topology_response(unsigned char *buff, unsigned i
     tlv =  reinterpret_cast<em_tlv_t *> (buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
     tmp_len = len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
 
-	while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
+	while ((tmp_len >= sizeof(em_tlv_t)) && (tlv->type != em_tlv_type_eom)) {
+        tlv_len = static_cast<unsigned int>(htons(tlv->len));
+        if (!validate_tlv_length(tlv_len, tmp_len)) {
+            return -1;
+        }
 		if (tlv->type != em_tlv_type_vendor_operational_bss) {
-			tmp_len -= static_cast<unsigned int> (sizeof(em_tlv_t) + htons(tlv->len));
-			tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
+			tmp_len -= static_cast<unsigned int> (sizeof(em_tlv_t) + tlv_len);
+			tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + tlv_len);
 			continue;
 		} else {
 			handle_ap_vendor_operational_bss(tlv->value, tlv->len);
@@ -2438,10 +2241,14 @@ int em_configuration_t::handle_topology_response(unsigned char *buff, unsigned i
 	}
 	tlv =  reinterpret_cast<em_tlv_t *> (buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
 	tmp_len = len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)); 
-    while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
+    while ((tmp_len >= sizeof(em_tlv_t)) && (tlv->type != em_tlv_type_eom)) {
+        tlv_len = static_cast<unsigned int>(htons(tlv->len));
+        if (!validate_tlv_length(tlv_len, tmp_len)) {
+            return -1;
+        }
         if (tlv->type != em_tlv_type_operational_bss) {
-            tmp_len -= static_cast<unsigned int> (sizeof(em_tlv_t) + htons(tlv->len));
-            tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
+            tmp_len -= static_cast<unsigned int> (sizeof(em_tlv_t) + tlv_len);
+            tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + tlv_len);
 
             continue;
 
@@ -2469,10 +2276,14 @@ int em_configuration_t::handle_topology_response(unsigned char *buff, unsigned i
         }
 
 
-    while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
+    while ((tmp_len >= sizeof(em_tlv_t)) && (tlv->type != em_tlv_type_eom)) {
+        tlv_len = static_cast<unsigned int>(htons(tlv->len));
+        if (!validate_tlv_length(tlv_len, tmp_len)) {
+            return -1;
+        }
         if (tlv->type != em_tlv_type_bss_conf_rep) {
-            tmp_len -= static_cast<unsigned int> (sizeof(em_tlv_t) + htons(tlv->len));
-            tlv = reinterpret_cast <em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
+            tmp_len -= static_cast<unsigned int> (sizeof(em_tlv_t) + tlv_len);
+            tlv = reinterpret_cast <em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + tlv_len);
 
             continue;
 
@@ -2493,10 +2304,14 @@ int em_configuration_t::handle_topology_response(unsigned char *buff, unsigned i
         tmp_len = len - static_cast<unsigned int>(sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
     }
 
-    while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
+    while ((tmp_len >= sizeof(em_tlv_t)) && (tlv->type != em_tlv_type_eom)) {
+        tlv_len = static_cast<unsigned int>(htons(tlv->len));
+        if (!validate_tlv_length(tlv_len, tmp_len)) {
+            return -1;
+        }
         if (tlv->type != em_tlv_type_bh_sta_radio_cap) {
-            tmp_len -= static_cast<unsigned int> (sizeof(em_tlv_t) + htons(tlv->len));
-            tlv = reinterpret_cast <em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
+            tmp_len -= static_cast<unsigned int> (sizeof(em_tlv_t) + tlv_len);
+            tlv = reinterpret_cast <em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + tlv_len);
             continue;
         } else {
             handle_bsta_radio_cap(tlv->value, tlv->len);
@@ -2504,10 +2319,14 @@ int em_configuration_t::handle_topology_response(unsigned char *buff, unsigned i
         }
     }
 
-    while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
+    while ((tmp_len >= sizeof(em_tlv_t)) && (tlv->type != em_tlv_type_eom)) {
+        tlv_len = static_cast<unsigned int>(htons(tlv->len));
+        if (!validate_tlv_length(tlv_len, tmp_len)) {
+            return -1;
+        }
         if (tlv->type != em_tlv_type_ap_mld_config) {
             tmp_len -= static_cast<unsigned int> (sizeof(em_tlv_t) + htons(tlv->len));
-            tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
+            tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + tlv_len);
 
             continue;
 
@@ -2527,14 +2346,18 @@ int em_configuration_t::handle_topology_response(unsigned char *buff, unsigned i
     tlv = reinterpret_cast<em_tlv_t *>(buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
     tmp_len = len - static_cast<unsigned int>(sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
     assoc_sta_mld_count = 0;
-    while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
+    while ((tmp_len >= sizeof(em_tlv_t)) && (tlv->type != em_tlv_type_eom)) {
+        tlv_len = static_cast<unsigned int>(htons(tlv->len));
+        if (!validate_tlv_length(tlv_len, tmp_len)) {
+            return -1;
+        }
         if (tlv->type == em_tlv_type_assoc_sta_mld_conf_rep) {
             em_printfout("Found Assoc STA MLD Configuration Report TLV #%u", assoc_sta_mld_count);
-            handle_assoc_sta_mld_conf_rep_tlv(tlv->value, htons(tlv->len));
+            handle_assoc_sta_mld_conf_rep_tlv(tlv->value, tlv_len);
             assoc_sta_mld_count++;
         }
-        tmp_len -= static_cast<unsigned int>(sizeof(em_tlv_t) + htons(tlv->len));
-        tlv = reinterpret_cast<em_tlv_t *>(reinterpret_cast<unsigned char *>(tlv) + sizeof(em_tlv_t) + htons(tlv->len));
+        tmp_len -= static_cast<unsigned int>(sizeof(em_tlv_t) + tlv_len);
+        tlv = reinterpret_cast<em_tlv_t *>(reinterpret_cast<unsigned char *>(tlv) + sizeof(em_tlv_t) + tlv_len);
     }
     em_printfout("Total Assoc STA MLD TLVs parsed: %u", assoc_sta_mld_count);
 
@@ -4202,7 +4025,7 @@ int em_configuration_t::create_autoconfig_wsc_m2_msg(unsigned char *buff, unsign
         tlv->len = htons(sz);
         tmp += (sizeof(em_tlv_t) + sz);
         len += static_cast<int> (sizeof(em_tlv_t) + sz);
-        if (update_ap_mld_for_haul(dm, static_cast<em_haul_type_t>(i))) {
+        if (dm->update_ap_mld_for_haul(static_cast<em_haul_type_t>(i))) {
             add_ap_mld_tlv = true;
         }
     }
@@ -4632,6 +4455,7 @@ int em_configuration_t::handle_wsc_m1(unsigned char *buff, unsigned int len)
     em_freq_band_t  band;
     dm_radio_t *radio;
     unsigned int found = 0, i  = 0;
+    uint16_t attr_len = 0;
 
 	dm = get_data_model();
 	memset(&dev_info, 0, sizeof(em_device_info_t));
@@ -4705,18 +4529,36 @@ int em_configuration_t::handle_wsc_m1(unsigned char *buff, unsigned int len)
         } else if (id == attr_id_cfg_methods) {
         } else if (id == attr_id_wifi_wsc_state) {
         } else if (id == attr_id_manufacturer) {
-            memcpy(dev_info.manufacturer, attr->val, htons(attr->len));
+            attr_len = htons(attr->len);
+            if (attr_len >= sizeof(dev_info.manufacturer)) {
+                em_printfout("Invalid manufacturer length %u", attr_len);
+                return -1;
+            }
+            memcpy(dev_info.manufacturer, attr->val, attr_len);
+            dev_info.manufacturer[attr_len] = '\0';
             set_manufacturer(dev_info.manufacturer);
             //printf("%s:%d: Manufacturer:%s\n", __func__, __LINE__, dev_info.manufacturer);
             dm->set_db_cfg_param(db_cfg_type_device_list_update, "");
         } else if (id == attr_id_model_name) {
-            memcpy(dev_info.manufacturer_model, attr->val, htons(attr->len));
+            attr_len = htons(attr->len);
+            if (attr_len >= sizeof(dev_info.manufacturer_model)) {
+                em_printfout("Invalid model name length %u", attr_len);
+                return -1;
+            }
+            memcpy(dev_info.manufacturer_model, attr->val, attr_len);
+            dev_info.manufacturer_model[attr_len] = '\0';
             set_manufacturer_model(dev_info.manufacturer_model);
             dm->set_db_cfg_param(db_cfg_type_device_list_update, "");
             //printf("%s:%d: Manufacturer Model:%s\n", __func__, __LINE__, dev_info.manufacturer_model);
         } else if (id == attr_id_model_number) {
         } else if (id == attr_id_serial_num) {
-            memcpy(dev_info.serial_number, attr->val, htons(attr->len));
+            attr_len = htons(attr->len);
+            if (attr_len >= sizeof(dev_info.serial_number)) {
+                em_printfout("Invalid serial number length %u", attr_len);
+                return -1;
+            }
+            memcpy(dev_info.serial_number, attr->val, attr_len);
+            dev_info.serial_number[attr_len] = '\0';
             set_serial_number(dev_info.serial_number);
             //printf("%s:%d: Manufacturer:%s\n", __func__, __LINE__, dev_info.serial_number);
             em_printfout("Updated dm dev_info's backhaul_mac: %s and backhaul_alid: %s",
@@ -6137,7 +5979,7 @@ int em_configuration_t::handle_ap_radio_basic_cap(unsigned char *buff, unsigned 
 			op_class_info.id.type = em_op_class_type_capability;
 			op_class_info.op_class = static_cast<unsigned int> (basic_cap_op_class->op_class);
 			op_class_info.id.op_class = op_class_info.op_class;
-			op_class_info.max_tx_power = static_cast<int> (basic_cap_op_class->max_tx_eirp);
+			op_class_info.max_tx_power = static_cast<int8_t> (basic_cap_op_class->max_tx_eirp);
 			op_class_info.num_channels = static_cast<unsigned int> (basic_cap_op_class->num);
 			for (j = 0; j < op_class_info.num_channels; j++) {
 				op_class_info.channels[j] = static_cast<unsigned int> (basic_cap_op_class->channels.channel[j]);
@@ -6223,7 +6065,10 @@ int em_configuration_t::handle_autoconfig_wsc_m1(unsigned char *buff, unsigned i
         if (tlv->type == em_tlv_type_ap_radio_basic_cap) {
             handle_ap_radio_basic_cap(tlv->value, val_len);
         } else if (tlv->type == em_tlv_type_wsc) {
-            handle_wsc_m1(tlv->value, val_len);
+            if (handle_wsc_m1(tlv->value, val_len) != 0) {
+                em_printfout("handle_wsc_m1 message failed");
+                return -1;
+            }
         } else if (tlv->type == em_tlv_type_profile_2_ap_cap) {
         } else if (tlv->type == em_tlv_type_ap_radio_advanced_cap) {
             handle_ap_radio_advanced_cap(tlv->value, val_len);

@@ -1732,3 +1732,47 @@ TEST(dm_radio_t_Test, Destructor_valid_default) {
     });
     std::cout << "Exiting Destructor_valid_default test" << std::endl;
 }
+
+/**
+* @brief Test that encode_metrics reports the fields an AP Metrics Response updates
+*
+* This test fills the radio info with known metrics, encodes it with encode_metrics and checks that the
+* radio ID and the metrics land in the JSON object under the names the Radio.{i}. table uses.@n
+*
+* **Test Group ID:** Basic: 01@n
+* **Test Case ID:** 053@n
+* **Priority:** High@n
+* @n
+* **Pre-Conditions:** None@n
+* **Dependencies:** None@n
+* **User Interaction:** None@n
+* @n
+* **Test Procedure:**@n
+* | Variation / Step | Description | Test Data |Expected Result |Notes |
+* | :----: | --------- | ---------- |-------------- | ----- |
+* | 01| Build a dm_radio_t from an em_radio_info_t with known metrics | intf.mac, noise = 90, utilization = 45, transmit = 20, receive_self = 15, receive_other = 10 | Construction should be successful | Should be successful |
+* | 02| Call encode_metrics with a cJSON object | obj = cJSON_CreateObject() | Object holds ID and the five metrics | Should Pass |
+*/
+TEST(dm_radio_t_Test, EncodeMetricsReportsRadioMetrics) {
+    std::cout << "Entering EncodeMetricsReportsRadioMetrics test" << std::endl;
+    em_radio_info_t info;
+    memset(&info, 0, sizeof(info));
+    unsigned char mac[] = {0x02, 0x08, 0x22, 0x33, 0x44, 0x55};
+    memcpy(info.intf.mac, mac, sizeof(mac_address_t));
+    info.noise = 90;
+    info.utilization = 45;
+    info.transmit = 20;
+    info.receive_self = 15;
+    info.receive_other = 10;
+    dm_radio_t radio(&info);
+    cJSON *obj = cJSON_CreateObject();
+    radio.encode_metrics(obj);
+    EXPECT_STREQ(cJSON_GetStringValue(cJSON_GetObjectItem(obj, "ID")), "02:08:22:33:44:55");
+    EXPECT_EQ(cJSON_GetNumberValue(cJSON_GetObjectItem(obj, "Noise")), 90);
+    EXPECT_EQ(cJSON_GetNumberValue(cJSON_GetObjectItem(obj, "Utilization")), 45);
+    EXPECT_EQ(cJSON_GetNumberValue(cJSON_GetObjectItem(obj, "Transmit")), 20);
+    EXPECT_EQ(cJSON_GetNumberValue(cJSON_GetObjectItem(obj, "ReceiveSelf")), 15);
+    EXPECT_EQ(cJSON_GetNumberValue(cJSON_GetObjectItem(obj, "ReceiveOther")), 10);
+    cJSON_Delete(obj);
+    std::cout << "Exiting EncodeMetricsReportsRadioMetrics test" << std::endl;
+}

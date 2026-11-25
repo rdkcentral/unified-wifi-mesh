@@ -3690,6 +3690,199 @@ bool dm_easy_mesh_t::is_ap_mld_mac(const mac_address_t mac)
     return false;
 }
 
+bool dm_easy_mesh_t::is_mlo_link_enabled_for_haul(em_haul_type_t haul_type, unsigned int radio_index)
+{
+    dm_radio_t *radio;
+    const em_mlo_policy_t *policy;
+    uint8_t band;
+    bool link_enabled;
+
+    if (radio_index >= EM_MAX_BANDS) {
+        return false;
+    }
+
+    if ((haul_type != em_haul_type_fronthaul) && (haul_type != em_haul_type_backhaul)) {
+        return false;
+    }
+
+    radio = get_radio(radio_index);
+    if (radio == NULL) {
+        return false;
+    }
+
+    band = 0;
+    if (radio->m_radio_info.band == em_freq_band_24) {
+        band = EM_RF_24GHZ;
+    } else if (radio->m_radio_info.band == em_freq_band_5) {
+        band = EM_RF_50GHZ;
+    } else if (radio->m_radio_info.band == em_freq_band_6) {
+        band = EM_RF_6GHZ;
+    }
+
+    if (band == 0) {
+        return false;
+    }
+
+    policy = get_mlo_policy(haul_type);
+    if (policy == NULL) {
+        return false;
+    }
+    link_enabled = ((policy->band_bitmap & band) != 0);
+
+    em_printfout("MLO link policy for haul=%d radio=%u is %s",
+                 haul_type, radio_index, link_enabled ? "enabled" : "disabled");
+    return link_enabled;
+}
+
+uint8_t dm_easy_mesh_t::get_supported_mlo_modes(em_haul_type_t haul, bool bsta)
+{
+    uint8_t common_modes = EM_MLO_MODE_STR | EM_MLO_MODE_NSTR | EM_MLO_MODE_EMLSR | EM_MLO_MODE_EMLMR;
+    unsigned int num_checked = 0;
+    em_radio_cap_info_t *radio_cap_info;
+    const em_wifi7_mlo_cap_support_tlv_t *mlo_cap;
+    const mac_address_t zero_mac = {0};
+
+    for (unsigned int i = 0; i < get_num_radios(); i++) {
+        if (!is_mlo_link_enabled_for_haul(haul, i)) {
+            continue;
+        }
+
+        radio_cap_info = get_radio_cap_info(i);
+        if (radio_cap_info == NULL ||
+            memcmp(radio_cap_info->ruid.mac, zero_mac, sizeof(mac_address_t)) == 0) {
+            em_printfout("MLO capability missing for haul=%d radio=%u; no common modes", haul, i);
+            return 0;
+        }
+
+        mlo_cap = &radio_cap_info->wifi7_cap.mlo_cap_support;
+        uint8_t radio_modes = 0;
+        if (bsta) {
+            radio_modes |= mlo_cap->bsta_str_support ? EM_MLO_MODE_STR : 0;
+            radio_modes |= mlo_cap->bsta_nstr_support ? EM_MLO_MODE_NSTR : 0;
+            radio_modes |= mlo_cap->bsta_emlsr_support ? EM_MLO_MODE_EMLSR : 0;
+            radio_modes |= mlo_cap->bsta_emlmr_support ? EM_MLO_MODE_EMLMR : 0;
+        } else {
+            radio_modes |= mlo_cap->ap_str_support ? EM_MLO_MODE_STR : 0;
+            radio_modes |= mlo_cap->ap_nstr_support ? EM_MLO_MODE_NSTR : 0;
+            radio_modes |= mlo_cap->ap_emlsr_support ? EM_MLO_MODE_EMLSR : 0;
+            radio_modes |= mlo_cap->ap_emlmr_support ? EM_MLO_MODE_EMLMR : 0;
+        }
+        common_modes &= radio_modes;
+        num_checked++;
+    }
+
+    return (num_checked == 0) ? 0 : common_modes;
+}
+
+bool dm_easy_mesh_t::update_ap_mld_for_haul(em_haul_type_t haul)
+{
+    const em_mlo_policy_t *policy;
+    const em_network_ssid_info_t *net_ssid_info;
+    em_ap_mld_info_t ap_mld_info;
+    em_ap_mld_info_t *existing_ap_mld;
+    unsigned int i, k;
+    uint8_t supported_modes = 0;
+    bool found;
+    dm_radio_t *dm_radio;
+    em_affiliated_ap_info_t *aff_ap;
+
+    if (get_num_radios() == 0) {
+        return false;
+    }
+
+    if ((haul != em_haul_type_fronthaul) && (haul != em_haul_type_backhaul)) {
+        return false;
+    }
+
+    policy = get_mlo_policy(haul);
+    net_ssid_info = get_network_ssid_info_by_haul_type(haul);
+    if ((net_ssid_info == NULL) || (strlen(net_ssid_info->ssid) == 0)) {
+        em_printfout("Skipping AP MLD policy for haul=%d due to missing SSID", haul);
+        remove_ap_mld_info_by_haul_type(haul);
+        return false;
+    }
+
+    if (policy == NULL) {
+        em_printfout("No MLO policy found for haul=%d; skipping AP MLD TLV participation", haul);
+        remove_ap_mld_info_by_haul_type(haul);
+        return false;
+    }
+
+    if (!policy->use_mld_tlv) {
+        em_printfout("AP MLD disabled for haul=%d", haul);
+        remove_ap_mld_info_by_haul_type(haul);
+        return false;
+    }
+
+    existing_ap_mld = get_ap_mld_frm_haul_type(haul);
+    if (existing_ap_mld != NULL) {
+        memcpy(&ap_mld_info, existing_ap_mld, sizeof(em_ap_mld_info_t));
+    } else {
+        supported_modes = get_supported_mlo_modes(haul, false);
+        if (supported_modes == 0) {
+            em_printfout("haul=%d No MLO mode common to all affiliated radios; skipping AP MLD entry", haul);
+            return false;
+        }
+        memset(&ap_mld_info, 0, sizeof(em_ap_mld_info_t));
+        ap_mld_info.haul_type = haul;
+        ap_mld_info.str = (supported_modes & EM_MLO_MODE_STR) != 0;
+        ap_mld_info.nstr = (supported_modes & EM_MLO_MODE_NSTR) != 0;
+        ap_mld_info.emlsr = (supported_modes & EM_MLO_MODE_EMLSR) != 0;
+        ap_mld_info.emlmr = (supported_modes & EM_MLO_MODE_EMLMR) != 0;
+    }
+
+    strncpy(ap_mld_info.ssid, net_ssid_info->ssid, sizeof(ssid_t) - 1);
+    ap_mld_info.ssid[sizeof(ssid_t) - 1] = '\0';
+
+    for (i = 0; i < get_num_radios(); i++) {
+        if (!is_mlo_link_enabled_for_haul(haul, i)) {
+            em_printfout("Skipping affiliated link for haul=%d radio=%u due to link policy disable", haul, i);
+            continue;
+        }
+
+        dm_radio = get_radio(i);
+        if (dm_radio == NULL) {
+            continue;
+        }
+
+        found = false;
+        for (k = 0; k < ap_mld_info.num_affiliated_ap; k++) {
+            if (memcmp(ap_mld_info.affiliated_ap[k].ruid.mac, dm_radio->m_radio_info.intf.mac,
+                    sizeof(mac_address_t)) == 0) {
+                found = true;
+                break;
+            }
+        }
+        if (found) {
+            continue;
+        }
+        if (ap_mld_info.num_affiliated_ap >= EM_MAX_AP_MLD) {
+            em_printfout("haul=%d AP MLD affiliated list full; cannot add radio %s", haul,
+                util::mac_to_string(dm_radio->m_radio_info.intf.mac).c_str());
+            break;
+        }
+
+        aff_ap = &ap_mld_info.affiliated_ap[ap_mld_info.num_affiliated_ap];
+        memset(aff_ap, 0, sizeof(em_affiliated_ap_info_t));
+        memcpy(aff_ap->ruid.mac, dm_radio->m_radio_info.intf.mac, sizeof(mac_address_t));
+        ap_mld_info.num_affiliated_ap++;
+        em_printfout("AP MLD haul=%d new link ruid=%s", haul,
+            util::mac_to_string(aff_ap->ruid.mac).c_str());
+    }
+
+    if (ap_mld_info.num_affiliated_ap == 0) {
+        em_printfout("haul=%d No links are enabled; skipping AP MLD entry", haul);
+        return false;
+    }
+
+    em_printfout("AP MLD policy haul=%d STR=%d NSTR=%d EMLSR=%d EMLMR=%d links=%u ssid=\"%s\"",
+        haul, ap_mld_info.str, ap_mld_info.nstr, ap_mld_info.emlsr, ap_mld_info.emlmr,
+        ap_mld_info.num_affiliated_ap, net_ssid_info->ssid);
+
+    update_ap_mld_info(&ap_mld_info);
+    return true;
+}
+
 bool dm_easy_mesh_t::resolve_ap_mld_to_fallback_ruid(const mac_address_t ap_mld_mac, mac_address_t fallback_ruid)
 {
     em_ap_mld_info_t *ap_mld_info = NULL;

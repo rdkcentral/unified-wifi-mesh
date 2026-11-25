@@ -342,6 +342,10 @@ static const mac_address_t EM_GLOBAL_MAC_ADDRESS = {0xff, 0xff, 0xff, 0xff, 0xff
 #define WIFI_EM_GET_TX_POWER           "Device.WiFi.EM.CurrentTransmitPower"
 #endif
 
+#ifndef WIFI_EM_MONITOR_DONE
+#define WIFI_EM_MONITOR_DONE           "Device.WiFi.EM.MonitorDone"
+#endif
+
 #ifndef WIFI_EM_CLIENT_DISASSOC_STATS
 #define WIFI_EM_CLIENT_DISASSOC_STATS         "Device.WiFi.EM.ClientDisassocStats"
 #endif
@@ -2613,7 +2617,6 @@ typedef struct {
     unsigned char assoc_sta_reporting_int;
     unsigned char max_nummlds;
     unsigned char bstamld_maxlinks;
-    em_string_t   environment;
 
     em_small_string_t    primary_device_type;
     em_small_string_t    secondary_device_type;
@@ -2976,6 +2979,7 @@ typedef struct {
     unsigned char srg_partial_bssid_bitmap[8];
     unsigned char neigh_bss_color_in_use_bitmap[8];
     unsigned char radio_temp;
+    mac_address_t backhaul_sta;
 } em_radio_info_t;
 
 typedef struct {
@@ -3212,6 +3216,7 @@ typedef enum {
     em_bus_event_type_sta_cap_update,
     em_bus_event_type_sta_mld_update,
     em_bus_event_type_topo_publish,
+    em_bus_event_type_metrics_updated,
     em_bus_event_type_client_disassoc_stats,
 
     em_bus_event_type_max
@@ -3410,6 +3415,10 @@ typedef struct {
     mac_address_t dev;
     em_assoc_sta_mld_info_t info;
 } em_bus_event_type_sta_mld_update_params_t;
+
+typedef struct {
+    mac_address_t dev;
+} em_bus_event_type_metrics_updated_params_t;
 
 typedef struct {
     mac_address_t   radio;

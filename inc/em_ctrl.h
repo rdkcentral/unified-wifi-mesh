@@ -488,6 +488,15 @@ public:
 	void handle_sta_cap_update(em_bus_event_t *evt);
 	void handle_sta_mld_update(em_bus_event_t *evt);
 	void handle_topo_publish(em_bus_event_t *evt);
+
+	/**!
+	 * @brief Builds and publishes the X_AIRTIES_MetricsUpdated event.
+	 *
+	 * Runs on the controller event thread, where the station maps are updated.
+	 *
+	 * @param[in] evt Bus event carrying em_bus_event_type_metrics_updated_params_t.
+	 */
+	void handle_metrics_updated(em_bus_event_t *evt);
     
 	/**!
 	 * @brief Handles the MLD reconfiguration event.
@@ -632,6 +641,16 @@ public:
 	 * @note Ensure that `m_data_model` is properly updated before calling this function.
 	 */
 	void publish_network_topology();
+
+	/**!
+	 * @brief Queues the X_AIRTIES_MetricsUpdated event for a data model.
+	 *
+	 * Called on the radio thread; the event is built and published on the
+	 * controller event thread, see handle_metrics_updated().
+	 *
+	 * @param[in] dm The data model an AP Metrics Response was stored in.
+	 */
+	void publish_metrics_updated(dm_easy_mesh_t *dm);
 
 	/**!
 	 * @brief Retrieves the first data model in the agent list.

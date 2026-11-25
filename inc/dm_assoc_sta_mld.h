@@ -75,6 +75,14 @@ public:
 	 */
 	void encode(cJSON *obj);
 
+	/**!
+	 * @brief Encodes the metrics an AP Metrics Response updates.
+	 *
+	 * @param[in] obj The JSON object to add the metrics to.
+	 * @param[in] sta_map The station map the metrics are taken from.
+	 */
+	void encode_metrics(cJSON *obj, hash_map_t *sta_map);
+
     bool operator == (const dm_assoc_sta_mld_t& obj);
     void operator = (const dm_assoc_sta_mld_t& obj);
 

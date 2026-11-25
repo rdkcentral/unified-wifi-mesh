@@ -36,6 +36,7 @@
 #define DEVICE_WIFI_DATAELEMENTS_NETWORK_NODE_CFG_POLICY    "Device.WiFi.DataElements.Network.NodeConfigurePolicy"
 #define DEVICE_WIFI_DATAELEMENTS_NETWORK_NODE_LINKSTATS_ALARM    "Device.WiFi.DataElements.Network.NodeLinkStatsAlarm"
 #define DEVICE_WIFI_DATAELEMENTS_FAILED_CONNECTION               "Device.WiFi.DataElements.FailedConnectionEvent.FailedConnection!"
+#define DEVICE_WIFI_DATAELEMENTS_NETWORK_METRICS_UPDATED         "Device.WiFi.DataElements.Network.X_AIRTIES_MetricsUpdated!"
 #define DEVICE_WIFI_DATAELEMENTS_DISASSOCIATION                  "Device.WiFi.DataElements.DisassociationEvent.Disassociated!"
 
 #define LIST_OF_DEFINITION_NAME "List_Of_Def"
@@ -555,7 +556,7 @@ private:
 
 public:
 
-    tr_181_t() {}
+    tr_181_t() : m_bus_handle{} {}
     virtual ~tr_181_t() {}
     
     bus_handle_t *get_bus_hdl() { return &m_bus_handle; }

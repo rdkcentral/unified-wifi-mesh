@@ -1890,3 +1890,60 @@ TEST(dm_sta_t_Test, EncodeReportsDeviceModel) {
     }
     std::cout << "Exiting EncodeReportsDeviceModel test" << std::endl;
 }
+
+/**
+* @brief Test that encode_metrics reports the fields an AP Metrics Response updates
+*
+* This test fills the station info with known metrics, encodes it with encode_metrics and checks that the
+* MAC address, the BSSID and the counters land in the JSON object under the names the STA.{i}. table uses.@n
+*
+* **Test Group ID:** Basic: 01@n
+* **Test Case ID:** 054@n
+* **Priority:** High@n
+* @n
+* **Pre-Conditions:** None@n
+* **Dependencies:** None@n
+* **User Interaction:** None@n
+* @n
+* **Test Procedure:**@n
+* | Variation / Step | Description | Test Data | Expected Result | Notes |
+* | :----: | --------- | ---------- |-------------- | ----- |
+* | 01 | Build a dm_sta_t from an em_sta_info_t with known metrics | id, bssid, rcpi = 200, bytes_tx = 123456, retrans_count = 7 | Construction should be successful | Should be successful |
+* | 02 | Call encode_metrics with a cJSON object | obj = cJSON_CreateObject() | Object holds MACAddress, BSSID and the counters | Should Pass |
+*/
+TEST(dm_sta_t_Test, EncodeMetricsReportsStationCounters) {
+    std::cout << "Entering EncodeMetricsReportsStationCounters test" << std::endl;
+    em_sta_info_t info;
+    memset(&info, 0, sizeof(info));
+    unsigned char id[] = {0x00, 0x11, 0x22, 0x33, 0x44, 0x55};
+    unsigned char bssid[] = {0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff};
+    memcpy(info.id, id, sizeof(mac_address_t));
+    memcpy(info.bssid, bssid, sizeof(mac_address_t));
+    info.last_dl_rate = 866;
+    info.last_ul_rate = 433;
+    info.rcpi = 200;
+    info.bytes_tx = 123456;
+    info.bytes_rx = 654321;
+    info.pkts_tx = 1000;
+    info.pkts_rx = 2000;
+    info.errors_tx = 3;
+    info.errors_rx = 4;
+    info.retrans_count = 7;
+    dm_sta_t sta(&info);
+    cJSON *obj = cJSON_CreateObject();
+    sta.encode_metrics(obj);
+    EXPECT_STREQ(cJSON_GetStringValue(cJSON_GetObjectItem(obj, "MACAddress")), "00:11:22:33:44:55");
+    EXPECT_STREQ(cJSON_GetStringValue(cJSON_GetObjectItem(obj, "BSSID")), "aa:bb:cc:dd:ee:ff");
+    EXPECT_EQ(cJSON_GetNumberValue(cJSON_GetObjectItem(obj, "LastDataDownlinkRate")), 866);
+    EXPECT_EQ(cJSON_GetNumberValue(cJSON_GetObjectItem(obj, "LastDataUplinkRate")), 433);
+    EXPECT_EQ(cJSON_GetNumberValue(cJSON_GetObjectItem(obj, "SignalStrength")), 200);
+    EXPECT_EQ(cJSON_GetNumberValue(cJSON_GetObjectItem(obj, "BytesSent")), 123456);
+    EXPECT_EQ(cJSON_GetNumberValue(cJSON_GetObjectItem(obj, "BytesReceived")), 654321);
+    EXPECT_EQ(cJSON_GetNumberValue(cJSON_GetObjectItem(obj, "PacketsSent")), 1000);
+    EXPECT_EQ(cJSON_GetNumberValue(cJSON_GetObjectItem(obj, "PacketsReceived")), 2000);
+    EXPECT_EQ(cJSON_GetNumberValue(cJSON_GetObjectItem(obj, "ErrorsSent")), 3);
+    EXPECT_EQ(cJSON_GetNumberValue(cJSON_GetObjectItem(obj, "ErrorsReceived")), 4);
+    EXPECT_EQ(cJSON_GetNumberValue(cJSON_GetObjectItem(obj, "RetransCount")), 7);
+    cJSON_Delete(obj);
+    std::cout << "Exiting EncodeMetricsReportsStationCounters test" << std::endl;
+}
