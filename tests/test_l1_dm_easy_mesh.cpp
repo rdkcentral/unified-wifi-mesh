@@ -24,6 +24,8 @@
 #include "em_cmd.h"
 #include "dm_easy_mesh.h"
 #include <iomanip>
+#include <memory>
+#include <string>
 
 extern "C" const char* __asan_default_options() {
     return "detect_leaks=0";
@@ -13889,11 +13891,11 @@ TEST(dm_easy_mesh_t, get_num_bss_zero_value)
 }
 
 /**
- * @brief Verify that get_num_bss returns the maximum BSS value when set to UINT_MAX
+ * @brief Verify that get_num_bss clamps an oversized BSS count to EM_MAX_BSSS
  *
  * This test sets the m_num_bss member of the dm_easy_mesh_t instance to UINT_MAX and verifies that the static
- * method get_num_bss correctly returns this maximum value. It ensures that the API properly handles and returns the
- * maximum unsigned integer value without any overflow or reset.
+ * method get_num_bss returns EM_MAX_BSSS, the capacity of the BSS array, instead of the raw count. It ensures that
+ * callers which iterate up to the returned count cannot read past the array.
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 338@n
@@ -13907,8 +13909,8 @@ TEST(dm_easy_mesh_t, get_num_bss_zero_value)
  * | Variation / Step | Description                                                                       | Test Data                                            | Expected Result                                          | Notes         |
  * | :--------------: | --------------------------------------------------------------------------------- | ---------------------------------------------------- | -------------------------------------------------------- | ------------- |
  * | 01               | Initialize the dm_easy_mesh_t instance and set m_num_bss to UINT_MAX              | dmInstance.m_num_bss = UINT_MAX                        | dmInstance created with m_num_bss initialized to UINT_MAX | Should be successful |
- * | 02               | Invoke the get_num_bss API with the instance pointer                              | Input: pointer = &dmInstance                           | API returns UINT_MAX                                     | Should Pass   |
- * | 03               | Validate the returned value using EXPECT_EQ                                       | Input: returnedValue = result from get_num_bss, expected UINT_MAX | EXPECT_EQ asserts returned value equals UINT_MAX         | Should Pass   |
+ * | 02               | Invoke the get_num_bss API with the instance pointer                              | Input: pointer = &dmInstance                           | API returns EM_MAX_BSSS                                  | Should Pass   |
+ * | 03               | Validate the returned value using EXPECT_EQ                                       | Input: returnedValue = result from get_num_bss, expected EM_MAX_BSSS | EXPECT_EQ asserts returned value equals EM_MAX_BSSS      | Should Pass   |
  */
 TEST(dm_easy_mesh_t, get_num_bss_max_value)
 {
@@ -13918,7 +13920,7 @@ TEST(dm_easy_mesh_t, get_num_bss_max_value)
     std::cout << "Invoking get_num_bss with m_num_bss set to: " << dmInstance.m_num_bss << std::endl;
     unsigned int returnedValue = dm_easy_mesh_t::get_num_bss(static_cast<void*>(&dmInstance));
     std::cout << "Returned value from get_num_bss: " << returnedValue << std::endl;
-    EXPECT_EQ(returnedValue, UINT_MAX);
+    EXPECT_EQ(returnedValue, static_cast<unsigned int>(EM_MAX_BSSS));
     std::cout << "Exiting get_num_bss_max_value test" << std::endl;
 }
 
@@ -22750,4 +22752,145 @@ TEST(dm_easy_mesh_t, UpdateScanResults_negative_Static_NullScanResult)
         dm_easy_mesh_t::update_scan_results(&dm, nullptr);
     });
     std::cout << "Exiting UpdateScanResults_negative_Static_NullScanResult test" << std::endl;
+}
+
+/*
+ * dm_easy_mesh_t::print_config(): every count the function loops over is limited to its array capacity.
+ *
+ * print_config() only logs, so each case captures stdout and counts the lines it printed: with a declared count at capacity,
+ * one above it and far above it, exactly `capacity` entries must be logged (and the valid ones must be among them).
+ * The object is a heap allocation, so a read past its end is reported by AddressSanitizer as well.
+ */
+namespace {
+size_t count_lines_with(const std::string &out, const std::string &needle) {
+    size_t n = 0;
+    for (size_t pos = out.find(needle); pos != std::string::npos; pos = out.find(needle, pos + needle.size())) {
+        n++;
+    }
+    return n;
+}
+
+/* the numbers in "channels=[36 36 ... ]" of the first channel scan line */
+size_t channels_logged(const std::string &out) {
+    size_t begin = out.find("channels=[");
+    if (begin == std::string::npos) {
+        return 0;
+    }
+    begin += strlen("channels=[");
+    size_t end = out.find(']', begin);
+    size_t n = 0;
+    for (size_t i = begin; i < end; i++) {
+        if (out[i] == ' ') {
+            n++;
+        }
+    }
+    return n;
+}
+
+std::string print_config_output(dm_easy_mesh_t *mesh) {
+    testing::internal::CaptureStdout();
+    mesh->print_config();
+    return testing::internal::GetCapturedStdout();
+}
+
+/* one radio capability entry with `op_classes_num` scan op classes of `channels_num` channels (36) each */
+void fill_scan_cap(dm_easy_mesh_t *mesh, unsigned int radio, unsigned int op_classes_num, unsigned int channels_num) {
+    em_channel_scan_cap_radio_t *scan = &mesh->m_radio_cap[radio].get_radio_cap_info()->ch_scan;
+    scan->op_classes_num = static_cast<unsigned char>(op_classes_num);
+    for (unsigned int k = 0; k < EM_MAX_OPCLASS; k++) {
+        scan->op_classes[k].op_class = 115;
+        scan->op_classes[k].num = static_cast<unsigned char>(channels_num);
+        for (unsigned int c = 0; c < EM_MAX_CHANNELS_IN_LIST; c++) {
+            scan->op_classes[k].channels.channel[c] = 36;
+        }
+    }
+}
+}  // namespace
+
+TEST(dm_easy_mesh_t, print_config_netSsidCountIsLimitedToTheArray) {
+    for (unsigned int count : { static_cast<unsigned int>(EM_MAX_NET_SSIDS), EM_MAX_NET_SSIDS + 1u, 100u, 0xFFFFFFFFu }) {
+        std::unique_ptr<dm_easy_mesh_t> mesh(new dm_easy_mesh_t());
+        mesh->init();
+        for (unsigned int i = 0; i < EM_MAX_NET_SSIDS; i++) {
+            snprintf(mesh->m_network_ssid[i].m_network_ssid_info.ssid, sizeof(mesh->m_network_ssid[i].m_network_ssid_info.ssid), "SSID_%u", i);
+        }
+        mesh->m_num_net_ssids = count;
+        std::string out = print_config_output(mesh.get());
+        EXPECT_EQ(count_lines_with(out, "Data Model SSID["), static_cast<size_t>(EM_MAX_NET_SSIDS)) << "count " << count;
+        EXPECT_NE(out.find("SSID_0"), std::string::npos) << "count " << count;
+        EXPECT_NE(out.find("SSID_4"), std::string::npos) << "count " << count;
+        mesh->deinit();
+    }
+}
+
+TEST(dm_easy_mesh_t, print_config_bssCountIsLimitedToTheArray) {
+    for (unsigned int count : { static_cast<unsigned int>(EM_MAX_BSSS), EM_MAX_BSSS + 1u, 1000u, 0xFFFFFFFFu }) {
+        std::unique_ptr<dm_easy_mesh_t> mesh(new dm_easy_mesh_t());
+        mesh->init();
+        mesh->m_num_bss = count;
+        std::string out = print_config_output(mesh.get());
+        EXPECT_EQ(count_lines_with(out, "Radio Mac : "), static_cast<size_t>(EM_MAX_BSSS)) << "count " << count;
+        mesh->deinit();
+    }
+}
+
+/* the radio list and the radio capability list share m_num_radios */
+TEST(dm_easy_mesh_t, print_config_radioCountIsLimitedToTheArrays) {
+    for (unsigned int count : { static_cast<unsigned int>(EM_MAX_BANDS), EM_MAX_BANDS + 1u, 100u, 0xFFFFFFFFu }) {
+        std::unique_ptr<dm_easy_mesh_t> mesh(new dm_easy_mesh_t());
+        mesh->init();
+        mesh->m_num_radios = count;
+        std::string out = print_config_output(mesh.get());
+        EXPECT_EQ(count_lines_with(out, "Radio Mac: "), static_cast<size_t>(EM_MAX_BANDS)) << "count " << count;
+        EXPECT_EQ(count_lines_with(out, "Cap Radio["), static_cast<size_t>(EM_MAX_BANDS)) << "count " << count;
+        mesh->deinit();
+    }
+}
+
+TEST(dm_easy_mesh_t, print_config_scanOpClassCountIsLimitedToTheArray) {
+    for (unsigned int count : { static_cast<unsigned int>(EM_MAX_OPCLASS), EM_MAX_OPCLASS + 1u, 255u }) {
+        std::unique_ptr<dm_easy_mesh_t> mesh(new dm_easy_mesh_t());
+        mesh->init();
+        mesh->m_num_radios = 1;
+        fill_scan_cap(mesh.get(), 0, count, 4);
+        std::string out = print_config_output(mesh.get());
+        EXPECT_EQ(count_lines_with(out, "ch_scan op_class["), static_cast<size_t>(EM_MAX_OPCLASS)) << "count " << count;
+        EXPECT_NE(out.find("ch_scan op_class[63]"), std::string::npos) << "count " << count;
+        EXPECT_EQ(out.find("ch_scan op_class[64]"), std::string::npos) << "count " << count;
+        mesh->deinit();
+    }
+}
+
+TEST(dm_easy_mesh_t, print_config_scanChannelCountIsLimitedToTheArray) {
+    for (unsigned int count : { static_cast<unsigned int>(EM_MAX_CHANNELS_IN_LIST), EM_MAX_CHANNELS_IN_LIST + 1u, 255u }) {
+        std::unique_ptr<dm_easy_mesh_t> mesh(new dm_easy_mesh_t());
+        mesh->init();
+        mesh->m_num_radios = 1;
+        fill_scan_cap(mesh.get(), 0, 1, count);
+        std::string out = print_config_output(mesh.get());
+        EXPECT_EQ(channels_logged(out), static_cast<size_t>(EM_MAX_CHANNELS_IN_LIST)) << "count " << count;
+        mesh->deinit();
+    }
+}
+
+/* counts that fit are logged completely */
+TEST(dm_easy_mesh_t, print_config_countsWithinCapacityAreLoggedCompletely) {
+    std::unique_ptr<dm_easy_mesh_t> mesh(new dm_easy_mesh_t());
+    mesh->init();
+    for (unsigned int i = 0; i < 3; i++) {
+        snprintf(mesh->m_network_ssid[i].m_network_ssid_info.ssid, sizeof(mesh->m_network_ssid[i].m_network_ssid_info.ssid), "SSID_%u", i);
+    }
+    mesh->m_num_net_ssids = 3;
+    mesh->m_num_bss = 2;
+    mesh->m_num_radios = 2;
+    fill_scan_cap(mesh.get(), 0, 5, 7);
+    fill_scan_cap(mesh.get(), 1, 5, 7);
+    std::string out = print_config_output(mesh.get());
+    EXPECT_EQ(count_lines_with(out, "Data Model SSID["), 3u);
+    EXPECT_EQ(count_lines_with(out, "Radio Mac : "), 2u);
+    EXPECT_EQ(count_lines_with(out, "Radio Mac: "), 2u);
+    EXPECT_EQ(count_lines_with(out, "Cap Radio["), 2u);
+    EXPECT_EQ(count_lines_with(out, "ch_scan op_class["), 10u);
+    EXPECT_EQ(channels_logged(out), 7u);
+    mesh->deinit();
 }

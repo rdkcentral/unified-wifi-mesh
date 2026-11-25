@@ -2439,7 +2439,7 @@ void dm_easy_mesh_t::print_config()
     em_printfout("Manufacturer:%s\tManufacturere Model:%s\tSoftwareVersion:%s\n",
             get_manufacturer(), get_manufacturer_model(), get_software_version());
 
-    for (i = 0; i < m_num_net_ssids; i++) {
+    for (i = 0; i < get_num_network_ssid(); i++) {
         em_printfout("Data Model SSID[%d]: %s\n", i, m_network_ssid[i].m_network_ssid_info.ssid);
     }
 
@@ -2451,18 +2451,18 @@ void dm_easy_mesh_t::print_config()
     }
 
     em_printfout("No of BSS=%d No of Radios=%d", m_num_bss, m_num_radios);
-    for (i = 0; i < m_num_bss; i++) {
+    for (i = 0; i < get_num_bss(); i++) {
         em_printfout("Radio Mac : %s and BSSID : %s", util::mac_to_string(get_bss(i)->get_bss_info()->ruid.mac).c_str(),
             util::mac_to_string(get_bss(i)->get_bss_info()->bssid.mac).c_str());
     }
 
-    for (i = 0;i < m_num_radios; i++) {
+    for (i = 0; i < get_num_radios(); i++) {
         transmit_power_limit = m_radio[i].get_radio_info()->transmit_power_limit;
         em_printfout("Radio Mac: %s, Band: %d, TransmitPowerLimit: %d", util::mac_to_string(m_radio[i].get_radio_info()->intf.mac).c_str(),
             m_radio[i].get_radio_info()->band, transmit_power_limit);
     }
 
-    for(i = 0; i < m_num_radios; i++) {
+    for (i = 0; i < get_num_radios(); i++) {
         em_printfout("Cap Radio[%d]: %s, num_role:%d and su_beam:%d",  i, util::mac_to_string(m_radio_cap[i].get_radio_cap_info()->ruid.mac).c_str(),
             m_radio_cap[i].get_radio_cap_info()->wifi6_cap.num_role,
             m_radio_cap[i].get_radio_cap_info()->wifi6_cap.roles[0].role_tail.su_beam_former);
@@ -2526,11 +2526,11 @@ void dm_easy_mesh_t::print_config()
             m_radio_cap[i].get_radio_cap_info()->ch_scan.min_scan_interval,
             m_radio_cap[i].get_radio_cap_info()->ch_scan.scan_impact
         );
-        for (size_t k = 0; k < m_radio_cap[i].get_radio_cap_info()->ch_scan.op_classes_num; k++) {
+        for (size_t k = 0; k < m_radio_cap[i].get_radio_cap_info()->ch_scan.op_classes_num && (k < EM_MAX_OPCLASS); k++) {
             const em_scan_cap_op_class_info_t *oc = &m_radio_cap[i].get_radio_cap_info()->ch_scan.op_classes[k];
             char ch_buf[256] = {0};
             int  ch_buf_pos  = 0;
-            for (unsigned char ci = 0; ci < oc->num && ch_buf_pos < static_cast<int>(sizeof(ch_buf)) - 5; ci++) {
+            for (unsigned char ci = 0; ci < oc->num && (ci < EM_MAX_CHANNELS_IN_LIST) && ch_buf_pos < static_cast<int>(sizeof(ch_buf)) - 5; ci++) {
                 ch_buf_pos += snprintf(ch_buf + ch_buf_pos, sizeof(ch_buf) - static_cast<size_t>(ch_buf_pos),
                                        "%d ", oc->channels.channel[ci]);
             }

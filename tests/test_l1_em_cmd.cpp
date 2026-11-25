@@ -3806,9 +3806,9 @@ TEST(em_cmd_t, get_num_network_ssid_verify_returns_valid_count_for_configured_ss
     std::cout << "Exiting get_num_network_ssid_verify_returns_valid_count_for_configured_ssids test" << std::endl;
 }
 /**
- * @brief Test get_num_network_ssid returns maximum SSID count boundary condition.
+ * @brief Test get_num_network_ssid clamps an oversized SSID count to EM_MAX_NET_SSIDS.
  *
- * This test verifies that the get_num_network_ssid() method correctly returns the maximum boundary value of the number of network SSIDs when the data model is set to UINT_MAX. The test ensures proper handling of boundary condition input.
+ * This test verifies that the get_num_network_ssid() method returns EM_MAX_NET_SSIDS, the capacity of the network SSID array, when the data model count is set to UINT_MAX. The test ensures that callers cannot iterate past the array.
  *
  * **Test Group ID:** Basic: 01@n
  * **Test Case ID:** 089@n
@@ -3822,7 +3822,7 @@ TEST(em_cmd_t, get_num_network_ssid_verify_returns_valid_count_for_configured_ss
  * | Variation / Step | Description | Test Data | Expected Result |Notes |
  * | :----: | --------- | ---------- |-------------- | ----- |
  * | 01 | Initialize the command object and set the data model's number of network SSIDs to UINT_MAX. | m_data_model.m_num_net_ssids = UINT_MAX | Data model is initialized with the maximum SSID count. | Should be successful |
- * | 02 | Invoke the get_num_network_ssid() method and verify that it returns the maximum SSID count. | input: m_data_model.m_num_net_ssids = UINT_MAX, output: ssidCount, expected: UINT_MAX | get_num_network_ssid() returns UINT_MAX and EXPECT_EQ check passes. | Should Pass |
+ * | 02 | Invoke the get_num_network_ssid() method and verify that it returns EM_MAX_NET_SSIDS. | input: m_data_model.m_num_net_ssids = UINT_MAX, output: ssidCount, expected: EM_MAX_NET_SSIDS | get_num_network_ssid() returns EM_MAX_NET_SSIDS and EXPECT_EQ check passes. | Should Pass |
  */
 TEST(em_cmd_t, get_num_network_ssid_verify_returns_maximum_ssid_count_boundary_condition) {
     std::cout << "Entering get_num_network_ssid_verify_returns_maximum_ssid_count_boundary_condition test" << std::endl;
@@ -3832,7 +3832,7 @@ TEST(em_cmd_t, get_num_network_ssid_verify_returns_maximum_ssid_count_boundary_c
     std::cout << "Invoking get_num_network_ssid() method." << std::endl;
     unsigned int ssidCount = cmd.get_num_network_ssid();
     std::cout << "get_num_network_ssid() returned: " << ssidCount << std::endl;
-    EXPECT_EQ(ssidCount, maxSSIDCount);
+    EXPECT_EQ(ssidCount, static_cast<unsigned int>(EM_MAX_NET_SSIDS));
     std::cout << "Exiting get_num_network_ssid_verify_returns_maximum_ssid_count_boundary_condition test" << std::endl;
 }
 /**
