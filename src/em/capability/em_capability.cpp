@@ -961,18 +961,46 @@ int em_capability_t::handle_client_cap_report(unsigned char *buff, unsigned int 
     tmp_len = len - static_cast<unsigned int> (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
     while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
         if (tlv->type == em_tlv_type_client_cap_report) {
-            if (tlv->value[0] != 0) {
-                printf("%s:%d: result code: failure\n", __func__, __LINE__);
+            const unsigned int tlv_len =
+                static_cast<unsigned int>(htons(tlv->len));
+
+            /*
+             * The Client Capability Report TLV must contain at
+             * least the mandatory result-code byte.
+             */
+            if (tlv_len < 1) {
+                em_printfout(
+                    "%s:%d Invalid client capability report "
+                    "length %u",
+                    __func__, __LINE__, tlv_len);
                 return -1;
             }
+
+            /*
+             * Validate the complete TLV before reading its value
+             * or borrowing the variable-length frame-body data.
+             */
+            if (sizeof(em_tlv_t) + tlv_len > tmp_len) {
+                em_printfout(
+                    "%s:%d TLV length %u exceeds remaining "
+                    "buffer %u",
+                    __func__, __LINE__, tlv_len, tmp_len);
+                return -1;
+            }
+
+            if (tlv->value[0] != 0) {
+                em_printfout(
+                    "%s:%d Result code indicates failure",
+                    __func__, __LINE__);
+                return -1;
+            }
+
             sta_info.associated = true;
             // The frame body is variable length: use the whole TLV value after the
-            // result code. sta_info only borrows it from the received frame, the
-            // data model copies it when the info is applied. Guard the zero-length
-            // underflow of htons(len) - 1 and bound what a peer can make us store.
-            unsigned short cap_report_len = htons(tlv->len);
-            unsigned int fb_len = (cap_report_len > 0) ?
-                static_cast<unsigned int>(cap_report_len - 1) : 0;
+            // result code. sta_info only borrows it from the received frame, and the
+            // data model copies it when the info is applied. The validated TLV length
+            // prevents underflow, and the maximum bounds what the peer can make us store.
+            unsigned int fb_len = tlv_len - 1;
             if (fb_len > EM_MAX_FRAME_BODY_LEN) {
                 em_printfout("client cap report frame_body_len %u exceeds max %u, clamping",
                     fb_len, EM_MAX_FRAME_BODY_LEN);
