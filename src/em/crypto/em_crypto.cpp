@@ -1907,6 +1907,10 @@ bool em_crypto_t::kdf_hash_length(const EVP_MD *algo,
     if (!algo || !key || key_len == 0 || !label || !output || output_len == 0) {
         return false;
     }
+
+    if (context == NULL && context_len > 0) {
+        return false;
+    }
     
     size_t hash_len = static_cast<size_t>(EVP_MD_size(algo));
     if (hash_len == 0 || hash_len > 64) {  // Sanity check on hash size
