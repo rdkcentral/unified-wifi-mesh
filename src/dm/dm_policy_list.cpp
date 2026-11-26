@@ -290,6 +290,10 @@ int dm_policy_list_t::update_db(db_client_t& db_client, dm_orch_type_t op, void 
 	mac_addr_str_t	sta_mac_str;
 	char sta_mac_list_str[1024];
 
+    if (policy == NULL) {
+        return -1;
+    }
+
     dm_easy_mesh_t::macbytes_to_string(policy->id.dev_mac, dev_mac_str);
     dm_easy_mesh_t::macbytes_to_string(policy->id.radio_mac, radio_mac_str);
 
@@ -299,7 +303,8 @@ int dm_policy_list_t::update_db(db_client_t& db_client, dm_orch_type_t op, void 
     }
 
 	memset(sta_mac_list_str, 0, sizeof(sta_mac_list_str));
-    for (i = 0; i < policy->num_sta; i++) {
+    unsigned int num_sta = policy->num_sta > EM_MAX_STA_PER_STEER_POLICY ? EM_MAX_STA_PER_STEER_POLICY : policy->num_sta;
+    for (i = 0; i < num_sta; i++) {
 		dm_easy_mesh_t::macbytes_to_string(policy->sta_mac[i], sta_mac_str);
         snprintf(sta_mac_list_str + strlen(sta_mac_list_str), sizeof(sta_mac_list_str) - strlen(sta_mac_list_str) - 1,"%s,", sta_mac_str);
     }
