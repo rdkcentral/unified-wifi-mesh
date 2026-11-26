@@ -357,106 +357,158 @@ int em_mgr_t::input_listen()
     return 0;
 }
 
-int em_mgr_t::reset_listeners()
+int em_mgr_t::reset_listeners(bool netlink_enabled)
 {
-    int highest_fd = 0, num = 0;
+    int highest_fd = -1;
     em_t *em = NULL;
 
     FD_ZERO(&m_rset);
 
-	pthread_mutex_lock(&m_mutex);
+    pthread_mutex_lock(&m_mutex);
+
     em = static_cast<em_t *>(hash_map_get_first(m_em_map));
+
     while (em != NULL) {
         if (em->is_al_interface_em() == true) {
-            FD_SET(em->get_fd(), &m_rset);
-            num++;
-            highest_fd = (em->get_fd() > highest_fd) ? em->get_fd():highest_fd;
+            const int fd = em->get_fd();
+            if (fd >= 0 && fd < FD_SETSIZE) {
+                FD_SET(fd, &m_rset);
+                if (fd > highest_fd)
+                    highest_fd = fd;
+            } else
+                em_printfout("Invalid 1905 fd=%d, skipping", fd);
         }
         em = static_cast<em_t *>(hash_map_get_next(m_em_map, em));
     }
-	pthread_mutex_unlock(&m_mutex);
-    return highest_fd;
 
+    pthread_mutex_unlock(&m_mutex);
+
+    if (netlink_enabled) {
+        const int stp_fd = m_stp.fd();
+        if (stp_fd >= 0 && stp_fd < FD_SETSIZE) {
+            FD_SET(stp_fd, &m_rset);
+            if (stp_fd > highest_fd)
+                highest_fd = stp_fd;
+        }
+    }
+    return highest_fd;
 }
 
 void em_mgr_t::nodes_listener()
 {
+    using steady_clock = std::chrono::steady_clock;
+    constexpr auto stp_reconcile_interval = std::chrono::seconds(15);
+
     em_t *em = NULL;
-    struct timeval tm;
-    int rc, highest_fd = 0;
+    int rc = -1, highest_fd = -1;
 
-    tm.tv_sec = 0;
-    tm.tv_usec = m_timeout * 1000;
-    highest_fd = reset_listeners();
+    const bool netlink_enabled = em_stp_monitor_t::is_enabled();
+    steady_clock::time_point next_stp_reconcile{};
 
-    while ((rc = select(highest_fd + 1, &m_rset, NULL, NULL, &tm)) >= 0) {
-        if (rc == 0) {
-            tm.tv_sec = 0;
-            tm.tv_usec = m_timeout * 1000;
-            highest_fd = reset_listeners();
+    if (netlink_enabled) {
+        m_stp.reconcile();
+        next_stp_reconcile = steady_clock::now() + stp_reconcile_interval;
+    }
 
+    while (true)
+    {
+        highest_fd = reset_listeners(netlink_enabled);
+
+        struct timeval tm = {};
+        tm.tv_sec = static_cast<time_t>(m_timeout / 1000U);
+        tm.tv_usec = static_cast<suseconds_t>((m_timeout % 1000U) * 1000U);
+
+        rc = select(highest_fd + 1, &m_rset, NULL, NULL, &tm);
+
+        if (rc < 0) {
+            if (errno != EINTR) {
+                em_printfout("select() failed: %s", strerror(errno));
+                break;
+            }
             continue;
         }
 
-        em = static_cast<em_t *>(hash_map_get_first(m_em_map));
-        while (em != NULL) {
-            if (em->is_al_interface_em() == true) {
+        if (rc > 0) {
+            const int stp_fd = m_stp.fd();
+            bool netlink_ready = netlink_enabled && (stp_fd >= 0) &&
+                (stp_fd < FD_SETSIZE) && FD_ISSET(stp_fd, &m_rset);
+
+            // Process IEEE1905 packets first.
+            em = static_cast<em_t *>(hash_map_get_first(m_em_map));
+
+            while (em != NULL) {
+                if (em->is_al_interface_em() == true) {
+                    int fd = -1;
+                    bool ieee1905_ready = false;
+
+                    pthread_mutex_lock(&m_mutex);
+                    fd = em->get_fd();
+                    ieee1905_ready = (fd >= 0 && fd < FD_SETSIZE) && FD_ISSET(fd, &m_rset);
+                    pthread_mutex_unlock(&m_mutex);
+
+                    if (ieee1905_ready) {
 #ifdef AL_SAP
-                try{
-                    AlServiceDataUnit sdu = g_sap->serviceAccessPointDataIndication();
-                    std::vector<unsigned char> payload = sdu.getPayload();
-                    // Original implementation expects whole ethernet frame
-                    // not just CMDU, so we have to reconstruct it
-                    std::vector<unsigned char> reconstructed_eth_frame;
-                    auto first_mac = sdu.getSourceAlMacAddress();
-                    reconstructed_eth_frame.insert(reconstructed_eth_frame.end(),first_mac.begin(),first_mac.end());
-                    auto second_mac = sdu.getDestinationAlMacAddress();
-                    reconstructed_eth_frame.insert(reconstructed_eth_frame.end(),second_mac.begin(),second_mac.end());
+                        try {
+                            AlServiceDataUnit sdu = g_sap->serviceAccessPointDataIndication();
+                            std::vector<unsigned char> payload = sdu.getPayload();
+                            // Original implementation expects whole ethernet frame
+                            // not just CMDU, so we have to reconstruct it
+                            std::vector<unsigned char> reconstructed_eth_frame;
+                            auto first_mac = sdu.getSourceAlMacAddress();
+                            reconstructed_eth_frame.insert(reconstructed_eth_frame.end(),first_mac.begin(),first_mac.end());
+                            auto second_mac = sdu.getDestinationAlMacAddress();
+                            reconstructed_eth_frame.insert(reconstructed_eth_frame.end(),second_mac.begin(),second_mac.end());
 
-                    reconstructed_eth_frame.push_back(0x89);
-                    reconstructed_eth_frame.push_back(0x3A);
+                            reconstructed_eth_frame.push_back(0x89);
+                            reconstructed_eth_frame.push_back(0x3A);
 
-                    reconstructed_eth_frame.insert(reconstructed_eth_frame.end(),payload.begin(),payload.end());
-#ifdef DEBUG_MODE
-                    em_printfout("First MAC Address: " MACSTRFMT, MAC2STR(first_mac));
-                    em_printfout("Second MAC Address: " MACSTRFMT, MAC2STR(second_mac));
-                    em_printfout("RECONSTRUCTED_ETH_FRAME: \t");
-                    util::print_hex_dump(reconstructed_eth_frame);
+                            reconstructed_eth_frame.insert(reconstructed_eth_frame.end(),payload.begin(),payload.end());
+
+#ifdef DEBUG_MODE   
+                            em_printfout("First MAC Address: " MACSTRFMT, MAC2STR(first_mac));
+                            em_printfout("Second MAC Address: " MACSTRFMT, MAC2STR(second_mac));
+                            em_printfout("RECONSTRUCTED_ETH_FRAME: \t");
+                            util::print_hex_dump(reconstructed_eth_frame);
 #endif
-                    proto_process(reconstructed_eth_frame.data(), static_cast<unsigned int>(reconstructed_eth_frame.size()), em);
-                } catch (const AlServiceException& e) {
-                    if (e.getPrimitiveError() == PrimitiveError::InvalidMessage) {
-                        em_printfout("%s. Dropping packet", e.what());
-                    } else {
-                        em_printfout("%s", e.what());
-                        throw e; // rethrow the exception if it's not an indication failure
-                    }
-                }
+                            proto_process(reconstructed_eth_frame.data(), static_cast<unsigned int>(reconstructed_eth_frame.size()), em);
+			} catch (const AlServiceException &e) {
+                            if (e.getPrimitiveError() == PrimitiveError::InvalidMessage)
+                                em_printfout("%s. Dropping packet", e.what());
+                            else {
+                                em_printfout("%s", e.what());
+                                throw;
+                            }
+                        }
 #else
-                unsigned char buff[MAX_EM_BUFF_SZ*EM_MAX_BANDS];
-                pthread_mutex_lock(&m_mutex);
-                int ret = FD_ISSET(em->get_fd(), &m_rset);
-                pthread_mutex_unlock(&m_mutex);
-                if (ret)
-                {
-                    // receive data from this interface
-                    memset(buff, 0, MAX_EM_BUFF_SZ*EM_MAX_BANDS);
-                    ssize_t len = read(em->get_fd(), buff, MAX_EM_BUFF_SZ*EM_MAX_BANDS);
-                    if (len) {
-                        proto_process(buff, static_cast<unsigned int>(len), em);
+                        unsigned char buff[MAX_EM_BUFF_SZ * EM_MAX_BANDS];
+                        ssize_t len = read(fd, buff, sizeof(buff));
+                        if (len > 0)
+                            proto_process(buff, static_cast<unsigned int>(len), em);
+                        else if (len < 0) {
+                            if (errno != EINTR && errno != EAGAIN && errno != EWOULDBLOCK)
+                                em_printfout("IEEE1905 read failed fd=%d: %s", fd, strerror(errno));
+                        }
+#endif // AL_SAP
                     }
                 }
-#endif //AL_SAP not defined.
+                em = static_cast<em_t *>(hash_map_get_next(m_em_map, em));
             }
-            em = static_cast<em_t *>(hash_map_get_next(m_em_map, em));
-        }
-        tm.tv_sec = 0;
-        tm.tv_usec = m_timeout * 1000;
-        highest_fd = reset_listeners();
 
+            // Process netlink events only when monitoring is enabled.
+            if (netlink_ready)
+                m_stp.on_readable();
+        }
+
+        /* Reconcile STP root state periodically even when no RTNETLINK event occurs. With a network switch between EM gateway and exthe Extender devices, the ETH link on the extender remain up, when the cable is removed between gateway and the switch */
+        if (netlink_enabled) {
+            const auto now = steady_clock::now();
+            if (now >= next_stp_reconcile) {
+                m_stp.reconcile();
+                next_stp_reconcile = steady_clock::now() + stp_reconcile_interval;
+            }
+        }
     }
 }
-
 
 void *em_mgr_t::mgr_nodes_listen(void *arg)
 {
@@ -625,18 +677,36 @@ int em_mgr_t::init(const char *data_model_path)
     m_queue.timeout = EM_MGR_TOUT;
     m_msg_id = 0;
 
+    if (!m_stp.init()) {
+        em_printfout("EM_STP: bridge STP initialization failed");
+        return -1;
+    }
+
     orch_init();
-    return data_model_init(data_model_path);
+
+    rc = data_model_init(data_model_path);
+    if (rc != 0) {
+        em_printfout("Datamodel initialization failed");
+        m_stp.shutdown();
+        return rc;
+    }
+
+    return 0;
 }
 
-em_mgr_t::em_mgr_t()
+em_mgr_t::em_mgr_t() : m_stp([this](const em_backhaul_interface_notify_t &evt) {
+    io_process(em_bus_event_type_backhaul_change,
+              reinterpret_cast<unsigned char *>(const_cast<em_backhaul_interface_notify_t *>(&evt)),
+              static_cast<unsigned int>(sizeof(evt)));
+      })
 {
     m_exit = false;
     m_timeout = EM_MGR_TOUT;
-	m_tick_demultiplex = 0;
+    m_tick_demultiplex = 0;
 }
 
 em_mgr_t::~em_mgr_t()
 {
-
+    m_stp.shutdown();
 }
+

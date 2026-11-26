@@ -3218,6 +3218,7 @@ typedef enum {
     em_bus_event_type_topo_publish,
     em_bus_event_type_metrics_updated,
     em_bus_event_type_client_disassoc_stats,
+    em_bus_event_type_backhaul_change,
 
     em_bus_event_type_max
 } em_bus_event_type_t;

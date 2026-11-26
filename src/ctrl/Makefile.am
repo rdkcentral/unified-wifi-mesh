@@ -47,6 +47,7 @@ endif
 onewifi_em_ctrl_SOURCES =  \
      $(top_srcdir)/src/em/em.cpp \
      $(top_srcdir)/src/em/em_mgr.cpp \
+     $(top_srcdir)/src/em/em_bh_arbitration.cpp \
      $(top_srcdir)/src/em/em_msg.cpp \
      $(top_srcdir)/src/em/em_onewifi.cpp \
      $(top_srcdir)/src/em/em_sm.cpp \
