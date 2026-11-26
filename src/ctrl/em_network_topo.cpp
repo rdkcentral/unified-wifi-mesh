@@ -321,6 +321,8 @@ bool em_network_topo_t::remove(dm_easy_mesh_t *dm, em_network_topo_t **child_top
 		if (child_topos != NULL && num_child_topos != NULL) {
 			memcpy(child_topos, m_topology[i]->m_topology, sizeof(m_topology[i]->m_topology));
 			*num_child_topos = m_topology[i]->m_num_topologies;
+		} else {
+			m_topology[i]->delete_children();
 		}
 		delete m_topology[i];
 		for (i = index; i < m_num_topologies - 1; i++) {
@@ -344,6 +346,15 @@ bool em_network_topo_t::remove(dm_easy_mesh_t *dm, em_network_topo_t **child_top
 	em_printfout("Could not find topology for dev_mac:%s in any child topologies of parent dm:%s",
 		dev_mac_str.c_str(), parent_dev_mac_str.c_str());
 	return false;
+}
+
+void em_network_topo_t::delete_children()
+{
+	for (unsigned int i = 0; i < m_num_topologies; i++) {
+		m_topology[i]->delete_children();
+		delete m_topology[i];
+	}
+	m_num_topologies = 0;
 }
 
 em_network_topo_t::em_network_topo_t(dm_easy_mesh_t *dm)

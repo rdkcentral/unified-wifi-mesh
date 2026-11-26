@@ -192,16 +192,22 @@ void dm_device_t::encode(cJSON *obj, bool summary, bool skip_model)
     }
 
 	bh_obj = cJSON_AddObjectToObject(obj, "Backhaul");
-    dm_easy_mesh_t::macbytes_to_string(m_device_info.backhaul_mac.mac, mac_str);
+    dm_easy_mesh_t::macbytes_to_string(m_device_info.link_has_parent ? m_device_info.link_parent_if : m_device_info.backhaul_mac.mac, mac_str);
     cJSON_AddStringToObject(bh_obj, "MACAddress", mac_str);
-	switch (m_device_info.backhaul_mac.media) {
-		case em_media_type_ieee8023ab:
-			strncpy(media_str, "Ethernet", strlen("Ethernet") + 1);
-			break;
+	if (m_device_info.link_has_parent) {
+		// 0x01xx media types are IEEE 802.11
+		const char *link_media = ((m_device_info.link_intf_type & 0xff00) == 0x0100) ? "Wireless LAN" : "Ethernet";
+		strncpy(media_str, link_media, strlen(link_media) + 1);
+	} else {
+		switch (m_device_info.backhaul_mac.media) {
+			case em_media_type_ieee8023ab:
+				strncpy(media_str, "Ethernet", strlen("Ethernet") + 1);
+				break;
 
-		default:
-			strncpy(media_str, "Wireless LAN", strlen("Wireless LAN") + 1);
-			break;
+			default:
+				strncpy(media_str, "Wireless LAN", strlen("Wireless LAN") + 1);
+				break;
+		}
 	}
     cJSON_AddStringToObject(bh_obj, "MediaType", media_str);
 
@@ -234,8 +240,9 @@ void dm_device_t::encode(cJSON *obj, bool summary, bool skip_model)
     cJSON_AddStringToObject(obj, "ControllerOperationMode", m_device_info.ctrl_operation_mode);
 
     cJSON *backhaul_downmacArray = cJSON_CreateArray();
-    for (i = 0; i < m_device_info.num_backhaul_down_mac; i++) {
-        cJSON_AddItemToArray(backhaul_downmacArray, cJSON_CreateString(m_device_info.backhaul_down_mac[i]));
+    for (i = 0; i < m_device_info.num_link_children; i++) {
+        dm_easy_mesh_t::macbytes_to_string(m_device_info.link_children[i].if_mac, mac_str);
+        cJSON_AddItemToArray(backhaul_downmacArray, cJSON_CreateString(mac_str));
     }
     // Add the array to the object
     cJSON_AddItemToObject(obj, "BackhaulDownMACAddress", backhaul_downmacArray);
@@ -243,7 +250,7 @@ void dm_device_t::encode(cJSON *obj, bool summary, bool skip_model)
     //dm_easy_mesh_t::macbytes_to_string(m_device_info.backhaul_down_mac.mac, mac_str);
     //cJSON_AddStringToObject(obj, "BackhaulDownMACAddress", mac_str);
     //cJSON_AddStringToObject(obj, "BackhaulMediaType", m_device_info.backhaul_media_type); //need to check with soumya
-    dm_easy_mesh_t::macbytes_to_string(m_device_info.backhaul_alid.mac, mac_str);
+    dm_easy_mesh_t::macbytes_to_string(m_device_info.link_has_parent ? m_device_info.link_parent_alid : m_device_info.backhaul_alid.mac, mac_str);
     cJSON_AddNumberToObject(obj, "BackhaulPHYRate", m_device_info.backhaul_phyrate);
     cJSON_AddStringToObject(obj, "BackhaulALID", mac_str);
     cJSON_AddBoolToObject(obj, "TrafficSeparationCapability", m_device_info.traffic_sep_cap);
@@ -273,6 +280,9 @@ void dm_device_t::operator = (const dm_device_t& obj) {
     memcpy(&this->m_device_info.intf.mac ,&obj.m_device_info.intf.mac,sizeof(mac_address_t));
     memcpy(&this->m_device_info.intf.name,&obj.m_device_info.intf.name,sizeof(em_interface_name_t));
     memcpy(&this->m_device_info.id.net_id,&obj.m_device_info.id.net_id,sizeof(em_long_string_t));
+    if (memcmp(obj.m_device_info.id.dev_mac, ZERO_MAC_ADDR, sizeof(mac_address_t)) != 0) {
+        memcpy(&this->m_device_info.id.dev_mac,&obj.m_device_info.id.dev_mac,sizeof(mac_address_t));
+    }
     memcpy(&this->m_device_info.multi_ap_cap,&obj.m_device_info.multi_ap_cap,sizeof(em_long_string_t));
     this->m_device_info.coll_interval = obj.m_device_info.coll_interval;
     this->m_device_info.report_unsuccess_assocs = obj.m_device_info.report_unsuccess_assocs;

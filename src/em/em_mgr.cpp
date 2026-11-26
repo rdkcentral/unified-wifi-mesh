@@ -173,6 +173,20 @@ void em_mgr_t::delete_nodes()
     }
 }
 
+void em_mgr_t::delete_nodes_of_dm(dm_easy_mesh_t *dm)
+{
+    em_t *em = NULL, *tmp;
+
+    em = static_cast<em_t *>(hash_map_get_first(m_em_map));
+    while (em != NULL) {
+        tmp = em;
+        em = static_cast<em_t *>(hash_map_get_next(m_em_map, em));
+        if (tmp->get_data_model() == dm) {
+            delete_node(tmp->get_radio_interface());
+        }
+    }
+}
+
 void em_mgr_t::delete_node(em_interface_t *ruid)
 {
     em_t *em = NULL;

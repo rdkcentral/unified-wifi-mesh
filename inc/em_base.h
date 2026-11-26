@@ -35,6 +35,7 @@ extern "C"
 #include <uuid/uuid.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <string.h>
 #include "ec_base.h"
 
 #define EM_MAX_NETWORKS	5
@@ -240,6 +241,13 @@ static const mac_address_t EM_GLOBAL_MAC_ADDRESS = {0xff, 0xff, 0xff, 0xff, 0xff
 #define EM_MAX_CMD  16
 
 #define EM_BACKHAUL_DOWNMAC_ADDR 16
+#define EM_MAX_LINK_PAIRS        32
+#define EM_LINK_PAIRS_MAX_AGE    35
+#define EM_LINK_LOST_GRACE       60
+#define EM_MAX_KEEP_DEVICES      32
+#define EM_MAX_LOST_PER_REMOVE   ((EM_MAX_CMD - 1) / 3)
+#define EM_AGENT_RENEW_PERIOD    30
+#define EM_MAX_KNOWN_BSTA        4
 
 #define EM_PATH_PREFIX "/tmp/onewifi_mesh"
 #define EM_AGENT_PATH   "agent"
@@ -2476,6 +2484,40 @@ typedef enum {
 
 
 typedef struct {
+    mac_address_t   neigh_al_mac;
+    mac_address_t   local_if_mac;
+    mac_address_t   neigh_if_mac;
+    unsigned short  intf_type;
+} em_link_pair_t;
+
+typedef struct {
+    mac_address_t   alid;
+    mac_address_t   if_mac;
+} em_link_child_t;
+
+static inline const char *em_link_media_type_str(unsigned short intf_type)
+{
+    switch (intf_type) {
+        case 0x0000: return "IEEE 802.3u";
+        case 0x0001: return "IEEE 802.3ab";
+        case 0x0100: return "IEEE 802.11b";
+        case 0x0101: return "IEEE 802.11g";
+        case 0x0102: return "IEEE 802.11a";
+        case 0x0103: return "IEEE 802.11n 2.4";
+        case 0x0104: return "IEEE 802.11n 5.0";
+        case 0x0105: return "IEEE 802.11ac";
+        case 0x0106: return "IEEE 802.11ad";
+        case 0x0107: return "IEEE 802.11af";
+        case 0x0108: return "IEEE 802.11ax";
+        case 0x0109: return "IEEE 802.11be";
+        case 0x0200: return "IEEE 1901 Wavelet";
+        case 0x0201: return "IEEE 1901 FFT";
+        case 0x0300: return "MoCAv1.1";
+        default:     return "Generic PHY";
+    }
+}
+
+typedef struct {
     queue_t *queue;
     pthread_cond_t  cond;
     pthread_mutex_t lock;
@@ -2605,6 +2647,21 @@ typedef struct {
     em_interface_t   backhaul_mac;
     unsigned char    num_backhaul_down_mac;
     em_string_t      backhaul_down_mac[EM_BACKHAUL_DOWNMAC_ADDR];
+    unsigned char    num_link_pairs;
+    em_link_pair_t   link_pairs[EM_MAX_LINK_PAIRS];
+    unsigned long    link_pairs_time;
+    bool             link_has_parent;
+    unsigned long    link_lost_since;
+    unsigned long    link_eth_since;
+    unsigned long    link_assoc_since;
+    unsigned long    last_rx_sec;
+    mac_address_t    link_parent_alid;
+    mac_address_t    link_parent_if;
+    mac_address_t    link_local_if;
+    unsigned short   link_intf_type;
+    unsigned short   link_wifi_intf_type;
+    unsigned char    num_link_children;
+    em_link_child_t  link_children[EM_BACKHAUL_DOWNMAC_ADDR];
     wifi_ieee80211Variant_t  backhaul_media_type;
     unsigned int    backhaul_phyrate;
     em_interface_t   backhaul_alid;
@@ -2632,6 +2689,26 @@ typedef struct {
     unsigned char cpu_temp;
     em_ext_device_info_t extended_info;
 } em_device_info_t;
+
+/* Link topology is runtime only, copy it so it survives config updates */
+static inline void em_device_info_copy_link(em_device_info_t *dst, const em_device_info_t *src)
+{
+    dst->num_link_pairs = src->num_link_pairs;
+    memcpy(dst->link_pairs, src->link_pairs, sizeof(dst->link_pairs));
+    dst->link_pairs_time = src->link_pairs_time;
+    dst->link_has_parent = src->link_has_parent;
+    dst->link_lost_since = src->link_lost_since;
+    dst->link_eth_since = src->link_eth_since;
+    dst->link_assoc_since = src->link_assoc_since;
+    dst->last_rx_sec = src->last_rx_sec;
+    memcpy(dst->link_parent_alid, src->link_parent_alid, sizeof(dst->link_parent_alid));
+    memcpy(dst->link_parent_if, src->link_parent_if, sizeof(dst->link_parent_if));
+    memcpy(dst->link_local_if, src->link_local_if, sizeof(dst->link_local_if));
+    dst->link_intf_type = src->link_intf_type;
+    dst->link_wifi_intf_type = src->link_wifi_intf_type;
+    dst->num_link_children = src->num_link_children;
+    memcpy(dst->link_children, src->link_children, sizeof(dst->link_children));
+}
 
 typedef struct {
     unsigned char  onboarding_proto;
@@ -2980,6 +3057,9 @@ typedef struct {
     unsigned char neigh_bss_color_in_use_bitmap[8];
     unsigned char radio_temp;
     mac_address_t backhaul_sta;
+    // Backhaul STA MAC this radio reported earlier, see em_ctrl_t::m_known_agents. It names
+    // the owner of a backhaul STA that associates before its agent has reported it again.
+    mac_address_t known_backhaul_sta;
 } em_radio_info_t;
 
 typedef struct {

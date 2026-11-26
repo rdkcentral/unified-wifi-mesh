@@ -1103,6 +1103,10 @@ public:
     static bus_error_t affap_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
     static bus_error_t affap_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
 
+    //BackhaulDown
+    static bus_error_t bhdown_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
+    static bus_error_t bhdown_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
+
     //STAMLD
     static bus_error_t stamld_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
     static bus_error_t stamld_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);

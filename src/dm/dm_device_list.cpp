@@ -207,8 +207,15 @@ int dm_device_list_t::update_db(db_client_t& db_client, dm_orch_type_t op, void 
     if (prepare_db_operation(db_client, op) != 0) {
         return -1;
     }
-    dm_easy_mesh_t::macbytes_to_string(info->backhaul_alid.mac, alid_str);
     dm_easy_mesh_t::macbytes_to_string(info->backhaul_sta, bsta_str);
+    if (info->link_has_parent) {
+        dm_easy_mesh_t::macbytes_to_string(info->link_parent_if, bk_mac_str);
+        dm_easy_mesh_t::macbytes_to_string(info->link_parent_alid, alid_str);
+        media_str = em_link_media_type_str(info->link_intf_type);
+    } else {
+        dm_easy_mesh_t::macbytes_to_string(info->backhaul_mac.mac, bk_mac_str);
+        dm_easy_mesh_t::macbytes_to_string(info->backhaul_alid.mac, alid_str);
+    }
 
     //printf("dm_device_list_t:%s:%d: Operation: %s\n", __func__, __LINE__, em_cmd_t::get_orch_op_str(op));
     switch (op) {
@@ -218,7 +225,7 @@ int dm_device_list_t::update_db(db_client_t& db_client, dm_orch_type_t op, void 
                     info->max_reporting_rate, info->ap_metrics_reporting_interval, info->manufacturer, info->serial_number,
                     info->manufacturer_model, info->software_ver, info->exec_env, info->country_code, info->traffic_sep_allowed,
                     info->svc_prio_allowed, info->dfs_enable, info->max_unsuccessful_assoc_report_rate, info->sta_steer_state,
-                    info->coord_cac_allowed, dm_easy_mesh_t::macbytes_to_string(info->backhaul_mac.mac, bk_mac_str), media_str,
+                    info->coord_cac_allowed, bk_mac_str, media_str,
                     alid_str, bsta_str, info->traffic_sep_cap, info->easy_conn_cap,
                     info->test_cap);
             break;
@@ -228,7 +235,7 @@ int dm_device_list_t::update_db(db_client_t& db_client, dm_orch_type_t op, void 
                     info->max_reporting_rate, info->ap_metrics_reporting_interval, info->manufacturer, info->serial_number,
                     info->manufacturer_model, info->software_ver, info->exec_env, info->country_code, info->traffic_sep_allowed,
                     info->svc_prio_allowed, info->dfs_enable, info->max_unsuccessful_assoc_report_rate, info->sta_steer_state,
-                    info->coord_cac_allowed, dm_easy_mesh_t::macbytes_to_string(info->backhaul_mac.mac, bk_mac_str), media_str,
+                    info->coord_cac_allowed, bk_mac_str, media_str,
                     alid_str, bsta_str, info->traffic_sep_cap, info->easy_conn_cap,
                     info->test_cap, key);
             break;
@@ -382,6 +389,8 @@ bool dm_device_list_t::compare_db(db_client_t& db_client, const dm_device_t& sta
         info.cached_mem = sta.m_device_info.cached_mem;
         info.cpu_load = sta.m_device_info.cpu_load;
         info.cpu_temp = sta.m_device_info.cpu_temp;
+
+        em_device_info_copy_link(&info, &sta.m_device_info);
 
         if (memcmp(static_cast<const void*>(&sta.m_device_info), static_cast<const void*>(&info), sizeof(em_device_info_t)) == 0) {
             db_client.free_result(ctx);

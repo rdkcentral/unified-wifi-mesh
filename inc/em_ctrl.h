@@ -53,6 +53,49 @@ class em_ctrl_t : public em_mgr_t {
         struct timespec ts;
     } em_recent_disassoc_t;
     std::map<std::string, em_recent_disassoc_t> m_recent_disassoc;
+
+    /* What the controller needs to build the data model of an agent again, keyed by AL MAC. */
+    typedef struct {
+        em_profile_type_t profile;
+        uint8_t is_emplus_agent;
+        unsigned long commit_sec;
+        unsigned long renew_sec;
+        // Backhaul STA MAC of each radio that has reported one. An agent on Ethernet does not
+        // report it, and a data model created again starts without it.
+        struct {
+            mac_address_t ruid;
+            mac_address_t sta;
+        } bsta[EM_MAX_KNOWN_BSTA];
+        unsigned int num_bsta;
+    } em_known_agent_t;
+    std::map<std::string, em_known_agent_t> m_known_agents;
+
+	/**!
+	 * @brief Brings back an agent that talks to the controller without being configured by it.
+	 *
+	 * An agent removed from the data model (RemoveDevice, or lost and removed) can keep its
+	 * configuration and go on reporting without ever sending an AP-Autoconfiguration Search.
+	 * Its data model is created again from what was known about it, and once it exists without
+	 * radios the agent is sent an AP-Autoconfiguration Renew, which it answers with an M1 per
+	 * radio. Both steps are repeated at most every EM_AGENT_RENEW_PERIOD seconds.
+	 *
+	 * @param[in] al_mac AL MAC address the message came from.
+	 * @param[in] dm Data model of that agent, NULL if it has none.
+	 * @param[in] al_em The AL em, used to send the Renew.
+	 */
+	void renew_forgotten_agent(const unsigned char *al_mac, dm_easy_mesh_t *dm, em_t *al_em);
+
+	/**!
+	 * @brief Keeps the backhaul STA MAC of each radio of an agent across its data models.
+	 *
+	 * A backhaul STA MAC a radio reports is stored with the agent, and every radio of the data
+	 * model gets the stored value as known_backhaul_sta. The reported value (backhaul_sta) is
+	 * left as the agent gave it.
+	 *
+	 * @param[in,out] agent What is remembered about the agent.
+	 * @param[in,out] dm Data model of that agent.
+	 */
+	void remember_backhaul_stas(em_known_agent_t &agent, dm_easy_mesh_t *dm);
 	em_dev_test_t dev_test;
 
     // Persistence backend resolved from the process's command-line

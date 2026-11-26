@@ -159,6 +159,13 @@ public:
 	 */
 	bool remove(dm_easy_mesh_t *dm, em_network_topo_t **child_topos = NULL, unsigned int *num_child_topos = NULL);
 
+	/**!
+	 * @brief Deletes every topology below this one.
+	 *
+	 * Used when a topology is removed and the caller does not take over its children.
+	 */
+	void delete_children();
+
 	
 	/**!
 	 * @brief Adds a network topology to the specified EasyMesh instance.

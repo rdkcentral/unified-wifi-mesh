@@ -285,9 +285,12 @@ void dm_easy_mesh_list_t::update_device(const char *key, const dm_device_t *dev)
         uint32_t cached_mem = pdev->m_device_info.cached_mem;
         unsigned char cpu_load = pdev->m_device_info.cpu_load;
         unsigned char cpu_temp = pdev->m_device_info.cpu_temp;
+        em_device_info_t link_keep;
+        em_device_info_copy_link(&link_keep, &pdev->m_device_info);
 
         memcpy(&pdev->m_device_info, &dev->m_device_info, sizeof(em_device_info_t));
 
+        em_device_info_copy_link(&pdev->m_device_info, &link_keep);
         pdev->m_device_info.uptime = uptime;
         pdev->m_device_info.total_mem = total_mem;
         pdev->m_device_info.free_mem = free_mem;
@@ -1647,6 +1650,10 @@ void dm_easy_mesh_list_t::delete_data_model(const char *net_id, const unsigned c
     //printf("%s:%d: Putting data model at key: %s\n", __func__, __LINE__, key);
 
     dm = static_cast<dm_easy_mesh_t *> (hash_map_remove(m_list, key));
+    if (dm == NULL) {
+        em_printfout("Can not find data model at key: %s, nothing to delete", key);
+        return;
+    }
 
     //printf("%s:%d: deleteing data model at key: %s, dm:%p, colocated:%d\n", __func__, __LINE__, key, dm, dm->get_colocated());
     dm->deinit();

@@ -127,6 +127,9 @@ int tr_181_t::wfa_set_bus_callbackfunc_pointers(const char *full_namespace, bus_
         ELEMENT(DE_DEVICE_RADIONOE,               CALLBACK_GETTER(device_get)),
         ELEMENT(DE_DEVICE_CACSTATNOE,             CALLBACK_GETTER(device_get)),
         ELEMENT(DE_DEVICE_BHDOWNNOE,              CALLBACK_GETTER(device_get)),
+        ELEMENT(DE_BHDOWN_TABLE,                  CALLBACK_GETTER(bhdown_tget)),
+        ELEMENT(DE_BHDOWN_ALID,                   CALLBACK_GETTER(bhdown_get)),
+        ELEMENT(DE_BHDOWN_MACADDR,                CALLBACK_GETTER(bhdown_get)),
         ELEMENT(DE_DEVICE_XAIRTIES_UPTIME,         CALLBACK_GETTER(device_get)),
         ELEMENT(DE_DEVICE_XAIRTIES_TOTAL,          CALLBACK_GETTER(device_get)),
         ELEMENT(DE_DEVICE_XAIRTIES_FREE,           CALLBACK_GETTER(device_get)),
@@ -144,6 +147,7 @@ int tr_181_t::wfa_set_bus_callbackfunc_pointers(const char *full_namespace, bus_
         ELEMENT(DE_RADIO_CHIPVENDOR,       CALLBACK_GETTER(radio_get)),
         ELEMENT(DE_RADIO_CURROPNOE,        CALLBACK_GETTER(radio_get)),
         ELEMENT(DE_RADIO_BSSNOE,           CALLBACK_GETTER(radio_get)),
+        ELEMENT(DE_BHSTA_MACADDR,          CALLBACK_GETTER(rbhsta_get)),
         ELEMENT(DE_RADIO_XAIRTIES_OPERSTANDARDS,  CALLBACK_GETTER(rcaps_get)),
         ELEMENT(DE_RADIO_XAIRTIES_TEMP,           CALLBACK_GETTER(radio_get)),
         ELEMENT(DE_RCAPS_HTCAPS,           CALLBACK_GETTER(rcaps_get)),
@@ -905,6 +909,28 @@ bus_error_t tr_181_t::affap_tget(char *event_name, raw_data_t *p_data, bus_user_
 
     if (em_ctrl != NULL) {
         return em_ctrl->get_dm_ctrl()->affap_tget(event_name, p_data);
+    }
+
+    return bus_error_general;
+}
+
+bus_error_t tr_181_t::bhdown_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
+{
+    em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
+
+    if (em_ctrl != NULL) {
+        return em_ctrl->get_dm_ctrl()->bhdown_get(event_name, p_data);
+    }
+
+    return bus_error_general;
+}
+
+bus_error_t tr_181_t::bhdown_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
+{
+    em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
+
+    if (em_ctrl != NULL) {
+        return em_ctrl->get_dm_ctrl()->bhdown_tget(event_name, p_data);
     }
 
     return bus_error_general;

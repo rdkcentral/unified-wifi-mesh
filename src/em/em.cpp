@@ -314,6 +314,7 @@ void em_t::proto_process(unsigned char *data, unsigned int len)
         case em_msg_type_topo_resp:
         case em_msg_type_topo_query:
         case em_msg_type_topo_notif:
+        case em_msg_type_link_metric_resp:
         case em_msg_type_ap_mld_config_req:
         case em_msg_type_ap_mld_config_resp:
         case em_msg_type_bss_config_req:

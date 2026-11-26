@@ -845,6 +845,40 @@ class em_configuration_t {
 	 * @note Ensure the buffer is properly allocated and the length is correct before calling this function.
 	 */
 	int handle_topology_notification(unsigned char *buff, unsigned int len);
+
+	/**!
+	 * @brief Parses the Transmitter Link Metric TLVs of a Link Metric Response (controller only).
+	 *
+	 * Stores the reported interface pairs in the device info of the sending agent.
+	 *
+	 * @param[in] buff Pointer to the buffer containing the message.
+	 * @param[in] len Length of the data in the buffer.
+	 *
+	 * @retval 0 on success.
+	 * @retval -1 on failure.
+	 */
+	int handle_link_metric_response(unsigned char *buff, unsigned int len);
+
+	/**!
+	 * @brief Derives parent and children of every agent from the stored link pairs (controller only).
+	 *
+	 * Runs a BFS from the controller over the link pairs of all agents. The parent of an agent is
+	 * a neighbor with a smaller depth, so agents behind an unmanaged switch end up as siblings.
+	 * Link pairs older than EM_LINK_PAIRS_MAX_AGE seconds are dropped first.
+	 *
+	 * @param[in] mgr Manager that owns the data models.
+	 */
+	static void build_link_topology(em_mgr_t *mgr);
+
+	/**!
+	 * @brief Removes agents that lost their link to the controller (controller only).
+	 *
+	 * Submits a RemoveDevice event that keeps every device except the given ones.
+	 *
+	 * @param[in] mgr Manager that owns the data models.
+	 * @param[in] lost Data models of the agents to remove.
+	 */
+	static void remove_lost_devices(em_mgr_t *mgr, const std::vector<dm_easy_mesh_t *> &lost);
 	int handle_bsta_radio_cap(unsigned char *buff, unsigned int len);
 	int handle_assoc_sta_mld_conf_rep_tlv(unsigned char *buff, unsigned int len);
 
@@ -1763,6 +1797,16 @@ public:
 	 * @note Ensure that the network interface is up before calling this function.
 	 */
 	int send_autoconfig_renew_msg();
+
+	/**!
+	 * @brief Sends an AP-Autoconfiguration Renew to one agent for one frequency band.
+	 *
+	 * @param[in] agent_al_mac AL MAC address of the agent the message is addressed to.
+	 * @param[in] band Frequency band carried in the SupportedFreqBand TLV.
+	 *
+	 * @returns Length of the frame sent, -1 on failure.
+	 */
+	int send_autoconfig_renew_msg(const unsigned char *agent_al_mac, em_freq_band_t band);
     
 	/**!
 	 * @brief Handles encrypted settings.

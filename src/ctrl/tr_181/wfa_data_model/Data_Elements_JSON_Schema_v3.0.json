@@ -192,6 +192,7 @@
             "title": "The media type of a physical link",
             "type": "string",
             "enum": [
+                "IEEE 802.3u",
                 "IEEE 802.3ab",
                 "IEEE 802.11b",
                 "IEEE 802.11g",
@@ -1885,6 +1886,24 @@
                                         }
                                     }
                                 ]
+                            },
+                            "BackhaulDownNumberOfEntries": {
+                                "$ref": "#/definitions/uint32_t"
+                            },
+                            "BackhaulDown": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "properties": {
+                                        "BackhaulDownALID": {
+                                            "$ref": "#/definitions/macaddr_t"
+                                        },
+                                        "BackhaulDownMACAddress": {
+                                            "$ref": "#/definitions/macaddr_t"
+                                        }
+                                    }
+                                }
                             },
                             "BackhaulMediaType": {
                                 "oneOf": [
