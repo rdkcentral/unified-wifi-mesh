@@ -8241,8 +8241,12 @@ bus_error_t dm_easy_mesh_ctrl_t::wf6ap_tget_params(dm_easy_mesh_t *dm, const cha
         return rc;
     }
     em_radio_cap_info_t *rci = radio_cap->get_radio_cap_info();
+    unsigned int num_role = rci->wifi6_cap.num_role;
+    if (num_role > MAP_AP_ROLE_MAX) {
+        num_role = MAP_AP_ROLE_MAX;
+    }
 
-    for (i = 0; i < rci->wifi6_cap.num_role; i++) {
+    for (i = 0; i < num_role; i++) {
         char mcsnss_str[256] = { 0 };
         memcpy(role, &rci->wifi6_cap.roles[i], sizeof(em_wifi6_role_wire_t));
 
