@@ -9885,6 +9885,9 @@ bus_error_t dm_easy_mesh_ctrl_t::sta_tget_params(dm_easy_mesh_t *dm, const char 
             continue;
         }
         ++idx;
+        if (si->frame_body_len > EM_MAX_FRAME_BODY_LEN) {
+            si->frame_body_len = EM_MAX_FRAME_BODY_LEN;
+        }
 
         /* Derived capability fields; decode before reading (see sta_get_inner). */
         dm_sta_t::decode_sta_capability(sta);

@@ -965,7 +965,14 @@ int em_capability_t::handle_client_cap_report(unsigned char *buff, unsigned int 
                 printf("%s:%d: result code: failure\n", __func__, __LINE__);
                 return -1;
             }
+	    unsigned short cap_tlv_len = htons(tlv->len);
+            if ((cap_tlv_len < 1) || (tmp_len < sizeof(em_tlv_t) + cap_tlv_len) ||
+                (static_cast<unsigned int>(cap_tlv_len - 1) > EM_MAX_FRAME_BODY_LEN)) {
+                em_printfout("Client cap report: invalid frame body length %u", cap_tlv_len);
+                return -1;
+            }
             sta_info.associated = true;
+            sta_info.frame_body_len = static_cast<unsigned int>(cap_tlv_len - 1);
             // The frame body is variable length: use the whole TLV value after the
             // result code. sta_info only borrows it from the received frame, the
             // data model copies it when the info is applied. Guard the zero-length
