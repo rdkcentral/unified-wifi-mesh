@@ -137,6 +137,8 @@ dm_easy_mesh_t& dm_easy_mesh_t::operator = (dm_easy_mesh_t const& obj)
         m_assoc_sta_mld[i] = obj.m_assoc_sta_mld[i];
     }
 
+    m_bsta_mld_present = obj.m_bsta_mld_present;
+    m_bsta_mld = obj.m_bsta_mld;
 
     for (unsigned int i = 0; i < EM_MLO_POLICY_HAUL_COUNT; i++) {
         m_mlo_policy[i] = obj.m_mlo_policy[i];
@@ -316,6 +318,12 @@ int dm_easy_mesh_t::commit_config(dm_easy_mesh_t& dm, em_commit_target_t target)
 			}
 		}
 
+        em_printfout("BSTA MLD present: %d", dm.m_bsta_mld_present);
+        if (dm.m_bsta_mld_present) {
+            update_bsta_mld_info(&dm.m_bsta_mld.m_bsta_mld_info);
+        } else {
+            em_printfout("No BSTA MLD info present");
+        }
 	}
     return false;
 }
@@ -3883,6 +3891,86 @@ bool dm_easy_mesh_t::update_ap_mld_for_haul(em_haul_type_t haul)
     return true;
 }
 
+bool dm_easy_mesh_t::update_bsta_mld_config(em_bsta_mld_info_t& config)
+{
+    const em_bsta_mld_info_t *bsta_mld_info;
+    const em_device_info_t *device;
+    dm_radio_t *radio;
+    dm_radio_cap_t *radio_cap;
+    const em_wifi7_mlo_cap_support_tlv_t *mlo_cap_support;
+    em_affiliated_bsta_info_t *affiliated_bsta;
+    em_bsta_mld_info_t candidate = {};
+    uint8_t supported_modes = EM_MLO_MODE_STR | EM_MLO_MODE_NSTR |
+        EM_MLO_MODE_EMLSR | EM_MLO_MODE_EMLMR;
+    uint8_t radio_modes;
+    const mac_address_t zero_mac = {0};
+    unsigned int i;
+
+    if (get_colocated()) {
+        em_printfout("Skipping BSTA MLD configuration for colocated device");
+        return false;
+    }
+
+    if (is_bsta_mld_present()) {
+        bsta_mld_info = &get_bsta_mld_info();
+        if (bsta_mld_info->num_affiliated_bsta == 0 ||
+            bsta_mld_info->num_affiliated_bsta > EM_MAX_AP_MLD) {
+            em_printfout("Invalid reported BSTA MLD affiliate count: %u",
+                bsta_mld_info->num_affiliated_bsta);
+            return false;
+        }
+        config = *bsta_mld_info;
+        return true;
+    }
+
+    device = get_device_info();
+    if (device->max_nummlds == 0 || device->bstamld_maxlinks == 0) {
+        em_printfout("Device has no reported BSTA MLD/link capacity");
+        return false;
+    }
+
+    for (i = 0; i < get_num_radios() &&
+            candidate.num_affiliated_bsta < EM_MAX_AP_MLD &&
+            candidate.num_affiliated_bsta < device->bstamld_maxlinks; i++) {
+        radio = get_radio(i);
+        if (radio == NULL ||
+            memcmp(radio->m_radio_info.intf.mac, zero_mac, sizeof(mac_address_t)) == 0) {
+            continue;
+        }
+        radio_cap = get_radio_cap(radio->m_radio_info.intf.mac);
+        if (radio_cap == NULL) {
+            em_printfout("No BSTA capability for radio %u; skipping", i);
+            continue;
+        }
+        mlo_cap_support = &radio_cap->get_radio_cap_info()->wifi7_cap.mlo_cap_support;
+        radio_modes = (mlo_cap_support->bsta_str_support ? EM_MLO_MODE_STR : 0) |
+            (mlo_cap_support->bsta_nstr_support ? EM_MLO_MODE_NSTR : 0) |
+            (mlo_cap_support->bsta_emlsr_support ? EM_MLO_MODE_EMLSR : 0) |
+            (mlo_cap_support->bsta_emlmr_support ? EM_MLO_MODE_EMLMR : 0);
+        if (radio_modes == 0) {
+            continue;
+        }
+        affiliated_bsta = &candidate.affiliated_bsta[candidate.num_affiliated_bsta++];
+        memcpy(affiliated_bsta->ruid.mac, radio->m_radio_info.intf.mac,
+            sizeof(mac_address_t));
+        supported_modes &= radio_modes;
+    }
+
+    if (candidate.num_affiliated_bsta == 0 || supported_modes == 0) {
+        em_printfout("No BSTA-capable affiliates with common MLO modes");
+        return false;
+    }
+
+    candidate.str = (supported_modes & EM_MLO_MODE_STR) != 0;
+    candidate.nstr = (supported_modes & EM_MLO_MODE_NSTR) != 0;
+    candidate.emlsr = (supported_modes & EM_MLO_MODE_EMLSR) != 0;
+    candidate.emlmr = (supported_modes & EM_MLO_MODE_EMLMR) != 0;
+
+    config = candidate;
+
+    return true;
+}
+
 bool dm_easy_mesh_t::resolve_ap_mld_to_fallback_ruid(const mac_address_t ap_mld_mac, mac_address_t fallback_ruid)
 {
     em_ap_mld_info_t *ap_mld_info = NULL;
@@ -4039,8 +4127,37 @@ void dm_easy_mesh_t::update_ap_mld_info(em_ap_mld_info_t *ap_mld_info)
 
 void dm_easy_mesh_t::update_bsta_mld_info(em_bsta_mld_info_t *bsta_mld_info)
 {
-    // TODO: Implement BMLD info update logic
-    em_printfout("Enter");
+    em_bsta_mld_info_t *current;
+    const em_affiliated_bsta_info_t *affiliated;
+    unsigned int i;
+
+    if (bsta_mld_info == NULL) {
+        em_printfout("[update_bsta_mld_info] incoming data is NULL");
+        return;
+    }
+
+    if (bsta_mld_info->num_affiliated_bsta > EM_MAX_AP_MLD) {
+        em_printfout("[update_bsta_mld_info] invalid affiliated BSTA count: %u",
+            bsta_mld_info->num_affiliated_bsta);
+        return;
+    }
+
+    current = &m_bsta_mld.m_bsta_mld_info;
+    *current = *bsta_mld_info;
+    m_bsta_mld_present = true;
+
+    em_printfout("BSTA MLD updated: MAC=%s (valid=%d) AP_MLD_MAC=%s (valid=%d) "
+        "STR=%d NSTR=%d EMLSR=%d EMLMR=%d affiliates=%u",
+        util::mac_to_string(current->mac_addr).c_str(), current->mac_addr_valid,
+        util::mac_to_string(current->ap_mld_mac_addr).c_str(), current->ap_mld_mac_addr_valid,
+        current->str, current->nstr, current->emlsr, current->emlmr,
+        current->num_affiliated_bsta);
+    for (i = 0; i < current->num_affiliated_bsta; i++) {
+        affiliated = &current->affiliated_bsta[i];
+        em_printfout("BSTA MLD affiliate[%u]: RUID=%s MAC=%s (valid=%d)", i,
+            util::mac_to_string(affiliated->ruid.mac).c_str(),
+            util::mac_to_string(affiliated->mac_addr).c_str(), affiliated->mac_addr_valid);
+    }
 }
 
 void dm_easy_mesh_t::update_assoc_sta_mld_info(em_assoc_sta_mld_info_t *assoc_sta_mld_info)
@@ -4460,6 +4577,7 @@ int dm_easy_mesh_t::init()
 {
     unsigned int i;
     m_num_assoc_sta_mld = 0;
+    m_bsta_mld_present = false;
     m_network.init();
     m_device.init();
     m_ieee_1905_security.init();
@@ -4515,6 +4633,7 @@ void dm_easy_mesh_t::reset()
     m_num_bss = 0;
     m_num_ap_mld = 0;
     m_num_assoc_sta_mld = 0;
+    m_bsta_mld_present = false;
     m_db_cfg_param.db_cfg_type = db_cfg_type_none;
     m_colocated = false;
     m_is_ctlr = false;

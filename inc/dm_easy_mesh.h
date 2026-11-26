@@ -88,7 +88,7 @@ public:
     bool    m_colocated;
     unsigned int    m_num_ap_mld;
     dm_ap_mld_t     m_ap_mld[EM_MAX_AP_MLD];
-    bool    m_bsta_mld_present;
+    bool    m_bsta_mld_present = false;
     dm_bsta_mld_t   m_bsta_mld;
     unsigned int    m_num_assoc_sta_mld;
     dm_assoc_sta_mld_t m_assoc_sta_mld[EM_MAX_ASSOC_STA_MLD];
@@ -1742,6 +1742,7 @@ public:
 	bool is_mlo_link_enabled_for_haul(em_haul_type_t haul_type, unsigned int radio_index);
 	uint8_t get_supported_mlo_modes(em_haul_type_t haul, bool bsta);
 	bool update_ap_mld_for_haul(em_haul_type_t haul);
+	bool update_bsta_mld_config(em_bsta_mld_info_t& config);
 
 	em_radio_cap_info_t *get_radio_cap_info(unsigned int index);
 	static em_radio_cap_info_t *get_radio_cap_info(void *dm, unsigned int index) { return (static_cast<dm_easy_mesh_t *>(dm))->get_radio_cap_info(index); }
