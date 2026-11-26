@@ -1249,7 +1249,7 @@ public:
 	 *
 	 * @returns The number of operational classes.
 	 */
-	unsigned int get_num_op_class() { return m_num_opclass; }
+	unsigned int get_num_op_class() { return (m_num_opclass > EM_MAX_OPCLASS) ? EM_MAX_OPCLASS : m_num_opclass; }
     
 	/**!
 	 * @brief Retrieves the number of operational classes.
