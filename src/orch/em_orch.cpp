@@ -303,6 +303,29 @@ void em_orch_t::cancel_command(em_cmd_type_t type)
     }
 }
 
+void em_orch_t::cancel_active_command(em_cmd_type_t type)
+{
+    int i, j;
+    em_cmd_t *pcmd;
+    em_t *em;
+
+    for (i = static_cast<int>(queue_count(m_active)) - 1; i >= 0; i--) {
+        pcmd = static_cast<em_cmd_t *>(queue_peek(m_active, static_cast<unsigned int>(i)));
+        if (pcmd->m_type != type) {
+            continue;
+        }
+        for (j = static_cast<int>(queue_count(pcmd->m_em_candidates)) - 1; j >= 0; j--) {
+            em = static_cast<em_t *>(queue_peek(pcmd->m_em_candidates, static_cast<unsigned int>(j)));
+            em_printfout("Setting em:%s State set to cancel", util::mac_to_string(em->get_radio_interface_mac()).c_str());
+            pre_process_cancel(pcmd, em);
+            em->set_orch_state(em_orch_state_cancel);
+        }
+    }
+
+    // the elapsed time is kept per command type, queued commands start from zero
+    reset_cmd_time(m_cmd_map, type);
+}
+
 bool em_orch_t::orchestrate(em_cmd_t *pcmd, em_t *em)
 {
     bool done = false;

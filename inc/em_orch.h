@@ -220,6 +220,13 @@ public:
 	void cancel_command(em_cmd_type_t type);
 
 	/**!
+	 * @brief Cancels the commands of a type that are being executed and keeps the queued ones.
+	 *
+	 * @param[in] type The type of command to cancel.
+	 */
+	void cancel_active_command(em_cmd_type_t type);
+
+	/**!
 	 * @brief Removes em_config command for the EM with radio mac.
 	 *
 	 * This function is used to remove cmd_type_em_config currently active and queued for the EM with the radio mac.
