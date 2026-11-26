@@ -833,6 +833,13 @@ public:
 	 */
 	int get_fd() { return m_fd; }
 
+	/**!
+         * @brief Sets the file descriptor (used by unit tests to control the descriptor a node listens on).
+         *
+         * @param[in] fd The file descriptor.
+         */
+        void set_fd(int fd) { m_fd = fd; }
+
     //Msg Construction supporting API
     
 	/**!
