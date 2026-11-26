@@ -194,6 +194,20 @@ void em_mgr_t::delete_node(em_interface_t *ruid)
 
 }
 
+void em_mgr_t::rebind_node(em_t *em, const unsigned char *al_mac)
+{
+    dm_easy_mesh_t *new_dm = get_data_model(GLOBAL_NET_ID, al_mac);
+
+    if ((new_dm == NULL) || (new_dm == em->get_data_model())) {
+        return;
+    }
+
+    em_printfout("Radio %s moves from AL MAC %s to %s", util::mac_to_string(em->get_radio_interface_mac()).c_str(),
+        util::mac_to_string(em->get_peer_mac()).c_str(), util::mac_to_string(al_mac).c_str());
+    em->set_data_model(new_dm);
+    new_dm->set_em(em);
+}
+
 em_t *em_mgr_t::create_node(em_interface_t *ruid, em_freq_band_t band, dm_easy_mesh_t *dm, bool is_al_mac,em_profile_type_t profile, em_service_type_t type)
 {
     em_t *em = NULL;
