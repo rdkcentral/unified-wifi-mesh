@@ -1906,6 +1906,14 @@ func getWirelessProfilesHandler(w http.ResponseWriter, r *http.Request) {
                     http.Error(w, fmt.Sprintf("Invalid PassPhrase for %s: %v", haul.HaulType, err), http.StatusBadRequest)
                     return
                 }
+                if len(haul.SecurityType) >= int(C.sizeof_em_string_t) {
+                    http.Error(w, fmt.Sprintf("Invalid Security Type for %s: maximum length is %d",
+                        haul.HaulType, int(C.sizeof_em_string_t)-1), http.StatusBadRequest)
+                    return
+                }
+            }
+
+            for _, haul := range payload {
                 if err := updateNetworkSSIDList(ssidTree, haul, true); err != nil {
                     http.Error(w, fmt.Sprintf("Update failed for %s: %v", haul.HaulType, err), http.StatusInternalServerError)
                     return
@@ -2264,6 +2272,28 @@ func getWirelessPolicyHandler(w http.ResponseWriter, r *http.Request) {
             if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
                 http.Error(w, "Invalid request payload", http.StatusBadRequest)
                 return
+            }
+            const maxValueLen = int(C.sizeof_em_long_string_t) - 1
+
+            for _, policy := range payload {
+                if len(policy.APMetricReportingPolicy.ManagedClientMarker) > maxValueLen {
+                    http.Error(w, "Managed Client Marker exceeds maximum length", http.StatusBadRequest)
+                    return
+                }
+
+                for _, entry := range policy.RadioSpecificMetricsPolicy {
+                    if len(entry.ID) > maxValueLen {
+                        http.Error(w, "Radio Specific Metrics Policy ID exceeds maximum length", http.StatusBadRequest)
+                        return
+                    }
+                }
+
+                for _, entry := range policy.RadioSteeringParametersPolicy {
+                    if len(entry.ID) > maxValueLen {
+                        http.Error(w, "Radio Steering Parameters Policy ID exceeds maximum length", http.StatusBadRequest)
+                        return
+                    }
+                }
             }
 
             for _, policy := range payload {
@@ -3861,8 +3891,14 @@ func updateNodeValue(parent *C.em_network_node_t, key, newVal string) {
     }
 
     // Safely zero out and copy string into fixed-size buffer
-    const bufSize = 256
+    const bufSize = int(C.sizeof_em_long_string_t)
     buf := (*[bufSize]byte)(unsafe.Pointer(&node.value_str[0]))
+
+    if len(newVal) >= bufSize {
+        log.Printf("Value for key '%s' too long (%d > %d)",
+            key, len(newVal), bufSize-1)
+        return
+    }
 
     for i := range buf {
         buf[i] = 0
