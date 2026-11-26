@@ -829,6 +829,7 @@ class em_configuration_t {
 	 * @note Ensure the buffer is properly allocated and the length is correct before calling this function.
 	 */
 	int handle_topology_response(unsigned char *buff, unsigned int len);
+	void handle_device_info_bh_media_type(unsigned char *buff, unsigned int len);
     
 	/**!
 	 * @brief Handles topology notifications.

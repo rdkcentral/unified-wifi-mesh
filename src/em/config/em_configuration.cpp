@@ -2163,6 +2163,43 @@ void em_configuration_t::set_peer_profile(const mac_address_t al_mac, em_profile
     }
 }
 
+void em_configuration_t::handle_device_info_bh_media_type(unsigned char *buff, unsigned int len)
+{
+    dm_easy_mesh_t *dm = get_data_model();
+    unsigned int offset = sizeof(mac_address_t) + 1;
+    unsigned int num_intf, i, j;
+
+    if ((dm == NULL) || (len < offset)) {
+        return;
+    }
+    dm->m_device.m_device_info.backhaul_media_type = BACKHAUL_MEDIA_UNKNOWN;
+    num_intf = buff[sizeof(mac_address_t)];
+
+    if (dm->get_colocated() == true) {
+        return;
+    }
+
+    /* Media type of the interface matching the backhaul STA MAC (Backhaul STA Radio Capabilities TLV) */
+    for (i = 0; i < num_intf; i++) {
+        unsigned char *intf_mac = &buff[offset];
+        unsigned short media_type;
+
+        if ((offset + sizeof(mac_address_t) + sizeof(unsigned short) + 1) > len) {
+            break;
+        }
+        media_type = static_cast<unsigned short>((buff[offset + sizeof(mac_address_t)] << 8) |
+            buff[offset + sizeof(mac_address_t) + 1]);
+        offset += static_cast<unsigned int>(sizeof(mac_address_t) + sizeof(unsigned short));
+        offset += 1U + buff[offset];
+
+        if ((memcmp(dm->m_device.m_device_info.backhaul_sta, ZERO_MAC_ADDR, sizeof(mac_address_t)) != 0) &&
+              (memcmp(dm->m_device.m_device_info.backhaul_sta, intf_mac, sizeof(mac_address_t)) == 0)) {
+           dm->m_device.m_device_info.backhaul_media_type = static_cast<wifi_backhaul_mediatype_t>(media_type);
+           return;
+        }
+    }
+}
+
 int em_configuration_t::handle_topology_response(unsigned char *buff, unsigned int len)
 {
     em_tlv_t *tlv;
@@ -2297,6 +2334,8 @@ int em_configuration_t::handle_topology_response(unsigned char *buff, unsigned i
             return -1;
         }
     }
+    tlv = reinterpret_cast<em_tlv_t *>(buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+    tmp_len = len - static_cast<unsigned int>(sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
 
     // optional TLVs are searched independently: always restart from the first TLV
     tlv = reinterpret_cast<em_tlv_t *>(buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
@@ -2364,6 +2403,17 @@ int em_configuration_t::handle_topology_response(unsigned char *buff, unsigned i
     em_printfout("Total Assoc STA MLD TLVs parsed: %u", assoc_sta_mld_count);
 
     em_printfout("Src al mac: " MACSTRFMT, MAC2STR(src_al_mac));
+
+    tlv = reinterpret_cast<em_tlv_t *>(buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+    tmp_len = len - static_cast<unsigned int>(sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+    while ((tlv->type != em_tlv_type_eom) && (tmp_len > 0)) {
+        if (tlv->type == em_tlv_type_device_info) {
+            handle_device_info_bh_media_type(tlv->value, ntohs(tlv->len));
+            break;
+        }
+        tmp_len -= static_cast<unsigned int>(sizeof(em_tlv_t) + htons(tlv->len));
+        tlv = reinterpret_cast<em_tlv_t *>(reinterpret_cast<unsigned char *>(tlv) + sizeof(em_tlv_t) + htons(tlv->len));
+    }
 
     if (dm->get_colocated() == true) {
         memset(dm->m_device.m_device_info.backhaul_alid.mac, 0, sizeof(mac_address_t));

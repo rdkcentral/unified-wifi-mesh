@@ -6831,6 +6831,30 @@ bus_error_t dm_easy_mesh_ctrl_t::network_get_inner(char *event_name, raw_data_t 
     return rc;
 }
 
+
+static const char *backhaul_media_type_to_tr181_str(wifi_backhaul_mediatype_t type)
+{
+    switch (type) {
+        case BACKHAUL_MEDIA_ETH_FAST:           return "IEEE 802.3u";
+        case BACKHAUL_MEDIA_ETH_GIGA:           return "IEEE 802.3ab";
+        case BACKHAUL_MEDIA_WIFI_80211B:        return "IEEE 802.11b";
+        case BACKHAUL_MEDIA_WIFI_80211G:        return "IEEE 802.11g";
+        case BACKHAUL_MEDIA_WIFI_80211A:        return "IEEE 802.11a";
+        case BACKHAUL_MEDIA_WIFI_80211N_2_4:    return "IEEE 802.11n 2.4";
+        case BACKHAUL_MEDIA_WIFI_80211N_5:      return "IEEE 802.11n 5.0";
+        case BACKHAUL_MEDIA_WIFI_80211AC:       return "IEEE 802.11ac";
+        case BACKHAUL_MEDIA_WIFI_80211AD:       return "IEEE 802.11ad";
+        case BACKHAUL_MEDIA_WIFI_80211AF:       return "IEEE 802.11af";
+        case BACKHAUL_MEDIA_WIFI_80211AX:       return "IEEE 802.11ax";
+        case BACKHAUL_MEDIA_WIFI_80211BE:       return "IEEE 802.11be";
+        case BACKHAUL_MEDIA_PLC_1901_WAVELET:   return "IEEE 1901 Wavelet";
+        case BACKHAUL_MEDIA_PLC_1901_FFT:       return "IEEE 1901 FFT";
+        case BACKHAUL_MEDIA_MOCA_V1_1:          return "MoCAv1.1";
+        case BACKHAUL_MEDIA_UNKNOWN:
+        default:                                     return "Generic PHY";
+    }
+}
+
 bus_error_t dm_easy_mesh_ctrl_t::device_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
 {
     (void) user_data;
@@ -6994,11 +7018,7 @@ bus_error_t dm_easy_mesh_ctrl_t::device_get_inner(char *event_name, raw_data_t *
     } else if (strcmp(param, "AssociatedSTAReportingInterval") == 0) {
         rc = dm_ctrl->raw_data_set(p_data, di->assoc_sta_reporting_int);
     } else if (strcmp(param, "BackhaulMediaType") == 0) {
-        if (memcmp(di->backhaul_mac.mac, ZERO_MAC_ADDR, sizeof(ZERO_MAC_ADDR)) == 0) {
-            rc = dm_ctrl->raw_data_set(p_data, di->backhaul_media_type);
-        } else {
-            rc = dm_ctrl->raw_data_set(p_data, WIFI_80211_VARIANT_AC);
-        }
+        rc = dm_ctrl->raw_data_set(p_data, backhaul_media_type_to_tr181_str(di->backhaul_media_type));
     } else if (strcmp(param, "RadioNumberOfEntries") == 0) {
         rc = dm_ctrl->raw_data_set(p_data, dm->get_num_radios());
     } else if (strcmp(param, "CACStatusNumberOfEntries") == 0) {
@@ -7163,11 +7183,7 @@ bus_error_t dm_easy_mesh_ctrl_t::device_tget_inner(char *event_name, raw_data_t 
                 dm_ctrl->property_append_tail(&property, root, idx, "BackhaulALID", bhdi->id.dev_mac);
             }
         }
-        if (memcmp(di->backhaul_mac.mac, ZERO_MAC_ADDR, sizeof(ZERO_MAC_ADDR)) == 0) {
-            dm_ctrl->property_append_tail(&property, root, idx, "BackhaulMediaType", di->backhaul_media_type);
-        } else {
-            dm_ctrl->property_append_tail(&property, root, idx, "BackhaulMediaType", WIFI_80211_VARIANT_AC);
-        }
+        dm_ctrl->property_append_tail(&property, root, idx, "BackhaulMediaType", backhaul_media_type_to_tr181_str(di->backhaul_media_type));
         dm_ctrl->property_append_tail(&property, root, idx, "RadioNumberOfEntries", dm->get_num_radios());
         dm_ctrl->property_append_tail(&property, root, idx, "CACStatusNumberOfEntries", 0U);
         dm_ctrl->property_append_tail(&property, root, idx, "BackhaulDownNumberOfEntries", di->num_backhaul_down_mac);

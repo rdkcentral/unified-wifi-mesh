@@ -44,6 +44,7 @@ int dm_device_t::decode(const cJSON *obj, void *parent_id)
     char *net_id = static_cast<char *> (parent_id);
 	
     memset(&m_device_info, 0, sizeof(em_device_info_t));
+    m_device_info.backhaul_media_type = BACKHAUL_MEDIA_UNKNOWN;
     if ((tmp = cJSON_GetObjectItem(obj, "ID")) != NULL) {
         snprintf(mac_str, sizeof(mac_str), "%s", cJSON_GetStringValue(tmp));
        	dm_easy_mesh_t::string_to_macbytes(mac_str, m_device_info.intf.mac);
@@ -292,7 +293,7 @@ void dm_device_t::operator = (const dm_device_t& obj) {
     this->m_device_info.coord_cac_allowed = obj.m_device_info.coord_cac_allowed;
     memcpy(&this->m_device_info.backhaul_mac.mac ,&obj.m_device_info.backhaul_mac.mac,sizeof(mac_address_t));
     memcpy(&this->m_device_info.backhaul_mac.name,&obj.m_device_info.backhaul_mac.name,sizeof(em_interface_name_t));
-    memcpy(&this->m_device_info.backhaul_media_type,&obj.m_device_info.backhaul_media_type,sizeof(wifi_ieee80211Variant_t));
+    memcpy(&this->m_device_info.backhaul_media_type,&obj.m_device_info.backhaul_media_type,sizeof(wifi_backhaul_mediatype_t));
     memcpy(&this->m_device_info.backhaul_alid.mac ,&obj.m_device_info.backhaul_alid.mac,sizeof(mac_address_t));
     memcpy(&this->m_device_info.backhaul_alid.name,&obj.m_device_info.backhaul_alid.name,sizeof(em_interface_name_t));
     this->m_device_info.traffic_sep_cap = obj.m_device_info.traffic_sep_cap;
@@ -334,7 +335,7 @@ bool dm_device_t::operator == (const dm_device_t& obj)
     ret += !(this->m_device_info.coord_cac_allowed == obj.m_device_info.coord_cac_allowed);
     ret += (memcmp(&this->m_device_info.backhaul_mac.mac ,&obj.m_device_info.backhaul_mac.mac,sizeof(mac_address_t)) != 0);
     ret += (memcmp(&this->m_device_info.backhaul_mac.name,&obj.m_device_info.backhaul_mac.name,sizeof(em_interface_name_t)) != 0);
-    ret += (memcmp(&this->m_device_info.backhaul_media_type,&obj.m_device_info.backhaul_media_type,sizeof(wifi_ieee80211Variant_t)) != 0);
+    ret += (memcmp(&this->m_device_info.backhaul_media_type,&obj.m_device_info.backhaul_media_type,sizeof(wifi_backhaul_mediatype_t)) != 0);
     ret += (memcmp(&this->m_device_info.backhaul_alid.mac ,&obj.m_device_info.backhaul_alid.mac,sizeof(mac_address_t)) != 0);
     ret += (memcmp(&this->m_device_info.backhaul_alid.name,&obj.m_device_info.backhaul_alid.name,sizeof(em_interface_name_t)) != 0);
     ret += !(this->m_device_info.traffic_sep_cap == obj.m_device_info.traffic_sep_cap);
@@ -385,6 +386,7 @@ dm_device_t::dm_device_t(em_device_info_t *dev) :
     m_peer_profile(em_profile_type_reserved)
 {
     memset(&m_device_info, 0, sizeof(em_device_info_t));
+    m_device_info.backhaul_media_type = BACKHAUL_MEDIA_UNKNOWN;
     if ( dev == nullptr ) {
         em_printfout("Error: device_info is null");
         return;
@@ -402,6 +404,7 @@ dm_device_t::dm_device_t() :
     m_peer_profile(em_profile_type_reserved)
 {
     memset(&m_device_info, 0, sizeof(em_device_info_t));
+    m_device_info.backhaul_media_type = BACKHAUL_MEDIA_UNKNOWN;
 }
 
 dm_device_t::~dm_device_t()

@@ -35,18 +35,22 @@ public:
 	em_profile_type_t get_peer_profile() const { return m_peer_profile; }
 	void set_peer_profile(em_profile_type_t profile) { m_peer_profile = profile; }
 
-	/**!
-	 * @brief Initializes the device information structure.
-	 *
-	 * This function sets the device information structure to zero.
-	 *
-	 * @returns int
-	 * @retval 0 on successful initialization.
-	 *
-	 * @note This function does not take any parameters and always returns 0.
-	 */
-	int init() { memset(&m_device_info, 0, sizeof(em_device_info_t)); return 0; }
-    
+   /**!
+    * @brief Initializes the device information structure.
+    *
+    * This function sets the device information structure to zero.
+    *
+    * @returns int
+    * @retval 0 on successful initialization.
+    *
+    * @note This function does not take any parameters and always returns 0.
+    */
+   int init() {
+      memset(&m_device_info, 0, sizeof(em_device_info_t));
+      m_device_info.backhaul_media_type = BACKHAUL_MEDIA_UNKNOWN;
+      return 0;
+   }
+
 	/**!
 	 * @brief Retrieves the device information.
 	 *
