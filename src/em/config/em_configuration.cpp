@@ -1150,12 +1150,20 @@ int em_configuration_t::create_ap_mld_config_tlv(unsigned char *buff)
     em_ap_mld_t *ap_mld;
     em_affiliated_ap_mld_t *affiliated_ap_mld;
     dm_easy_mesh_t  *dm;
-    unsigned int i, j;
+    dm_ap_mld_t *dm_ap_mld;
+    unsigned int j;
+    unsigned int haul_type;
+    unsigned char num_ap_mld = 0;
     unsigned short ap_mld_len = 0;
     unsigned short affiliated_ap_len = 0;
     unsigned short tlv_len = 0;
+    em_long_string_t key;
 
     dm = get_data_model();
+
+    if (buff == NULL || dm == NULL) {
+        return -1;
+    }
 
     ap_mld_conf = reinterpret_cast<em_ap_mld_config_t *> (buff);
     memset(ap_mld_conf, 0, sizeof(em_ap_mld_config_t));
@@ -1164,10 +1172,18 @@ int em_configuration_t::create_ap_mld_config_tlv(unsigned char *buff)
 
     ap_mld = ap_mld_conf->ap_mld;
 
-    ap_mld_conf->num_ap_mld = static_cast<unsigned char> (dm->get_num_ap_mld());
+    // AP MLDs are keyed by AL MAC + haul type. Enumerate them in canonical haul order
+    // because hash map iteration order is not stable.
+    for (haul_type = 0; haul_type < em_haul_type_max; haul_type++) {
+        dm_easy_mesh_t::get_ap_mld_key(dm->get_agent_al_interface_mac(),
+            static_cast<em_haul_type_t>(haul_type), key, sizeof(key));
+        dm_ap_mld = (dm->m_ap_mld_map != NULL)
+            ? static_cast<dm_ap_mld_t *> (hash_map_get(dm->m_ap_mld_map, key)) : NULL;
+        if (dm_ap_mld == NULL) {
+            continue;
+        }
 
-    for (i = 0; i < dm->get_num_ap_mld(); i++) {
-        em_ap_mld_info_t& ap_mld_info = dm->m_ap_mld[i].m_ap_mld_info;
+        em_ap_mld_info_t& ap_mld_info = dm_ap_mld->m_ap_mld_info;
         memset(ap_mld, 0, sizeof(em_ap_mld_t));
         ap_mld->ap_mld_mac_addr_valid = ap_mld_info.mac_addr_valid;
 
@@ -1185,7 +1201,7 @@ int em_configuration_t::create_ap_mld_config_tlv(unsigned char *buff)
         affiliated_ap_len = 0;
 
         for (j = 0; j < ap_mld->num_affiliated_ap; j++) {
-            em_affiliated_ap_info_t& affiliated_ap_info = dm->m_ap_mld[i].m_ap_mld_info.affiliated_ap[j];
+            em_affiliated_ap_info_t& affiliated_ap_info = ap_mld_info.affiliated_ap[j];
             memset(affiliated_ap_mld, 0, sizeof(em_affiliated_ap_mld_t));
             affiliated_ap_mld->affiliated_mac_addr_valid = affiliated_ap_info.mac_addr_valid;
             affiliated_ap_mld->link_id_valid = affiliated_ap_info.link_id_valid;
@@ -1199,8 +1215,11 @@ int em_configuration_t::create_ap_mld_config_tlv(unsigned char *buff)
 
         ap_mld = reinterpret_cast<em_ap_mld_t *>(reinterpret_cast<unsigned char *> (ap_mld) + sizeof(em_ap_mld_t) + affiliated_ap_len);
         ap_mld_len += static_cast<short unsigned int> (sizeof(em_ap_mld_t) + affiliated_ap_len);
+
+        num_ap_mld++;
     }
 
+    ap_mld_conf->num_ap_mld = num_ap_mld;
     tlv_len += ap_mld_len;
 
     return tlv_len;
@@ -2342,7 +2361,7 @@ int em_configuration_t::handle_topology_response(unsigned char *buff, unsigned i
         em_printfout("Found AP MLD details in topology response message");
         handle_ap_mld_config_tlv(tlv->value, ntohs(tlv->len));
     }
-    em_printfout("No of AP MLDs: %d", dm->m_num_ap_mld);
+    em_printfout("No of AP MLDs: %d", dm->get_num_ap_mld());
 
     // Parse Associated STA MLD Configuration Report TLVs.
     tlv = reinterpret_cast<em_tlv_t *>(buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
