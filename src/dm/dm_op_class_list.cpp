@@ -273,6 +273,10 @@ int dm_op_class_list_t::update_db(db_client_t& db_client, dm_orch_type_t op, voi
     int ret = 0;
     unsigned int i;
 
+    if (info == NULL) {
+        return -1;
+    }
+
     dm_easy_mesh_t::macbytes_to_string(info->id.ruid, mac_str);
     snprintf(id, sizeof(id), "%s@%d@%d", mac_str, info->id.type, info->id.op_class);
     if (prepare_db_operation(db_client, op) != 0) {
@@ -280,7 +284,8 @@ int dm_op_class_list_t::update_db(db_client_t& db_client, dm_orch_type_t op, voi
     }
     //printf("%s:%d: Operation:%d, id:%s\tClass: %d Channel:%d\n", __func__, __LINE__, op, id, info->op_class, info->channel);
     //Storing channels and its preferences as comma separated string in db.
-	for (i = 0; i < info->num_channels; i++) {
+    unsigned int num_channels = info->num_channels > EM_MAX_CHANNELS_IN_LIST ? EM_MAX_CHANNELS_IN_LIST : info->num_channels;
+	for (i = 0; i < num_channels; i++) {
 		snprintf(tmp, sizeof(tmp), "%d,", info->channels[i]);
 		snprintf(channels_str + strlen(channels_str), sizeof(channels_str) - strlen(channels_str), "%s", tmp);
         if (info->id.type == em_op_class_type_preference || info->id.type == em_op_class_type_anticipated) {
