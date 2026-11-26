@@ -48,6 +48,11 @@
 #include "em_cmd_ap_cap.h"
 #include "em_cmd_client_cap.h"
 
+#ifdef AL_SAP
+#include "al_service_access_point.h"
+extern MacAddress g_al_mac_sap;
+#endif
+
 std::atomic<int> dm_easy_mesh_t::s_counter{0};
 
 void dm_easy_mesh_t::set_num_op_class(unsigned int num)
@@ -119,6 +124,7 @@ dm_easy_mesh_t& dm_easy_mesh_t::operator = (dm_easy_mesh_t const& obj)
         }
     }
 
+
     if (obj.m_policy_map != NULL && m_policy_map != NULL) {
         dm_policy_t *policy = static_cast<dm_policy_t *> (hash_map_get_first(obj.m_policy_map));
         while (policy != NULL) {
@@ -127,9 +133,31 @@ dm_easy_mesh_t& dm_easy_mesh_t::operator = (dm_easy_mesh_t const& obj)
         }
     }
 
-    m_num_ap_mld = obj.m_num_ap_mld;
-    for (unsigned int i = 0; i < EM_MAX_AP_MLD; i++) {
-        m_ap_mld[i] = obj.m_ap_mld[i];
+    // Replace AP MLD map contents with a deep copy from obj
+    std::scoped_lock ap_mld_lock(m_ap_mld_mutex, obj.m_ap_mld_mutex);
+    if (m_ap_mld_map == NULL) {
+        m_ap_mld_map = hash_map_create();
+    } else {
+        dm_ap_mld_t *ap_mld = static_cast<dm_ap_mld_t *> (hash_map_get_first(m_ap_mld_map));
+        while (ap_mld != NULL) {
+            dm_ap_mld_t *next = static_cast<dm_ap_mld_t *> (hash_map_get_next(m_ap_mld_map, ap_mld));
+            em_long_string_t key;
+            dm_easy_mesh_t::get_ap_mld_key(get_agent_al_interface_mac(), ap_mld->m_ap_mld_info.haul_type, key, sizeof(key));
+            delete static_cast<dm_ap_mld_t *> (hash_map_remove(m_ap_mld_map, key));
+            ap_mld = next;
+        }
+    }
+
+    if (obj.m_ap_mld_map != NULL && m_ap_mld_map != NULL) {
+        dm_ap_mld_t *ap_mld = static_cast<dm_ap_mld_t *> (hash_map_get_first(obj.m_ap_mld_map));
+        em_long_string_t key;
+        while (ap_mld != NULL) {
+            dm_ap_mld_t *copy = new dm_ap_mld_t(*ap_mld);
+            dm_easy_mesh_t::get_ap_mld_key(get_agent_al_interface_mac(),
+                copy->m_ap_mld_info.haul_type, key, sizeof(key));
+            hash_map_put(m_ap_mld_map, strdup(key), copy);
+            ap_mld = static_cast<dm_ap_mld_t *> (hash_map_get_next(obj.m_ap_mld_map, ap_mld));
+        }
     }
 
     m_num_assoc_sta_mld = obj.m_num_assoc_sta_mld;
@@ -306,13 +334,20 @@ int dm_easy_mesh_t::commit_config(dm_easy_mesh_t& dm, em_commit_target_t target)
 			}
 		}
 
-		em_printfout("Number of AP MLDs to commit : %d", dm.m_num_ap_mld);
-		for (i = 0; i < dm.m_num_ap_mld; i++) {
-			em_ap_mld_info_t *src_mld_info = dm.m_ap_mld[i].get_ap_mld_info();
-			if (src_mld_info->num_affiliated_ap > 0) {
-				update_ap_mld_info(src_mld_info);
-			} else {
-				em_printfout("Skipping MLD[%d] as no affiliated APs found", i);
+		std::scoped_lock ap_mld_lock(m_ap_mld_mutex, dm.m_ap_mld_mutex);
+		em_printfout("Number of AP MLDs to commit : %d", dm.get_num_ap_mld());
+		if (dm.m_ap_mld_map != NULL) {
+			unsigned int mld_idx = 0;
+			dm_ap_mld_t *src_ap_mld = static_cast<dm_ap_mld_t *> (hash_map_get_first(dm.m_ap_mld_map));
+			while (src_ap_mld != NULL) {
+				em_ap_mld_info_t *src_mld_info = src_ap_mld->get_ap_mld_info();
+				if (src_mld_info->num_affiliated_ap > 0) {
+					update_ap_mld_info(src_mld_info);
+				} else {
+					em_printfout("Skipping MLD[%d] as no affiliated APs found", mld_idx);
+				}
+				mld_idx++;
+				src_ap_mld = static_cast<dm_ap_mld_t *> (hash_map_get_next(dm.m_ap_mld_map, src_ap_mld));
 			}
 		}
 
@@ -2552,9 +2587,21 @@ bool dm_easy_mesh_t::operator==(dm_easy_mesh_t const& obj)
     }
     ret += this->m_num_radios == obj.m_num_radios;
     ret += this->m_num_opclass == obj.m_num_opclass;
-    ret += this->m_num_ap_mld != obj.m_num_ap_mld;
-    for (unsigned int i = 0; i < this->m_num_ap_mld && i < EM_MAX_AP_MLD; i++) {
-        ret += !(this->m_ap_mld[i] == obj.m_ap_mld[i]);
+    {
+        std::scoped_lock ap_mld_lock(m_ap_mld_mutex, obj.m_ap_mld_mutex);
+        unsigned int this_num = (this->m_ap_mld_map != NULL) ? hash_map_count(this->m_ap_mld_map) : 0;
+        unsigned int obj_num = (obj.m_ap_mld_map != NULL) ? hash_map_count(obj.m_ap_mld_map) : 0;
+        ret += this_num != obj_num;
+        if ((this_num == obj_num) && (this_num > 0)) {
+            em_long_string_t key;
+            dm_ap_mld_t *ap_mld = static_cast<dm_ap_mld_t *> (hash_map_get_first(this->m_ap_mld_map));
+            while (ap_mld != NULL) {
+                dm_easy_mesh_t::get_ap_mld_key(get_agent_al_interface_mac(), ap_mld->m_ap_mld_info.haul_type, key, sizeof(key));
+                dm_ap_mld_t *obj_ap_mld = static_cast<dm_ap_mld_t *> (hash_map_get(obj.m_ap_mld_map, key));
+                ret += (obj_ap_mld == NULL) || !(*ap_mld == *obj_ap_mld);
+                ap_mld = static_cast<dm_ap_mld_t *> (hash_map_get_next(this->m_ap_mld_map, ap_mld));
+            }
+        }
     }
     for (unsigned int i = 0; i < EM_MAX_BSSS; i++) {
         ret += memcmp(&this->m_bss[i], &obj.m_bss[i], sizeof(dm_bss_t));
@@ -3373,6 +3420,23 @@ void dm_easy_mesh_t::deinit()
 	    m_policy_map = NULL;
     }
 
+    //destroy elements of m_ap_mld_map
+    {
+        std::lock_guard<std::recursive_mutex> ap_mld_lock(m_ap_mld_mutex);
+        if (m_ap_mld_map != NULL) {
+            dm_ap_mld_t *ap_mld = static_cast<dm_ap_mld_t *> (hash_map_get_first(m_ap_mld_map));
+            while (ap_mld != NULL) {
+                dm_ap_mld_t *tmp_ap_mld = ap_mld;
+                ap_mld = static_cast<dm_ap_mld_t *> (hash_map_get_next(m_ap_mld_map, ap_mld));
+
+                dm_easy_mesh_t::get_ap_mld_key(get_agent_al_interface_mac(), tmp_ap_mld->m_ap_mld_info.haul_type, key, sizeof(key));
+                delete static_cast<dm_ap_mld_t *> (hash_map_remove(m_ap_mld_map, key));
+            }
+            hash_map_destroy(m_ap_mld_map);
+            m_ap_mld_map = NULL;
+        }
+    }
+
     if (m_sta_assoc_map != NULL) {
         sta = static_cast<dm_sta_t *> (hash_map_get_first(m_sta_assoc_map));
         while (sta != NULL)
@@ -3653,38 +3717,84 @@ const em_mlo_policy_t *dm_easy_mesh_t::get_mlo_policy(em_haul_type_t haul) const
 
 em_ap_mld_info_t *dm_easy_mesh_t::get_ap_mld_frm_haul_type(em_haul_type_t haul_type)
 {
-    unsigned int i;
+    std::lock_guard<std::recursive_mutex> ap_mld_lock(m_ap_mld_mutex);
+    dm_ap_mld_t *dm_ap_mld;
 
     if (haul_type >= em_haul_type_max) {
         return NULL;
     }
 
-    for (i = 0; i < m_num_ap_mld; i++) {
-        if (m_ap_mld[i].m_ap_mld_info.haul_type == haul_type) {
-            return &m_ap_mld[i].m_ap_mld_info;
-        }
+    // AP MLD map is keyed by AL MAC + haul type
+    dm_ap_mld = get_ap_mld(get_agent_al_interface_mac(), haul_type);
+
+    return (dm_ap_mld != NULL) ? &dm_ap_mld->m_ap_mld_info : NULL;
+}
+
+unsigned int dm_easy_mesh_t::get_num_ap_mld(void *dm)
+{
+    if (dm == NULL) {
+        return 0;
     }
 
-    return NULL;
+    return static_cast<dm_easy_mesh_t *>(dm)->get_num_ap_mld();
+}
+
+void dm_easy_mesh_t::get_ap_mld_key(mac_address_t al_mac, em_haul_type_t haul_type, char *key, size_t sz)
+{
+    if (key == NULL || sz == 0) {
+        return;
+    }
+
+    mac_addr_str_t al_mac_str;
+    em_string_t haul_str;
+    if (al_mac == NULL || haul_type < em_haul_type_fronthaul || haul_type >= em_haul_type_max) {
+        key[0] = '\0';
+        return;
+    }
+    dm_easy_mesh_t::macbytes_to_string(al_mac, al_mac_str);
+    dm_network_ssid_t::haul_type_to_string(haul_type, haul_str);
+    snprintf(key, sz, "%s@%s", al_mac_str, haul_str);
+}
+
+dm_ap_mld_t *dm_easy_mesh_t::get_ap_mld(mac_address_t al_mac, em_haul_type_t haul_type)
+{
+    std::lock_guard<std::recursive_mutex> ap_mld_lock(m_ap_mld_mutex);
+    em_long_string_t key;
+
+    if (m_ap_mld_map == NULL || al_mac == NULL) {
+        return NULL;
+    }
+
+    get_ap_mld_key(al_mac, haul_type, key, sizeof(key));
+    return static_cast<dm_ap_mld_t *>(hash_map_get(m_ap_mld_map, key));
+}
+
+void dm_easy_mesh_t::update_ap_mld_info(void *dm, em_ap_mld_info_t *ap_mld_info)
+{
+    if (dm == NULL || ap_mld_info == NULL) {
+        throw std::invalid_argument("dm and ap_mld_info must not be NULL");
+    }
+
+    static_cast<dm_easy_mesh_t *>(dm)->update_ap_mld_info(ap_mld_info);
 }
 
 bool dm_easy_mesh_t::is_ap_mld_mac(const mac_address_t mac)
 {
-    const em_ap_mld_info_t *ap_mld_info = NULL;
-    unsigned int i;
+    std::lock_guard<std::recursive_mutex> ap_mld_lock(m_ap_mld_mutex);
+    dm_ap_mld_t *dm_ap_mld;
+    const em_ap_mld_info_t *ap_mld_info;
 
-    if (mac == NULL) {
+    if ((mac == NULL) || (m_ap_mld_map == NULL)) {
         return false;
     }
 
-    for (i = 0; i < m_num_ap_mld; i++) {
-        ap_mld_info = &m_ap_mld[i].m_ap_mld_info;
-        if (!ap_mld_info->mac_addr_valid) {
-            continue;
-        }
-        if (memcmp(ap_mld_info->mac_addr, mac, sizeof(mac_address_t)) == 0) {
+    dm_ap_mld = static_cast<dm_ap_mld_t *> (hash_map_get_first(m_ap_mld_map));
+    while (dm_ap_mld != NULL) {
+        ap_mld_info = &dm_ap_mld->m_ap_mld_info;
+        if (ap_mld_info->mac_addr_valid && (memcmp(ap_mld_info->mac_addr, mac, sizeof(mac_address_t)) == 0)) {
             return true;
         }
+        dm_ap_mld = static_cast<dm_ap_mld_t *> (hash_map_get_next(m_ap_mld_map, dm_ap_mld));
     }
 
     return false;
@@ -3776,6 +3886,7 @@ uint8_t dm_easy_mesh_t::get_supported_mlo_modes(em_haul_type_t haul, bool bsta)
 
 bool dm_easy_mesh_t::update_ap_mld_for_haul(em_haul_type_t haul)
 {
+    std::lock_guard<std::recursive_mutex> ap_mld_lock(m_ap_mld_mutex);
     const em_mlo_policy_t *policy;
     const em_network_ssid_info_t *net_ssid_info;
     em_ap_mld_info_t ap_mld_info;
@@ -3885,31 +3996,30 @@ bool dm_easy_mesh_t::update_ap_mld_for_haul(em_haul_type_t haul)
 
 bool dm_easy_mesh_t::resolve_ap_mld_to_fallback_ruid(const mac_address_t ap_mld_mac, mac_address_t fallback_ruid)
 {
-    em_ap_mld_info_t *ap_mld_info = NULL;
-    unsigned int i, j;
+    std::lock_guard<std::recursive_mutex> ap_mld_lock(m_ap_mld_mutex);
+    dm_ap_mld_t *dm_ap_mld;
+    em_ap_mld_info_t *ap_mld_info;
+    unsigned int j;
 
-    if ((ap_mld_mac == NULL) || (fallback_ruid == NULL)) {
+    if ((ap_mld_mac == NULL) || (fallback_ruid == NULL) || (m_ap_mld_map == NULL)) {
         return false;
     }
 
-    for (i = 0; i < m_num_ap_mld; i++) {
-        ap_mld_info = &m_ap_mld[i].m_ap_mld_info;
-        if (!ap_mld_info->mac_addr_valid) {
-            continue;
-        }
-        if (memcmp(ap_mld_info->mac_addr, ap_mld_mac, sizeof(mac_address_t)) != 0) {
-            continue;
-        }
-
-        // Use the first valid affiliated AP's RUID as fallback.
-        for (j = 0; j < ap_mld_info->num_affiliated_ap; j++) {
-            if (!ap_mld_info->affiliated_ap[j].mac_addr_valid) {
-                continue;
+    dm_ap_mld = static_cast<dm_ap_mld_t *> (hash_map_get_first(m_ap_mld_map));
+    while (dm_ap_mld != NULL) {
+        ap_mld_info = &dm_ap_mld->m_ap_mld_info;
+        if (ap_mld_info->mac_addr_valid && (memcmp(ap_mld_info->mac_addr, ap_mld_mac, sizeof(mac_address_t)) == 0)) {
+            // Use the first valid affiliated AP's RUID as fallback.
+            for (j = 0; j < ap_mld_info->num_affiliated_ap; j++) {
+                if (!ap_mld_info->affiliated_ap[j].mac_addr_valid) {
+                    continue;
+                }
+                memcpy(fallback_ruid, ap_mld_info->affiliated_ap[j].ruid.mac, sizeof(mac_address_t));
+                return true;
             }
-            memcpy(fallback_ruid, ap_mld_info->affiliated_ap[j].ruid.mac, sizeof(mac_address_t));
-            return true;
+            return false;
         }
-        return false;
+        dm_ap_mld = static_cast<dm_ap_mld_t *> (hash_map_get_next(m_ap_mld_map, dm_ap_mld));
     }
 
     return false;
@@ -3917,46 +4027,51 @@ bool dm_easy_mesh_t::resolve_ap_mld_to_fallback_ruid(const mac_address_t ap_mld_
 
 void dm_easy_mesh_t::update_ap_mld_info(em_ap_mld_info_t *ap_mld_info)
 {
+    std::lock_guard<std::recursive_mutex> ap_mld_lock(m_ap_mld_mutex);
+    dm_ap_mld_t *dm_ap_mld;
     em_ap_mld_info_t *target_mld;
-    em_ap_mld_info_t *candidate;
     em_affiliated_ap_info_t *input_ap;
     em_affiliated_ap_info_t *target_aff_ap;
+    em_long_string_t key;
     bool aff_ap_found;
-    unsigned int i, j, k;
+    unsigned int j, k;
 
-    if (ap_mld_info->haul_type >= em_haul_type_max) {
-        em_printfout("%s: Invalid AP MLD haul type=%d", __func__, ap_mld_info->haul_type);
+    if (ap_mld_info == NULL) {
+        em_printfout("Null ap_mld_info");
         return;
     }
 
-    target_mld = NULL;
-    // AP MLD entries are identified exclusively by haul type.
-    for (i = 0; i < m_num_ap_mld; i++) {
-        candidate = &m_ap_mld[i].m_ap_mld_info;
-
-        if (candidate->haul_type == ap_mld_info->haul_type) {
-            target_mld = candidate;
-            em_printfout("Found existing AP MLD by haul=%d at index=%u",
-                ap_mld_info->haul_type, i);
-            break;
-        }
+    if (ap_mld_info->haul_type >= em_haul_type_max) {
+        em_printfout("Invalid AP MLD haul type=%d", ap_mld_info->haul_type);
+        return;
     }
 
-    // If not found, create new entry
-    if (!target_mld) {
-        if (m_num_ap_mld >= EM_MAX_AP_MLD) {
+    if (m_ap_mld_map == NULL) {
+        em_printfout("AP-mld map is null");
+        return;
+    }
+
+    // AP MLD entries are identified by haul type, keyed per owning agent (AL MAC + haul type).
+    dm_easy_mesh_t::get_ap_mld_key(get_agent_al_interface_mac(), ap_mld_info->haul_type, key, sizeof(key));
+    em_printfout("AP MLD hashmap key=%s", key);
+    dm_ap_mld = static_cast<dm_ap_mld_t *> (hash_map_get(m_ap_mld_map, key));
+    if (dm_ap_mld != NULL) {
+        em_printfout("Found existing MLD for key %s", key);
+    } else {
+        if (hash_map_count(m_ap_mld_map) >= EM_MAX_AP_MLD) {
             em_printfout("Max MLD entries reached");
             return;
         }
 
-        target_mld = &m_ap_mld[m_num_ap_mld].m_ap_mld_info;
-        memset(target_mld, 0, sizeof(em_ap_mld_info_t));
-        em_printfout("Created new MLD at index %d", m_num_ap_mld);
-        m_num_ap_mld++;
+        dm_ap_mld = new dm_ap_mld_t();
+        hash_map_put(m_ap_mld_map, strdup(key), dm_ap_mld);
+        em_printfout("Created new MLD for key %s", key);
     }
 
+    target_mld = &dm_ap_mld->m_ap_mld_info;
+
     if (memcmp(target_mld, ap_mld_info, sizeof(*target_mld)) == 0) {
-        em_printfout("AP-MLD information is unchanged");
+        em_printfout("AP-MLD information is unchanged for key %s", key);
         return;
     }
 
@@ -3979,6 +4094,9 @@ void dm_easy_mesh_t::update_ap_mld_info(em_ap_mld_info_t *ap_mld_info)
     target_mld->emlsr = ap_mld_info->emlsr;
     target_mld->emlmr = ap_mld_info->emlmr;
 
+    em_printfout("Processing %d affiliated APs for MLD key=%s (existing count=%d)",
+        ap_mld_info->num_affiliated_ap, key, target_mld->num_affiliated_ap);
+
     // Loop through all affiliated APs
     for (j = 0; j < ap_mld_info->num_affiliated_ap; j++) {
         input_ap = &ap_mld_info->affiliated_ap[j];
@@ -3991,7 +4109,7 @@ void dm_easy_mesh_t::update_ap_mld_info(em_ap_mld_info_t *ap_mld_info)
                 if (memcmp(target_mld->affiliated_ap[k].mac_addr, input_ap->mac_addr, sizeof(mac_address_t)) == 0) {
                     target_aff_ap = &target_mld->affiliated_ap[k];
                     aff_ap_found = true;
-                    em_printfout("Found existing affiliated AP by link MAC at index %d", k);
+                    em_printfout("Found existing affiliated AP by link MAC: input index=%u existing index=%u", j, k);
                     break;
                 }
             } else {
@@ -4000,7 +4118,7 @@ void dm_easy_mesh_t::update_ap_mld_info(em_ap_mld_info_t *ap_mld_info)
                 if (memcmp(target_mld->affiliated_ap[k].ruid.mac, input_ap->ruid.mac, sizeof(mac_address_t)) == 0) {
                     target_aff_ap = &target_mld->affiliated_ap[k];
                     aff_ap_found = true;
-                    em_printfout("Found existing affiliated AP by RUID at index %d", k);
+                    em_printfout("Found existing affiliated AP by RUID: input index=%u existing index=%u", j, k);
                     break;
                 }
             }
@@ -4008,13 +4126,13 @@ void dm_easy_mesh_t::update_ap_mld_info(em_ap_mld_info_t *ap_mld_info)
 
         if (!aff_ap_found) {
             if (target_mld->num_affiliated_ap >= EM_MAX_AP_MLD) {
-                em_printfout("Max affiliated APs reached for MLD");
+                em_printfout("Max affiliated APs reached for MLD key=%s; dropping input index=%u", key, j);
                 continue;
             }
 
             target_aff_ap = &target_mld->affiliated_ap[target_mld->num_affiliated_ap];
             memset(target_aff_ap, 0, sizeof(em_affiliated_ap_info_t));
-            em_printfout("Added new affiliated AP at index %d",target_mld->num_affiliated_ap);
+            em_printfout("Added new affiliated AP: input index=%u target index=%d", j, target_mld->num_affiliated_ap);
             target_mld->num_affiliated_ap++;
         }
 
@@ -4033,9 +4151,10 @@ void dm_easy_mesh_t::update_ap_mld_info(em_ap_mld_info_t *ap_mld_info)
         }
     }
 
-    em_printfout("Updated MLD with %d affiliated APs", target_mld->num_affiliated_ap);
-
+    em_printfout("Updated MLD key=%s (haul_type=%d ssid=%s) with %d affiliated APs", key,
+         target_mld->haul_type, target_mld->ssid, target_mld->num_affiliated_ap);
 }
+
 
 void dm_easy_mesh_t::update_bsta_mld_info(em_bsta_mld_info_t *bsta_mld_info)
 {
@@ -4114,32 +4233,15 @@ void dm_easy_mesh_t::update_assoc_sta_mld_info(em_assoc_sta_mld_info_t *assoc_st
 
 void dm_easy_mesh_t::remove_ap_mld_info_by_haul_type(em_haul_type_t haul_type)
 {
-    unsigned int found_idx = m_num_ap_mld;
-    unsigned int i;
+    std::lock_guard<std::recursive_mutex> ap_mld_lock(m_ap_mld_mutex);
+    em_long_string_t key;
 
-    if (haul_type >= em_haul_type_max) {
+    if ((haul_type >= em_haul_type_max) || (m_ap_mld_map == NULL)) {
         return;
     }
 
-    for (i = 0; i < m_num_ap_mld; i++) {
-        if (m_ap_mld[i].m_ap_mld_info.haul_type == haul_type) {
-            found_idx = i;
-            break;
-        }
-    }
-
-    if (found_idx == m_num_ap_mld) {
-        return; // not found
-    }
-
-    // Compact the array: shift entries after found_idx one position left.
-    for (i = found_idx; i < m_num_ap_mld - 1; i++) {
-        m_ap_mld[i] = m_ap_mld[i + 1];
-    }
-
-    // Zero out the vacated last slot and decrement count.
-    m_ap_mld[m_num_ap_mld - 1].init();
-    m_num_ap_mld--;
+    dm_easy_mesh_t::get_ap_mld_key(get_agent_al_interface_mac(), haul_type, key, sizeof(key));
+    delete static_cast<dm_ap_mld_t *> (hash_map_remove(m_ap_mld_map, key));
 }
 
 void dm_easy_mesh_t::replace_assoc_sta_mld_info(const em_assoc_sta_mld_info_t &assoc_sta_mld_info)
@@ -4481,6 +4583,7 @@ int dm_easy_mesh_t::init()
     m_sta_map = hash_map_create();
     m_sta_assoc_map = hash_map_create();
     m_sta_dassoc_map = hash_map_create();
+    m_ap_mld_map = hash_map_create();
     m_wifi_data = static_cast<webconfig_subdoc_data_t*> (malloc(sizeof(webconfig_subdoc_data_t)));
     memset(&m_db_cfg_param, 0, sizeof(em_db_cfg_param_t));
 
@@ -4513,7 +4616,19 @@ void dm_easy_mesh_t::reset()
         }
     }
     m_num_bss = 0;
-    m_num_ap_mld = 0;
+    {
+        std::lock_guard<std::recursive_mutex> ap_mld_lock(m_ap_mld_mutex);
+        if (m_ap_mld_map != NULL) {
+            dm_ap_mld_t *ap_mld = static_cast<dm_ap_mld_t *> (hash_map_get_first(m_ap_mld_map));
+            while (ap_mld != NULL) {
+                dm_ap_mld_t *tmp_ap_mld = ap_mld;
+                ap_mld = static_cast<dm_ap_mld_t *> (hash_map_get_next(m_ap_mld_map, ap_mld));
+                em_long_string_t ap_mld_key;
+                dm_easy_mesh_t::get_ap_mld_key(get_agent_al_interface_mac(), tmp_ap_mld->m_ap_mld_info.haul_type, ap_mld_key, sizeof(ap_mld_key));
+                delete static_cast<dm_ap_mld_t *> (hash_map_remove(m_ap_mld_map, ap_mld_key));
+            }
+        }
+    }
     m_num_assoc_sta_mld = 0;
     m_db_cfg_param.db_cfg_type = db_cfg_type_none;
     m_colocated = false;
@@ -4553,7 +4668,6 @@ dm_easy_mesh_t::dm_easy_mesh_t()
     m_num_radios = 0;
     m_num_opclass = 0;
     m_num_bss = 0;
-    m_num_ap_mld = 0;
     m_num_net_ssids = 0;
     m_num_assoc_sta_mld = 0;
     m_db_cfg_param.db_cfg_type = db_cfg_type_none;

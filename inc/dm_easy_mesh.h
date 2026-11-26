@@ -86,8 +86,10 @@ public:
     em_db_cfg_param_t	m_db_cfg_param;
     em_t *m_em;
     bool    m_colocated;
-    unsigned int    m_num_ap_mld;
-    dm_ap_mld_t     m_ap_mld[EM_MAX_AP_MLD];
+    // Key: AL MAC + haul type (see get_ap_mld_key()).
+    hash_map_t      *m_ap_mld_map = NULL;
+    // Guards m_ap_mld_map and its entries: radio em_t threads and the bus thread share each model.
+    mutable std::recursive_mutex m_ap_mld_mutex;
     bool    m_bsta_mld_present;
     dm_bsta_mld_t   m_bsta_mld;
     unsigned int    m_num_assoc_sta_mld;
@@ -1200,6 +1202,7 @@ public:
 
 	bool get_haul_type_from_ssid(const ssid_t ssid, em_haul_type_t *haul_type);
 
+
 	/**!
      * @brief Checks whether the given SSID matches.
      *
@@ -1584,9 +1587,12 @@ public:
 	/**!
 	 * @brief Retrieves the number of AP MLDs.
 	 *
-	 * @returns The number of AP MLDs.
+	 * @returns The number of AP MLDs currently stored in the AP MLD hash map.
 	 */
-	unsigned int get_num_ap_mld() { return m_num_ap_mld; }
+	unsigned int get_num_ap_mld() {
+		std::lock_guard<std::recursive_mutex> lock(m_ap_mld_mutex);
+		return (m_ap_mld_map != NULL) ? hash_map_count(m_ap_mld_map) : 0;
+	}
     
 	/**!
 	 * @brief Retrieves the number of AP MLDs.
@@ -1598,55 +1604,55 @@ public:
 	 *
 	 * @returns The number of AP MLDs.
 	 */
-	static unsigned int get_num_ap_mld(void *dm) { return (static_cast<dm_easy_mesh_t *>(dm))->get_num_ap_mld(); }
+	static unsigned int get_num_ap_mld(void *dm);
     
 	/**!
-	 * @brief Sets the number of AP MLD.
+	 * @brief Builds the AP MLD hash map key from the owning AL MAC and haul type.
 	 *
-	 * This function assigns the provided number to the member variable m_num_ap_mld.
-	 *
-	 * @param[in] num The number of AP MLD to set.
+	 * @param[in] al_mac The agent AL MAC address that owns this AP MLD.
+	 * @param[in] haul_type The haul type of this AP MLD's SSID.
+	 * @param[out] key Buffer to receive the key string.
+	 * @param[in] sz Size of the key buffer.
 	 */
-	void set_num_ap_mld(unsigned int num) { m_num_ap_mld = num; }
-    
+	static void get_ap_mld_key(mac_address_t al_mac, em_haul_type_t haul_type, char *key, size_t sz);
+
 	/**!
-	 * @brief Sets the number of AP MLDs in the EasyMesh configuration.
-	 *
-	 * This function updates the number of Access Point Multi-Link Devices (AP MLDs) in the EasyMesh configuration.
-	 *
-	 * @param[in] dm Pointer to the EasyMesh configuration object.
-	 * @param[in] num The number of AP MLDs to set.
-	 *
-	 * @note Ensure that the `dm` pointer is valid and points to a properly initialized EasyMesh configuration object.
+	 * @brief Retrieves an AP MLD by its owning AL MAC and haul type.
 	 */
-	static void set_num_ap_mld(void *dm, unsigned int num) { (static_cast<dm_easy_mesh_t *>(dm))->set_num_ap_mld(num); }
-    
+	dm_ap_mld_t *get_ap_mld(mac_address_t al_mac, em_haul_type_t haul_type);
+
 	/**!
-	 * @brief Retrieves the access point MLD (Multi-Link Device) at the specified index.
+	 * @brief Locks the AP MLD map for the lifetime of the returned lock.
 	 *
-	 * This function returns a pointer to the access point MLD structure located at the given index.
+	 * Hold this lock while using any dm_ap_mld_t / em_ap_mld_info_t pointer obtained from
+	 * get_ap_mld(), get_ap_mld_frm_haul_type() or get_first_ap_mld()/get_next_ap_mld(),
+	 * because other threads may update or remove entries. The lock is recursive.
 	 *
-	 * @param[in] index The index of the access point MLD to retrieve.
-	 *
-	 * @returns A pointer to the `dm_ap_mld_t` structure at the specified index.
-	 *
-	 * @note Ensure that the index is within the valid range to avoid undefined behavior.
+	 * @returns A lock that owns m_ap_mld_mutex.
 	 */
-	dm_ap_mld_t *get_ap_mld(unsigned int index) { return &m_ap_mld[index]; }
-    
+	std::unique_lock<std::recursive_mutex> lock_ap_mld() const { return std::unique_lock<std::recursive_mutex>(m_ap_mld_mutex); }
+
 	/**!
-	 * @brief Retrieves a reference to the AP MLD at the specified index.
+	 * @brief Retrieves the first AP MLD in the AP MLD hash map.
 	 *
-	 * This function returns a reference to the AP MLD (Access Point Multi-Link Device) object
-	 * located at the given index within the internal storage.
-	 *
-	 * @param[in] index The index of the AP MLD to retrieve.
-	 *
-	 * @returns A reference to the AP MLD object at the specified index.
-	 *
-	 * @note Ensure that the index is within the valid range of stored AP MLDs to avoid undefined behavior.
+	 * @returns A pointer to the first `dm_ap_mld_t` entry, or NULL if the map is empty/unallocated.
 	 */
-	dm_ap_mld_t& get_ap_mld_by_ref(unsigned int index) { return m_ap_mld[index]; }
+	dm_ap_mld_t *get_first_ap_mld() {
+		std::lock_guard<std::recursive_mutex> lock(m_ap_mld_mutex);
+		return (m_ap_mld_map != NULL) ? static_cast<dm_ap_mld_t *> (hash_map_get_first(m_ap_mld_map)) : NULL;
+	}
+
+	/**!
+	 * @brief Retrieves the AP MLD following the given one in the AP MLD hash map.
+	 *
+	 * @param[in] ap_mld The current AP MLD entry, previously returned by get_first_ap_mld()/get_next_ap_mld().
+	 *
+	 * @returns A pointer to the next `dm_ap_mld_t` entry, or NULL if there is none.
+	 */
+	dm_ap_mld_t *get_next_ap_mld(dm_ap_mld_t *ap_mld) {
+		std::lock_guard<std::recursive_mutex> lock(m_ap_mld_mutex);
+		return (m_ap_mld_map != NULL) ? static_cast<dm_ap_mld_t *> (hash_map_get_next(m_ap_mld_map, ap_mld)) : NULL;
+	}
 
 	/**!
 	 * @brief Checks if BSTA MLD is present.
@@ -1716,7 +1722,7 @@ public:
 	void remove_ap_mld_info_by_haul_type(em_haul_type_t haul_type);
 
 	void update_ap_mld_info(em_ap_mld_info_t *ap_mld_info);
-	static void update_ap_mld_info(void *dm, em_ap_mld_info_t *ap_mld_info) { (static_cast<dm_easy_mesh_t *>(dm))->update_ap_mld_info(ap_mld_info); }
+	static void update_ap_mld_info(void *dm, em_ap_mld_info_t *ap_mld_info);
 
 	void update_bsta_mld_info(em_bsta_mld_info_t *bsta_mld_info);
 	static void update_bsta_mld_info(void *dm, em_bsta_mld_info_t *bsta_mld_info) { (static_cast<dm_easy_mesh_t *>(dm))->update_bsta_mld_info(bsta_mld_info); }
