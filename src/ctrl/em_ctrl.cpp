@@ -2080,6 +2080,9 @@ void em_ctrl_t::start_complete()
             em_printfout("Could not find data model with controller role");
     }
 
+    /* Re-apply DPP URIs restored from Device.WiFi.DataElements.Network.ProvisionedDPP */
+    m_data_model.resume_provisioned_dpp();
+
     if (desc->bus_event_subs_fn(m_data_model.get_bus_hdl(), DEVICE_WIFI_DATAELEMENTS_NETWORK_NODE_CFG_POLICY, reinterpret_cast<void *> (&tr_181_t::subs_policy_config), NULL, 0) != 0) {
         em_printfout("bus subscribe failed");
         return;

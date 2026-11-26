@@ -631,6 +631,46 @@
                 }
             }
         },
+        "ProvisionedDPP_g": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+                "Alias",
+                "DPPURI"
+            ],
+            "properties": {
+                "Alias": {
+                    "type": "string",
+                    "maxLength": 64,
+                    "writable": true
+                },
+                "DPPURI": {
+                    "type": "string",
+                    "maxLength": 2048,
+                    "writable": true
+                }
+            }
+        },
+        "ProvisionedDPP_g": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+                "Alias",
+                "DPPURI"
+            ],
+            "properties": {
+                "Alias": {
+                    "type": "string",
+                    "maxLength": 64,
+                    "writable": true
+                },
+                "DPPURI": {
+                    "type": "string",
+                    "maxLength": 2048,
+                    "writable": true
+                }
+            }
+        },
         "NetworkSSID_g": {
             "type": "object",
             "additionalProperties": false,
@@ -3136,6 +3176,30 @@
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/NetworkSSID_g"
+                    }
+                },
+                "NumberOfProvisionedDPP": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 65535
+                },
+                "ProvisionedDPPList": {
+                    "type": "array",
+                    "writable": true,
+                    "items": {
+                        "$ref": "#/definitions/ProvisionedDPP_g"
+                    }
+                },
+                "NumberOfProvisionedDPP": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 65535
+                },
+                "ProvisionedDPPList": {
+                    "type": "array",
+                    "writable": true,
+                    "items": {
+                        "$ref": "#/definitions/ProvisionedDPP_g"
                     }
                 }
             }

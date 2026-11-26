@@ -6574,6 +6574,66 @@ bus_error_t dm_easy_mesh_ctrl_t::ssid_tget(char *event_name, raw_data_t *p_data)
     return bus_get_cb_fwd(event_name, p_data, ssid_tget_inner);
 }
 
+/* Add/remove row request passed to the controller thread via bus_set_cb_fwd */
+typedef struct {
+    char        alias[EM_PROVISIONED_DPP_ALIAS_LEN + 1];
+    uint32_t    instance;
+} em_provisioned_dpp_row_req_t;
+
+bus_error_t dm_easy_mesh_ctrl_t::provdpp_get(char *event_name, raw_data_t *p_data)
+{
+    return bus_get_cb_fwd(event_name, p_data, provdpp_get_inner);
+}
+
+bus_error_t dm_easy_mesh_ctrl_t::provdpp_tget(char *event_name, raw_data_t *p_data)
+{
+    return bus_get_cb_fwd(event_name, p_data, provdpp_tget_inner);
+}
+
+bus_error_t dm_easy_mesh_ctrl_t::provdpp_set(char *event_name, raw_data_t *p_data)
+{
+    return bus_set_cb_fwd(event_name, p_data, provdpp_set_inner);
+}
+
+bus_error_t dm_easy_mesh_ctrl_t::provdpp_add_row(const char *table_name, const char *alias_name, uint32_t *instance_number)
+{
+    em_provisioned_dpp_row_req_t req;
+    raw_data_t rd;
+    bus_error_t rc;
+
+    if ((table_name == NULL) || (instance_number == NULL)) {
+        return bus_error_invalid_input;
+    }
+    memset(&req, 0, sizeof(req));
+    if ((alias_name != NULL) && (alias_name[0] != '\0')) {
+        if (strlen(alias_name) > EM_PROVISIONED_DPP_ALIAS_LEN) {
+            return bus_error_invalid_input;
+        }
+        snprintf(req.alias, sizeof(req.alias), "%s", alias_name);
+    }
+    memset(&rd, 0, sizeof(rd));
+    rd.data_type = bus_data_type_bytes;
+    rd.raw_data.bytes = &req;
+    rd.raw_data_len = sizeof(req);
+
+    rc = bus_set_cb_fwd(const_cast<char *>(table_name), &rd, provdpp_add_row_inner);
+    if (rc == bus_error_success) {
+        *instance_number = req.instance;
+    }
+    return rc;
+}
+
+bus_error_t dm_easy_mesh_ctrl_t::provdpp_remove_row(const char *row_name)
+{
+    raw_data_t rd;
+
+    if (row_name == NULL) {
+        return bus_error_invalid_input;
+    }
+    memset(&rd, 0, sizeof(rd));
+    return bus_set_cb_fwd(const_cast<char *>(row_name), &rd, provdpp_remove_row_inner);
+}
+
 bus_error_t dm_easy_mesh_ctrl_t::device_get(char *event_name, raw_data_t *p_data)
 {
     return bus_get_cb_fwd(event_name, p_data, device_get_inner);
@@ -6804,6 +6864,8 @@ bus_error_t dm_easy_mesh_ctrl_t::network_get_inner(char *event_name, raw_data_t 
         dm_network_t *dm_network = dm->get_network();
         em_network_info_t *ni = dm_network->get_network_info();
         rc = dm_ctrl->raw_data_set(p_data, ni->timestamp);
+    } else if (strcmp(param, "ProvisionedDPPNumberOfEntries") == 0) {
+        rc = dm_ctrl->raw_data_set(p_data, static_cast<uint32_t>(dm_ctrl->get_num_provisioned_dpp()));
     } else if (strcmp(param, "DeviceNumberOfEntries") == 0) {
         unsigned int dev_cnt = 0;
         dm_easy_mesh_t *dm = dm_ctrl->get_first_dm();
@@ -7413,6 +7475,444 @@ bus_error_t dm_easy_mesh_ctrl_t::ssid_tget_inner(char *event_name, raw_data_t *p
         dm_ctrl->raw_data_set(p_data, property);
     }
 
+    return bus_error_success;
+}
+
+/* ProvisionedDPP helpers */
+static bool provdpp_alias_valid(const char *alias)
+{
+    size_t len = (alias != NULL) ? strlen(alias) : 0;
+
+    if ((len == 0) || (len > EM_PROVISIONED_DPP_ALIAS_LEN) || !isalpha(static_cast<unsigned char>(alias[0]))) {
+        return false;
+    }
+    for (size_t i = 0; i < len; i++) {
+        if ((alias[i] < 0x21) || (alias[i] > 0x7e)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+/* Syntax check per Easy Connect 5.2.1 (dpp-qr): "DPP:" ... "K:" ... ";;".
+ * Full decode is done by dm_dpp_t::decode() when start_dpp is processed. */
+static bool provdpp_uri_valid(const char *uri)
+{
+    size_t len = (uri != NULL) ? strlen(uri) : 0;
+
+    if ((len < 8) || (len > EM_PROVISIONED_DPP_URI_LEN)) {
+        return false;
+    }
+    if ((strncmp(uri, "DPP:", 4) != 0) || (strcmp(uri + len - 2, ";;") != 0)) {
+        return false;
+    }
+    if ((strncmp(uri + 4, "K:", 2) != 0) && (strstr(uri, ";K:") == NULL)) {
+        return false;
+    }
+    for (size_t i = 0; i < len; i++) {
+        if ((uri[i] < 0x20) || (uri[i] > 0x7e)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+/* Bus string value -> NUL terminated, trimmed buffer */
+static bool provdpp_copy_string(const raw_data_t *p_data, char *out, size_t out_len)
+{
+    if ((p_data == NULL) || (p_data->data_type != bus_data_type_string) || (p_data->raw_data.bytes == NULL)) {
+        return false;
+    }
+    const char *src = static_cast<const char *>(p_data->raw_data.bytes);
+    size_t len = strnlen(src, p_data->raw_data_len);
+    while ((len > 0) && isspace(static_cast<unsigned char>(*src))) {
+        src++;
+        len--;
+    }
+    while ((len > 0) && isspace(static_cast<unsigned char>(src[len - 1]))) {
+        len--;
+    }
+    if (len >= out_len) {
+        return false;
+    }
+    memcpy(out, src, len);
+    out[len] = '\0';
+    return true;
+}
+
+unsigned int dm_easy_mesh_ctrl_t::get_num_provisioned_dpp()
+{
+    unsigned int num = 0;
+
+    for (unsigned int i = 0; i < EM_MAX_PROVISIONED_DPP; i++) {
+        if (m_provisioned_dpp[i].in_use) {
+            num++;
+        }
+    }
+    return num;
+}
+
+em_provisioned_dpp_info_t *dm_easy_mesh_ctrl_t::find_provisioned_dpp(uint32_t instance)
+{
+    for (unsigned int i = 0; i < EM_MAX_PROVISIONED_DPP; i++) {
+        if (m_provisioned_dpp[i].in_use && (m_provisioned_dpp[i].instance == instance)) {
+            return &m_provisioned_dpp[i];
+        }
+    }
+    return NULL;
+}
+
+/* Queue the same bus event as the CLI "start_dpp" command: {"URI": "<uri>"} */
+void dm_easy_mesh_ctrl_t::start_provisioned_dpp(em_provisioned_dpp_info_t *entry)
+{
+    cJSON *obj;
+    char *json;
+
+    if ((entry == NULL) || (entry->dpp_uri[0] == '\0')) {
+        return;
+    }
+    obj = cJSON_CreateObject();
+    if (obj == NULL) {
+        return;
+    }
+    cJSON_AddStringToObject(obj, "URI", entry->dpp_uri);
+    json = cJSON_PrintUnformatted(obj);
+    cJSON_Delete(obj);
+    if (json == NULL) {
+        return;
+    }
+
+    em_printfout("ProvisionedDPP.%u (%s): start DPP onboarding, URI: %s", entry->instance, entry->alias, entry->dpp_uri);
+    em_ctrl_t::get_em_ctrl_instance()->io_process(em_bus_event_type_start_dpp, json,
+        static_cast<unsigned int>(strlen(json) + 1), NULL);
+    cJSON_free(json);
+}
+
+void dm_easy_mesh_ctrl_t::resume_provisioned_dpp()
+{
+    for (unsigned int i = 0; i < EM_MAX_PROVISIONED_DPP; i++) {
+        if (m_provisioned_dpp[i].in_use && (m_provisioned_dpp[i].dpp_uri[0] != '\0')) {
+            start_provisioned_dpp(&m_provisioned_dpp[i]);
+        }
+    }
+}
+
+/* Persist: [{"Instance":1,"Alias":"..","DPPURI":".."}, ...] */
+void dm_easy_mesh_ctrl_t::save_provisioned_dpp()
+{
+    cJSON *arr, *obj;
+    char *json;
+    FILE *fp;
+    char tmp_file[256];
+    bool ok;
+
+    if ((arr = cJSON_CreateArray()) == NULL) {
+        return;
+    }
+    for (unsigned int i = 0; i < EM_MAX_PROVISIONED_DPP; i++) {
+        if (m_provisioned_dpp[i].in_use == false) {
+            continue;
+        }
+        if ((obj = cJSON_CreateObject()) == NULL) {
+            continue;
+        }
+        cJSON_AddNumberToObject(obj, "Instance", m_provisioned_dpp[i].instance);
+        cJSON_AddStringToObject(obj, "Alias", m_provisioned_dpp[i].alias);
+        cJSON_AddStringToObject(obj, "DPPURI", m_provisioned_dpp[i].dpp_uri);
+        cJSON_AddItemToArray(arr, obj);
+    }
+    json = cJSON_Print(arr);
+    cJSON_Delete(arr);
+    if (json == NULL) {
+        return;
+    }
+
+    snprintf(tmp_file, sizeof(tmp_file), "%s.tmp", TR181_PROVDPP_STORE_FILE);
+    if ((fp = fopen(tmp_file, "w")) == NULL) {
+        em_printfout("ProvisionedDPP: cannot open %s", tmp_file);
+        cJSON_free(json);
+        return;
+    }
+    ok = (fputs(json, fp) >= 0);
+    ok = (fclose(fp) == 0) && ok;
+    if (ok && (rename(tmp_file, TR181_PROVDPP_STORE_FILE) == 0)) {
+        em_printfout("ProvisionedDPP: saved %u entries to %s", get_num_provisioned_dpp(), TR181_PROVDPP_STORE_FILE);
+    } else {
+        em_printfout("ProvisionedDPP: failed to save %s", TR181_PROVDPP_STORE_FILE);
+        remove(tmp_file);
+    }
+    cJSON_free(json);
+}
+
+/* Called once at init, after the data elements are registered */
+void dm_easy_mesh_ctrl_t::load_provisioned_dpp()
+{
+    char buff[(EM_PROVISIONED_DPP_URI_LEN + 256) * EM_MAX_PROVISIONED_DPP];
+    cJSON *arr, *obj, *ji, *ja, *ju;
+    unsigned int idx = 0;
+    size_t len;
+    FILE *fp;
+
+    if ((fp = fopen(TR181_PROVDPP_STORE_FILE, "r")) == NULL) {
+        return;
+    }
+    len = fread(buff, 1, sizeof(buff) - 1, fp);
+    fclose(fp);
+    buff[len] = '\0';
+
+    if ((arr = cJSON_Parse(buff)) == NULL) {
+        em_printfout("ProvisionedDPP: invalid %s", TR181_PROVDPP_STORE_FILE);
+        return;
+    }
+    cJSON_ArrayForEach(obj, arr) {
+        if (idx >= EM_MAX_PROVISIONED_DPP) {
+            break;
+        }
+        ji = cJSON_GetObjectItem(obj, "Instance");
+        ja = cJSON_GetObjectItem(obj, "Alias");
+        ju = cJSON_GetObjectItem(obj, "DPPURI");
+        if (!cJSON_IsNumber(ji) || (ji->valuedouble < 1) || !cJSON_IsString(ja) ||
+            !provdpp_alias_valid(ja->valuestring)) {
+            continue;
+        }
+        uint32_t inst = static_cast<uint32_t>(ji->valuedouble);
+        if (find_provisioned_dpp(inst) != NULL) {
+            continue;
+        }
+        em_provisioned_dpp_info_t *entry = &m_provisioned_dpp[idx];
+        memset(entry, 0, sizeof(*entry));
+        entry->instance = inst;
+        snprintf(entry->alias, sizeof(entry->alias), "%s", ja->valuestring);
+        if (cJSON_IsString(ju) && provdpp_uri_valid(ju->valuestring)) {
+            snprintf(entry->dpp_uri, sizeof(entry->dpp_uri), "%s", ju->valuestring);
+        }
+        if (get_bus_descriptor()->bus_reg_table_row_fn(get_bus_hdl(), DE_PROVDPP_ROW_PREFIX,
+                inst, entry->alias) != bus_error_success) {
+            em_printfout("ProvisionedDPP: failed to restore row %u", inst);
+            continue;
+        }
+        entry->in_use = true;
+        if (inst >= m_provisioned_dpp_next_inst) {
+            m_provisioned_dpp_next_inst = inst + 1;
+        }
+        idx++;
+    }
+    cJSON_Delete(arr);
+    em_printfout("ProvisionedDPP: restored %u entries from %s", idx, TR181_PROVDPP_STORE_FILE);
+}
+
+bus_error_t dm_easy_mesh_ctrl_t::provdpp_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
+{
+    (void) user_data;
+    const char *name = event_name;
+    const char *param;
+    char instance[MAX_INSTANCE_LEN] = { 0 };
+    bool is_num;
+
+    if (!name || !p_data) {
+        return bus_error_invalid_input;
+    }
+
+    param = strrchr(name, '.');
+    if (param == NULL) {
+        return bus_error_invalid_input;
+    }
+    ++param;
+
+    dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
+    name += sizeof(DATAELEMS_NETWORK);
+    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    if (!is_num) {
+        return bus_error_invalid_input;
+    }
+
+    em_provisioned_dpp_info_t *entry = dm_ctrl->find_provisioned_dpp(static_cast<uint32_t>(atoi(instance)));
+    if (entry == NULL) {
+        return bus_error_destination_not_found;
+    }
+
+    if (strcmp(param, "Alias") == 0) {
+        return dm_ctrl->raw_data_set(p_data, entry->alias);
+    } else if (strcmp(param, "DPPURI") == 0) {
+        return dm_ctrl->raw_data_set(p_data, entry->dpp_uri);
+    }
+
+    em_printfout("Invalid param: %s", param);
+    return bus_error_invalid_input;
+}
+
+bus_error_t dm_easy_mesh_ctrl_t::provdpp_tget_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
+{
+    (void) user_data;
+    const char *root = event_name;
+    bus_data_prop_t *property = NULL;
+
+    if (*(event_name + (strlen(event_name) - 1)) != '.') {
+        /* Only partial paths are valid */
+        return bus_error_invalid_operation;
+    }
+
+    dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
+    for (unsigned int i = 0; i < EM_MAX_PROVISIONED_DPP; i++) {
+        em_provisioned_dpp_info_t *entry = &dm_ctrl->m_provisioned_dpp[i];
+        if (entry->in_use == false) {
+            continue;
+        }
+        dm_ctrl->property_append_tail(&property, root, entry->instance, "Alias", entry->alias);
+        dm_ctrl->property_append_tail(&property, root, entry->instance, "DPPURI", entry->dpp_uri);
+    }
+
+    if (property) {
+        dm_ctrl->raw_data_set(p_data, property);
+    }
+
+    return bus_error_success;
+}
+
+bus_error_t dm_easy_mesh_ctrl_t::provdpp_set_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
+{
+    (void) user_data;
+    const char *name = event_name;
+    const char *param;
+    char instance[MAX_INSTANCE_LEN] = { 0 };
+    bool is_num;
+
+    if (!name || !p_data) {
+        return bus_error_invalid_input;
+    }
+
+    param = strrchr(name, '.');
+    if (param == NULL) {
+        return bus_error_invalid_input;
+    }
+    ++param;
+
+    dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
+    name += sizeof(DATAELEMS_NETWORK);
+    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    if (!is_num) {
+        return bus_error_invalid_input;
+    }
+
+    em_provisioned_dpp_info_t *entry = dm_ctrl->find_provisioned_dpp(static_cast<uint32_t>(atoi(instance)));
+    if (entry == NULL) {
+        return bus_error_destination_not_found;
+    }
+
+    if (strcmp(param, "Alias") == 0) {
+        char alias[EM_PROVISIONED_DPP_ALIAS_LEN + 1] = { 0 };
+        if (!provdpp_copy_string(p_data, alias, sizeof(alias)) || !provdpp_alias_valid(alias)) {
+            em_printfout("ProvisionedDPP.%u: invalid Alias", entry->instance);
+            return bus_error_invalid_input;
+        }
+        if (strcmp(alias, entry->alias) == 0) {
+            return bus_error_success;
+        }
+        /* Alias is immutable once it has been assigned */
+        em_printfout("ProvisionedDPP.%u: Alias is immutable (%s)", entry->instance, entry->alias);
+        return bus_error_invalid_operation;
+    } else if (strcmp(param, "DPPURI") == 0) {
+        char uri[EM_PROVISIONED_DPP_URI_LEN + 1] = { 0 };
+        if (!provdpp_copy_string(p_data, uri, sizeof(uri)) || !provdpp_uri_valid(uri)) {
+            em_printfout("ProvisionedDPP.%u: invalid DPPURI", entry->instance);
+            return bus_error_invalid_input;
+        }
+        snprintf(entry->dpp_uri, sizeof(entry->dpp_uri), "%s", uri);
+        dm_ctrl->save_provisioned_dpp();
+        dm_ctrl->start_provisioned_dpp(entry);
+        return bus_error_success;
+    }
+
+    em_printfout("Invalid param: %s", param);
+    return bus_error_invalid_input;
+}
+
+bus_error_t dm_easy_mesh_ctrl_t::provdpp_add_row_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
+{
+    (void) event_name;
+    (void) user_data;
+    em_provisioned_dpp_info_t *entry = NULL;
+
+    if (!p_data || (p_data->raw_data.bytes == NULL) || (p_data->raw_data_len != sizeof(em_provisioned_dpp_row_req_t))) {
+        return bus_error_invalid_input;
+    }
+    em_provisioned_dpp_row_req_t *req = static_cast<em_provisioned_dpp_row_req_t *>(p_data->raw_data.bytes);
+    dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
+
+    for (unsigned int i = 0; i < EM_MAX_PROVISIONED_DPP; i++) {
+        if (dm_ctrl->m_provisioned_dpp[i].in_use == false) {
+            entry = &dm_ctrl->m_provisioned_dpp[i];
+            break;
+        }
+    }
+    if (entry == NULL) {
+        em_printfout("ProvisionedDPP: table full (%d)", EM_MAX_PROVISIONED_DPP);
+        return bus_error_out_of_resources;
+    }
+
+    uint32_t inst = dm_ctrl->m_provisioned_dpp_next_inst;
+    while (dm_ctrl->find_provisioned_dpp(inst) != NULL) {
+        inst++;
+    }
+
+    char alias[EM_PROVISIONED_DPP_ALIAS_LEN + 1] = { 0 };
+    if (req->alias[0] != '\0') {
+        snprintf(alias, sizeof(alias), "%s", req->alias);
+    } else {
+        /* Not assigned by the caller: "cpe-" prefix */
+        snprintf(alias, sizeof(alias), "cpe-ProvisionedDPP-%u", inst);
+    }
+    if (!provdpp_alias_valid(alias)) {
+        em_printfout("ProvisionedDPP: invalid Alias '%s'", alias);
+        return bus_error_invalid_input;
+    }
+    for (unsigned int i = 0; i < EM_MAX_PROVISIONED_DPP; i++) {
+        if (dm_ctrl->m_provisioned_dpp[i].in_use && (strcmp(dm_ctrl->m_provisioned_dpp[i].alias, alias) == 0)) {
+            em_printfout("ProvisionedDPP: duplicate Alias '%s'", alias);
+            return bus_error_invalid_input;
+        }
+    }
+
+    memset(entry, 0, sizeof(*entry));
+    entry->in_use = true;
+    entry->instance = inst;
+    snprintf(entry->alias, sizeof(entry->alias), "%s", alias);
+    dm_ctrl->m_provisioned_dpp_next_inst = inst + 1;
+    dm_ctrl->save_provisioned_dpp();
+
+    req->instance = inst;
+    em_printfout("ProvisionedDPP: added row %u (Alias %s)", inst, entry->alias);
+    return bus_error_success;
+}
+
+bus_error_t dm_easy_mesh_ctrl_t::provdpp_remove_row_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
+{
+    (void) p_data;
+    (void) user_data;
+    const char *name = event_name;
+    char instance[MAX_INSTANCE_LEN] = { 0 };
+    bool is_num;
+
+    if (!name) {
+        return bus_error_invalid_input;
+    }
+
+    dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
+    name += sizeof(DATAELEMS_NETWORK);
+    name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    if (!is_num) {
+        return bus_error_invalid_input;
+    }
+
+    em_provisioned_dpp_info_t *entry = dm_ctrl->find_provisioned_dpp(static_cast<uint32_t>(atoi(instance)));
+    if (entry == NULL) {
+        return bus_error_destination_not_found;
+    }
+    em_printfout("ProvisionedDPP: removed row %u (Alias %s)", entry->instance, entry->alias);
+    /* An onboarding already started for this URI is not cancelled:
+     * the controller has no "stop DPP" event. */
+    memset(entry, 0, sizeof(*entry));
+    dm_ctrl->save_provisioned_dpp();
     return bus_error_success;
 }
 
@@ -11274,6 +11774,7 @@ int dm_easy_mesh_ctrl_t::init(const char *data_model_path, em_mgr_t *mgr, db_cli
     m_nb_pipe_wr = pipefd[1];
 
     tr_181_t::init(this);
+    load_provisioned_dpp();
     rc = load_tables();
 
     if (rc == -1 && m_db_client_type == db_client_type_local) {
@@ -11385,6 +11886,8 @@ dm_easy_mesh_ctrl_t::dm_easy_mesh_ctrl_t()
     m_nb_pipe_wr = 0;
     m_nb_evt_id = 0;
     m_topology = nullptr;
+    memset(m_provisioned_dpp, 0, sizeof(m_provisioned_dpp));
+    m_provisioned_dpp_next_inst = 1;
 }
 
 dm_easy_mesh_ctrl_t::~dm_easy_mesh_ctrl_t()

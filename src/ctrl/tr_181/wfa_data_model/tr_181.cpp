@@ -80,6 +80,13 @@ int tr_181_t::wfa_set_bus_callbackfunc_pointers(const char *full_namespace, bus_
         ELEMENT(DE_SSID_MFPCONFIG,        CALLBACK_GETTER(ssid_get)),
         ELEMENT(DE_SSID_MOBDOMAIN,        CALLBACK_GETTER(ssid_get)),
         ELEMENT(DE_SSID_HAULTYPE,         CALLBACK_GETTER(ssid_get)),
+        ELEMENT(DE_NETWORK_PROVDPPNOE,    CALLBACK_GETTER(network_get)),
+        ELEMENT(DE_PROVDPP_TABLE,         CB(.get_handler = provdpp_tget, .set_handler = NULL,
+                                             .table_add_row_handler = provdpp_table_add_row_handler,
+                                             .table_remove_row_handler = provdpp_table_remove_row_handler,
+                                             NULL, NULL)),
+        ELEMENT(DE_PROVDPP_ALIAS,         CB(.get_handler = provdpp_get, .set_handler = provdpp_set, NULL, NULL, NULL, NULL)),
+        ELEMENT(DE_PROVDPP_DPPURI,        CB(.get_handler = provdpp_get, .set_handler = provdpp_set, NULL, NULL, NULL, NULL)),
         ELEMENT(DE_DEVICE_TABLE,          CALLBACK_GETTER(device_tget)),
         ELEMENT(DE_DEVICE_ID,                     CALLBACK_GETTER(device_get)),
         ELEMENT(DE_DEVICE_MAPCAP,                 CALLBACK_GETTER(device_get)),
@@ -609,6 +616,61 @@ bus_error_t tr_181_t::ssid_get(char *event_name, raw_data_t *p_data, bus_user_da
         return em_ctrl->get_dm_ctrl()->ssid_get(event_name, p_data);
     }
     
+    return bus_error_general;
+}
+
+bus_error_t tr_181_t::provdpp_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
+{
+    em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
+
+    if (em_ctrl != NULL) {
+        return em_ctrl->get_dm_ctrl()->provdpp_tget(event_name, p_data);
+    }
+
+    return bus_error_general;
+}
+
+bus_error_t tr_181_t::provdpp_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
+{
+    em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
+
+    if (em_ctrl != NULL) {
+        return em_ctrl->get_dm_ctrl()->provdpp_get(event_name, p_data);
+    }
+
+    return bus_error_general;
+}
+
+bus_error_t tr_181_t::provdpp_set(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
+{
+    em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
+
+    if (em_ctrl != NULL) {
+        return em_ctrl->get_dm_ctrl()->provdpp_set(event_name, p_data);
+    }
+
+    return bus_error_general;
+}
+
+bus_error_t tr_181_t::provdpp_table_add_row_handler(const char* table_name, const char* alias_name, uint32_t* instance_number)
+{
+    em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
+
+    if (em_ctrl != NULL) {
+        return em_ctrl->get_dm_ctrl()->provdpp_add_row(table_name, alias_name, instance_number);
+    }
+
+    return bus_error_general;
+}
+
+bus_error_t tr_181_t::provdpp_table_remove_row_handler(const char* row_name)
+{
+    em_ctrl_t *em_ctrl = em_ctrl_t::get_em_ctrl_instance();
+
+    if (em_ctrl != NULL) {
+        return em_ctrl->get_dm_ctrl()->provdpp_remove_row(row_name);
+    }
+
     return bus_error_general;
 }
 
