@@ -419,15 +419,31 @@ bool dm_sta_list_t::compare_db(db_client_t& db_client, const dm_sta_t& sta)
     while (db_client.next_result(ctx)) {
         memset(&info, 0, sizeof(em_sta_info_t));
 
-        db_client.get_string(ctx, mac, 1);
+        // A MAC column that does not fit mac[] is not a valid MAC: skip the whole row (string_to_macbytes() would copy
+        // uninitialised bytes into the comparison data for an empty string)
+        if ((db_client.get_string_length(ctx, 1) >= sizeof(mac)) ||
+            (db_client.get_string_length(ctx, 2) >= sizeof(mac)) ||
+            (db_client.get_string_length(ctx, 3) >= sizeof(mac))) {
+            continue;
+        }
+        // A SQL NULL column passes the length check (0) but get_string() then leaves mac alone: clear it first and skip the row
+        memset(mac, 0, sizeof(mac));
+        if (db_client.get_string(ctx, mac, 1) == NULL) {
+            continue;
+        }
         dm_easy_mesh_t::string_to_macbytes(mac, info.id);
 
-        db_client.get_string(ctx, mac, 2);
+        memset(mac, 0, sizeof(mac));
+        if (db_client.get_string(ctx, mac, 2) == NULL) {
+            continue;
+        }
         dm_easy_mesh_t::string_to_macbytes(mac, info.bssid);
 
-        db_client.get_string(ctx, mac, 3);
+        memset(mac, 0, sizeof(mac));
+        if (db_client.get_string(ctx, mac, 3) == NULL) {
+            continue;
+        }
         dm_easy_mesh_t::string_to_macbytes(mac, info.radiomac);
-
         info.associated = db_client.get_number(ctx, 4);
         info.last_ul_rate = static_cast<unsigned int>(db_client.get_number(ctx, 5));
         info.last_dl_rate = static_cast<unsigned int>(db_client.get_number(ctx, 6));
