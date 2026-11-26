@@ -45,11 +45,16 @@ class em_agent_t : public em_mgr_t {
     dm_easy_mesh_agent_t m_data_model;
     em_short_string_t   m_data_model_path;
     em_cmd_agent_t  *m_agent_cmd;
-	em_simulator_t	m_simulator;
-	bool m_assoc_clients_synced = false;
-	/* Orders the list read from OneWifi against the lists it publishes meanwhile */
-	pthread_mutex_t m_sta_list_mutex = PTHREAD_MUTEX_INITIALIZER;
-	unsigned int m_sta_list_events = 0;
+    em_simulator_t	m_simulator;
+    bool m_assoc_clients_synced = false;
+    /* Orders the list read from OneWifi against the lists it publishes meanwhile */
+    pthread_mutex_t m_sta_list_mutex = PTHREAD_MUTEX_INITIALIZER;
+    unsigned int m_sta_list_events = 0;
+    bool m_eth_backhaul_state_known = false;
+    bool m_eth_backhaul_active = false;
+    bool m_eth_backhaul_delivery_pending = false;
+    void handle_backhaul_change(em_bus_event_t *evt);
+    int publish_backhaul_status();
 
 	
 	/**!

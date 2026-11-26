@@ -22,17 +22,19 @@
 #include "em.h"
 #include "em_orch.h"
 #include "ieee80211.h"
+#include "em_bh_arbitration.h"
 
 class em_mgr_t {
    
     pthread_t   m_tid;
     bool m_exit;
     em_queue_t  m_queue;
-	unsigned int m_tick_demultiplex;
-	unsigned short m_msg_id;
+    unsigned int m_tick_demultiplex;
+    unsigned short m_msg_id;
+    em_stp_monitor_t m_stp;
 
 public:
-	pthread_mutex_t m_mutex;
+    pthread_mutex_t m_mutex;
     hash_map_t      *m_em_map;
     unsigned int m_timeout;
     fd_set  m_rset;
@@ -257,7 +259,7 @@ public:
 	 * @note Ensure that all listeners are properly initialized before calling
 	 * this function to avoid unexpected behavior.
 	 */
-	int reset_listeners();
+        int reset_listeners(bool netlink_enabled);
 
 	/**!
 	 * @brief Handles the timeout event.

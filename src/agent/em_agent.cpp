@@ -1650,6 +1650,10 @@ void em_agent_t::handle_bus_event(em_bus_event_t *evt)
             handle_vendor_data(evt);
             break;
 
+        case em_bus_event_type_backhaul_change:
+           handle_backhaul_change(evt);
+           break;
+
         default:
             break;
     }    
@@ -1741,9 +1745,20 @@ void em_agent_t::sync_associated_clients()
 
 void em_agent_t::handle_2s_tick()
 {
+    if (m_eth_backhaul_delivery_pending && m_eth_backhaul_state_known) {
+        const int rc = publish_backhaul_status();
+        if (rc == 1) {
+            m_eth_backhaul_delivery_pending = false;
+            em_printfout("EM_BH: retry succeeded ethernet_active=%u", m_eth_backhaul_active);
+        }
+        else
+            em_printfout("EM_BH: retry failed rc=%d ethernet_active=%u", rc, m_eth_backhaul_active);
+    }
+
     if (m_assoc_clients_synced == false) {
         sync_associated_clients();
     }
+
 }
 
 void em_agent_t::handle_1s_tick()
@@ -3223,6 +3238,85 @@ bool em_agent_t::try_start_dpp_onboarding()  {
     }
     printf("%s:%d: DPP onboarding started successfully\n", __func__, __LINE__);
     return true;
+}
+
+void em_agent_t::handle_backhaul_change(em_bus_event_t *evt)
+{
+    if (evt == nullptr || evt->data_len != sizeof(em_backhaul_interface_notify_t)) {
+        em_printfout("EM_BH: invalid event length=%u expected=%zu",
+                     evt ? evt->data_len : 0U, sizeof(em_backhaul_interface_notify_t));
+        return;
+    }
+
+    em_backhaul_interface_notify_t bh = {};
+    memcpy(&bh, evt->u.raw_buff, sizeof(bh));
+
+    if (bh.ethernet_backhaul_active) {
+        if (memchr(bh.ifname, '\0', sizeof(bh.ifname)) == nullptr || bh.ifname[0] == '\0' ||
+            bh.ifindex == 0 || bh.root_port == 0 || bh.port_state != em_stp_monitor_t::STP_FORWARDING ||
+            (bh.mac_addr[0] & 0x01)) {
+            em_printfout("EM_BH: rejected invalid forwarding root event");
+            return;
+        }
+        constexpr uint8_t zero_mac[ETH_ALEN] = {};
+        if (memcmp(bh.mac_addr, zero_mac, ETH_ALEN) == 0) {
+            em_printfout("EM_BH: rejected zero MAC for interface=%s", bh.ifname);
+            return;
+        }
+     }
+
+    if (m_eth_backhaul_state_known && m_eth_backhaul_active == bh.ethernet_backhaul_active) {
+        em_printfout("EM_BH: duplicate state=%u ignored", bh.ethernet_backhaul_active);
+        return;
+    }
+
+    m_eth_backhaul_state_known = true;
+    m_eth_backhaul_active = bh.ethernet_backhaul_active;
+    em_printfout("EM_BH: transition ethernet_active=%u ifname=%s root_port=%u",
+                 m_eth_backhaul_active, m_eth_backhaul_active ? bh.ifname : "<none>", bh.root_port);
+
+    const int rc = publish_backhaul_status();
+    m_eth_backhaul_delivery_pending = (rc != 1);
+    if (rc != 1)
+        em_printfout("EM_BH: publish failed rc=%d; retry scheduled", rc);
+    else
+        em_printfout("EM_BH: status subdoc submitted ethernet_active=%u", m_eth_backhaul_active);
+}
+
+int em_agent_t::publish_backhaul_status()
+{
+    wifi_bus_desc_t *desc = get_bus_descriptor();
+    if (desc == nullptr || desc->bus_set_fn == nullptr) {
+        em_printfout("EM_BH: bus descriptor unavailable; will retry");
+        return -1;
+    }
+
+    cJSON *json = cJSON_CreateObject();
+    if (json == nullptr)
+        return -1;
+
+    bool ok = cJSON_AddStringToObject(json, "Version", "1.0") != nullptr &&
+        cJSON_AddStringToObject(json, "SubDocName", "mesh backhaul status") != nullptr &&
+        cJSON_AddStringToObject(json, "BackhaulType",
+        m_eth_backhaul_active ? "Ethernet" : "Wireless") != nullptr;
+
+    char *wire = ok ? cJSON_PrintUnformatted(json) : nullptr;
+    cJSON_Delete(json);
+    if (wire == nullptr)
+        return -1;
+
+    raw_data_t data = {};
+    data.data_type = bus_data_type_string;
+    data.raw_data.bytes = wire;
+
+    const size_t length = strlen(wire);
+    data.raw_data_len = length;
+
+    const int rc = desc->bus_set_fn(&m_bus_hdl, WIFI_WEBCONFIG_DOC_DATA_SOUTH, &data);
+    em_printfout("EM_BH: status publish type=%s rc=%d bytes=%zu", m_eth_backhaul_active ? "Ethernet" : "Wireless", rc, length);
+    
+    cJSON_free(wire);
+    return rc == 0 ? 1 : -1;
 }
 
 em_agent_t::em_agent_t()
