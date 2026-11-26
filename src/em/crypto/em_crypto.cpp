@@ -421,6 +421,10 @@ uint8_t em_crypto_t:: wps_key_derivation_function(uint8_t *key, uint8_t *label_p
     uint8_t i_buf[4];
     uint8_t key_bits[4];
 
+    if (label == NULL || (res == NULL && res_len > 0) || (label_prefix == NULL && label_prefix_len > 0)) {
+        return 0;
+    }
+
     uint8_t   *addr[4];
     size_t   len[4];
 
