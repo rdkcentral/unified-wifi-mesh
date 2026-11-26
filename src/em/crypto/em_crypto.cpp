@@ -672,6 +672,10 @@ uint8_t em_crypto_t::aes_key_unwrap(uint8_t *kek, size_t kek_len,
     
     // Default IV for AES Key Wrap (RFC 3394 2.2.3.1)
     uint8_t iv[8] = {0xA6, 0xA6, 0xA6, 0xA6, 0xA6, 0xA6, 0xA6, 0xA6};
+
+    if (kek == NULL || wrapped == NULL || unwrapped == NULL || unwrapped_len == NULL) {
+        return 0;
+    }
     
     // Select cipher based on KEK length
     switch(kek_len) {
@@ -685,15 +689,16 @@ uint8_t em_crypto_t::aes_key_unwrap(uint8_t *kek, size_t kek_len,
     if (wrapped_len < 24 || (wrapped_len % 8) != 0) {
         return 0;
     }
-    
-    // Copy to output buffer first since platform_cipher_decrypt works in-place
-    memcpy(unwrapped, wrapped, wrapped_len);
-    
+
+    // platform_cipher_decrypt works in-place, so decrypt a private copy and give the caller only wrapped_len - 8 bytes (header contract)
+    std::vector<uint8_t> work(wrapped, wrapped + wrapped_len);
+
     // Use platform_cipher_decrypt with padding DISABLED for wrap mode (true = disable padding)
-    if (platform_cipher_decrypt(cipher, kek, iv, unwrapped, wrapped_len, true) == 0) {
+    if (platform_cipher_decrypt(cipher, kek, iv, work.data(), wrapped_len, true) == 0) {
         return 0;
     }
-    
+    memcpy(unwrapped, work.data(), wrapped_len - 8);
+
     // Output length is 8 bytes less than wrapped length
     *unwrapped_len = wrapped_len - 8;
     
