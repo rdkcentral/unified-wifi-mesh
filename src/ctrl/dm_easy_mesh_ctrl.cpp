@@ -8057,6 +8057,24 @@ bus_error_t dm_easy_mesh_ctrl_t::rcaps_get_inner(char *event_name, raw_data_t *p
     return rc;
 }
 
+bool dm_easy_mesh_ctrl_t::parse_radio_instance(const char *instance, bool is_num, int *radio_instance)
+{
+    char *end = NULL;
+    errno = 0;
+    long parsed = is_num ? strtol(instance, &end, 10) : 0;
+    if (!is_num || end == instance || *end != '\0' || errno == ERANGE ||
+        parsed < 1 || parsed > EM_MAX_BANDS) {
+        return false;
+    }
+    *radio_instance = static_cast<int>(parsed);
+    return true;
+}
+
+unsigned int dm_easy_mesh_ctrl_t::wifi6_role_count(unsigned int num_role)
+{
+    return (num_role > MAP_AP_ROLE_MAX) ? MAP_AP_ROLE_MAX : num_role;
+}
+
 bus_error_t dm_easy_mesh_ctrl_t::wf6ap_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
 {
     (void) user_data;
@@ -8080,8 +8098,14 @@ bus_error_t dm_easy_mesh_ctrl_t::wf6ap_get_inner(char *event_name, raw_data_t *p
     ++param;
 
     dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
+    if (strlen(name) < sizeof(DATAELEMS_NETWORK)) {
+        return bus_error_invalid_input;
+    }
     name += sizeof(DATAELEMS_NETWORK);
     name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    if (name == NULL) {
+        return bus_error_invalid_input;
+    }
     device_instance = is_num ? atoi(instance) : 0;
 
     dm_easy_mesh_t *dm = dm_ctrl->get_first_dm();
@@ -8095,7 +8119,13 @@ bus_error_t dm_easy_mesh_ctrl_t::wf6ap_get_inner(char *event_name, raw_data_t *p
     }
 
     name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
-    radio_instance = is_num ? atoi(instance) : 0;
+    if (name == NULL) {
+        return bus_error_invalid_input;
+    }
+    if (!parse_radio_instance(instance, is_num, &radio_instance)) {
+        em_printfout("invalid radio instance: %s", instance);
+        return bus_error_invalid_input;
+    }
     dm_radio_t *radio = &dm->m_radio[radio_instance - 1];
     if (radio == NULL) {
         em_printfout("radio is NULL\n");
@@ -8111,8 +8141,9 @@ bus_error_t dm_easy_mesh_ctrl_t::wf6ap_get_inner(char *event_name, raw_data_t *p
     }
     em_radio_cap_info_t *rci = radio_cap->get_radio_cap_info();
     unsigned int i;
+    unsigned int num_role = wifi6_role_count(rci->wifi6_cap.num_role);
 
-    for (i = 0; i < rci->wifi6_cap.num_role; i++) {
+    for (i = 0; i < num_role; i++) {
         char mcsnss_str[256] = { 0 };
         memcpy(&role_temp, &rci->wifi6_cap.roles[i], sizeof(em_wifi6_role_wire_t));
 
