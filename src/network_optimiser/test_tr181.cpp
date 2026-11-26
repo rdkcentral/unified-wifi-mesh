@@ -79,7 +79,7 @@ int main()
     bus_init(&m_bus_hdl);
     if((desc = get_bus_descriptor()) == NULL) {
         printf("%s:%d descriptor is null\n", __func__, __LINE__);
-	return 1;
+        return 1;
     }
     if (desc->bus_open_fn(&m_bus_hdl, service_name) != 0) {
         printf("%s:%d bus open failed\n",__func__, __LINE__);
