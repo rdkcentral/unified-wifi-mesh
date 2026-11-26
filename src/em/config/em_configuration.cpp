@@ -4756,16 +4756,39 @@ int em_configuration_t::handle_encrypted_settings(unsigned int wsc_tlv_count, m2
                 em_printfout("##ssid attrib[%d]: %s", wsc_index, radioconfig.ssid[wsc_index]);
                 memcpy(radioconfig.radio_mac[wsc_index], get_radio_interface_mac(), sizeof(mac_address_t));
             } else if (id == attr_id_auth_type) {
-                memcpy(reinterpret_cast<char *> (&auth_type), reinterpret_cast<unsigned char *> (attr->val), htons(attr->len));
+                if (tmp_len < static_cast<int>(sizeof(data_elem_attr_t) + sizeof(auth_type))) {
+                    em_printfout("Truncated auth_type attribute");
+                    return -1;
+                }
+                unsigned int attr_len = static_cast<unsigned int>(ntohs(attr->len));
+                if (attr_len != sizeof(auth_type)) {
+                    em_printfout("Invalid auth_type length %u", attr_len);
+                    return -1;
+                }
+                memcpy(reinterpret_cast<char *> (&auth_type), reinterpret_cast<unsigned char *> (attr->val), attr_len);
                 auth_type = ntohs(auth_type);
                 radioconfig.authtype[wsc_index] = static_cast<unsigned int>(auth_type);
                 em_printfout("##authtype[%d]: %x", wsc_index, radioconfig.authtype[wsc_index]);
             } else if (id == attr_id_encryption_type) {
                 em_printfout("##encr type attrib for wsc_index:%d", wsc_index);
             } else if (id == attr_id_network_key) {
-                memcpy(pass, attr->val, htons(attr->len));
-                memcpy(radioconfig.password[wsc_index], attr->val, htons(attr->len));
-                em_printfout("##network key[%d]: %s", wsc_index, pass);
+                if (tmp_len < static_cast<int>(sizeof(data_elem_attr_t))) {
+                    em_printfout("Truncated network key attribute header");
+                    return -1;
+                }
+                unsigned int attr_len = static_cast<unsigned int>(ntohs(attr->len));
+                if (attr_len > static_cast<unsigned int>(tmp_len) - sizeof(data_elem_attr_t)) {
+                    em_printfout("Truncated network key attribute: length %u, remaining %d", attr_len, tmp_len);
+                    return -1;
+                }
+                if (attr_len > sizeof(pass)) {
+                    em_printfout("Invalid network key length %u", attr_len);
+                    return -1;
+                }
+                memcpy(pass, attr->val, attr_len);
+                memcpy(radioconfig.password[wsc_index], attr->val, attr_len);
+                em_printfout("##network key[%d]: %.*s",
+                             wsc_index, static_cast<int>(attr_len), pass);
             } else if (id == attr_id_mac_address) {
                 memcpy(radioconfig.radio_mac[wsc_index], attr->val, sizeof(mac_address_t));
                 em_printfout("##mac address[%d]: %s", wsc_index, util::mac_to_string(radioconfig.radio_mac[wsc_index]).c_str());
