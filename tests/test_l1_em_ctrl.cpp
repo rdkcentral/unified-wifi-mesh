@@ -4211,6 +4211,62 @@ TEST_F(em_ctrl_t_Test, io_process_invalid_event_type)
     std::cout << "Exiting io_process_invalid_event_type test" << std::endl;
 }
 
+namespace {
+struct fc_tlv_t { unsigned char type; unsigned short len; std::vector<unsigned char> val; };
+
+/* header (raw hdr 14 + CMDU 8) + TLVs + EOM, in an exactly-sized heap buffer so ASan catches reads past the end */
+std::unique_ptr<unsigned char[]> build_failed_conn_msg(const std::vector<fc_tlv_t> &tlvs, unsigned int &len)
+{
+    std::vector<unsigned char> v(22, 0);
+    for (const auto &t : tlvs) {
+        v.push_back(t.type);
+        v.push_back(static_cast<unsigned char>(t.len >> 8));
+        v.push_back(static_cast<unsigned char>(t.len & 0xff));
+        v.insert(v.end(), t.val.begin(), t.val.end());
+    }
+    v.push_back(0); v.push_back(0); v.push_back(0);   /* EOM */
+    len = static_cast<unsigned int>(v.size());
+    std::unique_ptr<unsigned char[]> buf(new unsigned char[len]);
+    memcpy(buf.get(), v.data(), len);
+    return buf;
+}
+const fc_tlv_t kBssid  = {0xb8, 6, {2, 0, 0, 0, 0, 0xaa}};
+const fc_tlv_t kSta    = {0x95, 6, {2, 0, 0, 0, 0, 0xbb}};
+const fc_tlv_t kStatus = {0xc9, 2, {0x00, 0x10}};
+}
+
+/* mandatory TLVs followed by a short duplicate BSSID TLV right in front of the EOM: must not read past the buffer */
+TEST_F(em_ctrl_t_Test, handle_failed_conn_msg_short_duplicate_bssid)
+{
+    unsigned int len = 0;
+    auto buf = build_failed_conn_msg({kBssid, kSta, kStatus, {0xb8, 2, {2, 0}}}, len);
+    ctrl.handle_failed_conn_msg(buf.get(), len);
+}
+
+/* same with a short duplicate STA MAC TLV */
+TEST_F(em_ctrl_t_Test, handle_failed_conn_msg_short_duplicate_sta_mac)
+{
+    unsigned int len = 0;
+    auto buf = build_failed_conn_msg({kBssid, kSta, kStatus, {0x95, 2, {2, 0}}}, len);
+    ctrl.handle_failed_conn_msg(buf.get(), len);
+}
+
+/* same with a short duplicate Status Code TLV */
+TEST_F(em_ctrl_t_Test, handle_failed_conn_msg_short_duplicate_status_code)
+{
+    unsigned int len = 0;
+    auto buf = build_failed_conn_msg({kBssid, kSta, kStatus, {0xc9, 1, {0x00}}}, len);
+    ctrl.handle_failed_conn_msg(buf.get(), len);
+}
+
+/* valid duplicates after the mandatory TLVs: parsing completes without error */
+TEST_F(em_ctrl_t_Test, handle_failed_conn_msg_valid_duplicates)
+{
+    unsigned int len = 0;
+    auto buf = build_failed_conn_msg({kBssid, kSta, kStatus, kBssid, kSta, kStatus}, len);
+    ctrl.handle_failed_conn_msg(buf.get(), len);
+}
+
 /**
  * @brief Verify that get_dm_radio() resolves a Radio.{i} alias as base64(RUID) and returns NULL otherwise.
  *
@@ -4311,4 +4367,93 @@ TEST(dm_easy_mesh_ctrl_t, get_dm_bss_skips_bss_without_bssid) {
     char alias[] = "02:11:22:33:44:77";
     EXPECT_EQ(dm_ctrl.get_dm_bss(&dm, &ri, alias, false), dm.get_bss(1u));
     std::cout << "Exiting get_dm_bss_skips_bss_without_bssid test" << std::endl;
+}
+
+namespace {
+struct fc_parsed_t {
+    bool ok;
+    mac_address_t bssid;
+    mac_address_t sta;
+    unsigned short status;
+    unsigned short reason;
+};
+
+/* parse the TLVs (everything after the 22 byte header) of an exactly-sized message */
+fc_parsed_t parse_failed_conn(const std::vector<fc_tlv_t> &tlvs)
+{
+    fc_parsed_t r;
+    memset(&r, 0, sizeof(r));
+    unsigned int len = 0;
+    auto buf = build_failed_conn_msg(tlvs, len);
+    r.ok = em_ctrl_t::parse_failed_conn_tlvs(buf.get() + 22, len - 22, r.bssid, r.sta, &r.status, &r.reason);
+    return r;
+}
+}
+
+/* the parsed values (not just "no crash") are asserted: a short duplicate TLV must be ignored and keep the valid value */
+TEST(em_ctrl_t, parse_failed_conn_tlvs_valid_message)
+{
+    fc_parsed_t r = parse_failed_conn({kBssid, kSta, kStatus});
+    EXPECT_TRUE(r.ok);
+    EXPECT_EQ(r.bssid[5], 0xaa);
+    EXPECT_EQ(r.sta[5], 0xbb);
+    EXPECT_EQ(r.status, 0x10);
+    EXPECT_EQ(r.reason, 0);
+}
+
+TEST(em_ctrl_t, parse_failed_conn_tlvs_short_duplicate_bssid_is_ignored)
+{
+    for (unsigned short l : {0, 1, 2, 5}) {
+        fc_parsed_t r = parse_failed_conn({kBssid, kSta, kStatus, {0xb8, l, std::vector<unsigned char>(l, 0x77)}});
+        EXPECT_TRUE(r.ok) << l;
+        EXPECT_EQ(r.bssid[0], 2) << l;
+        EXPECT_EQ(r.bssid[5], 0xaa) << l;
+    }
+}
+
+TEST(em_ctrl_t, parse_failed_conn_tlvs_short_duplicate_sta_mac_is_ignored)
+{
+    for (unsigned short l : {0, 1, 2, 5}) {
+        fc_parsed_t r = parse_failed_conn({kBssid, kSta, kStatus, {0x95, l, std::vector<unsigned char>(l, 0x77)}});
+        EXPECT_TRUE(r.ok) << l;
+        EXPECT_EQ(r.sta[0], 2) << l;
+        EXPECT_EQ(r.sta[5], 0xbb) << l;
+    }
+}
+
+/* without the length check a 1 byte Status Code reads the first EOM byte (still inside the buffer, so ASan stays quiet)
+ * and overwrites 0x0010 with 0x0000; only the parsed value shows it */
+TEST(em_ctrl_t, parse_failed_conn_tlvs_short_duplicate_status_code_is_ignored)
+{
+    fc_parsed_t r1 = parse_failed_conn({kBssid, kSta, kStatus, {0xc9, 1, {0x7f}}});
+    EXPECT_TRUE(r1.ok);
+    EXPECT_EQ(r1.status, 0x10);
+    fc_parsed_t r0 = parse_failed_conn({kBssid, kSta, kStatus, {0xc9, 0, {}}});
+    EXPECT_TRUE(r0.ok);
+    EXPECT_EQ(r0.status, 0x10);
+}
+
+TEST(em_ctrl_t, parse_failed_conn_tlvs_short_reason_code_is_ignored)
+{
+    fc_parsed_t r = parse_failed_conn({kBssid, kSta, kStatus, {0xca, 0x0002, {0x00, 0x05}}, {0xca, 1, {0x7f}}});
+    EXPECT_TRUE(r.ok);
+    EXPECT_EQ(r.reason, 5);
+}
+
+TEST(em_ctrl_t, parse_failed_conn_tlvs_valid_duplicates_overwrite)
+{
+    fc_parsed_t r = parse_failed_conn({kBssid, kSta, kStatus,
+        {0xb8, 6, {2, 0, 0, 0, 0, 0xcc}}, {0x95, 6, {2, 0, 0, 0, 0, 0xdd}}, {0xc9, 2, {0x00, 0x20}}});
+    EXPECT_TRUE(r.ok);
+    EXPECT_EQ(r.bssid[5], 0xcc);
+    EXPECT_EQ(r.sta[5], 0xdd);
+    EXPECT_EQ(r.status, 0x20);
+}
+
+TEST(em_ctrl_t, parse_failed_conn_tlvs_missing_mandatory_tlv)
+{
+    EXPECT_FALSE(parse_failed_conn({kBssid, kSta}).ok);
+    EXPECT_FALSE(parse_failed_conn({kBssid, kStatus}).ok);
+    EXPECT_FALSE(parse_failed_conn({kSta, kStatus}).ok);
+    EXPECT_FALSE(parse_failed_conn({kBssid, kSta, {0xc9, 1, {0x00}}}).ok);   /* only a short status code */
 }
