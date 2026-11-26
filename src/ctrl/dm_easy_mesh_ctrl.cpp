@@ -1187,7 +1187,13 @@ bus_error_t em_ctrl_t::cmd_channelselect(const char *method_name, const bus_data
     char *json_buff = NULL;
     size_t json_len = 0;
     bus_error_t rc = bus_error_success;
-
+    if (name == NULL) {
+        em_printfout("Invalid method name");
+        if (output_params) {
+            *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
+        }
+        return bus_error_invalid_input;
+    }
     param = strrchr(name, '.');
     if (param == NULL) {
         em_printfout("Invalid method name");
@@ -1215,10 +1221,24 @@ bus_error_t em_ctrl_t::cmd_channelselect(const char *method_name, const bus_data
         return bus_error_general;
     }
     dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl->get_dm_ctrl();
+    if (strlen(name) < sizeof(DATAELEMS_NETWORK)) {
+        em_printfout("Invalid method path");
+        if (output_params) {
+            *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
+        }
+        return bus_error_invalid_namespace;
+    }
 
     // Skip the static network prefix and parse the device instance from the TR-181 path
     name += sizeof(DATAELEMS_NETWORK);
     name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    if (name == NULL) {
+        em_printfout("Invalid method path");
+        if (output_params) {
+            *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
+        }
+        return bus_error_invalid_namespace;
+    }
     dm_easy_mesh_t *dm = dm_ctrl->get_dm_easy_mesh(instance, is_num);
     if (dm == NULL) {
         em_printfout("Device not found");
@@ -1229,6 +1249,13 @@ bus_error_t em_ctrl_t::cmd_channelselect(const char *method_name, const bus_data
     }
 
     name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    if (name == NULL) {
+        em_printfout("Radio not found");
+        if (output_params) {
+            *output_params = tr_181_t::tr181_set_status_output_prop("Failure");
+        }
+        return bus_error_invalid_namespace;
+    }
     dm_radio_t *radio = dm_ctrl->get_dm_radio(dm, instance, is_num);
     if (radio == NULL) {
         em_printfout("Radio not found");
@@ -6745,7 +6772,15 @@ const char* dm_easy_mesh_ctrl_t::get_table_instance(const char *src, char *insta
 	char *dst = instance;
 	size_t len = 0;
 
+    if (src == NULL) {
+        return NULL;
+    }
+
     src = strstr(src, ".");
+
+    if (src == NULL) {
+        return NULL;
+    }
     ++src;
 
 	if (*src == '[') {
@@ -6755,14 +6790,20 @@ const char* dm_easy_mesh_ctrl_t::get_table_instance(const char *src, char *insta
 			*dst++ = *src++;
 		}
 		*dst++ = 0;
-		src += 2;
+        if (*src != ']' || src[1] != '.') {
+            return NULL;
+        }
+        src += 2;
+
 	} else {
 		*is_num = true;
 		while (*src && *src != '.' && ++len < max_len) {
 			*dst++ = *src++;
 		}
 		*dst++ = 0;
-		src++;
+        if (*src) {
+            src++;
+        }
 	}
 
 	return src;
@@ -8498,8 +8539,14 @@ bus_error_t dm_easy_mesh_ctrl_t::curops_get_inner(char *event_name, raw_data_t *
 
     /* Extract device instance (numeric or alias) and find the dm object for
      * that device instance */
+    if (strlen(name) < sizeof(DATAELEMS_NETWORK)) {
+        return bus_error_invalid_input;
+    }
     name += sizeof(DATAELEMS_NETWORK);
     name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    if (name == NULL) {
+        return bus_error_invalid_input;
+    }
     dm_easy_mesh_t *dm = dm_ctrl->get_dm_easy_mesh(instance, is_num);
     if (dm == NULL) {
         printf("device not found\n");
@@ -8507,7 +8554,21 @@ bus_error_t dm_easy_mesh_ctrl_t::curops_get_inner(char *event_name, raw_data_t *
     }
 
     name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
-    radio_instance = is_num ? atoi(instance) : 0;
+    if (name == NULL) {
+        return bus_error_invalid_input;
+    }
+    if (!is_num) {
+        return bus_error_invalid_input;
+    }
+    char *end = NULL;
+    errno = 0;
+    long parsed_radio_instance = strtol(instance, &end, 10);
+    if (end == instance || *end != '\0' || errno == ERANGE ||
+        parsed_radio_instance < 1 || parsed_radio_instance > EM_MAX_BANDS) {
+        em_printfout("invalid radio instance: %s", instance);
+        return bus_error_invalid_input;
+    }
+    radio_instance = static_cast<int>(parsed_radio_instance);
     dm_radio_t *radio = &dm->m_radio[radio_instance - 1];
     if (radio == NULL) {
         em_printfout("radio is NULL\n");
@@ -8515,6 +8576,9 @@ bus_error_t dm_easy_mesh_ctrl_t::curops_get_inner(char *event_name, raw_data_t *
     }
 
     name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
+    if (name == NULL) {
+        return bus_error_invalid_input;
+    }
     curop_class_instance = is_num ? atoi(instance) : 0;
     dm_op_class_t *op_class = dm_ctrl->get_dm_curop(dm, radio, curop_class_instance);
     if (op_class == NULL) {
