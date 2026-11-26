@@ -1194,6 +1194,12 @@ SSL_KEY* em_crypto_t::ec_key_from_base64_der(const std::string& base64_der_pubke
     
     memset(key, 0, sizeof(key));
 
+    // EVP_DecodeBlock writes 3 bytes per 4 input characters (padding included): refuse text that cannot fit key[]
+    if (base64_der_pubkey.length() > static_cast<size_t>(INT_MAX) || (base64_der_pubkey.length() / 4) * 3 > sizeof(key)) {
+        printf("%s:%d Base64 public key is too long\n", __func__, __LINE__);
+        return NULL;
+    }
+
     int len = EVP_DecodeBlock(key, reinterpret_cast<const uint8_t*>(base64_der_pubkey.c_str()), static_cast<int> (base64_der_pubkey.length()));
     if (len < 0) {
         printf("%s:%d Failed to decode base 64 public key\n", __func__, __LINE__);
