@@ -2026,27 +2026,48 @@ int em_configuration_t::handle_ap_operational_bss(unsigned char *buff, unsigned 
     radio = const_cast<em_ap_op_bss_radio_t *> (ap->radios);
 
 	util::get_date_time_rfc3399(time_date, sizeof(time_date));
+     for (i = 0; i < ap->radios_num; i++) {
+         bss = radio->bss;
+         all_bss_len = 0;
+         for (j = 0; j < radio->bss_num; j++) {
+             ssid_t ssid_buf = {0};
+             size_t ssid_len = bss->ssid_len;
+             if (ssid_len >= sizeof(ssid_buf)) {
+                 ssid_len = sizeof(ssid_buf) - 1;
+             }
+             memcpy(ssid_buf, bss->ssid, ssid_len);
+             ssid_buf[ssid_len] = '\0';
+             if (!em_get_ext_hooks()->accept_bss_ssid(dm->is_ssid_match(ssid_buf))) {
+                 em_printfout("%s:%d: SSID validation failed [%s]", __func__, __LINE__, ssid_buf);
+                 return -2; // Exit cleanly; DM has NOT been touched!
+             }
 
+             all_bss_len += static_cast<unsigned int>(sizeof(em_ap_operational_bss_t) + bss->ssid_len);
+             bss = reinterpret_cast<em_ap_operational_bss_t *>(
+                 reinterpret_cast<unsigned char *>(bss) + sizeof(em_ap_operational_bss_t) + bss->ssid_len);
+         }
+         radio = reinterpret_cast<em_ap_op_bss_radio_t *>(
+            reinterpret_cast<unsigned char *>(radio) + sizeof(em_ap_op_bss_radio_t) + all_bss_len);
+    }
+    radio = const_cast<em_ap_op_bss_radio_t *> (ap->radios);
     for (i = 0; i < ap->radios_num; i++) {
+        /* Validate all incoming BSS entries before deleting existing ones */
         bss = radio->bss;
         all_bss_len = 0;
         for (j = 0; j < radio->bss_num; j++) {
             dm_bss = dm->get_bss(radio->ruid, bss->bssid);
-		
-			if (dm_bss == NULL) {
-				dm_bss = &dm->m_bss[dm->m_num_bss];
-				dm_bss->init();
+            if (dm_bss == NULL) {
+                dm_bss = &dm->m_bss[dm->m_num_bss];
+                dm_bss->init();
 
-				// fill up id first
-				strncpy(dm_bss->m_bss_info.id.net_id, dm->m_device.m_device_info.id.net_id, sizeof(em_long_string_t));
-				memcpy(dm_bss->m_bss_info.id.dev_mac, dm->m_device.m_device_info.intf.mac, sizeof(mac_address_t));
-				memcpy(dm_bss->m_bss_info.id.ruid, radio->ruid, sizeof(mac_address_t));
-				memcpy(dm_bss->m_bss_info.id.bssid, bss->bssid, sizeof(mac_address_t));
-	
+                snprintf(dm_bss->m_bss_info.id.net_id, sizeof(em_long_string_t), "%s", dm->m_device.m_device_info.id.net_id);
+                memcpy(dm_bss->m_bss_info.id.dev_mac, dm->m_device.m_device_info.intf.mac, sizeof(mac_address_t));
+                memcpy(dm_bss->m_bss_info.id.ruid, radio->ruid, sizeof(mac_address_t));
+                memcpy(dm_bss->m_bss_info.id.bssid, bss->bssid, sizeof(mac_address_t));
                 memcpy(dm_bss->m_bss_info.bssid.mac, bss->bssid, sizeof(mac_address_t));
                 memcpy(dm_bss->m_bss_info.ruid.mac, radio->ruid, sizeof(mac_address_t));
                 dm->set_num_bss(dm->get_num_bss() + 1);
-			}
+            }
             ssid_t ssid_buf;
             size_t ssid_len = bss->ssid_len;
             if (ssid_len >= sizeof(ssid_buf)) {
@@ -2054,14 +2075,8 @@ int em_configuration_t::handle_ap_operational_bss(unsigned char *buff, unsigned 
             }
             memcpy(ssid_buf, bss->ssid, ssid_len);
             ssid_buf[ssid_len] = '\0';
-            if (em_get_ext_hooks()->accept_bss_ssid(dm->is_ssid_match(ssid_buf))) {
-                strncpy(dm_bss->m_bss_info.ssid, ssid_buf, sizeof(dm_bss->m_bss_info.ssid) - 1);
-                dm_bss->m_bss_info.ssid[sizeof(dm_bss->m_bss_info.ssid) - 1] = '\0';
-            } else {
-                // SSID mismatch, stop processing further.
-                em_printfout("%s:%d:SSID mismatch. Stop proceeding. SSID=%s", __func__, __LINE__, bss->ssid);
-                return -2;
-            }
+            strncpy(dm_bss->m_bss_info.ssid,ssid_buf,sizeof(dm_bss->m_bss_info.ssid) - 1);
+            dm_bss->m_bss_info.ssid[sizeof(dm_bss->m_bss_info.ssid) - 1] = '\0';
             dm_bss->m_bss_info.enabled = true;
             strncpy(dm_bss->m_bss_info.timestamp, time_date, sizeof(em_long_string_t));
 
@@ -2070,7 +2085,39 @@ int em_configuration_t::handle_ap_operational_bss(unsigned char *buff, unsigned 
 			all_bss_len += static_cast<unsigned int> (sizeof(em_ap_operational_bss_t) + bss->ssid_len);
 			bss = reinterpret_cast<em_ap_operational_bss_t *> (reinterpret_cast<unsigned char *> (bss) + sizeof(em_ap_operational_bss_t) + bss->ssid_len);
         }
+        bool has_stale_bss = false;
+        for (unsigned int idx = 0; idx < dm->get_num_bss(); idx++) {
+            dm_bss = dm->get_bss(idx);
+            if (dm_bss == NULL) {
+                continue;
+            }
 
+            //Only check BSSes belonging to this current radio
+            if (memcmp(dm_bss->m_bss_info.id.ruid, radio->ruid, sizeof(mac_address_t)) == 0) {
+                bool found = false;
+                em_ap_operational_bss_t *chk_bss = radio->bss;
+                for (j = 0; j < radio->bss_num; j++) {
+                    if (memcmp(dm_bss->m_bss_info.id.bssid, chk_bss->bssid, sizeof(mac_address_t)) == 0) {
+                        found = true;
+                        break;
+                    }
+                    chk_bss = reinterpret_cast<em_ap_operational_bss_t *>(
+                        reinterpret_cast<unsigned char *>(chk_bss) + sizeof(em_ap_operational_bss_t) + chk_bss->ssid_len);
+                }
+
+                if (!found) {
+                    dm_bss->m_bss_info.enabled = false;
+                    has_stale_bss = true;
+                }
+            }
+        }
+
+        //Trigger stale deletion specifically for this radio's RUID
+        if (has_stale_bss) {
+            char radio_criteria[64] = {0};
+            dm_easy_mesh_t::macbytes_to_string(radio->ruid, radio_criteria);
+            dm->set_db_cfg_param(db_cfg_type_bss_list_stale_delete, radio_criteria);
+        }
         radio = reinterpret_cast<em_ap_op_bss_radio_t *> (reinterpret_cast<unsigned char *> (radio) + sizeof(em_ap_op_bss_radio_t) + all_bss_len);
 
     }
