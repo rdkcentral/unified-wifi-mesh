@@ -2719,11 +2719,15 @@ typedef struct {
     bool associated;
     em_string_t sta_client_type;
     em_long_string_t    timestamp;
+    em_long_string_t    hostname;
+    em_string_t         ipv4_address;
+    em_long_string_t    ipv6_address;
     unsigned int    last_ul_rate;
     unsigned int    last_dl_rate;
     unsigned int    est_ul_rate;
     unsigned int    est_dl_rate;
     unsigned int    last_conn_time;
+    time_t          assoc_time;
     unsigned int    retrans_count;
     signed int      signal_strength;
     unsigned char   rcpi;
@@ -3409,6 +3413,9 @@ typedef struct {
     mac_address_t bssid;
     mac_address_t radio;
     unsigned int frame_body_len;
+    em_long_string_t hostname;
+    em_string_t ipv4_address;
+    em_long_string_t ipv6_address;
 } em_bus_event_type_sta_cap_update_params_t;
 
 typedef struct {

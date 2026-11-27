@@ -39,6 +39,7 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <ifaddrs.h>
+#include <time.h>
 #include <fstream>
 #include <stdexcept>
 #include "dm_easy_mesh.h"
@@ -4192,15 +4193,53 @@ static void apply_sta_association_row(dm_easy_mesh_t *dm, em_sta_info_t info)
     snprintf(key, sizeof(key), "%s@%s@%s", sta, bssid, radio);
 
     dm_sta_t *existing = static_cast<dm_sta_t *>(hash_map_get(dm->m_sta_map, key));
+    dm_sta_t *pending = static_cast<dm_sta_t *>(hash_map_get(dm->m_sta_assoc_map, key));
+    time_t previous_assoc_time = existing != NULL ? existing->m_sta_info.assoc_time : 0;
+    if (previous_assoc_time == 0 && pending != NULL) {
+        previous_assoc_time = pending->m_sta_info.assoc_time;
+    }
+    bool previously_associated = (existing != NULL && existing->m_sta_info.associated) ||
+        (pending != NULL && pending->m_sta_info.associated);
+    if (info.associated && info.assoc_time == 0 && previous_assoc_time != 0) {
+        info.assoc_time = previous_assoc_time;
+    } else if (info.associated && info.assoc_time == 0 &&
+            !previously_associated) {
+        struct timespec ts;
+        clock_gettime(CLOCK_MONOTONIC, &ts);
+        info.assoc_time = ts.tv_sec;
+    }
+    if (!info.associated) {
+        info.assoc_time = 0;
+    }
+
     if (existing != NULL) {
         existing->m_sta_info.associated = info.associated;
+        existing->m_sta_info.assoc_time = info.assoc_time;
+        if (info.hostname[0] != '\0') {
+            memcpy(existing->m_sta_info.hostname, info.hostname, sizeof(info.hostname));
+        }
+        if (info.ipv4_address[0] != '\0') {
+            memcpy(existing->m_sta_info.ipv4_address, info.ipv4_address, sizeof(info.ipv4_address));
+        }
+        if (info.ipv6_address[0] != '\0') {
+            memcpy(existing->m_sta_info.ipv6_address, info.ipv6_address, sizeof(info.ipv6_address));
+        }
         info = existing->m_sta_info;
     }
-    dm_sta_t *pending = static_cast<dm_sta_t *>(hash_map_get(dm->m_sta_assoc_map, key));
     if (pending == NULL) {
         hash_map_put(dm->m_sta_assoc_map, strdup(key), new dm_sta_t(&info));
     } else if (existing == NULL) {
         pending->m_sta_info.associated = info.associated;
+        pending->m_sta_info.assoc_time = info.assoc_time;
+        if (info.hostname[0] != '\0') {
+            memcpy(pending->m_sta_info.hostname, info.hostname, sizeof(info.hostname));
+        }
+        if (info.ipv4_address[0] != '\0') {
+            memcpy(pending->m_sta_info.ipv4_address, info.ipv4_address, sizeof(info.ipv4_address));
+        }
+        if (info.ipv6_address[0] != '\0') {
+            memcpy(pending->m_sta_info.ipv6_address, info.ipv6_address, sizeof(info.ipv6_address));
+        }
     } else {
         dm_sta_t::copy_sta_info(&pending->m_sta_info, &info);
     }
@@ -4210,16 +4249,28 @@ void dm_easy_mesh_t::apply_sta_mld_association(const em_assoc_sta_mld_info_t &in
 {
     bool updated = false;
     dm_sta_t cached;
+    em_sta_info_t cached_metadata = {};
+    bool cached_associated = false;
     hash_map_t *maps[] = {m_sta_assoc_map, m_sta_map};
-    for (unsigned int i = 0; i < sizeof(maps) / sizeof(maps[0]) &&
-            cached.m_sta_info.frame_body_len == 0; i++) {
+    for (unsigned int i = 0; i < sizeof(maps) / sizeof(maps[0]); i++) {
         dm_sta_t *entry = static_cast<dm_sta_t *>(hash_map_get_first(maps[i]));
         while (entry != NULL) {
-            if (memcmp(entry->m_sta_info.id, info.mac_addr, sizeof(mac_address_t)) == 0 &&
-                    entry->m_sta_info.frame_body != NULL && entry->m_sta_info.frame_body_len > 0) {
-                dm_sta_t::set_frame_body(&cached.m_sta_info,
-                    entry->m_sta_info.frame_body, entry->m_sta_info.frame_body_len);
-                break;
+            if (memcmp(entry->m_sta_info.id, info.mac_addr, sizeof(mac_address_t)) == 0) {
+                if (!cached_associated && entry->m_sta_info.associated) {
+                    cached_metadata.assoc_time = entry->m_sta_info.assoc_time;
+                    memcpy(cached_metadata.hostname, entry->m_sta_info.hostname,
+                        sizeof(cached_metadata.hostname));
+                    memcpy(cached_metadata.ipv4_address, entry->m_sta_info.ipv4_address,
+                        sizeof(cached_metadata.ipv4_address));
+                    memcpy(cached_metadata.ipv6_address, entry->m_sta_info.ipv6_address,
+                        sizeof(cached_metadata.ipv6_address));
+                    cached_associated = true;
+                }
+                if (cached.m_sta_info.frame_body_len == 0 &&
+                        entry->m_sta_info.frame_body != NULL && entry->m_sta_info.frame_body_len > 0) {
+                    dm_sta_t::set_frame_body(&cached.m_sta_info,
+                        entry->m_sta_info.frame_body, entry->m_sta_info.frame_body_len);
+                }
             }
             entry = static_cast<dm_sta_t *>(hash_map_get_next(maps[i], entry));
         }
@@ -4240,6 +4291,12 @@ void dm_easy_mesh_t::apply_sta_mld_association(const em_assoc_sta_mld_info_t &in
         em_sta_info_t row = {};
         memcpy(row.id, info.mac_addr, sizeof(mac_address_t));
         memcpy(row.bssid, info.affiliated_sta[j].bssid, sizeof(mac_address_t));
+        if (cached_associated) {
+            row.assoc_time = cached_metadata.assoc_time;
+            memcpy(row.hostname, cached_metadata.hostname, sizeof(row.hostname));
+            memcpy(row.ipv4_address, cached_metadata.ipv4_address, sizeof(row.ipv4_address));
+            memcpy(row.ipv6_address, cached_metadata.ipv6_address, sizeof(row.ipv6_address));
+        }
         for (unsigned int r = 0; r < get_num_radios(); r++) {
             dm_bss_t *bss = get_bss(get_radio_info(r)->id.ruid, row.bssid);
             if (bss == NULL) {
@@ -4321,21 +4378,70 @@ void dm_easy_mesh_t::apply_sta_disassociation(const em_client_assoc_event_t &eve
 
 void dm_easy_mesh_t::apply_sta_cap_to_maps(const char *key, em_sta_info_t *info)
 {
-    // Write to m_sta_assoc_map for DB persistence on the next update_tables() flush.
+    em_sta_info_t updated = *info;
+    dm_sta_t *map_sta = static_cast<dm_sta_t *>(hash_map_get(m_sta_map, key));
     dm_sta_t *entry = static_cast<dm_sta_t *>(hash_map_get(m_sta_assoc_map, key));
+    time_t previous_assoc_time = map_sta != NULL ? map_sta->m_sta_info.assoc_time : 0;
+    if (previous_assoc_time == 0 && entry != NULL) {
+        previous_assoc_time = entry->m_sta_info.assoc_time;
+    }
+    bool previously_associated = (map_sta != NULL && map_sta->m_sta_info.associated) ||
+        (entry != NULL && entry->m_sta_info.associated);
+    if (updated.assoc_time == 0) {
+        if (previous_assoc_time != 0) {
+            updated.assoc_time = previous_assoc_time;
+        } else if (updated.associated && !previously_associated) {
+            struct timespec ts;
+            clock_gettime(CLOCK_MONOTONIC, &ts);
+            updated.assoc_time = ts.tv_sec;
+        }
+    }
+    if (updated.hostname[0] == '\0') {
+        if (entry != NULL && entry->m_sta_info.hostname[0] != '\0') {
+            memcpy(updated.hostname, entry->m_sta_info.hostname, sizeof(updated.hostname));
+        } else if (map_sta != NULL) {
+            memcpy(updated.hostname, map_sta->m_sta_info.hostname, sizeof(updated.hostname));
+        }
+    }
+    if (updated.ipv4_address[0] == '\0') {
+        if (entry != NULL && entry->m_sta_info.ipv4_address[0] != '\0') {
+            memcpy(updated.ipv4_address, entry->m_sta_info.ipv4_address, sizeof(updated.ipv4_address));
+        } else if (map_sta != NULL) {
+            memcpy(updated.ipv4_address, map_sta->m_sta_info.ipv4_address, sizeof(updated.ipv4_address));
+        }
+    }
+    if (updated.ipv6_address[0] == '\0') {
+        if (entry != NULL && entry->m_sta_info.ipv6_address[0] != '\0') {
+            memcpy(updated.ipv6_address, entry->m_sta_info.ipv6_address, sizeof(updated.ipv6_address));
+        } else if (map_sta != NULL) {
+            memcpy(updated.ipv6_address, map_sta->m_sta_info.ipv6_address, sizeof(updated.ipv6_address));
+        }
+    }
+
     if (entry == NULL) {
-        hash_map_put(m_sta_assoc_map, strdup(key), new dm_sta_t(info));
-        em_printfout("Client cap assoc_map new: %s len=%u assoc=%d", key, info->frame_body_len, info->associated);
+        hash_map_put(m_sta_assoc_map, strdup(key), new dm_sta_t(&updated));
+        em_printfout("Client cap assoc_map new: %s len=%u assoc=%d", key, updated.frame_body_len, updated.associated);
     } else {
-        dm_sta_t::copy_sta_info(&entry->m_sta_info, info);
-        em_printfout("Client cap assoc_map update: %s len=%u assoc=%d", key, info->frame_body_len, info->associated);
+        dm_sta_t::copy_sta_info(&entry->m_sta_info, &updated);
+        em_printfout("Client cap assoc_map update: %s len=%u assoc=%d", key, updated.frame_body_len, updated.associated);
     }
 
     // Also update m_sta_map immediately so the topology reflects decoded
     // caps in the current session without waiting for a DB sync.
-    dm_sta_t *map_sta = static_cast<dm_sta_t *>(hash_map_get(m_sta_map, key));
     if (map_sta != NULL) {
-        dm_sta_t::set_frame_body(&map_sta->m_sta_info, info->frame_body, info->frame_body_len);
+        dm_sta_t::set_frame_body(&map_sta->m_sta_info, updated.frame_body, updated.frame_body_len);
+        if (updated.hostname[0] != '\0') {
+            memcpy(map_sta->m_sta_info.hostname, updated.hostname, sizeof(updated.hostname));
+        }
+        if (updated.ipv4_address[0] != '\0') {
+            memcpy(map_sta->m_sta_info.ipv4_address, updated.ipv4_address, sizeof(updated.ipv4_address));
+        }
+        if (updated.ipv6_address[0] != '\0') {
+            memcpy(map_sta->m_sta_info.ipv6_address, updated.ipv6_address, sizeof(updated.ipv6_address));
+        }
+        if (updated.assoc_time != 0) {
+            map_sta->m_sta_info.assoc_time = updated.assoc_time;
+        }
         dm_sta_t::decode_sta_capability(map_sta);
     }
 }

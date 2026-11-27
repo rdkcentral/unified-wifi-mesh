@@ -327,6 +327,9 @@ void em_ctrl_t::handle_sta_cap_update(em_bus_event_t *evt)
     info.frame_body_len = update.frame_body_len;
     info.frame_body = update.frame_body_len == 0 ? NULL :
         evt->u.raw_buff + sizeof(update);
+    memcpy(info.hostname, update.hostname, sizeof(info.hostname));
+    memcpy(info.ipv4_address, update.ipv4_address, sizeof(info.ipv4_address));
+    memcpy(info.ipv6_address, update.ipv6_address, sizeof(info.ipv6_address));
 
     em_assoc_sta_mld_info_t rows[EM_MAX_ASSOC_STA_MLD];
     const unsigned int count = dm->copy_assoc_sta_mld_info(rows);
@@ -1069,6 +1072,7 @@ void em_ctrl_t::handle_5s_tick()
 
 void em_ctrl_t::handle_2s_tick()
 {
+	m_data_model.sta_hosts_retry();
 
 }
 

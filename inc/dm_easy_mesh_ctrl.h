@@ -36,6 +36,8 @@
 #include "dm_easy_mesh_list.h"
 #include "em_network_topo.h"
 #include "dm_easy_mesh.h"
+#include <list>
+#include <mutex>
 
 class em_cmd_t;
 class dm_easy_mesh_t;
@@ -63,6 +65,28 @@ public:
     dm_radio_t *get_dm_radio(dm_easy_mesh_t *dm, char *instance, bool is_num);
     dm_sta_t *get_dm_bh_sta(dm_easy_mesh_t *dm, dm_radio_t *radio);
     const char* get_table_instance(const char *src, char *instance, size_t max_len, bool *is_num);
+
+    /**
+     * @brief Look up the host of a STA, for which a client capability report was received
+     *
+     * Reads Device.Hosts once and stores the data of the Host whose PhysAddress is the STA MAC in
+     * the STA information.
+     *
+     * @param[in,out] si Information of the STA.
+     * @return true if the hostname and address lookups completed; an address family may be absent.
+     */
+    bool sta_hosts_lookup(em_sta_info_t *si);
+
+    /* Queue a STA whose Host was not found yet, to be looked up again by sta_hosts_retry() */
+    void sta_hosts_pending_add(const mac_address_t sta_mac);
+
+    /**
+     * @brief Look up again the Host of the queued STAs (called every 2 seconds)
+     *
+     * Available host data is applied without clearing fields that are still missing. A STA
+     * remains queued until lookups complete and available metadata is applied, or the retry limit is reached.
+     */
+    void sta_hosts_retry();
 
     bus_error_t network_get(char *event_name, raw_data_t *p_data);
     static bus_error_t network_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
@@ -219,6 +243,15 @@ private:
     // concrete backend is behind it is invisible to them.
     db_client_t     *m_db_client;
     db_client_type_t m_db_client_type;
+
+    static const unsigned int EM_STA_HOSTS_MAX_RETRY = 3;
+    struct sta_host_pending_t {
+        mac_address_t mac;
+        unsigned int retries;
+    };
+    std::list<sta_host_pending_t> m_sta_hosts_pending;
+    std::mutex m_sta_hosts_mutex;
+
     bool	m_initialized;
     bool	m_network_initialized;
 

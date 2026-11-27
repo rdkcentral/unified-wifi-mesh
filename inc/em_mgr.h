@@ -89,7 +89,13 @@ public:
 	 */
 	virtual em_orch_t *get_orch() { return nullptr; }
 
-    
+	/**!
+	 * @brief Complete a STA with the data of Device.Hosts.Host (controller only).
+	 *
+	 * @param[in,out] si Information of the STA, filled if its host is found.
+	 */
+	virtual void sta_host_lookup(em_sta_info_t *si) { (void)si; }
+
 	/**!
 	 * @brief Pushes an event to the queue.
 	 *
