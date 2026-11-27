@@ -19,6 +19,7 @@
 #ifndef EM_ETH_H
 #define EM_ETH_H
 
+#include <mutex>
 #include <string>
 #include <utility>
 #include <vector>
@@ -63,5 +64,15 @@ unsigned int em_eth_link_type_to_mbps(uint8_t link_type);
  * The first call only records the state and returns false.
  */
 bool em_eth_link_changed();
+
+/**!
+ * @brief Lock guarding the Ethernet port and statistics snapshots kept in em_device_info_t
+ *        (num_eth_ports/eth_ports and num_eth_stats/eth_stats).
+ *
+ * The radio protocol thread publishes these snapshots while the controller getters and the
+ * data-model updates copy them. Hold the lock for every write and every read/copy of those
+ * fields. It is not recursive and must not be held while calling code that takes it again.
+ */
+std::mutex &em_eth_data_mutex();
 
 #endif // EM_ETH_H

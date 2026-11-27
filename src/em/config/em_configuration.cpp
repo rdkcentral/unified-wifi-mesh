@@ -1430,8 +1430,11 @@ int em_configuration_t::handle_eth_interface_vendor_tlv(unsigned char *value, un
         return -1;
     }
 
-    di->num_eth_ports = static_cast<uint8_t> (num);
-    memcpy(di->eth_ports, ports, sizeof(ports));
+    {
+        std::lock_guard<std::mutex> lock(em_eth_data_mutex());
+        di->num_eth_ports = static_cast<uint8_t> (num);
+        memcpy(di->eth_ports, ports, sizeof(ports));
+    }
 
     return 0;
 }
@@ -2554,6 +2557,7 @@ int em_configuration_t::handle_topology_response(unsigned char *buff, unsigned i
         em_printfout("Ethernet Interface TLV absent, dropping the Ethernet ports");
         em_device_info_t *di = dm->get_device_info();
         if (di != NULL) {
+            std::lock_guard<std::mutex> lock(em_eth_data_mutex());
             di->num_eth_ports = 0;
             memset(di->eth_ports, 0, sizeof(di->eth_ports));
         }

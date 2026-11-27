@@ -68,6 +68,76 @@
 #include "em_cmd_client_assoc_ctrl_req.h"
 #include "em_cmd_beacon_query.h"
 
+/* Number of Ethernet ports, read under the Ethernet data lock */
+static uint32_t eth_num_ports(const em_device_info_t *di)
+{
+    std::lock_guard<std::mutex> lock(em_eth_data_mutex());
+    return di->num_eth_ports;
+}
+
+/* Consistent copy of the Ethernet snapshots, taken under the Ethernet data lock */
+typedef struct {
+    uint8_t num_ports;
+    em_eth_port_t ports[EM_MAX_ETH_PORTS];
+    uint8_t num_stats;
+    em_eth_stats_t stats[EM_MAX_ETH_PORTS];
+} eth_snapshot_t;
+
+static void eth_take_snapshot(const em_device_info_t *di, eth_snapshot_t *snap)
+{
+    std::lock_guard<std::mutex> lock(em_eth_data_mutex());
+
+    snap->num_ports = (di->num_eth_ports < EM_MAX_ETH_PORTS) ? di->num_eth_ports : EM_MAX_ETH_PORTS;
+    memcpy(snap->ports, di->eth_ports, sizeof(snap->ports));
+    snap->num_stats = (di->num_eth_stats < EM_MAX_ETH_PORTS) ? di->num_eth_stats : EM_MAX_ETH_PORTS;
+    memcpy(snap->stats, di->eth_stats, sizeof(snap->stats));
+}
+
+static em_eth_stats_t eth_find_stats(const eth_snapshot_t *snap, uint8_t port_id)
+{
+    em_eth_stats_t none;
+
+    memset(&none, 0, sizeof(none));
+    for (unsigned int i = 0; i < snap->num_stats; i++) {
+        if (snap->stats[i].port_id == port_id) {
+            return snap->stats[i];
+        }
+    }
+    return none;
+}
+
+/* Appends the Interface rows of an already taken snapshot, so the caller can derive the entry count from the same one */
+static void eth_append_rows(const char *root, const eth_snapshot_t *snap, unsigned int only_idx, bus_data_prop_t **property)
+{
+    dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
+    unsigned int num = snap->num_ports;
+
+    for (unsigned int idx = 1; idx <= num; idx++) {
+        if (only_idx != 0 && idx != only_idx) {
+            continue;
+        }
+        em_eth_port_t port = snap->ports[idx - 1];
+        em_eth_port_t *st = &port;
+        em_eth_stats_t stats = eth_find_stats(snap, port.port_id);
+
+        dm_ctrl->property_append_tail(property, root, idx, "PortID", st->port_id);
+        dm_ctrl->property_append_tail(property, root, idx, "Name", static_cast<const char *>(st->name));
+        dm_ctrl->property_append_tail(property, root, idx, "MACAddress", st->mac);
+        dm_ctrl->property_append_tail(property, root, idx, "Enable", static_cast<bool>(st->admin_up));
+        dm_ctrl->property_append_tail(property, root, idx, "Status", st->link_up ? "Up" : "Down");
+        dm_ctrl->property_append_tail(property, root, idx, "DuplexMode", st->full_duplex ? "Full" : "Half");
+        dm_ctrl->property_append_tail(property, root, idx, "MaxBitRate", static_cast<uint32_t>(em_eth_link_type_to_mbps(st->max_link_type)));
+        dm_ctrl->property_append_tail(property, root, idx, "CurrentBitRate", static_cast<uint32_t>(em_eth_link_type_to_mbps(st->cur_link_type)));
+        dm_ctrl->property_append_tail(property, root, idx, "Stats.BytesSent", static_cast<uint64_t>(stats.bytes_sent));
+        dm_ctrl->property_append_tail(property, root, idx, "Stats.BytesReceived", static_cast<uint64_t>(stats.bytes_recv));
+        dm_ctrl->property_append_tail(property, root, idx, "Stats.PacketsSent", static_cast<uint64_t>(stats.packets_sent));
+        dm_ctrl->property_append_tail(property, root, idx, "Stats.PacketsReceived", static_cast<uint64_t>(stats.packets_recv));
+        dm_ctrl->property_append_tail(property, root, idx, "Stats.ErrorsSent", static_cast<uint64_t>(stats.tx_errors));
+        dm_ctrl->property_append_tail(property, root, idx, "Stats.ErrorsReceived", static_cast<uint64_t>(stats.rx_errors));
+        dm_ctrl->property_append_tail(property, root, idx, "Stats.MulticastPacketsReceived", static_cast<uint64_t>(stats.mcast_packets_recv));
+    }
+}
+
 extern em_network_topo_t *g_network_topology;
 
 bus_error_t em_ctrl_t::cmd_setssid(const char *method_name, const bus_data_prop_t *input_params, bus_data_prop_t **output_params, void *async_handle)
@@ -7029,7 +7099,7 @@ bus_error_t dm_easy_mesh_ctrl_t::device_get_inner(char *event_name, raw_data_t *
     } else if (strcmp(param, "CPUTemperature") == 0) {
         rc = dm_ctrl->raw_data_set(p_data, di->cpu_temp);
     } else if (strcmp(param, "InterfaceNumberOfEntries") == 0) {
-        rc = dm_ctrl->raw_data_set(p_data, static_cast<uint32_t>(di->num_eth_ports));
+        rc = dm_ctrl->raw_data_set(p_data, eth_num_ports(di));
     } else if (strcmp(param, "OnboardingProtocol") == 0) {
         rc = dm_ctrl->raw_data_set(p_data, sec_cap ? sec_cap->onboarding_proto : 0);
     } else if (strcmp(param, "IntegrityAlgorithm") == 0) {
@@ -7207,9 +7277,11 @@ bus_error_t dm_easy_mesh_ctrl_t::device_tget_inner(char *event_name, raw_data_t 
             dm_ctrl->property_append_tail(&property, root, idx, "X_AIRTIES_ClientSecret", "");
         }
 
-        dm_ctrl->property_append_tail(&property, root, idx, "X_AIRTIES_Ethernet.InterfaceNumberOfEntries", static_cast<uint32_t>(di->num_eth_ports));
+        eth_snapshot_t eth_snap;
+        eth_take_snapshot(di, &eth_snap);
+        dm_ctrl->property_append_tail(&property, root, idx, "X_AIRTIES_Ethernet.InterfaceNumberOfEntries", static_cast<uint32_t>(eth_snap.num_ports));
         snprintf(path, sizeof(path) - 1, "%s%d.X_AIRTIES_Ethernet.Interface.", root, idx);
-        dm_ctrl->ethif_tget_params(path, di, 0, &property);
+        eth_append_rows(path, &eth_snap, 0, &property);
 
         snprintf(path, sizeof(path) - 1, "%s%d.Radio.", root, idx);
         dm_ctrl->radio_tget_params(dm, path, &property);
@@ -10464,20 +10536,6 @@ bus_error_t dm_easy_mesh_ctrl_t::affap_tget_params(dm_easy_mesh_t *dm, const cha
     return rc;
 }
 
-static em_eth_stats_t eth_find_stats(const em_device_info_t *di, uint8_t port_id)
-{
-    em_eth_stats_t none;
-    unsigned int num = (di->num_eth_stats < EM_MAX_ETH_PORTS) ? di->num_eth_stats : EM_MAX_ETH_PORTS;
-
-    memset(&none, 0, sizeof(none));
-    for (unsigned int i = 0; i < num; i++) {
-        if (di->eth_stats[i].port_id == port_id) {
-            return di->eth_stats[i];
-        }
-    }
-    return none;
-}
-
 bus_error_t dm_easy_mesh_ctrl_t::ethif_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
 {
     (void) user_data;
@@ -10518,13 +10576,15 @@ bus_error_t dm_easy_mesh_ctrl_t::ethif_get_inner(char *event_name, raw_data_t *p
     ++name;
     name = dm_ctrl->get_table_instance(name, instance, MAX_INSTANCE_LEN, &is_num);
     int idx = atoi(instance);
-    if (!is_num || idx <= 0 || idx > di->num_eth_ports || idx > EM_MAX_ETH_PORTS) {
+    eth_snapshot_t snap;
+    eth_take_snapshot(di, &snap);
+    if (!is_num || idx <= 0 || idx > snap.num_ports) {
         em_printfout("Ethernet Interface not found");
         return bus_error_invalid_namespace;
     }
-    em_eth_port_t port = di->eth_ports[idx - 1];
+    em_eth_port_t port = snap.ports[idx - 1];
     em_eth_port_t *st = &port;
-    em_eth_stats_t stats = eth_find_stats(di, port.port_id);
+    em_eth_stats_t stats = eth_find_stats(&snap, port.port_id);
 
     if (strcmp(param, "PortID") == 0) {
         rc = dm_ctrl->raw_data_set(p_data, st->port_id);
@@ -10628,36 +10688,12 @@ bus_error_t dm_easy_mesh_ctrl_t::ethif_tget_inner(char *event_name, raw_data_t *
 
 bus_error_t dm_easy_mesh_ctrl_t::ethif_tget_params(const char *root, em_device_info_t *di, unsigned int only_idx, bus_data_prop_t **property)
 {
-    dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
-
-    unsigned int num = (di->num_eth_ports < EM_MAX_ETH_PORTS) ? di->num_eth_ports : EM_MAX_ETH_PORTS;
-    if (only_idx > num) {
+    eth_snapshot_t snap;
+    eth_take_snapshot(di, &snap);
+    if (only_idx > snap.num_ports) {
         return bus_error_invalid_namespace;
     }
-    for (unsigned int idx = 1; idx <= num; idx++) {
-        if (only_idx != 0 && idx != only_idx) {
-            continue;
-        }
-        em_eth_port_t port = di->eth_ports[idx - 1];
-        em_eth_port_t *st = &port;
-        em_eth_stats_t stats = eth_find_stats(di, port.port_id);
-
-        dm_ctrl->property_append_tail(property, root, idx, "PortID", st->port_id);
-        dm_ctrl->property_append_tail(property, root, idx, "Name", static_cast<const char *>(st->name));
-        dm_ctrl->property_append_tail(property, root, idx, "MACAddress", st->mac);
-        dm_ctrl->property_append_tail(property, root, idx, "Enable", static_cast<bool>(st->admin_up));
-        dm_ctrl->property_append_tail(property, root, idx, "Status", st->link_up ? "Up" : "Down");
-        dm_ctrl->property_append_tail(property, root, idx, "DuplexMode", st->full_duplex ? "Full" : "Half");
-        dm_ctrl->property_append_tail(property, root, idx, "MaxBitRate", static_cast<uint32_t>(em_eth_link_type_to_mbps(st->max_link_type)));
-        dm_ctrl->property_append_tail(property, root, idx, "CurrentBitRate", static_cast<uint32_t>(em_eth_link_type_to_mbps(st->cur_link_type)));
-        dm_ctrl->property_append_tail(property, root, idx, "Stats.BytesSent", static_cast<uint64_t>(stats.bytes_sent));
-        dm_ctrl->property_append_tail(property, root, idx, "Stats.BytesReceived", static_cast<uint64_t>(stats.bytes_recv));
-        dm_ctrl->property_append_tail(property, root, idx, "Stats.PacketsSent", static_cast<uint64_t>(stats.packets_sent));
-        dm_ctrl->property_append_tail(property, root, idx, "Stats.PacketsReceived", static_cast<uint64_t>(stats.packets_recv));
-        dm_ctrl->property_append_tail(property, root, idx, "Stats.ErrorsSent", static_cast<uint64_t>(stats.tx_errors));
-        dm_ctrl->property_append_tail(property, root, idx, "Stats.ErrorsReceived", static_cast<uint64_t>(stats.rx_errors));
-        dm_ctrl->property_append_tail(property, root, idx, "Stats.MulticastPacketsReceived", static_cast<uint64_t>(stats.mcast_packets_recv));
-    }
+    eth_append_rows(root, &snap, only_idx, property);
 
     return bus_error_success;
 }

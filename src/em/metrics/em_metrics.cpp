@@ -2200,8 +2200,11 @@ int em_metrics_t::handle_eth_stats_vendor_tlv(unsigned char *buf, unsigned int l
         }
     }
 
-    di->num_eth_stats = static_cast<uint8_t> (num);
-    memcpy(di->eth_stats, stats, sizeof(stats));
+    {
+        std::lock_guard<std::mutex> lock(em_eth_data_mutex());
+        di->num_eth_stats = static_cast<uint8_t> (num);
+        memcpy(di->eth_stats, stats, sizeof(stats));
+    }
 
     return 0;
 }

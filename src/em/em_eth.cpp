@@ -115,6 +115,12 @@ static std::vector<std::string> list_dir(const std::string &path)
     return names;
 }
 
+std::mutex &em_eth_data_mutex()
+{
+    static std::mutex mtx;
+    return mtx;
+}
+
 static uint8_t eth_assign_port_id(const std::string &iface)
 {
     static std::mutex mtx;
