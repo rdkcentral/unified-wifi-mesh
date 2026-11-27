@@ -377,6 +377,7 @@ void em_t::proto_process(unsigned char *data, unsigned int len)
             break;
 
         case em_msg_type_failed_conn:
+        case em_msg_type_client_disassoc_stats:
             em_metrics_t::process_msg(data, len);
             break;
 
@@ -415,15 +416,13 @@ void em_t::proto_process(em_cmd_event_t *cevt)
     switch (cevt->type) {
         case em_cmd_event_type_ap_metrics_report:
         {
-            em_cmd_t *saved_cmd = m_cmd;
             em_cmd_t *ap_cmd = static_cast<em_cmd_t*>(cevt->cmd_ptr);
-            m_cmd = ap_cmd;
-            em_metrics_t::process_agent_state(em_cmd_event_type_ap_metrics_report);
+            // m_cmd belongs to the orchestrator thread, the report is passed as an argument
             if (ap_cmd != NULL) {
+                em_metrics_t::process_agent_state(em_cmd_event_type_ap_metrics_report, ap_cmd);
                 ap_cmd->deinit();
             }
             delete ap_cmd;
-            m_cmd = saved_cmd;
             break;
         }
         case em_cmd_event_type_failed_connection:
@@ -437,6 +436,18 @@ void em_t::proto_process(em_cmd_event_t *cevt)
                                                failed_conn_evt->reason_code,
                                                failed_conn_evt->reason_code_present);
                 free(failed_conn_evt);
+                cevt->cmd_ptr = NULL;
+            }
+            break;
+        }
+        case em_cmd_event_type_client_disassoc_stats:
+        {
+            em_client_disassoc_stats_evt_data_t *disassoc_evt =
+                static_cast<em_client_disassoc_stats_evt_data_t *>(cevt->cmd_ptr);
+
+            if (disassoc_evt != NULL) {
+                send_client_disassoc_stats_msg(disassoc_evt);
+                free(disassoc_evt);
                 cevt->cmd_ptr = NULL;
             }
             break;
@@ -708,7 +719,11 @@ void em_t::deinit()
     m_exit = true;
     pthread_cond_destroy(&m_iq.cond);
     pthread_mutex_destroy(&m_iq.lock);
-    close(m_fd);
+    // Only an em that opened a socket has one to close
+    if (m_fd >= 0) {
+        close(m_fd);
+        m_fd = -1;
+    }
 
     queue_destroy(m_iq.queue);
 }
@@ -731,6 +746,7 @@ int em_t::set_bp_filter()
     if (setsockopt(m_fd, SOL_SOCKET, SO_ATTACH_FILTER, &bpf, sizeof(bpf))) {
         printf("%s:%d: Error in attaching filter, err:%d\n", __func__, __LINE__, errno);
         close(m_fd);
+        m_fd = -1;
         return -1;
     }
 
@@ -740,6 +756,7 @@ int em_t::set_bp_filter()
     if (setsockopt(m_fd, SOL_PACKET, PACKET_ADD_MEMBERSHIP, reinterpret_cast<char *>(&mreq), sizeof(mreq))) {
         printf("%s:%d: Error setting promisuous for interface:%s, err:%d\n", __func__, __LINE__, m_ruid.name, errno);
         close(m_fd);
+        m_fd = -1;
         return -1;
     }
 
@@ -776,7 +793,9 @@ int em_t::start_al_interface()
 
     m_fd = sock_fd;
 
-    set_bp_filter();
+    if (set_bp_filter() != 0) {
+        return -1;
+    }
 #endif // AL_SAP
     return 0;
 }
@@ -1835,13 +1854,13 @@ short em_t::create_device_inventory_tlv(unsigned char *buff)
     len += (1 + data_len);
 
     // 3. Environment
-    slen = (info) ? strlen(info->environment) : 0;
-    if (slen > sizeof(info->environment) - 1) slen = sizeof(info->environment) - 1;
+    slen = (info) ? strlen(info->exec_env) : 0;
+    if (slen > sizeof(info->exec_env) - 1) slen = sizeof(info->exec_env) - 1;
     if (slen > EM_INVENTORY_STR_MAX) slen = EM_INVENTORY_STR_MAX;
     data_len = static_cast<unsigned char>(slen);
     *tmp++ = data_len;
     if (data_len > 0) {
-        memcpy(tmp, info->environment, data_len);
+        memcpy(tmp, info->exec_env, data_len);
         tmp += data_len;
     }
     len += (1 + data_len);
@@ -2744,20 +2763,25 @@ int em_t::handle_wifi6_cap_tlv(unsigned char *buff)
     return 0;
 }
 
-int em_t::handle_wifi7_agent_cap_tlv(unsigned char *buff)
+int em_t::handle_wifi7_agent_cap_tlv(unsigned char *buff, unsigned int len)
 {
     unsigned char *tmp = buff;
-    short offset = 0;
+    size_t offset = 0;
     dm_easy_mesh_t *dm = get_data_model();
     em_wifi7_mlo_cap_support_tlv_t *mlo_support = NULL;
     unsigned char *num_records = NULL;
     em_wifi7_freq_record_tlv_t *record = NULL;
     em_wifi7_agent_cap_t *em_wifi7_cap = NULL;
+    size_t validated_offset, records_size;
+    unsigned int cap_idx, group, count, record_idx;
+    dm_radio_t *radio = NULL;
+    em_radio_cap_info_t *cap_info = NULL;
 
     em_wifi7_cap_link_info_tlv_t *link_info = reinterpret_cast<em_wifi7_cap_link_info_tlv_t *>(tmp);
-    if ((link_info == NULL)) {
-        em_printfout("No data Found");
-        return 0;
+    if (link_info == NULL || dm == NULL ||
+        len < sizeof(em_wifi7_cap_link_info_tlv_t) + sizeof(unsigned char)) {
+        em_printfout("Invalid Wi-Fi 7 capability TLV");
+        return -1;
     }
 
     offset += static_cast<short>(sizeof(em_wifi7_cap_link_info_tlv_t));
@@ -2769,23 +2793,66 @@ int em_t::handle_wifi7_agent_cap_tlv(unsigned char *buff)
     offset += static_cast<short>(sizeof(unsigned char));
 
     if (dm != NULL) {
-        unsigned int dm_num_radios = dm->get_num_radios();
         if (num_radios > EM_MAX_RADIO_PER_AGENT) {
             em_printfout("Clamping num_radios from %u to EM_MAX_RADIO_PER_AGENT (%d)", num_radios, EM_MAX_RADIO_PER_AGENT);
             num_radios = EM_MAX_RADIO_PER_AGENT;
         }
-        if (num_radios > dm_num_radios) {
-            em_printfout("Clamping num_radios from %u to dm->get_num_radios() (%u)", num_radios, dm_num_radios);
-            num_radios = dm_num_radios;
+    }
+
+    // Validate the records before following their embedded lengths.
+    validated_offset = offset;
+    for (unsigned int idx = 0; idx < num_radios; idx++) {
+        if (len - validated_offset < sizeof(em_wifi7_mlo_cap_support_tlv_t)) {
+            em_printfout("Truncated Wi-Fi 7 MLO support record %u", idx);
+            return -1;
+        }
+        validated_offset += sizeof(em_wifi7_mlo_cap_support_tlv_t);
+        for (group = 0; group < 8; group++) {
+            if (validated_offset >= len) {
+                em_printfout("Missing Wi-Fi 7 frequency record count for radio %u", idx);
+                return -1;
+            }
+            count = buff[validated_offset++];
+            records_size = static_cast<size_t>(count) * sizeof(em_wifi7_freq_record_tlv_t);
+            if (count > EM_MAX_FREQ_RECORDS_PER_RADIO || records_size > len - validated_offset) {
+                em_printfout("Invalid Wi-Fi 7 frequency records for radio %u", idx);
+                return -1;
+            }
+            validated_offset += records_size;
         }
     }
 
     for (unsigned int idx = 0; idx < num_radios; idx++) {
-        em_wifi7_cap = &dm->get_radio_cap_info(idx)->wifi7_cap;
-        em_printfout("Updating wifi7 cap for radio[%u]:%s", idx, util::mac_to_string(dm->get_radio_cap_info(idx)->ruid.mac).c_str());
-
-        // Extract MLO support info
         mlo_support = reinterpret_cast<em_wifi7_mlo_cap_support_tlv_t *>(buff + offset);
+
+        // Bind this record to the radio named by its embedded RUID, not by report order.
+        for (cap_idx = 0; cap_idx < dm->get_num_radios(); cap_idx++) {
+            radio = dm->get_radio(cap_idx);
+            if (radio != NULL &&
+                memcmp(radio->m_radio_info.intf.mac, mlo_support->ruid, sizeof(mac_address_t)) == 0) {
+                break;
+            }
+        }
+        if (cap_idx == dm->get_num_radios()) {
+            em_printfout("Skipping wifi7 capability record %u: unknown RUID %s", idx,
+                util::mac_to_string(mlo_support->ruid).c_str());
+            offset += static_cast<short>(sizeof(em_wifi7_mlo_cap_support_tlv_t));
+            for (record_idx = 0; record_idx < 8; record_idx++) {
+                num_records = reinterpret_cast<unsigned char *>(buff + offset);
+                offset += sizeof(unsigned char) +
+                    *num_records * sizeof(em_wifi7_freq_record_tlv_t);
+            }
+            continue;
+        }
+        cap_info = dm->get_radio_cap_info(cap_idx);
+        if (cap_info == NULL) {
+            em_printfout("No radio cap slot for wifi7 record %u", idx);
+            return -1;
+        }
+        memcpy(cap_info->ruid.mac, mlo_support->ruid, sizeof(mac_address_t));
+        em_wifi7_cap = &cap_info->wifi7_cap;
+        em_printfout("Updating wifi7 cap for radio[%u]:%s", cap_idx, util::mac_to_string(cap_info->ruid.mac).c_str());
+
         memcpy(&em_wifi7_cap->mlo_cap_support, mlo_support, sizeof(em_wifi7_mlo_cap_support_tlv_t));
         offset += static_cast<short>(sizeof(em_wifi7_mlo_cap_support_tlv_t));
 
@@ -2929,6 +2996,7 @@ int em_t::init()
         queue_destroy(m_iq.queue);
         if (is_al_interface_em()) {
             close(m_fd);
+            m_fd = -1;
         }
         return -1;
     }
@@ -2942,6 +3010,7 @@ int em_t::init()
         pthread_cond_destroy(&m_iq.cond);
         if (is_al_interface_em()) {
             close(m_fd);
+            m_fd = -1;
         }
         return -1;
     }
@@ -2966,6 +3035,7 @@ int em_t::init()
         queue_destroy(m_iq.queue);
         if (is_al_interface_em()) {
             close(m_fd);
+            m_fd = -1;
         }
         pthread_mutex_destroy(&m_iq.lock);
         pthread_cond_destroy(&m_iq.cond);
@@ -3218,7 +3288,7 @@ void em_t::cfg_1905_handshake_complete_handler(uint8_t peer_al_mac[ETH_ALEN], bo
     set_peer_1905_security_status(peer_al_mac, peer_1905_security_status::PEER_1905_SECURITY_SECURED);
 }
 
-em_t::em_t(em_interface_t *ruid, em_freq_band_t band, dm_easy_mesh_t *dm, em_mgr_t *mgr, em_profile_type_t profile, em_service_type_t type, bool is_al_em): m_data_model(), m_mgr(mgr), m_orch_state(), m_cmd(), m_sm(), m_service_type(), m_fd(0), m_ruid(*ruid), m_band(band), m_profile_type(profile), m_iq(), m_tid(), m_exit(), m_is_al_em(is_al_em)
+em_t::em_t(em_interface_t *ruid, em_freq_band_t band, dm_easy_mesh_t *dm, em_mgr_t *mgr, em_profile_type_t profile, em_service_type_t type, bool is_al_em): m_data_model(), m_mgr(mgr), m_orch_state(), m_cmd(), m_sm(), m_service_type(), m_fd(-1), m_ruid(*ruid), m_band(band), m_profile_type(profile), m_iq(), m_tid(), m_exit(), m_is_al_em(is_al_em)
 {
     memcpy(&m_ruid, ruid, sizeof(em_interface_t));
     m_band = band;

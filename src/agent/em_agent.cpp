@@ -18,6 +18,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <strings.h>
 #include <stdlib.h>
 #include <errno.h>
 #include <signal.h>
@@ -30,6 +31,7 @@
 #include <sys/ioctl.h>
 #include <sys/socket.h>
 #include <sys/uio.h>
+#include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
 #include <pthread.h>
@@ -52,6 +54,8 @@
 #endif
 
 #define RETRY_SLEEP_INTERVAL_IN_MS 1000
+#define EM_CFG_FILE_WAIT_RETRIES 60
+#define EM_CFG_DIR "/nvram"
 
 #define EMEX_AIRTIES_CLIENT_ID      "Device.Services.X_AIRTIES_Edge.AuthConfig.ClientID"
 #define EMEX_AIRTIES_CLIENT_SECRET  "Device.Services.X_AIRTIES_Edge.AuthConfig.ClientPassword"
@@ -516,6 +520,113 @@ void em_agent_t::handle_recv_failed_conn(em_bus_event_t *event)
                  evt_copy->status_code,
                  evt_copy->reason_code);
 
+    em->push_to_queue(qevt);
+}
+
+void em_agent_t::handle_recv_client_disassoc_stats(em_bus_event_t *event)
+{
+    em_bss_info_t *target_bss = nullptr;
+    em_t *em = nullptr;
+    em_event_t *qevt = nullptr;
+    em_client_disassoc_stats_evt_data_t *evt_copy = nullptr;
+    std::string ruid_str;
+
+    if (event == nullptr) {
+        em_printfout("NULL event!");
+        return;
+    }
+    if (event->u.raw_buff == nullptr || event->data_len == 0) {
+        em_printfout("NULL client disassoc stats payload!");
+        return;
+    }
+
+    // Fixed-length copy of the bus payload, not guaranteed to be NUL-terminated.
+    std::vector<char> payload(event->data_len + 1, '\0');
+    memcpy(payload.data(), event->u.raw_buff, event->data_len);
+
+    cJSON *obj = cJSON_Parse(payload.data());
+    if (obj == nullptr) {
+        em_printfout("Client disassoc stats JSON parse failed, raw: %s", payload.data());
+        return;
+    }
+
+    cJSON *bssid_item = cJSON_GetObjectItem(obj, "BSSID");
+    cJSON *sta_item = cJSON_GetObjectItem(obj, "STA MacAddress");
+    cJSON *reason_item = cJSON_GetObjectItem(obj, "Reason Code");
+    cJSON *stats_item = cJSON_GetObjectItem(obj, "Traffic Stats");
+
+    if (!cJSON_IsString(bssid_item) || !cJSON_IsString(sta_item) || !cJSON_IsNumber(reason_item) ||
+        !cJSON_IsObject(stats_item)) {
+        em_printfout("Client disassoc stats JSON missing/invalid fields (BSSID/STA MacAddress/Reason Code/Traffic Stats), raw: %s",
+            payload.data());
+        cJSON_Delete(obj);
+        return;
+    }
+
+    evt_copy = static_cast<em_client_disassoc_stats_evt_data_t *>(calloc(1, sizeof(em_client_disassoc_stats_evt_data_t)));
+    if (evt_copy == nullptr) {
+        em_printfout("Failed to alloc client disassoc stats payload");
+        cJSON_Delete(obj);
+        return;
+    }
+
+    dm_easy_mesh_t::string_to_macbytes(bssid_item->valuestring, evt_copy->bssid);
+    dm_easy_mesh_t::string_to_macbytes(sta_item->valuestring, evt_copy->sta_mac);
+    evt_copy->reason_code = static_cast<unsigned short>(reason_item->valueint);
+
+    const struct {
+        const char *name;
+        unsigned int *dst;
+    } counters[] = {
+        { "BytesSent", &evt_copy->bytes_sent },
+        { "BytesReceived", &evt_copy->bytes_recv },
+        { "PacketsSent", &evt_copy->packets_sent },
+        { "PacketsReceived", &evt_copy->packets_recv },
+        { "TxPacketsErrors", &evt_copy->tx_packets_errors },
+        { "RxPacketsErrors", &evt_copy->rx_packets_errors },
+        { "RetransmissionCount", &evt_copy->retrans_count },
+    };
+    for (const auto &c : counters) {
+        cJSON *item = cJSON_GetObjectItem(stats_item, c.name);
+        if (!cJSON_IsNumber(item)) {
+            em_printfout("Client disassoc stats JSON missing/invalid Traffic Stats.%s, raw: %s", c.name, payload.data());
+            cJSON_Delete(obj);
+            free(evt_copy);
+            return;
+        }
+        // The TLV counters are 32-bit; OneWifi reports 64-bit values.
+        *c.dst = static_cast<unsigned int>(static_cast<unsigned long long>(item->valuedouble));
+    }
+    cJSON_Delete(obj);
+
+    target_bss = m_data_model.get_bss_info_with_mac(evt_copy->bssid);
+    if (target_bss == nullptr) {
+        em_printfout("No BSS for bssid=%s, drop", util::mac_to_string(evt_copy->bssid).c_str());
+        free(evt_copy);
+        return;
+    }
+    ruid_str = util::mac_to_string(target_bss->ruid.mac);
+    em = static_cast<em_t *>(hash_map_get(g_agent.m_em_map, ruid_str.c_str()));
+    if (em == nullptr) {
+        em_printfout("No radio EM for bssid=%s, drop", util::mac_to_string(evt_copy->bssid).c_str());
+        free(evt_copy);
+        return;
+    }
+
+    qevt = static_cast<em_event_t *>(calloc(1, sizeof(em_event_t)));
+    if (qevt == nullptr) {
+        em_printfout("Failed to alloc client disassoc stats event");
+        free(evt_copy);
+        return;
+    }
+    qevt->type = em_event_type_cmd;
+    qevt->u.cevt.type = em_cmd_event_type_client_disassoc_stats;
+    qevt->u.cevt.cmd_ptr = evt_copy;
+
+    em_printfout("Queue client disassoc stats: sta=%s bssid=%s reason=%u",
+                 util::mac_to_string(evt_copy->sta_mac).c_str(),
+                 util::mac_to_string(evt_copy->bssid).c_str(),
+                 evt_copy->reason_code);
     em->push_to_queue(qevt);
 }
 
@@ -1511,6 +1622,10 @@ void em_agent_t::handle_bus_event(em_bus_event_t *evt)
             handle_recv_failed_conn(evt);
             break;
 
+        case em_bus_event_type_client_disassoc_stats:
+            handle_recv_client_disassoc_stats(evt);
+            break;
+
         case em_bus_event_type_ap_metrics_report:
             handle_ap_metrics_report(evt);
             break;
@@ -1569,9 +1684,66 @@ void em_agent_t::handle_5s_tick()
 #endif
 }
 
+void em_agent_t::sync_associated_clients()
+{
+    wifi_bus_desc_t *desc;
+    raw_data_t data;
+    bus_error_t rc;
+    unsigned int num_radios = 0;
+    unsigned int events;
+    em_t *em;
+
+    em = static_cast<em_t *>(hash_map_get_first(m_em_map));
+    while (em != NULL) {
+        if (em->is_al_interface_em() == false) {
+            if (em->get_state() != em_state_agent_configured) {
+                return;
+            }
+            num_radios++;
+        }
+        em = static_cast<em_t *>(hash_map_get_next(m_em_map, em));
+    }
+
+    if ((num_radios == 0) || ((desc = get_bus_descriptor()) == NULL)) {
+        return;
+    }
+
+    pthread_mutex_lock(&m_sta_list_mutex);
+    events = m_sta_list_events;
+    pthread_mutex_unlock(&m_sta_list_mutex);
+
+    memset(&data, 0, sizeof(raw_data_t));
+    if ((rc = desc->bus_data_get_fn(&m_bus_hdl, WIFI_WEBCONFIG_GET_ASSOC, &data)) != bus_error_success) {
+        em_printfout("Associated clients read failed, error: %d, trying again", rc);
+        return;
+    }
+
+    pthread_mutex_lock(&m_sta_list_mutex);
+    if (events != m_sta_list_events) {
+        // a list published during the read is newer than the list read and is queued before it
+        em_printfout("Associated clients changed during the read, trying again");
+    } else if ((data.raw_data.bytes == NULL) || (data.raw_data_len == 0) || (data.raw_data_len > EM_MAX_EVENT_DATA_LEN)) {
+        m_assoc_clients_synced = true;
+        em_printfout("Associated clients read from OneWifi cannot be used, len: %u", data.raw_data_len);
+    } else {
+        m_assoc_clients_synced = true;
+        em_printfout("Associated clients read from OneWifi, len: %u", data.raw_data_len);
+        io_process(em_bus_event_type_sta_list, reinterpret_cast<unsigned char *>(data.raw_data.bytes), data.raw_data_len);
+    }
+    pthread_mutex_unlock(&m_sta_list_mutex);
+
+    if (desc->bus_data_free_fn != NULL) {
+        desc->bus_data_free_fn(&data);
+    } else {
+        free(data.raw_data.bytes);
+    }
+}
+
 void em_agent_t::handle_2s_tick()
 {
-
+    if (m_assoc_clients_synced == false) {
+        sync_associated_clients();
+    }
 }
 
 void em_agent_t::handle_1s_tick()
@@ -1825,18 +1997,25 @@ void em_agent_t::input_listener()
     load_em_plus_cfg();
     fill_extended_device_info();
 
-    raw_data_t ready_data = {};
-    while ((bus_error_val = desc->bus_data_get_fn(&m_bus_hdl, WIFI_EM_INIT_TX_POWER_READY,
-                &ready_data)) != bus_error_success) {
-        em_printfout("Transmit power GET failed for %s, error: %d; retrying",
-            WIFI_EM_INIT_TX_POWER_READY, bus_error_val);
+    // OneWifi serves Init_dml before its monitor is up; wait for it to avoid an empty radio/BSS config
+    int monitor_retry = 0;
+    while (true) {
+        raw_data_t monitor_data = {};
+        bus_error_val = desc->bus_data_get_fn(&m_bus_hdl, WIFI_EM_MONITOR_DONE, &monitor_data);
+        bool monitor_done = (bus_error_val == bus_error_success) &&
+            (monitor_data.data_type == bus_data_type_boolean) && monitor_data.raw_data.b;
+        if (bus_error_val == bus_error_success && monitor_data.data_type != bus_data_type_boolean &&
+            monitor_data.raw_data.bytes != nullptr) {
+            desc->bus_data_free_fn(&monitor_data);
+        }
+        if (monitor_done) {
+            break;
+        }
+        monitor_retry++;
+        em_printfout("OneWifi monitor not ready (err: %d), retrying %d", bus_error_val, monitor_retry);
         usleep(RETRY_SLEEP_INTERVAL_IN_MS * 1000);
     }
-    if (ready_data.data_type != bus_data_type_uint32 || ready_data.raw_data.u32 != 1) {
-        em_printfout("Invalid transmit power readiness response for %s",
-            WIFI_EM_INIT_TX_POWER_READY);
-        return;
-    }
+    em_printfout("OneWifi monitor is ready");
 
     memset(&data, 0, sizeof(raw_data_t));
 
@@ -1852,7 +2031,7 @@ void em_agent_t::input_listener()
             if (access(EM_CFG_FILE, F_OK) != -1) {
                 em_printfout("Check that OneWifi is running.");
             } else {
-                em_printfout("EasymeshCfg.json does not exist. Generate via the unified-wifi-mesh CLI/TUI (if co-located) or by adding the `--interface` flag to the agent (if not)");
+                em_printfout("%s does not exist; it is created by the platform service start-up script", EM_CFG_FILE);
             }
         }
     }
@@ -1895,6 +2074,10 @@ void em_agent_t::input_listener()
         em_printfout("Warning: Failed to subscribe to '" WIFI_EM_FAILED_CONNECTION "', Failed Connection reporting unavailable");
     }
 
+    if (desc->bus_event_subs_fn(&m_bus_hdl, WIFI_EM_CLIENT_DISASSOC_STATS, reinterpret_cast<void *>(&em_agent_t::client_disassoc_stats_cb), nullptr, 0) != 0) {
+        em_printfout("Warning: Failed to subscribe to '" WIFI_EM_CLIENT_DISASSOC_STATS "', Client Disassociation Stats reporting unavailable");
+    }
+
     if (desc->bus_event_subs_fn(&m_bus_hdl, "Device.WiFi.EC.BSSInfo", reinterpret_cast<void *>(&em_agent_t::bss_info_cb), nullptr, 0) != 0) {
         em_printfout("Error: Failed to subscribe to 'Device.WiFi.EC.BSSInfo', dynamic DPP channel list for Reconfiguration Announcement is not available");
         // This is fine, not a fatal error
@@ -1923,6 +2106,98 @@ void em_agent_t::input_listener()
     em_get_ext_hooks()->on_bus_ready(&m_bus_hdl, desc);
 
     io(NULL);
+}
+
+bool em_agent_t::request_runtime_tx_power(const unsigned char *ruid, int *tx_power)
+{
+    if (ruid == nullptr || tx_power == nullptr) {
+        return false;
+    }
+
+    wifi_bus_desc_t *desc = get_bus_descriptor();
+    if (desc == nullptr || desc->bus_data_get_fn == nullptr ||
+        desc->bus_data_free_fn == nullptr) {
+        em_printfout("Cannot GET refreshed transmit power: bus descriptor unavailable");
+        return false;
+    }
+
+    if (pthread_mutex_lock(&m_tx_power_mutex) != 0) {
+        em_printfout("Failed to lock transmit power GET mutex");
+        return false;
+    }
+
+    raw_data_t data = {};
+    bus_error_t status = desc->bus_data_get_fn(&m_bus_hdl, WIFI_EM_GET_TX_POWER, &data);
+    if (pthread_mutex_unlock(&m_tx_power_mutex) != 0) {
+        if (data.raw_data.bytes != nullptr) {
+            desc->bus_data_free_fn(&data);
+        }
+        em_printfout("Failed to unlock transmit power GET mutex");
+        return false;
+    }
+
+    if (status != bus_error_success) {
+        em_printfout("Transmit power GET failed for %s, error: %d",
+            WIFI_EM_GET_TX_POWER, status);
+        if (data.raw_data.bytes != nullptr) {
+            desc->bus_data_free_fn(&data);
+        }
+        return false;
+    }
+
+    em_tx_power_response_t tx_power_response = {};
+    bool response_valid = get_tx_power_snapshot(data, &tx_power_response);
+    if (data.raw_data.bytes != nullptr) {
+        desc->bus_data_free_fn(&data);
+    }
+    if (!response_valid) {
+        em_printfout("Transmit power snapshot from %s is invalid", WIFI_EM_GET_TX_POWER);
+        return false;
+    }
+
+    for (uint32_t i = 0; i < tx_power_response.radio_count; i++) {
+        if (memcmp(tx_power_response.radios[i].ruid, ruid, sizeof(mac_address_t)) == 0) {
+            *tx_power = static_cast<int>(tx_power_response.radios[i].tx_power);
+            return true;
+        }
+    }
+
+    em_printfout("Transmit power snapshot from %s does not include %s",
+        WIFI_EM_GET_TX_POWER, util::mac_to_string(ruid).c_str());
+    return false;
+
+}
+
+bool em_agent_t::get_tx_power_snapshot(const raw_data_t &data, em_tx_power_response_t *response)
+{
+
+    if (response == nullptr || data.data_type != bus_data_type_bytes ||
+        data.raw_data.bytes == nullptr ||
+        data.raw_data_len < offsetof(em_tx_power_response_t, radios)) {
+        return false;
+    }
+
+    uint32_t radio_count = 0;
+    memcpy(&radio_count, data.raw_data.bytes, sizeof(radio_count));
+    if (radio_count == 0 || radio_count > EM_MAX_RADIO_PER_AGENT) {
+        return false;
+    }
+    size_t response_len = offsetof(em_tx_power_response_t, radios) +
+        radio_count * sizeof(response->radios[0]);
+    if (data.raw_data_len != response_len) {
+        return false;
+    }
+
+    memset(response, 0, sizeof(*response));
+    memcpy(response, data.raw_data.bytes, response_len);
+    for (uint32_t i = 0; i < response->radio_count; i++) {
+        if (response->radios[i].tx_power < INT8_MIN ||
+            response->radios[i].tx_power > INT8_MAX) {
+            return false;
+        }
+    }
+
+    return true;
 }
 
 int em_agent_t::unassoc_sta_link_metrics_cb(char *event_name, bus_data_prop_t *data, void *userData)
@@ -2004,6 +2279,21 @@ int em_agent_t::failed_conn_cb(char *event_name, bus_data_prop_t *data, void *us
         return -1;
     }
     g_agent.io_process(em_bus_event_type_failed_conn, reinterpret_cast<unsigned char *>(data->value.raw_data.bytes), data->value.raw_data_len);
+    return 1;
+}
+
+int em_agent_t::client_disassoc_stats_cb(char *event_name, bus_data_prop_t *data, void *userData)
+{
+    if (data == nullptr || data->value.raw_data.bytes == nullptr) {
+        em_printfout("NULL data from OneWiFi client disassoc stats callback!");
+        return -1;
+    }
+    /* io_process() copies the payload into an event buffer of EM_MAX_EVENT_DATA_LEN bytes. */
+    if (data->value.raw_data_len == 0 || data->value.raw_data_len > EM_MAX_EVENT_DATA_LEN) {
+        em_printfout("Client disassoc stats payload of %u bytes dropped", data->value.raw_data_len);
+        return -1;
+    }
+    g_agent.io_process(em_bus_event_type_client_disassoc_stats, reinterpret_cast<unsigned char *>(data->value.raw_data.bytes), data->value.raw_data_len);
     return 1;
 }
 
@@ -2158,7 +2448,10 @@ void em_agent_t::sta_cb(char *event_name, bus_data_prop_t *data, void *userData)
 {
     (void)userData;
     //printf("%s:%d Recv data from onewifi:\r\n%s\r\n", __func__, __LINE__, reinterpret_cast<char *>(data->value.raw_data.bytes));
+    pthread_mutex_lock(&g_agent.m_sta_list_mutex);
+    g_agent.m_sta_list_events++;
     g_agent.io_process(em_bus_event_type_sta_list, reinterpret_cast<unsigned char *>(data->value.raw_data.bytes), data->value.raw_data_len);
+    pthread_mutex_unlock(&g_agent.m_sta_list_mutex);
 
 }
 
@@ -2621,72 +2914,123 @@ void em_agent_t::start_complete()
 
 }
 
-bool em_agent_t::try_create_default_em_cfg(std::string interface)
+bool em_agent_t::update_em_cfg(const mac_address_t al_mac)
 {
+    static const mac_address_t zero_mac = {0};
+    if (memcmp(al_mac, zero_mac, sizeof(mac_address_t)) == 0) {
+        em_printfout("Not updating %s, AL MAC is all zeros", EM_CFG_FILE);
+        return false;
+    }
+    const std::string mac_str = util::mac_to_string(al_mac);
 
-    std::string em_cfg_file_path = EM_CFG_FILE;
+    // The file is created by the platform service start-up script, which runs
+    // independently of the agent, so wait for it instead of failing at once.
+    FILE *fp = fopen(EM_CFG_FILE, "r");
+    for (unsigned int retry = 0; (fp == NULL) && (errno == ENOENT) && (retry < EM_CFG_FILE_WAIT_RETRIES); retry++) {
+        em_printfout("Waiting for %s to be created by the start-up script, retry %u", EM_CFG_FILE, retry + 1);
+        usleep(RETRY_SLEEP_INTERVAL_IN_MS * 1000);
+        fp = fopen(EM_CFG_FILE, "r");
+    }
+    if (fp == NULL) {
+        em_util_error_print(EM_STDOUT, "Could not open %s: %s, it is created by the platform service start-up script\n",
+            EM_CFG_FILE, strerror(errno));
+        return false;
+    }
+    std::string content;
+    char buf[256];
+    size_t n;
+    while ((n = fread(buf, 1, sizeof(buf), fp)) > 0) {
+        content.append(buf, n);
+    }
 
-    
-    if (access(em_cfg_file_path.c_str(), F_OK) == 0) {
-        // EM_CFG_FILE already exists
-        printf("%s:%d: EasymeshCfg.json already exists, not overriding.\n", __func__, __LINE__);
+    cJSON *root = cJSON_Parse(content.c_str());
+    if (!cJSON_IsObject(root)) {
+        em_util_error_print(EM_STDOUT, "Could not parse %s as a JSON object, not overwriting it\n", EM_CFG_FILE);
+        cJSON_Delete(root);
+        fclose(fp);
+        return false;
+    }
+
+    cJSON *cur = cJSON_GetObjectItem(root, "AL_MAC_ADDR");
+    if (!cJSON_IsString(cur)) {
+        em_util_error_print(EM_STDOUT, "%s has no AL_MAC_ADDR string, not updating it\n", EM_CFG_FILE);
+        cJSON_Delete(root);
+        fclose(fp);
+        return false;
+    }
+    if ((cur->valuestring != NULL) && (strcasecmp(cur->valuestring, mac_str.c_str()) == 0)) {
+        cJSON_Delete(root);
+        fclose(fp);
         return true;
     }
 
-    printf("%s:%d: Creating default EasymeshCfg.json for interface: %s\n", __func__, __LINE__, interface.c_str());
-    mac_address_t if_mac = {0};
-    if (dm_easy_mesh_t::mac_address_from_name(interface.c_str(), if_mac) < 0){
-        printf("%s:%d: Failed to get MAC address for interface: %s\n", __func__, __LINE__, interface.c_str());
-        return false;
-    }
-
-    mac_addr_str_t mac_str;
-    if (!dm_easy_mesh_t::macbytes_to_string(if_mac, mac_str)){
-        printf("%s:%d: Failed to convert MAC address to string\n", __func__, __LINE__);
-        return false;
-    }
-    printf("%s:%d: Interface MAC address: %s\n", __func__, __LINE__, mac_str);
-
-    FILE *fp = fopen(em_cfg_file_path.c_str(), "w");
-    if (fp == NULL) {
-        printf("%s:%d: Failed to create default EasymeshCfg.json\n", __func__, __LINE__);
-        return false;
-    }
-
-    cJSON *root = cJSON_CreateObject();
-    if (root == NULL) {
-        printf("%s:%d: Failed to create root JSON object\n", __func__, __LINE__);
-        fclose(fp);
-        return false;
-    }
-    cJSON *al_mac = cJSON_CreateString(mac_str);
-    if (al_mac == NULL) {
-        printf("%s:%d: Failed to create AL_MAC_ADDR JSON object\n", __func__, __LINE__);
-        fclose(fp);
+    cJSON *val = cJSON_CreateString(mac_str.c_str());
+    if (val == NULL) {
         cJSON_Delete(root);
-        return false;
-    }
-    cJSON *colocated_mode = cJSON_CreateNumber(0);
-    if (colocated_mode == NULL) {
-        printf("%s:%d: Failed to create Colocated_mode JSON object\n", __func__, __LINE__);
         fclose(fp);
-        cJSON_Delete(root);
         return false;
     }
-
-    cJSON_AddItemToObject(root, "AL_MAC_ADDR", al_mac);
-    cJSON_AddItemToObject(root, "Colocated_mode", colocated_mode);
+    cJSON_ReplaceItemInObject(root, "AL_MAC_ADDR", val);
 
     char *json_str = cJSON_Print(root);
-    fprintf(fp, "%s", json_str);
-    fclose(fp);
     cJSON_Delete(root);
+    if (json_str == NULL) {
+        fclose(fp);
+        return false;
+    }
 
-    printf("%s:%d: Created default EasymeshCfg.json for interface: %s\n", __func__, __LINE__, interface.c_str());
-    printf("%s\n", json_str);
-
+    // Publish a complete replacement with an atomic rename so readers never see a
+    // partial file and a failed update leaves the old file intact.
+    std::string out = std::string(json_str) + "\n";
     free(json_str);
 
+    struct stat st;
+    if (fstat(fileno(fp), &st) != 0) {
+        em_util_error_print(EM_STDOUT, "Could not stat %s: %s\n", EM_CFG_FILE, strerror(errno));
+        fclose(fp);
+        return false;
+    }
+    fclose(fp);
+
+    char tmp_path[] = EM_CFG_FILE ".XXXXXX";
+    int fd = mkstemp(tmp_path);
+    if (fd < 0) {
+        em_util_error_print(EM_STDOUT, "Could not create temp file for %s: %s\n", EM_CFG_FILE, strerror(errno));
+        return false;
+    }
+
+    const char *p = out.c_str();
+    size_t left = out.size();
+    bool ok = true;
+    while (ok && (left > 0)) {
+        ssize_t w = write(fd, p, left);
+        if (w < 0) {
+            if (errno == EINTR) {
+                continue;
+            }
+            ok = false;
+        } else {
+            p += w;
+            left -= static_cast<size_t>(w);
+        }
+    }
+    ok = ok && (fchmod(fd, st.st_mode & 07777) == 0) && (fchown(fd, st.st_uid, st.st_gid) == 0);
+    ok = ok && (fsync(fd) == 0);
+    ok = (close(fd) == 0) && ok;
+    ok = ok && (rename(tmp_path, EM_CFG_FILE) == 0);
+    if (!ok) {
+        em_util_error_print(EM_STDOUT, "Failed to update %s: %s\n", EM_CFG_FILE, strerror(errno));
+        unlink(tmp_path);
+        return false;
+    }
+
+    int dir_fd = open(EM_CFG_DIR, O_RDONLY | O_DIRECTORY);
+    if (dir_fd >= 0) {
+        fsync(dir_fd);
+        close(dir_fd);
+    }
+
+    em_printfout("Updated %s with AL_MAC_ADDR %s", EM_CFG_FILE, mac_str.c_str());
     return true;
 }
 
@@ -2889,7 +3233,9 @@ em_agent_t::em_agent_t()
 
 em_agent_t::~em_agent_t()
 {
-
+    if (pthread_mutex_destroy(&m_tx_power_mutex) != 0) {
+        em_printfout("Failed to destroy transmit power GET mutex");
+    }
 }
 #ifdef AL_SAP
 AlServiceAccessPoint* em_agent_t::al_sap_register(const std::string& data_socket_path, const std::string& control_socket_path)
@@ -2909,8 +3255,18 @@ AlServiceAccessPoint* em_agent_t::al_sap_register(const std::string& data_socket
             std::cout << std::hex << static_cast<int>(byte) << " ";
         }
         std::cout << std::dec << std::endl;
+
+        mac_address_t al_mac;
+        memcpy(al_mac, g_al_mac_sap.data(), sizeof(mac_address_t));
+        if (!update_em_cfg(al_mac)) {
+            em_printfout("Failed to store the AL MAC in %s", EM_CFG_FILE);
+            delete sap;
+            return nullptr;
+        }
     } else {
         std::cout << "Registration failed with error: " << static_cast<int>(result) << std::endl;
+        delete sap;
+        return nullptr;
     }
 
     return sap;
@@ -2926,28 +3282,13 @@ int main(int argc, const char *argv[])
     }
 
     if ((args.size() == 1) && (args[0] == "--help" || args[0] == "-h")) {
-        printf("Usage: %s [data-model-path] [--interface=al_mac_iface] [--start-dpp-onboard] [--regen-dpp-uri]\n", argv[0]);
+        printf("Usage: %s [data-model-path] [--start-dpp-onboard] [--regen-dpp-uri]\n", argv[0]);
         return 0;
     }
 
     std::string data_model_path = "";
 
-    bool interface_found = false;
-
     for (auto arg : args) {
-        if (arg.find("--interface=") != std::string::npos && !interface_found) {
-            std::string interface = arg.substr(strlen("--interface="));
-            if (interface.empty()) {
-                printf("Invalid interface name\n");
-                return -1;
-            }
-            if (!g_agent.try_create_default_em_cfg(interface)) {
-                printf("Failed to create default EasymeshCfg.json\n");
-                return -1;
-            }
-            interface_found = true;
-            continue;
-        }
         if (arg == "--start-dpp-onboard") {
             g_agent.do_start_dpp_onboarding = true;
             continue;
@@ -2975,6 +3316,10 @@ int main(int argc, const char *argv[])
     if (g_agent.init(data_model_path.empty() ? NULL : data_model_path.c_str()) == 0) {
 #ifdef AL_SAP
     g_sap = g_agent.al_sap_register();
+    if (nullptr == g_sap) {
+        em_printfout("AL SAP registration failed, exiting");
+        return -1;
+    }
 #endif
         g_agent.start();
     }

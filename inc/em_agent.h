@@ -40,11 +40,16 @@ class AlServiceAccessPoint;
 
 class em_agent_t : public em_mgr_t {
 
+    pthread_mutex_t m_tx_power_mutex = PTHREAD_MUTEX_INITIALIZER;
     em_orch_agent_t *m_orch;
     dm_easy_mesh_agent_t m_data_model;
     em_short_string_t   m_data_model_path;
     em_cmd_agent_t  *m_agent_cmd;
 	em_simulator_t	m_simulator;
+	bool m_assoc_clients_synced = false;
+	/* Orders the list read from OneWifi against the lists it publishes meanwhile */
+	pthread_mutex_t m_sta_list_mutex = PTHREAD_MUTEX_INITIALIZER;
+	unsigned int m_sta_list_events = 0;
 
 	
 	/**!
@@ -103,6 +108,15 @@ class em_agent_t : public em_mgr_t {
 	 * @note Ensure that this function is called regularly to maintain system timing.
 	 */
 	void handle_2s_tick();
+
+	/**!
+	 * @brief Reads the associated clients from OneWifi once all radios are configured.
+	 *
+	 * OneWifi does not publish again a client that associated before the agent subscribed.
+	 * A failed read, or one during which OneWifi published a list, is tried again on the
+	 * next tick.
+	 */
+	void sync_associated_clients();
     
 	/**!
 	 * @brief Handles the 1-second tick event.
@@ -217,6 +231,14 @@ class em_agent_t : public em_mgr_t {
 	 * @param event The event containing the JSON failed-connection payload (bssid, sta_mac, status, reason)
 	 */
 	void handle_recv_failed_conn(em_bus_event_t *event);
+
+	/**
+	 * @brief Handles the OneWifi ClientDisassocStats event: queues a Client Disassociation
+	 * Stats message on the radio EM of the BSS the client left.
+	 *
+	 * @param event The event containing the JSON payload (BSSID, STA MacAddress, Reason Code, Traffic Stats)
+	 */
+	void handle_recv_client_disassoc_stats(em_bus_event_t *event);
 
 	/**!
 	 * @brief Handles the BTM response action frame.
@@ -379,6 +401,8 @@ class em_agent_t : public em_mgr_t {
 	bool send_action_frame(uint8_t dest_mac[ETH_ALEN], uint8_t *action_frame, size_t action_frame_len, uint8_t vap_idx, unsigned int frequency=0, unsigned int wait_time_ms=0);
 
 	void send_beacon_query(em_bus_event_t *evt);
+
+	static bool get_tx_power_snapshot(const raw_data_t &data, em_tx_power_response_t *snapshot);
 public:
 
     bus_handle_t m_bus_hdl;
@@ -399,6 +423,18 @@ public:
 	 */
 	void input_listener();
 
+	/**!
+	 * @brief Gets refreshed transmit power for a radio from OneWifi.
+	 *
+	 * The OneWifi property returns a snapshot containing the RUID and transmit
+	 * power for every radio.
+	 *
+	 * @param[in] ruid Radio unique identifier.
+	 * @param[out] tx_power Refreshed transmit power for the requested radio.
+	 *
+	 * @return true when a valid snapshot contains the requested radio.
+	 */
+	bool request_runtime_tx_power(const unsigned char *ruid, int *tx_power) override;
 
 	bool is_agent_dpp_onboarding() override {
 		return do_start_dpp_onboarding;
@@ -495,15 +531,19 @@ public:
 
     
 	/**
-	 * @brief Try to create a default EasymeshCfg.json file if one does not exist.
+	 * @brief Store the AL SAP registration results in EasymeshCfg.json.
 	 *
-	 * A default EasymeshCfg.json file only contains the `AL_MAC_ADDR` and `Colocated_mode` fields.
+	 * Only the existing `AL_MAC_ADDR` string is updated; all other fields are preserved. The file is
+	 * never created: it must already exist (the OneWifi start-up script creates it) and contain
+	 * `AL_MAC_ADDR`. The file is left untouched, and false is returned, when it is missing, cannot be
+	 * parsed as a JSON object, has no `AL_MAC_ADDR` string, or the MAC is all zeros. It is also left
+	 * untouched, returning true, when it already holds the MAC.
 	 *
-	 * @param[in] interface The interface to use for filling the `AL_MAC_ADDR` field.
+	 * @param[in] al_mac The AL MAC returned by the AL SAP registration.
 	 *
-	 * @return true if successful or if the file already exists, false otherwise.
+	 * @return true if the file holds the expected values after the call, false otherwise.
 	 */
-	bool try_create_default_em_cfg(std::string interface);
+	bool update_em_cfg(const mac_address_t al_mac);
 
 	void load_em_plus_cfg();
 
@@ -1091,6 +1131,16 @@ public:
 	 * @return int 1 on success, otherwise -1
 	 */
 	static int failed_conn_cb(char *event_name, bus_data_prop_t *data, void *userData);
+
+	/**
+	 * @brief Bus callback for the OneWifi ClientDisassocStats event
+	 *
+	 * @param event_name The name of the event
+	 * @param data The raw event data
+	 * @param userData Optional user-provided callback data
+	 * @return int 1 on success, otherwise -1
+	 */
+	static int client_disassoc_stats_cb(char *event_name, bus_data_prop_t *data, void *userData);
 
 	/**
 	 * @brief Callback for BSS scan events

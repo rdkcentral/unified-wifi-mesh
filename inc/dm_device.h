@@ -87,7 +87,7 @@ public:
 	 *
 	 * @note Ensure the cJSON object is properly initialized before calling this function.
 	 */
-	void encode(cJSON *obj, bool summary = false);
+	void encode(cJSON *obj, bool summary = false, bool skip_model = false);
 
     
 	/**!
@@ -319,22 +319,6 @@ public:
 	 * @note Ensure that the key is valid and the id pointer is not null before calling this function.
 	 */
 	static int parse_device_id_from_key(const char *key, em_device_id_t *id);
-    
-	/**!
-	 * @brief Updates the EasyMesh JSON configuration.
-	 *
-	 * This function updates the configuration settings for EasyMesh based on the provided mode.
-	 *
-	 * @param[in] colocated_mode A boolean flag indicating whether the device is in colocated mode.
-	 *
-	 * @returns int
-	 * @retval 0 on success
-	 * @retval -1 on failure
-	 *
-	 * @note Ensure that the configuration file is accessible and writable before calling this function.
-	 */
-	int update_easymesh_json_cfg(bool colocated_mode);
-
     
 	/**!
 	 * @brief Initializes a device with the given device information.

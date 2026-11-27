@@ -174,7 +174,7 @@ int dm_device_t::decode(const cJSON *obj, void *parent_id)
     }
     return 0;
 }
-void dm_device_t::encode(cJSON *obj, bool summary)
+void dm_device_t::encode(cJSON *obj, bool summary, bool skip_model)
 {
 	cJSON *bh_obj;
     mac_addr_str_t  mac_str;
@@ -183,10 +183,12 @@ void dm_device_t::encode(cJSON *obj, bool summary)
 
     dm_easy_mesh_t::macbytes_to_string(m_device_info.intf.mac, mac_str);
     cJSON_AddStringToObject(obj, "ID", mac_str);
-    if (strlen(m_device_info.manufacturer_model) == 0) {
-        cJSON_AddStringToObject(obj, "deviceModel", "unknown");
-    } else {
-        cJSON_AddStringToObject(obj, "deviceModel", m_device_info.manufacturer_model);
+    if (!skip_model) {
+        if (strlen(m_device_info.manufacturer_model) == 0) {
+            cJSON_AddStringToObject(obj, "deviceModel", "unknown");
+        } else {
+            cJSON_AddStringToObject(obj, "deviceModel", m_device_info.manufacturer_model);
+        }
     }
 
 	bh_obj = cJSON_AddObjectToObject(obj, "Backhaul");
@@ -377,43 +379,6 @@ int dm_device_t::parse_device_id_from_key(const char *key, em_device_id_t *id)
 
 	return 0;
 
-}
-
-int dm_device_t::update_easymesh_json_cfg(bool colocated_mode)
-{
-	mac_addr_str_t mac_str;
-
-	// Create a JSON object
-	cJSON *root = cJSON_CreateObject();
-
-	dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *> (m_device_info.intf.mac), mac_str);
-
-	cJSON_AddStringToObject(root, "AL_MAC_ADDR", const_cast<char*> (mac_str));
-	cJSON_AddNumberToObject(root, "Colocated_mode", static_cast<int> (colocated_mode));
-	//Configuring Mesh Backhaul with default SSID and KeyPassphrase
- 	//TBD: This file to be updated with the configuration used for mesh_backhaul
-	cJSON_AddStringToObject(root, "Backhaul_SSID", "mesh_backhaul");
-	cJSON_AddStringToObject(root, "Backhaul_KeyPassphrase", "test-backhaul");
-	//Enable 4 address mode by default in unified-wifi-mesh
-	cJSON_AddBoolToObject(root, "sta_4addr_mode_enabled", cJSON_True);
-
-	// Convert the JSON object to a string
-	char *jsonString = cJSON_Print(root);
-
-	// Write the JSON string to a file
-	FILE *file = fopen(EM_CFG_FILE, "w");
-	if (file == NULL) {
-		printf("%s:%d Could not open file:%s for writing\n", __func__, __LINE__, EM_CFG_FILE);
-		cJSON_Delete(root);
-		free(jsonString);
-		return -1;
-	}
-
-	fprintf(file, "%s", jsonString);
-	fclose(file);
-	cJSON_Delete(root);
-	free(jsonString);
-	return 0;
 }
 
 dm_device_t::dm_device_t(em_device_info_t *dev) :

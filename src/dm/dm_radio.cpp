@@ -130,6 +130,19 @@ int dm_radio_t::decode(const cJSON *obj, void *parent_id)
     return 0;
 }
 
+void dm_radio_t::encode_metrics(cJSON *obj)
+{
+    mac_addr_str_t mac_str;
+
+    dm_easy_mesh_t::macbytes_to_string(m_radio_info.intf.mac, mac_str);
+    cJSON_AddStringToObject(obj, "ID", mac_str);
+    cJSON_AddNumberToObject(obj, "Noise", m_radio_info.noise);
+    cJSON_AddNumberToObject(obj, "Utilization", m_radio_info.utilization);
+    cJSON_AddNumberToObject(obj, "Transmit", m_radio_info.transmit);
+    cJSON_AddNumberToObject(obj, "ReceiveSelf", m_radio_info.receive_self);
+    cJSON_AddNumberToObject(obj, "ReceiveOther", m_radio_info.receive_other);
+}
+
 void dm_radio_t::encode(cJSON *obj, em_get_radio_list_reason_t reason)
 {
     mac_addr_str_t  mac_str;
@@ -244,6 +257,7 @@ void dm_radio_t::operator = (const dm_radio_t& obj)
     memcpy(&this->m_radio_info.chip_vendor,&obj.m_radio_info.chip_vendor,sizeof(em_long_string_t));
     //this->m_radio_info.ap_metrics_wifi6 = obj.m_radio_info.ap_metrics_wifi6;
     this->m_radio_info.transmit_power_limit = obj.m_radio_info.transmit_power_limit;
+    memcpy(this->m_radio_info.backhaul_sta, obj.m_radio_info.backhaul_sta, sizeof(mac_address_t));
 }
 
 int dm_radio_t::parse_radio_id_from_key(const char *key, em_radio_id_t *id)

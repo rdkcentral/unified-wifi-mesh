@@ -338,7 +338,7 @@ class em_capability_t {
 	virtual short create_airties_radio_capability_tlv(unsigned char *buff) = 0;
 
 	virtual int handle_wifi6_cap_tlv(unsigned char *buff) = 0;
-	virtual int handle_wifi7_agent_cap_tlv(unsigned char *buff) = 0;
+	virtual int handle_wifi7_agent_cap_tlv(unsigned char *buff, unsigned int len) = 0;
     
 	/**!
 	 * @brief Creates a WiFi 7 TLV (Type-Length-Value) structure.
@@ -732,6 +732,16 @@ class em_capability_t {
 	 * @note Ensure that the data buffer is valid and the length is correctly specified.
 	 */
 	int handle_early_ap_cap_report(unsigned char *data, unsigned int len);
+
+	/**!
+	 * @brief Handles the Device Inventory TLV of the AP capability report.
+	 *
+	 * @param[in] buff TLV value.
+	 * @param[in] len TLV value length.
+	 *
+	 * @returns 0 on success, -1 if the TLV is malformed.
+	 */
+	int handle_device_inventory_tlv(unsigned char *buff, unsigned int len);
 
 	/**!
 	 * @brief Handles the client capability report.

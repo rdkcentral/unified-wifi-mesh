@@ -338,8 +338,16 @@ static const mac_address_t EM_GLOBAL_MAC_ADDRESS = {0xff, 0xff, 0xff, 0xff, 0xff
 #define WIFI_EM_FAILED_CONNECTION             "Device.WiFi.EM.FailedConnection"
 #endif
 
-#ifndef WIFI_EM_INIT_TX_POWER_READY
-#define WIFI_EM_INIT_TX_POWER_READY           "Device.WiFi.EM.TxPowerReady"
+#ifndef WIFI_EM_GET_TX_POWER
+#define WIFI_EM_GET_TX_POWER           "Device.WiFi.EM.CurrentTransmitPower"
+#endif
+
+#ifndef WIFI_EM_MONITOR_DONE
+#define WIFI_EM_MONITOR_DONE           "Device.WiFi.EM.MonitorDone"
+#endif
+
+#ifndef WIFI_EM_CLIENT_DISASSOC_STATS
+#define WIFI_EM_CLIENT_DISASSOC_STATS         "Device.WiFi.EM.ClientDisassocStats"
 #endif
 
 #ifndef WIFI_EM_CLIENT_ASSOC_CTRL_REQ
@@ -2609,7 +2617,6 @@ typedef struct {
     unsigned char assoc_sta_reporting_int;
     unsigned char max_nummlds;
     unsigned char bstamld_maxlinks;
-    em_string_t   environment;
 
     em_small_string_t    primary_device_type;
     em_small_string_t    secondary_device_type;
@@ -2972,6 +2979,7 @@ typedef struct {
     unsigned char srg_partial_bssid_bitmap[8];
     unsigned char neigh_bss_color_in_use_bitmap[8];
     unsigned char radio_temp;
+    mac_address_t backhaul_sta;
 } em_radio_info_t;
 
 typedef struct {
@@ -3208,6 +3216,8 @@ typedef enum {
     em_bus_event_type_sta_cap_update,
     em_bus_event_type_sta_mld_update,
     em_bus_event_type_topo_publish,
+    em_bus_event_type_metrics_updated,
+    em_bus_event_type_client_disassoc_stats,
 
     em_bus_event_type_max
 } em_bus_event_type_t;
@@ -3407,6 +3417,10 @@ typedef struct {
 } em_bus_event_type_sta_mld_update_params_t;
 
 typedef struct {
+    mac_address_t dev;
+} em_bus_event_type_metrics_updated_params_t;
+
+typedef struct {
     mac_address_t   radio;
     mac_address_t   ctrl_src;
 } em_bus_event_type_cfg_renew_params_t;
@@ -3579,6 +3593,7 @@ typedef struct {
 typedef enum {
     em_cmd_event_type_ap_metrics_report,
     em_cmd_event_type_failed_connection,
+    em_cmd_event_type_client_disassoc_stats,
 
     em_cmd_event_type_max
 } em_cmd_event_type_t;
@@ -3591,6 +3606,26 @@ typedef struct {
     unsigned short  reason_code;
     bool            reason_code_present;
 } em_connection_status_evt_data_t;
+
+/* Decoded OneWifi ClientDisassocStats event */
+typedef struct {
+    mac_address_t   sta_mac;
+    bssid_t         bssid;
+    unsigned short  reason_code;
+    unsigned int    bytes_sent;
+    unsigned int    bytes_recv;
+    unsigned int    packets_sent;
+    unsigned int    packets_recv;
+    unsigned int    tx_packets_errors;
+    unsigned int    rx_packets_errors;
+    unsigned int    retrans_count;
+} em_client_disassoc_stats_evt_data_t;
+
+/* Client Disassociation Stats message decoded on the radio thread, handled on the controller thread */
+typedef struct {
+    mac_address_t   dev;
+    em_client_disassoc_stats_evt_data_t stats;
+} em_bus_event_type_client_disassoc_stats_params_t;
 
 typedef struct {
     em_cmd_event_type_t type;

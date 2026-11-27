@@ -617,6 +617,62 @@ TEST(em_network_topo_t, encode_one_child) {
     cJSON_Delete(obj);
     std::cout << "Exiting encode_one_child test" << std::endl;
 }
+
+TEST(em_network_topo_t, encode_device_model_for_root_and_child)
+{
+    dm_easy_mesh_t root_dm{};
+    init_dm_with_mac(&root_dm, 0x10, 0);
+    snprintf(root_dm.m_device.m_device_info.manufacturer_model,
+        sizeof(root_dm.m_device.m_device_info.manufacturer_model), "%s", "Controller");
+
+    dm_easy_mesh_t child_dm{};
+    init_dm_with_mac(&child_dm, 0x20, 0);
+    em_network_topo_t topology(&root_dm);
+    topology.add_network_topo(&child_dm);
+
+    em_network_topo_t *previous_topology = g_network_topology;
+    struct topology_restore {
+        em_network_topo_t *previous;
+        ~topology_restore() { g_network_topology = previous; }
+    } restore{previous_topology};
+    g_network_topology = &topology;
+
+    const struct {
+        const char *model;
+        const char *expected;
+    } cases[] = {
+        {"XB10", "XB10"},
+        {"", "unknown"},
+    };
+
+    for (const auto &test_case : cases) {
+        snprintf(child_dm.m_device.m_device_info.manufacturer_model,
+            sizeof(child_dm.m_device.m_device_info.manufacturer_model), "%s", test_case.model);
+
+        cJSON *obj = cJSON_CreateObject();
+        ASSERT_NE(obj, nullptr);
+        topology.encode(obj);
+
+        cJSON *root_device = cJSON_GetObjectItem(obj, "Device");
+        ASSERT_NE(root_device, nullptr);
+        EXPECT_EQ(cJSON_GetObjectItem(root_device, "deviceModel"), nullptr);
+
+        cJSON *backhaul = cJSON_GetObjectItem(root_device, "Backhaul");
+        ASSERT_NE(backhaul, nullptr);
+        cJSON *children = cJSON_GetObjectItem(backhaul, "Child");
+        ASSERT_TRUE(cJSON_IsArray(children));
+        cJSON *child = cJSON_GetArrayItem(children, 0);
+        ASSERT_NE(child, nullptr);
+        cJSON *child_model = cJSON_GetObjectItem(child, "deviceModel");
+        ASSERT_TRUE(cJSON_IsString(child_model));
+        EXPECT_STREQ(child_model->valuestring, test_case.expected);
+
+        cJSON_Delete(obj);
+    }
+    g_network_topology = previous_topology;
+    EXPECT_EQ(g_network_topology, previous_topology);
+}
+
 /**
  * @brief Verify encode() handles a child with a grandchild in the topology correctly
  *
@@ -1251,6 +1307,12 @@ TEST(em_network_topo_t, find_topology_by_bh_associated_empty_root) {
     std::cout << "Exiting find_topology_by_bh_associated_empty_root test" << std::endl;
 }
 
+/**
+ * @brief Select the associated bSTA and resolve its upstream AP owner.
+ *
+ * With an unassociated bSTA before an associated one, verify that the latter's
+ * upstream AP identifies the parent and sets the device's wireless backhaul media.
+ */
 TEST(em_network_topo_t, find_topology_by_bh_associated_prefers_associated_bss_and_sets_wireless_media)
 {
     dm_easy_mesh_t dm{};
@@ -1312,6 +1374,13 @@ TEST(em_network_topo_t, find_topology_by_bh_associated_prefers_associated_bss_an
     EXPECT_TRUE(topo_root.remove(&parent_dm, nullptr, nullptr));
 }
 
+/**
+ * @brief Return the controller root when the upstream AP owner is colocated.
+ *
+ * Place the AP BSS on a colocated child of the controller. Resolve an associated
+ * agent's upstream BSSID and verify that the controller, not the colocated node,
+ * is selected as its parent.
+ */
 TEST(em_network_topo_t, find_topology_by_bh_associated_reparents_colocated_child_to_controller)
 {
     dm_easy_mesh_t controller_dm{};
@@ -1347,6 +1416,12 @@ TEST(em_network_topo_t, find_topology_by_bh_associated_reparents_colocated_child
     EXPECT_TRUE(controller_topology.remove(&colocated_dm, nullptr, nullptr));
 }
 
+/**
+ * @brief Preserve a non-colocated AP owner as the associated agent's parent.
+ *
+ * Verify that resolving the upstream AP BSSID returns its owning child topology
+ * rather than redirecting to the controller root.
+ */
 TEST(em_network_topo_t, find_topology_by_bh_associated_preserves_non_colocated_parent)
 {
     dm_easy_mesh_t controller_dm{};
@@ -1387,6 +1462,13 @@ TEST(em_network_topo_t, find_topology_by_bh_associated_preserves_non_colocated_p
     EXPECT_TRUE(controller_topology.remove(&parent_dm, nullptr, nullptr));
 }
 
+/**
+ * @brief Ignore sibling STA records when resolving the upstream AP owner.
+ *
+ * Add a sibling bSTA recording the upstream BSSID before its AP owner. Verify
+ * that lookup skips the sibling and returns the AP owner. After removing that
+ * owner, lookup must return null rather than fall back to the sibling.
+ */
 TEST(em_network_topo_t, find_topology_by_bh_associated_skips_sibling_sta_before_ap_owner)
 {
     dm_easy_mesh_t controller_dm{};

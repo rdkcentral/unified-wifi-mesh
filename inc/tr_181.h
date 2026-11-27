@@ -36,6 +36,8 @@
 #define DEVICE_WIFI_DATAELEMENTS_NETWORK_NODE_CFG_POLICY    "Device.WiFi.DataElements.Network.NodeConfigurePolicy"
 #define DEVICE_WIFI_DATAELEMENTS_NETWORK_NODE_LINKSTATS_ALARM    "Device.WiFi.DataElements.Network.NodeLinkStatsAlarm"
 #define DEVICE_WIFI_DATAELEMENTS_FAILED_CONNECTION               "Device.WiFi.DataElements.FailedConnectionEvent.FailedConnection!"
+#define DEVICE_WIFI_DATAELEMENTS_NETWORK_METRICS_UPDATED         "Device.WiFi.DataElements.Network.X_AIRTIES_MetricsUpdated!"
+#define DEVICE_WIFI_DATAELEMENTS_DISASSOCIATION                  "Device.WiFi.DataElements.DisassociationEvent.Disassociated!"
 
 #define LIST_OF_DEFINITION_NAME "List_Of_Def"
 #define MAX_NUM_OF_OBJECTS_NAME "Num_Of_Objects"
@@ -74,6 +76,9 @@ static const yang_to_tr181_map g_yang_map[] = {
     { "UnassociatedStaList", "UnassociatedSTA" },
     { "OpClassList", "OpClassChannels" },
     { "ScanResultList", "ScanResult" },
+    { "NumberOfOpClassScans", "OpClassScanNumberOfEntries" },
+    { "NumberOfChannelScans", "ChannelScanNumberOfEntries" },
+    { "NumberOfNeighbors", "NeighborBSSNumberOfEntries" },
     { "OpClassScanList", "OpClassScan" },
     { "ChannelScanList", "ChannelScan" },
     { "NeighborList", "NeighborBSS" },
@@ -353,6 +358,30 @@ typedef struct {
 #define DE_RADIO_SCANRES        DE_DEVICE_RADIO         "ScanResult.{i}."
 #define DE_SCANRES_TABLE        DE_DEVICE_RADIO         "ScanResult.{i}"
 #define DE_SCANRES_TIMESTAMP    DE_RADIO_SCANRES        "TimeStamp"
+#define DE_SCANRES_OPCLSNOE     DE_RADIO_SCANRES        "OpClassScanNumberOfEntries"
+/* Device.WiFi.DataElements.Network.Device.Radio.ScanResult.OpClassScan */
+#define DE_SCANRES_OPCLS        DE_RADIO_SCANRES        "OpClassScan.{i}."
+#define DE_OPCLS_TABLE          DE_RADIO_SCANRES        "OpClassScan.{i}"
+#define DE_OPCLS_CLASS          DE_SCANRES_OPCLS        "OperatingClass"
+#define DE_OPCLS_CHSCANNOE      DE_SCANRES_OPCLS        "ChannelScanNumberOfEntries"
+/* Device.WiFi.DataElements.Network.Device.Radio.ScanResult.OpClassScan.ChannelScan */
+#define DE_OPCLS_CHSCAN         DE_SCANRES_OPCLS        "ChannelScan.{i}."
+#define DE_CHSCAN_TABLE         DE_SCANRES_OPCLS        "ChannelScan.{i}"
+#define DE_CHSCAN_STATUS        DE_OPCLS_CHSCAN         "ScanStatus"
+#define DE_CHSCAN_CHANNEL       DE_OPCLS_CHSCAN         "Channel"
+#define DE_CHSCAN_TIMESTAMP     DE_OPCLS_CHSCAN         "TimeStamp"
+#define DE_CHSCAN_UTIL          DE_OPCLS_CHSCAN         "Utilization"
+#define DE_CHSCAN_NOISE         DE_OPCLS_CHSCAN         "Noise"
+#define DE_CHSCAN_NBRNOE        DE_OPCLS_CHSCAN         "NeighborBSSNumberOfEntries"
+/* Device.WiFi.DataElements.Network.Device.Radio.ScanResult.OpClassScan.ChannelScan.NeighborBSS */
+#define DE_CHSCAN_NBR           DE_OPCLS_CHSCAN         "NeighborBSS.{i}."
+#define DE_NBR_TABLE            DE_OPCLS_CHSCAN         "NeighborBSS.{i}"
+#define DE_NBR_BSSID            DE_CHSCAN_NBR           "BSSID"
+#define DE_NBR_SSID             DE_CHSCAN_NBR           "SSID"
+#define DE_NBR_BW               DE_CHSCAN_NBR           "ChannelBandwidth"
+#define DE_NBR_STACNT           DE_CHSCAN_NBR           "StationCount"
+#define DE_NBR_SIGSTR           DE_CHSCAN_NBR           "SignalStrength"
+#define DE_NBR_CHUTIL           DE_CHSCAN_NBR           "ChannelUtilization"
 /* Device.WiFi.DataElements.Network.Device.Radio.BSS */
 #define DE_RADIO_BSS            DE_DEVICE_RADIO         "BSS.{i}."
 #define DE_BSS_TABLE            DE_DEVICE_RADIO         "BSS.{i}"
@@ -554,7 +583,7 @@ private:
 
 public:
 
-    tr_181_t() {}
+    tr_181_t() : m_bus_handle{} {}
     virtual ~tr_181_t() {}
     
     bus_handle_t *get_bus_hdl() { return &m_bus_handle; }
@@ -942,6 +971,33 @@ public:
     static bus_data_prop_t *tr181_alloc_string_prop(const char *name, const char *value);
 
     /**!
+     * @brief Create a uint32 property with the given name and value.
+     *
+     * @note Caller owns the returned property and must free it.
+     */
+    static bus_data_prop_t *tr181_alloc_uint32_prop(const char *name, uint32_t value);
+
+    /**!
+     * @brief Create a uint64 property with the given name and value.
+     *
+     * @note Caller owns the returned property and must free it.
+     */
+    static bus_data_prop_t *tr181_alloc_uint64_prop(const char *name, uint64_t value);
+
+    /**!
+     * @brief Append a property to the tail of a property list.
+     *
+     * @param[in,out] list Head of the list, null for an empty list.
+     * @param[in] prop Property to append, null is ignored.
+     */
+    static void tr181_prop_append(bus_data_prop_t **list, bus_data_prop_t *prop);
+
+    /* Allocate a property and append it to the list; see tr181_prop_append(). */
+    static void tr181_append_string_prop(bus_data_prop_t **list, const char *name, const char *value);
+    static void tr181_append_uint32_prop(bus_data_prop_t **list, const char *name, uint32_t value);
+    static void tr181_append_uint64_prop(bus_data_prop_t **list, const char *name, uint64_t value);
+
+    /**!
      * @brief Build a "Status" output property.
      *
      * @param status Status string (e.g., "Success", "Failure: reason").
@@ -1022,6 +1078,8 @@ public:
     static bus_error_t wf7ap_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
     static bus_error_t curops_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
     static bus_error_t curops_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
+    static bus_error_t scanres_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
+    static bus_error_t scanres_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
     static bus_error_t capops_get(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
     static bus_error_t capops_tget(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data);
 

@@ -64,7 +64,7 @@ public:
     short create_wifi6_tlv(unsigned char *) override { return 0; }
     short create_airties_radio_capability_tlv(unsigned char *) override { return 0; }
     int handle_wifi6_cap_tlv(unsigned char *) override { return 0; }
-    int handle_wifi7_agent_cap_tlv(unsigned char *) override { return 0; }
+    int handle_wifi7_agent_cap_tlv(unsigned char *, unsigned int) override { return 0; }
     short create_wifi7_tlv(unsigned char *) override { return 0; }
     unsigned short create_eht_operations_tlv(unsigned char *) override { return 0; }
     short create_channelscan_tlv(unsigned char *) override { return 0; }

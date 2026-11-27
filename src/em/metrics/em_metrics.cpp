@@ -896,12 +896,24 @@ int em_metrics_t::handle_assoc_sta_traffic_stats(unsigned char *buff, bssid_t bs
 {
     em_assoc_sta_traffic_stats_t	*sta_metrics;
     dm_sta_t *sta;
+    dm_sta_t *assoc_sta;
     dm_easy_mesh_t  *dm;
 
     dm = get_data_model();
     sta_metrics = reinterpret_cast<em_assoc_sta_traffic_stats_t *> (buff);
 
     sta = dm->find_sta(sta_metrics->sta_mac, bssid);
+    // The TLV has no BSSID and may not follow the AP Metrics TLV of its BSS
+    if ((sta == NULL) || (sta->m_sta_info.associated == false)) {
+        assoc_sta = dm->get_first_sta(sta_metrics->sta_mac);
+        while ((assoc_sta != NULL) && (assoc_sta->m_sta_info.associated == false)) {
+            assoc_sta = dm->get_next_sta(sta_metrics->sta_mac, assoc_sta);
+        }
+        if (assoc_sta != NULL) {
+            sta = assoc_sta;
+        }
+    }
+
     if (sta == NULL) {
         em_printfout("Error: sta not found: %s for bssid: %s", util::mac_to_string(sta_metrics->sta_mac).c_str(),
             util::mac_to_string(bssid).c_str());
@@ -1127,6 +1139,8 @@ int em_metrics_t::handle_ap_metrics_response(unsigned char *buff, unsigned int l
     if (first_client_type_seen) {
         get_mgr()->publish_network_topology();
     }
+
+    get_mgr()->publish_metrics_updated(dm);
 
     return 0;
 }
@@ -1492,11 +1506,12 @@ int em_metrics_t::send_link_quality_report()
 }
 
 
-int em_metrics_t::send_ap_metrics_response()
+int em_metrics_t::send_ap_metrics_response(em_cmd_t *cmd)
 {
     em_msg_builder_t msg;
     char *errors[EM_MAX_TLV_MEMBERS] = {0};
     dm_easy_mesh_t *dm = get_data_model();
+    em_cmd_ap_metrics_rprt_params_t *params = &cmd->get_param()->u.ap_metrics_params;
     std::vector<dm_sta_t> stations;
     int bss_index = 0;
 
@@ -1518,11 +1533,11 @@ int em_metrics_t::send_ap_metrics_response()
             continue;
         }
 
-        msg.commit_tlv(em_tlv_type_ap_metrics, create_ap_metrics_tlv(msg.tlv_value(), dm->m_bss[bss_index]));
+        msg.commit_tlv(em_tlv_type_ap_metrics, create_ap_metrics_tlv(msg.tlv_value(), dm->m_bss[bss_index], params));
 
         //AP Extended Metrics TLV (17.2.61)
         if (get_profile_type() > em_profile_type_1) {
-            msg.commit_tlv(em_tlv_type_ap_ext_metric, create_ap_ext_metrics_tlv(msg.tlv_value(), dm->m_bss[bss_index]));
+            msg.commit_tlv(em_tlv_type_ap_ext_metric, create_ap_ext_metrics_tlv(msg.tlv_value(), dm->m_bss[bss_index], params));
         }
 
         //now search if this sta is associated to this
@@ -1554,10 +1569,10 @@ int em_metrics_t::send_ap_metrics_response()
         }
     }
 
-    for (int i = 0; i < get_current_cmd()->get_param()->u.ap_metrics_params.num_radios; i++) {
+    for (int i = 0; i < params->num_radios; i++) {
         //Radio Metrics TLV (17.2.60)
         if (get_profile_type() > em_profile_type_1) {
-            short sz = create_radio_metrics_tlv(msg.tlv_value(), i);
+            short sz = create_radio_metrics_tlv(msg.tlv_value(), i, params);
             if (sz == 0) {
                 em_printfout("create_radio_metrics_tlv size equals to zero\n");
                 continue;
@@ -1567,7 +1582,7 @@ int em_metrics_t::send_ap_metrics_response()
     }
 
     //Device Metrics vendor TLV (Airties): commit_tlv() drops it if the frame is full
-    short vendor_sz = create_vendor_device_metrics_tlv(msg.tlv_value());
+    short vendor_sz = create_vendor_device_metrics_tlv(msg.tlv_value(), params);
     if (vendor_sz == 0) {
         em_printfout("create_vendor_device_metrics_tlv size equals to zero\n");
     } else {
@@ -1591,7 +1606,7 @@ int em_metrics_t::send_ap_metrics_response()
         return -1;
     }
 
-    em_printfout("AP Metrics Response sent for %u BSSs, %d Radios", dm->m_num_bss, get_current_cmd()->get_param()->u.ap_metrics_params.num_radios);
+    em_printfout("AP Metrics Response sent for %u BSSs, %d Radios", dm->m_num_bss, params->num_radios);
 
     return static_cast<int>(msg.get_len());
 }
@@ -1930,20 +1945,20 @@ short em_metrics_t::create_beacon_metrics_response_tlv(unsigned char *buff)
     return static_cast<short> (len);
 }
 
-short em_metrics_t::create_ap_metrics_tlv(unsigned char *buff, dm_bss_t &dm_bss)
+short em_metrics_t::create_ap_metrics_tlv(unsigned char *buff, dm_bss_t &dm_bss, em_cmd_ap_metrics_rprt_params_t *params)
 {
     size_t len = 0;
     em_ap_metric_t *ap_metrics = reinterpret_cast<em_ap_metric_t *> (buff);
     int i = 0;
 
  
-    for(i = 0; i < get_current_cmd()->get_param()->u.ap_metrics_params.num_radios; i++) {
+    for(i = 0; i < params->num_radios; i++) {
         if (memcmp(dm_bss.m_bss_info.ruid.mac,
-            get_current_cmd()->get_param()->u.ap_metrics_params.ruid[i], sizeof(mac_addr_t)) == 0) {
+            params->ruid[i], sizeof(mac_addr_t)) == 0) {
             break;
         }
     }
-    if (i < get_current_cmd()->get_param()->u.ap_metrics_params.num_radios) {
+    if (i < params->num_radios) {
 
         memcpy(ap_metrics->bssid, dm_bss.m_bss_info.bssid.mac, sizeof(mac_address_t));
         len += static_cast<size_t> (sizeof(mac_address_t));
@@ -1990,21 +2005,21 @@ short em_metrics_t::create_ap_metrics_tlv(unsigned char *buff, dm_bss_t &dm_bss)
     return static_cast<short> (len);
 }
 
-short em_metrics_t::create_ap_ext_metrics_tlv(unsigned char *buff, dm_bss_t &dm_bss)
+short em_metrics_t::create_ap_ext_metrics_tlv(unsigned char *buff, dm_bss_t &dm_bss, em_cmd_ap_metrics_rprt_params_t *params)
 {
     size_t len = 0;
     em_ap_ext_metric_t *ap_ext_metrics = reinterpret_cast<em_ap_ext_metric_t *> (buff);
     int i = 0;
     uint32_t bytes;
 
-    for(i = 0; i < get_current_cmd()->get_param()->u.ap_metrics_params.num_radios; i++) {
+    for(i = 0; i < params->num_radios; i++) {
         if (memcmp(dm_bss.m_bss_info.ruid.mac,
-            get_current_cmd()->get_param()->u.ap_metrics_params.ruid[i], sizeof(mac_addr_t)) == 0) {
+            params->ruid[i], sizeof(mac_addr_t)) == 0) {
             break;
         }
     }
 
-    if (i < get_current_cmd()->get_param()->u.ap_metrics_params.num_radios) {
+    if (i < params->num_radios) {
         memcpy(ap_ext_metrics->bssid, dm_bss.m_bss_info.bssid.mac, sizeof(mac_address_t));
 
         bytes = htonl(dm_bss.m_bss_info.unicast_bytes_sent);
@@ -2031,14 +2046,14 @@ short em_metrics_t::create_ap_ext_metrics_tlv(unsigned char *buff, dm_bss_t &dm_
     return static_cast<short> (len);
 }
 
-short em_metrics_t::create_radio_metrics_tlv(unsigned char *buff, int index)
+short em_metrics_t::create_radio_metrics_tlv(unsigned char *buff, int index, em_cmd_ap_metrics_rprt_params_t *params)
 {
     size_t len = 0;
     dm_easy_mesh_t *dm = get_data_model();
     em_radio_metric_t *radio_metric = reinterpret_cast<em_radio_metric_t *> (buff);
     dm_radio_t *radio = NULL;
     em_radio_info_t *em_radio_info = NULL;
-    radio = dm->get_radio(get_current_cmd()->get_param()->u.ap_metrics_params.ruid[index]);
+    radio = dm->get_radio(params->ruid[index]);
 
     if (radio != NULL) {
         em_radio_info = radio->get_radio_info();
@@ -2194,7 +2209,7 @@ out:
     return false;
 }
 
-short em_metrics_t::create_vendor_device_metrics_tlv(unsigned char *buff)
+short em_metrics_t::create_vendor_device_metrics_tlv(unsigned char *buff, em_cmd_ap_metrics_rprt_params_t *params)
 {
     size_t len = 0;
     unsigned char radio_num;
@@ -2249,12 +2264,12 @@ short em_metrics_t::create_vendor_device_metrics_tlv(unsigned char *buff)
     len += sizeof(device_metrics->free_mem);
     len += sizeof(device_metrics->total_mem);
 
-    radio_num = get_current_cmd()->get_param()->u.ap_metrics_params.num_radios;
+    radio_num = params->num_radios;
     device_metrics->radio_num = radio_num;
     len += sizeof(device_metrics->radio_num);
     for (int i = 0; i < radio_num; i++) {
         device_metrics->radios[i].radio_temp = 0; //Radio temperature will be provided by the chip vendors, as there is no standardized way to obtain this information
-        memcpy(device_metrics->radios[i].radio_uid, get_current_cmd()->get_param()->u.ap_metrics_params.ruid[i], sizeof(mac_address_t));
+        memcpy(device_metrics->radios[i].radio_uid, params->ruid[i], sizeof(mac_address_t));
         len += sizeof(em_radio_metrics_t);
     }
 
@@ -2975,6 +2990,10 @@ void em_metrics_t::process_msg(unsigned char *data, unsigned int len)
             get_mgr()->handle_failed_conn_msg(data, len);
             break;
 
+        case em_msg_type_client_disassoc_stats:
+            get_mgr()->handle_client_disassoc_stats_msg(data, len);
+            break;
+
         default:
             break;
     }
@@ -3024,11 +3043,11 @@ void em_metrics_t::process_agent_state()
     }
 }
 
-void em_metrics_t::process_agent_state(em_cmd_event_type_t type)
+void em_metrics_t::process_agent_state(em_cmd_event_type_t type, em_cmd_t *cmd)
 {
     switch (type) {
         case em_cmd_event_type_ap_metrics_report:
-            send_ap_metrics_response();
+            send_ap_metrics_response(cmd);
             break;
 
         default:

@@ -73,14 +73,26 @@ bool em_msg_t::get_al_mac_address(unsigned char *mac)
     em_tlv_t    *tlv;
     unsigned int len;
 
+    if (mac == nullptr) {
+        em_printfout("Error: get_al_mac_address called with null mac");
+        return false;
+    }
+
     tlv = reinterpret_cast<em_tlv_t *> (m_buff); len = m_len;
-    while ((tlv->type != em_tlv_type_eom) && (len > 0)) {
+    while ((len >= sizeof(em_tlv_t)) && (tlv->type != em_tlv_type_eom)) {
+        uint16_t tlv_len = htons(tlv->len);
+        if (len < sizeof(em_tlv_t) + tlv_len) {
+            return false;
+        }
         if (tlv->type == em_tlv_type_al_mac_address) {
-            memcpy(mac, tlv->value, htons(tlv->len));
+            if (tlv_len != sizeof(mac_address_t)) {
+                return false;
+            }
+            memcpy(mac, tlv->value, tlv_len);
             return true;
         }
-        len -= static_cast<unsigned int> (sizeof(em_tlv_t) + htons(tlv->len));
-        tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
+        len -= static_cast<unsigned int> (sizeof(em_tlv_t) + tlv_len);
+        tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + tlv_len);
     }
 
     return false;
@@ -162,13 +174,17 @@ bool em_msg_t::get_profile(em_profile_type_t *profile)
     }
     *profile = em_profile_type_reserved;
     tlv = reinterpret_cast<em_tlv_t *> (m_buff); len = m_len;
-    while ((tlv->type != em_tlv_type_eom) && (len > 0)) {
+    while ((len >= sizeof(em_tlv_t)) && (tlv->type != em_tlv_type_eom)) {
+        uint16_t tlv_len = htons(tlv->len);
+        if (len < sizeof(em_tlv_t) + tlv_len) {
+            return false;
+        }
         if (tlv->type == em_tlv_type_profile) {
             return parse_profile_tlv(tlv->value, ntohs(tlv->len), profile);
         }
 
-        len -= static_cast<unsigned int> (sizeof(em_tlv_t) + htons(tlv->len));
-        tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
+        len -= static_cast<unsigned int> (sizeof(em_tlv_t) + tlv_len);
+        tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + tlv_len);
     }
 
     return false;
@@ -205,6 +221,13 @@ bool em_msg_t::get_sta_mac(mac_address_t *mac)
                    (tlv->type == em_tlv_type_bcon_metric_query) ||
                    (tlv->type == em_tlv_type_bcon_metric_rsp) ||
                    (tlv->type == em_tlv_type_assoc_sta_link_metric)) {
+            if (value_len < sizeof(mac_address_t)) {
+                em_printfout("Error: TLV data too small");
+                return false;
+            }
+            memcpy(mac, tlv->value, sizeof(mac_address_t));
+            return true;
+        } else if (tlv->type == em_tlv_type_sta_mac_addr) {
             if (value_len < sizeof(mac_address_t)) {
                 em_printfout("Error: TLV data too small");
                 return false;
@@ -263,7 +286,20 @@ bool em_msg_t::get_radio_id(mac_address_t *mac)
 	em_ap_op_bss_radio_t    *radio;
 
     tlv = reinterpret_cast<em_tlv_t *> (m_buff); len = m_len;
-    while ((tlv->type != em_tlv_type_eom) && (len > 0)) {
+    while (len > 0) {
+        if (len < sizeof(em_tlv_t)) {
+            return false;
+        }
+        if ((sizeof(em_tlv_t) + ntohs(tlv->len)) > len) {
+            return false;
+        }
+        if (tlv->type == em_tlv_type_channel_scan_req &&
+            ntohs(tlv->len) < sizeof(em_channel_scan_req_t)) {
+            return false;
+        }
+        if (tlv->type == em_tlv_type_eom) {
+            break;
+        }
         if (tlv->type == em_tlv_type_radio_id) {
             memcpy(mac, tlv->value, sizeof(mac_address_t));
             return true;    
@@ -360,12 +396,16 @@ bool em_msg_t::get_profile_type(em_profile_type_t *profile)
     }
     *profile = em_profile_type_reserved;
     tlv = reinterpret_cast<em_tlv_t *> (m_buff); len = m_len;
-    while ((tlv->type != em_tlv_type_eom) && (len > 0)) {
+    while ((len >= sizeof(em_tlv_t)) && (tlv->type != em_tlv_type_eom)) {
+        uint16_t tlv_len = htons(tlv->len);
+        if (len < sizeof(em_tlv_t) + tlv_len) {
+            return false;
+        }
         if (tlv->type == em_tlv_type_profile) {
             return parse_profile_tlv(tlv->value, ntohs(tlv->len), profile);
         }
-        len -= static_cast<unsigned int> (sizeof(em_tlv_t) + htons(tlv->len));
-        tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
+        len -= static_cast<unsigned int> (sizeof(em_tlv_t) + tlv_len);
+        tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + tlv_len);
     }
 
     return false;
@@ -764,7 +804,7 @@ void em_msg_t::topo_resp()
     m_tlv_member[m_num_tlv++] = em_tlv_member_t(em_tlv_type_supported_service, optional, "17.2.1 of Wi-Fi Easy Mesh 5.0", 5);
     m_tlv_member[m_num_tlv++] = em_tlv_member_t(em_tlv_type_associated_clients, optional, "17.2.5 of Wi-Fi Easy Mesh 5.0", 20);
     m_tlv_member[m_num_tlv++] = em_tlv_member_t(em_tlv_type_profile, (m_profile > em_profile_type_1) ? mandatory:bad, "17.2.47 of Wi-Fi Easy Mesh 5.0", 4);
-    m_tlv_member[m_num_tlv++] = em_tlv_member_t(em_tlv_type_bss_conf_rep, (m_profile > em_profile_type_2) ? mandatory:bad, "17.2.75 of Wi-Fi Easy Mesh 5.0", 17);
+    m_tlv_member[m_num_tlv++] = em_tlv_member_t(em_tlv_type_bss_conf_rep, optional, "17.2.75 of Wi‑Fi Easy Mesh 6.0 (Backward Compatibility)", 17);
     m_tlv_member[m_num_tlv++] = em_tlv_member_t(em_tlv_type_ap_mld_config, optional, "17.2.96 of Wi-Fi Easy Mesh 6.0", 64);
     m_tlv_member[m_num_tlv++] = em_tlv_member_t(em_tlv_type_bsta_mld_config, optional, "17.2.97 of Wi-Fi Easy Mesh 6.0", 64);
     m_tlv_member[m_num_tlv++] = em_tlv_member_t(em_tlv_type_assoc_sta_mld_conf_rep, optional, "17.2.98 of Wi-Fi Easy Mesh 6.0", 64);

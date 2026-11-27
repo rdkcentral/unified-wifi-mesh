@@ -61,6 +61,16 @@ void em_orch_agent_t::orch_transient(em_cmd_t *pcmd, em_t *em)
         }
     }
 
+    if (pcmd->get_type() == em_cmd_type_dev_init &&
+        ((em->get_state() == em_state_agent_unconfigured) ||
+         (em->get_state() == em_state_agent_1905_unconfigured) ||
+         (em->get_state() == em_state_agent_autoconfig_rsp_pending))) {
+        // No controller has answered the autoconfig search yet (it may still be starting up),
+        // so keep searching rather than cancelling and never retrying
+        pcmd->set_start_time();
+        stats->time = 0;
+    }
+
     if (stats->time > EM_MAX_CMD_GEN_TTL) {
         em_printfout("Canceling cmd: %s because time limit exceeded\n", pcmd->get_cmd_name());
         cancel_command(pcmd->get_type());
