@@ -38,6 +38,7 @@
 #include <cjson/cJSON.h>
 #include "em_agent.h"
 #include "em_ext_hooks.h"
+#include "em_eth.h"
 #include "em_msg.h"
 #include "ieee80211.h"
 #include "em_cmd_agent.h"
@@ -1743,6 +1744,20 @@ void em_agent_t::handle_2s_tick()
 {
     if (m_assoc_clients_synced == false) {
         sync_associated_clients();
+    }
+    /* em_eth_link_changed() consumes the change, so remember it until the notification is actually sent */
+    if (em_eth_link_changed() == true) {
+        m_eth_notif_pending = true;
+    }
+
+    if (m_eth_notif_pending == true) {
+        em_t *al_em = get_al_node();
+        if (al_em != NULL) {
+            em_printfout("Ethernet link state changed, sending Topology Notification");
+            if (al_em->send_topology_notification() >= 0) {
+                m_eth_notif_pending = false;
+            }
+        }
     }
 }
 
