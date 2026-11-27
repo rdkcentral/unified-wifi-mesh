@@ -19,6 +19,7 @@
 #ifndef EM_CONFIGURATION_H
 #define EM_CONFIGURATION_H
 
+#include <atomic>
 #include "em_base.h"
 #include "em_crypto.h"
 #include "dm_easy_mesh.h"
@@ -495,6 +496,18 @@ class em_configuration_t {
 	 * @note Ensure that the MAC address and BSSID are valid before calling this function.
 	 */
 	int send_topology_notification_by_client(mac_address_t sta, bssid_t bssid, bool assoc);
+
+	/**!
+	 * @brief Builds and sends a Topology Notification, optionally with a Client Association Event TLV.
+	 *
+	 * @param[in] sta The MAC address of the station, ignored without the client event.
+	 * @param[in] bssid The BSSID of the network, ignored without the client event.
+	 * @param[in] assoc Boolean indicating association status, ignored without the client event.
+	 * @param[in] with_client_event Whether to include the Client Association Event TLV.
+	 *
+	 * @returns int Message length on success, -1 on failure.
+	 */
+	int send_topology_notification_msg(mac_address_t sta, bssid_t bssid, bool assoc, bool with_client_event);
 
 	/**!
 	 * @brief Sends a Failed Connection message
@@ -1052,6 +1065,27 @@ class em_configuration_t {
 	int handle_vendor_specific_tlv(unsigned char *buff, unsigned int len);
 
 	/**!
+	 * @brief Parses the Airties Ethernet Interface vendor TLV and stores it in the device info.
+	 *
+	 * @param[in] value Pointer to the TLV payload following the Airties OUI and TLV ID.
+	 * @param[in] len Length of the payload.
+	 *
+	 * @returns int 0 on success, -1 on failure.
+	 */
+	int handle_eth_interface_vendor_tlv(unsigned char *value, unsigned int len);
+
+	/**!
+	 * @brief Parses an Airties Ethernet neighbor device list vendor TLV and stores it in the device info.
+	 *
+	 * @param[in] value Pointer to the TLV payload following the Airties OUI and TLV ID, NULL if the TLV is absent.
+	 * @param[in] len Length of the payload.
+	 * @param[in] is_1905 true for the 1905 neighbor list (0x0012), false for the non-1905 neighbor list (0x0011).
+	 *
+	 * @returns int 0 on success, -1 on failure.
+	 */
+	int handle_eth_neigh_vendor_tlv(unsigned char *value, unsigned int len, bool is_1905);
+
+	/**!
 	 * @brief Creates an M1 message.
 	 *
 	 * This function is responsible for creating an M1 message and storing it in the provided buffer.
@@ -1111,6 +1145,28 @@ class em_configuration_t {
 	 * calling this function.
 	 */
 	int create_vendor_operational_bss_tlv(unsigned char *buff);
+
+	/**!
+	 * @brief Creates the Airties Ethernet Interface vendor TLV (ID 0x000F).
+	 *
+	 * @param[out] buff Buffer where the TLV value is stored.
+	 * @param[in] max_len Space available in buff.
+	 *
+	 * @returns short Size of the TLV value, or 0 if there is nothing to report or it does not fit.
+	 */
+	short create_vendor_eth_interface_tlv(unsigned char *buff, size_t max_len);
+
+	/**!
+	 * @brief Creates an Airties Ethernet neighbor device list vendor TLV.
+	 *
+	 * @param[out] buff Buffer where the TLV value is stored.
+	 * @param[in] max_len Space available in buff.
+	 * @param[in] is_1905 true for the 1905 neighbor list (0x0012), false for the non-1905 neighbor list (0x0011).
+	 * @param[in] neighbors Neighbors per Ethernet port.
+	 *
+	 * @returns short Size of the TLV value, or 0 if there is nothing to report or it does not fit.
+	 */
+	short create_vendor_eth_neigh_tlv(unsigned char *buff, size_t max_len, bool is_1905, const std::vector<em_eth_port_neigh_t> &neighbors);
 
 	/**
 	 * @brief Creates a Backhaul STA Radio Capabilities TLV (17.2.65)
@@ -1749,7 +1805,18 @@ public:
 	*
 	* @note Ensure that the system is initialized before calling this function.
 	*/
-	int send_topology_query_msg();
+	int send_topology_query_msg(unsigned short *query_id = NULL);
+
+	/**!
+	 * @brief Sends a Topology Notification without a Client Association Event TLV.
+	 *
+	 * Signals a change of the local topology (e.g. an Ethernet link change); the receiving
+	 * Multi-AP Controller is expected to query the topology (17.1.5: the Client Association
+	 * Event TLV is zero or one).
+	 *
+	 * @returns int Message length on success, -1 on failure.
+	 */
+	int send_topology_notification();
     
 	/**!
 	 * @brief Sends an auto-configuration renewal message.
@@ -2292,6 +2359,9 @@ public:
     unsigned char m_emsk[WPS_EMSK_LEN];
     unsigned int m_renew_tx_cnt;
     unsigned int m_topo_query_tx_cnt;
+    /* ID of the outstanding refresh Topology Query, -1 if none. A single value so that the pending
+     * state and its ID are updated together across the protocol threads of the radios of an AL */
+    std::atomic<int32_t> m_pending_topo_query;
     
 	/**!
 	 * @brief Constructor for em_configuration_t.
