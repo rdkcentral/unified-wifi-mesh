@@ -4966,6 +4966,11 @@ int em_configuration_t::handle_bss_config_req_msg(uint8_t *buff, unsigned int le
     em_printfout("Received BSS Configuration Request message from '" MACSTRFMT "'", MAC2STR(src_al_mac));
 
     //TODO:  Update DM
+    if (buff == nullptr || len < sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)) {
+        em_printfout("Invalid BSS Configuration Request length %u", len);
+        return -1;
+    }
+
     em_tlv_t *tlv_buff = reinterpret_cast<em_tlv_t *>(buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
     unsigned int tlv_buff_len = static_cast<unsigned int>(len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)));
 
@@ -5004,7 +5009,11 @@ int em_configuration_t::handle_bss_config_req_msg(uint8_t *buff, unsigned int le
         switch (tlv->type) {
             case em_tlv_type_profile:
                 em_printfout("Processing Multi-AP Profile TLV");
-                memcpy(&profile, tlv->value, ntohs(tlv->len));
+                if (!em_msg_t::parse_profile_tlv(tlv->value, ntohs(tlv->len), &profile) ||
+                    profile == em_profile_type_reserved) {
+                    em_printfout("Invalid Profile TLV");
+                    return -1;
+                }
                 break;
             case em_tlv_type_supported_service:
                 em_printfout("Processing Supported Service TLV");
