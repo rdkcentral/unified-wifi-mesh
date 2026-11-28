@@ -1206,7 +1206,7 @@ int em_configuration_t::create_ap_mld_config_tlv(unsigned char *buff)
     return tlv_len;
 }
 
-int em_configuration_t::create_bsta_mld_config_tlv(unsigned char *buff)
+int em_configuration_t::create_bsta_mld_config_tlv(unsigned char *buff, const em_bsta_mld_info_t *config)
 {
     em_bsta_mld_t *bsta_mld;
     em_affiliated_bsta_mld_t *affiliated_bsta_mld;
@@ -1217,13 +1217,19 @@ int em_configuration_t::create_bsta_mld_config_tlv(unsigned char *buff)
 
     dm = get_data_model();
 
-    if (!dm->is_bsta_mld_present()) {
+    if (config == nullptr && !dm->is_bsta_mld_present()) {
         em_printf("No Backhaul STA config present");
         return tlv_len;
     }
 
     bsta_mld =  reinterpret_cast<em_bsta_mld_t *> (buff);
-    em_bsta_mld_info_t& bsta_mld_info = dm->get_bsta_mld_info();
+    const em_bsta_mld_info_t& bsta_mld_info =
+        config != nullptr ? *config : dm->get_bsta_mld_info();
+    if (bsta_mld_info.num_affiliated_bsta > EM_MAX_BANDS) {
+        em_printfout("Invalid BSTA MLD affiliate count: %u", bsta_mld_info.num_affiliated_bsta);
+        return 0;
+    }
+    memset(bsta_mld, 0, sizeof(em_bsta_mld_t));
 
     bsta_mld->bsta_mld_mac_addr_valid = bsta_mld_info.mac_addr_valid;
     bsta_mld->ap_mld_mac_addr_valid = bsta_mld_info.ap_mld_mac_addr_valid;
@@ -1238,7 +1244,8 @@ int em_configuration_t::create_bsta_mld_config_tlv(unsigned char *buff)
     affiliated_bsta_mld = bsta_mld->affiliated_bsta_mld;
 
     for (i = 0; i < bsta_mld->num_affiliated_bsta; i++) {
-        em_affiliated_bsta_info_t& affiliated_bsta_info = bsta_mld_info.affiliated_bsta[i];
+        const em_affiliated_bsta_info_t& affiliated_bsta_info = bsta_mld_info.affiliated_bsta[i];
+        memset(affiliated_bsta_mld, 0, sizeof(em_affiliated_bsta_mld_t));
         affiliated_bsta_mld->affiliated_bsta_mac_addr_valid = affiliated_bsta_info.mac_addr_valid;
         memcpy(affiliated_bsta_mld->ruid, affiliated_bsta_info.ruid.mac, sizeof(mac_address_t));
         memcpy(affiliated_bsta_mld->affiliated_bsta_mac_addr, affiliated_bsta_info.mac_addr, sizeof(mac_address_t));
@@ -1956,6 +1963,75 @@ int em_configuration_t::handle_bsta_mld_config_req(unsigned char *buff, unsigned
 	return 0;
 }
 
+int em_configuration_t::handle_bsta_mld_config_tlv(unsigned char *buff, unsigned int len)
+{
+    em_bsta_mld_t *bsta_mld;
+    em_affiliated_bsta_mld_t *affiliated_bsta_mld;
+    em_affiliated_bsta_info_t *affiliated_bsta_info;
+    em_bsta_mld_info_t bsta_info;
+    dm_easy_mesh_t *dm;
+    size_t expected_tlv_len;
+    unsigned int i;
+
+    if (buff == NULL || len < sizeof(em_bsta_mld_t)) {
+        em_printfout("Invalid Backhaul STA MLD TLV length=%u minimum=%zu", len,
+            sizeof(em_bsta_mld_t));
+        return -1;
+    }
+
+    bsta_mld = reinterpret_cast<em_bsta_mld_t *> (buff);
+    if (bsta_mld->num_affiliated_bsta > EM_MAX_AP_MLD) {
+        em_printfout("Backhaul STA MLD TLV affiliate count %u exceeds maximum %u",
+            bsta_mld->num_affiliated_bsta, EM_MAX_AP_MLD);
+        return -1;
+    }
+    expected_tlv_len = sizeof(em_bsta_mld_t) +
+        static_cast<size_t> (bsta_mld->num_affiliated_bsta) *
+        sizeof(em_affiliated_bsta_mld_t);
+    if (expected_tlv_len > len) {
+        em_printfout("Truncated Backhaul STA MLD TLV length=%u required=%zu affiliates=%u",
+            len, expected_tlv_len, bsta_mld->num_affiliated_bsta);
+        return -1;
+    }
+
+    memset(&bsta_info, 0, sizeof(bsta_info));
+    bsta_info.mac_addr_valid = bsta_mld->bsta_mld_mac_addr_valid;
+    bsta_info.ap_mld_mac_addr_valid = bsta_mld->ap_mld_mac_addr_valid;
+    memcpy(bsta_info.mac_addr, bsta_mld->bsta_mld_mac_addr, sizeof(mac_address_t));
+    memcpy(bsta_info.ap_mld_mac_addr, bsta_mld->ap_mld_mac_addr,
+        sizeof(mac_address_t));
+    bsta_info.str = bsta_mld->str;
+    bsta_info.nstr = bsta_mld->nstr;
+    bsta_info.emlsr = bsta_mld->emlsr;
+    bsta_info.emlmr = bsta_mld->emlmr;
+    bsta_info.num_affiliated_bsta = bsta_mld->num_affiliated_bsta;
+
+    affiliated_bsta_mld = bsta_mld->affiliated_bsta_mld;
+    for (i = 0; i < bsta_info.num_affiliated_bsta; i++) {
+        affiliated_bsta_info = &bsta_info.affiliated_bsta[i];
+        affiliated_bsta_info->mac_addr_valid = affiliated_bsta_mld->affiliated_bsta_mac_addr_valid;
+        memcpy(affiliated_bsta_info->ruid.mac, affiliated_bsta_mld->ruid, sizeof(mac_address_t));
+        memcpy(affiliated_bsta_info->mac_addr, affiliated_bsta_mld->affiliated_bsta_mac_addr,
+            sizeof(mac_address_t));
+        affiliated_bsta_mld = reinterpret_cast<em_affiliated_bsta_mld_t *> (
+            reinterpret_cast<unsigned char *> (affiliated_bsta_mld) +
+            sizeof(em_affiliated_bsta_mld_t));
+    }
+
+    dm = get_data_model();
+    if (dm == NULL) {
+        em_printfout("No data model available for Backhaul STA MLD TLV");
+        return -1;
+    }
+
+    em_printfout("Decoded Backhaul STA MLD TLV length=%u affiliates=%u", len,
+        bsta_info.num_affiliated_bsta);
+    dm->update_bsta_mld_info(&bsta_info);
+
+    return 0;
+
+}
+
 int em_configuration_t::handle_bsta_radio_cap(unsigned char *buff, unsigned int len)
 {
     dm_easy_mesh_t *dm = get_data_model();
@@ -2173,6 +2249,7 @@ int em_configuration_t::handle_topology_response(unsigned char *buff, unsigned i
     bool found_profile = false;
     bool found_bss_config_rprt = false;
     bool found_ap_mld = false;
+    bool found_bsta_mld = false;
     unsigned int assoc_sta_mld_count = 0;
     em_profile_type_t profile = em_profile_type_reserved;
 	dm_easy_mesh_t *dm;
@@ -2343,6 +2420,35 @@ int em_configuration_t::handle_topology_response(unsigned char *buff, unsigned i
         handle_ap_mld_config_tlv(tlv->value, ntohs(tlv->len));
     }
     em_printfout("No of AP MLDs: %d", dm->m_num_ap_mld);
+
+    // Parse the optional Backhaul STA MLD Configuration TLV.
+    tlv = reinterpret_cast<em_tlv_t *>(buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+    tmp_len = len - static_cast<unsigned int>(sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+    while ((tmp_len >= sizeof(em_tlv_t)) && (tlv->type != em_tlv_type_eom)) {
+        tlv_len = static_cast<unsigned int>(ntohs(tlv->len));
+        if (!validate_tlv_length(tlv_len, tmp_len)) {
+            return -1;
+        }
+        if (tlv->type != em_tlv_type_bsta_mld_config) {
+            tmp_len -= static_cast<unsigned int>(sizeof(em_tlv_t) + tlv_len);
+            tlv = reinterpret_cast<em_tlv_t *>(
+                reinterpret_cast<unsigned char *>(tlv) + sizeof(em_tlv_t) + tlv_len);
+            continue;
+        } else {
+            found_bsta_mld = true;
+            break;
+        }
+    }
+    if (found_bsta_mld) {
+        em_printfout("Found Backhaul STA MLD details in topology response message");
+        if (handle_bsta_mld_config_tlv(tlv->value, tlv_len) != 0) {
+            em_printfout("Topology response Backhaul STA MLD TLV processing failed");
+            return -1;
+        }
+        em_printfout("Topology response Backhaul STA MLD data model updated");
+    } else {
+        em_printfout("No Backhaul STA MLD Configuration TLV found in topology response");
+    }
 
     // Parse Associated STA MLD Configuration Report TLVs.
     tlv = reinterpret_cast<em_tlv_t *>(buff + sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
@@ -3963,6 +4069,8 @@ int em_configuration_t::create_autoconfig_wsc_m2_msg(unsigned char *buff, unsign
     dm_easy_mesh_t *dm;
     unsigned int ext_len = 0;
     bool add_ap_mld_tlv = false;
+    bool add_bsta_mld_tlv = false;
+    em_bsta_mld_info_t bsta_mld_config = {};
 
     radio = get_radio_from_dm();
 
@@ -4038,6 +4146,8 @@ int em_configuration_t::create_autoconfig_wsc_m2_msg(unsigned char *buff, unsign
         return 0;
     }
 
+    add_bsta_mld_tlv = dm->update_bsta_mld_config(bsta_mld_config);
+
     // ap mld tlv 17.2.96
     // Add AP MLD Configuration TLV
     if (add_ap_mld_tlv) {
@@ -4048,6 +4158,17 @@ int em_configuration_t::create_autoconfig_wsc_m2_msg(unsigned char *buff, unsign
 
 	    tmp += (sizeof(em_tlv_t) + sz);
 	    len += static_cast<int>(sizeof(em_tlv_t) + sz);
+    }
+
+    // Backhaul STA MLD Configuration TLV 17.2.97
+    if (add_bsta_mld_tlv) {
+        tlv = reinterpret_cast<em_tlv_t *> (tmp);
+        tlv->type = em_tlv_type_bsta_mld_config;
+        sz = static_cast<short unsigned int> (create_bsta_mld_config_tlv(tlv->value, &bsta_mld_config));
+        tlv->len = htons(sz);
+
+        tmp += sizeof(em_tlv_t) + sz;
+        len += static_cast<int> (sizeof(em_tlv_t) + sz);
     }
 
     // Extension may write up to EM_EXT_TLVS_MAX_LEN bytes; make sure that and EOM fit
@@ -4601,6 +4722,7 @@ int em_configuration_t::handle_autoconfig_wsc_m2(unsigned char *buff, unsigned i
     dm_network_t network;
     em_raw_hdr_t *hdr = reinterpret_cast<em_raw_hdr_t *> (buff);
     em_tlv_t *ap_mld_tlv = NULL;
+    em_tlv_t *bsta_mld_tlv = NULL;
     m2ctrl_radioconfig radioconfig;
 
     /* len must cover the fixed headers, or the subtraction below wraps and the TLV walk overruns. */
@@ -4629,6 +4751,9 @@ int em_configuration_t::handle_autoconfig_wsc_m2(unsigned char *buff, unsigned i
             // Deferred until encrypted settings populate the SSID->haul map
             em_printfout("Found AP MLD details in message");
             ap_mld_tlv = tlv;
+        } else if (tlv->type == em_tlv_type_bsta_mld_config) {
+            em_printfout("Found Backhaul STA MLD details in WSC M2 length=%u", val_len);
+            bsta_mld_tlv = tlv;
         } else if (tlv->type == em_tlv_type_wsc) {
             em_printfout("Handle wsc TLV, count: %d", wsc_tlv_count);
             //Storing m2 address and length in static variable;
@@ -4672,6 +4797,14 @@ int em_configuration_t::handle_autoconfig_wsc_m2(unsigned char *buff, unsigned i
 
     if (ap_mld_tlv != NULL) {
         handle_ap_mld_config_tlv(ap_mld_tlv->value, ntohs(ap_mld_tlv->len));
+    }
+
+    if (bsta_mld_tlv != NULL) {
+        if (handle_bsta_mld_config_tlv(bsta_mld_tlv->value, ntohs(bsta_mld_tlv->len)) != 0) {
+            em_printfout("WSC M2 Backhaul STA MLD TLV processing failed");
+            return -1;
+        }
+        em_printfout("WSC M2 Backhaul STA MLD updated");
     }
 
     if (em_get_ext_hooks()->intercept_agent_event(static_cast<em_t *> (this), em_bus_event_type_m2ctrl_configuration,

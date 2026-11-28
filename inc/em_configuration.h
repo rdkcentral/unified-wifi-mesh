@@ -277,17 +277,18 @@ class em_configuration_t {
 	/**!
 	 * @brief Creates a BSTA MLD configuration TLV.
 	 *
-	 * This function is responsible for creating a BSTA MLD (Basic Service Set Transition Management Link Discovery) configuration TLV (Type-Length-Value) structure and storing it in the provided buffer.
+	 * Encodes a Backhaul STA Multi-Link Device configuration TLV value.
 	 *
 	 * @param[out] buff Pointer to the buffer where the TLV will be stored.
+	 * @param[in] config Optional configuration; when null, uses reported BSTA MLD information.
 	 *
 	 * @returns int
-	 * @retval 0 on success
-	 * @retval -1 on failure
+	 * @retval Positive The encoded TLV value length in bytes.
+	 * @retval 0 No BSTA MLD information is available or its affiliate count is invalid.
 	 *
 	 * @note Ensure that the buffer is large enough to hold the TLV structure.
 	 */
-	int create_bsta_mld_config_tlv(unsigned char *buff);
+	int create_bsta_mld_config_tlv(unsigned char *buff, const em_bsta_mld_info_t *config = nullptr);
     
 	/**!
 	 * @brief Creates an association station MLD configuration report TLV.
@@ -957,6 +958,21 @@ class em_configuration_t {
 	 * @note Ensure the buffer is properly allocated and the length is correct before calling this function.
 	 */
 	int handle_ap_mld_config_tlv(unsigned char *buff, unsigned int len);
+
+	/**!
+	 * @brief Decodes a Backhaul STA MLD Configuration TLV value into the data model.
+	 *
+	 * Validates the fixed value length and affiliated BSTA count and length
+	 * before updating MLD identities, mode flags and affiliated BSTA information.
+	 * This does not apply configuration to the platform or send an acknowledgment.
+	 *
+	 * @param[in] buff Pointer to the TLV value, excluding the type and length header.
+	 * @param[in] len Number of bytes available in the TLV value.
+	 *
+	 * @retval 0 The value was decoded and passed to the data-model updater.
+	 * @retval -1 The value is null, truncated, exceeds affiliate capacity, or no data model exists.
+	 */
+	int handle_bsta_mld_config_tlv(unsigned char *buff, unsigned int len);
     
 	/**!
 	 * @brief Handles EHT operations TLV.
